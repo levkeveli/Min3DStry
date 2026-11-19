@@ -12,36 +12,32 @@ Enable high-throughput AI-first development **without routine human PR merges**.
 
 | Tier | Examples | Policy |
 |---|---|---|
-| A: routine | isolated features, fixes, tests, docs, non-sensitive tools | Auto-merge after required CI, issue/ownership checks, independent automated review where available, and explicit trust verification |
-| B: coordinated | shared interfaces, larger refactors, native hardware backends, networking internals | Auto-merge if architecture contract and relevant integration checks are satisfied; otherwise escalate |
-| C: restricted | workflow permissions, branch protection, secret access, automation-policy files, license change, destructive migrations, stable release, breaking simulation/protocol | Require a human maintainer decision; never unattended merge |
+| A: routine | features, fixes, tests, docs, workflows, tooling | Reviewed and approved by `AI review`; auto-merged once required CI checks pass |
+| B: coordinated | `src/platform/`, `src/net/`, `docs/architecture.md`, build files | Reviewed and approved by `AI review`; auto-merged once required CI and parity/integration checks pass |
+| C: held | PRs with an explicit hold label (`hold`, `needs-human`, `do-not-merge`, `status:blocked`, `tier:c`) | Auto-merge paused until the maintainer removes the hold label |
 
-**Critical safeguard:** classify based on changed paths **and actual diff/behavior**, not an agent-supplied `tier:A` label. An agent cannot self-downgrade risk. A trusted controller/maintainer must manage eligibility state. Never put privileged auto-merge credentials in an untrusted PR runner.
+**Critical safeguard:** never put privileged auto-merge credentials or API secrets in an untrusted fork PR runner. External fork PRs do not receive `AI review` secrets or auto-merge.
 
 ## Required conditions for unattended merge
 
-1. PR belongs to a trusted agent identity or authorized contributor; its linked issue is genuinely claimed and scope matches.
-2. Merge base is current, no conflict, and no overlapping task lease or open conflicting PR.
-3. All required checks pass on the actual merge candidate (build, tests, docs, policy, security and any relevant parity checks).
-4. Independent review has run and critical findings are resolved. Independent means separate context/identity from the authoring agent, not a self-review checkbox.
-5. File-path risk gating and branch policies permit the changes; no owner hold label or open security escalation.
-6. Branch protection remains enforced; auto-merge uses GitHub's normal merge path and never force-pushes `main`.
-
-For repositories without an independently trustworthy automated review mechanism, do not pretend one exists: use the deterministic checks as the routine gate for low-risk work and explicitly document the reduced assurance, or gate broader changes for human review.
+1. PR originates from a same-repo branch (not an external fork) and is not a draft.
+2. Merge base has no conflicts.
+3. Required checks (`Bootstrap checks`, `PR policy gate`) pass on the head commit.
+4. `AI review` approves the exact head commit with no unresolved critical/major bugs, security/secret leaks, license violations, or determinism/networking regressions.
+5. No explicit hold label (`hold`, `needs-human`, `do-not-merge`, `status:blocked`, `tier:c`) is present on the PR.
+6. Auto-merge uses GitHub's normal merge path (`--squash --match-head-commit`) and never force-pushes `main`.
 
 ## Repo/GitHub setup guidance
 
-- Protect `main`: PR-only, forbid force pushes and deletions, required status checks; **do not require universal human approvals** if auto-merge is the chosen workflow.
-- Enable native GitHub auto-merge where possible; if a merge bot is necessary, give it minimum scoped rights and make it verify the above conditions immediately before merge.
-- Keep GitHub Actions `GITHUB_TOKEN` read-only by default; elevate individual trusted jobs only where essential. Never run fork PR code with write secrets or privileged `pull_request_target` checkout.
-- Require separate approvals for changes to `.github/workflows/**`, merge controller, `AGENTS.md`, this file, code signing/release automation and CI trust files.
+- Protect `main`: PR-only, forbid force pushes and deletions, required status checks; **do not require human CODEOWNER or manual maintainer reviews** for same-repo PRs.
+- Enable native GitHub auto-merge so `PR Automation` can queue squash merges automatically once `AI review` approves.
+- Keep GitHub Actions `GITHUB_TOKEN` read-only by default; elevate individual trusted jobs only where essential. Never run fork PR code with secrets or write permissions.
 - CI status checks must be named consistently and cannot be silently skipped.
-- Site deployment should run after `main` updates, separately from PR tests; report failed deployment to maintainers. Publish the last actually deployed SHA.
-- Allow agents to request auto-merge through a verified controller, not by unilaterally modifying repo protections.
+- Site deployment runs after `main` updates, separately from PR tests, and publishes the verified deployed commit SHA.
 
 ## Review/incident handling
 
-If CI fails or review finds problems, return the task to the coding agent with logs and a bounded retry budget. If retries are exhausted, mark Blocked and notify the sponsor. Revert a regression via a new reviewed PR or approved rollback process; preserve audit logs. Never silently delete evidence.
+If CI fails or `AI review` flags critical/major findings, return the task to the coding agent with logs so it can push a fix. Revert regressions via a new PR; preserve audit logs and never silently delete evidence.
 
 ## Sources
 
@@ -52,7 +48,7 @@ If CI fails or review finds problems, return the task to the coding agent with l
 ## Current operating mode
 
 - **Maintainers:** Levy (`@admiraly`, admin), Kevin and Elia (`@Hxgg22`, `@Satixfied`, maintain).
-- **Automated PR review and merge:** `.github/workflows/ai-pr-review.yml` runs `PR policy gate`, `AI review` (using `OPENCODE_GO_API_KEY` / `OPENCODE_API_KEY` with `deepseek-v4.1-flash` by default, or `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `GEMINI_API_KEY` from repository secrets), and native GitHub auto-merge for eligible Tier A/B pull requests on repository branches.
-- **Tier C protection:** `.github/CODEOWNERS` covers only Tier C governance, workflow, automation-script, security, and license files (`/.github/workflows/`, `/.github/scripts/`, `/.github/CODEOWNERS`, `/AGENTS.md`, `/docs/development/automation-policy.md`, `/SECURITY.md`, `/LICENSE*`, `/COPYING*`). Routine Tier A/B PRs do not require human approval once `AI review` approves and required checks pass.
+- **Automated PR review and merge:** `.github/workflows/ai-pr-review.yml` runs `PR policy gate`, `AI review` (using `OPENCODE_GO_API_KEY` / `OPENCODE_API_KEY` with `deepseek-v4.1-flash` by default, or `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `GEMINI_API_KEY` from repository secrets), and native GitHub auto-merge for all eligible same-repo pull requests.
+- **No CODEOWNERS human gate:** `.github/CODEOWNERS` is removed. Same-repo PRs do not wait on human approval; only drafts, external fork PRs, `AI review` critical/major rejections, or explicit hold labels (`hold`, `needs-human`, `do-not-merge`, `status:blocked`, `tier:c`) prevent auto-merge.
 - **External fork PRs:** Fork PRs do not receive repository secrets or auto-merge and require a maintainer review before merge.
-- **Task leasing:** Automated issue leasing is still pending; a maintainer assigns issues in [Min3DStry Roadmap](https://github.com/orgs/levkeveli/projects/1) before agents start work.
+- **Task leasing:** Automated issue leasing is still pending; maintainers or agents can pick Ready tasks from [Min3DStry Roadmap](https://github.com/orgs/levkeveli/projects/1).
