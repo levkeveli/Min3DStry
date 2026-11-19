@@ -1,4 +1,4 @@
-# Contributing to Mindustry 3DS
+# Contributing to Min3DStry
 
 This is an experimental native homebrew project. The target is full Mindustry support on both 3DS generations, but **no implementation is assumed complete until tested**.
 
