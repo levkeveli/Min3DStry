@@ -1,33 +1,838 @@
 <!doctype html>
 <html lang="en">
+<head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Min3DStry</title>
+<title>Min3DStry — Roadmap &amp; Kanban Board</title>
 <style>
-body { max-width: 48rem; margin: 3rem auto; padding: 0 1rem; font: 1rem/1.6 system-ui; }
-table { width: 100%; border-collapse: collapse; }
-th, td { padding: .5rem; border-bottom: 1px solid #888; text-align: left; }
-code { overflow-wrap: anywhere; }
+  :root {
+    --bg: #0c1117;
+    --bg-grid: rgba(255, 255, 255, 0.025);
+    --surface: #131a23;
+    --surface-2: #19222e;
+    --surface-hover: #202b3a;
+    --border: #283445;
+    --border-strong: #394960;
+    --text: #e6edf3;
+    --muted: #93a1b3;
+    --amber: #f5b841;
+    --amber-dim: rgba(245, 184, 65, 0.14);
+    --copper: #e07a3f;
+    --green: #3fb950;
+    --green-dim: rgba(63, 185, 80, 0.14);
+    --blue: #58a6ff;
+    --blue-dim: rgba(88, 166, 255, 0.14);
+    --purple: #bc8cff;
+    --purple-dim: rgba(188, 140, 255, 0.14);
+    --red: #f85149;
+    --red-dim: rgba(248, 81, 73, 0.14);
+    --gray: #8b949e;
+    --gray-dim: rgba(139, 148, 158, 0.14);
+    --radius: 10px;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --sans: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: var(--sans); line-height: 1.5; }
+  body {
+    background-image:
+      linear-gradient(to right, var(--bg-grid) 1px, transparent 1px),
+      linear-gradient(to bottom, var(--bg-grid) 1px, transparent 1px);
+    background-size: 28px 28px;
+    min-height: 100vh;
+  }
+
+  a { color: var(--amber); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  .shell { max-width: 1440px; margin: 0 auto; padding: 1.25rem 1.25rem 3rem; }
+
+  /* Header */
+  .topbar {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 1.15rem 1.25rem;
+    background: linear-gradient(135deg, rgba(245, 184, 65, 0.08), rgba(25, 34, 46, 0.95) 55%);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 1rem;
+  }
+  .brand-row { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+  .logo-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 8px;
+    background: var(--amber-dim);
+    border: 1px solid rgba(245, 184, 65, 0.45);
+    color: var(--amber);
+    font-family: var(--mono);
+    font-weight: 800;
+    font-size: 0.95rem;
+  }
+  h1 { margin: 0; font-size: 1.35rem; letter-spacing: -0.01em; }
+  .tag {
+    font-size: 0.74rem;
+    font-family: var(--mono);
+    padding: 0.18rem 0.55rem;
+    border-radius: 999px;
+    border: 1px solid var(--border-strong);
+    background: var(--surface-2);
+    color: var(--muted);
+  }
+  .subtitle { margin: 0.35rem 0 0; color: var(--muted); font-size: 0.9rem; max-width: 68ch; }
+
+  .top-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.48rem 0.8rem;
+    border-radius: 8px;
+    border: 1px solid var(--border-strong);
+    background: var(--surface-2);
+    color: var(--text);
+    font-size: 0.84rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .btn:hover { background: var(--surface-hover); border-color: var(--amber); text-decoration: none; }
+  .btn-primary { background: var(--amber); color: #11161d; border-color: var(--amber); }
+  .btn-primary:hover { background: #ffc75b; border-color: #ffc75b; }
+
+  .meta-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem 1.25rem;
+    align-items: center;
+    font-size: 0.8rem;
+    color: var(--muted);
+    margin-bottom: 1rem;
+    padding: 0 0.25rem;
+  }
+  .meta-bar code { font-family: var(--mono); color: var(--text); background: var(--surface-2); padding: 0.1rem 0.4rem; border-radius: 5px; }
+
+  /* Summary Stats */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 0.65rem;
+    margin-bottom: 1rem;
+  }
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.75rem 0.85rem;
+    cursor: pointer;
+    transition: border-color 0.15s, transform 0.12s;
+  }
+  .stat-card:hover { border-color: var(--border-strong); transform: translateY(-1px); }
+  .stat-card.active { border-color: var(--amber); background: var(--surface-2); }
+  .stat-label { font-size: 0.75rem; color: var(--muted); display: flex; align-items: center; gap: 0.4rem; }
+  .stat-value { font-size: 1.45rem; font-weight: 700; font-family: var(--mono); margin-top: 0.15rem; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+
+  /* Toolbar */
+  .toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 0.9rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 1rem;
+  }
+  .tabs { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+  .tab {
+    padding: 0.45rem 0.85rem;
+    border-radius: 7px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--muted);
+    font-size: 0.86rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .tab:hover { color: var(--text); background: var(--surface-2); }
+  .tab.active { color: var(--amber); background: var(--amber-dim); border-color: rgba(245, 184, 65, 0.35); }
+
+  .filters { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+  .input, .select {
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border-strong);
+    border-radius: 7px;
+    padding: 0.42rem 0.65rem;
+    font-size: 0.84rem;
+    font-family: inherit;
+  }
+  .input { min-width: 210px; }
+  .input:focus, .select:focus { outline: none; border-color: var(--amber); }
+
+  /* Kanban Board */
+  .board {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(230px, 1fr));
+    gap: 0.85rem;
+    overflow-x: auto;
+    padding-bottom: 0.5rem;
+  }
+  .column {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    display: flex;
+    flex-direction: column;
+    min-height: 360px;
+  }
+  .col-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 0.85rem;
+    border-bottom: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.015);
+    border-radius: var(--radius) var(--radius) 0 0;
+  }
+  .col-title { display: flex; align-items: center; gap: 0.45rem; font-weight: 700; font-size: 0.88rem; }
+  .col-count {
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    padding: 0.1rem 0.45rem;
+    border-radius: 999px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--muted);
+  }
+  .col-body { padding: 0.65rem; display: flex; flex-direction: column; gap: 0.6rem; flex: 1; }
+  .empty-col {
+    margin: auto 0;
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.8rem;
+    padding: 1.5rem 0.5rem;
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+  }
+
+  /* Task Card */
+  .card {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.72rem 0.78rem;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s, transform 0.12s;
+  }
+  .card:hover { border-color: var(--amber); background: var(--surface-hover); transform: translateY(-1px); }
+  .card-top { display: flex; justify-content: space-between; align-items: center; gap: 0.4rem; margin-bottom: 0.35rem; }
+  .issue-num { font-family: var(--mono); font-size: 0.75rem; color: var(--muted); }
+  .card-title { font-size: 0.9rem; font-weight: 600; color: var(--text); margin: 0 0 0.45rem; line-height: 1.35; }
+  .card-desc {
+    font-size: 0.79rem;
+    color: var(--muted);
+    margin: 0 0 0.55rem;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .pills { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+  .pill {
+    font-size: 0.7rem;
+    font-family: var(--mono);
+    padding: 0.12rem 0.42rem;
+    border-radius: 5px;
+    border: 1px solid var(--border-strong);
+    background: rgba(12, 17, 23, 0.6);
+    color: var(--muted);
+  }
+  .pill-phase { color: var(--blue); border-color: rgba(88, 166, 255, 0.35); background: var(--blue-dim); }
+  .pill-area { color: var(--amber); border-color: rgba(245, 184, 65, 0.35); background: var(--amber-dim); }
+  .pill-assignee { color: var(--green); border-color: rgba(63, 185, 80, 0.35); background: var(--green-dim); }
+
+  /* Roadmap View */
+  .roadmap-list { display: flex; flex-direction: column; gap: 1rem; }
+  .phase-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1rem 1.1rem;
+  }
+  .phase-head {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+  }
+  .phase-head h2 { margin: 0; font-size: 1.05rem; }
+  .phase-sub { margin: 0.2rem 0 0; font-size: 0.84rem; color: var(--muted); }
+  .progress-wrap { min-width: 200px; }
+  .progress-label { display: flex; justify-content: space-between; font-size: 0.76rem; font-family: var(--mono); color: var(--muted); margin-bottom: 0.25rem; }
+  .progress-track { height: 8px; border-radius: 999px; background: var(--bg); border: 1px solid var(--border); overflow: hidden; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, var(--green), var(--amber)); }
+  .phase-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 0.7rem; }
+
+  /* Compatibility & Activity */
+  .two-col { display: grid; grid-template-columns: 1.15fr 1fr; gap: 1rem; }
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1rem 1.1rem;
+  }
+  .panel h2 { margin: 0 0 0.75rem; font-size: 1.02rem; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.87rem; }
+  th, td { padding: 0.55rem 0.5rem; border-bottom: 1px solid var(--border); text-align: left; }
+  th { color: var(--muted); font-weight: 600; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; }
+
+  .badge {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    padding: 0.14rem 0.48rem;
+    border-radius: 999px;
+    border: 1px solid transparent;
+  }
+  .badge-unverified { color: var(--gray); background: var(--gray-dim); border-color: rgba(139, 148, 158, 0.35); }
+  .badge-ok { color: var(--green); background: var(--green-dim); border-color: rgba(63, 185, 80, 0.35); }
+  .badge-warn { color: var(--amber); background: var(--amber-dim); border-color: rgba(245, 184, 65, 0.35); }
+  .badge-fail { color: var(--red); background: var(--red-dim); border-color: rgba(248, 81, 73, 0.35); }
+
+  .activity-list { display: flex; flex-direction: column; gap: 0.55rem; }
+  .activity-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.55rem 0.7rem;
+    border-radius: 8px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    font-size: 0.84rem;
+  }
+  .activity-row .sub { font-size: 0.76rem; color: var(--muted); font-family: var(--mono); }
+
+  /* Modal */
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(5, 8, 12, 0.76);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    z-index: 50;
+  }
+  .modal-backdrop.open { display: flex; }
+  .modal {
+    width: min(640px, 100%);
+    max-height: 85vh;
+    overflow-y: auto;
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
+    border-radius: 12px;
+    padding: 1.2rem 1.25rem;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+  }
+  .modal-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; margin-bottom: 0.75rem; }
+  .modal-head h3 { margin: 0; font-size: 1.12rem; }
+  .modal-body { white-space: pre-wrap; color: var(--muted); font-size: 0.9rem; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 0.85rem; margin: 0.75rem 0 1rem; }
+
+  .hidden { display: none !important; }
+
+  @media (max-width: 1100px) {
+    .stats-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .two-col { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 640px) {
+    .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .input { min-width: 100%; }
+    .board { grid-template-columns: repeat(6, minmax(260px, 85vw)); }
+  }
 </style>
-<main>
-<h1>Min3DStry</h1>
-<p>Native 3DS homebrew port in the bootstrap stage.</p>
-<p>Published source <a href="https://github.com/levkeveli/Min3DStry/commit/@SHA@"><code>@SHA@</code></a></p>
-<ul>
-<li><a href="https://github.com/levkeveli/Min3DStry/actions">CI and deployment history</a></li>
-<li><a href="https://github.com/levkeveli/Min3DStry/issues?q=is%3Aissue%20is%3Aopen">Roadmap, open work and blockers</a></li>
-<li><a href="https://github.com/levkeveli/Min3DStry/releases">Release artifacts</a></li>
-<li><a href="https://github.com/levkeveli/Min3DStry/pulls?q=is%3Apr">Pull request activity</a></li>
-</ul>
-<h2>Compatibility</h2>
-<table>
-<tr><th scope="col">Evidence</th><th scope="col">Status</th></tr>
-<tr><th scope="row">Native build</th><td>Unverified</td></tr>
-<tr><th scope="row">Emulator boot</th><td>Unverified</td></tr>
-<tr><th scope="row">Original 3DS / 2DS boot</th><td>Unverified</td></tr>
-<tr><th scope="row">New 3DS / 2DS boot</th><td>Unverified</td></tr>
-<tr><th scope="row">Gameplay, maps and saves</th><td>Unverified</td></tr>
-<tr><th scope="row">Upstream multiplayer</th><td>Unverified</td></tr>
-</table>
-</main>
+</head>
+<body>
+<div class="shell">
+  <header class="topbar">
+    <div>
+      <div class="brand-row">
+        <span class="logo-badge">M3DS</span>
+        <h1>Min3DStry Roadmap &amp; Kanban</h1>
+        <span class="tag">Experimental</span>
+      </div>
+      <p class="subtitle">
+        Native open-source full Mindustry port for Original &amp; New Nintendo 3DS/2DS (ARM11, libctru, Citro2D/Citro3D).
+        Maintainers: Levy (<code>@admiraly</code>), Kevin &amp; Elia (<code>@Hxgg22</code>, <code>@Satixfied</code>).
+      </p>
+    </div>
+    <div class="top-actions">
+      <a class="btn btn-primary" href="https://github.com/orgs/levkeveli/projects/1" target="_blank" rel="noopener">Open GitHub Board</a>
+      <a class="btn" href="https://github.com/levkeveli/Min3DStry/issues/new/choose" target="_blank" rel="noopener">New Task</a>
+      <a class="btn" href="https://github.com/levkeveli/Min3DStry/pulls" target="_blank" rel="noopener">PRs</a>
+      <a class="btn" href="https://github.com/levkeveli/Min3DStry/actions" target="_blank" rel="noopener">CI</a>
+      <button class="btn" id="refreshBtn" type="button">Refresh Live</button>
+    </div>
+  </header>
+
+  <div class="meta-bar">
+    <span>Published SHA: <a href="https://github.com/levkeveli/Min3DStry/commit/@SHA@" target="_blank" rel="noopener"><code>@SHA@</code></a></span>
+    <span id="dataSourceText">Source: loading...</span>
+    <span>Evidence scale: <code>Planned</code> → <code>Experimental</code> → <code>Host-tested</code> → <code>Emulator-tested</code> → <code>Hardware-verified</code> → <code>Released</code></span>
+  </div>
+
+  <section class="stats-grid" id="statsGrid"></section>
+
+  <div class="toolbar">
+    <div class="tabs" role="tablist">
+      <button class="tab active" data-view="kanban" type="button">Kanban Board</button>
+      <button class="tab" data-view="roadmap" type="button">Roadmap by Phase</button>
+      <button class="tab" data-view="compat" type="button">Compatibility &amp; Activity</button>
+    </div>
+    <div class="filters">
+      <input class="input" id="searchInput" type="search" placeholder="Search #issue, title, keyword...">
+      <select class="select" id="phaseFilter">
+        <option value="all">All Phases</option>
+        <option value="0-foundation">Phase 0: Foundation</option>
+        <option value="1-core">Phase 1: Core &amp; Probes</option>
+        <option value="2-rendering">Phase 2: Rendering &amp; Assets</option>
+        <option value="3-hardware">Phase 3: Hardware &amp; Parity</option>
+      </select>
+      <select class="select" id="areaFilter">
+        <option value="all">All Areas</option>
+        <option value="portability">Portability</option>
+        <option value="hardware">Hardware</option>
+        <option value="rendering">Rendering</option>
+        <option value="assets">Assets</option>
+        <option value="testing">Testing</option>
+        <option value="devops">DevOps</option>
+      </select>
+      <select class="select" id="assigneeFilter">
+        <option value="all">All Assignees</option>
+        <option value="unassigned">Unassigned</option>
+        <option value="admiraly">@admiraly</option>
+        <option value="Hxgg22">@Hxgg22</option>
+        <option value="Satixfied">@Satixfied</option>
+      </select>
+    </div>
+  </div>
+
+  <main>
+    <section id="view-kanban" class="board"></section>
+    <section id="view-roadmap" class="roadmap-list hidden"></section>
+    <section id="view-compat" class="two-col hidden">
+      <div class="panel">
+        <h2>Verified Compatibility Matrix</h2>
+        <table>
+          <thead><tr><th>Capability / Target</th><th>Status</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td>Repository, CI &amp; AI PR review</td><td><span class="badge badge-ok">Host-tested</span></td><td><code>./dev.sh test</code>, PR policy gate, OpenCode Go / LLM review</td></tr>
+            <tr><td>Native ARM11 3DS build</td><td><span class="badge badge-unverified">Unverified</span></td><td>devkitPro / libctru toolchain integration pending</td></tr>
+            <tr><td>Emulator boot (Azahar / Citra)</td><td><span class="badge badge-unverified">Unverified</span></td><td>Awaiting first native target</td></tr>
+            <tr><td>Original 3DS / 2DS boot</td><td><span class="badge badge-unverified">Unverified</span></td><td>Pending Issue #2 &amp; #6</td></tr>
+            <tr><td>New 3DS / 2DS boot</td><td><span class="badge badge-unverified">Unverified</span></td><td>Pending Issue #2 &amp; #6</td></tr>
+            <tr><td>Gameplay, maps &amp; saves</td><td><span class="badge badge-unverified">Unverified</span></td><td>Pending Issue #1 &amp; #7 parity harness</td></tr>
+            <tr><td>Upstream multiplayer</td><td><span class="badge badge-unverified">Unverified</span></td><td>Pending deterministic simulation &amp; net probe</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel">
+        <h2>Recent Pull Requests &amp; CI Runs</h2>
+        <div class="activity-list" id="activityList">
+          <div class="activity-row"><span>Loading repository activity...</span></div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div class="modal-backdrop" id="modalBackdrop" role="dialog" aria-modal="true">
+  <div class="modal">
+    <div class="modal-head">
+      <div>
+        <div class="issue-num" id="modalMeta"></div>
+        <h3 id="modalTitle"></h3>
+      </div>
+      <button class="btn" id="modalClose" type="button">Close</button>
+    </div>
+    <div class="pills" id="modalPills"></div>
+    <div class="modal-body" id="modalBody"></div>
+    <div class="top-actions">
+      <a class="btn btn-primary" id="modalOpenIssue" href="#" target="_blank" rel="noopener">Open Issue on GitHub</a>
+      <a class="btn" href="https://github.com/orgs/levkeveli/projects/1" target="_blank" rel="noopener">Open Kanban Project</a>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const REPO = "levkeveli/Min3DStry";
+  const COLUMNS = [
+    { key: "ready", label: "Ready", color: "var(--green)" },
+    { key: "in-progress", label: "In Progress", color: "var(--blue)" },
+    { key: "in-review", label: "In Review", color: "var(--purple)" },
+    { key: "blocked", label: "Blocked", color: "var(--red)" },
+    { key: "backlog", label: "Backlog", color: "var(--gray)" },
+    { key: "done", label: "Done", color: "var(--amber)" }
+  ];
+  const PHASES = [
+    { key: "0-foundation", title: "Phase 0: Foundation", desc: "Repository setup, CI checks, AI PR review & approval, and dashboard." },
+    { key: "1-core", title: "Phase 1: Core & Probes", desc: "Java-to-native feasibility, host test backend, and Old/New 3DS detection." },
+    { key: "2-rendering", title: "Phase 2: Rendering & Assets", desc: "Citro2D rendering prototype and reproducible asset conversion pipeline." },
+    { key: "3-hardware", title: "Phase 3: Hardware & Parity", desc: "Real 3DS deployment/log streaming and upstream gameplay parity harness." }
+  ];
+
+  const FALLBACK = {
+    sha: "@SHA@",
+    generated_at: "unavailable",
+    issues: [],
+    pulls: [],
+    runs: []
+  };
+
+  let state = {
+    data: FALLBACK,
+    view: "kanban",
+    statusFilter: "all",
+    phase: "all",
+    area: "all",
+    assignee: "all",
+    search: ""
+  };
+
+  function esc(str) {
+    return String(str ?? "").replace(/[&<>"']/g, (ch) => (
+      { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]
+    ));
+  }
+
+  function normalizeIssue(raw) {
+    const labels = (raw.labels || []).map((l) => typeof l === "string" ? l : l.name);
+    let status = raw.status === "claimed" ? "in-progress" : (raw.status || "");
+    if (!status) {
+      status = raw.state === "closed" ? "done" : "backlog";
+      if (raw.state !== "closed") {
+        for (const s of ["in-review", "in-progress", "claimed", "ready", "blocked", "backlog"]) {
+          if (labels.includes("status:" + s)) {
+            status = s === "claimed" ? "in-progress" : s;
+            break;
+          }
+        }
+      }
+    }
+    const phaseLbl = labels.find((l) => l.startsWith("phase:"));
+    const areaLbl = labels.find((l) => l.startsWith("area:"));
+    return {
+      number: raw.number,
+      title: raw.title,
+      body: raw.body || "",
+      state: raw.state,
+      status,
+      phase: raw.phase || (phaseLbl ? phaseLbl.slice(6) : null),
+      area: raw.area || (areaLbl ? areaLbl.slice(5) : null),
+      labels,
+      assignees: (raw.assignees || []).map((a) => typeof a === "string" ? a : a.login),
+      url: raw.url || raw.html_url
+    };
+  }
+
+  function filteredIssues() {
+    const q = state.search.trim().toLowerCase();
+    return state.data.issues.filter((issue) => {
+      if (state.statusFilter !== "all" && issue.status !== state.statusFilter) return false;
+      if (state.phase !== "all" && issue.phase !== state.phase) return false;
+      if (state.area !== "all" && issue.area !== state.area) return false;
+      if (state.assignee === "unassigned" && issue.assignees.length > 0) return false;
+      if (state.assignee !== "all" && state.assignee !== "unassigned" && !issue.assignees.includes(state.assignee)) return false;
+      if (q) {
+        const hay = `#${issue.number} ${issue.title} ${issue.body} ${issue.labels.join(" ")}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+  }
+
+  function renderStats() {
+    const el = document.getElementById("statsGrid");
+    const counts = Object.fromEntries(COLUMNS.map((c) => [c.key, 0]));
+    for (const issue of state.data.issues) {
+      if (counts[issue.status] !== undefined) counts[issue.status]++;
+    }
+    el.innerHTML = COLUMNS.map((c) => `
+      <div class="stat-card ${state.statusFilter === c.key ? "active" : ""}" data-status="${c.key}">
+        <div class="stat-label"><span class="dot" style="background:${c.color}"></span>${esc(c.label)}</div>
+        <div class="stat-value">${counts[c.key]}</div>
+      </div>
+    `).join("");
+
+    el.querySelectorAll(".stat-card").forEach((card) => {
+      card.addEventListener("click", () => {
+        const key = card.dataset.status;
+        state.statusFilter = state.statusFilter === key ? "all" : key;
+        renderAll();
+      });
+    });
+  }
+
+  function cardHtml(issue) {
+    const phaseTag = issue.phase ? `<span class="pill pill-phase">${esc(issue.phase)}</span>` : "";
+    const areaTag = issue.area ? `<span class="pill pill-area">${esc(issue.area)}</span>` : "";
+    const assignees = issue.assignees.length
+      ? issue.assignees.map((a) => `<span class="pill pill-assignee">@${esc(a)}</span>`).join("")
+      : `<span class="pill">unassigned</span>`;
+    return `
+      <article class="card" data-issue="${issue.number}">
+        <div class="card-top">
+          <span class="issue-num">#${issue.number}</span>
+          <span class="issue-num">${esc(issue.state)}</span>
+        </div>
+        <h3 class="card-title">${esc(issue.title)}</h3>
+        <p class="card-desc">${esc(issue.body || "No description.")}</p>
+        <div class="pills">${phaseTag}${areaTag}${assignees}</div>
+      </article>
+    `;
+  }
+
+  function bindCardClicks(container) {
+    container.querySelectorAll(".card").forEach((card) => {
+      card.addEventListener("click", () => {
+        const num = Number(card.dataset.issue);
+        const issue = state.data.issues.find((i) => i.number === num);
+        if (issue) openModal(issue);
+      });
+    });
+  }
+
+  function renderKanban() {
+    const board = document.getElementById("view-kanban");
+    const items = filteredIssues();
+    board.innerHTML = COLUMNS.map((col) => {
+      const colItems = items.filter((i) => i.status === col.key);
+      const body = colItems.length
+        ? colItems.map(cardHtml).join("")
+        : `<div class="empty-col">No matching tasks</div>`;
+      return `
+        <div class="column">
+          <div class="col-head">
+            <span class="col-title"><span class="dot" style="background:${col.color}"></span>${esc(col.label)}</span>
+            <span class="col-count">${colItems.length}</span>
+          </div>
+          <div class="col-body">${body}</div>
+        </div>
+      `;
+    }).join("");
+    bindCardClicks(board);
+  }
+
+  function renderRoadmap() {
+    const root = document.getElementById("view-roadmap");
+    const items = filteredIssues();
+    root.innerHTML = PHASES.map((phase) => {
+      const allPhaseItems = state.data.issues.filter((i) => i.phase === phase.key);
+      const doneCount = allPhaseItems.filter((i) => i.status === "done").length;
+      const total = allPhaseItems.length;
+      const pct = total ? Math.round((doneCount / total) * 100) : 0;
+      const visibleItems = items.filter((i) => i.phase === phase.key);
+      return `
+        <div class="phase-box">
+          <div class="phase-head">
+            <div>
+              <h2>${esc(phase.title)}</h2>
+              <p class="phase-sub">${esc(phase.desc)}</p>
+            </div>
+            <div class="progress-wrap">
+              <div class="progress-label"><span>${doneCount} / ${total} issues closed</span><span>${pct}%</span></div>
+              <div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>
+            </div>
+          </div>
+          <div class="phase-cards">
+            ${visibleItems.length ? visibleItems.map(cardHtml).join("") : `<div class="empty-col">No matching tasks in this phase</div>`}
+          </div>
+        </div>
+      `;
+    }).join("");
+    bindCardClicks(root);
+  }
+
+  function renderActivity() {
+    const el = document.getElementById("activityList");
+    const pulls = state.data.pulls || [];
+    const runs = state.data.runs || [];
+    const rows = [];
+    for (const r of runs.slice(0, 5)) {
+      const cls = r.conclusion === "success" ? "badge-ok" : (r.conclusion === "failure" ? "badge-fail" : "badge-warn");
+      const label = r.conclusion || r.status || "running";
+      rows.push(`
+        <a class="activity-row" href="${esc(r.url)}" target="_blank" rel="noopener">
+          <div>
+            <div><strong>${esc(r.name)}</strong> <span class="sub">(${esc(r.branch)} @ ${esc(r.sha)})</span></div>
+            <div class="sub">${esc(r.event)}</div>
+          </div>
+          <span class="badge ${cls}">${esc(label)}</span>
+        </a>
+      `);
+    }
+    for (const p of pulls.slice(0, 5)) {
+      const merged = Boolean(p.merged_at);
+      const cls = merged ? "badge-ok" : (p.state === "open" ? "badge-warn" : "badge-unverified");
+      const label = merged ? "merged" : p.state;
+      rows.push(`
+        <a class="activity-row" href="${esc(p.url)}" target="_blank" rel="noopener">
+          <div>
+            <div><strong>PR #${p.number}</strong>: ${esc(p.title)}</div>
+            <div class="sub">by @${esc(p.author || "unknown")}</div>
+          </div>
+          <span class="badge ${cls}">${esc(label)}</span>
+        </a>
+      `);
+    }
+    el.innerHTML = rows.length ? rows.join("") : `<div class="empty-col">Open GitHub Actions or Pull Requests to inspect live activity.</div>`;
+  }
+
+  function openModal(issue) {
+    document.getElementById("modalMeta").textContent = `Issue #${issue.number} • ${issue.status.toUpperCase()} • ${issue.state}`;
+    document.getElementById("modalTitle").textContent = issue.title;
+    const pills = [
+      issue.phase ? `<span class="pill pill-phase">${esc(issue.phase)}</span>` : "",
+      issue.area ? `<span class="pill pill-area">${esc(issue.area)}</span>` : "",
+      ...(issue.assignees.length ? issue.assignees.map((a) => `<span class="pill pill-assignee">@${esc(a)}</span>`) : [`<span class="pill">unassigned</span>`]),
+      ...issue.labels.map((l) => `<span class="pill">${esc(l)}</span>`)
+    ].join("");
+    document.getElementById("modalPills").innerHTML = pills;
+    document.getElementById("modalBody").textContent = issue.body || "No description provided.";
+    document.getElementById("modalOpenIssue").href = issue.url;
+    document.getElementById("modalBackdrop").classList.add("open");
+  }
+
+  function closeModal() {
+    document.getElementById("modalBackdrop").classList.remove("open");
+  }
+
+  function renderAll() {
+    renderStats();
+    document.getElementById("view-kanban").classList.toggle("hidden", state.view !== "kanban");
+    document.getElementById("view-roadmap").classList.toggle("hidden", state.view !== "roadmap");
+    document.getElementById("view-compat").classList.toggle("hidden", state.view !== "compat");
+    if (state.view === "kanban") renderKanban();
+    if (state.view === "roadmap") renderRoadmap();
+    if (state.view === "compat") renderActivity();
+  }
+
+  async function loadSnapshot() {
+    const srcEl = document.getElementById("dataSourceText");
+    try {
+      const resp = await fetch("./data.json", { cache: "no-store" });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const json = await resp.json();
+      state.data = {
+        ...json,
+        issues: (json.issues || []).map(normalizeIssue)
+      };
+      srcEl.textContent = `Snapshot built ${json.generated_at}`;
+      renderAll();
+      return;
+    } catch (_) {
+      // Fallback to live public GitHub API when opened without data.json
+      await loadLiveGitHub(true);
+    }
+  }
+
+  async function loadLiveGitHub(isFallback = false) {
+    const srcEl = document.getElementById("dataSourceText");
+    const btn = document.getElementById("refreshBtn");
+    btn.textContent = "Refreshing...";
+    try {
+      const [issuesResp, pullsResp, runsResp] = await Promise.all([
+        fetch(`https://api.github.com/repos/${REPO}/issues?state=all&per_page=100`),
+        fetch(`https://api.github.com/repos/${REPO}/pulls?state=all&per_page=20`),
+        fetch(`https://api.github.com/repos/${REPO}/actions/runs?per_page=10`)
+      ]);
+      if (!issuesResp.ok) throw new Error(`GitHub API ${issuesResp.status}`);
+      const issuesRaw = await issuesResp.json();
+      const pullsRaw = pullsResp.ok ? await pullsResp.json() : [];
+      const runsRaw = runsResp.ok ? (await runsResp.json()).workflow_runs || [] : [];
+
+      state.data = {
+        sha: state.data.sha,
+        generated_at: new Date().toISOString(),
+        issues: issuesRaw.filter((i) => !i.pull_request).map(normalizeIssue),
+        pulls: pullsRaw.map((p) => ({
+          number: p.number,
+          title: p.title,
+          state: p.state,
+          merged_at: p.merged_at,
+          author: p.user ? p.user.login : "unknown",
+          url: p.html_url
+        })),
+        runs: runsRaw.map((r) => ({
+          name: r.name,
+          status: r.status,
+          conclusion: r.conclusion,
+          branch: r.head_branch,
+          event: r.event,
+          sha: (r.head_sha || "").slice(0, 7),
+          url: r.html_url
+        }))
+      };
+      srcEl.textContent = `Live GitHub API (${new Date().toLocaleTimeString()})`;
+    } catch (err) {
+      srcEl.textContent = isFallback ? "Embedded starter snapshot (offline)" : `Live refresh unavailable (${err.message})`;
+    } finally {
+      btn.textContent = "Refresh Live";
+      renderAll();
+    }
+  }
+
+  document.querySelectorAll(".tab").forEach((tab) => {
+    tab.addEventListener("click", () => {
+      document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
+      tab.classList.add("active");
+      state.view = tab.dataset.view;
+      renderAll();
+    });
+  });
+
+  document.getElementById("searchInput").addEventListener("input", (e) => {
+    state.search = e.target.value;
+    renderAll();
+  });
+  document.getElementById("phaseFilter").addEventListener("change", (e) => {
+    state.phase = e.target.value;
+    renderAll();
+  });
+  document.getElementById("areaFilter").addEventListener("change", (e) => {
+    state.area = e.target.value;
+    renderAll();
+  });
+  document.getElementById("assigneeFilter").addEventListener("change", (e) => {
+    state.assignee = e.target.value;
+    renderAll();
+  });
+  document.getElementById("refreshBtn").addEventListener("click", () => loadLiveGitHub(false));
+  document.getElementById("modalClose").addEventListener("click", closeModal);
+  document.getElementById("modalBackdrop").addEventListener("click", (e) => {
+    if (e.target.id === "modalBackdrop") closeModal();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeModal();
+  });
+
+  renderAll();
+  loadSnapshot();
+})();
+</script>
+</body>
 </html>
