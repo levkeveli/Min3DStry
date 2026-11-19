@@ -1,0 +1,79 @@
+name: PR Automation
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled, edited]
+
+permissions: {}
+
+jobs:
+  policy-gate:
+    name: PR policy gate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      pr_number: ${{ steps.classify.outputs.pr_number }}
+      head_sha: ${{ steps.classify.outputs.head_sha }}
+      base_ref: ${{ steps.classify.outputs.base_ref }}
+      tier: ${{ steps.classify.outputs.tier }}
+      same_repo: ${{ steps.classify.outputs.same_repo }}
+      eligible_for_ai_review: ${{ steps.classify.outputs.eligible_for_ai_review }}
+      eligible_for_auto_merge: ${{ steps.classify.outputs.eligible_for_auto_merge }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - id: classify
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 .github/scripts/pr_automation.py classify
+
+  ai-review:
+    name: AI review
+    needs: [policy-gate]
+    if: ${{ needs.policy-gate.outputs.eligible_for_ai_review == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENCODE_GO_API_KEY: ${{ secrets.OPENCODE_GO_API_KEY }}
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          AI_REVIEW_PROVIDER: ${{ vars.AI_REVIEW_PROVIDER }}
+          AI_REVIEW_MODEL: ${{ vars.AI_REVIEW_MODEL }}
+          AI_REVIEW_BASE_URL: ${{ vars.AI_REVIEW_BASE_URL }}
+        run: >-
+          python3 .github/scripts/pr_automation.py ai-review
+          --tier "${{ needs.policy-gate.outputs.tier }}"
+
+  auto-merge:
+    name: Enable auto-merge
+    needs: [policy-gate, ai-review]
+    if: ${{ needs.policy-gate.outputs.eligible_for_auto_merge == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >-
+          python3 .github/scripts/pr_automation.py auto-merge
+          --pr-number "${{ needs.policy-gate.outputs.pr_number }}"
+          --tier "${{ needs.policy-gate.outputs.tier }}"
+          --eligible "${{ needs.policy-gate.outputs.eligible_for_auto_merge }}"

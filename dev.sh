@@ -14,9 +14,11 @@ case "${1:-}" in
     ;;
   test)
     bash -n dev.sh
-    for file in README.md AGENTS.md CONTRIBUTING.md SECURITY.md docs/architecture.md docs/development/automation-policy.md site/index.html; do
+    for file in README.md AGENTS.md CONTRIBUTING.md SECURITY.md docs/architecture.md docs/development/automation-policy.md site/index.html .github/scripts/pr_automation.py .github/scripts/test_pr_automation.py .github/workflows/ai-pr-review.yml; do
       test -s "$file" || { echo "Missing or empty: $file" >&2; exit 1; }
     done
+    python3 -m py_compile .github/scripts/pr_automation.py .github/scripts/test_pr_automation.py
+    python3 -m unittest discover -s .github/scripts -p 'test_*.py'
     git diff --check HEAD
     echo 'Bootstrap checks passed.'
     ;;

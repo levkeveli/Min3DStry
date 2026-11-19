@@ -1,3 +1,5 @@
 /mindustry-3ds-bootstrap.zip
 /mindustry-3ds-bootstrap/
 /build/
+__pycache__/
+*.pyc

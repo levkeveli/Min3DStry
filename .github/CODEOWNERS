@@ -1,6 +1,10 @@
-# The verified repository administrator owns changes by default.
-* @admiraly
-# Routine documentation can use the ordinary CI gate.
-/docs/architecture.md
-/README.md
-# Automation, security and ownership rules still fall under the default.
+# Routine code, tests, tools, assets, and feature docs do not require human approval.
+# Tier C governance, CI trust, security, and license files require a maintainer review.
+/.github/workflows/ @admiraly @Hxgg22 @Satixfied
+/.github/scripts/ @admiraly @Hxgg22 @Satixfied
+/.github/CODEOWNERS @admiraly @Hxgg22 @Satixfied
+/AGENTS.md @admiraly @Hxgg22 @Satixfied
+/docs/development/automation-policy.md @admiraly @Hxgg22 @Satixfied
+/SECURITY.md @admiraly @Hxgg22 @Satixfied
+/LICENSE* @admiraly @Hxgg22 @Satixfied
+/COPYING* @admiraly @Hxgg22 @Satixfied

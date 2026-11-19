@@ -49,6 +49,10 @@ If CI fails or review finds problems, return the task to the coding agent with l
 - GitHub Actions security: https://docs.github.com/en/actions/reference/security/secure-use
 - GitHub Pages deployment: https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages
 
-## Bootstrap operating mode
+## Current operating mode
 
-The lease and trusted eligibility controllers are pending. A maintainer must assign work before agents start, and review the risk classification before merge. Labels track workflow state and grant no authority. GitHub requires code owner review for files covered by CODEOWNERS. Only the verified GitHub administrator is listed initially. Add Kevin and Elia after confirming their GitHub identities and repository access.
+- **Maintainers:** Levy (`@admiraly`, admin), Kevin and Elia (`@Hxgg22`, `@Satixfied`, maintain).
+- **Automated PR review and merge:** `.github/workflows/ai-pr-review.yml` runs `PR policy gate`, `AI review` (using `OPENCODE_GO_API_KEY` / `OPENCODE_API_KEY` with `deepseek-v4.1-flash` by default, or `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `GEMINI_API_KEY` from repository secrets), and native GitHub auto-merge for eligible Tier A/B pull requests on repository branches.
+- **Tier C protection:** `.github/CODEOWNERS` covers only Tier C governance, workflow, automation-script, security, and license files (`/.github/workflows/`, `/.github/scripts/`, `/.github/CODEOWNERS`, `/AGENTS.md`, `/docs/development/automation-policy.md`, `/SECURITY.md`, `/LICENSE*`, `/COPYING*`). Routine Tier A/B PRs do not require human approval once `AI review` approves and required checks pass.
+- **External fork PRs:** Fork PRs do not receive repository secrets or auto-merge and require a maintainer review before merge.
+- **Task leasing:** Automated issue leasing is still pending; a maintainer assigns issues in [Min3DStry Roadmap](https://github.com/orgs/levkeveli/projects/1) before agents start work.
