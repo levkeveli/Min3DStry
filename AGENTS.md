@@ -1,4 +1,4 @@
-# AGENTS.md — Mindustry 3DS
+# AGENTS.md — Min3DStry
 
 ## Mission
 
