@@ -6,3 +6,7 @@ Run `./dev.sh doctor` for environment diagnostics and `./dev.sh test` to validat
 
 - [Project dashboard](https://levkeveli.github.io/3ds-mindustry/)
 - [Roadmap and tasks](https://github.com/levkeveli/3ds-mindustry/issues)
+
+## Current development status
+
+The [bootstrap backlog](https://github.com/levkeveli/3ds-mindustry/issues?q=is%3Aissue+is%3Aopen+label%3Astatus%3Abacklog) covers port feasibility, hardware detection, rendering, assets, host testing, device deployment and gameplay parity. Ask a maintainer to assign an issue before starting work while task leasing is pending.
