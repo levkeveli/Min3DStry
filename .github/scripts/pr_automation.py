@@ -238,7 +238,6 @@ def call_openai_compatible(
     base_payload: dict[str, Any] = {
         "model": model,
         "temperature": 0.1,
-        "max_tokens": 2048,
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
@@ -267,7 +266,12 @@ def call_openai_compatible(
             try:
                 with urllib.request.urlopen(req, timeout=240) as resp:
                     data = json.loads(resp.read().decode("utf-8"))
-                content = data["choices"][0]["message"]["content"]
+                message = data["choices"][0]["message"]
+                content = (message.get("content") or "").strip()
+                if not content:
+                    content = (message.get("reasoning_content") or "").strip()
+                if not content:
+                    raise ValueError(f"Empty model response: {json.dumps(data)[:400]}")
                 return parse_ai_json(content)
             except urllib.error.HTTPError as exc:
                 err_body = exc.read().decode("utf-8", errors="replace")
@@ -280,11 +284,11 @@ def call_openai_compatible(
                 raise RuntimeError(
                     f"LLM API POST {endpoint} failed ({exc.code}): {err_body}"
                 ) from exc
-            except (TimeoutError, urllib.error.URLError) as exc:
+            except (TimeoutError, urllib.error.URLError, ValueError, json.JSONDecodeError) as exc:
                 last_error = exc
                 if attempt == 0:
                     continue
-                raise RuntimeError(f"LLM API POST {endpoint} timed out/failed: {exc}") from exc
+                break
 
     raise RuntimeError(f"LLM API POST {endpoint} failed after retry: {last_error}")
 
