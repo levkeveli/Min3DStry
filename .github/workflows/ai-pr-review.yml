@@ -39,11 +39,14 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
+    outputs:
+      approved: ${{ steps.review.outputs.approved }}
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - env:
+      - id: review
+        env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENCODE_GO_API_KEY: ${{ secrets.OPENCODE_GO_API_KEY }}
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
@@ -60,7 +63,7 @@ jobs:
   auto-merge:
     name: Enable auto-merge
     needs: [policy-gate, ai-review]
-    if: ${{ needs.policy-gate.outputs.eligible_for_auto_merge == 'true' }}
+    if: ${{ needs.policy-gate.outputs.eligible_for_auto_merge == 'true' && needs.ai-review.outputs.approved == 'true' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write

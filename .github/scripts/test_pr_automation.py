@@ -25,35 +25,30 @@ class PrAutomationTests(unittest.TestCase):
         self.assertEqual(tier, "B")
 
     def test_tier_c_protected_files_and_labels(self) -> None:
-        tier, _ = pr_automation.classify_risk_tier(
-            ["src/game/world.c", ".github/workflows/ci.yml"], []
+        tier_pages, _ = pr_automation.classify_risk_tier(
+            [".github/workflows/pages.yml", "site/index.html"], []
         )
-        self.assertEqual(tier, "C")
+        self.assertEqual(tier_pages, "A")
 
-        tier_agents, _ = pr_automation.classify_risk_tier(["AGENTS.md"], [])
-        self.assertEqual(tier_agents, "C")
+        tier_gate, _ = pr_automation.classify_risk_tier(
+            ["src/game/world.c", ".github/workflows/ai-pr-review.yml"], []
+        )
+        self.assertEqual(tier_gate, "C")
+
+        tier_codeowners, _ = pr_automation.classify_risk_tier([".github/CODEOWNERS"], [])
+        self.assertEqual(tier_codeowners, "C")
 
         tier_label, _ = pr_automation.classify_risk_tier(
             ["README.md"], ["status:blocked"]
         )
         self.assertEqual(tier_label, "C")
 
-    def test_metadata_validation(self) -> None:
-        bad_body = (
-            "## Linked Issue\nCloses #<issue>\n\n"
-            "## Verification (do not claim tests that were not run)\n"
-            "- Commands executed:\n- Results:\n"
-        )
-        errors = pr_automation.validate_pr_metadata(bad_body)
-        self.assertEqual(len(errors), 2)
-
-        good_body = (
-            "## Linked Issue\nCloses #9\n\n"
-            "## Verification (do not claim tests that were not run)\n"
-            "- Commands executed: `./dev.sh test`\n"
-            "- Results: passed locally\n"
-        )
-        self.assertEqual(pr_automation.validate_pr_metadata(good_body), [])
+    def test_metadata_validation_and_warnings(self) -> None:
+        empty_body_errors = pr_automation.validate_pr_metadata("")
+        self.assertEqual(empty_body_errors, [])
+        self.assertEqual(len(pr_automation.collect_metadata_warnings("")), 1)
+        self.assertEqual(len(pr_automation.collect_metadata_warnings("Quick fix")), 1)
+        self.assertEqual(pr_automation.collect_metadata_warnings("Fixes #9"), [])
 
     def test_parse_ai_json_with_fences(self) -> None:
         raw = '```json\n{"verdict":"APPROVE","summary":"Looks good","findings":[]}\n```'
