@@ -1,5 +1,6 @@
 /mindustry-3ds-bootstrap.zip
 /mindustry-3ds-bootstrap/
 /build/
+/site/data.json
 __pycache__/
 *.pyc

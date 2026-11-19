@@ -22,8 +22,11 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - run: |
+      - env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
           ./dev.sh test
+          python3 site/generate_dashboard_data.py --out site/data.json --sha "$GITHUB_SHA"
           sed -i "s/@SHA@/$GITHUB_SHA/g" site/index.html
       - uses: actions/upload-pages-artifact@v3
         with:
