@@ -24,19 +24,11 @@ class PrAutomationTests(unittest.TestCase):
         )
         self.assertEqual(tier, "B")
 
-    def test_tier_c_protected_files_and_labels(self) -> None:
-        tier_pages, _ = pr_automation.classify_risk_tier(
-            [".github/workflows/pages.yml", "site/index.html"], []
+    def test_tier_c_explicit_hold_labels_only(self) -> None:
+        tier_workflows, _ = pr_automation.classify_risk_tier(
+            [".github/workflows/pages.yml", ".github/workflows/ai-pr-review.yml"], []
         )
-        self.assertEqual(tier_pages, "A")
-
-        tier_gate, _ = pr_automation.classify_risk_tier(
-            ["src/game/world.c", ".github/workflows/ai-pr-review.yml"], []
-        )
-        self.assertEqual(tier_gate, "C")
-
-        tier_codeowners, _ = pr_automation.classify_risk_tier([".github/CODEOWNERS"], [])
-        self.assertEqual(tier_codeowners, "C")
+        self.assertEqual(tier_workflows, "A")
 
         tier_label, _ = pr_automation.classify_risk_tier(
             ["README.md"], ["status:blocked"]

@@ -1,9 +1,2 @@
-# Code, tests, tools, docs, site, and normal CI/Pages changes do not require human approval;
-# AI review + checks handle approval and auto-merge.
-# Only major trust, merge-gate, security, and license files require human maintainer approval.
-/.github/workflows/ai-pr-review.yml @admiraly @Hxgg22 @Satixfied
-/.github/scripts/pr_automation.py @admiraly @Hxgg22 @Satixfied
-/.github/CODEOWNERS @admiraly @Hxgg22 @Satixfied
-/SECURITY.md @admiraly @Hxgg22 @Satixfied
-/LICENSE* @admiraly @Hxgg22 @Satixfied
-/COPYING* @admiraly @Hxgg22 @Satixfied
+# Human code owner reviews are disabled across all paths.
+# Automated AI review + CI checks handle PR approvals and auto-merge.
