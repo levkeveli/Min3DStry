@@ -48,3 +48,7 @@ If CI fails or review finds problems, return the task to the coding agent with l
 - GitHub auto-merge: https://docs.github.com/en/pull-requests/how-tos/merge-and-close-pull-requests/automatically-merging-a-pull-request
 - GitHub Actions security: https://docs.github.com/en/actions/reference/security/secure-use
 - GitHub Pages deployment: https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages
+
+## Bootstrap operating mode
+
+The lease and trusted eligibility controllers are pending. A maintainer must assign work before agents start, and review the risk classification before merge. Labels track workflow state and grant no authority. GitHub requires code owner review for files covered by CODEOWNERS. Only the verified GitHub administrator is listed initially. Add Kevin and Elia after confirming their GitHub identities and repository access.

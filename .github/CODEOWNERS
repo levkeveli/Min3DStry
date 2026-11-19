@@ -1,0 +1,6 @@
+# The verified repository administrator owns changes by default.
+* @admiraly
+# Routine documentation can use the ordinary CI gate.
+/docs/architecture.md
+/README.md
+# Automation, security and ownership rules still fall under the default.
