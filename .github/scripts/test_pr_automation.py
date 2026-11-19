@@ -75,6 +75,15 @@ class PrAutomationTests(unittest.TestCase):
             assert selected is not None
             self.assertEqual(selected[0], "gemini")
 
+    def test_select_opencode_go_default(self) -> None:
+        with mock.patch.dict(
+            os.environ,
+            {"OPENCODE_API_KEY": "oc-test"},
+            clear=True,
+        ):
+            selected = pr_automation.select_ai_provider()
+            self.assertEqual(selected, ("opencode-go", "oc-test", "deepseek-v4.1-flash"))
+
 
 if __name__ == "__main__":
     unittest.main()

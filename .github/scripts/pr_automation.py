@@ -273,29 +273,55 @@ def parse_ai_json(raw_text: str) -> dict[str, Any]:
     return parsed
 
 
-def call_openai(api_key: str, model: str, system_prompt: str, user_prompt: str) -> dict[str, Any]:
-    payload = {
+def call_openai_compatible(
+    api_key: str,
+    model: str,
+    system_prompt: str,
+    user_prompt: str,
+    *,
+    endpoint: str = "https://api.openai.com/v1/chat/completions",
+    extra_headers: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    base_payload: dict[str, Any] = {
         "model": model,
         "temperature": 0.1,
-        "response_format": {"type": "json_object"},
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ],
     }
-    req = urllib.request.Request(
-        "https://api.openai.com/v1/chat/completions",
-        data=json.dumps(payload).encode("utf-8"),
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        },
-        method="POST",
-    )
-    with urllib.request.urlopen(req, timeout=90) as resp:
-        data = json.loads(resp.read().decode("utf-8"))
-    content = data["choices"][0]["message"]["content"]
-    return parse_ai_json(content)
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+        "User-Agent": "Min3DStry-PR-Automation/1.0",
+    }
+    if extra_headers:
+        headers.update(extra_headers)
+
+    for use_response_format in (True, False):
+        payload = dict(base_payload)
+        if use_response_format:
+            payload["response_format"] = {"type": "json_object"}
+        req = urllib.request.Request(
+            endpoint,
+            data=json.dumps(payload).encode("utf-8"),
+            headers=headers,
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=90) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            content = data["choices"][0]["message"]["content"]
+            return parse_ai_json(content)
+        except urllib.error.HTTPError as exc:
+            err_body = exc.read().decode("utf-8", errors="replace")
+            if use_response_format and exc.code == 400:
+                continue
+            raise RuntimeError(
+                f"LLM API POST {endpoint} failed ({exc.code}): {err_body}"
+            ) from exc
+
+    raise RuntimeError(f"LLM API POST {endpoint} failed after retry.")
 
 
 def call_anthropic(api_key: str, model: str, system_prompt: str, user_prompt: str) -> dict[str, Any]:
@@ -350,16 +376,20 @@ def call_gemini(api_key: str, model: str, system_prompt: str, user_prompt: str) 
 def select_ai_provider() -> tuple[str, str, str] | None:
     preferred = os.environ.get("AI_REVIEW_PROVIDER", "").strip().lower()
     override_model = os.environ.get("AI_REVIEW_MODEL", "").strip()
-    providers = [
-        ("openai", "OPENAI_API_KEY", override_model or "gpt-4.1-mini"),
-        ("anthropic", "ANTHROPIC_API_KEY", override_model or "claude-sonnet-4-20250514"),
-        ("gemini", "GEMINI_API_KEY", override_model or "gemini-2.5-flash"),
+    opencode_key = (
+        os.environ.get("OPENCODE_GO_API_KEY", "").strip()
+        or os.environ.get("OPENCODE_API_KEY", "").strip()
+    )
+    candidates = [
+        ("opencode-go", opencode_key, override_model or "deepseek-v4.1-flash"),
+        ("openai", os.environ.get("OPENAI_API_KEY", "").strip(), override_model or "gpt-4.1-mini"),
+        ("anthropic", os.environ.get("ANTHROPIC_API_KEY", "").strip(), override_model or "claude-sonnet-4-20250514"),
+        ("gemini", os.environ.get("GEMINI_API_KEY", "").strip(), override_model or "gemini-2.5-flash"),
     ]
     if preferred:
-        providers.sort(key=lambda item: 0 if item[0] == preferred else 1)
+        candidates.sort(key=lambda item: 0 if item[0] == preferred else 1)
 
-    for name, env_var, model in providers:
-        key = os.environ.get(env_var, "").strip()
+    for name, key, model in candidates:
         if key:
             return name, key, model
     return None
@@ -376,7 +406,8 @@ def cmd_ai_review(args: argparse.Namespace) -> int:
     if not selected:
         print(
             "AI review cannot run: no AI API key secret is configured.\n"
-            "Add one of OPENAI_API_KEY, ANTHROPIC_API_KEY, or GEMINI_API_KEY in "
+            "Add one of OPENCODE_GO_API_KEY, OPENCODE_API_KEY, OPENAI_API_KEY, "
+            "ANTHROPIC_API_KEY, or GEMINI_API_KEY in "
             "Repository Settings -> Secrets and variables -> Actions.",
             file=sys.stderr,
         )
@@ -423,8 +454,30 @@ def cmd_ai_review(args: argparse.Namespace) -> int:
         f"=== PR Diff ===\n{diff_text}\n"
     )
 
-    if provider == "openai":
-        result = call_openai(api_key, model, system_prompt, user_prompt)
+    custom_base_url = os.environ.get("AI_REVIEW_BASE_URL", "").strip()
+    if provider == "opencode-go":
+        endpoint = (
+            custom_base_url.rstrip("/") + "/chat/completions"
+            if custom_base_url
+            else "https://opencode.ai/inference/go/openai/v1/chat/completions"
+        )
+        result = call_openai_compatible(
+            api_key,
+            model,
+            system_prompt,
+            user_prompt,
+            endpoint=endpoint,
+            extra_headers={"x-opencode-session": f"min3dstry-pr-{pr_number}-{head_sha[:12]}"},
+        )
+    elif provider == "openai":
+        endpoint = (
+            custom_base_url.rstrip("/") + "/chat/completions"
+            if custom_base_url
+            else "https://api.openai.com/v1/chat/completions"
+        )
+        result = call_openai_compatible(
+            api_key, model, system_prompt, user_prompt, endpoint=endpoint
+        )
     elif provider == "anthropic":
         result = call_anthropic(api_key, model, system_prompt, user_prompt)
     else:
