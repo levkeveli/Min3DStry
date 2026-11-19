@@ -497,17 +497,8 @@
 
   const FALLBACK = {
     sha: "@SHA@",
-    generated_at: "static fallback",
-    issues: [
-      { number: 9, title: "Configure AI PR review, Tier-C CODEOWNERS, and auto-merge", body: "Set up automated PR risk classification, AI code review + approval workflow, Tier-C-scoped CODEOWNERS, and GitHub native auto-merge.", state: "closed", status: "done", phase: "0-foundation", area: "devops", assignees: [], labels: ["phase:0-foundation", "area:devops"], url: "https://github.com/levkeveli/Min3DStry/issues/9" },
-      { number: 1, title: "Evaluate Java-to-native feasibility", body: "Compare credible ARM11 approaches and record a reproducible proof of concept, runtime requirements and tradeoffs.", state: "open", status: "ready", phase: "1-core", area: "portability", assignees: [], labels: ["status:ready", "phase:1-core", "area:portability"], url: "https://github.com/levkeveli/Min3DStry/issues/1" },
-      { number: 2, title: "Detect Original and New 3DS hardware", body: "Expose a hardware profile through libctru and record detection results on both generations when hardware is available.", state: "open", status: "ready", phase: "1-core", area: "hardware", assignees: [], labels: ["status:ready", "phase:1-core", "area:hardware"], url: "https://github.com/levkeveli/Min3DStry/issues/2" },
-      { number: 5, title: "Establish a host test backend", body: "Run shared platform-independent tests without a 3DS toolchain and document the supported host entry point.", state: "open", status: "ready", phase: "1-core", area: "testing", assignees: [], labels: ["status:ready", "phase:1-core", "area:testing"], url: "https://github.com/levkeveli/Min3DStry/issues/5" },
-      { number: 4, title: "Design asset conversion pipeline", body: "Audit licenses and document a reproducible conversion command with deterministic test inputs.", state: "open", status: "ready", phase: "2-rendering", area: "assets", assignees: [], labels: ["status:ready", "phase:2-rendering", "area:assets"], url: "https://github.com/levkeveli/Min3DStry/issues/4" },
-      { number: 3, title: "Prototype Citro2D rendering", body: "Render a bounded scene and record the build, emulator result and any separately verified hardware evidence.", state: "open", status: "backlog", phase: "2-rendering", area: "rendering", assignees: [], labels: ["status:backlog", "phase:2-rendering", "area:rendering"], url: "https://github.com/levkeveli/Min3DStry/issues/3" },
-      { number: 6, title: "Prototype hardware deployment and log streaming", body: "Document a repeatable transfer and diagnostic log capture procedure using homebrew tools.", state: "open", status: "backlog", phase: "3-hardware", area: "hardware", assignees: [], labels: ["status:backlog", "phase:3-hardware", "area:hardware"], url: "https://github.com/levkeveli/Min3DStry/issues/6" },
-      { number: 7, title: "Design a gameplay parity harness", body: "Define upstream reference inputs, deterministic snapshots and a reproducible comparison for one scenario.", state: "open", status: "backlog", phase: "3-hardware", area: "testing", assignees: [], labels: ["status:backlog", "phase:3-hardware", "area:testing"], url: "https://github.com/levkeveli/Min3DStry/issues/7" }
-    ],
+    generated_at: "unavailable",
+    issues: [],
     pulls: [],
     runs: []
   };
@@ -530,12 +521,15 @@
 
   function normalizeIssue(raw) {
     const labels = (raw.labels || []).map((l) => typeof l === "string" ? l : l.name);
-    let status = raw.state === "closed" ? "done" : "backlog";
-    if (raw.state !== "closed") {
-      for (const s of ["in-review", "in-progress", "claimed", "ready", "blocked", "backlog"]) {
-        if (labels.includes("status:" + s)) {
-          status = s === "claimed" ? "in-progress" : s;
-          break;
+    let status = raw.status === "claimed" ? "in-progress" : (raw.status || "");
+    if (!status) {
+      status = raw.state === "closed" ? "done" : "backlog";
+      if (raw.state !== "closed") {
+        for (const s of ["in-review", "in-progress", "claimed", "ready", "blocked", "backlog"]) {
+          if (labels.includes("status:" + s)) {
+            status = s === "claimed" ? "in-progress" : s;
+            break;
+          }
         }
       }
     }
