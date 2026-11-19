@@ -238,6 +238,7 @@ def call_openai_compatible(
     base_payload: dict[str, Any] = {
         "model": model,
         "temperature": 0.1,
+        "max_tokens": 2048,
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
@@ -251,6 +252,7 @@ def call_openai_compatible(
     if extra_headers:
         headers.update(extra_headers)
 
+    last_error: Exception | None = None
     for use_response_format in (True, False):
         payload = dict(base_payload)
         if use_response_format:
@@ -261,20 +263,30 @@ def call_openai_compatible(
             headers=headers,
             method="POST",
         )
-        try:
-            with urllib.request.urlopen(req, timeout=90) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
-            content = data["choices"][0]["message"]["content"]
-            return parse_ai_json(content)
-        except urllib.error.HTTPError as exc:
-            err_body = exc.read().decode("utf-8", errors="replace")
-            if use_response_format and exc.code == 400:
-                continue
-            raise RuntimeError(
-                f"LLM API POST {endpoint} failed ({exc.code}): {err_body}"
-            ) from exc
+        for attempt in range(2):
+            try:
+                with urllib.request.urlopen(req, timeout=240) as resp:
+                    data = json.loads(resp.read().decode("utf-8"))
+                content = data["choices"][0]["message"]["content"]
+                return parse_ai_json(content)
+            except urllib.error.HTTPError as exc:
+                err_body = exc.read().decode("utf-8", errors="replace")
+                if use_response_format and exc.code == 400:
+                    last_error = exc
+                    break
+                if exc.code >= 500 and attempt == 0:
+                    last_error = exc
+                    continue
+                raise RuntimeError(
+                    f"LLM API POST {endpoint} failed ({exc.code}): {err_body}"
+                ) from exc
+            except (TimeoutError, urllib.error.URLError) as exc:
+                last_error = exc
+                if attempt == 0:
+                    continue
+                raise RuntimeError(f"LLM API POST {endpoint} timed out/failed: {exc}") from exc
 
-    raise RuntimeError(f"LLM API POST {endpoint} failed after retry.")
+    raise RuntimeError(f"LLM API POST {endpoint} failed after retry: {last_error}")
 
 
 def call_anthropic(api_key: str, model: str, system_prompt: str, user_prompt: str) -> dict[str, Any]:
@@ -295,7 +307,7 @@ def call_anthropic(api_key: str, model: str, system_prompt: str, user_prompt: st
         },
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=90) as resp:
+    with urllib.request.urlopen(req, timeout=240) as resp:
         data = json.loads(resp.read().decode("utf-8"))
     blocks = [b["text"] for b in data.get("content", []) if b.get("type") == "text"]
     return parse_ai_json("\n".join(blocks))
@@ -320,7 +332,7 @@ def call_gemini(api_key: str, model: str, system_prompt: str, user_prompt: str) 
         headers={"Content-Type": "application/json"},
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=90) as resp:
+    with urllib.request.urlopen(req, timeout=240) as resp:
         data = json.loads(resp.read().decode("utf-8"))
     text = data["candidates"][0]["content"]["parts"][0]["text"]
     return parse_ai_json(text)
