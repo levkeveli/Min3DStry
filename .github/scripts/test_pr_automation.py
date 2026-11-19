@@ -30,10 +30,9 @@ class PrAutomationTests(unittest.TestCase):
         )
         self.assertEqual(tier_workflows, "A")
 
-        tier_label, _ = pr_automation.classify_risk_tier(
-            ["README.md"], ["status:blocked"]
-        )
-        self.assertEqual(tier_label, "C")
+        for label in ("status:blocked", "tier:c", "hold"):
+            tier_label, _ = pr_automation.classify_risk_tier(["README.md"], [label])
+            self.assertEqual(tier_label, "C")
 
     def test_metadata_validation_and_warnings(self) -> None:
         empty_body_errors = pr_automation.validate_pr_metadata("")
@@ -41,6 +40,21 @@ class PrAutomationTests(unittest.TestCase):
         self.assertEqual(len(pr_automation.collect_metadata_warnings("")), 1)
         self.assertEqual(len(pr_automation.collect_metadata_warnings("Quick fix")), 1)
         self.assertEqual(pr_automation.collect_metadata_warnings("Fixes #9"), [])
+
+    def test_auto_merge_passes_head_sha(self) -> None:
+        args = pr_automation.build_parser().parse_args(
+            ["auto-merge", "--pr-number", "13", "--head-sha", "abc123", "--tier", "A", "--eligible", "true"]
+        )
+        fake_proc = mock.Mock(returncode=0, stdout="", stderr="")
+        with mock.patch.dict(os.environ, {"GITHUB_REPOSITORY": "levkeveli/Min3DStry"}):
+            with mock.patch("subprocess.run", return_value=fake_proc) as run_mock:
+                rc = pr_automation.cmd_auto_merge(args)
+        self.assertEqual(rc, 0)
+        run_mock.assert_called_once_with(
+            ["gh", "pr", "merge", "13", "-R", "levkeveli/Min3DStry", "--squash", "--match-head-commit", "abc123", "--auto"],
+            text=True,
+            capture_output=True,
+        )
 
     def test_parse_ai_json_with_fences(self) -> None:
         raw = '```json\n{"verdict":"APPROVE","summary":"Looks good","findings":[]}\n```'

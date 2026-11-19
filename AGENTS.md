@@ -9,19 +9,19 @@ Build a **native, open-source full Mindustry port** for Original 3DS/2DS and New
 - Maintainers: **Levy, Kevin, Elia**; roles are flexible, no exclusive subsystem silos.
 - AI coding agents have broad autonomy inside assigned issue/task scope: design, implement, refactor, run tools, create tests, spawn subtasks when supported, open PRs, repair CI and perform agent-to-agent review.
 - Agents may create and claim Ready issues under the task-leasing protocol. Humans can override assignments and priorities.
-- **Routine eligible PRs auto-merge**; do not require humans to click Merge. Escalate only architectural, legal, security, destructive, release or risky compatibility decisions, as defined in automation policy.
+- **Same-repo PRs auto-merge after CI and AI review**; human maintainers never need to manually review or approve PRs unless an explicit hold label (`hold`, `needs-human`, `do-not-merge`, `status:blocked`, `tier:c`) is attached.
 
 ## Issue/task protocol
 
 1. Read this file, architecture docs and available project board.
 2. Pick or accept a Ready issue with clear outcome, acceptance tests, dependency and ownership metadata.
-3. Atomically claim/lease the issue; set human sponsor, agent identity, branch and expiry/heartbeat. Recheck claim before changes. If leasing automation is unavailable, ask a maintainer to assign issues instead of racing.
+3. Atomically claim/lease the issue when assigned/claimed; avoid racing on active tasks.
 4. Use one dedicated branch/worktree per task. Never work in another agent's working tree or force-push their branch.
 5. Keep changes reviewable and modular. Coordinate shared interfaces via an issue/comment before changing them.
-6. Add tests, diagnostic evidence and docs in the same PR. Link the issue (`Closes #N`).
-7. Let independent review/check automation evaluate the PR. Address failures and conflicts. Never self-attest that code review is independent.
-8. Enable auto-merge only after the merge policy marks the PR eligible. An agent may request automatic merge but must not override blocked checks.
-9. After merge, verify relevant post-merge CI, Pages deployment and board/status updates. Create follow-up issues for outstanding work.
+6. Add tests and docs in the same PR when changing behavior, and reference the linked issue (`Closes #N` or `#N`) when applicable.
+7. Let independent CI and AI review evaluate the PR. Address real bugs or CI failures; do not require human approvals.
+8. Auto-merge runs automatically once required checks and AI review pass unless an explicit hold label is set.
+9. After merge, verify relevant post-merge CI, Pages deployment and board/status updates when relevant.
 
 ## Development speed
 
@@ -49,6 +49,6 @@ Build a **native, open-source full Mindustry port** for Original 3DS/2DS and New
 
 ## Risk gates
 
-Agents can merge **routine** scoped changes via trusted automation after checks pass. Pause for human decision on: licensing/IP uncertainty; secrets/permissions; changes to CI trust, auto-merge policy, branch protections, agent credentials or `AGENTS.md`; non-recoverable data changes; material architecture changes; releases marked stable; protocol/gameplay-breaking decisions; or an explicit maintainer hold.
+All same-repo PRs are reviewed by `AI review` and auto-merge once required CI checks pass. Human maintainers never need to review PRs unless an explicit maintainer hold label (`hold`, `needs-human`, `do-not-merge`, `status:blocked`, `tier:c`) is attached or an agent explicitly escalates a licensing/IP, security/secrets, or destructive release decision.
 
-Read `docs/development/automation-policy.md` for precise merge classification, claim leasing and escalation semantics.
+Read `docs/development/automation-policy.md` for merge rules and escalation semantics.

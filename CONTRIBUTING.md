@@ -28,7 +28,7 @@ These are evidence descriptors, not claims that all target features are supporte
 2. Claim the issue following the documented lease process.
 3. Develop in `agent/<issue>-<slug>` or `feat/<issue>-<slug>`.
 4. Open PR with issue reference, scope, test evidence, documentation change and risk class.
-5. Let `Bootstrap checks`, `PR policy gate`, and `AI review` run; fix any CI or AI review findings.
-6. Eligible Tier A/B PRs are approved by `AI review` and merged automatically via GitHub auto-merge. Tier C PRs (workflows, `CODEOWNERS`, `AGENTS.md`, automation policy, security, licenses) wait for maintainer CODEOWNER approval.
+5. Let `Bootstrap checks`, `PR policy gate`, and `AI review` run; fix any CI failures or critical/major AI review findings.
+6. Eligible same-repo PRs are approved by `AI review` and merged automatically via GitHub auto-merge without human review, unless a maintainer adds an explicit hold label (`hold`, `needs-human`, `do-not-merge`, `status:blocked`, `tier:c`).
 
 The public GitHub Pages site reflects **merged, validated** project state, not promises or PR drafts.

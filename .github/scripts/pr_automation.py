@@ -12,13 +12,10 @@ import subprocess
 import sys
 import urllib.error
 import urllib.request
-from pathlib import Path
 from typing import Any
 
-TIER_C_PREFIXES: tuple[str, ...] = ()
-TIER_C_EXACT: set[str] = set()
-TIER_C_BASENAME_PREFIXES: tuple[str, ...] = ()
 TIER_C_LABELS = {
+    "tier:c",
     "needs-human",
     "status:blocked",
     "hold",
@@ -42,18 +39,6 @@ TIER_B_EXACT = {
 ISSUE_LINK_RE = re.compile(
     r"(?:#\d+|(?:closes|fixes|resolves|refs|issue)\s+#\d+)", re.IGNORECASE
 )
-
-
-def is_tier_c_path(path: str) -> bool:
-    norm = path.lstrip("/")
-    if norm in TIER_C_EXACT:
-        return True
-    if any(norm.startswith(prefix) for prefix in TIER_C_PREFIXES):
-        return True
-    base = Path(norm).name
-    if any(base.upper().startswith(prefix) for prefix in TIER_C_BASENAME_PREFIXES):
-        return True
-    return False
 
 
 def is_tier_b_path(path: str) -> bool:
@@ -506,13 +491,15 @@ def cmd_auto_merge(args: argparse.Namespace) -> int:
     repo = os.environ["GITHUB_REPOSITORY"]
     pr_number = str(args.pr_number)
     if args.tier == "C":
-        print(f"Skipping auto-merge for PR #{pr_number}: Tier C requires human maintainer approval.")
+        print(f"Skipping auto-merge for PR #{pr_number}: explicit hold label applied.")
         return 0
     if args.eligible != "true":
         print(f"Skipping auto-merge for PR #{pr_number}: not eligible.")
         return 0
 
     base_cmd = ["gh", "pr", "merge", pr_number, "-R", repo, "--squash"]
+    if args.head_sha:
+        base_cmd.extend(["--match-head-commit", args.head_sha])
     proc = subprocess.run([*base_cmd, "--auto"], text=True, capture_output=True)
     if proc.returncode == 0:
         print(f"Auto-merge enabled for PR #{pr_number}.")
@@ -545,6 +532,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_merge = sub.add_parser("auto-merge", help="Enable GitHub native auto-merge on eligible PR.")
     p_merge.add_argument("--pr-number", required=True, type=int)
+    p_merge.add_argument("--head-sha", default="")
     p_merge.add_argument("--tier", required=True, choices=["A", "B", "C"])
     p_merge.add_argument("--eligible", required=True)
     p_merge.set_defaults(func=cmd_auto_merge)

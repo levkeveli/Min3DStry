@@ -34,7 +34,10 @@ jobs:
   ai-review:
     name: AI review
     needs: [policy-gate]
-    if: ${{ needs.policy-gate.outputs.eligible_for_ai_review == 'true' }}
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      !github.event.pull_request.head.repo.fork &&
+      needs.policy-gate.outputs.eligible_for_ai_review == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -63,7 +66,11 @@ jobs:
   auto-merge:
     name: Enable auto-merge
     needs: [policy-gate, ai-review]
-    if: ${{ needs.policy-gate.outputs.eligible_for_auto_merge == 'true' && needs.ai-review.outputs.approved == 'true' }}
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      !github.event.pull_request.head.repo.fork &&
+      needs.policy-gate.outputs.eligible_for_auto_merge == 'true' &&
+      needs.ai-review.outputs.approved == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -78,5 +85,6 @@ jobs:
         run: >-
           python3 .github/scripts/pr_automation.py auto-merge
           --pr-number "${{ needs.policy-gate.outputs.pr_number }}"
+          --head-sha "${{ needs.policy-gate.outputs.head_sha }}"
           --tier "${{ needs.policy-gate.outputs.tier }}"
           --eligible "${{ needs.policy-gate.outputs.eligible_for_auto_merge }}"
