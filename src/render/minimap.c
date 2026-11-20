@@ -35,6 +35,7 @@ static M3dsColor tile_color(uint8_t kind) {
 
 bool m3ds_minimap_render(
     const M3dsBoundedScene *scene,
+    const M3dsParityState *factory,
     const M3dsRenderBackend *backend,
     float x,
     float y,
@@ -99,6 +100,50 @@ bool m3ds_minimap_render(
             !backend->draw_line(
                 backend->user_data, cam_x, cam_y + cam_h, cam_x, cam_y,
                 1.0f, 0.90f, camera)) {
+            return false;
+        }
+    }
+
+    if (factory) {
+        const M3dsColor enemy = m3ds_rgba(255, 90, 70, 255);
+        for (uint32_t i = 0u; i < M3DS_PARITY_MAX_ENEMIES; ++i) {
+            const M3dsParityEnemy *unit = &factory->enemies[i];
+            if (!unit->alive) {
+                continue;
+            }
+            int32_t gx = unit->x / M3DS_PARITY_SUBPIXELS_PER_TILE;
+            int32_t gy = unit->y / M3DS_PARITY_SUBPIXELS_PER_TILE;
+            gx = (int32_t)clamp_float(
+                (float)gx, 0.0f, (float)(M3DS_SCENE_GRID_W - 1));
+            gy = (int32_t)clamp_float(
+                (float)gy, 0.0f, (float)(M3DS_SCENE_GRID_H - 1));
+            if (!backend->draw_rect(
+                    backend->user_data,
+                    x + (float)gx * cell_w + cell_w * 0.25f,
+                    y + (float)gy * cell_h + cell_h * 0.25f,
+                    0.88f,
+                    cell_w * 0.5f,
+                    cell_h * 0.5f,
+                    enemy)) {
+                return false;
+            }
+        }
+
+        const M3dsColor bar_bg = m3ds_rgba(8, 10, 12, 255);
+        const M3dsColor hp_color = m3ds_rgba(95, 225, 120, 255);
+        const M3dsColor copper_color = m3ds_rgba(220, 150, 55, 255);
+        float hp_ratio = clamp_float((float)factory->core_hp / 200.0f, 0.0f, 1.0f);
+        float copper_ratio =
+            clamp_float((float)factory->core_copper / 100.0f, 0.0f, 1.0f);
+        if (!backend->draw_rect(
+                backend->user_data, x, y + height - 7.0f, 0.88f, width, 6.0f,
+                bar_bg) ||
+            !backend->draw_rect(
+                backend->user_data, x, y + height - 7.0f, 0.89f,
+                width * hp_ratio, 3.0f, hp_color) ||
+            !backend->draw_rect(
+                backend->user_data, x, y + height - 3.0f, 0.89f,
+                width * copper_ratio, 2.0f, copper_color)) {
             return false;
         }
     }

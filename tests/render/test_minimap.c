@@ -77,7 +77,7 @@ static void test_render_grid_and_camera(void) {
     backend.draw_rect = mock_draw_rect;
     backend.draw_line = mock_draw_line;
 
-    assert(m3ds_minimap_render(&scene, &backend, 300.0f, 8.0f, 96.0f, 64.0f));
+    assert(m3ds_minimap_render(&scene, NULL, &backend, 300.0f, 8.0f, 96.0f, 64.0f));
     assert(stats.rects == 2 + (int)(M3DS_SCENE_GRID_W * M3DS_SCENE_GRID_H));
     assert(stats.lines == 4);
     assert(stats.core_rects == 1);
@@ -85,20 +85,48 @@ static void test_render_grid_and_camera(void) {
     assert(stats.ore_rects == 1);
 }
 
+static void test_hud_overlay(void) {
+    M3dsBoundedScene scene;
+    memset(&scene, 0, sizeof(scene));
+    scene.viewport.width = 160.0f;
+    scene.viewport.height = 120.0f;
+    M3dsParityState factory;
+    memset(&factory, 0, sizeof(factory));
+    factory.core_hp = 100u;
+    factory.core_copper = 50u;
+    factory.enemies[0].alive = 1u;
+    factory.enemies[0].x = 10 * M3DS_PARITY_SUBPIXELS_PER_TILE + 8;
+    factory.enemies[0].y = 2 * M3DS_PARITY_SUBPIXELS_PER_TILE + 8;
+
+    MockStats stats;
+    memset(&stats, 0, sizeof(stats));
+    M3dsRenderBackend backend;
+    memset(&backend, 0, sizeof(backend));
+    backend.user_data = &stats;
+    backend.draw_rect = mock_draw_rect;
+    backend.draw_line = mock_draw_line;
+
+    assert(m3ds_minimap_render(&scene, &factory, &backend, 10.0f, 10.0f, 96.0f, 64.0f));
+    assert(stats.rects ==
+           2 + (int)(M3DS_SCENE_GRID_W * M3DS_SCENE_GRID_H) + 1 + 3);
+    assert(stats.lines == 4);
+}
+
 static void test_invalid_arguments(void) {
     M3dsBoundedScene scene;
     memset(&scene, 0, sizeof(scene));
     M3dsRenderBackend backend;
     memset(&backend, 0, sizeof(backend));
-    assert(!m3ds_minimap_render(NULL, &backend, 0.0f, 0.0f, 10.0f, 10.0f));
-    assert(!m3ds_minimap_render(&scene, NULL, 0.0f, 0.0f, 10.0f, 10.0f));
-    assert(!m3ds_minimap_render(&scene, &backend, 0.0f, 0.0f, 10.0f, 10.0f));
+    assert(!m3ds_minimap_render(NULL, NULL, &backend, 0.0f, 0.0f, 10.0f, 10.0f));
+    assert(!m3ds_minimap_render(&scene, NULL, NULL, 0.0f, 0.0f, 10.0f, 10.0f));
+    assert(!m3ds_minimap_render(&scene, NULL, &backend, 0.0f, 0.0f, 10.0f, 10.0f));
     backend.draw_rect = mock_draw_rect;
-    assert(!m3ds_minimap_render(&scene, &backend, 0.0f, 0.0f, 0.0f, 10.0f));
+    assert(!m3ds_minimap_render(&scene, NULL, &backend, 0.0f, 0.0f, 0.0f, 10.0f));
 }
 
 int main(void) {
     test_render_grid_and_camera();
+    test_hud_overlay();
     test_invalid_arguments();
     puts("minimap tests passed");
     return 0;
