@@ -1,8 +1,14 @@
+/*
+ * Min3DStry libctru SOC networking transport implementation.
+ * Provenance: Mindustry v8 build 160.8 (19a0f40d44514f4802a8b79770456e7e32e34da0, GPLv3)
+ * and Arc (7445105cd2683daf5b9ac7033ebb07265d3e814d, Apache-2.0).
+ */
 #include "net_3ds.h"
 
 #include <3ds.h>
 #include <arpa/inet.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <malloc.h>
 #include <netdb.h>
 #include <poll.h>
@@ -36,7 +42,6 @@ static bool n3ds_tcp_connect(
     uint16_t port,
     uint32_t timeout_ms) {
   M3dsNet3dsContext *ctx = (M3dsNet3dsContext *)user_data;
-  (void)timeout_ms;
   if (!ctx || !ctx->soc_initialized || !host) {
     return false;
   }
@@ -59,12 +64,37 @@ static bool n3ds_tcp_connect(
     freeaddrinfo(res);
     return false;
   }
-  if (connect(fd, res->ai_addr, res->ai_addrlen) != 0) {
-    close(fd);
-    freeaddrinfo(res);
-    return false;
-  }
+
+  int orig_flags = fcntl(fd, F_GETFL, 0);
+  bool nonblock_set = (orig_flags >= 0 && fcntl(fd, F_SETFL, orig_flags | O_NONBLOCK) == 0);
+  int conn_rc = connect(fd, res->ai_addr, res->ai_addrlen);
   freeaddrinfo(res);
+
+  if (conn_rc != 0) {
+    if (!nonblock_set || errno != EINPROGRESS) {
+      close(fd);
+      return false;
+    }
+    struct pollfd pfd;
+    pfd.fd = fd;
+    pfd.events = POLLOUT;
+    pfd.revents = 0;
+    int poll_rc = poll(&pfd, 1U, timeout_ms > 0U ? (int)timeout_ms : 5000);
+    if (poll_rc <= 0 || (pfd.revents & (POLLERR | POLLHUP | POLLNVAL)) != 0) {
+      close(fd);
+      return false;
+    }
+    int so_err = 0;
+    socklen_t so_len = (socklen_t)sizeof(so_err);
+    if (getsockopt(fd, SOL_SOCKET, SO_ERROR, &so_err, &so_len) != 0 || so_err != 0) {
+      close(fd);
+      return false;
+    }
+  }
+
+  if (nonblock_set) {
+    (void)fcntl(fd, F_SETFL, orig_flags);
+  }
   ctx->tcp_fd = fd;
   return true;
 }

@@ -1,5 +1,11 @@
+/*
+ * Min3DStry upstream-compatible networking wire codec & handshake.
+ * Provenance: Mindustry v8 build 160.8 (19a0f40d44514f4802a8b79770456e7e32e34da0, GPLv3)
+ * and Arc (7445105cd2683daf5b9ac7033ebb07265d3e814d, Apache-2.0).
+ */
 #include "net/mindustry_net.h"
 
+#include <stdlib.h>
 #include <string.h>
 
 static uint16_t read_u16_be(const uint8_t *p) {
@@ -671,11 +677,24 @@ bool m3ds_net_handshake(
     return false;
   }
 
-  static uint8_t frame_buf[M3DS_NET_MAX_PACKET_SIZE + 16U];
-  static uint8_t payload_buf[M3DS_NET_MAX_PACKET_SIZE];
-  static uint8_t tx_buf[M3DS_NET_MAX_PACKET_SIZE + 16U];
+  const size_t frame_cap = M3DS_NET_MAX_PACKET_SIZE + 16U;
+  const size_t payload_cap = M3DS_NET_MAX_PACKET_SIZE;
+  const size_t tx_cap = M3DS_NET_MAX_PACKET_SIZE + 16U;
+  uint8_t *frame_buf = (uint8_t *)malloc(frame_cap);
+  uint8_t *payload_buf = (uint8_t *)malloc(payload_cap);
+  uint8_t *tx_buf = (uint8_t *)malloc(tx_cap);
+  if (!frame_buf || !payload_buf || !tx_buf) {
+    free(frame_buf);
+    free(payload_buf);
+    free(tx_buf);
+    out_result->status = M3DS_HANDSHAKE_TRANSPORT_ERROR;
+    return false;
+  }
 
   if (!transport->tcp_connect(transport->user_data, host, port, timeout_ms)) {
+    free(frame_buf);
+    free(payload_buf);
+    free(tx_buf);
     out_result->status = M3DS_HANDSHAKE_TRANSPORT_ERROR;
     return false;
   }
@@ -687,7 +706,7 @@ bool m3ds_net_handshake(
   /* Step 1: Wait for ArcNet RegisterTCP(connectionID). Note: Arc IDs may be negative. */
   for (int guard = 0; guard < 16; ++guard) {
     size_t frame_len = 0U;
-    status = read_next_tcp_frame(transport, frame_buf, sizeof(frame_buf), &frame_len, timeout_ms);
+    status = read_next_tcp_frame(transport, frame_buf, frame_cap, &frame_len, timeout_ms);
     if (status != M3DS_HANDSHAKE_OK_WORLD_STREAM) {
       goto cleanup;
     }
@@ -717,7 +736,7 @@ bool m3ds_net_handshake(
   reg_udp.type = M3DS_FW_REGISTER_UDP;
   reg_udp.id = out_result->connection_id;
   size_t reg_udp_len = 0U;
-  if (!m3ds_net_encode_framework(&reg_udp, tx_buf, sizeof(tx_buf), &reg_udp_len)) {
+  if (!m3ds_net_encode_framework(&reg_udp, tx_buf, tx_cap, &reg_udp_len)) {
     status = M3DS_HANDSHAKE_PROTOCOL_ERROR;
     goto cleanup;
   }
@@ -730,7 +749,7 @@ bool m3ds_net_handshake(
     }
     size_t frame_len = 0U;
     M3dsNetHandshakeStatus rx =
-        read_next_tcp_frame(transport, frame_buf, sizeof(frame_buf), &frame_len, poll_ms);
+        read_next_tcp_frame(transport, frame_buf, frame_cap, &frame_len, poll_ms);
     if (rx == M3DS_HANDSHAKE_TIMEOUT) {
       continue;
     }
@@ -771,7 +790,7 @@ bool m3ds_net_handshake(
   }
   size_t framed_len = 0U;
   if (!m3ds_net_tcp_frame_encode(
-          pkt_envelope, pkt_envelope_len, tx_buf, sizeof(tx_buf), &framed_len)) {
+          pkt_envelope, pkt_envelope_len, tx_buf, tx_cap, &framed_len)) {
     status = M3DS_HANDSHAKE_PROTOCOL_ERROR;
     goto cleanup;
   }
@@ -783,7 +802,7 @@ bool m3ds_net_handshake(
   /* Step 4: Read TCP packets until StreamBegin (accepted) or kick / disconnect. */
   for (int guard = 0; guard < 32; ++guard) {
     size_t frame_len = 0U;
-    status = read_next_tcp_frame(transport, frame_buf, sizeof(frame_buf), &frame_len, timeout_ms);
+    status = read_next_tcp_frame(transport, frame_buf, frame_cap, &frame_len, timeout_ms);
     if (status != M3DS_HANDSHAKE_OK_WORLD_STREAM) {
       goto cleanup;
     }
@@ -797,7 +816,7 @@ bool m3ds_net_handshake(
         uint8_t pong_raw[8];
         size_t pong_raw_len = 0U;
         if (m3ds_net_encode_framework(&pong, pong_raw, sizeof(pong_raw), &pong_raw_len) &&
-            m3ds_net_tcp_frame_encode(pong_raw, pong_raw_len, tx_buf, sizeof(tx_buf), &framed_len)) {
+            m3ds_net_tcp_frame_encode(pong_raw, pong_raw_len, tx_buf, tx_cap, &framed_len)) {
           (void)tcp_send_all(transport, tx_buf, framed_len);
           out_result->pings_answered++;
         }
@@ -808,7 +827,7 @@ bool m3ds_net_handshake(
     uint8_t pkt_id = 0U;
     size_t pkt_payload_len = 0U;
     if (!m3ds_net_decode_packet(
-            frame_buf, frame_len, &pkt_id, payload_buf, sizeof(payload_buf), &pkt_payload_len)) {
+            frame_buf, frame_len, &pkt_id, payload_buf, payload_cap, &pkt_payload_len)) {
       status = M3DS_HANDSHAKE_PROTOCOL_ERROR;
       goto cleanup;
     }
@@ -840,6 +859,9 @@ cleanup:
     transport->udp_close(transport->user_data);
   }
   transport->tcp_close(transport->user_data);
+  free(frame_buf);
+  free(payload_buf);
+  free(tx_buf);
   out_result->status = status;
   return status == M3DS_HANDSHAKE_OK_WORLD_STREAM;
 }

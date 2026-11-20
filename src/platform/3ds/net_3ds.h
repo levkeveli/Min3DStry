@@ -1,3 +1,8 @@
+/*
+ * Min3DStry libctru SOC networking transport header.
+ * Provenance: Mindustry v8 build 160.8 (19a0f40d44514f4802a8b79770456e7e32e34da0, GPLv3)
+ * and Arc (7445105cd2683daf5b9ac7033ebb07265d3e814d, Apache-2.0).
+ */
 #ifndef MIN3DSTRY_PLATFORM_3DS_NET_3DS_H
 #define MIN3DSTRY_PLATFORM_3DS_NET_3DS_H
 
