@@ -1,98 +1,44 @@
-name: Upstream ARM11 smoke
-
+name: Upstream ARM11 smoke build
 on:
-  pull_request:
-    branches: [main]
-    paths:
-      - "research/upstream-runtime/**"
-      - ".github/workflows/upstream-arm11-smoke.yml"
   push:
-    branches: [main]
-    paths:
-      - "research/upstream-runtime/**"
-      - ".github/workflows/upstream-arm11-smoke.yml"
-  workflow_dispatch:
-
+    branches: [test/3dsx-upstream-file-metadata]
 permissions:
   contents: read
-
 jobs:
-  probe:
-    name: Probe ${{ matrix.probe }}
+  build:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    concurrency:
-      group: upstream-arm11-${{ github.ref }}-${{ matrix.probe }}
-      cancel-in-progress: true
     strategy:
       fail-fast: false
       matrix:
-        probe: [logic, map, resource]
+        probe: [file-metadata]
+        optimization: [2]
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
-
-      - name: Fetch pinned upstream v160.8 source and server JAR
-        run: |
-          git clone --depth 1 --branch v160.8 \
-            https://github.com/Anuken/Mindustry.git "$RUNNER_TEMP/Mindustry"
-          test "$(git -C "$RUNNER_TEMP/Mindustry" rev-parse HEAD)" = \
-            "19a0f40d44514f4802a8b79770456e7e32e34da0"
-          curl --fail --silent --show-error --location \
-            https://github.com/Anuken/Mindustry/releases/download/v160.8/server-release.jar \
-            -o "$RUNNER_TEMP/server-release.jar"
-
-      - name: Fetch pinned Arc source
-        if: matrix.probe == 'resource'
-        run: |
-          git clone --filter=blob:none --no-checkout \
-            https://github.com/Anuken/Arc.git "$RUNNER_TEMP/Arc"
-          git -C "$RUNNER_TEMP/Arc" fetch --depth 1 origin \
-            7445105cd2683daf5b9ac7033ebb07265d3e814d
-          git -C "$RUNNER_TEMP/Arc" checkout --detach FETCH_HEAD
-          test "$(git -C "$RUNNER_TEMP/Arc" rev-parse HEAD)" = \
-            "7445105cd2683daf5b9ac7033ebb07265d3e814d"
-
-      - name: Run JVM reference and generate TeaVM C
-        shell: bash
+      - name: Generate C from pinned upstream source
         run: |
           set -o pipefail
-          extra=()
-          if [ "${{ matrix.probe }}" = "resource" ]; then
-            extra=("-ParcCheckout=$RUNNER_TEMP/Arc")
-          fi
-          bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime \
-            --no-daemon --console=plain \
-            "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" \
-            "-PreferenceJar=$RUNNER_TEMP/server-release.jar" \
-            -Pprobe=${{ matrix.probe }} \
-            "${extra[@]}" \
-            runProbeJvm generateC | tee "$RUNNER_TEMP/probe.log"
-          if [ "${{ matrix.probe }}" = "resource" ]; then
-            grep -F 'UPSTREAM_RESOURCE size=709 crc32=3921318438 classpath=ok internal=ok missing=ok' \
-              "$RUNNER_TEMP/probe.log"
-          fi
-
-      - name: Build ARM11 probe with pinned devkitARM image
+          git clone --depth 1 --branch v160.8 --filter=blob:none --no-checkout https://github.com/Anuken/Mindustry.git "$RUNNER_TEMP/Mindustry"
+          git -C "$RUNNER_TEMP/Mindustry" checkout HEAD -- gradlew gradle/wrapper
+          curl --fail --silent --show-error --location https://github.com/Anuken/Mindustry/releases/download/v160.8/server-release.jar -o "$RUNNER_TEMP/server-release.jar"
+          git -C "$RUNNER_TEMP/Mindustry" show HEAD:core/assets/maps/default/glacier.msav > "$RUNNER_TEMP/glacier.msav"
+          bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime --no-daemon --console=plain "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" "-PreferenceJar=$RUNNER_TEMP/server-release.jar" "-Pprobe=${{ matrix.probe }}" -Dorg.gradle.jvmargs=-Xmx3g runProbeJvm --args="$RUNNER_TEMP/glacier.msav" generateC | tee "$RUNNER_TEMP/file-metadata.log"
+          grep -Fx 'UPSTREAM_FILE_METADATA size=8550 header=789cbd3a last=108 seek=ok paths=ok' "$RUNNER_TEMP/file-metadata.log"
+      - name: Compile with devkitARM and libctru
         run: |
+          if [ "${{ matrix.optimization }}" = 0 ]; then
+            sed -i 's/ -O2 / -O0 /' research/upstream-runtime/arm11/build.sh
+          fi
           image=devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5
           docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/work" -w /work "$image" bash -lc '
             source /opt/devkitpro/3dsvars.sh
-            bash research/upstream-runtime/arm11/build.sh \
-              research/upstream-runtime/build/generated/teavm/c \
-              research/upstream-runtime/build/probe-3ds'
+            bash research/upstream-runtime/arm11/build.sh research/upstream-runtime/build/generated/teavm/c research/upstream-runtime/build/probe-3ds'
           test -s research/upstream-runtime/build/probe-3ds/upstream-probe.3dsx
-          test -s research/upstream-runtime/build/probe-3ds/upstream-probe.elf
-
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: upstream-arm11-${{ matrix.probe }}
+          name: upstream-arm11-${{ matrix.probe }}-o${{ matrix.optimization }}
           path: |
             research/upstream-runtime/build/probe-3ds/upstream-probe.3dsx
             research/upstream-runtime/build/probe-3ds/upstream-probe.elf
