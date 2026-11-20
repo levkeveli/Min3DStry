@@ -2,7 +2,7 @@
 import argparse
 import shutil
 from pathlib import Path
-from fix_reflection_lifetime import fix_reflection_lifetime
+from fix_reflection_lifetime import fix_constructor_roots, fix_reflection_lifetime
 
 
 def replace(path, old, new):
@@ -21,6 +21,7 @@ def main():
         parser.error("use a new staging directory")
     shutil.copytree(args.generated, args.output)
     fix_reflection_lifetime(args.output)
+    fix_constructor_roots(args.output)
     replacements = {
         "definitions.h": [
             ("#if defined(__GNUC__) || defined(__APPLE__)", "#include <stdalign.h>\n#if (defined(__GNUC__) || defined(__APPLE__)) && !defined(__3DS__)"),
