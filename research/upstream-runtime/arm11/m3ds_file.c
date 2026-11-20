@@ -7,6 +7,20 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+static int32_t m3ds_file_directory(char* path, char16_t** result) {
+    int32_t length;
+    *result = teavm_mbToChar16(path, &length);
+    return length;
+}
+
+int32_t teavm_file_homeDirectory(char16_t** result) {
+    return m3ds_file_directory("/3ds/min3dstry", result);
+}
+
+int32_t teavm_file_tempDirectory(char16_t** result) {
+    return m3ds_file_directory("/3ds/min3dstry/tmp", result);
+}
+
 int32_t teavm_file_workDirectory(char16_t** result) {
     char path[PATH_MAX];
     int32_t length;
@@ -14,8 +28,7 @@ int32_t teavm_file_workDirectory(char16_t** result) {
         *result = teavm_mbToChar16(strerror(errno), &length);
         return -1 - length;
     }
-    *result = teavm_mbToChar16(path, &length);
-    return length;
+    return m3ds_file_directory(path, result);
 }
 
 static mode_t m3ds_file_mode(char16_t* name, int32_t name_size) {
