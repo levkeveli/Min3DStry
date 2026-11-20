@@ -11,7 +11,7 @@ include $(DEVKITARM)/3ds_rules
 
 TARGET          := min3dstry
 BUILD           := build/3ds
-SOURCES         := src/render src/sim src/net src/audio src/platform src/platform/3ds
+SOURCES         := src/render src/sim src/net src/audio src/input src/platform src/platform/3ds
 DATA            :=
 INCLUDES        := include
 GRAPHICS        :=

@@ -13,6 +13,7 @@
 #include "audio/audio_registry.h"
 #include "build-config.h"
 #include "citro2d_backend.h"
+#include "input/build_palette.h"
 #include "ndsp_backend.h"
 #include "platform/hardware_profile.h"
 #include "platform/memory_budget.h"
@@ -301,6 +302,14 @@ int main(int argc, char *argv[]) {
 
     M3dsDrawStats stats = {0};
     bool emitted_frame_diag = false;
+    M3dsBuildPalette build_palette;
+    m3ds_build_palette_init(&build_palette);
+    char grid_buf[256];
+    m3ds_build_palette_format_grid(&factory, grid_buf, sizeof(grid_buf));
+    printf("\x1b[16;1H%s", grid_buf);
+    printf("\x1b[29;1HDrill|Conveyor|Turret|Wall|Remove\x1b[K");
+    printf("\x1b[30;1HSelected: %s\x1b[K",
+           m3ds_build_choice_name(build_palette.selected));
     uint32_t prev_delivered = factory.items_delivered;
     uint32_t prev_enemies_spawned = factory.enemies_spawned;
     uint32_t prev_shots_fired = factory.shots_fired;
@@ -313,6 +322,51 @@ int main(int argc, char *argv[]) {
         hidScanInput();
         u32 kDown = hidKeysDown();
         u32 kHeld = hidKeysHeld();
+
+        if (kDown & KEY_TOUCH) {
+            touchPosition touch;
+            hidTouchRead(&touch);
+            uint8_t map_x = 0u;
+            uint8_t map_y = 0u;
+            M3dsBuildTouchAction action = m3ds_build_palette_touch(
+                &build_palette, touch.px, touch.py, 320u, 240u, &map_x, &map_y);
+            if (action == M3DS_BUILD_TOUCH_SELECT) {
+                printf("\x1b[30;1HSelected: %s\x1b[K",
+                       m3ds_build_choice_name(build_palette.selected));
+            } else if (action == M3DS_BUILD_TOUCH_PLACE ||
+                       action == M3DS_BUILD_TOUCH_REMOVE) {
+                M3dsParityInput build_input;
+                memset(&build_input, 0, sizeof(build_input));
+                build_input.tick = factory.tick;
+                build_input.kind = action == M3DS_BUILD_TOUCH_PLACE
+                                       ? M3DS_PINPUT_PLACE_BLOCK
+                                       : M3DS_PINPUT_REMOVE_BLOCK;
+                build_input.x = map_x;
+                build_input.y = map_y;
+                if (action == M3DS_BUILD_TOUCH_PLACE) {
+                    build_input.block =
+                        m3ds_build_choice_block(build_palette.selected);
+                }
+                if (m3ds_parity_apply_input(&factory, &build_input)) {
+                    M3dsAudioEvent event = action == M3DS_BUILD_TOUCH_PLACE
+                                               ? M3DS_AUDIO_EVENT_BLOCK_PLACE
+                                               : M3DS_AUDIO_EVENT_BLOCK_BREAK;
+                    int build_clip = M3DS_AUDIO_INVALID_CLIP;
+                    uint32_t build_voice = m3ds_play_event(
+                        audio_events, event, 0.5f, false, &build_clip);
+                    snprintf(
+                        dbg_line, sizeof(dbg_line),
+                        "[MIN3DSTRY] AUDIO_EVENT block.%s clip=%d voice=%u source=touch\n",
+                        action == M3DS_BUILD_TOUCH_PLACE ? "place" : "break",
+                        build_clip,
+                        (unsigned int)build_voice);
+                    m3ds_emit_debug_line(log_socket, dbg_line);
+                    m3ds_build_palette_format_grid(
+                        &factory, grid_buf, sizeof(grid_buf));
+                    printf("\x1b[16;1H%s", grid_buf);
+                }
+            }
+        }
 
         if (kDown & KEY_START) {
             break;
