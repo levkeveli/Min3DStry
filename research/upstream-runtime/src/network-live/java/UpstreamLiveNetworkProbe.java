@@ -19,6 +19,7 @@ import mindustry.game.Universe;
 import mindustry.gen.ConnectConfirmCallPacket;
 import mindustry.gen.EntitySnapshotCallPacket;
 import mindustry.gen.Groups;
+import mindustry.gen.KickCallPacket;
 import mindustry.gen.KickCallPacket2;
 import mindustry.gen.Player;
 import mindustry.gen.StateSnapshotCallPacket;
@@ -63,7 +64,7 @@ public final class UpstreamLiveNetworkProbe {
     private void run(byte[] host, int port, UpstreamWorldLoadProbe.ProbeApplication app)
             throws IOException, InterruptedException {
         try {
-            int result = Native.open(Address.ofData(host), host.length, port, BUILD - 1);
+            int result = open(host, port, BUILD - 1);
             if (result != REJECTED || Native.rejectedPacket() != unsignedId(KickCallPacket2.class)) {
                 throw new IOException("Expected a server kick for the outdated build, status=" + result);
             }
@@ -91,9 +92,10 @@ public final class UpstreamLiveNetworkProbe {
 
     private void connect(byte[] host, int port, UpstreamWorldLoadProbe.ProbeApplication app, int join)
             throws IOException {
-        int result = Native.open(Address.ofData(host), host.length, port, BUILD);
+        int result = open(host, port, BUILD);
         if (result != ACCEPTED || Native.streamType() != Net.packetIdWorldStream || Native.streamTotal() <= 0) {
-            throw new IOException("Expected a live multiplayer WorldStream, status=" + result);
+            throw new IOException("Expected a live multiplayer WorldStream, status=" + result
+                + " packet=" + Native.rejectedPacket() + " streamType=" + Native.streamType());
         }
         Vars.net.setClientConnected();
         Vars.netClient = NetClient.forSnapshotDispatch();
@@ -214,6 +216,11 @@ public final class UpstreamLiveNetworkProbe {
         return Net.getPacketClassId(type) & 0xff;
     }
 
+    private static int open(byte[] host, int port, int version) {
+        return Native.open(Address.ofData(host), host.length, port, version,
+            unsignedId(KickCallPacket.class), unsignedId(KickCallPacket2.class));
+    }
+
     /** Supplies original StreamChunk data without buffering a second copy of the entire world. */
     private final class WorldStreamInput extends InputStream {
         private final int streamId;
@@ -245,9 +252,18 @@ public final class UpstreamLiveNetworkProbe {
         private boolean ready() throws IOException {
             if (offset < chunk.length) return true;
             if (remaining == 0) return false;
-            int received = receive(1, 5000);
-            if (received < 0 || received >>> 16 != unsignedId(StreamChunk.class)) {
-                throw new IOException("Expected upstream world chunk");
+            int received = TIMEOUT;
+            for (int skipped = 0; skipped < 16; skipped++) {
+                received = receive(1, 5000);
+                if (received == TIMEOUT) throw new IOException("Timed out waiting for an upstream world chunk");
+                int id = received >>> 16;
+                if (id == unsignedId(StreamChunk.class)) break;
+                if (id == unsignedId(KickCallPacket.class) || id == unsignedId(KickCallPacket2.class)) {
+                    throw new IOException("Server kicked the client during the world transfer");
+                }
+            }
+            if (received >>> 16 != unsignedId(StreamChunk.class)) {
+                throw new IOException("Expected an upstream world chunk");
             }
             var next = new StreamChunk();
             next.read(reader(received));
@@ -265,7 +281,8 @@ public final class UpstreamLiveNetworkProbe {
     @Include(value = "m3ds_net_bridge.h", isSystem = true)
     private static final class Native {
         @Import(name = "m3ds_live_net_open")
-        static native int open(Address host, int length, int port, int version);
+        static native int open(Address host, int length, int port, int version,
+                               int kickTextId, int kickReasonId);
         @Import(name = "m3ds_live_net_stream_id")
         static native int streamId();
         @Import(name = "m3ds_live_net_stream_total")

@@ -16,10 +16,12 @@ void m3ds_live_net_close(void) {
     if (context.soc_initialized) m3ds_net_3ds_exit(&context);
 }
 
-int32_t m3ds_live_net_open(const void *address, int32_t length, int32_t port, int32_t version) {
+int32_t m3ds_live_net_open(const void *address, int32_t length, int32_t port, int32_t version,
+    int32_t kick_text_id, int32_t kick_reason_id) {
     char host[256];
     if (!address || length <= 0 || length >= (int32_t)sizeof(host) ||
-            port <= 0 || port > UINT16_MAX || memchr(address, '\0', (size_t)length)) {
+            port <= 0 || port > UINT16_MAX || memchr(address, '\0', (size_t)length) ||
+            kick_text_id < 0 || kick_text_id > UINT8_MAX || kick_reason_id < 0 || kick_reason_id > UINT8_MAX) {
         return M3DS_HANDSHAKE_INVALID_ARG;
     }
     if (client) m3ds_live_net_close();
@@ -37,7 +39,8 @@ int32_t m3ds_live_net_open(const void *address, int32_t length, int32_t port, in
         .uuid_raw = {77, 51, 68, 83, 84, 82, 89, 2},
         .color = UINT32_MAX
     };
-    client = m3ds_net_client_open(&transport, host, (uint16_t)port, 5000, &packet, &handshake);
+    client = m3ds_net_client_open(&transport, host, (uint16_t)port, 5000, &packet,
+        (uint8_t)kick_text_id, (uint8_t)kick_reason_id, &handshake);
     if (!client) m3ds_net_3ds_exit(&context);
     return handshake.status;
 }

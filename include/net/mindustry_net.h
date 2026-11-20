@@ -251,6 +251,8 @@ M3dsNetClient *m3ds_net_client_open(
     uint16_t port,
     uint32_t timeout_ms,
     const M3dsNetConnectPacket *connect_pkt,
+    uint8_t kick_text_id,
+    uint8_t kick_reason_id,
     M3dsNetHandshakeResult *out_result);
 
 /* Return 1 for a decoded game packet or an M3dsNetIoResult. A timeout preserves partial TCP frames. */
