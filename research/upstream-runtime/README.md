@@ -291,6 +291,12 @@ the core. To repeat the test, launch the official desktop JAR and add
 command. Join the printed loopback address in the desktop game with that
 player name. Repeat with `--model new3ds`.
 
+Add `--movement` to check the outbound player snapshot path. After the
+server assigns the probe an upstream unit, the probe moves that unit
+east and sends the generated `ClientSnapshotCallPacket` over Arc UDP.
+The stock server's console reports the same unit's coordinates and the
+last sequence it accepted before the verifier triggers the next wave.
+
 Before the snapshot dispatch extension, the [devkitARM verification build](https://github.com/levkeveli/Min3DStry/actions/runs/44824442974)
 passed at `-O0` and `-O2` on both Azahar 2126.2 console profiles. Each run
 rejected build 159 with `clientOutdated`, then joined Glacier twice with

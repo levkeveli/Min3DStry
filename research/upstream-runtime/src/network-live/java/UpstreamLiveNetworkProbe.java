@@ -1,5 +1,7 @@
 import arc.files.Fi;
+import arc.math.geom.Vec2;
 import arc.struct.IntSet;
+import arc.util.Time;
 import arc.util.io.Reads;
 import arc.util.io.Writes;
 import java.io.ByteArrayInputStream;
@@ -16,11 +18,13 @@ import mindustry.content.UnitTypes;
 import mindustry.core.GameState.State;
 import mindustry.core.NetClient;
 import mindustry.game.Universe;
+import mindustry.gen.ClientSnapshotCallPacket;
 import mindustry.gen.ConnectConfirmCallPacket;
 import mindustry.gen.EntitySnapshotCallPacket;
 import mindustry.gen.Groups;
 import mindustry.gen.KickCallPacket;
 import mindustry.gen.KickCallPacket2;
+import mindustry.gen.Mechc;
 import mindustry.gen.Player;
 import mindustry.gen.StateSnapshotCallPacket;
 import mindustry.mod.Mods;
@@ -40,18 +44,26 @@ public final class UpstreamLiveNetworkProbe {
     private static final long UDP_KEEP_ALIVE_NS = 19_000_000_000L;
     private static final String PLAYER_NAME = "Min3DStry ARM11";
     private final byte[] packet = new byte[32_768];
+    private final boolean verifyMovement;
+
+    private UpstreamLiveNetworkProbe(boolean verifyMovement) {
+        this.verifyMovement = verifyMovement;
+    }
 
     public static void main(String[] args) throws IOException, InterruptedException {
         var config = new Fi(args.length == 0 ? "/3ds/min3dstry/server-endpoint.txt" : args[0]);
         String[] endpoint = config.readString().trim().split("\\s+");
-        if (endpoint.length != 2) throw new IllegalArgumentException("Expected a server host and port");
+        boolean verifyMovement = endpoint.length == 3 && endpoint[2].equals("movement");
+        if (endpoint.length != 2 && !verifyMovement) {
+            throw new IllegalArgumentException("Expected a server host and port with optional movement check");
+        }
         byte[] host = endpoint[0].getBytes(StandardCharsets.UTF_8);
         int port = Integer.parseInt(endpoint[1]);
         var app = UpstreamWorldLoadProbe.initialize(config.parent());
         Vars.mods = new Mods();
         Vars.universe = new Universe();
         try {
-            new UpstreamLiveNetworkProbe().run(host, port, app);
+            new UpstreamLiveNetworkProbe(verifyMovement).run(host, port, app);
         } catch (IOException | RuntimeException error) {
             Throwable cause = error;
             while (cause.getCause() != null) cause = cause.getCause();
@@ -112,17 +124,17 @@ public final class UpstreamLiveNetworkProbe {
         System.out.println("UPSTREAM_LIVE_NET_WORLD join=" + join + " map=" + Vars.state.map.name()
             + " bytes=" + total + " team=" + Vars.player.team().id + " fingerprint=" + fingerprint);
         Vars.state.set(State.playing);
-        confirm();
+        send(new ConnectConfirmCallPacket(), true);
         waitForWave(join, app);
     }
 
-    private static void confirm() throws IOException {
-        var confirm = new ConnectConfirmCallPacket();
+    private static void send(Packet outgoing, boolean reliable) throws IOException {
         var buffer = new ByteArrayOutputStream();
-        confirm.write(new Writes(new DataOutputStream(buffer)));
+        outgoing.write(new Writes(new DataOutputStream(buffer)));
         byte[] payload = buffer.toByteArray();
-        if (Native.send(Address.ofData(payload), payload.length, Net.getPacketId(confirm) & 0xff, 1) == 0) {
-            throw new IOException("Unable to send the upstream connection confirmation");
+        if (Native.send(Address.ofData(payload), payload.length, Net.getPacketId(outgoing) & 0xff,
+                reliable ? 1 : 0) == 0) {
+            throw new IOException("Unable to send " + outgoing.getClass().getSimpleName());
         }
     }
 
@@ -134,6 +146,7 @@ public final class UpstreamLiveNetworkProbe {
         int snapshotId = unsignedId(StateSnapshotCallPacket.class);
         int entityId = unsignedId(EntitySnapshotCallPacket.class);
         int initialWave = Vars.state.wave;
+        var movement = verifyMovement ? new MovementCheck(join) : null;
         var initialEnemies = new IntSet();
         for (var unit : Groups.unit) {
             if (unit.team == Vars.state.rules.waveTeam) initialEnemies.add(unit.id);
@@ -175,7 +188,8 @@ public final class UpstreamLiveNetworkProbe {
                 decode(new EntitySnapshotCallPacket(), received).handleClient();
             }
             app.runPosted();
-            if (receivedState && Vars.state.wave > initialWave) {
+            if (movement != null) movement.update(now);
+            if (receivedState && Vars.state.wave > initialWave && (movement == null || movement.finished())) {
                 for (var unit : Groups.unit) {
                     if (unit.team == Vars.state.rules.waveTeam && unit.type == UnitTypes.dagger
                             && !initialEnemies.contains(unit.id)
@@ -187,7 +201,73 @@ public final class UpstreamLiveNetworkProbe {
                 }
             }
         }
-        throw new IOException("No new wave and synchronized enemy after connection confirmation");
+        throw new IOException("Incomplete live state check; movement complete="
+            + (movement == null || movement.finished()));
+    }
+
+    /** Exercises a short eastward input sequence on the server-assigned, upstream unit. */
+    private static final class MovementCheck {
+        private final int join;
+        private final Vec2 direction = new Vec2();
+        private int snapshotId;
+        private int unitId;
+        private int stoppedSamples;
+        private float startX;
+        private long nextSnapshot;
+
+        private MovementCheck(int join) {
+            this.join = join;
+        }
+
+        boolean finished() {
+            return stoppedSamples == 4;
+        }
+
+        void update(long now) throws IOException {
+            var player = Vars.player;
+            var unit = player.unit();
+            if (finished() || now < nextSnapshot || unit == null || player.dead()
+                    || Groups.sync.getByID(unit.id()) != unit) return;
+            if (snapshotId == 0) {
+                unitId = unit.id();
+                startX = unit.x();
+            }
+            if (unit.id() != unitId) throw new IOException("Server-assigned unit changed during movement");
+
+            if (unit.x() - startX < 32f) {
+                unit.movePref(direction.set(unit.speed(), 0f));
+                unit.move(unit.vel.x * Time.delta, unit.vel.y * Time.delta);
+            } else {
+                unit.vel.setZero();
+                stoppedSamples++;
+            }
+
+            // Match the live unit fields used by upstream NetClient.sync. The probe has no active tools.
+            var snapshot = new ClientSnapshotCallPacket();
+            snapshot.snapshotID = snapshotId++;
+            snapshot.unitID = unitId;
+            snapshot.x = unit.x();
+            snapshot.y = unit.y();
+            snapshot.pointerX = unit.aimX();
+            snapshot.pointerY = unit.aimY();
+            snapshot.rotation = unit.rotation();
+            snapshot.baseRotation = unit instanceof Mechc mech ? mech.baseRotation() : 0f;
+            snapshot.xVelocity = unit.vel.x;
+            snapshot.yVelocity = unit.vel.y;
+            snapshot.selectedBlock = player.selectedBlock;
+            snapshot.selectedRotation = player.selectedRotation;
+            snapshot.viewX = unit.x();
+            snapshot.viewY = unit.y();
+            snapshot.viewWidth = 400f;
+            snapshot.viewHeight = 240f;
+            send(snapshot, false);
+            nextSnapshot = now + 33_333_333L;
+            if (finished()) {
+                System.out.println("UPSTREAM_LIVE_NET_MOVEMENT join=" + join + " unit=" + unitId
+                    + " snapshot=" + snapshot.snapshotID + " fromX=" + startX
+                    + " x=" + snapshot.x + " y=" + snapshot.y);
+            }
+        }
     }
 
     private static void keepAlive(int reliable) throws IOException {
