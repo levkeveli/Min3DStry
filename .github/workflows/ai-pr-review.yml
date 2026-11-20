@@ -15,6 +15,7 @@ jobs:
   policy-gate:
     name: PR policy gate
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: read
       pull-requests: read
@@ -29,6 +30,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.base.ref }}
           persist-credentials: false
       - id: classify
         env:
@@ -43,6 +45,7 @@ jobs:
       !github.event.pull_request.head.repo.fork &&
       needs.policy-gate.outputs.eligible_for_ai_review == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
       pull-requests: write
@@ -51,6 +54,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.base.ref }}
           persist-credentials: false
       - id: review
         env:
@@ -76,12 +80,14 @@ jobs:
       needs.policy-gate.outputs.eligible_for_auto_merge == 'true' &&
       needs.ai-review.outputs.approved == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: write
       pull-requests: write
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.base.ref }}
           persist-credentials: false
       - env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

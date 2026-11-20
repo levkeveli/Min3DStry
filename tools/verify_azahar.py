@@ -132,14 +132,21 @@ class AzaharRpcClient:
         header, req_id = _build_header(req_type, len(data))
         self.sock.settimeout(wait)
         for _ in range(attempts):
-            self.sock.sendto(header + data, (self.host, self.port))
+            try:
+                self.sock.sendto(header + data, (self.host, self.port))
+            except (ConnectionResetError, ConnectionRefusedError):
+                # Windows can report the previous datagram's ICMP port-unreachable
+                # on the next send while Azahar is still binding its RPC socket.
+                continue
             try:
                 while True:
                     raw_reply = self.sock.recv(MAX_PACKET_SIZE)
                     payload = _parse_header(raw_reply, req_id, req_type)
                     if payload is not None:
                         return payload
-            except TimeoutError:
+            except (TimeoutError, ConnectionResetError, ConnectionRefusedError):
+                # A cold Azahar start can reset the first UDP request before the
+                # RPC server is listening; retry within the caller's timeout.
                 continue
         raise TimeoutError(f"Azahar RPC timeout on request type {req_type}")
 
