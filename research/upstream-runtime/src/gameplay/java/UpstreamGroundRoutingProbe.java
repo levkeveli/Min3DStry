@@ -66,10 +66,15 @@ public final class UpstreamGroundRoutingProbe {
                 app.runPosted();
             }
             if (unit.tileY() >= from || unit.dead) {
-                throw new IllegalStateException("Dagger did not advance toward the core");
+                throw new IllegalStateException("Dagger ended at " + unit.tileX() + "," + unit.tileY()
+                    + " with health " + unit.health);
             }
             System.out.println("UPSTREAM_GROUND_UNIT ticks=120 from=" + start.x + "," + start.y
                 + " to=" + unit.tileX() + "," + unit.tileY());
+        } catch (RuntimeException failure) {
+            // The native console stack trace does not include the exception message.
+            System.err.println("GROUND_ROUTING_ERROR " + failure);
+            throw failure;
         } finally {
             Events.fire(new ResetEvent());
         }
