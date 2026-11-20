@@ -38,3 +38,43 @@ Boot the probe in Azahar with the desired console model. The top screen and the 
 [Test build 44757615581](https://github.com/levkeveli/Min3DStry/actions/runs/44757615581) linked with devkitARM and libctru. In Azahar 2126.2 Original and New 3DS modes, the build emitted `UPSTREAM_LOGIC quotient=-3 remainder=1 xor=6`, matching the JVM baseline.
 
 The probe provides libctru event waits, clocks, debug output, and a fully backed scratch heap. It aligns dynamic class entries on ARM so TeaVM's compressed references can represent them. It excludes unused filesystem and date runtime modules and uses TeaVM's small existing character-conversion fallback. Full game runtime services, Unicode coverage, physical hardware, gameplay and multiplayer are unverified. See [the port plan](../../docs/upstream-port.md).
+
+## Upstream map metadata probe
+
+Add `-Pprobe=map` to the Gradle command to extract the original Glacier map from the pinned Git revision at build time. The fixture adapter supplies those exact bytes to upstream `MapIO.createMap` through a buffered stream. This keeps Arc's file initialization and executor dependencies outside the metadata test. Run the ARM11 build command with a new output directory after switching probes.
+
+The JVM, native Windows x64 build, and both Azahar 2126.2 modes returned `UPSTREAM_MAP name=Glacier width=150 height=250 version=7`. [devkitARM build](https://github.com/levkeveli/Min3DStry/actions/runs/44759607972)
+
+### Read the map from SD
+
+Generate the probe with `-Pprobe=map-sd`, then use the ARM11 build command with a fresh output directory. In this mode `runProbeJvm` still runs the in-memory Java reference, while `generateC` builds the native SD entry point.
+
+Place the original Glacier input at `/3ds/min3dstry/glacier.msav` on the target SD or Azahar virtual SD. For example, in Bash with `UPSTREAM` and `SD_ROOT` set to the respective directories:
+
+```sh
+mkdir -p "$SD_ROOT/3ds/min3dstry"
+git -C "$UPSTREAM" show 19a0f40d44514f4802a8b79770456e7e32e34da0:core/assets/maps/default/glacier.msav \
+    > "$SD_ROOT/3ds/min3dstry/glacier.msav"
+```
+
+TeaVM calls a native buffered read adapter, which opens the file through libctru's SD mount. The upstream parser still performs inflation and metadata decoding. The SD probe expects the original Glacier metadata, and the map bytes are not included in its payload.
+
+[SD build 44761441455](https://github.com/levkeveli/Min3DStry/actions/runs/44761441455) produced the expected metadata from the virtual SD on both Azahar console profiles. Both profiles also reported an error when the file was missing and when given a malformed input, without freezing or crashing.
+
+This checks metadata for one upstream map. Tile and building loading, save state, general-purpose filesystem support, and physical hardware are still unverified.
+
+### Establish the JVM world-loading baseline
+
+Run the baseline with Java 17 and the pinned upstream server JAR. Use a scratch
+working directory because upstream initialization creates local data directories.
+
+```sh
+java -cp /path/to/server-release.jar \
+    /path/to/Min3DStry/research/upstream-runtime/host/UpstreamWorldBaseline.java \
+    /path/to/glacier.msav
+```
+
+Upstream `World.loadMap` loads Glacier and emits
+`UPSTREAM_WORLD width=150 height=250 tiles=37500 buildings=2`. The building count
+includes each building once at its origin tile. Use this JVM result as a
+reference when bringing up upstream world loading on ARM11.

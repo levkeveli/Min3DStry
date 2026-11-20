@@ -58,6 +58,9 @@ def main():
             replace(args.output / name, old, new)
     for name in ("m3ds_platform.c", "m3ds_main.c"):
         shutil.copyfile(Path(__file__).with_name(name), args.output / name)
+    includes = args.output / "nativeinclude"
+    includes.mkdir()
+    shutil.copyfile(Path(__file__).with_name("m3ds_map_file.h"), includes / "m3ds_map_file.h")
 
 
 if __name__ == "__main__":
