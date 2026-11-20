@@ -123,8 +123,9 @@ resolved clips for ROMFS builds, while `voice=0` is expected when DSP firmware
 is unavailable. No research system is wired yet.
 
 The current harness starts conveyor/drill loops globally at boot and stops or
-restarts them with the A pause toggle. Upstream plays block ambients
-positionally near the camera, so positional ambient mixing is still pending.
+restarts them with the A pause toggle through `audio_ambient.h`. Upstream plays
+block ambients positionally near the camera, so positional ambient mixing is
+still pending.
 
 ## Tests
 
@@ -142,6 +143,8 @@ positionally near the camera, so positional ambient mixing is still pending.
 - `tests/audio/test_audio_events.c` checks the pinned ID mapping and that each
   event plays the matching registry clip; invalid events and missing registries
   are rejected without starting a voice.
+- `tests/audio/test_audio_ambient.c` covers global loop start/stop, loop flags,
+  repeated/invalid-handle stops and null arguments.
 - `./dev.sh test` includes both test suites. The `Audio conversion` CI job
   converts the pinned seven assets with ffmpeg, asserts the output manifest,
   PCM files, `audio/` layout and `audio-index.h`, then compiles the generated
