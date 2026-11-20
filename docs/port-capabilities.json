@@ -216,9 +216,14 @@
       "category": "Maps, Campaign & Saves",
       "name": "Tech Tree & Sector Progression",
       "weight": 4,
-      "stage": "planned",
+      "stage": "host-tested",
       "issue": 41,
-      "evidence": []
+      "evidence": [
+        "include/sim/sector_progress.h",
+        "src/sim/sector_progress.c",
+        "tests/sim/test_sector_progress.c",
+        "docs/simulation/sector-progress.md"
+      ]
     },
     {
       "id": "ndsp-sfx-music",
