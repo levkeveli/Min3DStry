@@ -71,13 +71,15 @@ def run_model(args, model, config, original_config, log, output):
                 stop(emulator)
                 (output / f"{model}-emulator.log").write_bytes(log.read_bytes())
             validate(emu_log)
-            wait_for(server_log, server, rf"{PLAYER} has disconnected", 5)
+            disconnected = rf"{PLAYER} has disconnected[\s\S]*{PLAYER} has disconnected"
+            wait_for(server_log, server, disconnected, 5)
             server.stdin.write("exit\n")
             server.stdin.flush()
             server.wait(timeout=10)
             upstream = server_log.read_text(encoding="utf-8", errors="replace")
-            if "clientOutdated" not in upstream or upstream.count(f"{PLAYER} has disconnected") != 2:
-                raise RuntimeError(f"{model} server did not report version rejection and two disconnects")
+            if ("clientOutdated" not in upstream or upstream.count(f"{PLAYER} has connected") != 2
+                    or upstream.count(f"{PLAYER} has disconnected") != 2):
+                raise RuntimeError(f"{model} server did not report version rejection and two complete sessions")
         finally:
             stop(server)
     for line in emu_log.splitlines():
@@ -95,6 +97,7 @@ def validate(log):
             or [event[0] for event in states] != ["1", "2"]
             or re.findall(r"UPSTREAM_LIVE_NET_DISCONNECTED join=(\d+)", log) != ["1", "2"]
             or any(int(event[1]) <= 0 or int(event[2]) <= 0 for event in worlds)
+            or worlds[0][3] != worlds[1][3]
             or any(int(event[1]) <= 0 or int(event[4]) <= 0 for event in states)):
         raise RuntimeError("Expected a version rejection, two live worlds, state snapshots and disconnects")
 

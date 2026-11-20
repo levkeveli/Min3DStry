@@ -39,7 +39,6 @@ public final class UpstreamLiveNetworkProbe {
         int port = Integer.parseInt(endpoint[1]);
         var app = UpstreamWorldLoadProbe.initialize(config.parent());
         Vars.mods = new Mods();
-        Vars.net.setClientConnected();
         try {
             new UpstreamLiveNetworkProbe().run(host, port, app);
         } catch (IOException | RuntimeException error) {
@@ -70,6 +69,8 @@ public final class UpstreamLiveNetworkProbe {
             }
             System.out.println("UPSTREAM_LIVE_NET_DISCONNECTED join=" + join);
             if (join == 1) {
+                // Net.disconnect normally clears client mode before Logic.reset removes synced entities.
+                Vars.net = new Net(null);
                 Vars.logic.reset();
                 app.runPosted();
                 Thread.sleep(500);
@@ -84,6 +85,7 @@ public final class UpstreamLiveNetworkProbe {
         if (result != ACCEPTED || Native.streamType() != Net.packetIdWorldStream || Native.streamTotal() <= 0) {
             throw new IOException("Expected a live multiplayer WorldStream, status=" + result);
         }
+        Vars.net.setClientConnected();
         int total = Native.streamTotal();
         var stream = new WorldStreamInput(Native.streamId(), total);
         var seenEntities = new IntSet();
