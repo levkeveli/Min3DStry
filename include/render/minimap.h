@@ -2,6 +2,7 @@
 #define MIN3DSTRY_RENDER_MINIMAP_H
 
 #include "render/scene_2d.h"
+#include "sim/parity_scenario.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -14,6 +15,7 @@ extern "C" {
  */
 bool m3ds_minimap_render(
     const M3dsBoundedScene *scene,
+    const M3dsParityState *factory,
     const M3dsRenderBackend *backend,
     float x,
     float y,
