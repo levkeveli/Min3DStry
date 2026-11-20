@@ -2,29 +2,42 @@
 set -euo pipefail
 : "${DEVKITARM:?Set DEVKITARM with devkitPro's 3dsvars.sh}"
 : "${DEVKITPRO:?Set DEVKITPRO with devkitPro's 3dsvars.sh}"
-if [[ $# -lt 2 || $# -gt 3 ]]; then
-    echo "Usage: $0 <TeaVM generated C directory> <new output directory> [terrain assets directory]" >&2
+if [[ $# -lt 2 || $# -gt 4 ]]; then
+    echo "Usage: $0 <TeaVM generated C directory> <new output directory> [--network] [terrain assets directory]" >&2
     exit 2
 fi
 root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-python3 "$root/prepare.py" "$1" "$2"
-flags=()
-sources=()
-libraries=()
+output="$2"
+python3 "$root/prepare.py" "$1" "$output"
+shift 2
+native_network=()
+if [[ ${1:-} == --network ]]; then
+    repo="$root/../../.."
+    native_network=(-I"$root" -I"$repo/include" -I"$repo/src/platform/3ds"
+        "$root/m3ds_net_bridge.c" "$repo/src/net/mindustry_net.c" "$repo/src/platform/3ds/net_3ds.c")
+    shift
+fi
+terrain_flags=()
+terrain_sources=()
+terrain_libraries=()
 package_flags=()
-if [[ $# -eq 3 ]]; then
-    flags=(-DM3DS_TERRAIN_RENDERER -I"$root" -I"$3")
-    sources=("$root/m3ds_terrain_renderer.c")
-    libraries=(-lcitro2d -lcitro3d)
-    mkdir "$2/romfs"
-    cp "$3/sprites.t3x" "$2/romfs/terrain.t3x"
+if [[ $# -gt 0 ]]; then
+    if [[ $# -ne 1 || ! -d "$1" ]]; then
+        echo "Expected one terrain assets directory" >&2
+        exit 2
+    fi
+    terrain_flags=(-DM3DS_TERRAIN_RENDERER -I"$root" -I"$1")
+    terrain_sources=("$root/m3ds_terrain_renderer.c")
+    terrain_libraries=(-lcitro2d -lcitro3d)
+    mkdir "$output/romfs"
+    cp "$1/sprites.t3x" "$output/romfs/terrain.t3x"
     "$DEVKITPRO/tools/bin/smdhtool" --create "Min3DStry Terrain" "Mindustry v160.8 Glacier" \
-        "Min3DStry Contributors" "$DEVKITPRO/libctru/default_icon.png" "$2/upstream-probe.smdh"
-    package_flags=(--smdh="$2/upstream-probe.smdh" --romfs="$2/romfs")
+        "Min3DStry Contributors" "$DEVKITPRO/libctru/default_icon.png" "$output/upstream-probe.smdh"
+    package_flags=(--smdh="$output/upstream-probe.smdh" --romfs="$output/romfs")
 fi
 "$DEVKITARM/bin/arm-none-eabi-gcc" -std=gnu11 -g -O2 -fwrapv -D__3DS__ -mword-relocations \
     -march=armv6k -mtune=mpcore -mfpu=vfp -mfloat-abi=hard -mtp=soft \
-    -I"$2/nativeinclude" -I"$DEVKITPRO/libctru/include" -L"$DEVKITPRO/libctru/lib" \
-    "${flags[@]}" -specs=3dsx.specs "$2/all.c" "${sources[@]}" "${libraries[@]}" \
-    -lctru -lm -o "$2/upstream-probe.elf"
-"$DEVKITPRO/tools/bin/3dsxtool" "$2/upstream-probe.elf" "$2/upstream-probe.3dsx" "${package_flags[@]}"
+    -I"$output/nativeinclude" -I"$DEVKITPRO/libctru/include" -L"$DEVKITPRO/libctru/lib" \
+    "${terrain_flags[@]}" -specs=3dsx.specs "$output/all.c" "${native_network[@]}" \
+    "${terrain_sources[@]}" "${terrain_libraries[@]}" -lctru -lm -o "$output/upstream-probe.elf"
+"$DEVKITPRO/tools/bin/3dsxtool" "$output/upstream-probe.elf" "$output/upstream-probe.3dsx" "${package_flags[@]}"

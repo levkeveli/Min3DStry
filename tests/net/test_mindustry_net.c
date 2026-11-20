@@ -373,6 +373,41 @@ static void test_mock_handshake(void) {
   M3dsNetFrameworkMsg sent_udp;
   assert(m3ds_net_decode_framework(st.tx_udp, st.tx_udp_len, &sent_udp));
   assert(sent_udp.type == M3DS_FW_REGISTER_UDP && sent_udp.id == -9);
+
+  // Reuse the fixture through the live API, retaining socket and frame state.
+  st.rx_pos = st.tx_tcp_len = 0U;
+  st.closed = false;
+  st.max_tcp_chunk = 1U;
+  M3dsNetClient *client = m3ds_net_client_open(&tr, "127.0.0.1", M3DS_NET_DEFAULT_PORT, 1000U, &pkt, &res);
+  assert(client && !st.closed && res.stream_id == 1);
+  uint8_t server_payload[] = {0, 0, 0, 1, 0, 2, 0x78, 0x9c};
+  size_t message_size;
+  assert(m3ds_net_encode_packet_raw(M3DS_PKT_STREAM_CHUNK, server_payload, sizeof(server_payload),
+      msg, sizeof(msg), &message_size));
+  mock_queue_tcp_frame(&st, msg, message_size);
+  st.inject_timeout_once = true;
+  st.timeout_at_rx_pos = st.rx_pos + 3U;
+  uint8_t received[16], packet_id;
+  size_t length;
+  assert(m3ds_net_client_receive(client, true, 1000U, &packet_id, received, sizeof(received), &length)
+      == M3DS_NET_IO_TIMEOUT);
+
+  const uint8_t snapshot_byte = 42;
+  assert(m3ds_net_encode_packet_raw(23U, &snapshot_byte, 1U,
+      st.rx_udp, sizeof(st.rx_udp), &st.rx_udp_len));
+  assert(m3ds_net_client_receive(client, false, 1000U, &packet_id, received, sizeof(received), &length) == 1);
+  assert(packet_id == 23U && length == 1U && received[0] == snapshot_byte);
+  assert(m3ds_net_client_receive(client, true, 1000U, &packet_id, received, sizeof(received), &length) == 1);
+  assert(packet_id == M3DS_PKT_STREAM_CHUNK && length == sizeof(server_payload));
+  assert(memcmp(received, server_payload, sizeof(server_payload)) == 0);
+
+  size_t sent_before = st.tx_tcp_len;
+  assert(m3ds_net_client_send(client, true, 21U, NULL, 0U));
+  const uint8_t empty_packet[] = {0, 4, 21, 0, 0, 0};
+  assert(st.tx_tcp_len == sent_before + sizeof(empty_packet));
+  assert(memcmp(st.tx_tcp + sent_before, empty_packet, sizeof(empty_packet)) == 0);
+  m3ds_net_client_close(client);
+  assert(st.closed);
 }
 
 static void test_segmented_handshake_and_pings(void) {

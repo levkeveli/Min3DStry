@@ -34,6 +34,7 @@ def entryPoints = [
     'world-roundtrip': 'UpstreamWorldRoundTripProbe',
     'factory-ticks': 'UpstreamFactoryTickProbe',
     'world-stream': 'UpstreamWorldStreamProbe',
+    'network-live': 'UpstreamLiveNetworkProbe',
     'terrain-draw': 'UpstreamTerrainDrawProbe',
     'terrain-render': 'UpstreamTerrainRenderProbe',
     'file-metadata': 'port.UpstreamFileMetadataProbe'
@@ -44,12 +45,12 @@ if (!entryPoints.containsKey(probe)) {
 def entryPoint = entryPoints[probe]
 def usesMapSources = probe in ['map', 'map-sd']
 def usesWorldSources = probe in ['world', 'world-save', 'world-roundtrip', 'world-stream',
-                                 'factory-ticks', 'terrain-draw', 'terrain-render']
+                                 'network-live', 'factory-ticks', 'terrain-draw', 'terrain-render']
 def initializesContent = probe == 'content-init' || usesWorldSources
 def usesContentSources = probe == 'content' || initializesContent
 def usesExecutor = usesContentSources || probe == 'executor'
 def usesArcSources = usesContentSources || probe == 'resource'
-def usesWorldStream = probe == 'world-stream'
+def usesWorldStream = probe in ['world-stream', 'network-live']
 def pluginsToLoad = []
 if (usesArcSources) pluginsToLoad.add('port.ResourceVirtualMethods')
 if (usesExecutor) pluginsToLoad.add('port.concurrent.ArcPoolSupport')
@@ -128,14 +129,17 @@ if (probe == 'terrain-render') {
 if (probe == 'factory-ticks') {
     sourceSets.main.java.srcDir('src/gameplay/java')
 }
-if (usesWorldStream) {
+if (probe == 'world-stream') {
     sourceSets.main.java.srcDir('src/world-stream/java')
+}
+if (probe == 'network-live') {
+    sourceSets.main.java.srcDir('src/network-live/java')
 }
 if (probe == 'file-metadata') {
     sourceSets.main.java.srcDir('src/file/java')
 }
 dependencies {
-    if (usesMapSources || probe == 'terrain-render') {
+    if (usesMapSources || probe in ['network-live', 'terrain-render']) {
         implementation 'org.teavm:teavm-interop:0.16.0'
     }
 }
