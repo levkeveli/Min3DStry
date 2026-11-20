@@ -38,3 +38,11 @@ Boot the probe in Azahar with the desired console model. The top screen and the 
 [Test build 44757615581](https://github.com/levkeveli/Min3DStry/actions/runs/44757615581) linked with devkitARM and libctru. In Azahar 2126.2 Original and New 3DS modes, the build emitted `UPSTREAM_LOGIC quotient=-3 remainder=1 xor=6`, matching the JVM baseline.
 
 The probe provides libctru event waits, clocks, debug output, and a fully backed scratch heap. It aligns dynamic class entries on ARM so TeaVM's compressed references can represent them. It excludes unused filesystem and date runtime modules and uses TeaVM's small existing character-conversion fallback. Full game runtime services, Unicode coverage, physical hardware, gameplay and multiplayer are unverified. See [the port plan](../../docs/upstream-port.md).
+
+## Upstream map metadata probe
+
+Add `-Pprobe=map` to the Gradle command to extract the original Glacier map from the pinned Git revision at build time. The fixture adapter supplies those exact bytes to upstream `MapIO.createMap` through a buffered stream. This keeps Arc's file initialization and executor dependencies outside the metadata test. Run the ARM11 build command with a new output directory after switching probes.
+
+The JVM, native Windows x64 build, and both Azahar 2126.2 modes returned `UPSTREAM_MAP name=Glacier width=150 height=250 version=7`. [devkitARM build](https://github.com/levkeveli/Min3DStry/actions/runs/44759607972)
+
+This checks metadata for one bundled fixture. Map tiles, buildings, save state, SD-card loading and physical hardware are still unverified.
