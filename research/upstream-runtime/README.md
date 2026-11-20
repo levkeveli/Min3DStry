@@ -185,7 +185,11 @@ The `world-stream` probe feeds the compressed `WorldStream` payload to
 the same upstream `NetworkIO.loadWorld` entry point as
 `core/src/mindustry/core/NetClient.java` in pinned Mindustry v160.8.
 The capture uses that release's Arc client, `PacketSerializer` and
-`StreamBuilder`.
+`StreamBuilder`. The staged source extracts an overload that reports
+entity IDs through a callback. The regular entry point still forwards
+those IDs to `NetClient`. The probe records them locally so it can test
+the deserializer before the 3DS client registers its network and UI
+handlers.
 
 In a scratch directory start the official `server-release.jar` and enter
 `config port 16568` followed by `host Glacier`. With the local server
@@ -203,6 +207,8 @@ ARM11 entry point reads the same fixture from
 `/3ds/min3dstry/glacier-world-stream.bin` on the SD.
 Reuse the same capture when comparing platforms because each server
 startup can produce different filter results and tick state.
+A live JVM capture ran against the official server on loopback and
+loaded the 150 × 250 map, two cores, wave 1 and the server-assigned player.
 Live 3DS sockets, connection confirmation and gameplay synchronization
 are tracked in #44.
 

@@ -1,8 +1,8 @@
 import arc.files.Fi;
+import arc.struct.IntSet;
 import java.io.IOException;
 import java.util.zip.InflaterInputStream;
 import mindustry.Vars;
-import mindustry.core.NetClient;
 import mindustry.gen.Groups;
 import mindustry.gen.Player;
 import mindustry.mod.Mods;
@@ -15,19 +15,21 @@ public final class UpstreamWorldStreamProbe {
         var app = UpstreamWorldLoadProbe.initialize(fixture.parent());
         Vars.mods = new Mods();
         Vars.player = Player.create();
-        Vars.netClient = new NetClient();
+        var receivedEntities = new IntSet();
         try (var stream = new InflaterInputStream(fixture.read())) {
-            NetworkIO.loadWorld(stream);
+            NetworkIO.loadWorld(stream, receivedEntities::add);
         }
         app.runPosted();
         if (Vars.world.width() != 150 || Vars.world.height() != 250
-                || Groups.player.size() != 1 || !Vars.player.name.equals("Min3DStry World Fixture")) {
+                || Groups.player.size() != 1 || !Vars.player.name.equals("Min3DStry World Fixture")
+                || Vars.player.id <= 0) {
             throw new IllegalStateException("The server world or assigned player did not load");
         }
         String fingerprint = UpstreamWorldLoadProbe.reportTerrain(false);
         System.out.println("UPSTREAM_WORLD_STREAM map=" + Vars.state.map.name() + " wave=" + Vars.state.wave
             + " team=" + Vars.player.team().id + " playerId=" + Vars.player.id
             + " defaultTeam=" + Vars.state.rules.defaultTeam.id + " waveTeam=" + Vars.state.rules.waveTeam.id
-            + " waveSpacing=" + (int)Vars.state.rules.waveSpacing + " fingerprint=" + fingerprint);
+            + " waveSpacing=" + (int)Vars.state.rules.waveSpacing + " records=" + receivedEntities.size
+            + " fingerprint=" + fingerprint);
     }
 }
