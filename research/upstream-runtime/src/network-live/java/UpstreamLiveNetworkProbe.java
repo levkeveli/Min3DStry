@@ -301,6 +301,8 @@ public final class UpstreamLiveNetworkProbe {
         private static final long FRAME_NS = 16_666_667L;
         // The player snapshot cadence in pinned NetClient.
         private static final long SNAPSHOT_NS = 66_000_000L;
+        private static final float DEAD_ZONE = 20f / 127f;
+        private static final float STOP_SPEED = 0.03f;
         private final Vec2 direction = new Vec2();
         private long lastStep, lastSnapshot;
         private int sequence;
@@ -323,7 +325,7 @@ public final class UpstreamLiveNetworkProbe {
             }
             if (now - lastStep >= FRAME_NS) {
                 direction.set((byte)input / 127f, (byte)(input >>> 8) / 127f).limit(1f);
-                if (direction.isZero(20f / 127f)) direction.setZero();
+                if (direction.len2() < DEAD_ZONE * DEAD_ZONE) direction.setZero();
                 float delta = Math.min(3f, (now - lastStep) / (float)FRAME_NS);
                 lastStep = now;
                 stepUnit(unit, direction, delta);
@@ -332,7 +334,7 @@ public final class UpstreamLiveNetworkProbe {
                     inputDevice = (input & 0x10000) != 0 ? "dpad" : "circle";
                     System.out.println("UPSTREAM_LIVE_CONTROLS_MOVING unit=" + unit.id()
                         + " input=" + inputDevice);
-                } else if (moving && direction.isZero() && unit.vel.isZero(0.03f)) {
+                } else if (moving && direction.isZero() && unit.vel.len2() < STOP_SPEED * STOP_SPEED) {
                     unit.vel.setZero();
                     moving = false;
                     System.out.println("UPSTREAM_LIVE_CONTROLS_STOPPED unit=" + unit.id()

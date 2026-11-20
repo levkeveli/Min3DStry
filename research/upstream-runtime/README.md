@@ -301,14 +301,26 @@ at `-O2` passed on both Azahar profiles with the unmodified v160.8
 desktop client connected. The server accepted snapshot 19 on both joins
 on each profile, with the unit moving from x = 648.0 to about x = 680.63.
 In the Old 3DS run the PC renderer showed the ARM11 player's unit move
-from the core to the east. The movement sequence is scripted for this
-probe. Console controls still need to drive the live client.
+from the core to the east during the scripted check.
 
 An [updated build](https://github.com/levkeveli/Min3DStry/actions/runs/44832282453)
 drains pending TCP input during shutdown with a 250 ms deadline.
 Both console profiles passed the movement and reconnect checks at
 `-O0` and `-O2`. The stock server reported orderly departures on both
 joins in all four runs.
+
+For interactive input, append `controls` after the address and port in
+`/3ds/min3dstry/server-endpoint.txt`. The probe loads the upstream world
+and waits for the server to assign a unit. The Circle Pad and D-pad move
+the unit, releasing the input lets it decelerate, and START disconnects.
+The top screen shows the session log.
+
+Run the same verifier with `--controls --model old3ds` and then
+`--controls --model new3ds`. Follow its prompts to move right with the
+D-pad, move up with the Circle Pad, and leave after the next wave.
+The verifier checks the stock server's position and continued receipt
+of snapshots while the unit is stationary. The original scripted
+`--movement` check remains available for unattended runs.
 
 Before the snapshot dispatch extension, the [devkitARM verification build](https://github.com/levkeveli/Min3DStry/actions/runs/44824442974)
 passed at `-O0` and `-O2` on both Azahar 2126.2 console profiles. Each run
