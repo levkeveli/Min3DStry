@@ -133,6 +133,13 @@ try:
             arrived = int(wait_for(r'UPSTREAM_LIVE_DELIVERY copper=1 tick=(\d+)')[1])
             if paused != resumed or not sent < paused < arrived or arrived - sent != 57:
                 raise RuntimeError(f'{model} update mismatch: {sent}, {paused}, {resumed}, {arrived}')
+            with held(window, 'H'):
+                wait_for(r'UPSTREAM_LIVE_CAMERA left=75 bottom=(\d+)')
+            with held(window, 'T'):  # Azahar's D-pad Up.
+                core = wait_for(r'UPSTREAM_LIVE_CAMERA left=(\d+) bottom=20\b')
+            if not 72 <= int(core[1]) <= 78:
+                raise RuntimeError(f'{model} did not reach the first Glacier core')
+            (binary.parent / (model + '-core.png')).write_bytes(rpc.screenshot())
             tap(window, 'X')  # Azahar's 3DS Y button.
             wait_for(r'UPSTREAM_LIVE_CAMERA left=18 bottom=0\b')
             (binary.parent / (model + '-reset.png')).write_bytes(rpc.screenshot())
@@ -143,7 +150,8 @@ try:
             print(f'{model}: panned=({panned[1]},8) reset=(18,0) sent={sent} paused={paused} '
                   f'resumed={resumed} arrived={arrived} collected=1 exited=1', flush=True)
             report.append(dict(model=model, sent=sent, paused=paused, resumed=resumed,
-                               arrived=arrived, panned=[int(panned[1]), 8], reset=[18, 0]))
+                               arrived=arrived, panned=[int(panned[1]), 8],
+                               core=[int(core[1]), 20], reset=[18, 0]))
         finally:
             rpc.close()
             if proc.poll() is None:

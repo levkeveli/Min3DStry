@@ -439,7 +439,7 @@ This pass covers terrain and buildings. Layered liquid shaders and
 lighting still need a 3DS backend.
 
 The Windows emulator verifier uses Azahar's default keyboard bindings
-and saves the ready, paused, panned and reset screenshots and native
+and saves ready, paused, panned, core and reset screenshots and native
 logs alongside the build. Run from the repository root:
 
 ```sh
@@ -464,9 +464,11 @@ The [camera ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/448
 passed in both Azahar 2126.2 console profiles. The verifier panned from
 `(18, 0)` to `(34, 8)` with the D-pad and Circle Pad while paused at tick 9.
 After resuming at tick 9, it received copper at tick 60, 57 ticks after
-insertion. Y returned the camera to `(18, 0)` before the verifier collected
-copper and exited. The fixed terrain probe still reports 320 commands
-and hash `de709773b1b58465`.
+insertion. Both profiles then rendered identical screenshots from
+`(75, 20)`, showing the upstream core at `(81, 26)` and its team overlay.
+Y returned to `(18, 0)` before the verifier collected copper and exited.
+The fixed terrain probe still reports 320 commands and hash
+`de709773b1b58465`.
 
 The camera build has 39.23 MiB of page-rounded ELF load segments. With
 the 24 MiB managed heap, 4 MiB linear heap and 256 KiB native stack, its
