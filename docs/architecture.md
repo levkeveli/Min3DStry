@@ -9,6 +9,7 @@ Current prototypes:
 - [Gameplay parity harness](testing/parity-harness.md) (`M3dsParityState` + canonical scenario `starter_copper_defense_v1`, matching the fixture on host `-O0`/`-O2`, Azahar Old/New 3DS ARM11, and a physical New 3DS XL).
 - [Hardware deployment & log streaming](hardware/deployment-and-logs.md) (`./dev.sh device` / `tools/device_deploy.py`, host-tested for SD staging and log tooling, hardware-tested for Wi-Fi deployment and log streaming on a New 3DS XL).
 - [NDSP audio mixer prototype](audio/ndsp-mixer.md) (`M3dsAudioMixer` + `libctru` NDSP backend, host-tested via mock backend, 3DS-built via `./dev.sh build`, and missing-`dspfirm.cdc` fallback verified in Azahar `2126.2`; physical hardware playback with DSP firmware pending).
+- [Bottom-screen touch build UI](ui/touch-build-ui.md) (`M3dsTouchBuildUi` + dual-screen Citro2D renderer, host-tested for hit-testing/placement state machine, 3DS-built via `./dev.sh build`, and top cursor + bottom palette verified in Azahar `2126.2`; physical hardware touchscreen testing pending).
 
 Track toolchain builds, emulator boot, physical hardware boot, gameplay parity and upstream multiplayer independently. Record hardware model, build SHA and test scenario alongside measurements. Audit upstream and dependency licenses before importing code or assets.
 

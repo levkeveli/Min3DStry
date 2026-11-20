@@ -181,9 +181,14 @@
       "category": "Controls & Dual-Screen UI",
       "name": "Bottom-Screen Touch Build & Rotation UI",
       "weight": 6,
-      "stage": "planned",
+      "stage": "host-tested",
       "issue": 27,
-      "evidence": []
+      "evidence": [
+        "include/ui/touch_build_ui.h",
+        "src/ui/touch_build_ui.c",
+        "tests/ui/test_touch_build_ui.c",
+        "docs/ui/touch-build-ui.md"
+      ]
     },
     {
       "id": "hud-menus-minimap",

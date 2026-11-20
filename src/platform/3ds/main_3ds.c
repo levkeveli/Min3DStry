@@ -14,6 +14,7 @@
 #include "render/factory_demo.h"
 #include "render/scene_2d.h"
 #include "sim/parity_scenario.h"
+#include "ui/touch_build_ui.h"
 
 static void m3ds_emit_debug_line(int log_socket, const char *line) {
     size_t len = strlen(line);
@@ -28,7 +29,6 @@ int main(int argc, char *argv[]) {
     C3D_Init(C3D_DEFAULT_CMDBUF_SIZE);
     C2D_Init(C2D_DEFAULT_MAX_OBJECTS);
     C2D_Prepare();
-    consoleInit(GFX_BOTTOM, NULL);
 
     const u32 soc_buffer_size = 0x100000;
     void *soc_buffer = NULL;
@@ -75,6 +75,7 @@ int main(int argc, char *argv[]) {
     }
 
     C3D_RenderTarget *top = C2D_CreateScreenTarget(GFX_TOP, GFX_LEFT);
+    C3D_RenderTarget *bottom = C2D_CreateScreenTarget(GFX_BOTTOM, GFX_LEFT);
 
     M3dsBoundedScene scene;
     M3dsParityState factory;
@@ -89,6 +90,10 @@ int main(int argc, char *argv[]) {
     }
     m3ds_emit_debug_line(log_socket, sprites ? "[MIN3DSTRY] ATLAS loaded\n" : "[MIN3DSTRY] ATLAS unavailable\n");
     m3ds_citro2d_backend_init(&backend, &c2d_ctx, top, sprites);
+
+    M3dsCitro2dContext bottom_ctx;
+    M3dsRenderBackend bottom_backend;
+    m3ds_citro2d_backend_init(&bottom_backend, &bottom_ctx, bottom, NULL);
 
     M3dsNdspContext ndsp_ctx;
     M3dsAudioBackend audio_backend;
@@ -113,6 +118,15 @@ int main(int argc, char *argv[]) {
     char audio_diag[160];
     m3ds_audio_mixer_format_diag(&audio_mixer, audio_diag, sizeof(audio_diag));
     snprintf(dbg_line, sizeof(dbg_line), "[MIN3DSTRY] AUDIO %s\n", audio_diag);
+    m3ds_emit_debug_line(log_socket, dbg_line);
+
+    M3dsTouchBuildUi ui;
+    m3ds_touch_ui_init(&ui);
+    m3ds_touch_ui_sync_scene_cursor(&ui, &factory, &scene);
+
+    char ui_diag[160];
+    m3ds_touch_ui_format_diag(&ui, ui_diag, sizeof(ui_diag));
+    snprintf(dbg_line, sizeof(dbg_line), "[MIN3DSTRY] UI %s\n", ui_diag);
     m3ds_emit_debug_line(log_socket, dbg_line);
 
     M3dsDrawStats stats = {0};
@@ -143,14 +157,65 @@ int main(int argc, char *argv[]) {
             m3ds_audio_mixer_set_muted(
                 &audio_mixer, !m3ds_audio_mixer_is_muted(&audio_mixer));
         }
+        if (kDown & KEY_L) {
+            m3ds_touch_ui_rotate(&ui, -1);
+            M3dsAudioPlayParams ui_p = m3ds_audio_default_play_params(M3DS_AUDIO_BUS_SFX);
+            ui_p.volume = 0.5f;
+            (void)m3ds_audio_mixer_play(&audio_mixer, clip_ui, &ui_p);
+        }
+        if (kDown & KEY_R) {
+            m3ds_touch_ui_rotate(&ui, 1);
+            M3dsAudioPlayParams ui_p = m3ds_audio_default_play_params(M3DS_AUDIO_BUS_SFX);
+            ui_p.volume = 0.5f;
+            (void)m3ds_audio_mixer_play(&audio_mixer, clip_ui, &ui_p);
+        }
+        if (kDown & KEY_B) {
+            (void)m3ds_touch_ui_apply_to_factory(&ui, &factory, &scene);
+            M3dsAudioPlayParams ui_p = m3ds_audio_default_play_params(M3DS_AUDIO_BUS_SFX);
+            ui_p.volume = 0.5f;
+            (void)m3ds_audio_mixer_play(&audio_mixer, clip_ui, &ui_p);
+        }
+
+        int8_t cur_dx = 0;
+        int8_t cur_dy = 0;
+        if (kDown & KEY_LEFT)  cur_dx -= 1;
+        if (kDown & KEY_RIGHT) cur_dx += 1;
+        if (kDown & KEY_UP)    cur_dy -= 1;
+        if (kDown & KEY_DOWN)  cur_dy += 1;
+        if (cur_dx != 0 || cur_dy != 0) {
+            m3ds_touch_ui_move_cursor(&ui, cur_dx, cur_dy);
+        }
+
+        touchPosition touch;
+        hidTouchRead(&touch);
+        M3dsTouchInput touch_in = {(kHeld & KEY_TOUCH) != 0u, touch.px, touch.py};
+        M3dsTouchAction touch_act = m3ds_touch_ui_handle_touch(&ui, &touch_in);
+        if (touch_act.kind != M3DS_TOUCH_ACTION_NONE) {
+            switch (touch_act.kind) {
+                case M3DS_TOUCH_ACTION_PLACE_BLOCK:
+                case M3DS_TOUCH_ACTION_REMOVE_BLOCK:
+                    (void)m3ds_touch_ui_apply_to_factory(&ui, &factory, &scene);
+                    break;
+                case M3DS_TOUCH_ACTION_TOGGLE_PAUSE:
+                    scene.paused = !scene.paused;
+                    break;
+                case M3DS_TOUCH_ACTION_TOGGLE_MUTE:
+                    m3ds_audio_mixer_set_muted(
+                        &audio_mixer, !m3ds_audio_mixer_is_muted(&audio_mixer));
+                    break;
+                case M3DS_TOUCH_ACTION_RESET_CAMERA:
+                    m3ds_scene_reset_camera(&scene);
+                    break;
+                default:
+                    break;
+            }
+            M3dsAudioPlayParams ui_p = m3ds_audio_default_play_params(M3DS_AUDIO_BUS_SFX);
+            ui_p.volume = 0.5f;
+            (void)m3ds_audio_mixer_play(&audio_mixer, clip_ui, &ui_p);
+        }
 
         float pan_dx = 0.0f;
         float pan_dy = 0.0f;
-        if (kHeld & KEY_LEFT)  pan_dx -= 2.0f;
-        if (kHeld & KEY_RIGHT) pan_dx += 2.0f;
-        if (kHeld & KEY_UP)    pan_dy -= 2.0f;
-        if (kHeld & KEY_DOWN)  pan_dy += 2.0f;
-
         circlePosition cpad;
         hidCircleRead(&cpad);
         if (cpad.dx > 20 || cpad.dx < -20) {
@@ -181,35 +246,21 @@ int main(int argc, char *argv[]) {
             m3ds_emit_debug_line(log_socket, dbg_line);
         }
 
+        m3ds_touch_ui_sync_scene_cursor(&ui, &factory, &scene);
+        M3dsTouchUiRenderContext ui_ctx = {
+            factory.core_copper,
+            scene.tick,
+            scene.paused,
+            m3ds_audio_mixer_is_muted(&audio_mixer),
+            m3ds_touch_ui_can_apply(&ui, &factory),
+            hw_profile.is_new_3ds ? "N3DS" : "O3DS",
+        };
+        M3dsDrawStats bottom_stats = {0};
+
         C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
         m3ds_scene_render(&scene, &backend, &stats);
+        m3ds_touch_ui_render(&ui, &ui_ctx, &bottom_backend, &bottom_stats);
         C3D_FrameEnd(0);
-
-        printf("\x1b[1;1HMin3DStry - Factory Prototype\x1b[K");
-        printf("\x1b[2;1HTick: %lu (%s)\x1b[K",
-               (unsigned long)scene.tick, scene.paused ? "PAUSED" : "RUN");
-        printf("\x1b[6;1HCore inventory: %lu\x1b[K", (unsigned long)factory.core_copper);
-        printf("\x1b[3;1HCam:  (%5.1f, %5.1f)\x1b[K",
-               scene.camera_x, scene.camera_y);
-        printf("\x1b[4;1HDraw: R:%lu L:%lu T:%lu C:%lu\x1b[K",
-               (unsigned long)stats.drawn_rects,
-               (unsigned long)stats.drawn_lines,
-               (unsigned long)stats.drawn_triangles,
-               (unsigned long)stats.drawn_circles);
-        printf("\x1b[5;1HCull: %lu  Sw: %lu  Drop: %lu\x1b[K",
-               (unsigned long)stats.culled_primitives,
-               (unsigned long)stats.state_switches,
-               (unsigned long)stats.budget_dropped);
-        printf("\x1b[7;1HCPU:     %6.2f%%\x1b[K", C3D_GetProcessingTime() * 6.0f);
-        printf("\x1b[8;1HGPU:     %6.2f%%\x1b[K", C3D_GetDrawingTime() * 6.0f);
-        printf("\x1b[9;1HCmdBuf:  %6.2f%%\x1b[K", C3D_GetCmdBufUsage() * 100.0f);
-        printf("\x1b[10;1HAudio:   %s (%s)\x1b[K",
-               m3ds_audio_state_name(m3ds_audio_mixer_state(&audio_mixer)),
-               m3ds_audio_mixer_is_muted(&audio_mixer) ? "MUTED" : "ON");
-        printf("\x1b[11;1HD-Pad/CPad: Pan  A: Pause\x1b[K");
-        printf("\x1b[12;1HY: Reset Cam     START: Exit\x1b[K");
-        printf("\x1b[13;1HX: Toggle Mute\x1b[K");
-        printf("\x1b[14;1H%s\x1b[K", hw_summary);
 
         if (!emitted_frame_diag && scene.tick >= 30u) {
             snprintf(

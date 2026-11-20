@@ -415,6 +415,32 @@ bool m3ds_scene_render(
                         local_stats.budget_dropped++;
                     }
                 }
+            } else if (kind == M3DS_TILE_CONVEYOR_LEFT) {
+                if (!emit_rect(backend, vp, &local_stats, sx + 1.0f, sy + 2.0f, 0.1f,
+                               14.0f, 12.0f, clr_belt)) {
+                    goto finish;
+                }
+                float cx = sx + 12.0f - phase * 8.0f;
+                if (!emit_triangle(backend, vp, &local_stats,
+                                   cx + 2.0f, sy + 4.0f,
+                                   cx + 2.0f, sy + 12.0f,
+                                   cx - 3.0f, sy + 8.0f,
+                                   0.2f, clr_belt_chev)) {
+                    goto finish;
+                }
+            } else if (kind == M3DS_TILE_CONVEYOR_UP) {
+                if (!emit_rect(backend, vp, &local_stats, sx + 2.0f, sy + 1.0f, 0.1f,
+                               12.0f, 14.0f, clr_belt)) {
+                    goto finish;
+                }
+                float cy = sy + 12.0f - phase * 8.0f;
+                if (!emit_triangle(backend, vp, &local_stats,
+                                   sx + 4.0f, cy + 2.0f,
+                                   sx + 12.0f, cy + 2.0f,
+                                   sx + 8.0f, cy - 3.0f,
+                                   0.2f, clr_belt_chev)) {
+                    goto finish;
+                }
             } else if (kind == M3DS_TILE_WALL) {
                 if (!emit_rect(backend, vp, &local_stats, sx + 1.0f, sy + 1.0f, 0.2f,
                                14.0f, 14.0f, clr_wall) ||
@@ -480,6 +506,81 @@ bool m3ds_scene_render(
             queued_circles[queued_circle_count++] = (CircleCmd){
                 core_cx, core_cy, 0.4f, pulse, clr_belt_chev
             };
+        }
+    }
+
+    if (scene->cursor_visible) {
+        float cx = (float)scene->cursor_tile_x * M3DS_TILE_SIZE_PX - scene->camera_x;
+        float cy = (float)scene->cursor_tile_y * M3DS_TILE_SIZE_PX - scene->camera_y;
+        M3dsColor clr_cur;
+        if (scene->cursor_deconstruct) {
+            clr_cur = scene->cursor_valid
+                ? m3ds_rgba(0xF0, 0x64, 0x64, 0xFF)
+                : m3ds_rgba(0x7A, 0x3A, 0x3A, 0xFF);
+        } else {
+            clr_cur = scene->cursor_valid
+                ? m3ds_rgba(0xF5, 0xB8, 0x41, 0xFF)
+                : m3ds_rgba(0x9E, 0x6B, 0x47, 0xFF);
+        }
+        if (!emit_rect(backend, vp, &local_stats, cx, cy, 0.45f,
+                       M3DS_TILE_SIZE_PX, 2.0f, clr_cur) ||
+            !emit_rect(backend, vp, &local_stats,
+                       cx, cy + M3DS_TILE_SIZE_PX - 2.0f, 0.45f,
+                       M3DS_TILE_SIZE_PX, 2.0f, clr_cur) ||
+            !emit_rect(backend, vp, &local_stats, cx, cy + 2.0f, 0.45f,
+                       2.0f, M3DS_TILE_SIZE_PX - 4.0f, clr_cur) ||
+            !emit_rect(backend, vp, &local_stats,
+                       cx + M3DS_TILE_SIZE_PX - 2.0f, cy + 2.0f, 0.45f,
+                       2.0f, M3DS_TILE_SIZE_PX - 4.0f, clr_cur)) {
+            goto finish;
+        }
+        if (scene->cursor_deconstruct) {
+            if (!emit_line(backend, vp, &local_stats,
+                           cx + 4.0f, cy + 4.0f,
+                           cx + M3DS_TILE_SIZE_PX - 4.0f,
+                           cy + M3DS_TILE_SIZE_PX - 4.0f,
+                           1.5f, 0.48f, clr_cur) ||
+                !emit_line(backend, vp, &local_stats,
+                           cx + M3DS_TILE_SIZE_PX - 4.0f, cy + 4.0f,
+                           cx + 4.0f, cy + M3DS_TILE_SIZE_PX - 4.0f,
+                           1.5f, 0.48f, clr_cur)) {
+                goto finish;
+            }
+        } else {
+            float mx = cx + M3DS_TILE_SIZE_PX * 0.5f;
+            float my = cy + M3DS_TILE_SIZE_PX * 0.5f;
+            float x0 = mx;
+            float y0 = my;
+            float x1 = mx;
+            float y1 = my;
+            float x2 = mx;
+            float y2 = my;
+            switch (scene->cursor_rot & 3u) {
+                case 0u:
+                    x0 = mx + 4.0f; y0 = my;
+                    x1 = mx - 3.0f; y1 = my - 4.0f;
+                    x2 = mx - 3.0f; y2 = my + 4.0f;
+                    break;
+                case 1u:
+                    x0 = mx;        y0 = my + 4.0f;
+                    x1 = mx - 4.0f; y1 = my - 3.0f;
+                    x2 = mx + 4.0f; y2 = my - 3.0f;
+                    break;
+                case 2u:
+                    x0 = mx - 4.0f; y0 = my;
+                    x1 = mx + 3.0f; y1 = my - 4.0f;
+                    x2 = mx + 3.0f; y2 = my + 4.0f;
+                    break;
+                default:
+                    x0 = mx;        y0 = my - 4.0f;
+                    x1 = mx - 4.0f; y1 = my + 3.0f;
+                    x2 = mx + 4.0f; y2 = my + 3.0f;
+                    break;
+            }
+            if (!emit_triangle(backend, vp, &local_stats,
+                               x0, y0, x1, y1, x2, y2, 0.48f, clr_cur)) {
+                goto finish;
+            }
         }
     }
 

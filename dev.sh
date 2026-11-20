@@ -94,7 +94,7 @@ case "${1:-}" in
     bash -n dev.sh
     host_python="$(find_host_python)" || exit 1
     host_cc="$(find_host_cc)" || { echo 'test: no host C compiler found (install cc/gcc/clang or set CC).' >&2; exit 1; }
-    for file in README.md AGENTS.md CONTRIBUTING.md SECURITY.md docs/architecture.md docs/research/java-to-native.md docs/development/automation-policy.md docs/rendering/citro2d-prototype.md docs/testing/parity-harness.md docs/hardware/deployment-and-logs.md docs/audio/ndsp-mixer.md docs/port-capabilities.json docs/progress-gauge.svg site/index.html .github/scripts/pr_automation.py .github/scripts/test_pr_automation.py .github/workflows/ai-pr-review.yml Makefile include/audio/audio_mixer.h src/audio/audio_mixer.c tests/audio/test_audio_mixer.c include/render/scene_2d.h src/render/scene_2d.c tests/render/test_scene_2d.c include/sim/parity_scenario.h src/sim/parity_scenario.c tests/sim/test_parity_harness.c tests/parity/starter_copper_defense_v1.json tools/verify_azahar.py tools/check_parity.py tools/device_deploy.py tools/port_progress.py tests/tools/test_verify_azahar.py tests/tools/test_check_parity.py tests/tools/test_device_deploy.py tests/tools/test_port_progress.py; do
+    for file in README.md AGENTS.md CONTRIBUTING.md SECURITY.md docs/architecture.md docs/research/java-to-native.md docs/development/automation-policy.md docs/rendering/citro2d-prototype.md docs/testing/parity-harness.md docs/hardware/deployment-and-logs.md docs/audio/ndsp-mixer.md docs/ui/touch-build-ui.md docs/port-capabilities.json docs/progress-gauge.svg site/index.html .github/scripts/pr_automation.py .github/scripts/test_pr_automation.py .github/workflows/ai-pr-review.yml Makefile include/audio/audio_mixer.h src/audio/audio_mixer.c tests/audio/test_audio_mixer.c include/ui/touch_build_ui.h src/ui/touch_build_ui.c tests/ui/test_touch_build_ui.c include/render/scene_2d.h src/render/scene_2d.c tests/render/test_scene_2d.c include/sim/parity_scenario.h src/sim/parity_scenario.c tests/sim/test_parity_harness.c tests/parity/starter_copper_defense_v1.json tools/verify_azahar.py tools/check_parity.py tools/device_deploy.py tools/port_progress.py tests/tools/test_verify_azahar.py tests/tools/test_check_parity.py tests/tools/test_device_deploy.py tests/tools/test_port_progress.py; do
       test -s "$file" || { echo "Missing or empty: $file" >&2; exit 1; }
     done
     "$host_python" -m py_compile .github/scripts/pr_automation.py .github/scripts/test_pr_automation.py research/java-to-native/budget_model.py research/java-to-native/run_poc.py tools/verify_azahar.py tools/check_parity.py tools/device_deploy.py tools/port_progress.py tests/tools/test_verify_azahar.py tests/tools/test_check_parity.py tests/tools/test_device_deploy.py tests/tools/test_port_progress.py
@@ -115,6 +115,11 @@ case "${1:-}" in
     "$host_cc" -std=c11 -Wall -Wextra -Werror -Iinclude \
       src/audio/audio_mixer.c tests/audio/test_audio_mixer.c -lm -o build/host/test_audio_mixer
     ./build/host/test_audio_mixer
+
+    "$host_cc" -std=c11 -Wall -Wextra -Werror -Iinclude \
+      src/ui/touch_build_ui.c src/render/scene_2d.c src/render/factory_demo.c src/sim/parity_scenario.c \
+      tests/ui/test_touch_build_ui.c -lm -o build/host/test_touch_build_ui
+    ./build/host/test_touch_build_ui
 
     "$host_cc" -std=c11 -Wall -Wextra -Werror -O0 -Iinclude \
       src/sim/parity_scenario.c tests/sim/test_parity_harness.c -o build/host/test_parity_harness_o0

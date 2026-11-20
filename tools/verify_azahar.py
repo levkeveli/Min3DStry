@@ -65,6 +65,15 @@ AUDIO_RE = re.compile(
     r"clips=(?P<clips>\d+)"
 )
 
+UI_RE = re.compile(
+    r"\[MIN3DSTRY\] UI "
+    r"block=(?P<block>[a-z0-9_]+) "
+    r"rot=(?P<rot>\d+) "
+    r"mode=(?P<mode>[a-z0-9_]+) "
+    r"cursor=\((?P<cx>\d+),(?P<cy>\d+)\) "
+    r"buttons=(?P<buttons>\d+)"
+)
+
 
 def _build_header(request_type: int, data_size: int, request_id: int | None = None) -> tuple[bytes, int]:
     req_id = random.getrandbits(32) if request_id is None else request_id
@@ -357,12 +366,13 @@ def inspect_png(png_bytes: bytes) -> dict[str, Any]:
 
 
 def parse_azahar_log(log_text: str) -> dict[str, Any]:
-    """Extract renderer, hardware profile line, parity hash, audio state, and frame telemetry from azahar_log.txt."""
+    """Extract renderer, hardware profile line, parity hash, audio state, UI state, and frame telemetry from azahar_log.txt."""
     renderer: str | None = None
     gl_version: str | None = None
     hw_line: str | None = None
     parity: dict[str, Any] | None = None
     audio: dict[str, Any] | None = None
+    ui: dict[str, Any] | None = None
     frame: dict[str, Any] | None = None
 
     for line in log_text.splitlines():
@@ -386,6 +396,18 @@ def parse_azahar_log(log_text: str) -> dict[str, Any]:
                     "voices": int(ag["voices"]),
                     "max_voices": int(ag["max_voices"]),
                     "clips": int(ag["clips"]),
+                }
+                continue
+            ui_match = UI_RE.search(line)
+            if ui_match:
+                ug = ui_match.groupdict()
+                ui = {
+                    "block": ug["block"],
+                    "rot": int(ug["rot"]),
+                    "mode": ug["mode"],
+                    "cursor_x": int(ug["cx"]),
+                    "cursor_y": int(ug["cy"]),
+                    "buttons": int(ug["buttons"]),
                 }
                 continue
             match = FRAME_RE.search(line)
@@ -414,6 +436,7 @@ def parse_azahar_log(log_text: str) -> dict[str, Any]:
         "hw_line": hw_line,
         "parity": parity,
         "audio": audio,
+        "ui": ui,
         "frame": frame,
     }
 
@@ -509,12 +532,12 @@ def run_model_check(
             if log_path.exists():
                 log_text = log_path.read_text(encoding="utf-8", errors="replace")
                 parsed = parse_azahar_log(log_text)
-                if parsed.get("hw_line") and parsed.get("parity") and parsed.get("audio") and parsed.get("frame"):
+                if parsed.get("hw_line") and parsed.get("parity") and parsed.get("audio") and parsed.get("ui") and parsed.get("frame"):
                     break
             time.sleep(0.25)
 
-        if not parsed.get("hw_line") or not parsed.get("parity") or not parsed.get("audio") or not parsed.get("frame"):
-            raise RuntimeError(f"Missing [MIN3DSTRY] HW/PARITY/AUDIO/FRAME telemetry in {log_path} for {model}.")
+        if not parsed.get("hw_line") or not parsed.get("parity") or not parsed.get("audio") or not parsed.get("ui") or not parsed.get("frame"):
+            raise RuntimeError(f"Missing [MIN3DSTRY] HW/PARITY/AUDIO/UI/FRAME telemetry in {log_path} for {model}.")
 
         rpc.perf_stats(reset=True)
         time.sleep(1.5)
@@ -531,6 +554,7 @@ def run_model_check(
         hw_line = str(parsed["hw_line"])
         parity = parsed["parity"]
         audio = parsed["audio"]
+        ui = parsed["ui"]
         frame = parsed["frame"]
         fixture_path = Path("tests/parity/starter_copper_defense_v1.json")
         if fixture_path.is_file():
@@ -559,9 +583,14 @@ def run_model_check(
             or audio["max_voices"] <= 0
         ):
             raise AssertionError(f"Unexpected audio telemetry for {model}: {audio}")
+        if (
+            ui["buttons"] != 10
+            or ui["mode"] not in ("build", "deconstruct")
+        ):
+            raise AssertionError(f"Unexpected ui telemetry for {model}: {ui}")
         if frame["state_switches"] > 1 or frame["budget_dropped"] != 0 or frame["rects"] <= 0 or frame["circles"] <= 0:
             raise AssertionError(f"Unexpected frame telemetry for {model}: {frame}")
-        if png_info["top_distinct_colors"] < 2 or png_info["bottom_distinct_colors"] < 2:
+        if png_info["top_distinct_colors"] < 2 or png_info["bottom_distinct_colors"] < 4:
             raise AssertionError(f"Screenshot appears blank for {model}: {png_info}")
         if perf["game_fps"] <= 0 and perf["system_fps"] <= 0:
             raise AssertionError(f"Non-positive FPS for {model}: {perf}")
@@ -575,6 +604,7 @@ def run_model_check(
             "hw_line": hw_line,
             "parity": parity,
             "audio": audio,
+            "ui": ui,
             "frame": frame,
             "perf": {
                 "system_fps": round(float(perf["system_fps"]), 2),
@@ -635,6 +665,7 @@ def main() -> int:
             f"[PASS] {model}: {res['hw_line']} | "
             f"Parity={res['parity']['trace_hash']} | "
             f"Audio={res['audio']['state']} | "
+            f"UI={res['ui']['mode']} | "
             f"R:{res['frame']['rects']} C:{res['frame']['circles']} Sw:{res['frame']['state_switches']} | "
             f"FPS={res['perf']['game_fps']} ({res['perf']['emulation_speed_pct']}%) | "
             f"PNG={res['screenshot']['path']}"

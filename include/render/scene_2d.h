@@ -41,7 +41,9 @@ typedef enum M3dsTileKind {
     M3DS_TILE_CONVEYOR_DOWN = 4,
     M3DS_TILE_WALL = 5,
     M3DS_TILE_CORE = 6,
-    M3DS_TILE_TURRET = 7
+    M3DS_TILE_TURRET = 7,
+    M3DS_TILE_CONVEYOR_LEFT = 8,
+    M3DS_TILE_CONVEYOR_UP = 9
 } M3dsTileKind;
 
 typedef struct M3dsDrawStats {
@@ -89,6 +91,12 @@ typedef struct M3dsBoundedScene {
     uint8_t tiles[M3DS_SCENE_GRID_H][M3DS_SCENE_GRID_W];
     /* Zero is empty; 1 through 255 encode an item's position along the belt. */
     uint8_t belt_items[M3DS_SCENE_GRID_H][M3DS_SCENE_GRID_W];
+    bool cursor_visible;
+    int cursor_tile_x;
+    int cursor_tile_y;
+    uint8_t cursor_rot;
+    bool cursor_deconstruct;
+    bool cursor_valid;
 } M3dsBoundedScene;
 
 void m3ds_scene_init(M3dsBoundedScene *scene, float viewport_w, float viewport_h);

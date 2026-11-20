@@ -65,6 +65,7 @@ class DeviceDeployTests(unittest.TestCase):
             "[MIN3DSTRY] PARITY scenario=starter_copper_defense_v1 ticks=240 "
             "hash=0x53a483c7 copper=22 delivered=12 killed=2 hp=160\n"
             "[MIN3DSTRY] AUDIO backend=ndsp state=ready rc=0x00000000 rate=22050 voices=0/8 clips=2\n"
+            "[MIN3DSTRY] UI block=conveyor rot=0 mode=build cursor=(8,4) buttons=10\n"
             "[MIN3DSTRY] FRAME tick=30 paused=0 cam=(88.0,72.0) "
             "draw=R:456,L:4,T:17,C:30 cull=456 sw=1 drop=0 cpu=12.40% gpu=8.10% cmdbuf=0.26%\n"
         )
@@ -72,12 +73,14 @@ class DeviceDeployTests(unittest.TestCase):
         self.assertIn("Original 3DS (O3DS, 268 MHz", parsed["hw_line"])
         self.assertEqual(parsed["parity"]["trace_hash"], "0x53a483c7")
         self.assertEqual(parsed["audio"]["state"], "ready")
+        self.assertEqual(parsed["ui"]["buttons"], 10)
         self.assertEqual(parsed["frame"]["rects"], 456)
 
         md = device_deploy.format_provenance_markdown(parsed, commit_sha="cc20ad3", target_label="Old 3DS")
         self.assertIn("Old 3DS", md)
         self.assertIn("0x53a483c7", md)
         self.assertIn("backend=ndsp state=ready", md)
+        self.assertIn("block=conveyor", md)
         self.assertIn("R:456", md)
 
     def test_tcp_log_capture_loopback(self) -> None:
