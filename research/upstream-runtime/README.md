@@ -134,11 +134,18 @@ reserves a new output file and rejects an existing destination. On the
 JVM, pass the map, v13 input, and new output paths as arguments. The
 round-trip check ends with `UPSTREAM_SAVE_ROUNDTRIP version=13 marker=ok`.
 
-[DevkitARM test build 44792277588](https://github.com/levkeveli/Min3DStry/actions/runs/44792277588)
-used C optimization disabled. In both Azahar 2126.2 console profiles, the
-v7 map, v13 input, and v13 output matched the same world fingerprint.
-The unmodified v160.8 server JAR also loaded both files written on
-emulated SD and found marker 37 at (80, 152).
+[DevkitARM test builds with standard flags](https://github.com/levkeveli/Min3DStry/actions/runs/44793525705)
+and [with C optimization disabled](https://github.com/levkeveli/Min3DStry/actions/runs/44792277588)
+matched the v7 map, v13 input, and v13 output world fingerprints in both
+Azahar 2126.2 console profiles. The unmodified v160.8 server JAR loaded
+the files written on emulated SD and found marker 37 at (80, 152).
+
+The standard build's ELF load segments total 32.63 MiB rounded to pages.
+Including its 16 MiB managed heap reservation and 256 KiB native
+stack brings those components to 48.88 MiB. This subtotal leaves
+15.12 MiB of a 64 MiB application budget for the rest of the runtime.
+Physical hardware measurements still need to account for allocator
+metadata, direct buffers, graphics, and the operating environment.
 
 Graphics and audio JNI methods reached by compiler analysis throw if
 called in this headless mode. Broader save coverage and physical-device
