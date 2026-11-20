@@ -8,10 +8,13 @@ import arc.graphics.g2d.TextureAtlas;
 import arc.graphics.g2d.TextureAtlas.AtlasRegion;
 import arc.graphics.g2d.TextureAtlas.TextureAtlasData;
 import arc.graphics.g2d.TextureRegion;
+import arc.math.Mathf;
+import arc.struct.Bits;
 import arc.struct.Seq;
 import java.io.IOException;
 import mindustry.Vars;
 import mindustry.content.Blocks;
+import mindustry.gen.Building;
 import mindustry.graphics.CacheLayer;
 import mindustry.world.Tile;
 import mindustry.world.blocks.environment.Floor;
@@ -61,6 +64,16 @@ public final class UpstreamTerrainDrawProbe {
             for (var block : Vars.content.blocks()) {
                 if (block instanceof Floor floor && block != Blocks.air) floor.load();
             }
+            if (!trace) {
+                var loaded = new Bits();
+                for (Tile tile : Vars.world.tiles) {
+                    var block = tile.block();
+                    if (block != Blocks.air && !loaded.get(block.id)) {
+                        block.load();
+                        loaded.set(block.id);
+                    }
+                }
+            }
         } finally {
             Vars.headless = wasHeadless;
         }
@@ -77,28 +90,58 @@ public final class UpstreamTerrainDrawProbe {
         if (copper == null) throw new IllegalStateException("Glacier has no copper");
         int left = Math.max(0, Math.min(copper.x - VIEW_WIDTH / 2, Vars.world.width() - VIEW_WIDTH));
         int bottom = Math.max(0, Math.min(copper.y - VIEW_HEIGHT / 2, Vars.world.height() - VIEW_HEIGHT));
-        return new Viewport(left, bottom, batch);
+        return new Viewport(left, bottom, batch, !trace);
     }
 
     static final class Viewport {
-        final int left;
-        final int bottom;
+        int left;
+        int bottom;
+        private final int initialLeft, initialBottom;
         private final TerrainBatch batch;
+        private final boolean drawStaticBlocks;
 
-        Viewport(int left, int bottom, TerrainBatch batch) {
-            this.left = left;
-            this.bottom = bottom;
+        Viewport(int left, int bottom, TerrainBatch batch, boolean drawStaticBlocks) {
+            this.left = initialLeft = left;
+            this.bottom = initialBottom = bottom;
             this.batch = batch;
+            this.drawStaticBlocks = drawStaticBlocks;
+        }
+
+        void moveTo(int x, int y) {
+            left = Mathf.clamp(x, 0, Math.max(0, Vars.world.width() - VIEW_WIDTH));
+            bottom = Mathf.clamp(y, 0, Math.max(0, Vars.world.height() - VIEW_HEIGHT));
+        }
+
+        void reset() {
+            moveTo(initialLeft, initialBottom);
+        }
+
+        boolean contains(Building building) {
+            var tile = building.tile;
+            int low = (building.block.size - 1) / 2;
+            int high = building.block.size / 2;
+            return tile.x + high >= left && tile.x - low < left + VIEW_WIDTH
+                && tile.y + high >= bottom && tile.y - low < bottom + VIEW_HEIGHT;
         }
 
         void draw(Runnable buildings) {
             if (batch.target != null) batch.target.begin(left, bottom, VIEW_WIDTH, VIEW_HEIGHT);
             Draw.reset();
             Draw.z(0f);
-            for (int y = bottom; y < bottom + VIEW_HEIGHT; y++) {
-                for (int x = left; x < left + VIEW_WIDTH; x++) {
+            int top = Math.min(bottom + VIEW_HEIGHT, Vars.world.height());
+            int right = Math.min(left + VIEW_WIDTH, Vars.world.width());
+            for (int y = bottom; y < top; y++) {
+                for (int x = left; x < right; x++) {
                     Tile tile = Vars.world.tile(x, y);
                     tile.floor().drawBase(tile);
+                }
+            }
+            if (drawStaticBlocks) {
+                for (int y = bottom; y < top; y++) {
+                    for (int x = left; x < right; x++) {
+                        Tile tile = Vars.world.tile(x, y);
+                        if (tile.build == null && tile.block() != Blocks.air) tile.block().drawBase(tile);
+                    }
                 }
             }
             buildings.run();
@@ -144,6 +187,10 @@ public final class UpstreamTerrainDrawProbe {
             this.width = width;
             this.height = height;
         }
+    }
+
+    static int pageIndex(TextureRegion region) {
+        return ((AtlasPageTexture) region.texture).index;
     }
 
     private static final class TerrainBatch extends Batch {

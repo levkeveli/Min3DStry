@@ -418,15 +418,25 @@ at tick 10. `generateC` selects the native entry point.
 
 Build the RomFS assets with `arm11/prepare_terrain_assets.py --live-session`,
 then run `arm11/build.sh` with the generated C directory, a new output
-directory and the packed assets directory. The live page holds 36
-official regions, including the conveyor animations, in 256 × 256
-RGBA8 (256 KiB).
+directory and the packed assets directory. The live page holds 66
+official regions, including Glacier's walls, props and cores, and the
+conveyor animations, in 512 × 512 RGBA8 (1 MiB).
 
 Stage the same Glacier map and atlas metadata on the SD. Press **A** to
 send copper, **B** to collect it from the router, **X** to pause or
-resume, and **START** to exit. The simulation clock uses libctru's
-monotonic counter and advances in 60 Hz steps. The viewport and fixtures
-are fixed for this integration milestone.
+resume, and **START** to exit. The D-pad and Circle Pad pan the viewport
+in tile steps. **Y** resets it. The conveyor circuit stays in its original
+location and updates when off-screen. The simulation clock uses libctru's
+monotonic counter and advances in 60 Hz steps.
+
+For the region inventory, append `--inventory` after the two file
+arguments to `runProbeJvm`. It draws windows covering all 37,500 map
+tiles through the upstream `Floor.drawBase`, environmental block
+`drawBase` and `Building.draw` paths. Compare the names from the
+`UPSTREAM_CAMERA_SPRITE` records to `arm11/glacier-terrain.txt`.
+The fixed terrain trace remains available in `terrain-draw` mode.
+This pass covers terrain and buildings. Layered liquid shaders and
+lighting still need a 3DS backend.
 
 The Windows emulator verifier uses Azahar's default keyboard bindings
 and saves the ready and paused screenshots and native logs alongside
@@ -437,7 +447,7 @@ python tools/verify_upstream_live.py --rom /path/to/upstream-probe.3dsx \
   --azahar /path/to/azahar.exe --glacier /path/to/glacier.msav --atlas /path/to/sprites.aatls
 ```
 
-The [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44814855208)
+Before the camera extension, the [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44814855208)
 passed the interactive check at `-O0` and `-O2` in both Azahar 2126.2
 console profiles. At `-O2`, both runs sent copper at tick 3 and reached the
 router at tick 60, matching the Java reference's 57-tick travel time.

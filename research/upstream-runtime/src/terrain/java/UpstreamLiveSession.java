@@ -4,6 +4,7 @@ import mindustry.content.Blocks;
 import mindustry.content.Items;
 import mindustry.core.GameState.State;
 import mindustry.gen.Building;
+import mindustry.gen.Groups;
 import mindustry.world.Block;
 import mindustry.world.Tile;
 
@@ -11,13 +12,20 @@ final class UpstreamLiveSession {
     static final int SEND = 1;
     static final int PAUSE = 2;
     static final int COLLECT = 4;
+    static final int LEFT = 8;
+    static final int RIGHT = 16;
+    static final int DOWN = 32;
+    static final int UP = 64;
+    static final int RESET = 128;
+    private static final int PAN_INTERVAL_MS = 75;
 
     private final UpstreamWorldLoadProbe.ProbeApplication app;
     private final UpstreamTerrainDrawProbe.Viewport viewport;
-    private final Building source, first, second, receiver;
+    private final Building source, first, receiver;
     private final Runnable drawBuildings = this::drawBuildings;
     private int millisecondsAt60Hz;
     private int received;
+    private int panDirection, panRemainingMs;
 
     UpstreamLiveSession(String[] args, UpstreamTerrainDrawProbe.TerrainTarget target) throws IOException {
         app = UpstreamSimulationWorld.play(UpstreamTerrainDrawProbe.mapArgs(args));
@@ -31,7 +39,7 @@ final class UpstreamLiveSession {
         int x = strip.x, y = strip.y;
         source = place(x, y, Blocks.junction);
         first = place(x + 1, y, Blocks.conveyor);
-        second = place(x + 2, y, Blocks.conveyor);
+        place(x + 2, y, Blocks.conveyor);
         receiver = place(x + 3, y, Blocks.router);
     }
 
@@ -57,6 +65,8 @@ final class UpstreamLiveSession {
     }
 
     void advance(int elapsedMs, int input) {
+        elapsedMs = Math.min(250, Math.max(0, elapsedMs));
+        pan(elapsedMs, input);
         if ((input & PAUSE) != 0) {
             Vars.state.set(Vars.state.isPaused() ? State.playing : State.paused);
             System.out.println("UPSTREAM_LIVE_PAUSE paused=" + Vars.state.isPaused()
@@ -72,7 +82,7 @@ final class UpstreamLiveSession {
                 System.out.println("UPSTREAM_LIVE_SEND tick=" + Vars.state.updateId);
             }
         }
-        millisecondsAt60Hz += Math.min(250, Math.max(0, elapsedMs)) * 60;
+        millisecondsAt60Hz += elapsedMs * 60;
         while (millisecondsAt60Hz >= 1000) {
             millisecondsAt60Hz -= 1000;
             Vars.logic.update();
@@ -85,6 +95,27 @@ final class UpstreamLiveSession {
         }
     }
 
+    private void pan(int elapsedMs, int input) {
+        int left = viewport.left, bottom = viewport.bottom;
+        int direction = input & (LEFT | RIGHT | DOWN | UP);
+        if ((input & RESET) != 0) {
+            viewport.reset();
+            panRemainingMs = PAN_INTERVAL_MS;
+        } else if (direction != 0) {
+            panRemainingMs = direction == panDirection ? panRemainingMs - elapsedMs : 0;
+            int dx = ((direction & RIGHT) != 0 ? 1 : 0) - ((direction & LEFT) != 0 ? 1 : 0);
+            int dy = ((direction & UP) != 0 ? 1 : 0) - ((direction & DOWN) != 0 ? 1 : 0);
+            while (panRemainingMs <= 0) {
+                viewport.moveTo(viewport.left + dx, viewport.bottom + dy);
+                panRemainingMs += PAN_INTERVAL_MS;
+            }
+        }
+        panDirection = direction;
+        if (viewport.left != left || viewport.bottom != bottom || (input & RESET) != 0) {
+            System.out.println("UPSTREAM_LIVE_CAMERA left=" + viewport.left + " bottom=" + viewport.bottom);
+        }
+    }
+
     int received() {
         return received;
     }
@@ -94,9 +125,12 @@ final class UpstreamLiveSession {
     }
 
     private void drawBuildings() {
-        source.draw();
-        first.draw();
-        second.draw();
-        receiver.draw();
+        for (Building building : Groups.build) {
+            if (viewport.contains(building)) building.draw();
+        }
+    }
+
+    UpstreamTerrainDrawProbe.Viewport viewport() {
+        return viewport;
     }
 }

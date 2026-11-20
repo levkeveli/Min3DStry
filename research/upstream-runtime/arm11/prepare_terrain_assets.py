@@ -18,6 +18,7 @@ LIVE_REGIONS = (
     *(f"conveyor-{variant}-{frame}" for variant in range(5) for frame in range(4)),
 )
 CONVERTER = Path(__file__).resolve().parents[3] / "tools" / "build_upstream_sprite_atlas.py"
+GLACIER_INVENTORY = Path(__file__).with_name("glacier-terrain.txt")
 
 
 def write_layout(staged: Path, regions: tuple[str, ...]) -> None:
@@ -46,14 +47,17 @@ def main() -> None:
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--java", default="java")
     parser.add_argument("--tex3ds", default="tex3ds")
-    parser.add_argument("--live-session", action="store_true", help="pack the live factory sprites")
+    parser.add_argument("--live-session", action="store_true", help="pack Glacier and the live factory sprites")
     args = parser.parse_args()
 
     output = args.output_dir.resolve()
     if output.exists():
         parser.error(f"output already exists: {output}")
     output.parent.mkdir(parents=True, exist_ok=True)
-    regions = REGIONS + LIVE_REGIONS if args.live_session else REGIONS
+    regions = REGIONS
+    if args.live_session:
+        surveyed = GLACIER_INVENTORY.read_text(encoding="ascii").splitlines()
+        regions = tuple(dict.fromkeys((*surveyed, *LIVE_REGIONS)))
     with tempfile.TemporaryDirectory(dir=output.parent) as tmp:
         staged = Path(tmp) / "terrain"
         subprocess.run([sys.executable, str(CONVERTER), "--assets", str(args.assets),
