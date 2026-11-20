@@ -42,7 +42,9 @@ def usesArcSources = usesContentSources || probe == 'resource'
 def pluginsToLoad = []
 if (usesArcSources) pluginsToLoad.add('port.ResourceVirtualMethods')
 if (usesExecutor) pluginsToLoad.add('port.concurrent.ArcPoolSupport')
-if (probe == 'world') pluginsToLoad.add('port.AnonymousClassSupport')
+if (probe == 'world') {
+    pluginsToLoad.addAll(['port.AnonymousClassSupport', 'port.HeadlessNativeGuard'])
+}
 def referenceJar = file(providers.gradleProperty('referenceJar').getOrElse('server-release.jar'))
 def sourceDir = layout.buildDirectory.dir("upstream-src/${probe}")
 def sourceFile = sourceDir.map { it.file('mindustry/logic/LogicOp.java') }
@@ -253,4 +255,8 @@ teavm {
     if (usesExecutor) {
         c { obfuscated = false }
     }
+}
+
+if (probe == 'world') {
+    apply from: 'gradle/world-compiler.gradle'
 }
