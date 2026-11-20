@@ -16,6 +16,7 @@
 - [Gameplay parity harness](testing/parity-harness.md) (`M3dsParityState` + canonical scenario `starter_copper_defense_v1`, matching the fixture on host `-O0`/`-O2`, Azahar Old/New 3DS ARM11, and a physical New 3DS XL).
 - [Hardware deployment & log streaming](hardware/deployment-and-logs.md) (`./dev.sh device` / `tools/device_deploy.py`, host-tested for SD staging and log tooling, hardware-tested for Wi-Fi deployment and log streaming on a New 3DS XL).
 - [NDSP audio mixer prototype](audio/ndsp-mixer.md) (`M3dsAudioMixer` + `libctru` NDSP backend, host-tested via mock backend, 3DS-built via `./dev.sh build`, and missing-`dspfirm.cdc` fallback verified in Azahar `2126.2`; physical hardware playback with DSP firmware pending). [Upstream audio asset conversion](audio/asset-conversion.md) now provides a pinned PCM16/provenance slice.
+- [Upstream v160.8 network framing & handshake](net/upstream-protocol.md) (`mindustry_net` Issue #31 wire-exact framing/handshake shim & test oracle paired with the reusable `libctru` `socInit` socket adapter `net_3ds.c`, host unit-tested, live-verified against unmodified `server-release.jar` v160.8, and 3DS-built via `./dev.sh build`; full `#44` TeaVM `NetClient` wiring and on-console Wi-Fi session pending).
 
 Track toolchain builds, emulator boot, physical hardware boot, gameplay parity and upstream multiplayer independently. Record hardware model, build SHA and test scenario alongside measurements. Audit upstream and dependency licenses before importing code or assets.
 
