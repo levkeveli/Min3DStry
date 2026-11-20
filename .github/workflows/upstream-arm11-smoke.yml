@@ -10,7 +10,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        probe: [world]
+        probe: [world-save]
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
@@ -24,13 +24,14 @@ jobs:
           git -C "$RUNNER_TEMP/Arc" fetch --depth 1 https://github.com/Anuken/Arc.git 7445105cd2683daf5b9ac7033ebb07265d3e814d
           curl --fail --silent --show-error --location https://github.com/Anuken/Mindustry/releases/download/v160.8/server-release.jar -o "$RUNNER_TEMP/server-release.jar"
           git -C "$RUNNER_TEMP/Mindustry" show HEAD:core/assets/maps/default/glacier.msav > "$RUNNER_TEMP/glacier.msav"
-          bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime --no-daemon --console=plain "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" "-PreferenceJar=$RUNNER_TEMP/server-release.jar" "-ParcCheckout=$RUNNER_TEMP/Arc" -Pprobe=world -Dorg.gradle.jvmargs=-Xmx3g makeWorldSaveFixture --args="$RUNNER_TEMP/glacier.msav $RUNNER_TEMP/glacier-v13.msav"
-          bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime --no-daemon --console=plain "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" "-PreferenceJar=$RUNNER_TEMP/server-release.jar" "-ParcCheckout=$RUNNER_TEMP/Arc" -Pprobe=world -Dorg.gradle.jvmargs=-Xmx3g runProbeJvm --args="$RUNNER_TEMP/glacier.msav $RUNNER_TEMP/glacier-v13.msav" generateC
+          bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime --no-daemon --console=plain "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" "-PreferenceJar=$RUNNER_TEMP/server-release.jar" "-ParcCheckout=$RUNNER_TEMP/Arc" "-Pprobe=${{ matrix.probe }}" -Dorg.gradle.jvmargs=-Xmx3g makeWorldSaveFixture --args="$RUNNER_TEMP/glacier.msav $RUNNER_TEMP/glacier-v13.msav"
+          bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime --no-daemon --console=plain "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" "-PreferenceJar=$RUNNER_TEMP/server-release.jar" "-ParcCheckout=$RUNNER_TEMP/Arc" "-Pprobe=${{ matrix.probe }}" -Dorg.gradle.jvmargs=-Xmx3g runProbeJvm --args="$RUNNER_TEMP/glacier.msav $RUNNER_TEMP/glacier-v13.msav" generateC
       - name: Compile with devkitARM and libctru
         run: |
           image=devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5
           docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/work" -w /work "$image" bash -lc '
             source /opt/devkitpro/3dsvars.sh
+            sed -i "s/-g -O2/-g -O0/" research/upstream-runtime/arm11/build.sh
             bash research/upstream-runtime/arm11/build.sh research/upstream-runtime/build/generated/teavm/c research/upstream-runtime/build/probe-3ds'
           test -s research/upstream-runtime/build/probe-3ds/upstream-probe.3dsx
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
