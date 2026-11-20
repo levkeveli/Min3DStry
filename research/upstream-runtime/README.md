@@ -246,6 +246,15 @@ local official v160.8 server hosting Glacier. The probe attempts an
 outdated build, then joins and disconnects twice with its test identity.
 The `UPSTREAM_LIVE_NET_*` records report each step.
 
+The emulator verifier starts a fresh official server for each console
+profile, stages the loopback endpoint, and compares the emulator and
+server records. Run from the repository root:
+
+```sh
+python tools/verify_upstream_live_net.py --rom /path/to/upstream-probe.3dsx \
+  --azahar /path/to/azahar --server /path/to/server-release.jar
+```
+
 This entry point exercises the live initial-world path and packet
 exchange. Dispatch through the normal client UI and applying ongoing
 state and entity snapshots are part of #44.
