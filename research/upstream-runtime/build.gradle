@@ -31,14 +31,15 @@ def entryPoints = [
     world: 'UpstreamWorldLoadProbe',
     'world-save': 'UpstreamWorldSaveProbe',
     'world-roundtrip': 'UpstreamWorldRoundTripProbe',
-    'terrain-draw': 'UpstreamTerrainDrawProbe'
+    'terrain-draw': 'UpstreamTerrainDrawProbe',
+    'terrain-render': 'UpstreamTerrainRenderProbe'
 ]
 if (!entryPoints.containsKey(probe)) {
     throw new GradleException("Expected -Pprobe to be one of ${entryPoints.keySet()}")
 }
 def entryPoint = entryPoints[probe]
 def usesMapSources = probe in ['map', 'map-sd']
-def usesWorldSources = probe in ['world', 'world-save', 'world-roundtrip', 'terrain-draw']
+def usesWorldSources = probe in ['world', 'world-save', 'world-roundtrip', 'terrain-draw', 'terrain-render']
 def initializesContent = probe == 'content-init' || usesWorldSources
 def usesContentSources = probe == 'content' || initializesContent
 def usesExecutor = usesContentSources || probe == 'executor'
@@ -111,8 +112,11 @@ if (usesContentSources) {
 if (usesWorldSources) {
     sourceSets.main.java.srcDir('src/world/java')
 }
+if (probe == 'terrain-render') {
+    sourceSets.main.java.srcDir('src/terrain/java')
+}
 dependencies {
-    if (usesMapSources) {
+    if (usesMapSources || probe == 'terrain-render') {
         implementation 'org.teavm:teavm-interop:0.16.0'
     }
 }
@@ -244,7 +248,8 @@ tasks.named('compileJava') { dependsOn 'prepareUpstreamProbe' }
 tasks.register('runProbeJvm', JavaExec) {
     dependsOn 'classes'
     classpath = sourceSets.main.runtimeClasspath
-    mainClass = probe == 'map-sd' ? entryPoints.map : entryPoint
+    mainClass = ['map-sd': entryPoints.map, 'terrain-render': entryPoints['terrain-draw']]
+        .getOrDefault(probe, entryPoint)
 }
 
 if (usesContentSources) {

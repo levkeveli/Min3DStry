@@ -286,3 +286,27 @@ ore-copper1 ore-copper2 ore-copper3 stone1 stone2 stone3
 
 Arc draws 32 × 32 subregions of `ice-edge`. Keep the 96 × 96 parent
 rectangle so the renderer can translate the original page UVs.
+
+### Build the Citro2D terrain viewport
+
+[Issue #75](https://github.com/levkeveli/Min3DStry/issues/75) connects
+that Arc batch to Citro2D. The 3DS program loads the original Glacier
+map at startup. Arc emits the terrain draws and the native backend
+translates their atlas page and rectangles to the packed RomFS texture.
+The texture uses nearest-neighbor filtering. The renderer submits the
+draws in Arc's order and uses the top screen with the debug console below.
+This probe draws a single fixed viewport.
+
+Use the same pinned inputs and Gradle properties as the terrain trace.
+Generate C with `-Pprobe=terrain-render` and prepare the RomFS texture
+with JDK 17+ and tex3ds v2.3.0 on `PATH`.
+
+```sh
+python3 arm11/prepare_terrain_assets.py --assets /path/to/assets.jar \
+  --server /path/to/server-release.jar --output-dir build/terrain-assets
+bash arm11/build.sh build/generated/teavm/c build/terrain-3ds build/terrain-assets
+```
+
+Run from this directory in the devkitPro 3DS environment. The build
+produces `build/terrain-3ds/upstream-probe.3dsx`. Stage the original
+`glacier.msav` and `sprites.aatls` in `/3ds/min3dstry/` on the SD card.
