@@ -10,7 +10,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        probe: [world-save]
+        probe: [world-roundtrip]
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
@@ -25,7 +25,7 @@ jobs:
           curl --fail --silent --show-error --location https://github.com/Anuken/Mindustry/releases/download/v160.8/server-release.jar -o "$RUNNER_TEMP/server-release.jar"
           git -C "$RUNNER_TEMP/Mindustry" show HEAD:core/assets/maps/default/glacier.msav > "$RUNNER_TEMP/glacier.msav"
           bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime --no-daemon --console=plain "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" "-PreferenceJar=$RUNNER_TEMP/server-release.jar" "-ParcCheckout=$RUNNER_TEMP/Arc" "-Pprobe=${{ matrix.probe }}" -Dorg.gradle.jvmargs=-Xmx3g makeWorldSaveFixture --args="$RUNNER_TEMP/glacier.msav $RUNNER_TEMP/glacier-v13.msav"
-          bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime --no-daemon --console=plain "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" "-PreferenceJar=$RUNNER_TEMP/server-release.jar" "-ParcCheckout=$RUNNER_TEMP/Arc" "-Pprobe=${{ matrix.probe }}" -Dorg.gradle.jvmargs=-Xmx3g runProbeJvm --args="$RUNNER_TEMP/glacier.msav $RUNNER_TEMP/glacier-v13.msav" generateC
+          bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime --no-daemon --console=plain "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" "-PreferenceJar=$RUNNER_TEMP/server-release.jar" "-ParcCheckout=$RUNNER_TEMP/Arc" "-Pprobe=${{ matrix.probe }}" -Dorg.gradle.jvmargs=-Xmx3g runProbeJvm --args="$RUNNER_TEMP/glacier.msav $RUNNER_TEMP/glacier-v13.msav $RUNNER_TEMP/glacier-roundtrip.msav" generateC
       - name: Compile with devkitARM and libctru
         run: |
           image=devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5
