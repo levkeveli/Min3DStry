@@ -179,6 +179,57 @@ Graphics and audio JNI methods reached by compiler analysis throw if
 called in this headless mode. Broader save coverage and physical-device
 verification remain open in #28.
 
+### Load a v160.8 multiplayer world snapshot
+
+The `world-stream` probe feeds the compressed `WorldStream` payload to
+the same upstream `NetworkIO.loadWorld` entry point as
+`core/src/mindustry/core/NetClient.java` in pinned Mindustry v160.8.
+The capture uses that release's Arc client, `PacketSerializer` and
+`StreamBuilder`. The staged source extracts an overload that reports
+entity IDs through a callback. The regular entry point still forwards
+those IDs to `NetClient`. The probe records them locally so it can test
+the deserializer before the 3DS client registers its network and UI
+handlers.
+
+In a scratch directory start the official `server-release.jar` and enter
+`config port 16568` followed by `host Glacier`. With the local server
+running, capture a new fixture from the repository root:
+
+```sh
+java -cp /path/to/server-release.jar \
+  research/upstream-runtime/host/UpstreamWorldStreamCapture.java 16568 /path/to/glacier-world-stream.bin
+```
+
+Run `runProbeJvm` with `-Pprobe=world-stream` and pass the fixture path
+through `--args`. The probe prints world dimensions, building origins,
+the terrain fingerprint, rules and the local player ID and team. The
+ARM11 entry point reads the same fixture from
+`/3ds/min3dstry/glacier-world-stream.bin` on the SD.
+Reuse the same capture when comparing platforms because each server
+startup can produce different filter results and tick state.
+
+Two captures from fresh official servers on loopback loaded the 150 × 250
+map, both cores, wave 1 and the assigned player. The pinned JVM, generated
+Windows x64 program and [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44819568048)
+reported matching state for each corresponding capture. Both Azahar 2126.2
+console profiles reported the terrain fingerprints `cd909fce1d821404`
+and `eabf9af0dd63684c` for the two captures, respectively.
+
+Run the comparison from the repository root with the exact
+`UPSTREAM_WORLD_STREAM ...` line from `runProbeJvm`:
+
+```sh
+python tools/verify_upstream_world_stream.py --rom /path/to/upstream-probe.3dsx \
+  --azahar /path/to/azahar --fixture /path/to/glacier-world-stream.bin \
+  --reference "$jvm_world_stream_line"
+```
+
+The ARM11 ELF load segments occupy 25.39 MiB after page rounding.
+With its 16 MiB managed heap and 256 KiB native stack, those components
+total 41.64 MiB. Physical-console memory and networking still need testing.
+Live 3DS sockets, connection confirmation and gameplay synchronization
+are tracked in #44.
+
 ### Verify the Arc executor pools
 
 Use `-Pprobe=executor` with the JVM and ARM11 build commands. The JVM uses the
