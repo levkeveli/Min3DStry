@@ -16,7 +16,11 @@ public final class UpstreamMapProbe {
     }
 
     public static void main(String[] args) throws Exception {
-        Map map = MapIO.createMap(new Fixture(), false);
+        check(new Fixture());
+    }
+
+    static void check(Fi fixture) throws Exception {
+        Map map = MapIO.createMap(fixture, false);
         String name = map.tags.get("name");
         if (!"Glacier".equals(name) || map.width != 150 || map.height != 250 || map.version != 7) {
             throw new AssertionError("Unexpected upstream Glacier metadata");

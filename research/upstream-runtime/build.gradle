@@ -12,18 +12,29 @@ def upstreamFile = 'core/src/mindustry/logic/LogicOp.java'
 def glacier = 'core/assets/maps/default/glacier.msav'
 def upstream = providers.gradleProperty('upstreamCheckout')
 def probe = providers.gradleProperty('probe').getOrElse('logic')
-if (!(probe in ['logic', 'map'])) {
-    throw new GradleException('Expected -Pprobe=logic or -Pprobe=map')
+def entryPoints = [
+    logic: 'mindustry.logic.UpstreamLogicProbe',
+    map: 'mindustry.maps.UpstreamMapProbe',
+    'map-sd': 'mindustry.maps.UpstreamSdMapProbe'
+]
+if (!entryPoints.containsKey(probe)) {
+    throw new GradleException('Expected -Pprobe=logic, map, or map-sd')
 }
-def entryPoint = probe == 'map' ? 'mindustry.maps.UpstreamMapProbe' : 'mindustry.logic.UpstreamLogicProbe'
+def entryPoint = entryPoints[probe]
+def usesMapSources = probe != 'logic'
 def referenceJar = file(providers.gradleProperty('referenceJar').getOrElse('server-release.jar'))
 def sourceDir = layout.buildDirectory.dir('upstream-src')
 def sourceFile = sourceDir.map { it.file('mindustry/logic/LogicOp.java') }
 def mapFile = sourceDir.map { it.file('mindustry/maps/GlacierFixture.java') }
 
-dependencies { implementation files(referenceJar) }
+dependencies {
+    implementation files(referenceJar)
+    if (usesMapSources) {
+        implementation 'org.teavm:teavm-interop:0.16.0'
+    }
+}
 sourceSets.main.java.srcDir(sourceDir)
-if (probe == 'map') {
+if (usesMapSources) {
     sourceSets.main.java.srcDir('src/map/java')
 }
 tasks.withType(JavaCompile).configureEach { options.release = 17 }
@@ -34,7 +45,7 @@ tasks.register('prepareUpstreamProbe') {
     inputs.property('probe', probe)
     inputs.file(referenceJar)
     outputs.file(sourceFile)
-    if (probe == 'map') {
+    if (usesMapSources) {
         outputs.file(mapFile)
     }
     doLast {
@@ -48,7 +59,7 @@ tasks.register('prepareUpstreamProbe') {
         def output = sourceFile.get().asFile
         output.parentFile.mkdirs()
         output.bytes = source
-        if (probe == 'map') {
+        if (usesMapSources) {
             def bytes = providers.exec {
                 commandLine 'git', '-C', upstream.get(), 'show', "${revision}:${glacier}"
             }.standardOutput.asBytes.get()
@@ -73,7 +84,7 @@ tasks.named('compileJava') { dependsOn 'prepareUpstreamProbe' }
 tasks.register('runProbeJvm', JavaExec) {
     dependsOn 'classes'
     classpath = sourceSets.main.runtimeClasspath
-    mainClass = entryPoint
+    mainClass = probe == 'map-sd' ? entryPoints.map : entryPoint
 }
 
 teavm { all { mainClass = entryPoint } }
