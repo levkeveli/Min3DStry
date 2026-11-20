@@ -1,0 +1,50 @@
+import java.security.MessageDigest
+
+// Rebuild the affected compiler classes from the pinned Maven source artifact.
+def compilerSources = configurations.detachedConfiguration(
+    dependencies.create('org.teavm:teavm-core:0.16.0:sources'))
+compilerSources.transitive = false
+def compilerArchive = providers.gradleProperty('teavmCompilerSources').map { file(it) }
+    .orElse(providers.provider { compilerSources.singleFile })
+def patches = [
+    'org/teavm/backend/lowlevel/transform/CoroutineTransformation.java': file('patches/teavm-c-coroutine-entry.patch'),
+    'org/teavm/model/util/TypeInferer.java': file('patches/teavm-primitive-array-inference.patch')
+]
+def patchedSources = layout.buildDirectory.dir('world-compiler/source')
+def stage = tasks.register('patchWorldCompilerSource') {
+    inputs.files(compilerArchive, patches.values())
+    outputs.dir(patchedSources)
+    doLast {
+        def archive = compilerArchive.get()
+        def sha256 = MessageDigest.getInstance('SHA-256').digest(archive.bytes).encodeHex().toString()
+        if (sha256 != '687cabf23e0d17a15be30fbc070809c2931714340aca224120fe31579f95519b') {
+            throw new GradleException('Expected the TeaVM 0.16.0 compiler source archive')
+        }
+        def archiveTree = zipTree(archive)
+        patches.each { path, patch ->
+            def target = patchedSources.get().file(path).asFile
+            target.parentFile.mkdirs()
+            target.bytes = archiveTree.matching { include path }.singleFile.bytes
+            providers.exec {
+                commandLine 'git', '-C', patchedSources.get().asFile, 'apply', '--no-index', patch
+            }.result.get()
+        }
+    }
+}
+
+def compilerClasspath = configurations.detachedConfiguration(
+    dependencies.create('org.teavm:teavm-tooling:0.16.0'))
+def overlay = tasks.register('compileWorldCompilerPatch', JavaCompile) {
+    dependsOn stage
+    source patchedSources
+    classpath = compilerClasspath
+    destinationDirectory = layout.buildDirectory.dir('world-compiler/classes')
+    options.compilerArgs.add('-proc:none')
+}
+
+tasks.named('generateC') {
+    // Isolate the patched compiler from Gradle and keep it off the game classpath.
+    outOfProcess = true
+    processMemory = 3072
+    daemonClasspath.setFrom(overlay.flatMap { it.destinationDirectory }, compilerClasspath)
+}

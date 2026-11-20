@@ -1,0 +1,26 @@
+--- a/org/teavm/model/util/TypeInferer.java
++++ b/org/teavm/model/util/TypeInferer.java
+@@ -59,7 +59,7 @@
+         Graph graph = builder.build();
+         Graph arrayElemGraph = arrayElemBuilder.build();
+         for (int i = 0; i < graph.size(); ++i) {
+-            if (types[i] != null && graph.outgoingEdgesCount(i) > 0) {
++            if (types[i] != null && (graph.outgoingEdgesCount(i) > 0 || arrayElemGraph.outgoingEdgesCount(i) > 0)) {
+                 stack.push(types[i].kind.ordinal());
+                 stack.push(types[i].degree);
+                 stack.push(i);
+@@ -244,7 +244,13 @@
+         @Override
+         public void getElement(VariableReader receiver, VariableReader array, VariableReader index,
+                 ArrayElementType type) {
+-            arrayElemBuilder.addEdge(array.getIndex(), receiver.getIndex());
++            if (type == ArrayElementType.OBJECT) {
++                arrayElemBuilder.addEdge(array.getIndex(), receiver.getIndex());
++            } else {
++                // The opcode determines the primitive type even if the array's
++                // reference flowed through an Object-typed instruction.
++                types[receiver.getIndex()] = new InferenceType(InferenceKind.valueOf(type.name()), 0);
++            }
+         }
+ 
+         @Override

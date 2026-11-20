@@ -68,6 +68,18 @@ int32_t teavm_file_isWindows(void) {
     return 0;
 }
 
+int32_t teavm_file_isCaseSensitive(void) {
+    return 0;
+}
+
+int32_t teavm_file_canonicalize(char16_t* path, int32_t length, char16_t** result) {
+    (void)path;
+    (void)length;
+    // Keep TeaVM's Java-level path normalization on the read-only SD adapter.
+    *result = NULL;
+    return -1;
+}
+
 int64_t teavm_file_open(char16_t* name, int32_t name_size, int32_t mode) {
     if (mode != 1) {
         return 0;

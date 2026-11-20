@@ -42,7 +42,7 @@ def main():
             ("&teavm_dynamicClassPool[index].parent", "&teavm_dynamicClassPool[index].value.parent"),
         ],
         "all.c": [
-            ('#include "date.c"', ""),
+            ('#include "date.c"', '#include "m3ds_date.c"'),
             ('#include "fiber.c"', '#include "m3ds_platform.c"'),
             ('#include "file.c"', '#include "m3ds_file.c"'),
             ('#include "time.c"', ""),
@@ -59,7 +59,7 @@ def main():
     for name, changes in replacements.items():
         for old, new in changes:
             replace(args.output / name, old, new)
-    for name in ("m3ds_platform.c", "m3ds_file.c", "m3ds_main.c"):
+    for name in ("m3ds_date.c", "m3ds_platform.c", "m3ds_file.c", "m3ds_main.c"):
         shutil.copyfile(Path(__file__).with_name(name), args.output / name)
     includes = args.output / "nativeinclude"
     includes.mkdir()
