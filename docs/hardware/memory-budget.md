@@ -79,7 +79,7 @@ Telemetry format:
 
 Limitations:
 
-- The 4 MiB arena is a deliberate probe cap, not the full 64 MiB budget; the
+- The 1 MiB arena is a deliberate probe cap, not the full 64 MiB budget; the
   app-memory and reserve values are reported so the 64 MiB model is visible.
 - Azahar reports `AppMem:96 MiB` for both emulated profiles (HLE behavior), so
   the emulator run does not prove the real 64 MiB/124 MiB split.
