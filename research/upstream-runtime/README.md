@@ -234,7 +234,12 @@ named by that list directly from the hash-checked server JAR.
 [DevkitARM build 44795739970](https://github.com/levkeveli/Min3DStry/actions/runs/44795739970)
 ran with C optimization disabled, a 24 MiB managed heap, a 4 MiB linear
 heap for the debug console, and a 256 KiB native stack. Its ELF load
-segments and those reservations already total 67.50 MiB before GC
-bookkeeping and other application allocations. The verified factory
-scenario runs in Azahar. The 64 MiB Original 3DS budget and physical
-performance still need verification. Factory parity is tracked in #26.
+segments and those reservations total 67.50 MiB before GC bookkeeping
+and other application allocations.
+[DevkitARM build 44796141596](https://github.com/levkeveli/Min3DStry/actions/runs/44796141596)
+used the standard `-O2` flags and matched both traces in the Original and
+New 3DS Azahar profiles. The page-rounded ELF segments occupy 36.38 MiB.
+With the same heap and stack reservations, the subtotal is 64.63 MiB
+before bookkeeping and other allocations, above the 64 MiB Original 3DS
+budget. Physical-console memory and performance still need verification.
+Factory parity is tracked in #26.
