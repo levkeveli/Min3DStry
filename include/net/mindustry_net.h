@@ -1,5 +1,16 @@
 /*
- * Min3DStry upstream-compatible networking wire codec & handshake interface.
+ * Min3DStry Issue #31 wire-exact v160.8 network framing, discovery, and handshake shim
+ * plus verification oracle behind M3dsNetTransport.
+ *
+ * Architectural boundary:
+ * - src/platform/3ds/net_3ds.c provides the reusable libctru socInit/BSD socket
+ *   platform adapter (TeaVM C on ARM11 lacks Java NIO Selector/Channel APIs).
+ * - include/net/mindustry_net.h and src/net/mindustry_net.c implement Issue #31's
+ *   bounded wire-protocol codec and handshake probe derived byte-for-byte from
+ *   ArcNetProvider.java:33,479-605, NetworkIO.java:188-231, Packets.java, Net.java,
+ *   and Arc 7445105cd2. They do NOT replace TeaVM-compiled upstream NetClient/
+ *   NetServer gameplay packet dispatch in #44, which will run over net_3ds.c sockets.
+ *
  * Provenance: Mindustry v8 build 160.8 (19a0f40d44514f4802a8b79770456e7e32e34da0, GPLv3)
  * and Arc (7445105cd2683daf5b9ac7033ebb07265d3e814d, Apache-2.0).
  */

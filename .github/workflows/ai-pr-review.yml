@@ -45,7 +45,7 @@ jobs:
       !github.event.pull_request.head.repo.fork &&
       needs.policy-gate.outputs.eligible_for_ai_review == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     permissions:
       contents: read
       pull-requests: write

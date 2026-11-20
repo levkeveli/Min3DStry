@@ -36,6 +36,9 @@ static int wait_fd_readable(int fd, uint32_t timeout_ms) {
   return 1;
 }
 
+static void n3ds_tcp_close(void *user_data);
+static void n3ds_udp_close(void *user_data);
+
 static bool n3ds_tcp_connect(
     void *user_data,
     const char *host,
@@ -45,6 +48,8 @@ static bool n3ds_tcp_connect(
   if (!ctx || !ctx->soc_initialized || !host) {
     return false;
   }
+  /* Prevent descriptor leaks if a caller reconnects on the same context. */
+  n3ds_tcp_close(ctx);
 
   char port_str[16];
   snprintf(port_str, sizeof(port_str), "%u", (unsigned int)port);
@@ -147,6 +152,8 @@ static bool n3ds_udp_open(void *user_data, const char *host, uint16_t port) {
   if (!ctx || !ctx->soc_initialized || !host) {
     return false;
   }
+  /* Prevent descriptor leaks if UDP is reopened on the same context. */
+  n3ds_udp_close(ctx);
 
   char port_str[16];
   snprintf(port_str, sizeof(port_str), "%u", (unsigned int)port);

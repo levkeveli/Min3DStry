@@ -116,6 +116,10 @@ static void test_lz4_and_packet_envelope(void) {
   assert(m3ds_net_decode_packet(env, 4U + sizeof(lz4_src), &pkt_id, dec, sizeof(dec), &dec_len));
   assert(pkt_id == M3DS_PKT_CONNECT_PACKET);
   assert(dec_len == 8U && memcmp(dec, "ABABABAB", 8U) == 0);
+
+  /* Unsupported compression byte (ArcNetProvider only defines 0 and 1) must fail. */
+  env[3] = 2U;
+  assert(!m3ds_net_decode_packet(env, 4U + sizeof(lz4_src), &pkt_id, dec, sizeof(dec), &dec_len));
 }
 
 static void test_connect_packet_roundtrip(void) {
@@ -155,12 +159,18 @@ typedef struct MockNetState {
   uint8_t rx_stream[2048];
   size_t rx_len;
   size_t rx_pos;
+  size_t max_tcp_chunk;
+  bool inject_timeout_once;
+  size_t timeout_at_rx_pos;
 
   uint8_t tx_tcp[4096];
   size_t tx_tcp_len;
 
   uint8_t tx_udp[128];
   size_t tx_udp_len;
+
+  uint8_t rx_udp[1024];
+  size_t rx_udp_len;
 
   bool closed;
 } MockNetState;
@@ -193,11 +203,18 @@ static int mock_tcp_send(void *user_data, const uint8_t *data, size_t len) {
 static int mock_tcp_recv(void *user_data, uint8_t *out_buf, size_t max_len, uint32_t timeout_ms) {
   (void)timeout_ms;
   MockNetState *st = (MockNetState *)user_data;
+  if (st->inject_timeout_once && st->rx_pos == st->timeout_at_rx_pos) {
+    st->inject_timeout_once = false;
+    return M3DS_NET_IO_TIMEOUT;
+  }
   if (st->rx_pos >= st->rx_len) {
     return M3DS_NET_IO_EOF;
   }
   size_t avail = st->rx_len - st->rx_pos;
   size_t n = avail < max_len ? avail : max_len;
+  if (st->max_tcp_chunk > 0U && n > st->max_tcp_chunk) {
+    n = st->max_tcp_chunk;
+  }
   memcpy(out_buf, st->rx_stream + st->rx_pos, n);
   st->rx_pos += n;
   return (int)n;
@@ -226,15 +243,68 @@ static int mock_udp_send(void *user_data, const uint8_t *data, size_t len) {
 }
 
 static int mock_udp_recv(void *user_data, uint8_t *out_buf, size_t max_len, uint32_t timeout_ms) {
-  (void)user_data;
-  (void)out_buf;
-  (void)max_len;
   (void)timeout_ms;
-  return M3DS_NET_IO_TIMEOUT;
+  MockNetState *st = (MockNetState *)user_data;
+  if (st->rx_udp_len == 0U) {
+    return M3DS_NET_IO_TIMEOUT;
+  }
+  size_t n = st->rx_udp_len < max_len ? st->rx_udp_len : max_len;
+  memcpy(out_buf, st->rx_udp, n);
+  st->rx_udp_len = 0U;
+  return (int)n;
 }
 
 static void mock_udp_close(void *user_data) {
   (void)user_data;
+}
+
+static size_t append_str8_repeat(uint8_t *buf, size_t pos, uint8_t n, char ch) {
+  buf[pos++] = n;
+  memset(buf + pos, (unsigned char)ch, n);
+  return pos + (size_t)n;
+}
+
+static void test_ping_host_large_datagram(void) {
+  MockNetState st;
+  memset(&st, 0, sizeof(st));
+
+  size_t pos = 0U;
+  pos = append_str8_repeat(st.rx_udp, pos, 200U, 'N');
+  pos = append_str8_repeat(st.rx_udp, pos, 120U, 'M');
+  pos = append_u32_be(st.rx_udp, pos, 7U);     /* players */
+  pos = append_u32_be(st.rx_udp, pos, 99U);    /* wave */
+  pos = append_u32_be(st.rx_udp, pos, 160U);   /* version */
+  pos = append_str8(st.rx_udp, pos, "official");
+  st.rx_udp[pos++] = 0U;                       /* gamemode */
+  pos = append_u32_be(st.rx_udp, pos, 30U);    /* playerLimit */
+  pos = append_str8_repeat(st.rx_udp, pos, 200U, 'D');
+  pos = append_str8_repeat(st.rx_udp, pos, 100U, 'X');
+  st.rx_udp[pos++] = 0x40U;                    /* port 16567 */
+  st.rx_udp[pos++] = 0xB7U;
+  assert(pos > 512U && pos < sizeof(st.rx_udp));
+  st.rx_udp_len = pos;
+
+  M3dsNetTransport tr = {
+      &st,
+      mock_tcp_connect,
+      mock_tcp_send,
+      mock_tcp_recv,
+      mock_tcp_close,
+      mock_udp_open,
+      mock_udp_send,
+      mock_udp_recv,
+      mock_udp_close};
+
+  M3dsNetHostInfo info;
+  assert(m3ds_net_ping_host(&tr, "127.0.0.1", 16567U, 1000U, &info));
+  assert(info.players == 7);
+  assert(info.wave == 99);
+  assert(info.version == 160);
+  assert(strcmp(info.version_type, "official") == 0);
+  assert(info.player_limit == 30);
+  assert(info.port == 16567U);
+  assert(strlen(info.name) == sizeof(info.name) - 1U);
+  assert(strlen(info.description) == sizeof(info.description) - 1U);
 }
 
 static void test_mock_handshake(void) {
@@ -305,12 +375,130 @@ static void test_mock_handshake(void) {
   assert(sent_udp.type == M3DS_FW_REGISTER_UDP && sent_udp.id == -9);
 }
 
+static void test_segmented_handshake_and_pings(void) {
+  MockNetState st;
+  memset(&st, 0, sizeof(st));
+  st.max_tcp_chunk = 1U;
+
+  uint8_t msg[16];
+  size_t msg_len = 0U;
+  M3dsNetFrameworkMsg fw_ping1 = {M3DS_FW_PING, 1, false};
+  assert(m3ds_net_encode_framework(&fw_ping1, msg, sizeof(msg), &msg_len));
+  mock_queue_tcp_frame(&st, msg, msg_len);
+
+  M3dsNetFrameworkMsg fw_tcp = {M3DS_FW_REGISTER_TCP, -42, false};
+  assert(m3ds_net_encode_framework(&fw_tcp, msg, sizeof(msg), &msg_len));
+  mock_queue_tcp_frame(&st, msg, msg_len);
+
+  M3dsNetFrameworkMsg fw_ping2 = {M3DS_FW_PING, 2, false};
+  assert(m3ds_net_encode_framework(&fw_ping2, msg, sizeof(msg), &msg_len));
+  mock_queue_tcp_frame(&st, msg, msg_len);
+
+  size_t udp_ack_start = st.rx_len;
+  M3dsNetFrameworkMsg fw_udp = {M3DS_FW_REGISTER_UDP, 0, false};
+  assert(m3ds_net_encode_framework(&fw_udp, msg, sizeof(msg), &msg_len));
+  mock_queue_tcp_frame(&st, msg, msg_len);
+  st.inject_timeout_once = true;
+  st.timeout_at_rx_pos = udp_ack_start + 3U;
+
+  M3dsNetFrameworkMsg fw_ping3 = {M3DS_FW_PING, 3, false};
+  assert(m3ds_net_encode_framework(&fw_ping3, msg, sizeof(msg), &msg_len));
+  mock_queue_tcp_frame(&st, msg, msg_len);
+
+  uint8_t sb_payload[9] = {0, 0, 0, 5, 0, 0, 32, 0, M3DS_PKT_WORLD_STREAM};
+  uint8_t sb_env[16];
+  size_t sb_env_len = 0U;
+  assert(m3ds_net_encode_packet_raw(
+      M3DS_PKT_STREAM_BEGIN, sb_payload, sizeof(sb_payload), sb_env, sizeof(sb_env), &sb_env_len));
+  mock_queue_tcp_frame(&st, sb_env, sb_env_len);
+
+  M3dsNetTransport tr = {
+      &st,
+      mock_tcp_connect,
+      mock_tcp_send,
+      mock_tcp_recv,
+      mock_tcp_close,
+      mock_udp_open,
+      mock_udp_send,
+      mock_udp_recv,
+      mock_udp_close};
+
+  M3dsNetConnectPacket pkt;
+  memset(&pkt, 0, sizeof(pkt));
+  pkt.version = M3DS_NET_UPSTREAM_BUILD;
+  pkt.version_type = M3DS_NET_UPSTREAM_VERSION_TYPE;
+  pkt.name = "Min3DStrySeg";
+  pkt.locale = "en";
+  pkt.usid = "testusid";
+  pkt.color = 0xFFFFFFFFU;
+
+  M3dsNetHandshakeResult res;
+  assert(m3ds_net_handshake(&tr, "127.0.0.1", M3DS_NET_DEFAULT_PORT, 1000U, &pkt, &res));
+  assert(!st.inject_timeout_once);
+  assert(res.status == M3DS_HANDSHAKE_OK_WORLD_STREAM);
+  assert(res.connection_id == -42);
+  assert(res.udp_registered);
+  assert(res.stream_id == 5);
+  assert(res.stream_total == 8192);
+  assert(res.stream_type == M3DS_PKT_WORLD_STREAM);
+  assert(res.pings_answered == 3U);
+  assert(st.closed);
+}
+
+static void test_early_kick_during_udp_reg(void) {
+  MockNetState st;
+  memset(&st, 0, sizeof(st));
+
+  uint8_t msg[16];
+  size_t msg_len = 0U;
+  M3dsNetFrameworkMsg fw_tcp = {M3DS_FW_REGISTER_TCP, 7, false};
+  assert(m3ds_net_encode_framework(&fw_tcp, msg, sizeof(msg), &msg_len));
+  mock_queue_tcp_frame(&st, msg, msg_len);
+
+  uint8_t kick_payload[1] = {0U};
+  uint8_t kick_env[8];
+  size_t kick_env_len = 0U;
+  assert(m3ds_net_encode_packet_raw(
+      66U, kick_payload, sizeof(kick_payload), kick_env, sizeof(kick_env), &kick_env_len));
+  mock_queue_tcp_frame(&st, kick_env, kick_env_len);
+
+  M3dsNetTransport tr = {
+      &st,
+      mock_tcp_connect,
+      mock_tcp_send,
+      mock_tcp_recv,
+      mock_tcp_close,
+      mock_udp_open,
+      mock_udp_send,
+      mock_udp_recv,
+      mock_udp_close};
+
+  M3dsNetConnectPacket pkt;
+  memset(&pkt, 0, sizeof(pkt));
+  pkt.version = M3DS_NET_UPSTREAM_BUILD;
+  pkt.version_type = M3DS_NET_UPSTREAM_VERSION_TYPE;
+  pkt.name = "Min3DStryKick";
+  pkt.locale = "en";
+  pkt.usid = "testusid";
+  pkt.color = 0xFFFFFFFFU;
+
+  M3dsNetHandshakeResult res;
+  assert(!m3ds_net_handshake(&tr, "127.0.0.1", M3DS_NET_DEFAULT_PORT, 1000U, &pkt, &res));
+  assert(res.status == M3DS_HANDSHAKE_SERVER_REJECTED);
+  assert(res.first_server_packet_id == 66U);
+  assert(res.first_server_payload_len == 1U);
+  assert(st.closed);
+}
+
 int main(void) {
   test_tcp_framing_and_framework();
   test_host_info_decoder();
+  test_ping_host_large_datagram();
   test_lz4_and_packet_envelope();
   test_connect_packet_roundtrip();
   test_mock_handshake();
+  test_segmented_handshake_and_pings();
+  test_early_kick_during_udp_reg();
   printf("test_mindustry_net: all assertions passed.\n");
   return 0;
 }

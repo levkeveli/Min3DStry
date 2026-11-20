@@ -1,5 +1,15 @@
 /*
- * Min3DStry upstream-compatible networking wire codec & handshake.
+ * Min3DStry Issue #31 wire-exact v160.8 network framing, discovery, and handshake shim
+ * plus live interoperability test oracle.
+ *
+ * Architectural role:
+ * - src/platform/3ds/net_3ds.c is the reusable libctru socInit/BSD socket transport
+ *   adapter for the 3DS port (replacing desktop Java NIO channels on ARM11).
+ * - This module provides the C11 protocol framing/handshake oracle requested by
+ *   Issue #31 against pinned ArcNetProvider.java:33,479-605, NetworkIO.java:188-231,
+ *   Packets.java, Net.java, and Arc 7445105cd2. Full multiplayer gameplay sessions
+ *   (#44) will drive TeaVM-compiled upstream NetClient/NetServer over net_3ds.c.
+ *
  * Provenance: Mindustry v8 build 160.8 (19a0f40d44514f4802a8b79770456e7e32e34da0, GPLv3)
  * and Arc (7445105cd2683daf5b9ac7033ebb07265d3e814d, Apache-2.0).
  */
@@ -370,6 +380,10 @@ bool m3ds_net_decode_packet(
     *out_payload_len = declared_len;
     return true;
   }
+  /* Upstream ArcNetProvider.java:516-580 only defines 0 (raw) and 1 (LZ4 block). */
+  if (compression != 1U) {
+    return false;
+  }
 
   size_t decompressed_len = 0U;
   if (!m3ds_net_lz4_decompress(
@@ -581,7 +595,8 @@ bool m3ds_net_ping_host(
 
   bool ok = false;
   if (transport->udp_send(transport->user_data, req, req_len) == (int)req_len) {
-    uint8_t resp[512];
+    /* Upstream writes into 500 bytes (NetworkIO.java:193); keep 1024 bytes for headroom. */
+    uint8_t resp[1024];
     int n = transport->udp_recv(transport->user_data, resp, sizeof(resp), timeout_ms);
     if (n > 0) {
       ok = m3ds_net_decode_host_info(resp, (size_t)n, out_info);
@@ -604,55 +619,107 @@ static bool tcp_send_all(const M3dsNetTransport *transport, const uint8_t *data,
   return true;
 }
 
-static int tcp_recv_exact(
-    const M3dsNetTransport *transport,
-    uint8_t *out_buf,
-    size_t len,
-    uint32_t timeout_ms) {
-  size_t got = 0U;
-  while (got < len) {
-    int n = transport->tcp_recv(transport->user_data, out_buf + got, len - got, timeout_ms);
-    if (n <= 0) {
-      return n;
-    }
-    got += (size_t)n;
-  }
-  return (int)got;
-}
+typedef struct TcpFrameReader {
+  uint8_t hdr[2];
+  size_t hdr_got;
+  uint16_t payload_len;
+  size_t payload_got;
+} TcpFrameReader;
 
+/* Stateful TCP frame reader that preserves partial header/body bytes across short timeouts. */
 static M3dsNetHandshakeStatus read_next_tcp_frame(
     const M3dsNetTransport *transport,
+    TcpFrameReader *reader,
     uint8_t *frame_buf,
     size_t frame_cap,
     size_t *out_frame_len,
-    uint32_t timeout_ms) {
-  uint8_t hdr[2];
-  int rc = tcp_recv_exact(transport, hdr, 2U, timeout_ms);
-  if (rc == M3DS_NET_IO_EOF) {
-    return M3DS_HANDSHAKE_DISCONNECTED;
+    uint32_t first_timeout_ms,
+    uint32_t body_timeout_ms) {
+  while (reader->hdr_got < 2U) {
+    uint32_t wait_ms =
+        (reader->hdr_got == 0U && reader->payload_got == 0U) ? first_timeout_ms : body_timeout_ms;
+    int n = transport->tcp_recv(
+        transport->user_data, reader->hdr + reader->hdr_got, 2U - reader->hdr_got, wait_ms);
+    if (n == M3DS_NET_IO_EOF) {
+      return M3DS_HANDSHAKE_DISCONNECTED;
+    }
+    if (n == M3DS_NET_IO_TIMEOUT) {
+      return M3DS_HANDSHAKE_TIMEOUT;
+    }
+    if (n < 0) {
+      return M3DS_HANDSHAKE_TRANSPORT_ERROR;
+    }
+    reader->hdr_got += (size_t)n;
   }
-  if (rc == M3DS_NET_IO_TIMEOUT) {
-    return M3DS_HANDSHAKE_TIMEOUT;
-  }
-  if (rc < 0) {
-    return M3DS_HANDSHAKE_TRANSPORT_ERROR;
-  }
-  uint16_t payload_len = read_u16_be(hdr);
-  if (payload_len == 0U || (size_t)payload_len > frame_cap) {
+
+  reader->payload_len = read_u16_be(reader->hdr);
+  if (reader->payload_len == 0U || (size_t)reader->payload_len > frame_cap) {
     return M3DS_HANDSHAKE_PROTOCOL_ERROR;
   }
-  rc = tcp_recv_exact(transport, frame_buf, (size_t)payload_len, timeout_ms);
-  if (rc == M3DS_NET_IO_EOF) {
-    return M3DS_HANDSHAKE_DISCONNECTED;
+
+  while (reader->payload_got < (size_t)reader->payload_len) {
+    int n = transport->tcp_recv(
+        transport->user_data,
+        frame_buf + reader->payload_got,
+        (size_t)reader->payload_len - reader->payload_got,
+        body_timeout_ms);
+    if (n == M3DS_NET_IO_EOF) {
+      return M3DS_HANDSHAKE_DISCONNECTED;
+    }
+    if (n == M3DS_NET_IO_TIMEOUT) {
+      return M3DS_HANDSHAKE_TIMEOUT;
+    }
+    if (n < 0) {
+      return M3DS_HANDSHAKE_TRANSPORT_ERROR;
+    }
+    reader->payload_got += (size_t)n;
   }
-  if (rc == M3DS_NET_IO_TIMEOUT) {
-    return M3DS_HANDSHAKE_TIMEOUT;
-  }
-  if (rc < 0) {
-    return M3DS_HANDSHAKE_TRANSPORT_ERROR;
-  }
-  *out_frame_len = (size_t)payload_len;
+
+  *out_frame_len = (size_t)reader->payload_len;
+  reader->hdr_got = 0U;
+  reader->payload_len = 0U;
+  reader->payload_got = 0U;
   return M3DS_HANDSHAKE_OK_WORLD_STREAM;
+}
+
+static bool reply_framework_ping_if_needed(
+    const M3dsNetTransport *transport,
+    const M3dsNetFrameworkMsg *fw,
+    M3dsNetHandshakeResult *out_result) {
+  if (fw->type != M3DS_FW_PING || fw->is_reply) {
+    return true;
+  }
+  M3dsNetFrameworkMsg pong = *fw;
+  pong.is_reply = true;
+  uint8_t pong_raw[8];
+  uint8_t pong_framed[16];
+  size_t pong_raw_len = 0U;
+  size_t pong_framed_len = 0U;
+  if (!m3ds_net_encode_framework(&pong, pong_raw, sizeof(pong_raw), &pong_raw_len) ||
+      !m3ds_net_tcp_frame_encode(
+          pong_raw, pong_raw_len, pong_framed, sizeof(pong_framed), &pong_framed_len) ||
+      !tcp_send_all(transport, pong_framed, pong_framed_len)) {
+    return false;
+  }
+  out_result->pings_answered++;
+  return true;
+}
+
+static M3dsNetHandshakeStatus classify_unexpected_app_packet(
+    const uint8_t *frame_buf,
+    size_t frame_len,
+    uint8_t *payload_buf,
+    size_t payload_cap,
+    M3dsNetHandshakeResult *out_result) {
+  uint8_t pkt_id = 0U;
+  size_t pkt_payload_len = 0U;
+  if (m3ds_net_decode_packet(
+          frame_buf, frame_len, &pkt_id, payload_buf, payload_cap, &pkt_payload_len)) {
+    out_result->first_server_packet_id = pkt_id;
+    out_result->first_server_payload_len = pkt_payload_len;
+    return M3DS_HANDSHAKE_SERVER_REJECTED;
+  }
+  return M3DS_HANDSHAKE_PROTOCOL_ERROR;
 }
 
 bool m3ds_net_handshake(
@@ -701,23 +768,36 @@ bool m3ds_net_handshake(
 
   bool udp_opened = false;
   bool have_conn_id = false;
+  TcpFrameReader reader;
+  memset(&reader, 0, sizeof(reader));
   M3dsNetHandshakeStatus status = M3DS_HANDSHAKE_PROTOCOL_ERROR;
 
   /* Step 1: Wait for ArcNet RegisterTCP(connectionID). Note: Arc IDs may be negative. */
   for (int guard = 0; guard < 16; ++guard) {
     size_t frame_len = 0U;
-    status = read_next_tcp_frame(transport, frame_buf, frame_cap, &frame_len, timeout_ms);
+    status = read_next_tcp_frame(
+        transport, &reader, frame_buf, frame_cap, &frame_len, timeout_ms, timeout_ms);
     if (status != M3DS_HANDSHAKE_OK_WORLD_STREAM) {
       goto cleanup;
     }
-    M3dsNetFrameworkMsg fw;
-    if (m3ds_net_decode_framework(frame_buf, frame_len, &fw)) {
-      if (fw.type == M3DS_FW_REGISTER_TCP) {
-        out_result->connection_id = fw.id;
-        have_conn_id = true;
-        break;
+    if (frame_buf[0] == (uint8_t)M3DS_NET_FRAMEWORK_SENTINEL) {
+      M3dsNetFrameworkMsg fw;
+      if (m3ds_net_decode_framework(frame_buf, frame_len, &fw)) {
+        if (fw.type == M3DS_FW_REGISTER_TCP) {
+          out_result->connection_id = fw.id;
+          have_conn_id = true;
+          break;
+        }
+        if (!reply_framework_ping_if_needed(transport, &fw, out_result)) {
+          status = M3DS_HANDSHAKE_TRANSPORT_ERROR;
+          goto cleanup;
+        }
       }
+      continue;
     }
+    status = classify_unexpected_app_packet(
+        frame_buf, frame_len, payload_buf, payload_cap, out_result);
+    goto cleanup;
   }
   if (!have_conn_id) {
     status = M3DS_HANDSHAKE_PROTOCOL_ERROR;
@@ -735,32 +815,50 @@ bool m3ds_net_handshake(
   memset(&reg_udp, 0, sizeof(reg_udp));
   reg_udp.type = M3DS_FW_REGISTER_UDP;
   reg_udp.id = out_result->connection_id;
+  uint8_t reg_udp_buf[8];
   size_t reg_udp_len = 0U;
-  if (!m3ds_net_encode_framework(&reg_udp, tx_buf, tx_cap, &reg_udp_len)) {
+  if (!m3ds_net_encode_framework(&reg_udp, reg_udp_buf, sizeof(reg_udp_buf), &reg_udp_len)) {
     status = M3DS_HANDSHAKE_PROTOCOL_ERROR;
     goto cleanup;
   }
 
   uint32_t poll_ms = timeout_ms > 200U ? 200U : timeout_ms;
   for (int attempt = 0; attempt < 20 && !out_result->udp_registered; ++attempt) {
-    if (transport->udp_send(transport->user_data, tx_buf, reg_udp_len) != (int)reg_udp_len) {
-      status = M3DS_HANDSHAKE_TRANSPORT_ERROR;
+    /* Only transmit another RegisterUDP datagram when not mid-way through a split TCP frame. */
+    if (reader.hdr_got == 0U && reader.payload_got == 0U) {
+      if (transport->udp_send(transport->user_data, reg_udp_buf, reg_udp_len) != (int)reg_udp_len) {
+        status = M3DS_HANDSHAKE_TRANSPORT_ERROR;
+        goto cleanup;
+      }
+    }
+    for (int rx_guard = 0; rx_guard < 16; ++rx_guard) {
+      size_t frame_len = 0U;
+      M3dsNetHandshakeStatus rx = read_next_tcp_frame(
+          transport, &reader, frame_buf, frame_cap, &frame_len, poll_ms, timeout_ms);
+      if (rx == M3DS_HANDSHAKE_TIMEOUT) {
+        break;
+      }
+      if (rx != M3DS_HANDSHAKE_OK_WORLD_STREAM) {
+        status = rx;
+        goto cleanup;
+      }
+      if (frame_buf[0] == (uint8_t)M3DS_NET_FRAMEWORK_SENTINEL) {
+        M3dsNetFrameworkMsg fw;
+        if (m3ds_net_decode_framework(frame_buf, frame_len, &fw)) {
+          if (fw.type == M3DS_FW_REGISTER_UDP) {
+            out_result->udp_registered = true;
+            break;
+          }
+          if (!reply_framework_ping_if_needed(transport, &fw, out_result)) {
+            status = M3DS_HANDSHAKE_TRANSPORT_ERROR;
+            goto cleanup;
+          }
+        }
+        continue;
+      }
+      status = classify_unexpected_app_packet(
+          frame_buf, frame_len, payload_buf, payload_cap, out_result);
       goto cleanup;
-    }
-    size_t frame_len = 0U;
-    M3dsNetHandshakeStatus rx =
-        read_next_tcp_frame(transport, frame_buf, frame_cap, &frame_len, poll_ms);
-    if (rx == M3DS_HANDSHAKE_TIMEOUT) {
-      continue;
-    }
-    if (rx != M3DS_HANDSHAKE_OK_WORLD_STREAM) {
-      status = rx;
-      goto cleanup;
-    }
-    M3dsNetFrameworkMsg fw;
-    if (m3ds_net_decode_framework(frame_buf, frame_len, &fw) && fw.type == M3DS_FW_REGISTER_UDP) {
-      out_result->udp_registered = true;
-      break;
     }
   }
   if (!out_result->udp_registered) {
@@ -802,7 +900,8 @@ bool m3ds_net_handshake(
   /* Step 4: Read TCP packets until StreamBegin (accepted) or kick / disconnect. */
   for (int guard = 0; guard < 32; ++guard) {
     size_t frame_len = 0U;
-    status = read_next_tcp_frame(transport, frame_buf, frame_cap, &frame_len, timeout_ms);
+    status = read_next_tcp_frame(
+        transport, &reader, frame_buf, frame_cap, &frame_len, timeout_ms, timeout_ms);
     if (status != M3DS_HANDSHAKE_OK_WORLD_STREAM) {
       goto cleanup;
     }
@@ -810,16 +909,9 @@ bool m3ds_net_handshake(
     if (frame_buf[0] == (uint8_t)M3DS_NET_FRAMEWORK_SENTINEL) {
       M3dsNetFrameworkMsg fw;
       if (m3ds_net_decode_framework(frame_buf, frame_len, &fw) &&
-          fw.type == M3DS_FW_PING && !fw.is_reply) {
-        M3dsNetFrameworkMsg pong = fw;
-        pong.is_reply = true;
-        uint8_t pong_raw[8];
-        size_t pong_raw_len = 0U;
-        if (m3ds_net_encode_framework(&pong, pong_raw, sizeof(pong_raw), &pong_raw_len) &&
-            m3ds_net_tcp_frame_encode(pong_raw, pong_raw_len, tx_buf, tx_cap, &framed_len)) {
-          (void)tcp_send_all(transport, tx_buf, framed_len);
-          out_result->pings_answered++;
-        }
+          !reply_framework_ping_if_needed(transport, &fw, out_result)) {
+        status = M3DS_HANDSHAKE_TRANSPORT_ERROR;
+        goto cleanup;
       }
       continue;
     }
