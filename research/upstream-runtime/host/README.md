@@ -84,3 +84,31 @@ Tasks can yield at TeaVM suspension points. Contended monitors in code that
 TeaVM compiles as synchronous are still a runtime limitation. Native
 parallel execution, dynamic pool variants, and the complete JDK concurrency
 API are outside this probe.
+
+## Initialize content and instantiate building factories
+
+Use `-Pprobe=content-init`, `-ParcCheckout=/path/to/Arc`, and
+`-Dorg.gradle.jvmargs=-Xmx3g` with the runtime build commands. The driver calls
+upstream `ContentLoader.init` with a headless `Settings` and `GameState`,
+checks RGBA writes and copies through Arc Pixmap, and instantiates the factory
+for each of the 447 registered blocks. Compare its `UPSTREAM_BUILDING` records
+with the factory reference above.
+
+The build applies a patch to the pinned Arc Pixmap. It uses Arc's existing
+direct-buffer allocation and Java PNG decoder, with its Java 16 buffer-copy
+path. It explicitly clears blank direct buffers because TeaVM C allocates them
+through `malloc`. Image decoding and GPU uploads require separate tests.
+
+For Windows x64, run
+`python3 arm11/fix_reflection_lifetime.py build/generated/teavm/c` before
+compiling the generated C. The ARM11 build runs the same fix automatically.
+TeaVM 0.16.0 emitted three building types' reflection descriptors as local
+compound literals. The fix gives them static storage so upstream factory
+discovery can read them after class initialization.
+
+Java and the generated Windows x64 program matched all 447 factory records.
+The [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44774668683)
+completed initialization and passed the pixel check in both Azahar console
+profiles. The launcher emitted all 447 factory records, with the lancer's
+class name as `null` in both profiles. Exact ARM11 factory parity remains
+open in #55.
