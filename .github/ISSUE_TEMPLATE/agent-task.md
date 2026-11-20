@@ -23,6 +23,7 @@ Links to architecture, upstream code, relevant issues and prior PRs.
 - Dependencies / blocked by:
 
 ## Acceptance criteria
+- [ ] Aligns with 1:1 upstream Mindustry v160.8 port (no simplified clone, partial block subset, or non-upstream format)
 - [ ] Specific functional behavior
 - [ ] Automated tests and failure paths
 - [ ] Docs updated
