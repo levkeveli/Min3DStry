@@ -216,7 +216,7 @@ world through Mindustry's `Logic.play`, gives an upstream conveyor one
 copper item, and calls the original `Logic.update` 240 times at a fixed
 60 Hz clock. It checks core inventory and the exact delivery tick.
 
-The pinned Java release reports
+The pinned Java release and the generated Windows x64 program report
 `UPSTREAM_FACTORY updates=240 wave=1 arrival=29 copper=201`.
 The C build links `logicids.dat`, the base-part list, and the schematics
 named by that list directly from the hash-checked server JAR. The probe
