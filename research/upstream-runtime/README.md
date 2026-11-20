@@ -271,8 +271,11 @@ Pass the same two paths to the executable. The ARM11 build script applies
 the reflection fix during staging.
 
 For the ARM11 probe, put the original `glacier.msav` and `sprites.aatls` in
-`/3ds/min3dstry/` on the SD card. The trace precedes the Citro2D
-presentation step tracked in #38.
+`/3ds/min3dstry/` on the SD card.
+[DevkitARM build 44799955644](https://github.com/levkeveli/Min3DStry/actions/runs/44799955644)
+used the standard `-O2` flags. Both Azahar 2126.2 console profiles
+emitted the identical terrain trace and Glacier world fingerprint.
+The trace precedes the Citro2D presentation step tracked in #38.
 
 The current viewport uses 13 upstream atlas regions. A local build of
 that set with tex3ds v2.3.0 produced a 128 × 256 RGBA8 page (128 KiB).
