@@ -1,6 +1,8 @@
 ## Linked Issue
 Closes #<issue>
 
+- [ ] 1:1 upstream Mindustry v160.8 scope confirmed (uses real upstream code/content or 3DS platform/hardware adapters; no simplified clone or bespoke block subset)
+
 ## Changes
 -
 
