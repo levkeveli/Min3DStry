@@ -1,6 +1,6 @@
 # Architecture
 
-Target native ARM11 homebrew with devkitPro, libctru and Citro2D/Citro3D. Evaluate Java-to-native options before committing to a portability strategy. Keep graphics, audio, input and platform services behind interfaces so the same game simulation and networking rules can run on both 3DS generations and in host-side tests.
+Target ARM11 homebrew on Original and New 3DS/2DS. Keep 3DS services behind platform interfaces while adapting upstream Mindustry code and content. The [upstream port plan](upstream-port.md) identifies the reference release and compatibility requirements.
 
 Current prototypes:
 - [Citro2D bounded rendering prototype](rendering/citro2d-prototype.md) (`M3dsRenderBackend` + `M3dsBoundedScene`, host-tested, 3DS-built via `./dev.sh build`, and emulator-tested in Azahar `2126.2` via `./dev.sh emu-test`; physical hardware verification pending).
