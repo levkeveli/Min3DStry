@@ -62,5 +62,6 @@ the build directory.
 Use `-Pprobe=content generateC` with `-Dorg.gradle.jvmargs=-Xmx3g` to reproduce
 the compiler check. It now passes the anonymous class lookup during analysis.
 The [resource probe](../README.md#read-pinned-arc-resources) documents the
-adaptation used by content mode for Arc's classpath lookup. Native registry and
-factory parity are tracked in #55.
+adaptation used by content mode for Arc's classpath lookup. C generation now
+stops at the executor, future, and processor-count APIs reached during static
+initialization. Native registry and factory parity are tracked in #55.

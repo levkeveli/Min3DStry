@@ -100,3 +100,10 @@ The expected line is
 The probe verifies the original bytes through both Arc file-handle types and
 checks that a missing resource is absent. It uses a file handle limited to
 these two types so it can exercise Arc without starting its global executor.
+
+The JVM and generated Windows x64 program returned the expected line. The
+[devkitARM build](https://github.com/levkeveli/Min3DStry/actions/runs/44767646164)
+returned it in both Original and New 3DS modes in Azahar 2126.2. The probe
+exercises the classpath fallback, including a failed filesystem lookup for the
+internal handle. It has not verified reading a real file through Arc on SD or
+running on physical hardware.
