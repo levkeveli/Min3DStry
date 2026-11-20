@@ -519,20 +519,20 @@
       <span class="overview-maintainers">Maintainers: <code>@admiraly</code>, <code>@Hxgg22</code>, <code>@Satixfied</code></span>
     </div>
     <p class="overview-text">
-      <strong>Min3DStry</strong> targets the full upstream <em>Mindustry</em> game on Original and New Nintendo 3DS/2DS, with the original content and multiplayer with the unmodified Java PC release. The current builds are prototypes. Functional parity comes first, followed by optimization for a minimum of 24 FPS on both hardware generations.
+      <strong>Min3DStry</strong> is a <strong>1:1 port</strong> of upstream <em>Mindustry</em> (v8 build 160.8) for Original and New Nintendo 3DS/2DS — not a simplified clone or demake. Upstream code and 3DS platform services (rendering, dual-screen UI/input, audio, and OS adapters) are modified where necessary for 3DS compatibility and performance while keeping the game technically original Mindustry: full content catalog, <code>.msav</code> maps/saves, and cross-platform multiplayer with the unmodified Java PC v160.8 release. Functional parity comes first, followed by tuning for 24+ FPS on both 3DS generations.
     </p>
     <div class="overview-grid">
       <div class="overview-item">
-        <h2>Working Today</h2>
-        <p>Azahar-verified <code>min3dstry.3dsx</code> Citro2D prototype + Old/New 3DS hardware probe and deterministic parity harness (<code>trace_hash=0x53a483c7</code> matching across host <code>-O0</code>/<code>-O2</code> and ARM11), plus sprite atlas and <code>3dslink</code>/SD deployment tools.</p>
+        <h2>Upstream v160.8 on ARM11</h2>
+        <p>Pinned Mindustry/Arc probes compile via TeaVM C against <code>libctru</code> and match Java in Azahar (<code>LogicOp</code>, <code>Glacier</code> <code>.msav</code> metadata from SD, and Arc <code>Fi</code> resource streams); JVM baseline covers 922 content records and 447 building factories.</p>
       </div>
       <div class="overview-item">
-        <h2>Research &amp; Tooling</h2>
-        <p>Java-to-native feasibility study, SDK-free Windows/Linux host test suite (<code>./dev.sh test</code>), automated Azahar Old/New 3DS verification (<code>./dev.sh emu-test</code>), and AI PR auto-merge.</p>
+        <h2>3DS Platform Harness</h2>
+        <p>Azahar- &amp; New 3DS XL-verified platform testbed (<code>min3dstry.3dsx</code>): Citro2D sprite-atlas renderer, Old/New 3DS probe, deterministic parity harness (<code>0x53a483c7</code>), NDSP mixer, and <code>3dslink</code>/SD log deploy.</p>
       </div>
       <div class="overview-item">
         <h2>Not Built Yet</h2>
-        <p>Full Mindustry world blocks &amp; wave combat, textured atlas rendering, bottom-screen touch build UI, <code>.msav</code> map loading, NDSP audio, multiplayer, and physical 3DS hardware boot.</p>
+        <p>Full upstream v160.8 world loading &amp; game loop on 3DS, complete block/unit/campaign catalog, dual-screen HUD/menus, <code>.msav</code> save writing, NDSP DSP playback on hardware, PC crossplay, and Original 3DS physical hardware runs.</p>
       </div>
     </div>
   </section>
