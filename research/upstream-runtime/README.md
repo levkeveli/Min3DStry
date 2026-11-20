@@ -214,10 +214,17 @@ Use `-Pprobe=factory-ticks` with the world probe's Gradle properties and
 pass the original Glacier path to `runProbeJvm`. The probe starts the
 world through Mindustry's `Logic.play`, gives an upstream conveyor one
 copper item, and calls the original `Logic.update` 240 times at a fixed
-60 Hz clock. It checks core inventory and the exact delivery tick.
+60 Hz clock. It checks core inventory and the exact delivery tick. A
+second phase places a mechanical drill over four copper ore tiles and
+checks deliveries through the original router and conveyor through tick
+720. The probe initializes the upstream cache layers before creating the
+content and registers the block indexer and wave spawner before the world
+loads.
 
 The pinned Java release and the generated Windows x64 program report
 `UPSTREAM_FACTORY updates=240 wave=1 arrival=29 copper=201`.
+The pinned Java reference also reports
+`UPSTREAM_DRILL updates=720 wave=1 copper=203 arrivals=464=202,626=203`.
 The C build links `logicids.dat`, the base-part list, and the schematics
 named by that list directly from the hash-checked server JAR. The probe
 allows a 24 MiB managed heap for the active upstream simulation. Factory
