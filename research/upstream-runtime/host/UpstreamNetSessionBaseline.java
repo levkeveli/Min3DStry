@@ -306,12 +306,7 @@ public class UpstreamNetSessionBaseline {
         Client client = new Client(16384, ArcNetProvider.clientReadBufferSize, serializer) {
             @Override
             public void handleNetException(ArcNetException e) {
-                if (confirmed.get()) {
-                    // Snapshot reads still flow through raw PacketSerializer.read cleanly.
-                    errorRef.compareAndSet(null, e);
-                } else {
-                    errorRef.compareAndSet(null, e);
-                }
+                errorRef.compareAndSet(null, e);
             }
         };
         client.addListener(new NetListener() {
