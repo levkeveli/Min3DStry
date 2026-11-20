@@ -25,6 +25,7 @@ class DeviceDeployTests(unittest.TestCase):
                 )
                 self.assertEqual(cmd[:6], ["3dslink", "-a", "192.0.2.55", "-r", "5", "-s"])
                 self.assertTrue(cmd[6].endswith("min3dstry.3dsx"))
+                self.assertEqual(cmd[7:], ["m3ds-stream-logs"])
 
                 os.environ.pop("M3DS_DEVICE_IP", None)
                 with self.assertRaises(ValueError):

@@ -12,11 +12,12 @@ Issue #6 provides a repeatable deployment and telemetry capture workflow in [`to
 
 1. Build the 3DS binary: `./dev.sh build`
 2. Open Homebrew Launcher on the 3DS and press `Y` to start **NetLoader**.
-3. Stream the `.3dsx` and collect `svcOutputDebugString` telemetry:
+3. Send the `.3dsx` and collect the diagnostic records over TCP:
    ```bash
    ./dev.sh device deploy --ip <3DS_IP> --stream-logs --log-out build/device-logs/run.log
    ```
    You can also set `M3DS_DEVICE_IP=<3DS_IP>` instead of passing `--ip`, or inspect the generated command with `--dry-run`.
+   Streaming uses `3dslink -s` and TCP port 17491 on the PC. The app keeps rendering the bottom-screen console and also emits the records to the debugger for Azahar. Press START once the frame sample has appeared to close the stream and save the log.
 
 ### 2. SD / FTPD Staging with SHA-256 Verification
 
