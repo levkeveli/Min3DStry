@@ -23,4 +23,18 @@ Both runs should print UPSTREAM_LOGIC quotient=-3 remainder=1 xor=6.
 
     arm-none-eabi-gcc -march=armv6k -mtune=mpcore -mfpu=vfp -mfloat-abi=hard -std=gnu11 -c all.c
 
-- This spike has no ARM executable, console run, or gameplay and multiplayer compatibility evidence. See [the port plan](../../docs/upstream-port.md).
+## ARM11 smoke build
+
+After generating the C, source devkitPro's `3dsvars.sh` and run the following from this directory with Python 3.10+.
+
+```sh
+bash arm11/build.sh build/generated/teavm/c build/probe-3ds
+```
+
+This produces `build/probe-3ds/upstream-probe.3dsx` and a symbolized ELF. Use a fresh output directory because the staging script copies and adapts the generated runtime files.
+
+Boot the probe in Azahar with the desired console model. The top screen and the emulated debug log should show the same result as Java. For logging, set the Azahar log filter to `*:Info Debug.Emulated:Debug`. START exits the probe.
+
+[Test build 44757615581](https://github.com/levkeveli/Min3DStry/actions/runs/44757615581) linked with devkitARM and libctru. In Azahar 2126.2 Original and New 3DS modes, the build emitted `UPSTREAM_LOGIC quotient=-3 remainder=1 xor=6`, matching the JVM baseline.
+
+The probe provides libctru event waits, clocks, debug output, and a fully backed scratch heap. It aligns dynamic class entries on ARM so TeaVM's compressed references can represent them. It excludes unused filesystem and date runtime modules and uses TeaVM's small existing character-conversion fallback. Full game runtime services, Unicode coverage, physical hardware, gameplay and multiplayer are unverified. See [the port plan](../../docs/upstream-port.md).

@@ -3,6 +3,7 @@
 Target ARM11 homebrew on Original and New 3DS/2DS. Keep 3DS services behind platform interfaces while adapting upstream Mindustry code and content. The [upstream port plan](upstream-port.md) identifies the reference release and compatibility requirements.
 
 Current prototypes:
+- [Upstream source runtime smoke probe](../research/upstream-runtime/README.md) (pinned Mindustry LogicOp compiled with TeaVM and run on both Azahar console profiles).
 - [Citro2D bounded rendering prototype](rendering/citro2d-prototype.md) (`M3dsRenderBackend` + `M3dsBoundedScene`, host-tested, 3DS-built via `./dev.sh build`, and emulator-tested in Azahar `2126.2` via `./dev.sh emu-test`; physical hardware verification pending).
 - [Hardware detection profile](hardware/detection.md) (`M3dsHardwareProfile` + `libctru` probe, host-tested, 3DS-built, and emulator-tested across Old/New 3DS modes in Azahar `2126.2`; physical Old/New 3DS hardware verification pending).
 - [Gameplay parity harness](testing/parity-harness.md) (`M3dsParityState` + canonical scenario `starter_copper_defense_v1`, matching the fixture on host `-O0`/`-O2`, Azahar Old/New 3DS ARM11, and a physical New 3DS XL).
