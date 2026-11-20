@@ -1,0 +1,192 @@
+--- a/arc/graphics/Pixmap.java
++++ b/arc/graphics/Pixmap.java
+@@ -23,13 +23,11 @@
+  * </p>
+  *
+  * <p>
+- * A Pixmap stores its data in native heap memory. It is mandatory to call {@link Pixmap#dispose()} when the pixmap is no longer
+- * needed, otherwise memory leaks will result.
++ * On this target, a Pixmap stores its pixels in a direct buffer managed by the runtime.
+  * </p>
+  * @author badlogicgames@gmail.com
+  */
+ public class Pixmap implements Disposable{
+-    private static final boolean supportsBufferCopy = OS.javaVersionNumber >= 16 || (OS.isAndroid && Core.app != null && Core.app.getVersion() >= 35);
+
+     /** Size of the pixmap. Do not modify unless you know what you are doing. */
+     public int width, height;
+@@ -43,12 +41,6 @@
+      * When natives are not present, this value is -1.
+      */
+     long handle;
+-
+-    static{
+-        if(!supportsBufferCopy && !OS.isIos){
+-            UnsafeBuffers.checkInit();
+-        }
+-    }
+
+     /** Creates a new Pixmap instance with the given width and height. */
+     public Pixmap(int width, int height){
+@@ -596,9 +588,7 @@
+     /** Releases all resources associated with this Pixmap. */
+     @Override
+     public void dispose(){
+-        if(handle <= 0) return;
+-        free(handle);
+-        handle = 0;
++        // This platform uses Arc's Java fallback, whose buffers are managed by the runtime.
+     }
+
+     @Override
+@@ -729,36 +719,6 @@
+     }
+
+     private void load(byte[] encodedData, int offset, int len, String file){
+-        //use native implementation when possible
+-        if(ArcNativesLoader.loaded){
+-            try{
+-                //read with stb_image, which is slightly faster for large images and supports more formats
+-                long[] nativeData = new long[3];
+-                pixels = loadJni(nativeData, encodedData, offset, len);
+-                if(pixels == null) throw new ArcRuntimeException("Error loading pixmap from image data: " + getFailureReason() + (file == null ? "" : " (" + file + ")"));
+-
+-                handle = nativeData[0];
+-                width = (int)nativeData[1];
+-                height = (int)nativeData[2];
+-                pixels.position(0).limit(pixels.capacity());
+-            }catch(ArcRuntimeException e){
+-                //stb_image bug? some PNGs fail with "corrupt JPEG" as the error, try the Java implementation if so
+-                if(e.getMessage() != null && e.getMessage().contains("Corrupt JPEG")){
+-                    try{
+-                        loadJava(encodedData, offset, len, file);
+-                        return;
+-                    }catch(Exception ignored){
+-                        //I did my best, fall through and throw the original exception
+-                    }
+-                }
+-                throw e;
+-            }
+-        }else{
+-            loadJava(encodedData, offset, len, file);
+-        }
+-    }
+-
+-    private void loadJava(byte[] encodedData, int offset, int len, String file){
+         //read with the pure java implementation
+         try{
+             PngReader reader = new PngReader();
+@@ -773,23 +733,10 @@
+     }
+
+     private void load(int width, int height){
+-        //use native implementation when possible
+-        if(ArcNativesLoader.loaded){
+-            long[] nativeData = new long[3];
+-            pixels = createJni(nativeData, width, height);
+-            if(pixels == null) throw new ArcRuntimeException("Error creating pixmap (out of memory?)");
+-            pixels.limit(pixels.capacity());
+-
+-            this.handle = nativeData[0];
+-            this.width = (int)nativeData[1];
+-            this.height = (int)nativeData[2];
+-        }else{
+-            //use DirectByteBuffer instead
+-            this.handle = -1; //handle -1 means non-native buffer
+-            this.width = width;
+-            this.height = height;
+-            this.pixels = ByteBuffer.allocateDirect(width * height * 4);
+-        }
++        this.handle = -1;
++        this.width = width;
++        this.height = height;
++        this.pixels = ByteBuffer.allocateDirect(width * height * 4);
+     }
+
+     @Override
+@@ -820,83 +767,6 @@
+     }
+
+     static void copyMem(ByteBuffer src, int srcOffset, ByteBuffer dst, int dstOffset, int len){
+-        //Java 16 supports direct byte buffer transfer without modifying state. Older versions (+Android/iOS) don't, and likely never will
+-        if(supportsBufferCopy){
+-            Java16Buffers.copy(src, srcOffset, dst, dstOffset, len);
+-        }else{
+-            if(!OS.isIos && !UnsafeBuffers.failed){
+-                UnsafeBuffers.copy(src, srcOffset, dst, dstOffset, len);
+-            }else{
+-                Buffers.copyJni(src, srcOffset, dst, dstOffset, len);
+-            }
+-        }
+-    }
+-
+-    /*JNI
+-
+-    #include <stdlib.h>
+-    #include <stdint.h>
+-
+-    #include <stdlib.h>
+-    #define STB_IMAGE_IMPLEMENTATION
+-    #define STBI_FAILURE_USERMSG
+-    #define STBI_NO_STDIO
+-    #ifdef __APPLE__
+-    #define STBI_NO_THREAD_LOCALS
+-    #endif
+-    #include "stb_image.h"
+-
+-    */
+-
+-    /** Loads a pixmap from bytes and returns [address, width, height] in nativeData. */
+-    static native ByteBuffer loadJni(long[] nativeData, byte[] buffer, int offset, int len); /*MANUAL
+-        const unsigned char* p_buffer = (const unsigned char*)env->GetPrimitiveArrayCritical(buffer, 0);
+-
+-        int32_t width, height, format;
+-
+-        //always use STBI_rgb_alpha (4) as the format, since that's the only thing pixmaps support
+-        //RGB images are generally uncommon and the memory savings don't really matter; formats have to be converted to RGBA for drawing anyway
+-        const unsigned char* pixels = stbi_load_from_memory(p_buffer + offset, len, &width, &height, &format, STBI_rgb_alpha);
+-
+-        env->ReleasePrimitiveArrayCritical(buffer, (char*)p_buffer, 0);
+-
+-        if(pixels == NULL) return NULL;
+-
+-        jobject pixel_buffer = env->NewDirectByteBuffer((void*)pixels, width * height * 4);
+-        jlong* p_native_data = (jlong*)env->GetPrimitiveArrayCritical(nativeData, 0);
+-        p_native_data[0] = (jlong)pixels;
+-        p_native_data[1] = width;
+-        p_native_data[2] = height;
+-        env->ReleasePrimitiveArrayCritical(nativeData, p_native_data, 0);
+-
+-        return pixel_buffer;
+-     */
+-
+-    /** Creates a new pixmap and returns [address, width, height] in nativeData. */
+-    static native ByteBuffer createJni(long[] nativeData, int width, int height); /*MANUAL
+-        const unsigned char* pixels = (unsigned char*)malloc(width * height * 4);
+-
+-        if(!pixels) return 0;
+-
+-        //fill pixel array with 0s
+-        //TODO use calloc insted?
+-        memset((void*)pixels, 0, width * height * 4);
+-
+-        jobject pixel_buffer = env->NewDirectByteBuffer((void*)pixels, width * height * 4);
+-        jlong* p_native_data = (jlong*)env->GetPrimitiveArrayCritical(nativeData, 0);
+-        p_native_data[0] = (jlong)pixels;
+-        p_native_data[1] = width;
+-        p_native_data[2] = height;
+-        env->ReleasePrimitiveArrayCritical(nativeData, p_native_data, 0);
+-
+-        return pixel_buffer;
+-     */
+-
+-    static native void free(long buffer); /*
+-        free((void*)buffer);
+-     */
+-
+-    static native String getFailureReason(); /*
+-        return env->NewStringUTF(stbi_failure_reason());
+-     */
++        Java16Buffers.copy(src, srcOffset, dst, dstOffset, len);
++    }
+ }
