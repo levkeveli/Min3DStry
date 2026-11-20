@@ -31,14 +31,16 @@ def entryPoints = [
     world: 'UpstreamWorldLoadProbe',
     'world-save': 'UpstreamWorldSaveProbe',
     'world-roundtrip': 'UpstreamWorldRoundTripProbe',
-    'factory-ticks': 'UpstreamFactoryTickProbe'
+    'factory-ticks': 'UpstreamFactoryTickProbe',
+    'combat-ticks': 'UpstreamCombatTickProbe'
 ]
 if (!entryPoints.containsKey(probe)) {
     throw new GradleException("Expected -Pprobe to be one of ${entryPoints.keySet()}")
 }
 def entryPoint = entryPoints[probe]
 def usesMapSources = probe in ['map', 'map-sd']
-def usesWorldSources = probe in ['world', 'world-save', 'world-roundtrip', 'factory-ticks']
+def usesSimulation = probe in ['factory-ticks', 'combat-ticks']
+def usesWorldSources = probe in ['world', 'world-save', 'world-roundtrip'] || usesSimulation
 def initializesContent = probe == 'content-init' || usesWorldSources
 def usesContentSources = probe == 'content' || initializesContent
 def usesExecutor = usesContentSources || probe == 'executor'
@@ -111,7 +113,7 @@ if (usesContentSources) {
 if (usesWorldSources) {
     sourceSets.main.java.srcDir('src/world/java')
 }
-if (probe == 'factory-ticks') {
+if (usesSimulation) {
     sourceSets.main.java.srcDir('src/gameplay/java')
 }
 dependencies {
@@ -265,7 +267,7 @@ teavm {
     if (usesExecutor) {
         c { obfuscated = false }
     }
-    if (probe == 'factory-ticks') {
+    if (usesSimulation) {
         c { maxHeapSize = 24 }
     }
 }

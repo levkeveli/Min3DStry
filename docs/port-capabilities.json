@@ -157,7 +157,7 @@
         "src/render/factory_demo.c",
         "docs/rendering/citro2d-prototype.md",
         "research/upstream-runtime/README.md",
-        "research/upstream-runtime/src/world/java/UpstreamFactoryTickProbe.java"
+        "research/upstream-runtime/src/gameplay/java/UpstreamFactoryTickProbe.java"
       ]
     },
     {
