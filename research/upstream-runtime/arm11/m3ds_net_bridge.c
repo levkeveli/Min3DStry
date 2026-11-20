@@ -88,10 +88,11 @@ int32_t m3ds_live_net_input(void) {
 
     circlePosition pad;
     hidCircleRead(&pad);
-    const bool dpad = (keys & (KEY_LEFT | KEY_RIGHT | KEY_UP | KEY_DOWN)) != 0;
+    // Generic direction masks also include digital Circle Pad directions.
+    const bool dpad = (keys & (KEY_DLEFT | KEY_DRIGHT | KEY_DUP | KEY_DDOWN)) != 0;
     if (dpad) {
-        pad.dx = 127 * ((int)((keys & KEY_RIGHT) != 0) - (int)((keys & KEY_LEFT) != 0));
-        pad.dy = 127 * ((int)((keys & KEY_UP) != 0) - (int)((keys & KEY_DOWN) != 0));
+        pad.dx = 127 * ((int)((keys & KEY_DRIGHT) != 0) - (int)((keys & KEY_DLEFT) != 0));
+        pad.dy = 127 * ((int)((keys & KEY_DUP) != 0) - (int)((keys & KEY_DDOWN) != 0));
     }
     return (int32_t)pack_axis(pad.dx) | ((int32_t)pack_axis(pad.dy) << 8) | ((int32_t)dpad << 16);
 }
