@@ -33,6 +33,7 @@ def entryPoints = [
     'world-save': 'UpstreamWorldSaveProbe',
     'world-roundtrip': 'UpstreamWorldRoundTripProbe',
     'world-stream': 'UpstreamWorldStreamProbe',
+    'terrain-draw': 'UpstreamTerrainDrawProbe',
     'file-metadata': 'port.UpstreamFileMetadataProbe'
 ]
 if (!entryPoints.containsKey(probe)) {
@@ -40,7 +41,7 @@ if (!entryPoints.containsKey(probe)) {
 }
 def entryPoint = entryPoints[probe]
 def usesMapSources = probe in ['map', 'map-sd']
-def usesWorldSources = probe in ['world', 'world-save', 'world-roundtrip', 'world-stream']
+def usesWorldSources = probe in ['world', 'world-save', 'world-roundtrip', 'world-stream', 'terrain-draw']
 def initializesContent = probe == 'content-init' || usesWorldSources
 def usesContentSources = probe == 'content' || initializesContent
 def usesExecutor = usesContentSources || probe == 'executor'
