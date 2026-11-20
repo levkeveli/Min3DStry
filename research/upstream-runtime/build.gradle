@@ -14,6 +14,8 @@ def annotationsSource = 'annotations/src/main/java/mindustry/annotations/Annotat
 def arcRevision = '7445105cd2683daf5b9ac7033ebb07265d3e814d'
 def fileSource = 'arc-core/src/arc/files/Fi.java'
 def osSource = 'arc-core/src/arc/util/OS.java'
+def pixmapSource = 'arc-core/src/arc/graphics/Pixmap.java'
+def pixmapPatch = file('patches/arc-pixmap-direct-buffer.patch')
 def glacier = 'core/assets/maps/default/glacier.msav'
 def upstream = providers.gradleProperty('upstreamCheckout')
 def arc = providers.gradleProperty('arcCheckout')
@@ -25,6 +27,7 @@ def entryPoints = [
     content: 'UpstreamContentBaseline',
     resource: 'port.UpstreamResourceProbe',
     executor: 'port.concurrent.UpstreamExecutorProbe',
+    'content-init': 'UpstreamContentInitializationProbe',
     'file-metadata': 'port.UpstreamFileMetadataProbe'
 ]
 if (!entryPoints.containsKey(probe)) {
@@ -32,7 +35,8 @@ if (!entryPoints.containsKey(probe)) {
 }
 def entryPoint = entryPoints[probe]
 def usesMapSources = probe in ['map', 'map-sd']
-def usesContentSources = probe == 'content'
+def initializesContent = probe == 'content-init'
+def usesContentSources = probe == 'content' || initializesContent
 def usesExecutor = usesContentSources || probe == 'executor'
 def usesArcSources = usesContentSources || probe == 'resource'
 def referenceJar = file(providers.gradleProperty('referenceJar').getOrElse('server-release.jar'))
@@ -43,6 +47,7 @@ def blockFile = sourceDir.map { it.file('mindustry/world/Block.java') }
 def annotationsFile = sourceDir.map { it.file('mindustry/annotations/Annotations.java') }
 def arcFile = sourceDir.map { it.file('arc/files/Fi.java') }
 def arcOsFile = sourceDir.map { it.file('arc/util/OS.java') }
+def arcPixmapFile = sourceDir.map { it.file('arc/graphics/Pixmap.java') }
 def readUpstream = { path ->
     providers.exec {
         commandLine 'git', '-C', upstream.get(), 'show', "${revision}:${path}"
@@ -59,6 +64,9 @@ if (usesArcSources || usesExecutor) {
     }
     if (usesExecutor) {
         stagedClasses.add('arc/util/OS.class')
+    }
+    if (initializesContent) {
+        stagedClasses.addAll(['arc/graphics/Pixmap.class', 'arc/graphics/Pixmap$*.class'])
     }
     // TeaVM resolves dependency classes before compiled project classes.
     def contentDependencies = tasks.register('prepareContentDependencies', Zip) {
@@ -120,6 +128,10 @@ tasks.register('prepareUpstreamProbe') {
     }
     if (usesExecutor) {
         outputs.file(arcOsFile)
+    }
+    if (initializesContent) {
+        inputs.file(pixmapPatch)
+        outputs.file(arcPixmapFile)
     }
     doLast {
         def sha256 = MessageDigest.getInstance('SHA-256').digest(referenceJar.bytes).encodeHex().toString()
@@ -188,6 +200,17 @@ final class GlacierFixture {
             adapted.parentFile.mkdirs()
             // TeaVM C runs its managed threads on one execution lane.
             adapted.setText(source.replace(processorCount, '1'), 'UTF-8')
+        }
+        if (initializesContent) {
+            def bytes = providers.exec {
+                commandLine 'git', '-C', arc.get(), 'show', "${arcRevision}:${pixmapSource}"
+            }.standardOutput.asBytes.get()
+            def staged = arcPixmapFile.get().asFile
+            staged.parentFile.mkdirs()
+            staged.bytes = bytes
+            providers.exec {
+                commandLine 'git', '-C', sourceDir.get().asFile, 'apply', '--no-index', pixmapPatch
+            }.result.get()
         }
     }
 }

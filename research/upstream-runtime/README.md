@@ -128,6 +128,10 @@ Both logs produced
 This covers base content registration. Native initialization and instance
 checks for building factories are tracked in #55.
 
+The [content initialization probe](host/README.md#initialize-content-and-instantiate-building-factories)
+also runs upstream `ContentLoader.init`, tests Arc pixel buffers, and creates
+one building from each of the 447 registered block factories.
+
 ### Read pinned Arc resources
 
 Use `-Pprobe=resource` and `-ParcCheckout=/path/to/Arc` with the reproduction
