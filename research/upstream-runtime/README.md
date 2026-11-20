@@ -254,6 +254,8 @@ needed for this probe. It calls upstream `Floor.load` and `Floor.drawBase`
 over a 16 × 12 viewport near the first copper tile in the original
 Glacier world. A Batch captures the order, texture page, UVs, geometry,
 and packed color and mix color of the draw requests.
+The pinned `Floor.drawBase` calls `drawOverlay`, which submits ore
+sprites as part of that floor pass.
 
 With the verified official `assets.jar` from the
 [sprite pipeline](../../docs/rendering/asset-pipeline.md), extract the
@@ -287,6 +289,9 @@ For the ARM11 probe, put the original `glacier.msav` and `sprites.aatls` in
 used the standard `-O2` flags. Both Azahar 2126.2 console profiles
 emitted the identical terrain trace and Glacier world fingerprint.
 The trace precedes the Citro2D presentation step tracked in #38.
+[The integration build](https://github.com/levkeveli/Min3DStry/actions/runs/44833286449)
+reproduced the same 320 commands, 26 copper draws, and hash on both
+Azahar console profiles after combining the probe with the merged world loader.
 
 The current viewport uses 13 upstream atlas regions. A local build of
 that set with tex3ds v2.3.0 produced a 128 × 256 RGBA8 page (128 KiB).
