@@ -23,7 +23,8 @@ runs the `logic`, `map` and `resource` probes for PRs and pushes touching this
 directory, then cross-builds each generated C output with the pinned devkitARM
 container and uploads the `.3dsx`/ELF artifacts. It also runs the pinned
 upstream save-writer, sound/music, sector/tech-tree, and unit/bullet metadata
-baselines. It uses no secrets and read-only repository permissions. The initial logic/map run was
+baselines, and converts the three mapped pinned sounds to PCM16 with provenance.
+It uses no secrets and read-only repository permissions. The initial logic/map run was
 [44798365837](https://github.com/levkeveli/Min3DStry/actions/runs/44798365837);
 the three-probe run including Arc resources is
 [44801673667](https://github.com/levkeveli/Min3DStry/actions/runs/44801673667).
