@@ -1,6 +1,6 @@
 # Physical Hardware Deployment and Log Streaming
 
-Status: **Host-tested** (CLI command generation, SD staging + SHA-256 manifest, loopback TCP capture, and provenance log parsing tested in `./dev.sh test`); **Physical Old/New 3DS Hardware: not yet tested** (pending real console run).
+Status: **Host-tested** for SD staging and log tooling. **New 3DS XL hardware-tested** for Wi-Fi deployment and log streaming. Original 3DS hardware testing is pending.
 
 ## Purpose
 
@@ -12,11 +12,13 @@ Issue #6 provides a repeatable deployment and telemetry capture workflow in [`to
 
 1. Build the 3DS binary: `./dev.sh build`
 2. Open Homebrew Launcher on the 3DS and press `Y` to start **NetLoader**.
-3. Stream the `.3dsx` and collect `svcOutputDebugString` telemetry:
+3. Send the `.3dsx` and collect the diagnostic records over TCP:
    ```bash
    ./dev.sh device deploy --ip <3DS_IP> --stream-logs --log-out build/device-logs/run.log
    ```
    You can also set `M3DS_DEVICE_IP=<3DS_IP>` instead of passing `--ip`, or inspect the generated command with `--dry-run`.
+   Streaming uses `3dslink -s` and TCP port 17491 on the PC. The app keeps rendering the bottom-screen console and also emits the records to the debugger for Azahar. Let the scene run for a few seconds, then press START to close the stream and save the log.
+   The deploy command passes `m3ds-stream-logs` after the ROM path. Homebrew Launcher documents that trailing arguments are forwarded to the launched app, and `3dslink` 0.6.3 serializes them after the app path. [Homebrew Launcher Netloader](https://github.com/devkitPro/3ds-hbmenu#netloader) · [3dslink 0.6.3 argument handling](https://github.com/devkitPro/3dslink/blob/c2df7362a156282bc2fb55370740ad670ca5a8a5/host/src/main.c#L599-L606)
 
 ### 2. SD / FTPD Staging with SHA-256 Verification
 
@@ -37,4 +39,5 @@ Listen on a host TCP port for streamed diagnostic output and format a Markdown s
 ## Verification Status
 
 - **Host unit tests (`tests/tools/test_device_deploy.py`):** **Host-tested** via `./dev.sh test` (`3dslink` command builder, SD staging + SHA-256 manifest, loopback TCP log capture, and provenance Markdown formatter).
-- **Physical Original & New 3DS/2DS Hardware:** **Not yet tested** — real `3dslink` wireless deployment and console hardware telemetry must be captured and recorded before marking hardware-verified.
+- **Physical New 3DS XL:** On 2026-11-20, [build `07e94ed`](https://github.com/levkeveli/Min3DStry/actions/runs/44739543994) was sent via `3dslink` 0.6.3 over Wi-Fi. The PC received the hardware profile (804 MHz, L2 enabled, 124 MiB application memory, FIRM 2.58.0), the canonical 240-tick scenario hash (`0x53a483c7`, matching the host fixture), and the frame-30 sample (2.63% CPU, 8.10% GPU, 0.26% command buffer, zero budget drops).
+- **Physical Original 3DS/2DS:** Wi-Fi deployment and streaming verification are pending.

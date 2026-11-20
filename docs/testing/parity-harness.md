@@ -24,3 +24,4 @@ This harness validates cross-target determinism (`x86_64`/`-O0`/`-O2` vs ARM11 N
 
 - **Host (`-O0` & `-O2`):** `./dev.sh test` compiles `tests/sim/test_parity_harness.c` at both `-O0` and `-O2`, checks input guards and pause invariance, and verifies via `tools/check_parity.py` that both match `tests/parity/starter_copper_defense_v1.json` (`trace_hash=0x53a483c7`, final tick 240: `copper=22`, `delivered=12`, `killed=2`, `hp=160`).
 - **Azahar Emulator (`new3ds` & `old3ds`):** `src/platform/3ds/main_3ds.c` runs `m3ds_parity_run_canonical` at boot and emits `[MIN3DSTRY] PARITY ...` via `svcOutputDebugString`; `tools/verify_azahar.py` asserts an exact match against `tests/parity/starter_copper_defense_v1.json` on both emulated 3DS generations.
+- **Physical New 3DS XL:** The [Netloader capture](../hardware/deployment-and-logs.md#verification-status) from build `07e94ed` reported the expected hash `0x53a483c7` and all four expected counters at tick 240.

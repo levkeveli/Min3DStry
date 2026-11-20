@@ -1,32 +1,47 @@
 #include <3ds.h>
 #include <citro2d.h>
+#include <malloc.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <sys/socket.h>
+#include <unistd.h>
 
 #include "citro2d_backend.h"
 #include "platform/hardware_profile.h"
 #include "render/scene_2d.h"
 #include "sim/parity_scenario.h"
 
-static void m3ds_emit_debug_line(const char *line) {
-    if (!line) {
-        return;
-    }
+static void m3ds_emit_debug_line(int log_socket, const char *line) {
     size_t len = strlen(line);
-    if (len > 0u) {
-        (void)svcOutputDebugString(line, (s32)len);
+    (void)svcOutputDebugString(line, (s32)len);
+    if (log_socket >= 0) {
+        (void)send(log_socket, line, len, MSG_DONTWAIT);
     }
 }
 
 int main(int argc, char *argv[]) {
-    (void)argc;
-    (void)argv;
-
     gfxInitDefault();
     C3D_Init(C3D_DEFAULT_CMDBUF_SIZE);
     C2D_Init(C2D_DEFAULT_MAX_OBJECTS);
     C2D_Prepare();
     consoleInit(GFX_BOTTOM, NULL);
+
+    const u32 soc_buffer_size = 0x100000;
+    void *soc_buffer = NULL;
+    bool soc_ready = false;
+    int log_socket = -1;
+    if (argc > 1 && strcmp(argv[1], "m3ds-stream-logs") == 0) {
+        soc_buffer = memalign(0x1000, soc_buffer_size);
+        if (soc_buffer && R_SUCCEEDED(socInit(soc_buffer, soc_buffer_size))) {
+            soc_ready = true;
+            // The host starts listening just after the Netloader upload completes.
+            for (int attempt = 0; attempt < 3 && log_socket < 0; ++attempt) {
+                svcSleepThread(100000000);
+                log_socket = link3dsConnectToHost(false, false);
+            }
+        }
+    }
 
     M3dsHardwareProfile hw_profile;
     char hw_summary[96] = "Hardware: unknown";
@@ -35,7 +50,7 @@ int main(int argc, char *argv[]) {
     }
     char dbg_line[192];
     snprintf(dbg_line, sizeof(dbg_line), "[MIN3DSTRY] HW: %s\n", hw_summary);
-    m3ds_emit_debug_line(dbg_line);
+    m3ds_emit_debug_line(log_socket, dbg_line);
 
     M3dsParityRunResult parity_run;
     m3ds_parity_run_canonical(&parity_run);
@@ -53,7 +68,7 @@ int main(int argc, char *argv[]) {
             (unsigned long)p_final->items_delivered,
             (unsigned long)p_final->enemies_killed,
             (unsigned long)p_final->core_hp);
-        m3ds_emit_debug_line(dbg_line);
+        m3ds_emit_debug_line(log_socket, dbg_line);
     }
 
     C3D_RenderTarget *top = C2D_CreateScreenTarget(GFX_TOP, GFX_LEFT);
@@ -151,11 +166,18 @@ int main(int argc, char *argv[]) {
                 (double)(C3D_GetProcessingTime() * 6.0f),
                 (double)(C3D_GetDrawingTime() * 6.0f),
                 (double)(C3D_GetCmdBufUsage() * 100.0f));
-            m3ds_emit_debug_line(dbg_line);
+            m3ds_emit_debug_line(log_socket, dbg_line);
             emitted_frame_diag = true;
         }
     }
 
+    if (log_socket >= 0) {
+        close(log_socket);
+    }
+    if (soc_ready) {
+        socExit();
+    }
+    free(soc_buffer);
     C2D_Fini();
     C3D_Fini();
     gfxExit();
