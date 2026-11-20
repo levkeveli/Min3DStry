@@ -306,7 +306,7 @@ UPSTREAM_GROUND_UNIT ticks=120 from=81,55 to=81,48
 
 The final generated Windows x64 executable matched eight times. The
 [`-O0` and `-O2` DevkitARM builds](https://github.com/levkeveli/Min3DStry/actions/runs/44806764887)
-matched both records and returned to the launcher prompt in both Azahar
+matched both records and reached the probe's exit prompt in both Azahar
 console profiles. The `-O2` mapped segments, 24 MiB managed heap, 4 MiB
 linear heap and 256 KiB stack total 64.66 MiB before GC metadata and other
 allocations. This exceeds the 64 MiB Original 3DS application budget.
