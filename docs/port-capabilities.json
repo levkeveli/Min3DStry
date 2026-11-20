@@ -51,7 +51,7 @@
       "category": "Foundation & Tooling",
       "name": "3dslink / SD Deploy & Log Capture",
       "weight": 2,
-      "stage": "host-tested",
+      "stage": "hardware-verified",
       "issue": 6,
       "evidence": [
         "tools/device_deploy.py",
@@ -132,7 +132,7 @@
       "category": "Core Simulation",
       "name": "Deterministic Parity Trace Harness",
       "weight": 4,
-      "stage": "emulator-tested",
+      "stage": "hardware-verified",
       "issue": 7,
       "evidence": [
         "src/sim/parity_scenario.c",
