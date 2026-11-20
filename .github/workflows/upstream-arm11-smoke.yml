@@ -1,273 +1,61 @@
-name: Upstream ARM11 smoke
-
+name: Live multiplayer world ARM11 build
 on:
-  pull_request:
-    branches: [main]
-    paths:
-      - "research/upstream-runtime/**"
-      - "audio/**"
-      - "tools/build_audio_assets.py"
-      - "tests/tools/test_audio_assets.py"
-      - ".github/workflows/upstream-arm11-smoke.yml"
   push:
-    branches: [main]
-    paths:
-      - "research/upstream-runtime/**"
-      - "audio/**"
-      - "tools/build_audio_assets.py"
-      - "tests/tools/test_audio_assets.py"
-      - ".github/workflows/upstream-arm11-smoke.yml"
-  workflow_dispatch:
-
+    branches: [test/3dsx-upstream-live-world]
 permissions:
   contents: read
-
 jobs:
-  probe:
-    name: Probe ${{ matrix.probe }}
+  build:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    concurrency:
-      group: upstream-arm11-${{ github.ref }}-${{ matrix.probe }}
-      cancel-in-progress: true
     strategy:
       fail-fast: false
       matrix:
-        probe: [logic, map, resource]
+        probe: [network-render]
+        optimization: [2]
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
-
-      - name: Fetch pinned upstream v160.8 source and server JAR
-        run: |
-          git clone --depth 1 --branch v160.8 \
-            https://github.com/Anuken/Mindustry.git "$RUNNER_TEMP/Mindustry"
-          test "$(git -C "$RUNNER_TEMP/Mindustry" rev-parse HEAD)" = \
-            "19a0f40d44514f4802a8b79770456e7e32e34da0"
-          curl --fail --silent --show-error --location \
-            https://github.com/Anuken/Mindustry/releases/download/v160.8/server-release.jar \
-            -o "$RUNNER_TEMP/server-release.jar"
-
-      - name: Fetch pinned Arc source
-        if: matrix.probe == 'resource'
-        run: |
-          git clone --filter=blob:none --no-checkout \
-            https://github.com/Anuken/Arc.git "$RUNNER_TEMP/Arc"
-          git -C "$RUNNER_TEMP/Arc" fetch --depth 1 origin \
-            7445105cd2683daf5b9ac7033ebb07265d3e814d
-          git -C "$RUNNER_TEMP/Arc" checkout --detach FETCH_HEAD
-          test "$(git -C "$RUNNER_TEMP/Arc" rev-parse HEAD)" = \
-            "7445105cd2683daf5b9ac7033ebb07265d3e814d"
-
-      - name: Run JVM reference and generate TeaVM C
-        shell: bash
+      - name: Generate C from pinned upstream source
         run: |
           set -o pipefail
-          extra=()
-          if [ "${{ matrix.probe }}" = "resource" ]; then
-            extra=("-ParcCheckout=$RUNNER_TEMP/Arc")
-          fi
-          bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime \
-            --no-daemon --console=plain \
-            "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" \
-            "-PreferenceJar=$RUNNER_TEMP/server-release.jar" \
-            -Pprobe=${{ matrix.probe }} \
-            "${extra[@]}" \
-            runProbeJvm generateC | tee "$RUNNER_TEMP/probe.log"
-          if [ "${{ matrix.probe }}" = "resource" ]; then
-            grep -F 'UPSTREAM_RESOURCE size=709 crc32=3921318438 classpath=ok internal=ok missing=ok' \
-              "$RUNNER_TEMP/probe.log"
-          fi
-
-      - name: Build ARM11 probe with pinned devkitARM image
+          git clone --depth 1 --branch v160.8 --filter=blob:none --no-checkout https://github.com/Anuken/Mindustry.git "$RUNNER_TEMP/Mindustry"
+          git -C "$RUNNER_TEMP/Mindustry" checkout HEAD -- gradlew gradle/wrapper
+          git init "$RUNNER_TEMP/Arc"
+          git -C "$RUNNER_TEMP/Arc" fetch --depth 1 https://github.com/Anuken/Arc.git 7445105cd2683daf5b9ac7033ebb07265d3e814d
+          curl --fail --silent --show-error --location https://github.com/Anuken/Mindustry/releases/download/v160.8/server-release.jar -o "$RUNNER_TEMP/server-release.jar"
+          curl --fail --silent --show-error --location https://github.com/Anuken/Mindustry/releases/download/v160.8/assets.jar -o "$RUNNER_TEMP/assets.jar"
+          printf '%s  %s\n' 2728b63d309c27a405744c8b5440d90a65387a41e2c4339b630a239f79f6bd17 "$RUNNER_TEMP/assets.jar" | sha256sum --check
+          unzip -p "$RUNNER_TEMP/assets.jar" assets/sprites/sprites.aatls > "$RUNNER_TEMP/sprites.aatls"
+          bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime --no-daemon --console=plain "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" "-PreferenceJar=$RUNNER_TEMP/server-release.jar" "-ParcCheckout=$RUNNER_TEMP/Arc" "-Pprobe=network-render" -Dorg.gradle.jvmargs=-Xmx3g generateC
+      - name: Pack the original terrain atlas
         run: |
+          cat > "$RUNNER_TEMP/run-tex3ds" <<'EOF'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          exec docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:$PWD" -w "$PWD" \
+            devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5 \
+            /opt/devkitpro/tools/bin/tex3ds "$@"
+          EOF
+          chmod +x "$RUNNER_TEMP/run-tex3ds"
+          python3 research/upstream-runtime/arm11/prepare_terrain_assets.py \
+            --assets "$RUNNER_TEMP/assets.jar" --server "$RUNNER_TEMP/server-release.jar" \
+            --output-dir research/upstream-runtime/build/terrain-assets --tex3ds "$RUNNER_TEMP/run-tex3ds" --multiplayer
+      - name: Compile with devkitARM and libctru
+        run: |
+          if [ "${{ matrix.optimization }}" = 0 ]; then
+            sed -i 's/ -O2 / -O0 /' research/upstream-runtime/arm11/build.sh
+          fi
           image=devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5
           docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/work" -w /work "$image" bash -lc '
             source /opt/devkitpro/3dsvars.sh
-            bash research/upstream-runtime/arm11/build.sh \
-              research/upstream-runtime/build/generated/teavm/c \
-              research/upstream-runtime/build/probe-3ds'
+            bash research/upstream-runtime/arm11/build.sh research/upstream-runtime/build/generated/teavm/c research/upstream-runtime/build/probe-3ds --network research/upstream-runtime/build/terrain-assets'
           test -s research/upstream-runtime/build/probe-3ds/upstream-probe.3dsx
-          test -s research/upstream-runtime/build/probe-3ds/upstream-probe.elf
-
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: upstream-arm11-${{ matrix.probe }}
+          name: upstream-arm11-${{ matrix.probe }}-o${{ matrix.optimization }}
           path: |
             research/upstream-runtime/build/probe-3ds/upstream-probe.3dsx
             research/upstream-runtime/build/probe-3ds/upstream-probe.elf
           if-no-files-found: error
-
-  save-baseline:
-    name: Save writer baseline
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
-
-      - name: Fetch pinned upstream map and server JAR
-        run: |
-          git clone --depth 1 --branch v160.8 \
-            https://github.com/Anuken/Mindustry.git "$RUNNER_TEMP/Mindustry"
-          test "$(git -C "$RUNNER_TEMP/Mindustry" rev-parse HEAD)" = \
-            "19a0f40d44514f4802a8b79770456e7e32e34da0"
-          git -C "$RUNNER_TEMP/Mindustry" show \
-            HEAD:core/assets/maps/default/glacier.msav > "$RUNNER_TEMP/glacier.msav"
-          curl --fail --silent --show-error --location \
-            https://github.com/Anuken/Mindustry/releases/download/v160.8/server-release.jar \
-            -o "$RUNNER_TEMP/server-release.jar"
-
-      - name: Run upstream SaveIO writer baseline
-        run: |
-          java -cp "$RUNNER_TEMP/server-release.jar" \
-            research/upstream-runtime/host/UpstreamSaveBaseline.java \
-            "$RUNNER_TEMP/glacier.msav" | tee "$RUNNER_TEMP/save.log"
-          grep -F 'UPSTREAM_SAVE header=MSAV version=13' "$RUNNER_TEMP/save.log"
-
-  audio-inventory:
-    name: Audio asset inventory
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
-
-      - name: Fetch pinned upstream asset tree
-        run: |
-          git clone --depth 1 --branch v160.8 \
-            https://github.com/Anuken/Mindustry.git "$RUNNER_TEMP/Mindustry"
-          test "$(git -C "$RUNNER_TEMP/Mindustry" rev-parse HEAD)" = \
-            "19a0f40d44514f4802a8b79770456e7e32e34da0"
-
-      - name: Run pinned audio inventory
-        run: |
-          java research/upstream-runtime/host/UpstreamAudioInventory.java \
-            "$RUNNER_TEMP/Mindustry" | tee "$RUNNER_TEMP/audio.log"
-          grep -F 'UPSTREAM_AUDIO kind=music files=16 bytes=28493699' "$RUNNER_TEMP/audio.log"
-          grep -F 'UPSTREAM_AUDIO kind=sounds files=205 bytes=7093890' "$RUNNER_TEMP/audio.log"
-          grep -F 'UPSTREAM_AUDIO total_files=221 total_bytes=35587589 manifest_sha256=f16c7f1c163d04b9843390146aafc2197cb6f6a3ad8db30e1872c7b1853be5fc' "$RUNNER_TEMP/audio.log"
-
-  progression-baseline:
-    name: Progression baseline
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
-
-      - name: Fetch pinned official server JAR
-        run: |
-          curl --fail --silent --show-error --location \
-            https://github.com/Anuken/Mindustry/releases/download/v160.8/server-release.jar \
-            -o "$RUNNER_TEMP/server-release.jar"
-
-      - name: Run pinned sector/tech-tree baseline
-        run: |
-          java -cp "$RUNNER_TEMP/server-release.jar" \
-            research/upstream-runtime/host/UpstreamProgressionBaseline.java \
-            | tee "$RUNNER_TEMP/progression.log"
-          grep -F 'UPSTREAM_PROGRESSION tech_nodes=375 tech_roots=2 sectors=95 manifest_sha256=4a61e8b260eb4f698ed128eb6654e2fa61f295f64d29b44c7638c7b8dda2bd4a' "$RUNNER_TEMP/progression.log"
-
-  combat-baseline:
-    name: Combat metadata baseline
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
-
-      - name: Fetch pinned official server JAR
-        run: |
-          curl --fail --silent --show-error --location \
-            https://github.com/Anuken/Mindustry/releases/download/v160.8/server-release.jar \
-            -o "$RUNNER_TEMP/server-release.jar"
-
-      - name: Run pinned unit/bullet baseline
-        run: |
-          java -cp "$RUNNER_TEMP/server-release.jar" \
-            research/upstream-runtime/host/UpstreamCombatBaseline.java \
-            | tee "$RUNNER_TEMP/combat.log"
-          grep -F 'UPSTREAM_COMBAT units=69 bullets=202 manifest_sha256=e35013e20c50cbe83169794e898e281898c717f1f373e9b84796090470a76882' "$RUNNER_TEMP/combat.log"
-
-  audio-conversion:
-    name: Audio conversion
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-
-      - name: Fetch pinned upstream asset tree
-        run: |
-          git clone --depth 1 --branch v160.8 \
-            https://github.com/Anuken/Mindustry.git "$RUNNER_TEMP/Mindustry"
-          test "$(git -C "$RUNNER_TEMP/Mindustry" rev-parse HEAD)" = \
-            "19a0f40d44514f4802a8b79770456e7e32e34da0"
-
-      - name: Ensure ffmpeg is available
-        run: |
-          if ! command -v ffmpeg >/dev/null 2>&1; then
-            sudo apt-get update
-            sudo apt-get install -y ffmpeg
-          fi
-          ffmpeg -version | head -n 1
-
-      - name: Convert pinned upstream audio
-        run: |
-          test -f "$RUNNER_TEMP/Mindustry/core/assets/sounds/ui/waveSpawn.ogg"
-          python3 tools/build_audio_assets.py \
-            --upstream "$RUNNER_TEMP/Mindustry" \
-            --map audio/upstream-audio-map.json \
-            --triggers audio/upstream-audio-triggers.json \
-            --out "$RUNNER_TEMP/audio" \
-            --romfs-out "$RUNNER_TEMP/romfs-audio" | tee "$RUNNER_TEMP/audio-convert.log"
-          grep -F 'AUDIO_ASSETS files=3' "$RUNNER_TEMP/audio-convert.log"
-          grep -F 'AUDIO_ROMFS files=3' "$RUNNER_TEMP/audio-convert.log"
-          test -s "$RUNNER_TEMP/audio/ui.button.pcm"
-          test -s "$RUNNER_TEMP/audio/wave.spawn.pcm"
-          test -s "$RUNNER_TEMP/audio/audio-manifest.json"
-          test -s "$RUNNER_TEMP/romfs-audio/audio/ui.button.pcm"
-          test -s "$RUNNER_TEMP/romfs-audio/audio/ui.unlock.pcm"
-          test -s "$RUNNER_TEMP/romfs-audio/audio/wave.spawn.pcm"
-          test -s "$RUNNER_TEMP/romfs-audio/audio-index.h"
-          test ! -e "$RUNNER_TEMP/romfs-audio/ui.button.pcm"
-          cat > "$RUNNER_TEMP/romfs-audio/index_check.c" <<'EOF'
-          #include "audio-index.h"
-          int main(void) { return M3DS_AUDIO_CLIP_COUNT == 3U ? 0 : 1; }
-          EOF
-          cc -std=c11 -Wall -Wextra -Werror -Iinclude -I"$RUNNER_TEMP/romfs-audio" \
-            "$RUNNER_TEMP/romfs-audio/index_check.c" \
-            -o "$RUNNER_TEMP/romfs-audio/index_check"
-          "$RUNNER_TEMP/romfs-audio/index_check"
