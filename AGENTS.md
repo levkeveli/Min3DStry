@@ -9,7 +9,7 @@
 1. **Adapt real pinned upstream Mindustry v160.8 code and content** (see `docs/upstream-port.md` and `research/upstream-runtime/README.md`); preserve upstream IDs, serialized behavior, maps, saves, and network protocol.
 2. **Do NOT build simplified clones or fake subsets** (for example, 4-block custom prototypes, invented mechanics, or custom non-upstream file/network formats).
 3. **Existing C demo code (`src/render/scene_2d.c`, `src/render/factory_demo.c`, `src/sim/parity_scenario.c`) is a 3DS hardware/platform verification harness ONLY** — do not expand it into a bespoke from-scratch Mindustry reimplementation.
-4. **Only 3DS hardware/platform services may differ** where the console requires it (PICA200/Citro2D/Citro3D renderer backend, dual-screen UI layout and 3DS controls/touch mapping, NDSP audio backend, `libctru` OS/filesystem/networking/threading/memory adapters) while keeping game logic, content, saves, and multiplayer 1:1 with upstream.
+4. **Modify upstream code where needed for 3DS compatibility & performance, while staying technically original Mindustry:** You may adapt upstream Mindustry/Arc code for TeaVM/ARM11 compatibility (e.g., reflection, `Unsafe`, executors), 3DS memory/frame-time budgets, and 3DS platform services (PICA200/Citro2D/Citro3D renderer, dual-screen UI/controls, NDSP audio, `libctru` OS/FS/networking/threading/memory) — provided gameplay rules, content catalog/IDs, `.msav` maps/saves, and cross-platform multiplayer with unmodified Java PC v160.8 remain 1:1 compatible.
 
 ## Humans and AI agents
 

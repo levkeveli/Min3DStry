@@ -410,6 +410,9 @@ def cmd_ai_review(args: argparse.Namespace) -> int:
         '"findings": [{"severity": "critical" | "major" | "minor", "file": "path", "message": "explanation"}]}\n\n'
         "Rules:\n"
         "- APPROVE if the change is safe, sound, and matches its stated scope (minor notes are fine).\n"
+        "- Modifying upstream Mindustry/Arc code for ARM11/TeaVM compatibility, 3DS performance/memory budgets, "
+        "or 3DS platform services is expected and allowed when it preserves technical compatibility with original "
+        "Mindustry v160.8 (gameplay rules, content IDs, .msav maps/saves, and cross-platform PC multiplayer).\n"
         "- REQUEST_CHANGES for real bugs, broken logic/builds, determinism/networking regressions, "
         "fabricated test claims, security/license violations, or building a simplified custom Mindustry clone / "
         "partial bespoke block subset / non-upstream format instead of porting upstream Mindustry v160.8 or its 3DS platform adapters.\n"
