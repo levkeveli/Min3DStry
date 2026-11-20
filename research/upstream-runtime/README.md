@@ -349,6 +349,42 @@ exercises the classpath fallback, including a failed filesystem lookup for the
 internal handle. It has not verified reading a real file through Arc on SD or
 running on physical hardware.
 
+### Exercise upstream factory ticks
+
+Use `-Pprobe=factory-ticks` with the world probe's Gradle properties and
+pass the original Glacier path to `runProbeJvm`. The probe starts the
+world through Mindustry's `Logic.play`, gives an upstream conveyor one
+copper item, and calls the original `Logic.update` 240 times at a fixed
+60 Hz clock. It checks core inventory and the exact delivery tick. A
+second phase places a mechanical drill over four copper ore tiles and
+checks deliveries through the original router and conveyor through tick
+720. The probe initializes the upstream cache layers before creating the
+content and registers the block indexer and wave spawner before the world
+loads.
+
+The pinned Java release, generated Windows x64 C, and both Azahar 2126.2
+console profiles reported these results.
+
+```text
+UPSTREAM_FACTORY updates=240 wave=1 arrival=29 copper=201
+UPSTREAM_DRILL updates=720 wave=1 copper=203 arrivals=464=202,626=203
+```
+
+The C build links `logicids.dat`, the base-part list, and the schematics
+named by that list directly from the hash-checked server JAR.
+[DevkitARM build 44795739970](https://github.com/levkeveli/Min3DStry/actions/runs/44795739970)
+ran with C optimization disabled, a 24 MiB managed heap, a 4 MiB linear
+heap for the debug console, and a 256 KiB native stack. Its ELF load
+segments and those reservations total 67.50 MiB before GC bookkeeping
+and other application allocations.
+[DevkitARM build 44796141596](https://github.com/levkeveli/Min3DStry/actions/runs/44796141596)
+used the standard `-O2` flags and matched both traces in the Original and
+New 3DS Azahar profiles. The page-rounded ELF segments occupy 36.38 MiB.
+With the same heap and stack reservations, the subtotal is 64.63 MiB
+before bookkeeping and other allocations, above the 64 MiB Original 3DS
+budget. Physical-console memory and performance still need verification.
+Factory parity is tracked in #26.
+
 ### Capture upstream Glacier terrain commands
 
 [Issue #73](https://github.com/levkeveli/Min3DStry/issues/73) exercises the
