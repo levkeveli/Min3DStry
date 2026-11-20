@@ -86,16 +86,28 @@ extracted as above, run:
 ```sh
 gradle -Pprobe=world -PupstreamCheckout=/path/to/Mindustry \
     -PreferenceJar=/path/to/server-release.jar -ParcCheckout=/path/to/Arc \
-    runProbeJvm --args=/path/to/glacier.msav
+    runProbeJvm --args=/path/to/glacier.msav generateC
 ```
 
-The JVM probe verifies 37,500 populated tiles and two `core-nucleus` building
-origins at (81, 26) and (81, 224). TeaVM 0.16.0 fails C generation for this
-entry point in `CoroutineTransformation.collectSplitInstructions` when it
-reads liveness for the new entry continuation block. A local compiler
-diagnostic that captures entry-block liveness before splitting proceeded to
-unresolved Arc audio and native buffer methods. ARM11 world loading remains
-open in #28.
+The probe uses the same seed on each platform for Glacier's upstream map
+filters. It verifies 37,500 populated tiles, two `core-nucleus` building
+origins at (81, 26) and (81, 224), and fingerprint `2e7b9f883994de6c`.
+The fingerprint covers floor, overlay, block, and building links for each
+tile, plus team and rotation at each building's origin. The probe also checks
+saved construction statistics, the enemy core protection radius, and the
+first wave group through the upstream JSON reader.
+
+The C build recompiles two compiler classes from the hash-checked TeaVM
+0.16.0 source archive. The patches retain the original entry block's
+liveness during coroutine splitting and use the primitive array opcode to
+infer the value type of each element. For offline generation, pass an
+already downloaded source archive with
+`-PteavmCompilerSources=/path/to/teavm-core-0.16.0-sources.jar`.
+
+Generate the ARM11 probe with the build command above and install the same
+original Glacier file at `/3ds/min3dstry/glacier.msav` on the target SD.
+Graphics and audio JNI methods reached by compiler analysis throw if
+called in this headless mode. World loading is tracked in #28.
 
 ### Verify the Arc executor pools
 

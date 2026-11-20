@@ -20,6 +20,14 @@ CONSTRUCTOR_FUNCTION = re.compile(
     r"TeaVM_Array\* teavm_local_1\) \{\n(?P<body>.*?)^\}$",
     re.MULTILINE | re.DOTALL,
 )
+CONSTRUCTOR_STACK = re.compile(r"^    TEAVM_ALLOC_STACK\(INT32_C\((?P<count>\d+)\)\);$", re.MULTILINE)
+CONSTRUCTOR_CALL = re.compile(
+    r"^(?P<indent>[ \t]+)teavm_reflection_callMethod\("
+    r"(?:TEAVM_FIELD\(teavm_this_, cls_jlr_Executable, fld_methodInfo\)|teavm_local_\d+), "
+    r"(?P<instance>teavm_local_\d+), (?P<args>teavm_local_\d+)\);$",
+    re.MULTILINE,
+)
+CONSTRUCTOR_ROOT_MARKER = "    /* Keep the reflection intrinsic arguments alive across GC. */"
 
 
 def fix_constructor_roots(generated):
@@ -33,26 +41,33 @@ def fix_constructor_roots(generated):
             raise ValueError(f"Unrecognized TeaVM constructor signature in {path}")
         return False
     body = match["body"]
-    call = (
-        "            teavm_reflection_callMethod("
-        "TEAVM_FIELD(teavm_this_, cls_jlr_Executable, fld_methodInfo), teavm_local_2, teavm_local_1);"
-    )
-    keep_instance = "            TEAVM_GC_ROOT(INT32_C(0), teavm_local_2);\n" + call
-    if keep_instance in body:
+    if CONSTRUCTOR_ROOT_MARKER in body:
         return False
-    stack = "    TEAVM_ALLOC_STACK(INT32_C(1));"
-    if body.count(stack) != 1 or body.count(call) != 1:
+    stacks = list(CONSTRUCTOR_STACK.finditer(body))
+    calls = list(CONSTRUCTOR_CALL.finditer(body))
+    if len(stacks) != 1 or len(calls) != 1:
         raise ValueError(f"Unrecognized TeaVM reflective constructor in {path}")
+    stack, = stacks
+    call, = calls
+    this_slot = int(stack["count"])
+    arguments_slot, instance_slot = this_slot + 1, this_slot + 2
     # The intrinsic call is not treated as a safepoint by the emitter.
     # Keep the receiver and arguments across earlier allocations, and pin
     # the instance across the call so the C local remains valid after GC.
+    indent = call["indent"]
     body = body.replace(
-        stack,
-        "    TEAVM_ALLOC_STACK(INT32_C(3));\n"
-        "    TEAVM_GC_ROOT_RELEASE(INT32_C(0));\n"
-        "    TEAVM_GC_ROOT(INT32_C(1), teavm_this_);\n"
-        "    TEAVM_GC_ROOT(INT32_C(2), teavm_local_1);",
-    ).replace(call, keep_instance)
+        stack[0],
+        f"    TEAVM_ALLOC_STACK(INT32_C({instance_slot + 1}));\n"
+        f"{CONSTRUCTOR_ROOT_MARKER}\n"
+        f"    TEAVM_GC_ROOT(INT32_C({this_slot}), teavm_this_);\n"
+        f"    TEAVM_GC_ROOT(INT32_C({arguments_slot}), teavm_local_1);\n"
+        f"    TEAVM_GC_ROOT_RELEASE(INT32_C({instance_slot}));",
+    ).replace(
+        call[0],
+        f"{indent}TEAVM_GC_ROOT(INT32_C({arguments_slot}), {call['args']});\n"
+        f"{indent}TEAVM_GC_ROOT(INT32_C({instance_slot}), {call['instance']});\n"
+        + call[0],
+    )
     path.write_text(source[:match.start("body")] + body + source[match.end("body"):],
                     encoding="utf-8", newline="\n")
     return True
