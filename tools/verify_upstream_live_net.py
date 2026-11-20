@@ -51,10 +51,10 @@ def verify_movement(log, emulator, server_log, server, join, timeout):
     # The script reads the live unit and connection only, leaving gameplay state untouched.
     marker = f"UPSTREAM_SERVER_MOVEMENT join={join}"
     server.stdin.write(
-        f'js (() => {{ const p = Groups.player.find(boolf(v => String(v.name()) === "{PLAYER}")); '
+        f'js (() => {{ const p = Groups.player.find(boolf(v => String(v.name) === "{PLAYER}")); '
         'const u = p.unit(); '
-        f'return "{marker} unit=" + u.id() + " snapshot=" + p.con().lastReceivedClientSnapshot '
-        '+ " x=" + u.x() + " y=" + u.y(); })()\n'
+        f'return "{marker} unit=" + u.id + " snapshot=" + p.con.lastReceivedClientSnapshot '
+        '+ " x=" + u.x + " y=" + u.y; })()\n'
     )
     server.stdin.flush()
     server_state = re.compile(rf"{marker} unit=(\d+) snapshot=(\d+) x=({number}) y=({number})")
