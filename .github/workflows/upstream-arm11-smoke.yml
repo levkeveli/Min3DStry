@@ -1,7 +1,7 @@
 name: Live multiplayer world ARM11 build
 on:
   push:
-    branches: [test/3dsx-upstream-live-world]
+    branches: [test/3dsx-upstream-live-world-debug]
 permissions:
   contents: read
 jobs:
@@ -11,7 +11,7 @@ jobs:
       fail-fast: false
       matrix:
         probe: [network-render]
-        optimization: [2]
+        optimization: [0]
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
