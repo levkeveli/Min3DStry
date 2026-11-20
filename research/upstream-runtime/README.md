@@ -37,7 +37,7 @@ Boot the probe in Azahar with the desired console model. The top screen and the 
 
 [Test build 44757615581](https://github.com/levkeveli/Min3DStry/actions/runs/44757615581) linked with devkitARM and libctru. In Azahar 2126.2 Original and New 3DS modes, the build emitted `UPSTREAM_LOGIC quotient=-3 remainder=1 xor=6`, matching the JVM baseline.
 
-The probe provides libctru event waits, clocks, debug output, and a fully backed scratch heap. It aligns dynamic class entries on ARM so TeaVM's compressed references can represent them. It uses TeaVM's small existing character-conversion fallback. The resource probe uses a read-only filesystem adapter. Full game runtime services, Unicode coverage, physical hardware, gameplay and multiplayer are unverified. See [the port plan](../../docs/upstream-port.md).
+The probe provides libctru event waits, clocks, debug output, and a fully backed scratch heap. It aligns dynamic class entries on ARM so TeaVM's compressed references can represent them. It uses TeaVM's small existing character-conversion fallback and a libctru SD adapter for Arc file streams. Full game runtime services, Unicode coverage, physical hardware, gameplay and multiplayer are unverified. See [the port plan](../../docs/upstream-port.md).
 
 ## Upstream map metadata probe
 
@@ -123,12 +123,26 @@ already downloaded source archive with
 Generate the ARM11 probe with the build command above and install the same
 original Glacier file at `/3ds/min3dstry/glacier.msav` on the target SD.
 The ARM11 build uses `-fwrapv` to retain Java's signed integer wraparound.
-[DevkitARM test build 44786860706](https://github.com/levkeveli/Min3DStry/actions/runs/44786860706)
-was built with C optimization disabled and matched the v7 map fingerprint
-in Azahar 2126.2 Original and New 3DS modes.
+The staging script keeps every managed heap allocation eight-byte aligned
+so a compaction move preserves the layout of `long[]` and `double[]`.
+The probe reserves a 256 KiB native stack for the generated serializer.
+
+Use `-Pprobe=world-save` to load both fixtures. Copy the generated v13 save
+to `/3ds/min3dstry/glacier-v13.msav`. Use `-Pprobe=world-roundtrip` to also
+write and reload `/3ds/min3dstry/glacier-roundtrip.msav`. The round trip
+reserves a new output file and rejects an existing destination. On the
+JVM, pass the map, v13 input, and new output paths as arguments. The
+round-trip check ends with `UPSTREAM_SAVE_ROUNDTRIP version=13 marker=ok`.
+
+[DevkitARM test build 44792277588](https://github.com/levkeveli/Min3DStry/actions/runs/44792277588)
+used C optimization disabled. In both Azahar 2126.2 console profiles, the
+v7 map, v13 input, and v13 output matched the same world fingerprint.
+The unmodified v160.8 server JAR also loaded both files written on
+emulated SD and found marker 37 at (80, 152).
+
 Graphics and audio JNI methods reached by compiler analysis throw if
-called in this headless mode. The v13 save and physical devices still need
-ARM11 verification. World loading is tracked in #28.
+called in this headless mode. Broader save coverage and physical-device
+verification remain open in #28.
 
 ### Verify the Arc executor pools
 
