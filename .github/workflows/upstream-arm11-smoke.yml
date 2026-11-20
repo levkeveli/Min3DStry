@@ -16,15 +16,14 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: upstream-arm11-${{ github.ref }}-${{ matrix.probe }}
-  cancel-in-progress: true
-
 jobs:
   probe:
     name: Probe ${{ matrix.probe }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    concurrency:
+      group: upstream-arm11-${{ github.ref }}-${{ matrix.probe }}
+      cancel-in-progress: true
     strategy:
       fail-fast: false
       matrix:
