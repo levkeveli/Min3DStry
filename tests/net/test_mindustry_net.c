@@ -378,7 +378,12 @@ static void test_mock_handshake(void) {
   st.rx_pos = st.tx_tcp_len = 0U;
   st.closed = false;
   st.max_tcp_chunk = 1U;
-  M3dsNetClient *client = m3ds_net_client_open(&tr, "127.0.0.1", M3DS_NET_DEFAULT_PORT, 1000U, &pkt, &res);
+  st.rx_len -= sb_env_len + 2U;
+  const uint8_t notice[] = {23, 0, 1, 0, 42};
+  mock_queue_tcp_frame(&st, notice, sizeof(notice));
+  mock_queue_tcp_frame(&st, sb_env, sb_env_len);
+  M3dsNetClient *client = m3ds_net_client_open(
+      &tr, "127.0.0.1", M3DS_NET_DEFAULT_PORT, 1000U, &pkt, 65U, 66U, &res);
   assert(client && !st.closed && res.stream_id == 1);
   uint8_t server_payload[] = {0, 0, 0, 1, 0, 2, 0x78, 0x9c};
   size_t message_size;

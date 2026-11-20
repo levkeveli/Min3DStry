@@ -2,7 +2,8 @@
 
 #include <stdint.h>
 
-int32_t m3ds_live_net_open(const void *host, int32_t length, int32_t port, int32_t version);
+int32_t m3ds_live_net_open(const void *host, int32_t length, int32_t port, int32_t version,
+    int32_t kick_text_id, int32_t kick_reason_id);
 int32_t m3ds_live_net_stream_id(void);
 int32_t m3ds_live_net_stream_total(void);
 int32_t m3ds_live_net_stream_type(void);

@@ -738,7 +738,9 @@ static bool handshake(
     uint32_t timeout_ms,
     const M3dsNetConnectPacket *connect_pkt,
     M3dsNetHandshakeResult *out_result,
-    bool keep_connected) {
+    bool keep_connected,
+    uint8_t kick_text_id,
+    uint8_t kick_reason_id) {
   if (!out_result) {
     return false;
   }
@@ -807,6 +809,11 @@ static bool handshake(
     }
     status = classify_unexpected_app_packet(
         frame_buf, frame_len, payload_buf, payload_cap, out_result);
+    if (status == M3DS_HANDSHAKE_SERVER_REJECTED && keep_connected &&
+        out_result->first_server_packet_id != kick_text_id &&
+        out_result->first_server_packet_id != kick_reason_id) {
+      continue;
+    }
     goto cleanup;
   }
   if (!have_conn_id) {
@@ -868,6 +875,11 @@ static bool handshake(
       }
       status = classify_unexpected_app_packet(
           frame_buf, frame_len, payload_buf, payload_cap, out_result);
+      if (status == M3DS_HANDSHAKE_SERVER_REJECTED && keep_connected &&
+          out_result->first_server_packet_id != kick_text_id &&
+          out_result->first_server_packet_id != kick_reason_id) {
+        continue;
+      }
       goto cleanup;
     }
   }
@@ -949,9 +961,12 @@ static bool handshake(
       goto cleanup;
     }
 
-    /* Any other application packet (e.g. Call.kick) indicates server rejection/notice. */
-    status = M3DS_HANDSHAKE_SERVER_REJECTED;
-    goto cleanup;
+    if (!keep_connected || pkt_id == kick_text_id || pkt_id == kick_reason_id) {
+      status = M3DS_HANDSHAKE_SERVER_REJECTED;
+      goto cleanup;
+    }
+    /* A live server can broadcast gameplay packets before the new client loads.
+       Only the generated kick packets end this live join before StreamBegin. */
   }
 
   status = M3DS_HANDSHAKE_TIMEOUT;
@@ -973,7 +988,7 @@ cleanup:
 bool m3ds_net_handshake(
     const M3dsNetTransport *transport, const char *host, uint16_t port,
     uint32_t timeout_ms, const M3dsNetConnectPacket *connect_pkt, M3dsNetHandshakeResult *out_result) {
-  return handshake(transport, host, port, timeout_ms, connect_pkt, out_result, false);
+  return handshake(transport, host, port, timeout_ms, connect_pkt, out_result, false, 0, 0);
 }
 
 struct M3dsNetClient {
@@ -985,7 +1000,8 @@ struct M3dsNetClient {
 
 M3dsNetClient *m3ds_net_client_open(
     const M3dsNetTransport *transport, const char *host, uint16_t port,
-    uint32_t timeout_ms, const M3dsNetConnectPacket *connect_pkt, M3dsNetHandshakeResult *out_result) {
+    uint32_t timeout_ms, const M3dsNetConnectPacket *connect_pkt,
+    uint8_t kick_text_id, uint8_t kick_reason_id, M3dsNetHandshakeResult *out_result) {
   if (!out_result) {
     return NULL;
   }
@@ -995,7 +1011,8 @@ M3dsNetClient *m3ds_net_client_open(
     out_result->status = M3DS_HANDSHAKE_TRANSPORT_ERROR;
     return NULL;
   }
-  if (!handshake(transport, host, port, timeout_ms, connect_pkt, out_result, true)) {
+  if (!handshake(transport, host, port, timeout_ms, connect_pkt, out_result, true,
+      kick_text_id, kick_reason_id)) {
     free(client);
     return NULL;
   }
