@@ -1,8 +1,8 @@
 # Upstream audio asset conversion
 
-Status: **host-tested conversion + RomFS registry loader**. Issue: [#29](https://github.com/levkeveli/Min3DStry/issues/29).
-The app can load real `ui.button` PCM when built with `UPSTREAM_MINDUSTRY`;
-research/wave trigger callbacks and physical DSP playback are not verified yet.
+Status: **host-tested conversion + RomFS registry + event layer**. Issue: [#29](https://github.com/levkeveli/Min3DStry/issues/29).
+The app loads real PCM and routes UI/wave events through the registry; research
+unlock and audible DSP playback are not verified yet.
 
 ## Scope
 
@@ -29,8 +29,9 @@ The logical IDs map to pinned upstream trigger sites in
 | `wave.spawn` | `core/src/mindustry/core/Control.java` | `Sounds.waveSpawn.play()` |
 
 The converter verifies each symbol still exists in the pinned checkout and
-records the file/line in the manifest and generated index. This is a reference
-map, not yet a runtime hook into the 3DS input/research/wave systems.
+records the file/line in the manifest and generated index. `audio_events.h`
+uses the same logical IDs at runtime; the trigger file/line remains provenance
+metadata rather than a claim that the 3DS research/wave systems are complete.
 
 ## Reproduce
 
@@ -93,11 +94,19 @@ make UPSTREAM_MINDUSTRY=/path/to/Mindustry
 ```
 
 That target converts the three assets, copies them to `build/romfs/audio/`,
-generates `build/3ds/audio-index.h`, and compiles with `-DM3DS_AUDIO_ROMFS`.
-The ROMFS-enabled build registers the real `ui.button` clip for the A/Y
-controls and logs `AUDIO_ROMFS status=...` over the debug channel. Builds
-without `UPSTREAM_MINDUSTRY` keep the synthetic tone path. The `ui.unlock` and
-`wave.spawn` clips are packed and loaded but have no gameplay trigger yet.
+generates `build/3ds/audio-index.h`, and writes
+`build/3ds/build-config.h` with `#define M3DS_AUDIO_ROMFS 1` (the app includes
+that header). Builds without `UPSTREAM_MINDUSTRY` write `0` and remove stale
+RomFS audio. The ROMFS-enabled build registers the real `ui.button` clip for
+the A/Y path and logs `AUDIO_ROMFS status=...` over the debug channel.
+
+`include/audio/audio_events.h` maps the pinned logical IDs to
+`M3dsAudioEvent` values and plays the registered clip through the mixer:
+`UI_BUTTON` is used by the A/Y controls, `WAVE_SPAWN` is called when the
+interactive scenario's `enemies_spawned` counter increases, and
+`RESEARCH_UNLOCK` is available for the research runtime once it exists. The
+current factory demo never spawns waves, so the wave path is host-tested but
+not observed in the emulator. No research system is wired yet.
 
 ## Tests
 
@@ -112,6 +121,9 @@ without `UPSTREAM_MINDUSTRY` keep the synthetic tone path. The `ui.unlock` and
   clip IDs, buffer-capacity rollback, I/O and short-read rollback, invalid
   entries, duplicate IDs, mixer rejection and the stdio reader (including
   missing/oversized files).
+- `tests/audio/test_audio_events.c` checks the pinned ID mapping and that each
+  event plays the matching registry clip; invalid events and missing registries
+  are rejected without starting a voice.
 - `./dev.sh test` includes both test suites. The `Audio conversion` CI job
   converts the pinned three assets with ffmpeg, asserts the output manifest,
   PCM files, `audio/` layout and `audio-index.h`, then compiles the generated
@@ -122,9 +134,9 @@ without `UPSTREAM_MINDUSTRY` keep the synthetic tone path. The `ui.unlock` and
 - Upstream audio is GPLv3. The conversion output is not committed; distribution
   must include the applicable GPLv3 notices, corresponding source and a
   per-file asset provenance audit.
-- No ADPCM/streaming conversion or research/wave trigger wiring is implemented
-  here. Only `ui.button` is used by the ROMFS-enabled app; `ui.unlock` and
-  `wave.spawn` are loaded but not triggered.
+- No ADPCM/streaming conversion is implemented here. `ui.button` is wired to
+  the A/Y controls and `wave.spawn` is wired to the scenario counter, but the
+  current demo never spawns waves. `ui.unlock` has no research caller yet.
 - No physical Old/New 3DS DSP playback or save/network audio integration has
   been verified. The `AUDIO_ROMFS` debug line and Azahar runs can show loader
   state, not audible output quality.
