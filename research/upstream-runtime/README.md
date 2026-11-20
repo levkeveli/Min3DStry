@@ -303,6 +303,14 @@ UPSTREAM_PRODUCTION_FULL filled=2254 held=120 pods=10
 ```
 
 The timing fields `first` and `filled` count from fueling and reconnecting,
-respectively. Source behavior comes from the pinned
+respectively. Three official JVM runs and the generated Windows x64
+executable matched these records. Both
+[`-O0` and `-O2` DevkitARM builds](https://github.com/levkeveli/Min3DStry/actions/runs/44811969138)
+matched them in the Original and New 3DS profiles in Azahar 2126.2.
+The `-O2` mapped segments, managed heap, linear heap and native stack
+total 65.87 MiB before GC metadata and other allocations. This exceeds
+the 64 MiB Original 3DS application budget.
+
+Source behavior comes from the pinned
 [`Blocks.java`](https://github.com/Anuken/Mindustry/blob/19a0f40d44514f4802a8b79770456e7e32e34da0/core/src/mindustry/content/Blocks.java)
 and [`GenericCrafter.java`](https://github.com/Anuken/Mindustry/blob/19a0f40d44514f4802a8b79770456e7e32e34da0/core/src/mindustry/world/blocks/production/GenericCrafter.java).

@@ -167,7 +167,10 @@
       "weight": 6,
       "stage": "planned",
       "issue": 39,
-      "evidence": []
+      "evidence": [
+        "research/upstream-runtime/src/gameplay/java/UpstreamProductionTickProbe.java",
+        "research/upstream-runtime/README.md"
+      ]
     },
     {
       "id": "combat-waves-ai",
