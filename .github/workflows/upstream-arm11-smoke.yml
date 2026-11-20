@@ -275,7 +275,7 @@ jobs:
           test ! -e "$RUNNER_TEMP/romfs-audio/ui.button.pcm"
           cat > "$RUNNER_TEMP/romfs-audio/index_check.c" <<'EOF'
           #include "audio-index.h"
-          int main(void) { return M3DS_AUDIO_CLIP_COUNT == 3U ? 0 : 1; }
+          int main(void) { return M3DS_AUDIO_CLIP_COUNT == 5U ? 0 : 1; }
           EOF
           cc -std=c11 -Wall -Wextra -Werror -Iinclude -I"$RUNNER_TEMP/romfs-audio" \
             "$RUNNER_TEMP/romfs-audio/index_check.c" \
