@@ -11,6 +11,7 @@ jobs:
       fail-fast: false
       matrix:
         probe: [terrain-render]
+        optimization: [0, 2]
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
@@ -32,7 +33,6 @@ jobs:
           grep -Fx 'UPSTREAM_TERRAIN viewport=18,0+16x12 commands=320 copper=26 edges=88 hash=de709773b1b58465' "$RUNNER_TEMP/terrain-build.log"
       - name: Pack the original terrain atlas
         run: |
-          image=devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5
           cat > "$RUNNER_TEMP/run-tex3ds" <<'EOF'
           #!/usr/bin/env bash
           set -euo pipefail
@@ -46,6 +46,9 @@ jobs:
             --output-dir research/upstream-runtime/build/terrain-assets --tex3ds "$RUNNER_TEMP/run-tex3ds"
       - name: Compile with devkitARM and libctru
         run: |
+          if [ "${{ matrix.optimization }}" = 0 ]; then
+            sed -i 's/ -O2 / -O0 /' research/upstream-runtime/arm11/build.sh
+          fi
           image=devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5
           docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/work" -w /work "$image" bash -lc '
             source /opt/devkitpro/3dsvars.sh
@@ -53,7 +56,7 @@ jobs:
           test -s research/upstream-runtime/build/probe-3ds/upstream-probe.3dsx
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: upstream-arm11-${{ matrix.probe }}
+          name: upstream-arm11-${{ matrix.probe }}-o${{ matrix.optimization }}
           path: |
             research/upstream-runtime/build/probe-3ds/upstream-probe.3dsx
             research/upstream-runtime/build/probe-3ds/upstream-probe.elf
