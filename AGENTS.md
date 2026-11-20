@@ -6,7 +6,7 @@ Build a **native, open-source full Mindustry port** for Original 3DS/2DS and New
 
 ## Humans and AI agents
 
-- Maintainers: **Levy, Kevin, Elia**; roles are flexible, no exclusive subsystem silos.
+- Maintainers: **admiraly, Hxgg22, Satixfied**; roles are flexible, no exclusive subsystem silos.
 - AI coding agents have broad autonomy inside assigned issue/task scope: design, implement, refactor, run tools, create tests, spawn subtasks when supported, open PRs, repair CI and perform agent-to-agent review.
 - Agents may create and claim Ready issues under the task-leasing protocol. Humans can override assignments and priorities.
 - **Same-repo PRs auto-merge after CI and AI review**; human maintainers never need to manually review or approve PRs unless an explicit hold label (`hold`, `needs-human`, `do-not-merge`, `status:blocked`, `tier:c`) is attached.
