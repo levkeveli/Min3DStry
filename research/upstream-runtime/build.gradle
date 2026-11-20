@@ -49,19 +49,22 @@ def readUpstream = { path ->
 }
 
 if (usesArcSources || usesExecutor) {
+    def stagedClasses = []
+    if (usesContentSources) {
+        stagedClasses.add('mindustry/world/Block.class')
+    }
+    if (usesArcSources) {
+        stagedClasses.addAll(['arc/files/Fi.class', 'arc/files/Fi$*.class'])
+    }
+    if (usesExecutor) {
+        stagedClasses.add('arc/util/OS.class')
+    }
     // TeaVM resolves dependency classes before compiled project classes.
     def contentDependencies = tasks.register('prepareContentDependencies', Zip) {
         dependsOn 'prepareUpstreamProbe'
+        inputs.property('stagedClasses', stagedClasses)
         from(zipTree(referenceJar)) {
-            if (usesContentSources) {
-                exclude 'mindustry/world/Block.class'
-            }
-            if (usesArcSources) {
-                exclude 'arc/files/Fi.class', 'arc/files/Fi$*.class'
-            }
-            if (usesExecutor) {
-                exclude 'arc/util/OS.class'
-            }
+            exclude stagedClasses
         }
         destinationDirectory = layout.buildDirectory.dir("probe-dependencies/${probe}")
         archiveFileName = 'server-probe-dependencies.jar'
