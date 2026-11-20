@@ -65,6 +65,59 @@ AUDIO_RE = re.compile(
     r"clips=(?P<clips>\d+)"
 )
 
+AUDIO_ROMFS_RE = re.compile(
+    r"\[MIN3DSTRY\] AUDIO_ROMFS "
+    r"status=(?P<status>[a-z0-9_]+) "
+    r"clips=(?P<clips>\d+) "
+    r"bytes=(?P<bytes>\d+) "
+    r"ui=(?P<ui>-?\d+)"
+)
+
+AUDIO_EVENT_RE = re.compile(
+    r"\[MIN3DSTRY\] AUDIO_EVENT wave\.spawn "
+    r"spawned=(?P<spawned>\d+) "
+    r"clip=(?P<clip>-?\d+) "
+    r"voice=(?P<voice>\d+)"
+)
+
+SHOOT_EVENT_RE = re.compile(
+    r"\[MIN3DSTRY\] AUDIO_EVENT shoot\.duo "
+    r"fired=(?P<fired>\d+) "
+    r"clip=(?P<clip>-?\d+) "
+    r"voice=(?P<voice>\d+)"
+)
+
+KILL_EVENT_RE = re.compile(
+    r"\[MIN3DSTRY\] AUDIO_EVENT enemy\.kill "
+    r"killed=(?P<killed>\d+) "
+    r"clip=(?P<clip>-?\d+) "
+    r"voice=(?P<voice>\d+)"
+)
+
+CONVEYOR_EVENT_RE = re.compile(
+    r"\[MIN3DSTRY\] AUDIO_EVENT conveyor\.loop "
+    r"clip=(?P<clip>-?\d+) "
+    r"voice=(?P<voice>\d+)"
+)
+
+DRILL_EVENT_RE = re.compile(
+    r"\[MIN3DSTRY\] AUDIO_EVENT drill\.loop "
+    r"clip=(?P<clip>-?\d+) "
+    r"voice=(?P<voice>\d+)"
+)
+
+BLOCK_PLACE_EVENT_RE = re.compile(
+    r"\[MIN3DSTRY\] AUDIO_EVENT block\.place "
+    r"clip=(?P<clip>-?\d+) "
+    r"voice=(?P<voice>\d+)"
+)
+
+BLOCK_BREAK_EVENT_RE = re.compile(
+    r"\[MIN3DSTRY\] AUDIO_EVENT block\.break "
+    r"clip=(?P<clip>-?\d+) "
+    r"voice=(?P<voice>\d+)"
+)
+
 MEM_RE = re.compile(
     r"\[MIN3DSTRY\] MEM "
     r"app=(?P<app_mib>\d+)MiB "
@@ -383,8 +436,17 @@ def parse_azahar_log(log_text: str) -> dict[str, Any]:
     renderer: str | None = None
     gl_version: str | None = None
     hw_line: str | None = None
+    atlas_loaded: bool | None = None
     parity: dict[str, Any] | None = None
     audio: dict[str, Any] | None = None
+    audio_romfs: dict[str, Any] | None = None
+    audio_event: dict[str, Any] | None = None
+    shoot_event: dict[str, Any] | None = None
+    kill_event: dict[str, Any] | None = None
+    conveyor_event: dict[str, Any] | None = None
+    drill_event: dict[str, Any] | None = None
+    place_event: dict[str, Any] | None = None
+    break_event: dict[str, Any] | None = None
     mem: dict[str, Any] | None = None
     frame: dict[str, Any] | None = None
 
@@ -395,6 +457,8 @@ def parse_azahar_log(log_text: str) -> dict[str, Any]:
             gl_version = line.split("GL_VERSION:", 1)[1].strip()
         elif "[MIN3DSTRY] HW:" in line:
             hw_line = line.split("[MIN3DSTRY] HW:", 1)[1].strip()
+        elif "[MIN3DSTRY] ATLAS " in line:
+            atlas_loaded = "ATLAS loaded" in line
         elif "[MIN3DSTRY] PARITY " in line:
             parity = parse_parity_debug_line(line)
         elif "[MIN3DSTRY] MEM " in line:
@@ -417,6 +481,83 @@ def parse_azahar_log(log_text: str) -> dict[str, Any]:
                     "failures": int(mg["failures"]),
                     "status": mg["status"],
                 }
+        elif "[MIN3DSTRY] AUDIO_ROMFS " in line:
+            romfs_match = AUDIO_ROMFS_RE.search(line)
+            if romfs_match:
+                rg = romfs_match.groupdict()
+                audio_romfs = {
+                    "status": rg["status"],
+                    "clips": int(rg["clips"]),
+                    "bytes": int(rg["bytes"]),
+                    "ui_clip": int(rg["ui"]),
+                }
+        elif "[MIN3DSTRY] AUDIO_EVENT " in line:
+            event_match = AUDIO_EVENT_RE.search(line)
+            if event_match:
+                eg = event_match.groupdict()
+                audio_event = {
+                    "name": "wave.spawn",
+                    "spawned": int(eg["spawned"]),
+                    "clip": int(eg["clip"]),
+                    "voice": int(eg["voice"]),
+                }
+                continue
+            shoot_match = SHOOT_EVENT_RE.search(line)
+            if shoot_match:
+                sg = shoot_match.groupdict()
+                shoot_event = {
+                    "name": "shoot.duo",
+                    "fired": int(sg["fired"]),
+                    "clip": int(sg["clip"]),
+                    "voice": int(sg["voice"]),
+                }
+                continue
+            kill_match = KILL_EVENT_RE.search(line)
+            if kill_match:
+                kg = kill_match.groupdict()
+                kill_event = {
+                    "name": "enemy.kill",
+                    "killed": int(kg["killed"]),
+                    "clip": int(kg["clip"]),
+                    "voice": int(kg["voice"]),
+                }
+                continue
+            conveyor_match = CONVEYOR_EVENT_RE.search(line)
+            if conveyor_match:
+                cg = conveyor_match.groupdict()
+                conveyor_event = {
+                    "name": "conveyor.loop",
+                    "clip": int(cg["clip"]),
+                    "voice": int(cg["voice"]),
+                }
+                continue
+            drill_match = DRILL_EVENT_RE.search(line)
+            if drill_match:
+                dg = drill_match.groupdict()
+                drill_event = {
+                    "name": "drill.loop",
+                    "clip": int(dg["clip"]),
+                    "voice": int(dg["voice"]),
+                }
+                continue
+            place_match = BLOCK_PLACE_EVENT_RE.search(line)
+            if place_match:
+                pg = place_match.groupdict()
+                place_event = {
+                    "name": "block.place",
+                    "clip": int(pg["clip"]),
+                    "voice": int(pg["voice"]),
+                }
+                continue
+            break_match = BLOCK_BREAK_EVENT_RE.search(line)
+            if break_match:
+                bg = break_match.groupdict()
+                break_event = {
+                    "name": "block.break",
+                    "clip": int(bg["clip"]),
+                    "voice": int(bg["voice"]),
+                }
+                continue
         else:
             audio_match = AUDIO_RE.search(line)
             if audio_match:
@@ -455,8 +596,17 @@ def parse_azahar_log(log_text: str) -> dict[str, Any]:
         "renderer": renderer,
         "gl_version": gl_version,
         "hw_line": hw_line,
+        "atlas_loaded": atlas_loaded,
         "parity": parity,
         "audio": audio,
+        "audio_romfs": audio_romfs,
+        "audio_event": audio_event,
+        "shoot_event": shoot_event,
+        "kill_event": kill_event,
+        "conveyor_event": conveyor_event,
+        "drill_event": drill_event,
+        "place_event": place_event,
+        "break_event": break_event,
         "mem": mem,
         "frame": frame,
     }
@@ -597,6 +747,11 @@ def run_model_check(
             raise AssertionError(f"Unexpected new3ds hw_line: {hw_line}")
         if model == "old3ds" and ("O3DS" not in hw_line or "268 MHz" not in hw_line):
             raise AssertionError(f"Unexpected old3ds hw_line: {hw_line}")
+        atlas_loaded = parsed.get("atlas_loaded")
+        if atlas_loaded is None:
+            raise AssertionError(f"Missing sprite-atlas telemetry for {model}")
+        if atlas_loaded is not True:
+            raise AssertionError(f"Sprite atlas failed to load for {model}")
         if (
             audio["backend"] != "ndsp"
             or audio["state"] not in ("ready", "fallback_no_dsp")
@@ -604,6 +759,46 @@ def run_model_check(
             or audio["max_voices"] <= 0
         ):
             raise AssertionError(f"Unexpected audio telemetry for {model}: {audio}")
+        audio_romfs = parsed.get("audio_romfs")
+        if audio_romfs is not None and (
+            audio_romfs["status"] != "ok"
+            or audio_romfs["clips"] < 1
+            or audio_romfs["bytes"] <= 0
+            or audio_romfs["ui_clip"] < 0
+        ):
+            raise AssertionError(f"Unexpected RomFS audio telemetry for {model}: {audio_romfs}")
+        # Every run must exercise the demo wave; packed clips are only required
+        # when the ROMFS audio build is present.
+        requires_audio_clips = audio_romfs is not None
+        audio_event = parsed.get("audio_event")
+        if audio_event is None or audio_event["name"] != "wave.spawn" or audio_event["spawned"] < 1:
+            raise AssertionError(f"Missing wave-spawn audio event for {model}: {audio_event}")
+        if requires_audio_clips and audio_event["clip"] < 0:
+            raise AssertionError(f"Wave-spawn event did not resolve a clip for {model}: {audio_event}")
+        shoot_event = parsed.get("shoot_event")
+        if shoot_event is None or shoot_event["name"] != "shoot.duo" or shoot_event["fired"] < 1:
+            raise AssertionError(f"Missing Duo shoot audio event for {model}: {shoot_event}")
+        if requires_audio_clips and shoot_event["clip"] < 0:
+            raise AssertionError(f"Duo shoot event did not resolve a clip for {model}: {shoot_event}")
+        kill_event = parsed.get("kill_event")
+        if kill_event is None or kill_event["name"] != "enemy.kill" or kill_event["killed"] < 1:
+            raise AssertionError(f"Missing enemy-kill audio event for {model}: {kill_event}")
+        if requires_audio_clips and kill_event["clip"] < 0:
+            raise AssertionError(f"Enemy kill event did not resolve a clip for {model}: {kill_event}")
+        conveyor_event = parsed.get("conveyor_event")
+        drill_event = parsed.get("drill_event")
+        if requires_audio_clips:
+            if conveyor_event is None or conveyor_event["clip"] < 0:
+                raise AssertionError(f"Conveyor loop event missing or unresolved for {model}: {conveyor_event}")
+            if drill_event is None or drill_event["clip"] < 0:
+                raise AssertionError(f"Drill loop event missing or unresolved for {model}: {drill_event}")
+        place_event = parsed.get("place_event")
+        break_event = parsed.get("break_event")
+        if requires_audio_clips:
+            if place_event is None or place_event["clip"] < 0:
+                raise AssertionError(f"Block place event missing or unresolved for {model}: {place_event}")
+            if break_event is None or break_event["clip"] < 0:
+                raise AssertionError(f"Block break event missing or unresolved for {model}: {break_event}")
         if (
             mem["status"] != "ok"
             or mem["failures"] != 0
@@ -629,8 +824,17 @@ def run_model_check(
             "renderer": parsed.get("renderer"),
             "gl_version": parsed.get("gl_version"),
             "hw_line": hw_line,
+            "atlas_loaded": parsed.get("atlas_loaded"),
             "parity": parity,
             "audio": audio,
+            "audio_romfs": audio_romfs,
+            "audio_event": audio_event,
+            "shoot_event": shoot_event,
+            "kill_event": kill_event,
+            "conveyor_event": conveyor_event,
+            "drill_event": drill_event,
+            "place_event": place_event,
+            "break_event": break_event,
             "mem": mem,
             "frame": frame,
             "perf": {
