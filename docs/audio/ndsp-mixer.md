@@ -1,6 +1,6 @@
 # NDSP Audio Mixer Prototype
 
-Status: **Experimental** (`host-tested` via mock audio backend in `./dev.sh test`; `.3dsx` compiled via `./dev.sh build`; missing-`dspfirm.cdc` startup/teardown fallback verified across Old & New 3DS modes in Azahar `2126.2`; live hardware NDSP playback with DSP firmware pending physical 3DS verification).
+Status: **Experimental** (`emulator-tested` for the RomFS registry, event routing, mixer state and missing-DSP fallback on both Azahar models; audible NDSP playback still requires physical hardware).
 
 ## Architecture
 
@@ -20,7 +20,7 @@ Status: **Experimental** (`host-tested` via mock audio backend in `./dev.sh test
 - **Graceful fallback:** On clean homebrew setups or emulators lacking `sdmc:/3ds/dspfirm.cdc`, `ndspInit()` fails (returning `0xd880a7fa` in Azahar `2126.2`). The backend sets `ndsp_ready = false` and transitions the mixer to `M3DS_AUDIO_STATE_FALLBACK_NO_DSP`. No `ndspChn*` functions, `linearAlloc` uploads, or `ndspExit()` calls occur in fallback mode, preventing shutdown crashes or hangs.
 - **Old 3DS memory budget:**
   - The current 2-tone prototype synthesizes two original mono PCM16 test tones (`880 Hz` / `80 ms` delivery chime = `1,764` frames; `520 Hz` / `35 ms` UI click = `772` frames), totaling **`5,072` bytes (< 5 KiB)** when uploaded to linear RAM—and **`0` bytes** when `state != ready`.
-  - Mixing `8` of the `24` hardware NDSP channels while capping resident clips at `M3DS_AUDIO_MAX_CLIP_SAMPLES` (`22050 * 6` frames per slot) bounds even full-capacity `16`-slot stereo PCM16 saturation to `~8.1 MiB` (`16 * 132,300 * 2 * 2` bytes) within the `64 MiB` Original 3DS `APPMEMTYPE 0` budget; longer music tracks will stream via double-buffered `ndspWaveBuf` chunks.
+  - Mixing `8` of the `24` hardware NDSP channels while capping resident clips at `M3DS_AUDIO_MAX_CLIP_SAMPLES` (`22050 * 6` frames per slot) bounds registry clip storage to `~8.1 MiB` (`16 * 132,300 * 2 * 2` bytes) within the `64 MiB` Original 3DS `APPMEMTYPE 0` budget. The backend uploads each registered clip once into linear RAM (currently `590,734` bytes for seven clips); voices reference those uploaded buffers rather than duplicating them. Longer music tracks will stream via double-buffered `ndspWaveBuf` chunks.
 
 ## Upstream Mindustry v160.8 Audio Integration & Provenance Plan
 
@@ -37,4 +37,5 @@ Status: **Experimental** (`host-tested` via mock audio backend in `./dev.sh test
 - **Azahar `2126.2` (`./dev.sh emu-test`):** Passed in both `new3ds` (`New 3DS XL, 804 MHz`, `31.13 FPS`) and `old3ds` (`Original 3DS XL, 268 MHz`, `31.24 FPS`):
   - Both modes logged `[MIN3DSTRY] AUDIO backend=ndsp state=fallback_no_dsp rc=0xd880a7fa rate=22050 voices=0/8 clips=2`.
   - Parity remained bit-identical (`trace_hash=0x53a483c7`), frame telemetry stayed bounded (`R:427 C:1 Sw:1 Drop:0`), and inspected top/bottom PNG screenshots confirmed textured rendering alongside bottom-screen `Audio: fallback_no_dsp (ON)` and `X: Toggle Mute`.
+- **Capability stage (`emulator-tested`):** Azahar runs load seven packed clips, resolve every wired event to a clip, exercise fallback startup/teardown, and preserve parity on both models. This stage does not claim audible output; that remains gated on physical hardware with DSP firmware.
 - **Physical 3DS Hardware Audio (`dspfirm.cdc` present):** **Not yet tested**; live NDSP PCM playback requires deploying onto physical Original and New 3DS consoles with dumped `sdmc:/3ds/dspfirm.cdc`, confirming `state=ready rc=0x00000000`, and verifying stereo PCM16 `ndspWaveBuf.nsamples` per-channel frame duration on hardware.

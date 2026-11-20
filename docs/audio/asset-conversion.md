@@ -122,6 +122,10 @@ The app logs `AUDIO_EVENT <id> ... clip=... voice=...`; Azahar requires
 resolved clips for ROMFS builds, while `voice=0` is expected when DSP firmware
 is unavailable. No research system is wired yet.
 
+The current harness starts conveyor/drill loops globally at boot and stops or
+restarts them with the A pause toggle. Upstream plays block ambients
+positionally near the camera, so positional ambient mixing is still pending.
+
 ## Tests
 
 - `tests/tools/test_audio_assets.py` validates duplicate IDs, path escapes,
