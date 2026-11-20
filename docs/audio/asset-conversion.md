@@ -1,7 +1,8 @@
 # Upstream audio asset conversion
 
-Status: **host-tested conversion pipeline**. Issue: [#29](https://github.com/levkeveli/Min3DStry/issues/29).
-No 3DS playback or gameplay trigger wiring is claimed yet.
+Status: **host-tested conversion + RomFS registry loader**. Issue: [#29](https://github.com/levkeveli/Min3DStry/issues/29).
+The app can load real `ui.button` PCM when built with `UPSTREAM_MINDUSTRY`;
+research/wave trigger callbacks and physical DSP playback are not verified yet.
 
 ## Scope
 
@@ -62,25 +63,70 @@ output path/hash, channels, rate, frames, bytes and trigger file/line. When git
 is available, the converter also verifies that the checkout's `HEAD` equals
 `upstream_commit` before writing any output.
 
+## RomFS layout and runtime loading
+
+`--romfs-out DIR` writes `DIR/audio-index.h` and `DIR/audio/` containing the PCM
+files plus `audio-manifest.json`. The generated index includes
+`audio/audio_registry.h` and defines `m3ds_audio_index[]`,
+`M3DS_AUDIO_CLIP_COUNT` and `M3DS_AUDIO_TOTAL_BYTES`, so paths and sizes stay
+consistent with what was packed.
+
+`include/audio/audio_registry.h` exposes a bounded loader:
+
+```c
+M3dsAudioRegistry registry;
+M3dsAudioRegistryStatus status = m3ds_audio_registry_load(
+    &registry, &mixer, m3ds_audio_index, M3DS_AUDIO_CLIP_COUNT,
+    m3ds_audio_read_file_stdio, NULL, pcm_storage, sizeof(pcm_storage));
+int clip = m3ds_audio_registry_find(&registry, "ui.button");
+```
+
+The loader validates every index entry, rejects duplicate IDs and path/rate/
+frame problems, checks the fixed PCM buffer, reads exactly the expected bytes,
+and rolls back all clips if any step fails. `m3ds_audio_read_file_stdio` works on
+host paths and on libctru `romfs:/audio/...` paths after `romfsInit()`.
+
+Build the app with the real clips by pointing the Makefile at a pinned checkout:
+
+```sh
+make UPSTREAM_MINDUSTRY=/path/to/Mindustry
+```
+
+That target converts the three assets, copies them to `build/romfs/audio/`,
+generates `build/3ds/audio-index.h`, and compiles with `-DM3DS_AUDIO_ROMFS`.
+The ROMFS-enabled build registers the real `ui.button` clip for the A/Y
+controls and logs `AUDIO_ROMFS status=...` over the debug channel. Builds
+without `UPSTREAM_MINDUSTRY` keep the synthetic tone path. The `ui.unlock` and
+`wave.spawn` clips are packed and loaded but have no gameplay trigger yet.
+
 ## Tests
 
 - `tests/tools/test_audio_assets.py` validates duplicate IDs, path escapes,
   missing sources, invalid channels/rates, source hashing, map parsing,
-  trigger-symbol/file validation and RomFS index generation.
+  trigger-symbol/file validation and RomFS index generation (including the
+  `audio/` layout and shared registry include).
 - If ffmpeg is available, an integration test converts a synthetic 8 kHz WAV
   and checks PCM size, frame count, trigger metadata and manifest provenance.
   Without ffmpeg the integration case is skipped; the validation tests still run.
-- `./dev.sh test` includes the test module. The `Audio conversion` CI job
-  converts the pinned three assets with ffmpeg and asserts the output manifest,
-  PCM files and `audio-index.h`.
+- `tests/audio/test_audio_registry.c` covers successful load/find, playable
+  clip IDs, buffer-capacity rollback, I/O and short-read rollback, invalid
+  entries, duplicate IDs, mixer rejection and the stdio reader (including
+  missing/oversized files).
+- `./dev.sh test` includes both test suites. The `Audio conversion` CI job
+  converts the pinned three assets with ffmpeg, asserts the output manifest,
+  PCM files, `audio/` layout and `audio-index.h`, then compiles the generated
+  index against the registry header.
 
 ## Licensing and limitations
 
 - Upstream audio is GPLv3. The conversion output is not committed; distribution
   must include the applicable GPLv3 notices, corresponding source and a
   per-file asset provenance audit.
-- No ADPCM/streaming conversion, runtime trigger wiring, DSP playback or
-  physical-device validation is implemented here. `audio-index.h` is generated
-  for a future RomFS loader and is not linked into the 3DS app yet.
+- No ADPCM/streaming conversion or research/wave trigger wiring is implemented
+  here. Only `ui.button` is used by the ROMFS-enabled app; `ui.unlock` and
+  `wave.spawn` are loaded but not triggered.
+- No physical Old/New 3DS DSP playback or save/network audio integration has
+  been verified. The `AUDIO_ROMFS` debug line and Azahar runs can show loader
+  state, not audible output quality.
 - ffmpeg is an external build-time executable and is not distributed with the
   project.

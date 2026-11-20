@@ -65,6 +65,14 @@ AUDIO_RE = re.compile(
     r"clips=(?P<clips>\d+)"
 )
 
+AUDIO_ROMFS_RE = re.compile(
+    r"\[MIN3DSTRY\] AUDIO_ROMFS "
+    r"status=(?P<status>[a-z0-9_]+) "
+    r"clips=(?P<clips>\d+) "
+    r"bytes=(?P<bytes>\d+) "
+    r"ui=(?P<ui>-?\d+)"
+)
+
 MEM_RE = re.compile(
     r"\[MIN3DSTRY\] MEM "
     r"app=(?P<app_mib>\d+)MiB "
@@ -385,6 +393,7 @@ def parse_azahar_log(log_text: str) -> dict[str, Any]:
     hw_line: str | None = None
     parity: dict[str, Any] | None = None
     audio: dict[str, Any] | None = None
+    audio_romfs: dict[str, Any] | None = None
     mem: dict[str, Any] | None = None
     frame: dict[str, Any] | None = None
 
@@ -416,6 +425,16 @@ def parse_azahar_log(log_text: str) -> dict[str, Any]:
                     "transient_limit": int(mg["transient_limit"]),
                     "failures": int(mg["failures"]),
                     "status": mg["status"],
+                }
+        elif "[MIN3DSTRY] AUDIO_ROMFS " in line:
+            romfs_match = AUDIO_ROMFS_RE.search(line)
+            if romfs_match:
+                rg = romfs_match.groupdict()
+                audio_romfs = {
+                    "status": rg["status"],
+                    "clips": int(rg["clips"]),
+                    "bytes": int(rg["bytes"]),
+                    "ui_clip": int(rg["ui"]),
                 }
         else:
             audio_match = AUDIO_RE.search(line)
@@ -457,6 +476,7 @@ def parse_azahar_log(log_text: str) -> dict[str, Any]:
         "hw_line": hw_line,
         "parity": parity,
         "audio": audio,
+        "audio_romfs": audio_romfs,
         "mem": mem,
         "frame": frame,
     }
@@ -604,6 +624,14 @@ def run_model_check(
             or audio["max_voices"] <= 0
         ):
             raise AssertionError(f"Unexpected audio telemetry for {model}: {audio}")
+        audio_romfs = parsed.get("audio_romfs")
+        if audio_romfs is not None and (
+            audio_romfs["status"] != "ok"
+            or audio_romfs["clips"] < 1
+            or audio_romfs["bytes"] <= 0
+            or audio_romfs["ui_clip"] < 0
+        ):
+            raise AssertionError(f"Unexpected RomFS audio telemetry for {model}: {audio_romfs}")
         if (
             mem["status"] != "ok"
             or mem["failures"] != 0
@@ -631,6 +659,7 @@ def run_model_check(
             "hw_line": hw_line,
             "parity": parity,
             "audio": audio,
+            "audio_romfs": audio_romfs,
             "mem": mem,
             "frame": frame,
             "perf": {
