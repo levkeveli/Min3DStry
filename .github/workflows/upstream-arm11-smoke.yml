@@ -146,6 +146,25 @@ jobs:
             "$RUNNER_TEMP/glacier.msav" | tee "$RUNNER_TEMP/save.log"
           grep -F 'UPSTREAM_SAVE header=MSAV version=13' "$RUNNER_TEMP/save.log"
 
+      - name: Compile save resilience probe
+        run: |
+          mkdir -p "$RUNNER_TEMP/save-resilience"
+          javac -cp "$RUNNER_TEMP/server-release.jar" \
+            -d "$RUNNER_TEMP/save-resilience" \
+            research/upstream-runtime/host/UpstreamSaveResilienceProbe.java
+
+      - name: Run save resilience checks
+        run: |
+          java -cp "$RUNNER_TEMP/server-release.jar:$RUNNER_TEMP/save-resilience" \
+            UpstreamSaveResilienceProbe "$RUNNER_TEMP/glacier.msav" \
+            | tee "$RUNNER_TEMP/save-resilience.log"
+          grep -F 'UPSTREAM_SAVE_RESILIENCE_PASS' "$RUNNER_TEMP/save-resilience.log"
+          for record in valid=ok truncated=rejected bad_header=rejected \
+              unknown_version=rejected backup=recovered existing=protected \
+              interrupted=rejected; do
+            grep -F "UPSTREAM_SAVE_RESILIENCE $record" "$RUNNER_TEMP/save-resilience.log"
+          done
+
   audio-inventory:
     name: Audio asset inventory
     runs-on: ubuntu-latest

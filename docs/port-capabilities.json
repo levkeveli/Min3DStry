@@ -226,7 +226,9 @@
       "evidence": [
         "research/upstream-runtime/README.md",
         "research/upstream-runtime/src/map/java/mindustry/maps/UpstreamMapProbe.java",
-        "research/upstream-runtime/src/content/java/UpstreamWorldLoadProbe.java"
+        "research/upstream-runtime/src/content/java/UpstreamWorldLoadProbe.java",
+        "research/upstream-runtime/src/world/java/UpstreamWorldRoundTripProbe.java",
+        "research/upstream-runtime/host/UpstreamSaveResilienceProbe.java"
       ]
     },
     {

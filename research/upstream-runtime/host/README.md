@@ -140,6 +140,44 @@ The byte count can vary between runs; the `MSAV` header and save version are
 the contract. This is a host-only reference. It does not read or write a
 Min3DStry format and is not a 3DS test.
 
+## Save resilience checks
+
+[Issue #42](https://github.com/levkeveli/Min3DStry/issues/42) adds host checks
+for malformed, unsupported and interrupted saves. They use only the pinned
+server JAR, the original Glacier map and upstream `SaveIO`:
+
+```sh
+javac -cp /path/to/server-release.jar -d /tmp/save-resilience \
+    /path/to/Min3DStry/research/upstream-runtime/host/UpstreamSaveResilienceProbe.java
+java -cp /path/to/server-release.jar:/tmp/save-resilience \
+    UpstreamSaveResilienceProbe /path/to/glacier.msav
+```
+
+Expected records:
+
+```text
+UPSTREAM_SAVE_RESILIENCE valid=ok
+UPSTREAM_SAVE_RESILIENCE truncated=rejected
+UPSTREAM_SAVE_RESILIENCE bad_header=rejected
+UPSTREAM_SAVE_RESILIENCE unknown_version=rejected
+UPSTREAM_SAVE_RESILIENCE backup=recovered
+UPSTREAM_SAVE_RESILIENCE existing=protected
+UPSTREAM_SAVE_RESILIENCE interrupted=rejected
+UPSTREAM_SAVE_RESILIENCE_PASS
+```
+
+The probe writes to a temporary directory, loads the valid save back through
+`SaveIO.load`, rejects a truncated save at full-load time, rejects bad headers
+and unknown versions, and verifies that `SaveIO`'s backup file is used when the
+main slot is corrupt. `SaveIO.isSaveValid` only reads metadata, so a truncated
+save can still report valid metadata; the full load is the authoritative check.
+The probe's interrupted-write check writes to a sibling `.tmp` file, validates
+it, and only then moves it into place; an injected failure must leave neither a
+final save nor a temporary save. The existing-save check verifies that a new
+write never replaces a valid file. This is a host-only upstream compatibility
+check, not a Min3DStry format and not a 3DS result; the ARM11 round-trip probe
+still writes a new output only and validates it by reloading.
+
 ## Audio asset inventory
 
 Issue #29 needs the exact pinned sound/music set before conversion. The server
@@ -229,7 +267,8 @@ To exercise pinned v160.8 `Core.settings` (`settings.bin`), `TechTree.TechNode`,
 `UnlockableContent`, `Sector`/`SectorInfo`, `Objectives` prerequisites,
 `sector-<planet.name>-<sector.id>.msav` slot naming/resolution (`Saves.getSectorFile(sector)`
 and `SaveSlot` attachment — world `.msav` read/write round-trips are covered by
-`UpstreamSaveBaseline.java`), save and cold-reload round-trips, `settings_backup.bin`
+`UpstreamWorldRoundTripProbe.java`, and malformed/interrupted save handling by
+`UpstreamSaveResilienceProbe.java`), save and cold-reload round-trips, `settings_backup.bin`
 backup recovery, and malformed settings resilience:
 
 ```sh

@@ -162,6 +162,13 @@ reserves a new output file and rejects an existing destination. On the
 JVM, pass the map, v13 input, and new output paths as arguments. The
 round-trip check ends with `UPSTREAM_SAVE_ROUNDTRIP version=13 marker=ok`.
 
+The host-side [save resilience probe](host/README.md#save-resilience-checks)
+uses the same pinned server JAR and Glacier fixture to reject truncated,
+bad-header and unknown-version saves, exercise the upstream backup path, and
+verify that an injected write failure leaves no final or temporary save. It runs
+without devkitARM; the ARM11 write path still uses a new output file and rejects
+an existing destination.
+
 [DevkitARM test builds with standard flags](https://github.com/levkeveli/Min3DStry/actions/runs/44793525705)
 and [with C optimization disabled](https://github.com/levkeveli/Min3DStry/actions/runs/44792277588)
 matched the v7 map, v13 input, and v13 output world fingerprints in both
