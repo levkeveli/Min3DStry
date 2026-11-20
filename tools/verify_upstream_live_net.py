@@ -57,7 +57,7 @@ def run_model(args, model, config, original_config, log, output):
             stdout=terminal, stderr=subprocess.STDOUT, text=True,
         )
         try:
-            server.stdin.write(f"config port {args.port}\nhost Glacier\n")
+            server.stdin.write(f"config port {args.port}\nhost Glacier attack\n")
             server.stdin.flush()
             wait_for(server_log, server, f"Opened a server on port {args.port}\\.", 25)
             emulator = subprocess.Popen([str(args.azahar), str(args.rom)],
@@ -66,6 +66,8 @@ def run_model(args, model, config, original_config, log, output):
             try:
                 for join in (1, 2):
                     wait_for(log, emulator, rf"UPSTREAM_LIVE_NET_STATE join={join}\b", args.timeout)
+                    if join == 2:
+                        time.sleep(13)  # Exceed ArcNet's 12-second TCP timeout.
                     server.stdin.write("runwave\n")
                     server.stdin.flush()
                     wait_for(log, emulator, rf"UPSTREAM_LIVE_NET_SYNC join={join}\b", 25)
@@ -102,14 +104,17 @@ def validate(log):
     states = re.findall(state, log)
     synced = re.findall(r"UPSTREAM_LIVE_NET_SYNC join=(\d+) fromWave=(\d+) wave=(\d+) unit=(\S+) id=(\d+)", log)
     if ("UPSTREAM_LIVE_NET_REJECT build=159 packet=KickCallPacket2" not in log
+            or "UPSTREAM_LIVE_NET_KEEPALIVE join=2 transport=tcp" not in log
             or [event[0] for event in worlds] != ["1", "2"]
             or [event[0] for event in states] != ["1", "2"]
             or [event[0] for event in synced] != ["1", "2"]
             or re.findall(r"UPSTREAM_LIVE_NET_DISCONNECTED join=(\d+)", log) != ["1", "2"]
             or any(int(event[1]) <= 0 or int(event[2]) <= 0 for event in worlds)
-            or worlds[0][3] != worlds[1][3]
+            or states[1][1] != synced[0][2]
+            or synced[0][4] == synced[1][4]
             or any(int(event[1]) <= 0 or int(event[4]) <= 0 for event in states)
-            or any(int(event[2]) != int(event[1]) + 1 or int(event[4]) <= 0 for event in synced)):
+            or any(int(event[2]) != int(event[1]) + 1 or event[3] != "dagger"
+                   or int(event[4]) <= 0 for event in synced)):
         raise RuntimeError("Expected live wave, state and entity updates on both joins")
 
 

@@ -682,6 +682,20 @@ static M3dsNetHandshakeStatus read_next_tcp_frame(
   return M3DS_HANDSHAKE_OK_WORLD_STREAM;
 }
 
+static bool send_framework(
+    const M3dsNetTransport *transport, const M3dsNetFrameworkMsg *message, bool reliable) {
+  uint8_t raw[8], framed[16];
+  size_t raw_length, frame_length;
+  if (!m3ds_net_encode_framework(message, raw, sizeof(raw), &raw_length)) {
+    return false;
+  }
+  if (!reliable) {
+    return transport->udp_send(transport->user_data, raw, raw_length) == (int)raw_length;
+  }
+  return m3ds_net_tcp_frame_encode(raw, raw_length, framed, sizeof(framed), &frame_length) &&
+      tcp_send_all(transport, framed, frame_length);
+}
+
 static bool reply_framework_ping_if_needed(
     const M3dsNetTransport *transport,
     const M3dsNetFrameworkMsg *fw,
@@ -691,14 +705,7 @@ static bool reply_framework_ping_if_needed(
   }
   M3dsNetFrameworkMsg pong = *fw;
   pong.is_reply = true;
-  uint8_t pong_raw[8];
-  uint8_t pong_framed[16];
-  size_t pong_raw_len = 0U;
-  size_t pong_framed_len = 0U;
-  if (!m3ds_net_encode_framework(&pong, pong_raw, sizeof(pong_raw), &pong_raw_len) ||
-      !m3ds_net_tcp_frame_encode(
-          pong_raw, pong_raw_len, pong_framed, sizeof(pong_framed), &pong_framed_len) ||
-      !tcp_send_all(transport, pong_framed, pong_framed_len)) {
+  if (!send_framework(transport, &pong, true)) {
     return false;
   }
   if (out_result) {
@@ -1051,6 +1058,11 @@ bool m3ds_net_client_send(
     return tcp_send_all(transport, client->packet, packet_length + prefix);
   }
   return transport->udp_send(transport->user_data, client->packet, packet_length) == (int)packet_length;
+}
+
+bool m3ds_net_client_keep_alive(M3dsNetClient *client, bool reliable) {
+  const M3dsNetFrameworkMsg message = {.type = M3DS_FW_KEEP_ALIVE};
+  return client && send_framework(client->transport, &message, reliable);
 }
 
 void m3ds_net_client_close(M3dsNetClient *client) {

@@ -12,6 +12,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 import java.util.zip.InflaterInputStream;
 import mindustry.Vars;
+import mindustry.content.UnitTypes;
 import mindustry.core.GameState.State;
 import mindustry.core.NetClient;
 import mindustry.game.Universe;
@@ -33,6 +34,9 @@ import org.teavm.interop.c.Include;
 public final class UpstreamLiveNetworkProbe {
     private static final int ACCEPTED = 0, REJECTED = 1, TIMEOUT = -2;
     private static final int BUILD = 160;
+    // Match Arc's pinned TcpConnection and UdpConnection default intervals.
+    private static final long TCP_KEEP_ALIVE_NS = 8_000_000_000L;
+    private static final long UDP_KEEP_ALIVE_NS = 19_000_000_000L;
     private static final String PLAYER_NAME = "Min3DStry ARM11";
     private final byte[] packet = new byte[32_768];
 
@@ -121,7 +125,10 @@ public final class UpstreamLiveNetworkProbe {
     }
 
     private void waitForWave(int join, UpstreamWorldLoadProbe.ProbeApplication app) throws IOException {
-        long end = System.nanoTime() + 20_000_000_000L;
+        long start = System.nanoTime();
+        long end = start + 30_000_000_000L;
+        long tcpKeepAlive = start + TCP_KEEP_ALIVE_NS;
+        long udpKeepAlive = start + UDP_KEEP_ALIVE_NS;
         int snapshotId = unsignedId(StateSnapshotCallPacket.class);
         int entityId = unsignedId(EntitySnapshotCallPacket.class);
         int initialWave = Vars.state.wave;
@@ -131,8 +138,21 @@ public final class UpstreamLiveNetworkProbe {
         }
         boolean receivedState = false;
         while (System.nanoTime() < end) {
+            long now = System.nanoTime();
+            if (now >= tcpKeepAlive) {
+                keepAlive(1);
+                System.out.println("UPSTREAM_LIVE_NET_KEEPALIVE join=" + join + " transport=tcp");
+                tcpKeepAlive = now + TCP_KEEP_ALIVE_NS;
+            }
+            if (now >= udpKeepAlive) {
+                keepAlive(0);
+                udpKeepAlive = now + UDP_KEEP_ALIVE_NS;
+            }
             int received = receive(1, 0);
-            if (received == TIMEOUT) received = receive(0, 100);
+            if (received == TIMEOUT) {
+                received = receive(0, 100);
+                if (received >= 0) udpKeepAlive = System.nanoTime() + UDP_KEEP_ALIVE_NS;
+            }
             if (received == TIMEOUT) continue;
             int id = received >>> 16;
             if (id == snapshotId) {
@@ -155,7 +175,8 @@ public final class UpstreamLiveNetworkProbe {
             app.runPosted();
             if (receivedState && Vars.state.wave > initialWave) {
                 for (var unit : Groups.unit) {
-                    if (unit.team == Vars.state.rules.waveTeam && !initialEnemies.contains(unit.id)
+                    if (unit.team == Vars.state.rules.waveTeam && unit.type == UnitTypes.dagger
+                            && !initialEnemies.contains(unit.id)
                             && Groups.sync.getByID(unit.id) == unit) {
                         System.out.println("UPSTREAM_LIVE_NET_SYNC join=" + join + " fromWave=" + initialWave
                             + " wave=" + Vars.state.wave + " unit=" + unit.type.name + " id=" + unit.id);
@@ -165,6 +186,10 @@ public final class UpstreamLiveNetworkProbe {
             }
         }
         throw new IOException("No new wave and synchronized enemy after connection confirmation");
+    }
+
+    private static void keepAlive(int reliable) throws IOException {
+        if (Native.keepAlive(reliable) == 0) throw new IOException("Unable to send Arc keepalive");
     }
 
     private <T extends Packet> T decode(T decoded, int received) {
@@ -253,6 +278,8 @@ public final class UpstreamLiveNetworkProbe {
         static native int receive(Address packet, int capacity, int reliable, int timeoutMs);
         @Import(name = "m3ds_live_net_send")
         static native int send(Address packet, int length, int packetId);
+        @Import(name = "m3ds_live_net_keep_alive")
+        static native int keepAlive(int reliable);
         @Import(name = "m3ds_live_net_close")
         static native void close();
     }
