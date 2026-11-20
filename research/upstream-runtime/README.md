@@ -263,12 +263,18 @@ with the unchanged server JAR, compile `UpstreamWorldLoadProbe.java`,
 `UpstreamSimulationWorld.java`, and `UpstreamCombatTickProbe.java` against
 that JAR, then run `UpstreamCombatTickProbe /path/to/glacier.msav`.
 
-The original v160.8 JVM ran three times with identical results:
+The original v160.8 JVM ran three times with identical results. Generated
+Windows x64 C matched both traces. The [DevkitARM builds](https://github.com/levkeveli/Min3DStry/actions/runs/44805028740)
+at `-O0` and `-O2` matched them in the Original and New 3DS Azahar profiles.
 
 ```text
 UPSTREAM_COMBAT delivery=29 shot=49 hit=62 destroyed=382 supplied=20
 UPSTREAM_WAVE next=2 groundSpawns=0 enemies=1 units=gamma=1
 ```
+
+The `-O2` ARM11 image, 24 MiB managed heap, 4 MiB linear heap and 256 KiB
+stack total 64.99 MiB before GC metadata and other allocations.
+This exceeds the 64 MiB Original 3DS application budget.
 
 The upstream source boundaries are
 [`Logic.java`](https://github.com/Anuken/Mindustry/blob/19a0f40d44514f4802a8b79770456e7e32e34da0/core/src/mindustry/core/Logic.java),

@@ -176,7 +176,10 @@
       "weight": 8,
       "stage": "planned",
       "issue": 30,
-      "evidence": []
+      "evidence": [
+        "research/upstream-runtime/src/gameplay/java/UpstreamCombatTickProbe.java",
+        "research/upstream-runtime/README.md"
+      ]
     },
     {
       "id": "touch-build-palette",
