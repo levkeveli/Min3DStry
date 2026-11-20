@@ -5,6 +5,7 @@ Target native ARM11 homebrew with devkitPro, libctru and Citro2D/Citro3D. Evalua
 Current prototypes:
 - [Citro2D bounded rendering prototype](rendering/citro2d-prototype.md) (`M3dsRenderBackend` + `M3dsBoundedScene`, host-tested, 3DS-built via `./dev.sh build`, and emulator-tested in Azahar `2126.2` via `./dev.sh emu-test`; physical hardware verification pending).
 - [Hardware detection profile](hardware/detection.md) (`M3dsHardwareProfile` + `libctru` probe, host-tested, 3DS-built, and emulator-tested across Old/New 3DS modes in Azahar `2126.2`; physical Old/New 3DS hardware verification pending).
+- [Gameplay parity harness](testing/parity-harness.md) (`M3dsParityState` + canonical scenario `starter_copper_defense_v1`, verified bit-identical across host `-O0`/`-O2` and Azahar Old/New 3DS ARM11).
 
 Track toolchain builds, emulator boot, physical hardware boot, gameplay parity and upstream multiplayer independently. Record hardware model, build SHA and test scenario alongside measurements. Audit upstream and dependency licenses before importing code or assets.
 

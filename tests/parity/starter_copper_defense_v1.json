@@ -1,0 +1,13 @@
+{
+  "scenario_id": "starter_copper_defense_v1",
+  "description": "Deterministic starter factory & defense scenario: two drills feed copper to core and turret across conveyor lines, tests wall place/remove refund, pause invariance (ticks 140..160), and two enemy waves (ticks 80 & 180).",
+  "total_ticks": 240,
+  "trace_hash": "0x53a483c7",
+  "checkpoints": [
+    {"tick": 0, "core_copper": 40, "core_hp": 200, "items_mined": 0, "items_delivered": 0, "shots_fired": 0, "enemies_spawned": 0, "enemies_killed": 0, "enemies_leaked": 0, "active_enemies": 0, "blocks_placed": 0, "inputs_applied": 0, "inputs_rejected": 0, "state_hash": "0x77092b09"},
+    {"tick": 60, "core_copper": 11, "core_hp": 200, "items_mined": 8, "items_delivered": 1, "shots_fired": 0, "enemies_spawned": 0, "enemies_killed": 0, "enemies_leaked": 0, "active_enemies": 0, "blocks_placed": 18, "inputs_applied": 20, "inputs_rejected": 0, "state_hash": "0x63b37006"},
+    {"tick": 120, "core_copper": 15, "core_hp": 180, "items_mined": 16, "items_delivered": 5, "shots_fired": 3, "enemies_spawned": 2, "enemies_killed": 1, "enemies_leaked": 1, "active_enemies": 0, "blocks_placed": 18, "inputs_applied": 21, "inputs_rejected": 0, "state_hash": "0xfe1ddf06"},
+    {"tick": 180, "core_copper": 18, "core_hp": 180, "items_mined": 18, "items_delivered": 8, "shots_fired": 3, "enemies_spawned": 2, "enemies_killed": 1, "enemies_leaked": 1, "active_enemies": 0, "blocks_placed": 18, "inputs_applied": 23, "inputs_rejected": 0, "state_hash": "0xc893def4"},
+    {"tick": 240, "core_copper": 22, "core_hp": 160, "items_mined": 23, "items_delivered": 12, "shots_fired": 6, "enemies_spawned": 4, "enemies_killed": 2, "enemies_leaked": 2, "active_enemies": 0, "blocks_placed": 18, "inputs_applied": 24, "inputs_rejected": 0, "state_hash": "0xb284d272"}
+  ]
+}
