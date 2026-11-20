@@ -1,6 +1,6 @@
 # Contributing to Min3DStry
 
-This is an experimental native homebrew project. The target is full Mindustry support on both 3DS generations, but **no implementation is assumed complete until tested**.
+This is an experimental homebrew port of upstream Mindustry. Follow the [upstream port plan](docs/upstream-port.md) for source and asset provenance, Java PC interoperability, hardware targets, and compatibility evidence.
 
 ## For humans
 

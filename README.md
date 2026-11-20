@@ -1,6 +1,6 @@
 # Min3DStry
 
-Experimental project to bring full Mindustry to Original and New Nintendo 3DS/2DS as native homebrew. This repository currently contains project infrastructure, hardware probes, a Citro2D rendering prototype, a deterministic parity harness, and device/asset tooling—not full playable Mindustry yet.
+Min3DStry is an experimental port of upstream Mindustry for Original and New Nintendo 3DS/2DS. The target is the full game and its original content, with multiplayer against the unmodified Java PC release. The current repository contains prototypes and platform tools. See the [upstream port plan](docs/upstream-port.md) for compatibility and verification requirements.
 
 ![Min3DStry Port Completion Gauge](docs/progress-gauge.svg)
 

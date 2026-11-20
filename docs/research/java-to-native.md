@@ -1,5 +1,7 @@
 # Java-to-native feasibility
 
+This study records the earlier native prototype. For current implementation direction, use the [upstream port plan](../upstream-port.md), including the pinned source and Java PC compatibility target.
+
 Status: **research complete, implementation not started**. This document answers
 [issue #1](https://github.com/levkeveli/Min3DStry/issues/1) and proposes the
 portability strategy the project should follow.

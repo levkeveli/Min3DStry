@@ -2,7 +2,7 @@
 
 ## Mission
 
-Build a **native, open-source full Mindustry port** for Original 3DS/2DS and New 3DS/2DS, sharing one source tree and preserving game logic, maps, saves and cross-platform multiplayer when technically viable. Optimize hardware-specific rendering, input, audio, scheduling and memory without changing deterministic gameplay. Use the actual PICA200 GPU. Never assert an untested feature works.
+Port upstream Mindustry to Original and New 3DS/2DS. Adapt the pinned upstream code and content, preserve gameplay, maps, saves, and interoperability with the unmodified Java PC release, and document provenance. Follow the [upstream port plan](docs/upstream-port.md). Complete functional and content parity before performance optimization, then verify at least 24 FPS on both hardware generations within their memory budgets. Never assert an untested feature works.
 
 ## Humans and AI agents
 
