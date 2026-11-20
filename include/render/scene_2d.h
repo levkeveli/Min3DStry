@@ -55,6 +55,14 @@ typedef struct M3dsDrawStats {
     bool circle_mode_active;
 } M3dsDrawStats;
 
+typedef enum M3dsSceneSprite {
+    M3DS_SPRITE_FLOOR,
+    M3DS_SPRITE_OVERLAY,
+    M3DS_SPRITE_STRIP_0,
+    M3DS_SPRITE_STRIP_1,
+    M3DS_SPRITE_ITEM,
+} M3dsSceneSprite;
+
 typedef struct M3dsRenderBackend {
     void *user_data;
     bool (*clear)(void *user_data, M3dsColor color);
@@ -68,6 +76,7 @@ typedef struct M3dsRenderBackend {
         float x2, float y2, float z, M3dsColor color);
     bool (*draw_circle)(
         void *user_data, float cx, float cy, float z, float radius, M3dsColor color);
+    bool (*draw_sprite)(void *user_data, M3dsSceneSprite sprite, float x, float y, float z);
 } M3dsRenderBackend;
 
 typedef struct M3dsBoundedScene {

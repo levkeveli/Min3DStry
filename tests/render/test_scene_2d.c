@@ -19,6 +19,7 @@ typedef struct MockBackend {
     uint32_t clears;
     bool seen_circle;
     bool non_circle_after_circle;
+    unsigned sprites[M3DS_SPRITE_ITEM + 1];
 } MockBackend;
 
 static bool mock_clear(void *user_data, M3dsColor color) {
@@ -81,6 +82,12 @@ static bool mock_circle(
         m->history[m->count++] = CMD_CIRCLE;
     }
     return true;
+}
+
+static bool mock_sprite(void *user_data, M3dsSceneSprite sprite, float x, float y, float z) {
+    MockBackend *mock = user_data;
+    mock->sprites[sprite]++;
+    return mock_rect(user_data, x, y, z, 0, 0, m3ds_rgba(0, 0, 0, 0));
 }
 
 static M3dsRenderBackend make_mock_backend(MockBackend *ctx) {
@@ -183,11 +190,26 @@ static void test_live_factory_delivery(void) {
     }
     assert(factory.items_mined == 1u && factory.items_delivered == 0u);
     assert(scene.belt_items[11][11] > 0u);
+    MockBackend mock;
+    M3dsRenderBackend backend = make_mock_backend(&mock);
+    backend.draw_sprite = mock_sprite;
+    M3dsDrawStats stats;
+    assert(m3ds_scene_render(&scene, &backend, &stats));
+    assert(mock.sprites[M3DS_SPRITE_FLOOR] > 0u);
+    assert(mock.sprites[M3DS_SPRITE_OVERLAY] == 1u);
+    assert(mock.sprites[M3DS_SPRITE_STRIP_1] == 7u);
+    assert(mock.sprites[M3DS_SPRITE_ITEM] == 1u);
+    assert(!mock.non_circle_after_circle && stats.budget_dropped == 0u);
+    m3ds_factory_demo_step(&scene, &factory);
+    backend = make_mock_backend(&mock);
+    backend.draw_sprite = mock_sprite;
+    assert(m3ds_scene_render(&scene, &backend, &stats));
+    assert(mock.sprites[M3DS_SPRITE_STRIP_0] == 7u);
 
     scene.paused = true;
     uint32_t paused_hash = m3ds_parity_hash_state(&factory);
     m3ds_factory_demo_step(&scene, &factory);
-    assert(scene.tick == 15u && paused_hash == m3ds_parity_hash_state(&factory));
+    assert(scene.tick == 16u && paused_hash == m3ds_parity_hash_state(&factory));
     scene.paused = false;
     while (scene.tick < 60u) {
         m3ds_factory_demo_step(&scene, &factory);

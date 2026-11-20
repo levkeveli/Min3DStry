@@ -72,6 +72,25 @@ static bool emit_rect(
     return true;
 }
 
+/* Sprites use the same quad and draw budget as solid rectangles. */
+static bool emit_sprite(
+    const M3dsRenderBackend *backend, const M3dsViewport *vp, M3dsDrawStats *stats,
+    M3dsSceneSprite sprite, float x, float y, float z, float w, float h) {
+    if (!rect_in_viewport(x, y, w, h, vp)) {
+        stats->culled_primitives++;
+        return true;
+    }
+    if (total_drawn(stats) >= M3DS_SCENE_MAX_PRIMITIVES) {
+        stats->budget_dropped++;
+        return false;
+    }
+    if (!backend->draw_sprite(backend->user_data, sprite, x, y, z)) {
+        return false;
+    }
+    stats->drawn_rects++;
+    return true;
+}
+
 static bool emit_line(
     const M3dsRenderBackend *backend,
     const M3dsViewport *vp,
@@ -296,6 +315,7 @@ bool m3ds_scene_render(
 
     float phase = (float)(scene->tick % 16u) / 16.0f;
     float angle = (float)(scene->tick % 360u) * (3.14159265f / 180.0f);
+    bool textured = scene->show_sim_items && backend->draw_sprite != NULL;
 
     /* Pass 1: all non-circular primitives (rects, triangles, lines) */
     for (int gy = 0; gy < M3DS_SCENE_GRID_H; ++gy) {
@@ -305,11 +325,34 @@ bool m3ds_scene_render(
             uint8_t kind = scene->tiles[gy][gx];
 
             M3dsColor base = ((gx + gy) & 1) == 0 ? clr_tile_even : clr_tile_odd;
-            if (!emit_rect(backend, vp, &local_stats, sx, sy, 0.0f,
-                           M3DS_TILE_SIZE_PX, M3DS_TILE_SIZE_PX, base)) {
+            if (textured
+                ? !emit_sprite(backend, vp, &local_stats, M3DS_SPRITE_FLOOR, sx, sy, 0.0f, 16.0f, 16.0f)
+                : !emit_rect(backend, vp, &local_stats, sx, sy, 0.0f,
+                             M3DS_TILE_SIZE_PX, M3DS_TILE_SIZE_PX, base)) {
                 goto finish;
             }
 
+            if (textured && kind == M3DS_TILE_COPPER_ORE) {
+                if (!emit_sprite(backend, vp, &local_stats, M3DS_SPRITE_OVERLAY, sx, sy, 0.2f, 16.0f, 16.0f)) {
+                    goto finish;
+                }
+                continue;
+            }
+            if (textured && kind == M3DS_TILE_CONVEYOR_RIGHT) {
+                M3dsSceneSprite strip = (scene->tick / 4u) % 2u ? M3DS_SPRITE_STRIP_1 : M3DS_SPRITE_STRIP_0;
+                if (!emit_sprite(backend, vp, &local_stats, strip, sx, sy + 4.0f, 0.1f, 16.0f, 8.0f)) {
+                    goto finish;
+                }
+                uint8_t item = scene->belt_items[gy][gx];
+                if (item != 0u) {
+                    float position = (float)(item - 1u) / 254.0f;
+                    if (!emit_sprite(backend, vp, &local_stats, M3DS_SPRITE_ITEM,
+                                     sx - 1.0f + position * 12.0f, sy + 5.0f, 0.3f, 7.0f, 7.0f)) {
+                        goto finish;
+                    }
+                }
+                continue;
+            }
             if (kind == M3DS_TILE_COPPER_ORE) {
                 if (queued_circle_count < M3DS_MAX_QUEUED_CIRCLES) {
                     queued_circles[queued_circle_count++] = (CircleCmd){
@@ -383,6 +426,11 @@ bool m3ds_scene_render(
                 if (!emit_rect(backend, vp, &local_stats, sx + 1.0f, sy + 1.0f, 0.2f,
                                14.0f, 14.0f, scene->show_sim_items ? clr_core_glow : clr_core)) {
                     goto finish;
+                }
+                if (textured && queued_circle_count < M3DS_MAX_QUEUED_CIRCLES) {
+                    queued_circles[queued_circle_count++] = (CircleCmd){
+                        sx + 8.0f, sy + 8.0f, 0.3f, 3.0f, clr_core
+                    };
                 }
             } else if (kind == M3DS_TILE_TURRET) {
                 float tx = sx + 8.0f;

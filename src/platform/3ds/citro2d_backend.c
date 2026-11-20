@@ -1,6 +1,8 @@
 #include "citro2d_backend.h"
 
 #include <stddef.h>
+#include <math.h>
+#include "sprites.h"
 
 static u32 to_c2d_color(M3dsColor c) {
     return C2D_Color32(c.r, c.g, c.b, c.a);
@@ -44,18 +46,38 @@ static bool c2d_draw_circle(
     return C2D_DrawCircleSolid(cx, cy, z, radius, to_c2d_color(color));
 }
 
+static bool c2d_draw_sprite(void *user_data, M3dsSceneSprite sprite, float x, float y, float z) {
+    static const size_t indices[] = {
+        [M3DS_SPRITE_FLOOR] = sprites_floor_idx,
+        [M3DS_SPRITE_OVERLAY] = sprites_overlay_idx,
+        [M3DS_SPRITE_STRIP_0] = sprites_strip_0_idx,
+        [M3DS_SPRITE_STRIP_1] = sprites_strip_1_idx,
+        [M3DS_SPRITE_ITEM] = sprites_item_idx,
+    };
+    M3dsCitro2dContext *ctx = user_data;
+    if ((size_t)sprite >= sizeof(indices) / sizeof(indices[0]) ||
+        indices[sprite] >= C2D_SpriteSheetCount(ctx->sprites)) {
+        return false;
+    }
+    C2D_Image image = C2D_SpriteSheetGetImage(ctx->sprites, indices[sprite]);
+    return C2D_DrawImageAt(image, roundf(x), roundf(y), z, NULL, 1.0f, 1.0f);
+}
+
 void m3ds_citro2d_backend_init(
     M3dsRenderBackend *backend,
     M3dsCitro2dContext *ctx,
-    C3D_RenderTarget *target) {
+    C3D_RenderTarget *target,
+    C2D_SpriteSheet sprites) {
     if (!backend || !ctx) {
         return;
     }
     ctx->target = target;
+    ctx->sprites = sprites;
     backend->user_data = ctx;
     backend->clear = c2d_clear;
     backend->draw_rect = c2d_draw_rect;
     backend->draw_line = c2d_draw_line;
     backend->draw_triangle = c2d_draw_triangle;
     backend->draw_circle = c2d_draw_circle;
+    backend->draw_sprite = sprites ? c2d_draw_sprite : NULL;
 }

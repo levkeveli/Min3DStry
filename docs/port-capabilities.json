@@ -115,9 +115,12 @@
       "category": "Rendering & Assets",
       "name": "Textured World & Unit Citro2D Renderer",
       "weight": 6,
-      "stage": "planned",
+      "stage": "experimental",
       "issue": 25,
-      "evidence": []
+      "evidence": [
+        "src/platform/3ds/citro2d_backend.c",
+        "docs/rendering/citro2d-prototype.md"
+      ]
     },
     {
       "id": "lighting-effects-camera",

@@ -80,7 +80,13 @@ int main(int argc, char *argv[]) {
 
     M3dsCitro2dContext c2d_ctx;
     M3dsRenderBackend backend;
-    m3ds_citro2d_backend_init(&backend, &c2d_ctx, top);
+    bool romfs_ready = R_SUCCEEDED(romfsInit());
+    C2D_SpriteSheet sprites = romfs_ready ? C2D_SpriteSheetLoad("romfs:/sprites.t3x") : NULL;
+    if (sprites) {
+        C3D_TexSetFilter(C2D_SpriteSheetGetImage(sprites, 0).tex, GPU_NEAREST, GPU_NEAREST);
+    }
+    m3ds_emit_debug_line(log_socket, sprites ? "[MIN3DSTRY] ATLAS loaded\n" : "[MIN3DSTRY] ATLAS unavailable\n");
+    m3ds_citro2d_backend_init(&backend, &c2d_ctx, top, sprites);
 
     M3dsDrawStats stats = {0};
     bool emitted_frame_diag = false;
@@ -188,6 +194,12 @@ int main(int argc, char *argv[]) {
         socExit();
     }
     free(soc_buffer);
+    if (sprites) {
+        C2D_SpriteSheetFree(sprites);
+    }
+    if (romfs_ready) {
+        romfsExit();
+    }
     C2D_Fini();
     C3D_Fini();
     gfxExit();
