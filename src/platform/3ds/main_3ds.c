@@ -11,9 +11,19 @@
 #include "citro2d_backend.h"
 #include "ndsp_backend.h"
 #include "platform/hardware_profile.h"
+#include "platform/memory_budget.h"
 #include "render/factory_demo.h"
 #include "render/scene_2d.h"
 #include "sim/parity_scenario.h"
+
+#define M3DS_MEMORY_RESERVE_BYTES (16U * 1024U * 1024U)
+#define M3DS_MEMORY_ARENA_BYTES (1U * 1024U * 1024U)
+#define M3DS_MEMORY_PROBE_WORLD_BYTES (200U * 200U * 12U)
+#define M3DS_MEMORY_PROBE_TEXTURE_BYTES (8U * 1024U)
+#define M3DS_MEMORY_PROBE_TRANSIENT_BYTES (64U * 1024U)
+
+static uint8_t g_memory_arena[M3DS_MEMORY_ARENA_BYTES]
+    __attribute__((aligned(M3DS_MEMORY_ALIGNMENT)));
 
 static void m3ds_emit_debug_line(int log_socket, const char *line) {
     size_t len = strlen(line);
@@ -48,12 +58,68 @@ int main(int argc, char *argv[]) {
 
     M3dsHardwareProfile hw_profile;
     char hw_summary[96] = "Hardware: unknown";
-    if (m3ds_hardware_probe(&hw_profile)) {
+    bool hw_ok = m3ds_hardware_probe(&hw_profile);
+    if (hw_ok) {
         m3ds_hardware_profile_format(&hw_profile, hw_summary, sizeof(hw_summary));
     }
     char dbg_line[192];
     snprintf(dbg_line, sizeof(dbg_line), "[MIN3DSTRY] HW: %s\n", hw_summary);
     m3ds_emit_debug_line(log_socket, dbg_line);
+
+    {
+        M3dsMemoryBudget memory_budget;
+        uint32_t app_mem_bytes = hw_ok ? hw_profile.app_mem_bytes : 0U;
+        if (app_mem_bytes == 0U) {
+            app_mem_bytes = 64U * 1024U * 1024U;
+        }
+        size_t available = m3ds_memory_budget_available(
+            app_mem_bytes, M3DS_MEMORY_RESERVE_BYTES);
+        size_t capacity = available < sizeof(g_memory_arena)
+            ? available
+            : sizeof(g_memory_arena);
+        char mem_diag[256];
+        if (capacity > 0U &&
+            m3ds_memory_budget_init(
+                &memory_budget,
+                g_memory_arena,
+                capacity,
+                capacity / 2U,
+                capacity / 4U,
+                capacity / 4U) == M3DS_MEMORY_OK) {
+            void *world = m3ds_memory_budget_alloc(
+                &memory_budget, M3DS_MEMORY_WORLD, M3DS_MEMORY_PROBE_WORLD_BYTES);
+            void *textures = m3ds_memory_budget_alloc(
+                &memory_budget, M3DS_MEMORY_TEXTURES, M3DS_MEMORY_PROBE_TEXTURE_BYTES);
+            void *transient = m3ds_memory_budget_alloc(
+                &memory_budget, M3DS_MEMORY_TRANSIENT, M3DS_MEMORY_PROBE_TRANSIENT_BYTES);
+            (void)world;
+            (void)textures;
+            (void)transient;
+            int prefix = snprintf(
+                mem_diag,
+                sizeof(mem_diag),
+                "[MIN3DSTRY] MEM app=%luMiB reserve=%luMiB ",
+                (unsigned long)(app_mem_bytes / (1024U * 1024U)),
+                (unsigned long)(M3DS_MEMORY_RESERVE_BYTES / (1024U * 1024U)));
+            if (prefix < 0) {
+                prefix = 0;
+            }
+            if ((size_t)prefix >= sizeof(mem_diag)) {
+                prefix = (int)(sizeof(mem_diag) - 1U);
+            }
+            m3ds_memory_budget_format(
+                &memory_budget,
+                mem_diag + (size_t)prefix,
+                sizeof(mem_diag) - (size_t)prefix);
+            m3ds_emit_debug_line(log_socket, mem_diag);
+            m3ds_emit_debug_line(log_socket, "\n");
+            m3ds_memory_budget_reset(&memory_budget);
+        } else {
+            m3ds_emit_debug_line(
+                log_socket,
+                "[MIN3DSTRY] MEM unavailable: application memory region is too small\n");
+        }
+    }
 
     M3dsParityRunResult parity_run;
     m3ds_parity_run_canonical(&parity_run);
