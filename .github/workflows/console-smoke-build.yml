@@ -1,0 +1,32 @@
+name: Console smoke build
+on:
+  push:
+    branches: [test/3dsx-console-smoke]
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Build Min3DStry
+        run: |
+          image=devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5
+          docker pull "$image"
+          docker tag "$image" devkitpro/devkitarm:latest
+          ./dev.sh build
+          test -s build/min3dstry.3dsx
+          git rev-parse HEAD^ > build/source-commit.txt
+          (cd build && sha256sum min3dstry.3dsx > SHA256SUMS)
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: min3dstry-console-smoke
+          path: |
+            build/min3dstry.3dsx
+            build/source-commit.txt
+            build/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 7
