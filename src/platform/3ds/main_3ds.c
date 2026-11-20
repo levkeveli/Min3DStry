@@ -17,6 +17,7 @@
 #include "platform/hardware_profile.h"
 #include "platform/memory_budget.h"
 #include "render/factory_demo.h"
+#include "render/minimap.h"
 #include "render/scene_2d.h"
 #include "sim/parity_scenario.h"
 
@@ -409,6 +410,8 @@ int main(int argc, char *argv[]) {
 
         C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
         m3ds_scene_render(&scene, &backend, &stats);
+        (void)m3ds_minimap_render(
+            &scene, &backend, M3DS_TOP_SCREEN_WIDTH - 104.0f, 8.0f, 96.0f, 64.0f);
         C3D_FrameEnd(0);
 
         printf("\x1b[1;1HMin3DStry - Factory Prototype\x1b[K");
