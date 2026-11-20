@@ -79,6 +79,39 @@ Upstream `World.loadMap` loads Glacier and emits
 includes each building once at its origin tile. Use this JVM result as a
 reference when bringing up upstream world loading on ARM11.
 
+The source-runtime probe also exercises this path via the staged Arc file
+handle and upstream content initialization. With the original Glacier map
+extracted as above, run:
+
+```sh
+gradle -Pprobe=world -PupstreamCheckout=/path/to/Mindustry \
+    -PreferenceJar=/path/to/server-release.jar -ParcCheckout=/path/to/Arc \
+    runProbeJvm --args=/path/to/glacier.msav
+```
+
+The JVM probe verifies 37,500 populated tiles and two `core-nucleus` building
+origins at (81, 26) and (81, 224). TeaVM 0.16.0 fails C generation for this
+entry point in `CoroutineTransformation.collectSplitInstructions` when it
+reads liveness for the new entry continuation block. A local compiler
+diagnostic that captures entry-block liveness before splitting proceeded to
+unresolved Arc audio and native buffer methods. ARM11 world loading remains
+open in #28.
+
+### Verify the Arc executor pools
+
+Use `-Pprobe=executor` with the JVM and ARM11 build commands. The JVM uses the
+unmodified Arc class. The TeaVM build substitutes Arc's named bounded and
+unbounded pool factories and exercises queued work, immediate worker
+handoff, cancellation, and shutdown. It should report:
+
+```text
+UPSTREAM_EXECUTOR workers=1 result=37 exception=ok cancel=ok timeout=ok shutdown=ok
+UPSTREAM_EXECUTOR_POOLS bounded=ok unbounded=ok
+```
+
+The JVM and generated Windows x64 program emitted both lines. The
+[devkitARM build](https://github.com/levkeveli/Min3DStry/actions/runs/44781211433)
+emitted both in Azahar 2126.2 Original and New 3DS modes.
 ### Check the upstream content registry and building factories
 
 The [JVM content and factory probes](host/README.md) compare the pinned release
