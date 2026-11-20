@@ -87,6 +87,34 @@ class PrAutomationTests(unittest.TestCase):
             selected = pr_automation.select_ai_provider()
             self.assertEqual(selected, ("opencode-go", "oc-test", "deepseek-v4.1-flash"))
 
+    def test_call_openai_compatible_streams_sse_on_first_attempt(self) -> None:
+        sse_lines = [
+            b': ping\n',
+            b'data: {"choices":[{"delta":{"reasoning_content":"Checking diff... "}}]}\n',
+            b'data: {"choices":[{"delta":{"content":"{\\"verdict\\":\\"APPROVE\\","}}]}\n',
+            b'data: {"choices":[{"delta":{"content":"\\"summary\\":\\"Stream ok\\",\\"findings\\":[]}"}}]}\n',
+            b'data: [DONE]\n',
+        ]
+        fake_resp = mock.MagicMock()
+        fake_resp.__enter__.return_value.headers = {"Content-Type": "text/event-stream"}
+        fake_resp.__enter__.return_value.__iter__.return_value = iter(sse_lines)
+
+        seen_payloads: list[dict[str, object]] = []
+
+        def fake_urlopen(req, timeout=90):
+            _ = timeout
+            seen_payloads.append(json.loads(req.data.decode("utf-8")))
+            return fake_resp
+
+        with mock.patch("urllib.request.urlopen", side_effect=fake_urlopen):
+            res = pr_automation.call_openai_compatible(
+                "k", "m", "sys", "usr", endpoint="https://example.invalid/v1/chat/completions"
+            )
+        self.assertEqual(res["verdict"], "APPROVE")
+        self.assertEqual(res["summary"], "Stream ok")
+        self.assertEqual([p.get("stream") for p in seen_payloads], [True])
+        self.assertNotIn("response_format", seen_payloads[0])
+
     def test_call_openai_compatible_bounds_retries_to_two(self) -> None:
         fake_ok_body = json.dumps(
             {
@@ -100,14 +128,16 @@ class PrAutomationTests(unittest.TestCase):
             }
         ).encode("utf-8")
         fake_resp = mock.MagicMock()
+        fake_resp.__enter__.return_value.headers = {"Content-Type": "application/json"}
         fake_resp.__enter__.return_value.read.return_value = fake_ok_body
 
-        seen_response_formats: list[bool] = []
+        seen_stream_flags: list[bool] = []
 
         def fake_urlopen(req, timeout=240):
+            _ = timeout
             payload = json.loads(req.data.decode("utf-8"))
-            seen_response_formats.append("response_format" in payload)
-            if len(seen_response_formats) == 1:
+            seen_stream_flags.append(bool(payload.get("stream")))
+            if len(seen_stream_flags) == 1:
                 raise TimeoutError("timed out")
             return fake_resp
 
@@ -116,7 +146,26 @@ class PrAutomationTests(unittest.TestCase):
                 "k", "m", "sys", "usr", endpoint="https://example.invalid/v1/chat/completions"
             )
         self.assertEqual(res["verdict"], "APPROVE")
-        self.assertEqual(seen_response_formats, [True, False])
+        self.assertEqual(seen_stream_flags, [True, False])
+
+    def test_trim_pr_diff_omits_generated_svg_and_caps_size(self) -> None:
+        diff = (
+            "diff --git a/src/a.c b/src/a.c\n+int x = 1;\n"
+            "diff --git a/docs/progress-gauge.svg b/docs/progress-gauge.svg\n"
+            + ("+svg line\n" * 50)
+            + "diff --git a/src/b.c b/src/b.c\n+int y = 2;\n"
+        )
+        trimmed, truncated = pr_automation.trim_pr_diff(diff, max_chars=40000)
+        self.assertFalse(truncated)
+        self.assertIn("+int x = 1;", trimmed)
+        self.assertIn("+int y = 2;", trimmed)
+        self.assertIn("generated file diff omitted", trimmed)
+        self.assertNotIn("+svg line", trimmed)
+
+        long_diff = "diff --git a/src/c.c b/src/c.c\n+" + ("a" * 200)
+        capped, truncated_cap = pr_automation.trim_pr_diff(long_diff, max_chars=80)
+        self.assertTrue(truncated_cap)
+        self.assertLess(len(capped), 140)
 
     def test_has_bot_approval_for_commit(self) -> None:
         def make_reviews(reviews):

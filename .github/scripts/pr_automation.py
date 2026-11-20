@@ -264,6 +264,78 @@ def parse_ai_json(raw_text: str) -> dict[str, Any]:
     return parsed
 
 
+def trim_pr_diff(diff_text: str, max_chars: int = 40000) -> tuple[str, bool]:
+    """Omit bulky generated asset diffs and cap total diff size."""
+    sections = re.split(r"(?=^diff --git )", diff_text, flags=re.MULTILINE)
+    kept: list[str] = []
+    for section in sections:
+        if not section:
+            continue
+        header = section.splitlines()[0]
+        if header.startswith("diff --git ") and " b/docs/progress-gauge.svg" in header:
+            kept.append(f"{header}\n... [generated file diff omitted]\n")
+        else:
+            kept.append(section)
+
+    combined = "".join(kept)
+    if len(combined) <= max_chars:
+        return combined, False
+    return (
+        combined[:max_chars] + f"\n\n... [diff truncated at {max_chars:,} chars]",
+        True,
+    )
+
+
+def read_openai_response(resp: Any, *, deadline: float) -> tuple[dict[str, Any], int]:
+    """Read an OpenAI-compatible JSON or SSE streaming completion response."""
+    headers = getattr(resp, "headers", None)
+    content_type = ""
+    if headers is not None and hasattr(headers, "get"):
+        content_type = str(headers.get("Content-Type") or "").lower()
+
+    if "text/event-stream" in content_type:
+        content_parts: list[str] = []
+        reasoning_parts: list[str] = []
+        chunks = 0
+        for raw_line in resp:
+            if time.monotonic() > deadline:
+                raise TimeoutError("Overall AI review stream deadline exceeded")
+            line = (
+                raw_line.decode("utf-8", errors="replace")
+                if isinstance(raw_line, bytes)
+                else str(raw_line)
+            ).strip()
+            if not line or line.startswith(":") or not line.startswith("data:"):
+                continue
+            data_str = line[5:].strip()
+            if data_str == "[DONE]":
+                break
+            try:
+                event = json.loads(data_str)
+            except json.JSONDecodeError:
+                continue
+            chunks += 1
+            for choice in event.get("choices") or []:
+                delta = choice.get("delta") or {}
+                if delta.get("content"):
+                    content_parts.append(str(delta["content"]))
+                if delta.get("reasoning_content"):
+                    reasoning_parts.append(str(delta["reasoning_content"]))
+        content = "".join(content_parts).strip() or "".join(reasoning_parts).strip()
+        if not content:
+            raise ValueError(f"Empty streamed model response after {chunks} SSE chunks")
+        return parse_ai_json(content), chunks
+
+    data = json.loads(resp.read().decode("utf-8"))
+    message = data["choices"][0]["message"]
+    content = (message.get("content") or "").strip()
+    if not content:
+        content = (message.get("reasoning_content") or "").strip()
+    if not content:
+        raise ValueError(f"Empty model response: {json.dumps(data)[:400]}")
+    return parse_ai_json(content), 1
+
+
 def call_openai_compatible(
     api_key: str,
     model: str,
@@ -281,23 +353,24 @@ def call_openai_compatible(
             {"role": "user", "content": user_prompt},
         ],
     }
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-        "User-Agent": "Min3DStry-PR-Automation/1.0",
-    }
-    if extra_headers:
-        headers.update(extra_headers)
 
     last_error: Exception | None = None
     attempts = (
-        (1, True),
-        (2, False),
+        (1, True, 90),
+        (2, False, 300),
     )
-    for attempt_num, use_response_format in attempts:
+    overall_deadline = time.monotonic() + 480.0
+    for attempt_num, use_stream, socket_timeout in attempts:
         payload = dict(base_payload)
-        if use_response_format:
-            payload["response_format"] = {"type": "json_object"}
+        payload["stream"] = use_stream
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "Accept": "text/event-stream, application/json" if use_stream else "application/json",
+            "User-Agent": "Min3DStry-PR-Automation/1.0",
+        }
+        if extra_headers:
+            headers.update(extra_headers)
         req = urllib.request.Request(
             endpoint,
             data=json.dumps(payload).encode("utf-8"),
@@ -306,31 +379,24 @@ def call_openai_compatible(
         )
         started = time.monotonic()
         print(
-            f"AI review request attempt {attempt_num}/2 "
-            f"(response_format={'json_object' if use_response_format else 'none'})...",
+            f"AI review request attempt {attempt_num}/2 (stream={use_stream}, socket_timeout={socket_timeout}s)...",
             flush=True,
         )
         try:
-            with urllib.request.urlopen(req, timeout=240) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
+            with urllib.request.urlopen(req, timeout=socket_timeout) as resp:
+                parsed, chunks = read_openai_response(resp, deadline=overall_deadline)
             elapsed = time.monotonic() - started
             print(
-                f"AI review attempt {attempt_num}/2 completed in {elapsed:.1f}s.",
+                f"AI review attempt {attempt_num}/2 completed in {elapsed:.1f}s (chunks={chunks}).",
                 flush=True,
             )
-            message = data["choices"][0]["message"]
-            content = (message.get("content") or "").strip()
-            if not content:
-                content = (message.get("reasoning_content") or "").strip()
-            if not content:
-                raise ValueError(f"Empty model response: {json.dumps(data)[:400]}")
-            return parse_ai_json(content)
+            return parsed
         except urllib.error.HTTPError as exc:
             err_body = exc.read().decode("utf-8", errors="replace")
             elapsed = time.monotonic() - started
             if attempt_num == 1 and (exc.code == 400 or exc.code >= 500):
                 print(
-                    f"AI review attempt 1/2 failed with HTTP {exc.code} after {elapsed:.1f}s; falling back without response_format.",
+                    f"AI review attempt 1/2 failed with HTTP {exc.code} after {elapsed:.1f}s; falling back to non-streaming.",
                     flush=True,
                 )
                 last_error = exc
@@ -460,10 +526,7 @@ def cmd_ai_review(args: argparse.Namespace) -> int:
         token,
         accept="application/vnd.github.v3.diff",
     )
-    max_diff_chars = 60000
-    diff_truncated = len(diff_text) > max_diff_chars
-    if diff_truncated:
-        diff_text = diff_text[:max_diff_chars] + "\n\n... [diff truncated at 60,000 chars]"
+    diff_text, diff_truncated = trim_pr_diff(diff_text, max_chars=40000)
 
     agents_md = fetch_repo_file(repo, "AGENTS.md", base_ref, token)
     arch_md = fetch_repo_file(repo, "docs/architecture.md", base_ref, token)
