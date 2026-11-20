@@ -23,9 +23,8 @@ jobs:
           git init "$RUNNER_TEMP/Arc"
           git -C "$RUNNER_TEMP/Arc" fetch --depth 1 https://github.com/Anuken/Arc.git 7445105cd2683daf5b9ac7033ebb07265d3e814d
           curl --fail --silent --show-error --location https://github.com/Anuken/Mindustry/releases/download/v160.8/server-release.jar -o "$RUNNER_TEMP/server-release.jar"
-          bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime --no-daemon --console=plain "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" "-PreferenceJar=$RUNNER_TEMP/server-release.jar" "-ParcCheckout=$RUNNER_TEMP/Arc" "-Pprobe=${{ matrix.probe }}" -Dorg.gradle.jvmargs=-Xmx3g runProbeJvm generateC
           git -C "$RUNNER_TEMP/Mindustry" show HEAD:core/assets/maps/default/glacier.msav > "$RUNNER_TEMP/glacier.msav"
-          bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime --no-daemon --console=plain "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" "-PreferenceJar=$RUNNER_TEMP/server-release.jar" "-ParcCheckout=$RUNNER_TEMP/Arc" -Pprobe=world -Dorg.gradle.jvmargs=-Xmx3g runProbeJvm --args="$RUNNER_TEMP/glacier.msav"
+          bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime --no-daemon --console=plain "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" "-PreferenceJar=$RUNNER_TEMP/server-release.jar" "-ParcCheckout=$RUNNER_TEMP/Arc" -Pprobe=world -Dorg.gradle.jvmargs=-Xmx3g runProbeJvm --args="$RUNNER_TEMP/glacier.msav" generateC
       - name: Compile with devkitARM and libctru
         run: |
           image=devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5
