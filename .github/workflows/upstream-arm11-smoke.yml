@@ -39,7 +39,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        probe: [logic, map, resource]
+        probe: [logic, map, resource, executor]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -61,7 +61,7 @@ jobs:
             -o "$RUNNER_TEMP/server-release.jar"
 
       - name: Fetch pinned Arc source
-        if: matrix.probe == 'resource'
+        if: matrix.probe == 'resource' || matrix.probe == 'executor'
         run: |
           git clone --filter=blob:none --no-checkout \
             https://github.com/Anuken/Arc.git "$RUNNER_TEMP/Arc"
@@ -76,7 +76,7 @@ jobs:
         run: |
           set -o pipefail
           extra=()
-          if [ "${{ matrix.probe }}" = "resource" ]; then
+          if [ "${{ matrix.probe }}" = "resource" ] || [ "${{ matrix.probe }}" = "executor" ]; then
             extra=("-ParcCheckout=$RUNNER_TEMP/Arc")
           fi
           bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime \
@@ -89,6 +89,9 @@ jobs:
           if [ "${{ matrix.probe }}" = "resource" ]; then
             grep -F 'UPSTREAM_RESOURCE size=709 crc32=3921318438 classpath=ok internal=ok missing=ok' \
               "$RUNNER_TEMP/probe.log"
+          fi
+          if [ "${{ matrix.probe }}" = "executor" ]; then
+            grep -Fx 'UPSTREAM_EXECUTOR_POOLS bounded=ok unbounded=ok' "$RUNNER_TEMP/probe.log"
           fi
 
       - name: Build ARM11 probe with pinned devkitARM image
@@ -205,7 +208,7 @@ jobs:
             research/upstream-runtime/host/UpstreamCampaignPersistenceBaseline.java \
             | tee "$RUNNER_TEMP/campaign-persistence.log"
           grep -F 'UPSTREAM_CAMPAIGN_INIT root=groundZero(id=170,unlocked=true) frozenForest(id=64,locked=true,objComplete=false)' "$RUNNER_TEMP/campaign-persistence.log"
-          grep -F 'UPSTREAM_CAMPAIGN_RELOAD ' "$RUNNER_TEMP/campaign-persistence.log"
+          grep -F 'conveyorUnlocked=true junctionUnlocked=true routerLocked=true routerProgress=50/100 groundZeroCaptured=true frozenForestObjComplete=true' "$RUNNER_TEMP/campaign-persistence.log"
           grep -F 'UPSTREAM_CAMPAIGN_RESILIENCE waterMigrated=true resetOk=true backupRecovered=true corruptHandled=true' "$RUNNER_TEMP/campaign-persistence.log"
           grep -F 'UPSTREAM_CAMPAIGN_PASS tech_nodes=375 sectors=95' "$RUNNER_TEMP/campaign-persistence.log"
 

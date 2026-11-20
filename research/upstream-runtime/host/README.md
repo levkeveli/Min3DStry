@@ -226,8 +226,11 @@ Wi-Fi multiplayer remain tracked on `#44`.
 ## Campaign and tech-tree persistence baseline
 
 To exercise pinned v160.8 `Core.settings` (`settings.bin`), `TechTree.TechNode`,
-`UnlockableContent`, `Sector`/`SectorInfo`, and `Objectives` prerequisites, save
-and cold-reload round-trips, backup recovery, and malformed settings resilience:
+`UnlockableContent`, `Sector`/`SectorInfo`, `Objectives` prerequisites,
+`sector-<planet.name>-<sector.id>.msav` slot naming/resolution (`Saves.getSectorFile(sector)`
+and `SaveSlot` attachment — world `.msav` read/write round-trips are covered by
+`UpstreamSaveBaseline.java`), save and cold-reload round-trips, `settings_backup.bin`
+backup recovery, and malformed settings resilience:
 
 ```sh
 java -cp /path/to/server-release.jar \

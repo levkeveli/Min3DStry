@@ -1,3 +1,6 @@
+// libctru's 32 KiB default stack is too small for the generated save serializer.
+u32 __stacksize__ = 256 * 1024;
+
 int main(int argc, char** argv) {
     gfxInitDefault();
     consoleInit(GFX_TOP, NULL);

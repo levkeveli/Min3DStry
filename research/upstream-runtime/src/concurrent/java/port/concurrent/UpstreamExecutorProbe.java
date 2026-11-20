@@ -27,6 +27,35 @@ public final class UpstreamExecutorProbe {
         } catch (java.util.concurrent.RejectedExecutionException expected) {
             System.out.println("UPSTREAM_EXECUTOR workers=1 result=37 exception=ok cancel=ok timeout=ok shutdown=ok");
         }
+        checkPool(Threads.boundedExecutor("probe-bounded", 1), true);
+        checkPool(Threads.unboundedExecutor("probe-unbounded", 0), false);
+        System.out.println("UPSTREAM_EXECUTOR_POOLS bounded=ok unbounded=ok");
+    }
+
+    private static void checkPool(java.util.concurrent.ExecutorService pool, boolean bounded) throws Exception {
+        try {
+            var blocker = pool.submit(() -> {
+                Thread.sleep(30_000);
+                return 0;
+            });
+            var task = pool.submit(() -> 37);
+            if (bounded) {
+                try {
+                    task.get(1, TimeUnit.MILLISECONDS);
+                    throw new IllegalStateException("Bounded pool ran more than one worker");
+                } catch (java.util.concurrent.TimeoutException expected) {
+                    blocker.cancel(true);
+                }
+            }
+            if (task.get(2, TimeUnit.SECONDS) != 37) {
+                throw new IllegalStateException("Pool did not return the queued result");
+            }
+        } finally {
+            pool.shutdownNow();
+        }
+        if (!pool.awaitTermination(2, TimeUnit.SECONDS)) {
+            throw new IllegalStateException("Pool did not shut down");
+        }
     }
 
     private static void checkFailure(java.util.concurrent.ExecutorService executor) throws Exception {

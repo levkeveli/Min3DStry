@@ -21,8 +21,8 @@ Verified directly against `mindustry` and `arc` classes in pinned `v160.8`:
 | Content unlock flag | `<content.name>-unlocked` (`boolean`) | Read at `UnlockableContent.java:94`; written by `unlock()` (`251-259`), `quietUnlock()` (`262-267`), and `clearUnlock()` (`292-297`). |
 | Tech-node research progress | `req-<content.name>-<item.name>` (`int`) | Loaded in `TechTree.TechNode.setupRequirements` (`TechTree.java:172-180`); saved by `TechNode.save()`; zeroed and saved by `TechNode.reset()`. |
 | Sector metadata (`SectorInfo`) | `<planet.name>-s-<sector.id>-info` (JSON) | Serialized/deserialized in `Sector.saveInfo()` (`101-103`) and `Sector.loadInfo()` (`105-117`) via `Core.settings.putJson` / `getJson(..., SectorInfo::new)`; cleared by `Sector.clearInfo()` (`120-123`). Migrates legacy `Blocks.water` entries to `Liquids.water`. |
-| Sector world save slot | `sector-<planet.name>-<sector.id>.msav` | Resolved via `Saves.getSectorFile(sector)` (`Saves.java:249-251`). |
-| Settings store & backups | `settings.bin`, `settings_backup.bin`, `settings_backups/` | Handled by `arc.Settings.loadValues()` (`Core.settings`). |
+| Sector world save slot naming | `sector-<planet.name>-<sector.id>.msav` | Slot path resolved via `Saves.getSectorFile(sector)` (`Saves.java:249-251`); baseline checks slot naming/resolution and `SaveSlot` attachment only (full `.msav` read/write round-trips are verified separately by `UpstreamSaveBaseline.java`). |
+| Settings store & backups | `settings.bin`, `settings_backup.bin` (plus `settings_backups/` in `arc.Settings`) | Handled by `arc.Settings.loadValues()` (`Core.settings`); baseline exercises `settings_backup.bin` recovery and corrupt-all fallback. |
 
 ### Critical Upstream Initialization & Remapping Details
 
@@ -43,7 +43,7 @@ Two host harnesses in [research/upstream-runtime/host/](../../research/upstream-
   ```text
   UPSTREAM_PROGRESSION tech_nodes=375 tech_roots=2 sectors=95 manifest_sha256=4a61e8b260eb4f698ed128eb6654e2fa61f295f64d29b44c7638c7b8dda2bd4a
   ```
-- **`UpstreamCampaignPersistenceBaseline.java`** verifies initial locked/unlocked state, real `settings.bin` round-trip persistence (unlocks, partial `TechNode` item requirements `50/100`, captured `SectorInfo`, and `frozenForest` objective completion), legacy `Blocks.water -> Liquids.water` migration, `TechNode.reset()`, backup recovery from corrupt `settings.bin`, and clean default fallback when all backups are corrupt:
+- **`UpstreamCampaignPersistenceBaseline.java`** verifies initial locked/unlocked state, sector `.msav` slot naming/resolution (`sector-serpulo-170.msav` via `Saves.getSectorFile(sector)` and `SaveSlot` attachment, rather than a full `.msav` world save round-trip covered by `UpstreamSaveBaseline.java`), real `settings.bin` round-trip persistence (unlocks, partial `TechNode` item requirements `50/100`, captured `SectorInfo`, and `frozenForest` objective completion), legacy `Blocks.water -> Liquids.water` migration, `TechNode.reset()`, `settings_backup.bin` recovery from corrupt `settings.bin`, and clean default fallback when all backups are corrupt:
   ```text
   UPSTREAM_CAMPAIGN_INIT root=groundZero(id=170,unlocked=true) frozenForest(id=64,locked=true,objComplete=false) conveyorLocked=true junctionLocked=true routerLocked=true
   UPSTREAM_CAMPAIGN_RELOAD settings_bytes=204 conveyorUnlocked=true junctionUnlocked=true routerLocked=true routerProgress=50/100 groundZeroCaptured=true frozenForestObjComplete=true
