@@ -28,6 +28,10 @@
 #define M3DS_MEMORY_PROBE_WORLD_BYTES (200U * 200U * 12U)
 #define M3DS_MEMORY_PROBE_TEXTURE_BYTES (8U * 1024U)
 #define M3DS_MEMORY_PROBE_TRANSIENT_BYTES (64U * 1024U)
+#define M3DS_DEMO_WAVE_TICK 10u
+#define M3DS_DEMO_WAVE_X 9u
+#define M3DS_DEMO_WAVE_Y 1u
+#define M3DS_DEMO_WAVE_COUNT 2u
 
 static uint8_t g_memory_arena[M3DS_MEMORY_ARENA_BYTES]
     __attribute__((aligned(M3DS_MEMORY_ALIGNMENT)));
@@ -238,6 +242,7 @@ int main(int argc, char *argv[]) {
     bool emitted_frame_diag = false;
     uint32_t prev_delivered = factory.items_delivered;
     uint32_t prev_enemies_spawned = factory.enemies_spawned;
+    bool demo_wave_spawned = false;
 
     while (aptMainLoop()) {
         hidScanInput();
@@ -280,21 +285,39 @@ int main(int argc, char *argv[]) {
             m3ds_scene_pan(&scene, pan_dx, pan_dy);
         }
 
+        if (!scene.paused && !demo_wave_spawned &&
+            factory.tick >= M3DS_DEMO_WAVE_TICK) {
+            M3dsParityInput wave_input;
+            memset(&wave_input, 0, sizeof(wave_input));
+            wave_input.tick = factory.tick;
+            wave_input.kind = M3DS_PINPUT_SPAWN_WAVE;
+            wave_input.x = M3DS_DEMO_WAVE_X;
+            wave_input.y = M3DS_DEMO_WAVE_Y;
+            wave_input.block = M3DS_DEMO_WAVE_COUNT;
+            demo_wave_spawned = m3ds_parity_apply_input(&factory, &wave_input);
+        }
         m3ds_factory_demo_step(&scene, &factory);
-        if (factory.enemies_spawned > prev_enemies_spawned) {
+        uint32_t spawned_now = factory.enemies_spawned;
+        if (spawned_now > prev_enemies_spawned) {
+            int wave_clip = M3DS_AUDIO_INVALID_CLIP;
+            uint32_t wave_voice = M3DS_AUDIO_INVALID_VOICE;
             if (audio_events) {
+                wave_clip = m3ds_audio_event_clip(
+                    audio_events, M3DS_AUDIO_EVENT_WAVE_SPAWN);
                 M3dsAudioPlayParams wave_p =
                     m3ds_audio_default_play_params(M3DS_AUDIO_BUS_SFX);
                 wave_p.volume = 0.7f;
-                (void)m3ds_audio_event_play(
+                wave_voice = m3ds_audio_event_play(
                     audio_events, M3DS_AUDIO_EVENT_WAVE_SPAWN, &wave_p);
             }
             snprintf(dbg_line, sizeof(dbg_line),
-                     "[MIN3DSTRY] AUDIO_EVENT wave.spawn spawned=%lu\n",
-                     (unsigned long)factory.enemies_spawned);
+                     "[MIN3DSTRY] AUDIO_EVENT wave.spawn spawned=%lu clip=%d voice=%u\n",
+                     (unsigned long)spawned_now,
+                     wave_clip,
+                     (unsigned int)wave_voice);
             m3ds_emit_debug_line(log_socket, dbg_line);
-            prev_enemies_spawned = factory.enemies_spawned;
         }
+        prev_enemies_spawned = spawned_now;
         if (factory.items_delivered > prev_delivered) {
             M3dsAudioPlayParams deliver_p =
                 m3ds_audio_default_play_params(M3DS_AUDIO_BUS_SFX);

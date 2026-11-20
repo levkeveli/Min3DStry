@@ -73,6 +73,13 @@ AUDIO_ROMFS_RE = re.compile(
     r"ui=(?P<ui>-?\d+)"
 )
 
+AUDIO_EVENT_RE = re.compile(
+    r"\[MIN3DSTRY\] AUDIO_EVENT wave\.spawn "
+    r"spawned=(?P<spawned>\d+) "
+    r"clip=(?P<clip>-?\d+) "
+    r"voice=(?P<voice>\d+)"
+)
+
 MEM_RE = re.compile(
     r"\[MIN3DSTRY\] MEM "
     r"app=(?P<app_mib>\d+)MiB "
@@ -394,6 +401,7 @@ def parse_azahar_log(log_text: str) -> dict[str, Any]:
     parity: dict[str, Any] | None = None
     audio: dict[str, Any] | None = None
     audio_romfs: dict[str, Any] | None = None
+    audio_event: dict[str, Any] | None = None
     mem: dict[str, Any] | None = None
     frame: dict[str, Any] | None = None
 
@@ -436,6 +444,16 @@ def parse_azahar_log(log_text: str) -> dict[str, Any]:
                     "bytes": int(rg["bytes"]),
                     "ui_clip": int(rg["ui"]),
                 }
+        elif "[MIN3DSTRY] AUDIO_EVENT " in line:
+            event_match = AUDIO_EVENT_RE.search(line)
+            if event_match:
+                eg = event_match.groupdict()
+                audio_event = {
+                    "name": "wave.spawn",
+                    "spawned": int(eg["spawned"]),
+                    "clip": int(eg["clip"]),
+                    "voice": int(eg["voice"]),
+                }
         else:
             audio_match = AUDIO_RE.search(line)
             if audio_match:
@@ -477,6 +495,7 @@ def parse_azahar_log(log_text: str) -> dict[str, Any]:
         "parity": parity,
         "audio": audio,
         "audio_romfs": audio_romfs,
+        "audio_event": audio_event,
         "mem": mem,
         "frame": frame,
     }
@@ -632,6 +651,11 @@ def run_model_check(
             or audio_romfs["ui_clip"] < 0
         ):
             raise AssertionError(f"Unexpected RomFS audio telemetry for {model}: {audio_romfs}")
+        audio_event = parsed.get("audio_event")
+        if audio_event is None or audio_event["name"] != "wave.spawn" or audio_event["spawned"] < 1:
+            raise AssertionError(f"Missing wave-spawn audio event for {model}: {audio_event}")
+        if audio_romfs is not None and audio_event["clip"] < 0:
+            raise AssertionError(f"Wave-spawn event did not resolve a clip for {model}: {audio_event}")
         if (
             mem["status"] != "ok"
             or mem["failures"] != 0
@@ -660,6 +684,7 @@ def run_model_check(
             "parity": parity,
             "audio": audio,
             "audio_romfs": audio_romfs,
+            "audio_event": audio_event,
             "mem": mem,
             "frame": frame,
             "perf": {

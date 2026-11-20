@@ -1,8 +1,8 @@
 # Upstream audio asset conversion
 
-Status: **host-tested conversion + RomFS registry + event layer**. Issue: [#29](https://github.com/levkeveli/Min3DStry/issues/29).
-The app loads real PCM and routes UI/wave events through the registry; research
-unlock and audible DSP playback are not verified yet.
+Status: **host-tested conversion + RomFS registry + emulator-exercised event layer**. Issue: [#29](https://github.com/levkeveli/Min3DStry/issues/29).
+The app loads real PCM and routes UI/wave events; research unlock and audible
+DSP playback remain unverified.
 
 ## Scope
 
@@ -102,11 +102,13 @@ the A/Y path and logs `AUDIO_ROMFS status=...` over the debug channel.
 
 `include/audio/audio_events.h` maps the pinned logical IDs to
 `M3dsAudioEvent` values and plays the registered clip through the mixer:
-`UI_BUTTON` is used by the A/Y controls, `WAVE_SPAWN` is called when the
-interactive scenario's `enemies_spawned` counter increases, and
-`RESEARCH_UNLOCK` is available for the research runtime once it exists. The
-current factory demo never spawns waves, so the wave path is host-tested but
-not observed in the emulator. No research system is wired yet.
+`UI_BUTTON` is used by the A/Y controls, `WAVE_SPAWN` is requested when the
+interactive demo spawns a deterministic wave at tick 10 through the existing
+`M3DS_PINPUT_SPAWN_WAVE` input, and `RESEARCH_UNLOCK` is available for the
+research runtime once it exists. The app logs
+`AUDIO_EVENT wave.spawn spawned=... clip=... voice=...`; Azahar requires a
+resolved clip for ROMFS builds, while `voice=0` is expected when DSP firmware
+is unavailable. No research system is wired yet.
 
 ## Tests
 
@@ -128,6 +130,9 @@ not observed in the emulator. No research system is wired yet.
   converts the pinned three assets with ffmpeg, asserts the output manifest,
   PCM files, `audio/` layout and `audio-index.h`, then compiles the generated
   index against the registry header.
+- `./dev.sh emu-test` requires the deterministic demo wave log for both models;
+  ROMFS builds must report a non-negative `clip`, proving the wave event
+  resolved the registry clip even when DSP firmware is absent.
 
 ## Licensing and limitations
 
@@ -135,8 +140,8 @@ not observed in the emulator. No research system is wired yet.
   must include the applicable GPLv3 notices, corresponding source and a
   per-file asset provenance audit.
 - No ADPCM/streaming conversion is implemented here. `ui.button` is wired to
-  the A/Y controls and `wave.spawn` is wired to the scenario counter, but the
-  current demo never spawns waves. `ui.unlock` has no research caller yet.
+  the A/Y controls and `wave.spawn` is requested by the deterministic demo wave;
+  `ui.unlock` still has no research caller.
 - No physical Old/New 3DS DSP playback or save/network audio integration has
   been verified. The `AUDIO_ROMFS` debug line and Azahar runs can show loader
   state, not audible output quality.

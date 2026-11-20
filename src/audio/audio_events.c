@@ -13,20 +13,26 @@ const char *m3ds_audio_event_id(M3dsAudioEvent event) {
     return m3ds_event_ids[event];
 }
 
-uint32_t m3ds_audio_event_play(
+int m3ds_audio_event_clip(
     M3dsAudioRegistry *registry,
-    M3dsAudioEvent event,
-    const M3dsAudioPlayParams *params) {
+    M3dsAudioEvent event) {
     if (!registry || !registry->mixer) {
-        return M3DS_AUDIO_INVALID_VOICE;
+        return M3DS_AUDIO_INVALID_CLIP;
     }
 
     const char *id = m3ds_audio_event_id(event);
     if (!id) {
-        return M3DS_AUDIO_INVALID_VOICE;
+        return M3DS_AUDIO_INVALID_CLIP;
     }
 
-    int clip_id = m3ds_audio_registry_find(registry, id);
+    return m3ds_audio_registry_find(registry, id);
+}
+
+uint32_t m3ds_audio_event_play(
+    M3dsAudioRegistry *registry,
+    M3dsAudioEvent event,
+    const M3dsAudioPlayParams *params) {
+    int clip_id = m3ds_audio_event_clip(registry, event);
     if (clip_id == M3DS_AUDIO_INVALID_CLIP) {
         return M3DS_AUDIO_INVALID_VOICE;
     }
