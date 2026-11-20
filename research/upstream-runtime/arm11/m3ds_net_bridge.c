@@ -1,6 +1,7 @@
 #include "m3ds_net_bridge.h"
 #include "net_3ds.h"
 
+#include <3ds.h>
 #include <string.h>
 
 static M3dsNet3dsContext context;
@@ -71,4 +72,26 @@ int32_t m3ds_live_net_send(const void *payload, int32_t length, int32_t packet_i
 
 int32_t m3ds_live_net_keep_alive(int32_t reliable) {
     return m3ds_net_client_keep_alive(client, reliable != 0);
+}
+
+static uint8_t pack_axis(int value) {
+    if (value > 127) value = 127;
+    if (value < -127) value = -127;
+    return (uint8_t)value;
+}
+
+int32_t m3ds_live_net_input(void) {
+    if (!aptMainLoop()) return -1;
+    hidScanInput();
+    const u32 keys = hidKeysHeld();
+    if (hidKeysDown() & KEY_START) return -1;
+
+    circlePosition pad;
+    hidCircleRead(&pad);
+    const bool dpad = (keys & (KEY_LEFT | KEY_RIGHT | KEY_UP | KEY_DOWN)) != 0;
+    if (dpad) {
+        pad.dx = 127 * ((int)((keys & KEY_RIGHT) != 0) - (int)((keys & KEY_LEFT) != 0));
+        pad.dy = 127 * ((int)((keys & KEY_UP) != 0) - (int)((keys & KEY_DOWN) != 0));
+    }
+    return (int32_t)pack_axis(pad.dx) | ((int32_t)pack_axis(pad.dy) << 8) | ((int32_t)dpad << 16);
 }

@@ -1,4 +1,5 @@
 import arc.files.Fi;
+import arc.math.Mathf;
 import arc.math.geom.Vec2;
 import arc.struct.IntSet;
 import arc.util.Time;
@@ -27,6 +28,7 @@ import mindustry.gen.KickCallPacket2;
 import mindustry.gen.Mechc;
 import mindustry.gen.Player;
 import mindustry.gen.StateSnapshotCallPacket;
+import mindustry.gen.Unit;
 import mindustry.mod.Mods;
 import mindustry.net.Net;
 import mindustry.net.NetworkIO;
@@ -43,27 +45,32 @@ public final class UpstreamLiveNetworkProbe {
     private static final long TCP_KEEP_ALIVE_NS = 8_000_000_000L;
     private static final long UDP_KEEP_ALIVE_NS = 19_000_000_000L;
     private static final String PLAYER_NAME = "Min3DStry ARM11";
+    private enum Mode { SNAPSHOTS, MOVEMENT, CONTROLS }
     private final byte[] packet = new byte[32_768];
-    private final boolean verifyMovement;
+    private final Mode mode;
 
-    private UpstreamLiveNetworkProbe(boolean verifyMovement) {
-        this.verifyMovement = verifyMovement;
+    private UpstreamLiveNetworkProbe(Mode mode) {
+        this.mode = mode;
     }
 
     public static void main(String[] args) throws IOException, InterruptedException {
         var config = new Fi(args.length == 0 ? "/3ds/min3dstry/server-endpoint.txt" : args[0]);
         String[] endpoint = config.readString().trim().split("\\s+");
-        boolean verifyMovement = endpoint.length == 3 && endpoint[2].equals("movement");
-        if (endpoint.length != 2 && !verifyMovement) {
-            throw new IllegalArgumentException("Expected a server host and port with optional movement check");
+        if (endpoint.length < 2 || endpoint.length > 3) {
+            throw new IllegalArgumentException("Expected a server host and port with optional movement or controls mode");
         }
+        Mode mode = endpoint.length == 2 ? Mode.SNAPSHOTS : switch (endpoint[2]) {
+            case "movement" -> Mode.MOVEMENT;
+            case "controls" -> Mode.CONTROLS;
+            default -> throw new IllegalArgumentException("Unknown live network mode: " + endpoint[2]);
+        };
         byte[] host = endpoint[0].getBytes(StandardCharsets.UTF_8);
         int port = Integer.parseInt(endpoint[1]);
         var app = UpstreamWorldLoadProbe.initialize(config.parent());
         Vars.mods = new Mods();
         Vars.universe = new Universe();
         try {
-            new UpstreamLiveNetworkProbe(verifyMovement).run(host, port, app);
+            new UpstreamLiveNetworkProbe(mode).run(host, port, app);
         } catch (IOException | RuntimeException error) {
             Throwable cause = error;
             while (cause.getCause() != null) cause = cause.getCause();
@@ -75,6 +82,15 @@ public final class UpstreamLiveNetworkProbe {
 
     private void run(byte[] host, int port, UpstreamWorldLoadProbe.ProbeApplication app)
             throws IOException, InterruptedException {
+        if (mode == Mode.CONTROLS) {
+            try {
+                connect(host, port, app, 1);
+            } finally {
+                Native.close();
+            }
+            System.out.println("UPSTREAM_LIVE_CONTROLS_LEFT");
+            return;
+        }
         try {
             int result = open(host, port, BUILD - 1);
             if (result != REJECTED || Native.rejectedPacket() != unsignedId(KickCallPacket2.class)) {
@@ -125,7 +141,11 @@ public final class UpstreamLiveNetworkProbe {
             + " bytes=" + total + " team=" + Vars.player.team().id + " fingerprint=" + fingerprint);
         Vars.state.set(State.playing);
         send(new ConnectConfirmCallPacket(), true);
-        waitForWave(join, app);
+        if (mode == Mode.CONTROLS) {
+            driveLiveClient(app);
+        } else {
+            waitForWave(join, app);
+        }
     }
 
     private static void send(Packet outgoing, boolean reliable) throws IOException {
@@ -146,7 +166,7 @@ public final class UpstreamLiveNetworkProbe {
         int snapshotId = unsignedId(StateSnapshotCallPacket.class);
         int entityId = unsignedId(EntitySnapshotCallPacket.class);
         int initialWave = Vars.state.wave;
-        var movement = verifyMovement ? new MovementCheck(join) : null;
+        var movement = mode == Mode.MOVEMENT ? new MovementCheck(join) : null;
         var initialEnemies = new IntSet();
         for (var unit : Groups.unit) {
             if (unit.team == Vars.state.rules.waveTeam) initialEnemies.add(unit.id);
@@ -171,13 +191,7 @@ public final class UpstreamLiveNetworkProbe {
             if (received == TIMEOUT) continue;
             int id = received >>> 16;
             if (id == snapshotId) {
-                var snapshot = decode(new StateSnapshotCallPacket(), received);
-                snapshot.handleClient();
-                if (Vars.state.wave != snapshot.wave || Vars.state.wavetime != snapshot.waveTime
-                        || Vars.state.enemies != snapshot.enemies || Vars.universe.seconds() != snapshot.timeData
-                        || Vars.state.serverTps != (snapshot.tps & 0xff)) {
-                    throw new IOException("Upstream snapshot did not update client state");
-                }
+                var snapshot = applyState(received);
                 if (!receivedState) {
                     receivedState = true;
                     System.out.println("UPSTREAM_LIVE_NET_STATE join=" + join + " wave=" + snapshot.wave
@@ -205,6 +219,152 @@ public final class UpstreamLiveNetworkProbe {
             + (movement == null || movement.finished()));
     }
 
+    private StateSnapshotCallPacket applyState(int received) throws IOException {
+        var snapshot = decode(new StateSnapshotCallPacket(), received);
+        snapshot.handleClient();
+        if (Vars.state.wave != snapshot.wave || Vars.state.wavetime != snapshot.waveTime
+                || Vars.state.enemies != snapshot.enemies || Vars.universe.seconds() != snapshot.timeData
+                || Vars.state.serverTps != (snapshot.tps & 0xff)) {
+            throw new IOException("Upstream snapshot did not update client state");
+        }
+        return snapshot;
+    }
+
+    private void driveLiveClient(UpstreamWorldLoadProbe.ProbeApplication app) throws IOException {
+        var controls = new LiveControls();
+        int lastWave = -1;
+        long lastTcpSend = System.nanoTime();
+        long lastUdpKeepAlive = lastTcpSend;
+        int stateId = unsignedId(StateSnapshotCallPacket.class);
+        int entityId = unsignedId(EntitySnapshotCallPacket.class);
+        System.out.println("Circle Pad or D-pad moves. START leaves the match.");
+        while (true) {
+            int input = Native.input();
+            if (input < 0) return;
+            long now = System.nanoTime();
+            if (now - lastTcpSend >= TCP_KEEP_ALIVE_NS) {
+                keepAlive(1);
+                lastTcpSend = now;
+            }
+            if (now - Math.max(lastUdpKeepAlive, controls.lastSnapshot) >= UDP_KEEP_ALIVE_NS) {
+                keepAlive(0);
+                lastUdpKeepAlive = now;
+            }
+            int received = receive(1, 0);
+            if (received == TIMEOUT) received = receive(0, 8);
+            int id = received >>> 16;
+            if (id == stateId) {
+                var state = applyState(received);
+                if (lastWave != state.wave) {
+                    lastWave = state.wave;
+                    System.out.println("UPSTREAM_LIVE_CONTROLS_STATE wave=" + lastWave);
+                }
+            } else if (id == entityId) {
+                decode(new EntitySnapshotCallPacket(), received).handleClient();
+            }
+            app.runPosted();
+            controls.update(input, now);
+        }
+    }
+
+    private static Unit controlledUnit() {
+        var player = Vars.player;
+        var unit = player.unit();
+        return unit == null || player.dead() || Groups.sync.getByID(unit.id()) != unit ? null : unit;
+    }
+
+    // The live unit fields in upstream NetClient.sync. Building, chat and tools
+    // stay idle in this frontend until their input paths are available.
+    private static void sendPosition(Unit unit, int sequence) throws IOException {
+        var player = Vars.player;
+        var snapshot = new ClientSnapshotCallPacket();
+        snapshot.snapshotID = sequence;
+        snapshot.unitID = unit.id();
+        snapshot.x = unit.x();
+        snapshot.y = unit.y();
+        snapshot.pointerX = unit.aimX();
+        snapshot.pointerY = unit.aimY();
+        snapshot.rotation = unit.rotation();
+        snapshot.baseRotation = unit instanceof Mechc mech ? mech.baseRotation() : 0f;
+        snapshot.xVelocity = unit.vel.x;
+        snapshot.yVelocity = unit.vel.y;
+        snapshot.selectedBlock = player.selectedBlock;
+        snapshot.selectedRotation = player.selectedRotation;
+        snapshot.viewX = unit.x();
+        snapshot.viewY = unit.y();
+        snapshot.viewWidth = 400f;
+        snapshot.viewHeight = 240f;
+        send(snapshot, false);
+    }
+
+    private static final class LiveControls {
+        private static final long FRAME_NS = 16_666_667L;
+        // The player snapshot cadence in pinned NetClient.
+        private static final long SNAPSHOT_NS = 66_000_000L;
+        private final Vec2 direction = new Vec2();
+        private long lastStep, lastSnapshot;
+        private int sequence;
+        private Unit previousUnit;
+        private boolean moving;
+        private String inputDevice;
+
+        void update(int input, long now) throws IOException {
+            var unit = controlledUnit();
+            if (unit == null) {
+                previousUnit = null;
+                return;
+            }
+            if (previousUnit != unit) {
+                previousUnit = unit;
+                lastStep = now;
+                moving = false;
+                System.out.println("UPSTREAM_LIVE_CONTROLS_READY unit=" + unit.id()
+                    + " x=" + unit.x() + " y=" + unit.y());
+            }
+            if (now - lastStep >= FRAME_NS) {
+                direction.set((byte)input / 127f, (byte)(input >>> 8) / 127f).limit(1f);
+                if (direction.isZero(20f / 127f)) direction.setZero();
+                float delta = Math.min(3f, (now - lastStep) / (float)FRAME_NS);
+                lastStep = now;
+                stepUnit(unit, direction, delta);
+                if (!direction.isZero() && !moving) {
+                    moving = true;
+                    inputDevice = (input & 0x10000) != 0 ? "dpad" : "circle";
+                    System.out.println("UPSTREAM_LIVE_CONTROLS_MOVING unit=" + unit.id()
+                        + " input=" + inputDevice);
+                } else if (moving && direction.isZero() && unit.vel.isZero(0.03f)) {
+                    unit.vel.setZero();
+                    moving = false;
+                    System.out.println("UPSTREAM_LIVE_CONTROLS_STOPPED unit=" + unit.id()
+                        + " input=" + inputDevice + " x=" + unit.x() + " y=" + unit.y());
+                }
+            }
+            if (now - lastSnapshot >= SNAPSHOT_NS) {
+                sendPosition(unit, sequence++);
+                lastSnapshot = now;
+            }
+        }
+
+        private static void stepUnit(Unit unit, Vec2 input, float delta) {
+            float previousDelta = Time.delta;
+            Time.delta = delta;
+            try {
+                unit.lookAt(unit.prefRotation());
+                unit.movePref(input.scl(unit.speed()));
+                // Match the local position and drag update in upstream VelComp.
+                float x = unit.x(), y = unit.y();
+                unit.move(unit.vel.x * delta, unit.vel.y * delta);
+                if (Mathf.equal(x, unit.x())) unit.vel.x = 0f;
+                if (Mathf.equal(y, unit.y())) unit.vel.y = 0f;
+                float groundDrag = unit.isGrounded() ? unit.floorOn().dragMultiplier : 1f;
+                float drag = unit.type().drag * groundDrag * unit.dragMultiplier * Vars.state.rules.dragMultiplier;
+                unit.vel.scl(Math.max(1f - drag * delta, 0f));
+            } finally {
+                Time.delta = previousDelta;
+            }
+        }
+    }
+
     /** Exercises a short eastward input sequence on the server-assigned, upstream unit. */
     private static final class MovementCheck {
         private final int join;
@@ -224,10 +384,8 @@ public final class UpstreamLiveNetworkProbe {
         }
 
         void update(long now) throws IOException {
-            var player = Vars.player;
-            var unit = player.unit();
-            if (finished() || now < nextSnapshot || unit == null || player.dead()
-                    || Groups.sync.getByID(unit.id()) != unit) return;
+            var unit = controlledUnit();
+            if (finished() || now < nextSnapshot || unit == null) return;
             if (snapshotId == 0) {
                 unitId = unit.id();
                 startX = unit.x();
@@ -242,30 +400,12 @@ public final class UpstreamLiveNetworkProbe {
                 stoppedSamples++;
             }
 
-            // Match the live unit fields used by upstream NetClient.sync. The probe has no active tools.
-            var snapshot = new ClientSnapshotCallPacket();
-            snapshot.snapshotID = snapshotId++;
-            snapshot.unitID = unitId;
-            snapshot.x = unit.x();
-            snapshot.y = unit.y();
-            snapshot.pointerX = unit.aimX();
-            snapshot.pointerY = unit.aimY();
-            snapshot.rotation = unit.rotation();
-            snapshot.baseRotation = unit instanceof Mechc mech ? mech.baseRotation() : 0f;
-            snapshot.xVelocity = unit.vel.x;
-            snapshot.yVelocity = unit.vel.y;
-            snapshot.selectedBlock = player.selectedBlock;
-            snapshot.selectedRotation = player.selectedRotation;
-            snapshot.viewX = unit.x();
-            snapshot.viewY = unit.y();
-            snapshot.viewWidth = 400f;
-            snapshot.viewHeight = 240f;
-            send(snapshot, false);
+            int sent = snapshotId++;
+            sendPosition(unit, sent);
             nextSnapshot = now + 33_333_333L;
             if (finished()) {
                 System.out.println("UPSTREAM_LIVE_NET_MOVEMENT join=" + join + " unit=" + unitId
-                    + " snapshot=" + snapshot.snapshotID + " fromX=" + startX
-                    + " x=" + snapshot.x + " y=" + snapshot.y);
+                    + " snapshot=" + sent + " fromX=" + startX + " x=" + unit.x() + " y=" + unit.y());
             }
         }
     }
@@ -377,6 +517,8 @@ public final class UpstreamLiveNetworkProbe {
         static native int send(Address packet, int length, int packetId, int reliable);
         @Import(name = "m3ds_live_net_keep_alive")
         static native int keepAlive(int reliable);
+        @Import(name = "m3ds_live_net_input")
+        static native int input();
         @Import(name = "m3ds_live_net_close")
         static native void close();
     }
