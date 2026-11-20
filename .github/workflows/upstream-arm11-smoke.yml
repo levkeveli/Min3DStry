@@ -55,6 +55,9 @@ jobs:
             https://github.com/Anuken/Arc.git "$RUNNER_TEMP/Arc"
           git -C "$RUNNER_TEMP/Arc" fetch --depth 1 origin \
             7445105cd2683daf5b9ac7033ebb07265d3e814d
+          git -C "$RUNNER_TEMP/Arc" checkout --detach FETCH_HEAD
+          test "$(git -C "$RUNNER_TEMP/Arc" rev-parse HEAD)" = \
+            "7445105cd2683daf5b9ac7033ebb07265d3e814d"
 
       - name: Run JVM reference and generate TeaVM C
         shell: bash
