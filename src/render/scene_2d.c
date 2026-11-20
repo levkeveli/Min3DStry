@@ -339,10 +339,12 @@ bool m3ds_scene_render(
                                    0.2f, clr_belt_chev)) {
                     goto finish;
                 }
-                if (((gx + (int)(scene->tick / 16u)) % 2 == 0)) {
+                uint8_t item = scene->belt_items[gy][gx];
+                if (scene->show_sim_items ? item != 0u : (gx + (int)(scene->tick / 16u)) % 2 == 0) {
+                    float position = scene->show_sim_items ? (float)(item - 1u) / 254.0f : phase;
                     if (queued_circle_count < M3DS_MAX_QUEUED_CIRCLES) {
                         queued_circles[queued_circle_count++] = (CircleCmd){
-                            sx + 2.0f + phase * 12.0f, sy + 8.0f, 0.3f, 2.5f, clr_copper
+                            sx + 2.0f + position * 12.0f, sy + 8.0f, 0.3f, 2.5f, clr_copper
                         };
                     } else {
                         local_stats.budget_dropped++;
@@ -361,7 +363,7 @@ bool m3ds_scene_render(
                                    0.2f, clr_belt_chev)) {
                     goto finish;
                 }
-                if (((gy + (int)(scene->tick / 16u)) % 2 == 0)) {
+                if (!scene->show_sim_items && (gy + (int)(scene->tick / 16u)) % 2 == 0) {
                     if (queued_circle_count < M3DS_MAX_QUEUED_CIRCLES) {
                         queued_circles[queued_circle_count++] = (CircleCmd){
                             sx + 8.0f, sy + 2.0f + phase * 12.0f, 0.3f, 2.5f, clr_copper
@@ -379,7 +381,7 @@ bool m3ds_scene_render(
                 }
             } else if (kind == M3DS_TILE_CORE) {
                 if (!emit_rect(backend, vp, &local_stats, sx + 1.0f, sy + 1.0f, 0.2f,
-                               14.0f, 14.0f, clr_core)) {
+                               14.0f, 14.0f, scene->show_sim_items ? clr_core_glow : clr_core)) {
                     goto finish;
                 }
             } else if (kind == M3DS_TILE_TURRET) {
@@ -410,7 +412,7 @@ bool m3ds_scene_render(
     }
 
     /* Core center emblem (diamond + pulse circle queued for Pass 2) */
-    {
+    if (!scene->show_sim_items) {
         float core_cx = 17.5f * M3DS_TILE_SIZE_PX - scene->camera_x;
         float core_cy = 12.5f * M3DS_TILE_SIZE_PX - scene->camera_y;
         float pulse = 4.0f + 1.5f * sinf(angle * 2.0f);

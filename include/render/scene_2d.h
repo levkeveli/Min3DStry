@@ -76,7 +76,10 @@ typedef struct M3dsBoundedScene {
     float camera_y;
     uint32_t tick;
     bool paused;
+    bool show_sim_items;
     uint8_t tiles[M3DS_SCENE_GRID_H][M3DS_SCENE_GRID_W];
+    /* Zero is empty; 1 through 255 encode an item's position along the belt. */
+    uint8_t belt_items[M3DS_SCENE_GRID_H][M3DS_SCENE_GRID_W];
 } M3dsBoundedScene;
 
 void m3ds_scene_init(M3dsBoundedScene *scene, float viewport_w, float viewport_h);

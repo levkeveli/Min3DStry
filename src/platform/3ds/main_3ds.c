@@ -9,6 +9,7 @@
 
 #include "citro2d_backend.h"
 #include "platform/hardware_profile.h"
+#include "render/factory_demo.h"
 #include "render/scene_2d.h"
 #include "sim/parity_scenario.h"
 
@@ -74,7 +75,8 @@ int main(int argc, char *argv[]) {
     C3D_RenderTarget *top = C2D_CreateScreenTarget(GFX_TOP, GFX_LEFT);
 
     M3dsBoundedScene scene;
-    m3ds_scene_init(&scene, M3DS_TOP_SCREEN_WIDTH, M3DS_TOP_SCREEN_HEIGHT);
+    M3dsParityState factory;
+    m3ds_factory_demo_init(&scene, &factory);
 
     M3dsCitro2dContext c2d_ctx;
     M3dsRenderBackend backend;
@@ -118,15 +120,23 @@ int main(int argc, char *argv[]) {
             m3ds_scene_pan(&scene, pan_dx, pan_dy);
         }
 
-        m3ds_scene_step(&scene, 1u);
+        m3ds_factory_demo_step(&scene, &factory);
+        if (!scene.paused && factory.tick == 60u) {
+            snprintf(dbg_line, sizeof(dbg_line),
+                     "[MIN3DSTRY] FACTORY tick=%lu delivered=%lu inventory=%lu hash=0x%08lx\n",
+                     (unsigned long)factory.tick, (unsigned long)factory.items_delivered,
+                     (unsigned long)factory.core_copper, (unsigned long)m3ds_parity_hash_state(&factory));
+            m3ds_emit_debug_line(log_socket, dbg_line);
+        }
 
         C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
         m3ds_scene_render(&scene, &backend, &stats);
         C3D_FrameEnd(0);
 
-        printf("\x1b[1;1HMin3DStry - Citro2D Prototype\x1b[K");
+        printf("\x1b[1;1HMin3DStry - Factory Prototype\x1b[K");
         printf("\x1b[2;1HTick: %lu (%s)\x1b[K",
                (unsigned long)scene.tick, scene.paused ? "PAUSED" : "RUN");
+        printf("\x1b[6;1HCore inventory: %lu\x1b[K", (unsigned long)factory.core_copper);
         printf("\x1b[3;1HCam:  (%5.1f, %5.1f)\x1b[K",
                scene.camera_x, scene.camera_y);
         printf("\x1b[4;1HDraw: R:%lu L:%lu T:%lu C:%lu\x1b[K",

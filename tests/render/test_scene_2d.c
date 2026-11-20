@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "render/scene_2d.h"
+#include "render/factory_demo.h"
 
 typedef enum MockCmdKind {
     CMD_CLEAR = 0,
@@ -172,10 +173,36 @@ static void test_invalid_inputs_fail_safely(void) {
     assert(!m3ds_scene_render(&scene, &backend, &stats));
 }
 
+static void test_live_factory_delivery(void) {
+    M3dsBoundedScene scene;
+    M3dsParityState factory;
+    m3ds_factory_demo_init(&scene, &factory);
+    assert(scene.show_sim_items && factory.core_copper == 0u);
+    for (unsigned tick = 0; tick < 15u; ++tick) {
+        m3ds_factory_demo_step(&scene, &factory);
+    }
+    assert(factory.items_mined == 1u && factory.items_delivered == 0u);
+    assert(scene.belt_items[11][11] > 0u);
+
+    scene.paused = true;
+    uint32_t paused_hash = m3ds_parity_hash_state(&factory);
+    m3ds_factory_demo_step(&scene, &factory);
+    assert(scene.tick == 15u && paused_hash == m3ds_parity_hash_state(&factory));
+    scene.paused = false;
+    while (scene.tick < 60u) {
+        m3ds_factory_demo_step(&scene, &factory);
+    }
+    assert(factory.items_delivered == 2u && factory.core_copper == 2u);
+    assert(m3ds_parity_hash_state(&factory) == 0x32542fb8u);
+    printf("live factory: tick=60 delivered=2 inventory=2 hash=0x%08lx\n",
+           (unsigned long)m3ds_parity_hash_state(&factory));
+}
+
 int main(void) {
     test_deterministic_step_and_bounds();
     test_culling_batching_and_budget();
     test_invalid_inputs_fail_safely();
+    test_live_factory_delivery();
     printf("test_scene_2d: all assertions passed.\n");
     return 0;
 }

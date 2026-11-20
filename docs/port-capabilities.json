@@ -145,9 +145,12 @@
       "category": "Core Simulation",
       "name": "Drills, Conveyors, Routers & Core Storage",
       "weight": 6,
-      "stage": "planned",
+      "stage": "experimental",
       "issue": 26,
-      "evidence": []
+      "evidence": [
+        "src/render/factory_demo.c",
+        "docs/rendering/citro2d-prototype.md"
+      ]
     },
     {
       "id": "production-power-liquids",
