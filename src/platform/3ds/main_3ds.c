@@ -8,6 +8,8 @@
 #include <unistd.h>
 
 #include "audio/audio_mixer.h"
+#include "audio/audio_registry.h"
+#include "build-config.h"
 #include "citro2d_backend.h"
 #include "ndsp_backend.h"
 #include "platform/hardware_profile.h"
@@ -15,6 +17,10 @@
 #include "render/factory_demo.h"
 #include "render/scene_2d.h"
 #include "sim/parity_scenario.h"
+
+#if M3DS_AUDIO_ROMFS
+#include "audio-index.h"
+#endif
 
 #define M3DS_MEMORY_RESERVE_BYTES (16U * 1024U * 1024U)
 #define M3DS_MEMORY_ARENA_BYTES (1U * 1024U * 1024U)
@@ -162,6 +168,31 @@ int main(int argc, char *argv[]) {
     m3ds_ndsp_backend_init(&audio_backend, &ndsp_ctx);
     m3ds_audio_mixer_init(&audio_mixer, &audio_backend);
 
+    int clip_ui = M3DS_AUDIO_INVALID_CLIP;
+#if M3DS_AUDIO_ROMFS
+    static int16_t romfs_audio_pcm[M3DS_AUDIO_TOTAL_BYTES / 2];
+    M3dsAudioRegistry audio_registry;
+    M3dsAudioRegistryStatus audio_status = m3ds_audio_registry_load(
+        &audio_registry,
+        &audio_mixer,
+        m3ds_audio_index,
+        M3DS_AUDIO_CLIP_COUNT,
+        m3ds_audio_read_file_stdio,
+        NULL,
+        romfs_audio_pcm,
+        sizeof(romfs_audio_pcm));
+    if (audio_status == M3DS_AUDIO_REGISTRY_OK) {
+        clip_ui = m3ds_audio_registry_find(&audio_registry, "ui.button");
+    }
+    snprintf(dbg_line, sizeof(dbg_line),
+             "[MIN3DSTRY] AUDIO_ROMFS status=%s clips=%u bytes=%u ui=%d\n",
+             m3ds_audio_registry_status_name(audio_status),
+             (unsigned)audio_registry.clip_count,
+             (unsigned)audio_registry.used_bytes,
+             clip_ui);
+    m3ds_emit_debug_line(log_socket, dbg_line);
+#endif
+
     static int16_t sfx_deliver_pcm[1764];
     static int16_t sfx_ui_pcm[772];
     m3ds_audio_synth_tone_pcm16(
@@ -174,7 +205,9 @@ int main(int argc, char *argv[]) {
     const M3dsAudioClipDesc ui_desc = {
         sfx_ui_pcm, 772u, M3DS_AUDIO_DEFAULT_SAMPLE_RATE, 1u};
     int clip_deliver = m3ds_audio_mixer_register_clip(&audio_mixer, &deliver_desc);
-    int clip_ui = m3ds_audio_mixer_register_clip(&audio_mixer, &ui_desc);
+    if (clip_ui == M3DS_AUDIO_INVALID_CLIP) {
+        clip_ui = m3ds_audio_mixer_register_clip(&audio_mixer, &ui_desc);
+    }
 
     char audio_diag[160];
     m3ds_audio_mixer_format_diag(&audio_mixer, audio_diag, sizeof(audio_diag));
