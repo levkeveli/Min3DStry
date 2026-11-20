@@ -34,6 +34,16 @@
       "channels": 1
     },
     {
+      "id": "block.place",
+      "source": "core/assets/sounds/block/blockPlace1.ogg",
+      "channels": 1
+    },
+    {
+      "id": "block.break",
+      "source": "core/assets/sounds/block/blockBreak1.ogg",
+      "channels": 1
+    },
+    {
       "id": "wave.spawn",
       "source": "core/assets/sounds/ui/waveSpawn.ogg",
       "channels": 1

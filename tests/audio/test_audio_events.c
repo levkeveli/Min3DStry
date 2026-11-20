@@ -125,6 +125,8 @@ static void test_event_ids_match_trigger_map(void) {
     assert(strcmp(m3ds_audio_event_id(M3DS_AUDIO_EVENT_ENEMY_KILL), "enemy.kill") == 0);
     assert(strcmp(m3ds_audio_event_id(M3DS_AUDIO_EVENT_CONVEYOR_LOOP), "conveyor.loop") == 0);
     assert(strcmp(m3ds_audio_event_id(M3DS_AUDIO_EVENT_DRILL_LOOP), "drill.loop") == 0);
+    assert(strcmp(m3ds_audio_event_id(M3DS_AUDIO_EVENT_BLOCK_PLACE), "block.place") == 0);
+    assert(strcmp(m3ds_audio_event_id(M3DS_AUDIO_EVENT_BLOCK_BREAK), "block.break") == 0);
     assert(m3ds_audio_event_id(M3DS_AUDIO_EVENT_COUNT) == NULL);
     assert(m3ds_audio_event_id((M3dsAudioEvent)99) == NULL);
 }
@@ -137,6 +139,8 @@ static void test_event_play_uses_registry_clip(void) {
     static const int16_t kill[] = {17, 18, 19, 20};
     static const int16_t conveyor[] = {21, 22, 23, 24};
     static const int16_t drill[] = {25, 26, 27, 28};
+    static const int16_t place[] = {29, 30, 31, 32};
+    static const int16_t break_sfx[] = {33, 34, 35, 36};
     static const MockFile files[] = {
         {"romfs:/audio/ui.button.pcm", button, 4u},
         {"romfs:/audio/ui.unlock.pcm", unlock, 4u},
@@ -145,6 +149,8 @@ static void test_event_play_uses_registry_clip(void) {
         {"romfs:/audio/enemy.kill.pcm", kill, 4u},
         {"romfs:/audio/conveyor.loop.pcm", conveyor, 4u},
         {"romfs:/audio/drill.loop.pcm", drill, 4u},
+        {"romfs:/audio/block.place.pcm", place, 4u},
+        {"romfs:/audio/block.break.pcm", break_sfx, 4u},
         {NULL, NULL, 0u},
     };
     static const M3dsAudioIndexEntry entries[] = {
@@ -162,15 +168,19 @@ static void test_event_play_uses_registry_clip(void) {
          "core/src/mindustry/world/blocks/distribution/Conveyor.java", 49u},
         {"drill.loop", "romfs:/audio/drill.loop.pcm", 22050u, 1u, 4u,
          "core/src/mindustry/world/blocks/production/Drill.java", 83u},
+        {"block.place", "romfs:/audio/block.place.pcm", 22050u, 1u, 4u,
+         "core/src/mindustry/world/Block.java", 1371u},
+        {"block.break", "romfs:/audio/block.break.pcm", 22050u, 1u, 4u,
+         "core/src/mindustry/world/Block.java", 1378u},
     };
-    int16_t storage[28];
+    int16_t storage[36];
     M3dsAudioMixer mixer;
     M3dsAudioBackend backend = make_backend();
     assert(m3ds_audio_mixer_init(&mixer, &backend));
 
     M3dsAudioRegistry registry;
     assert(m3ds_audio_registry_load(
-               &registry, &mixer, entries, 7u, mock_read, (void *)files, storage,
+               &registry, &mixer, entries, 9u, mock_read, (void *)files, storage,
                sizeof(storage)) == M3DS_AUDIO_REGISTRY_OK);
 
     typedef struct ExpectedEvent {
@@ -185,6 +195,8 @@ static void test_event_play_uses_registry_clip(void) {
         {M3DS_AUDIO_EVENT_ENEMY_KILL, false},
         {M3DS_AUDIO_EVENT_CONVEYOR_LOOP, true},
         {M3DS_AUDIO_EVENT_DRILL_LOOP, true},
+        {M3DS_AUDIO_EVENT_BLOCK_PLACE, false},
+        {M3DS_AUDIO_EVENT_BLOCK_BREAK, false},
     };
     for (size_t i = 0u; i < sizeof(events) / sizeof(events[0]); ++i) {
         m3ds_audio_mixer_stop_all(&mixer);
