@@ -196,9 +196,14 @@
       "category": "Controls & Dual-Screen UI",
       "name": "Top/Bottom HUD, Menus & Minimap",
       "weight": 6,
-      "stage": "planned",
+      "stage": "experimental",
       "issue": 40,
-      "evidence": []
+      "evidence": [
+        "include/render/minimap.h",
+        "src/render/minimap.c",
+        "tests/render/test_minimap.c",
+        "docs/rendering/minimap.md"
+      ]
     },
     {
       "id": "msav-map-save-compat",
