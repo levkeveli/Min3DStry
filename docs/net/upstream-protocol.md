@@ -58,8 +58,8 @@ Tested against unmodified official `server-release.jar` (`sha256: faeaf247a8b622
 
 ```text
 PING_OK name=Server map=Glacier players=0 wave=1 version=160 vertype=official limit=30 port=16567
-HANDSHAKE status=0 conn_id=-504119399 udp=1 stream_id=1 stream_total=11540 stream_type=2 first_pkt=0 payload_len=9 pings=0
-HANDSHAKE status=1 conn_id=1322394541 udp=1 stream_id=-1 stream_total=0 stream_type=0 first_pkt=66 payload_len=1 pings=0
+HANDSHAKE status=0 conn_id=1293980436 udp=1 stream_id=1 stream_total=11492 stream_type=2 first_pkt=0 payload_len=9 pings=0
+HANDSHAKE status=1 conn_id=-559963639 udp=1 stream_id=-1 stream_total=0 stream_type=0 first_pkt=66 payload_len=1 pings=0
 ```
 
 Server log excerpt:
@@ -68,7 +68,7 @@ Server log excerpt:
 [I] Kicking connection 127.0.0.1 / AAAAAAAA; Reason: clientOutdated
 ```
 
-- Compatible build `160` + `versionType="official"` completed `RegisterTCP` -> `RegisterUDP` -> `ConnectPacket` and received `StreamBegin` (`stream_id=1`, `total=11540`, `type=2` `WorldStream`).
+- Compatible build `160` + `versionType="official"` completed `RegisterTCP` -> `RegisterUDP` -> `ConnectPacket` and received `StreamBegin` (`stream_id=1`, `total=11492`, `type=2` `WorldStream`). Arc assigns a fresh signed 32-bit `conn_id` per TCP connection (and serialized world stream byte counts vary slightly across freshly started `Glacier` server instances).
 - Mismatched build `159` was cleanly rejected by the server (`clientOutdated`, packet ID `66`).
 
 ### 3. 3DS ARM11 Build (`./dev.sh build`)
