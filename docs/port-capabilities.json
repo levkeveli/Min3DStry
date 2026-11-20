@@ -199,9 +199,12 @@
       "category": "Maps, Campaign & Saves",
       "name": "Upstream .msav Map & Save Reader/Writer",
       "weight": 6,
-      "stage": "planned",
+      "stage": "experimental",
       "issue": 28,
-      "evidence": []
+      "evidence": [
+        "research/upstream-runtime/README.md",
+        "research/upstream-runtime/src/map/java/mindustry/maps/UpstreamMapProbe.java"
+      ]
     },
     {
       "id": "campaign-sectors",

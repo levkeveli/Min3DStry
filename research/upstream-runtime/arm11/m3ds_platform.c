@@ -7,11 +7,32 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/time.h>
+#include <m3ds_map_file.h>
 
 static LightEvent m3ds_event;
 static u64 m3ds_initial_tick;
 static char m3ds_log_line[192];
 static size_t m3ds_log_size;
+
+void* m3ds_map_open(void) {
+    return fopen("sdmc:/3ds/min3dstry/glacier.msav", "rb");
+}
+
+int32_t m3ds_map_read_byte(void* file) {
+    FILE* stream = file;
+    int value = fgetc(stream);
+    return value == EOF ? (ferror(stream) ? -2 : -1) : value;
+}
+
+int32_t m3ds_map_read(void* file, void* destination, int32_t length) {
+    FILE* stream = file;
+    size_t count = fread(destination, 1, (size_t)length, stream);
+    return count ? (int32_t)count : (ferror(stream) ? -2 : -1);
+}
+
+void m3ds_map_close(void* file) {
+    fclose(file);
+}
 
 void teavm_initFiber(void) {
     LightEvent_Init(&m3ds_event, RESET_ONESHOT);
