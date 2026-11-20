@@ -11,14 +11,23 @@ include $(DEVKITARM)/3ds_rules
 
 TARGET          := min3dstry
 BUILD           := build/3ds
-SOURCES         := src/render src/sim src/audio src/platform src/platform/3ds
+SOURCES         := src/render src/sim src/net src/audio src/platform src/platform/3ds
 DATA            :=
 INCLUDES        := include
 GRAPHICS        :=
 ROMFS           := build/romfs
 ATLAS           := build/atlas
+AUDIO_ROMFS     := build/audio-romfs
+BUILD_CONFIG    := $(BUILD)/build-config.h
+UPSTREAM_MINDUSTRY ?=
 PYTHON          ?= python3
 TEX3DS          ?= tex3ds
+
+ifneq ($(strip $(UPSTREAM_MINDUSTRY)),)
+M3DS_AUDIO_ROMFS_VALUE := 1
+else
+M3DS_AUDIO_ROMFS_VALUE := 0
+endif
 
 APP_TITLE       := Min3DStry Citro2D
 APP_DESCRIPTION := Bounded Citro2D rendering prototype
@@ -82,11 +91,41 @@ ifeq ($(strip $(NO_SMDH)),)
 export _3DSXFLAGS += --smdh=$(OUTPUT).smdh
 endif
 
-.PHONY: all clean
+.PHONY: all clean audio-romfs romfs-audio-clean force-config
 
-all: $(ATLAS)/sprites.h $(ROMFS)/sprites.t3x
+ifneq ($(strip $(UPSTREAM_MINDUSTRY)),)
+all: audio-romfs
+else
+all: romfs-audio-clean
+endif
+
+all: $(BUILD_CONFIG) $(ATLAS)/sprites.h $(ROMFS)/sprites.t3x
 	@mkdir -p $(BUILD) $(dir $(OUTPUT))
 	@$(MAKE) --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile
+
+$(BUILD_CONFIG): force-config
+	@mkdir -p $(BUILD)
+	@printf '#define M3DS_AUDIO_ROMFS %s\n' '$(M3DS_AUDIO_ROMFS_VALUE)' > $@.tmp
+	@if cmp -s $@.tmp $@; then rm -f $@.tmp; else mv $@.tmp $@; fi
+
+force-config:
+
+romfs-audio-clean:
+	@rm -rf $(ROMFS)/audio
+	@rm -f $(BUILD)/audio-index.h
+
+audio-romfs:
+	@test -d "$(UPSTREAM_MINDUSTRY)" || { echo "audio-romfs: UPSTREAM_MINDUSTRY is not a directory" >&2; exit 1; }
+	@command -v ffmpeg >/dev/null 2>&1 || { echo "audio-romfs: ffmpeg is required" >&2; exit 1; }
+	$(PYTHON) tools/build_audio_assets.py \
+	  --upstream "$(UPSTREAM_MINDUSTRY)" \
+	  --map audio/upstream-audio-map.json \
+	  --triggers audio/upstream-audio-triggers.json \
+	  --out $(AUDIO_ROMFS) \
+	  --romfs-out $(AUDIO_ROMFS)
+	@mkdir -p $(ROMFS)/audio $(BUILD)
+	cp $(AUDIO_ROMFS)/audio/*.pcm $(AUDIO_ROMFS)/audio/audio-manifest.json $(ROMFS)/audio/
+	cp $(AUDIO_ROMFS)/audio-index.h $(BUILD)/audio-index.h
 
 $(ATLAS)/sprites.h $(ATLAS)/sprites.t3x &: tools/build_sprite_atlas.py $(wildcard tests/assets/*.png)
 	$(PYTHON) tools/build_sprite_atlas.py --tex3ds "$(TEX3DS)" --output-dir $(ATLAS)
@@ -103,7 +142,11 @@ else
 
 $(OUTPUT).3dsx : $(OUTPUT).elf $(_3DSXDEPS)
 
-$(OFILES_SOURCES) : $(HFILES)
+$(OFILES_SOURCES) : $(HFILES) $(TOPDIR)/$(BUILD)/build-config.h
+
+ifneq ($(strip $(UPSTREAM_MINDUSTRY)),)
+$(OFILES_SOURCES) : $(TOPDIR)/$(BUILD)/audio-index.h
+endif
 citro2d_backend.o : $(TOPDIR)/$(ATLAS)/sprites.h
 
 $(OUTPUT).elf : $(OFILES)

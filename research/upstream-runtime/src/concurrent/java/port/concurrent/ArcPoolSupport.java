@@ -31,9 +31,11 @@ public final class ArcPoolSupport implements TeaVMPlugin {
 
                 var call = new InvokeInstruction();
                 String factory = name.equals("boundedExecutor") ? "bounded" : "unbounded";
-                call.setMethod(new MethodReference("java.util.concurrent.ArcPools", factory,
+                // Target the TeaVM name of port.concurrent.ArcPools after substitution.
+                String runtimePackage = ConcurrentSubstitutions.RUNTIME_PACKAGE;
+                call.setMethod(new MethodReference(runtimePackage + ".ArcPools", factory,
                     ValueType.object("java.lang.String"), ValueType.INTEGER,
-                    ValueType.object("java.util.concurrent.ExecutorService")));
+                    ValueType.object(runtimePackage + ".ExecutorService")));
                 call.setType(InvocationType.SPECIAL);
                 call.setArguments(threadName, workerCount);
                 call.setReceiver(result);
