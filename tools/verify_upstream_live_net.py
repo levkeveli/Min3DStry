@@ -122,8 +122,11 @@ def run_model(args, model, config, original_config, log, output):
                 print(f"{model}: Join 127.0.0.1:{args.port} from the stock PC client as "
                       f"{args.desktop_name!r}.", flush=True)
                 wait_for(server_log, server, rf"{re.escape(args.desktop_name)} has connected", args.timeout)
-            emulator = subprocess.Popen([str(args.azahar), str(args.rom)],
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            command = [str(args.azahar)]
+            if args.controls_movie:
+                command += ["--movie-play", str(args.controls_movie)]
+            command.append(str(args.rom))
+            emulator = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             rpc = az.AzaharRpcClient(timeout=2, retries=2)
             try:
                 if args.controls:
@@ -211,6 +214,7 @@ def main():
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--movement", action="store_true", help="Verify the stock server applies scripted ARM11 movement")
     mode.add_argument("--controls", action="store_true", help="Verify D-pad and Circle Pad input and START disconnect")
+    parser.add_argument("--controls-movie", type=Path, help="Play a recorded Azahar input sequence for --controls")
     args = parser.parse_args()
     args.server, args.rom, args.azahar = (path.resolve() for path in (args.server, args.rom, args.azahar))
     with args.server.open("rb") as archive:
@@ -220,6 +224,10 @@ def main():
         parser.error("Port must be between 1 and 65535")
     if args.desktop_name is not None and (not args.desktop_name.strip() or args.desktop_name == PLAYER):
         parser.error("The PC client needs a distinct player name")
+    if args.controls_movie:
+        args.controls_movie = args.controls_movie.resolve()
+        if not args.controls or not args.controls_movie.is_file():
+            parser.error("--controls-movie needs --controls and an Azahar movie file")
     config, log = az.resolve_azahar_paths()
     endpoint = config.parent.parent / "sdmc/3ds/min3dstry/server-endpoint.txt"
     originals = {path: path.read_bytes() if path.exists() else None for path in (config, log, endpoint)}
