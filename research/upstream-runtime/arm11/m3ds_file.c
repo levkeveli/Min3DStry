@@ -90,10 +90,15 @@ int32_t teavm_file_createFile(char16_t* name, int32_t length) {
     }
     int fd = open(path, O_WRONLY | O_CREAT | O_EXCL, 0666);
     int error = errno;
-    free(path);
     if (fd < 0) {
-        return error == EEXIST ? 1 : 2;
+        // Some SD archive errors for an existing entry are translated to EIO.
+        // Preserve TeaVM's distinction between "already exists" and IO failure.
+        struct stat info;
+        int exists = error == EEXIST || stat(path, &info) == 0;
+        free(path);
+        return exists ? 1 : 2;
     }
+    free(path);
     return close(fd) == 0 ? 0 : 2;
 }
 
