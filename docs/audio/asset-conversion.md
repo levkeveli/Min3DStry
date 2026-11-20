@@ -11,13 +11,15 @@ The 3DS NDSP mixer consumes PCM16 clips. This pipeline converts selected
 source/output hashes. It does not decode at runtime, and it does not invent a
 game save, network or asset format.
 
-The current map covers three UI/wave events as the first conversion slice:
+The current map covers five UI/combat events as the first conversion slice:
 
 | Logical ID | Upstream source | Source SHA-256 prefix |
 |---|---|---|
 | `ui.button` | `core/assets/sounds/ui/uiButton.ogg` | `f0ab7d4f…` |
 | `ui.unlock` | `core/assets/sounds/ui/uiUnlock.ogg` | `eb7f0ceb…` |
 | `wave.spawn` | `core/assets/sounds/ui/waveSpawn.ogg` | `736d27bd…` |
+| `shoot.duo` | `core/assets/sounds/shoot/shootDuo.ogg` | `90704730…` |
+| `enemy.kill` | `core/assets/sounds/explosions/unitExplode1.ogg` | `43a3c313…` |
 
 The logical IDs map to pinned upstream trigger sites in
 `audio/upstream-audio-triggers.json`:
@@ -27,6 +29,8 @@ The logical IDs map to pinned upstream trigger sites in
 | `ui.button` | `core/src/mindustry/core/UI.java` | `Sounds.uiButton.play()` |
 | `ui.unlock` | `core/src/mindustry/ui/dialogs/ResearchDialog.java` | `Sounds.uiUnlock.play()` |
 | `wave.spawn` | `core/src/mindustry/core/Control.java` | `Sounds.waveSpawn.play()` |
+| `shoot.duo` | `core/src/mindustry/content/Blocks.java` | `shootSound = Sounds.shootDuo;` |
+| `enemy.kill` | `core/src/mindustry/type/UnitType.java` | `Sounds.unitExplode1` |
 
 The converter verifies each symbol still exists in the pinned checkout and
 records the file/line in the manifest and generated index. `audio_events.h`
@@ -52,11 +56,13 @@ The output directories are build artifacts and are not committed. They contain
 `*.pcm`, `audio-manifest.json`, and a RomFS-ready `audio-index.h`:
 
 ```text
+AUDIO_CONVERT id=enemy.kill frames=21633 bytes=43266 rate=22050 channels=1
+AUDIO_CONVERT id=shoot.duo frames=8099 bytes=16198 rate=22050 channels=1
 AUDIO_CONVERT id=ui.button frames=38176 bytes=76352 rate=22050 channels=1
 AUDIO_CONVERT id=ui.unlock frames=32252 bytes=64504 rate=22050 channels=1
 AUDIO_CONVERT id=wave.spawn frames=55530 bytes=111060 rate=22050 channels=1
-AUDIO_ASSETS files=3 bytes=251916 manifest=build/audio-upstream/audio-manifest.json
-AUDIO_ROMFS files=3 index=build/romfs-audio/audio-index.h
+AUDIO_ASSETS files=5 bytes=311380 manifest=build/audio-upstream/audio-manifest.json
+AUDIO_ROMFS files=5 index=build/romfs-audio/audio-index.h
 ```
 
 The manifest records the upstream commit, ffmpeg version, source path/hash,
@@ -93,7 +99,7 @@ Build the app with the real clips by pointing the Makefile at a pinned checkout:
 make UPSTREAM_MINDUSTRY=/path/to/Mindustry
 ```
 
-That target converts the three assets, copies them to `build/romfs/audio/`,
+That target converts the five assets, copies them to `build/romfs/audio/`,
 generates `build/3ds/audio-index.h`, and writes
 `build/3ds/build-config.h` with `#define M3DS_AUDIO_ROMFS 1` (the app includes
 that header). Builds without `UPSTREAM_MINDUSTRY` write `0` and remove stale
@@ -104,11 +110,12 @@ the A/Y path and logs `AUDIO_ROMFS status=...` over the debug channel.
 `M3dsAudioEvent` values and plays the registered clip through the mixer:
 `UI_BUTTON` is used by the A/Y controls, `WAVE_SPAWN` is requested when the
 interactive demo spawns a deterministic wave at tick 10 through the existing
-`M3DS_PINPUT_SPAWN_WAVE` input, and `RESEARCH_UNLOCK` is available for the
-research runtime once it exists. The app logs
-`AUDIO_EVENT wave.spawn spawned=... clip=... voice=...`; Azahar requires a
-resolved clip for ROMFS builds, while `voice=0` is expected when DSP firmware
-is unavailable. No research system is wired yet.
+`M3DS_PINPUT_SPAWN_WAVE` input, `SHOOT_DUO` is requested when the demo's
+Duo-style turret fires, `ENEMY_KILL` is requested when a wave enemy dies, and
+`RESEARCH_UNLOCK` is available for the research runtime once it exists. The app
+logs `AUDIO_EVENT <id> ... clip=... voice=...`; Azahar requires resolved clips
+for ROMFS builds, while `voice=0` is expected when DSP firmware is unavailable.
+No research system is wired yet.
 
 ## Tests
 
@@ -127,12 +134,12 @@ is unavailable. No research system is wired yet.
   event plays the matching registry clip; invalid events and missing registries
   are rejected without starting a voice.
 - `./dev.sh test` includes both test suites. The `Audio conversion` CI job
-  converts the pinned three assets with ffmpeg, asserts the output manifest,
+  converts the pinned five assets with ffmpeg, asserts the output manifest,
   PCM files, `audio/` layout and `audio-index.h`, then compiles the generated
   index against the registry header.
-- `./dev.sh emu-test` requires the deterministic demo wave log for both models;
-  ROMFS builds must report a non-negative `clip`, proving the wave event
-  resolved the registry clip even when DSP firmware is absent.
+- `./dev.sh emu-test` requires the deterministic wave, Duo-fire and enemy-kill
+  event logs for both models; ROMFS builds must report non-negative clips,
+  proving the events resolved registry clips even when DSP firmware is absent.
 
 ## Licensing and limitations
 
@@ -140,8 +147,9 @@ is unavailable. No research system is wired yet.
   must include the applicable GPLv3 notices, corresponding source and a
   per-file asset provenance audit.
 - No ADPCM/streaming conversion is implemented here. `ui.button` is wired to
-  the A/Y controls and `wave.spawn` is requested by the deterministic demo wave;
-  `ui.unlock` still has no research caller.
+  the A/Y controls, `wave.spawn`/`shoot.duo`/`enemy.kill` are requested by the
+  deterministic demo wave and turret, and `ui.unlock` still has no research
+  caller.
 - No physical Old/New 3DS DSP playback or save/network audio integration has
   been verified. The `AUDIO_ROMFS` debug line and Azahar runs can show loader
   state, not audible output quality.

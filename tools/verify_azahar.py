@@ -80,6 +80,20 @@ AUDIO_EVENT_RE = re.compile(
     r"voice=(?P<voice>\d+)"
 )
 
+SHOOT_EVENT_RE = re.compile(
+    r"\[MIN3DSTRY\] AUDIO_EVENT shoot\.duo "
+    r"fired=(?P<fired>\d+) "
+    r"clip=(?P<clip>-?\d+) "
+    r"voice=(?P<voice>\d+)"
+)
+
+KILL_EVENT_RE = re.compile(
+    r"\[MIN3DSTRY\] AUDIO_EVENT enemy\.kill "
+    r"killed=(?P<killed>\d+) "
+    r"clip=(?P<clip>-?\d+) "
+    r"voice=(?P<voice>\d+)"
+)
+
 MEM_RE = re.compile(
     r"\[MIN3DSTRY\] MEM "
     r"app=(?P<app_mib>\d+)MiB "
@@ -402,6 +416,8 @@ def parse_azahar_log(log_text: str) -> dict[str, Any]:
     audio: dict[str, Any] | None = None
     audio_romfs: dict[str, Any] | None = None
     audio_event: dict[str, Any] | None = None
+    shoot_event: dict[str, Any] | None = None
+    kill_event: dict[str, Any] | None = None
     mem: dict[str, Any] | None = None
     frame: dict[str, Any] | None = None
 
@@ -454,6 +470,26 @@ def parse_azahar_log(log_text: str) -> dict[str, Any]:
                     "clip": int(eg["clip"]),
                     "voice": int(eg["voice"]),
                 }
+                continue
+            shoot_match = SHOOT_EVENT_RE.search(line)
+            if shoot_match:
+                sg = shoot_match.groupdict()
+                shoot_event = {
+                    "name": "shoot.duo",
+                    "fired": int(sg["fired"]),
+                    "clip": int(sg["clip"]),
+                    "voice": int(sg["voice"]),
+                }
+                continue
+            kill_match = KILL_EVENT_RE.search(line)
+            if kill_match:
+                kg = kill_match.groupdict()
+                kill_event = {
+                    "name": "enemy.kill",
+                    "killed": int(kg["killed"]),
+                    "clip": int(kg["clip"]),
+                    "voice": int(kg["voice"]),
+                }
         else:
             audio_match = AUDIO_RE.search(line)
             if audio_match:
@@ -496,6 +532,8 @@ def parse_azahar_log(log_text: str) -> dict[str, Any]:
         "audio": audio,
         "audio_romfs": audio_romfs,
         "audio_event": audio_event,
+        "shoot_event": shoot_event,
+        "kill_event": kill_event,
         "mem": mem,
         "frame": frame,
     }
@@ -651,11 +689,24 @@ def run_model_check(
             or audio_romfs["ui_clip"] < 0
         ):
             raise AssertionError(f"Unexpected RomFS audio telemetry for {model}: {audio_romfs}")
+        # Every run must exercise the demo wave; packed clips are only required
+        # when the ROMFS audio build is present.
+        requires_audio_clips = audio_romfs is not None
         audio_event = parsed.get("audio_event")
         if audio_event is None or audio_event["name"] != "wave.spawn" or audio_event["spawned"] < 1:
             raise AssertionError(f"Missing wave-spawn audio event for {model}: {audio_event}")
-        if audio_romfs is not None and audio_event["clip"] < 0:
+        if requires_audio_clips and audio_event["clip"] < 0:
             raise AssertionError(f"Wave-spawn event did not resolve a clip for {model}: {audio_event}")
+        shoot_event = parsed.get("shoot_event")
+        if shoot_event is None or shoot_event["name"] != "shoot.duo" or shoot_event["fired"] < 1:
+            raise AssertionError(f"Missing Duo shoot audio event for {model}: {shoot_event}")
+        if requires_audio_clips and shoot_event["clip"] < 0:
+            raise AssertionError(f"Duo shoot event did not resolve a clip for {model}: {shoot_event}")
+        kill_event = parsed.get("kill_event")
+        if kill_event is None or kill_event["name"] != "enemy.kill" or kill_event["killed"] < 1:
+            raise AssertionError(f"Missing enemy-kill audio event for {model}: {kill_event}")
+        if requires_audio_clips and kill_event["clip"] < 0:
+            raise AssertionError(f"Enemy kill event did not resolve a clip for {model}: {kill_event}")
         if (
             mem["status"] != "ok"
             or mem["failures"] != 0
@@ -685,6 +736,8 @@ def run_model_check(
             "audio": audio,
             "audio_romfs": audio_romfs,
             "audio_event": audio_event,
+            "shoot_event": shoot_event,
+            "kill_event": kill_event,
             "mem": mem,
             "frame": frame,
             "perf": {

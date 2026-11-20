@@ -61,6 +61,26 @@ static void m3ds_play_ui_click(
     }
 }
 
+static uint32_t m3ds_play_event(
+    M3dsAudioRegistry *events,
+    M3dsAudioEvent event,
+    float volume,
+    int *out_clip) {
+    int clip = M3DS_AUDIO_INVALID_CLIP;
+    uint32_t voice = M3DS_AUDIO_INVALID_VOICE;
+    if (events) {
+        clip = m3ds_audio_event_clip(events, event);
+        M3dsAudioPlayParams params =
+            m3ds_audio_default_play_params(M3DS_AUDIO_BUS_SFX);
+        params.volume = volume;
+        voice = m3ds_audio_event_play(events, event, &params);
+    }
+    if (out_clip) {
+        *out_clip = clip;
+    }
+    return voice;
+}
+
 int main(int argc, char *argv[]) {
     gfxInitDefault();
     C3D_Init(C3D_DEFAULT_CMDBUF_SIZE);
@@ -173,6 +193,7 @@ int main(int argc, char *argv[]) {
     M3dsBoundedScene scene;
     M3dsParityState factory;
     m3ds_factory_demo_init(&scene, &factory);
+    m3ds_factory_demo_add_turret(&scene, &factory);
 
     M3dsCitro2dContext c2d_ctx;
     M3dsRenderBackend backend;
@@ -242,6 +263,8 @@ int main(int argc, char *argv[]) {
     bool emitted_frame_diag = false;
     uint32_t prev_delivered = factory.items_delivered;
     uint32_t prev_enemies_spawned = factory.enemies_spawned;
+    uint32_t prev_shots_fired = factory.shots_fired;
+    uint32_t prev_enemies_killed = factory.enemies_killed;
     bool demo_wave_spawned = false;
 
     while (aptMainLoop()) {
@@ -300,16 +323,8 @@ int main(int argc, char *argv[]) {
         uint32_t spawned_now = factory.enemies_spawned;
         if (spawned_now > prev_enemies_spawned) {
             int wave_clip = M3DS_AUDIO_INVALID_CLIP;
-            uint32_t wave_voice = M3DS_AUDIO_INVALID_VOICE;
-            if (audio_events) {
-                wave_clip = m3ds_audio_event_clip(
-                    audio_events, M3DS_AUDIO_EVENT_WAVE_SPAWN);
-                M3dsAudioPlayParams wave_p =
-                    m3ds_audio_default_play_params(M3DS_AUDIO_BUS_SFX);
-                wave_p.volume = 0.7f;
-                wave_voice = m3ds_audio_event_play(
-                    audio_events, M3DS_AUDIO_EVENT_WAVE_SPAWN, &wave_p);
-            }
+            uint32_t wave_voice = m3ds_play_event(
+                audio_events, M3DS_AUDIO_EVENT_WAVE_SPAWN, 0.7f, &wave_clip);
             snprintf(dbg_line, sizeof(dbg_line),
                      "[MIN3DSTRY] AUDIO_EVENT wave.spawn spawned=%lu clip=%d voice=%u\n",
                      (unsigned long)spawned_now,
@@ -318,6 +333,32 @@ int main(int argc, char *argv[]) {
             m3ds_emit_debug_line(log_socket, dbg_line);
         }
         prev_enemies_spawned = spawned_now;
+
+        if (factory.shots_fired > prev_shots_fired) {
+            int shoot_clip = M3DS_AUDIO_INVALID_CLIP;
+            uint32_t shoot_voice = m3ds_play_event(
+                audio_events, M3DS_AUDIO_EVENT_SHOOT_DUO, 0.55f, &shoot_clip);
+            snprintf(dbg_line, sizeof(dbg_line),
+                     "[MIN3DSTRY] AUDIO_EVENT shoot.duo fired=%lu clip=%d voice=%u\n",
+                     (unsigned long)factory.shots_fired,
+                     shoot_clip,
+                     (unsigned int)shoot_voice);
+            m3ds_emit_debug_line(log_socket, dbg_line);
+        }
+        prev_shots_fired = factory.shots_fired;
+
+        if (factory.enemies_killed > prev_enemies_killed) {
+            int kill_clip = M3DS_AUDIO_INVALID_CLIP;
+            uint32_t kill_voice = m3ds_play_event(
+                audio_events, M3DS_AUDIO_EVENT_ENEMY_KILL, 0.7f, &kill_clip);
+            snprintf(dbg_line, sizeof(dbg_line),
+                     "[MIN3DSTRY] AUDIO_EVENT enemy.kill killed=%lu clip=%d voice=%u\n",
+                     (unsigned long)factory.enemies_killed,
+                     kill_clip,
+                     (unsigned int)kill_voice);
+            m3ds_emit_debug_line(log_socket, dbg_line);
+        }
+        prev_enemies_killed = factory.enemies_killed;
         if (factory.items_delivered > prev_delivered) {
             M3dsAudioPlayParams deliver_p =
                 m3ds_audio_default_play_params(M3DS_AUDIO_BUS_SFX);

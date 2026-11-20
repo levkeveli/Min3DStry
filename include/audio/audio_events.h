@@ -15,7 +15,9 @@ typedef enum M3dsAudioEvent {
     M3DS_AUDIO_EVENT_UI_BUTTON = 0,
     M3DS_AUDIO_EVENT_RESEARCH_UNLOCK = 1,
     M3DS_AUDIO_EVENT_WAVE_SPAWN = 2,
-    M3DS_AUDIO_EVENT_COUNT = 3
+    M3DS_AUDIO_EVENT_SHOOT_DUO = 3,
+    M3DS_AUDIO_EVENT_ENEMY_KILL = 4,
+    M3DS_AUDIO_EVENT_COUNT = 5
 } M3dsAudioEvent;
 
 /* Returns the registry ID, or NULL for an invalid event. */
