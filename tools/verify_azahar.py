@@ -18,6 +18,9 @@ import zlib
 from pathlib import Path
 from typing import Any
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from check_parity import parse_parity_debug_line  # noqa: E402
+
 RPC_VERSION = 2
 RPC_HEADER_SIZE = 16
 MAX_PACKET_SIZE = 32 * 1024 + RPC_HEADER_SIZE
@@ -344,10 +347,11 @@ def inspect_png(png_bytes: bytes) -> dict[str, Any]:
 
 
 def parse_azahar_log(log_text: str) -> dict[str, Any]:
-    """Extract renderer, hardware profile line, and frame telemetry from azahar_log.txt."""
+    """Extract renderer, hardware profile line, parity hash, and frame telemetry from azahar_log.txt."""
     renderer: str | None = None
     gl_version: str | None = None
     hw_line: str | None = None
+    parity: dict[str, Any] | None = None
     frame: dict[str, Any] | None = None
 
     for line in log_text.splitlines():
@@ -357,6 +361,8 @@ def parse_azahar_log(log_text: str) -> dict[str, Any]:
             gl_version = line.split("GL_VERSION:", 1)[1].strip()
         elif "[MIN3DSTRY] HW:" in line:
             hw_line = line.split("[MIN3DSTRY] HW:", 1)[1].strip()
+        elif "[MIN3DSTRY] PARITY " in line:
+            parity = parse_parity_debug_line(line)
         else:
             match = FRAME_RE.search(line)
             if match:
@@ -382,6 +388,7 @@ def parse_azahar_log(log_text: str) -> dict[str, Any]:
         "renderer": renderer,
         "gl_version": gl_version,
         "hw_line": hw_line,
+        "parity": parity,
         "frame": frame,
     }
 
@@ -477,12 +484,12 @@ def run_model_check(
             if log_path.exists():
                 log_text = log_path.read_text(encoding="utf-8", errors="replace")
                 parsed = parse_azahar_log(log_text)
-                if parsed.get("hw_line") and parsed.get("frame"):
+                if parsed.get("hw_line") and parsed.get("parity") and parsed.get("frame"):
                     break
             time.sleep(0.25)
 
-        if not parsed.get("hw_line") or not parsed.get("frame"):
-            raise RuntimeError(f"Missing [MIN3DSTRY] HW/FRAME telemetry in {log_path} for {model}.")
+        if not parsed.get("hw_line") or not parsed.get("parity") or not parsed.get("frame"):
+            raise RuntimeError(f"Missing [MIN3DSTRY] HW/PARITY/FRAME telemetry in {log_path} for {model}.")
 
         rpc.perf_stats(reset=True)
         time.sleep(1.5)
@@ -497,7 +504,24 @@ def run_model_check(
         png_info = inspect_png(png_bytes)
 
         hw_line = str(parsed["hw_line"])
+        parity = parsed["parity"]
         frame = parsed["frame"]
+        fixture_path = Path("tests/parity/starter_copper_defense_v1.json")
+        if fixture_path.is_file():
+            ref = json.loads(fixture_path.read_text(encoding="utf-8"))
+            ref_final = ref["checkpoints"][-1]
+            for key in ("scenario_id", "total_ticks", "trace_hash"):
+                if parity.get(key) != ref.get(key):
+                    raise AssertionError(
+                        f"Parity mismatch on {model} for {key}: expected {ref.get(key)!r}, got {parity.get(key)!r}"
+                    )
+            for key in ("core_copper", "items_delivered", "enemies_killed", "core_hp"):
+                if parity.get(key) != ref_final.get(key):
+                    raise AssertionError(
+                        f"Parity final snapshot mismatch on {model} for {key}: "
+                        f"expected {ref_final.get(key)!r}, got {parity.get(key)!r}"
+                    )
+
         if model == "new3ds" and ("N3DS" not in hw_line or "804 MHz" not in hw_line):
             raise AssertionError(f"Unexpected new3ds hw_line: {hw_line}")
         if model == "old3ds" and ("O3DS" not in hw_line or "268 MHz" not in hw_line):
@@ -516,6 +540,7 @@ def run_model_check(
             "renderer": parsed.get("renderer"),
             "gl_version": parsed.get("gl_version"),
             "hw_line": hw_line,
+            "parity": parity,
             "frame": frame,
             "perf": {
                 "system_fps": round(float(perf["system_fps"]), 2),
@@ -574,6 +599,7 @@ def main() -> int:
         results.append(res)
         print(
             f"[PASS] {model}: {res['hw_line']} | "
+            f"Parity={res['parity']['trace_hash']} | "
             f"R:{res['frame']['rects']} C:{res['frame']['circles']} Sw:{res['frame']['state_switches']} | "
             f"FPS={res['perf']['game_fps']} ({res['perf']['emulation_speed_pct']}%) | "
             f"PNG={res['screenshot']['path']}"

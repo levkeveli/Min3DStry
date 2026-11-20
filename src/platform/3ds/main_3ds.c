@@ -6,6 +6,7 @@
 #include "citro2d_backend.h"
 #include "platform/hardware_profile.h"
 #include "render/scene_2d.h"
+#include "sim/parity_scenario.h"
 
 static void m3ds_emit_debug_line(const char *line) {
     if (!line) {
@@ -35,6 +36,25 @@ int main(int argc, char *argv[]) {
     char dbg_line[192];
     snprintf(dbg_line, sizeof(dbg_line), "[MIN3DSTRY] HW: %s\n", hw_summary);
     m3ds_emit_debug_line(dbg_line);
+
+    M3dsParityRunResult parity_run;
+    m3ds_parity_run_canonical(&parity_run);
+    if (parity_run.checkpoint_count > 0u) {
+        const M3dsParitySnapshot *p_final =
+            &parity_run.checkpoints[parity_run.checkpoint_count - 1u];
+        snprintf(
+            dbg_line,
+            sizeof(dbg_line),
+            "[MIN3DSTRY] PARITY scenario=%s ticks=%lu hash=0x%08lx copper=%lu delivered=%lu killed=%lu hp=%lu\n",
+            parity_run.scenario_id,
+            (unsigned long)parity_run.total_ticks,
+            (unsigned long)parity_run.trace_hash,
+            (unsigned long)p_final->core_copper,
+            (unsigned long)p_final->items_delivered,
+            (unsigned long)p_final->enemies_killed,
+            (unsigned long)p_final->core_hp);
+        m3ds_emit_debug_line(dbg_line);
+    }
 
     C3D_RenderTarget *top = C2D_CreateScreenTarget(GFX_TOP, GFX_LEFT);
 
