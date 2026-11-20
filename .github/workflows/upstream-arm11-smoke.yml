@@ -8,11 +8,11 @@ permissions:
 
 jobs:
   probe:
-    name: Probe ${{ matrix.probe }}
+    name: Probe ${{ matrix.probe }} at -O${{ matrix.optimization }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     concurrency:
-      group: upstream-arm11-${{ github.ref }}-${{ matrix.probe }}
+      group: upstream-arm11-${{ github.ref }}-${{ matrix.probe }}-${{ matrix.optimization }}
       cancel-in-progress: true
     strategy:
       fail-fast: false
@@ -52,10 +52,18 @@ jobs:
 
       - name: Generate TeaVM C for the live upstream client
         run: |
-          bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime             --no-daemon --console=plain             "-PupstreamCheckout=$RUNNER_TEMP/Mindustry"             "-PreferenceJar=$RUNNER_TEMP/server-release.jar"             "-ParcCheckout=$RUNNER_TEMP/Arc"             -Dorg.gradle.jvmargs=-Xmx3g -Pprobe=network-live generateC
+          bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime \
+            --no-daemon --console=plain \
+            "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" \
+            "-PreferenceJar=$RUNNER_TEMP/server-release.jar" \
+            "-ParcCheckout=$RUNNER_TEMP/Arc" \
+            -Dorg.gradle.jvmargs=-Xmx3g -Pprobe=network-live generateC
 
       - name: Build ARM11 probe with pinned devkitARM image
         run: |
+          if [ "${{ matrix.optimization }}" = 0 ]; then
+            sed -i 's/ -O2 / -O0 /' research/upstream-runtime/arm11/build.sh
+          fi
           image=devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5
           docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/work" -w /work "$image" bash -lc '
             source /opt/devkitpro/3dsvars.sh
