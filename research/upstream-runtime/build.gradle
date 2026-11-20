@@ -35,6 +35,7 @@ def entryPoints = [
     'world-roundtrip': 'UpstreamWorldRoundTripProbe',
     'world-stream': 'UpstreamWorldStreamProbe',
     'network-live': 'UpstreamLiveNetworkProbe',
+    'network-render': 'UpstreamRenderedNetworkProbe',
     'file-metadata': 'port.UpstreamFileMetadataProbe'
 ]
 if (!entryPoints.containsKey(probe)) {
@@ -42,13 +43,13 @@ if (!entryPoints.containsKey(probe)) {
 }
 def entryPoint = entryPoints[probe]
 def usesMapSources = probe in ['map', 'map-sd']
-def usesWorldSources = probe in ['world', 'world-save', 'world-roundtrip', 'world-stream', 'network-live']
+def usesLiveNetwork = probe in ['network-live', 'network-render']
+def usesWorldSources = probe in ['world', 'world-save', 'world-roundtrip', 'world-stream'] || usesLiveNetwork
 def initializesContent = probe == 'content-init' || usesWorldSources
 def usesContentSources = probe == 'content' || initializesContent
 def usesExecutor = usesContentSources || probe == 'executor'
 def usesArcSources = usesContentSources || probe == 'resource'
-def usesWorldStream = probe in ['world-stream', 'network-live']
-def usesLiveNetwork = probe == 'network-live'
+def usesWorldStream = probe == 'world-stream' || usesLiveNetwork
 def pluginsToLoad = []
 if (usesArcSources) pluginsToLoad.add('port.ResourceVirtualMethods')
 if (usesExecutor) pluginsToLoad.add('port.concurrent.ArcPoolSupport')
@@ -127,6 +128,9 @@ if (usesWorldSources) {
 }
 if (usesLiveNetwork) {
     sourceSets.main.java.srcDirs('src/network-live/java', 'src/network-live/host')
+}
+if (probe == 'network-render') {
+    sourceSets.main.java.srcDir('src/terrain/java')
 }
 if (probe == 'file-metadata') {
     sourceSets.main.java.srcDir('src/file/java')
@@ -313,7 +317,8 @@ tasks.named('compileJava') { dependsOn 'prepareUpstreamProbe' }
 tasks.register('runProbeJvm', JavaExec) {
     dependsOn 'classes'
     classpath = sourceSets.main.runtimeClasspath
-    mainClass = ['map-sd': entryPoints.map, 'network-live': 'UpstreamSnapshotDispatchReference']
+    mainClass = ['map-sd': entryPoints.map, 'network-live': 'UpstreamSnapshotDispatchReference',
+                 'network-render': 'UpstreamSnapshotDispatchReference']
         .getOrDefault(probe, entryPoint)
 }
 

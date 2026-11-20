@@ -13,6 +13,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
+import java.util.function.Consumer;
 import java.util.zip.InflaterInputStream;
 import mindustry.Vars;
 import mindustry.content.UnitTypes;
@@ -48,18 +49,27 @@ public final class UpstreamLiveNetworkProbe {
     private enum Mode { SNAPSHOTS, MOVEMENT, CONTROLS }
     private final byte[] packet = new byte[32_768];
     private final Mode mode;
+    private final Consumer<Unit> frame;
 
-    private UpstreamLiveNetworkProbe(Mode mode) {
+    private UpstreamLiveNetworkProbe(Mode mode, Consumer<Unit> frame) {
         this.mode = mode;
+        this.frame = frame;
     }
 
     public static void main(String[] args) throws IOException, InterruptedException {
-        var config = new Fi(args.length == 0 ? "/3ds/min3dstry/server-endpoint.txt" : args[0]);
+        run(endpointFile(args), null);
+    }
+
+    static Fi endpointFile(String[] args) {
+        return new Fi(args.length == 0 ? "/3ds/min3dstry/server-endpoint.txt" : args[0]);
+    }
+
+    static void run(Fi config, Consumer<Unit> frame) throws IOException, InterruptedException {
         String[] endpoint = config.readString().trim().split("\\s+");
         if (endpoint.length < 2 || endpoint.length > 3) {
             throw new IllegalArgumentException("Expected a server host and port with optional movement or controls mode");
         }
-        Mode mode = endpoint.length == 2 ? Mode.SNAPSHOTS : switch (endpoint[2]) {
+        Mode mode = endpoint.length == 2 ? (frame == null ? Mode.SNAPSHOTS : Mode.CONTROLS) : switch (endpoint[2]) {
             case "movement" -> Mode.MOVEMENT;
             case "controls" -> Mode.CONTROLS;
             default -> throw new IllegalArgumentException("Unknown live network mode: " + endpoint[2]);
@@ -70,7 +80,7 @@ public final class UpstreamLiveNetworkProbe {
         Vars.mods = new Mods();
         Vars.universe = new Universe();
         try {
-            new UpstreamLiveNetworkProbe(mode).run(host, port, app);
+            new UpstreamLiveNetworkProbe(mode, frame).run(host, port, app);
         } catch (IOException | RuntimeException error) {
             Throwable cause = error;
             while (cause.getCause() != null) cause = cause.getCause();
@@ -235,6 +245,7 @@ public final class UpstreamLiveNetworkProbe {
         int lastWave = -1;
         long lastTcpSend = System.nanoTime();
         long lastUdpKeepAlive = lastTcpSend;
+        long lastFrame = 0;
         int stateId = unsignedId(StateSnapshotCallPacket.class);
         int entityId = unsignedId(EntitySnapshotCallPacket.class);
         System.out.println("Circle Pad or D-pad moves. START leaves the match.");
@@ -264,6 +275,10 @@ public final class UpstreamLiveNetworkProbe {
             }
             app.runPosted();
             controls.update(input, now);
+            if (frame != null && now - lastFrame >= 33_333_333L) {
+                frame.accept(controlledUnit());
+                lastFrame = now;
+            }
         }
     }
 
