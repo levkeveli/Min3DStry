@@ -1,6 +1,6 @@
 # Min3DStry
 
-Min3DStry is an experimental port of upstream Mindustry for Original and New Nintendo 3DS/2DS. The target is the full game and its original content, with multiplayer against the unmodified Java PC release. The current repository contains prototypes and platform tools. See the [upstream port plan](docs/upstream-port.md) for compatibility and verification requirements.
+Min3DStry is an experimental **1:1 port of upstream Mindustry (v8 build 160.8)** for Original and New Nintendo 3DS/2DS — **not a simplified clone or demake**. The target is the complete upstream game and its original content, maps, saves, and multiplayer against the unmodified Java PC release. The C components currently in the repository are 3DS platform/hardware test harnesses, while upstream Mindustry source bring-up on ARM11 lives in [research/upstream-runtime/](research/upstream-runtime/README.md). See the [upstream port plan](docs/upstream-port.md) for 1:1 compatibility and verification requirements.
 
 ![Min3DStry Port Completion Gauge](docs/progress-gauge.svg)
 
