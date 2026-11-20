@@ -41,7 +41,12 @@ public final class UpstreamLiveNetworkProbe {
         Vars.mods = new Mods();
         Vars.player = Player.create();
         Vars.net.setClientConnected();
-        new UpstreamLiveNetworkProbe().run(host, port, app);
+        try {
+            new UpstreamLiveNetworkProbe().run(host, port, app);
+        } catch (IOException error) {
+            System.out.println("UPSTREAM_LIVE_NET_ERROR " + error.getMessage());
+            throw error;
+        }
     }
 
     private void run(byte[] host, int port, UpstreamWorldLoadProbe.ProbeApplication app)

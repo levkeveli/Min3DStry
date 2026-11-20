@@ -73,10 +73,13 @@ static bool n3ds_tcp_connect(
   int orig_flags = fcntl(fd, F_GETFL, 0);
   bool nonblock_set = (orig_flags >= 0 && fcntl(fd, F_SETFL, orig_flags | O_NONBLOCK) == 0);
   int conn_rc = connect(fd, res->ai_addr, res->ai_addrlen);
+  int conn_error = conn_rc == 0 ? 0 : errno;
   freeaddrinfo(res);
 
   if (conn_rc != 0) {
-    if (!nonblock_set || errno != EINPROGRESS) {
+    // Azahar on Windows reports the pending Winsock connect as EWOULDBLOCK.
+    if (!nonblock_set || (conn_error != EINPROGRESS && conn_error != EAGAIN &&
+                         conn_error != EWOULDBLOCK)) {
       close(fd);
       return false;
     }
