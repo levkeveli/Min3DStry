@@ -22,9 +22,17 @@ typedef enum M3dsAudioEvent {
 const char *m3ds_audio_event_id(M3dsAudioEvent event);
 
 /*
+ * Resolves an event to a registered mixer clip, or M3DS_AUDIO_INVALID_CLIP
+ * when the registry is absent or the clip is not loaded.
+ */
+int m3ds_audio_event_clip(
+    M3dsAudioRegistry *registry,
+    M3dsAudioEvent event);
+
+/*
  * Plays the registry clip for an upstream event. Returns the mixer voice
- * handle, or M3DS_AUDIO_INVALID_VOICE when the registry is absent or the
- * clip is not loaded.
+ * handle, or M3DS_AUDIO_INVALID_VOICE when the registry is absent, the clip
+ * is not loaded, or the mixer has no DSP-ready voices.
  */
 uint32_t m3ds_audio_event_play(
     M3dsAudioRegistry *registry,
