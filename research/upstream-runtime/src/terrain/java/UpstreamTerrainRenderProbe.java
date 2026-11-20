@@ -16,8 +16,9 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
 
     @Override
     public void begin(int left, int bottom, int width, int height) {
-        if (NativeTerrain.begin(left, bottom, width, height, Vars.tilesize) == 0) {
-            throw new IllegalStateException("Unable to start Citro2D terrain frame");
+        int result = NativeTerrain.begin(left, bottom, width, height, Vars.tilesize);
+        if (result != 1) {
+            throw new IllegalStateException("Unable to start Citro2D terrain frame: " + result);
         }
     }
 

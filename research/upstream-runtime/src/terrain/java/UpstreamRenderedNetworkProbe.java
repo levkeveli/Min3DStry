@@ -5,6 +5,7 @@ import java.io.IOException;
 import mindustry.Vars;
 import mindustry.content.Blocks;
 import mindustry.content.UnitTypes;
+import mindustry.core.World;
 import mindustry.gen.Groups;
 import mindustry.gen.Unit;
 import mindustry.graphics.CacheLayer;
@@ -39,8 +40,8 @@ public final class UpstreamRenderedNetworkProbe {
         controlled = unit;
         float x = unit == null ? Vars.player.x() : unit.x();
         float y = unit == null ? Vars.player.y() : unit.y();
-        viewport.moveTo(Vars.world.toTile(x) - UpstreamTerrainDrawProbe.VIEW_WIDTH / 2,
-                        Vars.world.toTile(y) - UpstreamTerrainDrawProbe.VIEW_HEIGHT / 2);
+        viewport.moveTo(World.toTile(x) - UpstreamTerrainDrawProbe.VIEW_WIDTH / 2,
+                        World.toTile(y) - UpstreamTerrainDrawProbe.VIEW_HEIGHT / 2);
         draws = 0;
         viewport.draw(drawEntities);
         if (unit != null && (lastLeft != viewport.left || lastBottom != viewport.bottom)) {
@@ -57,7 +58,7 @@ public final class UpstreamRenderedNetworkProbe {
         }
         for (var unit : Groups.unit) {
             if (unit.type() != UnitTypes.gamma && unit.type() != UnitTypes.dagger) continue;
-            int x = Vars.world.toTile(unit.x()), y = Vars.world.toTile(unit.y());
+            int x = World.toTile(unit.x()), y = World.toTile(unit.y());
             if (x < viewport.left || x >= viewport.left + UpstreamTerrainDrawProbe.VIEW_WIDTH
                     || y < viewport.bottom || y >= viewport.bottom + UpstreamTerrainDrawProbe.VIEW_HEIGHT) continue;
             // UnitType.drawBody uses the atlas region, world position and rotation minus 90 degrees.
