@@ -747,8 +747,11 @@ def run_model_check(
             raise AssertionError(f"Unexpected new3ds hw_line: {hw_line}")
         if model == "old3ds" and ("O3DS" not in hw_line or "268 MHz" not in hw_line):
             raise AssertionError(f"Unexpected old3ds hw_line: {hw_line}")
-        if parsed.get("atlas_loaded") is not True:
-            raise AssertionError(f"Sprite atlas was not loaded for {model}")
+        atlas_loaded = parsed.get("atlas_loaded")
+        if atlas_loaded is None:
+            raise AssertionError(f"Missing sprite-atlas telemetry for {model}")
+        if atlas_loaded is not True:
+            raise AssertionError(f"Sprite atlas failed to load for {model}")
         if (
             audio["backend"] != "ndsp"
             or audio["state"] not in ("ready", "fallback_no_dsp")
