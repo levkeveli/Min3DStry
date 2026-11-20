@@ -37,7 +37,7 @@ Boot the probe in Azahar with the desired console model. The top screen and the 
 
 [Test build 44757615581](https://github.com/levkeveli/Min3DStry/actions/runs/44757615581) linked with devkitARM and libctru. In Azahar 2126.2 Original and New 3DS modes, the build emitted `UPSTREAM_LOGIC quotient=-3 remainder=1 xor=6`, matching the JVM baseline.
 
-The probe provides libctru event waits, clocks, debug output, and a fully backed scratch heap. It aligns dynamic class entries on ARM so TeaVM's compressed references can represent them. It excludes unused filesystem and date runtime modules and uses TeaVM's small existing character-conversion fallback. Full game runtime services, Unicode coverage, physical hardware, gameplay and multiplayer are unverified. See [the port plan](../../docs/upstream-port.md).
+The probe provides libctru event waits, clocks, debug output, and a fully backed scratch heap. It aligns dynamic class entries on ARM so TeaVM's compressed references can represent them. It uses TeaVM's small existing character-conversion fallback. The resource probe uses a read-only filesystem adapter. Full game runtime services, Unicode coverage, physical hardware, gameplay and multiplayer are unverified. See [the port plan](../../docs/upstream-port.md).
 
 ## Upstream map metadata probe
 
@@ -83,3 +83,27 @@ reference when bringing up upstream world loading on ARM11.
 
 The [JVM content and factory probes](host/README.md) compare the pinned release
 with the Block class adapted for TeaVM. The content mode is experimental.
+
+### Read pinned Arc resources
+
+Use `-Pprobe=resource` and `-ParcCheckout=/path/to/Arc` with the reproduction
+command above. The Arc checkout must contain
+[`7445105cd2683daf5b9ac7033ebb07265d3e814d`](https://github.com/Anuken/Arc/tree/7445105cd2683daf5b9ac7033ebb07265d3e814d).
+This mode stages that revision's `Fi.java`, which is Arc's file handle. It replaces
+the classpath URL check in `Fi.exists` with a closed resource stream and keeps
+Arc's existing `Fi.read` implementation. The resource policy includes
+`planets/serpulo.json` directly from the hash-checked server JAR. A TeaVM plugin
+preserves virtual dispatch to `String.hashCode` for the generated resource table.
+
+The expected line is
+`UPSTREAM_RESOURCE size=709 crc32=3921318438 classpath=ok internal=ok missing=ok`.
+The probe verifies the original bytes through both Arc file-handle types and
+checks that a missing resource is absent. It uses a file handle limited to
+these two types so it can exercise Arc without starting its global executor.
+
+The JVM and generated Windows x64 program returned the expected line. The
+[devkitARM build](https://github.com/levkeveli/Min3DStry/actions/runs/44767646164)
+returned it in both Original and New 3DS modes in Azahar 2126.2. The probe
+exercises the classpath fallback, including a failed filesystem lookup for the
+internal handle. It has not verified reading a real file through Arc on SD or
+running on physical hardware.

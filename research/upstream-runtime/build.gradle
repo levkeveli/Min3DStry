@@ -11,14 +11,18 @@ def revision = '19a0f40d44514f4802a8b79770456e7e32e34da0'
 def upstreamFile = 'core/src/mindustry/logic/LogicOp.java'
 def blockSource = 'core/src/mindustry/world/Block.java'
 def annotationsSource = 'annotations/src/main/java/mindustry/annotations/Annotations.java'
+def arcRevision = '7445105cd2683daf5b9ac7033ebb07265d3e814d'
+def fileSource = 'arc-core/src/arc/files/Fi.java'
 def glacier = 'core/assets/maps/default/glacier.msav'
 def upstream = providers.gradleProperty('upstreamCheckout')
+def arc = providers.gradleProperty('arcCheckout')
 def probe = providers.gradleProperty('probe').getOrElse('logic')
 def entryPoints = [
     logic: 'mindustry.logic.UpstreamLogicProbe',
     map: 'mindustry.maps.UpstreamMapProbe',
     'map-sd': 'mindustry.maps.UpstreamSdMapProbe',
-    content: 'UpstreamContentBaseline'
+    content: 'UpstreamContentBaseline',
+    resource: 'port.UpstreamResourceProbe'
 ]
 if (!entryPoints.containsKey(probe)) {
     throw new GradleException("Expected -Pprobe to be one of ${entryPoints.keySet()}")
@@ -26,32 +30,42 @@ if (!entryPoints.containsKey(probe)) {
 def entryPoint = entryPoints[probe]
 def usesMapSources = probe in ['map', 'map-sd']
 def usesContentSources = probe == 'content'
+def usesArcSources = usesContentSources || probe == 'resource'
 def referenceJar = file(providers.gradleProperty('referenceJar').getOrElse('server-release.jar'))
 def sourceDir = layout.buildDirectory.dir("upstream-src/${probe}")
 def sourceFile = sourceDir.map { it.file('mindustry/logic/LogicOp.java') }
 def mapFile = sourceDir.map { it.file('mindustry/maps/GlacierFixture.java') }
 def blockFile = sourceDir.map { it.file('mindustry/world/Block.java') }
 def annotationsFile = sourceDir.map { it.file('mindustry/annotations/Annotations.java') }
+def arcFile = sourceDir.map { it.file('arc/files/Fi.java') }
 def readUpstream = { path ->
     providers.exec {
         commandLine 'git', '-C', upstream.get(), 'show', "${revision}:${path}"
     }.standardOutput.asBytes.get()
 }
 
-if (usesContentSources) {
-    // TeaVM resolves dependency classes before compiled project classes. Give it one Block.
+if (usesArcSources) {
+    // TeaVM resolves dependency classes before compiled project classes.
     def contentDependencies = tasks.register('prepareContentDependencies', Zip) {
         dependsOn 'prepareUpstreamProbe'
         from(zipTree(referenceJar)) {
-            exclude 'mindustry/world/Block.class'
+            if (usesContentSources) {
+                exclude 'mindustry/world/Block.class'
+            }
+            exclude 'arc/files/Fi.class', 'arc/files/Fi$*.class'
         }
-        destinationDirectory = layout.buildDirectory.dir('content-dependencies')
-        archiveFileName = 'server-without-block.jar'
+        destinationDirectory = layout.buildDirectory.dir("probe-dependencies/${probe}")
+        archiveFileName = 'server-probe-dependencies.jar'
     }
     dependencies { implementation files(contentDependencies.flatMap { it.archiveFile }).builtBy(contentDependencies) }
-    sourceSets.main.java.srcDirs('host', 'src/content/java')
+    dependencies { compileOnly 'org.teavm:teavm-core:0.16.0' }
+    sourceSets.main.java.srcDir('src/resource/java')
+    sourceSets.main.resources.srcDir('src/resource/resources')
 } else {
     dependencies { implementation files(referenceJar) }
+}
+if (usesContentSources) {
+    sourceSets.main.java.srcDirs('host', 'src/content/java')
 }
 dependencies {
     if (usesMapSources) {
@@ -75,6 +89,11 @@ tasks.register('prepareUpstreamProbe') {
     }
     if (usesContentSources) {
         outputs.files(blockFile, annotationsFile)
+    }
+    if (usesArcSources) {
+        inputs.property('arcRevision', arcRevision)
+        inputs.property('arcCheckout', arc)
+        outputs.file(arcFile)
     }
     doLast {
         def sha256 = MessageDigest.getInstance('SHA-256').digest(referenceJar.bytes).encodeHex().toString()
@@ -111,6 +130,24 @@ final class GlacierFixture {
             def annotations = annotationsFile.get().asFile
             annotations.parentFile.mkdirs()
             annotations.bytes = readUpstream(annotationsSource)
+        }
+        if (usesArcSources) {
+            def bytes = providers.exec {
+                commandLine 'git', '-C', arc.get(), 'show', "${arcRevision}:${fileSource}"
+            }.standardOutput.asBytes.get()
+            def source = new String(bytes, 'UTF-8')
+            def lookup = '''return Fi.class.getResource("/" + file.getPath().replace('\\\\', '/')) != null;'''
+            def streamLookup = '''try (InputStream input = Fi.class.getResourceAsStream("/" + file.getPath().replace('\\\\', '/'))) {
+                    return input != null;
+                } catch (IOException error) {
+                    return false;
+                }'''
+            if (source.count(lookup) != 1) {
+                throw new GradleException('Pinned Arc Fi.exists resource lookup changed')
+            }
+            def adapted = arcFile.get().asFile
+            adapted.parentFile.mkdirs()
+            adapted.setText(source.replace(lookup, streamLookup), 'UTF-8')
         }
     }
 }
