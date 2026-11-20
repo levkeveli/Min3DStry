@@ -27,22 +27,8 @@ public final class UpstreamWorldLoadProbe {
     }
 
     static ProbeApplication load(String[] args) throws IOException {
-        var app = new ProbeApplication();
-        Core.app = app;
-        Core.settings = new Settings();
-        Vars.headless = true;
-        Vars.state = new GameState();
-        Vars.content = new ContentLoader();
-        Vars.content.createBaseContent();
-        Vars.content.init();
-        Groups.init();
-        Vars.world = new World();
-        Vars.net = new Net(null);
-        Vars.logic = new Logic();
-
         Fi file = new Fi(args.length == 0 ? "/3ds/min3dstry/glacier.msav" : args[0]);
-        Vars.customMapDirectory = file.parent();
-        Vars.maps = new Maps();
+        var app = initialize(file.parent());
         var map = MapIO.createMap(file, false);
         // Glacier uses randomized upstream map filters. A fixed seed allows a
         // direct comparison of the resulting terrain on each platform.
@@ -56,6 +42,25 @@ public final class UpstreamWorldLoadProbe {
         if (args.length > 1) {
             loadCurrentSave(app, new Fi(args[1]));
         }
+        return app;
+    }
+
+    static ProbeApplication initialize(Fi mapDirectory) {
+        var app = new ProbeApplication();
+        Core.app = app;
+        Core.settings = new Settings();
+        Vars.headless = true;
+        Vars.state = new GameState();
+        Vars.content = new ContentLoader();
+        Vars.content.createBaseContent();
+        Vars.content.init();
+        Groups.init();
+        Vars.world = new World();
+        Vars.net = new Net(null);
+        Vars.logic = new Logic();
+
+        Vars.customMapDirectory = mapDirectory;
+        Vars.maps = new Maps();
         return app;
     }
 
@@ -87,6 +92,15 @@ public final class UpstreamWorldLoadProbe {
                 || rules.spawns.first().type != UnitTypes.dagger || rules.spawns.first().end != 10) {
             throw new IllegalStateException("Glacier save metadata differs");
         }
+        String fingerprint = reportTerrain(true);
+        if (!fingerprint.equals("2e7b9f883994de6c")) {
+            System.out.println("UPSTREAM_WORLD_MISMATCH " + fingerprint);
+            throw new IllegalStateException("Glacier content fingerprint differs: " + fingerprint);
+        }
+        System.out.println("UPSTREAM_WORLD_FINGERPRINT " + fingerprint);
+    }
+
+    static String reportTerrain(boolean verifyFixture) {
         int tiles = 0;
         int buildings = 0;
         long fingerprint = 0xcbf29ce484222325L;
@@ -100,8 +114,8 @@ public final class UpstreamWorldLoadProbe {
             fingerprint = mix(fingerprint, tile.block().id);
             fingerprint = mix(fingerprint, tile.build == null ? -1 : tile.build.pos());
             if (tile.build != null && tile.build.tile == tile) {
-                if (tile.x != 81 || (tile.y != 26 && tile.y != 224)
-                        || !tile.block().name.equals("core-nucleus") || !(tile.build instanceof CoreBuild)) {
+                if (verifyFixture && (tile.x != 81 || (tile.y != 26 && tile.y != 224)
+                        || !tile.block().name.equals("core-nucleus") || !(tile.build instanceof CoreBuild))) {
                     throw new IllegalStateException("Unexpected Glacier building origin or type");
                 }
                 buildings++;
@@ -111,19 +125,16 @@ public final class UpstreamWorldLoadProbe {
                     + tile.block().name + " " + tile.build.getClass().getName());
             }
         }
-        if (tiles != 37_500 || buildings != 2) {
+        if (verifyFixture && (tiles != 37_500 || buildings != 2)) {
             throw new IllegalStateException("Glacier terrain or buildings differ");
         }
         var observed = new StringBuilder(16);
         for (int shift = 60; shift >= 0; shift -= 4) {
             observed.append(Character.forDigit((int)(fingerprint >>> shift) & 15, 16));
         }
-        if (fingerprint != 0x2e7b9f883994de6cL) {
-            System.out.println("UPSTREAM_WORLD_MISMATCH " + observed);
-            throw new IllegalStateException("Glacier content fingerprint differs: " + observed);
-        }
-        System.out.println("UPSTREAM_WORLD width=150 height=250 tiles=" + tiles + " buildings=" + buildings);
-        System.out.println("UPSTREAM_WORLD_FINGERPRINT " + observed);
+        System.out.println("UPSTREAM_WORLD width=" + Vars.world.width() + " height=" + Vars.world.height()
+            + " tiles=" + tiles + " buildings=" + buildings);
+        return observed.toString();
     }
 
     private static long mix(long hash, int value) {
