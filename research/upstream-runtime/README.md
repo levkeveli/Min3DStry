@@ -214,3 +214,36 @@ returned it in both Original and New 3DS modes in Azahar 2126.2. The probe
 exercises the classpath fallback, including a failed filesystem lookup for the
 internal handle. It has not verified reading a real file through Arc on SD or
 running on physical hardware.
+
+### Capture upstream Glacier terrain commands
+
+[Issue #73](https://github.com/levkeveli/Min3DStry/issues/73) exercises the
+renderer boundary without a graphics context. Arc reads `sprites.aatls`
+from the [pinned v160.8 release](https://github.com/Anuken/Mindustry/releases/tag/v160.8).
+Each page descriptor supplies its original dimensions so Arc computes
+the same UVs for full sprites and split regions. No page images are
+needed for this probe. It calls upstream `Floor.load` and `Floor.drawBase`
+over a 16 × 12 viewport near the first copper tile in the original
+Glacier world. A Batch captures the order, texture page, UVs, geometry,
+and packed color and mix color of the draw requests.
+
+With the verified official `assets.jar` from the
+[sprite pipeline](../../docs/rendering/asset-pipeline.md), extract the
+original atlas file into your scratch directory.
+
+```sh
+unzip -p /path/to/assets.jar assets/sprites/sprites.aatls > /path/to/sprites.aatls
+gradle -PupstreamCheckout=/path/to/Mindustry -PreferenceJar=/path/to/server-release.jar \
+  -ParcCheckout=/path/to/Arc -Pprobe=terrain-draw \
+  runProbeJvm --args='/path/to/glacier.msav /path/to/sprites.aatls' generateC
+```
+
+The unmodified v160.8 JVM classes and the adapted JVM build emitted this trace:
+
+```text
+UPSTREAM_TERRAIN viewport=18,0+16x12 commands=320 copper=26 edges=88 hash=de709773b1b58465
+```
+
+For the ARM11 probe, put the original `glacier.msav` and `sprites.aatls` in
+`/3ds/min3dstry/` on the SD card. The trace precedes the Citro2D
+presentation step tracked in #38.
