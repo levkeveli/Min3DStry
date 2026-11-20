@@ -75,9 +75,14 @@
       "category": "Hardware & Platform",
       "name": "64 MiB Old 3DS Memory Allocator",
       "weight": 3,
-      "stage": "planned",
+      "stage": "emulator-tested",
       "issue": 36,
-      "evidence": []
+      "evidence": [
+        "include/platform/memory_budget.h",
+        "src/platform/memory_budget.c",
+        "tests/platform/test_memory_budget.c",
+        "docs/hardware/memory-budget.md"
+      ]
     },
     {
       "id": "threading-scheduling",
@@ -109,6 +114,7 @@
       "issue": 4,
       "evidence": [
         "tools/build_sprite_atlas.py",
+        "tools/build_upstream_sprite_atlas.py",
         "docs/rendering/asset-pipeline.md"
       ]
     },
