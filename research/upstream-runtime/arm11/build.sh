@@ -8,7 +8,7 @@ if [[ $# -ne 2 ]]; then
 fi
 root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 python3 "$root/prepare.py" "$1" "$2"
-"$DEVKITARM/bin/arm-none-eabi-gcc" -std=gnu11 -g -O2 -fno-strict-aliasing -D__3DS__ -mword-relocations \
+"$DEVKITARM/bin/arm-none-eabi-gcc" -std=gnu11 -g -O2 -D__3DS__ -mword-relocations \
     -march=armv6k -mtune=mpcore -mfpu=vfp -mfloat-abi=hard -mtp=soft \
     -I"$2/nativeinclude" -I"$DEVKITPRO/libctru/include" -L"$DEVKITPRO/libctru/lib" \
     -specs=3dsx.specs "$2/all.c" -lctru -lm -o "$2/upstream-probe.elf"
