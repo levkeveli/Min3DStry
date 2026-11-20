@@ -110,3 +110,26 @@ This is an inventory only: no decode, conversion, RomFS packing or audio
 playback is claimed. Asset provenance/licensing still needs per-file review
 before distribution; see the [asset pipeline](../../../docs/rendering/asset-pipeline.md)
 and [audio plan](../../../docs/audio/ndsp-mixer.md).
+
+## Sector and tech-tree baseline
+
+To read the pinned campaign structure through real upstream classes:
+
+```sh
+java -cp /path/to/server-release.jar \
+    /path/to/Min3DStry/research/upstream-runtime/host/UpstreamProgressionBaseline.java
+```
+
+It initializes `ContentLoader.createBaseContent()` (which loads
+`SerpuloTechTree`, `ErekirTechTree` and `SectorPresets`) and emits:
+
+```text
+UPSTREAM_TECH type=... id=... name=... depth=... parent=... root=... requirements=item:amount,...
+UPSTREAM_SECTOR id=... name=... planet=... sector=... capture=... difficulty=... last=...
+UPSTREAM_PROGRESSION tech_nodes=375 tech_roots=2 sectors=95 manifest_sha256=4a61e8b260eb4f698ed128eb6654e2fa61f295f64d29b44c7638c7b8dda2bd4a
+```
+
+The manifest is SHA-256 over sorted records. Upstream may print preset warnings
+to stderr (for example presets without an assigned sector); those are not part
+of the manifest. This is reference metadata only: no progression rules, UI,
+save format or game state are implemented here.
