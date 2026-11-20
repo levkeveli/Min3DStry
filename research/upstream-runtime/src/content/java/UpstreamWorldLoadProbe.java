@@ -13,8 +13,10 @@ import mindustry.core.ContentLoader;
 import mindustry.core.GameState;
 import mindustry.core.Logic;
 import mindustry.core.World;
+import mindustry.game.MapObjectives.PointMarker;
 import mindustry.gen.Groups;
 import mindustry.io.MapIO;
+import mindustry.io.SaveIO;
 import mindustry.maps.Maps;
 import mindustry.net.Net;
 import mindustry.world.blocks.storage.CoreBlock.CoreBuild;
@@ -43,8 +45,35 @@ public final class UpstreamWorldLoadProbe {
         Mathf.rand.setSeed(160_008L);
         Vars.world.loadMap(map);
         app.runPosted();
-        if (Vars.state.map != map || Vars.world.width() != 150 || Vars.world.height() != 250) {
+        if (Vars.state.map != map) {
             throw new IllegalStateException("Glacier did not load");
+        }
+        verifyWorld();
+        if (args.length > 1) {
+            loadCurrentSave(app, new Fi(args[1]));
+        }
+    }
+
+    private static void loadCurrentSave(ProbeApplication app, Fi file) throws IOException {
+        try (var input = SaveIO.getStream(file)) {
+            SaveIO.readHeader(input);
+            if (input.readInt() != 13) {
+                throw new IllegalStateException("Expected a v13 save");
+            }
+        }
+        SaveIO.load(file);
+        app.runPosted();
+        verifyWorld();
+        if (!(Vars.state.markers.get(37) instanceof PointMarker marker)
+                || marker.pos.x != 80 || marker.pos.y != 152) {
+            throw new IllegalStateException("Current-format marker differs after reload");
+        }
+        System.out.println("UPSTREAM_SAVE version=13 marker=ok");
+    }
+
+    private static void verifyWorld() {
+        if (Vars.world.width() != 150 || Vars.world.height() != 250) {
+            throw new IllegalStateException("Glacier dimensions differ");
         }
         var stats = Vars.state.stats;
         var rules = Vars.state.rules;
@@ -80,8 +109,12 @@ public final class UpstreamWorldLoadProbe {
         if (tiles != 37_500 || buildings != 2) {
             throw new IllegalStateException("Glacier terrain or buildings differ");
         }
-        String observed = Long.toUnsignedString(fingerprint, 16);
+        var observed = new StringBuilder(16);
+        for (int shift = 60; shift >= 0; shift -= 4) {
+            observed.append(Character.forDigit((int)(fingerprint >>> shift) & 15, 16));
+        }
         if (fingerprint != 0x2e7b9f883994de6cL) {
+            System.out.println("UPSTREAM_WORLD_MISMATCH " + observed);
             throw new IllegalStateException("Glacier content fingerprint differs: " + observed);
         }
         System.out.println("UPSTREAM_WORLD width=150 height=250 tiles=" + tiles + " buildings=" + buildings);

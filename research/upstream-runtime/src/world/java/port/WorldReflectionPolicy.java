@@ -24,13 +24,18 @@ public final class WorldReflectionPolicy extends SimpleReflectionPolicy {
             "mindustry.game.Rules$TeamRules",
             "mindustry.game.SpawnGroup",
             "mindustry.type.MapLocales",
-            "mindustry.world.blocks.Attributes"
+            "mindustry.world.blocks.Attributes",
+            "arc.struct.IntMap"
         }) {
             selectClass(type).reflectableMethods(withParameterCount(0).and(IntrospectMethod::isConstructor));
         }
         // Older maps name filters by their fully qualified upstream class name.
         selectClasses(inPackage("mindustry.maps.filters").and(extending("mindustry.maps.filters.GenerateFilter")))
             .foundByName()
+            .reflectableMethods(withParameterCount(0).and(IntrospectMethod::isConstructor))
+            .reflectableFields(field -> INSTANCE.test(field) && !TRANSIENT.test(field));
+        // MapMarkers uses Arc's IntMap and JSON class tags registered by MapObjectives.
+        selectClasses(inPackage("mindustry.game").and(extending("mindustry.game.MapObjectives$ObjectiveMarker")))
             .reflectableMethods(withParameterCount(0).and(IntrospectMethod::isConstructor))
             .reflectableFields(field -> INSTANCE.test(field) && !TRANSIENT.test(field));
     }
