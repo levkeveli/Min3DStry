@@ -94,6 +94,18 @@ KILL_EVENT_RE = re.compile(
     r"voice=(?P<voice>\d+)"
 )
 
+CONVEYOR_EVENT_RE = re.compile(
+    r"\[MIN3DSTRY\] AUDIO_EVENT conveyor\.loop "
+    r"clip=(?P<clip>-?\d+) "
+    r"voice=(?P<voice>\d+)"
+)
+
+DRILL_EVENT_RE = re.compile(
+    r"\[MIN3DSTRY\] AUDIO_EVENT drill\.loop "
+    r"clip=(?P<clip>-?\d+) "
+    r"voice=(?P<voice>\d+)"
+)
+
 MEM_RE = re.compile(
     r"\[MIN3DSTRY\] MEM "
     r"app=(?P<app_mib>\d+)MiB "
@@ -418,6 +430,8 @@ def parse_azahar_log(log_text: str) -> dict[str, Any]:
     audio_event: dict[str, Any] | None = None
     shoot_event: dict[str, Any] | None = None
     kill_event: dict[str, Any] | None = None
+    conveyor_event: dict[str, Any] | None = None
+    drill_event: dict[str, Any] | None = None
     mem: dict[str, Any] | None = None
     frame: dict[str, Any] | None = None
 
@@ -490,6 +504,24 @@ def parse_azahar_log(log_text: str) -> dict[str, Any]:
                     "clip": int(kg["clip"]),
                     "voice": int(kg["voice"]),
                 }
+                continue
+            conveyor_match = CONVEYOR_EVENT_RE.search(line)
+            if conveyor_match:
+                cg = conveyor_match.groupdict()
+                conveyor_event = {
+                    "name": "conveyor.loop",
+                    "clip": int(cg["clip"]),
+                    "voice": int(cg["voice"]),
+                }
+                continue
+            drill_match = DRILL_EVENT_RE.search(line)
+            if drill_match:
+                dg = drill_match.groupdict()
+                drill_event = {
+                    "name": "drill.loop",
+                    "clip": int(dg["clip"]),
+                    "voice": int(dg["voice"]),
+                }
         else:
             audio_match = AUDIO_RE.search(line)
             if audio_match:
@@ -534,6 +566,8 @@ def parse_azahar_log(log_text: str) -> dict[str, Any]:
         "audio_event": audio_event,
         "shoot_event": shoot_event,
         "kill_event": kill_event,
+        "conveyor_event": conveyor_event,
+        "drill_event": drill_event,
         "mem": mem,
         "frame": frame,
     }
@@ -707,6 +741,13 @@ def run_model_check(
             raise AssertionError(f"Missing enemy-kill audio event for {model}: {kill_event}")
         if requires_audio_clips and kill_event["clip"] < 0:
             raise AssertionError(f"Enemy kill event did not resolve a clip for {model}: {kill_event}")
+        conveyor_event = parsed.get("conveyor_event")
+        drill_event = parsed.get("drill_event")
+        if requires_audio_clips:
+            if conveyor_event is None or conveyor_event["clip"] < 0:
+                raise AssertionError(f"Conveyor loop event missing or unresolved for {model}: {conveyor_event}")
+            if drill_event is None or drill_event["clip"] < 0:
+                raise AssertionError(f"Drill loop event missing or unresolved for {model}: {drill_event}")
         if (
             mem["status"] != "ok"
             or mem["failures"] != 0
@@ -738,6 +779,8 @@ def run_model_check(
             "audio_event": audio_event,
             "shoot_event": shoot_event,
             "kill_event": kill_event,
+            "conveyor_event": conveyor_event,
+            "drill_event": drill_event,
             "mem": mem,
             "frame": frame,
             "perf": {

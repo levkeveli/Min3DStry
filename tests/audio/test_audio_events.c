@@ -8,6 +8,7 @@ typedef struct MockCtx {
     bool uploaded[M3DS_AUDIO_MAX_CLIPS];
     int last_clip;
     int active_channel;
+    bool last_looping;
 } MockCtx;
 
 static MockCtx g_ctx;
@@ -84,6 +85,7 @@ static bool mock_voice_start(
     }
     ctx->last_clip = clip_id;
     ctx->active_channel = (int)channel;
+    ctx->last_looping = looping;
     return true;
 }
 
@@ -121,6 +123,8 @@ static void test_event_ids_match_trigger_map(void) {
     assert(strcmp(m3ds_audio_event_id(M3DS_AUDIO_EVENT_WAVE_SPAWN), "wave.spawn") == 0);
     assert(strcmp(m3ds_audio_event_id(M3DS_AUDIO_EVENT_SHOOT_DUO), "shoot.duo") == 0);
     assert(strcmp(m3ds_audio_event_id(M3DS_AUDIO_EVENT_ENEMY_KILL), "enemy.kill") == 0);
+    assert(strcmp(m3ds_audio_event_id(M3DS_AUDIO_EVENT_CONVEYOR_LOOP), "conveyor.loop") == 0);
+    assert(strcmp(m3ds_audio_event_id(M3DS_AUDIO_EVENT_DRILL_LOOP), "drill.loop") == 0);
     assert(m3ds_audio_event_id(M3DS_AUDIO_EVENT_COUNT) == NULL);
     assert(m3ds_audio_event_id((M3dsAudioEvent)99) == NULL);
 }
@@ -131,12 +135,16 @@ static void test_event_play_uses_registry_clip(void) {
     static const int16_t wave[] = {9, 10, 11, 12};
     static const int16_t shoot[] = {13, 14, 15, 16};
     static const int16_t kill[] = {17, 18, 19, 20};
+    static const int16_t conveyor[] = {21, 22, 23, 24};
+    static const int16_t drill[] = {25, 26, 27, 28};
     static const MockFile files[] = {
         {"romfs:/audio/ui.button.pcm", button, 4u},
         {"romfs:/audio/ui.unlock.pcm", unlock, 4u},
         {"romfs:/audio/wave.spawn.pcm", wave, 4u},
         {"romfs:/audio/shoot.duo.pcm", shoot, 4u},
         {"romfs:/audio/enemy.kill.pcm", kill, 4u},
+        {"romfs:/audio/conveyor.loop.pcm", conveyor, 4u},
+        {"romfs:/audio/drill.loop.pcm", drill, 4u},
         {NULL, NULL, 0u},
     };
     static const M3dsAudioIndexEntry entries[] = {
@@ -150,15 +158,19 @@ static void test_event_play_uses_registry_clip(void) {
          "core/src/mindustry/content/Blocks.java", 3333u},
         {"enemy.kill", "romfs:/audio/enemy.kill.pcm", 22050u, 1u, 4u,
          "core/src/mindustry/type/UnitType.java", 944u},
+        {"conveyor.loop", "romfs:/audio/conveyor.loop.pcm", 22050u, 1u, 4u,
+         "core/src/mindustry/world/blocks/distribution/Conveyor.java", 49u},
+        {"drill.loop", "romfs:/audio/drill.loop.pcm", 22050u, 1u, 4u,
+         "core/src/mindustry/world/blocks/production/Drill.java", 83u},
     };
-    int16_t storage[20];
+    int16_t storage[28];
     M3dsAudioMixer mixer;
     M3dsAudioBackend backend = make_backend();
     assert(m3ds_audio_mixer_init(&mixer, &backend));
 
     M3dsAudioRegistry registry;
     assert(m3ds_audio_registry_load(
-               &registry, &mixer, entries, 5u, mock_read, (void *)files, storage,
+               &registry, &mixer, entries, 7u, mock_read, (void *)files, storage,
                sizeof(storage)) == M3DS_AUDIO_REGISTRY_OK);
 
     const M3dsAudioEvent events[] = {
@@ -167,17 +179,21 @@ static void test_event_play_uses_registry_clip(void) {
         M3DS_AUDIO_EVENT_WAVE_SPAWN,
         M3DS_AUDIO_EVENT_SHOOT_DUO,
         M3DS_AUDIO_EVENT_ENEMY_KILL,
+        M3DS_AUDIO_EVENT_CONVEYOR_LOOP,
+        M3DS_AUDIO_EVENT_DRILL_LOOP,
     };
     for (size_t i = 0u; i < sizeof(events) / sizeof(events[0]); ++i) {
         m3ds_audio_mixer_stop_all(&mixer);
         M3dsAudioPlayParams params = m3ds_audio_default_play_params(M3DS_AUDIO_BUS_SFX);
         params.volume = 0.5f;
+        params.looping = events[i] >= M3DS_AUDIO_EVENT_CONVEYOR_LOOP;
         uint32_t voice = m3ds_audio_event_play(&registry, events[i], &params);
         assert(voice != M3DS_AUDIO_INVALID_VOICE);
         int expected = m3ds_audio_event_clip(&registry, events[i]);
         assert(expected >= 0);
         assert(expected == m3ds_audio_registry_find(&registry, m3ds_audio_event_id(events[i])));
         assert(g_ctx.last_clip == expected);
+        assert(g_ctx.last_looping == params.looping);
         assert(mixer.voices[g_ctx.active_channel].active);
         assert(mixer.voices[g_ctx.active_channel].clip_id == expected);
     }

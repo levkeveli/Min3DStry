@@ -24,6 +24,16 @@
       "channels": 1
     },
     {
+      "id": "conveyor.loop",
+      "source": "core/assets/sounds/loops/loopConveyor.ogg",
+      "channels": 1
+    },
+    {
+      "id": "drill.loop",
+      "source": "core/assets/sounds/loops/loopDrill.ogg",
+      "channels": 1
+    },
+    {
       "id": "wave.spawn",
       "source": "core/assets/sounds/ui/waveSpawn.ogg",
       "channels": 1
