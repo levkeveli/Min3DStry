@@ -1,5 +1,7 @@
 /* TeaVM filesystem entry points used by Arc Fi on the 3DS SD card. */
 #include "file.h"
+#include "date.h"
+#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
@@ -32,37 +34,89 @@ int32_t teavm_file_workDirectory(char16_t** result) {
     return m3ds_file_directory(path, result);
 }
 
-static mode_t m3ds_file_mode(char16_t* name, int32_t name_size) {
+static int m3ds_file_stat(char16_t* name, int32_t name_size, struct stat* info) {
     char* path = teavm_char16ToMb(name, name_size);
     if (path == NULL) {
-        return 0;
+        return -1;
     }
-    struct stat info;
-    int result = stat(path, &info);
+    int result = stat(path, info);
     free(path);
-    return result == 0 ? info.st_mode : 0;
+    return result;
 }
 
 int32_t teavm_file_isDir(char16_t* name, int32_t name_size) {
-    return S_ISDIR(m3ds_file_mode(name, name_size));
+    struct stat info;
+    return m3ds_file_stat(name, name_size, &info) == 0 && S_ISDIR(info.st_mode);
 }
 
 int32_t teavm_file_isFile(char16_t* name, int32_t name_size) {
-    return S_ISREG(m3ds_file_mode(name, name_size));
+    struct stat info;
+    return m3ds_file_stat(name, name_size, &info) == 0 && S_ISREG(info.st_mode);
 }
 
 int32_t teavm_file_length(char16_t* name, int32_t name_size) {
+    struct stat info;
+    if (m3ds_file_stat(name, name_size, &info) != 0 || !S_ISREG(info.st_mode) || info.st_size < 0) {
+        return 0;
+    }
+    return info.st_size > INT32_MAX ? INT32_MAX : (int32_t)info.st_size;
+}
+
+int64_t teavm_file_lastModified(char16_t* name, int32_t name_size) {
+    struct stat info;
+    return m3ds_file_stat(name, name_size, &info) == 0 ? teavm_date_timeToTimestamp(info.st_mtime) : 0;
+}
+
+int32_t teavm_file_delete(char16_t* name, int32_t name_size) {
     char* path = teavm_char16ToMb(name, name_size);
     if (path == NULL) {
         return 0;
     }
-    struct stat info;
-    int result = stat(path, &info);
+    int removed = remove(path) == 0;
     free(path);
-    if (result != 0 || !S_ISREG(info.st_mode) || info.st_size < 0) {
-        return 0;
+    return removed;
+}
+
+TeaVM_StringList* teavm_file_listFiles(char16_t* name, int32_t name_size) {
+    char* path = teavm_char16ToMb(name, name_size);
+    if (path == NULL) {
+        return NULL;
     }
-    return info.st_size > INT32_MAX ? INT32_MAX : (int32_t)info.st_size;
+    DIR* directory = opendir(path);
+    free(path);
+    if (directory == NULL) {
+        return NULL;
+    }
+
+    TeaVM_StringList* entries = teavm_appendString(NULL, NULL, 0);
+    while (entries != NULL) {
+        errno = 0;
+        const struct dirent* entry = readdir(directory);
+        if (entry == NULL && errno == 0) {
+            break;
+        }
+        if (entry == NULL) {
+            teavm_disposeStringList(entries);
+            entries = NULL;
+            break;
+        }
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+            continue;
+        }
+        int32_t length;
+        char16_t* filename = teavm_mbToChar16(entry->d_name, &length);
+        if (filename == NULL) {
+            teavm_disposeStringList(entries);
+            entries = NULL;
+            break;
+        }
+        entries = teavm_appendString(entries, filename, length);
+        if (entries == NULL) {
+            free(filename);
+        }
+    }
+    closedir(directory);
+    return entries;
 }
 
 int32_t teavm_file_isWindows(void) {
