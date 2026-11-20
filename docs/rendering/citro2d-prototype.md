@@ -42,6 +42,7 @@ The textured factory scene built as a `.3dsx` and passed in both Original and Ne
   ./dev.sh emu-test
   ```
   Produces `build/emu-verify/new3ds.png`, `build/emu-verify/old3ds.png`, and `build/emu-verify/report.json`.
+  On Windows, Azahar's RPC socket can briefly reject the first UDP datagram during a cold start; the harness retries transient connection resets within its existing timeout instead of failing immediately.
 
 ## Verification Record
 

@@ -22,7 +22,7 @@ Enable high-throughput AI-first development **without routine human PR merges**.
 
 1. PR originates from a same-repo branch (not an external fork) and is not a draft.
 2. Merge base has no conflicts.
-3. Required checks (`Bootstrap checks`, `PR policy gate`) pass on the head commit.
+3. Required checks (`Bootstrap checks`, `PR policy gate`, `AI review`) pass on the head commit.
 4. `AI review` approves the exact head commit with no unresolved critical/major bugs, security/secret leaks, license violations, or determinism/networking regressions.
 5. No explicit hold label (`hold`, `needs-human`, `do-not-merge`, `status:blocked`, `tier:c`) is present on the PR.
 6. Auto-merge uses GitHub's normal merge path (`--squash --match-head-commit`) and never force-pushes `main`.

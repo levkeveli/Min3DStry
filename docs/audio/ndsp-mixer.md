@@ -28,6 +28,7 @@ Status: **Experimental** (`host-tested` via mock audio backend in `./dev.sh test
 - **Follow-up slice on [#29](https://github.com/levkeveli/Min3DStry/issues/29):** Per [the upstream port plan](../upstream-port.md), upstream audio adaptation will target the pinned reference release [`Anuken/Mindustry@19a0f40d44514f4802a8b79770456e7e32e34da0`](https://github.com/Anuken/Mindustry/tree/19a0f40d44514f4802a8b79770456e7e32e34da0) (GPLv3):
   - Map upstream trigger registries (`core/src/mindustry/gen/Sounds.java`, `Musics.java`, and sound/music bindings in world/block/UI systems) to `M3dsAudioMixer` buses and priority tiers.
   - Decode upstream `.ogg` assets (`core/assets/sounds/`, `core/assets/music/`) offline into RomFS PCM16/ADPCM streams with file-level provenance and GPLv3 attribution, plus streaming double-buffered `ndspWaveBuf` support for longer music tracks without exceeding Old 3DS linear RAM.
+  - First conversion slice: [upstream audio asset conversion](asset-conversion.md) maps `ui.button`, `ui.unlock` and `wave.spawn` to mono PCM16, verifies their pinned upstream trigger symbols, and generates a RomFS PCM/index. Runtime wiring and playback remain open.
 
 ## Verification Record
 
