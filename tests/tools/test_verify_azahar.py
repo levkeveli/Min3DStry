@@ -3,6 +3,7 @@ import sys
 import unittest
 import zlib
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
 import verify_azahar  # noqa: E402
@@ -132,6 +133,69 @@ class VerifyAzaharTests(unittest.TestCase):
         plist_payload = struct.pack("<IIQ8s", 1, 42, 0x000400000F800000, b"min3dst\x00")
         entries = verify_azahar._parse_process_list_chunk(plist_payload)
         self.assertEqual(entries, [(42, 0x000400000F800000, "min3dst")])
+
+    @staticmethod
+    def make_rpc_client() -> tuple[verify_azahar.AzaharRpcClient, mock.Mock]:
+        client = object.__new__(verify_azahar.AzaharRpcClient)
+        client.host = "127.0.0.1"
+        client.port = verify_azahar.AZAHAR_RPC_PORT
+        client.timeout = 0.01
+        client.retries = 2
+        sock = mock.Mock()
+        client.sock = sock
+        return client, sock
+
+    def test_rpc_retries_connection_reset_before_reply(self) -> None:
+        client, sock = self.make_rpc_client()
+        sent: list[bytes] = []
+
+        def sendto(data: bytes, _address: tuple[str, int]) -> None:
+            sent.append(data)
+
+        def recv(_size: int) -> bytes:
+            if len(sent) == 1:
+                raise ConnectionResetError("cold start")
+            req_id = struct.unpack_from("<I", sent[-1], 4)[0]
+            return struct.pack(
+                "<IIII", verify_azahar.RPC_VERSION, req_id, verify_azahar.REQ_PROCESS_LIST, 0
+            )
+
+        sock.sendto.side_effect = sendto
+        sock.recv.side_effect = recv
+
+        self.assertEqual(client._request(verify_azahar.REQ_PROCESS_LIST, b""), b"")
+        self.assertEqual(sock.sendto.call_count, 2)
+
+    def test_rpc_connection_reset_still_respects_timeout(self) -> None:
+        client, sock = self.make_rpc_client()
+        sock.recv.side_effect = ConnectionResetError("RPC socket not bound")
+
+        with self.assertRaises(TimeoutError):
+            client._request(verify_azahar.REQ_PROCESS_LIST, b"", resend=True)
+
+        self.assertEqual(sock.sendto.call_count, client.retries + 1)
+
+    def test_rpc_retries_connection_reset_on_send(self) -> None:
+        client, sock = self.make_rpc_client()
+        sent: list[bytes] = []
+
+        def sendto(data: bytes, _address: tuple[str, int]) -> None:
+            sent.append(data)
+            if len(sent) == 1:
+                raise ConnectionResetError("stale ICMP state")
+
+        def recv(_size: int) -> bytes:
+            req_id = struct.unpack_from("<I", sent[-1], 4)[0]
+            return struct.pack(
+                "<IIII", verify_azahar.RPC_VERSION, req_id, verify_azahar.REQ_PROCESS_LIST, 0
+            )
+
+        sock.sendto.side_effect = sendto
+        sock.recv.side_effect = recv
+
+        self.assertEqual(client._request(verify_azahar.REQ_PROCESS_LIST, b""), b"")
+        self.assertEqual(len(sent), 2)
+
 
 
 if __name__ == "__main__":
