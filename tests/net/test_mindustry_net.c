@@ -411,6 +411,14 @@ static void test_mock_handshake(void) {
   const uint8_t empty_packet[] = {0, 4, 21, 0, 0, 0};
   assert(st.tx_tcp_len == sent_before + sizeof(empty_packet));
   assert(memcmp(st.tx_tcp + sent_before, empty_packet, sizeof(empty_packet)) == 0);
+
+  sent_before = st.tx_tcp_len;
+  assert(m3ds_net_client_send(client, false, 23U, &snapshot_byte, 1U));
+  const uint8_t udp_packet[] = {23, 0, 1, 0, 42};
+  assert(st.tx_tcp_len == sent_before);
+  assert(st.tx_udp_len == sizeof(udp_packet));
+  assert(memcmp(st.tx_udp, udp_packet, sizeof(udp_packet)) == 0);
+
   const uint8_t keep_alive[] = {0, 2, M3DS_NET_FRAMEWORK_SENTINEL, M3DS_FW_KEEP_ALIVE};
   sent_before = st.tx_tcp_len;
   assert(m3ds_net_client_keep_alive(client, true));

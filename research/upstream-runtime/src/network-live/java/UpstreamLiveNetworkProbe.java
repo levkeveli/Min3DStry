@@ -121,7 +121,7 @@ public final class UpstreamLiveNetworkProbe {
         var buffer = new ByteArrayOutputStream();
         confirm.write(new Writes(new DataOutputStream(buffer)));
         byte[] payload = buffer.toByteArray();
-        if (Native.send(Address.ofData(payload), payload.length, Net.getPacketId(confirm) & 0xff) == 0) {
+        if (Native.send(Address.ofData(payload), payload.length, Net.getPacketId(confirm) & 0xff, 1) == 0) {
             throw new IOException("Unable to send the upstream connection confirmation");
         }
     }
@@ -294,7 +294,7 @@ public final class UpstreamLiveNetworkProbe {
         @Import(name = "m3ds_live_net_receive")
         static native int receive(Address packet, int capacity, int reliable, int timeoutMs);
         @Import(name = "m3ds_live_net_send")
-        static native int send(Address packet, int length, int packetId);
+        static native int send(Address packet, int length, int packetId, int reliable);
         @Import(name = "m3ds_live_net_keep_alive")
         static native int keepAlive(int reliable);
         @Import(name = "m3ds_live_net_close")
