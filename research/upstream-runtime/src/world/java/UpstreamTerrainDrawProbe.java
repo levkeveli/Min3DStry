@@ -58,6 +58,7 @@ public final class UpstreamTerrainDrawProbe {
         for (int y = bottom; y < bottom + VIEW_HEIGHT; y++) {
             for (int x = left; x < left + VIEW_WIDTH; x++) {
                 Tile tile = Vars.world.tile(x, y);
+                // Pinned Floor.drawBase calls drawOverlay, which draws the ore in the same pass.
                 tile.floor().drawBase(tile);
             }
         }

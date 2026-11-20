@@ -19,19 +19,30 @@ Both runs should print UPSTREAM_LOGIC quotient=-3 remainder=1 xor=6.
 ## Continuous verification
 
 [`upstream-arm11-smoke.yml`](../../.github/workflows/upstream-arm11-smoke.yml)
-runs the `logic` and `map` probes for PRs and pushes touching this directory,
-then cross-builds each generated C output with the pinned devkitARM container
-and uploads the `.3dsx`/ELF artifacts. It uses no secrets and read-only
-repository permissions. The first successful run is
-[44798365837](https://github.com/levkeveli/Min3DStry/actions/runs/44798365837)
-for both probes.
+runs the `logic`, `map` and `resource` probes for PRs and pushes touching this
+directory, then cross-builds each generated C output with the pinned devkitARM
+container and uploads the `.3dsx`/ELF artifacts. It also runs the pinned
+upstream save-writer, sound/music, sector/tech-tree, and unit/bullet metadata
+baselines, and converts the three mapped pinned sounds to PCM16 with provenance.
+It uses no secrets and read-only repository permissions. The initial logic/map run was
+[44798365837](https://github.com/levkeveli/Min3DStry/actions/runs/44798365837);
+the three-probe run including Arc resources is
+[44801673667](https://github.com/levkeveli/Min3DStry/actions/runs/44801673667).
 
-Local equivalent (the same two probes):
+Local equivalent (the same three probes, from this directory):
 
     gradle -PupstreamCheckout=/path/to/Mindustry -PreferenceJar=/path/to/server-release.jar \
         -Pprobe=logic runProbeJvm generateC
     gradle -PupstreamCheckout=/path/to/Mindustry -PreferenceJar=/path/to/server-release.jar \
         -Pprobe=map runProbeJvm generateC
+    gradle -PupstreamCheckout=/path/to/Mindustry -PreferenceJar=/path/to/server-release.jar \
+        -ParcCheckout=/path/to/Arc -Pprobe=resource runProbeJvm generateC
+
+    # Cross-build the generated C for ARM11 (devkitPro environment):
+    bash arm11/build.sh build/generated/teavm/c build/probe-3ds
+
+The resource probe must print
+`UPSTREAM_RESOURCE size=709 crc32=3921318438 classpath=ok internal=ok missing=ok`.
 
 ## Evidence
 
@@ -244,6 +255,9 @@ over a 16 × 12 viewport near the first copper tile in the original
 Glacier world. A Batch captures the order, texture page, UVs, geometry,
 and packed color and mix color of the draw requests.
 
+The pinned `Floor.drawBase` calls `drawOverlay`, which submits ore
+sprites as part of that floor pass.
+
 With the verified official `assets.jar` from the
 [sprite pipeline](../../docs/rendering/asset-pipeline.md), extract the
 original atlas file into your scratch directory.
@@ -276,6 +290,10 @@ For the ARM11 probe, put the original `glacier.msav` and `sprites.aatls` in
 used the standard `-O2` flags. Both Azahar 2126.2 console profiles
 emitted the identical terrain trace and Glacier world fingerprint.
 The trace precedes the Citro2D presentation step tracked in #38.
+
+[The integration build](https://github.com/levkeveli/Min3DStry/actions/runs/44833286449)
+reproduced the same 320 commands, 26 copper draws, and hash on both
+Azahar console profiles after combining the probe with the merged world loader.
 
 The current viewport uses 13 upstream atlas regions. A local build of
 that set with tex3ds v2.3.0 produced a 128 × 256 RGBA8 page (128 KiB).
@@ -325,3 +343,25 @@ The `-O2` ELF reserves 30.41 MiB in page-rounded load segments. With the
 16 MiB managed heap, 4 MiB linear heap and 256 KiB stack, the subtotal is
 50.66 MiB before GC metadata and other allocations. A fixed frame
 provides no sustained frame-time measurement.
+
+## Read SD file metadata on ARM11
+
+[Issue #91](https://github.com/levkeveli/Min3DStry/issues/91) exposes
+TeaVM's ARM11 home and temporary paths under `/3ds/min3dstry` and backs
+file length and stream position with newlib `stat` and `ftell`.
+
+Use `-Pprobe=file-metadata` with the pinned Gradle inputs. Run
+`runProbeJvm --args=/path/to/glacier.msav` on the host and use
+`generateC` and `arm11/build.sh` to produce the ARM11 executable.
+Put the pinned `core/assets/maps/default/glacier.msav` at
+`/3ds/min3dstry/glacier.msav` on the SD for the ARM11 run. The probe
+checks the native Java path properties, file length, seek positions,
+rewind and EOF. The host JVM reported:
+
+```text
+UPSTREAM_FILE_METADATA size=8550 header=789cbd3a last=108 seek=ok paths=ok
+```
+
+[DevkitARM build 44807942120](https://github.com/levkeveli/Min3DStry/actions/runs/44807942120)
+reported the same record after checking the actual ARM11 path properties
+and reading Glacier from the virtual SD card in both Azahar 2126.2 console profiles.

@@ -32,7 +32,8 @@ def entryPoints = [
     'world-save': 'UpstreamWorldSaveProbe',
     'world-roundtrip': 'UpstreamWorldRoundTripProbe',
     'terrain-draw': 'UpstreamTerrainDrawProbe',
-    'terrain-render': 'UpstreamTerrainRenderProbe'
+    'terrain-render': 'UpstreamTerrainRenderProbe',
+    'file-metadata': 'port.UpstreamFileMetadataProbe'
 ]
 if (!entryPoints.containsKey(probe)) {
     throw new GradleException("Expected -Pprobe to be one of ${entryPoints.keySet()}")
@@ -114,6 +115,9 @@ if (usesWorldSources) {
 }
 if (probe == 'terrain-render') {
     sourceSets.main.java.srcDir('src/terrain/java')
+}
+if (probe == 'file-metadata') {
+    sourceSets.main.java.srcDir('src/file/java')
 }
 dependencies {
     if (usesMapSources || probe == 'terrain-render') {
