@@ -10,6 +10,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 import urllib.error
 import urllib.request
 from typing import Any
@@ -147,13 +148,50 @@ def write_outputs(outputs: dict[str, str]) -> None:
             fh.write(f"{k}={clean}\n")
 
 
-def load_pr_context() -> tuple[str, dict[str, Any]]:
+def load_pr_event() -> tuple[str, str, dict[str, Any]]:
     repo = os.environ["GITHUB_REPOSITORY"]
     event_path = os.environ["GITHUB_EVENT_PATH"]
     with open(event_path, encoding="utf-8") as fh:
         event = json.load(fh)
+    action = str(event.get("action") or "").strip().lower()
     pr = event["pull_request"]
+    return repo, action, pr
+
+
+def load_pr_context() -> tuple[str, dict[str, Any]]:
+    repo, _, pr = load_pr_event()
     return repo, pr
+
+
+def has_bot_approval_for_commit(
+    repo: str, pr_number: int, head_sha: str, token: str
+) -> bool:
+    """Return True if the latest github-actions[bot] review on head_sha is APPROVED."""
+    latest_state: str | None = None
+    page = 1
+    while True:
+        url = (
+            f"https://api.github.com/repos/{repo}/pulls/{pr_number}/reviews"
+            f"?per_page=100&page={page}"
+        )
+        _, raw = github_request(url, token)
+        batch = json.loads(raw)
+        if not batch:
+            break
+        for review in batch:
+            login = (review.get("user") or {}).get("login")
+            commit_id = review.get("commit_id")
+            state = str(review.get("state") or "").upper()
+            if (
+                login == "github-actions[bot]"
+                and commit_id == head_sha
+                and state in {"APPROVED", "CHANGES_REQUESTED", "DISMISSED"}
+            ):
+                latest_state = state
+        if len(batch) < 100:
+            break
+        page += 1
+    return latest_state == "APPROVED"
 
 
 def cmd_classify(_: argparse.Namespace) -> int:
@@ -252,7 +290,11 @@ def call_openai_compatible(
         headers.update(extra_headers)
 
     last_error: Exception | None = None
-    for use_response_format in (True, False):
+    attempts = (
+        (1, True),
+        (2, False),
+    )
+    for attempt_num, use_response_format in attempts:
         payload = dict(base_payload)
         if use_response_format:
             payload["response_format"] = {"type": "json_object"}
@@ -262,35 +304,49 @@ def call_openai_compatible(
             headers=headers,
             method="POST",
         )
-        for attempt in range(2):
-            try:
-                with urllib.request.urlopen(req, timeout=240) as resp:
-                    data = json.loads(resp.read().decode("utf-8"))
-                message = data["choices"][0]["message"]
-                content = (message.get("content") or "").strip()
-                if not content:
-                    content = (message.get("reasoning_content") or "").strip()
-                if not content:
-                    raise ValueError(f"Empty model response: {json.dumps(data)[:400]}")
-                return parse_ai_json(content)
-            except urllib.error.HTTPError as exc:
-                err_body = exc.read().decode("utf-8", errors="replace")
-                if use_response_format and exc.code == 400:
-                    last_error = exc
-                    break
-                if exc.code >= 500 and attempt == 0:
-                    last_error = exc
-                    continue
-                raise RuntimeError(
-                    f"LLM API POST {endpoint} failed ({exc.code}): {err_body}"
-                ) from exc
-            except (TimeoutError, urllib.error.URLError, ValueError, json.JSONDecodeError) as exc:
+        started = time.monotonic()
+        print(
+            f"AI review request attempt {attempt_num}/2 "
+            f"(response_format={'json_object' if use_response_format else 'none'})...",
+            flush=True,
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=240) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            elapsed = time.monotonic() - started
+            print(
+                f"AI review attempt {attempt_num}/2 completed in {elapsed:.1f}s.",
+                flush=True,
+            )
+            message = data["choices"][0]["message"]
+            content = (message.get("content") or "").strip()
+            if not content:
+                content = (message.get("reasoning_content") or "").strip()
+            if not content:
+                raise ValueError(f"Empty model response: {json.dumps(data)[:400]}")
+            return parse_ai_json(content)
+        except urllib.error.HTTPError as exc:
+            err_body = exc.read().decode("utf-8", errors="replace")
+            elapsed = time.monotonic() - started
+            if attempt_num == 1 and (exc.code == 400 or exc.code >= 500):
+                print(
+                    f"AI review attempt 1/2 failed with HTTP {exc.code} after {elapsed:.1f}s; falling back without response_format.",
+                    flush=True,
+                )
                 last_error = exc
-                if attempt == 0:
-                    continue
-                break
+                continue
+            raise RuntimeError(
+                f"LLM API POST {endpoint} failed ({exc.code}): {err_body}"
+            ) from exc
+        except (TimeoutError, urllib.error.URLError, ValueError, json.JSONDecodeError) as exc:
+            elapsed = time.monotonic() - started
+            print(
+                f"AI review attempt {attempt_num}/2 failed after {elapsed:.1f}s: {exc}",
+                flush=True,
+            )
+            last_error = exc
 
-    raise RuntimeError(f"LLM API POST {endpoint} failed after retry: {last_error}")
+    raise RuntimeError(f"LLM API POST {endpoint} failed after 2 attempts: {last_error}")
 
 
 def call_anthropic(api_key: str, model: str, system_prompt: str, user_prompt: str) -> dict[str, Any]:
@@ -366,10 +422,21 @@ def select_ai_provider() -> tuple[str, str, str] | None:
 
 def cmd_ai_review(args: argparse.Namespace) -> int:
     token = os.environ["GITHUB_TOKEN"]
-    repo, pr = load_pr_context()
+    repo, event_action, pr = load_pr_event()
     pr_number = int(pr["number"])
     head_sha = pr["head"]["sha"]
     base_ref = pr["base"]["ref"]
+
+    if event_action in {"labeled", "unlabeled", "edited"} and has_bot_approval_for_commit(
+        repo, pr_number, head_sha, token
+    ):
+        print(
+            f"Skipping duplicate AI review for PR #{pr_number} ({head_sha[:8]}): "
+            f"already approved by github-actions[bot] (event action={event_action}).",
+            flush=True,
+        )
+        write_outputs({"approved": "true"})
+        return 0
 
     selected = select_ai_provider()
     if not selected:
@@ -383,7 +450,10 @@ def cmd_ai_review(args: argparse.Namespace) -> int:
         return 1
 
     provider, api_key, model = selected
-    print(f"Running AI PR review using {provider} ({model}) on PR #{pr_number} ({head_sha[:8]})")
+    print(
+        f"Running AI PR review using {provider} ({model}) on PR #{pr_number} ({head_sha[:8]})",
+        flush=True,
+    )
 
     _, diff_text = github_request(
         f"https://api.github.com/repos/{repo}/pulls/{pr_number}",
