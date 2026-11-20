@@ -310,3 +310,15 @@ bash arm11/build.sh build/generated/teavm/c build/terrain-3ds build/terrain-asse
 Run from this directory in the devkitPro 3DS environment. The build
 produces `build/terrain-3ds/upstream-probe.3dsx`. Stage the original
 `glacier.msav` and `sprites.aatls` in `/3ds/min3dstry/` on the SD card.
+
+The [DevkitARM builds](https://github.com/levkeveli/Min3DStry/actions/runs/44802428728)
+at `-O0` and `-O2` submitted all 320 draws and matched the terrain trace on
+both Azahar 2126.2 console profiles. A host reference composited the same upstream draw
+rectangles directly from the official atlas. Across 68,352 screenshot
+pixels away from nearest-neighbor sampling boundaries, every RGB channel
+matched the reference within one 8-bit level on both profiles.
+
+The `-O2` ELF reserves 30.41 MiB in page-rounded load segments. With the
+16 MiB managed heap, 4 MiB linear heap and 256 KiB stack, the subtotal is
+50.66 MiB before GC metadata and other allocations. A fixed frame
+provides no sustained frame-time measurement.
