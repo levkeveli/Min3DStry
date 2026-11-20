@@ -17,6 +17,7 @@ import sys
 from pathlib import Path
 
 DEFAULT_MAP = Path("audio/upstream-audio-map.json")
+DEFAULT_TRIGGERS = Path("audio/upstream-audio-triggers.json")
 DEFAULT_RATE = 22050
 VALID_ID = re.compile(r"^[a-z0-9][a-z0-9_.-]*$")
 ALLOWED_PREFIXES = ("core/assets/sounds/", "core/assets/music/")
@@ -59,6 +60,78 @@ def load_map(path: Path) -> dict:
     if not isinstance(data, dict):
         raise AudioConversionError("audio map root must be an object")
     return data
+
+
+def load_triggers(path: Path) -> dict:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise AudioConversionError(f"cannot read trigger map {path}: {error}") from error
+    if not isinstance(data, dict):
+        raise AudioConversionError("trigger map root must be an object")
+    return data
+
+
+def validate_triggers(data: dict, entries: list[dict], upstream: Path) -> dict[str, dict]:
+    if type(data.get("format")) is not int or data.get("format") != 1:
+        raise AudioConversionError("trigger map format must be 1")
+    commit = data.get("upstream_commit")
+    if not isinstance(commit, str) or not re.fullmatch(r"[0-9a-f]{40}", commit):
+        raise AudioConversionError("trigger map upstream_commit must be a 40-character SHA")
+    counts = {entry["id"] for entry in entries}
+    raw_events = data.get("events")
+    if not isinstance(raw_events, list):
+        raise AudioConversionError("trigger map events must be a list")
+
+    result: dict[str, dict] = {}
+    for raw in raw_events:
+        if not isinstance(raw, dict):
+            raise AudioConversionError("each trigger entry must be an object")
+        entry_id = raw.get("id")
+        source_file = raw.get("file")
+        symbol = raw.get("symbol")
+        description = raw.get("description", "")
+        if entry_id not in counts:
+            raise AudioConversionError(f"trigger references unknown audio id: {entry_id!r}")
+        if entry_id in result:
+            raise AudioConversionError(f"duplicate trigger for audio id: {entry_id}")
+        if not isinstance(source_file, str) or not source_file.startswith("core/src/"):
+            raise AudioConversionError(f"trigger file for {entry_id} must be under core/src/")
+        normalized = Path(source_file).as_posix()
+        if ".." in Path(normalized).parts:
+            raise AudioConversionError(f"trigger file escapes upstream: {source_file}")
+        if not isinstance(symbol, str) or not symbol:
+            raise AudioConversionError(f"trigger symbol for {entry_id} is empty")
+        if not isinstance(description, str):
+            raise AudioConversionError(f"trigger description for {entry_id} must be a string")
+        source_path = (upstream / normalized).resolve()
+        try:
+            source_path.relative_to(upstream.resolve())
+        except ValueError as error:
+            raise AudioConversionError(f"trigger file escapes upstream: {source_file}") from error
+        if not source_path.is_file():
+            raise AudioConversionError(f"missing upstream trigger file: {source_file}")
+        text = source_path.read_text(encoding="utf-8", errors="replace")
+        line_number = 0
+        for index, line in enumerate(text.splitlines(), start=1):
+            if symbol in line:
+                line_number = index
+                break
+        if line_number == 0:
+            raise AudioConversionError(
+                f"trigger symbol {symbol!r} not found in {source_file} for {entry_id}"
+            )
+        result[entry_id] = {
+            "file": normalized,
+            "line": line_number,
+            "symbol": symbol,
+            "description": description,
+        }
+
+    missing = sorted(counts - set(result))
+    if missing:
+        raise AudioConversionError(f"trigger map missing audio ids: {', '.join(missing)}")
+    return result
 
 
 def validate_map(data: dict, upstream: Path) -> list[dict]:
@@ -165,7 +238,7 @@ def convert_entry(ffmpeg: str, entry: dict, output_dir: Path) -> dict:
     frame_bytes = 2 * entry["channels"]
     if size == 0 or size % frame_bytes != 0:
         raise AudioConversionError(f"invalid PCM size {size} for {entry['id']}")
-    return {
+    result = {
         "id": entry["id"],
         "source": entry["source"],
         "source_sha256": sha256_file(entry["source_path"]),
@@ -176,9 +249,75 @@ def convert_entry(ffmpeg: str, entry: dict, output_dir: Path) -> dict:
         "frames": size // frame_bytes,
         "bytes": size,
     }
+    if entry.get("trigger"):
+        result["trigger"] = entry["trigger"]
+    return result
 
 
-def convert_map(upstream: Path, map_path: Path, output_dir: Path, ffmpeg: str) -> dict:
+def c_string(value: str) -> str:
+    return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def pack_romfs(manifest: dict, source_dir: Path, romfs_dir: Path) -> Path:
+    """Copy PCM files and write a C index for a future RomFS audio loader."""
+    romfs_dir.mkdir(parents=True, exist_ok=True)
+    for entry in manifest["entries"]:
+        source = source_dir / entry["output"]
+        if not source.is_file():
+            raise AudioConversionError(f"missing converted PCM: {source}")
+        shutil.copy2(source, romfs_dir / entry["output"])
+    shutil.copy2(source_dir / "audio-manifest.json", romfs_dir / "audio-manifest.json")
+
+    lines = [
+        "/* Generated by tools/build_audio_assets.py. */",
+        "#ifndef M3DS_AUDIO_INDEX_H",
+        "#define M3DS_AUDIO_INDEX_H",
+        "",
+        f"#define M3DS_AUDIO_CLIP_COUNT {len(manifest['entries'])}U",
+        "",
+        "typedef struct M3dsAudioIndexEntry {",
+        "  const char *id;",
+        "  const char *path;",
+        "  unsigned int rate;",
+        "  unsigned int channels;",
+        "  unsigned int frames;",
+        "  const char *trigger_file;",
+        "  unsigned int trigger_line;",
+        "} M3dsAudioIndexEntry;",
+        "",
+        "static const M3dsAudioIndexEntry m3ds_audio_index[M3DS_AUDIO_CLIP_COUNT] = {",
+    ]
+    for entry in manifest["entries"]:
+        trigger = entry.get("trigger") or {}
+        lines.append(
+            "  {"
+            + ", ".join(
+                [
+                    c_string(entry["id"]),
+                    c_string(f"romfs:/audio/{entry['output']}"),
+                    str(entry["rate"]),
+                    str(entry["channels"]),
+                    str(entry["frames"]),
+                    c_string(trigger.get("file", "-")),
+                    str(trigger.get("line", 0)),
+                ]
+            )
+            + "},"
+        )
+    lines.extend(["};", "", "#endif", ""])
+    index_path = romfs_dir / "audio-index.h"
+    index_path.write_text("\n".join(lines), encoding="utf-8")
+    return index_path
+
+
+def convert_map(
+    upstream: Path,
+    map_path: Path,
+    output_dir: Path,
+    ffmpeg: str,
+    triggers_path: Path | None = None,
+    romfs_out: Path | None = None,
+) -> dict:
     data = load_map(map_path)
     entries = validate_map(data, upstream)
     head = upstream_head(upstream)
@@ -186,6 +325,12 @@ def convert_map(upstream: Path, map_path: Path, output_dir: Path, ffmpeg: str) -
         raise AudioConversionError(
             f"upstream HEAD {head} does not match mapped commit {data['upstream_commit']}"
         )
+    if triggers_path is not None:
+        trigger_data = load_triggers(triggers_path)
+        if trigger_data.get("upstream_commit") != data["upstream_commit"]:
+            raise AudioConversionError("trigger map upstream_commit differs from audio map")
+        triggers = validate_triggers(trigger_data, entries, upstream)
+        entries = [dict(entry, trigger=triggers[entry["id"]]) for entry in entries]
     output_dir.mkdir(parents=True, exist_ok=True)
     converted = [convert_entry(ffmpeg, entry, output_dir) for entry in entries]
     converted.sort(key=lambda item: item["id"])
@@ -201,6 +346,8 @@ def convert_map(upstream: Path, map_path: Path, output_dir: Path, ffmpeg: str) -
     (output_dir / "audio-manifest.json").write_text(
         json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
+    if romfs_out is not None:
+        pack_romfs(manifest, output_dir, romfs_out)
     return manifest
 
 
@@ -208,7 +355,14 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--upstream", type=Path, required=True, help="pinned Mindustry checkout")
     parser.add_argument("--map", type=Path, default=DEFAULT_MAP, help="audio map JSON")
+    parser.add_argument(
+        "--triggers",
+        type=Path,
+        default=DEFAULT_TRIGGERS,
+        help="pinned upstream trigger map (empty string disables)",
+    )
     parser.add_argument("--out", type=Path, required=True, help="output directory")
+    parser.add_argument("--romfs-out", type=Path, default=None, help="RomFS-ready output directory")
     parser.add_argument("--ffmpeg", default=None, help="ffmpeg executable")
     args = parser.parse_args()
 
@@ -219,8 +373,16 @@ def main() -> int:
             file=sys.stderr,
         )
         return 2
+    triggers = args.triggers if str(args.triggers) else None
     try:
-        manifest = convert_map(args.upstream, args.map, args.out, ffmpeg)
+        manifest = convert_map(
+            args.upstream,
+            args.map,
+            args.out,
+            ffmpeg,
+            triggers_path=triggers,
+            romfs_out=args.romfs_out,
+        )
     except AudioConversionError as error:
         print(f"audio conversion failed: {error}", file=sys.stderr)
         return 1
@@ -234,6 +396,8 @@ def main() -> int:
         f"AUDIO_ASSETS files={manifest['total_files']} "
         f"bytes={manifest['total_bytes']} manifest={args.out / 'audio-manifest.json'}"
     )
+    if args.romfs_out is not None:
+        print(f"AUDIO_ROMFS files={manifest['total_files']} index={args.romfs_out / 'audio-index.h'}")
     return 0
 
 

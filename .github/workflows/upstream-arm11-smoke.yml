@@ -250,8 +250,12 @@ jobs:
           python3 tools/build_audio_assets.py \
             --upstream "$RUNNER_TEMP/Mindustry" \
             --map audio/upstream-audio-map.json \
-            --out "$RUNNER_TEMP/audio" | tee "$RUNNER_TEMP/audio-convert.log"
+            --triggers audio/upstream-audio-triggers.json \
+            --out "$RUNNER_TEMP/audio" \
+            --romfs-out "$RUNNER_TEMP/romfs-audio" | tee "$RUNNER_TEMP/audio-convert.log"
           grep -F 'AUDIO_ASSETS files=3' "$RUNNER_TEMP/audio-convert.log"
+          grep -F 'AUDIO_ROMFS files=3' "$RUNNER_TEMP/audio-convert.log"
           test -s "$RUNNER_TEMP/audio/ui.button.pcm"
           test -s "$RUNNER_TEMP/audio/wave.spawn.pcm"
           test -s "$RUNNER_TEMP/audio/audio-manifest.json"
+          test -s "$RUNNER_TEMP/romfs-audio/audio-index.h"
