@@ -272,6 +272,16 @@ and pass a captured `WorldStream` file through `--args`. The JVM
 version uses upstream item and unit serialization to verify the applied
 wave, clock, core copper inventory and Dagger entity coordinates.
 
+The [snapshot dispatch build](https://github.com/levkeveli/Min3DStry/actions/runs/44828359834)
+passed on the Old and New 3DS profiles in Azahar 2126.2 at both `-O0`
+and `-O2`. Each run rejected build 159, joined the stock v160.8 server,
+applied wave 1 → 2, then rejoined and applied wave 2 → 3 after a
+13-second wait. Each join registered a different Dagger in the upstream
+sync group. The second join logged a TCP keepalive during the wait, and
+the server recorded both departures. The optimized probe's page-rounded
+ELF load segments account for 28.04 MiB. Including the configured heap,
+stack and SOC buffer brings that subtotal to 45.29 MiB.
+
 Before the snapshot dispatch extension, the [devkitARM verification build](https://github.com/levkeveli/Min3DStry/actions/runs/44824442974)
 passed at `-O0` and `-O2` on both Azahar 2126.2 console profiles. Each run
 rejected build 159 with `clientOutdated`, then joined Glacier twice with
