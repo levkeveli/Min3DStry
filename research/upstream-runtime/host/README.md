@@ -86,3 +86,27 @@ UPSTREAM_SAVE header=MSAV version=13 bytes=<n>
 The byte count can vary between runs; the `MSAV` header and save version are
 the contract. This is a host-only reference. It does not read or write a
 Min3DStry format and is not a 3DS test.
+
+## Audio asset inventory
+
+Issue #29 needs the exact pinned sound/music set before conversion. The server
+JAR does not contain these files, so scan the pinned Git checkout:
+
+```sh
+java /path/to/Min3DStry/research/upstream-runtime/host/UpstreamAudioInventory.java \
+    /path/to/Mindustry
+```
+
+Expected pinned v160.8 baseline (paths and per-file hashes are printed above
+the summaries):
+
+```text
+UPSTREAM_AUDIO kind=music files=16 bytes=28493699 manifest_sha256=d637f9d895868758d6a749ef445fd2912fe0e3d768050372618a276ae4d8cacd
+UPSTREAM_AUDIO kind=sounds files=205 bytes=7093890 manifest_sha256=8a848916f9b95b3e45f2de2b9def2081c6b0778e0548e36697268f48057cdcbd
+UPSTREAM_AUDIO total_files=221 total_bytes=35587589 manifest_sha256=f16c7f1c163d04b9843390146aafc2197cb6f6a3ad8db30e1872c7b1853be5fc
+```
+
+This is an inventory only: no decode, conversion, RomFS packing or audio
+playback is claimed. Asset provenance/licensing still needs per-file review
+before distribution; see the [asset pipeline](../../../docs/rendering/asset-pipeline.md)
+and [audio plan](../../../docs/audio/ndsp-mixer.md).
