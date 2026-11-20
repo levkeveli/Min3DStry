@@ -78,3 +78,8 @@ Upstream `World.loadMap` loads Glacier and emits
 `UPSTREAM_WORLD width=150 height=250 tiles=37500 buildings=2`. The building count
 includes each building once at its origin tile. Use this JVM result as a
 reference when bringing up upstream world loading on ARM11.
+
+### Check the upstream content registry and building factories
+
+The [JVM content and factory probes](host/README.md) compare the pinned release
+with the Block class adapted for TeaVM. The content mode is experimental.
