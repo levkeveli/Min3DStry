@@ -30,10 +30,20 @@
 #define M3DS_MEMORY_PROBE_WORLD_BYTES (200U * 200U * 12U)
 #define M3DS_MEMORY_PROBE_TEXTURE_BYTES (8U * 1024U)
 #define M3DS_MEMORY_PROBE_TRANSIENT_BYTES (64U * 1024U)
-#define M3DS_DEMO_WAVE_TICK 10u
+#define M3DS_DEMO_WAVE_TICK 5u
 #define M3DS_DEMO_WAVE_X 9u
 #define M3DS_DEMO_WAVE_Y 1u
 #define M3DS_DEMO_WAVE_COUNT 2u
+#define M3DS_DEMO_WALL_TICK 12u
+#define M3DS_DEMO_WALL_REMOVE_TICK 15u
+#define M3DS_DEMO_WALL_X 10u
+#define M3DS_DEMO_WALL_Y 3u
+/*
+ * Demo invariants: (10,3) starts empty and START_COPPER covers the wall cost
+ * (2). If either changes, the block place/break emu-test assertions need to be
+ * updated with the demo.
+ */
+#define M3DS_DEMO_START_COPPER 10u
 
 static uint8_t g_memory_arena[M3DS_MEMORY_ARENA_BYTES]
     __attribute__((aligned(M3DS_MEMORY_ALIGNMENT)));
@@ -192,12 +202,15 @@ int main(int argc, char *argv[]) {
         m3ds_emit_debug_line(log_socket, dbg_line);
     }
 
+    /* The PARITY run above is the canonical fixture; the interactive demo
+       below applies its own inputs and does not feed that trace hash. */
     C3D_RenderTarget *top = C2D_CreateScreenTarget(GFX_TOP, GFX_LEFT);
 
     M3dsBoundedScene scene;
     M3dsParityState factory;
     m3ds_factory_demo_init(&scene, &factory);
     m3ds_factory_demo_add_turret(&scene, &factory);
+    factory.core_copper = M3DS_DEMO_START_COPPER;
 
     M3dsCitro2dContext c2d_ctx;
     M3dsRenderBackend backend;
@@ -293,6 +306,8 @@ int main(int argc, char *argv[]) {
     uint32_t prev_shots_fired = factory.shots_fired;
     uint32_t prev_enemies_killed = factory.enemies_killed;
     bool demo_wave_spawned = false;
+    bool demo_wall_placed = false;
+    bool demo_wall_removed = false;
 
     while (aptMainLoop()) {
         hidScanInput();
@@ -341,6 +356,49 @@ int main(int argc, char *argv[]) {
             m3ds_scene_pan(&scene, pan_dx, pan_dy);
         }
 
+        if (!scene.paused && !demo_wall_placed &&
+            factory.tick >= M3DS_DEMO_WALL_TICK) {
+            M3dsParityInput wall_input;
+            memset(&wall_input, 0, sizeof(wall_input));
+            wall_input.tick = factory.tick;
+            wall_input.kind = M3DS_PINPUT_PLACE_BLOCK;
+            wall_input.x = M3DS_DEMO_WALL_X;
+            wall_input.y = M3DS_DEMO_WALL_Y;
+            wall_input.block = M3DS_PBLOCK_WALL;
+            demo_wall_placed = m3ds_parity_apply_input(&factory, &wall_input);
+            if (demo_wall_placed) {
+                int place_clip = M3DS_AUDIO_INVALID_CLIP;
+                uint32_t place_voice = m3ds_play_event(
+                    audio_events, M3DS_AUDIO_EVENT_BLOCK_PLACE, 0.5f, false,
+                    &place_clip);
+                snprintf(dbg_line, sizeof(dbg_line),
+                         "[MIN3DSTRY] AUDIO_EVENT block.place clip=%d voice=%u\n",
+                         place_clip,
+                         (unsigned int)place_voice);
+                m3ds_emit_debug_line(log_socket, dbg_line);
+            }
+        }
+        if (!scene.paused && demo_wall_placed && !demo_wall_removed &&
+            factory.tick >= M3DS_DEMO_WALL_REMOVE_TICK) {
+            M3dsParityInput wall_input;
+            memset(&wall_input, 0, sizeof(wall_input));
+            wall_input.tick = factory.tick;
+            wall_input.kind = M3DS_PINPUT_REMOVE_BLOCK;
+            wall_input.x = M3DS_DEMO_WALL_X;
+            wall_input.y = M3DS_DEMO_WALL_Y;
+            demo_wall_removed = m3ds_parity_apply_input(&factory, &wall_input);
+            if (demo_wall_removed) {
+                int break_clip = M3DS_AUDIO_INVALID_CLIP;
+                uint32_t break_voice = m3ds_play_event(
+                    audio_events, M3DS_AUDIO_EVENT_BLOCK_BREAK, 0.5f, false,
+                    &break_clip);
+                snprintf(dbg_line, sizeof(dbg_line),
+                         "[MIN3DSTRY] AUDIO_EVENT block.break clip=%d voice=%u\n",
+                         break_clip,
+                         (unsigned int)break_voice);
+                m3ds_emit_debug_line(log_socket, dbg_line);
+            }
+        }
         if (!scene.paused && !demo_wave_spawned &&
             factory.tick >= M3DS_DEMO_WAVE_TICK) {
             M3dsParityInput wave_input;
@@ -411,7 +469,8 @@ int main(int argc, char *argv[]) {
         C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
         m3ds_scene_render(&scene, &backend, &stats);
         (void)m3ds_minimap_render(
-            &scene, &backend, M3DS_TOP_SCREEN_WIDTH - 104.0f, 8.0f, 96.0f, 64.0f);
+            &scene, &factory, &backend, M3DS_TOP_SCREEN_WIDTH - 104.0f, 8.0f,
+            96.0f, 64.0f);
         C3D_FrameEnd(0);
 
         printf("\x1b[1;1HMin3DStry - Factory Prototype\x1b[K");

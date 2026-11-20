@@ -262,14 +262,16 @@ jobs:
             --triggers audio/upstream-audio-triggers.json \
             --out "$RUNNER_TEMP/audio" \
             --romfs-out "$RUNNER_TEMP/romfs-audio" | tee "$RUNNER_TEMP/audio-convert.log"
-          grep -F 'AUDIO_ASSETS files=7' "$RUNNER_TEMP/audio-convert.log"
-          grep -F 'AUDIO_ROMFS files=7' "$RUNNER_TEMP/audio-convert.log"
+          grep -F 'AUDIO_ASSETS files=9' "$RUNNER_TEMP/audio-convert.log"
+          grep -F 'AUDIO_ROMFS files=9' "$RUNNER_TEMP/audio-convert.log"
           test -s "$RUNNER_TEMP/audio/ui.button.pcm"
           test -s "$RUNNER_TEMP/audio/wave.spawn.pcm"
           test -s "$RUNNER_TEMP/audio/shoot.duo.pcm"
           test -s "$RUNNER_TEMP/audio/enemy.kill.pcm"
           test -s "$RUNNER_TEMP/audio/conveyor.loop.pcm"
           test -s "$RUNNER_TEMP/audio/drill.loop.pcm"
+          test -s "$RUNNER_TEMP/audio/block.place.pcm"
+          test -s "$RUNNER_TEMP/audio/block.break.pcm"
           test -s "$RUNNER_TEMP/audio/audio-manifest.json"
           test -s "$RUNNER_TEMP/romfs-audio/audio/ui.button.pcm"
           test -s "$RUNNER_TEMP/romfs-audio/audio/ui.unlock.pcm"
@@ -278,11 +280,13 @@ jobs:
           test -s "$RUNNER_TEMP/romfs-audio/audio/enemy.kill.pcm"
           test -s "$RUNNER_TEMP/romfs-audio/audio/conveyor.loop.pcm"
           test -s "$RUNNER_TEMP/romfs-audio/audio/drill.loop.pcm"
+          test -s "$RUNNER_TEMP/romfs-audio/audio/block.place.pcm"
+          test -s "$RUNNER_TEMP/romfs-audio/audio/block.break.pcm"
           test -s "$RUNNER_TEMP/romfs-audio/audio-index.h"
           test ! -e "$RUNNER_TEMP/romfs-audio/ui.button.pcm"
           cat > "$RUNNER_TEMP/romfs-audio/index_check.c" <<'EOF'
           #include "audio-index.h"
-          int main(void) { return M3DS_AUDIO_CLIP_COUNT == 7U ? 0 : 1; }
+          int main(void) { return M3DS_AUDIO_CLIP_COUNT == 9U ? 0 : 1; }
           EOF
           cc -std=c11 -Wall -Wextra -Werror -Iinclude -I"$RUNNER_TEMP/romfs-audio" \
             "$RUNNER_TEMP/romfs-audio/index_check.c" \
