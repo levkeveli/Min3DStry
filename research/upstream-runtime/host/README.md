@@ -73,7 +73,9 @@ TeaVM C generation commands to check an executor created by upstream
 `arc.util.Threads.executor`. The JVM uses its JDK executor. TeaVM uses the
 port's fixed executor through its [substitution policy](https://www.teavm.org/docs/runtime/compiler-extensions.html#substitutionpolicy).
 The test verifies task results, propagated exceptions, timed waits,
-cancellation, and shutdown in each environment.
+cancellation, and shutdown in each environment. The generated native Windows
+program and the [devkitARM build](https://github.com/levkeveli/Min3DStry/actions/runs/44770447356)
+matched the JVM, including both console profiles in Azahar 2126.2.
 
 The generated Arc `OS.java` reports one execution lane for the cooperative
 TeaVM C scheduler, avoiding the unsupported JVM processor-count call. The
