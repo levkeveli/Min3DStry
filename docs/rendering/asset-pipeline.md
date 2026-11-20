@@ -1,5 +1,7 @@
 # Sprite asset pipeline
 
+Status: **emulator-tested** (`ATLAS loaded`, textured screenshots and parity verified in Azahar `2126.2`; physical Old/New 3DS frame-time verification pending).
+
 The source port reads the official Mindustry v160.8 atlas using Arc's `TextureAtlasData`. The importer inventories the official sprites and packs a first set for Glacier and the factory scenario. The platform prototype has a separate sheet of geometric test fixtures.
 
 ## Import upstream sprites
@@ -36,7 +38,7 @@ cmp build/assets/first/sprites.h build/assets/second/sprites.h
 
 Both comparisons should exit successfully. For repeatability between machines, record the converter build and its ImageMagick version along with the ordered inputs. To pack your own local inputs, append PNG paths in a fixed order. Use unique lowercase names, such as `floor.png` and `belt-0.png`. The header maps sprite names to Citro2D indices. Keep animation order in the caller and use those named indices rather than relying on atlas layout.
 
-The initial Windows verification used tex3ds v2.3.0 with ImageMagick 7.1.2-36. Two runs produced byte-identical outputs. The five fixture sprites fit in a 32 × 64 sheet (8 KiB of texture data), and their decoded RGBA pixels matched the PNGs. On-console texture loading and frame time still need verification.
+The initial Windows verification used tex3ds v2.3.0 with ImageMagick 7.1.2-36. Two runs produced byte-identical outputs. The five fixture sprites fit in a 32 × 64 sheet (8 KiB of texture data), and their decoded RGBA pixels matched the PNGs. Azahar `2126.2` now reports `ATLAS loaded` on both models and renders textured screenshots; physical Old/New 3DS frame time remains pending. See [azahar-atlas-evidence.md](azahar-atlas-evidence.md).
 
 ## Image quality and texture budget
 
