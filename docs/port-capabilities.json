@@ -155,7 +155,9 @@
       "issue": 26,
       "evidence": [
         "src/render/factory_demo.c",
-        "docs/rendering/citro2d-prototype.md"
+        "docs/rendering/citro2d-prototype.md",
+        "research/upstream-runtime/README.md",
+        "research/upstream-runtime/src/world/java/UpstreamFactoryTickProbe.java"
       ]
     },
     {
