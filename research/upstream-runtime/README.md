@@ -304,6 +304,13 @@ UPSTREAM_GROUND_FIELD from=81,55 to=81,28 hops=27 hash=d579ea6f7b1e6d18
 UPSTREAM_GROUND_UNIT ticks=120 from=81,55 to=81,48
 ```
 
+The final generated Windows x64 executable matched eight times. The
+[`-O0` and `-O2` DevkitARM builds](https://github.com/levkeveli/Min3DStry/actions/runs/44806764887)
+matched both records and returned to the launcher prompt in both Azahar
+console profiles. The `-O2` mapped segments, 24 MiB managed heap, 4 MiB
+linear heap and 256 KiB stack total 64.66 MiB before GC metadata and other
+allocations. This exceeds the 64 MiB Original 3DS application budget.
+
 The field and movement call the pinned
 [`Pathfinder.java`](https://github.com/Anuken/Mindustry/blob/19a0f40d44514f4802a8b79770456e7e32e34da0/core/src/mindustry/ai/Pathfinder.java),
 [`GroundAI.java`](https://github.com/Anuken/Mindustry/blob/19a0f40d44514f4802a8b79770456e7e32e34da0/core/src/mindustry/ai/types/GroundAI.java)
