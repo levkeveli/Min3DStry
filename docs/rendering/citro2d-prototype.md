@@ -21,6 +21,8 @@ This prototype implements Issue #3 by rendering a bounded 2D Mindustry-inspired 
 
 ## Build and Test
 
+The live factory demo starts with an original prebuilt row containing a drill, seven conveyors and a core. The existing deterministic prototype kernel advances on each unpaused frame. Copper dots show actual occupied conveyor cells and the bottom screen reports core inventory. The demo emits a factory snapshot at tick 60, which the host test checks for two deliveries. The scripted canonical parity scenario still runs separately at boot. Routers and player-driven construction remain follow-up work.
+
 See [Sprite asset pipeline](asset-pipeline.md) for the standalone fixture atlas and texture budget. The renderer prototype currently draws geometric primitives.
 
 - Host unit tests (runs in CI and locally with `cc`/`gcc`/`clang`):

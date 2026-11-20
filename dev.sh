@@ -104,7 +104,8 @@ case "${1:-}" in
 
     mkdir -p build/host
     "$host_cc" -std=c11 -Wall -Wextra -Werror -Iinclude \
-      src/render/scene_2d.c tests/render/test_scene_2d.c -lm -o build/host/test_scene_2d
+      src/render/scene_2d.c src/render/factory_demo.c src/sim/parity_scenario.c \
+      tests/render/test_scene_2d.c -lm -o build/host/test_scene_2d
     ./build/host/test_scene_2d
 
     "$host_cc" -std=c11 -Wall -Wextra -Werror -Iinclude \
