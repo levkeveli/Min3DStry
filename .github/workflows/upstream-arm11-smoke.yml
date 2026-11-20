@@ -5,11 +5,17 @@ on:
     branches: [main]
     paths:
       - "research/upstream-runtime/**"
+      - "audio/**"
+      - "tools/build_audio_assets.py"
+      - "tests/tools/test_audio_assets.py"
       - ".github/workflows/upstream-arm11-smoke.yml"
   push:
     branches: [main]
     paths:
       - "research/upstream-runtime/**"
+      - "audio/**"
+      - "tools/build_audio_assets.py"
+      - "tests/tools/test_audio_assets.py"
       - ".github/workflows/upstream-arm11-smoke.yml"
   workflow_dispatch:
 
@@ -213,3 +219,37 @@ jobs:
             research/upstream-runtime/host/UpstreamCombatBaseline.java \
             | tee "$RUNNER_TEMP/combat.log"
           grep -F 'UPSTREAM_COMBAT units=69 bullets=202 manifest_sha256=e35013e20c50cbe83169794e898e281898c717f1f373e9b84796090470a76882' "$RUNNER_TEMP/combat.log"
+
+  audio-conversion:
+    name: Audio conversion
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Fetch pinned upstream asset tree
+        run: |
+          git clone --depth 1 --branch v160.8 \
+            https://github.com/Anuken/Mindustry.git "$RUNNER_TEMP/Mindustry"
+          test "$(git -C "$RUNNER_TEMP/Mindustry" rev-parse HEAD)" = \
+            "19a0f40d44514f4802a8b79770456e7e32e34da0"
+
+      - name: Ensure ffmpeg is available
+        run: |
+          if ! command -v ffmpeg >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y ffmpeg
+          fi
+          ffmpeg -version | head -n 1
+
+      - name: Convert pinned upstream audio
+        run: |
+          python3 tools/build_audio_assets.py \
+            --upstream "$RUNNER_TEMP/Mindustry" \
+            --map audio/upstream-audio-map.json \
+            --out "$RUNNER_TEMP/audio" | tee "$RUNNER_TEMP/audio-convert.log"
+          grep -F 'AUDIO_ASSETS files=3 bytes=251916' "$RUNNER_TEMP/audio-convert.log"
+          test -s "$RUNNER_TEMP/audio/ui.button.pcm"
+          test -s "$RUNNER_TEMP/audio/audio-manifest.json"

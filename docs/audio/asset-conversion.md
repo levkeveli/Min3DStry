@@ -53,9 +53,9 @@ output path/hash, channels, rate, frames and bytes.
 - If ffmpeg is available, an integration test converts a synthetic 8 kHz WAV
   and checks PCM size, frame count and manifest provenance. Without ffmpeg the
   integration case is skipped; the manifest validation tests still run.
-- `./dev.sh test` includes the test module. CI runs it through the same suite;
-  the pinned upstream conversion is exercised when ffmpeg is present on the
-  runner.
+- `./dev.sh test` includes the test module. The `Audio conversion` CI job
+  converts the pinned three assets with ffmpeg and asserts the output manifest;
+  locally the integration case is skipped when ffmpeg is absent.
 
 ## Licensing and limitations
 
