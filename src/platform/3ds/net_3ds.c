@@ -145,6 +145,7 @@ static int n3ds_tcp_recv(
 static void n3ds_tcp_close(void *user_data) {
   M3dsNet3dsContext *ctx = (M3dsNet3dsContext *)user_data;
   if (ctx && ctx->tcp_fd >= 0) {
+    (void)shutdown(ctx->tcp_fd, SHUT_WR);
     close(ctx->tcp_fd);
     ctx->tcp_fd = -1;
   }

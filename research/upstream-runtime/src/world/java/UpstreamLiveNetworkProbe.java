@@ -39,12 +39,14 @@ public final class UpstreamLiveNetworkProbe {
         int port = Integer.parseInt(endpoint[1]);
         var app = UpstreamWorldLoadProbe.initialize(config.parent());
         Vars.mods = new Mods();
-        Vars.player = Player.create();
         Vars.net.setClientConnected();
         try {
             new UpstreamLiveNetworkProbe().run(host, port, app);
-        } catch (IOException error) {
-            System.out.println("UPSTREAM_LIVE_NET_ERROR " + error.getMessage());
+        } catch (IOException | RuntimeException error) {
+            Throwable cause = error;
+            while (cause.getCause() != null) cause = cause.getCause();
+            System.out.println("UPSTREAM_LIVE_NET_ERROR " + cause.getClass().getSimpleName()
+                + ": " + cause.getMessage());
             throw error;
         }
     }
@@ -67,7 +69,11 @@ public final class UpstreamLiveNetworkProbe {
                 Native.close();
             }
             System.out.println("UPSTREAM_LIVE_NET_DISCONNECTED join=" + join);
-            if (join == 1) Thread.sleep(500);
+            if (join == 1) {
+                Vars.logic.reset();
+                app.runPosted();
+                Thread.sleep(500);
+            }
         }
         System.out.println("UPSTREAM_LIVE_NET_PASS");
     }
@@ -81,6 +87,7 @@ public final class UpstreamLiveNetworkProbe {
         int total = Native.streamTotal();
         var stream = new WorldStreamInput(Native.streamId(), total);
         var seenEntities = new IntSet();
+        Vars.player = Player.create();
         NetworkIO.loadWorld(new InflaterInputStream(stream), seenEntities::add);
         app.runPosted();
         if (stream.remaining != 0 || Groups.player.size() != 1 || !PLAYER_NAME.equals(Vars.player.name)
