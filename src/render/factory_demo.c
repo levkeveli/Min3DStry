@@ -3,6 +3,7 @@
 #include <string.h>
 
 enum { DEMO_DRILL_X = 4, DEMO_OFFSET_X = 6, DEMO_OFFSET_Y = 6 };
+enum { DEMO_TURRET_X = 9, DEMO_TURRET_Y = 6 };
 
 void m3ds_factory_demo_init(M3dsBoundedScene *scene, M3dsParityState *factory) {
     m3ds_scene_init(scene, M3DS_TOP_SCREEN_WIDTH, M3DS_TOP_SCREEN_HEIGHT);
@@ -21,6 +22,16 @@ void m3ds_factory_demo_init(M3dsBoundedScene *scene, M3dsParityState *factory) {
         scene->tiles[y + DEMO_OFFSET_Y][x + DEMO_OFFSET_X] = M3DS_TILE_CONVEYOR_RIGHT;
     }
     scene->tiles[y + DEMO_OFFSET_Y][factory->core_x + DEMO_OFFSET_X] = M3DS_TILE_CORE;
+}
+
+void m3ds_factory_demo_add_turret(
+    M3dsBoundedScene *scene,
+    M3dsParityState *factory) {
+    M3dsParityCell *turret = &factory->grid[DEMO_TURRET_Y][DEMO_TURRET_X];
+    turret->block = M3DS_PBLOCK_TURRET;
+    turret->ammo = M3DS_PARITY_TURRET_MAX_AMMO;
+    scene->tiles[DEMO_TURRET_Y + DEMO_OFFSET_Y][DEMO_TURRET_X + DEMO_OFFSET_X] =
+        M3DS_TILE_TURRET;
 }
 
 void m3ds_factory_demo_step(M3dsBoundedScene *scene, M3dsParityState *factory) {

@@ -4,6 +4,8 @@ static const char *const m3ds_event_ids[M3DS_AUDIO_EVENT_COUNT] = {
     "ui.button",
     "ui.unlock",
     "wave.spawn",
+    "shoot.duo",
+    "enemy.kill",
 };
 
 const char *m3ds_audio_event_id(M3dsAudioEvent event) {
