@@ -9,26 +9,51 @@ repositories { mavenCentral() }
 
 def revision = '19a0f40d44514f4802a8b79770456e7e32e34da0'
 def upstreamFile = 'core/src/mindustry/logic/LogicOp.java'
+def blockSource = 'core/src/mindustry/world/Block.java'
+def annotationsSource = 'annotations/src/main/java/mindustry/annotations/Annotations.java'
 def glacier = 'core/assets/maps/default/glacier.msav'
 def upstream = providers.gradleProperty('upstreamCheckout')
 def probe = providers.gradleProperty('probe').getOrElse('logic')
 def entryPoints = [
     logic: 'mindustry.logic.UpstreamLogicProbe',
     map: 'mindustry.maps.UpstreamMapProbe',
-    'map-sd': 'mindustry.maps.UpstreamSdMapProbe'
+    'map-sd': 'mindustry.maps.UpstreamSdMapProbe',
+    content: 'UpstreamContentBaseline'
 ]
 if (!entryPoints.containsKey(probe)) {
-    throw new GradleException('Expected -Pprobe=logic, map, or map-sd')
+    throw new GradleException("Expected -Pprobe to be one of ${entryPoints.keySet()}")
 }
 def entryPoint = entryPoints[probe]
-def usesMapSources = probe != 'logic'
+def usesMapSources = probe in ['map', 'map-sd']
+def usesContentSources = probe == 'content'
 def referenceJar = file(providers.gradleProperty('referenceJar').getOrElse('server-release.jar'))
-def sourceDir = layout.buildDirectory.dir('upstream-src')
+def sourceDir = layout.buildDirectory.dir("upstream-src/${probe}")
 def sourceFile = sourceDir.map { it.file('mindustry/logic/LogicOp.java') }
 def mapFile = sourceDir.map { it.file('mindustry/maps/GlacierFixture.java') }
+def blockFile = sourceDir.map { it.file('mindustry/world/Block.java') }
+def annotationsFile = sourceDir.map { it.file('mindustry/annotations/Annotations.java') }
+def readUpstream = { path ->
+    providers.exec {
+        commandLine 'git', '-C', upstream.get(), 'show', "${revision}:${path}"
+    }.standardOutput.asBytes.get()
+}
 
+if (usesContentSources) {
+    // TeaVM resolves dependency classes before compiled project classes. Give it one Block.
+    def contentDependencies = tasks.register('prepareContentDependencies', Zip) {
+        dependsOn 'prepareUpstreamProbe'
+        from(zipTree(referenceJar)) {
+            exclude 'mindustry/world/Block.class'
+        }
+        destinationDirectory = layout.buildDirectory.dir('content-dependencies')
+        archiveFileName = 'server-without-block.jar'
+    }
+    dependencies { implementation files(contentDependencies.flatMap { it.archiveFile }).builtBy(contentDependencies) }
+    sourceSets.main.java.srcDirs('host', 'src/content/java')
+} else {
+    dependencies { implementation files(referenceJar) }
+}
 dependencies {
-    implementation files(referenceJar)
     if (usesMapSources) {
         implementation 'org.teavm:teavm-interop:0.16.0'
     }
@@ -48,21 +73,19 @@ tasks.register('prepareUpstreamProbe') {
     if (usesMapSources) {
         outputs.file(mapFile)
     }
+    if (usesContentSources) {
+        outputs.files(blockFile, annotationsFile)
+    }
     doLast {
-        def source = providers.exec {
-            commandLine 'git', '-C', upstream.get(), 'show', "${revision}:${upstreamFile}"
-        }.standardOutput.asBytes.get()
         def sha256 = MessageDigest.getInstance('SHA-256').digest(referenceJar.bytes).encodeHex().toString()
         if (sha256 != 'faeaf247a8b622de940181a96cb21cb20692d3c3da4e8ac3f79cb4af5059aa6c') {
             throw new GradleException('Expected the official v160.8 server-release.jar')
         }
         def output = sourceFile.get().asFile
         output.parentFile.mkdirs()
-        output.bytes = source
+        output.bytes = readUpstream(upstreamFile)
         if (usesMapSources) {
-            def bytes = providers.exec {
-                commandLine 'git', '-C', upstream.get(), 'show', "${revision}:${glacier}"
-            }.standardOutput.asBytes.get()
+            def bytes = readUpstream(glacier)
             def encoded = Base64.encoder.encodeToString(bytes)
             // The fixed fixture fits in a Java class-file string constant.
             if (encoded.length() > 65535) {
@@ -76,6 +99,19 @@ final class GlacierFixture {
 }
 """, 'UTF-8')
         }
+        if (usesContentSources) {
+            def block = new String(readUpstream(blockSource), 'UTF-8')
+            def anonymousCheck = 'current.isAnonymousClass()'
+            if (block.count(anonymousCheck) != 1) {
+                throw new GradleException('Pinned Block.initBuilding anonymous class check changed')
+            }
+            def adaptedBlock = blockFile.get().asFile
+            adaptedBlock.parentFile.mkdirs()
+            adaptedBlock.setText(block.replace(anonymousCheck, 'current.getSimpleName().isEmpty()'), 'UTF-8')
+            def annotations = annotationsFile.get().asFile
+            annotations.parentFile.mkdirs()
+            annotations.bytes = readUpstream(annotationsSource)
+        }
     }
 }
 
@@ -85,6 +121,16 @@ tasks.register('runProbeJvm', JavaExec) {
     dependsOn 'classes'
     classpath = sourceSets.main.runtimeClasspath
     mainClass = probe == 'map-sd' ? entryPoints.map : entryPoint
+}
+
+if (usesContentSources) {
+    tasks.register('runBuildingProbeJvm', JavaExec) {
+        dependsOn 'classes'
+        classpath = sourceSets.main.runtimeClasspath
+        mainClass = 'UpstreamBuildingBaseline'
+        workingDir = layout.buildDirectory.dir('content-reference').get().asFile
+        doFirst { workingDir.mkdirs() }
+    }
 }
 
 teavm { all { mainClass = entryPoint } }
