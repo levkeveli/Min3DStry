@@ -19,6 +19,18 @@
       "file": "core/src/mindustry/core/Control.java",
       "symbol": "Sounds.waveSpawn.play()",
       "description": "Wave spawn"
+    },
+    {
+      "id": "shoot.duo",
+      "file": "core/src/mindustry/content/Blocks.java",
+      "symbol": "shootSound = Sounds.shootDuo;",
+      "description": "Duo turret fire"
+    },
+    {
+      "id": "enemy.kill",
+      "file": "core/src/mindustry/type/UnitType.java",
+      "symbol": "Sounds.unitExplode1",
+      "description": "Small unit death explosion"
     }
   ]
 }

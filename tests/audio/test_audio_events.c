@@ -119,6 +119,8 @@ static void test_event_ids_match_trigger_map(void) {
     assert(strcmp(m3ds_audio_event_id(M3DS_AUDIO_EVENT_UI_BUTTON), "ui.button") == 0);
     assert(strcmp(m3ds_audio_event_id(M3DS_AUDIO_EVENT_RESEARCH_UNLOCK), "ui.unlock") == 0);
     assert(strcmp(m3ds_audio_event_id(M3DS_AUDIO_EVENT_WAVE_SPAWN), "wave.spawn") == 0);
+    assert(strcmp(m3ds_audio_event_id(M3DS_AUDIO_EVENT_SHOOT_DUO), "shoot.duo") == 0);
+    assert(strcmp(m3ds_audio_event_id(M3DS_AUDIO_EVENT_ENEMY_KILL), "enemy.kill") == 0);
     assert(m3ds_audio_event_id(M3DS_AUDIO_EVENT_COUNT) == NULL);
     assert(m3ds_audio_event_id((M3dsAudioEvent)99) == NULL);
 }
@@ -127,10 +129,14 @@ static void test_event_play_uses_registry_clip(void) {
     static const int16_t button[] = {1, 2, 3, 4};
     static const int16_t unlock[] = {5, 6, 7, 8};
     static const int16_t wave[] = {9, 10, 11, 12};
+    static const int16_t shoot[] = {13, 14, 15, 16};
+    static const int16_t kill[] = {17, 18, 19, 20};
     static const MockFile files[] = {
         {"romfs:/audio/ui.button.pcm", button, 4u},
         {"romfs:/audio/ui.unlock.pcm", unlock, 4u},
         {"romfs:/audio/wave.spawn.pcm", wave, 4u},
+        {"romfs:/audio/shoot.duo.pcm", shoot, 4u},
+        {"romfs:/audio/enemy.kill.pcm", kill, 4u},
         {NULL, NULL, 0u},
     };
     static const M3dsAudioIndexEntry entries[] = {
@@ -140,21 +146,27 @@ static void test_event_play_uses_registry_clip(void) {
          "core/src/mindustry/ui/dialogs/ResearchDialog.java", 623u},
         {"wave.spawn", "romfs:/audio/wave.spawn.pcm", 22050u, 1u, 4u,
          "core/src/mindustry/core/Control.java", 129u},
+        {"shoot.duo", "romfs:/audio/shoot.duo.pcm", 22050u, 1u, 4u,
+         "core/src/mindustry/content/Blocks.java", 3333u},
+        {"enemy.kill", "romfs:/audio/enemy.kill.pcm", 22050u, 1u, 4u,
+         "core/src/mindustry/type/UnitType.java", 944u},
     };
-    int16_t storage[12];
+    int16_t storage[20];
     M3dsAudioMixer mixer;
     M3dsAudioBackend backend = make_backend();
     assert(m3ds_audio_mixer_init(&mixer, &backend));
 
     M3dsAudioRegistry registry;
     assert(m3ds_audio_registry_load(
-               &registry, &mixer, entries, 3u, mock_read, (void *)files, storage,
+               &registry, &mixer, entries, 5u, mock_read, (void *)files, storage,
                sizeof(storage)) == M3DS_AUDIO_REGISTRY_OK);
 
     const M3dsAudioEvent events[] = {
         M3DS_AUDIO_EVENT_UI_BUTTON,
         M3DS_AUDIO_EVENT_RESEARCH_UNLOCK,
         M3DS_AUDIO_EVENT_WAVE_SPAWN,
+        M3DS_AUDIO_EVENT_SHOOT_DUO,
+        M3DS_AUDIO_EVENT_ENEMY_KILL,
     };
     for (size_t i = 0u; i < sizeof(events) / sizeof(events[0]); ++i) {
         m3ds_audio_mixer_stop_all(&mixer);
