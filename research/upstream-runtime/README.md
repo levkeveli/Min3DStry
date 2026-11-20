@@ -336,6 +336,24 @@ scripted movement regression on Old 3DS. These checks use the debug
 console on the 3DS side. The distance moved in each replay varied with
 emulation timing.
 
+### Render the live multiplayer Glacier world
+
+Use `-Pprobe=network-render` to generate the graphical ARM11 client.
+Prepare the pinned Glacier atlas with
+`arm11/prepare_terrain_assets.py --multiplayer`, then pass both
+`--network` and the resulting terrain assets directory to `arm11/build.sh`.
+Put the official `sprites.aatls` beside `server-endpoint.txt` on the SD
+card. The existing address and port connect directly to the Glacier
+session. The top screen shows the received terrain, Nucleus cores and
+the Gamma and Dagger body sprites from the original atlas. The camera
+follows the server-assigned unit while the controls send upstream
+movement snapshots. The bottom screen displays the connection log.
+
+Run the live verifier with `--controls --controls-replay --terrain-atlas
+/path/to/sprites.aatls`. It captures the top screen at spawn and after
+each direction, compares the viewport against the server's settled
+position, and checks wave reception and START disconnect.
+
 Before the snapshot dispatch extension, the [devkitARM verification build](https://github.com/levkeveli/Min3DStry/actions/runs/44824442974)
 passed at `-O0` and `-O2` on both Azahar 2126.2 console profiles. Each run
 rejected build 159 with `clientOutdated`, then joined Glacier twice with
