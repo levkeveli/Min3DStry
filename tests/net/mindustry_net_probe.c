@@ -133,9 +133,94 @@ static void posix_udp_close(void *user_data) {
   }
 }
 
+static bool read_bounded_file(const char *path, uint8_t *buf, size_t cap, size_t *out_len) {
+  FILE *fp = fopen(path, "rb");
+  if (!fp) {
+    return false;
+  }
+  size_t total = fread(buf, 1U, cap, fp);
+  int extra = fgetc(fp);
+  bool io_err = ferror(fp) != 0;
+  fclose(fp);
+  if (io_err || extra != EOF) {
+    return false;
+  }
+  *out_len = total;
+  return true;
+}
+
+static int run_decode_pkt(const char *wire_path, const char *expected_path) {
+  const size_t wire_cap = M3DS_NET_MAX_PACKET_SIZE + 16U;
+  const size_t payload_cap = M3DS_NET_MAX_PACKET_SIZE;
+  uint8_t *wire = (uint8_t *)malloc(wire_cap);
+  uint8_t *expected = (uint8_t *)malloc(payload_cap);
+  uint8_t *decoded = (uint8_t *)malloc(payload_cap);
+  if (!wire || !expected || !decoded) {
+    free(wire);
+    free(expected);
+    free(decoded);
+    fprintf(stderr, "DECODE_PKT_FAILED allocation error\n");
+    return 1;
+  }
+
+  size_t wire_len = 0U;
+  size_t expected_len = 0U;
+  int rc = 1;
+  if (!read_bounded_file(wire_path, wire, wire_cap, &wire_len) || wire_len < 4U) {
+    fprintf(stderr, "DECODE_PKT_FAILED could not read wire file: %s\n", wire_path);
+    goto cleanup;
+  }
+  if (!read_bounded_file(expected_path, expected, payload_cap, &expected_len)) {
+    fprintf(stderr, "DECODE_PKT_FAILED could not read expected file: %s\n", expected_path);
+    goto cleanup;
+  }
+
+  uint8_t pkt_id = 0U;
+  size_t decoded_len = 0U;
+  if (!m3ds_net_decode_packet(wire, wire_len, &pkt_id, decoded, payload_cap, &decoded_len)) {
+    fprintf(stderr, "DECODE_PKT_FAILED m3ds_net_decode_packet returned false\n");
+    goto cleanup;
+  }
+  if (decoded_len != expected_len || memcmp(decoded, expected, expected_len) != 0) {
+    fprintf(
+        stderr,
+        "DECODE_PKT_FAILED payload mismatch (got %zu bytes, expected %zu bytes)\n",
+        decoded_len,
+        expected_len);
+    goto cleanup;
+  }
+
+  printf(
+      "DECODE_PKT_OK id=%u compression=%u wire_len=%zu payload_len=%zu\n",
+      (unsigned int)pkt_id,
+      (unsigned int)wire[3],
+      wire_len,
+      decoded_len);
+  rc = 0;
+
+cleanup:
+  free(wire);
+  free(expected);
+  free(decoded);
+  return rc;
+}
+
 int main(int argc, char *argv[]) {
+  if (argc >= 2 && strcmp(argv[1], "decode-pkt") == 0) {
+    if (argc != 4) {
+      fprintf(stderr, "Usage: %s decode-pkt <wire_frame.bin> <expected_payload.bin>\n", argv[0]);
+      return 2;
+    }
+    return run_decode_pkt(argv[2], argv[3]);
+  }
+
   if (argc < 4) {
-    fprintf(stderr, "Usage: %s <ping|handshake> <host> <port> [build] [name]\n", argv[0]);
+    fprintf(
+        stderr,
+        "Usage: %s <ping|handshake> <host> <port> [build] [name]\n"
+        "       %s decode-pkt <wire_frame.bin> <expected_payload.bin>\n",
+        argv[0],
+        argv[0]);
     return 2;
   }
 
