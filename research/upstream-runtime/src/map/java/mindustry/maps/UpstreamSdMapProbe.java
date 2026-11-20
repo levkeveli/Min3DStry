@@ -6,7 +6,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import org.teavm.interop.Address;
 import org.teavm.interop.Import;
-import org.teavm.interop.Include;
+import org.teavm.interop.c.Include;
 
 public final class UpstreamSdMapProbe {
     @Include(value = "m3ds_map_file.h", isSystem = true)
