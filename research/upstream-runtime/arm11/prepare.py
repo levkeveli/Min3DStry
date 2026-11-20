@@ -2,6 +2,7 @@
 import argparse
 import shutil
 from pathlib import Path
+from fix_heap_alignment import fix_heap_alignment
 from fix_reflection_lifetime import fix_constructor_roots, fix_reflection_lifetime
 
 
@@ -20,6 +21,7 @@ def main():
     if args.output.exists():
         parser.error("use a new staging directory")
     shutil.copytree(args.generated, args.output)
+    fix_heap_alignment(args.output)
     fix_reflection_lifetime(args.output)
     fix_constructor_roots(args.output)
     replacements = {
