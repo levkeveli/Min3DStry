@@ -77,8 +77,11 @@ def run_model(args, model, config, original_config, log, output):
             server.stdin.flush()
             server.wait(timeout=10)
             upstream = server_log.read_text(encoding="utf-8", errors="replace")
+            departures = [line for line in upstream.splitlines() if f"{PLAYER} has disconnected" in line]
+            # NetServer.sync can observe the closed transport before the disconnect event runs.
+            orderly = all(re.search(r"\((closed|disappeared)\)", line) for line in departures)
             if ("clientOutdated" not in upstream or upstream.count(f"{PLAYER} has connected") != 2
-                    or upstream.count(f"{PLAYER} has disconnected") != 2):
+                    or len(departures) != 2 or not orderly):
                 raise RuntimeError(f"{model} server did not report version rejection and two complete sessions")
         finally:
             stop(server)
