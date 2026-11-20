@@ -21,6 +21,8 @@ This prototype implements Issue #3 by rendering a bounded 2D Mindustry-inspired 
 
 ## Build and Test
 
+See [Sprite asset pipeline](asset-pipeline.md) for the standalone fixture atlas and texture budget. The renderer prototype currently draws geometric primitives.
+
 - Host unit tests (runs in CI and locally with `cc`/`gcc`/`clang`):
   ```bash
   ./dev.sh test
