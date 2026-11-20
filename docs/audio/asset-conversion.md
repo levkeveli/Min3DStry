@@ -44,7 +44,9 @@ AUDIO_ASSETS files=3 bytes=251916 manifest=build/audio-upstream/audio-manifest.j
 ```
 
 The manifest records the upstream commit, ffmpeg version, source path/hash,
-output path/hash, channels, rate, frames and bytes.
+output path/hash, channels, rate, frames and bytes. When git is available, the
+converter also verifies that the checkout's `HEAD` equals
+`upstream_commit` before writing any output.
 
 ## Tests
 

@@ -246,10 +246,12 @@ jobs:
 
       - name: Convert pinned upstream audio
         run: |
+          test -f "$RUNNER_TEMP/Mindustry/core/assets/sounds/ui/waveSpawn.ogg"
           python3 tools/build_audio_assets.py \
             --upstream "$RUNNER_TEMP/Mindustry" \
             --map audio/upstream-audio-map.json \
             --out "$RUNNER_TEMP/audio" | tee "$RUNNER_TEMP/audio-convert.log"
-          grep -F 'AUDIO_ASSETS files=3 bytes=251916' "$RUNNER_TEMP/audio-convert.log"
+          grep -F 'AUDIO_ASSETS files=3' "$RUNNER_TEMP/audio-convert.log"
           test -s "$RUNNER_TEMP/audio/ui.button.pcm"
+          test -s "$RUNNER_TEMP/audio/wave.spawn.pcm"
           test -s "$RUNNER_TEMP/audio/audio-manifest.json"

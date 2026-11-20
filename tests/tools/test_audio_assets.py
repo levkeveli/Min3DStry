@@ -1,6 +1,7 @@
 import json
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -56,7 +57,10 @@ class AudioAssetsTests(unittest.TestCase):
             ([{"id": "ok", "source": "core/assets/sounds/test/tone.wav", "channels": 1}], {"format": 2}),
             ([{"id": "bad id", "source": "core/assets/sounds/test/tone.wav", "channels": 1}], {}),
             ([{"id": "a", "source": "core/assets/sounds/test/tone.wav", "channels": 3}], {}),
+            ([{"id": "a", "source": "core/assets/sounds/test/tone.wav", "channels": True}], {}),
+            ([{"id": "a", "source": "core/assets/sounds/test/tone.wav", "channels": 1, "rate": 8000.0}], {}),
             ([{"id": "a", "source": "core/assets/sounds/test/tone.wav", "channels": 1, "rate": 1000}], {}),
+            ([{"id": "a", "source": "core/assets/sounds/test/tone.wav", "channels": 1}], {"format": True}),
             ([{"id": "a", "source": "core/assets/sounds/../tone.wav", "channels": 1}], {}),
             (
                 [
@@ -80,6 +84,32 @@ class AudioAssetsTests(unittest.TestCase):
         with self.assertRaises(build_audio_assets.AudioConversionError):
             build_audio_assets.validate_map(
                 build_audio_assets.load_map(self.map_path), self.upstream
+            )
+
+    def test_convert_rejects_wrong_upstream_head(self) -> None:
+        if not shutil.which("git"):
+            self.skipTest("git not available")
+        self.make_tone()
+        subprocess.run(["git", "-C", str(self.upstream), "init", "-q"], check=True)
+        subprocess.run(
+            ["git", "-C", str(self.upstream), "config", "user.email", "test@example.invalid"],
+            check=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(self.upstream), "config", "user.name", "test"],
+            check=True,
+        )
+        subprocess.run(["git", "-C", str(self.upstream), "add", "."], check=True)
+        subprocess.run(
+            ["git", "-C", str(self.upstream), "commit", "-qm", "fixture"], check=True
+        )
+        self.write_map(
+            [{"id": "test.tone", "source": "core/assets/sounds/test/tone.wav", "channels": 1}],
+            upstream_commit="0" * 40,
+        )
+        with self.assertRaises(build_audio_assets.AudioConversionError):
+            build_audio_assets.convert_map(
+                self.upstream, self.map_path, self.root / "out", "ffmpeg"
             )
 
     def test_convert_synthetic_wav(self) -> None:

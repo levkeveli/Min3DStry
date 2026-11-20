@@ -34,6 +34,23 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def upstream_head(upstream: Path) -> str | None:
+    """Return the checkout HEAD when git is available, else None."""
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(upstream), "rev-parse", "HEAD"],
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+    except OSError:
+        return None
+    if proc.returncode != 0:
+        return None
+    head = proc.stdout.strip().lower()
+    return head if re.fullmatch(r"[0-9a-f]{40}", head) else None
+
+
 def load_map(path: Path) -> dict:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -45,13 +62,13 @@ def load_map(path: Path) -> dict:
 
 
 def validate_map(data: dict, upstream: Path) -> list[dict]:
-    if data.get("format") != 1:
+    if type(data.get("format")) is not int or data.get("format") != 1:
         raise AudioConversionError("audio map format must be 1")
     commit = data.get("upstream_commit")
     if not isinstance(commit, str) or not re.fullmatch(r"[0-9a-f]{40}", commit):
         raise AudioConversionError("audio map upstream_commit must be a 40-character SHA")
     default_rate = data.get("rate", DEFAULT_RATE)
-    if not isinstance(default_rate, int) or not 4000 <= default_rate <= 48000:
+    if type(default_rate) is not int or not 4000 <= default_rate <= 48000:
         raise AudioConversionError("audio map rate must be 4000..48000")
 
     entries = data.get("entries")
@@ -79,9 +96,9 @@ def validate_map(data: dict, upstream: Path) -> list[dict]:
         normalized = Path(source).as_posix()
         if ".." in Path(normalized).parts or normalized in seen_sources:
             raise AudioConversionError(f"invalid or duplicate audio source: {source}")
-        if channels not in (1, 2):
+        if type(channels) is not int or channels not in (1, 2):
             raise AudioConversionError(f"audio channels for {entry_id} must be 1 or 2")
-        if not isinstance(rate, int) or not 4000 <= rate <= 48000:
+        if type(rate) is not int or not 4000 <= rate <= 48000:
             raise AudioConversionError(f"audio rate for {entry_id} must be 4000..48000")
 
         source_path = (upstream / normalized).resolve()
@@ -164,6 +181,11 @@ def convert_entry(ffmpeg: str, entry: dict, output_dir: Path) -> dict:
 def convert_map(upstream: Path, map_path: Path, output_dir: Path, ffmpeg: str) -> dict:
     data = load_map(map_path)
     entries = validate_map(data, upstream)
+    head = upstream_head(upstream)
+    if head is not None and head != data["upstream_commit"]:
+        raise AudioConversionError(
+            f"upstream HEAD {head} does not match mapped commit {data['upstream_commit']}"
+        )
     output_dir.mkdir(parents=True, exist_ok=True)
     converted = [convert_entry(ffmpeg, entry, output_dir) for entry in entries]
     converted.sort(key=lambda item: item["id"])
