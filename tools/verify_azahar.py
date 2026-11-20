@@ -436,6 +436,7 @@ def parse_azahar_log(log_text: str) -> dict[str, Any]:
     renderer: str | None = None
     gl_version: str | None = None
     hw_line: str | None = None
+    atlas_loaded: bool | None = None
     parity: dict[str, Any] | None = None
     audio: dict[str, Any] | None = None
     audio_romfs: dict[str, Any] | None = None
@@ -456,6 +457,8 @@ def parse_azahar_log(log_text: str) -> dict[str, Any]:
             gl_version = line.split("GL_VERSION:", 1)[1].strip()
         elif "[MIN3DSTRY] HW:" in line:
             hw_line = line.split("[MIN3DSTRY] HW:", 1)[1].strip()
+        elif "[MIN3DSTRY] ATLAS " in line:
+            atlas_loaded = "ATLAS loaded" in line
         elif "[MIN3DSTRY] PARITY " in line:
             parity = parse_parity_debug_line(line)
         elif "[MIN3DSTRY] MEM " in line:
@@ -593,6 +596,7 @@ def parse_azahar_log(log_text: str) -> dict[str, Any]:
         "renderer": renderer,
         "gl_version": gl_version,
         "hw_line": hw_line,
+        "atlas_loaded": atlas_loaded,
         "parity": parity,
         "audio": audio,
         "audio_romfs": audio_romfs,
@@ -743,6 +747,11 @@ def run_model_check(
             raise AssertionError(f"Unexpected new3ds hw_line: {hw_line}")
         if model == "old3ds" and ("O3DS" not in hw_line or "268 MHz" not in hw_line):
             raise AssertionError(f"Unexpected old3ds hw_line: {hw_line}")
+        atlas_loaded = parsed.get("atlas_loaded")
+        if atlas_loaded is None:
+            raise AssertionError(f"Missing sprite-atlas telemetry for {model}")
+        if atlas_loaded is not True:
+            raise AssertionError(f"Sprite atlas failed to load for {model}")
         if (
             audio["backend"] != "ndsp"
             or audio["state"] not in ("ready", "fallback_no_dsp")
@@ -815,6 +824,7 @@ def run_model_check(
             "renderer": parsed.get("renderer"),
             "gl_version": parsed.get("gl_version"),
             "hw_line": hw_line,
+            "atlas_loaded": parsed.get("atlas_loaded"),
             "parity": parity,
             "audio": audio,
             "audio_romfs": audio_romfs,

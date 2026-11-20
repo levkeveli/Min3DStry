@@ -60,6 +60,7 @@ class VerifyAzaharTests(unittest.TestCase):
             "[   2.94] Render.OpenGL <Info> driver.cpp:133: GL_VERSION: 4.3.0\n"
             "[   2.94] Render.OpenGL <Info> driver.cpp:135: GL_RENDERER: Intel(R) Arc(TM) Graphics\n"
             "[   3.95] Kernel.SVC <Debug> svc.cpp:100: [MIN3DSTRY] HW: New 3DS XL (N3DS, 804 MHz, L2:on, AppMem:124 MiB, FIRM:2.50.11)\n"
+            "[   3.95] Kernel.SVC <Debug> svc.cpp:100: [MIN3DSTRY] ATLAS loaded\n"
             "[   3.96] Debug.Emulated <Debug> svc.cpp:100: [MIN3DSTRY] PARITY scenario=starter_copper_defense_v1 ticks=240 hash=0x11223344 copper=25 delivered=14 killed=2 hp=200\n"
             "[   3.97] Debug.Emulated <Debug> svc.cpp:100: [MIN3DSTRY] AUDIO backend=ndsp state=fallback_no_dsp rc=0xd8e06406 rate=22050 voices=0/8 clips=2\n"
             "[   3.97] Debug.Emulated <Debug> svc.cpp:100: [MIN3DSTRY] AUDIO_ROMFS status=ok clips=3 bytes=251916 ui=0\n"
@@ -78,6 +79,7 @@ class VerifyAzaharTests(unittest.TestCase):
         self.assertEqual(parsed["renderer"], "Intel(R) Arc(TM) Graphics")
         self.assertEqual(parsed["gl_version"], "4.3.0")
         self.assertIn("New 3DS XL (N3DS, 804 MHz", parsed["hw_line"])
+        self.assertTrue(parsed["atlas_loaded"])
         self.assertEqual(parsed["parity"]["trace_hash"], "0x11223344")
         self.assertEqual(parsed["parity"]["enemies_killed"], 2)
         self.assertEqual(parsed["audio"]["backend"], "ndsp")
@@ -120,6 +122,18 @@ class VerifyAzaharTests(unittest.TestCase):
         self.assertEqual(parsed["frame"]["state_switches"], 1)
         self.assertEqual(parsed["frame"]["budget_dropped"], 0)
         self.assertAlmostEqual(parsed["frame"]["cam_x"], -88.0)
+
+    def test_parse_azahar_log_atlas_states(self) -> None:
+        missing = verify_azahar.parse_azahar_log("no telemetry here\n")
+        self.assertIsNone(missing["atlas_loaded"])
+        unavailable = verify_azahar.parse_azahar_log(
+            "[   3.95] Kernel.SVC <Debug> svc.cpp:100: [MIN3DSTRY] ATLAS unavailable\n"
+        )
+        self.assertFalse(unavailable["atlas_loaded"])
+        loaded = verify_azahar.parse_azahar_log(
+            "[   3.95] Kernel.SVC <Debug> svc.cpp:100: [MIN3DSTRY] ATLAS loaded\n"
+        )
+        self.assertTrue(loaded["atlas_loaded"])
 
     def test_inspect_png_distinguishes_blank_and_rendered_frames(self) -> None:
         blank = make_test_png(16, 16, lambda _x, _y: (0, 0, 0))
