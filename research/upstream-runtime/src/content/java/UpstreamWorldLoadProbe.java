@@ -3,6 +3,7 @@ import arc.ApplicationListener;
 import arc.Core;
 import arc.Settings;
 import arc.files.Fi;
+import arc.math.Mathf;
 import arc.struct.Seq;
 import java.io.IOException;
 import java.util.ArrayDeque;
@@ -36,6 +37,9 @@ public final class UpstreamWorldLoadProbe {
         Vars.customMapDirectory = file.parent();
         Vars.maps = new Maps();
         var map = MapIO.createMap(file, false);
+        // Glacier uses randomized upstream map filters. A fixed seed allows a
+        // direct comparison of the resulting terrain on each platform.
+        Mathf.rand.setSeed(160_008L);
         Vars.world.loadMap(map);
         app.runPosted();
         if (Vars.state.map != map || Vars.world.width() != 150 || Vars.world.height() != 250) {
@@ -69,7 +73,7 @@ public final class UpstreamWorldLoadProbe {
             throw new IllegalStateException("Glacier terrain or buildings differ");
         }
         String observed = Long.toUnsignedString(fingerprint, 16);
-        if (fingerprint != 0x443c7242ae931e4cL) {
+        if (fingerprint != 0x2e7b9f883994de6cL) {
             throw new IllegalStateException("Glacier content fingerprint differs: " + observed);
         }
         System.out.println("UPSTREAM_WORLD width=150 height=250 tiles=" + tiles + " buildings=" + buildings);
