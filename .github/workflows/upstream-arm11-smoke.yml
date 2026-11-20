@@ -28,5 +28,8 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: upstream-arm11-probe
-          path: research/upstream-runtime/build/probe-3ds/upstream-probe.3dsx
+          path: |
+            research/upstream-runtime/build/probe-3ds/upstream-probe.3dsx
+            research/upstream-runtime/build/probe-3ds/upstream-probe.elf
           if-no-files-found: error
+
