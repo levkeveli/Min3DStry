@@ -1,0 +1,54 @@
+--- a/org/teavm/backend/lowlevel/transform/CoroutineTransformation.java
++++ b/org/teavm/backend/lowlevel/transform/CoroutineTransformation.java
+@@ -15,9 +15,9 @@
+  */
+ package org.teavm.backend.lowlevel.transform;
+
+-import com.carrotsearch.hppc.IntHashSet;
+-import com.carrotsearch.hppc.IntIntHashMap;
+-import com.carrotsearch.hppc.IntSet;
++import org.teavm.hppc.IntHashSet;
++import org.teavm.hppc.IntIntHashMap;
++import org.teavm.hppc.IntSet;
+ import java.util.ArrayList;
+ import java.util.Arrays;
+ import java.util.BitSet;
+@@ -119,17 +119,19 @@
+         livenessAnalysis.analyze(program, methodReference.getDescriptor());
+         splitter = new BasicBlockSplitter(program);
+         int basicBlockCount = program.basicBlockCount();
+-        createSplitPrologue();
+-        for (int i = 1; i <= basicBlockCount; ++i) {
++        var entrySplits = collectSplitInstructions(program.basicBlockAt(0));
++        BasicBlock entry = createSplitPrologue();
++        for (int i = 1; i < basicBlockCount; ++i) {
+             processBlock(program.basicBlockAt(i));
+         }
++        processBlock(entry, entrySplits);
+         splitter.fixProgram();
+         processIrreducibleCfg();
+         RedundantJumpElimination.optimize(program);
+         new PhiUpdater().updatePhis(program, parameterCount + 1);
+     }
+
+-    private void createSplitPrologue() {
++    private BasicBlock createSplitPrologue() {
+         fiberVar = program.createVariable();
+         fiberVar.setLabel("fiber");
+
+@@ -172,10 +174,14 @@
+         resumeSwitch.setCondition(popInt.getReceiver());
+         resumeSwitch.setLocation(location);
+         switchStateBlock.add(resumeSwitch);
++        return continueBlock;
+     }
+
+     private void processBlock(BasicBlock block) {
+-        Map<Instruction, BitSet> splitInstructions = collectSplitInstructions(block);
++        processBlock(block, collectSplitInstructions(block));
++    }
++
++    private void processBlock(BasicBlock block, Map<Instruction, BitSet> splitInstructions) {
+         List<Instruction> instructionList = new ArrayList<>(splitInstructions.keySet());
+         Collections.reverse(instructionList);
+         for (Instruction instruction : instructionList) {

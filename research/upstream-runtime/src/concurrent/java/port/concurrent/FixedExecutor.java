@@ -14,14 +14,31 @@ final class FixedExecutor implements ExecutorService {
     private final Queue<Runnable> pending = new ArrayDeque<>();
     private final List<Worker> workers = new ArrayList<>();
     private final int limit;
+    private final int coreWorkers;
+    private final int retainedWorkers;
+    private final long idleNanos;
+    private final boolean handoff;
     private final ThreadFactory factory;
+    private int waitingWorkers;
     private boolean shutdown;
 
     FixedExecutor(int limit, ThreadFactory factory) {
+        this(limit, 0, limit, 0, false, factory);
+    }
+
+    FixedExecutor(int coreWorkers, int retainedWorkers, int limit, long idleNanos,
+                  boolean handoff, ThreadFactory factory) {
         if (limit <= 0) {
             throw new IllegalArgumentException("Worker count must be positive");
         }
+        if (retainedWorkers < 0 || retainedWorkers > coreWorkers || coreWorkers > limit || idleNanos < 0) {
+            throw new IllegalArgumentException("Invalid worker retention settings");
+        }
+        this.retainedWorkers = retainedWorkers;
         this.limit = limit;
+        this.coreWorkers = coreWorkers;
+        this.idleNanos = idleNanos;
+        this.handoff = handoff;
         this.factory = Objects.requireNonNull(factory);
     }
 
@@ -32,10 +49,15 @@ final class FixedExecutor implements ExecutorService {
             throw new RejectedExecutionException("Executor has shut down");
         }
         // Start while holding the monitor so a worker cannot poll before the add.
-        if (workers.size() < limit) {
+        if (workers.size() < coreWorkers || (waitingWorkers <= pending.size() && workers.size() < limit)) {
             startWorker();
+        } else if (handoff && waitingWorkers <= pending.size()) {
+            throw new RejectedExecutionException("No worker available for handoff");
         }
         pending.add(job);
+        if (waitingWorkers != 0) {
+            notifyAll();
+        }
     }
 
     private void startWorker() {
@@ -53,9 +75,37 @@ final class FixedExecutor implements ExecutorService {
         }
     }
 
-    private synchronized Runnable nextJob() {
+    private synchronized Runnable nextJob(Worker worker) {
         Thread.interrupted();
+        if (pending.isEmpty() && !shutdown && idleNanos != 0) {
+            waitForWork(worker);
+        }
         return pending.poll();
+    }
+
+    private void waitForWork(Worker worker) {
+        long start = System.nanoTime();
+        worker.waiting = true;
+        waitingWorkers++;
+        try {
+            while (pending.isEmpty() && !shutdown) {
+                if (workers.size() <= retainedWorkers) {
+                    wait();
+                } else {
+                    long remaining = idleNanos - (System.nanoTime() - start);
+                    if (remaining <= 0) {
+                        return;
+                    }
+                    wait(roundUpMillis(remaining));
+                }
+            }
+        } catch (InterruptedException interrupted) {
+            // Shutdown and cancellation both wake idle workers. Pending work
+            // is still drained by the caller unless shutdownNow cleared it.
+        } finally {
+            waitingWorkers--;
+            worker.waiting = false;
+        }
     }
 
     @Override
@@ -91,7 +141,9 @@ final class FixedExecutor implements ExecutorService {
         List<Runnable> queued = new ArrayList<>(pending);
         pending.clear();
         for (Worker worker : workers) {
-            worker.thread.interrupt();
+            if (!worker.waiting) {
+                worker.thread.interrupt();
+            }
         }
         notifyAll();
         return queued;
@@ -128,12 +180,13 @@ final class FixedExecutor implements ExecutorService {
 
     private final class Worker implements Runnable {
         Thread thread;
+        boolean waiting;
 
         @Override
         public void run() {
             try {
                 Runnable job;
-                while ((job = nextJob()) != null) {
+                while ((job = nextJob(this)) != null) {
                     job.run();
                 }
             } finally {
