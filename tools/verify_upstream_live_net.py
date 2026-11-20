@@ -5,6 +5,7 @@ import argparse
 import hashlib
 from pathlib import Path
 import re
+import struct
 import subprocess
 import tempfile
 import time
@@ -15,6 +16,25 @@ import verify_azahar as az
 SERVER_SHA256 = "faeaf247a8b622de940181a96cb21cb20692d3c3da4e8ac3f79cb4af5059aa6c"
 PLAYER = "Min3DStry ARM11"
 NUMBER = r"-?\d+(?:\.\d+)?"
+
+
+def write_controls_replay(path):
+    """Write the Azahar 2126.2 CTM input for this probe's pad/touch polling."""
+    # The pinned Azahar movie header and HID sample definitions use packed little-endian fields.
+    revision = bytes.fromhex("219d743a1e698101fe1ab8bef43e6563126c3c27")
+    samples_per_second = 234
+    frames = 45 * samples_per_second
+    header = struct.pack("<4sQ20sQQ32sIQq156x", b"CTM\x1b", 0, revision, 1780000000,
+                         0x4D334453, b"Min3DStry input verification", 0, frames, 0)
+    touch_idle = struct.pack("<B6x", 1)
+    with path.open("wb") as movie:
+        movie.write(header)
+        for frame in range(frames):
+            seconds = frame // samples_per_second
+            buttons = (1 << 4) if seconds == 22 else (1 << 3) if seconds == 38 else 0
+            circle_y = 106 if seconds == 28 else 0
+            movie.write(struct.pack("<BHhh", 0, buttons, 0, circle_y))
+            movie.write(touch_idle)
 
 
 def stop(proc):
@@ -92,8 +112,6 @@ def verify_controls(log, emulator, server_log, server, timeout):
     server.stdin.write("runwave\n")
     server.stdin.flush()
     wait_for(log, emulator, r"UPSTREAM_LIVE_CONTROLS_STATE wave=2\b", timeout)
-    print("Wave 2 applied. Press the emulated START button to leave.", flush=True)
-    return wait_for(log, emulator, "UPSTREAM_LIVE_CONTROLS_LEFT", timeout)
 
 
 def run_model(args, model, config, original_config, log, output):
@@ -123,14 +141,19 @@ def run_model(args, model, config, original_config, log, output):
                       f"{args.desktop_name!r}.", flush=True)
                 wait_for(server_log, server, rf"{re.escape(args.desktop_name)} has connected", args.timeout)
             command = [str(args.azahar)]
-            if args.controls_movie:
-                command += ["--movie-play", str(args.controls_movie)]
+            if args.controls_replay:
+                replay = Path(work) / "controls.ctm"
+                write_controls_replay(replay)
+                command += ["-p", str(replay)]
             command.append(str(args.rom))
             emulator = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             rpc = az.AzaharRpcClient(timeout=2, retries=2)
             try:
                 if args.controls:
-                    emu_log = verify_controls(log, emulator, server_log, server, args.timeout)
+                    verify_controls(log, emulator, server_log, server, args.timeout)
+                    (output / f"{model}.png").write_bytes(rpc.screenshot())
+                    print("Wave 2 applied. Press the emulated START button to leave.", flush=True)
+                    emu_log = wait_for(log, emulator, "UPSTREAM_LIVE_CONTROLS_LEFT", args.timeout)
                 else:
                     for join in (1, 2):
                         wait_for(log, emulator, rf"UPSTREAM_LIVE_NET_STATE join={join}\b", args.timeout)
@@ -142,7 +165,7 @@ def run_model(args, model, config, original_config, log, output):
                         server.stdin.flush()
                         wait_for(log, emulator, rf"UPSTREAM_LIVE_NET_SYNC join={join}\b", 25)
                     emu_log = wait_for(log, emulator, "UPSTREAM_LIVE_NET_PASS", args.timeout)
-                (output / f"{model}.png").write_bytes(rpc.screenshot())
+                    (output / f"{model}.png").write_bytes(rpc.screenshot())
             finally:
                 rpc.close()
                 stop(emulator)
@@ -214,7 +237,8 @@ def main():
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--movement", action="store_true", help="Verify the stock server applies scripted ARM11 movement")
     mode.add_argument("--controls", action="store_true", help="Verify D-pad and Circle Pad input and START disconnect")
-    parser.add_argument("--controls-movie", type=Path, help="Play a recorded Azahar input sequence for --controls")
+    parser.add_argument("--controls-replay", action="store_true",
+                        help="Replay the controls test input in Azahar 2126.2")
     args = parser.parse_args()
     args.server, args.rom, args.azahar = (path.resolve() for path in (args.server, args.rom, args.azahar))
     with args.server.open("rb") as archive:
@@ -224,10 +248,8 @@ def main():
         parser.error("Port must be between 1 and 65535")
     if args.desktop_name is not None and (not args.desktop_name.strip() or args.desktop_name == PLAYER):
         parser.error("The PC client needs a distinct player name")
-    if args.controls_movie:
-        args.controls_movie = args.controls_movie.resolve()
-        if not args.controls or not args.controls_movie.is_file():
-            parser.error("--controls-movie needs --controls and an Azahar movie file")
+    if args.controls_replay and not args.controls:
+        parser.error("--controls-replay needs --controls")
     config, log = az.resolve_azahar_paths()
     endpoint = config.parent.parent / "sdmc/3ds/min3dstry/server-endpoint.txt"
     originals = {path: path.read_bytes() if path.exists() else None for path in (config, log, endpoint)}

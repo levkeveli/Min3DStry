@@ -321,6 +321,20 @@ D-pad, move up with the Circle Pad, and leave after the next wave.
 The verifier checks the stock server's position and continued receipt
 of snapshots while the unit is stationary. The original scripted
 `--movement` check remains available for unattended runs.
+Add `--controls-replay` to replay held D-pad, Circle Pad, and START inputs
+on Azahar 2126.2. It generates a temporary input movie, and the ARM11
+probe receives those events through its libctru input calls.
+
+The [controller build](https://github.com/levkeveli/Min3DStry/actions/runs/44835928843)
+passed both directions on Old and New 3DS profiles at `-O0` and `-O2`.
+Each test started at (648, 208). The stock server confirmed eastward
+movement from the D-pad and northward movement from the Circle Pad.
+After each release the unit stayed at the same coordinates while the
+server continued to accept newer snapshots. The probe applied wave 2
+and START closed the connection. The optimized build also passed the
+scripted movement regression on Old 3DS. These checks use the debug
+console on the 3DS side. The distance moved in each replay varied with
+emulation timing.
 
 Before the snapshot dispatch extension, the [devkitARM verification build](https://github.com/levkeveli/Min3DStry/actions/runs/44824442974)
 passed at `-O0` and `-O2` on both Azahar 2126.2 console profiles. Each run
