@@ -14,6 +14,7 @@ def annotationsSource = 'annotations/src/main/java/mindustry/annotations/Annotat
 def arcRevision = '7445105cd2683daf5b9ac7033ebb07265d3e814d'
 def fileSource = 'arc-core/src/arc/files/Fi.java'
 def osSource = 'arc-core/src/arc/util/OS.java'
+def networkIoSource = 'core/src/mindustry/net/NetworkIO.java'
 def pixmapSource = 'arc-core/src/arc/graphics/Pixmap.java'
 def pixmapPatch = file('patches/arc-pixmap-direct-buffer.patch')
 def glacier = 'core/assets/maps/default/glacier.msav'
@@ -32,6 +33,7 @@ def entryPoints = [
     'world-save': 'UpstreamWorldSaveProbe',
     'world-roundtrip': 'UpstreamWorldRoundTripProbe',
     'factory-ticks': 'UpstreamFactoryTickProbe',
+    'world-stream': 'UpstreamWorldStreamProbe',
     'terrain-draw': 'UpstreamTerrainDrawProbe',
     'file-metadata': 'port.UpstreamFileMetadataProbe'
 ]
@@ -40,11 +42,13 @@ if (!entryPoints.containsKey(probe)) {
 }
 def entryPoint = entryPoints[probe]
 def usesMapSources = probe in ['map', 'map-sd']
-def usesWorldSources = probe in ['world', 'world-save', 'world-roundtrip', 'factory-ticks', 'terrain-draw']
+def usesWorldSources = probe in ['world', 'world-save', 'world-roundtrip', 'world-stream',
+                                 'factory-ticks', 'terrain-draw']
 def initializesContent = probe == 'content-init' || usesWorldSources
 def usesContentSources = probe == 'content' || initializesContent
 def usesExecutor = usesContentSources || probe == 'executor'
 def usesArcSources = usesContentSources || probe == 'resource'
+def usesWorldStream = probe == 'world-stream'
 def pluginsToLoad = []
 if (usesArcSources) pluginsToLoad.add('port.ResourceVirtualMethods')
 if (usesExecutor) pluginsToLoad.add('port.concurrent.ArcPoolSupport')
@@ -60,6 +64,7 @@ def annotationsFile = sourceDir.map { it.file('mindustry/annotations/Annotations
 def arcFile = sourceDir.map { it.file('arc/files/Fi.java') }
 def arcOsFile = sourceDir.map { it.file('arc/util/OS.java') }
 def arcPixmapFile = sourceDir.map { it.file('arc/graphics/Pixmap.java') }
+def networkIoFile = sourceDir.map { it.file('mindustry/net/NetworkIO.java') }
 def compilerResources = layout.buildDirectory.dir("compiler-resources/${probe}")
 def pluginFile = compilerResources.map { it.file('META-INF/services/org.teavm.vm.spi.TeaVMPlugin') }
 def readUpstream = { path ->
@@ -81,6 +86,9 @@ if (usesArcSources || usesExecutor) {
     }
     if (initializesContent) {
         stagedClasses.addAll(['arc/graphics/Pixmap.class', 'arc/graphics/Pixmap$*.class'])
+    }
+    if (usesWorldStream) {
+        stagedClasses.add('mindustry/net/NetworkIO.class')
     }
     // TeaVM resolves dependency classes before compiled project classes.
     def contentDependencies = tasks.register('prepareContentDependencies', Zip) {
@@ -115,6 +123,9 @@ if (usesWorldSources) {
 }
 if (probe == 'factory-ticks') {
     sourceSets.main.java.srcDir('src/gameplay/java')
+}
+if (usesWorldStream) {
+    sourceSets.main.java.srcDir('src/world-stream/java')
 }
 if (probe == 'file-metadata') {
     sourceSets.main.java.srcDir('src/file/java')
@@ -159,6 +170,9 @@ tasks.register('prepareUpstreamProbe') {
     if (initializesContent) {
         inputs.file(pixmapPatch)
         outputs.file(arcPixmapFile)
+    }
+    if (usesWorldStream) {
+        outputs.file(networkIoFile)
     }
     doLast {
         if (!pluginsToLoad.isEmpty()) {
@@ -243,6 +257,22 @@ final class GlacierFixture {
             providers.exec {
                 commandLine 'git', '-C', sourceDir.get().asFile, 'apply', '--no-index', pixmapPatch
             }.result.get()
+        }
+        if (usesWorldStream) {
+            def source = new String(readUpstream(networkIoSource), 'UTF-8')
+            def signature = 'public static void loadWorld(InputStream is){'
+            def addRemoved = 'netClient.addRemovedEntity(e.id())'
+            if (source.count(signature) != 1 || source.count(addRemoved) != 2) {
+                throw new GradleException('Pinned NetworkIO world receiver changed')
+            }
+            def outputNetworkIo = networkIoFile.get().asFile
+            outputNetworkIo.parentFile.mkdirs()
+            outputNetworkIo.setText(source.replace(signature, '''public static void loadWorld(InputStream is){
+        loadWorld(is, netClient::addRemovedEntity);
+    }
+
+    public static void loadWorld(InputStream is, arc.func.Intc recordEntity){''')
+                .replace(addRemoved, 'recordEntity.get(e.id())'), 'UTF-8')
         }
     }
 }
