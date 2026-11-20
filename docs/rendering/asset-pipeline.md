@@ -2,6 +2,8 @@
 
 Status: **emulator-tested** (`ATLAS loaded`, textured screenshots and parity verified in Azahar `2126.2`; physical Old/New 3DS frame-time verification pending).
 
+Capability stage scope: the emulator-tested part is packing the generated fixture sheet into RomFS, loading it and rendering textured frames. Deterministic byte-identical generation and the 5,200-region upstream importer remain host-tested; renderer integration is still tracked by the terrain/world issues.
+
 The source port reads the official Mindustry v160.8 atlas using Arc's `TextureAtlasData`. The importer inventories the official sprites and packs a first set for Glacier and the factory scenario. The platform prototype has a separate sheet of geometric test fixtures.
 
 ## Import upstream sprites
