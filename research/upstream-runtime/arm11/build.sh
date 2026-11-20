@@ -11,18 +11,20 @@ python3 "$root/prepare.py" "$1" "$2"
 flags=()
 sources=()
 libraries=()
-romfs=()
+package_flags=()
 if [[ $# -eq 3 ]]; then
     flags=(-DM3DS_TERRAIN_RENDERER -I"$root" -I"$3")
     sources=("$root/m3ds_terrain_renderer.c")
     libraries=(-lcitro2d -lcitro3d)
     mkdir "$2/romfs"
     cp "$3/sprites.t3x" "$2/romfs/terrain.t3x"
-    romfs=(--romfs="$2/romfs")
+    "$DEVKITPRO/tools/bin/smdhtool" --create "Min3DStry Terrain" "Mindustry v160.8 Glacier" \
+        "Min3DStry Contributors" "$DEVKITPRO/libctru/default_icon.png" "$2/upstream-probe.smdh"
+    package_flags=(--smdh="$2/upstream-probe.smdh" --romfs="$2/romfs")
 fi
 "$DEVKITARM/bin/arm-none-eabi-gcc" -std=gnu11 -g -O2 -fwrapv -D__3DS__ -mword-relocations \
     -march=armv6k -mtune=mpcore -mfpu=vfp -mfloat-abi=hard -mtp=soft \
     -I"$2/nativeinclude" -I"$DEVKITPRO/libctru/include" -L"$DEVKITPRO/libctru/lib" \
     "${flags[@]}" -specs=3dsx.specs "$2/all.c" "${sources[@]}" "${libraries[@]}" \
     -lctru -lm -o "$2/upstream-probe.elf"
-"$DEVKITPRO/tools/bin/3dsxtool" "$2/upstream-probe.elf" "$2/upstream-probe.3dsx" "${romfs[@]}"
+"$DEVKITPRO/tools/bin/3dsxtool" "$2/upstream-probe.elf" "$2/upstream-probe.3dsx" "${package_flags[@]}"
