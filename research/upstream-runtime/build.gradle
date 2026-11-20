@@ -27,17 +27,22 @@ def entryPoints = [
     content: 'UpstreamContentBaseline',
     resource: 'port.UpstreamResourceProbe',
     executor: 'port.concurrent.UpstreamExecutorProbe',
-    'content-init': 'UpstreamContentInitializationProbe'
+    'content-init': 'UpstreamContentInitializationProbe',
+    world: 'UpstreamWorldLoadProbe'
 ]
 if (!entryPoints.containsKey(probe)) {
     throw new GradleException("Expected -Pprobe to be one of ${entryPoints.keySet()}")
 }
 def entryPoint = entryPoints[probe]
 def usesMapSources = probe in ['map', 'map-sd']
-def initializesContent = probe == 'content-init'
+def initializesContent = probe in ['content-init', 'world']
 def usesContentSources = probe == 'content' || initializesContent
 def usesExecutor = usesContentSources || probe == 'executor'
 def usesArcSources = usesContentSources || probe == 'resource'
+def pluginsToLoad = []
+if (usesArcSources) pluginsToLoad.add('port.ResourceVirtualMethods')
+if (usesExecutor) pluginsToLoad.add('port.concurrent.ArcPoolSupport')
+if (probe == 'world') pluginsToLoad.add('port.AnonymousClassSupport')
 def referenceJar = file(providers.gradleProperty('referenceJar').getOrElse('server-release.jar'))
 def sourceDir = layout.buildDirectory.dir("upstream-src/${probe}")
 def sourceFile = sourceDir.map { it.file('mindustry/logic/LogicOp.java') }
@@ -47,6 +52,8 @@ def annotationsFile = sourceDir.map { it.file('mindustry/annotations/Annotations
 def arcFile = sourceDir.map { it.file('arc/files/Fi.java') }
 def arcOsFile = sourceDir.map { it.file('arc/util/OS.java') }
 def arcPixmapFile = sourceDir.map { it.file('arc/graphics/Pixmap.java') }
+def compilerResources = layout.buildDirectory.dir("compiler-resources/${probe}")
+def pluginFile = compilerResources.map { it.file('META-INF/services/org.teavm.vm.spi.TeaVMPlugin') }
 def readUpstream = { path ->
     providers.exec {
         commandLine 'git', '-C', upstream.get(), 'show', "${revision}:${path}"
@@ -82,9 +89,12 @@ if (usesArcSources || usesExecutor) {
     dependencies { implementation files(referenceJar) }
 }
 if (usesArcSources) {
-    dependencies { compileOnly 'org.teavm:teavm-core:0.16.0' }
     sourceSets.main.java.srcDir('src/resource/java')
-    sourceSets.main.resources.srcDir('src/resource/resources')
+}
+if (!pluginsToLoad.isEmpty()) {
+    dependencies { compileOnly 'org.teavm:teavm-core:0.16.0' }
+    sourceSets.main.resources.srcDir(compilerResources)
+    tasks.named('processResources') { dependsOn 'prepareUpstreamProbe' }
 }
 if (usesExecutor) {
     sourceSets.main.java.srcDir('src/concurrent/java')
@@ -108,6 +118,10 @@ tasks.register('prepareUpstreamProbe') {
     inputs.property('upstreamCheckout', upstream)
     inputs.property('probe', probe)
     inputs.file(referenceJar)
+    if (!pluginsToLoad.isEmpty()) {
+        inputs.property('compilerPlugins', pluginsToLoad)
+        outputs.file(pluginFile)
+    }
     outputs.file(sourceFile)
     if (usesMapSources) {
         outputs.file(mapFile)
@@ -130,6 +144,11 @@ tasks.register('prepareUpstreamProbe') {
         outputs.file(arcPixmapFile)
     }
     doLast {
+        if (!pluginsToLoad.isEmpty()) {
+            def service = pluginFile.get().asFile
+            service.parentFile.mkdirs()
+            service.setText(pluginsToLoad.join('\n') + '\n', 'UTF-8')
+        }
         def sha256 = MessageDigest.getInstance('SHA-256').digest(referenceJar.bytes).encodeHex().toString()
         if (sha256 != 'faeaf247a8b622de940181a96cb21cb20692d3c3da4e8ac3f79cb4af5059aa6c') {
             throw new GradleException('Expected the official v160.8 server-release.jar')
