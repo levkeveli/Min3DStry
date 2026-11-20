@@ -75,9 +75,14 @@
       "category": "Hardware & Platform",
       "name": "64 MiB Old 3DS Memory Allocator",
       "weight": 3,
-      "stage": "planned",
+      "stage": "emulator-tested",
       "issue": 36,
-      "evidence": []
+      "evidence": [
+        "include/platform/memory_budget.h",
+        "src/platform/memory_budget.c",
+        "tests/platform/test_memory_budget.c",
+        "docs/hardware/memory-budget.md"
+      ]
     },
     {
       "id": "threading-scheduling",
@@ -105,11 +110,14 @@
       "category": "Rendering & Assets",
       "name": "Deterministic RGBA8 Sprite Atlas Tooling",
       "weight": 3,
-      "stage": "host-tested",
+      "stage": "emulator-tested",
       "issue": 4,
       "evidence": [
         "tools/build_sprite_atlas.py",
-        "docs/rendering/asset-pipeline.md"
+        "tools/build_upstream_sprite_atlas.py",
+        "tests/tools/verify_upstream_sprite_atlas.py",
+        "docs/rendering/asset-pipeline.md",
+        "docs/rendering/azahar-atlas-evidence.md"
       ]
     },
     {
@@ -195,9 +203,14 @@
       "category": "Controls & Dual-Screen UI",
       "name": "Top/Bottom HUD, Menus & Minimap",
       "weight": 6,
-      "stage": "planned",
+      "stage": "experimental",
       "issue": 40,
-      "evidence": []
+      "evidence": [
+        "include/render/minimap.h",
+        "src/render/minimap.c",
+        "tests/render/test_minimap.c",
+        "docs/rendering/minimap.md"
+      ]
     },
     {
       "id": "msav-map-save-compat",
@@ -226,14 +239,28 @@
       "category": "Audio",
       "name": "NDSP Sound Effects & Music Mixer",
       "weight": 6,
-      "stage": "host-tested",
+      "stage": "emulator-tested",
       "issue": 29,
       "evidence": [
         "include/audio/audio_mixer.h",
         "src/audio/audio_mixer.c",
         "src/platform/3ds/ndsp_backend.c",
         "tests/audio/test_audio_mixer.c",
-        "docs/audio/ndsp-mixer.md"
+        "include/audio/audio_registry.h",
+        "src/audio/audio_registry.c",
+        "tests/audio/test_audio_registry.c",
+        "include/audio/audio_events.h",
+        "src/audio/audio_events.c",
+        "tests/audio/test_audio_events.c",
+        "include/audio/audio_ambient.h",
+        "src/audio/audio_ambient.c",
+        "tests/audio/test_audio_ambient.c",
+        "docs/audio/azahar-evidence.md",
+        "audio/upstream-audio-triggers.json",
+        "tools/build_audio_assets.py",
+        "audio/upstream-audio-map.json",
+        "docs/audio/ndsp-mixer.md",
+        "docs/audio/asset-conversion.md"
       ]
     },
     {
@@ -241,9 +268,16 @@
       "category": "Networking & Hardware Release",
       "name": "Cross-Platform Multiplayer Protocol",
       "weight": 5,
-      "stage": "planned",
+      "stage": "host-tested",
       "issue": 31,
-      "evidence": []
+      "evidence": [
+        "include/net/mindustry_net.h",
+        "src/net/mindustry_net.c",
+        "src/platform/3ds/net_3ds.c",
+        "tests/net/test_mindustry_net.c",
+        "tools/verify_upstream_net.py",
+        "docs/net/upstream-protocol.md"
+      ]
     },
     {
       "id": "physical-hardware-parity",

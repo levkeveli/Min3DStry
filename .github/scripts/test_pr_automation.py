@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Unit tests for pr_automation.py."""
 
+import argparse
+import json
 import os
 import sys
 import unittest
@@ -84,6 +86,173 @@ class PrAutomationTests(unittest.TestCase):
         ):
             selected = pr_automation.select_ai_provider()
             self.assertEqual(selected, ("opencode-go", "oc-test", "deepseek-v4.1-flash"))
+
+    def test_call_openai_compatible_streams_sse_on_first_attempt(self) -> None:
+        sse_lines = [
+            b': ping\n',
+            b'data: {"choices":[{"delta":{"reasoning_content":"Checking diff... "}}]}\n',
+            b'data: {"choices":[{"delta":{"content":"{\\"verdict\\":\\"APPROVE\\","}}]}\n',
+            b'data: {"choices":[{"delta":{"content":"\\"summary\\":\\"Stream ok\\",\\"findings\\":[]}"}}]}\n',
+            b'data: [DONE]\n',
+        ]
+        fake_resp = mock.MagicMock()
+        fake_resp.__enter__.return_value.headers = {"Content-Type": "text/event-stream"}
+        fake_resp.__enter__.return_value.__iter__.return_value = iter(sse_lines)
+
+        seen_payloads: list[dict[str, object]] = []
+
+        def fake_urlopen(req, timeout=90):
+            _ = timeout
+            seen_payloads.append(json.loads(req.data.decode("utf-8")))
+            return fake_resp
+
+        with mock.patch("urllib.request.urlopen", side_effect=fake_urlopen):
+            res = pr_automation.call_openai_compatible(
+                "k", "m", "sys", "usr", endpoint="https://example.invalid/v1/chat/completions"
+            )
+        self.assertEqual(res["verdict"], "APPROVE")
+        self.assertEqual(res["summary"], "Stream ok")
+        self.assertEqual([p.get("stream") for p in seen_payloads], [True])
+        self.assertNotIn("response_format", seen_payloads[0])
+
+    def test_call_openai_compatible_bounds_retries_to_two(self) -> None:
+        fake_ok_body = json.dumps(
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "content": '{"verdict":"APPROVE","summary":"ok","findings":[]}'
+                        }
+                    }
+                ]
+            }
+        ).encode("utf-8")
+        fake_resp = mock.MagicMock()
+        fake_resp.__enter__.return_value.headers = {"Content-Type": "application/json"}
+        fake_resp.__enter__.return_value.read.return_value = fake_ok_body
+
+        seen_stream_flags: list[bool] = []
+
+        def fake_urlopen(req, timeout=240):
+            _ = timeout
+            payload = json.loads(req.data.decode("utf-8"))
+            seen_stream_flags.append(bool(payload.get("stream")))
+            if len(seen_stream_flags) == 1:
+                raise TimeoutError("timed out")
+            return fake_resp
+
+        with mock.patch("urllib.request.urlopen", side_effect=fake_urlopen):
+            res = pr_automation.call_openai_compatible(
+                "k", "m", "sys", "usr", endpoint="https://example.invalid/v1/chat/completions"
+            )
+        self.assertEqual(res["verdict"], "APPROVE")
+        self.assertEqual(seen_stream_flags, [True, False])
+
+    def test_trim_pr_diff_omits_generated_svg_and_caps_size(self) -> None:
+        diff = (
+            "diff --git a/src/a.c b/src/a.c\n+int x = 1;\n"
+            "diff --git a/docs/progress-gauge.svg b/docs/progress-gauge.svg\n"
+            + ("+svg line\n" * 50)
+            + "diff --git a/src/b.c b/src/b.c\n+int y = 2;\n"
+        )
+        trimmed, truncated = pr_automation.trim_pr_diff(diff, max_chars=40000)
+        self.assertFalse(truncated)
+        self.assertIn("+int x = 1;", trimmed)
+        self.assertIn("+int y = 2;", trimmed)
+        self.assertIn("generated file diff omitted", trimmed)
+        self.assertNotIn("+svg line", trimmed)
+
+        long_diff = "diff --git a/src/c.c b/src/c.c\n+" + ("a" * 200)
+        capped, truncated_cap = pr_automation.trim_pr_diff(long_diff, max_chars=80)
+        self.assertTrue(truncated_cap)
+        self.assertLess(len(capped), 140)
+
+    def test_has_bot_approval_for_commit(self) -> None:
+        def make_reviews(reviews):
+            return [(200, json.dumps(reviews))]
+
+        with mock.patch(
+            "pr_automation.github_request",
+            side_effect=make_reviews(
+                [
+                    {"user": {"login": "github-actions[bot]"}, "commit_id": "sha1", "state": "APPROVED"},
+                    {"user": {"login": "other"}, "commit_id": "sha1", "state": "CHANGES_REQUESTED"},
+                ]
+            ),
+        ):
+            self.assertTrue(pr_automation.has_bot_approval_for_commit("o/r", 1, "sha1", "tok"))
+
+        with mock.patch(
+            "pr_automation.github_request",
+            side_effect=make_reviews(
+                [
+                    {"user": {"login": "github-actions[bot]"}, "commit_id": "sha1", "state": "APPROVED"},
+                    {"user": {"login": "github-actions[bot]"}, "commit_id": "sha1", "state": "CHANGES_REQUESTED"},
+                ]
+            ),
+        ):
+            self.assertFalse(pr_automation.has_bot_approval_for_commit("o/r", 1, "sha1", "tok"))
+
+        with mock.patch(
+            "pr_automation.github_request",
+            side_effect=make_reviews(
+                [
+                    {"user": {"login": "github-actions[bot]"}, "commit_id": "oldsha", "state": "APPROVED"},
+                ]
+            ),
+        ):
+            self.assertFalse(pr_automation.has_bot_approval_for_commit("o/r", 1, "sha1", "tok"))
+
+    def test_cmd_ai_review_skips_duplicate_on_metadata_events(self) -> None:
+        pr_payload = {
+            "number": 60,
+            "head": {"sha": "abc123456789"},
+            "base": {"ref": "main"},
+            "title": "Test",
+            "body": "Fixes #1",
+        }
+        args = argparse.Namespace(tier="A")
+
+        with mock.patch.dict(
+            os.environ, {"GITHUB_TOKEN": "tok", "OPENCODE_GO_API_KEY": "k"}, clear=True
+        ):
+            with mock.patch(
+                "pr_automation.load_pr_event",
+                return_value=("o/r", "labeled", pr_payload),
+            ), mock.patch(
+                "pr_automation.has_bot_approval_for_commit", return_value=True
+            ), mock.patch(
+                "pr_automation.call_openai_compatible"
+            ) as llm_mock, mock.patch(
+                "pr_automation.write_outputs"
+            ) as out_mock:
+                rc = pr_automation.cmd_ai_review(args)
+        self.assertEqual(rc, 0)
+        llm_mock.assert_not_called()
+        out_mock.assert_called_once_with({"approved": "true"})
+
+        with mock.patch.dict(
+            os.environ, {"GITHUB_TOKEN": "tok", "OPENCODE_GO_API_KEY": "k"}, clear=True
+        ):
+            with mock.patch(
+                "pr_automation.load_pr_event",
+                return_value=("o/r", "synchronize", pr_payload),
+            ), mock.patch(
+                "pr_automation.has_bot_approval_for_commit", return_value=True
+            ), mock.patch(
+                "pr_automation.github_request", return_value=(200, "diff")
+            ), mock.patch(
+                "pr_automation.fetch_repo_file", return_value="doc"
+            ), mock.patch(
+                "pr_automation.call_openai_compatible",
+                return_value={"verdict": "APPROVE", "summary": "ok", "findings": []},
+            ) as llm_mock, mock.patch(
+                "pr_automation.write_outputs"
+            ) as out_mock:
+                rc = pr_automation.cmd_ai_review(args)
+        self.assertEqual(rc, 0)
+        llm_mock.assert_called_once()
+        out_mock.assert_called_once_with({"approved": "true"})
 
 
 if __name__ == "__main__":

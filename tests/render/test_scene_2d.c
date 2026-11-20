@@ -220,11 +220,23 @@ static void test_live_factory_delivery(void) {
            (unsigned long)m3ds_parity_hash_state(&factory));
 }
 
+static void test_demo_turret_fixture(void) {
+    M3dsBoundedScene scene;
+    M3dsParityState factory;
+    m3ds_factory_demo_init(&scene, &factory);
+    m3ds_factory_demo_add_turret(&scene, &factory);
+    assert(factory.grid[6][9].block == M3DS_PBLOCK_TURRET);
+    assert(factory.grid[6][9].ammo == M3DS_PARITY_TURRET_MAX_AMMO);
+    assert(scene.tiles[12][15] == M3DS_TILE_TURRET);
+    assert(m3ds_parity_hash_state(&factory) != 0u);
+}
+
 int main(void) {
     test_deterministic_step_and_bounds();
     test_culling_batching_and_budget();
     test_invalid_inputs_fail_safely();
     test_live_factory_delivery();
+    test_demo_turret_fixture();
     printf("test_scene_2d: all assertions passed.\n");
     return 0;
 }

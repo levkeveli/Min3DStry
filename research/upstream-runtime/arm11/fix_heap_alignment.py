@@ -4,7 +4,7 @@ import re
 
 
 CLASS_SIZE = re.compile(
-    rb"(\.size = \(int32_t\) \(intptr_t\) TEAVM_ALIGN\(sizeof\(\w+\), )sizeof\(void\*\)(\))"
+    rb"(\.size = \(int32_t\) \(intptr_t\) TEAVM_ALIGN\(sizeof\([^()\r\n]+\), )sizeof\(void\*\)(\))"
 )
 ARRAY_SIZE_ALIGNMENT = re.compile(
     rb"(TEAVM_ALIGN\([^\r\n]*sizeof\(TeaVM_Array\)[^\r\n]*, )sizeof\(void\*\)(\)\);)"
