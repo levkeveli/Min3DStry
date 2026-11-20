@@ -96,6 +96,8 @@ The fingerprint covers floor, overlay, block, and building links for each
 tile, plus team and rotation at each building's origin. The probe also checks
 saved construction statistics, the enemy core protection radius, and the
 first wave group through the upstream JSON reader.
+The unmodified v160.8 server JAR and the generated Windows x64 executable
+with the reflection runtime patches produced the same result.
 
 The C build recompiles two compiler classes from the hash-checked TeaVM
 0.16.0 source archive. The patches retain the original entry block's

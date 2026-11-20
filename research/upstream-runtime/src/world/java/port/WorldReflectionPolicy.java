@@ -13,14 +13,20 @@ public final class WorldReflectionPolicy extends SimpleReflectionPolicy {
             "mindustry.game.GameStats",
             "mindustry.game.Rules",
             "mindustry.game.Rules$TeamRule",
-            "mindustry.game.Rules$TeamRules",
-            "mindustry.game.SpawnGroup",
-            "mindustry.type.MapLocales",
             "mindustry.type.Weather$WeatherEntry",
             "arc.math.geom.Vec2"
         }) {
             selectClass(type).reflectableMethods(withParameterCount(0).and(IntrospectMethod::isConstructor))
                 .reflectableFields(field -> INSTANCE.test(field) && !TRANSIENT.test(field));
+        }
+        // These classes read their fields through the JsonSerializable interface.
+        for (String type : new String[] {
+            "mindustry.game.Rules$TeamRules",
+            "mindustry.game.SpawnGroup",
+            "mindustry.type.MapLocales",
+            "mindustry.world.blocks.Attributes"
+        }) {
+            selectClass(type).reflectableMethods(withParameterCount(0).and(IntrospectMethod::isConstructor));
         }
         // Older maps name filters by their fully qualified upstream class name.
         selectClasses(inPackage("mindustry.maps.filters").and(extending("mindustry.maps.filters.GenerateFilter")))
