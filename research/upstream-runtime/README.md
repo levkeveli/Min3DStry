@@ -134,3 +134,25 @@ returned it in both Original and New 3DS modes in Azahar 2126.2. The probe
 exercises the classpath fallback, including a failed filesystem lookup for the
 internal handle. It has not verified reading a real file through Arc on SD or
 running on physical hardware.
+
+## Read SD file metadata on ARM11
+
+[Issue #91](https://github.com/levkeveli/Min3DStry/issues/91) exposes
+TeaVM's ARM11 home and temporary paths under `/3ds/min3dstry` and backs
+file length and stream position with newlib `stat` and `ftell`.
+
+Use `-Pprobe=file-metadata` with the pinned Gradle inputs. Run
+`runProbeJvm --args=/path/to/glacier.msav` on the host and use
+`generateC` and `arm11/build.sh` to produce the ARM11 executable.
+Put the pinned `core/assets/maps/default/glacier.msav` at
+`/3ds/min3dstry/glacier.msav` on the SD for the ARM11 run. The probe
+checks the native Java path properties, file length, seek positions,
+rewind and EOF. The host JVM reported:
+
+```text
+UPSTREAM_FILE_METADATA size=8550 header=789cbd3a last=108 seek=ok paths=ok
+```
+
+[DevkitARM build 44807942120](https://github.com/levkeveli/Min3DStry/actions/runs/44807942120)
+reported the same record after checking the actual ARM11 path properties
+and reading Glacier from the virtual SD card in both Azahar 2126.2 console profiles.
