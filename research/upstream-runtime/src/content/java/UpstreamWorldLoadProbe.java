@@ -27,6 +27,10 @@ public final class UpstreamWorldLoadProbe {
     }
 
     static ProbeApplication load(String[] args) throws IOException {
+        return load(args, () -> {});
+    }
+
+    static ProbeApplication load(String[] args, Runnable beforeMap) throws IOException {
         var app = new ProbeApplication();
         Core.app = app;
         Core.settings = new Settings();
@@ -43,6 +47,7 @@ public final class UpstreamWorldLoadProbe {
         Fi file = new Fi(args.length == 0 ? "/3ds/min3dstry/glacier.msav" : args[0]);
         Vars.customMapDirectory = file.parent();
         Vars.maps = new Maps();
+        beforeMap.run();
         var map = MapIO.createMap(file, false);
         // Glacier uses randomized upstream map filters. A fixed seed allows a
         // direct comparison of the resulting terrain on each platform.

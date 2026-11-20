@@ -32,14 +32,17 @@ def entryPoints = [
     'world-save': 'UpstreamWorldSaveProbe',
     'world-roundtrip': 'UpstreamWorldRoundTripProbe',
     'terrain-draw': 'UpstreamTerrainDrawProbe',
-    'terrain-render': 'UpstreamTerrainRenderProbe'
+    'terrain-render': 'UpstreamTerrainRenderProbe',
+    'factory-ticks': 'UpstreamFactoryTickProbe',
+    'combat-ticks': 'UpstreamCombatTickProbe'
 ]
 if (!entryPoints.containsKey(probe)) {
     throw new GradleException("Expected -Pprobe to be one of ${entryPoints.keySet()}")
 }
 def entryPoint = entryPoints[probe]
 def usesMapSources = probe in ['map', 'map-sd']
-def usesWorldSources = probe in ['world', 'world-save', 'world-roundtrip', 'terrain-draw', 'terrain-render']
+def usesSimulation = probe in ['factory-ticks', 'combat-ticks']
+def usesWorldSources = probe in ['world', 'world-save', 'world-roundtrip', 'terrain-draw', 'terrain-render'] || usesSimulation
 def initializesContent = probe == 'content-init' || usesWorldSources
 def usesContentSources = probe == 'content' || initializesContent
 def usesExecutor = usesContentSources || probe == 'executor'
@@ -114,6 +117,9 @@ if (usesWorldSources) {
 }
 if (probe == 'terrain-render') {
     sourceSets.main.java.srcDir('src/terrain/java')
+}
+if (usesSimulation) {
+    sourceSets.main.java.srcDir('src/gameplay/java')
 }
 dependencies {
     if (usesMapSources || probe == 'terrain-render') {
@@ -266,6 +272,9 @@ teavm {
     all { mainClass = entryPoint }
     if (usesExecutor) {
         c { obfuscated = false }
+    }
+    if (usesSimulation) {
+        c { maxHeapSize = 24 }
     }
 }
 
