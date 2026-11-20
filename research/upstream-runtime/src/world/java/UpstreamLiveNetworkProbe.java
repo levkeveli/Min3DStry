@@ -12,7 +12,11 @@ import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 import java.util.zip.InflaterInputStream;
 import mindustry.Vars;
+import mindustry.core.GameState.State;
+import mindustry.core.NetClient;
+import mindustry.game.Universe;
 import mindustry.gen.ConnectConfirmCallPacket;
+import mindustry.gen.EntitySnapshotCallPacket;
 import mindustry.gen.Groups;
 import mindustry.gen.KickCallPacket2;
 import mindustry.gen.Player;
@@ -20,6 +24,7 @@ import mindustry.gen.StateSnapshotCallPacket;
 import mindustry.mod.Mods;
 import mindustry.net.Net;
 import mindustry.net.NetworkIO;
+import mindustry.net.Packet;
 import mindustry.net.Packets.StreamChunk;
 import org.teavm.interop.Address;
 import org.teavm.interop.Import;
@@ -39,6 +44,7 @@ public final class UpstreamLiveNetworkProbe {
         int port = Integer.parseInt(endpoint[1]);
         var app = UpstreamWorldLoadProbe.initialize(config.parent());
         Vars.mods = new Mods();
+        Vars.universe = new Universe();
         try {
             new UpstreamLiveNetworkProbe().run(host, port, app);
         } catch (IOException | RuntimeException error) {
@@ -86,11 +92,11 @@ public final class UpstreamLiveNetworkProbe {
             throw new IOException("Expected a live multiplayer WorldStream, status=" + result);
         }
         Vars.net.setClientConnected();
+        Vars.netClient = NetClient.forSnapshotDispatch();
         int total = Native.streamTotal();
         var stream = new WorldStreamInput(Native.streamId(), total);
-        var seenEntities = new IntSet();
         Vars.player = Player.create();
-        NetworkIO.loadWorld(new InflaterInputStream(stream), seenEntities::add);
+        NetworkIO.loadWorld(new InflaterInputStream(stream));
         app.runPosted();
         if (stream.remaining != 0 || Groups.player.size() != 1 || !PLAYER_NAME.equals(Vars.player.name)
                 || Vars.world.width() <= 0 || Vars.world.height() <= 0) {
@@ -99,11 +105,9 @@ public final class UpstreamLiveNetworkProbe {
         String fingerprint = UpstreamWorldLoadProbe.reportTerrain(false);
         System.out.println("UPSTREAM_LIVE_NET_WORLD join=" + join + " map=" + Vars.state.map.name()
             + " bytes=" + total + " team=" + Vars.player.team().id + " fingerprint=" + fingerprint);
+        Vars.state.set(State.playing);
         confirm();
-        StateSnapshotCallPacket snapshot = waitForSnapshot();
-        System.out.println("UPSTREAM_LIVE_NET_STATE join=" + join + " wave=" + snapshot.wave
-            + " time=" + snapshot.timeData + " enemies=" + snapshot.enemies
-            + " coreBytes=" + snapshot.coreData.length);
+        waitForWave(join, app);
     }
 
     private static void confirm() throws IOException {
@@ -116,20 +120,57 @@ public final class UpstreamLiveNetworkProbe {
         }
     }
 
-    private StateSnapshotCallPacket waitForSnapshot() throws IOException {
-        long end = System.nanoTime() + 10_000_000_000L;
+    private void waitForWave(int join, UpstreamWorldLoadProbe.ProbeApplication app) throws IOException {
+        long end = System.nanoTime() + 20_000_000_000L;
         int snapshotId = unsignedId(StateSnapshotCallPacket.class);
+        int entityId = unsignedId(EntitySnapshotCallPacket.class);
+        int initialWave = Vars.state.wave;
+        var initialEnemies = new IntSet();
+        for (var unit : Groups.unit) {
+            if (unit.team == Vars.state.rules.waveTeam) initialEnemies.add(unit.id);
+        }
+        boolean receivedState = false;
         while (System.nanoTime() < end) {
-            int received = receive(0, 100);
-            if (received == TIMEOUT) received = receive(1, 50);
-            if (received >= 0 && received >>> 16 == snapshotId) {
-                var snapshot = new StateSnapshotCallPacket();
-                snapshot.read(reader(received), received & 0xffff);
-                snapshot.handled();
-                return snapshot;
+            int received = receive(1, 0);
+            if (received == TIMEOUT) received = receive(0, 100);
+            if (received == TIMEOUT) continue;
+            int id = received >>> 16;
+            if (id == snapshotId) {
+                var snapshot = decode(new StateSnapshotCallPacket(), received);
+                snapshot.handleClient();
+                if (Vars.state.wave != snapshot.wave || Vars.state.wavetime != snapshot.waveTime
+                        || Vars.state.enemies != snapshot.enemies || Vars.universe.seconds() != snapshot.timeData
+                        || Vars.state.serverTps != (snapshot.tps & 0xff)) {
+                    throw new IOException("Upstream snapshot did not update client state");
+                }
+                if (!receivedState) {
+                    receivedState = true;
+                    System.out.println("UPSTREAM_LIVE_NET_STATE join=" + join + " wave=" + snapshot.wave
+                        + " time=" + snapshot.timeData + " enemies=" + snapshot.enemies
+                        + " coreBytes=" + snapshot.coreData.length);
+                }
+            } else if (id == entityId) {
+                decode(new EntitySnapshotCallPacket(), received).handleClient();
+            }
+            app.runPosted();
+            if (receivedState && Vars.state.wave > initialWave) {
+                for (var unit : Groups.unit) {
+                    if (unit.team == Vars.state.rules.waveTeam && !initialEnemies.contains(unit.id)
+                            && Groups.sync.getByID(unit.id) == unit) {
+                        System.out.println("UPSTREAM_LIVE_NET_SYNC join=" + join + " fromWave=" + initialWave
+                            + " wave=" + Vars.state.wave + " unit=" + unit.type.name + " id=" + unit.id);
+                        return;
+                    }
+                }
             }
         }
-        throw new IOException("No state snapshot after connection confirmation");
+        throw new IOException("No new wave and synchronized enemy after connection confirmation");
+    }
+
+    private <T extends Packet> T decode(T decoded, int received) {
+        decoded.read(reader(received), received & 0xffff);
+        decoded.handled();
+        return decoded;
     }
 
     private int receive(int reliable, int timeoutMs) throws IOException {

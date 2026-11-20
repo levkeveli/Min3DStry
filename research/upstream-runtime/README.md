@@ -255,11 +255,16 @@ python tools/verify_upstream_live_net.py --rom /path/to/upstream-probe.3dsx \
   --azahar /path/to/azahar --server /path/to/server-release.jar
 ```
 
-This entry point exercises the live initial-world path and packet
-exchange. Dispatch through the normal client UI and applying ongoing
-state and entity snapshots are part of #44.
+The live probe also calls the generated state and entity snapshot packets'
+original client handlers. It stages the pinned `NetClient.java` with a
+separate constructor for frontends that manage packet dispatch themselves.
+The original snapshot methods and desktop constructor behavior are preserved.
+The verifier issues the official server's `runwave` command after the first
+state snapshot on each join. It then checks for an advanced wave and a newly
+created enemy entity in the client world. The regular connection UI, outgoing
+player actions and other live packet handlers are tracked in #44.
 
-The [devkitARM verification build](https://github.com/levkeveli/Min3DStry/actions/runs/44824442974)
+Before the snapshot dispatch extension, the [devkitARM verification build](https://github.com/levkeveli/Min3DStry/actions/runs/44824442974)
 passed at `-O0` and `-O2` on both Azahar 2126.2 console profiles. Each run
 rejected build 159 with `clientOutdated`, then joined Glacier twice with
 build 160 and the same test identity. Both joins loaded the 150 × 250 map

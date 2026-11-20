@@ -64,6 +64,11 @@ def run_model(args, model, config, original_config, log, output):
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             rpc = az.AzaharRpcClient(timeout=2, retries=2)
             try:
+                for join in (1, 2):
+                    wait_for(log, emulator, rf"UPSTREAM_LIVE_NET_STATE join={join}\b", args.timeout)
+                    server.stdin.write("runwave\n")
+                    server.stdin.flush()
+                    wait_for(log, emulator, rf"UPSTREAM_LIVE_NET_SYNC join={join}\b", 25)
                 emu_log = wait_for(log, emulator, "UPSTREAM_LIVE_NET_PASS", args.timeout)
                 (output / f"{model}.png").write_bytes(rpc.screenshot())
             finally:
@@ -95,14 +100,17 @@ def validate(log):
     state = r"UPSTREAM_LIVE_NET_STATE join=(\d+) wave=(\d+) time=(\d+) enemies=(\d+) coreBytes=(\d+)"
     worlds = re.findall(world, log)
     states = re.findall(state, log)
+    synced = re.findall(r"UPSTREAM_LIVE_NET_SYNC join=(\d+) fromWave=(\d+) wave=(\d+) unit=(\S+) id=(\d+)", log)
     if ("UPSTREAM_LIVE_NET_REJECT build=159 packet=KickCallPacket2" not in log
             or [event[0] for event in worlds] != ["1", "2"]
             or [event[0] for event in states] != ["1", "2"]
+            or [event[0] for event in synced] != ["1", "2"]
             or re.findall(r"UPSTREAM_LIVE_NET_DISCONNECTED join=(\d+)", log) != ["1", "2"]
             or any(int(event[1]) <= 0 or int(event[2]) <= 0 for event in worlds)
             or worlds[0][3] != worlds[1][3]
-            or any(int(event[1]) <= 0 or int(event[4]) <= 0 for event in states)):
-        raise RuntimeError("Expected a version rejection, two live worlds, state snapshots and disconnects")
+            or any(int(event[1]) <= 0 or int(event[4]) <= 0 for event in states)
+            or any(int(event[2]) != int(event[1]) + 1 or int(event[4]) <= 0 for event in synced)):
+        raise RuntimeError("Expected live wave, state and entity updates on both joins")
 
 
 def main():
