@@ -256,3 +256,16 @@ the reflection fix during staging.
 For the ARM11 probe, put the original `glacier.msav` and `sprites.aatls` in
 `/3ds/min3dstry/` on the SD card. The trace precedes the Citro2D
 presentation step tracked in #38.
+
+The current viewport uses 13 upstream atlas regions. A local build of
+that set with tex3ds v2.3.0 produced a 128 × 256 RGBA8 page (128 KiB).
+To reproduce the page, pass the names below, in this order, to the
+[upstream sprite converter](../../docs/rendering/asset-pipeline.md).
+
+```text
+ice-edge ice1 ice2 ice3 ore-coal1 ore-coal2 ore-coal3
+ore-copper1 ore-copper2 ore-copper3 stone1 stone2 stone3
+```
+
+Arc draws 32 × 32 subregions of `ice-edge`. Keep the 96 × 96 parent
+rectangle so the renderer can translate the original page UVs.
