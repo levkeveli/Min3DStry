@@ -7,6 +7,20 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+static int32_t m3ds_file_directory(char* path, char16_t** result) {
+    int32_t length;
+    *result = teavm_mbToChar16(path, &length);
+    return length;
+}
+
+int32_t teavm_file_homeDirectory(char16_t** result) {
+    return m3ds_file_directory("/3ds/min3dstry", result);
+}
+
+int32_t teavm_file_tempDirectory(char16_t** result) {
+    return m3ds_file_directory("/3ds/min3dstry/tmp", result);
+}
+
 int32_t teavm_file_workDirectory(char16_t** result) {
     char path[PATH_MAX];
     int32_t length;
@@ -14,8 +28,7 @@ int32_t teavm_file_workDirectory(char16_t** result) {
         *result = teavm_mbToChar16(strerror(errno), &length);
         return -1 - length;
     }
-    *result = teavm_mbToChar16(path, &length);
-    return length;
+    return m3ds_file_directory(path, result);
 }
 
 static mode_t m3ds_file_mode(char16_t* name, int32_t name_size) {
@@ -35,6 +48,20 @@ int32_t teavm_file_isDir(char16_t* name, int32_t name_size) {
 
 int32_t teavm_file_isFile(char16_t* name, int32_t name_size) {
     return S_ISREG(m3ds_file_mode(name, name_size));
+}
+
+int32_t teavm_file_length(char16_t* name, int32_t name_size) {
+    char* path = teavm_char16ToMb(name, name_size);
+    if (path == NULL) {
+        return 0;
+    }
+    struct stat info;
+    int result = stat(path, &info);
+    free(path);
+    if (result != 0 || !S_ISREG(info.st_mode) || info.st_size < 0) {
+        return 0;
+    }
+    return info.st_size > INT32_MAX ? INT32_MAX : (int32_t)info.st_size;
 }
 
 int32_t teavm_file_isWindows(void) {
@@ -64,6 +91,11 @@ int32_t teavm_file_seek(int64_t file, int32_t where, int32_t offset) {
         return 0;
     }
     return fseek((FILE*)(intptr_t)file, offset, origins[where]) == 0;
+}
+
+int32_t teavm_file_tell(int64_t file) {
+    long position = ftell((FILE*)(intptr_t)file);
+    return position > INT32_MAX ? -1 : (int32_t)position;
 }
 
 int32_t teavm_file_read(int64_t file, int8_t* data, int32_t offset, int32_t size) {
