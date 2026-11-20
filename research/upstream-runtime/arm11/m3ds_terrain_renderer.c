@@ -27,7 +27,7 @@ static bool prepare_renderer(void) {
     if (!romfs_ready) return 0;
     gpu_ready = C3D_Init(C3D_DEFAULT_CMDBUF_SIZE);
     if (!gpu_ready) return 0;
-    renderer_ready = C2D_Init(512);
+    renderer_ready = C2D_Init(2048);
     if (!renderer_ready) return 0;
     C2D_Prepare();
     target = C2D_CreateScreenTarget(GFX_TOP, GFX_LEFT);
@@ -125,12 +125,15 @@ int32_t m3ds_terrain_input(void) {
     }
     hidScanInput();
     u32 pressed = hidKeysDown();
+    u32 held = hidKeysHeld() | pressed;
     if (pressed & KEY_START) {
         session_finished = true;
         return -1;
     }
     return ((pressed & KEY_A) ? 1 : 0) | ((pressed & KEY_X) ? 2 : 0) |
-           ((pressed & KEY_B) ? 4 : 0);
+           ((pressed & KEY_B) ? 4 : 0) | ((held & KEY_LEFT) ? 8 : 0) |
+           ((held & KEY_RIGHT) ? 16 : 0) | ((held & KEY_DOWN) ? 32 : 0) |
+           ((held & KEY_UP) ? 64 : 0) | ((pressed & KEY_Y) ? 128 : 0);
 }
 
 int64_t m3ds_terrain_clock_ms(void) {

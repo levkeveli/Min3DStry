@@ -7,6 +7,7 @@ public final class UpstreamLiveSessionProbe {
         var session = new UpstreamLiveSession(args, new UpstreamTerrainRenderProbe(false));
         session.draw();
         System.out.println("A sends copper. B collects it. X pauses. START exits.");
+        System.out.println("D-pad/Circle Pad pans. Y resets camera.");
         System.out.println("UPSTREAM_LIVE_READY");
         long lastMs = NativeLoop.now();
         int input;
