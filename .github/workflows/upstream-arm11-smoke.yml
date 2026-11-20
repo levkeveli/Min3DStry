@@ -1,0 +1,77 @@
+name: Upstream ARM11 smoke
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "research/upstream-runtime/**"
+      - ".github/workflows/upstream-arm11-smoke.yml"
+  push:
+    branches: [main]
+    paths:
+      - "research/upstream-runtime/**"
+      - ".github/workflows/upstream-arm11-smoke.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: upstream-arm11-${{ github.ref }}-${{ matrix.probe }}
+  cancel-in-progress: true
+
+jobs:
+  probe:
+    name: Probe ${{ matrix.probe }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        probe: [logic, map]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Fetch pinned upstream v160.8 source and server JAR
+        run: |
+          git clone --depth 1 --branch v160.8 --filter=blob:none --no-checkout \
+            https://github.com/Anuken/Mindustry.git "$RUNNER_TEMP/Mindustry"
+          git -C "$RUNNER_TEMP/Mindustry" checkout HEAD -- gradlew gradle/wrapper
+          curl --fail --silent --show-error --location \
+            https://github.com/Anuken/Mindustry/releases/download/v160.8/server-release.jar \
+            -o "$RUNNER_TEMP/server-release.jar"
+
+      - name: Run JVM reference and generate TeaVM C
+        run: |
+          bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime \
+            --no-daemon --console=plain \
+            "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" \
+            "-PreferenceJar=$RUNNER_TEMP/server-release.jar" \
+            -Pprobe=${{ matrix.probe }} \
+            runProbeJvm generateC
+
+      - name: Build ARM11 probe with pinned devkitARM image
+        run: |
+          image=devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5
+          docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/work" -w /work "$image" bash -lc '
+            source /opt/devkitpro/3dsvars.sh
+            bash research/upstream-runtime/arm11/build.sh \
+              research/upstream-runtime/build/generated/teavm/c \
+              research/upstream-runtime/build/probe-3ds'
+          test -s research/upstream-runtime/build/probe-3ds/upstream-probe.3dsx
+          test -s research/upstream-runtime/build/probe-3ds/upstream-probe.elf
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: upstream-arm11-${{ matrix.probe }}
+          path: |
+            research/upstream-runtime/build/probe-3ds/upstream-probe.3dsx
+            research/upstream-runtime/build/probe-3ds/upstream-probe.elf
+          if-no-files-found: error
