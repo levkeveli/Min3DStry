@@ -39,6 +39,7 @@ From the runtime probe directory, run the same check against the adapted class.
 
 ```sh
 gradle -PupstreamCheckout=/path/to/Mindustry -PreferenceJar=/path/to/server-release.jar \
+    -ParcCheckout=/path/to/Arc \
     -Pprobe=content runProbeJvm runBuildingProbeJvm > factories-adapted.log
 grep '^UPSTREAM_BUILDING' factories-adapted.log > factories-adapted.tsv
 cmp /path/to/factories-reference.tsv factories-adapted.tsv
@@ -60,5 +61,6 @@ the build directory.
 
 Use `-Pprobe=content generateC` with `-Dorg.gradle.jvmargs=-Xmx3g` to reproduce
 the compiler check. It now passes the anonymous class lookup during analysis.
-TeaVM C generation still stops at executor APIs, processor count, and resource
-lookup. Native registry and factory parity are tracked in #55.
+The [resource probe](../README.md#read-pinned-arc-resources) documents the
+adaptation used by content mode for Arc's classpath lookup. Native registry and
+factory parity are tracked in #55.

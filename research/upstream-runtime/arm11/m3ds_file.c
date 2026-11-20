@@ -1,0 +1,71 @@
+/* Read-only TeaVM filesystem entry points used by Arc Fi. */
+#include "file.h"
+#include <errno.h>
+#include <limits.h>
+#include <stdio.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
+int32_t teavm_file_workDirectory(char16_t** result) {
+    char path[PATH_MAX];
+    int32_t length;
+    if (getcwd(path, sizeof(path)) == NULL) {
+        *result = teavm_mbToChar16(strerror(errno), &length);
+        return -1 - length;
+    }
+    *result = teavm_mbToChar16(path, &length);
+    return length;
+}
+
+static mode_t m3ds_file_mode(char16_t* name, int32_t name_size) {
+    char* path = teavm_char16ToMb(name, name_size);
+    if (path == NULL) {
+        return 0;
+    }
+    struct stat info;
+    int result = stat(path, &info);
+    free(path);
+    return result == 0 ? info.st_mode : 0;
+}
+
+int32_t teavm_file_isDir(char16_t* name, int32_t name_size) {
+    return S_ISDIR(m3ds_file_mode(name, name_size));
+}
+
+int32_t teavm_file_isFile(char16_t* name, int32_t name_size) {
+    return S_ISREG(m3ds_file_mode(name, name_size));
+}
+
+int32_t teavm_file_isWindows(void) {
+    return 0;
+}
+
+int64_t teavm_file_open(char16_t* name, int32_t name_size, int32_t mode) {
+    if (mode != 1) {
+        return 0;
+    }
+    char* path = teavm_char16ToMb(name, name_size);
+    if (path == NULL) {
+        return 0;
+    }
+    FILE* stream = fopen(path, "rb");
+    free(path);
+    return (int64_t)(intptr_t)stream;
+}
+
+int32_t teavm_file_close(int64_t file) {
+    return fclose((FILE*)(intptr_t)file) == 0;
+}
+
+int32_t teavm_file_seek(int64_t file, int32_t where, int32_t offset) {
+    const int origins[] = {SEEK_SET, SEEK_CUR, SEEK_END};
+    if (where < 0 || where >= (int)(sizeof(origins) / sizeof(origins[0]))) {
+        return 0;
+    }
+    return fseek((FILE*)(intptr_t)file, offset, origins[where]) == 0;
+}
+
+int32_t teavm_file_read(int64_t file, int8_t* data, int32_t offset, int32_t size) {
+    return (int32_t)fread(data + offset, 1, (size_t)size, (FILE*)(intptr_t)file);
+}
