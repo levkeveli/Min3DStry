@@ -97,3 +97,36 @@ jobs:
             research/upstream-runtime/build/probe-3ds/upstream-probe.3dsx
             research/upstream-runtime/build/probe-3ds/upstream-probe.elf
           if-no-files-found: error
+
+  save-baseline:
+    name: Save writer baseline
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Fetch pinned upstream map and server JAR
+        run: |
+          git clone --depth 1 --branch v160.8 \
+            https://github.com/Anuken/Mindustry.git "$RUNNER_TEMP/Mindustry"
+          test "$(git -C "$RUNNER_TEMP/Mindustry" rev-parse HEAD)" = \
+            "19a0f40d44514f4802a8b79770456e7e32e34da0"
+          git -C "$RUNNER_TEMP/Mindustry" show \
+            HEAD:core/assets/maps/default/glacier.msav > "$RUNNER_TEMP/glacier.msav"
+          curl --fail --silent --show-error --location \
+            https://github.com/Anuken/Mindustry/releases/download/v160.8/server-release.jar \
+            -o "$RUNNER_TEMP/server-release.jar"
+
+      - name: Run upstream SaveIO writer baseline
+        run: |
+          java -cp "$RUNNER_TEMP/server-release.jar" \
+            research/upstream-runtime/host/UpstreamSaveBaseline.java \
+            "$RUNNER_TEMP/glacier.msav" | tee "$RUNNER_TEMP/save.log"
+          grep -F 'UPSTREAM_SAVE header=MSAV version=13' "$RUNNER_TEMP/save.log"

@@ -21,8 +21,9 @@ Both runs should print UPSTREAM_LOGIC quotient=-3 remainder=1 xor=6.
 [`upstream-arm11-smoke.yml`](../../.github/workflows/upstream-arm11-smoke.yml)
 runs the `logic`, `map` and `resource` probes for PRs and pushes touching this
 directory, then cross-builds each generated C output with the pinned devkitARM
-container and uploads the `.3dsx`/ELF artifacts. It uses no secrets and
-read-only repository permissions. The initial logic/map run was
+container and uploads the `.3dsx`/ELF artifacts. It also runs the pinned
+upstream save-writer baseline against Glacier. It uses no secrets and read-only
+repository permissions. The initial logic/map run was
 [44798365837](https://github.com/levkeveli/Min3DStry/actions/runs/44798365837);
 the three-probe run including Arc resources is
 [44801673667](https://github.com/levkeveli/Min3DStry/actions/runs/44801673667).
