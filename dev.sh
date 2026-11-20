@@ -94,7 +94,7 @@ case "${1:-}" in
     bash -n dev.sh
     host_python="$(find_host_python)" || exit 1
     host_cc="$(find_host_cc)" || { echo 'test: no host C compiler found (install cc/gcc/clang or set CC).' >&2; exit 1; }
-    for file in README.md AGENTS.md CONTRIBUTING.md SECURITY.md docs/architecture.md docs/research/java-to-native.md docs/development/automation-policy.md docs/rendering/citro2d-prototype.md docs/testing/parity-harness.md docs/hardware/deployment-and-logs.md docs/hardware/memory-budget.md docs/audio/ndsp-mixer.md docs/audio/asset-conversion.md docs/net/upstream-protocol.md docs/port-capabilities.json docs/progress-gauge.svg site/index.html .github/scripts/pr_automation.py .github/scripts/test_pr_automation.py .github/workflows/ai-pr-review.yml .github/workflows/upstream-arm11-smoke.yml Makefile include/audio/audio_mixer.h src/audio/audio_mixer.c tests/audio/test_audio_mixer.c include/audio/audio_registry.h src/audio/audio_registry.c tests/audio/test_audio_registry.c include/net/mindustry_net.h src/net/mindustry_net.c tests/net/test_mindustry_net.c include/render/scene_2d.h src/render/scene_2d.c tests/render/test_scene_2d.c include/sim/parity_scenario.h src/sim/parity_scenario.c tests/sim/test_parity_harness.c tests/parity/starter_copper_defense_v1.json include/platform/memory_budget.h src/platform/memory_budget.c tests/platform/test_memory_budget.c research/upstream-runtime/host/UpstreamSaveBaseline.java research/upstream-runtime/host/UpstreamAudioInventory.java research/upstream-runtime/host/UpstreamProgressionBaseline.java research/upstream-runtime/host/UpstreamCombatBaseline.java tools/verify_azahar.py tools/check_parity.py tools/device_deploy.py tools/port_progress.py tools/build_audio_assets.py tools/verify_upstream_net.py tests/tools/test_verify_azahar.py tests/tools/test_check_parity.py tests/tools/test_device_deploy.py tests/tools/test_port_progress.py tests/tools/test_audio_assets.py audio/upstream-audio-map.json audio/upstream-audio-triggers.json; do
+    for file in README.md AGENTS.md CONTRIBUTING.md SECURITY.md docs/architecture.md docs/research/java-to-native.md docs/development/automation-policy.md docs/rendering/citro2d-prototype.md docs/rendering/minimap.md docs/testing/parity-harness.md docs/hardware/deployment-and-logs.md docs/hardware/memory-budget.md docs/audio/ndsp-mixer.md docs/audio/asset-conversion.md docs/audio/azahar-evidence.md docs/net/upstream-protocol.md docs/port-capabilities.json docs/progress-gauge.svg site/index.html .github/scripts/pr_automation.py .github/scripts/test_pr_automation.py .github/workflows/ai-pr-review.yml .github/workflows/upstream-arm11-smoke.yml Makefile include/audio/audio_mixer.h src/audio/audio_mixer.c tests/audio/test_audio_mixer.c include/audio/audio_registry.h src/audio/audio_registry.c tests/audio/test_audio_registry.c include/audio/audio_events.h src/audio/audio_events.c tests/audio/test_audio_events.c include/audio/audio_ambient.h src/audio/audio_ambient.c tests/audio/test_audio_ambient.c include/net/mindustry_net.h src/net/mindustry_net.c tests/net/test_mindustry_net.c include/render/scene_2d.h src/render/scene_2d.c tests/render/test_scene_2d.c include/render/minimap.h src/render/minimap.c tests/render/test_minimap.c include/sim/parity_scenario.h src/sim/parity_scenario.c tests/sim/test_parity_harness.c tests/parity/starter_copper_defense_v1.json include/platform/memory_budget.h src/platform/memory_budget.c tests/platform/test_memory_budget.c research/upstream-runtime/host/UpstreamSaveBaseline.java research/upstream-runtime/host/UpstreamAudioInventory.java research/upstream-runtime/host/UpstreamProgressionBaseline.java research/upstream-runtime/host/UpstreamCombatBaseline.java research/upstream-runtime/host/UpstreamNetSessionBaseline.java tools/verify_azahar.py tools/check_parity.py tools/device_deploy.py tools/port_progress.py tools/build_audio_assets.py tools/verify_upstream_net.py tests/tools/test_verify_azahar.py tests/tools/test_check_parity.py tests/tools/test_device_deploy.py tests/tools/test_port_progress.py tests/tools/test_audio_assets.py audio/upstream-audio-map.json audio/upstream-audio-triggers.json; do
       test -s "$file" || { echo "Missing or empty: $file" >&2; exit 1; }
     done
     "$host_python" -m py_compile .github/scripts/pr_automation.py .github/scripts/test_pr_automation.py research/java-to-native/budget_model.py research/java-to-native/run_poc.py tools/verify_azahar.py tools/check_parity.py tools/device_deploy.py tools/port_progress.py tools/build_audio_assets.py tools/verify_upstream_net.py tests/tools/test_verify_azahar.py tests/tools/test_check_parity.py tests/tools/test_device_deploy.py tests/tools/test_port_progress.py tests/tools/test_audio_assets.py
@@ -107,6 +107,10 @@ case "${1:-}" in
       src/render/scene_2d.c src/render/factory_demo.c src/sim/parity_scenario.c \
       tests/render/test_scene_2d.c -lm -o build/host/test_scene_2d
     ./build/host/test_scene_2d
+
+    "$host_cc" -std=c11 -Wall -Wextra -Werror -Iinclude \
+      src/render/minimap.c tests/render/test_minimap.c -o build/host/test_minimap
+    ./build/host/test_minimap
 
     "$host_cc" -std=c11 -Wall -Wextra -Werror -Iinclude \
       src/platform/hardware_profile.c tests/platform/test_hardware_profile.c -o build/host/test_hardware_profile
@@ -124,6 +128,17 @@ case "${1:-}" in
       src/audio/audio_mixer.c src/audio/audio_registry.c \
       tests/audio/test_audio_registry.c -o build/host/test_audio_registry
     ./build/host/test_audio_registry
+
+    "$host_cc" -std=c11 -Wall -Wextra -Werror -Iinclude \
+      src/audio/audio_mixer.c src/audio/audio_registry.c src/audio/audio_events.c \
+      tests/audio/test_audio_events.c -o build/host/test_audio_events
+    ./build/host/test_audio_events
+
+    "$host_cc" -std=c11 -Wall -Wextra -Werror -Iinclude \
+      src/audio/audio_mixer.c src/audio/audio_registry.c src/audio/audio_events.c \
+      src/audio/audio_ambient.c tests/audio/test_audio_ambient.c \
+      -o build/host/test_audio_ambient
+    ./build/host/test_audio_ambient
 
     "$host_cc" -std=c11 -Wall -Wextra -Werror -Iinclude \
       src/net/mindustry_net.c tests/net/test_mindustry_net.c -o build/host/test_mindustry_net

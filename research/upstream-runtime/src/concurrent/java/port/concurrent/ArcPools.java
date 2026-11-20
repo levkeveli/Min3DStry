@@ -3,6 +3,7 @@ package port.concurrent;
 import arc.util.Log;
 import java.util.concurrent.TimeUnit;
 
+/** Factories using this package's ExecutorService and ThreadFactory substitutions. */
 public final class ArcPools {
     private ArcPools() {
     }

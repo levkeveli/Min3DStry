@@ -118,6 +118,9 @@ if (usesContentSources) {
 if (usesWorldSources) {
     sourceSets.main.java.srcDir('src/world/java')
 }
+if (usesWorldStream) {
+    sourceSets.main.java.srcDir('src/world-stream/java')
+}
 if (probe == 'file-metadata') {
     sourceSets.main.java.srcDir('src/file/java')
 }

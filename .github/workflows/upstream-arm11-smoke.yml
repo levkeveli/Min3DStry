@@ -7,7 +7,10 @@ on:
       - "research/upstream-runtime/**"
       - "audio/**"
       - "tools/build_audio_assets.py"
+      - "tools/verify_upstream_net.py"
       - "tests/tools/test_audio_assets.py"
+      - "src/net/mindustry_net.c"
+      - "tests/net/**"
       - ".github/workflows/upstream-arm11-smoke.yml"
   push:
     branches: [main]
@@ -15,7 +18,10 @@ on:
       - "research/upstream-runtime/**"
       - "audio/**"
       - "tools/build_audio_assets.py"
+      - "tools/verify_upstream_net.py"
       - "tests/tools/test_audio_assets.py"
+      - "src/net/mindustry_net.c"
+      - "tests/net/**"
       - ".github/workflows/upstream-arm11-smoke.yml"
   workflow_dispatch:
 
@@ -33,7 +39,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        probe: [logic, map, resource]
+        probe: [logic, map, resource, executor]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -55,7 +61,7 @@ jobs:
             -o "$RUNNER_TEMP/server-release.jar"
 
       - name: Fetch pinned Arc source
-        if: matrix.probe == 'resource'
+        if: matrix.probe == 'resource' || matrix.probe == 'executor'
         run: |
           git clone --filter=blob:none --no-checkout \
             https://github.com/Anuken/Arc.git "$RUNNER_TEMP/Arc"
@@ -70,7 +76,7 @@ jobs:
         run: |
           set -o pipefail
           extra=()
-          if [ "${{ matrix.probe }}" = "resource" ]; then
+          if [ "${{ matrix.probe }}" = "resource" ] || [ "${{ matrix.probe }}" = "executor" ]; then
             extra=("-ParcCheckout=$RUNNER_TEMP/Arc")
           fi
           bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime \
@@ -83,6 +89,9 @@ jobs:
           if [ "${{ matrix.probe }}" = "resource" ]; then
             grep -F 'UPSTREAM_RESOURCE size=709 crc32=3921318438 classpath=ok internal=ok missing=ok' \
               "$RUNNER_TEMP/probe.log"
+          fi
+          if [ "${{ matrix.probe }}" = "executor" ]; then
+            grep -Fx 'UPSTREAM_EXECUTOR_POOLS bounded=ok unbounded=ok' "$RUNNER_TEMP/probe.log"
           fi
 
       - name: Build ARM11 probe with pinned devkitARM image
@@ -253,21 +262,63 @@ jobs:
             --triggers audio/upstream-audio-triggers.json \
             --out "$RUNNER_TEMP/audio" \
             --romfs-out "$RUNNER_TEMP/romfs-audio" | tee "$RUNNER_TEMP/audio-convert.log"
-          grep -F 'AUDIO_ASSETS files=3' "$RUNNER_TEMP/audio-convert.log"
-          grep -F 'AUDIO_ROMFS files=3' "$RUNNER_TEMP/audio-convert.log"
+          grep -F 'AUDIO_ASSETS files=9' "$RUNNER_TEMP/audio-convert.log"
+          grep -F 'AUDIO_ROMFS files=9' "$RUNNER_TEMP/audio-convert.log"
           test -s "$RUNNER_TEMP/audio/ui.button.pcm"
           test -s "$RUNNER_TEMP/audio/wave.spawn.pcm"
+          test -s "$RUNNER_TEMP/audio/shoot.duo.pcm"
+          test -s "$RUNNER_TEMP/audio/enemy.kill.pcm"
+          test -s "$RUNNER_TEMP/audio/conveyor.loop.pcm"
+          test -s "$RUNNER_TEMP/audio/drill.loop.pcm"
+          test -s "$RUNNER_TEMP/audio/block.place.pcm"
+          test -s "$RUNNER_TEMP/audio/block.break.pcm"
           test -s "$RUNNER_TEMP/audio/audio-manifest.json"
           test -s "$RUNNER_TEMP/romfs-audio/audio/ui.button.pcm"
           test -s "$RUNNER_TEMP/romfs-audio/audio/ui.unlock.pcm"
           test -s "$RUNNER_TEMP/romfs-audio/audio/wave.spawn.pcm"
+          test -s "$RUNNER_TEMP/romfs-audio/audio/shoot.duo.pcm"
+          test -s "$RUNNER_TEMP/romfs-audio/audio/enemy.kill.pcm"
+          test -s "$RUNNER_TEMP/romfs-audio/audio/conveyor.loop.pcm"
+          test -s "$RUNNER_TEMP/romfs-audio/audio/drill.loop.pcm"
+          test -s "$RUNNER_TEMP/romfs-audio/audio/block.place.pcm"
+          test -s "$RUNNER_TEMP/romfs-audio/audio/block.break.pcm"
           test -s "$RUNNER_TEMP/romfs-audio/audio-index.h"
           test ! -e "$RUNNER_TEMP/romfs-audio/ui.button.pcm"
           cat > "$RUNNER_TEMP/romfs-audio/index_check.c" <<'EOF'
           #include "audio-index.h"
-          int main(void) { return M3DS_AUDIO_CLIP_COUNT == 3U ? 0 : 1; }
+          int main(void) { return M3DS_AUDIO_CLIP_COUNT == 9U ? 0 : 1; }
           EOF
           cc -std=c11 -Wall -Wextra -Werror -Iinclude -I"$RUNNER_TEMP/romfs-audio" \
             "$RUNNER_TEMP/romfs-audio/index_check.c" \
             -o "$RUNNER_TEMP/romfs-audio/index_check"
           "$RUNNER_TEMP/romfs-audio/index_check"
+
+  net-session-baseline:
+    name: Net session baseline
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Fetch pinned official server JAR
+        run: |
+          curl --fail --silent --show-error --location \
+            https://github.com/Anuken/Mindustry/releases/download/v160.8/server-release.jar \
+            -o "$RUNNER_TEMP/server-release.jar"
+          echo "faeaf247a8b622de940181a96cb21cb20692d3c3da4e8ac3f79cb4af5059aa6c  $RUNNER_TEMP/server-release.jar" | sha256sum -c -
+
+      - name: Run live v160.8 handshake, session, and LZ4 cross-check
+        run: |
+          python3 tools/verify_upstream_net.py \
+            --server-jar "$RUNNER_TEMP/server-release.jar" \
+            | tee "$RUNNER_TEMP/net-session.log"
+          grep -F 'UPSTREAM_NET_PASS sessions=2 mismatch=clientOutdated' "$RUNNER_TEMP/net-session.log"
+          grep -F 'DECODE_PKT_OK ' "$RUNNER_TEMP/net-session.log"
+          grep -F 'compression=1 ' "$RUNNER_TEMP/net-session.log"
