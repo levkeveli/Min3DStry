@@ -32,14 +32,15 @@ def entryPoints = [
     'world-save': 'UpstreamWorldSaveProbe',
     'world-roundtrip': 'UpstreamWorldRoundTripProbe',
     'factory-ticks': 'UpstreamFactoryTickProbe',
-    'combat-ticks': 'UpstreamCombatTickProbe'
+    'combat-ticks': 'UpstreamCombatTickProbe',
+    'production-ticks': 'UpstreamProductionTickProbe'
 ]
 if (!entryPoints.containsKey(probe)) {
     throw new GradleException("Expected -Pprobe to be one of ${entryPoints.keySet()}")
 }
 def entryPoint = entryPoints[probe]
 def usesMapSources = probe in ['map', 'map-sd']
-def usesSimulation = probe in ['factory-ticks', 'combat-ticks']
+def usesSimulation = probe in ['factory-ticks', 'combat-ticks', 'production-ticks']
 def usesWorldSources = probe in ['world', 'world-save', 'world-roundtrip'] || usesSimulation
 def initializesContent = probe == 'content-init' || usesWorldSources
 def usesContentSources = probe == 'content' || initializesContent
