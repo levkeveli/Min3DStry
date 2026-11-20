@@ -162,8 +162,9 @@ static void test_event_play_uses_registry_clip(void) {
         params.volume = 0.5f;
         uint32_t voice = m3ds_audio_event_play(&registry, events[i], &params);
         assert(voice != M3DS_AUDIO_INVALID_VOICE);
-        int expected = m3ds_audio_registry_find(&registry, m3ds_audio_event_id(events[i]));
+        int expected = m3ds_audio_event_clip(&registry, events[i]);
         assert(expected >= 0);
+        assert(expected == m3ds_audio_registry_find(&registry, m3ds_audio_event_id(events[i])));
         assert(g_ctx.last_clip == expected);
         assert(mixer.voices[g_ctx.active_channel].active);
         assert(mixer.voices[g_ctx.active_channel].clip_id == expected);
@@ -171,8 +172,12 @@ static void test_event_play_uses_registry_clip(void) {
 
     assert(m3ds_audio_event_play(&registry, M3DS_AUDIO_EVENT_COUNT, NULL) ==
            M3DS_AUDIO_INVALID_VOICE);
+    assert(m3ds_audio_event_clip(&registry, M3DS_AUDIO_EVENT_COUNT) ==
+           M3DS_AUDIO_INVALID_CLIP);
     assert(m3ds_audio_event_play(NULL, M3DS_AUDIO_EVENT_UI_BUTTON, NULL) ==
            M3DS_AUDIO_INVALID_VOICE);
+    assert(m3ds_audio_event_clip(NULL, M3DS_AUDIO_EVENT_UI_BUTTON) ==
+           M3DS_AUDIO_INVALID_CLIP);
 
     m3ds_audio_mixer_shutdown(&mixer);
 }
@@ -186,6 +191,8 @@ static void test_event_play_without_registry(void) {
     memset(&registry, 0, sizeof(registry));
     assert(m3ds_audio_event_play(&registry, M3DS_AUDIO_EVENT_WAVE_SPAWN, NULL) ==
            M3DS_AUDIO_INVALID_VOICE);
+    assert(m3ds_audio_event_clip(&registry, M3DS_AUDIO_EVENT_WAVE_SPAWN) ==
+           M3DS_AUDIO_INVALID_CLIP);
 
     m3ds_audio_mixer_shutdown(&mixer);
 }
