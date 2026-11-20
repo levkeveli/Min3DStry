@@ -7,7 +7,10 @@ on:
       - "research/upstream-runtime/**"
       - "audio/**"
       - "tools/build_audio_assets.py"
+      - "tools/verify_upstream_net.py"
       - "tests/tools/test_audio_assets.py"
+      - "src/net/mindustry_net.c"
+      - "tests/net/**"
       - ".github/workflows/upstream-arm11-smoke.yml"
   push:
     branches: [main]
@@ -15,7 +18,10 @@ on:
       - "research/upstream-runtime/**"
       - "audio/**"
       - "tools/build_audio_assets.py"
+      - "tools/verify_upstream_net.py"
       - "tests/tools/test_audio_assets.py"
+      - "src/net/mindustry_net.c"
+      - "tests/net/**"
       - ".github/workflows/upstream-arm11-smoke.yml"
   workflow_dispatch:
 
@@ -275,3 +281,33 @@ jobs:
             "$RUNNER_TEMP/romfs-audio/index_check.c" \
             -o "$RUNNER_TEMP/romfs-audio/index_check"
           "$RUNNER_TEMP/romfs-audio/index_check"
+
+  net-session-baseline:
+    name: Net session baseline
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Fetch pinned official server JAR
+        run: |
+          curl --fail --silent --show-error --location \
+            https://github.com/Anuken/Mindustry/releases/download/v160.8/server-release.jar \
+            -o "$RUNNER_TEMP/server-release.jar"
+          echo "faeaf247a8b622de940181a96cb21cb20692d3c3da4e8ac3f79cb4af5059aa6c  $RUNNER_TEMP/server-release.jar" | sha256sum -c -
+
+      - name: Run live v160.8 handshake, session, and LZ4 cross-check
+        run: |
+          python3 tools/verify_upstream_net.py \
+            --server-jar "$RUNNER_TEMP/server-release.jar" \
+            | tee "$RUNNER_TEMP/net-session.log"
+          grep -F 'UPSTREAM_NET_PASS sessions=2 mismatch=clientOutdated' "$RUNNER_TEMP/net-session.log"
+          grep -F 'DECODE_PKT_OK ' "$RUNNER_TEMP/net-session.log"
+          grep -F 'compression=1 ' "$RUNNER_TEMP/net-session.log"
