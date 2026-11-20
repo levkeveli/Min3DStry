@@ -27,7 +27,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        probe: [logic, map]
+        probe: [logic, map, resource]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -40,21 +40,41 @@ jobs:
 
       - name: Fetch pinned upstream v160.8 source and server JAR
         run: |
-          git clone --depth 1 --branch v160.8 --filter=blob:none --no-checkout \
+          git clone --depth 1 --branch v160.8 \
             https://github.com/Anuken/Mindustry.git "$RUNNER_TEMP/Mindustry"
-          git -C "$RUNNER_TEMP/Mindustry" checkout HEAD -- gradlew gradle/wrapper
+          test "$(git -C "$RUNNER_TEMP/Mindustry" rev-parse HEAD)" = \
+            "19a0f40d44514f4802a8b79770456e7e32e34da0"
           curl --fail --silent --show-error --location \
             https://github.com/Anuken/Mindustry/releases/download/v160.8/server-release.jar \
             -o "$RUNNER_TEMP/server-release.jar"
 
-      - name: Run JVM reference and generate TeaVM C
+      - name: Fetch pinned Arc source
+        if: matrix.probe == 'resource'
         run: |
+          git clone --filter=blob:none --no-checkout \
+            https://github.com/Anuken/Arc.git "$RUNNER_TEMP/Arc"
+          git -C "$RUNNER_TEMP/Arc" fetch --depth 1 origin \
+            7445105cd2683daf5b9ac7033ebb07265d3e814d
+
+      - name: Run JVM reference and generate TeaVM C
+        shell: bash
+        run: |
+          set -o pipefail
+          extra=()
+          if [ "${{ matrix.probe }}" = "resource" ]; then
+            extra=("-ParcCheckout=$RUNNER_TEMP/Arc")
+          fi
           bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime \
             --no-daemon --console=plain \
             "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" \
             "-PreferenceJar=$RUNNER_TEMP/server-release.jar" \
             -Pprobe=${{ matrix.probe }} \
-            runProbeJvm generateC
+            "${extra[@]}" \
+            runProbeJvm generateC | tee "$RUNNER_TEMP/probe.log"
+          if [ "${{ matrix.probe }}" = "resource" ]; then
+            grep -F 'UPSTREAM_RESOURCE size=709 crc32=3921318438 classpath=ok internal=ok missing=ok' \
+              "$RUNNER_TEMP/probe.log"
+          fi
 
       - name: Build ARM11 probe with pinned devkitARM image
         run: |
