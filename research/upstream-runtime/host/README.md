@@ -106,9 +106,15 @@ TeaVM 0.16.0 emitted three building types' reflection descriptors as local
 compound literals. The fix gives them static storage so upstream factory
 discovery can read them after class initialization.
 
-Java and the generated Windows x64 program matched all 447 factory records.
-The [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44774668683)
-completed initialization and passed the pixel check in both Azahar console
-profiles. The launcher emitted all 447 factory records, with the lancer's
-class name as `null` in both profiles. Exact ARM11 factory parity remains
-open in #55.
+The fix also roots the receiver and arguments of reflective constructors
+across their allocations. It pins the new instance while the constructor
+runs. The C emitter treated the reflective invocation as an intrinsic that
+could skip garbage collection bookkeeping. In a separate Windows C test,
+forcing collection inside a reflective constructor reproduced the lost
+instance, and the patched program returned the expected class and payload.
+
+The [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44778519202)
+completed initialization, passed the RGBA copy check, and matched all 447
+ordered JVM factory records in both Azahar 2126.2 console profiles. Both
+emulator records produced the factory reference SHA-256 above. Physical
+hardware and map loading still require verification.
