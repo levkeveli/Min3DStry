@@ -230,6 +230,26 @@ total 41.64 MiB. Physical-console memory and networking still need testing.
 Live 3DS sockets, connection confirmation and gameplay synchronization
 are tracked in #44.
 
+### Join the upstream server from the ARM11 probe
+
+`-Pprobe=network-live` uses the same upstream deserializer with live
+libctru TCP and UDP sockets. The native bridge retains the Arc transport
+after registration and exposes packet IDs and payloads. The Java entry
+point reads the original `StreamChunk` packets as an input stream and
+calls `NetworkIO.loadWorld`. It writes the generated `ConnectConfirmCallPacket`
+and decodes the generated `StateSnapshotCallPacket` class.
+
+Generate C with `-Pprobe=network-live`. Pass `--network` as the final
+argument to `arm11/build.sh`. Stage a plain-text host and port in
+`/3ds/min3dstry/server-endpoint.txt`, separated by whitespace. Run a
+local official v160.8 server hosting Glacier. The probe attempts an
+outdated build, then joins and disconnects twice with its test identity.
+The `UPSTREAM_LIVE_NET_*` records report each step.
+
+This entry point exercises the live initial-world path and packet
+exchange. Dispatch through the normal client UI and applying ongoing
+state and entity snapshots are part of #44.
+
 ### Verify the Arc executor pools
 
 Use `-Pprobe=executor` with the JVM and ARM11 build commands. The JVM uses the
