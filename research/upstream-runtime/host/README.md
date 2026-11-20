@@ -133,3 +133,23 @@ The manifest is SHA-256 over sorted records. Upstream may print preset warnings
 to stderr (for example presets without an assigned sector); those are not part
 of the manifest. This is reference metadata only: no progression rules, UI,
 save format or game state are implemented here.
+
+## Unit and bullet metadata baseline
+
+To read the pinned combat catalog through upstream classes:
+
+```sh
+java -cp /path/to/server-release.jar \
+    /path/to/Min3DStry/research/upstream-runtime/host/UpstreamCombatBaseline.java
+```
+
+It emits `UPSTREAM_UNIT` records (ID, name, health, armor, speed, hit size,
+flying, range), `UPSTREAM_BULLET` records (ID, type, damage, speed, lifetime,
+hit size, pierce, splash damage, collision), and:
+
+```text
+UPSTREAM_COMBAT units=69 bullets=202 manifest_sha256=e35013e20c50cbe83169794e898e281898c717f1f373e9b84796090470a76882
+```
+
+Reference only: no units, bullets, balance, AI or combat loop are implemented
+or changed. The manifest is deterministic over the pinned content order.

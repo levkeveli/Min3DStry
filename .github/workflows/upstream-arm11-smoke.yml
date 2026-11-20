@@ -186,3 +186,30 @@ jobs:
             research/upstream-runtime/host/UpstreamProgressionBaseline.java \
             | tee "$RUNNER_TEMP/progression.log"
           grep -F 'UPSTREAM_PROGRESSION tech_nodes=375 tech_roots=2 sectors=95 manifest_sha256=4a61e8b260eb4f698ed128eb6654e2fa61f295f64d29b44c7638c7b8dda2bd4a' "$RUNNER_TEMP/progression.log"
+
+  combat-baseline:
+    name: Combat metadata baseline
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Fetch pinned official server JAR
+        run: |
+          curl --fail --silent --show-error --location \
+            https://github.com/Anuken/Mindustry/releases/download/v160.8/server-release.jar \
+            -o "$RUNNER_TEMP/server-release.jar"
+
+      - name: Run pinned unit/bullet baseline
+        run: |
+          java -cp "$RUNNER_TEMP/server-release.jar" \
+            research/upstream-runtime/host/UpstreamCombatBaseline.java \
+            | tee "$RUNNER_TEMP/combat.log"
+          grep -F 'UPSTREAM_COMBAT units=69 bullets=202 manifest_sha256=e35013e20c50cbe83169794e898e281898c717f1f373e9b84796090470a76882' "$RUNNER_TEMP/combat.log"
