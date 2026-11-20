@@ -43,17 +43,24 @@ public final class UpstreamWorldLoadProbe {
         }
         int tiles = 0;
         int buildings = 0;
+        long fingerprint = 0xcbf29ce484222325L;
         for (var tile : Vars.world.tiles) {
             if (tile == null) {
                 throw new IllegalStateException("Missing tile");
             }
             tiles++;
+            fingerprint = mix(fingerprint, tile.floor().id);
+            fingerprint = mix(fingerprint, tile.overlay().id);
+            fingerprint = mix(fingerprint, tile.block().id);
+            fingerprint = mix(fingerprint, tile.build == null ? -1 : tile.build.pos());
             if (tile.build != null && tile.build.tile == tile) {
                 if (tile.x != 81 || (tile.y != 26 && tile.y != 224)
                         || !tile.block().name.equals("core-nucleus") || !(tile.build instanceof CoreBuild)) {
                     throw new IllegalStateException("Unexpected Glacier building origin or type");
                 }
                 buildings++;
+                fingerprint = mix(fingerprint, tile.build.team.id);
+                fingerprint = mix(fingerprint, tile.build.rotation);
                 System.out.println("UPSTREAM_WORLD_BUILDING " + tile.x + " " + tile.y + " "
                     + tile.block().name + " " + tile.build.getClass().getName());
             }
@@ -61,7 +68,16 @@ public final class UpstreamWorldLoadProbe {
         if (tiles != 37_500 || buildings != 2) {
             throw new IllegalStateException("Glacier terrain or buildings differ");
         }
+        String observed = Long.toUnsignedString(fingerprint, 16);
+        if (fingerprint != 0x443c7242ae931e4cL) {
+            throw new IllegalStateException("Glacier content fingerprint differs: " + observed);
+        }
         System.out.println("UPSTREAM_WORLD width=150 height=250 tiles=" + tiles + " buildings=" + buildings);
+        System.out.println("UPSTREAM_WORLD_FINGERPRINT " + observed);
+    }
+
+    private static long mix(long hash, int value) {
+        return (hash ^ Integer.toUnsignedLong(value)) * 0x100000001b3L;
     }
 
     private static final class ProbeApplication implements Application {

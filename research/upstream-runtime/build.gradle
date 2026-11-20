@@ -43,7 +43,7 @@ def pluginsToLoad = []
 if (usesArcSources) pluginsToLoad.add('port.ResourceVirtualMethods')
 if (usesExecutor) pluginsToLoad.add('port.concurrent.ArcPoolSupport')
 if (probe == 'world') {
-    pluginsToLoad.addAll(['port.AnonymousClassSupport', 'port.HeadlessNativeGuard'])
+    pluginsToLoad.addAll(['port.AnonymousClassSupport', 'port.WorldProbeSupport'])
 }
 def referenceJar = file(providers.gradleProperty('referenceJar').getOrElse('server-release.jar'))
 def sourceDir = layout.buildDirectory.dir("upstream-src/${probe}")
