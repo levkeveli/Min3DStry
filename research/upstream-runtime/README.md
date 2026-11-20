@@ -45,4 +45,20 @@ Add `-Pprobe=map` to the Gradle command to extract the original Glacier map from
 
 The JVM, native Windows x64 build, and both Azahar 2126.2 modes returned `UPSTREAM_MAP name=Glacier width=150 height=250 version=7`. [devkitARM build](https://github.com/levkeveli/Min3DStry/actions/runs/44759607972)
 
-This checks metadata for one bundled fixture. Map tiles, buildings, save state, SD-card loading and physical hardware are still unverified.
+### Read the map from SD
+
+Generate the probe with `-Pprobe=map-sd`, then use the ARM11 build command with a fresh output directory. In this mode `runProbeJvm` still runs the in-memory Java reference, while `generateC` builds the native SD entry point.
+
+Place the original Glacier input at `/3ds/min3dstry/glacier.msav` on the target SD or Azahar virtual SD. For example, in Bash with `UPSTREAM` and `SD_ROOT` set to the respective directories:
+
+```sh
+mkdir -p "$SD_ROOT/3ds/min3dstry"
+git -C "$UPSTREAM" show 19a0f40d44514f4802a8b79770456e7e32e34da0:core/assets/maps/default/glacier.msav \
+    > "$SD_ROOT/3ds/min3dstry/glacier.msav"
+```
+
+TeaVM calls a native buffered read adapter, which opens the file through libctru's SD mount. The upstream parser still performs inflation and metadata decoding. The SD probe expects the original Glacier metadata, and the map bytes are not included in its payload.
+
+[SD build 44761441455](https://github.com/levkeveli/Min3DStry/actions/runs/44761441455) produced the expected metadata from the virtual SD on both Azahar console profiles. Both profiles also reported an error when the file was missing and when given a malformed input, without freezing or crashing.
+
+This checks metadata for one upstream map. Tile and building loading, save state, general-purpose filesystem support, and physical hardware are still unverified.
