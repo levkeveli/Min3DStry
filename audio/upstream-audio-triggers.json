@@ -31,6 +31,18 @@
       "file": "core/src/mindustry/type/UnitType.java",
       "symbol": "Sounds.unitExplode1",
       "description": "Small unit death explosion"
+    },
+    {
+      "id": "conveyor.loop",
+      "file": "core/src/mindustry/world/blocks/distribution/Conveyor.java",
+      "symbol": "ambientSound = Sounds.loopConveyor;",
+      "description": "Conveyor ambient loop"
+    },
+    {
+      "id": "drill.loop",
+      "file": "core/src/mindustry/world/blocks/production/Drill.java",
+      "symbol": "ambientSound = Sounds.loopDrill;",
+      "description": "Drill ambient loop"
     }
   ]
 }
