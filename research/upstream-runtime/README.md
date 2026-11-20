@@ -24,7 +24,8 @@ directory, then cross-builds each generated C output with the pinned devkitARM
 container and uploads the `.3dsx`/ELF artifacts. It uses no secrets and
 read-only repository permissions. The initial logic/map run was
 [44798365837](https://github.com/levkeveli/Min3DStry/actions/runs/44798365837);
-the Arc resource probe was added in #77.
+the three-probe run including Arc resources is
+[44801673667](https://github.com/levkeveli/Min3DStry/actions/runs/44801673667).
 
 Local equivalent (the same three probes, from this directory):
 
