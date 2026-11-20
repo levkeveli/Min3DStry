@@ -233,7 +233,10 @@
         "src/audio/audio_mixer.c",
         "src/platform/3ds/ndsp_backend.c",
         "tests/audio/test_audio_mixer.c",
-        "docs/audio/ndsp-mixer.md"
+        "tools/build_audio_assets.py",
+        "audio/upstream-audio-map.json",
+        "docs/audio/ndsp-mixer.md",
+        "docs/audio/asset-conversion.md"
       ]
     },
     {
