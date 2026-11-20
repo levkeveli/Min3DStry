@@ -65,3 +65,7 @@ int32_t m3ds_live_net_send(const void *payload, int32_t length, int32_t packet_i
         packet_id >= 0 && packet_id <= UINT8_MAX &&
         m3ds_net_client_send(client, true, (uint8_t)packet_id, payload, (size_t)length);
 }
+
+int32_t m3ds_live_net_keep_alive(int32_t reliable) {
+    return m3ds_net_client_keep_alive(client, reliable != 0);
+}

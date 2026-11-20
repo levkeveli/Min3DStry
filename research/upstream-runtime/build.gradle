@@ -125,6 +125,9 @@ if (usesContentSources) {
 if (usesWorldSources) {
     sourceSets.main.java.srcDir('src/world/java')
 }
+if (usesLiveNetwork) {
+    sourceSets.main.java.srcDirs('src/network-live/java', 'src/network-live/host')
+}
 if (probe == 'file-metadata') {
     sourceSets.main.java.srcDir('src/file/java')
 }
@@ -310,7 +313,8 @@ tasks.named('compileJava') { dependsOn 'prepareUpstreamProbe' }
 tasks.register('runProbeJvm', JavaExec) {
     dependsOn 'classes'
     classpath = sourceSets.main.runtimeClasspath
-    mainClass = probe == 'map-sd' ? entryPoints.map : entryPoint
+    mainClass = ['map-sd': entryPoints.map, 'network-live': 'UpstreamSnapshotDispatchReference']
+        .getOrDefault(probe, entryPoint)
 }
 
 if (usesContentSources) {

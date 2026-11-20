@@ -259,6 +259,7 @@ int m3ds_net_client_receive(
     uint8_t *packet_id, uint8_t *payload, size_t capacity, size_t *length);
 bool m3ds_net_client_send(
     M3dsNetClient *client, bool reliable, uint8_t packet_id, const uint8_t *payload, size_t length);
+bool m3ds_net_client_keep_alive(M3dsNetClient *client, bool reliable);
 void m3ds_net_client_close(M3dsNetClient *client);
 
 #ifdef __cplusplus
