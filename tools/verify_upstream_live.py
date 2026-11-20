@@ -3,6 +3,7 @@
 import argparse
 import ctypes
 from ctypes import wintypes
+from contextlib import contextmanager
 import json
 from pathlib import Path
 import re
@@ -52,14 +53,25 @@ def find_window(pid):
     return matches[0]
 
 
-def tap(window, key):
-    vk = ord(key)
+@contextmanager
+def held(window, key):
+    vk = ord(key) if isinstance(key, str) else key
     scan = win.MapVirtualKeyW(vk, 0)
-    if not win.PostMessageW(window, 0x100, vk, 1 | (scan << 16)):
+    flags = 1 | (scan << 16)
+    if vk == 0x26:  # Extended Windows virtual key for the Up arrow.
+        flags |= 1 << 24
+    if not win.PostMessageW(window, 0x100, vk, flags):
         raise RuntimeError(f'Could not queue {key} press')
-    time.sleep(0.10)
-    if not win.PostMessageW(window, 0x101, vk, 1 | (scan << 16) | (3 << 30)):
-        raise RuntimeError(f'Could not queue {key} release')
+    try:
+        yield
+    finally:
+        if not win.PostMessageW(window, 0x101, vk, flags | (3 << 30)):
+            raise RuntimeError(f'Could not queue {key} release')
+
+
+def tap(window, key):
+    with held(window, key):
+        time.sleep(0.10)
 
 config, log = az.resolve_azahar_paths()
 sd = config.parent.parent / 'sdmc/3ds/min3dstry'
@@ -109,17 +121,29 @@ try:
             time.sleep(0.25)
             paused_path = binary.parent / (model + '-paused.png')
             paused_path.write_bytes(rpc.screenshot())
+            with held(window, 'H'):  # Azahar's D-pad Right.
+                wait_for(r'UPSTREAM_LIVE_CAMERA left=34 bottom=0\b')
+            with held(window, 0x26):  # Azahar's Circle Pad Up.
+                panned = wait_for(r'UPSTREAM_LIVE_CAMERA left=(\d+) bottom=8\b')
+            if int(panned[1]) < 34:
+                raise RuntimeError(f'{model} lost horizontal movement when panning up')
+            (binary.parent / (model + '-panned.png')).write_bytes(rpc.screenshot())
             tap(window, 'Z')
             resumed = int(wait_for(r'UPSTREAM_LIVE_PAUSE paused=false ticks=(\d+)')[1])
             arrived = int(wait_for(r'UPSTREAM_LIVE_DELIVERY copper=1 tick=(\d+)')[1])
             if paused != resumed or not sent < paused < arrived or arrived - sent != 57:
                 raise RuntimeError(f'{model} update mismatch: {sent}, {paused}, {resumed}, {arrived}')
+            tap(window, 'X')  # Azahar's 3DS Y button.
+            wait_for(r'UPSTREAM_LIVE_CAMERA left=18 bottom=0\b')
+            (binary.parent / (model + '-reset.png')).write_bytes(rpc.screenshot())
             tap(window, 'S')
             wait_for('UPSTREAM_LIVE_COLLECT copper=0')
             tap(window, 'M')
             wait_for('UPSTREAM_LIVE_EXIT')
-            print(f'{model}: sent={sent} paused={paused} resumed={resumed} arrived={arrived} collected=1 exited=1', flush=True)
-            report.append(dict(model=model, sent=sent, paused=paused, resumed=resumed, arrived=arrived))
+            print(f'{model}: panned=({panned[1]},8) reset=(18,0) sent={sent} paused={paused} '
+                  f'resumed={resumed} arrived={arrived} collected=1 exited=1', flush=True)
+            report.append(dict(model=model, sent=sent, paused=paused, resumed=resumed,
+                               arrived=arrived, panned=[int(panned[1]), 8], reset=[18, 0]))
         finally:
             rpc.close()
             if proc.poll() is None:
