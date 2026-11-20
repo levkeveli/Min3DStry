@@ -1,0 +1,48 @@
+import java.security.MessageDigest
+
+plugins {
+    id 'java'
+    id 'org.teavm' version '0.16.0'
+}
+
+repositories { mavenCentral() }
+
+def revision = '19a0f40d44514f4802a8b79770456e7e32e34da0'
+def upstreamFile = 'core/src/mindustry/logic/LogicOp.java'
+def upstream = providers.gradleProperty('upstreamCheckout')
+def referenceJar = file(providers.gradleProperty('referenceJar').getOrElse('server-release.jar'))
+def sourceDir = layout.buildDirectory.dir('upstream-src')
+def sourceFile = sourceDir.map { it.file('mindustry/logic/LogicOp.java') }
+
+dependencies { implementation files(referenceJar) }
+sourceSets.main.java.srcDir(sourceDir)
+tasks.withType(JavaCompile).configureEach { options.release = 17 }
+
+tasks.register('prepareUpstreamProbe') {
+    inputs.property('revision', revision)
+    inputs.property('upstreamCheckout', upstream)
+    inputs.file(referenceJar)
+    outputs.file(sourceFile)
+    doLast {
+        def source = providers.exec {
+            commandLine 'git', '-C', upstream.get(), 'show', "${revision}:${upstreamFile}"
+        }.standardOutput.asBytes.get()
+        def sha256 = MessageDigest.getInstance('SHA-256').digest(referenceJar.bytes).encodeHex().toString()
+        if (sha256 != 'faeaf247a8b622de940181a96cb21cb20692d3c3da4e8ac3f79cb4af5059aa6c') {
+            throw new GradleException('Expected the official v160.8 server-release.jar')
+        }
+        def output = sourceFile.get().asFile
+        output.parentFile.mkdirs()
+        output.bytes = source
+    }
+}
+
+tasks.named('compileJava') { dependsOn 'prepareUpstreamProbe' }
+
+tasks.register('runProbeJvm', JavaExec) {
+    dependsOn 'classes'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'mindustry.logic.UpstreamLogicProbe'
+}
+
+teavm { all { mainClass = 'mindustry.logic.UpstreamLogicProbe' } }
