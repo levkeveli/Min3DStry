@@ -23,8 +23,7 @@ public final class UpstreamTerrainDrawProbe {
     public static void main(String[] args) throws IOException {
         CacheLayer.init();
         UpstreamWorldLoadProbe.load(args.length == 0 ? args : new String[]{args[0]});
-        Fi atlasFile = new Fi(args.length < 2 ? "/3ds/min3dstry/sprites.aatls" : args[1]);
-        Core.atlas = readAtlas(atlasFile);
+        Core.atlas = readAtlas(atlasFile(args));
         Draw.scl = 1f / Core.atlas.find("scale_marker").width;
         Vars.headless = false;
         for (var block : Vars.content.blocks()) {
@@ -56,6 +55,11 @@ public final class UpstreamTerrainDrawProbe {
             VIEW_WIDTH + "x" + VIEW_HEIGHT + " commands=" + batch.commands + " copper=" +
             batch.copper + " edges=" + batch.edges + " hash=" +
             Long.toUnsignedString(batch.hash, 16));
+    }
+
+    private static Fi atlasFile(String[] args) {
+        if (args.length < 2) return new Fi("/3ds/min3dstry/sprites.aatls");
+        return new Fi(args[1]);
     }
 
     private static TextureAtlas readAtlas(Fi atlasFile) {
