@@ -66,6 +66,8 @@ class VerifyAzaharTests(unittest.TestCase):
             "[   3.98] Debug.Emulated <Debug> svc.cpp:100: [MIN3DSTRY] AUDIO_EVENT wave.spawn spawned=2 clip=2 voice=0\n"
             "[   3.98] Debug.Emulated <Debug> svc.cpp:100: [MIN3DSTRY] AUDIO_EVENT shoot.duo fired=3 clip=3 voice=0\n"
             "[   3.98] Debug.Emulated <Debug> svc.cpp:100: [MIN3DSTRY] AUDIO_EVENT enemy.kill killed=1 clip=4 voice=0\n"
+            "[   3.98] Debug.Emulated <Debug> svc.cpp:100: [MIN3DSTRY] AUDIO_EVENT conveyor.loop clip=5 voice=0\n"
+            "[   3.98] Debug.Emulated <Debug> svc.cpp:100: [MIN3DSTRY] AUDIO_EVENT drill.loop clip=6 voice=0\n"
             "[   3.98] Debug.Emulated <Debug> svc.cpp:100: [MIN3DSTRY] MEM app=96MiB reserve=16MiB budget=1048576 used=553728 peak=553728 remaining=494848 world=480000/524288 textures=8192/262144 transient=65536/262144 failures=0 status=ok\n"
             "[   4.45] Kernel.SVC <Debug> svc.cpp:100: [MIN3DSTRY] FRAME tick=30 paused=0 cam=(-88.0,-72.0) "
             "draw=R:322,L:5,T:0,C:42 cull=77 sw=1 drop=0 cpu=3.12% gpu=1.45% cmdbuf=2.10%\n"
@@ -97,6 +99,10 @@ class VerifyAzaharTests(unittest.TestCase):
         self.assertEqual(parsed["kill_event"]["killed"], 1)
         self.assertEqual(parsed["kill_event"]["clip"], 4)
         self.assertEqual(parsed["kill_event"]["voice"], 0)
+        self.assertEqual(parsed["conveyor_event"]["clip"], 5)
+        self.assertEqual(parsed["conveyor_event"]["voice"], 0)
+        self.assertEqual(parsed["drill_event"]["clip"], 6)
+        self.assertEqual(parsed["drill_event"]["voice"], 0)
         self.assertEqual(parsed["mem"]["app_mib"], 96)
         self.assertEqual(parsed["mem"]["budget"], 1048576)
         self.assertEqual(parsed["mem"]["remaining"], 494848)

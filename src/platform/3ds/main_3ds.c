@@ -65,6 +65,7 @@ static uint32_t m3ds_play_event(
     M3dsAudioRegistry *events,
     M3dsAudioEvent event,
     float volume,
+    bool looping,
     int *out_clip) {
     int clip = M3DS_AUDIO_INVALID_CLIP;
     uint32_t voice = M3DS_AUDIO_INVALID_VOICE;
@@ -73,6 +74,7 @@ static uint32_t m3ds_play_event(
         M3dsAudioPlayParams params =
             m3ds_audio_default_play_params(M3DS_AUDIO_BUS_SFX);
         params.volume = volume;
+        params.looping = looping;
         voice = m3ds_audio_event_play(events, event, &params);
     }
     if (out_clip) {
@@ -259,6 +261,27 @@ int main(int argc, char *argv[]) {
     snprintf(dbg_line, sizeof(dbg_line), "[MIN3DSTRY] AUDIO %s\n", audio_diag);
     m3ds_emit_debug_line(log_socket, dbg_line);
 
+    if (audio_events) {
+        int conveyor_clip = M3DS_AUDIO_INVALID_CLIP;
+        uint32_t conveyor_voice = m3ds_play_event(
+            audio_events, M3DS_AUDIO_EVENT_CONVEYOR_LOOP, 0.2f, true,
+            &conveyor_clip);
+        snprintf(dbg_line, sizeof(dbg_line),
+                 "[MIN3DSTRY] AUDIO_EVENT conveyor.loop clip=%d voice=%u\n",
+                 conveyor_clip,
+                 (unsigned int)conveyor_voice);
+        m3ds_emit_debug_line(log_socket, dbg_line);
+
+        int drill_clip = M3DS_AUDIO_INVALID_CLIP;
+        uint32_t drill_voice = m3ds_play_event(
+            audio_events, M3DS_AUDIO_EVENT_DRILL_LOOP, 0.2f, true, &drill_clip);
+        snprintf(dbg_line, sizeof(dbg_line),
+                 "[MIN3DSTRY] AUDIO_EVENT drill.loop clip=%d voice=%u\n",
+                 drill_clip,
+                 (unsigned int)drill_voice);
+        m3ds_emit_debug_line(log_socket, dbg_line);
+    }
+
     M3dsDrawStats stats = {0};
     bool emitted_frame_diag = false;
     uint32_t prev_delivered = factory.items_delivered;
@@ -324,7 +347,7 @@ int main(int argc, char *argv[]) {
         if (spawned_now > prev_enemies_spawned) {
             int wave_clip = M3DS_AUDIO_INVALID_CLIP;
             uint32_t wave_voice = m3ds_play_event(
-                audio_events, M3DS_AUDIO_EVENT_WAVE_SPAWN, 0.7f, &wave_clip);
+                audio_events, M3DS_AUDIO_EVENT_WAVE_SPAWN, 0.7f, false, &wave_clip);
             snprintf(dbg_line, sizeof(dbg_line),
                      "[MIN3DSTRY] AUDIO_EVENT wave.spawn spawned=%lu clip=%d voice=%u\n",
                      (unsigned long)spawned_now,
@@ -337,7 +360,7 @@ int main(int argc, char *argv[]) {
         if (factory.shots_fired > prev_shots_fired) {
             int shoot_clip = M3DS_AUDIO_INVALID_CLIP;
             uint32_t shoot_voice = m3ds_play_event(
-                audio_events, M3DS_AUDIO_EVENT_SHOOT_DUO, 0.55f, &shoot_clip);
+                audio_events, M3DS_AUDIO_EVENT_SHOOT_DUO, 0.55f, false, &shoot_clip);
             snprintf(dbg_line, sizeof(dbg_line),
                      "[MIN3DSTRY] AUDIO_EVENT shoot.duo fired=%lu clip=%d voice=%u\n",
                      (unsigned long)factory.shots_fired,
@@ -350,7 +373,7 @@ int main(int argc, char *argv[]) {
         if (factory.enemies_killed > prev_enemies_killed) {
             int kill_clip = M3DS_AUDIO_INVALID_CLIP;
             uint32_t kill_voice = m3ds_play_event(
-                audio_events, M3DS_AUDIO_EVENT_ENEMY_KILL, 0.7f, &kill_clip);
+                audio_events, M3DS_AUDIO_EVENT_ENEMY_KILL, 0.7f, false, &kill_clip);
             snprintf(dbg_line, sizeof(dbg_line),
                      "[MIN3DSTRY] AUDIO_EVENT enemy.kill killed=%lu clip=%d voice=%u\n",
                      (unsigned long)factory.enemies_killed,
