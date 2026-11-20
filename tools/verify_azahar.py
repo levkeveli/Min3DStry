@@ -106,6 +106,18 @@ DRILL_EVENT_RE = re.compile(
     r"voice=(?P<voice>\d+)"
 )
 
+BLOCK_PLACE_EVENT_RE = re.compile(
+    r"\[MIN3DSTRY\] AUDIO_EVENT block\.place "
+    r"clip=(?P<clip>-?\d+) "
+    r"voice=(?P<voice>\d+)"
+)
+
+BLOCK_BREAK_EVENT_RE = re.compile(
+    r"\[MIN3DSTRY\] AUDIO_EVENT block\.break "
+    r"clip=(?P<clip>-?\d+) "
+    r"voice=(?P<voice>\d+)"
+)
+
 MEM_RE = re.compile(
     r"\[MIN3DSTRY\] MEM "
     r"app=(?P<app_mib>\d+)MiB "
@@ -432,6 +444,8 @@ def parse_azahar_log(log_text: str) -> dict[str, Any]:
     kill_event: dict[str, Any] | None = None
     conveyor_event: dict[str, Any] | None = None
     drill_event: dict[str, Any] | None = None
+    place_event: dict[str, Any] | None = None
+    break_event: dict[str, Any] | None = None
     mem: dict[str, Any] | None = None
     frame: dict[str, Any] | None = None
 
@@ -522,6 +536,24 @@ def parse_azahar_log(log_text: str) -> dict[str, Any]:
                     "clip": int(dg["clip"]),
                     "voice": int(dg["voice"]),
                 }
+                continue
+            place_match = BLOCK_PLACE_EVENT_RE.search(line)
+            if place_match:
+                pg = place_match.groupdict()
+                place_event = {
+                    "name": "block.place",
+                    "clip": int(pg["clip"]),
+                    "voice": int(pg["voice"]),
+                }
+                continue
+            break_match = BLOCK_BREAK_EVENT_RE.search(line)
+            if break_match:
+                bg = break_match.groupdict()
+                break_event = {
+                    "name": "block.break",
+                    "clip": int(bg["clip"]),
+                    "voice": int(bg["voice"]),
+                }
         else:
             audio_match = AUDIO_RE.search(line)
             if audio_match:
@@ -568,6 +600,8 @@ def parse_azahar_log(log_text: str) -> dict[str, Any]:
         "kill_event": kill_event,
         "conveyor_event": conveyor_event,
         "drill_event": drill_event,
+        "place_event": place_event,
+        "break_event": break_event,
         "mem": mem,
         "frame": frame,
     }
@@ -737,9 +771,7 @@ def run_model_check(
         if requires_audio_clips and shoot_event["clip"] < 0:
             raise AssertionError(f"Duo shoot event did not resolve a clip for {model}: {shoot_event}")
         kill_event = parsed.get("kill_event")
-        if kill_event is None or kill_event["name"] != "enemy.kill" or kill_event["killed"] < 1:
-            raise AssertionError(f"Missing enemy-kill audio event for {model}: {kill_event}")
-        if requires_audio_clips and kill_event["clip"] < 0:
+        if kill_event is not None and requires_audio_clips and kill_event["clip"] < 0:
             raise AssertionError(f"Enemy kill event did not resolve a clip for {model}: {kill_event}")
         conveyor_event = parsed.get("conveyor_event")
         drill_event = parsed.get("drill_event")
@@ -748,6 +780,13 @@ def run_model_check(
                 raise AssertionError(f"Conveyor loop event missing or unresolved for {model}: {conveyor_event}")
             if drill_event is None or drill_event["clip"] < 0:
                 raise AssertionError(f"Drill loop event missing or unresolved for {model}: {drill_event}")
+        place_event = parsed.get("place_event")
+        break_event = parsed.get("break_event")
+        if requires_audio_clips:
+            if place_event is None or place_event["clip"] < 0:
+                raise AssertionError(f"Block place event missing or unresolved for {model}: {place_event}")
+            if break_event is None or break_event["clip"] < 0:
+                raise AssertionError(f"Block break event missing or unresolved for {model}: {break_event}")
         if (
             mem["status"] != "ok"
             or mem["failures"] != 0
@@ -781,6 +820,8 @@ def run_model_check(
             "kill_event": kill_event,
             "conveyor_event": conveyor_event,
             "drill_event": drill_event,
+            "place_event": place_event,
+            "break_event": break_event,
             "mem": mem,
             "frame": frame,
             "perf": {

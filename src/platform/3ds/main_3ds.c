@@ -33,6 +33,11 @@
 #define M3DS_DEMO_WAVE_X 9u
 #define M3DS_DEMO_WAVE_Y 1u
 #define M3DS_DEMO_WAVE_COUNT 2u
+#define M3DS_DEMO_WALL_TICK 12u
+#define M3DS_DEMO_WALL_REMOVE_TICK 15u
+#define M3DS_DEMO_WALL_X 10u
+#define M3DS_DEMO_WALL_Y 3u
+#define M3DS_DEMO_START_COPPER 10u
 
 static uint8_t g_memory_arena[M3DS_MEMORY_ARENA_BYTES]
     __attribute__((aligned(M3DS_MEMORY_ALIGNMENT)));
@@ -197,6 +202,7 @@ int main(int argc, char *argv[]) {
     M3dsParityState factory;
     m3ds_factory_demo_init(&scene, &factory);
     m3ds_factory_demo_add_turret(&scene, &factory);
+    factory.core_copper = M3DS_DEMO_START_COPPER;
 
     M3dsCitro2dContext c2d_ctx;
     M3dsRenderBackend backend;
@@ -292,6 +298,8 @@ int main(int argc, char *argv[]) {
     uint32_t prev_shots_fired = factory.shots_fired;
     uint32_t prev_enemies_killed = factory.enemies_killed;
     bool demo_wave_spawned = false;
+    bool demo_wall_placed = false;
+    bool demo_wall_removed = false;
 
     while (aptMainLoop()) {
         hidScanInput();
@@ -340,6 +348,49 @@ int main(int argc, char *argv[]) {
             m3ds_scene_pan(&scene, pan_dx, pan_dy);
         }
 
+        if (!scene.paused && !demo_wall_placed &&
+            factory.tick >= M3DS_DEMO_WALL_TICK) {
+            M3dsParityInput wall_input;
+            memset(&wall_input, 0, sizeof(wall_input));
+            wall_input.tick = factory.tick;
+            wall_input.kind = M3DS_PINPUT_PLACE_BLOCK;
+            wall_input.x = M3DS_DEMO_WALL_X;
+            wall_input.y = M3DS_DEMO_WALL_Y;
+            wall_input.block = M3DS_PBLOCK_WALL;
+            demo_wall_placed = m3ds_parity_apply_input(&factory, &wall_input);
+            if (demo_wall_placed) {
+                int place_clip = M3DS_AUDIO_INVALID_CLIP;
+                uint32_t place_voice = m3ds_play_event(
+                    audio_events, M3DS_AUDIO_EVENT_BLOCK_PLACE, 0.5f, false,
+                    &place_clip);
+                snprintf(dbg_line, sizeof(dbg_line),
+                         "[MIN3DSTRY] AUDIO_EVENT block.place clip=%d voice=%u\n",
+                         place_clip,
+                         (unsigned int)place_voice);
+                m3ds_emit_debug_line(log_socket, dbg_line);
+            }
+        }
+        if (!scene.paused && demo_wall_placed && !demo_wall_removed &&
+            factory.tick >= M3DS_DEMO_WALL_REMOVE_TICK) {
+            M3dsParityInput wall_input;
+            memset(&wall_input, 0, sizeof(wall_input));
+            wall_input.tick = factory.tick;
+            wall_input.kind = M3DS_PINPUT_REMOVE_BLOCK;
+            wall_input.x = M3DS_DEMO_WALL_X;
+            wall_input.y = M3DS_DEMO_WALL_Y;
+            demo_wall_removed = m3ds_parity_apply_input(&factory, &wall_input);
+            if (demo_wall_removed) {
+                int break_clip = M3DS_AUDIO_INVALID_CLIP;
+                uint32_t break_voice = m3ds_play_event(
+                    audio_events, M3DS_AUDIO_EVENT_BLOCK_BREAK, 0.5f, false,
+                    &break_clip);
+                snprintf(dbg_line, sizeof(dbg_line),
+                         "[MIN3DSTRY] AUDIO_EVENT block.break clip=%d voice=%u\n",
+                         break_clip,
+                         (unsigned int)break_voice);
+                m3ds_emit_debug_line(log_socket, dbg_line);
+            }
+        }
         if (!scene.paused && !demo_wave_spawned &&
             factory.tick >= M3DS_DEMO_WAVE_TICK) {
             M3dsParityInput wave_input;

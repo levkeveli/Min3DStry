@@ -19,7 +19,9 @@ typedef enum M3dsAudioEvent {
     M3DS_AUDIO_EVENT_ENEMY_KILL = 4,
     M3DS_AUDIO_EVENT_CONVEYOR_LOOP = 5,
     M3DS_AUDIO_EVENT_DRILL_LOOP = 6,
-    M3DS_AUDIO_EVENT_COUNT = 7
+    M3DS_AUDIO_EVENT_BLOCK_PLACE = 7,
+    M3DS_AUDIO_EVENT_BLOCK_BREAK = 8,
+    M3DS_AUDIO_EVENT_COUNT = 9
 } M3dsAudioEvent;
 
 /* Returns the registry ID, or NULL for an invalid event. */

@@ -3,20 +3,14 @@
 static uint32_t play_loop(
     M3dsAudioRegistry *events,
     M3dsAudioEvent event,
-    float volume,
-    int *clip_out) {
-    int clip = M3DS_AUDIO_INVALID_CLIP;
+    float volume) {
     uint32_t voice = M3DS_AUDIO_INVALID_VOICE;
     if (events) {
-        clip = m3ds_audio_event_clip(events, event);
         M3dsAudioPlayParams params =
             m3ds_audio_default_play_params(M3DS_AUDIO_BUS_SFX);
         params.volume = volume;
         params.looping = true;
         voice = m3ds_audio_event_play(events, event, &params);
-    }
-    if (clip_out) {
-        *clip_out = clip;
     }
     return voice;
 }
@@ -35,9 +29,9 @@ void m3ds_audio_ambient_start(
     }
 
     out_ambient->conveyor_voice = play_loop(
-        events, M3DS_AUDIO_EVENT_CONVEYOR_LOOP, volume, NULL);
+        events, M3DS_AUDIO_EVENT_CONVEYOR_LOOP, volume);
     out_ambient->drill_voice = play_loop(
-        events, M3DS_AUDIO_EVENT_DRILL_LOOP, volume, NULL);
+        events, M3DS_AUDIO_EVENT_DRILL_LOOP, volume);
 }
 
 void m3ds_audio_ambient_stop(

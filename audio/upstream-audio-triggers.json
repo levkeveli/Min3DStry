@@ -43,6 +43,18 @@
       "file": "core/src/mindustry/world/blocks/production/Drill.java",
       "symbol": "ambientSound = Sounds.loopDrill;",
       "description": "Drill ambient loop"
+    },
+    {
+      "id": "block.place",
+      "file": "core/src/mindustry/world/Block.java",
+      "symbol": "Sounds.blockPlace1;",
+      "description": "Size-1 block placement"
+    },
+    {
+      "id": "block.break",
+      "file": "core/src/mindustry/world/Block.java",
+      "symbol": "Sounds.blockBreak1;",
+      "description": "Size-1 block break"
     }
   ]
 }

@@ -11,7 +11,7 @@ The 3DS NDSP mixer consumes PCM16 clips. This pipeline converts selected
 source/output hashes. It does not decode at runtime, and it does not invent a
 game save, network or asset format.
 
-The current map covers seven UI/combat/ambient events as the first conversion slice:
+The current map covers nine UI/combat/build/ambient events as the first conversion slice:
 
 | Logical ID | Upstream source | Source SHA-256 prefix |
 |---|---|---|
@@ -20,6 +20,10 @@ The current map covers seven UI/combat/ambient events as the first conversion sl
 | `wave.spawn` | `core/assets/sounds/ui/waveSpawn.ogg` | `736d27bd…` |
 | `shoot.duo` | `core/assets/sounds/shoot/shootDuo.ogg` | `90704730…` |
 | `enemy.kill` | `core/assets/sounds/explosions/unitExplode1.ogg` | `43a3c313…` |
+| `conveyor.loop` | `core/assets/sounds/loops/loopConveyor.ogg` | `8f784c38…` |
+| `drill.loop` | `core/assets/sounds/loops/loopDrill.ogg` | `eb96521e…` |
+| `block.place` | `core/assets/sounds/block/blockPlace1.ogg` | `ea30ff4b…` |
+| `block.break` | `core/assets/sounds/block/blockBreak1.ogg` | `b3cb45fc…` |
 
 The logical IDs map to pinned upstream trigger sites in
 `audio/upstream-audio-triggers.json`:
@@ -33,6 +37,8 @@ The logical IDs map to pinned upstream trigger sites in
 | `enemy.kill` | `core/src/mindustry/type/UnitType.java` | `Sounds.unitExplode1` |
 | `conveyor.loop` | `core/src/mindustry/world/blocks/distribution/Conveyor.java` | `ambientSound = Sounds.loopConveyor;` |
 | `drill.loop` | `core/src/mindustry/world/blocks/production/Drill.java` | `ambientSound = Sounds.loopDrill;` |
+| `block.place` | `core/src/mindustry/world/Block.java` | `Sounds.blockPlace1;` |
+| `block.break` | `core/src/mindustry/world/Block.java` | `Sounds.blockBreak1;` |
 
 The converter verifies each symbol still exists in the pinned checkout and
 records the file/line in the manifest and generated index. `audio_events.h`
@@ -58,6 +64,8 @@ The output directories are build artifacts and are not committed. They contain
 `*.pcm`, `audio-manifest.json`, and a RomFS-ready `audio-index.h`:
 
 ```text
+AUDIO_CONVERT id=block.break frames=17681 bytes=35362 rate=22050 channels=1
+AUDIO_CONVERT id=block.place frames=10456 bytes=20912 rate=22050 channels=1
 AUDIO_CONVERT id=conveyor.loop frames=22496 bytes=44992 rate=22050 channels=1
 AUDIO_CONVERT id=drill.loop frames=117181 bytes=234362 rate=22050 channels=1
 AUDIO_CONVERT id=enemy.kill frames=21633 bytes=43266 rate=22050 channels=1
@@ -65,8 +73,8 @@ AUDIO_CONVERT id=shoot.duo frames=8099 bytes=16198 rate=22050 channels=1
 AUDIO_CONVERT id=ui.button frames=38176 bytes=76352 rate=22050 channels=1
 AUDIO_CONVERT id=ui.unlock frames=32252 bytes=64504 rate=22050 channels=1
 AUDIO_CONVERT id=wave.spawn frames=55530 bytes=111060 rate=22050 channels=1
-AUDIO_ASSETS files=7 bytes=590734 manifest=build/audio-upstream/audio-manifest.json
-AUDIO_ROMFS files=7 index=build/romfs-audio/audio-index.h
+AUDIO_ASSETS files=9 bytes=647008 manifest=build/audio-upstream/audio-manifest.json
+AUDIO_ROMFS files=9 index=build/romfs-audio/audio-index.h
 ```
 
 The manifest records the upstream commit, ffmpeg version, source path/hash,
@@ -103,7 +111,7 @@ Build the app with the real clips by pointing the Makefile at a pinned checkout:
 make UPSTREAM_MINDUSTRY=/path/to/Mindustry
 ```
 
-That target converts the seven assets, copies them to `build/romfs/audio/`,
+That target converts the nine assets, copies them to `build/romfs/audio/`,
 generates `build/3ds/audio-index.h`, and writes
 `build/3ds/build-config.h` with `#define M3DS_AUDIO_ROMFS 1` (the app includes
 that header). Builds without `UPSTREAM_MINDUSTRY` write `0` and remove stale
@@ -117,6 +125,7 @@ interactive demo spawns a deterministic wave at tick 10 through the existing
 `M3DS_PINPUT_SPAWN_WAVE` input, `SHOOT_DUO` is requested when the demo's
 Duo-style turret fires, `ENEMY_KILL` is requested when a wave enemy dies,
 `CONVEYOR_LOOP` and `DRILL_LOOP` are requested as looping startup ambients,
+`BLOCK_PLACE`/`BLOCK_BREAK` fire when the demo places and removes a wall,
 and `RESEARCH_UNLOCK` is available for the research runtime once it exists.
 The app logs `AUDIO_EVENT <id> ... clip=... voice=...`; Azahar requires
 resolved clips for ROMFS builds, while `voice=0` is expected when DSP firmware
@@ -146,13 +155,14 @@ still pending.
 - `tests/audio/test_audio_ambient.c` covers global loop start/stop, loop flags,
   repeated/invalid-handle stops and null arguments.
 - `./dev.sh test` includes both test suites. The `Audio conversion` CI job
-  converts the pinned seven assets with ffmpeg, asserts the output manifest,
+  converts the pinned nine assets with ffmpeg, asserts the output manifest,
   PCM files, `audio/` layout and `audio-index.h`, then compiles the generated
   index against the registry header.
-- `./dev.sh emu-test` requires the deterministic wave, Duo-fire and enemy-kill
-  event logs for both models. ROMFS builds additionally require resolved
-  conveyor/drill loop clips, proving the events reached the registry even when
-  DSP firmware is absent.
+- `./dev.sh emu-test` requires the deterministic wave and Duo-fire event logs
+  for both models. Enemy-kill telemetry is validated when captured. ROMFS
+  builds additionally require resolved conveyor/drill loop and block
+  place/break clips, proving the events reached the registry even when DSP
+  firmware is absent.
 
 ## Licensing and limitations
 
@@ -162,7 +172,7 @@ still pending.
 - No ADPCM/streaming conversion is implemented here. `ui.button` is wired to
   the A/Y controls, `wave.spawn`/`shoot.duo`/`enemy.kill` are requested by the
   deterministic demo wave and turret, `conveyor.loop`/`drill.loop` start as
-  looping ambients, and `ui.unlock` still has no research caller.
+  looping ambients and `block.place`/`block.break` follow the demo wall action, and `ui.unlock` still has no research caller.
 - No physical Old/New 3DS DSP playback or save/network audio integration has
   been verified. The `AUDIO_ROMFS` debug line and Azahar runs can show loader
   state, not audible output quality.
