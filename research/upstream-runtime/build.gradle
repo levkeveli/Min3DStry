@@ -28,21 +28,23 @@ def entryPoints = [
     resource: 'port.UpstreamResourceProbe',
     executor: 'port.concurrent.UpstreamExecutorProbe',
     'content-init': 'UpstreamContentInitializationProbe',
-    world: 'UpstreamWorldLoadProbe'
+    world: 'UpstreamWorldLoadProbe',
+    'world-save': 'UpstreamWorldSaveProbe'
 ]
 if (!entryPoints.containsKey(probe)) {
     throw new GradleException("Expected -Pprobe to be one of ${entryPoints.keySet()}")
 }
 def entryPoint = entryPoints[probe]
 def usesMapSources = probe in ['map', 'map-sd']
-def initializesContent = probe in ['content-init', 'world']
+def usesWorldSources = probe in ['world', 'world-save']
+def initializesContent = probe == 'content-init' || usesWorldSources
 def usesContentSources = probe == 'content' || initializesContent
 def usesExecutor = usesContentSources || probe == 'executor'
 def usesArcSources = usesContentSources || probe == 'resource'
 def pluginsToLoad = []
 if (usesArcSources) pluginsToLoad.add('port.ResourceVirtualMethods')
 if (usesExecutor) pluginsToLoad.add('port.concurrent.ArcPoolSupport')
-if (probe == 'world') {
+if (usesWorldSources) {
     pluginsToLoad.addAll(['port.AnonymousClassSupport', 'port.WorldProbeSupport'])
 }
 def referenceJar = file(providers.gradleProperty('referenceJar').getOrElse('server-release.jar'))
@@ -104,7 +106,7 @@ if (usesExecutor) {
 if (usesContentSources) {
     sourceSets.main.java.srcDirs('host', 'src/content/java')
 }
-if (probe == 'world') {
+if (usesWorldSources) {
     sourceSets.main.java.srcDir('src/world/java')
 }
 dependencies {
@@ -260,7 +262,7 @@ teavm {
     }
 }
 
-if (probe == 'world') {
+if (usesWorldSources) {
     apply from: 'gradle/world-compiler.gradle'
     tasks.register('makeWorldSaveFixture', JavaExec) {
         classpath = sourceSets.main.runtimeClasspath
