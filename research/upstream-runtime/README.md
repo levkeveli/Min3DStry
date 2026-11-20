@@ -158,7 +158,8 @@ The probe reserves a 256 KiB native stack for the generated serializer.
 Use `-Pprobe=world-save` to load both fixtures. Copy the generated v13 save
 to `/3ds/min3dstry/glacier-v13.msav`. Use `-Pprobe=world-roundtrip` to also
 write and reload `/3ds/min3dstry/glacier-roundtrip.msav`. The round trip
-reserves a new output file and rejects an existing destination. On the
+reserves a new output file and rejects an existing destination. The probe also
+checks the new file through `SaveIO.isSaveValid` before reloading it. On the
 JVM, pass the map, v13 input, and new output paths as arguments. The
 round-trip check ends with `UPSTREAM_SAVE_ROUNDTRIP version=13 marker=ok`.
 
