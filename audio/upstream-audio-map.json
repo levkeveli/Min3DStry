@@ -1,0 +1,22 @@
+{
+  "format": 1,
+  "upstream_commit": "19a0f40d44514f4802a8b79770456e7e32e34da0",
+  "rate": 22050,
+  "entries": [
+    {
+      "id": "ui.button",
+      "source": "core/assets/sounds/ui/uiButton.ogg",
+      "channels": 1
+    },
+    {
+      "id": "ui.unlock",
+      "source": "core/assets/sounds/ui/uiUnlock.ogg",
+      "channels": 1
+    },
+    {
+      "id": "wave.spawn",
+      "source": "core/assets/sounds/ui/waveSpawn.ogg",
+      "channels": 1
+    }
+  ]
+}

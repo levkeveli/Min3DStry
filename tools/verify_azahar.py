@@ -65,6 +65,21 @@ AUDIO_RE = re.compile(
     r"clips=(?P<clips>\d+)"
 )
 
+MEM_RE = re.compile(
+    r"\[MIN3DSTRY\] MEM "
+    r"app=(?P<app_mib>\d+)MiB "
+    r"reserve=(?P<reserve_mib>\d+)MiB "
+    r"budget=(?P<budget>\d+) "
+    r"used=(?P<used>\d+) "
+    r"peak=(?P<peak>\d+) "
+    r"remaining=(?P<remaining>\d+) "
+    r"world=(?P<world_used>\d+)/(?P<world_limit>\d+) "
+    r"textures=(?P<texture_used>\d+)/(?P<texture_limit>\d+) "
+    r"transient=(?P<transient_used>\d+)/(?P<transient_limit>\d+) "
+    r"failures=(?P<failures>\d+) "
+    r"status=(?P<status>[a-z]+)"
+)
+
 
 def _build_header(request_type: int, data_size: int, request_id: int | None = None) -> tuple[bytes, int]:
     req_id = random.getrandbits(32) if request_id is None else request_id
@@ -132,14 +147,21 @@ class AzaharRpcClient:
         header, req_id = _build_header(req_type, len(data))
         self.sock.settimeout(wait)
         for _ in range(attempts):
-            self.sock.sendto(header + data, (self.host, self.port))
+            try:
+                self.sock.sendto(header + data, (self.host, self.port))
+            except (ConnectionResetError, ConnectionRefusedError):
+                # Windows can report the previous datagram's ICMP port-unreachable
+                # on the next send while Azahar is still binding its RPC socket.
+                continue
             try:
                 while True:
                     raw_reply = self.sock.recv(MAX_PACKET_SIZE)
                     payload = _parse_header(raw_reply, req_id, req_type)
                     if payload is not None:
                         return payload
-            except TimeoutError:
+            except (TimeoutError, ConnectionResetError, ConnectionRefusedError):
+                # A cold Azahar start can reset the first UDP request before the
+                # RPC server is listening; retry within the caller's timeout.
                 continue
         raise TimeoutError(f"Azahar RPC timeout on request type {req_type}")
 
@@ -363,6 +385,7 @@ def parse_azahar_log(log_text: str) -> dict[str, Any]:
     hw_line: str | None = None
     parity: dict[str, Any] | None = None
     audio: dict[str, Any] | None = None
+    mem: dict[str, Any] | None = None
     frame: dict[str, Any] | None = None
 
     for line in log_text.splitlines():
@@ -374,6 +397,26 @@ def parse_azahar_log(log_text: str) -> dict[str, Any]:
             hw_line = line.split("[MIN3DSTRY] HW:", 1)[1].strip()
         elif "[MIN3DSTRY] PARITY " in line:
             parity = parse_parity_debug_line(line)
+        elif "[MIN3DSTRY] MEM " in line:
+            mem_match = MEM_RE.search(line)
+            if mem_match:
+                mg = mem_match.groupdict()
+                mem = {
+                    "app_mib": int(mg["app_mib"]),
+                    "reserve_mib": int(mg["reserve_mib"]),
+                    "budget": int(mg["budget"]),
+                    "used": int(mg["used"]),
+                    "peak": int(mg["peak"]),
+                    "remaining": int(mg["remaining"]),
+                    "world_used": int(mg["world_used"]),
+                    "world_limit": int(mg["world_limit"]),
+                    "texture_used": int(mg["texture_used"]),
+                    "texture_limit": int(mg["texture_limit"]),
+                    "transient_used": int(mg["transient_used"]),
+                    "transient_limit": int(mg["transient_limit"]),
+                    "failures": int(mg["failures"]),
+                    "status": mg["status"],
+                }
         else:
             audio_match = AUDIO_RE.search(line)
             if audio_match:
@@ -414,6 +457,7 @@ def parse_azahar_log(log_text: str) -> dict[str, Any]:
         "hw_line": hw_line,
         "parity": parity,
         "audio": audio,
+        "mem": mem,
         "frame": frame,
     }
 
@@ -509,12 +553,12 @@ def run_model_check(
             if log_path.exists():
                 log_text = log_path.read_text(encoding="utf-8", errors="replace")
                 parsed = parse_azahar_log(log_text)
-                if parsed.get("hw_line") and parsed.get("parity") and parsed.get("audio") and parsed.get("frame"):
+                if parsed.get("hw_line") and parsed.get("parity") and parsed.get("audio") and parsed.get("mem") and parsed.get("frame"):
                     break
             time.sleep(0.25)
 
-        if not parsed.get("hw_line") or not parsed.get("parity") or not parsed.get("audio") or not parsed.get("frame"):
-            raise RuntimeError(f"Missing [MIN3DSTRY] HW/PARITY/AUDIO/FRAME telemetry in {log_path} for {model}.")
+        if not parsed.get("hw_line") or not parsed.get("parity") or not parsed.get("audio") or not parsed.get("mem") or not parsed.get("frame"):
+            raise RuntimeError(f"Missing [MIN3DSTRY] HW/PARITY/AUDIO/MEM/FRAME telemetry in {log_path} for {model}.")
 
         rpc.perf_stats(reset=True)
         time.sleep(1.5)
@@ -531,6 +575,7 @@ def run_model_check(
         hw_line = str(parsed["hw_line"])
         parity = parsed["parity"]
         audio = parsed["audio"]
+        mem = parsed["mem"]
         frame = parsed["frame"]
         fixture_path = Path("tests/parity/starter_copper_defense_v1.json")
         if fixture_path.is_file():
@@ -559,6 +604,17 @@ def run_model_check(
             or audio["max_voices"] <= 0
         ):
             raise AssertionError(f"Unexpected audio telemetry for {model}: {audio}")
+        if (
+            mem["status"] != "ok"
+            or mem["failures"] != 0
+            or mem["used"] > mem["budget"]
+            or mem["peak"] > mem["budget"]
+            or mem["remaining"] != mem["budget"] - mem["used"]
+            or mem["world_used"] > mem["world_limit"]
+            or mem["texture_used"] > mem["texture_limit"]
+            or mem["transient_used"] > mem["transient_limit"]
+        ):
+            raise AssertionError(f"Unexpected memory telemetry for {model}: {mem}")
         if frame["state_switches"] > 1 or frame["budget_dropped"] != 0 or frame["rects"] <= 0 or frame["circles"] <= 0:
             raise AssertionError(f"Unexpected frame telemetry for {model}: {frame}")
         if png_info["top_distinct_colors"] < 2 or png_info["bottom_distinct_colors"] < 2:
@@ -575,6 +631,7 @@ def run_model_check(
             "hw_line": hw_line,
             "parity": parity,
             "audio": audio,
+            "mem": mem,
             "frame": frame,
             "perf": {
                 "system_fps": round(float(perf["system_fps"]), 2),
