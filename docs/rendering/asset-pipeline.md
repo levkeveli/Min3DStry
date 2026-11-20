@@ -4,6 +4,8 @@ The converter packs a small, ordered list of PNG sprites into one Citro2D textur
 
 ## Run the converter
 
+The 3DS build uses this converter to generate the fixture sprite indices and embed the atlas in RomFS. The native Makefile accepts `PYTHON` and `TEX3DS` executable overrides. At runtime the factory test scene loads the sheet with nearest-neighbor filtering and uses geometric primitives if the sheet is unavailable.
+
 Use Python 3.10+ and [devkitPro tex3ds v2.3.0](https://github.com/devkitPro/tex3ds/tree/37220c696e873812df41af62d1db0b20c66661fe). Put `tex3ds` on `PATH` or pass its path with `--tex3ds`. Run from the repository root in Bash.
 
 ```sh
