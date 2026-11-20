@@ -280,3 +280,29 @@ The upstream source boundaries are
 [`Logic.java`](https://github.com/Anuken/Mindustry/blob/19a0f40d44514f4802a8b79770456e7e32e34da0/core/src/mindustry/core/Logic.java),
 [`ItemTurret.java`](https://github.com/Anuken/Mindustry/blob/19a0f40d44514f4802a8b79770456e7e32e34da0/core/src/mindustry/world/blocks/defense/turrets/ItemTurret.java)
 and [`WaveSpawner.java`](https://github.com/Anuken/Mindustry/blob/19a0f40d44514f4802a8b79770456e7e32e34da0/core/src/mindustry/ai/WaveSpawner.java).
+
+### Exercise upstream power, water and production
+
+[Issue #97](https://github.com/levkeveli/Min3DStry/issues/97) loads the
+same pinned Glacier scenario, then places a mechanical pump over a fixture
+water tile with a conduit into a cultivator. Two coal-fed combustion
+generators connect through a battery. The probe checks the pump and
+cultivator with empty fuel stores, supplies coal, removes the battery
+to disconnect the power graph, and reconnects it to fill the cultivator's
+spore pod output. The original `Logic.update` processes each stage at 60 Hz.
+
+Use `-Pprobe=production-ticks` and the same pinned Gradle properties and
+Glacier path as the combat probe. To reproduce the official JVM trace,
+substitute `UpstreamProductionTickProbe.java` in the combat reference
+command and run `UpstreamProductionTickProbe /path/to/glacier.msav`.
+
+```text
+UPSTREAM_PRODUCTION_STARVED ticks=60 waterMilli=4641 pods=0
+UPSTREAM_PRODUCTION_DISCONNECT first=199 paused=60 pods=1
+UPSTREAM_PRODUCTION_FULL filled=2254 held=120 pods=10
+```
+
+The timing fields `first` and `filled` count from fueling and reconnecting,
+respectively. Source behavior comes from the pinned
+[`Blocks.java`](https://github.com/Anuken/Mindustry/blob/19a0f40d44514f4802a8b79770456e7e32e34da0/core/src/mindustry/content/Blocks.java)
+and [`GenericCrafter.java`](https://github.com/Anuken/Mindustry/blob/19a0f40d44514f4802a8b79770456e7e32e34da0/core/src/mindustry/world/blocks/production/GenericCrafter.java).
