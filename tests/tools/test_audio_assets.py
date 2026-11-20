@@ -162,8 +162,14 @@ class AudioAssetsTests(unittest.TestCase):
         self.assertTrue((self.root / "out" / "test.tone.pcm").is_file())
         self.assertTrue((self.root / "out" / "audio-manifest.json").is_file())
         index = (self.root / "romfs" / "audio-index.h").read_text(encoding="utf-8")
+        self.assertIn('#include "audio/audio_registry.h"', index)
         self.assertIn("M3DS_AUDIO_CLIP_COUNT 1U", index)
+        self.assertIn("M3DS_AUDIO_TOTAL_BYTES 1600U", index)
         self.assertIn('"test.tone", "romfs:/audio/test.tone.pcm"', index)
+        self.assertNotIn("typedef struct M3dsAudioIndexEntry", index)
+        self.assertTrue((self.root / "romfs" / "audio" / "test.tone.pcm").is_file())
+        self.assertTrue((self.root / "romfs" / "audio" / "audio-manifest.json").is_file())
+        self.assertFalse((self.root / "romfs" / "test.tone.pcm").exists())
         self.assertIn('"core/src/test/Triggers.java", 1', index)
 
     def test_trigger_map_validation(self) -> None:
