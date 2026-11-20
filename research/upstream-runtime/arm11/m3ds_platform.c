@@ -19,13 +19,15 @@ void* m3ds_map_open(void) {
 }
 
 int32_t m3ds_map_read_byte(void* file) {
-    int value = fgetc(file);
-    return value == EOF ? (ferror(file) ? -2 : -1) : value;
+    FILE* stream = file;
+    int value = fgetc(stream);
+    return value == EOF ? (ferror(stream) ? -2 : -1) : value;
 }
 
 int32_t m3ds_map_read(void* file, void* destination, int32_t length) {
-    size_t count = fread(destination, 1, (size_t)length, file);
-    return count ? (int32_t)count : (ferror(file) ? -2 : -1);
+    FILE* stream = file;
+    size_t count = fread(destination, 1, (size_t)length, stream);
+    return count ? (int32_t)count : (ferror(stream) ? -2 : -1);
 }
 
 void m3ds_map_close(void* file) {
