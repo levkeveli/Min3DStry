@@ -114,6 +114,7 @@
       "issue": 4,
       "evidence": [
         "tools/build_sprite_atlas.py",
+        "tools/build_upstream_sprite_atlas.py",
         "docs/rendering/asset-pipeline.md"
       ]
     },
