@@ -23,6 +23,10 @@ import mindustry.world.blocks.storage.CoreBlock.CoreBuild;
 
 public final class UpstreamWorldLoadProbe {
     public static void main(String[] args) throws IOException {
+        load(args);
+    }
+
+    static ProbeApplication load(String[] args) throws IOException {
         var app = new ProbeApplication();
         Core.app = app;
         Core.settings = new Settings();
@@ -52,9 +56,10 @@ public final class UpstreamWorldLoadProbe {
         if (args.length > 1) {
             loadCurrentSave(app, new Fi(args[1]));
         }
+        return app;
     }
 
-    private static void loadCurrentSave(ProbeApplication app, Fi file) throws IOException {
+    static void loadCurrentSave(ProbeApplication app, Fi file) throws IOException {
         try (var input = SaveIO.getStream(file)) {
             SaveIO.readHeader(input);
             if (input.readInt() != 13) {
@@ -125,7 +130,7 @@ public final class UpstreamWorldLoadProbe {
         return (hash ^ Integer.toUnsignedLong(value)) * 0x100000001b3L;
     }
 
-    private static final class ProbeApplication implements Application {
+    static final class ProbeApplication implements Application {
         private final Seq<ApplicationListener> listeners = new Seq<>();
         private final ArrayDeque<Runnable> posted = new ArrayDeque<>();
 

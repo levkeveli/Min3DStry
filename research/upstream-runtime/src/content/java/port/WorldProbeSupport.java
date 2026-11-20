@@ -3,6 +3,7 @@ package port;
 import org.teavm.dependency.AbstractDependencyListener;
 import org.teavm.dependency.DependencyAgent;
 import org.teavm.model.ElementModifier;
+import org.teavm.model.MethodDescriptor;
 import org.teavm.model.MethodReference;
 import org.teavm.model.Program;
 import org.teavm.model.ValueType;
@@ -29,6 +30,23 @@ public final class WorldProbeSupport implements TeaVMPlugin {
             }
         });
         host.add((type, context) -> {
+            if (type.getName().equals("mindustry.mod.ModClassLoader")) {
+                // The pinned initializer tolerates unavailable parallel registration.
+                // The headless fixture writes an empty mod list on the AOT runtime.
+                var initializer = type.getMethod(new MethodDescriptor("<clinit>", ValueType.VOID));
+                var registration = new MethodReference(type.getName(), "registerAsParallelCapable", ValueType.BOOLEAN);
+                var program = initializer.getProgram();
+                for (int i = 0; i < program.basicBlockCount(); i++) {
+                    for (var instruction : program.basicBlockAt(i)) {
+                        if (instruction instanceof InvokeInstruction invoke
+                                && invoke.getMethod().equals(registration)) {
+                            invoke.delete();
+                            return;
+                        }
+                    }
+                }
+                throw new IllegalStateException("Pinned ModClassLoader initializer changed");
+            }
             if (!type.getName().equals("arc.audio.Soloud") && !type.getName().equals("arc.util.Buffers")) {
                 return;
             }

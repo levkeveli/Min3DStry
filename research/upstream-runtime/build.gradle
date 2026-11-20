@@ -29,14 +29,15 @@ def entryPoints = [
     executor: 'port.concurrent.UpstreamExecutorProbe',
     'content-init': 'UpstreamContentInitializationProbe',
     world: 'UpstreamWorldLoadProbe',
-    'world-save': 'UpstreamWorldSaveProbe'
+    'world-save': 'UpstreamWorldSaveProbe',
+    'world-roundtrip': 'UpstreamWorldRoundTripProbe'
 ]
 if (!entryPoints.containsKey(probe)) {
     throw new GradleException("Expected -Pprobe to be one of ${entryPoints.keySet()}")
 }
 def entryPoint = entryPoints[probe]
 def usesMapSources = probe in ['map', 'map-sd']
-def usesWorldSources = probe in ['world', 'world-save']
+def usesWorldSources = probe in ['world', 'world-save', 'world-roundtrip']
 def initializesContent = probe == 'content-init' || usesWorldSources
 def usesContentSources = probe == 'content' || initializesContent
 def usesExecutor = usesContentSources || probe == 'executor'
