@@ -10,8 +10,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        probe: [executor]
-    timeout-minutes: 12
+        probe: [world]
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
         with:
