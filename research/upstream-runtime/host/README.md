@@ -84,6 +84,7 @@ Tasks can yield at TeaVM suspension points. Contended monitors in code that
 TeaVM compiles as synchronous are still a runtime limitation. Native
 parallel execution, dynamic pool variants, and the complete JDK concurrency
 API are outside this probe.
+
 ## Save writer baseline
 
 Issue #28 needs the exact upstream writer output as a reference. With Java 17,
