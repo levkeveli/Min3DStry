@@ -62,3 +62,19 @@ TeaVM calls a native buffered read adapter, which opens the file through libctru
 [SD build 44761441455](https://github.com/levkeveli/Min3DStry/actions/runs/44761441455) produced the expected metadata from the virtual SD on both Azahar console profiles. Both profiles also reported an error when the file was missing and when given a malformed input, without freezing or crashing.
 
 This checks metadata for one upstream map. Tile and building loading, save state, general-purpose filesystem support, and physical hardware are still unverified.
+
+### Establish the JVM world-loading baseline
+
+Run the baseline with Java 17 and the pinned upstream server JAR. Use a scratch
+working directory because upstream initialization creates local data directories.
+
+```sh
+java -cp /path/to/server-release.jar \
+    /path/to/Min3DStry/research/upstream-runtime/host/UpstreamWorldBaseline.java \
+    /path/to/glacier.msav
+```
+
+Upstream `World.loadMap` loads Glacier and emits
+`UPSTREAM_WORLD width=150 height=250 tiles=37500 buildings=2`. The building count
+includes each building once at its origin tile. Use this JVM result as a
+reference when bringing up upstream world loading on ARM11.
