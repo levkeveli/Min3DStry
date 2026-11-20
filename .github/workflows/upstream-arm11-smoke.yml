@@ -97,3 +97,119 @@ jobs:
             research/upstream-runtime/build/probe-3ds/upstream-probe.3dsx
             research/upstream-runtime/build/probe-3ds/upstream-probe.elf
           if-no-files-found: error
+
+  save-baseline:
+    name: Save writer baseline
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Fetch pinned upstream map and server JAR
+        run: |
+          git clone --depth 1 --branch v160.8 \
+            https://github.com/Anuken/Mindustry.git "$RUNNER_TEMP/Mindustry"
+          test "$(git -C "$RUNNER_TEMP/Mindustry" rev-parse HEAD)" = \
+            "19a0f40d44514f4802a8b79770456e7e32e34da0"
+          git -C "$RUNNER_TEMP/Mindustry" show \
+            HEAD:core/assets/maps/default/glacier.msav > "$RUNNER_TEMP/glacier.msav"
+          curl --fail --silent --show-error --location \
+            https://github.com/Anuken/Mindustry/releases/download/v160.8/server-release.jar \
+            -o "$RUNNER_TEMP/server-release.jar"
+
+      - name: Run upstream SaveIO writer baseline
+        run: |
+          java -cp "$RUNNER_TEMP/server-release.jar" \
+            research/upstream-runtime/host/UpstreamSaveBaseline.java \
+            "$RUNNER_TEMP/glacier.msav" | tee "$RUNNER_TEMP/save.log"
+          grep -F 'UPSTREAM_SAVE header=MSAV version=13' "$RUNNER_TEMP/save.log"
+
+  audio-inventory:
+    name: Audio asset inventory
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Fetch pinned upstream asset tree
+        run: |
+          git clone --depth 1 --branch v160.8 \
+            https://github.com/Anuken/Mindustry.git "$RUNNER_TEMP/Mindustry"
+          test "$(git -C "$RUNNER_TEMP/Mindustry" rev-parse HEAD)" = \
+            "19a0f40d44514f4802a8b79770456e7e32e34da0"
+
+      - name: Run pinned audio inventory
+        run: |
+          java research/upstream-runtime/host/UpstreamAudioInventory.java \
+            "$RUNNER_TEMP/Mindustry" | tee "$RUNNER_TEMP/audio.log"
+          grep -F 'UPSTREAM_AUDIO kind=music files=16 bytes=28493699' "$RUNNER_TEMP/audio.log"
+          grep -F 'UPSTREAM_AUDIO kind=sounds files=205 bytes=7093890' "$RUNNER_TEMP/audio.log"
+          grep -F 'UPSTREAM_AUDIO total_files=221 total_bytes=35587589 manifest_sha256=f16c7f1c163d04b9843390146aafc2197cb6f6a3ad8db30e1872c7b1853be5fc' "$RUNNER_TEMP/audio.log"
+
+  progression-baseline:
+    name: Progression baseline
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Fetch pinned official server JAR
+        run: |
+          curl --fail --silent --show-error --location \
+            https://github.com/Anuken/Mindustry/releases/download/v160.8/server-release.jar \
+            -o "$RUNNER_TEMP/server-release.jar"
+
+      - name: Run pinned sector/tech-tree baseline
+        run: |
+          java -cp "$RUNNER_TEMP/server-release.jar" \
+            research/upstream-runtime/host/UpstreamProgressionBaseline.java \
+            | tee "$RUNNER_TEMP/progression.log"
+          grep -F 'UPSTREAM_PROGRESSION tech_nodes=375 tech_roots=2 sectors=95 manifest_sha256=4a61e8b260eb4f698ed128eb6654e2fa61f295f64d29b44c7638c7b8dda2bd4a' "$RUNNER_TEMP/progression.log"
+
+  combat-baseline:
+    name: Combat metadata baseline
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Fetch pinned official server JAR
+        run: |
+          curl --fail --silent --show-error --location \
+            https://github.com/Anuken/Mindustry/releases/download/v160.8/server-release.jar \
+            -o "$RUNNER_TEMP/server-release.jar"
+
+      - name: Run pinned unit/bullet baseline
+        run: |
+          java -cp "$RUNNER_TEMP/server-release.jar" \
+            research/upstream-runtime/host/UpstreamCombatBaseline.java \
+            | tee "$RUNNER_TEMP/combat.log"
+          grep -F 'UPSTREAM_COMBAT units=69 bullets=202 manifest_sha256=e35013e20c50cbe83169794e898e281898c717f1f373e9b84796090470a76882' "$RUNNER_TEMP/combat.log"
