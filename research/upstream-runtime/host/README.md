@@ -118,3 +118,125 @@ completed initialization, passed the RGBA copy check, and matched all 447
 ordered JVM factory records in both Azahar 2126.2 console profiles. Both
 emulator records produced the factory reference SHA-256 above. Physical
 hardware and map loading still require verification.
+
+## Save writer baseline
+
+Issue #28 needs the exact upstream writer output as a reference. With Java 17,
+the pinned server JAR and the original Glacier map, run:
+
+```sh
+java -cp /path/to/server-release.jar \
+    /path/to/Min3DStry/research/upstream-runtime/host/UpstreamSaveBaseline.java \
+    /path/to/glacier.msav
+```
+
+Expected stable prefix:
+
+```text
+UPSTREAM_SAVE header=MSAV version=13 bytes=<n>
+```
+
+The byte count can vary between runs; the `MSAV` header and save version are
+the contract. This is a host-only reference. It does not read or write a
+Min3DStry format and is not a 3DS test.
+
+## Audio asset inventory
+
+Issue #29 needs the exact pinned sound/music set before conversion. The server
+JAR does not contain these files, so scan the pinned Git checkout:
+
+```sh
+java /path/to/Min3DStry/research/upstream-runtime/host/UpstreamAudioInventory.java \
+    /path/to/Mindustry
+```
+
+Expected pinned v160.8 baseline (paths and per-file hashes are printed above
+the summaries):
+
+```text
+UPSTREAM_AUDIO kind=music files=16 bytes=28493699 manifest_sha256=d637f9d895868758d6a749ef445fd2912fe0e3d768050372618a276ae4d8cacd
+UPSTREAM_AUDIO kind=sounds files=205 bytes=7093890 manifest_sha256=8a848916f9b95b3e45f2de2b9def2081c6b0778e0548e36697268f48057cdcbd
+UPSTREAM_AUDIO total_files=221 total_bytes=35587589 manifest_sha256=f16c7f1c163d04b9843390146aafc2197cb6f6a3ad8db30e1872c7b1853be5fc
+```
+
+This is an inventory only: no decode, conversion, RomFS packing or audio
+playback is claimed. Asset provenance/licensing still needs per-file review
+before distribution; see the [asset pipeline](../../../docs/rendering/asset-pipeline.md)
+and [audio plan](../../../docs/audio/ndsp-mixer.md).
+
+## Sector and tech-tree baseline
+
+To read the pinned campaign structure through real upstream classes:
+
+```sh
+java -cp /path/to/server-release.jar \
+    /path/to/Min3DStry/research/upstream-runtime/host/UpstreamProgressionBaseline.java
+```
+
+It initializes `ContentLoader.createBaseContent()` (which loads
+`SerpuloTechTree`, `ErekirTechTree` and `SectorPresets`) and emits:
+
+```text
+UPSTREAM_TECH type=... id=... name=... depth=... parent=... root=... requirements=item:amount,...
+UPSTREAM_SECTOR id=... name=... planet=... sector=... capture=... difficulty=... last=...
+UPSTREAM_PROGRESSION tech_nodes=375 tech_roots=2 sectors=95 manifest_sha256=4a61e8b260eb4f698ed128eb6654e2fa61f295f64d29b44c7638c7b8dda2bd4a
+```
+
+The manifest is SHA-256 over sorted records. Upstream may print preset warnings
+to stderr (for example presets without an assigned sector); those are not part
+of the manifest. This is reference metadata only: no progression rules, UI,
+save format or game state are implemented here.
+
+## Unit and bullet metadata baseline
+
+To read the pinned combat catalog through upstream classes:
+
+```sh
+java -cp /path/to/server-release.jar \
+    /path/to/Min3DStry/research/upstream-runtime/host/UpstreamCombatBaseline.java
+```
+
+It emits `UPSTREAM_UNIT` records (ID, name, health, armor, speed, hit size,
+flying, range), `UPSTREAM_BULLET` records (ID, type, damage, speed, lifetime,
+hit size, pierce, splash damage, collision), and:
+
+```text
+UPSTREAM_COMBAT units=69 bullets=202 manifest_sha256=e35013e20c50cbe83169794e898e281898c717f1f373e9b84796090470a76882
+```
+
+Reference only: no units, bullets, balance, AI or combat loop are implemented
+or changed. The manifest is deterministic over the pinned content order.
+
+## Multiplayer session baseline
+
+To exercise an end-to-end loopback session (`#44`) against the unmodified pinned
+v160.8 `server-release.jar` (UDP discovery, build `159` `clientOutdated` kick,
+two full connect -> `WorldStream` -> `NetworkIO.loadWorld` -> `ConnectConfirm` ->
+live LZ4 `StateSnapshot` -> disconnect/rejoin sessions, and C11 `mindustry_net`
+LZ4 decompression cross-verification):
+
+```sh
+python3 tools/verify_upstream_net.py --server-jar /path/to/server-release.jar
+```
+
+Look for `UPSTREAM_NET_PASS sessions=2 mismatch=clientOutdated` and
+`DECODE_PKT_OK ... compression=1`. Live ARM11 TeaVM sockets and physical 3DS
+Wi-Fi multiplayer remain tracked on `#44`.
+
+## Campaign and tech-tree persistence baseline
+
+To exercise pinned v160.8 `Core.settings` (`settings.bin`), `TechTree.TechNode`,
+`UnlockableContent`, `Sector`/`SectorInfo`, `Objectives` prerequisites,
+`sector-<planet.name>-<sector.id>.msav` slot naming/resolution (`Saves.getSectorFile(sector)`
+and `SaveSlot` attachment — world `.msav` read/write round-trips are covered by
+`UpstreamSaveBaseline.java`), save and cold-reload round-trips, `settings_backup.bin`
+backup recovery, and malformed settings resilience:
+
+```sh
+java -cp /path/to/server-release.jar \
+    /path/to/Min3DStry/research/upstream-runtime/host/UpstreamCampaignPersistenceBaseline.java
+```
+
+Look for `UPSTREAM_CAMPAIGN_PASS tech_nodes=375 sectors=95`. See
+[the campaign progression persistence design](../../../docs/porting/campaign-progression.md)
+for upstream key schemas and remaining ARM11 runtime work (`#41`).
