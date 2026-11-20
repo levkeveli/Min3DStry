@@ -3,7 +3,9 @@ set -euo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
 
 find_host_cc() {
-  if command -v cc >/dev/null 2>&1; then
+  if [[ -n "${CC:-}" ]]; then
+    command -v "$CC"
+  elif command -v cc >/dev/null 2>&1; then
     echo "cc"
   elif command -v gcc >/dev/null 2>&1; then
     echo "gcc"
@@ -12,6 +14,22 @@ find_host_cc() {
   else
     return 1
   fi
+}
+
+find_host_python() {
+  local candidate
+  local -a candidates=(python3 python)
+  if [[ -n "${PYTHON:-}" ]]; then
+    candidates=("$PYTHON")
+  fi
+  for candidate in "${candidates[@]}"; do
+    if "$candidate" -c 'import sys; sys.exit(sys.version_info < (3, 10))' >/dev/null 2>&1; then
+      printf '%s\n' "$candidate"
+      return
+    fi
+  done
+  echo 'Python 3.10+ is required (set PYTHON to its executable if needed).' >&2
+  return 1
 }
 
 has_native_devkitarm() {
@@ -34,10 +52,8 @@ case "${1:-}" in
   doctor)
     git --version
     bash --version | head -n 1
-    if command -v python3 >/dev/null 2>&1; then
-      python3 --version
-    else
-      echo 'python3 unavailable on PATH.'
+    if host_python="$(find_host_python)"; then
+      "$host_python" --version
     fi
     if host_cc="$(find_host_cc)"; then
       "$host_cc" --version | head -n 1
@@ -76,14 +92,15 @@ case "${1:-}" in
     ;;
   test)
     bash -n dev.sh
+    host_python="$(find_host_python)" || exit 1
+    host_cc="$(find_host_cc)" || { echo 'test: no host C compiler found (install cc/gcc/clang or set CC).' >&2; exit 1; }
     for file in README.md AGENTS.md CONTRIBUTING.md SECURITY.md docs/architecture.md docs/research/java-to-native.md docs/development/automation-policy.md docs/rendering/citro2d-prototype.md site/index.html .github/scripts/pr_automation.py .github/scripts/test_pr_automation.py .github/workflows/ai-pr-review.yml Makefile include/render/scene_2d.h src/render/scene_2d.c tests/render/test_scene_2d.c tools/verify_azahar.py tests/tools/test_verify_azahar.py; do
       test -s "$file" || { echo "Missing or empty: $file" >&2; exit 1; }
     done
-    python3 -m py_compile .github/scripts/pr_automation.py .github/scripts/test_pr_automation.py research/java-to-native/budget_model.py research/java-to-native/run_poc.py tools/verify_azahar.py tests/tools/test_verify_azahar.py
-    python3 -m unittest discover -s .github/scripts -p 'test_*.py'
-    python3 -m unittest discover -s tests/tools -p 'test_*.py'
+    "$host_python" -m py_compile .github/scripts/pr_automation.py .github/scripts/test_pr_automation.py research/java-to-native/budget_model.py research/java-to-native/run_poc.py tools/verify_azahar.py tests/tools/test_verify_azahar.py
+    "$host_python" -m unittest discover -s .github/scripts -p 'test_*.py'
+    "$host_python" -m unittest discover -s tests/tools -p 'test_*.py'
 
-    host_cc="$(find_host_cc)" || { echo 'test: no host C compiler (cc/gcc/clang) found.' >&2; exit 1; }
     mkdir -p build/host
     "$host_cc" -std=c11 -Wall -Wextra -Werror -Iinclude \
       src/render/scene_2d.c tests/render/test_scene_2d.c -lm -o build/host/test_scene_2d
@@ -93,7 +110,7 @@ case "${1:-}" in
       src/platform/hardware_profile.c tests/platform/test_hardware_profile.c -o build/host/test_hardware_profile
     ./build/host/test_hardware_profile
 
-    python3 research/java-to-native/run_poc.py
+    "$host_python" research/java-to-native/run_poc.py --require-compiler
     git diff --check HEAD
     echo 'All host and bootstrap checks passed.'
     ;;
@@ -103,7 +120,8 @@ case "${1:-}" in
       echo 'emu-test: no 3DS emulator (azahar) is installed.' >&2
       exit 2
     fi
-    python3 tools/verify_azahar.py "${@:2}"
+    host_python="$(find_host_python)" || exit 1
+    "$host_python" tools/verify_azahar.py "${@:2}"
     ;;
   run)
     test -s build/min3dstry.3dsx || { echo 'run: build/min3dstry.3dsx missing; run ./dev.sh build first.' >&2; exit 2; }
@@ -117,7 +135,8 @@ case "${1:-}" in
     fi
     ;;
   poc)
-    python3 research/java-to-native/run_poc.py --require-compiler
+    host_python="$(find_host_python)" || exit 1
+    "$host_python" research/java-to-native/run_poc.py --require-compiler
     ;;
   status)
     git status --short --branch

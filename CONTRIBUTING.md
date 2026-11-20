@@ -10,6 +10,15 @@ Choose a Ready GitHub Issue, or submit a proposal. Check existing owners, blocke
 
 Read `AGENTS.md` and `docs/development/automation-policy.md`. Claim a task, use an isolated branch, implement/test/document, create a PR and let CI plus trusted auto-merge policy handle the normal path. Never bypass risk gates, forge hardware evidence, or falsely close an issue.
 
+## Run host tests
+
+From the repository root, run `./dev.sh test` in Bash. It runs the Python checks, compiles and executes the rendering and hardware profile tests, and checks the research simulation for repeatable results across optimization levels. This command requires Git, Python 3.10 or newer, and a host C compiler. It runs without devkitARM, Docker, an emulator, or a console.
+
+- **Linux** — use your distribution's Bash, Git, Python 3, and GCC or Clang packages.
+- **Windows** — open the MSYS2 UCRT64 shell and install the same packages used by Windows CI with `pacman -S --needed git mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-python`. Git Bash also works with native Python and a host GCC such as w64devkit on `PATH`.
+
+Run `./dev.sh doctor` to check tool detection. Set `CC` or `PYTHON` to an executable name or path to select a specific host compiler or interpreter.
+
 ## Test evidence labels
 
 - `not-tested`
