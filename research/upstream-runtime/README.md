@@ -238,11 +238,20 @@ gradle -PupstreamCheckout=/path/to/Mindustry -PreferenceJar=/path/to/server-rele
   runProbeJvm --args='/path/to/glacier.msav /path/to/sprites.aatls' generateC
 ```
 
-The unmodified v160.8 JVM classes and the adapted JVM build emitted this trace:
+The unmodified v160.8 JVM classes, adapted JVM build, and generated
+Windows x64 C executable emitted this trace:
 
 ```text
 UPSTREAM_TERRAIN viewport=18,0+16x12 commands=320 copper=26 edges=88 hash=de709773b1b58465
 ```
+
+To check the original JVM classes, compile the probe and
+`UpstreamWorldLoadProbe.java` against the unmodified server JAR, then
+run `UpstreamTerrainDrawProbe` with the same two paths. To check the
+generated C, run `arm11/fix_reflection_lifetime.py` on a scratch copy of
+the generated directory before compiling `all.c` with the host compiler.
+Pass the same two paths to the executable. The ARM11 build script applies
+the reflection fix during staging.
 
 For the ARM11 probe, put the original `glacier.msav` and `sprites.aatls` in
 `/3ds/min3dstry/` on the SD card. The trace precedes the Citro2D
