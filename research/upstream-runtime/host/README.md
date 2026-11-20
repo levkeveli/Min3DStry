@@ -63,8 +63,27 @@ Use `-Pprobe=content generateC` with `-Dorg.gradle.jvmargs=-Xmx3g` to reproduce
 the compiler check. It now passes the anonymous class lookup during analysis.
 The [resource probe](../README.md#read-pinned-arc-resources) documents the
 adaptation used by content mode for Arc's classpath lookup. C generation now
-stops at the executor, future, and processor-count APIs reached during static
-initialization. Native registry and factory parity are tracked in #55.
+also uses the fixed executor substitutions described below. Native building
+factory parity is tracked in #55.
+
+## Fixed executor
+
+Use `-Pprobe=executor`, `-ParcCheckout=/path/to/Arc`, and the standard JVM and
+TeaVM C generation commands to check an executor created by upstream
+`arc.util.Threads.executor`. The JVM uses its JDK executor. TeaVM uses the
+port's fixed executor through its [substitution policy](https://www.teavm.org/docs/runtime/compiler-extensions.html#substitutionpolicy).
+The test verifies task results, propagated exceptions, timed waits,
+cancellation, and shutdown in each environment. The generated native Windows
+program and the [devkitARM build](https://github.com/levkeveli/Min3DStry/actions/runs/44770447356)
+matched the JVM, including both console profiles in Azahar 2126.2.
+
+The generated Arc `OS.java` reports one execution lane for the cooperative
+TeaVM C scheduler, avoiding the unsupported JVM processor-count call. The
+fixed executor uses managed Java threads and drains its queue as work arrives.
+Tasks can yield at TeaVM suspension points. Contended monitors in code that
+TeaVM compiles as synchronous are still a runtime limitation. Native
+parallel execution, dynamic pool variants, and the complete JDK concurrency
+API are outside this probe.
 
 ## Save writer baseline
 

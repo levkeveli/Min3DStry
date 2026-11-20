@@ -13,6 +13,7 @@ def blockSource = 'core/src/mindustry/world/Block.java'
 def annotationsSource = 'annotations/src/main/java/mindustry/annotations/Annotations.java'
 def arcRevision = '7445105cd2683daf5b9ac7033ebb07265d3e814d'
 def fileSource = 'arc-core/src/arc/files/Fi.java'
+def osSource = 'arc-core/src/arc/util/OS.java'
 def glacier = 'core/assets/maps/default/glacier.msav'
 def upstream = providers.gradleProperty('upstreamCheckout')
 def arc = providers.gradleProperty('arcCheckout')
@@ -23,6 +24,7 @@ def entryPoints = [
     'map-sd': 'mindustry.maps.UpstreamSdMapProbe',
     content: 'UpstreamContentBaseline',
     resource: 'port.UpstreamResourceProbe',
+    executor: 'port.concurrent.UpstreamExecutorProbe',
     'file-metadata': 'port.UpstreamFileMetadataProbe'
 ]
 if (!entryPoints.containsKey(probe)) {
@@ -31,6 +33,7 @@ if (!entryPoints.containsKey(probe)) {
 def entryPoint = entryPoints[probe]
 def usesMapSources = probe in ['map', 'map-sd']
 def usesContentSources = probe == 'content'
+def usesExecutor = usesContentSources || probe == 'executor'
 def usesArcSources = usesContentSources || probe == 'resource'
 def referenceJar = file(providers.gradleProperty('referenceJar').getOrElse('server-release.jar'))
 def sourceDir = layout.buildDirectory.dir("upstream-src/${probe}")
@@ -39,31 +42,45 @@ def mapFile = sourceDir.map { it.file('mindustry/maps/GlacierFixture.java') }
 def blockFile = sourceDir.map { it.file('mindustry/world/Block.java') }
 def annotationsFile = sourceDir.map { it.file('mindustry/annotations/Annotations.java') }
 def arcFile = sourceDir.map { it.file('arc/files/Fi.java') }
+def arcOsFile = sourceDir.map { it.file('arc/util/OS.java') }
 def readUpstream = { path ->
     providers.exec {
         commandLine 'git', '-C', upstream.get(), 'show', "${revision}:${path}"
     }.standardOutput.asBytes.get()
 }
 
-if (usesArcSources) {
+if (usesArcSources || usesExecutor) {
+    def stagedClasses = []
+    if (usesContentSources) {
+        stagedClasses.add('mindustry/world/Block.class')
+    }
+    if (usesArcSources) {
+        stagedClasses.addAll(['arc/files/Fi.class', 'arc/files/Fi$*.class'])
+    }
+    if (usesExecutor) {
+        stagedClasses.add('arc/util/OS.class')
+    }
     // TeaVM resolves dependency classes before compiled project classes.
     def contentDependencies = tasks.register('prepareContentDependencies', Zip) {
         dependsOn 'prepareUpstreamProbe'
+        inputs.property('stagedClasses', stagedClasses)
         from(zipTree(referenceJar)) {
-            if (usesContentSources) {
-                exclude 'mindustry/world/Block.class'
-            }
-            exclude 'arc/files/Fi.class', 'arc/files/Fi$*.class'
+            exclude stagedClasses
         }
         destinationDirectory = layout.buildDirectory.dir("probe-dependencies/${probe}")
         archiveFileName = 'server-probe-dependencies.jar'
     }
     dependencies { implementation files(contentDependencies.flatMap { it.archiveFile }).builtBy(contentDependencies) }
+} else {
+    dependencies { implementation files(referenceJar) }
+}
+if (usesArcSources) {
     dependencies { compileOnly 'org.teavm:teavm-core:0.16.0' }
     sourceSets.main.java.srcDir('src/resource/java')
     sourceSets.main.resources.srcDir('src/resource/resources')
-} else {
-    dependencies { implementation files(referenceJar) }
+}
+if (usesExecutor) {
+    sourceSets.main.java.srcDir('src/concurrent/java')
 }
 if (usesContentSources) {
     sourceSets.main.java.srcDirs('host', 'src/content/java')
@@ -94,10 +111,15 @@ tasks.register('prepareUpstreamProbe') {
     if (usesContentSources) {
         outputs.files(blockFile, annotationsFile)
     }
-    if (usesArcSources) {
+    if (usesArcSources || usesExecutor) {
         inputs.property('arcRevision', arcRevision)
         inputs.property('arcCheckout', arc)
+    }
+    if (usesArcSources) {
         outputs.file(arcFile)
+    }
+    if (usesExecutor) {
+        outputs.file(arcOsFile)
     }
     doLast {
         def sha256 = MessageDigest.getInstance('SHA-256').digest(referenceJar.bytes).encodeHex().toString()
@@ -153,6 +175,20 @@ final class GlacierFixture {
             adapted.parentFile.mkdirs()
             adapted.setText(source.replace(lookup, streamLookup), 'UTF-8')
         }
+        if (usesExecutor) {
+            def bytes = providers.exec {
+                commandLine 'git', '-C', arc.get(), 'show', "${arcRevision}:${osSource}"
+            }.standardOutput.asBytes.get()
+            def source = new String(bytes, 'UTF-8')
+            def processorCount = 'Runtime.getRuntime().availableProcessors()'
+            if (source.count(processorCount) != 1) {
+                throw new GradleException('Pinned Arc OS processor count changed')
+            }
+            def adapted = arcOsFile.get().asFile
+            adapted.parentFile.mkdirs()
+            // TeaVM C runs its managed threads on one execution lane.
+            adapted.setText(source.replace(processorCount, '1'), 'UTF-8')
+        }
     }
 }
 
@@ -174,4 +210,9 @@ if (usesContentSources) {
     }
 }
 
-teavm { all { mainClass = entryPoint } }
+teavm {
+    all { mainClass = entryPoint }
+    if (usesExecutor) {
+        c { obfuscated = false }
+    }
+}
