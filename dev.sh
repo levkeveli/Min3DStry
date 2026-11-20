@@ -88,6 +88,10 @@ case "${1:-}" in
       src/render/scene_2d.c tests/render/test_scene_2d.c -lm -o build/host/test_scene_2d
     ./build/host/test_scene_2d
 
+    "$host_cc" -std=c11 -Wall -Wextra -Werror -Iinclude \
+      src/platform/hardware_profile.c tests/platform/test_hardware_profile.c -o build/host/test_hardware_profile
+    ./build/host/test_hardware_profile
+
     python3 research/java-to-native/run_poc.py
     git diff --check HEAD
     echo 'All host and bootstrap checks passed.'

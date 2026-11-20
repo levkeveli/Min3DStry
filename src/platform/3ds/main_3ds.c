@@ -3,6 +3,7 @@
 #include <stdio.h>
 
 #include "citro2d_backend.h"
+#include "platform/hardware_profile.h"
 #include "render/scene_2d.h"
 
 int main(int argc, char *argv[]) {
@@ -14,6 +15,12 @@ int main(int argc, char *argv[]) {
     C2D_Init(C2D_DEFAULT_MAX_OBJECTS);
     C2D_Prepare();
     consoleInit(GFX_BOTTOM, NULL);
+
+    M3dsHardwareProfile hw_profile;
+    char hw_summary[96] = "Hardware: unknown";
+    if (m3ds_hardware_probe(&hw_profile)) {
+        m3ds_hardware_profile_format(&hw_profile, hw_summary, sizeof(hw_summary));
+    }
 
     C3D_RenderTarget *top = C2D_CreateScreenTarget(GFX_TOP, GFX_LEFT);
 
@@ -86,6 +93,7 @@ int main(int argc, char *argv[]) {
         printf("\x1b[9;1HCmdBuf:  %6.2f%%\x1b[K", C3D_GetCmdBufUsage() * 100.0f);
         printf("\x1b[11;1HD-Pad/CPad: Pan  A: Pause\x1b[K");
         printf("\x1b[12;1HY: Reset Cam     START: Exit\x1b[K");
+        printf("\x1b[14;1H%s\x1b[K", hw_summary);
     }
 
     C2D_Fini();

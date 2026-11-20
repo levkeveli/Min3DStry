@@ -4,6 +4,7 @@ Target native ARM11 homebrew with devkitPro, libctru and Citro2D/Citro3D. Evalua
 
 Current prototypes:
 - [Citro2D bounded rendering prototype](rendering/citro2d-prototype.md) (`M3dsRenderBackend` + `M3dsBoundedScene`, host-tested and 3DS-built via `./dev.sh build`, emulator/hardware verification pending).
+- [Hardware detection profile](hardware/detection.md) (`M3dsHardwareProfile` + `libctru` probe, host-tested and 3DS-built, real Old/New 3DS hardware verification pending).
 
 Track toolchain builds, emulator boot, physical hardware boot, gameplay parity and upstream multiplayer independently. Record hardware model, build SHA and test scenario alongside measurements. Audit upstream and dependency licenses before importing code or assets.
 
