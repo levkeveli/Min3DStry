@@ -280,3 +280,38 @@ The upstream source boundaries are
 [`Logic.java`](https://github.com/Anuken/Mindustry/blob/19a0f40d44514f4802a8b79770456e7e32e34da0/core/src/mindustry/core/Logic.java),
 [`ItemTurret.java`](https://github.com/Anuken/Mindustry/blob/19a0f40d44514f4802a8b79770456e7e32e34da0/core/src/mindustry/world/blocks/defense/turrets/ItemTurret.java)
 and [`WaveSpawner.java`](https://github.com/Anuken/Mindustry/blob/19a0f40d44514f4802a8b79770456e7e32e34da0/core/src/mindustry/ai/WaveSpawner.java).
+
+### Exercise upstream ground routing
+
+[Issue #85](https://github.com/levkeveli/Min3DStry/issues/85) starts
+the original Pathfinder, ControlPathfinder and AsyncCore before loading
+Glacier. It waits for the ground flowfield, follows it to the Sharded
+core and fingerprints every completed weight. The movement check selects
+the original Dagger ground AI from its unit type, then runs 120 upstream
+updates with the normal asynchronous physics and avoidance phases. The
+probe fires the upstream reset event when it finishes to stop the path
+workers.
+
+Use `-Pprobe=ground-routing` with the same pinned Gradle properties and
+Glacier argument as the combat probe. For the reference JVM, substitute
+`UpstreamGroundRoutingProbe.java` for the combat entry file and run
+`UpstreamGroundRoutingProbe /path/to/glacier.msav`.
+
+Five runs using the unmodified v160.8 JVM classes agreed:
+
+```text
+UPSTREAM_GROUND_FIELD from=81,55 to=81,28 hops=27 hash=d579ea6f7b1e6d18
+UPSTREAM_GROUND_UNIT ticks=120 from=81,55 to=81,48
+```
+
+The final generated Windows x64 executable matched eight times. The
+[`-O0` and `-O2` DevkitARM builds](https://github.com/levkeveli/Min3DStry/actions/runs/44806764887)
+matched both records and reached the probe's exit prompt in both Azahar
+console profiles. The `-O2` mapped segments, 24 MiB managed heap, 4 MiB
+linear heap and 256 KiB stack total 64.66 MiB before GC metadata and other
+allocations. This exceeds the 64 MiB Original 3DS application budget.
+
+The field and movement call the pinned
+[`Pathfinder.java`](https://github.com/Anuken/Mindustry/blob/19a0f40d44514f4802a8b79770456e7e32e34da0/core/src/mindustry/ai/Pathfinder.java),
+[`GroundAI.java`](https://github.com/Anuken/Mindustry/blob/19a0f40d44514f4802a8b79770456e7e32e34da0/core/src/mindustry/ai/types/GroundAI.java)
+and [`AsyncCore.java`](https://github.com/Anuken/Mindustry/blob/19a0f40d44514f4802a8b79770456e7e32e34da0/core/src/mindustry/async/AsyncCore.java).

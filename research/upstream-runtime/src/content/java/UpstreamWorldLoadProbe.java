@@ -143,12 +143,21 @@ public final class UpstreamWorldLoadProbe {
         @Override public ApplicationType getType() { return ApplicationType.headless; }
         @Override public String getClipboardText() { return ""; }
         @Override public void setClipboardText(String text) {}
-        @Override public void post(Runnable job) { posted.add(job); }
+        @Override public void post(Runnable job) {
+            synchronized (posted) {
+                posted.addLast(job);
+            }
+        }
         @Override public void exit() {}
 
         void runPosted() {
-            while (!posted.isEmpty()) {
-                posted.remove().run();
+            while (true) {
+                Runnable next;
+                synchronized (posted) {
+                    next = posted.pollFirst();
+                }
+                if (next == null) return;
+                next.run();
             }
         }
     }
