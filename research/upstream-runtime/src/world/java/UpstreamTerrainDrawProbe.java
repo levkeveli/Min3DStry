@@ -18,8 +18,8 @@ import mindustry.world.blocks.environment.Floor;
 
 /** Captures the upstream terrain draw calls before they reach a GPU. */
 public final class UpstreamTerrainDrawProbe {
-    private static final int VIEW_WIDTH = 16;
-    private static final int VIEW_HEIGHT = 12;
+    static final int VIEW_WIDTH = 16;
+    static final int VIEW_HEIGHT = 12;
 
     public static void main(String[] args) throws IOException {
         capture(args, null);
@@ -28,20 +28,43 @@ public final class UpstreamTerrainDrawProbe {
     interface TerrainTarget {
         void begin(int left, int bottom, int width, int height);
         void draw(int page, int left, int top, int width, int height,
-                  float x, float y, float drawWidth, float drawHeight, int color);
+                  float x, float y, float originX, float originY, float drawWidth, float drawHeight,
+                  float rotation, int color);
         void end();
     }
 
     static void capture(String[] args, TerrainTarget target) throws IOException {
         CacheLayer.init();
-        UpstreamWorldLoadProbe.load(args.length == 0 ? args : new String[]{args[0]});
+        UpstreamWorldLoadProbe.load(mapArgs(args));
+        var viewport = prepare(args, target, true);
+        viewport.draw(() -> {});
+        var batch = viewport.batch;
+        if (batch.commands < VIEW_WIDTH * VIEW_HEIGHT || batch.copper == 0 || batch.edges == 0) {
+            throw new IllegalStateException("Incomplete upstream terrain trace");
+        }
+        System.out.println("UPSTREAM_TERRAIN viewport=" + viewport.left + "," + viewport.bottom + "+" +
+            VIEW_WIDTH + "x" + VIEW_HEIGHT + " commands=" + batch.commands + " copper=" +
+            batch.copper + " edges=" + batch.edges + " hash=" +
+            Long.toUnsignedString(batch.hash, 16));
+    }
+
+    static String[] mapArgs(String[] args) {
+        return args.length == 0 ? args : new String[]{args[0]};
+    }
+
+    static Viewport prepare(String[] args, TerrainTarget target, boolean trace) {
         Core.atlas = readAtlas(atlasFile(args));
         Draw.scl = 1f / Core.atlas.find("scale_marker").width;
+        boolean wasHeadless = Vars.headless;
         Vars.headless = false;
-        for (var block : Vars.content.blocks()) {
-            if (block instanceof Floor floor && block != Blocks.air) floor.load();
+        try {
+            for (var block : Vars.content.blocks()) {
+                if (block instanceof Floor floor && block != Blocks.air) floor.load();
+            }
+        } finally {
+            Vars.headless = wasHeadless;
         }
-        var batch = new TerrainBatch(target);
+        var batch = new TerrainBatch(target, trace);
         Core.batch = batch;
 
         Tile copper = null;
@@ -54,21 +77,33 @@ public final class UpstreamTerrainDrawProbe {
         if (copper == null) throw new IllegalStateException("Glacier has no copper");
         int left = Math.max(0, Math.min(copper.x - VIEW_WIDTH / 2, Vars.world.width() - VIEW_WIDTH));
         int bottom = Math.max(0, Math.min(copper.y - VIEW_HEIGHT / 2, Vars.world.height() - VIEW_HEIGHT));
-        if (target != null) target.begin(left, bottom, VIEW_WIDTH, VIEW_HEIGHT);
-        for (int y = bottom; y < bottom + VIEW_HEIGHT; y++) {
-            for (int x = left; x < left + VIEW_WIDTH; x++) {
-                Tile tile = Vars.world.tile(x, y);
-                tile.floor().drawBase(tile);
+        return new Viewport(left, bottom, batch);
+    }
+
+    static final class Viewport {
+        final int left;
+        final int bottom;
+        private final TerrainBatch batch;
+
+        Viewport(int left, int bottom, TerrainBatch batch) {
+            this.left = left;
+            this.bottom = bottom;
+            this.batch = batch;
+        }
+
+        void draw(Runnable buildings) {
+            if (batch.target != null) batch.target.begin(left, bottom, VIEW_WIDTH, VIEW_HEIGHT);
+            Draw.reset();
+            Draw.z(0f);
+            for (int y = bottom; y < bottom + VIEW_HEIGHT; y++) {
+                for (int x = left; x < left + VIEW_WIDTH; x++) {
+                    Tile tile = Vars.world.tile(x, y);
+                    tile.floor().drawBase(tile);
+                }
             }
+            buildings.run();
+            if (batch.target != null) batch.target.end();
         }
-        if (target != null) target.end();
-        if (batch.commands < VIEW_WIDTH * VIEW_HEIGHT || batch.copper == 0 || batch.edges == 0) {
-            throw new IllegalStateException("Incomplete upstream terrain trace");
-        }
-        System.out.println("UPSTREAM_TERRAIN viewport=" + left + "," + bottom + "+" +
-            VIEW_WIDTH + "x" + VIEW_HEIGHT + " commands=" + batch.commands + " copper=" +
-            batch.copper + " edges=" + batch.edges + " hash=" +
-            Long.toUnsignedString(batch.hash, 16));
     }
 
     private static Fi atlasFile(String[] args) {
@@ -112,15 +147,16 @@ public final class UpstreamTerrainDrawProbe {
     }
 
     private static final class TerrainBatch extends Batch {
-        final Seq<AtlasRegion> edgeSources = Core.atlas.getRegions().select(r -> r.name.endsWith("-edge"));
+        final Seq<AtlasRegion> edgeSources;
         final TerrainTarget target;
         long hash = 0xcbf29ce484222325L;
         int commands;
         int copper;
         int edges;
 
-        TerrainBatch(TerrainTarget target) {
+        TerrainBatch(TerrainTarget target, boolean trace) {
             this.target = target;
+            edgeSources = trace ? Core.atlas.getRegions().select(r -> r.name.endsWith("-edge")) : null;
         }
 
         @Override
@@ -132,6 +168,19 @@ public final class UpstreamTerrainDrawProbe {
         protected void draw(TextureRegion region, float x, float y, float originX, float originY,
                             float width, float height, float rotation) {
             if (region == Core.atlas.find("error")) throw new IllegalStateException("Missing terrain sprite");
+            var page = (AtlasPageTexture) region.texture;
+            if (edgeSources != null) collect(region, page, x, y, originX, originY, width, height, rotation);
+            if (target != null) {
+                if (mixColorPacked != Color.clearFloatBits) {
+                    throw new IllegalStateException("Unexpected terrain mix color");
+                }
+                target.draw(page.index, region.getX(), region.getY(), region.width, region.height,
+                    x, y, originX, originY, width, height, rotation, Color.floatToIntColor(colorPacked));
+            }
+        }
+
+        private void collect(TextureRegion region, AtlasPageTexture page, float x, float y,
+                             float originX, float originY, float width, float height, float rotation) {
             commands++;
             if (region instanceof AtlasRegion named) {
                 if (named.name.startsWith("ore-copper")) copper++;
@@ -145,18 +194,10 @@ public final class UpstreamTerrainDrawProbe {
                 }
             }
 
-            var page = (AtlasPageTexture) region.texture;
             hash = mix(hash, page.pageName.hashCode());
             for (float value : new float[]{x, y, originX, originY, width, height, rotation,
                     region.u, region.v, region.u2, region.v2, z, colorPacked, mixColorPacked}) {
                 hash = mix(hash, Float.floatToRawIntBits(value));
-            }
-            if (target != null) {
-                if (rotation != 0f || mixColorPacked != Color.clearFloatBits) {
-                    throw new IllegalStateException("Unexpected terrain rotation or mix color");
-                }
-                target.draw(page.index, region.getX(), region.getY(), region.width, region.height,
-                    x, y, width, height, Color.floatToIntColor(colorPacked));
             }
         }
 

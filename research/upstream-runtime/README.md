@@ -398,3 +398,32 @@ The upstream source boundaries are
 [`Logic.java`](https://github.com/Anuken/Mindustry/blob/19a0f40d44514f4802a8b79770456e7e32e34da0/core/src/mindustry/core/Logic.java),
 [`ItemTurret.java`](https://github.com/Anuken/Mindustry/blob/19a0f40d44514f4802a8b79770456e7e32e34da0/core/src/mindustry/world/blocks/defense/turrets/ItemTurret.java)
 and [`WaveSpawner.java`](https://github.com/Anuken/Mindustry/blob/19a0f40d44514f4802a8b79770456e7e32e34da0/core/src/mindustry/ai/WaveSpawner.java).
+
+### Run a live upstream factory session
+
+[Issue #99](https://github.com/levkeveli/Min3DStry/issues/99) combines
+the pinned Glacier world, upstream game updates, Citro2D and libctru input
+in one application. The fixture places a junction, two east-facing
+conveyors and a router on four adjacent surface tiles in the existing
+Glacier viewport. Placement can replace natural blocks along that strip.
+The frame uses original floor and building draw calls, including the
+copper sprite drawn by `ConveyorBuild.draw` as it moves.
+
+Use `-Pprobe=live-session` with the same pinned Gradle inputs and map
+and atlas arguments as the terrain probe. `runProbeJvm` exercises the
+same session with a scripted input sequence and verifies that the ticks
+and the copper sprite position stay fixed while paused. The reference
+delivers copper at tick 57 after inserting it at tick zero and pausing
+at tick 10. `generateC` selects the native entry point.
+
+Build the RomFS assets with `arm11/prepare_terrain_assets.py --live-session`,
+then run `arm11/build.sh` with the generated C directory, a new output
+directory and the packed assets directory. The live page holds 36
+official regions, including the conveyor animations, in 256 × 256
+RGBA8 (256 KiB).
+
+Stage the same Glacier map and atlas metadata on the SD. Press **A** to
+send copper, **B** to collect it from the router, **X** to pause or
+resume, and **START** to exit. The simulation clock uses libctru's
+monotonic counter and advances in 60 Hz steps. The viewport and fixtures
+are fixed for this integration milestone.

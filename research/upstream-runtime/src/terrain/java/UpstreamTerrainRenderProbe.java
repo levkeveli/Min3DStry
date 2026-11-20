@@ -4,8 +4,14 @@ import org.teavm.interop.Import;
 import org.teavm.interop.c.Include;
 
 public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProbe.TerrainTarget {
+    private final boolean reportFrame;
+
+    UpstreamTerrainRenderProbe(boolean reportFrame) {
+        this.reportFrame = reportFrame;
+    }
+
     public static void main(String[] args) throws IOException {
-        UpstreamTerrainDrawProbe.capture(args, new UpstreamTerrainRenderProbe());
+        UpstreamTerrainDrawProbe.capture(args, new UpstreamTerrainRenderProbe(true));
     }
 
     @Override
@@ -17,8 +23,10 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
 
     @Override
     public void draw(int page, int left, int top, int width, int height,
-                     float x, float y, float drawWidth, float drawHeight, int color) {
-        if (NativeTerrain.draw(page, left, top, width, height, x, y, drawWidth, drawHeight, color) == 0) {
+                     float x, float y, float originX, float originY, float drawWidth, float drawHeight,
+                     float rotation, int color) {
+        if (NativeTerrain.draw(page, left, top, width, height, x, y, originX, originY,
+                drawWidth, drawHeight, rotation, color) == 0) {
             throw new IllegalStateException("Citro2D could not draw an upstream terrain region: "
                 + page + "," + left + "," + top + "+" + width + "x" + height);
         }
@@ -28,7 +36,7 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
     public void end() {
         int draws = NativeTerrain.end();
         if (draws == 0) throw new IllegalStateException("Citro2D terrain frame has no draws");
-        System.out.println("UPSTREAM_TERRAIN_FRAME draws=" + draws);
+        if (reportFrame) System.out.println("UPSTREAM_TERRAIN_FRAME draws=" + draws);
     }
 
     @Include(value = "m3ds_terrain_renderer.h", isSystem = true)
@@ -38,7 +46,8 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
 
         @Import(name = "m3ds_terrain_draw")
         static native int draw(int page, int left, int top, int width, int height,
-                               float x, float y, float drawWidth, float drawHeight, int color);
+                               float x, float y, float originX, float originY, float drawWidth,
+                               float drawHeight, float rotation, int color);
 
         @Import(name = "m3ds_terrain_end")
         static native int end();
