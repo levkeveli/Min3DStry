@@ -3,7 +3,7 @@
 @@ -15,9 +15,9 @@
   */
  package org.teavm.backend.lowlevel.transform;
- 
+
 -import com.carrotsearch.hppc.IntHashSet;
 -import com.carrotsearch.hppc.IntIntHashMap;
 -import com.carrotsearch.hppc.IntSet;
@@ -30,19 +30,19 @@
          RedundantJumpElimination.optimize(program);
          new PhiUpdater().updatePhis(program, parameterCount + 1);
      }
- 
+
 -    private void createSplitPrologue() {
 +    private BasicBlock createSplitPrologue() {
          fiberVar = program.createVariable();
          fiberVar.setLabel("fiber");
- 
+
 @@ -172,10 +174,14 @@
          resumeSwitch.setCondition(popInt.getReceiver());
          resumeSwitch.setLocation(location);
          switchStateBlock.add(resumeSwitch);
 +        return continueBlock;
      }
- 
+
      private void processBlock(BasicBlock block) {
 -        Map<Instruction, BitSet> splitInstructions = collectSplitInstructions(block);
 +        processBlock(block, collectSplitInstructions(block));

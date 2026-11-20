@@ -22,5 +22,5 @@
 +                types[receiver.getIndex()] = new InferenceType(InferenceKind.valueOf(type.name()), 0);
 +            }
          }
- 
+
          @Override
