@@ -120,8 +120,34 @@ class AudioAssetsTests(unittest.TestCase):
         self.write_map(
             [{"id": "test.tone", "source": "core/assets/sounds/test/tone.wav", "channels": 1}]
         )
+        trigger_file = self.upstream / "core" / "src" / "test" / "Triggers.java"
+        trigger_file.parent.mkdir(parents=True)
+        trigger_file.write_text("class Triggers { void click() { Sounds.uiButton.play(); } }\n", encoding="utf-8")
+        trigger_path = self.root / "triggers.json"
+        trigger_path.write_text(
+            json.dumps(
+                {
+                    "format": 1,
+                    "upstream_commit": COMMIT,
+                    "events": [
+                        {
+                            "id": "test.tone",
+                            "file": "core/src/test/Triggers.java",
+                            "symbol": "Sounds.uiButton.play()",
+                            "description": "test trigger",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
         manifest = build_audio_assets.convert_map(
-            self.upstream, self.map_path, self.root / "out", ffmpeg
+            self.upstream,
+            self.map_path,
+            self.root / "out",
+            ffmpeg,
+            triggers_path=trigger_path,
+            romfs_out=self.root / "romfs",
         )
         self.assertEqual(manifest["total_files"], 1)
         entry = manifest["entries"][0]
@@ -130,9 +156,56 @@ class AudioAssetsTests(unittest.TestCase):
         self.assertEqual(entry["bytes"], 1600)
         self.assertEqual(entry["rate"], 8000)
         self.assertEqual(entry["channels"], 1)
+        self.assertEqual(entry["trigger"]["file"], "core/src/test/Triggers.java")
+        self.assertEqual(entry["trigger"]["line"], 1)
         self.assertEqual(entry["source_sha256"], build_audio_assets.sha256_file(self.sounds / "test" / "tone.wav"))
         self.assertTrue((self.root / "out" / "test.tone.pcm").is_file())
         self.assertTrue((self.root / "out" / "audio-manifest.json").is_file())
+        index = (self.root / "romfs" / "audio-index.h").read_text(encoding="utf-8")
+        self.assertIn("M3DS_AUDIO_CLIP_COUNT 1U", index)
+        self.assertIn('"test.tone", "romfs:/audio/test.tone.pcm"', index)
+        self.assertIn('"core/src/test/Triggers.java", 1', index)
+
+    def test_trigger_map_validation(self) -> None:
+        self.make_tone()
+        self.write_map(
+            [{"id": "test.tone", "source": "core/assets/sounds/test/tone.wav", "channels": 1}]
+        )
+        entries = build_audio_assets.validate_map(
+            build_audio_assets.load_map(self.map_path), self.upstream
+        )
+        trigger_file = self.upstream / "core" / "src" / "test" / "Triggers.java"
+        trigger_file.parent.mkdir(parents=True)
+        trigger_file.write_text("line one\nSounds.uiButton.play();\n", encoding="utf-8")
+        valid = {
+            "format": 1,
+            "upstream_commit": COMMIT,
+            "events": [
+                {
+                    "id": "test.tone",
+                    "file": "core/src/test/Triggers.java",
+                    "symbol": "Sounds.uiButton.play()",
+                    "description": "test",
+                }
+            ],
+        }
+        triggers = build_audio_assets.validate_triggers(valid, entries, self.upstream)
+        self.assertEqual(triggers["test.tone"]["line"], 2)
+
+        for mutation in (
+            {"symbol": "missing.symbol()"},
+            {"file": "core/src/missing/File.java"},
+            {"id": "unknown.id"},
+        ):
+            bad = json.loads(json.dumps(valid))
+            bad["events"][0].update(mutation)
+            with self.assertRaises(build_audio_assets.AudioConversionError):
+                build_audio_assets.validate_triggers(bad, entries, self.upstream)
+        missing = json.loads(json.dumps(valid))
+        missing["events"] = []
+        with self.assertRaises(build_audio_assets.AudioConversionError):
+            build_audio_assets.validate_triggers(missing, entries, self.upstream)
+
 
     def test_sha256_is_stable(self) -> None:
         path = self.root / "data.bin"
