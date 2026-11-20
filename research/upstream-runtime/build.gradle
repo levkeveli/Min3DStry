@@ -32,6 +32,7 @@ def entryPoints = [
     world: 'UpstreamWorldLoadProbe',
     'world-save': 'UpstreamWorldSaveProbe',
     'world-roundtrip': 'UpstreamWorldRoundTripProbe',
+    'factory-ticks': 'UpstreamFactoryTickProbe',
     'world-stream': 'UpstreamWorldStreamProbe',
     'terrain-draw': 'UpstreamTerrainDrawProbe',
     'file-metadata': 'port.UpstreamFileMetadataProbe'
@@ -41,7 +42,8 @@ if (!entryPoints.containsKey(probe)) {
 }
 def entryPoint = entryPoints[probe]
 def usesMapSources = probe in ['map', 'map-sd']
-def usesWorldSources = probe in ['world', 'world-save', 'world-roundtrip', 'world-stream', 'terrain-draw']
+def usesWorldSources = probe in ['world', 'world-save', 'world-roundtrip', 'world-stream',
+                                 'factory-ticks', 'terrain-draw']
 def initializesContent = probe == 'content-init' || usesWorldSources
 def usesContentSources = probe == 'content' || initializesContent
 def usesExecutor = usesContentSources || probe == 'executor'
@@ -118,6 +120,9 @@ if (usesContentSources) {
 }
 if (usesWorldSources) {
     sourceSets.main.java.srcDir('src/world/java')
+}
+if (probe == 'factory-ticks') {
+    sourceSets.main.java.srcDir('src/gameplay/java')
 }
 if (usesWorldStream) {
     sourceSets.main.java.srcDir('src/world-stream/java')
@@ -294,6 +299,9 @@ teavm {
     all { mainClass = entryPoint }
     if (usesExecutor) {
         c { obfuscated = false }
+    }
+    if (probe == 'factory-ticks') {
+        c { maxHeapSize = 24 }
     }
 }
 
