@@ -262,4 +262,8 @@ teavm {
 
 if (probe == 'world') {
     apply from: 'gradle/world-compiler.gradle'
+    tasks.register('makeWorldSaveFixture', JavaExec) {
+        classpath = sourceSets.main.runtimeClasspath
+        mainClass = 'UpstreamCurrentSaveFixture'
+    }
 }
