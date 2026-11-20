@@ -13,10 +13,14 @@ REGIONS = (
     "ice-edge", "ice1", "ice2", "ice3", "ore-coal1", "ore-coal2", "ore-coal3",
     "ore-copper1", "ore-copper2", "ore-copper3", "stone1", "stone2", "stone3",
 )
+LIVE_REGIONS = (
+    "junction", "router", "item-copper",
+    *(f"conveyor-{variant}-{frame}" for variant in range(5) for frame in range(4)),
+)
 CONVERTER = Path(__file__).resolve().parents[3] / "tools" / "build_upstream_sprite_atlas.py"
 
 
-def write_layout(staged: Path) -> None:
+def write_layout(staged: Path, regions: tuple[str, ...]) -> None:
     entries = {}
     page_indices = {}
     with (staged / "regions.tsv").open(encoding="utf-8", newline="") as inventory:
@@ -25,7 +29,7 @@ def write_layout(staged: Path) -> None:
             page_indices.setdefault(row["page"], len(page_indices))
 
     lines = ['#include "sprites.h"', '', 'static const ArcAtlasRegion terrain_regions[] = {']
-    for name in REGIONS:
+    for name in regions:
         row = entries[name]
         position = [str(page_indices[row["page"]])]
         position.extend(str(int(row[key])) for key in ("left", "top", "width", "height"))
@@ -42,18 +46,20 @@ def main() -> None:
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--java", default="java")
     parser.add_argument("--tex3ds", default="tex3ds")
+    parser.add_argument("--live-session", action="store_true", help="pack the live factory sprites")
     args = parser.parse_args()
 
     output = args.output_dir.resolve()
     if output.exists():
         parser.error(f"output already exists: {output}")
     output.parent.mkdir(parents=True, exist_ok=True)
+    regions = REGIONS + LIVE_REGIONS if args.live_session else REGIONS
     with tempfile.TemporaryDirectory(dir=output.parent) as tmp:
         staged = Path(tmp) / "terrain"
         subprocess.run([sys.executable, str(CONVERTER), "--assets", str(args.assets),
                         "--server", str(args.server), "--output-dir", str(staged),
-                        "--java", args.java, "--tex3ds", args.tex3ds, *REGIONS], check=True)
-        write_layout(staged)
+                        "--java", args.java, "--tex3ds", args.tex3ds, *regions], check=True)
+        write_layout(staged, regions)
         staged.rename(output)
 
 

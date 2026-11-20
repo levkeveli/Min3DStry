@@ -325,3 +325,127 @@ The `-O2` ELF reserves 30.41 MiB in page-rounded load segments. With the
 16 MiB managed heap, 4 MiB linear heap and 256 KiB stack, the subtotal is
 50.66 MiB before GC metadata and other allocations. A fixed frame
 provides no sustained frame-time measurement.
+
+### Exercise upstream factory ticks
+
+Use `-Pprobe=factory-ticks` with the world probe's Gradle properties and
+pass the original Glacier path to `runProbeJvm`. The probe starts the
+world through Mindustry's `Logic.play`, gives an upstream conveyor one
+copper item, and calls the original `Logic.update` 240 times at a fixed
+60 Hz clock. It checks core inventory and the exact delivery tick. A
+second phase places a mechanical drill over four copper ore tiles and
+checks deliveries through the original router and conveyor through tick
+720. The probe initializes the upstream cache layers before creating the
+content and registers the block indexer and wave spawner before the world
+loads.
+
+The pinned Java release, generated Windows x64 C, and both Azahar 2126.2
+console profiles reported these results.
+
+```text
+UPSTREAM_FACTORY updates=240 wave=1 arrival=29 copper=201
+UPSTREAM_DRILL updates=720 wave=1 copper=203 arrivals=464=202,626=203
+```
+
+The C build links `logicids.dat`, the base-part list, and the schematics
+named by that list directly from the hash-checked server JAR.
+[DevkitARM build 44795739970](https://github.com/levkeveli/Min3DStry/actions/runs/44795739970)
+ran with C optimization disabled, a 24 MiB managed heap, a 4 MiB linear
+heap for the debug console, and a 256 KiB native stack. Its ELF load
+segments and those reservations total 67.50 MiB before GC bookkeeping
+and other application allocations.
+[DevkitARM build 44796141596](https://github.com/levkeveli/Min3DStry/actions/runs/44796141596)
+used the standard `-O2` flags and matched both traces in the Original and
+New 3DS Azahar profiles. The page-rounded ELF segments occupy 36.38 MiB.
+With the same heap and stack reservations, the subtotal is 64.63 MiB
+before bookkeeping and other allocations, above the 64 MiB Original 3DS
+budget. Physical-console memory and performance still need verification.
+Factory parity is tracked in #26.
+
+### Exercise upstream combat and the first Glacier wave
+
+[Issue #82](https://github.com/levkeveli/Min3DStry/issues/82) uses the same
+Glacier setup and fixed simulation clock as the factory probe. The probe
+feeds copper into an upstream conveyor that supplies a Duo. It runs the
+original `Logic.update` until the turret destroys a stationary Dagger.
+Holding the unit still isolates targeting, projectile motion and damage.
+The fixture uses Arc's `MockAudio` for the headless sound device.
+
+After the duel, it invokes `Logic.runWave` with Glacier's unchanged rules
+and counts the spawned enemy types. Glacier's first wave in this fixture
+spawns one Gamma. Ground pathfinding and subsequent waves are tracked in #30.
+
+Use the world probe's pinned Gradle properties with `-Pprobe=combat-ticks`
+and pass the original Glacier path to `runProbeJvm`. For a JVM reference
+with the unchanged server JAR, compile `UpstreamWorldLoadProbe.java`,
+`UpstreamSimulationWorld.java`, and `UpstreamCombatTickProbe.java` against
+that JAR, then run `UpstreamCombatTickProbe /path/to/glacier.msav`.
+
+The original v160.8 JVM ran three times with identical results. Generated
+Windows x64 C matched both traces. The [DevkitARM builds](https://github.com/levkeveli/Min3DStry/actions/runs/44805028740)
+at `-O0` and `-O2` matched them in the Original and New 3DS Azahar profiles.
+
+```text
+UPSTREAM_COMBAT delivery=29 shot=49 hit=62 destroyed=382 supplied=20
+UPSTREAM_WAVE next=2 groundSpawns=0 enemies=1 units=gamma=1
+```
+
+The `-O2` ARM11 image, 24 MiB managed heap, 4 MiB linear heap and 256 KiB
+stack total 64.99 MiB before GC metadata and other allocations.
+This exceeds the 64 MiB Original 3DS application budget.
+
+The upstream source boundaries are
+[`Logic.java`](https://github.com/Anuken/Mindustry/blob/19a0f40d44514f4802a8b79770456e7e32e34da0/core/src/mindustry/core/Logic.java),
+[`ItemTurret.java`](https://github.com/Anuken/Mindustry/blob/19a0f40d44514f4802a8b79770456e7e32e34da0/core/src/mindustry/world/blocks/defense/turrets/ItemTurret.java)
+and [`WaveSpawner.java`](https://github.com/Anuken/Mindustry/blob/19a0f40d44514f4802a8b79770456e7e32e34da0/core/src/mindustry/ai/WaveSpawner.java).
+
+### Run a live upstream factory session
+
+[Issue #99](https://github.com/levkeveli/Min3DStry/issues/99) combines
+the pinned Glacier world, upstream game updates, Citro2D and libctru input
+in one application. The fixture places a junction, two east-facing
+conveyors and a router on four adjacent surface tiles in the existing
+Glacier viewport. Placement can replace natural blocks along that strip.
+The frame uses original floor and building draw calls, including the
+copper sprite drawn by `ConveyorBuild.draw` as it moves.
+
+Use `-Pprobe=live-session` with the same pinned Gradle inputs and map
+and atlas arguments as the terrain probe. `runProbeJvm` exercises the
+same session with a scripted input sequence and verifies that the ticks
+and the copper sprite position stay fixed while paused. The reference
+delivers copper at tick 57 after inserting it at tick zero and pausing
+at tick 10. `generateC` selects the native entry point.
+
+Build the RomFS assets with `arm11/prepare_terrain_assets.py --live-session`,
+then run `arm11/build.sh` with the generated C directory, a new output
+directory and the packed assets directory. The live page holds 36
+official regions, including the conveyor animations, in 256 × 256
+RGBA8 (256 KiB).
+
+Stage the same Glacier map and atlas metadata on the SD. Press **A** to
+send copper, **B** to collect it from the router, **X** to pause or
+resume, and **START** to exit. The simulation clock uses libctru's
+monotonic counter and advances in 60 Hz steps. The viewport and fixtures
+are fixed for this integration milestone.
+
+The Windows emulator verifier uses Azahar's default keyboard bindings
+and saves the ready and paused screenshots and native logs alongside
+the build. Run from the repository root:
+
+```sh
+python tools/verify_upstream_live.py --rom /path/to/upstream-probe.3dsx \
+  --azahar /path/to/azahar.exe --glacier /path/to/glacier.msav --atlas /path/to/sprites.aatls
+```
+
+The [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44814855208)
+passed the interactive check at `-O0` and `-O2` in both Azahar 2126.2
+console profiles. At `-O2`, both runs sent copper at tick 3 and reached the
+router at tick 60, matching the Java reference's 57-tick travel time.
+The Old profile paused and resumed at tick 5, and the New profile paused
+and resumed at tick 7. Both runs collected the copper and exited cleanly.
+The paused screenshots show the original copper sprite on the conveyor.
+
+The `-O2` ELF load segments total 39.95 MiB after page rounding. With the
+24 MiB managed heap, 4 MiB linear heap and 256 KiB native stack, the
+mapped and reserved subtotal is 68.20 MiB. Physical-console memory and
+frame times still need verification.

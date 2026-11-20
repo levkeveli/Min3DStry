@@ -32,14 +32,19 @@ def entryPoints = [
     'world-save': 'UpstreamWorldSaveProbe',
     'world-roundtrip': 'UpstreamWorldRoundTripProbe',
     'terrain-draw': 'UpstreamTerrainDrawProbe',
-    'terrain-render': 'UpstreamTerrainRenderProbe'
+    'terrain-render': 'UpstreamTerrainRenderProbe',
+    'factory-ticks': 'UpstreamFactoryTickProbe',
+    'combat-ticks': 'UpstreamCombatTickProbe',
+    'live-session': 'UpstreamLiveSessionProbe'
 ]
 if (!entryPoints.containsKey(probe)) {
     throw new GradleException("Expected -Pprobe to be one of ${entryPoints.keySet()}")
 }
 def entryPoint = entryPoints[probe]
 def usesMapSources = probe in ['map', 'map-sd']
-def usesWorldSources = probe in ['world', 'world-save', 'world-roundtrip', 'terrain-draw', 'terrain-render']
+def usesSimulation = probe in ['factory-ticks', 'combat-ticks', 'live-session']
+def usesTerrain = probe in ['terrain-render', 'live-session']
+def usesWorldSources = probe in ['world', 'world-save', 'world-roundtrip', 'terrain-draw', 'terrain-render'] || usesSimulation
 def initializesContent = probe == 'content-init' || usesWorldSources
 def usesContentSources = probe == 'content' || initializesContent
 def usesExecutor = usesContentSources || probe == 'executor'
@@ -112,11 +117,14 @@ if (usesContentSources) {
 if (usesWorldSources) {
     sourceSets.main.java.srcDir('src/world/java')
 }
-if (probe == 'terrain-render') {
+if (usesTerrain) {
     sourceSets.main.java.srcDir('src/terrain/java')
 }
+if (usesSimulation) {
+    sourceSets.main.java.srcDir('src/gameplay/java')
+}
 dependencies {
-    if (usesMapSources || probe == 'terrain-render') {
+    if (usesMapSources || usesTerrain) {
         implementation 'org.teavm:teavm-interop:0.16.0'
     }
 }
@@ -248,7 +256,8 @@ tasks.named('compileJava') { dependsOn 'prepareUpstreamProbe' }
 tasks.register('runProbeJvm', JavaExec) {
     dependsOn 'classes'
     classpath = sourceSets.main.runtimeClasspath
-    mainClass = ['map-sd': entryPoints.map, 'terrain-render': entryPoints['terrain-draw']]
+    mainClass = ['map-sd': entryPoints.map, 'terrain-render': entryPoints['terrain-draw'],
+                 'live-session': 'UpstreamLiveSessionReference']
         .getOrDefault(probe, entryPoint)
 }
 
@@ -266,6 +275,9 @@ teavm {
     all { mainClass = entryPoint }
     if (usesExecutor) {
         c { obfuscated = false }
+    }
+    if (usesSimulation) {
+        c { maxHeapSize = 24 }
     }
 }
 

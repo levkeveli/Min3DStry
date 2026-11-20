@@ -161,7 +161,9 @@
       "issue": 26,
       "evidence": [
         "src/render/factory_demo.c",
-        "docs/rendering/citro2d-prototype.md"
+        "docs/rendering/citro2d-prototype.md",
+        "research/upstream-runtime/README.md",
+        "research/upstream-runtime/src/gameplay/java/UpstreamFactoryTickProbe.java"
       ]
     },
     {
@@ -180,7 +182,10 @@
       "weight": 8,
       "stage": "planned",
       "issue": 30,
-      "evidence": []
+      "evidence": [
+        "research/upstream-runtime/src/gameplay/java/UpstreamCombatTickProbe.java",
+        "research/upstream-runtime/README.md"
+      ]
     },
     {
       "id": "touch-build-palette",
