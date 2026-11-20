@@ -66,6 +66,8 @@ def build_3dslink_command(
     if stream_logs:
         cmd.append("-s")
     cmd.append(resolved_rom)
+    if stream_logs:
+        cmd.append("m3ds-stream-logs")
     return cmd
 
 
