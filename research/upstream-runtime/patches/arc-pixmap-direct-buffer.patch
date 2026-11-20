@@ -76,7 +76,7 @@
          //read with the pure java implementation
          try{
              PngReader reader = new PngReader();
-@@ -773,23 +733,10 @@
+@@ -773,22 +733,13 @@
      }
 
      private void load(int width, int height){
@@ -96,15 +96,17 @@
 -            this.width = width;
 -            this.height = height;
 -            this.pixels = ByteBuffer.allocateDirect(width * height * 4);
--        }
 +        this.handle = -1;
 +        this.width = width;
 +        this.height = height;
 +        this.pixels = ByteBuffer.allocateDirect(width * height * 4);
++        // TeaVM C allocates direct buffers with malloc. Blank Pixmaps start transparent.
++        for(int i = 0; i < pixels.capacity(); i++){
++            pixels.put(i, (byte)0);
+         }
      }
 
-     @Override
-@@ -820,83 +767,6 @@
+@@ -820,83 +771,6 @@
      }
 
      static void copyMem(ByteBuffer src, int srcOffset, ByteBuffer dst, int dstOffset, int len){
