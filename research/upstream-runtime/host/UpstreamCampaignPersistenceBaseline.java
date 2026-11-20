@@ -3,6 +3,7 @@ import arc.Core;
 import arc.assets.AssetManager;
 import arc.backend.headless.HeadlessApplication;
 import arc.files.Fi;
+import arc.struct.Seq;
 import mindustry.Vars;
 import mindustry.content.Blocks;
 import mindustry.content.Items;
@@ -10,6 +11,7 @@ import mindustry.content.Liquids;
 import mindustry.content.Planets;
 import mindustry.content.SectorPresets;
 import mindustry.content.TechTree;
+import mindustry.ctype.UnlockableContent;
 import mindustry.core.ContentLoader;
 import mindustry.core.Logic;
 import mindustry.core.NetServer;
@@ -146,7 +148,10 @@ public class UpstreamCampaignPersistenceBaseline {
         info.winWave = 15;
         info.bestCoreType = Blocks.coreShard;
         info.storageCapacity = 4000;
-        info.resources.add(Items.copper, Items.lead);
+        // SectorInfo.resources is arc.struct.Seq<UnlockableContent>; add elements explicitly.
+        Seq<UnlockableContent> resources = info.resources;
+        resources.add(Items.copper);
+        resources.add(Items.lead);
         SectorPresets.groundZero.sector.saveInfo();
         SectorPresets.groundZero.unlock();
 
@@ -179,9 +184,16 @@ public class UpstreamCampaignPersistenceBaseline {
             s.save = null;
             s.info = new SectorInfo();
         });
+        // Recreating ContentLoader + createBaseContent() + init() rebuilds Planets/SectorPresets and runs Planet.init() + SectorPreset.init() (SectorPreset.initialize()).
         Vars.content = new ContentLoader();
         Vars.content.createBaseContent();
         Vars.content.init();
+        if (SectorPresets.groundZero.originalPosition != 15
+                || SectorPresets.groundZero.sector.id != 170
+                || SectorPresets.frozenForest.originalPosition != 86
+                || SectorPresets.frozenForest.sector.id != 64) {
+            throw new IllegalStateException("Reloaded SectorPreset ID remapping mismatch");
+        }
 
         SectorPresets.groundZero.sector.loadInfo();
         SectorPresets.groundZero.sector.save = saves.new SaveSlot(saveFile);
@@ -197,7 +209,9 @@ public class UpstreamCampaignPersistenceBaseline {
         SectorInfo reloadedInfo = SectorPresets.groundZero.sector.info;
         if (!reloadedInfo.wasCaptured || !reloadedInfo.hasCore
                 || reloadedInfo.wave != 15 || reloadedInfo.winWave != 15
-                || reloadedInfo.storageCapacity != 4000 || reloadedInfo.bestCoreType != Blocks.coreShard) {
+                || reloadedInfo.storageCapacity != 4000 || reloadedInfo.bestCoreType != Blocks.coreShard
+                || !reloadedInfo.resources.contains(Items.copper)
+                || !reloadedInfo.resources.contains(Items.lead)) {
             throw new IllegalStateException("Reloaded groundZero SectorInfo mismatch");
         }
         if (!SectorPresets.groundZero.sector.isCaptured()) {
@@ -219,11 +233,13 @@ public class UpstreamCampaignPersistenceBaseline {
 
     private static void verifyResetAndInvalidData() throws IOException {
         // Test legacy Blocks.water -> Liquids.water sanitization in Sector.loadInfo() (Sector.java:109-116).
-        SectorPresets.groundZero.sector.info.resources.add(Blocks.water);
+        // Blocks.water and Liquids.water both extend UnlockableContent; Sector.loadInfo() replaces Blocks.water in Seq<UnlockableContent> resources.
+        Seq<UnlockableContent> resources = SectorPresets.groundZero.sector.info.resources;
+        resources.add(Blocks.water);
         SectorPresets.groundZero.sector.saveInfo();
         SectorPresets.groundZero.sector.loadInfo();
-        if (SectorPresets.groundZero.sector.info.resources.contains(Blocks.water)
-                || !SectorPresets.groundZero.sector.info.resources.contains(Liquids.water)) {
+        Seq<UnlockableContent> migratedResources = SectorPresets.groundZero.sector.info.resources;
+        if (migratedResources.contains(Blocks.water) || !migratedResources.contains(Liquids.water)) {
             throw new IllegalStateException("Sector.loadInfo() did not migrate Blocks.water to Liquids.water");
         }
 
