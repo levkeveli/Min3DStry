@@ -63,8 +63,61 @@ Use `-Pprobe=content generateC` with `-Dorg.gradle.jvmargs=-Xmx3g` to reproduce
 the compiler check. It now passes the anonymous class lookup during analysis.
 The [resource probe](../README.md#read-pinned-arc-resources) documents the
 adaptation used by content mode for Arc's classpath lookup. C generation now
-stops at the executor, future, and processor-count APIs reached during static
-initialization. Native registry and factory parity are tracked in #55.
+also uses the fixed executor substitutions described below. Native building
+factory parity is tracked in #55.
+
+## Fixed executor
+
+Use `-Pprobe=executor`, `-ParcCheckout=/path/to/Arc`, and the standard JVM and
+TeaVM C generation commands to check an executor created by upstream
+`arc.util.Threads.executor`. The JVM uses its JDK executor. TeaVM uses the
+port's fixed executor through its [substitution policy](https://www.teavm.org/docs/runtime/compiler-extensions.html#substitutionpolicy).
+The test verifies task results, propagated exceptions, timed waits,
+cancellation, and shutdown in each environment. The generated native Windows
+program and the [devkitARM build](https://github.com/levkeveli/Min3DStry/actions/runs/44770447356)
+matched the JVM, including both console profiles in Azahar 2126.2.
+
+The generated Arc `OS.java` reports one execution lane for the cooperative
+TeaVM C scheduler, avoiding the unsupported JVM processor-count call. The
+fixed executor uses managed Java threads and drains its queue as work arrives.
+Tasks can yield at TeaVM suspension points. Contended monitors in code that
+TeaVM compiles as synchronous are still a runtime limitation. Native
+parallel execution, dynamic pool variants, and the complete JDK concurrency
+API are outside this probe.
+
+## Initialize content and instantiate building factories
+
+Use `-Pprobe=content-init`, `-ParcCheckout=/path/to/Arc`, and
+`-Dorg.gradle.jvmargs=-Xmx3g` with the runtime build commands. The driver calls
+upstream `ContentLoader.init` with a headless `Settings` and `GameState`,
+checks RGBA writes and copies through Arc Pixmap, and instantiates the factory
+for each of the 447 registered blocks. Compare its `UPSTREAM_BUILDING` records
+with the factory reference above.
+
+The build applies a patch to the pinned Arc Pixmap. It uses Arc's existing
+direct-buffer allocation and Java PNG decoder, with its Java 16 buffer-copy
+path. It explicitly clears blank direct buffers because TeaVM C allocates them
+through `malloc`. Image decoding and GPU uploads require separate tests.
+
+For Windows x64, run
+`python3 arm11/fix_reflection_lifetime.py build/generated/teavm/c` before
+compiling the generated C. The ARM11 build runs the same fix automatically.
+TeaVM 0.16.0 emitted three building types' reflection descriptors as local
+compound literals. The fix gives them static storage so upstream factory
+discovery can read them after class initialization.
+
+The fix also roots the receiver and arguments of reflective constructors
+across their allocations. It pins the new instance while the constructor
+runs. The C emitter treated the reflective invocation as an intrinsic that
+could skip garbage collection bookkeeping. In a separate Windows C test,
+forcing collection inside a reflective constructor reproduced the lost
+instance, and the patched program returned the expected class and payload.
+
+The [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44778519202)
+completed initialization, passed the RGBA copy check, and matched all 447
+ordered JVM factory records in both Azahar 2126.2 console profiles. Both
+emulator records produced the factory reference SHA-256 above. Physical
+hardware and map loading still require verification.
 
 ## Save writer baseline
 

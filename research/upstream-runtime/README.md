@@ -110,7 +110,27 @@ reference when bringing up upstream world loading on ARM11.
 ### Check the upstream content registry and building factories
 
 The [JVM content and factory probes](host/README.md) compare the pinned release
-with the Block class adapted for TeaVM. The content mode is experimental.
+with the Block class adapted for TeaVM. Use `-Pprobe=content` and
+`-ParcCheckout=/path/to/Arc` with the ARM11 build instructions. Set
+`-Dorg.gradle.jvmargs=-Xmx3g` for C generation. The
+[devkitARM content build](https://github.com/levkeveli/Min3DStry/actions/runs/44770447356)
+registered all 922 built-in entries in both Azahar 2126.2 console profiles.
+Their ordered type, ID, and name records matched the pinned JVM and generated
+Windows x64 programs. With debug logging enabled, extract those records using
+
+```sh
+grep 'Debug.Emulated' azahar_log.txt | sed -n 's/^.* UPSTREAM_CONTENT/UPSTREAM_CONTENT/p' > registry.tsv
+sha256sum registry.tsv
+```
+
+Both logs produced
+`4bf0187404d8be39036dcda871423de4fee9278e0bae6f220831839496d6895e`.
+This covers base content registration. Native initialization and instance
+checks for building factories are tracked in #55.
+
+The [content initialization probe](host/README.md#initialize-content-and-instantiate-building-factories)
+also runs upstream `ContentLoader.init`, tests Arc pixel buffers, and creates
+one building from each of the 447 registered block factories.
 
 ### Read pinned Arc resources
 
