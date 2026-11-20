@@ -207,3 +207,18 @@ returned it in both Original and New 3DS modes in Azahar 2126.2. The probe
 exercises the classpath fallback, including a failed filesystem lookup for the
 internal handle. It has not verified reading a real file through Arc on SD or
 running on physical hardware.
+
+### Exercise upstream factory ticks
+
+Use `-Pprobe=factory-ticks` with the world probe's Gradle properties and
+pass the original Glacier path to `runProbeJvm`. The probe starts the
+world through Mindustry's `Logic.play`, gives an upstream conveyor one
+copper item, and calls the original `Logic.update` 240 times at a fixed
+60 Hz clock. It checks core inventory and the exact delivery tick.
+
+The pinned Java release reports
+`UPSTREAM_FACTORY updates=240 wave=1 arrival=29 copper=201`.
+The C build links `logicids.dat`, the base-part list, and the schematics
+named by that list directly from the hash-checked server JAR. The probe
+allows a 24 MiB managed heap for the active upstream simulation. Factory
+parity on ARM11 is tracked in #26.
