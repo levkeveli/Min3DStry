@@ -9,20 +9,34 @@ repositories { mavenCentral() }
 
 def revision = '19a0f40d44514f4802a8b79770456e7e32e34da0'
 def upstreamFile = 'core/src/mindustry/logic/LogicOp.java'
+def glacier = 'core/assets/maps/default/glacier.msav'
 def upstream = providers.gradleProperty('upstreamCheckout')
+def probe = providers.gradleProperty('probe').getOrElse('logic')
+if (!(probe in ['logic', 'map'])) {
+    throw new GradleException('Expected -Pprobe=logic or -Pprobe=map')
+}
+def entryPoint = probe == 'map' ? 'mindustry.maps.UpstreamMapProbe' : 'mindustry.logic.UpstreamLogicProbe'
 def referenceJar = file(providers.gradleProperty('referenceJar').getOrElse('server-release.jar'))
 def sourceDir = layout.buildDirectory.dir('upstream-src')
 def sourceFile = sourceDir.map { it.file('mindustry/logic/LogicOp.java') }
+def mapFile = sourceDir.map { it.file('mindustry/maps/GlacierFixture.java') }
 
 dependencies { implementation files(referenceJar) }
 sourceSets.main.java.srcDir(sourceDir)
+if (probe == 'map') {
+    sourceSets.main.java.srcDir('src/map/java')
+}
 tasks.withType(JavaCompile).configureEach { options.release = 17 }
 
 tasks.register('prepareUpstreamProbe') {
     inputs.property('revision', revision)
     inputs.property('upstreamCheckout', upstream)
+    inputs.property('probe', probe)
     inputs.file(referenceJar)
     outputs.file(sourceFile)
+    if (probe == 'map') {
+        outputs.file(mapFile)
+    }
     doLast {
         def source = providers.exec {
             commandLine 'git', '-C', upstream.get(), 'show', "${revision}:${upstreamFile}"
@@ -34,6 +48,23 @@ tasks.register('prepareUpstreamProbe') {
         def output = sourceFile.get().asFile
         output.parentFile.mkdirs()
         output.bytes = source
+        if (probe == 'map') {
+            def bytes = providers.exec {
+                commandLine 'git', '-C', upstream.get(), 'show', "${revision}:${glacier}"
+            }.standardOutput.asBytes.get()
+            def encoded = Base64.encoder.encodeToString(bytes)
+            // The fixed fixture fits in a Java class-file string constant.
+            if (encoded.length() > 65535) {
+                throw new GradleException('Glacier fixture exceeds the class-file string limit')
+            }
+            def fixture = mapFile.get().asFile
+            fixture.parentFile.mkdirs()
+            fixture.setText("""package mindustry.maps;
+final class GlacierFixture {
+    static final String BASE64 = "${encoded}";
+}
+""", 'UTF-8')
+        }
     }
 }
 
@@ -42,7 +73,7 @@ tasks.named('compileJava') { dependsOn 'prepareUpstreamProbe' }
 tasks.register('runProbeJvm', JavaExec) {
     dependsOn 'classes'
     classpath = sourceSets.main.runtimeClasspath
-    mainClass = 'mindustry.logic.UpstreamLogicProbe'
+    mainClass = entryPoint
 }
 
-teavm { all { mainClass = 'mindustry.logic.UpstreamLogicProbe' } }
+teavm { all { mainClass = entryPoint } }
