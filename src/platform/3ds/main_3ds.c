@@ -1,10 +1,21 @@
 #include <3ds.h>
 #include <citro2d.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "citro2d_backend.h"
 #include "platform/hardware_profile.h"
 #include "render/scene_2d.h"
+
+static void m3ds_emit_debug_line(const char *line) {
+    if (!line) {
+        return;
+    }
+    size_t len = strlen(line);
+    if (len > 0u) {
+        (void)svcOutputDebugString(line, (s32)len);
+    }
+}
 
 int main(int argc, char *argv[]) {
     (void)argc;
@@ -21,6 +32,9 @@ int main(int argc, char *argv[]) {
     if (m3ds_hardware_probe(&hw_profile)) {
         m3ds_hardware_profile_format(&hw_profile, hw_summary, sizeof(hw_summary));
     }
+    char dbg_line[192];
+    snprintf(dbg_line, sizeof(dbg_line), "[MIN3DSTRY] HW: %s\n", hw_summary);
+    m3ds_emit_debug_line(dbg_line);
 
     C3D_RenderTarget *top = C2D_CreateScreenTarget(GFX_TOP, GFX_LEFT);
 
@@ -32,6 +46,7 @@ int main(int argc, char *argv[]) {
     m3ds_citro2d_backend_init(&backend, &c2d_ctx, top);
 
     M3dsDrawStats stats = {0};
+    bool emitted_frame_diag = false;
 
     while (aptMainLoop()) {
         hidScanInput();
@@ -94,6 +109,31 @@ int main(int argc, char *argv[]) {
         printf("\x1b[11;1HD-Pad/CPad: Pan  A: Pause\x1b[K");
         printf("\x1b[12;1HY: Reset Cam     START: Exit\x1b[K");
         printf("\x1b[14;1H%s\x1b[K", hw_summary);
+
+        if (!emitted_frame_diag && scene.tick >= 30u) {
+            snprintf(
+                dbg_line,
+                sizeof(dbg_line),
+                "[MIN3DSTRY] FRAME tick=%lu paused=%d cam=(%.1f,%.1f) "
+                "draw=R:%lu,L:%lu,T:%lu,C:%lu cull=%lu sw=%lu drop=%lu "
+                "cpu=%.2f%% gpu=%.2f%% cmdbuf=%.2f%%\n",
+                (unsigned long)scene.tick,
+                scene.paused ? 1 : 0,
+                (double)scene.camera_x,
+                (double)scene.camera_y,
+                (unsigned long)stats.drawn_rects,
+                (unsigned long)stats.drawn_lines,
+                (unsigned long)stats.drawn_triangles,
+                (unsigned long)stats.drawn_circles,
+                (unsigned long)stats.culled_primitives,
+                (unsigned long)stats.state_switches,
+                (unsigned long)stats.budget_dropped,
+                (double)(C3D_GetProcessingTime() * 6.0f),
+                (double)(C3D_GetDrawingTime() * 6.0f),
+                (double)(C3D_GetCmdBufUsage() * 100.0f));
+            m3ds_emit_debug_line(dbg_line);
+            emitted_frame_diag = true;
+        }
     }
 
     C2D_Fini();
