@@ -1,0 +1,60 @@
+{
+  "format": 1,
+  "upstream_commit": "19a0f40d44514f4802a8b79770456e7e32e34da0",
+  "events": [
+    {
+      "id": "ui.button",
+      "file": "core/src/mindustry/core/UI.java",
+      "symbol": "Sounds.uiButton.play()",
+      "description": "UI click listener"
+    },
+    {
+      "id": "ui.unlock",
+      "file": "core/src/mindustry/ui/dialogs/ResearchDialog.java",
+      "symbol": "Sounds.uiUnlock.play()",
+      "description": "Research unlock"
+    },
+    {
+      "id": "wave.spawn",
+      "file": "core/src/mindustry/core/Control.java",
+      "symbol": "Sounds.waveSpawn.play()",
+      "description": "Wave spawn"
+    },
+    {
+      "id": "shoot.duo",
+      "file": "core/src/mindustry/content/Blocks.java",
+      "symbol": "shootSound = Sounds.shootDuo;",
+      "description": "Duo turret fire"
+    },
+    {
+      "id": "enemy.kill",
+      "file": "core/src/mindustry/type/UnitType.java",
+      "symbol": "Sounds.unitExplode1",
+      "description": "Small unit death explosion"
+    },
+    {
+      "id": "conveyor.loop",
+      "file": "core/src/mindustry/world/blocks/distribution/Conveyor.java",
+      "symbol": "ambientSound = Sounds.loopConveyor;",
+      "description": "Conveyor ambient loop"
+    },
+    {
+      "id": "drill.loop",
+      "file": "core/src/mindustry/world/blocks/production/Drill.java",
+      "symbol": "ambientSound = Sounds.loopDrill;",
+      "description": "Drill ambient loop"
+    },
+    {
+      "id": "block.place",
+      "file": "core/src/mindustry/world/Block.java",
+      "symbol": "Sounds.blockPlace1;",
+      "description": "Size-1 block placement"
+    },
+    {
+      "id": "block.break",
+      "file": "core/src/mindustry/world/Block.java",
+      "symbol": "Sounds.blockBreak1;",
+      "description": "Size-1 block break"
+    }
+  ]
+}

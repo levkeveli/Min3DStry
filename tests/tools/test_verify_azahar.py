@@ -3,6 +3,7 @@ import sys
 import unittest
 import zlib
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
 import verify_azahar  # noqa: E402
@@ -59,8 +60,18 @@ class VerifyAzaharTests(unittest.TestCase):
             "[   2.94] Render.OpenGL <Info> driver.cpp:133: GL_VERSION: 4.3.0\n"
             "[   2.94] Render.OpenGL <Info> driver.cpp:135: GL_RENDERER: Intel(R) Arc(TM) Graphics\n"
             "[   3.95] Kernel.SVC <Debug> svc.cpp:100: [MIN3DSTRY] HW: New 3DS XL (N3DS, 804 MHz, L2:on, AppMem:124 MiB, FIRM:2.50.11)\n"
+            "[   3.95] Kernel.SVC <Debug> svc.cpp:100: [MIN3DSTRY] ATLAS loaded\n"
             "[   3.96] Debug.Emulated <Debug> svc.cpp:100: [MIN3DSTRY] PARITY scenario=starter_copper_defense_v1 ticks=240 hash=0x11223344 copper=25 delivered=14 killed=2 hp=200\n"
             "[   3.97] Debug.Emulated <Debug> svc.cpp:100: [MIN3DSTRY] AUDIO backend=ndsp state=fallback_no_dsp rc=0xd8e06406 rate=22050 voices=0/8 clips=2\n"
+            "[   3.97] Debug.Emulated <Debug> svc.cpp:100: [MIN3DSTRY] AUDIO_ROMFS status=ok clips=3 bytes=251916 ui=0\n"
+            "[   3.98] Debug.Emulated <Debug> svc.cpp:100: [MIN3DSTRY] AUDIO_EVENT wave.spawn spawned=2 clip=2 voice=0\n"
+            "[   3.98] Debug.Emulated <Debug> svc.cpp:100: [MIN3DSTRY] AUDIO_EVENT shoot.duo fired=3 clip=3 voice=0\n"
+            "[   3.98] Debug.Emulated <Debug> svc.cpp:100: [MIN3DSTRY] AUDIO_EVENT enemy.kill killed=1 clip=4 voice=0\n"
+            "[   3.98] Debug.Emulated <Debug> svc.cpp:100: [MIN3DSTRY] AUDIO_EVENT conveyor.loop clip=5 voice=0\n"
+            "[   3.98] Debug.Emulated <Debug> svc.cpp:100: [MIN3DSTRY] AUDIO_EVENT drill.loop clip=6 voice=0\n"
+            "[   3.98] Debug.Emulated <Debug> svc.cpp:100: [MIN3DSTRY] AUDIO_EVENT block.place clip=1 voice=0\n"
+            "[   3.98] Debug.Emulated <Debug> svc.cpp:100: [MIN3DSTRY] AUDIO_EVENT block.break clip=0 voice=0\n"
+            "[   3.98] Debug.Emulated <Debug> svc.cpp:100: [MIN3DSTRY] MEM app=96MiB reserve=16MiB budget=1048576 used=553728 peak=553728 remaining=494848 world=480000/524288 textures=8192/262144 transient=65536/262144 failures=0 status=ok\n"
             "[   4.45] Kernel.SVC <Debug> svc.cpp:100: [MIN3DSTRY] FRAME tick=30 paused=0 cam=(-88.0,-72.0) "
             "draw=R:322,L:5,T:0,C:42 cull=77 sw=1 drop=0 cpu=3.12% gpu=1.45% cmdbuf=2.10%\n"
         )
@@ -68,6 +79,7 @@ class VerifyAzaharTests(unittest.TestCase):
         self.assertEqual(parsed["renderer"], "Intel(R) Arc(TM) Graphics")
         self.assertEqual(parsed["gl_version"], "4.3.0")
         self.assertIn("New 3DS XL (N3DS, 804 MHz", parsed["hw_line"])
+        self.assertTrue(parsed["atlas_loaded"])
         self.assertEqual(parsed["parity"]["trace_hash"], "0x11223344")
         self.assertEqual(parsed["parity"]["enemies_killed"], 2)
         self.assertEqual(parsed["audio"]["backend"], "ndsp")
@@ -77,12 +89,51 @@ class VerifyAzaharTests(unittest.TestCase):
         self.assertEqual(parsed["audio"]["voices"], 0)
         self.assertEqual(parsed["audio"]["max_voices"], 8)
         self.assertEqual(parsed["audio"]["clips"], 2)
+        self.assertEqual(parsed["audio_romfs"]["status"], "ok")
+        self.assertEqual(parsed["audio_romfs"]["clips"], 3)
+        self.assertEqual(parsed["audio_romfs"]["bytes"], 251916)
+        self.assertEqual(parsed["audio_romfs"]["ui_clip"], 0)
+        self.assertEqual(parsed["audio_event"]["name"], "wave.spawn")
+        self.assertEqual(parsed["audio_event"]["spawned"], 2)
+        self.assertEqual(parsed["audio_event"]["clip"], 2)
+        self.assertEqual(parsed["audio_event"]["voice"], 0)
+        self.assertEqual(parsed["shoot_event"]["fired"], 3)
+        self.assertEqual(parsed["shoot_event"]["clip"], 3)
+        self.assertEqual(parsed["shoot_event"]["voice"], 0)
+        self.assertEqual(parsed["kill_event"]["killed"], 1)
+        self.assertEqual(parsed["kill_event"]["clip"], 4)
+        self.assertEqual(parsed["kill_event"]["voice"], 0)
+        self.assertEqual(parsed["conveyor_event"]["clip"], 5)
+        self.assertEqual(parsed["conveyor_event"]["voice"], 0)
+        self.assertEqual(parsed["drill_event"]["clip"], 6)
+        self.assertEqual(parsed["drill_event"]["voice"], 0)
+        self.assertEqual(parsed["place_event"]["clip"], 1)
+        self.assertEqual(parsed["place_event"]["voice"], 0)
+        self.assertEqual(parsed["break_event"]["clip"], 0)
+        self.assertEqual(parsed["break_event"]["voice"], 0)
+        self.assertEqual(parsed["mem"]["app_mib"], 96)
+        self.assertEqual(parsed["mem"]["budget"], 1048576)
+        self.assertEqual(parsed["mem"]["remaining"], 494848)
+        self.assertEqual(parsed["mem"]["failures"], 0)
+        self.assertEqual(parsed["mem"]["status"], "ok")
         self.assertEqual(parsed["frame"]["tick"], 30)
         self.assertEqual(parsed["frame"]["rects"], 322)
         self.assertEqual(parsed["frame"]["circles"], 42)
         self.assertEqual(parsed["frame"]["state_switches"], 1)
         self.assertEqual(parsed["frame"]["budget_dropped"], 0)
         self.assertAlmostEqual(parsed["frame"]["cam_x"], -88.0)
+
+    def test_parse_azahar_log_atlas_states(self) -> None:
+        missing = verify_azahar.parse_azahar_log("no telemetry here\n")
+        self.assertIsNone(missing["atlas_loaded"])
+        unavailable = verify_azahar.parse_azahar_log(
+            "[   3.95] Kernel.SVC <Debug> svc.cpp:100: [MIN3DSTRY] ATLAS unavailable\n"
+        )
+        self.assertFalse(unavailable["atlas_loaded"])
+        loaded = verify_azahar.parse_azahar_log(
+            "[   3.95] Kernel.SVC <Debug> svc.cpp:100: [MIN3DSTRY] ATLAS loaded\n"
+        )
+        self.assertTrue(loaded["atlas_loaded"])
 
     def test_inspect_png_distinguishes_blank_and_rendered_frames(self) -> None:
         blank = make_test_png(16, 16, lambda _x, _y: (0, 0, 0))
@@ -132,6 +183,69 @@ class VerifyAzaharTests(unittest.TestCase):
         plist_payload = struct.pack("<IIQ8s", 1, 42, 0x000400000F800000, b"min3dst\x00")
         entries = verify_azahar._parse_process_list_chunk(plist_payload)
         self.assertEqual(entries, [(42, 0x000400000F800000, "min3dst")])
+
+    @staticmethod
+    def make_rpc_client() -> tuple[verify_azahar.AzaharRpcClient, mock.Mock]:
+        client = object.__new__(verify_azahar.AzaharRpcClient)
+        client.host = "127.0.0.1"
+        client.port = verify_azahar.AZAHAR_RPC_PORT
+        client.timeout = 0.01
+        client.retries = 2
+        sock = mock.Mock()
+        client.sock = sock
+        return client, sock
+
+    def test_rpc_retries_connection_reset_before_reply(self) -> None:
+        client, sock = self.make_rpc_client()
+        sent: list[bytes] = []
+
+        def sendto(data: bytes, _address: tuple[str, int]) -> None:
+            sent.append(data)
+
+        def recv(_size: int) -> bytes:
+            if len(sent) == 1:
+                raise ConnectionResetError("cold start")
+            req_id = struct.unpack_from("<I", sent[-1], 4)[0]
+            return struct.pack(
+                "<IIII", verify_azahar.RPC_VERSION, req_id, verify_azahar.REQ_PROCESS_LIST, 0
+            )
+
+        sock.sendto.side_effect = sendto
+        sock.recv.side_effect = recv
+
+        self.assertEqual(client._request(verify_azahar.REQ_PROCESS_LIST, b""), b"")
+        self.assertEqual(sock.sendto.call_count, 2)
+
+    def test_rpc_connection_reset_still_respects_timeout(self) -> None:
+        client, sock = self.make_rpc_client()
+        sock.recv.side_effect = ConnectionResetError("RPC socket not bound")
+
+        with self.assertRaises(TimeoutError):
+            client._request(verify_azahar.REQ_PROCESS_LIST, b"", resend=True)
+
+        self.assertEqual(sock.sendto.call_count, client.retries + 1)
+
+    def test_rpc_retries_connection_reset_on_send(self) -> None:
+        client, sock = self.make_rpc_client()
+        sent: list[bytes] = []
+
+        def sendto(data: bytes, _address: tuple[str, int]) -> None:
+            sent.append(data)
+            if len(sent) == 1:
+                raise ConnectionResetError("stale ICMP state")
+
+        def recv(_size: int) -> bytes:
+            req_id = struct.unpack_from("<I", sent[-1], 4)[0]
+            return struct.pack(
+                "<IIII", verify_azahar.RPC_VERSION, req_id, verify_azahar.REQ_PROCESS_LIST, 0
+            )
+
+        sock.sendto.side_effect = sendto
+        sock.recv.side_effect = recv
+
+        self.assertEqual(client._request(verify_azahar.REQ_PROCESS_LIST, b""), b"")
+        self.assertEqual(len(sent), 2)
+
 
 
 if __name__ == "__main__":
