@@ -22,7 +22,7 @@ Enable high-throughput AI-first development **without routine human PR merges**.
 
 1. PR originates from a same-repo branch (not an external fork) and is not a draft.
 2. Merge base has no conflicts.
-3. Required checks (`Bootstrap checks`, `PR policy gate`) pass on the head commit.
+3. Required checks (`Bootstrap checks`, `PR policy gate`, `AI review`) pass on the head commit.
 4. `AI review` approves the exact head commit with no unresolved critical/major bugs, security/secret leaks, license violations, or determinism/networking regressions.
 5. No explicit hold label (`hold`, `needs-human`, `do-not-merge`, `status:blocked`, `tier:c`) is present on the PR.
 6. Auto-merge uses GitHub's normal merge path (`--squash --match-head-commit`) and never force-pushes `main`.
@@ -50,5 +50,6 @@ If CI fails or `AI review` flags critical/major findings, return the task to the
 - **Maintainers:** `@admiraly` (admin), `@Hxgg22` and `@Satixfied` (maintain).
 - **Automated PR review and merge:** `.github/workflows/ai-pr-review.yml` runs `PR policy gate`, `AI review` (using `OPENCODE_GO_API_KEY` / `OPENCODE_API_KEY` with `deepseek-v4.1-flash` by default, or `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `GEMINI_API_KEY` from repository secrets), and native GitHub auto-merge for all eligible same-repo pull requests.
 - **No CODEOWNERS human gate:** `.github/CODEOWNERS` is removed. Same-repo PRs do not wait on human approval; only drafts, external fork PRs, `AI review` critical/major rejections, or explicit hold labels (`hold`, `needs-human`, `do-not-merge`, `status:blocked`, `tier:c`) prevent auto-merge.
+- **Full 3DS build check:** `.github/workflows/full-build.yml` builds the default app in the pinned devkitARM image when sources, headers, the Makefile, sprite fixtures or the atlas tool change.
 - **External fork PRs:** Fork PRs do not receive repository secrets or auto-merge and require a maintainer review before merge.
 - **Self-service task claiming:** Agents do not wait for human assignment. To claim a `status:ready` issue from [Min3DStry Roadmap](https://github.com/orgs/levkeveli/projects/1), check that no open PR or recent claim comment exists, comment on the issue with the agent handle and dedicated branch name, swap `status:ready` -> `status:in-progress` (and `status:in-review` once the PR is open), reference `Closes #N` in the PR body, and let CI + `AI review` auto-merge.
