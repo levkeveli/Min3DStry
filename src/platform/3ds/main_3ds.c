@@ -7,7 +7,9 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+#include "audio/audio_mixer.h"
 #include "citro2d_backend.h"
+#include "ndsp_backend.h"
 #include "platform/hardware_profile.h"
 #include "render/factory_demo.h"
 #include "render/scene_2d.h"
@@ -88,8 +90,34 @@ int main(int argc, char *argv[]) {
     m3ds_emit_debug_line(log_socket, sprites ? "[MIN3DSTRY] ATLAS loaded\n" : "[MIN3DSTRY] ATLAS unavailable\n");
     m3ds_citro2d_backend_init(&backend, &c2d_ctx, top, sprites);
 
+    M3dsNdspContext ndsp_ctx;
+    M3dsAudioBackend audio_backend;
+    M3dsAudioMixer audio_mixer;
+    m3ds_ndsp_backend_init(&audio_backend, &ndsp_ctx);
+    m3ds_audio_mixer_init(&audio_mixer, &audio_backend);
+
+    static int16_t sfx_deliver_pcm[1764];
+    static int16_t sfx_ui_pcm[772];
+    m3ds_audio_synth_tone_pcm16(
+        sfx_deliver_pcm, 1764u, M3DS_AUDIO_DEFAULT_SAMPLE_RATE, 880u, 9000u);
+    m3ds_audio_synth_tone_pcm16(
+        sfx_ui_pcm, 772u, M3DS_AUDIO_DEFAULT_SAMPLE_RATE, 520u, 7500u);
+
+    const M3dsAudioClipDesc deliver_desc = {
+        sfx_deliver_pcm, 1764u, M3DS_AUDIO_DEFAULT_SAMPLE_RATE, 1u};
+    const M3dsAudioClipDesc ui_desc = {
+        sfx_ui_pcm, 772u, M3DS_AUDIO_DEFAULT_SAMPLE_RATE, 1u};
+    int clip_deliver = m3ds_audio_mixer_register_clip(&audio_mixer, &deliver_desc);
+    int clip_ui = m3ds_audio_mixer_register_clip(&audio_mixer, &ui_desc);
+
+    char audio_diag[160];
+    m3ds_audio_mixer_format_diag(&audio_mixer, audio_diag, sizeof(audio_diag));
+    snprintf(dbg_line, sizeof(dbg_line), "[MIN3DSTRY] AUDIO %s\n", audio_diag);
+    m3ds_emit_debug_line(log_socket, dbg_line);
+
     M3dsDrawStats stats = {0};
     bool emitted_frame_diag = false;
+    uint32_t prev_delivered = factory.items_delivered;
 
     while (aptMainLoop()) {
         hidScanInput();
@@ -101,9 +129,19 @@ int main(int argc, char *argv[]) {
         }
         if (kDown & KEY_A) {
             scene.paused = !scene.paused;
+            M3dsAudioPlayParams ui_p = m3ds_audio_default_play_params(M3DS_AUDIO_BUS_SFX);
+            ui_p.volume = 0.5f;
+            (void)m3ds_audio_mixer_play(&audio_mixer, clip_ui, &ui_p);
         }
         if (kDown & KEY_Y) {
             m3ds_scene_reset_camera(&scene);
+            M3dsAudioPlayParams ui_p = m3ds_audio_default_play_params(M3DS_AUDIO_BUS_SFX);
+            ui_p.volume = 0.5f;
+            (void)m3ds_audio_mixer_play(&audio_mixer, clip_ui, &ui_p);
+        }
+        if (kDown & KEY_X) {
+            m3ds_audio_mixer_set_muted(
+                &audio_mixer, !m3ds_audio_mixer_is_muted(&audio_mixer));
         }
 
         float pan_dx = 0.0f;
@@ -127,6 +165,14 @@ int main(int argc, char *argv[]) {
         }
 
         m3ds_factory_demo_step(&scene, &factory);
+        if (factory.items_delivered > prev_delivered) {
+            M3dsAudioPlayParams deliver_p =
+                m3ds_audio_default_play_params(M3DS_AUDIO_BUS_SFX);
+            deliver_p.volume = 0.65f;
+            (void)m3ds_audio_mixer_play(&audio_mixer, clip_deliver, &deliver_p);
+            prev_delivered = factory.items_delivered;
+        }
+        m3ds_audio_mixer_update(&audio_mixer);
         if (!scene.paused && factory.tick == 60u) {
             snprintf(dbg_line, sizeof(dbg_line),
                      "[MIN3DSTRY] FACTORY tick=%lu delivered=%lu inventory=%lu hash=0x%08lx\n",
@@ -157,8 +203,12 @@ int main(int argc, char *argv[]) {
         printf("\x1b[7;1HCPU:     %6.2f%%\x1b[K", C3D_GetProcessingTime() * 6.0f);
         printf("\x1b[8;1HGPU:     %6.2f%%\x1b[K", C3D_GetDrawingTime() * 6.0f);
         printf("\x1b[9;1HCmdBuf:  %6.2f%%\x1b[K", C3D_GetCmdBufUsage() * 100.0f);
+        printf("\x1b[10;1HAudio:   %s (%s)\x1b[K",
+               m3ds_audio_state_name(m3ds_audio_mixer_state(&audio_mixer)),
+               m3ds_audio_mixer_is_muted(&audio_mixer) ? "MUTED" : "ON");
         printf("\x1b[11;1HD-Pad/CPad: Pan  A: Pause\x1b[K");
         printf("\x1b[12;1HY: Reset Cam     START: Exit\x1b[K");
+        printf("\x1b[13;1HX: Toggle Mute\x1b[K");
         printf("\x1b[14;1H%s\x1b[K", hw_summary);
 
         if (!emitted_frame_diag && scene.tick >= 30u) {
@@ -187,6 +237,7 @@ int main(int argc, char *argv[]) {
         }
     }
 
+    m3ds_audio_mixer_shutdown(&audio_mixer);
     if (log_socket >= 0) {
         close(log_socket);
     }

@@ -211,9 +211,15 @@
       "category": "Audio",
       "name": "NDSP Sound Effects & Music Mixer",
       "weight": 6,
-      "stage": "planned",
+      "stage": "host-tested",
       "issue": 29,
-      "evidence": []
+      "evidence": [
+        "include/audio/audio_mixer.h",
+        "src/audio/audio_mixer.c",
+        "src/platform/3ds/ndsp_backend.c",
+        "tests/audio/test_audio_mixer.c",
+        "docs/audio/ndsp-mixer.md"
+      ]
     },
     {
       "id": "crossplay-net-protocol",
