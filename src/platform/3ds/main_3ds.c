@@ -38,6 +38,11 @@
 #define M3DS_DEMO_WALL_REMOVE_TICK 15u
 #define M3DS_DEMO_WALL_X 10u
 #define M3DS_DEMO_WALL_Y 3u
+/*
+ * Demo invariants: (10,3) starts empty and START_COPPER covers the wall cost
+ * (2). If either changes, the block place/break emu-test assertions need to be
+ * updated with the demo.
+ */
 #define M3DS_DEMO_START_COPPER 10u
 
 static uint8_t g_memory_arena[M3DS_MEMORY_ARENA_BYTES]
