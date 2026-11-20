@@ -15,4 +15,8 @@ Min3DStry exposes a platform-independent hardware profile in [include/platform/h
 
 - **Host unit tests** (`tests/platform/test_hardware_profile.c`): **Host-tested** via `./dev.sh test` (model classification, Old/New 3DS invariants, formatting, null/bounds guards).
 - **3DS ARM11 build**: **3DS-build-tested** via `./dev.sh build` (`min3dstry.3dsx`).
-- **Emulator / Physical Hardware**: **Not yet tested** — awaiting Azahar and real Old/New 3DS hardware runs.
+- **Emulator (`emulator-tested`, Azahar `2126.2`)**: Verified automatically via `./dev.sh emu-test`:
+  - `is_new_3ds=true`: `New 3DS XL (N3DS, 804 MHz, L2:on, AppMem:96 MiB, FIRM:2.58.0)`
+  - `is_new_3ds=false`: `Original 3DS XL (O3DS, 268 MHz, L2:off, AppMem:96 MiB, FIRM:2.58.0)`
+  - Note: Azahar HLE logs `ConfigureNew3DSCPU` (`ptm:sysm`) as unimplemented and reports `AppMem:96 MiB` under both emulated profiles.
+- **Physical Hardware**: **Not yet tested** — awaiting real Old/New 3DS hardware runs (tracked under Issue #6).

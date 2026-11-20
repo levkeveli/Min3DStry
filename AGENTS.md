@@ -14,19 +14,20 @@ Build a **native, open-source full Mindustry port** for Original 3DS/2DS and New
 ## Issue/task protocol
 
 1. Read this file, architecture docs and available project board.
-2. Pick or accept a Ready issue with clear outcome, acceptance tests, dependency and ownership metadata.
-3. Atomically claim/lease the issue when assigned/claimed; avoid racing on active tasks.
+2. Pick any `status:ready` issue with clear outcome, acceptance tests, and no active PR or lease; do not wait for human assignment.
+3. Self-claim the issue atomically on GitHub before coding (verify no open PR or recent claim comment exists, comment with agent/branch, and swap `status:ready` -> `status:in-progress`); avoid racing on active tasks.
 4. Use one dedicated branch/worktree per task. Never work in another agent's working tree or force-push their branch.
 5. Keep changes reviewable and modular. Coordinate shared interfaces via an issue/comment before changing them.
 6. Add tests and docs in the same PR when changing behavior, and reference the linked issue (`Closes #N` or `#N`) when applicable.
-7. Let independent CI and AI review evaluate the PR. Address real bugs or CI failures; do not require human approvals.
-8. Auto-merge runs automatically once required checks and AI review pass unless an explicit hold label is set.
+7. Run independent verification yourself—including `./dev.sh test`, `./dev.sh build`, and `./dev.sh emu-test` (inspecting Azahar screenshots, RPC perf stats, and `svcOutputDebugString` telemetry across Old/New 3DS modes) instead of asking humans to run or screenshot emulator builds. Let CI and AI review evaluate the PR; do not wait for human approvals.
+8. Auto-merge runs automatically once required checks and AI review pass unless an explicit hold label is set; humans only intervene on hold labels or physical-hardware milestones.
 9. After merge, verify relevant post-merge CI, Pages deployment and board/status updates when relevant.
 
 ## Development speed
 
-- Prefer automated repeatable commands over manual chores. Maintain `./dev.sh doctor|build|test|run|device|package|status` where supported; unimplemented commands must fail clearly.
+- Prefer automated repeatable commands over manual chores. Maintain `./dev.sh doctor|build|test|emu-test|run|device|package|status` where supported; unimplemented commands must fail clearly.
 - Preserve a host-platform build/test path for shared game logic; keep 3DS-specific code behind interfaces.
+- Use `./dev.sh emu-test` (`tools/verify_azahar.py`) to autonomously boot `.3dsx` builds in Azahar across Old and New 3DS modes, collect `svcOutputDebugString` logs + UDP RPC perf stats, and inspect captured PNG screenshots directly.
 - Cache toolchains and converted assets; support incremental builds and rapid real-hardware deployment/log collection where feasible.
 - Implement deterministic upstream-versus-port simulation comparisons and game/network protocol regression tests.
 - Track benchmark provenance: model, firmware, build commit, test scenario, memory, FPS and frame times.

@@ -76,11 +76,12 @@ case "${1:-}" in
     ;;
   test)
     bash -n dev.sh
-    for file in README.md AGENTS.md CONTRIBUTING.md SECURITY.md docs/architecture.md docs/research/java-to-native.md docs/development/automation-policy.md docs/rendering/citro2d-prototype.md site/index.html .github/scripts/pr_automation.py .github/scripts/test_pr_automation.py .github/workflows/ai-pr-review.yml Makefile include/render/scene_2d.h src/render/scene_2d.c tests/render/test_scene_2d.c; do
+    for file in README.md AGENTS.md CONTRIBUTING.md SECURITY.md docs/architecture.md docs/research/java-to-native.md docs/development/automation-policy.md docs/rendering/citro2d-prototype.md site/index.html .github/scripts/pr_automation.py .github/scripts/test_pr_automation.py .github/workflows/ai-pr-review.yml Makefile include/render/scene_2d.h src/render/scene_2d.c tests/render/test_scene_2d.c tools/verify_azahar.py tests/tools/test_verify_azahar.py; do
       test -s "$file" || { echo "Missing or empty: $file" >&2; exit 1; }
     done
-    python3 -m py_compile .github/scripts/pr_automation.py .github/scripts/test_pr_automation.py research/java-to-native/budget_model.py research/java-to-native/run_poc.py
+    python3 -m py_compile .github/scripts/pr_automation.py .github/scripts/test_pr_automation.py research/java-to-native/budget_model.py research/java-to-native/run_poc.py tools/verify_azahar.py tests/tools/test_verify_azahar.py
     python3 -m unittest discover -s .github/scripts -p 'test_*.py'
+    python3 -m unittest discover -s tests/tools -p 'test_*.py'
 
     host_cc="$(find_host_cc)" || { echo 'test: no host C compiler (cc/gcc/clang) found.' >&2; exit 1; }
     mkdir -p build/host
@@ -95,6 +96,14 @@ case "${1:-}" in
     python3 research/java-to-native/run_poc.py
     git diff --check HEAD
     echo 'All host and bootstrap checks passed.'
+    ;;
+  emu-test)
+    test -s build/min3dstry.3dsx || { echo 'emu-test: build/min3dstry.3dsx missing; run ./dev.sh build first.' >&2; exit 2; }
+    if [[ -z "${AZAHAR_BIN:-}" ]] && ! command -v azahar >/dev/null 2>&1 && ! command -v azahar.exe >/dev/null 2>&1; then
+      echo 'emu-test: no 3DS emulator (azahar) is installed.' >&2
+      exit 2
+    fi
+    python3 tools/verify_azahar.py "${@:2}"
     ;;
   run)
     test -s build/min3dstry.3dsx || { echo 'run: build/min3dstry.3dsx missing; run ./dev.sh build first.' >&2; exit 2; }
@@ -118,7 +127,7 @@ case "${1:-}" in
     exit 2
     ;;
   *)
-    echo 'Usage: ./dev.sh doctor|build|test|poc|run|device|package|status' >&2
+    echo 'Usage: ./dev.sh doctor|build|test|emu-test|poc|run|device|package|status' >&2
     exit 2
     ;;
 esac
