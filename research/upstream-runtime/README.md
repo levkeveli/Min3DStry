@@ -259,6 +259,32 @@ This entry point exercises the live initial-world path and packet
 exchange. Dispatch through the normal client UI and applying ongoing
 state and entity snapshots are part of #44.
 
+The [devkitARM verification build](https://github.com/levkeveli/Min3DStry/actions/runs/44824442974)
+passed at `-O0` and `-O2` on both Azahar 2126.2 console profiles. Each run
+rejected build 159 with `clientOutdated`, then joined Glacier twice with
+build 160 and the same test identity. Both joins loaded the 150 × 250 map
+with two cores, confirmed the connection and decoded an upstream state
+snapshot. The server reported both departures. Its normal disconnect
+callback logs `closed`, while its scheduled connection check can log
+`disappeared` if it observes the closed transport first. Within each run,
+the terrain fingerprint matched between the two joins.
+
+At `-O2`, the Old 3DS profile loaded world transfers of 11,240 and
+11,310 bytes with fingerprint `737c3c0723e849c0`. The New 3DS profile
+loaded transfers of 11,708 and 11,783 bytes with fingerprint
+`e65ad905aa4657a4` from its separately started server. All four
+live state snapshots reported wave 1 and 145 bytes of core data.
+
+The standard build's ELF load segments total 25.11 MiB after page
+rounding. With the 16 MiB managed heap, 256 KiB native stack and 1 MiB
+SOC buffer, these components account for 42.36 MiB. Physical Wi-Fi and
+hardware memory still need verification.
+
+The SOC adapter accepts the pending-connect result exposed by Azahar on
+Windows and still checks `SO_ERROR` before sending packets. The probe
+clears client mode before calling the original `Logic.reset` between
+connections, matching the order of the upstream disconnect path.
+
 ### Verify the Arc executor pools
 
 Use `-Pprobe=executor` with the JVM and ARM11 build commands. The JVM uses the
