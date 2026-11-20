@@ -151,3 +151,7 @@ rewind and EOF. The host JVM reported:
 ```text
 UPSTREAM_FILE_METADATA size=8550 header=789cbd3a last=108 seek=ok paths=ok
 ```
+
+[DevkitARM build 44807942120](https://github.com/levkeveli/Min3DStry/actions/runs/44807942120)
+reported the same record after checking the actual ARM11 path properties
+and reading Glacier from the virtual SD card in both Azahar 2126.2 console profiles.
