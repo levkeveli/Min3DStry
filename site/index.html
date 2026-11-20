@@ -3,190 +3,288 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Min3DStry — Roadmap &amp; Kanban Board</title>
+<title>Min3DStry — Project Status &amp; Roadmap</title>
 <style>
   :root {
-    --bg: #0c1117;
-    --bg-grid: rgba(255, 255, 255, 0.025);
-    --surface: #131a23;
-    --surface-2: #19222e;
-    --surface-hover: #202b3a;
-    --border: #283445;
-    --border-strong: #394960;
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface-2: #1c2128;
+    --surface-hover: #21262d;
+    --border: #30363d;
+    --border-muted: #21262d;
     --text: #e6edf3;
-    --muted: #93a1b3;
+    --muted: #8b949e;
     --amber: #f5b841;
-    --amber-dim: rgba(245, 184, 65, 0.14);
+    --amber-subtle: rgba(245, 184, 65, 0.12);
     --copper: #e07a3f;
     --green: #3fb950;
-    --green-dim: rgba(63, 185, 80, 0.14);
+    --green-subtle: rgba(63, 185, 80, 0.12);
     --blue: #58a6ff;
-    --blue-dim: rgba(88, 166, 255, 0.14);
+    --blue-subtle: rgba(88, 166, 255, 0.12);
     --purple: #bc8cff;
-    --purple-dim: rgba(188, 140, 255, 0.14);
+    --purple-subtle: rgba(188, 140, 255, 0.12);
     --red: #f85149;
-    --red-dim: rgba(248, 81, 73, 0.14);
+    --red-subtle: rgba(248, 81, 73, 0.12);
     --gray: #8b949e;
-    --gray-dim: rgba(139, 148, 158, 0.14);
-    --radius: 10px;
-    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    --sans: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    --gray-subtle: rgba(139, 148, 158, 0.12);
+    --radius: 6px;
+    --mono: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;
   }
 
   * { box-sizing: border-box; }
-  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: var(--sans); line-height: 1.5; }
-  body {
-    background-image:
-      linear-gradient(to right, var(--bg-grid) 1px, transparent 1px),
-      linear-gradient(to bottom, var(--bg-grid) 1px, transparent 1px);
-    background-size: 28px 28px;
-    min-height: 100vh;
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    line-height: 1.5;
   }
 
-  a { color: var(--amber); text-decoration: none; }
+  a { color: var(--blue); text-decoration: none; }
   a:hover { text-decoration: underline; }
 
-  .shell { max-width: 1440px; margin: 0 auto; padding: 1.25rem 1.25rem 3rem; }
-
-  /* Header */
-  .topbar {
+  /* Top Navigation Bar (GitHub-style) */
+  .gh-header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+  }
+  .gh-header-inner {
+    max-width: 1360px;
+    margin: 0 auto;
+    padding: 14px 20px;
     display: flex;
     flex-wrap: wrap;
     justify-content: space-between;
-    align-items: flex-start;
-    gap: 1rem;
-    padding: 1.15rem 1.25rem;
-    background: linear-gradient(135deg, rgba(245, 184, 65, 0.08), rgba(25, 34, 46, 0.95) 55%);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    margin-bottom: 1rem;
+    align-items: center;
+    gap: 12px;
   }
-  .brand-row { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
-  .logo-badge {
+  .repo-crumb {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .repo-mark {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 38px;
-    height: 38px;
-    border-radius: 8px;
-    background: var(--amber-dim);
-    border: 1px solid rgba(245, 184, 65, 0.45);
+    width: 28px;
+    height: 28px;
+    border-radius: var(--radius);
+    background: var(--amber-subtle);
+    border: 1px solid rgba(245, 184, 65, 0.4);
     color: var(--amber);
     font-family: var(--mono);
-    font-weight: 800;
-    font-size: 0.95rem;
+    font-weight: 700;
+    font-size: 11px;
+    letter-spacing: -0.02em;
   }
-  h1 { margin: 0; font-size: 1.35rem; letter-spacing: -0.01em; }
-  .tag {
-    font-size: 0.74rem;
-    font-family: var(--mono);
-    padding: 0.18rem 0.55rem;
+  .repo-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .repo-title span { color: var(--muted); font-weight: 400; }
+  .label-pill {
+    font-size: 12px;
+    font-weight: 500;
+    padding: 1px 8px;
     border-radius: 999px;
-    border: 1px solid var(--border-strong);
-    background: var(--surface-2);
-    color: var(--muted);
+    border: 1px solid rgba(245, 184, 65, 0.4);
+    color: var(--amber);
+    background: var(--amber-subtle);
   }
-  .subtitle { margin: 0.35rem 0 0; color: var(--muted); font-size: 0.9rem; max-width: 68ch; }
 
-  .top-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+  .header-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
   .btn {
     display: inline-flex;
     align-items: center;
-    gap: 0.4rem;
-    padding: 0.48rem 0.8rem;
-    border-radius: 8px;
-    border: 1px solid var(--border-strong);
-    background: var(--surface-2);
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    background: var(--surface-hover);
     color: var(--text);
-    font-size: 0.84rem;
-    font-weight: 600;
+    font-size: 12px;
+    font-weight: 500;
     cursor: pointer;
-    transition: background 0.15s, border-color 0.15s;
+    font-family: inherit;
+    transition: background 0.12s, border-color 0.12s;
   }
-  .btn:hover { background: var(--surface-hover); border-color: var(--amber); text-decoration: none; }
-  .btn-primary { background: var(--amber); color: #11161d; border-color: var(--amber); }
-  .btn-primary:hover { background: #ffc75b; border-color: #ffc75b; }
+  .btn:hover { background: #292e36; border-color: #8b949e; text-decoration: none; }
+  .btn-primary {
+    background: #238636;
+    border-color: rgba(240, 246, 252, 0.1);
+    color: #ffffff;
+  }
+  .btn-primary:hover { background: #2ea043; border-color: rgba(240, 246, 252, 0.15); }
 
-  .meta-bar {
+  /* Main Container */
+  .container {
+    max-width: 1360px;
+    margin: 0 auto;
+    padding: 20px 20px 48px;
+  }
+
+  /* Meta strip */
+  .meta-strip {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.75rem 1.25rem;
+    gap: 8px 20px;
     align-items: center;
-    font-size: 0.8rem;
+    font-size: 12px;
     color: var(--muted);
-    margin-bottom: 1rem;
-    padding: 0 0.25rem;
+    margin-bottom: 16px;
   }
-  .meta-bar code { font-family: var(--mono); color: var(--text); background: var(--surface-2); padding: 0.1rem 0.4rem; border-radius: 5px; }
-
-  /* Summary Stats */
-  .stats-grid {
-    display: grid;
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-    gap: 0.65rem;
-    margin-bottom: 1rem;
-  }
-  .stat-card {
+  .meta-strip code {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text);
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 0.75rem 0.85rem;
-    cursor: pointer;
-    transition: border-color 0.15s, transform 0.12s;
+    padding: 1px 6px;
+    border-radius: 4px;
   }
-  .stat-card:hover { border-color: var(--border-strong); transform: translateY(-1px); }
-  .stat-card.active { border-color: var(--amber); background: var(--surface-2); }
-  .stat-label { font-size: 0.75rem; color: var(--muted); display: flex; align-items: center; gap: 0.4rem; }
-  .stat-value { font-size: 1.45rem; font-weight: 700; font-family: var(--mono); margin-top: 0.15rem; }
-  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
 
-  /* Toolbar */
-  .toolbar {
+  /* Natural-Language Project Overview */
+  .overview-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--amber);
+    border-radius: var(--radius);
+    padding: 16px 20px;
+    margin-bottom: 16px;
+  }
+  .overview-head {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .overview-head h1 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .overview-maintainers {
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .overview-text {
+    margin: 0 0 12px;
+    color: var(--text);
+    font-size: 13.5px;
+    max-width: 92ch;
+  }
+  .overview-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-muted);
+  }
+  .overview-item h2 {
+    margin: 0 0 4px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--amber);
+  }
+  .overview-item p {
+    margin: 0;
+    font-size: 12.5px;
+    color: var(--muted);
+  }
+
+  /* GitHub Underline Tabs + Filter Bar */
+  .nav-bar {
     display: flex;
     flex-wrap: wrap;
     justify-content: space-between;
     align-items: center;
-    gap: 0.75rem;
-    padding: 0.75rem 0.9rem;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    margin-bottom: 1rem;
+    gap: 12px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 16px;
   }
-  .tabs { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+  .tabs { display: flex; gap: 4px; }
   .tab {
-    padding: 0.45rem 0.85rem;
-    border-radius: 7px;
-    border: 1px solid transparent;
+    padding: 8px 12px;
+    border: none;
+    border-bottom: 2px solid transparent;
     background: transparent;
     color: var(--muted);
-    font-size: 0.86rem;
-    font-weight: 600;
+    font-size: 13px;
+    font-weight: 500;
     cursor: pointer;
+    font-family: inherit;
+    margin-bottom: -1px;
   }
-  .tab:hover { color: var(--text); background: var(--surface-2); }
-  .tab.active { color: var(--amber); background: var(--amber-dim); border-color: rgba(245, 184, 65, 0.35); }
+  .tab:hover { color: var(--text); }
+  .tab.active {
+    color: var(--text);
+    font-weight: 600;
+    border-bottom-color: var(--copper);
+  }
 
-  .filters { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+  .filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    padding-bottom: 8px;
+  }
   .input, .select {
     background: var(--bg);
     color: var(--text);
-    border: 1px solid var(--border-strong);
-    border-radius: 7px;
-    padding: 0.42rem 0.65rem;
-    font-size: 0.84rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 5px 10px;
+    font-size: 12px;
     font-family: inherit;
   }
-  .input { min-width: 210px; }
-  .input:focus, .select:focus { outline: none; border-color: var(--amber); }
+  .input { min-width: 200px; }
+  .input:focus, .select:focus { outline: none; border-color: var(--blue); }
+
+  /* Compact Status Strip */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .stat-btn {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 8px 12px;
+    cursor: pointer;
+    color: var(--text);
+    font-family: inherit;
+    text-align: left;
+  }
+  .stat-btn:hover { border-color: #8b949e; background: var(--surface-2); }
+  .stat-btn.active { border-color: var(--amber); background: var(--surface-2); }
+  .stat-label { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+  .stat-num { font-family: var(--mono); font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
 
   /* Kanban Board */
   .board {
     display: grid;
-    grid-template-columns: repeat(6, minmax(230px, 1fr));
-    gap: 0.85rem;
+    grid-template-columns: repeat(6, minmax(210px, 1fr));
+    gap: 12px;
     overflow-x: auto;
-    padding-bottom: 0.5rem;
+    padding-bottom: 8px;
   }
   .column {
     background: var(--surface);
@@ -194,147 +292,161 @@
     border-radius: var(--radius);
     display: flex;
     flex-direction: column;
-    min-height: 360px;
+    min-height: 340px;
   }
   .col-head {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 0.75rem 0.85rem;
+    padding: 10px 12px;
     border-bottom: 1px solid var(--border);
-    background: rgba(255, 255, 255, 0.015);
-    border-radius: var(--radius) var(--radius) 0 0;
+    font-size: 13px;
+    font-weight: 600;
   }
-  .col-title { display: flex; align-items: center; gap: 0.45rem; font-weight: 700; font-size: 0.88rem; }
+  .col-title { display: flex; align-items: center; gap: 6px; }
   .col-count {
     font-family: var(--mono);
-    font-size: 0.75rem;
-    padding: 0.1rem 0.45rem;
+    font-size: 11px;
+    padding: 1px 7px;
     border-radius: 999px;
-    background: var(--surface-2);
-    border: 1px solid var(--border);
+    background: var(--surface-hover);
     color: var(--muted);
   }
-  .col-body { padding: 0.65rem; display: flex; flex-direction: column; gap: 0.6rem; flex: 1; }
+  .col-body { padding: 8px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
   .empty-col {
     margin: auto 0;
     text-align: center;
     color: var(--muted);
-    font-size: 0.8rem;
-    padding: 1.5rem 0.5rem;
-    border: 1px dashed var(--border);
-    border-radius: 8px;
+    font-size: 12px;
+    padding: 20px 8px;
   }
 
-  /* Task Card */
+  /* Issue Card */
   .card {
-    background: var(--surface-2);
+    background: var(--bg);
     border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 0.72rem 0.78rem;
+    border-radius: var(--radius);
+    padding: 10px 12px;
     cursor: pointer;
-    transition: border-color 0.15s, background 0.15s, transform 0.12s;
+    transition: border-color 0.12s, background 0.12s;
   }
-  .card:hover { border-color: var(--amber); background: var(--surface-hover); transform: translateY(-1px); }
-  .card-top { display: flex; justify-content: space-between; align-items: center; gap: 0.4rem; margin-bottom: 0.35rem; }
-  .issue-num { font-family: var(--mono); font-size: 0.75rem; color: var(--muted); }
-  .card-title { font-size: 0.9rem; font-weight: 600; color: var(--text); margin: 0 0 0.45rem; line-height: 1.35; }
-  .card-desc {
-    font-size: 0.79rem;
+  .card:hover { border-color: #8b949e; background: var(--surface-2); }
+  .card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: var(--mono);
+    font-size: 11px;
     color: var(--muted);
-    margin: 0 0 0.55rem;
+    margin-bottom: 4px;
+  }
+  .card-title { font-size: 13px; font-weight: 600; color: var(--text); margin: 0 0 6px; line-height: 1.35; }
+  .card-desc {
+    font-size: 12px;
+    color: var(--muted);
+    margin: 0 0 8px;
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
   }
-  .pills { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+  .pills { display: flex; flex-wrap: wrap; gap: 4px; }
   .pill {
-    font-size: 0.7rem;
+    font-size: 11px;
     font-family: var(--mono);
-    padding: 0.12rem 0.42rem;
-    border-radius: 5px;
-    border: 1px solid var(--border-strong);
-    background: rgba(12, 17, 23, 0.6);
+    padding: 1px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: var(--surface);
     color: var(--muted);
   }
-  .pill-phase { color: var(--blue); border-color: rgba(88, 166, 255, 0.35); background: var(--blue-dim); }
-  .pill-area { color: var(--amber); border-color: rgba(245, 184, 65, 0.35); background: var(--amber-dim); }
-  .pill-assignee { color: var(--green); border-color: rgba(63, 185, 80, 0.35); background: var(--green-dim); }
+  .pill-phase { color: var(--blue); border-color: rgba(88, 166, 255, 0.35); background: var(--blue-subtle); }
+  .pill-area { color: var(--amber); border-color: rgba(245, 184, 65, 0.35); background: var(--amber-subtle); }
+  .pill-assignee { color: var(--green); border-color: rgba(63, 185, 80, 0.35); background: var(--green-subtle); }
 
   /* Roadmap View */
-  .roadmap-list { display: flex; flex-direction: column; gap: 1rem; }
+  .roadmap-list { display: flex; flex-direction: column; gap: 12px; }
   .phase-box {
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    padding: 1rem 1.1rem;
+    padding: 16px;
   }
   .phase-head {
     display: flex;
     flex-wrap: wrap;
     justify-content: space-between;
     align-items: center;
-    gap: 0.75rem;
-    margin-bottom: 0.75rem;
+    gap: 12px;
+    margin-bottom: 12px;
   }
-  .phase-head h2 { margin: 0; font-size: 1.05rem; }
-  .phase-sub { margin: 0.2rem 0 0; font-size: 0.84rem; color: var(--muted); }
-  .progress-wrap { min-width: 200px; }
-  .progress-label { display: flex; justify-content: space-between; font-size: 0.76rem; font-family: var(--mono); color: var(--muted); margin-bottom: 0.25rem; }
-  .progress-track { height: 8px; border-radius: 999px; background: var(--bg); border: 1px solid var(--border); overflow: hidden; }
-  .progress-fill { height: 100%; background: linear-gradient(90deg, var(--green), var(--amber)); }
-  .phase-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 0.7rem; }
+  .phase-head h2 { margin: 0; font-size: 15px; font-weight: 600; }
+  .phase-sub { margin: 2px 0 0; font-size: 12.5px; color: var(--muted); }
+  .progress-wrap { min-width: 210px; }
+  .progress-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    font-family: var(--mono);
+    color: var(--muted);
+    margin-bottom: 4px;
+  }
+  .progress-track { height: 6px; border-radius: 999px; background: var(--bg); border: 1px solid var(--border); overflow: hidden; }
+  .progress-fill { height: 100%; background: var(--green); }
+  .phase-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; }
 
   /* Compatibility & Activity */
-  .two-col { display: grid; grid-template-columns: 1.15fr 1fr; gap: 1rem; }
+  .two-col { display: grid; grid-template-columns: 1.15fr 1fr; gap: 16px; }
   .panel {
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    padding: 1rem 1.1rem;
+    padding: 16px;
   }
-  .panel h2 { margin: 0 0 0.75rem; font-size: 1.02rem; }
-  table { width: 100%; border-collapse: collapse; font-size: 0.87rem; }
-  th, td { padding: 0.55rem 0.5rem; border-bottom: 1px solid var(--border); text-align: left; }
-  th { color: var(--muted); font-weight: 600; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; }
+  .panel h2 { margin: 0 0 12px; font-size: 14px; font-weight: 600; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { padding: 8px 6px; border-bottom: 1px solid var(--border-muted); text-align: left; }
+  th { color: var(--muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
 
   .badge {
     display: inline-block;
     font-family: var(--mono);
-    font-size: 0.72rem;
-    padding: 0.14rem 0.48rem;
+    font-size: 11px;
+    padding: 1px 7px;
     border-radius: 999px;
     border: 1px solid transparent;
+    white-space: nowrap;
   }
-  .badge-unverified { color: var(--gray); background: var(--gray-dim); border-color: rgba(139, 148, 158, 0.35); }
-  .badge-ok { color: var(--green); background: var(--green-dim); border-color: rgba(63, 185, 80, 0.35); }
-  .badge-warn { color: var(--amber); background: var(--amber-dim); border-color: rgba(245, 184, 65, 0.35); }
-  .badge-fail { color: var(--red); background: var(--red-dim); border-color: rgba(248, 81, 73, 0.35); }
+  .badge-unverified { color: var(--gray); background: var(--gray-subtle); border-color: rgba(139, 148, 158, 0.35); }
+  .badge-ok { color: var(--green); background: var(--green-subtle); border-color: rgba(63, 185, 80, 0.35); }
+  .badge-warn { color: var(--amber); background: var(--amber-subtle); border-color: rgba(245, 184, 65, 0.35); }
+  .badge-fail { color: var(--red); background: var(--red-subtle); border-color: rgba(248, 81, 73, 0.35); }
 
-  .activity-list { display: flex; flex-direction: column; gap: 0.55rem; }
+  .activity-list { display: flex; flex-direction: column; gap: 6px; }
   .activity-row {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    gap: 0.75rem;
-    padding: 0.55rem 0.7rem;
-    border-radius: 8px;
-    background: var(--surface-2);
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: var(--radius);
+    background: var(--bg);
     border: 1px solid var(--border);
-    font-size: 0.84rem;
+    font-size: 12.5px;
+    color: var(--text);
   }
-  .activity-row .sub { font-size: 0.76rem; color: var(--muted); font-family: var(--mono); }
+  .activity-row:hover { border-color: #8b949e; text-decoration: none; }
+  .activity-row .sub { font-size: 11px; color: var(--muted); font-family: var(--mono); }
 
   /* Modal */
   .modal-backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(5, 8, 12, 0.76);
+    background: rgba(1, 4, 9, 0.75);
     display: none;
     align-items: center;
     justify-content: center;
-    padding: 1rem;
+    padding: 16px;
     z-index: 50;
   }
   .modal-backdrop.open { display: flex; }
@@ -343,67 +455,96 @@
     max-height: 85vh;
     overflow-y: auto;
     background: var(--surface);
-    border: 1px solid var(--border-strong);
-    border-radius: 12px;
-    padding: 1.2rem 1.25rem;
-    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 20px;
   }
-  .modal-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; margin-bottom: 0.75rem; }
-  .modal-head h3 { margin: 0; font-size: 1.12rem; }
-  .modal-body { white-space: pre-wrap; color: var(--muted); font-size: 0.9rem; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 0.85rem; margin: 0.75rem 0 1rem; }
+  .modal-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 10px; }
+  .modal-head h3 { margin: 2px 0 0; font-size: 16px; }
+  .modal-meta { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+  .modal-body {
+    white-space: pre-wrap;
+    color: var(--text);
+    font-size: 13px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px;
+    margin: 12px 0 14px;
+  }
 
   .hidden { display: none !important; }
 
-  @media (max-width: 1100px) {
-    .stats-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  @media (max-width: 1080px) {
+    .overview-grid { grid-template-columns: 1fr; }
+    .stats-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .two-col { grid-template-columns: 1fr; }
   }
   @media (max-width: 640px) {
-    .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .stats-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .input { min-width: 100%; }
-    .board { grid-template-columns: repeat(6, minmax(260px, 85vw)); }
+    .board { grid-template-columns: repeat(6, minmax(250px, 84vw)); }
   }
 </style>
 </head>
 <body>
-<div class="shell">
-  <header class="topbar">
-    <div>
-      <div class="brand-row">
-        <span class="logo-badge">M3DS</span>
-        <h1>Min3DStry Roadmap &amp; Kanban</h1>
-        <span class="tag">Experimental</span>
-      </div>
-      <p class="subtitle">
-        Native open-source full Mindustry port for Original &amp; New Nintendo 3DS/2DS (ARM11, libctru, Citro2D/Citro3D).
-        Maintainers: Levy (<code>@admiraly</code>), Kevin &amp; Elia (<code>@Hxgg22</code>, <code>@Satixfied</code>).
-      </p>
+
+<header class="gh-header">
+  <div class="gh-header-inner">
+    <div class="repo-crumb">
+      <span class="repo-mark">M3DS</span>
+      <span class="repo-title"><span>levkeveli /</span> Min3DStry</span>
+      <span class="label-pill">Experimental</span>
     </div>
-    <div class="top-actions">
-      <a class="btn btn-primary" href="https://github.com/orgs/levkeveli/projects/1" target="_blank" rel="noopener">Open GitHub Board</a>
-      <a class="btn" href="https://github.com/levkeveli/Min3DStry/issues/new/choose" target="_blank" rel="noopener">New Task</a>
-      <a class="btn" href="https://github.com/levkeveli/Min3DStry/pulls" target="_blank" rel="noopener">PRs</a>
-      <a class="btn" href="https://github.com/levkeveli/Min3DStry/actions" target="_blank" rel="noopener">CI</a>
+    <div class="header-actions">
+      <a class="btn btn-primary" href="https://github.com/orgs/levkeveli/projects/1" target="_blank" rel="noopener">Project Board</a>
+      <a class="btn" href="https://github.com/levkeveli/Min3DStry/issues/new/choose" target="_blank" rel="noopener">New Issue</a>
+      <a class="btn" href="https://github.com/levkeveli/Min3DStry/pulls" target="_blank" rel="noopener">Pull Requests</a>
+      <a class="btn" href="https://github.com/levkeveli/Min3DStry/actions" target="_blank" rel="noopener">Actions</a>
       <button class="btn" id="refreshBtn" type="button">Refresh Live</button>
     </div>
-  </header>
+  </div>
+</header>
 
-  <div class="meta-bar">
-    <span>Published SHA: <a href="https://github.com/levkeveli/Min3DStry/commit/@SHA@" target="_blank" rel="noopener"><code>@SHA@</code></a></span>
+<div class="container">
+  <div class="meta-strip">
+    <span>Published commit: <a href="https://github.com/levkeveli/Min3DStry/commit/@SHA@" target="_blank" rel="noopener"><code>@SHA@</code></a></span>
     <span id="dataSourceText">Source: loading...</span>
-    <span>Evidence scale: <code>Planned</code> → <code>Experimental</code> → <code>Host-tested</code> → <code>Emulator-tested</code> → <code>Hardware-verified</code> → <code>Released</code></span>
+    <span>Scale: <code>Planned</code> → <code>Experimental</code> → <code>Host-tested</code> → <code>Emulator-tested</code> → <code>Hardware-verified</code> → <code>Released</code></span>
   </div>
 
-  <section class="stats-grid" id="statsGrid"></section>
+  <section class="overview-box" aria-label="What Min3DStry currently is">
+    <div class="overview-head">
+      <h1>What Min3DStry Currently Is</h1>
+      <span class="overview-maintainers">Maintainers: Levy (<code>@admiraly</code>), Kevin (<code>@Hxgg22</code>), Elia (<code>@Satixfied</code>)</span>
+    </div>
+    <p class="overview-text">
+      <strong>Min3DStry</strong> is an early-stage, open-source effort to build a native C11 port of <em>Mindustry</em> for Original and New Nintendo 3DS/2DS consoles using devkitARM, <code>libctru</code>, and Citro2D/Citro3D. Right now it is a technical foundation and rendering prototype—not a playable game yet.
+    </p>
+    <div class="overview-grid">
+      <div class="overview-item">
+        <h2>Working Today</h2>
+        <p>A host-tested and 3DS-compiled Citro2D 2D scene prototype (<code>min3dstry.3dsx</code>) showing a 36×24 tile factory slice with conveyors, turrets, a pulsing core, D-Pad/Circle Pad panning, and bottom-screen stats.</p>
+      </div>
+      <div class="overview-item">
+        <h2>Research &amp; Tooling</h2>
+        <p>A completed Java-to-native feasibility study with a C11 simulation kernel PoC, plus automated host unit tests, Docker-based devkitARM builds, and AI PR review.</p>
+      </div>
+      <div class="overview-item">
+        <h2>Not Built Yet</h2>
+        <p>Full Mindustry gameplay, map/save loading, audio, multiplayer, and real emulator or physical 3DS hardware boot verification are still pending.</p>
+      </div>
+    </div>
+  </section>
 
-  <div class="toolbar">
+  <div class="nav-bar">
     <div class="tabs" role="tablist">
       <button class="tab active" data-view="kanban" type="button">Kanban Board</button>
       <button class="tab" data-view="roadmap" type="button">Roadmap by Phase</button>
       <button class="tab" data-view="compat" type="button">Compatibility &amp; Activity</button>
     </div>
     <div class="filters">
-      <input class="input" id="searchInput" type="search" placeholder="Search #issue, title, keyword...">
+      <input class="input" id="searchInput" type="search" placeholder="Filter #issue, title, keyword...">
       <select class="select" id="phaseFilter">
         <option value="all">All Phases</option>
         <option value="0-foundation">Phase 0: Foundation</option>
@@ -430,6 +571,8 @@
     </div>
   </div>
 
+  <section class="stats-row" id="statsGrid"></section>
+
   <main>
     <section id="view-kanban" class="board"></section>
     <section id="view-roadmap" class="roadmap-list hidden"></section>
@@ -439,13 +582,13 @@
         <table>
           <thead><tr><th>Capability / Target</th><th>Status</th><th>Notes</th></tr></thead>
           <tbody>
-            <tr><td>Repository, CI &amp; AI PR review</td><td><span class="badge badge-ok">Host-tested</span></td><td><code>./dev.sh test</code>, PR policy gate, OpenCode Go / LLM review</td></tr>
-            <tr><td>Native ARM11 3DS build</td><td><span class="badge badge-unverified">Unverified</span></td><td>devkitPro / libctru toolchain integration pending</td></tr>
-            <tr><td>Emulator boot (Azahar / Citra)</td><td><span class="badge badge-unverified">Unverified</span></td><td>Awaiting first native target</td></tr>
+            <tr><td>Repository, CI &amp; AI PR review</td><td><span class="badge badge-ok">Host-tested</span></td><td><code>./dev.sh test</code>, PR policy gate, AI review</td></tr>
+            <tr><td>Java-to-native sim kernel PoC</td><td><span class="badge badge-ok">Host-tested</span></td><td><code>docs/research/java-to-native.md</code></td></tr>
+            <tr><td>Native ARM11 3DS build (<code>.3dsx</code>)</td><td><span class="badge badge-warn">3DS-build-tested</span></td><td>Compiles via devkitARM; boot test pending</td></tr>
+            <tr><td>Emulator boot (Azahar / Citra)</td><td><span class="badge badge-unverified">Unverified</span></td><td>Awaiting emulator run of <code>min3dstry.3dsx</code></td></tr>
             <tr><td>Original 3DS / 2DS boot</td><td><span class="badge badge-unverified">Unverified</span></td><td>Pending Issue #2 &amp; #6</td></tr>
             <tr><td>New 3DS / 2DS boot</td><td><span class="badge badge-unverified">Unverified</span></td><td>Pending Issue #2 &amp; #6</td></tr>
-            <tr><td>Gameplay, maps &amp; saves</td><td><span class="badge badge-unverified">Unverified</span></td><td>Pending Issue #1 &amp; #7 parity harness</td></tr>
-            <tr><td>Upstream multiplayer</td><td><span class="badge badge-unverified">Unverified</span></td><td>Pending deterministic simulation &amp; net probe</td></tr>
+            <tr><td>Gameplay, maps, saves &amp; multiplayer</td><td><span class="badge badge-unverified">Unverified</span></td><td>Pending Issue #7 parity harness</td></tr>
           </tbody>
         </table>
       </div>
@@ -463,14 +606,14 @@
   <div class="modal">
     <div class="modal-head">
       <div>
-        <div class="issue-num" id="modalMeta"></div>
+        <div class="modal-meta" id="modalMeta"></div>
         <h3 id="modalTitle"></h3>
       </div>
       <button class="btn" id="modalClose" type="button">Close</button>
     </div>
     <div class="pills" id="modalPills"></div>
     <div class="modal-body" id="modalBody"></div>
-    <div class="top-actions">
+    <div class="header-actions">
       <a class="btn btn-primary" id="modalOpenIssue" href="#" target="_blank" rel="noopener">Open Issue on GitHub</a>
       <a class="btn" href="https://github.com/orgs/levkeveli/projects/1" target="_blank" rel="noopener">Open Kanban Project</a>
     </div>
@@ -572,15 +715,15 @@
       if (counts[issue.status] !== undefined) counts[issue.status]++;
     }
     el.innerHTML = COLUMNS.map((c) => `
-      <div class="stat-card ${state.statusFilter === c.key ? "active" : ""}" data-status="${c.key}">
-        <div class="stat-label"><span class="dot" style="background:${c.color}"></span>${esc(c.label)}</div>
-        <div class="stat-value">${counts[c.key]}</div>
-      </div>
+      <button type="button" class="stat-btn ${state.statusFilter === c.key ? "active" : ""}" data-status="${c.key}">
+        <span class="stat-label"><span class="dot" style="background:${c.color}"></span>${esc(c.label)}</span>
+        <span class="stat-num">${counts[c.key]}</span>
+      </button>
     `).join("");
 
-    el.querySelectorAll(".stat-card").forEach((card) => {
-      card.addEventListener("click", () => {
-        const key = card.dataset.status;
+    el.querySelectorAll(".stat-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const key = btn.dataset.status;
         state.statusFilter = state.statusFilter === key ? "all" : key;
         renderAll();
       });
@@ -596,8 +739,8 @@
     return `
       <article class="card" data-issue="${issue.number}">
         <div class="card-top">
-          <span class="issue-num">#${issue.number}</span>
-          <span class="issue-num">${esc(issue.state)}</span>
+          <span>#${issue.number}</span>
+          <span>${esc(issue.state)}</span>
         </div>
         <h3 class="card-title">${esc(issue.title)}</h3>
         <p class="card-desc">${esc(issue.body || "No description.")}</p>
@@ -703,7 +846,7 @@
   }
 
   function openModal(issue) {
-    document.getElementById("modalMeta").textContent = `Issue #${issue.number} • ${issue.status.toUpperCase()} • ${issue.state}`;
+    document.getElementById("modalMeta").textContent = `Issue #${issue.number} · ${issue.status.toUpperCase()} · ${issue.state}`;
     document.getElementById("modalTitle").textContent = issue.title;
     const pills = [
       issue.phase ? `<span class="pill pill-phase">${esc(issue.phase)}</span>` : "",
@@ -745,7 +888,6 @@
       renderAll();
       return;
     } catch (_) {
-      // Fallback to live public GitHub API when opened without data.json
       await loadLiveGitHub(true);
     }
   }
