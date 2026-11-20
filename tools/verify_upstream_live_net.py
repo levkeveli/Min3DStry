@@ -32,7 +32,7 @@ def wait_for(path, proc, pattern, timeout):
         text = path.read_text(encoding="utf-8", errors="replace")
         if re.search(pattern, text):
             return text
-        if proc.poll() is not None or re.search(r"Core::LogException|java\.io\.IOException:", text):
+        if proc.poll() is not None or re.search(r"Core::LogException|UPSTREAM_LIVE_NET_ERROR", text):
             raise RuntimeError(f"Process stopped before {pattern}:\n{text[-2500:]}")
         time.sleep(0.05)
     raise RuntimeError(f"Timed out waiting for {pattern}:\n{text[-2500:]}")
@@ -40,7 +40,8 @@ def wait_for(path, proc, pattern, timeout):
 
 def run_model(args, model, config, original_config, log, output):
     overrides = {
-        "Miscellaneous": {"log_filter": "*:Info Debug.Emulated:Debug", "check_for_update_on_start": "false"},
+        "Miscellaneous": {"log_filter": "*:Info Debug.Emulated:Debug Service.SOC:Debug",
+                          "check_for_update_on_start": "false"},
         "Debugging": {"enable_rpc_server": "true", "instant_debug_log": "true"},
         "UI": {"firstStart": "false", "confirmClose": "false", "pause_when_in_background": "false"},
         "System": {"is_new_3ds": "true" if model == "new3ds" else "false"},
