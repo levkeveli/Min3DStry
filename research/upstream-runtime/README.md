@@ -22,7 +22,9 @@ Both runs should print UPSTREAM_LOGIC quotient=-3 remainder=1 xor=6.
 runs the `logic` and `map` probes for PRs and pushes touching this directory,
 then cross-builds each generated C output with the pinned devkitARM container
 and uploads the `.3dsx`/ELF artifacts. It uses no secrets and read-only
-repository permissions.
+repository permissions. The first successful run is
+[44798365837](https://github.com/levkeveli/Min3DStry/actions/runs/44798365837)
+for both probes.
 
 Local equivalent (the same two probes):
 
