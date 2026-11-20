@@ -1,73 +1,57 @@
-name: Upstream ARM11 smoke
-
+name: Upstream ARM11 smoke build
 on:
-  pull_request:
-    branches: [main]
-    paths:
-      - "research/upstream-runtime/**"
-      - ".github/workflows/upstream-arm11-smoke.yml"
   push:
-    branches: [main]
-    paths:
-      - "research/upstream-runtime/**"
-      - ".github/workflows/upstream-arm11-smoke.yml"
-  workflow_dispatch:
-
+    branches: [test/3dsx-upstream-terrain-renderer]
 permissions:
   contents: read
-
 jobs:
-  probe:
-    name: Probe ${{ matrix.probe }}
+  build:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    concurrency:
-      group: upstream-arm11-${{ github.ref }}-${{ matrix.probe }}
-      cancel-in-progress: true
     strategy:
       fail-fast: false
       matrix:
-        probe: [logic, map]
+        probe: [terrain-render]
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
-
-      - name: Fetch pinned upstream v160.8 source and server JAR
+      - name: Generate C from pinned upstream source
         run: |
-          git clone --depth 1 --branch v160.8 --filter=blob:none --no-checkout \
-            https://github.com/Anuken/Mindustry.git "$RUNNER_TEMP/Mindustry"
+          set -o pipefail
+          git clone --depth 1 --branch v160.8 --filter=blob:none --no-checkout https://github.com/Anuken/Mindustry.git "$RUNNER_TEMP/Mindustry"
           git -C "$RUNNER_TEMP/Mindustry" checkout HEAD -- gradlew gradle/wrapper
-          curl --fail --silent --show-error --location \
-            https://github.com/Anuken/Mindustry/releases/download/v160.8/server-release.jar \
-            -o "$RUNNER_TEMP/server-release.jar"
-
-      - name: Run JVM reference and generate TeaVM C
+          git init "$RUNNER_TEMP/Arc"
+          git -C "$RUNNER_TEMP/Arc" fetch --depth 1 https://github.com/Anuken/Arc.git 7445105cd2683daf5b9ac7033ebb07265d3e814d
+          curl --fail --silent --show-error --location https://github.com/Anuken/Mindustry/releases/download/v160.8/server-release.jar -o "$RUNNER_TEMP/server-release.jar"
+          curl --fail --silent --show-error --location https://github.com/Anuken/Mindustry/releases/download/v160.8/assets.jar -o "$RUNNER_TEMP/assets.jar"
+          printf '%s  %s\n' 2728b63d309c27a405744c8b5440d90a65387a41e2c4339b630a239f79f6bd17 "$RUNNER_TEMP/assets.jar" | sha256sum --check
+          unzip -p "$RUNNER_TEMP/assets.jar" assets/sprites/sprites.aatls > "$RUNNER_TEMP/sprites.aatls"
+          git -C "$RUNNER_TEMP/Mindustry" show HEAD:core/assets/maps/default/glacier.msav > "$RUNNER_TEMP/glacier.msav"
+          bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime --no-daemon --console=plain "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" "-PreferenceJar=$RUNNER_TEMP/server-release.jar" "-ParcCheckout=$RUNNER_TEMP/Arc" "-Pprobe=${{ matrix.probe }}" -Dorg.gradle.jvmargs=-Xmx3g runProbeJvm --args="$RUNNER_TEMP/glacier.msav $RUNNER_TEMP/sprites.aatls" generateC | tee "$RUNNER_TEMP/terrain-build.log"
+          grep -Fx 'UPSTREAM_TERRAIN viewport=18,0+16x12 commands=320 copper=26 edges=88 hash=de709773b1b58465' "$RUNNER_TEMP/terrain-build.log"
+      - name: Pack the original terrain atlas
         run: |
-          bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime \
-            --no-daemon --console=plain \
-            "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" \
-            "-PreferenceJar=$RUNNER_TEMP/server-release.jar" \
-            -Pprobe=${{ matrix.probe }} \
-            runProbeJvm generateC
-
-      - name: Build ARM11 probe with pinned devkitARM image
+          image=devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5
+          cat > "$RUNNER_TEMP/run-tex3ds" <<'EOF'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          exec docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:$PWD" -w "$PWD" \
+            devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5 \
+            /opt/devkitpro/tools/bin/tex3ds "$@"
+          EOF
+          chmod +x "$RUNNER_TEMP/run-tex3ds"
+          python3 research/upstream-runtime/arm11/prepare_terrain_assets.py \
+            --assets "$RUNNER_TEMP/assets.jar" --server "$RUNNER_TEMP/server-release.jar" \
+            --output-dir research/upstream-runtime/build/terrain-assets --tex3ds "$RUNNER_TEMP/run-tex3ds"
+      - name: Compile with devkitARM and libctru
         run: |
           image=devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5
           docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/work" -w /work "$image" bash -lc '
             source /opt/devkitpro/3dsvars.sh
-            bash research/upstream-runtime/arm11/build.sh \
-              research/upstream-runtime/build/generated/teavm/c \
-              research/upstream-runtime/build/probe-3ds'
+            bash research/upstream-runtime/arm11/build.sh research/upstream-runtime/build/generated/teavm/c research/upstream-runtime/build/probe-3ds research/upstream-runtime/build/terrain-assets'
           test -s research/upstream-runtime/build/probe-3ds/upstream-probe.3dsx
-          test -s research/upstream-runtime/build/probe-3ds/upstream-probe.elf
-
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: upstream-arm11-${{ matrix.probe }}
           path: |
