@@ -22,7 +22,8 @@ def entryPoints = [
     map: 'mindustry.maps.UpstreamMapProbe',
     'map-sd': 'mindustry.maps.UpstreamSdMapProbe',
     content: 'UpstreamContentBaseline',
-    resource: 'port.UpstreamResourceProbe'
+    resource: 'port.UpstreamResourceProbe',
+    'file-metadata': 'port.UpstreamFileMetadataProbe'
 ]
 if (!entryPoints.containsKey(probe)) {
     throw new GradleException("Expected -Pprobe to be one of ${entryPoints.keySet()}")
@@ -66,6 +67,9 @@ if (usesArcSources) {
 }
 if (usesContentSources) {
     sourceSets.main.java.srcDirs('host', 'src/content/java')
+}
+if (probe == 'file-metadata') {
+    sourceSets.main.java.srcDir('src/file/java')
 }
 dependencies {
     if (usesMapSources) {
