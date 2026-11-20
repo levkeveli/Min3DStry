@@ -79,6 +79,51 @@ Upstream `World.loadMap` loads Glacier and emits
 includes each building once at its origin tile. Use this JVM result as a
 reference when bringing up upstream world loading on ARM11.
 
+The source-runtime probe also exercises this path via the staged Arc file
+handle and upstream content initialization. With the original Glacier map
+extracted as above, run:
+
+```sh
+gradle -Pprobe=world -PupstreamCheckout=/path/to/Mindustry \
+    -PreferenceJar=/path/to/server-release.jar -ParcCheckout=/path/to/Arc \
+    runProbeJvm --args=/path/to/glacier.msav generateC
+```
+
+The probe uses the same seed on each platform for Glacier's upstream map
+filters. It verifies 37,500 populated tiles, two `core-nucleus` building
+origins at (81, 26) and (81, 224), and fingerprint `2e7b9f883994de6c`.
+The fingerprint covers floor, overlay, block, and building links for each
+tile, plus team and rotation at each building's origin. The probe also checks
+saved construction statistics, the enemy core protection radius, and the
+first wave group through the upstream JSON reader.
+
+The C build recompiles two compiler classes from the hash-checked TeaVM
+0.16.0 source archive. The patches retain the original entry block's
+liveness during coroutine splitting and use the primitive array opcode to
+infer the value type of each element. For offline generation, pass an
+already downloaded source archive with
+`-PteavmCompilerSources=/path/to/teavm-core-0.16.0-sources.jar`.
+
+Generate the ARM11 probe with the build command above and install the same
+original Glacier file at `/3ds/min3dstry/glacier.msav` on the target SD.
+Graphics and audio JNI methods reached by compiler analysis throw if
+called in this headless mode. World loading is tracked in #28.
+
+### Verify the Arc executor pools
+
+Use `-Pprobe=executor` with the JVM and ARM11 build commands. The JVM uses the
+unmodified Arc class. The TeaVM build substitutes Arc's named bounded and
+unbounded pool factories and exercises queued work, immediate worker
+handoff, cancellation, and shutdown. It should report:
+
+```text
+UPSTREAM_EXECUTOR workers=1 result=37 exception=ok cancel=ok timeout=ok shutdown=ok
+UPSTREAM_EXECUTOR_POOLS bounded=ok unbounded=ok
+```
+
+The JVM and generated Windows x64 program emitted both lines. The
+[devkitARM build](https://github.com/levkeveli/Min3DStry/actions/runs/44781211433)
+emitted both in Azahar 2126.2 Original and New 3DS modes.
 ### Check the upstream content registry and building factories
 
 The [JVM content and factory probes](host/README.md) compare the pinned release

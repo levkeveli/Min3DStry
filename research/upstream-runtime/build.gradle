@@ -104,6 +104,9 @@ if (usesExecutor) {
 if (usesContentSources) {
     sourceSets.main.java.srcDirs('host', 'src/content/java')
 }
+if (probe == 'world') {
+    sourceSets.main.java.srcDir('src/world/java')
+}
 dependencies {
     if (usesMapSources) {
         implementation 'org.teavm:teavm-interop:0.16.0'

@@ -8,6 +8,7 @@ import arc.struct.Seq;
 import java.io.IOException;
 import java.util.ArrayDeque;
 import mindustry.Vars;
+import mindustry.content.UnitTypes;
 import mindustry.core.ContentLoader;
 import mindustry.core.GameState;
 import mindustry.core.Logic;
@@ -44,6 +45,13 @@ public final class UpstreamWorldLoadProbe {
         app.runPosted();
         if (Vars.state.map != map || Vars.world.width() != 150 || Vars.world.height() != 250) {
             throw new IllegalStateException("Glacier did not load");
+        }
+        var stats = Vars.state.stats;
+        var rules = Vars.state.rules;
+        if (stats.buildingsBuilt != 9 || stats.buildingsDeconstructed != 9
+                || rules.enemyCoreBuildRadius != 832 || rules.spawns.isEmpty()
+                || rules.spawns.first().type != UnitTypes.dagger || rules.spawns.first().end != 10) {
+            throw new IllegalStateException("Glacier save metadata differs");
         }
         int tiles = 0;
         int buildings = 0;
