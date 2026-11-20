@@ -173,27 +173,32 @@ static void test_event_play_uses_registry_clip(void) {
                &registry, &mixer, entries, 7u, mock_read, (void *)files, storage,
                sizeof(storage)) == M3DS_AUDIO_REGISTRY_OK);
 
-    const M3dsAudioEvent events[] = {
-        M3DS_AUDIO_EVENT_UI_BUTTON,
-        M3DS_AUDIO_EVENT_RESEARCH_UNLOCK,
-        M3DS_AUDIO_EVENT_WAVE_SPAWN,
-        M3DS_AUDIO_EVENT_SHOOT_DUO,
-        M3DS_AUDIO_EVENT_ENEMY_KILL,
-        M3DS_AUDIO_EVENT_CONVEYOR_LOOP,
-        M3DS_AUDIO_EVENT_DRILL_LOOP,
+    typedef struct ExpectedEvent {
+        M3dsAudioEvent event;
+        bool loops;
+    } ExpectedEvent;
+    static const ExpectedEvent events[] = {
+        {M3DS_AUDIO_EVENT_UI_BUTTON, false},
+        {M3DS_AUDIO_EVENT_RESEARCH_UNLOCK, false},
+        {M3DS_AUDIO_EVENT_WAVE_SPAWN, false},
+        {M3DS_AUDIO_EVENT_SHOOT_DUO, false},
+        {M3DS_AUDIO_EVENT_ENEMY_KILL, false},
+        {M3DS_AUDIO_EVENT_CONVEYOR_LOOP, true},
+        {M3DS_AUDIO_EVENT_DRILL_LOOP, true},
     };
     for (size_t i = 0u; i < sizeof(events) / sizeof(events[0]); ++i) {
         m3ds_audio_mixer_stop_all(&mixer);
         M3dsAudioPlayParams params = m3ds_audio_default_play_params(M3DS_AUDIO_BUS_SFX);
         params.volume = 0.5f;
-        params.looping = events[i] >= M3DS_AUDIO_EVENT_CONVEYOR_LOOP;
-        uint32_t voice = m3ds_audio_event_play(&registry, events[i], &params);
+        params.looping = events[i].loops;
+        uint32_t voice = m3ds_audio_event_play(&registry, events[i].event, &params);
         assert(voice != M3DS_AUDIO_INVALID_VOICE);
-        int expected = m3ds_audio_event_clip(&registry, events[i]);
+        int expected = m3ds_audio_event_clip(&registry, events[i].event);
         assert(expected >= 0);
-        assert(expected == m3ds_audio_registry_find(&registry, m3ds_audio_event_id(events[i])));
+        assert(expected ==
+               m3ds_audio_registry_find(&registry, m3ds_audio_event_id(events[i].event)));
         assert(g_ctx.last_clip == expected);
-        assert(g_ctx.last_looping == params.looping);
+        assert(g_ctx.last_looping == events[i].loops);
         assert(mixer.voices[g_ctx.active_channel].active);
         assert(mixer.voices[g_ctx.active_channel].clip_id == expected);
     }

@@ -83,6 +83,22 @@ static uint32_t m3ds_play_event(
     return voice;
 }
 
+static void m3ds_start_ambient_loops(
+    M3dsAudioRegistry *events,
+    uint32_t *conveyor_voice,
+    uint32_t *drill_voice) {
+    *conveyor_voice = M3DS_AUDIO_INVALID_VOICE;
+    *drill_voice = M3DS_AUDIO_INVALID_VOICE;
+    if (!events) {
+        return;
+    }
+    int clip = M3DS_AUDIO_INVALID_CLIP;
+    *conveyor_voice = m3ds_play_event(
+        events, M3DS_AUDIO_EVENT_CONVEYOR_LOOP, 0.2f, true, &clip);
+    *drill_voice = m3ds_play_event(
+        events, M3DS_AUDIO_EVENT_DRILL_LOOP, 0.2f, true, &clip);
+}
+
 int main(int argc, char *argv[]) {
     gfxInitDefault();
     C3D_Init(C3D_DEFAULT_CMDBUF_SIZE);
@@ -261,24 +277,25 @@ int main(int argc, char *argv[]) {
     snprintf(dbg_line, sizeof(dbg_line), "[MIN3DSTRY] AUDIO %s\n", audio_diag);
     m3ds_emit_debug_line(log_socket, dbg_line);
 
+    uint32_t conveyor_loop_voice = M3DS_AUDIO_INVALID_VOICE;
+    uint32_t drill_loop_voice = M3DS_AUDIO_INVALID_VOICE;
     if (audio_events) {
-        int conveyor_clip = M3DS_AUDIO_INVALID_CLIP;
-        uint32_t conveyor_voice = m3ds_play_event(
-            audio_events, M3DS_AUDIO_EVENT_CONVEYOR_LOOP, 0.2f, true,
-            &conveyor_clip);
+        m3ds_start_ambient_loops(
+            audio_events, &conveyor_loop_voice, &drill_loop_voice);
+        int conveyor_clip = m3ds_audio_event_clip(
+            audio_events, M3DS_AUDIO_EVENT_CONVEYOR_LOOP);
         snprintf(dbg_line, sizeof(dbg_line),
                  "[MIN3DSTRY] AUDIO_EVENT conveyor.loop clip=%d voice=%u\n",
                  conveyor_clip,
-                 (unsigned int)conveyor_voice);
+                 (unsigned int)conveyor_loop_voice);
         m3ds_emit_debug_line(log_socket, dbg_line);
 
-        int drill_clip = M3DS_AUDIO_INVALID_CLIP;
-        uint32_t drill_voice = m3ds_play_event(
-            audio_events, M3DS_AUDIO_EVENT_DRILL_LOOP, 0.2f, true, &drill_clip);
+        int drill_clip = m3ds_audio_event_clip(
+            audio_events, M3DS_AUDIO_EVENT_DRILL_LOOP);
         snprintf(dbg_line, sizeof(dbg_line),
                  "[MIN3DSTRY] AUDIO_EVENT drill.loop clip=%d voice=%u\n",
                  drill_clip,
-                 (unsigned int)drill_voice);
+                 (unsigned int)drill_loop_voice);
         m3ds_emit_debug_line(log_socket, dbg_line);
     }
 
@@ -299,7 +316,17 @@ int main(int argc, char *argv[]) {
             break;
         }
         if (kDown & KEY_A) {
-            scene.paused = !scene.paused;
+            bool pause = !scene.paused;
+            if (pause) {
+                m3ds_audio_mixer_stop(&audio_mixer, conveyor_loop_voice);
+                m3ds_audio_mixer_stop(&audio_mixer, drill_loop_voice);
+                conveyor_loop_voice = M3DS_AUDIO_INVALID_VOICE;
+                drill_loop_voice = M3DS_AUDIO_INVALID_VOICE;
+            } else {
+                m3ds_start_ambient_loops(
+                    audio_events, &conveyor_loop_voice, &drill_loop_voice);
+            }
+            scene.paused = pause;
             m3ds_play_ui_click(audio_events, &audio_mixer, clip_ui);
         }
         if (kDown & KEY_Y) {
