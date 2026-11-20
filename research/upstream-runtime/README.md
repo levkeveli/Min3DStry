@@ -436,3 +436,16 @@ the build. Run from the repository root:
 python tools/verify_upstream_live.py --rom /path/to/upstream-probe.3dsx \
   --azahar /path/to/azahar.exe --glacier /path/to/glacier.msav --atlas /path/to/sprites.aatls
 ```
+
+The [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44814855208)
+passed the interactive check at `-O0` and `-O2` in both Azahar 2126.2
+console profiles. At `-O2`, both runs sent copper at tick 3 and reached the
+router at tick 60, matching the Java reference's 57-tick travel time.
+The Old profile paused and resumed at tick 5, and the New profile paused
+and resumed at tick 7. Both runs collected the copper and exited cleanly.
+The paused screenshots show the original copper sprite on the conveyor.
+
+The `-O2` ELF load segments total 39.95 MiB after page rounding. With the
+24 MiB managed heap, 4 MiB linear heap and 256 KiB native stack, the
+mapped and reserved subtotal is 68.20 MiB. Physical-console memory and
+frame times still need verification.
