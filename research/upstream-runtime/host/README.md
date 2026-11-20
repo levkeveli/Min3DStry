@@ -65,3 +65,24 @@ The [resource probe](../README.md#read-pinned-arc-resources) documents the
 adaptation used by content mode for Arc's classpath lookup. C generation now
 stops at the executor, future, and processor-count APIs reached during static
 initialization. Native registry and factory parity are tracked in #55.
+
+## Save writer baseline
+
+Issue #28 needs the exact upstream writer output as a reference. With Java 17,
+the pinned server JAR and the original Glacier map, run:
+
+```sh
+java -cp /path/to/server-release.jar \
+    /path/to/Min3DStry/research/upstream-runtime/host/UpstreamSaveBaseline.java \
+    /path/to/glacier.msav
+```
+
+Expected stable prefix:
+
+```text
+UPSTREAM_SAVE header=MSAV version=13 bytes=<n>
+```
+
+The byte count can vary between runs; the `MSAV` header and save version are
+the contract. This is a host-only reference. It does not read or write a
+Min3DStry format and is not a 3DS test.
