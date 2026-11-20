@@ -25,3 +25,5 @@ printf 'version\nexit\n' | java -jar server-release.jar
 ```
 
 The initial source boundaries are `desktop/src/mindustry/desktop/DesktopLauncher.java` for the desktop platform, `server/src/mindustry/server/ServerLauncher.java` for the headless reference, `core/src/mindustry/io/SaveIO.java` for save entry points, and `core/src/mindustry/core/NetClient.java`, `NetServer.java`, and `core/src/mindustry/net/ArcNetProvider.java` for multiplayer.
+
+The [upstream source runtime probe](../research/upstream-runtime/README.md) tracks the first test of compiling original Mindustry source to native code. See [issue #49](https://github.com/levkeveli/Min3DStry/issues/49).
