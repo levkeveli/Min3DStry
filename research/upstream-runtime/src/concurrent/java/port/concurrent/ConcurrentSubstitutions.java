@@ -6,8 +6,10 @@ import org.teavm.extension.spi.substitution.SubstitutionSink;
 
 @Autoregistered
 public final class ConcurrentSubstitutions implements SubstitutionPolicy {
+    static final String RUNTIME_PACKAGE = "java.util.concurrent";
+
     @Override
     public void contribute(SubstitutionSink sink) {
-        sink.substitutePackage("java.util.concurrent", "port.concurrent");
+        sink.substitutePackage(RUNTIME_PACKAGE, "port.concurrent");
     }
 }
