@@ -122,11 +122,12 @@ def stage_to_sd(
 
 
 def parse_device_log(log_text: str) -> dict[str, Any]:
-    """Extract [MIN3DSTRY] HW, PARITY, and FRAME records from streamed device output."""
+    """Extract [MIN3DSTRY] HW, PARITY, AUDIO, and FRAME records from streamed device output."""
     parsed = parse_azahar_log(log_text)
     return {
         "hw_line": parsed.get("hw_line"),
         "parity": parsed.get("parity"),
+        "audio": parsed.get("audio"),
         "frame": parsed.get("frame"),
     }
 
@@ -137,7 +138,7 @@ def format_provenance_markdown(
     commit_sha: str = "unknown",
     target_label: str = "3DS Hardware",
 ) -> str:
-    """Format parsed hardware/parity/frame telemetry as a concise Markdown verification record."""
+    """Format parsed hardware/parity/audio/frame telemetry as a concise Markdown verification record."""
     lines = [
         f"- **Target:** {target_label} (`commit {commit_sha}`)",
         f"- **Hardware probe:** `{parsed.get('hw_line') or 'missing'}`",
@@ -149,6 +150,14 @@ def format_provenance_markdown(
             f"`{parity.get('scenario_id')}` `hash={parity.get('trace_hash')}` "
             f"(copper={parity.get('core_copper')}, delivered={parity.get('items_delivered')}, "
             f"killed={parity.get('enemies_killed')}, hp={parity.get('core_hp')})"
+        )
+    audio = parsed.get("audio")
+    if isinstance(audio, dict):
+        lines.append(
+            "- **Audio:** "
+            f"backend={audio.get('backend')} state={audio.get('state')} "
+            f"rc={audio.get('rc')} rate={audio.get('rate')} "
+            f"voices={audio.get('voices')}/{audio.get('max_voices')} clips={audio.get('clips')}"
         )
     frame = parsed.get("frame")
     if isinstance(frame, dict):

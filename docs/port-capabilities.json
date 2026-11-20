@@ -76,6 +76,7 @@
       "name": "64 MiB Old 3DS Memory Allocator",
       "weight": 3,
       "stage": "planned",
+      "issue": 36,
       "evidence": []
     },
     {
@@ -84,6 +85,7 @@
       "name": "Dual-Core / N3DS AppCore Scheduling",
       "weight": 3,
       "stage": "planned",
+      "issue": 37,
       "evidence": []
     },
     {
@@ -128,6 +130,7 @@
       "name": "Zoom Camera, Lighting & Effects",
       "weight": 5,
       "stage": "planned",
+      "issue": 38,
       "evidence": []
     },
     {
@@ -161,6 +164,7 @@
       "name": "Crafters, Power Grid & Liquid Graph",
       "weight": 6,
       "stage": "planned",
+      "issue": 39,
       "evidence": []
     },
     {
@@ -187,6 +191,7 @@
       "name": "Top/Bottom HUD, Menus & Minimap",
       "weight": 6,
       "stage": "planned",
+      "issue": 40,
       "evidence": []
     },
     {
@@ -204,6 +209,7 @@
       "name": "Tech Tree & Sector Progression",
       "weight": 4,
       "stage": "planned",
+      "issue": 41,
       "evidence": []
     },
     {
@@ -211,9 +217,15 @@
       "category": "Audio",
       "name": "NDSP Sound Effects & Music Mixer",
       "weight": 6,
-      "stage": "planned",
+      "stage": "host-tested",
       "issue": 29,
-      "evidence": []
+      "evidence": [
+        "include/audio/audio_mixer.h",
+        "src/audio/audio_mixer.c",
+        "src/platform/3ds/ndsp_backend.c",
+        "tests/audio/test_audio_mixer.c",
+        "docs/audio/ndsp-mixer.md"
+      ]
     },
     {
       "id": "crossplay-net-protocol",
@@ -230,7 +242,7 @@
       "name": "Old & New 3DS Physical Hardware Verification",
       "weight": 5,
       "stage": "planned",
-      "issue": 6,
+      "issue": 43,
       "evidence": []
     }
   ]
