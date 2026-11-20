@@ -199,6 +199,16 @@ jobs:
             | tee "$RUNNER_TEMP/progression.log"
           grep -F 'UPSTREAM_PROGRESSION tech_nodes=375 tech_roots=2 sectors=95 manifest_sha256=4a61e8b260eb4f698ed128eb6654e2fa61f295f64d29b44c7638c7b8dda2bd4a' "$RUNNER_TEMP/progression.log"
 
+      - name: Run pinned campaign and tech-tree persistence baseline
+        run: |
+          java -cp "$RUNNER_TEMP/server-release.jar" \
+            research/upstream-runtime/host/UpstreamCampaignPersistenceBaseline.java \
+            | tee "$RUNNER_TEMP/campaign-persistence.log"
+          grep -F 'UPSTREAM_CAMPAIGN_INIT root=groundZero(id=170,unlocked=true) frozenForest(id=64,locked=true,objComplete=false)' "$RUNNER_TEMP/campaign-persistence.log"
+          grep -F 'UPSTREAM_CAMPAIGN_RELOAD ' "$RUNNER_TEMP/campaign-persistence.log"
+          grep -F 'UPSTREAM_CAMPAIGN_RESILIENCE waterMigrated=true resetOk=true backupRecovered=true corruptHandled=true' "$RUNNER_TEMP/campaign-persistence.log"
+          grep -F 'UPSTREAM_CAMPAIGN_PASS tech_nodes=375 sectors=95' "$RUNNER_TEMP/campaign-persistence.log"
+
   combat-baseline:
     name: Combat metadata baseline
     runs-on: ubuntu-latest
