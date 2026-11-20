@@ -26,6 +26,9 @@ def main():
         "uchar.h": [
             ("#if TEAVM_PSP || defined(__APPLE__)", "#if TEAVM_PSP || defined(__APPLE__) || defined(__3DS__)"),
         ],
+        "exceptions.h": [
+            ("#if TEAVM_PSP", "#if TEAVM_PSP || defined(__3DS__)"),
+        ],
         "all.c": [
             ('#include "date.c"', ""),
             ('#include "fiber.c"', '#include "m3ds_platform.c"'),
