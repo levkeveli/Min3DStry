@@ -282,6 +282,15 @@ the server recorded both departures. The optimized probe's page-rounded
 ELF load segments account for 28.04 MiB. Including the configured heap,
 stack and SOC buffer brings that subtotal to 45.29 MiB.
 
+The same optimized probe shared a Glacier session with the unmodified
+[v160.8 desktop client](https://github.com/Anuken/Mindustry/releases/tag/v160.8)
+on each Azahar profile. The PC client stayed connected through both ARM11
+joins and wave transitions. The desktop view showed the ARM11 player at
+the core. To repeat the test, launch the official desktop JAR and add
+`--model old3ds --desktop-name "Min3DStry PC Oracle"` to the verifier
+command. Join the printed loopback address in the desktop game with that
+player name. Repeat with `--model new3ds`.
+
 Before the snapshot dispatch extension, the [devkitARM verification build](https://github.com/levkeveli/Min3DStry/actions/runs/44824442974)
 passed at `-O0` and `-O2` on both Azahar 2126.2 console profiles. Each run
 rejected build 159 with `clientOutdated`, then joined Glacier twice with

@@ -60,6 +60,10 @@ def run_model(args, model, config, original_config, log, output):
             server.stdin.write(f"config port {args.port}\nhost Glacier attack\n")
             server.stdin.flush()
             wait_for(server_log, server, f"Opened a server on port {args.port}\\.", 25)
+            if args.desktop_name:
+                print(f"{model}: Join 127.0.0.1:{args.port} from the stock PC client as "
+                      f"{args.desktop_name!r}.", flush=True)
+                wait_for(server_log, server, rf"{re.escape(args.desktop_name)} has connected", args.timeout)
             emulator = subprocess.Popen([str(args.azahar), str(args.rom)],
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             rpc = az.AzaharRpcClient(timeout=2, retries=2)
@@ -79,7 +83,13 @@ def run_model(args, model, config, original_config, log, output):
                 (output / f"{model}-emulator.log").write_bytes(log.read_bytes())
             validate(emu_log)
             disconnected = rf"{PLAYER} has disconnected[\s\S]*{PLAYER} has disconnected"
-            wait_for(server_log, server, disconnected, 5)
+            before_shutdown = wait_for(server_log, server, disconnected, 5)
+            if args.desktop_name:
+                desktop_join = before_shutdown.find(f"{args.desktop_name} has connected")
+                arm_join = before_shutdown.find(f"{PLAYER} has connected")
+                if not 0 <= desktop_join < arm_join or f"{args.desktop_name} has disconnected" in before_shutdown:
+                    raise RuntimeError(f"{model} PC client did not stay connected through both ARM11 joins")
+                print(f"{model}: the PC client stayed connected through both ARM11 joins", flush=True)
             server.stdin.write("exit\n")
             server.stdin.flush()
             server.wait(timeout=10)
@@ -126,6 +136,10 @@ def main():
     parser.add_argument("--java", default="java")
     parser.add_argument("--port", default=16568, type=int)
     parser.add_argument("--timeout", default=120, type=float)
+    parser.add_argument("--model", choices=("old3ds", "new3ds"),
+                        help="Check one Azahar profile (default: both)")
+    parser.add_argument("--desktop-name",
+                        help="Wait for a separately launched PC client and verify its connection overlaps both joins")
     args = parser.parse_args()
     args.server, args.rom, args.azahar = (path.resolve() for path in (args.server, args.rom, args.azahar))
     with args.server.open("rb") as archive:
@@ -133,6 +147,8 @@ def main():
             parser.error("Expected the official v160.8 server-release.jar")
     if not 1 <= args.port <= 65535:
         parser.error("Port must be between 1 and 65535")
+    if args.desktop_name is not None and (not args.desktop_name.strip() or args.desktop_name == PLAYER):
+        parser.error("The PC client needs a distinct player name")
     config, log = az.resolve_azahar_paths()
     endpoint = config.parent.parent / "sdmc/3ds/min3dstry/server-endpoint.txt"
     originals = {path: path.read_bytes() if path.exists() else None for path in (config, log, endpoint)}
@@ -142,7 +158,7 @@ def main():
         for path in originals:
             path.parent.mkdir(parents=True, exist_ok=True)
         endpoint.write_text(f"127.0.0.1 {args.port}\n", encoding="ascii")
-        for model in ("old3ds", "new3ds"):
+        for model in ((args.model,) if args.model else ("old3ds", "new3ds")):
             run_model(args, model, config, (originals[config] or b"").decode(), log, output)
     finally:
         for path, data in originals.items():
