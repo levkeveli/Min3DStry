@@ -207,8 +207,26 @@ ARM11 entry point reads the same fixture from
 `/3ds/min3dstry/glacier-world-stream.bin` on the SD.
 Reuse the same capture when comparing platforms because each server
 startup can produce different filter results and tick state.
-A live JVM capture ran against the official server on loopback and
-loaded the 150 × 250 map, two cores, wave 1 and the server-assigned player.
+
+Two captures from fresh official servers on loopback loaded the 150 × 250
+map, both cores, wave 1 and the assigned player. The pinned JVM, generated
+Windows x64 program and [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44819568048)
+reported matching state for each corresponding capture. Both Azahar 2126.2
+console profiles reported the terrain fingerprints `cd909fce1d821404`
+and `eabf9af0dd63684c` for the two captures, respectively.
+
+Run the comparison from the repository root with the exact
+`UPSTREAM_WORLD_STREAM ...` line from `runProbeJvm`:
+
+```sh
+python tools/verify_upstream_world_stream.py --rom /path/to/upstream-probe.3dsx \
+  --azahar /path/to/azahar --fixture /path/to/glacier-world-stream.bin \
+  --reference "$jvm_world_stream_line"
+```
+
+The ARM11 ELF load segments occupy 25.39 MiB after page rounding.
+With its 16 MiB managed heap and 256 KiB native stack, those components
+total 41.64 MiB. Physical-console memory and networking still need testing.
 Live 3DS sockets, connection confirmation and gameplay synchronization
 are tracked in #44.
 
