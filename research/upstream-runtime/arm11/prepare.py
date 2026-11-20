@@ -29,6 +29,15 @@ def main():
         "exceptions.h": [
             ("#if TEAVM_PSP", "#if TEAVM_PSP || defined(__3DS__)"),
         ],
+        "arrayclass.c": [
+            (
+                "static TEAVM_OBJECT_CLASS teavm_dynamicClassPool[TEAVM_DYNAMIC_CLASS_POOL_CAPACITY];",
+                "typedef struct { _Alignas(8) TEAVM_OBJECT_CLASS value; } M3dsArrayClassSlot;\n"
+                "static M3dsArrayClassSlot teavm_dynamicClassPool[TEAVM_DYNAMIC_CLASS_POOL_CAPACITY];",
+            ),
+            ("&teavm_dynamicClassPool[teavm_dynamicClassPoolSize++]", "&teavm_dynamicClassPool[teavm_dynamicClassPoolSize++].value"),
+            ("&teavm_dynamicClassPool[index].parent", "&teavm_dynamicClassPool[index].value.parent"),
+        ],
         "all.c": [
             ('#include "date.c"', ""),
             ('#include "fiber.c"', '#include "m3ds_platform.c"'),
