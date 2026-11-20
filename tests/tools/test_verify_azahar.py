@@ -123,6 +123,18 @@ class VerifyAzaharTests(unittest.TestCase):
         self.assertEqual(parsed["frame"]["budget_dropped"], 0)
         self.assertAlmostEqual(parsed["frame"]["cam_x"], -88.0)
 
+    def test_parse_azahar_log_atlas_states(self) -> None:
+        missing = verify_azahar.parse_azahar_log("no telemetry here\n")
+        self.assertIsNone(missing["atlas_loaded"])
+        unavailable = verify_azahar.parse_azahar_log(
+            "[   3.95] Kernel.SVC <Debug> svc.cpp:100: [MIN3DSTRY] ATLAS unavailable\n"
+        )
+        self.assertFalse(unavailable["atlas_loaded"])
+        loaded = verify_azahar.parse_azahar_log(
+            "[   3.95] Kernel.SVC <Debug> svc.cpp:100: [MIN3DSTRY] ATLAS loaded\n"
+        )
+        self.assertTrue(loaded["atlas_loaded"])
+
     def test_inspect_png_distinguishes_blank_and_rendered_frames(self) -> None:
         blank = make_test_png(16, 16, lambda _x, _y: (0, 0, 0))
         blank_info = verify_azahar.inspect_png(blank)
