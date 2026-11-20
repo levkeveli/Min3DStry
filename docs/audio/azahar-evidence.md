@@ -33,7 +33,7 @@ Both `new3ds` and `old3ds` modes passed:
 ```
 
 - Parity: `0x53a483c7` on both models.
-- New 3DS: `59.62 FPS`; Old 3DS: `59.22 FPS` in the recorded run.
+- New 3DS: `58.80 FPS`; Old 3DS: `59.64 FPS` in the recorded run.
 - `voice=0` is expected in Azahar because DSP firmware is unavailable; it means
   no mixer voice was started, not that the event failed to resolve a clip.
 

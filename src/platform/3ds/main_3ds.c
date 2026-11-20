@@ -30,7 +30,7 @@
 #define M3DS_MEMORY_PROBE_WORLD_BYTES (200U * 200U * 12U)
 #define M3DS_MEMORY_PROBE_TEXTURE_BYTES (8U * 1024U)
 #define M3DS_MEMORY_PROBE_TRANSIENT_BYTES (64U * 1024U)
-#define M3DS_DEMO_WAVE_TICK 10u
+#define M3DS_DEMO_WAVE_TICK 5u
 #define M3DS_DEMO_WAVE_X 9u
 #define M3DS_DEMO_WAVE_Y 1u
 #define M3DS_DEMO_WAVE_COUNT 2u
@@ -197,6 +197,8 @@ int main(int argc, char *argv[]) {
         m3ds_emit_debug_line(log_socket, dbg_line);
     }
 
+    /* The PARITY run above is the canonical fixture; the interactive demo
+       below applies its own inputs and does not feed that trace hash. */
     C3D_RenderTarget *top = C2D_CreateScreenTarget(GFX_TOP, GFX_LEFT);
 
     M3dsBoundedScene scene;

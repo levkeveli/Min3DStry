@@ -554,6 +554,7 @@ def parse_azahar_log(log_text: str) -> dict[str, Any]:
                     "clip": int(bg["clip"]),
                     "voice": int(bg["voice"]),
                 }
+                continue
         else:
             audio_match = AUDIO_RE.search(line)
             if audio_match:
@@ -771,7 +772,9 @@ def run_model_check(
         if requires_audio_clips and shoot_event["clip"] < 0:
             raise AssertionError(f"Duo shoot event did not resolve a clip for {model}: {shoot_event}")
         kill_event = parsed.get("kill_event")
-        if kill_event is not None and requires_audio_clips and kill_event["clip"] < 0:
+        if kill_event is None or kill_event["name"] != "enemy.kill" or kill_event["killed"] < 1:
+            raise AssertionError(f"Missing enemy-kill audio event for {model}: {kill_event}")
+        if requires_audio_clips and kill_event["clip"] < 0:
             raise AssertionError(f"Enemy kill event did not resolve a clip for {model}: {kill_event}")
         conveyor_event = parsed.get("conveyor_event")
         drill_event = parsed.get("drill_event")

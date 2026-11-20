@@ -121,7 +121,7 @@ the A/Y path and logs `AUDIO_ROMFS status=...` over the debug channel.
 `include/audio/audio_events.h` maps the pinned logical IDs to
 `M3dsAudioEvent` values and plays the registered clip through the mixer:
 `UI_BUTTON` is used by the A/Y controls, `WAVE_SPAWN` is requested when the
-interactive demo spawns a deterministic wave at tick 10 through the existing
+interactive demo spawns a deterministic wave at tick 5 through the existing
 `M3DS_PINPUT_SPAWN_WAVE` input, `SHOOT_DUO` is requested when the demo's
 Duo-style turret fires, `ENEMY_KILL` is requested when a wave enemy dies,
 `CONVEYOR_LOOP` and `DRILL_LOOP` are requested as looping startup ambients,
@@ -158,11 +158,10 @@ still pending.
   converts the pinned nine assets with ffmpeg, asserts the output manifest,
   PCM files, `audio/` layout and `audio-index.h`, then compiles the generated
   index against the registry header.
-- `./dev.sh emu-test` requires the deterministic wave and Duo-fire event logs
-  for both models. Enemy-kill telemetry is validated when captured. ROMFS
-  builds additionally require resolved conveyor/drill loop and block
-  place/break clips, proving the events reached the registry even when DSP
-  firmware is absent.
+- `./dev.sh emu-test` requires the deterministic wave, Duo-fire and enemy-kill
+  event logs for both models. ROMFS builds additionally require resolved
+  conveyor/drill loop and block place/break clips, proving the events reached
+  the registry even when DSP firmware is absent.
 
 ## Licensing and limitations
 
