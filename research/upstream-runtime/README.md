@@ -221,11 +221,20 @@ checks deliveries through the original router and conveyor through tick
 content and registers the block indexer and wave spawner before the world
 loads.
 
-The pinned Java release and the generated Windows x64 program report
-`UPSTREAM_FACTORY updates=240 wave=1 arrival=29 copper=201`.
-The pinned Java reference also reports
-`UPSTREAM_DRILL updates=720 wave=1 copper=203 arrivals=464=202,626=203`.
+The pinned Java release, generated Windows x64 C, and both Azahar 2126.2
+console profiles reported these results.
+
+```text
+UPSTREAM_FACTORY updates=240 wave=1 arrival=29 copper=201
+UPSTREAM_DRILL updates=720 wave=1 copper=203 arrivals=464=202,626=203
+```
+
 The C build links `logicids.dat`, the base-part list, and the schematics
-named by that list directly from the hash-checked server JAR. The probe
-allows a 24 MiB managed heap for the active upstream simulation. Factory
-parity on ARM11 is tracked in #26.
+named by that list directly from the hash-checked server JAR.
+[DevkitARM build 44795739970](https://github.com/levkeveli/Min3DStry/actions/runs/44795739970)
+ran with C optimization disabled, a 24 MiB managed heap, a 4 MiB linear
+heap for the debug console, and a 256 KiB native stack. Its ELF load
+segments and those reservations already total 67.50 MiB before GC
+bookkeeping and other application allocations. The verified factory
+scenario runs in Azahar. The 64 MiB Original 3DS budget and physical
+performance still need verification. Factory parity is tracked in #26.
