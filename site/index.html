@@ -524,17 +524,28 @@
     <div class="overview-grid">
       <div class="overview-item">
         <h2>Working Today</h2>
-        <p>A host-tested and 3DS-compiled Citro2D 2D scene prototype (<code>min3dstry.3dsx</code>) showing a 36×24 tile factory slice with conveyors, turrets, a pulsing core, D-Pad/Circle Pad panning, and bottom-screen stats.</p>
+        <p>Azahar-verified <code>min3dstry.3dsx</code> Citro2D prototype + Old/New 3DS hardware probe and deterministic parity harness (<code>trace_hash=0x53a483c7</code> matching across host <code>-O0</code>/<code>-O2</code> and ARM11), plus sprite atlas and <code>3dslink</code>/SD deployment tools.</p>
       </div>
       <div class="overview-item">
         <h2>Research &amp; Tooling</h2>
-        <p>A completed Java-to-native feasibility study with a C11 simulation kernel PoC, plus automated host unit tests, Docker-based devkitARM builds, and AI PR review.</p>
+        <p>Java-to-native feasibility study, SDK-free Windows/Linux host test suite (<code>./dev.sh test</code>), automated Azahar Old/New 3DS verification (<code>./dev.sh emu-test</code>), and AI PR auto-merge.</p>
       </div>
       <div class="overview-item">
         <h2>Not Built Yet</h2>
-        <p>Full Mindustry gameplay, map/save loading, audio, multiplayer, and real emulator or physical 3DS hardware boot verification are still pending.</p>
+        <p>Full Mindustry world blocks &amp; wave combat, textured atlas rendering, bottom-screen touch build UI, <code>.msav</code> map loading, NDSP audio, multiplayer, and physical 3DS hardware boot.</p>
       </div>
     </div>
+  </section>
+
+  <section class="overview-box" id="portProgressBox" aria-label="Full-Port Completion Gauge">
+    <div class="overview-head">
+      <h1>Full-Port Completion Gauge</h1>
+      <span class="overview-maintainers" id="portProgressSummary">Loading capability ledger...</span>
+    </div>
+    <div class="progress-track" style="height: 12px; margin-bottom: 12px;">
+      <div class="progress-fill" id="portProgressFill" style="width: 0%;"></div>
+    </div>
+    <div class="overview-grid" id="portProgressCategories" style="grid-template-columns: repeat(4, minmax(0, 1fr));"></div>
   </section>
 
   <div class="nav-bar">
@@ -551,6 +562,8 @@
         <option value="1-core">Phase 1: Core &amp; Probes</option>
         <option value="2-rendering">Phase 2: Rendering &amp; Assets</option>
         <option value="3-hardware">Phase 3: Hardware &amp; Parity</option>
+        <option value="4-gameplay">Phase 4: Playable Core &amp; UI</option>
+        <option value="5-polish-net">Phase 5: Maps, Audio, Net &amp; Release</option>
       </select>
       <select class="select" id="areaFilter">
         <option value="all">All Areas</option>
@@ -558,6 +571,10 @@
         <option value="hardware">Hardware</option>
         <option value="rendering">Rendering</option>
         <option value="assets">Assets</option>
+        <option value="simulation">Simulation</option>
+        <option value="ui">UI &amp; Controls</option>
+        <option value="audio">Audio</option>
+        <option value="network">Networking</option>
         <option value="testing">Testing</option>
         <option value="devops">DevOps</option>
       </select>
@@ -582,13 +599,12 @@
         <table>
           <thead><tr><th>Capability / Target</th><th>Status</th><th>Notes</th></tr></thead>
           <tbody>
-            <tr><td>Repository, CI &amp; AI PR review</td><td><span class="badge badge-ok">Host-tested</span></td><td><code>./dev.sh test</code>, PR policy gate, AI review</td></tr>
-            <tr><td>Java-to-native sim kernel PoC</td><td><span class="badge badge-ok">Host-tested</span></td><td><code>docs/research/java-to-native.md</code></td></tr>
-            <tr><td>Native ARM11 3DS build (<code>.3dsx</code>)</td><td><span class="badge badge-warn">3DS-build-tested</span></td><td>Compiles via devkitARM; boot test pending</td></tr>
-            <tr><td>Emulator boot (Azahar / Citra)</td><td><span class="badge badge-unverified">Unverified</span></td><td>Awaiting emulator run of <code>min3dstry.3dsx</code></td></tr>
-            <tr><td>Original 3DS / 2DS boot</td><td><span class="badge badge-unverified">Unverified</span></td><td>Pending Issue #2 &amp; #6</td></tr>
-            <tr><td>New 3DS / 2DS boot</td><td><span class="badge badge-unverified">Unverified</span></td><td>Pending Issue #2 &amp; #6</td></tr>
-            <tr><td>Gameplay, maps, saves &amp; multiplayer</td><td><span class="badge badge-unverified">Unverified</span></td><td>Pending Issue #7 parity harness</td></tr>
+            <tr><td>Repository, CI &amp; AI PR review</td><td><span class="badge badge-ok">Complete</span></td><td><code>./dev.sh test</code> (Linux + Windows), PR policy gate, AI review</td></tr>
+            <tr><td>Citro2D prototype &amp; Azahar Old/New 3DS boot</td><td><span class="badge badge-ok">Emulator-tested</span></td><td>Azahar 2126.2 via <code>./dev.sh emu-test</code> (<code>R:456 C:30 Sw:1</code>)</td></tr>
+            <tr><td>Deterministic parity harness</td><td><span class="badge badge-ok">Emulator-tested</span></td><td><code>trace_hash=0x53a483c7</code> matching host <code>-O0</code>/<code>-O2</code> and ARM11</td></tr>
+            <tr><td>Sprite atlas &amp; device deploy tooling</td><td><span class="badge badge-warn">Host-tested</span></td><td><code>tools/build_sprite_atlas.py</code> &amp; <code>./dev.sh device</code></td></tr>
+            <tr><td>Physical Original &amp; New 3DS console boot</td><td><span class="badge badge-unverified">Unverified</span></td><td>Awaiting physical 3DS run via <code>./dev.sh device</code></td></tr>
+            <tr><td>Playable gameplay, <code>.msav</code>, audio &amp; multiplayer</td><td><span class="badge badge-unverified">Unverified</span></td><td>Next wave tracked in Issues #25–#31</td></tr>
           </tbody>
         </table>
       </div>
@@ -635,7 +651,9 @@
     { key: "0-foundation", title: "Phase 0: Foundation", desc: "Repository setup, CI checks, AI PR review & approval, and dashboard." },
     { key: "1-core", title: "Phase 1: Core & Probes", desc: "Java-to-native feasibility, host test backend, and Old/New 3DS detection." },
     { key: "2-rendering", title: "Phase 2: Rendering & Assets", desc: "Citro2D rendering prototype and reproducible asset conversion pipeline." },
-    { key: "3-hardware", title: "Phase 3: Hardware & Parity", desc: "Real 3DS deployment/log streaming and upstream gameplay parity harness." }
+    { key: "3-hardware", title: "Phase 3: Hardware & Parity", desc: "Real 3DS deployment/log streaming and deterministic parity harness." },
+    { key: "4-gameplay", title: "Phase 4: Playable Core & UI", desc: "Textured sprite rendering, factory logistics, touch build UI, and combat." },
+    { key: "5-polish-net", title: "Phase 5: Maps, Audio, Net & Release", desc: ".msav map compatibility, NDSP audio, multiplayer, and physical console sign-off." }
   ];
 
   const FALLBACK = {
@@ -864,7 +882,28 @@
     document.getElementById("modalBackdrop").classList.remove("open");
   }
 
+  function renderPortProgress() {
+    const prog = state.data.port_progress;
+    const summaryEl = document.getElementById("portProgressSummary");
+    const fillEl = document.getElementById("portProgressFill");
+    const gridEl = document.getElementById("portProgressCategories");
+    if (!prog) {
+      summaryEl.textContent = "Capability gauge unavailable offline";
+      return;
+    }
+    summaryEl.innerHTML = `<strong style="color:var(--amber)">${Number(prog.percent).toFixed(1)}%</strong> (${Number(prog.earned_points).toFixed(2)} / ${prog.total_points} pts across ${prog.capability_count} capabilities)`;
+    fillEl.style.width = `${Math.max(0, Math.min(100, Number(prog.percent)))}%`;
+    gridEl.innerHTML = (prog.categories || []).map((cat) => `
+      <div class="overview-item">
+        <h2>${esc(cat.name)}</h2>
+        <div class="progress-label"><span>${Number(cat.earned).toFixed(2)}/${cat.weight} pts</span><span>${Number(cat.percent).toFixed(1)}%</span></div>
+        <div class="progress-track"><div class="progress-fill" style="width:${Number(cat.percent)}%"></div></div>
+      </div>
+    `).join("");
+  }
+
   function renderAll() {
+    renderPortProgress();
     renderStats();
     document.getElementById("view-kanban").classList.toggle("hidden", state.view !== "kanban");
     document.getElementById("view-roadmap").classList.toggle("hidden", state.view !== "roadmap");
@@ -910,6 +949,7 @@
       state.data = {
         sha: state.data.sha,
         generated_at: new Date().toISOString(),
+        port_progress: state.data.port_progress || null,
         issues: issuesRaw.filter((i) => !i.pull_request).map(normalizeIssue),
         pulls: pullsRaw.map((p) => ({
           number: p.number,

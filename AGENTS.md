@@ -37,7 +37,7 @@ Build a **native, open-source full Mindustry port** for Original 3DS/2DS and New
 - Every change to behavior, support, architecture or tooling updates corresponding docs **in the same PR**.
 - Pages deploys automatically from merged `main`; show the verified deployed SHA and date, actual checks, status, open tasks and compatibility claims with evidence.
 - Distinguish Planned / Experimental / Emulator-tested / Hardware-verified / Released.
-- No invented progress percentages, benchmark numbers, release status or test reports.
+- No invented progress percentages, benchmark numbers, release status or test reports. Whenever a capability changes verification stage, update `docs/port-capabilities.json` with verifiable evidence paths and regenerate `docs/progress-gauge.svg` (`python3 tools/port_progress.py --write-svg`).
 
 ## Integration and quality
 
