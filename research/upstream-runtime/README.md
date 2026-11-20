@@ -427,3 +427,12 @@ send copper, **B** to collect it from the router, **X** to pause or
 resume, and **START** to exit. The simulation clock uses libctru's
 monotonic counter and advances in 60 Hz steps. The viewport and fixtures
 are fixed for this integration milestone.
+
+The Windows emulator verifier uses Azahar's default keyboard bindings
+and saves the ready and paused screenshots and native logs alongside
+the build. Run from the repository root:
+
+```sh
+python tools/verify_upstream_live.py --rom /path/to/upstream-probe.3dsx \
+  --azahar /path/to/azahar.exe --glacier /path/to/glacier.msav --atlas /path/to/sprites.aatls
+```
