@@ -226,7 +226,7 @@
       "category": "Audio",
       "name": "NDSP Sound Effects & Music Mixer",
       "weight": 6,
-      "stage": "host-tested",
+      "stage": "emulator-tested",
       "issue": 29,
       "evidence": [
         "include/audio/audio_mixer.h",
