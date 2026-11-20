@@ -7,6 +7,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+#include "audio/audio_events.h"
 #include "audio/audio_mixer.h"
 #include "audio/audio_registry.h"
 #include "build-config.h"
@@ -36,6 +37,23 @@ static void m3ds_emit_debug_line(int log_socket, const char *line) {
     (void)svcOutputDebugString(line, (s32)len);
     if (log_socket >= 0) {
         (void)send(log_socket, line, len, MSG_DONTWAIT);
+    }
+}
+
+static void m3ds_play_ui_click(
+    M3dsAudioRegistry *events,
+    M3dsAudioMixer *mixer,
+    int fallback_clip) {
+    M3dsAudioPlayParams params =
+        m3ds_audio_default_play_params(M3DS_AUDIO_BUS_SFX);
+    params.volume = 0.5f;
+    if (events &&
+        m3ds_audio_event_play(events, M3DS_AUDIO_EVENT_UI_BUTTON, &params) !=
+            M3DS_AUDIO_INVALID_VOICE) {
+        return;
+    }
+    if (fallback_clip != M3DS_AUDIO_INVALID_CLIP) {
+        (void)m3ds_audio_mixer_play(mixer, fallback_clip, &params);
     }
 }
 
@@ -169,6 +187,7 @@ int main(int argc, char *argv[]) {
     m3ds_audio_mixer_init(&audio_mixer, &audio_backend);
 
     int clip_ui = M3DS_AUDIO_INVALID_CLIP;
+    M3dsAudioRegistry *audio_events = NULL;
 #if M3DS_AUDIO_ROMFS
     static int16_t romfs_audio_pcm[M3DS_AUDIO_TOTAL_BYTES / 2];
     M3dsAudioRegistry audio_registry;
@@ -182,6 +201,7 @@ int main(int argc, char *argv[]) {
         romfs_audio_pcm,
         sizeof(romfs_audio_pcm));
     if (audio_status == M3DS_AUDIO_REGISTRY_OK) {
+        audio_events = &audio_registry;
         clip_ui = m3ds_audio_registry_find(&audio_registry, "ui.button");
     }
     snprintf(dbg_line, sizeof(dbg_line),
@@ -217,6 +237,7 @@ int main(int argc, char *argv[]) {
     M3dsDrawStats stats = {0};
     bool emitted_frame_diag = false;
     uint32_t prev_delivered = factory.items_delivered;
+    uint32_t prev_enemies_spawned = factory.enemies_spawned;
 
     while (aptMainLoop()) {
         hidScanInput();
@@ -228,15 +249,11 @@ int main(int argc, char *argv[]) {
         }
         if (kDown & KEY_A) {
             scene.paused = !scene.paused;
-            M3dsAudioPlayParams ui_p = m3ds_audio_default_play_params(M3DS_AUDIO_BUS_SFX);
-            ui_p.volume = 0.5f;
-            (void)m3ds_audio_mixer_play(&audio_mixer, clip_ui, &ui_p);
+            m3ds_play_ui_click(audio_events, &audio_mixer, clip_ui);
         }
         if (kDown & KEY_Y) {
             m3ds_scene_reset_camera(&scene);
-            M3dsAudioPlayParams ui_p = m3ds_audio_default_play_params(M3DS_AUDIO_BUS_SFX);
-            ui_p.volume = 0.5f;
-            (void)m3ds_audio_mixer_play(&audio_mixer, clip_ui, &ui_p);
+            m3ds_play_ui_click(audio_events, &audio_mixer, clip_ui);
         }
         if (kDown & KEY_X) {
             m3ds_audio_mixer_set_muted(
@@ -264,6 +281,20 @@ int main(int argc, char *argv[]) {
         }
 
         m3ds_factory_demo_step(&scene, &factory);
+        if (factory.enemies_spawned > prev_enemies_spawned) {
+            if (audio_events) {
+                M3dsAudioPlayParams wave_p =
+                    m3ds_audio_default_play_params(M3DS_AUDIO_BUS_SFX);
+                wave_p.volume = 0.7f;
+                (void)m3ds_audio_event_play(
+                    audio_events, M3DS_AUDIO_EVENT_WAVE_SPAWN, &wave_p);
+            }
+            snprintf(dbg_line, sizeof(dbg_line),
+                     "[MIN3DSTRY] AUDIO_EVENT wave.spawn spawned=%lu\n",
+                     (unsigned long)factory.enemies_spawned);
+            m3ds_emit_debug_line(log_socket, dbg_line);
+            prev_enemies_spawned = factory.enemies_spawned;
+        }
         if (factory.items_delivered > prev_delivered) {
             M3dsAudioPlayParams deliver_p =
                 m3ds_audio_default_play_params(M3DS_AUDIO_BUS_SFX);

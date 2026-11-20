@@ -143,6 +143,10 @@ else
 $(OUTPUT).3dsx : $(OUTPUT).elf $(_3DSXDEPS)
 
 $(OFILES_SOURCES) : $(HFILES) $(TOPDIR)/$(BUILD)/build-config.h
+
+ifeq ($(M3DS_AUDIO_ROMFS_VALUE),1)
+$(OFILES_SOURCES) : $(TOPDIR)/$(BUILD)/audio-index.h
+endif
 citro2d_backend.o : $(TOPDIR)/$(ATLAS)/sprites.h
 
 $(OUTPUT).elf : $(OFILES)
