@@ -4,7 +4,7 @@ This is an experimental native homebrew project. The target is full Mindustry su
 
 ## For humans
 
-Choose a Ready GitHub Issue, or submit a proposal. Check existing owners, blockers and PRs first. Keep PRs focused; link issues, attach actual tests, update docs and disclose unsupported models or functionality. Human maintainers are Levy, Kevin and Elia.
+Choose a Ready GitHub Issue, or submit a proposal. Check existing owners, blockers and PRs first. Keep PRs focused; link issues, attach actual tests, update docs and disclose unsupported models or functionality. Human maintainers are admiraly, Hxgg22 and Satixfied.
 
 ## For coding agents
 

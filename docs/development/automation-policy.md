@@ -47,7 +47,7 @@ If CI fails or `AI review` flags critical/major findings, return the task to the
 
 ## Current operating mode
 
-- **Maintainers:** Levy (`@admiraly`, admin), Kevin and Elia (`@Hxgg22`, `@Satixfied`, maintain).
+- **Maintainers:** `@admiraly` (admin), `@Hxgg22` and `@Satixfied` (maintain).
 - **Automated PR review and merge:** `.github/workflows/ai-pr-review.yml` runs `PR policy gate`, `AI review` (using `OPENCODE_GO_API_KEY` / `OPENCODE_API_KEY` with `deepseek-v4.1-flash` by default, or `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `GEMINI_API_KEY` from repository secrets), and native GitHub auto-merge for all eligible same-repo pull requests.
 - **No CODEOWNERS human gate:** `.github/CODEOWNERS` is removed. Same-repo PRs do not wait on human approval; only drafts, external fork PRs, `AI review` critical/major rejections, or explicit hold labels (`hold`, `needs-human`, `do-not-merge`, `status:blocked`, `tier:c`) prevent auto-merge.
 - **External fork PRs:** Fork PRs do not receive repository secrets or auto-merge and require a maintainer review before merge.

@@ -12,7 +12,7 @@ What will demonstrably work after this issue closes?
 Links to architecture, upstream code, relevant issues and prior PRs.
 
 ## Owner and lease
-- Human sponsor: Levy / Kevin / Elia / unassigned
+- Human sponsor: admiraly / Hxgg22 / Satixfied / unassigned
 - Assigned agent: unassigned
 - Lease / heartbeat: managed by coordinator
 - Branch: pending
