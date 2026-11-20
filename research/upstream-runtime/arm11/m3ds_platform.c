@@ -85,6 +85,12 @@ static void* teavm_virtualAlloc(int64_t size) {
     }
     void* memory = memalign((size_t)teavm_pageSize(), (size_t)size);
     if (!memory) {
+        char diagnostic[112];
+        int length = snprintf(diagnostic, sizeof(diagnostic),
+            "UPSTREAM_MEMORY allocation-failed bytes=%lu\n", (unsigned long)size);
+        if (length > 0 && length < (int)sizeof(diagnostic)) {
+            svcOutputDebugString(diagnostic, length);
+        }
         abort();
     }
     memset(memory, 0, (size_t)size);

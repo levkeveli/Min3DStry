@@ -206,3 +206,37 @@ UPSTREAM_COMBAT units=69 bullets=202 manifest_sha256=e35013e20c50cbe83169794e898
 
 Reference only: no units, bullets, balance, AI or combat loop are implemented
 or changed. The manifest is deterministic over the pinned content order.
+
+## Multiplayer session baseline
+
+To exercise an end-to-end loopback session (`#44`) against the unmodified pinned
+v160.8 `server-release.jar` (UDP discovery, build `159` `clientOutdated` kick,
+two full connect -> `WorldStream` -> `NetworkIO.loadWorld` -> `ConnectConfirm` ->
+live LZ4 `StateSnapshot` -> disconnect/rejoin sessions, and C11 `mindustry_net`
+LZ4 decompression cross-verification):
+
+```sh
+python3 tools/verify_upstream_net.py --server-jar /path/to/server-release.jar
+```
+
+Look for `UPSTREAM_NET_PASS sessions=2 mismatch=clientOutdated` and
+`DECODE_PKT_OK ... compression=1`. Live ARM11 TeaVM sockets and physical 3DS
+Wi-Fi multiplayer remain tracked on `#44`.
+
+## Campaign and tech-tree persistence baseline
+
+To exercise pinned v160.8 `Core.settings` (`settings.bin`), `TechTree.TechNode`,
+`UnlockableContent`, `Sector`/`SectorInfo`, `Objectives` prerequisites,
+`sector-<planet.name>-<sector.id>.msav` slot naming/resolution (`Saves.getSectorFile(sector)`
+and `SaveSlot` attachment — world `.msav` read/write round-trips are covered by
+`UpstreamSaveBaseline.java`), save and cold-reload round-trips, `settings_backup.bin`
+backup recovery, and malformed settings resilience:
+
+```sh
+java -cp /path/to/server-release.jar \
+    /path/to/Min3DStry/research/upstream-runtime/host/UpstreamCampaignPersistenceBaseline.java
+```
+
+Look for `UPSTREAM_CAMPAIGN_PASS tech_nodes=375 sectors=95`. See
+[the campaign progression persistence design](../../../docs/porting/campaign-progression.md)
+for upstream key schemas and remaining ARM11 runtime work (`#41`).
