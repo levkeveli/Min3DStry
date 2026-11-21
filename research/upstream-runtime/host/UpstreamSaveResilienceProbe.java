@@ -95,21 +95,28 @@ public final class UpstreamSaveResilienceProbe {
             requireLoadRejected(unknownVersion, "unknown-version save");
             System.out.println("UPSTREAM_SAVE_RESILIENCE unknown_version=rejected");
 
+            // SaveIO.save(Fi) moves an existing slot to backupFileFor(file)
+            // before writing, and SaveIO.isSaveValid(Fi)/load(Fi) check that
+            // backup sibling. Exercise that upstream path directly.
             Fi backupSlot = root.child("backup-slot.msav");
             SaveIO.write(backupSlot);
+            SaveIO.save(backupSlot);
             Fi backup = SaveIO.backupFileFor(backupSlot);
-            backupSlot.copyTo(backup);
+            require(backup.exists(), "upstream SaveIO.save did not create a backup");
             writeBytes(backupSlot, "corrupt".getBytes(StandardCharsets.US_ASCII));
-            require(SaveIO.isSaveValid(backupSlot), "backup was not considered recoverable");
+            require(SaveIO.isSaveValid(backupSlot), "upstream backup was not recoverable");
             SaveIO.load(backupSlot, Vars.world.context);
             System.out.println("UPSTREAM_SAVE_RESILIENCE backup=recovered");
 
+            // The following two checks exercise the port-side atomic-write
+            // policy used for new output files. They are deliberately not
+            // claimed as upstream SaveIO behavior.
             Fi existing = root.child("existing.msav");
             SaveIO.write(existing);
             requireThrows(() -> writeAtomically(existing, SaveIO::write),
                 "existing save was overwritten");
             require(SaveIO.isSaveValid(existing), "existing save was damaged");
-            System.out.println("UPSTREAM_SAVE_RESILIENCE existing=protected");
+            System.out.println("MIN3DSTRY_SAVE_POLICY existing=protected");
 
             Fi interrupted = root.child("interrupted.msav");
             requireThrows(() -> writeAtomically(interrupted, tmp -> {
@@ -119,7 +126,7 @@ public final class UpstreamSaveResilienceProbe {
             require(!interrupted.exists(), "interrupted write left a final save");
             require(!interrupted.sibling("interrupted.msav.tmp").exists(),
                 "interrupted write left a temporary save");
-            System.out.println("UPSTREAM_SAVE_RESILIENCE interrupted=rejected");
+            System.out.println("MIN3DSTRY_SAVE_POLICY interrupted=rejected");
 
             System.out.println("UPSTREAM_SAVE_RESILIENCE_PASS");
         } finally {
@@ -137,6 +144,8 @@ public final class UpstreamSaveResilienceProbe {
     }
 
     private static void writeDeflated(Fi file, byte[] header, int version) throws IOException {
+        // SaveIO.getStream uses InflaterInputStream and readHeader/readInt use
+        // DataInput, so this is the same zlib body plus big-endian version frame.
         try (OutputStream out = new DeflaterOutputStream(file.write(false))) {
             out.write(header);
             new DataOutputStream(out).writeInt(version);

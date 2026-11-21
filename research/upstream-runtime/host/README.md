@@ -161,8 +161,8 @@ UPSTREAM_SAVE_RESILIENCE truncated=rejected
 UPSTREAM_SAVE_RESILIENCE bad_header=rejected
 UPSTREAM_SAVE_RESILIENCE unknown_version=rejected
 UPSTREAM_SAVE_RESILIENCE backup=recovered
-UPSTREAM_SAVE_RESILIENCE existing=protected
-UPSTREAM_SAVE_RESILIENCE interrupted=rejected
+MIN3DSTRY_SAVE_POLICY existing=protected
+MIN3DSTRY_SAVE_POLICY interrupted=rejected
 UPSTREAM_SAVE_RESILIENCE_PASS
 ```
 
@@ -171,12 +171,16 @@ The probe writes to a temporary directory, loads the valid save back through
 and unknown versions, and verifies that `SaveIO`'s backup file is used when the
 main slot is corrupt. `SaveIO.isSaveValid` only reads metadata, so a truncated
 save can still report valid metadata; the full load is the authoritative check.
-The probe's interrupted-write check writes to a sibling `.tmp` file, validates
-it, and only then moves it into place; an injected failure must leave neither a
-final save nor a temporary save. The existing-save check verifies that a new
-write never replaces a valid file. This is a host-only upstream compatibility
-check, not a Min3DStry format and not a 3DS result; the ARM11 round-trip probe
-still writes a new output only and validates it by reloading.
+The `UPSTREAM_SAVE_RESILIENCE` records cover upstream behavior: the backup
+record uses `SaveIO.save` to create the sibling backup, then
+`SaveIO.isSaveValid`/`SaveIO.load` to recover from a corrupt main slot.
+`MIN3DSTRY_SAVE_POLICY` records are port-side checks, not upstream claims: the
+interrupted-write check writes to a sibling `.tmp` file, validates it, and only
+then moves it into place; an injected failure must leave neither a final save
+nor a temporary save. The existing-save check verifies that the port policy
+never replaces a valid file. This is a host-only check, not a Min3DStry format
+and not a 3DS result; the ARM11 round-trip probe still writes a new output only
+and validates it by reloading.
 
 ## Audio asset inventory
 

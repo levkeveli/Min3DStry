@@ -160,10 +160,11 @@ jobs:
             | tee "$RUNNER_TEMP/save-resilience.log"
           grep -F 'UPSTREAM_SAVE_RESILIENCE_PASS' "$RUNNER_TEMP/save-resilience.log"
           for record in valid=ok truncated=rejected bad_header=rejected \
-              unknown_version=rejected backup=recovered existing=protected \
-              interrupted=rejected; do
+              unknown_version=rejected backup=recovered; do
             grep -F "UPSTREAM_SAVE_RESILIENCE $record" "$RUNNER_TEMP/save-resilience.log"
           done
+          grep -F 'MIN3DSTRY_SAVE_POLICY existing=protected' "$RUNNER_TEMP/save-resilience.log"
+          grep -F 'MIN3DSTRY_SAVE_POLICY interrupted=rejected' "$RUNNER_TEMP/save-resilience.log"
 
   world-roundtrip:
     name: World save round trip
