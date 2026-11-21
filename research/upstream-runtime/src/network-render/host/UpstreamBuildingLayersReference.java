@@ -21,6 +21,7 @@ import java.util.Arrays;
 import java.util.List;
 import mindustry.Vars;
 import mindustry.content.Blocks;
+import mindustry.content.Items;
 import mindustry.content.Liquids;
 import mindustry.content.UnitTypes;
 import mindustry.entities.units.BuildPlan;
@@ -31,6 +32,9 @@ import mindustry.gen.UnitWaterMove;
 import mindustry.world.blocks.liquid.Conduit.ConduitBuild;
 import mindustry.world.blocks.liquid.LiquidBlock;
 import mindustry.game.Team;
+import mindustry.game.MapObjectives;
+import mindustry.game.MapObjectives.BuildCountObjective;
+import mindustry.game.MapObjectives.ItemObjective;
 import mindustry.graphics.CacheLayer;
 import mindustry.graphics.Layer;
 import mindustry.graphics.Pal;
@@ -49,7 +53,10 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
     private final List<float[]> solidQuads = new ArrayList<>();
 
     public static void main(String[] args) throws Exception {
-        if (args.length != 3) throw new IllegalArgumentException("Expected Glacier, sprites.aatls and block_colors.png");
+        if (args.length < 3 || args.length > 4) {
+            throw new IllegalArgumentException("Expected Glacier, sprites.aatls, block_colors.png and optional bundle base");
+        }
+        if (args.length == 4) Core.bundle = UpstreamInterfaceLocale.load(new Fi(args[3]), 1, "en");
         CacheLayer.init();
         UpstreamWorldLoadProbe.load(new String[]{args[0]});
         UpstreamTerrainDrawProbe.loadAtlas(new Fi(args[1]), UpstreamFluidAtlas::load);
@@ -107,6 +114,30 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         target.verifyTankTreads(viewer);
         target.verifyCoreVariants(layers, viewport, viewer);
         target.verifyErekirStarterBlocks(layers, viewport, viewer);
+        if (args.length == 4) verifyObjectiveHud();
+    }
+
+    private static void verifyObjectiveHud() {
+        var rules = Vars.state.rules;
+        var collect = new ItemObjective(Items.beryllium, 60);
+        var construct = new BuildCountObjective(Blocks.turbineCondenser, 1);
+        var hidden = new ItemObjective(Items.copper, 50);
+        hidden.hidden = true;
+        rules.objectives = new MapObjectives();
+        rules.objectives.add(collect.child(construct), hidden);
+        rules.defaultTeam.items().set(Items.beryllium, 17);
+        var rows = UpstreamObjectiveHud.collect(rules);
+        if (rows.size() != 1 || !rows.get(0).text().equals("Obtain: 17/60\nBeryllium")
+                || rows.get(0).icon() == null || rows.get(0).icon() != Items.beryllium.uiIcon) {
+            throw new AssertionError("Incorrect stock item objective HUD: " + rows);
+        }
+        collect.done();
+        rows = UpstreamObjectiveHud.collect(rules);
+        if (rows.size() != 1 || !rows.get(0).text().equals("Build: 1x\nTurbine Condenser")
+                || rows.get(0).icon() == null || rows.get(0).icon() != Blocks.turbineCondenser.uiIcon) {
+            throw new AssertionError("Incorrect stock build objective HUD: " + rows);
+        }
+        System.out.println("UPSTREAM_OBJECTIVE_HUD_REFERENCE item=beryllium build=turbine-condenser hidden=filtered");
     }
 
     private void verifyErekirStarterBlocks(UpstreamBuildingLayers layers, UpstreamTerrainDrawProbe.Viewport viewport,
