@@ -14,17 +14,17 @@ import mindustry.type.Sector;
 public final class UpstreamCampaignSlotDiscoveryProbe {
     public static void main(String[] args) throws Exception{
         String temporary = System.getProperty("java.io.tmpdir");
-        boolean live = temporary == null || temporary.startsWith("/3ds/min3dstry");
         String base = args.length > 0
             ? args[0]
-            : (live
-                ? "/3ds/min3dstry"
-                : temporary + "/m3ds-campaign-slot-discovery");
+            : (temporary != null
+                ? temporary + "/m3ds-campaign-slot-discovery"
+                : "/3ds/min3dstry");
+        boolean live = base.startsWith("/3ds/");
         Fi directory = new Fi(base).child("tmp/slot-discovery");
         directory.mkdirs();
         directory.emptyDirectory();
 
-        String mapPath = args.length > 1 ? args[1] : "/3ds/min3dstry/glacier.msav";
+        String mapPath = args.length > 1 ? args[1] : base + "/glacier.msav";
         UpstreamWorldLoadProbe.load(new String[]{mapPath});
 
         Core.settings = new Settings();

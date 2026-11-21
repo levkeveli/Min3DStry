@@ -340,8 +340,15 @@ The probe loads Glacier, writes `sector-serpulo-15.msav` into
 `/3ds/min3dstry/tmp/slot-discovery`, lists the directory, filters `*.msav`
 non-backup files through `SaveIO.isSaveValid`, and asserts exactly one slot.
 The ARM11 build sets `M3DS_RELAX_POINTER_TYPES=1` because TeaVM C 0.16 emits
-pointer-typed object references that GCC otherwise rejects; the runtime result
-is verified on both Azahar profiles.
+pointer-typed object references that GCC otherwise rejects; locally use:
+
+```sh
+M3DS_RELAX_POINTER_TYPES=1 bash arm11/build.sh \
+  build/generated/teavm/c build/probe-3ds-campaign-slot-discovery
+```
+
+The runtime result is verified on both Azahar profiles. The opt-in is tracked
+for removal once the TeaVM object-reference cast issue is fixed.
 
 ## Remaining Scope for Issue #41 (3DS Hardware / ARM11 Runtime)
 

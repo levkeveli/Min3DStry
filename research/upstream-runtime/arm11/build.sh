@@ -51,6 +51,8 @@ if [[ $# -gt 0 ]]; then
         "Min3DStry Contributors" "$DEVKITPRO/libctru/default_icon.png" "$output/upstream-probe.smdh"
     package_flags=(--smdh="$output/upstream-probe.smdh" --romfs="$output/romfs")
 fi
+# TODO: remove once TeaVM 0.16 C generates matching object-reference casts.
+# Scoped opt-in: only probes that need it set M3DS_RELAX_POINTER_TYPES=1.
 pointer_flags=()
 if [[ "${M3DS_RELAX_POINTER_TYPES:-0}" == "1" ]]; then
     pointer_flags=(-Wno-error=incompatible-pointer-types)
