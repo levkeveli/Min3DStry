@@ -4,6 +4,7 @@ import mindustry.entities.units.BuildPlan;
 import mindustry.gen.Unit;
 import mindustry.world.Block;
 import mindustry.world.Build;
+import mindustry.world.blocks.distribution.Sorter;
 
 /** Maps the 3DS touch grid to the last presented viewport and queues upstream plans. */
 final class UpstreamLiveBuildControls {
@@ -23,6 +24,8 @@ final class UpstreamLiveBuildControls {
     private int rotation;
     private boolean removing;
     private final UpstreamBuildMenu catalog = new UpstreamBuildMenu();
+    private final UpstreamItemConfig itemConfig = new UpstreamItemConfig();
+    private boolean configuring;
 
     void viewport(int left, int bottom) {
         this.left = left;
@@ -35,6 +38,11 @@ final class UpstreamLiveBuildControls {
     }
 
     void update(Unit unit, int buttons, int touch) {
+        itemConfig.validate();
+        if (itemConfig.isOpen()) {
+            if (touch >= 0) itemConfig.tap(touch & 0xffff, touch >>> 16);
+            return;
+        }
         if (catalog.isOpen()) {
             if (touch >= 0) {
                 Block entry = catalog.tap(touch & 0xffff, touch >>> 16);
@@ -50,7 +58,11 @@ final class UpstreamLiveBuildControls {
         boolean submit = (buttons & PLACE_PRESSED) != 0;
         if (touch >= 0) {
             int x = touch & 0xffff, y = touch >>> 16;
-            if (x < 32 && y >= GRID_Y && y < 80) {
+            if (x >= 288 && y >= GRID_Y && y < 80) {
+                configuring = !configuring;
+                return;
+            } else if (x < 32 && y >= GRID_Y && y < 80) {
+                configuring = false;
                 catalog.open(block());
                 return;
             } else if (y < GRID_Y && x < 320) {
@@ -64,15 +76,21 @@ final class UpstreamLiveBuildControls {
                     && y >= GRID_Y && y < GRID_Y + HEIGHT * CELL) {
                 tileX = left + (x - GRID_X) / CELL;
                 tileY = bottom + HEIGHT - 1 - (y - GRID_Y) / CELL;
+                if (configuring) {
+                    configuring = false;
+                    if (Vars.world.build(tileX, tileY) instanceof Sorter.SorterBuild sorter) itemConfig.open(sorter);
+                    return;
+                }
                 submit = true;
             }
         }
-        if (submit && Vars.player.isBuilder()) queue(unit);
+        if (submit && !configuring && Vars.player.isBuilder()) queue(unit);
     }
 
     private void select(Block block) {
         selected = block;
         removing = false;
+        configuring = false;
         rotation = block.planRotation(rotation);
     }
 
@@ -111,4 +129,6 @@ final class UpstreamLiveBuildControls {
     int rotation() { return rotation; }
     boolean removing() { return removing; }
     UpstreamBuildMenu catalog() { return catalog; }
+    UpstreamItemConfig itemConfig() { return itemConfig; }
+    boolean configuring() { return configuring; }
 }

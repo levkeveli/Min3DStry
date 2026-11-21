@@ -1,5 +1,6 @@
 import arc.Core;
 import arc.files.Fi;
+import arc.func.Cons;
 import arc.math.Mathf;
 import arc.math.geom.Vec2;
 import arc.mock.MockAudio;
@@ -13,7 +14,9 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.zip.InflaterInputStream;
@@ -41,12 +44,16 @@ import mindustry.gen.Mechc;
 import mindustry.gen.Player;
 import mindustry.gen.RemoveQueueBlockCallPacket;
 import mindustry.gen.StateSnapshotCallPacket;
+import mindustry.gen.TileConfigCallPacket;
 import mindustry.gen.Unit;
 import mindustry.mod.Mods;
+import mindustry.net.Host;
 import mindustry.net.Net;
+import mindustry.net.NetConnection;
 import mindustry.net.NetworkIO;
 import mindustry.net.Packet;
 import mindustry.net.Packets.StreamChunk;
+import mindustry.world.blocks.distribution.Sorter;
 import org.teavm.interop.Address;
 import org.teavm.interop.Import;
 import org.teavm.interop.c.Include;
@@ -157,6 +164,7 @@ public final class UpstreamLiveNetworkProbe {
             throw new IOException("Expected a live multiplayer WorldStream, status=" + result
                 + " packet=" + Native.rejectedPacket() + " streamType=" + Native.streamType());
         }
+        if (frame != null) Vars.net = new Net(new LiveClientProvider());
         Vars.net.setClientConnected();
         Vars.netClient = NetClient.forSnapshotDispatch();
         int total = Native.streamTotal();
@@ -188,6 +196,51 @@ public final class UpstreamLiveNetworkProbe {
                 reliable ? 1 : 0) == 0) {
             throw new IOException("Unable to send " + outgoing.getClass().getSimpleName());
         }
+    }
+
+    /** Lets generated upstream calls use this probe's connected ARM11 Arc transport. */
+    private static final class LiveClientProvider implements Net.NetProvider {
+        @Override
+        public void sendClient(Object message, boolean reliable) {
+            try {
+                send((Packet) message, reliable);
+            } catch (IOException error) {
+                throw new UncheckedIOException(error);
+            }
+        }
+
+        @Override
+        public void disconnectClient() {
+            Native.close();
+        }
+
+        @Override
+        public void connectClient(String ip, int port, Runnable success) throws IOException {
+            throw new IOException("The live probe connects from its endpoint file");
+        }
+
+        @Override
+        public void discoverServers(Cons<Host> callback, Runnable done) {
+            done.run();
+        }
+
+        @Override
+        public void pingHost(String address, int port, Cons<Host> valid, Cons<Exception> failed) {
+            failed.get(new IOException("The live probe does not ping hosts"));
+        }
+
+        @Override
+        public void hostServer(int port) throws IOException {
+            throw new IOException("The live probe is a client");
+        }
+
+        @Override
+        public Iterable<NetConnection> getConnections() {
+            return List.of();
+        }
+
+        @Override
+        public void closeServer() {}
     }
 
     private void waitForWave(int join, UpstreamWorldLoadProbe.ProbeApplication app) throws IOException {
@@ -348,6 +401,14 @@ public final class UpstreamLiveNetworkProbe {
             decode(new RemoveQueueBlockCallPacket(), received).handleClient();
         } else if (id == unsignedId(BlockSnapshotCallPacket.class)) {
             decode(new BlockSnapshotCallPacket(), received).handleClient();
+        } else if (id == unsignedId(TileConfigCallPacket.class)) {
+            var config = decode(new TileConfigCallPacket(), received);
+            config.handleClient();
+            if (config.build instanceof Sorter.SorterBuild sorter) {
+                var item = sorter.config();
+                System.out.println("UPSTREAM_CONFIG_REMOTE x=" + sorter.tileX() + " y=" + sorter.tileY()
+                    + " item=" + (item == null ? "none" : item.name));
+            }
         }
     }
 

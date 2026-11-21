@@ -17,6 +17,7 @@ def osSource = 'arc-core/src/arc/util/OS.java'
 def networkIoSource = 'core/src/mindustry/net/NetworkIO.java'
 def netClientSource = 'core/src/mindustry/core/NetClient.java'
 def placementSource = 'core/src/mindustry/ui/fragments/PlacementFragment.java'
+def itemSelectionSource = 'core/src/mindustry/world/blocks/ItemSelection.java'
 def pixmapSource = 'arc-core/src/arc/graphics/Pixmap.java'
 def pixmapPatch = file('patches/arc-pixmap-direct-buffer.patch')
 def glacier = 'core/assets/maps/default/glacier.msav'
@@ -74,6 +75,7 @@ def arcPixmapFile = sourceDir.map { it.file('arc/graphics/Pixmap.java') }
 def networkIoFile = sourceDir.map { it.file('mindustry/net/NetworkIO.java') }
 def netClientFile = sourceDir.map { it.file('mindustry/core/NetClient.java') }
 def placementFile = sourceDir.map { it.file('UpstreamPlacementCatalog.java') }
+def itemChoicesFile = sourceDir.map { it.file('UpstreamItemChoices.java') }
 def compilerResources = layout.buildDirectory.dir("compiler-resources/${probe}")
 def pluginFile = compilerResources.map { it.file('META-INF/services/org.teavm.vm.spi.TeaVMPlugin') }
 def readUpstream = { path ->
@@ -196,7 +198,7 @@ tasks.register('prepareUpstreamProbe') {
         outputs.file(networkIoFile)
     }
     if (usesLiveNetwork) {
-        outputs.files(netClientFile, placementFile)
+        outputs.files(netClientFile, placementFile, itemChoicesFile)
     }
     doLast {
         if (!pluginsToLoad.isEmpty()) {
@@ -342,6 +344,22 @@ final class UpstreamPlacementCatalog {
 ${selection[0]}
 
 ${unlocked[0]}
+}
+""", 'UTF-8')
+            def itemSelection = new String(readUpstream(itemSelectionSource), 'UTF-8')
+            def filter = itemSelection =~ /(?m)^\s*if\(([^\r\n]+)\) continue;\r?$/
+            if (filter.count != 1) {
+                throw new GradleException('Pinned ItemSelection eligibility check changed')
+            }
+            itemChoicesFile.get().asFile.setText("""// Eligibility from pinned upstream ItemSelection.java (GPL-3.0).
+import mindustry.ctype.UnlockableContent;
+import static mindustry.Vars.state;
+
+final class UpstreamItemChoices {
+    static boolean accepts(UnlockableContent item) {
+        if (${filter[0][1]}) return false;
+        return true;
+    }
 }
 """, 'UTF-8')
         }
