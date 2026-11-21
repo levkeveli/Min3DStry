@@ -19,6 +19,7 @@ import mindustry.io.MapIO;
 import mindustry.io.SaveIO;
 import mindustry.maps.Maps;
 import mindustry.net.Net;
+import mindustry.world.Tile;
 import mindustry.world.blocks.storage.CoreBlock.CoreBuild;
 
 public final class UpstreamWorldLoadProbe {
@@ -59,6 +60,7 @@ public final class UpstreamWorldLoadProbe {
         Vars.content = new ContentLoader();
         Vars.content.createBaseContent();
         Vars.content.init();
+        Vars.emptyTile = new Tile(Short.MAX_VALUE - 20, Short.MAX_VALUE - 20);
         Groups.init();
         Vars.world = new World();
         Vars.net = new Net(null);

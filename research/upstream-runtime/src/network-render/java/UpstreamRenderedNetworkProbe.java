@@ -15,6 +15,7 @@ import mindustry.gen.Building;
 import mindustry.gen.Groups;
 import mindustry.gen.Unit;
 import mindustry.graphics.CacheLayer;
+import mindustry.world.blocks.payloads.BuildPayload;
 import mindustry.world.blocks.payloads.PayloadConveyor.PayloadConveyorBuild;
 import mindustry.world.blocks.liquid.Conduit;
 import mindustry.world.blocks.distribution.Sorter;
@@ -95,13 +96,17 @@ public final class UpstreamRenderedNetworkProbe {
         previousVisualFrame = now;
         if (Vars.state.isPaused()) return;
 
-        // Advance the original animation clock and conduit smoothing without replaying liquid transfers.
+        // Advance stock visual state independently of the server's building updates.
         float oldDelta = Time.delta;
         Time.delta = delta;
         Time.setInternalTime(Time.getInternalTime() + delta);
         try {
             for (var build : Groups.build) {
                 if (build instanceof Conduit.ConduitBuild conduit) conduit.advanceLiquidDraw();
+                if (build instanceof PayloadConveyorBuild conveyor && supportsCargo(conveyor)) {
+                    // The stock building stream carries progress and rotation. Reconstruct the drawing position.
+                    conveyor.updatePayload();
+                }
             }
         } finally {
             Time.delta = oldDelta;
@@ -152,7 +157,12 @@ public final class UpstreamRenderedNetworkProbe {
             || block == Blocks.mechanicalDrill || block instanceof Conduit
             || block == Blocks.phaseWeaver || block == Blocks.overdriveProjector
             || block == Blocks.overdriveDome || block == Blocks.shockwaveTower
-            || build instanceof PayloadConveyorBuild conveyor && conveyor.item == null;
+            || build instanceof PayloadConveyorBuild conveyor && (conveyor.item == null || supportsCargo(conveyor));
+    }
+
+    private static boolean supportsCargo(PayloadConveyorBuild conveyor) {
+        return conveyor.item instanceof BuildPayload payload
+            && (payload.block() == Blocks.copperWall || payload.block() == Blocks.copperWallLarge);
     }
 
     private void drawMenu(byte[] labels, int[] icons, int selected,
