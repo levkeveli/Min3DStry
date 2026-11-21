@@ -294,7 +294,9 @@ def inspect_mining(server_log, server, marker, item):
     return target, int(balance)
 
 
-def verify_mining(log, emulator, server_log, server, timeout, capture, mining, item, objectives):
+def verify_mining(log, emulator, server_log, server, timeout, capture, mining, item, objectives, objective_hud):
+    if objective_hud:
+        wait_for(log, emulator, r"UPSTREAM_OBJECTIVE_HUD icon=beryllium text=Obtain: 0/60\|Beryllium\b", 5)
     target = re.compile(rf"UPSTREAM_MINE_TARGET x=(\d+) y=(\d+) item={item}\b")
     x, y = target.search(wait_for(log, emulator, target, timeout)).groups()
     # Let the stock MinerComp advance before reading the selected tile and deposited items.
@@ -304,6 +306,9 @@ def verify_mining(log, emulator, server_log, server, timeout, capture, mining, i
         raise RuntimeError(f"Expected stock {item} mining at {x},{y}, observed {selected} with {balance} items")
     core_sync = re.compile(rf"UPSTREAM_MINE_CORE_SYNC item={item} count=([1-9]\d*)\b")
     client_count = int(core_sync.search(wait_for(log, emulator, core_sync, 10))[1])
+    if objective_hud:
+        wait_for(log, emulator, r"UPSTREAM_OBJECTIVE_HUD icon=beryllium text=Obtain: (?:[1-9]|[1-5]\d)"
+                 r"/60\|Beryllium\b", 5)
     position = server_position(server_log, server, "UPSTREAM_SERVER_MINING_POSITION").groups()
     capture(f"{mining}-mining", position)
     if mining == "wall":
@@ -327,6 +332,10 @@ def verify_mining(log, emulator, server_log, server, timeout, capture, mining, i
     print(f"Stock {mining} mining at ({x}, {y}) delivered {settled[1]} {item} before stopping.", flush=True)
     if objectives:
         verify_onset_objective(log, emulator, server_log, server, settled[1])
+    if objective_hud:
+        wait_for(log, emulator, r"UPSTREAM_OBJECTIVE_HUD icon=turbine-condenser text=Build: 1x\|Turbine Condenser\b", 5)
+        capture("objective-next", position)
+        print("The objective HUD displayed the stock inventory progress and Turbine Condenser objective.", flush=True)
 
 
 def verify_onset_objective(log, emulator, server_log, server, beryllium):
@@ -1250,7 +1259,7 @@ def run_model(args, model, config, original_config, log, output):
                             verify_erekir_construction(log, emulator, server_log, server, args.timeout, capture, spawn)
                         if args.mining:
                             verify_mining(log, emulator, server_log, server, args.timeout, capture,
-                                          args.mining, mine_item, args.verify_objectives)
+                                          args.mining, mine_item, args.verify_objectives, args.verify_objective_hud)
                         if args.building_effects:
                             verify_building_effects((output / f"{model}-{phase}.png").read_bytes())
                         if args.payload_mix:
@@ -1421,6 +1430,8 @@ def main():
                                help="Verify touch mining and core delivery on The Onset or Ground Zero")
     parser.add_argument("--verify-objectives", action="store_true",
                         help="Compare the original first Onset objective transition between client and server")
+    parser.add_argument("--verify-objective-hud", action="store_true",
+                        help="Verify the rendered Onset objective labels as the stock progress changes")
     parser.add_argument("--require-relocation-spill", action="store_true",
                         help="Require the ARM11 collector to grow its relocation table during the spawn check")
     args = parser.parse_args()
@@ -1478,6 +1489,8 @@ def main():
         parser.error('--mining floor needs --map-spawn "Ground Zero" and --controls-replay')
     if args.verify_objectives and args.mining != "wall":
         parser.error("--verify-objectives needs --mining wall")
+    if args.verify_objective_hud and (not args.verify_objectives or args.locale != "en"):
+        parser.error("--verify-objective-hud needs --verify-objectives and --locale en")
     if args.erekir_sector is not None:
         if not args.map_spawn or not re.fullmatch(r"[a-z][a-z-]*", args.erekir_sector):
             parser.error("--erekir-sector needs --map-spawn and a sector slug such as onset")

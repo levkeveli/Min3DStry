@@ -984,6 +984,9 @@ icons from the paged atlas alongside the system-font text.
 Pass the path to the official `bundle` base as the optional fourth
 argument to `runBuildingLayersJvm` to verify the changing Onset count,
 the Turbine Condenser text and icons, and hidden objective filtering.
+Add `--verify-objective-hud --locale en` to the Onset objective replay to
+verify the rendered stock count at zero and during mining, then capture
+the build objective that replaces it.
 
 ### Verify the Arc executor pools
 
