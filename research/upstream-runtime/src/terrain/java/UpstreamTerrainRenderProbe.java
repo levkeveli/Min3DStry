@@ -1,4 +1,5 @@
 import arc.graphics.Blending;
+import arc.graphics.g2d.TextureRegion;
 import java.io.IOException;
 import mindustry.Vars;
 import org.teavm.interop.Import;
@@ -44,6 +45,12 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
     int buildCatalog(byte[] labels, int[] icons, int selected, boolean previous, boolean next, boolean categories) {
         return NativeTerrain.buildCatalog(Address.ofData(labels), Address.ofData(icons), selected,
             previous ? 1 : 0, next ? 1 : 0, categories ? 1 : 0);
+    }
+
+    float drawObjective(byte[] label, TextureRegion icon, float y) {
+        if (icon == null) return NativeTerrain.drawObjective(Address.ofData(label), -1, 0, 0, 0, 0, y);
+        return NativeTerrain.drawObjective(Address.ofData(label), UpstreamTerrainDrawProbe.pageIndex(icon),
+            icon.getX(), icon.getY(), icon.width, icon.height, y);
     }
 
     @Override
@@ -121,5 +128,8 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
         @Import(name = "m3ds_terrain_build_catalog")
         static native int buildCatalog(Address labels, Address icons, int selected,
                                        int previous, int next, int categories);
+
+        @Import(name = "m3ds_terrain_draw_objective")
+        static native float drawObjective(Address label, int page, int x, int y, int width, int height, float top);
     }
 }

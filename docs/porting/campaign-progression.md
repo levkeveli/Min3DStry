@@ -329,9 +329,13 @@ deletes a slot. A missing directory is an empty catalog, not an error.
 ```
 
 ```text
-Sectors: 1
-Sector serpulo-170 Glacier w1
+Sectors: 2
+ erekir-64 v 16B
+ serpulo-170 Glacier w1
 ```
+
+The HUD lists the first four catalog rows, with map/wave when the metadata
+prefix parses and version/bytes otherwise.
 
 `tests/platform/test_sector_catalog.c` covers sorting, capacity limits,
 malformed names, non-slot files, compressed and raw headers, and missing
