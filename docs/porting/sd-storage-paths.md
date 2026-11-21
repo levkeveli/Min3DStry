@@ -1,6 +1,6 @@
 # SD storage path contract
 
-Status: **host-tested atomic storage + Azahar probe round-trip**. Settings/save payloads are still owned by upstream Arc/SaveIO; Java filesystem wiring remains open under [#41](https://github.com/levkeveli/Min3DStry/issues/41).
+Status: **host-tested atomic storage + Azahar save-slot/prefix verification**. Settings/save payloads are still owned by upstream Arc/SaveIO; Java filesystem wiring remains open under [#41](https://github.com/levkeveli/Min3DStry/issues/41).
 
 ## Paths
 
@@ -39,23 +39,32 @@ saves. The Azahar verifier requires both lines on both models.
 rewriting it. Upstream `SaveIO` wraps the `MSAV` + version stream in zlib, so
 the probe reports three cases:
 
-- raw `MSAV`: `valid=true` plus the little-endian version;
+- raw `MSAV`: `valid=true` plus the big-endian version (upstream
+  `DataOutputStream.writeInt`);
 - zlib wrapper (`0x78 0x9c` and a valid zlib header check): `compressed=true`;
+  the first eight decoded bytes are checked, so the `MSAV` magic and version are
+  reported without inflating the whole world;
 - anything else: `present=true, valid=false`.
-
-Decoding the version inside the zlib stream needs an inflater; that remains
-open. A missing slot is `present=false`.
 
 `main_3ds.c` probes `/3ds/min3dstry/sector-serpulo-170.msav` once at startup and
 logs:
 
 ```text
-[MIN3DSTRY] SAVE_SLOT present=1 valid=0 compressed=1 version=0 bytes=<size> path=sdmc:/3ds/min3dstry/...
+[MIN3DSTRY] SAVE_SLOT present=1 valid=1 compressed=1 version=13 bytes=8550 path=sdmc:/3ds/min3dstry/...
 ```
 
-The bottom HUD shows `Save: v13 <bytes>B` for a raw header, `Save: zlib <bytes>B`
-for the upstream compressed container, `Save: invalid <bytes>B`, or
-`Save: none`. This is status plumbing, not save loading/writing.
+The bottom HUD shows `Save: v13 <bytes>B` for a raw header or a decoded zlib
+wrapper, `Save: zlib <bytes>B` when the wrapper is valid but its prefix cannot
+be decoded, `Save: invalid <bytes>B`, or `Save: none`. This is status plumbing,
+not save loading/writing.
+
+### Compressed header prefix
+
+`include/platform/msav_inflate.h` decodes only the first eight bytes of the
+zlib stream (RFC 1950/1951), so the `MSAV` magic and big-endian version are
+available without inflating a whole world. It handles stored, fixed-Huffman and
+dynamic-Huffman DEFLATE blocks and stops as soon as the requested prefix is
+produced. Malformed headers, FDICT streams, and truncated input fail closed.
 
 ## SD sector catalog
 
