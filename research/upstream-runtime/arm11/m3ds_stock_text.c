@@ -4,6 +4,7 @@
 #include <3ds.h>
 #include <citro2d.h>
 #include <math.h>
+#include <stdio.h>
 #include <string.h>
 
 enum { atlas_size = 512, cell = 32, columns = atlas_size / cell, slots = columns * columns };
@@ -124,11 +125,21 @@ static int slot_for(uint32_t codepoint, bool outline) {
     }
     if (available < 0 || raster_budget == 0) return -1;
     --raster_budget;
+    u64 started = osGetTime();
     M3DS_StockGlyph glyph;
     if (!m3ds_stock_font_glyph(font, codepoint, outline, &glyph)
             && !m3ds_stock_font_glyph(font, '?', outline, &glyph)) return -1;
     GlyphSlot *entry = &cache[available];
+    u64 raster_end = osGetTime();
     if (!upload_glyph(entry, available, &glyph, outline)) return -1;
+    static int samples;
+    if (samples++ < 48) {
+        char message[112];
+        int length = snprintf(message, sizeof(message), "UPSTREAM_GLYPH_TIMING code=%lu raster_ms=%llu upload_ms=%llu\n",
+            (unsigned long)codepoint, (unsigned long long)(raster_end - started),
+            (unsigned long long)(osGetTime() - raster_end));
+        if (length > 0 && length < (int)sizeof(message)) svcOutputDebugString(message, length);
+    }
     entry->glyph = (M3DS_StockGlyph){.face = glyph.face, .index = glyph.index, .advance = glyph.advance};
     entry->codepoint = codepoint;
     entry->outline = outline;

@@ -47,8 +47,10 @@ public final class UpstreamLabelText {
 
     public static Label parse(String text) {
         if (text.equals(lastText)) return lastLabel;
+        long started = System.nanoTime();
         var content = new IntMap<TextureRegion>();
         String resolved = resolveContent(text, content);
+        long resolvedAt = System.nanoTime();
         // Dummy metrics expose glyphs and colors without an OpenGL font. Native
         // FreeType metrics determine their final positions.
         var layout = GlyphLayout.obtain();
@@ -74,6 +76,8 @@ public final class UpstreamLabelText {
         }
         lastText = text;
         lastLabel = new Label(plain.toString(), characters);
+        System.out.println("UPSTREAM_LABEL_TIMING icons_ms=" + (resolvedAt - started) / 1_000_000
+            + " parse_ms=" + (System.nanoTime() - resolvedAt) / 1_000_000 + " characters=" + characters.size());
         return lastLabel;
     }
 
