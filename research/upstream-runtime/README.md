@@ -1032,6 +1032,9 @@ official release assets. The ARM11 build uses devkitPro's 3DS FreeType
 port. World labels use the stock 18 px face, rounded 2 px outline, and
 Japanese face override when the selected locale is Japanese. Face-wide
 hinting tables are initialized before opening the multiplayer socket.
+The stock graphical client drops shadowed locale entries before
+loading the world. The selected bundle still resolves the same keys,
+fallback values and formatting locale.
 The renderer keeps the current glyphs in one 512 × 512 RGBA8 texture.
 It prefers VRAM so the world texture pages retain their linear-memory
 budget. It reuses older slots after the previous frame has finished and rasters up
@@ -1060,8 +1063,9 @@ regions and color runs. Add `--verify-styled-markers` to the live font
 check to verify the ARM11 renderer submits both original item and block icons.
 The objective HUD uses the same font and markup path, with the original
 content art already displayed in its compact 3DS panel. Use
-`--verify-stock-hud` with `--verify-objective-hud` to require this font
-on the panel. Other menus remain tracked under #199.
+`--verify-stock-hud` with the Onset HUD or marker verifier to require
+the original font for each checked objective row. Other menus remain
+tracked under #199.
 
 ### Verify the Arc executor pools
 

@@ -56,6 +56,7 @@ public final class UpstreamRenderedNetworkProbe {
     private List<UpstreamObjectiveHud.Row> lastObjectives;
     private byte[][] objectiveLabels = new byte[0][];
     private int[][] objectiveCharacters = new int[0][];
+    private boolean[] reportedStockObjectives = new boolean[0];
 
     private UpstreamRenderedNetworkProbe(Fi atlas) {
         this.atlas = atlas;
@@ -67,7 +68,7 @@ public final class UpstreamRenderedNetworkProbe {
         int language = view.target.mountAssets();
         var preference = endpoint.sibling("locale.txt");
         String requested = preference.exists() && preference.length() <= 16 ? preference.readString("UTF-8").trim() : "";
-        Core.bundle = UpstreamInterfaceLocale.load(new Fi("/romfs/bundles/bundle"), language, requested);
+        Core.bundle = UpstreamInterfaceLocale.loadForStockClient(new Fi("/romfs/bundles/bundle"), language, requested);
         var locale = Core.bundle.getLocale();
         System.out.println("UPSTREAM_INTERFACE_LOCALE system=" + language + " bundle="
             + (locale.getLanguage().isEmpty() ? "en" : locale) + " router=" + Core.bundle.get("block.router.name")
@@ -253,6 +254,7 @@ public final class UpstreamRenderedNetworkProbe {
         if (changed) {
             objectiveLabels = new byte[rows.size()][];
             objectiveCharacters = new int[rows.size()][];
+            reportedStockObjectives = new boolean[rows.size()];
             for (int i = 0; i < rows.size(); i++) {
                 objectiveLabels[i] = (rows.get(i).text() + "\0").getBytes(StandardCharsets.UTF_8);
                 objectiveCharacters[i] = encodeLabel(UpstreamLabelText.parse(UI.formatIcons(rows.get(i).markup())));
@@ -266,6 +268,11 @@ public final class UpstreamRenderedNetworkProbe {
             if (changed && y < 240f) {
                 System.out.println("UPSTREAM_OBJECTIVE_HUD icon=" + row.contentName()
                     + " text=" + row.text().replace('\n', '|'));
+            }
+            if (target.drewStockObjectiveFont() && !reportedStockObjectives[i]) {
+                System.out.println("UPSTREAM_OBJECTIVE_FONT source=v160.8 icon=" + row.contentName()
+                    + " text=" + row.text().replace('\n', '|'));
+                reportedStockObjectives[i] = true;
             }
         }
     }

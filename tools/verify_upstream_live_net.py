@@ -340,10 +340,15 @@ def set_onset_beryllium(server, amount):
     server.stdin.flush()
 
 
+def require_stock_objective_font(log, emulator, icon, timeout, label=None):
+    text = re.escape(label) if label is not None else r"[^\r\n]+"
+    wait_for(log, emulator, rf"UPSTREAM_OBJECTIVE_FONT source=v160\.8 icon={icon} text={text}", timeout)
+
+
 def verify_onset_objective_hud(log, emulator, server_log, server, capture, position, markers=None, stock_timeout=0):
     wait_for(log, emulator, r"UPSTREAM_OBJECTIVE_HUD icon=beryllium text=Obtain: 0/60\|Beryllium\b", 10)
     if stock_timeout:
-        wait_for(log, emulator, r"UPSTREAM_OBJECTIVE_FONT source=v160\.8\b", stock_timeout)
+        require_stock_objective_font(log, emulator, "beryllium", stock_timeout, "Obtain: 0/60|Beryllium")
     if markers:
         markers("mine", 2320, 864, 868, ONSET_MARKER_TEXT["en"][0])
     # Drive the real server's item module and let its regular snapshots and objective executor
@@ -353,7 +358,9 @@ def verify_onset_objective_hud(log, emulator, server_log, server, capture, posit
         (60, "turbine-condenser", "Build: 1x|Turbine Condenser", "objective-next"),
     ):
         set_onset_beryllium(server, amount)
-        wait_for(log, emulator, rf"UPSTREAM_OBJECTIVE_HUD icon={icon} text={re.escape(label)}\b", 25)
+        wait_for(log, emulator, rf"UPSTREAM_OBJECTIVE_HUD icon={icon} text={re.escape(label)}\b", stock_timeout or 25)
+        if stock_timeout:
+            require_stock_objective_font(log, emulator, icon, stock_timeout, label)
         if not markers:
             capture(phase, position)
     verify_onset_objective(log, emulator, server_log, server, 60)
@@ -1331,9 +1338,13 @@ def run_model(args, model, config, original_config, log, output):
                                                            args.timeout if args.verify_stock_hud else 0)
                             else:
                                 mining, research = ONSET_MARKER_TEXT[args.locale]
+                                if args.verify_stock_hud:
+                                    require_stock_objective_font(log, emulator, "beryllium", args.timeout)
                                 capture_marker("mine", 2320, 864, 868, mining)
                                 set_onset_beryllium(server, 60)
                                 verify_onset_objective(log, emulator, server_log, server, 60)
+                                if args.verify_stock_hud:
+                                    require_stock_objective_font(log, emulator, "turbine-condenser", args.timeout)
                                 capture_marker("research", 2312, 944, 957.8, research)
                         if args.building_effects:
                             verify_building_effects((output / f"{model}-{phase}.png").read_bytes())
@@ -1588,8 +1599,8 @@ def main():
         parser.error("--verify-stock-font needs --verify-objective-markers")
     if args.verify_styled_markers and not args.verify_stock_font:
         parser.error("--verify-styled-markers needs --verify-stock-font")
-    if args.verify_stock_hud and not args.verify_objective_hud:
-        parser.error("--verify-stock-hud needs --verify-objective-hud")
+    if args.verify_stock_hud and not (args.verify_objective_hud or args.verify_objective_markers):
+        parser.error("--verify-stock-hud needs --verify-objective-hud or --verify-objective-markers")
     if args.erekir_sector is not None:
         if not args.map_spawn or not re.fullmatch(r"[a-z][a-z-]*", args.erekir_sector):
             parser.error("--erekir-sector needs --map-spawn and a sector slug such as onset")

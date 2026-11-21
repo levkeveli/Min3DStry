@@ -490,7 +490,8 @@ static void draw_label_art(const int32_t *glyph, float x, float y, float width, 
 
 float m3ds_terrain_draw_objective(const char *label, const int32_t *characters, int32_t count,
                                  int32_t page, int32_t left, int32_t top,
-                                 int32_t width, int32_t height, float y) {
+                                 int32_t width, int32_t height, float y, int32_t *stock_font) {
+    *stock_font = 0;
     if (!frame_open || !catalog_buffer) return 240.0f;
     bool has_icon = page >= 0 && width > 0 && height > 0;
     float inset = has_icon ? 32.0f : 6.0f;
@@ -537,12 +538,7 @@ float m3ds_terrain_draw_objective(const char *label, const int32_t *characters, 
 #ifdef M3DS_STOCK_FONT
     if (using_stock) {
         m3ds_stock_text_draw(&stock, x + inset, y + 5.0f, font_scale, font_scale, -1, draw_label_art);
-        static bool reported;
-        if (!reported) {
-            static const char message[] = "UPSTREAM_OBJECTIVE_FONT source=v160.8\n";
-            svcOutputDebugString(message, sizeof(message) - 1);
-            reported = true;
-        }
+        *stock_font = 1;
         return y + panel_height + 3.0f;
     }
 #endif

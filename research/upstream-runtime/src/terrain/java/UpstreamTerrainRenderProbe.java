@@ -10,6 +10,7 @@ import org.teavm.interop.c.Include;
 
 public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProbe.TerrainTarget {
     private final boolean reportFrame;
+    private final int[] stockObjectiveFont = new int[1];
 
     UpstreamTerrainRenderProbe(boolean reportFrame) {
         this.reportFrame = reportFrame;
@@ -57,7 +58,11 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
         int page = icon == null ? -1 : UpstreamTerrainDrawProbe.pageIndex(icon);
         return NativeTerrain.drawObjective(Address.ofData(label), Address.ofData(characters), characters.length / 7, page,
             icon == null ? 0 : icon.getX(), icon == null ? 0 : icon.getY(),
-            icon == null ? 0 : icon.width, icon == null ? 0 : icon.height, y);
+            icon == null ? 0 : icon.width, icon == null ? 0 : icon.height, y, Address.ofData(stockObjectiveFont));
+    }
+
+    boolean drewStockObjectiveFont() {
+        return stockObjectiveFont[0] != 0;
     }
 
     int drawWorldLabel(String label, int[] characters, float x, float y, int flags, float size, int align, int lineAlign) {
@@ -150,7 +155,7 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
 
         @Import(name = "m3ds_terrain_draw_objective")
         static native float drawObjective(Address label, Address characters, int count,
-                                          int page, int x, int y, int width, int height, float top);
+                                          int page, int x, int y, int width, int height, float top, Address stockFont);
 
         @Import(name = "m3ds_terrain_draw_world_label")
         static native int drawWorldLabel(Address label, Address characters, int count, float x, float y, int flags, float size,

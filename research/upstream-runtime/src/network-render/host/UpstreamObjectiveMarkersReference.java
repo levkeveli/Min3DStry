@@ -24,7 +24,10 @@ public final class UpstreamObjectiveMarkersReference implements UpstreamTerrainD
     public static void main(String[] args) throws Exception {
         if (args.length < 3 || args.length > 4) throw new IllegalArgumentException("Expected onset.msav, sprites.aatls, bundle base and optional icon table");
         var file = new Fi(args[0]);
-        Core.bundle = UpstreamInterfaceLocale.load(new Fi(args[2]), 1, "en");
+        var bundle = new Fi(args[2]);
+        verifyLocaleFallback(bundle, "ja");
+        verifyLocaleFallback(bundle, "zh_TW");
+        Core.bundle = UpstreamInterfaceLocale.loadForStockClient(bundle, 1, "en");
         UpstreamWorldLoadProbe.initialize(file.parent());
         Core.settings.put("locale", "en");
         var map = MapIO.createMap(file, false);
@@ -45,6 +48,27 @@ public final class UpstreamObjectiveMarkersReference implements UpstreamTerrainD
         for (int i = 1; i <= 3; i++) Vars.state.rules.objectives.get(i).done();
         target.verify(4, 2280, 864, "ducts");
         System.out.println("UPSTREAM_WORLD_MARKER_REFERENCE onset=mine,research,ducts worldText=ok shapes=ok");
+    }
+
+    private static void verifyLocaleFallback(Fi path, String code) {
+        var stock = UpstreamInterfaceLocale.load(path, 1, code);
+        var compact = UpstreamInterfaceLocale.loadForStockClient(path, 1, code);
+        if (!code.equals(compact.getLocale().toString())) throw new AssertionError("Incorrect locale: " + code);
+        int stockEntries = 0, compactEntries = 0;
+        for (var source = stock; source != null; source = source.getParent()) {
+            stockEntries += source.getProperties().size;
+            for (String key : source.getKeys()) {
+                if (!compact.has(key) || !stock.get(key).equals(compact.get(key))) {
+                    throw new AssertionError("Changed stock fallback for " + code + " " + key);
+                }
+            }
+        }
+        for (var source = compact; source != null; source = source.getParent()) {
+            compactEntries += source.getProperties().size;
+        }
+        if (compactEntries >= stockEntries) throw new AssertionError("No shadowed entries removed for " + code);
+        System.out.println("UPSTREAM_LOCALE_COMPACT locale=" + code + " entries=" + compactEntries
+            + " removed=" + (stockEntries - compactEntries));
     }
 
     private static void verifyMarkup() {
