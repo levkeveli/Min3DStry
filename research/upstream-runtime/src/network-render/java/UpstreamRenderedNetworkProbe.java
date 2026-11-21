@@ -1,6 +1,7 @@
 import port.render.UpstreamCrackAtlas;
 import port.render.UpstreamFluidAtlas;
 import port.render.UpstreamWorldLabel;
+import port.render.UpstreamLabelText;
 import arc.Core;
 import arc.files.Fi;
 import arc.graphics.g2d.Draw;
@@ -46,6 +47,8 @@ public final class UpstreamRenderedNetworkProbe {
     private int lastLeft = -1, lastBottom = -1;
     private final UpstreamWorldLabel.Target worldLabel = this::drawWorldLabel;
     private final ObjectSet<String> reportedWorldLabels = new ObjectSet<>();
+    private UpstreamLabelText.Label encodedLabel;
+    private int[] encodedCharacters;
     private byte[] lastMenu;
     private Block lastPrimaryShortcut;
     private List<UpstreamObjectiveHud.Row> lastObjectives;
@@ -75,6 +78,7 @@ public final class UpstreamRenderedNetworkProbe {
         Core.settings.put("locale", locale.getLanguage().isEmpty() ? "en" : locale.toString());
         System.out.println("UPSTREAM_INTERFACE_GRAPHICS atlas");
         UpstreamTerrainDrawProbe.loadAtlas(atlas, UpstreamFluidAtlas::load);
+        UpstreamLabelText.loadIcons(new Fi("/romfs/icons/icons.properties"));
         Vars.content.loadColors(new Fi("/romfs/block_colors.png"));
         UpstreamCrackAtlas.load();
         loadUnitGraphics();
@@ -211,10 +215,25 @@ public final class UpstreamRenderedNetworkProbe {
         }
     }
 
-    private void drawWorldLabel(String text, float x, float y, int flags, float size, int align, int lineAlign) {
-        int font = target.drawWorldLabel(text, x, y, flags, size, align, lineAlign);
-        if (font != 0 && reportedWorldLabels.add(text)) {
-            System.out.println("UPSTREAM_WORLD_LABEL x=" + x + " y=" + y + " text=" + text.replace('\n', '|'));
+    private void drawWorldLabel(UpstreamLabelText.Label text, float x, float y, int flags, float size, int align, int lineAlign) {
+        if (encodedLabel != text) {
+            encodedCharacters = new int[text.characters().size() * 7];
+            int offset = 0;
+            for (var glyph : text.characters()) {
+                var art = glyph.art();
+                encodedCharacters[offset++] = glyph.codepoint();
+                encodedCharacters[offset++] = glyph.color();
+                encodedCharacters[offset++] = art == null ? -1 : UpstreamTerrainDrawProbe.pageIndex(art);
+                encodedCharacters[offset++] = art == null ? 0 : art.getX();
+                encodedCharacters[offset++] = art == null ? 0 : art.getY();
+                encodedCharacters[offset++] = art == null ? 0 : art.width;
+                encodedCharacters[offset++] = art == null ? 0 : art.height;
+            }
+            encodedLabel = text;
+        }
+        int font = target.drawWorldLabel(text.plain(), encodedCharacters, x, y, flags, size, align, lineAlign);
+        if (font != 0 && reportedWorldLabels.add(text.plain())) {
+            System.out.println("UPSTREAM_WORLD_LABEL x=" + x + " y=" + y + " text=" + text.plain().replace('\n', '|'));
             if (font == 2) System.out.println("UPSTREAM_WORLD_LABEL_FONT x=" + x + " y=" + y + " source=v160.8");
         }
     }

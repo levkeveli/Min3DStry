@@ -519,7 +519,24 @@ float m3ds_terrain_draw_objective(const char *label, int32_t page, int32_t left,
     return y + panel_height + 3.0f;
 }
 
-int32_t m3ds_terrain_draw_world_label(const char *label, float x, float y, int32_t flags, float size,
+#ifdef M3DS_STOCK_FONT
+static void draw_label_art(const int32_t *glyph, float x, float y, float width, float height) {
+    int drawn = m3ds_terrain_draw(glyph[2], glyph[3], glyph[4], glyph[5], glyph[6],
+        world_left + (x - screen_left) / scale, world_bottom + (screen_bottom - y - height) / scale,
+        0.0f, 0.0f, width / scale, height / scale, 0.0f, glyph[1], 0, 0);
+    static uint32_t reported[2048];
+    uint32_t code = glyph[0];
+    if (drawn && code < 65536 && !(reported[code / 32] & (1u << (code % 32)))) {
+        reported[code / 32] |= 1u << (code % 32);
+        char message[64];
+        int length = snprintf(message, sizeof(message), "UPSTREAM_WORLD_INLINE_GLYPH code=%lu\n", (unsigned long)code);
+        if (length > 0 && length < (int)sizeof(message)) svcOutputDebugString(message, length);
+    }
+}
+#endif
+
+int32_t m3ds_terrain_draw_world_label(const char *label, const int32_t *characters, int32_t count,
+                                     float x, float y, int32_t flags, float size,
                                      int32_t horizontal, int32_t vertical, int32_t lines) {
     if (!frame_open || !catalog_buffer || !(size > 0.0f) || !isfinite(size)) return 0;
     const float screen_right = 400.0f - screen_left;
@@ -529,13 +546,16 @@ int32_t m3ds_terrain_draw_world_label(const char *label, float x, float y, int32
     bool using_stock = false;
 #ifdef M3DS_STOCK_FONT
     M3DS_StockText stock;
-    using_stock = m3ds_stock_text_layout(&stock, label, outline);
+    using_stock = m3ds_stock_text_layout(&stock, characters, count, outline);
     if (using_stock) {
         scale_y = 0.25f * size * scale;
         scale_x = fminf(scale_y, (screen_right - screen_left - 8.0f) / fmaxf(1.0f, stock.width));
         width = stock.width * scale_x;
         height = stock.height * scale_y;
     }
+#else
+    (void)characters;
+    (void)count;
 #endif
     C2D_Text text;
     if (!using_stock) {
@@ -569,7 +589,7 @@ int32_t m3ds_terrain_draw_world_label(const char *label, float x, float y, int32
     }
 #ifdef M3DS_STOCK_FONT
     if (using_stock) {
-        m3ds_stock_text_draw(&stock, sx, sy, scale_x, scale_y, lines);
+        m3ds_stock_text_draw(&stock, sx, sy, scale_x, scale_y, lines, draw_label_art);
         return 2;
     }
 #endif

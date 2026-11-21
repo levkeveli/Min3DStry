@@ -2,7 +2,6 @@
 #include "m3ds_stock_font.h"
 
 #include <3ds.h>
-#include <3ds/util/utf.h>
 #include <citro2d.h>
 #include <math.h>
 #include <string.h>
@@ -33,6 +32,7 @@ bool m3ds_stock_text_open(bool japanese) {
     // here while loading graphics, before the live client's socket is open.
     M3DS_StockGlyph prime;
     if (!m3ds_stock_font_glyph(font, 'A', false, &prime)
+            || !m3ds_stock_font_glyph(font, 0xe875, false, &prime)
             || (japanese && !m3ds_stock_font_glyph(font, 0x63a1, false, &prime))
             || !C3D_TexInit(&atlas, atlas_size, atlas_size, GPU_RGBA8)) {
         m3ds_stock_font_close(font);
@@ -131,16 +131,14 @@ static int slot_for(uint32_t codepoint, bool outline) {
     return available;
 }
 
-bool m3ds_stock_text_layout(M3DS_StockText *layout, const char *text, bool outline) {
-    if (!font) return false;
+bool m3ds_stock_text_layout(M3DS_StockText *layout, const int32_t *characters, int32_t count, bool outline) {
+    if (!font || count < 1 || count > M3DS_STOCK_TEXT_GLYPHS) return false;
     layout->glyphs = layout->width = 0;
     layout->lines = 1;
     int previous = -1, x = 0;
-    while (*text) {
-        uint32_t codepoint;
-        ssize_t bytes = decode_utf8(&codepoint, (const uint8_t *)text);
-        if (bytes <= 0) return false;
-        text += bytes;
+    for (int i = 0; i < count; ++i) {
+        const int32_t *glyph = characters + i * M3DS_STOCK_TEXT_FIELDS;
+        uint32_t codepoint = glyph[0];
         if (codepoint == '\n') {
             if (layout->lines == M3DS_STOCK_TEXT_GLYPHS) return false;
             layout->widths[layout->lines - 1] = x;
@@ -150,16 +148,16 @@ bool m3ds_stock_text_layout(M3DS_StockText *layout, const char *text, bool outli
             ++layout->lines;
             continue;
         }
-        if (layout->glyphs == M3DS_STOCK_TEXT_GLYPHS) return false;
-        int slot = slot_for(codepoint, outline);
+        int slot = glyph[2] < 0 ? slot_for(codepoint, outline) : slots;
         if (slot < 0) return false;
-        if (previous >= 0) x += m3ds_stock_font_kerning(font, &cache[previous].glyph, &cache[slot].glyph);
+        if (previous >= 0 && slot != slots) x += m3ds_stock_font_kerning(font, &cache[previous].glyph, &cache[slot].glyph);
         layout->placements[layout->glyphs].slot = slot;
         layout->placements[layout->glyphs].line = layout->lines - 1;
         layout->placements[layout->glyphs].x = x;
+        layout->placements[layout->glyphs].glyph = glyph;
         ++layout->glyphs;
-        previous = slot;
-        x += cache[slot].glyph.advance;
+        previous = slot == slots ? -1 : slot;
+        x += slot == slots ? line_height : cache[slot].glyph.advance;
     }
     layout->widths[layout->lines - 1] = x;
     if (x > layout->width) layout->width = x;
@@ -167,19 +165,31 @@ bool m3ds_stock_text_layout(M3DS_StockText *layout, const char *text, bool outli
     return true;
 }
 
-void m3ds_stock_text_draw(const M3DS_StockText *layout, float x, float y, float sx, float sy, int32_t align) {
+void m3ds_stock_text_draw(const M3DS_StockText *layout, float x, float y, float sx, float sy,
+                          int32_t align, M3DS_StockArtDraw draw_art) {
     if (dirty) {
         C3D_TexFlush(&atlas);
         dirty = false;
     }
     for (int i = 0; i < layout->glyphs; ++i) {
-        const GlyphSlot *entry = &cache[layout->placements[i].slot];
-        if (!entry->region.width || !entry->region.height) continue;
+        const int32_t *glyph = layout->placements[i].glyph;
+        uint16_t slot = layout->placements[i].slot;
         int line = layout->placements[i].line;
         float offset = (layout->width - layout->widths[line]) * (1 + align) * 0.5f;
-        float gx = x + (offset + layout->placements[i].x + entry->left) * sx;
-        float gy = y + (ascent + line * line_height - entry->top) * sy;
+        float gx = x + (offset + layout->placements[i].x) * sx;
+        float gy = y + (ascent + line * line_height) * sy;
+        if (slot == slots) {
+            float image_scale = line_height / fmaxf(glyph[5], glyph[6]);
+            float width = glyph[5] * image_scale, height = glyph[6] * image_scale;
+            draw_art(glyph, gx + (line_height - width) * sx * 0.5f,
+                gy - (line_height + height) * sy * 0.5f, width * sx, height * sy);
+            continue;
+        }
+        const GlyphSlot *entry = &cache[slot];
+        if (!entry->region.width || !entry->region.height) continue;
         C2D_Image image = {&atlas, &entry->region};
-        C2D_DrawImageAt(image, gx, gy, 0.5f, NULL, sx, sy);
+        C2D_ImageTint tint;
+        C2D_PlainImageTint(&tint, (uint32_t)glyph[1], 1.0f);
+        C2D_DrawImageAt(image, gx + entry->left * sx, gy - entry->top * sy, 0.5f, &tint, sx, sy);
     }
 }
