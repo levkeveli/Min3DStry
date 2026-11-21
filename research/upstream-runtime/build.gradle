@@ -20,6 +20,7 @@ def networkIoSource = 'core/src/mindustry/net/NetworkIO.java'
 def netClientSource = 'core/src/mindustry/core/NetClient.java'
 def placementSource = 'core/src/mindustry/ui/fragments/PlacementFragment.java'
 def itemSelectionSource = 'core/src/mindustry/world/blocks/ItemSelection.java'
+def logicExecutorSource = 'mindustry/logic/LExecutor.java'
 def planetGridSource = 'core/src/mindustry/graphics/g3d/PlanetGrid.java'
 def globalVarsSource = 'core/src/mindustry/logic/GlobalVars.java'
 def unitTypeSource = 'core/src/mindustry/type/UnitType.java'
@@ -159,6 +160,10 @@ def bulletTypePath = 'mindustry/entities/bullet/BulletType.java'
 def bulletTypeFile = sourceDir.map { it.file(bulletTypePath) }
 def unitTypeFile = sourceDir.map { it.file('mindustry/type/UnitType.java') }
 def factoryResourcesFile = sourceDir.map { it.file('port/FactoryResources.java') }
+def logicDisplaySources = [
+    'mindustry/world/blocks/logic/LogicDisplay.java',
+    'mindustry/world/blocks/logic/TileableLogicDisplay.java'
+]
 def shieldModeSources = [
     'mindustry/graphics/Drawf.java': 'renderer',
     'mindustry/entities/abilities/ForceFieldAbility.java': 'Vars.renderer'
@@ -246,6 +251,11 @@ if (usesArcSources || usesExecutor) {
             def type = path.substring(0, path.length() - '.java'.length())
             stagedClasses.addAll([type + '.class', type + '$*.class'])
         }
+        logicDisplaySources.each { path ->
+            def type = path.substring(0, path.length() - '.java'.length())
+            stagedClasses.addAll([type + '.class', type + '$*.class'])
+        }
+        stagedClasses.addAll(['mindustry/logic/LExecutor.class', 'mindustry/logic/LExecutor$*.class'])
     }
     if (usesCampaignJsonCompat) {
         stagedClasses.addAll(['arc/util/serialization/Json.class', 'arc/util/serialization/Json$*.class'])
@@ -475,6 +485,8 @@ tasks.register('prepareUpstreamProbe') {
     }
     if (usesRenderedClient) {
         outputs.files(contentColorsFile, unitTypeFile, bulletTypeFile)
+        outputs.file(sourceDir.map { it.file(logicExecutorSource) })
+        logicDisplaySources.each { outputs.file(sourceDir.map { dir -> dir.file(it) }) }
         shieldModeSources.keySet().each { outputs.file(sourceDir.map { dir -> dir.file(it) }) }
     }
     if (usesCampaignJsonCompat) {
@@ -497,6 +509,34 @@ tasks.register('prepareUpstreamProbe') {
             adaptedBulletType.parentFile.mkdirs()
             adaptedBulletType.setText(bulletType.replace(trailGuard,
                 'if((!headless || Core.batch != null) && trailLength > 0){'), 'UTF-8')
+            logicDisplaySources.each { path ->
+                def source = new String(readUpstream("core/src/${path}"), 'UTF-8')
+                def desktopRenderer = '!Vars.renderer.drawDisplays'
+                if (!source.contains('new FrameBuffer(') || source.count(desktopRenderer) != 1) {
+                    throw new GradleException("Pinned Logic Display framebuffer changed in ${path}")
+                }
+                source = source.replace('import arc.graphics.gl.*;', 'import port.render.UpstreamLogicFramebuffer;')
+                    .replaceAll(/\bFrameBuffer\b/, 'UpstreamLogicFramebuffer')
+                    .replace(desktopRenderer, 'Vars.renderer != null && !Vars.renderer.drawDisplays')
+                if (path.endsWith('/LogicDisplay.java')) {
+                    def clear = 'Core.graphics.clear('
+                    def icon = 'var icon = u.fullIcon;'
+                    if (source.count(clear) != 1 || source.count(icon) != 1) {
+                        throw new GradleException('Pinned Logic Display draw dispatch changed')
+                    }
+                    source = source.replace(clear, 'buffer.clear(')
+                        .replace(icon, 'if(u.fullIcon == null) u.loadIcon();\n                                    ' + icon)
+                }
+                def output = sourceDir.get().file(path).asFile
+                output.parentFile.mkdirs()
+                output.setText(source, 'UTF-8')
+            }
+            def executor = new String(readUpstream("core/src/${logicExecutorSource}"), 'UTF-8')
+            def headless = 'Vars.headless || exec.graphicsBuffer.size >= maxGraphicsBuffer'
+            if (executor.count(headless) != 1) throw new GradleException('Pinned graphics instruction guard changed')
+            def adaptedExecutor = sourceDir.get().file(logicExecutorSource).asFile
+            adaptedExecutor.setText(executor.replace(headless,
+                '(Vars.headless && Fonts.logic == null) || exec.graphicsBuffer.size >= maxGraphicsBuffer'), 'UTF-8')
             def loader = new String(readUpstream('core/src/mindustry/core/ContentLoader.java'), 'UTF-8')
             def loadColors = '''public void loadColors(){
         Pixmap pixmap = new Pixmap(files.internal("sprites/block_colors.png"));'''

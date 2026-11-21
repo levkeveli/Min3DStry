@@ -1,6 +1,9 @@
 import port.render.UpstreamCrackAtlas;
 import port.render.UpstreamFluidAtlas;
 import port.render.UpstreamCanvasTexture;
+import port.render.UpstreamLogicAtlas;
+import port.render.UpstreamLogicFont;
+import port.render.UpstreamLogicFramebuffer;
 import port.logic.UpstreamClientLogic;
 import arc.Core;
 import arc.files.Fi;
@@ -69,6 +72,7 @@ import mindustry.world.blocks.logic.CanvasBlock.CanvasBuild;
 import mindustry.world.blocks.logic.LogicBlock;
 import mindustry.world.blocks.logic.LogicBlock.LogicBuild;
 import mindustry.world.blocks.logic.LogicBlock.LogicLink;
+import mindustry.world.blocks.logic.LogicDisplay.LogicDisplayBuild;
 import mindustry.world.blocks.payloads.BuildPayload;
 import mindustry.world.blocks.payloads.Payload;
 import mindustry.world.blocks.payloads.UnitPayload;
@@ -89,8 +93,8 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
     private float[] canvasQuadVertices;
 
     public static void main(String[] args) throws Exception {
-        if (args.length < 3 || args.length > 5) {
-            throw new IllegalArgumentException("Expected Glacier, sprites.aatls, block_colors.png, optional bundle base and logicids.dat");
+        if (args.length < 3 || args.length == 6 || args.length > 7) {
+            throw new IllegalArgumentException("Expected Glacier, sprites.aatls, block_colors.png, optional bundle base, logicids.dat, then paired world atlas tiles and logic font");
         }
         if (args.length >= 4) Core.bundle = UpstreamInterfaceLocale.load(new Fi(args[3]), 1, "en");
         CacheLayer.init();
@@ -163,7 +167,8 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         if (materials != 49) throw new AssertionError("Expected 49 stock material buildings, got " + materials);
         target.verifyCanvas(viewer);
         if (args.length >= 4) verifyObjectiveHud();
-        if (args.length == 5) verifyClientProcessor(new Fi(args[4]), viewer);
+        if (args.length >= 5) verifyClientProcessor(new Fi(args[4]), viewer);
+        if (args.length == 7) verifyLogicDisplay(new Fi(args[5]), new Fi(args[6]), viewer);
         target.verifyUnitProjectiles(viewport, viewer);
     }
 
@@ -387,6 +392,87 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
             throw new AssertionError("Stock client processor did not execute the configured Canvas write");
         }
         System.out.println("UPSTREAM_CLIENT_PROCESSOR_REFERENCE ids=ok compressed=ok link=ok canvas=5");
+    }
+
+    private static void verifyLogicDisplay(Fi tiles, Fi font, Team team) {
+        var atlas = new UpstreamLogicAtlas(tiles);
+        UpstreamLogicFramebuffer.atlasPixels((texture, x, y) ->
+            atlas.sample(UpstreamTerrainDrawProbe.pageIndex(texture), x, y));
+        UpstreamLogicFont.load(font);
+        var processor = (LogicBuild)Vars.world.tile(70, 15).build;
+        var displayTile = Vars.world.tile(70, 20);
+        var sourceTile = Vars.world.tile(76, 15);
+        displayTile.setBlock(Blocks.logicDisplay, team);
+        sourceTile.setBlock(Blocks.logicDisplay, team);
+        var display = (LogicDisplayBuild)displayTile.build;
+        var source = (LogicDisplayBuild)sourceTile.build;
+        display.ensureBuffer();
+        source.ensureBuffer();
+        var links = Seq.with(new LogicLink(0, 5, "display1", true), new LogicLink(6, 0, "display2", true));
+        processor.configured(null, LogicBlock.compress("""
+            getlink target 0
+            getlink source 1
+            draw clear 32 160 224 0 0 0
+            drawflush source
+            draw clear 16 32 64 0 0 0
+            draw col %ff000080 0 0 0 0 0
+            draw rect 10 10 8 8 0 0
+            draw color 255 255 255 255 0 0
+            draw translate 20 10 0 0 0 0
+            draw rect 5 5 6 6 0 0
+            draw reset 0 0 0 0 0 0
+            draw image 48 30 source 8 0 0
+            draw image 60 60 @copper 12 0 0
+            print "A"
+            draw print 30 60 @bottomLeft 0 0 0
+            drawflush target
+            end
+            """, links));
+        float oldDelta = Time.delta;
+        Time.delta = 1f;
+        try {
+            for (int i = 0; i < 20; i++) UpstreamClientLogic.update(1f);
+        } finally {
+            Time.delta = oldDelta;
+        }
+        if (display.commands.isEmpty() || source.commands.isEmpty()) {
+            throw new AssertionError("Stock drawflush did not queue both displays");
+        }
+        display.processCommands();
+        if (!source.commands.isEmpty() || !display.commands.isEmpty()) {
+            throw new AssertionError("Stock processCommands did not update the offscreen source first");
+        }
+        assertDisplayPixel(display, 0, 0, 0x102040ff);
+        assertDisplayPixel(display, 10, 10, 0x881020ff);
+        assertDisplayPixel(display, 25, 15, 0xffffffff);
+        assertDisplayPixel(display, 48, 30, 0x20a0e0ff);
+        if (displayPixels(display, 54, 54, 66, 66) == 0 || displayPixels(display, 30, 60, 46, 80) == 0
+                || processor.executor.links[0] != display) {
+            throw new AssertionError("Original copper icon, logic font or display link missing");
+        }
+        var buffer = display.buffer;
+        displayTile.setBlock(Blocks.air);
+        if (!buffer.isDisposed()) {
+            throw new AssertionError("Removed display did not dispose its framebuffer");
+        }
+        System.out.println("UPSTREAM_LOGIC_DISPLAY_REFERENCE flush=ok clear=ok alpha=ok transform=ok offscreen=ok copper=ok font=ok dispose=ok");
+    }
+
+    private static int displayPixels(LogicDisplayBuild display, int left, int bottom, int right, int top) {
+        int changed = 0;
+        int[] pixels = display.buffer.getTexture().pixels;
+        int width = display.buffer.getWidth();
+        for (int y = bottom; y < top; y++) {
+            for (int x = left; x < right; x++) {
+                if (pixels[y * width + x] != 0x102040ff) changed++;
+            }
+        }
+        return changed;
+    }
+
+    private static void assertDisplayPixel(LogicDisplayBuild display, int x, int y, int expected) {
+        int rgba = display.buffer.getTexture().pixels[y * display.buffer.getWidth() + x];
+        if (rgba != expected) throw new AssertionError(String.format("Logic Display pixel %d,%d: %08x != %08x", x, y, rgba, expected));
     }
 
     private void verifyCanvas(Team team) {

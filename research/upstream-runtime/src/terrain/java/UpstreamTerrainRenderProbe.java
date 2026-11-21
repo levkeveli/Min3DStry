@@ -9,6 +9,7 @@ import org.teavm.interop.Import;
 import org.teavm.interop.Address;
 import org.teavm.interop.c.Include;
 import port.render.UpstreamCanvasTexture;
+import port.render.UpstreamLogicFramebuffer.RasterTexture;
 
 public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProbe.TerrainTarget {
     static final int PALETTE_LABEL_COUNT = 15;
@@ -150,6 +151,14 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
         }
     }
 
+    @Override
+    public void drawLogicDisplay(RasterTexture texture, float[] vertices, int offset, Blending blending) {
+        if (NativeTerrain.drawLogicDisplay(texture.id, texture.revision, texture.width, texture.height,
+                Address.ofData(texture.pixels), Address.ofData(vertices), offset, blendMode(blending)) == 0) {
+            throw new IllegalStateException("Citro3D could not draw a stock Logic Display");
+        }
+    }
+
     private static int blendMode(Blending blending) {
         if (blending == Blending.normal) return 0;
         if (blending == Blending.additive) return 1;
@@ -209,6 +218,10 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
         @Import(name = "m3ds_terrain_draw_canvas_quad")
         static native int drawCanvasQuad(int id, int revision, int width, int height, Address pixels,
                                          Address vertices, int offset, int blendMode);
+
+        @Import(name = "m3ds_terrain_draw_logic_display")
+        static native int drawLogicDisplay(int id, int revision, int width, int height, Address pixels,
+                                           Address vertices, int offset, int blendMode);
 
         @Import(name = "m3ds_terrain_end")
         static native int end();

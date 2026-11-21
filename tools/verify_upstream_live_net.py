@@ -1444,13 +1444,44 @@ def verify_client_processor(server_log, server, rpc, output, model, timeout):
     print(f"{model}: stock processor config, link and client-local Canvas writes passed.", flush=True)
 
 
+def verify_logic_displays(server_log, server, rpc, output, model, timeout):
+    points = ((115, 39), (130, 50), (141, 63), (300, 50))
+    capture_marker_pixels(rpc, output, model, "display-background", points, timeout, ((86, 86, 102),) * 4)
+    code = """getlink primary 0
+getlink source 1
+draw clear 30 200 240 0 0 0
+drawflush source
+draw clear 16 32 64 0 0 0
+draw color 232 54 80 255 0 0
+draw rect 20 60 24 20 0 0
+draw color 255 255 255 255 0 0
+draw image 56 20 source 20 0 0
+print "ARM11"
+draw print 17 36 @bottomLeft 0 0 0
+drawflush primary
+end
+"""
+    send_marker_phase(server_log, server, "display-configured",
+        "const p=Vars.world.build(77,25), links=new Seq(); "
+        "const Link=Packages.mindustry.world.blocks.logic.LogicBlock.LogicLink; "
+        "links.add(new Link(0,4,'display1',true)); links.add(new Link(8,4,'display2',true)); "
+        f"p.configureAny(Packages.mindustry.world.blocks.logic.LogicBlock.compress({json.dumps(code)},links)); "
+        'if(p.executor.instructions.length!==13 || p.executor.links.length!==2) throw "Invalid display config";')
+    capture_marker_pixels(rpc, output, model, "display-program", points, timeout,
+                          ((232, 54, 80), (16, 32, 64), (30, 200, 240), (30, 200, 240)))
+    send_marker_phase(server_log, server, "display-server-headless",
+        'if(Vars.world.build(77,29).buffer!=null || Vars.world.build(85,29).buffer!=null) '
+        'throw "Dedicated server unexpectedly rendered displays";')
+    print(f"{model}: original Logic Display and Large Logic Display rendered the server program.", flush=True)
+
+
 def run_model(args, model, config, original_config, log, output):
     stationary = (args.world_atlas_recycle or args.building_layers or args.liquids
                   or args.building_effects or args.payload_mix or args.carried_buildings
                   or args.payload_handoff or args.unit_layers or args.unit_roster or args.naval_wake
                   or args.tank_treads or args.map_spawn or args.combat
                   or args.verify_logic_markers or args.verify_texture_markers or args.verify_quad_markers or args.verify_canvas
-                  or args.verify_canvas_quads or args.verify_client_processor)
+                  or args.verify_canvas_quads or args.verify_client_processor or args.verify_logic_displays)
     map_name = args.map_spawn or "Glacier"
     overrides = {
         "Miscellaneous": {"log_filter": "*:Info Debug.Emulated:Debug Service.SOC:Debug",
@@ -1496,6 +1527,13 @@ def run_model(args, model, config, original_config, log, output):
                     "const rules=Vars.state.rules; rules.worldProcessorPlayerLink=true; "
                     "rules.allowEditWorldProcessors=true; "
                     "Vars.world.tile(77,26).setBlock(Blocks.worldProcessor,rules.defaultTeam);")
+            if args.verify_logic_displays:
+                send_marker_phase(server_log, server, "display-fixture",
+                    "const rules=Vars.state.rules; rules.worldProcessorPlayerLink=true; "
+                    "rules.allowEditWorldProcessors=true; const team=rules.defaultTeam; "
+                    "Vars.world.tile(77,25).setBlock(Blocks.worldProcessor,team); "
+                    "Vars.world.tile(77,29).setBlock(Blocks.logicDisplay,team); "
+                    "Vars.world.tile(85,29).setBlock(Blocks.largeLogicDisplay,team);")
             if args.erekir_build:
                 server.stdin.write(
                     'js (() => { const core = Vars.state.rules.defaultTeam.core(); '
@@ -1769,6 +1807,8 @@ def run_model(args, model, config, original_config, log, output):
                             verify_canvas_quads(log, emulator, server_log, server, rpc, output, model, spawn, args.timeout)
                         if args.verify_client_processor:
                             verify_client_processor(server_log, server, rpc, output, model, args.timeout)
+                        if args.verify_logic_displays:
+                            verify_logic_displays(server_log, server, rpc, output, model, args.timeout)
                         if args.erekir_build:
                             verify_erekir_construction(log, emulator, server_log, server, args.timeout, capture, spawn)
                         if args.mining:
@@ -1998,6 +2038,8 @@ def main():
                         help="Verify stock quads backed by an offscreen Canvas on Glacier")
     parser.add_argument("--verify-client-processor", action="store_true",
                         help="Verify a stock processor writes to its linked Canvas on the client")
+    parser.add_argument("--verify-logic-displays", action="store_true",
+                        help="Verify the original Logic Display and Large Logic Display on Glacier")
     parser.add_argument("--require-relocation-spill", action="store_true",
                         help="Require the ARM11 collector to grow its relocation table during the spawn check")
     args = parser.parse_args()
@@ -2101,6 +2143,10 @@ def main():
     if args.verify_client_processor and (not args.controls or not args.terrain_atlas or args.controls_replay
                                         or args.map_spawn or args.verify_canvas):
         parser.error("--verify-client-processor needs stationary --controls and --terrain-atlas on Glacier")
+    if args.verify_logic_displays and (not args.controls or not args.terrain_atlas or args.controls_replay
+                                       or args.map_spawn or args.verify_canvas or args.verify_canvas_quads
+                                       or args.verify_client_processor):
+        parser.error("--verify-logic-displays needs a separate stationary --controls and --terrain-atlas run on Glacier")
     if args.erekir_sector is not None:
         if not args.map_spawn or not re.fullmatch(r"[a-z][a-z-]*", args.erekir_sector):
             parser.error("--erekir-sector needs --map-spawn and a sector slug such as onset")
