@@ -89,6 +89,8 @@ static void test_real_fixture_bridge(void) {
     assert(bridged.hash == UINT64_C(0x783fbd80e415dcd7));
     assert(bridged.tile_state_hash == UINT64_C(0xe35397041df8e5fe));
     assert(bridged.save_state_hash == UINT64_C(0x3a375fd4f81c5680));
+    // Raw entity payload bytes are not part of the upstream row stream.
+    assert(bridged.building_hash == 0u);
     assert(bridged.buildings[0].state_hash == UINT64_C(0xb529451197a6e504));
     assert(bridged.buildings[1].state_hash == UINT64_C(0xebc4778e833eb8e5));
     assert(bridged.buildings[0].tile == &bridged.tile_states[81u + 26u * 150u]);
