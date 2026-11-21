@@ -1,0 +1,48 @@
+name: 3DS full build
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "include/**"
+      - "Makefile"
+      - "tools/build_sprite_atlas.py"
+      - "tests/assets/**"
+      - ".github/workflows/full-build.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "include/**"
+      - "Makefile"
+      - "tools/build_sprite_atlas.py"
+      - "tests/assets/**"
+      - ".github/workflows/full-build.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build default 3DS app
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Build with pinned devkitARM image
+        run: |
+          image=devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5
+          docker run --rm -v "$PWD:/work" -w /work "$image" bash -lc '
+            source /opt/devkitpro/3dsvars.sh
+            python3 --version
+            tex3ds --version
+            make PYTHON=python3
+            test -s build/min3dstry.3dsx
+            test -s build/min3dstry.smdh
+            ls -l build/min3dstry.3dsx
+          '

@@ -143,6 +143,10 @@ else
 $(OUTPUT).3dsx : $(OUTPUT).elf $(_3DSXDEPS)
 
 $(OFILES_SOURCES) : $(HFILES) $(TOPDIR)/$(BUILD)/build-config.h
+
+ifneq ($(strip $(UPSTREAM_MINDUSTRY)),)
+$(OFILES_SOURCES) : $(TOPDIR)/$(BUILD)/audio-index.h
+endif
 citro2d_backend.o : $(TOPDIR)/$(ATLAS)/sprites.h
 
 $(OUTPUT).elf : $(OFILES)
