@@ -144,9 +144,11 @@ int32_t m3ds_terrain_build_overlay(int32_t column, int32_t row, int32_t block, i
         static const char *labels[] = {"Conveyor", "Copper Wall", "Rotate", "Remove"};
         palette_buffer = C2D_TextBufNew(64);
         if (!palette_buffer) return 0;
+        // consoleInit switched the bottom framebuffer to RGB565.
+        gfxSetScreenFormat(GFX_BOTTOM, GSP_BGR8_OES);
+        gfxSetDoubleBuffering(GFX_BOTTOM, true);
         palette = C2D_CreateScreenTarget(GFX_BOTTOM, GFX_LEFT);
         if (!palette) return 0;
-        gfxSetDoubleBuffering(GFX_BOTTOM, true);
         for (int i = 0; i < 4; i++) {
             C2D_TextParse(&palette_labels[i], palette_buffer, labels[i]);
             C2D_TextOptimize(&palette_labels[i]);
