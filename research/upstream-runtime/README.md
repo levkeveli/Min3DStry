@@ -736,8 +736,11 @@ Cross-building the generated C at `-O2` with `arm11/build.sh` produced a
 21,897,852-byte `upstream-probe.3dsx` whose page-rounded ELF LOAD segments total
 36.03 MiB (64.28 MiB subtotal including the 24 MiB managed heap, 4 MiB linear
 heap, and 256 KiB stack before GC metadata and other allocations, exceeding
-Original 3DS's 64 MiB application budget). Azahar emulator execution on `main`
-and physical hardware memory/frame-time measurements remain open on #39. Source
+Original 3DS's 64 MiB application budget). A local `-O0` devkitARM build then
+booted in both Azahar `2126.2` profiles and emitted the same three records,
+with `UPSTREAM_MEMORY appHeap=83,783,680` on New 3DS and `54,423,552` on
+Original 3DS. Physical hardware memory/frame-time measurements remain open
+on #39. Source
 behavior comes from pinned
 [`Blocks.java`](https://github.com/Anuken/Mindustry/blob/19a0f40d44514f4802a8b79770456e7e32e34da0/core/src/mindustry/content/Blocks.java)
 and [`GenericCrafter.java`](https://github.com/Anuken/Mindustry/blob/19a0f40d44514f4802a8b79770456e7e32e34da0/core/src/mindustry/world/blocks/production/GenericCrafter.java).
