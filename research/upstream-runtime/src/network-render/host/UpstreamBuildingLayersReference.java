@@ -46,6 +46,7 @@ import mindustry.gen.Groups;
 import mindustry.gen.Payloadc;
 import mindustry.gen.BlockUnitc;
 import mindustry.gen.Crawlc;
+import mindustry.gen.DisplayCmd;
 import mindustry.gen.Player;
 import mindustry.gen.Tankc;
 import mindustry.gen.UnitWaterMove;
@@ -79,6 +80,7 @@ import mindustry.world.blocks.logic.LogicBlock;
 import mindustry.world.blocks.logic.LogicBlock.LogicBuild;
 import mindustry.world.blocks.logic.LogicBlock.LogicLink;
 import mindustry.world.blocks.logic.LogicDisplay.LogicDisplayBuild;
+import mindustry.world.blocks.logic.LogicDisplay;
 import mindustry.world.blocks.logic.TileableLogicDisplay.TileableLogicDisplayBuild;
 import mindustry.world.blocks.payloads.BuildPayload;
 import mindustry.world.blocks.payloads.Payload;
@@ -99,6 +101,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
     private UpstreamCanvasTexture canvasQuadTexture;
     private float[] canvasQuadVertices;
     private final List<RasterTexture> displayDraws = new ArrayList<>();
+    private final List<Integer> displayFirstPixels = new ArrayList<>();
 
     public static void main(String[] args) throws Exception {
         if (args.length < 3 || args.length == 6 || args.length > 7) {
@@ -493,8 +496,43 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         if (!buffer.isDisposed()) {
             throw new AssertionError("Removed display did not dispose its framebuffer");
         }
+        verifyDisplayMarkers(source);
         verifyTiledDisplay(team);
         System.out.println("UPSTREAM_LOGIC_DISPLAY_REFERENCE flush=ok clear=ok alpha=ok transform=ok offscreen=ok copper=ok font=ok tiles=ok dispose=ok");
+    }
+
+    private void verifyDisplayMarkers(LogicDisplayBuild source) {
+        var marker = new TextureMarker(source, 605, 240, 16, 16);
+        var quad = new QuadMarker();
+        quad.texture.value = source;
+        for (int i = 0; i < 4; i++) {
+            quad.control(LMarkerControl.posi, i, i >= 2 ? 75 : 71, i == 1 || i == 2 ? 29 : 25);
+            quad.control(LMarkerControl.uvi, i, i >= 2 ? 1 : 0, i == 1 || i == 2 ? 1 : 0);
+        }
+        if (quad.vertices[4] != 0f || quad.vertices[10] != 1f) {
+            throw new AssertionError("Stock quad did not preserve framebuffer orientation");
+        }
+        Vars.state.markers.add(616, marker);
+        Vars.state.markers.add(617, quad);
+        source.commands.addLast(DisplayCmd.get(LogicDisplay.commandClear, 250, 86, 37, 0, 0, 0));
+        displayDraws.clear();
+        displayFirstPixels.clear();
+        UpstreamObjectiveMarkers.draw(Vars.state.rules, 2.5f, (text, x, y, flags, size, align, lines) -> {});
+        if (!displayDraws.equals(List.of(source.buffer.getTexture(), source.buffer.getTexture()))
+                || !displayFirstPixels.equals(List.of(0xfa5625ff, 0xfa5625ff)) || !source.commands.isEmpty()) {
+            throw new AssertionError("Offscreen display commands must finish before either marker samples its texture");
+        }
+        var old = source.buffer;
+        source.buffer = null;
+        old.dispose();
+        displayDraws.clear();
+        UpstreamObjectiveMarkers.draw(Vars.state.rules, 2.5f, (text, x, y, flags, size, align, lines) -> {});
+        if (source.buffer == null || !displayDraws.equals(List.of(source.buffer.getTexture(), source.buffer.getTexture()))) {
+            throw new AssertionError("Markers did not bind the replacement framebuffer");
+        }
+        Vars.state.markers.remove(616);
+        Vars.state.markers.remove(617);
+        System.out.println("UPSTREAM_DISPLAY_MARKERS_REFERENCE sprite=ok quad=ok deferred=ok replacement=ok");
     }
 
     private void verifyTiledDisplay(Team team) {
@@ -532,8 +570,8 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
 
     @Override
     public void drawLogicDisplay(RasterTexture texture, float[] vertices, int offset, Blending blending) {
-        if (blending != Blending.disabled) throw new AssertionError("Display sprite must draw opaque");
         displayDraws.add(texture);
+        displayFirstPixels.add(texture.pixels[0]);
     }
 
     private static int displayPixels(LogicDisplayBuild display, int left, int bottom, int right, int top) {

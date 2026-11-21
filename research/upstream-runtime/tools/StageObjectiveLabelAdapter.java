@@ -45,6 +45,7 @@ final class StageObjectiveLabelAdapter {
 
     private static final String markerTextureAdapter = "port/render/UpstreamMarkerTexture";
     private static final String textureHolder = "mindustry/game/MapObjectives$TextureHolder";
+    private static final String objectiveMarker = "mindustry/game/MapObjectives$ObjectiveMarker";
 
     private static void stageTextureLookup(ZipFile archive, Path output, String name, boolean quad) throws Exception {
         var path = "mindustry/game/MapObjectives$" + name + ".class";
@@ -70,8 +71,33 @@ final class StageObjectiveLabelAdapter {
             }
         }
         if (guards != 1 || lookups != 1) throw new IllegalStateException("Unexpected stock texture lookup in " + path);
+        stageTexturePrepare(type);
         if (quad) stageQuadUv(type);
         write(type, output.resolve(path));
+    }
+
+    private static void stageTexturePrepare(ClassNode type) {
+        var draw = type.methods.stream()
+            .filter(method -> method.name.equals("draw") && method.desc.equals("(F)V"))
+            .findFirst().orElseThrow();
+        int prepares = 0;
+        for (var instruction : draw.instructions.toArray()) {
+            if (!(instruction instanceof MethodInsnNode call) || call.getOpcode() != Opcodes.INVOKESTATIC
+                    || !call.owner.equals("mindustry/game/MapObjectives") || !call.name.equals("prepareTexture")
+                    || !call.desc.equals("(L" + objectiveMarker + ";Ljava/lang/Object;)V")) continue;
+            draw.instructions.insertBefore(call, new VarInsnNode(Opcodes.ALOAD, 0));
+            draw.instructions.insertBefore(call, new FieldInsnNode(Opcodes.GETFIELD, type.name,
+                "fetchedRegion", "Larc/graphics/g2d/TextureRegion;"));
+            draw.instructions.insertBefore(call, new VarInsnNode(Opcodes.ALOAD, 0));
+            draw.instructions.insertBefore(call, new FieldInsnNode(Opcodes.GETFIELD, objectiveMarker,
+                "drawLayer", "F"));
+            call.owner = markerTextureAdapter;
+            call.name = "prepare";
+            call.desc = "(L" + objectiveMarker + ";Ljava/lang/Object;Larc/graphics/g2d/TextureRegion;F)V";
+            prepares++;
+        }
+        if (prepares != 1) throw new IllegalStateException("Unexpected stock texture preparation in " + type.name);
+        draw.maxStack = Math.max(draw.maxStack, 4);
     }
 
     private static void stageQuadUv(ClassNode type) {
