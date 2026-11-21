@@ -190,7 +190,10 @@
       "weight": 6,
       "stage": "planned",
       "issue": 39,
-      "evidence": []
+      "evidence": [
+        "research/upstream-runtime/host/UpstreamProductionBaseline.java",
+        "docs/porting/production-power-liquids.md"
+      ]
     },
     {
       "id": "combat-waves-ai",

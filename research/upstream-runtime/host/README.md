@@ -283,3 +283,20 @@ java -cp /path/to/server-release.jar \
 Look for `UPSTREAM_CAMPAIGN_PASS tech_nodes=375 sectors=95`. See
 [the campaign progression persistence design](../../../docs/porting/campaign-progression.md)
 for upstream key schemas and remaining ARM11 runtime work (`#41`).
+
+## Production, power, and liquid simulation baseline
+
+To exercise pinned `v160.8` production blocks (`GenericCrafter`, `Pump`,
+`ConsumeGenerator`, `Battery`, `PowerNode`, `Conduit`, `LiquidRouter`,
+`LiquidTank`), starvation, power-graph disconnect/reconnect, capacity clamping,
+and repeated-run update-ordering determinism against `server-release.jar`:
+
+```sh
+java -cp /path/to/server-release.jar \
+    /path/to/Min3DStry/research/upstream-runtime/host/UpstreamProductionBaseline.java
+```
+
+Look for `UPSTREAM_PRODUCTION_CATALOG blocks=12` and
+`UPSTREAM_PRODUCTION_ORDER runs=2 ticks=2693`. See
+[the production, power, and liquid design](../../../docs/porting/production-power-liquids.md)
+for pinned scenario details and remaining ARM11 work (`#39`).
