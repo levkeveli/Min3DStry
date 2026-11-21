@@ -12,6 +12,14 @@ public final class UpstreamMarkerTexture {
         return Core.atlas == null || texture instanceof LogicDisplayBuild;
     }
 
+    public static boolean prepareForDraw(Object texture) {
+        if (deferLookup(texture)) return false;
+        // Stationary canvases can be on a tile without joining Groups.build.
+        // Refresh their pixels even when only a marker is in the viewport.
+        if (texture instanceof CanvasBuild canvas && canvas.isValid()) canvas.updateTexture();
+        return true;
+    }
+
     public static void lookup(Object texture, TextureRegion target) {
         if (texture instanceof String name) {
             target.set(Core.atlas.find(name));

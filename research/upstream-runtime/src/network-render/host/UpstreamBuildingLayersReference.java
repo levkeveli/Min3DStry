@@ -43,10 +43,12 @@ import mindustry.game.Team;
 import mindustry.game.MapObjectives;
 import mindustry.game.MapObjectives.BuildCountObjective;
 import mindustry.game.MapObjectives.ItemObjective;
+import mindustry.game.MapObjectives.QuadMarker;
 import mindustry.game.MapObjectives.TextureMarker;
 import mindustry.graphics.CacheLayer;
 import mindustry.graphics.Layer;
 import mindustry.graphics.Pal;
+import mindustry.logic.LMarkerControl;
 import mindustry.type.Category;
 import mindustry.world.Block;
 import mindustry.world.blocks.defense.OverdriveProjector.OverdriveBuild;
@@ -77,6 +79,8 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
     private final List<UnitBuild> unitBuilds = new ArrayList<>();
     private final List<UpstreamCanvasTexture> canvasDraws = new ArrayList<>();
     private int texturedQuads;
+    private UpstreamCanvasTexture canvasQuadTexture;
+    private float[] canvasQuadVertices;
 
     public static void main(String[] args) throws Exception {
         if (args.length < 3 || args.length > 4) {
@@ -405,6 +409,41 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         tile.remove();
         if (!smallTexture.isDisposed()) throw new AssertionError("Canvas removal kept its texture active");
         System.out.println("UPSTREAM_CANVAS_REFERENCE small=ok large=ok palettes=ok borders=ok save=ok config=ok marker=ok disposed=ok");
+        verifyCanvasQuad(large, largeTexture);
+    }
+
+    private void verifyCanvasQuad(CanvasBuild canvas, UpstreamCanvasTexture texture) {
+        var quad = new QuadMarker();
+        quad.texture.value = canvas;
+        quad.vertices = new float[]{
+            40f, 64f, Color.whiteFloatBits, 0f, 0f, Color.clearFloatBits,
+            44f, 112f, Color.sky.toFloatBits(), 0f, 1f, Color.clearFloatBits,
+            92f, 118f, Color.whiteFloatBits, 1f, 1f, Color.clearFloatBits,
+            105f, 72f, Color.whiteFloatBits, 1f, 0f, Color.clearFloatBits
+        };
+        Vars.state.markers.add(614, quad);
+        int before = texture.revision;
+        canvas.setPixel(0, 6);
+        quad.control(LMarkerControl.uvi, 2, 0.75, 0.25);
+        quad.control(LMarkerControl.posi, 2, 13, 16);
+        UpstreamObjectiveMarkers.draw(Vars.state.rules, 2.5f, (text, x, y, flags, size, align, lines) -> {});
+        if (canvasQuadTexture != texture || texture.revision <= before
+                || texture.pixels[0] != ((CanvasBlock)Blocks.largeCanvas).palette[6]
+                || !Arrays.equals(canvasQuadVertices, quad.vertices)
+                || canvasQuadVertices[12] != 104f || canvasQuadVertices[13] != 128f
+                || canvasQuadVertices[15] != 0.75f || canvasQuadVertices[16] != 0.75f
+                || canvasQuadVertices[8] != Color.sky.toFloatBits()) {
+            throw new AssertionError("Linked Canvas quad did not preserve original pixels, vertices, UV or tint");
+        }
+        quad.setTexture("block-router-ui");
+        var router = Core.atlas.find("block-router-ui");
+        float u = router.u + (router.u2 - router.u) * 0.75f;
+        float v = router.v + (router.v2 - router.v) * 0.75f;
+        if (Math.abs(quad.vertices[15] - u) > 0.00001f || Math.abs(quad.vertices[16] - v) > 0.00001f) {
+            throw new AssertionError("Retargeting a Canvas quad changed its local UV");
+        }
+        Vars.state.markers.remove(614);
+        System.out.println("UPSTREAM_CANVAS_QUAD_REFERENCE refresh=ok vertices=ok uv=ok tint=ok retarget=ok");
     }
 
     private static void verifyObjectiveHud() {
@@ -965,6 +1004,12 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
     @Override
     public void drawTexturedQuad(int page, int pageWidth, int pageHeight, float[] vertices, int offset, Blending blending) {
         texturedQuads++;
+    }
+
+    @Override
+    public void drawCanvasQuad(UpstreamCanvasTexture texture, float[] vertices, int offset, Blending blending) {
+        canvasQuadTexture = texture;
+        canvasQuadVertices = Arrays.copyOfRange(vertices, offset, offset + 24);
     }
 
     @Override public void begin(int left, int bottom, int width, int height) {}

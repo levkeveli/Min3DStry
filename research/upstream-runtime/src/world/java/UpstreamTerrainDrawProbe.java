@@ -52,6 +52,9 @@ public final class UpstreamTerrainDrawProbe {
                                 float width, float height, float rotation, int color, int mixColor, Blending blending) {
             throw new IllegalStateException("Unsupported Arc Canvas texture");
         }
+        default void drawCanvasQuad(UpstreamCanvasTexture texture, float[] vertices, int offset, Blending blending) {
+            throw new IllegalStateException("Unsupported Arc Canvas quad");
+        }
         void end();
     }
 
@@ -245,20 +248,29 @@ public final class UpstreamTerrainDrawProbe {
 
         @Override
         protected void draw(Texture texture, float[] vertices, int offset, int count) {
-            if (!(texture instanceof AtlasPageTexture page) || offset < 0 || count < 0
+            if (!(texture instanceof AtlasPageTexture || texture instanceof UpstreamCanvasTexture) || offset < 0 || count < 0
                     || offset > vertices.length - count || count % SpriteBatch.SPRITE_SIZE != 0) {
                 throw new IllegalStateException("Unsupported Arc vertex batch");
             }
             if (sort && !flushing) {
                 // Arc reuses the Fill vertex array for the next command.
                 float[] snapshot = Arrays.copyOfRange(vertices, offset, offset + count);
-                draw(() -> emitQuads(page, snapshot, 0, snapshot.length));
+                draw(() -> emitQuads(texture, snapshot, 0, snapshot.length));
             } else {
-                emitQuads(page, vertices, offset, count);
+                emitQuads(texture, vertices, offset, count);
             }
         }
 
-        private void emitQuads(AtlasPageTexture page, float[] vertices, int offset, int count) {
+        private void emitQuads(Texture texture, float[] vertices, int offset, int count) {
+            if (texture instanceof UpstreamCanvasTexture canvas) {
+                if (target != null && !canvas.isDisposed()) {
+                    for (int i = offset; i < offset + count; i += SpriteBatch.SPRITE_SIZE) {
+                        target.drawCanvasQuad(canvas, vertices, i, blending);
+                    }
+                }
+                return;
+            }
+            var page = (AtlasPageTexture) texture;
             var white = Core.atlas.white();
             for (int i = offset; i < offset + count; i += SpriteBatch.SPRITE_SIZE) {
                 boolean solid = page == white.texture;
