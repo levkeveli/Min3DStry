@@ -1074,6 +1074,13 @@ with the stock Glacier fixture to check that each visible palette label
 and both menus present the original font. Further Arc UI text remains
 tracked under #199.
 
+The [ARM11 menu build](https://github.com/levkeveli/Min3DStry/actions/runs/44923414603)
+passed the palette and both menu checks on Original and New 3DS emulator
+profiles. Both profiles displayed the original block and item icons
+and agreed with the Java v160.8 server on the original Sorter's Copper,
+Lead, and cleared states. The replay waited for matching sprite pixels
+after each configuration packet.
+
 The ARM11 ROM from [build 44921952248](https://github.com/levkeveli/Min3DStry/actions/runs/44921952248)
 passed both Original and New 3DS emulator profiles against the unmodified
 Java v160.8 server. The English HUD drew the 0/60 and 17/60 Beryllium
