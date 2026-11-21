@@ -41,7 +41,7 @@ static C2D_SpriteSheet sheet;
 static C3D_RenderTarget *target;
 static C3D_RenderTarget *palette;
 static C2D_TextBuf palette_buffer;
-static C2D_Text palette_labels[7];
+static C2D_Text palette_labels[8];
 static C2D_TextBuf catalog_buffer;
 static struct {
     C2D_SpriteSheet sheet;
@@ -407,7 +407,7 @@ int32_t m3ds_terrain_build_labels(const char *labels) {
         if (!palette) return 0;
     }
     C2D_TextBufClear(palette_buffer);
-    for (int i = 0; i < 7; i++) {
+    for (size_t i = 0; i < sizeof(palette_labels) / sizeof(palette_labels[0]); i++) {
         C2D_TextParse(&palette_labels[i], palette_buffer, labels);
         C2D_TextOptimize(&palette_labels[i]);
         labels += strlen(labels) + 1;
@@ -417,7 +417,7 @@ int32_t m3ds_terrain_build_labels(const char *labels) {
 
 int32_t m3ds_terrain_build_overlay(int32_t column, int32_t row, int32_t block, int32_t rotation,
                                   int32_t removing, int32_t tile_size, int32_t rotatable, int32_t catalog_open,
-                                  int32_t configuring) {
+                                  int32_t configuring, int32_t selecting_mine) {
     if (!frame_open || !palette) return 0;
     set_world_blend(0);
     set_world_mix(0, 0);
@@ -431,7 +431,7 @@ int32_t m3ds_terrain_build_overlay(int32_t column, int32_t row, int32_t block, i
         C2D_DrawRectSolid(x, y + size - 2, 0.5f, size, 2, accent);
         C2D_DrawRectSolid(x, y, 0.5f, 2, size, accent);
         C2D_DrawRectSolid(x + size - 2, y, 0.5f, 2, size, accent);
-        if (rotatable && !removing) {
+        if (rotatable && !removing && !selecting_mine) {
             static const int dx[] = {1, 0, -1, 0}, dy[] = {0, -1, 0, 1};
             float cx = x + size / 2, cy = y + size / 2;
             C2D_DrawLine(cx, cy, accent, cx + dx[rotation] * 6, cy + dy[rotation] * 6, accent, 2, 0.5f);
@@ -447,8 +447,11 @@ int32_t m3ds_terrain_build_overlay(int32_t column, int32_t row, int32_t block, i
     C2D_DrawRectSolid(292, 48, 0.5f, 26, 31, C2D_Color32(45, 52, 64, 255));
     C2D_DrawText(&palette_labels[5], C2D_WithColor | C2D_AlignCenter, 305, 57, 0.5f,
         0.30f, 0.30f, configuring ? accent : C2D_Color32(239, 241, 247, 255));
+    C2D_DrawRectSolid(292, 80, 0.5f, 26, 31, C2D_Color32(45, 52, 64, 255));
+    C2D_DrawText(&palette_labels[7], C2D_WithColor | C2D_AlignCenter, 305, 89, 0.5f,
+        0.30f, 0.30f, selecting_mine ? accent : C2D_Color32(239, 241, 247, 255));
     for (int i = 0; i < 4; i++) {
-        bool active = removing ? i == 3 : i == block;
+        bool active = !selecting_mine && (removing ? i == 3 : i == block);
         C2D_DrawRectSolid(i * 80 + 2, 4, 0.5f, 76, 39,
             active ? C2D_Color32(85, 71, 52, 255) : C2D_Color32(45, 52, 64, 255));
         C2D_DrawText(&palette_labels[i], C2D_WithColor | C2D_AlignCenter, i * 80 + 40, 16, 0.5f,
