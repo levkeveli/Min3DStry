@@ -85,6 +85,7 @@ public final class UpstreamWorldLoadProbe {
                 || marker.pos.x != 80 || marker.pos.y != 152) {
             throw new IllegalStateException("Current-format marker differs after reload");
         }
+        reportTileState(true);
         reportSaveState(true);
         System.out.println("UPSTREAM_SAVE version=13 marker=ok");
     }
@@ -196,6 +197,64 @@ public final class UpstreamWorldLoadProbe {
                 + " aggregate=" + hex16(aggregate));
         }
         return aggregate;
+    }
+
+    /**
+     * Mirrors the native M3dsTileState byte layout and FNV-1a hash in
+     * src/platform/msav_world.c. Used to prove the upstream loader sees the
+     * same floor/overlay/block/position/flags/building-index rows.
+     */
+    static long reportTileState(boolean verifyFixture) {
+        final long seed = 1469598103934665603L;
+        long hash = seed;
+        int tiles = 0;
+        int buildings = 0;
+        byte[] row = new byte[24];
+        for (var tile : Vars.world.tiles) {
+            if (tile == null) {
+                throw new IllegalStateException("Missing tile");
+            }
+            boolean origin = tile.build != null && tile.build.tile == tile;
+            int flags = origin ? 4 : 0;
+            int buildingIndex = origin ? buildings : -1;
+            if (origin) {
+                buildings++;
+            }
+            put16(row, 0, tile.floor().id);
+            put16(row, 2, tile.overlay().id);
+            put16(row, 4, tile.block().id);
+            put32(row, 8, tile.x);
+            put32(row, 12, tile.y);
+            row[16] = (byte)flags;
+            row[17] = 0;
+            row[18] = 0;
+            row[19] = 0;
+            put32(row, 20, buildingIndex);
+            for (byte value : row) {
+                hash = (hash ^ (value & 0xff)) * 0x100000001b3L;
+            }
+            tiles++;
+        }
+        System.out.println("UPSTREAM_TILE_STATE tiles=" + tiles
+            + " buildings=" + buildings + " hash=" + hex16(hash));
+        if (verifyFixture && (tiles != 37500 || buildings != 2
+                || hash != 0xe35397041df8e5feL)) {
+            throw new IllegalStateException("Tile state parity differs: tiles="
+                + tiles + " buildings=" + buildings + " hash=" + hex16(hash));
+        }
+        return hash;
+    }
+
+    private static void put16(byte[] out, int offset, int value) {
+        out[offset] = (byte)value;
+        out[offset + 1] = (byte)(value >>> 8);
+    }
+
+    private static void put32(byte[] out, int offset, int value) {
+        out[offset] = (byte)value;
+        out[offset + 1] = (byte)(value >>> 8);
+        out[offset + 2] = (byte)(value >>> 16);
+        out[offset + 3] = (byte)(value >>> 24);
     }
 
     private static String hex16(long value) {
