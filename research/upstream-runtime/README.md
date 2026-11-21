@@ -430,8 +430,8 @@ frame completes.
 
 To verify the original crops and 3DS texture pixels independently, run
 these commands from the repository root with the pinned asset and server
-JARs. The first command writes its output under a new verification
-directory.
+JARs and tex3ds v2.3.0 on PATH. The first command writes to a new
+verification directory.
 
 ```sh
 mkdir menu-icon-reference
@@ -439,6 +439,10 @@ java -Djava.awt.headless=true -cp /path/to/server-release.jar \
   tools/UpstreamSpriteAtlas.java /path/to/assets.jar menu-icon-reference --menu-icons
 java tests/tools/VerifyUpstreamMenuIcons.java menu-icon-reference
 ```
+
+The verifier compares the generated headers, alpha bytes and all visible
+RGBA texels against devkitPro's tex3ds output. It compares transparent RGB
+against the exported PNG because tex3ds clears RGB where alpha is zero.
 
 Add `--menu-icons` to the `--touch-config --controls-replay` verifier
 to check six rendered block icons and six item icons in both touchscreen
