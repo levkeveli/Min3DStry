@@ -77,6 +77,29 @@ temporary directory and reports `path=tmp`. It does not leave probe values in
 live settings. Azahar `2126.2` verified `path=live` on both New and Old 3DS
 profiles; the `.3dsx` build uses the pinned devkitARM image.
 
+## ARM11 Sector Slot Round-Trip
+
+`-Pprobe=campaign-sector` reuses the upstream world save/load path and writes
+the real sector slot name `sector-serpulo-170.msav` on the target filesystem,
+then reloads it:
+
+```sh
+gradle -PupstreamCheckout=/path/to/Mindustry \
+  -PreferenceJar=/path/to/server-release.jar \
+  -ParcCheckout=/path/to/Arc -Pprobe=campaign-sector \
+  runProbeJvm "--args=/path/glacier.msav /path/glacier-v13.msav /path/sector-serpulo-170.msav"
+```
+
+JVM and ARM11/Azahar report:
+
+```text
+UPSTREAM_CAMPAIGN_SECTOR slot=sector-serpulo-170.msav bytes=11072 version=13 marker=ok
+```
+
+The probe deletes the slot after verifying it; Azahar `2126.2` New and Old
+profiles both reported the line and left no `sector-serpulo-170.msav` behind.
+The `.3dsx` is built by the `world-roundtrip` CI job's pinned devkitARM step.
+
 ## Remaining Scope for Issue #41 (3DS Hardware / ARM11 Runtime)
 
 The host-verified path contract is recorded in [sd-storage-paths.md](sd-storage-paths.md); it does not write settings or sector saves yet. Once the ARM11 TeaVM runtime bring-up integrates `Core.files` and `Core.settings` onto SD card storage under `/3ds/min3dstry/`:

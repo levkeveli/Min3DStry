@@ -256,6 +256,15 @@ runs the round-trip, then restores or removes the prior state. The ARM11 probe
 is built with the normal `arm11/build.sh` command; both Azahar 2126.2 profiles
 reported `path=live`.
 
+### Sector slot `.msav` round-trip
+
+`-Pprobe=campaign-sector` writes the real `sector-serpulo-170.msav` slot through
+upstream `SaveIO`, verifies it via `SaveIO.isSaveValid`/reload, prints
+`UPSTREAM_CAMPAIGN_SECTOR slot=sector-serpulo-170.msav ... version=13 marker=ok`,
+and removes the slot. The same probe is built for ARM11 in the
+`world-roundtrip` CI job. Azahar 2126.2 New and Old profiles both reported the
+marker and left no slot file behind.
+
 ### Join the upstream server from the ARM11 probe
 
 `-Pprobe=network-live` uses the same upstream deserializer with live

@@ -225,6 +225,23 @@ jobs:
             runProbeJvm "--args=$map $v13 $out" | tee "$RUNNER_TEMP/roundtrip.log"
           grep -F 'UPSTREAM_SAVE_ROUNDTRIP version=13 marker=ok' "$RUNNER_TEMP/roundtrip.log"
 
+      - name: Run sector slot JVM round trip
+        shell: bash
+        run: |
+          set -o pipefail
+          map="$RUNNER_TEMP/glacier.msav"
+          v13="$RUNNER_TEMP/glacier-v13.msav"
+          slot="$RUNNER_TEMP/sector-serpulo-170.msav"
+          bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime \
+            --no-daemon --console=plain \
+            "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" \
+            "-PreferenceJar=$RUNNER_TEMP/server-release.jar" \
+            "-ParcCheckout=$RUNNER_TEMP/Arc" \
+            -Pprobe=campaign-sector \
+            runProbeJvm "--args=$map $v13 $slot" | tee "$RUNNER_TEMP/sector.log"
+          grep -F 'UPSTREAM_CAMPAIGN_SECTOR slot=sector-serpulo-170.msav' "$RUNNER_TEMP/sector.log"
+          grep -F 'version=13 marker=ok' "$RUNNER_TEMP/sector.log"
+
       - name: Generate and build the ARM11 round-trip probe
         run: |
           bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime \
@@ -241,6 +258,31 @@ jobs:
               research/upstream-runtime/build/generated/teavm/c \
               research/upstream-runtime/build/probe-3ds-world-roundtrip'
           test -s research/upstream-runtime/build/probe-3ds-world-roundtrip/upstream-probe.3dsx
+
+      - name: Generate and build the ARM11 sector-slot probe
+        run: |
+          bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime \
+            --no-daemon --console=plain \
+            "-Dorg.gradle.jvmargs=-Xmx3g" \
+            "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" \
+            "-PreferenceJar=$RUNNER_TEMP/server-release.jar" \
+            "-ParcCheckout=$RUNNER_TEMP/Arc" \
+            -Pprobe=campaign-sector generateC
+          image=devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5
+          docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/work" -w /work "$image" bash -lc '
+            source /opt/devkitpro/3dsvars.sh
+            bash research/upstream-runtime/arm11/build.sh \
+              research/upstream-runtime/build/generated/teavm/c \
+              research/upstream-runtime/build/probe-3ds-campaign-sector'
+          test -s research/upstream-runtime/build/probe-3ds-campaign-sector/upstream-probe.3dsx
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: upstream-arm11-campaign-sector
+          path: |
+            research/upstream-runtime/build/probe-3ds-campaign-sector/upstream-probe.3dsx
+            research/upstream-runtime/build/probe-3ds-campaign-sector/upstream-probe.elf
+          if-no-files-found: error
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
