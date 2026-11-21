@@ -966,6 +966,14 @@ starts with zero beryllium and objective 0 active. When the player mines the
 required 60, the verifier compares the server and ARM11 completion record,
 the eligible BuildCountObjective at index 1, and the objective flag count.
 
+The [devkitARM build](https://github.com/levkeveli/Min3DStry/actions/runs/44910114596)
+passed the replay on both Azahar 2126.2 profiles with the unmodified
+v160.8 server. Both clients completed the original ItemObjective at
+index 0, made index 1 eligible, and matched the server's objective flag
+count. Index 1 requires one Turbine Condenser. The page-rounded ELF load
+segments for this debug build total 41.14 MiB before heap, stack and
+network allocations. Physical memory and frame rate remain to be tested.
+
 ### Verify the Arc executor pools
 
 Use `-Pprobe=executor` with the JVM and ARM11 build commands. The JVM uses the

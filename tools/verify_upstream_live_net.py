@@ -128,6 +128,7 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
         )
     elif mining == "floor":
         taps = ((58, (305, 96)), (62, (305, 96)), (67, (168, 232)))
+    pan_end = 61 if model == "new3ds" else 60
     with path.open("wb") as movie:
         movie.write(header)
         for frame in range(frames):
@@ -140,7 +141,7 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
                 buttons = (1 << 4) if seconds == first_move else (1 << 3) if seconds == leave_at else 0
             if building and seconds in (35, 37, 39):
                 buttons = 1  # A, with releases so a late HID poll can observe another press.
-            circle_x = 65 if mining == "wall" and 54 <= seconds < 60 else 0
+            circle_x = 65 if mining == "wall" and 54 <= seconds < pan_end else 0
             circle_y = 106 if seconds == circle_at and not (erekir_build or mining) else 0
             if mining == "floor" and 88 <= seconds < 94:
                 circle_y = 65
