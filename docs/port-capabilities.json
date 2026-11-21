@@ -278,7 +278,6 @@
         "research/upstream-runtime/src/campaign-slot-meta/java/UpstreamCampaignSlotMetaProbe.java",
         "research/upstream-runtime/src/campaign-launch/java/UpstreamCampaignLaunchProbe.java",
         "research/upstream-runtime/host/UpstreamSaveBaseline.java",
-        "research/upstream-runtime/host/UpstreamCurrentSaveFixture.java",
         "docs/porting/campaign-progression.md"
       ]
     },
