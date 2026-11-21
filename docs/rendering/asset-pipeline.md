@@ -25,6 +25,36 @@ Use JDK 17+, Python 3.10+, and tex3ds v2.3.0. The pixel check also uses ImageMag
 
 Renderer integration is tracked in [issue #38](https://github.com/levkeveli/Min3DStry/issues/38). The page has been verified on the host.
 
+## Complete atlas backing for world draws
+
+Multiplayer asset preparation also imports all four source images into
+2,048 uncompressed 128 × 128 RGBA8 tiles. Coordinates in the Arc atlas
+still address the same image and pixel positions. The Citro2D backend
+can draw a rectangle that crosses backing tiles with the original
+pivot, rotation, tint and layer order. The Core Nucleus and
+team overlay use this path in the live Glacier probe.
+
+The world cache holds at most 24 backing textures, or 1.5 MiB of texels.
+It retains textures used by the current GPU frame and replaces older
+textures after the frame fence. The existing compact sheet remains the
+fast path for the other frequently used Glacier regions. The complete
+raw atlas in RomFS uses 128 MiB of storage plus tile headers.
+
+Generate and independently decode just the world atlas from the
+official artifacts with the following commands.
+
+```sh
+mkdir world-atlas-reference
+java -Djava.awt.headless=true -cp /path/to/server-release.jar \
+  tools/UpstreamSpriteAtlas.java /path/to/assets.jar world-atlas-reference --world-pages
+java tests/tools/VerifyUpstreamWorldAtlas.java /path/to/assets.jar world-atlas-reference
+```
+
+The host check compares every RGBA texel against the release PNGs
+including RGB beneath transparent pixels. Use `--world-atlas` with the
+graphical live verifier to check the six-fragment Core Nucleus draw and
+compare captured pixels at the seams to the earlier compact-sheet draw.
+
 ## Build the platform test fixtures
 
 The 3DS build uses this converter to generate the fixture sprite indices and embed the atlas in RomFS. The native Makefile accepts `PYTHON` and `TEX3DS` executable overrides. At runtime the factory test scene loads the sheet with nearest-neighbor filtering and uses geometric primitives if the sheet is unavailable.
