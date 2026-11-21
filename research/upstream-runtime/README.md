@@ -1048,8 +1048,8 @@ font path on both world labels. Use `--locale ja` without the English-only
 world markers separately.
 
 World labels use Arc's existing GlyphLayout parser for color runs and
-newlines. The official icon table maps content glyphs to the same
-regions used by the v160.8 UI. Built-in symbols use the original icon
+newlines. It looks up the content icons used by each label in the
+official ROMFS table. Built-in symbols use the original icon
 face. Pass the original `icons/icons.properties` as the optional fourth
 argument to `runObjectiveMarkersJvm` to check the original marker icon
 regions and color runs. Add `--verify-styled-markers` to the live font

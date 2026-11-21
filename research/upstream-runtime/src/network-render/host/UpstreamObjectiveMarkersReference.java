@@ -13,12 +13,12 @@ import mindustry.gen.Iconc;
 import mindustry.io.JsonIO;
 import mindustry.io.MapIO;
 import mindustry.type.MapLocales;
-import mindustry.ui.Fonts;
 import port.render.UpstreamLabelText;
 
 public final class UpstreamObjectiveMarkersReference implements UpstreamTerrainDrawProbe.TerrainTarget {
     private record Label(String text, float x, float y, int flags, float size, int align, int lineAlign) {}
     private final List<Label> labels = new ArrayList<>();
+    private boolean verifyIcons;
     private int quads;
 
     public static void main(String[] args) throws Exception {
@@ -36,6 +36,7 @@ public final class UpstreamObjectiveMarkersReference implements UpstreamTerrainD
             verifyMarkup();
         }
         var target = new UpstreamObjectiveMarkersReference();
+        target.verifyIcons = args.length == 4;
         UpstreamTerrainDrawProbe.liveViewport(target);
 
         target.verify(0, 2320, 868, "Tap to mine");
@@ -62,7 +63,7 @@ public final class UpstreamObjectiveMarkersReference implements UpstreamTerrainD
         var marker = rules.objectives.get(index).markers[0];
         UpstreamObjectiveMarkers.draw(rules, 2.5f, (text, tx, ty, flags, size, align, lines) -> {
             labels.add(new Label(text.plain(), tx, ty, flags, size, align, lines));
-            if (Fonts.hasUnicodeStr("beryllium") && index < 2) {
+            if (verifyIcons && index < 2) {
                 var art = Core.atlas.find(index == 0 ? "item-beryllium-ui" : "block-turbine-condenser-ui");
                 if (!art.found() || text.characters().stream().noneMatch(glyph -> glyph.art() == art)
                         || (index == 1 && text.characters().stream().noneMatch(glyph -> glyph.codepoint() == Iconc.tree))) {
