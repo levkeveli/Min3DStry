@@ -67,12 +67,12 @@ bash research/upstream-runtime/arm11/build.sh \
 JVM and ARM11/Azahar both emit:
 
 ```text
-UPSTREAM_CAMPAIGN_SETTINGS path=live bytes=65 int=12345 string=ok reload=ok
+UPSTREAM_CAMPAIGN_SETTINGS path=live bytes=112 int=12345 string=ok campaign=unlocked:conveyor,research:50 reload=ok
 ```
 
 On 3DS the probe uses the live `/3ds/min3dstry` directory, snapshots any
 existing `settings.bin`/`settings_backup.bin`/`settings_backups`, reruns the
-round-trip, then restores or removes the saved state. On the JVM it uses a
+round-trip (including upstream `conveyor-unlocked` and `req-conveyor-copper` keys), then restores or removes the saved state. On the JVM it uses a
 temporary directory and reports `path=tmp`. It does not leave probe values in
 live settings. Azahar `2126.2` verified `path=live` on both New and Old 3DS
 profiles; the `.3dsx` build uses the pinned devkitARM image.
