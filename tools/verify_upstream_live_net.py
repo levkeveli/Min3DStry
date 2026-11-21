@@ -90,7 +90,7 @@ BUILDING_CRACK_PIXELS = {
 
 
 def write_controls_replay(path, first_move=22, building=False, touch_build=False, touch_config=False,
-                          erekir_build=False, mining=None, model="old3ds"):
+                          erekir_build=False, mining=None, model="old3ds", stock_menu_font=False):
     """Write the Azahar 2126.2 CTM input for this probe's pad/touch polling."""
     # The pinned Azahar movie header and HID sample definitions use packed little-endian fields.
     revision = bytes.fromhex("219d743a1e698101fe1ab8bef43e6563126c3c27")
@@ -115,6 +115,13 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
             (58, (305, 64)), (62, (232, 136)), (67, (160, 55)),
             (75, (305, 64)), (79, (232, 136)), (84, (160, 80)),
         )
+        if stock_menu_font:
+            # Keep both menus open while their cold glyphs enter the atlas.
+            taps = (
+                (35, (15, 64)), (42, (268, 218)), (70, (160, 80)), (76, (232, 136)),
+                (84, (305, 64)), (90, (232, 136)), (120, (160, 55)),
+                (130, (305, 64)), (136, (232, 136)), (144, (160, 80)),
+            )
     if erekir_build:
         taps = ((60, (40, 24)), (76, (216, 152)),
                 (91, (120, 24)), (96, (216, 168)))
@@ -508,13 +515,16 @@ def verify_touch_build(log, emulator, server_log, server, timeout, capture, posi
     print(f"Stock server verified the catalog Router; copper={router[3]}.", flush=True)
 
 
-def verify_touch_config(log, emulator, server_log, server, timeout, capture, position, menu_icons=False):
+def verify_touch_config(log, emulator, server_log, server, timeout, capture, position, menu_icons=False,
+                        stock_menu_font=False):
     _, _, x, y = position
     tx, ty = math.floor(float(x) / 8 + 0.5) + 4, math.floor(float(y) / 8 + 0.5)
     original = inspect_building(server_log, server, "config-before", tx, ty)
     catalog_open = r"UPSTREAM_CATALOG_PAGE category=distribution page=2\b"
     if menu_icons:
-        catalog_open += r"[\s\S]*?UPSTREAM_MENU_ICONS type=block drawn=6\b"
+        wait_for(log, emulator, catalog_open + r"[\s\S]*?UPSTREAM_MENU_ICONS type=block drawn=6\b", timeout)
+    if stock_menu_font:
+        catalog_open += r"[\s\S]*?UPSTREAM_MENU_FONT source=v160\.8 catalog=block\b"
     wait_for(log, emulator, catalog_open, timeout)
     time.sleep(0.2)
     capture("touch-catalog", position)
@@ -525,7 +535,9 @@ def verify_touch_config(log, emulator, server_log, server, timeout, capture, pos
     unconfigured = capture("touch-sorter", position)
     config_open = rf"UPSTREAM_CONFIG_OPEN x={tx} y={ty}\b"
     if menu_icons:
-        config_open += r"[\s\S]*?UPSTREAM_MENU_ICONS type=item drawn=6\b"
+        wait_for(log, emulator, config_open + r"[\s\S]*?UPSTREAM_MENU_ICONS type=item drawn=6\b", timeout)
+    if stock_menu_font:
+        config_open += r"[\s\S]*?UPSTREAM_MENU_FONT source=v160\.8 catalog=item\b"
     wait_for(log, emulator, config_open, timeout)
     time.sleep(0.2)  # The open event precedes presentation.
     capture("touch-config-menu", position)
@@ -558,8 +570,12 @@ def verify_touch_config(log, emulator, server_log, server, timeout, capture, pos
 
 
 def verify_controls(log, emulator, server_log, server, timeout, capture=None,
-                    building=False, desktop_name=None, touch_build=False, touch_config=False, menu_icons=False):
+                    building=False, desktop_name=None, touch_build=False, touch_config=False, menu_icons=False,
+                    stock_menu_font=False):
     wait_for(log, emulator, r"UPSTREAM_LIVE_CONTROLS_READY unit=\d+", timeout)
+    if stock_menu_font:
+        for index in (0, 1, 2, 3, 4, 5, 7):
+            wait_for(log, emulator, rf"UPSTREAM_MENU_FONT source=v160\.8 palette={index}\b", timeout)
     baseline = server_position(server_log, server, "UPSTREAM_SERVER_CONTROLS_READY").groups()
     ground_pixels = capture("spawn", baseline) if capture else None
     if building:
@@ -567,7 +583,8 @@ def verify_controls(log, emulator, server_log, server, timeout, capture=None,
     if touch_build:
         verify_touch_build(log, emulator, server_log, server, timeout, capture, baseline, ground_pixels)
     if touch_config:
-        verify_touch_config(log, emulator, server_log, server, timeout, capture, baseline, menu_icons)
+        verify_touch_config(log, emulator, server_log, server, timeout, capture, baseline,
+                            menu_icons, stock_menu_font)
     for device, direction, axis in (("dpad", "right", 2), ("circle", "up", 3)):
         print(f"Move {direction} with the {device}, then release it.", flush=True)
         stopped = re.compile(rf"UPSTREAM_LIVE_CONTROLS_STOPPED unit=(\d+) input={device} "
@@ -1260,10 +1277,11 @@ def run_model(args, model, config, original_config, log, output):
                 if args.touch_build:
                     first_move = 101
                 if args.touch_config:
-                    first_move = 92
+                    first_move = 154 if args.verify_stock_menu_font else 92
                 write_controls_replay(replay, first_move=first_move, building=args.building,
                                       touch_build=args.touch_build, touch_config=args.touch_config,
-                                      erekir_build=args.erekir_build, mining=args.mining, model=model)
+                                      erekir_build=args.erekir_build, mining=args.mining, model=model,
+                                      stock_menu_font=args.verify_stock_menu_font)
                 command += ["-p", str(replay)]
             command.append(str(args.rom))
             emulator = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -1378,7 +1396,8 @@ def run_model(args, model, config, original_config, log, output):
                     else:
                         verify_controls(log, emulator, server_log, server, args.timeout,
                                         capture if args.terrain_atlas else None, args.building, args.desktop_name,
-                                        args.touch_build, args.touch_config, args.menu_icons)
+                                        args.touch_build, args.touch_config, args.menu_icons,
+                                        args.verify_stock_menu_font)
                         (output / f"{model}.png").write_bytes(rpc.screenshot())
                         print("Wave 2 applied. Press the emulated START button to leave.", flush=True)
                         emu_log = wait_for(log, emulator, "UPSTREAM_LIVE_CONTROLS_LEFT", args.timeout)
@@ -1476,6 +1495,8 @@ def main():
                         help="Stage the official v160.8 sprites.aatls and verify the rendered viewport")
     parser.add_argument("--locale", help="Stage a stock locale code and verify the graphical probe loads it")
     parser.add_argument("--menu-icons", action="store_true", help="Verify original block and item icons in the touch menus")
+    parser.add_argument("--verify-stock-menu-font", action="store_true",
+                        help="Require the original font on the touch palette and both configuration menus")
     parser.add_argument("--world-atlas", action="store_true", help="Verify the paged Core Nucleus sprite at Glacier spawn")
     parser.add_argument("--world-atlas-recycle", action="store_true",
                         help="Require the bounded atlas cache to submit and recycle inside the spawn frame")
@@ -1550,6 +1571,8 @@ def main():
         parser.error("--touch-config needs --terrain-atlas")
     if args.menu_icons and not args.touch_config:
         parser.error("--menu-icons needs --touch-config")
+    if args.verify_stock_menu_font and not args.touch_config:
+        parser.error("--verify-stock-menu-font needs --touch-config")
     if args.world_atlas_recycle and not args.world_atlas:
         parser.error("--world-atlas-recycle needs --world-atlas")
     if args.world_atlas_recycle and (args.controls_replay or args.building or args.touch_build or args.touch_config):
