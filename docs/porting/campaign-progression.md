@@ -1,6 +1,6 @@
 # Campaign Progression & Tech-Tree Persistence Baseline (Issue #41)
 
-**Verification status:** Host baselines plus a real Arc `Settings`/`settings.bin` round-trip probe verified on ARM11 in Azahar New/Old profiles. Campaign UI, live sector slots and gameplay integration (`campaign-sectors` capability) remain **Planned** under [#41](https://github.com/levkeveli/Min3DStry/issues/41).
+**Verification status:** **Experimental**. Host baselines and real Arc `Settings`/`settings.bin`, campaign keys, sector slot, sector/content/research/launch/planet state, slot metadata and save probes have run on ARM11 in Azahar New/Old profiles. Campaign UI, live sector-slot presentation and gameplay integration remain open under [#41](https://github.com/levkeveli/Min3DStry/issues/41).
 
 ## 1:1 Upstream Mandate
 
