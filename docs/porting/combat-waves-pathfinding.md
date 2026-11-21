@@ -23,7 +23,7 @@ Per [AGENTS.md](../../AGENTS.md) and [the upstream port plan](../upstream-port.m
      - `Blocks.hail` loaded with `Items.graphite` fires artillery onto two adjacent stationary Daggers (`(18, 22)` and `(18, 23)`), damaging both in one impact via `splashDamageRadius` (`hailSplash=2@80`).
      - `Blocks.lancer` wired to a charged `Blocks.battery` charges and fires its piercing laser, damaging a stationary Dagger while draining battery storage (`lancerHit=121`).
    - **Flowfield Pathfinding & Dynamic Obstacle Rerouting (`UPSTREAM_COMBAT_PATHFINDING`):**
-     - Converges `Team.crux` `Pathfinder.costGround` / `Pathfinder.fieldCore` weights toward `Blocks.coreShard` at `(6, 16)` (`openHash=a8547cf838cfd383`), places a 5-tile vertical `Blocks.copperWall` barrier (`x=16, y=14..18`), calls `Vars.pathfinder.updateTile(...)`, waits for `completeWeights` convergence (`blockedHash=2f7e63891b7ab039`), and steps a live `GroundAI` `UnitTypes.dagger` spawned at `(20, 16)` for `360` ticks, confirming lateral rerouting around the barrier (`end=15,18 maxDy=4 dist=112->72`).
+     - Converges `Team.crux` `Pathfinder.costGround` / `Pathfinder.fieldCore` weights toward `Blocks.coreShard` at `(6, 16)` (`openHash=231555f2432a19e1`), places a 5-tile vertical `Blocks.copperWall` barrier (`x=16, y=14..18`), calls `Vars.pathfinder.updateTile(...)`, waits for `completeWeights` convergence (`blockedHash=2f7e63891b7ab039`), and steps a live `GroundAI` `UnitTypes.dagger` spawned at `(20, 16)` for `360` ticks, confirming lateral rerouting around the barrier (`end=15,18 maxDy=4 dist=112->72`).
    - **Update-Order Determinism (`UPSTREAM_COMBAT_ORDER`):**
      - Replays the entire `940`-tick multi-phase scenario twice in independent fresh worlds and verifies an identical 64-bit FNV-1a trace hash (`trace_hash=0x30f5f9a444d020c3`).
 
@@ -33,7 +33,7 @@ Per [AGENTS.md](../../AGENTS.md) and [the upstream port plan](../upstream-port.m
 UPSTREAM_COMBAT units=69 bullets=202 manifest_sha256=e35013e20c50cbe83169794e898e281898c717f1f373e9b84796090470a76882
 UPSTREAM_COMBAT_TURRETS blocks=18 manifest_sha256=064627fbce664cc8525f47c3cd0721af9195572fc47e4e09f6ee91ba8579062b
 UPSTREAM_COMBAT_DUEL duo=29/49/59/379 hailSplash=2@80 lancerHit=121
-UPSTREAM_COMBAT_PATHFINDING openHash=a8547cf838cfd383 blockedHash=2f7e63891b7ab039 start=20,16 end=15,18 maxDy=4 dist=112->72
+UPSTREAM_COMBAT_PATHFINDING openHash=231555f2432a19e1 blockedHash=2f7e63891b7ab039 start=20,16 end=15,18 maxDy=4 dist=112->72
 UPSTREAM_COMBAT_ORDER runs=2 ticks=940 trace_hash=0x30f5f9a444d020c3
 ```
 

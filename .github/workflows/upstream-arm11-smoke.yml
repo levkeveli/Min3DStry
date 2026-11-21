@@ -476,7 +476,7 @@ jobs:
             | tee "$RUNNER_TEMP/combat-sim.log"
           grep -Fx 'UPSTREAM_COMBAT_TURRETS blocks=18 manifest_sha256=064627fbce664cc8525f47c3cd0721af9195572fc47e4e09f6ee91ba8579062b' "$RUNNER_TEMP/combat-sim.log"
           grep -Fx 'UPSTREAM_COMBAT_DUEL duo=29/49/59/379 hailSplash=2@80 lancerHit=121' "$RUNNER_TEMP/combat-sim.log"
-          grep -Fx 'UPSTREAM_COMBAT_PATHFINDING openHash=a8547cf838cfd383 blockedHash=2f7e63891b7ab039 start=20,16 end=15,18 maxDy=4 dist=112->72' "$RUNNER_TEMP/combat-sim.log"
+          grep -Fx 'UPSTREAM_COMBAT_PATHFINDING openHash=231555f2432a19e1 blockedHash=2f7e63891b7ab039 start=20,16 end=15,18 maxDy=4 dist=112->72' "$RUNNER_TEMP/combat-sim.log"
           grep -Fx 'UPSTREAM_COMBAT_ORDER runs=2 ticks=940 trace_hash=0x30f5f9a444d020c3' "$RUNNER_TEMP/combat-sim.log"
 
       - name: Run combat-ticks JVM probe and generate TeaVM C

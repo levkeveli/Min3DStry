@@ -242,6 +242,23 @@ public final class UpstreamCombatSimulationBaseline {
             Vars.logic.play();
             app.runPosted();
 
+            // Sample open-map flowfield before Phase 1 places temporary turrets.
+            Flowfield field = Vars.pathfinder.getField(enemy, Pathfinder.costGround, Pathfinder.fieldCore);
+            Thread.sleep(130);
+            stepSimulation(app);
+            int corePos = core.tile.array();
+            int runnerStartPos = Vars.world.tile(20, 16).array();
+            int detourPos = Vars.world.tile(17, 16).array();
+            int duoPos = Vars.world.tile(10, 10).array();
+            int[] openWeights = waitForStableWeights(app, field, null, snapshot ->
+                snapshot[corePos] == 0 && snapshot[runnerStartPos] > 0 && snapshot[duoPos] > 0);
+            long openHash = hashInts(openWeights);
+
+            Time.clear();
+            Vars.state.tick = 0f;
+            Vars.state.updateId = 0;
+            Mathf.rand.setSeed(160_008L);
+
             long traceHash = FNV_OFFSET;
             int totalTicks = 0;
 
@@ -368,10 +385,6 @@ public final class UpstreamCombatSimulationBaseline {
             }
 
             // Phase 2: Pathfinder flowfield and dynamic copper-wall barrier rerouting.
-            Flowfield field = Vars.pathfinder.getField(enemy, Pathfinder.costGround, Pathfinder.fieldCore);
-            int[] openWeights = waitForStableWeights(app, field, null);
-            long openHash = hashInts(openWeights);
-
             for (int wy = 14; wy <= 18; wy++) {
                 Tile wall = Vars.world.tile(16, wy);
                 wall.setBlock(Blocks.copperWall, team, 0);
@@ -381,7 +394,9 @@ public final class UpstreamCombatSimulationBaseline {
             Thread.sleep(130);
             stepSimulation(app);
 
-            int[] blockedWeights = waitForStableWeights(app, field, openWeights);
+            int[] blockedWeights = waitForStableWeights(app, field, openWeights, snapshot ->
+                snapshot[detourPos] > openWeights[detourPos]
+                && snapshot[duoPos] == openWeights[duoPos]);
             long blockedHash = hashInts(blockedWeights);
             if (blockedHash == openHash) {
                 throw new IllegalStateException("Flowfield did not change after placing copperWall barrier");
@@ -455,7 +470,10 @@ public final class UpstreamCombatSimulationBaseline {
     }
 
     private static int[] waitForStableWeights(
-            ProbeApplication app, Flowfield field, int[] previousWeights) throws InterruptedException {
+            ProbeApplication app,
+            Flowfield field,
+            int[] previousWeights,
+            java.util.function.Predicate<int[]> ready) throws InterruptedException {
         int[] last = null;
         int stableCount = 0;
         for (int poll = 0; poll < 300; poll++) {
@@ -463,7 +481,7 @@ public final class UpstreamCombatSimulationBaseline {
             if (field.hasCompleteWeights()) {
                 int[] snapshot = Arrays.copyOf(field.completeWeights, field.completeWeights.length);
                 boolean changedFromPrevious = previousWeights == null || !Arrays.equals(snapshot, previousWeights);
-                if (changedFromPrevious) {
+                if (changedFromPrevious && ready.test(snapshot)) {
                     if (last != null && Arrays.equals(snapshot, last)) {
                         stableCount++;
                         if (stableCount >= 3) {
@@ -477,7 +495,10 @@ public final class UpstreamCombatSimulationBaseline {
             }
             Thread.sleep(16);
         }
-        throw new IllegalStateException("Flowfield did not converge cleanly");
+        throw new IllegalStateException("Flowfield did not converge cleanly: last="
+            + (last == null ? "null" : "hash=" + Long.toUnsignedString(hashInts(last), 16)
+                + ",len=" + last.length)
+            + ", dirty=" + (field != null ? "checked" : "unknown"));
     }
 
     private static long hashInts(int[] values) {
