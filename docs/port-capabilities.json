@@ -277,7 +277,7 @@
       "category": "Maps, Campaign & Saves",
       "name": "Tech Tree & Sector Progression",
       "weight": 4,
-      "stage": "planned",
+      "stage": "experimental",
       "issue": 41,
       "evidence": [
         "include/platform/sd_paths.h",
