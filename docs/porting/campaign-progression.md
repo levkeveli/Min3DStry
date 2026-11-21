@@ -245,13 +245,14 @@ gradle -PupstreamCheckout=/path/to/Mindustry \
 JVM and ARM11/Azahar report:
 
 ```text
-UPSTREAM_CAMPAIGN_SECTOR_STATE sector=15 groundZero=ok played=ok captured=ok waves=locked gameOver=ok
+UPSTREAM_CAMPAIGN_SECTOR_STATE sector=15 groundZero=ok played=ok captured=ok waves=locked gameOver=ok menu=ok
 ```
 
 The probe puts ground zero into `GameState.State.playing` with waves and attack
 mode disabled, asserts `Sector.isBeingPlayed()`/`isCaptured()`, then re-enables
-waves and asserts the sector is no longer captured, and finally marks the game
-over and asserts it is no longer being played. No settings or save files are
+waves and asserts the sector is no longer captured, marks the game over and
+asserts it is no longer being played, and also verifies the menu transition
+ends play state. No settings or save files are
 written. Azahar `2126.2` New and Old profiles both reported the marker.
 
 ## Remaining Scope for Issue #41 (3DS Hardware / ARM11 Runtime)

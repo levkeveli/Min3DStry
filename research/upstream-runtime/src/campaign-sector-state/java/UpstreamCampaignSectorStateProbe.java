@@ -49,8 +49,14 @@ public final class UpstreamCampaignSectorStateProbe {
             throw new IllegalStateException("Game-over sector was still being played");
         }
 
+        // The menu transition must also end play state.
+        Vars.state.set(GameState.State.menu);
+        if(sector.isBeingPlayed()){
+            throw new IllegalStateException("Menu sector was still being played");
+        }
+
         System.out.println(
             "UPSTREAM_CAMPAIGN_SECTOR_STATE sector=15 groundZero=ok"
-            + " played=ok captured=ok waves=locked gameOver=ok");
+            + " played=ok captured=ok waves=locked gameOver=ok menu=ok");
     }
 }
