@@ -361,11 +361,10 @@ public final class UpstreamLiveNetworkProbe {
     }
 
     private int receiveLiveUpdates(int stateId, int entityId, int lastWave) throws IOException {
-        // Drain queued snapshots before drawing again and bound the work between input polls.
-        long deadline = System.nanoTime() + 8_000_000L;
+        // Bound each drain by packet count. A slow render can leave several snapshots queued,
+        // and checking a short frame deadline after each packet lets that queue keep growing.
         for (int i = 0; i < 16; i++) {
-            // Keep the alternating order across render frames when the time budget allows only one packet.
-            // Reliable construction traffic must not prevent periodic UDP snapshots from being read.
+            // Alternate to give construction traffic and periodic snapshots a turn.
             int preferred = nextLiveTransport;
             nextLiveTransport ^= 1;
             int received = receive(preferred, 0);
@@ -384,7 +383,6 @@ public final class UpstreamLiveNetworkProbe {
             } else if (frame != null) {
                 applyBuildingUpdate(id, received);
             }
-            if (System.nanoTime() >= deadline) break;
         }
         return lastWave;
     }
