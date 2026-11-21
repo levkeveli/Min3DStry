@@ -191,12 +191,15 @@ gradle -PupstreamCheckout=/path/to/Mindustry \
 JVM and ARM11/Azahar report:
 
 ```text
-UPSTREAM_CAMPAIGN_SECTOR_INFO path=live key=serpulo-s-170-info captured=ok wave=7 items=250:75 reload=ok blocks=447
+UPSTREAM_CAMPAIGN_SECTOR_INFO path=live key=serpulo-s-170-info api=ok captured=ok wave=7 items=250:75 core=coreShard resource=copper-wall reload=ok blocks=447
 ```
 
-The probe writes a real `SectorInfo` through `Settings.putJson`, reloads a fresh
-`Settings` from `settings.bin`, and verifies `wasCaptured`, `wave`,
-`storageCapacity`, `name`, and the copper/lead `ItemSeq`. TeaVM needs
+The probe sets `Sector.info` for ground-zero sector 170 and calls the real
+upstream `Sector.saveInfo()`, reloads a fresh `Settings` from `settings.bin`,
+then calls `Sector.loadInfo()` and verifies `wasCaptured`, `wave`,
+`storageCapacity`, `name`, the copper/lead `ItemSeq`, the `coreShard` core
+block, and the copper-wall resource. `Core.settings` is bound to `JsonIO.json`
+so the block/resource fields use the upstream content serializers. TeaVM needs
 `SectorInfoReflectionPolicy` to expose `SectorInfo` fields to Arc's JSON
 reader; `bestCoreType` is nulled for this scalar/items round-trip. On 3DS the
 probe targets live `/3ds/min3dstry` and restores or removes the prior settings.
