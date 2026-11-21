@@ -70,6 +70,7 @@ public final class UpstreamLiveNetworkProbe {
     private final Mode mode;
     private final Consumer<Unit> frame;
     private final UpstreamLiveBuildControls building;
+    private int nextLiveTransport = 1;
 
     private UpstreamLiveNetworkProbe(Mode mode, Consumer<Unit> frame, UpstreamLiveBuildControls building) {
         this.mode = mode;
@@ -360,11 +361,15 @@ public final class UpstreamLiveNetworkProbe {
     }
 
     private int receiveLiveUpdates(int stateId, int entityId, int lastWave) throws IOException {
-        // Drain queued snapshots before drawing again and bound the work between input polls.
-        long deadline = System.nanoTime() + 8_000_000L;
+        // Bound each drain by packet count. A slow render can leave several snapshots queued,
+        // and checking a short frame deadline after each packet lets that queue keep growing.
         for (int i = 0; i < 16; i++) {
-            int received = receive(1, 0);
-            if (received == TIMEOUT) received = receive(0, i == 0 ? 8 : 0);
+            // Alternate to give construction traffic and periodic snapshots a turn.
+            int preferred = nextLiveTransport;
+            nextLiveTransport ^= 1;
+            int received = receive(preferred, 0);
+            if (received == TIMEOUT) received = receive(preferred ^ 1, 0);
+            if (received == TIMEOUT && i == 0) received = receive(0, 8);
             if (received == TIMEOUT) break;
             int id = received >>> 16;
             if (id == stateId) {
@@ -378,7 +383,6 @@ public final class UpstreamLiveNetworkProbe {
             } else if (frame != null) {
                 applyBuildingUpdate(id, received);
             }
-            if (System.nanoTime() >= deadline) break;
         }
         return lastWave;
     }
@@ -405,7 +409,9 @@ public final class UpstreamLiveNetworkProbe {
         } else if (id == unsignedId(RemoveQueueBlockCallPacket.class)) {
             decode(new RemoveQueueBlockCallPacket(), received).handleClient();
         } else if (id == unsignedId(BlockSnapshotCallPacket.class)) {
-            decode(new BlockSnapshotCallPacket(), received).handleClient();
+            var snapshot = decode(new BlockSnapshotCallPacket(), received);
+            snapshot.handleClient();
+            System.out.println("UPSTREAM_LIVE_BLOCK_SNAPSHOT records=" + snapshot.amount);
         } else if (id == unsignedId(TileConfigCallPacket.class)) {
             var config = decode(new TileConfigCallPacket(), received);
             config.handleClient();

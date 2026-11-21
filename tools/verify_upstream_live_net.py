@@ -457,6 +457,68 @@ def verify_carried_buildings(screenshot):
         raise RuntimeError(f"Original carried walls differ in color or position: {colors}")
 
 
+def load_payload_handoff_fixture(server_log, server):
+    server.stdin.write(
+        'pause on\n'
+        'js (() => { const team = Vars.state.rules.defaultTeam; '
+        'const sender = Vars.world.tile(74,22), receiver = Vars.world.tile(77,22); '
+        'const Payload = Packages.mindustry.world.blocks.payloads.BuildPayload; '
+        'sender.setBlock(Blocks.payloadConveyor,team,0); '
+        'receiver.setBlock(Blocks.payloadConveyor,team,0); '
+        'Vars.world.tile(79,22).setBlock(Blocks.titaniumWall,team,0); '
+        'sender.build.progress=Blocks.payloadConveyor.moveTime*0.5; '
+        'sender.build.handlePayload(sender.build,new Payload(Blocks.copperWall,team)); '
+        'return "UPSTREAM_HANDOFF_FIXTURE sender=" + sender.build.item.content().name '
+        '+ " receiver=" + receiver.build.item; })()\n'
+    )
+    server.stdin.flush()
+    wait_for(server_log, server, r"UPSTREAM_HANDOFF_FIXTURE sender=copper-wall receiver=null\b", 5)
+
+
+def payload_handoff_pixels(screenshot):
+    # Count colors unique to the opaque Copper Wall sprite across the centers of both belts.
+    rows = (184, 187, 190, 193, 196)
+    sender = tuple((x, y) for y in rows for x in range(60, 81))
+    # Start beyond the farthest pixel the sender can draw during its travel.
+    receiver = tuple((x, y) for y in rows for x in range(111, 170))
+    colors = az.inspect_png(screenshot, (*sender, *receiver))["samples"]
+    copper = {(177, 135, 104), (200, 165, 143)}
+    return tuple(sum(colors[point] in copper for point in region) for region in (sender, receiver))
+
+
+def verify_payload_handoff(server_log, server, rpc, output, model, before):
+    sender, receiver = payload_handoff_pixels(before.read_bytes())
+    if sender < 40 or receiver != 0:
+        raise RuntimeError(f"Expected the streamed wall on the first belt: {sender}, {receiver}")
+
+    # Let upstream simulation move the wall. Freeze the receiver at a known display position
+    # beyond the sender's reach, then await the server's normal periodic block snapshot.
+    server.stdin.write("pause off\n")
+    server.stdin.flush()
+    time.sleep(2.5)
+    server.stdin.write(
+        'pause on\n'
+        'js (() => { const sender = Vars.world.tile(74,22).build, receiver = Vars.world.tile(77,22).build; '
+        'if (sender.item != null || receiver.item == null) throw "Stock belts did not transfer cargo"; '
+        'receiver.progress=Blocks.payloadConveyor.moveTime*0.5; '
+        'return "UPSTREAM_HANDOFF_COMPLETE sender=null receiver=" + receiver.item.content().name; })()\n'
+    )
+    server.stdin.flush()
+    wait_for(server_log, server, r"UPSTREAM_HANDOFF_COMPLETE sender=null receiver=copper-wall\b", 8)
+
+    deadline = time.monotonic() + 15
+    while time.monotonic() < deadline:
+        frame = rpc.screenshot(res_scale=1)
+        sender, receiver = payload_handoff_pixels(frame)
+        if sender == 0 and receiver >= 40:
+            (output / f"{model}-payload-after.png").write_bytes(frame)
+            print(f"{model}: stock BlockSnapshot moved the wall from the first belt to the second.", flush=True)
+            return
+        time.sleep(0.2)
+    (output / f"{model}-payload-after.png").write_bytes(frame)
+    raise RuntimeError(f"Expected the wall only on the receiving belt after BlockSnapshot: {sender}, {receiver}")
+
+
 def load_building_effects_fixture(server_log, server):
     # Freeze the stock simulation at known serialized display states.
     server.stdin.write(
@@ -537,7 +599,7 @@ def verify_conduit_frames(log, rpc, output, model):
 
 def run_model(args, model, config, original_config, log, output):
     stationary = (args.world_atlas_recycle or args.building_layers or args.liquids
-                  or args.building_effects or args.payload_mix or args.carried_buildings)
+                  or args.building_effects or args.payload_mix or args.carried_buildings or args.payload_handoff)
     overrides = {
         "Miscellaneous": {"log_filter": "*:Info Debug.Emulated:Debug Service.SOC:Debug",
                           "check_for_update_on_start": "false"},
@@ -566,10 +628,12 @@ def run_model(args, model, config, original_config, log, output):
             server.stdin.flush()
             wait_for(server_log, server, f"Opened a server on port {args.port}\\.", 25)
             if args.touch_build:
-                # Glacier's stock filters can place replaceable decorations on the test cells.
-                server.stdin.write('js (() => { for (let x = 85; x <= 87; x++) { '
-                                   'const tile = Vars.world.tile(x, 26); '
+                # Give the pixel comparison a fixed patch of stock ice. Glacier's filters can
+                # place decorations on or alongside the test cells.
+                server.stdin.write('js (() => { for (let x = 85; x <= 87; x++) '
+                                   'for (let y = 25; y <= 27; y++) { const tile = Vars.world.tile(x, y); '
                                    'if (tile.build != null) throw "Unexpected fixture building"; '
+                                   'tile.setFloor(Blocks.ice); tile.setOverlay(Blocks.air); '
                                    'tile.setBlock(Blocks.air); } '
                                    'return "UPSTREAM_TOUCH_FIXTURE clear=85,86,87"; })()\n')
                 server.stdin.flush()
@@ -584,6 +648,8 @@ def run_model(args, model, config, original_config, log, output):
                 load_payload_mix_fixture(server_log, server)
             if args.carried_buildings:
                 load_carried_buildings_fixture(server_log, server)
+            if args.payload_handoff:
+                load_payload_handoff_fixture(server_log, server)
             if args.building_effects:
                 load_building_effects_fixture(server_log, server)
             if args.liquids:
@@ -652,6 +718,8 @@ def run_model(args, model, config, original_config, log, output):
                             phase = "payload-mix"
                         elif args.carried_buildings:
                             phase = "carried-buildings"
+                        elif args.payload_handoff:
+                            phase = "payload-before"
                         if args.building_layers:
                             phase = "building-cracks" if args.building_cracks else "building-layers"
                         capture(phase, spawn)
@@ -661,9 +729,13 @@ def run_model(args, model, config, original_config, log, output):
                             verify_payload_mix((output / f"{model}-{phase}.png").read_bytes())
                         if args.carried_buildings:
                             verify_carried_buildings((output / f"{model}-{phase}.png").read_bytes())
+                        if args.payload_handoff:
+                            verify_payload_handoff(server_log, server, rpc, output, model,
+                                                   output / f"{model}-{phase}.png")
                         if args.liquids:
                             verify_conduit_frames(log, rpc, output, model)
-                        print("Verified the stationary Glacier capture.", flush=True)
+                        if not args.payload_handoff:
+                            print("Verified the stationary Glacier capture.", flush=True)
                         emu_log = log.read_text(encoding="utf-8", errors="replace")
                         if "UPSTREAM_LIVE_NET_ERROR" in emu_log:
                             raise RuntimeError("The client failed after rendering the atlas stress frame")
@@ -787,6 +859,8 @@ def main():
                             help="Verify original full and partial team-color glow on stock Payload Conveyors")
     build_mode.add_argument("--carried-buildings", action="store_true",
                             help="Verify stock carried copper walls at two positions on Payload Conveyors")
+    build_mode.add_argument("--payload-handoff", action="store_true",
+                            help="Verify a stock server transfers a carried wall after the client joins")
     args = parser.parse_args()
     args.server, args.rom, args.azahar = (path.resolve() for path in (args.server, args.rom, args.azahar))
     with args.server.open("rb") as archive:
@@ -816,6 +890,8 @@ def main():
         parser.error("--payload-mix needs --controls and --terrain-atlas for a stationary capture")
     if args.carried_buildings and (not args.terrain_atlas or not args.controls or args.controls_replay):
         parser.error("--carried-buildings needs --controls and --terrain-atlas for a stationary capture")
+    if args.payload_handoff and (not args.terrain_atlas or not args.controls or args.controls_replay):
+        parser.error("--payload-handoff needs --controls and --terrain-atlas for a fixed camera")
     if args.building_effects and (not args.terrain_atlas or not args.controls or args.controls_replay):
         parser.error("--building-effects needs --controls and --terrain-atlas for a stationary capture")
     if args.liquids and (not args.terrain_atlas or not args.controls or args.controls_replay):
