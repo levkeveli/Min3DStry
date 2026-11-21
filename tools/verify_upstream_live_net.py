@@ -340,10 +340,10 @@ def set_onset_beryllium(server, amount):
     server.stdin.flush()
 
 
-def verify_onset_objective_hud(log, emulator, server_log, server, capture, position, markers=None, stock_font=False):
+def verify_onset_objective_hud(log, emulator, server_log, server, capture, position, markers=None, stock_timeout=0):
     wait_for(log, emulator, r"UPSTREAM_OBJECTIVE_HUD icon=beryllium text=Obtain: 0/60\|Beryllium\b", 10)
-    if stock_font:
-        wait_for(log, emulator, r"UPSTREAM_OBJECTIVE_FONT source=v160\.8\b", 45)
+    if stock_timeout:
+        wait_for(log, emulator, r"UPSTREAM_OBJECTIVE_FONT source=v160\.8\b", stock_timeout)
     if markers:
         markers("mine", 2320, 864, 868, ONSET_MARKER_TEXT["en"][0])
     # Drive the real server's item module and let its regular snapshots and objective executor
@@ -362,19 +362,19 @@ def verify_onset_objective_hud(log, emulator, server_log, server, capture, posit
     print("The objective HUD displayed the stock inventory progress and Turbine Condenser objective.", flush=True)
 
 
-def capture_onset_marker(log, emulator, server, rpc, output, model, require_stock_font, styled, phase, x, y, label_y, words):
+def capture_onset_marker(log, emulator, server, rpc, output, model, stock_timeout, styled, phase, x, y, label_y, words):
     # Use the stock server correction RPC to frame each marker without changing its coordinates.
     server.stdin.write(
         f'js (() => {{ const p = Groups.player.find(boolf(v => String(v.name) === "{PLAYER}")); '
         f'p.unit().set({x}, {y}); p.set({x}, {y}); Call.setPosition(p.con, {x}, {y}); }})()\n'
     )
     server.stdin.flush()
-    wait_for(log, emulator, rf"UPSTREAM_NETWORK_FRAME unit=\d+ left={x // 8 - 8} bottom={y // 8 - 6}\b", 12)
+    wait_for(log, emulator, rf"UPSTREAM_NETWORK_FRAME unit=\d+ left={x // 8 - 8} bottom={y // 8 - 6}\b", stock_timeout or 12)
     marker_y = re.escape(f"{label_y:.1f}")
     trace = rf"UPSTREAM_WORLD_LABEL x={x}\.0 y={marker_y} text=[^\r\n]*{re.escape(words)}"
-    wait_for(log, emulator, trace, 12)
-    if require_stock_font:
-        wait_for(log, emulator, rf"UPSTREAM_WORLD_LABEL_FONT x={x}\.0 y={marker_y} source=v160\.8\b", 30)
+    wait_for(log, emulator, trace, stock_timeout or 12)
+    if stock_timeout:
+        wait_for(log, emulator, rf"UPSTREAM_WORLD_LABEL_FONT x={x}\.0 y={marker_y} source=v160\.8\b", stock_timeout)
     if styled:
         code = 63304 if phase == "mine" else 63294
         wait_for(log, emulator, rf"UPSTREAM_WORLD_INLINE_GLYPH code={code}\b", 5)
@@ -1323,11 +1323,12 @@ def run_model(args, model, config, original_config, log, output):
                         if args.verify_objective_hud or args.verify_objective_markers:
                             def capture_marker(*marker):
                                 capture_onset_marker(log, emulator, server, rpc, output, model,
-                                                     args.verify_stock_font, args.verify_styled_markers, *marker)
+                                                     args.timeout if args.verify_stock_font else 0,
+                                                     args.verify_styled_markers, *marker)
                             if args.verify_objective_hud:
                                 verify_onset_objective_hud(log, emulator, server_log, server, capture, spawn,
                                                            capture_marker if args.verify_objective_markers else None,
-                                                           args.verify_stock_hud)
+                                                           args.timeout if args.verify_stock_hud else 0)
                             else:
                                 mining, research = ONSET_MARKER_TEXT[args.locale]
                                 capture_marker("mine", 2320, 864, 868, mining)
