@@ -30,8 +30,10 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
     header = struct.pack("<4sQ20sQQ32sIQq156x", b"CTM\x1b", 0, revision, 1780000000,
                          0x4D334453, b"Min3DStry input verification", 0, frames, 0)
     touch_idle = struct.pack("<B6x", 1)
-    taps = {35: (200, 24), 39: (232, 136), 46: (120, 24),
-            50: (248, 136), 57: (280, 24), 61: (248, 136)} if touch_build else {}
+    taps = (
+        (35, (200, 24)), (39, (232, 136)), (43, (232, 136)),
+        (48, (120, 24)), (53, (248, 136)), (60, (280, 24)), (65, (248, 136)),
+    ) if touch_build else ()
     with path.open("wb") as movie:
         movie.write(header)
         for frame in range(frames):
@@ -40,7 +42,7 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
             if building and seconds in (35, 37, 39):
                 buttons = 1  # A, with releases so a late HID poll can observe another press.
             circle_y = 106 if seconds == first_move + 6 else 0
-            point = taps.get(seconds)
+            point = next((point for start, point in taps if start <= seconds < start + 2), None)
             pad = struct.pack("<BHhh", 0, buttons, 0, circle_y)
             if touch_build and point:
                 # Extra HID polls on New 3DS can fall between pad/touch pairs.
@@ -296,7 +298,7 @@ def run_model(args, model, config, original_config, log, output):
                 if args.building and args.desktop_name:
                     first_move = 120  # Allow time to inspect and place a block in the desktop client.
                 if args.touch_build:
-                    first_move = 68
+                    first_move = 73
                 write_controls_replay(replay, first_move=first_move, building=args.building,
                                       touch_build=args.touch_build, model=model)
                 command += ["-p", str(replay)]
