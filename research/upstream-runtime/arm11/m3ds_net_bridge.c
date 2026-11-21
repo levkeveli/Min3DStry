@@ -34,6 +34,8 @@ int32_t m3ds_live_net_begin_world_load(void) {
     LightLock_Init(&world_tcp_lock);
     int32_t priority;
     if (R_FAILED(svcGetThreadPriority(&priority, CUR_THREAD_HANDLE))) return 0;
+    // A long collection can run without yielding the application core.
+    if (priority > 0x18) priority--;
     world_keep_alive = threadCreate(keep_world_connection_alive, client, 8 * 1024, priority, -2, false);
     return world_keep_alive != NULL;
 }
