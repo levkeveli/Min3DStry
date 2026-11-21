@@ -391,6 +391,12 @@ JAR used for the shared session has SHA-256
 The ARM11 placement completes on team 1 with rotation 0 and reduces the
 starting copper from 200 to 199. The PC placement completes on the same
 team with rotation 1, leaves 198 copper, and appears on the ARM11 screen.
+Both Azahar profiles displayed the placements from both clients. The
+New 3DS shared-session verifier completed through START while the desktop
+client stayed connected. The Old 3DS shared session confirmed both
+placements in the client and ARM11 logs. Full replay on that profile
+also depends on placing the PC conveyor at the requested tile while the
+camera can move during an attack.
 
 Before the snapshot dispatch extension, the [devkitARM verification build](https://github.com/levkeveli/Min3DStry/actions/runs/44824442974)
 passed at `-O0` and `-O2` on both Azahar 2126.2 console profiles. Each run
