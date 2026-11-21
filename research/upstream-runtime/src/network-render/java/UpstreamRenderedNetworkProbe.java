@@ -19,6 +19,7 @@ import mindustry.gen.Unit;
 import mindustry.gen.UnitWaterMove;
 import mindustry.graphics.CacheLayer;
 import mindustry.type.UnitType;
+import mindustry.world.Block;
 import mindustry.world.blocks.payloads.BuildPayload;
 import mindustry.world.blocks.payloads.PayloadConveyor.PayloadConveyorBuild;
 import mindustry.world.blocks.payloads.UnitPayload;
@@ -42,6 +43,7 @@ public final class UpstreamRenderedNetworkProbe {
     private long previousVisualFrame;
     private int lastLeft = -1, lastBottom = -1;
     private byte[] lastMenu;
+    private Block lastPrimaryShortcut;
 
     private UpstreamRenderedNetworkProbe(Fi atlas) {
         this.atlas = atlas;
@@ -70,12 +72,20 @@ public final class UpstreamRenderedNetworkProbe {
         loadUnitGraphics();
         viewport = UpstreamTerrainDrawProbe.liveViewport(target);
         target.initialize();
+        System.out.println("UPSTREAM_INTERFACE_GRAPHICS ready");
+    }
+
+    private void updateBuildLabels() {
+        var primary = buildingControls.shortcut(0);
+        if (primary == lastPrimaryShortcut) return;
+        var secondary = buildingControls.shortcut(1);
         System.out.println("UPSTREAM_INTERFACE_GRAPHICS labels");
-        var labels = String.join("\0", Blocks.conveyor.localizedName, Blocks.copperWall.localizedName,
+        var labels = String.join("\0", primary.localizedName, secondary.localizedName,
             Core.bundle.get("keybind.rotate.name"), Core.bundle.get("waves.remove"),
             "List", "Config", Core.bundle.get("back")) + "\0";
         target.buildLabels(labels.getBytes(StandardCharsets.UTF_8));
-        System.out.println("UPSTREAM_INTERFACE_GRAPHICS ready");
+        lastPrimaryShortcut = primary;
+        System.out.println("UPSTREAM_BUILD_SHORTCUTS primary=" + primary.name + " secondary=" + secondary.name);
     }
 
     static UnitType[] loadUnitGraphics() {
@@ -100,6 +110,7 @@ public final class UpstreamRenderedNetworkProbe {
     }
 
     private void render(Unit unit) {
+        updateBuildLabels();
         controlled = unit;
         float x = unit == null ? Vars.player.x() : unit.x();
         float y = unit == null ? Vars.player.y() : unit.y();
@@ -172,7 +183,7 @@ public final class UpstreamRenderedNetworkProbe {
         var block = buildingControls.block();
         var catalog = buildingControls.catalog();
         var config = buildingControls.itemConfig();
-        int shortcut = block == Blocks.conveyor ? 0 : block == Blocks.copperWall ? 1 : -1;
+        int shortcut = block == buildingControls.shortcut(0) ? 0 : block == buildingControls.shortcut(1) ? 1 : -1;
         target.buildOverlay(buildingControls.cursorX() - viewport.left, buildingControls.cursorY() - viewport.bottom,
             shortcut, buildingControls.rotation(), buildingControls.removing(), block.rotate,
             catalog.isOpen() || config.isOpen(), buildingControls.configuring());
@@ -191,6 +202,7 @@ public final class UpstreamRenderedNetworkProbe {
         var block = build.block;
         // These blocks use the sprite operations available in the live backend.
         return block instanceof CoreBlock || block == Blocks.conveyor || block == Blocks.copperWall
+            || block == Blocks.duct || block == Blocks.berylliumWall
             || block == Blocks.copperWallLarge || block == Blocks.router || block instanceof Sorter
             || block == Blocks.mechanicalDrill || block instanceof Conduit
             || block == Blocks.phaseWeaver || block == Blocks.overdriveProjector
