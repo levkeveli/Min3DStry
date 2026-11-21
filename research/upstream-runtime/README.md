@@ -699,6 +699,22 @@ passed the free and carried unit capture on both profiles. On the same
 build, the stock server's periodic block snapshot moved a Copper Wall
 and a Dagger to their receiving belts after the client joined.
 
+The unit renderer loads 20 Serpulo types, including all three core
+drones, the five assault mechs, the five attack aircraft, Crawler,
+Nova through Vela, Mono and Poly. The JVM traces each stock body,
+cell and available weapon and heat sprites. The Quasar's
+`ForceFieldAbility.draw` uses its original unshaded polygon and outline
+when the desktop renderer is absent, matching the construction beam's
+use of the stock unshaded mode.
+
+Run `--controls --unit-roster --terrain-atlas` to check representative
+mechs and aircraft streamed by an unmodified v160.8 server, plus the
+outline of an active Quasar shield. The
+[ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44872900057)
+passed on both Old and New 3DS Azahar profiles with Alpha, Beta, Flare,
+Fortress, Pulsar, Vela and Quasar in the same Glacier viewport.
+The same build also passed the live wall and Dagger handoff on both profiles.
+
 The renderer still selects blocks that use the supported sprite operations.
 Textured raw vertices, additional payload types and other rendering services
 are tracked in [#139](https://github.com/levkeveli/Min3DStry/issues/139).
