@@ -127,11 +127,11 @@ def capture_viewport(log, emulator, rpc, destination, position):
     bottom = max(0, min(250 - 12, math.floor(float(y) / 8 + 0.5) - 6))
     frame = f"UPSTREAM_NETWORK_FRAME unit={unit} left={left} bottom={bottom} sprites=1"
     wait_for(log, emulator, rf"{frame}\b", 5)
-    screenshot = rpc.screenshot()
-    pixels = az.inspect_png(screenshot)
-    if pixels["width"] != 400 or pixels["height"] != 240 or pixels["top_distinct_colors"] < 8:
-        raise RuntimeError("Expected the textured Glacier viewport on the top screen")
+    screenshot = rpc.screenshot(res_scale=1)
     destination.write_bytes(screenshot)
+    pixels = az.inspect_png(screenshot)
+    if pixels["width"] != 400 or pixels["height"] != 480 or pixels["top_distinct_colors"] < 8:
+        raise RuntimeError(f"Expected the textured Glacier viewport on the top screen: {pixels}")
     print(frame, flush=True)
 
 
@@ -145,6 +145,9 @@ def run_model(args, model, config, original_config, log, output):
         "Renderer": {"graphics_api": "2"},
         "Data Storage": {"use_virtual_sd": "true"},
     }
+    if args.terrain_atlas:
+        overrides["Layout"] = {"layout_option": "0", "swap_screen": "false",
+                               "upright_screen": "false", "render_3d": "0", "screen_gap": "0"}
     config.write_text(az.patch_qt_config_text(original_config, overrides), encoding="utf-8")
     log.write_bytes(b"")
     server_log = output / f"{model}-server.log"
@@ -164,7 +167,7 @@ def run_model(args, model, config, original_config, log, output):
             command = [str(args.azahar)]
             if args.controls_replay:
                 replay = Path(work) / "controls.ctm"
-                write_controls_replay(replay, first_move=35 if args.terrain_atlas else 22)
+                write_controls_replay(replay, first_move=42 if args.terrain_atlas else 22)
                 command += ["-p", str(replay)]
             command.append(str(args.rom))
             emulator = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
