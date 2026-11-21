@@ -471,6 +471,17 @@ verify the selection of `game1` with the server's volume, and verify decoder
 closure on exit. Azahar's no-DSP path decodes an initial chunk from ROMFS
 and reports that without starting an NDSP voice.
 
+The soundtrack build from `11375bc` passed the Glacier replay on both
+Azahar profiles. Music stayed disabled through join. The stock Java
+server sent the full rules and the single-field enable update, and
+Mindustry selected `game1` at gain `0.375`. Tremor decoded 4,096 stereo
+frames at 44.1 kHz from ROMFS on each profile and closed the file on exit.
+Both profiles also passed the short and long effect routing and stock
+projectile checks. The same ROM rendered two consecutive joins to the
+original 512×512 Onset map on each profile and matched the server's tile
+CRC32 `3861859253` on every join. Physical audible playback remains open.
+[ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44958187891)
+
 ### Sound-effect verification
 
 Run `python3 tools/verify_live_stock_audio.py <terrain-assets>` with the
