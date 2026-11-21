@@ -609,8 +609,21 @@ elbows showed animation. All 466 opaque comparison pixels on the elbow
 shells matched the nearest original texels. The atlas cache now recycles
 within the available linear heap, preserving space for the touch catalog.
 
+Solid world shapes use the original
+[Arc Fill vertices](https://github.com/Anuken/Arc/blob/7445105cd2683daf5b9ac7033ebb07265d3e814d/arc-core/src/arc/graphics/g2d/Fill.java)
+and the original SpriteBatch triangle indices. The ARM11 backend submits
+two Citro2D triangles with the original per-vertex colors and blend state.
+The JVM checks the Phase Weaver line, the Overdrive outline and the
+Shockwave Tower polygon, as well as draw ordering with reused vertex arrays.
+
+Run the live verifier with `--controls --building-effects --terrain-atlas`
+to load the server's frozen active Phase Weaver and Overdrive states.
+The [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44865356376)
+passed on both Azahar profiles, including the original accent RGB at
+four points on the Phase Weaver line.
+
 The renderer still selects blocks that use the supported sprite operations.
-Raw vertices, mix color and other rendering services are
+Textured raw vertices, sprite mix color and other rendering services are
 tracked in [#139](https://github.com/levkeveli/Min3DStry/issues/139).
 
 ### Verify the Arc executor pools

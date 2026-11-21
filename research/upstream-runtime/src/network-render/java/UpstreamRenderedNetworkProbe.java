@@ -11,10 +11,11 @@ import mindustry.Vars;
 import mindustry.content.Blocks;
 import mindustry.content.UnitTypes;
 import mindustry.core.World;
+import mindustry.gen.Building;
 import mindustry.gen.Groups;
 import mindustry.gen.Unit;
 import mindustry.graphics.CacheLayer;
-import mindustry.world.Block;
+import mindustry.world.blocks.payloads.PayloadConveyor.PayloadConveyorBuild;
 import mindustry.world.blocks.liquid.Conduit;
 import mindustry.world.blocks.distribution.Sorter;
 
@@ -143,13 +144,15 @@ public final class UpstreamRenderedNetworkProbe {
         }
     }
 
-    private static boolean supportsBuildingDraw(Block block) {
+    private static boolean supportsBuildingDraw(Building build) {
+        var block = build.block;
         // These blocks use the sprite operations available in the live backend.
         return block == Blocks.coreNucleus || block == Blocks.conveyor || block == Blocks.copperWall
             || block == Blocks.copperWallLarge || block == Blocks.router || block instanceof Sorter
             || block == Blocks.mechanicalDrill || block instanceof Conduit
             || block == Blocks.phaseWeaver || block == Blocks.overdriveProjector
-            || block == Blocks.overdriveDome || block == Blocks.shockwaveTower;
+            || block == Blocks.overdriveDome || block == Blocks.shockwaveTower
+            || build instanceof PayloadConveyorBuild conveyor && conveyor.item == null;
     }
 
     private void drawMenu(byte[] labels, int[] icons, int selected,

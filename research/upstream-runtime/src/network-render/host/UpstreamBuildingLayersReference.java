@@ -24,9 +24,11 @@ import mindustry.graphics.Pal;
 import mindustry.world.blocks.defense.OverdriveProjector.OverdriveBuild;
 import mindustry.world.blocks.defense.ShockwaveTower.ShockwaveTowerBuild;
 import mindustry.world.blocks.production.GenericCrafter.GenericCrafterBuild;
+import mindustry.world.blocks.payloads.PayloadConveyor;
+import mindustry.world.blocks.payloads.PayloadConveyor.PayloadConveyorBuild;
 
 public final class UpstreamBuildingLayersReference implements UpstreamTerrainDrawProbe.TerrainTarget {
-    private record Sprite(float x, float y, int page, int left, int top, int width, int height, float rotation, int color, Blending blending) {}
+    private record Sprite(float x, float y, int page, int left, int top, int width, int height, float rotation, int color, int mixColor, Blending blending) {}
     private final List<Sprite> sprites = new ArrayList<>();
     private final List<float[]> solidQuads = new ArrayList<>();
 
@@ -55,8 +57,8 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
 
         target.sprites.clear();
         var layers = new UpstreamBuildingLayers();
-        layers.render(viewport, viewer, block ->
-            block == Blocks.conveyor || block == Blocks.copperWallLarge || block == Blocks.mechanicalDrill);
+        layers.render(viewport, viewer, build ->
+            build.block == Blocks.conveyor || build.block == Blocks.copperWallLarge || build.block == Blocks.mechanicalDrill);
 
         int cached = target.firstAt(edgeWall.drawx(), edgeWall.drawy());
         int moving = target.firstAt(conveyor.drawx(), conveyor.drawy());
@@ -73,12 +75,34 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         edgeWall.build.health = edgeWall.build.maxHealth * 0.5f;
         drill.build.health = drill.build.maxHealth * 0.5f;
         target.sprites.clear();
-        layers.render(viewport, viewer, block -> block == Blocks.copperWallLarge || block == Blocks.mechanicalDrill);
+        layers.render(viewport, viewer, build -> build.block == Blocks.copperWallLarge || build.block == Blocks.mechanicalDrill);
         target.verifyCrack(crack, edgeWall.build);
         target.verifyCrack(crack, drill.build);
         System.out.println("UPSTREAM_BUILDING_CRACKS region=cracks-2-4 wall=1 drill=1");
         target.verifyFluidDrawing(layers, viewport, viewer);
         target.verifyBuildingEffects(layers, viewport, viewer);
+        target.verifyPayloadMix(layers, viewport, viewer);
+    }
+
+    private void verifyPayloadMix(UpstreamBuildingLayers layers, UpstreamTerrainDrawProbe.Viewport viewport,
+                                  Team viewer) {
+        var tile = Vars.world.tile(28, 40);
+        tile.setBlock(Blocks.payloadConveyor, viewer, 0);
+        var build = (PayloadConveyorBuild) tile.build;
+        var conveyor = (PayloadConveyor) build.block;
+        for (float progress : new float[]{0f, 0.4352753f, 0.5f}) {
+            build.progress = conveyor.moveTime * progress;
+            float glow = Math.max((0.8f - Math.abs(build.fract() - 0.5f) * 2) / 0.8f, 0);
+            int expected = Color.floatToIntColor(viewer.color.cpy().a(glow).toFloatBits());
+            sprites.clear();
+            layers.render(viewport, viewer, candidate -> candidate == build);
+            long mixed = sprites.stream().filter(sprite -> sprite.mixColor() == expected).count();
+            if (sprites.isEmpty() || (glow > 0f && mixed < 2)
+                    || sprites.stream().anyMatch(sprite -> sprite.width() <= 0 || sprite.height() <= 0)) {
+                throw new AssertionError("Unexpected stock payload crop or mix: " + sprites);
+            }
+        }
+        System.out.println("UPSTREAM_PAYLOAD_MIX emptyClip=ok partial=ok full=ok");
     }
 
     private void verifyBuildingEffects(UpstreamBuildingLayers layers, UpstreamTerrainDrawProbe.Viewport viewport,
@@ -112,15 +136,15 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         Time.setInternalTime(42);
 
         solidQuads.clear();
-        layers.render(viewport, viewer, block -> block == Blocks.phaseWeaver);
+        layers.render(viewport, viewer, build -> build.block == Blocks.phaseWeaver);
         if (solidQuads.size() != 1 || solidQuads.get(0)[2] != Pal.accent.toFloatBits()) {
             throw new AssertionError("Missing original active weave line");
         }
         solidQuads.clear();
-        layers.render(viewport, viewer, block -> block == Blocks.overdriveProjector);
+        layers.render(viewport, viewer, build -> build.block == Blocks.overdriveProjector);
         int outline = solidQuads.size();
         solidQuads.clear();
-        layers.render(viewport, viewer, block -> block == Blocks.shockwaveTower);
+        layers.render(viewport, viewer, build -> build.block == Blocks.shockwaveTower);
         if (outline != 4 || solidQuads.isEmpty()) throw new AssertionError("Missing stock building effects");
         System.out.printf("UPSTREAM_SOLID_BUILDING_EFFECTS weave=1 overdrive=%d shockwave=%d%n",
             outline, solidQuads.size());
@@ -178,7 +202,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
     private void verifyWaterFrame(UpstreamBuildingLayers layers, UpstreamTerrainDrawProbe.Viewport viewport,
                                   Team viewer, ConduitBuild straight, ConduitBuild corner, ConduitBuild mirror) {
         sprites.clear();
-        layers.render(viewport, viewer, block -> block == Blocks.conduit);
+        layers.render(viewport, viewer, build -> build.block == Blocks.conduit);
         int frame = Liquids.water.getAnimationFrame();
         var conduit = (mindustry.world.blocks.liquid.Conduit) corner.block;
         requireRegion(Core.atlas.find("fluid-liquid-" + frame));
@@ -213,6 +237,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         Draw.sort(true);
         Draw.z(Layer.block);
         Draw.color(Color.orange);
+        Draw.mixcol(Color.scarlet, 0.5f);
         Draw.blend(Blending.additive);
         Draw.rect(reused, 3, 1);
         reused.set(Core.atlas.find("white"));
@@ -235,6 +260,8 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         if (captured.left() != wall.getX() || captured.top() != wall.getY()
                 || captured.page() != UpstreamTerrainDrawProbe.pageIndex(wall)
                 || captured.color() != Color.floatToIntColor(Color.orange.toFloatBits())
+                || captured.mixColor() != Color.floatToIntColor(Color.scarlet.cpy().a(0.5f).toFloatBits())
+                || sprites.get(3).mixColor() != 0
                 || captured.blending() != Blending.additive || sprites.get(3).blending() != Blending.normal) {
             throw new AssertionError("Queued draw lost its original atlas coordinates or tint");
         }
@@ -250,8 +277,8 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
 
     @Override
     public void draw(int page, int left, int top, int width, int height, float x, float y,
-                     float originX, float originY, float drawWidth, float drawHeight, float rotation, int color, Blending blending) {
-        sprites.add(new Sprite(x + drawWidth / 2f, y + drawHeight / 2f, page, left, top, width, height, rotation, color, blending));
+                     float originX, float originY, float drawWidth, float drawHeight, float rotation, int color, int mixColor, Blending blending) {
+        sprites.add(new Sprite(x + drawWidth / 2f, y + drawHeight / 2f, page, left, top, width, height, rotation, color, mixColor, blending));
     }
 
     @Override

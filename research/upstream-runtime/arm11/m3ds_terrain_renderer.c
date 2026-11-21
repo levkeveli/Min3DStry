@@ -50,6 +50,7 @@ static struct {
 static float world_left, world_bottom, scale, screen_left, screen_bottom;
 static int32_t draws;
 static int32_t world_blend = -1;
+static u32 world_fade;
 
 int32_t m3ds_terrain_mount_assets(void) {
     if (!romfs_ready) romfs_ready = R_SUCCEEDED(romfsInit());
@@ -279,11 +280,29 @@ static void set_world_blend(int32_t mode) {
     world_blend = mode;
 }
 
+static void set_world_mix(u32 tint, u32 mix_color) {
+    // Arc computes tint * mix(texture.rgb, mix.rgb, mix.a), with texture alpha unchanged by mixing.
+    // Citro2D fades after tinting, so tint the fade endpoint as well as the texture.
+    u32 fade = mix_color & 0xff000000u;
+    if (fade) {
+        for (int shift = 0; shift < 24; shift += 8) {
+            u32 a = (tint >> shift) & 255;
+            u32 b = (mix_color >> shift) & 255;
+            fade |= ((a * b + 127) / 255) << shift;
+        }
+    }
+    if (fade == world_fade) return;
+    C2D_Flush();
+    C2D_Fade(fade);
+    world_fade = fade;
+}
+
 int32_t m3ds_terrain_draw(int32_t page, int32_t left, int32_t top, int32_t width, int32_t height,
                           float x, float y, float origin_x, float origin_y, float draw_width,
-                          float draw_height, float rotation, int32_t color, int32_t blend_mode) {
+                          float draw_height, float rotation, int32_t color, int32_t mix_color, int32_t blend_mode) {
     if (!frame_open || width <= 0 || height <= 0) return 0;
     set_world_blend(blend_mode);
+    set_world_mix((u32)color, (u32)mix_color);
     C2D_DrawParams params = {
         .pos = { screen_left + (x + origin_x - world_left) * scale,
                  screen_bottom - (y + origin_y - world_bottom) * scale,
@@ -340,6 +359,7 @@ int32_t m3ds_terrain_draw(int32_t page, int32_t left, int32_t top, int32_t width
 int32_t m3ds_terrain_draw_solid_quad(const float *vertices, int32_t offset, int32_t blend_mode) {
     if (!frame_open) return 0;
     set_world_blend(blend_mode);
+    set_world_mix(0, 0);
     float x[4], y[4];
     u32 color[4];
     for (int i = 0; i < 4; i++) {
@@ -392,6 +412,7 @@ int32_t m3ds_terrain_build_overlay(int32_t column, int32_t row, int32_t block, i
                                   int32_t configuring) {
     if (!frame_open || !palette) return 0;
     set_world_blend(0);
+    set_world_mix(0, 0);
     u32 accent = removing ? C2D_Color32(241, 117, 97, 255) : C2D_Color32(250, 213, 107, 255);
     bool cursor = column >= 0 && column < 16 && row >= 0 && row < 12;
     if (cursor) {
