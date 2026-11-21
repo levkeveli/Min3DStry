@@ -103,6 +103,23 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         target.verifyCarriedUnits(layers, viewport, viewer);
         target.verifyNavalWake(viewer);
         target.verifyTankTreads(viewer);
+        target.verifyCoreVariants(layers, viewport, viewer);
+    }
+
+    private void verifyCoreVariants(UpstreamBuildingLayers layers, UpstreamTerrainDrawProbe.Viewport viewport,
+                                    Team viewer) {
+        viewport.moveTo(44, 30);
+        var tile = Vars.world.tile(52, 36);
+        var cores = List.of(Blocks.coreShard, Blocks.coreFoundation, Blocks.coreNucleus,
+            Blocks.coreBastion, Blocks.coreCitadel, Blocks.coreAcropolis);
+        for (var block : cores) {
+            tile.setBlock(block, viewer, 0);
+            sprites.clear();
+            layers.render(viewport, viewer, build -> build == tile.build
+                && UpstreamRenderedNetworkProbe.supportsBuildingDraw(build));
+            requireRegion(block.region);
+        }
+        System.out.println("UPSTREAM_CORE_VARIANTS originalRegions=" + cores.size());
     }
 
     private void verifyCarriedUnits(UpstreamBuildingLayers layers, UpstreamTerrainDrawProbe.Viewport viewport,

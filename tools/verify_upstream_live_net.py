@@ -645,6 +645,84 @@ def verify_naval_wake(server_log, server, rpc, output, model, before, unit_id):
     raise RuntimeError(f"Expected both stock wake trails after moving the Risso, got {counts} for color {wake}")
 
 
+def load_tank_treads_fixture(server_log, server):
+    server.stdin.write(
+        'pause on\n'
+        'js (() => { const team = Vars.state.rules.defaultTeam; '
+        'for (let x=72; x<=77; x++) for (let y=26; y<=31; y++) { '
+        'var tile=Vars.world.tile(x,y); if (tile.build != null) continue; '
+        'tile.setFloor(Blocks.ice); tile.setOverlay(Blocks.air); tile.setBlock(Blocks.air); } '
+        'const locus=UnitTypes.locus.spawn(team,600,224,90); '
+        'UnitTypes.stell.spawn(team,680,192,90); '
+        'if (!locus.canPassOn() || !locus.type.supportsEnv(Vars.state.rules.env)) throw "Invalid tank fixture"; '
+        'return "UPSTREAM_TANK_FIXTURE locus=" + locus.id; })()\n'
+    )
+    server.stdin.flush()
+    marker = re.compile(r"UPSTREAM_TANK_FIXTURE locus=(\d+)\b")
+    return int(marker.search(wait_for(server_log, server, marker, 5))[1])
+
+
+def verify_tank_treads(server_log, server, rpc, output, model, before, unit_id):
+    # Stock UnitType.draw composites square-shadow above the tread strip. These
+    # samples avoid exact shadow texel ties.
+    light, dark = (55, 58, 77), (24, 25, 32)
+    rows = {47: (light, 158), 51: (dark, 198), 52: (dark, 198), 53: (dark, 210),
+            86: (dark, 210), 87: (dark, 198), 92: (light, 158)}
+
+    def shade(rgb, alpha):
+        return tuple(round(channel * (1 - 0.4 * alpha / 255)) for channel in rgb)
+
+    left = tuple((76, y) for y in rows)
+    right = tuple((103, y) for y in rows)
+    cells = tuple((x, y) for x in range(73, 107) for y in range(62, 78))
+    stell = ((279, 145), (300, 145))
+    points = (*left, *right, *cells, *stell)
+    baseline = az.inspect_png(before.read_bytes(), points)["samples"]
+    sharded = (255, 211, 127)
+    hull = {point for point in cells if baseline[point] == sharded}
+    if len(hull) < 10 or any(baseline[point] != sharded for point in stell):
+        raise RuntimeError("Expected the original Locus and Stell team cells")
+    if any(baseline[point] != shade(*rows[point[1]]) for point in left + right):
+        raise RuntimeError(f"Unexpected initial Locus tread frame: {[baseline[p] for p in left + right]}")
+
+    # Compare the same tread coordinates relative to the hull while the Locus moves north.
+    offsets = range(-20, -1)
+    moving_points = tuple({(x, y + offset) for x, y in (*left, *right, *cells) for offset in offsets})
+
+    def moved_treads(frame):
+        colors = az.inspect_png(frame, moving_points)["samples"]
+        for offset in offsets:
+            current_hull = {(x, y) for x, y in cells if colors[x, y + offset] == sharded}
+            if current_hull != hull:
+                continue
+            changed = tuple(sum(colors[x, y + offset] != baseline[x, y] for x, y in side)
+                            for side in (left, right))
+            original_palette = all(colors[x, y + offset] in (shade(dark, rows[y][1]), shade(light, rows[y][1]))
+                                   for x, y in left + right)
+            if min(changed) >= 2 and original_palette:
+                return offset, changed
+        return None
+
+    server.stdin.write("pause off\n")
+    server.stdin.flush()
+    for y in range(225, 233):
+        server.stdin.write(
+            f'js (() => {{ const tank=Groups.unit.getByID({unit_id}); tank.set(600,{y}); '
+            'return "UPSTREAM_TANK_STEP " + tank.y; })()\n')
+        server.stdin.flush()
+        wait_for(server_log, server, rf"UPSTREAM_TANK_STEP {y}\b", 5)
+        time.sleep(0.65)
+        frame = rpc.screenshot(res_scale=1)
+        result = moved_treads(frame)
+        if result:
+            offset, changed = result
+            (output / f"{model}-tank-treads.png").write_bytes(frame)
+            print(f"{model}: Locus moved {-offset} pixels north with {changed} changed tread pixels.", flush=True)
+            return
+    (output / f"{model}-tank-treads.png").write_bytes(frame)
+    raise RuntimeError("Expected a new stock tread frame on both sides of the moving Locus")
+
+
 def payload_handoff_pixels(screenshot):
     # The receiver sample starts beyond any position the sender can draw during travel.
     wall_rows = (184, 187, 190, 193, 196)
@@ -777,7 +855,8 @@ def verify_conduit_frames(log, rpc, output, model):
 def run_model(args, model, config, original_config, log, output):
     stationary = (args.world_atlas_recycle or args.building_layers or args.liquids
                   or args.building_effects or args.payload_mix or args.carried_buildings
-                  or args.payload_handoff or args.unit_layers or args.unit_roster or args.naval_wake)
+                  or args.payload_handoff or args.unit_layers or args.unit_roster or args.naval_wake
+                  or args.tank_treads)
     overrides = {
         "Miscellaneous": {"log_filter": "*:Info Debug.Emulated:Debug Service.SOC:Debug",
                           "check_for_update_on_start": "false"},
@@ -834,6 +913,8 @@ def run_model(args, model, config, original_config, log, output):
                 load_unit_roster_fixture(server_log, server)
             if args.naval_wake:
                 naval_fixture = load_naval_wake_fixture(server_log, server)
+            if args.tank_treads:
+                tank_fixture = load_tank_treads_fixture(server_log, server)
             if args.building_effects:
                 load_building_effects_fixture(server_log, server)
             if args.liquids:
@@ -910,6 +991,8 @@ def run_model(args, model, config, original_config, log, output):
                             phase = "unit-roster"
                         elif args.naval_wake:
                             phase = "naval-before"
+                        elif args.tank_treads:
+                            phase = "tank-before"
                         if args.building_layers:
                             phase = "building-cracks" if args.building_cracks else "building-layers"
                         capture(phase, spawn)
@@ -929,6 +1012,9 @@ def run_model(args, model, config, original_config, log, output):
                         if args.naval_wake:
                             verify_naval_wake(server_log, server, rpc, output, model,
                                               output / f"{model}-{phase}.png", naval_fixture)
+                        if args.tank_treads:
+                            verify_tank_treads(server_log, server, rpc, output, model,
+                                               output / f"{model}-{phase}.png", tank_fixture)
                         if args.liquids:
                             verify_conduit_frames(log, rpc, output, model)
                         if not args.payload_handoff:
@@ -1064,6 +1150,8 @@ def main():
                             help="Verify streamed Serpulo unit types and the Quasar shield on Glacier")
     build_mode.add_argument("--naval-wake", action="store_true",
                             help="Verify stock naval hulls and both live Risso wakes")
+    build_mode.add_argument("--tank-treads", action="store_true",
+                            help="Verify the original Stell and Locus sprites and animated Locus treads")
     args = parser.parse_args()
     args.server, args.rom, args.azahar = (path.resolve() for path in (args.server, args.rom, args.azahar))
     with args.server.open("rb") as archive:
@@ -1101,6 +1189,8 @@ def main():
         parser.error("--unit-roster needs --controls and --terrain-atlas for a stationary capture")
     if args.naval_wake and (not args.terrain_atlas or not args.controls or args.controls_replay):
         parser.error("--naval-wake needs --controls and --terrain-atlas for a fixed camera")
+    if args.tank_treads and (not args.terrain_atlas or not args.controls or args.controls_replay):
+        parser.error("--tank-treads needs --controls and --terrain-atlas for a fixed camera")
     if args.building_effects and (not args.terrain_atlas or not args.controls or args.controls_replay):
         parser.error("--building-effects needs --controls and --terrain-atlas for a stationary capture")
     if args.liquids and (not args.terrain_atlas or not args.controls or args.controls_replay):
