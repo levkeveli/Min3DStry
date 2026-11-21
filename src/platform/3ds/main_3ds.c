@@ -164,6 +164,20 @@ int main(int argc, char *argv[]) {
     }
     m3ds_emit_debug_line(log_socket, dbg_line);
 
+    M3dsSettingsStatus settings_status;
+    if (m3ds_settings_store_status(M3DS_SD_ROOT, &settings_status)) {
+        snprintf(dbg_line, sizeof(dbg_line),
+                 "[MIN3DSTRY] SETTINGS primary=%d backup=%d primary_bytes=%u backup_bytes=%u\n",
+                 settings_status.primary_present ? 1 : 0,
+                 settings_status.backup_present ? 1 : 0,
+                 (unsigned)settings_status.primary_bytes,
+                 (unsigned)settings_status.backup_bytes);
+    } else {
+        snprintf(dbg_line, sizeof(dbg_line),
+                 "[MIN3DSTRY] SETTINGS status=invalid\n");
+    }
+    m3ds_emit_debug_line(log_socket, dbg_line);
+
     M3dsSaveSlotInfo save_slot = {0};
     char save_slot_path[96];
     if (m3ds_sd_sector_save_path(

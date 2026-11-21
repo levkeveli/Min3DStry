@@ -27,11 +27,14 @@ settings format.
 ```text
 [MIN3DSTRY] STORAGE root=/3ds/min3dstry settings=/3ds/min3dstry/settings.bin sector=/3ds/min3dstry/sector-serpulo-170.msav
 [MIN3DSTRY] STORAGE_ROUNDTRIP status=ok bytes=4 root=sdmc:/3ds/min3dstry
+[MIN3DSTRY] SETTINGS primary=1 backup=0 primary_bytes=204 backup_bytes=0
 ```
 
 The round-trip writes, reads back and deletes a four-byte
 `storage-probe.bin` through `sdmc:`; it never touches `settings.bin` or sector
-saves. The Azahar verifier requires both lines on both models.
+saves. The `SETTINGS` line reports whether `settings.bin` and
+`settings_backup.bin` exist and their byte sizes without parsing either file.
+The Azahar verifier requires the STORAGE lines on both models.
 
 ## Save-slot header probe
 
@@ -111,7 +114,8 @@ No content format is parsed or invented here.
   trailing-slash roots, id formatting, traversal/absolute/separator/truncation
   rejection.
 - `tests/platform/test_settings_store.c`: primary/backup settings round-trips,
-  backup fallback, atomic sector write/read, probe round-trip and cleanup.
+  backup fallback, settings status sizes, atomic sector write/read, probe
+  round-trip and cleanup.
 - `tests/platform/test_sector_catalog.c`: sorted SD catalog, capacity limits,
   malformed names, unrelated files, raw/zlib headers and missing directories.
 - `./dev.sh test` runs both tests.
