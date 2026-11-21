@@ -1,6 +1,6 @@
 # SD storage path contract
 
-Status: **host-tested atomic storage + Azahar probe round-trip**. Settings/save payloads are still owned by upstream Arc/SaveIO; Java filesystem wiring remains open under [#41](https://github.com/levkeveli/Min3DStry/issues/41).
+Status: **host-tested atomic storage + Azahar save-slot/prefix verification**. Settings/save payloads are still owned by upstream Arc/SaveIO; Java filesystem wiring remains open under [#41](https://github.com/levkeveli/Min3DStry/issues/41).
 
 ## Paths
 
@@ -27,11 +27,81 @@ settings format.
 ```text
 [MIN3DSTRY] STORAGE root=/3ds/min3dstry settings=/3ds/min3dstry/settings.bin sector=/3ds/min3dstry/sector-serpulo-170.msav
 [MIN3DSTRY] STORAGE_ROUNDTRIP status=ok bytes=4 root=sdmc:/3ds/min3dstry
+[MIN3DSTRY] SETTINGS primary=1 backup=0 primary_bytes=204 backup_bytes=0
 ```
 
 The round-trip writes, reads back and deletes a four-byte
 `storage-probe.bin` through `sdmc:`; it never touches `settings.bin` or sector
-saves. The Azahar verifier requires both lines on both models.
+saves. The `SETTINGS` line reports whether `settings.bin` and
+`settings_backup.bin` exist and their byte sizes without parsing either file.
+The Azahar verifier requires the STORAGE lines on both models.
+
+## Save-slot header probe
+
+`include/platform/save_slot.h` inspects the upstream `.msav` container without
+rewriting it. Upstream `SaveIO` wraps the `MSAV` + version stream in zlib, so
+the probe reports three cases:
+
+- raw `MSAV`: `valid=true` plus the big-endian version (upstream
+  `DataOutputStream.writeInt`);
+- zlib wrapper (`0x78 0x9c` and a valid zlib header check): `compressed=true`;
+  the first eight decoded bytes are checked, so the `MSAV` magic and version are
+  reported without inflating the whole world;
+- anything else: `present=true, valid=false`.
+
+When the primary slot is missing or invalid, the probe falls back to
+`<name>-backup.msav`, matching `SaveIO.isSaveValid`/`backupFileFor`. This is
+the same backup name upstream uses for interrupted or corrupt saves.
+
+`main_3ds.c` probes `/3ds/min3dstry/sector-serpulo-170.msav` once at startup and
+logs:
+
+```text
+[MIN3DSTRY] SAVE_SLOT present=1 valid=1 compressed=1 version=13 bytes=11072 path=sdmc:/3ds/min3dstry/...
+[MIN3DSTRY] SAVE_META map=Glacier wave=1
+```
+
+The bottom HUD shows `Save: v13 <bytes>B` for a raw header or a decoded zlib
+wrapper, `Save: zlib <bytes>B` when the wrapper is valid but its prefix cannot
+be decoded, `Save: invalid <bytes>B`, or `Save: none`, plus
+`Map: <name> wave=<n>` when the upstream metadata map parses.
+
+### Compressed header prefix
+
+`include/platform/msav_inflate.h` decodes only the prefix of the zlib stream
+(RFC 1950/1951), so the `MSAV` magic, big-endian version and the early metadata
+string map (`mapname`, `wave`) are available without inflating a whole world.
+It handles stored, fixed-Huffman and dynamic-Huffman DEFLATE blocks and stops
+as soon as the requested prefix is produced. Malformed headers, FDICT streams,
+and truncated input fail closed.
+
+## SD sector catalog
+
+`include/platform/sector_catalog.h` scans `/3ds/min3dstry` for upstream
+`sector-<planet>-<id>.msav` names and probes each container with the save-slot
+header logic. Entries are sorted by planet and sector id, duplicate names are
+not invented, malformed names and unrelated files are ignored, and the scan
+never writes or deletes anything. A missing directory yields an empty catalog.
+When the `.msav` metadata prefix parses, the entry also carries the upstream
+`mapname` and `wave`.
+
+Startup logs and HUD:
+
+```text
+[MIN3DSTRY] SECTOR_CATALOG count=1
+[MIN3DSTRY] SECTOR_SLOT planet=serpulo id=170 valid=1 compressed=1 bytes=11072 map=Glacier wave=1
+```
+
+```text
+Sectors: 2
+ erekir-64 v 16B
+ serpulo-170 Glacier w1
+```
+
+The HUD lists up to four catalog rows.
+
+The list is catalog plumbing, not campaign loading: selecting, launching and
+capturing sectors still needs the live campaign UI.
 
 ## Atomic storage
 
@@ -51,9 +121,13 @@ No content format is parsed or invented here.
   trailing-slash roots, id formatting, traversal/absolute/separator/truncation
   rejection.
 - `tests/platform/test_settings_store.c`: primary/backup settings round-trips,
-  backup fallback, atomic sector write/read, probe round-trip and cleanup.
+  backup fallback, settings status sizes, atomic sector write/read, probe
+  round-trip and cleanup.
+- `tests/platform/test_sector_catalog.c`: sorted SD catalog, capacity limits,
+  malformed names, unrelated files, raw/zlib headers and missing directories.
 - `./dev.sh test` runs both tests.
-- `./dev.sh emu-test` verifies STORAGE paths and the SD probe round-trip.
+- `./dev.sh emu-test --expect-sector-catalog 2` verifies the staged sector
+  catalog plus STORAGE paths and the SD probe round-trip.
 
 ## Remaining work
 

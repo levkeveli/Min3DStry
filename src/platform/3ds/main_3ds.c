@@ -17,6 +17,8 @@
 #include "ndsp_backend.h"
 #include "platform/hardware_profile.h"
 #include "platform/memory_budget.h"
+#include "platform/save_slot.h"
+#include "platform/sector_catalog.h"
 #include "platform/sd_paths.h"
 #include "platform/settings_store.h"
 #include "platform/worker_benchmark.h"
@@ -25,6 +27,7 @@
 #include "render/scene_2d.h"
 #include "sim/parity_scenario.h"
 #include "ui/pause_menu.h"
+#include "ui/pause_overlay.h"
 #include "ui/touch_controls.h"
 
 #if M3DS_AUDIO_ROMFS
@@ -160,6 +163,68 @@ int main(int argc, char *argv[]) {
                  "[MIN3DSTRY] STORAGE_ROUNDTRIP status=failed root=sdmc:/3ds/min3dstry\n");
     }
     m3ds_emit_debug_line(log_socket, dbg_line);
+
+    M3dsSettingsStatus settings_status;
+    if (m3ds_settings_store_status(M3DS_SD_ROOT, &settings_status)) {
+        snprintf(dbg_line, sizeof(dbg_line),
+                 "[MIN3DSTRY] SETTINGS primary=%d backup=%d primary_bytes=%u backup_bytes=%u\n",
+                 settings_status.primary_present ? 1 : 0,
+                 settings_status.backup_present ? 1 : 0,
+                 (unsigned)settings_status.primary_bytes,
+                 (unsigned)settings_status.backup_bytes);
+    } else {
+        snprintf(dbg_line, sizeof(dbg_line),
+                 "[MIN3DSTRY] SETTINGS status=invalid\n");
+    }
+    m3ds_emit_debug_line(log_socket, dbg_line);
+
+    M3dsSaveSlotInfo save_slot = {0};
+    char save_slot_path[96];
+    if (m3ds_sd_sector_save_path(
+            "sdmc:/3ds/min3dstry", "serpulo", 170u, save_slot_path, sizeof(save_slot_path))) {
+        (void)m3ds_save_slot_probe(save_slot_path, &save_slot);
+        snprintf(dbg_line, sizeof(dbg_line),
+                 "[MIN3DSTRY] SAVE_SLOT present=%d valid=%d compressed=%d version=%u bytes=%u path=%s\n",
+                 save_slot.present ? 1 : 0, save_slot.valid ? 1 : 0,
+                 save_slot.compressed ? 1 : 0, (unsigned)save_slot.version,
+                 (unsigned)save_slot.bytes, save_slot_path);
+    } else {
+        snprintf(dbg_line, sizeof(dbg_line),
+                 "[MIN3DSTRY] SAVE_SLOT status=invalid_path\n");
+    }
+    m3ds_emit_debug_line(log_socket, dbg_line);
+    if (save_slot.has_meta) {
+        snprintf(dbg_line, sizeof(dbg_line),
+                 "[MIN3DSTRY] SAVE_META map=%s wave=%u\n",
+                 save_slot.map_name, (unsigned)save_slot.wave);
+        m3ds_emit_debug_line(log_socket, dbg_line);
+    }
+
+    M3dsSectorSlot sectors[M3DS_SECTOR_CATALOG_MAX];
+    size_t sector_count = m3ds_sector_catalog_scan(
+        "sdmc:/3ds/min3dstry", sectors, M3DS_SECTOR_CATALOG_MAX);
+    snprintf(dbg_line, sizeof(dbg_line),
+             "[MIN3DSTRY] SECTOR_CATALOG count=%u\n", (unsigned)sector_count);
+    m3ds_emit_debug_line(log_socket, dbg_line);
+    for (size_t i = 0; i < sector_count; ++i) {
+        snprintf(dbg_line, sizeof(dbg_line),
+                 "[MIN3DSTRY] SECTOR_SLOT planet=%.15s id=%u valid=%d compressed=%d bytes=%u",
+                 sectors[i].planet, (unsigned)sectors[i].id,
+                 sectors[i].valid ? 1 : 0, sectors[i].compressed ? 1 : 0,
+                 (unsigned)sectors[i].bytes);
+        size_t used = strlen(dbg_line);
+        if (sectors[i].has_meta && used + 2u < sizeof(dbg_line)) {
+            snprintf(dbg_line + used, sizeof(dbg_line) - used,
+                     " map=%.47s wave=%u", sectors[i].map_name,
+                     (unsigned)sectors[i].wave);
+        }
+        used = strlen(dbg_line);
+        if (used < sizeof(dbg_line) - 1u) {
+            dbg_line[used++] = '\n';
+            dbg_line[used] = '\0';
+        }
+        m3ds_emit_debug_line(log_socket, dbg_line);
+    }
 
     {
         M3dsMemoryBudget memory_budget;
@@ -647,6 +712,9 @@ int main(int argc, char *argv[]) {
         (void)m3ds_minimap_render(
             &scene, &factory, &backend, M3DS_TOP_SCREEN_WIDTH - 104.0f, 8.0f,
             96.0f, 64.0f);
+        M3dsPauseOverlayStats overlay_stats;
+        (void)m3ds_pause_overlay_render(
+            &backend, &scene.viewport, scene.paused, &overlay_stats);
         C3D_FrameEnd(0);
 
         printf("\x1b[1;1HMin3DStry - Factory Prototype\x1b[K");
@@ -678,6 +746,32 @@ int main(int argc, char *argv[]) {
                (double)m3ds_scene_zoom(&scene));
         printf("\x1b[14;1H%s\x1b[K", hw_summary);
         printf("\x1b[19;1HTouch: pad / zoom / menu\x1b[K");
+        if (save_slot.present && save_slot.valid) {
+            printf("\x1b[20;1HSave: v%u %uB\x1b[K",
+                   (unsigned)save_slot.version, (unsigned)save_slot.bytes);
+        } else if (save_slot.present && save_slot.compressed) {
+            printf("\x1b[20;1HSave: zlib %uB\x1b[K", (unsigned)save_slot.bytes);
+        } else if (save_slot.present) {
+            printf("\x1b[20;1HSave: invalid %uB\x1b[K", (unsigned)save_slot.bytes);
+        } else {
+            printf("\x1b[20;1HSave: none\x1b[K");
+        }
+        printf("\x1b[21;1HSectors: %u\x1b[K", (unsigned)sector_count);
+        for (size_t i = 0; i < 4u; ++i) {
+            char label[64];
+            if (i < sector_count && m3ds_sector_catalog_label(
+                    &sectors[i], label, sizeof(label))) {
+                printf("\x1b[%u;1H %s\x1b[K", (unsigned)(22u + i), label);
+            } else {
+                printf("\x1b[%u;1H\x1b[K", (unsigned)(22u + i));
+            }
+        }
+        if (save_slot.has_meta) {
+            printf("\x1b[26;1HMap: %s wave=%u\x1b[K",
+                   save_slot.map_name, (unsigned)save_slot.wave);
+        } else {
+            printf("\x1b[26;1H\x1b[K");
+        }
         if (pause_menu.open) {
             printf("\x1b[15;1H=== PAUSED ===  Up/Down + A\x1b[K");
             for (uint8_t i = 0u; i < M3DS_PAUSE_ACTION_COUNT; ++i) {
