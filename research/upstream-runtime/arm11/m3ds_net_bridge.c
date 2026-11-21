@@ -15,7 +15,8 @@ static LightLock world_tcp_lock;
 static void keep_world_connection_alive(void *arg) {
     M3dsNetClient *connection = arg;
     bool logged = false;
-    while (LightEvent_WaitTimeout(&world_load_done, INT64_C(3000000000))) {
+    // libctru returns a nonzero value on timeout and zero when signaled.
+    while (LightEvent_WaitTimeout(&world_load_done, INT64_C(3000000000)) != 0) {
         LightLock_Lock(&world_tcp_lock);
         bool sent = m3ds_net_client_keep_alive(connection, true);
         LightLock_Unlock(&world_tcp_lock);
@@ -107,13 +108,22 @@ int32_t m3ds_live_net_receive(void *payload, int32_t capacity, int32_t reliable,
 }
 
 int32_t m3ds_live_net_send(const void *payload, int32_t length, int32_t packet_id, int32_t reliable) {
-    return length >= 0 && length <= M3DS_NET_MAX_PACKET_SIZE &&
-        packet_id >= 0 && packet_id <= UINT8_MAX &&
-        m3ds_net_client_send(client, reliable != 0, (uint8_t)packet_id, payload, (size_t)length);
+    if (length < 0 || length > M3DS_NET_MAX_PACKET_SIZE || packet_id < 0 || packet_id > UINT8_MAX) {
+        return 0;
+    }
+    bool loading_tcp = reliable && world_keep_alive;
+    if (loading_tcp) LightLock_Lock(&world_tcp_lock);
+    bool sent = m3ds_net_client_send(client, reliable != 0, (uint8_t)packet_id, payload, (size_t)length);
+    if (loading_tcp) LightLock_Unlock(&world_tcp_lock);
+    return sent;
 }
 
 int32_t m3ds_live_net_keep_alive(int32_t reliable) {
-    return m3ds_net_client_keep_alive(client, reliable != 0);
+    bool loading_tcp = reliable && world_keep_alive;
+    if (loading_tcp) LightLock_Lock(&world_tcp_lock);
+    bool sent = m3ds_net_client_keep_alive(client, reliable != 0);
+    if (loading_tcp) LightLock_Unlock(&world_tcp_lock);
+    return sent;
 }
 
 static uint8_t pack_axis(int value) {
