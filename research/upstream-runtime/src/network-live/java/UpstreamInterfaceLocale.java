@@ -21,4 +21,16 @@ final class UpstreamInterfaceLocale {
         };
         return I18NBundle.createBundle(path, locale);
     }
+
+    static I18NBundle load(Fi path, int language, String requested) {
+        if (requested.equals("en")) return I18NBundle.createBundle(path, Locale.ROOT);
+        if (requested.matches("[a-z]{2,3}(?:_[A-Z]{2})?")
+                && path.sibling("bundle_" + requested + ".properties").exists()) {
+            String[] components = requested.split("_");
+            Locale locale = components.length == 1
+                ? new Locale(components[0]) : new Locale(components[0], components[1]);
+            return I18NBundle.createBundle(path, locale);
+        }
+        return load(path, language);
+    }
 }
