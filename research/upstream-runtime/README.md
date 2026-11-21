@@ -1048,7 +1048,7 @@ icons through the original atlas, including the stock error sprite. For
 atlas-backed QuadMarker draws, the batch submits the two original triangles
 to Citro3D and clips them at atlas tile edges while preserving position, UV
 and interpolated tint. Lighting, minimap display, standalone textures,
-dynamic Canvas and Logic Display textures, and varying legacy mix colors
+Canvas-backed quads, Logic Display textures, and varying legacy mix colors
 require further renderer support.
 
 The `runProbeJvm` snapshot reference round-trips the original create,
@@ -1089,6 +1089,28 @@ passed the replay on both 3DS emulator profiles connected to the
 unmodified v160.8 Java server. Both runs checked the interpolated red
 tint and original pixels in three atlas tiles before a corner was moved,
 then captured the updated geometry, Router texture and marker removal.
+
+### Stock Canvas blocks
+
+The renderer uses v160.8 CanvasBlock's packed palette data, pixmap
+decoder, invalidation contract and border draw. Its 12×12 and 24×24
+images upload to a bounded pool of 32×32 native textures. A TextureMarker
+linked to a Canvas on the map uses the same pixel buffer and refreshes
+it when the Canvas changes, including when its tile is offscreen.
+
+`runBuildingLayersJvm` checks both palettes, neighbor blending, the
+original Canvas save payload, image refresh and disposal. Add
+`--verify-canvas` to the stationary Glacier replay to check Canvas
+pixels decoded from the original WorldStream, then compare the building
+and linked marker after an original configuration packet. The Canvas
+editor remains open.
+
+The [ARM11 Canvas build](https://github.com/levkeveli/Min3DStry/actions/runs/44930023192)
+passed on both 3DS emulator profiles against the unmodified Java v160.8
+Glacier server. The replay matched the original palette pixels on both
+Canvas sizes at join, then matched the updated pixels in the small
+Canvas and its linked marker after the stock configuration message.
+The original logic, sprite and quad marker replays also passed.
 
 ### Verify the Arc executor pools
 
