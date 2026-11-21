@@ -33,6 +33,30 @@ The round-trip writes, reads back and deletes a four-byte
 `storage-probe.bin` through `sdmc:`; it never touches `settings.bin` or sector
 saves. The Azahar verifier requires both lines on both models.
 
+## Save-slot header probe
+
+`include/platform/save_slot.h` inspects the upstream `.msav` container without
+rewriting it. Upstream `SaveIO` wraps the `MSAV` + version stream in zlib, so
+the probe reports three cases:
+
+- raw `MSAV`: `valid=true` plus the little-endian version;
+- zlib wrapper (`0x78 0x9c` and a valid zlib header check): `compressed=true`;
+- anything else: `present=true, valid=false`.
+
+Decoding the version inside the zlib stream needs an inflater; that remains
+open. A missing slot is `present=false`.
+
+`main_3ds.c` probes `/3ds/min3dstry/sector-serpulo-170.msav` once at startup and
+logs:
+
+```text
+[MIN3DSTRY] SAVE_SLOT present=1 valid=0 compressed=1 version=0 bytes=<size> path=sdmc:/3ds/min3dstry/...
+```
+
+The bottom HUD shows `Save: v13 <bytes>B` for a raw header, `Save: zlib <bytes>B`
+for the upstream compressed container, `Save: invalid <bytes>B`, or
+`Save: none`. This is status plumbing, not save loading/writing.
+
 ## Atomic storage
 
 `include/platform/settings_store.h` stores opaque bytes:
