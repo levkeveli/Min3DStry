@@ -101,7 +101,7 @@ case "${1:-}" in
     "$host_python" tools/port_progress.py --check
     "$host_python" -m unittest discover -s .github/scripts -p 'test_*.py'
     "$host_python" -m unittest discover -s tests/tools -p 'test_*.py'
-    for file in docs/porting/combat-waves-pathfinding.md research/upstream-runtime/host/UpstreamCombatSimulationBaseline.java research/upstream-runtime/src/gameplay/java/UpstreamCombatTickProbe.java research/upstream-runtime/src/gameplay/java/UpstreamWaveRoutingProbe.java docs/porting/audio-runtime-bindings.md research/upstream-runtime/host/UpstreamAudioBaseline.java research/upstream-runtime/src/gameplay/java/UpstreamAudioTickProbe.java include/audio/audio_stream.h src/audio/audio_stream.c src/platform/3ds/ndsp_stream_backend.h src/platform/3ds/ndsp_stream_backend.c tests/audio/test_audio_stream.c docs/audio/music-streaming.md; do
+    for file in docs/porting/combat-waves-pathfinding.md research/upstream-runtime/host/UpstreamCombatSimulationBaseline.java research/upstream-runtime/src/gameplay/java/UpstreamCombatTickProbe.java research/upstream-runtime/src/gameplay/java/UpstreamWaveRoutingProbe.java docs/porting/audio-runtime-bindings.md research/upstream-runtime/host/UpstreamAudioBaseline.java research/upstream-runtime/src/gameplay/java/UpstreamAudioTickProbe.java include/audio/audio_stream.h src/audio/audio_stream.c src/platform/3ds/ndsp_stream_backend.h src/platform/3ds/ndsp_stream_backend.c tests/audio/test_audio_stream.c docs/audio/music-streaming.md include/audio/audio_vorbis_stream.h src/audio/audio_vorbis_stream.c src/platform/3ds/tremor_stream_source.h src/platform/3ds/tremor_stream_source.c tests/audio/test_audio_vorbis_stream.c; do
       test -s "$file" || { echo "Missing or empty: $file" >&2; exit 1; }
     done
 
@@ -201,6 +201,11 @@ case "${1:-}" in
       src/audio/audio_stream.c tests/audio/test_audio_stream.c \
       -o build/host/test_audio_stream
     ./build/host/test_audio_stream
+
+    "$host_cc" -std=c11 -Wall -Wextra -Werror -Iinclude \
+      src/audio/audio_stream.c src/audio/audio_vorbis_stream.c \
+      tests/audio/test_audio_vorbis_stream.c -o build/host/test_audio_vorbis_stream
+    ./build/host/test_audio_vorbis_stream
 
     "$host_cc" -std=c11 -Wall -Wextra -Werror -Iinclude \
       src/net/mindustry_net.c tests/net/test_mindustry_net.c -o build/host/test_mindustry_net
