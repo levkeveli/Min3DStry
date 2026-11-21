@@ -18,6 +18,7 @@
 #include "platform/hardware_profile.h"
 #include "platform/memory_budget.h"
 #include "platform/msav_inflate.h"
+#include "platform/msav_world.h"
 #include "platform/save_slot.h"
 #include "platform/sector_catalog.h"
 #include "platform/sd_paths.h"
@@ -233,6 +234,16 @@ int main(int argc, char *argv[]) {
                  sectors[0].planet, (unsigned)sectors[0].id,
                  (unsigned)raw_size, (unsigned)inflated_size,
                  inflate_ok ? "ok" : "failed");
+        m3ds_emit_debug_line(log_socket, dbg_line);
+        M3dsMsavWorld world;
+        bool world_ok = inflate_ok
+            && m3ds_msav_parse_world_header(inflated, inflated_size, &world);
+        snprintf(dbg_line, sizeof(dbg_line),
+                 "[MIN3DSTRY] SECTOR_WORLD version=%u width=%u height=%u status=%s\n",
+                 world_ok ? (unsigned)world.version : 0u,
+                 world_ok ? (unsigned)world.width : 0u,
+                 world_ok ? (unsigned)world.height : 0u,
+                 world_ok ? "ok" : "failed");
         m3ds_emit_debug_line(log_socket, dbg_line);
         free(raw);
         free(inflated);

@@ -79,8 +79,16 @@ logs:
 [MIN3DSTRY] SECTOR_INFLATE planet=serpulo id=170 raw=11072 bytes=45955 status=ok
 ```
 
-This proves the full compressed container is readable and inflatable on ARM11;
-world parsing/loading is still separate work.
+This proves the full compressed container is readable and inflatable on ARM11.
+`include/platform/msav_world.h` then walks the region lengths and reads the
+world dimensions from the map region:
+
+```text
+[MIN3DSTRY] SECTOR_WORLD version=13 width=150 height=250 status=ok
+```
+
+World parsing/loading is still separate work; no world or tile buffer is
+allocated.
 
 ## SD sector catalog
 
