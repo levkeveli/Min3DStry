@@ -686,6 +686,9 @@ session. It checks original team-cell colors, the exposed Gamma engine
 and both Dagger weapon tips. The
 [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44871445657)
 passed the unit capture on both Old and New 3DS Azahar profiles.
+The same build passed the `--controls --controls-replay --building`
+replay on both profiles, including live construction, movement with
+both inputs, wave synchronization and disconnect.
 
 The renderer still selects blocks that use the supported sprite operations.
 Textured raw vertices, additional payload types and other rendering services

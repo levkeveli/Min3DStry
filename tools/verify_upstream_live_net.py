@@ -50,7 +50,10 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
     # The pinned Azahar movie header and HID sample definitions use packed little-endian fields.
     revision = bytes.fromhex("219d743a1e698101fe1ab8bef43e6563126c3c27")
     samples_per_second = 234
-    frames = (first_move + 23) * samples_per_second
+    # In the construction replay the O0 renderer can take longer between input polls.
+    circle_at = first_move + (18 if building else 6)
+    leave_at = first_move + (44 if building else 16)
+    frames = (leave_at + 7) * samples_per_second
     header = struct.pack("<4sQ20sQQ32sIQq156x", b"CTM\x1b", 0, revision, 1780000000,
                          0x4D334453, b"Min3DStry input verification", 0, frames, 0)
     touch_idle = struct.pack("<B6x", 1)
@@ -70,10 +73,10 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
         movie.write(header)
         for frame in range(frames):
             seconds = frame // samples_per_second
-            buttons = (1 << 4) if seconds == first_move else (1 << 3) if seconds == first_move + 16 else 0
+            buttons = (1 << 4) if seconds == first_move else (1 << 3) if seconds == leave_at else 0
             if building and seconds in (35, 37, 39):
                 buttons = 1  # A, with releases so a late HID poll can observe another press.
-            circle_y = 106 if seconds == first_move + 6 else 0
+            circle_y = 106 if seconds == circle_at else 0
             point = next((point for start, point in taps if start <= seconds < start + 2), None)
             pad = struct.pack("<BHhh", 0, buttons, 0, circle_y)
             if point:
