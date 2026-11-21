@@ -1,3 +1,4 @@
+import port.render.UpstreamCrackAtlas;
 import arc.Core;
 import arc.files.Fi;
 import arc.graphics.g2d.Draw;
@@ -50,6 +51,7 @@ public final class UpstreamRenderedNetworkProbe {
     private void loadGraphics() {
         System.out.println("UPSTREAM_INTERFACE_GRAPHICS atlas");
         UpstreamTerrainDrawProbe.loadAtlas(atlas, true);
+        UpstreamCrackAtlas.load();
         viewport = UpstreamTerrainDrawProbe.liveViewport(target);
         target.initialize();
         System.out.println("UPSTREAM_INTERFACE_GRAPHICS labels");

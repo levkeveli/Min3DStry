@@ -39,10 +39,14 @@ final class UpstreamBuildingLayers {
                     Draw.z(Layer.block);
                     block.drawBase(build.tile);
                     Draw.reset();
+                    drawCracks(build);
                     Draw.z(Layer.block);
                     if (build.team != viewer && block.drawTeamOverlay) build.drawTeam();
                 }
                 Draw.reset();
+            }
+            for (var build : visible) {
+                if (!build.block.drawDynamic) drawCracks(build);
             }
         } finally {
             try {
@@ -51,6 +55,13 @@ final class UpstreamBuildingLayers {
                 visible.clear();
             }
         }
+    }
+
+    private static void drawCracks(Building build) {
+        if (!build.damaged()) return;
+        Draw.z(Layer.blockCracks);
+        build.drawCracks();
+        Draw.reset();
     }
 
     private void drawCached(BuildingCacheLayer layer, Team viewer) {

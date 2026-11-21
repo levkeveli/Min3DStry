@@ -575,6 +575,10 @@ Large Copper Wall and Mechanical Drill draw order. The wall's anchor is
 outside the viewport, and a second wall lies entirely outside. The live
 verifier's `--controls --building-layers --world-atlas` mode loads the
 wall and drill through the stock Java server's original world stream.
+The [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44862056777)
+passed on both Azahar profiles. The verifier checked the original wall,
+drill and Core Nucleus colors and confirmed that the wall was clipped
+to the viewport.
 
 The renderer still selects blocks that use the supported sprite operations.
 Crack textures, raw vertices, mix color and other rendering services are

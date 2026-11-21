@@ -89,6 +89,25 @@ def readUpstream = { path ->
     }.standardOutput.asBytes.get()
 }
 
+def renderedBuilding = layout.buildDirectory.dir('building-renderer-classes')
+def stageRenderedBuilding
+if (probe == 'network-render') {
+    def asm = configurations.detachedConfiguration(dependencies.create('org.ow2.asm:asm-tree:9.9'))
+    def adapter = tasks.register('compileBuildingCrackAdapter', JavaCompile) {
+        source file('tools/StageBuildingCrackAdapter.java')
+        classpath = asm
+        destinationDirectory = layout.buildDirectory.dir('building-renderer-tool')
+    }
+    stageRenderedBuilding = tasks.register('stageRenderedBuilding', JavaExec) {
+        dependsOn adapter
+        classpath = files(adapter.flatMap { it.destinationDirectory }) + asm
+        mainClass = 'StageBuildingCrackAdapter'
+        inputs.file(referenceJar)
+        outputs.dir(renderedBuilding)
+        args referenceJar.absolutePath, renderedBuilding.get().asFile.absolutePath
+    }
+}
+
 if (usesArcSources || usesExecutor) {
     def stagedClasses = []
     if (usesContentSources) {
@@ -112,12 +131,19 @@ if (usesArcSources || usesExecutor) {
     if (patchesPlanetGrid) {
         stagedClasses.addAll(['mindustry/graphics/g3d/PlanetGrid.class', 'mindustry/graphics/g3d/PlanetGrid$*.class'])
     }
+    if (stageRenderedBuilding != null) {
+        stagedClasses.add('mindustry/gen/Building.class')
+    }
     // TeaVM resolves dependency classes before compiled project classes.
     def contentDependencies = tasks.register('prepareContentDependencies', Zip) {
         dependsOn 'prepareUpstreamProbe'
         inputs.property('stagedClasses', stagedClasses)
         from(zipTree(referenceJar)) {
             exclude stagedClasses
+        }
+        if (stageRenderedBuilding != null) {
+            dependsOn stageRenderedBuilding
+            from(renderedBuilding)
         }
         destinationDirectory = layout.buildDirectory.dir("probe-dependencies/${probe}")
         archiveFileName = 'server-probe-dependencies.jar'
