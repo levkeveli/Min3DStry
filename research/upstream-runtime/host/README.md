@@ -140,6 +140,48 @@ The byte count can vary between runs; the `MSAV` header and save version are
 the contract. This is a host-only reference. It does not read or write a
 Min3DStry format and is not a 3DS test.
 
+## Save resilience checks
+
+[Issue #42](https://github.com/levkeveli/Min3DStry/issues/42) adds host checks
+for malformed, unsupported and interrupted saves. They use only the pinned
+server JAR, the original Glacier map and upstream `SaveIO`:
+
+```sh
+javac -cp /path/to/server-release.jar -d /tmp/save-resilience \
+    /path/to/Min3DStry/research/upstream-runtime/host/UpstreamSaveResilienceProbe.java
+java -cp /path/to/server-release.jar:/tmp/save-resilience \
+    UpstreamSaveResilienceProbe /path/to/glacier.msav
+```
+
+Expected records:
+
+```text
+UPSTREAM_SAVE_RESILIENCE valid=ok
+UPSTREAM_SAVE_RESILIENCE truncated=rejected
+UPSTREAM_SAVE_RESILIENCE bad_header=rejected
+UPSTREAM_SAVE_RESILIENCE unknown_version=rejected
+UPSTREAM_SAVE_RESILIENCE backup=recovered
+MIN3DSTRY_SAVE_POLICY existing=protected
+MIN3DSTRY_SAVE_POLICY interrupted=rejected
+UPSTREAM_SAVE_RESILIENCE_PASS
+```
+
+The probe writes to a temporary directory, loads the valid save back through
+`SaveIO.load`, rejects a truncated save at full-load time, rejects bad headers
+and unknown versions, and verifies that `SaveIO`'s backup file is used when the
+main slot is corrupt. `SaveIO.isSaveValid` only reads metadata, so a truncated
+save can still report valid metadata; the full load is the authoritative check.
+The `UPSTREAM_SAVE_RESILIENCE` records cover upstream behavior: the backup
+record uses `SaveIO.save` to create the sibling backup, then
+`SaveIO.isSaveValid`/`SaveIO.load` to recover from a corrupt main slot.
+`MIN3DSTRY_SAVE_POLICY` records are port-side checks, not upstream claims: the
+interrupted-write check writes to a sibling `.tmp` file, validates it, and only
+then moves it into place; an injected failure must leave neither a final save
+nor a temporary save. The existing-save check verifies that the port policy
+never replaces a valid file. This is a host-only check, not a Min3DStry format
+and not a 3DS result; the ARM11 round-trip probe still writes a new output only
+and validates it by reloading.
+
 ## Audio asset inventory
 
 Issue #29 needs the exact pinned sound/music set before conversion. The server
@@ -229,7 +271,8 @@ To exercise pinned v160.8 `Core.settings` (`settings.bin`), `TechTree.TechNode`,
 `UnlockableContent`, `Sector`/`SectorInfo`, `Objectives` prerequisites,
 `sector-<planet.name>-<sector.id>.msav` slot naming/resolution (`Saves.getSectorFile(sector)`
 and `SaveSlot` attachment — world `.msav` read/write round-trips are covered by
-`UpstreamSaveBaseline.java`), save and cold-reload round-trips, `settings_backup.bin`
+`UpstreamWorldRoundTripProbe.java`, and malformed/interrupted save handling by
+`UpstreamSaveResilienceProbe.java`), save and cold-reload round-trips, `settings_backup.bin`
 backup recovery, and malformed settings resilience:
 
 ```sh
@@ -240,3 +283,39 @@ java -cp /path/to/server-release.jar \
 Look for `UPSTREAM_CAMPAIGN_PASS tech_nodes=375 sectors=95`. See
 [the campaign progression persistence design](../../../docs/porting/campaign-progression.md)
 for upstream key schemas and remaining ARM11 runtime work (`#41`).
+
+## Production, power, and liquid simulation baseline
+
+To exercise pinned `v160.8` production blocks (`GenericCrafter`, `Pump`,
+`ConsumeGenerator`, `Battery`, `PowerNode`, `Conduit`, `LiquidRouter`,
+`LiquidTank`), starvation, power-graph disconnect/reconnect, capacity clamping,
+and repeated-run update-ordering determinism against `server-release.jar`:
+
+```sh
+java -cp /path/to/server-release.jar \
+    /path/to/Min3DStry/research/upstream-runtime/host/UpstreamProductionBaseline.java
+```
+
+Look for `UPSTREAM_PRODUCTION_CATALOG blocks=12` and
+`UPSTREAM_PRODUCTION_ORDER runs=2 ticks=2693`. See
+[the production, power, and liquid design](../../../docs/porting/production-power-liquids.md)
+for pinned scenario details and remaining ARM11 work (`#39`).
+
+## Factory and logistics simulation baseline
+
+To exercise pinned `v160.8` distribution and drilling blocks (`Conveyor`,
+`Junction`, `Router`, `Sorter`, `OverflowGate`, `BufferedItemBridge`, `Drill`,
+`CoreBlock`), orthogonal junction crossings, sorter filtering, overflow
+saturation, mechanical-drill delivery timing, and repeated-run determinism
+against `server-release.jar`:
+
+```sh
+java -cp /path/to/server-release.jar \
+    /path/to/Min3DStry/research/upstream-runtime/host/UpstreamFactoryBaseline.java
+```
+
+Look for `UPSTREAM_FACTORY_CATALOG blocks=16` and
+`UPSTREAM_FACTORY_ORDER runs=2 ticks=720`. See
+[the factory and logistics baseline design](../../../docs/porting/factory-logistics.md)
+for pinned scenarios, TeaVM C `-O0`/`-O2` parity, and remaining ARM11 memory
+work (`#26`).

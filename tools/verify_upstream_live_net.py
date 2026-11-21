@@ -1052,6 +1052,11 @@ def run_model(args, model, config, original_config, log, output):
                             map_spawn = inspect_map_spawn(server_log, server)
                             world_size = tuple(map(int, map_spawn[:2]))
                             verify_map_spawn(log, emulator, map_name, map_spawn, spawn)
+                        if args.require_relocation_spill:
+                            pattern = r"UPSTREAM_GC_RELOCATION_SPILL bytes=[1-9]\d*\b"
+                            trace = wait_for(log, emulator, pattern, 5)
+                            for spill in re.findall(pattern, trace):
+                                print(f"{model}: {spill}", flush=True)
                         phase = "spawn"
                         if args.building_effects:
                             phase = "building-effects"
@@ -1142,6 +1147,9 @@ def run_model(args, model, config, original_config, log, output):
             # The stationary render check ends by terminating the emulator process.
             departure = r"\((closed|disappeared|error)\)" if stationary else r"\((closed|disappeared)\)"
             expected_departures = all(re.search(departure, line) for line in departures)
+            if stationary and any("(error)" in line for line in departures):
+                print(f"{model}: stationary verification ended by emulator kill; "
+                      "accepted the server's (error) departure", flush=True)
             expected_joins = 1 if args.controls else 2
             if ((not args.controls and "clientOutdated" not in upstream)
                     or upstream.count(f"{PLAYER} has connected") != expected_joins
@@ -1232,6 +1240,8 @@ def main():
                             help="Verify the world and stationary player spawn on a stock server map")
     parser.add_argument("--erekir-sector", metavar="SLUG",
                         help="Import an unchanged Erekir campaign map from the official server jar for --map-spawn")
+    parser.add_argument("--require-relocation-spill", action="store_true",
+                        help="Require the ARM11 collector to grow its relocation table during the spawn check")
     args = parser.parse_args()
     args.server, args.rom, args.azahar = (path.resolve() for path in (args.server, args.rom, args.azahar))
     with args.server.open("rb") as archive:
@@ -1282,6 +1292,8 @@ def main():
         with zipfile.ZipFile(args.server) as release:
             if f"maps/erekir/{args.erekir_sector}.msav" not in release.namelist():
                 parser.error(f"No Erekir sector {args.erekir_sector!r} in the official server jar")
+    if args.require_relocation_spill and not args.map_spawn:
+        parser.error("--require-relocation-spill needs --map-spawn")
     if args.building_effects and (not args.terrain_atlas or not args.controls or args.controls_replay):
         parser.error("--building-effects needs --controls and --terrain-atlas for a stationary capture")
     if args.liquids and (not args.terrain_atlas or not args.controls or args.controls_replay):

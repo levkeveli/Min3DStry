@@ -84,7 +84,7 @@ static bool emit_sprite(
         stats->budget_dropped++;
         return false;
     }
-    if (!backend->draw_sprite(backend->user_data, sprite, x, y, z)) {
+    if (!backend->draw_sprite(backend->user_data, sprite, x, y, z, w, h)) {
         return false;
     }
     stats->drawn_rects++;
@@ -228,19 +228,35 @@ void m3ds_scene_init(M3dsBoundedScene *scene, float viewport_w, float viewport_h
     scene->viewport.height = viewport_h > 0.0f ? viewport_h : M3DS_TOP_SCREEN_HEIGHT;
     scene->tick = 0;
     scene->paused = false;
+    scene->zoom = 1.0f;
+    scene->lighting = true;
     populate_prototype_map(scene);
     m3ds_scene_reset_camera(scene);
+}
+
+static float scene_zoom(const M3dsBoundedScene *scene) {
+    return (scene && scene->zoom > 0.0f) ? scene->zoom : 1.0f;
+}
+
+static void scene_clamp_camera(M3dsBoundedScene *scene) {
+    float zoom = scene_zoom(scene);
+    float world_w = (float)M3DS_SCENE_GRID_W * M3DS_TILE_SIZE_PX * zoom;
+    float world_h = (float)M3DS_SCENE_GRID_H * M3DS_TILE_SIZE_PX * zoom;
+    float max_x = world_w > scene->viewport.width ? world_w - scene->viewport.width : 0.0f;
+    float max_y = world_h > scene->viewport.height ? world_h - scene->viewport.height : 0.0f;
+    scene->camera_x = clampf(scene->camera_x, 0.0f, max_x);
+    scene->camera_y = clampf(scene->camera_y, 0.0f, max_y);
 }
 
 void m3ds_scene_reset_camera(M3dsBoundedScene *scene) {
     if (!scene) {
         return;
     }
-    float world_w = (float)M3DS_SCENE_GRID_W * M3DS_TILE_SIZE_PX;
-    float world_h = (float)M3DS_SCENE_GRID_H * M3DS_TILE_SIZE_PX;
-    float max_x = world_w - scene->viewport.width;
-    float max_y = world_h - scene->viewport.height;
-    /* Center initially on the core/conveyor/turret cluster */
+    float zoom = scene_zoom(scene);
+    float world_w = (float)M3DS_SCENE_GRID_W * M3DS_TILE_SIZE_PX * zoom;
+    float world_h = (float)M3DS_SCENE_GRID_H * M3DS_TILE_SIZE_PX * zoom;
+    float max_x = world_w > scene->viewport.width ? world_w - scene->viewport.width : 0.0f;
+    float max_y = world_h > scene->viewport.height ? world_h - scene->viewport.height : 0.0f;
     scene->camera_x = clampf((world_w - scene->viewport.width) * 0.5f, 0.0f, max_x);
     scene->camera_y = clampf((world_h - scene->viewport.height) * 0.5f, 0.0f, max_y);
 }
@@ -249,12 +265,44 @@ void m3ds_scene_pan(M3dsBoundedScene *scene, float dx, float dy) {
     if (!scene) {
         return;
     }
-    float world_w = (float)M3DS_SCENE_GRID_W * M3DS_TILE_SIZE_PX;
-    float world_h = (float)M3DS_SCENE_GRID_H * M3DS_TILE_SIZE_PX;
-    float max_x = world_w - scene->viewport.width;
-    float max_y = world_h - scene->viewport.height;
-    scene->camera_x = clampf(scene->camera_x + dx, 0.0f, max_x);
-    scene->camera_y = clampf(scene->camera_y + dy, 0.0f, max_y);
+    scene->camera_x += dx;
+    scene->camera_y += dy;
+    scene_clamp_camera(scene);
+}
+
+void m3ds_scene_set_zoom(M3dsBoundedScene *scene, float zoom) {
+    if (!scene) {
+        return;
+    }
+    float old_zoom = scene_zoom(scene);
+    float old_world_w = (float)M3DS_SCENE_GRID_W * M3DS_TILE_SIZE_PX * old_zoom;
+    float old_world_h = (float)M3DS_SCENE_GRID_H * M3DS_TILE_SIZE_PX * old_zoom;
+    float center_x = (scene->camera_x + scene->viewport.width * 0.5f) / old_world_w;
+    float center_y = (scene->camera_y + scene->viewport.height * 0.5f) / old_world_h;
+    scene->zoom = clampf(zoom, M3DS_SCENE_MIN_ZOOM, M3DS_SCENE_MAX_ZOOM);
+    float zoom_now = scene_zoom(scene);
+    float world_w = (float)M3DS_SCENE_GRID_W * M3DS_TILE_SIZE_PX * zoom_now;
+    float world_h = (float)M3DS_SCENE_GRID_H * M3DS_TILE_SIZE_PX * zoom_now;
+    scene->camera_x = center_x * world_w - scene->viewport.width * 0.5f;
+    scene->camera_y = center_y * world_h - scene->viewport.height * 0.5f;
+    scene_clamp_camera(scene);
+}
+
+void m3ds_scene_zoom_by(M3dsBoundedScene *scene, float delta) {
+    if (!scene) {
+        return;
+    }
+    m3ds_scene_set_zoom(scene, scene_zoom(scene) + delta);
+}
+
+void m3ds_scene_set_lighting(M3dsBoundedScene *scene, bool enabled) {
+    if (scene) {
+        scene->lighting = enabled;
+    }
+}
+
+bool m3ds_scene_lighting(const M3dsBoundedScene *scene) {
+    return scene ? scene->lighting : false;
 }
 
 void m3ds_scene_step(M3dsBoundedScene *scene, uint32_t ticks) {
@@ -309,45 +357,50 @@ bool m3ds_scene_render(
         return false;
     }
 
-    #define M3DS_MAX_QUEUED_CIRCLES 128u
+    #define M3DS_MAX_QUEUED_CIRCLES M3DS_SCENE_MAX_EFFECTS
     CircleCmd queued_circles[M3DS_MAX_QUEUED_CIRCLES];
     uint32_t queued_circle_count = 0;
 
     float phase = (float)(scene->tick % 16u) / 16.0f;
     float angle = (float)(scene->tick % 360u) * (3.14159265f / 180.0f);
+    float zoom = scene_zoom(scene);
+    float tile = M3DS_TILE_SIZE_PX * zoom;
+    float half = tile * 0.5f;
     bool textured = scene->show_sim_items && backend->draw_sprite != NULL;
 
     /* Pass 1: all non-circular primitives (rects, triangles, lines) */
     for (int gy = 0; gy < M3DS_SCENE_GRID_H; ++gy) {
         for (int gx = 0; gx < M3DS_SCENE_GRID_W; ++gx) {
-            float sx = (float)gx * M3DS_TILE_SIZE_PX - scene->camera_x;
-            float sy = (float)gy * M3DS_TILE_SIZE_PX - scene->camera_y;
+            float sx = (float)gx * tile - scene->camera_x;
+            float sy = (float)gy * tile - scene->camera_y;
             uint8_t kind = scene->tiles[gy][gx];
 
             M3dsColor base = ((gx + gy) & 1) == 0 ? clr_tile_even : clr_tile_odd;
             if (textured
-                ? !emit_sprite(backend, vp, &local_stats, M3DS_SPRITE_FLOOR, sx, sy, 0.0f, 16.0f, 16.0f)
+                ? !emit_sprite(backend, vp, &local_stats, M3DS_SPRITE_FLOOR, sx, sy, 0.0f, tile, tile)
                 : !emit_rect(backend, vp, &local_stats, sx, sy, 0.0f,
-                             M3DS_TILE_SIZE_PX, M3DS_TILE_SIZE_PX, base)) {
+                             tile, tile, base)) {
                 goto finish;
             }
 
             if (textured && kind == M3DS_TILE_COPPER_ORE) {
-                if (!emit_sprite(backend, vp, &local_stats, M3DS_SPRITE_OVERLAY, sx, sy, 0.2f, 16.0f, 16.0f)) {
+                if (!emit_sprite(backend, vp, &local_stats, M3DS_SPRITE_OVERLAY, sx, sy, 0.2f, tile, tile)) {
                     goto finish;
                 }
                 continue;
             }
             if (textured && kind == M3DS_TILE_CONVEYOR_RIGHT) {
                 M3dsSceneSprite strip = (scene->tick / 4u) % 2u ? M3DS_SPRITE_STRIP_1 : M3DS_SPRITE_STRIP_0;
-                if (!emit_sprite(backend, vp, &local_stats, strip, sx, sy + 4.0f, 0.1f, 16.0f, 8.0f)) {
+                if (!emit_sprite(backend, vp, &local_stats, strip,
+                                 sx, sy + 4.0f * zoom, 0.1f, tile, 8.0f * zoom)) {
                     goto finish;
                 }
                 uint8_t item = scene->belt_items[gy][gx];
                 if (item != 0u) {
                     float position = (float)(item - 1u) / 254.0f;
                     if (!emit_sprite(backend, vp, &local_stats, M3DS_SPRITE_ITEM,
-                                     sx - 1.0f + position * 12.0f, sy + 5.0f, 0.3f, 7.0f, 7.0f)) {
+                                     sx + (-1.0f + position * 12.0f) * zoom,
+                                     sy + 5.0f * zoom, 0.3f, 7.0f * zoom, 7.0f * zoom)) {
                         goto finish;
                     }
                 }
@@ -356,29 +409,29 @@ bool m3ds_scene_render(
             if (kind == M3DS_TILE_COPPER_ORE) {
                 if (queued_circle_count < M3DS_MAX_QUEUED_CIRCLES) {
                     queued_circles[queued_circle_count++] = (CircleCmd){
-                        sx + 8.0f, sy + 8.0f, 0.2f, 4.5f, clr_copper
+                        sx + half, sy + half, 0.2f, 4.5f * zoom, clr_copper
                     };
                 } else {
-                    local_stats.budget_dropped++;
+                    local_stats.effects_dropped++;
                 }
             } else if (kind == M3DS_TILE_LEAD_ORE) {
                 if (queued_circle_count < M3DS_MAX_QUEUED_CIRCLES) {
                     queued_circles[queued_circle_count++] = (CircleCmd){
-                        sx + 8.0f, sy + 8.0f, 0.2f, 4.5f, clr_lead
+                        sx + half, sy + half, 0.2f, 4.5f * zoom, clr_lead
                     };
                 } else {
-                    local_stats.budget_dropped++;
+                    local_stats.effects_dropped++;
                 }
             } else if (kind == M3DS_TILE_CONVEYOR_RIGHT) {
-                if (!emit_rect(backend, vp, &local_stats, sx + 1.0f, sy + 2.0f, 0.1f,
-                               14.0f, 12.0f, clr_belt)) {
+                if (!emit_rect(backend, vp, &local_stats, sx + 1.0f * zoom, sy + 2.0f * zoom, 0.1f,
+                               14.0f * zoom, 12.0f * zoom, clr_belt)) {
                     goto finish;
                 }
-                float cx = sx + 4.0f + phase * 8.0f;
+                float cx = sx + (4.0f + phase * 8.0f) * zoom;
                 if (!emit_triangle(backend, vp, &local_stats,
-                                   cx - 2.0f, sy + 4.0f,
-                                   cx - 2.0f, sy + 12.0f,
-                                   cx + 3.0f, sy + 8.0f,
+                                   cx - 2.0f * zoom, sy + 4.0f * zoom,
+                                   cx - 2.0f * zoom, sy + 12.0f * zoom,
+                                   cx + 3.0f * zoom, sy + 8.0f * zoom,
                                    0.2f, clr_belt_chev)) {
                     goto finish;
                 }
@@ -387,73 +440,76 @@ bool m3ds_scene_render(
                     float position = scene->show_sim_items ? (float)(item - 1u) / 254.0f : phase;
                     if (queued_circle_count < M3DS_MAX_QUEUED_CIRCLES) {
                         queued_circles[queued_circle_count++] = (CircleCmd){
-                            sx + 2.0f + position * 12.0f, sy + 8.0f, 0.3f, 2.5f, clr_copper
+                            sx + (2.0f + position * 12.0f) * zoom, sy + 8.0f * zoom,
+                            0.3f, 2.5f * zoom, clr_copper
                         };
                     } else {
-                        local_stats.budget_dropped++;
+                        local_stats.effects_dropped++;
                     }
                 }
             } else if (kind == M3DS_TILE_CONVEYOR_DOWN) {
-                if (!emit_rect(backend, vp, &local_stats, sx + 2.0f, sy + 1.0f, 0.1f,
-                               12.0f, 14.0f, clr_belt)) {
+                if (!emit_rect(backend, vp, &local_stats, sx + 2.0f * zoom, sy + 1.0f * zoom, 0.1f,
+                               12.0f * zoom, 14.0f * zoom, clr_belt)) {
                     goto finish;
                 }
-                float cy = sy + 4.0f + phase * 8.0f;
+                float cy = sy + (4.0f + phase * 8.0f) * zoom;
                 if (!emit_triangle(backend, vp, &local_stats,
-                                   sx + 4.0f, cy - 2.0f,
-                                   sx + 12.0f, cy - 2.0f,
-                                   sx + 8.0f, cy + 3.0f,
+                                   sx + 4.0f * zoom, cy - 2.0f * zoom,
+                                   sx + 12.0f * zoom, cy - 2.0f * zoom,
+                                   sx + 8.0f * zoom, cy + 3.0f * zoom,
                                    0.2f, clr_belt_chev)) {
                     goto finish;
                 }
                 if (!scene->show_sim_items && (gy + (int)(scene->tick / 16u)) % 2 == 0) {
                     if (queued_circle_count < M3DS_MAX_QUEUED_CIRCLES) {
                         queued_circles[queued_circle_count++] = (CircleCmd){
-                            sx + 8.0f, sy + 2.0f + phase * 12.0f, 0.3f, 2.5f, clr_copper
+                            sx + 8.0f * zoom, sy + (2.0f + phase * 12.0f) * zoom,
+                            0.3f, 2.5f * zoom, clr_copper
                         };
                     } else {
-                        local_stats.budget_dropped++;
+                        local_stats.effects_dropped++;
                     }
                 }
             } else if (kind == M3DS_TILE_WALL) {
-                if (!emit_rect(backend, vp, &local_stats, sx + 1.0f, sy + 1.0f, 0.2f,
-                               14.0f, 14.0f, clr_wall) ||
-                    !emit_rect(backend, vp, &local_stats, sx + 4.0f, sy + 4.0f, 0.25f,
-                               8.0f, 8.0f, clr_wall_hi)) {
+                if (!emit_rect(backend, vp, &local_stats, sx + 1.0f * zoom, sy + 1.0f * zoom, 0.2f,
+                               14.0f * zoom, 14.0f * zoom, clr_wall) ||
+                    !emit_rect(backend, vp, &local_stats, sx + 4.0f * zoom, sy + 4.0f * zoom, 0.25f,
+                               8.0f * zoom, 8.0f * zoom, clr_wall_hi)) {
                     goto finish;
                 }
             } else if (kind == M3DS_TILE_CORE) {
-                if (!emit_rect(backend, vp, &local_stats, sx + 1.0f, sy + 1.0f, 0.2f,
-                               14.0f, 14.0f, scene->show_sim_items ? clr_core_glow : clr_core)) {
+                if (!emit_rect(backend, vp, &local_stats, sx + 1.0f * zoom, sy + 1.0f * zoom, 0.2f,
+                               14.0f * zoom, 14.0f * zoom,
+                               scene->show_sim_items ? clr_core_glow : clr_core)) {
                     goto finish;
                 }
                 if (textured && queued_circle_count < M3DS_MAX_QUEUED_CIRCLES) {
                     queued_circles[queued_circle_count++] = (CircleCmd){
-                        sx + 8.0f, sy + 8.0f, 0.3f, 3.0f, clr_core
+                        sx + half, sy + half, 0.3f, 3.0f * zoom, clr_core
                     };
                 }
             } else if (kind == M3DS_TILE_TURRET) {
-                float tx = sx + 8.0f;
-                float ty = sy + 8.0f;
+                float tx = sx + half;
+                float ty = sy + half;
                 float dir_x = cosf(angle);
                 float dir_y = sinf(angle);
-                if (!emit_rect(backend, vp, &local_stats, sx + 2.0f, sy + 2.0f, 0.2f,
-                               12.0f, 12.0f, clr_turret) ||
+                if (!emit_rect(backend, vp, &local_stats, sx + 2.0f * zoom, sy + 2.0f * zoom, 0.2f,
+                               12.0f * zoom, 12.0f * zoom, clr_turret) ||
                     !emit_line(backend, vp, &local_stats,
-                               tx, ty, tx + dir_x * 10.0f, ty + dir_y * 10.0f,
-                               2.5f, 0.35f, clr_barrel) ||
+                               tx, ty, tx + dir_x * 10.0f * zoom, ty + dir_y * 10.0f * zoom,
+                               2.5f * zoom, 0.35f, clr_barrel) ||
                     !emit_line(backend, vp, &local_stats,
-                               tx + dir_x * 10.0f, ty + dir_y * 10.0f,
-                               tx + dir_x * 36.0f, ty + dir_y * 36.0f,
-                               1.0f, 0.35f, clr_scan_line)) {
+                               tx + dir_x * 10.0f * zoom, ty + dir_y * 10.0f * zoom,
+                               tx + dir_x * 36.0f * zoom, ty + dir_y * 36.0f * zoom,
+                               1.0f * zoom, 0.35f, clr_scan_line)) {
                     goto finish;
                 }
                 if (queued_circle_count < M3DS_MAX_QUEUED_CIRCLES) {
                     queued_circles[queued_circle_count++] = (CircleCmd){
-                        tx, ty, 0.3f, 4.0f, clr_belt_chev
+                        tx, ty, 0.3f, 4.0f * zoom, clr_belt_chev
                     };
                 } else {
-                    local_stats.budget_dropped++;
+                    local_stats.effects_dropped++;
                 }
             }
         }
@@ -461,22 +517,22 @@ bool m3ds_scene_render(
 
     /* Core center emblem (diamond + pulse circle queued for Pass 2) */
     if (!scene->show_sim_items) {
-        float core_cx = 17.5f * M3DS_TILE_SIZE_PX - scene->camera_x;
-        float core_cy = 12.5f * M3DS_TILE_SIZE_PX - scene->camera_y;
-        float pulse = 4.0f + 1.5f * sinf(angle * 2.0f);
+        float core_cx = 17.5f * tile - scene->camera_x;
+        float core_cy = 12.5f * tile - scene->camera_y;
+        float pulse = (4.0f + 1.5f * sinf(angle * 2.0f)) * zoom;
         if (!emit_triangle(backend, vp, &local_stats,
-                           core_cx, core_cy - 12.0f,
-                           core_cx - 12.0f, core_cy,
-                           core_cx + 12.0f, core_cy,
+                           core_cx, core_cy - 12.0f * zoom,
+                           core_cx - 12.0f * zoom, core_cy,
+                           core_cx + 12.0f * zoom, core_cy,
                            0.3f, clr_core_glow) ||
             !emit_triangle(backend, vp, &local_stats,
-                           core_cx - 12.0f, core_cy,
-                           core_cx + 12.0f, core_cy,
-                           core_cx, core_cy + 12.0f,
+                           core_cx - 12.0f * zoom, core_cy,
+                           core_cx + 12.0f * zoom, core_cy,
+                           core_cx, core_cy + 12.0f * zoom,
                            0.3f, clr_core_glow)) {
             goto finish;
         }
-        if (queued_circle_count < 128u) {
+        if (queued_circle_count < M3DS_SCENE_MAX_EFFECTS) {
             queued_circles[queued_circle_count++] = (CircleCmd){
                 core_cx, core_cy, 0.4f, pulse, clr_belt_chev
             };
@@ -488,6 +544,31 @@ bool m3ds_scene_render(
         const CircleCmd *c = &queued_circles[i];
         if (!emit_circle(backend, vp, &local_stats, c->cx, c->cy, c->z, c->radius, c->color)) {
             break;
+        }
+    }
+
+    /*
+     * Bounded lighting prototype: warm translucent circles around cores and
+     * turrets. The disabled path is a plain fallback with no extra draws.
+     */
+    if (scene->lighting) {
+        for (int gy = 0; gy < M3DS_SCENE_GRID_H; ++gy) {
+            for (int gx = 0; gx < M3DS_SCENE_GRID_W; ++gx) {
+                uint8_t kind = scene->tiles[gy][gx];
+                if (kind != M3DS_TILE_CORE && kind != M3DS_TILE_TURRET) {
+                    continue;
+                }
+                float cx = (float)gx * tile - scene->camera_x + half;
+                float cy = (float)gy * tile - scene->camera_y + half;
+                float radius = (kind == M3DS_TILE_CORE ? 24.0f : 13.0f) * zoom;
+                M3dsColor color = kind == M3DS_TILE_CORE
+                    ? m3ds_rgba(0xFF, 0xD3, 0x7F, 44)
+                    : m3ds_rgba(0xFF, 0xC8, 0x78, 30);
+                if (!emit_circle(backend, vp, &local_stats, cx, cy, 0.7f, radius, color)) {
+                    goto finish;
+                }
+                local_stats.light_circles++;
+            }
         }
     }
 

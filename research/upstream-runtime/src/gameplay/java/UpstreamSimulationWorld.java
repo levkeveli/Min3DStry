@@ -14,10 +14,15 @@ import mindustry.logic.GlobalVars;
 
 final class UpstreamSimulationWorld {
     static UpstreamWorldLoadProbe.ProbeApplication play(String[] args) throws IOException {
+        return play(args, () -> {});
+    }
+
+    static UpstreamWorldLoadProbe.ProbeApplication play(String[] args, Runnable beforeMap) throws IOException {
         CacheLayer.init();
         var app = UpstreamWorldLoadProbe.load(args, () -> {
             Vars.indexer = new BlockIndexer();
             Vars.spawner = new WaveSpawner();
+            beforeMap.run();
         });
         Core.graphics = new MockGraphics() {
             @Override

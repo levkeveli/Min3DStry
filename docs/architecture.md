@@ -4,16 +4,19 @@
 
 ## Upstream v160.8 ARM11 Bring-Up
 
-- [Upstream source runtime & resource probes](../research/upstream-runtime/README.md): Pinned Mindustry v160.8 + Arc `7445105cd2` compiled with TeaVM C against `libctru` adapters (tested in Azahar for `LogicOp`, `MapIO` Glacier metadata, Arc `Fi` resources, and JVM content registry baseline).
+- [Upstream source runtime & resource probes](../research/upstream-runtime/README.md): Pinned Mindustry v160.8 + Arc `7445105cd2` compiled with TeaVM C against `libctru` adapters (tested in Azahar for `LogicOp`, `MapIO` Glacier metadata, Arc `Fi` resources, the JVM content registry baseline, and the upstream combat, wave and ground-routing probes on ARM11).
 
 ## 3DS Platform & Hardware Test Harnesses (NOT the Game)
 
 > **Note for agents:** The native C prototypes below validate 3DS GPU rendering, audio, hardware detection, host testing, and tooling. **Do NOT expand them into a bespoke simplified Mindustry clone**; full gameplay, content, and simulation come from upstream Mindustry v160.8.
 
-- [Citro2D bounded rendering prototype](rendering/citro2d-prototype.md) (`M3dsRenderBackend` + `M3dsBoundedScene`, host-tested, 3DS-built via `./dev.sh build`, and emulator-tested in Azahar `2126.2` via `./dev.sh emu-test`; physical hardware verification pending).
+- [Citro2D bounded rendering prototype](rendering/citro2d-prototype.md) (`M3dsRenderBackend` + `M3dsBoundedScene` with clamped zoom, bounded effects, and a lighting fallback; host-tested, 3DS-built via `./dev.sh build`, and emulator-tested in Azahar `2126.2` via `./dev.sh emu-test`; physical hardware verification pending).
 - [Top-screen minimap prototype](rendering/minimap.md) (`m3ds_minimap_render`, host-tested and visible in Azahar screenshots; upstream HUD/menu parity pending).
+- [Pause-menu HUD prototype](ui/pause-menu.md) (`M3dsPauseMenu` Resume/Reset Camera/Quit state machine, host-tested; bottom-screen text HUD and Select/D-pad/A integration, upstream menu parity pending).
+- [Bottom-screen touch controls](ui/touch-controls.md) (`M3dsTouchAction` hit regions map touch to the existing pan/zoom/menu paths, host-tested and emulator-booted; graphical button art and touch menu-row selection pending).
 - [Hardware detection profile](hardware/detection.md) (`M3dsHardwareProfile` + `libctru` probe, host-tested, 3DS-built, and emulator-tested across Old/New 3DS modes in Azahar `2126.2`; physical Old/New 3DS hardware verification pending).
 - [Memory budget](hardware/memory-budget.md) (`M3dsMemoryBudget` bounded arena derived from the detected application-memory region, host-tested and Azahar-tested; the upstream TeaVM heap budget remains separate).
+- [Deterministic worker scheduling](hardware/worker-scheduling.md) (`M3dsWorkerPool` fixed-chunk jobs with serial fallback, host-tested and Azahar-tested for checksum determinism; the simulation tick remains single-threaded and physical timing is pending).
 - [Gameplay parity harness](testing/parity-harness.md) (`M3dsParityState` + canonical scenario `starter_copper_defense_v1`, matching the fixture on host `-O0`/`-O2`, Azahar Old/New 3DS ARM11, and a physical New 3DS XL).
 - [Hardware deployment & log streaming](hardware/deployment-and-logs.md) (`./dev.sh device` / `tools/device_deploy.py`, host-tested for SD staging and log tooling, hardware-tested for Wi-Fi deployment and log streaming on a New 3DS XL).
 - [NDSP audio mixer prototype](audio/ndsp-mixer.md) (`M3dsAudioMixer` + `libctru` NDSP backend, host-tested via mock backend, 3DS-built via `./dev.sh build`, and missing-`dspfirm.cdc` fallback verified in Azahar `2126.2`; physical hardware playback with DSP firmware pending). [Upstream audio asset conversion](audio/asset-conversion.md) provides a pinned PCM16/provenance slice and a bounded [audio registry](../include/audio/audio_registry.h) that loads the generated RomFS index into the mixer; `make UPSTREAM_MINDUSTRY=...` packs the clips and the app logs `AUDIO_ROMFS status=ok clips=9 bytes=647008` in Azahar. [Audio events](../include/audio/audio_events.h) map nine logical audio IDs to mixer playback; UI click, a deterministic demo wave, Duo fire, enemy death, block place/break and looping conveyor/drill ambients are wired and Azahar asserts resolved clips, while research unlock remains pending.
