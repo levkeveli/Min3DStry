@@ -54,6 +54,13 @@ if [[ $# -gt 0 ]]; then
     if [[ -d "$1/catalog" ]]; then
         cp -R "$1/catalog" "$output/romfs/catalog"
     fi
+    if [[ -d "$1/fonts" && -d "$1/icons" ]]; then
+        cp -R "$1/fonts" "$1/icons" "$output/romfs/"
+        portlibs="$DEVKITPRO/portlibs/3ds"
+        terrain_flags+=(-DM3DS_STOCK_FONT -I"$portlibs/include/freetype2" -I"$portlibs/include" -L"$portlibs/lib")
+        terrain_sources+=("$root/m3ds_stock_font.c" "$root/m3ds_stock_text.c")
+        terrain_libraries+=(-lfreetype -lpng -lbz2 -lz)
+    fi
     if [[ -d "$1/world-atlas" ]]; then
         terrain_flags+=(-DM3DS_WORLD_ATLAS)
         "$DEVKITPRO/tools/bin/picasso" -o "$output/m3ds_quad.shbin" "$root/m3ds_quad.v.pica"
