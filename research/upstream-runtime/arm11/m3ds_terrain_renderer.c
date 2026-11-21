@@ -31,7 +31,7 @@ static struct {
     uint32_t frame;
 } world_textures[M3DS_WORLD_ATLAS_SLOTS];
 static uint32_t world_pass;
-enum { canvas_texture_size = 32, canvas_texture_slots = 16 };
+enum { canvas_texture_size = 32, display_texture_limit = 512, canvas_texture_slots = 16 };
 static struct {
     C3D_Tex tex;
     int32_t id, revision;
@@ -380,16 +380,22 @@ int32_t m3ds_terrain_draw(int32_t page, int32_t left, int32_t top, int32_t width
 }
 
 #ifdef M3DS_WORLD_ATLAS
-static unsigned canvas_texel(unsigned x, unsigned y) {
+static unsigned raster_texel(unsigned x, unsigned y, unsigned row_width) {
     unsigned morton = 0;
     for (unsigned bit = 0; bit < 3; bit++) {
         morton |= ((x >> bit) & 1) << (2 * bit);
         morton |= ((y >> bit) & 1) << (2 * bit + 1);
     }
-    return ((y / 8) * (canvas_texture_size / 8) + x / 8) * 64 + morton;
+    return ((y / 8) * (row_width / 8) + x / 8) * 64 + morton;
 }
 
-static C3D_Tex *upload_canvas(int32_t id, int32_t revision, int width, int height, const uint32_t *pixels) {
+static int texture_dimension(int size) {
+    int dimension = 8;
+    while (dimension < size) dimension *= 2;
+    return dimension;
+}
+
+static C3D_Tex *upload_raster(int32_t id, int32_t revision, int width, int height, const uint32_t *pixels) {
     int victim = -1;
     for (int i = 0; i < canvas_texture_slots; i++) {
         if (canvas_textures[i].id == id && canvas_textures[i].revision == revision) {
@@ -405,17 +411,24 @@ static C3D_Tex *upload_canvas(int32_t id, int32_t revision, int width, int heigh
         victim = 0;
     }
     C3D_Tex *tex = &canvas_textures[victim].tex;
+    int tex_width = id > 0 ? canvas_texture_size : texture_dimension(width);
+    int tex_height = id > 0 ? canvas_texture_size : texture_dimension(height);
+    if (tex->data && (tex->width != tex_width || tex->height != tex_height)) {
+        C3D_TexDelete(tex);
+        memset(tex, 0, sizeof(*tex));
+        canvas_textures[victim].id = 0;
+    }
     if (!tex->data) {
-        if (!C3D_TexInitVRAM(tex, canvas_texture_size, canvas_texture_size, GPU_RGBA8)
-                && !C3D_TexInit(tex, canvas_texture_size, canvas_texture_size, GPU_RGBA8)) return NULL;
+        if (!C3D_TexInitVRAM(tex, tex_width, tex_height, GPU_RGBA8)
+                && !C3D_TexInit(tex, tex_width, tex_height, GPU_RGBA8)) return NULL;
         C3D_TexSetFilter(tex, GPU_NEAREST, GPU_NEAREST);
         C3D_TexSetWrap(tex, GPU_CLAMP_TO_EDGE, GPU_CLAMP_TO_EDGE);
     }
     uint32_t *tiled = tex->data;
-    for (int y = 0; y < canvas_texture_size; y++) {
+    for (int y = 0; y < tex_height; y++) {
         const uint32_t *row = pixels + (y < height ? y : height - 1) * width;
-        for (int x = 0; x < canvas_texture_size; x++) {
-            tiled[canvas_texel(x, y)] = row[x < width ? x : width - 1];
+        for (int x = 0; x < tex_width; x++) {
+            tiled[raster_texel(x, y, tex_width)] = row[x < width ? x : width - 1];
         }
     }
     C3D_TexFlush(tex);
@@ -433,7 +446,7 @@ int32_t m3ds_terrain_draw_canvas(int32_t id, int32_t revision, int32_t width, in
 #ifdef M3DS_WORLD_ATLAS
     if (!frame_open || id == 0 || width < 1 || width > canvas_texture_size
             || height < 1 || height > canvas_texture_size) return 0;
-    C3D_Tex *tex = upload_canvas(id, revision, width, height, pixels);
+    C3D_Tex *tex = upload_raster(id, revision, width, height, pixels);
     if (!tex) return 0;
     set_world_blend(blend_mode);
     set_world_mix((u32)color, (u32)mix_color);
@@ -530,7 +543,7 @@ static void draw_quad_piece(C3D_Tex *texture, const M3DS_QuadVertex *polygon, in
 
 // Return zero for unsupported mix attributes and minus one for non-finite geometry.
 static int read_quad_vertices(const float *vertices, int width, int height,
-                              M3DS_QuadVertex *corners, uint32_t *packed_mix) {
+                              M3DS_QuadVertex *corners, uint32_t *packed_mix, bool clamp_uv) {
     uint32_t mix;
     memcpy(&mix, vertices + 5, sizeof(mix));
     for (int i = 0; i < 4; i++) {
@@ -540,11 +553,12 @@ static int read_quad_vertices(const float *vertices, int width, int height,
         memcpy(&corner_mix, v + 5, sizeof(corner_mix));
         if (mix != corner_mix) return 0;
         if (!isfinite(v[0]) || !isfinite(v[1]) || !isfinite(v[3]) || !isfinite(v[4])) return -1;
+        float u = v[3] * width, t = v[4] * height;
         corners[i] = (M3DS_QuadVertex){
             .x = screen_left + (v[0] - world_left) * scale,
             .y = screen_bottom - (v[1] - world_bottom) * scale,
-            .u = fminf(fmaxf(v[3] * width, 0), nextafterf(width, 0)),
-            .v = fminf(fmaxf(v[4] * height, 0), nextafterf(height, 0)),
+            .u = clamp_uv ? fminf(fmaxf(u, 0), nextafterf(width, 0)) : u,
+            .v = clamp_uv ? fminf(fmaxf(t, 0), nextafterf(height, 0)) : t,
             .color = {(color & 255) / 255.0f, ((color >> 8) & 255) / 255.0f,
                       ((color >> 16) & 255) / 255.0f, (color >> 24) / 254.0f},
         };
@@ -562,7 +576,7 @@ int32_t m3ds_terrain_draw_textured_quad(int32_t page, int32_t width, int32_t hei
             || !initialize_quad_shader()) return 0;
     M3DS_QuadVertex corners[4];
     uint32_t mix;
-    int status = read_quad_vertices(vertices + offset, width, height, corners, &mix);
+    int status = read_quad_vertices(vertices + offset, width, height, corners, &mix, true);
     if (status <= 0) return status < 0;
     set_world_blend(blend_mode);
     set_world_mix(0, 0);
@@ -608,9 +622,9 @@ int32_t m3ds_terrain_draw_canvas_quad(int32_t id, int32_t revision, int32_t widt
             || height < 1 || height > canvas_texture_size || !initialize_quad_shader()) return 0;
     M3DS_QuadVertex corners[4];
     uint32_t mix;
-    int status = read_quad_vertices(vertices + offset, width, height, corners, &mix);
+    int status = read_quad_vertices(vertices + offset, width, height, corners, &mix, true);
     if (status <= 0) return status < 0;
-    C3D_Tex *tex = upload_canvas(id, revision, width, height, pixels);
+    C3D_Tex *tex = upload_raster(id, revision, width, height, pixels);
     if (!tex) return 0;
     set_world_blend(blend_mode);
     set_world_mix(0, 0);
@@ -621,6 +635,29 @@ int32_t m3ds_terrain_draw_canvas_quad(int32_t id, int32_t revision, int32_t widt
         svcOutputDebugString(message, sizeof(message) - 1);
         reported = true;
     }
+    draws++;
+    return 1;
+#else
+    (void)id; (void)revision; (void)width; (void)height; (void)pixels;
+    (void)vertices; (void)offset; (void)blend_mode;
+    return 0;
+#endif
+}
+
+int32_t m3ds_terrain_draw_logic_display(int32_t id, int32_t revision, int32_t width, int32_t height,
+                                       const uint32_t *pixels, const float *vertices, int32_t offset, int32_t blend_mode) {
+#ifdef M3DS_WORLD_ATLAS
+    if (!frame_open || id >= 0 || width < 1 || width > display_texture_limit
+            || height < 1 || height > display_texture_limit || !initialize_quad_shader()) return 0;
+    M3DS_QuadVertex corners[4];
+    uint32_t mix;
+    int status = read_quad_vertices(vertices + offset, width, height, corners, &mix, false);
+    if (status <= 0) return status < 0;
+    C3D_Tex *tex = upload_raster(id, revision, width, height, pixels);
+    if (!tex) return 0;
+    set_world_blend(blend_mode);
+    set_world_mix(0, 0);
+    draw_quad_piece(tex, corners, 4, 0, 0, mix);
     draws++;
     return 1;
 #else

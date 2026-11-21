@@ -404,7 +404,8 @@ emulation timing.
 
 Use `-Pprobe=network-render` to generate the graphical ARM11 client.
 Prepare the pinned Glacier atlas with
-`arm11/prepare_terrain_assets.py --multiplayer`, then pass both
+`arm11/prepare_terrain_assets.py --multiplayer --desktop /path/to/Mindustry.jar`
+using the official v160.8 desktop JAR, then pass both
 `--network` and the resulting terrain assets directory to `arm11/build.sh`.
 Put the official `sprites.aatls` beside `server-endpoint.txt` on the SD
 card. The existing address and port connect directly to the Glacier
@@ -1139,7 +1140,24 @@ the stock world processor and `@client`. The verifier checks that
 the ARM11 Canvas changes while the dedicated server keeps its original
 pixels. The replay passed on both Azahar hardware profiles with the
 [verified ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44932567269).
-Logic Display command rendering remains open.
+
+### Stock Logic Displays
+
+The graphical client stages the original display blocks and executor. The
+display queue, command dispatch, linked-display updates, tile grouping and
+transform serialization stay in upstream code. The port replaces the Arc
+framebuffer with an RGBA8 raster batch and uploads its pixels through the
+3DS texture cache. Content icon draws sample the same packed atlas tiles
+used by the world renderer. Multiplayer asset preparation runs the pinned
+desktop Arc FreeType backend on the original `logic.ttf` and packs its
+glyph metrics and pixels for the 3DS client.
+
+Pass the packed `world-atlas` directory and `logic-font.dat` as arguments
+six and seven to `runBuildingLayersJvm`. The stock processor replay checks
+clear, alpha, transform, linked display sampling, the original Copper icon
+and the logic font. Run the live verifier on stationary Glacier with
+`--controls --verify-logic-displays --terrain-atlas /path/to/sprites.aatls`.
+The unmodified Java server supplies the stock processor configuration.
 
 ### Verify the Arc executor pools
 

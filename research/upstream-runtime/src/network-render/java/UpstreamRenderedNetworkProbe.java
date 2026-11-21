@@ -1,5 +1,8 @@
 import port.render.UpstreamCrackAtlas;
 import port.render.UpstreamFluidAtlas;
+import port.render.UpstreamLogicAtlas;
+import port.render.UpstreamLogicFont;
+import port.render.UpstreamLogicFramebuffer;
 import port.render.UpstreamWorldLabel;
 import port.logic.UpstreamClientLogic;
 import arc.Core;
@@ -31,6 +34,8 @@ import mindustry.world.blocks.liquid.Conduit;
 import mindustry.world.blocks.distribution.Conveyor.ConveyorBuild;
 import mindustry.world.blocks.distribution.Sorter;
 import mindustry.world.blocks.logic.CanvasBlock.CanvasBuild;
+import mindustry.world.blocks.logic.LogicDisplay.LogicDisplayBuild;
+import mindustry.world.blocks.logic.TileableLogicDisplay.TileableLogicDisplayBuild;
 import mindustry.world.blocks.storage.CoreBlock;
 
 /** Presents the received multiplayer world through the ARM11 terrain renderer. */
@@ -46,6 +51,7 @@ public final class UpstreamRenderedNetworkProbe {
     private Unit controlled;
     private int draws;
     private long previousVisualFrame;
+    private long frameId;
     private float frameSeconds;
     private int lastLeft = -1, lastBottom = -1;
     private final UpstreamWorldLabel.Target worldLabel = this::drawWorldLabel;
@@ -76,16 +82,24 @@ public final class UpstreamRenderedNetworkProbe {
 
     private void loadGraphics() {
         UpstreamClientLogic.initialize(new Fi("/romfs/logicids.dat"));
+        UpstreamLogicFont.load(new Fi("/romfs/logic-font.dat"));
         Core.graphics = new MockGraphics() {
             @Override public int getWidth() { return 400; }
             @Override public int getHeight() { return 240; }
             @Override public float getDensity() { return 1f; }
             @Override public float getDeltaTime() { return frameSeconds; }
+            @Override public long getFrameId() { return frameId; }
         };
         var locale = Core.bundle.getLocale();
         Core.settings.put("locale", locale.getLanguage().isEmpty() ? "en" : locale.toString());
         System.out.println("UPSTREAM_INTERFACE_GRAPHICS atlas");
         UpstreamTerrainDrawProbe.loadAtlas(atlas, UpstreamFluidAtlas::load);
+        var displayAtlas = new UpstreamLogicAtlas(new Fi("/romfs/world-atlas"));
+        UpstreamLogicFramebuffer.atlasPixels((texture, x, y) ->
+            displayAtlas.sample(UpstreamTerrainDrawProbe.pageIndex(texture), x, y));
+        Blocks.logicDisplay.load();
+        Blocks.largeLogicDisplay.load();
+        Blocks.tileLogicDisplay.load();
         Vars.content.loadColors(new Fi("/romfs/block_colors.png"));
         UpstreamCrackAtlas.load();
         loadUnitGraphics();
@@ -129,6 +143,7 @@ public final class UpstreamRenderedNetworkProbe {
     }
 
     private void render(Unit unit) {
+        frameId++;
         updateBuildLabels();
         controlled = unit;
         float x = unit == null ? Vars.player.x() : unit.x();
@@ -162,10 +177,11 @@ public final class UpstreamRenderedNetworkProbe {
         Time.delta = delta;
         Time.setInternalTime(Time.getInternalTime() + delta);
         try {
-            UpstreamClientLogic.update(frameSeconds * 60f);
             for (var build : Groups.build) {
+                if (build instanceof TileableLogicDisplayBuild display) display.updateTile();
                 if (build instanceof Conduit.ConduitBuild conduit) conduit.advanceLiquidDraw();
             }
+            UpstreamClientLogic.update(frameSeconds * 60f);
             for (var unit : Groups.unit) {
                 if (unit instanceof UnitWaterMove boat) boat.advanceWake();
                 if (unit instanceof Tankc tank) advanceTankTreads(tank);
@@ -254,7 +270,8 @@ public final class UpstreamRenderedNetworkProbe {
     static boolean supportsBuildingDraw(Building build) {
         var block = build.block;
         // These blocks use the sprite operations available in the live backend.
-        return build instanceof CanvasBuild || block instanceof CoreBlock || block == Blocks.conveyor || block == Blocks.copperWall
+        return build instanceof CanvasBuild || build instanceof LogicDisplayBuild
+            || block instanceof CoreBlock || block == Blocks.conveyor || block == Blocks.copperWall
             || block == Blocks.duct || block == Blocks.berylliumWall
             || block == Blocks.copperWallLarge || block == Blocks.router || block instanceof Sorter
             || block == Blocks.mechanicalDrill || block instanceof Conduit
