@@ -64,6 +64,15 @@ public final class UpstreamCampaignSavesLoadProbe {
         Vars.state.wave = 5;
         Fi slotFile = directory.child("sector-serpulo-15.msav");
         SaveIO.write(slotFile);
+
+        Sector other = SectorPresets.frozenForest.sector;
+        if(other == null || other.id != 86){
+            throw new IllegalStateException("Frozen forest sector did not initialize");
+        }
+        Vars.state.rules.sector = other;
+        Vars.state.wave = 7;
+        Fi otherSlot = directory.child("sector-serpulo-86.msav");
+        SaveIO.write(otherSlot);
         step("write");
 
         Vars.saveDirectory = directory;
@@ -75,15 +84,16 @@ public final class UpstreamCampaignSavesLoadProbe {
             saves.load();
             step("load");
             var slots = saves.getSaveSlots();
-            if(slots.size != 1 || !"sector-serpulo-15.msav".equals(slots.first().file.name())){
-                throw new IllegalStateException(
-                    "Saves.load returned " + slots.size + " slot(s): "
-                    + (slots.isEmpty() ? "none" : slots.first().file.name()));
+            if(slots.size != 2){
+                throw new IllegalStateException("Saves.load returned " + slots.size + " slot(s)");
             }
             if(saves.getLastSector() != null){
                 throw new IllegalStateException("A metadata-free slot was treated as a sector save");
             }
-            var slot = slots.first();
+            var slot = slots.find(s -> "sector-serpulo-15.msav".equals(s.file.name()));
+            if(slot == null){
+                throw new IllegalStateException("Sector 15 slot was not selectable");
+            }
             SaveIO.load(slot.file, Vars.world.makeSectorContext(sector));
             app.runPosted();
             step("launch");
@@ -100,7 +110,7 @@ public final class UpstreamCampaignSavesLoadProbe {
             directory.delete();
             System.out.println(
                 "UPSTREAM_CAMPAIGN_SAVES_LOAD path=" + (live ? "live" : "tmp")
-                + " slots=1 file=" + name + " bytes=" + bytes + " load=ok launch=ok");
+                + " slots=2 selected=" + name + " bytes=" + bytes + " load=ok launch=ok");
         }finally{
             Vars.mainExecutor.shutdownNow();
         }

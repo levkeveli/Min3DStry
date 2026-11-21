@@ -395,8 +395,9 @@ for removal once the TeaVM object-reference cast issue is fixed.
 
 `-Pprobe=campaign-saves-load` wires the upstream save environment on the live
 SD path: `Core.files`, `Core.settings`, `Core.assets`, `Vars.saveDirectory`,
-and `Vars.mainExecutor` (`Threads.executor`). It writes one
-`sector-serpulo-15.msav` slot and calls upstream `Saves.load()`:
+and `Vars.mainExecutor` (`Threads.executor`). It writes two
+`sector-serpulo-*.msav` slots, calls upstream `Saves.load()`, selects the
+sector 15 slot, and launches it:
 
 ```sh
 gradle -PupstreamCheckout=/path/to/Mindustry \
@@ -408,11 +409,11 @@ bash arm11/build.sh build/generated/teavm/c build/probe-3ds-campaign-saves-load
 Both Azahar profiles report:
 
 ```text
-UPSTREAM_CAMPAIGN_SAVES_LOAD path=live slots=1 file=sector-serpulo-15.msav bytes=11036 load=ok launch=ok
+UPSTREAM_CAMPAIGN_SAVES_LOAD path=live slots=2 selected=sector-serpulo-15.msav bytes=11036 load=ok launch=ok
 ```
 
-The probe asserts one discovered slot and that the generic save is not treated
-as a sector remap. It then launches the discovered slot through
+The probe discovers both slots, selects `sector-serpulo-15.msav` by name, and
+asserts the generic saves are not treated as sector remaps. It then launches the discovered slot through
 `SaveIO.load(slot.file, Vars.world.makeSectorContext(sector))` and verifies the
 sector, wave and `150x250` world are restored. The live campaign startup still
 needs to invoke this path from its UI.
