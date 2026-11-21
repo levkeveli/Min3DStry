@@ -418,6 +418,12 @@ and lifetime cleanup. Additional weapons, remote combat effects and audio
 are tracked by [#30](https://github.com/levkeveli/Min3DStry/issues/30) and
 [#29](https://github.com/levkeveli/Min3DStry/issues/29).
 
+The [ARM11 projectile build](https://github.com/levkeveli/Min3DStry/actions/runs/44945481919)
+passed the Glacier replay on both Azahar profiles. Each run captured the
+original yellow bolt east of the Gamma, observed the stock Java server
+fire in both directions and clear both releases, then confirmed that all
+local bullets expired before START disconnected.
+
 Run the same verifier with `--controls --model old3ds` and then
 `--controls --model new3ds`. Follow its prompts to move right with the
 D-pad, move up with the Circle Pad, and leave after the next wave.

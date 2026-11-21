@@ -106,7 +106,7 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
         leave_at = circle_at + 30
     movement_hold = 3 if graphical_movement and not needs_settling_time else 1
     if weapons:
-        leave_at = first_move + 26
+        leave_at = first_move + 38
     frames = (128 if erekir_build or mining else leave_at + 7) * samples_per_second
     header = struct.pack("<4sQ20sQQ32sIQq156x", b"CTM\x1b", 0, revision, 1780000000,
                          0x4D334453, b"Min3DStry input verification", 0, frames, 0)
@@ -154,9 +154,9 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
                 buttons = 0
             elif weapons:
                 buttons = (1 << 3) if seconds == leave_at else 0  # START
-                if first_move <= seconds < first_move + 5:
+                if first_move <= seconds < first_move + 8:
                     buttons = (1 << 10) | (1 << 9) | (1 << 4)  # X + L + D-pad right
-                elif first_move + 10 <= seconds < first_move + 15:
+                elif first_move + 17 <= seconds < first_move + 25:
                     buttons = (1 << 10) | (1 << 9)  # X + L, with Circle Pad up below
             else:
                 buttons = (1 << 4) if first_move <= seconds < first_move + movement_hold else (
@@ -166,7 +166,7 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
             circle_x = 65 if mining == "wall" and 54 <= seconds < pan_end else 0
             circle_y = 106 if circle_at <= seconds < circle_at + movement_hold and not (erekir_build or mining) else 0
             if weapons:
-                circle_y = 106 if first_move + 10 <= seconds < first_move + 15 else 0
+                circle_y = 106 if first_move + 17 <= seconds < first_move + 25 else 0
             if mining == "floor" and 88 <= seconds < 94:
                 circle_y = 65
             point = next((point for start, point in taps if start <= seconds < start + 2), None)
@@ -176,7 +176,7 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
                 # Keep the touch held for the whole burst regardless of the poll phase.
                 touch = struct.pack("<BHHBx", 1, *point, 1)
                 movie.write(touch * 2)
-            elif (taps or graphical_movement) and (buttons or circle_x or circle_y):
+            elif (taps or graphical_movement or weapons) and (buttons or circle_x or circle_y):
                 movie.write(pad * 2)
             else:
                 movie.write(pad + touch_idle)
@@ -1524,13 +1524,16 @@ def watch_player_weapons(server_log, server):
     # Observe a stock projectile owned by the actual player, then a newer
     # snapshot that clears the fire flag. The observer only reads game state.
     script = (
-        '(() => { let phase = 0, shotSnapshot = 0, unitId = -1, x = 0, y = 0; '
+        '(() => { let phase = 0, shotSnapshot = 0, unitId = -1, x = 0, y = 0, shooting = false; '
         'Events.run(Packages.mindustry.game.EventType.Trigger.update, () => { '
         f'const p = Groups.player.find(boolf(v => String(v.name) === {json.dumps(PLAYER)})); '
         'if (phase >= 4 || p == null || p.dead()) return; '
         'const u = p.unit(), seq = p.con.lastReceivedClientSnapshot; '
         'if (seq <= 0 || String(u.type.name) !== "gamma") return; '
         'if (unitId < 0) { unitId = u.id; x = u.x; y = u.y; } '
+        'if (shooting != u.isShooting) { shooting = u.isShooting; '
+        'print("UPSTREAM_WEAPON_INPUT shooting=" + shooting + " snapshot=" + seq + '
+        '" x=" + u.x + " y=" + u.y + " aimX=" + u.aimX + " aimY=" + u.aimY); } '
         'if (u.id != unitId || Math.abs(u.x - x) > 1 || Math.abs(u.y - y) > 1) return; '
         'const east = phase < 2, axis = east ? "east" : "north"; '
         'if (phase % 2 === 1) { '
@@ -1595,7 +1598,7 @@ def run_model(args, model, config, original_config, log, output):
         "Renderer": {"graphics_api": "2"},
         "Data Storage": {"use_virtual_sd": "true"},
     }
-    if args.touch_build or args.touch_config or args.erekir_build or args.mining or graphical_movement:
+    if args.touch_build or args.touch_config or args.erekir_build or args.mining or graphical_movement or args.verify_weapons:
         # The synthetic bursts intentionally offer one sample type to all devices.
         overrides["Miscellaneous"]["log_filter"] += " Movie:Critical"
     if args.terrain_atlas:

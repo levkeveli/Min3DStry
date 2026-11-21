@@ -176,7 +176,9 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
             solidQuads.clear();
             viewport.moveTo(73, 20);
             int count = UpstreamClientProjectiles.draw(viewport);
-            if (count != 2 || solidQuads.isEmpty()) throw new AssertionError("Stock projectile is missing from the viewport");
+            if (count != 2 || solidQuads.stream().noneMatch(quad -> quad[2] == Pal.yellowBoltFront.toFloatBits())) {
+                throw new AssertionError("Stock projectile color is missing from the viewport");
+            }
             requireRegion(Core.atlas.find("bullet"));
 
             gamma.controlWeapons(true, false);
