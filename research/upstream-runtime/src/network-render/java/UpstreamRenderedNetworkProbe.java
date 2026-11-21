@@ -8,6 +8,7 @@ import arc.struct.ObjectSet;
 import arc.util.Time;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import mindustry.Vars;
 import mindustry.content.Blocks;
 import mindustry.content.UnitTypes;
@@ -44,6 +45,8 @@ public final class UpstreamRenderedNetworkProbe {
     private int lastLeft = -1, lastBottom = -1;
     private byte[] lastMenu;
     private Block lastPrimaryShortcut;
+    private List<UpstreamObjectiveHud.Row> lastObjectives;
+    private byte[][] objectiveLabels = new byte[0][];
 
     private UpstreamRenderedNetworkProbe(Fi atlas) {
         this.atlas = atlas;
@@ -180,6 +183,7 @@ public final class UpstreamRenderedNetworkProbe {
         } finally {
             Draw.sort(false);
         }
+        drawObjectives();
         var block = buildingControls.block();
         var catalog = buildingControls.catalog();
         var config = buildingControls.itemConfig();
@@ -195,6 +199,27 @@ public final class UpstreamRenderedNetworkProbe {
                 config.previousPage(), config.nextPage(), false);
         } else {
             lastMenu = null;
+        }
+    }
+
+    private void drawObjectives() {
+        var rows = UpstreamObjectiveHud.collect(Vars.state.rules);
+        boolean changed = !rows.equals(lastObjectives);
+        if (changed) {
+            objectiveLabels = new byte[rows.size()][];
+            for (int i = 0; i < rows.size(); i++) {
+                objectiveLabels[i] = (rows.get(i).text() + "\0").getBytes(StandardCharsets.UTF_8);
+            }
+            lastObjectives = rows;
+        }
+        float y = 4f;
+        for (int i = 0; i < rows.size() && y < 240f; i++) {
+            var row = rows.get(i);
+            y = target.drawObjective(objectiveLabels[i], row.icon(), y);
+            if (changed && y < 240f) {
+                System.out.println("UPSTREAM_OBJECTIVE_HUD icon=" + row.contentName()
+                    + " text=" + row.text().replace('\n', '|'));
+            }
         }
     }
 

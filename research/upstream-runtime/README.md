@@ -974,6 +974,17 @@ count. Index 1 requires one Turbine Condenser. The page-rounded ELF load
 segments for this debug build total 41.14 MiB before heap, stack and
 network allocations. Physical memory and frame rate remain to be tested.
 
+### Campaign objective display
+
+The graphical probe displays eligible, visible objectives on the top
+screen in their upstream order. It uses the stock objective text and
+localized content names. The 3DS adapter draws the original content
+icons from the paged atlas alongside the system-font text.
+
+Pass the path to the official `bundle` base as the optional fourth
+argument to `runBuildingLayersJvm` to verify the changing Onset count,
+the Turbine Condenser text and icons, and hidden objective filtering.
+
 ### Verify the Arc executor pools
 
 Use `-Pprobe=executor` with the JVM and ARM11 build commands. The JVM uses the

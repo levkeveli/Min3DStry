@@ -469,6 +469,41 @@ int32_t m3ds_terrain_build_overlay(int32_t column, int32_t row, int32_t block, i
     return 1;
 }
 
+float m3ds_terrain_draw_objective(const char *label, int32_t page, int32_t left, int32_t top,
+                                 int32_t width, int32_t height, float y) {
+    if (!frame_open || !catalog_buffer) return 240.0f;
+    C2D_Text text;
+    C2D_TextBufClear(catalog_buffer);
+    if (!C2D_TextParse(&text, catalog_buffer, label)) return 240.0f;
+    C2D_TextOptimize(&text);
+    bool has_icon = page >= 0 && width > 0 && height > 0;
+    float inset = has_icon ? 32.0f : 6.0f;
+    float font_scale = fminf(0.44f, (230.0f - inset) / fmaxf(1.0f, text.width));
+    float text_width, text_height;
+    C2D_TextGetDimensions(&text, font_scale, font_scale, &text_width, &text_height);
+    float panel_height = fmaxf(has_icon ? 32.0f : 0.0f, text_height + 10.0f);
+    if (y + panel_height > screen_bottom - 4.0f) return 240.0f;
+
+    set_world_blend(0);
+    set_world_mix(0, 0);
+    float x = screen_left + 4.0f;
+    C2D_DrawRectSolid(x, y, 0.5f, inset + text_width + 6.0f, panel_height, C2D_Color32(24, 27, 32, 224));
+    if (has_icon) {
+        float icon_scale = 20.0f / fmaxf((float)width, (float)height);
+        float icon_width = width * icon_scale, icon_height = height * icon_scale;
+        float icon_x = x + 6.0f + (20.0f - icon_width) * 0.5f;
+        float icon_y = y + (panel_height + icon_height) * 0.5f;
+        if (!m3ds_terrain_draw(page, left, top, width, height,
+                world_left + (icon_x - screen_left) / scale, world_bottom + (screen_bottom - icon_y) / scale,
+                0.0f, 0.0f, icon_width / scale, icon_height / scale, 0.0f, -1, 0, 0)) {
+            return 240.0f;
+        }
+    }
+    C2D_DrawText(&text, C2D_WithColor, x + inset, y + 5.0f, 0.5f, font_scale, font_scale,
+        C2D_Color32(239, 241, 247, 255));
+    return y + panel_height + 3.0f;
+}
+
 static void catalog_label(const char *text, float x, float y, float scale, u32 color) {
     C2D_Text label;
     C2D_TextParse(&label, catalog_buffer, text);
