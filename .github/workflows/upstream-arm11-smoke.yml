@@ -309,6 +309,21 @@ jobs:
             runProbeJvm "--args=$map $v13 $out" | tee "$RUNNER_TEMP/roundtrip.log"
           grep -F 'UPSTREAM_SAVE_ROUNDTRIP version=13 marker=ok' "$RUNNER_TEMP/roundtrip.log"
 
+      - name: Run upstream save decoder parity baseline
+        shell: bash
+        run: |
+          set -o pipefail
+          v13="$RUNNER_TEMP/glacier-v13.msav"
+          bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime \
+            --no-daemon --console=plain \
+            "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" \
+            "-PreferenceJar=$RUNNER_TEMP/server-release.jar" \
+            "-ParcCheckout=$RUNNER_TEMP/Arc" \
+            -Pprobe=save-decode \
+            runProbeJvm "-PprobeArgs=$v13" | tee "$RUNNER_TEMP/save-decode.log"
+          grep -F 'UPSTREAM_SAVE_STATE buildings=2 hash=3a375fd4f81c5680' \
+            "$RUNNER_TEMP/save-decode.log"
+
       - name: Run sector slot JVM round trip
         shell: bash
         run: |

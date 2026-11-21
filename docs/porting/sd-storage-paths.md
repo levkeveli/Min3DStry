@@ -79,7 +79,7 @@ The app also inflates the complete first sector slot into a 64 KiB buffer and
 logs:
 
 ```text
-[MIN3DSTRY] SECTOR_INFLATE planet=serpulo id=170 raw=11072 bytes=45955 status=ok
+[MIN3DSTRY] SECTOR_INFLATE planet=serpulo id=170 raw=11072 bytes=45955 limit=8388608 status=ok
 ```
 
 This proves the full compressed container is readable and inflatable on ARM11.
@@ -113,7 +113,7 @@ The app next allocates flat floor/overlay/block/flag arrays for the whole map,
 fills them from the validated records, hashes the arrays, and frees them:
 
 ```text
-[MIN3DSTRY] SECTOR_ALLOC tiles=37500 bytes=262500 hash=783fbd80e415dcd7 status=ok
+[MIN3DSTRY] SECTOR_ALLOC tiles=37500 bytes=1312830 hash=783fbd80e415dcd7 status=ok
 ```
 
 Both Azahar profiles produce the same allocation hash.
@@ -124,7 +124,7 @@ revision, payload) and linked from the tile array. The common upstream
 module mask, item count, and the remaining building-specific bytes:
 
 ```text
-[MIN3DSTRY] SECTOR_BUILDINGS count=2 bytes=44 team=1 rot=0 health=6000 enabled=1 modules=9 items=0 item0=0:0 power=0:0.0 liquid=0:0:0.00 extra=8 partial=0 trunc=0 hash=5b2a6cb142f2813a status=ok
+[MIN3DSTRY] SECTOR_BUILDINGS count=2 bytes=44 team=1 rot=0 health=6000 enabled=1 modules=9 items=0 item0=0:0 power=0:0.0 liquid=0:0:0.00 extra=8 partial=0 trunc=0 hash=4d6f71eda0848e18 status=ok
 ```
 
 Both profiles produce the same building hash. The item module yields up to eight
@@ -145,8 +145,19 @@ flags, the building index, and a direct linked building pointer:
 A 24×16 top-screen preview now samples the resident tile arrays and draws one
 rect per cell (384 rects/frame), while the HUD shows `World: 150x250 build=2`.
 This is a runtime visualization of the loaded save, not an upstream minimap.
-Timer/disabler modules and the building-specific payload are preserved but not
-decoded yet.
+
+The same save decoded by upstream v160.8 `SaveIO` on the JVM
+(`-Pprobe=save-decode`) and by the native reader must produce the same
+building-state hash:
+
+```text
+UPSTREAM_SAVE_STATE buildings=2 hash=3a375fd4f81c5680
+SECTOR_PARITY buildings=2 hash=3a375fd4f81c5680 status=ok
+```
+
+The native reader is verification-only and must be replaced by the upstream
+`SaveIO`/`MapIO` loader before gameplay can depend on it. Timer/disabler modules
+and the building-specific payload are preserved but not decoded yet.
 
 ## SD sector catalog
 

@@ -232,8 +232,12 @@ static void test_alloc_world(void) {
     assert(tiles.tile_states[3].x == 1u && tiles.tile_states[3].y == 1u);
     assert(tiles.tile_state_hash != 0u);
     assert(tiles.hash != 0u);
+    assert(tiles.tile_capacity == 4u);
+    assert(tiles.building_capacity >= 1u);
+    assert(m3ds_msav_world_bytes(&tiles) >= 4u * sizeof(M3dsTileState));
     m3ds_msav_free_world(&tiles);
     assert(tiles.count == 0u && tiles.floor_ids == NULL);
+    assert(m3ds_msav_world_bytes(&tiles) == 0u);
     assert(!m3ds_msav_alloc_world(data, size, NULL));
 }
 
@@ -303,6 +307,10 @@ static void test_alloc_building(void) {
     assert(tiles.block_ids[0] == 5u);
     assert((tiles.flags[0] & 0x4u) != 0u);
     assert(tiles.building_hash != 0u);
+    assert(tiles.buildings[0].state_hash != 0u);
+    assert(tiles.save_state_hash != 0u);
+    assert(m3ds_msav_world_bytes(&tiles)
+           >= tiles.building_capacity * sizeof(M3dsBuildingState));
     m3ds_msav_free_world(&tiles);
 }
 
@@ -412,6 +420,8 @@ static void test_alloc_power_liquid(void) {
            && tiles.buildings[0].liquid0_amount < 0.76f);
     assert(tiles.buildings[0].extra_size == 0u);
     assert(!tiles.buildings[0].partial);
+    assert(tiles.buildings[0].state_hash != 0u);
+    assert(tiles.save_state_hash != 0u);
     m3ds_msav_free_world(&tiles);
 }
 

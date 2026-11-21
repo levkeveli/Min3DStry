@@ -9,6 +9,14 @@
 extern "C" {
 #endif
 
+/*
+ * Verification-only native reader for upstream .msav data. It exists to check
+ * layout and field parity on ARM11 until the pinned upstream SaveIO/MapIO code
+ * runs in the TeaVM runtime; gameplay, networking and save writing must not
+ * depend on it, and it should be deleted once the upstream loader is wired.
+ * See docs/porting/msav-verification.md.
+ */
+
 typedef struct M3dsMsavWorld {
     uint32_t version;
     uint32_t width;
@@ -77,6 +85,7 @@ typedef struct M3dsBuildingState {
     uint32_t liquid_count;
     uint16_t liquid0_id;
     float liquid0_amount;
+    uint64_t state_hash;
 } M3dsBuildingState;
 
 typedef struct M3dsWorldTiles {
@@ -88,12 +97,15 @@ typedef struct M3dsWorldTiles {
     M3dsTileState *tile_states;
     M3dsBuildingState *buildings;
     size_t count;
+    size_t tile_capacity;
     size_t building_count;
+    size_t building_capacity;
     uint32_t width;
     uint32_t height;
     uint64_t hash;
     uint64_t building_hash;
     uint64_t tile_state_hash;
+    uint64_t save_state_hash;
 } M3dsWorldTiles;
 
 /*
@@ -113,6 +125,12 @@ bool m3ds_msav_alloc_world(
     const uint8_t *data, size_t size, M3dsWorldTiles *out);
 
 void m3ds_msav_free_world(M3dsWorldTiles *tiles);
+
+/*
+ * Total bytes retained by an allocated world, including the per-tile state,
+ * building index, building records and building payload copies.
+ */
+size_t m3ds_msav_world_bytes(const M3dsWorldTiles *tiles);
 
 #ifdef __cplusplus
 }

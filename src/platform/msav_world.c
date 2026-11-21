@@ -20,6 +20,51 @@ static float read_float_be(const uint8_t *data) {
     return value;
 }
 
+#define MSAV_HASH_SEED UINT64_C(1469598103934665603)
+#define MSAV_HASH_PRIME UINT64_C(1099511628211)
+
+static uint64_t mix_hash(uint64_t hash, uint32_t value) {
+    hash ^= value;
+    return hash * MSAV_HASH_PRIME;
+}
+
+static uint64_t mix_hash64(uint64_t hash, uint64_t value) {
+    hash ^= value;
+    return hash * MSAV_HASH_PRIME;
+}
+
+static uint32_t float_bits(float value) {
+    uint32_t bits;
+    memcpy(&bits, &value, sizeof(bits));
+    return bits;
+}
+
+/*
+ * Mirrors UpstreamSaveDecodeBaseline so the parity baseline and the native
+ * reader hash exactly the same decoded fields.
+ */
+static uint64_t building_state_hash(
+    const M3dsBuildingState *building, uint32_t item_total,
+    uint64_t item_hash, uint32_t power_links, uint64_t link_hash,
+    float power_status, uint32_t liquid_count, uint64_t liquid_hash) {
+    uint64_t state = MSAV_HASH_SEED;
+    state = mix_hash(state, building->x);
+    state = mix_hash(state, building->y);
+    state = mix_hash(state, building->block_id);
+    state = mix_hash(state, building->team);
+    state = mix_hash(state, building->rotation);
+    state = mix_hash(state, float_bits(building->health));
+    state = mix_hash(state, building->enabled);
+    state = mix_hash(state, building->item_count);
+    state = mix_hash(state, item_total);
+    state = mix_hash64(state, item_hash);
+    state = mix_hash(state, power_links);
+    state = mix_hash64(state, link_hash);
+    state = mix_hash(state, float_bits(power_status));
+    state = mix_hash(state, liquid_count);
+    return mix_hash64(state, liquid_hash);
+}
+
 static void parse_building_state(M3dsBuildingState *building) {
     building->health = 0.0f;
     building->item_count = 0u;
@@ -30,6 +75,7 @@ static void parse_building_state(M3dsBuildingState *building) {
     building->modules = 0u;
     building->partial = true;
     building->items_truncated = false;
+    building->state_hash = 0u;
     memset(building->items, 0, sizeof(building->items));
     if (building->payload_size < 6u) {
         return;
@@ -56,6 +102,8 @@ static void parse_building_state(M3dsBuildingState *building) {
         }
         building->modules = building->payload[position++];
     }
+    uint64_t item_hash = MSAV_HASH_SEED;
+    uint32_t item_total = 0u;
     if ((building->modules & 0x01u) != 0u) {
         if (position + 2u > building->payload_size) {
             return;
@@ -69,6 +117,9 @@ static void parse_building_state(M3dsBuildingState *building) {
             uint16_t item_id = read_be16(building->payload + position);
             uint32_t amount = read_be32(building->payload + position + 2u);
             position += 6u;
+            item_total += amount;
+            item_hash = mix_hash(item_hash, item_id);
+            item_hash = mix_hash(item_hash, amount);
             if (i < M3DS_BUILDING_ITEMS_MAX) {
                 building->items[i].item_id = item_id;
                 building->items[i].amount = amount;
@@ -78,31 +129,36 @@ static void parse_building_state(M3dsBuildingState *building) {
         }
         building->item_count = count;
     }
-    building->power_links = 0u;
-    building->power_status = 0.0f;
-    building->liquid_count = 0u;
-    building->liquid0_id = 0u;
-    building->liquid0_amount = 0.0f;
+    uint32_t links = 0u;
+    uint64_t link_hash = MSAV_HASH_SEED;
+    float power_status = 0.0f;
     if ((building->modules & 0x02u) != 0u) {
         if (position + 2u > building->payload_size) {
             return;
         }
-        uint32_t links = read_be16(building->payload + position);
+        links = read_be16(building->payload + position);
         position += 2u;
         if (links > (building->payload_size - position) / 4u
                 || position + links * 4u + 4u > building->payload_size) {
             return;
         }
-        position += (size_t)links * 4u;
-        building->power_status = read_float_be(building->payload + position);
+        for (uint32_t i = 0; i < links; ++i) {
+            link_hash = mix_hash(
+                link_hash, read_be32(building->payload + position));
+            position += 4u;
+        }
+        power_status = read_float_be(building->payload + position);
         position += 4u;
         building->power_links = links;
+        building->power_status = power_status;
     }
+    uint32_t liquids = 0u;
+    uint64_t liquid_hash = MSAV_HASH_SEED;
     if ((building->modules & 0x04u) != 0u) {
         if (position + 2u > building->payload_size) {
             return;
         }
-        uint32_t liquids = read_be16(building->payload + position);
+        liquids = read_be16(building->payload + position);
         position += 2u;
         if (liquids > (building->payload_size - position) / 6u) {
             return;
@@ -111,6 +167,8 @@ static void parse_building_state(M3dsBuildingState *building) {
             uint16_t liquid_id = read_be16(building->payload + position);
             float amount = read_float_be(building->payload + position + 2u);
             position += 6u;
+            liquid_hash = mix_hash(liquid_hash, liquid_id);
+            liquid_hash = mix_hash(liquid_hash, float_bits(amount));
             if (i == 0u) {
                 building->liquid0_id = liquid_id;
                 building->liquid0_amount = amount;
@@ -153,6 +211,9 @@ static void parse_building_state(M3dsBuildingState *building) {
         position += 8u;
     }
     building->extra_size = (uint32_t)(building->payload_size - position);
+    building->state_hash = building_state_hash(
+        building, item_total, item_hash, links, link_hash, power_status,
+        liquids, liquid_hash);
     building->partial = false;
 }
 
@@ -429,6 +490,20 @@ void m3ds_msav_free_world(M3dsWorldTiles *tiles) {
     memset(tiles, 0, sizeof(*tiles));
 }
 
+size_t m3ds_msav_world_bytes(const M3dsWorldTiles *tiles) {
+    if (!tiles) {
+        return 0u;
+    }
+    size_t bytes = tiles->tile_capacity
+        * (sizeof(uint16_t) * 3u + sizeof(uint8_t) + sizeof(uint32_t)
+           + sizeof(M3dsTileState));
+    bytes += tiles->building_capacity * sizeof(M3dsBuildingState);
+    for (size_t i = 0; i < tiles->building_count; ++i) {
+        bytes += tiles->buildings[i].payload_size;
+    }
+    return bytes;
+}
+
 bool m3ds_msav_alloc_world(
     const uint8_t *data, size_t size, M3dsWorldTiles *out) {
     if (!out) {
@@ -455,9 +530,9 @@ bool m3ds_msav_alloc_world(
     out->flags = calloc(count, sizeof(uint8_t));
     out->building_index = malloc(count * sizeof(uint32_t));
     out->tile_states = calloc(count, sizeof(M3dsTileState));
-    out->buildings = calloc(
-        world.entity_tiles > 0u ? world.entity_tiles : 1u,
-        sizeof(M3dsBuildingState));
+    size_t building_capacity = world.entity_tiles > 0u
+        ? (size_t)world.entity_tiles : 1u;
+    out->buildings = calloc(building_capacity, sizeof(M3dsBuildingState));
     if (!out->floor_ids || !out->overlay_ids || !out->block_ids
             || !out->flags || !out->building_index || !out->tile_states
             || !out->buildings) {
@@ -466,6 +541,8 @@ bool m3ds_msav_alloc_world(
     }
     memset(out->building_index, 0xFF, count * sizeof(uint32_t));
     out->count = count;
+    out->tile_capacity = count;
+    out->building_capacity = building_capacity;
     out->width = world.width;
     out->height = world.height;
     out->building_hash = UINT64_C(1469598103934665603);
@@ -525,9 +602,9 @@ bool m3ds_msav_alloc_world(
             }
             parse_building_state(building);
             out->building_index[block_index] = (uint32_t)out->building_count;
+            uint8_t revision_byte = (uint8_t)building->revision;
             out->building_hash = hash_bytes(
-                out->building_hash, (const uint8_t *)&building->revision,
-                sizeof(uint32_t));
+                out->building_hash, &revision_byte, 1u);
             if (building->payload_size > 0u) {
                 out->building_hash = hash_bytes(
                     out->building_hash, building->payload,
@@ -574,6 +651,17 @@ bool m3ds_msav_alloc_world(
     out->tile_state_hash = hash_bytes(
         UINT64_C(1469598103934665603),
         (const uint8_t *)out->tile_states, count * sizeof(M3dsTileState));
+
+    uint64_t save_state = MSAV_HASH_SEED;
+    for (size_t i = 0; i < count; ++i) {
+        uint32_t index = out->building_index[i];
+        if (index != UINT32_MAX && index < out->building_count
+                && !out->buildings[index].partial) {
+            save_state = mix_hash64(
+                save_state, out->buildings[index].state_hash);
+        }
+    }
+    out->save_state_hash = save_state;
 
     uint64_t hash = UINT64_C(1469598103934665603);
     hash = hash_bytes(hash, (const uint8_t *)out->floor_ids,

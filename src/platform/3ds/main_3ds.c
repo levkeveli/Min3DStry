@@ -234,25 +234,27 @@ int main(int argc, char *argv[]) {
     }
 
     if (sector_count > 0u) {
-        const size_t inflate_capacity = 64u * 1024u;
-        uint8_t *raw = malloc(inflate_capacity);
-        uint8_t *inflated = malloc(inflate_capacity);
+        const size_t inflate_limit = 8u * 1024u * 1024u;
+        uint8_t *raw = NULL;
+        uint8_t *inflated = NULL;
         size_t raw_size = 0u;
         size_t inflated_size = 0u;
-        bool read_ok = raw && inflated
-            && m3ds_sector_store_read(
-                "sdmc:/3ds/min3dstry", sectors[0].planet, sectors[0].id,
-                raw, inflate_capacity, &raw_size);
+        bool too_large = false;
+        bool read_ok = m3ds_sector_store_read_alloc(
+            "sdmc:/3ds/min3dstry", sectors[0].planet, sectors[0].id,
+            (void **)&raw, &raw_size);
         bool inflate_ok = read_ok
-            && m3ds_msav_inflate_prefix(
-                raw, raw_size, inflated, inflate_capacity, &inflated_size)
+            && m3ds_msav_inflate_all(
+                raw, raw_size, &inflated, &inflated_size, inflate_limit,
+                &too_large)
             && inflated_size >= 8u
             && memcmp(inflated, "MSAV", 4) == 0;
         snprintf(dbg_line, sizeof(dbg_line),
-                 "[MIN3DSTRY] SECTOR_INFLATE planet=%s id=%u raw=%u bytes=%u status=%s\n",
+                 "[MIN3DSTRY] SECTOR_INFLATE planet=%s id=%u raw=%u bytes=%u limit=%u status=%s\n",
                  sectors[0].planet, (unsigned)sectors[0].id,
                  (unsigned)raw_size, (unsigned)inflated_size,
-                 inflate_ok ? "ok" : "failed");
+                 (unsigned)inflate_limit,
+                 inflate_ok ? "ok" : too_large ? "too_large" : "failed");
         m3ds_emit_debug_line(log_socket, dbg_line);
         M3dsMsavWorld world;
         bool world_ok = inflate_ok
@@ -289,8 +291,7 @@ int main(int argc, char *argv[]) {
         snprintf(dbg_line, sizeof(dbg_line),
                  "[MIN3DSTRY] SECTOR_ALLOC tiles=%u bytes=%u hash=%016llx status=%s\n",
                  (unsigned)(alloc_ok ? tiles.count : 0u),
-                 (unsigned)(alloc_ok
-                     ? tiles.count * (sizeof(uint16_t) * 3u + 1u) : 0u),
+                 (unsigned)(alloc_ok ? m3ds_msav_world_bytes(&tiles) : 0u),
                  (unsigned long long)(alloc_ok ? tiles.hash : 0u),
                  alloc_ok ? "ok" : "failed");
         m3ds_emit_debug_line(log_socket, dbg_line);
@@ -311,8 +312,10 @@ int main(int argc, char *argv[]) {
                  alloc_ok ? "ok" : "failed");
         m3ds_emit_debug_line(log_socket, dbg_line);
         uint32_t building_bytes = 0u;
-        for (size_t i = 0; i < tiles.building_count; ++i) {
-            building_bytes += tiles.buildings[i].payload_size + 1u;
+        if (alloc_ok) {
+            for (size_t i = 0; i < tiles.building_count; ++i) {
+                building_bytes += tiles.buildings[i].payload_size + 1u;
+            }
         }
         snprintf(dbg_line, sizeof(dbg_line),
                  "[MIN3DSTRY] SECTOR_BUILDINGS count=%u bytes=%u team=%u rot=%u health=%.0f enabled=%u modules=%u items=%u item0=%u:%u power=%u:%.1f liquid=%u:%u:%.2f extra=%u partial=%d trunc=%d hash=%016llx status=%s\n",
@@ -353,6 +356,12 @@ int main(int argc, char *argv[]) {
                  alloc_ok && tiles.building_count > 0u
                      && tiles.buildings[0].items_truncated ? 1 : 0,
                  (unsigned long long)(alloc_ok ? tiles.building_hash : 0u),
+                 alloc_ok ? "ok" : "failed");
+        m3ds_emit_debug_line(log_socket, dbg_line);
+        snprintf(dbg_line, sizeof(dbg_line),
+                 "[MIN3DSTRY] SECTOR_PARITY buildings=%u hash=%016llx status=%s\n",
+                 (unsigned)(alloc_ok ? tiles.building_count : 0u),
+                 (unsigned long long)(alloc_ok ? tiles.save_state_hash : 0u),
                  alloc_ok ? "ok" : "failed");
         m3ds_emit_debug_line(log_socket, dbg_line);
         if (alloc_ok) {

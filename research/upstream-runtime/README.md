@@ -142,6 +142,21 @@ Then run `runProbeJvm --args="/path/to/glacier.msav /path/to/generated-save.msav
 or pass both paths to the Windows executable. Look for
 `UPSTREAM_SAVE version=13 marker=ok`.
 
+## Upstream save decoder baseline
+
+`-Pprobe=save-decode` loads a v13 save through the pinned upstream `SaveIO`
+and prints per-building base fields plus item, power-link, and liquid values:
+
+    gradle -PupstreamCheckout=/path/to/Mindustry \
+        -PreferenceJar=/path/to/server-release.jar \
+        -ParcCheckout=/path/to/Arc -Pprobe=save-decode \
+        runProbeJvm "-PprobeArgs=/path/to/glacier-v13.msav"
+
+For the generated Glacier fixture the aggregate must be
+`UPSTREAM_SAVE_STATE buildings=2 hash=3a375fd4f81c5680`. The native Min3DStry
+reader prints the same `SECTOR_PARITY` hash; the two are compared before
+`.msav` world/building rows are called verified.
+
 The C build recompiles two compiler classes from the hash-checked TeaVM
 0.16.0 source archive. The patches retain the original entry block's
 liveness during coroutine splitting and use the primitive array opcode to
