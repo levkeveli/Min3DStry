@@ -21,7 +21,7 @@ static C2D_SpriteSheet sheet;
 static C3D_RenderTarget *target;
 static C3D_RenderTarget *palette;
 static C2D_TextBuf palette_buffer;
-static C2D_Text palette_labels[5];
+static C2D_Text palette_labels[6];
 static C2D_TextBuf catalog_buffer;
 static float world_left, world_bottom, scale, screen_left, screen_bottom;
 static int32_t draws;
@@ -140,10 +140,11 @@ int32_t m3ds_terrain_palette_active(void) {
 }
 
 int32_t m3ds_terrain_build_overlay(int32_t column, int32_t row, int32_t block, int32_t rotation,
-                                  int32_t removing, int32_t tile_size, int32_t rotatable, int32_t catalog_open) {
+                                  int32_t removing, int32_t tile_size, int32_t rotatable, int32_t catalog_open,
+                                  int32_t configuring) {
     if (!frame_open) return 0;
     if (!palette) {
-        static const char *labels[] = {"Conveyor", "Copper Wall", "Rotate", "Remove", "List"};
+        static const char *labels[] = {"Conveyor", "Copper Wall", "Rotate", "Remove", "List", "Config"};
         palette_buffer = C2D_TextBufNew(64);
         catalog_buffer = C2D_TextBufNew(512);
         if (!palette_buffer || !catalog_buffer) return 0;
@@ -152,7 +153,7 @@ int32_t m3ds_terrain_build_overlay(int32_t column, int32_t row, int32_t block, i
         gfxSetDoubleBuffering(GFX_BOTTOM, true);
         palette = C2D_CreateScreenTarget(GFX_BOTTOM, GFX_LEFT);
         if (!palette) return 0;
-        for (int i = 0; i < 5; i++) {
+        for (int i = 0; i < 6; i++) {
             C2D_TextParse(&palette_labels[i], palette_buffer, labels[i]);
             C2D_TextOptimize(&palette_labels[i]);
         }
@@ -180,6 +181,9 @@ int32_t m3ds_terrain_build_overlay(int32_t column, int32_t row, int32_t block, i
     C2D_DrawRectSolid(2, 48, 0.5f, 26, 31, C2D_Color32(45, 52, 64, 255));
     C2D_DrawText(&palette_labels[4], C2D_WithColor | C2D_AlignCenter, 15, 57, 0.5f,
         0.34f, 0.34f, block < 0 && !removing ? accent : C2D_Color32(239, 241, 247, 255));
+    C2D_DrawRectSolid(292, 48, 0.5f, 26, 31, C2D_Color32(45, 52, 64, 255));
+    C2D_DrawText(&palette_labels[5], C2D_WithColor | C2D_AlignCenter, 305, 57, 0.5f,
+        0.30f, 0.30f, configuring ? accent : C2D_Color32(239, 241, 247, 255));
     for (int i = 0; i < 4; i++) {
         bool active = removing ? i == 3 : i == block;
         C2D_DrawRectSolid(i * 80 + 2, 4, 0.5f, 76, 39,
@@ -206,15 +210,18 @@ static void catalog_label(const char *text, float x, float y, float scale, u32 c
     C2D_DrawText(&label, C2D_WithColor | C2D_AlignCenter, x, y, 0.5f, scale, scale, color);
 }
 
-void m3ds_terrain_build_catalog(const char *labels, int32_t selected, int32_t previous, int32_t next) {
+void m3ds_terrain_build_catalog(const char *labels, int32_t selected, int32_t previous, int32_t next,
+                                 int32_t categories) {
     const u32 panel = C2D_Color32(45, 52, 64, 255), text = C2D_Color32(239, 241, 247, 255);
     const u32 selected_panel = C2D_Color32(85, 71, 52, 255), accent = C2D_Color32(250, 213, 107, 255);
     C2D_TextBufClear(catalog_buffer);
-    C2D_DrawRectSolid(8, 4, 0.5f, 54, 34, panel);
-    C2D_DrawRectSolid(258, 4, 0.5f, 54, 34, panel);
-    catalog_label("<", 35, 15, 0.55f, text);
+    if (categories) {
+        C2D_DrawRectSolid(8, 4, 0.5f, 54, 34, panel);
+        C2D_DrawRectSolid(258, 4, 0.5f, 54, 34, panel);
+        catalog_label("<", 35, 15, 0.55f, text);
+        catalog_label(">", 285, 15, 0.55f, text);
+    }
     catalog_label(labels, 160, 15, 0.52f, text);
-    catalog_label(">", 285, 15, 0.55f, text);
     for (int row = 0; row < 6; row++) {
         labels += strlen(labels) + 1;
         if (!*labels) continue;

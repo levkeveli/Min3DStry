@@ -10,6 +10,7 @@ import mindustry.core.World;
 import mindustry.gen.Groups;
 import mindustry.gen.Unit;
 import mindustry.graphics.CacheLayer;
+import mindustry.world.blocks.distribution.Sorter;
 
 /** Presents the received Glacier world through the ARM11 terrain renderer. */
 public final class UpstreamRenderedNetworkProbe {
@@ -67,7 +68,8 @@ public final class UpstreamRenderedNetworkProbe {
         for (int y = viewport.bottom; y < top; y++) {
             for (int x = viewport.left; x < right; x++) {
                 var tile = Vars.world.tile(x, y);
-                if ((tile.block() == Blocks.copperWall || tile.block() == Blocks.router) && tile.build != null) {
+                if ((tile.block() == Blocks.copperWall || tile.block() == Blocks.router
+                        || tile.build instanceof Sorter.SorterBuild) && tile.build != null) {
                     tile.build.drawCached();
                 }
             }
@@ -93,11 +95,15 @@ public final class UpstreamRenderedNetworkProbe {
         }
         var block = buildingControls.block();
         var catalog = buildingControls.catalog();
+        var config = buildingControls.itemConfig();
         int shortcut = block == Blocks.conveyor ? 0 : block == Blocks.copperWall ? 1 : -1;
         target.buildOverlay(buildingControls.cursorX() - viewport.left, buildingControls.cursorY() - viewport.bottom,
-            shortcut, buildingControls.rotation(), buildingControls.removing(), block.rotate, catalog.isOpen());
+            shortcut, buildingControls.rotation(), buildingControls.removing(), block.rotate,
+            catalog.isOpen() || config.isOpen(), buildingControls.configuring());
         if (catalog.isOpen()) {
-            target.buildCatalog(catalog.labels(), catalog.selectedRow(block), catalog.previousPage(), catalog.nextPage());
+            target.buildCatalog(catalog.labels(), catalog.selectedRow(block), catalog.previousPage(), catalog.nextPage(), true);
+        } else if (config.isOpen()) {
+            target.buildCatalog(config.labels(), config.selectedRow(), config.previousPage(), config.nextPage(), false);
         }
     }
 }
