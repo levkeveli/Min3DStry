@@ -119,6 +119,7 @@ public final class UpstreamLiveNetworkProbe {
             while (cause.getCause() != null) cause = cause.getCause();
             System.out.println("UPSTREAM_LIVE_NET_ERROR stage=" + stage + " " + cause.getClass().getSimpleName()
                 + ": " + cause.getMessage());
+            cause.printStackTrace(System.out);
             throw error;
         }
     }
