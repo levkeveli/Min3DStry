@@ -3,6 +3,7 @@
 
 import argparse
 import hashlib
+import json
 import math
 from pathlib import Path
 import re
@@ -95,48 +96,47 @@ def verify_conveyor(log, emulator, server_log, server, timeout, capture, positio
     _, _, x, y = position
     tx, ty = math.floor(float(x) / 8 + 0.5) + 4, math.floor(float(y) / 8 + 0.5)
 
-    def inspect_server(phase, y):
+    def inspect_server(phase, tile_x, tile_y, builder):
         marker = f"UPSTREAM_SERVER_CONVEYOR phase={phase}"
         server.stdin.write(
             f'js (() => {{ const p = Groups.player.find(boolf(v => String(v.name) === "{PLAYER}")); '
-            f'const tile = Vars.world.tile({tx}, {y}); '
+            f'const builder = Groups.player.find(boolf(v => String(v.name) === {json.dumps(builder)})); '
+            f'const tile = Vars.world.tile({tile_x}, {tile_y}); '
+            'const owned = builder != null && tile.build != null && '
+            'String(tile.build.lastAccessed) === String(builder.coloredName()); '
             f'return "{marker} block=" + tile.block().name + " team=" + tile.team().id '
             '+ " rotation=" + (tile.build == null ? -1 : tile.build.rotation) '
-            '+ " copper=" + p.team().core().items.get(Items.copper); })()\n'
+            '+ " copper=" + p.team().core().items.get(Items.copper) + " builder=" + owned; })()\n'
         )
         server.stdin.flush()
-        check = re.compile(rf"{marker} block=(\S+) team=(\d+) rotation=(-?\d+) copper=(\d+)")
+        check = re.compile(rf"{marker} block=(\S+) team=(\d+) rotation=(-?\d+) copper=(\d+) builder=(true|false)")
         return check.search(wait_for(server_log, server, check, 5)).groups()
 
-    original = inspect_server("before", ty)
+    original = inspect_server("before", tx, ty, PLAYER)
     print(f"Press A to queue a conveyor at ({tx}, {ty}).", flush=True)
     wait_for(log, emulator, rf"UPSTREAM_LIVE_BUILD_PLAN x={tx} y={ty} rotation=0\b", timeout)
     completed = re.compile(rf"UPSTREAM_LIVE_BUILD block=conveyor x={tx} y={ty} rotation=0 team=(\d+)")
     accepted = completed.search(wait_for(log, emulator, completed, timeout))
-    finished = inspect_server("after", ty)
+    finished = inspect_server("after", tx, ty, PLAYER)
     if (original[0] != "air" or finished[:3] != ("conveyor", accepted[1], "0")
-            or int(original[3]) - int(finished[3]) != 1):
+            or int(original[3]) - int(finished[3]) != 1 or finished[4] != "true"):
         raise RuntimeError(f"Unexpected stock conveyor or copper cost: {original} -> {finished}")
     wait_for(log, emulator, rf"UPSTREAM_NETWORK_CONVEYOR x={tx} y={ty} rotation=0\b", timeout)
     capture("conveyor", position)
     print(f"Stock server placed the conveyor on team {finished[1]} for one copper.", flush=True)
     if desktop_name:
-        desktop_y = ty + 2
-        second = inspect_server("desktop-before", desktop_y)
-        if second[0] != "air":
-            raise RuntimeError(f"Expected an empty PC build tile at ({tx}, {desktop_y}): {second}")
-        print(f"Confirm the conveyor at ({tx}, {ty}) in the stock PC client. Then place "
-              f"a second conveyor at ({tx}, {desktop_y}).", flush=True)
-        pc_build = re.compile(rf"UPSTREAM_LIVE_BUILD block=conveyor x={tx} y={desktop_y} "
+        print(f"Confirm the conveyor at ({tx}, {ty}) in the stock PC client. Then place another "
+              f"conveyor within the 3DS viewport, for example at ({tx}, {ty + 2}).", flush=True)
+        pc_build = re.compile(rf"UPSTREAM_LIVE_BUILD block=conveyor (?!x={tx} y={ty} )x=(\d+) y=(\d+) "
                               rf"rotation=([0-3]) team={finished[1]}\b")
-        rotation = pc_build.search(wait_for(log, emulator, pc_build, timeout))[1]
-        second_finished = inspect_server("desktop-after", desktop_y)
+        desktop_x, desktop_y, rotation = pc_build.search(wait_for(log, emulator, pc_build, timeout)).groups()
+        second_finished = inspect_server("desktop-after", int(desktop_x), int(desktop_y), desktop_name)
         if (second_finished[:3] != ("conveyor", finished[1], rotation)
-                or int(second[3]) - int(second_finished[3]) != 1):
-            raise RuntimeError(f"Unexpected PC conveyor or copper cost: {second} -> {second_finished}")
-        wait_for(log, emulator, rf"UPSTREAM_NETWORK_CONVEYOR x={tx} y={desktop_y} rotation={rotation}\b", timeout)
+                or int(finished[3]) - int(second_finished[3]) != 1 or second_finished[4] != "true"):
+            raise RuntimeError(f"Unexpected PC conveyor builder or copper cost: {finished} -> {second_finished}")
+        wait_for(log, emulator, rf"UPSTREAM_NETWORK_CONVEYOR x={desktop_x} y={desktop_y} rotation={rotation}\b", timeout)
         capture("desktop-conveyor", position)
-        print("The ARM11 client applied and drew the second conveyor.", flush=True)
+        print(f"The ARM11 client applied and drew the PC conveyor at ({desktop_x}, {desktop_y}).", flush=True)
 
 
 def verify_controls(log, emulator, server_log, server, timeout, capture=None, building=False, desktop_name=None):
