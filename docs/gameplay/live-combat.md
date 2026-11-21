@@ -31,17 +31,17 @@ performs the following against the official `server-release.jar` running
 Both profiles exited 0:
 
 ```text
-UPSTREAM_COMBAT_IDS spawn=212 post=313
-UPSTREAM_LIVE_ENEMY type=dagger id=313 x=632.0 y=208.0
+UPSTREAM_COMBAT_IDS spawn=212 post=270
+UPSTREAM_LIVE_ENEMY type=dagger id=270 x=632.0 y=208.0
 Stock Duo fired; Dagger health=-1, ammo 2->0.
 old3ds: stationary verification ended by emulator kill; accepted the server's (error) departure
-old3ds: UPSTREAM_LIVE_CONTROLS_READY unit=287 x=648.0 y=208.0
+old3ds: UPSTREAM_LIVE_CONTROLS_READY unit=259 x=648.0 y=208.0
 
-UPSTREAM_COMBAT_IDS spawn=212 post=293
-UPSTREAM_LIVE_ENEMY type=dagger id=293 x=632.0 y=208.0
+UPSTREAM_COMBAT_IDS spawn=212 post=271
+UPSTREAM_LIVE_ENEMY type=dagger id=271 x=632.0 y=208.0
 Stock Duo fired; Dagger health=-1, ammo 2->0.
 new3ds: stationary verification ended by emulator kill; accepted the server's (error) departure
-new3ds: UPSTREAM_LIVE_CONTROLS_READY unit=276 x=648.0 y=208.0
+new3ds: UPSTREAM_LIVE_CONTROLS_READY unit=266 x=648.0 y=208.0
 ```
 
 The post-join ids differ from the pre-join id, and the pre-join Dagger is out

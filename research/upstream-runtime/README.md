@@ -920,6 +920,72 @@ JAR stayed connected. With the New 3DS profile, the desktop view showed the
 ARM11 Evoke and the newly placed Duct pointing north as the displayed
 beryllium balance went from 16 to 15.
 
+### Player mining input
+
+Tap Mine beside the touchscreen grid and select a deposit. Tap that target
+again to stop. The 3DS selects a world tile and uses the same upstream
+`Unit.validMine` and item acceptance checks as the v160.8 player input.
+Movement outside mining range clears the target. `ClientSnapshotCallPacket`
+carries the target to the server, where the original MinerComp handles
+extraction and item delivery.
+
+The stock mining beam uses Arc's textured `Lines.line` draw. The batch
+recovers the original line's rectangle from its UV corners and draws it
+through the same paged atlas as other world sprites. The pinned JVM
+building-layer test checks the stock mining texture, rotation and tint.
+
+`runBuildControlsJvm` checks that Gamma selects copper floor ore, Evoke
+selects beryllium wall ore, incompatible and out-of-range targets are
+ignored, a carried stack can prevent selection, and targets can be switched
+or canceled. Use the live verifier
+with `--controls --controls-replay --terrain-atlas <sprites.aatls>` and one of:
+
+- `--mining wall --map-spawn "The Onset" --erekir-sector onset`
+- `--mining floor --map-spawn "Ground Zero"`
+
+Each scenario loads the original campaign map from the pinned server JAR
+and starts with zero of the tested item. It checks the server's selected
+tile, core deposits, the client's core inventory update and the unchanged
+balance after cancellation on The Onset or movement out of range on Ground
+Zero. Progress is tracked in
+[#176](https://github.com/levkeveli/Min3DStry/issues/176).
+
+The [devkitARM build](https://github.com/levkeveli/Min3DStry/actions/runs/44908331970)
+passed the Onset replay in both Azahar 2126.2 profiles. Original 3DS mined
+144 beryllium from tile (294, 110), and New 3DS mined 142 from tile (291, 107).
+The unmodified v160.8 server recorded both balances, each ARM11 client
+received the inventory updates, and the balances held after cancellation.
+
+The [Ground Zero build](https://github.com/levkeveli/Min3DStry/actions/runs/44908976165)
+passed both profiles on the original map. Alpha mined copper at (129, 49),
+and the ARM11 clients received the stock core inventory updates. Moving
+outside the original unit's mining range cleared the server target and
+left stable balances of 148 copper on Original 3DS and 149 on New 3DS.
+
+### Live campaign objectives
+
+The live client routes the v160.8 set, clear, and complete objective
+packets to their original generated client handlers. The stock game
+updates the objective graph, flags, and completion logic.
+
+The pinned JVM snapshot reference round-trips all three generated
+packets. It checks that the 60-beryllium objective survives the set
+message, that its dependent research objective becomes eligible after
+completion, and that clearing the executor removes the objectives.
+
+Add `--verify-objectives` to the Onset wall mining replay. The stock server
+starts with zero beryllium and objective 0 active. When the player mines the
+required 60, the verifier compares the server and ARM11 completion record,
+the eligible BuildCountObjective at index 1, and the objective flag count.
+
+The [devkitARM build](https://github.com/levkeveli/Min3DStry/actions/runs/44910114596)
+passed the replay on both Azahar 2126.2 profiles with the unmodified
+v160.8 server. Both clients completed the original ItemObjective at
+index 0, made index 1 eligible, and matched the server's objective flag
+count. Index 1 requires one Turbine Condenser. The page-rounded ELF load
+segments for this debug build total 41.14 MiB before heap, stack and
+network allocations. Physical memory and frame rate remain to be tested.
+
 ### Verify the Arc executor pools
 
 Use `-Pprobe=executor` with the JVM and ARM11 build commands. The JVM uses the

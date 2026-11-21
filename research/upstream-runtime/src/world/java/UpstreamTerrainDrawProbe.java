@@ -218,32 +218,72 @@ public final class UpstreamTerrainDrawProbe {
 
         @Override
         protected void draw(Texture texture, float[] vertices, int offset, int count) {
-            // Arc Fill uses one opaque white texel for every vertex of these quads.
-            var white = Core.atlas.white();
-            if (texture != white.texture || offset < 0 || count < 0
+            if (!(texture instanceof AtlasPageTexture page) || offset < 0 || count < 0
                     || offset > vertices.length - count || count % SpriteBatch.SPRITE_SIZE != 0) {
                 throw new IllegalStateException("Unsupported Arc vertex batch");
             }
-            for (int i = offset; i < offset + count; i += SpriteBatch.VERTEX_SIZE) {
-                float u = vertices[i + 3], v = vertices[i + 4];
-                if (!(u >= white.u && u <= white.u2 && v >= white.v && v <= white.v2)
-                        || vertices[i + 5] != Color.clearFloatBits) {
-                    throw new IllegalStateException("Raw textured or mixed Arc vertices need a texture shader");
-                }
-            }
-            if (target == null) return;
             if (sort && !flushing) {
                 // Arc reuses the Fill vertex array for the next command.
                 float[] snapshot = Arrays.copyOfRange(vertices, offset, offset + count);
-                draw(() -> emitSolidQuads(snapshot, 0, snapshot.length));
+                draw(() -> emitQuads(page, snapshot, 0, snapshot.length));
             } else {
-                emitSolidQuads(vertices, offset, count);
+                emitQuads(page, vertices, offset, count);
             }
         }
 
-        private void emitSolidQuads(float[] vertices, int offset, int count) {
+        private void emitQuads(AtlasPageTexture page, float[] vertices, int offset, int count) {
+            var white = Core.atlas.white();
             for (int i = offset; i < offset + count; i += SpriteBatch.SPRITE_SIZE) {
-                target.drawSolidQuad(vertices, i, blending);
+                boolean solid = page == white.texture;
+                for (int v = i; solid && v < i + SpriteBatch.SPRITE_SIZE; v += SpriteBatch.VERTEX_SIZE) {
+                    float u = vertices[v + 3], t = vertices[v + 4];
+                    solid = u >= white.u && u <= white.u2 && t >= white.v && t <= white.v2
+                        && vertices[v + 5] == Color.clearFloatBits;
+                }
+                if (solid) {
+                    if (target != null) target.drawSolidQuad(vertices, i, blending);
+                } else {
+                    emitTexturedRectangle(page, vertices, i);
+                }
+            }
+        }
+
+        // Arc Lines submits a rectangle through Fill.quad, with the top-left UV
+        // first. Recover the sprite transform from the UV corners instead of
+        // assuming the same vertex order as SpriteBatch's region draw.
+        private void emitTexturedRectangle(AtlasPageTexture page, float[] v, int a) {
+            int b = a + SpriteBatch.VERTEX_SIZE, c = b + SpriteBatch.VERTEX_SIZE, d = c + SpriteBatch.VERTEX_SIZE;
+            float u0 = v[a + 3], u1 = v[d + 3], t0 = v[a + 4], t1 = v[b + 4];
+            float tint = v[a + 2], mixTint = v[a + 5];
+            if (v[b + 3] != u0 || v[c + 3] != u1 || v[c + 4] != t1 || v[d + 4] != t0
+                    || v[b + 2] != tint || v[c + 2] != tint || v[d + 2] != tint
+                    || v[b + 5] != mixTint || v[c + 5] != mixTint || v[d + 5] != mixTint) {
+                throw new IllegalStateException("Arc textured quad needs per-vertex GPU attributes");
+            }
+            int leftFirst = u0 <= u1 ? a : d, leftSecond = u0 <= u1 ? b : c;
+            int bottomLeft = t0 <= t1 ? leftSecond : leftFirst;
+            int topLeft = t0 <= t1 ? leftFirst : leftSecond;
+            int bottomRight = a + d - bottomLeft, topRight = a + d - topLeft;
+            float x = v[bottomLeft], y = v[bottomLeft + 1];
+            float dx = v[bottomRight] - x, dy = v[bottomRight + 1] - y;
+            float ux = v[topLeft] - x, uy = v[topLeft + 1] - y;
+            float width = Mathf.len(dx, dy);
+            if (width == 0f) return;
+            float height = (dx * uy - dy * ux) / width;
+            float error = 0.005f; // Leave room for rounding at the far edge of a large map.
+            if (Math.abs((dx * ux + dy * uy) / width) > error
+                    || Math.abs(v[topRight] - x - dx - ux) > error
+                    || Math.abs(v[topRight + 1] - y - dy - uy) > error) {
+                throw new IllegalStateException("Arc textured quad is not a rectangle");
+            }
+            int left = Math.round(Math.min(u0, u1) * page.width);
+            int right = Math.round(Math.max(u0, u1) * page.width);
+            int top = Math.round(Math.min(t0, t1) * page.height);
+            int bottom = Math.round(Math.max(t0, t1) * page.height);
+            if (target != null && height != 0f && right > left && bottom > top) {
+                float rotation = (float)Math.toDegrees(Math.atan2(dy, dx));
+                target.draw(page.index, left, top, right - left, bottom - top, x, y, 0f, 0f, width, height,
+                    rotation, Color.floatToIntColor(tint), Color.floatToIntColor(mixTint), blending);
             }
         }
 
