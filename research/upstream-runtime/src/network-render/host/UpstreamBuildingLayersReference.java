@@ -45,7 +45,9 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         int cached = target.firstAt(edgeWall.drawx(), edgeWall.drawy());
         int moving = target.firstAt(conveyor.drawx(), conveyor.drawy());
         int producing = target.firstAt(drill.drawx(), drill.drawy());
-        if (moving < 0 || cached <= moving || producing <= cached
+        long visibleWallSprites = target.sprites.stream()
+            .filter(sprite -> sprite.x() == edgeWall.drawx() && sprite.y() == edgeWall.drawy()).count();
+        if (visibleWallSprites != 1 || moving < 0 || cached <= moving || producing <= cached
                 || target.firstAt(offscreenWall.drawx(), offscreenWall.drawy()) != -1) {
             throw new AssertionError("Unexpected stock building culling or layer order: " + target.sprites);
         }
