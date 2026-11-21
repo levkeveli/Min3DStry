@@ -43,6 +43,7 @@ public final class UpstreamCampaignSectorStateProbe {
         }
 
         Vars.state.rules.waves = false;
+        // v160.8 Sector.isBeingPlayed() checks !Vars.state.gameOver directly.
         Vars.state.gameOver = true;
         if(sector.isBeingPlayed()){
             throw new IllegalStateException("Game-over sector was still being played");
