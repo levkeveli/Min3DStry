@@ -35,6 +35,8 @@ import mindustry.world.blocks.defense.OverdriveProjector.OverdriveBuild;
 import mindustry.world.blocks.defense.ShockwaveTower.ShockwaveTowerBuild;
 import mindustry.world.blocks.production.GenericCrafter.GenericCrafterBuild;
 import mindustry.world.blocks.payloads.BuildPayload;
+import mindustry.world.blocks.payloads.Payload;
+import mindustry.world.blocks.payloads.UnitPayload;
 import mindustry.world.blocks.payloads.PayloadConveyor;
 import mindustry.world.blocks.payloads.PayloadConveyor.PayloadConveyorBuild;
 
@@ -95,6 +97,39 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         target.verifyPayloadMix(layers, viewport, viewer);
         target.verifyCarriedBuildings(layers, viewport, viewer);
         target.verifyUnits(viewer);
+        target.verifyCarriedUnits(layers, viewport, viewer);
+    }
+
+    private void verifyCarriedUnits(UpstreamBuildingLayers layers, UpstreamTerrainDrawProbe.Viewport viewport,
+                                   Team viewer) {
+        var tile = Vars.world.tile(32, 40);
+        tile.setBlock(Blocks.payloadConveyor, viewer, 1);
+        var belt = (PayloadConveyorBuild) tile.build;
+        var conveyor = (PayloadConveyor) belt.block;
+        for (var type : List.of(UnitTypes.gamma, UnitTypes.dagger)) {
+            var team = type == UnitTypes.gamma ? viewer : Team.crux;
+            var original = type.create(team);
+            var out = new ByteArrayOutputStream();
+            Payload.write(new UnitPayload(original), new Writes(new DataOutputStream(out)));
+            UnitPayload cargo = Payload.read(new Reads(new DataInputStream(new ByteArrayInputStream(out.toByteArray()))));
+            belt.progress = conveyor.moveTime * 0.4352753f;
+            belt.handlePayload(belt, cargo);
+
+            sprites.clear();
+            layers.render(viewport, viewer, candidate -> candidate == belt
+                && UpstreamRenderedNetworkProbe.supportsBuildingDraw(candidate));
+            if (cargo.unit.isAdded() || cargo.unit.type() != type || cargo.unit.team() != team
+                    || cargo.unit.elevation() != original.elevation() || cargo.rotation() != 90f
+                    || Math.abs(cargo.x() - belt.x) > 0.001f || Math.abs(cargo.y() - belt.y + 6f) > 0.001f) {
+                throw new AssertionError("Stock unit payload state differed for " + type.name);
+            }
+            requireRegion(type.region);
+            requireRegion(type.cellRegion);
+            if (sprites.stream().anyMatch(sprite -> matchesRegion(sprite, Core.atlas.find("circle")))) {
+                throw new AssertionError("Stock carried unit drew its flight engine");
+            }
+        }
+        System.out.println("UPSTREAM_UNIT_PAYLOAD roundTrip=2 incomingOffset=6 restoresElevation=ok");
     }
 
     private void verifyUnits(Team viewer) {
