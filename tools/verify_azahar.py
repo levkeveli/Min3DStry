@@ -331,7 +331,7 @@ def _paeth_predictor(a: int, b: int, c: int) -> int:
     return c
 
 
-def inspect_png(png_bytes: bytes) -> dict[str, Any]:
+def inspect_png(png_bytes: bytes, sample_points: tuple[tuple[int, int], ...] = ()) -> dict[str, Any]:
     """Decode PNG scanlines with stdlib zlib and confirm top/bottom halves contain non-blank content."""
     if not png_bytes.startswith(b"\x89PNG\r\n\x1a\n"):
         raise ValueError("Invalid PNG signature.")
@@ -382,6 +382,7 @@ def inspect_png(png_bytes: bytes) -> dict[str, Any]:
     top_colors: set[tuple[int, int, int]] = set()
     bottom_colors: set[tuple[int, int, int]] = set()
     mid_y = height // 2
+    samples = {}
 
     for y in range(height):
         row_start = y * (1 + stride)
@@ -406,6 +407,15 @@ def inspect_png(png_bytes: bytes) -> dict[str, Any]:
             else:
                 raise ValueError(f"Unsupported PNG scanline filter type: {ftype}")
         prev = curr
+        for px, py in sample_points:
+            if y != py:
+                continue
+            if color_type == 3:
+                ppb = 8 // bit_depth
+                shift = 8 - bit_depth * ((px % ppb) + 1)
+                samples[(px, py)] = palette[(curr[px // ppb] >> shift) & ((1 << bit_depth) - 1)]
+            else:
+                samples[(px, py)] = tuple(curr[px * bpp : px * bpp + 3])
         if y % 2 == 0:
             target = top_colors if y < mid_y else bottom_colors
             if len(target) < 64:
@@ -423,12 +433,15 @@ def inspect_png(png_bytes: bytes) -> dict[str, Any]:
                         off = x_px * bpp
                         target.add((curr[off], curr[off + 1], curr[off + 2]))
 
-    return {
+    result = {
         "width": width,
         "height": height,
         "top_distinct_colors": len(top_colors),
         "bottom_distinct_colors": len(bottom_colors),
     }
+    if sample_points:
+        result["samples"] = samples
+    return result
 
 
 def parse_azahar_log(log_text: str) -> dict[str, Any]:
