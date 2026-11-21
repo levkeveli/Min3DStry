@@ -9,6 +9,12 @@ import arc.graphics.g2d.Fill;
 import arc.graphics.g2d.SpriteBatch;
 import arc.graphics.g2d.TextureRegion;
 import arc.util.Time;
+import arc.util.io.Reads;
+import arc.util.io.Writes;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -24,6 +30,7 @@ import mindustry.graphics.Pal;
 import mindustry.world.blocks.defense.OverdriveProjector.OverdriveBuild;
 import mindustry.world.blocks.defense.ShockwaveTower.ShockwaveTowerBuild;
 import mindustry.world.blocks.production.GenericCrafter.GenericCrafterBuild;
+import mindustry.world.blocks.payloads.BuildPayload;
 import mindustry.world.blocks.payloads.PayloadConveyor;
 import mindustry.world.blocks.payloads.PayloadConveyor.PayloadConveyorBuild;
 
@@ -82,6 +89,60 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         target.verifyFluidDrawing(layers, viewport, viewer);
         target.verifyBuildingEffects(layers, viewport, viewer);
         target.verifyPayloadMix(layers, viewport, viewer);
+        target.verifyCarriedBuildings(layers, viewport, viewer);
+    }
+
+    private void verifyCarriedBuildings(UpstreamBuildingLayers layers, UpstreamTerrainDrawProbe.Viewport viewport,
+                                        Team viewer) {
+        var source = Vars.world.tile(28, 40);
+        var destination = Vars.world.tile(32, 40);
+        destination.setBlock(Blocks.payloadConveyor, viewer, 0);
+        var sender = (PayloadConveyorBuild) source.build;
+        var receiver = (PayloadConveyorBuild) destination.build;
+        var conveyor = (PayloadConveyor) sender.block;
+        var walls = List.of(Blocks.copperWallLarge, Blocks.copperWall);
+        var shadow = Core.atlas.find("square-shadow");
+        int shade = Color.floatToIntColor(new Color(0f, 0f, 0f, 0.4f).toFloatBits());
+        for (int i = 0; i < walls.size(); i++) {
+            var wall = walls.get(i);
+            float offset = i == 0 ? -6f : 0f;
+            sender.progress = conveyor.moveTime * (i == 0 ? 0.4352753f : 0.5f);
+            sender.handlePayload(sender, new BuildPayload(wall, viewer));
+            var bytes = new ByteArrayOutputStream();
+            sender.writeAll(new Writes(new DataOutputStream(bytes)));
+            receiver.readAll(new Reads(new DataInputStream(new ByteArrayInputStream(bytes.toByteArray()))),
+                sender.version());
+            receiver.updatePayload();
+            if (!(receiver.item instanceof BuildPayload payload) || payload.block() != wall
+                    || payload.build.team != viewer || payload.build.tile != Vars.emptyTile
+                    || Math.abs(payload.x() - receiver.x - offset) > 0.001f || payload.y() != receiver.y) {
+                throw new AssertionError("Stock payload stream lost the carried wall or its visual position");
+            }
+
+            sprites.clear();
+            layers.render(viewport, viewer, candidate -> candidate == receiver);
+            int shadowIndex = findPayloadSprite(shadow, payload, shade);
+            int wallIndex = findPayloadSprite(Core.atlas.find(wall.name), payload,
+                Color.floatToIntColor(Color.whiteFloatBits));
+            if (shadowIndex < 1 || wallIndex <= shadowIndex) {
+                throw new AssertionError("Stock payload shadow and wall drew out of order: " + sprites);
+            }
+        }
+        System.out.println("UPSTREAM_CARRIED_BUILDINGS roundTrip=2 positions=2 shadows=2");
+    }
+
+    private int findPayloadSprite(TextureRegion region, BuildPayload payload, int color) {
+        for (int i = 0; i < sprites.size(); i++) {
+            var sprite = sprites.get(i);
+            if (Math.abs(sprite.x() - payload.x()) < 0.001f && Math.abs(sprite.y() - payload.y()) < 0.001f
+                    && sprite.page() == UpstreamTerrainDrawProbe.pageIndex(region)
+                    && sprite.left() == region.getX() && sprite.top() == region.getY()
+                    && sprite.width() == region.width && sprite.height() == region.height
+                    && sprite.color() == color) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     private void verifyPayloadMix(UpstreamBuildingLayers layers, UpstreamTerrainDrawProbe.Viewport viewport,
