@@ -1044,9 +1044,12 @@ The live client applies the original v160.8 marker packets to
 and draw routines for text, points, shapes, lines, and atlas-backed texture
 markers. The ARM11 visual clock feeds Arc's global time for the original
 point animation. The texture marker adapter resolves names and content
-icons through the original atlas, including the stock error sprite. Lighting,
-minimap display, arbitrary textured quads, and dynamic Canvas and Logic
-Display textures require further renderer support.
+icons through the original atlas, including the stock error sprite. For
+atlas-backed QuadMarker draws, the batch submits the two original triangles
+to Citro3D and clips them at atlas tile edges while preserving position, UV
+and interpolated tint. Lighting, minimap display, standalone textures,
+dynamic Canvas and Logic Display textures, and varying legacy mix colors
+require further renderer support.
 
 The `runProbeJvm` snapshot reference round-trips the original create,
 control, text, texture, and remove packet classes against the client
@@ -1074,6 +1077,18 @@ The Java v160.8 server delivered the original create, rotation, texture
 change, and removal packets. The replay verified the Router in both
 orientations, the original Copper icon, the error sprite and the restored
 terrain against sampled pixels.
+
+`./dev.sh test` covers textured triangle clipping, winding, area and tint
+interpolation. `runObjectiveMarkersJvm` checks the original QuadMarker
+vertices after stock packets set a UV before the first draw, move a corner,
+and change the source texture. Add `--verify-quad-markers` to the Glacier
+replay to compare stock Core Nucleus pixels that span atlas tiles, capture
+a moved corner, and verify retargeting to the original Router sprite.
+The [ARM11 quad build](https://github.com/levkeveli/Min3DStry/actions/runs/44928596265)
+passed the replay on both 3DS emulator profiles connected to the
+unmodified v160.8 Java server. Both runs checked the interpolated red
+tint and original pixels in three atlas tiles before a corner was moved,
+then captured the updated geometry, Router texture and marker removal.
 
 ### Verify the Arc executor pools
 

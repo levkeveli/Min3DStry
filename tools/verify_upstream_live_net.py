@@ -1167,6 +1167,22 @@ def verify_logic_markers(log, emulator, server_log, server, rpc, output, model, 
     print(f"{model}: original logic marker drawing, visibility, position, text and removal passed.", flush=True)
 
 
+def capture_marker_pixels(rpc, output, model, phase, points, timeout, expected=None, tolerance=1):
+    deadline = time.monotonic() + timeout
+    while True:
+        png = rpc.screenshot(res_scale=1)
+        pixels = az.inspect_png(png, points)["samples"]
+        samples = tuple(pixels[point] for point in points)
+        if expected is None or all(abs(a - b) <= tolerance for actual, exact in zip(samples, expected)
+                                   for a, b in zip(actual, exact)):
+            (output / f"{model}-{phase}.png").write_bytes(png)
+            return samples
+        if time.monotonic() >= deadline:
+            (output / f"{model}-{phase}-unexpected.png").write_bytes(png)
+            raise RuntimeError(f"{phase} pixels: expected {expected}, got {samples}")
+        time.sleep(0.1)
+
+
 def verify_texture_markers(server_log, server, rpc, output, model, position, timeout):
     _, _, x, y = position
     x, y = (math.floor(float(value) / 8 + 0.5) * 8 for value in (x, y))
@@ -1179,19 +1195,7 @@ def verify_texture_markers(server_log, server, rpc, output, model, position, tim
     error = ((255, 255, 255),) * 3
 
     def capture(phase, expected=None):
-        deadline = time.monotonic() + timeout
-        while True:
-            png = rpc.screenshot(res_scale=1)
-            pixels = az.inspect_png(png, points)["samples"]
-            samples = tuple(pixels[point] for point in points)
-            if expected is None or all(abs(a - b) <= 1 for actual, exact in zip(samples, expected)
-                                       for a, b in zip(actual, exact)):
-                (output / f"{model}-texture-marker-{phase}.png").write_bytes(png)
-                return samples
-            if time.monotonic() >= deadline:
-                (output / f"{model}-texture-marker-{phase}-unexpected.png").write_bytes(png)
-                raise RuntimeError(f"Texture marker {phase}: expected {expected}, got {samples}")
-            time.sleep(0.1)
+        return capture_marker_pixels(rpc, output, model, f"texture-marker-{phase}", points, timeout, expected)
 
     baseline = capture("baseline")
     send_marker_phase(server_log, server, "texture-created",
@@ -1209,11 +1213,47 @@ def verify_texture_markers(server_log, server, rpc, output, model, position, tim
     print(f"{model}: original texture marker creation, rotation, content, fallback and removal passed.", flush=True)
 
 
+def verify_quad_markers(log, emulator, server_log, server, rpc, output, model, position, timeout):
+    _, _, x, y = position
+    x, y = (math.floor(float(value) / 8 + 0.5) * 8 for value in (x, y))
+    # Opaque samples in the original Core Nucleus span three 128 × 128 atlas
+    # tiles. The first sample includes the stock interpolated red tint.
+    points = ((94, 52), (109, 86), (133, 68), (153, 45))
+    initial = ((101, 185, 192), (152, 154, 164), (176, 185, 192))
+    moved = ((86, 154, 164), (110, 112, 128), (152, 154, 164), (152, 154, 164))
+    router = ((62, 112, 128), (110, 112, 128), (152, 154, 164), (147, 149, 160))
+
+    def capture(phase, expected=None):
+        return capture_marker_pixels(rpc, output, model, f"quad-marker-{phase}",
+                                     points, timeout, expected, tolerance=4)
+
+    baseline = capture("baseline")
+    corners = ((-52, 0, 0, 0), (-48, 24, 0, 1), (-24, 28, 1, 1), (-20, 4, 1, 0))
+    assignments = " ".join(
+        f"v[{i * 6}]={x + dx}; v[{i * 6 + 1}]={y + dy}; v[{i * 6 + 3}]={u}; v[{i * 6 + 4}]={t};"
+        for i, (dx, dy, u, t) in enumerate(corners))
+    send_marker_phase(server_log, server, "quad-created",
+        'const q=new MapObjectives.QuadMarker(); q.texture.value="core-nucleus"; const v=q.vertices; '
+        + assignments + ' v[8]=Color.valueOf("80ffffff").toFloatBits(); Call.createMarker(752, q);')
+    wait_for(log, emulator, "UPSTREAM_TEXTURED_QUAD source=arc gpu=citro3d", timeout)
+    capture("created", (*initial, baseline[3]))
+    send_marker_phase(server_log, server, "quad-moved",
+        "Call.updateMarker(752, Packages.mindustry.logic.LMarkerControl.posi, "
+        f"2, {(x - 16) / 8}, {(y + 32) / 8});")
+    capture("moved", moved)
+    send_marker_phase(server_log, server, "quad-retargeted", 'Call.updateMarkerTexture(752, "block-router-ui");')
+    capture("retargeted", router)
+    send_marker_phase(server_log, server, "quad-removed", "Call.removeMarker(752);")
+    capture("removed", baseline)
+    print(f"{model}: stock quad tint, atlas clipping, corner update and retargeting passed.", flush=True)
+
+
 def run_model(args, model, config, original_config, log, output):
     stationary = (args.world_atlas_recycle or args.building_layers or args.liquids
                   or args.building_effects or args.payload_mix or args.carried_buildings
                   or args.payload_handoff or args.unit_layers or args.unit_roster or args.naval_wake
-                  or args.tank_treads or args.map_spawn or args.verify_logic_markers or args.verify_texture_markers)
+                  or args.tank_treads or args.map_spawn or args.verify_logic_markers or args.verify_texture_markers
+                  or args.verify_quad_markers)
     map_name = args.map_spawn or "Glacier"
     overrides = {
         "Miscellaneous": {"log_filter": "*:Info Debug.Emulated:Debug Service.SOC:Debug",
@@ -1406,6 +1446,8 @@ def run_model(args, model, config, original_config, log, output):
                             verify_logic_markers(log, emulator, server_log, server, rpc, output, model, spawn, args.timeout)
                         if args.verify_texture_markers:
                             verify_texture_markers(server_log, server, rpc, output, model, spawn, args.timeout)
+                        if args.verify_quad_markers:
+                            verify_quad_markers(log, emulator, server_log, server, rpc, output, model, spawn, args.timeout)
                         if args.erekir_build:
                             verify_erekir_construction(log, emulator, server_log, server, args.timeout, capture, spawn)
                         if args.mining:
@@ -1594,6 +1636,8 @@ def main():
                         help="Verify stock logic marker packets and visible state on Glacier")
     parser.add_argument("--verify-texture-markers", action="store_true",
                         help="Verify original atlas-backed texture markers on Glacier")
+    parser.add_argument("--verify-quad-markers", action="store_true",
+                        help="Verify clipped stock textured quads and live corner updates on Glacier")
     parser.add_argument("--require-relocation-spill", action="store_true",
                         help="Require the ARM11 collector to grow its relocation table during the spawn check")
     args = parser.parse_args()
@@ -1663,6 +1707,8 @@ def main():
         parser.error("--verify-logic-markers needs stationary --controls and --terrain-atlas on Glacier")
     if args.verify_texture_markers and (not args.controls or not args.terrain_atlas or args.controls_replay or args.map_spawn):
         parser.error("--verify-texture-markers needs stationary --controls and --terrain-atlas on Glacier")
+    if args.verify_quad_markers and (not args.controls or not args.terrain_atlas or args.controls_replay or args.map_spawn):
+        parser.error("--verify-quad-markers needs stationary --controls and --terrain-atlas on Glacier")
     if args.erekir_sector is not None:
         if not args.map_spawn or not re.fullmatch(r"[a-z][a-z-]*", args.erekir_sector):
             parser.error("--erekir-sector needs --map-spawn and a sector slug such as onset")
