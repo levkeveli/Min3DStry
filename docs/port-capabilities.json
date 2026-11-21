@@ -181,7 +181,7 @@
       "category": "Core Simulation",
       "name": "Drills, Conveyors, Routers & Core Storage",
       "weight": 6,
-      "stage": "experimental",
+      "stage": "emulator-tested",
       "issue": 26,
       "evidence": [
         "src/render/factory_demo.c",
@@ -302,6 +302,7 @@
         "include/platform/settings_store.h",
         "src/platform/settings_store.c",
         "tests/platform/test_settings_store.c",
+        "research/upstream-runtime/src/campaign-slot-discovery/java/UpstreamCampaignSlotDiscoveryProbe.java",
         "research/upstream-runtime/src/campaign-saves/java/UpstreamCampaignSavesProbe.java",
         "research/upstream-runtime/src/campaign-launch/java/UpstreamCampaignLaunchProbe.java",
         "research/upstream-runtime/src/campaign-sector-state/java/UpstreamCampaignSectorStateProbe.java",

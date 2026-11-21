@@ -1,6 +1,6 @@
 # Campaign Progression & Tech-Tree Persistence Baseline (Issue #41)
 
-**Verification status:** Host baselines plus a real Arc `Settings`/`settings.bin` round-trip probe verified on ARM11 in Azahar New/Old profiles. Campaign UI, live sector slots and gameplay integration (`campaign-sectors` capability) remain **Planned** under [#41](https://github.com/levkeveli/Min3DStry/issues/41).
+**Verification status:** **Experimental**. Host baselines and real Arc `Settings`/`settings.bin`, campaign keys, sector slot, sector/content/research/launch/planet state, slot metadata and save probes have run on ARM11 in Azahar New/Old profiles. Campaign UI, live sector-slot presentation and gameplay integration remain open under [#41](https://github.com/levkeveli/Min3DStry/issues/41).
 
 ## 1:1 Upstream Mandate
 
@@ -311,6 +311,44 @@ The probe supplies a minimal Arc `Files`/`AssetManager` for headless use, sets
 `Saves.getSectorFile(SectorPresets.groundZero.sector)`. It asserts the
 `sector-serpulo-15.msav` name and parent directory. Azahar `2126.2` New and Old
 profiles both reported `saves=ok`.
+
+## ARM11 Save-Slot Discovery
+
+`-Pprobe=campaign-slot-discovery` writes a sector slot into a probe directory
+and discovers it with upstream `SaveIO` validation:
+
+```sh
+gradle -PupstreamCheckout=/path/to/Mindustry \
+  -PreferenceJar=/path/to/server-release.jar \
+  -ParcCheckout=/path/to/Arc -Pprobe=campaign-slot-discovery \
+  runProbeJvm "--args=/path/slot-base /path/glacier.msav"
+```
+
+JVM reports:
+
+```text
+UPSTREAM_CAMPAIGN_SLOT_DISCOVERY path=tmp slots=1 file=sector-serpulo-15.msav bytes=11035 discovery=ok
+```
+
+ARM11/Azahar reports the live path:
+
+```text
+UPSTREAM_CAMPAIGN_SLOT_DISCOVERY path=live slots=1 file=sector-serpulo-15.msav bytes=11036 discovery=ok
+```
+
+The probe loads Glacier, writes `sector-serpulo-15.msav` into
+`/3ds/min3dstry/tmp/slot-discovery`, lists the directory, filters `*.msav`
+non-backup files through `SaveIO.isSaveValid`, and asserts exactly one slot.
+The ARM11 build sets `M3DS_RELAX_POINTER_TYPES=1` because TeaVM C 0.16 emits
+pointer-typed object references that GCC otherwise rejects; locally use:
+
+```sh
+M3DS_RELAX_POINTER_TYPES=1 bash arm11/build.sh \
+  build/generated/teavm/c build/probe-3ds-campaign-slot-discovery
+```
+
+The runtime result is verified on both Azahar profiles. The opt-in is tracked
+for removal once the TeaVM object-reference cast issue is fixed.
 
 ## Remaining Scope for Issue #41 (3DS Hardware / ARM11 Runtime)
 
