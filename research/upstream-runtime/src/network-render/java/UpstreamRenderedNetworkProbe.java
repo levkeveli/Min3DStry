@@ -15,6 +15,7 @@ import mindustry.core.World;
 import mindustry.gen.Building;
 import mindustry.gen.Groups;
 import mindustry.gen.Unit;
+import mindustry.gen.UnitWaterMove;
 import mindustry.graphics.CacheLayer;
 import mindustry.type.UnitType;
 import mindustry.world.blocks.payloads.BuildPayload;
@@ -80,7 +81,9 @@ public final class UpstreamRenderedNetworkProbe {
             UnitTypes.dagger, UnitTypes.mace, UnitTypes.fortress, UnitTypes.scepter, UnitTypes.reign, UnitTypes.crawler,
             UnitTypes.nova, UnitTypes.pulsar, UnitTypes.quasar, UnitTypes.vela,
             UnitTypes.flare, UnitTypes.horizon, UnitTypes.zenith, UnitTypes.antumbra, UnitTypes.eclipse,
-            UnitTypes.mono, UnitTypes.poly
+            UnitTypes.mono, UnitTypes.poly,
+            UnitTypes.risso, UnitTypes.minke, UnitTypes.bryde, UnitTypes.sei, UnitTypes.omura,
+            UnitTypes.retusa, UnitTypes.oxynoe, UnitTypes.cyerce, UnitTypes.aegires, UnitTypes.navanax
         };
         drawableUnits.clear();
         for (var type : types) {
@@ -127,6 +130,9 @@ public final class UpstreamRenderedNetworkProbe {
             for (var build : Groups.build) {
                 if (build instanceof Conduit.ConduitBuild conduit) conduit.advanceLiquidDraw();
             }
+            for (var unit : Groups.unit) {
+                if (unit instanceof UnitWaterMove boat) boat.advanceWake();
+            }
         } finally {
             Time.delta = oldDelta;
         }
@@ -148,7 +154,7 @@ public final class UpstreamRenderedNetworkProbe {
                 int x = World.toTile(unit.x()), y = World.toTile(unit.y());
                 if (x < viewport.left || x >= viewport.left + UpstreamTerrainDrawProbe.VIEW_WIDTH
                         || y < viewport.bottom || y >= viewport.bottom + UpstreamTerrainDrawProbe.VIEW_HEIGHT) continue;
-                unit.type().draw(unit);
+                unit.draw();
                 if (unit == controlled) draws++;
             }
         } finally {

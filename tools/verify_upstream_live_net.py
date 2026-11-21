@@ -540,6 +540,38 @@ def verify_unit_layers(screenshot):
         raise RuntimeError(f"Stock Gamma and Dagger cell, engine or weapon pixels differ: {colors}")
 
 
+def load_unit_roster_fixture(server_log, server):
+    server.stdin.write(
+        'pause on\n'
+        'js (() => { const team = Vars.state.rules.defaultTeam, enemy = Vars.state.rules.waveTeam; '
+        'const roster = [[UnitTypes.alpha,team,680,232],[UnitTypes.beta,team,680,200],'
+        '[UnitTypes.flare,team,616,168],[UnitTypes.fortress,enemy,688,176],'
+        '[UnitTypes.pulsar,team,600,168],[UnitTypes.vela,team,648,168],[UnitTypes.quasar,enemy,600,232]]; '
+        'const names = roster.map(entry => { const u = entry[0].spawn(entry[1],entry[2],entry[3],90); '
+        'if (typeof u.baseRotation === "number") u.baseRotation=90; '
+        'if (u.type === UnitTypes.quasar) u.shield=100; '
+        'return u.type.name + ":" + u.shield; }); '
+        'return "UPSTREAM_UNIT_ROSTER_FIXTURE " + names.join(","); })()\n'
+    )
+    server.stdin.flush()
+    wait_for(server_log, server, r"UPSTREAM_UNIT_ROSTER_FIXTURE alpha:0,beta:0,flare:0,"
+             r"fortress:0,pulsar:0,vela:0,quasar:100\b", 5)
+
+
+def verify_unit_roster(screenshot):
+    # White texels from the stock unit cell regions take their full-health team tint.
+    sharded, crux = (255, 211, 127), (242, 85, 85)
+    expected = {(289, 53): sharded, (290, 54): sharded, (289, 137): sharded, (290, 138): sharded,
+                (129, 214): sharded, (130, 215): sharded, (89, 216): sharded, (90, 217): sharded,
+                (209, 217): sharded, (210, 218): sharded, (306, 197): crux, (312, 197): crux}
+    shield_tip = tuple((x, y) for x in range(233, 241) for y in range(45, 57))
+    colors = az.inspect_png(screenshot, (*expected, *shield_tip))["samples"]
+    mismatch = {point: (rgb, colors[point]) for point, rgb in expected.items() if colors[point] != rgb}
+    shield_pixels = sum(colors[point] == crux for point in shield_tip)
+    if mismatch or shield_pixels < 10:
+        raise RuntimeError(f"Original unit cells differ {mismatch}, Quasar shield pixels {shield_pixels}")
+
+
 def payload_handoff_pixels(screenshot):
     # The receiver sample starts beyond any position the sender can draw during travel.
     wall_rows = (184, 187, 190, 193, 196)
@@ -672,7 +704,7 @@ def verify_conduit_frames(log, rpc, output, model):
 def run_model(args, model, config, original_config, log, output):
     stationary = (args.world_atlas_recycle or args.building_layers or args.liquids
                   or args.building_effects or args.payload_mix or args.carried_buildings
-                  or args.payload_handoff or args.unit_layers)
+                  or args.payload_handoff or args.unit_layers or args.unit_roster)
     overrides = {
         "Miscellaneous": {"log_filter": "*:Info Debug.Emulated:Debug Service.SOC:Debug",
                           "check_for_update_on_start": "false"},
@@ -725,6 +757,8 @@ def run_model(args, model, config, original_config, log, output):
                 load_payload_handoff_fixture(server_log, server)
             if args.unit_layers:
                 load_unit_layers_fixture(server_log, server)
+            if args.unit_roster:
+                load_unit_roster_fixture(server_log, server)
             if args.building_effects:
                 load_building_effects_fixture(server_log, server)
             if args.liquids:
@@ -797,6 +831,8 @@ def run_model(args, model, config, original_config, log, output):
                             phase = "payload-before"
                         elif args.unit_layers:
                             phase = "unit-layers"
+                        elif args.unit_roster:
+                            phase = "unit-roster"
                         if args.building_layers:
                             phase = "building-cracks" if args.building_cracks else "building-layers"
                         capture(phase, spawn)
@@ -811,6 +847,8 @@ def run_model(args, model, config, original_config, log, output):
                                                    output / f"{model}-{phase}.png")
                         if args.unit_layers:
                             verify_unit_layers((output / f"{model}-{phase}.png").read_bytes())
+                        if args.unit_roster:
+                            verify_unit_roster((output / f"{model}-{phase}.png").read_bytes())
                         if args.liquids:
                             verify_conduit_frames(log, rpc, output, model)
                         if not args.payload_handoff:
@@ -942,6 +980,8 @@ def main():
                             help="Verify a stock server transfers a carried wall and Dagger after the client joins")
     build_mode.add_argument("--unit-layers", action="store_true",
                             help="Verify the stock Gamma and Dagger both free and carried in paused Glacier")
+    build_mode.add_argument("--unit-roster", action="store_true",
+                            help="Verify streamed Serpulo unit types and the Quasar shield on Glacier")
     args = parser.parse_args()
     args.server, args.rom, args.azahar = (path.resolve() for path in (args.server, args.rom, args.azahar))
     with args.server.open("rb") as archive:
@@ -975,6 +1015,8 @@ def main():
         parser.error("--payload-handoff needs --controls and --terrain-atlas for a fixed camera")
     if args.unit_layers and (not args.terrain_atlas or not args.controls or args.controls_replay):
         parser.error("--unit-layers needs --controls and --terrain-atlas for a stationary capture")
+    if args.unit_roster and (not args.terrain_atlas or not args.controls or args.controls_replay):
+        parser.error("--unit-roster needs --controls and --terrain-atlas for a stationary capture")
     if args.building_effects and (not args.terrain_atlas or not args.controls or args.controls_replay):
         parser.error("--building-effects needs --controls and --terrain-atlas for a stationary capture")
     if args.liquids and (not args.terrain_atlas or not args.controls or args.controls_replay):

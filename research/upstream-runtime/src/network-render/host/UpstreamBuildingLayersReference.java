@@ -25,6 +25,7 @@ import mindustry.content.UnitTypes;
 import mindustry.entities.units.BuildPlan;
 import mindustry.gen.Builderc;
 import mindustry.gen.Player;
+import mindustry.gen.UnitWaterMove;
 import mindustry.world.blocks.liquid.Conduit.ConduitBuild;
 import mindustry.world.blocks.liquid.LiquidBlock;
 import mindustry.game.Team;
@@ -98,6 +99,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         target.verifyCarriedBuildings(layers, viewport, viewer);
         target.verifyUnits(viewer);
         target.verifyCarriedUnits(layers, viewport, viewer);
+        target.verifyNavalWake(viewer);
     }
 
     private void verifyCarriedUnits(UpstreamBuildingLayers layers, UpstreamTerrainDrawProbe.Viewport viewport,
@@ -143,7 +145,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
             sprites.clear();
             solidQuads.clear();
             Draw.sort(true);
-            type.draw(unit);
+            unit.draw();
             Draw.sort(false);
             requireRegion(type.region);
             if (type.drawCell) requireRegion(type.cellRegion);
@@ -190,6 +192,37 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         requireRegion(Core.atlas.white());
         gamma.clearBuilding();
         System.out.println("UPSTREAM_UNIT_DRAW gamma=shadow,engine,body,cell,weapons dagger=legs,base,body,cell,weapons");
+    }
+
+    private void verifyNavalWake(Team viewer) {
+        for (int y = 35; y <= 37; y++) {
+            for (int x = 28; x <= 34; x++) {
+                Vars.world.tile(x, y).setFloor(Blocks.water.asFloor());
+            }
+        }
+        var boat = (UnitWaterMove) UnitTypes.risso.spawn(viewer, 240f, 288f, 0f);
+        float health = boat.health;
+        Time.delta = 1f;
+        for (int i = 0; i < 8; i++) {
+            boat.set(240f + 2f * i, 288f);
+            boat.advanceWake();
+        }
+        if (boat.x != 254f || boat.y != 288f || boat.health != health || !boat.vel.isZero()) {
+            throw new AssertionError("Wake update changed stock ship simulation state");
+        }
+        sprites.clear();
+        solidQuads.clear();
+        Draw.sort(true);
+        boat.draw();
+        Draw.sort(false);
+        requireRegion(boat.type.region);
+        int above = 0, below = 0;
+        for (var vertices : solidQuads) {
+            if (vertices[1] > boat.y) above++;
+            if (vertices[1] < boat.y) below++;
+        }
+        if (above != 8 || below != 8) throw new AssertionError("Unexpected Risso wake: " + above + " and " + below);
+        System.out.println("UPSTREAM_NAVAL_WAKE port=" + above + " starboard=" + below);
     }
 
     private void verifyCarriedBuildings(UpstreamBuildingLayers layers, UpstreamTerrainDrawProbe.Viewport viewport,
