@@ -98,22 +98,26 @@ public final class UpstreamLiveNetworkProbe {
         };
         byte[] host = endpoint[0].getBytes(StandardCharsets.UTF_8);
         int port = Integer.parseInt(endpoint[1]);
-        var app = UpstreamWorldLoadProbe.initialize(config.parent());
-        Vars.mods = new Mods();
-        Vars.universe = new Universe();
-        if (frame != null) {
-            Core.audio = new MockAudio();
-            Vars.indexer = new BlockIndexer();
-            Vars.pathfinder = new Pathfinder();
-            Vars.fogControl = new FogControl();
-        }
+        String stage = "content";
         try {
+            var app = UpstreamWorldLoadProbe.initialize(config.parent());
+            stage = "services";
+            Vars.mods = new Mods();
+            Vars.universe = new Universe();
+            if (frame != null) {
+                Core.audio = new MockAudio();
+                Vars.indexer = new BlockIndexer();
+                Vars.pathfinder = new Pathfinder();
+                Vars.fogControl = new FogControl();
+            }
+            stage = "graphics";
             if (beforeConnect != null) beforeConnect.run();
+            stage = "session";
             new UpstreamLiveNetworkProbe(mode, frame, building).run(host, port, app);
-        } catch (IOException | RuntimeException error) {
+        } catch (IOException | RuntimeException | LinkageError error) {
             Throwable cause = error;
             while (cause.getCause() != null) cause = cause.getCause();
-            System.out.println("UPSTREAM_LIVE_NET_ERROR " + cause.getClass().getSimpleName()
+            System.out.println("UPSTREAM_LIVE_NET_ERROR stage=" + stage + " " + cause.getClass().getSimpleName()
                 + ": " + cause.getMessage());
             throw error;
         }

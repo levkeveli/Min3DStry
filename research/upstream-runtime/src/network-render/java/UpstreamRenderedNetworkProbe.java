@@ -45,13 +45,16 @@ public final class UpstreamRenderedNetworkProbe {
     }
 
     private void loadGraphics() {
+        System.out.println("UPSTREAM_INTERFACE_GRAPHICS atlas");
         UpstreamTerrainDrawProbe.loadAtlas(atlas, true);
         viewport = UpstreamTerrainDrawProbe.liveViewport(target);
         target.initialize();
+        System.out.println("UPSTREAM_INTERFACE_GRAPHICS labels");
         var labels = String.join("\0", Blocks.conveyor.localizedName, Blocks.copperWall.localizedName,
             Core.bundle.get("keybind.rotate.name"), Core.bundle.get("waves.remove"),
             "List", "Config", Core.bundle.get("back")) + "\0";
         target.buildLabels(labels.getBytes(StandardCharsets.UTF_8));
+        System.out.println("UPSTREAM_INTERFACE_GRAPHICS ready");
     }
 
     private void render(Unit unit) {
