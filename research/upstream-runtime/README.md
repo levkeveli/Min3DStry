@@ -885,10 +885,19 @@ The original build queue and BlockRenderer handle placement and drawing.
 Run the live verifier with
 `--controls --controls-replay --map-spawn "The Onset" --erekir-sector onset --erekir-build --terrain-atlas <sprites.aatls>`.
 The stock server loads the original map in Survival and the fixture adds
-16 beryllium to the Core Bastion. The replay rotates and places a Duct at
-(280, 107), then places a Beryllium Wall at (280, 106). The verifier checks
-the server's placement, rotation, builder and balances of 15 and 9
-beryllium, then compares samples from the original atlas.
+16 beryllium to the Core Bastion. The replay rotates the Duct with R, places
+it at (280, 107) by touch, and then places a Beryllium Wall at (280, 106).
+The verifier checks the server's placement, rotation, builder and balances
+of 15 and 9 beryllium, then compares samples from the original atlas.
+The pinned JVM control check also exercises the touchscreen Rotate button.
+
+The [devkitARM build](https://github.com/levkeveli/Min3DStry/actions/runs/44903239394)
+passed in Azahar 2126.2 Original and New 3DS modes using the unmodified
+v160.8 server. In both modes the server recorded Duct rotation 1 and Beryllium
+Wall rotation 0, attributed both builds to the ARM11 player, and deducted
+exactly seven beryllium. The presented sprites matched the sampled RGB
+values from the original atlas. Both modes also passed the Fortress spawn
+capture and reported the Serpulo Conveyor and Copper Wall shortcuts.
 
 ### Verify the Arc executor pools
 

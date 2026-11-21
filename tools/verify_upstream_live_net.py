@@ -98,7 +98,7 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
     needs_settling_time = building or touch_build or touch_config
     circle_at = first_move + (18 if needs_settling_time else 6)
     leave_at = first_move + (44 if needs_settling_time else 16)
-    frames = (leave_at + 7) * samples_per_second
+    frames = (128 if erekir_build else leave_at + 7) * samples_per_second
     header = struct.pack("<4sQ20sQQ32sIQq156x", b"CTM\x1b", 0, revision, 1780000000,
                          0x4D334453, b"Min3DStry input verification", 0, frames, 0)
     touch_idle = struct.pack("<B6x", 1)
@@ -115,14 +115,15 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
             (75, (305, 64)), (79, (232, 136)), (84, (160, 80)),
         )
     if erekir_build:
-        taps = ((60, (40, 24)), (64, (200, 24)), (68, (216, 152)),
-                (80, (120, 24)), (84, (216, 168)))
+        taps = ((60, (40, 24)), (76, (216, 152)),
+                (91, (120, 24)), (96, (216, 168)))
     with path.open("wb") as movie:
         movie.write(header)
         for frame in range(frames):
             seconds = frame // samples_per_second
-            buttons = 0
-            if not erekir_build:
+            if erekir_build:
+                buttons = (1 << 8) if 66 <= seconds < 72 else 0  # R, the 3DS rotate shortcut.
+            else:
                 buttons = (1 << 4) if seconds == first_move else (1 << 3) if seconds == leave_at else 0
             if building and seconds in (35, 37, 39):
                 buttons = 1  # A, with releases so a late HID poll can observe another press.
@@ -250,7 +251,10 @@ def inspect_building(server_log, server, phase, tile_x, tile_y, builder=PLAYER, 
 def verify_erekir_construction(log, emulator, server_log, server, timeout, capture, spawn):
     wait_for(log, emulator, r"UPSTREAM_BUILD_SHORTCUTS primary=duct secondary=beryllium-wall\b", timeout)
     for block, y, rotation, balance in (("duct", 107, 1, 15), ("beryllium-wall", 106, 0, 9)):
-        wait_for(log, emulator, rf"UPSTREAM_TOUCH_PLAN block={block} x=280 y={y} rotation={rotation}\b", timeout)
+        touch_plan = re.compile(rf"UPSTREAM_TOUCH_PLAN block={block} x=280 y={y} rotation=(-?\d+)\b")
+        plan = touch_plan.search(wait_for(log, emulator, touch_plan, timeout))
+        if int(plan[1]) != rotation:
+            raise RuntimeError(f"Expected {block} rotation {rotation}, observed {plan[0]}")
         wait_for(log, emulator, rf"UPSTREAM_LIVE_BUILD block={block} x=280 y={y} rotation={rotation} team=1\b", timeout)
         result = inspect_building(server_log, server, block, 280, y, item="beryllium")
         if result != (block, "1", str(rotation), str(balance), "true"):
@@ -1080,8 +1084,6 @@ def run_model(args, model, config, original_config, log, output):
                     first_move = 101
                 if args.touch_config:
                     first_move = 92
-                if args.erekir_build:
-                    first_move = 105
                 write_controls_replay(replay, first_move=first_move, building=args.building,
                                       touch_build=args.touch_build, touch_config=args.touch_config,
                                       erekir_build=args.erekir_build, model=model)

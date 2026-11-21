@@ -76,11 +76,11 @@ public final class UpstreamBuildControlsReference {
         }
         verifyCatalog(controls, unit);
         verifyConfiguration(controls, unit);
-        verifyPlanetShortcuts();
+        verifyPlanetShortcuts(unit);
         System.out.println("UPSTREAM_TOUCH_REFERENCE conveyor=85,26,1 wall=86,26 break=86,26");
     }
 
-    private static void verifyPlanetShortcuts() {
+    private static void verifyPlanetShortcuts(Unit unit) {
         var controls = new UpstreamLiveBuildControls();
         var planet = Vars.state.rules.planet;
         try {
@@ -90,6 +90,12 @@ public final class UpstreamBuildControlsReference {
             Vars.state.rules.planet = Planets.erekir;
             if (controls.block() != Blocks.duct || controls.shortcut(1) != Blocks.berylliumWall) {
                 throw new AssertionError("Erekir should use Duct and Beryllium Wall shortcuts");
+            }
+            controls.update(unit, 0, touch(200, 24));
+            if (controls.rotation() != 1) throw new AssertionError("Erekir Rotate should turn the Duct");
+            controls.update(unit, 0, touch(120, 24));
+            if (controls.block() != Blocks.berylliumWall || controls.rotation() != 0) {
+                throw new AssertionError("Selecting the Beryllium Wall should clear the Duct rotation");
             }
         } finally {
             Vars.state.rules.planet = planet;
