@@ -399,6 +399,32 @@ The stock server confirmed the desktop builder identity, team 1,
 rotation 1 and 198 remaining copper in both sessions. ARM11 applied and
 drew both conveyors.
 
+### Build and remove blocks with the touchscreen
+
+The graphical multiplayer probe shows a bottom-screen palette after it
+loads Glacier. Select Conveyor or Copper Wall, then tap the matching cell
+in the bottom grid. The grid follows the 16 × 12 viewport on the top
+screen. Rotate turns the Conveyor a quarter turn. Remove toggles
+deconstruction and gives the cursor a red outline. A submits at the
+cursor, R rotates, and B toggles removal.
+
+Placement and deconstruction enter the original unit build queue. The
+stock server applies the construction costs and refunds and sends its
+original placement and deconstruction packets. The rendered probe uses
+the original Conveyor and Copper Wall sprites. Debug messages continue
+through `svcOutputDebugString` while Citro2D draws the bottom screen.
+
+Add `--touch-build --controls-replay` to the graphical verifier command
+using Azahar 2126.2. It taps Rotate, places a Conveyor at (85, 26) and
+a Copper Wall at (86, 26), and removes the wall in a stock Glacier
+session. It reads team, rotation, builder identity and copper from the
+stock server, checks the cursor and grid in both screen captures, and
+then exercises movement and START. For the JVM reference, use
+`runBuildControlsJvm -Pprobe=network-render --args=/path/to/glacier-world-stream.bin`
+with the captured Glacier WorldStream. The current palette verifies
+two upstream entries. Full catalog selection and block configuration
+are tracked in issue #27.
+
 Before the snapshot dispatch extension, the [devkitARM verification build](https://github.com/levkeveli/Min3DStry/actions/runs/44824442974)
 passed at `-O0` and `-O2` on both Azahar 2126.2 console profiles. Each run
 rejected build 159 with `clientOutdated`, then joined Glacier twice with

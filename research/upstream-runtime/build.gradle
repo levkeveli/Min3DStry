@@ -337,6 +337,14 @@ tasks.register('runProbeJvm', JavaExec) {
         .getOrDefault(probe, entryPoint)
 }
 
+if (usesLiveNetwork) {
+    tasks.register('runBuildControlsJvm', JavaExec) {
+        dependsOn 'classes'
+        classpath = sourceSets.main.runtimeClasspath
+        mainClass = 'UpstreamBuildControlsReference'
+    }
+}
+
 if (usesContentSources) {
     tasks.register('runBuildingProbeJvm', JavaExec) {
         dependsOn 'classes'
