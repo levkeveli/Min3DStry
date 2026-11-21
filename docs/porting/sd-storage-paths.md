@@ -121,11 +121,13 @@ revision, payload) and linked from the tile array. The common upstream
 module mask, item count, and the remaining building-specific bytes:
 
 ```text
-[MIN3DSTRY] SECTOR_BUILDINGS count=2 bytes=44 team=1 rot=0 health=6000 enabled=1 modules=9 items=0 extra=8 partial=0 hash=5b2a6cb142f2813a status=ok
+[MIN3DSTRY] SECTOR_BUILDINGS count=2 bytes=44 team=1 rot=0 health=6000 enabled=1 modules=9 items=0 item0=0:0 extra=8 partial=0 trunc=0 hash=5b2a6cb142f2813a status=ok
 ```
 
-Both profiles produce the same building hash. Power/liquid/timer/disabler
-modules and the building-specific payload are preserved but not decoded yet.
+Both profiles produce the same building hash. The item module is decoded up to
+eight stacks (`item0=id:amount`, `trunc` when more remain). Power/liquid/timer/
+disabler modules and the building-specific payload are preserved but not
+decoded yet.
 
 ## SD sector catalog
 

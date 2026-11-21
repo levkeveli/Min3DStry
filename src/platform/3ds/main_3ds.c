@@ -280,7 +280,7 @@ int main(int argc, char *argv[]) {
             building_bytes += tiles.buildings[i].payload_size + 1u;
         }
         snprintf(dbg_line, sizeof(dbg_line),
-                 "[MIN3DSTRY] SECTOR_BUILDINGS count=%u bytes=%u team=%u rot=%u health=%.0f enabled=%u modules=%u items=%u extra=%u partial=%d hash=%016llx status=%s\n",
+                 "[MIN3DSTRY] SECTOR_BUILDINGS count=%u bytes=%u team=%u rot=%u health=%.0f enabled=%u modules=%u items=%u item0=%u:%u extra=%u partial=%d trunc=%d hash=%016llx status=%s\n",
                  (unsigned)(alloc_ok ? tiles.building_count : 0u),
                  (unsigned)(alloc_ok ? building_bytes : 0u),
                  (unsigned)(alloc_ok && tiles.building_count > 0u
@@ -296,9 +296,17 @@ int main(int argc, char *argv[]) {
                  (unsigned)(alloc_ok && tiles.building_count > 0u
                      ? tiles.buildings[0].item_count : 0u),
                  (unsigned)(alloc_ok && tiles.building_count > 0u
+                     && tiles.buildings[0].item_count > 0u
+                     ? tiles.buildings[0].items[0].item_id : 0u),
+                 (unsigned)(alloc_ok && tiles.building_count > 0u
+                     && tiles.buildings[0].item_count > 0u
+                     ? tiles.buildings[0].items[0].amount : 0u),
+                 (unsigned)(alloc_ok && tiles.building_count > 0u
                      ? tiles.buildings[0].extra_size : 0u),
                  alloc_ok && tiles.building_count > 0u
                      && tiles.buildings[0].partial ? 1 : 0,
+                 alloc_ok && tiles.building_count > 0u
+                     && tiles.buildings[0].items_truncated ? 1 : 0,
                  (unsigned long long)(alloc_ok ? tiles.building_hash : 0u),
                  alloc_ok ? "ok" : "failed");
         m3ds_emit_debug_line(log_socket, dbg_line);

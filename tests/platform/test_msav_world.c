@@ -293,6 +293,59 @@ static void test_alloc_building(void) {
     m3ds_msav_free_world(&tiles);
 }
 
+static void test_alloc_items(void) {
+    uint8_t data[128];
+    size_t size = 0u;
+    memcpy(data + size, "MSAV", 4);
+    size += 4u;
+    size += put_be32(data + size, 13u);
+    const uint8_t meta[] = {1};
+    const uint8_t patches[] = {2};
+    const uint8_t content[] = {3};
+    size = put_region(data, size, meta, sizeof(meta));
+    size = put_region(data, size, patches, sizeof(patches));
+    size = put_region(data, size, content, sizeof(content));
+
+    uint8_t map[64];
+    size_t map_size = 0u;
+    map_size += put_be16(map + map_size, 1u);
+    map_size += put_be16(map + map_size, 1u);
+    map_size += put_be16(map + map_size, 1u);
+    map_size += put_be16(map + map_size, 0u);
+    map[map_size++] = 0u;
+    map_size += put_be16(map + map_size, 5u);
+    map[map_size++] = 1u;
+    map[map_size++] = 1u;
+    const uint8_t payload[] = {
+        0x43, 0x48, 0x00, 0x00, 0x80, 0x01, 0x03, 0x01, 0x01, 0x00, 0x01,
+        0x00, 0x05, 0x00, 0x00, 0x00, 0x7b, 0x00, 0x00};
+    map_size += put_be32(map + map_size, (unsigned)(1u + sizeof(payload)));
+    map[map_size++] = 1u;
+    memcpy(map + map_size, payload, sizeof(payload));
+    map_size += sizeof(payload);
+    size = put_region(data, size, map, map_size);
+    uint8_t entities[16];
+    size_t entity_size = 0u;
+    entity_size += put_be16(entities + entity_size, 0u);
+    entity_size += put_be32(entities + entity_size, 0u);
+    entity_size += put_be32(entities + entity_size, 0u);
+    size = put_region(data, size, entities, entity_size);
+
+    M3dsWorldTiles tiles;
+    assert(m3ds_msav_alloc_world(data, size, &tiles));
+    assert(tiles.building_count == 1u);
+    assert(tiles.buildings[0].health > 199.0f
+           && tiles.buildings[0].health < 201.0f);
+    assert(tiles.buildings[0].modules == 1u);
+    assert(tiles.buildings[0].item_count == 1u);
+    assert(tiles.buildings[0].items[0].item_id == 5u);
+    assert(tiles.buildings[0].items[0].amount == 123u);
+    assert(tiles.buildings[0].extra_size == 0u);
+    assert(!tiles.buildings[0].partial);
+    assert(!tiles.buildings[0].items_truncated);
+    m3ds_msav_free_world(&tiles);
+}
+
 static void test_malformed(void) {
     uint8_t data[64];
     memset(data, 0, sizeof(data));
@@ -328,6 +381,7 @@ int main(void) {
     test_malformed_tiles();
     test_alloc_world();
     test_alloc_building();
+    test_alloc_items();
     test_malformed();
     return 0;
 }

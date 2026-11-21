@@ -29,6 +29,8 @@ static void parse_building_state(M3dsBuildingState *building) {
     building->enabled = 1u;
     building->modules = 0u;
     building->partial = true;
+    building->items_truncated = false;
+    memset(building->items, 0, sizeof(building->items));
     if (building->payload_size < 6u) {
         return;
     }
@@ -63,7 +65,17 @@ static void parse_building_state(M3dsBuildingState *building) {
         if (count > (building->payload_size - position) / 6u) {
             return;
         }
-        position += (size_t)count * 6u;
+        for (uint32_t i = 0; i < count; ++i) {
+            uint16_t item_id = read_be16(building->payload + position);
+            uint32_t amount = read_be32(building->payload + position + 2u);
+            position += 6u;
+            if (i < M3DS_BUILDING_ITEMS_MAX) {
+                building->items[i].item_id = item_id;
+                building->items[i].amount = amount;
+            } else {
+                building->items_truncated = true;
+            }
+        }
         building->item_count = count;
     }
     // Unknown bits or power/liquid/timer/disabler modules are not decoded yet.

@@ -36,6 +36,13 @@ typedef struct M3dsMsavWorld {
 bool m3ds_msav_parse_world_header(
     const uint8_t *data, size_t size, M3dsMsavWorld *out);
 
+#define M3DS_BUILDING_ITEMS_MAX 8u
+
+typedef struct M3dsItemStack {
+    uint16_t item_id;
+    uint32_t amount;
+} M3dsItemStack;
+
 typedef struct M3dsBuildingState {
     uint32_t tile_index;
     uint32_t revision;
@@ -49,6 +56,8 @@ typedef struct M3dsBuildingState {
     uint8_t enabled;
     uint8_t modules;
     bool partial;
+    bool items_truncated;
+    M3dsItemStack items[M3DS_BUILDING_ITEMS_MAX];
 } M3dsBuildingState;
 
 typedef struct M3dsWorldTiles {
