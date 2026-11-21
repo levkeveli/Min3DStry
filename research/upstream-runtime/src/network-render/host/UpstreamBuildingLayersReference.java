@@ -1,3 +1,4 @@
+import port.render.UpstreamCrackAtlas;
 import arc.Core;
 import arc.files.Fi;
 import arc.graphics.Blending;
@@ -13,7 +14,7 @@ import mindustry.graphics.CacheLayer;
 import mindustry.graphics.Layer;
 
 public final class UpstreamBuildingLayersReference implements UpstreamTerrainDrawProbe.TerrainTarget {
-    private record Sprite(float x, float y, int page, int left, int top, int color, Blending blending) {}
+    private record Sprite(float x, float y, int page, int left, int top, float rotation, int color, Blending blending) {}
     private final List<Sprite> sprites = new ArrayList<>();
 
     public static void main(String[] args) throws Exception {
@@ -21,6 +22,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         CacheLayer.init();
         UpstreamWorldLoadProbe.load(new String[]{args[0]});
         UpstreamTerrainDrawProbe.loadAtlas(new Fi(args[1]), true);
+        UpstreamCrackAtlas.load();
 
         var target = new UpstreamBuildingLayersReference();
         var viewport = UpstreamTerrainDrawProbe.liveViewport(target);
@@ -39,7 +41,8 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         drill.setBlock(Blocks.mechanicalDrill, viewer, 0);
 
         target.sprites.clear();
-        new UpstreamBuildingLayers().render(viewport, viewer, block ->
+        var layers = new UpstreamBuildingLayers();
+        layers.render(viewport, viewer, block ->
             block == Blocks.conveyor || block == Blocks.copperWallLarge || block == Blocks.mechanicalDrill);
 
         int cached = target.firstAt(edgeWall.drawx(), edgeWall.drawy());
@@ -53,6 +56,25 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         }
         System.out.printf("UPSTREAM_BUILDING_LAYERS draws=%d wall=%d conveyor=%d drill=%d%n",
             target.sprites.size(), cached, moving, producing);
+        var crack = Core.atlas.find("cracks-2-4");
+        edgeWall.build.health = edgeWall.build.maxHealth * 0.5f;
+        drill.build.health = drill.build.maxHealth * 0.5f;
+        target.sprites.clear();
+        layers.render(viewport, viewer, block -> block == Blocks.copperWallLarge || block == Blocks.mechanicalDrill);
+        target.verifyCrack(crack, edgeWall.build);
+        target.verifyCrack(crack, drill.build);
+        System.out.println("UPSTREAM_BUILDING_CRACKS region=cracks-2-4 wall=1 drill=1");
+    }
+
+    private void verifyCrack(TextureRegion crack, mindustry.gen.Building build) {
+        int color = Color.floatToIntColor(new Color(0.2f, 0.2f, 0.2f, 0.4f).toFloatBits());
+        var matches = sprites.stream().filter(sprite -> sprite.x() == build.x && sprite.y() == build.y
+            && sprite.page() == UpstreamTerrainDrawProbe.pageIndex(crack)
+            && sprite.left() == crack.getX() && sprite.top() == crack.getY()).toList();
+        if (matches.size() != 1 || matches.get(0).rotation() != build.pos() % 4 * 90
+                || matches.get(0).color() != color || firstAt(build.x, build.y) == sprites.indexOf(matches.get(0))) {
+            throw new AssertionError("Unexpected upstream crack draw for " + build.block + ": " + matches);
+        }
     }
 
     private void verifyArcOrder() {
@@ -99,7 +121,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
     @Override
     public void draw(int page, int left, int top, int width, int height, float x, float y,
                      float originX, float originY, float drawWidth, float drawHeight, float rotation, int color, Blending blending) {
-        sprites.add(new Sprite(x + drawWidth / 2f, y + drawHeight / 2f, page, left, top, color, blending));
+        sprites.add(new Sprite(x + drawWidth / 2f, y + drawHeight / 2f, page, left, top, rotation, color, blending));
     }
 
     @Override public void begin(int left, int bottom, int width, int height) {}
