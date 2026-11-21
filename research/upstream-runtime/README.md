@@ -738,6 +738,20 @@ on New 3DS, including settled D-pad and Circle Pad movement, wave sync
 and disconnect. The touch verifier waits for the matching presented
 pixels and gives each movement time to settle before sending the next.
 
+Stell, Locus, Precept, Vanquish and Conquer use the original Erekir
+tank draw path and atlas strips. The visual update uses upstream
+`updateLastPosition` and `deltaLen` to advance the tread frame by distance
+without running the stock tank physics. The JVM checks frame selection
+and both sides of every tread strip across all five tanks.
+
+Run `--controls --tank-treads --terrain-atlas` for the stock Stell and
+Locus fixture on Glacier. The verifier compares the original Locus tread
+colors as the tank moves, aligning each comparison to the original hull.
+The [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44876093432)
+passed on both Old and New 3DS Azahar profiles. The fixture matched the
+original resting tread strip under the stock soft shadow, then observed
+changes on both sides while receiving stock unit snapshots.
+
 The renderer still selects blocks that use the supported sprite operations.
 Textured raw vertices, additional payload types and other rendering services
 are tracked in [#139](https://github.com/levkeveli/Min3DStry/issues/139).
