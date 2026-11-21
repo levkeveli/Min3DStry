@@ -329,40 +329,55 @@ def verify_mining(log, emulator, server_log, server, timeout, capture, mining, i
         verify_onset_objective(log, emulator, server_log, server, settled[1])
 
 
-def verify_onset_objective_hud(log, emulator, server_log, server, capture, position, markers=None):
+ONSET_MARKER_TEXT = {
+    "en": ("Tap to mine", "on the vent."),
+    "ja": ("壁から", "ジェットホールに配置しましょう。"),
+}
+
+
+def set_onset_beryllium(server, amount):
+    server.stdin.write(f'js Vars.state.rules.defaultTeam.core().items.set(Items.beryllium, {amount})\n')
+    server.stdin.flush()
+
+
+def verify_onset_objective_hud(log, emulator, server_log, server, capture, position, markers=None, stock_timeout=0):
     wait_for(log, emulator, r"UPSTREAM_OBJECTIVE_HUD icon=beryllium text=Obtain: 0/60\|Beryllium\b", 10)
+    if stock_timeout:
+        wait_for(log, emulator, r"UPSTREAM_OBJECTIVE_FONT source=v160\.8\b", stock_timeout)
     if markers:
-        markers("mine", 2320, 864, 868, "Tap to mine")
+        markers("mine", 2320, 864, 868, ONSET_MARKER_TEXT["en"][0])
     # Drive the real server's item module and let its regular snapshots and objective executor
     # publish the changes. Hold each state until the client presents it for capture.
     for amount, icon, label, phase in (
         (17, "beryllium", "Obtain: 17/60|Beryllium", "objective-progress"),
         (60, "turbine-condenser", "Build: 1x|Turbine Condenser", "objective-next"),
     ):
-        server.stdin.write(
-            f'js Vars.state.rules.defaultTeam.core().items.set(Items.beryllium, {amount})\n'
-        )
-        server.stdin.flush()
+        set_onset_beryllium(server, amount)
         wait_for(log, emulator, rf"UPSTREAM_OBJECTIVE_HUD icon={icon} text={re.escape(label)}\b", 25)
         if not markers:
             capture(phase, position)
     verify_onset_objective(log, emulator, server_log, server, 60)
     if markers:
-        markers("research", 2312, 944, 957.8, "on the vent.")
+        markers("research", 2312, 944, 957.8, ONSET_MARKER_TEXT["en"][1])
     print("The objective HUD displayed the stock inventory progress and Turbine Condenser objective.", flush=True)
 
 
-def capture_onset_marker(log, emulator, server, rpc, output, model, phase, x, y, label_y, words):
+def capture_onset_marker(log, emulator, server, rpc, output, model, stock_timeout, styled, phase, x, y, label_y, words):
     # Use the stock server correction RPC to frame each marker without changing its coordinates.
     server.stdin.write(
         f'js (() => {{ const p = Groups.player.find(boolf(v => String(v.name) === "{PLAYER}")); '
         f'p.unit().set({x}, {y}); p.set({x}, {y}); Call.setPosition(p.con, {x}, {y}); }})()\n'
     )
     server.stdin.flush()
-    wait_for(log, emulator, rf"UPSTREAM_NETWORK_FRAME unit=\d+ left={x // 8 - 8} bottom={y // 8 - 6}\b", 12)
+    wait_for(log, emulator, rf"UPSTREAM_NETWORK_FRAME unit=\d+ left={x // 8 - 8} bottom={y // 8 - 6}\b", stock_timeout or 12)
     marker_y = re.escape(f"{label_y:.1f}")
     trace = rf"UPSTREAM_WORLD_LABEL x={x}\.0 y={marker_y} text=[^\r\n]*{re.escape(words)}"
-    wait_for(log, emulator, trace, 12)
+    wait_for(log, emulator, trace, stock_timeout or 12)
+    if stock_timeout:
+        wait_for(log, emulator, rf"UPSTREAM_WORLD_LABEL_FONT x={x}\.0 y={marker_y} source=v160\.8\b", stock_timeout)
+    if styled:
+        code = 63304 if phase == "mine" else 63294
+        wait_for(log, emulator, rf"UPSTREAM_WORLD_INLINE_GLYPH code={code}\b", 5)
     destination = output / f"{model}-marker-{phase}.png"
     # Both stock shapes use the same outline color. Inspect the area below the label.
     area = tuple((sx, sy) for sx in range(124, 299) for sy in range(100, 235))
@@ -578,14 +593,14 @@ def verify_controls(log, emulator, server_log, server, timeout, capture=None,
 def capture_viewport(log, emulator, rpc, destination, position,
                      require_palette=False, require_icons=False, require_world_atlas=False,
                      require_building_layers=False, require_building_cracks=False,
-                     world_size=(150, 250), spawn_pixels=None):
+                     world_size=(150, 250), spawn_pixels=None, frame_timeout=5):
     unit, _, x, y = position
     # The renderer centers a 16 × 12 tile viewport in the loaded map.
     width, height = world_size
     left = max(0, min(width - 16, math.floor(float(x) / 8 + 0.5) - 8))
     bottom = max(0, min(height - 12, math.floor(float(y) / 8 + 0.5) - 6))
     frame = f"UPSTREAM_NETWORK_FRAME unit={unit} left={left} bottom={bottom} sprites=1"
-    wait_for(log, emulator, rf"{frame}\b", 5)
+    wait_for(log, emulator, rf"{frame}\b", frame_timeout)
     if require_world_atlas:
         # The backend reports the first split. The fixture wall is drawn before the core.
         split = r"2365,342\+64x64 fragments=2" if require_building_layers else r"1037,3190\+160x160 fragments=6"
@@ -1163,7 +1178,7 @@ def run_model(args, model, config, original_config, log, output):
                     f'Vars.state.rules.defaultTeam.core().items.get(Items.{mine_item})\n')
                 server.stdin.flush()
                 wait_for(server_log, server, rf"UPSTREAM_MINING_START {mine_item}=0\b", 5)
-            if args.verify_objectives or args.verify_objective_hud:
+            if args.verify_objectives or args.verify_objective_hud or args.verify_objective_markers:
                 server.stdin.write(
                     'js (() => { var all=Vars.state.rules.objectives.all, first=all.get(0), next=all.get(1); '
                     'return "UPSTREAM_SERVER_ONSET_START item=" + first.item.name + " amount=" + first.amount + '
@@ -1262,6 +1277,7 @@ def run_model(args, model, config, original_config, log, output):
                                                 require_building_layers=args.building_layers,
                                                 require_building_cracks=args.building_cracks,
                                                 world_size=world_size,
+                                                frame_timeout=25 if args.verify_stock_font else 5,
                                                 spawn_pixels=(MAP_SPAWN_PIXELS.get(args.map_spawn) if phase == "spawn"
                                                               else EREKIR_BUILD_PIXELS.get(phase)))
 
@@ -1297,16 +1313,28 @@ def run_model(args, model, config, original_config, log, output):
                         if args.building_layers:
                             phase = "building-cracks" if args.building_cracks else "building-layers"
                         capture(phase, spawn)
+                        if args.verify_stock_font:
+                            wait_for(log, emulator, r"UPSTREAM_RENDER_KEEPALIVE transport=tcp\b", 5)
                         if args.erekir_build:
                             verify_erekir_construction(log, emulator, server_log, server, args.timeout, capture, spawn)
                         if args.mining:
                             verify_mining(log, emulator, server_log, server, args.timeout, capture,
                                           args.mining, mine_item, args.verify_objectives)
-                        if args.verify_objective_hud:
+                        if args.verify_objective_hud or args.verify_objective_markers:
                             def capture_marker(*marker):
-                                capture_onset_marker(log, emulator, server, rpc, output, model, *marker)
-                            verify_onset_objective_hud(log, emulator, server_log, server, capture, spawn,
-                                                       capture_marker if args.verify_objective_markers else None)
+                                capture_onset_marker(log, emulator, server, rpc, output, model,
+                                                     args.timeout if args.verify_stock_font else 0,
+                                                     args.verify_styled_markers, *marker)
+                            if args.verify_objective_hud:
+                                verify_onset_objective_hud(log, emulator, server_log, server, capture, spawn,
+                                                           capture_marker if args.verify_objective_markers else None,
+                                                           args.timeout if args.verify_stock_hud else 0)
+                            else:
+                                mining, research = ONSET_MARKER_TEXT[args.locale]
+                                capture_marker("mine", 2320, 864, 868, mining)
+                                set_onset_beryllium(server, 60)
+                                verify_onset_objective(log, emulator, server_log, server, 60)
+                                capture_marker("research", 2312, 944, 957.8, research)
                         if args.building_effects:
                             verify_building_effects((output / f"{model}-{phase}.png").read_bytes())
                         if args.payload_mix:
@@ -1481,6 +1509,12 @@ def main():
                         help="Verify the rendered Onset objective labels as the stock progress changes")
     parser.add_argument("--verify-objective-markers", action="store_true",
                         help="Verify the original Onset mining and research directions in world space")
+    parser.add_argument("--verify-stock-font", action="store_true",
+                        help="Require original font rendering for the Onset world markers")
+    parser.add_argument("--verify-styled-markers", action="store_true",
+                        help="Require the original inline item and block art in the Onset markers")
+    parser.add_argument("--verify-stock-hud", action="store_true",
+                        help="Require the original font on the campaign objective HUD")
     parser.add_argument("--require-relocation-spill", action="store_true",
                         help="Require the ARM11 collector to grow its relocation table during the spawn check")
     args = parser.parse_args()
@@ -1544,8 +1578,18 @@ def main():
     ):
         parser.error('--verify-objective-hud needs a stationary --map-spawn "The Onset", '
                      '--erekir-sector onset and --locale en')
-    if args.verify_objective_markers and not args.verify_objective_hud:
-        parser.error("--verify-objective-markers needs --verify-objective-hud")
+    if args.verify_objective_markers and (
+        args.map_spawn != "The Onset" or args.erekir_sector != "onset" or args.locale not in ONSET_MARKER_TEXT
+        or args.mining or args.erekir_build or args.controls_replay
+    ):
+        parser.error('--verify-objective-markers needs a stationary --map-spawn "The Onset", '
+                     '--erekir-sector onset and --locale en or ja')
+    if args.verify_stock_font and not args.verify_objective_markers:
+        parser.error("--verify-stock-font needs --verify-objective-markers")
+    if args.verify_styled_markers and not args.verify_stock_font:
+        parser.error("--verify-styled-markers needs --verify-stock-font")
+    if args.verify_stock_hud and not args.verify_objective_hud:
+        parser.error("--verify-stock-hud needs --verify-objective-hud")
     if args.erekir_sector is not None:
         if not args.map_spawn or not re.fullmatch(r"[a-z][a-z-]*", args.erekir_sector):
             parser.error("--erekir-sector needs --map-spawn and a sector slug such as onset")
@@ -1580,7 +1624,9 @@ def main():
     if args.terrain_atlas:
         originals[atlas_path] = atlas_path.read_bytes() if atlas_path.exists() else None
     output = args.rom.parent / "upstream-live-net"
-    output.mkdir(exist_ok=True)
+    if args.verify_objective_markers and args.locale != "en":
+        output /= args.locale
+    output.mkdir(parents=True, exist_ok=True)
     try:
         for path in originals:
             path.parent.mkdir(parents=True, exist_ok=True)

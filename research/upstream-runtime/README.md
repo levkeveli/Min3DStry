@@ -1004,9 +1004,8 @@ The live viewport calls the pinned `ShapeTextMarker.draw` and
 The renderer preserves the original Arc shapes, world anchors, world
 visibility, localization lookup, layer, and zoom scaling. A staging
 adapter redirects those two classes' `WorldLabel.drawAt` calls to
-Citro2D. The port uses system-font text with a shadow and the stock
-background flag. Visible anchors keep long text within the 3DS
-viewport. Marker text selects the upstream touch-control language
+Citro2D with the stock background flag. Visible anchors keep long
+text within the 3DS viewport. Marker text selects the upstream touch-control language
 variant when present. Original glyph art and styled spans are tracked
 in [#199](https://github.com/levkeveli/Min3DStry/issues/199). Lighting,
 minimap markers and the other marker types require further renderer support.
@@ -1024,6 +1023,44 @@ displayed both original shapes and the localized directions on Original
 and New 3DS Azahar profiles connected to the unmodified v160.8 server.
 Both captures show the stock touch mining prompt and the complete
 research label inside the top-screen viewport.
+
+### Original v160.8 font rasterization
+
+The multiplayer asset pack carries the unmodified `font.woff`,
+`font_jp.woff`, `icon.ttf`, and `icons/icons.properties` from the
+official release assets. The ARM11 build uses devkitPro's 3DS FreeType
+port. World labels use the stock 18 px face, rounded 2 px outline, and
+Japanese face override when the selected locale is Japanese. Face-wide
+hinting tables are initialized before opening the multiplayer socket.
+The renderer keeps the current glyphs in one 512 × 512 RGBA8 texture and
+reuses older slots after the previous frame has finished. It rasters up
+to two cold glyphs per frame so the live loop can service the connection.
+The existing system-font path displays a label as its glyphs load.
+During graphical sessions the serialized native TCP heartbeat stays
+active while first-frame presentation or font work occupies the main
+thread. World loading continues to use the same transport on its own phase.
+
+For host verification, compile `arm11/m3ds_stock_font.c` and
+`arm11/test_stock_font.c` with the system FreeType development library.
+Pass the extracted `assets/fonts` directory to the test executable.
+It covers the default and Japanese faces, original tech-tree glyph, blank
+advance and outline. On the live emulator verifier, add
+`--verify-stock-font` to the Onset marker check to require the original
+font path on both world labels. Use `--locale ja` without the English-only
+`--verify-objective-hud` check to validate and capture localised Japanese
+world markers separately.
+
+World labels use Arc's existing GlyphLayout parser for color runs and
+newlines. It looks up the content icons used by each label in the
+official ROMFS table. Built-in symbols use the original icon
+face. Pass the original `icons/icons.properties` as the optional fourth
+argument to `runObjectiveMarkersJvm` to check the original marker icon
+regions and color runs. Add `--verify-styled-markers` to the live font
+check to verify the ARM11 renderer submits both original item and block icons.
+The objective HUD uses the same font and markup path, with the original
+content art already displayed in its compact 3DS panel. Use
+`--verify-stock-hud` with `--verify-objective-hud` to require this font
+on the panel. Other menus remain tracked under #199.
 
 ### Verify the Arc executor pools
 
