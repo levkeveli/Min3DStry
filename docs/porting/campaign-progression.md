@@ -1,6 +1,6 @@
 # Campaign Progression & Tech-Tree Persistence Baseline (Issue #41)
 
-**Verification status:** Host-verified against pinned upstream Mindustry `v160.8`; 3DS ARM11 runtime integration (`campaign-sectors` capability) remains **Planned** under [#41](https://github.com/levkeveli/Min3DStry/issues/41) until TeaVM ARM11 filesystem/`settings.bin` and campaign UI wiring land.
+**Verification status:** Host baselines plus a real Arc `Settings`/`settings.bin` round-trip probe verified on ARM11 in Azahar New/Old profiles. Campaign UI, live sector slots and gameplay integration (`campaign-sectors` capability) remain **Planned** under [#41](https://github.com/levkeveli/Min3DStry/issues/41).
 
 ## 1:1 Upstream Mandate
 
@@ -51,9 +51,183 @@ Two host harnesses in [research/upstream-runtime/host/](../../research/upstream-
   UPSTREAM_CAMPAIGN_PASS tech_nodes=375 sectors=95
   ```
 
+## ARM11 Arc Settings Round-Trip
+
+`-Pprobe=campaign-settings` compiles the real Arc `Settings` class and drives
+`settings.bin` through the TeaVM/libctru file adapter:
+
+```sh
+gradle -PupstreamCheckout=/path/to/Mindustry \
+  -PreferenceJar=/path/to/server-release.jar \
+  -ParcCheckout=/path/to/Arc -Pprobe=campaign-settings runProbeJvm
+bash research/upstream-runtime/arm11/build.sh \
+  build/generated/teavm/c build/probe-3ds-campaign-settings
+```
+
+JVM and ARM11/Azahar both emit:
+
+```text
+UPSTREAM_CAMPAIGN_SETTINGS path=live bytes=112 int=12345 string=ok campaign=unlocked:conveyor,research:50 reload=ok
+```
+
+On 3DS the probe uses the live `/3ds/min3dstry` directory, snapshots any
+existing `settings.bin`/`settings_backup.bin`/`settings_backups`, reruns the
+round-trip (including upstream `conveyor-unlocked` and `req-conveyor-copper` keys), then restores or removes the saved state. On the JVM it uses a
+temporary directory and reports `path=tmp`. It does not leave probe values in
+live settings. Azahar `2126.2` verified `path=live` on both New and Old 3DS
+profiles; the `.3dsx` build uses the pinned devkitARM image.
+
+## ARM11 Sector Slot Round-Trip
+
+`-Pprobe=campaign-sector` reuses the upstream world save/load path and writes
+the real sector slot name `sector-serpulo-170.msav` on the target filesystem,
+then reloads it:
+
+```sh
+gradle -PupstreamCheckout=/path/to/Mindustry \
+  -PreferenceJar=/path/to/server-release.jar \
+  -ParcCheckout=/path/to/Arc -Pprobe=campaign-sector \
+  runProbeJvm "--args=/path/glacier.msav /path/glacier-v13.msav /path/sector-serpulo-170.msav"
+```
+
+JVM and ARM11/Azahar report:
+
+```text
+UPSTREAM_CAMPAIGN_SECTOR slot=sector-serpulo-170.msav bytes=11072 version=13 marker=ok
+```
+
+The probe deletes the slot after verifying it; Azahar `2126.2` New and Old
+profiles both reported the line and left no `sector-serpulo-170.msav` behind.
+The `.3dsx` is built by the `world-roundtrip` CI job's pinned devkitARM step.
+
+## ARM11 Campaign Content Unlock State
+
+`-Pprobe=campaign-content` loads upstream content with campaign unlock keys
+already present in `settings.bin`, then checks the real `UnlockableContent`
+state:
+
+```sh
+gradle -PupstreamCheckout=/path/to/Mindustry \
+  -PreferenceJar=/path/to/server-release.jar \
+  -ParcCheckout=/path/to/Arc -Pprobe=campaign-content runProbeJvm
+```
+
+JVM and ARM11/Azahar report:
+
+```text
+UPSTREAM_CAMPAIGN_CONTENT path=live lockedBefore=ok conveyorUnlocked=true key=conveyor-unlocked research=50 reload=ok blocks=447
+```
+
+The probe first runs the upstream `ContentLoader` (`createBaseContent`/`init`)
+with empty settings and verifies conveyor is locked, writes the upstream
+`conveyor-unlocked` and `req-conveyor-copper` keys through Arc `Settings`, then
+reloads a fresh `Settings` instance from `settings.bin` and rebuilds content.
+It verifies `Blocks.conveyor.unlocked()` plus the research value only after the
+reload. On 3DS it targets the live `/3ds/min3dstry` directory and restores or
+removes the prior settings state.
+Azahar `2126.2` New and Old profiles both reported `path=live ... blocks=447`
+and left no `settings.bin` behind.
+
+## ARM11 Research Requirement State
+
+`-Pprobe=campaign-research` reloads the upstream research keys from
+`settings.bin` and verifies the Serpulo tech tree:
+
+```sh
+gradle -PupstreamCheckout=/path/to/Mindustry \
+  -PreferenceJar=/path/to/server-release.jar \
+  -ParcCheckout=/path/to/Arc -Pprobe=campaign-research runProbeJvm
+```
+
+JVM and ARM11/Azahar report:
+
+```text
+UPSTREAM_CAMPAIGN_RESEARCH path=live root=serpulo node=conveyor copper=50 lockedBefore=ok reload=ok blocks=447
+```
+
+The probe loads content once with empty settings (copper requirement `0`),
+persists `req-conveyor-copper=50`, reloads a fresh `Settings` from
+`settings.bin`, rebuilds content, and asserts the conveyor `TechNode` is under
+the Serpulo root with `finishedRequirements` copper `50`. On 3DS it targets the
+live `/3ds/min3dstry` directory and restores or removes the prior settings
+state. Azahar `2126.2` New and Old profiles both reported `path=live`.
+
+## ARM11 Campaign Slot Metadata
+
+`-Pprobe=campaign-slot-meta` writes the real ground-zero sector slot and
+reloads its upstream metadata:
+
+```sh
+gradle -PupstreamCheckout=/path/to/Mindustry \
+  -PreferenceJar=/path/to/server-release.jar \
+  -ParcCheckout=/path/to/Arc -Pprobe=campaign-slot-meta \
+  runProbeJvm "--args=/path/glacier.msav /path/sector-serpulo-15.msav"
+```
+
+JVM and ARM11/Azahar report:
+
+```text
+UPSTREAM_CAMPAIGN_SLOT_META slot=sector-serpulo-15.msav bytes=11034 version=13 preset=groundZero wave=1 size=150x250 meta=ok
+```
+
+The probe sets `Vars.state.rules.sector` to `SectorPresets.groundZero.sector`,
+writes `sector-serpulo-15.msav` through `SaveIO`, and verifies the `MSAV`
+header/version plus `SaveMeta` tags (`sectorPreset=groundZero`, `wave=1`,
+`width=150`, `height=250`) and `SaveIO.isSaveValid`. On 3DS it targets the live
+`/3ds/min3dstry` directory and deletes the slot after verification. Azahar
+`2126.2` New and Old profiles both reported the marker.
+
+## ARM11 SectorInfo JSON Round-Trip
+
+`-Pprobe=campaign-sector-info` persists and reloads the upstream
+`serpulo-s-170-info` settings key with a TeaVM `ReflectionPolicy`:
+
+```sh
+gradle -PupstreamCheckout=/path/to/Mindustry \
+  -PreferenceJar=/path/to/server-release.jar \
+  -ParcCheckout=/path/to/Arc -Pprobe=campaign-sector-info runProbeJvm
+```
+
+JVM and ARM11/Azahar report:
+
+```text
+UPSTREAM_CAMPAIGN_SECTOR_INFO path=live key=serpulo-s-170-info captured=ok wave=7 items=250:75 reload=ok blocks=447
+```
+
+The probe writes a real `SectorInfo` through `Settings.putJson`, reloads a fresh
+`Settings` from `settings.bin`, and verifies `wasCaptured`, `wave`,
+`storageCapacity`, `name`, and the copper/lead `ItemSeq`. TeaVM needs
+`SectorInfoReflectionPolicy` to expose `SectorInfo` fields to Arc's JSON
+reader; `bestCoreType` is nulled for this scalar/items round-trip. On 3DS the
+probe targets live `/3ds/min3dstry` and restores or removes the prior settings.
+Azahar `2126.2` New and Old profiles both reported `path=live`.
+
+## ARM11 Planet Last-Sector Routing
+
+`-Pprobe=campaign-planet` verifies the upstream planet last-sector setting:
+
+```sh
+gradle -PupstreamCheckout=/path/to/Mindustry \
+  -PreferenceJar=/path/to/server-release.jar \
+  -ParcCheckout=/path/to/Arc -Pprobe=campaign-planet runProbeJvm
+```
+
+JVM and ARM11/Azahar report:
+
+```text
+UPSTREAM_CAMPAIGN_PLANET path=live planet=serpulo sector=86 preset=frozenForest lastSector=86 reload=ok sectors=272
+```
+
+The probe initializes the real `Planets.serpulo` sectors and `SectorPresets`,
+calls `Planets.serpulo.setLastSector` for frozen forest (86, deliberately not
+the start sector), saves `settings.bin`, reloads a fresh `Settings`, and
+asserts `getLastSector()` resolves sector 86 with the frozen-forest preset. On
+3DS it targets live `/3ds/min3dstry` and restores/removes the prior settings.
+Azahar `2126.2` New and Old profiles both reported `path=live`.
+
 ## Remaining Scope for Issue #41 (3DS Hardware / ARM11 Runtime)
 
-Once the ARM11 TeaVM runtime bring-up integrates `Core.files` and `Core.settings` onto SD card storage under `/3ds/min3dstry/`:
+The host-verified path contract is recorded in [sd-storage-paths.md](sd-storage-paths.md); it does not write settings or sector saves yet. Once the ARM11 TeaVM runtime bring-up integrates `Core.files` and `Core.settings` onto SD card storage under `/3ds/min3dstry/`:
 
 1. Route `Core.settings` data directory (`settings.bin`, `settings_backup.bin`, `settings_backups/`) and sector `.msav` slots (`sector-<planet>-<id>.msav`) to deterministic SD card paths compatible with PC `v160.8` exports/imports.
 2. Verify `JsonIO.json` serialization, atomic/backup `settings.bin` writes on 3DS FAT/SDFS (`libctru`), and full sector launch/capture/tech-tree round-trips in Azahar (Old 3DS & New 3DS) before advancing `campaign-sectors` in `docs/port-capabilities.json` beyond `planned`.

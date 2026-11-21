@@ -61,6 +61,8 @@ class VerifyAzaharTests(unittest.TestCase):
             "[   2.94] Render.OpenGL <Info> driver.cpp:135: GL_RENDERER: Intel(R) Arc(TM) Graphics\n"
             "[   3.95] Kernel.SVC <Debug> svc.cpp:100: [MIN3DSTRY] HW: New 3DS XL (N3DS, 804 MHz, L2:on, AppMem:124 MiB, FIRM:2.50.11)\n"
             "[   3.95] Kernel.SVC <Debug> svc.cpp:100: [MIN3DSTRY] ATLAS loaded\n"
+            "[   3.95] Kernel.SVC <Debug> svc.cpp:100: [MIN3DSTRY] STORAGE root=/3ds/min3dstry settings=/3ds/min3dstry/settings.bin sector=/3ds/min3dstry/sector-serpulo-170.msav\n"
+            "[   3.95] Kernel.SVC <Debug> svc.cpp:100: [MIN3DSTRY] STORAGE_ROUNDTRIP status=ok bytes=4 root=sdmc:/3ds/min3dstry\n"
             "[   3.96] Debug.Emulated <Debug> svc.cpp:100: [MIN3DSTRY] PARITY scenario=starter_copper_defense_v1 ticks=240 hash=0x11223344 copper=25 delivered=14 killed=2 hp=200\n"
             "[   3.97] Debug.Emulated <Debug> svc.cpp:100: [MIN3DSTRY] AUDIO backend=ndsp state=fallback_no_dsp rc=0xd8e06406 rate=22050 voices=0/8 clips=2\n"
             "[   3.97] Debug.Emulated <Debug> svc.cpp:100: [MIN3DSTRY] AUDIO_ROMFS status=ok clips=3 bytes=251916 ui=0\n"
@@ -72,6 +74,8 @@ class VerifyAzaharTests(unittest.TestCase):
             "[   3.98] Debug.Emulated <Debug> svc.cpp:100: [MIN3DSTRY] AUDIO_EVENT block.place clip=1 voice=0\n"
             "[   3.98] Debug.Emulated <Debug> svc.cpp:100: [MIN3DSTRY] AUDIO_EVENT block.break clip=0 voice=0\n"
             "[   3.98] Debug.Emulated <Debug> svc.cpp:100: [MIN3DSTRY] MEM app=96MiB reserve=16MiB budget=1048576 used=553728 peak=553728 remaining=494848 world=480000/524288 textures=8192/262144 transient=65536/262144 failures=0 status=ok\n"
+            "[   3.98] Debug.Emulated <Debug> svc.cpp:100: [MIN3DSTRY] WORKERS workers=2 active=2 chunks=40 items=40000 match=1 checksum=0x4bb2b98d serial_us=1348 parallel_us=1406\n"
+            "[   3.99] Debug.Emulated <Debug> svc.cpp:100: [MIN3DSTRY] WORKERS workers=4 active=4 chunks=40 items=40000 match=1 checksum=0x4bb2b98d serial_us=1348 parallel_us=1495\n"
             "[   4.45] Kernel.SVC <Debug> svc.cpp:100: [MIN3DSTRY] FRAME tick=30 paused=0 cam=(-88.0,-72.0) "
             "draw=R:322,L:5,T:0,C:42 cull=77 sw=1 drop=0 cpu=3.12% gpu=1.45% cmdbuf=2.10%\n"
         )
@@ -80,6 +84,12 @@ class VerifyAzaharTests(unittest.TestCase):
         self.assertEqual(parsed["gl_version"], "4.3.0")
         self.assertIn("New 3DS XL (N3DS, 804 MHz", parsed["hw_line"])
         self.assertTrue(parsed["atlas_loaded"])
+        self.assertEqual(parsed["storage"]["root"], "/3ds/min3dstry")
+        self.assertEqual(parsed["storage"]["settings"], "/3ds/min3dstry/settings.bin")
+        self.assertEqual(
+            parsed["storage"]["sector"], "/3ds/min3dstry/sector-serpulo-170.msav")
+        self.assertEqual(parsed["storage_roundtrip"]["status"], "ok")
+        self.assertEqual(parsed["storage_roundtrip"]["bytes"], 4)
         self.assertEqual(parsed["parity"]["trace_hash"], "0x11223344")
         self.assertEqual(parsed["parity"]["enemies_killed"], 2)
         self.assertEqual(parsed["audio"]["backend"], "ndsp")
@@ -116,6 +126,14 @@ class VerifyAzaharTests(unittest.TestCase):
         self.assertEqual(parsed["mem"]["remaining"], 494848)
         self.assertEqual(parsed["mem"]["failures"], 0)
         self.assertEqual(parsed["mem"]["status"], "ok")
+        self.assertEqual(len(parsed["workers"]), 2)
+        self.assertEqual(parsed["workers"][0]["workers"], 2)
+        self.assertEqual(parsed["workers"][0]["active"], 2)
+        self.assertEqual(parsed["workers"][1]["workers"], 4)
+        self.assertEqual(parsed["workers"][1]["active"], 4)
+        self.assertEqual(parsed["workers"][1]["checksum"], 0x4BB2B98D)
+        self.assertEqual(parsed["workers"][1]["match"], 1)
+        self.assertEqual(parsed["workers"][1]["items"], 40000)
         self.assertEqual(parsed["frame"]["tick"], 30)
         self.assertEqual(parsed["frame"]["rects"], 322)
         self.assertEqual(parsed["frame"]["circles"], 42)
