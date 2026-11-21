@@ -639,9 +639,18 @@ the original atlas and Arc mix equation within one RGB level. All 3,268
 sampled base pixels under transparent overlays matched exactly after
 clamping the internal atlas tile edges.
 
+Payload Conveyors use upstream `updatePayload` to reconstruct a carried
+Copper Wall or Large Copper Wall's position from the progress and rotation
+in the stock building stream. Upstream `BuildPayload.draw` then draws the
+wall and its atlas shadow on the conveyor. The JVM check round-trips both
+wall sizes through the original building serializer and verifies the
+carried position, shadow color and layer order. Run the live verifier with
+`--controls --carried-buildings --terrain-atlas` to check both sprites
+against their upstream atlas colors in a stock Java Glacier session.
+
 The renderer still selects blocks that use the supported sprite operations.
-Textured raw vertices, carried payloads and other rendering services are
-tracked in [#139](https://github.com/levkeveli/Min3DStry/issues/139).
+Textured raw vertices, additional payload types and other rendering services
+are tracked in [#139](https://github.com/levkeveli/Min3DStry/issues/139).
 
 ### Verify the Arc executor pools
 

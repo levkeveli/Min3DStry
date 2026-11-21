@@ -112,15 +112,14 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
             sender.writeAll(new Writes(new DataOutputStream(bytes)));
             receiver.readAll(new Reads(new DataInputStream(new ByteArrayInputStream(bytes.toByteArray()))),
                 sender.version());
-            receiver.updatePayload();
+            sprites.clear();
+            layers.render(viewport, viewer, candidate -> candidate == receiver);
             if (!(receiver.item instanceof BuildPayload payload) || payload.block() != wall
                     || payload.build.team != viewer || payload.build.tile != Vars.emptyTile
                     || Math.abs(payload.x() - receiver.x - offset) > 0.001f || payload.y() != receiver.y) {
                 throw new AssertionError("Stock payload stream lost the carried wall or its visual position");
             }
 
-            sprites.clear();
-            layers.render(viewport, viewer, candidate -> candidate == receiver);
             int shadowIndex = findPayloadSprite(shadow, payload, shade);
             int wallIndex = findPayloadSprite(Core.atlas.find(wall.name), payload,
                 Color.floatToIntColor(Color.whiteFloatBits));

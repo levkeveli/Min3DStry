@@ -424,6 +424,38 @@ def verify_payload_mix(screenshot):
     verify_building_effects(screenshot)
 
 
+def load_carried_buildings_fixture(server_log, server):
+    # Keep the stock payloads at the center and the first quarter of their respective belts.
+    server.stdin.write(
+        'pause on\n'
+        'js (() => { const team = Vars.state.rules.defaultTeam; '
+        'const center = Vars.world.tile(75,28), incoming = Vars.world.tile(86,24); '
+        'const Payload = Packages.mindustry.world.blocks.payloads.BuildPayload; '
+        'center.setBlock(Blocks.payloadConveyor,team,0); '
+        'incoming.setBlock(Blocks.payloadConveyor,team,0); '
+        'center.build.progress=Blocks.payloadConveyor.moveTime*0.5; '
+        'incoming.build.progress=Blocks.payloadConveyor.moveTime*0.4352753; '
+        'center.build.handlePayload(center.build, new Payload(Blocks.copperWall,team)); '
+        'incoming.build.handlePayload(incoming.build, new Payload(Blocks.copperWallLarge,team)); '
+        'return "UPSTREAM_CARRIED_FIXTURE " + center.build.item.content().name + "=" '
+        '+ Math.round(center.build.item.x()) + " " + incoming.build.item.content().name + "=" '
+        '+ Math.round(incoming.build.item.x()); })()\n'
+    )
+    server.stdin.flush()
+    wait_for(server_log, server, r"UPSTREAM_CARRIED_FIXTURE copper-wall=600 copper-wall-large=682\b", 5)
+
+
+def verify_carried_buildings(screenshot):
+    # Original atlas texels for the centered small wall and the large wall offset six world units west.
+    dark, light = (177, 135, 104), (200, 165, 143)
+    expected = {(82, 63): dark, (85, 67): light, (91, 70): light, (95, 73): dark,
+                (277, 133): dark, (280, 137): light, (286, 140): light,
+                (292, 147): light, (304, 156): dark, (311, 164): dark}
+    colors = az.inspect_png(screenshot, tuple(expected))["samples"]
+    if colors != expected:
+        raise RuntimeError(f"Original carried walls differ in color or position: {colors}")
+
+
 def load_building_effects_fixture(server_log, server):
     # Freeze the stock simulation at known serialized display states.
     server.stdin.write(
@@ -504,7 +536,7 @@ def verify_conduit_frames(log, rpc, output, model):
 
 def run_model(args, model, config, original_config, log, output):
     stationary = (args.world_atlas_recycle or args.building_layers or args.liquids
-                  or args.building_effects or args.payload_mix)
+                  or args.building_effects or args.payload_mix or args.carried_buildings)
     overrides = {
         "Miscellaneous": {"log_filter": "*:Info Debug.Emulated:Debug Service.SOC:Debug",
                           "check_for_update_on_start": "false"},
@@ -549,6 +581,8 @@ def run_model(args, model, config, original_config, log, output):
                 wait_for(server_log, server, r"UPSTREAM_CONFIG_FIXTURE lead=\d+", 5)
             if args.payload_mix:
                 load_payload_mix_fixture(server_log, server)
+            if args.carried_buildings:
+                load_carried_buildings_fixture(server_log, server)
             if args.building_effects:
                 load_building_effects_fixture(server_log, server)
             if args.liquids:
@@ -615,6 +649,8 @@ def run_model(args, model, config, original_config, log, output):
                             phase = "building-effects"
                         elif args.payload_mix:
                             phase = "payload-mix"
+                        elif args.carried_buildings:
+                            phase = "carried-buildings"
                         if args.building_layers:
                             phase = "building-cracks" if args.building_cracks else "building-layers"
                         capture(phase, spawn)
@@ -622,6 +658,8 @@ def run_model(args, model, config, original_config, log, output):
                             verify_building_effects((output / f"{model}-{phase}.png").read_bytes())
                         if args.payload_mix:
                             verify_payload_mix((output / f"{model}-{phase}.png").read_bytes())
+                        if args.carried_buildings:
+                            verify_carried_buildings((output / f"{model}-{phase}.png").read_bytes())
                         if args.liquids:
                             verify_conduit_frames(log, rpc, output, model)
                         print("Verified the stationary Glacier capture.", flush=True)
@@ -746,6 +784,8 @@ def main():
                             help="Verify the original active Phase Weaver line and Overdrive sprite pass")
     build_mode.add_argument("--payload-mix", action="store_true",
                             help="Verify original full and partial team-color glow on stock Payload Conveyors")
+    build_mode.add_argument("--carried-buildings", action="store_true",
+                            help="Verify stock carried copper walls at two positions on Payload Conveyors")
     args = parser.parse_args()
     args.server, args.rom, args.azahar = (path.resolve() for path in (args.server, args.rom, args.azahar))
     with args.server.open("rb") as archive:
@@ -773,6 +813,8 @@ def main():
         parser.error("--building-cracks needs --building-layers")
     if args.payload_mix and (not args.terrain_atlas or not args.controls or args.controls_replay):
         parser.error("--payload-mix needs --controls and --terrain-atlas for a stationary capture")
+    if args.carried_buildings and (not args.terrain_atlas or not args.controls or args.controls_replay):
+        parser.error("--carried-buildings needs --controls and --terrain-atlas for a stationary capture")
     if args.building_effects and (not args.terrain_atlas or not args.controls or args.controls_replay):
         parser.error("--building-effects needs --controls and --terrain-atlas for a stationary capture")
     if args.liquids and (not args.terrain_atlas or not args.controls or args.controls_replay):

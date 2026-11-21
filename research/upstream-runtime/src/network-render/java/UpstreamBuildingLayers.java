@@ -8,6 +8,7 @@ import mindustry.gen.Building;
 import mindustry.graphics.BuildingCacheLayer;
 import mindustry.graphics.CacheLayer;
 import mindustry.graphics.Layer;
+import mindustry.world.blocks.payloads.PayloadConveyor.PayloadConveyorBuild;
 
 /** Arc draw commands for the cached and dynamic passes in upstream BlockRenderer. */
 final class UpstreamBuildingLayers {
@@ -35,6 +36,8 @@ final class UpstreamBuildingLayers {
             for (var build : visible) {
                 var block = build.block;
                 if (block.drawDynamic && block.cacheLayer == CacheLayer.normal) {
+                    // Streamed conveyors carry progress and rotation. Reconstruct cargo geometry before drawing.
+                    if (build instanceof PayloadConveyorBuild conveyor) conveyor.updatePayload();
                     Draw.z(Layer.block);
                     block.drawBase(build.tile);
                     Draw.reset();
