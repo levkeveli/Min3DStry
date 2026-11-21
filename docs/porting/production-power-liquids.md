@@ -1,6 +1,6 @@
 # Production, Power Graph & Liquid Flow Baseline (Issue #39)
 
-**Verification status:** Host-verified against pinned upstream Mindustry `v160.8`; TeaVM ARM11 runtime integration (`production-power-liquids` capability in [port-capabilities.json](../port-capabilities.json)) remains **Planned** under [#39](https://github.com/levkeveli/Min3DStry/issues/39).
+**Verification status:** Host-verified across pinned upstream Mindustry `v160.8` JVM and TeaVM C `-O0` / `-O2` (`-Pprobe=production-ticks`), with ARM11 `.3dsx`/`.elf` compiled; `production-power-liquids` in [port-capabilities.json](../port-capabilities.json) is **Experimental** under [#39](https://github.com/levkeveli/Min3DStry/issues/39) pending Azahar runtime execution and physical 3DS verification.
 
 ## 1:1 Upstream Mandate
 
@@ -37,7 +37,20 @@ UPSTREAM_PRODUCTION_FULL filled=2254 held=120 pods=10 waterCapOk=true
 UPSTREAM_PRODUCTION_ORDER runs=2 ticks=2693 trace_hash=0x596d5082ce819d54
 ```
 
+## TeaVM C `-O0` vs `-O2` & ARM11 Probe (`-Pprobe=production-ticks`)
+
+[UpstreamProductionTickProbe.java](../../research/upstream-runtime/src/gameplay/java/UpstreamProductionTickProbe.java) compiles the upstream Glacier scenario through `UpstreamSimulationWorld.play`, exercising unmodified `mechanicalPump`, `conduit`, `cultivator`, `battery`, and dual `combustionGenerator` updates through TeaVM 0.16.0 C generation:
+
+- **JVM reference (`runProbeJvm`):**
+  ```text
+  UPSTREAM_PRODUCTION_STARVED ticks=60 waterMilli=4641 pods=0
+  UPSTREAM_PRODUCTION_DISCONNECT first=199 paused=60 pods=1
+  UPSTREAM_PRODUCTION_FULL filled=2254 held=120 pods=10
+  ```
+- **Generated TeaVM C on Linux host (`cc -std=gnu11 -O0 -fwrapv` vs `-O2 -fwrapv` after `arm11/fix_reflection_lifetime.py`):** Both optimization levels produced identical `UPSTREAM_WORLD_FINGERPRINT 2e7b9f883994de6c`, `UPSTREAM_PRODUCTION_STARVED`, `UPSTREAM_PRODUCTION_DISCONNECT`, and `UPSTREAM_PRODUCTION_FULL` records matching JVM.
+- **ARM11 build (`arm11/build.sh` with pinned `devkitpro/devkitarm` `-O2`):** Produced a `21,897,852`-byte `upstream-probe.3dsx` and `114,039,440`-byte ELF (`37,781,504` bytes / `36.03 MiB` page-rounded ELF LOAD segments; `64.28 MiB` subtotal with `24 MiB` managed heap, `4 MiB` linear heap, and `256 KiB` native stack, exceeding the `64 MiB` Original 3DS AppMem budget before GC metadata).
+
 ## Remaining Scope for Issue #39
 
-- Bring the TeaVM ARM11 production/power/liquid probe and Glacier fixture checks onto `main`, comparing `-O0` and `-O2` C builds against these pinned JVM traces in Azahar Old and New 3DS modes.
-- Verify physical Old 3DS XL (`64 MiB` AppMem) and New 3DS XL hardware memory/frame-time budgets before advancing `production-power-liquids` beyond `planned`.
+- Run `-Pprobe=production-ticks` `upstream-probe.3dsx` in Azahar across Old and New 3DS modes (`UPSTREAM_PRODUCTION_*` log verification on console) before advancing `production-power-liquids` to `emulator-tested`.
+- Reduce ARM11 footprint within Old 3DS XL (`64 MiB` AppMem) and verify physical Old/New 3DS XL hardware execution.

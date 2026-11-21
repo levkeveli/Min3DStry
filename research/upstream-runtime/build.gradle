@@ -38,6 +38,7 @@ def entryPoints = [
     'world-roundtrip': 'UpstreamWorldRoundTripProbe',
     'factory-ticks': 'UpstreamFactoryTickProbe',
     'combat-ticks': 'UpstreamCombatTickProbe',
+    'production-ticks': 'UpstreamProductionTickProbe',
     'world-stream': 'UpstreamWorldStreamProbe',
     'network-live': 'UpstreamLiveNetworkProbe',
     'network-render': 'UpstreamRenderedNetworkProbe',
@@ -55,7 +56,7 @@ def usesMapSources = probe in ['map', 'map-sd']
 def usesLiveNetwork = probe in ['network-live', 'network-render']
 def usesTerrainRenderer = probe in ['terrain-render', 'network-render']
 def patchesPlanetGrid = probe == 'network-render'
-def usesSimulation = probe in ['factory-ticks', 'combat-ticks']
+def usesSimulation = probe in ['factory-ticks', 'combat-ticks', 'production-ticks']
 def usesCampaignSettings = probe == 'campaign-settings'
 def usesCampaignSector = probe == 'campaign-sector'
 def usesWorldSources = probe in ['world', 'world-save', 'world-roundtrip', 'world-stream',
