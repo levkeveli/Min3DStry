@@ -57,8 +57,9 @@ public final class UpstreamRenderedNetworkProbe {
     }
 
     private void drawEntities() {
-        for (var core : Groups.build) {
-            if (core.block == Blocks.coreNucleus && viewport.contains(core)) core.draw();
+        for (var building : Groups.build) {
+            if ((building.block == Blocks.coreNucleus || building.block == Blocks.conveyor)
+                    && viewport.contains(building)) building.draw();
         }
         for (var unit : Groups.unit) {
             if (unit.type() != UnitTypes.gamma && unit.type() != UnitTypes.dagger) continue;

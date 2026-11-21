@@ -53,7 +53,8 @@ def main() -> None:
     regions = REGIONS
     if args.multiplayer:
         surveyed = GLACIER_INVENTORY.read_text(encoding="ascii").splitlines()
-        regions = tuple(dict.fromkeys((*surveyed, "gamma", "dagger")))
+        conveyors = (f"conveyor-{variant}-{frame}" for variant in range(5) for frame in range(4))
+        regions = tuple(dict.fromkeys((*surveyed, "gamma", "dagger", *conveyors)))
     with tempfile.TemporaryDirectory(dir=output.parent) as tmp:
         staged = Path(tmp) / "terrain"
         subprocess.run([sys.executable, str(CONVERTER), "--assets", str(args.assets),
