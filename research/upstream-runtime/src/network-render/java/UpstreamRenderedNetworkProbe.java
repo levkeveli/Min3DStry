@@ -1,6 +1,7 @@
 import port.render.UpstreamCrackAtlas;
 import port.render.UpstreamFluidAtlas;
 import port.render.UpstreamWorldLabel;
+import port.render.UpstreamLabelText;
 import arc.Core;
 import arc.files.Fi;
 import arc.graphics.g2d.Draw;
@@ -14,6 +15,7 @@ import mindustry.Vars;
 import mindustry.content.Blocks;
 import mindustry.content.UnitTypes;
 import mindustry.core.World;
+import mindustry.core.UI;
 import mindustry.gen.Building;
 import mindustry.gen.Groups;
 import mindustry.gen.Tankc;
@@ -46,10 +48,15 @@ public final class UpstreamRenderedNetworkProbe {
     private int lastLeft = -1, lastBottom = -1;
     private final UpstreamWorldLabel.Target worldLabel = this::drawWorldLabel;
     private final ObjectSet<String> reportedWorldLabels = new ObjectSet<>();
+    private final ObjectSet<String> reportedStockWorldLabels = new ObjectSet<>();
+    private UpstreamLabelText.Label encodedLabel;
+    private int[] encodedCharacters;
     private byte[] lastMenu;
     private Block lastPrimaryShortcut;
     private List<UpstreamObjectiveHud.Row> lastObjectives;
     private byte[][] objectiveLabels = new byte[0][];
+    private int[][] objectiveCharacters = new int[0][];
+    private boolean[] reportedStockObjectives = new boolean[0];
 
     private UpstreamRenderedNetworkProbe(Fi atlas) {
         this.atlas = atlas;
@@ -61,7 +68,7 @@ public final class UpstreamRenderedNetworkProbe {
         int language = view.target.mountAssets();
         var preference = endpoint.sibling("locale.txt");
         String requested = preference.exists() && preference.length() <= 16 ? preference.readString("UTF-8").trim() : "";
-        Core.bundle = UpstreamInterfaceLocale.load(new Fi("/romfs/bundles/bundle"), language, requested);
+        Core.bundle = UpstreamInterfaceLocale.loadForStockClient(new Fi("/romfs/bundles/bundle"), language, requested);
         var locale = Core.bundle.getLocale();
         System.out.println("UPSTREAM_INTERFACE_LOCALE system=" + language + " bundle="
             + (locale.getLanguage().isEmpty() ? "en" : locale) + " router=" + Core.bundle.get("block.router.name")
@@ -80,6 +87,8 @@ public final class UpstreamRenderedNetworkProbe {
         loadUnitGraphics();
         viewport = UpstreamTerrainDrawProbe.liveViewport(target);
         target.initialize();
+        boolean stock = target.loadStockFont(locale.getLanguage().equals("ja"));
+        System.out.println("UPSTREAM_INTERFACE_FONT source=" + (stock ? "v160.8" : "system"));
         System.out.println("UPSTREAM_INTERFACE_GRAPHICS ready");
     }
 
@@ -209,10 +218,34 @@ public final class UpstreamRenderedNetworkProbe {
         }
     }
 
-    private void drawWorldLabel(String text, float x, float y, int flags, float size, int align, int lineAlign) {
-        if (target.drawWorldLabel(text, x, y, flags, size, align, lineAlign) && reportedWorldLabels.add(text)) {
-            System.out.println("UPSTREAM_WORLD_LABEL x=" + x + " y=" + y + " text=" + text.replace('\n', '|'));
+    private void drawWorldLabel(UpstreamLabelText.Label text, float x, float y, int flags, float size, int align, int lineAlign) {
+        if (encodedLabel != text) {
+            encodedCharacters = encodeLabel(text);
+            encodedLabel = text;
         }
+        int font = target.drawWorldLabel(text.plain(), encodedCharacters, x, y, flags, size, align, lineAlign);
+        if (font != 0 && reportedWorldLabels.add(text.plain())) {
+            System.out.println("UPSTREAM_WORLD_LABEL x=" + x + " y=" + y + " text=" + text.plain().replace('\n', '|'));
+        }
+        if (font == 2 && reportedStockWorldLabels.add(text.plain())) {
+            System.out.println("UPSTREAM_WORLD_LABEL_FONT x=" + x + " y=" + y + " source=v160.8");
+        }
+    }
+
+    private static int[] encodeLabel(UpstreamLabelText.Label text) {
+        int[] encoded = new int[text.characters().size() * 7];
+        int offset = 0;
+        for (var glyph : text.characters()) {
+            var art = glyph.art();
+            encoded[offset++] = glyph.codepoint();
+            encoded[offset++] = glyph.color();
+            encoded[offset++] = art == null ? -1 : UpstreamTerrainDrawProbe.pageIndex(art);
+            encoded[offset++] = art == null ? 0 : art.getX();
+            encoded[offset++] = art == null ? 0 : art.getY();
+            encoded[offset++] = art == null ? 0 : art.width;
+            encoded[offset++] = art == null ? 0 : art.height;
+        }
+        return encoded;
     }
 
     private void drawObjectives() {
@@ -220,18 +253,26 @@ public final class UpstreamRenderedNetworkProbe {
         boolean changed = !rows.equals(lastObjectives);
         if (changed) {
             objectiveLabels = new byte[rows.size()][];
+            objectiveCharacters = new int[rows.size()][];
+            reportedStockObjectives = new boolean[rows.size()];
             for (int i = 0; i < rows.size(); i++) {
                 objectiveLabels[i] = (rows.get(i).text() + "\0").getBytes(StandardCharsets.UTF_8);
+                objectiveCharacters[i] = encodeLabel(UpstreamLabelText.parse(UI.formatIcons(rows.get(i).markup())));
             }
             lastObjectives = rows;
         }
         float y = 4f;
         for (int i = 0; i < rows.size() && y < 240f; i++) {
             var row = rows.get(i);
-            y = target.drawObjective(objectiveLabels[i], row.icon(), y);
+            y = target.drawObjective(objectiveLabels[i], objectiveCharacters[i], row.icon(), y);
             if (changed && y < 240f) {
                 System.out.println("UPSTREAM_OBJECTIVE_HUD icon=" + row.contentName()
                     + " text=" + row.text().replace('\n', '|'));
+            }
+            if (target.drewStockObjectiveFont() && !reportedStockObjectives[i]) {
+                System.out.println("UPSTREAM_OBJECTIVE_FONT source=v160.8 icon=" + row.contentName()
+                    + " text=" + row.text().replace('\n', '|'));
+                reportedStockObjectives[i] = true;
             }
         }
     }
