@@ -391,10 +391,34 @@ M3DS_RELAX_POINTER_TYPES=1 bash arm11/build.sh \
 The runtime result is verified on both Azahar profiles. The opt-in is tracked
 for removal once the TeaVM object-reference cast issue is fixed.
 
+## ARM11 `Saves.load()`
+
+`-Pprobe=campaign-saves-load` wires the upstream save environment on the live
+SD path: `Core.files`, `Core.settings`, `Core.assets`, `Vars.saveDirectory`,
+and `Vars.mainExecutor` (`Threads.executor`). It writes one
+`sector-serpulo-15.msav` slot and calls upstream `Saves.load()`:
+
+```sh
+gradle -PupstreamCheckout=/path/to/Mindustry \
+  -PreferenceJar=/path/to/server-release.jar \
+  -ParcCheckout=/path/to/Arc -Pprobe=campaign-saves-load generateC
+bash arm11/build.sh build/generated/teavm/c build/probe-3ds-campaign-saves-load
+```
+
+Both Azahar profiles report:
+
+```text
+UPSTREAM_CAMPAIGN_SAVES_LOAD path=live slots=1 file=sector-serpulo-15.msav bytes=11036 load=ok
+```
+
+The probe asserts one discovered slot and that the generic save is not treated
+as a sector remap. It does not call `SaveSlot.load()` or load a world; the live
+campaign startup still needs to invoke this path.
+
 ## Remaining Scope for Issue #41 (3DS Hardware / ARM11 Runtime)
 
 The capability is marked `emulator-tested` because the probes in [campaign-verification.md](campaign-verification.md) verify upstream settings, sector `.msav` slots, `SectorInfo` JSON, tech-tree requirements, planet last-sector routing, sector play/capture transitions, and sector-save launch on ARM11/Azahar. The host-verified path contract is recorded in [sd-storage-paths.md](sd-storage-paths.md). The live runtime still needs to consume these paths end-to-end:
 
-1. Route the live `Core.files`/`Core.settings` instance (not only research probes) to `/3ds/min3dstry/` so `settings.bin`, `settings_backup.bin`, `settings_backups/`, and `sector-<planet>-<id>.msav` use the verified contract.
+1. Route the live `Core.files`/`Core.settings`/`Core.assets` and `Vars.mainExecutor` instances (not only research probes) to `/3ds/min3dstry/`, then call `Saves.load()` during campaign startup so `settings.bin`, `settings_backup.bin`, `settings_backups/`, and `sector-<planet>-<id>.msav` use the verified contract.
 2. Build the live campaign launch/capture UI flow, sector selection and capture rewards on top of the verified persistence/routing APIs and the read-only SD sector catalog.
 3. Advance beyond `emulator-tested` only after those live flows and physical Old/New 3DS verification.
