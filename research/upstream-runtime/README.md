@@ -326,6 +326,10 @@ the lock while the worker is active, including any ping reply from a read.
 The [large-sector build](https://github.com/levkeveli/Min3DStry/actions/runs/44906962673)
 combined this bridge with the large-map collector changes. Both Azahar
 profiles logged the keepalive and rendered the original Onset spawn.
+The [standalone devkitARM build](https://github.com/levkeveli/Min3DStry/actions/runs/44910913867)
+also logged the world-load keepalive on both profiles using Glacier.
+The stock server rejected build 159, accepted movement after both
+v160.8 joins, synchronized waves 2 and 3, and recorded orderly disconnects.
 
 For the host reference, run `runProbeJvm` with `-Pprobe=network-live`
 and pass a captured `WorldStream` file through `--args`. The JVM
