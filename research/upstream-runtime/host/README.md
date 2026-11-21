@@ -249,6 +249,21 @@ UPSTREAM_COMBAT units=69 bullets=202 manifest_sha256=e35013e20c50cbe83169794e898
 Reference only: no units, bullets, balance, AI or combat loop are implemented
 or changed. The manifest is deterministic over the pinned content order.
 
+To exercise pinned `v160.8` defense turrets (`18` Serpulo/core turrets),
+multi-turret combat (`Duo` conveyor feed, `Hail` splash damage, `Lancer`
+battery-powered laser), `Pathfinder` flowfield rebuild & dynamic wall
+rerouting (`GroundAI`), and repeated-run determinism against `server-release.jar`:
+
+```sh
+java -cp /path/to/server-release.jar \
+    /path/to/Min3DStry/research/upstream-runtime/host/UpstreamCombatSimulationBaseline.java
+```
+
+Look for `UPSTREAM_COMBAT_TURRETS blocks=18` and
+`UPSTREAM_COMBAT_ORDER runs=2 ticks=940`. See
+[the combat, waves, and pathfinding design](../../../docs/porting/combat-waves-pathfinding.md)
+for TeaVM C `-O0`/`-O2` parity, ARM11 probe sizes, and remaining work (`#30`).
+
 ## Multiplayer session baseline
 
 To exercise an end-to-end loopback session (`#44`) against the unmodified pinned
