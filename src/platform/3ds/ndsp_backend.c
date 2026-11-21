@@ -1,5 +1,6 @@
 #include "ndsp_backend.h"
 
+#include <float.h>
 #include <string.h>
 
 static M3dsAudioBackendState m3ds_ndsp_init_cb(
@@ -136,7 +137,6 @@ static bool m3ds_ndsp_voice_start_cb(
     const M3dsAudioClipDesc *desc,
     float gain_left,
     float gain_right,
-    float pitch,
     bool looping) {
     M3dsNdspContext *ctx = (M3dsNdspContext *)raw_ctx;
     if (!ctx || !ctx->ndsp_ready || !desc ||
@@ -151,7 +151,7 @@ static bool m3ds_ndsp_voice_start_cb(
     ndspChnReset(ch);
     ndspChnInitParams(ch);
     ndspChnSetInterp(ch, NDSP_INTERP_LINEAR);
-    ndspChnSetRate(ch, (float)desc->sample_rate * pitch);
+    ndspChnSetRate(ch, (float)desc->sample_rate);
     ndspChnSetFormat(
         ch,
         desc->channels == 2u ? NDSP_FORMAT_STEREO_PCM16 : NDSP_FORMAT_MONO_PCM16);
@@ -202,6 +202,29 @@ static bool m3ds_ndsp_voice_is_active_cb(void *raw_ctx, uint32_t channel) {
     return status == NDSP_WBUF_QUEUED || status == NDSP_WBUF_PLAYING;
 }
 
+/*
+ * libctru 3ds/ndsp/channel.h declares `void ndspChnSetRate(int id, float rate)`
+ * with `@param rate Sample rate to use.` in Hz (converted internally against the
+ * hardware 32728 Hz DSP clock by libctru), matching m3ds_ndsp_voice_start_cb.
+ */
+static void m3ds_ndsp_voice_set_rate_cb(
+    void *raw_ctx,
+    uint32_t channel,
+    float sample_rate) {
+    const M3dsNdspContext *ctx = (const M3dsNdspContext *)raw_ctx;
+    if (!ctx || !ctx->ndsp_ready || channel >= M3DS_AUDIO_MAX_VOICES) {
+        return;
+    }
+    if (!(sample_rate >= -FLT_MAX && sample_rate <= FLT_MAX)) {
+        sample_rate = (float)M3DS_AUDIO_DEFAULT_SAMPLE_RATE;
+    } else if (sample_rate < 1000.0f) {
+        sample_rate = 1000.0f;
+    } else if (sample_rate > 192000.0f) {
+        sample_rate = 192000.0f;
+    }
+    ndspChnSetRate((int)channel, sample_rate);
+}
+
 void m3ds_ndsp_backend_init(M3dsAudioBackend *backend, M3dsNdspContext *ctx) {
     if (!backend) {
         return;
@@ -219,4 +242,5 @@ void m3ds_ndsp_backend_init(M3dsAudioBackend *backend, M3dsNdspContext *ctx) {
     backend->voice_set_paused = m3ds_ndsp_voice_set_paused_cb;
     backend->voice_stop = m3ds_ndsp_voice_stop_cb;
     backend->voice_is_active = m3ds_ndsp_voice_is_active_cb;
+    backend->voice_set_rate = m3ds_ndsp_voice_set_rate_cb;
 }

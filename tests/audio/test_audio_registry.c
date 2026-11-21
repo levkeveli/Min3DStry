@@ -32,13 +32,11 @@ static bool mock_voice_start(
     const M3dsAudioClipDesc *desc,
     float gain_left,
     float gain_right,
-    float pitch,
     bool looping) {
     MockBackendCtx *ctx = (MockBackendCtx *)raw;
     (void)clip_id;
     (void)gain_left;
     (void)gain_right;
-    (void)pitch;
     (void)looping;
     if (channel >= M3DS_AUDIO_MAX_VOICES || !desc || !desc->samples) {
         return false;

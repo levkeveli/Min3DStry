@@ -11,7 +11,7 @@ typedef struct MockVoiceState {
     int clip_id;
     float gain_left;
     float gain_right;
-    float pitch;
+    float sample_rate;
     bool looping;
 } MockVoiceState;
 
@@ -30,6 +30,7 @@ typedef struct MockAudioCtx {
     uint32_t voice_stop_calls;
     uint32_t voice_mix_calls;
     uint32_t voice_pause_calls;
+    uint32_t voice_rate_calls;
     MockVoiceState voices[M3DS_AUDIO_MAX_VOICES];
 } MockAudioCtx;
 
@@ -78,7 +79,6 @@ static bool mock_voice_start(
     const M3dsAudioClipDesc *desc,
     float gain_left,
     float gain_right,
-    float pitch,
     bool looping) {
     MockAudioCtx *ctx = (MockAudioCtx *)raw;
     (void)desc;
@@ -88,7 +88,7 @@ static bool mock_voice_start(
     ctx->voices[channel].clip_id = clip_id;
     ctx->voices[channel].gain_left = gain_left;
     ctx->voices[channel].gain_right = gain_right;
-    ctx->voices[channel].pitch = pitch;
+    ctx->voices[channel].sample_rate = (float)desc->sample_rate;
     ctx->voices[channel].looping = looping;
     return true;
 }
@@ -122,6 +122,12 @@ static bool mock_voice_is_active(void *raw, uint32_t channel) {
     return ctx->voices[channel].active;
 }
 
+static void mock_voice_set_rate(void *raw, uint32_t channel, float sample_rate) {
+    MockAudioCtx *ctx = (MockAudioCtx *)raw;
+    ctx->voice_rate_calls += 1u;
+    ctx->voices[channel].sample_rate = sample_rate;
+}
+
 static M3dsAudioBackend make_mock_backend(
     MockAudioCtx *ctx,
     M3dsAudioBackendState state,
@@ -145,6 +151,7 @@ static M3dsAudioBackend make_mock_backend(
     backend.voice_set_paused = mock_voice_set_paused;
     backend.voice_stop = mock_voice_stop;
     backend.voice_is_active = mock_voice_is_active;
+    backend.voice_set_rate = mock_voice_set_rate;
     return backend;
 }
 
@@ -290,21 +297,14 @@ static void test_pan_bus_mute_and_pause(void) {
     assert(v0 != M3DS_AUDIO_INVALID_VOICE);
     assert(float_near(ctx.voices[0].gain_left, 0.8f));
     assert(float_near(ctx.voices[0].gain_right, 0.0f));
-    assert(float_near(ctx.voices[0].pitch, 1.0f));
 
     M3dsAudioPlayParams p_right = m3ds_audio_default_play_params(M3DS_AUDIO_BUS_SFX);
     p_right.volume = 1.0f;
     p_right.pan = 0.5f;
-    p_right.pitch = 1.2f;
     uint32_t v1 = m3ds_audio_mixer_play(&mixer, clip, &p_right);
     assert(v1 != M3DS_AUDIO_INVALID_VOICE);
     assert(float_near(ctx.voices[1].gain_left, 0.5f));
     assert(float_near(ctx.voices[1].gain_right, 1.0f));
-    assert(float_near(ctx.voices[1].pitch, 1.2f));
-    m3ds_audio_mixer_set_voice_mix(&mixer, v1, -0.5f, 0.5f);
-    assert(float_near(ctx.voices[1].gain_left, 0.5f));
-    assert(float_near(ctx.voices[1].gain_right, 0.25f));
-    m3ds_audio_mixer_set_voice_mix(&mixer, v1, p_right.pan, p_right.volume);
 
     M3dsAudioPlayParams p_music = m3ds_audio_default_play_params(M3DS_AUDIO_BUS_MUSIC);
     assert(p_music.looping);
@@ -429,12 +429,121 @@ static void test_synth_tone_determinism_and_envelope(void) {
     assert(max_abs > 5000);
 }
 
+static void test_per_voice_mix_pitch_pause_and_activity(void) {
+    MockAudioCtx ctx;
+    M3dsAudioBackend backend = make_mock_backend(&ctx, M3DS_AUDIO_STATE_READY, 0u);
+    M3dsAudioMixer mixer;
+    assert(m3ds_audio_mixer_init(&mixer, &backend));
+
+    int16_t pcm[32];
+    m3ds_audio_synth_tone_pcm16(pcm, 32u, 22050u, 440u, 8000u);
+    M3dsAudioClipDesc desc = {pcm, 32u, 22050u, 1u};
+    int clip = m3ds_audio_mixer_register_clip(&mixer, &desc);
+    assert(clip >= 0);
+
+    /* Zero-initialized params (pitch=0.0f) safely defaults pitch to 1.0f. */
+    M3dsAudioPlayParams zero_pitch_p;
+    memset(&zero_pitch_p, 0, sizeof(zero_pitch_p));
+    zero_pitch_p.bus = M3DS_AUDIO_BUS_SFX;
+    zero_pitch_p.volume = 0.6f;
+    uint32_t v0 = m3ds_audio_mixer_play(&mixer, clip, &zero_pitch_p);
+    assert(v0 != M3DS_AUDIO_INVALID_VOICE);
+    assert(float_near(ctx.voices[0].sample_rate, 22050.0f));
+    assert(ctx.voice_rate_calls == 0u);
+    assert(m3ds_audio_mixer_voice_is_active(&mixer, v0));
+    assert(!m3ds_audio_mixer_voice_is_active(&mixer, M3DS_AUDIO_INVALID_VOICE));
+    assert(!m3ds_audio_mixer_voice_is_active(&mixer, v0 + 99u));
+    assert(!m3ds_audio_mixer_voice_is_active(NULL, v0));
+
+    M3dsAudioPlayParams pitched_p = m3ds_audio_default_play_params(M3DS_AUDIO_BUS_SFX);
+    assert(float_near(pitched_p.pitch, 1.0f));
+    pitched_p.volume = 1.0f;
+    pitched_p.pitch = 1.5f;
+    uint32_t v1 = m3ds_audio_mixer_play(&mixer, clip, &pitched_p);
+    assert(v1 != M3DS_AUDIO_INVALID_VOICE);
+    assert(float_near(ctx.voices[1].sample_rate, 22050.0f * 1.5f));
+    assert(ctx.voice_rate_calls == 1u);
+
+    /* Live set_voice_mix updates gains and persists across bus-volume updates. */
+    assert(m3ds_audio_mixer_set_voice_mix(&mixer, v1, 0.4f, -0.5f));
+    assert(float_near(ctx.voices[1].gain_left, 0.4f));
+    assert(float_near(ctx.voices[1].gain_right, 0.2f));
+    m3ds_audio_mixer_set_bus_volume(&mixer, M3DS_AUDIO_BUS_SFX, 0.5f);
+    assert(float_near(ctx.voices[1].gain_left, 0.2f));
+    assert(float_near(ctx.voices[1].gain_right, 0.1f));
+
+    /* NaN / +Inf / out-of-range sanitization for mix and pitch. */
+    assert(m3ds_audio_mixer_set_voice_mix(&mixer, v1, NAN, 2.0f));
+    assert(float_near(ctx.voices[1].gain_left, 0.0f));
+    assert(float_near(ctx.voices[1].gain_right, 0.0f));
+    assert(m3ds_audio_mixer_set_voice_mix(&mixer, v1, 2.0f, -2.0f));
+    assert(float_near(ctx.voices[1].gain_left, 0.5f));
+    assert(float_near(ctx.voices[1].gain_right, 0.0f));
+    assert(m3ds_audio_mixer_set_voice_mix(&mixer, v1, 1.0f, NAN));
+    assert(float_near(ctx.voices[1].gain_left, 0.5f));
+    assert(float_near(ctx.voices[1].gain_right, 0.5f));
+
+    assert(m3ds_audio_mixer_set_voice_pitch(&mixer, v1, 0.5f));
+    assert(float_near(ctx.voices[1].sample_rate, 22050.0f * 0.5f));
+    assert(m3ds_audio_mixer_set_voice_pitch(&mixer, v1, 0.05f));
+    assert(float_near(ctx.voices[1].sample_rate, 22050.0f * M3DS_AUDIO_MIN_PITCH));
+    assert(m3ds_audio_mixer_set_voice_pitch(&mixer, v1, 10.0f));
+    assert(float_near(ctx.voices[1].sample_rate, 22050.0f * M3DS_AUDIO_MAX_PITCH));
+    assert(m3ds_audio_mixer_set_voice_pitch(&mixer, v1, NAN));
+    assert(float_near(ctx.voices[1].sample_rate, 22050.0f));
+    assert(m3ds_audio_mixer_set_voice_pitch(&mixer, v1, -1.0f));
+    assert(float_near(ctx.voices[1].sample_rate, 22050.0f));
+
+    /* Per-voice pause skips m3ds_audio_mixer_update() harvesting and survives global unpause. */
+    assert(m3ds_audio_mixer_set_voice_paused(&mixer, v1, true));
+    assert(ctx.voices[1].paused);
+    ctx.voices[1].active = false; /* Simulate stopped backend while voice is paused. */
+    m3ds_audio_mixer_update(&mixer);
+    assert(m3ds_audio_mixer_voice_is_active(&mixer, v1));
+
+    ctx.voices[1].active = true;
+    m3ds_audio_mixer_set_paused(&mixer, true);
+    assert(ctx.voices[0].paused && ctx.voices[1].paused);
+    m3ds_audio_mixer_set_paused(&mixer, false);
+    assert(!ctx.voices[0].paused);
+    assert(ctx.voices[1].paused);
+
+    assert(m3ds_audio_mixer_set_voice_paused(&mixer, v1, false));
+    assert(!ctx.voices[1].paused);
+    ctx.voices[1].active = false;
+    m3ds_audio_mixer_update(&mixer);
+    assert(!m3ds_audio_mixer_voice_is_active(&mixer, v1));
+
+    /* Stale/invalid handles fail cleanly without mutating slots. */
+    assert(!m3ds_audio_mixer_set_voice_mix(&mixer, v1, 0.5f, 0.0f));
+    assert(!m3ds_audio_mixer_set_voice_pitch(&mixer, v1, 1.2f));
+    assert(!m3ds_audio_mixer_set_voice_paused(&mixer, v1, true));
+    assert(!m3ds_audio_mixer_set_voice_mix(NULL, v0, 0.5f, 0.0f));
+    assert(!m3ds_audio_mixer_set_voice_pitch(NULL, v0, 1.0f));
+    assert(!m3ds_audio_mixer_set_voice_paused(NULL, v0, true));
+
+    m3ds_audio_mixer_shutdown(&mixer);
+
+    /* Backend with NULL voice_set_rate must still accept pitched plays safely. */
+    M3dsAudioBackend no_rate_backend = make_mock_backend(&ctx, M3DS_AUDIO_STATE_READY, 0u);
+    no_rate_backend.voice_set_rate = NULL;
+    assert(m3ds_audio_mixer_init(&mixer, &no_rate_backend));
+    clip = m3ds_audio_mixer_register_clip(&mixer, &desc);
+    assert(clip >= 0);
+    uint32_t v_norate = m3ds_audio_mixer_play(&mixer, clip, &pitched_p);
+    assert(v_norate != M3DS_AUDIO_INVALID_VOICE);
+    assert(m3ds_audio_mixer_set_voice_pitch(&mixer, v_norate, 1.25f));
+    assert(ctx.voice_rate_calls == 0u);
+    m3ds_audio_mixer_shutdown(&mixer);
+}
+
 int main(void) {
     test_disabled_and_fallback_no_dsp();
     test_clip_validation_and_lifecycle();
     test_pan_bus_mute_and_pause();
     test_voice_stealing_and_update();
     test_synth_tone_determinism_and_envelope();
+    test_per_voice_mix_pitch_pause_and_activity();
     printf("test_audio_mixer: all assertions passed.\n");
     return 0;
 }

@@ -1,6 +1,7 @@
 #include "audio/audio_events.h"
 
 #include <assert.h>
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -9,6 +10,9 @@ typedef struct MockCtx {
     int last_clip;
     int active_channel;
     bool last_looping;
+    float gain_left;
+    float gain_right;
+    uint32_t mix_calls;
 } MockCtx;
 
 static MockCtx g_ctx;
@@ -75,12 +79,10 @@ static bool mock_voice_start(
     const M3dsAudioClipDesc *desc,
     float gain_left,
     float gain_right,
-    float pitch,
     bool looping) {
     MockCtx *ctx = (MockCtx *)raw;
     (void)gain_left;
     (void)gain_right;
-    (void)pitch;
     (void)looping;
     if (!desc || !desc->samples) {
         return false;
@@ -88,7 +90,21 @@ static bool mock_voice_start(
     ctx->last_clip = clip_id;
     ctx->active_channel = (int)channel;
     ctx->last_looping = looping;
+    ctx->gain_left = gain_left;
+    ctx->gain_right = gain_right;
     return true;
+}
+
+static void mock_voice_set_mix(
+    void *raw,
+    uint32_t channel,
+    float gain_left,
+    float gain_right) {
+    MockCtx *ctx = (MockCtx *)raw;
+    (void)channel;
+    ctx->gain_left = gain_left;
+    ctx->gain_right = gain_right;
+    ctx->mix_calls += 1u;
 }
 
 static void mock_voice_stop(void *raw, uint32_t channel) {
@@ -114,6 +130,7 @@ static M3dsAudioBackend make_backend(void) {
     backend.upload_clip = mock_upload;
     backend.unload_clip = mock_unload;
     backend.voice_start = mock_voice_start;
+    backend.voice_set_mix = mock_voice_set_mix;
     backend.voice_stop = mock_voice_stop;
     backend.voice_is_active = mock_voice_is_active;
     return backend;
@@ -244,10 +261,132 @@ static void test_event_play_without_registry(void) {
     m3ds_audio_mixer_shutdown(&mixer);
 }
 
+static bool approx_equal(float a, float b) {
+    float diff = (a > b) ? (a - b) : (b - a);
+    return diff < 0.0005f;
+}
+
+static void test_upstream_sound_id_mapping_and_spatial_math(void) {
+    typedef struct ExpectedSoundId {
+        M3dsAudioEvent event;
+        int upstream_id;
+    } ExpectedSoundId;
+    static const ExpectedSoundId expected[] = {
+        {M3DS_AUDIO_EVENT_UI_BUTTON, 185},
+        {M3DS_AUDIO_EVENT_RESEARCH_UNLOCK, 189},
+        {M3DS_AUDIO_EVENT_WAVE_SPAWN, 198},
+        {M3DS_AUDIO_EVENT_SHOOT_DUO, 136},
+        {M3DS_AUDIO_EVENT_ENEMY_KILL, 192},
+        {M3DS_AUDIO_EVENT_CONVEYOR_LOOP, 63},
+        {M3DS_AUDIO_EVENT_DRILL_LOOP, 67},
+        {M3DS_AUDIO_EVENT_BLOCK_PLACE, 26},
+        {M3DS_AUDIO_EVENT_BLOCK_BREAK, 11},
+    };
+    for (size_t i = 0u; i < sizeof(expected) / sizeof(expected[0]); ++i) {
+        assert(m3ds_audio_event_upstream_sound_id(expected[i].event) ==
+               expected[i].upstream_id);
+        M3dsAudioEvent decoded = M3DS_AUDIO_EVENT_COUNT;
+        assert(m3ds_audio_event_from_upstream_sound_id(expected[i].upstream_id, &decoded));
+        assert(decoded == expected[i].event);
+    }
+
+    assert(m3ds_audio_event_upstream_sound_id(M3DS_AUDIO_EVENT_COUNT) ==
+           M3DS_UPSTREAM_SOUND_UNSET);
+    M3dsAudioEvent untouched = M3DS_AUDIO_EVENT_COUNT;
+    assert(!m3ds_audio_event_from_upstream_sound_id(M3DS_UPSTREAM_SOUND_UNSET, &untouched));
+    assert(!m3ds_audio_event_from_upstream_sound_id(0, &untouched));
+    assert(!m3ds_audio_event_from_upstream_sound_id(205, &untouched));
+    assert(untouched == M3DS_AUDIO_EVENT_COUNT);
+    assert(m3ds_audio_event_from_upstream_sound_id(136, NULL));
+
+    /* Arc Sound.calcPan / calcFalloff / calcVolume 1:1 checks (400x240 camera). */
+    assert(approx_equal(m3ds_audio_calc_pan(0.0f, 0.0f, 400.0f), 0.0f));
+    assert(approx_equal(m3ds_audio_calc_pan(-100.0f, 0.0f, 400.0f), -0.500f));
+    assert(approx_equal(m3ds_audio_calc_pan(400.0f, 0.0f, 400.0f), 0.900f));
+    assert(approx_equal(m3ds_audio_calc_pan(-400.0f, 0.0f, 400.0f), -0.900f));
+    assert(approx_equal(m3ds_audio_calc_pan(50.0f, 0.0f, 0.0f), 0.0f));
+    assert(approx_equal(m3ds_audio_calc_pan(NAN, 0.0f, 400.0f), 0.0f));
+
+    assert(approx_equal(
+        m3ds_audio_calc_falloff(0.0f, 0.0f, 0.0f, 0.0f,
+                                M3DS_UPSTREAM_AUDIO_DEFAULT_FALLOFF, 0.0f),
+        1.0f));
+    assert(approx_equal(
+        m3ds_audio_calc_falloff(30.0f, 40.0f, 0.0f, 0.0f,
+                                M3DS_UPSTREAM_AUDIO_DEFAULT_FALLOFF, 50.0f),
+        1.0f));
+    float far_vol = m3ds_audio_calc_falloff(
+        5000.0f, 5000.0f, 0.0f, 0.0f, M3DS_UPSTREAM_AUDIO_DEFAULT_FALLOFF, 0.0f);
+    assert(far_vol < M3DS_UPSTREAM_AUDIO_MIN_AUDIBLE_VOLUME);
+    assert(approx_equal(far_vol, 0.00032f));
+    assert(approx_equal(m3ds_audio_calc_falloff(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f), 0.0f));
+    assert(approx_equal(
+        m3ds_audio_calc_volume(0.0f, 0.0f, 0.0f, 0.0f,
+                               M3DS_UPSTREAM_AUDIO_DEFAULT_FALLOFF, 0.0f, 0.5f),
+        0.5f));
+
+    /* Upstream sound ID playback + SoundLoop-style live pan/fade updates. */
+    static const int16_t duo_pcm[] = {10, 20, 30, 40};
+    static const int16_t conv_pcm[] = {50, 60, 70, 80};
+    static const MockFile files[] = {
+        {"romfs:/audio/shoot.duo.pcm", duo_pcm, 4u},
+        {"romfs:/audio/conveyor.loop.pcm", conv_pcm, 4u},
+        {NULL, NULL, 0u},
+    };
+    static const M3dsAudioIndexEntry entries[] = {
+        {"shoot.duo", "romfs:/audio/shoot.duo.pcm", 22050u, 1u, 4u,
+         "core/src/mindustry/content/Blocks.java", 3333u},
+        {"conveyor.loop", "romfs:/audio/conveyor.loop.pcm", 22050u, 1u, 4u,
+         "core/src/mindustry/world/blocks/distribution/Conveyor.java", 49u},
+    };
+    int16_t storage[16];
+    M3dsAudioMixer mixer;
+    M3dsAudioBackend backend = make_backend();
+    assert(m3ds_audio_mixer_init(&mixer, &backend));
+    M3dsAudioRegistry registry;
+    assert(m3ds_audio_registry_load(
+               &registry, &mixer, entries, 2u, mock_read, (void *)files, storage,
+               sizeof(storage)) == M3DS_AUDIO_REGISTRY_OK);
+
+    assert(m3ds_audio_upstream_sound_clip(&registry, 136) ==
+           m3ds_audio_event_clip(&registry, M3DS_AUDIO_EVENT_SHOOT_DUO));
+    assert(m3ds_audio_upstream_sound_clip(&registry, 999) == M3DS_AUDIO_INVALID_CLIP);
+    assert(m3ds_audio_upstream_sound_play(&registry, 999, NULL) == M3DS_AUDIO_INVALID_VOICE);
+
+    M3dsAudioPlayParams conv_p = m3ds_audio_default_play_params(M3DS_AUDIO_BUS_SFX);
+    conv_p.looping = true;
+    conv_p.volume = 0.0f;
+    conv_p.pan = m3ds_audio_calc_pan(-100.0f, 0.0f, 400.0f);
+    uint32_t loop_v = m3ds_audio_upstream_sound_play(&registry, 63, &conv_p);
+    assert(loop_v != M3DS_AUDIO_INVALID_VOICE);
+    assert(g_ctx.last_looping);
+    assert(approx_equal(g_ctx.gain_left, 0.0f));
+    assert(approx_equal(g_ctx.gain_right, 0.0f));
+
+    /* Fade in like SoundLoop (baseVolume = 0.019f -> full volume over 20 updates). */
+    float fade = 0.0f;
+    const float base_vol = 0.019f;
+    for (int step = 0; step < 20; ++step) {
+        fade += 0.05f;
+        if (fade > 1.0f) {
+            fade = 1.0f;
+        }
+        assert(m3ds_audio_mixer_set_voice_mix(
+            &mixer, loop_v, fade * base_vol,
+            m3ds_audio_calc_pan(-100.0f, 0.0f, 400.0f)));
+    }
+    assert(approx_equal(g_ctx.gain_left, base_vol));
+    assert(approx_equal(g_ctx.gain_right, base_vol * 0.5f));
+    assert(g_ctx.mix_calls == 20u);
+
+    m3ds_audio_mixer_shutdown(&mixer);
+}
+
 int main(void) {
     test_event_ids_match_trigger_map();
     test_event_play_uses_registry_clip();
     test_event_play_without_registry();
+    test_upstream_sound_id_mapping_and_spatial_math();
     puts("audio event tests passed");
     return 0;
 }

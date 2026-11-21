@@ -52,7 +52,7 @@ int32_t m3ds_live_audio_play(float volume, float pitch, float pan, int32_t loop)
 }
 
 void m3ds_live_audio_set_mix(int32_t voice, float pan, float volume) {
-    m3ds_audio_mixer_set_voice_mix(&mixer, (uint32_t)voice, pan, volume);
+    m3ds_audio_mixer_set_voice_mix(&mixer, (uint32_t)voice, volume, pan);
 }
 
 void m3ds_live_audio_update(void) {
