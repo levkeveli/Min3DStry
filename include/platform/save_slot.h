@@ -8,12 +8,17 @@
 extern "C" {
 #endif
 
+#define M3DS_SAVE_MAP_NAME_MAX 48u
+
 typedef struct M3dsSaveSlotInfo {
     bool present;
     bool valid;
     bool compressed;
+    bool has_meta;
     uint32_t version;
+    uint32_t wave;
     uint32_t bytes;
+    char map_name[M3DS_SAVE_MAP_NAME_MAX];
 } M3dsSaveSlotInfo;
 
 /*
