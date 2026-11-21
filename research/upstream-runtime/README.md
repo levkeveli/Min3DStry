@@ -425,6 +425,14 @@ with the captured Glacier WorldStream. The current palette verifies
 two upstream entries. Full catalog selection and block configuration
 are tracked in issue #27.
 
+The [devkitARM build](https://github.com/levkeveli/Min3DStry/actions/runs/44850937824)
+passed the touch checks at `-O0` on both Azahar 2126.2 profiles. The
+stock v160.8 server attributed both placements to the ARM11 player on
+team 1, applied Conveyor rotation 1, and reported 200, 199, 193 and 196
+copper before placement, after each build and after the wall refund.
+The captured wall sprite appeared at the selected cell and cleared on
+removal while the adjacent Conveyor remained.
+
 Before the snapshot dispatch extension, the [devkitARM verification build](https://github.com/levkeveli/Min3DStry/actions/runs/44824442974)
 passed at `-O0` and `-O2` on both Azahar 2126.2 console profiles. Each run
 rejected build 159 with `clientOutdated`, then joined Glacier twice with
