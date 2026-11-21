@@ -294,9 +294,7 @@ def inspect_mining(server_log, server, marker, item):
     return target, int(balance)
 
 
-def verify_mining(log, emulator, server_log, server, timeout, capture, mining, item, objectives, objective_hud):
-    if objective_hud:
-        wait_for(log, emulator, r"UPSTREAM_OBJECTIVE_HUD icon=beryllium text=Obtain: 0/60\|Beryllium\b", 5)
+def verify_mining(log, emulator, server_log, server, timeout, capture, mining, item, objectives):
     target = re.compile(rf"UPSTREAM_MINE_TARGET x=(\d+) y=(\d+) item={item}\b")
     x, y = target.search(wait_for(log, emulator, target, timeout)).groups()
     # Let the stock MinerComp advance before reading the selected tile and deposited items.
@@ -306,9 +304,6 @@ def verify_mining(log, emulator, server_log, server, timeout, capture, mining, i
         raise RuntimeError(f"Expected stock {item} mining at {x},{y}, observed {selected} with {balance} items")
     core_sync = re.compile(rf"UPSTREAM_MINE_CORE_SYNC item={item} count=([1-9]\d*)\b")
     client_count = int(core_sync.search(wait_for(log, emulator, core_sync, 10))[1])
-    if objective_hud:
-        wait_for(log, emulator, r"UPSTREAM_OBJECTIVE_HUD icon=beryllium text=Obtain: (?:[1-9]|[1-5]\d)"
-                 r"/60\|Beryllium\b", 5)
     position = server_position(server_log, server, "UPSTREAM_SERVER_MINING_POSITION").groups()
     capture(f"{mining}-mining", position)
     if mining == "wall":
@@ -332,10 +327,24 @@ def verify_mining(log, emulator, server_log, server, timeout, capture, mining, i
     print(f"Stock {mining} mining at ({x}, {y}) delivered {settled[1]} {item} before stopping.", flush=True)
     if objectives:
         verify_onset_objective(log, emulator, server_log, server, settled[1])
-    if objective_hud:
-        wait_for(log, emulator, r"UPSTREAM_OBJECTIVE_HUD icon=turbine-condenser text=Build: 1x\|Turbine Condenser\b", 5)
-        capture("objective-next", position)
-        print("The objective HUD displayed the stock inventory progress and Turbine Condenser objective.", flush=True)
+
+
+def verify_onset_objective_hud(log, emulator, server_log, server, capture, position):
+    wait_for(log, emulator, r"UPSTREAM_OBJECTIVE_HUD icon=beryllium text=Obtain: 0/60\|Beryllium\b", 10)
+    # Drive the real server's item module and let its regular snapshots and objective executor
+    # publish the changes. Hold each state until the client presents it for capture.
+    for amount, icon, label, phase in (
+        (17, "beryllium", "Obtain: 17/60|Beryllium", "objective-progress"),
+        (60, "turbine-condenser", "Build: 1x|Turbine Condenser", "objective-next"),
+    ):
+        server.stdin.write(
+            f'js Vars.state.rules.defaultTeam.core().items.set(Items.beryllium, {amount})\n'
+        )
+        server.stdin.flush()
+        wait_for(log, emulator, rf"UPSTREAM_OBJECTIVE_HUD icon={icon} text={re.escape(label)}\b", 25)
+        capture(phase, position)
+    verify_onset_objective(log, emulator, server_log, server, 60)
+    print("The objective HUD displayed the stock inventory progress and Turbine Condenser objective.", flush=True)
 
 
 def verify_onset_objective(log, emulator, server_log, server, beryllium):
@@ -1121,7 +1130,7 @@ def run_model(args, model, config, original_config, log, output):
                     f'Vars.state.rules.defaultTeam.core().items.get(Items.{mine_item})\n')
                 server.stdin.flush()
                 wait_for(server_log, server, rf"UPSTREAM_MINING_START {mine_item}=0\b", 5)
-            if args.verify_objectives:
+            if args.verify_objectives or args.verify_objective_hud:
                 server.stdin.write(
                     'js (() => { var all=Vars.state.rules.objectives.all, first=all.get(0), next=all.get(1); '
                     'return "UPSTREAM_SERVER_ONSET_START item=" + first.item.name + " amount=" + first.amount + '
@@ -1259,7 +1268,9 @@ def run_model(args, model, config, original_config, log, output):
                             verify_erekir_construction(log, emulator, server_log, server, args.timeout, capture, spawn)
                         if args.mining:
                             verify_mining(log, emulator, server_log, server, args.timeout, capture,
-                                          args.mining, mine_item, args.verify_objectives, args.verify_objective_hud)
+                                          args.mining, mine_item, args.verify_objectives)
+                        if args.verify_objective_hud:
+                            verify_onset_objective_hud(log, emulator, server_log, server, capture, spawn)
                         if args.building_effects:
                             verify_building_effects((output / f"{model}-{phase}.png").read_bytes())
                         if args.payload_mix:
@@ -1489,8 +1500,12 @@ def main():
         parser.error('--mining floor needs --map-spawn "Ground Zero" and --controls-replay')
     if args.verify_objectives and args.mining != "wall":
         parser.error("--verify-objectives needs --mining wall")
-    if args.verify_objective_hud and (not args.verify_objectives or args.locale != "en"):
-        parser.error("--verify-objective-hud needs --verify-objectives and --locale en")
+    if args.verify_objective_hud and (
+        args.map_spawn != "The Onset" or args.erekir_sector != "onset" or args.locale != "en"
+        or args.mining or args.erekir_build or args.controls_replay
+    ):
+        parser.error('--verify-objective-hud needs a stationary --map-spawn "The Onset", '
+                     '--erekir-sector onset and --locale en')
     if args.erekir_sector is not None:
         if not args.map_spawn or not re.fullmatch(r"[a-z][a-z-]*", args.erekir_sector):
             parser.error("--erekir-sector needs --map-spawn and a sector slug such as onset")

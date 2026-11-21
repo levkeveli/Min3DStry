@@ -984,9 +984,18 @@ icons from the paged atlas alongside the system-font text.
 Pass the path to the official `bundle` base as the optional fourth
 argument to `runBuildingLayersJvm` to verify the changing Onset count,
 the Turbine Condenser text and icons, and hidden objective filtering.
-Add `--verify-objective-hud --locale en` to the Onset objective replay to
-verify the rendered stock count at zero and during mining, then capture
-the build objective that replaces it.
+Run the stationary live verifier with `--controls --map-spawn "The Onset"
+--erekir-sector onset --verify-objective-hud --locale en --terrain-atlas
+PATH`. The stock server hosts the unchanged sector from the release JAR.
+The verifier captures 0/60, sets 17 beryllium in the server's core and
+captures the updated count, then sets 60 and captures the next objective
+after the stock executor completes the first. The separate wall-mining
+replay still checks objective completion through player mining.
+
+The [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44912172962)
+passed this check on both Original and New 3DS Azahar profiles. Both
+displayed the original Beryllium and Turbine Condenser icons and matched
+the server's objective completion and flag count.
 
 ### Verify the Arc executor pools
 
