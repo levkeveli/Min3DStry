@@ -93,9 +93,12 @@ Startup logs and HUD:
 ```
 
 ```text
-Sectors: 1
-Sector serpulo-170 Glacier w1
+Sectors: 2
+ erekir-64 v 16B
+ serpulo-170 Glacier w1
 ```
+
+The HUD lists up to four catalog rows.
 
 The list is catalog plumbing, not campaign loading: selecting, launching and
 capturing sectors still needs the live campaign UI.

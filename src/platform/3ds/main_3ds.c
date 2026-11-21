@@ -757,25 +757,20 @@ int main(int argc, char *argv[]) {
             printf("\x1b[20;1HSave: none\x1b[K");
         }
         printf("\x1b[21;1HSectors: %u\x1b[K", (unsigned)sector_count);
-        if (sector_count > 0u) {
-            if (sectors[0].has_meta) {
-                printf("\x1b[22;1HSector %s-%u %s w%u\x1b[K",
-                       sectors[0].planet, (unsigned)sectors[0].id,
-                       sectors[0].map_name, (unsigned)sectors[0].wave);
+        for (size_t i = 0; i < 4u; ++i) {
+            char label[64];
+            if (i < sector_count && m3ds_sector_catalog_label(
+                    &sectors[i], label, sizeof(label))) {
+                printf("\x1b[%u;1H %s\x1b[K", (unsigned)(22u + i), label);
             } else {
-                printf("\x1b[22;1HSector %s-%u %s %uB\x1b[K",
-                       sectors[0].planet, (unsigned)sectors[0].id,
-                       sectors[0].valid ? "v" : (sectors[0].compressed ? "zlib" : "invalid"),
-                       (unsigned)sectors[0].bytes);
+                printf("\x1b[%u;1H\x1b[K", (unsigned)(22u + i));
             }
-        } else {
-            printf("\x1b[22;1H\x1b[K");
         }
         if (save_slot.has_meta) {
-            printf("\x1b[23;1HMap: %s wave=%u\x1b[K",
+            printf("\x1b[26;1HMap: %s wave=%u\x1b[K",
                    save_slot.map_name, (unsigned)save_slot.wave);
         } else {
-            printf("\x1b[23;1H\x1b[K");
+            printf("\x1b[26;1H\x1b[K");
         }
         if (pause_menu.open) {
             printf("\x1b[15;1H=== PAUSED ===  Up/Down + A\x1b[K");
