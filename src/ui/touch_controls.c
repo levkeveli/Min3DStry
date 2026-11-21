@@ -55,3 +55,11 @@ bool m3ds_touch_action_is_pan(M3dsTouchAction action) {
         || action == M3DS_TOUCH_ACTION_CAMERA_LEFT
         || action == M3DS_TOUCH_ACTION_CAMERA_RIGHT;
 }
+
+int m3ds_touch_menu_row(float y, unsigned count) {
+    if (count == 0u || y < M3DS_TOUCH_MENU_FIRST_ROW) {
+        return -1;
+    }
+    unsigned row = (unsigned)((y - M3DS_TOUCH_MENU_FIRST_ROW) / M3DS_TOUCH_MENU_ROW_HEIGHT);
+    return row < count ? (int)row : -1;
+}

@@ -39,7 +39,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        probe: [logic, map, resource, executor, campaign-settings, campaign-content, campaign-research, campaign-slot-meta, campaign-sector-info, campaign-planet, wave-routing]
+        probe: [logic, map, resource, executor, campaign-settings, campaign-content, campaign-research, campaign-slot-meta, campaign-sector-info, campaign-planet, campaign-sector-state, wave-routing]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -61,7 +61,7 @@ jobs:
             -o "$RUNNER_TEMP/server-release.jar"
 
       - name: Fetch pinned Arc source
-        if: matrix.probe == 'resource' || matrix.probe == 'executor' || matrix.probe == 'campaign-settings' || matrix.probe == 'campaign-content' || matrix.probe == 'campaign-research' || matrix.probe == 'campaign-slot-meta' || matrix.probe == 'campaign-sector-info' || matrix.probe == 'campaign-planet' || matrix.probe == 'wave-routing'
+        if: matrix.probe == 'resource' || matrix.probe == 'executor' || matrix.probe == 'campaign-settings' || matrix.probe == 'campaign-content' || matrix.probe == 'campaign-research' || matrix.probe == 'campaign-slot-meta' || matrix.probe == 'campaign-sector-info' || matrix.probe == 'campaign-planet' || matrix.probe == 'campaign-sector-state' || matrix.probe == 'wave-routing'
         run: |
           git clone --filter=blob:none --no-checkout \
             https://github.com/Anuken/Arc.git "$RUNNER_TEMP/Arc"
@@ -82,7 +82,7 @@ jobs:
         run: |
           set -o pipefail
           extra=()
-          if [ "${{ matrix.probe }}" = "resource" ] || [ "${{ matrix.probe }}" = "executor" ] || [ "${{ matrix.probe }}" = "campaign-settings" ] || [ "${{ matrix.probe }}" = "campaign-content" ] || [ "${{ matrix.probe }}" = "campaign-research" ] || [ "${{ matrix.probe }}" = "campaign-slot-meta" ] || [ "${{ matrix.probe }}" = "campaign-sector-info" ] || [ "${{ matrix.probe }}" = "campaign-planet" ] || [ "${{ matrix.probe }}" = "wave-routing" ]; then
+          if [ "${{ matrix.probe }}" = "resource" ] || [ "${{ matrix.probe }}" = "executor" ] || [ "${{ matrix.probe }}" = "campaign-settings" ] || [ "${{ matrix.probe }}" = "campaign-content" ] || [ "${{ matrix.probe }}" = "campaign-research" ] || [ "${{ matrix.probe }}" = "campaign-slot-meta" ] || [ "${{ matrix.probe }}" = "campaign-sector-info" ] || [ "${{ matrix.probe }}" = "campaign-planet" ] || [ "${{ matrix.probe }}" = "campaign-sector-state" ] || [ "${{ matrix.probe }}" = "wave-routing" ]; then
             extra=("-ParcCheckout=$RUNNER_TEMP/Arc")
           fi
           probe_args=()
@@ -120,10 +120,13 @@ jobs:
             grep -F 'version=13 preset=groundZero wave=1 size=150x250 meta=ok' "$RUNNER_TEMP/probe.log"
           fi
           if [ "${{ matrix.probe }}" = "campaign-sector-info" ]; then
-            grep -F 'UPSTREAM_CAMPAIGN_SECTOR_INFO path=tmp key=serpulo-s-170-info captured=ok wave=7 items=250:75 reload=ok' "$RUNNER_TEMP/probe.log"
+            grep -F 'UPSTREAM_CAMPAIGN_SECTOR_INFO path=tmp key=serpulo-s-170-info api=ok captured=ok wave=7 items=250:75 core=coreShard resource=copper-wall reload=ok' "$RUNNER_TEMP/probe.log"
           fi
           if [ "${{ matrix.probe }}" = "campaign-planet" ]; then
             grep -F 'UPSTREAM_CAMPAIGN_PLANET path=tmp planet=serpulo sector=86 preset=frozenForest lastSector=86 reload=ok' "$RUNNER_TEMP/probe.log"
+          fi
+          if [ "${{ matrix.probe }}" = "campaign-sector-state" ]; then
+            grep -F 'UPSTREAM_CAMPAIGN_SECTOR_STATE sector=15 groundZero=ok played=ok captured=ok waves=locked gameOver=ok menu=ok' "$RUNNER_TEMP/probe.log"
           fi
           if [ "${{ matrix.probe }}" = "wave-routing" ]; then
             grep -F 'UPSTREAM_WAVE_SETUP core=81,26 enemyCore=81,224 groundSpawns=1 fieldHash=629058db4926d64e' \

@@ -134,11 +134,17 @@
       "category": "Rendering & Assets",
       "name": "Textured World & Unit Citro2D Renderer",
       "weight": 6,
-      "stage": "experimental",
+      "stage": "emulator-tested",
       "issue": 25,
       "evidence": [
         "src/platform/3ds/citro2d_backend.c",
-        "docs/rendering/citro2d-prototype.md"
+        "docs/rendering/citro2d-prototype.md",
+        "research/upstream-runtime/arm11/m3ds_terrain_renderer.c",
+        "research/upstream-runtime/arm11/m3ds_world_fragment.h",
+        "tests/render/test_world_fragment.c",
+        "tools/verify_upstream_live_net.py",
+        "tests/tools/test_verify_world_atlas.py",
+        "docs/rendering/asset-pipeline.md"
       ]
     },
     {
@@ -280,6 +286,7 @@
         "include/platform/settings_store.h",
         "src/platform/settings_store.c",
         "tests/platform/test_settings_store.c",
+        "research/upstream-runtime/src/campaign-sector-state/java/UpstreamCampaignSectorStateProbe.java",
         "research/upstream-runtime/src/campaign-planet/java/UpstreamCampaignPlanetStateProbe.java",
         "research/upstream-runtime/src/campaign-sector-info/java/UpstreamCampaignSectorInfoProbe.java",
         "research/upstream-runtime/src/campaign-sector-info/java/port/SectorInfoReflectionPolicy.java",
