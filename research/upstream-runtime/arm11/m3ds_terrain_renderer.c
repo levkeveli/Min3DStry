@@ -484,18 +484,38 @@ int32_t m3ds_terrain_build_overlay(int32_t column, int32_t row, int32_t block, i
     return 1;
 }
 
-float m3ds_terrain_draw_objective(const char *label, int32_t page, int32_t left, int32_t top,
+#ifdef M3DS_STOCK_FONT
+static void draw_label_art(const int32_t *glyph, float x, float y, float width, float height);
+#endif
+
+float m3ds_terrain_draw_objective(const char *label, const int32_t *characters, int32_t count,
+                                 int32_t page, int32_t left, int32_t top,
                                  int32_t width, int32_t height, float y) {
     if (!frame_open || !catalog_buffer) return 240.0f;
-    C2D_Text text;
-    C2D_TextBufClear(catalog_buffer);
-    if (!C2D_TextParse(&text, catalog_buffer, label)) return 240.0f;
-    C2D_TextOptimize(&text);
     bool has_icon = page >= 0 && width > 0 && height > 0;
     float inset = has_icon ? 32.0f : 6.0f;
-    float font_scale = fminf(0.44f, (230.0f - inset) / fmaxf(1.0f, text.width));
-    float text_width, text_height;
-    C2D_TextGetDimensions(&text, font_scale, font_scale, &text_width, &text_height);
+    float font_scale, text_width, text_height;
+    bool using_stock = false;
+#ifdef M3DS_STOCK_FONT
+    M3DS_StockText stock;
+    using_stock = m3ds_stock_text_layout(&stock, characters, count, false);
+    if (using_stock) {
+        font_scale = fminf(0.73f, (230.0f - inset) / fmaxf(1.0f, stock.width));
+        text_width = stock.width * font_scale;
+        text_height = stock.height * font_scale;
+    }
+#else
+    (void)characters;
+    (void)count;
+#endif
+    C2D_Text text;
+    if (!using_stock) {
+        C2D_TextBufClear(catalog_buffer);
+        if (!C2D_TextParse(&text, catalog_buffer, label)) return 240.0f;
+        C2D_TextOptimize(&text);
+        font_scale = fminf(0.44f, (230.0f - inset) / fmaxf(1.0f, text.width));
+        C2D_TextGetDimensions(&text, font_scale, font_scale, &text_width, &text_height);
+    }
     float panel_height = fmaxf(has_icon ? 32.0f : 0.0f, text_height + 10.0f);
     if (y + panel_height > screen_bottom - 4.0f) return 240.0f;
 
@@ -514,6 +534,18 @@ float m3ds_terrain_draw_objective(const char *label, int32_t page, int32_t left,
             return 240.0f;
         }
     }
+#ifdef M3DS_STOCK_FONT
+    if (using_stock) {
+        m3ds_stock_text_draw(&stock, x + inset, y + 5.0f, font_scale, font_scale, -1, draw_label_art);
+        static bool reported;
+        if (!reported) {
+            static const char message[] = "UPSTREAM_OBJECTIVE_FONT source=v160.8\n";
+            svcOutputDebugString(message, sizeof(message) - 1);
+            reported = true;
+        }
+        return y + panel_height + 3.0f;
+    }
+#endif
     C2D_DrawText(&text, C2D_WithColor, x + inset, y + 5.0f, 0.5f, font_scale, font_scale,
         C2D_Color32(239, 241, 247, 255));
     return y + panel_height + 3.0f;

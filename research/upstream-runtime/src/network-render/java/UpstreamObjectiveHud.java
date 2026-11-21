@@ -15,7 +15,7 @@ import mindustry.game.Rules;
 
 /** Adapts scene label markup and inline content glyphs for the 3DS objective panel. */
 final class UpstreamObjectiveHud {
-    record Row(String text, String contentName, TextureRegion icon) {}
+    record Row(String text, String markup, String contentName, TextureRegion icon) {}
 
     static {
         UI.loadColors();
@@ -24,7 +24,7 @@ final class UpstreamObjectiveHud {
     static List<Row> collect(Rules rules) {
         var rows = new ArrayList<Row>();
         if (rules.mission != null && !rules.mission.isEmpty()) {
-            rows.add(new Row(plain(rules.mission), "none", null));
+            rows.add(new Row(plain(rules.mission), rules.mission, "none", null));
             return rows;
         }
         for (var objective : rules.objectives) {
@@ -41,7 +41,7 @@ final class UpstreamObjectiveHud {
             String label = plain(text);
             if (!label.isEmpty()) {
                 var icon = content == null ? null : content.uiIcon;
-                rows.add(new Row(label, content == null ? "none" : content.name,
+                rows.add(new Row(label, text, content == null ? "none" : content.name,
                     icon != null && icon.found() ? icon : null));
             }
         }

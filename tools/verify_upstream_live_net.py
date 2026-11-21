@@ -340,8 +340,10 @@ def set_onset_beryllium(server, amount):
     server.stdin.flush()
 
 
-def verify_onset_objective_hud(log, emulator, server_log, server, capture, position, markers=None):
+def verify_onset_objective_hud(log, emulator, server_log, server, capture, position, markers=None, stock_font=False):
     wait_for(log, emulator, r"UPSTREAM_OBJECTIVE_HUD icon=beryllium text=Obtain: 0/60\|Beryllium\b", 10)
+    if stock_font:
+        wait_for(log, emulator, r"UPSTREAM_OBJECTIVE_FONT source=v160\.8\b", 45)
     if markers:
         markers("mine", 2320, 864, 868, ONSET_MARKER_TEXT["en"][0])
     # Drive the real server's item module and let its regular snapshots and objective executor
@@ -1321,7 +1323,8 @@ def run_model(args, model, config, original_config, log, output):
                                                      args.verify_stock_font, args.verify_styled_markers, *marker)
                             if args.verify_objective_hud:
                                 verify_onset_objective_hud(log, emulator, server_log, server, capture, spawn,
-                                                           capture_marker if args.verify_objective_markers else None)
+                                                           capture_marker if args.verify_objective_markers else None,
+                                                           args.verify_stock_hud)
                             else:
                                 mining, research = ONSET_MARKER_TEXT[args.locale]
                                 capture_marker("mine", 2320, 864, 868, mining)
@@ -1506,6 +1509,8 @@ def main():
                         help="Require original font rendering for the Onset world markers")
     parser.add_argument("--verify-styled-markers", action="store_true",
                         help="Require the original inline item and block art in the Onset markers")
+    parser.add_argument("--verify-stock-hud", action="store_true",
+                        help="Require the original font on the campaign objective HUD")
     parser.add_argument("--require-relocation-spill", action="store_true",
                         help="Require the ARM11 collector to grow its relocation table during the spawn check")
     args = parser.parse_args()
@@ -1579,6 +1584,8 @@ def main():
         parser.error("--verify-stock-font needs --verify-objective-markers")
     if args.verify_styled_markers and not args.verify_stock_font:
         parser.error("--verify-styled-markers needs --verify-stock-font")
+    if args.verify_stock_hud and not args.verify_objective_hud:
+        parser.error("--verify-stock-hud needs --verify-objective-hud")
     if args.erekir_sector is not None:
         if not args.map_spawn or not re.fullmatch(r"[a-z][a-z-]*", args.erekir_sector):
             parser.error("--erekir-sector needs --map-spawn and a sector slug such as onset")

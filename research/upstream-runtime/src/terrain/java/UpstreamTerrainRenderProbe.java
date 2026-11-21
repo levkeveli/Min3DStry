@@ -53,10 +53,11 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
             previous ? 1 : 0, next ? 1 : 0, categories ? 1 : 0);
     }
 
-    float drawObjective(byte[] label, TextureRegion icon, float y) {
-        if (icon == null) return NativeTerrain.drawObjective(Address.ofData(label), -1, 0, 0, 0, 0, y);
-        return NativeTerrain.drawObjective(Address.ofData(label), UpstreamTerrainDrawProbe.pageIndex(icon),
-            icon.getX(), icon.getY(), icon.width, icon.height, y);
+    float drawObjective(byte[] label, int[] characters, TextureRegion icon, float y) {
+        int page = icon == null ? -1 : UpstreamTerrainDrawProbe.pageIndex(icon);
+        return NativeTerrain.drawObjective(Address.ofData(label), Address.ofData(characters), characters.length / 7, page,
+            icon == null ? 0 : icon.getX(), icon == null ? 0 : icon.getY(),
+            icon == null ? 0 : icon.width, icon == null ? 0 : icon.height, y);
     }
 
     int drawWorldLabel(String label, int[] characters, float x, float y, int flags, float size, int align, int lineAlign) {
@@ -148,7 +149,8 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
                                        int previous, int next, int categories);
 
         @Import(name = "m3ds_terrain_draw_objective")
-        static native float drawObjective(Address label, int page, int x, int y, int width, int height, float top);
+        static native float drawObjective(Address label, Address characters, int count,
+                                          int page, int x, int y, int width, int height, float top);
 
         @Import(name = "m3ds_terrain_draw_world_label")
         static native int drawWorldLabel(Address label, Address characters, int count, float x, float y, int flags, float size,
