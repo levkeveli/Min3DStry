@@ -57,6 +57,9 @@ public final class UpstreamRenderedNetworkProbe {
     private int[] encodedCharacters;
     private byte[] lastMenu;
     private Block lastPrimaryShortcut;
+    private List<UpstreamObjectiveHud.Row> lastStatus;
+    private byte[][] statusLabels = new byte[0][];
+    private int[][] statusCharacters = new int[0][];
     private List<UpstreamObjectiveHud.Row> lastObjectives;
     private byte[][] objectiveLabels = new byte[0][];
     private int[][] objectiveCharacters = new int[0][];
@@ -224,7 +227,7 @@ public final class UpstreamRenderedNetworkProbe {
         }
         UpstreamObjectiveMarkers.draw(Vars.state.rules, 240f / (UpstreamTerrainDrawProbe.VIEW_HEIGHT * Vars.tilesize),
             worldLabel);
-        drawObjectives();
+        drawObjectives(drawStatusHud());
         var block = buildingControls.block();
         var catalog = buildingControls.catalog();
         var config = buildingControls.itemConfig();
@@ -273,7 +276,28 @@ public final class UpstreamRenderedNetworkProbe {
         return encoded;
     }
 
-    private void drawObjectives() {
+    private float drawStatusHud() {
+        var rows = UpstreamStatusHud.collect();
+        boolean changed = !rows.equals(lastStatus);
+        if (changed) {
+            statusLabels = new byte[rows.size()][];
+            statusCharacters = new int[rows.size()][];
+            for (int i = 0; i < rows.size(); i++) {
+                statusLabels[i] = (rows.get(i).text() + "\0").getBytes(StandardCharsets.UTF_8);
+                statusCharacters[i] = encodeLabel(UpstreamLabelText.parse(UI.formatIcons(rows.get(i).markup())));
+            }
+            lastStatus = rows;
+            System.out.println("UPSTREAM_STATUS_HUD wave=" + Vars.state.wave
+                + " copper=" + UpstreamStatusHud.copper());
+        }
+        float y = 4f;
+        for (int i = 0; i < rows.size() && y < 240f; i++) {
+            y = target.drawObjective(statusLabels[i], statusCharacters[i], rows.get(i).icon(), y);
+        }
+        return y;
+    }
+
+    private void drawObjectives(float y) {
         var rows = UpstreamObjectiveHud.collect(Vars.state.rules);
         boolean changed = !rows.equals(lastObjectives);
         if (changed) {
@@ -286,7 +310,6 @@ public final class UpstreamRenderedNetworkProbe {
             }
             lastObjectives = rows;
         }
-        float y = 4f;
         for (int i = 0; i < rows.size() && y < 240f; i++) {
             var row = rows.get(i);
             y = target.drawObjective(objectiveLabels[i], objectiveCharacters[i], row.icon(), y);
