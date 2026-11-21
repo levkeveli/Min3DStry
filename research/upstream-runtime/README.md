@@ -362,6 +362,36 @@ from the D-pad and Circle Pad respectively. At each stop the top-screen
 viewport matched the server position. The client received wave 2, and
 START closed its connection.
 
+### Place a conveyor in the live stock session
+
+In the graphical probe, press A to queue the pinned Conveyor four tiles
+east of the controlled unit. The frontend uses upstream `BuildPlan`
+validation and sends the queue in `ClientSnapshotCallPacket`, following
+`NetClient.sync`. The server owns construction, rotation, team and
+inventory. The client applies the generated upstream
+`BeginPlaceCallPacket`, `ConstructFinishCallPacket`,
+`RemoveQueueBlockCallPacket` and `BlockSnapshotCallPacket` handlers.
+The viewport draws finished conveyors with the original
+`ConveyorBuild.draw` and the packed v160.8 conveyor atlas.
+
+Add `--building` to the graphical verifier to test an A press at spawn.
+The verifier compares the original server's tile, conveyor rotation,
+team and copper before and after placement. For a shared session, add
+`--desktop-name "Min3DStry PC Builder"` and join from the stock v160.8
+desktop client. Observe the ARM11 conveyor at (85, 26) on PC, then use the
+PC build menu to put a second Conveyor at (85, 28) while the ARM11 player
+stays near spawn. The verifier checks the second completion against the
+server and captures both conveyors on the top screen. Use `--model` to
+run one console profile per desktop connection.
+
+The [devkitARM build](https://github.com/levkeveli/Min3DStry/actions/runs/44844853670)
+uses the pinned v160.8 server and assets. The unmodified v160.8 Java desktop
+JAR used for the shared session has SHA-256
+`6dd6da921d5021a84823456e05b477ee8de8511990d40de850b37dd0905152f2`.
+The ARM11 placement completes on team 1 with rotation 0 and reduces the
+starting copper from 200 to 199. The PC placement completes on the same
+team with rotation 1, leaves 198 copper, and appears on the ARM11 screen.
+
 Before the snapshot dispatch extension, the [devkitARM verification build](https://github.com/levkeveli/Min3DStry/actions/runs/44824442974)
 passed at `-O0` and `-O2` on both Azahar 2126.2 console profiles. Each run
 rejected build 159 with `clientOutdated`, then joined Glacier twice with
