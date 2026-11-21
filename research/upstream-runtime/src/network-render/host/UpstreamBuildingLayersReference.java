@@ -100,34 +100,49 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         var sender = (PayloadConveyorBuild) source.build;
         var receiver = (PayloadConveyorBuild) destination.build;
         var conveyor = (PayloadConveyor) sender.block;
-        var walls = List.of(Blocks.copperWallLarge, Blocks.copperWall);
+        var blocks = List.of(Blocks.copperWallLarge, Blocks.copperWall, Blocks.mechanicalDrill,
+            Blocks.conveyor, Blocks.titaniumConveyor, Blocks.armoredConveyor, Blocks.payloadConveyor,
+            Blocks.payloadRouter, Blocks.reinforcedPayloadConveyor, Blocks.reinforcedPayloadRouter);
         var shadow = Core.atlas.find("square-shadow");
         int shade = Color.floatToIntColor(new Color(0f, 0f, 0f, 0.4f).toFloatBits());
-        for (int i = 0; i < walls.size(); i++) {
-            var wall = walls.get(i);
+        int white = Color.floatToIntColor(Color.whiteFloatBits);
+        for (int i = 0; i < blocks.size(); i++) {
+            var block = blocks.get(i);
             float offset = i == 0 ? -6f : 0f;
             sender.progress = conveyor.moveTime * (i == 0 ? 0.4352753f : 0.5f);
-            sender.handlePayload(sender, new BuildPayload(wall, viewer));
+            sender.handlePayload(sender, new BuildPayload(block, viewer));
             var bytes = new ByteArrayOutputStream();
             sender.writeAll(new Writes(new DataOutputStream(bytes)));
             receiver.readAll(new Reads(new DataInputStream(new ByteArrayInputStream(bytes.toByteArray()))),
                 sender.version());
             sprites.clear();
-            layers.render(viewport, viewer, candidate -> candidate == receiver);
-            if (!(receiver.item instanceof BuildPayload payload) || payload.block() != wall
+            layers.render(viewport, viewer, candidate -> candidate == receiver
+                && UpstreamRenderedNetworkProbe.supportsBuildingDraw(candidate));
+            if (!(receiver.item instanceof BuildPayload payload) || payload.block() != block
                     || payload.build.team != viewer || payload.build.tile != Vars.emptyTile
                     || Math.abs(payload.x() - receiver.x - offset) > 0.001f || payload.y() != receiver.y) {
-                throw new AssertionError("Stock payload stream lost the carried wall or its visual position");
+                throw new AssertionError("Stock payload stream lost " + block + " or its visual position");
             }
 
             int shadowIndex = findPayloadSprite(shadow, payload, shade);
-            int wallIndex = findPayloadSprite(Core.atlas.find(wall.name), payload,
-                Color.floatToIntColor(Color.whiteFloatBits));
-            if (shadowIndex < 1 || wallIndex <= shadowIndex) {
-                throw new AssertionError("Stock payload shadow and wall drew out of order: " + sprites);
+            var expected = switch (block.name) {
+                case "copper-wall", "copper-wall-large" -> List.of(block.name);
+                // BuildPayload's depth transform places the drill's original after-cracks layer
+                // at a lower depth than the initial draw at blockOver.
+                case "mechanical-drill" -> List.of("mechanical-drill-rotator", "mechanical-drill-top", block.name);
+                default -> List.of("block-" + block.name + "-full");
+            };
+            int previous = shadowIndex;
+            for (var region : expected) {
+                int index = findPayloadSprite(Core.atlas.find(region), payload, white);
+                if (previous < 1 || index <= previous) {
+                    throw new AssertionError("Unexpected stock payload layers for " + block + ": " + sprites);
+                }
+                previous = index;
             }
         }
-        System.out.println("UPSTREAM_CARRIED_BUILDINGS roundTrip=2 positions=2 shadows=2");
+        System.out.println("UPSTREAM_CARRIED_BUILDINGS roundTrip=" + blocks.size()
+            + " positions=2 shadows=" + blocks.size());
     }
 
     private int findPayloadSprite(TextureRegion region, BuildPayload payload, int color) {

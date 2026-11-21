@@ -652,6 +652,19 @@ passed on the Old and New 3DS Azahar profiles. All 2,000 opaque wall pixels
 per profile matched the original atlas, allowing either neighboring texel
 at exact nearest-neighbor ties.
 
+The live client alternates TCP and UDP while draining up to 16 packets
+before drawing the next frame. This lets it catch up on stock snapshots
+when emulation or rendering takes longer than the snapshot interval.
+The JVM dispatch check replays a captured v160.8 block snapshot covering
+both sides of a wall handoff. Run the live verifier with
+`--controls --payload-handoff --terrain-atlas`. After connecting to
+Glacier, the verifier lets the stock server transfer the wall between
+two conveyors, pauses at a known position and waits for its regular
+block snapshot. It checks that the first conveyor is empty and that
+the wall renders beyond its reach on the receiving conveyor. The
+[ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44869587011)
+passed this test on the Old and New 3DS Azahar profiles.
+
 The renderer still selects blocks that use the supported sprite operations.
 Textured raw vertices, additional payload types and other rendering services
 are tracked in [#139](https://github.com/levkeveli/Min3DStry/issues/139).
