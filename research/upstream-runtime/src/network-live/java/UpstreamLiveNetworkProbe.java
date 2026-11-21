@@ -245,6 +245,9 @@ public final class UpstreamLiveNetworkProbe {
     private void driveLiveClient(UpstreamWorldLoadProbe.ProbeApplication app) throws IOException {
         var controls = new LiveControls();
         int lastWave = -1;
+        // Leave headroom for rendering on an ARM11 while the server runs its own clock.
+        long tcpKeepAliveInterval = frame == null ? TCP_KEEP_ALIVE_NS : TCP_KEEP_ALIVE_NS / 2;
+        keepAlive(1);
         long lastTcpSend = System.nanoTime();
         long lastUdpKeepAlive = lastTcpSend;
         long lastFrame = 0;
@@ -255,7 +258,7 @@ public final class UpstreamLiveNetworkProbe {
             int input = Native.input();
             if (input < 0) return;
             long now = System.nanoTime();
-            if (now - lastTcpSend >= TCP_KEEP_ALIVE_NS) {
+            if (now - lastTcpSend >= tcpKeepAliveInterval) {
                 keepAlive(1);
                 lastTcpSend = now;
             }
@@ -265,16 +268,21 @@ public final class UpstreamLiveNetworkProbe {
             }
             lastWave = receiveLiveUpdates(stateId, entityId, lastWave);
             app.runPosted();
+            now = System.nanoTime();
             controls.update(input, now);
             if (frame != null && now - lastFrame >= 33_333_333L) {
-                frame.accept(controlledUnit());
-                lastFrame = now;
+                var unit = controlledUnit();
+                if (unit != null || lastFrame != 0) {
+                    frame.accept(unit);
+                    lastFrame = now;
+                }
             }
         }
     }
 
     private int receiveLiveUpdates(int stateId, int entityId, int lastWave) throws IOException {
         // Drain queued snapshots before drawing again and bound the work between input polls.
+        long deadline = System.nanoTime() + 8_000_000L;
         for (int i = 0; i < 16; i++) {
             int received = receive(1, 0);
             if (received == TIMEOUT) received = receive(0, i == 0 ? 8 : 0);
@@ -289,6 +297,7 @@ public final class UpstreamLiveNetworkProbe {
             } else if (id == entityId) {
                 decode(new EntitySnapshotCallPacket(), received).handleClient();
             }
+            if (System.nanoTime() >= deadline) break;
         }
         return lastWave;
     }
