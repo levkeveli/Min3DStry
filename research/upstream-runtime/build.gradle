@@ -33,8 +33,12 @@ def entryPoints = [
     world: 'UpstreamWorldLoadProbe',
     'world-save': 'UpstreamWorldSaveProbe',
     'world-roundtrip': 'UpstreamWorldRoundTripProbe',
+    'factory-ticks': 'UpstreamFactoryTickProbe',
+    'combat-ticks': 'UpstreamCombatTickProbe',
     'world-stream': 'UpstreamWorldStreamProbe',
     'network-live': 'UpstreamLiveNetworkProbe',
+    'terrain-draw': 'UpstreamTerrainDrawProbe',
+    'terrain-render': 'UpstreamTerrainRenderProbe',
     'file-metadata': 'port.UpstreamFileMetadataProbe'
 ]
 if (!entryPoints.containsKey(probe)) {
@@ -42,7 +46,9 @@ if (!entryPoints.containsKey(probe)) {
 }
 def entryPoint = entryPoints[probe]
 def usesMapSources = probe in ['map', 'map-sd']
-def usesWorldSources = probe in ['world', 'world-save', 'world-roundtrip', 'world-stream', 'network-live']
+def usesSimulation = probe in ['factory-ticks', 'combat-ticks']
+def usesWorldSources = probe in ['world', 'world-save', 'world-roundtrip', 'world-stream',
+                                 'network-live', 'terrain-draw', 'terrain-render'] || usesSimulation
 def initializesContent = probe == 'content-init' || usesWorldSources
 def usesContentSources = probe == 'content' || initializesContent
 def usesExecutor = usesContentSources || probe == 'executor'
@@ -125,6 +131,15 @@ if (usesContentSources) {
 if (usesWorldSources) {
     sourceSets.main.java.srcDir('src/world/java')
 }
+if (probe == 'terrain-render') {
+    sourceSets.main.java.srcDir('src/terrain/java')
+}
+if (usesSimulation) {
+    sourceSets.main.java.srcDir('src/gameplay/java')
+}
+if (probe == 'world-stream') {
+    sourceSets.main.java.srcDir('src/world-stream/java')
+}
 if (usesLiveNetwork) {
     sourceSets.main.java.srcDirs('src/network-live/java', 'src/network-live/host')
 }
@@ -132,7 +147,7 @@ if (probe == 'file-metadata') {
     sourceSets.main.java.srcDir('src/file/java')
 }
 dependencies {
-    if (usesMapSources || usesLiveNetwork) {
+    if (usesMapSources || usesLiveNetwork || probe == 'terrain-render') {
         implementation 'org.teavm:teavm-interop:0.16.0'
     }
 }
@@ -313,7 +328,8 @@ tasks.named('compileJava') { dependsOn 'prepareUpstreamProbe' }
 tasks.register('runProbeJvm', JavaExec) {
     dependsOn 'classes'
     classpath = sourceSets.main.runtimeClasspath
-    mainClass = ['map-sd': entryPoints.map, 'network-live': 'UpstreamSnapshotDispatchReference']
+    mainClass = ['map-sd': entryPoints.map, 'terrain-render': entryPoints['terrain-draw'],
+                 'network-live': 'UpstreamSnapshotDispatchReference']
         .getOrDefault(probe, entryPoint)
 }
 
@@ -331,6 +347,9 @@ teavm {
     all { mainClass = entryPoint }
     if (usesExecutor) {
         c { obfuscated = false }
+    }
+    if (usesSimulation) {
+        c { maxHeapSize = 24 }
     }
 }
 

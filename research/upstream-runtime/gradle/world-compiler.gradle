@@ -27,7 +27,7 @@ def stage = tasks.register('patchWorldCompilerSource') {
             target.bytes = archiveTree.matching { include path }.singleFile.bytes
             providers.exec {
                 commandLine 'git', '-C', patchedSources.get().asFile, 'apply', '--no-index', patch
-            }.result.get()
+            }.result.get().assertNormalExitValue()
         }
     }
 }
