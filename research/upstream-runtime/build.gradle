@@ -55,7 +55,8 @@ def entryPoints = [
     'campaign-sector-info': 'UpstreamCampaignSectorInfoProbe',
     'campaign-planet': 'UpstreamCampaignPlanetStateProbe',
     'campaign-sector-state': 'UpstreamCampaignSectorStateProbe',
-    'campaign-launch': 'UpstreamCampaignLaunchProbe'
+    'campaign-launch': 'UpstreamCampaignLaunchProbe',
+    'campaign-saves': 'UpstreamCampaignSavesProbe'
 ]
 if (!entryPoints.containsKey(probe)) {
     throw new GradleException("Expected -Pprobe to be one of ${entryPoints.keySet()}")
@@ -94,9 +95,10 @@ def usesCampaignSectorInfo = probe == 'campaign-sector-info'
 def usesCampaignPlanet = probe == 'campaign-planet'
 def usesCampaignSectorState = probe == 'campaign-sector-state'
 def usesCampaignLaunch = probe == 'campaign-launch'
+def usesCampaignSaves = probe == 'campaign-saves'
 def usesWorldSources = probe in ['world', 'world-save', 'world-roundtrip', 'world-stream',
                                  'terrain-draw'] || usesCampaignSector || usesCampaignSlotMeta || usesCampaignLaunch || usesLiveNetwork || usesTerrainRenderer || usesSimulation
-def initializesContent = probe == 'content-init' || usesWorldSources || usesCampaignContent || usesCampaignResearch || usesCampaignSectorInfo || usesCampaignPlanet || usesCampaignSectorState || usesCampaignLaunch
+def initializesContent = probe == 'content-init' || usesWorldSources || usesCampaignContent || usesCampaignResearch || usesCampaignSectorInfo || usesCampaignPlanet || usesCampaignSectorState || usesCampaignLaunch || usesCampaignSaves
 def usesContentSources = probe == 'content' || initializesContent
 def usesExecutor = usesContentSources || probe == 'executor' || usesCampaignSettings
 def usesArcSources = usesContentSources || probe == 'resource' || usesCampaignSettings
@@ -285,6 +287,9 @@ if (usesCampaignSectorState) {
 }
 if (usesCampaignLaunch) {
     sourceSets.main.java.srcDir('src/campaign-launch/java')
+}
+if (usesCampaignSaves) {
+    sourceSets.main.java.srcDir('src/campaign-saves/java')
 }
 dependencies {
     if (usesMapSources || usesLiveNetwork || usesTerrainRenderer) {
