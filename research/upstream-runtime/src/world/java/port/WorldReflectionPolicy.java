@@ -34,6 +34,12 @@ public final class WorldReflectionPolicy extends SimpleReflectionPolicy {
             .foundByName()
             .reflectableMethods(withParameterCount(0).and(IntrospectMethod::isConstructor))
             .reflectableFields(field -> INSTANCE.test(field) && !TRANSIENT.test(field));
+        // JsonIO reads the objective class tags, then restores both the subtype and inherited fields.
+        selectClass("mindustry.game.MapObjectives$MapObjective")
+            .reflectableFields(field -> INSTANCE.test(field) && !TRANSIENT.test(field));
+        selectClasses(inPackage("mindustry.game").and(extending("mindustry.game.MapObjectives$MapObjective")))
+            .reflectableMethods(withParameterCount(0).and(IntrospectMethod::isConstructor))
+            .reflectableFields(field -> INSTANCE.test(field) && !TRANSIENT.test(field));
         // MapMarkers uses Arc's IntMap and JSON class tags registered by MapObjectives.
         selectClasses(inPackage("mindustry.game").and(extending("mindustry.game.MapObjectives$ObjectiveMarker")))
             .reflectableMethods(withParameterCount(0).and(IntrospectMethod::isConstructor))
