@@ -259,6 +259,31 @@ asserts it is no longer being played, resets game-over, and verifies the menu
 transition alone ends play state. No settings or save files are
 written. Azahar `2126.2` New and Old profiles both reported the marker.
 
+## ARM11 Campaign Sector Launch
+
+`-Pprobe=campaign-launch` launches a real sector save through the upstream
+sector save context:
+
+```sh
+gradle -PupstreamCheckout=/path/to/Mindustry \
+  -PreferenceJar=/path/to/server-release.jar \
+  -ParcCheckout=/path/to/Arc -Pprobe=campaign-launch \
+  runProbeJvm "--args=/path/glacier.msav /path/sector-serpulo-15.msav"
+```
+
+JVM and ARM11/Azahar report:
+
+```text
+UPSTREAM_CAMPAIGN_LAUNCH slot=sector-serpulo-15.msav bytes=11036 version=13 sector=15 wave=5 world=150x250 launch=ok
+```
+
+The probe loads Glacier, sets `Rules.sector` to ground zero (15) and
+`state.wave=5`, writes the sector slot through `SaveIO`, then calls
+`SaveIO.load(slot, world.makeSectorContext(sector))`. It asserts the launched
+state restores the sector, wave 5, and the 150x250 world. On 3DS it targets the
+live `/3ds/min3dstry` directory and deletes the slot. Azahar `2126.2` New and
+Old profiles both reported `launch=ok`.
+
 ## Remaining Scope for Issue #41 (3DS Hardware / ARM11 Runtime)
 
 The host-verified path contract is recorded in [sd-storage-paths.md](sd-storage-paths.md); it does not write settings or sector saves yet. Once the ARM11 TeaVM runtime bring-up integrates `Core.files` and `Core.settings` onto SD card storage under `/3ds/min3dstry/`:
