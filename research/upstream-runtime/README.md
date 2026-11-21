@@ -1174,6 +1174,9 @@ on Glacier to check the original create, update and remove packets against
 the unmodified v160.8 Java server. The server configures a processor linked
 to an offscreen display, and the replay checks both color bands at each
 marker before and after a configuration update and atlas retarget.
+The [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44935934977)
+passed this replay on both Azahar hardware profiles, including marker
+removal and restoration of the original terrain pixels.
 
 ### Verify the Arc executor pools
 
