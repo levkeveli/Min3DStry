@@ -85,7 +85,129 @@ public final class UpstreamWorldLoadProbe {
                 || marker.pos.x != 80 || marker.pos.y != 152) {
             throw new IllegalStateException("Current-format marker differs after reload");
         }
+        reportSaveState(true);
         System.out.println("UPSTREAM_SAVE version=13 marker=ok");
+    }
+
+    /**
+     * Hashes the decoded building fields that the native Min3DStry reader
+     * exposes as SECTOR_PARITY. Mirrors MSAV_HASH_SEED and mix_hash in
+     * src/platform/msav_world.c so both loaders must agree on the same save.
+     */
+    static long reportSaveState(boolean verifyFixture) {
+        final long seed = 1469598103934665603L;
+        long aggregate = seed;
+        long firstBuilding = 0L;
+        long secondBuilding = 0L;
+        int buildings = 0;
+        for (var tile : Vars.world.tiles) {
+            var build = tile.build;
+            if (build == null || build.tile != tile) {
+                continue;
+            }
+            buildings++;
+
+            long hash = seed;
+            hash = mix(hash, tile.x);
+            hash = mix(hash, tile.y);
+            hash = mix(hash, tile.block().id);
+            hash = mix(hash, build.team.id);
+            hash = mix(hash, build.rotation);
+            hash = mix(hash, Float.floatToIntBits(build.health));
+            hash = mix(hash, build.enabled ? 1 : 0);
+
+            int itemCount = 0;
+            int itemTotal = 0;
+            long itemHash = seed;
+            int firstItem = -1;
+            int firstItemAmount = 0;
+            for (var item : Vars.content.items()) {
+                int amount = build.items == null ? 0 : build.items.get(item);
+                if (amount > 0) {
+                    itemCount++;
+                    itemTotal += amount;
+                    itemHash = mix(itemHash, item.id);
+                    itemHash = mix(itemHash, amount);
+                    if (firstItem < 0) {
+                        firstItem = item.id;
+                        firstItemAmount = amount;
+                    }
+                }
+            }
+            hash = mix(hash, itemCount);
+            hash = mix(hash, itemTotal);
+            hash = mix64(hash, itemHash);
+
+            int links = build.power == null ? 0 : build.power.links.size;
+            long linkHash = seed;
+            for (int i = 0; i < links; i++) {
+                linkHash = mix(linkHash, build.power.links.get(i));
+            }
+            hash = mix(hash, links);
+            hash = mix64(hash, linkHash);
+            float status = build.power == null ? 0f : build.power.status;
+            hash = mix(hash, Float.floatToIntBits(status));
+
+            int liquidCount = 0;
+            long liquidHash = seed;
+            int firstLiquid = -1;
+            float firstLiquidAmount = 0f;
+            for (var liquid : Vars.content.liquids()) {
+                float amount = build.liquids == null ? 0f : build.liquids.get(liquid);
+                if (amount > 0f) {
+                    liquidCount++;
+                    liquidHash = mix(liquidHash, liquid.id);
+                    liquidHash = mix(liquidHash, Float.floatToIntBits(amount));
+                    if (firstLiquid < 0) {
+                        firstLiquid = liquid.id;
+                        firstLiquidAmount = amount;
+                    }
+                }
+            }
+            hash = mix(hash, liquidCount);
+            hash = mix64(hash, liquidHash);
+
+            if (buildings == 1) {
+                firstBuilding = hash;
+            } else if (buildings == 2) {
+                secondBuilding = hash;
+            }
+            aggregate = mix64(aggregate, hash);
+            System.out.println("UPSTREAM_SAVE_BUILDING x=" + tile.x
+                + " y=" + tile.y + " block=" + tile.block().id
+                + " team=" + build.team.id + " rot=" + build.rotation
+                + " health=" + (int)build.health
+                + " enabled=" + (build.enabled ? 1 : 0)
+                + " items=" + itemCount + " item0=" + firstItem + ":"
+                + firstItemAmount + " links=" + links + " status=" + status
+                + " liquids=" + liquidCount + " liquid0="
+                + (firstLiquid < 0 ? 0 : firstLiquid) + ":" + firstLiquidAmount
+                + " hash=" + hex16(hash));
+        }
+        System.out.println("UPSTREAM_SAVE_STATE buildings=" + buildings
+            + " hash=" + hex16(aggregate));
+        if (verifyFixture && (buildings != 2
+                || firstBuilding != 0xb529451197a6e504L
+                || secondBuilding != 0xebc4778e833eb8e5L
+                || aggregate != 0x3a375fd4f81c5680L)) {
+            throw new IllegalStateException("Save state parity differs: buildings="
+                + buildings + " first=" + hex16(firstBuilding)
+                + " second=" + hex16(secondBuilding)
+                + " aggregate=" + hex16(aggregate));
+        }
+        return aggregate;
+    }
+
+    private static String hex16(long value) {
+        var out = new StringBuilder(16);
+        for (int shift = 60; shift >= 0; shift -= 4) {
+            out.append(Character.forDigit((int)(value >>> shift) & 15, 16));
+        }
+        return out.toString();
+    }
+
+    private static long mix64(long hash, long value) {
+        return (hash ^ value) * 0x100000001b3L;
     }
 
     private static void verifyWorld() {
