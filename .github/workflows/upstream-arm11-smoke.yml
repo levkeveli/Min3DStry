@@ -94,7 +94,7 @@ jobs:
             grep -Fx 'UPSTREAM_EXECUTOR_POOLS bounded=ok unbounded=ok' "$RUNNER_TEMP/probe.log"
           fi
           if [ "${{ matrix.probe }}" = "campaign-settings" ]; then
-            grep -F 'int=12345 string=ok reload=ok' "$RUNNER_TEMP/probe.log"
+            grep -F 'campaign=unlocked:conveyor,research:50 reload=ok' "$RUNNER_TEMP/probe.log"
           fi
           if [ "${{ matrix.probe }}" = "campaign-content" ]; then
             grep -F 'conveyorUnlocked=true key=conveyor-unlocked research=50' "$RUNNER_TEMP/probe.log"

@@ -15,6 +15,7 @@ extern "C" {
 #define M3DS_SCENE_GRID_W      36
 #define M3DS_SCENE_GRID_H      24
 #define M3DS_SCENE_MAX_PRIMITIVES 1024u
+#define M3DS_SCENE_MAX_EFFECTS 64u
 #define M3DS_SCENE_MIN_ZOOM    0.5f
 #define M3DS_SCENE_MAX_ZOOM    2.0f
 
@@ -54,6 +55,8 @@ typedef struct M3dsDrawStats {
     uint32_t culled_primitives;
     uint32_t state_switches;
     uint32_t budget_dropped;
+    uint32_t effects_dropped;
+    uint32_t light_circles;
     bool circle_mode_active;
 } M3dsDrawStats;
 
@@ -90,6 +93,7 @@ typedef struct M3dsBoundedScene {
     uint32_t tick;
     bool paused;
     bool show_sim_items;
+    bool lighting;
     uint8_t tiles[M3DS_SCENE_GRID_H][M3DS_SCENE_GRID_W];
     /* Zero is empty; 1 through 255 encode an item's position along the belt. */
     uint8_t belt_items[M3DS_SCENE_GRID_H][M3DS_SCENE_GRID_W];
@@ -103,6 +107,8 @@ void m3ds_scene_zoom_by(M3dsBoundedScene *scene, float delta);
 static inline float m3ds_scene_zoom(const M3dsBoundedScene *scene) {
     return (scene && scene->zoom > 0.0f) ? scene->zoom : 1.0f;
 }
+void m3ds_scene_set_lighting(M3dsBoundedScene *scene, bool enabled);
+bool m3ds_scene_lighting(const M3dsBoundedScene *scene);
 void m3ds_scene_step(M3dsBoundedScene *scene, uint32_t ticks);
 bool m3ds_scene_render(
     const M3dsBoundedScene *scene,

@@ -247,12 +247,13 @@ temporary directory, reloads it with a second `Settings` instance, verifies an
 integer and string value, and prints:
 
 ```text
-UPSTREAM_CAMPAIGN_SETTINGS path=live bytes=65 int=12345 string=ok reload=ok
+UPSTREAM_CAMPAIGN_SETTINGS path=live bytes=112 int=12345 string=ok campaign=unlocked:conveyor,research:50 reload=ok
 ```
 
 The JVM uses a temporary directory and reports `path=tmp`. On 3DS the probe
 targets the live `/3ds/min3dstry`, snapshots existing settings/backup/backups,
-runs the round-trip, then restores or removes the prior state. The ARM11 probe
+runs the round-trip (including upstream campaign unlock/research keys), then
+restores or removes the prior state. The ARM11 probe
 is built with the normal `arm11/build.sh` command; both Azahar 2126.2 profiles
 reported `path=live`.
 

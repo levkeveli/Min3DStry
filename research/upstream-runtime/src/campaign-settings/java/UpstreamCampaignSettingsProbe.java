@@ -30,6 +30,8 @@ public final class UpstreamCampaignSettingsProbe {
             settings.load();
             settings.put("m3ds-probe-int", 12345);
             settings.put("m3ds-probe-string", "settings-roundtrip");
+            settings.put("conveyor-unlocked", true);
+            settings.put("req-conveyor-copper", 50);
             settings.forceSave();
 
             if (!settingsFile.exists() || settingsFile.length() <= 0) {
@@ -48,6 +50,14 @@ public final class UpstreamCampaignSettingsProbe {
             }
             if (!"settings-roundtrip".equals(stringValue)) {
                 throw new IllegalStateException("settings string did not reload");
+            }
+            Object unlocked = reloaded.get("conveyor-unlocked", null);
+            Object research = reloaded.get("req-conveyor-copper", null);
+            if (!Boolean.TRUE.equals(unlocked)) {
+                throw new IllegalStateException("campaign unlock did not reload");
+            }
+            if (!(research instanceof Integer) || ((Integer)research) != 50) {
+                throw new IllegalStateException("campaign research did not reload");
             }
         } finally {
             if (oldSettings == null) {
@@ -68,6 +78,6 @@ public final class UpstreamCampaignSettingsProbe {
         System.out.println(
             "UPSTREAM_CAMPAIGN_SETTINGS path=" + (live ? "live" : "tmp")
             + " bytes=" + bytes
-            + " int=12345 string=ok reload=ok");
+            + " int=12345 string=ok campaign=unlocked:conveyor,research:50 reload=ok");
     }
 }
