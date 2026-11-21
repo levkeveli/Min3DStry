@@ -60,6 +60,15 @@ passed this check in the Azahar Old and New 3DS profiles on a live
 Glacier session from the stock v160.8 Java server. Both profiles matched
 the nine sampled pixels across the Core Nucleus seams.
 
+With the cache reduced to three slots at compile time
+(`-DM3DS_WORLD_ATLAS_SLOTS=3`), the [stress build](https://github.com/levkeveli/Min3DStry/actions/runs/44860006787)
+also passed on both profiles. Run the live verifier with `--world-atlas`
+and `--world-atlas-recycle` to require the GPU submission and recycling
+event at spawn and check the original seam pixels. The default
+executable retains 24 slots. On each profile, all 8,328 pixels in
+the Core Nucleus crop outside the player unit area matched the earlier
+build.
+
 ## Build the platform test fixtures
 
 The 3DS build uses this converter to generate the fixture sprite indices and embed the atlas in RomFS. The native Makefile accepts `PYTHON` and `TEX3DS` executable overrides. At runtime the factory test scene loads the sheet with nearest-neighbor filtering and uses geometric primitives if the sheet is unavailable.

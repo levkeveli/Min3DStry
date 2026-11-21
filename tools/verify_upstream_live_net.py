@@ -432,12 +432,21 @@ def run_model(args, model, config, original_config, log, output):
                                                 require_icons=args.menu_icons,
                                                 require_world_atlas=args.world_atlas and phase == "spawn")
 
-                    verify_controls(log, emulator, server_log, server, args.timeout,
-                                    capture if args.terrain_atlas else None, args.building, args.desktop_name,
-                                    args.touch_build, args.touch_config, args.menu_icons)
-                    (output / f"{model}.png").write_bytes(rpc.screenshot())
-                    print("Wave 2 applied. Press the emulated START button to leave.", flush=True)
-                    emu_log = wait_for(log, emulator, "UPSTREAM_LIVE_CONTROLS_LEFT", args.timeout)
+                    if args.world_atlas_recycle:
+                        wait_for(log, emulator, r"UPSTREAM_LIVE_CONTROLS_READY unit=\d+", args.timeout)
+                        spawn = server_position(server_log, server, "UPSTREAM_SERVER_CONTROLS_READY").groups()
+                        capture("spawn", spawn)
+                        print("Verified atlas recycling at spawn.", flush=True)
+                        emu_log = log.read_text(encoding="utf-8", errors="replace")
+                        if "UPSTREAM_LIVE_NET_ERROR" in emu_log:
+                            raise RuntimeError("The client failed after rendering the atlas stress frame")
+                    else:
+                        verify_controls(log, emulator, server_log, server, args.timeout,
+                                        capture if args.terrain_atlas else None, args.building, args.desktop_name,
+                                        args.touch_build, args.touch_config, args.menu_icons)
+                        (output / f"{model}.png").write_bytes(rpc.screenshot())
+                        print("Wave 2 applied. Press the emulated START button to leave.", flush=True)
+                        emu_log = wait_for(log, emulator, "UPSTREAM_LIVE_CONTROLS_LEFT", args.timeout)
                 else:
                     for join in (1, 2):
                         wait_for(log, emulator, rf"UPSTREAM_LIVE_NET_STATE join={join}\b", args.timeout)
@@ -472,11 +481,13 @@ def run_model(args, model, config, original_config, log, output):
             upstream = server_log.read_text(encoding="utf-8", errors="replace")
             departures = [line for line in upstream.splitlines() if f"{PLAYER} has disconnected" in line]
             # NetServer.sync can observe the closed transport before the disconnect event runs.
-            orderly = all(re.search(r"\((closed|disappeared)\)", line) for line in departures)
+            # The stationary render check ends by terminating the emulator process.
+            departure = r"\((closed|disappeared|error)\)" if args.world_atlas_recycle else r"\((closed|disappeared)\)"
+            expected_departures = all(re.search(departure, line) for line in departures)
             expected_joins = 1 if args.controls else 2
             if ((not args.controls and "clientOutdated" not in upstream)
                     or upstream.count(f"{PLAYER} has connected") != expected_joins
-                    or len(departures) != expected_joins or not orderly):
+                    or len(departures) != expected_joins or not expected_departures):
                 raise RuntimeError(f"{model} server did not report the expected completed sessions")
         finally:
             stop(server)
@@ -558,6 +569,8 @@ def main():
         parser.error("--menu-icons needs --touch-config")
     if args.world_atlas_recycle and not args.world_atlas:
         parser.error("--world-atlas-recycle needs --world-atlas")
+    if args.world_atlas_recycle and (args.controls_replay or args.building or args.touch_build or args.touch_config):
+        parser.error("--world-atlas-recycle runs a stationary spawn check")
     if args.world_atlas and not args.terrain_atlas:
         parser.error("--world-atlas needs --terrain-atlas")
     if args.locale and (not args.terrain_atlas or not re.fullmatch(r"[a-z]{2,3}(?:_[A-Z]{2})?", args.locale)):
