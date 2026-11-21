@@ -394,6 +394,12 @@ on ARM11, run the live verifier with `--controls --controls-replay
 observe the player's Gamma launch a stock projectile for each direction
 and receive a newer snapshot that clears the fire flag after each release.
 
+The [devkitARM build](https://github.com/levkeveli/Min3DStry/actions/runs/44943113184)
+passed on both Azahar profiles. The D-pad aimed east and the Circle Pad
+aimed north while the Gamma stayed within one world unit of its starting
+position. The Java server recorded two original projectiles, two newer
+release snapshots, and a clean START disconnect on each profile.
+
 Run the same verifier with `--controls --model old3ds` and then
 `--controls --model new3ds`. Follow its prompts to move right with the
 D-pad, move up with the Circle Pad, and leave after the next wave.
