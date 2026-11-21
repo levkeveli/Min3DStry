@@ -1144,6 +1144,8 @@ The Java v160.8 server delivered the original create, rotation, texture
 change, and removal packets. The replay verified the Router in both
 orientations, the original Copper icon, the error sprite and the restored
 terrain against sampled pixels.
+The [integrated renderer build](https://github.com/levkeveli/Min3DStry/actions/runs/44937074108)
+also passed those checks on both profiles with the stock font path enabled.
 
 ### Verify the Arc executor pools
 
