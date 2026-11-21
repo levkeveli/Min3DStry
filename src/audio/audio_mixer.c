@@ -338,6 +338,7 @@ void m3ds_audio_mixer_stop(M3dsAudioMixer *mixer, uint32_t voice_handle) {
     if (!mixer || voice_handle == M3DS_AUDIO_INVALID_VOICE) {
         return;
     }
+    /* Handles are opaque: search for a match, never index by handle value. */
     for (uint32_t ch = 0u; ch < M3DS_AUDIO_MAX_VOICES; ++ch) {
         if (mixer->voices[ch].active && mixer->voices[ch].handle == voice_handle) {
             m3ds_stop_voice_channel(mixer, ch);

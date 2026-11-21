@@ -110,13 +110,12 @@ public final class UpstreamTerrainDrawProbe {
     static final class Viewport {
         int left;
         int bottom;
-        private final int initialLeft, initialBottom;
         private final TerrainBatch batch;
         private final boolean drawStaticBlocks;
 
         Viewport(int left, int bottom, TerrainBatch batch, boolean drawStaticBlocks) {
-            this.left = initialLeft = left;
-            this.bottom = initialBottom = bottom;
+            this.left = left;
+            this.bottom = bottom;
             this.batch = batch;
             this.drawStaticBlocks = drawStaticBlocks;
         }
@@ -124,10 +123,6 @@ public final class UpstreamTerrainDrawProbe {
         void moveTo(int x, int y) {
             left = Mathf.clamp(x, 0, Math.max(0, Vars.world.width() - VIEW_WIDTH));
             bottom = Mathf.clamp(y, 0, Math.max(0, Vars.world.height() - VIEW_HEIGHT));
-        }
-
-        void reset() {
-            moveTo(initialLeft, initialBottom);
         }
 
         boolean contains(Building building) {

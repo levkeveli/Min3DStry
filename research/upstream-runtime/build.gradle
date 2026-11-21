@@ -33,9 +33,12 @@ def entryPoints = [
     world: 'UpstreamWorldLoadProbe',
     'world-save': 'UpstreamWorldSaveProbe',
     'world-roundtrip': 'UpstreamWorldRoundTripProbe',
+    'factory-ticks': 'UpstreamFactoryTickProbe',
     'world-stream': 'UpstreamWorldStreamProbe',
     'network-live': 'UpstreamLiveNetworkProbe',
     'network-render': 'UpstreamRenderedNetworkProbe',
+    'terrain-draw': 'UpstreamTerrainDrawProbe',
+    'terrain-render': 'UpstreamTerrainRenderProbe',
     'file-metadata': 'port.UpstreamFileMetadataProbe'
 ]
 if (!entryPoints.containsKey(probe)) {
@@ -44,7 +47,9 @@ if (!entryPoints.containsKey(probe)) {
 def entryPoint = entryPoints[probe]
 def usesMapSources = probe in ['map', 'map-sd']
 def usesLiveNetwork = probe in ['network-live', 'network-render']
-def usesWorldSources = probe in ['world', 'world-save', 'world-roundtrip', 'world-stream'] || usesLiveNetwork
+def usesTerrainRenderer = probe in ['terrain-render', 'network-render']
+def usesWorldSources = probe in ['world', 'world-save', 'world-roundtrip', 'world-stream',
+                                 'factory-ticks', 'terrain-draw'] || usesLiveNetwork || usesTerrainRenderer
 def initializesContent = probe == 'content-init' || usesWorldSources
 def usesContentSources = probe == 'content' || initializesContent
 def usesExecutor = usesContentSources || probe == 'executor'
@@ -126,17 +131,26 @@ if (usesContentSources) {
 if (usesWorldSources) {
     sourceSets.main.java.srcDir('src/world/java')
 }
+if (usesTerrainRenderer) {
+    sourceSets.main.java.srcDir('src/terrain/java')
+}
+if (probe == 'factory-ticks') {
+    sourceSets.main.java.srcDir('src/gameplay/java')
+}
+if (probe == 'world-stream') {
+    sourceSets.main.java.srcDir('src/world-stream/java')
+}
 if (usesLiveNetwork) {
     sourceSets.main.java.srcDirs('src/network-live/java', 'src/network-live/host')
 }
 if (probe == 'network-render') {
-    sourceSets.main.java.srcDir('src/terrain/java')
+    sourceSets.main.java.srcDir('src/network-render/java')
 }
 if (probe == 'file-metadata') {
     sourceSets.main.java.srcDir('src/file/java')
 }
 dependencies {
-    if (usesMapSources || usesLiveNetwork) {
+    if (usesMapSources || usesLiveNetwork || usesTerrainRenderer) {
         implementation 'org.teavm:teavm-interop:0.16.0'
     }
 }
@@ -317,7 +331,8 @@ tasks.named('compileJava') { dependsOn 'prepareUpstreamProbe' }
 tasks.register('runProbeJvm', JavaExec) {
     dependsOn 'classes'
     classpath = sourceSets.main.runtimeClasspath
-    mainClass = ['map-sd': entryPoints.map, 'network-live': 'UpstreamSnapshotDispatchReference',
+    mainClass = ['map-sd': entryPoints.map, 'terrain-render': entryPoints['terrain-draw'],
+                 'network-live': 'UpstreamSnapshotDispatchReference',
                  'network-render': 'UpstreamSnapshotDispatchReference']
         .getOrDefault(probe, entryPoint)
 }
@@ -336,6 +351,9 @@ teavm {
     all { mainClass = entryPoint }
     if (usesExecutor) {
         c { obfuscated = false }
+    }
+    if (probe == 'factory-ticks') {
+        c { maxHeapSize = 24 }
     }
 }
 

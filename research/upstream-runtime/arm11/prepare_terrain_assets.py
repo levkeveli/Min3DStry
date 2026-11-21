@@ -13,10 +13,6 @@ REGIONS = (
     "ice-edge", "ice1", "ice2", "ice3", "ore-coal1", "ore-coal2", "ore-coal3",
     "ore-copper1", "ore-copper2", "ore-copper3", "stone1", "stone2", "stone3",
 )
-LIVE_REGIONS = (
-    "junction", "router", "item-copper",
-    *(f"conveyor-{variant}-{frame}" for variant in range(5) for frame in range(4)),
-)
 CONVERTER = Path(__file__).resolve().parents[3] / "tools" / "build_upstream_sprite_atlas.py"
 GLACIER_INVENTORY = Path(__file__).with_name("glacier-terrain.txt")
 
@@ -47,9 +43,7 @@ def main() -> None:
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--java", default="java")
     parser.add_argument("--tex3ds", default="tex3ds")
-    mode = parser.add_mutually_exclusive_group()
-    mode.add_argument("--live-session", action="store_true", help="pack Glacier and the live factory sprites")
-    mode.add_argument("--multiplayer", action="store_true", help="pack Glacier and upstream multiplayer unit sprites")
+    parser.add_argument("--multiplayer", action="store_true", help="pack Glacier and upstream multiplayer unit sprites")
     args = parser.parse_args()
 
     output = args.output_dir.resolve()
@@ -57,10 +51,9 @@ def main() -> None:
         parser.error(f"output already exists: {output}")
     output.parent.mkdir(parents=True, exist_ok=True)
     regions = REGIONS
-    if args.live_session or args.multiplayer:
+    if args.multiplayer:
         surveyed = GLACIER_INVENTORY.read_text(encoding="ascii").splitlines()
-        extras = LIVE_REGIONS if args.live_session else ("gamma", "dagger")
-        regions = tuple(dict.fromkeys((*surveyed, *extras)))
+        regions = tuple(dict.fromkeys((*surveyed, "gamma", "dagger")))
     with tempfile.TemporaryDirectory(dir=output.parent) as tmp:
         staged = Path(tmp) / "terrain"
         subprocess.run([sys.executable, str(CONVERTER), "--assets", str(args.assets),
