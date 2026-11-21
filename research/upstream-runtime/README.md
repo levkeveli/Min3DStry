@@ -944,6 +944,12 @@ passed the Onset replay in both Azahar 2126.2 profiles. Original 3DS mined
 The unmodified v160.8 server recorded both balances, each ARM11 client
 received the inventory updates, and the balances held after cancellation.
 
+The [Ground Zero build](https://github.com/levkeveli/Min3DStry/actions/runs/44908976165)
+passed both profiles on the original map. Alpha mined copper at (129, 49),
+and the ARM11 clients received the stock core inventory updates. Moving
+outside the original unit's mining range cleared the server target and
+left stable balances of 148 copper on Original 3DS and 149 on New 3DS.
+
 ### Verify the Arc executor pools
 
 Use `-Pprobe=executor` with the JVM and ARM11 build commands. The JVM uses the
