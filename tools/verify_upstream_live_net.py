@@ -61,9 +61,17 @@ ONSET_SPAWN_PIXELS = {
 
 MAP_SPAWNS = {
     "Fortress": ("256", "256", "core-shard", "alpha", "116", "73"),
+    "Ground Zero": ("256", "256", "core-shard", "alpha", "129", "55"),
     "The Onset": ("512", "512", "core-bastion", "evoke", "276", "107"),
 }
 MAP_SPAWN_PIXELS = {"Fortress": FORTRESS_CORE_PIXELS, "The Onset": ONSET_SPAWN_PIXELS}
+
+# Original atlas texels from the rotated Duct shell and the Beryllium Wall.
+EREKIR_BUILD_PIXELS = {
+    "duct": {(263, 126): (110, 112, 128), (276, 134): (110, 112, 128)},
+    "beryllium-wall": {(263, 144): (74, 139, 106), (269, 146): (126, 199, 128),
+                       (276, 144): (120, 192, 126)},
+}
 
 # Opaque RGB from the original wall, drill base and drill top at Glacier spawn.
 BUILDING_LAYER_PIXELS = {
@@ -81,7 +89,8 @@ BUILDING_CRACK_PIXELS = {
 }
 
 
-def write_controls_replay(path, first_move=22, building=False, touch_build=False, touch_config=False, model="old3ds"):
+def write_controls_replay(path, first_move=22, building=False, touch_build=False, touch_config=False,
+                          erekir_build=False, mining=None, model="old3ds"):
     """Write the Azahar 2126.2 CTM input for this probe's pad/touch polling."""
     # The pinned Azahar movie header and HID sample definitions use packed little-endian fields.
     revision = bytes.fromhex("219d743a1e698101fe1ab8bef43e6563126c3c27")
@@ -90,7 +99,7 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
     needs_settling_time = building or touch_build or touch_config
     circle_at = first_move + (18 if needs_settling_time else 6)
     leave_at = first_move + (44 if needs_settling_time else 16)
-    frames = (leave_at + 7) * samples_per_second
+    frames = (128 if erekir_build or mining else leave_at + 7) * samples_per_second
     header = struct.pack("<4sQ20sQQ32sIQq156x", b"CTM\x1b", 0, revision, 1780000000,
                          0x4D334453, b"Min3DStry input verification", 0, frames, 0)
     touch_idle = struct.pack("<B6x", 1)
@@ -106,22 +115,44 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
             (58, (305, 64)), (62, (232, 136)), (67, (160, 55)),
             (75, (305, 64)), (79, (232, 136)), (84, (160, 80)),
         )
+    if erekir_build:
+        taps = ((60, (40, 24)), (76, (216, 152)),
+                (91, (120, 24)), (96, (216, 168)))
+    if mining == "wall":
+        # The panning distance depends on the render cadence. Along the right
+        # column, the original deposit occupies a different row at each stop.
+        ore_rows = (168, 152, 136, 120, 104)
+        taps = ((73, (305, 96)),) + tuple(
+            (start + 4 * index, (280, row))
+            for start in (80, 106) for index, row in enumerate(ore_rows)
+        )
+    elif mining == "floor":
+        taps = ((58, (305, 96)), (62, (305, 96)), (67, (168, 232)))
+    pan_end = 61 if model == "new3ds" else 60
     with path.open("wb") as movie:
         movie.write(header)
         for frame in range(frames):
             seconds = frame // samples_per_second
-            buttons = (1 << 4) if seconds == first_move else (1 << 3) if seconds == leave_at else 0
+            if erekir_build:
+                buttons = (1 << 8) if 66 <= seconds < 72 else 0  # R, the 3DS rotate shortcut.
+            elif mining:
+                buttons = 0
+            else:
+                buttons = (1 << 4) if seconds == first_move else (1 << 3) if seconds == leave_at else 0
             if building and seconds in (35, 37, 39):
                 buttons = 1  # A, with releases so a late HID poll can observe another press.
-            circle_y = 106 if seconds == circle_at else 0
+            circle_x = 65 if mining == "wall" and 54 <= seconds < pan_end else 0
+            circle_y = 106 if seconds == circle_at and not (erekir_build or mining) else 0
+            if mining == "floor" and 88 <= seconds < 94:
+                circle_y = 65
             point = next((point for start, point in taps if start <= seconds < start + 2), None)
-            pad = struct.pack("<BHhh", 0, buttons, 0, circle_y)
+            pad = struct.pack("<BHhh", 0, buttons, circle_x, circle_y)
             if point:
                 # Extra HID polls on New 3DS can fall between pad/touch pairs.
                 # Keep the touch held for the whole burst regardless of the poll phase.
                 touch = struct.pack("<BHHBx", 1, *point, 1)
                 movie.write(touch * 2)
-            elif taps and (buttons or circle_y):
+            elif taps and (buttons or circle_x or circle_y):
                 movie.write(pad * 2)
             else:
                 movie.write(pad + touch_idle)
@@ -149,6 +180,8 @@ def wait_for(path, proc, pattern, timeout):
             time.sleep(0.25)  # Preserve the Java stack trace written after the error marker.
             text = path.read_text(encoding="utf-8", errors="replace")
             raise RuntimeError(f"Process stopped before {pattern}:\n{text[-5000:]}")
+        if "UPSTREAM_MEMORY managed-heap-exhausted" in text or "UPSTREAM_GC " in text:
+            raise RuntimeError(f"ARM11 memory failure before {pattern}:\n{text[-2500:]}")
         if proc.poll() is not None or re.search(r"Core::LogException", text):
             raise RuntimeError(f"Process stopped before {pattern}:\n{text[-2500:]}")
         time.sleep(0.05)
@@ -215,7 +248,7 @@ def verify_movement(log, emulator, server_log, server, join, timeout):
     print(observed.group(0), flush=True)
 
 
-def inspect_building(server_log, server, phase, tile_x, tile_y, builder=PLAYER):
+def inspect_building(server_log, server, phase, tile_x, tile_y, builder=PLAYER, item="copper"):
     marker = f"UPSTREAM_SERVER_BUILDING phase={phase}"
     server.stdin.write(
         f'js (() => {{ const p = Groups.player.find(boolf(v => String(v.name) === "{PLAYER}")); '
@@ -225,11 +258,93 @@ def inspect_building(server_log, server, phase, tile_x, tile_y, builder=PLAYER):
         'String(tile.build.lastAccessed) === String(builder.coloredName()); '
         f'return "{marker} block=" + tile.block().name + " team=" + tile.team().id '
         '+ " rotation=" + (tile.build == null ? -1 : tile.build.rotation) '
-        '+ " copper=" + p.team().core().items.get(Items.copper) + " builder=" + owned; })()\n'
+        f'+ " {item}=" + p.team().core().items.get(Items.{item}) + " builder=" + owned; }})()\n'
     )
     server.stdin.flush()
-    check = re.compile(rf"{marker} block=(\S+) team=(\d+) rotation=(-?\d+) copper=(\d+) builder=(true|false)")
+    check = re.compile(rf"{marker} block=(\S+) team=(\d+) rotation=(-?\d+) {item}=(\d+) builder=(true|false)")
     return check.search(wait_for(server_log, server, check, 5)).groups()
+
+
+def verify_erekir_construction(log, emulator, server_log, server, timeout, capture, spawn):
+    wait_for(log, emulator, r"UPSTREAM_BUILD_SHORTCUTS primary=duct secondary=beryllium-wall\b", timeout)
+    for block, y, rotation, balance in (("duct", 107, 1, 15), ("beryllium-wall", 106, 0, 9)):
+        touch_plan = re.compile(rf"UPSTREAM_TOUCH_PLAN block={block} x=280 y={y} rotation=(-?\d+)\b")
+        plan = touch_plan.search(wait_for(log, emulator, touch_plan, timeout))
+        if int(plan[1]) != rotation:
+            raise RuntimeError(f"Expected {block} rotation {rotation}, observed {plan[0]}")
+        wait_for(log, emulator, rf"UPSTREAM_LIVE_BUILD block={block} x=280 y={y} rotation={rotation} team=1\b", timeout)
+        result = inspect_building(server_log, server, block, 280, y, item="beryllium")
+        if result != (block, "1", str(rotation), str(balance), "true"):
+            raise RuntimeError(f"Unexpected stock {block} placement: {result}")
+        capture(block, spawn)
+    print("The stock server placed both Erekir blocks for seven beryllium.", flush=True)
+
+
+def inspect_mining(server_log, server, marker, item):
+    server.stdin.write(
+        f'js (() => {{ const p = Groups.player.find(boolf(v => String(v.name) === "{PLAYER}")); '
+        f'if (p == null) return "{marker} target=disconnected {item}=0"; '
+        'const u = p.unit(), t = u.mineTile, core = p.team().core(); '
+        f'return "{marker} target=" + (t == null ? "none" : t.x + "," + t.y) + '
+        f'" {item}=" + core.items.get(Items.{item}); }})()\n'
+    )
+    server.stdin.flush()
+    record = re.compile(rf"{marker} target=(none|disconnected|\d+,\d+) {item}=(\d+)")
+    target, balance = record.search(wait_for(server_log, server, record, 5)).groups()
+    return target, int(balance)
+
+
+def verify_mining(log, emulator, server_log, server, timeout, capture, mining, item, objectives):
+    target = re.compile(rf"UPSTREAM_MINE_TARGET x=(\d+) y=(\d+) item={item}\b")
+    x, y = target.search(wait_for(log, emulator, target, timeout)).groups()
+    # Let the stock MinerComp advance before reading the selected tile and deposited items.
+    time.sleep(3)
+    selected, balance = inspect_mining(server_log, server, "UPSTREAM_SERVER_MINING_ACTIVE", item)
+    if selected != f"{x},{y}" or balance <= 0:
+        raise RuntimeError(f"Expected stock {item} mining at {x},{y}, observed {selected} with {balance} items")
+    core_sync = re.compile(rf"UPSTREAM_MINE_CORE_SYNC item={item} count=([1-9]\d*)\b")
+    client_count = int(core_sync.search(wait_for(log, emulator, core_sync, 10))[1])
+    position = server_position(server_log, server, "UPSTREAM_SERVER_MINING_POSITION").groups()
+    capture(f"{mining}-mining", position)
+    if mining == "wall":
+        wait_for(log, emulator, rf"UPSTREAM_MINE_CANCEL x={x} y={y}\b", timeout)
+    else:
+        wait_for(log, emulator, rf"UPSTREAM_LIVE_CONTROLS_STOPPED unit={position[0]} input=circle\b", timeout)
+        server.stdin.write(
+            f'js (() => {{ const p = Groups.player.find(boolf(v => String(v.name) === "{PLAYER}")); '
+            f'const u = p.unit(), t = Vars.world.tile({x},{y}); '
+            'return "UPSTREAM_SERVER_MINING_RANGE out=" + '
+            '(!u.within(t.worldx(), t.worldy(), u.type.mineRange)); })()\n'
+        )
+        server.stdin.flush()
+        wait_for(server_log, server, r"UPSTREAM_SERVER_MINING_RANGE out=true\b", 5)
+    time.sleep(2)
+    stopped = inspect_mining(server_log, server, "UPSTREAM_SERVER_MINING_STOPPED", item)
+    time.sleep(2)
+    settled = inspect_mining(server_log, server, "UPSTREAM_SERVER_MINING_SETTLED", item)
+    if stopped[0] != "none" or settled != stopped or settled[1] < max(balance, client_count):
+        raise RuntimeError(f"Expected mining to stop and inventory to settle, observed {stopped} then {settled}")
+    print(f"Stock {mining} mining at ({x}, {y}) delivered {settled[1]} {item} before stopping.", flush=True)
+    if objectives:
+        verify_onset_objective(log, emulator, server_log, server, settled[1])
+
+
+def verify_onset_objective(log, emulator, server_log, server, beryllium):
+    if beryllium < 60:
+        raise RuntimeError(f"Expected at least 60 beryllium for the original objective, got {beryllium}")
+    server.stdin.write(
+        'js (() => { var rules=Vars.state.rules, all=rules.objectives.all, first=all.get(0), next=all.get(1); '
+        'return "UPSTREAM_SERVER_ONSET_OBJECTIVE first=" + first.getClass().getSimpleName() + '
+        '" completed=" + first.isCompleted() + " next=" + next.getClass().getSimpleName() + '
+        '" eligible=" + next.qualified() + " flags=" + rules.objectiveFlags.size; })()\n'
+    )
+    server.stdin.flush()
+    record = re.compile(r"UPSTREAM_SERVER_ONSET_OBJECTIVE first=ItemObjective completed=true "
+                        r"next=BuildCountObjective eligible=true flags=(\d+)\b")
+    flags = record.search(wait_for(server_log, server, record, 5))[1]
+    match = r"UPSTREAM_OBJECTIVE_COMPLETE index=0 kind=ItemObjective next=1 nextKind=BuildCountObjective"
+    wait_for(log, emulator, rf"{match} flags={flags}\b", 5)
+    print("The stock server and ARM11 client advanced to Onset objective 1 after 60 beryllium.", flush=True)
 
 
 def verify_conveyor(log, emulator, server_log, server, timeout, capture, position, desktop_name):
@@ -473,7 +588,7 @@ def capture_viewport(log, emulator, rpc, destination, position,
     if pixels["width"] != 400 or pixels["height"] != 480 or pixels["top_distinct_colors"] < 8:
         raise RuntimeError(f"Expected a textured world viewport on the top screen: {pixels}")
     if spawn_pixels and any(pixels["samples"][point] != color for point, color in spawn_pixels.items()):
-        raise RuntimeError(f"Stock spawn pixels differ: {pixels['samples']}")
+        raise RuntimeError(f"Stock sprite samples differ: {pixels['samples']}")
     if require_world_atlas and not world_atlas_pixels_match(pixels["samples"]):
         observed = {point: pixels["samples"].get(point) for point in CORE_PIXELS}
         raise RuntimeError(
@@ -953,7 +1068,7 @@ def run_model(args, model, config, original_config, log, output):
         "Renderer": {"graphics_api": "2"},
         "Data Storage": {"use_virtual_sd": "true"},
     }
-    if args.touch_build or args.touch_config:
+    if args.touch_build or args.touch_config or args.erekir_build or args.mining:
         # The synthetic bursts intentionally offer one sample type to all devices.
         overrides["Miscellaneous"]["log_filter"] += " Movie:Critical"
     if args.terrain_atlas:
@@ -963,13 +1078,14 @@ def run_model(args, model, config, original_config, log, output):
     log.write_bytes(b"")
     server_log = output / f"{model}-server.log"
     with tempfile.TemporaryDirectory(prefix="min3dstry-live-net-") as work, server_log.open("wb") as terminal:
-        if args.erekir_sector:
+        if args.erekir_sector or args.mining == "floor":
             # The stock server lists default multiplayer maps only. Import the release's map bytes unchanged.
             maps = Path(work) / "config" / "maps"
             maps.mkdir(parents=True)
-            filename = f"{args.erekir_sector}.msav"
+            sector = f"erekir/{args.erekir_sector}" if args.erekir_sector else "serpulo/groundZero"
+            filename = sector.rsplit("/", 1)[1] + ".msav"
             with zipfile.ZipFile(args.server) as release:
-                (maps / filename).write_bytes(release.read(f"maps/erekir/{filename}"))
+                (maps / filename).write_bytes(release.read(f"maps/{sector}.msav"))
         server = subprocess.Popen(
             [args.java, "-jar", str(args.server)], cwd=work, stdin=subprocess.PIPE,
             stdout=terminal, stderr=subprocess.STDOUT, text=True,
@@ -980,6 +1096,31 @@ def run_model(args, model, config, original_config, log, output):
             server.stdin.flush()
             wait_for(server_log, server, f"Opened a server on port {args.port}\\.", 25)
             world_size = (150, 250)
+            if args.erekir_build:
+                server.stdin.write(
+                    'js (() => { const core = Vars.state.rules.defaultTeam.core(); '
+                    'if (Vars.world.tile(280,107).block() !== Blocks.air || '
+                    'Vars.world.tile(280,106).block() !== Blocks.air) throw "Expected open fixture tiles"; '
+                    'core.items.set(Items.beryllium, 16); '
+                    'return "UPSTREAM_EREKIR_FIXTURE beryllium=" + core.items.get(Items.beryllium); })()\n')
+                server.stdin.flush()
+                wait_for(server_log, server, r"UPSTREAM_EREKIR_FIXTURE beryllium=16\b", 5)
+            if args.mining:
+                mine_item = "beryllium" if args.mining == "wall" else "copper"
+                server.stdin.write(
+                    f'js "UPSTREAM_MINING_START {mine_item}=" + '
+                    f'Vars.state.rules.defaultTeam.core().items.get(Items.{mine_item})\n')
+                server.stdin.flush()
+                wait_for(server_log, server, rf"UPSTREAM_MINING_START {mine_item}=0\b", 5)
+            if args.verify_objectives:
+                server.stdin.write(
+                    'js (() => { var all=Vars.state.rules.objectives.all, first=all.get(0), next=all.get(1); '
+                    'return "UPSTREAM_SERVER_ONSET_START item=" + first.item.name + " amount=" + first.amount + '
+                    '" eligible=" + first.qualified() + " next=" + next.qualified(); })()\n'
+                )
+                server.stdin.flush()
+                wait_for(server_log, server,
+                         r"UPSTREAM_SERVER_ONSET_START item=beryllium amount=60 eligible=true next=false\b", 5)
             if args.building or args.touch_build:
                 # Give the pixel comparison a fixed patch of stock ice. Glacier's filters can
                 # place decorations on or alongside the test cells.
@@ -1045,7 +1186,8 @@ def run_model(args, model, config, original_config, log, output):
                 if args.touch_config:
                     first_move = 92
                 write_controls_replay(replay, first_move=first_move, building=args.building,
-                                      touch_build=args.touch_build, touch_config=args.touch_config, model=model)
+                                      touch_build=args.touch_build, touch_config=args.touch_config,
+                                      erekir_build=args.erekir_build, mining=args.mining, model=model)
                 command += ["-p", str(replay)]
             command.append(str(args.rom))
             emulator = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -1069,7 +1211,8 @@ def run_model(args, model, config, original_config, log, output):
                                                 require_building_layers=args.building_layers,
                                                 require_building_cracks=args.building_cracks,
                                                 world_size=world_size,
-                                                spawn_pixels=MAP_SPAWN_PIXELS.get(args.map_spawn))
+                                                spawn_pixels=(MAP_SPAWN_PIXELS.get(args.map_spawn) if phase == "spawn"
+                                                              else EREKIR_BUILD_PIXELS.get(phase)))
 
                     if stationary:
                         wait_for(log, emulator, r"UPSTREAM_LIVE_CONTROLS_READY unit=\d+", args.timeout)
@@ -1078,6 +1221,11 @@ def run_model(args, model, config, original_config, log, output):
                             map_spawn = inspect_map_spawn(server_log, server)
                             world_size = tuple(map(int, map_spawn[:2]))
                             verify_map_spawn(log, emulator, map_name, map_spawn, spawn)
+                        if args.require_relocation_spill:
+                            pattern = r"UPSTREAM_GC_RELOCATION_SPILL bytes=[1-9]\d*\b"
+                            trace = wait_for(log, emulator, pattern, 5)
+                            for spill in re.findall(pattern, trace):
+                                print(f"{model}: {spill}", flush=True)
                         phase = "spawn"
                         if args.building_effects:
                             phase = "building-effects"
@@ -1098,6 +1246,11 @@ def run_model(args, model, config, original_config, log, output):
                         if args.building_layers:
                             phase = "building-cracks" if args.building_cracks else "building-layers"
                         capture(phase, spawn)
+                        if args.erekir_build:
+                            verify_erekir_construction(log, emulator, server_log, server, args.timeout, capture, spawn)
+                        if args.mining:
+                            verify_mining(log, emulator, server_log, server, args.timeout, capture,
+                                          args.mining, mine_item, args.verify_objectives)
                         if args.building_effects:
                             verify_building_effects((output / f"{model}-{phase}.png").read_bytes())
                         if args.payload_mix:
@@ -1120,7 +1273,7 @@ def run_model(args, model, config, original_config, log, output):
                         if args.liquids:
                             verify_conduit_frames(log, rpc, output, model)
                         if not args.payload_handoff:
-                            print(f"Verified the {map_name} capture.", flush=True)
+                            print(f"Verified {map_name} capture.", flush=True)
                         emu_log = log.read_text(encoding="utf-8", errors="replace")
                         if "UPSTREAM_LIVE_NET_ERROR" in emu_log:
                             raise RuntimeError("The client failed after rendering the atlas stress frame")
@@ -1261,6 +1414,15 @@ def main():
                             help="Verify the world and stationary player spawn on a stock server map")
     parser.add_argument("--erekir-sector", metavar="SLUG",
                         help="Import an unchanged Erekir campaign map from the official server jar for --map-spawn")
+    campaign_mode = parser.add_mutually_exclusive_group()
+    campaign_mode.add_argument("--erekir-build", action="store_true",
+                               help="Verify Duct and Beryllium Wall touch construction on The Onset")
+    campaign_mode.add_argument("--mining", choices=("wall", "floor"),
+                               help="Verify touch mining and core delivery on The Onset or Ground Zero")
+    parser.add_argument("--verify-objectives", action="store_true",
+                        help="Compare the original first Onset objective transition between client and server")
+    parser.add_argument("--require-relocation-spill", action="store_true",
+                        help="Require the ARM11 collector to grow its relocation table during the spawn check")
     args = parser.parse_args()
     args.server, args.rom, args.azahar = (path.resolve() for path in (args.server, args.rom, args.azahar))
     with args.server.open("rb") as archive:
@@ -1303,14 +1465,27 @@ def main():
     if args.map_spawn is not None:
         if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9 -]*", args.map_spawn):
             parser.error("--map-spawn needs a stock map name")
-        if not args.terrain_atlas or not args.controls or args.controls_replay or args.world_atlas:
+        if (not args.terrain_atlas or not args.controls or args.world_atlas
+                or (args.controls_replay and not (args.erekir_build or args.mining))):
             parser.error("--map-spawn needs --controls and --terrain-atlas for a standalone spawn capture")
+    if args.erekir_build and (args.map_spawn != "The Onset" or args.erekir_sector != "onset"
+                             or not args.controls_replay):
+        parser.error('--erekir-build needs --map-spawn "The Onset", --erekir-sector onset and --controls-replay')
+    if args.mining == "wall" and (args.map_spawn != "The Onset" or args.erekir_sector != "onset"
+                                  or not args.controls_replay):
+        parser.error('--mining wall needs --map-spawn "The Onset", --erekir-sector onset and --controls-replay')
+    if args.mining == "floor" and (args.map_spawn != "Ground Zero" or args.erekir_sector or not args.controls_replay):
+        parser.error('--mining floor needs --map-spawn "Ground Zero" and --controls-replay')
+    if args.verify_objectives and args.mining != "wall":
+        parser.error("--verify-objectives needs --mining wall")
     if args.erekir_sector is not None:
         if not args.map_spawn or not re.fullmatch(r"[a-z][a-z-]*", args.erekir_sector):
             parser.error("--erekir-sector needs --map-spawn and a sector slug such as onset")
         with zipfile.ZipFile(args.server) as release:
             if f"maps/erekir/{args.erekir_sector}.msav" not in release.namelist():
                 parser.error(f"No Erekir sector {args.erekir_sector!r} in the official server jar")
+    if args.require_relocation_spill and not args.map_spawn:
+        parser.error("--require-relocation-spill needs --map-spawn")
     if args.building_effects and (not args.terrain_atlas or not args.controls or args.controls_replay):
         parser.error("--building-effects needs --controls and --terrain-atlas for a stationary capture")
     if args.liquids and (not args.terrain_atlas or not args.controls or args.controls_replay):

@@ -1,9 +1,12 @@
+import arc.Core;
 import mindustry.Vars;
 import mindustry.content.Blocks;
+import mindustry.content.Planets;
 import mindustry.entities.units.BuildPlan;
 import mindustry.gen.Unit;
 import mindustry.world.Block;
 import mindustry.world.Build;
+import mindustry.world.Tile;
 import mindustry.world.blocks.distribution.Sorter;
 
 /** Maps the 3DS touch grid to the last presented viewport and queues upstream plans. */
@@ -26,6 +29,7 @@ final class UpstreamLiveBuildControls {
     private final UpstreamBuildMenu catalog = new UpstreamBuildMenu();
     private final UpstreamItemConfig itemConfig = new UpstreamItemConfig();
     private boolean configuring;
+    private boolean selectingMine;
 
     void viewport(int left, int bottom) {
         this.left = left;
@@ -54,28 +58,38 @@ final class UpstreamLiveBuildControls {
             return;
         }
         if ((buttons & ROTATE_PRESSED) != 0) rotate();
-        if ((buttons & REMOVE_PRESSED) != 0) removing = !removing;
-        boolean submit = (buttons & PLACE_PRESSED) != 0;
+        if ((buttons & REMOVE_PRESSED) != 0) toggleRemoval();
+        boolean submit = !selectingMine && (buttons & PLACE_PRESSED) != 0;
         if (touch >= 0) {
             int x = touch & 0xffff, y = touch >>> 16;
             if (x >= 288 && y >= GRID_Y && y < 80) {
+                selectingMine = false;
                 configuring = !configuring;
+                return;
+            } else if (x >= 288 && y >= 80 && y < 112) {
+                selectingMine = true;
+                configuring = false;
+                removing = false;
                 return;
             } else if (x < 32 && y >= GRID_Y && y < 80) {
                 configuring = false;
+                selectingMine = false;
                 catalog.open(block());
                 return;
             } else if (y < GRID_Y && x < 320) {
                 switch (x / 80) {
-                    case 0 -> select(Blocks.conveyor);
-                    case 1 -> select(Blocks.copperWall);
+                    case 0, 1 -> select(shortcut(x / 80));
                     case 2 -> rotate();
-                    case 3 -> removing = !removing;
+                    case 3 -> toggleRemoval();
                 }
             } else if (viewportReady && x >= GRID_X && x < GRID_X + WIDTH * CELL
                     && y >= GRID_Y && y < GRID_Y + HEIGHT * CELL) {
                 tileX = left + (x - GRID_X) / CELL;
                 tileY = bottom + HEIGHT - 1 - (y - GRID_Y) / CELL;
+                if (selectingMine) {
+                    selectMine(unit, Vars.world.tile(tileX, tileY));
+                    return;
+                }
                 if (configuring) {
                     configuring = false;
                     if (Vars.world.build(tileX, tileY) instanceof Sorter.SorterBuild sorter) itemConfig.open(sorter);
@@ -91,7 +105,29 @@ final class UpstreamLiveBuildControls {
         selected = block;
         removing = false;
         configuring = false;
+        selectingMine = false;
         rotation = block.planRotation(rotation);
+    }
+
+    private void toggleRemoval() {
+        selectingMine = false;
+        removing = !removing;
+    }
+
+    private void selectMine(Unit unit, Tile tile) {
+        if (tile == null) return;
+        if (unit.mineTile == tile) {
+            unit.mineTile = null;
+            System.out.println("UPSTREAM_MINE_CANCEL x=" + tile.x + " y=" + tile.y);
+            return;
+        }
+        // Match v160.8 InputHandler.canMine after the 3DS hit test has selected a world tile.
+        if (Vars.player.dead() || !unit.validMine(tile) || !unit.acceptsItem(unit.getMineResult(tile))) return;
+        var oreLayer = tile.overlay().itemDrop == null ? tile.floor() : tile.overlay();
+        if (oreLayer.playerUnmineable && !Core.settings.getBool("doubletapmine")) return;
+        unit.mineTile = tile;
+        System.out.println("UPSTREAM_MINE_TARGET x=" + tile.x + " y=" + tile.y
+            + " item=" + unit.getMineResult(tile).name);
     }
 
     private void rotate() {
@@ -123,7 +159,14 @@ final class UpstreamLiveBuildControls {
         return x >= left && x < left + WIDTH && y >= bottom && y < bottom + HEIGHT;
     }
 
-    Block block() { return selected == null ? Blocks.conveyor : selected; }
+    Block shortcut(int slot) {
+        if (Vars.state.rules.planet == Planets.erekir) {
+            return slot == 0 ? Blocks.duct : Blocks.berylliumWall;
+        }
+        return slot == 0 ? Blocks.conveyor : Blocks.copperWall;
+    }
+
+    Block block() { return selected == null ? shortcut(0) : selected; }
     int cursorX() { return tileX; }
     int cursorY() { return tileY; }
     int rotation() { return rotation; }
@@ -131,4 +174,5 @@ final class UpstreamLiveBuildControls {
     UpstreamBuildMenu catalog() { return catalog; }
     UpstreamItemConfig itemConfig() { return itemConfig; }
     boolean configuring() { return configuring; }
+    boolean selectingMine() { return selectingMine; }
 }

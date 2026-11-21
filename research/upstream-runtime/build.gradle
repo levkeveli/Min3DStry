@@ -10,6 +10,8 @@ repositories { mavenCentral() }
 def revision = '19a0f40d44514f4802a8b79770456e7e32e34da0'
 def upstreamFile = 'core/src/mindustry/logic/LogicOp.java'
 def blockSource = 'core/src/mindustry/world/Block.java'
+def tileSource = 'core/src/mindustry/world/Tile.java'
+def pathfinderSource = 'core/src/mindustry/ai/Pathfinder.java'
 def annotationsSource = 'annotations/src/main/java/mindustry/annotations/Annotations.java'
 def arcRevision = '7445105cd2683daf5b9ac7033ebb07265d3e814d'
 def fileSource = 'arc-core/src/arc/files/Fi.java'
@@ -121,6 +123,8 @@ def sourceDir = layout.buildDirectory.dir("upstream-src/${probe}")
 def sourceFile = sourceDir.map { it.file('mindustry/logic/LogicOp.java') }
 def mapFile = sourceDir.map { it.file('mindustry/maps/GlacierFixture.java') }
 def blockFile = sourceDir.map { it.file('mindustry/world/Block.java') }
+def tileFile = sourceDir.map { it.file('mindustry/world/Tile.java') }
+def pathfinderFile = sourceDir.map { it.file('mindustry/ai/Pathfinder.java') }
 def annotationsFile = sourceDir.map { it.file('mindustry/annotations/Annotations.java') }
 def arcFile = sourceDir.map { it.file('arc/files/Fi.java') }
 def arcOsFile = sourceDir.map { it.file('arc/util/OS.java') }
@@ -169,6 +173,9 @@ if (usesArcSources || usesExecutor) {
     if (usesContentSources) {
         stagedClasses.add('mindustry/world/Block.class')
     }
+    if (usesWorldSources) {
+        stagedClasses.addAll(['mindustry/world/Tile.class', 'mindustry/world/Tile$*.class'])
+    }
     if (usesArcSources) {
         stagedClasses.addAll(['arc/files/Fi.class', 'arc/files/Fi$*.class'])
     }
@@ -182,7 +189,8 @@ if (usesArcSources || usesExecutor) {
         stagedClasses.add('mindustry/net/NetworkIO.class')
     }
     if (usesLiveNetwork) {
-        stagedClasses.addAll(['mindustry/core/NetClient.class', 'mindustry/core/NetClient$*.class'])
+        stagedClasses.addAll(['mindustry/core/NetClient.class', 'mindustry/core/NetClient$*.class',
+                              'mindustry/ai/Pathfinder.class', 'mindustry/ai/Pathfinder$*.class'])
     }
     if (patchesPlanetGrid) {
         stagedClasses.addAll(['mindustry/graphics/g3d/PlanetGrid.class', 'mindustry/graphics/g3d/PlanetGrid$*.class'])
@@ -325,6 +333,9 @@ tasks.register('prepareUpstreamProbe') {
     if (usesContentSources) {
         outputs.files(blockFile, annotationsFile)
     }
+    if (usesWorldSources) {
+        outputs.file(tileFile)
+    }
     if (usesArcSources || usesExecutor) {
         inputs.property('arcRevision', arcRevision)
         inputs.property('arcCheckout', arc)
@@ -343,7 +354,7 @@ tasks.register('prepareUpstreamProbe') {
         outputs.file(networkIoFile)
     }
     if (usesLiveNetwork) {
-        outputs.files(netClientFile, placementFile, itemChoicesFile)
+        outputs.files(netClientFile, placementFile, itemChoicesFile, pathfinderFile)
     }
     if (patchesPlanetGrid) {
         outputs.file(planetGridFile)
@@ -438,6 +449,20 @@ final class GlacierFixture {
             def anonymousCheck = 'current.isAnonymousClass()'
             if (block.count(anonymousCheck) != 1) {
                 throw new GradleException('Pinned Block.initBuilding anonymous class check changed')
+            }
+            if (usesWorldSources) {
+                def newBuilding = '    public final Building newBuilding(){'
+                def tile = new String(readUpstream(tileSource), 'UTF-8')
+                if (block.count(newBuilding) != 1 || tile.count('wall::newBuilding') != 1
+                        || tile.count('type::newBuilding') != 1) {
+                    throw new GradleException('Pinned Tile building factory calls changed')
+                }
+                // Bind once per block. The bound method still reads the current buildType when called.
+                block = block.replace(newBuilding,
+                    '    final Prov<Building> buildingProvider = this::newBuilding;\n\n' + newBuilding)
+                tileFile.get().asFile.parentFile.mkdirs()
+                tileFile.get().asFile.setText(tile.replace('wall::newBuilding', 'wall.buildingProvider')
+                    .replace('type::newBuilding', 'type.buildingProvider'), 'UTF-8')
             }
             def adaptedBlock = blockFile.get().asFile
             adaptedBlock.parentFile.mkdirs()
@@ -534,6 +559,18 @@ final class GlacierFixture {
             adaptedGrid.setText(grid.replace(create, 'public static PlanetGrid create(int size){'), 'UTF-8')
         }
         if (usesLiveNetwork) {
+            def pathfinder = new String(readUpstream(pathfinderSource), 'UTF-8')
+            def allocateGrid = 'tiles = new int[world.width() * world.height()];'
+            def getTile = '        return tiles[x + y * wwidth];'
+            if (pathfinder.count(allocateGrid) != 1 || pathfinder.count(getTile) != 1) {
+                throw new GradleException('Pinned Pathfinder grid access changed')
+            }
+            // The remote client never starts the flowfield thread. Keep the same tile-cost packer.
+            def adaptedPathfinder = pathfinderFile.get().asFile
+            adaptedPathfinder.parentFile.mkdirs()
+            adaptedPathfinder.setText(pathfinder
+                .replace(allocateGrid, 'tiles = new int[net.client() ? 0 : world.width() * world.height()];')
+                .replace(getTile, '        return net.client() ? packTile(world.tile(x, y)) : tiles[x + y * wwidth];'), 'UTF-8')
             def source = new String(readUpstream(netClientSource), 'UTF-8')
             def buffer = '''private ReusableByteInStream byteStream = new ReusableByteInStream();
     private DataInputStream dataStream = new DataInputStream(byteStream);

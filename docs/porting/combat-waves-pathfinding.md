@@ -1,6 +1,6 @@
 # Combat, Turrets, Enemy Waves & Flowfield Pathfinding Baseline (Issue #30)
 
-**Verification status:** Host-verified across pinned upstream Mindustry `v160.8` JVM (`UpstreamCombatBaseline.java`, `UpstreamCombatSimulationBaseline.java`, `-Pprobe=combat-ticks`, and `-Pprobe=wave-routing`) and TeaVM C `-O0` / `-O2` (`cc -std=gnu11 -fwrapv -ffp-contract=off`), with ARM11 `.3dsx`/`.elf` compiled; `combat-waves-ai` in [port-capabilities.json](../port-capabilities.json) remains **Experimental** under [#30](https://github.com/levkeveli/Min3DStry/issues/30) pending live-session integration, Old 3DS memory budget optimization, and physical hardware verification.
+**Verification status:** Host-verified across pinned upstream Mindustry `v160.8` JVM (`UpstreamCombatBaseline.java`, `UpstreamCombatSimulationBaseline.java`, `-Pprobe=combat-ticks`, and `-Pprobe=wave-routing`) and TeaVM C `-O0` / `-O2` (`cc -std=gnu11 -fwrapv -ffp-contract=off`), with ARM11 `.3dsx`/`.elf` compiled and both gameplay probes executed on Azahar `2126.2` New and Old profiles. `combat-waves-ai` in [port-capabilities.json](../port-capabilities.json) is **Emulator-tested** under [#30](https://github.com/levkeveli/Min3DStry/issues/30); live-session integration, Old 3DS memory budget optimization, and physical hardware verification remain open.
 
 ## 1:1 Upstream Mandate
 
@@ -56,6 +56,27 @@ Both gameplay probes under [research/upstream-runtime/src/gameplay/java/](../../
    UPSTREAM_WAVE wave=4 spawned=dagger=2 groundSpawned=2 first=79,219->80,173 distance=1546->1177 min=1177 alive=2/2 ammo=29 nextWave=5
    ```
    - Earlier Azahar `2126.2` runs on Old and New 3DS profiles for [combat-ticks](../../research/upstream-runtime/README.md#exercise-upstream-combat-and-the-first-glacier-wave) and [wave-routing](../../research/upstream-runtime/README.md#exercise-upstream-waves-and-ground-routing) matched these traces, while the current PR verifies JVM reference, TeaVM C `-O0`/`-O2`, and ARM11 `.3dsx`/`.elf` compilation.
+
+### Azahar `2126.2` runtime evidence
+
+Both probes were rebuilt with the pinned devkitARM image and run on both 3DS
+profiles:
+
+```text
+UPSTREAM_WORLD_FINGERPRINT 2e7b9f883994de6c
+UPSTREAM_COMBAT delivery=29 shot=49 hit=62 destroyed=382 supplied=20
+UPSTREAM_WAVE next=2 groundSpawns=0 enemies=1 units=gamma=1
+```
+
+```text
+UPSTREAM_WAVE_SETUP core=81,26 enemyCore=81,224 groundSpawns=1 fieldHash=629058db4926d64e
+UPSTREAM_WAVE wave=1 spawned=dagger=1 groundSpawned=1 first=79,218->80,172 distance=1533->1165 min=1165 alive=1/1 ammo=30 nextWave=2
+UPSTREAM_WAVE wave=2 spawned=dagger=1,gamma=2 groundSpawned=1 first=82,217->80,171 distance=1524->1159 min=1159 alive=1/1 ammo=30 nextWave=3
+UPSTREAM_WAVE wave=3 spawned=dagger=2 groundSpawned=2 first=79,219->80,173 distance=1545->1177 min=1177 alive=2/2 ammo=30 nextWave=4
+UPSTREAM_WAVE wave=4 spawned=dagger=2 groundSpawned=2 first=79,219->80,173 distance=1546->1177 min=1177 alive=2/2 ammo=29 nextWave=5
+```
+
+Both profiles matched the JVM and host TeaVM C traces exactly.
 
 ## Remaining Scope for Issue #30
 

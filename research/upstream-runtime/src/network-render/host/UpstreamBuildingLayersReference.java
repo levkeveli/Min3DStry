@@ -6,6 +6,7 @@ import arc.graphics.Blending;
 import arc.graphics.Color;
 import arc.graphics.g2d.Draw;
 import arc.graphics.g2d.Fill;
+import arc.graphics.g2d.Lines;
 import arc.graphics.g2d.SpriteBatch;
 import arc.graphics.g2d.TextureRegion;
 import arc.util.Time;
@@ -58,6 +59,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         var target = new UpstreamBuildingLayersReference();
         var viewport = UpstreamTerrainDrawProbe.liveViewport(target);
         target.verifyArcOrder();
+        target.verifyTexturedLine();
 
         // The visible two-tile wall starts one tile west of the viewport.
         viewport.moveTo(24, 30);
@@ -104,6 +106,21 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         target.verifyNavalWake(viewer);
         target.verifyTankTreads(viewer);
         target.verifyCoreVariants(layers, viewport, viewer);
+        target.verifyErekirStarterBlocks(layers, viewport, viewer);
+    }
+
+    private void verifyErekirStarterBlocks(UpstreamBuildingLayers layers, UpstreamTerrainDrawProbe.Viewport viewport,
+                                           Team viewer) {
+        var duct = Vars.world.tile(48, 34);
+        var wall = Vars.world.tile(49, 34);
+        duct.setBlock(Blocks.duct, viewer, 1);
+        wall.setBlock(Blocks.berylliumWall, viewer, 0);
+        sprites.clear();
+        layers.render(viewport, viewer, build -> (build == duct.build || build == wall.build)
+            && UpstreamRenderedNetworkProbe.supportsBuildingDraw(build));
+        requireRegion(Core.atlas.find("duct-top-0"));
+        requireRegion(Blocks.berylliumWall.region);
+        System.out.println("UPSTREAM_EREKIR_BUILDINGS duct=1 berylliumWall=1");
     }
 
     private void verifyCoreVariants(UpstreamBuildingLayers layers, UpstreamTerrainDrawProbe.Viewport viewport,
@@ -542,6 +559,30 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
                 || captured.blending() != Blending.additive || sprites.get(3).blending() != Blending.normal) {
             throw new AssertionError("Queued draw lost its original atlas coordinates or tint");
         }
+    }
+
+    private void verifyTexturedLine() {
+        var beam = Core.atlas.find("minelaser");
+        if (!beam.found()) throw new AssertionError("Missing the original mining beam");
+        sprites.clear();
+        Draw.sort(true);
+        Draw.color(Color.lightGray);
+        Lines.stroke(9f);
+        Lines.line(beam, 10f, 20f, 40f, 60f, false);
+        Lines.stroke(1f);
+        Draw.color();
+        Draw.sort(false);
+        if (sprites.size() != 1) throw new AssertionError("Expected one textured mining line: " + sprites);
+        var drawn = sprites.get(0);
+        if (drawn.page() != UpstreamTerrainDrawProbe.pageIndex(beam)
+                || drawn.left() != beam.getX() || drawn.top() != beam.getY()
+                || drawn.width() != beam.width || drawn.height() != beam.height
+                || Math.abs(drawn.x() - 38.6f) > 0.01f || Math.abs(drawn.y() - 21.8f) > 0.01f
+                || Math.abs(drawn.rotation() - 53.1301f) > 0.01f
+                || drawn.color() != Color.floatToIntColor(Color.lightGray.toFloatBits())) {
+            throw new AssertionError("Textured Arc line lost its atlas rect, geometry or tint: " + drawn);
+        }
+        System.out.println("UPSTREAM_TEXTURED_LINE minelaser=ok");
     }
 
     private int firstAt(float x, float y) {

@@ -34,6 +34,8 @@ import mindustry.gen.BeginBreakCallPacket;
 import mindustry.gen.BeginPlaceCallPacket;
 import mindustry.gen.BlockSnapshotCallPacket;
 import mindustry.gen.ClientSnapshotCallPacket;
+import mindustry.gen.ClearObjectivesCallPacket;
+import mindustry.gen.CompleteObjectiveCallPacket;
 import mindustry.gen.ConnectConfirmCallPacket;
 import mindustry.gen.ConstructFinishCallPacket;
 import mindustry.gen.DeconstructFinishCallPacket;
@@ -44,6 +46,7 @@ import mindustry.gen.KickCallPacket2;
 import mindustry.gen.Mechc;
 import mindustry.gen.Player;
 import mindustry.gen.RemoveQueueBlockCallPacket;
+import mindustry.gen.SetObjectivesCallPacket;
 import mindustry.gen.StateSnapshotCallPacket;
 import mindustry.gen.TileConfigCallPacket;
 import mindustry.gen.Unit;
@@ -399,18 +402,56 @@ public final class UpstreamLiveNetworkProbe {
             if (received == TIMEOUT) break;
             int id = received >>> 16;
             if (id == stateId) {
+                var unit = controlledUnit();
+                var ore = unit == null || unit.mineTile == null ? null : unit.getMineResult(unit.mineTile);
+                var core = ore == null ? null : Vars.player.team().core();
+                int before = core == null ? 0 : core.items.get(ore);
                 var state = applyState(received);
+                if (core != null) {
+                    int after = core.items.get(ore);
+                    if (after != before) {
+                        System.out.println("UPSTREAM_MINE_CORE_SYNC item=" + ore.name + " count=" + after);
+                    }
+                }
                 if (lastWave != state.wave) {
                     lastWave = state.wave;
                     System.out.println("UPSTREAM_LIVE_CONTROLS_STATE wave=" + lastWave);
                 }
             } else if (id == entityId) {
                 decode(new EntitySnapshotCallPacket(), received).handleClient();
+            } else if (id == unsignedId(CompleteObjectiveCallPacket.class)) {
+                var completion = decode(new CompleteObjectiveCallPacket(), received);
+                completion.handleClient();
+                logObjectiveCompletion(completion.index);
+            } else if (id == unsignedId(ClearObjectivesCallPacket.class)) {
+                decode(new ClearObjectivesCallPacket(), received).handleClient();
+            } else if (id == unsignedId(SetObjectivesCallPacket.class)) {
+                decode(new SetObjectivesCallPacket(), received).handleClient();
             } else if (frame != null) {
                 applyBuildingUpdate(id, received);
             }
         }
         return lastWave;
+    }
+
+    private static void logObjectiveCompletion(int index) {
+        var rules = Vars.state.rules;
+        var objectives = rules.objectives;
+        var completed = objectives.get(index);
+        if (completed == null || !completed.isCompleted()) return;
+        int next = -1;
+        String nextKind = "none";
+        for (int i = 0; i < objectives.all.size; i++) {
+            var objective = objectives.all.get(i);
+            if (objective.parents.contains(completed, true) && objective.qualified()) {
+                next = i;
+                nextKind = objective.getClass().getSimpleName();
+                break;
+            }
+        }
+        System.out.println("UPSTREAM_OBJECTIVE_COMPLETE index=" + index
+            + " kind=" + completed.getClass().getSimpleName() + " next=" + next
+            + " nextKind=" + nextKind + " flags=" + rules.objectiveFlags.size);
     }
 
     private void applyBuildingUpdate(int id, int received) {
@@ -473,6 +514,7 @@ public final class UpstreamLiveNetworkProbe {
         snapshot.baseRotation = unit instanceof Mechc mech ? mech.baseRotation() : 0f;
         snapshot.xVelocity = unit.vel.x;
         snapshot.yVelocity = unit.vel.y;
+        snapshot.mining = unit.mineTile;
         snapshot.building = building;
         if (building) snapshot.plans = unit.plans();
         snapshot.selectedBlock = player.selectedBlock;
@@ -534,6 +576,7 @@ public final class UpstreamLiveNetworkProbe {
                         + " input=" + inputDevice + " x=" + unit.x() + " y=" + unit.y());
                 }
             }
+            if (unit.mineTile != null && !unit.validMine(unit.mineTile)) unit.mineTile = null;
             if (now - lastSnapshot >= SNAPSHOT_NS) {
                 if (buildingControls != null) unit.validatePlans();
                 sendPosition(unit, sequence++, buildingControls != null && !unit.plans().isEmpty());

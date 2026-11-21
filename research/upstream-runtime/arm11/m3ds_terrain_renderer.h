@@ -15,7 +15,7 @@ int32_t m3ds_terrain_draw_solid_quad(const float *vertices, int32_t offset, int3
 int32_t m3ds_terrain_end(void);
 int32_t m3ds_terrain_build_overlay(int32_t column, int32_t row, int32_t block, int32_t rotation,
                                   int32_t removing, int32_t tile_size, int32_t rotatable, int32_t catalog_open,
-                                  int32_t configuring);
+                                  int32_t configuring, int32_t selecting_mine);
 int32_t m3ds_terrain_build_catalog(const char *labels, const int32_t *icons, int32_t selected,
                                     int32_t previous, int32_t next, int32_t categories);
 int32_t m3ds_terrain_palette_active(void);
