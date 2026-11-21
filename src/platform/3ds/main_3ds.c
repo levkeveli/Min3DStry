@@ -267,8 +267,8 @@ int main(int argc, char *argv[]) {
     m3ds_factory_demo_init(&scene, &factory);
     m3ds_factory_demo_add_turret(&scene, &factory);
     factory.core_copper = M3DS_DEMO_START_COPPER;
-    snprintf(dbg_line, sizeof(dbg_line), "[MIN3DSTRY] VIEW zoom=%.2f\n",
-             (double)m3ds_scene_zoom(&scene));
+    snprintf(dbg_line, sizeof(dbg_line), "[MIN3DSTRY] VIEW zoom=%.2f lighting=%d\n",
+             (double)m3ds_scene_zoom(&scene), m3ds_scene_lighting(&scene) ? 1 : 0);
     m3ds_emit_debug_line(log_socket, dbg_line);
 
     M3dsCitro2dContext c2d_ctx;
@@ -459,6 +459,11 @@ int main(int argc, char *argv[]) {
                 m3ds_scene_zoom_by(&scene, -0.25f);
                 m3ds_play_ui_click(audio_events, &audio_mixer, clip_ui);
             }
+            if (kDown & KEY_B) {
+                m3ds_scene_set_lighting(
+                    &scene, !m3ds_scene_lighting(&scene));
+                m3ds_play_ui_click(audio_events, &audio_mixer, clip_ui);
+            }
 
             float pan_dx = 0.0f;
             float pan_dy = 0.0f;
@@ -609,10 +614,12 @@ int main(int argc, char *argv[]) {
                (unsigned long)stats.drawn_lines,
                (unsigned long)stats.drawn_triangles,
                (unsigned long)stats.drawn_circles);
-        printf("\x1b[5;1HCull: %lu  Sw: %lu  Drop: %lu\x1b[K",
+        printf("\x1b[5;1HCull:%lu Sw:%lu Drop:%lu E:%lu L:%lu\x1b[K",
                (unsigned long)stats.culled_primitives,
                (unsigned long)stats.state_switches,
-               (unsigned long)stats.budget_dropped);
+               (unsigned long)stats.budget_dropped,
+               (unsigned long)stats.effects_dropped,
+               (unsigned long)stats.light_circles);
         printf("\x1b[7;1HCPU:     %6.2f%%\x1b[K", C3D_GetProcessingTime() * 6.0f);
         printf("\x1b[8;1HGPU:     %6.2f%%\x1b[K", C3D_GetDrawingTime() * 6.0f);
         printf("\x1b[9;1HCmdBuf:  %6.2f%%\x1b[K", C3D_GetCmdBufUsage() * 100.0f);
@@ -621,7 +628,7 @@ int main(int argc, char *argv[]) {
                m3ds_audio_mixer_is_muted(&audio_mixer) ? "MUTED" : "ON");
         printf("\x1b[11;1HD-Pad/CPad: Pan  A: Pause  L/R: Zoom\x1b[K");
         printf("\x1b[12;1HY: Reset Cam  SELECT: Menu  START: Exit\x1b[K");
-        printf("\x1b[13;1HX: Toggle Mute  Zoom: %.2f\x1b[K",
+        printf("\x1b[13;1HX:Mute B:Light Zoom:%.2f\x1b[K",
                (double)m3ds_scene_zoom(&scene));
         printf("\x1b[14;1H%s\x1b[K", hw_summary);
         if (pause_menu.open) {
