@@ -237,6 +237,7 @@ if (usesArcSources || usesExecutor) {
                               'mindustry/game/MapObjectives$TextureMarker.class',
                               'mindustry/game/MapObjectives$QuadMarker.class',
                               'mindustry/world/blocks/logic/CanvasBlock$CanvasBuild.class',
+                              'mindustry/logic/GlobalVars.class', 'mindustry/logic/GlobalVars$*.class',
                               'mindustry/core/ContentLoader.class'])
         shieldModeSources.keySet().each { path ->
             stagedClasses.add(path.replace('.java', '.class'))
@@ -466,7 +467,7 @@ tasks.register('prepareUpstreamProbe') {
     }
     if (usesSinglePlayer) {
         inputs.file('src/gameplay/java/port/FactoryResources.java')
-        outputs.files(globalVarsFile, factoryResourcesFile)
+        outputs.file(factoryResourcesFile)
     }
     if (patchesPlanetGrid) {
         outputs.file(planetGridFile)
@@ -481,6 +482,9 @@ tasks.register('prepareUpstreamProbe') {
     }
     if (usesCampaignSectorInfo) {
         outputs.file(reflectionPolicyFile)
+    }
+    if (usesSinglePlayer || (usesRenderedClient && usesLiveNetwork)) {
+        outputs.file(globalVarsFile)
     }
     doLast {
         if (usesRenderedClient) {
@@ -811,7 +815,7 @@ final class UpstreamItemChoices {
 }
 """, 'UTF-8')
         }
-        if (usesSinglePlayer) {
+        if (usesSinglePlayer || (usesRenderedClient && usesLiveNetwork)) {
             def globalVars = new String(readUpstream(globalVarsSource), 'UTF-8')
             def soundCheck = '''varClientMusicPlaying.numval = control.sound.isPlaying() ? 1 : 0;
 
@@ -819,11 +823,20 @@ final class UpstreamItemChoices {
             if (globalVars.count(soundCheck) != 1) {
                 throw new GradleException('Pinned GlobalVars control.sound check changed')
             }
+            if (usesRenderedClient && usesLiveNetwork) {
+                def stockIds = 'Core.files.internal("logicids.dat")'
+                if (globalVars.count(stockIds) != 1) {
+                    throw new GradleException('Pinned GlobalVars logic ID lookup changed')
+                }
+                globalVars = globalVars.replace(stockIds, 'port.logic.UpstreamClientLogic.logicIds()')
+            }
             def adaptedGlobalVars = globalVarsFile.get().asFile
             adaptedGlobalVars.parentFile.mkdirs()
             adaptedGlobalVars.setText(globalVars.replace(soundCheck, '''varClientMusicPlaying.numval = control != null && control.sound != null && control.sound.isPlaying() ? 1 : 0;
 
             var music = control != null && control.sound != null ? control.sound.getCurrent() : null;'''), 'UTF-8')
+        }
+        if (usesSinglePlayer) {
             def copiedFactoryResources = factoryResourcesFile.get().asFile
             copiedFactoryResources.parentFile.mkdirs()
             copiedFactoryResources.setText(file('src/gameplay/java/port/FactoryResources.java').getText('UTF-8'), 'UTF-8')

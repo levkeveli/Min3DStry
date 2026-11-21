@@ -1309,6 +1309,21 @@ server. The viewport stayed at tile column 73 while the source Canvas
 stayed at column 45. Both profiles showed the configured palette, moved
 corner, and original Router texture without changing the camera position.
 
+### Live stock logic processors
+
+The graphical client stages the original `logicids.dat` from the pinned
+assets and initializes Mindustry's actual logic globals before the
+multiplayer world stream is decoded. It advances those globals and the
+upstream LogicBuild instruction scheduler with the client clock.
+
+Pass the original `logicids.dat` as the fifth argument to
+`runBuildingLayersJvm` to verify a compressed processor configuration,
+its Canvas link and a stock logic pixel write. The stationary Glacier
+replay with `--verify-client-processor` updates a linked Canvas using
+the stock world processor and `@client`. The verifier checks that
+the ARM11 Canvas changes while the dedicated server keeps its original
+pixels. Logic Display command rendering remains open.
+
 ### Verify the Arc executor pools
 
 Use `-Pprobe=executor` with the JVM and ARM11 build commands. The JVM uses the

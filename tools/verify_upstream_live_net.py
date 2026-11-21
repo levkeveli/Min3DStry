@@ -1424,13 +1424,33 @@ def verify_canvas_quads(log, emulator, server_log, server, rpc, output, model, p
     print(f"{model}: offscreen Canvas quad pixels, configuration, tint, corner and retargeting passed.", flush=True)
 
 
+def verify_client_processor(server_log, server, rpc, output, model, timeout):
+    points = ((130, 30), (150, 30), (130, 50), (150, 50))
+    original = ((196, 93, 159), (227, 154, 172), (100, 97, 194), (147, 212, 181))
+    capture_marker_pixels(rpc, output, model, "processor-before", points, timeout, original)
+    # Stock world processors expose @client. The dedicated server skips the
+    # write, and it never sends a Canvas configuration packet in this replay.
+    code = ("jump 6 notEqual @client 1\ngetlink canvas 0\nset i 0\n"
+            "write 7 canvas i\nop add i i 1\njump 3 lessThan i 144\nend")
+    send_marker_phase(server_log, server, "processor-configured",
+        "const p=Vars.world.build(77,26), links=new Seq(); "
+        "links.add(new Packages.mindustry.world.blocks.logic.LogicBlock.LogicLink(0,3,'canvas1',true)); "
+        f"p.configureAny(Packages.mindustry.world.blocks.logic.LogicBlock.compress({json.dumps(code)},links)); "
+        'if(p.executor.instructions.length!==7 || p.executor.links.length!==1) throw "Invalid processor config";')
+    capture_marker_pixels(rpc, output, model, "processor-client-write", points, timeout, ((240, 246, 232),) * 4)
+    send_marker_phase(server_log, server, "processor-server-unchanged",
+        "const c=Vars.world.build(77,29); "
+        'if(c.getPixel(0)!==1 || c.getPixel(143)!==6) throw "Server Canvas changed";')
+    print(f"{model}: stock processor config, link and client-local Canvas writes passed.", flush=True)
+
+
 def run_model(args, model, config, original_config, log, output):
     stationary = (args.world_atlas_recycle or args.building_layers or args.liquids
                   or args.building_effects or args.payload_mix or args.carried_buildings
                   or args.payload_handoff or args.unit_layers or args.unit_roster or args.naval_wake
                   or args.tank_treads or args.map_spawn or args.combat
                   or args.verify_logic_markers or args.verify_texture_markers or args.verify_quad_markers or args.verify_canvas
-                  or args.verify_canvas_quads)
+                  or args.verify_canvas_quads or args.verify_client_processor)
     map_name = args.map_spawn or "Glacier"
     overrides = {
         "Miscellaneous": {"log_filter": "*:Info Debug.Emulated:Debug Service.SOC:Debug",
@@ -1469,8 +1489,13 @@ def run_model(args, model, config, original_config, log, output):
             server.stdin.flush()
             wait_for(server_log, server, f"Opened a server on port {args.port}\\.", 25)
             world_size = (150, 250)
-            if args.verify_canvas or args.verify_canvas_quads:
+            if args.verify_canvas or args.verify_canvas_quads or args.verify_client_processor:
                 load_canvas_fixture(server_log, server, offscreen=args.verify_canvas_quads)
+            if args.verify_client_processor:
+                send_marker_phase(server_log, server, "processor-fixture",
+                    "const rules=Vars.state.rules; rules.worldProcessorPlayerLink=true; "
+                    "rules.allowEditWorldProcessors=true; "
+                    "Vars.world.tile(77,26).setBlock(Blocks.worldProcessor,rules.defaultTeam);")
             if args.erekir_build:
                 server.stdin.write(
                     'js (() => { const core = Vars.state.rules.defaultTeam.core(); '
@@ -1742,6 +1767,8 @@ def run_model(args, model, config, original_config, log, output):
                             verify_canvas(server_log, server, rpc, output, model, args.timeout)
                         if args.verify_canvas_quads:
                             verify_canvas_quads(log, emulator, server_log, server, rpc, output, model, spawn, args.timeout)
+                        if args.verify_client_processor:
+                            verify_client_processor(server_log, server, rpc, output, model, args.timeout)
                         if args.erekir_build:
                             verify_erekir_construction(log, emulator, server_log, server, args.timeout, capture, spawn)
                         if args.mining:
@@ -1969,6 +1996,8 @@ def main():
                         help="Verify original Canvas pixels in Glacier snapshots, configuration and linked markers")
     parser.add_argument("--verify-canvas-quads", action="store_true",
                         help="Verify stock quads backed by an offscreen Canvas on Glacier")
+    parser.add_argument("--verify-client-processor", action="store_true",
+                        help="Verify a stock processor writes to its linked Canvas on the client")
     parser.add_argument("--require-relocation-spill", action="store_true",
                         help="Require the ARM11 collector to grow its relocation table during the spawn check")
     args = parser.parse_args()
@@ -2069,6 +2098,9 @@ def main():
         parser.error("--verify-canvas needs stationary --controls and --terrain-atlas on Glacier")
     if args.verify_canvas_quads and (not args.controls or not args.terrain_atlas or args.controls_replay or args.map_spawn):
         parser.error("--verify-canvas-quads needs stationary --controls and --terrain-atlas on Glacier")
+    if args.verify_client_processor and (not args.controls or not args.terrain_atlas or args.controls_replay
+                                        or args.map_spawn or args.verify_canvas):
+        parser.error("--verify-client-processor needs stationary --controls and --terrain-atlas on Glacier")
     if args.erekir_sector is not None:
         if not args.map_spawn or not re.fullmatch(r"[a-z][a-z-]*", args.erekir_sector):
             parser.error("--erekir-sector needs --map-spawn and a sector slug such as onset")
