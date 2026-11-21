@@ -66,7 +66,8 @@ public final class UpstreamCampaignSectorInfoProbe {
             sector.info.wasCaptured = true;
             sector.info.wave = 7;
             sector.info.storageCapacity = 4000;
-            sector.info.name = "M3DS Outpost";
+            // Exercise Sector.setName(), which persists info immediately.
+            sector.setName("M3DS Outpost");
             sector.info.items.add(Items.copper, 250);
             sector.info.items.add(Items.lead, 75);
             sector.info.bestCoreType = Blocks.coreShard;
@@ -105,6 +106,15 @@ public final class UpstreamCampaignSectorInfoProbe {
             if(!loaded.resources.contains(Blocks.copperWall)){
                 throw new IllegalStateException("SectorInfo resources did not reload");
             }
+
+            // Sector.clearInfo() removes the settings key and resets the struct.
+            sector.clearInfo();
+            if(reloaded.has("serpulo-s-170-info")){
+                throw new IllegalStateException("SectorInfo key was not removed");
+            }
+            if(sector.info.wasCaptured || sector.info.name != null || sector.info.items.total != 0){
+                throw new IllegalStateException("SectorInfo was not cleared");
+            }
         }finally{
             if(oldSettings == null){
                 settingsFile.delete();
@@ -124,6 +134,6 @@ public final class UpstreamCampaignSectorInfoProbe {
         System.out.println(
             "UPSTREAM_CAMPAIGN_SECTOR_INFO path=" + (live ? "live" : "tmp")
             + " key=serpulo-s-170-info api=ok captured=ok wave=7 items=250:75"
-            + " core=coreShard resource=copper-wall reload=ok blocks=" + blocks);
+            + " core=coreShard resource=copper-wall reload=ok clear=ok blocks=" + blocks);
     }
 }
