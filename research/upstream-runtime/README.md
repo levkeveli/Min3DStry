@@ -379,6 +379,21 @@ and waits for the server to assign a unit. The Circle Pad and D-pad move
 the unit, releasing the input lets it decelerate, and START disconnects.
 The top screen shows the session log.
 
+Hold X and use the Circle Pad or D-pad to set a weapon aim direction
+without moving. Release X to resume movement. The aim direction stays set
+until changed or until a new unit spawns. Hold L to fire and release it to
+stop. Until an aim direction is set, the unit aims along its current facing.
+The controls call the pinned unit's aim and weapon methods and send its
+aim point and fire flag in the original `ClientSnapshotCallPacket`.
+
+The pinned JVM snapshot reference verifies the default facing, latched aim,
+fire and release through the stock packet serializer. To replay the inputs
+on ARM11, run the live verifier with `--controls --controls-replay
+--verify-weapons` on Glacier. For the graphical build also pass
+`--terrain-atlas /path/to/sprites.aatls`. The unmodified Java server must
+observe the player's Gamma launch a stock projectile for each direction
+and receive a newer snapshot that clears the fire flag after each release.
+
 Run the same verifier with `--controls --model old3ds` and then
 `--controls --model new3ds`. Follow its prompts to move right with the
 D-pad, move up with the Circle Pad, and leave after the next wave.

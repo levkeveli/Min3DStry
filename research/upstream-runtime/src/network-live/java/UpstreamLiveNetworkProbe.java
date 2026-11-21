@@ -383,8 +383,8 @@ public final class UpstreamLiveNetworkProbe {
         long lastFrame = 0;
         int stateId = unsignedId(StateSnapshotCallPacket.class);
         int entityId = unsignedId(EntitySnapshotCallPacket.class);
-        System.out.println(frame == null ? "Circle Pad or D-pad moves. START leaves."
-            : "Tap the build grid to place. R rotates. B toggles removal. START leaves.");
+        System.out.println("Circle Pad or D-pad moves. Hold X to aim with the pad and L to fire. START leaves.");
+        if (frame != null) System.out.println("Tap the build grid to place. R rotates. B toggles removal.");
         while (true) {
             int input = Native.input();
             if (input < 0) return;
@@ -550,8 +550,12 @@ public final class UpstreamLiveNetworkProbe {
         sendPosition(unit, sequence, false);
     }
 
-    // Match the player snapshot fields for movement and the upstream build queue in NetClient.sync.
+    // Match the player snapshot fields in pinned NetClient.sync.
     private static void sendPosition(Unit unit, int sequence, boolean building) throws IOException {
+        send(playerSnapshot(unit, sequence, building), false);
+    }
+
+    static ClientSnapshotCallPacket playerSnapshot(Unit unit, int sequence, boolean building) {
         var player = Vars.player;
         var snapshot = new ClientSnapshotCallPacket();
         snapshot.snapshotID = sequence;
@@ -565,6 +569,7 @@ public final class UpstreamLiveNetworkProbe {
         snapshot.xVelocity = unit.vel.x;
         snapshot.yVelocity = unit.vel.y;
         snapshot.mining = unit.mineTile;
+        snapshot.shooting = player.shooting;
         snapshot.building = building;
         if (building) snapshot.plans = unit.plans();
         snapshot.selectedBlock = player.selectedBlock;
@@ -573,7 +578,32 @@ public final class UpstreamLiveNetworkProbe {
         snapshot.viewY = unit.y();
         snapshot.viewWidth = 400f;
         snapshot.viewHeight = 240f;
-        send(snapshot, false);
+        return snapshot;
+    }
+
+    static final class WeaponInput {
+        static final int aimHeld = 1 << 20, fireHeld = 1 << 21;
+        private final Vec2 heading = new Vec2();
+        private boolean aimed;
+
+        void reset() {
+            aimed = false;
+        }
+
+        void apply(Unit unit, Vec2 direction, int input) {
+            boolean aiming = (input & aimHeld) != 0;
+            if (aiming && !direction.isZero()) {
+                heading.set(direction).nor();
+                aimed = true;
+            }
+            if (!aimed) heading.trns(unit.rotation(), 1f);
+            float distance = Math.max(unit.type().range, unit.type().aimDst);
+            unit.aim(unit.x() + heading.x * distance, unit.y() + heading.y * distance, true);
+            Vars.player.shooting = (input & fireHeld) != 0;
+            unit.controlWeapons(true, Vars.player.shooting);
+            Vars.player.mouseX = unit.aimX();
+            Vars.player.mouseY = unit.aimY();
+        }
     }
 
     private static final class LiveControls {
@@ -584,6 +614,7 @@ public final class UpstreamLiveNetworkProbe {
         private static final float STOP_SPEED = 0.03f;
         private final UpstreamLiveBuildControls buildingControls;
         private final Vec2 direction = new Vec2();
+        private final WeaponInput weapons = new WeaponInput();
         private long lastStep, lastSnapshot;
         private int sequence;
         private Unit previousUnit;
@@ -598,19 +629,23 @@ public final class UpstreamLiveNetworkProbe {
             var unit = controlledUnit();
             if (unit == null) {
                 previousUnit = null;
+                Vars.player.shooting = false;
                 return;
             }
             if (previousUnit != unit) {
                 previousUnit = unit;
+                weapons.reset();
                 lastStep = now;
                 moving = false;
                 System.out.println("UPSTREAM_LIVE_CONTROLS_READY unit=" + unit.id()
                     + " x=" + unit.x() + " y=" + unit.y());
             }
             if (buildingControls != null) buildingControls.update(unit, input, Native.touch());
+            direction.set((byte)input / 127f, (byte)(input >>> 8) / 127f).limit(1f);
+            if (direction.len2() < DEAD_ZONE * DEAD_ZONE) direction.setZero();
+            weapons.apply(unit, direction, input);
+            if ((input & WeaponInput.aimHeld) != 0) direction.setZero();
             if (now - lastStep >= FRAME_NS) {
-                direction.set((byte)input / 127f, (byte)(input >>> 8) / 127f).limit(1f);
-                if (direction.len2() < DEAD_ZONE * DEAD_ZONE) direction.setZero();
                 float delta = Math.min(3f, (now - lastStep) / (float)FRAME_NS);
                 lastStep = now;
                 stepUnit(unit, direction, delta);
@@ -638,7 +673,12 @@ public final class UpstreamLiveNetworkProbe {
             float previousDelta = Time.delta;
             Time.delta = delta;
             try {
-                unit.lookAt(unit.prefRotation());
+                if (Vars.player.shooting && unit.type().omniMovement && unit.type().hasWeapons()
+                        && unit.type().faceTarget) {
+                    unit.lookAt(unit.angleTo(unit.aimX(), unit.aimY()));
+                } else {
+                    unit.lookAt(unit.prefRotation());
+                }
                 unit.movePref(input.scl(unit.speed()));
                 // Match the local position and drag update in upstream VelComp.
                 float x = unit.x(), y = unit.y();

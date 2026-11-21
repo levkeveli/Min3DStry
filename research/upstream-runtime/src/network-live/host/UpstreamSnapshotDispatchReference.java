@@ -1,4 +1,5 @@
 import arc.files.Fi;
+import arc.math.geom.Vec2;
 import arc.util.io.Reads;
 import arc.util.io.Writes;
 import java.io.ByteArrayInputStream;
@@ -20,6 +21,7 @@ import mindustry.game.MapObjectives.TextMarker;
 import mindustry.game.MapObjectives.TextureMarker;
 import mindustry.game.Universe;
 import mindustry.gen.BlockSnapshotCallPacket;
+import mindustry.gen.ClientSnapshotCallPacket;
 import mindustry.gen.ClearObjectivesCallPacket;
 import mindustry.gen.CompleteObjectiveCallPacket;
 import mindustry.gen.CreateMarkerCallPacket;
@@ -100,6 +102,46 @@ public final class UpstreamSnapshotDispatchReference {
         verifyPayloadHandoff();
         verifyObjectivePackets();
         verifyMarkerPackets();
+        verifyWeaponInput();
+    }
+
+    private static void verifyWeaponInput() {
+        var input = new UpstreamLiveNetworkProbe.WeaponInput();
+        var unit = UnitTypes.gamma.create(Vars.player.team());
+        unit.set(648f, 208f);
+        unit.rotation(0f);
+        input.apply(unit, new Vec2(), 0);
+        verifyWeaponSnapshot(unit, false, true);
+
+        var north = new Vec2(0f, 1f);
+        input.apply(unit, north, UpstreamLiveNetworkProbe.WeaponInput.aimHeld);
+        verifyWeaponSnapshot(unit, false, false);
+        input.apply(unit, new Vec2(), UpstreamLiveNetworkProbe.WeaponInput.fireHeld);
+        verifyWeaponSnapshot(unit, true, false);
+        input.apply(unit, new Vec2(), 0);
+        verifyWeaponSnapshot(unit, false, false);
+
+        input.reset();
+        input.apply(unit, new Vec2(), 0);
+        verifyWeaponSnapshot(unit, false, true);
+        System.out.println("UPSTREAM_WEAPON_REFERENCE facing=ok aim=ok hold=ok release=ok reset=ok");
+    }
+
+    private static void verifyWeaponSnapshot(Unit unit, boolean shooting, boolean east) {
+        var sent = UpstreamLiveNetworkProbe.playerSnapshot(unit, 19, false);
+        var bytes = new ByteArrayOutputStream();
+        sent.write(new Writes(new DataOutputStream(bytes)));
+        byte[] payload = bytes.toByteArray();
+        var received = new ClientSnapshotCallPacket();
+        received.read(new Reads(new DataInputStream(new ByteArrayInputStream(payload))), payload.length);
+        received.handled();
+        boolean direction = east ? received.pointerX > unit.x() && Math.abs(received.pointerY - unit.y()) < 0.01f
+            : received.pointerY > unit.y() && Math.abs(received.pointerX - unit.x()) < 0.01f;
+        if (received.snapshotID != 19 || received.unitID != unit.id() || received.shooting != shooting
+                || received.pointerX != unit.aimX() || received.pointerY != unit.aimY() || !direction
+                || !unit.type().hasWeapons() || unit.isShooting() != shooting) {
+            throw new AssertionError("The stock weapon snapshot did not preserve aim and fire input");
+        }
     }
 
     private static void verifyObjectivePackets() {

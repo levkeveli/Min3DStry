@@ -90,7 +90,8 @@ BUILDING_CRACK_PIXELS = {
 
 
 def write_controls_replay(path, first_move=22, building=False, touch_build=False, touch_config=False,
-                          erekir_build=False, mining=None, model="old3ds", stock_menu_font=False):
+                          erekir_build=False, mining=None, model="old3ds", stock_menu_font=False,
+                          weapons=False):
     """Write the Azahar 2126.2 CTM input for this probe's pad/touch polling."""
     # The pinned Azahar movie header and HID sample definitions use packed little-endian fields.
     revision = bytes.fromhex("219d743a1e698101fe1ab8bef43e6563126c3c27")
@@ -99,6 +100,8 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
     needs_settling_time = building or touch_build or touch_config
     circle_at = first_move + (18 if needs_settling_time else 6)
     leave_at = first_move + (44 if needs_settling_time else 16)
+    if weapons:
+        leave_at = first_move + 26
     frames = (128 if erekir_build or mining else leave_at + 7) * samples_per_second
     header = struct.pack("<4sQ20sQQ32sIQq156x", b"CTM\x1b", 0, revision, 1780000000,
                          0x4D334453, b"Min3DStry input verification", 0, frames, 0)
@@ -144,12 +147,20 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
                 buttons = (1 << 8) if 66 <= seconds < 72 else 0  # R, the 3DS rotate shortcut.
             elif mining:
                 buttons = 0
+            elif weapons:
+                buttons = (1 << 3) if seconds == leave_at else 0  # START
+                if first_move <= seconds < first_move + 5:
+                    buttons = (1 << 10) | (1 << 9) | (1 << 4)  # X + L + D-pad right
+                elif first_move + 10 <= seconds < first_move + 15:
+                    buttons = (1 << 10) | (1 << 9)  # X + L, with Circle Pad up below
             else:
                 buttons = (1 << 4) if seconds == first_move else (1 << 3) if seconds == leave_at else 0
             if building and seconds in (35, 37, 39):
                 buttons = 1  # A, with releases so a late HID poll can observe another press.
             circle_x = 65 if mining == "wall" and 54 <= seconds < pan_end else 0
             circle_y = 106 if seconds == circle_at and not (erekir_build or mining) else 0
+            if weapons:
+                circle_y = 106 if first_move + 10 <= seconds < first_move + 15 else 0
             if mining == "floor" and 88 <= seconds < 94:
                 circle_y = 65
             point = next((point for start, point in taps if start <= seconds < start + 2), None)
@@ -1503,6 +1514,36 @@ def verify_display_markers(server_log, server, rpc, output, model, timeout):
     print(f"{model}: stock display-backed texture and quad passed orientation, offscreen updates and retargeting.", flush=True)
 
 
+def watch_player_weapons(server_log, server):
+    # Observe a stock projectile owned by the actual player, then a newer
+    # snapshot that clears the fire flag. The observer only reads game state.
+    script = (
+        '(() => { let phase = 0, shotSnapshot = 0, unitId = -1, x = 0, y = 0; '
+        'Events.run(Packages.mindustry.game.EventType.Trigger.update, () => { '
+        f'const p = Groups.player.find(p => p.name === {json.dumps(PLAYER)}); '
+        'if (phase >= 4 || p == null || p.dead()) return; '
+        'const u = p.unit(), seq = p.con.lastReceivedClientSnapshot; '
+        'if (seq <= 0 || u.type !== UnitTypes.gamma) return; '
+        'if (unitId < 0) { unitId = u.id; x = u.x; y = u.y; } '
+        'if (u.id !== unitId || Math.abs(u.x - x) > 1 || Math.abs(u.y - y) > 1) return; '
+        'const east = phase < 2, axis = east ? "east" : "north"; '
+        'if (phase % 2 === 1) { '
+        'if (seq > shotSnapshot && !u.isShooting()) { '
+        'print("UPSTREAM_WEAPON_RELEASE axis=" + axis + " unit=" + u.id); phase++; } return; } '
+        'const dx = u.aimX() - u.x, dy = u.aimY() - u.y; '
+        'if (!u.isShooting() || !(east ? dx > 0 && Math.abs(dy) < 0.1 : dy > 0 && Math.abs(dx) < 0.1)) return; '
+        'const shot = Groups.bullet.find(b => b.owner === u && b.type === u.mounts[0].weapon.bullet '
+        '&& (east ? b.vel.x > 0 && Math.abs(b.vel.y) < b.vel.x * 0.25 '
+        ': b.vel.y > 0 && Math.abs(b.vel.x) < b.vel.y * 0.25)); '
+        'if (shot != null) { shotSnapshot = seq; phase++; '
+        'print("UPSTREAM_WEAPON_SHOT axis=" + axis + " unit=" + u.id + " bullet=" + shot.id); } '
+        '}); return "UPSTREAM_WEAPON_OBSERVER_READY"; })()'
+    )
+    server.stdin.write(f"js {script}\n")
+    server.stdin.flush()
+    wait_for(server_log, server, r"UPSTREAM_WEAPON_OBSERVER_READY\b", 5)
+
+
 def run_model(args, model, config, original_config, log, output):
     stationary = (args.world_atlas_recycle or args.building_layers or args.liquids
                   or args.building_effects or args.payload_mix or args.carried_buildings
@@ -1548,6 +1589,8 @@ def run_model(args, model, config, original_config, log, output):
             server.stdin.flush()
             wait_for(server_log, server, f"Opened a server on port {args.port}\\.", 25)
             world_size = (150, 250)
+            if args.verify_weapons:
+                watch_player_weapons(server_log, server)
             if args.verify_canvas or args.verify_canvas_quads or args.verify_client_processor:
                 load_canvas_fixture(server_log, server, offscreen=args.verify_canvas_quads)
             if args.verify_client_processor:
@@ -1663,7 +1706,7 @@ def run_model(args, model, config, original_config, log, output):
                 write_controls_replay(replay, first_move=first_move, building=args.building,
                                       touch_build=args.touch_build, touch_config=args.touch_config,
                                       erekir_build=args.erekir_build, mining=args.mining, model=model,
-                                      stock_menu_font=args.verify_stock_menu_font)
+                                      stock_menu_font=args.verify_stock_menu_font, weapons=args.verify_weapons)
                 command += ["-p", str(replay)]
             command.append(str(args.rom))
             emulator = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -1678,6 +1721,13 @@ def run_model(args, model, config, original_config, log, output):
                     print(re.search(pattern, localized).group(0), flush=True)
                 if args.controls_rejoin:
                     emu_log = verify_graphical_rejoin(args, model, log, emulator, server_log, server, rpc, output)
+                elif args.verify_weapons:
+                    for axis in ("east", "north"):
+                        wait_for(server_log, server, rf"UPSTREAM_WEAPON_SHOT axis={axis} unit=\d+ bullet=\d+\b",
+                                 args.timeout)
+                        wait_for(server_log, server, rf"UPSTREAM_WEAPON_RELEASE axis={axis} unit=\d+\b", args.timeout)
+                    print(f"{model}: the stock server fired east and north and applied both releases.", flush=True)
+                    emu_log = wait_for(log, emulator, "UPSTREAM_LIVE_CONTROLS_LEFT", args.timeout)
                 elif args.controls:
                     def capture(phase, position):
                         if args.world_atlas_recycle and phase == "spawn":
@@ -1970,6 +2020,8 @@ def main():
                         help="Require the original font on the campaign objective HUD")
     parser.add_argument("--require-relocation-spill", action="store_true",
                         help="Require the ARM11 collector to grow its relocation table during the spawn check")
+    parser.add_argument("--verify-weapons", action="store_true",
+                        help="Verify the original player fires east and north and releases on Glacier")
     args = parser.parse_args()
     if args.controls_rejoin and (not args.controls or args.controls_replay or not args.terrain_atlas
                                  or args.map_spawn not in MAP_SPAWN_PIXELS or args.verify_objective_markers
@@ -1985,6 +2037,9 @@ def main():
         parser.error("The PC client needs a distinct player name")
     if args.controls_replay and not args.controls:
         parser.error("--controls-replay needs --controls")
+    if args.verify_weapons and (not args.controls_replay or args.map_spawn or args.building or args.touch_build
+                                or args.touch_config):
+        parser.error("--verify-weapons needs a standalone --controls --controls-replay on Glacier")
     if args.building and not args.terrain_atlas:
         parser.error("--building needs --terrain-atlas")
     if args.touch_build and not args.terrain_atlas:
