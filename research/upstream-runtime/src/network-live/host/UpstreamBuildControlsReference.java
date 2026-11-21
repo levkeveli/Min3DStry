@@ -5,6 +5,7 @@ import mindustry.Vars;
 import mindustry.ai.BlockIndexer;
 import mindustry.content.Blocks;
 import mindustry.content.Items;
+import mindustry.content.Planets;
 import mindustry.content.UnitTypes;
 import mindustry.core.NetClient;
 import mindustry.game.Universe;
@@ -75,7 +76,24 @@ public final class UpstreamBuildControlsReference {
         }
         verifyCatalog(controls, unit);
         verifyConfiguration(controls, unit);
+        verifyPlanetShortcuts();
         System.out.println("UPSTREAM_TOUCH_REFERENCE conveyor=85,26,1 wall=86,26 break=86,26");
+    }
+
+    private static void verifyPlanetShortcuts() {
+        var controls = new UpstreamLiveBuildControls();
+        var planet = Vars.state.rules.planet;
+        try {
+            if (controls.block() != Blocks.conveyor || controls.shortcut(1) != Blocks.copperWall) {
+                throw new AssertionError("Glacier should retain its Serpulo shortcuts");
+            }
+            Vars.state.rules.planet = Planets.erekir;
+            if (controls.block() != Blocks.duct || controls.shortcut(1) != Blocks.berylliumWall) {
+                throw new AssertionError("Erekir should use Duct and Beryllium Wall shortcuts");
+            }
+        } finally {
+            Vars.state.rules.planet = planet;
+        }
     }
 
     private static void verifyPlanetGrids() {

@@ -875,6 +875,21 @@ The renderer still selects blocks that use the supported sprite operations.
 Textured raw vertices, additional payload types and other rendering services
 are tracked in [#139](https://github.com/levkeveli/Min3DStry/issues/139).
 
+### Verify Erekir construction
+
+The touchscreen starter shortcuts use the planet from the streamed rules.
+On Erekir they select the stock Duct and Beryllium Wall and show the original
+localized block names. Conveyor and Copper Wall remain the Serpulo shortcuts.
+The original build queue and BlockRenderer handle placement and drawing.
+
+Run the live verifier with
+`--controls --controls-replay --map-spawn "The Onset" --erekir-sector onset --erekir-build --terrain-atlas <sprites.aatls>`.
+The stock server loads the original map in Survival and the fixture adds
+16 beryllium to the Core Bastion. The replay rotates and places a Duct at
+(280, 107), then places a Beryllium Wall at (280, 106). The verifier checks
+the server's placement, rotation, builder and balances of 15 and 9
+beryllium, then compares samples from the original atlas.
+
 ### Verify the Arc executor pools
 
 Use `-Pprobe=executor` with the JVM and ARM11 build commands. The JVM uses the
