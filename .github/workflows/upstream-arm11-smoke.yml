@@ -39,7 +39,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        probe: [logic, map, resource, executor, campaign-settings, campaign-content, wave-routing]
+        probe: [logic, map, resource, executor, campaign-settings, campaign-content, campaign-research, wave-routing]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -61,7 +61,7 @@ jobs:
             -o "$RUNNER_TEMP/server-release.jar"
 
       - name: Fetch pinned Arc source
-        if: matrix.probe == 'resource' || matrix.probe == 'executor' || matrix.probe == 'campaign-settings' || matrix.probe == 'campaign-content' || matrix.probe == 'wave-routing'
+        if: matrix.probe == 'resource' || matrix.probe == 'executor' || matrix.probe == 'campaign-settings' || matrix.probe == 'campaign-content' || matrix.probe == 'campaign-research' || matrix.probe == 'wave-routing'
         run: |
           git clone --filter=blob:none --no-checkout \
             https://github.com/Anuken/Arc.git "$RUNNER_TEMP/Arc"
@@ -109,6 +109,9 @@ jobs:
           fi
           if [ "${{ matrix.probe }}" = "campaign-content" ]; then
             grep -F 'lockedBefore=ok conveyorUnlocked=true key=conveyor-unlocked research=50 reload=ok' "$RUNNER_TEMP/probe.log"
+          fi
+          if [ "${{ matrix.probe }}" = "campaign-research" ]; then
+            grep -F 'root=serpulo node=conveyor copper=50 lockedBefore=ok reload=ok' "$RUNNER_TEMP/probe.log"
           fi
           if [ "${{ matrix.probe }}" = "wave-routing" ]; then
             grep -F 'UPSTREAM_WAVE_SETUP core=81,26 enemyCore=81,224 groundSpawns=1 fieldHash=629058db4926d64e' \
