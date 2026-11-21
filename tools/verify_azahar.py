@@ -119,6 +119,19 @@ STORAGE_ROUNDTRIP_RE = re.compile(
     r"bytes=(?P<bytes>\d+))?"
 )
 
+SECTOR_CATALOG_RE = re.compile(
+    r"\[MIN3DSTRY\] SECTOR_CATALOG count=(?P<count>\d+)"
+)
+
+SECTOR_SLOT_RE = re.compile(
+    r"\[MIN3DSTRY\] SECTOR_SLOT "
+    r"planet=(?P<planet>\S+) "
+    r"id=(?P<id>\d+) "
+    r"valid=(?P<valid>\d+) "
+    r"compressed=(?P<compressed>\d+) "
+    r"bytes=(?P<bytes>\d+)"
+)
+
 BLOCK_PLACE_EVENT_RE = re.compile(
     r"\[MIN3DSTRY\] AUDIO_EVENT block\.place "
     r"clip=(?P<clip>-?\d+) "
@@ -472,6 +485,8 @@ def parse_azahar_log(log_text: str) -> dict[str, Any]:
     atlas_loaded: bool | None = None
     storage: dict[str, Any] | None = None
     storage_roundtrip: dict[str, Any] | None = None
+    sector_catalog: dict[str, Any] | None = None
+    sector_slots: list[dict[str, Any]] = []
     parity: dict[str, Any] | None = None
     audio: dict[str, Any] | None = None
     audio_romfs: dict[str, Any] | None = None
@@ -512,6 +527,23 @@ def parse_azahar_log(log_text: str) -> dict[str, Any]:
                     "status": rg["status"],
                     "bytes": int(rg["bytes"]) if rg["bytes"] else 0,
                 }
+        elif "[MIN3DSTRY] SECTOR_CATALOG " in line:
+            catalog_match = SECTOR_CATALOG_RE.search(line)
+            if catalog_match:
+                sector_catalog = {"count": int(catalog_match.group("count"))}
+        elif "[MIN3DSTRY] SECTOR_SLOT " in line:
+            slot_match = SECTOR_SLOT_RE.search(line)
+            if slot_match:
+                sg = slot_match.groupdict()
+                sector_slots.append(
+                    {
+                        "planet": sg["planet"],
+                        "id": int(sg["id"]),
+                        "valid": sg["valid"] == "1",
+                        "compressed": sg["compressed"] == "1",
+                        "bytes": int(sg["bytes"]),
+                    }
+                )
         elif "[MIN3DSTRY] PARITY " in line:
             parity = parse_parity_debug_line(line)
         elif "[MIN3DSTRY] WORKERS " in line:
@@ -668,6 +700,8 @@ def parse_azahar_log(log_text: str) -> dict[str, Any]:
         "atlas_loaded": atlas_loaded,
         "storage": storage,
         "storage_roundtrip": storage_roundtrip,
+        "sector_catalog": sector_catalog,
+        "sector_slots": sector_slots,
         "parity": parity,
         "audio": audio,
         "audio_romfs": audio_romfs,
@@ -722,6 +756,7 @@ def run_model_check(
     log_path: Path,
     out_dir: Path,
     timeout: float,
+    expect_sector_catalog: int | None = None,
 ) -> dict[str, Any]:
     is_new_3ds = "true" if model == "new3ds" else "false"
     overrides = {
@@ -836,6 +871,15 @@ def run_model_check(
         if storage_roundtrip != {"status": "ok", "bytes": 4}:
             raise AssertionError(
                 f"Storage probe round-trip failed for {model}: {storage_roundtrip}")
+        if expect_sector_catalog is not None:
+            catalog = parsed.get("sector_catalog")
+            slots = parsed.get("sector_slots") or []
+            if catalog is None or catalog["count"] != expect_sector_catalog:
+                raise AssertionError(
+                    f"Unexpected sector catalog for {model}: {catalog}")
+            if expect_sector_catalog > 0 and len(slots) != expect_sector_catalog:
+                raise AssertionError(
+                    f"Sector slot count mismatch for {model}: {slots}")
         if (
             audio["backend"] != "ndsp"
             or audio["state"] not in ("ready", "fallback_no_dsp")
@@ -927,6 +971,8 @@ def run_model_check(
             "atlas_loaded": parsed.get("atlas_loaded"),
             "storage": storage,
             "storage_roundtrip": storage_roundtrip,
+            "sector_catalog": parsed.get("sector_catalog"),
+            "sector_slots": parsed.get("sector_slots") or [],
             "parity": parity,
             "audio": audio,
             "audio_romfs": audio_romfs,
@@ -974,6 +1020,12 @@ def main() -> int:
     parser.add_argument("--out-dir", default="build/emu-verify")
     parser.add_argument("--timeout", type=float, default=60.0)
     parser.add_argument("--azahar", default=None)
+    parser.add_argument(
+        "--expect-sector-catalog",
+        type=int,
+        default=None,
+        help="Fail unless each model reports this many SD sector slots.",
+    )
     args = parser.parse_args()
 
     rom_path = Path(args.rom)
@@ -993,7 +1045,10 @@ def main() -> int:
 
     results = []
     for model in models:
-        res = run_model_check(model, rom_path, azahar_bin, config_path, log_path, out_dir, args.timeout)
+        res = run_model_check(
+            model, rom_path, azahar_bin, config_path, log_path, out_dir, args.timeout,
+            args.expect_sector_catalog,
+        )
         results.append(res)
         print(
             f"[PASS] {model}: {res['hw_line']} | "
@@ -1001,6 +1056,7 @@ def main() -> int:
             f"Audio={res['audio']['state']} | "
             f"R:{res['frame']['rects']} C:{res['frame']['circles']} Sw:{res['frame']['state_switches']} | "
             f"FPS={res['perf']['game_fps']} ({res['perf']['emulation_speed_pct']}%) | "
+            f"Sectors={res['sector_catalog']['count'] if res['sector_catalog'] else 0} | "
             f"PNG={res['screenshot']['path']}"
         )
 

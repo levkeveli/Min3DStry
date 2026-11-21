@@ -1,6 +1,6 @@
 # Campaign Progression & Tech-Tree Persistence Baseline (Issue #41)
 
-**Verification status:** Host baselines plus a real Arc `Settings`/`settings.bin` round-trip probe verified on ARM11 in Azahar New/Old profiles. Campaign UI, live sector slots and gameplay integration (`campaign-sectors` capability) remain **Planned** under [#41](https://github.com/levkeveli/Min3DStry/issues/41).
+**Verification status:** **Experimental**. Host baselines and real Arc `Settings`/`settings.bin`, campaign keys, sector slot, sector/content/research/launch/planet state, slot metadata and save probes have run on ARM11 in Azahar New/Old profiles. A native read-only SD sector catalog now lists upstream `sector-<planet>-<id>.msav` slots in the HUD. Campaign UI, sector selection/launch and gameplay integration remain open under [#41](https://github.com/levkeveli/Min3DStry/issues/41).
 
 ## 1:1 Upstream Mandate
 
@@ -312,10 +312,39 @@ The probe supplies a minimal Arc `Files`/`AssetManager` for headless use, sets
 `sector-serpulo-15.msav` name and parent directory. Azahar `2126.2` New and Old
 profiles both reported `saves=ok`.
 
+## Native SD Sector Catalog
+
+`include/platform/sector_catalog.h` scans the live `/3ds/min3dstry` directory
+for upstream `sector-<planet>-<id>.msav` names, validates each container through
+`m3ds_save_slot_probe`, and keeps the result sorted by planet then sector id.
+The scan is read-only: it never creates, rewrites or deletes a slot. A missing
+directory is an empty catalog, not an error.
+
+`main_3ds.c` reports the catalog at startup and in the bottom HUD:
+
+```text
+[MIN3DSTRY] SECTOR_CATALOG count=2
+[MIN3DSTRY] SECTOR_SLOT planet=erekir id=64 valid=0 compressed=1 bytes=17
+[MIN3DSTRY] SECTOR_SLOT planet=serpulo id=170 valid=1 compressed=0 bytes=20
+```
+
+```text
+Sectors: 2
+Sector erekir-64 zlib 17B
+```
+
+`tests/platform/test_sector_catalog.c` covers sorting, capacity limits,
+malformed names, non-slot files, compressed and raw headers, and missing
+directories. `./dev.sh test` runs it. With `sector-serpulo-170.msav` (raw
+`MSAV` v13) and `sector-erekir-64.msav` (zlib wrapper) staged in Azahar's
+`sdmc:/3ds/min3dstry`, `./dev.sh emu-test --expect-sector-catalog 2` verified
+`count=2` and the HUD lines on both New 3DS (804 MHz) and Old 3DS (268 MHz)
+profiles.
+
 ## Remaining Scope for Issue #41 (3DS Hardware / ARM11 Runtime)
 
 The capability is marked `experimental` because the probes in [campaign-verification.md](campaign-verification.md) verify upstream settings, sector `.msav` slots, `SectorInfo` JSON, tech-tree requirements, planet last-sector routing, sector play/capture transitions, and sector-save launch on ARM11/Azahar. The host-verified path contract is recorded in [sd-storage-paths.md](sd-storage-paths.md). The live runtime still needs to consume these paths end-to-end:
 
 1. Route the live `Core.files`/`Core.settings` instance (not only research probes) to `/3ds/min3dstry/` so `settings.bin`, `settings_backup.bin`, `settings_backups/`, and `sector-<planet>-<id>.msav` use the verified contract.
-2. Build the live campaign launch/capture UI flow and capture rewards on top of the verified persistence/routing APIs.
+2. Build the live campaign launch/capture UI flow, sector selection and capture rewards on top of the verified persistence/routing APIs and the read-only SD sector catalog.
 3. Advance beyond `experimental` only after those live flows and physical Old/New 3DS verification.
