@@ -137,10 +137,7 @@ static void decode_compressed(FILE *file, M3dsSaveSlotInfo *info) {
     free(decoded);
 }
 
-bool m3ds_save_slot_probe(const char *path, M3dsSaveSlotInfo *info) {
-    if (!path || !info) {
-        return false;
-    }
+static bool probe_file(const char *path, M3dsSaveSlotInfo *info) {
     memset(info, 0, sizeof(*info));
     FILE *file = fopen(path, "rb");
     if (!file) {
@@ -163,5 +160,46 @@ bool m3ds_save_slot_probe(const char *path, M3dsSaveSlotInfo *info) {
         decode_compressed(file, info);
     }
     fclose(file);
+    return true;
+}
+
+static bool backup_path(
+    const char *path, char *out, size_t capacity) {
+    static const char suffix[] = ".msav";
+    size_t length = strlen(path);
+    size_t suffix_length = sizeof(suffix) - 1u;
+    if (length <= suffix_length
+            || strcmp(path + length - suffix_length, suffix) != 0) {
+        return false;
+    }
+    int written = snprintf(
+        out, capacity, "%.*s-backup.msav",
+        (int)(length - suffix_length), path);
+    return written > 0 && (size_t)written < capacity;
+}
+
+bool m3ds_save_slot_probe(const char *path, M3dsSaveSlotInfo *info) {
+    if (!path || !info) {
+        return false;
+    }
+    if (!probe_file(path, info)) {
+        return false;
+    }
+    if (info->present && info->valid) {
+        return true;
+    }
+    // Match SaveIO.isSaveValid/backupFileFor: a valid slot backup can stand in
+    // for a missing or corrupt primary save.
+    char backup[160];
+    if (!backup_path(path, backup, sizeof(backup))) {
+        return true;
+    }
+    M3dsSaveSlotInfo fallback;
+    if (!probe_file(backup, &fallback)) {
+        return true;
+    }
+    if (fallback.present && fallback.valid) {
+        *info = fallback;
+    }
     return true;
 }
