@@ -1,6 +1,7 @@
 import arc.Core;
 import arc.files.Fi;
 import arc.graphics.g2d.Draw;
+import arc.struct.IntSet;
 import java.io.IOException;
 import mindustry.Vars;
 import mindustry.content.Blocks;
@@ -15,6 +16,7 @@ public final class UpstreamRenderedNetworkProbe {
     private final Fi atlas;
     private final UpstreamTerrainRenderProbe target = new UpstreamTerrainRenderProbe(false);
     private final Runnable drawEntities = this::drawEntities;
+    private final IntSet reportedConveyors = new IntSet();
     private UpstreamTerrainDrawProbe.Viewport viewport;
     private Unit controlled;
     private int draws;
@@ -59,7 +61,13 @@ public final class UpstreamRenderedNetworkProbe {
     private void drawEntities() {
         for (var building : Groups.build) {
             if ((building.block == Blocks.coreNucleus || building.block == Blocks.conveyor)
-                    && viewport.contains(building)) building.draw();
+                    && viewport.contains(building)) {
+                building.draw();
+                if (building.block == Blocks.conveyor && reportedConveyors.add(building.pos())) {
+                    System.out.println("UPSTREAM_NETWORK_CONVEYOR x=" + building.tileX()
+                        + " y=" + building.tileY() + " rotation=" + building.rotation);
+                }
+            }
         }
         for (var unit : Groups.unit) {
             if (unit.type() != UnitTypes.gamma && unit.type() != UnitTypes.dagger) continue;
