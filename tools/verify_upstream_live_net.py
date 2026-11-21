@@ -491,6 +491,31 @@ def load_payload_handoff_fixture(server_log, server):
     wait_for(server_log, server, r"UPSTREAM_HANDOFF_FIXTURE sender=copper-wall receiver=null\b", 5)
 
 
+def load_unit_layers_fixture(server_log, server):
+    server.stdin.write(
+        'pause on\n'
+        'js (() => { const gamma = UnitTypes.gamma.spawn(Vars.state.rules.defaultTeam,600,224,90); '
+        'const dagger = UnitTypes.dagger.spawn(Vars.state.rules.waveTeam,688,184,90); '
+        'dagger.baseRotation=90; '
+        'return "UPSTREAM_UNIT_FIXTURE gamma=" + gamma.team.id + "," + gamma.rotation '
+        '+ " dagger=" + dagger.team.id + "," + dagger.baseRotation; })()\n'
+    )
+    server.stdin.flush()
+    wait_for(server_log, server, r"UPSTREAM_UNIT_FIXTURE gamma=1,90(?:\.0)? dagger=2,90(?:\.0)?\b", 5)
+
+
+def verify_unit_layers(screenshot):
+    # Opaque white cell texels take the team tint. These pixels sit outside the core.
+    sharded, crux = (255, 211, 127), (242, 85, 85)
+    expected = {(89, 76): sharded, (90, 76): sharded, (90, 79): sharded,
+                (309, 174): crux, (310, 174): crux, (310, 176): crux}
+    # The engine is visible beyond the Gamma's body. Both mirrored Dagger mounts have orange tips.
+    expected.update({(90, 89): sharded, (300, 165): (255, 166, 100), (319, 165): (255, 166, 100)})
+    colors = az.inspect_png(screenshot, tuple(expected))["samples"]
+    if colors != expected:
+        raise RuntimeError(f"Stock Gamma and Dagger cell, engine or weapon pixels differ: {colors}")
+
+
 def payload_handoff_pixels(screenshot):
     # Count colors unique to the opaque Copper Wall sprite across the centers of both belts.
     rows = (184, 187, 190, 193, 196)
@@ -615,7 +640,8 @@ def verify_conduit_frames(log, rpc, output, model):
 
 def run_model(args, model, config, original_config, log, output):
     stationary = (args.world_atlas_recycle or args.building_layers or args.liquids
-                  or args.building_effects or args.payload_mix or args.carried_buildings or args.payload_handoff)
+                  or args.building_effects or args.payload_mix or args.carried_buildings
+                  or args.payload_handoff or args.unit_layers)
     overrides = {
         "Miscellaneous": {"log_filter": "*:Info Debug.Emulated:Debug Service.SOC:Debug",
                           "check_for_update_on_start": "false"},
@@ -643,7 +669,7 @@ def run_model(args, model, config, original_config, log, output):
             server.stdin.write(f"config port {args.port}\nhost Glacier attack\n")
             server.stdin.flush()
             wait_for(server_log, server, f"Opened a server on port {args.port}\\.", 25)
-            if args.touch_build:
+            if args.building or args.touch_build:
                 # Give the pixel comparison a fixed patch of stock ice. Glacier's filters can
                 # place decorations on or alongside the test cells.
                 server.stdin.write('js (() => { for (let x = 85; x <= 87; x++) '
@@ -666,6 +692,8 @@ def run_model(args, model, config, original_config, log, output):
                 load_carried_buildings_fixture(server_log, server)
             if args.payload_handoff:
                 load_payload_handoff_fixture(server_log, server)
+            if args.unit_layers:
+                load_unit_layers_fixture(server_log, server)
             if args.building_effects:
                 load_building_effects_fixture(server_log, server)
             if args.liquids:
@@ -736,6 +764,8 @@ def run_model(args, model, config, original_config, log, output):
                             phase = "carried-buildings"
                         elif args.payload_handoff:
                             phase = "payload-before"
+                        elif args.unit_layers:
+                            phase = "unit-layers"
                         if args.building_layers:
                             phase = "building-cracks" if args.building_cracks else "building-layers"
                         capture(phase, spawn)
@@ -748,6 +778,8 @@ def run_model(args, model, config, original_config, log, output):
                         if args.payload_handoff:
                             verify_payload_handoff(server_log, server, rpc, output, model,
                                                    output / f"{model}-{phase}.png")
+                        if args.unit_layers:
+                            verify_unit_layers((output / f"{model}-{phase}.png").read_bytes())
                         if args.liquids:
                             verify_conduit_frames(log, rpc, output, model)
                         if not args.payload_handoff:
@@ -877,6 +909,8 @@ def main():
                             help="Verify stock walls, drill and transport blocks carried on Payload Conveyors")
     build_mode.add_argument("--payload-handoff", action="store_true",
                             help="Verify a stock server transfers a carried wall after the client joins")
+    build_mode.add_argument("--unit-layers", action="store_true",
+                            help="Verify the stock Gamma and Dagger in a paused Glacier session")
     args = parser.parse_args()
     args.server, args.rom, args.azahar = (path.resolve() for path in (args.server, args.rom, args.azahar))
     with args.server.open("rb") as archive:
@@ -908,6 +942,8 @@ def main():
         parser.error("--carried-buildings needs --controls and --terrain-atlas for a stationary capture")
     if args.payload_handoff and (not args.terrain_atlas or not args.controls or args.controls_replay):
         parser.error("--payload-handoff needs --controls and --terrain-atlas for a fixed camera")
+    if args.unit_layers and (not args.terrain_atlas or not args.controls or args.controls_replay):
+        parser.error("--unit-layers needs --controls and --terrain-atlas for a stationary capture")
     if args.building_effects and (not args.terrain_atlas or not args.controls or args.controls_replay):
         parser.error("--building-effects needs --controls and --terrain-atlas for a stationary capture")
     if args.liquids and (not args.terrain_atlas or not args.controls or args.controls_replay):

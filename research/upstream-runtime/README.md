@@ -673,6 +673,20 @@ the wall renders beyond its reach on the receiving conveyor. The
 [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44869587011)
 passed this test on the Old and New 3DS Azahar profiles.
 
+The Gamma and Dagger use upstream `UnitType.loadIcon`, `UnitType.load`
+and `UnitType.draw`. Their sprites run through the Arc layer queue with
+stock shadows, engines, mirrored weapons and team-colored cells. The JVM
+also traces the stock Dagger leg and base sprites. When the desktop
+renderer is absent, the staged `Drawf.buildBeam` selects Mindustry's
+existing unshaded line beam. The JVM verifies its two lines and focus square.
+
+Run the live verifier with `--controls --unit-layers --terrain-atlas`
+to spawn a Gamma and Dagger from the stock server in a paused Glacier
+session. It checks original team-cell colors, the exposed Gamma engine
+and both Dagger weapon tips. The
+[ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44871445657)
+passed the unit capture on both Old and New 3DS Azahar profiles.
+
 The renderer still selects blocks that use the supported sprite operations.
 Textured raw vertices, additional payload types and other rendering services
 are tracked in [#139](https://github.com/levkeveli/Min3DStry/issues/139).
