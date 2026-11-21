@@ -405,7 +405,9 @@ public final class UpstreamLiveNetworkProbe {
         } else if (id == unsignedId(RemoveQueueBlockCallPacket.class)) {
             decode(new RemoveQueueBlockCallPacket(), received).handleClient();
         } else if (id == unsignedId(BlockSnapshotCallPacket.class)) {
-            decode(new BlockSnapshotCallPacket(), received).handleClient();
+            var snapshot = decode(new BlockSnapshotCallPacket(), received);
+            snapshot.handleClient();
+            System.out.println("UPSTREAM_LIVE_BLOCK_SNAPSHOT records=" + snapshot.amount);
         } else if (id == unsignedId(TileConfigCallPacket.class)) {
             var config = decode(new TileConfigCallPacket(), received);
             config.handleClient();
