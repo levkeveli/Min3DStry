@@ -390,6 +390,29 @@ def capture_viewport(log, emulator, rpc, destination, position,
         return tuple(pixels["samples"][point] for point in interior)
 
 
+def load_building_effects_fixture(server_log, server):
+    # Freeze the stock simulation at known serialized display states.
+    server.stdin.write(
+        'pause on\n'
+        'js (() => { const team = Vars.state.rules.defaultTeam; '
+        'const phase = Vars.world.tile(86,28), overdrive = Vars.world.tile(74,28); '
+        'phase.setBlock(Blocks.phaseWeaver,team,0); '
+        'overdrive.setBlock(Blocks.overdriveProjector,team,0); '
+        'phase.build.warmup=1; overdrive.build.heat=1; '
+        'return "UPSTREAM_EFFECTS_FIXTURE weave=" + phase.build.warmup + " overdrive=" + overdrive.build.heat; })()\n'
+    )
+    server.stdin.flush()
+    wait_for(server_log, server, r"UPSTREAM_EFFECTS_FIXTURE weave=1(?:\.0)? overdrive=1(?:\.0)?\b", 5)
+
+
+def verify_building_effects(screenshot):
+    # The original Phase Weaver shell is transparent over its central Lines quad.
+    points = ((319, 53), (320, 57), (320, 63), (319, 66))
+    colors = az.inspect_png(screenshot, points)["samples"]
+    if any(colors[point] != (255, 211, 127) for point in points):
+        raise RuntimeError(f"Original Phase Weaver line is missing or miscolored: {colors}")
+
+
 def load_conduit_fixture(server_log, server):
     # Keep both ends full so the stock server retains water in the linked conduits.
     pipes = ((83, 22, 0), (84, 22, 0), (85, 22, 0), (86, 22, 1), (86, 23, 1),
@@ -446,7 +469,7 @@ def verify_conduit_frames(log, rpc, output, model):
 
 
 def run_model(args, model, config, original_config, log, output):
-    stationary = args.world_atlas_recycle or args.building_layers or args.liquids
+    stationary = args.world_atlas_recycle or args.building_layers or args.liquids or args.building_effects
     overrides = {
         "Miscellaneous": {"log_filter": "*:Info Debug.Emulated:Debug Service.SOC:Debug",
                           "check_for_update_on_start": "false"},
@@ -489,6 +512,8 @@ def run_model(args, model, config, original_config, log, output):
                                    'return "UPSTREAM_CONFIG_FIXTURE lead=" + items.get(Items.lead); })()\n')
                 server.stdin.flush()
                 wait_for(server_log, server, r"UPSTREAM_CONFIG_FIXTURE lead=\d+", 5)
+            if args.building_effects:
+                load_building_effects_fixture(server_log, server)
             if args.liquids:
                 load_conduit_fixture(server_log, server)
             if args.building_layers:
@@ -548,10 +573,12 @@ def run_model(args, model, config, original_config, log, output):
                     if stationary:
                         wait_for(log, emulator, r"UPSTREAM_LIVE_CONTROLS_READY unit=\d+", args.timeout)
                         spawn = server_position(server_log, server, "UPSTREAM_SERVER_CONTROLS_READY").groups()
-                        phase = "spawn"
+                        phase = "building-effects" if args.building_effects else "spawn"
                         if args.building_layers:
                             phase = "building-cracks" if args.building_cracks else "building-layers"
                         capture(phase, spawn)
+                        if args.building_effects:
+                            verify_building_effects((output / f"{model}-{phase}.png").read_bytes())
                         if args.liquids:
                             verify_conduit_frames(log, rpc, output, model)
                         print("Verified the stationary Glacier capture.", flush=True)
@@ -672,6 +699,8 @@ def main():
                         help="Give the stock building fixture half health and verify its crack overlays")
     build_mode.add_argument("--liquids", action="store_true",
                             help="Verify animated stock water in straight and mirrored Glacier conduits")
+    build_mode.add_argument("--building-effects", action="store_true",
+                            help="Verify the original active Phase Weaver line and Overdrive sprite pass")
     args = parser.parse_args()
     args.server, args.rom, args.azahar = (path.resolve() for path in (args.server, args.rom, args.azahar))
     with args.server.open("rb") as archive:
@@ -697,6 +726,8 @@ def main():
         parser.error("--world-atlas-recycle runs a stationary spawn check")
     if args.building_cracks and not args.building_layers:
         parser.error("--building-cracks needs --building-layers")
+    if args.building_effects and (not args.terrain_atlas or not args.controls or args.controls_replay):
+        parser.error("--building-effects needs --controls and --terrain-atlas for a stationary capture")
     if args.liquids and (not args.terrain_atlas or not args.controls or args.controls_replay):
         parser.error("--liquids needs --controls and --terrain-atlas for stationary captures")
     if args.building_layers and (not args.terrain_atlas or not args.controls or args.controls_replay):
