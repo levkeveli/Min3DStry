@@ -352,8 +352,8 @@ for removal once the TeaVM object-reference cast issue is fixed.
 
 ## Remaining Scope for Issue #41 (3DS Hardware / ARM11 Runtime)
 
-The capability is marked `experimental` because the probes in [campaign-verification.md](campaign-verification.md) verify upstream settings, sector `.msav` slots, `SectorInfo` JSON, tech-tree requirements, planet last-sector routing, sector play/capture transitions, and sector-save launch on ARM11/Azahar. The host-verified path contract is recorded in [sd-storage-paths.md](sd-storage-paths.md). The live runtime still needs to consume these paths end-to-end:
+The capability is marked `emulator-tested` because the probes in [campaign-verification.md](campaign-verification.md) verify upstream settings, sector `.msav` slots, `SectorInfo` JSON, tech-tree requirements, planet last-sector routing, sector play/capture transitions, and sector-save launch on ARM11/Azahar. The host-verified path contract is recorded in [sd-storage-paths.md](sd-storage-paths.md). The live runtime still needs to consume these paths end-to-end:
 
 1. Route the live `Core.files`/`Core.settings` instance (not only research probes) to `/3ds/min3dstry/` so `settings.bin`, `settings_backup.bin`, `settings_backups/`, and `sector-<planet>-<id>.msav` use the verified contract.
 2. Build the live campaign launch/capture UI flow and capture rewards on top of the verified persistence/routing APIs.
-3. Advance beyond `experimental` only after those live flows and physical Old/New 3DS verification.
+3. Advance beyond `emulator-tested` only after those live flows and physical Old/New 3DS verification.
