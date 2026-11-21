@@ -593,14 +593,14 @@ def verify_controls(log, emulator, server_log, server, timeout, capture=None,
 def capture_viewport(log, emulator, rpc, destination, position,
                      require_palette=False, require_icons=False, require_world_atlas=False,
                      require_building_layers=False, require_building_cracks=False,
-                     world_size=(150, 250), spawn_pixels=None):
+                     world_size=(150, 250), spawn_pixels=None, frame_timeout=5):
     unit, _, x, y = position
     # The renderer centers a 16 × 12 tile viewport in the loaded map.
     width, height = world_size
     left = max(0, min(width - 16, math.floor(float(x) / 8 + 0.5) - 8))
     bottom = max(0, min(height - 12, math.floor(float(y) / 8 + 0.5) - 6))
     frame = f"UPSTREAM_NETWORK_FRAME unit={unit} left={left} bottom={bottom} sprites=1"
-    wait_for(log, emulator, rf"{frame}\b", 5)
+    wait_for(log, emulator, rf"{frame}\b", frame_timeout)
     if require_world_atlas:
         # The backend reports the first split. The fixture wall is drawn before the core.
         split = r"2365,342\+64x64 fragments=2" if require_building_layers else r"1037,3190\+160x160 fragments=6"
@@ -1277,6 +1277,7 @@ def run_model(args, model, config, original_config, log, output):
                                                 require_building_layers=args.building_layers,
                                                 require_building_cracks=args.building_cracks,
                                                 world_size=world_size,
+                                                frame_timeout=25 if args.verify_stock_font else 5,
                                                 spawn_pixels=(MAP_SPAWN_PIXELS.get(args.map_spawn) if phase == "spawn"
                                                               else EREKIR_BUILD_PIXELS.get(phase)))
 
@@ -1312,6 +1313,8 @@ def run_model(args, model, config, original_config, log, output):
                         if args.building_layers:
                             phase = "building-cracks" if args.building_cracks else "building-layers"
                         capture(phase, spawn)
+                        if args.verify_stock_font:
+                            wait_for(log, emulator, r"UPSTREAM_RENDER_KEEPALIVE transport=tcp\b", 5)
                         if args.erekir_build:
                             verify_erekir_construction(log, emulator, server_log, server, args.timeout, capture, spawn)
                         if args.mining:
