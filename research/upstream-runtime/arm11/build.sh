@@ -28,6 +28,10 @@ if [[ $# -gt 0 ]]; then
         echo "Expected one terrain assets directory" >&2
         exit 2
     fi
+    if [[ ${#native_network[@]} -gt 0 && ! -f "$1/bundles/bundle.properties" ]]; then
+        echo "Prepare multiplayer terrain assets with --multiplayer to include the original bundles" >&2
+        exit 2
+    fi
     terrain_flags=(-DM3DS_TERRAIN_RENDERER -I"$root" -I"$1")
     terrain_sources=("$root/m3ds_terrain_renderer.c")
     terrain_libraries=(-lcitro2d -lcitro3d)
