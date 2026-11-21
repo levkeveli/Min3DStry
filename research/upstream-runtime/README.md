@@ -1042,7 +1042,9 @@ Pass the extracted `assets/fonts` directory to the test executable.
 It covers the default and Japanese faces, original tech-tree glyph, blank
 advance and outline. On the live emulator verifier, add
 `--verify-stock-font` to the Onset marker check to require the original
-font path on both world labels.
+font path on both world labels. Use `--locale ja` without the English-only
+`--verify-objective-hud` check to validate and capture localised Japanese
+world markers separately.
 
 The world-label path currently uses plain spans. Styled spans, inline
 content images and connecting the objective HUD and other menus to the
