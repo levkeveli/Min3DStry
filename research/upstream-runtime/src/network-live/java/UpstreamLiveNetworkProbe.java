@@ -80,24 +80,27 @@ public final class UpstreamLiveNetworkProbe {
     private final Mode mode;
     private final Consumer<Unit> frame;
     private final UpstreamLiveBuildControls building;
+    private Runnable afterWorldLoad;
     private int nextLiveTransport = 1;
 
-    private UpstreamLiveNetworkProbe(Mode mode, Consumer<Unit> frame, UpstreamLiveBuildControls building) {
+    private UpstreamLiveNetworkProbe(Mode mode, Runnable afterWorldLoad, Consumer<Unit> frame,
+                                     UpstreamLiveBuildControls building) {
         this.mode = mode;
+        this.afterWorldLoad = afterWorldLoad;
         this.frame = frame;
         this.building = building;
     }
 
     public static void main(String[] args) throws IOException, InterruptedException {
-        run(endpointFile(args), null, null, null);
+        run(endpointFile(args), null, null, null, null);
     }
 
     static Fi endpointFile(String[] args) {
         return new Fi(args.length == 0 ? "/3ds/min3dstry/server-endpoint.txt" : args[0]);
     }
 
-    static void run(Fi config, Runnable beforeConnect, Consumer<Unit> frame, UpstreamLiveBuildControls building)
-            throws IOException, InterruptedException {
+    static void run(Fi config, Runnable beforeConnect, Runnable afterWorldLoad, Consumer<Unit> frame,
+                    UpstreamLiveBuildControls building) throws IOException, InterruptedException {
         String[] endpoint = config.readString().trim().split("\\s+");
         if (endpoint.length < 2 || endpoint.length > 3) {
             throw new IllegalArgumentException("Expected a server host and port with optional movement or controls mode");
@@ -121,10 +124,9 @@ public final class UpstreamLiveNetworkProbe {
                 Vars.pathfinder = new Pathfinder();
                 Vars.fogControl = new FogControl();
             }
-            stage = "graphics";
             if (beforeConnect != null) beforeConnect.run();
             stage = "session";
-            new UpstreamLiveNetworkProbe(mode, frame, building).run(host, port, app);
+            new UpstreamLiveNetworkProbe(mode, afterWorldLoad, frame, building).run(host, port, app);
         } catch (IOException | RuntimeException | LinkageError error) {
             Throwable cause = error;
             while (cause.getCause() != null) cause = cause.getCause();
@@ -190,12 +192,17 @@ public final class UpstreamLiveNetworkProbe {
         try {
             NetworkIO.loadWorld(new InflaterInputStream(stream));
             app.runPosted();
+            if (stream.remaining != 0 || Groups.player.size() != 1 || !PLAYER_NAME.equals(Vars.player.name)
+                    || Vars.world.width() <= 0 || Vars.world.height() <= 0) {
+                throw new IOException("Server world or assigned player did not load");
+            }
+            if (afterWorldLoad != null) {
+                System.out.println("UPSTREAM_WORLD_DECODED beforeGraphics=true");
+                afterWorldLoad.run();
+                afterWorldLoad = null;
+            }
         } finally {
             Native.endKeepAlive();
-        }
-        if (stream.remaining != 0 || Groups.player.size() != 1 || !PLAYER_NAME.equals(Vars.player.name)
-                || Vars.world.width() <= 0 || Vars.world.height() <= 0) {
-            throw new IOException("Server world or assigned player did not load");
         }
         String fingerprint = UpstreamWorldLoadProbe.reportTerrain(false);
         System.out.println("UPSTREAM_LIVE_NET_WORLD join=" + join + " map=" + Vars.state.map.name()

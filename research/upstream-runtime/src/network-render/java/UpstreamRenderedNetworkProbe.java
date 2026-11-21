@@ -84,12 +84,11 @@ public final class UpstreamRenderedNetworkProbe {
             + (locale.getLanguage().isEmpty() ? "en" : locale) + " router=" + Core.bundle.get("block.router.name")
             + " copper=" + Core.bundle.get("item.copper.name"));
         CacheLayer.init();
-        UpstreamLiveNetworkProbe.run(endpoint, view::loadGraphics, view::render, view.buildingControls);
+        UpstreamLiveNetworkProbe.run(endpoint, view::prepareClient, view::loadGraphics, view::render, view.buildingControls);
     }
 
-    private void loadGraphics() {
+    private void prepareClient() {
         UpstreamClientLogic.initialize(new Fi("/romfs/logicids.dat"));
-        UpstreamLogicFont.load(new Fi("/romfs/logic-font.dat"));
         Core.graphics = new MockGraphics() {
             @Override public int getWidth() { return 400; }
             @Override public int getHeight() { return 240; }
@@ -99,6 +98,11 @@ public final class UpstreamRenderedNetworkProbe {
         };
         var locale = Core.bundle.getLocale();
         Core.settings.put("locale", locale.getLanguage().isEmpty() ? "en" : locale.toString());
+    }
+
+    private void loadGraphics() {
+        UpstreamLogicFont.load(new Fi("/romfs/logic-font.dat"));
+        var locale = Core.bundle.getLocale();
         System.out.println("UPSTREAM_INTERFACE_GRAPHICS atlas");
         UpstreamTerrainDrawProbe.loadAtlas(atlas, UpstreamFluidAtlas::load);
         var displayAtlas = new UpstreamLogicAtlas(new Fi("/romfs/world-atlas"));

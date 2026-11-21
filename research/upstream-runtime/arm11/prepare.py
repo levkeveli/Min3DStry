@@ -28,6 +28,17 @@ def main():
         "c/o/t/r/GC.c": [
             ('#include "RelocationBlock.h"', '#include "RelocationBlock.h"\n#include "../../../../m3ds_gc_relocations.h"'),
             (
+                "                meth_otr_ExceptionHandling_printStack();\n"
+                "                teavm_outOfMemory();",
+                "                char diagnostic[128];\n"
+                "                int length = snprintf(diagnostic, sizeof(diagnostic),\n"
+                "                    \"UPSTREAM_MEMORY allocator-exhausted request=%ld free=%ld\\n\",\n"
+                "                    (long)teavm_local_1, (long)sfld_otr_GC_freeMemory);\n"
+                "                if (length > 0 && length < (int)sizeof(diagnostic)) svcOutputDebugString(diagnostic, length);\n"
+                "                meth_otr_ExceptionHandling_printStack();\n"
+                "                teavm_outOfMemory();",
+            ),
+            (
                 "teavm_local_6 = TEAVM_STRUCTURE_ADD(cls_otr_FreeChunkHolder, sfld_otr_GC_currentChunkPointer, teavm_local_3);",
                 "teavm_local_6 = m3ds_gc_begin_relocations(\n"
                 "        TEAVM_STRUCTURE_ADD(cls_otr_FreeChunkHolder, sfld_otr_GC_currentChunkPointer, teavm_local_3));",
@@ -69,6 +80,17 @@ def main():
                 "sfld_otr_GC_freeChunks);\n"
                 "                m3ds_gc_check_free_chunk(slot);\n"
                 "                TEAVM_FIELD(slot, cls_otr_FreeChunkHolder, fld_value) = sfld_otr_GC_lastChunk;",
+            ),
+        ],
+        "c/o/t/r/MarkQueue.c": [
+            ('#include "MarkQueue.h"', '#include "MarkQueue.h"\n#include <3ds.h>'),
+            (
+                "        meth_otr_ExceptionHandling_printStack();\n"
+                "        teavm_outOfMemory();",
+                "        static const char diagnostic[] = \"UPSTREAM_MEMORY mark-queue-full\\n\";\n"
+                "        svcOutputDebugString(diagnostic, sizeof(diagnostic) - 1);\n"
+                "        meth_otr_ExceptionHandling_printStack();\n"
+                "        teavm_outOfMemory();",
             ),
         ],
         "definitions.h": [
