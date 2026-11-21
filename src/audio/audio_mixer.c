@@ -364,7 +364,7 @@ uint32_t m3ds_audio_mixer_play(
     mixer->voices[target_ch].params = resolved;
     mixer->voices[target_ch].paused = false;
 
-    if (mixer->backend.voice_set_rate) {
+    if (resolved.pitch != 1.0f && mixer->backend.voice_set_rate) {
         float rate = (float)mixer->clips[clip_id].desc.sample_rate * resolved.pitch;
         mixer->backend.voice_set_rate(mixer->backend.ctx, (uint32_t)target_ch, rate);
     }

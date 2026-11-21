@@ -113,6 +113,13 @@ uint32_t m3ds_audio_upstream_sound_play(
     return m3ds_audio_event_play(registry, event, params);
 }
 
+/*
+ * Pinned Anuken/Arc@7445105cd2683daf5b9ac7033ebb07265d3e814d Sound.calcFalloff
+ * (arc-core/src/arc/audio/Sound.java):
+ *   float dst2 = Math.max(Mathf.dst2(x, y, cam.x, cam.y) - falloffOffset*falloffOffset, 0f);
+ *   return Mathf.clamp(1f / (dst2 / Core.audio.falloff));
+ * with default Core.audio.falloff = 16000f (matching UpstreamAudioBaseline.java).
+ */
 float m3ds_audio_calc_falloff(
     float sound_x,
     float sound_y,

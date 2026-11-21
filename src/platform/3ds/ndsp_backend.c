@@ -202,6 +202,11 @@ static bool m3ds_ndsp_voice_is_active_cb(void *raw_ctx, uint32_t channel) {
     return status == NDSP_WBUF_QUEUED || status == NDSP_WBUF_PLAYING;
 }
 
+/*
+ * libctru 3ds/ndsp/channel.h declares `void ndspChnSetRate(int id, float rate)`
+ * with `@param rate Sample rate to use.` in Hz (converted internally against the
+ * hardware 32728 Hz DSP clock by libctru), matching m3ds_ndsp_voice_start_cb.
+ */
 static void m3ds_ndsp_voice_set_rate_cb(
     void *raw_ctx,
     uint32_t channel,

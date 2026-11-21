@@ -79,6 +79,7 @@ typedef struct M3dsAudioBackend {
     void (*voice_set_paused)(void *ctx, uint32_t channel, bool paused);
     void (*voice_stop)(void *ctx, uint32_t channel);
     bool (*voice_is_active)(void *ctx, uint32_t channel);
+    /* Sets channel playback rate in Hz (clip.sample_rate * pitch; matches libctru ndspChnSetRate). */
     void (*voice_set_rate)(void *ctx, uint32_t channel, float sample_rate);
 } M3dsAudioBackend;
 

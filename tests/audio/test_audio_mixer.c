@@ -449,6 +449,7 @@ static void test_per_voice_mix_pitch_pause_and_activity(void) {
     uint32_t v0 = m3ds_audio_mixer_play(&mixer, clip, &zero_pitch_p);
     assert(v0 != M3DS_AUDIO_INVALID_VOICE);
     assert(float_near(ctx.voices[0].sample_rate, 22050.0f));
+    assert(ctx.voice_rate_calls == 0u);
     assert(m3ds_audio_mixer_voice_is_active(&mixer, v0));
     assert(!m3ds_audio_mixer_voice_is_active(&mixer, M3DS_AUDIO_INVALID_VOICE));
     assert(!m3ds_audio_mixer_voice_is_active(&mixer, v0 + 99u));
@@ -461,6 +462,7 @@ static void test_per_voice_mix_pitch_pause_and_activity(void) {
     uint32_t v1 = m3ds_audio_mixer_play(&mixer, clip, &pitched_p);
     assert(v1 != M3DS_AUDIO_INVALID_VOICE);
     assert(float_near(ctx.voices[1].sample_rate, 22050.0f * 1.5f));
+    assert(ctx.voice_rate_calls == 1u);
 
     /* Live set_voice_mix updates gains and persists across bus-volume updates. */
     assert(m3ds_audio_mixer_set_voice_mix(&mixer, v1, 0.4f, -0.5f));
