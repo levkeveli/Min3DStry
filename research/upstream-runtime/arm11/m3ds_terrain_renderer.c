@@ -43,6 +43,12 @@ typedef struct {
 } UnitBuildTextures;
 static UnitBuildTextures unit_build_textures[4];
 static uint32_t world_pass;
+enum { canvas_texture_size = 32, canvas_texture_slots = 16 };
+static struct {
+    C3D_Tex tex;
+    int32_t id, revision;
+    uint32_t pass;
+} canvas_textures[canvas_texture_slots];
 static bool reported_split;
 static bool reported_recycle;
 static DVLB_s *quad_shader;
@@ -457,13 +463,9 @@ int32_t m3ds_terrain_draw_unit_build(int32_t page, int32_t left, int32_t top, in
 #endif
 }
 
-int32_t m3ds_terrain_draw(int32_t page, int32_t left, int32_t top, int32_t width, int32_t height,
-                          float x, float y, float origin_x, float origin_y, float draw_width,
-                          float draw_height, float rotation, int32_t color, int32_t mix_color, int32_t blend_mode) {
-    if (!frame_open || width <= 0 || height <= 0) return 0;
-    set_world_blend(blend_mode);
-    set_world_mix((u32)color, (u32)mix_color);
-    C2D_DrawParams params = {
+static C2D_DrawParams sprite_params(float x, float y, float origin_x, float origin_y,
+                                    float draw_width, float draw_height, float rotation) {
+    return (C2D_DrawParams){
         .pos = { screen_left + (x + origin_x - world_left) * scale,
                  screen_bottom - (y + origin_y - world_bottom) * scale,
                  draw_width * scale, draw_height * scale },
@@ -472,6 +474,15 @@ int32_t m3ds_terrain_draw(int32_t page, int32_t left, int32_t top, int32_t width
         .depth = 0.5f,
         .angle = rotation * (-3.14159265358979323846f / 180.0f),
     };
+}
+
+int32_t m3ds_terrain_draw(int32_t page, int32_t left, int32_t top, int32_t width, int32_t height,
+                          float x, float y, float origin_x, float origin_y, float draw_width,
+                          float draw_height, float rotation, int32_t color, int32_t mix_color, int32_t blend_mode) {
+    if (!frame_open || width <= 0 || height <= 0) return 0;
+    set_world_blend(blend_mode);
+    set_world_mix((u32)color, (u32)mix_color);
+    C2D_DrawParams params = sprite_params(x, y, origin_x, origin_y, draw_width, draw_height, rotation);
     C2D_ImageTint tint;
     C2D_PlainImageTint(&tint, (u32)color, 1.0f);
     size_t count = sizeof(terrain_regions) / sizeof(terrain_regions[0]);
@@ -512,6 +523,82 @@ int32_t m3ds_terrain_draw(int32_t page, int32_t left, int32_t top, int32_t width
 #ifdef M3DS_WORLD_ATLAS
     return draw_world_region(page, left, top, width, height, &params, &tint);
 #else
+    return 0;
+#endif
+}
+
+#ifdef M3DS_WORLD_ATLAS
+static unsigned canvas_texel(unsigned x, unsigned y) {
+    unsigned morton = 0;
+    for (unsigned bit = 0; bit < 3; bit++) {
+        morton |= ((x >> bit) & 1) << (2 * bit);
+        morton |= ((y >> bit) & 1) << (2 * bit + 1);
+    }
+    return ((y / 8) * (canvas_texture_size / 8) + x / 8) * 64 + morton;
+}
+
+static C3D_Tex *upload_canvas(int32_t id, int32_t revision, int width, int height, const uint32_t *pixels) {
+    int victim = -1;
+    for (int i = 0; i < canvas_texture_slots; i++) {
+        if (canvas_textures[i].id == id && canvas_textures[i].revision == revision) {
+            canvas_textures[i].pass = world_pass;
+            return &canvas_textures[i].tex;
+        }
+        if (canvas_textures[i].pass != world_pass
+                && (victim < 0 || canvas_textures[i].pass < canvas_textures[victim].pass)) victim = i;
+    }
+    if (victim < 0) {
+        // Wait before writing pixels that a queued draw can still sample.
+        if (!recycle_world_pass()) return NULL;
+        victim = 0;
+    }
+    C3D_Tex *tex = &canvas_textures[victim].tex;
+    if (!tex->data) {
+        if (!C3D_TexInitVRAM(tex, canvas_texture_size, canvas_texture_size, GPU_RGBA8)
+                && !C3D_TexInit(tex, canvas_texture_size, canvas_texture_size, GPU_RGBA8)) return NULL;
+        C3D_TexSetFilter(tex, GPU_NEAREST, GPU_NEAREST);
+        C3D_TexSetWrap(tex, GPU_CLAMP_TO_EDGE, GPU_CLAMP_TO_EDGE);
+    }
+    uint32_t *tiled = tex->data;
+    for (int y = 0; y < canvas_texture_size; y++) {
+        const uint32_t *row = pixels + (y < height ? y : height - 1) * width;
+        for (int x = 0; x < canvas_texture_size; x++) {
+            tiled[canvas_texel(x, y)] = row[x < width ? x : width - 1];
+        }
+    }
+    C3D_TexFlush(tex);
+    canvas_textures[victim].id = id;
+    canvas_textures[victim].revision = revision;
+    canvas_textures[victim].pass = world_pass;
+    return tex;
+}
+#endif
+
+int32_t m3ds_terrain_draw_canvas(int32_t id, int32_t revision, int32_t width, int32_t height,
+                                const uint32_t *pixels, float x, float y, float origin_x, float origin_y,
+                                float draw_width, float draw_height, float rotation,
+                                int32_t color, int32_t mix_color, int32_t blend_mode) {
+#ifdef M3DS_WORLD_ATLAS
+    if (!frame_open || id == 0 || width < 1 || width > canvas_texture_size
+            || height < 1 || height > canvas_texture_size) return 0;
+    C3D_Tex *tex = upload_canvas(id, revision, width, height, pixels);
+    if (!tex) return 0;
+    set_world_blend(blend_mode);
+    set_world_mix((u32)color, (u32)mix_color);
+    Tex3DS_SubTexture region = {
+        .width = width, .height = height, .left = 0, .top = 1,
+        .right = (float)width / canvas_texture_size, .bottom = 1 - (float)height / canvas_texture_size,
+    };
+    C2D_DrawParams params = sprite_params(x, y, origin_x, origin_y, draw_width, draw_height, rotation);
+    C2D_ImageTint tint;
+    C2D_PlainImageTint(&tint, (u32)color, 1.0f);
+    if (!C2D_DrawImage((C2D_Image){tex, &region}, &params, &tint)) return 0;
+    draws++;
+    return 1;
+#else
+    (void)id; (void)revision; (void)width; (void)height; (void)pixels; (void)x; (void)y;
+    (void)origin_x; (void)origin_y; (void)draw_width; (void)draw_height; (void)rotation;
+    (void)color; (void)mix_color; (void)blend_mode;
     return 0;
 #endif
 }
@@ -1083,6 +1170,9 @@ void m3ds_terrain_fini(void) {
         shaderProgramFree(&quad_program);
         DVLB_Free(quad_shader);
         quad_shader = NULL;
+    }
+    for (int i = 0; i < canvas_texture_slots; i++) {
+        if (canvas_textures[i].tex.data) C3D_TexDelete(&canvas_textures[i].tex);
     }
     for (size_t i = 0; i < sizeof(world_textures) / sizeof(world_textures[0]); i++) {
         if (world_textures[i].sheet) C2D_SpriteSheetFree(world_textures[i].sheet);

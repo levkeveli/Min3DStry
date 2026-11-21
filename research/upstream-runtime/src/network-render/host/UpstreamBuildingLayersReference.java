@@ -1,5 +1,6 @@
 import port.render.UpstreamCrackAtlas;
 import port.render.UpstreamFluidAtlas;
+import port.render.UpstreamCanvasTexture;
 import arc.Core;
 import arc.files.Fi;
 import arc.graphics.Blending;
@@ -39,6 +40,7 @@ import mindustry.game.Team;
 import mindustry.game.MapObjectives;
 import mindustry.game.MapObjectives.BuildCountObjective;
 import mindustry.game.MapObjectives.ItemObjective;
+import mindustry.game.MapObjectives.TextureMarker;
 import mindustry.graphics.CacheLayer;
 import mindustry.graphics.Layer;
 import mindustry.graphics.Pal;
@@ -54,6 +56,8 @@ import mindustry.world.blocks.production.Drill.DrillBuild;
 import mindustry.world.blocks.production.GenericCrafter.GenericCrafterBuild;
 import mindustry.world.blocks.production.WallCrafter.WallCrafterBuild;
 import mindustry.world.blocks.storage.CoreBlock;
+import mindustry.world.blocks.logic.CanvasBlock;
+import mindustry.world.blocks.logic.CanvasBlock.CanvasBuild;
 import mindustry.world.blocks.payloads.BuildPayload;
 import mindustry.world.blocks.payloads.Payload;
 import mindustry.world.blocks.payloads.UnitPayload;
@@ -68,6 +72,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
     private record UnitBuild(int page, int left, int top, int width, int height, float x, float y,
                              float rotation, float progress, float alpha, float phase) {}
     private final List<UnitBuild> unitBuilds = new ArrayList<>();
+    private final List<UpstreamCanvasTexture> canvasDraws = new ArrayList<>();
 
     public static void main(String[] args) throws Exception {
         if (args.length < 3 || args.length > 4) {
@@ -142,6 +147,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
             block -> UpstreamBuildingLayers.supportsMaterialDraw(block) && !(block instanceof CoreBlock),
             "MATERIAL");
         if (materials != 49) throw new AssertionError("Expected 49 stock material buildings, got " + materials);
+        target.verifyCanvas(viewer);
         if (args.length == 4) verifyObjectiveHud();
         target.verifyUnitProjectiles(viewport, viewer);
     }
@@ -337,6 +343,64 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         }
         System.out.printf("UPSTREAM_STOCK_LIVE_%s_DRAW tested=%d%n", category, tested);
         return tested;
+    }
+
+    private void verifyCanvas(Team team) {
+        var tile = Vars.world.tile(73, 25);
+        var neighbor = Vars.world.tile(75, 25);
+        var largeTile = Vars.world.tile(81, 29);
+        tile.setBlock(Blocks.canvas, team);
+        neighbor.setBlock(Blocks.canvas, team);
+        largeTile.setBlock(Blocks.largeCanvas, team);
+        var canvas = (CanvasBuild)tile.build;
+        var large = (CanvasBuild)largeTile.build;
+        canvas.onProximityUpdate();
+        canvas.setPixel(0, 1);
+        canvas.setPixel(1, 6);
+        large.setPixel(23 * 24 + 23, 3);
+        canvasDraws.clear();
+        sprites.clear();
+        canvas.draw();
+        large.draw();
+        if (canvas.blending == 0 || canvasDraws.size() != 2 || sprites.isEmpty()) {
+            throw new AssertionError("Canvas neighborhood, stock borders or draw missing");
+        }
+        var smallTexture = canvasDraws.get(0);
+        var largeTexture = canvasDraws.get(1);
+        if (smallTexture.width != 12 || smallTexture.pixels[0] != ((CanvasBlock)Blocks.canvas).palette[1]
+                || smallTexture.pixels[1] != ((CanvasBlock)Blocks.canvas).palette[6]
+                || largeTexture.width != 24 || largeTexture.pixels[575] != ((CanvasBlock)Blocks.largeCanvas).palette[3]) {
+            throw new AssertionError("Stock Canvas palette or row order changed");
+        }
+        var bytes = new ByteArrayOutputStream();
+        large.write(new Writes(new DataOutputStream(bytes)));
+        var restored = (CanvasBuild)Blocks.largeCanvas.newBuilding();
+        restored.read(new Reads(new DataInputStream(new ByteArrayInputStream(bytes.toByteArray()))), large.version());
+        if (!Arrays.equals(restored.data, large.data) || restored.getPixel(575) != 3) {
+            throw new AssertionError("Stock Canvas save payload did not round-trip");
+        }
+
+        var marker = new TextureMarker(canvas, 586f, 242f, 16f, 16f);
+        Vars.state.markers.add(613, marker);
+        canvasDraws.clear();
+        UpstreamObjectiveMarkers.draw(Vars.state.rules, 2.5f, (text, x, y, flags, size, align, lines) -> {});
+        if (!canvasDraws.equals(List.of(smallTexture))) throw new AssertionError("Missing stock Canvas texture marker");
+        var replacement = ((CanvasBuild)neighbor.build);
+        replacement.setPixel(0, 3);
+        int before = smallTexture.revision;
+        canvas.configured(null, replacement.data.clone());
+        canvasDraws.clear();
+        UpstreamObjectiveMarkers.draw(Vars.state.rules, 2.5f, (text, x, y, flags, size, align, lines) -> {});
+        if (!canvasDraws.equals(List.of(smallTexture)) || smallTexture.revision <= before
+                || smallTexture.pixels[0] != ((CanvasBlock)Blocks.canvas).palette[3]) {
+            throw new AssertionError("Stock Canvas configuration did not update the linked marker texture"
+                + " draws=" + canvasDraws.size() + " rev=" + smallTexture.revision + " before=" + before
+                + " pixel=" + Integer.toHexString(smallTexture.pixels[0]));
+        }
+        Vars.state.markers.remove(613);
+        tile.remove();
+        if (!smallTexture.isDisposed()) throw new AssertionError("Canvas removal kept its texture active");
+        System.out.println("UPSTREAM_CANVAS_REFERENCE small=ok large=ok palettes=ok borders=ok save=ok config=ok marker=ok disposed=ok");
     }
 
     private static void verifyObjectiveHud() {
@@ -855,6 +919,12 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
     @Override
     public void drawSolidQuad(float[] vertices, int offset, Blending blending) {
         solidQuads.add(Arrays.copyOfRange(vertices, offset, offset + SpriteBatch.SPRITE_SIZE));
+    }
+
+    @Override
+    public void drawCanvas(UpstreamCanvasTexture texture, float x, float y, float originX, float originY,
+                           float width, float height, float rotation, int color, int mixColor, Blending blending) {
+        canvasDraws.add(texture);
     }
 
     @Override public void begin(int left, int bottom, int width, int height) {}
