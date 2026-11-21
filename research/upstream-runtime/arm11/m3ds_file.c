@@ -86,6 +86,21 @@ int32_t teavm_file_delete(char16_t* name, int32_t name_size) {
     return removed;
 }
 
+int32_t teavm_file_rename(char16_t* name, int32_t name_size,
+                          char16_t* new_name, int32_t new_name_size) {
+    char* path = teavm_char16ToMb(name, name_size);
+    char* new_path = teavm_char16ToMb(new_name, new_name_size);
+    if (path == NULL || new_path == NULL) {
+        free(path);
+        free(new_path);
+        return 0;
+    }
+    int renamed = rename(path, new_path) == 0;
+    free(path);
+    free(new_path);
+    return renamed;
+}
+
 TeaVM_StringList* teavm_file_listFiles(char16_t* name, int32_t name_size) {
     char* path = teavm_char16ToMb(name, name_size);
     if (path == NULL) {
