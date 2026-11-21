@@ -81,6 +81,7 @@ public final class UpstreamRenderedNetworkProbe {
     static UnitType[] loadUnitGraphics() {
         var types = new UnitType[]{
             UnitTypes.alpha, UnitTypes.beta, UnitTypes.gamma,
+            UnitTypes.evoke, UnitTypes.incite, UnitTypes.emanate,
             UnitTypes.dagger, UnitTypes.mace, UnitTypes.fortress, UnitTypes.scepter, UnitTypes.reign, UnitTypes.crawler,
             UnitTypes.nova, UnitTypes.pulsar, UnitTypes.quasar, UnitTypes.vela,
             UnitTypes.flare, UnitTypes.horizon, UnitTypes.zenith, UnitTypes.antumbra, UnitTypes.eclipse,
