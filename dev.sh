@@ -178,7 +178,8 @@ case "${1:-}" in
 
     "$host_cc" -std=c11 -Wall -Wextra -Werror -Iinclude \
       src/platform/msav_inflate.c src/platform/msav_world.c \
-      tests/platform/test_msav_world.c -o build/host/test_msav_world
+      src/platform/world_rows.c tests/platform/test_msav_world.c \
+      -o build/host/test_msav_world
     ./build/host/test_msav_world
 
     "$host_cc" -std=c11 -Wall -Wextra -Werror -Iinclude \

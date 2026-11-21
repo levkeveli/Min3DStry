@@ -30,12 +30,17 @@ static void build_rows(
         const M3dsBuildingState *from = &source->buildings[i];
         M3dsWorldBuildingRow *to = &buildings[i];
         to->tile_index = from->tile_index;
+        to->x = from->x;
+        to->y = from->y;
         to->block_id = from->block_id;
         to->team = from->team;
         to->rotation = from->rotation;
         to->enabled = from->enabled;
         to->modules = from->modules;
         to->partial = from->partial ? 1u : 0u;
+        to->revision = (uint8_t)from->revision;
+        to->payload_size = from->payload_size;
+        to->payload = from->payload;
         to->health = from->health;
         to->item_count = from->item_count;
         memcpy(to->items, from->items, sizeof(to->items));
@@ -89,8 +94,8 @@ static void test_real_fixture_bridge(void) {
     assert(bridged.hash == UINT64_C(0x783fbd80e415dcd7));
     assert(bridged.tile_state_hash == UINT64_C(0xe35397041df8e5fe));
     assert(bridged.save_state_hash == UINT64_C(0x3a375fd4f81c5680));
-    // Raw entity payload bytes are not part of the upstream row stream.
-    assert(bridged.building_hash == 0u);
+    assert(bridged.building_hash == source.building_hash);
+    assert(bridged.buildings[0].payload_size == source.buildings[0].payload_size);
     assert(bridged.buildings[0].state_hash == UINT64_C(0xb529451197a6e504));
     assert(bridged.buildings[1].state_hash == UINT64_C(0xebc4778e833eb8e5));
     assert(bridged.buildings[0].tile == &bridged.tile_states[81u + 26u * 150u]);

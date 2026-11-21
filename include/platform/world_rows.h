@@ -30,12 +30,17 @@ typedef struct M3dsWorldTileRow {
 
 typedef struct M3dsWorldBuildingRow {
     uint32_t tile_index;
+    uint32_t x;
+    uint32_t y;
     uint16_t block_id;
     uint8_t team;
     uint8_t rotation;
     uint8_t enabled;
     uint8_t modules;
     uint8_t partial;
+    uint8_t revision;
+    uint32_t payload_size;
+    const uint8_t *payload;
     float health;
     uint32_t item_count;
     M3dsItemStack items[M3DS_BUILDING_ITEMS_MAX];

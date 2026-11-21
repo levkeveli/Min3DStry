@@ -93,14 +93,17 @@ bool m3ds_world_rows_alloc(
     for (size_t i = 0; i < building_count; ++i) {
         const M3dsWorldBuildingRow *row = &buildings[i];
         if ((size_t)row->tile_index >= count
-                || out->tile_states[row->tile_index].building_index != i) {
+                || out->tile_states[row->tile_index].building_index != i
+                || row->x != (uint32_t)(row->tile_index % width)
+                || row->y != (uint32_t)(row->tile_index / width)
+                || (row->payload_size > 0u && !row->payload)) {
             m3ds_msav_free_world(out);
             return false;
         }
         M3dsBuildingState *building = &out->buildings[i];
         building->tile_index = row->tile_index;
-        building->x = row->tile_index % width;
-        building->y = row->tile_index / width;
+        building->x = row->x;
+        building->y = row->y;
         building->block_id = row->block_id;
         building->tile = &out->tile_states[row->tile_index];
         building->health = row->health;
@@ -111,6 +114,16 @@ bool m3ds_world_rows_alloc(
         building->enabled = row->enabled;
         building->modules = row->modules;
         building->partial = row->partial != 0u;
+        building->revision = row->revision;
+        building->payload_size = row->payload_size;
+        if (row->payload_size > 0u) {
+            building->payload = malloc(row->payload_size);
+            if (!building->payload) {
+                m3ds_msav_free_world(out);
+                return false;
+            }
+            memcpy(building->payload, row->payload, row->payload_size);
+        }
         building->items_truncated = row->items_truncated
             || row->item_count > M3DS_BUILDING_ITEMS_MAX;
         memcpy(building->items, row->items, sizeof(building->items));
@@ -125,6 +138,18 @@ bool m3ds_world_rows_alloc(
     out->tile_state_hash = hash_bytes(
         WORLD_HASH_SEED, (const uint8_t *)out->tile_states,
         count * sizeof(M3dsTileState));
+
+    uint64_t building_hash = WORLD_HASH_SEED;
+    for (size_t i = 0; i < building_count; ++i) {
+        uint8_t revision = out->buildings[i].revision;
+        building_hash = hash_bytes(building_hash, &revision, 1u);
+        if (out->buildings[i].payload_size > 0u) {
+            building_hash = hash_bytes(
+                building_hash, out->buildings[i].payload,
+                out->buildings[i].payload_size);
+        }
+    }
+    out->building_hash = building_hash;
 
     uint64_t save_state = WORLD_HASH_SEED;
     for (size_t i = 0; i < count; ++i) {
