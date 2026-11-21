@@ -567,7 +567,7 @@ disabled blending to Citro3D.
 Use the existing pinned Gradle settings with `-Pprobe=network-render`:
 
 ```sh
-gradle runBuildingLayersJvm --args='/path/to/glacier.msav /path/to/sprites.aatls'
+gradle runBuildingLayersJvm --args='/path/to/glacier.msav /path/to/sprites.aatls /path/to/block_colors.png'
 ```
 
 The JVM verifier checks the sorted sprite state and actual upstream Conveyor,

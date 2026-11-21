@@ -63,6 +63,7 @@ public final class UpstreamRenderedNetworkProbe {
     private void loadGraphics() {
         System.out.println("UPSTREAM_INTERFACE_GRAPHICS atlas");
         UpstreamTerrainDrawProbe.loadAtlas(atlas, UpstreamFluidAtlas::load);
+        Vars.content.loadColors(new Fi("/romfs/block_colors.png"));
         UpstreamCrackAtlas.load();
         loadUnitGraphics();
         viewport = UpstreamTerrainDrawProbe.liveViewport(target);

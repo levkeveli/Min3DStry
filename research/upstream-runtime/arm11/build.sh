@@ -40,6 +40,9 @@ if [[ $# -gt 0 ]]; then
     if [[ -d "$1/bundles" ]]; then
         cp -R "$1/bundles" "$output/romfs/bundles"
     fi
+    if [[ -f "$1/block_colors.png" ]]; then
+        cp "$1/block_colors.png" "$output/romfs/block_colors.png"
+    fi
     if [[ -d "$1/catalog" ]]; then
         cp -R "$1/catalog" "$output/romfs/catalog"
     fi
