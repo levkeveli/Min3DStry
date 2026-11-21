@@ -1,6 +1,6 @@
 # Campaign Progression & Tech-Tree Persistence Baseline (Issue #41)
 
-**Verification status:** **Experimental**. Host baselines and real Arc `Settings`/`settings.bin`, campaign keys, sector slot, sector/content/research/launch/planet state, slot metadata and save probes have run on ARM11 in Azahar New/Old profiles. A native read-only SD sector catalog now lists upstream `sector-<planet>-<id>.msav` slots in the HUD. Campaign UI, sector selection/launch and gameplay integration remain open under [#41](https://github.com/levkeveli/Min3DStry/issues/41).
+**Verification status:** **Emulator-tested**. Host baselines and real Arc `Settings`/`settings.bin`, campaign keys, sector slot, sector/content/research/launch/planet state, slot metadata and save probes have run on ARM11 in Azahar New/Old profiles. A native read-only SD sector catalog now lists upstream `sector-<planet>-<id>.msav` slots in the HUD. Campaign UI, sector selection/launch and gameplay integration remain open under [#41](https://github.com/levkeveli/Min3DStry/issues/41).
 
 ## 1:1 Upstream Mandate
 
@@ -372,6 +372,10 @@ UPSTREAM_CAMPAIGN_SLOT_DISCOVERY path=live slots=1 file=sector-serpulo-15.msav b
 The probe loads Glacier, writes `sector-serpulo-15.msav` into
 `/3ds/min3dstry/tmp/slot-discovery`, lists the directory, filters `*.msav`
 non-backup files through `SaveIO.isSaveValid`, and asserts exactly one slot.
+The one-byte `bytes` difference is the compressed stream size produced by the
+JVM versus TeaVM C deflate implementation; both files pass upstream `SaveIO`
+validation and reload/launch on their platform.
+
 The ARM11 build sets `M3DS_RELAX_POINTER_TYPES=1` because TeaVM C 0.16 emits
 pointer-typed object references that GCC otherwise rejects; locally use:
 
@@ -385,8 +389,8 @@ for removal once the TeaVM object-reference cast issue is fixed.
 
 ## Remaining Scope for Issue #41 (3DS Hardware / ARM11 Runtime)
 
-The capability is marked `experimental` because the probes in [campaign-verification.md](campaign-verification.md) verify upstream settings, sector `.msav` slots, `SectorInfo` JSON, tech-tree requirements, planet last-sector routing, sector play/capture transitions, and sector-save launch on ARM11/Azahar. The host-verified path contract is recorded in [sd-storage-paths.md](sd-storage-paths.md). The live runtime still needs to consume these paths end-to-end:
+The capability is marked `emulator-tested` because the probes in [campaign-verification.md](campaign-verification.md) verify upstream settings, sector `.msav` slots, `SectorInfo` JSON, tech-tree requirements, planet last-sector routing, sector play/capture transitions, and sector-save launch on ARM11/Azahar. The host-verified path contract is recorded in [sd-storage-paths.md](sd-storage-paths.md). The live runtime still needs to consume these paths end-to-end:
 
 1. Route the live `Core.files`/`Core.settings` instance (not only research probes) to `/3ds/min3dstry/` so `settings.bin`, `settings_backup.bin`, `settings_backups/`, and `sector-<planet>-<id>.msav` use the verified contract.
 2. Build the live campaign launch/capture UI flow, sector selection and capture rewards on top of the verified persistence/routing APIs and the read-only SD sector catalog.
-3. Advance beyond `experimental` only after those live flows and physical Old/New 3DS verification.
+3. Advance beyond `emulator-tested` only after those live flows and physical Old/New 3DS verification.

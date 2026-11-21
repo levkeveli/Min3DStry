@@ -34,7 +34,7 @@ static void remove_file(const char *name) {
 
 static void test_scan_and_sort(void) {
     make_dir(dir);
-    unsigned char raw[16] = {'M', 'S', 'A', 'V', 13, 0, 0, 0};
+    unsigned char raw[16] = {'M', 'S', 'A', 'V', 0, 0, 0, 13};
     write_file("sector-serpulo-170.msav", raw, sizeof(raw));
     unsigned char zlib[16] = {0x78, 0x9c, 0, 0};
     write_file("sector-erekir-64.msav", zlib, sizeof(zlib));
