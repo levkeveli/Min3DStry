@@ -56,7 +56,12 @@ public final class UpstreamTerrainDrawProbe {
     }
 
     static Viewport prepare(String[] args, TerrainTarget target, boolean trace) {
-        Core.atlas = readAtlas(atlasFile(args));
+        loadAtlas(atlasFile(args));
+        return prepareViewport(target, trace);
+    }
+
+    static void loadAtlas(Fi atlas) {
+        Core.atlas = readAtlas(atlas);
         Draw.scl = 1f / Core.atlas.find("scale_marker").width;
         boolean wasHeadless = Vars.headless;
         Vars.headless = false;
@@ -64,7 +69,16 @@ public final class UpstreamTerrainDrawProbe {
             for (var block : Vars.content.blocks()) {
                 if (block instanceof Floor floor && block != Blocks.air) floor.load();
             }
-            if (!trace) {
+        } finally {
+            Vars.headless = wasHeadless;
+        }
+    }
+
+    static Viewport prepareViewport(TerrainTarget target, boolean trace) {
+        if (!trace) {
+            boolean wasHeadless = Vars.headless;
+            Vars.headless = false;
+            try {
                 var loaded = new Bits();
                 for (Tile tile : Vars.world.tiles) {
                     var block = tile.block();
@@ -73,9 +87,9 @@ public final class UpstreamTerrainDrawProbe {
                         loaded.set(block.id);
                     }
                 }
+            } finally {
+                Vars.headless = wasHeadless;
             }
-        } finally {
-            Vars.headless = wasHeadless;
         }
         var batch = new TerrainBatch(target, trace);
         Core.batch = batch;

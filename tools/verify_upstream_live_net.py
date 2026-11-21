@@ -20,12 +20,12 @@ PLAYER = "Min3DStry ARM11"
 NUMBER = r"-?\d+(?:\.\d+)?"
 
 
-def write_controls_replay(path):
+def write_controls_replay(path, first_move=22):
     """Write the Azahar 2126.2 CTM input for this probe's pad/touch polling."""
     # The pinned Azahar movie header and HID sample definitions use packed little-endian fields.
     revision = bytes.fromhex("219d743a1e698101fe1ab8bef43e6563126c3c27")
     samples_per_second = 234
-    frames = 45 * samples_per_second
+    frames = (first_move + 23) * samples_per_second
     header = struct.pack("<4sQ20sQQ32sIQq156x", b"CTM\x1b", 0, revision, 1780000000,
                          0x4D334453, b"Min3DStry input verification", 0, frames, 0)
     touch_idle = struct.pack("<B6x", 1)
@@ -33,8 +33,8 @@ def write_controls_replay(path):
         movie.write(header)
         for frame in range(frames):
             seconds = frame // samples_per_second
-            buttons = (1 << 4) if seconds == 22 else (1 << 3) if seconds == 38 else 0
-            circle_y = 106 if seconds == 28 else 0
+            buttons = (1 << 4) if seconds == first_move else (1 << 3) if seconds == first_move + 16 else 0
+            circle_y = 106 if seconds == first_move + 6 else 0
             movie.write(struct.pack("<BHhh", 0, buttons, 0, circle_y))
             movie.write(touch_idle)
 
@@ -164,7 +164,7 @@ def run_model(args, model, config, original_config, log, output):
             command = [str(args.azahar)]
             if args.controls_replay:
                 replay = Path(work) / "controls.ctm"
-                write_controls_replay(replay)
+                write_controls_replay(replay, first_move=35 if args.terrain_atlas else 22)
                 command += ["-p", str(replay)]
             command.append(str(args.rom))
             emulator = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

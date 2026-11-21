@@ -57,14 +57,15 @@ public final class UpstreamLiveNetworkProbe {
     }
 
     public static void main(String[] args) throws IOException, InterruptedException {
-        run(endpointFile(args), null);
+        run(endpointFile(args), null, null);
     }
 
     static Fi endpointFile(String[] args) {
         return new Fi(args.length == 0 ? "/3ds/min3dstry/server-endpoint.txt" : args[0]);
     }
 
-    static void run(Fi config, Consumer<Unit> frame) throws IOException, InterruptedException {
+    static void run(Fi config, Runnable beforeConnect, Consumer<Unit> frame)
+            throws IOException, InterruptedException {
         String[] endpoint = config.readString().trim().split("\\s+");
         if (endpoint.length < 2 || endpoint.length > 3) {
             throw new IllegalArgumentException("Expected a server host and port with optional movement or controls mode");
@@ -80,6 +81,7 @@ public final class UpstreamLiveNetworkProbe {
         Vars.mods = new Mods();
         Vars.universe = new Universe();
         try {
+            if (beforeConnect != null) beforeConnect.run();
             new UpstreamLiveNetworkProbe(mode, frame).run(host, port, app);
         } catch (IOException | RuntimeException error) {
             Throwable cause = error;

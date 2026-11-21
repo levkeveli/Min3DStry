@@ -1,6 +1,8 @@
 #pragma once
 
 #include <stdint.h>
+
+int32_t m3ds_terrain_initialize(void);
 #include <stdbool.h>
 
 int32_t m3ds_terrain_begin(int32_t left, int32_t bottom, int32_t width, int32_t height,
