@@ -14,6 +14,7 @@ public final class WorldReflectionPolicy extends SimpleReflectionPolicy {
             "mindustry.game.Rules",
             "mindustry.game.Rules$TeamRule",
             "mindustry.type.Weather$WeatherEntry",
+            "arc.math.geom.Point2",
             "arc.math.geom.Vec2"
         }) {
             selectClass(type).reflectableMethods(withParameterCount(0).and(IntrospectMethod::isConstructor))
