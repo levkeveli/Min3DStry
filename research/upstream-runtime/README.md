@@ -1137,7 +1137,9 @@ its Canvas link and a stock logic pixel write. The stationary Glacier
 replay with `--verify-client-processor` updates a linked Canvas using
 the stock world processor and `@client`. The verifier checks that
 the ARM11 Canvas changes while the dedicated server keeps its original
-pixels. Logic Display command rendering remains open.
+pixels. The replay passed on both Azahar hardware profiles with the
+[verified ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44932567269).
+Logic Display command rendering remains open.
 
 ### Verify the Arc executor pools
 
