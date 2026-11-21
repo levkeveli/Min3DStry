@@ -499,6 +499,17 @@ original loop ID 67 and leftward pan. The JVM reference exercises the
 20 Hz interval and the original fade after drill removal. The host
 mixer mock checks source-wide stop for both short and long effects.
 
+The ambience build from `b1e42d5` passed Glacier on both Azahar profiles.
+The stock server reported a working drill at full efficiency, and the
+ARM11 client requested its original loop at gain `0.013` with pan
+`-0.558` on Old 3DS and `-0.502` on New 3DS. Both profiles also passed
+the soundtrack, cached and streamed effects, and projectile checks. The same
+binary joined The Onset twice in one process on each profile and matched the
+stock server tile CRC32 `3861859253` on every join.
+Azahar used the no-DSP fallback, so audible ambience remains a physical
+console test.
+[ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44960910357)
+
 Run `python3 tools/verify_live_stock_audio.py <terrain-assets>` with the
 staged directory to exercise all 205 PCM files through the live mixer and
 streamer on a host. The test holds a looping Gamma firing voice while it
