@@ -13,6 +13,18 @@ typedef struct {
 } ArcAtlasRegion;
 
 #include "terrain_layout.h"
+#ifdef M3DS_WORLD_ATLAS
+#include "world_atlas_layout.h"
+
+// Retain at most 1.5 MiB of RGBA8 atlas backing. A frame never evicts its own textures.
+static struct {
+    C2D_SpriteSheet sheet;
+    int page, x, y;
+    uint32_t frame;
+} world_textures[24];
+static uint32_t world_frame;
+static bool reported_split;
+#endif
 
 static bool romfs_ready;
 static bool gpu_ready;
@@ -89,6 +101,9 @@ int32_t m3ds_terrain_begin(int32_t left, int32_t bottom, int32_t width, int32_t 
     draws = 0;
     frame_open = C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
     if (!frame_open) return -7;
+#ifdef M3DS_WORLD_ATLAS
+    world_frame++;
+#endif
     C2D_TargetClear(target, C2D_Color32(24, 27, 32, 255));
     C2D_SceneBegin(target);
     C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_COLOR);
@@ -96,10 +111,101 @@ int32_t m3ds_terrain_begin(int32_t left, int32_t bottom, int32_t width, int32_t 
     return 1;
 }
 
+#ifdef M3DS_WORLD_ATLAS
+static C2D_SpriteSheet get_world_texture(int page, int x, int y) {
+    int victim = -1;
+    for (size_t i = 0; i < sizeof(world_textures) / sizeof(world_textures[0]); i++) {
+        if (world_textures[i].sheet && world_textures[i].page == page
+                && world_textures[i].x == x && world_textures[i].y == y) {
+            world_textures[i].frame = world_frame;
+            return world_textures[i].sheet;
+        }
+        if (!world_textures[i].sheet || world_textures[i].frame != world_frame) {
+            if (victim < 0 || (world_textures[victim].sheet && (!world_textures[i].sheet
+                    || world_textures[i].frame < world_textures[victim].frame))) {
+                victim = (int)i;
+            }
+        }
+    }
+    if (victim < 0) return NULL;
+    if (world_textures[victim].sheet) C2D_SpriteSheetFree(world_textures[victim].sheet);
+    char path[48];
+    snprintf(path, sizeof(path), "romfs:/world-atlas/%d-%d-%d.t3x", page, x, y);
+    C2D_SpriteSheet sheet = C2D_SpriteSheetLoad(path);
+    world_textures[victim].sheet = sheet;
+    if (!sheet) return NULL;
+    world_textures[victim].page = page;
+    world_textures[victim].x = x;
+    world_textures[victim].y = y;
+    world_textures[victim].frame = world_frame;
+    C3D_TexSetFilter(C2D_SpriteSheetGetImage(sheet, 0).tex, GPU_NEAREST, GPU_NEAREST);
+    return sheet;
+}
+
+static int32_t draw_world_region(int page, int left, int top, int w, int h,
+                                 const C2D_DrawParams *whole, const C2D_ImageTint *tint) {
+    if (page < 0 || (size_t)page >= sizeof(world_atlas_sizes) / sizeof(world_atlas_sizes[0])
+            || left < 0 || top < 0 || w > world_atlas_sizes[page][0] - left
+            || h > world_atlas_sizes[page][1] - top) return 0;
+
+    const int tile = WORLD_ATLAS_TILE;
+    const int right = left + w, bottom = top + h;
+    const float step_x = whole->pos.w / w, step_y = whole->pos.h / h;
+    int fragments = 0;
+    for (int y = top; y < bottom;) {
+        int tile_y = y / tile, row_end = (tile_y + 1) * tile;
+        if (row_end > bottom) row_end = bottom;
+        for (int x = left; x < right;) {
+            int tile_x = x / tile, col_end = (tile_x + 1) * tile;
+            if (col_end > right) col_end = right;
+            C2D_SpriteSheet sheet = get_world_texture(page, tile_x, tile_y);
+            if (!sheet) return 0;
+            C2D_Image image = C2D_SpriteSheetGetImage(sheet, 0);
+            Tex3DS_SubTexture sub = {
+                .width = col_end - x, .height = row_end - y,
+                .left = (float)(x - tile_x * tile) / tile, .right = (float)(col_end - tile_x * tile) / tile,
+                .top = 1.0f - (float)(y - tile_y * tile) / tile,
+                .bottom = 1.0f - (float)(row_end - tile_y * tile) / tile,
+            };
+            image.subtex = &sub;
+            C2D_DrawParams piece = *whole;
+            piece.pos.w = sub.width * step_x;
+            piece.pos.h = sub.height * step_y;
+            // Retain the original pivot even when it lies outside this fragment.
+            piece.center.x -= (x - left) * step_x;
+            piece.center.y -= (y - top) * step_y;
+            if (!C2D_DrawImage(image, &piece, tint)) return 0;
+            fragments++;
+            x = col_end;
+        }
+        y = row_end;
+    }
+    if (!reported_split && fragments > 1) {
+        char record[112];
+        int length = snprintf(record, sizeof(record), "UPSTREAM_WORLD_ATLAS page=%d rect=%d,%d+%dx%d fragments=%d\n",
+            page, left, top, w, h, fragments);
+        if (length > 0 && length < (int)sizeof(record)) svcOutputDebugString(record, length);
+        reported_split = true;
+    }
+    draws += fragments;
+    return 1;
+}
+#endif
+
 int32_t m3ds_terrain_draw(int32_t page, int32_t left, int32_t top, int32_t width, int32_t height,
                           float x, float y, float origin_x, float origin_y, float draw_width,
                           float draw_height, float rotation, int32_t color) {
     if (!frame_open || width <= 0 || height <= 0) return 0;
+    C2D_DrawParams params = {
+        .pos = { screen_left + (x + origin_x - world_left) * scale,
+                 screen_bottom - (y + origin_y - world_bottom) * scale,
+                 draw_width * scale, draw_height * scale },
+        .center = { origin_x * scale, (draw_height - origin_y) * scale },
+        .depth = 0.5f,
+        .angle = rotation * (-3.14159265358979323846f / 180.0f),
+    };
+    C2D_ImageTint tint;
+    C2D_PlainImageTint(&tint, (u32)color, 1.0f);
     size_t count = sizeof(terrain_regions) / sizeof(terrain_regions[0]);
     for (size_t i = 0; i < count; i++) {
         const ArcAtlasRegion *region = &terrain_regions[i];
@@ -131,21 +237,15 @@ int32_t m3ds_terrain_draw(int32_t page, int32_t left, int32_t top, int32_t width
             subtexture.bottom = parent->top + (offset_y + height) * dv;
         }
         image.subtex = &subtexture;
-        C2D_DrawParams params = {
-            .pos = { screen_left + (x + origin_x - world_left) * scale,
-                     screen_bottom - (y + origin_y - world_bottom) * scale,
-                     draw_width * scale, draw_height * scale },
-            .center = { origin_x * scale, (draw_height - origin_y) * scale },
-            .depth = 0.5f,
-            .angle = rotation * (-3.14159265358979323846f / 180.0f),
-        };
-        C2D_ImageTint tint;
-        C2D_PlainImageTint(&tint, (u32)color, 1.0f);
         if (!C2D_DrawImage(image, &params, &tint)) return 0;
         draws++;
         return 1;
     }
+#ifdef M3DS_WORLD_ATLAS
+    return draw_world_region(page, left, top, width, height, &params, &tint);
+#else
     return 0;
+#endif
 }
 
 int32_t m3ds_terrain_end(void) {
@@ -292,6 +392,11 @@ int32_t m3ds_terrain_build_catalog(const char *labels, const int32_t *icons, int
 void m3ds_terrain_fini(void) {
     if (frame_open) m3ds_terrain_end();
     if (gpu_ready && C3D_FrameBegin(0)) C3D_FrameEnd(0);
+#ifdef M3DS_WORLD_ATLAS
+    for (size_t i = 0; i < sizeof(world_textures) / sizeof(world_textures[0]); i++) {
+        if (world_textures[i].sheet) C2D_SpriteSheetFree(world_textures[i].sheet);
+    }
+#endif
     for (size_t row = 0; row < sizeof(menu_icons) / sizeof(menu_icons[0]); row++) {
         if (menu_icons[row].sheet) C2D_SpriteSheetFree(menu_icons[row].sheet);
     }

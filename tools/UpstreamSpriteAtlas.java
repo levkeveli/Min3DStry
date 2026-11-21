@@ -46,6 +46,10 @@ class UpstreamSpriteAtlas {
             };
             var atlas = new TextureAtlasData(metadata, metadata.parent(), false);
             Map<String, Region> regions = writeInventory(atlas, output);
+            if (args.length == 3 && args[2].equals("--world-pages")) {
+                exportWorldPages(archive, atlas, output);
+                return;
+            }
             // Keep only one decoded upstream page in memory at a time.
             Path sprites = Files.createDirectory(output.resolve("png"));
             if (args.length == 3 && args[2].equals("--menu-icons")) {
@@ -69,6 +73,33 @@ class UpstreamSpriteAtlas {
             System.out.printf("Upstream atlas: %d pages, %d regions, %d exported%n",
                 atlas.getPages().size, atlas.getRegions().size, exported);
         }
+    }
+
+    private static void exportWorldPages(ZipFile archive, TextureAtlasData atlas, Path output) throws IOException {
+        final int tile = 128;
+        Path textures = Files.createDirectory(output.resolve("world-atlas"));
+        var header = new StringBuilder("#define WORLD_ATLAS_TILE 128\n")
+            .append("static const int world_atlas_sizes[][2] = {\n");
+        try (var manifest = Files.newBufferedWriter(output.resolve("world-atlas.tsv"))) {
+            manifest.write("page\timage\twidth\theight\n");
+            int index = 0;
+            for (AtlasPage page : atlas.getPages()) {
+                BufferedImage pixels = readPage(archive, page);
+                if (page.width % tile != 0 || page.height % tile != 0) {
+                    throw new IOException("Upstream atlas page is not tile aligned: " + page.textureFile.name());
+                }
+                manifest.write(index + "\t" + page.textureFile.name() + "\t" + page.width + "\t" + page.height + "\n");
+                header.append("    { ").append(page.width).append(", ").append(page.height).append(" },\n");
+                for (int y = 0; y < page.height; y += tile) {
+                    for (int x = 0; x < page.width; x += tile) {
+                        String name = index + "-" + (x / tile) + "-" + (y / tile) + ".t3x";
+                        writeTexture(pixels.getSubimage(x, y, tile, tile), textures.resolve(name));
+                    }
+                }
+                index++;
+            }
+        }
+        Files.writeString(output.resolve("world_atlas_layout.h"), header.append("};\n").toString());
     }
 
     private static void exportMenuIcons(ZipFile archive, TextureAtlasData atlas, Map<String, Region> regions,
@@ -111,7 +142,7 @@ class UpstreamSpriteAtlas {
                 if (region.page != page) continue;
                 if (source == null) source = readPage(archive, page);
                 var pixels = exportRegion(source, region, sprites.resolve(entry.getKey() + ".png"));
-                writeMenuTexture(pixels, catalog.resolve(entry.getKey() + ".t3x"));
+                writeTexture(pixels, catalog.resolve(entry.getKey() + ".t3x"));
             }
         }
         System.out.printf("Original menu icons: %d of %d blocks, %d items%n",
@@ -119,9 +150,9 @@ class UpstreamSpriteAtlas {
     }
 
     /** Tex3DS single-region, uncompressed RGBA8 sheet. Pixels are tiled in Morton order. */
-    private static void writeMenuTexture(BufferedImage image, Path file) throws IOException {
+    private static void writeTexture(BufferedImage image, Path file) throws IOException {
         int sw = image.getWidth(), sh = image.getHeight();
-        if (sw > 128 || sh > 128) throw new IOException("Menu texture exceeds 128 pixels: " + file);
+        if (sw > 128 || sh > 128) throw new IOException("Texture exceeds 128 pixels: " + file);
         int width = Math.max(8, Integer.highestOneBit(sw - 1) << 1);
         int height = Math.max(8, Integer.highestOneBit(sh - 1) << 1);
         int dimensions = (Integer.numberOfTrailingZeros(width) - 3)

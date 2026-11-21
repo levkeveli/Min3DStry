@@ -43,6 +43,10 @@ if [[ $# -gt 0 ]]; then
     if [[ -d "$1/catalog" ]]; then
         cp -R "$1/catalog" "$output/romfs/catalog"
     fi
+    if [[ -d "$1/world-atlas" ]]; then
+        terrain_flags+=(-DM3DS_WORLD_ATLAS)
+        cp -R "$1/world-atlas" "$output/romfs/world-atlas"
+    fi
     "$DEVKITPRO/tools/bin/smdhtool" --create "$title" "Mindustry v160.8 Glacier" \
         "Min3DStry Contributors" "$DEVKITPRO/libctru/default_icon.png" "$output/upstream-probe.smdh"
     package_flags=(--smdh="$output/upstream-probe.smdh" --romfs="$output/romfs")

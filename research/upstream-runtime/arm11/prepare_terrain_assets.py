@@ -47,6 +47,14 @@ def pack_menu_icons(args, staged: Path, extracted: Path) -> None:
     (extracted / "catalog").rename(staged / "catalog")
     manifest.rename(staged / manifest.name)
 
+def pack_world_atlas(args, staged: Path, extracted: Path) -> None:
+    extracted.mkdir()
+    subprocess.run([args.java, "-Djava.awt.headless=true", "-cp", str(args.server.resolve()),
+                    str(CONVERTER.with_name("UpstreamSpriteAtlas.java")), str(args.assets.resolve()),
+                    str(extracted), "--world-pages"], check=True)
+    for name in ("world-atlas", "world-atlas.tsv", "world_atlas_layout.h"):
+        (extracted / name).rename(staged / name)
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
@@ -64,7 +72,8 @@ def main() -> None:
     output.parent.mkdir(parents=True, exist_ok=True)
     regions = REGIONS
     if args.multiplayer:
-        surveyed = GLACIER_INVENTORY.read_text(encoding="ascii").splitlines()
+        surveyed = (name for name in GLACIER_INVENTORY.read_text(encoding="ascii").splitlines()
+                    if not name.startswith("core-nucleus"))
         conveyors = (f"conveyor-{variant}-{frame}" for variant in range(5) for frame in range(4))
         regions = tuple(dict.fromkeys((*surveyed, "gamma", "dagger", "copper-wall", "router",
                                        "sorter", "inverted-sorter", "cross-full", "white", *conveyors)))
@@ -76,6 +85,7 @@ def main() -> None:
         write_layout(staged, regions)
         if args.multiplayer:
             pack_menu_icons(args, staged, Path(tmp) / "menu")
+            pack_world_atlas(args, staged, Path(tmp) / "world")
             bundles = staged / "bundles"
             bundles.mkdir()
             with zipfile.ZipFile(args.assets) as archive:
