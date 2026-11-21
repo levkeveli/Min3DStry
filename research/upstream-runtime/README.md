@@ -457,12 +457,23 @@ staged directory to exercise all 205 PCM files through the live mixer and
 streamer on a host. The test holds a looping Gamma firing voice while it
 loads and evicts other clips, then checks EOF, rewinds, four concurrent
 streams, stale handles and no-DSP fallback. Add `--verify-live-audio` to the
-Glacier weapon replay to check the local Gamma sound (117) and stock Java server packets for the UI button (185)
-and positional wave spawn (198) and Wind2 (200). The report includes resident
-PCM, cache hits and voice counts. Azahar without DSP firmware checks stock
-packet routing and can open and verify the staged long sound's PCM size.
+Glacier weapon replay to check local Gamma fire (117) and stock Java server
+packets for the UI button (185), positional wave spawn (198) and Wind2 (200).
+The report includes resident PCM, cache hits and voice counts. Azahar without
+DSP firmware checks stock packet routing and verifies the staged long
+sound's PCM size.
 
-The stock SFX ARM11 build from `94e74c9` passed the expanded Glacier replay
+The stream-enabled build from `7fba53d` passed this replay on both Azahar
+profiles. The stock server's Wind2 request retained volume `0.750`, pitch
+`0.875` and leftward pan `-0.312`. The Azahar runtime opened the 393,474-frame
+PCM asset in no-DSP fallback. The host mock streamed each long effect to
+EOF while the cached Gamma voice stayed active, and exercised four
+concurrent loops. The same ROM rejoined the stock 512×512 Onset map twice on
+both profiles, matching the server's tile CRC32 `3861859253` on every join.
+Physical audible playback remains open.
+[ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44954692798)
+
+The earlier short-SFX ARM11 build from `94e74c9` passed the expanded Glacier replay
 on both Azahar profiles. The native cache started with zero resident PCM.
 Each run routed IDs 117, 185 and 198 and
 finished with six clips and 478,160 resident PCM bytes. Old 3DS logged 227
