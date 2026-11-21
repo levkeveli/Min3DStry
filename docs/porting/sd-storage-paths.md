@@ -50,21 +50,23 @@ the probe reports three cases:
 logs:
 
 ```text
-[MIN3DSTRY] SAVE_SLOT present=1 valid=1 compressed=1 version=13 bytes=8550 path=sdmc:/3ds/min3dstry/...
+[MIN3DSTRY] SAVE_SLOT present=1 valid=1 compressed=1 version=13 bytes=11072 path=sdmc:/3ds/min3dstry/...
+[MIN3DSTRY] SAVE_META map=Glacier wave=1
 ```
 
 The bottom HUD shows `Save: v13 <bytes>B` for a raw header or a decoded zlib
 wrapper, `Save: zlib <bytes>B` when the wrapper is valid but its prefix cannot
-be decoded, `Save: invalid <bytes>B`, or `Save: none`. This is status plumbing,
-not save loading/writing.
+be decoded, `Save: invalid <bytes>B`, or `Save: none`, plus
+`Map: <name> wave=<n>` when the upstream metadata map parses.
 
 ### Compressed header prefix
 
-`include/platform/msav_inflate.h` decodes only the first eight bytes of the
-zlib stream (RFC 1950/1951), so the `MSAV` magic and big-endian version are
-available without inflating a whole world. It handles stored, fixed-Huffman and
-dynamic-Huffman DEFLATE blocks and stops as soon as the requested prefix is
-produced. Malformed headers, FDICT streams, and truncated input fail closed.
+`include/platform/msav_inflate.h` decodes only the prefix of the zlib stream
+(RFC 1950/1951), so the `MSAV` magic, big-endian version and the early metadata
+string map (`mapname`, `wave`) are available without inflating a whole world.
+It handles stored, fixed-Huffman and dynamic-Huffman DEFLATE blocks and stops
+as soon as the requested prefix is produced. Malformed headers, FDICT streams,
+and truncated input fail closed.
 
 ## SD sector catalog
 

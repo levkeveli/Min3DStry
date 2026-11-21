@@ -179,6 +179,12 @@ int main(int argc, char *argv[]) {
                  "[MIN3DSTRY] SAVE_SLOT status=invalid_path\n");
     }
     m3ds_emit_debug_line(log_socket, dbg_line);
+    if (save_slot.has_meta) {
+        snprintf(dbg_line, sizeof(dbg_line),
+                 "[MIN3DSTRY] SAVE_META map=%s wave=%u\n",
+                 save_slot.map_name, (unsigned)save_slot.wave);
+        m3ds_emit_debug_line(log_socket, dbg_line);
+    }
 
     M3dsSectorSlot sectors[M3DS_SECTOR_CATALOG_MAX];
     size_t sector_count = m3ds_sector_catalog_scan(
@@ -733,6 +739,12 @@ int main(int argc, char *argv[]) {
                    (unsigned)sectors[0].bytes);
         } else {
             printf("\x1b[22;1H\x1b[K");
+        }
+        if (save_slot.has_meta) {
+            printf("\x1b[23;1HMap: %s wave=%u\x1b[K",
+                   save_slot.map_name, (unsigned)save_slot.wave);
+        } else {
+            printf("\x1b[23;1H\x1b[K");
         }
         if (pause_menu.open) {
             printf("\x1b[15;1H=== PAUSED ===  Up/Down + A\x1b[K");
