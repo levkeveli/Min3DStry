@@ -31,14 +31,17 @@ Multiplayer asset preparation also imports all four source images into
 2,048 uncompressed 128 × 128 RGBA8 tiles. Coordinates in the Arc atlas
 still address the same image and pixel positions. The Citro2D backend
 can draw a rectangle that crosses backing tiles with the original
-pivot, rotation, tint and layer order. The Core Nucleus and
+pivot, signed scale, rotation, tint and layer order. The Core Nucleus and
 team overlay use this path in the live Glacier probe.
 
 The world cache holds at most 24 backing textures, or 1.5 MiB of texels.
-It retains textures used by the current GPU frame and replaces older
-textures after the frame fence. The existing compact sheet remains the
-fast path for the other frequently used Glacier regions. The complete
-raw atlas in RomFS uses 128 MiB of storage plus tile headers.
+The runtime allocates both screen outputs first and retains room in the
+linear heap for six menu icons. When pending draws occupy every
+available slot, the renderer submits them to the
+same framebuffer and waits for the GPU before reusing a texture. Only
+the final submission presents the completed frame. The compact sheet
+continues to supply the other frequently used Glacier regions. The
+complete raw atlas in RomFS uses 128 MiB plus tile headers.
 
 Generate and independently decode just the world atlas from the
 official artifacts with the following commands.
@@ -58,6 +61,15 @@ The [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/4485887793
 passed this check in the Azahar Old and New 3DS profiles on a live
 Glacier session from the stock v160.8 Java server. Both profiles matched
 the nine sampled pixels across the Core Nucleus seams.
+
+With the cache reduced to three slots at compile time
+(`-DM3DS_WORLD_ATLAS_SLOTS=3`), the [stress build](https://github.com/levkeveli/Min3DStry/actions/runs/44860006787)
+also passed on both profiles. Run the live verifier with `--world-atlas`
+and `--world-atlas-recycle` to require the GPU submission and recycling
+event at spawn and check the original seam pixels. The default
+executable allows up to 24 slots. On each profile, all 8,328 pixels in
+the Core Nucleus crop outside the player unit area matched the earlier
+build.
 
 ## Build the platform test fixtures
 
