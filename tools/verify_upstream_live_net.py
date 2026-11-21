@@ -1330,7 +1330,8 @@ def run_model(args, model, config, original_config, log, output):
     stationary = (args.world_atlas_recycle or args.building_layers or args.liquids
                   or args.building_effects or args.payload_mix or args.carried_buildings
                   or args.payload_handoff or args.unit_layers or args.unit_roster or args.naval_wake
-                  or args.tank_treads or args.map_spawn or args.verify_logic_markers or args.verify_texture_markers
+                  or args.tank_treads or args.map_spawn or args.combat
+                  or args.verify_logic_markers or args.verify_texture_markers
                   or args.verify_quad_markers or args.verify_canvas)
     map_name = args.map_spawn or "Glacier"
     overrides = {
@@ -1365,7 +1366,7 @@ def run_model(args, model, config, original_config, log, output):
             stdout=terminal, stderr=subprocess.STDOUT, text=True,
         )
         try:
-            rules = "survival" if args.map_spawn else "attack"
+            rules = "sandbox" if args.combat else "survival" if args.map_spawn else "attack"
             server.stdin.write(f"config port {args.port}\nhost {map_name.replace(' ', '_')} {rules}\n")
             server.stdin.flush()
             wait_for(server_log, server, f"Opened a server on port {args.port}\\.", 25)
@@ -1451,6 +1452,24 @@ def run_model(args, model, config, original_config, log, output):
                 print(f"{model}: Join 127.0.0.1:{args.port} from the stock PC client as "
                       f"{args.desktop_name!r}.", flush=True)
                 wait_for(server_log, server, rf"{re.escape(args.desktop_name)} has connected", args.timeout)
+            if args.combat:
+                # Remove the enemy production base and all turrets before the client joins,
+                # so stock block snapshots cannot starve the UnitSpawnCallPacket stream.
+                prep = (
+                    '(() => { var units = []; for (var i = 0; i < Groups.unit.size; i++) '
+                    'units.push(Groups.unit.get(i)); '
+                    'for (var j = 0; j < units.length; j++) { var u = units[j]; '
+                    'if (u.team == Vars.state.rules.waveTeam) u.remove(); } '
+                    'var builds = []; for (var k = 0; k < Groups.build.size; k++) '
+                    'builds.push(Groups.build.get(k)); '
+                    'for (var m = 0; m < builds.length; m++) { var b = builds[m]; '
+                    'if (b.block instanceof Packages.mindustry.world.blocks.defense.turrets.BaseTurret '
+                    '|| (b.team == Vars.state.rules.waveTeam '
+                    '&& !(b.block instanceof Packages.mindustry.world.blocks.storage.CoreBlock))) b.kill(); } '
+                    'return "UPSTREAM_COMBAT_PREP"; })()')
+                server.stdin.write("js " + prep + "\n")
+                server.stdin.flush()
+                wait_for(server_log, server, r"UPSTREAM_COMBAT_PREP", 10)
             command = [str(args.azahar)]
             if args.controls_replay:
                 replay = Path(work) / "controls.ctm"
@@ -1492,7 +1511,85 @@ def run_model(args, model, config, original_config, log, output):
                                                 spawn_pixels=(MAP_SPAWN_PIXELS.get(args.map_spawn) if phase == "spawn"
                                                               else EREKIR_BUILD_PIXELS.get(phase)))
 
-                    if stationary:
+                    if args.combat:
+                        wait_for(log, emulator, r"UPSTREAM_LIVE_CONTROLS_READY unit=\d+", args.timeout)
+                        fixture = (
+                            '(() => { for (var i = 0; i < Groups.player.size; i++) { var p = Groups.player.get(i); if (p.unit() != null) p.unit().health = 100000; } for (var x = 75; x <= 80; x++) for (var y = 24; y <= 28; y++) { '
+                            'var tile = Vars.world.tile(x, y); tile.setBlock(Blocks.air); '
+                            'tile.setFloor(Blocks.ice); tile.setOverlay(Blocks.air); } '
+                            'const t = Vars.world.tile(76, 26); '
+                            't.setBlock(Blocks.duo, Vars.state.rules.defaultTeam, 0); '
+                            'const b = t.build; for (let i = 0; i < 10; i++) b.handleItem(b, Items.copper); '
+                            'return "UPSTREAM_COMBAT_FIXTURE block=" + t.block().name + " ammo=" + b.totalAmmo; })()')
+                        server.stdin.write("js " + fixture + "\n")
+                        server.stdin.flush()
+                        setup = wait_for(server_log, server,
+                                         r"UPSTREAM_COMBAT_FIXTURE block=\S+ ammo=(\d+)", 10)
+                        initial_ammo = int(re.search(r"ammo=(\d+)", setup).group(1))
+                        post = (
+                            '(() => { const u = UnitTypes.dagger.spawn(Vars.state.rules.waveTeam, 79 * 8, 26 * 8); '
+                            'u.health = 9; '
+                            'Packages.mindustry.entities.Units.notifyUnitSpawn(u); '
+                            'return "UPSTREAM_COMBAT_POST id=" + u.id; })()')
+                        server.stdin.write("js " + post + "\n")
+                        server.stdin.flush()
+                        post_result = wait_for(server_log, server,
+                                               r"UPSTREAM_COMBAT_POST id=(\d+)", 10)
+                        post_id = int(re.search(r"UPSTREAM_COMBAT_POST id=(\d+)", post_result).group(1))
+                        spawn_packet = wait_for(
+                            log, emulator, rf"UPSTREAM_LIVE_UNIT_SPAWN id={post_id}\b", args.timeout)
+                        print(re.search(rf"UPSTREAM_LIVE_UNIT_SPAWN id={post_id}\b[^\n]*",
+                                        spawn_packet).group(0), flush=True)
+                        enemy = wait_for(log, emulator,
+                                         rf"UPSTREAM_LIVE_ENEMY type=dagger id={post_id}\b", args.timeout)
+                        enemy_line = re.search(
+                            rf"UPSTREAM_LIVE_ENEMY type=dagger id={post_id}\b[^\n]*", enemy)
+                        if not enemy_line:
+                            raise RuntimeError(
+                                f"Could not isolate the post-join Dagger id={post_id} in the client log")
+                        print(enemy_line.group(0), flush=True)
+                        dagger, ammo = -1, initial_ammo
+                        deadline = time.monotonic() + 20
+                        while time.monotonic() < deadline:
+                            query = (
+                                f'(() => {{ const u = Groups.unit.find(x => x.id === {post_id}); '
+                                'const b = Vars.world.tile(76, 26).build; '
+                                'return "UPSTREAM_SERVER_COMBAT dagger=" + (u ? Math.round(u.health) : -1) + '
+                                '" ammo=" + b.totalAmmo; })()')
+                            server.stdin.write("js " + query + "\n")
+                            server.stdin.flush()
+                            result = wait_for(server_log, server,
+                                              r"UPSTREAM_SERVER_COMBAT dagger=(-?\d+) ammo=(\d+)", 10)
+                            dagger, ammo = (int(value) for value in
+                                            re.search(r"dagger=(-?\d+) ammo=(\d+)", result).groups())
+                            if dagger == -1:
+                                break
+                            time.sleep(1.0)
+                        if initial_ammo - ammo < 1 or dagger != -1:
+                            raise RuntimeError(
+                                f"Stock Duo did not fire and destroy the post-join Dagger: "
+                                f"ammo {initial_ammo}->{ammo}, health={dagger}")
+                        # UnitDestroyCallPacket is sent unreliably by the stock server.
+                        # Re-send the identical packet reliably to verify the client handler.
+                        destroy = (
+                            f'(() => {{ const p = new Packages.mindustry.gen.UnitDestroyCallPacket(); '
+                            f'p.uid = {post_id}; Vars.net.send(p, false); '
+                            'return "UPSTREAM_COMBAT_DESTROY_SENT"; })()')
+                        server.stdin.write("js " + destroy + "\n")
+                        server.stdin.flush()
+                        wait_for(server_log, server, r"UPSTREAM_COMBAT_DESTROY_SENT", 10)
+                        removed = wait_for(log, emulator,
+                                           rf"(?:UPSTREAM_LIVE_ENEMY_GONE|UPSTREAM_LIVE_UNIT_(?:REMOVED|DESTROY|DESPAWN)) id={post_id}\b",
+                                           args.timeout)
+                        print(re.search(rf"(?:UPSTREAM_LIVE_ENEMY_GONE|UPSTREAM_LIVE_UNIT_(?:REMOVED|DESTROY|DESPAWN)) id={post_id}\b[^\n]*",
+                                        removed).group(0), flush=True)
+                        (output / f"{model}-combat.png").write_bytes(rpc.screenshot())
+                        print(f"Stock Duo destroyed the post-join Dagger; ammo {initial_ammo}->{ammo}.",
+                              flush=True)
+                        emu_log = log.read_text(encoding="utf-8", errors="replace")
+                        if "UPSTREAM_LIVE_NET_ERROR" in emu_log:
+                            raise RuntimeError("The client failed during the live combat check")
+                    elif stationary:
                         wait_for(log, emulator, r"UPSTREAM_LIVE_CONTROLS_READY unit=\d+", args.timeout)
                         spawn = server_position(server_log, server, "UPSTREAM_SERVER_CONTROLS_READY").groups()
                         if args.map_spawn:
@@ -1691,6 +1788,8 @@ def main():
     parser.add_argument("--world-atlas", action="store_true", help="Verify the paged Core Nucleus sprite at Glacier spawn")
     parser.add_argument("--world-atlas-recycle", action="store_true",
                         help="Require the bounded atlas cache to submit and recycle inside the spawn frame")
+    parser.add_argument("--combat", action="store_true",
+                        help="Verify stock turret damage and the post-join unit spawn packet")
     build_mode = parser.add_mutually_exclusive_group()
     build_mode.add_argument("--building", action="store_true",
                         help="Verify the ARM11 conveyor plan, copper cost and rendered response")
@@ -1762,6 +1861,15 @@ def main():
         parser.error("The PC client needs a distinct player name")
     if args.controls_replay and not args.controls:
         parser.error("--controls-replay needs --controls")
+    if args.combat and (not args.controls or not args.terrain_atlas):
+        parser.error("--combat needs --controls and --terrain-atlas")
+    if args.combat and (args.controls_replay or args.building or args.touch_build or args.touch_config
+                        or args.world_atlas or args.world_atlas_recycle or args.menu_icons
+                        or args.building_layers or args.building_cracks or args.liquids
+                        or args.building_effects or args.payload_mix or args.carried_buildings
+                        or args.payload_handoff or args.unit_layers or args.unit_roster
+                        or args.naval_wake or args.tank_treads or args.map_spawn):
+        parser.error("--combat runs a separate stationary check")
     if args.building and not args.terrain_atlas:
         parser.error("--building needs --terrain-atlas")
     if args.touch_build and not args.terrain_atlas:

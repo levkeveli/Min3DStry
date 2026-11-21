@@ -222,7 +222,11 @@
         "research/upstream-runtime/build.gradle",
         "research/upstream-runtime/README.md",
         "docs/porting/combat-waves-pathfinding.md",
-        ".github/workflows/upstream-arm11-smoke.yml"
+        ".github/workflows/upstream-arm11-smoke.yml",
+        "research/upstream-runtime/src/network-live/java/UpstreamLiveNetworkProbe.java",
+        "research/upstream-runtime/src/network-render/java/UpstreamRenderedNetworkProbe.java",
+        "tools/verify_upstream_live_net.py",
+        "docs/gameplay/live-combat.md"
       ]
     },
     {
@@ -322,7 +326,9 @@
         "research/upstream-runtime/build.gradle",
         "docs/porting/campaign-progression.md",
         "docs/porting/campaign-verification.md",
-        "docs/porting/sd-storage-paths.md"
+        "docs/porting/sd-storage-paths.md",
+        "research/upstream-runtime/arm11/m3ds_file.c",
+        "research/upstream-runtime/src/file/java/port/UpstreamFileMetadataProbe.java"
       ]
     },
     {

@@ -1,7 +1,9 @@
 """Stage the pinned TeaVM translation for the 3DS smoke probe."""
 import argparse
+import os
 import shutil
 from pathlib import Path
+from compact_callsites import compact_callsites
 from fix_heap_alignment import fix_heap_alignment
 from fix_reflection_lifetime import fix_constructor_roots, fix_reflection_lifetime
 
@@ -121,11 +123,23 @@ def main():
             ("            putwchar(c);", "            m3ds_log_codepoint(c);"),
         ],
     }
+    keep_callsite_locations = os.environ.get("M3DS_KEEP_CALLSITE_LOCATIONS", "0") == "1"
+    if not keep_callsite_locations:
+        replacements["stack.h"] = [
+            (
+                "    extern TeaVM_CallSite teavm_callSites[];\n"
+                "    #define TEAVM_FIND_CALLSITE(id, frame) (teavm_callSites + id)",
+                '    #include "m3ds_callsites.h"\n'
+                "    #define TEAVM_FIND_CALLSITE(id, frame) m3ds_find_callsite(id)",
+            ),
+        ]
     for name, changes in replacements.items():
         for old, new in changes:
             replace(args.output / name, old, new)
+    if not keep_callsite_locations:
+        compact_callsites(args.output)
     for name in ("m3ds_date.c", "m3ds_platform.c", "m3ds_file.c", "m3ds_main.c",
-                 "m3ds_gc_relocations.h", "m3ds_array_class_pool.h"):
+                 "m3ds_gc_relocations.h", "m3ds_array_class_pool.h", "m3ds_callsites.h"):
         shutil.copyfile(Path(__file__).with_name(name), args.output / name)
     includes = args.output / "nativeinclude"
     includes.mkdir()
