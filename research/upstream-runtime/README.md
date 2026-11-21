@@ -617,6 +617,245 @@ Windows and still checks `SO_ERROR` before sending packets. The probe
 clears client mode before calling the original `Logic.reset` between
 connections, matching the order of the upstream disconnect path.
 
+### Verify upstream building layers
+
+The live renderer traverses building footprints in the visible tile grid and
+draws a multi-tile building once when any of its tiles is visible. It applies
+the cached and dynamic flags, layer values and visibility check from the
+pinned [BlockRenderer](https://github.com/Anuken/Mindustry/blob/19a0f40d44514f4802a8b79770456e7e32e34da0/core/src/mindustry/graphics/BlockRenderer.java).
+The Arc batch adapter orders sprite commands and callbacks by layer, keeps
+their submission order at equal depth and captures the original atlas
+coordinates and blend mode. The native backend maps Arc normal, additive and
+disabled blending to Citro3D.
+
+Use the existing pinned Gradle settings with `-Pprobe=network-render`:
+
+```sh
+gradle runBuildingLayersJvm --args='/path/to/glacier.msav /path/to/sprites.aatls /path/to/block_colors.png'
+```
+
+Take `block_colors.png` from `assets/sprites/` in the stock v160.8 asset
+archive. The multiplayer asset pack places the same file in RomFS.
+
+The JVM verifier checks the sorted sprite state and actual upstream Conveyor,
+Large Copper Wall and Mechanical Drill draw order. The wall's anchor is
+outside the viewport, and a second wall lies entirely outside. The live
+verifier's `--controls --building-layers --world-atlas` mode loads the
+wall and drill through the stock Java server's original world stream.
+The [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44862056777)
+passed on both Azahar profiles. The verifier checked the original wall,
+drill and Core Nucleus colors and confirmed that the wall was clipped
+to the viewport.
+
+Damaged buildings use the original `Building.drawCracks` method.
+The graphics build stages the generated class from the pinned server JAR
+and redirects the crack texture field lookup to the 56 original atlas
+regions. The existing damage-frame selection, rotation and tint run
+unchanged, including Drill's inherited crack draw between its base and top
+layers. The JVM fixture checks a cached wall and a dynamic drill at
+half health. Add `--building-cracks` to the live building-layer check to
+verify the same state from the Java server.
+The [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44862695989)
+passed this check on both Azahar profiles. For each profile the 800
+visible wall pixels matched a blend of the original wall and crack
+textures within one RGB level, accounting for nearest-texel ties.
+
+The liquid atlas supplies the 50 original liquid frames and 50 gas frames.
+Graphics builds stage the pinned `Conduit` and `LiquidBlock` sources with
+their frame lookup redirected to that atlas. The live probe advances
+Arc's animation clock and runs the original conduit smoothing expression
+on replicated liquid amounts. The stock Java server runs liquid transfers.
+The JVM verifies two water frames through straight and reflected corners
+and the original padding of a tiled gas draw.
+
+Run the live verifier with `--controls --liquids --terrain-atlas` to
+check a water route from the stock Glacier world stream. The
+[ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44864567820)
+passed on both Azahar profiles. The straight conduit and both plated
+elbows showed animation. All 466 opaque comparison pixels on the elbow
+shells matched the nearest original texels. The atlas cache now recycles
+within the available linear heap, preserving space for the touch catalog.
+
+Solid world shapes use the original
+[Arc Fill vertices](https://github.com/Anuken/Arc/blob/7445105cd2683daf5b9ac7033ebb07265d3e814d/arc-core/src/arc/graphics/g2d/Fill.java)
+and the original SpriteBatch triangle indices. The ARM11 backend submits
+two Citro2D triangles with the original per-vertex colors and blend state.
+The JVM checks the Phase Weaver line, the Overdrive outline and the
+Shockwave Tower polygon, as well as draw ordering with reused vertex arrays.
+
+Run the live verifier with `--controls --building-effects --terrain-atlas`
+to load the server's frozen active Phase Weaver and Overdrive states.
+The [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44865356376)
+passed on both Azahar profiles, including the original accent RGB at
+four points on the Phase Weaver line.
+
+Sprite mixing uses Arc's original tint and mix values. The native
+renderer tints the Citro2D fade endpoint because Arc applies the sprite
+tint after mixing the texture and mix colors. The original texture alpha
+is preserved. The JVM checks the stock Payload Conveyor with an empty
+crop, a partial team glow and a full team glow.
+
+Run the live verifier with `--controls --payload-mix --terrain-atlas`
+to load both glow strengths from a stock Java Glacier session. It also
+checks the original base through the transparent overlay and at pixel
+centers on an atlas tile boundary, and verifies that the subsequent Phase
+Weaver line and touchscreen palette retain their colors.
+The [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44866500499)
+passed on both Azahar profiles. Per profile, 616 opaque glow pixels matched
+the original atlas and Arc mix equation within one RGB level. All 3,268
+sampled base pixels under transparent overlays matched exactly after
+clamping the internal atlas tile edges.
+
+Payload Conveyors use upstream `updatePayload` to reconstruct a carried
+building's position from the progress and rotation in the stock building
+stream. Upstream `BuildPayload.draw` draws the building and its atlas
+shadow. The graphics adapter loads original block icons with upstream
+`loadIcon`, which lets the Conveyor and Payload Conveyor families use
+their original `payloadDraw` overrides.
+
+The JVM round-trips ten blocks through the original serializer, including
+both Copper Wall sizes, the Mechanical Drill, all three belt tiers and
+standard and reinforced Payload Conveyors and Routers. It checks original
+atlas regions, position, shadow and the drill's upstream depth order.
+Run the live verifier with `--controls --carried-buildings --terrain-atlas`
+to check both wall sizes, a Mechanical Drill, a Conveyor and a Payload
+Router against their upstream atlas colors in a stock Java Glacier session.
+The [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44867577413)
+for the wall-only fixture passed on both Azahar profiles. The
+[expanded ARM11 fixture](https://github.com/levkeveli/Min3DStry/actions/runs/44870610745)
+passed on both profiles and matched all 7,600 opaque pixels from the
+five carried sprites per profile, allowing either neighboring texel
+at exact nearest-neighbor ties.
+
+The live client alternates TCP and UDP while draining up to 16 packets
+before drawing the next frame. This lets it catch up on stock snapshots
+when emulation or rendering takes longer than the snapshot interval.
+The JVM dispatch check replays a captured v160.8 block snapshot covering
+both sides of a wall handoff. Run the live verifier with
+`--controls --payload-handoff --terrain-atlas`. After connecting to
+Glacier, the verifier lets the stock server transfer a Copper Wall and
+a Dagger between two pairs of conveyors, pauses at known positions and
+waits for its regular block snapshot. It checks that both source belts
+are empty and that the cargo renders beyond their reach. The initial wall
+[ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44869587011)
+passed the wall-only handoff on the Old and New 3DS Azahar profiles.
+
+The Gamma and Dagger use upstream `UnitType.loadIcon`, `UnitType.load`
+and `UnitType.draw`. Their sprites run through the Arc layer queue with
+stock shadows, engines, mirrored weapons and team-colored cells. The JVM
+also traces the stock Dagger leg and base sprites. When the desktop
+renderer is absent, the staged `Drawf.buildBeam` selects Mindustry's
+existing unshaded line beam. The JVM verifies its two lines and focus square.
+
+Run the live verifier with `--controls --unit-layers --terrain-atlas`
+to see both free and carried Gamma and Dagger units streamed by the
+stock server in paused Glacier. Upstream `UnitPayload.draw` handles
+the carried pose, suppresses the Gamma's flight exhaust and restores
+its elevation afterward. The JVM round-trips both serialized units and
+checks the original six-world-unit offset on an incoming carrier.
+The live verifier checks the free and carried team cells, the free Gamma's
+exposed engine and the Dagger weapon tips in both poses. The first
+[ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44871445657)
+passed the free unit capture on both Old and New 3DS Azahar profiles.
+The same build passed the `--controls --controls-replay --building`
+replay on both profiles, including live construction, movement with
+both inputs, wave synchronization and disconnect.
+
+The [unit payload ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44872269291)
+passed the free and carried unit capture on both profiles. On the same
+build, the stock server's periodic block snapshot moved a Copper Wall
+and a Dagger to their receiving belts after the client joined.
+
+The unit renderer loads 30 Serpulo types, including all three core
+drones, the five assault mechs, the five attack aircraft, Crawler,
+Nova through Vela, Mono, Poly and all ten ships. The JVM traces each stock body,
+cell and available weapon and heat sprites. The Quasar's
+`ForceFieldAbility.draw` uses its original unshaded polygon and outline
+when the desktop renderer is absent, matching the construction beam's
+use of the stock unshaded mode.
+
+Run `--controls --unit-roster --terrain-atlas` to check representative
+mechs and aircraft streamed by an unmodified v160.8 server, plus the
+outline of an active Quasar shield. The
+[ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44872900057)
+passed on both Old and New 3DS Azahar profiles with Alpha, Beta, Flare,
+Fortress, Pulsar, Vela and Quasar in the same Glacier viewport.
+The same build also passed the live wall and Dagger handoff on both profiles.
+
+For naval wakes, the build exposes the original `WaterMoveComp` wake
+update from the pinned generated `UnitWaterMove` class. The client
+interpolates remote units with their stock network interpolation method,
+then advances the wake history and calls the generated entity draw.
+The asset pipeline packages the original `assets/sprites/block_colors.png`
+for the upstream palette loader. This gives the wake the source water
+color. The JVM checks both Risso wake trails, their color and that the
+wake update leaves the boat's simulation state intact.
+
+Run `--controls --naval-wake --terrain-atlas` to stream a Risso and
+Retusa from the Java server, then check both Risso wakes after sending
+a controlled sequence of stock entity snapshots. The
+[ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44874607258)
+passed on both Azahar profiles with 22 exact shallow-water wake pixels
+on each side of the Risso per profile.
+The same build passed pad construction on Old 3DS and touch construction
+on New 3DS, including settled D-pad and Circle Pad movement, wave sync
+and disconnect. The touch verifier waits for the matching presented
+pixels and gives each movement time to settle before sending the next.
+
+Stell, Locus, Precept, Vanquish and Conquer use the original Erekir
+tank draw path and atlas strips. The visual update uses upstream
+`updateLastPosition` and `deltaLen` to advance the tread frame by distance
+without running the stock tank physics. The JVM checks frame selection
+and both sides of every tread strip across all five tanks.
+
+Run `--controls --tank-treads --terrain-atlas` for the stock Stell and
+Locus fixture on Glacier. The verifier compares the original Locus tread
+colors as the tank moves, aligning each comparison to the original hull.
+The [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44876093432)
+passed on both Old and New 3DS Azahar profiles. The fixture matched the
+original resting tread strip under the stock soft shadow, then observed
+changes on both sides while receiving stock unit snapshots.
+
+The live renderer uses the map streamed by the server and draws all six
+stock Core Blocks through their upstream draw paths. The JVM checks the
+original atlas region for each core. Run
+`--controls --map-spawn Fortress --terrain-atlas <sprites.aatls>`
+to compare the client world and camera with the stock server. The
+Fortress fixture checks its 256 × 256 map, Core Shard at tile (116, 73),
+Alpha spawn, and five original Core Shard pixels outside the unit shadow.
+The [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44877025445)
+passed these checks against the unmodified v160.8 server in Survival mode
+on both Old and New 3DS Azahar profiles. Both profiles also passed the
+Glacier Core Nucleus, wall and drill regression on the same build.
+
+Evoke, Incite and Emanate use the upstream unit draw path and original
+atlas regions. The JVM checks all three bodies and team cells as part of
+the 38-unit draw test. To check The Onset on the stock server, run
+`--controls --map-spawn "The Onset" --erekir-sector onset --terrain-atlas <sprites.aatls>`.
+The verifier imports the unchanged campaign map from the official server
+jar and hosts it in Survival. It checks the 512 × 512 map, Core Bastion at
+tile (276, 107), Evoke spawn, and pixels from the original core and hull.
+The TeaVM world policy exposes the stock map objective constructors and
+serialized fields to Arc JSON. The test checks the streamed objectives,
+dependency and marker counts, and the first objective's 60 beryllium target.
+The earlier 16 MiB live probe exhausted its managed heap while allocating
+The Onset's tiles. The live probes use a 24 MiB managed heap and keep the
+TCP session alive while decoding the world. The load worker stops before
+the client confirms its join. The
+[24 MiB build](https://github.com/levkeveli/Min3DStry/actions/runs/44879228986)
+passed the Fortress spawn and emitted the TCP keepalive on both Azahar
+profiles. The larger Onset map still triggered invalid pointer accesses in
+TeaVM's compacting collector on the Old 3DS profile. A
+[fixed-size heap build](https://github.com/levkeveli/Min3DStry/actions/runs/44879656955)
+reproduced the fault. The debug probe's ELF, heaps, stacks and SOC buffer
+total 65.04 MiB before GC metadata, above the Original 3DS application
+budget. Large map loading and memory are tracked in
+[#141](https://github.com/levkeveli/Min3DStry/issues/141).
+
+The renderer still selects blocks that use the supported sprite operations.
+Textured raw vertices, additional payload types and other rendering services
+are tracked in [#139](https://github.com/levkeveli/Min3DStry/issues/139).
+
 ### Verify the Arc executor pools
 
 Use `-Pprobe=executor` with the JVM and ARM11 build commands. The JVM uses the

@@ -2,13 +2,16 @@ import arc.files.Fi;
 import arc.util.io.Writes;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
+import java.util.HexFormat;
 import java.util.zip.InflaterInputStream;
 import mindustry.Vars;
+import mindustry.content.Blocks;
 import mindustry.content.Items;
 import mindustry.content.UnitTypes;
 import mindustry.core.GameState.State;
 import mindustry.core.NetClient;
 import mindustry.game.Universe;
+import mindustry.gen.BlockSnapshotCallPacket;
 import mindustry.gen.EntitySnapshotCallPacket;
 import mindustry.gen.Groups;
 import mindustry.gen.Player;
@@ -16,6 +19,8 @@ import mindustry.gen.StateSnapshotCallPacket;
 import mindustry.gen.Unit;
 import mindustry.mod.Mods;
 import mindustry.net.NetworkIO;
+import mindustry.world.blocks.payloads.BuildPayload;
+import mindustry.world.blocks.payloads.PayloadConveyor.PayloadConveyorBuild;
 import mindustry.world.modules.ItemModule;
 
 public final class UpstreamSnapshotDispatchReference {
@@ -73,5 +78,30 @@ public final class UpstreamSnapshotDispatchReference {
         }
         System.out.println("UPSTREAM_SNAPSHOT_REFERENCE wave=" + state.wave
             + " seconds=42 copper=947 dagger=" + dagger.id);
+        verifyPayloadHandoff();
+    }
+
+    private static void verifyPayloadHandoff() {
+        var team = Vars.player.team();
+        var first = Vars.world.tile(74, 22);
+        var second = Vars.world.tile(77, 22);
+        first.setBlock(Blocks.payloadConveyor, team, 0);
+        second.setBlock(Blocks.payloadConveyor, team, 0);
+        var sender = (PayloadConveyorBuild) first.build;
+        var receiver = (PayloadConveyorBuild) second.build;
+        sender.handlePayload(sender, new BuildPayload(Blocks.copperWall, team));
+
+        // Two records captured from the official v160.8 server's periodic snapshot after the handoff.
+        var packet = new BlockSnapshotCallPacket();
+        packet.amount = 2;
+        packet.data = HexFormat.of().parseHex(
+            "004a0016018e43b400008001030108ffff422016800000000000"
+            + "004d0016018e43b400008001030108ffff4220168038c7ded5010100d80043a000008001030108ffff");
+        packet.handleClient();
+        if (sender.item != null || !(receiver.item instanceof BuildPayload wall)
+                || wall.block() != Blocks.copperWall || wall.build.team != team) {
+            throw new AssertionError("Stock block snapshot did not transfer the carried Copper Wall");
+        }
+        System.out.println("UPSTREAM_PAYLOAD_SNAPSHOT sender=empty receiver=copper-wall");
     }
 }

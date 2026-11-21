@@ -11,6 +11,7 @@ import struct
 import subprocess
 import tempfile
 import time
+import zipfile
 
 import verify_azahar as az
 
@@ -43,13 +44,53 @@ def world_atlas_pixels_match(samples):
             return False
     return True
 
+# Opaque core-shard texels outside the Alpha's shadow at the stock Fortress spawn.
+FORTRESS_CORE_PIXELS = {
+    (185, 86): (119, 121, 136),
+    (191, 94): (176, 185, 192), (227, 126): (176, 185, 192),
+    (233, 86): (154, 157, 167), (233, 134): (119, 121, 136),
+}
+
+# Opaque core-bastion shell and bare Evoke hull texels from the pinned atlas.
+ONSET_SPAWN_PIXELS = {
+    (170, 86): (110, 112, 128), (175, 90): (114, 116, 132),
+    (225, 90): (147, 149, 160), (234, 145): (119, 121, 136),
+    (189, 109): (140, 142, 152), (193, 114): (114, 116, 132),
+    (196, 124): (212, 128, 107), (203, 124): (212, 128, 107),
+}
+
+MAP_SPAWNS = {
+    "Fortress": ("256", "256", "core-shard", "alpha", "116", "73"),
+    "The Onset": ("512", "512", "core-bastion", "evoke", "276", "107"),
+}
+MAP_SPAWN_PIXELS = {"Fortress": FORTRESS_CORE_PIXELS, "The Onset": ONSET_SPAWN_PIXELS}
+
+# Opaque RGB from the original wall, drill base and drill top at Glacier spawn.
+BUILDING_LAYER_PIXELS = {
+    (39, 80): (24, 27, 32),  # Clipping keeps the portion west of the viewport in the margin.
+    (42, 65): (200, 165, 143), (52, 80): (200, 165, 143), (46, 90): (177, 135, 104),
+    (301, 57): (143, 102, 91), (338, 71): (176, 185, 192), (319, 59): (177, 135, 104),
+}
+
+
+# At 50% health, opaque crack texels tint the stock wall and drill base
+# with RGB 51 and alpha 0.4. GPU blending can round by one channel value.
+BUILDING_CRACK_PIXELS = {
+    (46, 68): (127, 101, 83), (58, 78): (140, 119, 106),
+    (313, 41): (126, 131, 136), (300, 58): (106, 82, 75),
+}
+
 
 def write_controls_replay(path, first_move=22, building=False, touch_build=False, touch_config=False, model="old3ds"):
     """Write the Azahar 2126.2 CTM input for this probe's pad/touch polling."""
     # The pinned Azahar movie header and HID sample definitions use packed little-endian fields.
     revision = bytes.fromhex("219d743a1e698101fe1ab8bef43e6563126c3c27")
     samples_per_second = 234
-    frames = (first_move + 23) * samples_per_second
+    # Construction and configuration replays can take longer between input polls.
+    needs_settling_time = building or touch_build or touch_config
+    circle_at = first_move + (18 if needs_settling_time else 6)
+    leave_at = first_move + (44 if needs_settling_time else 16)
+    frames = (leave_at + 7) * samples_per_second
     header = struct.pack("<4sQ20sQQ32sIQq156x", b"CTM\x1b", 0, revision, 1780000000,
                          0x4D334453, b"Min3DStry input verification", 0, frames, 0)
     touch_idle = struct.pack("<B6x", 1)
@@ -69,10 +110,10 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
         movie.write(header)
         for frame in range(frames):
             seconds = frame // samples_per_second
-            buttons = (1 << 4) if seconds == first_move else (1 << 3) if seconds == first_move + 16 else 0
+            buttons = (1 << 4) if seconds == first_move else (1 << 3) if seconds == leave_at else 0
             if building and seconds in (35, 37, 39):
                 buttons = 1  # A, with releases so a late HID poll can observe another press.
-            circle_y = 106 if seconds == first_move + 6 else 0
+            circle_y = 106 if seconds == circle_at else 0
             point = next((point for start, point in taps if start <= seconds < start + 2), None)
             pad = struct.pack("<BHhh", 0, buttons, 0, circle_y)
             if point:
@@ -123,8 +164,40 @@ def server_position(server_log, server, marker):
         '+ " x=" + u.x + " y=" + u.y; })()\n'
     )
     server.stdin.flush()
-    state = re.compile(rf"{marker} unit=(\d+) snapshot=(\d+) x=({NUMBER}) y=({NUMBER})")
+    # A connected player can have a unit while the first input snapshot is still in flight.
+    state = re.compile(rf"{marker} unit=(\d+) snapshot=(-1|\d+) x=({NUMBER}) y=({NUMBER})")
     return state.search(wait_for(server_log, server, state, 5))
+
+
+def inspect_map_spawn(server_log, server):
+    server.stdin.write(
+        f'js (() => {{ const p = Groups.player.find(boolf(v => String(v.name) === "{PLAYER}")); '
+        'const c = p.bestCore(); '
+        'if (p.unit().type != c.block.unitType) throw "Unexpected core spawn unit"; '
+        'return "UPSTREAM_MAP_SPAWN width=" + Vars.world.width() + " height=" + Vars.world.height() '
+        '+ " core=" + c.block.name + " unit=" + p.unit().type.name '
+        '+ " x=" + c.tileX() + " y=" + c.tileY(); })()\n'
+    )
+    server.stdin.flush()
+    pattern = re.compile(r"UPSTREAM_MAP_SPAWN width=(\d+) height=(\d+) core=(\S+) unit=(\S+) x=(\d+) y=(\d+)")
+    record = pattern.search(wait_for(server_log, server, pattern, 5))
+    print(record.group(0), flush=True)
+    return record.groups()
+
+
+def verify_map_spawn(log, emulator, map_name, fixture, position):
+    width, height, core, unit, tile_x, tile_y = fixture
+    wait_for(log, emulator, rf"UPSTREAM_LIVE_NET_WORLD join=1 map={re.escape(map_name)} bytes=", 5)
+    wait_for(log, emulator, rf"UPSTREAM_WORLD width={width} height={height} tiles={int(width) * int(height)}\b", 5)
+    wait_for(log, emulator, rf"UPSTREAM_WORLD_BUILDING {tile_x} {tile_y} {re.escape(core)} ", 5)
+    if map_name in MAP_SPAWNS and fixture != MAP_SPAWNS[map_name]:
+        raise RuntimeError(f"Expected the original {map_name} spawn, observed {fixture}")
+    if map_name == "The Onset":
+        wait_for(log, emulator, r"UPSTREAM_WORLD_KEEPALIVE transport=tcp\b", 5)
+        wait_for(log, emulator, r"UPSTREAM_WORLD_OBJECTIVES count=20 dependencies=19 markers=20\b", 5)
+        wait_for(log, emulator, r"UPSTREAM_WORLD_ITEM_OBJECTIVE item=beryllium amount=60\b", 5)
+    if any(abs(float(observed) - int(tile) * 8) > 4 for observed, tile in zip(position[2:], (tile_x, tile_y))):
+        raise RuntimeError(f"Expected controlled unit {unit} near its stock spawn, observed {position}")
 
 
 def verify_movement(log, emulator, server_log, server, join, timeout):
@@ -191,6 +264,18 @@ def verify_conveyor(log, emulator, server_log, server, timeout, capture, positio
         print(f"The ARM11 client applied and drew the PC conveyor at ({desktop_x}, {desktop_y}).", flush=True)
 
 
+def wait_for_touch_pixels(capture, phase, position, expected):
+    # The packet handler logs completion before the graphics backend presents the resulting frame.
+    deadline = time.monotonic() + 5
+    while True:
+        pixels = capture(phase, position)
+        if pixels == expected:
+            return
+        if time.monotonic() >= deadline:
+            raise RuntimeError(f"Expected {phase} pixels {expected}, got {pixels}")
+        time.sleep(0.1)
+
+
 def verify_touch_build(log, emulator, server_log, server, timeout, capture, position, ground_pixels):
     _, _, x, y = position
     tx, ty = math.floor(float(x) / 8 + 0.5) + 4, math.floor(float(y) / 8 + 0.5)
@@ -207,17 +292,17 @@ def verify_touch_build(log, emulator, server_log, server, timeout, capture, posi
         result = inspect_building(server_log, server, f"touch-{block}", tile_x, ty)
         if result != (block, "1", str(rotation), str(copper), "true"):
             raise RuntimeError(f"Unexpected stock {block} placement: {result}")
-        build_pixels = capture(f"touch-{block}", position)
+        if block == "copper-wall":
+            wait_for_touch_pixels(capture, "touch-copper-wall", position, ((200, 165, 143),) * 3)
+        else:
+            capture(f"touch-{block}", position)
     wait_for(log, emulator, rf"UPSTREAM_TOUCH_PLAN block=break x={tx + 1} y={ty}\b", timeout)
     wait_for(log, emulator, rf"UPSTREAM_LIVE_REMOVED x={tx + 1} y={ty}\b", timeout)
     removed = inspect_building(server_log, server, "touch-removed", tx + 1, ty)
     retained = inspect_building(server_log, server, "touch-retained", tx, ty)
     if removed != ("air", "0", "-1", str(copper + 3), "false") or retained[:3] != ("conveyor", "1", "1"):
         raise RuntimeError(f"Unexpected stock removal, copper refund or adjacent conveyor: {removed}, {retained}")
-    removed_pixels = capture("touch-removed", position)
-    if build_pixels == ground_pixels or removed_pixels != ground_pixels:
-        raise RuntimeError(f"Wall sprite did not appear and clear: {ground_pixels} -> "
-                           f"{build_pixels} -> {removed_pixels}")
+    wait_for_touch_pixels(capture, "touch-removed", position, ground_pixels)
     print(f"Stock server verified both touch placements and the wall refund; copper={removed[3]}.", flush=True)
     wait_for(log, emulator, r"UPSTREAM_CATALOG_PAGE category=distribution page=2\b", timeout)
     time.sleep(0.2)  # The input event is logged before Citro2D presents the page.
@@ -325,17 +410,20 @@ def verify_controls(log, emulator, server_log, server, timeout, capture=None,
 
 
 def capture_viewport(log, emulator, rpc, destination, position,
-                     require_palette=False, require_icons=False, require_world_atlas=False):
+                     require_palette=False, require_icons=False, require_world_atlas=False,
+                     require_building_layers=False, require_building_cracks=False,
+                     world_size=(150, 250), spawn_pixels=None):
     unit, _, x, y = position
-    # Glacier is 150 × 250 tiles and the renderer centers a 16 × 12 tile viewport.
-    left = max(0, min(150 - 16, math.floor(float(x) / 8 + 0.5) - 8))
-    bottom = max(0, min(250 - 12, math.floor(float(y) / 8 + 0.5) - 6))
+    # The renderer centers a 16 × 12 tile viewport in the loaded map.
+    width, height = world_size
+    left = max(0, min(width - 16, math.floor(float(x) / 8 + 0.5) - 8))
+    bottom = max(0, min(height - 12, math.floor(float(y) / 8 + 0.5) - 6))
     frame = f"UPSTREAM_NETWORK_FRAME unit={unit} left={left} bottom={bottom} sprites=1"
     wait_for(log, emulator, rf"{frame}\b", 5)
     if require_world_atlas:
-        wait_for(log, emulator, r"UPSTREAM_WORLD_ATLAS page=0 rect=1037,3190\+160x160 fragments=6\b", 5)
-    screenshot = rpc.screenshot(res_scale=1)
-    destination.write_bytes(screenshot)
+        # The backend reports the first split. The fixture wall is drawn before the core.
+        split = r"2365,342\+64x64 fragments=2" if require_building_layers else r"1037,3190\+160x160 fragments=6"
+        wait_for(log, emulator, rf"UPSTREAM_WORLD_ATLAS page=0 rect={split}\b", 5)
     # Default layout centers the 320px bottom screen at x=40 below the top screen.
     if destination.stem.endswith("-touch-catalog"):
         palette_pixels = {(50, 250): (45, 52, 64), (52, 293): (45, 52, 64)}
@@ -360,21 +448,45 @@ def capture_viewport(log, emulator, rpc, destination, position,
         icon_points = tuple((x, y) for x in (60, 64, 68, 72, 76) for y in (289, 294, 299))
     samples = (*points, *interior, *icon_points) if require_palette else ()
     if require_world_atlas:
-        samples += tuple(CORE_PIXELS)
         samples += tuple(
             (x + dx, y + dy)
             for x, y in CORE_PIXELS
             for dx in range(-CORE_PIXEL_TOLERANCE, CORE_PIXEL_TOLERANCE + 1)
             for dy in range(-CORE_PIXEL_TOLERANCE, CORE_PIXEL_TOLERANCE + 1)
         )
-    pixels = az.inspect_png(screenshot, samples)
+    if require_building_layers:
+        samples += tuple(BUILDING_CRACK_PIXELS if require_building_cracks else BUILDING_LAYER_PIXELS)
+    expected = points if require_palette else {}
+    if spawn_pixels:
+        expected = spawn_pixels
+        samples += tuple(spawn_pixels)
+    # Palette and menu input can be logged before the matching Citro2D frame is presented.
+    deadline = time.monotonic() + 5
+    while True:
+        screenshot = rpc.screenshot(res_scale=1)
+        pixels = az.inspect_png(screenshot, samples)
+        if (all(pixels["samples"][point] == color for point, color in expected.items())
+                or time.monotonic() >= deadline):
+            break
+        time.sleep(0.1)
+    destination.write_bytes(screenshot)
     if pixels["width"] != 400 or pixels["height"] != 480 or pixels["top_distinct_colors"] < 8:
-        raise RuntimeError(f"Expected the textured Glacier viewport on the top screen: {pixels}")
+        raise RuntimeError(f"Expected a textured world viewport on the top screen: {pixels}")
+    if spawn_pixels and any(pixels["samples"][point] != color for point, color in spawn_pixels.items()):
+        raise RuntimeError(f"Stock spawn pixels differ: {pixels['samples']}")
     if require_world_atlas and not world_atlas_pixels_match(pixels["samples"]):
         observed = {point: pixels["samples"].get(point) for point in CORE_PIXELS}
         raise RuntimeError(
             f"Paged core pixels differ from the original unsplit draw within "
             f"{CORE_PIXEL_TOLERANCE}px: {observed}")
+    if require_building_cracks and any(
+            abs(observed - expected) > 1
+            for point, color in BUILDING_CRACK_PIXELS.items()
+            for observed, expected in zip(pixels["samples"][point], color)):
+        raise RuntimeError(f"Stock building crack pixels differ: {pixels['samples']}")
+    if require_building_layers and not require_building_cracks and any(
+            pixels["samples"][point] != color for point, color in BUILDING_LAYER_PIXELS.items()):
+        raise RuntimeError(f"Stock building layer pixels differ: {pixels['samples']}")
     if require_palette:
         if any(pixels["samples"][point] != color for point, color in points.items()):
             raise RuntimeError(f"Expected palette and cursor pixels {points}, observed {pixels['samples']}")
@@ -385,7 +497,453 @@ def capture_viewport(log, emulator, rpc, destination, position,
         return tuple(pixels["samples"][point] for point in interior)
 
 
+def load_payload_mix_fixture(server_log, server):
+    # Freeze the original conveyor interpolation at full and partial team glows.
+    server.stdin.write(
+        'pause on\n'
+        'js (() => { const team = Vars.state.rules.defaultTeam; '
+        'const full = Vars.world.tile(75,28), partial = Vars.world.tile(86,24); '
+        'full.setBlock(Blocks.payloadConveyor,team,0); '
+        'partial.setBlock(Blocks.payloadConveyor,team,0); '
+        'const phase = Vars.world.tile(86,28); phase.setBlock(Blocks.phaseWeaver,team,0); phase.build.warmup=1; '
+        'full.build.progress=Blocks.payloadConveyor.moveTime*0.5; '
+        'partial.build.progress=Blocks.payloadConveyor.moveTime*0.4352753; '
+        'return "UPSTREAM_PAYLOAD_FIXTURE fractions=" + Math.round(full.build.fract()*100) '
+        '+ "," + Math.round(partial.build.fract()*100); })()\n'
+    )
+    server.stdin.flush()
+    wait_for(server_log, server, r"UPSTREAM_PAYLOAD_FIXTURE fractions=50,25\b", 5)
+
+
+def verify_payload_mix(screenshot):
+    # Opaque texels from both halves of the full glow, two 37.5% glow
+    # texels, and a transparent overlay texel that must show the base.
+    exact = {(71, 59): (255, 211, 127), (105, 76): (255, 211, 127),
+             (305, 150): (74, 75, 83), (70, 296): (24, 27, 32),
+             # These pixel centers lie exactly on a tile split in the conveyor base.
+             (67, 62): (74, 75, 83), (287, 141): (74, 75, 83)}
+    partial = {(322, 142): (164, 149, 128), (325, 156): (164, 149, 128)}
+    colors = az.inspect_png(screenshot, (*exact, *partial))["samples"]
+    if any(colors[point] != expected for point, expected in exact.items()) or any(
+            abs(channel - target) > 1
+            for point, expected in partial.items() for channel, target in zip(colors[point], expected)):
+        raise RuntimeError(f"Original payload conveyor mix differs: {colors}")
+    verify_building_effects(screenshot)
+
+
+def load_carried_buildings_fixture(server_log, server):
+    # Keep the stock payloads at the center and the first quarter of their respective belts.
+    server.stdin.write(
+        'pause on\n'
+        'js (() => { const team = Vars.state.rules.defaultTeam; '
+        'const center = Vars.world.tile(75,28), incoming = Vars.world.tile(86,24); '
+        'const Payload = Packages.mindustry.world.blocks.payloads.BuildPayload; '
+        'center.setBlock(Blocks.payloadConveyor,team,0); '
+        'incoming.setBlock(Blocks.payloadConveyor,team,0); '
+        'center.build.progress=Blocks.payloadConveyor.moveTime*0.5; '
+        'incoming.build.progress=Blocks.payloadConveyor.moveTime*0.4352753; '
+        'center.build.handlePayload(center.build, new Payload(Blocks.copperWall,team)); '
+        'incoming.build.handlePayload(incoming.build, new Payload(Blocks.copperWallLarge,team)); '
+        'const extra = [[75,23,Blocks.mechanicalDrill],[86,29,Blocks.conveyor],[78,21,Blocks.payloadRouter]]; '
+        'const names = extra.map(entry => { const tile = Vars.world.tile(entry[0],entry[1]); '
+        'tile.setBlock(Blocks.payloadConveyor,team,0); '
+        'tile.build.progress=Blocks.payloadConveyor.moveTime*0.5; '
+        'tile.build.handlePayload(tile.build,new Payload(entry[2],team)); '
+        'return tile.build.item.content().name + "=" + Math.round(tile.build.item.x()); }); '
+        'return "UPSTREAM_CARRIED_FIXTURE " + center.build.item.content().name + "=" '
+        '+ Math.round(center.build.item.x()) + " " + incoming.build.item.content().name + "=" '
+        '+ Math.round(incoming.build.item.x()) + " " + names.join(" "); })()\n'
+    )
+    server.stdin.flush()
+    wait_for(server_log, server, r"UPSTREAM_CARRIED_FIXTURE copper-wall=600 copper-wall-large=682 "
+             r"mechanical-drill=600 conveyor=688 payload-router=624\b", 5)
+
+
+def verify_carried_buildings(screenshot):
+    # Original atlas texels for the centered small wall and the large wall offset six world units west.
+    # Sample away from exact nearest-neighbor ties where adjacent texels have different colors.
+    dark, light = (177, 135, 104), (200, 165, 143)
+    expected = {(82, 63): dark, (85, 68): light, (91, 70): light, (95, 73): dark,
+                (277, 133): dark, (280, 138): light, (286, 140): light,
+                (292, 147): light, (304, 156): dark, (311, 164): dark}
+    # Original opaque texels from the drill base and both upstream fullIcon regions.
+    steel, slate, charcoal = (152, 154, 164), (110, 112, 128), (74, 75, 83)
+    expected.update({(73, 154): steel, (75, 156): steel, (81, 160): charcoal, (104, 186): steel,
+                     (303, 44): slate, (305, 46): slate, (311, 50): charcoal, (314, 53): slate,
+                     (123, 184): slate, (125, 186): slate, (149, 210): charcoal, (165, 228): charcoal,
+                     (174, 230): (148, 151, 162)})
+    colors = az.inspect_png(screenshot, tuple(expected))["samples"]
+    if colors != expected:
+        mismatches = {point: (expected[point], colors.get(point)) for point in expected
+                      if colors.get(point) != expected[point]}
+        raise RuntimeError(f"Original carried buildings differ in color or position: {mismatches}")
+
+
+def load_payload_handoff_fixture(server_log, server):
+    server.stdin.write(
+        'pause on\n'
+        'js (() => { const team = Vars.state.rules.defaultTeam; '
+        'const Wall = Packages.mindustry.world.blocks.payloads.BuildPayload; '
+        'const Unit = Packages.mindustry.world.blocks.payloads.UnitPayload; '
+        'const dagger = UnitTypes.dagger.create(Vars.state.rules.waveTeam); dagger.baseRotation=0; '
+        'const cargos = [[22,new Wall(Blocks.copperWall,team)],[29,new Unit(dagger)]]; '
+        'const names = cargos.map(entry => { const y = entry[0]; '
+        'const sender = Vars.world.tile(74,y), receiver = Vars.world.tile(77,y); '
+        'sender.setBlock(Blocks.payloadConveyor,team,0); '
+        'receiver.setBlock(Blocks.payloadConveyor,team,0); '
+        'Vars.world.tile(79,y).setBlock(Blocks.titaniumWall,team,0); '
+        'sender.build.progress=Blocks.payloadConveyor.moveTime*0.5; '
+        'sender.build.handlePayload(sender.build,entry[1]); '
+        'if (receiver.build.item != null) throw "Receiving belt must start empty"; '
+        'return sender.build.item.content().name; }); '
+        'return "UPSTREAM_HANDOFF_FIXTURE " + names.join(","); })()\n'
+    )
+    server.stdin.flush()
+    wait_for(server_log, server, r"UPSTREAM_HANDOFF_FIXTURE copper-wall,dagger\b", 5)
+
+
+def load_unit_layers_fixture(server_log, server):
+    server.stdin.write(
+        'pause on\n'
+        'js (() => { const team = Vars.state.rules.defaultTeam, enemy = Vars.state.rules.waveTeam; '
+        'const gamma = UnitTypes.gamma.spawn(team,600,224,90); '
+        'const dagger = UnitTypes.dagger.spawn(enemy,688,184,90); '
+        'dagger.baseRotation=90; '
+        'const Payload = Packages.mindustry.world.blocks.payloads.UnitPayload; '
+        'const loadedGamma = UnitTypes.gamma.create(team), loadedDagger = UnitTypes.dagger.create(enemy); '
+        'loadedDagger.baseRotation=90; '
+        'const belts = [[75,23,loadedGamma,0.5],[86,29,loadedDagger,0.4352753]]; '
+        'const centers = belts.map(entry => { const tile = Vars.world.tile(entry[0],entry[1]); '
+        'tile.setBlock(Blocks.payloadConveyor,team,1); '
+        'tile.build.progress=Blocks.payloadConveyor.moveTime*entry[3]; '
+        'tile.build.handlePayload(tile.build,new Payload(entry[2])); '
+        'return Math.round(tile.build.item.y()); }); '
+        'return "UPSTREAM_UNIT_FIXTURE gamma=" + gamma.team.id + "," + gamma.rotation '
+        '+ " dagger=" + dagger.team.id + "," + dagger.baseRotation '
+        '+ " cargoY=" + centers.join(","); })()\n'
+    )
+    server.stdin.flush()
+    wait_for(server_log, server,
+             r"UPSTREAM_UNIT_FIXTURE gamma=1,90(?:\.0)? dagger=2,90(?:\.0)? cargoY=184,226\b", 5)
+
+
+def verify_unit_layers(screenshot):
+    # Opaque white cell texels take the team tint. These pixels sit outside the core.
+    sharded, crux = (255, 211, 127), (242, 85, 85)
+    expected = {(89, 76): sharded, (90, 76): sharded, (90, 79): sharded,
+                (309, 174): crux, (310, 174): crux, (310, 176): crux}
+    # The engine is visible beyond the Gamma's body. Both mirrored Dagger mounts have orange tips.
+    expected.update({(90, 89): sharded, (300, 165): (255, 166, 100), (319, 165): (255, 166, 100)})
+    # The carried Gamma is centered, and the carried Dagger is six world units south of its belt center.
+    expected.update({(89, 176): sharded, (90, 176): sharded, (90, 179): sharded,
+                     (309, 69): crux, (310, 69): crux, (310, 71): crux,
+                     (300, 60): (255, 166, 100), (319, 60): (255, 166, 100)})
+    colors = az.inspect_png(screenshot, tuple(expected))["samples"]
+    if colors != expected:
+        raise RuntimeError(f"Stock Gamma and Dagger cell, engine or weapon pixels differ: {colors}")
+
+
+def load_unit_roster_fixture(server_log, server):
+    server.stdin.write(
+        'pause on\n'
+        'js (() => { const team = Vars.state.rules.defaultTeam, enemy = Vars.state.rules.waveTeam; '
+        'const roster = [[UnitTypes.alpha,team,680,232],[UnitTypes.beta,team,680,200],'
+        '[UnitTypes.flare,team,616,168],[UnitTypes.fortress,enemy,688,176],'
+        '[UnitTypes.pulsar,team,600,168],[UnitTypes.vela,team,648,168],[UnitTypes.quasar,enemy,600,232]]; '
+        'const names = roster.map(entry => { const u = entry[0].spawn(entry[1],entry[2],entry[3],90); '
+        'if (typeof u.baseRotation === "number") u.baseRotation=90; '
+        'if (u.type === UnitTypes.quasar) u.shield=100; '
+        'return u.type.name + ":" + u.shield; }); '
+        'return "UPSTREAM_UNIT_ROSTER_FIXTURE " + names.join(","); })()\n'
+    )
+    server.stdin.flush()
+    wait_for(server_log, server, r"UPSTREAM_UNIT_ROSTER_FIXTURE alpha:0,beta:0,flare:0,"
+             r"fortress:0,pulsar:0,vela:0,quasar:100\b", 5)
+
+
+def verify_unit_roster(screenshot):
+    # White texels from the stock unit cell regions take their full-health team tint.
+    sharded, crux = (255, 211, 127), (242, 85, 85)
+    expected = {(289, 53): sharded, (290, 54): sharded, (289, 137): sharded, (290, 138): sharded,
+                (129, 214): sharded, (130, 215): sharded, (89, 216): sharded, (90, 217): sharded,
+                (209, 217): sharded, (210, 218): sharded, (306, 197): crux, (312, 197): crux}
+    shield_tip = tuple((x, y) for x in range(233, 241) for y in range(45, 57))
+    colors = az.inspect_png(screenshot, (*expected, *shield_tip))["samples"]
+    mismatch = {point: (rgb, colors[point]) for point, rgb in expected.items() if colors[point] != rgb}
+    shield_pixels = sum(colors[point] == crux for point in shield_tip)
+    if mismatch or shield_pixels < 10:
+        raise RuntimeError(f"Original unit cells differ {mismatch}, Quasar shield pixels {shield_pixels}")
+
+
+def load_naval_wake_fixture(server_log, server):
+    server.stdin.write(
+        'pause on\n'
+        'js (() => { const team = Vars.state.rules.defaultTeam; '
+        'for (let x=83; x<=89; x++) for (let y=20; y<=29; y++) { '
+        'var tile = Vars.world.tile(x,y); if (tile.build != null) continue; '
+        'tile.setFloor(Blocks.water); tile.setOverlay(Blocks.air); tile.setBlock(Blocks.air); } '
+        'const risso = UnitTypes.risso.spawn(team,664,176,0); '
+        'const retusa = UnitTypes.retusa.spawn(team,696,224,90); '
+        'if (!risso.canPassOn() || !retusa.canPassOn()) throw "Expected a navigable water fixture"; '
+        'return "UPSTREAM_NAVAL_FIXTURE id=" + risso.id; })()\n'
+    )
+    server.stdin.flush()
+    marker = re.compile(r"UPSTREAM_NAVAL_FIXTURE id=(\d+)\b")
+    match = marker.search(wait_for(server_log, server, marker, 5))
+    return int(match[1])
+
+
+def verify_naval_wake(server_log, server, rpc, output, model, before, unit_id):
+    # The stock shallow-water palette entry, multiplied by 1.5 in WaterMoveComp.
+    wake = (106, 126, 214)
+    risso = tuple((x, y) for x in range(241, 261) for y in range(179, 202))
+    retusa = tuple((x, y) for x in range(320, 340) for y in range(61, 82))
+    port = tuple((x, y) for x in range(255, 316) for y in range(177, 183))
+    starboard = tuple((x, y) for x in range(255, 316) for y in range(197, 203))
+    points = (*risso, *retusa, *port, *starboard)
+    baseline = az.inspect_png(before.read_bytes(), points)["samples"]
+    team_color = (255, 211, 127)
+    if any(sum(baseline[point] == team_color for point in cell) < 5 for cell in (risso, retusa)):
+        raise RuntimeError("Expected original Risso and Retusa team cells before movement")
+
+    # Supply a controlled sequence of authoritative positions over the normal server snapshots.
+    server.stdin.write("pause off\n")
+    server.stdin.flush()
+    for x in range(666, 698, 2):
+        server.stdin.write(
+            f'js (() => {{ const ship = Groups.unit.getByID({unit_id}); ship.set({x},176); '
+            'return "UPSTREAM_NAVAL_STEP " + ship.x; })()\n')
+        server.stdin.flush()
+        wait_for(server_log, server, rf"UPSTREAM_NAVAL_STEP {x}\b", 5)
+        # The wake has a short history. Capture while the boat is moving.
+        time.sleep(0.45)
+        frame = rpc.screenshot(res_scale=1)
+        samples = az.inspect_png(frame, (*port, *starboard))["samples"]
+        counts = tuple(sum(samples[p] == wake and baseline[p] != wake for p in band) for band in (port, starboard))
+        if min(counts) >= 8:
+            (output / f"{model}-naval-wake.png").write_bytes(frame)
+            print(f"{model}: original port and starboard wake pixels {counts}.", flush=True)
+            return
+    (output / f"{model}-naval-wake.png").write_bytes(frame)
+    raise RuntimeError(f"Expected both stock wake trails after moving the Risso, got {counts} for color {wake}")
+
+
+def load_tank_treads_fixture(server_log, server):
+    server.stdin.write(
+        'pause on\n'
+        'js (() => { const team = Vars.state.rules.defaultTeam; '
+        'for (let x=72; x<=77; x++) for (let y=26; y<=31; y++) { '
+        'var tile=Vars.world.tile(x,y); if (tile.build != null) continue; '
+        'tile.setFloor(Blocks.ice); tile.setOverlay(Blocks.air); tile.setBlock(Blocks.air); } '
+        'const locus=UnitTypes.locus.spawn(team,600,224,90); '
+        'UnitTypes.stell.spawn(team,680,192,90); '
+        'if (!locus.canPassOn() || !locus.type.supportsEnv(Vars.state.rules.env)) throw "Invalid tank fixture"; '
+        'return "UPSTREAM_TANK_FIXTURE locus=" + locus.id; })()\n'
+    )
+    server.stdin.flush()
+    marker = re.compile(r"UPSTREAM_TANK_FIXTURE locus=(\d+)\b")
+    return int(marker.search(wait_for(server_log, server, marker, 5))[1])
+
+
+def verify_tank_treads(server_log, server, rpc, output, model, before, unit_id):
+    # Stock UnitType.draw composites square-shadow above the tread strip. These
+    # samples avoid exact shadow texel ties.
+    light, dark = (55, 58, 77), (24, 25, 32)
+    rows = {47: (light, 158), 51: (dark, 198), 52: (dark, 198), 53: (dark, 210),
+            86: (dark, 210), 87: (dark, 198), 92: (light, 158)}
+
+    def shade(rgb, alpha):
+        return tuple(round(channel * (1 - 0.4 * alpha / 255)) for channel in rgb)
+
+    left = tuple((76, y) for y in rows)
+    right = tuple((103, y) for y in rows)
+    cells = tuple((x, y) for x in range(73, 107) for y in range(62, 78))
+    stell = ((279, 145), (300, 145))
+    points = (*left, *right, *cells, *stell)
+    baseline = az.inspect_png(before.read_bytes(), points)["samples"]
+    sharded = (255, 211, 127)
+    hull = {point for point in cells if baseline[point] == sharded}
+    if len(hull) < 10 or any(baseline[point] != sharded for point in stell):
+        raise RuntimeError("Expected the original Locus and Stell team cells")
+    if any(baseline[point] != shade(*rows[point[1]]) for point in left + right):
+        raise RuntimeError(f"Unexpected initial Locus tread frame: {[baseline[p] for p in left + right]}")
+
+    # Compare the same tread coordinates relative to the hull while the Locus moves north.
+    offsets = range(-20, -1)
+    moving_points = tuple({(x, y + offset) for x, y in (*left, *right, *cells) for offset in offsets})
+
+    def moved_treads(frame):
+        colors = az.inspect_png(frame, moving_points)["samples"]
+        for offset in offsets:
+            current_hull = {(x, y) for x, y in cells if colors[x, y + offset] == sharded}
+            if current_hull != hull:
+                continue
+            changed = tuple(sum(colors[x, y + offset] != baseline[x, y] for x, y in side)
+                            for side in (left, right))
+            original_palette = all(colors[x, y + offset] in (shade(dark, rows[y][1]), shade(light, rows[y][1]))
+                                   for x, y in left + right)
+            if min(changed) >= 2 and original_palette:
+                return offset, changed
+        return None
+
+    server.stdin.write("pause off\n")
+    server.stdin.flush()
+    for y in range(225, 233):
+        server.stdin.write(
+            f'js (() => {{ const tank=Groups.unit.getByID({unit_id}); tank.set(600,{y}); '
+            'return "UPSTREAM_TANK_STEP " + tank.y; })()\n')
+        server.stdin.flush()
+        wait_for(server_log, server, rf"UPSTREAM_TANK_STEP {y}\b", 5)
+        time.sleep(0.65)
+        frame = rpc.screenshot(res_scale=1)
+        result = moved_treads(frame)
+        if result:
+            offset, changed = result
+            (output / f"{model}-tank-treads.png").write_bytes(frame)
+            print(f"{model}: Locus moved {-offset} pixels north with {changed} changed tread pixels.", flush=True)
+            return
+    (output / f"{model}-tank-treads.png").write_bytes(frame)
+    raise RuntimeError("Expected a new stock tread frame on both sides of the moving Locus")
+
+
+def payload_handoff_pixels(screenshot):
+    # The receiver sample starts beyond any position the sender can draw during travel.
+    wall_rows = (184, 187, 190, 193, 196)
+    dagger_rows = range(45, 55)
+    wall_sources = tuple((x, y) for y in wall_rows for x in range(60, 81))
+    wall_destinations = tuple((x, y) for y in wall_rows for x in range(111, 170))
+    unit_sources = tuple((x, y) for y in dagger_rows for x in range(58, 83))
+    unit_destinations = tuple((x, y) for y in dagger_rows for x in range(115, 169))
+    colors = az.inspect_png(screenshot, (*wall_sources, *wall_destinations, *unit_sources, *unit_destinations))["samples"]
+    copper = {(177, 135, 104), (200, 165, 143)}
+    crux = (242, 85, 85)
+    return (sum(colors[p] in copper for p in wall_sources), sum(colors[p] in copper for p in wall_destinations),
+            sum(colors[p] == crux for p in unit_sources), sum(colors[p] == crux for p in unit_destinations))
+
+
+def verify_payload_handoff(server_log, server, rpc, output, model, before):
+    wall_src, wall_dst, unit_src, unit_dst = payload_handoff_pixels(before.read_bytes())
+    if wall_src < 40 or wall_dst != 0 or unit_src < 5 or unit_dst != 0:
+        raise RuntimeError(f"Expected wall and Dagger on their first belts: {wall_src}, {wall_dst}, {unit_src}, {unit_dst}")
+
+    # Let upstream simulation move the wall. Freeze the receiver at a known display position
+    # beyond the sender's reach, then await the server's normal periodic block snapshot.
+    server.stdin.write("pause off\n")
+    server.stdin.flush()
+    time.sleep(2.5)
+    server.stdin.write(
+        'pause on\n'
+        'js (() => { const names = [22,29].map(y => { '
+        'const sender = Vars.world.tile(74,y).build, receiver = Vars.world.tile(77,y).build; '
+        'if (sender.item != null || receiver.item == null) throw "Stock belts did not transfer cargo"; '
+        'receiver.progress=Blocks.payloadConveyor.moveTime*0.5; '
+        'return receiver.item.content().name; }); '
+        'return "UPSTREAM_HANDOFF_COMPLETE " + names.join(","); })()\n'
+    )
+    server.stdin.flush()
+    wait_for(server_log, server, r"UPSTREAM_HANDOFF_COMPLETE copper-wall,dagger\b", 8)
+
+    deadline = time.monotonic() + 15
+    while time.monotonic() < deadline:
+        frame = rpc.screenshot(res_scale=1)
+        wall_src, wall_dst, unit_src, unit_dst = payload_handoff_pixels(frame)
+        if wall_src == 0 and wall_dst >= 40 and unit_src == 0 and unit_dst >= 5:
+            (output / f"{model}-payload-after.png").write_bytes(frame)
+            print(f"{model}: stock BlockSnapshot moved the wall and Dagger to their receiving belts.", flush=True)
+            return
+        time.sleep(0.2)
+    (output / f"{model}-payload-after.png").write_bytes(frame)
+    raise RuntimeError(f"Expected wall and Dagger on receiving belts after BlockSnapshot: "
+                       f"{wall_src}, {wall_dst}, {unit_src}, {unit_dst}")
+
+
+def load_building_effects_fixture(server_log, server):
+    # Freeze the stock simulation at known serialized display states.
+    server.stdin.write(
+        'pause on\n'
+        'js (() => { const team = Vars.state.rules.defaultTeam; '
+        'const phase = Vars.world.tile(86,28), overdrive = Vars.world.tile(74,28); '
+        'phase.setBlock(Blocks.phaseWeaver,team,0); '
+        'overdrive.setBlock(Blocks.overdriveProjector,team,0); '
+        'phase.build.warmup=1; overdrive.build.heat=1; '
+        'return "UPSTREAM_EFFECTS_FIXTURE weave=" + phase.build.warmup + " overdrive=" + overdrive.build.heat; })()\n'
+    )
+    server.stdin.flush()
+    wait_for(server_log, server, r"UPSTREAM_EFFECTS_FIXTURE weave=1(?:\.0)? overdrive=1(?:\.0)?\b", 5)
+
+
+def verify_building_effects(screenshot):
+    # The original Phase Weaver shell is transparent over its central Lines quad.
+    points = ((319, 53), (320, 57), (320, 63), (319, 66))
+    colors = az.inspect_png(screenshot, points)["samples"]
+    if any(colors[point] != (255, 211, 127) for point in points):
+        raise RuntimeError(f"Original Phase Weaver line is missing or miscolored: {colors}")
+
+
+def load_conduit_fixture(server_log, server):
+    # Keep both ends full so the stock server retains water in the linked conduits.
+    pipes = ((83, 22, 0), (84, 22, 0), (85, 22, 0), (86, 22, 1), (86, 23, 1),
+             (86, 24, 0), (87, 24, 0), (74, 30, 3), (74, 29, 0), (75, 29, 0), (76, 29, 0))
+    outlets = ((88, 24), (77, 29))
+    commands = [f"Vars.world.tile({x},{y}).setBlock(Blocks.liquidRouter,team,0);" for x, y in outlets]
+    elbows = {(86, 24), (74, 29)}
+    for x, y, rotation in pipes:
+        # The plated elbow crosses an atlas tile boundary along the reflected axis.
+        block = "platedConduit" if (x, y) in elbows else "conduit"
+        commands.append(f"Vars.world.tile({x},{y}).setBlock(Blocks.{block},team,{rotation});")
+    for x, y in (*outlets, *((x, y) for x, y, _ in pipes)):
+        commands.append(f"{{ const b=Vars.world.tile({x},{y}).build;"
+                        "b.liquids.add(Liquids.water,b.block.liquidCapacity); }")
+    server.stdin.write(
+        'js (() => { const team = Vars.state.rules.defaultTeam; ' + ' '.join(commands) +
+        ' const a=Vars.world.tile(86,24).build, b=Vars.world.tile(74,29).build; '
+        'return "UPSTREAM_CONDUIT_FIXTURE corners=" + a.blendbits + "," + b.blendbits '
+        '+ " mirrored=" + (a.yscl !== b.yscl) + " liquid=" + a.liquids.current().name '
+        '+ " scales=" + a.yscl + "," + b.yscl; })()\n'
+    )
+    server.stdin.flush()
+    wait_for(server_log, server, r"UPSTREAM_CONDUIT_FIXTURE corners=1,1 mirrored=true liquid=water scales=-1,1\b", 5)
+
+
+def verify_conduit_frames(log, rpc, output, model):
+    # Straight pipe followed by the two opposite elbows at the fixed spawn camera.
+    centers = ((270, 190), (310, 150), (70, 50))
+    samples = [tuple((x, y) for y in range(cy - 4, cy + 5) for x in range(cx - 4, cx + 5))
+               for cx, cy in centers]
+    # Original opaque plated-conduit-top-1 texels from both backing tiles on each elbow.
+    shells = {(304, 141): (110, 112, 128), (301, 155): (100, 94, 155),
+              (61, 45): (100, 94, 155), (65, 56): (117, 120, 135)}
+    points = (*shells, *(point for patch in samples for point in patch))
+    wet_frames = [set() for _ in centers]
+    # The synchronized atlas submissions can present fewer frames per second.
+    # Wait for the stock fill interpolation and two different wet frames.
+    for frame in range(30):
+        time.sleep(0.45)
+        trace = log.read_text(encoding="utf-8", errors="replace")
+        if "UPSTREAM_LIVE_NET_ERROR" in trace:
+            raise RuntimeError(f"Live conduit renderer failed: {trace[-4500:]}")
+        screenshot = rpc.screenshot(res_scale=1)
+        (output / f"{model}-liquids-{frame}.png").write_bytes(screenshot)
+        rgb = az.inspect_png(screenshot, points)["samples"]
+        if any(rgb[point] != color for point, color in shells.items()):
+            raise RuntimeError(f"Plated conduit shell pixels differ: {[(point, rgb[point]) for point in shells]}")
+        for patch, seen in zip(samples, wet_frames):
+            colors = tuple(rgb[point] for point in patch)
+            if sum(r < 130 and b - r > 35 for r, _, b in colors) >= 4:
+                seen.add(colors)
+        if all(len(seen) >= 2 for seen in wet_frames):
+            print(f"{model}: straight conduit and both stock elbows displayed animated water.", flush=True)
+            return
+    missing = [center for center, seen in zip(centers, wet_frames) if len(seen) < 2]
+    raise RuntimeError(f"Expected animated stock water in conduits at {missing}")
+
+
 def run_model(args, model, config, original_config, log, output):
+    stationary = (args.world_atlas_recycle or args.building_layers or args.liquids
+                  or args.building_effects or args.payload_mix or args.carried_buildings
+                  or args.payload_handoff or args.unit_layers or args.unit_roster or args.naval_wake
+                  or args.tank_treads or args.map_spawn)
+    map_name = args.map_spawn or "Glacier"
     overrides = {
         "Miscellaneous": {"log_filter": "*:Info Debug.Emulated:Debug Service.SOC:Debug",
                           "check_for_update_on_start": "false"},
@@ -405,20 +963,73 @@ def run_model(args, model, config, original_config, log, output):
     log.write_bytes(b"")
     server_log = output / f"{model}-server.log"
     with tempfile.TemporaryDirectory(prefix="min3dstry-live-net-") as work, server_log.open("wb") as terminal:
+        if args.erekir_sector:
+            # The stock server lists default multiplayer maps only. Import the release's map bytes unchanged.
+            maps = Path(work) / "config" / "maps"
+            maps.mkdir(parents=True)
+            filename = f"{args.erekir_sector}.msav"
+            with zipfile.ZipFile(args.server) as release:
+                (maps / filename).write_bytes(release.read(f"maps/erekir/{filename}"))
         server = subprocess.Popen(
             [args.java, "-jar", str(args.server)], cwd=work, stdin=subprocess.PIPE,
             stdout=terminal, stderr=subprocess.STDOUT, text=True,
         )
         try:
-            server.stdin.write(f"config port {args.port}\nhost Glacier attack\n")
+            rules = "survival" if args.map_spawn else "attack"
+            server.stdin.write(f"config port {args.port}\nhost {map_name.replace(' ', '_')} {rules}\n")
             server.stdin.flush()
             wait_for(server_log, server, f"Opened a server on port {args.port}\\.", 25)
+            world_size = (150, 250)
+            if args.building or args.touch_build:
+                # Give the pixel comparison a fixed patch of stock ice. Glacier's filters can
+                # place decorations on or alongside the test cells.
+                server.stdin.write('js (() => { for (let x = 85; x <= 87; x++) '
+                                   'for (let y = 25; y <= 27; y++) { var tile = Vars.world.tile(x, y); '
+                                   'if (tile.build != null) throw "Unexpected fixture building"; '
+                                   'tile.setFloor(Blocks.ice); tile.setOverlay(Blocks.air); '
+                                   'tile.setBlock(Blocks.air); } '
+                                   'return "UPSTREAM_TOUCH_FIXTURE clear=85,86,87"; })()\n')
+                server.stdin.flush()
+                wait_for(server_log, server, r"UPSTREAM_TOUCH_FIXTURE clear=85,86,87\b", 5)
             if args.touch_config:
                 server.stdin.write('js (() => { const items = Vars.state.rules.defaultTeam.core().items; '
                                    'if (items.get(Items.lead) < 2) items.add(Items.lead, 2); '
                                    'return "UPSTREAM_CONFIG_FIXTURE lead=" + items.get(Items.lead); })()\n')
                 server.stdin.flush()
                 wait_for(server_log, server, r"UPSTREAM_CONFIG_FIXTURE lead=\d+", 5)
+            if args.payload_mix:
+                load_payload_mix_fixture(server_log, server)
+            if args.carried_buildings:
+                load_carried_buildings_fixture(server_log, server)
+            if args.payload_handoff:
+                load_payload_handoff_fixture(server_log, server)
+            if args.unit_layers:
+                load_unit_layers_fixture(server_log, server)
+            if args.unit_roster:
+                load_unit_roster_fixture(server_log, server)
+            if args.naval_wake:
+                naval_fixture = load_naval_wake_fixture(server_log, server)
+            if args.tank_treads:
+                tank_fixture = load_tank_treads_fixture(server_log, server)
+            if args.building_effects:
+                load_building_effects_fixture(server_log, server)
+            if args.liquids:
+                load_conduit_fixture(server_log, server)
+            if args.building_layers:
+                damage = ("wall.build.health = wall.build.maxHealth * 0.5; "
+                          "drill.build.health = drill.build.maxHealth * 0.5; ") if args.building_cracks else ""
+                server.stdin.write('js (() => { const team = Vars.state.rules.defaultTeam; '
+                                   'const wall = Vars.world.tile(72, 27), drill = Vars.world.tile(86, 28); '
+                                   'wall.setBlock(Blocks.copperWallLarge, team, 0); '
+                                   'drill.setBlock(Blocks.mechanicalDrill, team, 0); ' + damage +
+                                   'return "UPSTREAM_BUILDING_LAYER_FIXTURE " + wall.block().name + " " '
+                                   '+ Vars.world.tile(73, 27).build.pos() + " " + wall.build.pos() '
+                                   '+ " " + drill.block().name + " " + wall.build.healthf() '
+                                   '+ " " + drill.build.healthf(); })()\n')
+                server.stdin.flush()
+                fixture = r"UPSTREAM_BUILDING_LAYER_FIXTURE copper-wall-large (\d+) \1 mechanical-drill"
+                health = r"0\.5" if args.building_cracks else r"1(?:\.0)?"
+                wait_for(server_log, server, rf"{fixture} {health} {health}\b", 5)
             if args.desktop_name:
                 print(f"{model}: Join 127.0.0.1:{args.port} from the stock PC client as "
                       f"{args.desktop_name!r}.", flush=True)
@@ -454,13 +1065,62 @@ def run_model(args, model, config, original_config, log, output):
                         return capture_viewport(log, emulator, rpc, output / f"{model}-{phase}.png", position,
                                                 require_palette=args.touch_build or args.touch_config,
                                                 require_icons=args.menu_icons,
-                                                require_world_atlas=args.world_atlas and phase == "spawn")
+                                                require_world_atlas=args.world_atlas and phase in ("spawn", "building-layers", "building-cracks"),
+                                                require_building_layers=args.building_layers,
+                                                require_building_cracks=args.building_cracks,
+                                                world_size=world_size,
+                                                spawn_pixels=MAP_SPAWN_PIXELS.get(args.map_spawn))
 
-                    if args.world_atlas_recycle:
+                    if stationary:
                         wait_for(log, emulator, r"UPSTREAM_LIVE_CONTROLS_READY unit=\d+", args.timeout)
                         spawn = server_position(server_log, server, "UPSTREAM_SERVER_CONTROLS_READY").groups()
-                        capture("spawn", spawn)
-                        print("Verified atlas recycling at spawn.", flush=True)
+                        if args.map_spawn:
+                            map_spawn = inspect_map_spawn(server_log, server)
+                            world_size = tuple(map(int, map_spawn[:2]))
+                            verify_map_spawn(log, emulator, map_name, map_spawn, spawn)
+                        phase = "spawn"
+                        if args.building_effects:
+                            phase = "building-effects"
+                        elif args.payload_mix:
+                            phase = "payload-mix"
+                        elif args.carried_buildings:
+                            phase = "carried-buildings"
+                        elif args.payload_handoff:
+                            phase = "payload-before"
+                        elif args.unit_layers:
+                            phase = "unit-layers"
+                        elif args.unit_roster:
+                            phase = "unit-roster"
+                        elif args.naval_wake:
+                            phase = "naval-before"
+                        elif args.tank_treads:
+                            phase = "tank-before"
+                        if args.building_layers:
+                            phase = "building-cracks" if args.building_cracks else "building-layers"
+                        capture(phase, spawn)
+                        if args.building_effects:
+                            verify_building_effects((output / f"{model}-{phase}.png").read_bytes())
+                        if args.payload_mix:
+                            verify_payload_mix((output / f"{model}-{phase}.png").read_bytes())
+                        if args.carried_buildings:
+                            verify_carried_buildings((output / f"{model}-{phase}.png").read_bytes())
+                        if args.payload_handoff:
+                            verify_payload_handoff(server_log, server, rpc, output, model,
+                                                   output / f"{model}-{phase}.png")
+                        if args.unit_layers:
+                            verify_unit_layers((output / f"{model}-{phase}.png").read_bytes())
+                        if args.unit_roster:
+                            verify_unit_roster((output / f"{model}-{phase}.png").read_bytes())
+                        if args.naval_wake:
+                            verify_naval_wake(server_log, server, rpc, output, model,
+                                              output / f"{model}-{phase}.png", naval_fixture)
+                        if args.tank_treads:
+                            verify_tank_treads(server_log, server, rpc, output, model,
+                                               output / f"{model}-{phase}.png", tank_fixture)
+                        if args.liquids:
+                            verify_conduit_frames(log, rpc, output, model)
+                        if not args.payload_handoff:
+                            print(f"Verified the {map_name} capture.", flush=True)
                         emu_log = log.read_text(encoding="utf-8", errors="replace")
                         if "UPSTREAM_LIVE_NET_ERROR" in emu_log:
                             raise RuntimeError("The client failed after rendering the atlas stress frame")
@@ -505,13 +1165,11 @@ def run_model(args, model, config, original_config, log, output):
             upstream = server_log.read_text(encoding="utf-8", errors="replace")
             departures = [line for line in upstream.splitlines() if f"{PLAYER} has disconnected" in line]
             # NetServer.sync can observe the closed transport before the disconnect event runs.
-            # The stationary atlas-recycle run ends by killing the emulator process, so the server
-            # can report `(error)` instead of a clean disconnect. Only this mode accepts it; normal
-            # control runs still require `(closed)` or `(disappeared)`.
-            departure = r"\((closed|disappeared|error)\)" if args.world_atlas_recycle else r"\((closed|disappeared)\)"
+            # The stationary render check ends by terminating the emulator process.
+            departure = r"\((closed|disappeared|error)\)" if stationary else r"\((closed|disappeared)\)"
             expected_departures = all(re.search(departure, line) for line in departures)
-            if args.world_atlas_recycle and any("(error)" in line for line in departures):
-                print(f"{model}: atlas-recycle run ended by emulator kill; "
+            if stationary and any("(error)" in line for line in departures):
+                print(f"{model}: stationary verification ended by emulator kill; "
                       "accepted the server's (error) departure", flush=True)
             expected_joins = 1 if args.controls else 2
             if ((not args.controls and "clientOutdated" not in upstream)
@@ -577,6 +1235,32 @@ def main():
                             help="Verify touch placement, rotation and removal against the stock server")
     build_mode.add_argument("--touch-config", action="store_true",
                             help="Verify configuring a Sorter with both directions of the stock configuration packet")
+    build_mode.add_argument("--building-layers", action="store_true",
+                            help="Verify the stock cached wall and drill passes at Glacier spawn")
+    parser.add_argument("--building-cracks", action="store_true",
+                        help="Give the stock building fixture half health and verify its crack overlays")
+    build_mode.add_argument("--liquids", action="store_true",
+                            help="Verify animated stock water in straight and mirrored Glacier conduits")
+    build_mode.add_argument("--building-effects", action="store_true",
+                            help="Verify the original active Phase Weaver line and Overdrive sprite pass")
+    build_mode.add_argument("--payload-mix", action="store_true",
+                            help="Verify original full and partial team-color glow on stock Payload Conveyors")
+    build_mode.add_argument("--carried-buildings", action="store_true",
+                            help="Verify stock walls, drill and transport blocks carried on Payload Conveyors")
+    build_mode.add_argument("--payload-handoff", action="store_true",
+                            help="Verify a stock server transfers a carried wall and Dagger after the client joins")
+    build_mode.add_argument("--unit-layers", action="store_true",
+                            help="Verify the stock Gamma and Dagger both free and carried in paused Glacier")
+    build_mode.add_argument("--unit-roster", action="store_true",
+                            help="Verify streamed Serpulo unit types and the Quasar shield on Glacier")
+    build_mode.add_argument("--naval-wake", action="store_true",
+                            help="Verify stock naval hulls and both live Risso wakes")
+    build_mode.add_argument("--tank-treads", action="store_true",
+                            help="Verify the original Stell and Locus sprites and animated Locus treads")
+    build_mode.add_argument("--map-spawn", metavar="NAME",
+                            help="Verify the world and stationary player spawn on a stock server map")
+    parser.add_argument("--erekir-sector", metavar="SLUG",
+                        help="Import an unchanged Erekir campaign map from the official server jar for --map-spawn")
     args = parser.parse_args()
     args.server, args.rom, args.azahar = (path.resolve() for path in (args.server, args.rom, args.azahar))
     with args.server.open("rb") as archive:
@@ -600,6 +1284,39 @@ def main():
         parser.error("--world-atlas-recycle needs --world-atlas")
     if args.world_atlas_recycle and (args.controls_replay or args.building or args.touch_build or args.touch_config):
         parser.error("--world-atlas-recycle runs a stationary spawn check")
+    if args.building_cracks and not args.building_layers:
+        parser.error("--building-cracks needs --building-layers")
+    if args.payload_mix and (not args.terrain_atlas or not args.controls or args.controls_replay):
+        parser.error("--payload-mix needs --controls and --terrain-atlas for a stationary capture")
+    if args.carried_buildings and (not args.terrain_atlas or not args.controls or args.controls_replay):
+        parser.error("--carried-buildings needs --controls and --terrain-atlas for a stationary capture")
+    if args.payload_handoff and (not args.terrain_atlas or not args.controls or args.controls_replay):
+        parser.error("--payload-handoff needs --controls and --terrain-atlas for a fixed camera")
+    if args.unit_layers and (not args.terrain_atlas or not args.controls or args.controls_replay):
+        parser.error("--unit-layers needs --controls and --terrain-atlas for a stationary capture")
+    if args.unit_roster and (not args.terrain_atlas or not args.controls or args.controls_replay):
+        parser.error("--unit-roster needs --controls and --terrain-atlas for a stationary capture")
+    if args.naval_wake and (not args.terrain_atlas or not args.controls or args.controls_replay):
+        parser.error("--naval-wake needs --controls and --terrain-atlas for a fixed camera")
+    if args.tank_treads and (not args.terrain_atlas or not args.controls or args.controls_replay):
+        parser.error("--tank-treads needs --controls and --terrain-atlas for a fixed camera")
+    if args.map_spawn is not None:
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9 -]*", args.map_spawn):
+            parser.error("--map-spawn needs a stock map name")
+        if not args.terrain_atlas or not args.controls or args.controls_replay or args.world_atlas:
+            parser.error("--map-spawn needs --controls and --terrain-atlas for a standalone spawn capture")
+    if args.erekir_sector is not None:
+        if not args.map_spawn or not re.fullmatch(r"[a-z][a-z-]*", args.erekir_sector):
+            parser.error("--erekir-sector needs --map-spawn and a sector slug such as onset")
+        with zipfile.ZipFile(args.server) as release:
+            if f"maps/erekir/{args.erekir_sector}.msav" not in release.namelist():
+                parser.error(f"No Erekir sector {args.erekir_sector!r} in the official server jar")
+    if args.building_effects and (not args.terrain_atlas or not args.controls or args.controls_replay):
+        parser.error("--building-effects needs --controls and --terrain-atlas for a stationary capture")
+    if args.liquids and (not args.terrain_atlas or not args.controls or args.controls_replay):
+        parser.error("--liquids needs --controls and --terrain-atlas for stationary captures")
+    if args.building_layers and (not args.terrain_atlas or not args.controls or args.controls_replay):
+        parser.error("--building-layers needs --controls and --terrain-atlas for a stationary capture")
     if args.world_atlas and not args.terrain_atlas:
         parser.error("--world-atlas needs --terrain-atlas")
     if args.locale and (not args.terrain_atlas or not re.fullmatch(r"[a-z]{2,3}(?:_[A-Z]{2})?", args.locale)):
