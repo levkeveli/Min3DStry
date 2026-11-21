@@ -70,6 +70,7 @@ public final class UpstreamLiveNetworkProbe {
     private final Mode mode;
     private final Consumer<Unit> frame;
     private final UpstreamLiveBuildControls building;
+    private int nextLiveTransport = 1;
 
     private UpstreamLiveNetworkProbe(Mode mode, Consumer<Unit> frame, UpstreamLiveBuildControls building) {
         this.mode = mode;
@@ -363,8 +364,13 @@ public final class UpstreamLiveNetworkProbe {
         // Drain queued snapshots before drawing again and bound the work between input polls.
         long deadline = System.nanoTime() + 8_000_000L;
         for (int i = 0; i < 16; i++) {
-            int received = receive(1, 0);
-            if (received == TIMEOUT) received = receive(0, i == 0 ? 8 : 0);
+            // Keep the alternating order across render frames when the time budget allows only one packet.
+            // Reliable construction traffic must not prevent periodic UDP snapshots from being read.
+            int preferred = nextLiveTransport;
+            nextLiveTransport ^= 1;
+            int received = receive(preferred, 0);
+            if (received == TIMEOUT) received = receive(preferred ^ 1, 0);
+            if (received == TIMEOUT && i == 0) received = receive(0, 8);
             if (received == TIMEOUT) break;
             int id = received >>> 16;
             if (id == stateId) {
