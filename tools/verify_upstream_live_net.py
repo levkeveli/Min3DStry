@@ -134,6 +134,8 @@ def wait_for(path, proc, pattern, timeout):
             time.sleep(0.25)  # Preserve the Java stack trace written after the error marker.
             text = path.read_text(encoding="utf-8", errors="replace")
             raise RuntimeError(f"Process stopped before {pattern}:\n{text[-5000:]}")
+        if "UPSTREAM_MEMORY managed-heap-exhausted" in text or "UPSTREAM_GC " in text:
+            raise RuntimeError(f"ARM11 memory failure before {pattern}:\n{text[-2500:]}")
         if proc.poll() is not None or re.search(r"Core::LogException", text):
             raise RuntimeError(f"Process stopped before {pattern}:\n{text[-2500:]}")
         time.sleep(0.05)
@@ -891,8 +893,10 @@ def verify_conduit_frames(log, rpc, output, model):
     shells = {(304, 141): (110, 112, 128), (301, 155): (100, 94, 155),
               (61, 45): (100, 94, 155), (65, 56): (117, 120, 135)}
     points = (*shells, *(point for patch in samples for point in patch))
-    captures = []
-    for frame in range(5):
+    wet_frames = [set() for _ in centers]
+    # The synchronized atlas submissions can present fewer frames per second.
+    # Wait for the stock fill interpolation and two different wet frames.
+    for frame in range(30):
         time.sleep(0.45)
         trace = log.read_text(encoding="utf-8", errors="replace")
         if "UPSTREAM_LIVE_NET_ERROR" in trace:
@@ -902,14 +906,15 @@ def verify_conduit_frames(log, rpc, output, model):
         rgb = az.inspect_png(screenshot, points)["samples"]
         if any(rgb[point] != color for point, color in shells.items()):
             raise RuntimeError(f"Plated conduit shell pixels differ: {[(point, rgb[point]) for point in shells]}")
-        captures.append([tuple(rgb[point] for point in patch) for patch in samples])
-    for index, center in enumerate(centers):
-        frames = [capture[index] for capture in captures]
-        wet_frames = [frame for frame in frames
-                      if sum(r < 130 and b - r > 35 for r, _, b in frame) >= 4]
-        if len(set(wet_frames)) < 2:
-            raise RuntimeError(f"Expected animated stock water in the conduit at screen {center}")
-    print(f"{model}: straight conduit and both stock elbows displayed animated water.", flush=True)
+        for patch, seen in zip(samples, wet_frames):
+            colors = tuple(rgb[point] for point in patch)
+            if sum(r < 130 and b - r > 35 for r, _, b in colors) >= 4:
+                seen.add(colors)
+        if all(len(seen) >= 2 for seen in wet_frames):
+            print(f"{model}: straight conduit and both stock elbows displayed animated water.", flush=True)
+            return
+    missing = [center for center, seen in zip(centers, wet_frames) if len(seen) < 2]
+    raise RuntimeError(f"Expected animated stock water in conduits at {missing}")
 
 
 def run_model(args, model, config, original_config, log, output):
@@ -1099,7 +1104,7 @@ def run_model(args, model, config, original_config, log, output):
                         if args.liquids:
                             verify_conduit_frames(log, rpc, output, model)
                         if not args.payload_handoff:
-                            print(f"Verified the {map_name} capture.", flush=True)
+                            print(f"Verified {map_name} capture.", flush=True)
                         emu_log = log.read_text(encoding="utf-8", errors="replace")
                         if "UPSTREAM_LIVE_NET_ERROR" in emu_log:
                             raise RuntimeError("The client failed after rendering the atlas stress frame")

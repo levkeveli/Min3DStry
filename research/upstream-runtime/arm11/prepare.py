@@ -100,6 +100,14 @@ def main():
         "memory.c": [
             ("void* teavm_gc_heapAddress", "static int64_t teavm_pageSize(void);\nstatic void* teavm_virtualAlloc(int64_t size);\nstatic void teavm_virtualCommit(void* address, int64_t size);\nstatic void teavm_virtualUncommit(void* address, int64_t size);\n\nvoid* teavm_gc_heapAddress"),
         ],
+        "heaptrace.c": [
+            (
+                "void teavm_outOfMemory() {",
+                "void teavm_outOfMemory() {\n"
+                "    static const char marker[] = \"UPSTREAM_MEMORY managed-heap-exhausted\";\n"
+                "    svcOutputDebugString(marker, sizeof(marker) - 1);",
+            ),
+        ],
         "log.c": [
             ("            putwchar(c);", "            m3ds_log_codepoint(c);"),
         ],
