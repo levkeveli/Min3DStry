@@ -666,12 +666,12 @@ when emulation or rendering takes longer than the snapshot interval.
 The JVM dispatch check replays a captured v160.8 block snapshot covering
 both sides of a wall handoff. Run the live verifier with
 `--controls --payload-handoff --terrain-atlas`. After connecting to
-Glacier, the verifier lets the stock server transfer the wall between
-two conveyors, pauses at a known position and waits for its regular
-block snapshot. It checks that the first conveyor is empty and that
-the wall renders beyond its reach on the receiving conveyor. The
+Glacier, the verifier lets the stock server transfer a Copper Wall and
+a Dagger between two pairs of conveyors, pauses at known positions and
+waits for its regular block snapshot. It checks that both source belts
+are empty and that the cargo renders beyond their reach. The initial wall
 [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44869587011)
-passed this test on the Old and New 3DS Azahar profiles.
+passed the wall-only handoff on the Old and New 3DS Azahar profiles.
 
 The Gamma and Dagger use upstream `UnitType.loadIcon`, `UnitType.load`
 and `UnitType.draw`. Their sprites run through the Arc layer queue with
@@ -681,14 +681,23 @@ renderer is absent, the staged `Drawf.buildBeam` selects Mindustry's
 existing unshaded line beam. The JVM verifies its two lines and focus square.
 
 Run the live verifier with `--controls --unit-layers --terrain-atlas`
-to spawn a Gamma and Dagger from the stock server in a paused Glacier
-session. It checks original team-cell colors, the exposed Gamma engine
-and both Dagger weapon tips. The
+to see both free and carried Gamma and Dagger units streamed by the
+stock server in paused Glacier. Upstream `UnitPayload.draw` handles
+the carried pose, suppresses the Gamma's flight exhaust and restores
+its elevation afterward. The JVM round-trips both serialized units and
+checks the original six-world-unit offset on an incoming carrier.
+The live verifier checks the free and carried team cells, the free Gamma's
+exposed engine and the Dagger weapon tips in both poses. The first
 [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44871445657)
-passed the unit capture on both Old and New 3DS Azahar profiles.
+passed the free unit capture on both Old and New 3DS Azahar profiles.
 The same build passed the `--controls --controls-replay --building`
 replay on both profiles, including live construction, movement with
 both inputs, wave synchronization and disconnect.
+
+The [unit payload ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44872269291)
+passed the free and carried unit capture on both profiles. On the same
+build, the stock server's periodic block snapshot moved a Copper Wall
+and a Dagger to their receiving belts after the client joined.
 
 The renderer still selects blocks that use the supported sprite operations.
 Textured raw vertices, additional payload types and other rendering services

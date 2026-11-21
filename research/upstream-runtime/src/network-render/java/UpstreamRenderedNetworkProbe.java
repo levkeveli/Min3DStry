@@ -4,6 +4,7 @@ import arc.Core;
 import arc.files.Fi;
 import arc.graphics.g2d.Draw;
 import arc.struct.IntSet;
+import arc.struct.ObjectSet;
 import arc.util.Time;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -25,6 +26,7 @@ import mindustry.world.blocks.distribution.Sorter;
 
 /** Presents the received Glacier world through the ARM11 terrain renderer. */
 public final class UpstreamRenderedNetworkProbe {
+    private static final ObjectSet<UnitType> drawableUnits = new ObjectSet<>();
     private final Fi atlas;
     private final UpstreamTerrainRenderProbe target = new UpstreamTerrainRenderProbe(false);
     private final UpstreamBuildingLayers buildingLayers = new UpstreamBuildingLayers();
@@ -72,11 +74,21 @@ public final class UpstreamRenderedNetworkProbe {
         System.out.println("UPSTREAM_INTERFACE_GRAPHICS ready");
     }
 
-    static void loadUnitGraphics() {
-        for (var type : new UnitType[]{UnitTypes.gamma, UnitTypes.dagger}) {
+    static UnitType[] loadUnitGraphics() {
+        var types = new UnitType[]{
+            UnitTypes.alpha, UnitTypes.beta, UnitTypes.gamma,
+            UnitTypes.dagger, UnitTypes.mace, UnitTypes.fortress, UnitTypes.scepter, UnitTypes.reign, UnitTypes.crawler,
+            UnitTypes.nova, UnitTypes.pulsar, UnitTypes.quasar, UnitTypes.vela,
+            UnitTypes.flare, UnitTypes.horizon, UnitTypes.zenith, UnitTypes.antumbra, UnitTypes.eclipse,
+            UnitTypes.mono, UnitTypes.poly
+        };
+        drawableUnits.clear();
+        for (var type : types) {
             type.loadIcon();
             type.load();
+            drawableUnits.add(type);
         }
+        return types;
     }
 
     private void render(Unit unit) {
@@ -180,7 +192,7 @@ public final class UpstreamRenderedNetworkProbe {
     }
 
     private static boolean supportsUnit(UnitType type) {
-        return type == UnitTypes.gamma || type == UnitTypes.dagger;
+        return type != null && drawableUnits.contains(type);
     }
 
     private void drawMenu(byte[] labels, int[] icons, int selected,

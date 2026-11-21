@@ -135,7 +135,28 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
     private void verifyUnits(Team viewer) {
         Vars.player = Player.create();
         Vars.player.team(viewer);
-        UpstreamRenderedNetworkProbe.loadUnitGraphics();
+        var types = UpstreamRenderedNetworkProbe.loadUnitGraphics();
+        for (var type : types) {
+            var unit = type.spawn(Team.crux, 300f, 288f, 90f);
+            for (var mount : unit.mounts) mount.heat = 1f;
+            if (type == UnitTypes.quasar) unit.shield = 100f;
+            sprites.clear();
+            solidQuads.clear();
+            Draw.sort(true);
+            type.draw(unit);
+            Draw.sort(false);
+            requireRegion(type.region);
+            if (type.drawCell) requireRegion(type.cellRegion);
+            for (var mount : unit.mounts) {
+                if (mount.weapon.region.found()) requireRegion(mount.weapon.region);
+                if (mount.weapon.heatRegion.found()) requireRegion(mount.weapon.heatRegion);
+            }
+            if (type == UnitTypes.quasar && solidQuads.isEmpty()) {
+                throw new AssertionError("Missing stock unshaded Quasar shield");
+            }
+            unit.remove();
+        }
+        System.out.println("UPSTREAM_UNIT_ROSTER types=" + types.length + " quasarShield=ok");
         var gamma = UnitTypes.gamma.spawn(viewer, 240f, 288f, 90f);
         var dagger = UnitTypes.dagger.spawn(Team.crux, 256f, 288f, 90f);
 
