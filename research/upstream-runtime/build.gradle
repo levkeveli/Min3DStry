@@ -100,6 +100,7 @@ def netClientFile = sourceDir.map { it.file('mindustry/core/NetClient.java') }
 def placementFile = sourceDir.map { it.file('UpstreamPlacementCatalog.java') }
 def itemChoicesFile = sourceDir.map { it.file('UpstreamItemChoices.java') }
 def planetGridFile = sourceDir.map { it.file('mindustry/graphics/g3d/PlanetGrid.java') }
+def contentColorsFile = sourceDir.map { it.file('mindustry/core/ContentLoader.java') }
 def shieldModeSources = [
     'mindustry/graphics/Drawf.java': 'renderer',
     'mindustry/entities/abilities/ForceFieldAbility.java': 'Vars.renderer'
@@ -155,7 +156,8 @@ if (usesArcSources || usesExecutor) {
         stagedClasses.addAll(['mindustry/graphics/g3d/PlanetGrid.class', 'mindustry/graphics/g3d/PlanetGrid$*.class'])
     }
     if (stageRenderedBuilding != null) {
-        stagedClasses.addAll(['mindustry/gen/Building.class', 'mindustry/gen/UnitWaterMove.class'])
+        stagedClasses.addAll(['mindustry/gen/Building.class', 'mindustry/gen/UnitWaterMove.class',
+                              'mindustry/core/ContentLoader.class'])
         shieldModeSources.keySet().each { path ->
             stagedClasses.add(path.replace('.java', '.class'))
         }
@@ -274,10 +276,25 @@ tasks.register('prepareUpstreamProbe') {
         fluidSources.keySet().each { outputs.file(sourceDir.map { dir -> dir.file(it) }) }
     }
     if (probe == 'network-render') {
+        outputs.file(contentColorsFile)
         shieldModeSources.keySet().each { outputs.file(sourceDir.map { dir -> dir.file(it) }) }
     }
     doLast {
         if (probe == 'network-render') {
+            def loader = new String(readUpstream('core/src/mindustry/core/ContentLoader.java'), 'UTF-8')
+            def loadColors = '''public void loadColors(){
+        Pixmap pixmap = new Pixmap(files.internal("sprites/block_colors.png"));'''
+            if (loader.count(loadColors) != 1) {
+                throw new GradleException('Pinned block color loading entry point changed')
+            }
+            def adaptedLoader = contentColorsFile.get().asFile
+            adaptedLoader.parentFile.mkdirs()
+            adaptedLoader.setText(loader.replace(loadColors, '''public void loadColors(){
+        loadColors(files.internal("sprites/block_colors.png"));
+    }
+
+    public void loadColors(Fi source){
+        Pixmap pixmap = new Pixmap(source);'''), 'UTF-8')
             shieldModeSources.each { path, renderer ->
                 def source = new String(readUpstream("core/src/${path}"), 'UTF-8')
                 def animated = "if(${renderer}.animateShields){"
