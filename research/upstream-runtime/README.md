@@ -938,6 +938,12 @@ balance after cancellation on The Onset or movement out of range on Ground
 Zero. Progress is tracked in
 [#176](https://github.com/levkeveli/Min3DStry/issues/176).
 
+The [devkitARM build](https://github.com/levkeveli/Min3DStry/actions/runs/44908331970)
+passed the Onset replay in both Azahar 2126.2 profiles. Original 3DS mined
+144 beryllium from tile (294, 110), and New 3DS mined 142 from tile (291, 107).
+The unmodified v160.8 server recorded both balances, each ARM11 client
+received the inventory updates, and the balances held after cancellation.
+
 ### Verify the Arc executor pools
 
 Use `-Pprobe=executor` with the JVM and ARM11 build commands. The JVM uses the
