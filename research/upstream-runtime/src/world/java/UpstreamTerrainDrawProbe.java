@@ -9,7 +9,6 @@ import arc.graphics.g2d.TextureAtlas.AtlasRegion;
 import arc.graphics.g2d.TextureAtlas.TextureAtlasData;
 import arc.graphics.g2d.TextureRegion;
 import arc.math.Mathf;
-import arc.struct.Bits;
 import arc.struct.Seq;
 import java.io.IOException;
 import mindustry.Vars;
@@ -39,7 +38,8 @@ public final class UpstreamTerrainDrawProbe {
     static void capture(String[] args, TerrainTarget target) throws IOException {
         CacheLayer.init();
         UpstreamWorldLoadProbe.load(mapArgs(args));
-        var viewport = prepare(args, target, true);
+        loadAtlas(atlasFile(args), false);
+        var viewport = traceViewport(target);
         viewport.draw(() -> {});
         var batch = viewport.batch;
         if (batch.commands < VIEW_WIDTH * VIEW_HEIGHT || batch.copper == 0 || batch.edges == 0) {
@@ -55,43 +55,31 @@ public final class UpstreamTerrainDrawProbe {
         return args.length == 0 ? args : new String[]{args[0]};
     }
 
-    static Viewport prepare(String[] args, TerrainTarget target, boolean trace) {
-        loadAtlas(atlasFile(args));
-        return prepareViewport(target, trace);
-    }
-
-    static void loadAtlas(Fi atlas) {
+    static void loadAtlas(Fi atlas, boolean live) {
         Core.atlas = readAtlas(atlas);
         Draw.scl = 1f / Core.atlas.find("scale_marker").width;
         boolean wasHeadless = Vars.headless;
         Vars.headless = false;
         try {
             for (var block : Vars.content.blocks()) {
-                if (block instanceof Floor floor && block != Blocks.air) floor.load();
+                if (block == Blocks.air) continue;
+                if (block instanceof Floor || (live && (!block.hasBuilding() || block == Blocks.coreNucleus))) {
+                    block.load();
+                }
             }
         } finally {
             Vars.headless = wasHeadless;
         }
     }
 
-    static Viewport prepareViewport(TerrainTarget target, boolean trace) {
-        if (!trace) {
-            boolean wasHeadless = Vars.headless;
-            Vars.headless = false;
-            try {
-                var loaded = new Bits();
-                for (Tile tile : Vars.world.tiles) {
-                    var block = tile.block();
-                    if (block != Blocks.air && !loaded.get(block.id)) {
-                        block.load();
-                        loaded.set(block.id);
-                    }
-                }
-            } finally {
-                Vars.headless = wasHeadless;
-            }
-        }
-        var batch = new TerrainBatch(target, trace);
+    static Viewport liveViewport(TerrainTarget target) {
+        var batch = new TerrainBatch(target, false);
+        Core.batch = batch;
+        return new Viewport(0, 0, batch, true);
+    }
+
+    private static Viewport traceViewport(TerrainTarget target) {
+        var batch = new TerrainBatch(target, true);
         Core.batch = batch;
 
         Tile copper = null;
@@ -104,7 +92,7 @@ public final class UpstreamTerrainDrawProbe {
         if (copper == null) throw new IllegalStateException("Glacier has no copper");
         int left = Math.max(0, Math.min(copper.x - VIEW_WIDTH / 2, Vars.world.width() - VIEW_WIDTH));
         int bottom = Math.max(0, Math.min(copper.y - VIEW_HEIGHT / 2, Vars.world.height() - VIEW_HEIGHT));
-        return new Viewport(left, bottom, batch, !trace);
+        return new Viewport(left, bottom, batch, false);
     }
 
     static final class Viewport {
