@@ -106,6 +106,15 @@ team-block counts and world entity chunk headers are validated and hashed.
 Saves with non-empty team-block payloads are marked `partial=1` because their
 TypeIO configs require the content mapping.
 
+The app next allocates flat floor/overlay/block/flag arrays for the whole map,
+fills them from the validated records, hashes the arrays, and frees them:
+
+```text
+[MIN3DSTRY] SECTOR_ALLOC tiles=37500 bytes=262500 hash=783fbd80e415dcd7 status=ok
+```
+
+Both Azahar profiles produce the same allocation hash.
+
 ## SD sector catalog
 
 `include/platform/sector_catalog.h` scans `/3ds/min3dstry` for upstream

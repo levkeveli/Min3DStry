@@ -1,5 +1,6 @@
 #include "platform/msav_world.h"
 
+#include <stdlib.h>
 #include <string.h>
 
 static uint16_t read_be16(const uint8_t *data) {
@@ -262,5 +263,114 @@ bool m3ds_msav_parse_world(
     out->map_hash = hash_bytes(UINT64_C(1469598103934665603),
                                data + map_start, map_end - map_start);
     out->valid = true;
+    return true;
+}
+
+void m3ds_msav_free_world(M3dsWorldTiles *tiles) {
+    if (!tiles) {
+        return;
+    }
+    free(tiles->floor_ids);
+    free(tiles->overlay_ids);
+    free(tiles->block_ids);
+    free(tiles->flags);
+    memset(tiles, 0, sizeof(*tiles));
+}
+
+bool m3ds_msav_alloc_world(
+    const uint8_t *data, size_t size, M3dsWorldTiles *out) {
+    if (!out) {
+        return false;
+    }
+    memset(out, 0, sizeof(*out));
+    M3dsMsavWorld world;
+    if (!m3ds_msav_parse_world(data, size, &world)) {
+        return false;
+    }
+    size_t map_start;
+    size_t map_end;
+    uint32_t version;
+    if (!locate_map(data, size, &version, &map_start, &map_end)) {
+        return false;
+    }
+    size_t count = (size_t)world.width * (size_t)world.height;
+    if (count == 0u || count > 2u * 1024u * 1024u) {
+        return false;
+    }
+    out->floor_ids = calloc(count, sizeof(uint16_t));
+    out->overlay_ids = calloc(count, sizeof(uint16_t));
+    out->block_ids = calloc(count, sizeof(uint16_t));
+    out->flags = calloc(count, sizeof(uint8_t));
+    if (!out->floor_ids || !out->overlay_ids || !out->block_ids
+            || !out->flags) {
+        m3ds_msav_free_world(out);
+        return false;
+    }
+    out->count = count;
+
+    size_t position = map_start + 4u;
+    size_t created = 0u;
+    while (created < count) {
+        uint16_t floor_id = read_be16(data + position);
+        uint16_t overlay_id = read_be16(data + position + 2u);
+        uint32_t run = 1u + data[position + 4u];
+        position += 5u;
+        for (uint32_t i = 0; i < run && created < count; ++i) {
+            out->floor_ids[created] = floor_id;
+            out->overlay_ids[created] = overlay_id;
+            ++created;
+        }
+    }
+
+    size_t block_index = 0u;
+    while (block_index < count) {
+        uint16_t block_id = read_be16(data + position);
+        uint8_t packed = data[position + 2u];
+        position += 3u;
+        bool has_data = (packed & 4u) != 0u;
+        bool has_entity = (packed & 1u) != 0u;
+        if (has_data) {
+            position += 7u;
+        }
+        bool center = true;
+        if (has_entity) {
+            center = data[position] != 0u;
+            ++position;
+        }
+        if (has_entity && center) {
+            uint32_t length = read_be32(data + position);
+            position += 4u + length;
+        }
+        uint8_t flags = 0u;
+        if (has_data) {
+            flags |= 0x2u;
+        }
+        if (has_entity && center) {
+            flags |= 0x4u;
+        }
+        if (!has_entity && !has_data) {
+            uint32_t run = 1u + data[position];
+            ++position;
+            for (uint32_t i = 0; i < run && block_index < count; ++i) {
+                out->block_ids[block_index] = block_id;
+                out->flags[block_index] = flags;
+                ++block_index;
+            }
+        } else {
+            out->block_ids[block_index] = block_id;
+            out->flags[block_index] = flags;
+            ++block_index;
+        }
+    }
+
+    uint64_t hash = UINT64_C(1469598103934665603);
+    hash = hash_bytes(hash, (const uint8_t *)out->floor_ids,
+                      count * sizeof(uint16_t));
+    hash = hash_bytes(hash, (const uint8_t *)out->overlay_ids,
+                      count * sizeof(uint16_t));
+    hash = hash_bytes(hash, (const uint8_t *)out->block_ids,
+                      count * sizeof(uint16_t));
+    hash = hash_bytes(hash, out->flags, count);
+    out->hash = hash;
     return true;
 }

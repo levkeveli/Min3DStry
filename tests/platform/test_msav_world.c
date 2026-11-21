@@ -185,6 +185,50 @@ static void test_malformed_tiles(void) {
     assert(!m3ds_msav_parse_world(data, size, &world));
 }
 
+static void test_alloc_world(void) {
+    uint8_t data[128];
+    size_t size = 0u;
+    memcpy(data + size, "MSAV", 4);
+    size += 4u;
+    size += put_be32(data + size, 13u);
+    const uint8_t meta[] = {1};
+    const uint8_t patches[] = {2};
+    const uint8_t content[] = {3};
+    size = put_region(data, size, meta, sizeof(meta));
+    size = put_region(data, size, patches, sizeof(patches));
+    size = put_region(data, size, content, sizeof(content));
+
+    uint8_t map[32];
+    size_t map_size = 0u;
+    map_size += put_be16(map + map_size, 2u);
+    map_size += put_be16(map + map_size, 2u);
+    map_size += put_be16(map + map_size, 1u);
+    map_size += put_be16(map + map_size, 0u);
+    map[map_size++] = 3u;
+    map_size += put_be16(map + map_size, 2u);
+    map[map_size++] = 0u;
+    map[map_size++] = 3u;
+    size = put_region(data, size, map, map_size);
+    uint8_t entities[16];
+    size_t entity_size = 0u;
+    entity_size += put_be16(entities + entity_size, 0u);
+    entity_size += put_be32(entities + entity_size, 0u);
+    entity_size += put_be32(entities + entity_size, 0u);
+    size = put_region(data, size, entities, entity_size);
+
+    M3dsWorldTiles tiles;
+    assert(m3ds_msav_alloc_world(data, size, &tiles));
+    assert(tiles.count == 4u);
+    assert(tiles.floor_ids[0] == 1u && tiles.floor_ids[3] == 1u);
+    assert(tiles.overlay_ids[0] == 0u);
+    assert(tiles.block_ids[0] == 2u && tiles.block_ids[3] == 2u);
+    assert(tiles.flags[0] == 0u);
+    assert(tiles.hash != 0u);
+    m3ds_msav_free_world(&tiles);
+    assert(tiles.count == 0u && tiles.floor_ids == NULL);
+    assert(!m3ds_msav_alloc_world(data, size, NULL));
+}
+
 static void test_malformed(void) {
     uint8_t data[64];
     memset(data, 0, sizeof(data));
@@ -218,6 +262,7 @@ int main(void) {
     test_v7_regions();
     test_tiles_and_entities();
     test_malformed_tiles();
+    test_alloc_world();
     test_malformed();
     return 0;
 }

@@ -264,6 +264,18 @@ int main(int argc, char *argv[]) {
                      (unsigned long long)world.entity_hash);
             m3ds_emit_debug_line(log_socket, dbg_line);
         }
+        M3dsWorldTiles tiles = {0};
+        bool alloc_ok = world_ok
+            && m3ds_msav_alloc_world(inflated, inflated_size, &tiles);
+        snprintf(dbg_line, sizeof(dbg_line),
+                 "[MIN3DSTRY] SECTOR_ALLOC tiles=%u bytes=%u hash=%016llx status=%s\n",
+                 (unsigned)(alloc_ok ? tiles.count : 0u),
+                 (unsigned)(alloc_ok
+                     ? tiles.count * (sizeof(uint16_t) * 3u + 1u) : 0u),
+                 (unsigned long long)(alloc_ok ? tiles.hash : 0u),
+                 alloc_ok ? "ok" : "failed");
+        m3ds_emit_debug_line(log_socket, dbg_line);
+        m3ds_msav_free_world(&tiles);
         free(raw);
         free(inflated);
     }

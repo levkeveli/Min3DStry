@@ -36,6 +36,15 @@ typedef struct M3dsMsavWorld {
 bool m3ds_msav_parse_world_header(
     const uint8_t *data, size_t size, M3dsMsavWorld *out);
 
+typedef struct M3dsWorldTiles {
+    uint16_t *floor_ids;
+    uint16_t *overlay_ids;
+    uint16_t *block_ids;
+    uint8_t *flags;
+    size_t count;
+    uint64_t hash;
+} M3dsWorldTiles;
+
 /*
  * Additionally walks the map region's floor/block records and validates their
  * bounds, counting data tiles and center-building entity chunks. Entity bytes
@@ -43,6 +52,16 @@ bool m3ds_msav_parse_world_header(
  */
 bool m3ds_msav_parse_world(
     const uint8_t *data, size_t size, M3dsMsavWorld *out);
+
+/*
+ * Allocates flat floor/overlay/block/flag arrays for the whole map and fills
+ * them from the validated RLE/block records. Returns false on allocation or
+ * bounds failure; release with m3ds_msav_free_world.
+ */
+bool m3ds_msav_alloc_world(
+    const uint8_t *data, size_t size, M3dsWorldTiles *out);
+
+void m3ds_msav_free_world(M3dsWorldTiles *tiles);
 
 #ifdef __cplusplus
 }
