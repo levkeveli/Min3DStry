@@ -49,7 +49,11 @@ public final class UpstreamCampaignSectorStateProbe {
             throw new IllegalStateException("Game-over sector was still being played");
         }
 
-        // The menu transition must also end play state.
+        // Reset game-over so the menu transition is the only reason play ends.
+        Vars.state.gameOver = false;
+        if(!sector.isBeingPlayed()){
+            throw new IllegalStateException("Sector did not resume before the menu transition");
+        }
         Vars.state.set(GameState.State.menu);
         if(sector.isBeingPlayed()){
             throw new IllegalStateException("Menu sector was still being played");

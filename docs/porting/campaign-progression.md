@@ -254,8 +254,8 @@ UPSTREAM_CAMPAIGN_SECTOR_STATE sector=15 groundZero=ok played=ok captured=ok wav
 The probe puts ground zero into `GameState.State.playing` with waves and attack
 mode disabled, asserts `Sector.isBeingPlayed()`/`isCaptured()`, then re-enables
 waves and asserts the sector is no longer captured, marks the game over and
-asserts it is no longer being played, and also verifies the menu transition
-ends play state. No settings or save files are
+asserts it is no longer being played, resets game-over, and verifies the menu
+transition alone ends play state. No settings or save files are
 written. Azahar `2126.2` New and Old profiles both reported the marker.
 
 ## Remaining Scope for Issue #41 (3DS Hardware / ARM11 Runtime)
