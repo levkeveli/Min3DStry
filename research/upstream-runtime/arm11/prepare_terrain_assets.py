@@ -38,6 +38,16 @@ def write_layout(staged: Path, regions: tuple[str, ...]) -> None:
     (staged / "terrain_layout.h").write_text("\n".join(lines) + "\n", encoding="ascii")
 
 
+def pack_menu_icons(args, staged: Path, extracted: Path) -> None:
+    extracted.mkdir()
+    subprocess.run([args.java, "-Djava.awt.headless=true", "-cp", str(args.server.resolve()),
+                    str(CONVERTER.with_name("UpstreamSpriteAtlas.java")), str(args.assets.resolve()),
+                    str(extracted), "--menu-icons"], check=True)
+    manifest = extracted / "menu-icons.tsv"
+    (extracted / "catalog").rename(staged / "catalog")
+    manifest.rename(staged / manifest.name)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--assets", type=Path, required=True)
@@ -65,6 +75,7 @@ def main() -> None:
                         "--java", args.java, "--tex3ds", args.tex3ds, *regions], check=True)
         write_layout(staged, regions)
         if args.multiplayer:
+            pack_menu_icons(args, staged, Path(tmp) / "menu")
             bundles = staged / "bundles"
             bundles.mkdir()
             with zipfile.ZipFile(args.assets) as archive:

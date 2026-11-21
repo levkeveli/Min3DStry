@@ -24,6 +24,7 @@ public final class UpstreamRenderedNetworkProbe {
     private Unit controlled;
     private int draws;
     private int lastLeft = -1, lastBottom = -1;
+    private byte[] lastMenu;
 
     private UpstreamRenderedNetworkProbe(Fi atlas) {
         this.atlas = atlas;
@@ -117,9 +118,22 @@ public final class UpstreamRenderedNetworkProbe {
             shortcut, buildingControls.rotation(), buildingControls.removing(), block.rotate,
             catalog.isOpen() || config.isOpen(), buildingControls.configuring());
         if (catalog.isOpen()) {
-            target.buildCatalog(catalog.labels(), catalog.selectedRow(block), catalog.previousPage(), catalog.nextPage(), true);
+            drawMenu(catalog.labels(), catalog.iconIds(), catalog.selectedRow(block),
+                catalog.previousPage(), catalog.nextPage(), true);
         } else if (config.isOpen()) {
-            target.buildCatalog(config.labels(), config.selectedRow(), config.previousPage(), config.nextPage(), false);
+            drawMenu(config.labels(), config.iconIds(), config.selectedRow(),
+                config.previousPage(), config.nextPage(), false);
+        } else {
+            lastMenu = null;
+        }
+    }
+
+    private void drawMenu(byte[] labels, int[] icons, int selected,
+                          boolean previous, boolean next, boolean categories) {
+        int drawn = target.buildCatalog(labels, icons, selected, previous, next, categories);
+        if (lastMenu != labels) {
+            System.out.println("UPSTREAM_MENU_ICONS type=" + (categories ? "block" : "item") + " drawn=" + drawn);
+            lastMenu = labels;
         }
     }
 }
