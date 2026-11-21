@@ -1,6 +1,6 @@
 # SD storage path contract
 
-Status: **host-tested atomic storage + Azahar save-slot/prefix verification**. Settings/save payloads are still owned by upstream Arc/SaveIO; Java filesystem wiring remains open under [#41](https://github.com/levkeveli/Min3DStry/issues/41).
+Status: **host-tested atomic storage + Azahar save-slot/prefix and Java filesystem verification**. Settings/save payloads are still owned by upstream Arc/SaveIO; the live campaign settings/UI flow remains open under [#41](https://github.com/levkeveli/Min3DStry/issues/41).
 
 ## Paths
 
@@ -187,6 +187,24 @@ The HUD lists up to four catalog rows.
 The list is catalog plumbing, not campaign loading: selecting, launching and
 capturing sectors still needs the live campaign UI.
 
+## TeaVM Java filesystem
+
+The ARM11 `file-metadata` probe exercises `java.io.File`,
+`RandomAccessFile` and `File.renameTo` through the native TeaVM file adapter.
+`m3ds_file.c` now implements the required `teavm_file_rename` entry point by
+renaming on the staged filesystem and returning TeaVM's boolean result. Both
+Azahar profiles report:
+
+```text
+UPSTREAM_FILE_METADATA size=8550 header=789cbd3a last=108 seek=ok paths=ok
+UPSTREAM_FILE_RENAME bytes=4 rename=ok
+```
+
+The probe renames a temporary four-byte file in `/3ds/min3dstry/tmp`, verifies
+that the source is gone, the target has the expected length and content, and
+then removes it. This is the entry point used by upstream save/settings backup
+rotation; payload formats remain upstream-owned.
+
 ## Atomic storage
 
 `include/platform/settings_store.h` stores opaque bytes:
@@ -215,7 +233,7 @@ No content format is parsed or invented here.
 
 ## Remaining work
 
-- Route `Core.settings`/Arc `Fi` reads and writes to these paths on 3DS SDFS.
+- Route the live `Core.settings`/Arc `Fi` instance to these paths on 3DS SDFS.
 - Preserve upstream atomic/backup behavior and corrupted-store fallback.
 - Integrate sector `.msav` slots and campaign/tech-tree UI.
 - Verify full round-trips in Azahar and on physical Old/New 3DS.

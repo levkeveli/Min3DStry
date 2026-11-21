@@ -37,6 +37,7 @@ import mindustry.gen.ClientSnapshotCallPacket;
 import mindustry.gen.ClearObjectivesCallPacket;
 import mindustry.gen.CompleteObjectiveCallPacket;
 import mindustry.gen.ConnectConfirmCallPacket;
+import mindustry.gen.CreateMarkerCallPacket;
 import mindustry.gen.ConstructFinishCallPacket;
 import mindustry.gen.DeconstructFinishCallPacket;
 import mindustry.gen.EntitySnapshotCallPacket;
@@ -45,12 +46,16 @@ import mindustry.gen.KickCallPacket;
 import mindustry.gen.KickCallPacket2;
 import mindustry.gen.Mechc;
 import mindustry.gen.Player;
+import mindustry.gen.RemoveMarkerCallPacket;
 import mindustry.gen.RemoveQueueBlockCallPacket;
 import mindustry.gen.SetObjectivesCallPacket;
 import mindustry.gen.SetPositionCallPacket;
 import mindustry.gen.StateSnapshotCallPacket;
 import mindustry.gen.TileConfigCallPacket;
 import mindustry.gen.Unit;
+import mindustry.gen.UpdateMarkerCallPacket;
+import mindustry.gen.UpdateMarkerTextCallPacket;
+import mindustry.gen.UpdateMarkerTextureCallPacket;
 import mindustry.mod.Mods;
 import mindustry.net.Host;
 import mindustry.net.Net;
@@ -432,11 +437,25 @@ public final class UpstreamLiveNetworkProbe {
                 decode(new SetPositionCallPacket(), received).handleClient();
             } else if (id == unsignedId(SetObjectivesCallPacket.class)) {
                 decode(new SetObjectivesCallPacket(), received).handleClient();
-            } else if (frame != null) {
-                applyBuildingUpdate(id, received);
+            } else {
+                var marker = markerPacket(id);
+                if (marker != null) {
+                    decode(marker, received).handleClient();
+                } else if (frame != null) {
+                    applyBuildingUpdate(id, received);
+                }
             }
         }
         return lastWave;
+    }
+
+    static Packet markerPacket(int id) {
+        if (id == unsignedId(CreateMarkerCallPacket.class)) return new CreateMarkerCallPacket();
+        if (id == unsignedId(UpdateMarkerCallPacket.class)) return new UpdateMarkerCallPacket();
+        if (id == unsignedId(UpdateMarkerTextCallPacket.class)) return new UpdateMarkerTextCallPacket();
+        if (id == unsignedId(UpdateMarkerTextureCallPacket.class)) return new UpdateMarkerTextureCallPacket();
+        if (id == unsignedId(RemoveMarkerCallPacket.class)) return new RemoveMarkerCallPacket();
+        return null;
     }
 
     private static void logObjectiveCompletion(int index) {

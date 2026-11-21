@@ -23,6 +23,7 @@ public final class WorldReflectionPolicy extends SimpleReflectionPolicy {
         // These classes read their fields through the JsonSerializable interface.
         for (String type : new String[] {
             "mindustry.game.Rules$TeamRules",
+            "mindustry.game.MapObjectives$TextureHolder",
             "mindustry.game.SpawnGroup",
             "mindustry.type.MapLocales",
             "mindustry.world.blocks.Attributes",
