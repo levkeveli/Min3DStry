@@ -22,6 +22,7 @@ final class UpstreamLiveBuildControls {
     private Block selected;
     private int rotation;
     private boolean removing;
+    private final UpstreamBuildMenu catalog = new UpstreamBuildMenu();
 
     void viewport(int left, int bottom) {
         this.left = left;
@@ -34,12 +35,25 @@ final class UpstreamLiveBuildControls {
     }
 
     void update(Unit unit, int buttons, int touch) {
+        if (catalog.isOpen()) {
+            if (touch >= 0) {
+                Block entry = catalog.tap(touch & 0xffff, touch >>> 16);
+                if (entry != null) {
+                    select(entry);
+                    System.out.println("UPSTREAM_CATALOG_SELECTED " + entry.name);
+                }
+            }
+            return;
+        }
         if ((buttons & ROTATE_PRESSED) != 0) rotate();
         if ((buttons & REMOVE_PRESSED) != 0) removing = !removing;
         boolean submit = (buttons & PLACE_PRESSED) != 0;
         if (touch >= 0) {
             int x = touch & 0xffff, y = touch >>> 16;
-            if (y < GRID_Y && x < 320) {
+            if (x < 32 && y >= GRID_Y && y < 80) {
+                catalog.open(block());
+                return;
+            } else if (y < GRID_Y && x < 320) {
                 switch (x / 80) {
                     case 0 -> select(Blocks.conveyor);
                     case 1 -> select(Blocks.copperWall);
@@ -96,4 +110,5 @@ final class UpstreamLiveBuildControls {
     int cursorY() { return tileY; }
     int rotation() { return rotation; }
     boolean removing() { return removing; }
+    UpstreamBuildMenu catalog() { return catalog; }
 }

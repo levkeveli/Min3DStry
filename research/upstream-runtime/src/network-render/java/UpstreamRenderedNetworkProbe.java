@@ -61,13 +61,15 @@ public final class UpstreamRenderedNetworkProbe {
     }
 
     private void drawEntities() {
-        // Walls are cached by upstream's tile renderer and do not join Groups.build.
+        // The upstream tile renderer caches both walls and routers.
         int right = Math.min(viewport.left + UpstreamTerrainDrawProbe.VIEW_WIDTH, Vars.world.width());
         int top = Math.min(viewport.bottom + UpstreamTerrainDrawProbe.VIEW_HEIGHT, Vars.world.height());
         for (int y = viewport.bottom; y < top; y++) {
             for (int x = viewport.left; x < right; x++) {
                 var tile = Vars.world.tile(x, y);
-                if (tile.block() == Blocks.copperWall && tile.build != null) tile.build.drawCached();
+                if ((tile.block() == Blocks.copperWall || tile.block() == Blocks.router) && tile.build != null) {
+                    tile.build.drawCached();
+                }
             }
         }
         for (var building : Groups.build) {
@@ -89,8 +91,13 @@ public final class UpstreamRenderedNetworkProbe {
             Draw.rect(Core.atlas.find(unit.type().name), unit.x(), unit.y(), unit.rotation() - 90f);
             if (unit == controlled) draws++;
         }
+        var block = buildingControls.block();
+        var catalog = buildingControls.catalog();
+        int shortcut = block == Blocks.conveyor ? 0 : block == Blocks.copperWall ? 1 : -1;
         target.buildOverlay(buildingControls.cursorX() - viewport.left, buildingControls.cursorY() - viewport.bottom,
-            buildingControls.block() == Blocks.copperWall ? 1 : 0, buildingControls.rotation(),
-            buildingControls.removing());
+            shortcut, buildingControls.rotation(), buildingControls.removing(), block.rotate, catalog.isOpen());
+        if (catalog.isOpen()) {
+            target.buildCatalog(catalog.labels(), catalog.selectedRow(block), catalog.previousPage(), catalog.nextPage());
+        }
     }
 }

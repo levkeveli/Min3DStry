@@ -16,6 +16,7 @@ def fileSource = 'arc-core/src/arc/files/Fi.java'
 def osSource = 'arc-core/src/arc/util/OS.java'
 def networkIoSource = 'core/src/mindustry/net/NetworkIO.java'
 def netClientSource = 'core/src/mindustry/core/NetClient.java'
+def placementSource = 'core/src/mindustry/ui/fragments/PlacementFragment.java'
 def pixmapSource = 'arc-core/src/arc/graphics/Pixmap.java'
 def pixmapPatch = file('patches/arc-pixmap-direct-buffer.patch')
 def glacier = 'core/assets/maps/default/glacier.msav'
@@ -72,6 +73,7 @@ def arcOsFile = sourceDir.map { it.file('arc/util/OS.java') }
 def arcPixmapFile = sourceDir.map { it.file('arc/graphics/Pixmap.java') }
 def networkIoFile = sourceDir.map { it.file('mindustry/net/NetworkIO.java') }
 def netClientFile = sourceDir.map { it.file('mindustry/core/NetClient.java') }
+def placementFile = sourceDir.map { it.file('UpstreamPlacementCatalog.java') }
 def compilerResources = layout.buildDirectory.dir("compiler-resources/${probe}")
 def pluginFile = compilerResources.map { it.file('META-INF/services/org.teavm.vm.spi.TeaVMPlugin') }
 def readUpstream = { path ->
@@ -194,7 +196,7 @@ tasks.register('prepareUpstreamProbe') {
         outputs.file(networkIoFile)
     }
     if (usesLiveNetwork) {
-        outputs.file(netClientFile)
+        outputs.files(netClientFile, placementFile)
     }
     doLast {
         if (!pluginsToLoad.isEmpty()) {
@@ -322,6 +324,26 @@ final class GlacierFixture {
 
     public NetClient(){
         this(new ReusableByteInStream());'''), 'UTF-8')
+            def placement = new String(readUpstream(placementSource), 'UTF-8')
+            def selection = placement =~ /(?m)^    Seq<Block> getUnlockedByCategory\(Category cat\)\{[\s\S]*?^    \}/
+            def unlocked = placement =~ /(?m)^    boolean unlocked\(Block block\)\{[\s\S]*?^    \}/
+            if (selection.count != 1 || unlocked.count != 1) {
+                throw new GradleException('Pinned PlacementFragment catalog methods changed')
+            }
+            placementFile.get().asFile.setText("""// Selection rules from pinned upstream PlacementFragment.java (GPL-3.0).
+import arc.struct.Seq;
+import mindustry.type.Category;
+import mindustry.world.Block;
+import static mindustry.Vars.*;
+
+final class UpstreamPlacementCatalog {
+    private final Seq<Block> returnArray2 = new Seq<>();
+
+${selection[0]}
+
+${unlocked[0]}
+}
+""", 'UTF-8')
         }
     }
 }
