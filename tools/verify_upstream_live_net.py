@@ -1349,10 +1349,13 @@ def verify_client_processor(server_log, server, rpc, output, model, timeout):
 
 
 def verify_logic_displays(server_log, server, rpc, output, model, timeout):
-    points = ((115, 39), (150, 70), (141, 63), (300, 50))
-    capture_marker_pixels(rpc, output, model, "display-background", points, timeout, ((86, 86, 102),) * 4)
+    points = ((115, 39), (150, 70), (141, 63), (300, 50), (120, 190))
+    capture_marker_pixels(rpc, output, model, "display-background", points, timeout, ((86, 86, 102),) * len(points))
     code = """getlink primary 0
 getlink source 1
+getlink tiled 2
+draw clear 160 210 75 0 0 0
+drawflush tiled
 draw clear 30 200 240 0 0 0
 drawflush source
 draw clear 16 32 64 0 0 0
@@ -1369,14 +1372,15 @@ end
         "const p=Vars.world.build(77,25), links=new Seq(); "
         "const Link=Packages.mindustry.world.blocks.logic.LogicBlock.LogicLink; "
         "links.add(new Link(0,4,'display1',true)); links.add(new Link(8,4,'display2',true)); "
+        "links.add(new Link(-1,-3,'display3',true)); "
         f"p.configureAny(Packages.mindustry.world.blocks.logic.LogicBlock.compress({json.dumps(code)},links)); "
-        'if(p.executor.instructions.length!==13 || p.executor.links.length!==2) throw "Invalid display config";')
+        'if(p.executor.instructions.length!==16 || p.executor.links.length!==3) throw "Invalid display config";')
     capture_marker_pixels(rpc, output, model, "display-program", points, timeout,
-                          ((232, 54, 80), (16, 32, 64), (30, 200, 240), (30, 200, 240)))
+                          ((232, 54, 80), (16, 32, 64), (30, 200, 240), (30, 200, 240), (160, 210, 75)))
     send_marker_phase(server_log, server, "display-server-headless",
         'if(Vars.world.build(77,29).buffer!=null || Vars.world.build(85,29).buffer!=null) '
         'throw "Dedicated server unexpectedly rendered displays";')
-    print(f"{model}: original Logic Display and Large Logic Display rendered the server program.", flush=True)
+    print(f"{model}: normal, large and tiled Logic Displays rendered the stock processor program.", flush=True)
 
 
 def run_model(args, model, config, original_config, log, output):
@@ -1437,7 +1441,9 @@ def run_model(args, model, config, original_config, log, output):
                     "rules.allowEditWorldProcessors=true; const team=rules.defaultTeam; "
                     "Vars.world.tile(77,25).setBlock(Blocks.worldProcessor,team); "
                     "Vars.world.tile(77,29).setBlock(Blocks.logicDisplay,team); "
-                    "Vars.world.tile(85,29).setBlock(Blocks.largeLogicDisplay,team);")
+                    "Vars.world.tile(85,29).setBlock(Blocks.largeLogicDisplay,team); "
+                    "Vars.world.tile(76,22).setBlock(Blocks.tileLogicDisplay,team); "
+                    "Vars.world.tile(77,22).setBlock(Blocks.tileLogicDisplay,team);")
             if args.erekir_build:
                 server.stdin.write(
                     'js (() => { const core = Vars.state.rules.defaultTeam.core(); '
@@ -1799,7 +1805,7 @@ def main():
     parser.add_argument("--verify-client-processor", action="store_true",
                         help="Verify a stock processor writes to its linked Canvas on the client")
     parser.add_argument("--verify-logic-displays", action="store_true",
-                        help="Verify the original Logic Display and Large Logic Display on Glacier")
+                        help="Verify normal, large, and tileable Logic Displays on Glacier")
     parser.add_argument("--require-relocation-spill", action="store_true",
                         help="Require the ARM11 collector to grow its relocation table during the spawn check")
     args = parser.parse_args()
