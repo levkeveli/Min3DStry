@@ -247,13 +247,14 @@ temporary directory, reloads it with a second `Settings` instance, verifies an
 integer and string value, and prints:
 
 ```text
-UPSTREAM_CAMPAIGN_SETTINGS bytes=65 int=12345 string=ok reload=ok
+UPSTREAM_CAMPAIGN_SETTINGS path=live bytes=65 int=12345 string=ok reload=ok
 ```
 
-The JVM and ARM11/Azahar builds use the same TeaVM file adapter. Build the ARM11
-probe with the normal `arm11/build.sh` command and boot the resulting `.3dsx`;
-both Azahar 2126.2 profiles reported the line above. The probe uses
-`/3ds/min3dstry/tmp/m3ds-campaign-settings` and does not modify live settings.
+The JVM uses a temporary directory and reports `path=tmp`. On 3DS the probe
+targets the live `/3ds/min3dstry`, snapshots existing settings/backup/backups,
+runs the round-trip, then restores or removes the prior state. The ARM11 probe
+is built with the normal `arm11/build.sh` command; both Azahar 2126.2 profiles
+reported `path=live`.
 
 ### Join the upstream server from the ARM11 probe
 
