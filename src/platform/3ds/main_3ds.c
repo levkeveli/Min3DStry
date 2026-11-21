@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #include "audio/audio_ambient.h"
@@ -17,6 +18,7 @@
 #include "platform/hardware_profile.h"
 #include "platform/memory_budget.h"
 #include "platform/sd_paths.h"
+#include "platform/settings_store.h"
 #include "render/factory_demo.h"
 #include "render/minimap.h"
 #include "render/scene_2d.h"
@@ -140,6 +142,19 @@ int main(int argc, char *argv[]) {
     } else {
         snprintf(dbg_line, sizeof(dbg_line),
                  "[MIN3DSTRY] STORAGE status=invalid\n");
+    }
+    m3ds_emit_debug_line(log_socket, dbg_line);
+
+    (void)mkdir("sdmc:/3ds", 0777);
+    (void)mkdir("sdmc:/3ds/min3dstry", 0777);
+    size_t probe_size = 0u;
+    if (m3ds_storage_probe_roundtrip("sdmc:/3ds/min3dstry", &probe_size)) {
+        snprintf(dbg_line, sizeof(dbg_line),
+                 "[MIN3DSTRY] STORAGE_ROUNDTRIP status=ok bytes=%u root=sdmc:/3ds/min3dstry\n",
+                 (unsigned)probe_size);
+    } else {
+        snprintf(dbg_line, sizeof(dbg_line),
+                 "[MIN3DSTRY] STORAGE_ROUNDTRIP status=failed root=sdmc:/3ds/min3dstry\n");
     }
     m3ds_emit_debug_line(log_socket, dbg_line);
 

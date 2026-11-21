@@ -113,6 +113,12 @@ STORAGE_RE = re.compile(
     r"sector=(?P<sector>\S+)"
 )
 
+STORAGE_ROUNDTRIP_RE = re.compile(
+    r"\[MIN3DSTRY\] STORAGE_ROUNDTRIP "
+    r"status=(?P<status>[a-z_]+)(?: "
+    r"bytes=(?P<bytes>\d+))?"
+)
+
 BLOCK_PLACE_EVENT_RE = re.compile(
     r"\[MIN3DSTRY\] AUDIO_EVENT block\.place "
     r"clip=(?P<clip>-?\d+) "
@@ -458,6 +464,7 @@ def parse_azahar_log(log_text: str) -> dict[str, Any]:
     hw_line: str | None = None
     atlas_loaded: bool | None = None
     storage: dict[str, Any] | None = None
+    storage_roundtrip: dict[str, Any] | None = None
     parity: dict[str, Any] | None = None
     audio: dict[str, Any] | None = None
     audio_romfs: dict[str, Any] | None = None
@@ -488,6 +495,14 @@ def parse_azahar_log(log_text: str) -> dict[str, Any]:
                     "root": sg["root"],
                     "settings": sg["settings"],
                     "sector": sg["sector"],
+                }
+        elif "[MIN3DSTRY] STORAGE_ROUNDTRIP " in line:
+            roundtrip_match = STORAGE_ROUNDTRIP_RE.search(line)
+            if roundtrip_match:
+                rg = roundtrip_match.groupdict()
+                storage_roundtrip = {
+                    "status": rg["status"],
+                    "bytes": int(rg["bytes"]) if rg["bytes"] else 0,
                 }
         elif "[MIN3DSTRY] PARITY " in line:
             parity = parse_parity_debug_line(line)
@@ -628,6 +643,7 @@ def parse_azahar_log(log_text: str) -> dict[str, Any]:
         "hw_line": hw_line,
         "atlas_loaded": atlas_loaded,
         "storage": storage,
+        "storage_roundtrip": storage_roundtrip,
         "parity": parity,
         "audio": audio,
         "audio_romfs": audio_romfs,
@@ -784,6 +800,7 @@ def run_model_check(
         if atlas_loaded is not True:
             raise AssertionError(f"Sprite atlas failed to load for {model}")
         storage = parsed.get("storage")
+        storage_roundtrip = parsed.get("storage_roundtrip")
         expected_storage = {
             "root": "/3ds/min3dstry",
             "settings": "/3ds/min3dstry/settings.bin",
@@ -791,6 +808,9 @@ def run_model_check(
         }
         if storage != expected_storage:
             raise AssertionError(f"Unexpected storage paths for {model}: {storage}")
+        if storage_roundtrip != {"status": "ok", "bytes": 4}:
+            raise AssertionError(
+                f"Storage probe round-trip failed for {model}: {storage_roundtrip}")
         if (
             audio["backend"] != "ndsp"
             or audio["state"] not in ("ready", "fallback_no_dsp")
@@ -865,6 +885,7 @@ def run_model_check(
             "hw_line": hw_line,
             "atlas_loaded": parsed.get("atlas_loaded"),
             "storage": storage,
+            "storage_roundtrip": storage_roundtrip,
             "parity": parity,
             "audio": audio,
             "audio_romfs": audio_romfs,
