@@ -20,6 +20,7 @@ public final class UpstreamRenderedNetworkProbe {
     private final UpstreamLiveBuildControls buildingControls = new UpstreamLiveBuildControls();
     private final Runnable drawEntities = this::drawEntities;
     private final IntSet reportedConveyors = new IntSet();
+    private final IntSet reportedEnemies = new IntSet();
     private UpstreamTerrainDrawProbe.Viewport viewport;
     private Unit controlled;
     private int draws;
@@ -109,6 +110,11 @@ public final class UpstreamRenderedNetworkProbe {
             // UnitType.drawBody uses the atlas region, world position and rotation minus 90 degrees.
             Draw.rect(Core.atlas.find(unit.type().name), unit.x(), unit.y(), unit.rotation() - 90f);
             if (unit == controlled) draws++;
+            if (unit.type() == UnitTypes.dagger && unit.team == Vars.state.rules.waveTeam
+                    && reportedEnemies.add(unit.id)) {
+                System.out.println("UPSTREAM_LIVE_ENEMY type=dagger id=" + unit.id
+                    + " x=" + unit.x() + " y=" + unit.y());
+            }
         }
         var block = buildingControls.block();
         var catalog = buildingControls.catalog();
