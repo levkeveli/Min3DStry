@@ -25,6 +25,52 @@ def main():
     fix_reflection_lifetime(args.output)
     fix_constructor_roots(args.output)
     replacements = {
+        "c/o/t/r/GC.c": [
+            ('#include "RelocationBlock.h"', '#include "RelocationBlock.h"\n#include "../../../../m3ds_gc_relocations.h"'),
+            (
+                "teavm_local_6 = TEAVM_STRUCTURE_ADD(cls_otr_FreeChunkHolder, sfld_otr_GC_currentChunkPointer, teavm_local_3);",
+                "teavm_local_6 = m3ds_gc_begin_relocations(\n"
+                "        TEAVM_STRUCTURE_ADD(cls_otr_FreeChunkHolder, sfld_otr_GC_currentChunkPointer, teavm_local_3));",
+            ),
+            (
+                "                    teavm_local_6 = TEAVM_STRUCTURE_ADD(cls_otr_RelocationBlock, teavm_local_6, INT32_C(1));",
+                "                    teavm_local_6 = m3ds_gc_append_relocation(teavm_local_6, &teavm_local_4);",
+            ),
+            (
+                "\n            teavm_local_6 = TEAVM_STRUCTURE_ADD(cls_otr_RelocationBlock, teavm_local_6, INT32_C(1));",
+                "\n            teavm_local_6 = m3ds_gc_append_relocation(teavm_local_6, &teavm_local_4);",
+            ),
+            (
+                "teavm_local_5 = TEAVM_STRUCTURE_ADD(cls_otr_FreeChunkHolder, sfld_otr_GC_currentChunkPointer, teavm_local_2);",
+                "teavm_local_5 = m3ds_gc_relocations;",
+            ),
+            (
+                "teavm_local_2 = TEAVM_STRUCTURE_ADD(cls_otr_FreeChunkHolder, teavm_local_1, sfld_otr_GC_freeChunks);",
+                "teavm_local_2 = m3ds_gc_relocations;",
+            ),
+            (
+                "    meth_otr_GC_putNewFreeChunks();",
+                "    meth_otr_GC_putNewFreeChunks();\n    m3ds_gc_end_relocations();",
+            ),
+            (
+                "    TEAVM_FIELD(teavm_local_2, cls_otr_FreeChunkHolder, fld_value) = teavm_local_1;",
+                "    m3ds_gc_check_free_chunk(teavm_local_2);\n"
+                "    TEAVM_FIELD(teavm_local_2, cls_otr_FreeChunkHolder, fld_value) = teavm_local_1;",
+            ),
+            (
+                "            TEAVM_FIELD(teavm_local_1, cls_otr_FreeChunkHolder, fld_value) = teavm_local_3;",
+                "            m3ds_gc_check_free_chunk(teavm_local_1);\n"
+                "            TEAVM_FIELD(teavm_local_1, cls_otr_FreeChunkHolder, fld_value) = teavm_local_3;",
+            ),
+            (
+                "                TEAVM_FIELD(TEAVM_STRUCTURE_ADD(cls_otr_FreeChunkHolder, sfld_otr_GC_currentChunkPointer, "
+                "sfld_otr_GC_freeChunks), cls_otr_FreeChunkHolder, fld_value) = sfld_otr_GC_lastChunk;",
+                "                void *slot = TEAVM_STRUCTURE_ADD(cls_otr_FreeChunkHolder, sfld_otr_GC_currentChunkPointer, "
+                "sfld_otr_GC_freeChunks);\n"
+                "                m3ds_gc_check_free_chunk(slot);\n"
+                "                TEAVM_FIELD(slot, cls_otr_FreeChunkHolder, fld_value) = sfld_otr_GC_lastChunk;",
+            ),
+        ],
         "definitions.h": [
             ("#if defined(__GNUC__) || defined(__APPLE__)", "#include <stdalign.h>\n#if (defined(__GNUC__) || defined(__APPLE__)) && !defined(__3DS__)"),
         ],
@@ -61,7 +107,7 @@ def main():
     for name, changes in replacements.items():
         for old, new in changes:
             replace(args.output / name, old, new)
-    for name in ("m3ds_date.c", "m3ds_platform.c", "m3ds_file.c", "m3ds_main.c"):
+    for name in ("m3ds_date.c", "m3ds_platform.c", "m3ds_file.c", "m3ds_main.c", "m3ds_gc_relocations.h"):
         shutil.copyfile(Path(__file__).with_name(name), args.output / name)
     includes = args.output / "nativeinclude"
     includes.mkdir()
