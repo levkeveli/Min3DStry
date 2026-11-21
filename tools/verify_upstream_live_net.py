@@ -390,8 +390,63 @@ def capture_viewport(log, emulator, rpc, destination, position,
         return tuple(pixels["samples"][point] for point in interior)
 
 
+def load_conduit_fixture(server_log, server):
+    # Keep both ends full so the stock server retains water in the linked conduits.
+    pipes = ((83, 22, 0), (84, 22, 0), (85, 22, 0), (86, 22, 1), (86, 23, 1),
+             (86, 24, 0), (87, 24, 0), (74, 30, 3), (74, 29, 0), (75, 29, 0), (76, 29, 0))
+    outlets = ((88, 24), (77, 29))
+    commands = [f"Vars.world.tile({x},{y}).setBlock(Blocks.liquidRouter,team,0);" for x, y in outlets]
+    elbows = {(86, 24), (74, 29)}
+    for x, y, rotation in pipes:
+        # The plated elbow crosses an atlas tile boundary along the reflected axis.
+        block = "platedConduit" if (x, y) in elbows else "conduit"
+        commands.append(f"Vars.world.tile({x},{y}).setBlock(Blocks.{block},team,{rotation});")
+    for x, y in (*outlets, *((x, y) for x, y, _ in pipes)):
+        commands.append(f"{{ const b=Vars.world.tile({x},{y}).build;"
+                        "b.liquids.add(Liquids.water,b.block.liquidCapacity); }")
+    server.stdin.write(
+        'js (() => { const team = Vars.state.rules.defaultTeam; ' + ' '.join(commands) +
+        ' const a=Vars.world.tile(86,24).build, b=Vars.world.tile(74,29).build; '
+        'return "UPSTREAM_CONDUIT_FIXTURE corners=" + a.blendbits + "," + b.blendbits '
+        '+ " mirrored=" + (a.yscl !== b.yscl) + " liquid=" + a.liquids.current().name '
+        '+ " scales=" + a.yscl + "," + b.yscl; })()\n'
+    )
+    server.stdin.flush()
+    wait_for(server_log, server, r"UPSTREAM_CONDUIT_FIXTURE corners=1,1 mirrored=true liquid=water scales=-1,1\b", 5)
+
+
+def verify_conduit_frames(log, rpc, output, model):
+    # Straight pipe followed by the two opposite elbows at the fixed spawn camera.
+    centers = ((270, 190), (310, 150), (70, 50))
+    samples = [tuple((x, y) for y in range(cy - 4, cy + 5) for x in range(cx - 4, cx + 5))
+               for cx, cy in centers]
+    # Original opaque plated-conduit-top-1 texels from both backing tiles on each elbow.
+    shells = {(304, 141): (110, 112, 128), (301, 155): (100, 94, 155),
+              (61, 45): (100, 94, 155), (65, 56): (117, 120, 135)}
+    points = (*shells, *(point for patch in samples for point in patch))
+    captures = []
+    for frame in range(5):
+        time.sleep(0.45)
+        trace = log.read_text(encoding="utf-8", errors="replace")
+        if "UPSTREAM_LIVE_NET_ERROR" in trace:
+            raise RuntimeError(f"Live conduit renderer failed: {trace[-4500:]}")
+        screenshot = rpc.screenshot(res_scale=1)
+        (output / f"{model}-liquids-{frame}.png").write_bytes(screenshot)
+        rgb = az.inspect_png(screenshot, points)["samples"]
+        if any(rgb[point] != color for point, color in shells.items()):
+            raise RuntimeError(f"Plated conduit shell pixels differ: {[(point, rgb[point]) for point in shells]}")
+        captures.append([tuple(rgb[point] for point in patch) for patch in samples])
+    for index, center in enumerate(centers):
+        frames = [capture[index] for capture in captures]
+        wet_frames = [frame for frame in frames
+                      if sum(r < 130 and b - r > 35 for r, _, b in frame) >= 4]
+        if len(set(wet_frames)) < 2:
+            raise RuntimeError(f"Expected animated stock water in the conduit at screen {center}")
+    print(f"{model}: straight conduit and both stock elbows displayed animated water.", flush=True)
+
+
 def run_model(args, model, config, original_config, log, output):
-    stationary = args.world_atlas_recycle or args.building_layers
+    stationary = args.world_atlas_recycle or args.building_layers or args.liquids
     overrides = {
         "Miscellaneous": {"log_filter": "*:Info Debug.Emulated:Debug Service.SOC:Debug",
                           "check_for_update_on_start": "false"},
@@ -434,6 +489,8 @@ def run_model(args, model, config, original_config, log, output):
                                    'return "UPSTREAM_CONFIG_FIXTURE lead=" + items.get(Items.lead); })()\n')
                 server.stdin.flush()
                 wait_for(server_log, server, r"UPSTREAM_CONFIG_FIXTURE lead=\d+", 5)
+            if args.liquids:
+                load_conduit_fixture(server_log, server)
             if args.building_layers:
                 damage = ("wall.build.health = wall.build.maxHealth * 0.5; "
                           "drill.build.health = drill.build.maxHealth * 0.5; ") if args.building_cracks else ""
@@ -495,6 +552,8 @@ def run_model(args, model, config, original_config, log, output):
                         if args.building_layers:
                             phase = "building-cracks" if args.building_cracks else "building-layers"
                         capture(phase, spawn)
+                        if args.liquids:
+                            verify_conduit_frames(log, rpc, output, model)
                         print("Verified the stationary Glacier capture.", flush=True)
                         emu_log = log.read_text(encoding="utf-8", errors="replace")
                         if "UPSTREAM_LIVE_NET_ERROR" in emu_log:
@@ -611,6 +670,8 @@ def main():
                             help="Verify the stock cached wall and drill passes at Glacier spawn")
     parser.add_argument("--building-cracks", action="store_true",
                         help="Give the stock building fixture half health and verify its crack overlays")
+    build_mode.add_argument("--liquids", action="store_true",
+                            help="Verify animated stock water in straight and mirrored Glacier conduits")
     args = parser.parse_args()
     args.server, args.rom, args.azahar = (path.resolve() for path in (args.server, args.rom, args.azahar))
     with args.server.open("rb") as archive:
@@ -636,6 +697,8 @@ def main():
         parser.error("--world-atlas-recycle runs a stationary spawn check")
     if args.building_cracks and not args.building_layers:
         parser.error("--building-cracks needs --building-layers")
+    if args.liquids and (not args.terrain_atlas or not args.controls or args.controls_replay):
+        parser.error("--liquids needs --controls and --terrain-atlas for stationary captures")
     if args.building_layers and (not args.terrain_atlas or not args.controls or args.controls_replay):
         parser.error("--building-layers needs --controls and --terrain-atlas for a stationary capture")
     if args.world_atlas and not args.terrain_atlas:

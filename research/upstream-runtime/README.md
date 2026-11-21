@@ -593,8 +593,24 @@ passed this check on both Azahar profiles. For each profile the 800
 visible wall pixels matched a blend of the original wall and crack
 textures within one RGB level, accounting for nearest-texel ties.
 
+The liquid atlas supplies the 50 original liquid frames and 50 gas frames.
+Graphics builds stage the pinned `Conduit` and `LiquidBlock` sources with
+their frame lookup redirected to that atlas. The live probe advances
+Arc's animation clock and runs the original conduit smoothing expression
+on replicated liquid amounts. The stock Java server runs liquid transfers.
+The JVM verifies two water frames through straight and reflected corners
+and the original padding of a tiled gas draw.
+
+Run the live verifier with `--controls --liquids --terrain-atlas` to
+check a water route from the stock Glacier world stream. The
+[ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44864567820)
+passed on both Azahar profiles. The straight conduit and both plated
+elbows showed animation. All 466 opaque comparison pixels on the elbow
+shells matched the nearest original texels. The atlas cache now recycles
+within the available linear heap, preserving space for the touch catalog.
+
 The renderer still selects blocks that use the supported sprite operations.
-Raw vertices, mix color, liquid frames and other rendering services are
+Raw vertices, mix color and other rendering services are
 tracked in [#139](https://github.com/levkeveli/Min3DStry/issues/139).
 
 ### Verify the Arc executor pools
