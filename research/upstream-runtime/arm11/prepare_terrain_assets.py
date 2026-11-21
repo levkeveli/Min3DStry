@@ -17,6 +17,9 @@ REGIONS = (
 )
 CONVERTER = Path(__file__).resolve().parents[3] / "tools" / "build_upstream_sprite_atlas.py"
 GLACIER_INVENTORY = Path(__file__).with_name("glacier-terrain.txt")
+STOCK_TEXT_ASSETS = (
+    "fonts/font.woff", "fonts/font_jp.woff", "fonts/icon.ttf", "icons/icons.properties",
+)
 
 
 def write_layout(staged: Path, regions: tuple[str, ...]) -> None:
@@ -56,6 +59,13 @@ def pack_world_atlas(args, staged: Path, extracted: Path) -> None:
         (extracted / name).rename(staged / name)
 
 
+def pack_stock_text_assets(archive: zipfile.ZipFile, staged: Path) -> None:
+    for name in STOCK_TEXT_ASSETS:
+        destination = staged / name
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(archive.read("assets/" + name))
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--assets", type=Path, required=True)
@@ -89,6 +99,7 @@ def main() -> None:
             bundles = staged / "bundles"
             bundles.mkdir()
             with zipfile.ZipFile(args.assets) as archive:
+                pack_stock_text_assets(archive, staged)
                 (staged / "block_colors.png").write_bytes(archive.read("assets/sprites/block_colors.png"))
                 (staged / "logicids.dat").write_bytes(archive.read("assets/logicids.dat"))
                 for member in archive.namelist():
