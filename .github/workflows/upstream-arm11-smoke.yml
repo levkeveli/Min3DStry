@@ -39,7 +39,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        probe: [logic, map, resource, executor, campaign-settings, campaign-content, campaign-research, campaign-slot-meta, campaign-sector-info, campaign-planet, campaign-sector-state, campaign-launch, campaign-saves, wave-routing]
+        probe: [logic, map, resource, executor, campaign-settings, campaign-content, campaign-research, campaign-slot-meta, campaign-sector-info, campaign-planet, campaign-sector-state, campaign-launch, campaign-saves, campaign-slot-discovery, wave-routing]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -61,7 +61,7 @@ jobs:
             -o "$RUNNER_TEMP/server-release.jar"
 
       - name: Fetch pinned Arc source
-        if: matrix.probe == 'resource' || matrix.probe == 'executor' || matrix.probe == 'campaign-settings' || matrix.probe == 'campaign-content' || matrix.probe == 'campaign-research' || matrix.probe == 'campaign-slot-meta' || matrix.probe == 'campaign-sector-info' || matrix.probe == 'campaign-planet' || matrix.probe == 'campaign-sector-state' || matrix.probe == 'campaign-launch' || matrix.probe == 'campaign-saves' || matrix.probe == 'wave-routing'
+        if: matrix.probe == 'resource' || matrix.probe == 'executor' || matrix.probe == 'campaign-settings' || matrix.probe == 'campaign-content' || matrix.probe == 'campaign-research' || matrix.probe == 'campaign-slot-meta' || matrix.probe == 'campaign-sector-info' || matrix.probe == 'campaign-planet' || matrix.probe == 'campaign-sector-state' || matrix.probe == 'campaign-launch' || matrix.probe == 'campaign-saves' || matrix.probe == 'campaign-slot-discovery' || matrix.probe == 'wave-routing'
         run: |
           git clone --filter=blob:none --no-checkout \
             https://github.com/Anuken/Arc.git "$RUNNER_TEMP/Arc"
@@ -72,7 +72,7 @@ jobs:
             "7445105cd2683daf5b9ac7033ebb07265d3e814d"
 
       - name: Extract Glacier map for world probes
-        if: matrix.probe == 'wave-routing' || matrix.probe == 'campaign-slot-meta' || matrix.probe == 'campaign-launch'
+        if: matrix.probe == 'wave-routing' || matrix.probe == 'campaign-slot-meta' || matrix.probe == 'campaign-launch' || matrix.probe == 'campaign-slot-discovery'
         run: |
           git -C "$RUNNER_TEMP/Mindustry" show \
             HEAD:core/assets/maps/default/glacier.msav > "$RUNNER_TEMP/glacier.msav"
@@ -82,7 +82,7 @@ jobs:
         run: |
           set -o pipefail
           extra=()
-          if [ "${{ matrix.probe }}" = "resource" ] || [ "${{ matrix.probe }}" = "executor" ] || [ "${{ matrix.probe }}" = "campaign-settings" ] || [ "${{ matrix.probe }}" = "campaign-content" ] || [ "${{ matrix.probe }}" = "campaign-research" ] || [ "${{ matrix.probe }}" = "campaign-slot-meta" ] || [ "${{ matrix.probe }}" = "campaign-sector-info" ] || [ "${{ matrix.probe }}" = "campaign-planet" ] || [ "${{ matrix.probe }}" = "campaign-sector-state" ] || [ "${{ matrix.probe }}" = "campaign-launch" ] || [ "${{ matrix.probe }}" = "campaign-saves" ] || [ "${{ matrix.probe }}" = "wave-routing" ]; then
+          if [ "${{ matrix.probe }}" = "resource" ] || [ "${{ matrix.probe }}" = "executor" ] || [ "${{ matrix.probe }}" = "campaign-settings" ] || [ "${{ matrix.probe }}" = "campaign-content" ] || [ "${{ matrix.probe }}" = "campaign-research" ] || [ "${{ matrix.probe }}" = "campaign-slot-meta" ] || [ "${{ matrix.probe }}" = "campaign-sector-info" ] || [ "${{ matrix.probe }}" = "campaign-planet" ] || [ "${{ matrix.probe }}" = "campaign-sector-state" ] || [ "${{ matrix.probe }}" = "campaign-launch" ] || [ "${{ matrix.probe }}" = "campaign-saves" ] || [ "${{ matrix.probe }}" = "campaign-slot-discovery" ] || [ "${{ matrix.probe }}" = "wave-routing" ]; then
             extra=("-ParcCheckout=$RUNNER_TEMP/Arc")
           fi
           probe_args=()
@@ -90,6 +90,8 @@ jobs:
             probe_args=("-PprobeArgs=$RUNNER_TEMP/glacier.msav")
           elif [ "${{ matrix.probe }}" = "campaign-slot-meta" ] || [ "${{ matrix.probe }}" = "campaign-launch" ]; then
             probe_args=("-PprobeArgs=$RUNNER_TEMP/glacier.msav $RUNNER_TEMP/sector-serpulo-15.msav")
+          elif [ "${{ matrix.probe }}" = "campaign-slot-discovery" ]; then
+            probe_args=("-PprobeArgs=$RUNNER_TEMP/slot-discovery-base $RUNNER_TEMP/glacier.msav")
           fi
           bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime \
             --no-daemon --console=plain \
@@ -136,6 +138,10 @@ jobs:
             grep -F 'UPSTREAM_CAMPAIGN_SAVES path=tmp sector=sector-serpulo-15.msav' "$RUNNER_TEMP/probe.log"
             grep -F 'extension=msav saves=ok' "$RUNNER_TEMP/probe.log"
           fi
+          if [ "${{ matrix.probe }}" = "campaign-slot-discovery" ]; then
+            grep -F 'UPSTREAM_CAMPAIGN_SLOT_DISCOVERY path=tmp slots=1 file=sector-serpulo-15.msav' "$RUNNER_TEMP/probe.log"
+            grep -F 'discovery=ok' "$RUNNER_TEMP/probe.log"
+          fi
           if [ "${{ matrix.probe }}" = "wave-routing" ]; then
             grep -F 'UPSTREAM_WAVE_SETUP core=81,26 enemyCore=81,224 groundSpawns=1 fieldHash=629058db4926d64e' \
               "$RUNNER_TEMP/probe.log"
@@ -150,9 +156,11 @@ jobs:
           fi
 
       - name: Build ARM11 probe with pinned devkitARM image
+        env:
+          M3DS_RELAX_POINTER_TYPES: ${{ matrix.probe == 'campaign-slot-discovery' && '1' || '0' }}
         run: |
           image=devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5
-          docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/work" -w /work "$image" bash -lc '
+          docker run --rm -e M3DS_RELAX_POINTER_TYPES -u "$(id -u):$(id -g)" -v "$PWD:/work" -w /work "$image" bash -lc '
             source /opt/devkitpro/3dsvars.sh
             bash research/upstream-runtime/arm11/build.sh \
               research/upstream-runtime/build/generated/teavm/c \

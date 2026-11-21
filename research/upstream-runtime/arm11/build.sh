@@ -51,9 +51,13 @@ if [[ $# -gt 0 ]]; then
         "Min3DStry Contributors" "$DEVKITPRO/libctru/default_icon.png" "$output/upstream-probe.smdh"
     package_flags=(--smdh="$output/upstream-probe.smdh" --romfs="$output/romfs")
 fi
+pointer_flags=()
+if [[ "${M3DS_RELAX_POINTER_TYPES:-0}" == "1" ]]; then
+    pointer_flags=(-Wno-error=incompatible-pointer-types)
+fi
 "$DEVKITARM/bin/arm-none-eabi-gcc" -std=gnu11 -g -O2 -fwrapv -D__3DS__ -mword-relocations \
     -march=armv6k -mtune=mpcore -mfpu=vfp -mfloat-abi=hard -mtp=soft \
     -I"$output/nativeinclude" -I"$DEVKITPRO/libctru/include" -L"$DEVKITPRO/libctru/lib" \
-    "${terrain_flags[@]}" -specs=3dsx.specs "$output/all.c" "${native_network[@]}" \
+    "${terrain_flags[@]}" "${pointer_flags[@]}" -specs=3dsx.specs "$output/all.c" "${native_network[@]}" \
     "${terrain_sources[@]}" "${terrain_libraries[@]}" -lctru -lm -o "$output/upstream-probe.elf"
 "$DEVKITPRO/tools/bin/3dsxtool" "$output/upstream-probe.elf" "$output/upstream-probe.3dsx" "${package_flags[@]}"
