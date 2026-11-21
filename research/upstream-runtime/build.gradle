@@ -117,7 +117,7 @@ def stageRenderedBuilding
 if (probe == 'network-render') {
     def asm = configurations.detachedConfiguration(dependencies.create('org.ow2.asm:asm-tree:9.9'))
     def adapter = tasks.register('compileBuildingCrackAdapter', JavaCompile) {
-        source file('tools/StageBuildingCrackAdapter.java')
+        source files('tools/StageBuildingCrackAdapter.java', 'tools/StageNavalWakeAdapter.java')
         classpath = asm
         destinationDirectory = layout.buildDirectory.dir('building-renderer-tool')
     }
@@ -155,7 +155,7 @@ if (usesArcSources || usesExecutor) {
         stagedClasses.addAll(['mindustry/graphics/g3d/PlanetGrid.class', 'mindustry/graphics/g3d/PlanetGrid$*.class'])
     }
     if (stageRenderedBuilding != null) {
-        stagedClasses.add('mindustry/gen/Building.class')
+        stagedClasses.addAll(['mindustry/gen/Building.class', 'mindustry/gen/UnitWaterMove.class'])
         shieldModeSources.keySet().each { path ->
             stagedClasses.add(path.replace('.java', '.class'))
         }

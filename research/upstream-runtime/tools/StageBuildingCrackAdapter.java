@@ -49,5 +49,6 @@ public final class StageBuildingCrackAdapter {
         var output = Path.of(args[1]).resolve(BUILDING);
         Files.createDirectories(output.getParent());
         Files.write(output, writer.toByteArray());
+        StageNavalWakeAdapter.stage(Path.of(args[0]), Path.of(args[1]));
     }
 }
