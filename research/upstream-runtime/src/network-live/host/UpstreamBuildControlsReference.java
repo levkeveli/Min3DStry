@@ -84,12 +84,23 @@ public final class UpstreamBuildControlsReference {
                 throw new AssertionError("Stock bundle " + locales[language] + " did not load");
             }
         }
+        int selectable = 0;
+        for (Fi file : path.parent().list()) {
+            String name = file.nameWithoutExtension();
+            if (!name.startsWith("bundle_")) continue;
+            String code = name.substring("bundle_".length());
+            if (!code.equals(UpstreamInterfaceLocale.load(path, 1, code).getLocale().toString())) {
+                throw new AssertionError("Cannot select the stock bundle " + code);
+            }
+            selectable++;
+        }
         var english = UpstreamInterfaceLocale.load(path, 1);
         if (!"Router".equals(english.get("block.router.name")) || !"Copper".equals(english.get("item.copper.name"))) {
             throw new AssertionError("Expected the original English block and item labels");
         }
-        Core.bundle = UpstreamInterfaceLocale.load(path, 3);
-        System.out.println("UPSTREAM_INTERFACE_REFERENCE systemLanguages=" + locales.length + " selected=de");
+        Core.bundle = UpstreamInterfaceLocale.load(path, 1, "de");
+        System.out.println("UPSTREAM_INTERFACE_REFERENCE systemLanguages=" + locales.length
+            + " additionalBundles=" + selectable + " selected=de");
     }
 
     private static void verifyConfiguration(UpstreamLiveBuildControls controls, Unit unit) {

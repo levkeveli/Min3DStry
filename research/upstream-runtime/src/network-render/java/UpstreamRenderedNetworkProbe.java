@@ -33,9 +33,12 @@ public final class UpstreamRenderedNetworkProbe {
         var endpoint = UpstreamLiveNetworkProbe.endpointFile(args);
         var view = new UpstreamRenderedNetworkProbe(endpoint.sibling("sprites.aatls"));
         int language = view.target.mountAssets();
-        Core.bundle = UpstreamInterfaceLocale.load(new Fi("/romfs/bundles/bundle"), language);
+        var preference = endpoint.sibling("locale.txt");
+        String requested = preference.exists() && preference.length() <= 16 ? preference.readString("UTF-8").trim() : "";
+        Core.bundle = UpstreamInterfaceLocale.load(new Fi("/romfs/bundles/bundle"), language, requested);
+        var locale = Core.bundle.getLocale();
         System.out.println("UPSTREAM_INTERFACE_LOCALE system=" + language + " bundle="
-            + Core.bundle.getLocale() + " router=" + Core.bundle.get("block.router.name")
+            + (locale.getLanguage().isEmpty() ? "en" : locale) + " router=" + Core.bundle.get("block.router.name")
             + " copper=" + Core.bundle.get("item.copper.name"));
         CacheLayer.init();
         UpstreamLiveNetworkProbe.run(endpoint, view::loadGraphics, view::render, view.buildingControls);
