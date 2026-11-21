@@ -1033,9 +1033,9 @@ port. World labels use the stock 18 px face, rounded 2 px outline, and
 Japanese face override when the selected locale is Japanese. Face-wide
 hinting tables are initialized before opening the multiplayer socket.
 The renderer keeps the current glyphs in one 512 × 512 RGBA8 texture and
-reuses older slots after the previous frame has finished. When stock
-font rendering is unavailable, the existing system-font path displays
-the label.
+reuses older slots after the previous frame has finished. It rasters up
+to two cold glyphs per frame so the live loop can service the connection.
+The existing system-font path displays a label as its glyphs load.
 
 For host verification, compile `arm11/m3ds_stock_font.c` and
 `arm11/test_stock_font.c` with the system FreeType development library.

@@ -13,6 +13,7 @@ static uint32_t frame;
 static int32_t ascent, line_height;
 static uint8_t coverage[256];
 static bool dirty;
+static unsigned raster_budget;
 
 typedef struct {
     uint32_t codepoint, touched;
@@ -31,9 +32,9 @@ bool m3ds_stock_text_open(bool japanese) {
     // FreeType builds the face-wide auto-hinter tables on first use. Do that
     // here while loading graphics, before the live client's socket is open.
     M3DS_StockGlyph prime;
-    if (!m3ds_stock_font_glyph(font, 'A', false, &prime)
+    if (!m3ds_stock_font_glyph(font, 'A', true, &prime)
             || !m3ds_stock_font_glyph(font, 0xe875, false, &prime)
-            || (japanese && !m3ds_stock_font_glyph(font, 0x63a1, false, &prime))
+            || (japanese && !m3ds_stock_font_glyph(font, 0x63a1, true, &prime))
             || !C3D_TexInit(&atlas, atlas_size, atlas_size, GPU_RGBA8)) {
         m3ds_stock_font_close(font);
         font = NULL;
@@ -56,6 +57,9 @@ void m3ds_stock_text_close(void) {
 void m3ds_stock_text_begin(void) {
     // C3D_FrameBegin(C3D_FRAME_SYNCDRAW) has finished the preceding GPU frame.
     ++frame;
+    // Cold outline glyphs can individually be expensive on ARM11. Let the
+    // live loop send input and keepalives between batches of new glyphs.
+    raster_budget = 2;
 }
 
 static uint8_t sample(const M3DS_GlyphMask *mask, int x, int y) {
@@ -118,7 +122,8 @@ static int slot_for(uint32_t codepoint, bool outline) {
         }
         if (entry->touched != frame && (available < 0 || entry->touched < cache[available].touched)) available = i;
     }
-    if (available < 0) return -1;
+    if (available < 0 || raster_budget == 0) return -1;
+    --raster_budget;
     M3DS_StockGlyph glyph;
     if (!m3ds_stock_font_glyph(font, codepoint, outline, &glyph)
             && !m3ds_stock_font_glyph(font, '?', outline, &glyph)) return -1;

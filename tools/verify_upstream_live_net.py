@@ -372,7 +372,7 @@ def capture_onset_marker(log, emulator, server, rpc, output, model, require_stoc
     trace = rf"UPSTREAM_WORLD_LABEL x={x}\.0 y={marker_y} text=[^\r\n]*{re.escape(words)}"
     wait_for(log, emulator, trace, 12)
     if require_stock_font:
-        wait_for(log, emulator, rf"UPSTREAM_WORLD_LABEL_FONT x={x}\.0 y={marker_y} source=v160\.8\b", 5)
+        wait_for(log, emulator, rf"UPSTREAM_WORLD_LABEL_FONT x={x}\.0 y={marker_y} source=v160\.8\b", 30)
     if styled:
         code = 63304 if phase == "mine" else 63294
         wait_for(log, emulator, rf"UPSTREAM_WORLD_INLINE_GLYPH code={code}\b", 5)

@@ -47,6 +47,7 @@ public final class UpstreamRenderedNetworkProbe {
     private int lastLeft = -1, lastBottom = -1;
     private final UpstreamWorldLabel.Target worldLabel = this::drawWorldLabel;
     private final ObjectSet<String> reportedWorldLabels = new ObjectSet<>();
+    private final ObjectSet<String> reportedStockWorldLabels = new ObjectSet<>();
     private UpstreamLabelText.Label encodedLabel;
     private int[] encodedCharacters;
     private byte[] lastMenu;
@@ -234,7 +235,9 @@ public final class UpstreamRenderedNetworkProbe {
         int font = target.drawWorldLabel(text.plain(), encodedCharacters, x, y, flags, size, align, lineAlign);
         if (font != 0 && reportedWorldLabels.add(text.plain())) {
             System.out.println("UPSTREAM_WORLD_LABEL x=" + x + " y=" + y + " text=" + text.plain().replace('\n', '|'));
-            if (font == 2) System.out.println("UPSTREAM_WORLD_LABEL_FONT x=" + x + " y=" + y + " source=v160.8");
+        }
+        if (font == 2 && reportedStockWorldLabels.add(text.plain())) {
+            System.out.println("UPSTREAM_WORLD_LABEL_FONT x=" + x + " y=" + y + " source=v160.8");
         }
     }
 
