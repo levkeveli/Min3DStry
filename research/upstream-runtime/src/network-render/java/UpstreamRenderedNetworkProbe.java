@@ -81,7 +81,6 @@ public final class UpstreamRenderedNetworkProbe {
         Core.settings.put("locale", locale.getLanguage().isEmpty() ? "en" : locale.toString());
         System.out.println("UPSTREAM_INTERFACE_GRAPHICS atlas");
         UpstreamTerrainDrawProbe.loadAtlas(atlas, UpstreamFluidAtlas::load);
-        UpstreamLabelText.loadIcons(new Fi("/romfs/icons/icons.properties"));
         Vars.content.loadColors(new Fi("/romfs/block_colors.png"));
         UpstreamCrackAtlas.load();
         loadUnitGraphics();
