@@ -18,5 +18,9 @@ int32_t m3ds_terrain_build_overlay(int32_t column, int32_t row, int32_t block, i
                                   int32_t configuring, int32_t selecting_mine);
 int32_t m3ds_terrain_build_catalog(const char *labels, const int32_t *icons, int32_t selected,
                                     int32_t previous, int32_t next, int32_t categories);
+float m3ds_terrain_draw_objective(const char *label, int32_t page, int32_t left, int32_t top,
+                                 int32_t width, int32_t height, float y);
+int32_t m3ds_terrain_draw_world_label(const char *label, float x, float y, int32_t flags, float size,
+                                     int32_t horizontal, int32_t vertical, int32_t lines);
 int32_t m3ds_terrain_palette_active(void);
 void m3ds_terrain_fini(void);

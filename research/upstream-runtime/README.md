@@ -986,6 +986,57 @@ count. Index 1 requires one Turbine Condenser. The page-rounded ELF load
 segments for this debug build total 41.14 MiB before heap, stack and
 network allocations. Physical memory and frame rate remain to be tested.
 
+### Campaign objective display
+
+The graphical probe displays eligible, visible objectives on the top
+screen in their upstream order. It uses the stock objective text and
+localized content names. The 3DS adapter draws the original content
+icons from the paged atlas alongside the system-font text.
+
+Pass the path to the official `bundle` base as the optional fourth
+argument to `runBuildingLayersJvm` to verify the changing Onset count,
+the Turbine Condenser text and icons, and hidden objective filtering.
+Run the stationary live verifier with `--controls --map-spawn "The Onset"
+--erekir-sector onset --verify-objective-hud --locale en --terrain-atlas
+PATH`. The stock server hosts the unchanged sector from the release JAR.
+The verifier captures 0/60, sets 17 beryllium in the server's core and
+captures the updated count, then sets 60 and captures the next objective
+after the stock executor completes the first. The separate wall-mining
+replay still checks objective completion through player mining.
+
+The [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44912172962)
+passed this check on both Original and New 3DS Azahar profiles. Both
+displayed the original Beryllium and Turbine Condenser icons and matched
+the server's objective completion and flag count.
+
+### Onset tutorial markers in world space
+
+The live viewport calls the pinned `ShapeTextMarker.draw` and
+`TextMarker.draw` for the objectives selected by the stock executor.
+The renderer preserves the original Arc shapes, world anchors, world
+visibility, localization lookup, layer, and zoom scaling. A staging
+adapter redirects those two classes' `WorldLabel.drawAt` calls to
+Citro2D. The port uses system-font text with a shadow and the stock
+background flag. Visible anchors keep long text within the 3DS
+viewport. Marker text selects the upstream touch-control language
+variant when present. Original glyph art and styled spans are tracked
+in [#199](https://github.com/levkeveli/Min3DStry/issues/199). Lighting,
+minimap markers and the other marker types require further renderer support.
+
+Run `runObjectiveMarkersJvm` under `-Pprobe=network-render` with the
+original `maps/erekir/onset.msav` from the release JAR, `sprites.aatls`,
+and the official `bundle` base. It checks the mining and research shapes
+and labels and the later ducts text marker from the actual map.
+Add `--verify-objective-markers` to the stationary objective HUD
+verifier to use stock position corrections to frame the world markers
+before and after the beryllium objective transition.
+
+The [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44914292683)
+displayed both original shapes and the localized directions on Original
+and New 3DS Azahar profiles connected to the unmodified v160.8 server.
+Both captures show the stock touch mining prompt and the complete
+research label inside the top-screen viewport.
+
 ### Verify the Arc executor pools
 
 Use `-Pprobe=executor` with the JVM and ARM11 build commands. The JVM uses the

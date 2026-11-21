@@ -329,6 +329,57 @@ def verify_mining(log, emulator, server_log, server, timeout, capture, mining, i
         verify_onset_objective(log, emulator, server_log, server, settled[1])
 
 
+def verify_onset_objective_hud(log, emulator, server_log, server, capture, position, markers=None):
+    wait_for(log, emulator, r"UPSTREAM_OBJECTIVE_HUD icon=beryllium text=Obtain: 0/60\|Beryllium\b", 10)
+    if markers:
+        markers("mine", 2320, 864, 868, "Tap to mine")
+    # Drive the real server's item module and let its regular snapshots and objective executor
+    # publish the changes. Hold each state until the client presents it for capture.
+    for amount, icon, label, phase in (
+        (17, "beryllium", "Obtain: 17/60|Beryllium", "objective-progress"),
+        (60, "turbine-condenser", "Build: 1x|Turbine Condenser", "objective-next"),
+    ):
+        server.stdin.write(
+            f'js Vars.state.rules.defaultTeam.core().items.set(Items.beryllium, {amount})\n'
+        )
+        server.stdin.flush()
+        wait_for(log, emulator, rf"UPSTREAM_OBJECTIVE_HUD icon={icon} text={re.escape(label)}\b", 25)
+        if not markers:
+            capture(phase, position)
+    verify_onset_objective(log, emulator, server_log, server, 60)
+    if markers:
+        markers("research", 2312, 944, 957.8, "on the vent.")
+    print("The objective HUD displayed the stock inventory progress and Turbine Condenser objective.", flush=True)
+
+
+def capture_onset_marker(log, emulator, server, rpc, output, model, phase, x, y, label_y, words):
+    # Use the stock server correction RPC to frame each marker without changing its coordinates.
+    server.stdin.write(
+        f'js (() => {{ const p = Groups.player.find(boolf(v => String(v.name) === "{PLAYER}")); '
+        f'p.unit().set({x}, {y}); p.set({x}, {y}); Call.setPosition(p.con, {x}, {y}); }})()\n'
+    )
+    server.stdin.flush()
+    wait_for(log, emulator, rf"UPSTREAM_NETWORK_FRAME unit=\d+ left={x // 8 - 8} bottom={y // 8 - 6}\b", 12)
+    marker_y = re.escape(f"{label_y:.1f}")
+    trace = rf"UPSTREAM_WORLD_LABEL x={x}\.0 y={marker_y} text=[^\r\n]*{re.escape(words)}"
+    wait_for(log, emulator, trace, 12)
+    destination = output / f"{model}-marker-{phase}.png"
+    # Both stock shapes use the same outline color. Inspect the area below the label.
+    area = tuple((sx, sy) for sx in range(124, 299) for sy in range(100, 235))
+    deadline = time.monotonic() + 8
+    while True:
+        screenshot = rpc.screenshot()
+        colors = az.inspect_png(screenshot, area)["samples"]
+        if sum(rgb == (255, 211, 127) for rgb in colors.values()) >= 8:
+            destination.write_bytes(screenshot)
+            print(f"{model}: visible stock Onset {phase} marker", flush=True)
+            return
+        if time.monotonic() >= deadline:
+            destination.write_bytes(screenshot)
+            raise RuntimeError(f"No stock Onset {phase} marker outline in {destination}")
+        time.sleep(0.25)
+
+
 def verify_onset_objective(log, emulator, server_log, server, beryllium):
     if beryllium < 60:
         raise RuntimeError(f"Expected at least 60 beryllium for the original objective, got {beryllium}")
@@ -1112,7 +1163,7 @@ def run_model(args, model, config, original_config, log, output):
                     f'Vars.state.rules.defaultTeam.core().items.get(Items.{mine_item})\n')
                 server.stdin.flush()
                 wait_for(server_log, server, rf"UPSTREAM_MINING_START {mine_item}=0\b", 5)
-            if args.verify_objectives:
+            if args.verify_objectives or args.verify_objective_hud:
                 server.stdin.write(
                     'js (() => { var all=Vars.state.rules.objectives.all, first=all.get(0), next=all.get(1); '
                     'return "UPSTREAM_SERVER_ONSET_START item=" + first.item.name + " amount=" + first.amount + '
@@ -1318,6 +1369,11 @@ def run_model(args, model, config, original_config, log, output):
                         if args.mining:
                             verify_mining(log, emulator, server_log, server, args.timeout, capture,
                                           args.mining, mine_item, args.verify_objectives)
+                        if args.verify_objective_hud:
+                            def capture_marker(*marker):
+                                capture_onset_marker(log, emulator, server, rpc, output, model, *marker)
+                            verify_onset_objective_hud(log, emulator, server_log, server, capture, spawn,
+                                                       capture_marker if args.verify_objective_markers else None)
                         if args.building_effects:
                             verify_building_effects((output / f"{model}-{phase}.png").read_bytes())
                         if args.payload_mix:
@@ -1490,6 +1546,10 @@ def main():
                                help="Verify touch mining and core delivery on The Onset or Ground Zero")
     parser.add_argument("--verify-objectives", action="store_true",
                         help="Compare the original first Onset objective transition between client and server")
+    parser.add_argument("--verify-objective-hud", action="store_true",
+                        help="Verify the rendered Onset objective labels as the stock progress changes")
+    parser.add_argument("--verify-objective-markers", action="store_true",
+                        help="Verify the original Onset mining and research directions in world space")
     parser.add_argument("--require-relocation-spill", action="store_true",
                         help="Require the ARM11 collector to grow its relocation table during the spawn check")
     args = parser.parse_args()
@@ -1556,6 +1616,14 @@ def main():
         parser.error('--mining floor needs --map-spawn "Ground Zero" and --controls-replay')
     if args.verify_objectives and args.mining != "wall":
         parser.error("--verify-objectives needs --mining wall")
+    if args.verify_objective_hud and (
+        args.map_spawn != "The Onset" or args.erekir_sector != "onset" or args.locale != "en"
+        or args.mining or args.erekir_build or args.controls_replay
+    ):
+        parser.error('--verify-objective-hud needs a stationary --map-spawn "The Onset", '
+                     '--erekir-sector onset and --locale en')
+    if args.verify_objective_markers and not args.verify_objective_hud:
+        parser.error("--verify-objective-markers needs --verify-objective-hud")
     if args.erekir_sector is not None:
         if not args.map_spawn or not re.fullmatch(r"[a-z][a-z-]*", args.erekir_sector):
             parser.error("--erekir-sector needs --map-spawn and a sector slug such as onset")

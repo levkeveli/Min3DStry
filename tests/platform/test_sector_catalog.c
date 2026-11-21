@@ -111,6 +111,14 @@ static void test_scan_and_sort(void) {
     assert(!slots[1].has_meta);
     assert(slots[1].bytes == sizeof(raw));
 
+    char label[64];
+    assert(m3ds_sector_catalog_label(&slots[0], label, sizeof(label)));
+    assert(strcmp(label, "erekir-64 Glacier w7") == 0);
+    assert(m3ds_sector_catalog_label(&slots[1], label, sizeof(label)));
+    assert(strcmp(label, "serpulo-170 v 16B") == 0);
+    assert(!m3ds_sector_catalog_label(NULL, label, sizeof(label)));
+    assert(!m3ds_sector_catalog_label(&slots[0], label, 0u));
+
     M3dsSectorSlot one[1];
     assert(m3ds_sector_catalog_scan(dir, one, 1u) == 1u);
     assert(strcmp(one[0].planet, "erekir") == 0);
