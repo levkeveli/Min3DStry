@@ -43,8 +43,19 @@ typedef struct M3dsItemStack {
     uint32_t amount;
 } M3dsItemStack;
 
+typedef struct M3dsTileState {
+    uint16_t floor_id;
+    uint16_t overlay_id;
+    uint16_t block_id;
+    uint8_t flags;
+    uint32_t building_index;
+} M3dsTileState;
+
 typedef struct M3dsBuildingState {
     uint32_t tile_index;
+    uint32_t x;
+    uint32_t y;
+    uint16_t block_id;
     uint32_t revision;
     uint32_t payload_size;
     uint8_t *payload;
@@ -71,11 +82,15 @@ typedef struct M3dsWorldTiles {
     uint16_t *block_ids;
     uint8_t *flags;
     uint32_t *building_index;
+    M3dsTileState *tile_states;
     M3dsBuildingState *buildings;
     size_t count;
     size_t building_count;
+    uint32_t width;
+    uint32_t height;
     uint64_t hash;
     uint64_t building_hash;
+    uint64_t tile_state_hash;
 } M3dsWorldTiles;
 
 /*

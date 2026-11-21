@@ -421,6 +421,7 @@ void m3ds_msav_free_world(M3dsWorldTiles *tiles) {
     }
     free(tiles->buildings);
     free(tiles->building_index);
+    free(tiles->tile_states);
     free(tiles->floor_ids);
     free(tiles->overlay_ids);
     free(tiles->block_ids);
@@ -453,16 +454,20 @@ bool m3ds_msav_alloc_world(
     out->block_ids = calloc(count, sizeof(uint16_t));
     out->flags = calloc(count, sizeof(uint8_t));
     out->building_index = malloc(count * sizeof(uint32_t));
+    out->tile_states = calloc(count, sizeof(M3dsTileState));
     out->buildings = calloc(
         world.entity_tiles > 0u ? world.entity_tiles : 1u,
         sizeof(M3dsBuildingState));
     if (!out->floor_ids || !out->overlay_ids || !out->block_ids
-            || !out->flags || !out->building_index || !out->buildings) {
+            || !out->flags || !out->building_index || !out->tile_states
+            || !out->buildings) {
         m3ds_msav_free_world(out);
         return false;
     }
     memset(out->building_index, 0xFF, count * sizeof(uint32_t));
     out->count = count;
+    out->width = world.width;
+    out->height = world.height;
     out->building_hash = UINT64_C(1469598103934665603);
 
     size_t position = map_start + 4u;
@@ -504,6 +509,9 @@ bool m3ds_msav_alloc_world(
             }
             M3dsBuildingState *building = &out->buildings[out->building_count];
             building->tile_index = (uint32_t)block_index;
+            building->x = (uint32_t)(block_index % world.width);
+            building->y = (uint32_t)(block_index / world.width);
+            building->block_id = block_id;
             building->revision = data[position];
             building->payload_size = length - 1u;
             if (building->payload_size > 0u) {
@@ -549,6 +557,17 @@ bool m3ds_msav_alloc_world(
             ++block_index;
         }
     }
+
+    for (size_t i = 0; i < count; ++i) {
+        out->tile_states[i].floor_id = out->floor_ids[i];
+        out->tile_states[i].overlay_id = out->overlay_ids[i];
+        out->tile_states[i].block_id = out->block_ids[i];
+        out->tile_states[i].flags = out->flags[i];
+        out->tile_states[i].building_index = out->building_index[i];
+    }
+    out->tile_state_hash = hash_bytes(
+        UINT64_C(1469598103934665603),
+        (const uint8_t *)out->tile_states, count * sizeof(M3dsTileState));
 
     uint64_t hash = UINT64_C(1469598103934665603);
     hash = hash_bytes(hash, (const uint8_t *)out->floor_ids,
