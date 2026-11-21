@@ -3,19 +3,23 @@ import arc.files.Fi;
 import arc.graphics.Blending;
 import arc.graphics.Color;
 import arc.graphics.g2d.Draw;
+import arc.graphics.g2d.TextureRegion;
 import arc.mock.MockGraphics;
 import arc.util.Align;
 import arc.util.Time;
 import java.util.ArrayList;
 import java.util.List;
 import mindustry.Vars;
+import mindustry.content.Items;
 import mindustry.game.MapObjectives.LineMarker;
 import mindustry.game.MapObjectives.PointMarker;
 import mindustry.game.MapObjectives.ShapeMarker;
 import mindustry.game.MapObjectives.ShapeTextMarker;
 import mindustry.game.MapObjectives.TextMarker;
+import mindustry.game.MapObjectives.TextureMarker;
 import mindustry.game.Rules;
 import mindustry.gen.WorldLabel;
+import mindustry.gen.UpdateMarkerTextureCallPacket;
 import mindustry.io.JsonIO;
 import mindustry.io.MapIO;
 import mindustry.type.MapLocales;
@@ -23,8 +27,12 @@ import mindustry.type.MapLocales;
 public final class UpstreamObjectiveMarkersReference implements UpstreamTerrainDrawProbe.TerrainTarget {
     private record Label(String text, float x, float y, int flags, float size, int align, int lineAlign) {}
     private record Vertex(float x, float y, int color) {}
+    private record Sprite(int page, int left, int top, int width, int height,
+                          float x, float y, float originX, float originY, float drawWidth, float drawHeight,
+                          float rotation, int color, int mixColor, Blending blending) {}
     private final List<Label> labels = new ArrayList<>();
     private final List<Vertex> vertices = new ArrayList<>();
+    private final List<Sprite> sprites = new ArrayList<>();
     private int quads;
 
     public static void main(String[] args) throws Exception {
@@ -47,6 +55,42 @@ public final class UpstreamObjectiveMarkersReference implements UpstreamTerrainD
         target.verify(4, 2280, 864, "ducts");
         System.out.println("UPSTREAM_WORLD_MARKER_REFERENCE onset=mine,research,ducts worldText=ok shapes=ok");
         target.verifyLogicGeometry();
+        target.verifyTextureMarker();
+    }
+
+    private void verifyTextureMarker() {
+        var markers = Vars.state.markers;
+        markers.clear();
+        var marker = new TextureMarker("block-router-ui", 120f, 144f);
+        marker.autoscale = true;
+        marker.color.set(Color.sky);
+        marker.rotation = 42f;
+        markers.add(6, marker);
+        verifySprite(marker, Core.atlas.find("block-router-ui"), 2f);
+
+        var update = new UpdateMarkerTextureCallPacket();
+        update.id = 6;
+        update.texture = Items.copper;
+        UpstreamSnapshotDispatchReference.applyMarkerPacket(update);
+        verifySprite(marker, Items.copper.fullIcon, 2f);
+
+        update.texture = "min3dstry-missing-marker-region";
+        UpstreamSnapshotDispatchReference.applyMarkerPacket(update);
+        verifySprite(marker, Core.atlas.find("error"), 2f);
+        System.out.println("UPSTREAM_TEXTURE_MARKER_REFERENCE named=ok content=ok error=ok rotation=ok tint=ok autoscale=ok");
+    }
+
+    private void verifySprite(TextureMarker marker, TextureRegion region, float scale) {
+        if (region == null || region.texture == null) throw new AssertionError("Missing marker texture in reference atlas");
+        sprites.clear();
+        UpstreamObjectiveMarkers.draw(Vars.state.rules, 4f / scale, (text, x, y, flags, size, align, lines) -> {});
+        float width = region.width * region.scl() * Draw.xscl * scale;
+        float height = region.height * region.scl() * Draw.yscl * scale;
+        var expected = new Sprite(UpstreamTerrainDrawProbe.pageIndex(region), region.getX(), region.getY(),
+            region.width, region.height, marker.pos.x - width / 2f, marker.pos.y - height / 2f,
+            width / 2f, height / 2f, width, height, marker.rotation,
+            Color.floatToIntColor(marker.color.toFloatBits()), 0, Blending.normal);
+        if (!sprites.equals(List.of(expected))) throw new AssertionError("Marker sprite changed: " + sprites);
     }
 
     private void verifyLogicGeometry() {
@@ -114,7 +158,8 @@ public final class UpstreamObjectiveMarkersReference implements UpstreamTerrainD
     public void draw(int page, int left, int top, int width, int height,
                      float x, float y, float originX, float originY, float drawWidth, float drawHeight,
                      float rotation, int color, int mixColor, Blending blending) {
-        throw new AssertionError("Unexpected marker sprite");
+        sprites.add(new Sprite(page, left, top, width, height, x, y, originX, originY,
+            drawWidth, drawHeight, rotation, color, mixColor, blending));
     }
 
     @Override

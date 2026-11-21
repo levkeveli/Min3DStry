@@ -4,6 +4,7 @@ import mindustry.game.MapObjectives.ObjectiveMarker;
 import mindustry.game.MapObjectives.PosMarker;
 import mindustry.game.MapObjectives.TextureMarker;
 import mindustry.game.Rules;
+import port.render.UpstreamMarkerTexture;
 import port.render.UpstreamWorldLabel;
 
 final class UpstreamObjectiveMarkers {
@@ -29,9 +30,8 @@ final class UpstreamObjectiveMarkers {
     }
 
     private static void drawOne(ObjectiveMarker marker, float displayScale) {
-        // Texture and quad markers can reference dynamic display targets that
-        // the current Arc bridge cannot sample.
-        if (marker instanceof PosMarker && !(marker instanceof TextureMarker)) {
+        if (marker instanceof PosMarker
+                && (!(marker instanceof TextureMarker sprite) || !UpstreamMarkerTexture.deferLookup(sprite.texture.value))) {
             marker.draw(marker.autoscale ? 4f / displayScale : 1f);
         }
     }

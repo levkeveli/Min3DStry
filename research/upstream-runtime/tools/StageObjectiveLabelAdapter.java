@@ -8,12 +8,14 @@ import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.InsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
+import org.objectweb.asm.tree.VarInsnNode;
 
-/** Keep upstream marker scheduling, shapes and localization. Swap only the world text backend. */
+/** Keep upstream marker scheduling and drawing, adapting text and texture lookup to the target. */
 final class StageObjectiveLabelAdapter {
     static void stage(Path jar, Path output) throws Exception {
         try (var archive = new ZipFile(jar.toFile())) {
             stageTouchText(archive, output);
+            stageTextureLookup(archive, output);
             for (String name : new String[]{"ShapeTextMarker", "TextMarker"}) {
                 var path = "mindustry/game/MapObjectives$" + name + ".class";
                 var type = new ClassNode();
@@ -36,6 +38,36 @@ final class StageObjectiveLabelAdapter {
                 write(type, output.resolve(path));
             }
         }
+    }
+
+    private static void stageTextureLookup(ZipFile archive, Path output) throws Exception {
+        var path = "mindustry/game/MapObjectives$TextureMarker.class";
+        var type = new ClassNode();
+        try (var bytes = archive.getInputStream(archive.getEntry(path))) {
+            new ClassReader(bytes).accept(type, 0);
+        }
+        var setTexture = type.methods.stream()
+            .filter(method -> method.name.equals("setTexture") && method.desc.equals("(Ljava/lang/Object;)V"))
+            .findFirst().orElseThrow();
+        int guards = 0, lookups = 0;
+        String adapter = "port/render/UpstreamMarkerTexture";
+        for (var instruction : setTexture.instructions.toArray()) {
+            if (instruction instanceof FieldInsnNode flag && flag.getOpcode() == Opcodes.GETSTATIC
+                    && flag.owner.equals("mindustry/Vars") && flag.name.equals("headless") && flag.desc.equals("Z")) {
+                setTexture.instructions.insertBefore(flag, new VarInsnNode(Opcodes.ALOAD, 1));
+                setTexture.instructions.set(flag, new MethodInsnNode(Opcodes.INVOKESTATIC, adapter,
+                    "deferLookup", "(Ljava/lang/Object;)Z", false));
+                guards++;
+            } else if (instruction instanceof MethodInsnNode lookup && lookup.getOpcode() == Opcodes.INVOKESTATIC
+                    && lookup.owner.equals("mindustry/game/MapObjectives") && lookup.name.equals("lookupRegion")
+                    && lookup.desc.equals("(Ljava/lang/Object;Larc/graphics/g2d/TextureRegion;)V")) {
+                lookup.owner = adapter;
+                lookup.name = "lookup";
+                lookups++;
+            }
+        }
+        if (guards != 1 || lookups != 1) throw new IllegalStateException("Unexpected stock texture marker lookup");
+        write(type, output.resolve(path));
     }
 
     private static void stageTouchText(ZipFile archive, Path output) throws Exception {

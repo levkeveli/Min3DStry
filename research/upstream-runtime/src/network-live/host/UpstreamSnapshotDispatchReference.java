@@ -204,7 +204,7 @@ public final class UpstreamSnapshotDispatchReference {
         System.out.println("UPSTREAM_MARKER_PACKETS create=ok text=ok position=ok visibility=ok replace=ok texture=ok remove=ok");
     }
 
-    private static void applyMarkerPacket(Packet sent) {
+    static void applyMarkerPacket(Packet sent) {
         var received = UpstreamLiveNetworkProbe.markerPacket(Net.getPacketClassId(sent.getClass()) & 0xff);
         if (received == null || received.getClass() != sent.getClass()) {
             throw new AssertionError("Missing stock live marker packet " + sent.getClass().getSimpleName());
