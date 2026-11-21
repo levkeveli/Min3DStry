@@ -20,6 +20,17 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
         if (result != 1) throw new IllegalStateException("Unable to initialize Citro2D terrain: " + result);
     }
 
+    int mountAssets() throws IOException {
+        if (NativeTerrain.mountAssets() == 0) throw new IOException("Unable to mount the original game assets");
+        return NativeTerrain.systemLanguage();
+    }
+
+    void buildLabels(byte[] labels) {
+        if (NativeTerrain.buildLabels(Address.ofData(labels)) == 0) {
+            throw new IllegalStateException("Unable to create the Citro2D label buffer");
+        }
+    }
+
     void buildOverlay(int column, int row, int block, int rotation,
                       boolean removing, boolean rotatable, boolean catalogOpen, boolean configuring) {
         if (NativeTerrain.buildOverlay(column, row, block, rotation, removing ? 1 : 0, Vars.tilesize,
@@ -62,6 +73,15 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
     private static final class NativeTerrain {
         @Import(name = "m3ds_terrain_initialize")
         static native int initialize();
+
+        @Import(name = "m3ds_terrain_mount_assets")
+        static native int mountAssets();
+
+        @Import(name = "m3ds_terrain_system_language")
+        static native int systemLanguage();
+
+        @Import(name = "m3ds_terrain_build_labels")
+        static native int buildLabels(Address labels);
 
         @Import(name = "m3ds_terrain_begin")
         static native int begin(int left, int bottom, int width, int height, int tileSize);

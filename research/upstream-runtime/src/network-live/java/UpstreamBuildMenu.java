@@ -1,3 +1,4 @@
+import arc.Core;
 import arc.struct.Seq;
 import java.nio.charset.StandardCharsets;
 import mindustry.type.Category;
@@ -59,7 +60,7 @@ final class UpstreamBuildMenu {
 
     private void refreshLabels() {
         int pages = Math.max(1, (entries.size + ROWS - 1) / ROWS);
-        var pageLabels = new StringBuilder(category.name()).append("  ")
+        var pageLabels = new StringBuilder(Core.bundle.get("database-tag." + category.name(), category.name())).append("  ")
             .append(page + 1).append('/').append(pages).append('\0');
         for (int row = 0; row < ROWS; row++) {
             int index = page * ROWS + row;

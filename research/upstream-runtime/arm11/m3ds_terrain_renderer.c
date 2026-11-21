@@ -21,14 +21,28 @@ static C2D_SpriteSheet sheet;
 static C3D_RenderTarget *target;
 static C3D_RenderTarget *palette;
 static C2D_TextBuf palette_buffer;
-static C2D_Text palette_labels[6];
+static C2D_Text palette_labels[7];
 static C2D_TextBuf catalog_buffer;
 static float world_left, world_bottom, scale, screen_left, screen_bottom;
 static int32_t draws;
 
+int32_t m3ds_terrain_mount_assets(void) {
+    if (!romfs_ready) romfs_ready = R_SUCCEEDED(romfsInit());
+    return romfs_ready;
+}
+
+int32_t m3ds_terrain_system_language(void) {
+    u8 language = CFG_LANGUAGE_EN;
+    if (R_SUCCEEDED(cfguInit())) {
+        if (R_FAILED(CFGU_GetSystemLanguage(&language))) language = CFG_LANGUAGE_EN;
+        cfguExit();
+    }
+    return language;
+}
+
 int32_t m3ds_terrain_initialize(void) {
     if (sheet) return 1;
-    romfs_ready = R_SUCCEEDED(romfsInit());
+    m3ds_terrain_mount_assets();
     if (!romfs_ready) return -1;
     gpu_ready = C3D_Init(C3D_DEFAULT_CMDBUF_SIZE);
     if (!gpu_ready) return -2;
@@ -139,24 +153,29 @@ int32_t m3ds_terrain_palette_active(void) {
     return palette != NULL;
 }
 
+int32_t m3ds_terrain_build_labels(const char *labels) {
+    palette_buffer = C2D_TextBufNew(256);
+    catalog_buffer = C2D_TextBufNew(512);
+    if (!palette_buffer || !catalog_buffer) return 0;
+    for (int i = 0; i < 7; i++) {
+        C2D_TextParse(&palette_labels[i], palette_buffer, labels);
+        C2D_TextOptimize(&palette_labels[i]);
+        labels += strlen(labels) + 1;
+    }
+    return 1;
+}
+
 int32_t m3ds_terrain_build_overlay(int32_t column, int32_t row, int32_t block, int32_t rotation,
                                   int32_t removing, int32_t tile_size, int32_t rotatable, int32_t catalog_open,
                                   int32_t configuring) {
     if (!frame_open) return 0;
     if (!palette) {
-        static const char *labels[] = {"Conveyor", "Copper Wall", "Rotate", "Remove", "List", "Config"};
-        palette_buffer = C2D_TextBufNew(64);
-        catalog_buffer = C2D_TextBufNew(512);
         if (!palette_buffer || !catalog_buffer) return 0;
         // consoleInit switched the bottom framebuffer to RGB565.
         gfxSetScreenFormat(GFX_BOTTOM, GSP_BGR8_OES);
         gfxSetDoubleBuffering(GFX_BOTTOM, true);
         palette = C2D_CreateScreenTarget(GFX_BOTTOM, GFX_LEFT);
         if (!palette) return 0;
-        for (int i = 0; i < 6; i++) {
-            C2D_TextParse(&palette_labels[i], palette_buffer, labels[i]);
-            C2D_TextOptimize(&palette_labels[i]);
-        }
     }
     u32 accent = removing ? C2D_Color32(241, 117, 97, 255) : C2D_Color32(250, 213, 107, 255);
     bool cursor = column >= 0 && column < 16 && row >= 0 && row < 12;
@@ -234,7 +253,7 @@ void m3ds_terrain_build_catalog(const char *labels, int32_t selected, int32_t pr
         catalog_label("Prev page", 52, 212, 0.45f, text);
     }
     C2D_DrawRectSolid(104, 201, 0.5f, 112, 34, panel);
-    catalog_label("Back", 160, 212, 0.45f, text);
+    C2D_DrawText(&palette_labels[6], C2D_WithColor | C2D_AlignCenter, 160, 212, 0.5f, 0.45f, 0.45f, text);
     if (next) {
         C2D_DrawRectSolid(224, 201, 0.5f, 88, 34, panel);
         catalog_label("Next page", 268, 212, 0.45f, text);

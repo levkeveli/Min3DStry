@@ -33,6 +33,9 @@ if [[ $# -gt 0 ]]; then
     terrain_libraries=(-lcitro2d -lcitro3d)
     mkdir "$output/romfs"
     cp "$1/sprites.t3x" "$output/romfs/terrain.t3x"
+    if [[ -d "$1/bundles" ]]; then
+        cp -R "$1/bundles" "$output/romfs/bundles"
+    fi
     "$DEVKITPRO/tools/bin/smdhtool" --create "$title" "Mindustry v160.8 Glacier" \
         "Min3DStry Contributors" "$DEVKITPRO/libctru/default_icon.png" "$output/upstream-probe.smdh"
     package_flags=(--smdh="$output/upstream-probe.smdh" --romfs="$output/romfs")

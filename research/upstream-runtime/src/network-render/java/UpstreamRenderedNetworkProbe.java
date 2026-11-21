@@ -3,6 +3,7 @@ import arc.files.Fi;
 import arc.graphics.g2d.Draw;
 import arc.struct.IntSet;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import mindustry.Vars;
 import mindustry.content.Blocks;
 import mindustry.content.UnitTypes;
@@ -31,6 +32,11 @@ public final class UpstreamRenderedNetworkProbe {
     public static void main(String[] args) throws IOException, InterruptedException {
         var endpoint = UpstreamLiveNetworkProbe.endpointFile(args);
         var view = new UpstreamRenderedNetworkProbe(endpoint.sibling("sprites.aatls"));
+        int language = view.target.mountAssets();
+        Core.bundle = UpstreamInterfaceLocale.load(new Fi("/romfs/bundles/bundle"), language);
+        System.out.println("UPSTREAM_INTERFACE_LOCALE system=" + language + " bundle="
+            + Core.bundle.getLocale() + " router=" + Core.bundle.get("block.router.name")
+            + " copper=" + Core.bundle.get("item.copper.name"));
         CacheLayer.init();
         UpstreamLiveNetworkProbe.run(endpoint, view::loadGraphics, view::render, view.buildingControls);
     }
@@ -39,6 +45,10 @@ public final class UpstreamRenderedNetworkProbe {
         UpstreamTerrainDrawProbe.loadAtlas(atlas, true);
         viewport = UpstreamTerrainDrawProbe.liveViewport(target);
         target.initialize();
+        var labels = String.join("\0", Blocks.conveyor.localizedName, Blocks.copperWall.localizedName,
+            Core.bundle.get("keybind.rotate.name"), Core.bundle.get("waves.remove"),
+            "List", "Config", Core.bundle.get("back")) + "\0";
+        target.buildLabels(labels.getBytes(StandardCharsets.UTF_8));
     }
 
     private void render(Unit unit) {
