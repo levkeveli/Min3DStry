@@ -230,6 +230,61 @@ total 41.64 MiB. Physical-console memory and networking still need testing.
 Live 3DS sockets, connection confirmation and gameplay synchronization
 are tracked in #44.
 
+### Join the upstream server from the ARM11 probe
+
+`-Pprobe=network-live` uses the same upstream deserializer with live
+libctru TCP and UDP sockets. The native bridge retains the Arc transport
+after registration and exposes packet IDs and payloads. The Java entry
+point reads the original `StreamChunk` packets as an input stream and
+calls `NetworkIO.loadWorld`. It writes the generated `ConnectConfirmCallPacket`
+and decodes the generated `StateSnapshotCallPacket` class.
+
+Generate C with `-Pprobe=network-live`. Pass `--network` as the final
+argument to `arm11/build.sh`. Stage a plain-text host and port in
+`/3ds/min3dstry/server-endpoint.txt`, separated by whitespace. Run a
+local official v160.8 server hosting Glacier. The probe attempts an
+outdated build, then joins and disconnects twice with its test identity.
+The `UPSTREAM_LIVE_NET_*` records report each step.
+
+The emulator verifier starts a fresh official server for each console
+profile, stages the loopback endpoint, and compares the emulator and
+server records. Run from the repository root:
+
+```sh
+python tools/verify_upstream_live_net.py --rom /path/to/upstream-probe.3dsx \
+  --azahar /path/to/azahar --server /path/to/server-release.jar
+```
+
+This entry point exercises the live initial-world path and packet
+exchange. Dispatch through the normal client UI and applying ongoing
+state and entity snapshots are part of #44.
+
+The [devkitARM verification build](https://github.com/levkeveli/Min3DStry/actions/runs/44824442974)
+passed at `-O0` and `-O2` on both Azahar 2126.2 console profiles. Each run
+rejected build 159 with `clientOutdated`, then joined Glacier twice with
+build 160 and the same test identity. Both joins loaded the 150 × 250 map
+with two cores, confirmed the connection and decoded an upstream state
+snapshot. The server reported both departures. Its normal disconnect
+callback logs `closed`, while its scheduled connection check can log
+`disappeared` if it observes the closed transport first. Within each run,
+the terrain fingerprint matched between the two joins.
+
+At `-O2`, the Old 3DS profile loaded world transfers of 11,240 and
+11,310 bytes with fingerprint `737c3c0723e849c0`. The New 3DS profile
+loaded transfers of 11,708 and 11,783 bytes with fingerprint
+`e65ad905aa4657a4` from its separately started server. All four
+live state snapshots reported wave 1 and 145 bytes of core data.
+
+The standard build's ELF load segments total 25.11 MiB after page
+rounding. With the 16 MiB managed heap, 256 KiB native stack and 1 MiB
+SOC buffer, these components account for 42.36 MiB. Physical Wi-Fi and
+hardware memory still need verification.
+
+The SOC adapter accepts the pending-connect result exposed by Azahar on
+Windows and still checks `SO_ERROR` before sending packets. The probe
+clears client mode before calling the original `Logic.reset` between
+connections, matching the order of the upstream disconnect path.
+
 ### Verify the Arc executor pools
 
 Use `-Pprobe=executor` with the JVM and ARM11 build commands. The JVM uses the

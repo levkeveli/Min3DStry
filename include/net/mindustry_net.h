@@ -241,6 +241,26 @@ bool m3ds_net_handshake(
     const M3dsNetConnectPacket *connect_pkt,
     M3dsNetHandshakeResult *out_result);
 
+/* Arc framing for a connected upstream client. The transport must outlive the client.
+ * A successful open has consumed StreamBegin; its fields are returned in out_result. */
+typedef struct M3dsNetClient M3dsNetClient;
+
+M3dsNetClient *m3ds_net_client_open(
+    const M3dsNetTransport *transport,
+    const char *host,
+    uint16_t port,
+    uint32_t timeout_ms,
+    const M3dsNetConnectPacket *connect_pkt,
+    M3dsNetHandshakeResult *out_result);
+
+/* Return 1 for a decoded game packet or an M3dsNetIoResult. A timeout preserves partial TCP frames. */
+int m3ds_net_client_receive(
+    M3dsNetClient *client, bool reliable, uint32_t timeout_ms,
+    uint8_t *packet_id, uint8_t *payload, size_t capacity, size_t *length);
+bool m3ds_net_client_send(
+    M3dsNetClient *client, bool reliable, uint8_t packet_id, const uint8_t *payload, size_t length);
+void m3ds_net_client_close(M3dsNetClient *client);
+
 #ifdef __cplusplus
 }
 #endif
