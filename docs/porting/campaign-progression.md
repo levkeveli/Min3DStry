@@ -191,14 +191,15 @@ gradle -PupstreamCheckout=/path/to/Mindustry \
 JVM and ARM11/Azahar report:
 
 ```text
-UPSTREAM_CAMPAIGN_SECTOR_INFO path=live key=serpulo-s-170-info api=ok captured=ok wave=7 items=250:75 core=coreShard resource=copper-wall reload=ok blocks=447
+UPSTREAM_CAMPAIGN_SECTOR_INFO path=live key=serpulo-s-170-info api=ok captured=ok wave=7 items=250:75 core=coreShard resource=copper-wall reload=ok clear=ok blocks=447
 ```
 
 The probe sets `Sector.info` for ground-zero sector 170 and calls the real
 upstream `Sector.saveInfo()`, reloads a fresh `Settings` from `settings.bin`,
 then calls `Sector.loadInfo()` and verifies `wasCaptured`, `wave`,
 `storageCapacity`, `name`, the copper/lead `ItemSeq`, the `coreShard` core
-block, and the copper-wall resource. `Core.settings` is bound to `JsonIO.json`
+block, and the copper-wall resource. It also exercises `Sector.setName()` and
+`Sector.clearInfo()`, asserting the settings key and struct reset. `Core.settings` is bound to `JsonIO.json`
 so the block/resource fields use the upstream content serializers. TeaVM needs
 `SectorInfoReflectionPolicy` to expose `SectorInfo` fields to Arc's JSON
 reader; `bestCoreType` is nulled for this scalar/items round-trip. On 3DS the
@@ -258,9 +259,57 @@ asserts it is no longer being played, resets game-over, and verifies the menu
 transition alone ends play state. No settings or save files are
 written. Azahar `2126.2` New and Old profiles both reported the marker.
 
+## ARM11 Campaign Sector Launch
+
+`-Pprobe=campaign-launch` launches a real sector save through the upstream
+sector save context:
+
+```sh
+gradle -PupstreamCheckout=/path/to/Mindustry \
+  -PreferenceJar=/path/to/server-release.jar \
+  -ParcCheckout=/path/to/Arc -Pprobe=campaign-launch \
+  runProbeJvm "--args=/path/glacier.msav /path/sector-serpulo-15.msav"
+```
+
+JVM and ARM11/Azahar report:
+
+```text
+UPSTREAM_CAMPAIGN_LAUNCH slot=sector-serpulo-15.msav bytes=11036 version=13 sector=15 wave=5 world=150x250 launch=ok
+```
+
+The probe loads Glacier, sets `Rules.sector` to ground zero (15) and
+`state.wave=5`, writes the sector slot through `SaveIO`, then calls
+`SaveIO.load(slot, world.makeSectorContext(sector))`. It asserts the launched
+state restores the sector, wave 5, and the 150x250 world. On 3DS it targets the
+live `/3ds/min3dstry` directory and deletes the slot. Azahar `2126.2` New and
+Old profiles both reported `launch=ok`.
+
+## ARM11 Sector Slot Path API
+
+`-Pprobe=campaign-saves` verifies the upstream `Saves` slot path builder:
+
+```sh
+gradle -PupstreamCheckout=/path/to/Mindustry \
+  -PreferenceJar=/path/to/server-release.jar \
+  -ParcCheckout=/path/to/Arc -Pprobe=campaign-saves runProbeJvm
+```
+
+JVM and ARM11/Azahar report:
+
+```text
+UPSTREAM_CAMPAIGN_SAVES path=live sector=sector-serpulo-15.msav parent=min3dstry extension=msav saves=ok
+```
+
+The probe supplies a minimal Arc `Files`/`AssetManager` for headless use, sets
+`Vars.saveDirectory`, constructs the real `Saves` object, and calls
+`Saves.getSectorFile(SectorPresets.groundZero.sector)`. It asserts the
+`sector-serpulo-15.msav` name and parent directory. Azahar `2126.2` New and Old
+profiles both reported `saves=ok`.
+
 ## Remaining Scope for Issue #41 (3DS Hardware / ARM11 Runtime)
 
-The host-verified path contract is recorded in [sd-storage-paths.md](sd-storage-paths.md); it does not write settings or sector saves yet. Once the ARM11 TeaVM runtime bring-up integrates `Core.files` and `Core.settings` onto SD card storage under `/3ds/min3dstry/`:
+The capability is marked `experimental` because the probes in [campaign-verification.md](campaign-verification.md) verify upstream settings, sector `.msav` slots, `SectorInfo` JSON, tech-tree requirements, planet last-sector routing, sector play/capture transitions, and sector-save launch on ARM11/Azahar. The host-verified path contract is recorded in [sd-storage-paths.md](sd-storage-paths.md). The live runtime still needs to consume these paths end-to-end:
 
-1. Route `Core.settings` data directory (`settings.bin`, `settings_backup.bin`, `settings_backups/`) and sector `.msav` slots (`sector-<planet>-<id>.msav`) to deterministic SD card paths compatible with PC `v160.8` exports/imports.
-2. Verify `JsonIO.json` serialization, atomic/backup `settings.bin` writes on 3DS FAT/SDFS (`libctru`), and full sector launch/capture/tech-tree round-trips in Azahar (Old 3DS & New 3DS) before advancing `campaign-sectors` in `docs/port-capabilities.json` beyond `planned`.
+1. Route the live `Core.files`/`Core.settings` instance (not only research probes) to `/3ds/min3dstry/` so `settings.bin`, `settings_backup.bin`, `settings_backups/`, and `sector-<planet>-<id>.msav` use the verified contract.
+2. Build the live campaign launch/capture UI flow and capture rewards on top of the verified persistence/routing APIs.
+3. Advance beyond `experimental` only after those live flows and physical Old/New 3DS verification.

@@ -9,13 +9,16 @@ static M3dsNetTransport transport;
 static M3dsNetClient *client;
 static M3dsNetHandshakeResult handshake;
 static Thread world_keep_alive;
-static LightEvent world_load_done;
+static Handle world_load_done;
 static LightLock world_tcp_lock;
 
 static void keep_world_connection_alive(void *arg) {
     M3dsNetClient *connection = arg;
     bool logged = false;
-    while (LightEvent_WaitTimeout(&world_load_done, INT64_C(3000000000))) {
+    while (true) {
+        Result waited = svcWaitSynchronization(world_load_done, INT64_C(3000000000));
+        // On success the main thread signaled the event. Only a timeout needs a keepalive.
+        if (R_DESCRIPTION(waited) != RD_TIMEOUT) break;
         LightLock_Lock(&world_tcp_lock);
         bool sent = m3ds_net_client_keep_alive(connection, true);
         LightLock_Unlock(&world_tcp_lock);
@@ -30,21 +33,23 @@ static void keep_world_connection_alive(void *arg) {
 
 int32_t m3ds_live_net_begin_world_load(void) {
     if (!client || world_keep_alive) return 0;
-    LightEvent_Init(&world_load_done, RESET_STICKY);
-    LightLock_Init(&world_tcp_lock);
     int32_t priority;
     if (R_FAILED(svcGetThreadPriority(&priority, CUR_THREAD_HANDLE))) return 0;
     // A long collection can run without yielding the application core.
     if (priority > 0x18) priority--;
+    if (R_FAILED(svcCreateEvent(&world_load_done, RESET_STICKY))) return 0;
+    LightLock_Init(&world_tcp_lock);
     world_keep_alive = threadCreate(keep_world_connection_alive, client, 8 * 1024, priority, -2, false);
+    if (!world_keep_alive) svcCloseHandle(world_load_done);
     return world_keep_alive != NULL;
 }
 
 void m3ds_live_net_end_world_load(void) {
     if (!world_keep_alive) return;
-    LightEvent_Signal(&world_load_done);
+    svcSignalEvent(world_load_done);
     threadJoin(world_keep_alive, UINT64_MAX);
     threadFree(world_keep_alive);
+    svcCloseHandle(world_load_done);
     world_keep_alive = NULL;
 }
 
@@ -109,13 +114,22 @@ int32_t m3ds_live_net_receive(void *payload, int32_t capacity, int32_t reliable,
 }
 
 int32_t m3ds_live_net_send(const void *payload, int32_t length, int32_t packet_id, int32_t reliable) {
-    return length >= 0 && length <= M3DS_NET_MAX_PACKET_SIZE &&
-        packet_id >= 0 && packet_id <= UINT8_MAX &&
-        m3ds_net_client_send(client, reliable != 0, (uint8_t)packet_id, payload, (size_t)length);
+    if (length < 0 || length > M3DS_NET_MAX_PACKET_SIZE || packet_id < 0 || packet_id > UINT8_MAX) {
+        return 0;
+    }
+    bool loading_tcp = reliable && world_keep_alive;
+    if (loading_tcp) LightLock_Lock(&world_tcp_lock);
+    bool sent = m3ds_net_client_send(client, reliable != 0, (uint8_t)packet_id, payload, (size_t)length);
+    if (loading_tcp) LightLock_Unlock(&world_tcp_lock);
+    return sent;
 }
 
 int32_t m3ds_live_net_keep_alive(int32_t reliable) {
-    return m3ds_net_client_keep_alive(client, reliable != 0);
+    bool loading_tcp = reliable && world_keep_alive;
+    if (loading_tcp) LightLock_Lock(&world_tcp_lock);
+    bool sent = m3ds_net_client_keep_alive(client, reliable != 0);
+    if (loading_tcp) LightLock_Unlock(&world_tcp_lock);
+    return sent;
 }
 
 static uint8_t pack_axis(int value) {

@@ -1,0 +1,21 @@
+# Campaign Persistence Verification Matrix
+
+Each row maps a claimed `campaign-sectors` capability to a merged research
+probe and its host/Azahar marker. JVM runs report `path=tmp`; ARM11/Azahar runs
+report `path=live` and restore live settings or delete probe slots.
+
+| Capability | Probe | Verified marker |
+| --- | --- | --- |
+| Arc settings primitives and campaign keys | `campaign-settings` | `UPSTREAM_CAMPAIGN_SETTINGS path=live bytes=112 int=12345 string=ok campaign=unlocked:conveyor,research:50 reload=ok` |
+| Real content unlock state | `campaign-content` | `UPSTREAM_CAMPAIGN_CONTENT path=live lockedBefore=ok conveyorUnlocked=true key=conveyor-unlocked research=50 reload=ok blocks=447` |
+| Serpulo tech-tree requirements | `campaign-research` | `UPSTREAM_CAMPAIGN_RESEARCH path=live root=serpulo node=conveyor copper=50 lockedBefore=ok reload=ok blocks=447` |
+| Sector slot `.msav` round-trip | `campaign-sector` | `UPSTREAM_CAMPAIGN_SECTOR slot=sector-serpulo-170.msav bytes=11072 version=13 marker=ok` |
+| Sector slot metadata tags | `campaign-slot-meta` | `UPSTREAM_CAMPAIGN_SLOT_META slot=sector-serpulo-15.msav bytes=11034 version=13 preset=groundZero wave=1 size=150x250 meta=ok` |
+| Full `SectorInfo` JSON lifecycle | `campaign-sector-info` | `UPSTREAM_CAMPAIGN_SECTOR_INFO path=live key=serpulo-s-170-info api=ok captured=ok wave=7 items=250:75 core=coreShard resource=copper-wall reload=ok clear=ok blocks=447` |
+| Planet last-sector routing | `campaign-planet` | `UPSTREAM_CAMPAIGN_PLANET path=live planet=serpulo sector=86 preset=frozenForest lastSector=86 reload=ok sectors=272` |
+| Sector play/capture transitions | `campaign-sector-state` | `UPSTREAM_CAMPAIGN_SECTOR_STATE sector=15 groundZero=ok played=ok captured=ok waves=locked gameOver=ok menu=ok` |
+| Sector save launch | `campaign-launch` | `UPSTREAM_CAMPAIGN_LAUNCH slot=sector-serpulo-15.msav bytes=11036 version=13 sector=15 wave=5 world=150x250 launch=ok` |
+
+The native path/storage contract is covered by `sd_paths` and
+`settings_store` host tests. Live campaign UI/launch dialogs, capture rewards,
+and physical Old/New 3DS verification remain open.
