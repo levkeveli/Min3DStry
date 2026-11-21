@@ -191,12 +191,15 @@ gradle -PupstreamCheckout=/path/to/Mindustry \
 JVM and ARM11/Azahar report:
 
 ```text
-UPSTREAM_CAMPAIGN_SECTOR_INFO path=live key=serpulo-s-170-info captured=ok wave=7 items=250:75 reload=ok blocks=447
+UPSTREAM_CAMPAIGN_SECTOR_INFO path=live key=serpulo-s-170-info api=ok captured=ok wave=7 items=250:75 core=coreShard resource=copper-wall reload=ok blocks=447
 ```
 
-The probe writes a real `SectorInfo` through `Settings.putJson`, reloads a fresh
-`Settings` from `settings.bin`, and verifies `wasCaptured`, `wave`,
-`storageCapacity`, `name`, and the copper/lead `ItemSeq`. TeaVM needs
+The probe sets `Sector.info` for ground-zero sector 170 and calls the real
+upstream `Sector.saveInfo()`, reloads a fresh `Settings` from `settings.bin`,
+then calls `Sector.loadInfo()` and verifies `wasCaptured`, `wave`,
+`storageCapacity`, `name`, the copper/lead `ItemSeq`, the `coreShard` core
+block, and the copper-wall resource. `Core.settings` is bound to `JsonIO.json`
+so the block/resource fields use the upstream content serializers. TeaVM needs
 `SectorInfoReflectionPolicy` to expose `SectorInfo` fields to Arc's JSON
 reader; `bestCoreType` is nulled for this scalar/items round-trip. On 3DS the
 probe targets live `/3ds/min3dstry` and restores or removes the prior settings.
@@ -212,7 +215,13 @@ gradle -PupstreamCheckout=/path/to/Mindustry \
   -ParcCheckout=/path/to/Arc -Pprobe=campaign-planet runProbeJvm
 ```
 
-JVM and ARM11/Azahar report:
+JVM reports:
+
+```text
+UPSTREAM_CAMPAIGN_PLANET path=tmp planet=serpulo sector=86 preset=frozenForest lastSector=86 reload=ok sectors=272
+```
+
+ARM11/Azahar reports the same marker with the live path:
 
 ```text
 UPSTREAM_CAMPAIGN_PLANET path=live planet=serpulo sector=86 preset=frozenForest lastSector=86 reload=ok sectors=272
@@ -224,6 +233,30 @@ the start sector), saves `settings.bin`, reloads a fresh `Settings`, and
 asserts `getLastSector()` resolves sector 86 with the frozen-forest preset. On
 3DS it targets live `/3ds/min3dstry` and restores/removes the prior settings.
 Azahar `2126.2` New and Old profiles both reported `path=live`.
+
+## ARM11 Campaign Sector State Transitions
+
+`-Pprobe=campaign-sector-state` exercises the upstream sector play/capture
+booleans without touching saves:
+
+```sh
+gradle -PupstreamCheckout=/path/to/Mindustry \
+  -PreferenceJar=/path/to/server-release.jar \
+  -ParcCheckout=/path/to/Arc -Pprobe=campaign-sector-state runProbeJvm
+```
+
+JVM and ARM11/Azahar report:
+
+```text
+UPSTREAM_CAMPAIGN_SECTOR_STATE sector=15 groundZero=ok played=ok captured=ok waves=locked gameOver=ok menu=ok
+```
+
+The probe puts ground zero into `GameState.State.playing` with waves and attack
+mode disabled, asserts `Sector.isBeingPlayed()`/`isCaptured()`, then re-enables
+waves and asserts the sector is no longer captured, marks the game over and
+asserts it is no longer being played, resets game-over, and verifies the menu
+transition alone ends play state. No settings or save files are
+written. Azahar `2126.2` New and Old profiles both reported the marker.
 
 ## Remaining Scope for Issue #41 (3DS Hardware / ARM11 Runtime)
 

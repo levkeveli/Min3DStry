@@ -55,7 +55,8 @@ def entryPoints = [
     'campaign-research': 'UpstreamCampaignResearchStateProbe',
     'campaign-slot-meta': 'UpstreamCampaignSlotMetaProbe',
     'campaign-sector-info': 'UpstreamCampaignSectorInfoProbe',
-    'campaign-planet': 'UpstreamCampaignPlanetStateProbe'
+    'campaign-planet': 'UpstreamCampaignPlanetStateProbe',
+    'campaign-sector-state': 'UpstreamCampaignSectorStateProbe'
 ]
 if (!entryPoints.containsKey(probe)) {
     throw new GradleException("Expected -Pprobe to be one of ${entryPoints.keySet()}")
@@ -92,9 +93,10 @@ def usesCampaignResearch = probe == 'campaign-research'
 def usesCampaignSlotMeta = probe == 'campaign-slot-meta'
 def usesCampaignSectorInfo = probe == 'campaign-sector-info'
 def usesCampaignPlanet = probe == 'campaign-planet'
+def usesCampaignSectorState = probe == 'campaign-sector-state'
 def usesWorldSources = probe in ['world', 'world-save', 'world-roundtrip', 'world-stream',
                                  'terrain-draw'] || usesCampaignSector || usesCampaignSlotMeta || usesLiveNetwork || usesTerrainRenderer || usesSimulation
-def initializesContent = probe == 'content-init' || usesWorldSources || usesCampaignContent || usesCampaignResearch || usesCampaignSectorInfo || usesCampaignPlanet
+def initializesContent = probe == 'content-init' || usesWorldSources || usesCampaignContent || usesCampaignResearch || usesCampaignSectorInfo || usesCampaignPlanet || usesCampaignSectorState
 def usesContentSources = probe == 'content' || initializesContent
 def usesExecutor = usesContentSources || probe == 'executor' || usesCampaignSettings
 def usesArcSources = usesContentSources || probe == 'resource' || usesCampaignSettings
@@ -283,6 +285,9 @@ if (usesCampaignSectorInfo) {
 }
 if (usesCampaignPlanet) {
     sourceSets.main.java.srcDir('src/campaign-planet/java')
+}
+if (usesCampaignSectorState) {
+    sourceSets.main.java.srcDir('src/campaign-sector-state/java')
 }
 dependencies {
     if (usesMapSources || usesLiveNetwork || usesTerrainRenderer) {

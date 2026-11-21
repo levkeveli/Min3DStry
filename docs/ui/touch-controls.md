@@ -25,6 +25,12 @@ The module deliberately returns an action rather than touching game state.
 path already handles, so there is one implementation of camera and menu
 behavior. A touch press logs `TOUCH action=<id> x=<px> y=<py>`.
 
+When the pause menu is open, touching a menu row selects and activates it.
+The menu renders rows 16..18 of the 8 px console starting at `y=120`, so
+`y=120..143` maps to the three actions; the row logic also accepts the
+D-pad/A path. Row taps log `TOUCH action=menu.row row=<n>` and synthesize
+`KEY_A`, reusing the existing action handler.
+
 ## Tests
 
 - `tests/ui/test_touch_controls.c` asserts every region center, all
@@ -44,5 +50,6 @@ testing is tracked with the other hardware work.
 - The bottom screen remains a text console; there is no graphical button art
   yet, and the labels describe rather than draw the regions.
 - A held touch does not slide between regions; lift and press again.
-- Pause-menu rows are still selected with the D-pad and `A`, not by tapping.
+- The pause-menu rows are text; tapping them works, but there is no graphical
+  button art yet.
 - Upstream HUD/menu art and full touch parity remain open on #40.
