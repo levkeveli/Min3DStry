@@ -317,20 +317,20 @@ profiles both reported `saves=ok`.
 `include/platform/sector_catalog.h` scans the live `/3ds/min3dstry` directory
 for upstream `sector-<planet>-<id>.msav` names, validates each container through
 `m3ds_save_slot_probe`, and keeps the result sorted by planet then sector id.
-The scan is read-only: it never creates, rewrites or deletes a slot. A missing
-directory is an empty catalog, not an error.
+Each slot also carries the decoded upstream map name and wave when the save
+metadata prefix parses. The scan is read-only: it never creates, rewrites or
+deletes a slot. A missing directory is an empty catalog, not an error.
 
 `main_3ds.c` reports the catalog at startup and in the bottom HUD:
 
 ```text
-[MIN3DSTRY] SECTOR_CATALOG count=2
-[MIN3DSTRY] SECTOR_SLOT planet=erekir id=64 valid=0 compressed=1 bytes=17
-[MIN3DSTRY] SECTOR_SLOT planet=serpulo id=170 valid=1 compressed=0 bytes=20
+[MIN3DSTRY] SECTOR_CATALOG count=1
+[MIN3DSTRY] SECTOR_SLOT planet=serpulo id=170 valid=1 compressed=1 bytes=11072 map=Glacier wave=1
 ```
 
 ```text
-Sectors: 2
-Sector erekir-64 zlib 17B
+Sectors: 1
+Sector serpulo-170 Glacier w1
 ```
 
 `tests/platform/test_sector_catalog.c` covers sorting, capacity limits,
