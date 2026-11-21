@@ -229,6 +229,7 @@ static void test_alloc_world(void) {
     assert(tiles.width == 2u && tiles.height == 2u);
     assert(tiles.tile_states[0].block_id == 2u);
     assert(tiles.tile_states[3].building_index == UINT32_MAX);
+    assert(tiles.tile_states[3].x == 1u && tiles.tile_states[3].y == 1u);
     assert(tiles.tile_state_hash != 0u);
     assert(tiles.hash != 0u);
     m3ds_msav_free_world(&tiles);
@@ -284,6 +285,8 @@ static void test_alloc_building(void) {
     assert(tiles.buildings[0].block_id == 5u);
     assert(tiles.tile_states[0].building_index == 0u);
     assert(tiles.tile_states[0].block_id == 5u);
+    assert(tiles.tile_states[0].x == 0u && tiles.tile_states[0].y == 0u);
+    assert(tiles.buildings[0].tile == &tiles.tile_states[0]);
     assert((tiles.tile_states[0].flags & 0x4u) != 0u);
     assert(tiles.tile_state_hash != 0u);
     assert(tiles.buildings[0].revision == 1u);

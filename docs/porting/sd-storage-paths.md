@@ -135,11 +135,11 @@ liquid id/amount. The validated world arrays stay resident and the HUD shows:
 World: 150x250 build=2
 ```
 
-A combined per-tile state array now carries floor/overlay/block ids, flags and
-the building index:
+A combined per-tile state array now carries floor/overlay/block ids, `x`/`y`,
+flags, the building index, and a direct linked building pointer:
 
 ```text
-[MIN3DSTRY] SECTOR_TILE_STATE tiles=37500 buildings=2 hash=8b2b5b5492d8fe9a status=ok
+[MIN3DSTRY] SECTOR_TILE_STATE tiles=37500 buildings=2 linked=2 hash=e35397041df8e5fe status=ok
 ```
 
 Timer/disabler modules and the building-specific payload are preserved but not

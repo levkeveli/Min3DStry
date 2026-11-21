@@ -47,6 +47,8 @@ typedef struct M3dsTileState {
     uint16_t floor_id;
     uint16_t overlay_id;
     uint16_t block_id;
+    uint32_t x;
+    uint32_t y;
     uint8_t flags;
     uint32_t building_index;
 } M3dsTileState;
@@ -56,6 +58,7 @@ typedef struct M3dsBuildingState {
     uint32_t x;
     uint32_t y;
     uint16_t block_id;
+    struct M3dsTileState *tile;
     uint32_t revision;
     uint32_t payload_size;
     uint8_t *payload;

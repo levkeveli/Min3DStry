@@ -562,8 +562,14 @@ bool m3ds_msav_alloc_world(
         out->tile_states[i].floor_id = out->floor_ids[i];
         out->tile_states[i].overlay_id = out->overlay_ids[i];
         out->tile_states[i].block_id = out->block_ids[i];
+        out->tile_states[i].x = (uint32_t)(i % world.width);
+        out->tile_states[i].y = (uint32_t)(i / world.width);
         out->tile_states[i].flags = out->flags[i];
         out->tile_states[i].building_index = out->building_index[i];
+    }
+    for (size_t i = 0; i < out->building_count; ++i) {
+        out->buildings[i].tile =
+            &out->tile_states[out->buildings[i].tile_index];
     }
     out->tile_state_hash = hash_bytes(
         UINT64_C(1469598103934665603),

@@ -293,10 +293,19 @@ int main(int argc, char *argv[]) {
                  (unsigned long long)(alloc_ok ? tiles.hash : 0u),
                  alloc_ok ? "ok" : "failed");
         m3ds_emit_debug_line(log_socket, dbg_line);
+        size_t linked_buildings = 0u;
+        if (alloc_ok) {
+            for (size_t i = 0; i < tiles.building_count; ++i) {
+                if (tiles.buildings[i].tile) {
+                    ++linked_buildings;
+                }
+            }
+        }
         snprintf(dbg_line, sizeof(dbg_line),
-                 "[MIN3DSTRY] SECTOR_TILE_STATE tiles=%u buildings=%u hash=%016llx status=%s\n",
+                 "[MIN3DSTRY] SECTOR_TILE_STATE tiles=%u buildings=%u linked=%u hash=%016llx status=%s\n",
                  (unsigned)(alloc_ok ? tiles.count : 0u),
                  (unsigned)(alloc_ok ? tiles.building_count : 0u),
+                 (unsigned)linked_buildings,
                  (unsigned long long)(alloc_ok ? tiles.tile_state_hash : 0u),
                  alloc_ok ? "ok" : "failed");
         m3ds_emit_debug_line(log_socket, dbg_line);
