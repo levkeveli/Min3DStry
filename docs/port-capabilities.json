@@ -265,7 +265,9 @@
         "include/ui/touch_controls.h",
         "src/ui/touch_controls.c",
         "tests/ui/test_touch_controls.c",
-        "docs/ui/touch-controls.md"
+        "docs/ui/touch-controls.md",
+        "research/upstream-runtime/src/network-render/java/UpstreamStatusHud.java",
+        "docs/rendering/live-hud.md"
       ]
     },
     {
