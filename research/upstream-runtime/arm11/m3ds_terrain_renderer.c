@@ -158,21 +158,33 @@ static void report_atlas_failure(const char *stage, int page, int x, int y, int 
 }
 
 static C2D_SpriteSheet get_world_texture(int page, int x, int y) {
+    int vacant = -1;
     int victim = -1;
     for (size_t i = 0; i < sizeof(world_textures) / sizeof(world_textures[0]); i++) {
-        if (world_textures[i].sheet && world_textures[i].page == page
-                && world_textures[i].x == x && world_textures[i].y == y) {
+        if (!world_textures[i].sheet) {
+            if (vacant < 0) vacant = (int)i;
+            continue;
+        }
+        if (world_textures[i].page == page && world_textures[i].x == x && world_textures[i].y == y) {
             world_textures[i].frame = world_pass;
             return world_textures[i].sheet;
         }
-        if (!world_textures[i].sheet || world_textures[i].frame != world_pass) {
-            if (victim < 0 || (world_textures[victim].sheet && (!world_textures[i].sheet
-                    || world_textures[i].frame < world_textures[victim].frame))) {
-                victim = (int)i;
-            }
+        if (world_textures[i].frame != world_pass
+                && (victim < 0 || world_textures[i].frame < world_textures[victim].frame)) {
+            victim = (int)i;
         }
     }
-    if (victim < 0) {
+    // Each catalog row can load one 128×128 RGBA8 icon while the world cache stays resident.
+    const size_t texture_bytes = WORLD_ATLAS_TILE * WORLD_ATLAS_TILE * 4;
+    const size_t menu_rows = sizeof(menu_icons) / sizeof(menu_icons[0]);
+    if (vacant >= 0 && linearSpaceFree() >= texture_bytes * (menu_rows + 1)) {
+        victim = vacant;
+    } else if (victim < 0) {
+        // Slots fill in order. A populated slot zero can be overwritten after the fence.
+        if (!world_textures[0].sheet) {
+            report_atlas_failure("budget", page, x, y, 0);
+            return NULL;
+        }
         if (!recycle_world_pass()) {
             report_atlas_failure("recycle", page, x, y, 0);
             return NULL;
@@ -340,6 +352,11 @@ int32_t m3ds_terrain_build_labels(const char *labels) {
     palette_buffer = C2D_TextBufNew(256);
     catalog_buffer = C2D_TextBufNew(512);
     if (!palette_buffer || !catalog_buffer) return 0;
+    // Allocate both screen outputs before the world cache uses the linear heap.
+    gfxSetScreenFormat(GFX_BOTTOM, GSP_BGR8_OES);
+    gfxSetDoubleBuffering(GFX_BOTTOM, true);
+    palette = C2D_CreateScreenTarget(GFX_BOTTOM, GFX_LEFT);
+    if (!palette) return 0;
     for (int i = 0; i < 7; i++) {
         C2D_TextParse(&palette_labels[i], palette_buffer, labels);
         C2D_TextOptimize(&palette_labels[i]);
@@ -351,16 +368,8 @@ int32_t m3ds_terrain_build_labels(const char *labels) {
 int32_t m3ds_terrain_build_overlay(int32_t column, int32_t row, int32_t block, int32_t rotation,
                                   int32_t removing, int32_t tile_size, int32_t rotatable, int32_t catalog_open,
                                   int32_t configuring) {
-    if (!frame_open) return 0;
+    if (!frame_open || !palette) return 0;
     set_world_blend(0);
-    if (!palette) {
-        if (!palette_buffer || !catalog_buffer) return 0;
-        // consoleInit switched the bottom framebuffer to RGB565.
-        gfxSetScreenFormat(GFX_BOTTOM, GSP_BGR8_OES);
-        gfxSetDoubleBuffering(GFX_BOTTOM, true);
-        palette = C2D_CreateScreenTarget(GFX_BOTTOM, GFX_LEFT);
-        if (!palette) return 0;
-    }
     u32 accent = removing ? C2D_Color32(241, 117, 97, 255) : C2D_Color32(250, 213, 107, 255);
     bool cursor = column >= 0 && column < 16 && row >= 0 && row < 12;
     if (cursor) {
