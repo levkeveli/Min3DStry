@@ -916,9 +916,11 @@ joins.
 
 On a warm join, the existing renderer occupies enough managed memory to
 prevent the second scratch allocation in the original darkness pass. The
-Arm11 graphical client allocates both scratch buffers together in native
+ARM11 graphical client allocates both scratch buffers together in native
 memory and frees them before the pass returns. The pinned World method
 keeps its original iteration, neighbor conditions and tile writes.
+The initial TCP heartbeat remains active through world reporting and the
+connect confirmation, including the tile checksum in the rejoin replay.
 
 The renderer still selects blocks that use the supported sprite operations.
 Textured raw vertices, additional payload types and other rendering services
