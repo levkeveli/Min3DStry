@@ -1019,6 +1019,12 @@ Add `--verify-objective-markers` to the stationary objective HUD
 verifier to use stock position corrections to frame the world markers
 before and after the beryllium objective transition.
 
+The [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44914292683)
+displayed both original shapes and the localized directions on Original
+and New 3DS Azahar profiles connected to the unmodified v160.8 server.
+Both captures show the stock touch mining prompt and the complete
+research label inside the top-screen viewport.
+
 ### Verify the Arc executor pools
 
 Use `-Pprobe=executor` with the JVM and ARM11 build commands. The JVM uses the
