@@ -102,15 +102,21 @@ def verify_controls(log, emulator, server_log, server, timeout, capture=None):
         time.sleep(0.4)  # Allow the stock server to finish interpolating the stopped unit.
         result = server_position(server_log, server, f"UPSTREAM_SERVER_CONTROLS_STOP input={device}")
         settled = result.groups()
-        time.sleep(0.3)
-        later = server_position(server_log, server, f"UPSTREAM_SERVER_CONTROLS_IDLE input={device}").groups()
+        for sample in range(6):
+            time.sleep(0.3)
+            later = server_position(
+                server_log, server, f"UPSTREAM_SERVER_CONTROLS_IDLE input={device} sample={sample}"
+            ).groups()
+            if int(later[1]) > int(settled[1]):
+                break
         if (trace[1] != settled[0] or settled[0] != baseline[0] or settled[0] != later[0]
                 or int(later[1]) <= int(settled[1])
                 or float(settled[axis]) - float(baseline[axis]) < 0.05
                 or abs(float(trace[2]) - float(settled[2])) > 0.2
                 or abs(float(trace[3]) - float(settled[3])) > 0.2
                 or any(abs(float(settled[i]) - float(later[i])) > 0.05 for i in (2, 3))):
-            raise RuntimeError(f"{device} motion did not reach the server or settle after release")
+            raise RuntimeError(f"{device} did not settle with continuing snapshots: "
+                               f"client={trace.group(0)}, server={settled}, idle={later}")
         baseline = later
         if capture:
             capture(device, later)
