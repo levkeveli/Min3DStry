@@ -1608,7 +1608,7 @@ def main():
     output = args.rom.parent / "upstream-live-net"
     if args.verify_objective_markers and args.locale != "en":
         output /= args.locale
-    output.mkdir(exist_ok=True)
+    output.mkdir(parents=True, exist_ok=True)
     try:
         for path in originals:
             path.parent.mkdir(parents=True, exist_ok=True)

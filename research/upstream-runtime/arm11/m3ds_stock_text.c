@@ -29,7 +29,12 @@ bool m3ds_stock_text_open(bool japanese) {
     if (font) return true;
     font = m3ds_stock_font_open("romfs:/fonts", japanese);
     if (!font) return false;
-    if (!C3D_TexInit(&atlas, atlas_size, atlas_size, GPU_RGBA8)) {
+    // FreeType builds the face-wide auto-hinter tables on first use. Do that
+    // here while loading graphics, before the live client's socket is open.
+    M3DS_StockGlyph prime;
+    if (!m3ds_stock_font_glyph(font, 'A', false, &prime)
+            || (japanese && !m3ds_stock_font_glyph(font, 0x63a1, false, &prime))
+            || !C3D_TexInit(&atlas, atlas_size, atlas_size, GPU_RGBA8)) {
         m3ds_stock_font_close(font);
         font = NULL;
         return false;

@@ -1030,8 +1030,9 @@ The multiplayer asset pack carries the unmodified `font.woff`,
 `font_jp.woff`, `icon.ttf`, and `icons/icons.properties` from the
 official release assets. The ARM11 build uses devkitPro's 3DS FreeType
 port. World labels use the stock 18 px face, rounded 2 px outline, and
-Japanese face override when the selected locale is Japanese. The
-renderer keeps the current glyphs in one 512 × 512 RGBA8 texture and
+Japanese face override when the selected locale is Japanese. Face-wide
+hinting tables are initialized before opening the multiplayer socket.
+The renderer keeps the current glyphs in one 512 × 512 RGBA8 texture and
 reuses older slots after the previous frame has finished. When stock
 font rendering is unavailable, the existing system-font path displays
 the label.
