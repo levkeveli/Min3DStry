@@ -27,11 +27,14 @@ settings format.
 ```text
 [MIN3DSTRY] STORAGE root=/3ds/min3dstry settings=/3ds/min3dstry/settings.bin sector=/3ds/min3dstry/sector-serpulo-170.msav
 [MIN3DSTRY] STORAGE_ROUNDTRIP status=ok bytes=4 root=sdmc:/3ds/min3dstry
+[MIN3DSTRY] SETTINGS primary=1 backup=0 primary_bytes=204 backup_bytes=0
 ```
 
 The round-trip writes, reads back and deletes a four-byte
 `storage-probe.bin` through `sdmc:`; it never touches `settings.bin` or sector
-saves. The Azahar verifier requires both lines on both models.
+saves. The `SETTINGS` line reports whether `settings.bin` and
+`settings_backup.bin` exist and their byte sizes without parsing either file.
+The Azahar verifier requires the STORAGE lines on both models.
 
 ## Save-slot header probe
 
@@ -45,6 +48,10 @@ the probe reports three cases:
   the first eight decoded bytes are checked, so the `MSAV` magic and version are
   reported without inflating the whole world;
 - anything else: `present=true, valid=false`.
+
+When the primary slot is missing or invalid, the probe falls back to
+`<name>-backup.msav`, matching `SaveIO.isSaveValid`/`backupFileFor`. This is
+the same backup name upstream uses for interrupted or corrupt saves.
 
 `main_3ds.c` probes `/3ds/min3dstry/sector-serpulo-170.msav` once at startup and
 logs:
@@ -75,19 +82,23 @@ and truncated input fail closed.
 header logic. Entries are sorted by planet and sector id, duplicate names are
 not invented, malformed names and unrelated files are ignored, and the scan
 never writes or deletes anything. A missing directory yields an empty catalog.
+When the `.msav` metadata prefix parses, the entry also carries the upstream
+`mapname` and `wave`.
 
 Startup logs and HUD:
 
 ```text
-[MIN3DSTRY] SECTOR_CATALOG count=2
-[MIN3DSTRY] SECTOR_SLOT planet=erekir id=64 valid=0 compressed=1 bytes=17
-[MIN3DSTRY] SECTOR_SLOT planet=serpulo id=170 valid=1 compressed=0 bytes=20
+[MIN3DSTRY] SECTOR_CATALOG count=1
+[MIN3DSTRY] SECTOR_SLOT planet=serpulo id=170 valid=1 compressed=1 bytes=11072 map=Glacier wave=1
 ```
 
 ```text
 Sectors: 2
-Sector erekir-64 zlib 17B
+ erekir-64 v 16B
+ serpulo-170 Glacier w1
 ```
+
+The HUD lists up to four catalog rows.
 
 The list is catalog plumbing, not campaign loading: selecting, launching and
 capturing sectors still needs the live campaign UI.
@@ -110,7 +121,8 @@ No content format is parsed or invented here.
   trailing-slash roots, id formatting, traversal/absolute/separator/truncation
   rejection.
 - `tests/platform/test_settings_store.c`: primary/backup settings round-trips,
-  backup fallback, atomic sector write/read, probe round-trip and cleanup.
+  backup fallback, settings status sizes, atomic sector write/read, probe
+  round-trip and cleanup.
 - `tests/platform/test_sector_catalog.c`: sorted SD catalog, capacity limits,
   malformed names, unrelated files, raw/zlib headers and missing directories.
 - `./dev.sh test` runs both tests.
