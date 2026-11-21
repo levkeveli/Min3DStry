@@ -49,6 +49,10 @@ the probe reports three cases:
   reported without inflating the whole world;
 - anything else: `present=true, valid=false`.
 
+When the primary slot is missing or invalid, the probe falls back to
+`<name>-backup.msav`, matching `SaveIO.isSaveValid`/`backupFileFor`. This is
+the same backup name upstream uses for interrupted or corrupt saves.
+
 `main_3ds.c` probes `/3ds/min3dstry/sector-serpulo-170.msav` once at startup and
 logs:
 
