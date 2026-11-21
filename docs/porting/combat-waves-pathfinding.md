@@ -46,7 +46,7 @@ Both gameplay probes under [research/upstream-runtime/src/gameplay/java/](../../
    UPSTREAM_COMBAT delivery=29 shot=49 hit=62 destroyed=382 supplied=20
    UPSTREAM_WAVE next=2 groundSpawns=0 enemies=1 units=gamma=1
    ```
-   - **ARM11 build (`arm11/build.sh` with pinned `devkitpro/devkitarm` `-O2`):** Built `upstream-probe.3dsx` (`21,893,900` bytes) and `upstream-probe.elf` (`113,685,180` bytes; `37,437,440` bytes / `35.70 MiB` page-rounded ELF LOAD segments; `63.95 MiB` subtotal with `24 MiB` managed heap, `4 MiB` linear heap, and `256 KiB` native stack before GC bookkeeping and runtime heap allocations, exceeding practical Original 3DS `64 MiB` AppMem headroom).
+   - **ARM11 build (`arm11/build.sh` with pinned `devkitpro/devkitarm` `-O2`, point-in-time local measurement; CI validates non-empty `.3dsx`/`.elf` outputs):** Built `upstream-probe.3dsx` (`21,893,900` bytes) and `upstream-probe.elf` (`113,685,180` bytes; `37,437,440` bytes / `35.70 MiB` page-rounded ELF LOAD segments; `63.95 MiB` subtotal with `24 MiB` managed heap, `4 MiB` linear heap, and `256 KiB` native stack before GC bookkeeping and runtime heap allocations, exceeding practical Original 3DS `64 MiB` AppMem headroom).
 2. **`-Pprobe=wave-routing` ([UpstreamWaveRoutingProbe.java](../../research/upstream-runtime/src/gameplay/java/UpstreamWaveRoutingProbe.java)):**
    ```text
    UPSTREAM_WAVE_SETUP core=81,26 enemyCore=81,224 groundSpawns=1 fieldHash=629058db4926d64e
@@ -55,7 +55,7 @@ Both gameplay probes under [research/upstream-runtime/src/gameplay/java/](../../
    UPSTREAM_WAVE wave=3 spawned=dagger=2 groundSpawned=2 first=79,219->80,173 distance=1545->1177 min=1177 alive=2/2 ammo=30 nextWave=4
    UPSTREAM_WAVE wave=4 spawned=dagger=2 groundSpawned=2 first=79,219->80,173 distance=1546->1177 min=1177 alive=2/2 ammo=29 nextWave=5
    ```
-   - Prior local Azahar `2126.2` runs of `combat-ticks` and `wave-routing` (recorded in [research/upstream-runtime/README.md](../../research/upstream-runtime/README.md)) matched these traces on Old and New 3DS profiles.
+   - Earlier Azahar `2126.2` runs on Old and New 3DS profiles for [combat-ticks](../../research/upstream-runtime/README.md#exercise-upstream-combat-and-the-first-glacier-wave) and [wave-routing](../../research/upstream-runtime/README.md#exercise-upstream-waves-and-ground-routing) matched these traces, while the current PR verifies JVM reference, TeaVM C `-O0`/`-O2`, and ARM11 `.3dsx`/`.elf` compilation.
 
 ## Remaining Scope for Issue #30
 

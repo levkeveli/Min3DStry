@@ -17,6 +17,7 @@
 #include "ndsp_backend.h"
 #include "platform/hardware_profile.h"
 #include "platform/memory_budget.h"
+#include "platform/save_slot.h"
 #include "platform/sd_paths.h"
 #include "platform/settings_store.h"
 #include "platform/worker_benchmark.h"
@@ -159,6 +160,22 @@ int main(int argc, char *argv[]) {
     } else {
         snprintf(dbg_line, sizeof(dbg_line),
                  "[MIN3DSTRY] STORAGE_ROUNDTRIP status=failed root=sdmc:/3ds/min3dstry\n");
+    }
+    m3ds_emit_debug_line(log_socket, dbg_line);
+
+    M3dsSaveSlotInfo save_slot = {0};
+    char save_slot_path[96];
+    if (m3ds_sd_sector_save_path(
+            "sdmc:/3ds/min3dstry", "serpulo", 170u, save_slot_path, sizeof(save_slot_path))) {
+        (void)m3ds_save_slot_probe(save_slot_path, &save_slot);
+        snprintf(dbg_line, sizeof(dbg_line),
+                 "[MIN3DSTRY] SAVE_SLOT present=%d valid=%d compressed=%d version=%u bytes=%u path=%s\n",
+                 save_slot.present ? 1 : 0, save_slot.valid ? 1 : 0,
+                 save_slot.compressed ? 1 : 0, (unsigned)save_slot.version,
+                 (unsigned)save_slot.bytes, save_slot_path);
+    } else {
+        snprintf(dbg_line, sizeof(dbg_line),
+                 "[MIN3DSTRY] SAVE_SLOT status=invalid_path\n");
     }
     m3ds_emit_debug_line(log_socket, dbg_line);
 
@@ -682,6 +699,16 @@ int main(int argc, char *argv[]) {
                (double)m3ds_scene_zoom(&scene));
         printf("\x1b[14;1H%s\x1b[K", hw_summary);
         printf("\x1b[19;1HTouch: pad / zoom / menu\x1b[K");
+        if (save_slot.present && save_slot.valid) {
+            printf("\x1b[20;1HSave: v%u %uB\x1b[K",
+                   (unsigned)save_slot.version, (unsigned)save_slot.bytes);
+        } else if (save_slot.present && save_slot.compressed) {
+            printf("\x1b[20;1HSave: zlib %uB\x1b[K", (unsigned)save_slot.bytes);
+        } else if (save_slot.present) {
+            printf("\x1b[20;1HSave: invalid %uB\x1b[K", (unsigned)save_slot.bytes);
+        } else {
+            printf("\x1b[20;1HSave: none\x1b[K");
+        }
         if (pause_menu.open) {
             printf("\x1b[15;1H=== PAUSED ===  Up/Down + A\x1b[K");
             for (uint8_t i = 0u; i < M3DS_PAUSE_ACTION_COUNT; ++i) {
