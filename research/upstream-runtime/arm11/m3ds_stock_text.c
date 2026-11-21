@@ -34,12 +34,21 @@ bool m3ds_stock_text_open(bool japanese) {
     M3DS_StockGlyph prime;
     if (!m3ds_stock_font_glyph(font, 'A', true, &prime)
             || !m3ds_stock_font_glyph(font, 0xe875, false, &prime)
-            || (japanese && !m3ds_stock_font_glyph(font, 0x63a1, true, &prime))
-            || !C3D_TexInit(&atlas, atlas_size, atlas_size, GPU_RGBA8)) {
+            || (japanese && !m3ds_stock_font_glyph(font, 0x63a1, true, &prime))) {
         m3ds_stock_font_close(font);
         font = NULL;
         return false;
     }
+    // Leave linear memory available for the visible world texture pages.
+    bool in_vram = C3D_TexInitVRAM(&atlas, atlas_size, atlas_size, GPU_RGBA8);
+    if (!in_vram && !C3D_TexInit(&atlas, atlas_size, atlas_size, GPU_RGBA8)) {
+        m3ds_stock_font_close(font);
+        font = NULL;
+        return false;
+    }
+    static const char video[] = "UPSTREAM_GLYPH_ATLAS memory=vram\n";
+    static const char linear[] = "UPSTREAM_GLYPH_ATLAS memory=linear\n";
+    svcOutputDebugString(in_vram ? video : linear, in_vram ? sizeof(video) - 1 : sizeof(linear) - 1);
     C3D_TexSetFilter(&atlas, GPU_NEAREST, GPU_NEAREST);
     m3ds_stock_font_metrics(font, &ascent, &line_height);
     for (int i = 0; i < 256; ++i) coverage[i] = (uint8_t)lroundf(255.0f * powf(i / 255.0f, 1.8f));

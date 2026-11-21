@@ -1032,8 +1032,9 @@ official release assets. The ARM11 build uses devkitPro's 3DS FreeType
 port. World labels use the stock 18 px face, rounded 2 px outline, and
 Japanese face override when the selected locale is Japanese. Face-wide
 hinting tables are initialized before opening the multiplayer socket.
-The renderer keeps the current glyphs in one 512 × 512 RGBA8 texture and
-reuses older slots after the previous frame has finished. It rasters up
+The renderer keeps the current glyphs in one 512 × 512 RGBA8 texture.
+It prefers VRAM so the world texture pages retain their linear-memory
+budget. It reuses older slots after the previous frame has finished and rasters up
 to two cold glyphs per frame so the live loop can service the connection.
 The existing system-font path displays a label as its glyphs load.
 During graphical sessions the serialized native TCP heartbeat stays
