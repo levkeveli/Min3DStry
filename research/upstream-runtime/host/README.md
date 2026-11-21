@@ -300,3 +300,22 @@ Look for `UPSTREAM_PRODUCTION_CATALOG blocks=12` and
 `UPSTREAM_PRODUCTION_ORDER runs=2 ticks=2693`. See
 [the production, power, and liquid design](../../../docs/porting/production-power-liquids.md)
 for pinned scenario details and remaining ARM11 work (`#39`).
+
+## Factory and logistics simulation baseline
+
+To exercise pinned `v160.8` distribution and drilling blocks (`Conveyor`,
+`Junction`, `Router`, `Sorter`, `OverflowGate`, `BufferedItemBridge`, `Drill`,
+`CoreBlock`), orthogonal junction crossings, sorter filtering, overflow
+saturation, mechanical-drill delivery timing, and repeated-run determinism
+against `server-release.jar`:
+
+```sh
+java -cp /path/to/server-release.jar \
+    /path/to/Min3DStry/research/upstream-runtime/host/UpstreamFactoryBaseline.java
+```
+
+Look for `UPSTREAM_FACTORY_CATALOG blocks=16` and
+`UPSTREAM_FACTORY_ORDER runs=2 ticks=720`. See
+[the factory and logistics baseline design](../../../docs/porting/factory-logistics.md)
+for pinned scenarios, TeaVM C `-O0`/`-O2` parity, and remaining ARM11 memory
+work (`#26`).
