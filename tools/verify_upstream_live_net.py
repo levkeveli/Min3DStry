@@ -134,6 +134,8 @@ def wait_for(path, proc, pattern, timeout):
             time.sleep(0.25)  # Preserve the Java stack trace written after the error marker.
             text = path.read_text(encoding="utf-8", errors="replace")
             raise RuntimeError(f"Process stopped before {pattern}:\n{text[-5000:]}")
+        if "UPSTREAM_MEMORY managed-heap-exhausted" in text or "UPSTREAM_GC " in text:
+            raise RuntimeError(f"ARM11 memory failure before {pattern}:\n{text[-2500:]}")
         if proc.poll() is not None or re.search(r"Core::LogException", text):
             raise RuntimeError(f"Process stopped before {pattern}:\n{text[-2500:]}")
         time.sleep(0.05)
@@ -1099,7 +1101,7 @@ def run_model(args, model, config, original_config, log, output):
                         if args.liquids:
                             verify_conduit_frames(log, rpc, output, model)
                         if not args.payload_handoff:
-                            print(f"Verified the {map_name} capture.", flush=True)
+                            print(f"Verified {map_name} capture.", flush=True)
                         emu_log = log.read_text(encoding="utf-8", errors="replace")
                         if "UPSTREAM_LIVE_NET_ERROR" in emu_log:
                             raise RuntimeError("The client failed after rendering the atlas stress frame")
