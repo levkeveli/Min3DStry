@@ -24,14 +24,15 @@ import mindustry.content.Blocks;
 import mindustry.content.UnitTypes;
 import mindustry.core.GameState.State;
 import mindustry.core.NetClient;
-import mindustry.entities.units.BuildPlan;
 import mindustry.game.FogControl;
 import mindustry.game.Universe;
+import mindustry.gen.BeginBreakCallPacket;
 import mindustry.gen.BeginPlaceCallPacket;
 import mindustry.gen.BlockSnapshotCallPacket;
 import mindustry.gen.ClientSnapshotCallPacket;
 import mindustry.gen.ConnectConfirmCallPacket;
 import mindustry.gen.ConstructFinishCallPacket;
+import mindustry.gen.DeconstructFinishCallPacket;
 import mindustry.gen.EntitySnapshotCallPacket;
 import mindustry.gen.Groups;
 import mindustry.gen.KickCallPacket;
@@ -61,21 +62,23 @@ public final class UpstreamLiveNetworkProbe {
     private final byte[] packet = new byte[32_768];
     private final Mode mode;
     private final Consumer<Unit> frame;
+    private final UpstreamLiveBuildControls building;
 
-    private UpstreamLiveNetworkProbe(Mode mode, Consumer<Unit> frame) {
+    private UpstreamLiveNetworkProbe(Mode mode, Consumer<Unit> frame, UpstreamLiveBuildControls building) {
         this.mode = mode;
         this.frame = frame;
+        this.building = building;
     }
 
     public static void main(String[] args) throws IOException, InterruptedException {
-        run(endpointFile(args), null, null);
+        run(endpointFile(args), null, null, null);
     }
 
     static Fi endpointFile(String[] args) {
         return new Fi(args.length == 0 ? "/3ds/min3dstry/server-endpoint.txt" : args[0]);
     }
 
-    static void run(Fi config, Runnable beforeConnect, Consumer<Unit> frame)
+    static void run(Fi config, Runnable beforeConnect, Consumer<Unit> frame, UpstreamLiveBuildControls building)
             throws IOException, InterruptedException {
         String[] endpoint = config.readString().trim().split("\\s+");
         if (endpoint.length < 2 || endpoint.length > 3) {
@@ -99,7 +102,7 @@ public final class UpstreamLiveNetworkProbe {
         }
         try {
             if (beforeConnect != null) beforeConnect.run();
-            new UpstreamLiveNetworkProbe(mode, frame).run(host, port, app);
+            new UpstreamLiveNetworkProbe(mode, frame, building).run(host, port, app);
         } catch (IOException | RuntimeException error) {
             Throwable cause = error;
             while (cause.getCause() != null) cause = cause.getCause();
@@ -260,7 +263,7 @@ public final class UpstreamLiveNetworkProbe {
     }
 
     private void driveLiveClient(UpstreamWorldLoadProbe.ProbeApplication app) throws IOException {
-        var controls = new LiveControls(frame != null);
+        var controls = new LiveControls(building);
         int lastWave = -1;
         // Leave headroom for rendering on an ARM11 while the server runs its own clock.
         long tcpKeepAliveInterval = frame == null ? TCP_KEEP_ALIVE_NS : TCP_KEEP_ALIVE_NS / 2;
@@ -271,7 +274,7 @@ public final class UpstreamLiveNetworkProbe {
         int stateId = unsignedId(StateSnapshotCallPacket.class);
         int entityId = unsignedId(EntitySnapshotCallPacket.class);
         System.out.println(frame == null ? "Circle Pad or D-pad moves. START leaves."
-            : "D-pad/Circle Pad moves. A builds four tiles east. START leaves.");
+            : "Tap the build grid to place. R rotates. B toggles removal. START leaves.");
         while (true) {
             int input = Native.input();
             if (input < 0) return;
@@ -325,6 +328,14 @@ public final class UpstreamLiveNetworkProbe {
     private void applyBuildingUpdate(int id, int received) {
         if (id == unsignedId(BeginPlaceCallPacket.class)) {
             decode(new BeginPlaceCallPacket(), received).handleClient();
+        } else if (id == unsignedId(BeginBreakCallPacket.class)) {
+            decode(new BeginBreakCallPacket(), received).handleClient();
+        } else if (id == unsignedId(DeconstructFinishCallPacket.class)) {
+            var finished = decode(new DeconstructFinishCallPacket(), received);
+            finished.handleClient();
+            if (finished.tile != null && finished.tile.block() == Blocks.air) {
+                System.out.println("UPSTREAM_LIVE_REMOVED x=" + finished.tile.x + " y=" + finished.tile.y);
+            }
         } else if (id == unsignedId(ConstructFinishCallPacket.class)) {
             var finished = decode(new ConstructFinishCallPacket(), received);
             finished.handleClient();
@@ -381,8 +392,7 @@ public final class UpstreamLiveNetworkProbe {
         private static final long SNAPSHOT_NS = 66_000_000L;
         private static final float DEAD_ZONE = 20f / 127f;
         private static final float STOP_SPEED = 0.03f;
-        private static final int PLACE_PRESSED = 1 << 17;
-        private final boolean buildingControls;
+        private final UpstreamLiveBuildControls buildingControls;
         private final Vec2 direction = new Vec2();
         private long lastStep, lastSnapshot;
         private int sequence;
@@ -390,7 +400,7 @@ public final class UpstreamLiveNetworkProbe {
         private boolean moving;
         private String inputDevice;
 
-        LiveControls(boolean buildingControls) {
+        LiveControls(UpstreamLiveBuildControls buildingControls) {
             this.buildingControls = buildingControls;
         }
 
@@ -407,16 +417,7 @@ public final class UpstreamLiveNetworkProbe {
                 System.out.println("UPSTREAM_LIVE_CONTROLS_READY unit=" + unit.id()
                     + " x=" + unit.x() + " y=" + unit.y());
             }
-            if (buildingControls && Vars.player.isBuilder() && (input & PLACE_PRESSED) != 0) {
-                var plan = new BuildPlan(unit.tileX() + 4, unit.tileY(), 0, Blocks.conveyor);
-                if (plan.placeable(unit.team())) {
-                    unit.addBuild(plan);
-                    Vars.player.selectedBlock = plan.block;
-                    Vars.player.selectedRotation = plan.rotation;
-                    System.out.println("UPSTREAM_LIVE_BUILD_PLAN x=" + plan.x + " y=" + plan.y
-                        + " rotation=" + plan.rotation);
-                }
-            }
+            if (buildingControls != null) buildingControls.update(unit, input, Native.touch());
             if (now - lastStep >= FRAME_NS) {
                 direction.set((byte)input / 127f, (byte)(input >>> 8) / 127f).limit(1f);
                 if (direction.len2() < DEAD_ZONE * DEAD_ZONE) direction.setZero();
@@ -436,8 +437,8 @@ public final class UpstreamLiveNetworkProbe {
                 }
             }
             if (now - lastSnapshot >= SNAPSHOT_NS) {
-                if (buildingControls) unit.validatePlans();
-                sendPosition(unit, sequence++, buildingControls && !unit.plans().isEmpty());
+                if (buildingControls != null) unit.validatePlans();
+                sendPosition(unit, sequence++, buildingControls != null && !unit.plans().isEmpty());
                 lastSnapshot = now;
             }
         }
@@ -616,6 +617,9 @@ public final class UpstreamLiveNetworkProbe {
         static native int keepAlive(int reliable);
         @Import(name = "m3ds_live_net_input")
         static native int input();
+
+        @Import(name = "m3ds_live_net_touch")
+        static native int touch();
         @Import(name = "m3ds_live_net_close")
         static native void close();
     }

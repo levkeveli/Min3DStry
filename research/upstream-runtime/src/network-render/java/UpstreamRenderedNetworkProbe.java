@@ -15,6 +15,7 @@ import mindustry.graphics.CacheLayer;
 public final class UpstreamRenderedNetworkProbe {
     private final Fi atlas;
     private final UpstreamTerrainRenderProbe target = new UpstreamTerrainRenderProbe(false);
+    private final UpstreamLiveBuildControls buildingControls = new UpstreamLiveBuildControls();
     private final Runnable drawEntities = this::drawEntities;
     private final IntSet reportedConveyors = new IntSet();
     private UpstreamTerrainDrawProbe.Viewport viewport;
@@ -30,7 +31,7 @@ public final class UpstreamRenderedNetworkProbe {
         var endpoint = UpstreamLiveNetworkProbe.endpointFile(args);
         var view = new UpstreamRenderedNetworkProbe(endpoint.sibling("sprites.aatls"));
         CacheLayer.init();
-        UpstreamLiveNetworkProbe.run(endpoint, view::loadGraphics, view::render);
+        UpstreamLiveNetworkProbe.run(endpoint, view::loadGraphics, view::render, view.buildingControls);
     }
 
     private void loadGraphics() {
@@ -50,6 +51,7 @@ public final class UpstreamRenderedNetworkProbe {
                         World.toTile(y) - UpstreamTerrainDrawProbe.VIEW_HEIGHT / 2);
         draws = 0;
         viewport.draw(drawEntities);
+        buildingControls.viewport(viewport.left, viewport.bottom);
         if (unit != null && (lastLeft != viewport.left || lastBottom != viewport.bottom)) {
             lastLeft = viewport.left;
             lastBottom = viewport.bottom;
@@ -60,7 +62,8 @@ public final class UpstreamRenderedNetworkProbe {
 
     private void drawEntities() {
         for (var building : Groups.build) {
-            if ((building.block == Blocks.coreNucleus || building.block == Blocks.conveyor)
+            if ((building.block == Blocks.coreNucleus || building.block == Blocks.conveyor
+                    || building.block == Blocks.copperWall)
                     && viewport.contains(building)) {
                 building.draw();
                 if (building.block == Blocks.conveyor && reportedConveyors.add(building.pos())) {
@@ -78,5 +81,8 @@ public final class UpstreamRenderedNetworkProbe {
             Draw.rect(Core.atlas.find(unit.type().name), unit.x(), unit.y(), unit.rotation() - 90f);
             if (unit == controlled) draws++;
         }
+        target.buildOverlay(buildingControls.cursorX() - viewport.left, buildingControls.cursorY() - viewport.bottom,
+            buildingControls.block() == Blocks.copperWall ? 1 : 0, buildingControls.rotation(),
+            buildingControls.removing());
     }
 }

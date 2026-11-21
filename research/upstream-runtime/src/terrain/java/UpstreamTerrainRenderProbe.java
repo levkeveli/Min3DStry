@@ -19,6 +19,12 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
         if (result != 1) throw new IllegalStateException("Unable to initialize Citro2D terrain: " + result);
     }
 
+    void buildOverlay(int column, int row, int block, int rotation, boolean removing) {
+        if (NativeTerrain.buildOverlay(column, row, block, rotation, removing ? 1 : 0, Vars.tilesize) == 0) {
+            throw new IllegalStateException("Unable to draw the Citro2D build palette");
+        }
+    }
+
     @Override
     public void begin(int left, int bottom, int width, int height) {
         int result = NativeTerrain.begin(left, bottom, width, height, Vars.tilesize);
@@ -60,5 +66,8 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
 
         @Import(name = "m3ds_terrain_end")
         static native int end();
+
+        @Import(name = "m3ds_terrain_build_overlay")
+        static native int buildOverlay(int column, int row, int block, int rotation, int removing, int tileSize);
     }
 }

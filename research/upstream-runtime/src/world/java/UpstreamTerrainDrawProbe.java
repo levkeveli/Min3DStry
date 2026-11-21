@@ -64,7 +64,7 @@ public final class UpstreamTerrainDrawProbe {
             for (var block : Vars.content.blocks()) {
                 if (block == Blocks.air) continue;
                 if (block instanceof Floor || (live && (!block.hasBuilding() || block == Blocks.coreNucleus
-                        || block == Blocks.conveyor))) {
+                        || block == Blocks.conveyor || block == Blocks.copperWall))) {
                     block.load();
                 }
             }

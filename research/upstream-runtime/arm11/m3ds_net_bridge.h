@@ -11,6 +11,8 @@ int32_t m3ds_live_net_packet_id(void);
 int32_t m3ds_live_net_receive(void *payload, int32_t capacity, int32_t reliable, int32_t timeout_ms);
 int32_t m3ds_live_net_send(const void *payload, int32_t length, int32_t packet_id, int32_t reliable);
 int32_t m3ds_live_net_keep_alive(int32_t reliable);
-/* Signed X/Y in the low two bytes, D-pad in bit 16, or -1 when leaving. */
+/* Signed X/Y, then D-pad/A/R/B in bits 16–19, or -1 when leaving. */
 int32_t m3ds_live_net_input(void);
+/* X and Y in the low and high halves on a fresh touch, or -1. */
+int32_t m3ds_live_net_touch(void);
 void m3ds_live_net_close(void);

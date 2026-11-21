@@ -18,6 +18,9 @@ static bool renderer_ready;
 static bool frame_open;
 static C2D_SpriteSheet sheet;
 static C3D_RenderTarget *target;
+static C3D_RenderTarget *palette;
+static C2D_TextBuf palette_buffer;
+static C2D_Text palette_labels[4];
 static float world_left, world_bottom, scale, screen_left, screen_bottom;
 static int32_t draws;
 
@@ -130,8 +133,66 @@ int32_t m3ds_terrain_end(void) {
     return draws;
 }
 
+int32_t m3ds_terrain_palette_active(void) {
+    return palette != NULL;
+}
+
+int32_t m3ds_terrain_build_overlay(int32_t column, int32_t row, int32_t block, int32_t rotation,
+                                  int32_t removing, int32_t tile_size) {
+    if (!frame_open) return 0;
+    if (!palette) {
+        static const char *labels[] = {"Conveyor", "Copper Wall", "Rotate", "Remove"};
+        palette_buffer = C2D_TextBufNew(64);
+        if (!palette_buffer) return 0;
+        palette = C2D_CreateScreenTarget(GFX_BOTTOM, GFX_LEFT);
+        if (!palette) return 0;
+        gfxSetDoubleBuffering(GFX_BOTTOM, true);
+        for (int i = 0; i < 4; i++) {
+            C2D_TextParse(&palette_labels[i], palette_buffer, labels[i]);
+            C2D_TextOptimize(&palette_labels[i]);
+        }
+    }
+    u32 accent = removing ? C2D_Color32(241, 117, 97, 255) : C2D_Color32(250, 213, 107, 255);
+    if (column >= 0 && row >= 0) {
+        float size = tile_size * scale;
+        float x = screen_left + column * size;
+        float y = screen_bottom - (row + 1) * size;
+        C2D_DrawRectSolid(x, y, 0.5f, size, 2, accent);
+        C2D_DrawRectSolid(x, y + size - 2, 0.5f, size, 2, accent);
+        C2D_DrawRectSolid(x, y, 0.5f, 2, size, accent);
+        C2D_DrawRectSolid(x + size - 2, y, 0.5f, 2, size, accent);
+        if (block == 0 && !removing) {
+            static const int dx[] = {1, 0, -1, 0}, dy[] = {0, -1, 0, 1};
+            float cx = x + size / 2, cy = y + size / 2;
+            C2D_DrawLine(cx, cy, accent, cx + dx[rotation] * 6, cy + dy[rotation] * 6, accent, 2, 0.5f);
+        }
+    }
+    C2D_TargetClear(palette, C2D_Color32(24, 27, 32, 255));
+    C2D_SceneBegin(palette);
+    C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_COLOR);
+    for (int i = 0; i < 4; i++) {
+        bool active = removing ? i == 3 : i == block;
+        C2D_DrawRectSolid(i * 80 + 2, 4, 0.5f, 76, 39,
+            active ? C2D_Color32(85, 71, 52, 255) : C2D_Color32(45, 52, 64, 255));
+        C2D_DrawText(&palette_labels[i], C2D_WithColor | C2D_AlignCenter, i * 80 + 40, 16, 0.5f,
+            0.42f, 0.42f, active ? accent : C2D_Color32(239, 241, 247, 255));
+    }
+    for (int x = 0; x <= 16; x++) {
+        C2D_DrawRectSolid(32 + x * 16, 48, 0.5f, 1, 192, C2D_Color32(65, 74, 88, 255));
+    }
+    for (int y = 0; y < 12; y++) {
+        C2D_DrawRectSolid(32, 48 + y * 16, 0.5f, 256, 1, C2D_Color32(65, 74, 88, 255));
+    }
+    if (column >= 0 && row >= 0) {
+        C2D_DrawRectSolid(33 + column * 16, 49 + (11 - row) * 16, 0.5f, 15, 15, accent);
+    }
+    return 1;
+}
+
 void m3ds_terrain_fini(void) {
     if (frame_open) m3ds_terrain_end();
+    if (palette_buffer) C2D_TextBufDelete(palette_buffer);
+    if (palette) C3D_RenderTargetDelete(palette);
     if (sheet) C2D_SpriteSheetFree(sheet);
     if (target) C3D_RenderTargetDelete(target);
     if (renderer_ready) C2D_Fini();

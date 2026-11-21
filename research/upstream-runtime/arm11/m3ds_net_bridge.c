@@ -96,5 +96,13 @@ int32_t m3ds_live_net_input(void) {
         pad.dy = 127 * ((int)((keys & KEY_DUP) != 0) - (int)((keys & KEY_DDOWN) != 0));
     }
     return (int32_t)pack_axis(pad.dx) | ((int32_t)pack_axis(pad.dy) << 8) |
-           ((int32_t)dpad << 16) | ((int32_t)((pressed & KEY_A) != 0) << 17);
+           ((int32_t)dpad << 16) | ((int32_t)((pressed & KEY_A) != 0) << 17) |
+           ((int32_t)((pressed & KEY_R) != 0) << 18) | ((int32_t)((pressed & KEY_B) != 0) << 19);
+}
+
+int32_t m3ds_live_net_touch(void) {
+    if (!(hidKeysDown() & KEY_TOUCH)) return -1;
+    touchPosition touch;
+    hidTouchRead(&touch);
+    return (int32_t)touch.px | ((int32_t)touch.py << 16);
 }
