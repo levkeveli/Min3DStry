@@ -15,9 +15,16 @@ This matches the native `SECTOR_TILE_STATE` row exactly:
 SECTOR_TILE_STATE tiles=37500 buildings=2 linked=2 hash=e35397041df8e5fe status=ok
 ```
 
-Verified on the JVM with the real `glacier-v13.msav`. The probe asserts the
-values in `UpstreamWorldLoadProbe.reportTileState`, so any divergence fails the
-probe.
+Verified with the real `glacier-v13.msav`:
+
+```text
+JVM:     UPSTREAM_TILE_STATE tiles=37500 buildings=2 hash=e35397041df8e5fe
+New 3DS: UPSTREAM_TILE_STATE tiles=37500 buildings=2 hash=e35397041df8e5fe
+Old 3DS: UPSTREAM_TILE_STATE tiles=37500 buildings=2 hash=e35397041df8e5fe
+```
+
+The probe asserts the values in `UpstreamWorldLoadProbe.reportTileState`, so any
+divergence fails the probe.
 
 ## Reproduce
 
