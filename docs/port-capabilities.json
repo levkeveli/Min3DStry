@@ -222,7 +222,11 @@
         "research/upstream-runtime/build.gradle",
         "research/upstream-runtime/README.md",
         "docs/porting/combat-waves-pathfinding.md",
-        ".github/workflows/upstream-arm11-smoke.yml"
+        ".github/workflows/upstream-arm11-smoke.yml",
+        "research/upstream-runtime/src/network-live/java/UpstreamLiveNetworkProbe.java",
+        "research/upstream-runtime/src/network-render/java/UpstreamRenderedNetworkProbe.java",
+        "tools/verify_upstream_live_net.py",
+        "docs/gameplay/live-combat.md"
       ]
     },
     {

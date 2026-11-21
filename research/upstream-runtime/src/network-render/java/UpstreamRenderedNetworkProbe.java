@@ -37,6 +37,7 @@ public final class UpstreamRenderedNetworkProbe {
     private final UpstreamLiveBuildControls buildingControls = new UpstreamLiveBuildControls();
     private final Runnable drawEntities = this::drawEntities;
     private final IntSet reportedConveyors = new IntSet();
+    private final IntSet reportedEnemies = new IntSet();
     private UpstreamTerrainDrawProbe.Viewport viewport;
     private Unit controlled;
     private int draws;
@@ -176,6 +177,11 @@ public final class UpstreamRenderedNetworkProbe {
                         || y < viewport.bottom || y >= viewport.bottom + UpstreamTerrainDrawProbe.VIEW_HEIGHT) continue;
                 unit.draw();
                 if (unit == controlled) draws++;
+                if (unit.type() == UnitTypes.dagger && unit.team == Vars.state.rules.waveTeam
+                        && reportedEnemies.add(unit.id)) {
+                    System.out.println("UPSTREAM_LIVE_ENEMY type=dagger id=" + unit.id
+                        + " x=" + unit.x() + " y=" + unit.y());
+                }
             }
         } finally {
             Draw.sort(false);

@@ -973,7 +973,7 @@ def run_model(args, model, config, original_config, log, output):
     stationary = (args.world_atlas_recycle or args.building_layers or args.liquids
                   or args.building_effects or args.payload_mix or args.carried_buildings
                   or args.payload_handoff or args.unit_layers or args.unit_roster or args.naval_wake
-                  or args.tank_treads or args.map_spawn)
+                  or args.tank_treads or args.map_spawn or args.combat)
     map_name = args.map_spawn or "Glacier"
     overrides = {
         "Miscellaneous": {"log_filter": "*:Info Debug.Emulated:Debug Service.SOC:Debug",
@@ -1074,6 +1074,18 @@ def run_model(args, model, config, original_config, log, output):
                 print(f"{model}: Join 127.0.0.1:{args.port} from the stock PC client as "
                       f"{args.desktop_name!r}.", flush=True)
                 wait_for(server_log, server, rf"{re.escape(args.desktop_name)} has connected", args.timeout)
+            if args.combat:
+                # Spawn outside the Duo's range before the client joins, so the unit is in
+                # its initial snapshots and only the post-join id can be the one shot.
+                spawn = (
+                    '(() => { const u = UnitTypes.dagger.spawn(Vars.state.rules.waveTeam, 60 * 8, 26 * 8); '
+                    'Packages.mindustry.entities.Units.notifyUnitSpawn(u); '
+                    'return "UPSTREAM_COMBAT_SPAWN id=" + u.id; })()')
+                server.stdin.write("js " + spawn + "\n")
+                server.stdin.flush()
+                spawn_result = wait_for(server_log, server,
+                                        r"UPSTREAM_COMBAT_SPAWN id=(\d+)", 10)
+                spawn_id = int(re.search(r"UPSTREAM_COMBAT_SPAWN id=(\d+)", spawn_result).group(1))
             command = [str(args.azahar)]
             if args.controls_replay:
                 replay = Path(work) / "controls.ctm"
@@ -1113,7 +1125,62 @@ def run_model(args, model, config, original_config, log, output):
                                                 spawn_pixels=(MAP_SPAWN_PIXELS.get(args.map_spawn) if phase == "spawn"
                                                               else EREKIR_BUILD_PIXELS.get(phase)))
 
-                    if stationary:
+                    if args.combat:
+                        wait_for(log, emulator, r"UPSTREAM_LIVE_CONTROLS_READY unit=\d+", args.timeout)
+                        fixture = (
+                            '(() => { const t = Vars.world.tile(76, 26); '
+                            't.setBlock(Blocks.duo, Vars.state.rules.defaultTeam, 0); '
+                            'const b = t.build; b.handleItem(b, Items.copper); '
+                            'return "UPSTREAM_COMBAT_FIXTURE block=" + t.block().name + " ammo=" + b.totalAmmo; })()')
+                        server.stdin.write("js " + fixture + "\n")
+                        server.stdin.flush()
+                        setup = wait_for(server_log, server,
+                                         r"UPSTREAM_COMBAT_FIXTURE block=\S+ ammo=(\d+)", 10)
+                        initial_ammo = int(re.search(r"ammo=(\d+)", setup).group(1))
+                        post = (
+                            '(() => { const u = UnitTypes.dagger.spawn(Vars.state.rules.waveTeam, 79 * 8, 26 * 8); '
+                            'Packages.mindustry.entities.Units.notifyUnitSpawn(u); '
+                            'return "UPSTREAM_COMBAT_POST id=" + u.id; })()')
+                        server.stdin.write("js " + post + "\n")
+                        server.stdin.flush()
+                        post_result = wait_for(server_log, server,
+                                               r"UPSTREAM_COMBAT_POST id=(\d+)", 10)
+                        post_id = int(re.search(r"UPSTREAM_COMBAT_POST id=(\d+)", post_result).group(1))
+                        if post_id == spawn_id:
+                            raise RuntimeError(
+                                f"Post-join Dagger reused the pre-join id {spawn_id}; "
+                                "UnitSpawnCallPacket was not exercised")
+                        print(f"UPSTREAM_COMBAT_IDS spawn={spawn_id} post={post_id}", flush=True)
+                        enemy = wait_for(log, emulator,
+                                         rf"UPSTREAM_LIVE_ENEMY type=dagger id={post_id}\b", args.timeout)
+                        enemy_line = re.search(
+                            rf"UPSTREAM_LIVE_ENEMY type=dagger id={post_id}\b[^\n]*", enemy)
+                        if not enemy_line:
+                            raise RuntimeError(
+                                f"Could not isolate the post-join Dagger id={post_id} in the client log")
+                        print(enemy_line.group(0), flush=True)
+                        time.sleep(1.0)
+                        query = (
+                            f'(() => {{ const u = Groups.unit.find(x => x.id === {post_id}); '
+                            'const b = Vars.world.tile(76, 26).build; '
+                            'return "UPSTREAM_SERVER_COMBAT dagger=" + (u ? Math.round(u.health) : -1) + '
+                            '" ammo=" + b.totalAmmo; })()')
+                        server.stdin.write("js " + query + "\n")
+                        server.stdin.flush()
+                        result = wait_for(server_log, server,
+                                          r"UPSTREAM_SERVER_COMBAT dagger=(-?\d+) ammo=(\d+)", 10)
+                        dagger, ammo = (int(value) for value in
+                                        re.search(r"dagger=(-?\d+) ammo=(\d+)", result).groups())
+                        # Dagger max health in v160.8 is 150; -1 means it was destroyed.
+                        if ammo >= initial_ammo or (dagger != -1 and dagger >= 150):
+                            raise RuntimeError(
+                                f"Turret did not damage the Dagger: ammo {initial_ammo}->{ammo}, health={dagger}")
+                        (output / f"{model}-combat.png").write_bytes(rpc.screenshot())
+                        print(f"Stock Duo fired; Dagger health={dagger}, ammo {initial_ammo}->{ammo}.", flush=True)
+                        emu_log = log.read_text(encoding="utf-8", errors="replace")
+                        if "UPSTREAM_LIVE_NET_ERROR" in emu_log:
+                            raise RuntimeError("The client failed during the live combat check")
+                    elif stationary:
                         wait_for(log, emulator, r"UPSTREAM_LIVE_CONTROLS_READY unit=\d+", args.timeout)
                         spawn = server_position(server_log, server, "UPSTREAM_SERVER_CONTROLS_READY").groups()
                         if args.map_spawn:
@@ -1277,6 +1344,8 @@ def main():
     parser.add_argument("--world-atlas", action="store_true", help="Verify the paged Core Nucleus sprite at Glacier spawn")
     parser.add_argument("--world-atlas-recycle", action="store_true",
                         help="Require the bounded atlas cache to submit and recycle inside the spawn frame")
+    parser.add_argument("--combat", action="store_true",
+                        help="Verify stock turret damage and the post-join unit spawn packet")
     build_mode = parser.add_mutually_exclusive_group()
     build_mode.add_argument("--building", action="store_true",
                         help="Verify the ARM11 conveyor plan, copper cost and rendered response")
@@ -1325,6 +1394,15 @@ def main():
         parser.error("The PC client needs a distinct player name")
     if args.controls_replay and not args.controls:
         parser.error("--controls-replay needs --controls")
+    if args.combat and (not args.controls or not args.terrain_atlas):
+        parser.error("--combat needs --controls and --terrain-atlas")
+    if args.combat and (args.controls_replay or args.building or args.touch_build or args.touch_config
+                        or args.world_atlas or args.world_atlas_recycle or args.menu_icons
+                        or args.building_layers or args.building_cracks or args.liquids
+                        or args.building_effects or args.payload_mix or args.carried_buildings
+                        or args.payload_handoff or args.unit_layers or args.unit_roster
+                        or args.naval_wake or args.tank_treads or args.map_spawn):
+        parser.error("--combat runs a separate stationary check")
     if args.building and not args.terrain_atlas:
         parser.error("--building needs --terrain-atlas")
     if args.touch_build and not args.terrain_atlas:
