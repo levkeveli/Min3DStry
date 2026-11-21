@@ -87,7 +87,7 @@ int32_t m3ds_live_net_input(void) {
     const u32 pressed = hidKeysDown();
     if (pressed & KEY_START) return -1;
 
-    circlePosition pad;
+    circlePosition pad = {0};
     hidCircleRead(&pad);
     // Generic direction masks also include digital Circle Pad directions.
     const bool dpad = (keys & (KEY_DLEFT | KEY_DRIGHT | KEY_DUP | KEY_DDOWN)) != 0;
