@@ -553,6 +553,33 @@ Windows and still checks `SO_ERROR` before sending packets. The probe
 clears client mode before calling the original `Logic.reset` between
 connections, matching the order of the upstream disconnect path.
 
+### Verify upstream building layers
+
+The live renderer traverses building footprints in the visible tile grid and
+draws a multi-tile building once when any of its tiles is visible. It applies
+the cached and dynamic flags, layer values and visibility check from the
+pinned [BlockRenderer](https://github.com/Anuken/Mindustry/blob/19a0f40d44514f4802a8b79770456e7e32e34da0/core/src/mindustry/graphics/BlockRenderer.java).
+The Arc batch adapter orders sprite commands and callbacks by layer, keeps
+their submission order at equal depth and captures the original atlas
+coordinates and blend mode. The native backend maps Arc normal, additive and
+disabled blending to Citro3D.
+
+Use the existing pinned Gradle settings with `-Pprobe=network-render`:
+
+```sh
+gradle runBuildingLayersJvm --args='/path/to/glacier.msav /path/to/sprites.aatls'
+```
+
+The JVM verifier checks the sorted sprite state and actual upstream Conveyor,
+Large Copper Wall and Mechanical Drill draw order. The wall's anchor is
+outside the viewport, and a second wall lies entirely outside. The live
+verifier's `--controls --building-layers --world-atlas` mode loads the
+wall and drill through the stock Java server's original world stream.
+
+The renderer still selects blocks that use the supported sprite operations.
+Crack textures, raw vertices, mix color and other rendering services are
+tracked in [#139](https://github.com/levkeveli/Min3DStry/issues/139).
+
 ### Verify the Arc executor pools
 
 Use `-Pprobe=executor` with the JVM and ARM11 build commands. The JVM uses the

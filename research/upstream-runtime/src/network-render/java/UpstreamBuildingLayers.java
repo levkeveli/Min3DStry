@@ -39,6 +39,7 @@ final class UpstreamBuildingLayers {
                     Draw.z(Layer.block);
                     block.drawBase(build.tile);
                     Draw.reset();
+                    Draw.z(Layer.block);
                     if (build.team != viewer && block.drawTeamOverlay) build.drawTeam();
                 }
                 Draw.reset();

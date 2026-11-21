@@ -91,6 +91,16 @@ int32_t m3ds_terrain_initialize(void) {
     return 1;
 }
 
+static void begin_world_scene(void) {
+    C2D_SceneBegin(target);
+    // The top framebuffer stores screen X along its rotated Y axis.
+    u32 x_margin = (u32)lroundf(fmaxf(0.0f, screen_left));
+    u32 y_margin = (u32)lroundf(fmaxf(0.0f, 240.0f - screen_bottom));
+    C3D_SetScissor(GPU_SCISSOR_NORMAL, y_margin, x_margin, 240 - y_margin, 400 - x_margin);
+    C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_COLOR);
+    C2D_SetTintMode(C2D_TintMult);
+}
+
 int32_t m3ds_terrain_begin(int32_t left, int32_t bottom, int32_t width, int32_t height,
                            int32_t tile_size) {
     if (!sheet) {
@@ -111,9 +121,7 @@ int32_t m3ds_terrain_begin(int32_t left, int32_t bottom, int32_t width, int32_t 
     world_pass++;
 #endif
     C2D_TargetClear(target, C2D_Color32(24, 27, 32, 255));
-    C2D_SceneBegin(target);
-    C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_COLOR);
-    C2D_SetTintMode(C2D_TintMult);
+    begin_world_scene();
     return 1;
 }
 
@@ -130,9 +138,7 @@ static bool recycle_world_pass(void) {
     // FrameBegin waited for the previous command queue. Clear Citro2D's saved texture
     // pointer before freeing any sheet, then continue without clearing the framebuffer.
     C2D_Prepare();
-    C2D_SceneBegin(target);
-    C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_COLOR);
-    C2D_SetTintMode(C2D_TintMult);
+    begin_world_scene();
     world_pass++;
     if (!reported_recycle) {
         static const char record[] = "UPSTREAM_WORLD_ATLAS_RECYCLE\n";
