@@ -337,6 +337,28 @@ int32_t m3ds_terrain_draw(int32_t page, int32_t left, int32_t top, int32_t width
 #endif
 }
 
+int32_t m3ds_terrain_draw_solid_quad(const float *vertices, int32_t offset, int32_t blend_mode) {
+    if (!frame_open) return 0;
+    set_world_blend(blend_mode);
+    float x[4], y[4];
+    u32 color[4];
+    for (int i = 0; i < 4; i++) {
+        // Arc's SpriteBatch vertex is x, y, packed color, u, v, packed mix color.
+        const float *vertex = vertices + offset + i * 6;
+        x[i] = screen_left + (vertex[0] - world_left) * scale;
+        y[i] = screen_bottom - (vertex[1] - world_bottom) * scale;
+        memcpy(&color[i], &vertex[2], sizeof(color[i]));
+        color[i] |= (u32)((color[i] >> 24) * (255.0f / 254.0f)) << 24;
+    }
+    // Match the original SpriteBatch's (0,1,2) and (2,3,0) triangles.
+    if (!C2D_DrawTriangle(x[0], y[0], color[0], x[1], y[1], color[1], x[2], y[2], color[2], 0.5f)
+            || !C2D_DrawTriangle(x[2], y[2], color[2], x[3], y[3], color[3], x[0], y[0], color[0], 0.5f)) {
+        return 0;
+    }
+    draws++;
+    return 1;
+}
+
 int32_t m3ds_terrain_end(void) {
     if (!frame_open) return 0;
     C3D_FrameEnd(0);

@@ -147,7 +147,9 @@ public final class UpstreamRenderedNetworkProbe {
         // These blocks use the sprite operations available in the live backend.
         return block == Blocks.coreNucleus || block == Blocks.conveyor || block == Blocks.copperWall
             || block == Blocks.copperWallLarge || block == Blocks.router || block instanceof Sorter
-            || block == Blocks.mechanicalDrill || block instanceof Conduit;
+            || block == Blocks.mechanicalDrill || block instanceof Conduit
+            || block == Blocks.phaseWeaver || block == Blocks.overdriveProjector
+            || block == Blocks.overdriveDome || block == Blocks.shockwaveTower;
     }
 
     private void drawMenu(byte[] labels, int[] icons, int selected,
