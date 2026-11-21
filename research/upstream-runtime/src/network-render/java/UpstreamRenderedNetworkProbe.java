@@ -11,7 +11,6 @@ import mindustry.core.World;
 import mindustry.gen.Groups;
 import mindustry.gen.Unit;
 import mindustry.graphics.CacheLayer;
-import mindustry.world.blocks.defense.turrets.ItemTurret.ItemTurretBuild;
 import mindustry.world.blocks.distribution.Sorter;
 
 /** Presents the received Glacier world through the ARM11 terrain renderer. */
@@ -26,7 +25,6 @@ public final class UpstreamRenderedNetworkProbe {
     private Unit controlled;
     private int draws;
     private int lastLeft = -1, lastBottom = -1;
-    private int lastBullets = -1, lastTurrets = -1, lastAmmo = -1;
     private byte[] lastMenu;
 
     private UpstreamRenderedNetworkProbe(Fi atlas) {
@@ -117,31 +115,6 @@ public final class UpstreamRenderedNetworkProbe {
                 System.out.println("UPSTREAM_LIVE_ENEMY type=dagger id=" + unit.id
                     + " x=" + unit.x() + " y=" + unit.y());
             }
-        }
-        int bullets = 0;
-        for (var bullet : Groups.bullet) {
-            int x = World.toTile(bullet.x()), y = World.toTile(bullet.y());
-            if (x < viewport.left || x >= viewport.left + UpstreamTerrainDrawProbe.VIEW_WIDTH
-                    || y < viewport.bottom || y >= viewport.bottom + UpstreamTerrainDrawProbe.VIEW_HEIGHT) continue;
-            // All stock bullet types share the original generic bullet region.
-            Draw.rect(Core.atlas.find("bullet"), bullet.x(), bullet.y(), bullet.rotation() - 90f);
-            bullets++;
-        }
-        if (bullets > 0 && bullets != lastBullets) {
-            System.out.println("UPSTREAM_LIVE_BULLETS count=" + bullets);
-            lastBullets = bullets;
-        }
-        int turrets = 0, ammo = 0;
-        for (var building : Groups.build) {
-            if (building instanceof ItemTurretBuild turret && viewport.contains(building)) {
-                turrets++;
-                ammo += turret.totalAmmo;
-            }
-        }
-        if (turrets > 0 && (turrets != lastTurrets || ammo != lastAmmo)) {
-            System.out.println("UPSTREAM_LIVE_TURRETS count=" + turrets + " ammo=" + ammo);
-            lastTurrets = turrets;
-            lastAmmo = ammo;
         }
         var block = buildingControls.block();
         var catalog = buildingControls.catalog();

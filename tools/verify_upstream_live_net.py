@@ -477,12 +477,21 @@ def run_model(args, model, config, original_config, log, output):
                         setup = wait_for(server_log, server,
                                          r"UPSTREAM_COMBAT_FIXTURE block=\S+ ammo=(\d+)", 10)
                         initial_ammo = int(re.search(r"ammo=(\d+)", setup).group(1))
-                        enemy = wait_for(log, emulator, r"UPSTREAM_LIVE_ENEMY type=dagger id=\d+", args.timeout)
+                        post = (
+                            '(() => { const u = UnitTypes.dagger.spawn(Vars.state.rules.waveTeam, 79 * 8, 26 * 8); '
+                            'for (let i = 0; i < 5; i++) Packages.mindustry.entities.Units.notifyUnitSpawn(u); '
+                            'return "UPSTREAM_COMBAT_POST id=" + u.id; })()')
+                        server.stdin.write("js " + post + "\n")
+                        server.stdin.flush()
+                        post_result = wait_for(server_log, server, r"UPSTREAM_COMBAT_POST id=(\d+)", 10)
+                        post_id = int(re.search(r"id=(\d+)", post_result).group(1))
+                        enemy = wait_for(log, emulator,
+                                         rf"UPSTREAM_LIVE_ENEMY type=dagger id={post_id}\b", args.timeout)
                         print(re.search(r"UPSTREAM_LIVE_ENEMY[^\n]*", enemy).group(0), flush=True)
                         time.sleep(1.0)
                         query = (
-                            '(() => { const u = Groups.unit.find(x => x.type === UnitTypes.dagger && '
-                            'x.team === Vars.state.rules.waveTeam); const b = Vars.world.tile(76, 26).build; '
+                            f'(() => {{ const u = Groups.unit.find(x => x.id === {post_id}); '
+                            'const b = Vars.world.tile(76, 26).build; '
                             'return "UPSTREAM_SERVER_COMBAT dagger=" + (u ? Math.round(u.health) : -1) + '
                             '" ammo=" + b.totalAmmo; })()')
                         server.stdin.write("js " + query + "\n")
