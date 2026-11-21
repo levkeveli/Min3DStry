@@ -1,6 +1,7 @@
 import java.io.IOException;
 import mindustry.Vars;
 import org.teavm.interop.Import;
+import org.teavm.interop.Address;
 import org.teavm.interop.c.Include;
 
 public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProbe.TerrainTarget {
@@ -19,10 +20,16 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
         if (result != 1) throw new IllegalStateException("Unable to initialize Citro2D terrain: " + result);
     }
 
-    void buildOverlay(int column, int row, int block, int rotation, boolean removing) {
-        if (NativeTerrain.buildOverlay(column, row, block, rotation, removing ? 1 : 0, Vars.tilesize) == 0) {
+    void buildOverlay(int column, int row, int block, int rotation,
+                      boolean removing, boolean rotatable, boolean catalogOpen) {
+        if (NativeTerrain.buildOverlay(column, row, block, rotation, removing ? 1 : 0, Vars.tilesize,
+                rotatable ? 1 : 0, catalogOpen ? 1 : 0) == 0) {
             throw new IllegalStateException("Unable to draw the Citro2D build palette");
         }
+    }
+
+    void buildCatalog(byte[] labels, int selected, boolean previous, boolean next) {
+        NativeTerrain.buildCatalog(Address.ofData(labels), selected, previous ? 1 : 0, next ? 1 : 0);
     }
 
     @Override
@@ -68,6 +75,10 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
         static native int end();
 
         @Import(name = "m3ds_terrain_build_overlay")
-        static native int buildOverlay(int column, int row, int block, int rotation, int removing, int tileSize);
+        static native int buildOverlay(int column, int row, int block, int rotation, int removing, int tileSize,
+                                       int rotatable, int catalogOpen);
+
+        @Import(name = "m3ds_terrain_build_catalog")
+        static native void buildCatalog(Address labels, int selected, int previous, int next);
     }
 }

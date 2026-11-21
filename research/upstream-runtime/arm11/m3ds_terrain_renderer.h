@@ -10,6 +10,7 @@ int32_t m3ds_terrain_draw(int32_t page, int32_t left, int32_t top, int32_t width
                           float draw_height, float rotation, int32_t color);
 int32_t m3ds_terrain_end(void);
 int32_t m3ds_terrain_build_overlay(int32_t column, int32_t row, int32_t block, int32_t rotation,
-                                  int32_t removing, int32_t tile_size);
+                                  int32_t removing, int32_t tile_size, int32_t rotatable, int32_t catalog_open);
+void m3ds_terrain_build_catalog(const char *labels, int32_t selected, int32_t previous, int32_t next);
 int32_t m3ds_terrain_palette_active(void);
 void m3ds_terrain_fini(void);
