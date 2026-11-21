@@ -110,12 +110,14 @@
       "category": "Rendering & Assets",
       "name": "Deterministic RGBA8 Sprite Atlas Tooling",
       "weight": 3,
-      "stage": "host-tested",
+      "stage": "emulator-tested",
       "issue": 4,
       "evidence": [
         "tools/build_sprite_atlas.py",
         "tools/build_upstream_sprite_atlas.py",
-        "docs/rendering/asset-pipeline.md"
+        "tests/tools/verify_upstream_sprite_atlas.py",
+        "docs/rendering/asset-pipeline.md",
+        "docs/rendering/azahar-atlas-evidence.md"
       ]
     },
     {
@@ -161,7 +163,9 @@
       "issue": 26,
       "evidence": [
         "src/render/factory_demo.c",
-        "docs/rendering/citro2d-prototype.md"
+        "docs/rendering/citro2d-prototype.md",
+        "research/upstream-runtime/README.md",
+        "research/upstream-runtime/src/gameplay/java/UpstreamFactoryTickProbe.java"
       ]
     },
     {
@@ -196,9 +200,14 @@
       "category": "Controls & Dual-Screen UI",
       "name": "Top/Bottom HUD, Menus & Minimap",
       "weight": 6,
-      "stage": "planned",
+      "stage": "experimental",
       "issue": 40,
-      "evidence": []
+      "evidence": [
+        "include/render/minimap.h",
+        "src/render/minimap.c",
+        "tests/render/test_minimap.c",
+        "docs/rendering/minimap.md"
+      ]
     },
     {
       "id": "msav-map-save-compat",
@@ -227,7 +236,7 @@
       "category": "Audio",
       "name": "NDSP Sound Effects & Music Mixer",
       "weight": 6,
-      "stage": "host-tested",
+      "stage": "emulator-tested",
       "issue": 29,
       "evidence": [
         "include/audio/audio_mixer.h",
@@ -237,6 +246,13 @@
         "include/audio/audio_registry.h",
         "src/audio/audio_registry.c",
         "tests/audio/test_audio_registry.c",
+        "include/audio/audio_events.h",
+        "src/audio/audio_events.c",
+        "tests/audio/test_audio_events.c",
+        "include/audio/audio_ambient.h",
+        "src/audio/audio_ambient.c",
+        "tests/audio/test_audio_ambient.c",
+        "docs/audio/azahar-evidence.md",
         "audio/upstream-audio-triggers.json",
         "tools/build_audio_assets.py",
         "audio/upstream-audio-map.json",
@@ -249,7 +265,7 @@
       "category": "Networking & Hardware Release",
       "name": "Cross-Platform Multiplayer Protocol",
       "weight": 5,
-      "stage": "host-tested",
+      "stage": "emulator-tested",
       "issue": 31,
       "evidence": [
         "include/net/mindustry_net.h",
@@ -257,7 +273,9 @@
         "src/platform/3ds/net_3ds.c",
         "tests/net/test_mindustry_net.c",
         "tools/verify_upstream_net.py",
-        "docs/net/upstream-protocol.md"
+        "docs/net/upstream-protocol.md",
+        "tools/verify_upstream_live_net.py",
+        "research/upstream-runtime/README.md"
       ]
     },
     {
