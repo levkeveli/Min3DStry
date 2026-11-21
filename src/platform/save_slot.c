@@ -58,36 +58,20 @@ static uint32_t parse_decimal(const char *text) {
     return value;
 }
 
-/*
- * Upstream SaveVersion.getMeta reads a 4-byte meta-region length, then
- * SaveFileReader.readStringMap reads a 16-bit entry count followed by
- * DataOutputStream.writeUTF key/value pairs. This is not a 4-byte StringMap
- * count; the region length comes from SaveFileReader.writeRegion.
- */
-static void parse_metadata(
-    const uint8_t *data, size_t size, M3dsSaveSlotInfo *info) {
-    if (size < 12u) {
-        return;
-    }
-    uint32_t metadata_length = read_be32(data + 8);
-    if (metadata_length > size - 12u || metadata_length < 2u) {
-        return;
-    }
-    size_t end = 12u + metadata_length;
-    size_t position = 12u;
-    uint16_t entries = read_be16(data + position);
-    position += 2u;
+static bool parse_entries(
+    const uint8_t *data, size_t end, size_t position, uint32_t entries,
+    M3dsSaveSlotInfo *info) {
     if (entries > MSAV_META_ENTRY_LIMIT) {
-        return;
+        return false;
     }
     bool has_map = false;
     bool has_wave = false;
-    for (uint16_t i = 0; i < entries && position < end; ++i) {
+    for (uint32_t i = 0; i < entries && position < end; ++i) {
         char key[32];
         char value[64];
         if (!read_utf(data, end, &position, key, sizeof(key))
                 || !read_utf(data, end, &position, value, sizeof(value))) {
-            return;
+            return false;
         }
         if (strcmp(key, "mapname") == 0) {
             snprintf(info->map_name, sizeof(info->map_name), "%.*s",
@@ -102,6 +86,31 @@ static void parse_metadata(
     if (!has_wave) {
         info->wave = 0u;
     }
+    return has_map;
+}
+
+/*
+ * Upstream SaveVersion.getMeta reads a 4-byte meta-region length, then
+ * SaveFileReader.readStringMap reads a 16-bit entry count followed by
+ * DataOutputStream.writeUTF key/value pairs. Some external tooling writes the
+ * entry count as a 4-byte integer instead; accept that layout as a fallback
+ * only when the upstream framing does not yield a map name.
+ */
+static void parse_metadata(
+    const uint8_t *data, size_t size, M3dsSaveSlotInfo *info) {
+    if (size < 12u) {
+        return;
+    }
+    uint32_t metadata_length = read_be32(data + 8);
+    if (metadata_length <= size - 12u && metadata_length >= 2u) {
+        size_t end = 12u + metadata_length;
+        uint16_t entries = read_be16(data + 12);
+        if (parse_entries(data, end, 14u, entries, info)) {
+            return;
+        }
+    }
+    uint32_t entries = read_be32(data + 8);
+    (void)parse_entries(data, size, 12u, entries, info);
 }
 
 static void decode_compressed(FILE *file, M3dsSaveSlotInfo *info) {

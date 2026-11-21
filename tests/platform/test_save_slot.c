@@ -31,6 +31,22 @@ static void write_bytes(const uint8_t *data, size_t size) {
     fclose(file);
 }
 
+static void write_stored_stream(const uint8_t *payload, size_t size) {
+    uint8_t stream[2 + 5 + 256];
+    assert(size <= 256u);
+    size_t total = 0u;
+    stream[total++] = 0x78;
+    stream[total++] = 0x01;
+    stream[total++] = 0x01;
+    stream[total++] = (uint8_t)size;
+    stream[total++] = (uint8_t)(size >> 8);
+    stream[total++] = (uint8_t)(~size);
+    stream[total++] = (uint8_t)(~size >> 8);
+    memcpy(stream + total, payload, size);
+    total += size;
+    write_bytes(stream, total);
+}
+
 static size_t put_be16(uint8_t *out, uint16_t value) {
     out[0] = (uint8_t)(value >> 8);
     out[1] = (uint8_t)value;
@@ -165,23 +181,29 @@ static void test_metadata(void) {
     size += put_utf(payload + size, "7");
     put_be32(payload + length_position, (uint32_t)(size - metadata_start));
 
-    uint8_t stream[2 + 5 + sizeof(payload)];
-    size_t total = 0u;
-    stream[total++] = 0x78;
-    stream[total++] = 0x01;
-    stream[total++] = 0x01;
-    stream[total++] = (uint8_t)size;
-    stream[total++] = (uint8_t)(size >> 8);
-    stream[total++] = (uint8_t)(~size);
-    stream[total++] = (uint8_t)(~size >> 8);
-    memcpy(stream + total, payload, size);
-    total += size;
-
-    write_bytes(stream, total);
+    write_stored_stream(payload, size);
     M3dsSaveSlotInfo info;
     assert(m3ds_save_slot_probe(path, &info));
     assert(info.present && info.valid && info.compressed);
     assert(info.version == 13u);
+    assert(info.has_meta);
+    assert(strcmp(info.map_name, "Glacier") == 0);
+    assert(info.wave == 7u);
+    remove(path);
+
+    // Alternate tooling layout: 4-byte entry count at offset 8, entries at 12.
+    size = 0u;
+    memcpy(payload + size, "MSAV", 4);
+    size += 4u;
+    size += put_be32(payload + size, 13u);
+    size += put_be32(payload + size, 2u);
+    size += put_utf(payload + size, "mapname");
+    size += put_utf(payload + size, "Glacier");
+    size += put_utf(payload + size, "wave");
+    size += put_utf(payload + size, "7");
+    write_stored_stream(payload, size);
+    assert(m3ds_save_slot_probe(path, &info));
+    assert(info.valid && info.compressed);
     assert(info.has_meta);
     assert(strcmp(info.map_name, "Glacier") == 0);
     assert(info.wave == 7u);
