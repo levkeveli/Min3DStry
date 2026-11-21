@@ -41,6 +41,7 @@ def entryPoints = [
     'combat-ticks': 'UpstreamCombatTickProbe',
     'production-ticks': 'UpstreamProductionTickProbe',
     'wave-routing': 'UpstreamWaveRoutingProbe',
+    'audio-ticks': 'UpstreamAudioTickProbe',
     'world-stream': 'UpstreamWorldStreamProbe',
     'network-live': 'UpstreamLiveNetworkProbe',
     'network-render': 'UpstreamRenderedNetworkProbe',
@@ -86,7 +87,7 @@ def fluidSources = [
         'renderer.fluidFrames': 'UpstreamFluidAtlas.frames()'
     ]
 ]
-def usesSimulation = probe in ['factory-ticks', 'combat-ticks', 'production-ticks', 'wave-routing']
+def usesSimulation = probe in ['factory-ticks', 'combat-ticks', 'production-ticks', 'wave-routing', 'audio-ticks']
 def usesCampaignSettings = probe == 'campaign-settings'
 def usesCampaignSector = probe == 'campaign-sector'
 def usesCampaignContent = probe == 'campaign-content'

@@ -379,7 +379,7 @@ jobs:
   audio-inventory:
     name: Audio asset inventory
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
         with:
@@ -390,20 +390,88 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Fetch pinned upstream asset tree
+      - name: Fetch pinned upstream asset tree, map, server JAR, and Arc
         run: |
           git clone --depth 1 --branch v160.8 \
             https://github.com/Anuken/Mindustry.git "$RUNNER_TEMP/Mindustry"
           test "$(git -C "$RUNNER_TEMP/Mindustry" rev-parse HEAD)" = \
             "19a0f40d44514f4802a8b79770456e7e32e34da0"
+          git -C "$RUNNER_TEMP/Mindustry" show \
+            HEAD:core/assets/maps/default/glacier.msav > "$RUNNER_TEMP/glacier.msav"
+          curl --fail --silent --show-error --location \
+            https://github.com/Anuken/Mindustry/releases/download/v160.8/server-release.jar \
+            -o "$RUNNER_TEMP/server-release.jar"
+          echo "faeaf247a8b622de940181a96cb21cb20692d3c3da4e8ac3f79cb4af5059aa6c  $RUNNER_TEMP/server-release.jar" | sha256sum -c -
+          git clone --filter=blob:none --no-checkout \
+            https://github.com/Anuken/Arc.git "$RUNNER_TEMP/Arc"
+          git -C "$RUNNER_TEMP/Arc" fetch --depth 1 origin \
+            7445105cd2683daf5b9ac7033ebb07265d3e814d
+          git -C "$RUNNER_TEMP/Arc" checkout --detach FETCH_HEAD
+          test "$(git -C "$RUNNER_TEMP/Arc" rev-parse HEAD)" = \
+            "7445105cd2683daf5b9ac7033ebb07265d3e814d"
 
-      - name: Run pinned audio inventory
+      - name: Run pinned audio inventory and runtime bindings baseline
         run: |
           java research/upstream-runtime/host/UpstreamAudioInventory.java \
             "$RUNNER_TEMP/Mindustry" | tee "$RUNNER_TEMP/audio.log"
           grep -F 'UPSTREAM_AUDIO kind=music files=16 bytes=28493699' "$RUNNER_TEMP/audio.log"
           grep -F 'UPSTREAM_AUDIO kind=sounds files=205 bytes=7093890' "$RUNNER_TEMP/audio.log"
           grep -F 'UPSTREAM_AUDIO total_files=221 total_bytes=35587589 manifest_sha256=f16c7f1c163d04b9843390146aafc2197cb6f6a3ad8db30e1872c7b1853be5fc' "$RUNNER_TEMP/audio.log"
+          java -cp "$RUNNER_TEMP/server-release.jar" \
+            research/upstream-runtime/host/UpstreamAudioBaseline.java \
+            | tee "$RUNNER_TEMP/audio-baseline.log"
+          grep -Fx 'UPSTREAM_AUDIO_REGISTRY sounds=205 musics=16 uiSounds=7 manifest_sha256=31b068d1493bf9f2ccf1c25d9646bba987bef82b3724317ee0eaf2ebf931790f' "$RUNNER_TEMP/audio-baseline.log"
+          grep -Fx 'UPSTREAM_AUDIO_BINDINGS blocks=447 units=70 bullets=202 mapped=9 manifest_sha256=aff8c864f64176ae24daa083eb936c25ec6ddddf20871a5fd8fbf4ab8ce11cf4' "$RUNNER_TEMP/audio-baseline.log"
+          grep -Fx 'UPSTREAM_AUDIO_POSITIONAL panNeg=-0.500 panPos=0.900 farCulled=true loopFadeIn=21 loopFadeOut=20' "$RUNNER_TEMP/audio-baseline.log"
+          grep -Fx 'UPSTREAM_AUDIO_SIMULATION ticks=420 events=30 duoShots=19@tick49(pan=-0.145,vol=1.000) hail=4/4 unitExplode1=1@tick199(pan=0.120,vol=1.000) loops=conv:399,drill:420 clogGated=21' "$RUNNER_TEMP/audio-baseline.log"
+          grep -Fx 'UPSTREAM_AUDIO_ORDER runs=2 ticks=420 events=30 trace_hash=0xd6a9ce67062c9b00' "$RUNNER_TEMP/audio-baseline.log"
+
+      - name: Run audio-ticks JVM probe and generate TeaVM C
+        shell: bash
+        run: |
+          set -o pipefail
+          bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime \
+            --no-daemon --console=plain \
+            "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" \
+            "-PreferenceJar=$RUNNER_TEMP/server-release.jar" \
+            "-ParcCheckout=$RUNNER_TEMP/Arc" \
+            -Pprobe=audio-ticks \
+            runProbeJvm "--args=$RUNNER_TEMP/glacier.msav" generateC | tee "$RUNNER_TEMP/audio-probe-jvm.log"
+          grep -Fx 'UPSTREAM_WORLD_FINGERPRINT 2e7b9f883994de6c' "$RUNNER_TEMP/audio-probe-jvm.log"
+          grep -Fx 'UPSTREAM_AUDIO_REGISTRY sounds=205 musics=16 duo=136 death=192 convLoop=63 drillLoop=67' "$RUNNER_TEMP/audio-probe-jvm.log"
+          grep -Fx 'UPSTREAM_AUDIO_AMBIENT convTicks=399 drillTicks=420 loops=1,1 duoFirstPanMilli=-335 deathPanMilli=-520' "$RUNNER_TEMP/audio-probe-jvm.log"
+          grep -Fx 'UPSTREAM_AUDIO_COMBAT shots=17 firstShot=49 deathTick=382 destroyed=382 ammo=23 events=20 trace=8dd46207043810fc' "$RUNNER_TEMP/audio-probe-jvm.log"
+
+      - name: Verify generated audio-ticks TeaVM C at -O0 and -O2 against JVM trace
+        shell: bash
+        run: |
+          set -o pipefail
+          rm -rf "$RUNNER_TEMP/teavm-c-audio"
+          cp -R research/upstream-runtime/build/generated/teavm/c "$RUNNER_TEMP/teavm-c-audio"
+          python3 research/upstream-runtime/arm11/fix_reflection_lifetime.py "$RUNNER_TEMP/teavm-c-audio"
+          cc -std=gnu11 -O0 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-audio/all.c" -lm -lpthread \
+            -o "$RUNNER_TEMP/teavm-c-audio/probe_o0"
+          cc -std=gnu11 -O2 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-audio/all.c" -lm -lpthread \
+            -o "$RUNNER_TEMP/teavm-c-audio/probe_o2"
+          "$RUNNER_TEMP/teavm-c-audio/probe_o0" "$RUNNER_TEMP/glacier.msav" | tee "$RUNNER_TEMP/audio-o0.log"
+          "$RUNNER_TEMP/teavm-c-audio/probe_o2" "$RUNNER_TEMP/glacier.msav" | tee "$RUNNER_TEMP/audio-o2.log"
+          for log in "$RUNNER_TEMP/audio-o0.log" "$RUNNER_TEMP/audio-o2.log"; do
+            grep -Fx 'UPSTREAM_WORLD_FINGERPRINT 2e7b9f883994de6c' "$log"
+            grep -Fx 'UPSTREAM_AUDIO_REGISTRY sounds=205 musics=16 duo=136 death=192 convLoop=63 drillLoop=67' "$log"
+            grep -Fx 'UPSTREAM_AUDIO_AMBIENT convTicks=399 drillTicks=420 loops=1,1 duoFirstPanMilli=-335 deathPanMilli=-520' "$log"
+            grep -Fx 'UPSTREAM_AUDIO_COMBAT shots=17 firstShot=49 deathTick=382 destroyed=382 ammo=23 events=20 trace=8dd46207043810fc' "$log"
+          done
+
+      - name: Build ARM11 audio-ticks probe with pinned devkitARM image
+        run: |
+          image=devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5
+          docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/work" -w /work "$image" bash -lc '
+            source /opt/devkitpro/3dsvars.sh
+            bash research/upstream-runtime/arm11/build.sh \
+              research/upstream-runtime/build/generated/teavm/c \
+              research/upstream-runtime/build/probe-3ds-audio'
+          test -s research/upstream-runtime/build/probe-3ds-audio/upstream-probe.3dsx
+          test -s research/upstream-runtime/build/probe-3ds-audio/upstream-probe.elf
 
   progression-baseline:
     name: Progression baseline
