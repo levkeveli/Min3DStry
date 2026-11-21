@@ -12,6 +12,7 @@ final class UpstreamItemConfig {
     private Sorter.SorterBuild target;
     private int page;
     private byte[] labels;
+    private final int[] iconIds = new int[UpstreamBuildMenu.ROWS];
 
     void open(Sorter.SorterBuild build) {
         if (!build.isValid() || !build.block.configurable || !Units.canInteract(player, build)
@@ -63,7 +64,13 @@ final class UpstreamItemConfig {
             .append(page + 1).append('/').append(pages).append('\0');
         for (int row = 0; row < UpstreamBuildMenu.ROWS; row++) {
             int index = page * UpstreamBuildMenu.ROWS + row;
-            if (index < items.size) result.append(items.get(index).localizedName);
+            if (index < items.size) {
+                var item = items.get(index);
+                result.append(item.localizedName);
+                iconIds[row] = item.id;
+            } else {
+                iconIds[row] = -1;
+            }
             result.append('\0');
         }
         labels = result.toString().getBytes(StandardCharsets.UTF_8);
@@ -71,6 +78,7 @@ final class UpstreamItemConfig {
 
     boolean isOpen() { return target != null; }
     byte[] labels() { return labels; }
+    int[] iconIds() { return iconIds; }
     boolean previousPage() { return page > 0; }
     boolean nextPage() { return (page + 1) * UpstreamBuildMenu.ROWS < items.size; }
     int selectedRow() { return items.indexOf(target.config(), true) - page * UpstreamBuildMenu.ROWS; }

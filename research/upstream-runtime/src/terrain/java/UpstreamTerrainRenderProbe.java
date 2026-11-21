@@ -39,8 +39,9 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
         }
     }
 
-    void buildCatalog(byte[] labels, int selected, boolean previous, boolean next, boolean categories) {
-        NativeTerrain.buildCatalog(Address.ofData(labels), selected, previous ? 1 : 0, next ? 1 : 0, categories ? 1 : 0);
+    int buildCatalog(byte[] labels, int[] icons, int selected, boolean previous, boolean next, boolean categories) {
+        return NativeTerrain.buildCatalog(Address.ofData(labels), Address.ofData(icons), selected,
+            previous ? 1 : 0, next ? 1 : 0, categories ? 1 : 0);
     }
 
     @Override
@@ -99,6 +100,7 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
                                        int rotatable, int catalogOpen, int configuring);
 
         @Import(name = "m3ds_terrain_build_catalog")
-        static native void buildCatalog(Address labels, int selected, int previous, int next, int categories);
+        static native int buildCatalog(Address labels, Address icons, int selected,
+                                       int previous, int next, int categories);
     }
 }

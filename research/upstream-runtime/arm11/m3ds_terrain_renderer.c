@@ -3,6 +3,7 @@
 #include <3ds.h>
 #include <citro2d.h>
 #include <math.h>
+#include <stdio.h>
 #include <string.h>
 
 typedef struct {
@@ -23,6 +24,11 @@ static C3D_RenderTarget *palette;
 static C2D_TextBuf palette_buffer;
 static C2D_Text palette_labels[7];
 static C2D_TextBuf catalog_buffer;
+static struct {
+    C2D_SpriteSheet sheet;
+    int32_t id;
+    bool categories, requested;
+} menu_icons[6];
 static float world_left, world_bottom, scale, screen_left, screen_bottom;
 static int32_t draws;
 
@@ -229,8 +235,28 @@ static void catalog_label(const char *text, float x, float y, float scale, u32 c
     C2D_DrawText(&label, C2D_WithColor | C2D_AlignCenter, x, y, 0.5f, scale, scale, color);
 }
 
-void m3ds_terrain_build_catalog(const char *labels, int32_t selected, int32_t previous, int32_t next,
-                                 int32_t categories) {
+static bool draw_menu_icon(int row, int32_t id, bool categories, float y) {
+    if (id < 0) return false;
+    if (!menu_icons[row].requested || menu_icons[row].id != id || menu_icons[row].categories != categories) {
+        // FrameBegin completed the previous frame before any row texture can be replaced.
+        if (menu_icons[row].sheet) C2D_SpriteSheetFree(menu_icons[row].sheet);
+        menu_icons[row].id = id;
+        menu_icons[row].categories = categories;
+        menu_icons[row].requested = true;
+        char path[48];
+        snprintf(path, sizeof(path), "romfs:/catalog/%s-%ld.t3x", categories ? "block" : "item", (long)id);
+        menu_icons[row].sheet = C2D_SpriteSheetLoad(path);
+    }
+    if (!menu_icons[row].sheet) return false;
+    C2D_Image image = C2D_SpriteSheetGetImage(menu_icons[row].sheet, 0);
+    C3D_TexSetFilter(image.tex, GPU_NEAREST, GPU_NEAREST);
+    float icon_scale = fminf(20.0f / image.subtex->width, 20.0f / image.subtex->height);
+    return C2D_DrawImageAt(image, 27 - image.subtex->width * icon_scale / 2,
+        y + (23 - image.subtex->height * icon_scale) / 2, 0.5f, NULL, icon_scale, icon_scale);
+}
+
+int32_t m3ds_terrain_build_catalog(const char *labels, const int32_t *icons, int32_t selected,
+                                    int32_t previous, int32_t next, int32_t categories) {
     const u32 panel = C2D_Color32(45, 52, 64, 255), text = C2D_Color32(239, 241, 247, 255);
     const u32 selected_panel = C2D_Color32(85, 71, 52, 255), accent = C2D_Color32(250, 213, 107, 255);
     C2D_TextBufClear(catalog_buffer);
@@ -241,12 +267,14 @@ void m3ds_terrain_build_catalog(const char *labels, int32_t selected, int32_t pr
         catalog_label(">", 285, 15, 0.55f, text);
     }
     catalog_label(labels, 160, 15, 0.52f, text);
+    int32_t visible_icons = 0;
     for (int row = 0; row < 6; row++) {
         labels += strlen(labels) + 1;
         if (!*labels) continue;
         float y = 44 + row * 25;
         C2D_DrawRectSolid(8, y, 0.5f, 304, 23, row == selected ? selected_panel : panel);
-        catalog_label(labels, 160, y + 4, 0.50f, row == selected ? accent : text);
+        if (draw_menu_icon(row, icons[row], categories != 0, y)) visible_icons++;
+        catalog_label(labels, 177, y + 4, 0.50f, row == selected ? accent : text);
     }
     if (previous) {
         C2D_DrawRectSolid(8, 201, 0.5f, 88, 34, panel);
@@ -258,10 +286,15 @@ void m3ds_terrain_build_catalog(const char *labels, int32_t selected, int32_t pr
         C2D_DrawRectSolid(224, 201, 0.5f, 88, 34, panel);
         catalog_label("Next page", 268, 212, 0.45f, text);
     }
+    return visible_icons;
 }
 
 void m3ds_terrain_fini(void) {
     if (frame_open) m3ds_terrain_end();
+    if (gpu_ready && C3D_FrameBegin(0)) C3D_FrameEnd(0);
+    for (size_t row = 0; row < sizeof(menu_icons) / sizeof(menu_icons[0]); row++) {
+        if (menu_icons[row].sheet) C2D_SpriteSheetFree(menu_icons[row].sheet);
+    }
     if (palette_buffer) C2D_TextBufDelete(palette_buffer);
     if (catalog_buffer) C2D_TextBufDelete(catalog_buffer);
     if (palette) C3D_RenderTargetDelete(palette);

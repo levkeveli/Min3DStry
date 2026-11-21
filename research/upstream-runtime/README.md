@@ -420,6 +420,40 @@ German or `pt_BR` for Brazilian Portuguese. A missing or unknown code
 uses the console language. Some controls specific to the 3DS probe still
 use English labels.
 
+The touchscreen block catalog and Sorter item menu draw their original
+icons. Multiplayer asset preparation uses the stock v160.8 registry and
+`UnlockableContent.loadIcon` to select each texture by the upstream ID.
+It exports 425 block icons and all 22 item icons. The renderer keeps up
+to six icon textures resident, with a combined texel budget of at most
+384 KiB. It replaces each row's old texture after the preceding GPU
+frame completes.
+
+To verify the original crops and 3DS texture pixels independently, run
+these commands from the repository root with the pinned asset and server
+JARs and tex3ds v2.3.0 on PATH. The first command writes to a new
+verification directory.
+
+```sh
+mkdir menu-icon-reference
+java -Djava.awt.headless=true -cp /path/to/server-release.jar \
+  tools/UpstreamSpriteAtlas.java /path/to/assets.jar menu-icon-reference --menu-icons
+java tests/tools/VerifyUpstreamMenuIcons.java menu-icon-reference
+```
+
+The verifier compares the generated headers, alpha bytes and all visible
+RGBA texels against devkitPro's tex3ds output. It compares transparent RGB
+against the exported PNG because tex3ds clears RGB where alpha is zero.
+
+Add `--menu-icons` to the `--touch-config --controls-replay` verifier
+to check six rendered block icons and six item icons in both touchscreen
+captures.
+
+The [icon build](https://github.com/levkeveli/Min3DStry/actions/runs/44857778814)
+passed this replay on both Azahar 2126.2 profiles with German labels.
+Both captures showed the original Distribution and Sorter menu icons.
+The stock server accepted the same Copper, Lead and clear configuration
+sequence and both clients reached wave 2 and disconnected normally.
+
 Loading the German bundle exposed a monitor exception during the original
 `PlanetGrid.create` subdivision on ARM11. In the graphical build that
 method runs synchronously on TeaVM C's cooperative execution lane. The

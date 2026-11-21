@@ -17,6 +17,7 @@ final class UpstreamBuildMenu {
     private boolean open;
     private int page;
     private byte[] labels;
+    private final int[] iconIds = new int[ROWS];
 
     void open(Block selected) {
         open = true;
@@ -67,6 +68,9 @@ final class UpstreamBuildMenu {
             if (index < entries.size) {
                 var block = entries.get(index);
                 pageLabels.append(block.localizedName == null ? block.name : block.localizedName);
+                iconIds[row] = block.id;
+            } else {
+                iconIds[row] = -1;
             }
             pageLabels.append('\0');
         }
@@ -77,6 +81,7 @@ final class UpstreamBuildMenu {
 
     boolean isOpen() { return open; }
     byte[] labels() { return labels; }
+    int[] iconIds() { return iconIds; }
     boolean previousPage() { return page > 0; }
     boolean nextPage() { return (page + 1) * ROWS < entries.size; }
     int selectedRow(Block block) { return entries.indexOf(block, true) - page * ROWS; }

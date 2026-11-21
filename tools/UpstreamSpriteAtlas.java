@@ -1,12 +1,19 @@
+import arc.Core;
+import arc.Settings;
 import arc.files.Fi;
+import arc.graphics.Texture;
+import arc.graphics.g2d.TextureAtlas;
 import arc.graphics.g2d.TextureAtlas.TextureAtlasData;
 import arc.graphics.g2d.TextureAtlas.TextureAtlasData.AtlasPage;
 import arc.graphics.g2d.TextureAtlas.TextureAtlasData.Region;
+import arc.mock.MockApplication;
 
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -14,6 +21,11 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.zip.ZipFile;
 import javax.imageio.ImageIO;
+import mindustry.Vars;
+import mindustry.core.ContentLoader;
+import mindustry.core.GameState;
+import mindustry.ctype.UnlockableContent;
+import mindustry.world.meta.BuildVisibility;
 
 // Host-side tooling. Arc reads the original atlas metadata without creating GL textures.
 class UpstreamSpriteAtlas {
@@ -36,6 +48,10 @@ class UpstreamSpriteAtlas {
             Map<String, Region> regions = writeInventory(atlas, output);
             // Keep only one decoded upstream page in memory at a time.
             Path sprites = Files.createDirectory(output.resolve("png"));
+            if (args.length == 3 && args[2].equals("--menu-icons")) {
+                exportMenuIcons(archive, atlas, regions, output, sprites);
+                return;
+            }
             int exported = 0;
             for (AtlasPage page : atlas.getPages()) {
                 BufferedImage source = null;
@@ -46,12 +62,110 @@ class UpstreamSpriteAtlas {
                     }
                     if (region.page != page) continue;
                     if (source == null) source = readPage(archive, page);
-                    exportRegion(source, region, sprites);
+                    exportRegion(source, region, sprites.resolve(region.name + ".png"));
                     exported++;
                 }
             }
             System.out.printf("Upstream atlas: %d pages, %d regions, %d exported%n",
                 atlas.getPages().size, atlas.getRegions().size, exported);
+        }
+    }
+
+    private static void exportMenuIcons(ZipFile archive, TextureAtlasData atlas, Map<String, Region> regions,
+            Path output, Path sprites) throws IOException {
+        var lookup = new TextureAtlas();
+        for (AtlasPage page : atlas.getPages()) {
+            var texture = new InventoryTexture(page.width, page.height);
+            for (Region region : atlas.getRegions()) {
+                if (region.page == page) {
+                    lookup.addRegion(region.name, texture, region.left, region.top, region.width, region.height);
+                }
+            }
+        }
+        if (!lookup.setErrorRegion("error")) throw new IOException("Missing original error region");
+        Core.atlas = lookup;
+        Core.app = new MockApplication();
+        Core.settings = new Settings();
+        Vars.headless = true;
+        Vars.state = new GameState();
+        Vars.content = new ContentLoader();
+        Vars.content.createBaseContent();
+        Vars.content.init();
+
+        Map<String, Region> icons = new LinkedHashMap<>();
+        Path catalog = Files.createDirectory(output.resolve("catalog"));
+        try (var manifest = Files.newBufferedWriter(output.resolve("menu-icons.tsv"))) {
+            manifest.write("file\tcontent\tregion\twidth\theight\n");
+            for (var block : Vars.content.blocks()) {
+                addMenuIcon(block, "block", block.placeablePlayer && block.buildVisibility != BuildVisibility.hidden,
+                    regions, icons, manifest);
+            }
+            for (var item : Vars.content.items()) {
+                addMenuIcon(item, "item", true, regions, icons, manifest);
+            }
+        }
+        for (AtlasPage page : atlas.getPages()) {
+            BufferedImage source = null;
+            for (var entry : icons.entrySet()) {
+                var region = entry.getValue();
+                if (region.page != page) continue;
+                if (source == null) source = readPage(archive, page);
+                var pixels = exportRegion(source, region, sprites.resolve(entry.getKey() + ".png"));
+                writeMenuTexture(pixels, catalog.resolve(entry.getKey() + ".t3x"));
+            }
+        }
+        System.out.printf("Original menu icons: %d of %d blocks, %d items%n",
+            icons.size() - Vars.content.items().size, Vars.content.blocks().size, Vars.content.items().size);
+    }
+
+    /** Tex3DS single-region, uncompressed RGBA8 sheet. Pixels are tiled in Morton order. */
+    private static void writeMenuTexture(BufferedImage image, Path file) throws IOException {
+        int sw = image.getWidth(), sh = image.getHeight();
+        if (sw > 128 || sh > 128) throw new IOException("Menu texture exceeds 128 pixels: " + file);
+        int width = Math.max(8, Integer.highestOneBit(sw - 1) << 1);
+        int height = Math.max(8, Integer.highestOneBit(sh - 1) << 1);
+        int dimensions = (Integer.numberOfTrailingZeros(width) - 3)
+            | ((Integer.numberOfTrailingZeros(height) - 3) << 3);
+        int size = width * height * 4;
+        var data = ByteBuffer.allocate(21 + size).order(ByteOrder.LITTLE_ENDIAN);
+        data.putShort((short) 1).put((byte) dimensions).put((byte) 0).put((byte) 0);
+        data.putShort((short) sw).putShort((short) sh).putShort((short) 0).putShort((short) 1024)
+            .putShort((short) (1024 * sw / width)).putShort((short) (1024 - 1024 * sh / height));
+        data.putInt(size << 8);
+        for (int y = 0; y < sh; y++) {
+            for (int x = 0; x < sw; x++) {
+                int tile = (y / 8) * (width / 8) + x / 8;
+                int offset = 0;
+                for (int bit = 0; bit < 3; bit++) {
+                    offset |= ((x >> bit) & 1) << (2 * bit);
+                    offset |= ((y >> bit) & 1) << (2 * bit + 1);
+                }
+                int argb = image.getRGB(x, y);
+                data.putInt(21 + (tile * 64 + offset) * 4, (argb << 8) | (argb >>> 24));
+            }
+        }
+        Files.write(file, data.array());
+    }
+
+    private static void addMenuIcon(UnlockableContent content, String kind, boolean required,
+            Map<String, Region> regions, Map<String, Region> icons, java.io.Writer manifest) throws IOException {
+        content.loadIcon();
+        var icon = content.uiIcon;
+        if (!(icon instanceof TextureAtlas.AtlasRegion named) || !icon.found()) {
+            if (required) throw new IOException("No original menu icon for " + kind + " " + content.name);
+            return;
+        }
+        var region = regions.get(named.name);
+        String file = kind + "-" + content.id;
+        icons.put(file, region);
+        manifest.write(String.join("\t", file, content.name, region.name, Integer.toString(region.width),
+            Integer.toString(region.height)) + "\n");
+    }
+
+    private static final class InventoryTexture extends Texture {
+        InventoryTexture(int width, int height) {
+            this.width = width;
+            this.height = height;
         }
     }
 
@@ -94,12 +208,11 @@ class UpstreamSpriteAtlas {
         }
     }
 
-    private static void exportRegion(BufferedImage source, Region region, Path sprites)
+    private static BufferedImage exportRegion(BufferedImage source, Region region, Path destination)
             throws IOException {
         if (region.rotate) {
             throw new IOException("Unexpected rotation in the pinned Arc atlas: " + region.name);
         }
-        Path destination = sprites.resolve(region.name + ".png");
         BufferedImage pixels = source.getSubimage(region.left, region.top, region.width, region.height);
         if (!ImageIO.write(pixels, "PNG", destination.toFile())) {
             throw new IOException("PNG encoder unavailable");
@@ -109,6 +222,7 @@ class UpstreamSpriteAtlas {
                 || !Arrays.equals(argb(pixels), argb(saved))) {
             throw new IOException("PNG changed original pixels for " + region.name);
         }
+        return pixels;
     }
 
     private static int[] argb(BufferedImage image) {
