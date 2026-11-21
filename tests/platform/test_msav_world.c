@@ -254,7 +254,7 @@ static void test_alloc_building(void) {
     size = put_region(data, size, patches, sizeof(patches));
     size = put_region(data, size, content, sizeof(content));
 
-    uint8_t map[32];
+    uint8_t map[64];
     size_t map_size = 0u;
     map_size += put_be16(map + map_size, 1u);
     map_size += put_be16(map + map_size, 1u);

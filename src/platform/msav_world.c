@@ -261,7 +261,9 @@ static bool parse_entities(
     }
     uint32_t teams = read_be32(data + position);
     position += 4u;
-    if (teams > 64u) {
+    // Upstream Team.all currently has 256 entries; keep a format-level bound
+    // rather than the previous 64-entry heuristic.
+    if (teams > 256u) {
         return false;
     }
     out->entity_teams = teams;
@@ -294,7 +296,9 @@ static bool parse_entities(
         }
         uint32_t length = read_be32(data + position);
         position += 4u;
-        if (length < 5u || length > end - position) {
+        // Entity records are opaque here; only a zero or oversized chunk is
+        // structurally invalid. Do not assume a minimum entity payload size.
+        if (length == 0u || length > end - position) {
             return false;
         }
         position += length;
