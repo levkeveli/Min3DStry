@@ -34,6 +34,7 @@ typedef struct LiveSoundStream {
     M3dsNdspStreamContext backend;
     M3dsAudioStdioStreamSource file;
     int32_t voice;
+    int32_t sound_id;
 } LiveSoundStream;
 
 static M3dsAudioMixer mixer;
@@ -244,11 +245,12 @@ static int32_t play_stream(int32_t id, const M3dsAudioIndexEntry *entry,
             voice = (int32_t)(STREAM_VOICE_FLAG | stream_voice_serial);
         } while (find_stream_voice(voice) != NULL);
         slot->voice = voice;
+        slot->sound_id = id;
     }
     if (!reported_stream[id]) {
         reported_stream[id] = true;
-        log_audio("UPSTREAM_LIVE_STREAM_PLAY id=%ld volume=%.3f pitch=%.3f pan=%.3f voice=%ld frames=%u\n",
-            (long)id, (double)volume, (double)pitch, (double)pan, (long)slot->voice, entry->frames);
+        log_audio("UPSTREAM_LIVE_STREAM_PLAY id=%ld volume=%.3f pitch=%.3f pan=%.3f voice=%ld frames=%u loop=%d\n",
+            (long)id, (double)volume, (double)pitch, (double)pan, (long)slot->voice, entry->frames, loop);
     }
     return slot->voice;
 }
@@ -298,9 +300,9 @@ int32_t m3ds_live_audio_play(int32_t id, float volume, float pitch, float pan, i
     uint32_t voice = m3ds_audio_mixer_play(&mixer, clip, &params);
     play_requests++;
     if (cache_loads != loads_before) {
-        log_audio("UPSTREAM_LIVE_AUDIO_PLAY id=%ld volume=%.3f pitch=%.3f pan=%.3f voice=%lu pcmBytes=%u\n",
+        log_audio("UPSTREAM_LIVE_AUDIO_PLAY id=%ld volume=%.3f pitch=%.3f pan=%.3f voice=%lu pcmBytes=%u loop=%d\n",
             (long)id, (double)volume, (double)pitch, (double)pan, (unsigned long)voice,
-            (unsigned)resident_bytes);
+            (unsigned)resident_bytes, params.looping);
     }
     return (int32_t)voice;
 }
@@ -313,6 +315,26 @@ void m3ds_live_audio_stop(int32_t voice) {
     LiveSoundStream *stream = find_stream_voice(voice);
     if (stream) m3ds_audio_stream_stop(&stream->audio);
     else m3ds_audio_mixer_stop(&mixer, (uint32_t)voice);
+}
+
+void m3ds_live_audio_stop_source(int32_t id) {
+    if ((uint32_t)id >= M3DS_STOCK_SOUND_COUNT) return;
+    const M3dsAudioIndexEntry *entry = &m3ds_audio_index[id];
+    for (size_t i = 0; i < M3DS_AUDIO_MAX_CLIPS; i++) {
+        if (resident[i].entry != entry) continue;
+        for (size_t j = 0; j < M3DS_AUDIO_MAX_VOICES; j++) {
+            const M3dsAudioVoiceSlot *voice = &mixer.voices[j];
+            if (voice->active && voice->clip_id == resident[i].clip) {
+                m3ds_audio_mixer_stop(&mixer, voice->handle);
+            }
+        }
+        return;
+    }
+    for (size_t i = 0; i < LIVE_STREAM_LANES; i++) {
+        if (streams[i].sound_id == id && m3ds_audio_stream_is_playing(&streams[i].audio)) {
+            m3ds_audio_stream_stop(&streams[i].audio);
+        }
+    }
 }
 
 void m3ds_live_audio_set_pitch(int32_t voice, float pitch) {
@@ -381,6 +403,7 @@ int32_t m3ds_live_audio_play(int32_t id, float volume, float pitch, float pan, i
 }
 int32_t m3ds_live_audio_is_active(int32_t voice) { (void)voice; return 0; }
 void m3ds_live_audio_stop(int32_t voice) { (void)voice; }
+void m3ds_live_audio_stop_source(int32_t id) { (void)id; }
 void m3ds_live_audio_set_pitch(int32_t voice, float pitch) { (void)voice; (void)pitch; }
 void m3ds_live_audio_set_paused(int32_t voice, int32_t paused) { (void)voice; (void)paused; }
 void m3ds_live_audio_set_mix(int32_t voice, float pan, float volume) {

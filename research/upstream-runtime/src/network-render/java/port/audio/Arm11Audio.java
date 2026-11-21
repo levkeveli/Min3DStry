@@ -14,6 +14,7 @@ import arc.math.Mathf;
 import arc.struct.Seq;
 import arc.util.Time;
 import mindustry.audio.SoundControl;
+import mindustry.gen.Groups;
 import mindustry.gen.Musics;
 import mindustry.gen.Sounds;
 import org.teavm.interop.Import;
@@ -67,8 +68,12 @@ public final class Arm11Audio extends Audio {
         }
     }
 
-    public static void updateMusicControl() {
-        if (Core.audio instanceof Arm11Audio audio && audio.soundtrack != null) audio.soundtrack.update();
+    public static void updateClientAudio(long now) {
+        var controller = musicControl();
+        if (controller != null) {
+            controller.sampleLiveBuildingAmbience(Groups.build, now);
+            controller.update();
+        }
     }
 
     public static SoundControl musicControl() {
@@ -122,6 +127,7 @@ public final class Arm11Audio extends Audio {
 
         void enterWorld() {
             stop();
+            resetLiveBuildingAmbience();
             lastPlayed = Time.millis();
         }
     }
@@ -174,6 +180,11 @@ public final class Arm11Audio extends Audio {
         }
 
         @Override
+        public void stop() {
+            stopSoundSource(Sounds.getSoundId(this));
+        }
+
+        @Override
         protected int playSource(AudioBus bus, float volume, float pitch, float pan, boolean loop) {
             int handle = playSample(Sounds.getSoundId(this), volume, pitch, pan, loop ? 1 : 0);
             return handle == 0 ? -1 : handle;
@@ -191,6 +202,9 @@ public final class Arm11Audio extends Audio {
 
     @Import(name = "m3ds_live_audio_stop")
     private static native void stopVoice(int voice);
+
+    @Import(name = "m3ds_live_audio_stop_source")
+    private static native void stopSoundSource(int soundId);
 
     @Import(name = "m3ds_live_audio_set_pitch")
     private static native void setVoicePitch(int voice, float pitch);

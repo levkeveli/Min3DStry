@@ -484,6 +484,21 @@ CRC32 `3861859253` on every join. Physical audible playback remains open.
 
 ### Sound-effect verification
 
+The live client samples stock building ambience at 20 Hz on the world
+thread. It reuses upstream `SoundControl.AudioThread.doLoop()` to check
+building eligibility, collect gain and position, and pass the result to
+the stock loop mixer and fades. The sampler and loops reset when a new
+world loads. Stopping an Arc sound source releases every cached or
+streamed voice with that stock ID. The separate soundtrack channel keeps
+its own controls.
+
+Add `--verify-building-ambience` to the Glacier weapon replay. The stock
+Java server places an unmodified Mechanical Drill on copper and waits
+for it to become active before the client joins. The verifier checks the
+original loop ID 67 and leftward pan. The JVM reference exercises the
+20 Hz interval and the original fade after drill removal. The host
+mixer mock checks source-wide stop for both short and long effects.
+
 Run `python3 tools/verify_live_stock_audio.py <terrain-assets>` with the
 staged directory to exercise all 205 PCM files through the live mixer and
 streamer on a host. The test holds a looping Gamma firing voice while it

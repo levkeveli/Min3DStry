@@ -7,6 +7,7 @@ int32_t m3ds_live_audio_open(void);
 int32_t m3ds_live_audio_play(int32_t id, float volume, float pitch, float pan, int32_t loop);
 int32_t m3ds_live_audio_is_active(int32_t voice);
 void m3ds_live_audio_stop(int32_t voice);
+void m3ds_live_audio_stop_source(int32_t id);
 void m3ds_live_audio_set_pitch(int32_t voice, float pitch);
 void m3ds_live_audio_set_paused(int32_t voice, int32_t paused);
 void m3ds_live_audio_set_mix(int32_t voice, float pan, float volume);

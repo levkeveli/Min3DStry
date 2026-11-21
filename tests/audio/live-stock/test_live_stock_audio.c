@@ -208,6 +208,24 @@ static void verify_parallel_streams(void) {
     assert(!m3ds_live_audio_is_active(replacement));
 }
 
+static void verify_source_stop(void) {
+    int32_t short_a = m3ds_live_audio_play(117, 0.5f, 1.f, 0.f, 1);
+    int32_t short_b = m3ds_live_audio_play(117, 0.5f, 1.f, 0.f, 0);
+    int32_t other_short = m3ds_live_audio_play(185, 0.5f, 1.f, 0.f, 1);
+    int32_t long_a = m3ds_live_audio_play(6, 0.5f, 1.f, 0.f, 1);
+    int32_t long_b = m3ds_live_audio_play(6, 0.5f, 1.f, 0.f, 0);
+    int32_t other_long = m3ds_live_audio_play(7, 0.5f, 1.f, 0.f, 1);
+    assert(short_a && short_b && other_short && long_a && long_b && other_long);
+
+    m3ds_live_audio_stop_source(117);
+    assert(!m3ds_live_audio_is_active(short_a) && !m3ds_live_audio_is_active(short_b));
+    assert(m3ds_live_audio_is_active(other_short) && m3ds_live_audio_is_active(long_a));
+    m3ds_live_audio_stop_source(6);
+    assert(!m3ds_live_audio_is_active(long_a) && !m3ds_live_audio_is_active(long_b));
+    assert(m3ds_live_audio_is_active(other_long) && m3ds_live_audio_is_active(other_short));
+    m3ds_live_audio_reset();
+}
+
 int main(void) {
     assert(m3ds_live_audio_open() == 1 && uploads == 0);
     int32_t gamma = m3ds_live_audio_play(117, 0.4f, 1.5f, 0.5f, 1);
@@ -243,6 +261,7 @@ int main(void) {
     }
     assert(uploads == M3DS_STOCK_SHORT_COUNT && long_count == 11 && evictions > 0);
     verify_parallel_streams();
+    verify_source_stop();
     m3ds_live_audio_reset();
     assert(!m3ds_live_audio_is_active(gamma));
     m3ds_live_audio_close();
@@ -259,6 +278,6 @@ int main(void) {
     m3ds_live_audio_close();
     assert(resident_bytes == 0 && uploads == ready_uploads);
     printf("LIVE_STOCK_AUDIO readyClips=%u streamed=%u evictions=%u fallback=ok\n",
-           ready_uploads, long_count, evictions);
+           M3DS_STOCK_SHORT_COUNT, long_count, evictions);
     return 0;
 }

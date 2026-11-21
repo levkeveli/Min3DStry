@@ -4,13 +4,19 @@ import arc.Core;
 import arc.Settings;
 import arc.assets.AssetManager;
 import arc.audio.Music;
+import arc.audio.AudioBus;
 import arc.audio.Sound;
+import arc.graphics.Camera;
+import arc.mock.MockAudio;
 import arc.struct.Seq;
+import arc.util.Time;
 import mindustry.Vars;
 import mindustry.audio.MusicContainer;
 import mindustry.audio.SoundControl;
 import mindustry.core.GameState;
+import mindustry.content.Blocks;
 import mindustry.game.Rules;
+import mindustry.game.Team;
 import mindustry.gen.Musics;
 import mindustry.gen.SetRuleCallPacket;
 import mindustry.gen.SetRulesCallPacket;
@@ -51,6 +57,7 @@ public final class Arm11AudioReference {
                 throw new AssertionError("Generated Music fields and stock rule lookup disagree");
             }
             verifyStockRulePlayback(stock);
+            verifyStockBuildingAmbience();
         } finally {
             Core.assets = assets;
             stock.dispose();
@@ -117,5 +124,85 @@ public final class Arm11AudioReference {
         @Override public void setLooping(boolean looping) { loop = looping; }
         @Override public void setVolume(float volume) { gain = volume; }
         @Override public float getVolume() { return gain; }
+    }
+
+    private static void verifyStockBuildingAmbience() {
+        var audio = Core.audio;
+        var camera = Core.camera;
+        var settings = Core.settings;
+        var state = Vars.state;
+        var oldSound = Blocks.mechanicalDrill.ambientSound;
+        float delta = Time.delta;
+        var tile = Vars.world.tile(76, 29);
+        if (tile.build != null) throw new AssertionError("Expected an unoccupied drill fixture tile");
+        var oldBlock = tile.block();
+        var loop = new RecordingLoop();
+        try {
+            Core.audio = new MockAudio() {
+                @Override public boolean initialized() { return true; }
+                @Override public boolean isPlaying(int voice) { return voice == 1 && loop.playing; }
+            };
+            Core.camera = new Camera();
+            Core.camera.width = Core.camera.height = 128f;
+            Core.settings = new Settings();
+            Core.settings.defaults("musicvol", 0, "ambientvol", 100);
+            Vars.state = new GameState();
+            Vars.state.set(GameState.State.playing);
+            Time.delta = 1f;
+            Blocks.mechanicalDrill.ambientSound = loop;
+            tile.setBlock(Blocks.mechanicalDrill, Team.sharded);
+            var drill = tile.build;
+            Core.camera.position.set(drill.x + 32f, drill.y);
+            var controller = new SoundControl();
+            var buildings = Seq.with(drill);
+
+            drill.efficiency = 0f;
+            controller.sampleLiveBuildingAmbience(buildings, 0);
+            for (int tick = 0; tick < 30; tick++) controller.update();
+            if (loop.starts != 0) throw new AssertionError("An idle stock drill played its ambience");
+
+            drill.efficiency = 1f;
+            controller.sampleLiveBuildingAmbience(buildings, 49_000_000L);
+            for (int tick = 0; tick < 30; tick++) controller.update();
+            if (loop.starts != 0) throw new AssertionError("The sampler ran before the stock 20 Hz interval");
+
+            controller.sampleLiveBuildingAmbience(buildings, 50_000_000L);
+            for (int tick = 0; tick < 30; tick++) controller.update();
+            if (loop.starts != 1 || !loop.playing) throw new AssertionError("The stock drill loop did not start");
+
+            tile.setBlock(Blocks.air);
+            controller.sampleLiveBuildingAmbience(buildings, 100_000_000L);
+            for (int tick = 0; tick < 120; tick++) controller.update();
+            if (loop.playing || loop.stops != 1) throw new AssertionError("Removed drill loop did not fade out and stop");
+            System.out.println("UPSTREAM_BUILDING_AMBIENCE_REFERENCE drill=ok cadence=20 pan=-0.5 removal=ok");
+        } finally {
+            tile.setBlock(oldBlock);
+            Blocks.mechanicalDrill.ambientSound = oldSound;
+            Core.audio = audio;
+            Core.camera = camera;
+            Core.settings = settings;
+            Vars.state = state;
+            Time.delta = delta;
+        }
+    }
+
+    private static final class RecordingLoop extends Sound {
+        int starts;
+        int stops;
+        boolean playing;
+
+        @Override public boolean valid() { return true; }
+
+        @Override
+        protected int playSource(AudioBus bus, float volume, float pitch, float pan, boolean looping) {
+            if (!looping || volume <= 0f || pitch != 1f || pan != -0.5f) {
+                throw new AssertionError("Stock drill loop parameters changed");
+            }
+            starts++;
+            playing = true;
+            return 1;
+        }
+
+        @Override public void stop() { stops++; playing = false; }
     }
 }

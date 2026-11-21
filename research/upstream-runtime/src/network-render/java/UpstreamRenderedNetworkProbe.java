@@ -216,7 +216,7 @@ public final class UpstreamRenderedNetworkProbe {
         float delta = Math.min(frameSeconds * 60f, Vars.maxDeltaClient);
         Time.delta = delta;
         try {
-            Arm11Audio.updateMusicControl();
+            Arm11Audio.updateClientAudio(now);
             if (Vars.state.isPaused()) return;
             Time.update();
             for (var build : Groups.build) {

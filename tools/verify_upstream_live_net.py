@@ -1628,6 +1628,38 @@ def verify_live_weapon_audio(log, model):
     print(f"{model}: {streamed[0]}", flush=True)
 
 
+def set_stock_ambience_fixture(server_log, server):
+    server.stdin.write(
+        'js (() => { const team = Vars.state.rules.defaultTeam; '
+        'for (let x = 74; x <= 77; x++) for (let y = 29; y <= 30; y++) { '
+        'const tile = Vars.world.tile(x, y); if (tile.build != null) throw "Occupied drill fixture"; '
+        'tile.setFloor(Blocks.stone); } '
+        'Vars.world.tile(74, 29).setBlock(Blocks.container, team); '
+        'const tile = Vars.world.tile(76, 29); tile.setBlock(Blocks.mechanicalDrill, team); '
+        'tile.setOverlay(Blocks.oreCopper); '
+        'let reported = false; Events.run(Packages.mindustry.game.EventType.Trigger.update, () => { '
+        'if (!reported && tile.build != null && tile.build.shouldAmbientSound()) { '
+        'reported = true; print("UPSTREAM_STOCK_DRILL_ACTIVE id=67 efficiency=" + tile.build.efficiency); } }); '
+        'return "UPSTREAM_STOCK_AMBIENCE_FIXTURE drill=76,29 id=" + '
+        'Sounds.getSoundId(Vars.world.build(76,29).getAmbientSound()); })()\n'
+    )
+    server.stdin.flush()
+    wait_for(server_log, server, r"UPSTREAM_STOCK_AMBIENCE_FIXTURE drill=76,29 id=67\b", 5)
+    wait_for(server_log, server, r"UPSTREAM_STOCK_DRILL_ACTIVE id=67 efficiency=1\b", 5)
+
+
+def verify_stock_building_ambience(text, model):
+    emitted = re.search(rf"UPSTREAM_LIVE_AUDIO_PLAY id=67 volume=({NUMBER}) pitch=1\.000 "
+                        rf"pan=({NUMBER}) voice=(\d+) pcmBytes=\d+ loop=1\b", text)
+    if (not emitted or not 0.01 <= float(emitted[1]) <= 1
+            or not -0.9 <= float(emitted[2]) < 0):
+        raise RuntimeError(f"{model} did not route the stock drill loop with its leftward pan")
+    ready = "state=ready" in text
+    if ready != (int(emitted[3]) > 0):
+        raise RuntimeError(f"{model} drill voice disagrees with the DSP state")
+    print(f"{model}: stock Mechanical Drill ambience. {emitted[0]}", flush=True)
+
+
 def set_stock_music_fixture(server_log, server):
     server.stdin.write(
         'js (() => { const rules = Vars.state.rules; '
@@ -1711,6 +1743,8 @@ def run_model(args, model, config, original_config, log, output):
         )
         try:
             rules = "survival" if args.map_spawn else "attack"
+            if args.verify_building_ambience:
+                server.stdin.write("config autoPause false\n")
             server.stdin.write(f"config port {args.port}\nhost {map_name.replace(' ', '_')} {rules}\n")
             server.stdin.flush()
             wait_for(server_log, server, f"Opened a server on port {args.port}\\.", 25)
@@ -1719,6 +1753,8 @@ def run_model(args, model, config, original_config, log, output):
                 watch_player_weapons(server_log, server)
             if args.verify_live_music:
                 set_stock_music_fixture(server_log, server)
+            if args.verify_building_ambience:
+                set_stock_ambience_fixture(server_log, server)
             if args.verify_canvas or args.verify_canvas_quads or args.verify_client_processor:
                 load_canvas_fixture(server_log, server, offscreen=args.verify_canvas_quads)
             if args.verify_client_processor:
@@ -1877,6 +1913,8 @@ def run_model(args, model, config, original_config, log, output):
                         verify_live_weapon_audio(audio_log, model)
                     if args.verify_live_music:
                         verify_stock_music(log, emulator, model, args.timeout)
+                    if args.verify_building_ambience:
+                        verify_stock_building_ambience(emu_log, model)
                 elif args.controls:
                     def capture(phase, position):
                         if args.world_atlas_recycle and phase == "spawn":
@@ -2177,6 +2215,8 @@ def main():
                         help="Check local Gamma fire and stock server requests for cached and streamed effects")
     parser.add_argument("--verify-live-music", action="store_true",
                         help="Check the stock live soundtrack selection and native Vorbis decoder")
+    parser.add_argument("--verify-building-ambience", action="store_true",
+                        help="Verify the stock Mechanical Drill emits positional loop audio")
     args = parser.parse_args()
     if args.controls_rejoin and (not args.controls or args.controls_replay or not args.terrain_atlas
                                  or args.map_spawn not in MAP_SPAWN_PIXELS or args.verify_objective_markers
@@ -2201,6 +2241,8 @@ def main():
         parser.error("--verify-live-audio needs --verify-weapons and --terrain-atlas on Glacier")
     if args.verify_live_music and (not args.verify_weapons or not args.terrain_atlas):
         parser.error("--verify-live-music needs --verify-weapons and --terrain-atlas on Glacier")
+    if args.verify_building_ambience and (not args.verify_weapons or not args.terrain_atlas):
+        parser.error("--verify-building-ambience needs --verify-weapons and --terrain-atlas on Glacier")
     if args.building and not args.terrain_atlas:
         parser.error("--building needs --terrain-atlas")
     if args.touch_build and not args.terrain_atlas:

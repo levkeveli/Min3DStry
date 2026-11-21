@@ -439,12 +439,54 @@ tasks.register('prepareUpstreamProbe') {
                 'protected AudioFilter filter = new BiquadFilter()': 'protected AudioFilter filter = headless ? null : new BiquadFilter()',
                 'state.isGame() && Core.scene.hasDialog()': 'state.isGame() && Core.scene != null && Core.scene.hasDialog()',
                 'if(ui.planet.isShown())': 'if(ui != null && ui.planet.isShown())',
-                'else if(ui.editor.isShown())': 'else if(ui != null && ui.editor.isShown())'
+                'else if(ui.editor.isShown())': 'else if(ui != null && ui.editor.isShown())',
+                'LinkedBlockingQueue<AmbientSource> inputSources = new LinkedBlockingQueue<>();':
+                    'final java.util.ArrayDeque<AmbientSource> inputSources = new java.util.ArrayDeque<>();',
+                'ambientThread.inputSources.add(source);':
+                    '''synchronized(ambientThread.inputSources){
+                ambientThread.inputSources.add(source);
+            }''',
+                '''            while((source = inputSources.poll()) != null){
+                sources.add(source);
+            }''':
+                    '''            synchronized(inputSources){
+                while((source = inputSources.poll()) != null){
+                    sources.add(source);
+                }
+            }'''
             ]
             musicCompatibility.each { original, replacement ->
                 if (musicControl.count(original) != 1) throw new GradleException('Pinned soundtrack control changed')
                 musicControl = musicControl.replace(original, replacement)
             }
+            def loopMixer = '    protected void updateLoops(){'
+            if (musicControl.count(loopMixer) != 1) throw new GradleException('Pinned ambient loop mixer changed')
+            musicControl = musicControl.replace(loopMixer, '''    private long lastLiveBuildingSample;
+
+    /** Use the stock 20 Hz sampler on the live ARM11 world thread. */
+    public void sampleLiveBuildingAmbience(Iterable<? extends AmbientSource> buildings, long now){
+        if(!state.isPlaying()) return;
+        if(ambientThread == null){
+            ambientThread = new AudioThread();
+        }else if(now - lastLiveBuildingSample < AudioThread.targetNanos){
+            return;
+        }
+        lastLiveBuildingSample = now;
+        ambientThread.sources.clear();
+        for(var building : buildings){
+            if(building.getAmbientSound() != Sounds.none) ambientThread.sources.add(building);
+        }
+        ambientThread.doLoop();
+    }
+
+    protected void resetLiveBuildingAmbience(){
+        ambientThread = null;
+        localData.clear();
+        sounds.clear();
+        lastLiveBuildingSample = 0L;
+    }
+
+    protected void updateLoops(){''')
             def adaptedMusicControl = sourceDir.get().file('mindustry/audio/SoundControl.java').asFile
             adaptedMusicControl.parentFile.mkdirs()
             adaptedMusicControl.setText(musicControl, 'UTF-8')
