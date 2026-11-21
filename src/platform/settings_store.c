@@ -14,6 +14,21 @@ static bool file_exists(const char *path) {
     return true;
 }
 
+static bool file_size(const char *path, uint32_t *bytes) {
+    FILE *f = fopen(path, "rb");
+    if (!f) {
+        return false;
+    }
+    bool ok = fseek(f, 0L, SEEK_END) == 0;
+    long length = ok ? ftell(f) : -1;
+    fclose(f);
+    if (!ok || length < 0) {
+        return false;
+    }
+    *bytes = (uint32_t)length;
+    return true;
+}
+
 typedef enum ReadStatus {
     READ_OK = 0,
     READ_MISSING = 1,
@@ -162,6 +177,24 @@ bool m3ds_settings_store_read(
         return false;
     }
     return read_file_status(backup, out, capacity, out_size) == READ_OK;
+}
+
+bool m3ds_settings_store_status(
+    const char *root,
+    M3dsSettingsStatus *out) {
+    if (!root || !out) {
+        return false;
+    }
+    memset(out, 0, sizeof(*out));
+    char path[128];
+    char backup[128];
+    if (!m3ds_sd_settings_path(root, path, sizeof(path)) ||
+        !m3ds_sd_settings_backup_path(root, backup, sizeof(backup))) {
+        return false;
+    }
+    out->primary_present = file_size(path, &out->primary_bytes);
+    out->backup_present = file_size(backup, &out->backup_bytes);
+    return true;
 }
 
 bool m3ds_sector_store_write(
