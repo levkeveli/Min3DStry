@@ -16,6 +16,9 @@ typedef struct {
 #include "terrain_layout.h"
 #ifdef M3DS_STOCK_FONT
 #include "m3ds_stock_text.h"
+
+/* Each label is laid out and drawn synchronously by the renderer. */
+static M3DS_StockText stock_text;
 #endif
 #ifdef M3DS_WORLD_ATLAS
 #include "m3ds_world_fragment.h"
@@ -417,7 +420,7 @@ int32_t m3ds_terrain_palette_active(void) {
 #ifdef M3DS_STOCK_FONT
 static bool draw_stock_menu_label(const char *text, float x, float y, float system_scale,
                                   float max_width, u32 color) {
-    int32_t characters[menu_label_glyphs * M3DS_STOCK_TEXT_FIELDS];
+    static int32_t characters[menu_label_glyphs * M3DS_STOCK_TEXT_FIELDS];
     int32_t count = 0;
     while (*text) {
         if (count == menu_label_glyphs) return false;
@@ -431,11 +434,10 @@ static bool draw_stock_menu_label(const char *text, float x, float y, float syst
         ++count;
         text += bytes;
     }
-    M3DS_StockText stock;
-    if (!m3ds_stock_text_layout(&stock, characters, count, false)) return false;
+    if (!m3ds_stock_text_layout(&stock_text, characters, count, false)) return false;
     // Match the line height of the existing 30 px system-font labels.
-    float fit = fminf(system_scale * 30.0f / stock.height, max_width / fmaxf(1.0f, stock.width));
-    m3ds_stock_text_draw(&stock, x - stock.width * fit * 0.5f, y, fit, fit, 0, NULL);
+    float fit = fminf(system_scale * 30.0f / stock_text.height, max_width / fmaxf(1.0f, stock_text.width));
+    m3ds_stock_text_draw(&stock_text, x - stock_text.width * fit * 0.5f, y, fit, fit, 0, NULL);
     return true;
 }
 #endif
@@ -553,12 +555,11 @@ float m3ds_terrain_draw_objective(const char *label, const int32_t *characters, 
     float font_scale, text_width, text_height;
     bool using_stock = false;
 #ifdef M3DS_STOCK_FONT
-    M3DS_StockText stock;
-    using_stock = m3ds_stock_text_layout(&stock, characters, count, false);
+    using_stock = m3ds_stock_text_layout(&stock_text, characters, count, false);
     if (using_stock) {
-        font_scale = fminf(0.73f, (230.0f - inset) / fmaxf(1.0f, stock.width));
-        text_width = stock.width * font_scale;
-        text_height = stock.height * font_scale;
+        font_scale = fminf(0.73f, (230.0f - inset) / fmaxf(1.0f, stock_text.width));
+        text_width = stock_text.width * font_scale;
+        text_height = stock_text.height * font_scale;
     }
 #else
     (void)characters;
@@ -592,7 +593,7 @@ float m3ds_terrain_draw_objective(const char *label, const int32_t *characters, 
     }
 #ifdef M3DS_STOCK_FONT
     if (using_stock) {
-        m3ds_stock_text_draw(&stock, x + inset, y + 5.0f, font_scale, font_scale, -1, draw_label_art);
+        m3ds_stock_text_draw(&stock_text, x + inset, y + 5.0f, font_scale, font_scale, -1, draw_label_art);
         *stock_font = 1;
         return y + panel_height + 3.0f;
     }
@@ -628,13 +629,12 @@ int32_t m3ds_terrain_draw_world_label(const char *label, const int32_t *characte
     bool outline = (flags & 2) != 0;
     bool using_stock = false;
 #ifdef M3DS_STOCK_FONT
-    M3DS_StockText stock;
-    using_stock = m3ds_stock_text_layout(&stock, characters, count, outline);
+    using_stock = m3ds_stock_text_layout(&stock_text, characters, count, outline);
     if (using_stock) {
         scale_y = 0.25f * size * scale;
-        scale_x = fminf(scale_y, (screen_right - screen_left - 8.0f) / fmaxf(1.0f, stock.width));
-        width = stock.width * scale_x;
-        height = stock.height * scale_y;
+        scale_x = fminf(scale_y, (screen_right - screen_left - 8.0f) / fmaxf(1.0f, stock_text.width));
+        width = stock_text.width * scale_x;
+        height = stock_text.height * scale_y;
     }
 #else
     (void)characters;
@@ -672,7 +672,7 @@ int32_t m3ds_terrain_draw_world_label(const char *label, const int32_t *characte
     }
 #ifdef M3DS_STOCK_FONT
     if (using_stock) {
-        m3ds_stock_text_draw(&stock, sx, sy, scale_x, scale_y, lines, draw_label_art);
+        m3ds_stock_text_draw(&stock_text, sx, sy, scale_x, scale_y, lines, draw_label_art);
         return 2;
     }
 #endif

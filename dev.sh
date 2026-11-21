@@ -139,6 +139,10 @@ case "${1:-}" in
       src/platform/memory_budget.c tests/platform/test_memory_budget.c -o build/host/test_memory_budget
     ./build/host/test_memory_budget
 
+    "$host_cc" -std=c11 -Wall -Wextra -Werror -Iresearch/upstream-runtime/arm11 \
+      tests/platform/test_array_class_pool.c -o build/host/test_array_class_pool
+    ./build/host/test_array_class_pool
+
     "$host_cc" -std=c11 -Wall -Wextra -Werror -Iinclude \
       src/platform/sd_paths.c tests/platform/test_sd_paths.c -o build/host/test_sd_paths
     ./build/host/test_sd_paths

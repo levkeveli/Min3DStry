@@ -1,4 +1,5 @@
 #include "m3ds_stock_font.h"
+#include "m3ds_stock_text.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -17,6 +18,8 @@ int main(int argc, char **argv) {
         fprintf(stderr, "Usage: %s <stock fonts directory>\n", argv[0]);
         return 2;
     }
+    assert(m3ds_stock_text_texel(0x60, 0x80) == 0x60606080u);
+    assert(m3ds_stock_text_texel(0xff, 0x40) == 0xffffff40u);
     M3DS_StockFont *base = m3ds_stock_font_open(argv[1], false);
     M3DS_StockFont *japanese = m3ds_stock_font_open(argv[1], true);
     assert(base && japanese);
@@ -47,7 +50,7 @@ int main(int argc, char **argv) {
     m3ds_stock_font_close(japanese);
     m3ds_stock_font_close(base);
 
-    printf("UPSTREAM_STOCK_FONT latin=%08x japanese=%08x tree=%08x outline=ok fallback=ok\n",
+    printf("UPSTREAM_STOCK_FONT latin=%08x japanese=%08x tree=%08x outline=ok fallback=ok texel=ok\n",
         latin, kanji, tree);
     return 0;
 }

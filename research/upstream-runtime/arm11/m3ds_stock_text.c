@@ -107,7 +107,7 @@ static bool upload_glyph(GlyphSlot *entry, int index, const M3DS_StockGlyph *gly
             dark = (dark * (255 - face) + 127) / 255;
             unsigned alpha = face + dark;
             unsigned rgb = alpha ? (255 * face + 63 * dark + alpha / 2) / alpha : 0;
-            pixels[texel_offset(start_x + x, start_y + y)] = rgb * 0x01010100u | alpha;
+            pixels[texel_offset(start_x + x, start_y + y)] = m3ds_stock_text_texel(rgb, alpha);
         }
     }
     entry->left = bounds->left;
