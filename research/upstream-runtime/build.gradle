@@ -53,6 +53,25 @@ def usesMapSources = probe in ['map', 'map-sd']
 def usesLiveNetwork = probe in ['network-live', 'network-render']
 def usesTerrainRenderer = probe in ['terrain-render', 'network-render']
 def patchesPlanetGrid = probe == 'network-render'
+def conduitSmoothing = 'smoothLiquid = Mathf.lerpDelta(smoothLiquid, liquids.currentAmount() / liquidCapacity, 0.05f);'
+def conduitUpdate = '@Override\n        public void updateTile(){'
+def fluidSources = [
+    'mindustry/world/blocks/liquid/Conduit.java': [
+        'if(renderer != null){': 'if(UpstreamFluidAtlas.ready()){',
+        'renderer.getFluidFrames()': 'UpstreamFluidAtlas.frames()',
+        'renderer.fluidFrames': 'UpstreamFluidAtlas.frames()',
+        (conduitSmoothing): 'advanceLiquidDraw();',
+        (conduitUpdate): """// Also used by the graphical multiplayer probe between server snapshots.
+        public void advanceLiquidDraw(){
+            ${conduitSmoothing}
+        }
+
+        ${conduitUpdate}"""
+    ],
+    'mindustry/world/blocks/liquid/LiquidBlock.java': [
+        'renderer.fluidFrames': 'UpstreamFluidAtlas.frames()'
+    ]
+]
 def usesSimulation = probe in ['factory-ticks', 'combat-ticks']
 def usesWorldSources = probe in ['world', 'world-save', 'world-roundtrip', 'world-stream',
                                  'terrain-draw'] || usesLiveNetwork || usesTerrainRenderer || usesSimulation
@@ -99,7 +118,7 @@ if (probe == 'network-render') {
         destinationDirectory = layout.buildDirectory.dir('building-renderer-tool')
     }
     stageRenderedBuilding = tasks.register('stageRenderedBuilding', JavaExec) {
-        dependsOn adapter
+        dependsOn adapter, 'prepareUpstreamProbe'
         classpath = files(adapter.flatMap { it.destinationDirectory }) + asm
         mainClass = 'StageBuildingCrackAdapter'
         inputs.file(referenceJar)
@@ -133,6 +152,10 @@ if (usesArcSources || usesExecutor) {
     }
     if (stageRenderedBuilding != null) {
         stagedClasses.add('mindustry/gen/Building.class')
+        fluidSources.keySet().each { path ->
+            def type = path.substring(0, path.length() - '.java'.length())
+            stagedClasses.addAll([type + '.class', type + '$*.class'])
+        }
     }
     // TeaVM resolves dependency classes before compiled project classes.
     def contentDependencies = tasks.register('prepareContentDependencies', Zip) {
@@ -241,8 +264,25 @@ tasks.register('prepareUpstreamProbe') {
     }
     if (patchesPlanetGrid) {
         outputs.file(planetGridFile)
+        fluidSources.keySet().each { outputs.file(sourceDir.map { dir -> dir.file(it) }) }
     }
     doLast {
+        if (probe == 'network-render') {
+            fluidSources.each { path, substitutions ->
+                def source = new String(readUpstream("core/src/${path}"), 'UTF-8')
+                substitutions.each { original, replacement ->
+                    if (source.count(original) != 1) {
+                        throw new GradleException("Unexpected fluid renderer lookup in ${path}")
+                    }
+                    source = source.replace(original, replacement)
+                }
+                def imports = source.indexOf('import ')
+                source = source.substring(0, imports) + 'import port.render.UpstreamFluidAtlas;\n' + source.substring(imports)
+                def target = sourceDir.get().file(path).asFile
+                target.parentFile.mkdirs()
+                target.setText(source, 'UTF-8')
+            }
+        }
         if (!pluginsToLoad.isEmpty()) {
             def service = pluginFile.get().asFile
             service.parentFile.mkdirs()

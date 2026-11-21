@@ -580,8 +580,21 @@ passed on both Azahar profiles. The verifier checked the original wall,
 drill and Core Nucleus colors and confirmed that the wall was clipped
 to the viewport.
 
+Damaged buildings use the original `Building.drawCracks` method.
+The graphics build stages the generated class from the pinned server JAR
+and redirects the crack texture field lookup to the 56 original atlas
+regions. The existing damage-frame selection, rotation and tint run
+unchanged, including Drill's inherited crack draw between its base and top
+layers. The JVM fixture checks a cached wall and a dynamic drill at
+half health. Add `--building-cracks` to the live building-layer check to
+verify the same state from the Java server.
+The [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44862695989)
+passed this check on both Azahar profiles. For each profile the 800
+visible wall pixels matched a blend of the original wall and crack
+textures within one RGB level, accounting for nearest-texel ties.
+
 The renderer still selects blocks that use the supported sprite operations.
-Crack textures, raw vertices, mix color and other rendering services are
+Raw vertices, mix color, liquid frames and other rendering services are
 tracked in [#139](https://github.com/levkeveli/Min3DStry/issues/139).
 
 ### Verify the Arc executor pools

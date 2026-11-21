@@ -211,8 +211,8 @@ static int32_t draw_world_region(int page, int left, int top, int w, int h,
             piece.pos.w = sub.width * step_x;
             piece.pos.h = sub.height * step_y;
             // Retain the original pivot even when it lies outside this fragment.
-            piece.center.x -= (x - left) * step_x;
-            piece.center.y -= (y - top) * step_y;
+            piece.center.x -= step_x < 0 ? (right - col_end) * -step_x : (x - left) * step_x;
+            piece.center.y -= step_y < 0 ? (bottom - row_end) * -step_y : (y - top) * step_y;
             if (!C2D_DrawImage(image, &piece, tint)) return 0;
             fragments++;
             x = col_end;
@@ -250,7 +250,8 @@ int32_t m3ds_terrain_draw(int32_t page, int32_t left, int32_t top, int32_t width
         .pos = { screen_left + (x + origin_x - world_left) * scale,
                  screen_bottom - (y + origin_y - world_bottom) * scale,
                  draw_width * scale, draw_height * scale },
-        .center = { origin_x * scale, (draw_height - origin_y) * scale },
+        .center = { (origin_x - fminf(0.0f, draw_width)) * scale,
+                    (fmaxf(0.0f, draw_height) - origin_y) * scale },
         .depth = 0.5f,
         .angle = rotation * (-3.14159265358979323846f / 180.0f),
     };

@@ -1,8 +1,10 @@
 import port.render.UpstreamCrackAtlas;
+import port.render.UpstreamFluidAtlas;
 import arc.Core;
 import arc.files.Fi;
 import arc.graphics.g2d.Draw;
 import arc.struct.IntSet;
+import arc.util.Time;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import mindustry.Vars;
@@ -13,6 +15,7 @@ import mindustry.gen.Groups;
 import mindustry.gen.Unit;
 import mindustry.graphics.CacheLayer;
 import mindustry.world.Block;
+import mindustry.world.blocks.liquid.Conduit;
 import mindustry.world.blocks.distribution.Sorter;
 
 /** Presents the received Glacier world through the ARM11 terrain renderer. */
@@ -26,6 +29,7 @@ public final class UpstreamRenderedNetworkProbe {
     private UpstreamTerrainDrawProbe.Viewport viewport;
     private Unit controlled;
     private int draws;
+    private long previousVisualFrame;
     private int lastLeft = -1, lastBottom = -1;
     private byte[] lastMenu;
 
@@ -50,7 +54,7 @@ public final class UpstreamRenderedNetworkProbe {
 
     private void loadGraphics() {
         System.out.println("UPSTREAM_INTERFACE_GRAPHICS atlas");
-        UpstreamTerrainDrawProbe.loadAtlas(atlas, true);
+        UpstreamTerrainDrawProbe.loadAtlas(atlas, UpstreamFluidAtlas::load);
         UpstreamCrackAtlas.load();
         viewport = UpstreamTerrainDrawProbe.liveViewport(target);
         target.initialize();
@@ -71,6 +75,7 @@ public final class UpstreamRenderedNetworkProbe {
         float y = unit == null ? Vars.player.y() : unit.y();
         viewport.moveTo(World.toTile(x) - UpstreamTerrainDrawProbe.VIEW_WIDTH / 2,
                         World.toTile(y) - UpstreamTerrainDrawProbe.VIEW_HEIGHT / 2);
+        advanceVisualState();
         draws = 0;
         viewport.draw(drawEntities);
         buildingControls.viewport(viewport.left, viewport.bottom);
@@ -79,6 +84,26 @@ public final class UpstreamRenderedNetworkProbe {
             lastBottom = viewport.bottom;
             System.out.println("UPSTREAM_NETWORK_FRAME unit=" + unit.id() + " left=" + lastLeft
                 + " bottom=" + lastBottom + " sprites=" + draws);
+        }
+    }
+
+    private void advanceVisualState() {
+        long now = System.nanoTime();
+        float delta = previousVisualFrame == 0 ? 1f
+            : Math.min((now - previousVisualFrame) * (60f / 1_000_000_000f), Vars.maxDeltaClient);
+        previousVisualFrame = now;
+        if (Vars.state.isPaused()) return;
+
+        // Advance the original animation clock and conduit smoothing without replaying liquid transfers.
+        float oldDelta = Time.delta;
+        Time.delta = delta;
+        Time.setInternalTime(Time.getInternalTime() + delta);
+        try {
+            for (var build : Groups.build) {
+                if (build instanceof Conduit.ConduitBuild conduit) conduit.advanceLiquidDraw();
+            }
+        } finally {
+            Time.delta = oldDelta;
         }
     }
 
@@ -122,7 +147,7 @@ public final class UpstreamRenderedNetworkProbe {
         // These blocks use the sprite operations available in the live backend.
         return block == Blocks.coreNucleus || block == Blocks.conveyor || block == Blocks.copperWall
             || block == Blocks.copperWallLarge || block == Blocks.router || block instanceof Sorter
-            || block == Blocks.mechanicalDrill;
+            || block == Blocks.mechanicalDrill || block instanceof Conduit;
     }
 
     private void drawMenu(byte[] labels, int[] icons, int selected,

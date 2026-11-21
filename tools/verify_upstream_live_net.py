@@ -37,6 +37,14 @@ BUILDING_LAYER_PIXELS = {
 }
 
 
+# At 50% health, opaque crack texels tint the stock wall and drill base
+# with RGB 51 and alpha 0.4. GPU blending can round by one channel value.
+BUILDING_CRACK_PIXELS = {
+    (46, 68): (127, 101, 83), (58, 78): (140, 119, 106),
+    (313, 41): (126, 131, 136), (300, 58): (106, 82, 75),
+}
+
+
 def write_controls_replay(path, first_move=22, building=False, touch_build=False, touch_config=False, model="old3ds"):
     """Write the Azahar 2126.2 CTM input for this probe's pad/touch polling."""
     # The pinned Azahar movie header and HID sample definitions use packed little-endian fields.
@@ -319,7 +327,7 @@ def verify_controls(log, emulator, server_log, server, timeout, capture=None,
 
 def capture_viewport(log, emulator, rpc, destination, position,
                      require_palette=False, require_icons=False, require_world_atlas=False,
-                     require_building_layers=False):
+                     require_building_layers=False, require_building_cracks=False):
     unit, _, x, y = position
     # Glacier is 150 × 250 tiles and the renderer centers a 16 × 12 tile viewport.
     left = max(0, min(150 - 16, math.floor(float(x) / 8 + 0.5) - 8))
@@ -358,13 +366,18 @@ def capture_viewport(log, emulator, rpc, destination, position,
     if require_world_atlas:
         samples += tuple(CORE_PIXELS)
     if require_building_layers:
-        samples += tuple(BUILDING_LAYER_PIXELS)
+        samples += tuple(BUILDING_CRACK_PIXELS if require_building_cracks else BUILDING_LAYER_PIXELS)
     pixels = az.inspect_png(screenshot, samples)
     if pixels["width"] != 400 or pixels["height"] != 480 or pixels["top_distinct_colors"] < 8:
         raise RuntimeError(f"Expected the textured Glacier viewport on the top screen: {pixels}")
     if require_world_atlas and any(pixels["samples"][point] != color for point, color in CORE_PIXELS.items()):
         raise RuntimeError(f"Paged core pixels differ from the original unsplit draw: {pixels['samples']}")
-    if require_building_layers and any(
+    if require_building_cracks and any(
+            abs(observed - expected) > 1
+            for point, color in BUILDING_CRACK_PIXELS.items()
+            for observed, expected in zip(pixels["samples"][point], color)):
+        raise RuntimeError(f"Stock building crack pixels differ: {pixels['samples']}")
+    if require_building_layers and not require_building_cracks and any(
             pixels["samples"][point] != color for point, color in BUILDING_LAYER_PIXELS.items()):
         raise RuntimeError(f"Stock building layer pixels differ: {pixels['samples']}")
     if require_palette:
@@ -406,6 +419,15 @@ def run_model(args, model, config, original_config, log, output):
             server.stdin.write(f"config port {args.port}\nhost Glacier attack\n")
             server.stdin.flush()
             wait_for(server_log, server, f"Opened a server on port {args.port}\\.", 25)
+            if args.touch_build:
+                # Glacier's stock filters can place replaceable decorations on the test cells.
+                server.stdin.write('js (() => { for (let x = 85; x <= 87; x++) { '
+                                   'const tile = Vars.world.tile(x, 26); '
+                                   'if (tile.build != null) throw "Unexpected fixture building"; '
+                                   'tile.setBlock(Blocks.air); } '
+                                   'return "UPSTREAM_TOUCH_FIXTURE clear=85,86,87"; })()\n')
+                server.stdin.flush()
+                wait_for(server_log, server, r"UPSTREAM_TOUCH_FIXTURE clear=85,86,87\b", 5)
             if args.touch_config:
                 server.stdin.write('js (() => { const items = Vars.state.rules.defaultTeam.core().items; '
                                    'if (items.get(Items.lead) < 2) items.add(Items.lead, 2); '
@@ -413,16 +435,20 @@ def run_model(args, model, config, original_config, log, output):
                 server.stdin.flush()
                 wait_for(server_log, server, r"UPSTREAM_CONFIG_FIXTURE lead=\d+", 5)
             if args.building_layers:
+                damage = ("wall.build.health = wall.build.maxHealth * 0.5; "
+                          "drill.build.health = drill.build.maxHealth * 0.5; ") if args.building_cracks else ""
                 server.stdin.write('js (() => { const team = Vars.state.rules.defaultTeam; '
                                    'const wall = Vars.world.tile(72, 27), drill = Vars.world.tile(86, 28); '
                                    'wall.setBlock(Blocks.copperWallLarge, team, 0); '
-                                   'drill.setBlock(Blocks.mechanicalDrill, team, 0); '
+                                   'drill.setBlock(Blocks.mechanicalDrill, team, 0); ' + damage +
                                    'return "UPSTREAM_BUILDING_LAYER_FIXTURE " + wall.block().name + " " '
                                    '+ Vars.world.tile(73, 27).build.pos() + " " + wall.build.pos() '
-                                   '+ " " + drill.block().name; })()\n')
+                                   '+ " " + drill.block().name + " " + wall.build.healthf() '
+                                   '+ " " + drill.build.healthf(); })()\n')
                 server.stdin.flush()
                 fixture = r"UPSTREAM_BUILDING_LAYER_FIXTURE copper-wall-large (\d+) \1 mechanical-drill"
-                wait_for(server_log, server, fixture, 5)
+                health = r"0\.5" if args.building_cracks else r"1(?:\.0)?"
+                wait_for(server_log, server, rf"{fixture} {health} {health}\b", 5)
             if args.desktop_name:
                 print(f"{model}: Join 127.0.0.1:{args.port} from the stock PC client as "
                       f"{args.desktop_name!r}.", flush=True)
@@ -458,13 +484,16 @@ def run_model(args, model, config, original_config, log, output):
                         return capture_viewport(log, emulator, rpc, output / f"{model}-{phase}.png", position,
                                                 require_palette=args.touch_build or args.touch_config,
                                                 require_icons=args.menu_icons,
-                                                require_world_atlas=args.world_atlas and phase in ("spawn", "building-layers"),
-                                                require_building_layers=args.building_layers)
+                                                require_world_atlas=args.world_atlas and phase in ("spawn", "building-layers", "building-cracks"),
+                                                require_building_layers=args.building_layers,
+                                                require_building_cracks=args.building_cracks)
 
                     if stationary:
                         wait_for(log, emulator, r"UPSTREAM_LIVE_CONTROLS_READY unit=\d+", args.timeout)
                         spawn = server_position(server_log, server, "UPSTREAM_SERVER_CONTROLS_READY").groups()
-                        phase = "building-layers" if args.building_layers else "spawn"
+                        phase = "spawn"
+                        if args.building_layers:
+                            phase = "building-cracks" if args.building_cracks else "building-layers"
                         capture(phase, spawn)
                         print("Verified the stationary Glacier capture.", flush=True)
                         emu_log = log.read_text(encoding="utf-8", errors="replace")
@@ -580,6 +609,8 @@ def main():
                             help="Verify configuring a Sorter with both directions of the stock configuration packet")
     build_mode.add_argument("--building-layers", action="store_true",
                             help="Verify the stock cached wall and drill passes at Glacier spawn")
+    parser.add_argument("--building-cracks", action="store_true",
+                        help="Give the stock building fixture half health and verify its crack overlays")
     args = parser.parse_args()
     args.server, args.rom, args.azahar = (path.resolve() for path in (args.server, args.rom, args.azahar))
     with args.server.open("rb") as archive:
@@ -603,6 +634,8 @@ def main():
         parser.error("--world-atlas-recycle needs --world-atlas")
     if args.world_atlas_recycle and (args.controls_replay or args.building or args.touch_build or args.touch_config):
         parser.error("--world-atlas-recycle runs a stationary spawn check")
+    if args.building_cracks and not args.building_layers:
+        parser.error("--building-cracks needs --building-layers")
     if args.building_layers and (not args.terrain_atlas or not args.controls or args.controls_replay):
         parser.error("--building-layers needs --controls and --terrain-atlas for a stationary capture")
     if args.world_atlas and not args.terrain_atlas:

@@ -1,4 +1,5 @@
 import port.render.UpstreamCrackAtlas;
+import port.render.UpstreamFluidAtlas;
 import arc.Core;
 import arc.files.Fi;
 import arc.graphics.Blending;
@@ -21,7 +22,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         if (args.length != 2) throw new IllegalArgumentException("Expected Glacier and sprites.aatls");
         CacheLayer.init();
         UpstreamWorldLoadProbe.load(new String[]{args[0]});
-        UpstreamTerrainDrawProbe.loadAtlas(new Fi(args[1]), true);
+        UpstreamTerrainDrawProbe.loadAtlas(new Fi(args[1]), UpstreamFluidAtlas::load);
         UpstreamCrackAtlas.load();
 
         var target = new UpstreamBuildingLayersReference();

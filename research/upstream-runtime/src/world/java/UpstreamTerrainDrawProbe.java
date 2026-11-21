@@ -40,7 +40,7 @@ public final class UpstreamTerrainDrawProbe {
     static void capture(String[] args, TerrainTarget target) throws IOException {
         CacheLayer.init();
         UpstreamWorldLoadProbe.load(mapArgs(args));
-        loadAtlas(atlasFile(args), false);
+        loadAtlas(atlasFile(args), null);
         var viewport = traceViewport(target);
         viewport.draw(() -> {});
         var batch = viewport.batch;
@@ -57,15 +57,16 @@ public final class UpstreamTerrainDrawProbe {
         return args.length == 0 ? args : new String[]{args[0]};
     }
 
-    static void loadAtlas(Fi atlas, boolean live) {
+    static void loadAtlas(Fi atlas, Runnable prepareLiveAtlas) {
         Core.atlas = readAtlas(atlas);
+        if (prepareLiveAtlas != null) prepareLiveAtlas.run();
         Draw.scl = 1f / Core.atlas.find("scale_marker").width;
         boolean wasHeadless = Vars.headless;
         Vars.headless = false;
         try {
             for (var block : Vars.content.blocks()) {
                 if (block == Blocks.air) continue;
-                if (block instanceof Floor || live) {
+                if (block instanceof Floor || prepareLiveAtlas != null) {
                     block.load();
                 }
             }
