@@ -100,6 +100,32 @@ The probe deletes the slot after verifying it; Azahar `2126.2` New and Old
 profiles both reported the line and left no `sector-serpulo-170.msav` behind.
 The `.3dsx` is built by the `world-roundtrip` CI job's pinned devkitARM step.
 
+## ARM11 Campaign Content Unlock State
+
+`-Pprobe=campaign-content` loads upstream content with campaign unlock keys
+already present in `settings.bin`, then checks the real `UnlockableContent`
+state:
+
+```sh
+gradle -PupstreamCheckout=/path/to/Mindustry \
+  -PreferenceJar=/path/to/server-release.jar \
+  -ParcCheckout=/path/to/Arc -Pprobe=campaign-content runProbeJvm
+```
+
+JVM and ARM11/Azahar report:
+
+```text
+UPSTREAM_CAMPAIGN_CONTENT path=live conveyorUnlocked=true key=conveyor-unlocked research=50 blocks=447
+```
+
+The probe writes the upstream `conveyor-unlocked` and `req-conveyor-copper`
+keys through Arc `Settings`, assigns `Core.settings`, runs the upstream
+`ContentLoader` (`createBaseContent`/`init`), and verifies
+`Blocks.conveyor.unlocked()` plus the research value. On 3DS it targets the
+live `/3ds/min3dstry` directory and restores/removes the prior settings state.
+Azahar `2126.2` New and Old profiles both reported `path=live ... blocks=447`
+and left no `settings.bin` behind.
+
 ## Remaining Scope for Issue #41 (3DS Hardware / ARM11 Runtime)
 
 The host-verified path contract is recorded in [sd-storage-paths.md](sd-storage-paths.md); it does not write settings or sector saves yet. Once the ARM11 TeaVM runtime bring-up integrates `Core.files` and `Core.settings` onto SD card storage under `/3ds/min3dstry/`:

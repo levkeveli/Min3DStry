@@ -39,7 +39,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        probe: [logic, map, resource, executor, campaign-settings]
+        probe: [logic, map, resource, executor, campaign-settings, campaign-content]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -61,7 +61,7 @@ jobs:
             -o "$RUNNER_TEMP/server-release.jar"
 
       - name: Fetch pinned Arc source
-        if: matrix.probe == 'resource' || matrix.probe == 'executor' || matrix.probe == 'campaign-settings'
+        if: matrix.probe == 'resource' || matrix.probe == 'executor' || matrix.probe == 'campaign-settings' || matrix.probe == 'campaign-content'
         run: |
           git clone --filter=blob:none --no-checkout \
             https://github.com/Anuken/Arc.git "$RUNNER_TEMP/Arc"
@@ -76,7 +76,7 @@ jobs:
         run: |
           set -o pipefail
           extra=()
-          if [ "${{ matrix.probe }}" = "resource" ] || [ "${{ matrix.probe }}" = "executor" ] || [ "${{ matrix.probe }}" = "campaign-settings" ]; then
+          if [ "${{ matrix.probe }}" = "resource" ] || [ "${{ matrix.probe }}" = "executor" ] || [ "${{ matrix.probe }}" = "campaign-settings" ] || [ "${{ matrix.probe }}" = "campaign-content" ]; then
             extra=("-ParcCheckout=$RUNNER_TEMP/Arc")
           fi
           bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime \
@@ -95,6 +95,9 @@ jobs:
           fi
           if [ "${{ matrix.probe }}" = "campaign-settings" ]; then
             grep -F 'int=12345 string=ok reload=ok' "$RUNNER_TEMP/probe.log"
+          fi
+          if [ "${{ matrix.probe }}" = "campaign-content" ]; then
+            grep -F 'conveyorUnlocked=true key=conveyor-unlocked research=50' "$RUNNER_TEMP/probe.log"
           fi
 
       - name: Build ARM11 probe with pinned devkitARM image
