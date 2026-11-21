@@ -128,6 +128,30 @@ removes the prior settings state.
 Azahar `2126.2` New and Old profiles both reported `path=live ... blocks=447`
 and left no `settings.bin` behind.
 
+## ARM11 Research Requirement State
+
+`-Pprobe=campaign-research` reloads the upstream research keys from
+`settings.bin` and verifies the Serpulo tech tree:
+
+```sh
+gradle -PupstreamCheckout=/path/to/Mindustry \
+  -PreferenceJar=/path/to/server-release.jar \
+  -ParcCheckout=/path/to/Arc -Pprobe=campaign-research runProbeJvm
+```
+
+JVM and ARM11/Azahar report:
+
+```text
+UPSTREAM_CAMPAIGN_RESEARCH path=live root=serpulo node=conveyor copper=50 lockedBefore=ok reload=ok blocks=447
+```
+
+The probe loads content once with empty settings (copper requirement `0`),
+persists `req-conveyor-copper=50`, reloads a fresh `Settings` from
+`settings.bin`, rebuilds content, and asserts the conveyor `TechNode` is under
+the Serpulo root with `finishedRequirements` copper `50`. On 3DS it targets the
+live `/3ds/min3dstry` directory and restores or removes the prior settings
+state. Azahar `2126.2` New and Old profiles both reported `path=live`.
+
 ## Remaining Scope for Issue #41 (3DS Hardware / ARM11 Runtime)
 
 The host-verified path contract is recorded in [sd-storage-paths.md](sd-storage-paths.md); it does not write settings or sector saves yet. Once the ARM11 TeaVM runtime bring-up integrates `Core.files` and `Core.settings` onto SD card storage under `/3ds/min3dstry/`:
