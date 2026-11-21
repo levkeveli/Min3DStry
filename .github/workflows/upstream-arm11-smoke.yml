@@ -82,7 +82,7 @@ jobs:
         run: |
           set -o pipefail
           extra=()
-          if [ "${{ matrix.probe }}" = "resource" ] || [ "${{ matrix.probe }}" = "executor" ] || [ "${{ matrix.probe }}" = "campaign-settings" ] || [ "${{ matrix.probe }}" = "campaign-content" ] || [ "${{ matrix.probe }}" = "wave-routing" ]; then
+          if [ "${{ matrix.probe }}" = "resource" ] || [ "${{ matrix.probe }}" = "executor" ] || [ "${{ matrix.probe }}" = "campaign-settings" ] || [ "${{ matrix.probe }}" = "campaign-content" ] || [ "${{ matrix.probe }}" = "campaign-research" ] || [ "${{ matrix.probe }}" = "wave-routing" ]; then
             extra=("-ParcCheckout=$RUNNER_TEMP/Arc")
           fi
           probe_args=()
