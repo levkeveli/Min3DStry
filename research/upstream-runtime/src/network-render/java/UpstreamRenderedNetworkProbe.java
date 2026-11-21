@@ -42,6 +42,8 @@ public final class UpstreamRenderedNetworkProbe {
     private final UpstreamLiveBuildControls buildingControls = new UpstreamLiveBuildControls();
     private final Runnable drawEntities = this::drawEntities;
     private final IntSet reportedConveyors = new IntSet();
+    private final IntSet reportedEnemies = new IntSet();
+    private final IntSet goneEnemies = new IntSet();
     private UpstreamTerrainDrawProbe.Viewport viewport;
     private Unit controlled;
     private int draws;
@@ -204,9 +206,21 @@ public final class UpstreamRenderedNetworkProbe {
                         || y < viewport.bottom || y >= viewport.bottom + UpstreamTerrainDrawProbe.VIEW_HEIGHT) continue;
                 unit.draw();
                 if (unit == controlled) draws++;
+                if (unit.type() == UnitTypes.dagger && unit.team == Vars.state.rules.waveTeam
+                        && reportedEnemies.add(unit.id)) {
+                    System.out.println("UPSTREAM_LIVE_ENEMY type=dagger id=" + unit.id
+                        + " x=" + unit.x() + " y=" + unit.y());
+                }
             }
         } finally {
             Draw.sort(false);
+        }
+        var enemies = reportedEnemies.iterator();
+        while (enemies.hasNext) {
+            int id = enemies.next();
+            if (Groups.unit.getByID(id) == null && goneEnemies.add(id)) {
+                System.out.println("UPSTREAM_LIVE_ENEMY_GONE id=" + id);
+            }
         }
         UpstreamObjectiveMarkers.draw(Vars.state.rules, 240f / (UpstreamTerrainDrawProbe.VIEW_HEIGHT * Vars.tilesize),
             worldLabel);
