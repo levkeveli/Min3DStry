@@ -478,3 +478,35 @@ jobs:
           grep -F 'UPSTREAM_NET_PASS sessions=2 mismatch=clientOutdated' "$RUNNER_TEMP/net-session.log"
           grep -F 'DECODE_PKT_OK ' "$RUNNER_TEMP/net-session.log"
           grep -F 'compression=1 ' "$RUNNER_TEMP/net-session.log"
+
+  production-baseline:
+    name: Production, power, and liquid baseline
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Fetch pinned official server JAR
+        run: |
+          curl --fail --silent --show-error --location \
+            https://github.com/Anuken/Mindustry/releases/download/v160.8/server-release.jar \
+            -o "$RUNNER_TEMP/server-release.jar"
+          echo "faeaf247a8b622de940181a96cb21cb20692d3c3da4e8ac3f79cb4af5059aa6c  $RUNNER_TEMP/server-release.jar" | sha256sum -c -
+
+      - name: Run pinned production, power, and liquid baseline
+        run: |
+          java -cp "$RUNNER_TEMP/server-release.jar" \
+            research/upstream-runtime/host/UpstreamProductionBaseline.java \
+            | tee "$RUNNER_TEMP/production.log"
+          grep -Fx 'UPSTREAM_PRODUCTION_CATALOG blocks=12 manifest_sha256=29d41b2000392e726c81fae375b0acf903b68c987bb0e4955e15646712da0996' "$RUNNER_TEMP/production.log"
+          grep -Fx 'UPSTREAM_PRODUCTION_STARVED ticks=60 waterMilli=4641 pods=0 graphite=0' "$RUNNER_TEMP/production.log"
+          grep -Fx 'UPSTREAM_PRODUCTION_DISCONNECT graphiteTick=90 first=199 paused=60 pods=1' "$RUNNER_TEMP/production.log"
+          grep -Fx 'UPSTREAM_PRODUCTION_FULL filled=2254 held=120 pods=10 waterCapOk=true' "$RUNNER_TEMP/production.log"
+          grep -Fx 'UPSTREAM_PRODUCTION_ORDER runs=2 ticks=2693 trace_hash=0x596d5082ce819d54' "$RUNNER_TEMP/production.log"
