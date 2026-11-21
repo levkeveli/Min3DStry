@@ -346,6 +346,13 @@ public final class UpstreamLiveNetworkProbe {
                 keepAlive(0);
                 lastUdpKeepAlive = now;
             }
+            // Advance toward the previous snapshot before receiving new targets. Reading a
+            // snapshot resets its interpolation clock and records the current pose.
+            if (!Vars.state.isPaused()) {
+                for (var unit : Groups.unit) {
+                    if (!unit.isLocal()) unit.interpolate();
+                }
+            }
             lastWave = receiveLiveUpdates(stateId, entityId, lastWave);
             app.runPosted();
             now = System.nanoTime();
