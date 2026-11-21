@@ -106,6 +106,10 @@ static uint32_t m3ds_play_event(
     return voice;
 }
 
+static M3dsWorldTiles g_save_tiles;
+static M3dsMsavWorld g_save_world;
+static bool g_save_world_ready;
+
 int main(int argc, char *argv[]) {
     gfxInitDefault();
     C3D_Init(C3D_DEFAULT_CMDBUF_SIZE);
@@ -320,7 +324,13 @@ int main(int argc, char *argv[]) {
                  (unsigned long long)(alloc_ok ? tiles.building_hash : 0u),
                  alloc_ok ? "ok" : "failed");
         m3ds_emit_debug_line(log_socket, dbg_line);
-        m3ds_msav_free_world(&tiles);
+        if (alloc_ok) {
+            g_save_tiles = tiles;
+            g_save_world = world;
+            g_save_world_ready = true;
+        } else {
+            m3ds_msav_free_world(&tiles);
+        }
         free(raw);
         free(inflated);
     }
@@ -870,6 +880,14 @@ int main(int argc, char *argv[]) {
                    save_slot.map_name, (unsigned)save_slot.wave);
         } else {
             printf("\x1b[26;1H\x1b[K");
+        }
+        if (g_save_world_ready) {
+            printf("\x1b[27;1HWorld: %ux%u build=%u\x1b[K",
+                   (unsigned)g_save_world.width,
+                   (unsigned)g_save_world.height,
+                   (unsigned)g_save_tiles.building_count);
+        } else {
+            printf("\x1b[27;1H\x1b[K");
         }
         if (pause_menu.open) {
             printf("\x1b[15;1H=== PAUSED ===  Up/Down + A\x1b[K");

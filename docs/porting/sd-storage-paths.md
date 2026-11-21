@@ -126,8 +126,14 @@ module mask, item count, and the remaining building-specific bytes:
 
 Both profiles produce the same building hash. The item module yields up to eight
 stacks, and the power/liquid modules yield link count/status and the first
-liquid id/amount. Timer/disabler modules and the building-specific payload are
-preserved but not decoded yet.
+liquid id/amount. The validated world arrays stay resident and the HUD shows:
+
+```text
+World: 150x250 build=2
+```
+
+Timer/disabler modules and the building-specific payload are preserved but not
+decoded yet.
 
 ## SD sector catalog
 
