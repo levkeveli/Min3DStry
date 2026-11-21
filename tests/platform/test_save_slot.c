@@ -148,6 +148,8 @@ static void test_inflate_prefix(void) {
 }
 
 static void test_metadata(void) {
+    // Upstream framing: SaveVersion.getMeta readInt region length, then
+    // SaveFileReader.readStringMap short count + writeUTF key/value pairs.
     uint8_t payload[256];
     size_t size = 0u;
     memcpy(payload + size, "MSAV", 4);

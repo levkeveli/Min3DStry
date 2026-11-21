@@ -58,6 +58,12 @@ static uint32_t parse_decimal(const char *text) {
     return value;
 }
 
+/*
+ * Upstream SaveVersion.getMeta reads a 4-byte meta-region length, then
+ * SaveFileReader.readStringMap reads a 16-bit entry count followed by
+ * DataOutputStream.writeUTF key/value pairs. This is not a 4-byte StringMap
+ * count; the region length comes from SaveFileReader.writeRegion.
+ */
 static void parse_metadata(
     const uint8_t *data, size_t size, M3dsSaveSlotInfo *info) {
     if (size < 12u) {

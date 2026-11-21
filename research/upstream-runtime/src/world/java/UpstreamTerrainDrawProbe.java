@@ -1,9 +1,11 @@
 import arc.Core;
 import arc.files.Fi;
+import arc.graphics.Blending;
 import arc.graphics.Color;
 import arc.graphics.Texture;
 import arc.graphics.g2d.Batch;
 import arc.graphics.g2d.Draw;
+import arc.graphics.g2d.SpriteBatch;
 import arc.graphics.g2d.TextureAtlas;
 import arc.graphics.g2d.TextureAtlas.AtlasRegion;
 import arc.graphics.g2d.TextureAtlas.TextureAtlasData;
@@ -11,6 +13,8 @@ import arc.graphics.g2d.TextureRegion;
 import arc.math.Mathf;
 import arc.struct.Seq;
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Comparator;
 import mindustry.Vars;
 import mindustry.content.Blocks;
 import mindustry.gen.Building;
@@ -31,14 +35,15 @@ public final class UpstreamTerrainDrawProbe {
         void begin(int left, int bottom, int width, int height);
         void draw(int page, int left, int top, int width, int height,
                   float x, float y, float originX, float originY, float drawWidth, float drawHeight,
-                  float rotation, int color);
+                  float rotation, int color, int mixColor, Blending blending);
+        void drawSolidQuad(float[] vertices, int offset, Blending blending);
         void end();
     }
 
     static void capture(String[] args, TerrainTarget target) throws IOException {
         CacheLayer.init();
         UpstreamWorldLoadProbe.load(mapArgs(args));
-        loadAtlas(atlasFile(args), false);
+        loadAtlas(atlasFile(args), null);
         var viewport = traceViewport(target);
         viewport.draw(() -> {});
         var batch = viewport.batch;
@@ -55,19 +60,19 @@ public final class UpstreamTerrainDrawProbe {
         return args.length == 0 ? args : new String[]{args[0]};
     }
 
-    static void loadAtlas(Fi atlas, boolean live) {
+    static void loadAtlas(Fi atlas, Runnable prepareLiveAtlas) {
         Core.atlas = readAtlas(atlas);
+        if (prepareLiveAtlas != null) prepareLiveAtlas.run();
         Draw.scl = 1f / Core.atlas.find("scale_marker").width;
         boolean wasHeadless = Vars.headless;
         Vars.headless = false;
         try {
             for (var block : Vars.content.blocks()) {
                 if (block == Blocks.air) continue;
-                if (block instanceof Floor || (live && (!block.hasBuilding() || block == Blocks.coreNucleus
-                        || block == Blocks.conveyor || block == Blocks.copperWall || block == Blocks.router
-                        || block == Blocks.sorter || block == Blocks.invertedSorter))) {
+                if (block instanceof Floor || prepareLiveAtlas != null) {
                     block.load();
                 }
+                if (prepareLiveAtlas != null) block.loadIcon();
             }
         } finally {
             Vars.headless = wasHeadless;
@@ -193,6 +198,12 @@ public final class UpstreamTerrainDrawProbe {
     }
 
     private static final class TerrainBatch extends Batch {
+        // Arc SpriteBatch queues draw requests while sorting. A deferred callback can
+        // draw immediately during the flush, and equal depths retain submission order.
+        private record DrawRequest(float depth, Blending blending, Runnable draw) {}
+        private final Seq<DrawRequest> requests = new Seq<>();
+        private boolean sort, flushing;
+
         final Seq<AtlasRegion> edgeSources;
         final TerrainTarget target;
         long hash = 0xcbf29ce484222325L;
@@ -207,21 +218,95 @@ public final class UpstreamTerrainDrawProbe {
 
         @Override
         protected void draw(Texture texture, float[] vertices, int offset, int count) {
-            throw new IllegalStateException("Unexpected raw vertices in the terrain probe");
+            if (!(texture instanceof AtlasPageTexture page) || offset < 0 || count < 0
+                    || offset > vertices.length - count || count % SpriteBatch.SPRITE_SIZE != 0) {
+                throw new IllegalStateException("Unsupported Arc vertex batch");
+            }
+            if (sort && !flushing) {
+                // Arc reuses the Fill vertex array for the next command.
+                float[] snapshot = Arrays.copyOfRange(vertices, offset, offset + count);
+                draw(() -> emitQuads(page, snapshot, 0, snapshot.length));
+            } else {
+                emitQuads(page, vertices, offset, count);
+            }
+        }
+
+        private void emitQuads(AtlasPageTexture page, float[] vertices, int offset, int count) {
+            var white = Core.atlas.white();
+            for (int i = offset; i < offset + count; i += SpriteBatch.SPRITE_SIZE) {
+                boolean solid = page == white.texture;
+                for (int v = i; solid && v < i + SpriteBatch.SPRITE_SIZE; v += SpriteBatch.VERTEX_SIZE) {
+                    float u = vertices[v + 3], t = vertices[v + 4];
+                    solid = u >= white.u && u <= white.u2 && t >= white.v && t <= white.v2
+                        && vertices[v + 5] == Color.clearFloatBits;
+                }
+                if (solid) {
+                    if (target != null) target.drawSolidQuad(vertices, i, blending);
+                } else {
+                    emitTexturedRectangle(page, vertices, i);
+                }
+            }
+        }
+
+        // Arc Lines submits a rectangle through Fill.quad, with the top-left UV
+        // first. Recover the sprite transform from the UV corners instead of
+        // assuming the same vertex order as SpriteBatch's region draw.
+        private void emitTexturedRectangle(AtlasPageTexture page, float[] v, int a) {
+            int b = a + SpriteBatch.VERTEX_SIZE, c = b + SpriteBatch.VERTEX_SIZE, d = c + SpriteBatch.VERTEX_SIZE;
+            float u0 = v[a + 3], u1 = v[d + 3], t0 = v[a + 4], t1 = v[b + 4];
+            float tint = v[a + 2], mixTint = v[a + 5];
+            if (v[b + 3] != u0 || v[c + 3] != u1 || v[c + 4] != t1 || v[d + 4] != t0
+                    || v[b + 2] != tint || v[c + 2] != tint || v[d + 2] != tint
+                    || v[b + 5] != mixTint || v[c + 5] != mixTint || v[d + 5] != mixTint) {
+                throw new IllegalStateException("Arc textured quad needs per-vertex GPU attributes");
+            }
+            int leftFirst = u0 <= u1 ? a : d, leftSecond = u0 <= u1 ? b : c;
+            int bottomLeft = t0 <= t1 ? leftSecond : leftFirst;
+            int topLeft = t0 <= t1 ? leftFirst : leftSecond;
+            int bottomRight = a + d - bottomLeft, topRight = a + d - topLeft;
+            float x = v[bottomLeft], y = v[bottomLeft + 1];
+            float dx = v[bottomRight] - x, dy = v[bottomRight + 1] - y;
+            float ux = v[topLeft] - x, uy = v[topLeft + 1] - y;
+            float width = Mathf.len(dx, dy);
+            if (width == 0f) return;
+            float height = (dx * uy - dy * ux) / width;
+            float error = 0.005f; // Leave room for rounding at the far edge of a large map.
+            if (Math.abs((dx * ux + dy * uy) / width) > error
+                    || Math.abs(v[topRight] - x - dx - ux) > error
+                    || Math.abs(v[topRight + 1] - y - dy - uy) > error) {
+                throw new IllegalStateException("Arc textured quad is not a rectangle");
+            }
+            int left = Math.round(Math.min(u0, u1) * page.width);
+            int right = Math.round(Math.max(u0, u1) * page.width);
+            int top = Math.round(Math.min(t0, t1) * page.height);
+            int bottom = Math.round(Math.max(t0, t1) * page.height);
+            if (target != null && height != 0f && right > left && bottom > top) {
+                float rotation = (float)Math.toDegrees(Math.atan2(dy, dx));
+                target.draw(page.index, left, top, right - left, bottom - top, x, y, 0f, 0f, width, height,
+                    rotation, Color.floatToIntColor(tint), Color.floatToIntColor(mixTint), blending);
+            }
         }
 
         @Override
         protected void draw(TextureRegion region, float x, float y, float originX, float originY,
                             float width, float height, float rotation) {
+            // OpenGL discards degenerate quads, including an empty payload crop.
+            if (region.width == 0 || region.height == 0 || width == 0f || height == 0f) return;
             if (region == Core.atlas.find("error")) throw new IllegalStateException("Missing terrain sprite");
             var page = (AtlasPageTexture) region.texture;
             if (edgeSources != null) collect(region, page, x, y, originX, originY, width, height, rotation);
             if (target != null) {
-                if (mixColorPacked != Color.clearFloatBits) {
-                    throw new IllegalStateException("Unexpected terrain mix color");
+                int left = region.getX(), top = region.getY();
+                int sourceWidth = region.width, sourceHeight = region.height;
+                int color = Color.floatToIntColor(colorPacked);
+                int mixColor = Color.floatToIntColor(mixColorPacked);
+                if (sort && !flushing) {
+                    draw(() -> target.draw(page.index, left, top, sourceWidth, sourceHeight,
+                        x, y, originX, originY, width, height, rotation, color, mixColor, blending));
+                } else {
+                    target.draw(page.index, left, top, sourceWidth, sourceHeight,
+                        x, y, originX, originY, width, height, rotation, color, mixColor, blending);
                 }
-                target.draw(page.index, region.getX(), region.getY(), region.width, region.height,
-                    x, y, originX, originY, width, height, rotation, Color.floatToIntColor(colorPacked));
             }
         }
 
@@ -252,6 +337,41 @@ public final class UpstreamTerrainDrawProbe {
         }
 
         @Override
-        protected void flush() {}
+        protected void draw(Runnable draw) {
+            if (sort && !flushing) requests.add(new DrawRequest(z, blending, draw));
+            else draw.run();
+        }
+
+        @Override
+        protected void setSort(boolean enabled) {
+            if (sort != enabled) flush();
+            sort = enabled;
+        }
+
+        @Override
+        protected void setBlending(Blending mode) {
+            blending = mode;
+        }
+
+        @Override
+        protected void flush() {
+            if (flushing || requests.isEmpty()) return;
+            float colorBefore = colorPacked, mixBefore = mixColorPacked;
+            Blending blendBefore = blending;
+            flushing = true;
+            try {
+                requests.sort(Comparator.comparingDouble(DrawRequest::depth));
+                for (var request : requests) {
+                    blending = request.blending();
+                    request.draw().run();
+                }
+            } finally {
+                requests.clear();
+                colorPacked = colorBefore;
+                mixColorPacked = mixBefore;
+                blending = blendBefore;
+                flushing = false;
+            }
+        }
     }
 }

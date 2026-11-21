@@ -68,6 +68,30 @@ It handles stored, fixed-Huffman and dynamic-Huffman DEFLATE blocks and stops
 as soon as the requested prefix is produced. Malformed headers, FDICT streams,
 and truncated input fail closed.
 
+## SD sector catalog
+
+`include/platform/sector_catalog.h` scans `/3ds/min3dstry` for upstream
+`sector-<planet>-<id>.msav` names and probes each container with the save-slot
+header logic. Entries are sorted by planet and sector id, duplicate names are
+not invented, malformed names and unrelated files are ignored, and the scan
+never writes or deletes anything. A missing directory yields an empty catalog.
+
+Startup logs and HUD:
+
+```text
+[MIN3DSTRY] SECTOR_CATALOG count=2
+[MIN3DSTRY] SECTOR_SLOT planet=erekir id=64 valid=0 compressed=1 bytes=17
+[MIN3DSTRY] SECTOR_SLOT planet=serpulo id=170 valid=1 compressed=0 bytes=20
+```
+
+```text
+Sectors: 2
+Sector erekir-64 zlib 17B
+```
+
+The list is catalog plumbing, not campaign loading: selecting, launching and
+capturing sectors still needs the live campaign UI.
+
 ## Atomic storage
 
 `include/platform/settings_store.h` stores opaque bytes:
@@ -87,8 +111,11 @@ No content format is parsed or invented here.
   rejection.
 - `tests/platform/test_settings_store.c`: primary/backup settings round-trips,
   backup fallback, atomic sector write/read, probe round-trip and cleanup.
+- `tests/platform/test_sector_catalog.c`: sorted SD catalog, capacity limits,
+  malformed names, unrelated files, raw/zlib headers and missing directories.
 - `./dev.sh test` runs both tests.
-- `./dev.sh emu-test` verifies STORAGE paths and the SD probe round-trip.
+- `./dev.sh emu-test --expect-sector-catalog 2` verifies the staged sector
+  catalog plus STORAGE paths and the SD probe round-trip.
 
 ## Remaining work
 

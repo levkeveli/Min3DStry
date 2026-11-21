@@ -28,8 +28,9 @@ if [[ $# -gt 0 ]]; then
         echo "Expected one terrain assets directory" >&2
         exit 2
     fi
-    if [[ ${#native_network[@]} -gt 0 && ( ! -f "$1/bundles/bundle.properties" || ! -d "$1/world-atlas" ) ]]; then
-        echo "Prepare multiplayer terrain assets with --multiplayer to include the original bundles and atlas" >&2
+    if [[ ${#native_network[@]} -gt 0 &&
+          ( ! -f "$1/bundles/bundle.properties" || ! -d "$1/world-atlas" || ! -f "$1/block_colors.png" ) ]]; then
+        echo "Prepare multiplayer terrain assets with --multiplayer to include the original bundles, atlas and block palette" >&2
         exit 2
     fi
     terrain_flags=(-DM3DS_TERRAIN_RENDERER -I"$root" -I"$1")
@@ -39,6 +40,9 @@ if [[ $# -gt 0 ]]; then
     cp "$1/sprites.t3x" "$output/romfs/terrain.t3x"
     if [[ -d "$1/bundles" ]]; then
         cp -R "$1/bundles" "$output/romfs/bundles"
+    fi
+    if [[ -f "$1/block_colors.png" ]]; then
+        cp "$1/block_colors.png" "$output/romfs/block_colors.png"
     fi
     if [[ -d "$1/catalog" ]]; then
         cp -R "$1/catalog" "$output/romfs/catalog"

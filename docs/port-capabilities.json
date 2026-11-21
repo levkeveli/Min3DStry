@@ -211,14 +211,17 @@
       "category": "Core Simulation",
       "name": "Turrets, Waves, Units & Flow Pathfinding",
       "weight": 8,
-      "stage": "experimental",
+      "stage": "emulator-tested",
       "issue": 30,
       "evidence": [
+        "research/upstream-runtime/host/UpstreamCombatBaseline.java",
+        "research/upstream-runtime/host/UpstreamCombatSimulationBaseline.java",
         "research/upstream-runtime/src/gameplay/java/UpstreamCombatTickProbe.java",
         "research/upstream-runtime/src/gameplay/java/UpstreamWaveRoutingProbe.java",
         "research/upstream-runtime/src/gameplay/java/UpstreamSimulationWorld.java",
         "research/upstream-runtime/build.gradle",
         "research/upstream-runtime/README.md",
+        "docs/porting/combat-waves-pathfinding.md",
         ".github/workflows/upstream-arm11-smoke.yml"
       ]
     },
@@ -301,6 +304,9 @@
         "include/platform/settings_store.h",
         "src/platform/settings_store.c",
         "tests/platform/test_settings_store.c",
+        "include/platform/sector_catalog.h",
+        "src/platform/sector_catalog.c",
+        "tests/platform/test_sector_catalog.c",
         "research/upstream-runtime/src/campaign-slot-discovery/java/UpstreamCampaignSlotDiscoveryProbe.java",
         "research/upstream-runtime/src/campaign-saves/java/UpstreamCampaignSavesProbe.java",
         "research/upstream-runtime/src/campaign-launch/java/UpstreamCampaignLaunchProbe.java",

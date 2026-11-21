@@ -41,7 +41,7 @@ static C2D_SpriteSheet sheet;
 static C3D_RenderTarget *target;
 static C3D_RenderTarget *palette;
 static C2D_TextBuf palette_buffer;
-static C2D_Text palette_labels[7];
+static C2D_Text palette_labels[8];
 static C2D_TextBuf catalog_buffer;
 static struct {
     C2D_SpriteSheet sheet;
@@ -50,6 +50,8 @@ static struct {
 } menu_icons[6];
 static float world_left, world_bottom, scale, screen_left, screen_bottom;
 static int32_t draws;
+static int32_t world_blend = -1;
+static u32 world_fade;
 
 int32_t m3ds_terrain_mount_assets(void) {
     if (!romfs_ready) romfs_ready = R_SUCCEEDED(romfsInit());
@@ -92,6 +94,16 @@ int32_t m3ds_terrain_initialize(void) {
     return 1;
 }
 
+static void begin_world_scene(void) {
+    C2D_SceneBegin(target);
+    // The top framebuffer stores screen X along its rotated Y axis.
+    u32 x_margin = (u32)lroundf(fmaxf(0.0f, screen_left));
+    u32 y_margin = (u32)lroundf(fmaxf(0.0f, 240.0f - screen_bottom));
+    C3D_SetScissor(GPU_SCISSOR_NORMAL, y_margin, x_margin, 240 - y_margin, 400 - x_margin);
+    C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_COLOR);
+    C2D_SetTintMode(C2D_TintMult);
+}
+
 int32_t m3ds_terrain_begin(int32_t left, int32_t bottom, int32_t width, int32_t height,
                            int32_t tile_size) {
     if (!sheet) {
@@ -112,9 +124,7 @@ int32_t m3ds_terrain_begin(int32_t left, int32_t bottom, int32_t width, int32_t 
     world_pass++;
 #endif
     C2D_TargetClear(target, C2D_Color32(24, 27, 32, 255));
-    C2D_SceneBegin(target);
-    C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_COLOR);
-    C2D_SetTintMode(C2D_TintMult);
+    begin_world_scene();
     return 1;
 }
 
@@ -124,18 +134,14 @@ static bool recycle_world_pass(void) {
     const u32 transfer_flags = target->transferFlags;
     C3D_RenderTargetDetachOutput(target);
     C3D_FrameEnd(0);
-    // C3D_FRAME_SYNCDRAW waits for the previous command queue to finish, so
-    // no in-flight draw still samples a sheet that is freed below.
     frame_open = C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
     C3D_RenderTargetSetOutput(target, GFX_TOP, GFX_LEFT, transfer_flags);
     if (!frame_open) return false;
 
-    // Clear Citro2D's saved texture pointer before freeing any sheet, then
-    // continue without clearing the framebuffer.
+    // FrameBegin waited for the previous command queue. Clear Citro2D's saved texture
+    // pointer before freeing any sheet, then continue without clearing the framebuffer.
     C2D_Prepare();
-    C2D_SceneBegin(target);
-    C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_COLOR);
-    C2D_SetTintMode(C2D_TintMult);
+    begin_world_scene();
     world_pass++;
     if (!reported_recycle) {
         static const char record[] = "UPSTREAM_WORLD_ATLAS_RECYCLE\n";
@@ -246,8 +252,8 @@ static int32_t draw_world_region(int page, int left, int top, int w, int h,
             piece.pos.w = sub.width * step_x;
             piece.pos.h = sub.height * step_y;
             // Retain the original pivot for positive and mirrored fragments.
-            piece.center.x = m3ds_world_fragment_center(whole->center.x, x, left, step_x);
-            piece.center.y = m3ds_world_fragment_center(whole->center.y, y, top, step_y);
+            piece.center.x = m3ds_world_fragment_center(whole->center.x, x, col_end, left, right, step_x);
+            piece.center.y = m3ds_world_fragment_center(whole->center.y, y, row_end, top, bottom, step_y);
             if (!C2D_DrawImage(image, &piece, tint)) {
                 report_atlas_failure("draw", page, tile_x, tile_y, 0);
                 return 0;
@@ -269,10 +275,39 @@ static int32_t draw_world_region(int page, int left, int top, int w, int h,
 }
 #endif
 
+static void set_world_blend(int32_t mode) {
+    if (world_blend == mode) return;
+    C2D_Flush();
+    GPU_BLENDFACTOR source = mode == 2 ? GPU_ONE : GPU_SRC_ALPHA;
+    GPU_BLENDFACTOR dest = mode == 2 ? GPU_ZERO : mode == 1 ? GPU_ONE : GPU_ONE_MINUS_SRC_ALPHA;
+    C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, source, dest, GPU_ONE,
+        mode == 2 ? GPU_ZERO : GPU_ONE_MINUS_SRC_ALPHA);
+    world_blend = mode;
+}
+
+static void set_world_mix(u32 tint, u32 mix_color) {
+    // Arc computes tint * mix(texture.rgb, mix.rgb, mix.a), with texture alpha unchanged by mixing.
+    // Citro2D fades after tinting, so tint the fade endpoint as well as the texture.
+    u32 fade = mix_color & 0xff000000u;
+    if (fade) {
+        for (int shift = 0; shift < 24; shift += 8) {
+            u32 a = (tint >> shift) & 255;
+            u32 b = (mix_color >> shift) & 255;
+            fade |= ((a * b + 127) / 255) << shift;
+        }
+    }
+    if (fade == world_fade) return;
+    C2D_Flush();
+    C2D_Fade(fade);
+    world_fade = fade;
+}
+
 int32_t m3ds_terrain_draw(int32_t page, int32_t left, int32_t top, int32_t width, int32_t height,
                           float x, float y, float origin_x, float origin_y, float draw_width,
-                          float draw_height, float rotation, int32_t color) {
+                          float draw_height, float rotation, int32_t color, int32_t mix_color, int32_t blend_mode) {
     if (!frame_open || width <= 0 || height <= 0) return 0;
+    set_world_blend(blend_mode);
+    set_world_mix((u32)color, (u32)mix_color);
     C2D_DrawParams params = {
         .pos = { screen_left + (x + origin_x - world_left) * scale,
                  screen_bottom - (y + origin_y - world_bottom) * scale,
@@ -326,6 +361,29 @@ int32_t m3ds_terrain_draw(int32_t page, int32_t left, int32_t top, int32_t width
 #endif
 }
 
+int32_t m3ds_terrain_draw_solid_quad(const float *vertices, int32_t offset, int32_t blend_mode) {
+    if (!frame_open) return 0;
+    set_world_blend(blend_mode);
+    set_world_mix(0, 0);
+    float x[4], y[4];
+    u32 color[4];
+    for (int i = 0; i < 4; i++) {
+        // Arc's SpriteBatch vertex is x, y, packed color, u, v, packed mix color.
+        const float *vertex = vertices + offset + i * 6;
+        x[i] = screen_left + (vertex[0] - world_left) * scale;
+        y[i] = screen_bottom - (vertex[1] - world_bottom) * scale;
+        memcpy(&color[i], &vertex[2], sizeof(color[i]));
+        color[i] |= (u32)((color[i] >> 24) * (255.0f / 254.0f)) << 24;
+    }
+    // Match the original SpriteBatch's (0,1,2) and (2,3,0) triangles.
+    if (!C2D_DrawTriangle(x[0], y[0], color[0], x[1], y[1], color[1], x[2], y[2], color[2], 0.5f)
+            || !C2D_DrawTriangle(x[2], y[2], color[2], x[3], y[3], color[3], x[0], y[0], color[0], 0.5f)) {
+        return 0;
+    }
+    draws++;
+    return 1;
+}
+
 int32_t m3ds_terrain_end(void) {
     if (!frame_open) return 0;
     C3D_FrameEnd(0);
@@ -338,15 +396,18 @@ int32_t m3ds_terrain_palette_active(void) {
 }
 
 int32_t m3ds_terrain_build_labels(const char *labels) {
-    palette_buffer = C2D_TextBufNew(256);
-    catalog_buffer = C2D_TextBufNew(512);
+    if (!palette_buffer) palette_buffer = C2D_TextBufNew(256);
+    if (!catalog_buffer) catalog_buffer = C2D_TextBufNew(512);
     if (!palette_buffer || !catalog_buffer) return 0;
-    // Allocate both screen outputs before the world cache uses the linear heap.
-    gfxSetScreenFormat(GFX_BOTTOM, GSP_BGR8_OES);
-    gfxSetDoubleBuffering(GFX_BOTTOM, true);
-    palette = C2D_CreateScreenTarget(GFX_BOTTOM, GFX_LEFT);
-    if (!palette) return 0;
-    for (int i = 0; i < 7; i++) {
+    if (!palette) {
+        // Allocate both screen outputs before the world cache uses the linear heap.
+        gfxSetScreenFormat(GFX_BOTTOM, GSP_BGR8_OES);
+        gfxSetDoubleBuffering(GFX_BOTTOM, true);
+        palette = C2D_CreateScreenTarget(GFX_BOTTOM, GFX_LEFT);
+        if (!palette) return 0;
+    }
+    C2D_TextBufClear(palette_buffer);
+    for (size_t i = 0; i < sizeof(palette_labels) / sizeof(palette_labels[0]); i++) {
         C2D_TextParse(&palette_labels[i], palette_buffer, labels);
         C2D_TextOptimize(&palette_labels[i]);
         labels += strlen(labels) + 1;
@@ -356,8 +417,10 @@ int32_t m3ds_terrain_build_labels(const char *labels) {
 
 int32_t m3ds_terrain_build_overlay(int32_t column, int32_t row, int32_t block, int32_t rotation,
                                   int32_t removing, int32_t tile_size, int32_t rotatable, int32_t catalog_open,
-                                  int32_t configuring) {
+                                  int32_t configuring, int32_t selecting_mine) {
     if (!frame_open || !palette) return 0;
+    set_world_blend(0);
+    set_world_mix(0, 0);
     u32 accent = removing ? C2D_Color32(241, 117, 97, 255) : C2D_Color32(250, 213, 107, 255);
     bool cursor = column >= 0 && column < 16 && row >= 0 && row < 12;
     if (cursor) {
@@ -368,7 +431,7 @@ int32_t m3ds_terrain_build_overlay(int32_t column, int32_t row, int32_t block, i
         C2D_DrawRectSolid(x, y + size - 2, 0.5f, size, 2, accent);
         C2D_DrawRectSolid(x, y, 0.5f, 2, size, accent);
         C2D_DrawRectSolid(x + size - 2, y, 0.5f, 2, size, accent);
-        if (rotatable && !removing) {
+        if (rotatable && !removing && !selecting_mine) {
             static const int dx[] = {1, 0, -1, 0}, dy[] = {0, -1, 0, 1};
             float cx = x + size / 2, cy = y + size / 2;
             C2D_DrawLine(cx, cy, accent, cx + dx[rotation] * 6, cy + dy[rotation] * 6, accent, 2, 0.5f);
@@ -384,8 +447,11 @@ int32_t m3ds_terrain_build_overlay(int32_t column, int32_t row, int32_t block, i
     C2D_DrawRectSolid(292, 48, 0.5f, 26, 31, C2D_Color32(45, 52, 64, 255));
     C2D_DrawText(&palette_labels[5], C2D_WithColor | C2D_AlignCenter, 305, 57, 0.5f,
         0.30f, 0.30f, configuring ? accent : C2D_Color32(239, 241, 247, 255));
+    C2D_DrawRectSolid(292, 80, 0.5f, 26, 31, C2D_Color32(45, 52, 64, 255));
+    C2D_DrawText(&palette_labels[7], C2D_WithColor | C2D_AlignCenter, 305, 89, 0.5f,
+        0.30f, 0.30f, selecting_mine ? accent : C2D_Color32(239, 241, 247, 255));
     for (int i = 0; i < 4; i++) {
-        bool active = removing ? i == 3 : i == block;
+        bool active = !selecting_mine && (removing ? i == 3 : i == block);
         C2D_DrawRectSolid(i * 80 + 2, 4, 0.5f, 76, 39,
             active ? C2D_Color32(85, 71, 52, 255) : C2D_Color32(45, 52, 64, 255));
         C2D_DrawText(&palette_labels[i], C2D_WithColor | C2D_AlignCenter, i * 80 + 40, 16, 0.5f,

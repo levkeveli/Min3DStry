@@ -38,6 +38,7 @@ jobs:
       cancel-in-progress: true
     strategy:
       fail-fast: false
+      max-parallel: 4
       matrix:
         probe: [logic, map, resource, executor, campaign-settings, campaign-content, campaign-research, campaign-slot-meta, campaign-sector-info, campaign-planet, campaign-sector-state, campaign-launch, campaign-saves, campaign-slot-discovery, wave-routing]
     steps:
@@ -154,6 +155,29 @@ jobs:
             grep -F 'UPSTREAM_WAVE wave=4 spawned=dagger=2 groundSpawned=2 first=79,219->80,173 distance=1546->1177 min=1177 alive=2/2 ammo=29 nextWave=5' \
               "$RUNNER_TEMP/probe.log"
           fi
+
+      - name: Verify wave-routing TeaVM C at -O0 and -O2 against JVM trace
+        if: matrix.probe == 'wave-routing'
+        shell: bash
+        run: |
+          set -o pipefail
+          rm -rf "$RUNNER_TEMP/teavm-c-wave"
+          cp -R research/upstream-runtime/build/generated/teavm/c "$RUNNER_TEMP/teavm-c-wave"
+          python3 research/upstream-runtime/arm11/fix_reflection_lifetime.py "$RUNNER_TEMP/teavm-c-wave"
+          cc -std=gnu11 -O0 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-wave/all.c" -lm -lpthread \
+            -o "$RUNNER_TEMP/teavm-c-wave/probe_o0"
+          cc -std=gnu11 -O2 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-wave/all.c" -lm -lpthread \
+            -o "$RUNNER_TEMP/teavm-c-wave/probe_o2"
+          "$RUNNER_TEMP/teavm-c-wave/probe_o0" "$RUNNER_TEMP/glacier.msav" | tee "$RUNNER_TEMP/wave-o0.log"
+          "$RUNNER_TEMP/teavm-c-wave/probe_o2" "$RUNNER_TEMP/glacier.msav" | tee "$RUNNER_TEMP/wave-o2.log"
+          for log in "$RUNNER_TEMP/wave-o0.log" "$RUNNER_TEMP/wave-o2.log"; do
+            grep -Fx 'UPSTREAM_WORLD_FINGERPRINT 2e7b9f883994de6c' "$log"
+            grep -Fx 'UPSTREAM_WAVE_SETUP core=81,26 enemyCore=81,224 groundSpawns=1 fieldHash=629058db4926d64e' "$log"
+            grep -Fx 'UPSTREAM_WAVE wave=1 spawned=dagger=1 groundSpawned=1 first=79,218->80,172 distance=1533->1165 min=1165 alive=1/1 ammo=30 nextWave=2' "$log"
+            grep -Fx 'UPSTREAM_WAVE wave=2 spawned=dagger=1,gamma=2 groundSpawned=1 first=82,217->80,171 distance=1524->1159 min=1159 alive=1/1 ammo=30 nextWave=3' "$log"
+            grep -Fx 'UPSTREAM_WAVE wave=3 spawned=dagger=2 groundSpawned=2 first=79,219->80,173 distance=1545->1177 min=1177 alive=2/2 ammo=30 nextWave=4' "$log"
+            grep -Fx 'UPSTREAM_WAVE wave=4 spawned=dagger=2 groundSpawned=2 first=79,219->80,173 distance=1546->1177 min=1177 alive=2/2 ammo=29 nextWave=5' "$log"
+          done
 
       - name: Build ARM11 probe with pinned devkitARM image
         env:
@@ -419,9 +443,9 @@ jobs:
           grep -F 'UPSTREAM_CAMPAIGN_PASS tech_nodes=375 sectors=95' "$RUNNER_TEMP/campaign-persistence.log"
 
   combat-baseline:
-    name: Combat metadata baseline
+    name: Combat and pathfinding baseline
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
@@ -432,18 +456,84 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Fetch pinned official server JAR
+      - name: Fetch pinned upstream source, map, server JAR, and Arc
         run: |
+          git clone --depth 1 --branch v160.8 \
+            https://github.com/Anuken/Mindustry.git "$RUNNER_TEMP/Mindustry"
+          test "$(git -C "$RUNNER_TEMP/Mindustry" rev-parse HEAD)" = \
+            "19a0f40d44514f4802a8b79770456e7e32e34da0"
+          git -C "$RUNNER_TEMP/Mindustry" show \
+            HEAD:core/assets/maps/default/glacier.msav > "$RUNNER_TEMP/glacier.msav"
           curl --fail --silent --show-error --location \
             https://github.com/Anuken/Mindustry/releases/download/v160.8/server-release.jar \
             -o "$RUNNER_TEMP/server-release.jar"
+          echo "faeaf247a8b622de940181a96cb21cb20692d3c3da4e8ac3f79cb4af5059aa6c  $RUNNER_TEMP/server-release.jar" | sha256sum -c -
+          git clone --filter=blob:none --no-checkout \
+            https://github.com/Anuken/Arc.git "$RUNNER_TEMP/Arc"
+          git -C "$RUNNER_TEMP/Arc" fetch --depth 1 origin \
+            7445105cd2683daf5b9ac7033ebb07265d3e814d
+          git -C "$RUNNER_TEMP/Arc" checkout --detach FETCH_HEAD
+          test "$(git -C "$RUNNER_TEMP/Arc" rev-parse HEAD)" = \
+            "7445105cd2683daf5b9ac7033ebb07265d3e814d"
 
-      - name: Run pinned unit/bullet baseline
+      - name: Run pinned unit/bullet and combat simulation baselines
         run: |
           java -cp "$RUNNER_TEMP/server-release.jar" \
             research/upstream-runtime/host/UpstreamCombatBaseline.java \
             | tee "$RUNNER_TEMP/combat.log"
           grep -F 'UPSTREAM_COMBAT units=69 bullets=202 manifest_sha256=e35013e20c50cbe83169794e898e281898c717f1f373e9b84796090470a76882' "$RUNNER_TEMP/combat.log"
+          java -cp "$RUNNER_TEMP/server-release.jar" \
+            research/upstream-runtime/host/UpstreamCombatSimulationBaseline.java \
+            | tee "$RUNNER_TEMP/combat-sim.log"
+          grep -Fx 'UPSTREAM_COMBAT_TURRETS blocks=18 manifest_sha256=064627fbce664cc8525f47c3cd0721af9195572fc47e4e09f6ee91ba8579062b' "$RUNNER_TEMP/combat-sim.log"
+          grep -Fx 'UPSTREAM_COMBAT_DUEL duo=29/49/59/379 hailSplash=2@80 lancerHit=121' "$RUNNER_TEMP/combat-sim.log"
+          grep -Fx 'UPSTREAM_COMBAT_PATHFINDING openHash=231555f2432a19e1 blockedHash=2f7e63891b7ab039 start=20,16 end=15,18 maxDy=4 dist=112->72' "$RUNNER_TEMP/combat-sim.log"
+          grep -Fx 'UPSTREAM_COMBAT_ORDER runs=2 ticks=940 trace_hash=0x30f5f9a444d020c3' "$RUNNER_TEMP/combat-sim.log"
+
+      - name: Run combat-ticks JVM probe and generate TeaVM C
+        shell: bash
+        run: |
+          set -o pipefail
+          bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime \
+            --no-daemon --console=plain \
+            "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" \
+            "-PreferenceJar=$RUNNER_TEMP/server-release.jar" \
+            "-ParcCheckout=$RUNNER_TEMP/Arc" \
+            -Pprobe=combat-ticks \
+            runProbeJvm "--args=$RUNNER_TEMP/glacier.msav" generateC | tee "$RUNNER_TEMP/combat-probe-jvm.log"
+          grep -Fx 'UPSTREAM_WORLD_FINGERPRINT 2e7b9f883994de6c' "$RUNNER_TEMP/combat-probe-jvm.log"
+          grep -Fx 'UPSTREAM_COMBAT delivery=29 shot=49 hit=62 destroyed=382 supplied=20' "$RUNNER_TEMP/combat-probe-jvm.log"
+          grep -Fx 'UPSTREAM_WAVE next=2 groundSpawns=0 enemies=1 units=gamma=1' "$RUNNER_TEMP/combat-probe-jvm.log"
+
+      - name: Verify generated combat-ticks TeaVM C at -O0 and -O2 against JVM trace
+        shell: bash
+        run: |
+          set -o pipefail
+          rm -rf "$RUNNER_TEMP/teavm-c-combat"
+          cp -R research/upstream-runtime/build/generated/teavm/c "$RUNNER_TEMP/teavm-c-combat"
+          python3 research/upstream-runtime/arm11/fix_reflection_lifetime.py "$RUNNER_TEMP/teavm-c-combat"
+          cc -std=gnu11 -O0 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-combat/all.c" -lm -lpthread \
+            -o "$RUNNER_TEMP/teavm-c-combat/probe_o0"
+          cc -std=gnu11 -O2 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-combat/all.c" -lm -lpthread \
+            -o "$RUNNER_TEMP/teavm-c-combat/probe_o2"
+          "$RUNNER_TEMP/teavm-c-combat/probe_o0" "$RUNNER_TEMP/glacier.msav" | tee "$RUNNER_TEMP/combat-o0.log"
+          "$RUNNER_TEMP/teavm-c-combat/probe_o2" "$RUNNER_TEMP/glacier.msav" | tee "$RUNNER_TEMP/combat-o2.log"
+          for log in "$RUNNER_TEMP/combat-o0.log" "$RUNNER_TEMP/combat-o2.log"; do
+            grep -Fx 'UPSTREAM_WORLD_FINGERPRINT 2e7b9f883994de6c' "$log"
+            grep -Fx 'UPSTREAM_COMBAT delivery=29 shot=49 hit=62 destroyed=382 supplied=20' "$log"
+            grep -Fx 'UPSTREAM_WAVE next=2 groundSpawns=0 enemies=1 units=gamma=1' "$log"
+          done
+
+      - name: Build ARM11 combat-ticks probe with pinned devkitARM image
+        run: |
+          image=devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5
+          docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/work" -w /work "$image" bash -lc '
+            source /opt/devkitpro/3dsvars.sh
+            bash research/upstream-runtime/arm11/build.sh \
+              research/upstream-runtime/build/generated/teavm/c \
+              research/upstream-runtime/build/probe-3ds-combat'
+          test -s research/upstream-runtime/build/probe-3ds-combat/upstream-probe.3dsx
+          test -s research/upstream-runtime/build/probe-3ds-combat/upstream-probe.elf
 
   audio-conversion:
     name: Audio conversion
