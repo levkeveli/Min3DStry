@@ -67,14 +67,15 @@ bash research/upstream-runtime/arm11/build.sh \
 JVM and ARM11/Azahar both emit:
 
 ```text
-UPSTREAM_CAMPAIGN_SETTINGS bytes=65 int=12345 string=ok reload=ok
+UPSTREAM_CAMPAIGN_SETTINGS path=live bytes=65 int=12345 string=ok reload=ok
 ```
 
-The probe writes a fresh `settings.bin` under the Java temporary directory
-(`/3ds/min3dstry/tmp/m3ds-campaign-settings` on 3DS), reloads it with a second
-`Settings` instance, and verifies fixed integer/string values. It does not
-overwrite live campaign settings. Azahar `2126.2` verified the line on both New
-and Old 3DS profiles; the `.3dsx` build uses the pinned devkitARM image.
+On 3DS the probe uses the live `/3ds/min3dstry` directory, snapshots any
+existing `settings.bin`/`settings_backup.bin`/`settings_backups`, reruns the
+round-trip, then restores or removes the saved state. On the JVM it uses a
+temporary directory and reports `path=tmp`. It does not leave probe values in
+live settings. Azahar `2126.2` verified `path=live` on both New and Old 3DS
+profiles; the `.3dsx` build uses the pinned devkitARM image.
 
 ## Remaining Scope for Issue #41 (3DS Hardware / ARM11 Runtime)
 
