@@ -190,7 +190,7 @@
       "category": "Core Simulation",
       "name": "Crafters, Power Grid & Liquid Graph",
       "weight": 6,
-      "stage": "experimental",
+      "stage": "emulator-tested",
       "issue": 39,
       "evidence": [
         "research/upstream-runtime/host/UpstreamProductionBaseline.java",
@@ -204,11 +204,15 @@
       "category": "Core Simulation",
       "name": "Turrets, Waves, Units & Flow Pathfinding",
       "weight": 8,
-      "stage": "planned",
+      "stage": "experimental",
       "issue": 30,
       "evidence": [
         "research/upstream-runtime/src/gameplay/java/UpstreamCombatTickProbe.java",
-        "research/upstream-runtime/README.md"
+        "research/upstream-runtime/src/gameplay/java/UpstreamWaveRoutingProbe.java",
+        "research/upstream-runtime/src/gameplay/java/UpstreamSimulationWorld.java",
+        "research/upstream-runtime/build.gradle",
+        "research/upstream-runtime/README.md",
+        ".github/workflows/upstream-arm11-smoke.yml"
       ]
     },
     {
@@ -273,6 +277,7 @@
         "tests/platform/test_settings_store.c",
         "research/upstream-runtime/src/campaign-settings/java/UpstreamCampaignSettingsProbe.java",
         "research/upstream-runtime/src/campaign-sector/java/UpstreamCampaignSectorProbe.java",
+        "research/upstream-runtime/src/campaign-content/java/UpstreamCampaignContentStateProbe.java",
         "research/upstream-runtime/build.gradle",
         "docs/porting/campaign-progression.md",
         "docs/porting/sd-storage-paths.md"
