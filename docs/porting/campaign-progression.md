@@ -340,6 +340,43 @@ directories. `./dev.sh test` runs it. With `sector-serpulo-170.msav` (raw
 `sdmc:/3ds/min3dstry`, `./dev.sh emu-test --expect-sector-catalog 2` verified
 `count=2` and the HUD lines on both New 3DS (804 MHz) and Old 3DS (268 MHz)
 profiles.
+## ARM11 Save-Slot Discovery
+
+`-Pprobe=campaign-slot-discovery` writes a sector slot into a probe directory
+and discovers it with upstream `SaveIO` validation:
+
+```sh
+gradle -PupstreamCheckout=/path/to/Mindustry \
+  -PreferenceJar=/path/to/server-release.jar \
+  -ParcCheckout=/path/to/Arc -Pprobe=campaign-slot-discovery \
+  runProbeJvm "--args=/path/slot-base /path/glacier.msav"
+```
+
+JVM reports:
+
+```text
+UPSTREAM_CAMPAIGN_SLOT_DISCOVERY path=tmp slots=1 file=sector-serpulo-15.msav bytes=11035 discovery=ok
+```
+
+ARM11/Azahar reports the live path:
+
+```text
+UPSTREAM_CAMPAIGN_SLOT_DISCOVERY path=live slots=1 file=sector-serpulo-15.msav bytes=11036 discovery=ok
+```
+
+The probe loads Glacier, writes `sector-serpulo-15.msav` into
+`/3ds/min3dstry/tmp/slot-discovery`, lists the directory, filters `*.msav`
+non-backup files through `SaveIO.isSaveValid`, and asserts exactly one slot.
+The ARM11 build sets `M3DS_RELAX_POINTER_TYPES=1` because TeaVM C 0.16 emits
+pointer-typed object references that GCC otherwise rejects; locally use:
+
+```sh
+M3DS_RELAX_POINTER_TYPES=1 bash arm11/build.sh \
+  build/generated/teavm/c build/probe-3ds-campaign-slot-discovery
+```
+
+The runtime result is verified on both Azahar profiles. The opt-in is tracked
+for removal once the TeaVM object-reference cast issue is fixed.
 
 ## Remaining Scope for Issue #41 (3DS Hardware / ARM11 Runtime)
 
