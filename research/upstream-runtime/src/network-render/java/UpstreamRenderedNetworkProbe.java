@@ -25,8 +25,9 @@ import mindustry.world.blocks.payloads.UnitPayload;
 import mindustry.world.blocks.liquid.Conduit;
 import mindustry.world.blocks.distribution.Conveyor.ConveyorBuild;
 import mindustry.world.blocks.distribution.Sorter;
+import mindustry.world.blocks.storage.CoreBlock;
 
-/** Presents the received Glacier world through the ARM11 terrain renderer. */
+/** Presents the received multiplayer world through the ARM11 terrain renderer. */
 public final class UpstreamRenderedNetworkProbe {
     private static final ObjectSet<UnitType> drawableUnits = new ObjectSet<>();
     private final Fi atlas;
@@ -98,9 +99,6 @@ public final class UpstreamRenderedNetworkProbe {
     }
 
     private void render(Unit unit) {
-        if (lastLeft == -1 && !Vars.state.map.name().equals("Glacier")) {
-            throw new IllegalStateException("The rendered multiplayer probe is packaged for Glacier");
-        }
         controlled = unit;
         float x = unit == null ? Vars.player.x() : unit.x();
         float y = unit == null ? Vars.player.y() : unit.y();
@@ -191,7 +189,7 @@ public final class UpstreamRenderedNetworkProbe {
     static boolean supportsBuildingDraw(Building build) {
         var block = build.block;
         // These blocks use the sprite operations available in the live backend.
-        return block == Blocks.coreNucleus || block == Blocks.conveyor || block == Blocks.copperWall
+        return block instanceof CoreBlock || block == Blocks.conveyor || block == Blocks.copperWall
             || block == Blocks.copperWallLarge || block == Blocks.router || block instanceof Sorter
             || block == Blocks.mechanicalDrill || block instanceof Conduit
             || block == Blocks.phaseWeaver || block == Blocks.overdriveProjector
