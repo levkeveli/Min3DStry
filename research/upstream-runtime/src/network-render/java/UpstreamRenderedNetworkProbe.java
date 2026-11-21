@@ -14,6 +14,7 @@ import mindustry.content.UnitTypes;
 import mindustry.core.World;
 import mindustry.gen.Building;
 import mindustry.gen.Groups;
+import mindustry.gen.Tankc;
 import mindustry.gen.Unit;
 import mindustry.gen.UnitWaterMove;
 import mindustry.graphics.CacheLayer;
@@ -84,7 +85,8 @@ public final class UpstreamRenderedNetworkProbe {
             UnitTypes.flare, UnitTypes.horizon, UnitTypes.zenith, UnitTypes.antumbra, UnitTypes.eclipse,
             UnitTypes.mono, UnitTypes.poly,
             UnitTypes.risso, UnitTypes.minke, UnitTypes.bryde, UnitTypes.sei, UnitTypes.omura,
-            UnitTypes.retusa, UnitTypes.oxynoe, UnitTypes.cyerce, UnitTypes.aegires, UnitTypes.navanax
+            UnitTypes.retusa, UnitTypes.oxynoe, UnitTypes.cyerce, UnitTypes.aegires, UnitTypes.navanax,
+            UnitTypes.stell, UnitTypes.locus, UnitTypes.precept, UnitTypes.vanquish, UnitTypes.conquer
         };
         drawableUnits.clear();
         for (var type : types) {
@@ -133,10 +135,17 @@ public final class UpstreamRenderedNetworkProbe {
             }
             for (var unit : Groups.unit) {
                 if (unit instanceof UnitWaterMove boat) boat.advanceWake();
+                if (unit instanceof Tankc tank) advanceTankTreads(tank);
             }
         } finally {
             Time.delta = oldDelta;
         }
+    }
+
+    static void advanceTankTreads(Tankc tank) {
+        // TankComp advances the tread strip by distance on clients. Reuse HitboxComp's position history.
+        tank.updateLastPosition();
+        tank.treadTime(tank.treadTime() + tank.deltaLen());
     }
 
     private void drawEntities() {
