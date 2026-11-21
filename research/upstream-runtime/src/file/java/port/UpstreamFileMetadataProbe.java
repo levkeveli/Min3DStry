@@ -1,6 +1,8 @@
 package port;
 
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 
@@ -36,6 +38,39 @@ public final class UpstreamFileMetadataProbe {
             if (input.getFilePointer() != 0 || input.readInt() != HEADER) {
                 throw new IllegalStateException("Glacier rewind differs");
             }
+        }
+
+        File renameDir = new File(glacier.getParentFile(), "tmp");
+        if (!renameDir.isDirectory() && !renameDir.mkdirs()) {
+            throw new IllegalStateException("Could not create rename directory");
+        }
+        File source = File.createTempFile("m3ds-rename-", ".bin", renameDir);
+        File target = new File(renameDir, source.getName() + ".moved");
+        byte[] payload = {0x4d, 0x33, 0x44, 0x53};
+        try {
+            try (var output = new FileOutputStream(source)) {
+                output.write(payload);
+            }
+            if (!source.renameTo(target)) {
+                throw new IllegalStateException("TeaVM file rename failed");
+            }
+            if (source.exists() || !target.isFile() || target.length() != payload.length) {
+                throw new IllegalStateException("Renamed file metadata differs");
+            }
+            try (var input = new FileInputStream(target)) {
+                for (byte expected : payload) {
+                    if (input.read() != (expected & 0xff)) {
+                        throw new IllegalStateException("Renamed file content differs");
+                    }
+                }
+                if (input.read() != -1) {
+                    throw new IllegalStateException("Renamed file has trailing bytes");
+                }
+            }
+            System.out.println("UPSTREAM_FILE_RENAME bytes=" + payload.length + " rename=ok");
+        } finally {
+            target.delete();
+            source.delete();
         }
         System.out.println("UPSTREAM_FILE_METADATA size=8550 header=789cbd3a last=108 seek=ok paths=ok");
     }
