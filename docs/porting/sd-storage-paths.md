@@ -46,6 +46,10 @@ the probe reports three cases:
   reported without inflating the whole world;
 - anything else: `present=true, valid=false`.
 
+When the primary slot is missing or invalid, the probe falls back to
+`<name>-backup.msav`, matching `SaveIO.isSaveValid`/`backupFileFor`. This is
+the same backup name upstream uses for interrupted or corrupt saves.
+
 `main_3ds.c` probes `/3ds/min3dstry/sector-serpulo-170.msav` once at startup and
 logs:
 
@@ -75,18 +79,19 @@ and truncated input fail closed.
 header logic. Entries are sorted by planet and sector id, duplicate names are
 not invented, malformed names and unrelated files are ignored, and the scan
 never writes or deletes anything. A missing directory yields an empty catalog.
+When the `.msav` metadata prefix parses, the entry also carries the upstream
+`mapname` and `wave`.
 
 Startup logs and HUD:
 
 ```text
-[MIN3DSTRY] SECTOR_CATALOG count=2
-[MIN3DSTRY] SECTOR_SLOT planet=erekir id=64 valid=0 compressed=1 bytes=17
-[MIN3DSTRY] SECTOR_SLOT planet=serpulo id=170 valid=1 compressed=0 bytes=20
+[MIN3DSTRY] SECTOR_CATALOG count=1
+[MIN3DSTRY] SECTOR_SLOT planet=serpulo id=170 valid=1 compressed=1 bytes=11072 map=Glacier wave=1
 ```
 
 ```text
-Sectors: 2
-Sector erekir-64 zlib 17B
+Sectors: 1
+Sector serpulo-170 Glacier w1
 ```
 
 The list is catalog plumbing, not campaign loading: selecting, launching and
