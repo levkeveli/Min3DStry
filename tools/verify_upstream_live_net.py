@@ -480,31 +480,48 @@ def load_payload_handoff_fixture(server_log, server):
     server.stdin.write(
         'pause on\n'
         'js (() => { const team = Vars.state.rules.defaultTeam; '
-        'const sender = Vars.world.tile(74,22), receiver = Vars.world.tile(77,22); '
-        'const Payload = Packages.mindustry.world.blocks.payloads.BuildPayload; '
+        'const Wall = Packages.mindustry.world.blocks.payloads.BuildPayload; '
+        'const Unit = Packages.mindustry.world.blocks.payloads.UnitPayload; '
+        'const dagger = UnitTypes.dagger.create(Vars.state.rules.waveTeam); dagger.baseRotation=0; '
+        'const cargos = [[22,new Wall(Blocks.copperWall,team)],[29,new Unit(dagger)]]; '
+        'const names = cargos.map(entry => { const y = entry[0]; '
+        'const sender = Vars.world.tile(74,y), receiver = Vars.world.tile(77,y); '
         'sender.setBlock(Blocks.payloadConveyor,team,0); '
         'receiver.setBlock(Blocks.payloadConveyor,team,0); '
-        'Vars.world.tile(79,22).setBlock(Blocks.titaniumWall,team,0); '
+        'Vars.world.tile(79,y).setBlock(Blocks.titaniumWall,team,0); '
         'sender.build.progress=Blocks.payloadConveyor.moveTime*0.5; '
-        'sender.build.handlePayload(sender.build,new Payload(Blocks.copperWall,team)); '
-        'return "UPSTREAM_HANDOFF_FIXTURE sender=" + sender.build.item.content().name '
-        '+ " receiver=" + receiver.build.item; })()\n'
+        'sender.build.handlePayload(sender.build,entry[1]); '
+        'if (receiver.build.item != null) throw "Receiving belt must start empty"; '
+        'return sender.build.item.content().name; }); '
+        'return "UPSTREAM_HANDOFF_FIXTURE " + names.join(","); })()\n'
     )
     server.stdin.flush()
-    wait_for(server_log, server, r"UPSTREAM_HANDOFF_FIXTURE sender=copper-wall receiver=null\b", 5)
+    wait_for(server_log, server, r"UPSTREAM_HANDOFF_FIXTURE copper-wall,dagger\b", 5)
 
 
 def load_unit_layers_fixture(server_log, server):
     server.stdin.write(
         'pause on\n'
-        'js (() => { const gamma = UnitTypes.gamma.spawn(Vars.state.rules.defaultTeam,600,224,90); '
-        'const dagger = UnitTypes.dagger.spawn(Vars.state.rules.waveTeam,688,184,90); '
+        'js (() => { const team = Vars.state.rules.defaultTeam, enemy = Vars.state.rules.waveTeam; '
+        'const gamma = UnitTypes.gamma.spawn(team,600,224,90); '
+        'const dagger = UnitTypes.dagger.spawn(enemy,688,184,90); '
         'dagger.baseRotation=90; '
+        'const Payload = Packages.mindustry.world.blocks.payloads.UnitPayload; '
+        'const loadedGamma = UnitTypes.gamma.create(team), loadedDagger = UnitTypes.dagger.create(enemy); '
+        'loadedDagger.baseRotation=90; '
+        'const belts = [[75,23,loadedGamma,0.5],[86,29,loadedDagger,0.4352753]]; '
+        'const centers = belts.map(entry => { const tile = Vars.world.tile(entry[0],entry[1]); '
+        'tile.setBlock(Blocks.payloadConveyor,team,1); '
+        'tile.build.progress=Blocks.payloadConveyor.moveTime*entry[3]; '
+        'tile.build.handlePayload(tile.build,new Payload(entry[2])); '
+        'return Math.round(tile.build.item.y()); }); '
         'return "UPSTREAM_UNIT_FIXTURE gamma=" + gamma.team.id + "," + gamma.rotation '
-        '+ " dagger=" + dagger.team.id + "," + dagger.baseRotation; })()\n'
+        '+ " dagger=" + dagger.team.id + "," + dagger.baseRotation '
+        '+ " cargoY=" + centers.join(","); })()\n'
     )
     server.stdin.flush()
-    wait_for(server_log, server, r"UPSTREAM_UNIT_FIXTURE gamma=1,90(?:\.0)? dagger=2,90(?:\.0)?\b", 5)
+    wait_for(server_log, server,
+             r"UPSTREAM_UNIT_FIXTURE gamma=1,90(?:\.0)? dagger=2,90(?:\.0)? cargoY=184,226\b", 5)
 
 
 def verify_unit_layers(screenshot):
@@ -514,26 +531,34 @@ def verify_unit_layers(screenshot):
                 (309, 174): crux, (310, 174): crux, (310, 176): crux}
     # The engine is visible beyond the Gamma's body. Both mirrored Dagger mounts have orange tips.
     expected.update({(90, 89): sharded, (300, 165): (255, 166, 100), (319, 165): (255, 166, 100)})
+    # The carried Gamma is centered, and the carried Dagger is six world units south of its belt center.
+    expected.update({(89, 176): sharded, (90, 176): sharded, (90, 179): sharded,
+                     (309, 69): crux, (310, 69): crux, (310, 71): crux,
+                     (300, 60): (255, 166, 100), (319, 60): (255, 166, 100)})
     colors = az.inspect_png(screenshot, tuple(expected))["samples"]
     if colors != expected:
         raise RuntimeError(f"Stock Gamma and Dagger cell, engine or weapon pixels differ: {colors}")
 
 
 def payload_handoff_pixels(screenshot):
-    # Count colors unique to the opaque Copper Wall sprite across the centers of both belts.
-    rows = (184, 187, 190, 193, 196)
-    sender = tuple((x, y) for y in rows for x in range(60, 81))
-    # Start beyond the farthest pixel the sender can draw during its travel.
-    receiver = tuple((x, y) for y in rows for x in range(111, 170))
-    colors = az.inspect_png(screenshot, (*sender, *receiver))["samples"]
+    # The receiver sample starts beyond any position the sender can draw during travel.
+    wall_rows = (184, 187, 190, 193, 196)
+    dagger_rows = range(45, 55)
+    wall_sources = tuple((x, y) for y in wall_rows for x in range(60, 81))
+    wall_destinations = tuple((x, y) for y in wall_rows for x in range(111, 170))
+    unit_sources = tuple((x, y) for y in dagger_rows for x in range(58, 83))
+    unit_destinations = tuple((x, y) for y in dagger_rows for x in range(115, 169))
+    colors = az.inspect_png(screenshot, (*wall_sources, *wall_destinations, *unit_sources, *unit_destinations))["samples"]
     copper = {(177, 135, 104), (200, 165, 143)}
-    return tuple(sum(colors[point] in copper for point in region) for region in (sender, receiver))
+    crux = (242, 85, 85)
+    return (sum(colors[p] in copper for p in wall_sources), sum(colors[p] in copper for p in wall_destinations),
+            sum(colors[p] == crux for p in unit_sources), sum(colors[p] == crux for p in unit_destinations))
 
 
 def verify_payload_handoff(server_log, server, rpc, output, model, before):
-    sender, receiver = payload_handoff_pixels(before.read_bytes())
-    if sender < 40 or receiver != 0:
-        raise RuntimeError(f"Expected the streamed wall on the first belt: {sender}, {receiver}")
+    wall_src, wall_dst, unit_src, unit_dst = payload_handoff_pixels(before.read_bytes())
+    if wall_src < 40 or wall_dst != 0 or unit_src < 5 or unit_dst != 0:
+        raise RuntimeError(f"Expected wall and Dagger on their first belts: {wall_src}, {wall_dst}, {unit_src}, {unit_dst}")
 
     # Let upstream simulation move the wall. Freeze the receiver at a known display position
     # beyond the sender's reach, then await the server's normal periodic block snapshot.
@@ -542,25 +567,28 @@ def verify_payload_handoff(server_log, server, rpc, output, model, before):
     time.sleep(2.5)
     server.stdin.write(
         'pause on\n'
-        'js (() => { const sender = Vars.world.tile(74,22).build, receiver = Vars.world.tile(77,22).build; '
+        'js (() => { const names = [22,29].map(y => { '
+        'const sender = Vars.world.tile(74,y).build, receiver = Vars.world.tile(77,y).build; '
         'if (sender.item != null || receiver.item == null) throw "Stock belts did not transfer cargo"; '
         'receiver.progress=Blocks.payloadConveyor.moveTime*0.5; '
-        'return "UPSTREAM_HANDOFF_COMPLETE sender=null receiver=" + receiver.item.content().name; })()\n'
+        'return receiver.item.content().name; }); '
+        'return "UPSTREAM_HANDOFF_COMPLETE " + names.join(","); })()\n'
     )
     server.stdin.flush()
-    wait_for(server_log, server, r"UPSTREAM_HANDOFF_COMPLETE sender=null receiver=copper-wall\b", 8)
+    wait_for(server_log, server, r"UPSTREAM_HANDOFF_COMPLETE copper-wall,dagger\b", 8)
 
     deadline = time.monotonic() + 15
     while time.monotonic() < deadline:
         frame = rpc.screenshot(res_scale=1)
-        sender, receiver = payload_handoff_pixels(frame)
-        if sender == 0 and receiver >= 40:
+        wall_src, wall_dst, unit_src, unit_dst = payload_handoff_pixels(frame)
+        if wall_src == 0 and wall_dst >= 40 and unit_src == 0 and unit_dst >= 5:
             (output / f"{model}-payload-after.png").write_bytes(frame)
-            print(f"{model}: stock BlockSnapshot moved the wall from the first belt to the second.", flush=True)
+            print(f"{model}: stock BlockSnapshot moved the wall and Dagger to their receiving belts.", flush=True)
             return
         time.sleep(0.2)
     (output / f"{model}-payload-after.png").write_bytes(frame)
-    raise RuntimeError(f"Expected the wall only on the receiving belt after BlockSnapshot: {sender}, {receiver}")
+    raise RuntimeError(f"Expected wall and Dagger on receiving belts after BlockSnapshot: "
+                       f"{wall_src}, {wall_dst}, {unit_src}, {unit_dst}")
 
 
 def load_building_effects_fixture(server_log, server):
@@ -911,9 +939,9 @@ def main():
     build_mode.add_argument("--carried-buildings", action="store_true",
                             help="Verify stock walls, drill and transport blocks carried on Payload Conveyors")
     build_mode.add_argument("--payload-handoff", action="store_true",
-                            help="Verify a stock server transfers a carried wall after the client joins")
+                            help="Verify a stock server transfers a carried wall and Dagger after the client joins")
     build_mode.add_argument("--unit-layers", action="store_true",
-                            help="Verify the stock Gamma and Dagger in a paused Glacier session")
+                            help="Verify the stock Gamma and Dagger both free and carried in paused Glacier")
     args = parser.parse_args()
     args.server, args.rom, args.azahar = (path.resolve() for path in (args.server, args.rom, args.azahar))
     with args.server.open("rb") as archive:
