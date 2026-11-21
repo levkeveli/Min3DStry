@@ -909,8 +909,16 @@ To exercise two joins in the same graphical ARM11 process, run the live
 verifier with `--controls --controls-rejoin --map-spawn "The Onset"
 --erekir-sector onset --terrain-atlas /path/to/sprites.aatls`. The verifier
 checks the server-assigned unit, world size and original spawn pixels on
-each join. It uses the genuine server's wave snapshot to complete each
-connection and checks that the same renderer assets serve both worlds.
+each join. It compares a checksum of all tile data bytes against the
+unmodified Java server and uses the stock server's wave snapshot to
+complete each connection. The renderer assets stay resident across both
+joins.
+
+On a warm join, the existing renderer occupies enough managed memory to
+prevent the second scratch allocation in the original darkness pass. The
+Arm11 graphical client allocates both scratch buffers together in native
+memory and frees them before the pass returns. The pinned World method
+keeps its original iteration, neighbor conditions and tile writes.
 
 The renderer still selects blocks that use the supported sprite operations.
 Textured raw vertices, additional payload types and other rendering services

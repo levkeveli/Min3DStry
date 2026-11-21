@@ -255,6 +255,14 @@ def verify_graphical_rejoin(args, model, log, emulator, server_log, server, rpc,
         if (width, height) != fixture[:2]:
             raise RuntimeError(f"{model} join {join} loaded {width}×{height}, expected {fixture[:2]}")
         verify_map_spawn(log, emulator, args.map_spawn, fixture, position, join)
+        server.stdin.write(
+            'js (() => { const crc = new java.util.zip.CRC32(); const tiles = Vars.world.tiles; '
+            'for (let i = 0; i < tiles.width * tiles.height; i++) crc.update(tiles.geti(i).data & 255); '
+            f'return "UPSTREAM_SERVER_REJOIN_TILE_DATA join={join} crc=" + crc.getValue(); }})()\n')
+        server.stdin.flush()
+        response = re.compile(rf"UPSTREAM_SERVER_REJOIN_TILE_DATA join={join} crc=(\d+)")
+        checksum = response.search(wait_for(server_log, server, response, 20)).group(1)
+        wait_for(log, emulator, rf"UPSTREAM_LIVE_NET_REJOIN_TILE_DATA join={join} crc={checksum}\b", 5)
         capture_viewport(log, emulator, rpc, output / f"{model}-rejoin-{join}.png", position,
                          world_size=(int(width), int(height)), frame_timeout=25,
                          spawn_pixels=MAP_SPAWN_PIXELS[args.map_spawn])
@@ -1964,7 +1972,8 @@ def main():
                         help="Require the ARM11 collector to grow its relocation table during the spawn check")
     args = parser.parse_args()
     if args.controls_rejoin and (not args.controls or args.controls_replay or not args.terrain_atlas
-                                 or args.map_spawn not in MAP_SPAWN_PIXELS):
+                                 or args.map_spawn not in MAP_SPAWN_PIXELS or args.verify_objective_markers
+                                 or args.verify_objective_hud or args.require_relocation_spill):
         parser.error("--controls-rejoin needs --controls, --terrain-atlas and a supported stock --map-spawn")
     args.server, args.rom, args.azahar = (path.resolve() for path in (args.server, args.rom, args.azahar))
     with args.server.open("rb") as archive:

@@ -5,6 +5,7 @@ import port.render.UpstreamLogicFont;
 import port.render.UpstreamLogicFramebuffer;
 import port.render.UpstreamWorldLabel;
 import port.logic.UpstreamClientLogic;
+import port.world.DarknessScratch;
 import port.render.UpstreamLabelText;
 import arc.Core;
 import arc.files.Fi;
@@ -88,6 +89,7 @@ public final class UpstreamRenderedNetworkProbe {
     }
 
     private void prepareClient() {
+        DarknessScratch.useNativeMemory();
         UpstreamClientLogic.initialize(new Fi("/romfs/logicids.dat"));
         Core.graphics = new MockGraphics() {
             @Override public int getWidth() { return 400; }

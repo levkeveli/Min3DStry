@@ -21,6 +21,7 @@ def netClientSource = 'core/src/mindustry/core/NetClient.java'
 def placementSource = 'core/src/mindustry/ui/fragments/PlacementFragment.java'
 def itemSelectionSource = 'core/src/mindustry/world/blocks/ItemSelection.java'
 def globalLogicSource = 'core/src/mindustry/logic/GlobalVars.java'
+def coreWorldSource = 'mindustry/core/World.java'
 def logicExecutorSource = 'mindustry/logic/LExecutor.java'
 def planetGridSource = 'core/src/mindustry/graphics/g3d/PlanetGrid.java'
 def pixmapSource = 'arc-core/src/arc/graphics/Pixmap.java'
@@ -225,6 +226,7 @@ if (usesArcSources || usesExecutor) {
             stagedClasses.addAll([type + '.class', type + '$*.class'])
         }
         stagedClasses.addAll(['mindustry/logic/LExecutor.class', 'mindustry/logic/LExecutor$*.class'])
+        stagedClasses.addAll(['mindustry/core/World.class', 'mindustry/core/World$*.class'])
     }
     if (usesCampaignJsonCompat) {
         stagedClasses.addAll(['arc/util/serialization/Json.class', 'arc/util/serialization/Json$*.class'])
@@ -387,6 +389,7 @@ tasks.register('prepareUpstreamProbe') {
     }
     if (probe == 'network-render') {
         outputs.files(contentColorsFile, globalLogicFile)
+        outputs.file(sourceDir.map { it.file(coreWorldSource) })
         outputs.file(sourceDir.map { it.file(logicExecutorSource) })
         logicDisplaySources.each { outputs.file(sourceDir.map { dir -> dir.file(it) }) }
         shieldModeSources.keySet().each { outputs.file(sourceDir.map { dir -> dir.file(it) }) }
@@ -413,6 +416,35 @@ tasks.register('prepareUpstreamProbe') {
             def adaptedLogic = globalLogicFile.get().asFile
             adaptedLogic.parentFile.mkdirs()
             adaptedLogic.setText(globalLogic, 'UTF-8')
+            def world = new String(readUpstream("core/src/${coreWorldSource}"), 'UTF-8')
+            def start = world.indexOf('        byte[] dark = new byte[tiles.width * tiles.height];')
+            def end = world.indexOf('\n    }\n\n    public byte getWallDarkness(Tile tile)', start)
+            if (start < 0 || end < 0) throw new GradleException('Pinned world darkness method changed')
+            def darkness = world.substring(start, end)
+            def storage = [
+                ('        byte[] dark = new byte[tiles.width * tiles.height];\n' +
+                 '        byte[] writeBuffer = new byte[tiles.width * tiles.height];\n'): '',
+                'dark.length': 'tiles.width * tiles.height',
+                'dark[i] = darkIterations;': 'scratch.set(i, darkIterations);',
+                'dark[nidx] < dark[idx]': 'scratch.get(nidx) < scratch.get(idx)',
+                'writeBuffer[idx] = (byte)Math.max(0, dark[idx] - Mathf.num(min));':
+                    'scratch.setNext(idx, (byte)Math.max(0, scratch.get(idx) - Mathf.num(min)));',
+                'System.arraycopy(writeBuffer, 0, dark, 0, writeBuffer.length);': 'scratch.advance();',
+                'tile.data = dark[idx];': 'tile.data = scratch.get(idx);',
+                'dark[idx] == darkRadius': 'scratch.get(idx) == darkRadius',
+                'dark[nidx] == 4': 'scratch.get(nidx) == 4'
+            ]
+            storage.each { original, replacement ->
+                if (darkness.count(original) != 1) throw new GradleException('Pinned world darkness storage changed')
+                darkness = darkness.replace(original, replacement)
+            }
+            def wrapped = '        try (var scratch = new DarknessScratch(tiles.width * tiles.height)){\n' +
+                darkness.readLines().collect { it ? '    ' + it : it }.join('\n') + '\n        }'
+            def adaptedWorld = world.substring(0, start) + wrapped + world.substring(end)
+            def adaptedCoreWorldFile = sourceDir.get().file(coreWorldSource).asFile
+            adaptedCoreWorldFile.parentFile.mkdirs()
+            adaptedCoreWorldFile.setText(adaptedWorld.replace('package mindustry.core;',
+                'package mindustry.core;\n\nimport port.world.DarknessScratch;'), 'UTF-8')
             logicDisplaySources.each { path ->
                 def source = new String(readUpstream("core/src/${path}"), 'UTF-8')
                 def desktopRenderer = '!Vars.renderer.drawDisplays'

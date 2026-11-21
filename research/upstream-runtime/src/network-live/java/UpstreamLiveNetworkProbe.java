@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.zip.InflaterInputStream;
+import java.util.zip.CRC32;
 import mindustry.Vars;
 import mindustry.ai.BlockIndexer;
 import mindustry.ai.Pathfinder;
@@ -208,6 +209,11 @@ public final class UpstreamLiveNetworkProbe {
             Native.endKeepAlive();
         }
         String fingerprint = UpstreamWorldLoadProbe.reportTerrain(false);
+        if (mode == Mode.REJOIN) {
+            var checksum = new CRC32();
+            for (var tile : Vars.world.tiles) checksum.update(tile.data & 255);
+            System.out.println("UPSTREAM_LIVE_NET_REJOIN_TILE_DATA join=" + join + " crc=" + checksum.getValue());
+        }
         System.out.println("UPSTREAM_LIVE_NET_WORLD join=" + join + " map=" + Vars.state.map.name()
             + " bytes=" + total + " team=" + Vars.player.team().id + " fingerprint=" + fingerprint);
         var objectives = Vars.state.rules.objectives;
