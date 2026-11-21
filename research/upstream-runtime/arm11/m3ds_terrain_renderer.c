@@ -521,10 +521,15 @@ int32_t m3ds_terrain_draw_world_label(const char *label, float x, float y, int32
     C2D_TextGetDimensions(&text, scale_x, scale_y, &width, &height);
     float sx = screen_left + (x - world_left) * scale;
     float sy = screen_bottom - (y - world_bottom) * scale;
+    bool anchor_visible = sx >= screen_left && sx <= screen_right;
     bool background = (flags & 1) != 0;
     float border = background ? scale : 0.0f;
     sx -= width * 0.5f * (1 + horizontal) + border * horizontal;
     sy -= height * 0.5f * (1 + vertical) + border * 1.5f * vertical;
+    if (anchor_visible) {
+        // A world marker near an edge can still show its whole prompt while the anchor is in view.
+        sx = fmaxf(screen_left + 4.0f, fminf(sx, screen_right - 4.0f - width));
+    }
     if (sx + width < screen_left || sx > screen_right || sy + height < screen_top || sy > screen_bottom) return 0;
 
     C2D_TextOptimize(&text);
