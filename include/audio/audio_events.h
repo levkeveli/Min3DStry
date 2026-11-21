@@ -7,6 +7,10 @@
 extern "C" {
 #endif
 
+#define M3DS_UPSTREAM_SOUND_UNSET (-1)
+#define M3DS_UPSTREAM_AUDIO_DEFAULT_FALLOFF 16000.0f
+#define M3DS_UPSTREAM_AUDIO_MIN_AUDIBLE_VOLUME 0.005f
+
 /*
  * Logical upstream audio events. IDs are pinned to
  * audio/upstream-audio-triggers.json and are not gameplay formats.
@@ -44,6 +48,44 @@ uint32_t m3ds_audio_event_play(
     M3dsAudioRegistry *registry,
     M3dsAudioEvent event,
     const M3dsAudioPlayParams *params);
+
+/*
+ * Returns the pinned Mindustry v160.8 Sounds.getSoundId(...) index for an
+ * audio event, or M3DS_UPSTREAM_SOUND_UNSET (-1) for invalid events.
+ */
+int m3ds_audio_event_upstream_sound_id(M3dsAudioEvent event);
+
+/* Maps a pinned v160.8 Sounds ID back to an M3dsAudioEvent when present. */
+bool m3ds_audio_event_from_upstream_sound_id(
+    int upstream_sound_id,
+    M3dsAudioEvent *out_event);
+
+/* Resolves or plays a pinned v160.8 Sounds ID via the RomFS clip registry. */
+int m3ds_audio_upstream_sound_clip(
+    M3dsAudioRegistry *registry,
+    int upstream_sound_id);
+uint32_t m3ds_audio_upstream_sound_play(
+    M3dsAudioRegistry *registry,
+    int upstream_sound_id,
+    const M3dsAudioPlayParams *params);
+
+/* Arc Sound spatial attenuation and stereo panning helpers. */
+float m3ds_audio_calc_falloff(
+    float sound_x,
+    float sound_y,
+    float cam_x,
+    float cam_y,
+    float falloff,
+    float falloff_offset);
+float m3ds_audio_calc_pan(float sound_x, float cam_x, float cam_width);
+float m3ds_audio_calc_volume(
+    float sound_x,
+    float sound_y,
+    float cam_x,
+    float cam_y,
+    float falloff,
+    float falloff_offset,
+    float sfx_volume);
 
 #ifdef __cplusplus
 }

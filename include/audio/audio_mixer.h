@@ -6,6 +6,8 @@
 #include <stdint.h>
 
 #define M3DS_AUDIO_DEFAULT_SAMPLE_RATE 22050u
+#define M3DS_AUDIO_MIN_PITCH 0.25f
+#define M3DS_AUDIO_MAX_PITCH 4.0f
 #define M3DS_AUDIO_MAX_CLIPS 16u
 #define M3DS_AUDIO_MAX_VOICES 8u
 #define M3DS_AUDIO_MAX_CLIP_SAMPLES (22050u * 6u)
@@ -38,6 +40,8 @@ typedef struct M3dsAudioPlayParams {
     float pan;
     uint8_t priority;
     bool looping;
+    /* Playback pitch/rate multiplier (1.0f = normal; <= 0 or non-finite defaults to 1.0f). */
+    float pitch;
 } M3dsAudioPlayParams;
 
 typedef struct M3dsAudioStats {
@@ -75,6 +79,7 @@ typedef struct M3dsAudioBackend {
     void (*voice_set_paused)(void *ctx, uint32_t channel, bool paused);
     void (*voice_stop)(void *ctx, uint32_t channel);
     bool (*voice_is_active)(void *ctx, uint32_t channel);
+    void (*voice_set_rate)(void *ctx, uint32_t channel, float sample_rate);
 } M3dsAudioBackend;
 
 typedef struct M3dsAudioClipSlot {
@@ -126,6 +131,22 @@ uint32_t m3ds_audio_mixer_play(
     int clip_id,
     const M3dsAudioPlayParams *params);
 void m3ds_audio_mixer_stop(M3dsAudioMixer *mixer, uint32_t voice_handle);
+bool m3ds_audio_mixer_set_voice_mix(
+    M3dsAudioMixer *mixer,
+    uint32_t voice_handle,
+    float volume,
+    float pan);
+bool m3ds_audio_mixer_set_voice_pitch(
+    M3dsAudioMixer *mixer,
+    uint32_t voice_handle,
+    float pitch);
+bool m3ds_audio_mixer_set_voice_paused(
+    M3dsAudioMixer *mixer,
+    uint32_t voice_handle,
+    bool paused);
+bool m3ds_audio_mixer_voice_is_active(
+    const M3dsAudioMixer *mixer,
+    uint32_t voice_handle);
 void m3ds_audio_mixer_stop_bus(M3dsAudioMixer *mixer, M3dsAudioBus bus);
 void m3ds_audio_mixer_stop_all(M3dsAudioMixer *mixer);
 

@@ -5,15 +5,22 @@ Status: **Experimental** (`emulator-tested` for the RomFS registry, event routin
 ## Architecture
 
 - **Platform-independent mixer interface ([audio_mixer.h](../../include/audio/audio_mixer.h), [audio_mixer.c](../../src/audio/audio_mixer.c)):** Pure C11 mixer (`<math.h>`-free integer synthesis and linear mixing logic) supporting:
-  - Separate `SFX` and `MUSIC` buses (`M3DS_AUDIO_BUS_SFX`, `M3DS_AUDIO_BUS_MUSIC`), master volume, mute (`KEY_X` in prototype), and global pause/resume.
+  - Separate `SFX` and `MUSIC` buses (`M3DS_AUDIO_BUS_SFX`, `M3DS_AUDIO_BUS_MUSIC`), master volume, mute (`KEY_X` in prototype), and global plus per-voice pause/resume (`m3ds_audio_mixer_set_voice_paused`).
   - Up to `M3DS_AUDIO_MAX_CLIPS` (`16`) registered PCM16 clips (`1` or `2` channels, `4000..48000 Hz`) and `M3DS_AUDIO_MAX_VOICES` (`8`) active channels.
   - Deterministic priority + age voice stealing (lowest priority `<= incoming.priority`, breaking ties by oldest `start_seq`; drops strictly lower-priority incoming requests without glitches).
-  - Linear stereo balance panning and stale-handle protection via nonzero monotonic `uint32_t` handles.
+  - Live per-voice stereo mix/pan (`m3ds_audio_mixer_set_voice_mix`), playback pitch scaling (`M3dsAudioPlayParams.pitch`, `m3ds_audio_mixer_set_voice_pitch`, `[0.25x..4.0x]`), activity query (`m3ds_audio_mixer_voice_is_active`), and stale-handle protection via nonzero monotonic `uint32_t` handles.
 - **3DS `libctru` NDSP backend ([ndsp_backend.h](../../src/platform/3ds/ndsp_backend.h), [ndsp_backend.c](../../src/platform/3ds/ndsp_backend.c)):**
   - Initializes NDSP in stereo mode with soft clipping and `NDSP_INTERP_LINEAR` on channels `0..7`.
   - Copies PCM16 clip buffers into DSP-accessible linear memory (`linearAlloc`) and flushes the data cache (`DSP_FlushDataCache`).
+  - Updates per-channel sample rate via `ndspChnSetRate` (`voice_set_rate`) to honor `M3dsAudioPlayParams.pitch` and live pitch changes.
   - Tracks active buffers via `ndspWaveBuf.status` (`NDSP_WBUF_QUEUED` / `NDSP_WBUF_PLAYING`) so newly queued clips are not prematurely evicted before the first DSP interrupt.
   - Clears and resets all NDSP channels **before** calling `linearFree` and `ndspExit` during shutdown so DSP DMA cannot access freed memory.
+
+## Upstream Voice Control & Sound-ID Mapping
+
+- **Per-voice control:** `m3ds_audio_mixer_set_voice_mix`, `m3ds_audio_mixer_set_voice_pitch`, `m3ds_audio_mixer_set_voice_paused`, and `m3ds_audio_mixer_voice_is_active` provide the C mixer primitives required by Arc `Core.audio` (`set`, `setPitch`, `setPaused`, `isPlaying`) and Mindustry `SoundLoop` fade/pan updates without resetting playing `ndspWaveBuf` voices.
+- **Pinned `v160.8` `Sounds` ID & spatial routing ([audio_events.h](../../include/audio/audio_events.h), [audio_events.c](../../src/audio/audio_events.c)):** Maps the `9` RomFS-converted events to pinned Mindustry `v160.8` `Sounds.getSoundId(...)` indices (`block.break=11`, `block.place=26`, `conveyor.loop=63`, `drill.loop=67`, `shoot.duo=136`, `ui.button=185`, `ui.unlock=189`, `enemy.kill=192`, `wave.spawn=198`) and implements Arc `Sound.calcFalloff`, `Sound.calcPan`, and `Sound.calcVolume` distance attenuation and stereo panning.
+- **Verification scope:** Verified by host C11 mock tests (`./dev.sh test`: `test_audio_mixer`, `test_audio_events`) and ARM11 compilation (`./dev.sh build`); live upstream-runtime wiring and audible hardware playback with `dspfirm.cdc` remain pending on [#29](https://github.com/levkeveli/Min3DStry/issues/29).
 
 ## Missing DSP Firmware Fallback & Old 3DS Memory Footprint
 
