@@ -152,6 +152,31 @@ the Serpulo root with `finishedRequirements` copper `50`. On 3DS it targets the
 live `/3ds/min3dstry` directory and restores or removes the prior settings
 state. Azahar `2126.2` New and Old profiles both reported `path=live`.
 
+## ARM11 Campaign Slot Metadata
+
+`-Pprobe=campaign-slot-meta` writes the real ground-zero sector slot and
+reloads its upstream metadata:
+
+```sh
+gradle -PupstreamCheckout=/path/to/Mindustry \
+  -PreferenceJar=/path/to/server-release.jar \
+  -ParcCheckout=/path/to/Arc -Pprobe=campaign-slot-meta \
+  runProbeJvm "--args=/path/glacier.msav /path/sector-serpulo-15.msav"
+```
+
+JVM and ARM11/Azahar report:
+
+```text
+UPSTREAM_CAMPAIGN_SLOT_META slot=sector-serpulo-15.msav bytes=11034 version=13 preset=groundZero wave=1 size=150x250 meta=ok
+```
+
+The probe sets `Vars.state.rules.sector` to `SectorPresets.groundZero.sector`,
+writes `sector-serpulo-15.msav` through `SaveIO`, and verifies the `MSAV`
+header/version plus `SaveMeta` tags (`sectorPreset=groundZero`, `wave=1`,
+`width=150`, `height=250`) and `SaveIO.isSaveValid`. On 3DS it targets the live
+`/3ds/min3dstry` directory and deletes the slot after verification. Azahar
+`2126.2` New and Old profiles both reported the marker.
+
 ## Remaining Scope for Issue #41 (3DS Hardware / ARM11 Runtime)
 
 The host-verified path contract is recorded in [sd-storage-paths.md](sd-storage-paths.md); it does not write settings or sector saves yet. Once the ARM11 TeaVM runtime bring-up integrates `Core.files` and `Core.settings` onto SD card storage under `/3ds/min3dstry/`:

@@ -39,7 +39,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        probe: [logic, map, resource, executor, campaign-settings, campaign-content, campaign-research, wave-routing]
+        probe: [logic, map, resource, executor, campaign-settings, campaign-content, campaign-research, campaign-slot-meta, wave-routing]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -61,7 +61,7 @@ jobs:
             -o "$RUNNER_TEMP/server-release.jar"
 
       - name: Fetch pinned Arc source
-        if: matrix.probe == 'resource' || matrix.probe == 'executor' || matrix.probe == 'campaign-settings' || matrix.probe == 'campaign-content' || matrix.probe == 'campaign-research' || matrix.probe == 'wave-routing'
+        if: matrix.probe == 'resource' || matrix.probe == 'executor' || matrix.probe == 'campaign-settings' || matrix.probe == 'campaign-content' || matrix.probe == 'campaign-research' || matrix.probe == 'campaign-slot-meta' || matrix.probe == 'wave-routing'
         run: |
           git clone --filter=blob:none --no-checkout \
             https://github.com/Anuken/Arc.git "$RUNNER_TEMP/Arc"
@@ -71,8 +71,8 @@ jobs:
           test "$(git -C "$RUNNER_TEMP/Arc" rev-parse HEAD)" = \
             "7445105cd2683daf5b9ac7033ebb07265d3e814d"
 
-      - name: Extract Glacier map for wave routing
-        if: matrix.probe == 'wave-routing'
+      - name: Extract Glacier map for world probes
+        if: matrix.probe == 'wave-routing' || matrix.probe == 'campaign-slot-meta'
         run: |
           git -C "$RUNNER_TEMP/Mindustry" show \
             HEAD:core/assets/maps/default/glacier.msav > "$RUNNER_TEMP/glacier.msav"
@@ -82,12 +82,14 @@ jobs:
         run: |
           set -o pipefail
           extra=()
-          if [ "${{ matrix.probe }}" = "resource" ] || [ "${{ matrix.probe }}" = "executor" ] || [ "${{ matrix.probe }}" = "campaign-settings" ] || [ "${{ matrix.probe }}" = "campaign-content" ] || [ "${{ matrix.probe }}" = "campaign-research" ] || [ "${{ matrix.probe }}" = "wave-routing" ]; then
+          if [ "${{ matrix.probe }}" = "resource" ] || [ "${{ matrix.probe }}" = "executor" ] || [ "${{ matrix.probe }}" = "campaign-settings" ] || [ "${{ matrix.probe }}" = "campaign-content" ] || [ "${{ matrix.probe }}" = "campaign-research" ] || [ "${{ matrix.probe }}" = "campaign-slot-meta" ] || [ "${{ matrix.probe }}" = "wave-routing" ]; then
             extra=("-ParcCheckout=$RUNNER_TEMP/Arc")
           fi
           probe_args=()
           if [ "${{ matrix.probe }}" = "wave-routing" ]; then
             probe_args=("-PprobeArgs=$RUNNER_TEMP/glacier.msav")
+          elif [ "${{ matrix.probe }}" = "campaign-slot-meta" ]; then
+            probe_args=("-PprobeArgs=$RUNNER_TEMP/glacier.msav $RUNNER_TEMP/sector-serpulo-15.msav")
           fi
           bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime \
             --no-daemon --console=plain \
@@ -111,7 +113,11 @@ jobs:
             grep -F 'lockedBefore=ok conveyorUnlocked=true key=conveyor-unlocked research=50 reload=ok' "$RUNNER_TEMP/probe.log"
           fi
           if [ "${{ matrix.probe }}" = "campaign-research" ]; then
-            grep -F 'root=serpulo node=conveyor copper=50 lockedBefore=ok reload=ok' "$RUNNER_TEMP/probe.log"
+            grep -F 'UPSTREAM_CAMPAIGN_RESEARCH path=tmp root=serpulo node=conveyor copper=50 lockedBefore=ok reload=ok' "$RUNNER_TEMP/probe.log"
+          fi
+          if [ "${{ matrix.probe }}" = "campaign-slot-meta" ]; then
+            grep -F 'UPSTREAM_CAMPAIGN_SLOT_META slot=sector-serpulo-15.msav' "$RUNNER_TEMP/probe.log"
+            grep -F 'version=13 preset=groundZero wave=1 size=150x250 meta=ok' "$RUNNER_TEMP/probe.log"
           fi
           if [ "${{ matrix.probe }}" = "wave-routing" ]; then
             grep -F 'UPSTREAM_WAVE_SETUP core=81,26 enemyCore=81,224 groundSpawns=1 fieldHash=629058db4926d64e' \
