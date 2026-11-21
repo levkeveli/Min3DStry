@@ -286,7 +286,8 @@ Old profiles both reported `launch=ok`.
 
 ## Remaining Scope for Issue #41 (3DS Hardware / ARM11 Runtime)
 
-The host-verified path contract is recorded in [sd-storage-paths.md](sd-storage-paths.md); it does not write settings or sector saves yet. Once the ARM11 TeaVM runtime bring-up integrates `Core.files` and `Core.settings` onto SD card storage under `/3ds/min3dstry/`:
+The capability is marked `experimental` because the probes in [campaign-verification.md](campaign-verification.md) verify upstream settings, sector `.msav` slots, `SectorInfo` JSON, tech-tree requirements, planet last-sector routing, sector play/capture transitions, and sector-save launch on ARM11/Azahar. The host-verified path contract is recorded in [sd-storage-paths.md](sd-storage-paths.md). The live runtime still needs to consume these paths end-to-end:
 
-1. Route `Core.settings` data directory (`settings.bin`, `settings_backup.bin`, `settings_backups/`) and sector `.msav` slots (`sector-<planet>-<id>.msav`) to deterministic SD card paths compatible with PC `v160.8` exports/imports.
-2. Verify `JsonIO.json` serialization, atomic/backup `settings.bin` writes on 3DS FAT/SDFS (`libctru`), and full sector launch/capture/tech-tree round-trips in Azahar (Old 3DS & New 3DS) before advancing `campaign-sectors` in `docs/port-capabilities.json` beyond `planned`.
+1. Route the live `Core.files`/`Core.settings` instance (not only research probes) to `/3ds/min3dstry/` so `settings.bin`, `settings_backup.bin`, `settings_backups/`, and `sector-<planet>-<id>.msav` use the verified contract.
+2. Build the live campaign launch/capture UI flow and capture rewards on top of the verified persistence/routing APIs.
+3. Advance beyond `experimental` only after those live flows and physical Old/New 3DS verification.
