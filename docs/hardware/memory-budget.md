@@ -105,3 +105,21 @@ Measured with pinned `devkitpro/devkitarm` (`-O2`) on identical generated `audio
 | Subtotal (`LOAD` + `24 MiB` heap + `4 MiB` linear + `256 KiB` stack) | `65.38 MiB` | `47.89 MiB` | `-17.50 MiB` |
 
 Host unit tests ([`tests/platform/test_array_class_pool.c`](../../tests/platform/test_array_class_pool.c) in `./dev.sh test`) and Linux host TeaVM C execution (`-O0`, `-O2`, and stress-chunked `M3DS_ARRAY_CLASS_CHUNK_SHIFT=2`) pass; Azahar emulator execution and physical Original/New 3DS memory/GC measurements of the reduced `.3dsx` remain separate pending checks.
+
+## Upstream TeaVM sparse call-site compaction ([#233](https://github.com/levkeveli/Min3DStry/issues/233))
+
+TeaVM 0.16.0's non-obfuscated `callsites.c` (`36.86 MB` of C source on `audio-ticks`) emits dense `methodLocations_teavm_callSites`, `callSiteLocations_teavm_callSites`, and `teavm_callSites[207272]`, where `199,179` (`96.1%`) of call sites have `firstHandler = NULL`. [`research/upstream-runtime/arm11/compact_callsites.py`](../../research/upstream-runtime/arm11/compact_callsites.py) and [`research/upstream-runtime/arm11/m3ds_callsites.h`](../../research/upstream-runtime/arm11/m3ds_callsites.h) (invoked by [`research/upstream-runtime/arm11/prepare.py`](../../research/upstream-runtime/arm11/prepare.py)) strip the file/line location tables by default and replace `teavm_callSites` with a sorted sparse `(id -> firstHandler)` binary-search table preserving all `8,093` non-null `try/catch` handler chains:
+
+- **Trade-off & debug opt-out:** Stack traces (`printStack()` / `fillStackTrace()`) omit per-frame source file/line names under default compaction (`location == NULL`); set `M3DS_KEEP_CALLSITE_LOCATIONS=1` when staging/building to retain the full TeaVM location tables verbatim.
+
+Measured with pinned `devkitpro/devkitarm` (`-O2`) on identical generated `audio-ticks` TeaVM C (comparing `M3DS_KEEP_CALLSITE_LOCATIONS=1` vs. default sparse compaction, both using the lazy array class pool):
+
+| Metric | Keep locations (`#226`) | Sparse call sites (`#233`) | Delta |
+|---|---|---|---|
+| Generated `callsites.c` | `36,857,224` bytes (`35.15 MiB`) | `1,515,250` bytes (`1.45 MiB`) | `-35,341,974` bytes (`-95.9%`) |
+| ELF `.data` | `7,728,092` bytes (`7.37 MiB`) | `4,272,572` bytes (`4.07 MiB`) | `-3,455,520` bytes (`-3.30 MiB`) |
+| Page-rounded ELF `LOAD` segments | `20,590,592` bytes (`19.64 MiB`) | `17,133,568` bytes (`16.34 MiB`) | `-3,457,024` bytes (`-3.30 MiB`) |
+| Packaged `.3dsx` size | `22,321,160` bytes (`21.29 MiB`) | `17,521,408` bytes (`16.71 MiB`) | `-4,799,752` bytes (`-4.58 MiB`) |
+| Subtotal (`LOAD` + `24 MiB` heap + `4 MiB` linear + `256 KiB` stack) | `47.89 MiB` | `44.59 MiB` | `-3.30 MiB` |
+
+Host unit tests ([`tests/platform/test_callsites.c`](../../tests/platform/test_callsites.c), [`tests/tools/test_compact_callsites.py`](../../tests/tools/test_compact_callsites.py) in `./dev.sh test`) and compacted `-O2` Linux host execution on `audio-ticks` (`UPSTREAM_WORLD_FINGERPRINT 2e7b9f883994de6c`, `trace=8dd46207043810fc`) pass; Azahar emulator runs and physical Original/New 3DS verification of the reduced `.3dsx` remain separate pending checks (`#43`).
