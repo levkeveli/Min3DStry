@@ -462,6 +462,43 @@ before bookkeeping and other allocations, above the 64 MiB Original 3DS
 budget. Physical-console memory and performance still need verification.
 Factory parity is tracked in #26.
 
+### Exercise upstream combat and the first Glacier wave
+
+[Issue #82](https://github.com/levkeveli/Min3DStry/issues/82) uses the same
+Glacier setup and fixed simulation clock as the factory probe. The probe
+feeds copper into an upstream conveyor that supplies a Duo. It runs the
+original `Logic.update` until the turret destroys a stationary Dagger.
+Holding the unit still isolates targeting, projectile motion and damage.
+The fixture uses Arc's `MockAudio` for the headless sound device.
+
+After the duel, it invokes `Logic.runWave` with Glacier's unchanged rules
+and counts the spawned enemy types. Glacier's first wave in this fixture
+spawns one Gamma. Ground pathfinding and subsequent waves are tracked in #30.
+
+Use the world probe's pinned Gradle properties with `-Pprobe=combat-ticks`
+and pass the original Glacier path to `runProbeJvm`. For a JVM reference
+with the unchanged server JAR, compile `UpstreamWorldLoadProbe.java`,
+`UpstreamSimulationWorld.java`, and `UpstreamCombatTickProbe.java` against
+that JAR, then run `UpstreamCombatTickProbe /path/to/glacier.msav`.
+
+The original v160.8 JVM ran three times with identical results. Generated
+Windows x64 C matched both traces. The [DevkitARM builds](https://github.com/levkeveli/Min3DStry/actions/runs/44805028740)
+at `-O0` and `-O2` matched them in the Original and New 3DS Azahar profiles.
+
+```text
+UPSTREAM_COMBAT delivery=29 shot=49 hit=62 destroyed=382 supplied=20
+UPSTREAM_WAVE next=2 groundSpawns=0 enemies=1 units=gamma=1
+```
+
+The `-O2` ARM11 image, 24 MiB managed heap, 4 MiB linear heap and 256 KiB
+stack total 64.99 MiB before GC metadata and other allocations.
+This exceeds the 64 MiB Original 3DS application budget.
+
+The upstream source boundaries are
+[`Logic.java`](https://github.com/Anuken/Mindustry/blob/19a0f40d44514f4802a8b79770456e7e32e34da0/core/src/mindustry/core/Logic.java),
+[`ItemTurret.java`](https://github.com/Anuken/Mindustry/blob/19a0f40d44514f4802a8b79770456e7e32e34da0/core/src/mindustry/world/blocks/defense/turrets/ItemTurret.java)
+and [`WaveSpawner.java`](https://github.com/Anuken/Mindustry/blob/19a0f40d44514f4802a8b79770456e7e32e34da0/core/src/mindustry/ai/WaveSpawner.java).
+
 ### Capture upstream Glacier terrain commands
 
 [Issue #73](https://github.com/levkeveli/Min3DStry/issues/73) exercises the
