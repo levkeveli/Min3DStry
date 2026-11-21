@@ -788,6 +788,16 @@ total 65.04 MiB before GC metadata, above the Original 3DS application
 budget. Large map loading and memory are tracked in
 [#141](https://github.com/levkeveli/Min3DStry/issues/141).
 
+A debugger watchpoint on TeaVM's 3,236-entry static-root table caught the
+overflow in `GC.calculateRelocationTargets`. Relocation records grew past
+the 1.5 MiB scratch area and wrote over the root entries. The ARM11 adapter
+keeps the original compacting collector and moves only its relocation
+table to temporary native storage if the shared scratch area fills. It
+rebases the live record cursor, releases the allocation after compaction,
+and checks bounds before publishing free-chunk entries. The managed heap
+size is unchanged. Add `--require-relocation-spill` to the Onset verifier
+to require a completed collection that exercised the new path.
+
 The renderer still selects blocks that use the supported sprite operations.
 Textured raw vertices, additional payload types and other rendering services
 are tracked in [#139](https://github.com/levkeveli/Min3DStry/issues/139).
