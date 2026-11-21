@@ -1,5 +1,6 @@
 import mindustry.Vars;
 import mindustry.content.Blocks;
+import mindustry.content.Planets;
 import mindustry.entities.units.BuildPlan;
 import mindustry.gen.Unit;
 import mindustry.world.Block;
@@ -67,8 +68,7 @@ final class UpstreamLiveBuildControls {
                 return;
             } else if (y < GRID_Y && x < 320) {
                 switch (x / 80) {
-                    case 0 -> select(Blocks.conveyor);
-                    case 1 -> select(Blocks.copperWall);
+                    case 0, 1 -> select(shortcut(x / 80));
                     case 2 -> rotate();
                     case 3 -> removing = !removing;
                 }
@@ -123,7 +123,14 @@ final class UpstreamLiveBuildControls {
         return x >= left && x < left + WIDTH && y >= bottom && y < bottom + HEIGHT;
     }
 
-    Block block() { return selected == null ? Blocks.conveyor : selected; }
+    Block shortcut(int slot) {
+        if (Vars.state.rules.planet == Planets.erekir) {
+            return slot == 0 ? Blocks.duct : Blocks.berylliumWall;
+        }
+        return slot == 0 ? Blocks.conveyor : Blocks.copperWall;
+    }
+
+    Block block() { return selected == null ? shortcut(0) : selected; }
     int cursorX() { return tileX; }
     int cursorY() { return tileY; }
     int rotation() { return rotation; }
