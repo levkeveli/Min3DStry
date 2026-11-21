@@ -420,6 +420,11 @@ German or `pt_BR` for Brazilian Portuguese. A missing or unknown code
 uses the console language. Some controls specific to the 3DS probe still
 use English labels.
 
+Loading the German bundle exposed a monitor exception during the original
+`PlanetGrid.create` subdivision on ARM11. In the graphical build that
+method runs synchronously on TeaVM C's cooperative execution lane. The
+upstream cache, recursion and grid calculations are preserved.
+
 Tap List beside the grid to browse the upstream construction catalog.
 The arrows switch categories and the footer switches pages. Tap a block
 name to return to the grid with that block selected. The build extracts
@@ -477,7 +482,16 @@ the original routing decisions for both Sorter variants.
 Add `--locale de` to the graphical verifier to stage the override and
 verify the selected bundle and its original labels. Pass an extracted
 `assets/bundles/bundle` base path as the second JVM reference argument to
-exercise all packaged locale choices.
+exercise all 35 packaged bundles and 12 system language mappings. The
+JVM reference also compares the cached grid geometry at subdivision
+levels 0–3 with fingerprints from the official v160.8 JAR.
+
+The [English ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44854486151)
+passed the Old 3DS catalog replay and the New 3DS movement replay. The
+[German ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44856408064)
+opened the translated catalog and Sorter menu on both Azahar 2126.2
+profiles. Stock translations such as `Phasen-Förderband`, `Überlauftor`
+and `Kupfer` appeared in the captures.
 
 Before the snapshot dispatch extension, the [devkitARM verification build](https://github.com/levkeveli/Min3DStry/actions/runs/44824442974)
 passed at `-O0` and `-O2` on both Azahar 2126.2 console profiles. Each run

@@ -10,6 +10,7 @@ import mindustry.core.NetClient;
 import mindustry.game.Universe;
 import mindustry.gen.Player;
 import mindustry.gen.Unit;
+import mindustry.graphics.g3d.PlanetGrid;
 import mindustry.mod.Mods;
 import mindustry.net.NetworkIO;
 import mindustry.net.Net;
@@ -37,6 +38,7 @@ public final class UpstreamBuildControlsReference {
                 || !"Kupfer".equals(Items.copper.localizedName))) {
             throw new AssertionError("Content initialization did not use the selected official bundle");
         }
+        verifyPlanetGrids();
 
         var team = Vars.player.team();
         var unit = UnitTypes.gamma.create(team);
@@ -74,6 +76,24 @@ public final class UpstreamBuildControlsReference {
         verifyCatalog(controls, unit);
         verifyConfiguration(controls, unit);
         System.out.println("UPSTREAM_TOUCH_REFERENCE conveyor=85,26,1 wall=86,26 break=86,26");
+    }
+
+    private static void verifyPlanetGrids() {
+        long[] stock = {0xaef3b2723ca51e3dL, 0x8b7bf905f4f1e241L, 0x73685278282bbc71L, 0xd8c194e69ddb9fabL};
+        for (int size = 0; size < stock.length; size++) {
+            var grid = PlanetGrid.create(size);
+            long hash = 1;
+            for (var tile : grid.tiles) {
+                hash = 31 * hash + tile.id;
+                hash = 31 * hash + Float.floatToIntBits(tile.v.x);
+                hash = 31 * hash + Float.floatToIntBits(tile.v.y);
+                hash = 31 * hash + Float.floatToIntBits(tile.v.z);
+                for (var neighbor : tile.tiles) hash = 31 * hash + neighbor.id;
+            }
+            if (grid != PlanetGrid.create(size) || hash != stock[size]) {
+                throw new AssertionError("Planet grid " + size + " differs from the stock cache or subdivision");
+            }
+        }
     }
 
     private static void verifyBundles(Fi path) {
