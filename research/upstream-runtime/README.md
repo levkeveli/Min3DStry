@@ -239,6 +239,22 @@ total 41.64 MiB. Physical-console memory and networking still need testing.
 Live 3DS sockets, connection confirmation and gameplay synchronization
 are tracked in #44.
 
+### Arc `settings.bin` round-trip
+
+`-Pprobe=campaign-settings` uses the real upstream Arc `Settings` class rather
+than a native reimplementation. It writes a fresh `settings.bin` under the Java
+temporary directory, reloads it with a second `Settings` instance, verifies an
+integer and string value, and prints:
+
+```text
+UPSTREAM_CAMPAIGN_SETTINGS bytes=65 int=12345 string=ok reload=ok
+```
+
+The JVM and ARM11/Azahar builds use the same TeaVM file adapter. Build the ARM11
+probe with the normal `arm11/build.sh` command and boot the resulting `.3dsx`;
+both Azahar 2126.2 profiles reported the line above. The probe uses
+`/3ds/min3dstry/tmp/m3ds-campaign-settings` and does not modify live settings.
+
 ### Join the upstream server from the ARM11 probe
 
 `-Pprobe=network-live` uses the same upstream deserializer with live
