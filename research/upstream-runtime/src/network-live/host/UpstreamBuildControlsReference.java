@@ -84,21 +84,31 @@ public final class UpstreamBuildControlsReference {
     private static void verifyMining(Unit gamma) {
         gamma.add();
         var floorOre = Vars.world.tile(85, 26);
+        var otherFloorOre = Vars.world.tile(84, 26);
         var wallOre = Vars.world.tile(86, 26);
         floorOre.setBlock(Blocks.air);
         floorOre.setOverlay(Blocks.oreCopper);
+        otherFloorOre.setBlock(Blocks.air);
+        otherFloorOre.setOverlay(Blocks.oreCopper);
         wallOre.setBlock(Blocks.beryllicStoneWall);
         wallOre.setOverlay(Blocks.wallOreBeryllium);
         var controls = new UpstreamLiveBuildControls();
         controls.viewport(73, 20);
         controls.update(gamma, 0, touch(305, 96));
+        controls.update(gamma, 0, touch(305, 96));
+        gamma.addItem(Items.lead);
+        controls.update(gamma, 0, touch(232, 136));
+        if (gamma.mineTile != null) throw new AssertionError("Gamma should reject copper while carrying lead");
+        gamma.clearItem();
         controls.update(gamma, 0, touch(232, 136));
         if (gamma.mineTile != floorOre || gamma.getMineResult(floorOre) != Items.copper) {
             throw new AssertionError("Gamma should select the upstream copper floor deposit");
         }
         controls.update(gamma, 0, touch(248, 136));
         if (gamma.mineTile != floorOre) throw new AssertionError("Gamma should ignore wall ore");
-        controls.update(gamma, 0, touch(232, 136));
+        controls.update(gamma, 0, touch(216, 136));
+        if (gamma.mineTile != otherFloorOre) throw new AssertionError("Gamma should switch floor deposits");
+        controls.update(gamma, 0, touch(216, 136));
         if (gamma.mineTile != null) throw new AssertionError("Tapping the target again should stop mining");
 
         var evoke = UnitTypes.evoke.create(gamma.team());
@@ -117,7 +127,7 @@ public final class UpstreamBuildControlsReference {
         if (!gamma.plans().isEmpty() || !evoke.plans().isEmpty()) {
             throw new AssertionError("Selecting a deposit should leave the build queue empty");
         }
-        System.out.println("UPSTREAM_MINE_REFERENCE copper=floor beryllium=wall invalid=ignored cancel=ok");
+        System.out.println("UPSTREAM_MINE_REFERENCE copper=floor beryllium=wall invalid=ignored switch=ok cancel=ok");
     }
 
     private static void verifyPlanetShortcuts(Unit unit) {
