@@ -28,6 +28,13 @@ CORE_PIXELS = {
     (235, 147): (176, 185, 192), (235, 148): (152, 154, 164),
 }
 
+# Opaque core-shard texels outside the Alpha's shadow at the stock Fortress spawn.
+FORTRESS_CORE_PIXELS = {
+    (185, 86): (119, 121, 136),
+    (191, 94): (176, 185, 192), (227, 126): (176, 185, 192),
+    (233, 86): (154, 157, 167), (233, 134): (119, 121, 136),
+}
+
 
 # Opaque RGB from the original wall, drill base and drill top at Glacier spawn.
 BUILDING_LAYER_PIXELS = {
@@ -131,6 +138,33 @@ def server_position(server_log, server, marker):
     # A connected player can have a unit while the first input snapshot is still in flight.
     state = re.compile(rf"{marker} unit=(\d+) snapshot=(-1|\d+) x=({NUMBER}) y=({NUMBER})")
     return state.search(wait_for(server_log, server, state, 5))
+
+
+def inspect_map_spawn(server_log, server):
+    server.stdin.write(
+        f'js (() => {{ const p = Groups.player.find(boolf(v => String(v.name) === "{PLAYER}")); '
+        'const c = p.bestCore(); '
+        'if (p.unit().type != c.block.unitType) throw "Unexpected core spawn unit"; '
+        'return "UPSTREAM_MAP_SPAWN width=" + Vars.world.width() + " height=" + Vars.world.height() '
+        '+ " core=" + c.block.name + " unit=" + p.unit().type.name '
+        '+ " x=" + c.tileX() + " y=" + c.tileY(); })()\n'
+    )
+    server.stdin.flush()
+    pattern = re.compile(r"UPSTREAM_MAP_SPAWN width=(\d+) height=(\d+) core=(\S+) unit=(\S+) x=(\d+) y=(\d+)")
+    record = pattern.search(wait_for(server_log, server, pattern, 5))
+    print(record.group(0), flush=True)
+    return record.groups()
+
+
+def verify_map_spawn(log, emulator, map_name, fixture, position):
+    width, height, core, unit, tile_x, tile_y = fixture
+    wait_for(log, emulator, rf"UPSTREAM_LIVE_NET_WORLD join=1 map={re.escape(map_name)} bytes=", 5)
+    wait_for(log, emulator, rf"UPSTREAM_WORLD width={width} height={height} tiles={int(width) * int(height)}\b", 5)
+    wait_for(log, emulator, rf"UPSTREAM_WORLD_BUILDING {tile_x} {tile_y} {re.escape(core)} ", 5)
+    if map_name == "Fortress" and fixture != ("256", "256", "core-shard", "alpha", "116", "73"):
+        raise RuntimeError(f"Expected the original Fortress spawn, observed {fixture}")
+    if any(abs(float(observed) - int(tile) * 8) > 4 for observed, tile in zip(position[2:], (tile_x, tile_y))):
+        raise RuntimeError(f"Expected controlled unit {unit} near its stock spawn, observed {position}")
 
 
 def verify_movement(log, emulator, server_log, server, join, timeout):
@@ -344,11 +378,13 @@ def verify_controls(log, emulator, server_log, server, timeout, capture=None,
 
 def capture_viewport(log, emulator, rpc, destination, position,
                      require_palette=False, require_icons=False, require_world_atlas=False,
-                     require_building_layers=False, require_building_cracks=False):
+                     require_building_layers=False, require_building_cracks=False,
+                     world_size=(150, 250), spawn_pixels=None):
     unit, _, x, y = position
-    # Glacier is 150 × 250 tiles and the renderer centers a 16 × 12 tile viewport.
-    left = max(0, min(150 - 16, math.floor(float(x) / 8 + 0.5) - 8))
-    bottom = max(0, min(250 - 12, math.floor(float(y) / 8 + 0.5) - 6))
+    # The renderer centers a 16 × 12 tile viewport in the loaded map.
+    width, height = world_size
+    left = max(0, min(width - 16, math.floor(float(x) / 8 + 0.5) - 8))
+    bottom = max(0, min(height - 12, math.floor(float(y) / 8 + 0.5) - 6))
     frame = f"UPSTREAM_NETWORK_FRAME unit={unit} left={left} bottom={bottom} sprites=1"
     wait_for(log, emulator, rf"{frame}\b", 5)
     if require_world_atlas:
@@ -382,18 +418,24 @@ def capture_viewport(log, emulator, rpc, destination, position,
         samples += tuple(CORE_PIXELS)
     if require_building_layers:
         samples += tuple(BUILDING_CRACK_PIXELS if require_building_cracks else BUILDING_LAYER_PIXELS)
+    expected = points if require_palette else {}
+    if spawn_pixels:
+        expected = spawn_pixels
+        samples += tuple(spawn_pixels)
     # Palette and menu input can be logged before the matching Citro2D frame is presented.
     deadline = time.monotonic() + 5
     while True:
         screenshot = rpc.screenshot(res_scale=1)
         pixels = az.inspect_png(screenshot, samples)
-        if (not require_palette or all(pixels["samples"][point] == color for point, color in points.items())
+        if (all(pixels["samples"][point] == color for point, color in expected.items())
                 or time.monotonic() >= deadline):
             break
         time.sleep(0.1)
     destination.write_bytes(screenshot)
     if pixels["width"] != 400 or pixels["height"] != 480 or pixels["top_distinct_colors"] < 8:
-        raise RuntimeError(f"Expected the textured Glacier viewport on the top screen: {pixels}")
+        raise RuntimeError(f"Expected a textured world viewport on the top screen: {pixels}")
+    if spawn_pixels and any(pixels["samples"][point] != color for point, color in spawn_pixels.items()):
+        raise RuntimeError(f"Stock spawn core pixels differ: {pixels['samples']}")
     if require_world_atlas and any(pixels["samples"][point] != color for point, color in CORE_PIXELS.items()):
         raise RuntimeError(f"Paged core pixels differ from the original unsplit draw: {pixels['samples']}")
     if require_building_cracks and any(
@@ -856,7 +898,8 @@ def run_model(args, model, config, original_config, log, output):
     stationary = (args.world_atlas_recycle or args.building_layers or args.liquids
                   or args.building_effects or args.payload_mix or args.carried_buildings
                   or args.payload_handoff or args.unit_layers or args.unit_roster or args.naval_wake
-                  or args.tank_treads)
+                  or args.tank_treads or args.map_spawn)
+    map_name = args.map_spawn or "Glacier"
     overrides = {
         "Miscellaneous": {"log_filter": "*:Info Debug.Emulated:Debug Service.SOC:Debug",
                           "check_for_update_on_start": "false"},
@@ -881,9 +924,11 @@ def run_model(args, model, config, original_config, log, output):
             stdout=terminal, stderr=subprocess.STDOUT, text=True,
         )
         try:
-            server.stdin.write(f"config port {args.port}\nhost Glacier attack\n")
+            rules = "survival" if args.map_spawn else "attack"
+            server.stdin.write(f"config port {args.port}\nhost {map_name.replace(' ', '_')} {rules}\n")
             server.stdin.flush()
             wait_for(server_log, server, f"Opened a server on port {args.port}\\.", 25)
+            world_size = (150, 250)
             if args.building or args.touch_build:
                 # Give the pixel comparison a fixed patch of stock ice. Glacier's filters can
                 # place decorations on or alongside the test cells.
@@ -971,11 +1016,17 @@ def run_model(args, model, config, original_config, log, output):
                                                 require_icons=args.menu_icons,
                                                 require_world_atlas=args.world_atlas and phase in ("spawn", "building-layers", "building-cracks"),
                                                 require_building_layers=args.building_layers,
-                                                require_building_cracks=args.building_cracks)
+                                                require_building_cracks=args.building_cracks,
+                                                world_size=world_size,
+                                                spawn_pixels=FORTRESS_CORE_PIXELS if args.map_spawn == "Fortress" else None)
 
                     if stationary:
                         wait_for(log, emulator, r"UPSTREAM_LIVE_CONTROLS_READY unit=\d+", args.timeout)
                         spawn = server_position(server_log, server, "UPSTREAM_SERVER_CONTROLS_READY").groups()
+                        if args.map_spawn:
+                            map_spawn = inspect_map_spawn(server_log, server)
+                            world_size = tuple(map(int, map_spawn[:2]))
+                            verify_map_spawn(log, emulator, map_name, map_spawn, spawn)
                         phase = "spawn"
                         if args.building_effects:
                             phase = "building-effects"
@@ -1018,7 +1069,7 @@ def run_model(args, model, config, original_config, log, output):
                         if args.liquids:
                             verify_conduit_frames(log, rpc, output, model)
                         if not args.payload_handoff:
-                            print("Verified the Glacier capture.", flush=True)
+                            print(f"Verified the {map_name} capture.", flush=True)
                         emu_log = log.read_text(encoding="utf-8", errors="replace")
                         if "UPSTREAM_LIVE_NET_ERROR" in emu_log:
                             raise RuntimeError("The client failed after rendering the atlas stress frame")
@@ -1152,6 +1203,8 @@ def main():
                             help="Verify stock naval hulls and both live Risso wakes")
     build_mode.add_argument("--tank-treads", action="store_true",
                             help="Verify the original Stell and Locus sprites and animated Locus treads")
+    build_mode.add_argument("--map-spawn", metavar="NAME",
+                            help="Verify the world and stationary player spawn on a stock server map")
     args = parser.parse_args()
     args.server, args.rom, args.azahar = (path.resolve() for path in (args.server, args.rom, args.azahar))
     with args.server.open("rb") as archive:
@@ -1191,6 +1244,11 @@ def main():
         parser.error("--naval-wake needs --controls and --terrain-atlas for a fixed camera")
     if args.tank_treads and (not args.terrain_atlas or not args.controls or args.controls_replay):
         parser.error("--tank-treads needs --controls and --terrain-atlas for a fixed camera")
+    if args.map_spawn is not None:
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9 -]*", args.map_spawn):
+            parser.error("--map-spawn needs a stock map name")
+        if not args.terrain_atlas or not args.controls or args.controls_replay or args.world_atlas:
+            parser.error("--map-spawn needs --controls and --terrain-atlas for a standalone spawn capture")
     if args.building_effects and (not args.terrain_atlas or not args.controls or args.controls_replay):
         parser.error("--building-effects needs --controls and --terrain-atlas for a stationary capture")
     if args.liquids and (not args.terrain_atlas or not args.controls or args.controls_replay):
