@@ -54,3 +54,10 @@ Known limits of the native reader: the whole inflated stream must fit within
 8 MiB, configured-block `data` records (7-byte payload) and populated entity
 records are not exercised by this fixture, and item display storage is capped at
 eight stacks while the parity hash still covers every stack read.
+
+The real save is checked in at `tests/fixtures/glacier-v13.msav` together with
+the upstream decode in `tests/fixtures/glacier-v13-decoded.txt`.
+`tests/platform/test_msav_world.c` inflates and decodes it on the host and
+asserts dimensions, building fields, per-building hashes, and the aggregate
+`3a375fd4f81c5680`, so `./dev.sh test` covers the SaveIO parity without needing
+Java or the upstream checkout.

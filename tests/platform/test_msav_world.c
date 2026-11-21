@@ -1,7 +1,9 @@
+#include "platform/msav_inflate.h"
 #include "platform/msav_world.h"
 
 #include <assert.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 static size_t put_be16(uint8_t *out, unsigned value) {
@@ -425,6 +427,53 @@ static void test_alloc_power_liquid(void) {
     m3ds_msav_free_world(&tiles);
 }
 
+static void test_real_glacier_fixture(void) {
+    FILE *file = fopen("tests/fixtures/glacier-v13.msav", "rb");
+    assert(file != NULL);
+    assert(fseek(file, 0L, SEEK_END) == 0);
+    long length = ftell(file);
+    assert(length > 0);
+    rewind(file);
+    uint8_t *raw = malloc((size_t)length);
+    assert(raw != NULL);
+    assert(fread(raw, 1u, (size_t)length, file) == (size_t)length);
+    assert(fclose(file) == 0);
+
+    uint8_t *inflated = NULL;
+    size_t inflated_size = 0u;
+    bool too_large = false;
+    assert(m3ds_msav_inflate_all(
+        raw, (size_t)length, &inflated, &inflated_size, 8u * 1024u * 1024u,
+        &too_large));
+    assert(!too_large);
+    assert(inflated_size == 45955u);
+    assert(memcmp(inflated, "MSAV", 4) == 0);
+
+    M3dsWorldTiles tiles;
+    assert(m3ds_msav_alloc_world(inflated, inflated_size, &tiles));
+    assert(tiles.count == 37500u);
+    assert(tiles.width == 150u && tiles.height == 250u);
+    assert(tiles.building_count == 2u);
+    assert(tiles.buildings[0].x == 81u && tiles.buildings[0].y == 26u);
+    assert(tiles.buildings[0].block_id == 341u);
+    assert(tiles.buildings[0].team == 1u);
+    assert(tiles.buildings[1].x == 81u && tiles.buildings[1].y == 224u);
+    assert(tiles.buildings[1].team == 2u);
+    assert(!tiles.buildings[0].partial && !tiles.buildings[1].partial);
+    // These values come from tests/fixtures/glacier-v13-decoded.txt, produced
+    // by the pinned upstream v160.8 SaveIO baseline.
+    assert(tiles.buildings[0].state_hash == UINT64_C(0xb529451197a6e504));
+    assert(tiles.buildings[1].state_hash == UINT64_C(0xebc4778e833eb8e5));
+    assert(tiles.save_state_hash == UINT64_C(0x3a375fd4f81c5680));
+    assert(tiles.building_hash == UINT64_C(0x4d6f71eda0848e18));
+    assert(tiles.tile_state_hash == UINT64_C(0xe35397041df8e5fe));
+    assert(tiles.hash == UINT64_C(0x783fbd80e415dcd7));
+    assert(m3ds_msav_world_bytes(&tiles) > 1000000u);
+    m3ds_msav_free_world(&tiles);
+    free(inflated);
+    free(raw);
+}
+
 static void test_malformed(void) {
     uint8_t data[64];
     memset(data, 0, sizeof(data));
@@ -462,6 +511,7 @@ int main(void) {
     test_alloc_building();
     test_alloc_items();
     test_alloc_power_liquid();
+    test_real_glacier_fixture();
     test_malformed();
     return 0;
 }
