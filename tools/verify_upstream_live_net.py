@@ -121,10 +121,12 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
         movie.write(header)
         for frame in range(frames):
             seconds = frame // samples_per_second
-            buttons = (1 << 4) if seconds == first_move else (1 << 3) if seconds == leave_at else 0
+            buttons = 0
+            if not erekir_build:
+                buttons = (1 << 4) if seconds == first_move else (1 << 3) if seconds == leave_at else 0
             if building and seconds in (35, 37, 39):
                 buttons = 1  # A, with releases so a late HID poll can observe another press.
-            circle_y = 106 if seconds == circle_at else 0
+            circle_y = 106 if seconds == circle_at and not erekir_build else 0
             point = next((point for start, point in taps if start <= seconds < start + 2), None)
             pad = struct.pack("<BHhh", 0, buttons, 0, circle_y)
             if point:
