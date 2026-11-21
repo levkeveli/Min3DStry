@@ -355,7 +355,10 @@
         "tools/build_audio_assets.py",
         "audio/upstream-audio-map.json",
         "docs/audio/ndsp-mixer.md",
-        "docs/audio/asset-conversion.md"
+        "docs/audio/asset-conversion.md",
+        "research/upstream-runtime/host/UpstreamAudioBaseline.java",
+        "research/upstream-runtime/src/gameplay/java/UpstreamAudioTickProbe.java",
+        "docs/porting/audio-runtime-bindings.md"
       ]
     },
     {

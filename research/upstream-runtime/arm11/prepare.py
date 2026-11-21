@@ -1,7 +1,9 @@
 """Stage the pinned TeaVM translation for the 3DS smoke probe."""
 import argparse
+import os
 import shutil
 from pathlib import Path
+from compact_callsites import compact_callsites
 from fix_heap_alignment import fix_heap_alignment
 from fix_reflection_lifetime import fix_constructor_roots, fix_reflection_lifetime
 
@@ -83,11 +85,20 @@ def main():
         "arrayclass.c": [
             (
                 "static TEAVM_OBJECT_CLASS teavm_dynamicClassPool[TEAVM_DYNAMIC_CLASS_POOL_CAPACITY];",
-                "typedef struct { _Alignas(8) TEAVM_OBJECT_CLASS value; } M3dsArrayClassSlot;\n"
-                "static M3dsArrayClassSlot teavm_dynamicClassPool[TEAVM_DYNAMIC_CLASS_POOL_CAPACITY];",
+                '#include "m3ds_array_class_pool.h"',
             ),
-            ("&teavm_dynamicClassPool[teavm_dynamicClassPoolSize++]", "&teavm_dynamicClassPool[teavm_dynamicClassPoolSize++].value"),
-            ("&teavm_dynamicClassPool[index].parent", "&teavm_dynamicClassPool[index].value.parent"),
+            (
+                "    if (teavm_dynamicClassPoolSize + 1 >= TEAVM_DYNAMIC_CLASS_POOL_CAPACITY) {\n"
+                "        teavm_printWString(L\"Metaspace size\\n\");\n"
+                "        abort();\n"
+                "    }\n"
+                "    TEAVM_OBJECT_CLASS* ptr = &teavm_dynamicClassPool[teavm_dynamicClassPoolSize++];",
+                "    TEAVM_OBJECT_CLASS* ptr = m3ds_array_class_alloc(&teavm_dynamicClassPoolSize);",
+            ),
+            (
+                "&teavm_dynamicClassPool[index].parent",
+                "&m3ds_array_class_get(index)->parent",
+            ),
         ],
         "all.c": [
             ('#include "date.c"', '#include "m3ds_date.c"'),
@@ -112,10 +123,23 @@ def main():
             ("            putwchar(c);", "            m3ds_log_codepoint(c);"),
         ],
     }
+    keep_callsite_locations = os.environ.get("M3DS_KEEP_CALLSITE_LOCATIONS", "0") == "1"
+    if not keep_callsite_locations:
+        replacements["stack.h"] = [
+            (
+                "    extern TeaVM_CallSite teavm_callSites[];\n"
+                "    #define TEAVM_FIND_CALLSITE(id, frame) (teavm_callSites + id)",
+                '    #include "m3ds_callsites.h"\n'
+                "    #define TEAVM_FIND_CALLSITE(id, frame) m3ds_find_callsite(id)",
+            ),
+        ]
     for name, changes in replacements.items():
         for old, new in changes:
             replace(args.output / name, old, new)
-    for name in ("m3ds_date.c", "m3ds_platform.c", "m3ds_file.c", "m3ds_main.c", "m3ds_gc_relocations.h"):
+    if not keep_callsite_locations:
+        compact_callsites(args.output)
+    for name in ("m3ds_date.c", "m3ds_platform.c", "m3ds_file.c", "m3ds_main.c",
+                 "m3ds_gc_relocations.h", "m3ds_array_class_pool.h", "m3ds_callsites.h"):
         shutil.copyfile(Path(__file__).with_name(name), args.output / name)
     includes = args.output / "nativeinclude"
     includes.mkdir()
