@@ -15,6 +15,8 @@ extern "C" {
 #define M3DS_SCENE_GRID_W      36
 #define M3DS_SCENE_GRID_H      24
 #define M3DS_SCENE_MAX_PRIMITIVES 1024u
+#define M3DS_SCENE_MIN_ZOOM    0.5f
+#define M3DS_SCENE_MAX_ZOOM    2.0f
 
 typedef struct M3dsColor {
     uint8_t r;
@@ -76,13 +78,15 @@ typedef struct M3dsRenderBackend {
         float x2, float y2, float z, M3dsColor color);
     bool (*draw_circle)(
         void *user_data, float cx, float cy, float z, float radius, M3dsColor color);
-    bool (*draw_sprite)(void *user_data, M3dsSceneSprite sprite, float x, float y, float z);
+    bool (*draw_sprite)(void *user_data, M3dsSceneSprite sprite, float x, float y, float z,
+                        float width, float height);
 } M3dsRenderBackend;
 
 typedef struct M3dsBoundedScene {
     M3dsViewport viewport;
     float camera_x;
     float camera_y;
+    float zoom;
     uint32_t tick;
     bool paused;
     bool show_sim_items;
@@ -94,6 +98,11 @@ typedef struct M3dsBoundedScene {
 void m3ds_scene_init(M3dsBoundedScene *scene, float viewport_w, float viewport_h);
 void m3ds_scene_reset_camera(M3dsBoundedScene *scene);
 void m3ds_scene_pan(M3dsBoundedScene *scene, float dx, float dy);
+void m3ds_scene_set_zoom(M3dsBoundedScene *scene, float zoom);
+void m3ds_scene_zoom_by(M3dsBoundedScene *scene, float delta);
+static inline float m3ds_scene_zoom(const M3dsBoundedScene *scene) {
+    return (scene && scene->zoom > 0.0f) ? scene->zoom : 1.0f;
+}
 void m3ds_scene_step(M3dsBoundedScene *scene, uint32_t ticks);
 bool m3ds_scene_render(
     const M3dsBoundedScene *scene,

@@ -10,7 +10,7 @@
 
 > **Note for agents:** The native C prototypes below validate 3DS GPU rendering, audio, hardware detection, host testing, and tooling. **Do NOT expand them into a bespoke simplified Mindustry clone**; full gameplay, content, and simulation come from upstream Mindustry v160.8.
 
-- [Citro2D bounded rendering prototype](rendering/citro2d-prototype.md) (`M3dsRenderBackend` + `M3dsBoundedScene`, host-tested, 3DS-built via `./dev.sh build`, and emulator-tested in Azahar `2126.2` via `./dev.sh emu-test`; physical hardware verification pending).
+- [Citro2D bounded rendering prototype](rendering/citro2d-prototype.md) (`M3dsRenderBackend` + `M3dsBoundedScene` with clamped zoom, host-tested, 3DS-built via `./dev.sh build`, and emulator-tested in Azahar `2126.2` via `./dev.sh emu-test`; lighting/effects and physical hardware verification pending).
 - [Top-screen minimap prototype](rendering/minimap.md) (`m3ds_minimap_render`, host-tested and visible in Azahar screenshots; upstream HUD/menu parity pending).
 - [Hardware detection profile](hardware/detection.md) (`M3dsHardwareProfile` + `libctru` probe, host-tested, 3DS-built, and emulator-tested across Old/New 3DS modes in Azahar `2126.2`; physical Old/New 3DS hardware verification pending).
 - [Memory budget](hardware/memory-budget.md) (`M3dsMemoryBudget` bounded arena derived from the detected application-memory region, host-tested and Azahar-tested; the upstream TeaVM heap budget remains separate).

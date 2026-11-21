@@ -76,8 +76,10 @@ bool m3ds_minimap_render(
         }
     }
 
-    const float world_w = (float)M3DS_SCENE_GRID_W * M3DS_TILE_SIZE_PX;
-    const float world_h = (float)M3DS_SCENE_GRID_H * M3DS_TILE_SIZE_PX;
+    const float world_w = (float)M3DS_SCENE_GRID_W * M3DS_TILE_SIZE_PX *
+                          m3ds_scene_zoom(scene);
+    const float world_h = (float)M3DS_SCENE_GRID_H * M3DS_TILE_SIZE_PX *
+                          m3ds_scene_zoom(scene);
     float cam_x = x + (scene->camera_x / world_w) * width;
     float cam_y = y + (scene->camera_y / world_h) * height;
     float cam_w = (scene->viewport.width / world_w) * width;

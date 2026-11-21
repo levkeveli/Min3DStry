@@ -20,6 +20,8 @@ typedef struct MockBackend {
     bool seen_circle;
     bool non_circle_after_circle;
     unsigned sprites[M3DS_SPRITE_ITEM + 1];
+    float sprite_w[M3DS_SPRITE_ITEM + 1];
+    float sprite_h[M3DS_SPRITE_ITEM + 1];
 } MockBackend;
 
 static bool mock_clear(void *user_data, M3dsColor color) {
@@ -84,9 +86,13 @@ static bool mock_circle(
     return true;
 }
 
-static bool mock_sprite(void *user_data, M3dsSceneSprite sprite, float x, float y, float z) {
+static bool mock_sprite(
+    void *user_data, M3dsSceneSprite sprite, float x, float y, float z,
+    float width, float height) {
     MockBackend *mock = user_data;
     mock->sprites[sprite]++;
+    mock->sprite_w[sprite] = width;
+    mock->sprite_h[sprite] = height;
     return mock_rect(user_data, x, y, z, 0, 0, m3ds_rgba(0, 0, 0, 0));
 }
 
@@ -220,6 +226,47 @@ static void test_live_factory_delivery(void) {
            (unsigned long)m3ds_parity_hash_state(&factory));
 }
 
+static void test_zoom_bounds_and_render(void) {
+    M3dsBoundedScene scene;
+    m3ds_scene_init(&scene, M3DS_TOP_SCREEN_WIDTH, M3DS_TOP_SCREEN_HEIGHT);
+    assert(m3ds_scene_zoom(&scene) == 1.0f);
+    assert(m3ds_scene_zoom(NULL) == 1.0f);
+
+    m3ds_scene_set_zoom(&scene, 99.0f);
+    assert(m3ds_scene_zoom(&scene) == M3DS_SCENE_MAX_ZOOM);
+    m3ds_scene_set_zoom(&scene, -1.0f);
+    assert(m3ds_scene_zoom(&scene) == M3DS_SCENE_MIN_ZOOM);
+    m3ds_scene_set_zoom(NULL, 2.0f);
+
+    m3ds_scene_set_zoom(&scene, 2.0f);
+    m3ds_scene_reset_camera(&scene);
+    m3ds_scene_pan(&scene, 9999.0f, 9999.0f);
+    float max_x = (float)M3DS_SCENE_GRID_W * M3DS_TILE_SIZE_PX * 2.0f -
+                  M3DS_TOP_SCREEN_WIDTH;
+    float max_y = (float)M3DS_SCENE_GRID_H * M3DS_TILE_SIZE_PX * 2.0f -
+                  M3DS_TOP_SCREEN_HEIGHT;
+    assert(scene.camera_x == max_x && scene.camera_y == max_y);
+
+    scene.show_sim_items = true;
+    MockBackend mock;
+    M3dsRenderBackend backend = make_mock_backend(&mock);
+    backend.draw_sprite = mock_sprite;
+    M3dsDrawStats stats;
+    assert(m3ds_scene_render(&scene, &backend, &stats));
+    assert(mock.sprites[M3DS_SPRITE_FLOOR] > 0u);
+    assert(mock.sprite_w[M3DS_SPRITE_FLOOR] == 32.0f);
+    assert(mock.sprite_h[M3DS_SPRITE_FLOOR] == 32.0f);
+
+    m3ds_scene_set_zoom(&scene, 0.5f);
+    m3ds_scene_reset_camera(&scene);
+    assert(m3ds_scene_render(&scene, &backend, &stats));
+    assert(mock.sprite_w[M3DS_SPRITE_FLOOR] == 8.0f);
+    assert(mock.sprite_h[M3DS_SPRITE_FLOOR] == 8.0f);
+
+    m3ds_scene_zoom_by(&scene, 10.0f);
+    assert(m3ds_scene_zoom(&scene) == M3DS_SCENE_MAX_ZOOM);
+}
+
 static void test_demo_turret_fixture(void) {
     M3dsBoundedScene scene;
     M3dsParityState factory;
@@ -235,6 +282,7 @@ int main(void) {
     test_deterministic_step_and_bounds();
     test_culling_batching_and_budget();
     test_invalid_inputs_fail_safely();
+    test_zoom_bounds_and_render();
     test_live_factory_delivery();
     test_demo_turret_fixture();
     printf("test_scene_2d: all assertions passed.\n");
