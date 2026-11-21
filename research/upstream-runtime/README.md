@@ -420,6 +420,30 @@ German or `pt_BR` for Brazilian Portuguese. A missing or unknown code
 uses the console language. Some controls specific to the 3DS probe still
 use English labels.
 
+The touchscreen block catalog and Sorter item menu draw their original
+icons. Multiplayer asset preparation uses the stock v160.8 registry and
+`UnlockableContent.loadIcon` to select each texture by the upstream ID.
+It exports 425 block icons and all 22 item icons. The renderer keeps up
+to six icon textures resident, with a combined texel budget of at most
+384 KiB. It replaces each row's old texture after the preceding GPU
+frame completes.
+
+To verify the original crops and 3DS texture pixels independently, run
+these commands from the repository root with the pinned asset and server
+JARs. The first command writes its output under a new verification
+directory.
+
+```sh
+mkdir menu-icon-reference
+java -Djava.awt.headless=true -cp /path/to/server-release.jar \
+  tools/UpstreamSpriteAtlas.java /path/to/assets.jar menu-icon-reference --menu-icons
+java tests/tools/VerifyUpstreamMenuIcons.java menu-icon-reference
+```
+
+Add `--menu-icons` to the `--touch-config --controls-replay` verifier
+to check six rendered block icons and six item icons in both touchscreen
+captures.
+
 Loading the German bundle exposed a monitor exception during the original
 `PlanetGrid.create` subdivision on ARM11. In the graphical build that
 method runs synchronously on TeaVM C's cooperative execution lane. The

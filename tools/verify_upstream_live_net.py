@@ -209,11 +209,14 @@ def verify_touch_build(log, emulator, server_log, server, timeout, capture, posi
     print(f"Stock server verified the catalog Router; copper={router[3]}.", flush=True)
 
 
-def verify_touch_config(log, emulator, server_log, server, timeout, capture, position):
+def verify_touch_config(log, emulator, server_log, server, timeout, capture, position, menu_icons=False):
     _, _, x, y = position
     tx, ty = math.floor(float(x) / 8 + 0.5) + 4, math.floor(float(y) / 8 + 0.5)
     original = inspect_building(server_log, server, "config-before", tx, ty)
-    wait_for(log, emulator, r"UPSTREAM_CATALOG_PAGE category=distribution page=2\b", timeout)
+    catalog_open = r"UPSTREAM_CATALOG_PAGE category=distribution page=2\b"
+    if menu_icons:
+        catalog_open += r"[\s\S]*?UPSTREAM_MENU_ICONS type=block drawn=6\b"
+    wait_for(log, emulator, catalog_open, timeout)
     time.sleep(0.2)
     capture("touch-catalog", position)
     wait_for(log, emulator, rf"UPSTREAM_LIVE_BUILD block=sorter x={tx} y={ty} rotation=0 team=1\b", timeout)
@@ -221,7 +224,10 @@ def verify_touch_config(log, emulator, server_log, server, timeout, capture, pos
     if original[0] != "air" or placed != ("sorter", "1", "0", str(int(original[3]) - 2), "true"):
         raise RuntimeError(f"Unexpected stock Sorter placement: {original} -> {placed}")
     unconfigured = capture("touch-sorter", position)
-    wait_for(log, emulator, rf"UPSTREAM_CONFIG_OPEN x={tx} y={ty}\b", timeout)
+    config_open = rf"UPSTREAM_CONFIG_OPEN x={tx} y={ty}\b"
+    if menu_icons:
+        config_open += r"[\s\S]*?UPSTREAM_MENU_ICONS type=item drawn=6\b"
+    wait_for(log, emulator, config_open, timeout)
     time.sleep(0.2)  # The open event precedes presentation.
     capture("touch-config-menu", position)
 
@@ -253,7 +259,7 @@ def verify_touch_config(log, emulator, server_log, server, timeout, capture, pos
 
 
 def verify_controls(log, emulator, server_log, server, timeout, capture=None,
-                    building=False, desktop_name=None, touch_build=False, touch_config=False):
+                    building=False, desktop_name=None, touch_build=False, touch_config=False, menu_icons=False):
     wait_for(log, emulator, r"UPSTREAM_LIVE_CONTROLS_READY unit=\d+", timeout)
     baseline = server_position(server_log, server, "UPSTREAM_SERVER_CONTROLS_READY").groups()
     ground_pixels = capture("spawn", baseline) if capture else None
@@ -262,7 +268,7 @@ def verify_controls(log, emulator, server_log, server, timeout, capture=None,
     if touch_build:
         verify_touch_build(log, emulator, server_log, server, timeout, capture, baseline, ground_pixels)
     if touch_config:
-        verify_touch_config(log, emulator, server_log, server, timeout, capture, baseline)
+        verify_touch_config(log, emulator, server_log, server, timeout, capture, baseline, menu_icons)
     for device, direction, axis in (("dpad", "right", 2), ("circle", "up", 3)):
         print(f"Move {direction} with the {device}, then release it.", flush=True)
         stopped = re.compile(rf"UPSTREAM_LIVE_CONTROLS_STOPPED unit=(\d+) input={device} "
@@ -295,7 +301,7 @@ def verify_controls(log, emulator, server_log, server, timeout, capture=None,
     wait_for(log, emulator, r"UPSTREAM_LIVE_CONTROLS_STATE wave=2\b", timeout)
 
 
-def capture_viewport(log, emulator, rpc, destination, position, require_palette=False):
+def capture_viewport(log, emulator, rpc, destination, position, require_palette=False, require_icons=False):
     unit, _, x, y = position
     # Glacier is 150 × 250 tiles and the renderer centers a 16 × 12 tile viewport.
     left = max(0, min(150 - 16, math.floor(float(x) / 8 + 0.5) - 8))
@@ -323,12 +329,17 @@ def capture_viewport(log, emulator, rpc, destination, position, require_palette=
             points[point] = color
     left_sample = 288 if re.search(r"-touch-(sorter|config-[a-z]+)$", destination.stem) else 308
     interior = ((left_sample, 108), (left_sample + 2, 110), (left_sample + 4, 112))
-    pixels = az.inspect_png(screenshot, (*points, *interior) if require_palette else ())
+    icon_points = ()
+    if require_icons and destination.stem.endswith(("-touch-catalog", "-touch-config-menu")):
+        icon_points = tuple((x, y) for x in (60, 64, 68, 72, 76) for y in (289, 294, 299))
+    pixels = az.inspect_png(screenshot, (*points, *interior, *icon_points) if require_palette else ())
     if pixels["width"] != 400 or pixels["height"] != 480 or pixels["top_distinct_colors"] < 8:
         raise RuntimeError(f"Expected the textured Glacier viewport on the top screen: {pixels}")
     if require_palette:
         if any(pixels["samples"][point] != color for point, color in points.items()):
             raise RuntimeError(f"Expected palette and cursor pixels {points}, observed {pixels['samples']}")
+        if icon_points and all(pixels["samples"][point] == (45, 52, 64) for point in icon_points):
+            raise RuntimeError("The first touchscreen row is missing its original icon")
     print(frame, flush=True)
     if require_palette:
         return tuple(pixels["samples"][point] for point in interior)
@@ -399,11 +410,12 @@ def run_model(args, model, config, original_config, log, output):
                 if args.controls:
                     def capture(phase, position):
                         return capture_viewport(log, emulator, rpc, output / f"{model}-{phase}.png", position,
-                                                require_palette=args.touch_build or args.touch_config)
+                                                require_palette=args.touch_build or args.touch_config,
+                                                require_icons=args.menu_icons)
 
                     verify_controls(log, emulator, server_log, server, args.timeout,
                                     capture if args.terrain_atlas else None, args.building, args.desktop_name,
-                                    args.touch_build, args.touch_config)
+                                    args.touch_build, args.touch_config, args.menu_icons)
                     (output / f"{model}.png").write_bytes(rpc.screenshot())
                     print("Wave 2 applied. Press the emulated START button to leave.", flush=True)
                     emu_log = wait_for(log, emulator, "UPSTREAM_LIVE_CONTROLS_LEFT", args.timeout)
@@ -495,6 +507,7 @@ def main():
     parser.add_argument("--terrain-atlas", type=Path,
                         help="Stage the official v160.8 sprites.aatls and verify the rendered viewport")
     parser.add_argument("--locale", help="Stage a stock locale code and verify the graphical probe loads it")
+    parser.add_argument("--menu-icons", action="store_true", help="Verify original block and item icons in the touch menus")
     build_mode = parser.add_mutually_exclusive_group()
     build_mode.add_argument("--building", action="store_true",
                         help="Verify the ARM11 conveyor plan, copper cost and rendered response")
@@ -519,6 +532,8 @@ def main():
         parser.error("--touch-build needs --terrain-atlas")
     if args.touch_config and not args.terrain_atlas:
         parser.error("--touch-config needs --terrain-atlas")
+    if args.menu_icons and not args.touch_config:
+        parser.error("--menu-icons needs --touch-config")
     if args.locale and (not args.terrain_atlas or not re.fullmatch(r"[a-z]{2,3}(?:_[A-Z]{2})?", args.locale)):
         parser.error("--locale needs --terrain-atlas and a stock locale code such as de or pt_BR")
     if args.terrain_atlas:
