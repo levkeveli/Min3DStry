@@ -65,6 +65,8 @@ public final class UpstreamRenderedNetworkProbe {
             if ((building.block == Blocks.coreNucleus || building.block == Blocks.conveyor
                     || building.block == Blocks.copperWall)
                     && viewport.contains(building)) {
+                // WallBuild.draw only renders its optional hit flash. The wall sprite is cached upstream.
+                if (building.block == Blocks.copperWall) building.drawCached();
                 building.draw();
                 if (building.block == Blocks.conveyor && reportedConveyors.add(building.pos())) {
                     System.out.println("UPSTREAM_NETWORK_CONVEYOR x=" + building.tileX()
