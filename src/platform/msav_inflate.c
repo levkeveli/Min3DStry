@@ -1,5 +1,6 @@
 #include "platform/msav_inflate.h"
 
+#include <stdlib.h>
 #include <string.h>
 
 #define MSAV_MAX_BITS 15
@@ -288,4 +289,69 @@ bool m3ds_msav_inflate_prefix(
         }
     }
     return *out_size > 0;
+}
+
+bool m3ds_msav_inflate_all(
+    const uint8_t *zlib_data, size_t zlib_size, uint8_t **out,
+    size_t *out_size, size_t max_size, bool *too_large) {
+    if (!zlib_data || zlib_size < 2 || !out || !out_size || !too_large) {
+        return false;
+    }
+    *out = NULL;
+    *out_size = 0u;
+    *too_large = false;
+    size_t capacity = 32u * 1024u;
+    if (capacity > max_size) {
+        capacity = max_size;
+    }
+    if (capacity == 0u) {
+        *too_large = true;
+        return false;
+    }
+    for (;;) {
+        uint8_t *buffer = malloc(capacity);
+        if (!buffer) {
+            return false;
+        }
+        size_t produced = 0u;
+        if (!m3ds_msav_inflate_prefix(
+                zlib_data, zlib_size, buffer, capacity, &produced)) {
+            free(buffer);
+            return false;
+        }
+        if (produced < capacity) {
+            *out = buffer;
+            *out_size = produced;
+            return true;
+        }
+        free(buffer);
+        if (capacity >= max_size) {
+            // The stream may end exactly at max_size. Probe one extra byte to
+            // distinguish an exact fit from a truncated/oversized save.
+            if (max_size == SIZE_MAX) {
+                *too_large = true;
+                return false;
+            }
+            uint8_t *probe = malloc(max_size + 1u);
+            if (!probe) {
+                return false;
+            }
+            size_t probe_size = 0u;
+            bool probe_ok = m3ds_msav_inflate_prefix(
+                zlib_data, zlib_size, probe, max_size + 1u, &probe_size);
+            if (probe_ok && probe_size <= max_size) {
+                *out = probe;
+                *out_size = probe_size;
+                return true;
+            }
+            free(probe);
+            *too_large = true;
+            return false;
+        }
+        size_t next = capacity * 2u;
+        if (next < capacity || next > max_size) {
+            next = max_size;
+        }
+        capacity = next;
+    }
 }

@@ -291,7 +291,17 @@
         "src/platform/save_slot.c",
         "include/platform/msav_inflate.h",
         "src/platform/msav_inflate.c",
-        "tests/platform/test_save_slot.c"
+        "tests/platform/test_save_slot.c",
+        "include/platform/msav_world.h",
+        "src/platform/msav_world.c",
+        "tests/platform/test_msav_world.c",
+        "tests/fixtures/glacier-v13.msav",
+        "tests/fixtures/glacier-v13-decoded.txt",
+        "tests/fixtures/README.md",
+        "research/upstream-runtime/src/world/java/UpstreamSaveDecodeBaseline.java",
+        "include/render/save_world_preview.h",
+        "src/render/save_world_preview.c",
+        "tests/render/test_save_world_preview.c"
       ]
     },
     {

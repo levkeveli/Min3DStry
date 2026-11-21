@@ -2,6 +2,7 @@
 
 #include <assert.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 
@@ -96,6 +97,18 @@ static void test_sector_roundtrip(void) {
     assert(m3ds_sector_store_read(
         root, "serpulo", 170u, buffer, sizeof(buffer), &size));
     assert(size == 6u && memcmp(buffer, "second", 6u) == 0);
+
+    void *allocated = NULL;
+    size_t allocated_size = 0u;
+    assert(m3ds_sector_store_read_alloc(
+        root, "serpulo", 170u, &allocated, &allocated_size));
+    assert(allocated_size == 6u);
+    assert(memcmp(allocated, "second", 6u) == 0);
+    free(allocated);
+    allocated = NULL;
+    assert(!m3ds_sector_store_read_alloc(
+        root, "serpulo", 171u, &allocated, &allocated_size));
+    assert(allocated == NULL && allocated_size == 0u);
 
     char path[160];
     assert(m3ds_sd_sector_save_path(

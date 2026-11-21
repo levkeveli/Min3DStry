@@ -1,6 +1,7 @@
 #include "platform/settings_store.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "platform/sd_paths.h"
@@ -227,6 +228,41 @@ bool m3ds_sector_store_read(
         return false;
     }
     return read_file(path, out, capacity, out_size);
+}
+
+bool m3ds_sector_store_read_alloc(
+    const char *root,
+    const char *planet,
+    uint32_t sector_id,
+    void **out,
+    size_t *out_size) {
+    if (!out || !out_size) {
+        return false;
+    }
+    *out = NULL;
+    *out_size = 0u;
+    char path[160];
+    if (!m3ds_sd_sector_save_path(
+            root, planet, sector_id, path, sizeof(path))) {
+        return false;
+    }
+    uint32_t length = 0u;
+    if (!file_size(path, &length) || length == 0u) {
+        return false;
+    }
+    void *buffer = malloc(length);
+    if (!buffer) {
+        return false;
+    }
+    size_t read_size = 0u;
+    if (!read_file(path, buffer, length, &read_size)
+            || read_size != length) {
+        free(buffer);
+        return false;
+    }
+    *out = buffer;
+    *out_size = read_size;
+    return true;
 }
 
 bool m3ds_storage_probe_roundtrip(
