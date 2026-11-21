@@ -107,8 +107,26 @@ static void test_tiles_and_entities(void) {
     map[map_size++] = 1u;
 
     size = put_region(data, size, map, map_size);
-    const uint8_t entities[] = {1, 2, 3, 4, 5};
-    size = put_region(data, size, entities, sizeof(entities));
+    uint8_t entities[64];
+    size_t entity_size = 0u;
+    entity_size += put_be16(entities + entity_size, 1u);
+    entity_size += put_be16(entities + entity_size, 7u);
+    entity_size += put_be16(entities + entity_size, 4u);
+    memcpy(entities + entity_size, "unit", 4);
+    entity_size += 4u;
+    entity_size += put_be32(entities + entity_size, 2u);
+    entity_size += put_be32(entities + entity_size, 2u);
+    entity_size += put_be32(entities + entity_size, 0u);
+    entity_size += put_be32(entities + entity_size, 1u);
+    entity_size += put_be32(entities + entity_size, 0u);
+    entity_size += put_be32(entities + entity_size, 2u);
+    entity_size += put_be32(entities + entity_size, 5u);
+    entities[entity_size++] = 1u;
+    entity_size += put_be32(entities + entity_size, 42u);
+    entity_size += put_be32(entities + entity_size, 5u);
+    entities[entity_size++] = 2u;
+    entity_size += put_be32(entities + entity_size, 43u);
+    size = put_region(data, size, entities, entity_size);
 
     M3dsMsavWorld world;
     assert(m3ds_msav_parse_world(data, size, &world));
@@ -119,8 +137,13 @@ static void test_tiles_and_entities(void) {
     assert(world.block_records == 3u);
     assert(world.data_tiles == 1u);
     assert(world.entity_tiles == 1u);
-    assert(world.entity_region_bytes == 5u);
-    assert(world.map_hash != 0u);
+    assert(world.entity_region_bytes == entity_size);
+    assert(world.entity_mapping == 1u);
+    assert(world.entity_teams == 2u);
+    assert(world.entity_team_blocks == 0u);
+    assert(world.entity_records == 2u);
+    assert(!world.entities_partial);
+    assert(world.map_hash != 0u && world.entity_hash != 0u);
     assert(m3ds_msav_parse_world_header(data, size, &world));
     assert(world.valid && world.width == 2u && world.height == 2u);
 }

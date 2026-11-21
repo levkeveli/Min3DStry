@@ -96,7 +96,15 @@ walked and validated, and the map bytes are hashed:
 ```
 
 Both Azahar profiles produce the same hash. Entity bytes are bounds-checked but
-not decoded.
+not decoded. The entity region is also walked: mapping entries, team counts,
+team-block counts and world entity chunk headers are validated and hashed.
+
+```text
+[MIN3DSTRY] SECTOR_ENTITIES mapping=0 teams=2 team_blocks=0 records=0 partial=0 hash=33a31f23a5cfb868
+```
+
+Saves with non-empty team-block payloads are marked `partial=1` because their
+TypeIO configs require the content mapping.
 
 ## SD sector catalog
 

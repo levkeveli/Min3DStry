@@ -18,7 +18,13 @@ typedef struct M3dsMsavWorld {
     uint32_t data_tiles;
     uint32_t entity_tiles;
     uint32_t entity_region_bytes;
+    uint32_t entity_mapping;
+    uint32_t entity_teams;
+    uint32_t entity_team_blocks;
+    uint32_t entity_records;
     uint64_t map_hash;
+    uint64_t entity_hash;
+    bool entities_partial;
     bool valid;
 } M3dsMsavWorld;
 

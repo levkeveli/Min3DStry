@@ -19,6 +19,89 @@ static uint64_t hash_bytes(uint64_t hash, const uint8_t *data, size_t size) {
     return hash;
 }
 
+static bool skip_utf(const uint8_t *data, size_t end, size_t *position) {
+    if (*position + 2u > end) {
+        return false;
+    }
+    uint16_t length = read_be16(data + *position);
+    *position += 2u;
+    if (length > end - *position) {
+        return false;
+    }
+    *position += length;
+    return true;
+}
+
+static bool parse_entities(
+    const uint8_t *data, size_t start, size_t end, M3dsMsavWorld *out) {
+    size_t position = start;
+    if (position + 2u > end) {
+        return false;
+    }
+    uint16_t mapping = read_be16(data + position);
+    position += 2u;
+    for (uint16_t i = 0; i < mapping; ++i) {
+        if (position + 2u > end) {
+            return false;
+        }
+        position += 2u;
+        if (!skip_utf(data, end, &position)) {
+            return false;
+        }
+    }
+    out->entity_mapping = mapping;
+    if (position + 4u > end) {
+        return false;
+    }
+    uint32_t teams = read_be32(data + position);
+    position += 4u;
+    if (teams > 64u) {
+        return false;
+    }
+    out->entity_teams = teams;
+    for (uint32_t i = 0; i < teams; ++i) {
+        if (position + 8u > end) {
+            return false;
+        }
+        uint32_t blocks = read_be32(data + position + 4u);
+        position += 8u;
+        out->entity_team_blocks += blocks;
+        if (blocks != 0u) {
+            // Team-block configs use TypeIO objects and need the content map.
+            out->entities_partial = true;
+            out->entity_hash = hash_bytes(
+                UINT64_C(1469598103934665603), data + start, end - start);
+            return true;
+        }
+    }
+    if (position + 4u > end) {
+        return false;
+    }
+    uint32_t records = read_be32(data + position);
+    position += 4u;
+    if (records > 1000000u) {
+        return false;
+    }
+    for (uint32_t i = 0; i < records; ++i) {
+        if (position + 4u > end) {
+            return false;
+        }
+        uint32_t length = read_be32(data + position);
+        position += 4u;
+        if (length < 5u || length > end - position) {
+            return false;
+        }
+        position += length;
+    }
+    if (position != end) {
+        return false;
+    }
+    out->entity_records = records;
+    out->entity_hash = hash_bytes(
+        UINT64_C(1469598103934665603), data + start, end - start);
+    return true;
+}
+
 static bool locate_map(
     const uint8_t *data, size_t size, uint32_t *version,
     size_t *map_start, size_t *map_end) {
@@ -170,6 +253,10 @@ bool m3ds_msav_parse_world(
         return false;
     }
     out->entity_region_bytes = entity_bytes;
+    size_t entity_start = map_end + 4u;
+    if (!parse_entities(data, entity_start, entity_start + entity_bytes, out)) {
+        return false;
+    }
     out->width = width;
     out->height = height;
     out->map_hash = hash_bytes(UINT64_C(1469598103934665603),

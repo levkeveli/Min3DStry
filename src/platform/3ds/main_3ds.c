@@ -254,6 +254,15 @@ int main(int argc, char *argv[]) {
                      (unsigned)world.entity_region_bytes,
                      (unsigned long long)world.map_hash);
             m3ds_emit_debug_line(log_socket, dbg_line);
+            snprintf(dbg_line, sizeof(dbg_line),
+                     "[MIN3DSTRY] SECTOR_ENTITIES mapping=%u teams=%u team_blocks=%u records=%u partial=%d hash=%016llx\n",
+                     (unsigned)world.entity_mapping,
+                     (unsigned)world.entity_teams,
+                     (unsigned)world.entity_team_blocks,
+                     (unsigned)world.entity_records,
+                     world.entities_partial ? 1 : 0,
+                     (unsigned long long)world.entity_hash);
+            m3ds_emit_debug_line(log_socket, dbg_line);
         }
         free(raw);
         free(inflated);
