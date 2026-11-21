@@ -69,10 +69,13 @@ size_t m3ds_sector_catalog_scan(
         }
         M3dsSectorSlot slot;
         memset(&slot, 0, sizeof(slot));
-        snprintf(slot.planet, sizeof(slot.planet), "%s", planet);
+        snprintf(slot.planet, sizeof(slot.planet), "%.15s", planet);
         slot.id = (uint32_t)id;
         slot.valid = info.valid;
         slot.compressed = info.compressed;
+        slot.has_meta = info.has_meta;
+        slot.wave = info.wave;
+        snprintf(slot.map_name, sizeof(slot.map_name), "%.47s", info.map_name);
         slot.bytes = info.bytes;
         insert_sorted(slots, &count, capacity, &slot);
     }

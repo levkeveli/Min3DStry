@@ -194,10 +194,21 @@ int main(int argc, char *argv[]) {
     m3ds_emit_debug_line(log_socket, dbg_line);
     for (size_t i = 0; i < sector_count; ++i) {
         snprintf(dbg_line, sizeof(dbg_line),
-                 "[MIN3DSTRY] SECTOR_SLOT planet=%s id=%u valid=%d compressed=%d bytes=%u\n",
+                 "[MIN3DSTRY] SECTOR_SLOT planet=%.15s id=%u valid=%d compressed=%d bytes=%u",
                  sectors[i].planet, (unsigned)sectors[i].id,
                  sectors[i].valid ? 1 : 0, sectors[i].compressed ? 1 : 0,
                  (unsigned)sectors[i].bytes);
+        size_t used = strlen(dbg_line);
+        if (sectors[i].has_meta && used + 2u < sizeof(dbg_line)) {
+            snprintf(dbg_line + used, sizeof(dbg_line) - used,
+                     " map=%.47s wave=%u", sectors[i].map_name,
+                     (unsigned)sectors[i].wave);
+        }
+        used = strlen(dbg_line);
+        if (used < sizeof(dbg_line) - 1u) {
+            dbg_line[used++] = '\n';
+            dbg_line[used] = '\0';
+        }
         m3ds_emit_debug_line(log_socket, dbg_line);
     }
 
@@ -733,10 +744,16 @@ int main(int argc, char *argv[]) {
         }
         printf("\x1b[21;1HSectors: %u\x1b[K", (unsigned)sector_count);
         if (sector_count > 0u) {
-            printf("\x1b[22;1HSector %s-%u %s %uB\x1b[K",
-                   sectors[0].planet, (unsigned)sectors[0].id,
-                   sectors[0].valid ? "v" : (sectors[0].compressed ? "zlib" : "invalid"),
-                   (unsigned)sectors[0].bytes);
+            if (sectors[0].has_meta) {
+                printf("\x1b[22;1HSector %s-%u %s w%u\x1b[K",
+                       sectors[0].planet, (unsigned)sectors[0].id,
+                       sectors[0].map_name, (unsigned)sectors[0].wave);
+            } else {
+                printf("\x1b[22;1HSector %s-%u %s %uB\x1b[K",
+                       sectors[0].planet, (unsigned)sectors[0].id,
+                       sectors[0].valid ? "v" : (sectors[0].compressed ? "zlib" : "invalid"),
+                       (unsigned)sectors[0].bytes);
+            }
         } else {
             printf("\x1b[22;1H\x1b[K");
         }
