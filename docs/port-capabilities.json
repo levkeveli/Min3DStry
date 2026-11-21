@@ -297,6 +297,7 @@
         "research/upstream-runtime/src/campaign-content/java/UpstreamCampaignContentStateProbe.java",
         "research/upstream-runtime/build.gradle",
         "docs/porting/campaign-progression.md",
+        "docs/porting/campaign-verification.md",
         "docs/porting/sd-storage-paths.md"
       ]
     },
