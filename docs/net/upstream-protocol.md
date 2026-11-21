@@ -2,7 +2,7 @@
 
 **Issue:** [#31](https://github.com/levkeveli/Min3DStry/issues/31) / [#44](https://github.com/levkeveli/Min3DStry/issues/44)
 
-**Stage:** `emulator-tested` (`crossplay-net-protocol` verified live against unmodified Mindustry v8 build `160.8` `server-release.jar` + Java PC client across host loopback and Azahar `2126.2` Old/New 3DS profiles via [`research/upstream-runtime/`](../../research/upstream-runtime/README.md) and [`tools/verify_upstream_live_net.py`](../../tools/verify_upstream_live_net.py); `net_3ds.c` compiled into `min3dstry.3dsx`; physical Old/New 3DS console Wi-Fi session pending under `#44` / `#43`)
+**Stage:** `host-tested` (wire-exact framing & host session baseline verified live against unmodified Mindustry v8 build `160.8` `server-release.jar` via `tools/verify_upstream_net.py`; `net_3ds.c` compiled into `min3dstry.3dsx`; separate TeaVM ARM11 Azahar sessions are tracked in [`research/upstream-runtime/`](../../research/upstream-runtime/README.md) and [`port-capabilities.json`](../port-capabilities.json); physical Old/New 3DS console Wi-Fi sessions remain pending under `#44` / `#43`)
 
 ---
 
@@ -92,11 +92,11 @@ DECODE_PKT_OK id=141 compression=1 wire_len=140 payload_len=182
   - **Session 1 (`run=1`):** Completed `ConnectPacket` -> `WorldStream` (`150x250` `Glacier`, `2` core origins, `copper=200`) -> `ConnectConfirmCallPacket`, applied incoming `StateSnapshotCallPacket` + `EntitySnapshotCallPacket` on the main thread until the server-spawned player unit was synced, transmitted outbound UDP `ClientSnapshotCallPacket` build plans for a `Conveyor` at `(85, 26)` rotation `1` and a `Copper Wall` at `(86, 26)`, applied server `ConstructFinishCallPacket` confirmations, and verified authoritative core copper sync (`200 -> 193`, `buildings=2->4`).
   - **Session 2 (`run=2`):** Reset client state (`Vars.logic.reset()`), reconnected with the same UUID, confirmed the server's fresh rejoin `WorldStream` persisted all `4` buildings and `copper=193`, sent an outbound `ClientSnapshotCallPacket` deconstruction `BuildPlan(86, 26)`, applied `DeconstructFinishCallPacket`, and verified authoritative core copper refund sync (`193 -> 196`, `buildings=4->3`).
 - **Live LZ4 parity:** The raw `net.jpountz.lz4`-compressed server packet (`id=141`, `compressed_bytes=140`, `payload_len=182`, `compression=1`) decoded byte-for-byte identically via C11 `m3ds_net_decode_packet` (`DECODE_PKT_OK`).
+- **Run-to-run variability:** Because this harness connects to a freshly started live `server-release.jar`, server-assigned `playerId`s, `state_snapshots` / `entity_snapshots` / `lz4_packets` counts, and the captured `UPSTREAM_LZ4_PACKET` SHA-256 vary between runs (for example, `lz4_packets=15` and `16` across consecutive runs); `tools/verify_upstream_net.py` asserts the deterministic `UPSTREAM_NET_DISCOVERY`, `UPSTREAM_NET_MISMATCH`, both `UPSTREAM_NET_ACTION` build/rejoin/deconstruct lines, non-zero `entity_snapshots`, and C11 `DECODE_PKT_OK` invariants rather than fixed snapshot counts or hashes.
 
-### 4. 3DS ARM11 Build & Emulator Verification
-- **3DS-build-tested (`./dev.sh build`):** `src/net/mindustry_net.c` and `src/platform/3ds/net_3ds.c` compile cleanly under devkitARM `arm-none-eabi-gcc` (`-std=c11 -Wall -Wextra -Werror`) into `build/min3dstry.3dsx`.
-- **Emulator-tested (`emulator-tested` in [port-capabilities.json](../port-capabilities.json)):** Azahar `2126.2` Old and New 3DS profiles run the TeaVM ARM11 client against unmodified v160.8 `server-release.jar` + desktop PC peers via [`tools/verify_upstream_live_net.py`](../../tools/verify_upstream_live_net.py) and [`research/upstream-runtime/arm11/m3ds_net_bridge.c`](../../research/upstream-runtime/arm11/m3ds_net_bridge.c).
-- **Not yet tested:** Physical Original/New 3DS console Wi-Fi multiplayer sessions (`#44`, `#43`).
+### 4. 3DS ARM11 Build (`./dev.sh build`)
+- **3DS-build-tested:** `src/net/mindustry_net.c` and `src/platform/3ds/net_3ds.c` compile cleanly under devkitARM `arm-none-eabi-gcc` (`-std=c11 -Wall -Wextra -Werror`) into `build/min3dstry.3dsx`.
+- **Not yet tested:** Physical Original/New 3DS console Wi-Fi handshake and play sessions (`#31`, `#44`, `#43`); this host/wire document stays at `host-tested` while separate TeaVM ARM11 emulator runs are recorded under [`research/upstream-runtime/`](../../research/upstream-runtime/README.md).
 
 ---
 
