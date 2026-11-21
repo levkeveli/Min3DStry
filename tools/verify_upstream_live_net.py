@@ -33,6 +33,8 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
     taps = (
         (35, (200, 24)), (39, (232, 136)), (43, (232, 136)),
         (48, (120, 24)), (53, (248, 136)), (60, (280, 24)), (65, (248, 136)),
+        (70, (40, 24)), (74, (15, 64)), (79, (268, 218)),
+        (84, (160, 130)), (89, (264, 136)), (93, (264, 136)),
     ) if touch_build else ()
     with path.open("wb") as movie:
         movie.write(header)
@@ -184,6 +186,17 @@ def verify_touch_build(log, emulator, server_log, server, timeout, capture, posi
         raise RuntimeError(f"Wall sprite did not appear and clear: {ground_pixels} -> "
                            f"{build_pixels} -> {removed_pixels}")
     print(f"Stock server verified both touch placements and the wall refund; copper={removed[3]}.", flush=True)
+    wait_for(log, emulator, r"UPSTREAM_CATALOG_PAGE category=distribution page=2\b", timeout)
+    time.sleep(0.2)  # The input event is logged before Citro2D presents the page.
+    capture("touch-catalog", position)
+    wait_for(log, emulator, r"UPSTREAM_CATALOG_SELECTED router\b", timeout)
+    wait_for(log, emulator, rf"UPSTREAM_TOUCH_PLAN block=router x={tx + 2} y={ty} rotation=0\b", timeout)
+    wait_for(log, emulator, rf"UPSTREAM_LIVE_BUILD block=router x={tx + 2} y={ty} rotation=0 team=1\b", timeout)
+    router = inspect_building(server_log, server, "touch-router", tx + 2, ty)
+    if router != ("router", "1", "0", str(int(removed[3]) - 3), "true"):
+        raise RuntimeError(f"Unexpected stock catalog placement: {router}")
+    capture("touch-router", position)
+    print(f"Stock server verified the catalog Router; copper={router[3]}.", flush=True)
 
 
 def verify_controls(log, emulator, server_log, server, timeout, capture=None,
@@ -237,11 +250,15 @@ def capture_viewport(log, emulator, rpc, destination, position, require_palette=
     screenshot = rpc.screenshot(res_scale=1)
     destination.write_bytes(screenshot)
     # Default layout centers the 320px bottom screen at x=40 below the top screen.
-    palette_pixels = {(70, 296): (24, 27, 32), (72, 296): (65, 74, 88)}
+    if destination.stem.endswith("-touch-catalog"):
+        palette_pixels = {(50, 250): (45, 52, 64), (52, 293): (45, 52, 64)}
+    else:
+        palette_pixels = {(70, 296): (24, 27, 32), (72, 296): (65, 74, 88)}
     cursor_pixels = {
         "touch-conveyor": ((284, 100), (250, 213, 107)),
         "touch-copper-wall": ((304, 100), (250, 213, 107)),
         "touch-removed": ((304, 100), (241, 117, 97)),
+        "touch-router": ((324, 100), (250, 213, 107)),
     }
     points = dict(palette_pixels)
     for phase, (point, color) in cursor_pixels.items():
@@ -298,7 +315,7 @@ def run_model(args, model, config, original_config, log, output):
                 if args.building and args.desktop_name:
                     first_move = 120  # Allow time to inspect and place a block in the desktop client.
                 if args.touch_build:
-                    first_move = 73
+                    first_move = 101
                 write_controls_replay(replay, first_move=first_move, building=args.building,
                                       touch_build=args.touch_build, model=model)
                 command += ["-p", str(replay)]

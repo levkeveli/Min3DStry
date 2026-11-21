@@ -87,6 +87,24 @@ public final class UpstreamBuildControlsReference {
         if (routerIndex < 0 || verified <= UpstreamBuildMenu.ROWS) {
             throw new AssertionError("Stock Glacier should expose a multi-page catalog including Router");
         }
+        menu.open(Blocks.conveyor);
+        menu.tap(285, 20);
+        menu.tap(35, 20);
+        if (menu.selectedRow(Blocks.conveyor) < 0 || menu.tap(160, 218) != null || menu.isOpen()) {
+            throw new AssertionError("Category navigation must return to distribution and Back must leave the menu");
+        }
+        var rules = Vars.state.rules;
+        boolean hideBanned = rules.hideBannedBlocks;
+        rules.hideBannedBlocks = true;
+        rules.bannedBlocks.add(Blocks.router);
+        try {
+            if (upstream.getUnlockedByCategory(Category.distribution).contains(Blocks.router, true)) {
+                throw new AssertionError("The stock hide-banned rule must remove Router from the catalog");
+            }
+        } finally {
+            rules.bannedBlocks.remove(Blocks.router);
+            rules.hideBannedBlocks = hideBanned;
+        }
         controls.viewport(73, 20);
         controls.update(unit, 0, touch(40, 24));
         controls.update(unit, 0, touch(15, 64));
