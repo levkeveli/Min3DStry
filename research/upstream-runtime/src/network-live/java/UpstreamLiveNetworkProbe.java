@@ -263,8 +263,22 @@ public final class UpstreamLiveNetworkProbe {
                 keepAlive(0);
                 lastUdpKeepAlive = now;
             }
+            lastWave = receiveLiveUpdates(stateId, entityId, lastWave);
+            app.runPosted();
+            controls.update(input, now);
+            if (frame != null && now - lastFrame >= 33_333_333L) {
+                frame.accept(controlledUnit());
+                lastFrame = now;
+            }
+        }
+    }
+
+    private int receiveLiveUpdates(int stateId, int entityId, int lastWave) throws IOException {
+        // Drain queued snapshots before drawing again and bound the work between input polls.
+        for (int i = 0; i < 16; i++) {
             int received = receive(1, 0);
-            if (received == TIMEOUT) received = receive(0, 8);
+            if (received == TIMEOUT) received = receive(0, i == 0 ? 8 : 0);
+            if (received == TIMEOUT) break;
             int id = received >>> 16;
             if (id == stateId) {
                 var state = applyState(received);
@@ -275,13 +289,8 @@ public final class UpstreamLiveNetworkProbe {
             } else if (id == entityId) {
                 decode(new EntitySnapshotCallPacket(), received).handleClient();
             }
-            app.runPosted();
-            controls.update(input, now);
-            if (frame != null && now - lastFrame >= 33_333_333L) {
-                frame.accept(controlledUnit());
-                lastFrame = now;
-            }
         }
+        return lastWave;
     }
 
     private static Unit controlledUnit() {
