@@ -535,6 +535,9 @@ teavm {
     if (usesSimulation || usesLiveNetwork) {
         c { maxHeapSize = 24 }
     }
+    if (usesLiveNetwork) {
+        c { minHeapSize = 24 }
+    }
 }
 
 if (usesWorldSources) {
