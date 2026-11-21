@@ -424,14 +424,18 @@ def run_model(args, model, config, original_config, log, output):
                       f"{args.desktop_name!r}.", flush=True)
                 wait_for(server_log, server, rf"{re.escape(args.desktop_name)} has connected", args.timeout)
             if args.combat:
-                # Spawn before the client joins so the unit is in its initial snapshots.
+                # Unique per-run markers keep wait_for from matching lines left in
+                # the appended server log by an earlier model or run.
+                token = f"combat_{model}_{int(time.time() * 1000)}"
+                # Spawn a decoy far from the Duo so it exercises initial snapshot
+                # delivery without competing for the turret's two copper shots.
                 spawn = (
-                    '(() => { const u = UnitTypes.dagger.spawn(Vars.state.rules.waveTeam, 78 * 8, 26 * 8); '
-                    'for (let i = 0; i < 5; i++) Packages.mindustry.entities.Units.notifyUnitSpawn(u); '
-                    'return "UPSTREAM_COMBAT_SPAWN id=" + u.id; })()')
+                    '(() => { const u = UnitTypes.dagger.spawn(Vars.state.rules.waveTeam, 60 * 8, 26 * 8); '
+                    f'return "UPSTREAM_COMBAT_SPAWN_{token} id=" + u.id; }})()')
                 server.stdin.write("js " + spawn + "\n")
                 server.stdin.flush()
-                wait_for(server_log, server, r"UPSTREAM_COMBAT_SPAWN id=\d+", 10)
+                pre_result = wait_for(server_log, server, rf"UPSTREAM_COMBAT_SPAWN_{token} id=(\d+)", 10)
+                pre_id = int(re.search(rf"UPSTREAM_COMBAT_SPAWN_{token} id=(\d+)", pre_result).group(1))
             command = [str(args.azahar)]
             if args.controls_replay:
                 replay = Path(work) / "controls.ctm"
@@ -467,43 +471,83 @@ def run_model(args, model, config, original_config, log, output):
 
                     if args.combat:
                         wait_for(log, emulator, r"UPSTREAM_LIVE_CONTROLS_READY unit=\d+", args.timeout)
+                        decoy = (
+                            f'(() => {{ const u = Groups.unit.find(x => x.id === {pre_id}); '
+                            'if (u) u.remove(); '
+                            f'return "UPSTREAM_COMBAT_DECOY_{token} removed=" + (u ? 1 : 0); }})()')
+                        server.stdin.write("js " + decoy + "\n")
+                        server.stdin.flush()
+                        wait_for(server_log, server, rf"UPSTREAM_COMBAT_DECOY_{token} removed=1", 10)
                         fixture = (
                             '(() => { const t = Vars.world.tile(76, 26); '
                             't.setBlock(Blocks.duo, Vars.state.rules.defaultTeam, 0); '
                             'const b = t.build; b.handleItem(b, Items.copper); '
-                            'return "UPSTREAM_COMBAT_FIXTURE block=" + t.block().name + " ammo=" + b.totalAmmo; })()')
+                            f'return "UPSTREAM_COMBAT_FIXTURE_{token} block=" + t.block().name '
+                            '+ " ammo=" + b.totalAmmo; })()')
                         server.stdin.write("js " + fixture + "\n")
                         server.stdin.flush()
                         setup = wait_for(server_log, server,
-                                         r"UPSTREAM_COMBAT_FIXTURE block=\S+ ammo=(\d+)", 10)
-                        initial_ammo = int(re.search(r"ammo=(\d+)", setup).group(1))
+                                         rf"UPSTREAM_COMBAT_FIXTURE_{token} block=\S+ ammo=(\d+)", 10)
+                        initial_ammo = int(re.search(
+                            rf"UPSTREAM_COMBAT_FIXTURE_{token} block=\S+ ammo=(\d+)", setup).group(1))
                         post = (
-                            '(() => { const u = UnitTypes.dagger.spawn(Vars.state.rules.waveTeam, 79 * 8, 26 * 8); '
-                            'for (let i = 0; i < 5; i++) Packages.mindustry.entities.Units.notifyUnitSpawn(u); '
-                            'return "UPSTREAM_COMBAT_POST id=" + u.id; })()')
+                            '(() => { const u = UnitTypes.dagger.spawn(Vars.state.rules.waveTeam, 78 * 8, 26 * 8); '
+                            # notifyUnitSpawn is a no-op in some headless setups; call the
+                            # generated remote directly. TypeIO.readUnitContainer resolves
+                            # by unit id, so repeats are idempotent.
+                            'const c = new Packages.mindustry.entities.Units.UnitSyncContainer(u); '
+                            'const p = new Packages.mindustry.gen.UnitSpawnCallPacket(); p.container = c; '
+                            'for (let i = 0; i < 3; i++) Vars.net.send(p, true); '
+                            f'return "UPSTREAM_COMBAT_POST_{token} id=" + u.id; }})()')
                         server.stdin.write("js " + post + "\n")
                         server.stdin.flush()
-                        post_result = wait_for(server_log, server, r"UPSTREAM_COMBAT_POST id=(\d+)", 10)
-                        post_id = int(re.search(r"id=(\d+)", post_result).group(1))
-                        enemy = wait_for(log, emulator,
-                                         rf"UPSTREAM_LIVE_ENEMY type=dagger id={post_id}\b", args.timeout)
-                        print(re.search(r"UPSTREAM_LIVE_ENEMY[^\n]*", enemy).group(0), flush=True)
+                        post_result = wait_for(server_log, server, rf"UPSTREAM_COMBAT_POST_{token} id=(\d+)", 10)
+                        post_id = int(re.search(rf"UPSTREAM_COMBAT_POST_{token} id=(\d+)", post_result).group(1))
+                        client_units = wait_for(
+                            log, emulator,
+                            rf"UPSTREAM_LIVE_UNITS [^\n]*ids=[^\n]*\b{post_id}:dagger:",
+                            args.timeout)
+                        unit_line = re.search(rf"UPSTREAM_LIVE_UNITS[^\n]*\b{post_id}:dagger:[^\n]*",
+                                              client_units).group(0)
+                        print(unit_line, flush=True)
                         time.sleep(1.0)
                         query = (
                             f'(() => {{ const u = Groups.unit.find(x => x.id === {post_id}); '
+                            f'const pre = Groups.unit.find(x => x.id === {pre_id}); '
                             'const b = Vars.world.tile(76, 26).build; '
-                            'return "UPSTREAM_SERVER_COMBAT dagger=" + (u ? Math.round(u.health) : -1) + '
-                            '" ammo=" + b.totalAmmo; })()')
+                            f'return "UPSTREAM_SERVER_COMBAT_{token} found=" + (u ? 1 : 0) + '
+                            '" health=" + (u ? Math.round(u.health) : -1) + '
+                            '" x=" + (u ? u.x : -1) + " y=" + (u ? u.y : -1) + '
+                            '" ammo=" + b.totalAmmo + " pre=" + (pre ? Math.round(pre.health) : -1); })()')
                         server.stdin.write("js " + query + "\n")
                         server.stdin.flush()
                         result = wait_for(server_log, server,
-                                          r"UPSTREAM_SERVER_COMBAT dagger=(-?\d+) ammo=(\d+)", 10)
-                        dagger, ammo = (int(value) for value in
-                                        re.search(r"dagger=(-?\d+) ammo=(\d+)", result).groups())
-                        # Dagger max health in v160.8 is 150; -1 means it was destroyed.
-                        if ammo >= initial_ammo or (dagger != -1 and dagger >= 150):
+                                          rf"UPSTREAM_SERVER_COMBAT_{token} found=(\d+) health=(-?\d+) "
+                                          rf"x=({NUMBER}) y=({NUMBER}) ammo=(\d+) pre=(-?\d+)", 10)
+                        found, dagger, spawn_x, spawn_y, ammo, pre_health = (
+                            float(value) if index in (2, 3) else int(value)
+                            for index, value in enumerate(re.search(
+                                rf"UPSTREAM_SERVER_COMBAT_{token} found=(\d+) health=(-?\d+) "
+                                rf"x=({NUMBER}) y=({NUMBER}) ammo=(\d+) pre=(-?\d+)",
+                                result).groups()))
+                        # Dagger max health in v160.8 is 150. Require the exact
+                        # post-join id to be found, damaged and near its spawn,
+                        # with the decoy untouched, so a lookup failure or a
+                        # different wave unit cannot satisfy the check.
+                        if found != 1 or dagger <= 0 or dagger >= 150:
                             raise RuntimeError(
-                                f"Turret did not damage the Dagger: ammo {initial_ammo}->{ammo}, health={dagger}")
+                                f"Turret did not damage the post-join Dagger: "
+                                f"found={found} health={dagger}")
+                        if abs(spawn_x - 78 * 8) > 24 or abs(spawn_y - 26 * 8) > 24:
+                            raise RuntimeError(
+                                f"Post-join Dagger moved away from its spawn: "
+                                f"x={spawn_x} y={spawn_y}")
+                        if ammo >= initial_ammo:
+                            raise RuntimeError(
+                                f"Turret did not spend ammo: {initial_ammo}->{ammo}")
+                        if pre_health != -1:
+                            raise RuntimeError(
+                                f"Decoy Dagger was not removed before the turret check: health={pre_health}")
                         (output / f"{model}-combat.png").write_bytes(rpc.screenshot())
                         print(f"Stock Duo fired; Dagger health={dagger}, ammo {initial_ammo}->{ammo}.", flush=True)
                         emu_log = log.read_text(encoding="utf-8", errors="replace")

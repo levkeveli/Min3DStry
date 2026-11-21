@@ -11,43 +11,47 @@ simulation or synchronize bullets inside the live app.
 performs the following against the official `server-release.jar` running
 `host Glacier attack`:
 
-1. Before the client joins, spawns a wave-team Dagger at tile `(78, 26)` and
-   broadcasts it with `Units.notifyUnitSpawn`.
+1. Before the client joins, spawns a wave-team decoy Dagger at tile `(60, 26)`
+   so the initial world snapshot contains an enemy, far away from the turret.
 2. Waits for the ARM11 client to report `UPSTREAM_LIVE_CONTROLS_READY`.
-3. Places a player Duo at `(76, 26)` with one copper (two ammo) through stock
+3. Removes the decoy on the server so it cannot consume the Duo's two copper
+   shots.
+4. Places a player Duo at `(76, 26)` with one copper (two ammo) through stock
    server JS.
-4. Spawns a second Dagger **after** the client has joined and broadcasts it
-   with `Units.notifyUnitSpawn`, exercising the client's
-   `UnitSpawnCallPacket` path.
-5. Waits for the client to receive and draw that exact Dagger id
-   (`UPSTREAM_LIVE_ENEMY type=dagger id=<id>`).
-6. Queries the stock server for that id after one second: the Duo must have
-   spent ammo and the Dagger must be below its 150 health (or destroyed).
+5. Spawns a Dagger **after** the client has joined at `(78, 26)` and sends the
+   stock `UnitSpawnCallPacket` through `Vars.net.send(packet, true)` so the
+   transport is deterministic; the client must list that exact id in
+   `UPSTREAM_LIVE_UNITS ... ids=<id>:dagger:2`.
+6. Queries the stock server for that id after one second and requires:
+   `found=1`, `0 < health < 150`, position within three tiles of `(624, 208)`,
+   ammo below the initial value, and the removed decoy reported as `pre=-1`.
 
 ## Observed
 
 Both profiles exited 0:
 
 ```text
-UPSTREAM_LIVE_ENEMY type=dagger id=212 x=624.0 y=208.0
+UPSTREAM_LIVE_UNITS n=5 bullets=0 ids=212:dagger:2,...,527:dagger:2
 Stock Duo fired; Dagger health=132, ammo 2->0.
 new3ds: stationary run ended by emulator kill; accepted the server's (error) departure
-new3ds: UPSTREAM_LIVE_CONTROLS_READY unit=431 x=648.0 y=208.0
 
-UPSTREAM_LIVE_ENEMY type=dagger id=212 x=624.0 y=208.0
+UPSTREAM_LIVE_UNITS n=5 bullets=0 ids=212:dagger:2,...,465:dagger:2
 Stock Duo fired; Dagger health=132, ammo 2->0.
 old3ds: stationary run ended by emulator kill; accepted the server's (error) departure
-old3ds: UPSTREAM_LIVE_CONTROLS_READY unit=484 x=648.0 y=208.0
 ```
 
-The client now decodes `UnitSpawnCallPacket` in both snapshot and controls
-loops; the post-join spawn in the verifier covers that path.
+The client decodes `UnitSpawnCallPacket` in both snapshot and controls loops.
+The post-join id in `UPSTREAM_LIVE_UNITS` is the evidence for that path; an
+`UPSTREAM_LIVE_ENEMY` line can still refer to the pre-join decoy, which is why
+the verifier matches the exact server id instead of the first rendered Dagger.
 
 ## Limitations
 
 - Mindustry's stock network protocol does not synchronize bullets; clients
   simulate them. No bullet rendering/telemetry is claimed here, and only the
   combatants and server damage are verified.
+- The verifier sends the stock spawn packet reliably to avoid UDP flakiness;
+  the stock server normally sends it unreliably.
 - The port's own turret/wave/pathfinding simulation is verified separately by
   the ARM11 `combat-ticks` and `wave-routing` probes, not inside
   `min3dstry.3dsx`.

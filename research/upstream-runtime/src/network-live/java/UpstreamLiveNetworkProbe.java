@@ -338,6 +338,7 @@ public final class UpstreamLiveNetworkProbe {
         long lastTcpSend = System.nanoTime();
         long lastUdpKeepAlive = lastTcpSend;
         long lastFrame = 0;
+        long lastUnitLog = 0;
         int stateId = unsignedId(StateSnapshotCallPacket.class);
         int entityId = unsignedId(EntitySnapshotCallPacket.class);
         int unitSpawnId = unsignedId(UnitSpawnCallPacket.class);
@@ -358,6 +359,16 @@ public final class UpstreamLiveNetworkProbe {
             lastWave = receiveLiveUpdates(stateId, entityId, unitSpawnId, lastWave);
             app.runPosted();
             now = System.nanoTime();
+            if (frame != null && now - lastUnitLog >= 2_000_000_000L) {
+                lastUnitLog = now;
+                var units = new StringBuilder();
+                for (var unit : Groups.unit) {
+                    if (units.length() > 0) units.append(',');
+                    units.append(unit.id).append(':').append(unit.type.name).append(':').append(unit.team.id);
+                }
+                System.out.println("UPSTREAM_LIVE_UNITS n=" + Groups.unit.size()
+                    + " bullets=" + Groups.bullet.size() + " ids=" + units);
+            }
             controls.update(input, now);
             if (frame != null && now - lastFrame >= 33_333_333L) {
                 var unit = controlledUnit();
@@ -387,6 +398,7 @@ public final class UpstreamLiveNetworkProbe {
                 decode(new EntitySnapshotCallPacket(), received).handleClient();
             } else if (id == unitSpawnId) {
                 decode(new UnitSpawnCallPacket(), received).handleClient();
+                System.out.println("UPSTREAM_LIVE_UNIT_SPAWN id=" + id);
             } else if (frame != null) {
                 applyBuildingUpdate(id, received);
             }
