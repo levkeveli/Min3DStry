@@ -399,7 +399,17 @@ public final class UpstreamLiveNetworkProbe {
             if (received == TIMEOUT) break;
             int id = received >>> 16;
             if (id == stateId) {
+                var unit = controlledUnit();
+                var ore = unit == null || unit.mineTile == null ? null : unit.getMineResult(unit.mineTile);
+                var core = ore == null ? null : Vars.player.team().core();
+                int before = core == null ? 0 : core.items.get(ore);
                 var state = applyState(received);
+                if (core != null) {
+                    int after = core.items.get(ore);
+                    if (after != before) {
+                        System.out.println("UPSTREAM_MINE_CORE_SYNC item=" + ore.name + " count=" + after);
+                    }
+                }
                 if (lastWave != state.wave) {
                     lastWave = state.wave;
                     System.out.println("UPSTREAM_LIVE_CONTROLS_STATE wave=" + lastWave);
