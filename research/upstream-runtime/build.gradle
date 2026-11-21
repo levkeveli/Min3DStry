@@ -67,6 +67,25 @@ def usesMapSources = probe in ['map', 'map-sd']
 def usesLiveNetwork = probe in ['network-live', 'network-render']
 def usesTerrainRenderer = probe in ['terrain-render', 'network-render']
 def patchesPlanetGrid = probe == 'network-render'
+def conduitSmoothing = 'smoothLiquid = Mathf.lerpDelta(smoothLiquid, liquids.currentAmount() / liquidCapacity, 0.05f);'
+def conduitUpdate = '@Override\n        public void updateTile(){'
+def fluidSources = [
+    'mindustry/world/blocks/liquid/Conduit.java': [
+        'if(renderer != null){': 'if(UpstreamFluidAtlas.ready()){',
+        'renderer.getFluidFrames()': 'UpstreamFluidAtlas.frames()',
+        'renderer.fluidFrames': 'UpstreamFluidAtlas.frames()',
+        (conduitSmoothing): 'advanceLiquidDraw();',
+        (conduitUpdate): """// Also used by the graphical multiplayer probe between server snapshots.
+        public void advanceLiquidDraw(){
+            ${conduitSmoothing}
+        }
+
+        ${conduitUpdate}"""
+    ],
+    'mindustry/world/blocks/liquid/LiquidBlock.java': [
+        'renderer.fluidFrames': 'UpstreamFluidAtlas.frames()'
+    ]
+]
 def usesSimulation = probe in ['factory-ticks', 'combat-ticks', 'production-ticks', 'wave-routing']
 def usesCampaignSettings = probe == 'campaign-settings'
 def usesCampaignSector = probe == 'campaign-sector'
@@ -111,6 +130,11 @@ def netClientFile = sourceDir.map { it.file('mindustry/core/NetClient.java') }
 def placementFile = sourceDir.map { it.file('UpstreamPlacementCatalog.java') }
 def itemChoicesFile = sourceDir.map { it.file('UpstreamItemChoices.java') }
 def planetGridFile = sourceDir.map { it.file('mindustry/graphics/g3d/PlanetGrid.java') }
+def contentColorsFile = sourceDir.map { it.file('mindustry/core/ContentLoader.java') }
+def shieldModeSources = [
+    'mindustry/graphics/Drawf.java': 'renderer',
+    'mindustry/entities/abilities/ForceFieldAbility.java': 'Vars.renderer'
+]
 def compilerResources = layout.buildDirectory.dir("compiler-resources/${probe}")
 def pluginFile = compilerResources.map { it.file('META-INF/services/org.teavm.vm.spi.TeaVMPlugin') }
 def reflectionPolicyFile = compilerResources.map { it.file('META-INF/services/org.teavm.extension.spi.reflection.ReflectionPolicy') }
@@ -118,6 +142,25 @@ def readUpstream = { path ->
     providers.exec {
         commandLine 'git', '-C', upstream.get(), 'show', "${revision}:${path}"
     }.standardOutput.asBytes.get()
+}
+
+def renderedBuilding = layout.buildDirectory.dir('building-renderer-classes')
+def stageRenderedBuilding
+if (probe == 'network-render') {
+    def asm = configurations.detachedConfiguration(dependencies.create('org.ow2.asm:asm-tree:9.9'))
+    def adapter = tasks.register('compileBuildingCrackAdapter', JavaCompile) {
+        source files('tools/StageBuildingCrackAdapter.java', 'tools/StageNavalWakeAdapter.java')
+        classpath = asm
+        destinationDirectory = layout.buildDirectory.dir('building-renderer-tool')
+    }
+    stageRenderedBuilding = tasks.register('stageRenderedBuilding', JavaExec) {
+        dependsOn adapter, 'prepareUpstreamProbe'
+        classpath = files(adapter.flatMap { it.destinationDirectory }) + asm
+        mainClass = 'StageBuildingCrackAdapter'
+        inputs.file(referenceJar)
+        outputs.dir(renderedBuilding)
+        args referenceJar.absolutePath, renderedBuilding.get().asFile.absolutePath
+    }
 }
 
 if (usesArcSources || usesExecutor) {
@@ -143,6 +186,17 @@ if (usesArcSources || usesExecutor) {
     if (patchesPlanetGrid) {
         stagedClasses.addAll(['mindustry/graphics/g3d/PlanetGrid.class', 'mindustry/graphics/g3d/PlanetGrid$*.class'])
     }
+    if (stageRenderedBuilding != null) {
+        stagedClasses.addAll(['mindustry/gen/Building.class', 'mindustry/gen/UnitWaterMove.class',
+                              'mindustry/core/ContentLoader.class'])
+        shieldModeSources.keySet().each { path ->
+            stagedClasses.add(path.replace('.java', '.class'))
+        }
+        fluidSources.keySet().each { path ->
+            def type = path.substring(0, path.length() - '.java'.length())
+            stagedClasses.addAll([type + '.class', type + '$*.class'])
+        }
+    }
     if (usesCampaignJsonCompat) {
         stagedClasses.addAll(['arc/util/serialization/Json.class', 'arc/util/serialization/Json$*.class'])
     }
@@ -152,6 +206,10 @@ if (usesArcSources || usesExecutor) {
         inputs.property('stagedClasses', stagedClasses)
         from(zipTree(referenceJar)) {
             exclude stagedClasses
+        }
+        if (stageRenderedBuilding != null) {
+            dependsOn stageRenderedBuilding
+            from(renderedBuilding)
         }
         destinationDirectory = layout.buildDirectory.dir("probe-dependencies/${probe}")
         archiveFileName = 'server-probe-dependencies.jar'
@@ -196,7 +254,12 @@ if (usesLiveNetwork) {
     sourceSets.main.java.srcDirs('src/network-live/java', 'src/network-live/host')
 }
 if (probe == 'network-render') {
-    sourceSets.main.java.srcDir('src/network-render/java')
+    sourceSets.main.java.srcDirs('src/network-render/java', 'src/network-render/host')
+    tasks.register('runBuildingLayersJvm', JavaExec) {
+        dependsOn 'classes'
+        classpath = sourceSets.main.runtimeClasspath
+        mainClass = 'UpstreamBuildingLayersReference'
+    }
 }
 if (probe == 'file-metadata') {
     sourceSets.main.java.srcDir('src/file/java')
@@ -283,6 +346,11 @@ tasks.register('prepareUpstreamProbe') {
     }
     if (patchesPlanetGrid) {
         outputs.file(planetGridFile)
+        fluidSources.keySet().each { outputs.file(sourceDir.map { dir -> dir.file(it) }) }
+    }
+    if (probe == 'network-render') {
+        outputs.file(contentColorsFile)
+        shieldModeSources.keySet().each { outputs.file(sourceDir.map { dir -> dir.file(it) }) }
     }
     if (usesCampaignJsonCompat) {
         outputs.file(arcJsonFile)
@@ -291,6 +359,47 @@ tasks.register('prepareUpstreamProbe') {
         outputs.file(reflectionPolicyFile)
     }
     doLast {
+        if (probe == 'network-render') {
+            def loader = new String(readUpstream('core/src/mindustry/core/ContentLoader.java'), 'UTF-8')
+            def loadColors = '''public void loadColors(){
+        Pixmap pixmap = new Pixmap(files.internal("sprites/block_colors.png"));'''
+            if (loader.count(loadColors) != 1) {
+                throw new GradleException('Pinned block color loading entry point changed')
+            }
+            def adaptedLoader = contentColorsFile.get().asFile
+            adaptedLoader.parentFile.mkdirs()
+            adaptedLoader.setText(loader.replace(loadColors, '''public void loadColors(){
+        loadColors(files.internal("sprites/block_colors.png"));
+    }
+
+    public void loadColors(Fi source){
+        Pixmap pixmap = new Pixmap(source);'''), 'UTF-8')
+            shieldModeSources.each { path, renderer ->
+                def source = new String(readUpstream("core/src/${path}"), 'UTF-8')
+                def animated = "if(${renderer}.animateShields){"
+                if (source.count(animated) != 1) {
+                    throw new GradleException("Pinned shield rendering mode check changed in ${path}")
+                }
+                def output = sourceDir.get().file(path).asFile
+                output.parentFile.mkdirs()
+                // Use the existing unshaded geometry when the desktop renderer is absent.
+                output.setText(source.replace(animated, "if(${renderer} != null && ${renderer}.animateShields){"), 'UTF-8')
+            }
+            fluidSources.each { path, substitutions ->
+                def source = new String(readUpstream("core/src/${path}"), 'UTF-8')
+                substitutions.each { original, replacement ->
+                    if (source.count(original) != 1) {
+                        throw new GradleException("Unexpected fluid renderer lookup in ${path}")
+                    }
+                    source = source.replace(original, replacement)
+                }
+                def imports = source.indexOf('import ')
+                source = source.substring(0, imports) + 'import port.render.UpstreamFluidAtlas;\n' + source.substring(imports)
+                def target = sourceDir.get().file(path).asFile
+                target.parentFile.mkdirs()
+                target.setText(source, 'UTF-8')
+            }
+        }
         if (!pluginsToLoad.isEmpty()) {
             def service = pluginFile.get().asFile
             service.parentFile.mkdirs()
@@ -527,7 +636,7 @@ teavm {
     if (usesExecutor) {
         c { obfuscated = false }
     }
-    if (usesSimulation) {
+    if (usesSimulation || usesLiveNetwork) {
         c { maxHeapSize = 24 }
     }
 }

@@ -71,8 +71,9 @@ executable allows up to 24 slots. On each profile, all 8,328 pixels in
 the Core Nucleus crop outside the player unit area matched the earlier
 build.
 
-Fragment pivots use `whole_center - (start - region_start) * step`, which is
-identical for positive and mirrored (negative) atlas draws.
+Citro2D uses positive screen-space extents and flips the texture coordinates
+for negative sizes. A mirrored atlas fragment is placed by its distance from
+the far edge of the complete sprite.
 [`tests/render/test_world_fragment.c`](../../tests/render/test_world_fragment.c)
 checks positive, mirrored and offset multi-tile fragments, and `./dev.sh test`
 runs it. Atlas eviction now begins the next submission with

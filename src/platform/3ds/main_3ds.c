@@ -18,6 +18,7 @@
 #include "platform/hardware_profile.h"
 #include "platform/memory_budget.h"
 #include "platform/save_slot.h"
+#include "platform/sector_catalog.h"
 #include "platform/sd_paths.h"
 #include "platform/settings_store.h"
 #include "platform/worker_benchmark.h"
@@ -178,6 +179,21 @@ int main(int argc, char *argv[]) {
                  "[MIN3DSTRY] SAVE_SLOT status=invalid_path\n");
     }
     m3ds_emit_debug_line(log_socket, dbg_line);
+
+    M3dsSectorSlot sectors[M3DS_SECTOR_CATALOG_MAX];
+    size_t sector_count = m3ds_sector_catalog_scan(
+        "sdmc:/3ds/min3dstry", sectors, M3DS_SECTOR_CATALOG_MAX);
+    snprintf(dbg_line, sizeof(dbg_line),
+             "[MIN3DSTRY] SECTOR_CATALOG count=%u\n", (unsigned)sector_count);
+    m3ds_emit_debug_line(log_socket, dbg_line);
+    for (size_t i = 0; i < sector_count; ++i) {
+        snprintf(dbg_line, sizeof(dbg_line),
+                 "[MIN3DSTRY] SECTOR_SLOT planet=%s id=%u valid=%d compressed=%d bytes=%u\n",
+                 sectors[i].planet, (unsigned)sectors[i].id,
+                 sectors[i].valid ? 1 : 0, sectors[i].compressed ? 1 : 0,
+                 (unsigned)sectors[i].bytes);
+        m3ds_emit_debug_line(log_socket, dbg_line);
+    }
 
     {
         M3dsMemoryBudget memory_budget;
@@ -708,6 +724,15 @@ int main(int argc, char *argv[]) {
             printf("\x1b[20;1HSave: invalid %uB\x1b[K", (unsigned)save_slot.bytes);
         } else {
             printf("\x1b[20;1HSave: none\x1b[K");
+        }
+        printf("\x1b[21;1HSectors: %u\x1b[K", (unsigned)sector_count);
+        if (sector_count > 0u) {
+            printf("\x1b[22;1HSector %s-%u %s %uB\x1b[K",
+                   sectors[0].planet, (unsigned)sectors[0].id,
+                   sectors[0].valid ? "v" : (sectors[0].compressed ? "zlib" : "invalid"),
+                   (unsigned)sectors[0].bytes);
+        } else {
+            printf("\x1b[22;1H\x1b[K");
         }
         if (pause_menu.open) {
             printf("\x1b[15;1H=== PAUSED ===  Up/Down + A\x1b[K");

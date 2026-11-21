@@ -1,3 +1,4 @@
+import arc.graphics.Blending;
 import java.io.IOException;
 import mindustry.Vars;
 import org.teavm.interop.Import;
@@ -55,12 +56,26 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
     @Override
     public void draw(int page, int left, int top, int width, int height,
                      float x, float y, float originX, float originY, float drawWidth, float drawHeight,
-                     float rotation, int color) {
+                     float rotation, int color, int mixColor, Blending blending) {
         if (NativeTerrain.draw(page, left, top, width, height, x, y, originX, originY,
-                drawWidth, drawHeight, rotation, color) == 0) {
+                drawWidth, drawHeight, rotation, color, mixColor, blendMode(blending)) == 0) {
             throw new IllegalStateException("Citro2D could not draw an upstream terrain region: "
                 + page + "," + left + "," + top + "+" + width + "x" + height);
         }
+    }
+
+    @Override
+    public void drawSolidQuad(float[] vertices, int offset, Blending blending) {
+        if (NativeTerrain.drawSolidQuad(Address.ofData(vertices), offset, blendMode(blending)) == 0) {
+            throw new IllegalStateException("Citro2D could not draw a stock Arc solid quad");
+        }
+    }
+
+    private static int blendMode(Blending blending) {
+        if (blending == Blending.normal) return 0;
+        if (blending == Blending.additive) return 1;
+        if (blending == Blending.disabled) return 2;
+        throw new IllegalArgumentException("Unsupported Arc sprite blending");
     }
 
     @Override
@@ -90,7 +105,10 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
         @Import(name = "m3ds_terrain_draw")
         static native int draw(int page, int left, int top, int width, int height,
                                float x, float y, float originX, float originY, float drawWidth,
-                               float drawHeight, float rotation, int color);
+                               float drawHeight, float rotation, int color, int mixColor, int blendMode);
+
+        @Import(name = "m3ds_terrain_draw_solid_quad")
+        static native int drawSolidQuad(Address vertices, int offset, int blendMode);
 
         @Import(name = "m3ds_terrain_end")
         static native int end();

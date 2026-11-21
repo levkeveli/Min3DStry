@@ -285,6 +285,8 @@
         "docs/porting/campaign-progression.md",
         "include/platform/save_slot.h",
         "src/platform/save_slot.c",
+        "include/platform/msav_inflate.h",
+        "src/platform/msav_inflate.c",
         "tests/platform/test_save_slot.c"
       ]
     },
@@ -302,6 +304,9 @@
         "include/platform/settings_store.h",
         "src/platform/settings_store.c",
         "tests/platform/test_settings_store.c",
+        "include/platform/sector_catalog.h",
+        "src/platform/sector_catalog.c",
+        "tests/platform/test_sector_catalog.c",
         "research/upstream-runtime/src/campaign-slot-discovery/java/UpstreamCampaignSlotDiscoveryProbe.java",
         "research/upstream-runtime/src/campaign-saves/java/UpstreamCampaignSavesProbe.java",
         "research/upstream-runtime/src/campaign-launch/java/UpstreamCampaignLaunchProbe.java",
