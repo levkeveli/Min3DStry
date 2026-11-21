@@ -82,3 +82,23 @@ size_t m3ds_sector_catalog_scan(
     closedir(handle);
     return count;
 }
+
+bool m3ds_sector_catalog_label(
+    const M3dsSectorSlot *slot, char *out, size_t capacity) {
+    if (!slot || !out || capacity == 0u) {
+        return false;
+    }
+    int written;
+    if (slot->has_meta) {
+        written = snprintf(out, capacity, "%.15s-%u %.47s w%u",
+                           slot->planet, (unsigned)slot->id, slot->map_name,
+                           (unsigned)slot->wave);
+    } else {
+        written = snprintf(out, capacity, "%.15s-%u %s %uB",
+                           slot->planet, (unsigned)slot->id,
+                           slot->valid ? "v"
+                               : (slot->compressed ? "zlib" : "invalid"),
+                           (unsigned)slot->bytes);
+    }
+    return written > 0 && (size_t)written < capacity;
+}
