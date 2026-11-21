@@ -647,6 +647,10 @@ wall sizes through the original building serializer and verifies the
 carried position, shadow color and layer order. Run the live verifier with
 `--controls --carried-buildings --terrain-atlas` to check both sprites
 against their upstream atlas colors in a stock Java Glacier session.
+The [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44867577413)
+passed on the Old and New 3DS Azahar profiles. All 2,000 opaque wall pixels
+per profile matched the original atlas, allowing either neighboring texel
+at exact nearest-neighbor ties.
 
 The renderer still selects blocks that use the supported sprite operations.
 Textured raw vertices, additional payload types and other rendering services
