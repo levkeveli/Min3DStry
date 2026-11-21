@@ -1004,9 +1004,8 @@ The live viewport calls the pinned `ShapeTextMarker.draw` and
 The renderer preserves the original Arc shapes, world anchors, world
 visibility, localization lookup, layer, and zoom scaling. A staging
 adapter redirects those two classes' `WorldLabel.drawAt` calls to
-Citro2D. The port uses system-font text with a shadow and the stock
-background flag. Visible anchors keep long text within the 3DS
-viewport. Marker text selects the upstream touch-control language
+Citro2D with the stock background flag. Visible anchors keep long
+text within the 3DS viewport. Marker text selects the upstream touch-control language
 variant when present. Original glyph art and styled spans are tracked
 in [#199](https://github.com/levkeveli/Min3DStry/issues/199). Lighting,
 minimap markers and the other marker types require further renderer support.
@@ -1024,6 +1023,30 @@ displayed both original shapes and the localized directions on Original
 and New 3DS Azahar profiles connected to the unmodified v160.8 server.
 Both captures show the stock touch mining prompt and the complete
 research label inside the top-screen viewport.
+
+### Original v160.8 font rasterization
+
+The multiplayer asset pack carries the unmodified `font.woff`,
+`font_jp.woff`, `icon.ttf`, and `icons/icons.properties` from the
+official release assets. The ARM11 build uses devkitPro's 3DS FreeType
+port. World labels use the stock 18 px face, rounded 2 px outline, and
+Japanese face override when the selected locale is Japanese. The
+renderer keeps the current glyphs in one 512 × 512 RGBA8 texture and
+reuses older slots after the previous frame has finished. When stock
+font rendering is unavailable, the existing system-font path displays
+the label.
+
+For host verification, compile `arm11/m3ds_stock_font.c` and
+`arm11/test_stock_font.c` with the system FreeType development library.
+Pass the extracted `assets/fonts` directory to the test executable.
+It covers the default and Japanese faces, original tech-tree glyph, blank
+advance and outline. On the live emulator verifier, add
+`--verify-stock-font` to the Onset marker check to require the original
+font path on both world labels.
+
+The world-label path currently uses plain spans. Styled spans, inline
+content images and connecting the objective HUD and other menus to the
+stock text renderer remain tracked in #199.
 
 ### Verify the Arc executor pools
 
