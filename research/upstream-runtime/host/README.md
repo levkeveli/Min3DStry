@@ -210,17 +210,21 @@ and [audio plan](../../../docs/audio/ndsp-mixer.md).
 
 To exercise pinned `v160.8` `Sounds.load()` (`205` SFX IDs), `Musics.load()`
 (`16` tracks), `ContentLoader` sound bindings across all `447` blocks / `70`
-unit definitions / `202` bullet types (plus the `9` RomFS-mapped clips),
-Arc camera falloff/panning (`calcFalloff` / `calcPan`), `SoundLoop` fade-in/out,
-conveyor/drill ambient gating, and two-run deterministic simulation triggers:
+unit definitions / `202` bullet types (plus direct validation of every entry in
+[audio/upstream-audio-map.json](../../../audio/upstream-audio-map.json)),
+Arc camera falloff/panning (`calcFalloff` / `calcPan`), measured `SoundLoop`
+fade-in/out progression, conveyor/drill ambient gating, and two-run deterministic
+simulation triggers:
 
 ```sh
 java -cp /path/to/server-release.jar \
-    /path/to/Min3DStry/research/upstream-runtime/host/UpstreamAudioBaseline.java
+    /path/to/Min3DStry/research/upstream-runtime/host/UpstreamAudioBaseline.java \
+    /path/to/Min3DStry/audio/upstream-audio-map.json
 ```
 
-Look for `UPSTREAM_AUDIO_REGISTRY sounds=205 musics=16` and
-`UPSTREAM_AUDIO_ORDER runs=2 ticks=420`. See
+When omitted, the map path defaults to `audio/upstream-audio-map.json` relative
+to the working directory. Look for `UPSTREAM_AUDIO_REGISTRY sounds=205 musics=16`
+and `UPSTREAM_AUDIO_ORDER runs=2 ticks=420`. See
 [the upstream audio runtime bindings doc](../../../docs/porting/audio-runtime-bindings.md)
 for TeaVM C `-O0`/`-O2` parity (`-Pprobe=audio-ticks`), ARM11 ELF metrics,
 and remaining hardware/streaming work (`#29`).

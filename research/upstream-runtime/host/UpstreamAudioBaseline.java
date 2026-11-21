@@ -21,6 +21,8 @@ import arc.mock.MockFiles;
 import arc.mock.MockGraphics;
 import arc.struct.Seq;
 import arc.util.Time;
+import arc.util.serialization.JsonReader;
+import arc.util.serialization.JsonValue;
 import mindustry.Vars;
 import mindustry.ai.BaseRegistry;
 import mindustry.ai.BlockIndexer;
@@ -67,10 +69,12 @@ import java.security.MessageDigest;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Host-only verification baseline for upstream Mindustry v160.8
@@ -86,6 +90,13 @@ public final class UpstreamAudioBaseline {
     private static final long FNV_PRIME = 0x100000001b3L;
 
     public static void main(String[] args) throws Exception {
+        if (args.length > 1) {
+            throw new IllegalArgumentException(
+                "Usage: UpstreamAudioBaseline [path/to/upstream-audio-map.json]");
+        }
+        final Path audioMapPath = args.length == 1
+            ? Path.of(args[0])
+            : Path.of("audio/upstream-audio-map.json");
         final Path tempDataDir = Files.createTempDirectory("min3dstry-audio-");
         Runtime.getRuntime().addShutdownHook(new Thread(() -> deleteTree(tempDataDir)));
 
@@ -95,7 +106,7 @@ public final class UpstreamAudioBaseline {
 
         try {
             verifyRegistry(assets);
-            verifyContentBindings();
+            verifyContentBindings(assets, audioMapPath);
             verifyPositionalAndLoops(audio);
 
             ScenarioResult run1 = runSimulationAudioScenario(app, audio, true);
@@ -224,7 +235,8 @@ public final class UpstreamAudioBaseline {
             digest);
     }
 
-    private static void verifyContentBindings() throws Exception {
+    private static void verifyContentBindings(
+            DirectAssetManager assets, Path audioMapPath) throws Exception {
         if (Sounds.uiButton == null || Sounds.uiUnlock == null || Sounds.waveSpawn == null) {
             throw new IllegalStateException("UI/wave sounds missing after registry load");
         }
@@ -318,14 +330,81 @@ public final class UpstreamAudioBaseline {
                 describeSound(bullet.healSound)));
         }
 
+        int mappedCount = verifyAudioMapBindings(assets, audioMapPath);
         String digest = sha256(String.join("\n", lines) + "\n");
         System.out.printf(
             Locale.ROOT,
-            "UPSTREAM_AUDIO_BINDINGS blocks=%d units=%d bullets=%d mapped=9 manifest_sha256=%s%n",
+            "UPSTREAM_AUDIO_BINDINGS blocks=%d units=%d bullets=%d mapped=%d manifest_sha256=%s%n",
             blocks.size,
             units.size,
             bullets.size,
+            mappedCount,
             digest);
+    }
+
+    private static int verifyAudioMapBindings(DirectAssetManager assets, Path audioMapPath)
+            throws IOException {
+        if (!Files.isRegularFile(audioMapPath)) {
+            throw new IllegalStateException("Missing audio map file: " + audioMapPath);
+        }
+        JsonValue root = new JsonReader().parse(Files.readString(audioMapPath, StandardCharsets.UTF_8));
+        if (!"19a0f40d44514f4802a8b79770456e7e32e34da0".equals(root.getString("upstream_commit", ""))) {
+            throw new IllegalStateException(
+                "Unexpected upstream_commit in audio map: "
+                    + root.getString("upstream_commit", "<missing>"));
+        }
+        JsonValue entries = root.require("entries");
+        if (!entries.isArray() || entries.size == 0) {
+            throw new IllegalStateException("Audio map entries must be a non-empty array");
+        }
+
+        Map<String, Sound> expectedMapped = new LinkedHashMap<>();
+        expectedMapped.put("ui.button", Sounds.uiButton);
+        expectedMapped.put("ui.unlock", Sounds.uiUnlock);
+        expectedMapped.put("wave.spawn", Sounds.waveSpawn);
+        expectedMapped.put("shoot.duo", ((ItemTurret) Blocks.duo).shootSound);
+        expectedMapped.put("enemy.kill", UnitTypes.dagger.deathSound);
+        expectedMapped.put("conveyor.loop", Blocks.conveyor.ambientSound);
+        expectedMapped.put("drill.loop", Blocks.mechanicalDrill.ambientSound);
+        expectedMapped.put("block.place", Blocks.conveyor.placeSound);
+        expectedMapped.put("block.break", Blocks.conveyor.breakSound);
+
+        Set<String> seenIds = new HashSet<>();
+        for (JsonValue entry = entries.child; entry != null; entry = entry.next) {
+            String id = entry.getString("id");
+            String source = entry.getString("source");
+            if (!seenIds.add(id)) {
+                throw new IllegalStateException("Duplicate entry id in audio map: " + id);
+            }
+            if (!source.startsWith("core/assets/")) {
+                throw new IllegalStateException(
+                    "Audio map entry " + id + " has non-core/assets source: " + source);
+            }
+            String assetPath = source.substring("core/assets/".length());
+            Sound loaded = assets.getOrNull(assetPath, Sound.class);
+            if (!(loaded instanceof RecordingSound rs)
+                    || !rs.assetPath.equals(assetPath)
+                    || Sounds.getSoundId(loaded) < 0) {
+                throw new IllegalStateException(
+                    "Audio map entry " + id + " path is not loaded in Sounds registry: " + assetPath);
+            }
+            Sound expected = expectedMapped.get(id);
+            if (expected == null) {
+                throw new IllegalStateException("Unrecognized/unverified audio map entry id: " + id);
+            }
+            if (loaded != expected) {
+                throw new IllegalStateException(
+                    "Audio map entry " + id + " (" + assetPath + ") does not match runtime binding");
+            }
+        }
+        if (!seenIds.equals(expectedMapped.keySet())) {
+            throw new IllegalStateException(
+                "Audio map entries mismatch expected set: seen="
+                    + seenIds
+                    + " expected="
+                    + expectedMapped.keySet());
+        }
+        return seenIds.size();
     }
 
     private static void verifyPositionalAndLoops(RecordingAudio audio) {
@@ -356,18 +435,49 @@ public final class UpstreamAudioBaseline {
                     centerFalloff, centerPan, leftVol, leftPan, rightVol, rightPan, farResult));
         }
 
-        // Exercise SoundLoop fade-in (20 steps of fadeSpeed=0.05 after start call) and 20-step fade-out.
+        // Exercise SoundLoop fade-in (start at 0 + 20 steps of fadeSpeed=0.05) and 20-step fade-out.
         Time.setDeltaProvider(() -> 1f);
         Time.delta = 1f;
         SoundLoop loop = new SoundLoop(Sounds.loopDrill, 0.019f);
+        RecordingAudio.VoiceState state = null;
+        float prevVol = -1f;
         int fadeInSteps = 0;
-        for (int i = 0; i < 21; i++) {
+        boolean midRampChecked = false;
+        for (int i = 0; i < 30; i++) {
             loop.update(156f, 256f, true);
             fadeInSteps++;
+            if (fadeInSteps == 1) {
+                state = audio.singleActiveLoop(Sounds.loopDrill);
+                if (Math.abs(state.volume) > 1e-6f || Math.abs(state.pan + 0.5f) > 1e-4f) {
+                    throw new IllegalStateException(
+                        "Unexpected initial loop start state: pan=" + state.pan + " vol=" + state.volume);
+                }
+            } else {
+                if (state.volume <= prevVol) {
+                    throw new IllegalStateException(
+                        "Expected monotonic fade-in increase at step " + fadeInSteps
+                            + ": prev=" + prevVol + " cur=" + state.volume);
+                }
+                if (fadeInSteps == 11) {
+                    if (Math.abs(state.volume - 0.5f * 0.019f) > 1e-4f) {
+                        throw new IllegalStateException(
+                            "Unexpected fade-in midpoint volume at step 11: " + state.volume);
+                    }
+                    midRampChecked = true;
+                }
+            }
+            prevVol = state.volume;
+            if (Math.abs(state.volume - 0.019f) <= 1e-4f) {
+                break;
+            }
         }
-        RecordingAudio.VoiceState state = audio.singleActiveLoop(Sounds.loopDrill);
-        if (Math.abs(state.pan + 0.5f) > 1e-4f || Math.abs(state.volume - 0.019f) > 1e-4f) {
-            throw new IllegalStateException("Unexpected loop fade-in state: pan=" + state.pan + " vol=" + state.volume);
+        if (state == null || !midRampChecked || fadeInSteps != 21
+                || Math.abs(state.pan + 0.5f) > 1e-4f
+                || Math.abs(state.volume - 0.019f) > 1e-4f) {
+            throw new IllegalStateException(
+                "Unexpected loop fade-in state: steps=" + fadeInSteps
+                    + " mid=" + midRampChecked
+                    + (state == null ? " state=null" : " pan=" + state.pan + " vol=" + state.volume));
         }
 
         // Pan flips as camera passes / source moves east of camera.

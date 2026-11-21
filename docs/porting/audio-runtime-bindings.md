@@ -17,7 +17,7 @@ Per [AGENTS.md](../../AGENTS.md) and [the upstream port plan](../upstream-port.m
    - Verifies all `205` registered `Sound` descriptors (`Sounds.getSound(0..204)` round-tripping through `Sounds.getSoundId`, `7` `sounds/ui/` entries, and `Sounds.getSoundId(Sounds.none) == -1` / `Sounds.unset == -1`) and all `16` `Musics` slots (`boss1`, `boss2`, `editor`, `fine`, `game1..game9`, `land`, `launch`, `menu`).
 2. **Content Audio Bindings (`UPSTREAM_AUDIO_BINDINGS`):**
    - Initializes `Vars.content` (`447` blocks, `70` registered `UnitType` definitions, `202` bullet definitions) after `Sounds.load()` and hashes all `Block` (`placeSound`, `breakSound`, `destroySound`, `ambientSound`, `ambientSoundVolume`, `configureSound`, turret `shootSound`/`chargeSound`/`loopSound`), `UnitType` (`deathSound`, `wreckSound`, `loopSound`, `stepSound`, `tankMoveSound`, `moveSound`, `mineSound`, weapon `shootSound`/`chargeSound`), and `BulletType` (`shootSound`, `hitSound`, `despawnSound`, `healSound`) bindings.
-   - Confirms exact alignment with all `9` RomFS-mapped clips in [upstream-audio-map.json](../../audio/upstream-audio-map.json):
+   - Parses [upstream-audio-map.json](../../audio/upstream-audio-map.json) directly (verifying `upstream_commit`, rejecting missing/duplicate/unrecognized `"id"` entries, stripping `"core/assets/"` from `"source"` to resolve loaded `Sounds` descriptors, and asserting exact object identity with runtime `Sounds.*` and `ContentLoader` bindings):
      - `ui.button` -> `Sounds.uiButton`
      - `ui.unlock` -> `Sounds.uiUnlock`
      - `wave.spawn` -> `Sounds.waveSpawn`
@@ -29,7 +29,7 @@ Per [AGENTS.md](../../AGENTS.md) and [the upstream port plan](../upstream-port.m
      - `block.break` -> `Blocks.conveyor.breakSound == Sounds.blockBreak1`
 3. **Positional Attenuation, Stereo Panning & `SoundLoop` (`UPSTREAM_AUDIO_POSITIONAL`):**
    - Configures a `400x240` `Core.camera` with `Core.app` reporting `ApplicationType.desktop` (preserving `Vars.headless = true` while activating Arc `Sound.calcFalloff`, `Sound.calcPan`, and `Sound.calcVolume`).
-   - Verifies center/left/right pan clamping (`panNeg=-0.500`, `panPos=0.900`), distance culling (`farCulled=true` at `(5000, 5000)` below `0.005f`), and `SoundLoop` fade-in (`21` updates) and fade-out (`20` updates to voice stop).
+   - Verifies center/left/right pan clamping (`panNeg=-0.500`, `panPos=0.900`), distance culling (`farCulled=true` at `(5000, 5000)` below `0.005f`), and `SoundLoop` fade-in (verifying initial zero volume on loop start, strict monotonic progression including the step-11 midpoint `0.5 * 0.019f`, and measuring exact steps to full target volume `loopFadeIn=21`) and fade-out (`loopFadeOut=20` updates to voice stop).
 4. **Deterministic Simulation Audio Trace (`UPSTREAM_AUDIO_SIMULATION` & `UPSTREAM_AUDIO_ORDER`):**
    - Runs a `420`-tick `32x32` fixed-`60 Hz` world with copper conveyor -> `Duo`, `Hail` (graphite) artillery, `MechanicalDrill` on `oreCopper`, `Conveyor.clogHeat` ambient gating at tick `400`, and `SoundLoop` updates twice from clean state (`30` events per run, `clogGated=21`, `trace_hash=0xd6a9ce67062c9b00`).
 

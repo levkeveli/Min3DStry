@@ -411,7 +411,9 @@ jobs:
             "7445105cd2683daf5b9ac7033ebb07265d3e814d"
 
       - name: Run pinned audio inventory and runtime bindings baseline
+        shell: bash
         run: |
+          set -o pipefail
           java research/upstream-runtime/host/UpstreamAudioInventory.java \
             "$RUNNER_TEMP/Mindustry" | tee "$RUNNER_TEMP/audio.log"
           grep -F 'UPSTREAM_AUDIO kind=music files=16 bytes=28493699' "$RUNNER_TEMP/audio.log"
@@ -419,6 +421,7 @@ jobs:
           grep -F 'UPSTREAM_AUDIO total_files=221 total_bytes=35587589 manifest_sha256=f16c7f1c163d04b9843390146aafc2197cb6f6a3ad8db30e1872c7b1853be5fc' "$RUNNER_TEMP/audio.log"
           java -cp "$RUNNER_TEMP/server-release.jar" \
             research/upstream-runtime/host/UpstreamAudioBaseline.java \
+            audio/upstream-audio-map.json \
             | tee "$RUNNER_TEMP/audio-baseline.log"
           grep -Fx 'UPSTREAM_AUDIO_REGISTRY sounds=205 musics=16 uiSounds=7 manifest_sha256=31b068d1493bf9f2ccf1c25d9646bba987bef82b3724317ee0eaf2ebf931790f' "$RUNNER_TEMP/audio-baseline.log"
           grep -Fx 'UPSTREAM_AUDIO_BINDINGS blocks=447 units=70 bullets=202 mapped=9 manifest_sha256=aff8c864f64176ae24daa083eb936c25ec6ddddf20871a5fd8fbf4ab8ce11cf4' "$RUNNER_TEMP/audio-baseline.log"
