@@ -33,6 +33,7 @@ def entryPoints = [
     'world-save': 'UpstreamWorldSaveProbe',
     'world-roundtrip': 'UpstreamWorldRoundTripProbe',
     'factory-ticks': 'UpstreamFactoryTickProbe',
+    'combat-ticks': 'UpstreamCombatTickProbe',
     'world-stream': 'UpstreamWorldStreamProbe',
     'network-live': 'UpstreamLiveNetworkProbe',
     'terrain-draw': 'UpstreamTerrainDrawProbe',
@@ -44,8 +45,9 @@ if (!entryPoints.containsKey(probe)) {
 }
 def entryPoint = entryPoints[probe]
 def usesMapSources = probe in ['map', 'map-sd']
+def usesSimulation = probe in ['factory-ticks', 'combat-ticks']
 def usesWorldSources = probe in ['world', 'world-save', 'world-roundtrip', 'world-stream',
-                                 'network-live', 'factory-ticks', 'terrain-draw', 'terrain-render']
+                                 'network-live', 'terrain-draw', 'terrain-render'] || usesSimulation
 def initializesContent = probe == 'content-init' || usesWorldSources
 def usesContentSources = probe == 'content' || initializesContent
 def usesExecutor = usesContentSources || probe == 'executor'
@@ -126,7 +128,7 @@ if (usesWorldSources) {
 if (probe == 'terrain-render') {
     sourceSets.main.java.srcDir('src/terrain/java')
 }
-if (probe == 'factory-ticks') {
+if (usesSimulation) {
     sourceSets.main.java.srcDir('src/gameplay/java')
 }
 if (probe == 'world-stream') {
@@ -309,7 +311,7 @@ teavm {
     if (usesExecutor) {
         c { obfuscated = false }
     }
-    if (probe == 'factory-ticks') {
+    if (usesSimulation) {
         c { maxHeapSize = 24 }
     }
 }
