@@ -266,6 +266,9 @@ int main(int argc, char *argv[]) {
     m3ds_factory_demo_init(&scene, &factory);
     m3ds_factory_demo_add_turret(&scene, &factory);
     factory.core_copper = M3DS_DEMO_START_COPPER;
+    snprintf(dbg_line, sizeof(dbg_line), "[MIN3DSTRY] VIEW zoom=%.2f\n",
+             (double)m3ds_scene_zoom(&scene));
+    m3ds_emit_debug_line(log_socket, dbg_line);
 
     M3dsCitro2dContext c2d_ctx;
     M3dsRenderBackend backend;
@@ -389,6 +392,14 @@ int main(int argc, char *argv[]) {
         if (kDown & KEY_X) {
             m3ds_audio_mixer_set_muted(
                 &audio_mixer, !m3ds_audio_mixer_is_muted(&audio_mixer));
+        }
+        if (kDown & KEY_L) {
+            m3ds_scene_zoom_by(&scene, 0.25f);
+            m3ds_play_ui_click(audio_events, &audio_mixer, clip_ui);
+        }
+        if (kDown & KEY_R) {
+            m3ds_scene_zoom_by(&scene, -0.25f);
+            m3ds_play_ui_click(audio_events, &audio_mixer, clip_ui);
         }
 
         float pan_dx = 0.0f;
@@ -549,9 +560,10 @@ int main(int argc, char *argv[]) {
         printf("\x1b[10;1HAudio:   %s (%s)\x1b[K",
                m3ds_audio_state_name(m3ds_audio_mixer_state(&audio_mixer)),
                m3ds_audio_mixer_is_muted(&audio_mixer) ? "MUTED" : "ON");
-        printf("\x1b[11;1HD-Pad/CPad: Pan  A: Pause\x1b[K");
+        printf("\x1b[11;1HD-Pad/CPad: Pan  A: Pause  L/R: Zoom\x1b[K");
         printf("\x1b[12;1HY: Reset Cam     START: Exit\x1b[K");
-        printf("\x1b[13;1HX: Toggle Mute\x1b[K");
+        printf("\x1b[13;1HX: Toggle Mute  Zoom: %.2f\x1b[K",
+               (double)m3ds_scene_zoom(&scene));
         printf("\x1b[14;1H%s\x1b[K", hw_summary);
 
         if (!emitted_frame_diag && scene.tick >= 30u) {

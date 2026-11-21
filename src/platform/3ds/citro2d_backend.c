@@ -46,7 +46,9 @@ static bool c2d_draw_circle(
     return C2D_DrawCircleSolid(cx, cy, z, radius, to_c2d_color(color));
 }
 
-static bool c2d_draw_sprite(void *user_data, M3dsSceneSprite sprite, float x, float y, float z) {
+static bool c2d_draw_sprite(
+    void *user_data, M3dsSceneSprite sprite, float x, float y, float z,
+    float width, float height) {
     static const size_t indices[] = {
         [M3DS_SPRITE_FLOOR] = sprites_floor_idx,
         [M3DS_SPRITE_OVERLAY] = sprites_overlay_idx,
@@ -60,7 +62,13 @@ static bool c2d_draw_sprite(void *user_data, M3dsSceneSprite sprite, float x, fl
         return false;
     }
     C2D_Image image = C2D_SpriteSheetGetImage(ctx->sprites, indices[sprite]);
-    return C2D_DrawImageAt(image, roundf(x), roundf(y), z, NULL, 1.0f, 1.0f);
+    if (width <= 0.0f || height <= 0.0f || !image.subtex) {
+        return false;
+    }
+    float scale_x = width / (float)image.subtex->width;
+    float scale_y = height / (float)image.subtex->height;
+    return C2D_DrawImageAt(
+        image, roundf(x), roundf(y), z, NULL, scale_x, scale_y);
 }
 
 void m3ds_citro2d_backend_init(
