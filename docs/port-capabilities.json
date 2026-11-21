@@ -145,12 +145,13 @@
       "category": "Rendering & Assets",
       "name": "Zoom Camera, Lighting & Effects",
       "weight": 5,
-      "stage": "experimental",
+      "stage": "emulator-tested",
       "issue": 38,
       "evidence": [
         "include/render/scene_2d.h",
         "src/render/scene_2d.c",
         "src/platform/3ds/citro2d_backend.c",
+        "src/platform/3ds/main_3ds.c",
         "tests/render/test_scene_2d.c",
         "docs/rendering/citro2d-prototype.md"
       ]

@@ -267,6 +267,32 @@ static void test_zoom_bounds_and_render(void) {
     assert(m3ds_scene_zoom(&scene) == M3DS_SCENE_MAX_ZOOM);
 }
 
+static void test_lighting_and_effect_budget(void) {
+    M3dsBoundedScene scene;
+    m3ds_scene_init(&scene, M3DS_TOP_SCREEN_WIDTH, M3DS_TOP_SCREEN_HEIGHT);
+    assert(m3ds_scene_lighting(&scene));
+    assert(!m3ds_scene_lighting(NULL));
+    m3ds_scene_set_lighting(NULL, true);
+
+    MockBackend mock;
+    M3dsRenderBackend backend = make_mock_backend(&mock);
+    M3dsDrawStats stats;
+    assert(m3ds_scene_render(&scene, &backend, &stats));
+    assert(stats.light_circles > 0u);
+
+    m3ds_scene_set_lighting(&scene, false);
+    assert(!m3ds_scene_lighting(&scene));
+    assert(m3ds_scene_render(&scene, &backend, &stats));
+    assert(stats.light_circles == 0u);
+
+    memset(scene.tiles, M3DS_TILE_COPPER_ORE, sizeof(scene.tiles));
+    scene.show_sim_items = false;
+    assert(m3ds_scene_render(&scene, &backend, &stats));
+    assert(stats.effects_dropped > 0u);
+    assert(stats.drawn_circles <= M3DS_SCENE_MAX_EFFECTS);
+    assert(stats.budget_dropped == 0u);
+}
+
 static void test_demo_turret_fixture(void) {
     M3dsBoundedScene scene;
     M3dsParityState factory;
@@ -283,6 +309,7 @@ int main(void) {
     test_culling_batching_and_budget();
     test_invalid_inputs_fail_safely();
     test_zoom_bounds_and_render();
+    test_lighting_and_effect_budget();
     test_live_factory_delivery();
     test_demo_turret_fixture();
     printf("test_scene_2d: all assertions passed.\n");

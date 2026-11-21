@@ -229,6 +229,7 @@ void m3ds_scene_init(M3dsBoundedScene *scene, float viewport_w, float viewport_h
     scene->tick = 0;
     scene->paused = false;
     scene->zoom = 1.0f;
+    scene->lighting = true;
     populate_prototype_map(scene);
     m3ds_scene_reset_camera(scene);
 }
@@ -294,6 +295,16 @@ void m3ds_scene_zoom_by(M3dsBoundedScene *scene, float delta) {
     m3ds_scene_set_zoom(scene, scene_zoom(scene) + delta);
 }
 
+void m3ds_scene_set_lighting(M3dsBoundedScene *scene, bool enabled) {
+    if (scene) {
+        scene->lighting = enabled;
+    }
+}
+
+bool m3ds_scene_lighting(const M3dsBoundedScene *scene) {
+    return scene ? scene->lighting : false;
+}
+
 void m3ds_scene_step(M3dsBoundedScene *scene, uint32_t ticks) {
     if (!scene || scene->paused) {
         return;
@@ -346,7 +357,7 @@ bool m3ds_scene_render(
         return false;
     }
 
-    #define M3DS_MAX_QUEUED_CIRCLES 128u
+    #define M3DS_MAX_QUEUED_CIRCLES M3DS_SCENE_MAX_EFFECTS
     CircleCmd queued_circles[M3DS_MAX_QUEUED_CIRCLES];
     uint32_t queued_circle_count = 0;
 
@@ -401,7 +412,7 @@ bool m3ds_scene_render(
                         sx + half, sy + half, 0.2f, 4.5f * zoom, clr_copper
                     };
                 } else {
-                    local_stats.budget_dropped++;
+                    local_stats.effects_dropped++;
                 }
             } else if (kind == M3DS_TILE_LEAD_ORE) {
                 if (queued_circle_count < M3DS_MAX_QUEUED_CIRCLES) {
@@ -409,7 +420,7 @@ bool m3ds_scene_render(
                         sx + half, sy + half, 0.2f, 4.5f * zoom, clr_lead
                     };
                 } else {
-                    local_stats.budget_dropped++;
+                    local_stats.effects_dropped++;
                 }
             } else if (kind == M3DS_TILE_CONVEYOR_RIGHT) {
                 if (!emit_rect(backend, vp, &local_stats, sx + 1.0f * zoom, sy + 2.0f * zoom, 0.1f,
@@ -433,7 +444,7 @@ bool m3ds_scene_render(
                             0.3f, 2.5f * zoom, clr_copper
                         };
                     } else {
-                        local_stats.budget_dropped++;
+                        local_stats.effects_dropped++;
                     }
                 }
             } else if (kind == M3DS_TILE_CONVEYOR_DOWN) {
@@ -456,7 +467,7 @@ bool m3ds_scene_render(
                             0.3f, 2.5f * zoom, clr_copper
                         };
                     } else {
-                        local_stats.budget_dropped++;
+                        local_stats.effects_dropped++;
                     }
                 }
             } else if (kind == M3DS_TILE_WALL) {
@@ -498,7 +509,7 @@ bool m3ds_scene_render(
                         tx, ty, 0.3f, 4.0f * zoom, clr_belt_chev
                     };
                 } else {
-                    local_stats.budget_dropped++;
+                    local_stats.effects_dropped++;
                 }
             }
         }
@@ -521,7 +532,7 @@ bool m3ds_scene_render(
                            0.3f, clr_core_glow)) {
             goto finish;
         }
-        if (queued_circle_count < 128u) {
+        if (queued_circle_count < M3DS_SCENE_MAX_EFFECTS) {
             queued_circles[queued_circle_count++] = (CircleCmd){
                 core_cx, core_cy, 0.4f, pulse, clr_belt_chev
             };
@@ -533,6 +544,31 @@ bool m3ds_scene_render(
         const CircleCmd *c = &queued_circles[i];
         if (!emit_circle(backend, vp, &local_stats, c->cx, c->cy, c->z, c->radius, c->color)) {
             break;
+        }
+    }
+
+    /*
+     * Bounded lighting prototype: warm translucent circles around cores and
+     * turrets. The disabled path is a plain fallback with no extra draws.
+     */
+    if (scene->lighting) {
+        for (int gy = 0; gy < M3DS_SCENE_GRID_H; ++gy) {
+            for (int gx = 0; gx < M3DS_SCENE_GRID_W; ++gx) {
+                uint8_t kind = scene->tiles[gy][gx];
+                if (kind != M3DS_TILE_CORE && kind != M3DS_TILE_TURRET) {
+                    continue;
+                }
+                float cx = (float)gx * tile - scene->camera_x + half;
+                float cy = (float)gy * tile - scene->camera_y + half;
+                float radius = (kind == M3DS_TILE_CORE ? 24.0f : 13.0f) * zoom;
+                M3dsColor color = kind == M3DS_TILE_CORE
+                    ? m3ds_rgba(0xFF, 0xD3, 0x7F, 44)
+                    : m3ds_rgba(0xFF, 0xC8, 0x78, 30);
+                if (!emit_circle(backend, vp, &local_stats, cx, cy, 0.7f, radius, color)) {
+                    goto finish;
+                }
+                local_stats.light_circles++;
+            }
         }
     }
 
