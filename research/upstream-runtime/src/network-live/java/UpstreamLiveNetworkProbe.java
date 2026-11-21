@@ -28,6 +28,7 @@ import mindustry.content.UnitTypes;
 import mindustry.core.GameState.State;
 import mindustry.core.NetClient;
 import mindustry.game.FogControl;
+import mindustry.game.MapObjectives.ItemObjective;
 import mindustry.game.Universe;
 import mindustry.gen.BeginBreakCallPacket;
 import mindustry.gen.BeginPlaceCallPacket;
@@ -185,6 +186,19 @@ public final class UpstreamLiveNetworkProbe {
         String fingerprint = UpstreamWorldLoadProbe.reportTerrain(false);
         System.out.println("UPSTREAM_LIVE_NET_WORLD join=" + join + " map=" + Vars.state.map.name()
             + " bytes=" + total + " team=" + Vars.player.team().id + " fingerprint=" + fingerprint);
+        var objectives = Vars.state.rules.objectives;
+        if (!objectives.all.isEmpty()) {
+            int dependencies = 0, markers = 0;
+            for (var objective : objectives) {
+                dependencies += objective.parents.size;
+                markers += objective.markers.length;
+            }
+            System.out.println("UPSTREAM_WORLD_OBJECTIVES count=" + objectives.all.size
+                + " dependencies=" + dependencies + " markers=" + markers);
+            if (objectives.get(0) instanceof ItemObjective first) {
+                System.out.println("UPSTREAM_WORLD_ITEM_OBJECTIVE item=" + first.item.name + " amount=" + first.amount);
+            }
+        }
         Vars.state.set(State.playing);
         send(new ConnectConfirmCallPacket(), true);
         if (mode == Mode.CONTROLS) {
