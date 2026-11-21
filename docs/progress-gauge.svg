@@ -1,11 +1,11 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="760" height="292" viewBox="0 0 760 292" role="img" aria-label="Min3DStry Port Completion 44.3%">
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="292" viewBox="0 0 760 292" role="img" aria-label="Min3DStry Port Completion 46.7%">
   <rect x="0.5" y="0.5" width="759" height="291" rx="8" fill="#0d1117" stroke="#30363d"/>
   <text x="24" y="34" fill="#e6edf3" font-family="Segoe UI, Ubuntu, Arial, sans-serif" font-size="16" font-weight="700">Min3DStry Full-Port Completion Gauge</text>
-  <text x="736" y="34" text-anchor="end" fill="#f5b841" font-family="Consolas, Liberation Mono, monospace" font-size="20" font-weight="700">44.3%</text>
-  <text x="24" y="54" fill="#8b949e" font-family="Segoe UI, Ubuntu, Arial, sans-serif" font-size="12">Evidence-weighted across 22 capabilities (44.30 / 100 pts · verified against docs/port-capabilities.json)</text>
+  <text x="736" y="34" text-anchor="end" fill="#f5b841" font-family="Consolas, Liberation Mono, monospace" font-size="20" font-weight="700">46.7%</text>
+  <text x="24" y="54" fill="#8b949e" font-family="Segoe UI, Ubuntu, Arial, sans-serif" font-size="12">Evidence-weighted across 22 capabilities (46.70 / 100 pts · verified against docs/port-capabilities.json)</text>
   <rect x="24" y="66" width="712" height="14" rx="7" fill="#161b22" stroke="#30363d"/>
-  <rect x="24" y="66" width="315.4" height="14" rx="7" fill="#f5b841"/>
-  <text x="24" y="99" fill="#8b949e" font-family="Consolas, Liberation Mono, monospace" font-size="11">Complete: 2  ·  Hardware: 2  ·  Emulator: 12  ·  Host: 0  ·  Exp: 5  ·  Planned: 1</text>
+  <rect x="24" y="66" width="332.5" height="14" rx="7" fill="#f5b841"/>
+  <text x="24" y="99" fill="#8b949e" font-family="Consolas, Liberation Mono, monospace" font-size="11">Complete: 2  ·  Hardware: 2  ·  Emulator: 13  ·  Host: 0  ·  Exp: 4  ·  Planned: 1</text>
   <line x1="24" y1="112" x2="736" y2="112" stroke="#21262d" stroke-width="1"/>
   <text x="24" y="132" fill="#e6edf3" font-family="Segoe UI, Ubuntu, Arial, sans-serif" font-size="12" font-weight="600">Foundation &amp; Tooling</text>
   <text x="368" y="132" text-anchor="end" fill="#8b949e" font-family="Consolas, Liberation Mono, monospace" font-size="11">8.35/10 (83.5%)</text>
@@ -24,9 +24,9 @@
   <rect x="392" y="176" width="344" height="8" rx="4" fill="#161b22" stroke="#30363d" stroke-width="0.75"/>
   <rect x="392" y="176" width="126.2" height="8" rx="4" fill="#f5b841"/>
   <text x="24" y="208" fill="#e6edf3" font-family="Segoe UI, Ubuntu, Arial, sans-serif" font-size="12" font-weight="600">Controls &amp; Dual-Screen UI</text>
-  <text x="368" y="208" text-anchor="end" fill="#8b949e" font-family="Consolas, Liberation Mono, monospace" font-size="11">4.20/12 (35.0%)</text>
+  <text x="368" y="208" text-anchor="end" fill="#8b949e" font-family="Consolas, Liberation Mono, monospace" font-size="11">6.60/12 (55.0%)</text>
   <rect x="24" y="214" width="344" height="8" rx="4" fill="#161b22" stroke="#30363d" stroke-width="0.75"/>
-  <rect x="24" y="214" width="120.4" height="8" rx="4" fill="#f5b841"/>
+  <rect x="24" y="214" width="189.2" height="8" rx="4" fill="#3fb950"/>
   <text x="392" y="208" fill="#e6edf3" font-family="Segoe UI, Ubuntu, Arial, sans-serif" font-size="12" font-weight="600">Maps, Campaign &amp; Saves</text>
   <text x="736" y="208" text-anchor="end" fill="#8b949e" font-family="Consolas, Liberation Mono, monospace" font-size="11">1.50/10 (15.0%)</text>
   <rect x="392" y="214" width="344" height="8" rx="4" fill="#161b22" stroke="#30363d" stroke-width="0.75"/>
