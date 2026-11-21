@@ -78,8 +78,14 @@ checks positive, mirrored and offset multi-tile fragments, and `./dev.sh test`
 runs it. Atlas eviction now begins the next submission with
 `C3D_FRAME_SYNCDRAW` before freeing a sheet, so the GPU is idle when the
 texture is recycled. These two fixes are host-tested and ARM11
-compile-checked; rerunning the live stock-server atlas verifier on both
-profiles remains pending.
+compile-checked.
+
+The live Core Nucleus check accepts each documented color within a 3x3
+neighborhood: splitting the 160 px sprite at the 115/45 px atlas boundary
+can move the rasterized seam by one pixel. The verifier still requires the
+six-fragment draw, the recycle event and the full viewport characteristics;
+`tests/tools/test_verify_world_atlas.py` covers the exact, shifted, missing
+and wrong-color cases.
 
 ## Build the platform test fixtures
 
