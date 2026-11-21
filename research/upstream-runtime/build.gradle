@@ -154,7 +154,7 @@ if (probe == 'network-render') {
     def asm = configurations.detachedConfiguration(dependencies.create('org.ow2.asm:asm-tree:9.9'))
     def adapter = tasks.register('compileBuildingCrackAdapter', JavaCompile) {
         source files('tools/StageBuildingCrackAdapter.java', 'tools/StageNavalWakeAdapter.java',
-                     'tools/StageObjectiveLabelAdapter.java')
+                     'tools/StageObjectiveLabelAdapter.java', 'tools/StageCanvasAdapter.java')
         classpath = asm
         destinationDirectory = layout.buildDirectory.dir('building-renderer-tool')
     }
@@ -202,6 +202,7 @@ if (usesArcSources || usesExecutor) {
                               'mindustry/game/MapObjectives$TextMarker.class',
                               'mindustry/game/MapObjectives$TextureMarker.class',
                               'mindustry/game/MapObjectives$QuadMarker.class',
+                              'mindustry/world/blocks/logic/CanvasBlock$CanvasBuild.class',
                               'mindustry/core/ContentLoader.class'])
         shieldModeSources.keySet().each { path ->
             stagedClasses.add(path.replace('.java', '.class'))

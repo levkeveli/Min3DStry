@@ -9,8 +9,7 @@ import mindustry.world.blocks.logic.LogicDisplay.LogicDisplayBuild;
 /** Supplies atlas regions for the pinned TextureMarker draw and update methods. */
 public final class UpstreamMarkerTexture {
     public static boolean deferLookup(Object texture) {
-        // Canvas and Logic Display need GPU resources outside the paged sprite atlas.
-        return Core.atlas == null || texture instanceof CanvasBuild || texture instanceof LogicDisplayBuild;
+        return Core.atlas == null || texture instanceof LogicDisplayBuild;
     }
 
     public static void lookup(Object texture, TextureRegion target) {
@@ -19,6 +18,9 @@ public final class UpstreamMarkerTexture {
         } else if (texture instanceof UnlockableContent content) {
             if (content.fullIcon == null) content.loadIcon();
             target.set(content.fullIcon);
+        } else if (texture instanceof CanvasBuild canvas && canvas.isValid()) {
+            canvas.updateTexture();
+            target.set(canvas.texture);
         } else {
             target.set(Core.atlas.find("error"));
         }
