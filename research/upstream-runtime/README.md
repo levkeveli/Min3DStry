@@ -764,6 +764,26 @@ passed these checks against the unmodified v160.8 server in Survival mode
 on both Old and New 3DS Azahar profiles. Both profiles also passed the
 Glacier Core Nucleus, wall and drill regression on the same build.
 
+Evoke, Incite and Emanate use the upstream unit draw path and original
+atlas regions. The JVM checks all three bodies and team cells as part of
+the 38-unit draw test. To check The Onset on the stock server, run
+`--controls --map-spawn "The Onset" --erekir-sector onset --terrain-atlas <sprites.aatls>`.
+The verifier imports the unchanged campaign map from the official server
+jar and hosts it in Survival. It checks the 512 × 512 map, Core Bastion at
+tile (276, 107), Evoke spawn, and pixels from the original core and hull.
+The TeaVM world policy exposes the stock map objective constructors and
+serialized fields to Arc JSON. The test checks the streamed objectives,
+dependency and marker counts, and the first objective's 60 beryllium target.
+The earlier 16 MiB live probe exhausted its managed heap while allocating
+The Onset's tiles. The live probes use a 24 MiB managed heap and keep the
+TCP session alive while decoding the world. The load worker stops before
+the client confirms its join. The
+[24 MiB build](https://github.com/levkeveli/Min3DStry/actions/runs/44879228986)
+passed the Fortress spawn and emitted the TCP keepalive on both Azahar
+profiles. The larger Onset map still triggered invalid pointer accesses in
+TeaVM's compacting collector on the Old 3DS profile. Onset rendering and
+physical-console memory remain to be verified.
+
 The renderer still selects blocks that use the supported sprite operations.
 Textured raw vertices, additional payload types and other rendering services
 are tracked in [#139](https://github.com/levkeveli/Min3DStry/issues/139).

@@ -11,6 +11,7 @@ import struct
 import subprocess
 import tempfile
 import time
+import zipfile
 
 import verify_azahar as az
 
@@ -35,6 +36,19 @@ FORTRESS_CORE_PIXELS = {
     (233, 86): (154, 157, 167), (233, 134): (119, 121, 136),
 }
 
+# Opaque core-bastion shell and bare Evoke hull texels from the pinned atlas.
+ONSET_SPAWN_PIXELS = {
+    (170, 86): (110, 112, 128), (175, 90): (114, 116, 132),
+    (225, 90): (147, 149, 160), (234, 145): (119, 121, 136),
+    (189, 109): (140, 142, 152), (193, 114): (114, 116, 132),
+    (196, 124): (212, 128, 107), (203, 124): (212, 128, 107),
+}
+
+MAP_SPAWNS = {
+    "Fortress": ("256", "256", "core-shard", "alpha", "116", "73"),
+    "The Onset": ("512", "512", "core-bastion", "evoke", "276", "107"),
+}
+MAP_SPAWN_PIXELS = {"Fortress": FORTRESS_CORE_PIXELS, "The Onset": ONSET_SPAWN_PIXELS}
 
 # Opaque RGB from the original wall, drill base and drill top at Glacier spawn.
 BUILDING_LAYER_PIXELS = {
@@ -161,8 +175,12 @@ def verify_map_spawn(log, emulator, map_name, fixture, position):
     wait_for(log, emulator, rf"UPSTREAM_LIVE_NET_WORLD join=1 map={re.escape(map_name)} bytes=", 5)
     wait_for(log, emulator, rf"UPSTREAM_WORLD width={width} height={height} tiles={int(width) * int(height)}\b", 5)
     wait_for(log, emulator, rf"UPSTREAM_WORLD_BUILDING {tile_x} {tile_y} {re.escape(core)} ", 5)
-    if map_name == "Fortress" and fixture != ("256", "256", "core-shard", "alpha", "116", "73"):
-        raise RuntimeError(f"Expected the original Fortress spawn, observed {fixture}")
+    if map_name in MAP_SPAWNS and fixture != MAP_SPAWNS[map_name]:
+        raise RuntimeError(f"Expected the original {map_name} spawn, observed {fixture}")
+    if map_name == "The Onset":
+        wait_for(log, emulator, r"UPSTREAM_WORLD_KEEPALIVE transport=tcp\b", 5)
+        wait_for(log, emulator, r"UPSTREAM_WORLD_OBJECTIVES count=20 dependencies=19 markers=20\b", 5)
+        wait_for(log, emulator, r"UPSTREAM_WORLD_ITEM_OBJECTIVE item=beryllium amount=60\b", 5)
     if any(abs(float(observed) - int(tile) * 8) > 4 for observed, tile in zip(position[2:], (tile_x, tile_y))):
         raise RuntimeError(f"Expected controlled unit {unit} near its stock spawn, observed {position}")
 
@@ -435,7 +453,7 @@ def capture_viewport(log, emulator, rpc, destination, position,
     if pixels["width"] != 400 or pixels["height"] != 480 or pixels["top_distinct_colors"] < 8:
         raise RuntimeError(f"Expected a textured world viewport on the top screen: {pixels}")
     if spawn_pixels and any(pixels["samples"][point] != color for point, color in spawn_pixels.items()):
-        raise RuntimeError(f"Stock spawn core pixels differ: {pixels['samples']}")
+        raise RuntimeError(f"Stock spawn pixels differ: {pixels['samples']}")
     if require_world_atlas and any(pixels["samples"][point] != color for point, color in CORE_PIXELS.items()):
         raise RuntimeError(f"Paged core pixels differ from the original unsplit draw: {pixels['samples']}")
     if require_building_cracks and any(
@@ -919,6 +937,13 @@ def run_model(args, model, config, original_config, log, output):
     log.write_bytes(b"")
     server_log = output / f"{model}-server.log"
     with tempfile.TemporaryDirectory(prefix="min3dstry-live-net-") as work, server_log.open("wb") as terminal:
+        if args.erekir_sector:
+            # The stock server lists default multiplayer maps only. Import the release's map bytes unchanged.
+            maps = Path(work) / "config" / "maps"
+            maps.mkdir(parents=True)
+            filename = f"{args.erekir_sector}.msav"
+            with zipfile.ZipFile(args.server) as release:
+                (maps / filename).write_bytes(release.read(f"maps/erekir/{filename}"))
         server = subprocess.Popen(
             [args.java, "-jar", str(args.server)], cwd=work, stdin=subprocess.PIPE,
             stdout=terminal, stderr=subprocess.STDOUT, text=True,
@@ -1018,7 +1043,7 @@ def run_model(args, model, config, original_config, log, output):
                                                 require_building_layers=args.building_layers,
                                                 require_building_cracks=args.building_cracks,
                                                 world_size=world_size,
-                                                spawn_pixels=FORTRESS_CORE_PIXELS if args.map_spawn == "Fortress" else None)
+                                                spawn_pixels=MAP_SPAWN_PIXELS.get(args.map_spawn))
 
                     if stationary:
                         wait_for(log, emulator, r"UPSTREAM_LIVE_CONTROLS_READY unit=\d+", args.timeout)
@@ -1205,6 +1230,8 @@ def main():
                             help="Verify the original Stell and Locus sprites and animated Locus treads")
     build_mode.add_argument("--map-spawn", metavar="NAME",
                             help="Verify the world and stationary player spawn on a stock server map")
+    parser.add_argument("--erekir-sector", metavar="SLUG",
+                        help="Import an unchanged Erekir campaign map from the official server jar for --map-spawn")
     args = parser.parse_args()
     args.server, args.rom, args.azahar = (path.resolve() for path in (args.server, args.rom, args.azahar))
     with args.server.open("rb") as archive:
@@ -1249,6 +1276,12 @@ def main():
             parser.error("--map-spawn needs a stock map name")
         if not args.terrain_atlas or not args.controls or args.controls_replay or args.world_atlas:
             parser.error("--map-spawn needs --controls and --terrain-atlas for a standalone spawn capture")
+    if args.erekir_sector is not None:
+        if not args.map_spawn or not re.fullmatch(r"[a-z][a-z-]*", args.erekir_sector):
+            parser.error("--erekir-sector needs --map-spawn and a sector slug such as onset")
+        with zipfile.ZipFile(args.server) as release:
+            if f"maps/erekir/{args.erekir_sector}.msav" not in release.namelist():
+                parser.error(f"No Erekir sector {args.erekir_sector!r} in the official server jar")
     if args.building_effects and (not args.terrain_atlas or not args.controls or args.controls_replay):
         parser.error("--building-effects needs --controls and --terrain-atlas for a stationary capture")
     if args.liquids and (not args.terrain_atlas or not args.controls or args.controls_replay):
