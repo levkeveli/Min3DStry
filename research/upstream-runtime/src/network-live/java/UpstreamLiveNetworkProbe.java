@@ -1,6 +1,8 @@
+import arc.Core;
 import arc.files.Fi;
 import arc.math.Mathf;
 import arc.math.geom.Vec2;
+import arc.mock.MockAudio;
 import arc.struct.IntSet;
 import arc.util.Time;
 import arc.util.io.Reads;
@@ -16,12 +18,15 @@ import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.zip.InflaterInputStream;
 import mindustry.Vars;
+import mindustry.ai.BlockIndexer;
+import mindustry.ai.Pathfinder;
 import mindustry.content.Blocks;
 import mindustry.content.UnitTypes;
 import mindustry.core.GameState.State;
 import mindustry.core.NetClient;
-import mindustry.game.Universe;
 import mindustry.entities.units.BuildPlan;
+import mindustry.game.FogControl;
+import mindustry.game.Universe;
 import mindustry.gen.BeginPlaceCallPacket;
 import mindustry.gen.BlockSnapshotCallPacket;
 import mindustry.gen.ClientSnapshotCallPacket;
@@ -86,6 +91,12 @@ public final class UpstreamLiveNetworkProbe {
         var app = UpstreamWorldLoadProbe.initialize(config.parent());
         Vars.mods = new Mods();
         Vars.universe = new Universe();
+        if (frame != null) {
+            Core.audio = new MockAudio();
+            Vars.indexer = new BlockIndexer();
+            Vars.pathfinder = new Pathfinder();
+            Vars.fogControl = new FogControl();
+        }
         try {
             if (beforeConnect != null) beforeConnect.run();
             new UpstreamLiveNetworkProbe(mode, frame).run(host, port, app);
