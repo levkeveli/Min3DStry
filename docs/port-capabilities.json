@@ -277,7 +277,7 @@
       "category": "Maps, Campaign & Saves",
       "name": "Tech Tree & Sector Progression",
       "weight": 4,
-      "stage": "planned",
+      "stage": "experimental",
       "issue": 41,
       "evidence": [
         "include/platform/sd_paths.h",
@@ -298,6 +298,7 @@
         "research/upstream-runtime/src/campaign-content/java/UpstreamCampaignContentStateProbe.java",
         "research/upstream-runtime/build.gradle",
         "docs/porting/campaign-progression.md",
+        "docs/porting/campaign-verification.md",
         "docs/porting/sd-storage-paths.md"
       ]
     },
