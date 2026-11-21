@@ -186,12 +186,12 @@ public final class UpstreamLiveNetworkProbe {
         int total = Native.streamTotal();
         var stream = new WorldStreamInput(Native.streamId(), total);
         Vars.player = Player.create();
-        if (Native.beginWorldLoad() == 0) throw new IOException("Unable to keep the connection open during world loading");
+        if (Native.beginKeepAlive(0) == 0) throw new IOException("Unable to keep the connection open during world loading");
         try {
             NetworkIO.loadWorld(new InflaterInputStream(stream));
             app.runPosted();
         } finally {
-            Native.endWorldLoad();
+            Native.endKeepAlive();
         }
         if (stream.remaining != 0 || Groups.player.size() != 1 || !PLAYER_NAME.equals(Vars.player.name)
                 || Vars.world.width() <= 0 || Vars.world.height() <= 0) {
@@ -352,8 +352,10 @@ public final class UpstreamLiveNetworkProbe {
     private void driveLiveClient(UpstreamWorldLoadProbe.ProbeApplication app) throws IOException {
         var controls = new LiveControls(building);
         int lastWave = -1;
-        // Leave headroom for rendering on an ARM11 while the server runs its own clock.
-        long tcpKeepAliveInterval = frame == null ? TCP_KEEP_ALIVE_NS : TCP_KEEP_ALIVE_NS / 2;
+        // A slow first presentation must not postpone the stock TCP heartbeat.
+        if (frame != null && Native.beginKeepAlive(1) == 0) {
+            throw new IOException("Unable to keep the connection open during rendering");
+        }
         keepAlive(1);
         long lastTcpSend = System.nanoTime();
         long lastUdpKeepAlive = lastTcpSend;
@@ -366,7 +368,7 @@ public final class UpstreamLiveNetworkProbe {
             int input = Native.input();
             if (input < 0) return;
             long now = System.nanoTime();
-            if (now - lastTcpSend >= tcpKeepAliveInterval) {
+            if (frame == null && now - lastTcpSend >= TCP_KEEP_ALIVE_NS) {
                 keepAlive(1);
                 lastTcpSend = now;
             }
@@ -778,10 +780,10 @@ public final class UpstreamLiveNetworkProbe {
         static native int send(Address packet, int length, int packetId, int reliable);
         @Import(name = "m3ds_live_net_keep_alive")
         static native int keepAlive(int reliable);
-        @Import(name = "m3ds_live_net_begin_world_load")
-        static native int beginWorldLoad();
-        @Import(name = "m3ds_live_net_end_world_load")
-        static native void endWorldLoad();
+        @Import(name = "m3ds_live_net_begin_keep_alive")
+        static native int beginKeepAlive(int rendering);
+        @Import(name = "m3ds_live_net_end_keep_alive")
+        static native void endKeepAlive();
         @Import(name = "m3ds_live_net_input")
         static native int input();
 

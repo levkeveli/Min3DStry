@@ -11,6 +11,7 @@ import port.render.UpstreamCanvasTexture;
 
 public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProbe.TerrainTarget {
     private final boolean reportFrame;
+    private final int[] stockObjectiveFont = new int[1];
 
     UpstreamTerrainRenderProbe(boolean reportFrame) {
         this.reportFrame = reportFrame;
@@ -28,6 +29,10 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
     int mountAssets() throws IOException {
         if (NativeTerrain.mountAssets() == 0) throw new IOException("Unable to mount the original game assets");
         return NativeTerrain.systemLanguage();
+    }
+
+    boolean loadStockFont(boolean japanese) {
+        return NativeTerrain.loadStockFont(japanese ? 1 : 0) != 0;
     }
 
     void buildLabels(byte[] labels) {
@@ -50,18 +55,24 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
             previous ? 1 : 0, next ? 1 : 0, categories ? 1 : 0);
     }
 
-    float drawObjective(byte[] label, TextureRegion icon, float y) {
-        if (icon == null) return NativeTerrain.drawObjective(Address.ofData(label), -1, 0, 0, 0, 0, y);
-        return NativeTerrain.drawObjective(Address.ofData(label), UpstreamTerrainDrawProbe.pageIndex(icon),
-            icon.getX(), icon.getY(), icon.width, icon.height, y);
+    float drawObjective(byte[] label, int[] characters, TextureRegion icon, float y) {
+        int page = icon == null ? -1 : UpstreamTerrainDrawProbe.pageIndex(icon);
+        return NativeTerrain.drawObjective(Address.ofData(label), Address.ofData(characters), characters.length / 7, page,
+            icon == null ? 0 : icon.getX(), icon == null ? 0 : icon.getY(),
+            icon == null ? 0 : icon.width, icon == null ? 0 : icon.height, y, Address.ofData(stockObjectiveFont));
     }
 
-    boolean drawWorldLabel(String label, float x, float y, int flags, float size, int align, int lineAlign) {
+    boolean drewStockObjectiveFont() {
+        return stockObjectiveFont[0] != 0;
+    }
+
+    int drawWorldLabel(String label, int[] characters, float x, float y, int flags, float size, int align, int lineAlign) {
         int horizontal = Align.isLeft(align) ? -1 : Align.isRight(align) ? 1 : 0;
         int vertical = Align.isTop(align) ? -1 : Align.isBottom(align) ? 1 : 0;
         int lines = Align.isLeft(lineAlign) ? -1 : Align.isRight(lineAlign) ? 1 : 0;
         byte[] text = (label + "\0").getBytes(StandardCharsets.UTF_8);
-        return NativeTerrain.drawWorldLabel(Address.ofData(text), x, y, flags, size, horizontal, vertical, lines) != 0;
+        return NativeTerrain.drawWorldLabel(Address.ofData(text), Address.ofData(characters), characters.length / 7,
+            x, y, flags, size, horizontal, vertical, lines);
     }
 
     @Override
@@ -138,6 +149,9 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
         @Import(name = "m3ds_terrain_mount_assets")
         static native int mountAssets();
 
+        @Import(name = "m3ds_terrain_load_stock_font")
+        static native int loadStockFont(int japanese);
+
         @Import(name = "m3ds_terrain_system_language")
         static native int systemLanguage();
 
@@ -179,10 +193,11 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
                                        int previous, int next, int categories);
 
         @Import(name = "m3ds_terrain_draw_objective")
-        static native float drawObjective(Address label, int page, int x, int y, int width, int height, float top);
+        static native float drawObjective(Address label, Address characters, int count,
+                                          int page, int x, int y, int width, int height, float top, Address stockFont);
 
         @Import(name = "m3ds_terrain_draw_world_label")
-        static native int drawWorldLabel(Address label, float x, float y, int flags, float size,
+        static native int drawWorldLabel(Address label, Address characters, int count, float x, float y, int flags, float size,
                                          int horizontal, int vertical, int lines);
     }
 }
