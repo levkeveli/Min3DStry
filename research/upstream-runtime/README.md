@@ -752,6 +752,18 @@ passed on both Old and New 3DS Azahar profiles. The fixture matched the
 original resting tread strip under the stock soft shadow, then observed
 changes on both sides while receiving stock unit snapshots.
 
+The live renderer uses the map streamed by the server and draws all six
+stock Core Blocks through their upstream draw paths. The JVM checks the
+original atlas region for each core. Run
+`--controls --map-spawn Fortress --terrain-atlas <sprites.aatls>`
+to compare the client world and camera with the stock server. The
+Fortress fixture checks its 256 × 256 map, Core Shard at tile (116, 73),
+Alpha spawn, and five original Core Shard pixels outside the unit shadow.
+The [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44877025445)
+passed these checks against the unmodified v160.8 server in Survival mode
+on both Old and New 3DS Azahar profiles. Both profiles also passed the
+Glacier Core Nucleus, wall and drill regression on the same build.
+
 The renderer still selects blocks that use the supported sprite operations.
 Textured raw vertices, additional payload types and other rendering services
 are tracked in [#139](https://github.com/levkeveli/Min3DStry/issues/139).
