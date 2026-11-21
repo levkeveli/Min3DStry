@@ -428,22 +428,35 @@ matching the stock server's CRC32 `3861859253` for all 262,144 tile data
 bytes on both joins.
 
 Pass `--live-audio` to `arm11/prepare_terrain_assets.py` along with its
-multiplayer inputs. The packer verifies the original `shootAlpha.ogg` in
-the pinned desktop JAR and uses the existing PCM converter to stage it with
-a hash manifest. The live client binds the sample to the original
-`Sounds.shootAlpha` field before loading weapons and uses Arc's gain, pan
-and pitch through the existing NDSP mixer. Other assets continue through
-the current headless audio path.
+multiplayer inputs. The packer verifies and stages all 205 [stock sound
+assets](../../docs/audio/sound-catalog.md) from the pinned desktop JAR. It
+also converts 194 effects of up to six seconds to 22.05 kHz PCM16, retaining
+their original channels, and emits an index keyed by upstream sound ID.
+The remaining 11 effects are staged as their original Ogg files for the
+streaming work tracked in #250.
+
+The graphical live client binds the generated `Sounds.load()` registry
+before content initialization. It uses Arc gain, pan, pitch and deduplication
+for local effects, and dispatches the original `SoundCallPacket` and
+`SoundAtCallPacket` handlers. On first use the mixer reads the requested PCM
+into a cache of up to 16 clips and 640 KiB. It evicts the least recently used
+inactive clips. The NDSP backend has a second bounded copy in linear memory
+when DSP initializes. There are zero sample bytes resident at startup.
 The network-render reference JAR excludes the replaced `Sound` and
 `BulletType` classes so TeaVM uses the staged audio and trail adapters.
 
-Add `--verify-live-audio` to the Glacier weapon replay. Its report includes
-the converted sample size, the first positional submission, and the
-number of voices started or dropped. A machine without DSP firmware still
-loads the PCM and reports the native routing result.
+Run `python3 tools/verify_live_stock_audio.py <terrain-assets>` with the
+staged directory to exercise all 194 PCM files through the shared mixer on
+a host. The test holds a looping Gamma firing voice while it loads and evicts
+other clips. It also checks cache hits, gain, pan, pitch, pause and no-DSP
+fallback. Add `--verify-live-audio` to the Glacier weapon replay to check the
+local Gamma sound (117) and stock Java server packets for the UI button (185)
+and positional wave spawn (198). The report includes resident PCM, cache
+hits and voice counts. Azahar without DSP firmware exercises asset loading
+and request routing.
 
-The [ARM11 build with the shared mixer](https://github.com/levkeveli/Min3DStry/actions/runs/44950022754)
-passed the Glacier replay on both Azahar profiles. Each run loaded 11,510
+The [earlier Gamma-only build with the shared mixer](https://github.com/levkeveli/Min3DStry/actions/runs/44950022754)
+passed the Glacier replay on both Azahar profiles. Each run loaded 11,510 mono
 PCM bytes, captured the Gamma bolt and its active trail, and delivered
 positional firing requests to the mixer. Azahar entered its no-DSP
 fallback, which recorded 12 drops on Old 3DS and 10 on New 3DS. The same

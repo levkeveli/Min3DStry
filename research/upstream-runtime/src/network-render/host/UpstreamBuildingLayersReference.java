@@ -6,6 +6,7 @@ import port.render.UpstreamLogicFont;
 import port.render.UpstreamLogicFramebuffer;
 import port.render.UpstreamLogicFramebuffer.RasterTexture;
 import port.logic.UpstreamClientLogic;
+import port.audio.Arm11AudioReference;
 import arc.Core;
 import arc.audio.AudioBus;
 import arc.audio.Sound;
@@ -155,6 +156,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         if (args.length == 7) target.verifyLogicDisplay(new Fi(args[5]), new Fi(args[6]), viewer);
         target.verifyGammaProjectiles(viewport, viewer);
         verifyPositionalAudioDispatch();
+        Arm11AudioReference.verifyStockRegistry();
     }
 
     private static void verifyPositionalAudioDispatch() {

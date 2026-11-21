@@ -39,7 +39,7 @@ if [[ $# -gt 0 ]]; then
     terrain_sources=("$root/m3ds_terrain_renderer.c")
     terrain_libraries=(-lcitro2d -lcitro3d)
     mkdir "$output/romfs"
-    if [[ ${#native_network[@]} -gt 0 && -f "$1/audio-index.h" && -d "$1/audio" ]]; then
+    if [[ ${#native_network[@]} -gt 0 && -f "$1/sound-index.h" && -d "$1/audio" ]]; then
         terrain_flags+=(-DM3DS_LIVE_AUDIO)
         terrain_sources+=("$repo/src/audio/audio_mixer.c" "$repo/src/audio/audio_registry.c"
             "$repo/src/platform/3ds/ndsp_backend.c")

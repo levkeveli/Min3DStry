@@ -4,11 +4,13 @@
 import argparse
 import csv
 import hashlib
+import json
 from pathlib import Path
 import subprocess
 import sys
 import tempfile
 import re
+import shutil
 import zipfile
 
 
@@ -22,10 +24,11 @@ DESKTOP_SHA256 = "6dd6da921d5021a84823456e05b477ee8de8511990d40de850b37dd0905152
 STOCK_TEXT_ASSETS = (
     "fonts/font.woff", "fonts/font_jp.woff", "fonts/icon.ttf", "icons/icons.properties",
 )
-LIVE_AUDIO_MAP = Path(__file__).with_name("live-audio-map.json")
-SHOOT_ALPHA_SHA256 = "76840dcc64d50b3daeeef91da77a4fb85eacb4bd6387611885892e0b1d8ee8b0"
 sys.path.insert(0, str(CONVERTER.parent))
-from build_audio_assets import convert_map
+from build_audio_assets import DEFAULT_RATE, convert_map
+from stage_sound_catalog import UPSTREAM_COMMIT, stage_sound_catalog
+
+LIVE_AUDIO_MAX_FRAMES = DEFAULT_RATE * 6
 
 
 def write_layout(staged: Path, regions: tuple[str, ...]) -> None:
@@ -72,17 +75,32 @@ def pack_stock_text_assets(archive: zipfile.ZipFile, staged: Path) -> None:
         destination.write_bytes(archive.read("assets/" + name))
 
 
-def pack_live_audio(desktop: Path, staged: Path, scratch: Path, ffmpeg: str) -> None:
-    source = "sounds/shoot/shootAlpha.ogg"
-    with zipfile.ZipFile(desktop) as archive:
-        clip = archive.read(source)
-    if hashlib.sha256(clip).hexdigest() != SHOOT_ALPHA_SHA256:
-        raise ValueError("The upstream shootAlpha sound does not match the pinned source")
+def pack_live_audio(args, staged: Path, scratch: Path) -> None:
+    catalog = scratch / "catalog"
+    sounds = stage_sound_catalog(args.java, args.server, args.desktop, catalog)
+    (catalog / "audio").rename(staged / "audio")
     upstream = scratch / "upstream"
-    original = upstream / "core/assets" / source
-    original.parent.mkdir(parents=True)
-    original.write_bytes(clip)
-    convert_map(upstream, LIVE_AUDIO_MAP, scratch / "pcm", ffmpeg, romfs_out=staged)
+    shutil.copytree(staged / "audio/sounds", upstream / "core/assets/sounds")
+    short = [
+        {"id": f"sfx.{sound['id']:03}", "source": sound["source"], "channels": sound["channels"]}
+        for sound in sounds
+        if sound["frames"] * DEFAULT_RATE <= LIVE_AUDIO_MAX_FRAMES * sound["sample_rate"]
+    ]
+    audio_map = scratch / "sound-map.json"
+    audio_map.write_text(json.dumps({"format": 1, "upstream_commit": UPSTREAM_COMMIT,
+                                     "rate": DEFAULT_RATE, "entries": short}), encoding="ascii")
+    pcm = convert_map(upstream, audio_map, scratch / "pcm", args.ffmpeg, romfs_out=staged)
+    if any(entry["frames"] > LIVE_AUDIO_MAX_FRAMES for entry in pcm["entries"]):
+        raise ValueError("Converted sound exceeds the live clip frame limit")
+    index = {entry["id"]: ordinal for ordinal, entry in enumerate(pcm["entries"])}
+    ordinals = [index.get(f"sfx.{sound['id']:03}", -1) for sound in sounds]
+    lines = ['#include <stdint.h>', '#include "audio-index.h"', '',
+             f'#define M3DS_STOCK_SOUND_COUNT {len(ordinals)}U',
+             'static const int16_t m3ds_sound_to_clip[M3DS_STOCK_SOUND_COUNT] = {']
+    for start in range(0, len(ordinals), 16):
+        lines.append("    " + ", ".join(map(str, ordinals[start:start + 16])) + ",")
+    lines.extend(["};", ""])
+    (staged / "sound-index.h").write_text("\n".join(lines), encoding="ascii")
 
 
 def main() -> None:
@@ -94,7 +112,7 @@ def main() -> None:
     parser.add_argument("--java", default="java")
     parser.add_argument("--tex3ds", default="tex3ds")
     parser.add_argument("--multiplayer", action="store_true", help="pack Glacier and upstream multiplayer unit sprites")
-    parser.add_argument("--live-audio", action="store_true", help="also pack the pinned live weapon sound")
+    parser.add_argument("--live-audio", action="store_true", help="also pack pinned stock effects for the live mixer")
     parser.add_argument("--ffmpeg", default="ffmpeg")
     args = parser.parse_args()
     if args.live_audio and not args.multiplayer:
@@ -143,7 +161,7 @@ def main() -> None:
             if not (bundles / "bundle.properties").is_file():
                 raise ValueError("The official archive is missing its root translation bundle")
             if args.live_audio:
-                pack_live_audio(args.desktop, staged, Path(tmp) / "live-audio", args.ffmpeg)
+                pack_live_audio(args, staged, Path(tmp) / "live-audio")
         staged.rename(output)
 
 

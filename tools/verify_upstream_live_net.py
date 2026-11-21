@@ -1578,22 +1578,46 @@ def capture_gamma_projectile(log, emulator, rpc, output, model, timeout):
     raise RuntimeError(f"{model} did not display the original Gamma bolt color east of the player")
 
 
+def send_live_sound_packets(log, emulator, server_log, server, timeout):
+    wait_for(log, emulator, r"UPSTREAM_NETWORK_FRAME unit=\d+ left=73 bottom=20 sprites=1\b", timeout)
+    script = (
+        '(() => { const p = Groups.player.find(boolf(v => String(v.name) === '
+        + json.dumps(PLAYER)
+        + ')); const u = p.unit(); '
+        'Call.sound(p.con, Sounds.uiButton, 0.625, 1.125, -0.5); '
+        'Call.soundAt(p.con, Sounds.waveSpawn, u.x + 24, u.y, 0.5, 1.25); '
+        'return "UPSTREAM_STOCK_SOUND_PACKETS ids=" + Sounds.getSoundId(Sounds.uiButton) '
+        '+ "," + Sounds.getSoundId(Sounds.waveSpawn); })()'
+    )
+    server.stdin.write(f"js {script}\n")
+    server.stdin.flush()
+    wait_for(server_log, server, r"UPSTREAM_STOCK_SOUND_PACKETS ids=185,198\b", 5)
+
+
 def verify_live_weapon_audio(log, model):
-    opened = re.search(r"UPSTREAM_LIVE_AUDIO_OPEN asset=ok pcmBytes=([1-9]\d*) "
+    opened = re.search(r"UPSTREAM_LIVE_AUDIO_OPEN sounds=205 clips=194 pcmBytes=0 "
                        r"state=(ready|fallback_no_dsp) rc=0x[0-9a-f]+", log)
-    played = re.search(rf"UPSTREAM_LIVE_AUDIO_PLAY id=shoot\.alpha volume=({NUMBER}) "
-                       rf"pitch=({NUMBER}) pan=({NUMBER}) voice=(\d+)", log)
+    played = re.search(rf"UPSTREAM_LIVE_AUDIO_PLAY id=117 volume=({NUMBER}) "
+                       rf"pitch=({NUMBER}) pan=({NUMBER}) voice=(\d+) pcmBytes=([1-9]\d*)", log)
     closed = re.search(r"UPSTREAM_LIVE_AUDIO_CLOSE requests=([1-9]\d*) started=(\d+) dropped=(\d+)", log)
-    if not opened or not played or not closed:
-        raise RuntimeError(f"{model} did not load, submit and close the stock Gamma sound")
+    cache = re.search(r"UPSTREAM_LIVE_AUDIO_CACHE loads=([1-9]\d*) hits=(\d+) evictions=(\d+) pcmBytes=([1-9]\d*)", log)
+    remote = re.search(r"UPSTREAM_LIVE_AUDIO_PLAY id=185 volume=0\.625 pitch=1\.125 pan=-0\.500 voice=(\d+)", log)
+    spatial = re.search(rf"UPSTREAM_LIVE_AUDIO_PLAY id=198 volume=({NUMBER}) pitch=1\.250 pan=({NUMBER}) voice=(\d+)", log)
+    if not all((opened, played, closed, cache, remote, spatial)):
+        raise RuntimeError(f"{model} did not submit the stock Gamma and both server-requested sounds")
     volume, pitch, pan = map(float, played.groups()[:3])
-    ready = opened[2] == "ready"
+    ready = opened[1] == "ready"
     requests, started, dropped = map(int, closed.groups())
+    loads, hits, _, resident = map(int, cache.groups())
     if (not 0 < volume <= 1 or not 0 < pitch <= 10 or not 0 < abs(pan) <= 0.9
-            or ready != (int(played[4]) > 0) or ready != (started > 0)
-            or requests != started + dropped):
+            or not 0 < float(spatial[1]) <= 0.5 or not 0 < float(spatial[2]) <= 0.9
+            or any(ready != (int(voice) > 0) for voice in (played[4], remote[1], spatial[3]))
+            or ready != (started > 0)
+            or requests != started + dropped or requests != loads + hits
+            or not 0 < int(played[5]) <= 640 * 1024 or not 0 < resident <= 640 * 1024):
         raise RuntimeError(f"{model} native sound report is inconsistent: {opened[0]}, {played[0]}, {closed[0]}")
-    print(f"{model}: {opened[0]}; {played[0]}; {closed[0]}", flush=True)
+    print(f"{model}: {opened[0]}; {played[0]}; {closed[0]}; {cache[0]}", flush=True)
+    print(f"{model}: {remote[0]}; {spatial[0]}", flush=True)
 
 
 def run_model(args, model, config, original_config, log, output):
@@ -1778,6 +1802,8 @@ def run_model(args, model, config, original_config, log, output):
                 if args.controls_rejoin:
                     emu_log = verify_graphical_rejoin(args, model, log, emulator, server_log, server, rpc, output)
                 elif args.verify_weapons:
+                    if args.verify_live_audio:
+                        send_live_sound_packets(log, emulator, server_log, server, args.timeout)
                     if args.verify_projectiles:
                         capture_gamma_projectile(log, emulator, rpc, output, model, args.timeout)
                     for axis in ("east", "north"):
@@ -1796,7 +1822,7 @@ def run_model(args, model, config, original_config, log, output):
                             r"UPSTREAM_NETWORK_PROJECTILES visible=[1-9]\d* active=[1-9]\d* trail=true\b", emu_log
                         ):
                             raise RuntimeError(f"{model} did not submit the native stock projectile trail")
-                        audio_log = wait_for(log, emulator, r"UPSTREAM_LIVE_AUDIO_CLOSE requests=\d+", args.timeout)
+                        audio_log = wait_for(log, emulator, r"UPSTREAM_LIVE_AUDIO_CACHE loads=\d+", args.timeout)
                         verify_live_weapon_audio(audio_log, model)
                 elif args.controls:
                     def capture(phase, position):

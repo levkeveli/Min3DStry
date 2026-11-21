@@ -709,6 +709,14 @@ final class GlacierFixture {
                 .replace(allocateGrid, 'tiles = new int[net.client() ? 0 : world.width() * world.height()];')
                 .replace(getTile, '        return net.client() ? packTile(world.tile(x, y)) : tiles[x + y * wwidth];'), 'UTF-8')
             def source = new String(readUpstream(netClientSource), 'UTF-8')
+            if (probe == 'network-render') {
+                def soundGuard = 'if(sound == null || headless) return;'
+                if (source.count(soundGuard) != 2) {
+                    throw new GradleException('Pinned NetClient sound handlers changed')
+                }
+                source = source.replace(soundGuard,
+                    'if(sound == null || (headless && !(Core.audio instanceof port.audio.Arm11Audio))) return;')
+            }
             def buffer = '''private ReusableByteInStream byteStream = new ReusableByteInStream();
     private DataInputStream dataStream = new DataInputStream(byteStream);
     private Reads dataStreamReads = new Reads(dataStream);'''
