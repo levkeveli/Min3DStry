@@ -622,8 +622,25 @@ The [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/4486535637
 passed on both Azahar profiles, including the original accent RGB at
 four points on the Phase Weaver line.
 
+Sprite mixing uses Arc's original tint and mix values. The native
+renderer tints the Citro2D fade endpoint because Arc applies the sprite
+tint after mixing the texture and mix colors. The original texture alpha
+is preserved. The JVM checks the stock Payload Conveyor with an empty
+crop, a partial team glow and a full team glow.
+
+Run the live verifier with `--controls --payload-mix --terrain-atlas`
+to load both glow strengths from a stock Java Glacier session. It also
+checks the original base through the transparent overlay and at pixel
+centers on an atlas tile boundary, and verifies that the subsequent Phase
+Weaver line and touchscreen palette retain their colors.
+The [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44866500499)
+passed on both Azahar profiles. Per profile, 616 opaque glow pixels matched
+the original atlas and Arc mix equation within one RGB level. All 3,268
+sampled base pixels under transparent overlays matched exactly after
+clamping the internal atlas tile edges.
+
 The renderer still selects blocks that use the supported sprite operations.
-Textured raw vertices, sprite mix color and other rendering services are
+Textured raw vertices, carried payloads and other rendering services are
 tracked in [#139](https://github.com/levkeveli/Min3DStry/issues/139).
 
 ### Verify the Arc executor pools
