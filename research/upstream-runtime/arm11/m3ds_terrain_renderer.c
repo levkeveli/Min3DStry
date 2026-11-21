@@ -2,6 +2,7 @@
 
 #include <3ds.h>
 #include <citro2d.h>
+#include <errno.h>
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
@@ -13,6 +14,24 @@ typedef struct {
 } ArcAtlasRegion;
 
 #include "terrain_layout.h"
+#ifdef M3DS_WORLD_ATLAS
+#include "m3ds_world_fragment.h"
+#include "world_atlas_layout.h"
+
+// Retain at most 1.5 MiB of RGBA8 atlas backing in the default build.
+#ifndef M3DS_WORLD_ATLAS_SLOTS
+#define M3DS_WORLD_ATLAS_SLOTS 24
+#endif
+_Static_assert(M3DS_WORLD_ATLAS_SLOTS > 0, "The world atlas cache needs at least one slot");
+static struct {
+    C2D_SpriteSheet sheet;
+    int page, x, y;
+    uint32_t frame;
+} world_textures[M3DS_WORLD_ATLAS_SLOTS];
+static uint32_t world_pass;
+static bool reported_split;
+static bool reported_recycle;
+#endif
 
 static bool romfs_ready;
 static bool gpu_ready;
@@ -89,6 +108,9 @@ int32_t m3ds_terrain_begin(int32_t left, int32_t bottom, int32_t width, int32_t 
     draws = 0;
     frame_open = C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
     if (!frame_open) return -7;
+#ifdef M3DS_WORLD_ATLAS
+    world_pass++;
+#endif
     C2D_TargetClear(target, C2D_Color32(24, 27, 32, 255));
     C2D_SceneBegin(target);
     C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_COLOR);
@@ -96,10 +118,172 @@ int32_t m3ds_terrain_begin(int32_t left, int32_t bottom, int32_t width, int32_t 
     return 1;
 }
 
+#ifdef M3DS_WORLD_ATLAS
+static bool recycle_world_pass(void) {
+    // Submit finished draws to the same render target without displaying a partial frame.
+    const u32 transfer_flags = target->transferFlags;
+    C3D_RenderTargetDetachOutput(target);
+    C3D_FrameEnd(0);
+    // C3D_FRAME_SYNCDRAW waits for the previous command queue to finish, so
+    // no in-flight draw still samples a sheet that is freed below.
+    frame_open = C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
+    C3D_RenderTargetSetOutput(target, GFX_TOP, GFX_LEFT, transfer_flags);
+    if (!frame_open) return false;
+
+    // Clear Citro2D's saved texture pointer before freeing any sheet, then
+    // continue without clearing the framebuffer.
+    C2D_Prepare();
+    C2D_SceneBegin(target);
+    C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_COLOR);
+    C2D_SetTintMode(C2D_TintMult);
+    world_pass++;
+    if (!reported_recycle) {
+        static const char record[] = "UPSTREAM_WORLD_ATLAS_RECYCLE\n";
+        svcOutputDebugString(record, sizeof(record) - 1);
+        reported_recycle = true;
+    }
+    return true;
+}
+
+static void report_atlas_failure(const char *stage, int page, int x, int y, int error) {
+    char record[120];
+    int length = snprintf(record, sizeof(record),
+        "UPSTREAM_WORLD_ATLAS_ERROR stage=%s page=%d tile=%d,%d error=%d linear=%lu\n",
+        stage, page, x, y, error, (unsigned long)linearSpaceFree());
+    if (length > 0 && length < (int)sizeof(record)) svcOutputDebugString(record, length);
+}
+
+static C2D_SpriteSheet get_world_texture(int page, int x, int y) {
+    int vacant = -1;
+    int victim = -1;
+    for (size_t i = 0; i < sizeof(world_textures) / sizeof(world_textures[0]); i++) {
+        if (!world_textures[i].sheet) {
+            if (vacant < 0) vacant = (int)i;
+            continue;
+        }
+        if (world_textures[i].page == page && world_textures[i].x == x && world_textures[i].y == y) {
+            world_textures[i].frame = world_pass;
+            return world_textures[i].sheet;
+        }
+        if (world_textures[i].frame != world_pass
+                && (victim < 0 || world_textures[i].frame < world_textures[victim].frame)) {
+            victim = (int)i;
+        }
+    }
+    // Each catalog row can load one 128×128 RGBA8 icon while the world cache stays resident.
+    const size_t texture_bytes = WORLD_ATLAS_TILE * WORLD_ATLAS_TILE * 4;
+    const size_t menu_rows = sizeof(menu_icons) / sizeof(menu_icons[0]);
+    if (vacant >= 0 && linearSpaceFree() >= texture_bytes * (menu_rows + 1)) {
+        victim = vacant;
+    } else if (victim < 0) {
+        // Slots fill in order. A populated slot zero can be overwritten after the fence.
+        if (!world_textures[0].sheet) {
+            report_atlas_failure("budget", page, x, y, 0);
+            return NULL;
+        }
+        if (!recycle_world_pass()) {
+            report_atlas_failure("recycle", page, x, y, 0);
+            return NULL;
+        }
+        victim = 0;
+    }
+    if (world_textures[victim].sheet) C2D_SpriteSheetFree(world_textures[victim].sheet);
+    char path[48];
+    snprintf(path, sizeof(path), "romfs:/world-atlas/%d-%d-%d.t3x", page, x, y);
+    world_textures[victim].sheet = NULL;
+    FILE *file = fopen(path, "rb");
+    if (!file) {
+        report_atlas_failure("open", page, x, y, errno);
+        return NULL;
+    }
+    setvbuf(file, NULL, _IOFBF, 64 * 1024);
+    C2D_SpriteSheet sheet = C2D_SpriteSheetLoadFromHandle(file);
+    fclose(file);
+    if (!sheet) {
+        report_atlas_failure("import", page, x, y, 0);
+        return NULL;
+    }
+    world_textures[victim].sheet = sheet;
+    world_textures[victim].page = page;
+    world_textures[victim].x = x;
+    world_textures[victim].y = y;
+    world_textures[victim].frame = world_pass;
+    C3D_Tex *texture = C2D_SpriteSheetGetImage(sheet, 0).tex;
+    C3D_TexSetFilter(texture, GPU_NEAREST, GPU_NEAREST);
+    // A pixel center exactly on an internal atlas edge can sample coordinate 1.
+    // Clamp to the adjacent texel instead of introducing a transparent border.
+    C3D_TexSetWrap(texture, GPU_CLAMP_TO_EDGE, GPU_CLAMP_TO_EDGE);
+    return sheet;
+}
+
+static int32_t draw_world_region(int page, int left, int top, int w, int h,
+                                 const C2D_DrawParams *whole, const C2D_ImageTint *tint) {
+    if (page < 0 || (size_t)page >= sizeof(world_atlas_sizes) / sizeof(world_atlas_sizes[0])
+            || left < 0 || top < 0 || w > world_atlas_sizes[page][0] - left
+            || h > world_atlas_sizes[page][1] - top) return 0;
+
+    const int tile = WORLD_ATLAS_TILE;
+    const int right = left + w, bottom = top + h;
+    const float step_x = whole->pos.w / w, step_y = whole->pos.h / h;
+    int fragments = 0;
+    for (int y = top; y < bottom;) {
+        int tile_y = y / tile, row_end = (tile_y + 1) * tile;
+        if (row_end > bottom) row_end = bottom;
+        for (int x = left; x < right;) {
+            int tile_x = x / tile, col_end = (tile_x + 1) * tile;
+            if (col_end > right) col_end = right;
+            C2D_SpriteSheet sheet = get_world_texture(page, tile_x, tile_y);
+            if (!sheet) return 0;
+            C2D_Image image = C2D_SpriteSheetGetImage(sheet, 0);
+            Tex3DS_SubTexture sub = {
+                .width = col_end - x, .height = row_end - y,
+                .left = (float)(x - tile_x * tile) / tile, .right = (float)(col_end - tile_x * tile) / tile,
+                .top = 1.0f - (float)(y - tile_y * tile) / tile,
+                .bottom = 1.0f - (float)(row_end - tile_y * tile) / tile,
+            };
+            image.subtex = &sub;
+            C2D_DrawParams piece = *whole;
+            piece.pos.w = sub.width * step_x;
+            piece.pos.h = sub.height * step_y;
+            // Retain the original pivot for positive and mirrored fragments.
+            piece.center.x = m3ds_world_fragment_center(whole->center.x, x, left, step_x);
+            piece.center.y = m3ds_world_fragment_center(whole->center.y, y, top, step_y);
+            if (!C2D_DrawImage(image, &piece, tint)) {
+                report_atlas_failure("draw", page, tile_x, tile_y, 0);
+                return 0;
+            }
+            fragments++;
+            x = col_end;
+        }
+        y = row_end;
+    }
+    if (!reported_split && fragments > 1) {
+        char record[112];
+        int length = snprintf(record, sizeof(record), "UPSTREAM_WORLD_ATLAS page=%d rect=%d,%d+%dx%d fragments=%d\n",
+            page, left, top, w, h, fragments);
+        if (length > 0 && length < (int)sizeof(record)) svcOutputDebugString(record, length);
+        reported_split = true;
+    }
+    draws += fragments;
+    return 1;
+}
+#endif
+
 int32_t m3ds_terrain_draw(int32_t page, int32_t left, int32_t top, int32_t width, int32_t height,
                           float x, float y, float origin_x, float origin_y, float draw_width,
                           float draw_height, float rotation, int32_t color) {
     if (!frame_open || width <= 0 || height <= 0) return 0;
+    C2D_DrawParams params = {
+        .pos = { screen_left + (x + origin_x - world_left) * scale,
+                 screen_bottom - (y + origin_y - world_bottom) * scale,
+                 draw_width * scale, draw_height * scale },
+        .center = { (origin_x - fminf(0.0f, draw_width)) * scale,
+                    (fmaxf(0.0f, draw_height) - origin_y) * scale },
+        .depth = 0.5f,
+        .angle = rotation * (-3.14159265358979323846f / 180.0f),
+    };
+    C2D_ImageTint tint;
+    C2D_PlainImageTint(&tint, (u32)color, 1.0f);
     size_t count = sizeof(terrain_regions) / sizeof(terrain_regions[0]);
     for (size_t i = 0; i < count; i++) {
         const ArcAtlasRegion *region = &terrain_regions[i];
@@ -131,21 +315,15 @@ int32_t m3ds_terrain_draw(int32_t page, int32_t left, int32_t top, int32_t width
             subtexture.bottom = parent->top + (offset_y + height) * dv;
         }
         image.subtex = &subtexture;
-        C2D_DrawParams params = {
-            .pos = { screen_left + (x + origin_x - world_left) * scale,
-                     screen_bottom - (y + origin_y - world_bottom) * scale,
-                     draw_width * scale, draw_height * scale },
-            .center = { origin_x * scale, (draw_height - origin_y) * scale },
-            .depth = 0.5f,
-            .angle = rotation * (-3.14159265358979323846f / 180.0f),
-        };
-        C2D_ImageTint tint;
-        C2D_PlainImageTint(&tint, (u32)color, 1.0f);
         if (!C2D_DrawImage(image, &params, &tint)) return 0;
         draws++;
         return 1;
     }
+#ifdef M3DS_WORLD_ATLAS
+    return draw_world_region(page, left, top, width, height, &params, &tint);
+#else
     return 0;
+#endif
 }
 
 int32_t m3ds_terrain_end(void) {
@@ -163,6 +341,11 @@ int32_t m3ds_terrain_build_labels(const char *labels) {
     palette_buffer = C2D_TextBufNew(256);
     catalog_buffer = C2D_TextBufNew(512);
     if (!palette_buffer || !catalog_buffer) return 0;
+    // Allocate both screen outputs before the world cache uses the linear heap.
+    gfxSetScreenFormat(GFX_BOTTOM, GSP_BGR8_OES);
+    gfxSetDoubleBuffering(GFX_BOTTOM, true);
+    palette = C2D_CreateScreenTarget(GFX_BOTTOM, GFX_LEFT);
+    if (!palette) return 0;
     for (int i = 0; i < 7; i++) {
         C2D_TextParse(&palette_labels[i], palette_buffer, labels);
         C2D_TextOptimize(&palette_labels[i]);
@@ -174,15 +357,7 @@ int32_t m3ds_terrain_build_labels(const char *labels) {
 int32_t m3ds_terrain_build_overlay(int32_t column, int32_t row, int32_t block, int32_t rotation,
                                   int32_t removing, int32_t tile_size, int32_t rotatable, int32_t catalog_open,
                                   int32_t configuring) {
-    if (!frame_open) return 0;
-    if (!palette) {
-        if (!palette_buffer || !catalog_buffer) return 0;
-        // consoleInit switched the bottom framebuffer to RGB565.
-        gfxSetScreenFormat(GFX_BOTTOM, GSP_BGR8_OES);
-        gfxSetDoubleBuffering(GFX_BOTTOM, true);
-        palette = C2D_CreateScreenTarget(GFX_BOTTOM, GFX_LEFT);
-        if (!palette) return 0;
-    }
+    if (!frame_open || !palette) return 0;
     u32 accent = removing ? C2D_Color32(241, 117, 97, 255) : C2D_Color32(250, 213, 107, 255);
     bool cursor = column >= 0 && column < 16 && row >= 0 && row < 12;
     if (cursor) {
@@ -292,6 +467,11 @@ int32_t m3ds_terrain_build_catalog(const char *labels, const int32_t *icons, int
 void m3ds_terrain_fini(void) {
     if (frame_open) m3ds_terrain_end();
     if (gpu_ready && C3D_FrameBegin(0)) C3D_FrameEnd(0);
+#ifdef M3DS_WORLD_ATLAS
+    for (size_t i = 0; i < sizeof(world_textures) / sizeof(world_textures[0]); i++) {
+        if (world_textures[i].sheet) C2D_SpriteSheetFree(world_textures[i].sheet);
+    }
+#endif
     for (size_t row = 0; row < sizeof(menu_icons) / sizeof(menu_icons[0]); row++) {
         if (menu_icons[row].sheet) C2D_SpriteSheetFree(menu_icons[row].sheet);
     }

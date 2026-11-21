@@ -25,6 +25,62 @@ Use JDK 17+, Python 3.10+, and tex3ds v2.3.0. The pixel check also uses ImageMag
 
 Renderer integration is tracked in [issue #38](https://github.com/levkeveli/Min3DStry/issues/38). The page has been verified on the host.
 
+## Complete atlas backing for world draws
+
+Multiplayer asset preparation also imports all four source images into
+2,048 uncompressed 128 × 128 RGBA8 tiles. Coordinates in the Arc atlas
+still address the same image and pixel positions. The Citro2D backend
+can draw a rectangle that crosses backing tiles with the original
+pivot, signed scale, rotation, tint and layer order. The Core Nucleus and
+team overlay use this path in the live Glacier probe.
+
+The world cache holds at most 24 backing textures, or 1.5 MiB of texels.
+The runtime allocates both screen outputs first and retains room in the
+linear heap for six menu icons. When pending draws occupy every
+available slot, the renderer submits them to the
+same framebuffer and waits for the GPU before reusing a texture. Only
+the final submission presents the completed frame. The compact sheet
+continues to supply the other frequently used Glacier regions. The
+complete raw atlas in RomFS uses 128 MiB plus tile headers.
+
+Generate and independently decode just the world atlas from the
+official artifacts with the following commands.
+
+```sh
+mkdir world-atlas-reference
+java -Djava.awt.headless=true -cp /path/to/server-release.jar \
+  tools/UpstreamSpriteAtlas.java /path/to/assets.jar world-atlas-reference --world-pages
+java tests/tools/VerifyUpstreamWorldAtlas.java /path/to/assets.jar world-atlas-reference
+```
+
+The host check compares every RGBA texel against the release PNGs
+including RGB beneath transparent pixels. Use `--world-atlas` with the
+graphical live verifier to check the six-fragment Core Nucleus draw and
+compare captured pixels at the seams to the earlier compact-sheet draw.
+The [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44858877932)
+passed this check in the Azahar Old and New 3DS profiles on a live
+Glacier session from the stock v160.8 Java server. Both profiles matched
+the nine sampled pixels across the Core Nucleus seams.
+
+With the cache reduced to three slots at compile time
+(`-DM3DS_WORLD_ATLAS_SLOTS=3`), the [stress build](https://github.com/levkeveli/Min3DStry/actions/runs/44860006787)
+also passed on both profiles. Run the live verifier with `--world-atlas`
+and `--world-atlas-recycle` to require the GPU submission and recycling
+event at spawn and check the original seam pixels. The default
+executable allows up to 24 slots. On each profile, all 8,328 pixels in
+the Core Nucleus crop outside the player unit area matched the earlier
+build.
+
+Fragment pivots use `whole_center - (start - region_start) * step`, which is
+identical for positive and mirrored (negative) atlas draws.
+[`tests/render/test_world_fragment.c`](../../tests/render/test_world_fragment.c)
+checks positive, mirrored and offset multi-tile fragments, and `./dev.sh test`
+runs it. Atlas eviction now begins the next submission with
+`C3D_FRAME_SYNCDRAW` before freeing a sheet, so the GPU is idle when the
+texture is recycled. These two fixes are host-tested and ARM11
+compile-checked; rerunning the live stock-server atlas verifier on both
+profiles remains pending.
+
 ## Build the platform test fixtures
 
 The 3DS build uses this converter to generate the fixture sprite indices and embed the atlas in RomFS. The native Makefile accepts `PYTHON` and `TEX3DS` executable overrides. At runtime the factory test scene loads the sheet with nearest-neighbor filtering and uses geometric primitives if the sheet is unavailable.

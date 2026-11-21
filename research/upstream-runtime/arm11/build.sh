@@ -28,8 +28,8 @@ if [[ $# -gt 0 ]]; then
         echo "Expected one terrain assets directory" >&2
         exit 2
     fi
-    if [[ ${#native_network[@]} -gt 0 && ! -f "$1/bundles/bundle.properties" ]]; then
-        echo "Prepare multiplayer terrain assets with --multiplayer to include the original bundles" >&2
+    if [[ ${#native_network[@]} -gt 0 && ( ! -f "$1/bundles/bundle.properties" || ! -d "$1/world-atlas" ) ]]; then
+        echo "Prepare multiplayer terrain assets with --multiplayer to include the original bundles and atlas" >&2
         exit 2
     fi
     terrain_flags=(-DM3DS_TERRAIN_RENDERER -I"$root" -I"$1")
@@ -42,6 +42,10 @@ if [[ $# -gt 0 ]]; then
     fi
     if [[ -d "$1/catalog" ]]; then
         cp -R "$1/catalog" "$output/romfs/catalog"
+    fi
+    if [[ -d "$1/world-atlas" ]]; then
+        terrain_flags+=(-DM3DS_WORLD_ATLAS)
+        cp -R "$1/world-atlas" "$output/romfs/world-atlas"
     fi
     "$DEVKITPRO/tools/bin/smdhtool" --create "$title" "Mindustry v160.8 Glacier" \
         "Min3DStry Contributors" "$DEVKITPRO/libctru/default_icon.png" "$output/upstream-probe.smdh"
