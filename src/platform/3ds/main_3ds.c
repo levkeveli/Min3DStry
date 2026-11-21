@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #include "audio/audio_ambient.h"
@@ -16,10 +17,14 @@
 #include "ndsp_backend.h"
 #include "platform/hardware_profile.h"
 #include "platform/memory_budget.h"
+#include "platform/sd_paths.h"
+#include "platform/settings_store.h"
+#include "platform/worker_benchmark.h"
 #include "render/factory_demo.h"
 #include "render/minimap.h"
 #include "render/scene_2d.h"
 #include "sim/parity_scenario.h"
+#include "ui/pause_menu.h"
 
 #if M3DS_AUDIO_ROMFS
 #include "audio-index.h"
@@ -124,8 +129,35 @@ int main(int argc, char *argv[]) {
     if (hw_ok) {
         m3ds_hardware_profile_format(&hw_profile, hw_summary, sizeof(hw_summary));
     }
-    char dbg_line[192];
+    char dbg_line[320];
     snprintf(dbg_line, sizeof(dbg_line), "[MIN3DSTRY] HW: %s\n", hw_summary);
+    m3ds_emit_debug_line(log_socket, dbg_line);
+
+    char settings_path[96];
+    char sector_path[96];
+    if (m3ds_sd_settings_path(M3DS_SD_ROOT, settings_path, sizeof(settings_path)) &&
+        m3ds_sd_sector_save_path(
+            M3DS_SD_ROOT, "serpulo", 170u, sector_path, sizeof(sector_path))) {
+        snprintf(dbg_line, sizeof(dbg_line),
+                 "[MIN3DSTRY] STORAGE root=%s settings=%s sector=%s\n",
+                 M3DS_SD_ROOT, settings_path, sector_path);
+    } else {
+        snprintf(dbg_line, sizeof(dbg_line),
+                 "[MIN3DSTRY] STORAGE status=invalid\n");
+    }
+    m3ds_emit_debug_line(log_socket, dbg_line);
+
+    (void)mkdir("sdmc:/3ds", 0777);
+    (void)mkdir("sdmc:/3ds/min3dstry", 0777);
+    size_t probe_size = 0u;
+    if (m3ds_storage_probe_roundtrip("sdmc:/3ds/min3dstry", &probe_size)) {
+        snprintf(dbg_line, sizeof(dbg_line),
+                 "[MIN3DSTRY] STORAGE_ROUNDTRIP status=ok bytes=%u root=sdmc:/3ds/min3dstry\n",
+                 (unsigned)probe_size);
+    } else {
+        snprintf(dbg_line, sizeof(dbg_line),
+                 "[MIN3DSTRY] STORAGE_ROUNDTRIP status=failed root=sdmc:/3ds/min3dstry\n");
+    }
     m3ds_emit_debug_line(log_socket, dbg_line);
 
     {
@@ -202,6 +234,30 @@ int main(int argc, char *argv[]) {
         m3ds_emit_debug_line(log_socket, dbg_line);
     }
 
+    /*
+     * Evaluate deterministic worker scheduling on an independent 200x200 grid
+     * hash. The simulation tick itself stays single-threaded; this benchmark
+     * only checks that the same read-only work produces the same checksum.
+     */
+    for (uint32_t workers = 2u; workers <= 4u; workers += 2u) {
+        M3dsWorkerBenchmarkResult worker_result;
+        if (m3ds_worker_benchmark_run(workers, 4u, &worker_result)) {
+            snprintf(
+                dbg_line,
+                sizeof(dbg_line),
+                "[MIN3DSTRY] WORKERS workers=%u active=%u chunks=%u items=%u match=%d checksum=0x%08lx serial_us=%llu parallel_us=%llu\n",
+                (unsigned)worker_result.workers,
+                (unsigned)worker_result.active_workers,
+                (unsigned)worker_result.chunks,
+                (unsigned)worker_result.items,
+                worker_result.match ? 1 : 0,
+                (unsigned long)worker_result.serial_checksum,
+                (unsigned long long)worker_result.serial_micros,
+                (unsigned long long)worker_result.parallel_micros);
+            m3ds_emit_debug_line(log_socket, dbg_line);
+        }
+    }
+
     /* The PARITY run above is the canonical fixture; the interactive demo
        below applies its own inputs and does not feed that trace hash. */
     C3D_RenderTarget *top = C2D_CreateScreenTarget(GFX_TOP, GFX_LEFT);
@@ -211,6 +267,9 @@ int main(int argc, char *argv[]) {
     m3ds_factory_demo_init(&scene, &factory);
     m3ds_factory_demo_add_turret(&scene, &factory);
     factory.core_copper = M3DS_DEMO_START_COPPER;
+    snprintf(dbg_line, sizeof(dbg_line), "[MIN3DSTRY] VIEW zoom=%.2f lighting=%d\n",
+             (double)m3ds_scene_zoom(&scene), m3ds_scene_lighting(&scene) ? 1 : 0);
+    m3ds_emit_debug_line(log_socket, dbg_line);
 
     M3dsCitro2dContext c2d_ctx;
     M3dsRenderBackend backend;
@@ -308,6 +367,14 @@ int main(int argc, char *argv[]) {
     bool demo_wave_spawned = false;
     bool demo_wall_placed = false;
     bool demo_wall_removed = false;
+    bool paused_before_menu = false;
+    bool quit_requested = false;
+    M3dsPauseMenu pause_menu;
+    m3ds_pause_menu_init(&pause_menu);
+    snprintf(dbg_line, sizeof(dbg_line),
+             "[MIN3DSTRY] MENU state=closed actions=%u\n",
+             (unsigned)M3DS_PAUSE_ACTION_COUNT);
+    m3ds_emit_debug_line(log_socket, dbg_line);
 
     while (aptMainLoop()) {
         hidScanInput();
@@ -317,43 +384,106 @@ int main(int argc, char *argv[]) {
         if (kDown & KEY_START) {
             break;
         }
-        if (kDown & KEY_A) {
-            bool pause = !scene.paused;
-            if (pause) {
-                m3ds_audio_ambient_stop(&audio_mixer, &ambient_loops);
+        if (kDown & KEY_SELECT) {
+            if (pause_menu.open) {
+                m3ds_pause_menu_close(&pause_menu);
+                scene.paused = paused_before_menu;
+                if (!scene.paused) {
+                    m3ds_audio_ambient_start(audio_events, 0.2f, &ambient_loops);
+                }
             } else {
-                m3ds_audio_ambient_start(audio_events, 0.2f, &ambient_loops);
+                paused_before_menu = scene.paused;
+                scene.paused = true;
+                m3ds_audio_ambient_stop(&audio_mixer, &ambient_loops);
+                m3ds_pause_menu_open(&pause_menu);
             }
-            scene.paused = pause;
+            snprintf(dbg_line, sizeof(dbg_line),
+                     "[MIN3DSTRY] MENU state=%s selected=%s\n",
+                     pause_menu.open ? "open" : "closed",
+                     m3ds_pause_menu_action_id(m3ds_pause_menu_action(&pause_menu)));
+            m3ds_emit_debug_line(log_socket, dbg_line);
             m3ds_play_ui_click(audio_events, &audio_mixer, clip_ui);
         }
-        if (kDown & KEY_Y) {
-            m3ds_scene_reset_camera(&scene);
-            m3ds_play_ui_click(audio_events, &audio_mixer, clip_ui);
-        }
-        if (kDown & KEY_X) {
-            m3ds_audio_mixer_set_muted(
-                &audio_mixer, !m3ds_audio_mixer_is_muted(&audio_mixer));
-        }
 
-        float pan_dx = 0.0f;
-        float pan_dy = 0.0f;
-        if (kHeld & KEY_LEFT)  pan_dx -= 2.0f;
-        if (kHeld & KEY_RIGHT) pan_dx += 2.0f;
-        if (kHeld & KEY_UP)    pan_dy -= 2.0f;
-        if (kHeld & KEY_DOWN)  pan_dy += 2.0f;
+        if (pause_menu.open) {
+            if (kDown & KEY_UP) {
+                (void)m3ds_pause_menu_move(&pause_menu, -1);
+            }
+            if (kDown & KEY_DOWN) {
+                (void)m3ds_pause_menu_move(&pause_menu, 1);
+            }
+            if (kDown & KEY_A) {
+                M3dsPauseAction action = m3ds_pause_menu_action(&pause_menu);
+                snprintf(dbg_line, sizeof(dbg_line),
+                         "[MIN3DSTRY] MENU action=%s\n",
+                         m3ds_pause_menu_action_id(action));
+                m3ds_emit_debug_line(log_socket, dbg_line);
+                if (action == M3DS_PAUSE_ACTION_RESUME) {
+                    m3ds_pause_menu_close(&pause_menu);
+                    scene.paused = false;
+                    m3ds_audio_ambient_start(audio_events, 0.2f, &ambient_loops);
+                } else if (action == M3DS_PAUSE_ACTION_RESET_CAMERA) {
+                    m3ds_scene_reset_camera(&scene);
+                } else if (action == M3DS_PAUSE_ACTION_QUIT) {
+                    quit_requested = true;
+                }
+                m3ds_play_ui_click(audio_events, &audio_mixer, clip_ui);
+            }
+            if (quit_requested) {
+                break;
+            }
+        } else {
+            if (kDown & KEY_A) {
+                bool pause = !scene.paused;
+                if (pause) {
+                    m3ds_audio_ambient_stop(&audio_mixer, &ambient_loops);
+                } else {
+                    m3ds_audio_ambient_start(audio_events, 0.2f, &ambient_loops);
+                }
+                scene.paused = pause;
+                m3ds_play_ui_click(audio_events, &audio_mixer, clip_ui);
+            }
+            if (kDown & KEY_Y) {
+                m3ds_scene_reset_camera(&scene);
+                m3ds_play_ui_click(audio_events, &audio_mixer, clip_ui);
+            }
+            if (kDown & KEY_X) {
+                m3ds_audio_mixer_set_muted(
+                    &audio_mixer, !m3ds_audio_mixer_is_muted(&audio_mixer));
+            }
+            if (kDown & KEY_L) {
+                m3ds_scene_zoom_by(&scene, 0.25f);
+                m3ds_play_ui_click(audio_events, &audio_mixer, clip_ui);
+            }
+            if (kDown & KEY_R) {
+                m3ds_scene_zoom_by(&scene, -0.25f);
+                m3ds_play_ui_click(audio_events, &audio_mixer, clip_ui);
+            }
+            if (kDown & KEY_B) {
+                m3ds_scene_set_lighting(
+                    &scene, !m3ds_scene_lighting(&scene));
+                m3ds_play_ui_click(audio_events, &audio_mixer, clip_ui);
+            }
 
-        circlePosition cpad;
-        hidCircleRead(&cpad);
-        if (cpad.dx > 20 || cpad.dx < -20) {
-            pan_dx += (float)cpad.dx / 40.0f;
-        }
-        if (cpad.dy > 20 || cpad.dy < -20) {
-            pan_dy -= (float)cpad.dy / 40.0f;
-        }
+            float pan_dx = 0.0f;
+            float pan_dy = 0.0f;
+            if (kHeld & KEY_LEFT)  pan_dx -= 2.0f;
+            if (kHeld & KEY_RIGHT) pan_dx += 2.0f;
+            if (kHeld & KEY_UP)    pan_dy -= 2.0f;
+            if (kHeld & KEY_DOWN)  pan_dy += 2.0f;
 
-        if (pan_dx != 0.0f || pan_dy != 0.0f) {
-            m3ds_scene_pan(&scene, pan_dx, pan_dy);
+            circlePosition cpad;
+            hidCircleRead(&cpad);
+            if (cpad.dx > 20 || cpad.dx < -20) {
+                pan_dx += (float)cpad.dx / 40.0f;
+            }
+            if (cpad.dy > 20 || cpad.dy < -20) {
+                pan_dy -= (float)cpad.dy / 40.0f;
+            }
+
+            if (pan_dx != 0.0f || pan_dy != 0.0f) {
+                m3ds_scene_pan(&scene, pan_dx, pan_dy);
+            }
         }
 
         if (!scene.paused && !demo_wall_placed &&
@@ -484,20 +614,36 @@ int main(int argc, char *argv[]) {
                (unsigned long)stats.drawn_lines,
                (unsigned long)stats.drawn_triangles,
                (unsigned long)stats.drawn_circles);
-        printf("\x1b[5;1HCull: %lu  Sw: %lu  Drop: %lu\x1b[K",
+        printf("\x1b[5;1HCull:%lu Sw:%lu Drop:%lu E:%lu L:%lu\x1b[K",
                (unsigned long)stats.culled_primitives,
                (unsigned long)stats.state_switches,
-               (unsigned long)stats.budget_dropped);
+               (unsigned long)stats.budget_dropped,
+               (unsigned long)stats.effects_dropped,
+               (unsigned long)stats.light_circles);
         printf("\x1b[7;1HCPU:     %6.2f%%\x1b[K", C3D_GetProcessingTime() * 6.0f);
         printf("\x1b[8;1HGPU:     %6.2f%%\x1b[K", C3D_GetDrawingTime() * 6.0f);
         printf("\x1b[9;1HCmdBuf:  %6.2f%%\x1b[K", C3D_GetCmdBufUsage() * 100.0f);
         printf("\x1b[10;1HAudio:   %s (%s)\x1b[K",
                m3ds_audio_state_name(m3ds_audio_mixer_state(&audio_mixer)),
                m3ds_audio_mixer_is_muted(&audio_mixer) ? "MUTED" : "ON");
-        printf("\x1b[11;1HD-Pad/CPad: Pan  A: Pause\x1b[K");
-        printf("\x1b[12;1HY: Reset Cam     START: Exit\x1b[K");
-        printf("\x1b[13;1HX: Toggle Mute\x1b[K");
+        printf("\x1b[11;1HD-Pad/CPad: Pan  A: Pause  L/R: Zoom\x1b[K");
+        printf("\x1b[12;1HY: Reset Cam  SELECT: Menu  START: Exit\x1b[K");
+        printf("\x1b[13;1HX:Mute B:Light Zoom:%.2f\x1b[K",
+               (double)m3ds_scene_zoom(&scene));
         printf("\x1b[14;1H%s\x1b[K", hw_summary);
+        if (pause_menu.open) {
+            printf("\x1b[15;1H=== PAUSED ===  Up/Down + A\x1b[K");
+            for (uint8_t i = 0u; i < M3DS_PAUSE_ACTION_COUNT; ++i) {
+                printf("\x1b[%u;1H%c %s\x1b[K",
+                       (unsigned)(16u + i),
+                       i == pause_menu.selected ? '>' : ' ',
+                       m3ds_pause_menu_action_label((M3dsPauseAction)i));
+            }
+        } else {
+            for (unsigned line = 15u; line <= 18u; ++line) {
+                printf("\x1b[%u;1H\x1b[K", line);
+            }
+        }
 
         if (!emitted_frame_diag && scene.tick >= 30u) {
             snprintf(
