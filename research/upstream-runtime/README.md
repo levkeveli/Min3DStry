@@ -950,6 +950,30 @@ and the ARM11 clients received the stock core inventory updates. Moving
 outside the original unit's mining range cleared the server target and
 left stable balances of 148 copper on Original 3DS and 149 on New 3DS.
 
+### Live campaign objectives
+
+The live client routes the v160.8 set, clear, and complete objective
+packets to their original generated client handlers. The stock game
+updates the objective graph, flags, and completion logic.
+
+The pinned JVM snapshot reference round-trips all three generated
+packets. It checks that the 60-beryllium objective survives the set
+message, that its dependent research objective becomes eligible after
+completion, and that clearing the executor removes the objectives.
+
+Add `--verify-objectives` to the Onset wall mining replay. The stock server
+starts with zero beryllium and objective 0 active. When the player mines the
+required 60, the verifier compares the server and ARM11 completion record,
+the eligible BuildCountObjective at index 1, and the objective flag count.
+
+The [devkitARM build](https://github.com/levkeveli/Min3DStry/actions/runs/44910114596)
+passed the replay on both Azahar 2126.2 profiles with the unmodified
+v160.8 server. Both clients completed the original ItemObjective at
+index 0, made index 1 eligible, and matched the server's objective flag
+count. Index 1 requires one Turbine Condenser. The page-rounded ELF load
+segments for this debug build total 41.14 MiB before heap, stack and
+network allocations. Physical memory and frame rate remain to be tested.
+
 ### Verify the Arc executor pools
 
 Use `-Pprobe=executor` with the JVM and ARM11 build commands. The JVM uses the

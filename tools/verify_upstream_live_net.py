@@ -128,6 +128,7 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
         )
     elif mining == "floor":
         taps = ((58, (305, 96)), (62, (305, 96)), (67, (168, 232)))
+    pan_end = 61 if model == "new3ds" else 60
     with path.open("wb") as movie:
         movie.write(header)
         for frame in range(frames):
@@ -140,7 +141,7 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
                 buttons = (1 << 4) if seconds == first_move else (1 << 3) if seconds == leave_at else 0
             if building and seconds in (35, 37, 39):
                 buttons = 1  # A, with releases so a late HID poll can observe another press.
-            circle_x = 65 if mining == "wall" and 54 <= seconds < 60 else 0
+            circle_x = 65 if mining == "wall" and 54 <= seconds < pan_end else 0
             circle_y = 106 if seconds == circle_at and not (erekir_build or mining) else 0
             if mining == "floor" and 88 <= seconds < 94:
                 circle_y = 65
@@ -293,7 +294,7 @@ def inspect_mining(server_log, server, marker, item):
     return target, int(balance)
 
 
-def verify_mining(log, emulator, server_log, server, timeout, capture, mining, item):
+def verify_mining(log, emulator, server_log, server, timeout, capture, mining, item, objectives):
     target = re.compile(rf"UPSTREAM_MINE_TARGET x=(\d+) y=(\d+) item={item}\b")
     x, y = target.search(wait_for(log, emulator, target, timeout)).groups()
     # Let the stock MinerComp advance before reading the selected tile and deposited items.
@@ -324,6 +325,26 @@ def verify_mining(log, emulator, server_log, server, timeout, capture, mining, i
     if stopped[0] != "none" or settled != stopped or settled[1] < max(balance, client_count):
         raise RuntimeError(f"Expected mining to stop and inventory to settle, observed {stopped} then {settled}")
     print(f"Stock {mining} mining at ({x}, {y}) delivered {settled[1]} {item} before stopping.", flush=True)
+    if objectives:
+        verify_onset_objective(log, emulator, server_log, server, settled[1])
+
+
+def verify_onset_objective(log, emulator, server_log, server, beryllium):
+    if beryllium < 60:
+        raise RuntimeError(f"Expected at least 60 beryllium for the original objective, got {beryllium}")
+    server.stdin.write(
+        'js (() => { var rules=Vars.state.rules, all=rules.objectives.all, first=all.get(0), next=all.get(1); '
+        'return "UPSTREAM_SERVER_ONSET_OBJECTIVE first=" + first.getClass().getSimpleName() + '
+        '" completed=" + first.isCompleted() + " next=" + next.getClass().getSimpleName() + '
+        '" eligible=" + next.qualified() + " flags=" + rules.objectiveFlags.size; })()\n'
+    )
+    server.stdin.flush()
+    record = re.compile(r"UPSTREAM_SERVER_ONSET_OBJECTIVE first=ItemObjective completed=true "
+                        r"next=BuildCountObjective eligible=true flags=(\d+)\b")
+    flags = record.search(wait_for(server_log, server, record, 5))[1]
+    match = r"UPSTREAM_OBJECTIVE_COMPLETE index=0 kind=ItemObjective next=1 nextKind=BuildCountObjective"
+    wait_for(log, emulator, rf"{match} flags={flags}\b", 5)
+    print("The stock server and ARM11 client advanced to Onset objective 1 after 60 beryllium.", flush=True)
 
 
 def verify_conveyor(log, emulator, server_log, server, timeout, capture, position, desktop_name):
@@ -1091,6 +1112,15 @@ def run_model(args, model, config, original_config, log, output):
                     f'Vars.state.rules.defaultTeam.core().items.get(Items.{mine_item})\n')
                 server.stdin.flush()
                 wait_for(server_log, server, rf"UPSTREAM_MINING_START {mine_item}=0\b", 5)
+            if args.verify_objectives:
+                server.stdin.write(
+                    'js (() => { var all=Vars.state.rules.objectives.all, first=all.get(0), next=all.get(1); '
+                    'return "UPSTREAM_SERVER_ONSET_START item=" + first.item.name + " amount=" + first.amount + '
+                    '" eligible=" + first.qualified() + " next=" + next.qualified(); })()\n'
+                )
+                server.stdin.flush()
+                wait_for(server_log, server,
+                         r"UPSTREAM_SERVER_ONSET_START item=beryllium amount=60 eligible=true next=false\b", 5)
             if args.building or args.touch_build:
                 # Give the pixel comparison a fixed patch of stock ice. Glacier's filters can
                 # place decorations on or alongside the test cells.
@@ -1219,7 +1249,8 @@ def run_model(args, model, config, original_config, log, output):
                         if args.erekir_build:
                             verify_erekir_construction(log, emulator, server_log, server, args.timeout, capture, spawn)
                         if args.mining:
-                            verify_mining(log, emulator, server_log, server, args.timeout, capture, args.mining, mine_item)
+                            verify_mining(log, emulator, server_log, server, args.timeout, capture,
+                                          args.mining, mine_item, args.verify_objectives)
                         if args.building_effects:
                             verify_building_effects((output / f"{model}-{phase}.png").read_bytes())
                         if args.payload_mix:
@@ -1388,6 +1419,8 @@ def main():
                                help="Verify Duct and Beryllium Wall touch construction on The Onset")
     campaign_mode.add_argument("--mining", choices=("wall", "floor"),
                                help="Verify touch mining and core delivery on The Onset or Ground Zero")
+    parser.add_argument("--verify-objectives", action="store_true",
+                        help="Compare the original first Onset objective transition between client and server")
     parser.add_argument("--require-relocation-spill", action="store_true",
                         help="Require the ARM11 collector to grow its relocation table during the spawn check")
     args = parser.parse_args()
@@ -1443,6 +1476,8 @@ def main():
         parser.error('--mining wall needs --map-spawn "The Onset", --erekir-sector onset and --controls-replay')
     if args.mining == "floor" and (args.map_spawn != "Ground Zero" or args.erekir_sector or not args.controls_replay):
         parser.error('--mining floor needs --map-spawn "Ground Zero" and --controls-replay')
+    if args.verify_objectives and args.mining != "wall":
+        parser.error("--verify-objectives needs --mining wall")
     if args.erekir_sector is not None:
         if not args.map_spawn or not re.fullmatch(r"[a-z][a-z-]*", args.erekir_sector):
             parser.error("--erekir-sector needs --map-spawn and a sector slug such as onset")
