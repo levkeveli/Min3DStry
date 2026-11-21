@@ -19,6 +19,11 @@ typedef struct {
     int32_t glyphs, lines, width, height;
 } M3DS_StockText;
 
+/* ARM11 GPU_RGBA8 texture bytes are A, B, G, R in increasing address order. */
+static inline uint32_t m3ds_stock_text_texel(uint8_t gray, uint8_t alpha) {
+    return (uint32_t)gray << 24 | (uint32_t)gray << 16 | (uint32_t)gray << 8 | alpha;
+}
+
 bool m3ds_stock_text_open(bool japanese);
 void m3ds_stock_text_close(void);
 void m3ds_stock_text_begin(void);
