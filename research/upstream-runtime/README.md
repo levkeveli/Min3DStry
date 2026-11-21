@@ -319,6 +319,14 @@ waits beyond the server's 12-second TCP timeout to exercise Arc keepalive.
 The regular connection UI, outgoing
 player actions and other live packet handlers are tracked in #44.
 
+During world loading, the ARM11 bridge sends the stock ArcNet TCP
+keepalive on kernel event timeouts. The loader signals and joins the
+worker before releasing the connection. Reliable sends and reads share
+the lock while the worker is active, including any ping reply from a read.
+The [large-sector build](https://github.com/levkeveli/Min3DStry/actions/runs/44906962673)
+combined this bridge with the large-map collector changes. Both Azahar
+profiles logged the keepalive and rendered the original Onset spawn.
+
 For the host reference, run `runProbeJvm` with `-Pprobe=network-live`
 and pass a captured `WorldStream` file through `--args`. The JVM
 version uses upstream item and unit serialization to verify the applied
