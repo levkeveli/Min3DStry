@@ -7,6 +7,8 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import re
+import zipfile
 
 
 REGIONS = (
@@ -62,6 +64,15 @@ def main() -> None:
                         "--server", str(args.server), "--output-dir", str(staged),
                         "--java", args.java, "--tex3ds", args.tex3ds, *regions], check=True)
         write_layout(staged, regions)
+        if args.multiplayer:
+            bundles = staged / "bundles"
+            bundles.mkdir()
+            with zipfile.ZipFile(args.assets) as archive:
+                for member in archive.namelist():
+                    if re.fullmatch(r"assets/bundles/bundle(?:_[A-Za-z_]+)?\.properties", member):
+                        (bundles / Path(member).name).write_bytes(archive.read(member))
+            if not (bundles / "bundle.properties").is_file():
+                raise ValueError("The official archive is missing its root translation bundle")
         staged.rename(output)
 
 

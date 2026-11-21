@@ -1,3 +1,4 @@
+import arc.Core;
 import arc.files.Fi;
 import java.util.zip.InflaterInputStream;
 import mindustry.Vars;
@@ -18,7 +19,10 @@ import mindustry.world.blocks.distribution.Sorter;
 /** Runs the touch adapter against the pinned upstream world, unit and build queue. */
 public final class UpstreamBuildControlsReference {
     public static void main(String[] args) throws Exception {
-        if (args.length != 1) throw new IllegalArgumentException("Expected a captured v160.8 WorldStream");
+        if (args.length < 1 || args.length > 2) {
+            throw new IllegalArgumentException("Expected a captured v160.8 WorldStream and optional stock bundle base");
+        }
+        if (args.length == 2) verifyBundles(new Fi(args[1]));
         var fixture = new Fi(args[0]);
         var app = UpstreamWorldLoadProbe.initialize(fixture.parent());
         Vars.mods = new Mods();
@@ -29,6 +33,10 @@ public final class UpstreamBuildControlsReference {
         Vars.net.setClientConnected();
         NetworkIO.loadWorld(new InflaterInputStream(fixture.read()));
         app.runPosted();
+        if (args.length == 2 && (!"Sortierer".equals(Blocks.sorter.localizedName)
+                || !"Kupfer".equals(Items.copper.localizedName))) {
+            throw new AssertionError("Content initialization did not use the selected official bundle");
+        }
 
         var team = Vars.player.team();
         var unit = UnitTypes.gamma.create(team);
@@ -66,6 +74,22 @@ public final class UpstreamBuildControlsReference {
         verifyCatalog(controls, unit);
         verifyConfiguration(controls, unit);
         System.out.println("UPSTREAM_TOUCH_REFERENCE conveyor=85,26,1 wall=86,26 break=86,26");
+    }
+
+    private static void verifyBundles(Fi path) {
+        String[] locales = {"ja", "", "fr", "de", "it", "es", "zh_CN", "ko", "nl", "pt_PT", "ru", "zh_TW"};
+        for (int language = 0; language < locales.length; language++) {
+            var bundle = UpstreamInterfaceLocale.load(path, language);
+            if (!locales[language].equals(bundle.getLocale().toString())) {
+                throw new AssertionError("Stock bundle " + locales[language] + " did not load");
+            }
+        }
+        var english = UpstreamInterfaceLocale.load(path, 1);
+        if (!"Router".equals(english.get("block.router.name")) || !"Copper".equals(english.get("item.copper.name"))) {
+            throw new AssertionError("Expected the original English block and item labels");
+        }
+        Core.bundle = UpstreamInterfaceLocale.load(path, 3);
+        System.out.println("UPSTREAM_INTERFACE_REFERENCE systemLanguages=" + locales.length + " selected=de");
     }
 
     private static void verifyConfiguration(UpstreamLiveBuildControls controls, Unit unit) {
