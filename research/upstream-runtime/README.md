@@ -442,6 +442,14 @@ the converted sample size, the first positional submission, and the
 number of voices started or dropped. A machine without DSP firmware still
 loads the PCM and reports the native routing result.
 
+The [ARM11 build with the shared mixer](https://github.com/levkeveli/Min3DStry/actions/runs/44950022754)
+passed the Glacier replay on both Azahar profiles. Each run loaded 11,510
+PCM bytes, captured the Gamma bolt and its active trail, and delivered
+positional firing requests to the mixer. Azahar entered its no-DSP
+fallback, which recorded 12 drops on Old 3DS and 10 on New 3DS. The same
+ROM passed two consecutive Onset joins on each profile with stock tile
+data CRC32 `3861859253`. Audible playback still needs physical testing.
+
 Run the same verifier with `--controls --model old3ds` and then
 `--controls --model new3ds`. Follow its prompts to move right with the
 D-pad, move up with the Circle Pad, and leave after the next wave.
