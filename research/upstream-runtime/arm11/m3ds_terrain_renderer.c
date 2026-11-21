@@ -13,7 +13,6 @@ typedef struct {
 #include "terrain_layout.h"
 
 static bool romfs_ready;
-static bool session_finished;
 static bool gpu_ready;
 static bool renderer_ready;
 static bool frame_open;
@@ -129,36 +128,6 @@ int32_t m3ds_terrain_end(void) {
     C3D_FrameEnd(0);
     frame_open = false;
     return draws;
-}
-
-int32_t m3ds_terrain_input(void) {
-    if (!aptMainLoop()) {
-        session_finished = true;
-        return -1;
-    }
-    hidScanInput();
-    u32 pressed = hidKeysDown();
-    u32 held = hidKeysHeld() | pressed;
-    if (pressed & KEY_START) {
-        session_finished = true;
-        return -1;
-    }
-    return ((pressed & KEY_A) ? 1 : 0) | ((pressed & KEY_X) ? 2 : 0) |
-           ((pressed & KEY_B) ? 4 : 0) | ((held & KEY_LEFT) ? 8 : 0) |
-           ((held & KEY_RIGHT) ? 16 : 0) | ((held & KEY_DOWN) ? 32 : 0) |
-           ((held & KEY_UP) ? 64 : 0) | ((pressed & KEY_Y) ? 128 : 0);
-}
-
-int64_t m3ds_terrain_clock_ms(void) {
-    return svcGetSystemTick() / (SYSCLOCK_ARM11 / 1000);
-}
-
-void m3ds_terrain_wait(void) {
-    gspWaitForVBlank();
-}
-
-bool m3ds_terrain_session_finished(void) {
-    return session_finished;
 }
 
 void m3ds_terrain_fini(void) {

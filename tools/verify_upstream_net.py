@@ -59,8 +59,14 @@ def main() -> int:
     server_jar = args.server_jar.resolve()
     if not server_jar.is_file():
         raise FileNotFoundError(f"Server JAR not found: {server_jar}")
+    session_driver = (
+        repo_root / "research/upstream-runtime/host/UpstreamNetSessionBaseline.java"
+    )
+    if not session_driver.is_file():
+        raise FileNotFoundError(f"Session baseline driver not found: {session_driver}")
 
     with tempfile.TemporaryDirectory(prefix="min3dstry-net-") as scratch:
+        lz4_dir = Path(scratch) / "lz4"
         proc = subprocess.Popen(
             ["java", "-jar", str(server_jar)],
             cwd=scratch,
@@ -101,6 +107,48 @@ def main() -> int:
             print(bad_line)
             if "status=0 " in bad_line or "udp=1 " not in bad_line:
                 raise AssertionError(f"Expected outdated version rejection, got: {bad_line}")
+
+            session_proc = subprocess.run(
+                [
+                    "java",
+                    "-cp",
+                    str(server_jar),
+                    str(session_driver),
+                    "127.0.0.1",
+                    str(args.port),
+                    "--dump-lz4-dir",
+                    str(lz4_dir),
+                ],
+                text=True,
+                capture_output=True,
+                check=True,
+            )
+            session_out = session_proc.stdout.strip()
+            print(session_out)
+            for token in (
+                f"UPSTREAM_NET_DISCOVERY map={args.map} version=160 vertype=official",
+                "UPSTREAM_NET_MISMATCH build=159 kick=clientOutdated",
+                "UPSTREAM_NET_SESSION run=1 ",
+                "UPSTREAM_NET_SESSION run=2 ",
+                "UPSTREAM_LZ4_PACKET ",
+                "UPSTREAM_NET_PASS sessions=2 mismatch=clientOutdated ",
+            ):
+                if token not in session_out:
+                    raise AssertionError(
+                        f"Missing expected session marker {token!r} in output:\n{session_out}"
+                    )
+
+            decode_line = run_probe(
+                probe_bin,
+                [
+                    "decode-pkt",
+                    str(lz4_dir / "lz4-frame.bin"),
+                    str(lz4_dir / "lz4-expected.bin"),
+                ],
+            )
+            print(decode_line)
+            if not decode_line.startswith("DECODE_PKT_OK ") or "compression=1 " not in decode_line:
+                raise AssertionError(f"Unexpected C11 LZ4 cross-check result: {decode_line}")
 
             proc.stdin.write("exit\n")
             proc.stdin.flush()
