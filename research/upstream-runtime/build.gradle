@@ -532,7 +532,7 @@ teavm {
     if (usesExecutor) {
         c { obfuscated = false }
     }
-    if (usesSimulation) {
+    if (usesSimulation || usesLiveNetwork) {
         c { maxHeapSize = 24 }
     }
 }
