@@ -950,6 +950,17 @@ and the ARM11 clients received the stock core inventory updates. Moving
 outside the original unit's mining range cleared the server target and
 left stable balances of 148 copper on Original 3DS and 149 on New 3DS.
 
+### Live campaign objectives
+
+The live client routes the v160.8 set, clear, and complete objective
+packets to their original generated client handlers. The stock game
+updates the objective graph, flags, and completion logic.
+
+The pinned JVM snapshot reference round-trips all three generated
+packets. It checks that the 60-beryllium objective survives the set
+message, that its dependent research objective becomes eligible after
+completion, and that clearing the executor removes the objectives.
+
 ### Verify the Arc executor pools
 
 Use `-Pprobe=executor` with the JVM and ARM11 build commands. The JVM uses the
