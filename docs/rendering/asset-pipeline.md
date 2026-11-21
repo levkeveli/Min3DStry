@@ -31,11 +31,13 @@ Multiplayer asset preparation also imports all four source images into
 2,048 uncompressed 128 × 128 RGBA8 tiles. Coordinates in the Arc atlas
 still address the same image and pixel positions. The Citro2D backend
 can draw a rectangle that crosses backing tiles with the original
-pivot, rotation, tint and layer order. The Core Nucleus and
+pivot, signed scale, rotation, tint and layer order. The Core Nucleus and
 team overlay use this path in the live Glacier probe.
 
 The world cache holds at most 24 backing textures, or 1.5 MiB of texels.
-When pending draws occupy every slot, the renderer submits them to the
+The runtime allocates both screen outputs first and retains room in the
+linear heap for six menu icons. When pending draws occupy every
+available slot, the renderer submits them to the
 same framebuffer and waits for the GPU before reusing a texture. Only
 the final submission presents the completed frame. The compact sheet
 continues to supply the other frequently used Glacier regions. The
@@ -65,7 +67,7 @@ With the cache reduced to three slots at compile time
 also passed on both profiles. Run the live verifier with `--world-atlas`
 and `--world-atlas-recycle` to require the GPU submission and recycling
 event at spawn and check the original seam pixels. The default
-executable retains 24 slots. On each profile, all 8,328 pixels in
+executable allows up to 24 slots. On each profile, all 8,328 pixels in
 the Core Nucleus crop outside the player unit area matched the earlier
 build.
 
