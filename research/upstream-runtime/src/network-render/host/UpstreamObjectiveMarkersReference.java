@@ -32,21 +32,24 @@ public final class UpstreamObjectiveMarkersReference implements UpstreamTerrainD
         target.verify(0, 2320, 868, "from walls.");
         Vars.state.rules.objectives.get(0).done();
         target.verify(1, 2312, 957.8f, "on the vent.");
-        System.out.println("UPSTREAM_WORLD_MARKER_REFERENCE onset=mine,research worldText=ok shapes=ok");
+        for (int i = 1; i <= 3; i++) Vars.state.rules.objectives.get(i).done();
+        target.verify(4, 2280, 864, "ducts");
+        System.out.println("UPSTREAM_WORLD_MARKER_REFERENCE onset=mine,research,ducts worldText=ok shapes=ok");
     }
 
     private void verify(int index, float x, float y, String words) {
         labels.clear();
         quads = 0;
         var rules = Vars.state.rules;
-        var marker = (ShapeTextMarker) rules.objectives.get(index).markers[0];
+        var marker = rules.objectives.get(index).markers[0];
         UpstreamObjectiveMarkers.draw(rules, 2.5f,
             (text, tx, ty, flags, size, align, lines) -> labels.add(new Label(text, tx, ty, flags, size, align, lines)));
-        if (quads != 2 * marker.sides || labels.size() != 1) {
+        int expectedQuads = marker instanceof ShapeTextMarker shape ? 2 * shape.sides : 0;
+        if (quads != expectedQuads || labels.size() != 1) {
             throw new AssertionError("Incorrect shapes or active labels: " + quads + " / " + labels);
         }
         var label = labels.get(0);
-        if (label.x != x || label.y != y || label.size != marker.fontSize
+        if (label.x != x || label.y != y || label.size != 1f
                 || label.flags != (WorldLabel.flagBackground | WorldLabel.flagOutline)
                 || label.align != Align.center || label.lineAlign != Align.center
                 || !label.text.contains(words) || label.text.contains("[accent]")) {

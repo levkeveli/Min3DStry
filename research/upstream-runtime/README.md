@@ -997,6 +997,26 @@ passed this check on both Original and New 3DS Azahar profiles. Both
 displayed the original Beryllium and Turbine Condenser icons and matched
 the server's objective completion and flag count.
 
+### Onset tutorial markers in world space
+
+The live viewport calls the pinned `ShapeTextMarker.draw` and
+`TextMarker.draw` for the objectives selected by the stock executor.
+The renderer preserves the original Arc shapes, world anchors, world
+visibility, localization lookup, layer, and zoom scaling. A staging
+adapter redirects those two classes' `WorldLabel.drawAt` calls to
+Citro2D. The port uses system-font text with a shadow and the stock
+background flag. The original glyph art, styled spans, lighting,
+minimap markers and the other marker types require further renderer
+support.
+
+Run `runObjectiveMarkersJvm` under `-Pprobe=network-render` with the
+original `maps/erekir/onset.msav` from the release JAR, `sprites.aatls`,
+and the official `bundle` base. It checks the mining and research shapes
+and labels and the later ducts text marker from the actual map.
+Add `--verify-objective-markers` to the stationary objective HUD
+verifier to use stock position corrections to frame the world markers
+before and after the beryllium objective transition.
+
 ### Verify the Arc executor pools
 
 Use `-Pprobe=executor` with the JVM and ARM11 build commands. The JVM uses the
