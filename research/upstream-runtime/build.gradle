@@ -15,6 +15,7 @@ def pathfinderSource = 'core/src/mindustry/ai/Pathfinder.java'
 def annotationsSource = 'annotations/src/main/java/mindustry/annotations/Annotations.java'
 def arcRevision = '7445105cd2683daf5b9ac7033ebb07265d3e814d'
 def fileSource = 'arc-core/src/arc/files/Fi.java'
+def soundSource = 'arc-core/src/arc/audio/Sound.java'
 def osSource = 'arc-core/src/arc/util/OS.java'
 def networkIoSource = 'core/src/mindustry/net/NetworkIO.java'
 def netClientSource = 'core/src/mindustry/core/NetClient.java'
@@ -392,6 +393,7 @@ tasks.register('prepareUpstreamProbe') {
         outputs.files(contentColorsFile, globalLogicFile)
         outputs.file(sourceDir.map { it.file(coreWorldSource) })
         outputs.file(sourceDir.map { it.file(bulletTypeSource) })
+        outputs.file(sourceDir.map { it.file('arc/audio/Sound.java') })
         outputs.file(sourceDir.map { it.file(logicExecutorSource) })
         logicDisplaySources.each { outputs.file(sourceDir.map { dir -> dir.file(it) }) }
         shieldModeSources.keySet().each { outputs.file(sourceDir.map { dir -> dir.file(it) }) }
@@ -404,6 +406,29 @@ tasks.register('prepareUpstreamProbe') {
     }
     doLast {
         if (probe == 'network-render') {
+            def sound = new String(providers.exec {
+                commandLine 'git', '-C', arc.get(), 'show', "${arcRevision}:${soundSource}"
+            }.standardOutput.asBytes.get(), 'UTF-8')
+            def audioChanges = [
+                '!Core.audio.initialized || currentlyLoading': '!Core.audio.initialized() || currentlyLoading',
+                'if(handle == 0 || bus == null) return -1;': 'if(!valid() || bus == null) return -1;',
+                'return lastVoice = sourcePlayBus(handle, bus.handle,': 'return lastVoice = playSource(bus,',
+                '    public int play(float volume, float pitch, float pan, boolean loop, boolean checkFrame){':
+                    '''    protected int playSource(AudioBus bus, float volume, float pitch, float pan, boolean loop){
+        return sourcePlayBus(handle, bus.handle, volume, pitch, pan, loop);
+    }
+
+    public int play(float volume, float pitch, float pan, boolean loop, boolean checkFrame){'''
+            ]
+            audioChanges.each { original, replacement ->
+                if (sound.count(original) != 1) throw new GradleException('Pinned Arc audio dispatch changed')
+                sound = sound.replace(original, replacement)
+            }
+            def headlessAudio = 'if(Core.app.isHeadless())'
+            if (sound.count(headlessAudio) != 2) throw new GradleException('Pinned Arc positional audio changed')
+            def adaptedSound = sourceDir.get().file('arc/audio/Sound.java').asFile
+            adaptedSound.parentFile.mkdirs()
+            adaptedSound.setText(sound.replace(headlessAudio, 'if(Core.app.isHeadless() && Core.camera == null)'), 'UTF-8')
             def globalLogic = new String(readUpstream(globalLogicSource), 'UTF-8')
             def logicChanges = [
                 'import arc.*;': 'import port.logic.UpstreamClientLogic;\n\nimport arc.*;',

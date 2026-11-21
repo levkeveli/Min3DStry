@@ -427,6 +427,19 @@ The same ROM also passed two consecutive Onset joins on each profile,
 matching the stock server's CRC32 `3861859253` for all 262,144 tile data
 bytes on both joins.
 
+Pass `--live-audio` to `arm11/prepare_terrain_assets.py` along with its
+multiplayer inputs. The packer verifies the original `shootAlpha.ogg` in
+the pinned desktop JAR and uses the existing PCM converter to stage it with
+a hash manifest. The live client binds the sample to the original
+`Sounds.shootAlpha` field before loading weapons and uses Arc's gain, pan
+and pitch through the existing NDSP mixer. Other assets continue through
+the current headless audio path.
+
+Add `--verify-live-audio` to the Glacier weapon replay. Its report includes
+the converted sample size, the first positional submission, and the
+number of voices started or dropped. A machine without DSP firmware still
+loads the PCM and reports the native routing result.
+
 Run the same verifier with `--controls --model old3ds` and then
 `--controls --model new3ds`. Follow its prompts to move right with the
 D-pad, move up with the Circle Pad, and leave after the next wave.

@@ -22,6 +22,10 @@ DESKTOP_SHA256 = "6dd6da921d5021a84823456e05b477ee8de8511990d40de850b37dd0905152
 STOCK_TEXT_ASSETS = (
     "fonts/font.woff", "fonts/font_jp.woff", "fonts/icon.ttf", "icons/icons.properties",
 )
+LIVE_AUDIO_MAP = Path(__file__).with_name("live-audio-map.json")
+SHOOT_ALPHA_SHA256 = "76840dcc64d50b3daeeef91da77a4fb85eacb4bd6387611885892e0b1d8ee8b0"
+sys.path.insert(0, str(CONVERTER.parent))
+from build_audio_assets import convert_map
 
 
 def write_layout(staged: Path, regions: tuple[str, ...]) -> None:
@@ -68,6 +72,19 @@ def pack_stock_text_assets(archive: zipfile.ZipFile, staged: Path) -> None:
         destination.write_bytes(archive.read("assets/" + name))
 
 
+def pack_live_audio(desktop: Path, staged: Path, scratch: Path, ffmpeg: str) -> None:
+    source = "sounds/shoot/shootAlpha.ogg"
+    with zipfile.ZipFile(desktop) as archive:
+        clip = archive.read(source)
+    if hashlib.sha256(clip).hexdigest() != SHOOT_ALPHA_SHA256:
+        raise ValueError("The upstream shootAlpha sound does not match the pinned source")
+    upstream = scratch / "upstream"
+    original = upstream / "core/assets" / source
+    original.parent.mkdir(parents=True)
+    original.write_bytes(clip)
+    convert_map(upstream, LIVE_AUDIO_MAP, scratch / "pcm", ffmpeg, romfs_out=staged)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--assets", type=Path, required=True)
@@ -77,7 +94,11 @@ def main() -> None:
     parser.add_argument("--java", default="java")
     parser.add_argument("--tex3ds", default="tex3ds")
     parser.add_argument("--multiplayer", action="store_true", help="pack Glacier and upstream multiplayer unit sprites")
+    parser.add_argument("--live-audio", action="store_true", help="also pack the pinned live weapon sound")
+    parser.add_argument("--ffmpeg", default="ffmpeg")
     args = parser.parse_args()
+    if args.live_audio and not args.multiplayer:
+        parser.error("--live-audio requires --multiplayer")
     if args.multiplayer:
         if args.desktop is None or not args.desktop.is_file():
             parser.error("--multiplayer requires the pinned desktop JAR via --desktop")
@@ -121,6 +142,8 @@ def main() -> None:
                             str(staged / "logic-font.dat")], check=True)
             if not (bundles / "bundle.properties").is_file():
                 raise ValueError("The official archive is missing its root translation bundle")
+            if args.live_audio:
+                pack_live_audio(args.desktop, staged, Path(tmp) / "live-audio", args.ffmpeg)
         staged.rename(output)
 
 

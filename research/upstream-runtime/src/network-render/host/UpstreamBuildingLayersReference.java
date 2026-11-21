@@ -7,8 +7,11 @@ import port.render.UpstreamLogicFramebuffer;
 import port.render.UpstreamLogicFramebuffer.RasterTexture;
 import port.logic.UpstreamClientLogic;
 import arc.Core;
+import arc.audio.AudioBus;
+import arc.audio.Sound;
 import arc.files.Fi;
 import arc.graphics.Blending;
+import arc.graphics.Camera;
 import arc.graphics.Color;
 import arc.graphics.g2d.Draw;
 import arc.graphics.g2d.Fill;
@@ -151,6 +154,30 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         if (args.length >= 5) verifyClientProcessor(new Fi(args[4]), viewer);
         if (args.length == 7) target.verifyLogicDisplay(new Fi(args[5]), new Fi(args[6]), viewer);
         target.verifyGammaProjectiles(viewport, viewer);
+        verifyPositionalAudioDispatch();
+    }
+
+    private static void verifyPositionalAudioDispatch() {
+        Core.audio = new MockAudio() {
+            @Override public boolean initialized() { return true; }
+        };
+        Core.audio.sfxVolume = 0.8f;
+        Core.camera = new Camera();
+        Core.camera.width = 128f;
+        var sample = new Sound() {
+            @Override public boolean valid() { return true; }
+
+            @Override
+            protected int playSource(AudioBus bus, float volume, float pitch, float pan, boolean loop) {
+                if (bus != Core.audio.soundBus || Math.abs(volume - 0.4f) > 0.001f || pitch != 1.2f
+                        || pan != 0.5f || loop) {
+                    throw new AssertionError("Arc did not preserve the original positional audio parameters");
+                }
+                return 23;
+            }
+        };
+        if (sample.at(32f, 0f, 1.2f, 0.5f) != 23) throw new AssertionError("Arc did not return the backend voice");
+        System.out.println("UPSTREAM_LIVE_AUDIO_REFERENCE volume=0.4 pitch=1.2 pan=0.5 voice=23");
     }
 
     private void verifyGammaProjectiles(UpstreamTerrainDrawProbe.Viewport viewport, Team viewer) {

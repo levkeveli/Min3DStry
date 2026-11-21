@@ -122,7 +122,7 @@ public final class UpstreamLiveNetworkProbe {
             Vars.mods = new Mods();
             Vars.universe = new Universe();
             if (frame != null) {
-                Core.audio = new MockAudio();
+                if (Core.audio == null) Core.audio = new MockAudio();
                 Vars.indexer = new BlockIndexer();
                 Vars.pathfinder = new Pathfinder();
                 Vars.fogControl = new FogControl();

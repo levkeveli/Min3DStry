@@ -1578,6 +1578,24 @@ def capture_gamma_projectile(log, emulator, rpc, output, model, timeout):
     raise RuntimeError(f"{model} did not display the original Gamma bolt color east of the player")
 
 
+def verify_live_weapon_audio(log, model):
+    opened = re.search(r"UPSTREAM_LIVE_AUDIO_OPEN asset=ok pcmBytes=([1-9]\d*) "
+                       r"state=(ready|fallback_no_dsp) rc=0x[0-9a-f]+", log)
+    played = re.search(rf"UPSTREAM_LIVE_AUDIO_PLAY id=shoot\.alpha volume=({NUMBER}) "
+                       rf"pitch=({NUMBER}) pan=({NUMBER}) voice=(\d+)", log)
+    closed = re.search(r"UPSTREAM_LIVE_AUDIO_CLOSE requests=([1-9]\d*) started=(\d+) dropped=(\d+)", log)
+    if not opened or not played or not closed:
+        raise RuntimeError(f"{model} did not load, submit and close the stock Gamma sound")
+    volume, pitch, pan = map(float, played.groups()[:3])
+    ready = opened[2] == "ready"
+    requests, started, dropped = map(int, closed.groups())
+    if (not 0 < volume <= 1 or not 0 < pitch <= 10 or not 0 < abs(pan) <= 0.9
+            or ready != (int(played[4]) > 0) or ready != (started > 0)
+            or requests != started + dropped):
+        raise RuntimeError(f"{model} native sound report is inconsistent: {opened[0]}, {played[0]}, {closed[0]}")
+    print(f"{model}: {opened[0]}; {played[0]}; {closed[0]}", flush=True)
+
+
 def run_model(args, model, config, original_config, log, output):
     graphical_movement = bool(args.controls_replay and args.terrain_atlas and not (
         args.verify_weapons or args.building or args.touch_build or args.touch_config
@@ -1773,6 +1791,9 @@ def run_model(args, model, config, original_config, log, output):
                         if not states or states[-1] != ("0", "0"):
                             raise RuntimeError(f"{model} did not clear its local projectiles after release")
                         print(f"{model}: the stock bolt appeared in the captured viewport and cleared.", flush=True)
+                    if args.verify_live_audio:
+                        audio_log = wait_for(log, emulator, r"UPSTREAM_LIVE_AUDIO_CLOSE requests=\d+", args.timeout)
+                        verify_live_weapon_audio(audio_log, model)
                 elif args.controls:
                     def capture(phase, position):
                         if args.world_atlas_recycle and phase == "spawn":
@@ -2069,6 +2090,8 @@ def main():
                         help="Verify the original player fires east and north and releases on Glacier")
     parser.add_argument("--verify-projectiles", action="store_true",
                         help="Also verify the original Gamma bolt appears on the handheld viewport and clears")
+    parser.add_argument("--verify-live-audio", action="store_true",
+                        help="Check stock Gamma firing sound reaches the ARM11 audio mixer")
     args = parser.parse_args()
     if args.controls_rejoin and (not args.controls or args.controls_replay or not args.terrain_atlas
                                  or args.map_spawn not in MAP_SPAWN_PIXELS or args.verify_objective_markers
@@ -2089,6 +2112,8 @@ def main():
         parser.error("--verify-weapons needs a standalone --controls --controls-replay on Glacier")
     if args.verify_projectiles and (not args.verify_weapons or not args.terrain_atlas):
         parser.error("--verify-projectiles needs --verify-weapons and --terrain-atlas on Glacier")
+    if args.verify_live_audio and (not args.verify_weapons or not args.terrain_atlas):
+        parser.error("--verify-live-audio needs --verify-weapons and --terrain-atlas on Glacier")
     if args.building and not args.terrain_atlas:
         parser.error("--building needs --terrain-atlas")
     if args.touch_build and not args.terrain_atlas:

@@ -11,6 +11,7 @@ typedef struct MockVoiceState {
     int clip_id;
     float gain_left;
     float gain_right;
+    float pitch;
     bool looping;
 } MockVoiceState;
 
@@ -77,6 +78,7 @@ static bool mock_voice_start(
     const M3dsAudioClipDesc *desc,
     float gain_left,
     float gain_right,
+    float pitch,
     bool looping) {
     MockAudioCtx *ctx = (MockAudioCtx *)raw;
     (void)desc;
@@ -86,6 +88,7 @@ static bool mock_voice_start(
     ctx->voices[channel].clip_id = clip_id;
     ctx->voices[channel].gain_left = gain_left;
     ctx->voices[channel].gain_right = gain_right;
+    ctx->voices[channel].pitch = pitch;
     ctx->voices[channel].looping = looping;
     return true;
 }
@@ -287,14 +290,21 @@ static void test_pan_bus_mute_and_pause(void) {
     assert(v0 != M3DS_AUDIO_INVALID_VOICE);
     assert(float_near(ctx.voices[0].gain_left, 0.8f));
     assert(float_near(ctx.voices[0].gain_right, 0.0f));
+    assert(float_near(ctx.voices[0].pitch, 1.0f));
 
     M3dsAudioPlayParams p_right = m3ds_audio_default_play_params(M3DS_AUDIO_BUS_SFX);
     p_right.volume = 1.0f;
     p_right.pan = 0.5f;
+    p_right.pitch = 1.2f;
     uint32_t v1 = m3ds_audio_mixer_play(&mixer, clip, &p_right);
     assert(v1 != M3DS_AUDIO_INVALID_VOICE);
     assert(float_near(ctx.voices[1].gain_left, 0.5f));
     assert(float_near(ctx.voices[1].gain_right, 1.0f));
+    assert(float_near(ctx.voices[1].pitch, 1.2f));
+    m3ds_audio_mixer_set_voice_mix(&mixer, v1, -0.5f, 0.5f);
+    assert(float_near(ctx.voices[1].gain_left, 0.5f));
+    assert(float_near(ctx.voices[1].gain_right, 0.25f));
+    m3ds_audio_mixer_set_voice_mix(&mixer, v1, p_right.pan, p_right.volume);
 
     M3dsAudioPlayParams p_music = m3ds_audio_default_play_params(M3DS_AUDIO_BUS_MUSIC);
     assert(p_music.looping);

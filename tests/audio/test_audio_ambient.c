@@ -74,10 +74,12 @@ static bool mock_voice_start(
     const M3dsAudioClipDesc *desc,
     float gain_left,
     float gain_right,
+    float pitch,
     bool looping) {
     MockCtx *ctx = (MockCtx *)raw;
     (void)gain_left;
     (void)gain_right;
+    (void)pitch;
     if (!desc || !desc->samples) {
         return false;
     }

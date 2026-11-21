@@ -136,6 +136,7 @@ static bool m3ds_ndsp_voice_start_cb(
     const M3dsAudioClipDesc *desc,
     float gain_left,
     float gain_right,
+    float pitch,
     bool looping) {
     M3dsNdspContext *ctx = (M3dsNdspContext *)raw_ctx;
     if (!ctx || !ctx->ndsp_ready || !desc ||
@@ -150,7 +151,7 @@ static bool m3ds_ndsp_voice_start_cb(
     ndspChnReset(ch);
     ndspChnInitParams(ch);
     ndspChnSetInterp(ch, NDSP_INTERP_LINEAR);
-    ndspChnSetRate(ch, (float)desc->sample_rate);
+    ndspChnSetRate(ch, (float)desc->sample_rate * pitch);
     ndspChnSetFormat(
         ch,
         desc->channels == 2u ? NDSP_FORMAT_STEREO_PCM16 : NDSP_FORMAT_MONO_PCM16);

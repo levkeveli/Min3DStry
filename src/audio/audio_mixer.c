@@ -235,6 +235,7 @@ M3dsAudioPlayParams m3ds_audio_default_play_params(M3dsAudioBus bus) {
     params.bus = normalized_bus;
     params.volume = 1.0f;
     params.pan = 0.0f;
+    params.pitch = 1.0f;
     params.priority = (normalized_bus == M3DS_AUDIO_BUS_MUSIC) ? 200u : 100u;
     params.looping = (normalized_bus == M3DS_AUDIO_BUS_MUSIC);
     return params;
@@ -262,6 +263,8 @@ uint32_t m3ds_audio_mixer_play(
     }
     resolved.volume = m3ds_clamp_float(resolved.volume, 0.0f, 1.0f);
     resolved.pan = m3ds_clamp_float(resolved.pan, -1.0f, 1.0f);
+    if (!(resolved.pitch > 0.0f)) resolved.pitch = 1.0f;
+    resolved.pitch = m3ds_clamp_float(resolved.pitch, 0.0001f, 10.0f);
 
     int target_ch = -1;
     for (uint32_t ch = 0u; ch < M3DS_AUDIO_MAX_VOICES; ++ch) {
@@ -308,6 +311,7 @@ uint32_t m3ds_audio_mixer_play(
             &mixer->clips[clip_id].desc,
             gain_left,
             gain_right,
+            resolved.pitch,
             resolved.looping)) {
         mixer->stats.total_dropped += 1u;
         return M3DS_AUDIO_INVALID_VOICE;
@@ -344,6 +348,21 @@ void m3ds_audio_mixer_stop(M3dsAudioMixer *mixer, uint32_t voice_handle) {
             m3ds_stop_voice_channel(mixer, ch);
             return;
         }
+    }
+}
+
+void m3ds_audio_mixer_set_voice_mix(
+    M3dsAudioMixer *mixer, uint32_t voice_handle, float pan, float volume) {
+    if (!mixer || !mixer->backend.voice_set_mix) return;
+    for (uint32_t ch = 0u; ch < M3DS_AUDIO_MAX_VOICES; ++ch) {
+        M3dsAudioVoiceSlot *voice = &mixer->voices[ch];
+        if (!voice->active || voice->handle != voice_handle) continue;
+        voice->params.pan = m3ds_clamp_float(pan, -1.0f, 1.0f);
+        voice->params.volume = m3ds_clamp_float(volume, 0.0f, 1.0f);
+        float left, right;
+        m3ds_compute_voice_gains(mixer, &voice->params, &left, &right);
+        mixer->backend.voice_set_mix(mixer->backend.ctx, ch, left, right);
+        return;
     }
 }
 

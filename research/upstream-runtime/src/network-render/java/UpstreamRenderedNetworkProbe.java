@@ -6,6 +6,7 @@ import port.render.UpstreamLogicFramebuffer;
 import port.render.UpstreamWorldLabel;
 import port.logic.UpstreamClientLogic;
 import port.world.DarknessScratch;
+import port.audio.Arm11Audio;
 import port.render.UpstreamLabelText;
 import arc.Core;
 import arc.files.Fi;
@@ -87,7 +88,12 @@ public final class UpstreamRenderedNetworkProbe {
             + (locale.getLanguage().isEmpty() ? "en" : locale) + " router=" + Core.bundle.get("block.router.name")
             + " copper=" + Core.bundle.get("item.copper.name"));
         CacheLayer.init();
-        UpstreamLiveNetworkProbe.run(endpoint, view::prepareClient, view::worldLoaded, view::render, view.buildingControls);
+        Arm11Audio.open();
+        try {
+            UpstreamLiveNetworkProbe.run(endpoint, view::prepareClient, view::worldLoaded, view::render, view.buildingControls);
+        } finally {
+            Arm11Audio.close();
+        }
     }
 
     private void prepareClient() {
@@ -106,6 +112,7 @@ public final class UpstreamRenderedNetworkProbe {
     }
 
     private void worldLoaded() {
+        Arm11Audio.reset();
         if (viewport == null) loadGraphics();
         previousVisualFrame = 0;
         projectilesVisible = false;
@@ -180,6 +187,10 @@ public final class UpstreamRenderedNetworkProbe {
         float y = unit == null ? Vars.player.y() : unit.y();
         viewport.moveTo(World.toTile(x) - UpstreamTerrainDrawProbe.VIEW_WIDTH / 2,
                         World.toTile(y) - UpstreamTerrainDrawProbe.VIEW_HEIGHT / 2);
+        float width = UpstreamTerrainDrawProbe.VIEW_WIDTH * Vars.tilesize;
+        float height = UpstreamTerrainDrawProbe.VIEW_HEIGHT * Vars.tilesize;
+        Arm11Audio.updateCamera((viewport.left - 0.5f) * Vars.tilesize + width / 2f,
+            (viewport.bottom - 0.5f) * Vars.tilesize + height / 2f, width, height);
         advanceVisualState();
         draws = 0;
         viewport.draw(drawEntities);

@@ -36,6 +36,7 @@ typedef struct M3dsAudioPlayParams {
     M3dsAudioBus bus;
     float volume;
     float pan;
+    float pitch;
     uint8_t priority;
     bool looping;
 } M3dsAudioPlayParams;
@@ -66,6 +67,7 @@ typedef struct M3dsAudioBackend {
         const M3dsAudioClipDesc *desc,
         float gain_left,
         float gain_right,
+        float pitch,
         bool looping);
     void (*voice_set_mix)(
         void *ctx,
@@ -126,6 +128,8 @@ uint32_t m3ds_audio_mixer_play(
     int clip_id,
     const M3dsAudioPlayParams *params);
 void m3ds_audio_mixer_stop(M3dsAudioMixer *mixer, uint32_t voice_handle);
+void m3ds_audio_mixer_set_voice_mix(
+    M3dsAudioMixer *mixer, uint32_t voice_handle, float pan, float volume);
 void m3ds_audio_mixer_stop_bus(M3dsAudioMixer *mixer, M3dsAudioBus bus);
 void m3ds_audio_mixer_stop_all(M3dsAudioMixer *mixer);
 
