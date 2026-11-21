@@ -1,7 +1,8 @@
 # Pause menu HUD prototype
 
-Status: **Experimental** (`host-tested`; 3DS build/emulator boot verified with the
-menu closed; menu interaction screenshots pending automated input injection).
+Status: **Emulator-tested prototype** (host tests plus Azahar `2126.2` New and
+Original 3DS boot; menu interaction screenshots and full upstream menu art
+remain pending).
 
 Issue: [#40](https://github.com/levkeveli/Min3DStry/issues/40)  
 Capability: `hud-menus-minimap`.
