@@ -352,7 +352,7 @@ def verify_onset_objective_hud(log, emulator, server_log, server, capture, posit
     print("The objective HUD displayed the stock inventory progress and Turbine Condenser objective.", flush=True)
 
 
-def capture_onset_marker(log, emulator, server, rpc, output, model, phase, x, y, label_y, words):
+def capture_onset_marker(log, emulator, server, rpc, output, model, require_stock_font, phase, x, y, label_y, words):
     # Use the stock server correction RPC to frame each marker without changing its coordinates.
     server.stdin.write(
         f'js (() => {{ const p = Groups.player.find(boolf(v => String(v.name) === "{PLAYER}")); '
@@ -363,6 +363,8 @@ def capture_onset_marker(log, emulator, server, rpc, output, model, phase, x, y,
     marker_y = re.escape(f"{label_y:.1f}")
     trace = rf"UPSTREAM_WORLD_LABEL x={x}\.0 y={marker_y} text=[^\r\n]*{re.escape(words)}"
     wait_for(log, emulator, trace, 12)
+    if require_stock_font:
+        wait_for(log, emulator, rf"UPSTREAM_WORLD_LABEL_FONT x={x}\.0 y={marker_y} source=v160\.8\b", 5)
     destination = output / f"{model}-marker-{phase}.png"
     # Both stock shapes use the same outline color. Inspect the area below the label.
     area = tuple((sx, sy) for sx in range(124, 299) for sy in range(100, 235))
@@ -1304,7 +1306,8 @@ def run_model(args, model, config, original_config, log, output):
                                           args.mining, mine_item, args.verify_objectives)
                         if args.verify_objective_hud:
                             def capture_marker(*marker):
-                                capture_onset_marker(log, emulator, server, rpc, output, model, *marker)
+                                capture_onset_marker(log, emulator, server, rpc, output, model,
+                                                     args.verify_stock_font, *marker)
                             verify_onset_objective_hud(log, emulator, server_log, server, capture, spawn,
                                                        capture_marker if args.verify_objective_markers else None)
                         if args.building_effects:
@@ -1481,6 +1484,8 @@ def main():
                         help="Verify the rendered Onset objective labels as the stock progress changes")
     parser.add_argument("--verify-objective-markers", action="store_true",
                         help="Verify the original Onset mining and research directions in world space")
+    parser.add_argument("--verify-stock-font", action="store_true",
+                        help="Require original font rendering for the Onset world markers")
     parser.add_argument("--require-relocation-spill", action="store_true",
                         help="Require the ARM11 collector to grow its relocation table during the spawn check")
     args = parser.parse_args()
@@ -1546,6 +1551,8 @@ def main():
                      '--erekir-sector onset and --locale en')
     if args.verify_objective_markers and not args.verify_objective_hud:
         parser.error("--verify-objective-markers needs --verify-objective-hud")
+    if args.verify_stock_font and not args.verify_objective_markers:
+        parser.error("--verify-stock-font needs --verify-objective-markers")
     if args.erekir_sector is not None:
         if not args.map_spawn or not re.fullmatch(r"[a-z][a-z-]*", args.erekir_sector):
             parser.error("--erekir-sector needs --map-spawn and a sector slug such as onset")

@@ -80,6 +80,8 @@ public final class UpstreamRenderedNetworkProbe {
         loadUnitGraphics();
         viewport = UpstreamTerrainDrawProbe.liveViewport(target);
         target.initialize();
+        boolean stock = target.loadStockFont(locale.getLanguage().equals("ja"));
+        System.out.println("UPSTREAM_INTERFACE_FONT source=" + (stock ? "v160.8" : "system"));
         System.out.println("UPSTREAM_INTERFACE_GRAPHICS ready");
     }
 
@@ -210,8 +212,10 @@ public final class UpstreamRenderedNetworkProbe {
     }
 
     private void drawWorldLabel(String text, float x, float y, int flags, float size, int align, int lineAlign) {
-        if (target.drawWorldLabel(text, x, y, flags, size, align, lineAlign) && reportedWorldLabels.add(text)) {
+        int font = target.drawWorldLabel(text, x, y, flags, size, align, lineAlign);
+        if (font != 0 && reportedWorldLabels.add(text)) {
             System.out.println("UPSTREAM_WORLD_LABEL x=" + x + " y=" + y + " text=" + text.replace('\n', '|'));
+            if (font == 2) System.out.println("UPSTREAM_WORLD_LABEL_FONT x=" + x + " y=" + y + " source=v160.8");
         }
     }
 

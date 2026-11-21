@@ -29,6 +29,10 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
         return NativeTerrain.systemLanguage();
     }
 
+    boolean loadStockFont(boolean japanese) {
+        return NativeTerrain.loadStockFont(japanese ? 1 : 0) != 0;
+    }
+
     void buildLabels(byte[] labels) {
         if (NativeTerrain.buildLabels(Address.ofData(labels)) == 0) {
             throw new IllegalStateException("Unable to create the Citro2D label buffer");
@@ -55,12 +59,12 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
             icon.getX(), icon.getY(), icon.width, icon.height, y);
     }
 
-    boolean drawWorldLabel(String label, float x, float y, int flags, float size, int align, int lineAlign) {
+    int drawWorldLabel(String label, float x, float y, int flags, float size, int align, int lineAlign) {
         int horizontal = Align.isLeft(align) ? -1 : Align.isRight(align) ? 1 : 0;
         int vertical = Align.isTop(align) ? -1 : Align.isBottom(align) ? 1 : 0;
         int lines = Align.isLeft(lineAlign) ? -1 : Align.isRight(lineAlign) ? 1 : 0;
         byte[] text = (label + "\0").getBytes(StandardCharsets.UTF_8);
-        return NativeTerrain.drawWorldLabel(Address.ofData(text), x, y, flags, size, horizontal, vertical, lines) != 0;
+        return NativeTerrain.drawWorldLabel(Address.ofData(text), x, y, flags, size, horizontal, vertical, lines);
     }
 
     @Override
@@ -110,6 +114,9 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
 
         @Import(name = "m3ds_terrain_mount_assets")
         static native int mountAssets();
+
+        @Import(name = "m3ds_terrain_load_stock_font")
+        static native int loadStockFont(int japanese);
 
         @Import(name = "m3ds_terrain_system_language")
         static native int systemLanguage();
