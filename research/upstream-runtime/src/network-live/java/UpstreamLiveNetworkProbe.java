@@ -47,6 +47,7 @@ import mindustry.gen.Mechc;
 import mindustry.gen.Player;
 import mindustry.gen.RemoveQueueBlockCallPacket;
 import mindustry.gen.SetObjectivesCallPacket;
+import mindustry.gen.SetPositionCallPacket;
 import mindustry.gen.StateSnapshotCallPacket;
 import mindustry.gen.TileConfigCallPacket;
 import mindustry.gen.Unit;
@@ -425,6 +426,8 @@ public final class UpstreamLiveNetworkProbe {
                 logObjectiveCompletion(completion.index);
             } else if (id == unsignedId(ClearObjectivesCallPacket.class)) {
                 decode(new ClearObjectivesCallPacket(), received).handleClient();
+            } else if (id == unsignedId(SetPositionCallPacket.class)) {
+                decode(new SetPositionCallPacket(), received).handleClient();
             } else if (id == unsignedId(SetObjectivesCallPacket.class)) {
                 decode(new SetObjectivesCallPacket(), received).handleClient();
             } else if (frame != null) {

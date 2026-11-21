@@ -154,7 +154,8 @@ def stageRenderedBuilding
 if (probe == 'network-render') {
     def asm = configurations.detachedConfiguration(dependencies.create('org.ow2.asm:asm-tree:9.9'))
     def adapter = tasks.register('compileBuildingCrackAdapter', JavaCompile) {
-        source files('tools/StageBuildingCrackAdapter.java', 'tools/StageNavalWakeAdapter.java')
+        source files('tools/StageBuildingCrackAdapter.java', 'tools/StageNavalWakeAdapter.java',
+                     'tools/StageObjectiveLabelAdapter.java')
         classpath = asm
         destinationDirectory = layout.buildDirectory.dir('building-renderer-tool')
     }
@@ -197,6 +198,9 @@ if (usesArcSources || usesExecutor) {
     }
     if (stageRenderedBuilding != null) {
         stagedClasses.addAll(['mindustry/gen/Building.class', 'mindustry/gen/UnitWaterMove.class',
+                              'mindustry/game/MapObjectives$ObjectiveMarker.class',
+                              'mindustry/game/MapObjectives$ShapeTextMarker.class',
+                              'mindustry/game/MapObjectives$TextMarker.class',
                               'mindustry/core/ContentLoader.class'])
         shieldModeSources.keySet().each { path ->
             stagedClasses.add(path.replace('.java', '.class'))
@@ -268,6 +272,11 @@ if (probe == 'network-render') {
         dependsOn 'classes'
         classpath = sourceSets.main.runtimeClasspath
         mainClass = 'UpstreamBuildingLayersReference'
+    }
+    tasks.register('runObjectiveMarkersJvm', JavaExec) {
+        dependsOn 'classes'
+        classpath = sourceSets.main.runtimeClasspath
+        mainClass = 'UpstreamObjectiveMarkersReference'
     }
 }
 if (probe == 'file-metadata') {

@@ -85,3 +85,23 @@ Limitations:
   the emulator run does not prove the real 64 MiB/124 MiB split.
 - The allocator does not model fragmentation, DMA/VRAM, the TeaVM GC heap or
   texture memory beyond the category reservations.
+
+## Upstream TeaVM runtime `.bss` reduction ([#226](https://github.com/levkeveli/Min3DStry/issues/226))
+
+TeaVM 0.16.0 emits a monolithic static array (`static TEAVM_OBJECT_CLASS teavm_dynamicClassPool[TEAVM_DYNAMIC_CLASS_POOL_CAPACITY]`) in `arrayclass.c`. For full upstream Mindustry `v160.8` builds (`TEAVM_DYNAMIC_CLASS_POOL_CAPACITY = 47944`), that static symbol dominated ELF `.bss` and pushed `-O2` ARM11 subtotals above the `64 MiB` Original 3DS `APPMEMTYPE 0` ceiling.
+
+[`research/upstream-runtime/arm11/m3ds_array_class_pool.h`](../../research/upstream-runtime/arm11/m3ds_array_class_pool.h) (staged by [`research/upstream-runtime/arm11/prepare.py`](../../research/upstream-runtime/arm11/prepare.py)) replaces the monolithic array with a lazily allocated, fixed-address `64`-slot chunk pool:
+
+- Chunk `0` stays inline in `.bss` (`24,576` bytes + `3,000`-byte chunk table) so startup and small probes need zero heap allocations.
+- Higher chunks allocate on demand (`memalign(8, bytes)` + zero-fill on 3DS) and are never moved (`realloc` is never used).
+- Every chunk validates 8-byte alignment, signed-31-bit packed offset bounds (`(end - teavm_beforeClasses) <= 0x7FFFFFF8`, keeping bit 31 clear for TeaVM's GC mark bit), and `TEAVM_UNPACK_CLASS(TEAVM_PACK_CLASS(cls)) == cls`.
+
+Measured with pinned `devkitpro/devkitarm` (`-O2`) on identical generated `audio-ticks` TeaVM C (`TEAVM_DYNAMIC_CLASS_POOL_CAPACITY = 47944`):
+
+| Metric | Baseline static `.bss` | Lazy chunked pool | Delta |
+|---|---|---|---|
+| ELF `.bss` (`NOBITS`) | `18,462,664` bytes (`17.61 MiB`) | `79,752` bytes (`77.88 KiB`) | `-18,382,912` bytes (`-17.53 MiB`) |
+| Page-rounded ELF `LOAD` segments | `38,936,576` bytes (`37.13 MiB`) | `20,590,592` bytes (`19.64 MiB`) | `-18,345,984` bytes (`-17.50 MiB`) |
+| Subtotal (`LOAD` + `24 MiB` heap + `4 MiB` linear + `256 KiB` stack) | `65.38 MiB` | `47.89 MiB` | `-17.50 MiB` |
+
+Host unit tests ([`tests/platform/test_array_class_pool.c`](../../tests/platform/test_array_class_pool.c) in `./dev.sh test`) and Linux host TeaVM C execution (`-O0`, `-O2`, and stress-chunked `M3DS_ARRAY_CLASS_CHUNK_SHIFT=2`) pass; Azahar emulator execution and physical Original/New 3DS memory/GC measurements of the reduced `.3dsx` remain separate pending checks.
