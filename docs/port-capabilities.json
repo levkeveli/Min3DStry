@@ -240,7 +240,7 @@
       "category": "Controls & Dual-Screen UI",
       "name": "Top/Bottom HUD, Menus & Minimap",
       "weight": 6,
-      "stage": "experimental",
+      "stage": "emulator-tested",
       "issue": 40,
       "evidence": [
         "include/render/minimap.h",
