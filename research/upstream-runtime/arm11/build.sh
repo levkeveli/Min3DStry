@@ -28,11 +28,18 @@ if [[ $# -gt 0 ]]; then
         echo "Expected one terrain assets directory" >&2
         exit 2
     fi
+    if [[ ${#native_network[@]} -gt 0 && ! -f "$1/bundles/bundle.properties" ]]; then
+        echo "Prepare multiplayer terrain assets with --multiplayer to include the original bundles" >&2
+        exit 2
+    fi
     terrain_flags=(-DM3DS_TERRAIN_RENDERER -I"$root" -I"$1")
     terrain_sources=("$root/m3ds_terrain_renderer.c")
     terrain_libraries=(-lcitro2d -lcitro3d)
     mkdir "$output/romfs"
     cp "$1/sprites.t3x" "$output/romfs/terrain.t3x"
+    if [[ -d "$1/bundles" ]]; then
+        cp -R "$1/bundles" "$output/romfs/bundles"
+    fi
     "$DEVKITPRO/tools/bin/smdhtool" --create "$title" "Mindustry v160.8 Glacier" \
         "Min3DStry Contributors" "$DEVKITPRO/libctru/default_icon.png" "$output/upstream-probe.smdh"
     package_flags=(--smdh="$output/upstream-probe.smdh" --romfs="$output/romfs")

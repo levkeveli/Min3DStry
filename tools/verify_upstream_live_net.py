@@ -21,7 +21,7 @@ PLAYER = "Min3DStry ARM11"
 NUMBER = r"-?\d+(?:\.\d+)?"
 
 
-def write_controls_replay(path, first_move=22, building=False):
+def write_controls_replay(path, first_move=22, building=False, touch_build=False, touch_config=False, model="old3ds"):
     """Write the Azahar 2126.2 CTM input for this probe's pad/touch polling."""
     # The pinned Azahar movie header and HID sample definitions use packed little-endian fields.
     revision = bytes.fromhex("219d743a1e698101fe1ab8bef43e6563126c3c27")
@@ -30,6 +30,18 @@ def write_controls_replay(path, first_move=22, building=False):
     header = struct.pack("<4sQ20sQQ32sIQq156x", b"CTM\x1b", 0, revision, 1780000000,
                          0x4D334453, b"Min3DStry input verification", 0, frames, 0)
     touch_idle = struct.pack("<B6x", 1)
+    taps = (
+        (35, (200, 24)), (39, (232, 136)), (43, (232, 136)),
+        (48, (120, 24)), (53, (248, 136)), (60, (280, 24)), (65, (248, 136)),
+        (70, (40, 24)), (74, (15, 64)), (79, (268, 218)),
+        (84, (160, 130)), (89, (264, 136)), (93, (264, 136)),
+    ) if touch_build else ()
+    if touch_config:
+        taps = (
+            (35, (15, 64)), (40, (268, 218)), (45, (160, 80)), (50, (232, 136)),
+            (58, (305, 64)), (62, (232, 136)), (67, (160, 55)),
+            (75, (305, 64)), (79, (232, 136)), (84, (160, 80)),
+        )
     with path.open("wb") as movie:
         movie.write(header)
         for frame in range(frames):
@@ -38,8 +50,19 @@ def write_controls_replay(path, first_move=22, building=False):
             if building and seconds in (35, 37, 39):
                 buttons = 1  # A, with releases so a late HID poll can observe another press.
             circle_y = 106 if seconds == first_move + 6 else 0
-            movie.write(struct.pack("<BHhh", 0, buttons, 0, circle_y))
-            movie.write(touch_idle)
+            point = next((point for start, point in taps if start <= seconds < start + 2), None)
+            pad = struct.pack("<BHhh", 0, buttons, 0, circle_y)
+            if point:
+                # Extra HID polls on New 3DS can fall between pad/touch pairs.
+                # Keep the touch held for the whole burst regardless of the poll phase.
+                touch = struct.pack("<BHHBx", 1, *point, 1)
+                movie.write(touch * 2)
+            elif taps and (buttons or circle_y):
+                movie.write(pad * 2)
+            else:
+                movie.write(pad + touch_idle)
+            if taps and model == "new3ds" and frame % 7 in (0, 2, 4):
+                movie.write(touch if point else pad)
 
 
 def stop(proc):
@@ -58,7 +81,11 @@ def wait_for(path, proc, pattern, timeout):
         text = path.read_text(encoding="utf-8", errors="replace")
         if re.search(pattern, text):
             return text
-        if proc.poll() is not None or re.search(r"Core::LogException|UPSTREAM_LIVE_NET_ERROR", text):
+        if "UPSTREAM_LIVE_NET_ERROR" in text:
+            time.sleep(0.25)  # Preserve the Java stack trace written after the error marker.
+            text = path.read_text(encoding="utf-8", errors="replace")
+            raise RuntimeError(f"Process stopped before {pattern}:\n{text[-5000:]}")
+        if proc.poll() is not None or re.search(r"Core::LogException", text):
             raise RuntimeError(f"Process stopped before {pattern}:\n{text[-2500:]}")
         time.sleep(0.05)
     raise RuntimeError(f"Timed out waiting for {pattern}:\n{text[-2500:]}")
@@ -92,32 +119,33 @@ def verify_movement(log, emulator, server_log, server, join, timeout):
     print(observed.group(0), flush=True)
 
 
+def inspect_building(server_log, server, phase, tile_x, tile_y, builder=PLAYER):
+    marker = f"UPSTREAM_SERVER_BUILDING phase={phase}"
+    server.stdin.write(
+        f'js (() => {{ const p = Groups.player.find(boolf(v => String(v.name) === "{PLAYER}")); '
+        f'const builder = Groups.player.find(boolf(v => String(v.name) === {json.dumps(builder)})); '
+        f'const tile = Vars.world.tile({tile_x}, {tile_y}); '
+        'const owned = builder != null && tile.build != null && '
+        'String(tile.build.lastAccessed) === String(builder.coloredName()); '
+        f'return "{marker} block=" + tile.block().name + " team=" + tile.team().id '
+        '+ " rotation=" + (tile.build == null ? -1 : tile.build.rotation) '
+        '+ " copper=" + p.team().core().items.get(Items.copper) + " builder=" + owned; })()\n'
+    )
+    server.stdin.flush()
+    check = re.compile(rf"{marker} block=(\S+) team=(\d+) rotation=(-?\d+) copper=(\d+) builder=(true|false)")
+    return check.search(wait_for(server_log, server, check, 5)).groups()
+
+
 def verify_conveyor(log, emulator, server_log, server, timeout, capture, position, desktop_name):
     _, _, x, y = position
     tx, ty = math.floor(float(x) / 8 + 0.5) + 4, math.floor(float(y) / 8 + 0.5)
 
-    def inspect_server(phase, tile_x, tile_y, builder):
-        marker = f"UPSTREAM_SERVER_CONVEYOR phase={phase}"
-        server.stdin.write(
-            f'js (() => {{ const p = Groups.player.find(boolf(v => String(v.name) === "{PLAYER}")); '
-            f'const builder = Groups.player.find(boolf(v => String(v.name) === {json.dumps(builder)})); '
-            f'const tile = Vars.world.tile({tile_x}, {tile_y}); '
-            'const owned = builder != null && tile.build != null && '
-            'String(tile.build.lastAccessed) === String(builder.coloredName()); '
-            f'return "{marker} block=" + tile.block().name + " team=" + tile.team().id '
-            '+ " rotation=" + (tile.build == null ? -1 : tile.build.rotation) '
-            '+ " copper=" + p.team().core().items.get(Items.copper) + " builder=" + owned; })()\n'
-        )
-        server.stdin.flush()
-        check = re.compile(rf"{marker} block=(\S+) team=(\d+) rotation=(-?\d+) copper=(\d+) builder=(true|false)")
-        return check.search(wait_for(server_log, server, check, 5)).groups()
-
-    original = inspect_server("before", tx, ty, PLAYER)
+    original = inspect_building(server_log, server, "before", tx, ty)
     print(f"Press A to queue a conveyor at ({tx}, {ty}).", flush=True)
     wait_for(log, emulator, rf"UPSTREAM_LIVE_BUILD_PLAN x={tx} y={ty} rotation=0\b", timeout)
     completed = re.compile(rf"UPSTREAM_LIVE_BUILD block=conveyor x={tx} y={ty} rotation=0 team=(\d+)")
     accepted = completed.search(wait_for(log, emulator, completed, timeout))
-    finished = inspect_server("after", tx, ty, PLAYER)
+    finished = inspect_building(server_log, server, "after", tx, ty)
     if (original[0] != "air" or finished[:3] != ("conveyor", accepted[1], "0")
             or int(original[3]) - int(finished[3]) != 1 or finished[4] != "true"):
         raise RuntimeError(f"Unexpected stock conveyor or copper cost: {original} -> {finished}")
@@ -130,7 +158,8 @@ def verify_conveyor(log, emulator, server_log, server, timeout, capture, positio
         pc_build = re.compile(rf"UPSTREAM_LIVE_BUILD block=conveyor (?!x={tx} y={ty} )x=(\d+) y=(\d+) "
                               rf"rotation=([0-3]) team={finished[1]}\b")
         desktop_x, desktop_y, rotation = pc_build.search(wait_for(log, emulator, pc_build, timeout)).groups()
-        second_finished = inspect_server("desktop-after", int(desktop_x), int(desktop_y), desktop_name)
+        second_finished = inspect_building(server_log, server, "desktop-after",
+                                           int(desktop_x), int(desktop_y), desktop_name)
         if (second_finished[:3] != ("conveyor", finished[1], rotation)
                 or int(finished[3]) - int(second_finished[3]) != 1 or second_finished[4] != "true"):
             raise RuntimeError(f"Unexpected PC conveyor builder or copper cost: {finished} -> {second_finished}")
@@ -139,13 +168,101 @@ def verify_conveyor(log, emulator, server_log, server, timeout, capture, positio
         print(f"The ARM11 client applied and drew the PC conveyor at ({desktop_x}, {desktop_y}).", flush=True)
 
 
-def verify_controls(log, emulator, server_log, server, timeout, capture=None, building=False, desktop_name=None):
+def verify_touch_build(log, emulator, server_log, server, timeout, capture, position, ground_pixels):
+    _, _, x, y = position
+    tx, ty = math.floor(float(x) / 8 + 0.5) + 4, math.floor(float(y) / 8 + 0.5)
+    print("Tap Rotate, the grid, Copper Wall, the adjacent grid cell, then Remove and the wall.", flush=True)
+    original = inspect_building(server_log, server, "touch-before", tx, ty)
+    if original[0] != "air":
+        raise RuntimeError(f"Expected an empty Glacier conveyor cell: {original}")
+    copper = int(original[3])
+    for block, tile_x, rotation, cost in (("conveyor", tx, 1, 1), ("copper-wall", tx + 1, 0, 6)):
+        wait_for(log, emulator, rf"UPSTREAM_TOUCH_PLAN block={block} x={tile_x} y={ty} rotation={rotation}\b", timeout)
+        wait_for(log, emulator,
+                 rf"UPSTREAM_LIVE_BUILD block={block} x={tile_x} y={ty} rotation={rotation} team=1\b", timeout)
+        copper -= cost
+        result = inspect_building(server_log, server, f"touch-{block}", tile_x, ty)
+        if result != (block, "1", str(rotation), str(copper), "true"):
+            raise RuntimeError(f"Unexpected stock {block} placement: {result}")
+        build_pixels = capture(f"touch-{block}", position)
+    wait_for(log, emulator, rf"UPSTREAM_TOUCH_PLAN block=break x={tx + 1} y={ty}\b", timeout)
+    wait_for(log, emulator, rf"UPSTREAM_LIVE_REMOVED x={tx + 1} y={ty}\b", timeout)
+    removed = inspect_building(server_log, server, "touch-removed", tx + 1, ty)
+    retained = inspect_building(server_log, server, "touch-retained", tx, ty)
+    if removed != ("air", "0", "-1", str(copper + 3), "false") or retained[:3] != ("conveyor", "1", "1"):
+        raise RuntimeError(f"Unexpected stock removal, copper refund or adjacent conveyor: {removed}, {retained}")
+    removed_pixels = capture("touch-removed", position)
+    if build_pixels == ground_pixels or removed_pixels != ground_pixels:
+        raise RuntimeError(f"Wall sprite did not appear and clear: {ground_pixels} -> "
+                           f"{build_pixels} -> {removed_pixels}")
+    print(f"Stock server verified both touch placements and the wall refund; copper={removed[3]}.", flush=True)
+    wait_for(log, emulator, r"UPSTREAM_CATALOG_PAGE category=distribution page=2\b", timeout)
+    time.sleep(0.2)  # The input event is logged before Citro2D presents the page.
+    capture("touch-catalog", position)
+    wait_for(log, emulator, r"UPSTREAM_CATALOG_SELECTED router\b", timeout)
+    wait_for(log, emulator, rf"UPSTREAM_TOUCH_PLAN block=router x={tx + 2} y={ty} rotation=0\b", timeout)
+    wait_for(log, emulator, rf"UPSTREAM_LIVE_BUILD block=router x={tx + 2} y={ty} rotation=0 team=1\b", timeout)
+    router = inspect_building(server_log, server, "touch-router", tx + 2, ty)
+    if router != ("router", "1", "0", str(int(removed[3]) - 3), "true"):
+        raise RuntimeError(f"Unexpected stock catalog placement: {router}")
+    capture("touch-router", position)
+    print(f"Stock server verified the catalog Router; copper={router[3]}.", flush=True)
+
+
+def verify_touch_config(log, emulator, server_log, server, timeout, capture, position):
+    _, _, x, y = position
+    tx, ty = math.floor(float(x) / 8 + 0.5) + 4, math.floor(float(y) / 8 + 0.5)
+    original = inspect_building(server_log, server, "config-before", tx, ty)
+    wait_for(log, emulator, r"UPSTREAM_CATALOG_PAGE category=distribution page=2\b", timeout)
+    time.sleep(0.2)
+    capture("touch-catalog", position)
+    wait_for(log, emulator, rf"UPSTREAM_LIVE_BUILD block=sorter x={tx} y={ty} rotation=0 team=1\b", timeout)
+    placed = inspect_building(server_log, server, "config-placed", tx, ty)
+    if original[0] != "air" or placed != ("sorter", "1", "0", str(int(original[3]) - 2), "true"):
+        raise RuntimeError(f"Unexpected stock Sorter placement: {original} -> {placed}")
+    unconfigured = capture("touch-sorter", position)
+    wait_for(log, emulator, rf"UPSTREAM_CONFIG_OPEN x={tx} y={ty}\b", timeout)
+    time.sleep(0.2)  # The open event precedes presentation.
+    capture("touch-config-menu", position)
+
+    def server_item(phase, expected, set_item=""):
+        marker = f"UPSTREAM_SERVER_CONFIG phase={phase}"
+        server.stdin.write(
+            f'js (() => {{ const b = Vars.world.build({tx}, {ty}); {set_item} '
+            f'return "{marker} item=" + (b.config() == null ? "none" : b.config().name); }})()\n'
+        )
+        server.stdin.flush()
+        wait_for(server_log, server, rf"{marker} item={expected}\b", 5)
+
+    wait_for(log, emulator, rf"UPSTREAM_CONFIG_LOCAL x={tx} y={ty} item=copper\b", timeout)
+    time.sleep(0.2)  # Allow the stock server to process the reliable request.
+    server_item("from-3ds", "copper")
+    copper = capture("touch-config-copper", position)
+    server_item("to-3ds", "lead", "b.configureAny(Items.lead);")
+    wait_for(log, emulator, rf"UPSTREAM_CONFIG_REMOTE x={tx} y={ty} item=lead\b", timeout)
+    time.sleep(0.2)
+    lead = capture("touch-config-lead", position)
+    wait_for(log, emulator, rf"UPSTREAM_CONFIG_LOCAL x={tx} y={ty} item=none\b", timeout)
+    time.sleep(0.2)
+    server_item("cleared", "none")
+    cleared = capture("touch-config-cleared", position)
+    if unconfigured != cleared or len({unconfigured, copper, lead}) != 3:
+        raise RuntimeError(f"Expected distinct original Sorter colors and the clear sprite: "
+                           f"{unconfigured}, {copper}, {lead}, {cleared}")
+    print("Stock server verified Copper, returned Lead, and accepted clearing the Sorter.", flush=True)
+
+
+def verify_controls(log, emulator, server_log, server, timeout, capture=None,
+                    building=False, desktop_name=None, touch_build=False, touch_config=False):
     wait_for(log, emulator, r"UPSTREAM_LIVE_CONTROLS_READY unit=\d+", timeout)
     baseline = server_position(server_log, server, "UPSTREAM_SERVER_CONTROLS_READY").groups()
-    if capture:
-        capture("spawn", baseline)
+    ground_pixels = capture("spawn", baseline) if capture else None
     if building:
         verify_conveyor(log, emulator, server_log, server, timeout, capture, baseline, desktop_name)
+    if touch_build:
+        verify_touch_build(log, emulator, server_log, server, timeout, capture, baseline, ground_pixels)
+    if touch_config:
+        verify_touch_config(log, emulator, server_log, server, timeout, capture, baseline)
     for device, direction, axis in (("dpad", "right", 2), ("circle", "up", 3)):
         print(f"Move {direction} with the {device}, then release it.", flush=True)
         stopped = re.compile(rf"UPSTREAM_LIVE_CONTROLS_STOPPED unit=(\d+) input={device} "
@@ -178,7 +295,7 @@ def verify_controls(log, emulator, server_log, server, timeout, capture=None, bu
     wait_for(log, emulator, r"UPSTREAM_LIVE_CONTROLS_STATE wave=2\b", timeout)
 
 
-def capture_viewport(log, emulator, rpc, destination, position):
+def capture_viewport(log, emulator, rpc, destination, position, require_palette=False):
     unit, _, x, y = position
     # Glacier is 150 × 250 tiles and the renderer centers a 16 × 12 tile viewport.
     left = max(0, min(150 - 16, math.floor(float(x) / 8 + 0.5) - 8))
@@ -187,10 +304,34 @@ def capture_viewport(log, emulator, rpc, destination, position):
     wait_for(log, emulator, rf"{frame}\b", 5)
     screenshot = rpc.screenshot(res_scale=1)
     destination.write_bytes(screenshot)
-    pixels = az.inspect_png(screenshot)
+    # Default layout centers the 320px bottom screen at x=40 below the top screen.
+    if destination.stem.endswith("-touch-catalog"):
+        palette_pixels = {(50, 250): (45, 52, 64), (52, 293): (45, 52, 64)}
+    elif destination.stem.endswith("-touch-config-menu"):
+        palette_pixels = {(50, 250): (24, 27, 32), (52, 293): (45, 52, 64)}
+    else:
+        palette_pixels = {(70, 296): (24, 27, 32), (72, 296): (65, 74, 88)}
+    cursor_pixels = {
+        "touch-conveyor": ((284, 100), (250, 213, 107)),
+        "touch-copper-wall": ((304, 100), (250, 213, 107)),
+        "touch-removed": ((304, 100), (241, 117, 97)),
+        "touch-router": ((324, 100), (250, 213, 107)),
+    }
+    points = dict(palette_pixels)
+    for phase, (point, color) in cursor_pixels.items():
+        if destination.stem.endswith(f"-{phase}"):
+            points[point] = color
+    left_sample = 288 if re.search(r"-touch-(sorter|config-[a-z]+)$", destination.stem) else 308
+    interior = ((left_sample, 108), (left_sample + 2, 110), (left_sample + 4, 112))
+    pixels = az.inspect_png(screenshot, (*points, *interior) if require_palette else ())
     if pixels["width"] != 400 or pixels["height"] != 480 or pixels["top_distinct_colors"] < 8:
         raise RuntimeError(f"Expected the textured Glacier viewport on the top screen: {pixels}")
+    if require_palette:
+        if any(pixels["samples"][point] != color for point, color in points.items()):
+            raise RuntimeError(f"Expected palette and cursor pixels {points}, observed {pixels['samples']}")
     print(frame, flush=True)
+    if require_palette:
+        return tuple(pixels["samples"][point] for point in interior)
 
 
 def run_model(args, model, config, original_config, log, output):
@@ -203,6 +344,9 @@ def run_model(args, model, config, original_config, log, output):
         "Renderer": {"graphics_api": "2"},
         "Data Storage": {"use_virtual_sd": "true"},
     }
+    if args.touch_build or args.touch_config:
+        # The synthetic bursts intentionally offer one sample type to all devices.
+        overrides["Miscellaneous"]["log_filter"] += " Movie:Critical"
     if args.terrain_atlas:
         overrides["Layout"] = {"layout_option": "0", "swap_screen": "false",
                                "upright_screen": "false", "render_3d": "0", "screen_gap": "0"}
@@ -218,6 +362,12 @@ def run_model(args, model, config, original_config, log, output):
             server.stdin.write(f"config port {args.port}\nhost Glacier attack\n")
             server.stdin.flush()
             wait_for(server_log, server, f"Opened a server on port {args.port}\\.", 25)
+            if args.touch_config:
+                server.stdin.write('js (() => { const items = Vars.state.rules.defaultTeam.core().items; '
+                                   'if (items.get(Items.lead) < 2) items.add(Items.lead, 2); '
+                                   'return "UPSTREAM_CONFIG_FIXTURE lead=" + items.get(Items.lead); })()\n')
+                server.stdin.flush()
+                wait_for(server_log, server, r"UPSTREAM_CONFIG_FIXTURE lead=\d+", 5)
             if args.desktop_name:
                 print(f"{model}: Join 127.0.0.1:{args.port} from the stock PC client as "
                       f"{args.desktop_name!r}.", flush=True)
@@ -228,18 +378,32 @@ def run_model(args, model, config, original_config, log, output):
                 first_move = 42 if args.terrain_atlas else 22
                 if args.building and args.desktop_name:
                     first_move = 120  # Allow time to inspect and place a block in the desktop client.
-                write_controls_replay(replay, first_move=first_move, building=args.building)
+                if args.touch_build:
+                    first_move = 101
+                if args.touch_config:
+                    first_move = 92
+                write_controls_replay(replay, first_move=first_move, building=args.building,
+                                      touch_build=args.touch_build, touch_config=args.touch_config, model=model)
                 command += ["-p", str(replay)]
             command.append(str(args.rom))
             emulator = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             rpc = az.AzaharRpcClient(timeout=2, retries=2)
             try:
+                if args.locale:
+                    names = {"en": ("Router", "Copper"), "de": ("Verteiler", "Kupfer")}
+                    labels = names.get(args.locale)
+                    words = " router=" + re.escape(labels[0]) + " copper=" + re.escape(labels[1]) if labels else ""
+                    pattern = rf"UPSTREAM_INTERFACE_LOCALE system=\d+ bundle={re.escape(args.locale)}\b{words}"
+                    localized = wait_for(log, emulator, pattern, args.timeout)
+                    print(re.search(pattern, localized).group(0), flush=True)
                 if args.controls:
                     def capture(phase, position):
-                        capture_viewport(log, emulator, rpc, output / f"{model}-{phase}.png", position)
+                        return capture_viewport(log, emulator, rpc, output / f"{model}-{phase}.png", position,
+                                                require_palette=args.touch_build or args.touch_config)
 
                     verify_controls(log, emulator, server_log, server, args.timeout,
-                                    capture if args.terrain_atlas else None, args.building, args.desktop_name)
+                                    capture if args.terrain_atlas else None, args.building, args.desktop_name,
+                                    args.touch_build, args.touch_config)
                     (output / f"{model}.png").write_bytes(rpc.screenshot())
                     print("Wave 2 applied. Press the emulated START button to leave.", flush=True)
                     emu_log = wait_for(log, emulator, "UPSTREAM_LIVE_CONTROLS_LEFT", args.timeout)
@@ -330,8 +494,14 @@ def main():
                         help="Replay the controls test input in Azahar 2126.2")
     parser.add_argument("--terrain-atlas", type=Path,
                         help="Stage the official v160.8 sprites.aatls and verify the rendered viewport")
-    parser.add_argument("--building", action="store_true",
+    parser.add_argument("--locale", help="Stage a stock locale code and verify the graphical probe loads it")
+    build_mode = parser.add_mutually_exclusive_group()
+    build_mode.add_argument("--building", action="store_true",
                         help="Verify the ARM11 conveyor plan, copper cost and rendered response")
+    build_mode.add_argument("--touch-build", action="store_true",
+                            help="Verify touch placement, rotation and removal against the stock server")
+    build_mode.add_argument("--touch-config", action="store_true",
+                            help="Verify configuring a Sorter with both directions of the stock configuration packet")
     args = parser.parse_args()
     args.server, args.rom, args.azahar = (path.resolve() for path in (args.server, args.rom, args.azahar))
     with args.server.open("rb") as archive:
@@ -345,6 +515,12 @@ def main():
         parser.error("--controls-replay needs --controls")
     if args.building and not args.terrain_atlas:
         parser.error("--building needs --terrain-atlas")
+    if args.touch_build and not args.terrain_atlas:
+        parser.error("--touch-build needs --terrain-atlas")
+    if args.touch_config and not args.terrain_atlas:
+        parser.error("--touch-config needs --terrain-atlas")
+    if args.locale and (not args.terrain_atlas or not re.fullmatch(r"[a-z]{2,3}(?:_[A-Z]{2})?", args.locale)):
+        parser.error("--locale needs --terrain-atlas and a stock locale code such as de or pt_BR")
     if args.terrain_atlas:
         if not args.controls:
             parser.error("--terrain-atlas needs --controls")
@@ -355,6 +531,9 @@ def main():
     endpoint = config.parent.parent / "sdmc/3ds/min3dstry/server-endpoint.txt"
     originals = {path: path.read_bytes() if path.exists() else None for path in (config, log, endpoint)}
     atlas_path = endpoint.with_name("sprites.aatls")
+    locale_path = endpoint.with_name("locale.txt")
+    if args.locale:
+        originals[locale_path] = locale_path.read_bytes() if locale_path.exists() else None
     if args.terrain_atlas:
         originals[atlas_path] = atlas_path.read_bytes() if atlas_path.exists() else None
     output = args.rom.parent / "upstream-live-net"
@@ -364,6 +543,8 @@ def main():
             path.parent.mkdir(parents=True, exist_ok=True)
         suffix = " controls" if args.controls else " movement" if args.movement else ""
         endpoint.write_text(f"127.0.0.1 {args.port}{suffix}\n", encoding="ascii")
+        if args.locale:
+            locale_path.write_text(args.locale + "\n", encoding="ascii")
         if args.terrain_atlas:
             atlas_path.write_bytes(atlas_bytes)
         for model in ((args.model,) if args.model else ("old3ds", "new3ds")):

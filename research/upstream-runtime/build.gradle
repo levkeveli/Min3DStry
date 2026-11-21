@@ -16,6 +16,9 @@ def fileSource = 'arc-core/src/arc/files/Fi.java'
 def osSource = 'arc-core/src/arc/util/OS.java'
 def networkIoSource = 'core/src/mindustry/net/NetworkIO.java'
 def netClientSource = 'core/src/mindustry/core/NetClient.java'
+def placementSource = 'core/src/mindustry/ui/fragments/PlacementFragment.java'
+def itemSelectionSource = 'core/src/mindustry/world/blocks/ItemSelection.java'
+def planetGridSource = 'core/src/mindustry/graphics/g3d/PlanetGrid.java'
 def pixmapSource = 'arc-core/src/arc/graphics/Pixmap.java'
 def pixmapPatch = file('patches/arc-pixmap-direct-buffer.patch')
 def glacier = 'core/assets/maps/default/glacier.msav'
@@ -49,6 +52,7 @@ def entryPoint = entryPoints[probe]
 def usesMapSources = probe in ['map', 'map-sd']
 def usesLiveNetwork = probe in ['network-live', 'network-render']
 def usesTerrainRenderer = probe in ['terrain-render', 'network-render']
+def patchesPlanetGrid = probe == 'network-render'
 def usesSimulation = probe in ['factory-ticks', 'combat-ticks']
 def usesWorldSources = probe in ['world', 'world-save', 'world-roundtrip', 'world-stream',
                                  'terrain-draw'] || usesLiveNetwork || usesTerrainRenderer || usesSimulation
@@ -74,6 +78,9 @@ def arcOsFile = sourceDir.map { it.file('arc/util/OS.java') }
 def arcPixmapFile = sourceDir.map { it.file('arc/graphics/Pixmap.java') }
 def networkIoFile = sourceDir.map { it.file('mindustry/net/NetworkIO.java') }
 def netClientFile = sourceDir.map { it.file('mindustry/core/NetClient.java') }
+def placementFile = sourceDir.map { it.file('UpstreamPlacementCatalog.java') }
+def itemChoicesFile = sourceDir.map { it.file('UpstreamItemChoices.java') }
+def planetGridFile = sourceDir.map { it.file('mindustry/graphics/g3d/PlanetGrid.java') }
 def compilerResources = layout.buildDirectory.dir("compiler-resources/${probe}")
 def pluginFile = compilerResources.map { it.file('META-INF/services/org.teavm.vm.spi.TeaVMPlugin') }
 def readUpstream = { path ->
@@ -101,6 +108,9 @@ if (usesArcSources || usesExecutor) {
     }
     if (usesLiveNetwork) {
         stagedClasses.addAll(['mindustry/core/NetClient.class', 'mindustry/core/NetClient$*.class'])
+    }
+    if (patchesPlanetGrid) {
+        stagedClasses.addAll(['mindustry/graphics/g3d/PlanetGrid.class', 'mindustry/graphics/g3d/PlanetGrid$*.class'])
     }
     // TeaVM resolves dependency classes before compiled project classes.
     def contentDependencies = tasks.register('prepareContentDependencies', Zip) {
@@ -196,7 +206,10 @@ tasks.register('prepareUpstreamProbe') {
         outputs.file(networkIoFile)
     }
     if (usesLiveNetwork) {
-        outputs.file(netClientFile)
+        outputs.files(netClientFile, placementFile, itemChoicesFile)
+    }
+    if (patchesPlanetGrid) {
+        outputs.file(planetGridFile)
     }
     doLast {
         if (!pluginsToLoad.isEmpty()) {
@@ -298,6 +311,18 @@ final class GlacierFixture {
     public static void loadWorld(InputStream is, arc.func.Intc recordEntity){''')
                 .replace(addRemoved, 'recordEntity.get(e.id())'), 'UTF-8')
         }
+        if (patchesPlanetGrid) {
+            def grid = new String(readUpstream(planetGridSource), 'UTF-8')
+            def create = 'public static synchronized PlanetGrid create(int size){'
+            if (grid.count(create) != 1) {
+                throw new GradleException('Pinned PlanetGrid cache methods changed')
+            }
+            def adaptedGrid = planetGridFile.get().asFile
+            adaptedGrid.parentFile.mkdirs()
+            // This synchronous path never yields on TeaVM C's single execution lane.
+            // Its cache and subdivision stay atomic without the failing Java monitor.
+            adaptedGrid.setText(grid.replace(create, 'public static PlanetGrid create(int size){'), 'UTF-8')
+        }
         if (usesLiveNetwork) {
             def source = new String(readUpstream(netClientSource), 'UTF-8')
             def buffer = '''private ReusableByteInStream byteStream = new ReusableByteInStream();
@@ -324,6 +349,42 @@ final class GlacierFixture {
 
     public NetClient(){
         this(new ReusableByteInStream());'''), 'UTF-8')
+            def placement = new String(readUpstream(placementSource), 'UTF-8')
+            def selection = placement =~ /(?m)^    Seq<Block> getUnlockedByCategory\(Category cat\)\{[\s\S]*?^    \}/
+            def unlocked = placement =~ /(?m)^    boolean unlocked\(Block block\)\{[\s\S]*?^    \}/
+            if (selection.count != 1 || unlocked.count != 1) {
+                throw new GradleException('Pinned PlacementFragment catalog methods changed')
+            }
+            placementFile.get().asFile.setText("""// Selection rules from pinned upstream PlacementFragment.java (GPL-3.0).
+import arc.struct.Seq;
+import mindustry.type.Category;
+import mindustry.world.Block;
+import static mindustry.Vars.*;
+
+final class UpstreamPlacementCatalog {
+    private final Seq<Block> returnArray2 = new Seq<>();
+
+${selection[0]}
+
+${unlocked[0]}
+}
+""", 'UTF-8')
+            def itemSelection = new String(readUpstream(itemSelectionSource), 'UTF-8')
+            def filter = itemSelection =~ /(?m)^\s*if\(([^\r\n]+)\) continue;\r?$/
+            if (filter.count != 1) {
+                throw new GradleException('Pinned ItemSelection eligibility check changed')
+            }
+            itemChoicesFile.get().asFile.setText("""// Eligibility from pinned upstream ItemSelection.java (GPL-3.0).
+import mindustry.ctype.UnlockableContent;
+import static mindustry.Vars.state;
+
+final class UpstreamItemChoices {
+    static boolean accepts(UnlockableContent item) {
+        if (${filter[0][1]}) return false;
+        return true;
+    }
+}
+""", 'UTF-8')
         }
     }
 }
@@ -337,6 +398,14 @@ tasks.register('runProbeJvm', JavaExec) {
                  'network-live': 'UpstreamSnapshotDispatchReference',
                  'network-render': 'UpstreamSnapshotDispatchReference']
         .getOrDefault(probe, entryPoint)
+}
+
+if (usesLiveNetwork) {
+    tasks.register('runBuildControlsJvm', JavaExec) {
+        dependsOn 'classes'
+        classpath = sourceSets.main.runtimeClasspath
+        mainClass = 'UpstreamBuildControlsReference'
+    }
 }
 
 if (usesContentSources) {

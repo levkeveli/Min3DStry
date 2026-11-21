@@ -399,6 +399,100 @@ The stock server confirmed the desktop builder identity, team 1,
 rotation 1 and 198 remaining copper in both sessions. ARM11 applied and
 drew both conveyors.
 
+### Build and remove blocks with the touchscreen
+
+The graphical multiplayer probe shows a bottom-screen palette after it
+loads Glacier. Select Conveyor or Copper Wall, then tap the matching cell
+in the bottom grid. The grid follows the 16 × 12 viewport on the top
+screen. Rotate turns rotatable blocks a quarter turn. Remove toggles
+deconstruction and gives the cursor a red outline. A submits at the
+cursor, R rotates, and B toggles removal. For a placed Sorter or Inverted
+Sorter, tap Config beside the grid, then tap the building. Select an
+item or tap the active item again to clear it. The choices use the
+original item eligibility rule from `ItemSelection.java`.
+
+The multiplayer image keeps the original v160.8 translation bundles in
+RomFS. It loads the 3DS system language through Arc's `I18NBundle` before
+creating content so categories, blocks and items use the game's names.
+To choose a packaged locale for the graphical probe, put its code in
+`/3ds/min3dstry/locale.txt` on the SD card. For example, use `de` for
+German or `pt_BR` for Brazilian Portuguese. A missing or unknown code
+uses the console language. Some controls specific to the 3DS probe still
+use English labels.
+
+Loading the German bundle exposed a monitor exception during the original
+`PlanetGrid.create` subdivision on ARM11. In the graphical build that
+method runs synchronously on TeaVM C's cooperative execution lane. The
+upstream cache, recursion and grid calculations are preserved.
+
+Tap List beside the grid to browse the upstream construction catalog.
+The arrows switch categories and the footer switches pages. Tap a block
+name to return to the grid with that block selected. The build extracts
+the visibility, host unlock and order methods from the pinned
+`PlacementFragment.java`. The JVM test on the captured Glacier session
+found 139 selectable entries and checked their block identities, category
+navigation and the hide-banned rule.
+
+Placement and deconstruction enter the original unit build queue. The
+stock server applies the construction costs and refunds and sends its
+original placement and deconstruction packets. The rendered probe uses
+the original Conveyor and Copper Wall sprites. Debug messages continue
+through `svcOutputDebugString` while Citro2D draws the bottom screen.
+
+Add `--touch-build --controls-replay` to the graphical verifier command
+using Azahar 2126.2. It taps Rotate, places a Conveyor at (85, 26) and
+a Copper Wall at (86, 26), removes the wall and builds a Router at
+(87, 26) from the second distribution page in a stock Glacier session.
+It reads team, rotation, builder identity and copper from the
+stock server, checks the cursor and grid in both screen captures, and
+then exercises movement and START. For the JVM reference, use
+`runBuildControlsJvm -Pprobe=network-render --args=/path/to/glacier-world-stream.bin`
+with the captured Glacier WorldStream. The graphical probe still packs a
+Glacier-specific atlas. The remaining block visuals, interface text and
+configuration for other block types are tracked in issue #27.
+
+The [devkitARM build](https://github.com/levkeveli/Min3DStry/actions/runs/44850937824)
+passed the touch checks at `-O0` on both Azahar 2126.2 profiles. The
+stock v160.8 server attributed both placements to the ARM11 player on
+team 1, applied Conveyor rotation 1, and reported 200, 199, 193 and 196
+copper before placement, after each build and after the wall refund.
+The captured wall sprite appeared at the selected cell and cleared on
+removal while the adjacent Conveyor remained.
+
+The [catalog build](https://github.com/levkeveli/Min3DStry/actions/runs/44852094972)
+opened Distribution page 2 and placed the original Router at (87, 26)
+on both Azahar 2126.2 profiles. The stock server attributed the placement
+to the ARM11 player on team 1 and reduced copper from 196 to 193. Both
+captures showed the Router sprite after construction.
+
+For the configuration replay, use `--touch-config --controls-replay`
+with the same graphical verifier command. The fixture gives the
+starting team enough Lead for one Sorter if needed. The replay places
+the Sorter from Distribution page 2, selects Copper, receives Lead from
+the stock server's `Building.configureAny` call, then clears the selection
+by tapping Lead again. The probe uses `Building.configure`, generated
+`TileConfigCallPacket` handlers and the original `SorterBuild.draw`.
+The [configuration build](https://github.com/levkeveli/Min3DStry/actions/runs/44853250034)
+passed this round trip on both Azahar 2126.2 profiles. The captured
+Sorter changed from its unconfigured sprite to Copper and then Lead,
+and returned to its first appearance after clearing the selection.
+The JVM test also checks that selecting and clearing Copper changes
+the original routing decisions for both Sorter variants.
+
+Add `--locale de` to the graphical verifier to stage the override and
+verify the selected bundle and its original labels. Pass an extracted
+`assets/bundles/bundle` base path as the second JVM reference argument to
+exercise all 35 packaged bundles and 12 system language mappings. The
+JVM reference also compares the cached grid geometry at subdivision
+levels 0–3 with fingerprints from the official v160.8 JAR.
+
+The [English ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44854486151)
+passed the Old 3DS catalog replay and the New 3DS movement replay. The
+[German ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44856408064)
+opened the translated catalog and Sorter menu on both Azahar 2126.2
+profiles. Stock translations such as `Phasen-Förderband`, `Überlauftor`
+and `Kupfer` appeared in the captures.
+
 Before the snapshot dispatch extension, the [devkitARM verification build](https://github.com/levkeveli/Min3DStry/actions/runs/44824442974)
 passed at `-O0` and `-O2` on both Azahar 2126.2 console profiles. Each run
 rejected build 159 with `clientOutdated`, then joined Glacier twice with

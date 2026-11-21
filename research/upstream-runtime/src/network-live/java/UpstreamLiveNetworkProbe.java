@@ -1,5 +1,6 @@
 import arc.Core;
 import arc.files.Fi;
+import arc.func.Cons;
 import arc.math.Mathf;
 import arc.math.geom.Vec2;
 import arc.mock.MockAudio;
@@ -13,7 +14,9 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.zip.InflaterInputStream;
@@ -24,14 +27,15 @@ import mindustry.content.Blocks;
 import mindustry.content.UnitTypes;
 import mindustry.core.GameState.State;
 import mindustry.core.NetClient;
-import mindustry.entities.units.BuildPlan;
 import mindustry.game.FogControl;
 import mindustry.game.Universe;
+import mindustry.gen.BeginBreakCallPacket;
 import mindustry.gen.BeginPlaceCallPacket;
 import mindustry.gen.BlockSnapshotCallPacket;
 import mindustry.gen.ClientSnapshotCallPacket;
 import mindustry.gen.ConnectConfirmCallPacket;
 import mindustry.gen.ConstructFinishCallPacket;
+import mindustry.gen.DeconstructFinishCallPacket;
 import mindustry.gen.EntitySnapshotCallPacket;
 import mindustry.gen.Groups;
 import mindustry.gen.KickCallPacket;
@@ -40,12 +44,16 @@ import mindustry.gen.Mechc;
 import mindustry.gen.Player;
 import mindustry.gen.RemoveQueueBlockCallPacket;
 import mindustry.gen.StateSnapshotCallPacket;
+import mindustry.gen.TileConfigCallPacket;
 import mindustry.gen.Unit;
 import mindustry.mod.Mods;
+import mindustry.net.Host;
 import mindustry.net.Net;
+import mindustry.net.NetConnection;
 import mindustry.net.NetworkIO;
 import mindustry.net.Packet;
 import mindustry.net.Packets.StreamChunk;
+import mindustry.world.blocks.distribution.Sorter;
 import org.teavm.interop.Address;
 import org.teavm.interop.Import;
 import org.teavm.interop.c.Include;
@@ -61,21 +69,23 @@ public final class UpstreamLiveNetworkProbe {
     private final byte[] packet = new byte[32_768];
     private final Mode mode;
     private final Consumer<Unit> frame;
+    private final UpstreamLiveBuildControls building;
 
-    private UpstreamLiveNetworkProbe(Mode mode, Consumer<Unit> frame) {
+    private UpstreamLiveNetworkProbe(Mode mode, Consumer<Unit> frame, UpstreamLiveBuildControls building) {
         this.mode = mode;
         this.frame = frame;
+        this.building = building;
     }
 
     public static void main(String[] args) throws IOException, InterruptedException {
-        run(endpointFile(args), null, null);
+        run(endpointFile(args), null, null, null);
     }
 
     static Fi endpointFile(String[] args) {
         return new Fi(args.length == 0 ? "/3ds/min3dstry/server-endpoint.txt" : args[0]);
     }
 
-    static void run(Fi config, Runnable beforeConnect, Consumer<Unit> frame)
+    static void run(Fi config, Runnable beforeConnect, Consumer<Unit> frame, UpstreamLiveBuildControls building)
             throws IOException, InterruptedException {
         String[] endpoint = config.readString().trim().split("\\s+");
         if (endpoint.length < 2 || endpoint.length > 3) {
@@ -88,23 +98,28 @@ public final class UpstreamLiveNetworkProbe {
         };
         byte[] host = endpoint[0].getBytes(StandardCharsets.UTF_8);
         int port = Integer.parseInt(endpoint[1]);
-        var app = UpstreamWorldLoadProbe.initialize(config.parent());
-        Vars.mods = new Mods();
-        Vars.universe = new Universe();
-        if (frame != null) {
-            Core.audio = new MockAudio();
-            Vars.indexer = new BlockIndexer();
-            Vars.pathfinder = new Pathfinder();
-            Vars.fogControl = new FogControl();
-        }
+        String stage = "content";
         try {
+            var app = UpstreamWorldLoadProbe.initialize(config.parent());
+            stage = "services";
+            Vars.mods = new Mods();
+            Vars.universe = new Universe();
+            if (frame != null) {
+                Core.audio = new MockAudio();
+                Vars.indexer = new BlockIndexer();
+                Vars.pathfinder = new Pathfinder();
+                Vars.fogControl = new FogControl();
+            }
+            stage = "graphics";
             if (beforeConnect != null) beforeConnect.run();
-            new UpstreamLiveNetworkProbe(mode, frame).run(host, port, app);
-        } catch (IOException | RuntimeException error) {
+            stage = "session";
+            new UpstreamLiveNetworkProbe(mode, frame, building).run(host, port, app);
+        } catch (IOException | RuntimeException | LinkageError error) {
             Throwable cause = error;
             while (cause.getCause() != null) cause = cause.getCause();
-            System.out.println("UPSTREAM_LIVE_NET_ERROR " + cause.getClass().getSimpleName()
+            System.out.println("UPSTREAM_LIVE_NET_ERROR stage=" + stage + " " + cause.getClass().getSimpleName()
                 + ": " + cause.getMessage());
+            cause.printStackTrace(System.out);
             throw error;
         }
     }
@@ -154,6 +169,7 @@ public final class UpstreamLiveNetworkProbe {
             throw new IOException("Expected a live multiplayer WorldStream, status=" + result
                 + " packet=" + Native.rejectedPacket() + " streamType=" + Native.streamType());
         }
+        if (frame != null) Vars.net = new Net(new LiveClientProvider());
         Vars.net.setClientConnected();
         Vars.netClient = NetClient.forSnapshotDispatch();
         int total = Native.streamTotal();
@@ -185,6 +201,51 @@ public final class UpstreamLiveNetworkProbe {
                 reliable ? 1 : 0) == 0) {
             throw new IOException("Unable to send " + outgoing.getClass().getSimpleName());
         }
+    }
+
+    /** Lets generated upstream calls use this probe's connected ARM11 Arc transport. */
+    private static final class LiveClientProvider implements Net.NetProvider {
+        @Override
+        public void sendClient(Object message, boolean reliable) {
+            try {
+                send((Packet) message, reliable);
+            } catch (IOException error) {
+                throw new UncheckedIOException(error);
+            }
+        }
+
+        @Override
+        public void disconnectClient() {
+            Native.close();
+        }
+
+        @Override
+        public void connectClient(String ip, int port, Runnable success) throws IOException {
+            throw new IOException("The live probe connects from its endpoint file");
+        }
+
+        @Override
+        public void discoverServers(Cons<Host> callback, Runnable done) {
+            done.run();
+        }
+
+        @Override
+        public void pingHost(String address, int port, Cons<Host> valid, Cons<Exception> failed) {
+            failed.get(new IOException("The live probe does not ping hosts"));
+        }
+
+        @Override
+        public void hostServer(int port) throws IOException {
+            throw new IOException("The live probe is a client");
+        }
+
+        @Override
+        public Iterable<NetConnection> getConnections() {
+            return List.of();
+        }
+
+        @Override
+        public void closeServer() {}
     }
 
     private void waitForWave(int join, UpstreamWorldLoadProbe.ProbeApplication app) throws IOException {
@@ -260,7 +321,7 @@ public final class UpstreamLiveNetworkProbe {
     }
 
     private void driveLiveClient(UpstreamWorldLoadProbe.ProbeApplication app) throws IOException {
-        var controls = new LiveControls(frame != null);
+        var controls = new LiveControls(building);
         int lastWave = -1;
         // Leave headroom for rendering on an ARM11 while the server runs its own clock.
         long tcpKeepAliveInterval = frame == null ? TCP_KEEP_ALIVE_NS : TCP_KEEP_ALIVE_NS / 2;
@@ -271,7 +332,7 @@ public final class UpstreamLiveNetworkProbe {
         int stateId = unsignedId(StateSnapshotCallPacket.class);
         int entityId = unsignedId(EntitySnapshotCallPacket.class);
         System.out.println(frame == null ? "Circle Pad or D-pad moves. START leaves."
-            : "D-pad/Circle Pad moves. A builds four tiles east. START leaves.");
+            : "Tap the build grid to place. R rotates. B toggles removal. START leaves.");
         while (true) {
             int input = Native.input();
             if (input < 0) return;
@@ -325,6 +386,14 @@ public final class UpstreamLiveNetworkProbe {
     private void applyBuildingUpdate(int id, int received) {
         if (id == unsignedId(BeginPlaceCallPacket.class)) {
             decode(new BeginPlaceCallPacket(), received).handleClient();
+        } else if (id == unsignedId(BeginBreakCallPacket.class)) {
+            decode(new BeginBreakCallPacket(), received).handleClient();
+        } else if (id == unsignedId(DeconstructFinishCallPacket.class)) {
+            var finished = decode(new DeconstructFinishCallPacket(), received);
+            finished.handleClient();
+            if (finished.tile != null && finished.tile.block() == Blocks.air) {
+                System.out.println("UPSTREAM_LIVE_REMOVED x=" + finished.tile.x + " y=" + finished.tile.y);
+            }
         } else if (id == unsignedId(ConstructFinishCallPacket.class)) {
             var finished = decode(new ConstructFinishCallPacket(), received);
             finished.handleClient();
@@ -337,6 +406,14 @@ public final class UpstreamLiveNetworkProbe {
             decode(new RemoveQueueBlockCallPacket(), received).handleClient();
         } else if (id == unsignedId(BlockSnapshotCallPacket.class)) {
             decode(new BlockSnapshotCallPacket(), received).handleClient();
+        } else if (id == unsignedId(TileConfigCallPacket.class)) {
+            var config = decode(new TileConfigCallPacket(), received);
+            config.handleClient();
+            if (config.build instanceof Sorter.SorterBuild sorter) {
+                var item = sorter.config();
+                System.out.println("UPSTREAM_CONFIG_REMOTE x=" + sorter.tileX() + " y=" + sorter.tileY()
+                    + " item=" + (item == null ? "none" : item.name));
+            }
         }
     }
 
@@ -381,8 +458,7 @@ public final class UpstreamLiveNetworkProbe {
         private static final long SNAPSHOT_NS = 66_000_000L;
         private static final float DEAD_ZONE = 20f / 127f;
         private static final float STOP_SPEED = 0.03f;
-        private static final int PLACE_PRESSED = 1 << 17;
-        private final boolean buildingControls;
+        private final UpstreamLiveBuildControls buildingControls;
         private final Vec2 direction = new Vec2();
         private long lastStep, lastSnapshot;
         private int sequence;
@@ -390,7 +466,7 @@ public final class UpstreamLiveNetworkProbe {
         private boolean moving;
         private String inputDevice;
 
-        LiveControls(boolean buildingControls) {
+        LiveControls(UpstreamLiveBuildControls buildingControls) {
             this.buildingControls = buildingControls;
         }
 
@@ -407,16 +483,7 @@ public final class UpstreamLiveNetworkProbe {
                 System.out.println("UPSTREAM_LIVE_CONTROLS_READY unit=" + unit.id()
                     + " x=" + unit.x() + " y=" + unit.y());
             }
-            if (buildingControls && Vars.player.isBuilder() && (input & PLACE_PRESSED) != 0) {
-                var plan = new BuildPlan(unit.tileX() + 4, unit.tileY(), 0, Blocks.conveyor);
-                if (plan.placeable(unit.team())) {
-                    unit.addBuild(plan);
-                    Vars.player.selectedBlock = plan.block;
-                    Vars.player.selectedRotation = plan.rotation;
-                    System.out.println("UPSTREAM_LIVE_BUILD_PLAN x=" + plan.x + " y=" + plan.y
-                        + " rotation=" + plan.rotation);
-                }
-            }
+            if (buildingControls != null) buildingControls.update(unit, input, Native.touch());
             if (now - lastStep >= FRAME_NS) {
                 direction.set((byte)input / 127f, (byte)(input >>> 8) / 127f).limit(1f);
                 if (direction.len2() < DEAD_ZONE * DEAD_ZONE) direction.setZero();
@@ -436,8 +503,8 @@ public final class UpstreamLiveNetworkProbe {
                 }
             }
             if (now - lastSnapshot >= SNAPSHOT_NS) {
-                if (buildingControls) unit.validatePlans();
-                sendPosition(unit, sequence++, buildingControls && !unit.plans().isEmpty());
+                if (buildingControls != null) unit.validatePlans();
+                sendPosition(unit, sequence++, buildingControls != null && !unit.plans().isEmpty());
                 lastSnapshot = now;
             }
         }
@@ -616,6 +683,9 @@ public final class UpstreamLiveNetworkProbe {
         static native int keepAlive(int reliable);
         @Import(name = "m3ds_live_net_input")
         static native int input();
+
+        @Import(name = "m3ds_live_net_touch")
+        static native int touch();
         @Import(name = "m3ds_live_net_close")
         static native void close();
     }

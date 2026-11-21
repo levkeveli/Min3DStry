@@ -107,11 +107,18 @@ static void teavm_virtualUncommit(void* address, int64_t size) {
     memset(address, 0, (size_t)size);
 }
 
+#ifdef M3DS_TERRAIN_RENDERER
+#include "m3ds_terrain_renderer.h"
+#endif
+
 static void m3ds_flush_log(void) {
     if (m3ds_log_size == 0) {
         return;
     }
-    fwrite(m3ds_log_line, 1, m3ds_log_size, stdout);
+#ifdef M3DS_TERRAIN_RENDERER
+    if (!m3ds_terrain_palette_active())
+#endif
+        fwrite(m3ds_log_line, 1, m3ds_log_size, stdout);
     svcOutputDebugString(m3ds_log_line, (s32)m3ds_log_size);
     m3ds_log_size = 0;
 }

@@ -3,10 +3,19 @@
 #include <stdint.h>
 
 int32_t m3ds_terrain_initialize(void);
+int32_t m3ds_terrain_mount_assets(void);
+int32_t m3ds_terrain_system_language(void);
+int32_t m3ds_terrain_build_labels(const char *labels);
 int32_t m3ds_terrain_begin(int32_t left, int32_t bottom, int32_t width, int32_t height,
                            int32_t tile_size);
 int32_t m3ds_terrain_draw(int32_t page, int32_t left, int32_t top, int32_t width, int32_t height,
                           float x, float y, float origin_x, float origin_y, float draw_width,
                           float draw_height, float rotation, int32_t color);
 int32_t m3ds_terrain_end(void);
+int32_t m3ds_terrain_build_overlay(int32_t column, int32_t row, int32_t block, int32_t rotation,
+                                  int32_t removing, int32_t tile_size, int32_t rotatable, int32_t catalog_open,
+                                  int32_t configuring);
+void m3ds_terrain_build_catalog(const char *labels, int32_t selected, int32_t previous, int32_t next,
+                                 int32_t categories);
+int32_t m3ds_terrain_palette_active(void);
 void m3ds_terrain_fini(void);

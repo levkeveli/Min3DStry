@@ -1,6 +1,7 @@
 import java.io.IOException;
 import mindustry.Vars;
 import org.teavm.interop.Import;
+import org.teavm.interop.Address;
 import org.teavm.interop.c.Include;
 
 public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProbe.TerrainTarget {
@@ -17,6 +18,29 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
     void initialize() {
         int result = NativeTerrain.initialize();
         if (result != 1) throw new IllegalStateException("Unable to initialize Citro2D terrain: " + result);
+    }
+
+    int mountAssets() throws IOException {
+        if (NativeTerrain.mountAssets() == 0) throw new IOException("Unable to mount the original game assets");
+        return NativeTerrain.systemLanguage();
+    }
+
+    void buildLabels(byte[] labels) {
+        if (NativeTerrain.buildLabels(Address.ofData(labels)) == 0) {
+            throw new IllegalStateException("Unable to create the Citro2D label buffer");
+        }
+    }
+
+    void buildOverlay(int column, int row, int block, int rotation,
+                      boolean removing, boolean rotatable, boolean catalogOpen, boolean configuring) {
+        if (NativeTerrain.buildOverlay(column, row, block, rotation, removing ? 1 : 0, Vars.tilesize,
+                rotatable ? 1 : 0, catalogOpen ? 1 : 0, configuring ? 1 : 0) == 0) {
+            throw new IllegalStateException("Unable to draw the Citro2D build palette");
+        }
+    }
+
+    void buildCatalog(byte[] labels, int selected, boolean previous, boolean next, boolean categories) {
+        NativeTerrain.buildCatalog(Address.ofData(labels), selected, previous ? 1 : 0, next ? 1 : 0, categories ? 1 : 0);
     }
 
     @Override
@@ -50,6 +74,15 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
         @Import(name = "m3ds_terrain_initialize")
         static native int initialize();
 
+        @Import(name = "m3ds_terrain_mount_assets")
+        static native int mountAssets();
+
+        @Import(name = "m3ds_terrain_system_language")
+        static native int systemLanguage();
+
+        @Import(name = "m3ds_terrain_build_labels")
+        static native int buildLabels(Address labels);
+
         @Import(name = "m3ds_terrain_begin")
         static native int begin(int left, int bottom, int width, int height, int tileSize);
 
@@ -60,5 +93,12 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
 
         @Import(name = "m3ds_terrain_end")
         static native int end();
+
+        @Import(name = "m3ds_terrain_build_overlay")
+        static native int buildOverlay(int column, int row, int block, int rotation, int removing, int tileSize,
+                                       int rotatable, int catalogOpen, int configuring);
+
+        @Import(name = "m3ds_terrain_build_catalog")
+        static native void buildCatalog(Address labels, int selected, int previous, int next, int categories);
     }
 }

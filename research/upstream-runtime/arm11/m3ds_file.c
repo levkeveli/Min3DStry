@@ -34,8 +34,17 @@ int32_t teavm_file_workDirectory(char16_t** result) {
     return m3ds_file_directory(path, result);
 }
 
-static int m3ds_file_stat(char16_t* name, int32_t name_size, struct stat* info) {
+static char* m3ds_file_read_path(char16_t* name, int32_t name_size) {
     char* path = teavm_char16ToMb(name, name_size);
+    // TeaVM expects a POSIX absolute path. libctru uses a devoptab mount name.
+    if (path != NULL && strncmp(path, "/romfs/", 7) == 0) {
+        memcpy(path, "romfs:/", 7);
+    }
+    return path;
+}
+
+static int m3ds_file_stat(char16_t* name, int32_t name_size, struct stat* info) {
+    char* path = m3ds_file_read_path(name, name_size);
     if (path == NULL) {
         return -1;
     }
@@ -181,7 +190,7 @@ int64_t teavm_file_open(char16_t* name, int32_t name_size, int32_t mode) {
         default:
             return 0;
     }
-    char* path = teavm_char16ToMb(name, name_size);
+    char* path = mode == 1 ? m3ds_file_read_path(name, name_size) : teavm_char16ToMb(name, name_size);
     if (path == NULL) {
         return 0;
     }
