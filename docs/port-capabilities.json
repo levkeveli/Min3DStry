@@ -292,7 +292,7 @@
       "category": "Maps, Campaign & Saves",
       "name": "Tech Tree & Sector Progression",
       "weight": 4,
-      "stage": "experimental",
+      "stage": "emulator-tested",
       "issue": 41,
       "evidence": [
         "include/platform/sd_paths.h",
