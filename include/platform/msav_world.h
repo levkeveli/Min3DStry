@@ -36,13 +36,24 @@ typedef struct M3dsMsavWorld {
 bool m3ds_msav_parse_world_header(
     const uint8_t *data, size_t size, M3dsMsavWorld *out);
 
+typedef struct M3dsBuildingState {
+    uint32_t tile_index;
+    uint32_t revision;
+    uint32_t payload_size;
+    uint8_t *payload;
+} M3dsBuildingState;
+
 typedef struct M3dsWorldTiles {
     uint16_t *floor_ids;
     uint16_t *overlay_ids;
     uint16_t *block_ids;
     uint8_t *flags;
+    uint32_t *building_index;
+    M3dsBuildingState *buildings;
     size_t count;
+    size_t building_count;
     uint64_t hash;
+    uint64_t building_hash;
 } M3dsWorldTiles;
 
 /*

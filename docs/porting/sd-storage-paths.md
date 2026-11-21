@@ -115,6 +115,16 @@ fills them from the validated records, hashes the arrays, and frees them:
 
 Both Azahar profiles produce the same allocation hash.
 
+Center-building entity chunks are copied into raw building records (tile index,
+revision, payload) and linked from the tile array:
+
+```text
+[MIN3DSTRY] SECTOR_BUILDINGS count=2 bytes=44 hash=5b2a6cb142f2813a status=ok
+```
+
+Both profiles produce the same building hash. Building payloads are preserved
+verbatim; decoding them through the content/TypeIO map remains separate work.
+
 ## SD sector catalog
 
 `include/platform/sector_catalog.h` scans `/3ds/min3dstry` for upstream

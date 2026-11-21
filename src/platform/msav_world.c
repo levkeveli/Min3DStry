@@ -270,6 +270,13 @@ void m3ds_msav_free_world(M3dsWorldTiles *tiles) {
     if (!tiles) {
         return;
     }
+    if (tiles->buildings) {
+        for (size_t i = 0; i < tiles->building_count; ++i) {
+            free(tiles->buildings[i].payload);
+        }
+    }
+    free(tiles->buildings);
+    free(tiles->building_index);
     free(tiles->floor_ids);
     free(tiles->overlay_ids);
     free(tiles->block_ids);
@@ -301,12 +308,18 @@ bool m3ds_msav_alloc_world(
     out->overlay_ids = calloc(count, sizeof(uint16_t));
     out->block_ids = calloc(count, sizeof(uint16_t));
     out->flags = calloc(count, sizeof(uint8_t));
+    out->building_index = malloc(count * sizeof(uint32_t));
+    out->buildings = calloc(
+        world.entity_tiles > 0u ? world.entity_tiles : 1u,
+        sizeof(M3dsBuildingState));
     if (!out->floor_ids || !out->overlay_ids || !out->block_ids
-            || !out->flags) {
+            || !out->flags || !out->building_index || !out->buildings) {
         m3ds_msav_free_world(out);
         return false;
     }
+    memset(out->building_index, 0xFF, count * sizeof(uint32_t));
     out->count = count;
+    out->building_hash = UINT64_C(1469598103934665603);
 
     size_t position = map_start + 4u;
     size_t created = 0u;
@@ -339,7 +352,36 @@ bool m3ds_msav_alloc_world(
         }
         if (has_entity && center) {
             uint32_t length = read_be32(data + position);
-            position += 4u + length;
+            position += 4u;
+            if (length < 1u || length > map_end - position
+                    || out->building_count >= world.entity_tiles) {
+                m3ds_msav_free_world(out);
+                return false;
+            }
+            M3dsBuildingState *building = &out->buildings[out->building_count];
+            building->tile_index = (uint32_t)block_index;
+            building->revision = data[position];
+            building->payload_size = length - 1u;
+            if (building->payload_size > 0u) {
+                building->payload = malloc(building->payload_size);
+                if (!building->payload) {
+                    m3ds_msav_free_world(out);
+                    return false;
+                }
+                memcpy(building->payload, data + position + 1u,
+                       building->payload_size);
+            }
+            out->building_index[block_index] = (uint32_t)out->building_count;
+            out->building_hash = hash_bytes(
+                out->building_hash, (const uint8_t *)&building->revision,
+                sizeof(uint32_t));
+            if (building->payload_size > 0u) {
+                out->building_hash = hash_bytes(
+                    out->building_hash, building->payload,
+                    building->payload_size);
+            }
+            ++out->building_count;
+            position += length;
         }
         uint8_t flags = 0u;
         if (has_data) {
