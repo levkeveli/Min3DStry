@@ -9,14 +9,16 @@ static M3dsNetTransport transport;
 static M3dsNetClient *client;
 static M3dsNetHandshakeResult handshake;
 static Thread world_keep_alive;
-static LightEvent world_load_done;
+static Handle world_load_done;
 static LightLock world_tcp_lock;
 
 static void keep_world_connection_alive(void *arg) {
     M3dsNetClient *connection = arg;
     bool logged = false;
-    // libctru returns a nonzero value on timeout and zero when signaled.
-    while (LightEvent_WaitTimeout(&world_load_done, INT64_C(3000000000)) != 0) {
+    while (true) {
+        Result waited = svcWaitSynchronization(world_load_done, INT64_C(3000000000));
+        // On success the main thread signaled the event. Only a timeout needs a keepalive.
+        if (R_DESCRIPTION(waited) != RD_TIMEOUT) break;
         LightLock_Lock(&world_tcp_lock);
         bool sent = m3ds_net_client_keep_alive(connection, true);
         LightLock_Unlock(&world_tcp_lock);
@@ -31,21 +33,23 @@ static void keep_world_connection_alive(void *arg) {
 
 int32_t m3ds_live_net_begin_world_load(void) {
     if (!client || world_keep_alive) return 0;
-    LightEvent_Init(&world_load_done, RESET_STICKY);
-    LightLock_Init(&world_tcp_lock);
     int32_t priority;
     if (R_FAILED(svcGetThreadPriority(&priority, CUR_THREAD_HANDLE))) return 0;
     // A long collection can run without yielding the application core.
     if (priority > 0x18) priority--;
+    if (R_FAILED(svcCreateEvent(&world_load_done, RESET_STICKY))) return 0;
+    LightLock_Init(&world_tcp_lock);
     world_keep_alive = threadCreate(keep_world_connection_alive, client, 8 * 1024, priority, -2, false);
+    if (!world_keep_alive) svcCloseHandle(world_load_done);
     return world_keep_alive != NULL;
 }
 
 void m3ds_live_net_end_world_load(void) {
     if (!world_keep_alive) return;
-    LightEvent_Signal(&world_load_done);
+    svcSignalEvent(world_load_done);
     threadJoin(world_keep_alive, UINT64_MAX);
     threadFree(world_keep_alive);
+    svcCloseHandle(world_load_done);
     world_keep_alive = NULL;
 }
 

@@ -917,10 +917,24 @@ Movement outside mining range clears the target. `ClientSnapshotCallPacket`
 carries the target to the server, where the original MinerComp handles
 extraction and item delivery.
 
+The stock mining beam uses Arc's textured `Lines.line` draw. The batch
+recovers the original line's rectangle from its UV corners and draws it
+through the same paged atlas as other world sprites. The pinned JVM
+building-layer test checks the stock mining texture, rotation and tint.
+
 `runBuildControlsJvm` checks that Gamma selects copper floor ore, Evoke
 selects beryllium wall ore, incompatible and out-of-range targets are
-ignored, and tapping the target again cancels mining. Live ARM11 mining
-and inventory synchronization are tracked in [#176](https://github.com/levkeveli/Min3DStry/issues/176).
+ignored, and tapping the target again cancels mining. Use the live verifier
+with `--controls --controls-replay --terrain-atlas <sprites.aatls>` and one of:
+
+- `--mining wall --map-spawn "The Onset" --erekir-sector onset`
+- `--mining floor --map-spawn "Ground Zero"`
+
+Each scenario loads the original campaign map from the pinned server JAR
+and starts with zero of the tested item. It checks the server's selected
+tile, core deposits, the client's core inventory update and the unchanged
+balance after cancellation. Progress is tracked in
+[#176](https://github.com/levkeveli/Min3DStry/issues/176).
 
 ### Verify the Arc executor pools
 
