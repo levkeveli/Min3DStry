@@ -29,6 +29,14 @@ CORE_PIXELS = {
 }
 
 
+# Opaque RGB from the original wall, drill base and drill top at Glacier spawn.
+BUILDING_LAYER_PIXELS = {
+    (39, 80): (24, 27, 32),  # Clipping keeps the portion west of the viewport in the margin.
+    (42, 65): (200, 165, 143), (52, 80): (200, 165, 143), (46, 90): (177, 135, 104),
+    (301, 57): (143, 102, 91), (338, 71): (176, 185, 192), (319, 59): (177, 135, 104),
+}
+
+
 def write_controls_replay(path, first_move=22, building=False, touch_build=False, touch_config=False, model="old3ds"):
     """Write the Azahar 2126.2 CTM input for this probe's pad/touch polling."""
     # The pinned Azahar movie header and HID sample definitions use packed little-endian fields.
@@ -310,7 +318,8 @@ def verify_controls(log, emulator, server_log, server, timeout, capture=None,
 
 
 def capture_viewport(log, emulator, rpc, destination, position,
-                     require_palette=False, require_icons=False, require_world_atlas=False):
+                     require_palette=False, require_icons=False, require_world_atlas=False,
+                     require_building_layers=False):
     unit, _, x, y = position
     # Glacier is 150 × 250 tiles and the renderer centers a 16 × 12 tile viewport.
     left = max(0, min(150 - 16, math.floor(float(x) / 8 + 0.5) - 8))
@@ -318,7 +327,9 @@ def capture_viewport(log, emulator, rpc, destination, position,
     frame = f"UPSTREAM_NETWORK_FRAME unit={unit} left={left} bottom={bottom} sprites=1"
     wait_for(log, emulator, rf"{frame}\b", 5)
     if require_world_atlas:
-        wait_for(log, emulator, r"UPSTREAM_WORLD_ATLAS page=0 rect=1037,3190\+160x160 fragments=6\b", 5)
+        # The backend reports the first split. The fixture wall is drawn before the core.
+        split = r"2365,342\+64x64 fragments=2" if require_building_layers else r"1037,3190\+160x160 fragments=6"
+        wait_for(log, emulator, rf"UPSTREAM_WORLD_ATLAS page=0 rect={split}\b", 5)
     screenshot = rpc.screenshot(res_scale=1)
     destination.write_bytes(screenshot)
     # Default layout centers the 320px bottom screen at x=40 below the top screen.
@@ -346,11 +357,16 @@ def capture_viewport(log, emulator, rpc, destination, position,
     samples = (*points, *interior, *icon_points) if require_palette else ()
     if require_world_atlas:
         samples += tuple(CORE_PIXELS)
+    if require_building_layers:
+        samples += tuple(BUILDING_LAYER_PIXELS)
     pixels = az.inspect_png(screenshot, samples)
     if pixels["width"] != 400 or pixels["height"] != 480 or pixels["top_distinct_colors"] < 8:
         raise RuntimeError(f"Expected the textured Glacier viewport on the top screen: {pixels}")
     if require_world_atlas and any(pixels["samples"][point] != color for point, color in CORE_PIXELS.items()):
         raise RuntimeError(f"Paged core pixels differ from the original unsplit draw: {pixels['samples']}")
+    if require_building_layers and any(
+            pixels["samples"][point] != color for point, color in BUILDING_LAYER_PIXELS.items()):
+        raise RuntimeError(f"Stock building layer pixels differ: {pixels['samples']}")
     if require_palette:
         if any(pixels["samples"][point] != color for point, color in points.items()):
             raise RuntimeError(f"Expected palette and cursor pixels {points}, observed {pixels['samples']}")
@@ -362,6 +378,7 @@ def capture_viewport(log, emulator, rpc, destination, position,
 
 
 def run_model(args, model, config, original_config, log, output):
+    stationary = args.world_atlas_recycle or args.building_layers
     overrides = {
         "Miscellaneous": {"log_filter": "*:Info Debug.Emulated:Debug Service.SOC:Debug",
                           "check_for_update_on_start": "false"},
@@ -395,6 +412,17 @@ def run_model(args, model, config, original_config, log, output):
                                    'return "UPSTREAM_CONFIG_FIXTURE lead=" + items.get(Items.lead); })()\n')
                 server.stdin.flush()
                 wait_for(server_log, server, r"UPSTREAM_CONFIG_FIXTURE lead=\d+", 5)
+            if args.building_layers:
+                server.stdin.write('js (() => { const team = Vars.state.rules.defaultTeam; '
+                                   'const wall = Vars.world.tile(72, 27), drill = Vars.world.tile(86, 28); '
+                                   'wall.setBlock(Blocks.copperWallLarge, team, 0); '
+                                   'drill.setBlock(Blocks.mechanicalDrill, team, 0); '
+                                   'return "UPSTREAM_BUILDING_LAYER_FIXTURE " + wall.block().name + " " '
+                                   '+ Vars.world.tile(73, 27).build.pos() + " " + wall.build.pos() '
+                                   '+ " " + drill.block().name; })()\n')
+                server.stdin.flush()
+                fixture = r"UPSTREAM_BUILDING_LAYER_FIXTURE copper-wall-large (\d+) \1 mechanical-drill"
+                wait_for(server_log, server, fixture, 5)
             if args.desktop_name:
                 print(f"{model}: Join 127.0.0.1:{args.port} from the stock PC client as "
                       f"{args.desktop_name!r}.", flush=True)
@@ -430,13 +458,15 @@ def run_model(args, model, config, original_config, log, output):
                         return capture_viewport(log, emulator, rpc, output / f"{model}-{phase}.png", position,
                                                 require_palette=args.touch_build or args.touch_config,
                                                 require_icons=args.menu_icons,
-                                                require_world_atlas=args.world_atlas and phase == "spawn")
+                                                require_world_atlas=args.world_atlas and phase in ("spawn", "building-layers"),
+                                                require_building_layers=args.building_layers)
 
-                    if args.world_atlas_recycle:
+                    if stationary:
                         wait_for(log, emulator, r"UPSTREAM_LIVE_CONTROLS_READY unit=\d+", args.timeout)
                         spawn = server_position(server_log, server, "UPSTREAM_SERVER_CONTROLS_READY").groups()
-                        capture("spawn", spawn)
-                        print("Verified atlas recycling at spawn.", flush=True)
+                        phase = "building-layers" if args.building_layers else "spawn"
+                        capture(phase, spawn)
+                        print("Verified the stationary Glacier capture.", flush=True)
                         emu_log = log.read_text(encoding="utf-8", errors="replace")
                         if "UPSTREAM_LIVE_NET_ERROR" in emu_log:
                             raise RuntimeError("The client failed after rendering the atlas stress frame")
@@ -482,7 +512,7 @@ def run_model(args, model, config, original_config, log, output):
             departures = [line for line in upstream.splitlines() if f"{PLAYER} has disconnected" in line]
             # NetServer.sync can observe the closed transport before the disconnect event runs.
             # The stationary render check ends by terminating the emulator process.
-            departure = r"\((closed|disappeared|error)\)" if args.world_atlas_recycle else r"\((closed|disappeared)\)"
+            departure = r"\((closed|disappeared|error)\)" if stationary else r"\((closed|disappeared)\)"
             expected_departures = all(re.search(departure, line) for line in departures)
             expected_joins = 1 if args.controls else 2
             if ((not args.controls and "clientOutdated" not in upstream)
@@ -548,6 +578,8 @@ def main():
                             help="Verify touch placement, rotation and removal against the stock server")
     build_mode.add_argument("--touch-config", action="store_true",
                             help="Verify configuring a Sorter with both directions of the stock configuration packet")
+    build_mode.add_argument("--building-layers", action="store_true",
+                            help="Verify the stock cached wall and drill passes at Glacier spawn")
     args = parser.parse_args()
     args.server, args.rom, args.azahar = (path.resolve() for path in (args.server, args.rom, args.azahar))
     with args.server.open("rb") as archive:
@@ -571,6 +603,8 @@ def main():
         parser.error("--world-atlas-recycle needs --world-atlas")
     if args.world_atlas_recycle and (args.controls_replay or args.building or args.touch_build or args.touch_config):
         parser.error("--world-atlas-recycle runs a stationary spawn check")
+    if args.building_layers and (not args.terrain_atlas or not args.controls or args.controls_replay):
+        parser.error("--building-layers needs --controls and --terrain-atlas for a stationary capture")
     if args.world_atlas and not args.terrain_atlas:
         parser.error("--world-atlas needs --terrain-atlas")
     if args.locale and (not args.terrain_atlas or not re.fullmatch(r"[a-z]{2,3}(?:_[A-Z]{2})?", args.locale)):
