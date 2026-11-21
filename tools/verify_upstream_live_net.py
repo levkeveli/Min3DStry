@@ -1349,7 +1349,7 @@ def verify_client_processor(server_log, server, rpc, output, model, timeout):
 
 
 def verify_logic_displays(server_log, server, rpc, output, model, timeout):
-    points = ((115, 39), (150, 70), (141, 63), (300, 50), (120, 190))
+    points = ((123, 30), (150, 70), (141, 63), (300, 50), (120, 190))
     capture_marker_pixels(rpc, output, model, "display-background", points, timeout, ((86, 86, 102),) * len(points))
     code = """getlink primary 0
 getlink source 1
@@ -1371,14 +1371,19 @@ end
     send_marker_phase(server_log, server, "display-configured",
         "const p=Vars.world.build(77,25), links=new Seq(); "
         "const Link=Packages.mindustry.world.blocks.logic.LogicBlock.LogicLink; "
-        "links.add(new Link(0,4,'display1',true)); links.add(new Link(8,4,'display2',true)); "
+        "links.add(new Link(0,4,'display1',true)); links.add(new Link(9,4,'display2',true)); "
         "links.add(new Link(-1,-3,'display3',true)); "
         f"p.configureAny(Packages.mindustry.world.blocks.logic.LogicBlock.compress({json.dumps(code)},links)); "
         'if(p.executor.instructions.length!==16 || p.executor.links.length!==3) throw "Invalid display config";')
     capture_marker_pixels(rpc, output, model, "display-program", points, timeout,
                           ((232, 54, 80), (16, 32, 64), (30, 200, 240), (30, 200, 240), (160, 210, 75)))
+    text_area = tuple((x, y) for x in range(115, 137) for y in range(45, 55))
+    screenshot = (output / f"{model}-display-program.png").read_bytes()
+    text_pixels = az.inspect_png(screenshot, text_area)["samples"]
+    if sum(min(color) >= 160 for color in text_pixels.values()) < 8:
+        raise RuntimeError("Original logic font was missing from the display framebuffer")
     send_marker_phase(server_log, server, "display-server-headless",
-        'if(Vars.world.build(77,29).buffer!=null || Vars.world.build(85,29).buffer!=null) '
+        'if(Vars.world.build(77,29).buffer!=null || Vars.world.build(86,29).buffer!=null) '
         'throw "Dedicated server unexpectedly rendered displays";')
     print(f"{model}: normal, large and tiled Logic Displays rendered the stock processor program.", flush=True)
 
@@ -1441,9 +1446,10 @@ def run_model(args, model, config, original_config, log, output):
                     "rules.allowEditWorldProcessors=true; const team=rules.defaultTeam; "
                     "Vars.world.tile(77,25).setBlock(Blocks.worldProcessor,team); "
                     "Vars.world.tile(77,29).setBlock(Blocks.logicDisplay,team); "
-                    "Vars.world.tile(85,29).setBlock(Blocks.largeLogicDisplay,team); "
+                    "Vars.world.tile(86,29).setBlock(Blocks.largeLogicDisplay,team); "
                     "Vars.world.tile(76,22).setBlock(Blocks.tileLogicDisplay,team); "
-                    "Vars.world.tile(77,22).setBlock(Blocks.tileLogicDisplay,team);")
+                    "Vars.world.tile(77,22).setBlock(Blocks.tileLogicDisplay,team); "
+                    'if(Vars.world.tile(81,26).block()!==Blocks.coreNucleus) throw "Display fixture touched the core";')
             if args.erekir_build:
                 server.stdin.write(
                     'js (() => { const core = Vars.state.rules.defaultTeam.core(); '
