@@ -1551,6 +1551,30 @@ def watch_player_weapons(server_log, server):
     wait_for(server_log, server, r"UPSTREAM_WEAPON_OBSERVER_READY\b", 5)
 
 
+def capture_gamma_projectile(log, emulator, rpc, output, model, timeout):
+    wait_for(log, emulator, r"UPSTREAM_NETWORK_FRAME unit=\d+ left=73 bottom=20 sprites=1\b", timeout)
+    # Screen space east of the stationary Gamma in Glacier. Use the original
+    # Pal.yellowBoltFront line color and exclude pixels already in the scenery.
+    points = tuple((x, y) for x in range(230, 388, 2) for y in range(94, 126, 2))
+    color = (255, 210, 126)
+    path = output / f"{model}-gamma-idle.png"
+    baseline = rpc.screenshot(res_scale=1)
+    path.write_bytes(baseline)
+    background = az.inspect_png(baseline, points)["samples"]
+    wait_for(log, emulator, r"UPSTREAM_NETWORK_PROJECTILES visible=[1-9]\d* active=[1-9]\d*\b", timeout)
+    deadline = time.monotonic() + min(timeout, 12)
+    png = baseline
+    while time.monotonic() < deadline:
+        png = rpc.screenshot(res_scale=1)
+        samples = az.inspect_png(png, points)["samples"]
+        if sum(pixel != background[point] and all(abs(a - b) <= 4 for a, b in zip(pixel, color))
+               for point, pixel in samples.items()) >= 2:
+            (output / f"{model}-gamma-projectile.png").write_bytes(png)
+            return
+    (output / f"{model}-gamma-projectile-unexpected.png").write_bytes(png)
+    raise RuntimeError(f"{model} did not display the original Gamma bolt color east of the player")
+
+
 def run_model(args, model, config, original_config, log, output):
     graphical_movement = bool(args.controls_replay and args.terrain_atlas and not (
         args.verify_weapons or args.building or args.touch_build or args.touch_config
@@ -1733,12 +1757,19 @@ def run_model(args, model, config, original_config, log, output):
                 if args.controls_rejoin:
                     emu_log = verify_graphical_rejoin(args, model, log, emulator, server_log, server, rpc, output)
                 elif args.verify_weapons:
+                    if args.verify_projectiles:
+                        capture_gamma_projectile(log, emulator, rpc, output, model, args.timeout)
                     for axis in ("east", "north"):
                         wait_for(server_log, server, rf"UPSTREAM_WEAPON_SHOT axis={axis} unit=\d+ bullet=\d+\b",
                                  args.timeout)
                         wait_for(server_log, server, rf"UPSTREAM_WEAPON_RELEASE axis={axis} unit=\d+\b", args.timeout)
                     print(f"{model}: the stock server fired east and north and applied both releases.", flush=True)
                     emu_log = wait_for(log, emulator, "UPSTREAM_LIVE_CONTROLS_LEFT", args.timeout)
+                    if args.verify_projectiles:
+                        states = re.findall(r"UPSTREAM_NETWORK_PROJECTILES visible=(\d+) active=(\d+)", emu_log)
+                        if not states or states[-1] != ("0", "0"):
+                            raise RuntimeError(f"{model} did not clear its local projectiles after release")
+                        print(f"{model}: the stock bolt appeared in the captured viewport and cleared.", flush=True)
                 elif args.controls:
                     def capture(phase, position):
                         if args.world_atlas_recycle and phase == "spawn":
@@ -2033,6 +2064,8 @@ def main():
                         help="Require the ARM11 collector to grow its relocation table during the spawn check")
     parser.add_argument("--verify-weapons", action="store_true",
                         help="Verify the original player fires east and north and releases on Glacier")
+    parser.add_argument("--verify-projectiles", action="store_true",
+                        help="Also verify the original Gamma bolt appears on the handheld viewport and clears")
     args = parser.parse_args()
     if args.controls_rejoin and (not args.controls or args.controls_replay or not args.terrain_atlas
                                  or args.map_spawn not in MAP_SPAWN_PIXELS or args.verify_objective_markers
@@ -2051,6 +2084,8 @@ def main():
     if args.verify_weapons and (not args.controls_replay or args.map_spawn or args.building or args.touch_build
                                 or args.touch_config):
         parser.error("--verify-weapons needs a standalone --controls --controls-replay on Glacier")
+    if args.verify_projectiles and (not args.verify_weapons or not args.terrain_atlas):
+        parser.error("--verify-projectiles needs --verify-weapons and --terrain-atlas on Glacier")
     if args.building and not args.terrain_atlas:
         parser.error("--building needs --terrain-atlas")
     if args.touch_build and not args.terrain_atlas:

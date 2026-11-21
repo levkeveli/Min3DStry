@@ -403,6 +403,21 @@ each profile. The separate movement replay schedules longer held inputs
 and idle intervals to verify both pads, server position and continued
 snapshot delivery after each stop.
 
+The graphical client runs the original Gamma weapon mounts and the stock
+Arc delay queue so the upstream burst pattern also produces projectiles
+locally. It updates the original bullet entities and submits their draw
+calls in the sorted world pass. The staged v160.8 `BulletType` allows
+trails when the handheld batch is present. Server damage and progression
+continue through the existing multiplayer session.
+
+Add `--verify-projectiles` to the Glacier weapon replay with the original
+atlas. It compares the bolt color against the idle viewport and checks that
+the local bullet group clears after release. The JVM building-layer
+reference exercises burst timing, original sprite submissions, the trail
+and lifetime cleanup. Additional weapons, remote combat effects and audio
+are tracked by [#30](https://github.com/levkeveli/Min3DStry/issues/30) and
+[#29](https://github.com/levkeveli/Min3DStry/issues/29).
+
 Run the same verifier with `--controls --model old3ds` and then
 `--controls --model new3ds`. Follow its prompts to move right with the
 D-pad, move up with the Circle Pad, and leave after the next wave.

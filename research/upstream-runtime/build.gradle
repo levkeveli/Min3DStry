@@ -22,6 +22,7 @@ def placementSource = 'core/src/mindustry/ui/fragments/PlacementFragment.java'
 def itemSelectionSource = 'core/src/mindustry/world/blocks/ItemSelection.java'
 def globalLogicSource = 'core/src/mindustry/logic/GlobalVars.java'
 def coreWorldSource = 'mindustry/core/World.java'
+def bulletTypeSource = 'mindustry/entities/bullet/BulletType.java'
 def logicExecutorSource = 'mindustry/logic/LExecutor.java'
 def planetGridSource = 'core/src/mindustry/graphics/g3d/PlanetGrid.java'
 def pixmapSource = 'arc-core/src/arc/graphics/Pixmap.java'
@@ -390,6 +391,7 @@ tasks.register('prepareUpstreamProbe') {
     if (probe == 'network-render') {
         outputs.files(contentColorsFile, globalLogicFile)
         outputs.file(sourceDir.map { it.file(coreWorldSource) })
+        outputs.file(sourceDir.map { it.file(bulletTypeSource) })
         outputs.file(sourceDir.map { it.file(logicExecutorSource) })
         logicDisplaySources.each { outputs.file(sourceDir.map { dir -> dir.file(it) }) }
         shieldModeSources.keySet().each { outputs.file(sourceDir.map { dir -> dir.file(it) }) }
@@ -445,6 +447,13 @@ tasks.register('prepareUpstreamProbe') {
             adaptedCoreWorldFile.parentFile.mkdirs()
             adaptedCoreWorldFile.setText(adaptedWorld.replace('package mindustry.core;',
                 'package mindustry.core;\n\nimport port.world.DarknessScratch;'), 'UTF-8')
+            def bulletType = new String(readUpstream("core/src/${bulletTypeSource}"), 'UTF-8')
+            def trailGuard = 'if(!headless && trailLength > 0){'
+            if (bulletType.count(trailGuard) != 1) throw new GradleException('Pinned projectile trail guard changed')
+            def adaptedBulletType = sourceDir.get().file(bulletTypeSource).asFile
+            adaptedBulletType.parentFile.mkdirs()
+            adaptedBulletType.setText(bulletType.replace(trailGuard,
+                'if((!headless || Core.batch != null) && trailLength > 0){'), 'UTF-8')
             logicDisplaySources.each { path ->
                 def source = new String(readUpstream("core/src/${path}"), 'UTF-8')
                 def desktopRenderer = '!Vars.renderer.drawDisplays'
