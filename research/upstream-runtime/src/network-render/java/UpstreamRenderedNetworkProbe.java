@@ -18,6 +18,7 @@ import mindustry.graphics.CacheLayer;
 import mindustry.type.UnitType;
 import mindustry.world.blocks.payloads.BuildPayload;
 import mindustry.world.blocks.payloads.PayloadConveyor.PayloadConveyorBuild;
+import mindustry.world.blocks.payloads.UnitPayload;
 import mindustry.world.blocks.liquid.Conduit;
 import mindustry.world.blocks.distribution.Conveyor.ConveyorBuild;
 import mindustry.world.blocks.distribution.Sorter;
@@ -131,7 +132,7 @@ public final class UpstreamRenderedNetworkProbe {
         Draw.sort(true);
         try {
             for (var unit : Groups.unit) {
-                if (unit.type() != UnitTypes.gamma && unit.type() != UnitTypes.dagger) continue;
+                if (!supportsUnit(unit.type())) continue;
                 int x = World.toTile(unit.x()), y = World.toTile(unit.y());
                 if (x < viewport.left || x >= viewport.left + UpstreamTerrainDrawProbe.VIEW_WIDTH
                         || y < viewport.bottom || y >= viewport.bottom + UpstreamTerrainDrawProbe.VIEW_HEIGHT) continue;
@@ -171,10 +172,15 @@ public final class UpstreamRenderedNetworkProbe {
     }
 
     private static boolean supportsCargo(PayloadConveyorBuild conveyor) {
+        if (conveyor.item instanceof UnitPayload payload) return supportsUnit(payload.unit.type());
         return conveyor.item instanceof BuildPayload payload
             && (payload.block() == Blocks.copperWall || payload.block() == Blocks.copperWallLarge
                 || payload.block() == Blocks.mechanicalDrill || payload.build instanceof ConveyorBuild
                 || payload.build instanceof PayloadConveyorBuild);
+    }
+
+    private static boolean supportsUnit(UnitType type) {
+        return type == UnitTypes.gamma || type == UnitTypes.dagger;
     }
 
     private void drawMenu(byte[] labels, int[] icons, int selected,
