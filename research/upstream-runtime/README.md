@@ -158,9 +158,18 @@ The probe reserves a 256 KiB native stack for the generated serializer.
 Use `-Pprobe=world-save` to load both fixtures. Copy the generated v13 save
 to `/3ds/min3dstry/glacier-v13.msav`. Use `-Pprobe=world-roundtrip` to also
 write and reload `/3ds/min3dstry/glacier-roundtrip.msav`. The round trip
-reserves a new output file and rejects an existing destination. On the
+reserves a new output file and rejects an existing destination. The probe also
+checks the new file through `SaveIO.isSaveValid` before reloading it. On the
 JVM, pass the map, v13 input, and new output paths as arguments. The
 round-trip check ends with `UPSTREAM_SAVE_ROUNDTRIP version=13 marker=ok`.
+
+The host-side [save resilience probe](host/README.md#save-resilience-checks)
+uses the same pinned server JAR and Glacier fixture to reject truncated,
+bad-header and unknown-version saves and to exercise the upstream backup path.
+Port-side `MIN3DSTRY_SAVE_POLICY` checks separately verify that an injected
+write failure leaves no final or temporary save. It runs without devkitARM; the
+ARM11 write path still uses a new output file and rejects an existing
+destination.
 
 [DevkitARM test builds with standard flags](https://github.com/levkeveli/Min3DStry/actions/runs/44793525705)
 and [with C optimization disabled](https://github.com/levkeveli/Min3DStry/actions/runs/44792277588)
