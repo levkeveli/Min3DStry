@@ -354,7 +354,8 @@ Run the live verifier with `--controls --controls-replay --terrain-atlas
 each direction, compares the viewport against the server's settled
 position, and checks wave reception and START disconnect.
 
-The [first optimized ARM11 reference build](https://github.com/levkeveli/Min3DStry/actions/runs/44841074894)
+The [optimized ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44843082564)
+and the [debug ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44843103275)
 passed this replay in Azahar 2126.2 on both console profiles. The server
 spawned the player at (648, 208), then confirmed movement east and north
 from the D-pad and Circle Pad respectively. At each stop the top-screen
