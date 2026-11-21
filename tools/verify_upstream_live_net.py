@@ -124,7 +124,8 @@ def server_position(server_log, server, marker):
         '+ " x=" + u.x + " y=" + u.y; })()\n'
     )
     server.stdin.flush()
-    state = re.compile(rf"{marker} unit=(\d+) snapshot=(\d+) x=({NUMBER}) y=({NUMBER})")
+    # A connected player can have a unit while the first input snapshot is still in flight.
+    state = re.compile(rf"{marker} unit=(\d+) snapshot=(-1|\d+) x=({NUMBER}) y=({NUMBER})")
     return state.search(wait_for(server_log, server, state, 5))
 
 
@@ -437,12 +438,19 @@ def load_carried_buildings_fixture(server_log, server):
         'incoming.build.progress=Blocks.payloadConveyor.moveTime*0.4352753; '
         'center.build.handlePayload(center.build, new Payload(Blocks.copperWall,team)); '
         'incoming.build.handlePayload(incoming.build, new Payload(Blocks.copperWallLarge,team)); '
+        'const extra = [[75,23,Blocks.mechanicalDrill],[86,29,Blocks.conveyor],[78,21,Blocks.payloadRouter]]; '
+        'const names = extra.map(entry => { const tile = Vars.world.tile(entry[0],entry[1]); '
+        'tile.setBlock(Blocks.payloadConveyor,team,0); '
+        'tile.build.progress=Blocks.payloadConveyor.moveTime*0.5; '
+        'tile.build.handlePayload(tile.build,new Payload(entry[2],team)); '
+        'return tile.build.item.content().name + "=" + Math.round(tile.build.item.x()); }); '
         'return "UPSTREAM_CARRIED_FIXTURE " + center.build.item.content().name + "=" '
         '+ Math.round(center.build.item.x()) + " " + incoming.build.item.content().name + "=" '
-        '+ Math.round(incoming.build.item.x()); })()\n'
+        '+ Math.round(incoming.build.item.x()) + " " + names.join(" "); })()\n'
     )
     server.stdin.flush()
-    wait_for(server_log, server, r"UPSTREAM_CARRIED_FIXTURE copper-wall=600 copper-wall-large=682\b", 5)
+    wait_for(server_log, server, r"UPSTREAM_CARRIED_FIXTURE copper-wall=600 copper-wall-large=682 "
+             r"mechanical-drill=600 conveyor=688 payload-router=624\b", 5)
 
 
 def verify_carried_buildings(screenshot):
@@ -452,9 +460,17 @@ def verify_carried_buildings(screenshot):
     expected = {(82, 63): dark, (85, 68): light, (91, 70): light, (95, 73): dark,
                 (277, 133): dark, (280, 138): light, (286, 140): light,
                 (292, 147): light, (304, 156): dark, (311, 164): dark}
+    # Original opaque texels from the drill base and both upstream fullIcon regions.
+    steel, slate, charcoal = (152, 154, 164), (110, 112, 128), (74, 75, 83)
+    expected.update({(73, 154): steel, (75, 156): steel, (81, 160): charcoal, (104, 186): steel,
+                     (303, 44): slate, (305, 46): slate, (311, 50): charcoal, (314, 53): slate,
+                     (123, 184): slate, (125, 186): slate, (149, 210): charcoal, (165, 228): charcoal,
+                     (174, 230): (148, 151, 162)})
     colors = az.inspect_png(screenshot, tuple(expected))["samples"]
     if colors != expected:
-        raise RuntimeError(f"Original carried walls differ in color or position: {colors}")
+        mismatches = {point: (expected[point], colors.get(point)) for point in expected
+                      if colors.get(point) != expected[point]}
+        raise RuntimeError(f"Original carried buildings differ in color or position: {mismatches}")
 
 
 def load_payload_handoff_fixture(server_log, server):
@@ -858,7 +874,7 @@ def main():
     build_mode.add_argument("--payload-mix", action="store_true",
                             help="Verify original full and partial team-color glow on stock Payload Conveyors")
     build_mode.add_argument("--carried-buildings", action="store_true",
-                            help="Verify stock carried copper walls at two positions on Payload Conveyors")
+                            help="Verify stock walls, drill and transport blocks carried on Payload Conveyors")
     build_mode.add_argument("--payload-handoff", action="store_true",
                             help="Verify a stock server transfers a carried wall after the client joins")
     args = parser.parse_args()

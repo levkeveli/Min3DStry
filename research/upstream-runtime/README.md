@@ -640,16 +640,24 @@ sampled base pixels under transparent overlays matched exactly after
 clamping the internal atlas tile edges.
 
 Payload Conveyors use upstream `updatePayload` to reconstruct a carried
-Copper Wall or Large Copper Wall's position from the progress and rotation
-in the stock building stream. Upstream `BuildPayload.draw` then draws the
-wall and its atlas shadow on the conveyor. The JVM check round-trips both
-wall sizes through the original building serializer and verifies the
-carried position, shadow color and layer order. Run the live verifier with
-`--controls --carried-buildings --terrain-atlas` to check both sprites
-against their upstream atlas colors in a stock Java Glacier session.
+building's position from the progress and rotation in the stock building
+stream. Upstream `BuildPayload.draw` draws the building and its atlas
+shadow. The graphics adapter loads original block icons with upstream
+`loadIcon`, which lets the Conveyor and Payload Conveyor families use
+their original `payloadDraw` overrides.
+
+The JVM round-trips ten blocks through the original serializer, including
+both Copper Wall sizes, the Mechanical Drill, all three belt tiers and
+standard and reinforced Payload Conveyors and Routers. It checks original
+atlas regions, position, shadow and the drill's upstream depth order.
+Run the live verifier with `--controls --carried-buildings --terrain-atlas`
+to check both wall sizes, a Mechanical Drill, a Conveyor and a Payload
+Router against their upstream atlas colors in a stock Java Glacier session.
 The [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44867577413)
-passed on the Old and New 3DS Azahar profiles. All 2,000 opaque wall pixels
-per profile matched the original atlas, allowing either neighboring texel
+for the wall-only fixture passed on both Azahar profiles. The
+[expanded ARM11 fixture](https://github.com/levkeveli/Min3DStry/actions/runs/44870610745)
+passed on both profiles and matched all 7,600 opaque pixels from the
+five carried sprites per profile, allowing either neighboring texel
 at exact nearest-neighbor ties.
 
 The live client alternates TCP and UDP while draining up to 16 packets
