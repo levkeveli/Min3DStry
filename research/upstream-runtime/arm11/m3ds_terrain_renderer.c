@@ -48,6 +48,7 @@ static struct {
 } menu_icons[6];
 static float world_left, world_bottom, scale, screen_left, screen_bottom;
 static int32_t draws;
+static int32_t world_blend = -1;
 
 int32_t m3ds_terrain_mount_assets(void) {
     if (!romfs_ready) romfs_ready = R_SUCCEEDED(romfsInit());
@@ -224,10 +225,21 @@ static int32_t draw_world_region(int page, int left, int top, int w, int h,
 }
 #endif
 
+static void set_world_blend(int32_t mode) {
+    if (world_blend == mode) return;
+    C2D_Flush();
+    GPU_BLENDFACTOR source = mode == 2 ? GPU_ONE : GPU_SRC_ALPHA;
+    GPU_BLENDFACTOR dest = mode == 2 ? GPU_ZERO : mode == 1 ? GPU_ONE : GPU_ONE_MINUS_SRC_ALPHA;
+    C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, source, dest, GPU_ONE,
+        mode == 2 ? GPU_ZERO : GPU_ONE_MINUS_SRC_ALPHA);
+    world_blend = mode;
+}
+
 int32_t m3ds_terrain_draw(int32_t page, int32_t left, int32_t top, int32_t width, int32_t height,
                           float x, float y, float origin_x, float origin_y, float draw_width,
-                          float draw_height, float rotation, int32_t color) {
+                          float draw_height, float rotation, int32_t color, int32_t blend_mode) {
     if (!frame_open || width <= 0 || height <= 0) return 0;
+    set_world_blend(blend_mode);
     C2D_DrawParams params = {
         .pos = { screen_left + (x + origin_x - world_left) * scale,
                  screen_bottom - (y + origin_y - world_bottom) * scale,
@@ -307,6 +319,7 @@ int32_t m3ds_terrain_build_overlay(int32_t column, int32_t row, int32_t block, i
                                   int32_t removing, int32_t tile_size, int32_t rotatable, int32_t catalog_open,
                                   int32_t configuring) {
     if (!frame_open) return 0;
+    set_world_blend(0);
     if (!palette) {
         if (!palette_buffer || !catalog_buffer) return 0;
         // consoleInit switched the bottom framebuffer to RGB565.

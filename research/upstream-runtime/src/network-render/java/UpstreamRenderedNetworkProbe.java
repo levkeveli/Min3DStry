@@ -11,12 +11,14 @@ import mindustry.core.World;
 import mindustry.gen.Groups;
 import mindustry.gen.Unit;
 import mindustry.graphics.CacheLayer;
+import mindustry.world.Block;
 import mindustry.world.blocks.distribution.Sorter;
 
 /** Presents the received Glacier world through the ARM11 terrain renderer. */
 public final class UpstreamRenderedNetworkProbe {
     private final Fi atlas;
     private final UpstreamTerrainRenderProbe target = new UpstreamTerrainRenderProbe(false);
+    private final UpstreamBuildingLayers buildingLayers = new UpstreamBuildingLayers();
     private final UpstreamLiveBuildControls buildingControls = new UpstreamLiveBuildControls();
     private final Runnable drawEntities = this::drawEntities;
     private final IntSet reportedConveyors = new IntSet();
@@ -79,26 +81,12 @@ public final class UpstreamRenderedNetworkProbe {
     }
 
     private void drawEntities() {
-        // The upstream tile renderer caches both walls and routers.
-        int right = Math.min(viewport.left + UpstreamTerrainDrawProbe.VIEW_WIDTH, Vars.world.width());
-        int top = Math.min(viewport.bottom + UpstreamTerrainDrawProbe.VIEW_HEIGHT, Vars.world.height());
-        for (int y = viewport.bottom; y < top; y++) {
-            for (int x = viewport.left; x < right; x++) {
-                var tile = Vars.world.tile(x, y);
-                if ((tile.block() == Blocks.copperWall || tile.block() == Blocks.router
-                        || tile.build instanceof Sorter.SorterBuild) && tile.build != null) {
-                    tile.build.drawCached();
-                }
-            }
-        }
+        buildingLayers.render(viewport, Vars.player.team(), UpstreamRenderedNetworkProbe::supportsBuildingDraw);
         for (var building : Groups.build) {
-            if ((building.block == Blocks.coreNucleus || building.block == Blocks.conveyor)
-                    && viewport.contains(building)) {
-                building.draw();
-                if (building.block == Blocks.conveyor && reportedConveyors.add(building.pos())) {
-                    System.out.println("UPSTREAM_NETWORK_CONVEYOR x=" + building.tileX()
-                        + " y=" + building.tileY() + " rotation=" + building.rotation);
-                }
+            if (building.block == Blocks.conveyor && viewport.contains(building)
+                    && reportedConveyors.add(building.pos())) {
+                System.out.println("UPSTREAM_NETWORK_CONVEYOR x=" + building.tileX()
+                    + " y=" + building.tileY() + " rotation=" + building.rotation);
             }
         }
         for (var unit : Groups.unit) {
@@ -126,6 +114,13 @@ public final class UpstreamRenderedNetworkProbe {
         } else {
             lastMenu = null;
         }
+    }
+
+    private static boolean supportsBuildingDraw(Block block) {
+        // These blocks use the sprite operations available in the live backend.
+        return block == Blocks.coreNucleus || block == Blocks.conveyor || block == Blocks.copperWall
+            || block == Blocks.copperWallLarge || block == Blocks.router || block instanceof Sorter
+            || block == Blocks.mechanicalDrill;
     }
 
     private void drawMenu(byte[] labels, int[] icons, int selected,

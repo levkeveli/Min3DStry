@@ -1,5 +1,6 @@
 import arc.Core;
 import arc.files.Fi;
+import arc.graphics.Blending;
 import arc.graphics.Color;
 import arc.graphics.Texture;
 import arc.graphics.g2d.Batch;
@@ -11,6 +12,7 @@ import arc.graphics.g2d.TextureRegion;
 import arc.math.Mathf;
 import arc.struct.Seq;
 import java.io.IOException;
+import java.util.Comparator;
 import mindustry.Vars;
 import mindustry.content.Blocks;
 import mindustry.gen.Building;
@@ -31,7 +33,7 @@ public final class UpstreamTerrainDrawProbe {
         void begin(int left, int bottom, int width, int height);
         void draw(int page, int left, int top, int width, int height,
                   float x, float y, float originX, float originY, float drawWidth, float drawHeight,
-                  float rotation, int color);
+                  float rotation, int color, Blending blending);
         void end();
     }
 
@@ -63,9 +65,7 @@ public final class UpstreamTerrainDrawProbe {
         try {
             for (var block : Vars.content.blocks()) {
                 if (block == Blocks.air) continue;
-                if (block instanceof Floor || (live && (!block.hasBuilding() || block == Blocks.coreNucleus
-                        || block == Blocks.conveyor || block == Blocks.copperWall || block == Blocks.router
-                        || block == Blocks.sorter || block == Blocks.invertedSorter))) {
+                if (block instanceof Floor || live) {
                     block.load();
                 }
             }
@@ -193,6 +193,12 @@ public final class UpstreamTerrainDrawProbe {
     }
 
     private static final class TerrainBatch extends Batch {
+        // Arc SpriteBatch queues draw requests while sorting. A deferred callback can
+        // draw immediately during the flush, and equal depths retain submission order.
+        private record DrawRequest(float depth, Blending blending, Runnable draw) {}
+        private final Seq<DrawRequest> requests = new Seq<>();
+        private boolean sort, flushing;
+
         final Seq<AtlasRegion> edgeSources;
         final TerrainTarget target;
         long hash = 0xcbf29ce484222325L;
@@ -220,8 +226,16 @@ public final class UpstreamTerrainDrawProbe {
                 if (mixColorPacked != Color.clearFloatBits) {
                     throw new IllegalStateException("Unexpected terrain mix color");
                 }
-                target.draw(page.index, region.getX(), region.getY(), region.width, region.height,
-                    x, y, originX, originY, width, height, rotation, Color.floatToIntColor(colorPacked));
+                int left = region.getX(), top = region.getY();
+                int sourceWidth = region.width, sourceHeight = region.height;
+                int color = Color.floatToIntColor(colorPacked);
+                if (sort && !flushing) {
+                    draw(() -> target.draw(page.index, left, top, sourceWidth, sourceHeight,
+                        x, y, originX, originY, width, height, rotation, color, blending));
+                } else {
+                    target.draw(page.index, left, top, sourceWidth, sourceHeight,
+                        x, y, originX, originY, width, height, rotation, color, blending);
+                }
             }
         }
 
@@ -252,6 +266,41 @@ public final class UpstreamTerrainDrawProbe {
         }
 
         @Override
-        protected void flush() {}
+        protected void draw(Runnable draw) {
+            if (sort && !flushing) requests.add(new DrawRequest(z, blending, draw));
+            else draw.run();
+        }
+
+        @Override
+        protected void setSort(boolean enabled) {
+            if (sort != enabled) flush();
+            sort = enabled;
+        }
+
+        @Override
+        protected void setBlending(Blending mode) {
+            blending = mode;
+        }
+
+        @Override
+        protected void flush() {
+            if (flushing || requests.isEmpty()) return;
+            float colorBefore = colorPacked, mixBefore = mixColorPacked;
+            Blending blendBefore = blending;
+            flushing = true;
+            try {
+                requests.sort(Comparator.comparingDouble(DrawRequest::depth));
+                for (var request : requests) {
+                    blending = request.blending();
+                    request.draw().run();
+                }
+            } finally {
+                requests.clear();
+                colorPacked = colorBefore;
+                mixColorPacked = mixBefore;
+                blending = blendBefore;
+                flushing = false;
+            }
+        }
     }
 }

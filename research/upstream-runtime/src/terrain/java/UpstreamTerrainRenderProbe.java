@@ -1,3 +1,4 @@
+import arc.graphics.Blending;
 import java.io.IOException;
 import mindustry.Vars;
 import org.teavm.interop.Import;
@@ -55,9 +56,14 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
     @Override
     public void draw(int page, int left, int top, int width, int height,
                      float x, float y, float originX, float originY, float drawWidth, float drawHeight,
-                     float rotation, int color) {
+                     float rotation, int color, Blending blending) {
+        int blendMode;
+        if (blending == Blending.normal) blendMode = 0;
+        else if (blending == Blending.additive) blendMode = 1;
+        else if (blending == Blending.disabled) blendMode = 2;
+        else throw new IllegalArgumentException("Unsupported Arc sprite blending");
         if (NativeTerrain.draw(page, left, top, width, height, x, y, originX, originY,
-                drawWidth, drawHeight, rotation, color) == 0) {
+                drawWidth, drawHeight, rotation, color, blendMode) == 0) {
             throw new IllegalStateException("Citro2D could not draw an upstream terrain region: "
                 + page + "," + left + "," + top + "+" + width + "x" + height);
         }
@@ -90,7 +96,7 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
         @Import(name = "m3ds_terrain_draw")
         static native int draw(int page, int left, int top, int width, int height,
                                float x, float y, float originX, float originY, float drawWidth,
-                               float drawHeight, float rotation, int color);
+                               float drawHeight, float rotation, int color, int blendMode);
 
         @Import(name = "m3ds_terrain_end")
         static native int end();
