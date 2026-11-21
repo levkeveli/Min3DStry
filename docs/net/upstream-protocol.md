@@ -1,7 +1,8 @@
 # Upstream v160.8 Network Framing & Handshake
 
-**Issue:** [#31](https://github.com/levkeveli/Min3DStry/issues/31)  
-**Stage:** `host-tested` (wire-exact Issue #31 handshake & framing oracle verified live against unmodified Mindustry v8 build `160.8` `server-release.jar`; 3DS `libctru` socket adapter compiled into `min3dstry.3dsx`; full TeaVM `NetClient` wiring and on-console Wi-Fi session pending in `#44`)
+**Issue:** [#31](https://github.com/levkeveli/Min3DStry/issues/31) / [#44](https://github.com/levkeveli/Min3DStry/issues/44)
+
+**Stage:** `emulator-tested` (`crossplay-net-protocol` verified live against unmodified Mindustry v8 build `160.8` `server-release.jar` + Java PC client across host loopback and Azahar `2126.2` Old/New 3DS profiles via [`research/upstream-runtime/`](../../research/upstream-runtime/README.md) and [`tools/verify_upstream_live_net.py`](../../tools/verify_upstream_live_net.py); `net_3ds.c` compiled into `min3dstry.3dsx`; physical Old/New 3DS console Wi-Fi session pending under `#44` / `#43`)
 
 ---
 
@@ -77,20 +78,25 @@ Server log excerpt:
 ```text
 UPSTREAM_NET_DISCOVERY map=Glacier version=160 vertype=official players=0 wave=1
 UPSTREAM_NET_MISMATCH build=159 kick=clientOutdated
-UPSTREAM_LZ4_PACKET id=141 compressed_bytes=140 payload_len=182 sha256=6ef5e3faea89648f3b9b627b1d9dbc837bde99a9ac1063a93734fba6082e1a78
-UPSTREAM_NET_SESSION run=1 map=Glacier width=150 height=250 buildings=2 wave=1 playerId=213 state_snapshots=1 entity_snapshots=0 lz4_packets=1
-UPSTREAM_NET_SESSION run=2 map=Glacier width=150 height=250 buildings=2 wave=1 playerId=215 state_snapshots=1 entity_snapshots=0 lz4_packets=1
-UPSTREAM_NET_PASS sessions=2 mismatch=clientOutdated lz4_packets=2
+UPSTREAM_NET_ACTION run=1 op=build conveyor=85,26@rot1 wall=86,26 copper=200->193 buildings=2->4
+UPSTREAM_LZ4_PACKET id=141 compressed_bytes=140 payload_len=182 sha256=5114dba0d37c186c661de1ddd898ccc8f0c1facf799937c05e02e19937fded38
+UPSTREAM_NET_SESSION run=1 map=Glacier width=150 height=250 buildings=4 wave=1 playerId=213 state_snapshots=4 entity_snapshots=3 lz4_packets=8
+UPSTREAM_NET_ACTION run=2 op=rejoin_deconstruct persisted=4 wall_removed=86,26 copper=193->196 buildings=4->3
+UPSTREAM_NET_SESSION run=2 map=Glacier width=150 height=250 buildings=3 wave=1 playerId=219 state_snapshots=4 entity_snapshots=2 lz4_packets=7
+UPSTREAM_NET_PASS sessions=2 mismatch=clientOutdated lz4_packets=15
 DECODE_PKT_OK id=141 compression=1 wire_len=140 payload_len=182
 ```
 
 - **Version mismatch:** Build `159` received `KickCallPacket2` with `KickReason.clientOutdated`.
-- **Two full sessions (disconnect + rejoin with same UUID):** Each run completed `ConnectPacket` -> `StreamBegin`/`StreamChunk` assembly -> upstream `NetworkIO.loadWorld` (`150x250` `Glacier`, `2` core origins, valid `playerId`) -> `ConnectConfirmCallPacket` -> live `StateSnapshotCallPacket` ingestion.
+- **Two bidirectional gameplay sessions (build, disconnect/rejoin persistence, and deconstruct):**
+  - **Session 1 (`run=1`):** Completed `ConnectPacket` -> `WorldStream` (`150x250` `Glacier`, `2` core origins, `copper=200`) -> `ConnectConfirmCallPacket`, applied incoming `StateSnapshotCallPacket` + `EntitySnapshotCallPacket` on the main thread until the server-spawned player unit was synced, transmitted outbound UDP `ClientSnapshotCallPacket` build plans for a `Conveyor` at `(85, 26)` rotation `1` and a `Copper Wall` at `(86, 26)`, applied server `ConstructFinishCallPacket` confirmations, and verified authoritative core copper sync (`200 -> 193`, `buildings=2->4`).
+  - **Session 2 (`run=2`):** Reset client state (`Vars.logic.reset()`), reconnected with the same UUID, confirmed the server's fresh rejoin `WorldStream` persisted all `4` buildings and `copper=193`, sent an outbound `ClientSnapshotCallPacket` deconstruction `BuildPlan(86, 26)`, applied `DeconstructFinishCallPacket`, and verified authoritative core copper refund sync (`193 -> 196`, `buildings=4->3`).
 - **Live LZ4 parity:** The raw `net.jpountz.lz4`-compressed server packet (`id=141`, `compressed_bytes=140`, `payload_len=182`, `compression=1`) decoded byte-for-byte identically via C11 `m3ds_net_decode_packet` (`DECODE_PKT_OK`).
 
-### 4. 3DS ARM11 Build (`./dev.sh build`)
-- **3DS-build-tested:** `src/net/mindustry_net.c` and `src/platform/3ds/net_3ds.c` compile cleanly under devkitARM `arm-none-eabi-gcc` (`-std=c11 -Wall -Wextra -Werror`) into `build/min3dstry.3dsx`.
-- **Not yet tested:** Physical Original/New 3DS Wi-Fi handshake and play session over TeaVM ARM11 live sockets (`#31`, `#44`); capability status remains `host-tested`.
+### 4. 3DS ARM11 Build & Emulator Verification
+- **3DS-build-tested (`./dev.sh build`):** `src/net/mindustry_net.c` and `src/platform/3ds/net_3ds.c` compile cleanly under devkitARM `arm-none-eabi-gcc` (`-std=c11 -Wall -Wextra -Werror`) into `build/min3dstry.3dsx`.
+- **Emulator-tested (`emulator-tested` in [port-capabilities.json](../port-capabilities.json)):** Azahar `2126.2` Old and New 3DS profiles run the TeaVM ARM11 client against unmodified v160.8 `server-release.jar` + desktop PC peers via [`tools/verify_upstream_live_net.py`](../../tools/verify_upstream_live_net.py) and [`research/upstream-runtime/arm11/m3ds_net_bridge.c`](../../research/upstream-runtime/arm11/m3ds_net_bridge.c).
+- **Not yet tested:** Physical Original/New 3DS console Wi-Fi multiplayer sessions (`#44`, `#43`).
 
 ---
 
