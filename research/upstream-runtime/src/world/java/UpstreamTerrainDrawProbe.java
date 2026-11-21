@@ -72,6 +72,7 @@ public final class UpstreamTerrainDrawProbe {
                 if (block instanceof Floor || prepareLiveAtlas != null) {
                     block.load();
                 }
+                if (prepareLiveAtlas != null) block.loadIcon();
             }
         } finally {
             Vars.headless = wasHeadless;

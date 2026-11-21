@@ -18,6 +18,7 @@ import mindustry.graphics.CacheLayer;
 import mindustry.world.blocks.payloads.BuildPayload;
 import mindustry.world.blocks.payloads.PayloadConveyor.PayloadConveyorBuild;
 import mindustry.world.blocks.liquid.Conduit;
+import mindustry.world.blocks.distribution.Conveyor.ConveyorBuild;
 import mindustry.world.blocks.distribution.Sorter;
 
 /** Presents the received Glacier world through the ARM11 terrain renderer. */
@@ -145,7 +146,7 @@ public final class UpstreamRenderedNetworkProbe {
         }
     }
 
-    private static boolean supportsBuildingDraw(Building build) {
+    static boolean supportsBuildingDraw(Building build) {
         var block = build.block;
         // These blocks use the sprite operations available in the live backend.
         return block == Blocks.coreNucleus || block == Blocks.conveyor || block == Blocks.copperWall
@@ -158,7 +159,9 @@ public final class UpstreamRenderedNetworkProbe {
 
     private static boolean supportsCargo(PayloadConveyorBuild conveyor) {
         return conveyor.item instanceof BuildPayload payload
-            && (payload.block() == Blocks.copperWall || payload.block() == Blocks.copperWallLarge);
+            && (payload.block() == Blocks.copperWall || payload.block() == Blocks.copperWallLarge
+                || payload.block() == Blocks.mechanicalDrill || payload.build instanceof ConveyorBuild
+                || payload.build instanceof PayloadConveyorBuild);
     }
 
     private void drawMenu(byte[] labels, int[] icons, int selected,
