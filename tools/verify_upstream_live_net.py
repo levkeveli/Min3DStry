@@ -481,9 +481,14 @@ def run_model(args, model, config, original_config, log, output):
             upstream = server_log.read_text(encoding="utf-8", errors="replace")
             departures = [line for line in upstream.splitlines() if f"{PLAYER} has disconnected" in line]
             # NetServer.sync can observe the closed transport before the disconnect event runs.
-            # The stationary render check ends by terminating the emulator process.
+            # The stationary atlas-recycle run ends by killing the emulator process, so the server
+            # can report `(error)` instead of a clean disconnect. Only this mode accepts it; normal
+            # control runs still require `(closed)` or `(disappeared)`.
             departure = r"\((closed|disappeared|error)\)" if args.world_atlas_recycle else r"\((closed|disappeared)\)"
             expected_departures = all(re.search(departure, line) for line in departures)
+            if args.world_atlas_recycle and any("(error)" in line for line in departures):
+                print(f"{model}: atlas-recycle run ended by emulator kill; "
+                      "accepted the server's (error) departure", flush=True)
             expected_joins = 1 if args.controls else 2
             if ((not args.controls and "clientOutdated" not in upstream)
                     or upstream.count(f"{PLAYER} has connected") != expected_joins
