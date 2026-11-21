@@ -447,9 +447,10 @@ def load_carried_buildings_fixture(server_log, server):
 
 def verify_carried_buildings(screenshot):
     # Original atlas texels for the centered small wall and the large wall offset six world units west.
+    # Sample away from exact nearest-neighbor ties where adjacent texels have different colors.
     dark, light = (177, 135, 104), (200, 165, 143)
-    expected = {(82, 63): dark, (85, 67): light, (91, 70): light, (95, 73): dark,
-                (277, 133): dark, (280, 137): light, (286, 140): light,
+    expected = {(82, 63): dark, (85, 68): light, (91, 70): light, (95, 73): dark,
+                (277, 133): dark, (280, 138): light, (286, 140): light,
                 (292, 147): light, (304, 156): dark, (311, 164): dark}
     colors = az.inspect_png(screenshot, tuple(expected))["samples"]
     if colors != expected:
