@@ -68,12 +68,96 @@ be decoded, `Save: invalid <bytes>B`, or `Save: none`, plus
 
 ### Compressed header prefix
 
-`include/platform/msav_inflate.h` decodes only the prefix of the zlib stream
+`include/platform/msav_inflate.h` decodes the prefix of the zlib stream
 (RFC 1950/1951), so the `MSAV` magic, big-endian version and the early metadata
 string map (`mapname`, `wave`) are available without inflating a whole world.
 It handles stored, fixed-Huffman and dynamic-Huffman DEFLATE blocks and stops
 as soon as the requested prefix is produced. Malformed headers, FDICT streams,
 and truncated input fail closed.
+
+The app also inflates the complete first sector slot into a 64 KiB buffer and
+logs:
+
+```text
+[MIN3DSTRY] SECTOR_INFLATE planet=serpulo id=170 raw=11072 bytes=45955 limit=8388608 status=ok
+```
+
+This proves the full compressed container is readable and inflatable on ARM11.
+`include/platform/msav_world.h` then walks the region lengths and reads the
+world dimensions from the map region:
+
+```text
+[MIN3DSTRY] SECTOR_WORLD version=13 width=150 height=250 status=ok
+```
+
+World parsing/loading is still separate work; no world or tile buffer is
+allocated. The map region's floor/block records and entity chunk lengths are
+walked and validated, and the map bytes are hashed:
+
+```text
+[MIN3DSTRY] SECTOR_TILES floors=37500 blocks=2768 data=0 entities=2 map=37500 entity_region=26 hash=bec356915bd24165
+```
+
+Both Azahar profiles produce the same hash. Entity bytes are bounds-checked but
+not decoded. The entity region is also walked: mapping entries, team counts,
+team-block counts and world entity chunk headers are validated and hashed.
+
+```text
+[MIN3DSTRY] SECTOR_ENTITIES mapping=0 teams=2 team_blocks=0 records=0 partial=0 hash=33a31f23a5cfb868
+```
+
+Saves with non-empty team-block payloads are marked `partial=1` because their
+TypeIO configs require the content mapping.
+
+The app next allocates flat floor/overlay/block/flag arrays for the whole map,
+fills them from the validated records, hashes the arrays, and frees them:
+
+```text
+[MIN3DSTRY] SECTOR_ALLOC tiles=37500 bytes=1312830 hash=783fbd80e415dcd7 status=ok
+```
+
+Both Azahar profiles produce the same allocation hash.
+
+Center-building entity chunks are copied into raw building records (tile index,
+revision, payload) and linked from the tile array. The common upstream
+`Building.readBase` fields are decoded: health, rotation, team, enabled flag,
+module mask, item count, and the remaining building-specific bytes:
+
+```text
+[MIN3DSTRY] SECTOR_BUILDINGS count=2 bytes=44 team=1 rot=0 health=6000 enabled=1 modules=9 items=0 item0=0:0 power=0:0.0 liquid=0:0:0.00 extra=8 partial=0 trunc=0 hash=4d6f71eda0848e18 status=ok
+```
+
+Both profiles produce the same building hash. The item module yields up to eight
+stacks, and the power/liquid modules yield link count/status and the first
+liquid id/amount. The validated world arrays stay resident and the HUD shows:
+
+```text
+World: 150x250 build=2
+```
+
+A combined per-tile state array now carries floor/overlay/block ids, `x`/`y`,
+flags, the building index, and a direct linked building pointer:
+
+```text
+[MIN3DSTRY] SECTOR_TILE_STATE tiles=37500 buildings=2 linked=2 hash=e35397041df8e5fe status=ok
+```
+
+A 24×16 top-screen preview now samples the resident tile arrays and draws one
+rect per cell (384 rects/frame), while the HUD shows `World: 150x250 build=2`.
+This is a runtime visualization of the loaded save, not an upstream minimap.
+
+The same save decoded by upstream v160.8 `SaveIO` on the JVM
+(`-Pprobe=save-decode`) and by the native reader must produce the same
+building-state hash:
+
+```text
+UPSTREAM_SAVE_STATE buildings=2 hash=3a375fd4f81c5680
+SECTOR_PARITY buildings=2 hash=3a375fd4f81c5680 status=ok
+```
+
+The native reader is verification-only and must be replaced by the upstream
+`SaveIO`/`MapIO` loader before gameplay can depend on it. Timer/disabler modules
+and the building-specific payload are preserved but not decoded yet.
 
 ## SD sector catalog
 

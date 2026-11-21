@@ -1,0 +1,7 @@
+# Upstream v160.8 SaveIO decode of glacier-v13.msav (JVM baseline).
+# Generated with:
+#   gradle -Pprobe=save-decode runProbeJvm "-PprobeArgs=glacier-v13.msav"
+# The native reader must produce the same per-building and aggregate hashes.
+UPSTREAM_SAVE_BUILDING x=81 y=26 block=341 team=1 rot=0 health=6000 enabled=1 items=0 item0=-1:0 links=0 status=0.0 liquids=0 liquid0=0:0.00 hash=b529451197a6e504
+UPSTREAM_SAVE_BUILDING x=81 y=224 block=341 team=2 rot=0 health=6000 enabled=1 items=0 item0=-1:0 links=0 status=0.0 liquids=0 liquid0=0:0.00 hash=ebc4778e833eb8e5
+UPSTREAM_SAVE_STATE buildings=2 hash=3a375fd4f81c5680

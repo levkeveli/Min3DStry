@@ -38,6 +38,7 @@ def entryPoints = [
     'content-init': 'UpstreamContentInitializationProbe',
     world: 'UpstreamWorldLoadProbe',
     'world-save': 'UpstreamWorldSaveProbe',
+    'save-decode': 'UpstreamSaveDecodeBaseline',
     'world-roundtrip': 'UpstreamWorldRoundTripProbe',
     'factory-ticks': 'UpstreamFactoryTickProbe',
     'combat-ticks': 'UpstreamCombatTickProbe',
@@ -103,7 +104,7 @@ def usesCampaignSaves = probe == 'campaign-saves'
 def usesCampaignSlotDiscovery = probe == 'campaign-slot-discovery'
 def usesCampaignJsonCompat = usesCampaignSectorInfo || usesCampaignSlotDiscovery
 def usesWorldSources = probe in ['world', 'world-save', 'world-roundtrip', 'world-stream',
-                                 'terrain-draw'] || usesCampaignSector || usesCampaignSlotMeta || usesCampaignLaunch || usesCampaignSlotDiscovery || usesLiveNetwork || usesTerrainRenderer || usesSimulation
+                                 'terrain-draw', 'save-decode'] || usesCampaignSector || usesCampaignSlotMeta || usesCampaignLaunch || usesCampaignSlotDiscovery || usesLiveNetwork || usesTerrainRenderer || usesSimulation
 def initializesContent = probe == 'content-init' || usesWorldSources || usesCampaignContent || usesCampaignResearch || usesCampaignSectorInfo || usesCampaignPlanet || usesCampaignSectorState || usesCampaignLaunch || usesCampaignSaves
 def usesContentSources = probe == 'content' || initializesContent
 def usesExecutor = usesContentSources || probe == 'executor' || usesCampaignSettings

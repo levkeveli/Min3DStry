@@ -17,6 +17,8 @@
 #include "ndsp_backend.h"
 #include "platform/hardware_profile.h"
 #include "platform/memory_budget.h"
+#include "platform/msav_inflate.h"
+#include "platform/msav_world.h"
 #include "platform/save_slot.h"
 #include "platform/sector_catalog.h"
 #include "platform/sd_paths.h"
@@ -24,6 +26,7 @@
 #include "platform/worker_benchmark.h"
 #include "render/factory_demo.h"
 #include "render/minimap.h"
+#include "render/save_world_preview.h"
 #include "render/scene_2d.h"
 #include "sim/parity_scenario.h"
 #include "ui/pause_menu.h"
@@ -103,6 +106,10 @@ static uint32_t m3ds_play_event(
     }
     return voice;
 }
+
+static M3dsWorldTiles g_save_tiles;
+static M3dsMsavWorld g_save_world;
+static bool g_save_world_ready;
 
 int main(int argc, char *argv[]) {
     gfxInitDefault();
@@ -224,6 +231,148 @@ int main(int argc, char *argv[]) {
             dbg_line[used] = '\0';
         }
         m3ds_emit_debug_line(log_socket, dbg_line);
+    }
+
+    if (sector_count > 0u) {
+        const size_t inflate_limit = 8u * 1024u * 1024u;
+        uint8_t *raw = NULL;
+        uint8_t *inflated = NULL;
+        size_t raw_size = 0u;
+        size_t inflated_size = 0u;
+        bool too_large = false;
+        bool read_ok = m3ds_sector_store_read_alloc(
+            "sdmc:/3ds/min3dstry", sectors[0].planet, sectors[0].id,
+            (void **)&raw, &raw_size);
+        bool inflate_ok = read_ok
+            && m3ds_msav_inflate_all(
+                raw, raw_size, &inflated, &inflated_size, inflate_limit,
+                &too_large)
+            && inflated_size >= 8u
+            && memcmp(inflated, "MSAV", 4) == 0;
+        snprintf(dbg_line, sizeof(dbg_line),
+                 "[MIN3DSTRY] SECTOR_INFLATE planet=%s id=%u raw=%u bytes=%u limit=%u status=%s\n",
+                 sectors[0].planet, (unsigned)sectors[0].id,
+                 (unsigned)raw_size, (unsigned)inflated_size,
+                 (unsigned)inflate_limit,
+                 inflate_ok ? "ok" : too_large ? "too_large" : "failed");
+        m3ds_emit_debug_line(log_socket, dbg_line);
+        M3dsMsavWorld world;
+        bool world_ok = inflate_ok
+            && m3ds_msav_parse_world(inflated, inflated_size, &world);
+        snprintf(dbg_line, sizeof(dbg_line),
+                 "[MIN3DSTRY] SECTOR_WORLD version=%u width=%u height=%u status=%s\n",
+                 world_ok ? (unsigned)world.version : 0u,
+                 world_ok ? (unsigned)world.width : 0u,
+                 world_ok ? (unsigned)world.height : 0u,
+                 world_ok ? "ok" : "failed");
+        m3ds_emit_debug_line(log_socket, dbg_line);
+        if (world_ok) {
+            snprintf(dbg_line, sizeof(dbg_line),
+                     "[MIN3DSTRY] SECTOR_TILES floors=%u blocks=%u data=%u entities=%u map=%u entity_region=%u hash=%016llx\n",
+                     (unsigned)world.floor_tiles, (unsigned)world.block_records,
+                     (unsigned)world.data_tiles, (unsigned)world.entity_tiles,
+                     (unsigned)(world.width * world.height),
+                     (unsigned)world.entity_region_bytes,
+                     (unsigned long long)world.map_hash);
+            m3ds_emit_debug_line(log_socket, dbg_line);
+            snprintf(dbg_line, sizeof(dbg_line),
+                     "[MIN3DSTRY] SECTOR_ENTITIES mapping=%u teams=%u team_blocks=%u records=%u partial=%d hash=%016llx\n",
+                     (unsigned)world.entity_mapping,
+                     (unsigned)world.entity_teams,
+                     (unsigned)world.entity_team_blocks,
+                     (unsigned)world.entity_records,
+                     world.entities_partial ? 1 : 0,
+                     (unsigned long long)world.entity_hash);
+            m3ds_emit_debug_line(log_socket, dbg_line);
+        }
+        M3dsWorldTiles tiles = {0};
+        bool alloc_ok = world_ok
+            && m3ds_msav_alloc_world(inflated, inflated_size, &tiles);
+        snprintf(dbg_line, sizeof(dbg_line),
+                 "[MIN3DSTRY] SECTOR_ALLOC tiles=%u bytes=%u hash=%016llx status=%s\n",
+                 (unsigned)(alloc_ok ? tiles.count : 0u),
+                 (unsigned)(alloc_ok ? m3ds_msav_world_bytes(&tiles) : 0u),
+                 (unsigned long long)(alloc_ok ? tiles.hash : 0u),
+                 alloc_ok ? "ok" : "failed");
+        m3ds_emit_debug_line(log_socket, dbg_line);
+        size_t linked_buildings = 0u;
+        if (alloc_ok) {
+            for (size_t i = 0; i < tiles.building_count; ++i) {
+                if (tiles.buildings[i].tile) {
+                    ++linked_buildings;
+                }
+            }
+        }
+        snprintf(dbg_line, sizeof(dbg_line),
+                 "[MIN3DSTRY] SECTOR_TILE_STATE tiles=%u buildings=%u linked=%u hash=%016llx status=%s\n",
+                 (unsigned)(alloc_ok ? tiles.count : 0u),
+                 (unsigned)(alloc_ok ? tiles.building_count : 0u),
+                 (unsigned)linked_buildings,
+                 (unsigned long long)(alloc_ok ? tiles.tile_state_hash : 0u),
+                 alloc_ok ? "ok" : "failed");
+        m3ds_emit_debug_line(log_socket, dbg_line);
+        uint32_t building_bytes = 0u;
+        if (alloc_ok) {
+            for (size_t i = 0; i < tiles.building_count; ++i) {
+                building_bytes += tiles.buildings[i].payload_size + 1u;
+            }
+        }
+        snprintf(dbg_line, sizeof(dbg_line),
+                 "[MIN3DSTRY] SECTOR_BUILDINGS count=%u bytes=%u team=%u rot=%u health=%.0f enabled=%u modules=%u items=%u item0=%u:%u power=%u:%.1f liquid=%u:%u:%.2f extra=%u partial=%d trunc=%d hash=%016llx status=%s\n",
+                 (unsigned)(alloc_ok ? tiles.building_count : 0u),
+                 (unsigned)(alloc_ok ? building_bytes : 0u),
+                 (unsigned)(alloc_ok && tiles.building_count > 0u
+                     ? tiles.buildings[0].team : 0u),
+                 (unsigned)(alloc_ok && tiles.building_count > 0u
+                     ? tiles.buildings[0].rotation : 0u),
+                 (double)(alloc_ok && tiles.building_count > 0u
+                     ? tiles.buildings[0].health : 0.0f),
+                 (unsigned)(alloc_ok && tiles.building_count > 0u
+                     ? tiles.buildings[0].enabled : 0u),
+                 (unsigned)(alloc_ok && tiles.building_count > 0u
+                     ? tiles.buildings[0].modules : 0u),
+                 (unsigned)(alloc_ok && tiles.building_count > 0u
+                     ? tiles.buildings[0].item_count : 0u),
+                 (unsigned)(alloc_ok && tiles.building_count > 0u
+                     && tiles.buildings[0].item_count > 0u
+                     ? tiles.buildings[0].items[0].item_id : 0u),
+                 (unsigned)(alloc_ok && tiles.building_count > 0u
+                     && tiles.buildings[0].item_count > 0u
+                     ? tiles.buildings[0].items[0].amount : 0u),
+                 (unsigned)(alloc_ok && tiles.building_count > 0u
+                     ? tiles.buildings[0].power_links : 0u),
+                 (double)(alloc_ok && tiles.building_count > 0u
+                     ? tiles.buildings[0].power_status : 0.0f),
+                 (unsigned)(alloc_ok && tiles.building_count > 0u
+                     ? tiles.buildings[0].liquid_count : 0u),
+                 (unsigned)(alloc_ok && tiles.building_count > 0u
+                     ? tiles.buildings[0].liquid0_id : 0u),
+                 (double)(alloc_ok && tiles.building_count > 0u
+                     ? tiles.buildings[0].liquid0_amount : 0.0f),
+                 (unsigned)(alloc_ok && tiles.building_count > 0u
+                     ? tiles.buildings[0].extra_size : 0u),
+                 alloc_ok && tiles.building_count > 0u
+                     && tiles.buildings[0].partial ? 1 : 0,
+                 alloc_ok && tiles.building_count > 0u
+                     && tiles.buildings[0].items_truncated ? 1 : 0,
+                 (unsigned long long)(alloc_ok ? tiles.building_hash : 0u),
+                 alloc_ok ? "ok" : "failed");
+        m3ds_emit_debug_line(log_socket, dbg_line);
+        snprintf(dbg_line, sizeof(dbg_line),
+                 "[MIN3DSTRY] SECTOR_PARITY buildings=%u hash=%016llx status=%s\n",
+                 (unsigned)(alloc_ok ? tiles.building_count : 0u),
+                 (unsigned long long)(alloc_ok ? tiles.save_state_hash : 0u),
+                 alloc_ok ? "ok" : "failed");
+        m3ds_emit_debug_line(log_socket, dbg_line);
+        if (alloc_ok) {
+            g_save_tiles = tiles;
+            g_save_world = world;
+            g_save_world_ready = true;
+        } else {
+            m3ds_msav_free_world(&tiles);
+        }
+        free(raw);
+        free(inflated);
     }
 
     {
@@ -712,6 +861,10 @@ int main(int argc, char *argv[]) {
         (void)m3ds_minimap_render(
             &scene, &factory, &backend, M3DS_TOP_SCREEN_WIDTH - 104.0f, 8.0f,
             96.0f, 64.0f);
+        if (g_save_world_ready) {
+            (void)m3ds_save_world_preview_render(
+                &g_save_tiles, &backend, 8.0f, 8.0f, 96.0f, 64.0f);
+        }
         M3dsPauseOverlayStats overlay_stats;
         (void)m3ds_pause_overlay_render(
             &backend, &scene.viewport, scene.paused, &overlay_stats);
@@ -771,6 +924,14 @@ int main(int argc, char *argv[]) {
                    save_slot.map_name, (unsigned)save_slot.wave);
         } else {
             printf("\x1b[26;1H\x1b[K");
+        }
+        if (g_save_world_ready) {
+            printf("\x1b[27;1HWorld: %ux%u build=%u\x1b[K",
+                   (unsigned)g_save_world.width,
+                   (unsigned)g_save_world.height,
+                   (unsigned)g_save_tiles.building_count);
+        } else {
+            printf("\x1b[27;1H\x1b[K");
         }
         if (pause_menu.open) {
             printf("\x1b[15;1H=== PAUSED ===  Up/Down + A\x1b[K");

@@ -3,6 +3,7 @@
 
 #include <assert.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 static const char *path = "build/host/test-save-slot.msav";
@@ -153,6 +154,13 @@ static void test_inflate_prefix(void) {
     assert(size == 2);
     assert(memcmp(short_out, "MS", 2) == 0);
 
+    uint8_t full[16384];
+    assert(m3ds_msav_inflate_prefix(
+        dynamic_stream, sizeof(dynamic_stream), full, sizeof(full), &size));
+    assert(size == 9008u);
+    assert(memcmp(full, "MSAV", 4) == 0);
+    assert(full[8] == 't');
+
     assert(!m3ds_msav_inflate_prefix(
         fixed_stream, sizeof(fixed_stream), NULL, 4, &size));
     assert(!m3ds_msav_inflate_prefix(
@@ -166,6 +174,45 @@ static void test_inflate_prefix(void) {
     assert(!m3ds_msav_inflate_prefix(dictionary_header, 2, out, 4, &size));
     const uint8_t truncated[3] = {0x78, 0x9c, 0x03};
     assert(!m3ds_msav_inflate_prefix(truncated, 3, out, 4, &size));
+}
+
+static void test_inflate_all(void) {
+    uint8_t *out = NULL;
+    size_t size = 0u;
+    bool too_large = false;
+    assert(m3ds_msav_inflate_all(
+        dynamic_stream, sizeof(dynamic_stream), &out, &size, 64u * 1024u,
+        &too_large));
+    assert(!too_large);
+    assert(size == 9008u);
+    assert(memcmp(out, "MSAV", 4) == 0);
+    free(out);
+
+    // An exact-size limit is not truncation; the helper grows to confirm it.
+    out = NULL;
+    size = 0u;
+    too_large = false;
+    assert(m3ds_msav_inflate_all(
+        dynamic_stream, sizeof(dynamic_stream), &out, &size, 9008u,
+        &too_large));
+    assert(!too_large && size == 9008u);
+    free(out);
+
+    out = NULL;
+    size = 0u;
+    too_large = false;
+    assert(!m3ds_msav_inflate_all(
+        dynamic_stream, sizeof(dynamic_stream), &out, &size, 9007u,
+        &too_large));
+    assert(too_large && out == NULL && size == 0u);
+
+    out = NULL;
+    size = 0u;
+    too_large = false;
+    assert(!m3ds_msav_inflate_all(
+        NULL, sizeof(dynamic_stream), &out, &size, 64u * 1024u,
+        &too_large));
+    assert(!too_large);
 }
 
 static void test_metadata(void) {
@@ -288,6 +335,7 @@ int main(void) {
     test_zlib_header_without_stream();
     test_compressed_version();
     test_inflate_prefix();
+    test_inflate_all();
     test_metadata();
     test_backup_fallback();
     test_bad_and_short_headers();
