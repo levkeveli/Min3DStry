@@ -40,29 +40,33 @@ public final class UpstreamCampaignLaunchProbe {
             throw new IllegalStateException("Ground zero sector did not initialize");
         }
 
-        Vars.state.rules.sector = sector;
-        Vars.state.wave = 5;
-        SaveIO.write(output);
-        if(!SaveIO.isSaveValid(output)){
-            throw new IllegalStateException("Sector slot failed SaveIO validation");
+        long bytes = 0;
+        try{
+            Vars.state.rules.sector = sector;
+            Vars.state.wave = 5;
+            SaveIO.write(output);
+            bytes = output.length();
+            if(!SaveIO.isSaveValid(output)){
+                throw new IllegalStateException("Sector slot failed SaveIO validation");
+            }
+
+            // Launch: load the sector save through its sector context.
+            SaveIO.load(output, Vars.world.makeSectorContext(sector));
+            app.runPosted();
+
+            if(Vars.state.rules.sector != sector){
+                throw new IllegalStateException("Launched save did not restore the sector");
+            }
+            if(Vars.state.wave != 5){
+                throw new IllegalStateException("Launched save did not restore the wave");
+            }
+            if(Vars.world.width() != 150 || Vars.world.height() != 250){
+                throw new IllegalStateException("Launched save did not restore the world");
+            }
+        }finally{
+            output.delete();
         }
 
-        // Launch: load the sector save through its sector context.
-        SaveIO.load(output, Vars.world.makeSectorContext(sector));
-        app.runPosted();
-
-        if(Vars.state.rules.sector != sector){
-            throw new IllegalStateException("Launched save did not restore the sector");
-        }
-        if(Vars.state.wave != 5){
-            throw new IllegalStateException("Launched save did not restore the wave");
-        }
-        if(Vars.world.width() != 150 || Vars.world.height() != 250){
-            throw new IllegalStateException("Launched save did not restore the world");
-        }
-
-        long bytes = output.length();
-        output.delete();
         System.out.println(
             "UPSTREAM_CAMPAIGN_LAUNCH slot=" + output.name()
             + " bytes=" + bytes + " version=13 sector=15 wave=5"
