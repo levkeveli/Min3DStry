@@ -287,7 +287,10 @@
         "src/platform/save_slot.c",
         "include/platform/msav_inflate.h",
         "src/platform/msav_inflate.c",
-        "tests/platform/test_save_slot.c"
+        "tests/platform/test_save_slot.c",
+        "include/render/save_world_preview.h",
+        "src/render/save_world_preview.c",
+        "tests/render/test_save_world_preview.c"
       ]
     },
     {

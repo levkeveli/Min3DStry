@@ -142,6 +142,9 @@ flags, the building index, and a direct linked building pointer:
 [MIN3DSTRY] SECTOR_TILE_STATE tiles=37500 buildings=2 linked=2 hash=e35397041df8e5fe status=ok
 ```
 
+A 24×16 top-screen preview now samples the resident tile arrays and draws one
+rect per cell (384 rects/frame), while the HUD shows `World: 150x250 build=2`.
+This is a runtime visualization of the loaded save, not an upstream minimap.
 Timer/disabler modules and the building-specific payload are preserved but not
 decoded yet.
 

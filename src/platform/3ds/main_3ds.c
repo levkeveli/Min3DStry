@@ -26,6 +26,7 @@
 #include "platform/worker_benchmark.h"
 #include "render/factory_demo.h"
 #include "render/minimap.h"
+#include "render/save_world_preview.h"
 #include "render/scene_2d.h"
 #include "sim/parity_scenario.h"
 #include "ui/pause_menu.h"
@@ -851,6 +852,10 @@ int main(int argc, char *argv[]) {
         (void)m3ds_minimap_render(
             &scene, &factory, &backend, M3DS_TOP_SCREEN_WIDTH - 104.0f, 8.0f,
             96.0f, 64.0f);
+        if (g_save_world_ready) {
+            (void)m3ds_save_world_preview_render(
+                &g_save_tiles, &backend, 8.0f, 8.0f, 96.0f, 64.0f);
+        }
         M3dsPauseOverlayStats overlay_stats;
         (void)m3ds_pause_overlay_render(
             &backend, &scene.viewport, scene.paused, &overlay_stats);
