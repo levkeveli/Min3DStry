@@ -1,6 +1,6 @@
 # Factory, Logistics, Drill & Core Storage Baseline (Issue #26)
 
-**Verification status:** Host-verified across pinned upstream Mindustry `v160.8` JVM (`UpstreamFactoryBaseline.java` + `-Pprobe=factory-ticks`) and TeaVM C `-O0` / `-O2` (`cc -std=gnu11 -fwrapv -ffp-contract=off`), with ARM11 `.3dsx`/`.elf` compiled; `world-blocks-logistics` in [port-capabilities.json](../port-capabilities.json) remains **Experimental** under [#26](https://github.com/levkeveli/Min3DStry/issues/26) pending Old/New 3DS memory budget optimization and physical hardware verification.
+**Verification status:** **Emulator-tested** across pinned upstream Mindustry `v160.8` JVM (`UpstreamFactoryBaseline.java` + `-Pprobe=factory-ticks`), TeaVM C `-O0` / `-O2`, and Azahar `2126.2` New/Old profiles, with live conveyor/router/drill rendering also verified against the stock server. `world-blocks-logistics` in [port-capabilities.json](../port-capabilities.json) is `emulator-tested` under [#26](https://github.com/levkeveli/Min3DStry/issues/26); in-app factory simulation, Old 3DS memory-budget optimization and physical hardware verification remain open.
 
 ## 1:1 Upstream Mandate
 
