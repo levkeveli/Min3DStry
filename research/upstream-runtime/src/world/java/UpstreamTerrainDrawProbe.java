@@ -35,7 +35,7 @@ public final class UpstreamTerrainDrawProbe {
         void begin(int left, int bottom, int width, int height);
         void draw(int page, int left, int top, int width, int height,
                   float x, float y, float originX, float originY, float drawWidth, float drawHeight,
-                  float rotation, int color, Blending blending);
+                  float rotation, int color, int mixColor, Blending blending);
         void drawSolidQuad(float[] vertices, int offset, Blending blending);
         void end();
     }
@@ -249,22 +249,22 @@ public final class UpstreamTerrainDrawProbe {
         @Override
         protected void draw(TextureRegion region, float x, float y, float originX, float originY,
                             float width, float height, float rotation) {
+            // OpenGL discards degenerate quads, including an empty payload crop.
+            if (region.width == 0 || region.height == 0 || width == 0f || height == 0f) return;
             if (region == Core.atlas.find("error")) throw new IllegalStateException("Missing terrain sprite");
             var page = (AtlasPageTexture) region.texture;
             if (edgeSources != null) collect(region, page, x, y, originX, originY, width, height, rotation);
             if (target != null) {
-                if (mixColorPacked != Color.clearFloatBits) {
-                    throw new IllegalStateException("Unexpected terrain mix color");
-                }
                 int left = region.getX(), top = region.getY();
                 int sourceWidth = region.width, sourceHeight = region.height;
                 int color = Color.floatToIntColor(colorPacked);
+                int mixColor = Color.floatToIntColor(mixColorPacked);
                 if (sort && !flushing) {
                     draw(() -> target.draw(page.index, left, top, sourceWidth, sourceHeight,
-                        x, y, originX, originY, width, height, rotation, color, blending));
+                        x, y, originX, originY, width, height, rotation, color, mixColor, blending));
                 } else {
                     target.draw(page.index, left, top, sourceWidth, sourceHeight,
-                        x, y, originX, originY, width, height, rotation, color, blending);
+                        x, y, originX, originY, width, height, rotation, color, mixColor, blending);
                 }
             }
         }
