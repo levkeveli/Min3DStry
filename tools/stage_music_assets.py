@@ -56,13 +56,13 @@ def upstream_head(upstream: Path) -> str | None:
     return head if re.fullmatch(r"[0-9a-f]{40}", head) else None
 
 
-def parse_ogg_vorbis_ident(path: Path) -> dict:
+def parse_ogg_vorbis_ident(path: Path, *, max_sample_rate: int = MAX_SAMPLE_RATE) -> dict:
     """Parse and validate the BOS Ogg page and 30-byte Vorbis I ident packet."""
     try:
         with path.open("rb") as handle:
             data = handle.read(OGG_HEADER_READ_LIMIT)
     except OSError as error:
-        raise MusicStagingError(f"cannot read OGG music file {path}: {error}") from error
+        raise MusicStagingError(f"cannot read Ogg file {path}: {error}") from error
 
     if len(data) < 28:
         raise MusicStagingError(f"OGG file too short: {path}")
@@ -117,7 +117,7 @@ def parse_ogg_vorbis_ident(path: Path) -> dict:
         raise MusicStagingError(f"unsupported Vorbis version {vorbis_version} in {path}")
     if channels not in (1, 2):
         raise MusicStagingError(f"unsupported Vorbis channel count {channels} in {path}")
-    if not MIN_SAMPLE_RATE <= sample_rate <= MAX_SAMPLE_RATE:
+    if not MIN_SAMPLE_RATE <= sample_rate <= max_sample_rate:
         raise MusicStagingError(f"unsupported Vorbis sample rate {sample_rate} in {path}")
 
     blocksize_0 = blocksize_byte & 0x0F

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Host tests for tools/stage_music_assets.py and audio/upstream-music-map.json."""
+"""Host tests for the upstream Ogg asset staging tools."""
 
 from __future__ import annotations
 
@@ -15,6 +15,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "tools"))
 
 import stage_music_assets  # noqa: E402
+import stage_sound_catalog  # noqa: E402
 
 UPSTREAM_COMMIT = "19a0f40d44514f4802a8b79770456e7e32e34da0"
 EXPECTED_MUSICS_ORDER = [
@@ -95,6 +96,20 @@ def build_ogg_bos_page(
 
 
 class StageMusicAssetsTests(unittest.TestCase):
+    def test_stock_sound_preserves_high_rate_and_final_granule(self) -> None:
+        page = bytearray(build_ogg_bos_page(build_vorbis_ident_packet(sample_rate=192000), header_type=0x06))
+        struct.pack_into("<q", page, 6, 48301)
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "stock.ogg"
+            path.write_bytes(page)
+            with self.assertRaises(stage_music_assets.MusicStagingError):
+                stage_music_assets.parse_ogg_vorbis_ident(path)
+            ident = stage_music_assets.parse_ogg_vorbis_ident(path, max_sample_rate=192000)
+            self.assertEqual(ident["sample_rate"], 192000)
+        self.assertEqual(stage_sound_catalog.ogg_frames(page, "stock.ogg"), 48301)
+        with self.assertRaises(ValueError):
+            stage_sound_catalog.ogg_frames(page[:-1], "truncated.ogg")
+
     def _create_fake_upstream(self, root: Path, names: list[str] | None = None) -> Path:
         upstream = root / "Mindustry"
         music_dir = upstream / "core" / "assets" / "music"
