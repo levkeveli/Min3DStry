@@ -51,6 +51,8 @@ import mindustry.gen.RemoveMarkerCallPacket;
 import mindustry.gen.RemoveQueueBlockCallPacket;
 import mindustry.gen.SetObjectivesCallPacket;
 import mindustry.gen.SetPositionCallPacket;
+import mindustry.gen.SetRuleCallPacket;
+import mindustry.gen.SetRulesCallPacket;
 import mindustry.gen.SoundAtCallPacket;
 import mindustry.gen.SoundCallPacket;
 import mindustry.gen.StateSnapshotCallPacket;
@@ -465,6 +467,10 @@ public final class UpstreamLiveNetworkProbe {
                 decode(new SetPositionCallPacket(), received).handleClient();
             } else if (id == unsignedId(SetObjectivesCallPacket.class)) {
                 decode(new SetObjectivesCallPacket(), received).handleClient();
+            } else if (id == unsignedId(SetRulesCallPacket.class)) {
+                decode(new SetRulesCallPacket(), received).handleClient();
+            } else if (id == unsignedId(SetRuleCallPacket.class)) {
+                decode(new SetRuleCallPacket(), received).handleClient();
             } else if (frame != null && id == unsignedId(SoundCallPacket.class)) {
                 decode(new SoundCallPacket(), received).handleClient();
             } else if (frame != null && id == unsignedId(SoundAtCallPacket.class)) {

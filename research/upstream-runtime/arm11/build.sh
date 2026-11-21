@@ -44,6 +44,13 @@ if [[ $# -gt 0 ]]; then
         terrain_sources+=("$repo/src/audio/audio_mixer.c" "$repo/src/audio/audio_registry.c"
             "$repo/src/audio/audio_stream.c" "$repo/src/platform/3ds/ndsp_backend.c"
             "$repo/src/platform/3ds/ndsp_stream_backend.c")
+        if [[ -f "$1/audio/music-manifest.json" ]]; then
+            portlibs="$DEVKITPRO/portlibs/3ds"
+            terrain_flags+=(-DM3DS_LIVE_MUSIC -I"$portlibs/include" -L"$portlibs/lib")
+            terrain_sources+=("$repo/src/audio/audio_vorbis_stream.c"
+                "$repo/src/platform/3ds/tremor_stream_source.c")
+            terrain_libraries+=(-lvorbisidec -logg)
+        fi
         cp -R "$1/audio" "$output/romfs/audio"
     fi
     cp "$1/sprites.t3x" "$output/romfs/terrain.t3x"

@@ -452,6 +452,27 @@ and preserve pause, stop and loop behavior. A long request returns without
 a voice when all four channels are busy. World changes stop all voices,
 and stream shutdown releases its channels before the mixer shuts down.
 
+### Stock soundtrack
+
+`--live-audio` also packages all 16 original stereo 44.1 kHz soundtrack
+Oggs from the same v160.8 desktop JAR. Their paths, IDs, sizes, and hashes
+are recorded under `audio/music-manifest.json` in ROMFS. The client loads
+the upstream `Musics.load()` playlist and runs the upstream `SoundControl`
+against live game state, including the soundtrack rules in the original
+`SetRulesCallPacket` and `SetRuleCallPacket`. Stock music lookup and the
+client logic music instruction use the same live controller.
+
+Tremor decodes the Ogg in 4,096-frame chunks to the dedicated NDSP channel
+8. The soundtrack uses 32 KiB of linear PCM buffers and 16 KiB of decoder
+output scratch. Decode state and Vorbis allocations are additional. A
+new world closes the previous stream. Run `--verify-live-music` with the
+Glacier weapon replay to apply the original server rules after joining,
+verify the selection of `game1` with the server's volume, and verify decoder
+closure on exit. Azahar's no-DSP path decodes an initial chunk from ROMFS
+and reports that without starting an NDSP voice.
+
+### Sound-effect verification
+
 Run `python3 tools/verify_live_stock_audio.py <terrain-assets>` with the
 staged directory to exercise all 205 PCM files through the live mixer and
 streamer on a host. The test holds a looping Gamma firing voice while it

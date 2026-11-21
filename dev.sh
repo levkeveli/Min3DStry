@@ -202,6 +202,11 @@ case "${1:-}" in
     ./build/host/test_audio_stream
 
     "$host_cc" -std=c11 -Wall -Wextra -Werror -Iinclude \
+      src/audio/audio_stream.c src/audio/audio_vorbis_stream.c \
+      tests/audio/test_audio_vorbis_stream.c -o build/host/test_audio_vorbis_stream
+    ./build/host/test_audio_vorbis_stream
+
+    "$host_cc" -std=c11 -Wall -Wextra -Werror -Iinclude \
       src/net/mindustry_net.c tests/net/test_mindustry_net.c -o build/host/test_mindustry_net
     ./build/host/test_mindustry_net
 

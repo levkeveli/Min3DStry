@@ -14,4 +14,12 @@ void m3ds_live_audio_update(void);
 void m3ds_live_audio_reset(void);
 void m3ds_live_audio_close(void);
 
+void m3ds_live_music_play(int32_t track, float pan, float volume, int32_t loop);
+void m3ds_live_music_stop(int32_t track);
+int32_t m3ds_live_music_is_playing(int32_t track);
+void m3ds_live_music_pause(int32_t track, int32_t paused);
+void m3ds_live_music_set_mix(int32_t track, float pan, float volume);
+void m3ds_live_music_set_looping(int32_t track, int32_t loop);
+float m3ds_live_music_position(int32_t track);
+
 #endif

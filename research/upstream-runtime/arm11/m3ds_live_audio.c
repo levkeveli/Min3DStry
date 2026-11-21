@@ -8,6 +8,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#ifdef M3DS_LIVE_MUSIC
+#include "tremor_stream_source.h"
+static M3dsAudioStream music;
+static M3dsNdspStreamContext music_backend;
+static M3dsTremorStreamSource music_decoder;
+static int32_t music_track = -1;
+static bool music_checked[M3DS_AUDIO_MUSIC_COUNT];
+#endif
+
 #define LIVE_PCM_BUDGET (640u * 1024u)
 #define LIVE_STREAM_LANES 4u
 #define STREAM_VOICE_FLAG (1u << 30)
@@ -48,6 +57,76 @@ static void log_audio(const char *format, ...) {
     va_end(args);
     if (length > 0 && length < (int)sizeof(text)) svcOutputDebugString(text, length);
 }
+
+#ifdef M3DS_LIVE_MUSIC
+void m3ds_live_music_play(int32_t track, float pan, float volume, int32_t loop) {
+    if ((uint32_t)track >= M3DS_AUDIO_MUSIC_COUNT) return;
+    M3dsAudioBackendState state = m3ds_audio_stream_state(&music);
+    if (state != M3DS_AUDIO_STATE_READY && state != M3DS_AUDIO_STATE_FALLBACK_NO_DSP) return;
+    if (state == M3DS_AUDIO_STATE_FALLBACK_NO_DSP && music_checked[track]) return;
+    if (music_track == track && m3ds_audio_stream_is_playing(&music) &&
+            m3ds_audio_stream_is_paused(&music)) {
+        m3ds_audio_stream_set_paused(&music, false);
+        return;
+    }
+    m3ds_audio_stream_stop(&music);
+    music_track = -1;
+    M3dsAudioStreamFormat format;
+    M3dsAudioStreamSource source;
+    if (!m3ds_tremor_stream_open_music(&music_decoder, (M3dsUpstreamMusic)track, &format, &source)) {
+        log_audio("UPSTREAM_LIVE_MUSIC_ERROR id=%ld stage=open\n", (long)track);
+        if (state == M3DS_AUDIO_STATE_FALLBACK_NO_DSP) music_checked[track] = true;
+        return;
+    }
+    uint32_t frames = 0;
+    if (state == M3DS_AUDIO_STATE_FALLBACK_NO_DSP) {
+        // Verify the real ROMFS asset and decoder without claiming a playing voice.
+        bool decoded = source.read_frames(source.ctx, music.scratch_pcm, M3DS_AUDIO_STREAM_CHUNK_FRAMES, &frames);
+        source.close(source.ctx);
+        music_checked[track] = true;
+        if (!decoded || frames == 0) {
+            log_audio("UPSTREAM_LIVE_MUSIC_ERROR id=%ld stage=decode\n", (long)track);
+            return;
+        }
+    } else {
+        m3ds_audio_stream_set_mix(&music, volume, pan);
+        m3ds_audio_stream_set_paused(&music, false);
+        uint64_t before = music.stats.frames_submitted;
+        if (!m3ds_audio_stream_start(&music, &format, &source, loop != 0)) {
+            log_audio("UPSTREAM_LIVE_MUSIC_ERROR id=%ld stage=queue\n", (long)track);
+            return;
+        }
+        frames = (uint32_t)(music.stats.frames_submitted - before);
+        music_track = track;
+    }
+    log_audio("UPSTREAM_LIVE_MUSIC_START id=%ld name=%s rate=%lu channels=%u frames=%u mode=%s volume=%.3f loop=%ld\n",
+        (long)track, m3ds_audio_music_name((M3dsUpstreamMusic)track),
+        (unsigned long)format.sample_rate, (unsigned)format.channels, (unsigned)frames,
+        state == M3DS_AUDIO_STATE_READY ? "ndsp" : "decode-only", (double)volume, (long)loop);
+}
+
+void m3ds_live_music_stop(int32_t track) {
+    if (track < 0 || music_track != track) return;
+    m3ds_audio_stream_stop(&music);
+    music_track = -1;
+}
+int32_t m3ds_live_music_is_playing(int32_t track) {
+    return track >= 0 && music_track == track &&
+        m3ds_audio_stream_is_playing(&music) && !m3ds_audio_stream_is_paused(&music);
+}
+void m3ds_live_music_pause(int32_t track, int32_t paused) {
+    if (track >= 0 && music_track == track) m3ds_audio_stream_set_paused(&music, paused != 0);
+}
+void m3ds_live_music_set_mix(int32_t track, float pan, float volume) {
+    if (track >= 0 && music_track == track) m3ds_audio_stream_set_mix(&music, volume, pan);
+}
+void m3ds_live_music_set_looping(int32_t track, int32_t loop) {
+    if (track >= 0 && music_track == track) m3ds_audio_stream_set_looping(&music, loop != 0);
+}
+float m3ds_live_music_position(int32_t track) {
+    return track >= 0 && music_track == track ? (float)m3ds_audio_stream_position_seconds(&music) : 0.f;
+}
+#endif
 
 static bool sound_in_use(const ResidentSound *sound) {
     for (size_t i = 0; i < M3DS_AUDIO_MAX_VOICES; i++) {
@@ -178,6 +257,13 @@ int32_t m3ds_live_audio_open(void) {
     M3dsAudioBackend backend;
     m3ds_ndsp_backend_init(&backend, &backend_context);
     m3ds_audio_mixer_init(&mixer, &backend);
+    int32_t capabilities = 1;
+#ifdef M3DS_LIVE_MUSIC
+    M3dsAudioStreamBackend soundtrack_backend;
+    m3ds_ndsp_stream_backend_init(&soundtrack_backend, &music_backend, &backend_context);
+    m3ds_audio_stream_init(&music, &soundtrack_backend);
+    capabilities |= 2;
+#endif
     for (size_t i = 0; i < LIVE_STREAM_LANES; i++) {
         M3dsAudioStreamBackend stream_backend;
         m3ds_ndsp_stream_backend_init_on_channel(&stream_backend, &streams[i].backend,
@@ -188,7 +274,7 @@ int32_t m3ds_live_audio_open(void) {
         M3DS_STOCK_SOUND_COUNT, M3DS_STOCK_SHORT_COUNT,
         m3ds_audio_state_name(m3ds_audio_mixer_state(&mixer)),
         (unsigned long)m3ds_audio_mixer_status_code(&mixer));
-    return 1;
+    return capabilities;
 }
 
 int32_t m3ds_live_audio_play(int32_t id, float volume, float pitch, float pan, int32_t loop) {
@@ -250,11 +336,18 @@ void m3ds_live_audio_set_mix(int32_t voice, float pan, float volume) {
 void m3ds_live_audio_update(void) {
     m3ds_audio_mixer_update(&mixer);
     for (size_t i = 0; i < LIVE_STREAM_LANES; i++) m3ds_audio_stream_update(&streams[i].audio);
+#ifdef M3DS_LIVE_MUSIC
+    m3ds_audio_stream_update(&music);
+#endif
 }
 
 void m3ds_live_audio_reset(void) {
     m3ds_audio_mixer_stop_all(&mixer);
     for (size_t i = 0; i < LIVE_STREAM_LANES; i++) m3ds_audio_stream_stop(&streams[i].audio);
+#ifdef M3DS_LIVE_MUSIC
+    m3ds_audio_stream_stop(&music);
+    music_track = -1;
+#endif
 }
 
 void m3ds_live_audio_close(void) {
@@ -269,6 +362,11 @@ void m3ds_live_audio_close(void) {
         if (resident[i].entry != NULL) release_sound(&resident[i]);
     }
     for (size_t i = 0; i < LIVE_STREAM_LANES; i++) m3ds_audio_stream_shutdown(&streams[i].audio);
+#ifdef M3DS_LIVE_MUSIC
+    m3ds_audio_stream_shutdown(&music);
+    for (size_t i = 0; i < M3DS_AUDIO_MUSIC_COUNT; i++) music_checked[i] = false;
+    log_audio("UPSTREAM_LIVE_MUSIC_CLOSE track=%ld decoderOpen=%d\n", (long)music_track, music_decoder.vf_open);
+#endif
     for (size_t i = 0; i < M3DS_STOCK_SOUND_COUNT; i++) reported_stream[i] = false;
     m3ds_audio_mixer_shutdown(&mixer);
     sequence = 0;
@@ -291,4 +389,18 @@ void m3ds_live_audio_set_mix(int32_t voice, float pan, float volume) {
 void m3ds_live_audio_update(void) {}
 void m3ds_live_audio_reset(void) {}
 void m3ds_live_audio_close(void) {}
+#endif
+
+#ifndef M3DS_LIVE_MUSIC
+void m3ds_live_music_play(int32_t track, float pan, float volume, int32_t loop) {
+    (void)track; (void)pan; (void)volume; (void)loop;
+}
+void m3ds_live_music_stop(int32_t track) { (void)track; }
+int32_t m3ds_live_music_is_playing(int32_t track) { (void)track; return 0; }
+void m3ds_live_music_pause(int32_t track, int32_t paused) { (void)track; (void)paused; }
+void m3ds_live_music_set_mix(int32_t track, float pan, float volume) {
+    (void)track; (void)pan; (void)volume;
+}
+void m3ds_live_music_set_looping(int32_t track, int32_t loop) { (void)track; (void)loop; }
+float m3ds_live_music_position(int32_t track) { (void)track; return 0.f; }
 #endif

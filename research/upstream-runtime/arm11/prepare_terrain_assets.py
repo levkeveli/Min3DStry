@@ -26,9 +26,11 @@ STOCK_TEXT_ASSETS = (
 )
 sys.path.insert(0, str(CONVERTER.parent))
 from build_audio_assets import DEFAULT_RATE, convert_map
-from stage_sound_catalog import UPSTREAM_COMMIT, stage_sound_catalog
+from stage_music_assets import load_map, parse_ogg_vorbis_ident
+from stage_sound_catalog import UPSTREAM_COMMIT, ogg_frames, stage_sound_catalog
 
 LIVE_AUDIO_MAX_FRAMES = DEFAULT_RATE * 6
+MUSIC_MAP = CONVERTER.parents[1] / "audio/upstream-music-map.json"
 
 
 def write_layout(staged: Path, regions: tuple[str, ...]) -> None:
@@ -75,10 +77,40 @@ def pack_stock_text_assets(archive: zipfile.ZipFile, staged: Path) -> None:
         destination.write_bytes(archive.read("assets/" + name))
 
 
+def pack_stock_music(desktop: Path, staged: Path) -> None:
+    # The caller verifies the desktop release hash before extracting either audio catalog.
+    mapping = load_map(MUSIC_MAP)
+    if mapping["upstream_commit"] != UPSTREAM_COMMIT or len(mapping["entries"]) != 16:
+        raise ValueError("Unexpected pinned music map")
+    music_dir = staged / "audio/music"
+    music_dir.mkdir(parents=True)
+    tracks = []
+    with zipfile.ZipFile(desktop) as archive:
+        for index, entry in enumerate(mapping["entries"]):
+            name = entry["id"]
+            if (entry["index"] != index or not re.fullmatch(r"[a-z0-9]+", name)
+                    or entry["source"] != f"core/assets/music/{name}.ogg"):
+                raise ValueError("Invalid stock music index entry")
+            member = f"music/{name}.ogg"
+            original = archive.read(member)
+            destination = music_dir / f"{name}.ogg"
+            destination.write_bytes(original)
+            ident = parse_ogg_vorbis_ident(destination)
+            tracks.append({"index": index, "source": entry["source"], "romfs": f"romfs:/audio/{member}",
+                           "sha256": hashlib.sha256(original).hexdigest(), "bytes": len(original),
+                           "channels": ident["channels"], "sample_rate": ident["sample_rate"],
+                           "frames": ogg_frames(original, member)})
+    manifest = {"format": 1, "upstream_commit": UPSTREAM_COMMIT, "desktop_sha256": DESKTOP_SHA256,
+                "tracks": tracks}
+    (staged / "audio/music-manifest.json").write_text(
+        json.dumps(manifest, indent=2) + "\n", encoding="utf-8", newline="\n")
+
+
 def pack_live_audio(args, staged: Path, scratch: Path) -> None:
     catalog = scratch / "catalog"
     sounds = stage_sound_catalog(args.java, args.server, args.desktop, catalog)
     (catalog / "audio").rename(staged / "audio")
+    pack_stock_music(args.desktop, staged)
     upstream = scratch / "upstream"
     shutil.copytree(staged / "audio/sounds", upstream / "core/assets/sounds")
     entries = [

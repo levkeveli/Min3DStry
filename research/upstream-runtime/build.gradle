@@ -230,6 +230,7 @@ if (usesArcSources || usesExecutor) {
         stagedClasses.addAll(['mindustry/logic/LExecutor.class', 'mindustry/logic/LExecutor$*.class'])
         stagedClasses.addAll(['mindustry/core/World.class', 'mindustry/core/World$*.class'])
         stagedClasses.addAll(['arc/audio/Sound.class', 'arc/audio/Sound$*.class'])
+        stagedClasses.addAll(['mindustry/audio/SoundControl.class', 'mindustry/audio/SoundControl$*.class'])
         stagedClasses.addAll(['mindustry/entities/bullet/BulletType.class', 'mindustry/entities/bullet/BulletType$*.class'])
     }
     if (usesCampaignJsonCompat) {
@@ -396,6 +397,7 @@ tasks.register('prepareUpstreamProbe') {
         outputs.file(sourceDir.map { it.file(coreWorldSource) })
         outputs.file(sourceDir.map { it.file(bulletTypeSource) })
         outputs.file(sourceDir.map { it.file('arc/audio/Sound.java') })
+        outputs.file(sourceDir.map { it.file('mindustry/audio/SoundControl.java') })
         outputs.file(sourceDir.map { it.file(logicExecutorSource) })
         logicDisplaySources.each { outputs.file(sourceDir.map { dir -> dir.file(it) }) }
         shieldModeSources.keySet().each { outputs.file(sourceDir.map { dir -> dir.file(it) }) }
@@ -431,12 +433,29 @@ tasks.register('prepareUpstreamProbe') {
             def adaptedSound = sourceDir.get().file('arc/audio/Sound.java').asFile
             adaptedSound.parentFile.mkdirs()
             adaptedSound.setText(sound.replace(headlessAudio, 'if(Core.app.isHeadless() && Core.camera == null)'), 'UTF-8')
+            def musicControl = new String(readUpstream('core/src/mindustry/audio/SoundControl.java'), 'UTF-8')
+            // The live renderer has an audio backend and game state before it has the Arc desktop scene.
+            def musicCompatibility = [
+                'protected AudioFilter filter = new BiquadFilter()': 'protected AudioFilter filter = headless ? null : new BiquadFilter()',
+                'state.isGame() && Core.scene.hasDialog()': 'state.isGame() && Core.scene != null && Core.scene.hasDialog()',
+                'if(ui.planet.isShown())': 'if(ui != null && ui.planet.isShown())',
+                'else if(ui.editor.isShown())': 'else if(ui != null && ui.editor.isShown())'
+            ]
+            musicCompatibility.each { original, replacement ->
+                if (musicControl.count(original) != 1) throw new GradleException('Pinned soundtrack control changed')
+                musicControl = musicControl.replace(original, replacement)
+            }
+            def adaptedMusicControl = sourceDir.get().file('mindustry/audio/SoundControl.java').asFile
+            adaptedMusicControl.parentFile.mkdirs()
+            adaptedMusicControl.setText(musicControl, 'UTF-8')
             def globalLogic = new String(readUpstream(globalLogicSource), 'UTF-8')
             def logicChanges = [
-                'import arc.*;': 'import port.logic.UpstreamClientLogic;\n\nimport arc.*;',
+                'import arc.*;': 'import port.audio.Arm11Audio;\nimport port.logic.UpstreamClientLogic;\n\nimport arc.*;',
                 'Core.files.internal("logicids.dat")': 'UpstreamClientLogic.logicIds()',
-                'control.sound.isPlaying() ? 1 : 0': 'control != null && control.sound.isPlaying() ? 1 : 0',
-                'var music = control.sound.getCurrent();': 'var music = control == null ? null : control.sound.getCurrent();'
+                'varClientMusicPlaying.numval = control.sound.isPlaying() ? 1 : 0;':
+                    '''var musicControl = control == null ? Arm11Audio.musicControl() : control.sound;
+            varClientMusicPlaying.numval = musicControl != null && musicControl.isPlaying() ? 1 : 0;''',
+                'var music = control.sound.getCurrent();': 'var music = musicControl == null ? null : musicControl.getCurrent();'
             ]
             logicChanges.each { original, replacement ->
                 if (globalLogic.count(original) != 1) throw new GradleException('Pinned logic global initialization changed')
@@ -506,9 +525,22 @@ tasks.register('prepareUpstreamProbe') {
             def executor = new String(readUpstream("core/src/${logicExecutorSource}"), 'UTF-8')
             def headless = 'Vars.headless || exec.graphicsBuffer.size >= maxGraphicsBuffer'
             if (executor.count(headless) != 1) throw new GradleException('Pinned graphics instruction guard changed')
+            def musicGuard = '''if(headless) return;
+
+            //null music = stop'''
+            def musicDispatch = 'control.sound.playMusic(music, interrupt.bool());'
+            if (executor.count(musicGuard) != 1 || executor.count(musicDispatch) != 1) {
+                throw new GradleException('Pinned music instruction dispatch changed')
+            }
             def adaptedExecutor = sourceDir.get().file(logicExecutorSource).asFile
             adaptedExecutor.setText(executor.replace(headless,
-                '(Vars.headless && Fonts.logic == null) || exec.graphicsBuffer.size >= maxGraphicsBuffer'), 'UTF-8')
+                '(Vars.headless && Fonts.logic == null) || exec.graphicsBuffer.size >= maxGraphicsBuffer')
+                .replace('package mindustry.logic;', 'package mindustry.logic;\n\nimport port.audio.Arm11Audio;')
+                .replace(musicGuard, '''var musicControl = control == null ? Arm11Audio.musicControl() : control.sound;
+            if(musicControl == null) return;
+
+            //null music = stop''')
+                .replace(musicDispatch, 'musicControl.playMusic(music, interrupt.bool());'), 'UTF-8')
             def loader = new String(readUpstream('core/src/mindustry/core/ContentLoader.java'), 'UTF-8')
             def loadColors = '''public void loadColors(){
         Pixmap pixmap = new Pixmap(files.internal("sprites/block_colors.png"));'''

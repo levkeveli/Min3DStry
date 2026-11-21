@@ -1628,6 +1628,45 @@ def verify_live_weapon_audio(log, model):
     print(f"{model}: {streamed[0]}", flush=True)
 
 
+def set_stock_music_fixture(server_log, server):
+    server.stdin.write(
+        'js (() => { const rules = Vars.state.rules; '
+        'const tracks = new Packages.arc.struct.Seq(); '
+        'tracks.add(new Packages.mindustry.audio.MusicContainer("game1")); '
+        'rules.alwaysPlayMusic = false; rules.disableMusic = true; rules.musicVolume = 0.875; '
+        'rules.ambientMusic = tracks; rules.darkMusic = tracks; '
+        'return "UPSTREAM_STOCK_MUSIC_FIXTURE track=game1 disabled=true"; })()\n'
+    )
+    server.stdin.flush()
+    wait_for(server_log, server, r"UPSTREAM_STOCK_MUSIC_FIXTURE track=game1 disabled=true\b", 5)
+
+
+def enable_stock_music(log, emulator, server_log, server, timeout):
+    wait_for(log, emulator, r"UPSTREAM_NETWORK_FRAME unit=\d+ left=73 bottom=20 sprites=1\b", timeout)
+    server.stdin.write(
+        'js (() => { const p = Groups.player.find(boolf(v => String(v.name) === '
+        + json.dumps(PLAYER)
+        + ')); const rules = Vars.state.rules; rules.alwaysPlayMusic = true; rules.musicVolume = 0.375; '
+        'Call.setRules(p.con, rules); Call.setRule(p.con, "disableMusic", "false"); '
+        'return "UPSTREAM_STOCK_MUSIC_RULES track=game1 volume=0.375"; })()\n'
+    )
+    server.stdin.flush()
+    wait_for(server_log, server, r"UPSTREAM_STOCK_MUSIC_RULES track=game1 volume=0\.375\b", 5)
+
+
+def verify_stock_music(log, emulator, model, timeout):
+    text = wait_for(log, emulator, r"UPSTREAM_LIVE_MUSIC_CLOSE track=-1 decoderOpen=0\b", timeout)
+    selected = re.findall(r"UPSTREAM_LIVE_MUSIC_START id=(\d+) name=(\w+) rate=(\d+) channels=(\d+) "
+                          r"frames=(\d+) mode=(ndsp|decode-only) volume=(\d+\.\d+) loop=(\d+)", text)
+    expected_mode = "decode-only" if "state=fallback_no_dsp" in text else "ndsp"
+    expected_frames = "4096" if expected_mode == "decode-only" else "8192"
+    expected = ("4", "game1", "44100", "2", expected_frames, expected_mode, "0.375", "0")
+    if not selected or any(track != expected for track in selected) or "UPSTREAM_LIVE_MUSIC_ERROR" in text:
+        raise RuntimeError(f"{model} did not select and decode the stock game1 rule track: {selected}")
+    print(f"{model}: original game1 decoded {expected_frames} stereo frames at 44100 Hz "
+          f"with rule gain 0.375 in {expected_mode} mode. Decoder closed at exit.", flush=True)
+
+
 def run_model(args, model, config, original_config, log, output):
     graphical_movement = bool(args.controls_replay and args.terrain_atlas and not (
         args.verify_weapons or args.building or args.touch_build or args.touch_config
@@ -1678,6 +1717,8 @@ def run_model(args, model, config, original_config, log, output):
             world_size = (150, 250)
             if args.verify_weapons:
                 watch_player_weapons(server_log, server)
+            if args.verify_live_music:
+                set_stock_music_fixture(server_log, server)
             if args.verify_canvas or args.verify_canvas_quads or args.verify_client_processor:
                 load_canvas_fixture(server_log, server, offscreen=args.verify_canvas_quads)
             if args.verify_client_processor:
@@ -1812,6 +1853,8 @@ def run_model(args, model, config, original_config, log, output):
                 elif args.verify_weapons:
                     if args.verify_live_audio:
                         send_live_sound_packets(log, emulator, server_log, server, args.timeout)
+                    if args.verify_live_music:
+                        enable_stock_music(log, emulator, server_log, server, args.timeout)
                     if args.verify_projectiles:
                         capture_gamma_projectile(log, emulator, rpc, output, model, args.timeout)
                     for axis in ("east", "north"):
@@ -1832,6 +1875,8 @@ def run_model(args, model, config, original_config, log, output):
                             raise RuntimeError(f"{model} did not submit the native stock projectile trail")
                         audio_log = wait_for(log, emulator, r"UPSTREAM_LIVE_AUDIO_CACHE loads=\d+", args.timeout)
                         verify_live_weapon_audio(audio_log, model)
+                    if args.verify_live_music:
+                        verify_stock_music(log, emulator, model, args.timeout)
                 elif args.controls:
                     def capture(phase, position):
                         if args.world_atlas_recycle and phase == "spawn":
@@ -2130,6 +2175,8 @@ def main():
                         help="Also verify the original Gamma bolt appears on the handheld viewport and clears")
     parser.add_argument("--verify-live-audio", action="store_true",
                         help="Check local Gamma fire and stock server requests for cached and streamed effects")
+    parser.add_argument("--verify-live-music", action="store_true",
+                        help="Check the stock live soundtrack selection and native Vorbis decoder")
     args = parser.parse_args()
     if args.controls_rejoin and (not args.controls or args.controls_replay or not args.terrain_atlas
                                  or args.map_spawn not in MAP_SPAWN_PIXELS or args.verify_objective_markers
@@ -2152,6 +2199,8 @@ def main():
         parser.error("--verify-projectiles needs --verify-weapons and --terrain-atlas on Glacier")
     if args.verify_live_audio and (not args.verify_weapons or not args.terrain_atlas):
         parser.error("--verify-live-audio needs --verify-weapons and --terrain-atlas on Glacier")
+    if args.verify_live_music and (not args.verify_weapons or not args.terrain_atlas):
+        parser.error("--verify-live-music needs --verify-weapons and --terrain-atlas on Glacier")
     if args.building and not args.terrain_atlas:
         parser.error("--building needs --terrain-atlas")
     if args.touch_build and not args.terrain_atlas:

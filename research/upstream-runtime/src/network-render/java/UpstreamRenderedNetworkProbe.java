@@ -97,6 +97,7 @@ public final class UpstreamRenderedNetworkProbe {
     }
 
     private void prepareClient() {
+        Arm11Audio.prepareMusicControl();
         DarknessScratch.useNativeMemory();
         UpstreamClientProjectiles.initialize();
         UpstreamClientLogic.initialize(new Fi("/romfs/logicids.dat"));
@@ -211,12 +212,12 @@ public final class UpstreamRenderedNetworkProbe {
         float oldDelta = Time.delta;
         Time.updateGlobal();
         Time.delta = oldDelta;
-        if (Vars.state.isPaused()) return;
-
         // Advance the original animation clock and conduit smoothing without replaying liquid transfers.
         float delta = Math.min(frameSeconds * 60f, Vars.maxDeltaClient);
         Time.delta = delta;
         try {
+            Arm11Audio.updateMusicControl();
+            if (Vars.state.isPaused()) return;
             Time.update();
             for (var build : Groups.build) {
                 if (build instanceof TileableLogicDisplayBuild display) display.updateTile();
