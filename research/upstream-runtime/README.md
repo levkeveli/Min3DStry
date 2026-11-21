@@ -852,6 +852,37 @@ total 65.04 MiB before GC metadata, above the Original 3DS application
 budget. Large map loading and memory are tracked in
 [#141](https://github.com/levkeveli/Min3DStry/issues/141).
 
+A debugger watchpoint on TeaVM's 3,236-entry static-root table caught the
+overflow in `GC.calculateRelocationTargets`. Relocation records grew past
+the 1.5 MiB scratch area and wrote over the root entries. The ARM11 adapter
+keeps the original compacting collector and moves only its relocation
+table to temporary native storage if the shared scratch area fills. It
+rebases the live record cursor, releases the allocation after compaction,
+and checks bounds before publishing free-chunk entries. The managed heap
+size is unchanged. Add `--require-relocation-spill` to the Onset verifier
+to require a completed collection that exercised the new path.
+
+The first bounded build completed repeated busy collections, with a
+relocation table of up to 2,325,072 bytes, while the map continued loading.
+Binding the factory method once per stock Block removed the allocation in
+each Tile constructor and default setBlock call. The JVM round-trip test
+preserved Glacier's fingerprint and v13 save marker. On ARM11, The Onset
+then reached the upstream WorldLoadEvent with its keepalive active and
+exhausted the 24 MiB heap while allocating the Pathfinder tile grid.
+Remote clients now call the original tile-cost packer on demand. Local
+simulation and the server retain the full grid for the flowfield thread.
+
+The resulting [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44901450104)
+loaded all 262,144 tiles and 743 building anchors from the unmodified
+v160.8 server on both Azahar profiles. Both kept the session active,
+restored 20 objectives, 19 dependency links and 20 markers, verified the
+first objective's 60 beryllium target, and matched eight original atlas
+samples across Evoke and Core Bastion at the stock spawn.
+The same Onset checks passed at both `-O0` and `-O2`. The builds reserve
+65.03 MiB and 62.11 MiB respectively for load segments, stacks, heaps and
+the SOC buffer. These subtotals exclude GC metadata and other native
+allocations. Physical-console memory and frame rate remain to be verified.
+
 The renderer still selects blocks that use the supported sprite operations.
 Textured raw vertices, additional payload types and other rendering services
 are tracked in [#139](https://github.com/levkeveli/Min3DStry/issues/139).
