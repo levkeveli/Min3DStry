@@ -961,6 +961,11 @@ packets. It checks that the 60-beryllium objective survives the set
 message, that its dependent research objective becomes eligible after
 completion, and that clearing the executor removes the objectives.
 
+Add `--verify-objectives` to the Onset wall mining replay. The stock server
+starts with zero beryllium and objective 0 active. When the player mines the
+required 60, the verifier compares the server and ARM11 completion record,
+the eligible BuildCountObjective at index 1, and the objective flag count.
+
 ### Verify the Arc executor pools
 
 Use `-Pprobe=executor` with the JVM and ARM11 build commands. The JVM uses the
