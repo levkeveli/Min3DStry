@@ -35,10 +35,11 @@ pivot, rotation, tint and layer order. The Core Nucleus and
 team overlay use this path in the live Glacier probe.
 
 The world cache holds at most 24 backing textures, or 1.5 MiB of texels.
-It retains textures used by the current GPU frame and replaces older
-textures after the frame fence. The existing compact sheet remains the
-fast path for the other frequently used Glacier regions. The complete
-raw atlas in RomFS uses 128 MiB of storage plus tile headers.
+When pending draws occupy every slot, the renderer submits them to the
+same framebuffer and waits for the GPU before reusing a texture. Only
+the final submission presents the completed frame. The compact sheet
+continues to supply the other frequently used Glacier regions. The
+complete raw atlas in RomFS uses 128 MiB plus tile headers.
 
 Generate and independently decode just the world atlas from the
 official artifacts with the following commands.
