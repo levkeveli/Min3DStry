@@ -519,13 +519,38 @@ static void draw_quad_piece(C3D_Tex *texture, const M3DS_QuadVertex *polygon, in
         for (int corner = 0; corner < 3; corner++) {
             M3DS_QuadVertex v = polygon[indices[corner]];
             C3D_ImmSendAttrib(v.x, v.y, 0.5f, 1.0f);
-            C3D_ImmSendAttrib((v.u - x) / WORLD_ATLAS_TILE, 1.0f - (v.v - y) / WORLD_ATLAS_TILE, 0, 0);
+            C3D_ImmSendAttrib((v.u - x) / texture->width, 1.0f - (v.v - y) / texture->height, 0, 0);
             C3D_ImmSendAttrib(v.color[0], v.color[1], v.color[2], v.color[3]);
         }
     }
     C3D_ImmDrawEnd();
     C2D_Prepare();
     begin_world_scene();
+}
+
+// Return zero for unsupported mix attributes and minus one for non-finite geometry.
+static int read_quad_vertices(const float *vertices, int width, int height,
+                              M3DS_QuadVertex *corners, uint32_t *packed_mix) {
+    uint32_t mix;
+    memcpy(&mix, vertices + 5, sizeof(mix));
+    for (int i = 0; i < 4; i++) {
+        const float *v = vertices + i * 6;
+        uint32_t color, corner_mix;
+        memcpy(&color, v + 2, sizeof(color));
+        memcpy(&corner_mix, v + 5, sizeof(corner_mix));
+        if (mix != corner_mix) return 0;
+        if (!isfinite(v[0]) || !isfinite(v[1]) || !isfinite(v[3]) || !isfinite(v[4])) return -1;
+        corners[i] = (M3DS_QuadVertex){
+            .x = screen_left + (v[0] - world_left) * scale,
+            .y = screen_bottom - (v[1] - world_bottom) * scale,
+            .u = fminf(fmaxf(v[3] * width, 0), nextafterf(width, 0)),
+            .v = fminf(fmaxf(v[4] * height, 0), nextafterf(height, 0)),
+            .color = {(color & 255) / 255.0f, ((color >> 8) & 255) / 255.0f,
+                      ((color >> 16) & 255) / 255.0f, (color >> 24) / 254.0f},
+        };
+    }
+    *packed_mix = (mix & 0x00ffffffu) | ((uint32_t)((mix >> 24) * (255.0f / 254.0f)) << 24);
+    return 1;
 }
 #endif
 
@@ -537,24 +562,8 @@ int32_t m3ds_terrain_draw_textured_quad(int32_t page, int32_t width, int32_t hei
             || !initialize_quad_shader()) return 0;
     M3DS_QuadVertex corners[4];
     uint32_t mix;
-    memcpy(&mix, vertices + offset + 5, sizeof(mix));
-    for (int i = 0; i < 4; i++) {
-        const float *v = vertices + offset + i * 6;
-        uint32_t color, corner_mix;
-        memcpy(&color, v + 2, sizeof(color));
-        memcpy(&corner_mix, v + 5, sizeof(corner_mix));
-        if (mix != corner_mix) return 0;
-        if (!isfinite(v[0]) || !isfinite(v[1]) || !isfinite(v[3]) || !isfinite(v[4])) return 1;
-        corners[i] = (M3DS_QuadVertex){
-            .x = screen_left + (v[0] - world_left) * scale,
-            .y = screen_bottom - (v[1] - world_bottom) * scale,
-            .u = fminf(fmaxf(v[3] * width, 0), nextafterf(width, 0)),
-            .v = fminf(fmaxf(v[4] * height, 0), nextafterf(height, 0)),
-            .color = {(color & 255) / 255.0f, ((color >> 8) & 255) / 255.0f,
-                      ((color >> 16) & 255) / 255.0f, (color >> 24) / 254.0f},
-        };
-    }
-    mix = (mix & 0x00ffffffu) | ((uint32_t)((mix >> 24) * (255.0f / 254.0f)) << 24);
+    int status = read_quad_vertices(vertices + offset, width, height, corners, &mix);
+    if (status <= 0) return status < 0;
     set_world_blend(blend_mode);
     set_world_mix(0, 0);
     static const int triangles[2][3] = {{0, 1, 2}, {2, 3, 0}};
@@ -588,6 +597,35 @@ int32_t m3ds_terrain_draw_textured_quad(int32_t page, int32_t width, int32_t hei
     return 1;
 #else
     (void)page; (void)width; (void)height; (void)vertices; (void)offset; (void)blend_mode;
+    return 0;
+#endif
+}
+
+int32_t m3ds_terrain_draw_canvas_quad(int32_t id, int32_t revision, int32_t width, int32_t height,
+                                     const uint32_t *pixels, const float *vertices, int32_t offset, int32_t blend_mode) {
+#ifdef M3DS_WORLD_ATLAS
+    if (!frame_open || id == 0 || width < 1 || width > canvas_texture_size
+            || height < 1 || height > canvas_texture_size || !initialize_quad_shader()) return 0;
+    M3DS_QuadVertex corners[4];
+    uint32_t mix;
+    int status = read_quad_vertices(vertices + offset, width, height, corners, &mix);
+    if (status <= 0) return status < 0;
+    C3D_Tex *tex = upload_canvas(id, revision, width, height, pixels);
+    if (!tex) return 0;
+    set_world_blend(blend_mode);
+    set_world_mix(0, 0);
+    draw_quad_piece(tex, corners, 4, 0, 0, mix);
+    static bool reported;
+    if (!reported) {
+        static const char message[] = "UPSTREAM_CANVAS_QUAD source=arc gpu=citro3d\n";
+        svcOutputDebugString(message, sizeof(message) - 1);
+        reported = true;
+    }
+    draws++;
+    return 1;
+#else
+    (void)id; (void)revision; (void)width; (void)height; (void)pixels;
+    (void)vertices; (void)offset; (void)blend_mode;
     return 0;
 #endif
 }

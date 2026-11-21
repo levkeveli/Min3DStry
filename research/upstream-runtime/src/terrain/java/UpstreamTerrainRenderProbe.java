@@ -108,6 +108,14 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
         }
     }
 
+    @Override
+    public void drawCanvasQuad(UpstreamCanvasTexture texture, float[] vertices, int offset, Blending blending) {
+        if (NativeTerrain.drawCanvasQuad(texture.id, texture.revision, texture.width, texture.height,
+                Address.ofData(texture.pixels), Address.ofData(vertices), offset, blendMode(blending)) == 0) {
+            throw new IllegalStateException("Citro3D could not draw the stock Canvas quad");
+        }
+    }
+
     private static int blendMode(Blending blending) {
         if (blending == Blending.normal) return 0;
         if (blending == Blending.additive) return 1;
@@ -154,6 +162,10 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
         static native int drawCanvas(int id, int revision, int width, int height, Address pixels,
                                      float x, float y, float originX, float originY, float drawWidth, float drawHeight,
                                      float rotation, int color, int mixColor, int blendMode);
+
+        @Import(name = "m3ds_terrain_draw_canvas_quad")
+        static native int drawCanvasQuad(int id, int revision, int width, int height, Address pixels,
+                                         Address vertices, int offset, int blendMode);
 
         @Import(name = "m3ds_terrain_end")
         static native int end();
