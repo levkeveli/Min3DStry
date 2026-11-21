@@ -16,6 +16,7 @@
 #include "ndsp_backend.h"
 #include "platform/hardware_profile.h"
 #include "platform/memory_budget.h"
+#include "platform/sd_paths.h"
 #include "render/factory_demo.h"
 #include "render/minimap.h"
 #include "render/scene_2d.h"
@@ -124,8 +125,22 @@ int main(int argc, char *argv[]) {
     if (hw_ok) {
         m3ds_hardware_profile_format(&hw_profile, hw_summary, sizeof(hw_summary));
     }
-    char dbg_line[192];
+    char dbg_line[320];
     snprintf(dbg_line, sizeof(dbg_line), "[MIN3DSTRY] HW: %s\n", hw_summary);
+    m3ds_emit_debug_line(log_socket, dbg_line);
+
+    char settings_path[96];
+    char sector_path[96];
+    if (m3ds_sd_settings_path(M3DS_SD_ROOT, settings_path, sizeof(settings_path)) &&
+        m3ds_sd_sector_save_path(
+            M3DS_SD_ROOT, "serpulo", 170u, sector_path, sizeof(sector_path))) {
+        snprintf(dbg_line, sizeof(dbg_line),
+                 "[MIN3DSTRY] STORAGE root=%s settings=%s sector=%s\n",
+                 M3DS_SD_ROOT, settings_path, sector_path);
+    } else {
+        snprintf(dbg_line, sizeof(dbg_line),
+                 "[MIN3DSTRY] STORAGE status=invalid\n");
+    }
     m3ds_emit_debug_line(log_socket, dbg_line);
 
     {

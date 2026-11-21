@@ -236,7 +236,13 @@
       "weight": 4,
       "stage": "planned",
       "issue": 41,
-      "evidence": []
+      "evidence": [
+        "include/platform/sd_paths.h",
+        "src/platform/sd_paths.c",
+        "tests/platform/test_sd_paths.c",
+        "docs/porting/campaign-progression.md",
+        "docs/porting/sd-storage-paths.md"
+      ]
     },
     {
       "id": "ndsp-sfx-music",

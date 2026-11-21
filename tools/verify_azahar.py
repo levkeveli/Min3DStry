@@ -106,6 +106,13 @@ DRILL_EVENT_RE = re.compile(
     r"voice=(?P<voice>\d+)"
 )
 
+STORAGE_RE = re.compile(
+    r"\[MIN3DSTRY\] STORAGE "
+    r"root=(?P<root>\S+) "
+    r"settings=(?P<settings>\S+) "
+    r"sector=(?P<sector>\S+)"
+)
+
 BLOCK_PLACE_EVENT_RE = re.compile(
     r"\[MIN3DSTRY\] AUDIO_EVENT block\.place "
     r"clip=(?P<clip>-?\d+) "
@@ -450,6 +457,7 @@ def parse_azahar_log(log_text: str) -> dict[str, Any]:
     gl_version: str | None = None
     hw_line: str | None = None
     atlas_loaded: bool | None = None
+    storage: dict[str, Any] | None = None
     parity: dict[str, Any] | None = None
     audio: dict[str, Any] | None = None
     audio_romfs: dict[str, Any] | None = None
@@ -472,6 +480,15 @@ def parse_azahar_log(log_text: str) -> dict[str, Any]:
             hw_line = line.split("[MIN3DSTRY] HW:", 1)[1].strip()
         elif "[MIN3DSTRY] ATLAS " in line:
             atlas_loaded = "ATLAS loaded" in line
+        elif "[MIN3DSTRY] STORAGE " in line:
+            storage_match = STORAGE_RE.search(line)
+            if storage_match:
+                sg = storage_match.groupdict()
+                storage = {
+                    "root": sg["root"],
+                    "settings": sg["settings"],
+                    "sector": sg["sector"],
+                }
         elif "[MIN3DSTRY] PARITY " in line:
             parity = parse_parity_debug_line(line)
         elif "[MIN3DSTRY] MEM " in line:
@@ -610,6 +627,7 @@ def parse_azahar_log(log_text: str) -> dict[str, Any]:
         "gl_version": gl_version,
         "hw_line": hw_line,
         "atlas_loaded": atlas_loaded,
+        "storage": storage,
         "parity": parity,
         "audio": audio,
         "audio_romfs": audio_romfs,
@@ -765,6 +783,14 @@ def run_model_check(
             raise AssertionError(f"Missing sprite-atlas telemetry for {model}")
         if atlas_loaded is not True:
             raise AssertionError(f"Sprite atlas failed to load for {model}")
+        storage = parsed.get("storage")
+        expected_storage = {
+            "root": "/3ds/min3dstry",
+            "settings": "/3ds/min3dstry/settings.bin",
+            "sector": "/3ds/min3dstry/sector-serpulo-170.msav",
+        }
+        if storage != expected_storage:
+            raise AssertionError(f"Unexpected storage paths for {model}: {storage}")
         if (
             audio["backend"] != "ndsp"
             or audio["state"] not in ("ready", "fallback_no_dsp")
@@ -838,6 +864,7 @@ def run_model_check(
             "gl_version": parsed.get("gl_version"),
             "hw_line": hw_line,
             "atlas_loaded": parsed.get("atlas_loaded"),
+            "storage": storage,
             "parity": parity,
             "audio": audio,
             "audio_romfs": audio_romfs,
