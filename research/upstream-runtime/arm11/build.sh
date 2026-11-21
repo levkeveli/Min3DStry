@@ -11,7 +11,9 @@ output="$2"
 python3 "$root/prepare.py" "$1" "$output"
 shift 2
 native_network=()
+title="Min3DStry Terrain"
 if [[ ${1:-} == --network ]]; then
+    title="Min3DStry"
     repo="$root/../../.."
     native_network=(-I"$root" -I"$repo/include" -I"$repo/src/platform/3ds"
         "$root/m3ds_net_bridge.c" "$repo/src/net/mindustry_net.c" "$repo/src/platform/3ds/net_3ds.c")
@@ -31,7 +33,7 @@ if [[ $# -gt 0 ]]; then
     terrain_libraries=(-lcitro2d -lcitro3d)
     mkdir "$output/romfs"
     cp "$1/sprites.t3x" "$output/romfs/terrain.t3x"
-    "$DEVKITPRO/tools/bin/smdhtool" --create "Min3DStry Terrain" "Mindustry v160.8 Glacier" \
+    "$DEVKITPRO/tools/bin/smdhtool" --create "$title" "Mindustry v160.8 Glacier" \
         "Min3DStry Contributors" "$DEVKITPRO/libctru/default_icon.png" "$output/upstream-probe.smdh"
     package_flags=(--smdh="$output/upstream-probe.smdh" --romfs="$output/romfs")
 fi

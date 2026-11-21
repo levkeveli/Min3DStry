@@ -3,6 +3,7 @@
 
 import argparse
 import hashlib
+import math
 from pathlib import Path
 import re
 import struct
@@ -14,16 +15,17 @@ import verify_azahar as az
 
 
 SERVER_SHA256 = "faeaf247a8b622de940181a96cb21cb20692d3c3da4e8ac3f79cb4af5059aa6c"
+ATLAS_SHA256 = "fcfb2171eed35b60e7a0d696b63943883a191e7f547ecfef372bd42d72675334"
 PLAYER = "Min3DStry ARM11"
 NUMBER = r"-?\d+(?:\.\d+)?"
 
 
-def write_controls_replay(path):
+def write_controls_replay(path, first_move=22):
     """Write the Azahar 2126.2 CTM input for this probe's pad/touch polling."""
     # The pinned Azahar movie header and HID sample definitions use packed little-endian fields.
     revision = bytes.fromhex("219d743a1e698101fe1ab8bef43e6563126c3c27")
     samples_per_second = 234
-    frames = 45 * samples_per_second
+    frames = (first_move + 23) * samples_per_second
     header = struct.pack("<4sQ20sQQ32sIQq156x", b"CTM\x1b", 0, revision, 1780000000,
                          0x4D334453, b"Min3DStry input verification", 0, frames, 0)
     touch_idle = struct.pack("<B6x", 1)
@@ -31,8 +33,8 @@ def write_controls_replay(path):
         movie.write(header)
         for frame in range(frames):
             seconds = frame // samples_per_second
-            buttons = (1 << 4) if seconds == 22 else (1 << 3) if seconds == 38 else 0
-            circle_y = 106 if seconds == 28 else 0
+            buttons = (1 << 4) if seconds == first_move else (1 << 3) if seconds == first_move + 16 else 0
+            circle_y = 106 if seconds == first_move + 6 else 0
             movie.write(struct.pack("<BHhh", 0, buttons, 0, circle_y))
             movie.write(touch_idle)
 
@@ -87,9 +89,11 @@ def verify_movement(log, emulator, server_log, server, join, timeout):
     print(observed.group(0), flush=True)
 
 
-def verify_controls(log, emulator, server_log, server, timeout):
+def verify_controls(log, emulator, server_log, server, timeout, capture=None):
     wait_for(log, emulator, r"UPSTREAM_LIVE_CONTROLS_READY unit=\d+", timeout)
     baseline = server_position(server_log, server, "UPSTREAM_SERVER_CONTROLS_READY").groups()
+    if capture:
+        capture("spawn", baseline)
     for device, direction, axis in (("dpad", "right", 2), ("circle", "up", 3)):
         print(f"Move {direction} with the {device}, then release it.", flush=True)
         stopped = re.compile(rf"UPSTREAM_LIVE_CONTROLS_STOPPED unit=(\d+) input={device} "
@@ -98,21 +102,43 @@ def verify_controls(log, emulator, server_log, server, timeout):
         time.sleep(0.4)  # Allow the stock server to finish interpolating the stopped unit.
         result = server_position(server_log, server, f"UPSTREAM_SERVER_CONTROLS_STOP input={device}")
         settled = result.groups()
-        time.sleep(0.3)
-        later = server_position(server_log, server, f"UPSTREAM_SERVER_CONTROLS_IDLE input={device}").groups()
+        for sample in range(6):
+            time.sleep(0.3)
+            later = server_position(
+                server_log, server, f"UPSTREAM_SERVER_CONTROLS_IDLE input={device} sample={sample}"
+            ).groups()
+            if int(later[1]) > int(settled[1]):
+                break
         if (client_unit != settled[0] or settled[0] != baseline[0] or settled[0] != later[0]
                 or int(later[1]) <= int(settled[1])
                 or float(settled[axis]) - float(baseline[axis]) < 0.05
                 or abs(float(client_x) - float(settled[2])) > 0.2
                 or abs(float(client_y) - float(settled[3])) > 0.2
                 or any(abs(float(settled[i]) - float(later[i])) > 0.05 for i in (2, 3))):
-            raise RuntimeError(f"{device} did not settle: client=({client_unit}, {client_x}, {client_y}), "
-                               f"server={settled}, idle={later}")
+            raise RuntimeError(f"{device} did not settle with continuing snapshots: "
+                               f"client=({client_unit}, {client_x}, {client_y}), server={settled}, idle={later}")
         baseline = later
+        if capture:
+            capture(device, later)
         print(result.group(0), flush=True)
     server.stdin.write("runwave\n")
     server.stdin.flush()
     wait_for(log, emulator, r"UPSTREAM_LIVE_CONTROLS_STATE wave=2\b", timeout)
+
+
+def capture_viewport(log, emulator, rpc, destination, position):
+    unit, _, x, y = position
+    # Glacier is 150 × 250 tiles and the renderer centers a 16 × 12 tile viewport.
+    left = max(0, min(150 - 16, math.floor(float(x) / 8 + 0.5) - 8))
+    bottom = max(0, min(250 - 12, math.floor(float(y) / 8 + 0.5) - 6))
+    frame = f"UPSTREAM_NETWORK_FRAME unit={unit} left={left} bottom={bottom} sprites=1"
+    wait_for(log, emulator, rf"{frame}\b", 5)
+    screenshot = rpc.screenshot(res_scale=1)
+    destination.write_bytes(screenshot)
+    pixels = az.inspect_png(screenshot)
+    if pixels["width"] != 400 or pixels["height"] != 480 or pixels["top_distinct_colors"] < 8:
+        raise RuntimeError(f"Expected the textured Glacier viewport on the top screen: {pixels}")
+    print(frame, flush=True)
 
 
 def run_model(args, model, config, original_config, log, output):
@@ -125,6 +151,9 @@ def run_model(args, model, config, original_config, log, output):
         "Renderer": {"graphics_api": "2"},
         "Data Storage": {"use_virtual_sd": "true"},
     }
+    if args.terrain_atlas:
+        overrides["Layout"] = {"layout_option": "0", "swap_screen": "false",
+                               "upright_screen": "false", "render_3d": "0", "screen_gap": "0"}
     config.write_text(az.patch_qt_config_text(original_config, overrides), encoding="utf-8")
     log.write_bytes(b"")
     server_log = output / f"{model}-server.log"
@@ -144,14 +173,18 @@ def run_model(args, model, config, original_config, log, output):
             command = [str(args.azahar)]
             if args.controls_replay:
                 replay = Path(work) / "controls.ctm"
-                write_controls_replay(replay)
+                write_controls_replay(replay, first_move=42 if args.terrain_atlas else 22)
                 command += ["-p", str(replay)]
             command.append(str(args.rom))
             emulator = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             rpc = az.AzaharRpcClient(timeout=2, retries=2)
             try:
                 if args.controls:
-                    verify_controls(log, emulator, server_log, server, args.timeout)
+                    def capture(phase, position):
+                        capture_viewport(log, emulator, rpc, output / f"{model}-{phase}.png", position)
+
+                    verify_controls(log, emulator, server_log, server, args.timeout,
+                                    capture if args.terrain_atlas else None)
                     (output / f"{model}.png").write_bytes(rpc.screenshot())
                     print("Wave 2 applied. Press the emulated START button to leave.", flush=True)
                     emu_log = wait_for(log, emulator, "UPSTREAM_LIVE_CONTROLS_LEFT", args.timeout)
@@ -240,6 +273,8 @@ def main():
     mode.add_argument("--controls", action="store_true", help="Verify D-pad and Circle Pad input and START disconnect")
     parser.add_argument("--controls-replay", action="store_true",
                         help="Replay the controls test input in Azahar 2126.2")
+    parser.add_argument("--terrain-atlas", type=Path,
+                        help="Stage the official v160.8 sprites.aatls and verify the rendered viewport")
     args = parser.parse_args()
     args.server, args.rom, args.azahar = (path.resolve() for path in (args.server, args.rom, args.azahar))
     with args.server.open("rb") as archive:
@@ -251,9 +286,18 @@ def main():
         parser.error("The PC client needs a distinct player name")
     if args.controls_replay and not args.controls:
         parser.error("--controls-replay needs --controls")
+    if args.terrain_atlas:
+        if not args.controls:
+            parser.error("--terrain-atlas needs --controls")
+        atlas_bytes = args.terrain_atlas.read_bytes()
+        if hashlib.sha256(atlas_bytes).hexdigest() != ATLAS_SHA256:
+            parser.error("Expected the official v160.8 sprites.aatls")
     config, log = az.resolve_azahar_paths()
     endpoint = config.parent.parent / "sdmc/3ds/min3dstry/server-endpoint.txt"
     originals = {path: path.read_bytes() if path.exists() else None for path in (config, log, endpoint)}
+    atlas_path = endpoint.with_name("sprites.aatls")
+    if args.terrain_atlas:
+        originals[atlas_path] = atlas_path.read_bytes() if atlas_path.exists() else None
     output = args.rom.parent / "upstream-live-net"
     output.mkdir(exist_ok=True)
     try:
@@ -261,6 +305,8 @@ def main():
             path.parent.mkdir(parents=True, exist_ok=True)
         suffix = " controls" if args.controls else " movement" if args.movement else ""
         endpoint.write_text(f"127.0.0.1 {args.port}{suffix}\n", encoding="ascii")
+        if args.terrain_atlas:
+            atlas_path.write_bytes(atlas_bytes)
         for model in ((args.model,) if args.model else ("old3ds", "new3ds")):
             run_model(args, model, config, (originals[config] or b"").decode(), log, output)
     finally:
