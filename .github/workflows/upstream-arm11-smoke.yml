@@ -11,7 +11,7 @@ jobs:
       fail-fast: false
       matrix:
         probe: [network-render]
-        optimization: [2]
+        optimization: [0]
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4

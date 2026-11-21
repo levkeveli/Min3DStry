@@ -396,14 +396,17 @@ int32_t m3ds_terrain_palette_active(void) {
 }
 
 int32_t m3ds_terrain_build_labels(const char *labels) {
-    palette_buffer = C2D_TextBufNew(256);
-    catalog_buffer = C2D_TextBufNew(512);
+    if (!palette_buffer) palette_buffer = C2D_TextBufNew(256);
+    if (!catalog_buffer) catalog_buffer = C2D_TextBufNew(512);
     if (!palette_buffer || !catalog_buffer) return 0;
-    // Allocate both screen outputs before the world cache uses the linear heap.
-    gfxSetScreenFormat(GFX_BOTTOM, GSP_BGR8_OES);
-    gfxSetDoubleBuffering(GFX_BOTTOM, true);
-    palette = C2D_CreateScreenTarget(GFX_BOTTOM, GFX_LEFT);
-    if (!palette) return 0;
+    if (!palette) {
+        // Allocate both screen outputs before the world cache uses the linear heap.
+        gfxSetScreenFormat(GFX_BOTTOM, GSP_BGR8_OES);
+        gfxSetDoubleBuffering(GFX_BOTTOM, true);
+        palette = C2D_CreateScreenTarget(GFX_BOTTOM, GFX_LEFT);
+        if (!palette) return 0;
+    }
+    C2D_TextBufClear(palette_buffer);
     for (int i = 0; i < 7; i++) {
         C2D_TextParse(&palette_labels[i], palette_buffer, labels);
         C2D_TextOptimize(&palette_labels[i]);
