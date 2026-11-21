@@ -354,6 +354,13 @@ Run the live verifier with `--controls --controls-replay --terrain-atlas
 each direction, compares the viewport against the server's settled
 position, and checks wave reception and START disconnect.
 
+The [first optimized ARM11 reference build](https://github.com/levkeveli/Min3DStry/actions/runs/44841074894)
+passed this replay in Azahar 2126.2 on both console profiles. The server
+spawned the player at (648, 208), then confirmed movement east and north
+from the D-pad and Circle Pad respectively. At each stop the top-screen
+viewport matched the server position. The client received wave 2, and
+START closed its connection.
+
 Before the snapshot dispatch extension, the [devkitARM verification build](https://github.com/levkeveli/Min3DStry/actions/runs/44824442974)
 passed at `-O0` and `-O2` on both Azahar 2126.2 console profiles. Each run
 rejected build 159 with `clientOutdated`, then joined Glacier twice with

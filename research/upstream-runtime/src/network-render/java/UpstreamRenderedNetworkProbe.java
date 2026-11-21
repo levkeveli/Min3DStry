@@ -32,16 +32,14 @@ public final class UpstreamRenderedNetworkProbe {
     }
 
     private void loadGraphics() {
-        UpstreamTerrainDrawProbe.loadAtlas(atlas);
+        UpstreamTerrainDrawProbe.loadAtlas(atlas, true);
+        viewport = UpstreamTerrainDrawProbe.liveViewport(target);
         target.initialize();
     }
 
     private void render(Unit unit) {
-        if (viewport == null) {
-            if (!Vars.state.map.name().equals("Glacier")) {
-                throw new IllegalStateException("The rendered multiplayer probe is packaged for Glacier");
-            }
-            viewport = UpstreamTerrainDrawProbe.prepareViewport(target, false);
+        if (lastLeft == -1 && !Vars.state.map.name().equals("Glacier")) {
+            throw new IllegalStateException("The rendered multiplayer probe is packaged for Glacier");
         }
         controlled = unit;
         float x = unit == null ? Vars.player.x() : unit.x();
