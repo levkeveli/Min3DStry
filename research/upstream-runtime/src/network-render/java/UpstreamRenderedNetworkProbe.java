@@ -61,12 +61,18 @@ public final class UpstreamRenderedNetworkProbe {
     }
 
     private void drawEntities() {
+        // Walls are cached by upstream's tile renderer and do not join Groups.build.
+        int right = Math.min(viewport.left + UpstreamTerrainDrawProbe.VIEW_WIDTH, Vars.world.width());
+        int top = Math.min(viewport.bottom + UpstreamTerrainDrawProbe.VIEW_HEIGHT, Vars.world.height());
+        for (int y = viewport.bottom; y < top; y++) {
+            for (int x = viewport.left; x < right; x++) {
+                var tile = Vars.world.tile(x, y);
+                if (tile.block() == Blocks.copperWall && tile.build != null) tile.build.drawCached();
+            }
+        }
         for (var building : Groups.build) {
-            if ((building.block == Blocks.coreNucleus || building.block == Blocks.conveyor
-                    || building.block == Blocks.copperWall)
+            if ((building.block == Blocks.coreNucleus || building.block == Blocks.conveyor)
                     && viewport.contains(building)) {
-                // WallBuild.draw only renders its optional hit flash. The wall sprite is cached upstream.
-                if (building.block == Blocks.copperWall) building.drawCached();
                 building.draw();
                 if (building.block == Blocks.conveyor && reportedConveyors.add(building.pos())) {
                     System.out.println("UPSTREAM_NETWORK_CONVEYOR x=" + building.tileX()
