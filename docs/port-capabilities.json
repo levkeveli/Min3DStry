@@ -275,6 +275,7 @@
         "tests/platform/test_settings_store.c",
         "research/upstream-runtime/src/campaign-settings/java/UpstreamCampaignSettingsProbe.java",
         "research/upstream-runtime/src/campaign-sector/java/UpstreamCampaignSectorProbe.java",
+        "research/upstream-runtime/src/campaign-content/java/UpstreamCampaignContentStateProbe.java",
         "research/upstream-runtime/build.gradle",
         "docs/porting/campaign-progression.md",
         "docs/porting/sd-storage-paths.md"

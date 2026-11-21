@@ -47,7 +47,8 @@ def entryPoints = [
     'terrain-render': 'UpstreamTerrainRenderProbe',
     'file-metadata': 'port.UpstreamFileMetadataProbe',
     'campaign-settings': 'UpstreamCampaignSettingsProbe',
-    'campaign-sector': 'UpstreamCampaignSectorProbe'
+    'campaign-sector': 'UpstreamCampaignSectorProbe',
+    'campaign-content': 'UpstreamCampaignContentStateProbe'
 ]
 if (!entryPoints.containsKey(probe)) {
     throw new GradleException("Expected -Pprobe to be one of ${entryPoints.keySet()}")
@@ -60,9 +61,10 @@ def patchesPlanetGrid = probe == 'network-render'
 def usesSimulation = probe in ['factory-ticks', 'combat-ticks', 'production-ticks', 'wave-routing']
 def usesCampaignSettings = probe == 'campaign-settings'
 def usesCampaignSector = probe == 'campaign-sector'
+def usesCampaignContent = probe == 'campaign-content'
 def usesWorldSources = probe in ['world', 'world-save', 'world-roundtrip', 'world-stream',
                                  'terrain-draw'] || usesCampaignSector || usesLiveNetwork || usesTerrainRenderer || usesSimulation
-def initializesContent = probe == 'content-init' || usesWorldSources
+def initializesContent = probe == 'content-init' || usesWorldSources || usesCampaignContent
 def usesContentSources = probe == 'content' || initializesContent
 def usesExecutor = usesContentSources || probe == 'executor' || usesCampaignSettings
 def usesArcSources = usesContentSources || probe == 'resource' || usesCampaignSettings
@@ -172,6 +174,9 @@ if (usesCampaignSettings) {
 }
 if (usesCampaignSector) {
     sourceSets.main.java.srcDir('src/campaign-sector/java')
+}
+if (usesCampaignContent) {
+    sourceSets.main.java.srcDir('src/campaign-content/java')
 }
 dependencies {
     if (usesMapSources || usesLiveNetwork || usesTerrainRenderer) {

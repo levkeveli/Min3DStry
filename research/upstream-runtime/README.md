@@ -267,6 +267,21 @@ and removes the slot. The same probe is built for ARM11 in the
 `world-roundtrip` CI job. Azahar 2126.2 New and Old profiles both reported the
 marker and left no slot file behind.
 
+### Campaign content unlock state
+
+`-Pprobe=campaign-content` verifies conveyor is locked with empty settings,
+persists the upstream `conveyor-unlocked` and `req-conveyor-copper` settings,
+reloads a fresh `Settings` from `settings.bin`, rebuilds content, and checks
+`Blocks.conveyor.unlocked()` only from the reloaded state. JVM and ARM11/Azahar
+report:
+
+```text
+UPSTREAM_CAMPAIGN_CONTENT path=live lockedBefore=ok conveyorUnlocked=true key=conveyor-unlocked research=50 reload=ok blocks=447
+```
+
+The probe snapshots and restores live settings on 3DS; Azahar 2126.2 New and
+Old profiles both reported the marker and left no `settings.bin` behind.
+
 ### Join the upstream server from the ARM11 probe
 
 `-Pprobe=network-live` uses the same upstream deserializer with live
