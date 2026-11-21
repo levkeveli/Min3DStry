@@ -75,19 +75,32 @@ public final class UpstreamBuildControlsReference {
         // No transport in this reference. Building.configure still runs the original local call.
         Vars.net = new Net(null);
         var tile = Vars.world.tile(87, 26);
-        tile.setBlock(Blocks.sorter, unit.team(), 0);
-        var sorter = (Sorter.SorterBuild) tile.build;
+        var input = Vars.world.tile(86, 26);
+        var straight = Vars.world.tile(88, 26);
+        var side = Vars.world.tile(87, 27);
+        input.setBlock(Blocks.router, unit.team(), 0);
+        straight.setBlock(Blocks.router, unit.team(), 0);
+        side.setBlock(Blocks.router, unit.team(), 0);
         int copperIndex = Vars.content.items().select(UpstreamItemChoices::accepts).indexOf(Items.copper, true);
         if (copperIndex < 0 || copperIndex >= UpstreamBuildMenu.ROWS) {
             throw new AssertionError("Expected copper on the first stock item page");
         }
         int y = UpstreamBuildMenu.ROW_TOP + copperIndex * UpstreamBuildMenu.ROW_HEIGHT;
-        for (int attempt = 0; attempt < 2; attempt++) {
-            controls.update(unit, 0, touch(305, 64));
-            controls.update(unit, 0, touch(264, 136));
-            controls.update(unit, 0, touch(160, y));
-            if (sorter.config() != (attempt == 0 ? Items.copper : null)) {
-                throw new AssertionError("Sorter must select copper and clear it on the second tap");
+        for (var block : new Sorter[]{(Sorter) Blocks.sorter, (Sorter) Blocks.invertedSorter}) {
+            tile.setBlock(block, unit.team(), 0);
+            var sorter = (Sorter.SorterBuild) tile.build;
+            for (int attempt = 0; attempt < 2; attempt++) {
+                controls.update(unit, 0, touch(305, 64));
+                controls.update(unit, 0, touch(264, 136));
+                controls.update(unit, 0, touch(160, y));
+                if (sorter.config() != (attempt == 0 ? Items.copper : null)) {
+                    throw new AssertionError(block.name + " must select copper and clear it on the second tap");
+                }
+                boolean copperStraight = (attempt == 0) != block.invert;
+                if (sorter.getTileTarget(Items.copper, input.build, false) != (copperStraight ? straight.build : side.build)
+                        || sorter.getTileTarget(Items.lead, input.build, false) != (block.invert ? straight.build : side.build)) {
+                    throw new AssertionError(block.name + " must route matching and other items correctly");
+                }
             }
         }
         System.out.println("UPSTREAM_CONFIG_REFERENCE sorterPage=" + (sorterIndex / UpstreamBuildMenu.ROWS + 1)

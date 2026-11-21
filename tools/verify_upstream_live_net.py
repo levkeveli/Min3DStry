@@ -21,7 +21,7 @@ PLAYER = "Min3DStry ARM11"
 NUMBER = r"-?\d+(?:\.\d+)?"
 
 
-def write_controls_replay(path, first_move=22, building=False, touch_build=False, model="old3ds"):
+def write_controls_replay(path, first_move=22, building=False, touch_build=False, touch_config=False, model="old3ds"):
     """Write the Azahar 2126.2 CTM input for this probe's pad/touch polling."""
     # The pinned Azahar movie header and HID sample definitions use packed little-endian fields.
     revision = bytes.fromhex("219d743a1e698101fe1ab8bef43e6563126c3c27")
@@ -36,6 +36,12 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
         (70, (40, 24)), (74, (15, 64)), (79, (268, 218)),
         (84, (160, 130)), (89, (264, 136)), (93, (264, 136)),
     ) if touch_build else ()
+    if touch_config:
+        taps = (
+            (35, (15, 64)), (40, (268, 218)), (45, (160, 80)), (50, (232, 136)),
+            (58, (305, 64)), (62, (232, 136)), (67, (160, 55)),
+            (75, (305, 64)), (79, (232, 136)), (84, (160, 80)),
+        )
     with path.open("wb") as movie:
         movie.write(header)
         for frame in range(frames):
@@ -46,16 +52,16 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
             circle_y = 106 if seconds == first_move + 6 else 0
             point = next((point for start, point in taps if start <= seconds < start + 2), None)
             pad = struct.pack("<BHhh", 0, buttons, 0, circle_y)
-            if touch_build and point:
+            if point:
                 # Extra HID polls on New 3DS can fall between pad/touch pairs.
                 # Keep the touch held for the whole burst regardless of the poll phase.
                 touch = struct.pack("<BHHBx", 1, *point, 1)
                 movie.write(touch * 2)
-            elif touch_build and (buttons or circle_y):
+            elif taps and (buttons or circle_y):
                 movie.write(pad * 2)
             else:
                 movie.write(pad + touch_idle)
-            if touch_build and model == "new3ds" and frame % 7 in (0, 2, 4):
+            if taps and model == "new3ds" and frame % 7 in (0, 2, 4):
                 movie.write(touch if point else pad)
 
 
@@ -199,8 +205,48 @@ def verify_touch_build(log, emulator, server_log, server, timeout, capture, posi
     print(f"Stock server verified the catalog Router; copper={router[3]}.", flush=True)
 
 
+def verify_touch_config(log, emulator, server_log, server, timeout, capture, position):
+    _, _, x, y = position
+    tx, ty = math.floor(float(x) / 8 + 0.5) + 4, math.floor(float(y) / 8 + 0.5)
+    original = inspect_building(server_log, server, "config-before", tx, ty)
+    wait_for(log, emulator, rf"UPSTREAM_LIVE_BUILD block=sorter x={tx} y={ty} rotation=0 team=1\b", timeout)
+    placed = inspect_building(server_log, server, "config-placed", tx, ty)
+    if original[0] != "air" or placed != ("sorter", "1", "0", str(int(original[3]) - 2), "true"):
+        raise RuntimeError(f"Unexpected stock Sorter placement: {original} -> {placed}")
+    unconfigured = capture("touch-sorter", position)
+    wait_for(log, emulator, rf"UPSTREAM_CONFIG_OPEN x={tx} y={ty}\b", timeout)
+    time.sleep(0.2)  # The open event precedes presentation.
+    capture("touch-config-menu", position)
+
+    def server_item(phase, expected, set_item=""):
+        marker = f"UPSTREAM_SERVER_CONFIG phase={phase}"
+        server.stdin.write(
+            f'js (() => {{ const b = Vars.world.build({tx}, {ty}); {set_item} '
+            f'return "{marker} item=" + (b.config() == null ? "none" : b.config().name); }})()\n'
+        )
+        server.stdin.flush()
+        wait_for(server_log, server, rf"{marker} item={expected}\b", 5)
+
+    wait_for(log, emulator, rf"UPSTREAM_CONFIG_LOCAL x={tx} y={ty} item=copper\b", timeout)
+    time.sleep(0.2)  # Allow the stock server to process the reliable request.
+    server_item("from-3ds", "copper")
+    copper = capture("touch-config-copper", position)
+    server_item("to-3ds", "lead", "b.configureAny(Items.lead);")
+    wait_for(log, emulator, rf"UPSTREAM_CONFIG_REMOTE x={tx} y={ty} item=lead\b", timeout)
+    time.sleep(0.2)
+    lead = capture("touch-config-lead", position)
+    wait_for(log, emulator, rf"UPSTREAM_CONFIG_LOCAL x={tx} y={ty} item=none\b", timeout)
+    time.sleep(0.2)
+    server_item("cleared", "none")
+    cleared = capture("touch-config-cleared", position)
+    if unconfigured != cleared or len({unconfigured, copper, lead}) != 3:
+        raise RuntimeError(f"Expected distinct original Sorter colors and the clear sprite: "
+                           f"{unconfigured}, {copper}, {lead}, {cleared}")
+    print("Stock server verified Copper, returned Lead, and accepted clearing the Sorter.", flush=True)
+
+
 def verify_controls(log, emulator, server_log, server, timeout, capture=None,
-                    building=False, desktop_name=None, touch_build=False):
+                    building=False, desktop_name=None, touch_build=False, touch_config=False):
     wait_for(log, emulator, r"UPSTREAM_LIVE_CONTROLS_READY unit=\d+", timeout)
     baseline = server_position(server_log, server, "UPSTREAM_SERVER_CONTROLS_READY").groups()
     ground_pixels = capture("spawn", baseline) if capture else None
@@ -208,6 +254,8 @@ def verify_controls(log, emulator, server_log, server, timeout, capture=None,
         verify_conveyor(log, emulator, server_log, server, timeout, capture, baseline, desktop_name)
     if touch_build:
         verify_touch_build(log, emulator, server_log, server, timeout, capture, baseline, ground_pixels)
+    if touch_config:
+        verify_touch_config(log, emulator, server_log, server, timeout, capture, baseline)
     for device, direction, axis in (("dpad", "right", 2), ("circle", "up", 3)):
         print(f"Move {direction} with the {device}, then release it.", flush=True)
         stopped = re.compile(rf"UPSTREAM_LIVE_CONTROLS_STOPPED unit=(\d+) input={device} "
@@ -252,6 +300,8 @@ def capture_viewport(log, emulator, rpc, destination, position, require_palette=
     # Default layout centers the 320px bottom screen at x=40 below the top screen.
     if destination.stem.endswith("-touch-catalog"):
         palette_pixels = {(50, 250): (45, 52, 64), (52, 293): (45, 52, 64)}
+    elif destination.stem.endswith("-touch-config-menu"):
+        palette_pixels = {(50, 250): (24, 27, 32), (52, 293): (45, 52, 64)}
     else:
         palette_pixels = {(70, 296): (24, 27, 32), (72, 296): (65, 74, 88)}
     cursor_pixels = {
@@ -264,8 +314,9 @@ def capture_viewport(log, emulator, rpc, destination, position, require_palette=
     for phase, (point, color) in cursor_pixels.items():
         if destination.stem.endswith(f"-{phase}"):
             points[point] = color
-    wall_interior = ((308, 108), (310, 110), (312, 112))
-    pixels = az.inspect_png(screenshot, (*points, *wall_interior) if require_palette else ())
+    left_sample = 288 if re.search(r"-touch-(sorter|config-[a-z]+)$", destination.stem) else 308
+    interior = ((left_sample, 108), (left_sample + 2, 110), (left_sample + 4, 112))
+    pixels = az.inspect_png(screenshot, (*points, *interior) if require_palette else ())
     if pixels["width"] != 400 or pixels["height"] != 480 or pixels["top_distinct_colors"] < 8:
         raise RuntimeError(f"Expected the textured Glacier viewport on the top screen: {pixels}")
     if require_palette:
@@ -273,7 +324,7 @@ def capture_viewport(log, emulator, rpc, destination, position, require_palette=
             raise RuntimeError(f"Expected palette and cursor pixels {points}, observed {pixels['samples']}")
     print(frame, flush=True)
     if require_palette:
-        return tuple(pixels["samples"][point] for point in wall_interior)
+        return tuple(pixels["samples"][point] for point in interior)
 
 
 def run_model(args, model, config, original_config, log, output):
@@ -286,7 +337,7 @@ def run_model(args, model, config, original_config, log, output):
         "Renderer": {"graphics_api": "2"},
         "Data Storage": {"use_virtual_sd": "true"},
     }
-    if args.touch_build:
+    if args.touch_build or args.touch_config:
         # The synthetic bursts intentionally offer one sample type to all devices.
         overrides["Miscellaneous"]["log_filter"] += " Movie:Critical"
     if args.terrain_atlas:
@@ -304,6 +355,12 @@ def run_model(args, model, config, original_config, log, output):
             server.stdin.write(f"config port {args.port}\nhost Glacier attack\n")
             server.stdin.flush()
             wait_for(server_log, server, f"Opened a server on port {args.port}\\.", 25)
+            if args.touch_config:
+                server.stdin.write('js (() => { const items = Vars.state.rules.defaultTeam.core().items; '
+                                   'if (items.get(Items.lead) < 2) items.add(Items.lead, 2); '
+                                   'return "UPSTREAM_CONFIG_FIXTURE lead=" + items.get(Items.lead); })()\n')
+                server.stdin.flush()
+                wait_for(server_log, server, r"UPSTREAM_CONFIG_FIXTURE lead=\d+", 5)
             if args.desktop_name:
                 print(f"{model}: Join 127.0.0.1:{args.port} from the stock PC client as "
                       f"{args.desktop_name!r}.", flush=True)
@@ -316,8 +373,10 @@ def run_model(args, model, config, original_config, log, output):
                     first_move = 120  # Allow time to inspect and place a block in the desktop client.
                 if args.touch_build:
                     first_move = 101
+                if args.touch_config:
+                    first_move = 92
                 write_controls_replay(replay, first_move=first_move, building=args.building,
-                                      touch_build=args.touch_build, model=model)
+                                      touch_build=args.touch_build, touch_config=args.touch_config, model=model)
                 command += ["-p", str(replay)]
             command.append(str(args.rom))
             emulator = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -326,11 +385,11 @@ def run_model(args, model, config, original_config, log, output):
                 if args.controls:
                     def capture(phase, position):
                         return capture_viewport(log, emulator, rpc, output / f"{model}-{phase}.png", position,
-                                                require_palette=args.touch_build)
+                                                require_palette=args.touch_build or args.touch_config)
 
                     verify_controls(log, emulator, server_log, server, args.timeout,
                                     capture if args.terrain_atlas else None, args.building, args.desktop_name,
-                                    args.touch_build)
+                                    args.touch_build, args.touch_config)
                     (output / f"{model}.png").write_bytes(rpc.screenshot())
                     print("Wave 2 applied. Press the emulated START button to leave.", flush=True)
                     emu_log = wait_for(log, emulator, "UPSTREAM_LIVE_CONTROLS_LEFT", args.timeout)
@@ -426,6 +485,8 @@ def main():
                         help="Verify the ARM11 conveyor plan, copper cost and rendered response")
     build_mode.add_argument("--touch-build", action="store_true",
                             help="Verify touch placement, rotation and removal against the stock server")
+    build_mode.add_argument("--touch-config", action="store_true",
+                            help="Verify configuring a Sorter with both directions of the stock configuration packet")
     args = parser.parse_args()
     args.server, args.rom, args.azahar = (path.resolve() for path in (args.server, args.rom, args.azahar))
     with args.server.open("rb") as archive:
@@ -441,6 +502,8 @@ def main():
         parser.error("--building needs --terrain-atlas")
     if args.touch_build and not args.terrain_atlas:
         parser.error("--touch-build needs --terrain-atlas")
+    if args.touch_config and not args.terrain_atlas:
+        parser.error("--touch-config needs --terrain-atlas")
     if args.terrain_atlas:
         if not args.controls:
             parser.error("--terrain-atlas needs --controls")

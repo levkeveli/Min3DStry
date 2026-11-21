@@ -406,7 +406,10 @@ loads Glacier. Select Conveyor or Copper Wall, then tap the matching cell
 in the bottom grid. The grid follows the 16 × 12 viewport on the top
 screen. Rotate turns rotatable blocks a quarter turn. Remove toggles
 deconstruction and gives the cursor a red outline. A submits at the
-cursor, R rotates, and B toggles removal.
+cursor, R rotates, and B toggles removal. For a placed Sorter or Inverted
+Sorter, tap Config beside the grid, then tap the building. Select an
+item or tap the active item again to clear it. The choices use the
+original item eligibility rule from `ItemSelection.java`.
 
 Tap List beside the grid to browse the upstream construction catalog.
 The arrows switch categories and the footer switches pages. Tap a block
@@ -431,8 +434,8 @@ stock server, checks the cursor and grid in both screen captures, and
 then exercises movement and START. For the JVM reference, use
 `runBuildControlsJvm -Pprobe=network-render --args=/path/to/glacier-world-stream.bin`
 with the captured Glacier WorldStream. The graphical probe still packs a
-Glacier-specific atlas. The remaining block visuals and configuration
-controls are tracked in issue #27.
+Glacier-specific atlas. The remaining block visuals, localization and
+configuration for other block types are tracked in issue #27.
 
 The [devkitARM build](https://github.com/levkeveli/Min3DStry/actions/runs/44850937824)
 passed the touch checks at `-O0` on both Azahar 2126.2 profiles. The
@@ -447,6 +450,20 @@ opened Distribution page 2 and placed the original Router at (87, 26)
 on both Azahar 2126.2 profiles. The stock server attributed the placement
 to the ARM11 player on team 1 and reduced copper from 196 to 193. Both
 captures showed the Router sprite after construction.
+
+For the configuration replay, use `--touch-config --controls-replay`
+with the same graphical verifier command. The fixture gives the
+starting team enough Lead for one Sorter if needed. The replay places
+the Sorter from Distribution page 2, selects Copper, receives Lead from
+the stock server's `Building.configureAny` call, then clears the selection
+by tapping Lead again. The probe uses `Building.configure`, generated
+`TileConfigCallPacket` handlers and the original `SorterBuild.draw`.
+The [configuration build](https://github.com/levkeveli/Min3DStry/actions/runs/44853250034)
+passed this round trip on both Azahar 2126.2 profiles. The captured
+Sorter changed from its unconfigured sprite to Copper and then Lead,
+and returned to its first appearance after clearing the selection.
+The JVM test also checks that selecting and clearing Copper changes
+the original routing decisions for both Sorter variants.
 
 Before the snapshot dispatch extension, the [devkitARM verification build](https://github.com/levkeveli/Min3DStry/actions/runs/44824442974)
 passed at `-O0` and `-O2` on both Azahar 2126.2 console profiles. Each run
