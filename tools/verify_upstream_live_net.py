@@ -91,7 +91,7 @@ BUILDING_CRACK_PIXELS = {
 
 def write_controls_replay(path, first_move=22, building=False, touch_build=False, touch_config=False,
                           erekir_build=False, mining=None, model="old3ds", stock_menu_font=False,
-                          weapons=False):
+                          weapons=False, graphical_movement=False):
     """Write the Azahar 2126.2 CTM input for this probe's pad/touch polling."""
     # The pinned Azahar movie header and HID sample definitions use packed little-endian fields.
     revision = bytes.fromhex("219d743a1e698101fe1ab8bef43e6563126c3c27")
@@ -100,6 +100,11 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
     needs_settling_time = building or touch_build or touch_config
     circle_at = first_move + (18 if needs_settling_time else 6)
     leave_at = first_move + (44 if needs_settling_time else 16)
+    if graphical_movement and not needs_settling_time:
+        # The graphical ARM11 loop can take several presentations to decelerate.
+        circle_at = first_move + 30
+        leave_at = circle_at + 30
+    movement_hold = 3 if graphical_movement and not needs_settling_time else 1
     if weapons:
         leave_at = first_move + 26
     frames = (128 if erekir_build or mining else leave_at + 7) * samples_per_second
@@ -154,11 +159,12 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
                 elif first_move + 10 <= seconds < first_move + 15:
                     buttons = (1 << 10) | (1 << 9)  # X + L, with Circle Pad up below
             else:
-                buttons = (1 << 4) if seconds == first_move else (1 << 3) if seconds == leave_at else 0
+                buttons = (1 << 4) if first_move <= seconds < first_move + movement_hold else (
+                    (1 << 3) if seconds == leave_at else 0)
             if building and seconds in (35, 37, 39):
                 buttons = 1  # A, with releases so a late HID poll can observe another press.
             circle_x = 65 if mining == "wall" and 54 <= seconds < pan_end else 0
-            circle_y = 106 if seconds == circle_at and not (erekir_build or mining) else 0
+            circle_y = 106 if circle_at <= seconds < circle_at + movement_hold and not (erekir_build or mining) else 0
             if weapons:
                 circle_y = 106 if first_move + 10 <= seconds < first_move + 15 else 0
             if mining == "floor" and 88 <= seconds < 94:
@@ -170,7 +176,7 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
                 # Keep the touch held for the whole burst regardless of the poll phase.
                 touch = struct.pack("<BHHBx", 1, *point, 1)
                 movie.write(touch * 2)
-            elif taps and (buttons or circle_x or circle_y):
+            elif (taps or graphical_movement) and (buttons or circle_x or circle_y):
                 movie.write(pad * 2)
             else:
                 movie.write(pad + touch_idle)
@@ -1546,6 +1552,9 @@ def watch_player_weapons(server_log, server):
 
 
 def run_model(args, model, config, original_config, log, output):
+    graphical_movement = bool(args.controls_replay and args.terrain_atlas and not (
+        args.verify_weapons or args.building or args.touch_build or args.touch_config
+        or args.erekir_build or args.mining))
     stationary = (args.world_atlas_recycle or args.building_layers or args.liquids
                   or args.building_effects or args.payload_mix or args.carried_buildings
                   or args.payload_handoff or args.unit_layers or args.unit_roster or args.naval_wake
@@ -1562,7 +1571,7 @@ def run_model(args, model, config, original_config, log, output):
         "Renderer": {"graphics_api": "2"},
         "Data Storage": {"use_virtual_sd": "true"},
     }
-    if args.touch_build or args.touch_config or args.erekir_build or args.mining:
+    if args.touch_build or args.touch_config or args.erekir_build or args.mining or graphical_movement:
         # The synthetic bursts intentionally offer one sample type to all devices.
         overrides["Miscellaneous"]["log_filter"] += " Movie:Critical"
     if args.terrain_atlas:
@@ -1707,7 +1716,8 @@ def run_model(args, model, config, original_config, log, output):
                 write_controls_replay(replay, first_move=first_move, building=args.building,
                                       touch_build=args.touch_build, touch_config=args.touch_config,
                                       erekir_build=args.erekir_build, mining=args.mining, model=model,
-                                      stock_menu_font=args.verify_stock_menu_font, weapons=args.verify_weapons)
+                                      stock_menu_font=args.verify_stock_menu_font, weapons=args.verify_weapons,
+                                      graphical_movement=graphical_movement)
                 command += ["-p", str(replay)]
             command.append(str(args.rom))
             emulator = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

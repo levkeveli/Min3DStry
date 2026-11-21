@@ -397,8 +397,11 @@ and receive a newer snapshot that clears the fire flag after each release.
 The [devkitARM build](https://github.com/levkeveli/Min3DStry/actions/runs/44943113184)
 passed on both Azahar profiles. The D-pad aimed east and the Circle Pad
 aimed north while the Gamma stayed within one world unit of its starting
-position. The Java server recorded two original projectiles, two newer
-release snapshots, and a clean START disconnect on each profile.
+position. The Java server recorded an original projectile in each
+direction, two newer release snapshots, and a clean START disconnect on
+each profile. The separate movement replay schedules longer held inputs
+and idle intervals to verify both pads, server position and continued
+snapshot delivery after each stop.
 
 Run the same verifier with `--controls --model old3ds` and then
 `--controls --model new3ds`. Follow its prompts to move right with the
