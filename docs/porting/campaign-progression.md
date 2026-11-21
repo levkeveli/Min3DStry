@@ -339,6 +339,10 @@ UPSTREAM_CAMPAIGN_SLOT_DISCOVERY path=live slots=1 file=sector-serpulo-15.msav b
 The probe loads Glacier, writes `sector-serpulo-15.msav` into
 `/3ds/min3dstry/tmp/slot-discovery`, lists the directory, filters `*.msav`
 non-backup files through `SaveIO.isSaveValid`, and asserts exactly one slot.
+The one-byte `bytes` difference is the compressed stream size produced by the
+JVM versus TeaVM C deflate implementation; both files pass upstream `SaveIO`
+validation and reload/launch on their platform.
+
 The ARM11 build sets `M3DS_RELAX_POINTER_TYPES=1` because TeaVM C 0.16 emits
 pointer-typed object references that GCC otherwise rejects; locally use:
 
