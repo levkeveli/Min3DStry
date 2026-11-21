@@ -79,7 +79,9 @@ public final class Arm11AudioReference {
             allRules.rules = rules;
             allRules.handleClient();
 
-            var controller = new SoundControl();
+            var controller = new SoundControl() {
+                { reload(); }
+            };
             controller.stop();
             controller.update();
             if (music.isPlaying()) throw new AssertionError("Stock disabled-music rules played a track");

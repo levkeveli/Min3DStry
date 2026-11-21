@@ -41,7 +41,6 @@ public final class Arm11Audio extends Audio {
         audio.hasMusic = (capabilities & 2) != 0;
         audio.previousAssets = Core.assets;
         audio.stockAssets = bindStockAudio(audio.hasMusic);
-        Core.assets = audio.stockAssets;
     }
 
     static AssetManager bindStockAudio(boolean music) {
@@ -60,6 +59,9 @@ public final class Arm11Audio extends Audio {
 
     public static void prepareMusicControl() {
         if (Core.audio instanceof Arm11Audio audio && audio.hasMusic) {
+            // The stock Maps constructor expects a desktop ContentLoader when Core.assets is set.
+            // Publish the audio-only registry after map and content services have been created.
+            Core.assets = audio.stockAssets;
             Core.settings.defaults("musicvol", 100);
             audio.soundtrack = new LiveSoundControl();
         }
