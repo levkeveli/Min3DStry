@@ -59,12 +59,13 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
             icon.getX(), icon.getY(), icon.width, icon.height, y);
     }
 
-    int drawWorldLabel(String label, float x, float y, int flags, float size, int align, int lineAlign) {
+    int drawWorldLabel(String label, int[] characters, float x, float y, int flags, float size, int align, int lineAlign) {
         int horizontal = Align.isLeft(align) ? -1 : Align.isRight(align) ? 1 : 0;
         int vertical = Align.isTop(align) ? -1 : Align.isBottom(align) ? 1 : 0;
         int lines = Align.isLeft(lineAlign) ? -1 : Align.isRight(lineAlign) ? 1 : 0;
         byte[] text = (label + "\0").getBytes(StandardCharsets.UTF_8);
-        return NativeTerrain.drawWorldLabel(Address.ofData(text), x, y, flags, size, horizontal, vertical, lines);
+        return NativeTerrain.drawWorldLabel(Address.ofData(text), Address.ofData(characters), characters.length / 7,
+            x, y, flags, size, horizontal, vertical, lines);
     }
 
     @Override
@@ -150,7 +151,7 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
         static native float drawObjective(Address label, int page, int x, int y, int width, int height, float top);
 
         @Import(name = "m3ds_terrain_draw_world_label")
-        static native int drawWorldLabel(Address label, float x, float y, int flags, float size,
+        static native int drawWorldLabel(Address label, Address characters, int count, float x, float y, int flags, float size,
                                          int horizontal, int vertical, int lines);
     }
 }
