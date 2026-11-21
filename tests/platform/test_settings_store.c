@@ -56,6 +56,13 @@ static void test_settings_roundtrip_and_backup(void) {
 
     assert(!m3ds_settings_store_read(root, buffer, 2u, &size));
     assert(!m3ds_settings_store_read(root, NULL, sizeof(buffer), &size));
+
+    /* A too-small buffer must not silently fall back to older backup bytes. */
+    assert(m3ds_settings_store_write(root, "abc", 3u));
+    assert(m3ds_settings_store_write(root, "longer", 6u));
+    assert(!m3ds_settings_store_read(root, buffer, 4u, &size));
+    assert(m3ds_settings_store_read(root, buffer, sizeof(buffer), &size));
+    assert(size == 6u && memcmp(buffer, "longer", 6u) == 0);
     remove_paths();
 }
 
@@ -71,6 +78,12 @@ static void test_sector_roundtrip(void) {
     assert(size == sizeof(payload));
     assert(memcmp(buffer, payload, sizeof(payload)) == 0);
 
+    assert(m3ds_sector_store_write(
+        root, "serpulo", 170u, "second", 6u));
+    assert(m3ds_sector_store_read(
+        root, "serpulo", 170u, buffer, sizeof(buffer), &size));
+    assert(size == 6u && memcmp(buffer, "second", 6u) == 0);
+
     char path[160];
     assert(m3ds_sd_sector_save_path(
         root, "serpulo", 170u, path, sizeof(path)));
@@ -78,6 +91,13 @@ static void test_sector_roundtrip(void) {
     snprintf(temp, sizeof(temp), "%s.tmp", path);
     FILE *leftover = fopen(temp, "rb");
     assert(leftover == NULL);
+
+    char probe_path[192];
+    assert(m3ds_sd_join(root, "storage-probe.bin", probe_path, sizeof(probe_path)));
+    FILE *stale = fopen(probe_path, "wb");
+    assert(stale != NULL);
+    assert(fwrite("stale", 1u, 5u, stale) == 5u);
+    assert(fclose(stale) == 0);
 
     assert(!m3ds_sector_store_read(
         root, "serpulo", 171u, buffer, sizeof(buffer), &size));

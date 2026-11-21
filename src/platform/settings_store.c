@@ -14,32 +14,54 @@ static bool file_exists(const char *path) {
     return true;
 }
 
-static bool read_file(
+typedef enum ReadStatus {
+    READ_OK = 0,
+    READ_MISSING = 1,
+    READ_ERROR = 2,
+    READ_TOO_LARGE = 3
+} ReadStatus;
+
+static ReadStatus read_file_status(
     const char *path,
     void *out,
     size_t capacity,
     size_t *out_size) {
     FILE *f = fopen(path, "rb");
     if (!f) {
-        return false;
+        return READ_MISSING;
     }
     if (fseek(f, 0L, SEEK_END) != 0) {
         fclose(f);
-        return false;
+        return READ_ERROR;
     }
     long length = ftell(f);
-    if (length < 0 || (size_t)length > capacity) {
+    if (length < 0) {
         fclose(f);
-        return false;
+        return READ_ERROR;
+    }
+    if ((size_t)length > capacity) {
+        fclose(f);
+        return READ_TOO_LARGE;
     }
     rewind(f);
     size_t read_bytes = fread(out, 1u, (size_t)length, f);
     bool ok = ferror(f) == 0 && read_bytes == (size_t)length;
     fclose(f);
-    if (ok && out_size) {
+    if (!ok) {
+        return READ_ERROR;
+    }
+    if (out_size) {
         *out_size = read_bytes;
     }
-    return ok;
+    return READ_OK;
+}
+
+static bool read_file(
+    const char *path,
+    void *out,
+    size_t capacity,
+    size_t *out_size) {
+    return read_file_status(path, out, capacity, out_size) == READ_OK;
 }
 
 static bool write_file(const char *path, const void *data, size_t size) {
@@ -70,6 +92,11 @@ static bool write_temp_then_rename(
         return false;
     }
     if (!write_file(temp, data, size)) {
+        return false;
+    }
+    /* libctru sdmc rename does not replace an existing destination. */
+    if (file_exists(path) && remove(path) != 0) {
+        remove(temp);
         return false;
     }
     if (rename(temp, path) != 0) {
@@ -127,10 +154,14 @@ bool m3ds_settings_store_read(
         !m3ds_sd_settings_backup_path(root, backup, sizeof(backup))) {
         return false;
     }
-    if (read_file(path, out, capacity, out_size)) {
+    ReadStatus primary = read_file_status(path, out, capacity, out_size);
+    if (primary == READ_OK) {
         return true;
     }
-    return read_file(backup, out, capacity, out_size);
+    if (primary == READ_TOO_LARGE) {
+        return false;
+    }
+    return read_file_status(backup, out, capacity, out_size) == READ_OK;
 }
 
 bool m3ds_sector_store_write(

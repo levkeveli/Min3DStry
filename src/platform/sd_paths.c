@@ -31,11 +31,22 @@ static bool valid_root(const char *value) {
     if (!value || value[0] == '\0' || strstr(value, "..") != NULL) {
         return false;
     }
-    for (const char *p = value; *p; ++p) {
+    const char *path = value;
+    if (strncmp(value, "sdmc:/", 6u) == 0) {
+        path = value + 6u;
+    } else if (strncmp(value, "romfs:/", 7u) == 0) {
+        path = value + 7u;
+    } else if (strchr(value, ':') != NULL) {
+        return false;
+    }
+    if (path[0] == '\0') {
+        return false;
+    }
+    for (const char *p = path; *p; ++p) {
         char c = *p;
         if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
               (c >= '0' && c <= '9') || c == '_' || c == '-' || c == '.' ||
-              c == '/' || c == ':')) {
+              c == '/')) {
             return false;
         }
     }
