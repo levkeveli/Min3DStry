@@ -1,8 +1,8 @@
 # Bottom-screen touch controls
 
-Status: **Experimental** (`host-tested`; visible HUD labels are emulator-tested,
-but Azahar cannot inject touch input into the standalone app, so the touch
-paths are covered by host geometry tests).
+Status: **Emulator-tested prototype** (host geometry tests plus Azahar `2126.2`
+New and Original 3DS boot with the HUD; Azahar cannot inject touch input into
+the standalone app, so the touch paths remain host-tested).
 
 ## Scope
 
