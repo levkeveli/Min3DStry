@@ -33,4 +33,19 @@ final class UpstreamInterfaceLocale {
         }
         return load(path, language);
     }
+
+    static I18NBundle loadForStockClient(Fi path, int language, String requested) {
+        var bundle = load(path, language, requested);
+        // Stock lookup always prefers the nearer translation. Retain keys
+        // needed for fallback without holding a second copy of the full UI
+        // bundle while TeaVM creates the campaign tile grid.
+        for (var active = bundle; active != null; active = active.getParent()) {
+            for (var fallback = active.getParent(); fallback != null; fallback = fallback.getParent()) {
+                var properties = fallback.getProperties();
+                for (String key : active.getKeys()) properties.remove(key);
+                properties.shrink(properties.size);
+            }
+        }
+        return bundle;
+    }
 }

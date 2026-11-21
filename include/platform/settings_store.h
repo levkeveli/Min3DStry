@@ -39,6 +39,21 @@ bool m3ds_sector_store_read(
     size_t capacity,
     size_t *out_size);
 
+typedef struct M3dsSettingsStatus {
+    bool primary_present;
+    bool backup_present;
+    uint32_t primary_bytes;
+    uint32_t backup_bytes;
+} M3dsSettingsStatus;
+
+/*
+ * Reports whether settings.bin and settings_backup.bin exist and their byte
+ * sizes without reading or parsing their contents.
+ */
+bool m3ds_settings_store_status(
+    const char *root,
+    M3dsSettingsStatus *out);
+
 /*
  * Writes, reads back and removes a tiny probe file under root. This verifies
  * the target filesystem/atomic-rename path without touching upstream settings
