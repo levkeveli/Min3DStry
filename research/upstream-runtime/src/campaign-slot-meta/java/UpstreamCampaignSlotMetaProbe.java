@@ -77,6 +77,7 @@ public final class UpstreamCampaignSlotMetaProbe {
         if(!"groundZero".equals(meta.tags.get("sectorPreset"))){
             throw new IllegalStateException("Sector preset tag did not reload: " + meta.tags.get("sectorPreset"));
         }
+        // v160.8 SaveVersion.writeMeta stores dimensions as tags; SaveMeta has no width/height fields.
         if(!"150".equals(meta.tags.get("width")) || !"250".equals(meta.tags.get("height"))){
             throw new IllegalStateException("Save dimensions did not reload");
         }
