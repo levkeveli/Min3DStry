@@ -692,6 +692,8 @@ def main():
         parser.error("--combat needs --controls and --terrain-atlas")
     if args.combat and (args.building or args.touch_build or args.touch_config or args.world_atlas_recycle):
         parser.error("--combat runs a stationary combat check")
+    if args.combat and (args.movement or args.controls_replay):
+        parser.error("--combat runs its own stationary control session")
     if args.building and not args.terrain_atlas:
         parser.error("--building needs --terrain-atlas")
     if args.touch_build and not args.terrain_atlas:
