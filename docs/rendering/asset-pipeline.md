@@ -77,7 +77,9 @@ identical for positive and mirrored (negative) atlas draws.
 checks positive, mirrored and offset multi-tile fragments, and `./dev.sh test`
 runs it. Atlas eviction now begins the next submission with
 `C3D_FRAME_SYNCDRAW` before freeing a sheet, so the GPU is idle when the
-texture is recycled.
+texture is recycled. These two fixes are host-tested and ARM11
+compile-checked; rerunning the live stock-server atlas verifier on both
+profiles remains pending.
 
 ## Build the platform test fixtures
 
