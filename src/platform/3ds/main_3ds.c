@@ -25,6 +25,7 @@
 #include "render/scene_2d.h"
 #include "sim/parity_scenario.h"
 #include "ui/pause_menu.h"
+#include "ui/pause_overlay.h"
 #include "ui/touch_controls.h"
 
 #if M3DS_AUDIO_ROMFS
@@ -647,6 +648,9 @@ int main(int argc, char *argv[]) {
         (void)m3ds_minimap_render(
             &scene, &factory, &backend, M3DS_TOP_SCREEN_WIDTH - 104.0f, 8.0f,
             96.0f, 64.0f);
+        M3dsPauseOverlayStats overlay_stats;
+        (void)m3ds_pause_overlay_render(
+            &backend, &scene.viewport, scene.paused, &overlay_stats);
         C3D_FrameEnd(0);
 
         printf("\x1b[1;1HMin3DStry - Factory Prototype\x1b[K");
