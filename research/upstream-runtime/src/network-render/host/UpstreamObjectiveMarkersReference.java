@@ -29,7 +29,7 @@ public final class UpstreamObjectiveMarkersReference implements UpstreamTerrainD
         var target = new UpstreamObjectiveMarkersReference();
         UpstreamTerrainDrawProbe.liveViewport(target);
 
-        target.verify(0, 2320, 868, "from walls.");
+        target.verify(0, 2320, 868, "Tap to mine");
         Vars.state.rules.objectives.get(0).done();
         target.verify(1, 2312, 957.8f, "on the vent.");
         for (int i = 1; i <= 3; i++) Vars.state.rules.objectives.get(i).done();

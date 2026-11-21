@@ -194,6 +194,7 @@ if (usesArcSources || usesExecutor) {
     }
     if (stageRenderedBuilding != null) {
         stagedClasses.addAll(['mindustry/gen/Building.class', 'mindustry/gen/UnitWaterMove.class',
+                              'mindustry/game/MapObjectives$ObjectiveMarker.class',
                               'mindustry/game/MapObjectives$ShapeTextMarker.class',
                               'mindustry/game/MapObjectives$TextMarker.class',
                               'mindustry/core/ContentLoader.class'])

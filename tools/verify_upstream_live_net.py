@@ -332,7 +332,7 @@ def verify_mining(log, emulator, server_log, server, timeout, capture, mining, i
 def verify_onset_objective_hud(log, emulator, server_log, server, capture, position, markers=None):
     wait_for(log, emulator, r"UPSTREAM_OBJECTIVE_HUD icon=beryllium text=Obtain: 0/60\|Beryllium\b", 10)
     if markers:
-        markers("mine", 2320, 864, 868, "from walls.")
+        markers("mine", 2320, 864, 868, "Tap to mine")
     # Drive the real server's item module and let its regular snapshots and objective executor
     # publish the changes. Hold each state until the client presents it for capture.
     for amount, icon, label, phase in (
@@ -363,15 +363,21 @@ def capture_onset_marker(log, emulator, server, rpc, output, model, phase, x, y,
     marker_y = re.escape(f"{label_y:.1f}")
     trace = rf"UPSTREAM_WORLD_LABEL x={x}\.0 y={marker_y} text=[^\r\n]*{re.escape(words)}"
     wait_for(log, emulator, trace, 12)
-    screenshot = rpc.screenshot()
     destination = output / f"{model}-marker-{phase}.png"
-    destination.write_bytes(screenshot)
     # Both stock shapes use the same outline color. Inspect the area below the label.
     area = tuple((sx, sy) for sx in range(124, 299) for sy in range(100, 235))
-    colors = az.inspect_png(screenshot, area)["samples"]
-    if sum(rgb == (255, 211, 127) for rgb in colors.values()) < 8:
-        raise RuntimeError(f"No stock Onset {phase} marker outline in {destination}")
-    print(f"{model}: visible stock Onset {phase} marker", flush=True)
+    deadline = time.monotonic() + 8
+    while True:
+        screenshot = rpc.screenshot()
+        colors = az.inspect_png(screenshot, area)["samples"]
+        if sum(rgb == (255, 211, 127) for rgb in colors.values()) >= 8:
+            destination.write_bytes(screenshot)
+            print(f"{model}: visible stock Onset {phase} marker", flush=True)
+            return
+        if time.monotonic() >= deadline:
+            destination.write_bytes(screenshot)
+            raise RuntimeError(f"No stock Onset {phase} marker outline in {destination}")
+        time.sleep(0.25)
 
 
 def verify_onset_objective(log, emulator, server_log, server, beryllium):

@@ -1005,9 +1005,11 @@ The renderer preserves the original Arc shapes, world anchors, world
 visibility, localization lookup, layer, and zoom scaling. A staging
 adapter redirects those two classes' `WorldLabel.drawAt` calls to
 Citro2D. The port uses system-font text with a shadow and the stock
-background flag. The original glyph art, styled spans, lighting,
-minimap markers and the other marker types require further renderer
-support.
+background flag. Visible anchors keep long text within the 3DS
+viewport. Marker text selects the upstream touch-control language
+variant when present. Original glyph art and styled spans are tracked
+in [#199](https://github.com/levkeveli/Min3DStry/issues/199). Lighting,
+minimap markers and the other marker types require further renderer support.
 
 Run `runObjectiveMarkersJvm` under `-Pprobe=network-render` with the
 original `maps/erekir/onset.msav` from the release JAR, `sprites.aatls`,
