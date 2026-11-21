@@ -278,7 +278,10 @@
         "research/upstream-runtime/src/campaign-slot-meta/java/UpstreamCampaignSlotMetaProbe.java",
         "research/upstream-runtime/src/campaign-launch/java/UpstreamCampaignLaunchProbe.java",
         "research/upstream-runtime/host/UpstreamSaveBaseline.java",
-        "docs/porting/campaign-progression.md"
+        "docs/porting/campaign-progression.md",
+        "include/platform/save_slot.h",
+        "src/platform/save_slot.c",
+        "tests/platform/test_save_slot.c"
       ]
     },
     {
