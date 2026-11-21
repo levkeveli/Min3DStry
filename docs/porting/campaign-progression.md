@@ -284,6 +284,28 @@ state restores the sector, wave 5, and the 150x250 world. On 3DS it targets the
 live `/3ds/min3dstry` directory and deletes the slot. Azahar `2126.2` New and
 Old profiles both reported `launch=ok`.
 
+## ARM11 Sector Slot Path API
+
+`-Pprobe=campaign-saves` verifies the upstream `Saves` slot path builder:
+
+```sh
+gradle -PupstreamCheckout=/path/to/Mindustry \
+  -PreferenceJar=/path/to/server-release.jar \
+  -ParcCheckout=/path/to/Arc -Pprobe=campaign-saves runProbeJvm
+```
+
+JVM and ARM11/Azahar report:
+
+```text
+UPSTREAM_CAMPAIGN_SAVES path=live sector=sector-serpulo-15.msav parent=min3dstry extension=msav saves=ok
+```
+
+The probe supplies a minimal Arc `Files`/`AssetManager` for headless use, sets
+`Vars.saveDirectory`, constructs the real `Saves` object, and calls
+`Saves.getSectorFile(SectorPresets.groundZero.sector)`. It asserts the
+`sector-serpulo-15.msav` name and parent directory. Azahar `2126.2` New and Old
+profiles both reported `saves=ok`.
+
 ## Remaining Scope for Issue #41 (3DS Hardware / ARM11 Runtime)
 
 The capability is marked `experimental` because the probes in [campaign-verification.md](campaign-verification.md) verify upstream settings, sector `.msav` slots, `SectorInfo` JSON, tech-tree requirements, planet last-sector routing, sector play/capture transitions, and sector-save launch on ARM11/Azahar. The host-verified path contract is recorded in [sd-storage-paths.md](sd-storage-paths.md). The live runtime still needs to consume these paths end-to-end:
