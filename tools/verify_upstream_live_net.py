@@ -127,7 +127,7 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
             for start in (80, 106) for index, row in enumerate(ore_rows)
         )
     elif mining == "floor":
-        taps = ((58, (305, 96)), (67, (168, 232)), (88, (168, 232)))
+        taps = ((58, (305, 96)), (62, (305, 96)), (67, (168, 232)))
     with path.open("wb") as movie:
         movie.write(header)
         for frame in range(frames):
@@ -142,6 +142,8 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
                 buttons = 1  # A, with releases so a late HID poll can observe another press.
             circle_x = 65 if mining == "wall" and 54 <= seconds < 60 else 0
             circle_y = 106 if seconds == circle_at and not (erekir_build or mining) else 0
+            if mining == "floor" and 88 <= seconds < 94:
+                circle_y = 65
             point = next((point for start, point in taps if start <= seconds < start + 2), None)
             pad = struct.pack("<BHhh", 0, buttons, circle_x, circle_y)
             if point:
@@ -303,14 +305,25 @@ def verify_mining(log, emulator, server_log, server, timeout, capture, mining, i
     client_count = int(core_sync.search(wait_for(log, emulator, core_sync, 10))[1])
     position = server_position(server_log, server, "UPSTREAM_SERVER_MINING_POSITION").groups()
     capture(f"{mining}-mining", position)
-    wait_for(log, emulator, rf"UPSTREAM_MINE_CANCEL x={x} y={y}\b", timeout)
+    if mining == "wall":
+        wait_for(log, emulator, rf"UPSTREAM_MINE_CANCEL x={x} y={y}\b", timeout)
+    else:
+        wait_for(log, emulator, rf"UPSTREAM_LIVE_CONTROLS_STOPPED unit={position[0]} input=circle\b", timeout)
+        server.stdin.write(
+            f'js (() => {{ const p = Groups.player.find(boolf(v => String(v.name) === "{PLAYER}")); '
+            f'const u = p.unit(), t = Vars.world.tile({x},{y}); '
+            'return "UPSTREAM_SERVER_MINING_RANGE out=" + '
+            '(!u.within(t.worldx(), t.worldy(), u.type.mineRange)); })()\n'
+        )
+        server.stdin.flush()
+        wait_for(server_log, server, r"UPSTREAM_SERVER_MINING_RANGE out=true\b", 5)
     time.sleep(2)
     stopped = inspect_mining(server_log, server, "UPSTREAM_SERVER_MINING_STOPPED", item)
     time.sleep(2)
     settled = inspect_mining(server_log, server, "UPSTREAM_SERVER_MINING_SETTLED", item)
     if stopped[0] != "none" or settled != stopped or settled[1] < max(balance, client_count):
         raise RuntimeError(f"Expected mining to stop and inventory to settle, observed {stopped} then {settled}")
-    print(f"Stock {mining} mining at ({x}, {y}) delivered {settled[1]} {item} before cancellation.", flush=True)
+    print(f"Stock {mining} mining at ({x}, {y}) delivered {settled[1]} {item} before stopping.", flush=True)
 
 
 def verify_conveyor(log, emulator, server_log, server, timeout, capture, position, desktop_name):

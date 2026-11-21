@@ -67,7 +67,7 @@ final class UpstreamLiveBuildControls {
                 configuring = !configuring;
                 return;
             } else if (x >= 288 && y >= 80 && y < 112) {
-                selectingMine = !selectingMine;
+                selectingMine = true;
                 configuring = false;
                 removing = false;
                 return;
