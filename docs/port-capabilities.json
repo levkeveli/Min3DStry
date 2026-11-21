@@ -230,12 +230,13 @@
       "category": "Controls & Dual-Screen UI",
       "name": "Bottom-Screen Touch Build & Rotation UI",
       "weight": 6,
-      "stage": "experimental",
+      "stage": "emulator-tested",
       "issue": 27,
       "evidence": [
         "research/upstream-runtime/README.md",
         "research/upstream-runtime/src/network-live/host/UpstreamBuildControlsReference.java",
-        "tools/verify_upstream_live_net.py"
+        "tools/verify_upstream_live_net.py",
+        "docs/gameplay/touch-build-palette.md"
       ]
     },
     {
