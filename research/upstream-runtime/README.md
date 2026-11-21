@@ -1048,9 +1048,8 @@ point animation. The texture marker adapter resolves names and content
 icons through the original atlas, including the stock error sprite. For
 atlas-backed QuadMarker draws, the batch submits the two original triangles
 to Citro3D and clips them at atlas tile edges while preserving position, UV
-and interpolated tint. Lighting, minimap display, standalone textures,
-Logic Display textures and varying legacy mix colors
-require further renderer support.
+and interpolated tint. Lighting, minimap display, standalone textures
+and varying legacy mix colors require further renderer support.
 
 The `runProbeJvm` snapshot reference round-trips the original create,
 control, text, texture, and remove packet classes against the client
@@ -1163,6 +1162,18 @@ passed on both Old and New 3DS Azahar profiles. Its replay checked framebuffer
 pixels before and after configuration for the 80 px display, 176 px large
 display and a joined 52 by 20 px tiled display. It also checked the visible
 font and pixels sampled from the linked large display.
+
+The stock TextureMarker and QuadMarker can sample the current framebuffer
+of a display outside the viewport. Their preparation runs the original
+queued display commands before sampling and rebinds the marker when a tiled
+display replaces its framebuffer. The JVM reference checks the texture
+orientation, draw order and framebuffer replacement.
+
+Run `--controls --verify-display-markers --terrain-atlas /path/to/sprites.aatls`
+on Glacier to check the original create, update and remove packets against
+the unmodified v160.8 Java server. The server configures a processor linked
+to an offscreen display, and the replay checks both color bands at each
+marker before and after a configuration update and atlas retarget.
 
 ### Verify the Arc executor pools
 
