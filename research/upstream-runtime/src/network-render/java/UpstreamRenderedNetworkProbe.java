@@ -132,6 +132,8 @@ public final class UpstreamRenderedNetworkProbe {
                 if (build instanceof Conduit.ConduitBuild conduit) conduit.advanceLiquidDraw();
             }
             for (var unit : Groups.unit) {
+                // Apply the original SyncComp interpolation without running remote unit simulation.
+                if (!unit.isLocal()) unit.interpolate();
                 if (unit instanceof UnitWaterMove boat) boat.advanceWake();
             }
         } finally {
