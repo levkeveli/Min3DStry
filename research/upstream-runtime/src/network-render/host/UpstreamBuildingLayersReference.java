@@ -25,6 +25,7 @@ import mindustry.content.UnitTypes;
 import mindustry.entities.units.BuildPlan;
 import mindustry.gen.Builderc;
 import mindustry.gen.Player;
+import mindustry.gen.Tankc;
 import mindustry.gen.UnitWaterMove;
 import mindustry.world.blocks.liquid.Conduit.ConduitBuild;
 import mindustry.world.blocks.liquid.LiquidBlock;
@@ -101,6 +102,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         target.verifyUnits(viewer);
         target.verifyCarriedUnits(layers, viewport, viewer);
         target.verifyNavalWake(viewer);
+        target.verifyTankTreads(viewer);
     }
 
     private void verifyCarriedUnits(UpstreamBuildingLayers layers, UpstreamTerrainDrawProbe.Viewport viewport,
@@ -228,8 +230,47 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
             if (vertices[1] < boat.y) below++;
         }
         if (above != 8 || below != 8) throw new AssertionError("Unexpected Risso wake: " + above + " and " + below);
+        var serverBoat = UnitTypes.risso.create(viewer);
+        serverBoat.set(260f, 288f);
+        var snapshot = new ByteArrayOutputStream();
+        serverBoat.writeSync(new Writes(new DataOutputStream(snapshot)));
+        boat.readSync(new Reads(new DataInputStream(new ByteArrayInputStream(snapshot.toByteArray()))));
+        boat.interpolate();
+        if (boat.x != 260f || boat.y != 288f) throw new AssertionError("Stock Risso snapshot did not move the remote unit");
         System.out.println("UPSTREAM_NAVAL_WAKE port=" + above + " starboard=" + below
-            + " color=" + wakeColor);
+            + " color=" + wakeColor + " snapshot=ok");
+    }
+
+    private void verifyTankTreads(Team viewer) {
+        var types = List.of(UnitTypes.stell, UnitTypes.locus, UnitTypes.precept, UnitTypes.vanquish, UnitTypes.conquer);
+        for (var type : types) {
+            var unit = type.spawn(viewer, 240f, 288f, 90f);
+            var tank = (Tankc) unit;
+            var initial = type.treadRegions[0][0];
+            sprites.clear();
+            unit.draw();
+            requireRegion(type.treadRegion);
+            requireRegion(initial);
+
+            unit.set(243f, 292f);
+            UpstreamRenderedNetworkProbe.advanceTankTreads(tank);
+            UpstreamRenderedNetworkProbe.advanceTankTreads(tank);
+            if (tank.treadTime() != 5f || unit.x != 243f || unit.y != 292f) {
+                throw new AssertionError("Unexpected stock tread distance for " + type.name);
+            }
+            sprites.clear();
+            Draw.sort(true);
+            unit.draw();
+            Draw.sort(false);
+            for (var strip : type.treadRegions) {
+                var expected = strip[5 % type.treadFrames];
+                if (sprites.stream().filter(sprite -> matchesRegion(sprite, expected)).count() != 2) {
+                    throw new AssertionError("Missing both stock tread sides for " + type.name);
+                }
+            }
+            unit.remove();
+        }
+        System.out.println("UPSTREAM_TANK_TREADS types=" + types.size() + " movingFrame=5 idleDistance=0");
     }
 
     private void verifyCarriedBuildings(UpstreamBuildingLayers layers, UpstreamTerrainDrawProbe.Viewport viewport,

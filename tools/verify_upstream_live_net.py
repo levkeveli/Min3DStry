@@ -50,9 +50,10 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
     # The pinned Azahar movie header and HID sample definitions use packed little-endian fields.
     revision = bytes.fromhex("219d743a1e698101fe1ab8bef43e6563126c3c27")
     samples_per_second = 234
-    # In the construction replay the O0 renderer can take longer between input polls.
-    circle_at = first_move + (18 if building else 6)
-    leave_at = first_move + (44 if building else 16)
+    # Construction and configuration replays can take longer between input polls.
+    needs_settling_time = building or touch_build or touch_config
+    circle_at = first_move + (18 if needs_settling_time else 6)
+    leave_at = first_move + (44 if needs_settling_time else 16)
     frames = (leave_at + 7) * samples_per_second
     header = struct.pack("<4sQ20sQQ32sIQq156x", b"CTM\x1b", 0, revision, 1780000000,
                          0x4D334453, b"Min3DStry input verification", 0, frames, 0)
@@ -196,6 +197,18 @@ def verify_conveyor(log, emulator, server_log, server, timeout, capture, positio
         print(f"The ARM11 client applied and drew the PC conveyor at ({desktop_x}, {desktop_y}).", flush=True)
 
 
+def wait_for_touch_pixels(capture, phase, position, expected):
+    # The packet handler logs completion before the graphics backend presents the resulting frame.
+    deadline = time.monotonic() + 5
+    while True:
+        pixels = capture(phase, position)
+        if pixels == expected:
+            return
+        if time.monotonic() >= deadline:
+            raise RuntimeError(f"Expected {phase} pixels {expected}, got {pixels}")
+        time.sleep(0.1)
+
+
 def verify_touch_build(log, emulator, server_log, server, timeout, capture, position, ground_pixels):
     _, _, x, y = position
     tx, ty = math.floor(float(x) / 8 + 0.5) + 4, math.floor(float(y) / 8 + 0.5)
@@ -212,17 +225,17 @@ def verify_touch_build(log, emulator, server_log, server, timeout, capture, posi
         result = inspect_building(server_log, server, f"touch-{block}", tile_x, ty)
         if result != (block, "1", str(rotation), str(copper), "true"):
             raise RuntimeError(f"Unexpected stock {block} placement: {result}")
-        build_pixels = capture(f"touch-{block}", position)
+        if block == "copper-wall":
+            wait_for_touch_pixels(capture, "touch-copper-wall", position, ((200, 165, 143),) * 3)
+        else:
+            capture(f"touch-{block}", position)
     wait_for(log, emulator, rf"UPSTREAM_TOUCH_PLAN block=break x={tx + 1} y={ty}\b", timeout)
     wait_for(log, emulator, rf"UPSTREAM_LIVE_REMOVED x={tx + 1} y={ty}\b", timeout)
     removed = inspect_building(server_log, server, "touch-removed", tx + 1, ty)
     retained = inspect_building(server_log, server, "touch-retained", tx, ty)
     if removed != ("air", "0", "-1", str(copper + 3), "false") or retained[:3] != ("conveyor", "1", "1"):
         raise RuntimeError(f"Unexpected stock removal, copper refund or adjacent conveyor: {removed}, {retained}")
-    removed_pixels = capture("touch-removed", position)
-    if build_pixels == ground_pixels or removed_pixels != ground_pixels:
-        raise RuntimeError(f"Wall sprite did not appear and clear: {ground_pixels} -> "
-                           f"{build_pixels} -> {removed_pixels}")
+    wait_for_touch_pixels(capture, "touch-removed", position, ground_pixels)
     print(f"Stock server verified both touch placements and the wall refund; copper={removed[3]}.", flush=True)
     wait_for(log, emulator, r"UPSTREAM_CATALOG_PAGE category=distribution page=2\b", timeout)
     time.sleep(0.2)  # The input event is logged before Citro2D presents the page.
@@ -342,8 +355,6 @@ def capture_viewport(log, emulator, rpc, destination, position,
         # The backend reports the first split. The fixture wall is drawn before the core.
         split = r"2365,342\+64x64 fragments=2" if require_building_layers else r"1037,3190\+160x160 fragments=6"
         wait_for(log, emulator, rf"UPSTREAM_WORLD_ATLAS page=0 rect={split}\b", 5)
-    screenshot = rpc.screenshot(res_scale=1)
-    destination.write_bytes(screenshot)
     # Default layout centers the 320px bottom screen at x=40 below the top screen.
     if destination.stem.endswith("-touch-catalog"):
         palette_pixels = {(50, 250): (45, 52, 64), (52, 293): (45, 52, 64)}
@@ -371,7 +382,16 @@ def capture_viewport(log, emulator, rpc, destination, position,
         samples += tuple(CORE_PIXELS)
     if require_building_layers:
         samples += tuple(BUILDING_CRACK_PIXELS if require_building_cracks else BUILDING_LAYER_PIXELS)
-    pixels = az.inspect_png(screenshot, samples)
+    # Palette and menu input can be logged before the matching Citro2D frame is presented.
+    deadline = time.monotonic() + 5
+    while True:
+        screenshot = rpc.screenshot(res_scale=1)
+        pixels = az.inspect_png(screenshot, samples)
+        if (not require_palette or all(pixels["samples"][point] == color for point, color in points.items())
+                or time.monotonic() >= deadline):
+            break
+        time.sleep(0.1)
+    destination.write_bytes(screenshot)
     if pixels["width"] != 400 or pixels["height"] != 480 or pixels["top_distinct_colors"] < 8:
         raise RuntimeError(f"Expected the textured Glacier viewport on the top screen: {pixels}")
     if require_world_atlas and any(pixels["samples"][point] != color for point, color in CORE_PIXELS.items()):
@@ -572,6 +592,59 @@ def verify_unit_roster(screenshot):
         raise RuntimeError(f"Original unit cells differ {mismatch}, Quasar shield pixels {shield_pixels}")
 
 
+def load_naval_wake_fixture(server_log, server):
+    server.stdin.write(
+        'pause on\n'
+        'js (() => { const team = Vars.state.rules.defaultTeam; '
+        'for (let x=83; x<=89; x++) for (let y=20; y<=29; y++) { '
+        'var tile = Vars.world.tile(x,y); if (tile.build != null) continue; '
+        'tile.setFloor(Blocks.water); tile.setOverlay(Blocks.air); tile.setBlock(Blocks.air); } '
+        'const risso = UnitTypes.risso.spawn(team,664,176,0); '
+        'const retusa = UnitTypes.retusa.spawn(team,696,224,90); '
+        'if (!risso.canPassOn() || !retusa.canPassOn()) throw "Expected a navigable water fixture"; '
+        'return "UPSTREAM_NAVAL_FIXTURE id=" + risso.id; })()\n'
+    )
+    server.stdin.flush()
+    marker = re.compile(r"UPSTREAM_NAVAL_FIXTURE id=(\d+)\b")
+    match = marker.search(wait_for(server_log, server, marker, 5))
+    return int(match[1])
+
+
+def verify_naval_wake(server_log, server, rpc, output, model, before, unit_id):
+    # The stock shallow-water palette entry, multiplied by 1.5 in WaterMoveComp.
+    wake = (106, 126, 214)
+    risso = tuple((x, y) for x in range(241, 261) for y in range(179, 202))
+    retusa = tuple((x, y) for x in range(320, 340) for y in range(61, 82))
+    port = tuple((x, y) for x in range(255, 316) for y in range(177, 183))
+    starboard = tuple((x, y) for x in range(255, 316) for y in range(197, 203))
+    points = (*risso, *retusa, *port, *starboard)
+    baseline = az.inspect_png(before.read_bytes(), points)["samples"]
+    team_color = (255, 211, 127)
+    if any(sum(baseline[point] == team_color for point in cell) < 5 for cell in (risso, retusa)):
+        raise RuntimeError("Expected original Risso and Retusa team cells before movement")
+
+    # Supply a controlled sequence of authoritative positions over the normal server snapshots.
+    server.stdin.write("pause off\n")
+    server.stdin.flush()
+    for x in range(666, 698, 2):
+        server.stdin.write(
+            f'js (() => {{ const ship = Groups.unit.getByID({unit_id}); ship.set({x},176); '
+            'return "UPSTREAM_NAVAL_STEP " + ship.x; })()\n')
+        server.stdin.flush()
+        wait_for(server_log, server, rf"UPSTREAM_NAVAL_STEP {x}\b", 5)
+        # The wake has a short history. Capture while the boat is moving.
+        time.sleep(0.45)
+        frame = rpc.screenshot(res_scale=1)
+        samples = az.inspect_png(frame, (*port, *starboard))["samples"]
+        counts = tuple(sum(samples[p] == wake and baseline[p] != wake for p in band) for band in (port, starboard))
+        if min(counts) >= 8:
+            (output / f"{model}-naval-wake.png").write_bytes(frame)
+            print(f"{model}: original port and starboard wake pixels {counts}.", flush=True)
+            return
+    (output / f"{model}-naval-wake.png").write_bytes(frame)
+    raise RuntimeError(f"Expected both stock wake trails after moving the Risso, got {counts} for color {wake}")
+
+
 def payload_handoff_pixels(screenshot):
     # The receiver sample starts beyond any position the sender can draw during travel.
     wall_rows = (184, 187, 190, 193, 196)
@@ -704,7 +777,7 @@ def verify_conduit_frames(log, rpc, output, model):
 def run_model(args, model, config, original_config, log, output):
     stationary = (args.world_atlas_recycle or args.building_layers or args.liquids
                   or args.building_effects or args.payload_mix or args.carried_buildings
-                  or args.payload_handoff or args.unit_layers or args.unit_roster)
+                  or args.payload_handoff or args.unit_layers or args.unit_roster or args.naval_wake)
     overrides = {
         "Miscellaneous": {"log_filter": "*:Info Debug.Emulated:Debug Service.SOC:Debug",
                           "check_for_update_on_start": "false"},
@@ -736,7 +809,7 @@ def run_model(args, model, config, original_config, log, output):
                 # Give the pixel comparison a fixed patch of stock ice. Glacier's filters can
                 # place decorations on or alongside the test cells.
                 server.stdin.write('js (() => { for (let x = 85; x <= 87; x++) '
-                                   'for (let y = 25; y <= 27; y++) { const tile = Vars.world.tile(x, y); '
+                                   'for (let y = 25; y <= 27; y++) { var tile = Vars.world.tile(x, y); '
                                    'if (tile.build != null) throw "Unexpected fixture building"; '
                                    'tile.setFloor(Blocks.ice); tile.setOverlay(Blocks.air); '
                                    'tile.setBlock(Blocks.air); } '
@@ -759,6 +832,8 @@ def run_model(args, model, config, original_config, log, output):
                 load_unit_layers_fixture(server_log, server)
             if args.unit_roster:
                 load_unit_roster_fixture(server_log, server)
+            if args.naval_wake:
+                naval_fixture = load_naval_wake_fixture(server_log, server)
             if args.building_effects:
                 load_building_effects_fixture(server_log, server)
             if args.liquids:
@@ -833,6 +908,8 @@ def run_model(args, model, config, original_config, log, output):
                             phase = "unit-layers"
                         elif args.unit_roster:
                             phase = "unit-roster"
+                        elif args.naval_wake:
+                            phase = "naval-before"
                         if args.building_layers:
                             phase = "building-cracks" if args.building_cracks else "building-layers"
                         capture(phase, spawn)
@@ -849,10 +926,13 @@ def run_model(args, model, config, original_config, log, output):
                             verify_unit_layers((output / f"{model}-{phase}.png").read_bytes())
                         if args.unit_roster:
                             verify_unit_roster((output / f"{model}-{phase}.png").read_bytes())
+                        if args.naval_wake:
+                            verify_naval_wake(server_log, server, rpc, output, model,
+                                              output / f"{model}-{phase}.png", naval_fixture)
                         if args.liquids:
                             verify_conduit_frames(log, rpc, output, model)
                         if not args.payload_handoff:
-                            print("Verified the stationary Glacier capture.", flush=True)
+                            print("Verified the Glacier capture.", flush=True)
                         emu_log = log.read_text(encoding="utf-8", errors="replace")
                         if "UPSTREAM_LIVE_NET_ERROR" in emu_log:
                             raise RuntimeError("The client failed after rendering the atlas stress frame")
@@ -982,6 +1062,8 @@ def main():
                             help="Verify the stock Gamma and Dagger both free and carried in paused Glacier")
     build_mode.add_argument("--unit-roster", action="store_true",
                             help="Verify streamed Serpulo unit types and the Quasar shield on Glacier")
+    build_mode.add_argument("--naval-wake", action="store_true",
+                            help="Verify stock naval hulls and both live Risso wakes")
     args = parser.parse_args()
     args.server, args.rom, args.azahar = (path.resolve() for path in (args.server, args.rom, args.azahar))
     with args.server.open("rb") as archive:
@@ -1017,6 +1099,8 @@ def main():
         parser.error("--unit-layers needs --controls and --terrain-atlas for a stationary capture")
     if args.unit_roster and (not args.terrain_atlas or not args.controls or args.controls_replay):
         parser.error("--unit-roster needs --controls and --terrain-atlas for a stationary capture")
+    if args.naval_wake and (not args.terrain_atlas or not args.controls or args.controls_replay):
+        parser.error("--naval-wake needs --controls and --terrain-atlas for a fixed camera")
     if args.building_effects and (not args.terrain_atlas or not args.controls or args.controls_replay):
         parser.error("--building-effects needs --controls and --terrain-atlas for a stationary capture")
     if args.liquids and (not args.terrain_atlas or not args.controls or args.controls_replay):
