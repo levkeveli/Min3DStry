@@ -212,7 +212,13 @@ gradle -PupstreamCheckout=/path/to/Mindustry \
   -ParcCheckout=/path/to/Arc -Pprobe=campaign-planet runProbeJvm
 ```
 
-JVM and ARM11/Azahar report:
+JVM reports:
+
+```text
+UPSTREAM_CAMPAIGN_PLANET path=tmp planet=serpulo sector=86 preset=frozenForest lastSector=86 reload=ok sectors=272
+```
+
+ARM11/Azahar reports the same marker with the live path:
 
 ```text
 UPSTREAM_CAMPAIGN_PLANET path=live planet=serpulo sector=86 preset=frozenForest lastSector=86 reload=ok sectors=272
@@ -224,6 +230,29 @@ the start sector), saves `settings.bin`, reloads a fresh `Settings`, and
 asserts `getLastSector()` resolves sector 86 with the frozen-forest preset. On
 3DS it targets live `/3ds/min3dstry` and restores/removes the prior settings.
 Azahar `2126.2` New and Old profiles both reported `path=live`.
+
+## ARM11 Campaign Sector State Transitions
+
+`-Pprobe=campaign-sector-state` exercises the upstream sector play/capture
+booleans without touching saves:
+
+```sh
+gradle -PupstreamCheckout=/path/to/Mindustry \
+  -PreferenceJar=/path/to/server-release.jar \
+  -ParcCheckout=/path/to/Arc -Pprobe=campaign-sector-state runProbeJvm
+```
+
+JVM and ARM11/Azahar report:
+
+```text
+UPSTREAM_CAMPAIGN_SECTOR_STATE sector=15 groundZero=ok played=ok captured=ok waves=locked gameOver=ok
+```
+
+The probe puts ground zero into `GameState.State.playing` with waves and attack
+mode disabled, asserts `Sector.isBeingPlayed()`/`isCaptured()`, then re-enables
+waves and asserts the sector is no longer captured, and finally marks the game
+over and asserts it is no longer being played. No settings or save files are
+written. Azahar `2126.2` New and Old profiles both reported the marker.
 
 ## Remaining Scope for Issue #41 (3DS Hardware / ARM11 Runtime)
 
