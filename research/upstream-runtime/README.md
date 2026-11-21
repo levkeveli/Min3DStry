@@ -1054,7 +1054,10 @@ face. Pass the original `icons/icons.properties` as the optional fourth
 argument to `runObjectiveMarkersJvm` to check the original marker icon
 regions and color runs. Add `--verify-styled-markers` to the live font
 check to verify the ARM11 renderer submits both original item and block icons.
-The objective HUD and other menus remain tracked under #199.
+The objective HUD uses the same font and markup path, with the original
+content art already displayed in its compact 3DS panel. Use
+`--verify-stock-hud` with `--verify-objective-hud` to require this font
+on the panel. Other menus remain tracked under #199.
 
 ### Verify the Arc executor pools
 

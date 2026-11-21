@@ -15,6 +15,7 @@ import mindustry.Vars;
 import mindustry.content.Blocks;
 import mindustry.content.UnitTypes;
 import mindustry.core.World;
+import mindustry.core.UI;
 import mindustry.gen.Building;
 import mindustry.gen.Groups;
 import mindustry.gen.Tankc;
@@ -54,6 +55,7 @@ public final class UpstreamRenderedNetworkProbe {
     private Block lastPrimaryShortcut;
     private List<UpstreamObjectiveHud.Row> lastObjectives;
     private byte[][] objectiveLabels = new byte[0][];
+    private int[][] objectiveCharacters = new int[0][];
 
     private UpstreamRenderedNetworkProbe(Fi atlas) {
         this.atlas = atlas;
@@ -218,18 +220,7 @@ public final class UpstreamRenderedNetworkProbe {
 
     private void drawWorldLabel(UpstreamLabelText.Label text, float x, float y, int flags, float size, int align, int lineAlign) {
         if (encodedLabel != text) {
-            encodedCharacters = new int[text.characters().size() * 7];
-            int offset = 0;
-            for (var glyph : text.characters()) {
-                var art = glyph.art();
-                encodedCharacters[offset++] = glyph.codepoint();
-                encodedCharacters[offset++] = glyph.color();
-                encodedCharacters[offset++] = art == null ? -1 : UpstreamTerrainDrawProbe.pageIndex(art);
-                encodedCharacters[offset++] = art == null ? 0 : art.getX();
-                encodedCharacters[offset++] = art == null ? 0 : art.getY();
-                encodedCharacters[offset++] = art == null ? 0 : art.width;
-                encodedCharacters[offset++] = art == null ? 0 : art.height;
-            }
+            encodedCharacters = encodeLabel(text);
             encodedLabel = text;
         }
         int font = target.drawWorldLabel(text.plain(), encodedCharacters, x, y, flags, size, align, lineAlign);
@@ -241,20 +232,38 @@ public final class UpstreamRenderedNetworkProbe {
         }
     }
 
+    private static int[] encodeLabel(UpstreamLabelText.Label text) {
+        int[] encoded = new int[text.characters().size() * 7];
+        int offset = 0;
+        for (var glyph : text.characters()) {
+            var art = glyph.art();
+            encoded[offset++] = glyph.codepoint();
+            encoded[offset++] = glyph.color();
+            encoded[offset++] = art == null ? -1 : UpstreamTerrainDrawProbe.pageIndex(art);
+            encoded[offset++] = art == null ? 0 : art.getX();
+            encoded[offset++] = art == null ? 0 : art.getY();
+            encoded[offset++] = art == null ? 0 : art.width;
+            encoded[offset++] = art == null ? 0 : art.height;
+        }
+        return encoded;
+    }
+
     private void drawObjectives() {
         var rows = UpstreamObjectiveHud.collect(Vars.state.rules);
         boolean changed = !rows.equals(lastObjectives);
         if (changed) {
             objectiveLabels = new byte[rows.size()][];
+            objectiveCharacters = new int[rows.size()][];
             for (int i = 0; i < rows.size(); i++) {
                 objectiveLabels[i] = (rows.get(i).text() + "\0").getBytes(StandardCharsets.UTF_8);
+                objectiveCharacters[i] = encodeLabel(UpstreamLabelText.parse(UI.formatIcons(rows.get(i).markup())));
             }
             lastObjectives = rows;
         }
         float y = 4f;
         for (int i = 0; i < rows.size() && y < 240f; i++) {
             var row = rows.get(i);
-            y = target.drawObjective(objectiveLabels[i], row.icon(), y);
+            y = target.drawObjective(objectiveLabels[i], objectiveCharacters[i], row.icon(), y);
             if (changed && y < 240f) {
                 System.out.println("UPSTREAM_OBJECTIVE_HUD icon=" + row.contentName()
                     + " text=" + row.text().replace('\n', '|'));
