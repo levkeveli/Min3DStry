@@ -444,6 +444,12 @@ Add `--menu-icons` to the `--touch-config --controls-replay` verifier
 to check six rendered block icons and six item icons in both touchscreen
 captures.
 
+The [icon build](https://github.com/levkeveli/Min3DStry/actions/runs/44857778814)
+passed this replay on both Azahar 2126.2 profiles with German labels.
+Both captures showed the original Distribution and Sorter menu icons.
+The stock server accepted the same Copper, Lead and clear configuration
+sequence and both clients reached wave 2 and disconnected normally.
+
 Loading the German bundle exposed a monitor exception during the original
 `PlanetGrid.create` subdivision on ARM11. In the graphical build that
 method runs synchronously on TeaVM C's cooperative execution lane. The
