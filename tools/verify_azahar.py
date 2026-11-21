@@ -131,6 +131,13 @@ BLOCK_BREAK_EVENT_RE = re.compile(
     r"voice=(?P<voice>\d+)"
 )
 
+WORKERS_RE = re.compile(
+    r"\[MIN3DSTRY\] WORKERS workers=(?P<workers>\d+) "
+    r"active=(?P<active>\d+) chunks=(?P<chunks>\d+) items=(?P<items>\d+) "
+    r"match=(?P<match>\d+) checksum=0x(?P<checksum>[0-9a-fA-F]+) "
+    r"serial_us=(?P<serial>\d+) parallel_us=(?P<parallel>\d+)"
+)
+
 MEM_RE = re.compile(
     r"\[MIN3DSTRY\] MEM "
     r"app=(?P<app_mib>\d+)MiB "
@@ -475,6 +482,7 @@ def parse_azahar_log(log_text: str) -> dict[str, Any]:
     drill_event: dict[str, Any] | None = None
     place_event: dict[str, Any] | None = None
     break_event: dict[str, Any] | None = None
+    workers: list[dict[str, Any]] = []
     mem: dict[str, Any] | None = None
     frame: dict[str, Any] | None = None
 
@@ -506,6 +514,22 @@ def parse_azahar_log(log_text: str) -> dict[str, Any]:
                 }
         elif "[MIN3DSTRY] PARITY " in line:
             parity = parse_parity_debug_line(line)
+        elif "[MIN3DSTRY] WORKERS " in line:
+            workers_match = WORKERS_RE.search(line)
+            if workers_match:
+                wg = workers_match.groupdict()
+                workers.append(
+                    {
+                        "workers": int(wg["workers"]),
+                        "active": int(wg["active"]),
+                        "chunks": int(wg["chunks"]),
+                        "items": int(wg["items"]),
+                        "match": int(wg["match"]),
+                        "checksum": int(wg["checksum"], 16),
+                        "serial_us": int(wg["serial"]),
+                        "parallel_us": int(wg["parallel"]),
+                    }
+                )
         elif "[MIN3DSTRY] MEM " in line:
             mem_match = MEM_RE.search(line)
             if mem_match:
@@ -654,6 +678,7 @@ def parse_azahar_log(log_text: str) -> dict[str, Any]:
         "drill_event": drill_event,
         "place_event": place_event,
         "break_event": break_event,
+        "workers": workers,
         "mem": mem,
         "frame": frame,
     }
@@ -858,6 +883,22 @@ def run_model_check(
                 raise AssertionError(f"Block place event missing or unresolved for {model}: {place_event}")
             if break_event is None or break_event["clip"] < 0:
                 raise AssertionError(f"Block break event missing or unresolved for {model}: {break_event}")
+        workers = parsed.get("workers", [])
+        if not workers:
+            raise AssertionError(f"Missing worker benchmark telemetry for {model}")
+        checksums = {record["checksum"] for record in workers}
+        if len(checksums) != 1:
+            raise AssertionError(f"Worker checksum mismatch for {model}: {workers}")
+        if not any(record["active"] >= 2 for record in workers):
+            raise AssertionError(f"No active multi-worker benchmark for {model}: {workers}")
+        for record in workers:
+            if (
+                record["match"] != 1
+                or record["active"] != record["workers"]
+                or record["items"] != 40000
+                or record["chunks"] != 40
+            ):
+                raise AssertionError(f"Unexpected worker benchmark for {model}: {record}")
         if (
             mem["status"] != "ok"
             or mem["failures"] != 0
@@ -896,6 +937,7 @@ def run_model_check(
             "drill_event": drill_event,
             "place_event": place_event,
             "break_event": break_event,
+            "workers": workers,
             "mem": mem,
             "frame": frame,
             "perf": {

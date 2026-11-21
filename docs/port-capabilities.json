@@ -89,9 +89,17 @@
       "category": "Hardware & Platform",
       "name": "Dual-Core / N3DS AppCore Scheduling",
       "weight": 3,
-      "stage": "planned",
+      "stage": "emulator-tested",
       "issue": 37,
-      "evidence": []
+      "evidence": [
+        "include/platform/worker_pool.h",
+        "src/platform/worker_pool.c",
+        "include/platform/worker_benchmark.h",
+        "src/platform/worker_benchmark.c",
+        "tests/platform/test_worker_pool.c",
+        "tests/platform/test_worker_benchmark.c",
+        "docs/hardware/worker-scheduling.md"
+      ]
     },
     {
       "id": "citro2d-scene-prototype",
