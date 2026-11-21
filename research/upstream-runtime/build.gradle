@@ -18,6 +18,7 @@ def networkIoSource = 'core/src/mindustry/net/NetworkIO.java'
 def netClientSource = 'core/src/mindustry/core/NetClient.java'
 def placementSource = 'core/src/mindustry/ui/fragments/PlacementFragment.java'
 def itemSelectionSource = 'core/src/mindustry/world/blocks/ItemSelection.java'
+def planetGridSource = 'core/src/mindustry/graphics/g3d/PlanetGrid.java'
 def pixmapSource = 'arc-core/src/arc/graphics/Pixmap.java'
 def pixmapPatch = file('patches/arc-pixmap-direct-buffer.patch')
 def glacier = 'core/assets/maps/default/glacier.msav'
@@ -50,6 +51,7 @@ def entryPoint = entryPoints[probe]
 def usesMapSources = probe in ['map', 'map-sd']
 def usesLiveNetwork = probe in ['network-live', 'network-render']
 def usesTerrainRenderer = probe in ['terrain-render', 'network-render']
+def patchesPlanetGrid = probe == 'network-render'
 def usesWorldSources = probe in ['world', 'world-save', 'world-roundtrip', 'world-stream',
                                  'factory-ticks', 'terrain-draw'] || usesLiveNetwork || usesTerrainRenderer
 def initializesContent = probe == 'content-init' || usesWorldSources
@@ -76,6 +78,7 @@ def networkIoFile = sourceDir.map { it.file('mindustry/net/NetworkIO.java') }
 def netClientFile = sourceDir.map { it.file('mindustry/core/NetClient.java') }
 def placementFile = sourceDir.map { it.file('UpstreamPlacementCatalog.java') }
 def itemChoicesFile = sourceDir.map { it.file('UpstreamItemChoices.java') }
+def planetGridFile = sourceDir.map { it.file('mindustry/graphics/g3d/PlanetGrid.java') }
 def compilerResources = layout.buildDirectory.dir("compiler-resources/${probe}")
 def pluginFile = compilerResources.map { it.file('META-INF/services/org.teavm.vm.spi.TeaVMPlugin') }
 def readUpstream = { path ->
@@ -103,6 +106,9 @@ if (usesArcSources || usesExecutor) {
     }
     if (usesLiveNetwork) {
         stagedClasses.addAll(['mindustry/core/NetClient.class', 'mindustry/core/NetClient$*.class'])
+    }
+    if (patchesPlanetGrid) {
+        stagedClasses.addAll(['mindustry/graphics/g3d/PlanetGrid.class', 'mindustry/graphics/g3d/PlanetGrid$*.class'])
     }
     // TeaVM resolves dependency classes before compiled project classes.
     def contentDependencies = tasks.register('prepareContentDependencies', Zip) {
@@ -199,6 +205,9 @@ tasks.register('prepareUpstreamProbe') {
     }
     if (usesLiveNetwork) {
         outputs.files(netClientFile, placementFile, itemChoicesFile)
+    }
+    if (patchesPlanetGrid) {
+        outputs.file(planetGridFile)
     }
     doLast {
         if (!pluginsToLoad.isEmpty()) {
@@ -299,6 +308,26 @@ final class GlacierFixture {
 
     public static void loadWorld(InputStream is, arc.func.Intc recordEntity){''')
                 .replace(addRemoved, 'recordEntity.get(e.id())'), 'UTF-8')
+        }
+        if (patchesPlanetGrid) {
+            def grid = new String(readUpstream(planetGridSource), 'UTF-8')
+            def create = 'public static synchronized PlanetGrid create(int size){'
+            def recurse = 'subdividedGrid(create(size - 1))'
+            if (grid.count(create) != 1 || grid.count(recurse) != 1) {
+                throw new GradleException('Pinned PlanetGrid cache methods changed')
+            }
+            def adaptedGrid = planetGridFile.get().asFile
+            adaptedGrid.parentFile.mkdirs()
+            // The class monitor fails during localized ARM11 content initialization.
+            // Keep the original cache protected by a lock on its managed array.
+            adaptedGrid.setText(grid.replace(create, '''public static PlanetGrid create(int size){
+        synchronized(cache){
+            return createCached(size);
+        }
+    }
+
+    private static PlanetGrid createCached(int size){''')
+                .replace(recurse, 'subdividedGrid(createCached(size - 1))'), 'UTF-8')
         }
         if (usesLiveNetwork) {
             def source = new String(readUpstream(netClientSource), 'UTF-8')
