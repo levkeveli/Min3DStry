@@ -1067,6 +1067,17 @@ content art already displayed in its compact 3DS panel. Use
 the original font for each checked objective row. Other menus remain
 tracked under #199.
 
+The ARM11 ROM from [build 44921952248](https://github.com/levkeveli/Min3DStry/actions/runs/44921952248)
+passed both Original and New 3DS emulator profiles against the unmodified
+Java v160.8 server. The English HUD drew the 0/60 and 17/60 Beryllium
+counts and the Turbine Condenser objective in the stock font. The Japanese
+HUD drew the initial Beryllium count and the Turbine Condenser objective
+in the original Japanese face. Both locales showed the original icons and
+colors in the mining and research labels. At 60 Beryllium, client and server
+agreed on the transition to the build objective. These runs used a
+diagnostic build. Console frame-rate and memory-budget measurements remain
+pending.
+
 ### Verify the Arc executor pools
 
 Use `-Pprobe=executor` with the JVM and ARM11 build commands. The JVM uses the

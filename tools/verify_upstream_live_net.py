@@ -402,9 +402,12 @@ def capture_onset_marker(log, emulator, server, rpc, output, model, stock_timeou
         time.sleep(0.25)
 
 
-def verify_onset_objective(log, emulator, server_log, server, beryllium):
+def verify_onset_objective(log, emulator, server_log, server, beryllium, receive_timeout=5):
     if beryllium < 60:
         raise RuntimeError(f"Expected at least 60 beryllium for the original objective, got {beryllium}")
+    completion = re.compile(r"UPSTREAM_OBJECTIVE_COMPLETE index=0 kind=ItemObjective "
+                            r"next=1 nextKind=BuildCountObjective flags=(\d+)\b")
+    client_flags = completion.search(wait_for(log, emulator, completion, receive_timeout))[1]
     server.stdin.write(
         'js (() => { var rules=Vars.state.rules, all=rules.objectives.all, first=all.get(0), next=all.get(1); '
         'return "UPSTREAM_SERVER_ONSET_OBJECTIVE first=" + first.getClass().getSimpleName() + '
@@ -415,8 +418,8 @@ def verify_onset_objective(log, emulator, server_log, server, beryllium):
     record = re.compile(r"UPSTREAM_SERVER_ONSET_OBJECTIVE first=ItemObjective completed=true "
                         r"next=BuildCountObjective eligible=true flags=(\d+)\b")
     flags = record.search(wait_for(server_log, server, record, 5))[1]
-    match = r"UPSTREAM_OBJECTIVE_COMPLETE index=0 kind=ItemObjective next=1 nextKind=BuildCountObjective"
-    wait_for(log, emulator, rf"{match} flags={flags}\b", 5)
+    if flags != client_flags:
+        raise RuntimeError(f"Expected {flags} stock objective flags, observed {client_flags}")
     print("The stock server and ARM11 client advanced to Onset objective 1 after 60 beryllium.", flush=True)
 
 
@@ -1342,7 +1345,7 @@ def run_model(args, model, config, original_config, log, output):
                                     require_stock_objective_font(log, emulator, "beryllium", args.timeout)
                                 capture_marker("mine", 2320, 864, 868, mining)
                                 set_onset_beryllium(server, 60)
-                                verify_onset_objective(log, emulator, server_log, server, 60)
+                                verify_onset_objective(log, emulator, server_log, server, 60, args.timeout)
                                 if args.verify_stock_hud:
                                     require_stock_objective_font(log, emulator, "turbine-condenser", args.timeout)
                                 capture_marker("research", 2312, 944, 957.8, research)
