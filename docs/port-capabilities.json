@@ -286,6 +286,7 @@
         "include/platform/settings_store.h",
         "src/platform/settings_store.c",
         "tests/platform/test_settings_store.c",
+        "research/upstream-runtime/src/campaign-sector-state/java/UpstreamCampaignSectorStateProbe.java",
         "research/upstream-runtime/src/campaign-planet/java/UpstreamCampaignPlanetStateProbe.java",
         "research/upstream-runtime/src/campaign-sector-info/java/UpstreamCampaignSectorInfoProbe.java",
         "research/upstream-runtime/src/campaign-sector-info/java/port/SectorInfoReflectionPolicy.java",
