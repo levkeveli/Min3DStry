@@ -19,6 +19,7 @@
 #include "platform/memory_budget.h"
 #include "platform/sd_paths.h"
 #include "platform/settings_store.h"
+#include "platform/worker_benchmark.h"
 #include "render/factory_demo.h"
 #include "render/minimap.h"
 #include "render/scene_2d.h"
@@ -230,6 +231,29 @@ int main(int argc, char *argv[]) {
             (unsigned long)p_final->enemies_killed,
             (unsigned long)p_final->core_hp);
         m3ds_emit_debug_line(log_socket, dbg_line);
+    }
+
+    /*
+     * Evaluate deterministic worker scheduling on an independent 200x200 grid
+     * hash. The simulation tick itself stays single-threaded; this benchmark
+     * only checks that the same read-only work produces the same checksum.
+     */
+    for (uint32_t workers = 2u; workers <= 4u; workers += 2u) {
+        M3dsWorkerBenchmarkResult worker_result;
+        if (m3ds_worker_benchmark_run(workers, 4u, &worker_result)) {
+            snprintf(
+                dbg_line,
+                sizeof(dbg_line),
+                "[MIN3DSTRY] WORKERS workers=%u chunks=%u items=%u match=%d checksum=0x%08lx serial_us=%llu parallel_us=%llu\n",
+                (unsigned)worker_result.workers,
+                (unsigned)worker_result.chunks,
+                (unsigned)worker_result.items,
+                worker_result.match ? 1 : 0,
+                (unsigned long)worker_result.serial_checksum,
+                (unsigned long long)worker_result.serial_micros,
+                (unsigned long long)worker_result.parallel_micros);
+            m3ds_emit_debug_line(log_socket, dbg_line);
+        }
     }
 
     /* The PARITY run above is the canonical fixture; the interactive demo
