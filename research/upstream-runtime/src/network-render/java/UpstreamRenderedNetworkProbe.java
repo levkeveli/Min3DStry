@@ -1,5 +1,6 @@
 import port.render.UpstreamCrackAtlas;
 import port.render.UpstreamFluidAtlas;
+import port.render.UpstreamWorldLabel;
 import arc.Core;
 import arc.files.Fi;
 import arc.graphics.g2d.Draw;
@@ -43,6 +44,8 @@ public final class UpstreamRenderedNetworkProbe {
     private int draws;
     private long previousVisualFrame;
     private int lastLeft = -1, lastBottom = -1;
+    private final UpstreamWorldLabel.Target worldLabel = this::drawWorldLabel;
+    private final ObjectSet<String> reportedWorldLabels = new ObjectSet<>();
     private byte[] lastMenu;
     private Block lastPrimaryShortcut;
     private List<UpstreamObjectiveHud.Row> lastObjectives;
@@ -68,6 +71,8 @@ public final class UpstreamRenderedNetworkProbe {
     }
 
     private void loadGraphics() {
+        var locale = Core.bundle.getLocale();
+        Core.settings.put("locale", locale.getLanguage().isEmpty() ? "en" : locale.toString());
         System.out.println("UPSTREAM_INTERFACE_GRAPHICS atlas");
         UpstreamTerrainDrawProbe.loadAtlas(atlas, UpstreamFluidAtlas::load);
         Vars.content.loadColors(new Fi("/romfs/block_colors.png"));
@@ -183,6 +188,8 @@ public final class UpstreamRenderedNetworkProbe {
         } finally {
             Draw.sort(false);
         }
+        UpstreamObjectiveMarkers.draw(Vars.state.rules, 240f / (UpstreamTerrainDrawProbe.VIEW_HEIGHT * Vars.tilesize),
+            worldLabel);
         drawObjectives();
         var block = buildingControls.block();
         var catalog = buildingControls.catalog();
@@ -199,6 +206,12 @@ public final class UpstreamRenderedNetworkProbe {
                 config.previousPage(), config.nextPage(), false);
         } else {
             lastMenu = null;
+        }
+    }
+
+    private void drawWorldLabel(String text, float x, float y, int flags, float size, int align, int lineAlign) {
+        if (target.drawWorldLabel(text, x, y, flags, size, align, lineAlign) && reportedWorldLabels.add(text)) {
+            System.out.println("UPSTREAM_WORLD_LABEL x=" + x + " y=" + y + " text=" + text.replace('\n', '|'));
         }
     }
 

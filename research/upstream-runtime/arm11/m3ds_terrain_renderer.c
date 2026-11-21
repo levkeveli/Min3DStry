@@ -504,6 +504,51 @@ float m3ds_terrain_draw_objective(const char *label, int32_t page, int32_t left,
     return y + panel_height + 3.0f;
 }
 
+int32_t m3ds_terrain_draw_world_label(const char *label, float x, float y, int32_t flags, float size,
+                                     int32_t horizontal, int32_t vertical, int32_t lines) {
+    if (!frame_open || !catalog_buffer || !(size > 0.0f) || !isfinite(size)) return 0;
+    C2D_Text text;
+    C2D_TextBufClear(catalog_buffer);
+    const char *end = C2D_TextParse(&text, catalog_buffer, label);
+    if (!end || *end != '\0') return 0;
+    const float screen_right = 400.0f - screen_left;
+    const float screen_top = 240.0f - screen_bottom;
+    // Pinned WorldLabel uses the 18 px game font at quarter scale in world units.
+    // Citro2D's system font is 30 px. Fit long translations inside the 3DS viewport.
+    float scale_y = 0.25f * (18.0f / 30.0f) * size * scale;
+    float scale_x = fminf(scale_y, (screen_right - screen_left - 8.0f) / fmaxf(1.0f, text.width));
+    float width, height;
+    C2D_TextGetDimensions(&text, scale_x, scale_y, &width, &height);
+    float sx = screen_left + (x - world_left) * scale;
+    float sy = screen_bottom - (y - world_bottom) * scale;
+    bool anchor_visible = sx >= screen_left && sx <= screen_right;
+    bool background = (flags & 1) != 0;
+    float border = background ? scale : 0.0f;
+    sx -= width * 0.5f * (1 + horizontal) + border * horizontal;
+    sy -= height * 0.5f * (1 + vertical) + border * 1.5f * vertical;
+    if (anchor_visible) {
+        // A world marker near an edge can still show its whole prompt while the anchor is in view.
+        sx = fmaxf(screen_left + 4.0f, fminf(sx, screen_right - 4.0f - width));
+    }
+    if (sx + width < screen_left || sx > screen_right || sy + height < screen_top || sy > screen_bottom) return 0;
+
+    C2D_TextOptimize(&text);
+    set_world_blend(0);
+    set_world_mix(0, 0);
+    if (background) {
+        C2D_DrawRectSolid(sx - border, sy - 1.5f * border, 0.5f, width + 2.0f * border,
+            height + 3.0f * border, C2D_Color32(0, 0, 0, 77));
+    }
+    u32 align = lines < 0 ? C2D_AlignLeft : lines > 0 ? C2D_AlignRight : C2D_AlignCenter;
+    sx += width * 0.5f * (1 + lines);
+    if ((flags & 2) != 0) {
+        C2D_DrawText(&text, C2D_WithColor | align, sx + 0.75f, sy + 1.0f, 0.5f, scale_x, scale_y,
+            C2D_Color32(45, 45, 45, 255));
+    }
+    C2D_DrawText(&text, C2D_WithColor | align, sx, sy, 0.5f, scale_x, scale_y, C2D_Color32(255, 255, 255, 255));
+    return 1;
+}
+
 static void catalog_label(const char *text, float x, float y, float scale, u32 color) {
     C2D_Text label;
     C2D_TextParse(&label, catalog_buffer, text);
