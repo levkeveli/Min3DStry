@@ -229,6 +229,8 @@ if (usesArcSources || usesExecutor) {
         }
         stagedClasses.addAll(['mindustry/logic/LExecutor.class', 'mindustry/logic/LExecutor$*.class'])
         stagedClasses.addAll(['mindustry/core/World.class', 'mindustry/core/World$*.class'])
+        stagedClasses.addAll(['arc/audio/Sound.class', 'arc/audio/Sound$*.class'])
+        stagedClasses.addAll(['mindustry/entities/bullet/BulletType.class', 'mindustry/entities/bullet/BulletType$*.class'])
     }
     if (usesCampaignJsonCompat) {
         stagedClasses.addAll(['arc/util/serialization/Json.class', 'arc/util/serialization/Json$*.class'])

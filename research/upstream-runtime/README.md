@@ -434,6 +434,8 @@ a hash manifest. The live client binds the sample to the original
 `Sounds.shootAlpha` field before loading weapons and uses Arc's gain, pan
 and pitch through the existing NDSP mixer. Other assets continue through
 the current headless audio path.
+The network-render reference JAR excludes the replaced `Sound` and
+`BulletType` classes so TeaVM uses the staged audio and trail adapters.
 
 Add `--verify-live-audio` to the Glacier weapon replay. Its report includes
 the converted sample size, the first positional submission, and the

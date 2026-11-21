@@ -261,8 +261,9 @@ public final class UpstreamRenderedNetworkProbe {
             int bullets = UpstreamClientProjectiles.draw(viewport);
             boolean active = !Groups.bullet.isEmpty();
             if (projectilesActive != active || projectilesVisible != (bullets > 0)) {
+                boolean trail = Groups.bullet.find(bullet -> bullet.trail != null) != null;
                 System.out.println("UPSTREAM_NETWORK_PROJECTILES visible=" + bullets
-                    + " active=" + Groups.bullet.size());
+                    + " active=" + Groups.bullet.size() + " trail=" + trail);
             }
             projectilesVisible = bullets > 0;
             projectilesActive = active;

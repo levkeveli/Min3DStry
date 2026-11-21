@@ -1792,6 +1792,10 @@ def run_model(args, model, config, original_config, log, output):
                             raise RuntimeError(f"{model} did not clear its local projectiles after release")
                         print(f"{model}: the stock bolt appeared in the captured viewport and cleared.", flush=True)
                     if args.verify_live_audio:
+                        if args.verify_projectiles and not re.search(
+                            r"UPSTREAM_NETWORK_PROJECTILES visible=[1-9]\d* active=[1-9]\d* trail=true\b", emu_log
+                        ):
+                            raise RuntimeError(f"{model} did not submit the native stock projectile trail")
                         audio_log = wait_for(log, emulator, r"UPSTREAM_LIVE_AUDIO_CLOSE requests=\d+", args.timeout)
                         verify_live_weapon_audio(audio_log, model)
                 elif args.controls:
