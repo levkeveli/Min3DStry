@@ -19,6 +19,15 @@ if [[ ${1:-} == --network ]]; then
         "$root/m3ds_net_bridge.c" "$repo/src/net/mindustry_net.c" "$repo/src/platform/3ds/net_3ds.c")
     shift
 fi
+save_rows_flags=()
+save_rows_sources=()
+if [[ ${1:-} == --save-rows ]]; then
+    repo="$root/../../.."
+    save_rows_flags=(-I"$root" -I"$repo/include")
+    save_rows_sources=("$root/m3ds_save_rows.c"
+        "$repo/src/platform/world_rows.c" "$repo/src/platform/msav_world.c")
+    shift
+fi
 terrain_flags=()
 terrain_sources=()
 terrain_libraries=()
@@ -72,6 +81,8 @@ fi
 "$DEVKITARM/bin/arm-none-eabi-gcc" -std=gnu11 -g -O2 -fwrapv -D__3DS__ -mword-relocations \
     -march=armv6k -mtune=mpcore -mfpu=vfp -mfloat-abi=hard -mtp=soft \
     -I"$output/nativeinclude" -I"$DEVKITPRO/libctru/include" -L"$DEVKITPRO/libctru/lib" \
-    "${terrain_flags[@]}" "${pointer_flags[@]}" -specs=3dsx.specs "$output/all.c" "${native_network[@]}" \
-    "${terrain_sources[@]}" "${terrain_libraries[@]}" -lctru -lm -o "$output/upstream-probe.elf"
+    "${terrain_flags[@]}" "${save_rows_flags[@]}" "${pointer_flags[@]}" \
+    -specs=3dsx.specs "$output/all.c" "${native_network[@]}" \
+    "${terrain_sources[@]}" "${save_rows_sources[@]}" \
+    "${terrain_libraries[@]}" -lctru -lm -o "$output/upstream-probe.elf"
 "$DEVKITPRO/tools/bin/3dsxtool" "$output/upstream-probe.elf" "$output/upstream-probe.3dsx" "${package_flags[@]}"

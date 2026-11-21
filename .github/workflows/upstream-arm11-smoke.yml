@@ -358,6 +358,23 @@ jobs:
               research/upstream-runtime/build/probe-3ds-world-roundtrip'
           test -s research/upstream-runtime/build/probe-3ds-world-roundtrip/upstream-probe.3dsx
 
+      - name: Generate and build the ARM11 save-rows probe
+        run: |
+          bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime \
+            --no-daemon --console=plain \
+            "-Dorg.gradle.jvmargs=-Xmx3g" \
+            "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" \
+            "-PreferenceJar=$RUNNER_TEMP/server-release.jar" \
+            "-ParcCheckout=$RUNNER_TEMP/Arc" \
+            -Pprobe=save-rows generateC
+          image=devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5
+          docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/work" -w /work "$image" bash -lc '
+            source /opt/devkitpro/3dsvars.sh
+            bash research/upstream-runtime/arm11/build.sh \
+              research/upstream-runtime/build/generated/teavm/c \
+              research/upstream-runtime/build/probe-3ds-save-rows --save-rows'
+          test -s research/upstream-runtime/build/probe-3ds-save-rows/upstream-probe.3dsx
+
       - name: Generate and build the ARM11 sector-slot probe
         run: |
           bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime \
