@@ -41,6 +41,14 @@ typedef struct M3dsBuildingState {
     uint32_t revision;
     uint32_t payload_size;
     uint8_t *payload;
+    float health;
+    uint32_t item_count;
+    uint32_t extra_size;
+    uint8_t team;
+    uint8_t rotation;
+    uint8_t enabled;
+    uint8_t modules;
+    bool partial;
 } M3dsBuildingState;
 
 typedef struct M3dsWorldTiles {

@@ -1,6 +1,7 @@
 #include "platform/msav_world.h"
 
 #include <assert.h>
+#include <stdio.h>
 #include <string.h>
 
 static size_t put_be16(uint8_t *out, unsigned value) {
@@ -254,10 +255,13 @@ static void test_alloc_building(void) {
     map_size += put_be16(map + map_size, 5u);
     map[map_size++] = 1u;
     map[map_size++] = 1u;
-    map_size += put_be32(map + map_size, 3u);
-    map[map_size++] = 7u;
-    map[map_size++] = 0xAA;
-    map[map_size++] = 0xBB;
+    const uint8_t payload[] = {
+        0x45, 0xbb, 0x80, 0x00, 0x80, 0x01, 0x03, 0x01, 0x09, 0x00, 0x00,
+        0x00, 0x00, 0x7f, 0xc0, 0x00, 0x00, 0x7f, 0xc0, 0x00, 0x00};
+    map_size += put_be32(map + map_size, (unsigned)(1u + sizeof(payload)));
+    map[map_size++] = 1u;
+    memcpy(map + map_size, payload, sizeof(payload));
+    map_size += sizeof(payload);
     size = put_region(data, size, map, map_size);
     uint8_t entities[16];
     size_t entity_size = 0u;
@@ -272,10 +276,17 @@ static void test_alloc_building(void) {
     assert(tiles.building_count == 1u);
     assert(tiles.building_index[0] == 0u);
     assert(tiles.buildings[0].tile_index == 0u);
-    assert(tiles.buildings[0].revision == 7u);
-    assert(tiles.buildings[0].payload_size == 2u);
-    assert(tiles.buildings[0].payload[0] == 0xAA);
-    assert(tiles.buildings[0].payload[1] == 0xBB);
+    assert(tiles.buildings[0].revision == 1u);
+    assert(tiles.buildings[0].payload_size == 21u);
+    assert(tiles.buildings[0].health > 5999.0f
+           && tiles.buildings[0].health < 6001.0f);
+    assert(tiles.buildings[0].team == 1u);
+    assert(tiles.buildings[0].rotation == 0u);
+    assert(tiles.buildings[0].enabled == 1u);
+    assert(tiles.buildings[0].modules == 9u);
+    assert(tiles.buildings[0].item_count == 0u);
+    assert(tiles.buildings[0].extra_size == 8u);
+    assert(!tiles.buildings[0].partial);
     assert(tiles.block_ids[0] == 5u);
     assert((tiles.flags[0] & 0x4u) != 0u);
     assert(tiles.building_hash != 0u);

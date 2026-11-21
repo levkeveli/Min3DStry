@@ -1,5 +1,6 @@
 #include "platform/msav_world.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -10,6 +11,86 @@ static uint16_t read_be16(const uint8_t *data) {
 static uint32_t read_be32(const uint8_t *data) {
     return ((uint32_t)data[0] << 24) | ((uint32_t)data[1] << 16)
         | ((uint32_t)data[2] << 8) | (uint32_t)data[3];
+}
+
+static float read_float_be(const uint8_t *data) {
+    uint32_t bits = read_be32(data);
+    float value;
+    memcpy(&value, &bits, sizeof(value));
+    return value;
+}
+
+static void parse_building_state(M3dsBuildingState *building) {
+    building->health = 0.0f;
+    building->item_count = 0u;
+    building->extra_size = building->payload_size;
+    building->team = 0u;
+    building->rotation = 0u;
+    building->enabled = 1u;
+    building->modules = 0u;
+    building->partial = true;
+    if (building->payload_size < 6u) {
+        return;
+    }
+    building->health = read_float_be(building->payload);
+    uint8_t rotation = building->payload[4];
+    building->team = building->payload[5];
+    building->rotation = rotation & 0x7Fu;
+    if ((rotation & 0x80u) == 0u) {
+        // Legacy base layout needs the block's module mask; keep the raw bytes.
+        return;
+    }
+    size_t position = 6u;
+    uint8_t flags_version = building->payload[position++];
+    if (flags_version >= 1u) {
+        if (position >= building->payload_size) {
+            return;
+        }
+        building->enabled = building->payload[position++] != 0u;
+    }
+    if (flags_version >= 2u) {
+        if (position >= building->payload_size) {
+            return;
+        }
+        building->modules = building->payload[position++];
+    }
+    if ((building->modules & 0x01u) != 0u) {
+        if (position + 2u > building->payload_size) {
+            return;
+        }
+        uint32_t count = read_be16(building->payload + position);
+        position += 2u;
+        if (count > (building->payload_size - position) / 6u) {
+            return;
+        }
+        position += (size_t)count * 6u;
+        building->item_count = count;
+    }
+    // Unknown bits or power/liquid/timer/disabler modules are not decoded yet.
+    if ((building->modules & (uint8_t)~0x3Fu) != 0u
+            || (building->modules & 0x36u) != 0u) {
+        return;
+    }
+    if (flags_version <= 2u) {
+        if (position >= building->payload_size) {
+            return;
+        }
+        ++position;
+    }
+    if (flags_version >= 3u) {
+        if (position + 2u > building->payload_size) {
+            return;
+        }
+        position += 2u;
+    }
+    if (flags_version >= 4u) {
+        if (position + 8u > building->payload_size) {
+            return;
+        }
+        position += 8u;
+    }
+    building->extra_size = (uint32_t)(building->payload_size - position);
+    building->partial = false;
 }
 
 static uint64_t hash_bytes(uint64_t hash, const uint8_t *data, size_t size) {
@@ -371,6 +452,7 @@ bool m3ds_msav_alloc_world(
                 memcpy(building->payload, data + position + 1u,
                        building->payload_size);
             }
+            parse_building_state(building);
             out->building_index[block_index] = (uint32_t)out->building_count;
             out->building_hash = hash_bytes(
                 out->building_hash, (const uint8_t *)&building->revision,
