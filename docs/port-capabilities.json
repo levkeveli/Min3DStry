@@ -191,9 +191,13 @@
       "category": "Controls & Dual-Screen UI",
       "name": "Bottom-Screen Touch Build & Rotation UI",
       "weight": 6,
-      "stage": "planned",
+      "stage": "experimental",
       "issue": 27,
-      "evidence": []
+      "evidence": [
+        "research/upstream-runtime/README.md",
+        "research/upstream-runtime/src/network-live/host/UpstreamBuildControlsReference.java",
+        "tools/verify_upstream_live_net.py"
+      ]
     },
     {
       "id": "hud-menus-minimap",
