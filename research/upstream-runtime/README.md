@@ -1044,6 +1044,9 @@ the unmodified Java v160.8 server. Both profiles displayed the point,
 shape, line and label. The shape disappeared on a world-visibility
 update, the line moved, the label changed, and removing the markers
 restored the sampled terrain.
+The [integrated renderer replay](https://github.com/levkeveli/Min3DStry/actions/runs/44937074108)
+passed the same Glacier marker checks on both profiles with the original
+v160.8 font renderer enabled.
 
 Run `runObjectiveMarkersJvm` under `-Pprobe=network-render` with the
 original `maps/erekir/onset.msav` from the release JAR, `sprites.aatls`,
