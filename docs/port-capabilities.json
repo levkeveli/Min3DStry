@@ -244,7 +244,11 @@
         "include/ui/pause_menu.h",
         "src/ui/pause_menu.c",
         "tests/ui/test_pause_menu.c",
-        "docs/ui/pause-menu.md"
+        "docs/ui/pause-menu.md",
+        "include/ui/touch_controls.h",
+        "src/ui/touch_controls.c",
+        "tests/ui/test_touch_controls.c",
+        "docs/ui/touch-controls.md"
       ]
     },
     {
