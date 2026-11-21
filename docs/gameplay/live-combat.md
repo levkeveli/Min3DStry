@@ -9,44 +9,52 @@ simulation or synchronize bullets inside the live app.
 
 `tools/verify_upstream_live_net.py --combat --controls --terrain-atlas ...`
 performs the following against the official `server-release.jar` running
-`host Glacier attack`:
+`host Glacier sandbox`:
 
-1. Before the client joins, spawns a wave-team Dagger at tile `(60, 26)`
-   (outside the Duo's range) and broadcasts it with `Units.notifyUnitSpawn`.
+1. Before the client joins, removes wave-team units, all turrets and the
+   non-core enemy base so stock block snapshots cannot starve control packets.
 2. Waits for the ARM11 client to report `UPSTREAM_LIVE_CONTROLS_READY`.
-3. Places a player Duo at `(76, 26)` with one copper (two ammo) through stock
-   server JS.
-4. Spawns a second Dagger **after** the client has joined and broadcasts it
-   with `Units.notifyUnitSpawn`, exercising the client's
-   `UnitSpawnCallPacket` path.
-5. Asserts the post-join id differs from the pre-join id and prints both
-   (`UPSTREAM_COMBAT_IDS spawn=<id> post=<id>`).
-6. Waits for the client to receive and draw the exact post-join id
-   (`UPSTREAM_LIVE_ENEMY type=dagger id=<post-id>`).
-7. Queries the stock server for that id after one second: the Duo must have
-   spent ammo and the Dagger must be below its 150 health (or destroyed).
+3. Raises the joined player unit's health so the Dagger cannot end the session,
+   clears the test corridor and places a player Duo at tile `(76, 26)` with ten
+   copper (20 ammo).
+4. Spawns a 9 HP wave-team Dagger **after** the client has joined at tile
+   `(79, 26)` and broadcasts it with `Units.notifyUnitSpawn`.
+5. Waits for the client's packet-specific `UnitSpawnCallPacket` marker
+   (`UPSTREAM_LIVE_UNIT_SPAWN id=<id>`), then its draw marker
+   (`UPSTREAM_LIVE_ENEMY type=dagger id=<id>`).
+6. Polls the stock server: the Duo must spend at least one copper and the
+   Dagger must be destroyed. One Duo shot deals 9 damage, matching the 9 HP
+   fixture exactly.
+7. Re-sends the same `UnitDestroyCallPacket` reliably (the stock server sends
+   it unreliably) and waits for the client's `UPSTREAM_LIVE_UNIT_DESTROY`
+   marker. Dead wave units are also swept when a lost packet leaves zero
+   health in `Groups.unit`.
 
 ## Observed
 
-Both profiles exited 0:
+Both profiles passed with the same entity id and packet trace:
 
 ```text
-UPSTREAM_COMBAT_IDS spawn=212 post=270
-UPSTREAM_LIVE_ENEMY type=dagger id=270 x=632.0 y=208.0
-Stock Duo fired; Dagger health=-1, ammo 2->0.
+UPSTREAM_LIVE_UNIT_SPAWN id=217
+UPSTREAM_LIVE_ENEMY type=dagger id=217 x=632.0 y=208.0
+UPSTREAM_LIVE_UNIT_DESTROY id=217
+Stock Duo destroyed the post-join Dagger; ammo 20->19.
 old3ds: stationary verification ended by emulator kill; accepted the server's (error) departure
-old3ds: UPSTREAM_LIVE_CONTROLS_READY unit=259 x=648.0 y=208.0
+old3ds: UPSTREAM_LIVE_NET_WORLD join=1 map=Glacier bytes=11556 team=1 fingerprint=1a8d0534631f2ab0
+old3ds: UPSTREAM_LIVE_CONTROLS_READY unit=214 x=648.0 y=208.0
 
-UPSTREAM_COMBAT_IDS spawn=212 post=271
-UPSTREAM_LIVE_ENEMY type=dagger id=271 x=632.0 y=208.0
-Stock Duo fired; Dagger health=-1, ammo 2->0.
+UPSTREAM_LIVE_UNIT_SPAWN id=217
+UPSTREAM_LIVE_ENEMY type=dagger id=217 x=632.0 y=208.0
+UPSTREAM_LIVE_UNIT_DESTROY id=217
+Stock Duo destroyed the post-join Dagger; ammo 20->19.
 new3ds: stationary verification ended by emulator kill; accepted the server's (error) departure
-new3ds: UPSTREAM_LIVE_CONTROLS_READY unit=266 x=648.0 y=208.0
+new3ds: UPSTREAM_LIVE_NET_WORLD join=1 map=Glacier bytes=11505 team=1 fingerprint=2745c6ce8172a1a4
+new3ds: UPSTREAM_LIVE_CONTROLS_READY unit=214 x=648.0 y=208.0
 ```
 
-The post-join ids differ from the pre-join id, and the pre-join Dagger is out
-of Duo range, so the destroyed Dagger is unambiguously the one delivered by
-`UnitSpawnCallPacket`.
+The spawn marker is emitted from the `UnitSpawnCallPacket` branch itself, not
+from an entity snapshot. The spawn and destroy ids match the server's returned
+Dagger id, and the Duo spent exactly one copper.
 
 ## Limitations
 
@@ -56,4 +64,6 @@ of Duo range, so the destroyed Dagger is unambiguously the one delivered by
 - The port's own turret/wave/pathfinding simulation is verified separately by
   the ARM11 `combat-ticks` and `wave-routing` probes, not inside
   `min3dstry.3dsx`.
+- The test hosts `Glacier sandbox` and clears the enemy base to isolate the
+  Duo; it does not claim a full attack-map session.
 - Physical Old/New 3DS verification remains open with #43.
