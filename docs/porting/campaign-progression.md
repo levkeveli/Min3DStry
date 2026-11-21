@@ -294,7 +294,13 @@ gradle -PupstreamCheckout=/path/to/Mindustry \
   -ParcCheckout=/path/to/Arc -Pprobe=campaign-saves runProbeJvm
 ```
 
-JVM and ARM11/Azahar report:
+JVM reports:
+
+```text
+UPSTREAM_CAMPAIGN_SAVES path=tmp sector=sector-serpulo-15.msav parent=m3ds-campaign-saves extension=msav saves=ok
+```
+
+ARM11/Azahar reports the live path:
 
 ```text
 UPSTREAM_CAMPAIGN_SAVES path=live sector=sector-serpulo-15.msav parent=min3dstry extension=msav saves=ok
