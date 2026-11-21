@@ -898,6 +898,13 @@ connection uses its TCP keepalive through both phases. The ARM11 collector
 prints the failing request and free bytes on allocation exhaustion, with
 a separate marker when the GC mark queue fills.
 
+The [deferred-graphics ROM](https://github.com/levkeveli/Min3DStry/actions/runs/44937997342)
+loaded all 512 × 512 Onset tiles on both Azahar profiles with the same
+24 MiB managed cap. Both runs drew the original HUD, font, inline icons
+and world markers, and advanced to the Turbine Condenser objective when
+the unmodified Java server received 60 beryllium. Both profiles also
+passed the Glacier offscreen display marker replay with that ROM.
+
 The renderer still selects blocks that use the supported sprite operations.
 Textured raw vertices, additional payload types and other rendering services
 are tracked in [#139](https://github.com/levkeveli/Min3DStry/issues/139).
