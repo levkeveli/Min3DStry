@@ -1021,30 +1021,7 @@ background flag. Visible anchors keep long text within the 3DS
 viewport. Marker text selects the upstream touch-control language
 variant when present. Original glyph art and styled spans are tracked
 in [#199](https://github.com/levkeveli/Min3DStry/issues/199). Lighting,
-minimap markers and the other marker types require further renderer support.
-
-### Stock map logic markers
-
-The live client applies the original v160.8 marker packets to
-`GameState.markers`. The world pass uses the upstream visibility lists
-and draw routines for text, points, shapes, and lines. The ARM11 visual
-clock feeds Arc's global time for the original point animation. Lighting,
-minimap display and textured or dynamic-display markers require further
-renderer support.
-
-The `runProbeJvm` snapshot reference round-trips the original create,
-control, text, texture, and remove packet classes against the client
-registry. The `runObjectiveMarkersJvm` reference also compares the world
-geometry and packed colors with direct stock draw calls on the same batch.
-Run the live verifier with `--controls --verify-logic-markers` and
-`--terrain-atlas` to compare marker visibility and position before
-creation, after an update, and after removal on Glacier.
-The [ARM11 ROM](https://github.com/levkeveli/Min3DStry/actions/runs/44925486810)
-passed this replay on Original and New 3DS emulator profiles against
-the unmodified Java v160.8 server. Both profiles displayed the point,
-shape, line and label. The shape disappeared on a world-visibility
-update, the line moved, the label changed, and removing the markers
-restored the sampled terrain.
+minimap marker drawing remains pending.
 
 Run `runObjectiveMarkersJvm` under `-Pprobe=network-render` with the
 original `maps/erekir/onset.msav` from the release JAR, `sprites.aatls`,
@@ -1059,6 +1036,44 @@ displayed both original shapes and the localized directions on Original
 and New 3DS Azahar profiles connected to the unmodified v160.8 server.
 Both captures show the stock touch mining prompt and the complete
 research label inside the top-screen viewport.
+
+### Stock map logic markers
+
+The live client applies the original v160.8 marker packets to
+`GameState.markers`. The world pass uses the upstream visibility lists
+and draw routines for text, points, shapes, lines, and atlas-backed texture
+markers. The ARM11 visual clock feeds Arc's global time for the original
+point animation. The texture marker adapter resolves names and content
+icons through the original atlas, including the stock error sprite. Lighting,
+minimap display, arbitrary textured quads, and dynamic Canvas and Logic
+Display textures require further renderer support.
+
+The `runProbeJvm` snapshot reference round-trips the original create,
+control, text, texture, and remove packet classes against the client
+registry. The `runObjectiveMarkersJvm` reference also compares the world
+geometry and packed colors with direct stock draw calls on the same batch.
+Run the live verifier with `--controls --verify-logic-markers` and
+`--terrain-atlas` to compare marker visibility and position before
+creation, after an update, and after removal on Glacier.
+
+The [ARM11 ROM](https://github.com/levkeveli/Min3DStry/actions/runs/44925486810)
+passed this replay on Original and New 3DS emulator profiles against
+the unmodified Java v160.8 server. Both profiles displayed the point,
+shape, line and label. The shape disappeared on a world-visibility
+update, the line moved, the label changed, and removing the markers
+restored the sampled terrain.
+
+Add `--verify-texture-markers` to compare opaque pixels from the original
+Router and Copper sprites as the Java server creates, rotates, changes,
+and removes the texture marker. The same replay sends an unresolved name
+to check the original error sprite.
+
+The [ARM11 texture marker build](https://github.com/levkeveli/Min3DStry/actions/runs/44927000612)
+passed the stock geometry and texture replays on both emulator profiles.
+The Java v160.8 server delivered the original create, rotation, texture
+change, and removal packets. The replay verified the Router in both
+orientations, the original Copper icon, the error sprite and the restored
+terrain against sampled pixels.
 
 ### Verify the Arc executor pools
 

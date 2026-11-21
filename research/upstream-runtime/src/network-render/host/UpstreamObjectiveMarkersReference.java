@@ -18,6 +18,7 @@ import mindustry.game.MapObjectives.ShapeTextMarker;
 import mindustry.game.MapObjectives.TextMarker;
 import mindustry.game.MapObjectives.TextureMarker;
 import mindustry.game.Rules;
+import mindustry.gen.CreateMarkerCallPacket;
 import mindustry.gen.WorldLabel;
 import mindustry.gen.UpdateMarkerTextureCallPacket;
 import mindustry.io.JsonIO;
@@ -61,15 +62,22 @@ public final class UpstreamObjectiveMarkersReference implements UpstreamTerrainD
     private void verifyTextureMarker() {
         var markers = Vars.state.markers;
         markers.clear();
-        var marker = new TextureMarker("block-router-ui", 120f, 144f);
-        marker.autoscale = true;
-        marker.color.set(Color.sky);
-        marker.rotation = 42f;
-        markers.add(6, marker);
+        var original = new TextureMarker("block-router-ui", 120f, 144f);
+        original.autoscale = true;
+        original.color.set(Color.sky);
+        original.rotation = 42f;
+        var create = new CreateMarkerCallPacket();
+        create.id = 6;
+        create.marker = original;
+        UpstreamSnapshotDispatchReference.applyMarkerPacket(create);
+        if (!(markers.get(create.id) instanceof TextureMarker marker) || !marker.autoscale
+                || !marker.color.equals(original.color) || marker.rotation != original.rotation) {
+            throw new AssertionError("Stock create-marker did not preserve texture presentation");
+        }
         verifySprite(marker, Core.atlas.find("block-router-ui"), 2f);
 
         var update = new UpdateMarkerTextureCallPacket();
-        update.id = 6;
+        update.id = create.id;
         update.texture = Items.copper;
         UpstreamSnapshotDispatchReference.applyMarkerPacket(update);
         verifySprite(marker, Items.copper.fullIcon, 2f);
