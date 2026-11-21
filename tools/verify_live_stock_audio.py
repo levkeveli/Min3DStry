@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exercise the live PCM cache with a mock DSP and the actual staged assets."""
+"""Exercise the live PCM cache and streams with a mock DSP and staged assets."""
 
 import argparse
 import os
@@ -30,6 +30,7 @@ def main() -> None:
                         "-I", str(work), "-I", str(tests), "-I", str(arm11), "-I", str(ROOT / "include"),
                         str(tests / "test_live_stock_audio.c"), str(arm11 / "m3ds_live_audio.c"),
                         str(ROOT / "src/audio/audio_mixer.c"), str(ROOT / "src/audio/audio_registry.c"),
+                        str(ROOT / "src/audio/audio_stream.c"),
                         "-lm", "-o", str(binary)], check=True)
         result = subprocess.run([str(binary)], cwd=assets, check=True, capture_output=True, text=True)
         for line in result.stdout.splitlines():

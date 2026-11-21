@@ -1588,12 +1588,13 @@ def send_live_sound_packets(log, emulator, server_log, server, timeout):
         + ')); const u = p.unit(); '
         'Call.sound(p.con, Sounds.uiButton, 0.625, 1.125, -0.5); '
         'Call.soundAt(p.con, Sounds.waveSpawn, u.x + 24, u.y, 0.5, 1.25); '
+        'Call.soundAt(p.con, Sounds.wind2, u.x - 24, u.y, 0.75, 0.875); '
         'return "UPSTREAM_STOCK_SOUND_PACKETS ids=" + Sounds.getSoundId(Sounds.uiButton) '
-        '+ "," + Sounds.getSoundId(Sounds.waveSpawn); })()'
+        '+ "," + Sounds.getSoundId(Sounds.waveSpawn) + "," + Sounds.getSoundId(Sounds.wind2); })()'
     )
     server.stdin.write(f"js {script}\n")
     server.stdin.flush()
-    wait_for(server_log, server, r"UPSTREAM_STOCK_SOUND_PACKETS ids=185,198\b", 5)
+    wait_for(server_log, server, r"UPSTREAM_STOCK_SOUND_PACKETS ids=185,198,200\b", 5)
 
 
 def verify_live_weapon_audio(log, model):
@@ -1605,21 +1606,26 @@ def verify_live_weapon_audio(log, model):
     cache = re.search(r"UPSTREAM_LIVE_AUDIO_CACHE loads=([1-9]\d*) hits=(\d+) evictions=(\d+) pcmBytes=([1-9]\d*)", log)
     remote = re.search(r"UPSTREAM_LIVE_AUDIO_PLAY id=185 volume=0\.625 pitch=1\.125 pan=-0\.500 voice=(\d+)", log)
     spatial = re.search(rf"UPSTREAM_LIVE_AUDIO_PLAY id=198 volume=({NUMBER}) pitch=1\.250 pan=({NUMBER}) voice=(\d+)", log)
-    if not all((opened, played, closed, cache, remote, spatial)):
-        raise RuntimeError(f"{model} did not submit the stock Gamma and both server-requested sounds")
+    streamed = re.search(rf"UPSTREAM_LIVE_STREAM_PLAY id=200 volume=({NUMBER}) pitch=0\.875 "
+                         rf"pan=({NUMBER}) voice=(\d+) frames=(\d+)", log)
+    if not all((opened, played, closed, cache, remote, spatial, streamed)):
+        raise RuntimeError(f"{model} did not route the stock Gamma and all three server-requested sounds")
     volume, pitch, pan = map(float, played.groups()[:3])
     ready = opened[1] == "ready"
     requests, started, dropped = map(int, closed.groups())
     loads, hits, _, resident = map(int, cache.groups())
     if (not 0 < volume <= 1 or not 0 < pitch <= 10 or not 0 < abs(pan) <= 0.9
             or not 0 < float(spatial[1]) <= 0.5 or not 0 < float(spatial[2]) <= 0.9
-            or any(ready != (int(voice) > 0) for voice in (played[4], remote[1], spatial[3]))
+            or not 0 < float(streamed[1]) <= 0.75 or not -0.9 <= float(streamed[2]) < 0
+            or int(streamed[4]) <= 132300
+            or any(ready != (int(voice) > 0) for voice in (played[4], remote[1], spatial[3], streamed[3]))
             or ready != (started > 0)
             or requests != started + dropped or requests != loads + hits
             or not 0 < int(played[5]) <= 640 * 1024 or not 0 < resident <= 640 * 1024):
         raise RuntimeError(f"{model} native sound report is inconsistent: {opened[0]}, {played[0]}, {closed[0]}")
     print(f"{model}: {opened[0]}; {played[0]}; {closed[0]}; {cache[0]}", flush=True)
     print(f"{model}: {remote[0]}; {spatial[0]}", flush=True)
+    print(f"{model}: {streamed[0]}", flush=True)
 
 
 def run_model(args, model, config, original_config, log, output):
@@ -2123,7 +2129,7 @@ def main():
     parser.add_argument("--verify-projectiles", action="store_true",
                         help="Also verify the original Gamma bolt appears on the handheld viewport and clears")
     parser.add_argument("--verify-live-audio", action="store_true",
-                        help="Check local Gamma fire and both stock server sound packets reach the mixer")
+                        help="Check local Gamma fire and stock server requests for cached and streamed effects")
     args = parser.parse_args()
     if args.controls_rejoin and (not args.controls or args.controls_replay or not args.terrain_atlas
                                  or args.map_spawn not in MAP_SPAWN_PIXELS or args.verify_objective_markers

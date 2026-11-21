@@ -42,7 +42,8 @@ if [[ $# -gt 0 ]]; then
     if [[ ${#native_network[@]} -gt 0 && -f "$1/sound-index.h" && -d "$1/audio" ]]; then
         terrain_flags+=(-DM3DS_LIVE_AUDIO)
         terrain_sources+=("$repo/src/audio/audio_mixer.c" "$repo/src/audio/audio_registry.c"
-            "$repo/src/platform/3ds/ndsp_backend.c")
+            "$repo/src/audio/audio_stream.c" "$repo/src/platform/3ds/ndsp_backend.c"
+            "$repo/src/platform/3ds/ndsp_stream_backend.c")
         cp -R "$1/audio" "$output/romfs/audio"
     fi
     cp "$1/sprites.t3x" "$output/romfs/terrain.t3x"

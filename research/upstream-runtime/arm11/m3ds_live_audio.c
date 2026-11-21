@@ -2,12 +2,15 @@
 
 #ifdef M3DS_LIVE_AUDIO
 #include "ndsp_backend.h"
+#include "ndsp_stream_backend.h"
 #include "sound-index.h"
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 
 #define LIVE_PCM_BUDGET (640u * 1024u)
+#define LIVE_STREAM_LANES 4u
+#define STREAM_VOICE_FLAG (1u << 30)
 
 typedef struct ResidentSound {
     const M3dsAudioIndexEntry *entry;
@@ -17,8 +20,18 @@ typedef struct ResidentSound {
     uint64_t last_used;
 } ResidentSound;
 
+typedef struct LiveSoundStream {
+    M3dsAudioStream audio;
+    M3dsNdspStreamContext backend;
+    M3dsAudioStdioStreamSource file;
+    int32_t voice;
+} LiveSoundStream;
+
 static M3dsAudioMixer mixer;
 static M3dsNdspContext backend_context;
+static LiveSoundStream streams[LIVE_STREAM_LANES];
+static bool reported_stream[M3DS_STOCK_SOUND_COUNT];
+static uint32_t stream_voice_serial;
 static ResidentSound resident[M3DS_AUDIO_MAX_CLIPS];
 static size_t resident_bytes;
 static uint64_t sequence;
@@ -107,27 +120,95 @@ static int load_sound(const M3dsAudioIndexEntry *entry) {
     return clip;
 }
 
+static LiveSoundStream *find_stream_voice(int32_t voice) {
+    if (voice < (int32_t)STREAM_VOICE_FLAG) return NULL;
+    for (size_t i = 0; i < LIVE_STREAM_LANES; i++) {
+        LiveSoundStream *stream = &streams[i];
+        if (stream->voice == voice && m3ds_audio_stream_is_playing(&stream->audio)) return stream;
+    }
+    return NULL;
+}
+
+static int32_t play_stream(int32_t id, const M3dsAudioIndexEntry *entry,
+                           float volume, float pitch, float pan, bool loop) {
+    LiveSoundStream *slot = NULL;
+    for (size_t i = 0; i < LIVE_STREAM_LANES; i++) {
+        M3dsAudioBackendState state = m3ds_audio_stream_state(&streams[i].audio);
+        if ((state == M3DS_AUDIO_STATE_READY || state == M3DS_AUDIO_STATE_FALLBACK_NO_DSP) &&
+                !m3ds_audio_stream_is_playing(&streams[i].audio)) {
+            slot = &streams[i];
+            break;
+        }
+    }
+    if (slot == NULL) return 0;
+    M3dsAudioBackendState state = m3ds_audio_stream_state(&slot->audio);
+    if (state == M3DS_AUDIO_STATE_FALLBACK_NO_DSP && reported_stream[id]) return 0;
+    M3dsAudioStreamSource source;
+    if (!m3ds_audio_stream_source_open_stdio(&slot->file, entry->path, entry->channels, &source)) return 0;
+    size_t bytes = (size_t)entry->frames * entry->channels * sizeof(int16_t);
+    FILE *file = slot->file.file;
+    if (fseek(file, 0L, SEEK_END) != 0 || ftell(file) != (long)bytes || !source.rewind(source.ctx)) {
+        source.close(source.ctx);
+        return 0;
+    }
+
+    m3ds_audio_stream_set_mix(&slot->audio, volume, pan);
+    m3ds_audio_stream_set_pitch(&slot->audio, pitch);
+    m3ds_audio_stream_set_paused(&slot->audio, false);
+    M3dsAudioStreamFormat format = {entry->rate, entry->channels};
+    bool started = m3ds_audio_stream_start(&slot->audio, &format, &source, loop);
+    slot->voice = 0;
+    if (started) {
+        int32_t voice;
+        do {
+            stream_voice_serial = (stream_voice_serial + 1u) & (STREAM_VOICE_FLAG - 1u);
+            voice = (int32_t)(STREAM_VOICE_FLAG | stream_voice_serial);
+        } while (find_stream_voice(voice) != NULL);
+        slot->voice = voice;
+    }
+    if (!reported_stream[id]) {
+        reported_stream[id] = true;
+        log_audio("UPSTREAM_LIVE_STREAM_PLAY id=%ld volume=%.3f pitch=%.3f pan=%.3f voice=%ld frames=%u\n",
+            (long)id, (double)volume, (double)pitch, (double)pan, (long)slot->voice, entry->frames);
+    }
+    return slot->voice;
+}
+
 int32_t m3ds_live_audio_open(void) {
     M3dsAudioBackend backend;
     m3ds_ndsp_backend_init(&backend, &backend_context);
     m3ds_audio_mixer_init(&mixer, &backend);
+    for (size_t i = 0; i < LIVE_STREAM_LANES; i++) {
+        M3dsAudioStreamBackend stream_backend;
+        m3ds_ndsp_stream_backend_init_on_channel(&stream_backend, &streams[i].backend,
+            &backend_context, M3DS_AUDIO_STREAM_NDSP_CHANNEL + 1u + (uint32_t)i);
+        m3ds_audio_stream_init(&streams[i].audio, &stream_backend);
+    }
     log_audio("UPSTREAM_LIVE_AUDIO_OPEN sounds=%u clips=%u pcmBytes=0 state=%s rc=0x%08lx\n",
-        M3DS_STOCK_SOUND_COUNT, M3DS_AUDIO_CLIP_COUNT,
+        M3DS_STOCK_SOUND_COUNT, M3DS_STOCK_SHORT_COUNT,
         m3ds_audio_state_name(m3ds_audio_mixer_state(&mixer)),
         (unsigned long)m3ds_audio_mixer_status_code(&mixer));
     return 1;
 }
 
 int32_t m3ds_live_audio_play(int32_t id, float volume, float pitch, float pan, int32_t loop) {
-    if ((uint32_t)id >= M3DS_STOCK_SOUND_COUNT || m3ds_sound_to_clip[id] < 0) return 0;
+    if ((uint32_t)id >= M3DS_STOCK_SOUND_COUNT) return 0;
+    const M3dsAudioIndexEntry *entry = &m3ds_audio_index[id];
+    if (entry->frames > M3DS_AUDIO_MAX_CLIP_SAMPLES) {
+        return play_stream(id, entry, volume, pitch, pan, loop != 0);
+    }
     unsigned loads_before = cache_loads;
-    int clip = load_sound(&m3ds_audio_index[m3ds_sound_to_clip[id]]);
+    int clip = load_sound(entry);
     if (clip == M3DS_AUDIO_INVALID_CLIP) return 0;
     M3dsAudioPlayParams params = m3ds_audio_default_play_params(M3DS_AUDIO_BUS_SFX);
     params.volume = volume;
     params.pitch = pitch;
     params.pan = pan;
     params.looping = loop != 0;
+    while (mixer.next_handle >= STREAM_VOICE_FLAG ||
+            m3ds_audio_mixer_voice_is_active(&mixer, mixer.next_handle)) {
+        mixer.next_handle = mixer.next_handle >= STREAM_VOICE_FLAG ? 1u : mixer.next_handle + 1u;
+    }
     uint32_t voice = m3ds_audio_mixer_play(&mixer, clip, &params);
     play_requests++;
     if (cache_loads != loads_before) {
@@ -139,31 +220,41 @@ int32_t m3ds_live_audio_play(int32_t id, float volume, float pitch, float pan, i
 }
 
 int32_t m3ds_live_audio_is_active(int32_t voice) {
-    return m3ds_audio_mixer_voice_is_active(&mixer, (uint32_t)voice);
+    return find_stream_voice(voice) != NULL || m3ds_audio_mixer_voice_is_active(&mixer, (uint32_t)voice);
 }
 
 void m3ds_live_audio_stop(int32_t voice) {
-    m3ds_audio_mixer_stop(&mixer, (uint32_t)voice);
+    LiveSoundStream *stream = find_stream_voice(voice);
+    if (stream) m3ds_audio_stream_stop(&stream->audio);
+    else m3ds_audio_mixer_stop(&mixer, (uint32_t)voice);
 }
 
 void m3ds_live_audio_set_pitch(int32_t voice, float pitch) {
-    m3ds_audio_mixer_set_voice_pitch(&mixer, (uint32_t)voice, pitch);
+    LiveSoundStream *stream = find_stream_voice(voice);
+    if (stream) m3ds_audio_stream_set_pitch(&stream->audio, pitch);
+    else m3ds_audio_mixer_set_voice_pitch(&mixer, (uint32_t)voice, pitch);
 }
 
 void m3ds_live_audio_set_paused(int32_t voice, int32_t paused) {
-    m3ds_audio_mixer_set_voice_paused(&mixer, (uint32_t)voice, paused != 0);
+    LiveSoundStream *stream = find_stream_voice(voice);
+    if (stream) m3ds_audio_stream_set_paused(&stream->audio, paused != 0);
+    else m3ds_audio_mixer_set_voice_paused(&mixer, (uint32_t)voice, paused != 0);
 }
 
 void m3ds_live_audio_set_mix(int32_t voice, float pan, float volume) {
-    m3ds_audio_mixer_set_voice_mix(&mixer, (uint32_t)voice, volume, pan);
+    LiveSoundStream *stream = find_stream_voice(voice);
+    if (stream) m3ds_audio_stream_set_mix(&stream->audio, volume, pan);
+    else m3ds_audio_mixer_set_voice_mix(&mixer, (uint32_t)voice, volume, pan);
 }
 
 void m3ds_live_audio_update(void) {
     m3ds_audio_mixer_update(&mixer);
+    for (size_t i = 0; i < LIVE_STREAM_LANES; i++) m3ds_audio_stream_update(&streams[i].audio);
 }
 
 void m3ds_live_audio_reset(void) {
     m3ds_audio_mixer_stop_all(&mixer);
+    for (size_t i = 0; i < LIVE_STREAM_LANES; i++) m3ds_audio_stream_stop(&streams[i].audio);
 }
 
 void m3ds_live_audio_close(void) {
@@ -177,6 +268,8 @@ void m3ds_live_audio_close(void) {
     for (size_t i = 0; i < M3DS_AUDIO_MAX_CLIPS; i++) {
         if (resident[i].entry != NULL) release_sound(&resident[i]);
     }
+    for (size_t i = 0; i < LIVE_STREAM_LANES; i++) m3ds_audio_stream_shutdown(&streams[i].audio);
+    for (size_t i = 0; i < M3DS_STOCK_SOUND_COUNT; i++) reported_stream[i] = false;
     m3ds_audio_mixer_shutdown(&mixer);
     sequence = 0;
     cache_hits = cache_loads = cache_evictions = play_requests = 0;

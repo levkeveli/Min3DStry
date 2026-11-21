@@ -81,25 +81,21 @@ def pack_live_audio(args, staged: Path, scratch: Path) -> None:
     (catalog / "audio").rename(staged / "audio")
     upstream = scratch / "upstream"
     shutil.copytree(staged / "audio/sounds", upstream / "core/assets/sounds")
-    short = [
+    entries = [
         {"id": f"sfx.{sound['id']:03}", "source": sound["source"], "channels": sound["channels"]}
         for sound in sounds
-        if sound["frames"] * DEFAULT_RATE <= LIVE_AUDIO_MAX_FRAMES * sound["sample_rate"]
     ]
     audio_map = scratch / "sound-map.json"
     audio_map.write_text(json.dumps({"format": 1, "upstream_commit": UPSTREAM_COMMIT,
-                                     "rate": DEFAULT_RATE, "entries": short}), encoding="ascii")
+                                     "rate": DEFAULT_RATE, "entries": entries}), encoding="ascii")
     pcm = convert_map(upstream, audio_map, scratch / "pcm", args.ffmpeg, romfs_out=staged)
-    if any(entry["frames"] > LIVE_AUDIO_MAX_FRAMES for entry in pcm["entries"]):
-        raise ValueError("Converted sound exceeds the live clip frame limit")
-    index = {entry["id"]: ordinal for ordinal, entry in enumerate(pcm["entries"])}
-    ordinals = [index.get(f"sfx.{sound['id']:03}", -1) for sound in sounds]
-    lines = ['#include <stdint.h>', '#include "audio-index.h"', '',
-             f'#define M3DS_STOCK_SOUND_COUNT {len(ordinals)}U',
-             'static const int16_t m3ds_sound_to_clip[M3DS_STOCK_SOUND_COUNT] = {']
-    for start in range(0, len(ordinals), 16):
-        lines.append("    " + ", ".join(map(str, ordinals[start:start + 16])) + ",")
-    lines.extend(["};", ""])
+    converted = pcm["entries"]
+    if [entry["id"] for entry in converted] != [entry["id"] for entry in entries]:
+        raise ValueError("PCM index does not follow the original stock sound IDs")
+    short_count = sum(entry["frames"] <= LIVE_AUDIO_MAX_FRAMES for entry in converted)
+    lines = ['#include "audio-index.h"', '',
+             '#define M3DS_STOCK_SOUND_COUNT M3DS_AUDIO_CLIP_COUNT',
+             f'#define M3DS_STOCK_SHORT_COUNT {short_count}U', '']
     (staged / "sound-index.h").write_text("\n".join(lines), encoding="ascii")
 
 

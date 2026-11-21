@@ -429,11 +429,10 @@ bytes on both joins.
 
 Pass `--live-audio` to `arm11/prepare_terrain_assets.py` along with its
 multiplayer inputs. The packer verifies and stages all 205 stock sound
-assets from the pinned desktop JAR. It also converts 194 effects of up to
-six seconds to 22.05 kHz PCM16, retaining
-their original channels, and emits an index keyed by upstream sound ID.
-The remaining 11 effects are staged as their original Ogg files for the
-[streaming follow-up](https://github.com/levkeveli/Min3DStry/issues/250).
+assets from the pinned desktop JAR and converts their playback copies to
+22.05 kHz PCM16, retaining their original channels. The PCM index follows
+upstream sound IDs. Of the 205 entries, 194 fit the six-second clip limit
+and 11 use the double-buffered stream.
 
 The graphical live client binds the generated `Sounds.load()` registry
 before content initialization. It uses Arc gain, pan, pitch and deduplication
@@ -441,19 +440,27 @@ for local effects, and dispatches the original `SoundCallPacket` and
 `SoundAtCallPacket` handlers. On first use the mixer reads the requested PCM
 into a cache of up to 16 clips and 640 KiB. It evicts the least recently used
 inactive clips. The NDSP backend has a second bounded copy in linear memory
-when DSP initializes. There are zero sample bytes resident at startup.
+when DSP initializes. The cache starts with zero resident clips.
 The network-render reference JAR excludes the replaced `Sound` and
 `BulletType` classes so TeaVM uses the staged audio and trail adapters.
 
+Long effects stream from ROMFS in 4,096-frame chunks. Four NDSP channels
+9–12 each queue up to two chunks, with 128 KiB of linear buffers total
+and 64 KiB of reusable PCM scratch across the four voices. Channel 8
+remains assigned to music. Long voices use the same positional parameters
+and preserve pause, stop and loop behavior. A long request returns without
+a voice when all four channels are busy. World changes stop all voices,
+and stream shutdown releases its channels before the mixer shuts down.
+
 Run `python3 tools/verify_live_stock_audio.py <terrain-assets>` with the
-staged directory to exercise all 194 PCM files through the shared mixer on
-a host. The test holds a looping Gamma firing voice while it loads and evicts
-other clips. It also checks cache hits, gain, pan, pitch, pause and no-DSP
-fallback. Add `--verify-live-audio` to the Glacier weapon replay to check the
-local Gamma sound (117) and stock Java server packets for the UI button (185)
-and positional wave spawn (198). The report includes resident PCM, cache
-hits and voice counts. Azahar without DSP firmware exercises asset loading
-and request routing.
+staged directory to exercise all 205 PCM files through the live mixer and
+streamer on a host. The test holds a looping Gamma firing voice while it
+loads and evicts other clips, then checks EOF, rewinds, four concurrent
+streams, stale handles and no-DSP fallback. Add `--verify-live-audio` to the
+Glacier weapon replay to check the local Gamma sound (117) and stock Java server packets for the UI button (185)
+and positional wave spawn (198) and Wind2 (200). The report includes resident
+PCM, cache hits and voice counts. Azahar without DSP firmware checks stock
+packet routing and can open and verify the staged long sound's PCM size.
 
 The stock SFX ARM11 build from `94e74c9` passed the expanded Glacier replay
 on both Azahar profiles. The native cache started with zero resident PCM.
