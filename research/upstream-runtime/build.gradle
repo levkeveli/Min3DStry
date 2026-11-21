@@ -312,22 +312,14 @@ final class GlacierFixture {
         if (patchesPlanetGrid) {
             def grid = new String(readUpstream(planetGridSource), 'UTF-8')
             def create = 'public static synchronized PlanetGrid create(int size){'
-            def recurse = 'subdividedGrid(create(size - 1))'
-            if (grid.count(create) != 1 || grid.count(recurse) != 1) {
+            if (grid.count(create) != 1) {
                 throw new GradleException('Pinned PlanetGrid cache methods changed')
             }
             def adaptedGrid = planetGridFile.get().asFile
             adaptedGrid.parentFile.mkdirs()
-            // The class monitor fails during localized ARM11 content initialization.
-            // Keep the original cache protected by a lock on its managed array.
-            adaptedGrid.setText(grid.replace(create, '''public static PlanetGrid create(int size){
-        synchronized(cache){
-            return createCached(size);
-        }
-    }
-
-    private static PlanetGrid createCached(int size){''')
-                .replace(recurse, 'subdividedGrid(createCached(size - 1))'), 'UTF-8')
+            // This synchronous path never yields on TeaVM C's single execution lane.
+            // Its cache and subdivision stay atomic without the failing Java monitor.
+            adaptedGrid.setText(grid.replace(create, 'public static PlanetGrid create(int size){'), 'UTF-8')
         }
         if (usesLiveNetwork) {
             def source = new String(readUpstream(netClientSource), 'UTF-8')
