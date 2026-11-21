@@ -1,6 +1,7 @@
 import port.render.UpstreamCrackAtlas;
 import port.render.UpstreamFluidAtlas;
 import port.render.UpstreamWorldLabel;
+import port.logic.UpstreamClientLogic;
 import arc.Core;
 import arc.files.Fi;
 import arc.graphics.g2d.Draw;
@@ -74,6 +75,7 @@ public final class UpstreamRenderedNetworkProbe {
     }
 
     private void loadGraphics() {
+        UpstreamClientLogic.initialize(new Fi("/romfs/logicids.dat"));
         Core.graphics = new MockGraphics() {
             @Override public int getWidth() { return 400; }
             @Override public int getHeight() { return 240; }
@@ -160,6 +162,7 @@ public final class UpstreamRenderedNetworkProbe {
         Time.delta = delta;
         Time.setInternalTime(Time.getInternalTime() + delta);
         try {
+            UpstreamClientLogic.update(frameSeconds * 60f);
             for (var build : Groups.build) {
                 if (build instanceof Conduit.ConduitBuild conduit) conduit.advanceLiquidDraw();
             }

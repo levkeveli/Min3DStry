@@ -1,6 +1,7 @@
 import port.render.UpstreamCrackAtlas;
 import port.render.UpstreamFluidAtlas;
 import port.render.UpstreamCanvasTexture;
+import port.logic.UpstreamClientLogic;
 import arc.Core;
 import arc.files.Fi;
 import arc.graphics.Blending;
@@ -10,6 +11,7 @@ import arc.graphics.g2d.Fill;
 import arc.graphics.g2d.Lines;
 import arc.graphics.g2d.SpriteBatch;
 import arc.graphics.g2d.TextureRegion;
+import arc.struct.Seq;
 import arc.util.Time;
 import arc.util.io.Reads;
 import arc.util.io.Writes;
@@ -25,6 +27,7 @@ import mindustry.content.Blocks;
 import mindustry.content.Items;
 import mindustry.content.Liquids;
 import mindustry.content.UnitTypes;
+import mindustry.ctype.ContentType;
 import mindustry.entities.units.BuildPlan;
 import mindustry.gen.Builderc;
 import mindustry.gen.Player;
@@ -47,6 +50,9 @@ import mindustry.world.blocks.defense.ShockwaveTower.ShockwaveTowerBuild;
 import mindustry.world.blocks.production.GenericCrafter.GenericCrafterBuild;
 import mindustry.world.blocks.logic.CanvasBlock;
 import mindustry.world.blocks.logic.CanvasBlock.CanvasBuild;
+import mindustry.world.blocks.logic.LogicBlock;
+import mindustry.world.blocks.logic.LogicBlock.LogicBuild;
+import mindustry.world.blocks.logic.LogicBlock.LogicLink;
 import mindustry.world.blocks.payloads.BuildPayload;
 import mindustry.world.blocks.payloads.Payload;
 import mindustry.world.blocks.payloads.UnitPayload;
@@ -62,10 +68,10 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
     private float[] canvasQuadVertices;
 
     public static void main(String[] args) throws Exception {
-        if (args.length < 3 || args.length > 4) {
-            throw new IllegalArgumentException("Expected Glacier, sprites.aatls, block_colors.png and optional bundle base");
+        if (args.length < 3 || args.length > 5) {
+            throw new IllegalArgumentException("Expected Glacier, sprites.aatls, block_colors.png, optional bundle base and logicids.dat");
         }
-        if (args.length == 4) Core.bundle = UpstreamInterfaceLocale.load(new Fi(args[3]), 1, "en");
+        if (args.length >= 4) Core.bundle = UpstreamInterfaceLocale.load(new Fi(args[3]), 1, "en");
         CacheLayer.init();
         UpstreamWorldLoadProbe.load(new String[]{args[0]});
         UpstreamTerrainDrawProbe.loadAtlas(new Fi(args[1]), UpstreamFluidAtlas::load);
@@ -124,7 +130,37 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         target.verifyCoreVariants(layers, viewport, viewer);
         target.verifyErekirStarterBlocks(layers, viewport, viewer);
         target.verifyCanvas(viewer);
-        if (args.length == 4) verifyObjectiveHud();
+        if (args.length >= 4) verifyObjectiveHud();
+        if (args.length == 5) verifyClientProcessor(new Fi(args[4]), viewer);
+    }
+
+    private static void verifyClientProcessor(Fi ids, Team team) {
+        UpstreamClientLogic.initialize(ids);
+        int copper = Vars.logicVars.lookupLogicId(Items.copper);
+        if (copper < 0 || Vars.logicVars.lookupContent(ContentType.item, copper) != Items.copper) {
+            throw new AssertionError("Original logic ID table did not resolve Copper");
+        }
+        var processorTile = Vars.world.tile(70, 15);
+        var canvasTile = Vars.world.tile(72, 15);
+        canvasTile.setBlock(Blocks.canvas, team);
+        processorTile.setBlock(Blocks.microProcessor, team);
+        var processor = (LogicBuild)processorTile.build;
+        var canvas = (CanvasBuild)canvasTile.build;
+        Vars.net.setClientConnected();
+        byte[] config = LogicBlock.compress("getlink canvas 0\nop add color 3 2\nwrite color canvas 0\nend",
+            Seq.with(new LogicLink(2, 0, "canvas1", true)));
+        processor.configured(null, config);
+        float oldDelta = Time.delta;
+        Time.delta = 1f;
+        try {
+            for (int i = 0; i < 8; i++) UpstreamClientLogic.update(1f);
+        } finally {
+            Time.delta = oldDelta;
+        }
+        if (processor.executor.links.length != 1 || processor.executor.links[0] != canvas || canvas.getPixel(0) != 5) {
+            throw new AssertionError("Stock client processor did not execute the configured Canvas write");
+        }
+        System.out.println("UPSTREAM_CLIENT_PROCESSOR_REFERENCE ids=ok compressed=ok link=ok canvas=5");
     }
 
     private void verifyCanvas(Team team) {

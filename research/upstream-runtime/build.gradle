@@ -20,6 +20,7 @@ def networkIoSource = 'core/src/mindustry/net/NetworkIO.java'
 def netClientSource = 'core/src/mindustry/core/NetClient.java'
 def placementSource = 'core/src/mindustry/ui/fragments/PlacementFragment.java'
 def itemSelectionSource = 'core/src/mindustry/world/blocks/ItemSelection.java'
+def globalLogicSource = 'core/src/mindustry/logic/GlobalVars.java'
 def planetGridSource = 'core/src/mindustry/graphics/g3d/PlanetGrid.java'
 def pixmapSource = 'arc-core/src/arc/graphics/Pixmap.java'
 def jsonSource = 'arc-core/src/arc/util/serialization/Json.java'
@@ -135,6 +136,7 @@ def placementFile = sourceDir.map { it.file('UpstreamPlacementCatalog.java') }
 def itemChoicesFile = sourceDir.map { it.file('UpstreamItemChoices.java') }
 def planetGridFile = sourceDir.map { it.file('mindustry/graphics/g3d/PlanetGrid.java') }
 def contentColorsFile = sourceDir.map { it.file('mindustry/core/ContentLoader.java') }
+def globalLogicFile = sourceDir.map { it.file('mindustry/logic/GlobalVars.java') }
 def shieldModeSources = [
     'mindustry/graphics/Drawf.java': 'renderer',
     'mindustry/entities/abilities/ForceFieldAbility.java': 'Vars.renderer'
@@ -203,6 +205,7 @@ if (usesArcSources || usesExecutor) {
                               'mindustry/game/MapObjectives$TextureMarker.class',
                               'mindustry/game/MapObjectives$QuadMarker.class',
                               'mindustry/world/blocks/logic/CanvasBlock$CanvasBuild.class',
+                              'mindustry/logic/GlobalVars.class', 'mindustry/logic/GlobalVars$*.class',
                               'mindustry/core/ContentLoader.class'])
         shieldModeSources.keySet().each { path ->
             stagedClasses.add(path.replace('.java', '.class'))
@@ -372,7 +375,7 @@ tasks.register('prepareUpstreamProbe') {
         fluidSources.keySet().each { outputs.file(sourceDir.map { dir -> dir.file(it) }) }
     }
     if (probe == 'network-render') {
-        outputs.file(contentColorsFile)
+        outputs.files(contentColorsFile, globalLogicFile)
         shieldModeSources.keySet().each { outputs.file(sourceDir.map { dir -> dir.file(it) }) }
     }
     if (usesCampaignJsonCompat) {
@@ -383,6 +386,20 @@ tasks.register('prepareUpstreamProbe') {
     }
     doLast {
         if (probe == 'network-render') {
+            def globalLogic = new String(readUpstream(globalLogicSource), 'UTF-8')
+            def logicChanges = [
+                'import arc.*;': 'import port.logic.UpstreamClientLogic;\n\nimport arc.*;',
+                'Core.files.internal("logicids.dat")': 'UpstreamClientLogic.logicIds()',
+                'control.sound.isPlaying() ? 1 : 0': 'control != null && control.sound.isPlaying() ? 1 : 0',
+                'var music = control.sound.getCurrent();': 'var music = control == null ? null : control.sound.getCurrent();'
+            ]
+            logicChanges.each { original, replacement ->
+                if (globalLogic.count(original) != 1) throw new GradleException('Pinned logic global initialization changed')
+                globalLogic = globalLogic.replace(original, replacement)
+            }
+            def adaptedLogic = globalLogicFile.get().asFile
+            adaptedLogic.parentFile.mkdirs()
+            adaptedLogic.setText(globalLogic, 'UTF-8')
             def loader = new String(readUpstream('core/src/mindustry/core/ContentLoader.java'), 'UTF-8')
             def loadColors = '''public void loadColors(){
         Pixmap pixmap = new Pixmap(files.internal("sprites/block_colors.png"));'''

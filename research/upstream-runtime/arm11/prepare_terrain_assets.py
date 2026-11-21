@@ -90,6 +90,7 @@ def main() -> None:
             bundles.mkdir()
             with zipfile.ZipFile(args.assets) as archive:
                 (staged / "block_colors.png").write_bytes(archive.read("assets/sprites/block_colors.png"))
+                (staged / "logicids.dat").write_bytes(archive.read("assets/logicids.dat"))
                 for member in archive.namelist():
                     if re.fullmatch(r"assets/bundles/bundle(?:_[A-Za-z_]+)?\.properties", member):
                         (bundles / Path(member).name).write_bytes(archive.read(member))
