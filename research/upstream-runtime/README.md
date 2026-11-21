@@ -922,6 +922,14 @@ keeps its original iteration, neighbor conditions and tile writes.
 The initial TCP heartbeat remains active through world reporting and the
 connect confirmation, including the tile checksum in the rejoin replay.
 
+The [rejoin verification ROM](https://github.com/levkeveli/Min3DStry/actions/runs/44941141449)
+rendered The Onset twice in one ARM11 process on each Azahar profile, with
+one renderer initialization and the same 24 MiB managed heap cap. Each new
+connection received a fresh player unit and matched the unmodified Java
+server's CRC32 `3861859253` across all 262,144 tile data bytes.
+The same ROM passed the Glacier offscreen display marker replay on both
+profiles.
+
 The renderer still selects blocks that use the supported sprite operations.
 Textured raw vertices, additional payload types and other rendering services
 are tracked in [#139](https://github.com/levkeveli/Min3DStry/issues/139).
