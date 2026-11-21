@@ -884,7 +884,14 @@ The same Onset checks passed at both `-O0` and `-O2`. The builds reserve
 the SOC buffer. These subtotals exclude GC metadata and other native
 allocations. Physical-console memory and frame rate remain to be verified.
 
-The integrated graphical client keeps the stock logic globals available
+The [integrated renderer](https://github.com/levkeveli/Min3DStry/actions/runs/44937074108)
+passed Glacier on both Azahar profiles, but reached the managed heap cap
+while loading The Onset on both profiles. On Old 3DS, a breakpoint at
+`teavm_outOfMemory` showed that `World.addDarkness` could not allocate its
+second 262,144-byte scratch array. Only 16 managed heap bytes remained
+after collection.
+
+The graphical client keeps the stock logic globals available
 during WorldStream decode, then initializes the atlas, unit graphics and
 fonts after the original world loader and posted tasks finish. The initial
 connection uses its TCP keepalive through both phases. The ARM11 collector
