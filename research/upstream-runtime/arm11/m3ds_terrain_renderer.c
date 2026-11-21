@@ -213,7 +213,11 @@ static C2D_SpriteSheet get_world_texture(int page, int x, int y) {
     world_textures[victim].x = x;
     world_textures[victim].y = y;
     world_textures[victim].frame = world_pass;
-    C3D_TexSetFilter(C2D_SpriteSheetGetImage(sheet, 0).tex, GPU_NEAREST, GPU_NEAREST);
+    C3D_Tex *texture = C2D_SpriteSheetGetImage(sheet, 0).tex;
+    C3D_TexSetFilter(texture, GPU_NEAREST, GPU_NEAREST);
+    // A pixel center exactly on an internal atlas edge can sample coordinate 1.
+    // Clamp to the adjacent texel instead of introducing a transparent border.
+    C3D_TexSetWrap(texture, GPU_CLAMP_TO_EDGE, GPU_CLAMP_TO_EDGE);
     return sheet;
 }
 
