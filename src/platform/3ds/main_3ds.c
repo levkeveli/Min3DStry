@@ -25,6 +25,7 @@
 #include "render/scene_2d.h"
 #include "sim/parity_scenario.h"
 #include "ui/pause_menu.h"
+#include "ui/touch_controls.h"
 
 #if M3DS_AUDIO_ROMFS
 #include "audio-index.h"
@@ -369,6 +370,7 @@ int main(int argc, char *argv[]) {
     bool demo_wall_removed = false;
     bool paused_before_menu = false;
     bool quit_requested = false;
+    M3dsTouchAction touch_held = M3DS_TOUCH_ACTION_NONE;
     M3dsPauseMenu pause_menu;
     m3ds_pause_menu_init(&pause_menu);
     snprintf(dbg_line, sizeof(dbg_line),
@@ -380,6 +382,32 @@ int main(int argc, char *argv[]) {
         hidScanInput();
         u32 kDown = hidKeysDown();
         u32 kHeld = hidKeysHeld();
+
+        if (kDown & KEY_TOUCH) {
+            touchPosition touch;
+            hidTouchRead(&touch);
+            M3dsTouchAction action =
+                m3ds_touch_action_at((float)touch.px, (float)touch.py);
+            if (action != M3DS_TOUCH_ACTION_NONE) {
+                snprintf(dbg_line, sizeof(dbg_line),
+                         "[MIN3DSTRY] TOUCH action=%s x=%u y=%u\n",
+                         m3ds_touch_action_id(action),
+                         (unsigned)touch.px, (unsigned)touch.py);
+                m3ds_emit_debug_line(log_socket, dbg_line);
+            }
+            if (action == M3DS_TOUCH_ACTION_MENU) {
+                kDown |= KEY_SELECT;
+            } else if (action == M3DS_TOUCH_ACTION_ZOOM_IN) {
+                kDown |= KEY_L;
+            } else if (action == M3DS_TOUCH_ACTION_ZOOM_OUT) {
+                kDown |= KEY_R;
+            } else if (m3ds_touch_action_is_pan(action)) {
+                touch_held = action;
+            }
+        }
+        if (!(kHeld & KEY_TOUCH)) {
+            touch_held = M3DS_TOUCH_ACTION_NONE;
+        }
 
         if (kDown & KEY_START) {
             break;
@@ -471,6 +499,10 @@ int main(int argc, char *argv[]) {
             if (kHeld & KEY_RIGHT) pan_dx += 2.0f;
             if (kHeld & KEY_UP)    pan_dy -= 2.0f;
             if (kHeld & KEY_DOWN)  pan_dy += 2.0f;
+            if (touch_held == M3DS_TOUCH_ACTION_CAMERA_LEFT)  pan_dx -= 2.0f;
+            if (touch_held == M3DS_TOUCH_ACTION_CAMERA_RIGHT) pan_dx += 2.0f;
+            if (touch_held == M3DS_TOUCH_ACTION_CAMERA_UP)    pan_dy -= 2.0f;
+            if (touch_held == M3DS_TOUCH_ACTION_CAMERA_DOWN)  pan_dy += 2.0f;
 
             circlePosition cpad;
             hidCircleRead(&cpad);
@@ -631,6 +663,7 @@ int main(int argc, char *argv[]) {
         printf("\x1b[13;1HX:Mute B:Light Zoom:%.2f\x1b[K",
                (double)m3ds_scene_zoom(&scene));
         printf("\x1b[14;1H%s\x1b[K", hw_summary);
+        printf("\x1b[19;1HTouch: pad / zoom / menu\x1b[K");
         if (pause_menu.open) {
             printf("\x1b[15;1H=== PAUSED ===  Up/Down + A\x1b[K");
             for (uint8_t i = 0u; i < M3DS_PAUSE_ACTION_COUNT; ++i) {
