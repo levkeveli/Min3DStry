@@ -386,23 +386,37 @@ int main(int argc, char *argv[]) {
         if (kDown & KEY_TOUCH) {
             touchPosition touch;
             hidTouchRead(&touch);
-            M3dsTouchAction action =
-                m3ds_touch_action_at((float)touch.px, (float)touch.py);
-            if (action != M3DS_TOUCH_ACTION_NONE) {
-                snprintf(dbg_line, sizeof(dbg_line),
-                         "[MIN3DSTRY] TOUCH action=%s x=%u y=%u\n",
-                         m3ds_touch_action_id(action),
-                         (unsigned)touch.px, (unsigned)touch.py);
-                m3ds_emit_debug_line(log_socket, dbg_line);
+            bool handled_menu_row = false;
+            if (pause_menu.open) {
+                int row = m3ds_touch_menu_row((float)touch.py, M3DS_PAUSE_ACTION_COUNT);
+                if (row >= 0) {
+                    pause_menu.selected = (uint8_t)row;
+                    kDown |= KEY_A;
+                    handled_menu_row = true;
+                    snprintf(dbg_line, sizeof(dbg_line),
+                             "[MIN3DSTRY] TOUCH action=menu.row row=%d\n", row);
+                    m3ds_emit_debug_line(log_socket, dbg_line);
+                }
             }
-            if (action == M3DS_TOUCH_ACTION_MENU) {
-                kDown |= KEY_SELECT;
-            } else if (action == M3DS_TOUCH_ACTION_ZOOM_IN) {
-                kDown |= KEY_L;
-            } else if (action == M3DS_TOUCH_ACTION_ZOOM_OUT) {
-                kDown |= KEY_R;
-            } else if (m3ds_touch_action_is_pan(action)) {
-                touch_held = action;
+            if (!handled_menu_row) {
+                M3dsTouchAction action =
+                    m3ds_touch_action_at((float)touch.px, (float)touch.py);
+                if (action != M3DS_TOUCH_ACTION_NONE) {
+                    snprintf(dbg_line, sizeof(dbg_line),
+                             "[MIN3DSTRY] TOUCH action=%s x=%u y=%u\n",
+                             m3ds_touch_action_id(action),
+                             (unsigned)touch.px, (unsigned)touch.py);
+                    m3ds_emit_debug_line(log_socket, dbg_line);
+                }
+                if (action == M3DS_TOUCH_ACTION_MENU) {
+                    kDown |= KEY_SELECT;
+                } else if (action == M3DS_TOUCH_ACTION_ZOOM_IN) {
+                    kDown |= KEY_L;
+                } else if (action == M3DS_TOUCH_ACTION_ZOOM_OUT) {
+                    kDown |= KEY_R;
+                } else if (m3ds_touch_action_is_pan(action)) {
+                    touch_held = action;
+                }
             }
         }
         if (!(kHeld & KEY_TOUCH)) {
