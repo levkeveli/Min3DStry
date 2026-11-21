@@ -16,6 +16,7 @@ markers they emit on the JVM and/or ARM11/Azahar.
 | Save-slot backup fallback | save-slot probe | Host + Azahar | invalid primary + valid `*-backup.msav` -> `SAVE_SLOT present=1 valid=1 version=13`; HUD `Save: v13` |
 | Full save zlib inflate (native) | save-slot read + `msav_inflate` | Host + Azahar | `SECTOR_INFLATE planet=serpulo id=170 raw=11072 bytes=45955 status=ok` |
 | Inflated world header (native) | `msav_world` | Host + Azahar | `SECTOR_WORLD version=13 width=150 height=250 status=ok` |
+| Map tile/entity walk (native) | `msav_world` | Host + Azahar | `SECTOR_TILES floors=37500 blocks=2768 data=0 entities=2 map=37500 entity_region=26 hash=bec356915bd24165` |
 | Save writer baseline | host `UpstreamSaveBaseline` | Host/JVM | `UPSTREAM_SAVE header=MSAV version=13` |
 
 Rows marked `JVM + Azahar` run in Azahar `2126.2` on both New and Old 3DS

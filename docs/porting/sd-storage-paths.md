@@ -88,7 +88,15 @@ world dimensions from the map region:
 ```
 
 World parsing/loading is still separate work; no world or tile buffer is
-allocated.
+allocated. The map region's floor/block records and entity chunk lengths are
+walked and validated, and the map bytes are hashed:
+
+```text
+[MIN3DSTRY] SECTOR_TILES floors=37500 blocks=2768 data=0 entities=2 map=37500 entity_region=26 hash=bec356915bd24165
+```
+
+Both Azahar profiles produce the same hash. Entity bytes are bounds-checked but
+not decoded.
 
 ## SD sector catalog
 

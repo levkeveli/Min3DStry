@@ -237,7 +237,7 @@ int main(int argc, char *argv[]) {
         m3ds_emit_debug_line(log_socket, dbg_line);
         M3dsMsavWorld world;
         bool world_ok = inflate_ok
-            && m3ds_msav_parse_world_header(inflated, inflated_size, &world);
+            && m3ds_msav_parse_world(inflated, inflated_size, &world);
         snprintf(dbg_line, sizeof(dbg_line),
                  "[MIN3DSTRY] SECTOR_WORLD version=%u width=%u height=%u status=%s\n",
                  world_ok ? (unsigned)world.version : 0u,
@@ -245,6 +245,16 @@ int main(int argc, char *argv[]) {
                  world_ok ? (unsigned)world.height : 0u,
                  world_ok ? "ok" : "failed");
         m3ds_emit_debug_line(log_socket, dbg_line);
+        if (world_ok) {
+            snprintf(dbg_line, sizeof(dbg_line),
+                     "[MIN3DSTRY] SECTOR_TILES floors=%u blocks=%u data=%u entities=%u map=%u entity_region=%u hash=%016llx\n",
+                     (unsigned)world.floor_tiles, (unsigned)world.block_records,
+                     (unsigned)world.data_tiles, (unsigned)world.entity_tiles,
+                     (unsigned)(world.width * world.height),
+                     (unsigned)world.entity_region_bytes,
+                     (unsigned long long)world.map_hash);
+            m3ds_emit_debug_line(log_socket, dbg_line);
+        }
         free(raw);
         free(inflated);
     }
