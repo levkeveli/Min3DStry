@@ -4,6 +4,7 @@ import port.render.UpstreamWorldLabel;
 import arc.Core;
 import arc.files.Fi;
 import arc.graphics.g2d.Draw;
+import arc.mock.MockGraphics;
 import arc.struct.IntSet;
 import arc.struct.ObjectSet;
 import arc.util.Time;
@@ -43,6 +44,7 @@ public final class UpstreamRenderedNetworkProbe {
     private Unit controlled;
     private int draws;
     private long previousVisualFrame;
+    private float frameSeconds;
     private int lastLeft = -1, lastBottom = -1;
     private final UpstreamWorldLabel.Target worldLabel = this::drawWorldLabel;
     private final ObjectSet<String> reportedWorldLabels = new ObjectSet<>();
@@ -71,6 +73,12 @@ public final class UpstreamRenderedNetworkProbe {
     }
 
     private void loadGraphics() {
+        Core.graphics = new MockGraphics() {
+            @Override public int getWidth() { return 400; }
+            @Override public int getHeight() { return 240; }
+            @Override public float getDensity() { return 1f; }
+            @Override public float getDeltaTime() { return frameSeconds; }
+        };
         var locale = Core.bundle.getLocale();
         Core.settings.put("locale", locale.getLanguage().isEmpty() ? "en" : locale.toString());
         System.out.println("UPSTREAM_INTERFACE_GRAPHICS atlas");
@@ -138,13 +146,16 @@ public final class UpstreamRenderedNetworkProbe {
 
     private void advanceVisualState() {
         long now = System.nanoTime();
-        float delta = previousVisualFrame == 0 ? 1f
-            : Math.min((now - previousVisualFrame) * (60f / 1_000_000_000f), Vars.maxDeltaClient);
+        frameSeconds = previousVisualFrame == 0 ? 1f / 60f
+            : (now - previousVisualFrame) * (1f / 1_000_000_000f);
         previousVisualFrame = now;
+        float oldDelta = Time.delta;
+        Time.updateGlobal();
+        Time.delta = oldDelta;
         if (Vars.state.isPaused()) return;
 
         // Advance the original animation clock and conduit smoothing without replaying liquid transfers.
-        float oldDelta = Time.delta;
+        float delta = Math.min(frameSeconds * 60f, Vars.maxDeltaClient);
         Time.delta = delta;
         Time.setInternalTime(Time.getInternalTime() + delta);
         try {

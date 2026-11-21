@@ -16,17 +16,26 @@ import mindustry.core.NetClient;
 import mindustry.game.MapObjectives;
 import mindustry.game.MapObjectives.ItemObjective;
 import mindustry.game.MapObjectives.ResearchObjective;
+import mindustry.game.MapObjectives.TextMarker;
+import mindustry.game.MapObjectives.TextureMarker;
 import mindustry.game.Universe;
 import mindustry.gen.BlockSnapshotCallPacket;
 import mindustry.gen.ClearObjectivesCallPacket;
 import mindustry.gen.CompleteObjectiveCallPacket;
+import mindustry.gen.CreateMarkerCallPacket;
 import mindustry.gen.EntitySnapshotCallPacket;
 import mindustry.gen.Groups;
 import mindustry.gen.Player;
+import mindustry.gen.RemoveMarkerCallPacket;
 import mindustry.gen.SetObjectivesCallPacket;
 import mindustry.gen.StateSnapshotCallPacket;
 import mindustry.gen.Unit;
+import mindustry.gen.UpdateMarkerCallPacket;
+import mindustry.gen.UpdateMarkerTextCallPacket;
+import mindustry.gen.UpdateMarkerTextureCallPacket;
+import mindustry.logic.LMarkerControl;
 import mindustry.mod.Mods;
+import mindustry.net.Net;
 import mindustry.net.NetworkIO;
 import mindustry.net.Packet;
 import mindustry.world.blocks.payloads.BuildPayload;
@@ -90,6 +99,7 @@ public final class UpstreamSnapshotDispatchReference {
             + " seconds=42 copper=947 dagger=" + dagger.id);
         verifyPayloadHandoff();
         verifyObjectivePackets();
+        verifyMarkerPackets();
     }
 
     private static void verifyObjectivePackets() {
@@ -131,6 +141,75 @@ public final class UpstreamSnapshotDispatchReference {
         received.read(new Reads(new DataInputStream(new ByteArrayInputStream(payload))), payload.length);
         received.handled();
         received.handleClient();
+    }
+
+    private static void verifyMarkerPackets() {
+        var markers = Vars.state.markers;
+        var create = new CreateMarkerCallPacket();
+        create.id = 745;
+        create.marker = new TextMarker("Original", 48f, 96f);
+        applyMarkerPacket(create);
+        if (!(markers.get(create.id) instanceof TextMarker label) || !label.text.equals("Original")
+                || label.pos.x != 48f || label.pos.y != 96f || !markers.worldMarkers.contains(label, true)) {
+            throw new AssertionError("Stock create-marker did not restore the world label");
+        }
+
+        var text = new UpdateMarkerTextCallPacket();
+        text.id = create.id;
+        text.type = LMarkerControl.flushText;
+        text.text = "Updated";
+        applyMarkerPacket(text);
+
+        var update = new UpdateMarkerCallPacket();
+        update.id = create.id;
+        update.control = LMarkerControl.pos;
+        update.p1 = 19;
+        update.p2 = 23;
+        update.p3 = Double.NaN;
+        applyMarkerPacket(update);
+        if (!label.text.equals("Updated") || label.pos.x != 19 * Vars.tilesize || label.pos.y != 23 * Vars.tilesize) {
+            throw new AssertionError("Stock marker text or tile position did not update");
+        }
+
+        update.control = LMarkerControl.world;
+        update.p1 = 0;
+        update.p2 = Double.NaN;
+        applyMarkerPacket(update);
+        if (label.world != -1 || markers.worldMarkers.contains(label, true)) {
+            throw new AssertionError("Stock world visibility did not hide the marker");
+        }
+        update.p1 = 1;
+        applyMarkerPacket(update);
+        if (label.world == -1 || !markers.worldMarkers.contains(label, true)) {
+            throw new AssertionError("Stock world visibility did not restore the marker");
+        }
+
+        create.marker = new TextureMarker("white", 24f, 40f, 16f, 16f);
+        applyMarkerPacket(create);
+        var texture = new UpdateMarkerTextureCallPacket();
+        texture.id = create.id;
+        texture.texture = "error";
+        applyMarkerPacket(texture);
+        if (!(markers.get(create.id) instanceof TextureMarker image) || !image.texture.value.equals("error")
+                || markers.worldMarkers.contains(label, true)) {
+            throw new AssertionError("Stock marker replacement or texture update did not apply");
+        }
+
+        var remove = new RemoveMarkerCallPacket();
+        remove.id = create.id;
+        applyMarkerPacket(remove);
+        if (markers.has(create.id) || markers.worldMarkers.contains(image, true)) {
+            throw new AssertionError("Stock remove-marker left the marker in the registry");
+        }
+        System.out.println("UPSTREAM_MARKER_PACKETS create=ok text=ok position=ok visibility=ok replace=ok texture=ok remove=ok");
+    }
+
+    private static void applyMarkerPacket(Packet sent) {
+        var received = UpstreamLiveNetworkProbe.markerPacket(Net.getPacketClassId(sent.getClass()) & 0xff);
+        if (received == null || received.getClass() != sent.getClass()) {
+            throw new AssertionError("Missing stock live marker packet " + sent.getClass().getSimpleName());
+        }
+        applyPacket(sent, received);
     }
 
     private static void verifyPayloadHandoff() {
