@@ -14,6 +14,11 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
         UpstreamTerrainDrawProbe.capture(args, new UpstreamTerrainRenderProbe(true));
     }
 
+    void initialize() {
+        int result = NativeTerrain.initialize();
+        if (result != 1) throw new IllegalStateException("Unable to initialize Citro2D terrain: " + result);
+    }
+
     @Override
     public void begin(int left, int bottom, int width, int height) {
         int result = NativeTerrain.begin(left, bottom, width, height, Vars.tilesize);
@@ -42,6 +47,9 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
 
     @Include(value = "m3ds_terrain_renderer.h", isSystem = true)
     private static final class NativeTerrain {
+        @Import(name = "m3ds_terrain_initialize")
+        static native int initialize();
+
         @Import(name = "m3ds_terrain_begin")
         static native int begin(int left, int bottom, int width, int height, int tileSize);
 

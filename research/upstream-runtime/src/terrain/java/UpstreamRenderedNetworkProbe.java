@@ -12,7 +12,8 @@ import mindustry.graphics.CacheLayer;
 
 /** Presents the received Glacier world through the ARM11 terrain renderer. */
 public final class UpstreamRenderedNetworkProbe {
-    private final String[] atlasArgs;
+    private final Fi atlas;
+    private final UpstreamTerrainRenderProbe target = new UpstreamTerrainRenderProbe(false);
     private final Runnable drawEntities = this::drawEntities;
     private UpstreamTerrainDrawProbe.Viewport viewport;
     private Unit controlled;
@@ -20,14 +21,19 @@ public final class UpstreamRenderedNetworkProbe {
     private int lastLeft = -1, lastBottom = -1;
 
     private UpstreamRenderedNetworkProbe(Fi atlas) {
-        atlasArgs = new String[]{"", atlas.path()};
+        this.atlas = atlas;
     }
 
     public static void main(String[] args) throws IOException, InterruptedException {
         var endpoint = UpstreamLiveNetworkProbe.endpointFile(args);
         var view = new UpstreamRenderedNetworkProbe(endpoint.sibling("sprites.aatls"));
         CacheLayer.init();
-        UpstreamLiveNetworkProbe.run(endpoint, view::render);
+        UpstreamLiveNetworkProbe.run(endpoint, view::loadGraphics, view::render);
+    }
+
+    private void loadGraphics() {
+        UpstreamTerrainDrawProbe.loadAtlas(atlas);
+        target.initialize();
     }
 
     private void render(Unit unit) {
@@ -35,7 +41,7 @@ public final class UpstreamRenderedNetworkProbe {
             if (!Vars.state.map.name().equals("Glacier")) {
                 throw new IllegalStateException("The rendered multiplayer probe is packaged for Glacier");
             }
-            viewport = UpstreamTerrainDrawProbe.prepare(atlasArgs, new UpstreamTerrainRenderProbe(false), false);
+            viewport = UpstreamTerrainDrawProbe.prepareViewport(target, false);
         }
         controlled = unit;
         float x = unit == null ? Vars.player.x() : unit.x();

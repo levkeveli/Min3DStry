@@ -22,7 +22,8 @@ static C3D_RenderTarget *target;
 static float world_left, world_bottom, scale, screen_left, screen_bottom;
 static int32_t draws;
 
-static int32_t prepare_renderer(void) {
+int32_t m3ds_terrain_initialize(void) {
+    if (sheet) return 1;
     romfs_ready = R_SUCCEEDED(romfsInit());
     if (!romfs_ready) return -1;
     gpu_ready = C3D_Init(C3D_DEFAULT_CMDBUF_SIZE);
@@ -51,7 +52,7 @@ static int32_t prepare_renderer(void) {
 int32_t m3ds_terrain_begin(int32_t left, int32_t bottom, int32_t width, int32_t height,
                            int32_t tile_size) {
     if (!sheet) {
-        int32_t status = prepare_renderer();
+        int32_t status = m3ds_terrain_initialize();
         if (status < 0) return status;
     }
     world_left = (left - 0.5f) * tile_size;
