@@ -781,8 +781,12 @@ the client confirms its join. The
 [24 MiB build](https://github.com/levkeveli/Min3DStry/actions/runs/44879228986)
 passed the Fortress spawn and emitted the TCP keepalive on both Azahar
 profiles. The larger Onset map still triggered invalid pointer accesses in
-TeaVM's compacting collector on the Old 3DS profile. Onset rendering and
-physical-console memory remain to be verified.
+TeaVM's compacting collector on the Old 3DS profile. A
+[fixed-size heap build](https://github.com/levkeveli/Min3DStry/actions/runs/44879656955)
+reproduced the fault. The debug probe's ELF, heaps, stacks and SOC buffer
+total 65.04 MiB before GC metadata, above the Original 3DS application
+budget. Large map loading and memory are tracked in
+[#141](https://github.com/levkeveli/Min3DStry/issues/141).
 
 The renderer still selects blocks that use the supported sprite operations.
 Textured raw vertices, additional payload types and other rendering services
