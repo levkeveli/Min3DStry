@@ -63,10 +63,10 @@ int32_t m3ds_live_net_receive(void *payload, int32_t capacity, int32_t reliable,
     return ((int32_t)id << 16) | (int32_t)length;
 }
 
-int32_t m3ds_live_net_send(const void *payload, int32_t length, int32_t packet_id) {
+int32_t m3ds_live_net_send(const void *payload, int32_t length, int32_t packet_id, int32_t reliable) {
     return length >= 0 && length <= M3DS_NET_MAX_PACKET_SIZE &&
         packet_id >= 0 && packet_id <= UINT8_MAX &&
-        m3ds_net_client_send(client, true, (uint8_t)packet_id, payload, (size_t)length);
+        m3ds_net_client_send(client, reliable != 0, (uint8_t)packet_id, payload, (size_t)length);
 }
 
 int32_t m3ds_live_net_keep_alive(int32_t reliable) {

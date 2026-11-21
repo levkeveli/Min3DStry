@@ -38,6 +38,34 @@ def wait_for(path, proc, pattern, timeout):
     raise RuntimeError(f"Timed out waiting for {pattern}:\n{text[-2500:]}")
 
 
+def verify_movement(log, emulator, server_log, server, join, timeout):
+    number = r"-?\d+(?:\.\d+)?"
+    movement = re.compile(rf"UPSTREAM_LIVE_NET_MOVEMENT join={join} unit=(\d+) snapshot=(\d+) "
+                          rf"fromX=({number}) x=({number}) y=({number})")
+    trace = wait_for(log, emulator, movement, timeout)
+    unit, sequence, start_x, x, y = movement.search(trace).groups()
+    if float(x) - float(start_x) < 32:
+        raise RuntimeError("The upstream client unit did not move at least four tiles")
+
+    # Read the official server's state and received sequence through its stock console.
+    # The script reads the live unit and connection only, leaving gameplay state untouched.
+    marker = f"UPSTREAM_SERVER_MOVEMENT join={join}"
+    server.stdin.write(
+        f'js (() => {{ const p = Groups.player.find(boolf(v => String(v.name) === "{PLAYER}")); '
+        'const u = p.unit(); '
+        f'return "{marker} unit=" + u.id + " snapshot=" + p.con.lastReceivedClientSnapshot '
+        '+ " x=" + u.x + " y=" + u.y; })()\n'
+    )
+    server.stdin.flush()
+    server_state = re.compile(rf"{marker} unit=(\d+) snapshot=(\d+) x=({number}) y=({number})")
+    observed = server_state.search(wait_for(server_log, server, server_state, 5))
+    server_unit, server_sequence, server_x, server_y = observed.groups()
+    if (unit != server_unit or int(server_sequence) < int(sequence) - 3
+            or abs(float(x) - float(server_x)) > 2 or abs(float(y) - float(server_y)) > 2):
+        raise RuntimeError(f"Unexpected server movement: {observed.group(0)} vs {movement.search(trace).group(0)}")
+    print(observed.group(0), flush=True)
+
+
 def run_model(args, model, config, original_config, log, output):
     overrides = {
         "Miscellaneous": {"log_filter": "*:Info Debug.Emulated:Debug Service.SOC:Debug",
@@ -70,6 +98,8 @@ def run_model(args, model, config, original_config, log, output):
             try:
                 for join in (1, 2):
                     wait_for(log, emulator, rf"UPSTREAM_LIVE_NET_STATE join={join}\b", args.timeout)
+                    if args.movement:
+                        verify_movement(log, emulator, server_log, server, join, args.timeout)
                     if join == 2:
                         time.sleep(13)  # Exceed ArcNet's 12-second TCP timeout.
                     server.stdin.write("runwave\n")
@@ -140,6 +170,7 @@ def main():
                         help="Check one Azahar profile (default: both)")
     parser.add_argument("--desktop-name",
                         help="Wait for a separately launched PC client and verify its connection overlaps both joins")
+    parser.add_argument("--movement", action="store_true", help="Verify the stock server applies ARM11 movement")
     args = parser.parse_args()
     args.server, args.rom, args.azahar = (path.resolve() for path in (args.server, args.rom, args.azahar))
     with args.server.open("rb") as archive:
@@ -157,7 +188,8 @@ def main():
     try:
         for path in originals:
             path.parent.mkdir(parents=True, exist_ok=True)
-        endpoint.write_text(f"127.0.0.1 {args.port}\n", encoding="ascii")
+        mode = " movement" if args.movement else ""
+        endpoint.write_text(f"127.0.0.1 {args.port}{mode}\n", encoding="ascii")
         for model in ((args.model,) if args.model else ("old3ds", "new3ds")):
             run_model(args, model, config, (originals[config] or b"").decode(), log, output)
     finally:

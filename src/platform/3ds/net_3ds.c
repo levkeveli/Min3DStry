@@ -20,6 +20,7 @@
 
 #define M3DS_SOC_ALIGN 0x1000U
 #define M3DS_SOC_BUFFERSIZE 0x100000U
+#define M3DS_TCP_DRAIN_MS 250U
 
 static int wait_fd_readable(int fd, uint32_t timeout_ms) {
   struct pollfd pfd;
@@ -145,7 +146,18 @@ static int n3ds_tcp_recv(
 static void n3ds_tcp_close(void *user_data) {
   M3dsNet3dsContext *ctx = (M3dsNet3dsContext *)user_data;
   if (ctx && ctx->tcp_fd >= 0) {
-    (void)shutdown(ctx->tcp_fd, SHUT_WR);
+    // Unread server frames can turn a normal close into a TCP reset.
+    // Finish our write stream and give the peer a bounded window to close its side.
+    if (shutdown(ctx->tcp_fd, SHUT_WR) == 0) {
+      uint8_t discarded[1024];
+      const uint64_t started = osGetTime();
+      uint64_t elapsed = 0;
+      while (elapsed < M3DS_TCP_DRAIN_MS &&
+             n3ds_tcp_recv(ctx, discarded, sizeof(discarded),
+                          (uint32_t)(M3DS_TCP_DRAIN_MS - elapsed)) > 0) {
+        elapsed = osGetTime() - started;
+      }
+    }
     close(ctx->tcp_fd);
     ctx->tcp_fd = -1;
   }

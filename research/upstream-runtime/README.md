@@ -291,6 +291,25 @@ the core. To repeat the test, launch the official desktop JAR and add
 command. Join the printed loopback address in the desktop game with that
 player name. Repeat with `--model new3ds`.
 
+Add `--movement` to check the outbound player snapshot path. After the
+server assigns the probe an upstream unit, the probe moves that unit
+east and sends the generated `ClientSnapshotCallPacket` over Arc UDP.
+The stock server's console reports the same unit's coordinates and the
+last sequence it accepted before the verifier triggers the next wave.
+The [movement build](https://github.com/levkeveli/Min3DStry/actions/runs/44831430179)
+at `-O2` passed on both Azahar profiles with the unmodified v160.8
+desktop client connected. The server accepted snapshot 19 on both joins
+on each profile, with the unit moving from x = 648.0 to about x = 680.63.
+In the Old 3DS run the PC renderer showed the ARM11 player's unit move
+from the core to the east. The movement sequence is scripted for this
+probe. Console controls still need to drive the live client.
+
+An [updated build](https://github.com/levkeveli/Min3DStry/actions/runs/44832282453)
+drains pending TCP input during shutdown with a 250 ms deadline.
+Both console profiles passed the movement and reconnect checks at
+`-O0` and `-O2`. The stock server reported orderly departures on both
+joins in all four runs.
+
 Before the snapshot dispatch extension, the [devkitARM verification build](https://github.com/levkeveli/Min3DStry/actions/runs/44824442974)
 passed at `-O0` and `-O2` on both Azahar 2126.2 console profiles. Each run
 rejected build 159 with `clientOutdated`, then joined Glacier twice with
