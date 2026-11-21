@@ -1,6 +1,6 @@
 # Campaign Progression & Tech-Tree Persistence Baseline (Issue #41)
 
-**Verification status:** Host-verified against pinned upstream Mindustry `v160.8`; 3DS ARM11 runtime integration (`campaign-sectors` capability) remains **Planned** under [#41](https://github.com/levkeveli/Min3DStry/issues/41) until TeaVM ARM11 filesystem/`settings.bin` and campaign UI wiring land.
+**Verification status:** Host baselines plus a real Arc `Settings`/`settings.bin` round-trip probe verified on ARM11 in Azahar New/Old profiles. Campaign UI, live sector slots and gameplay integration (`campaign-sectors` capability) remain **Planned** under [#41](https://github.com/levkeveli/Min3DStry/issues/41).
 
 ## 1:1 Upstream Mandate
 
@@ -50,6 +50,31 @@ Two host harnesses in [research/upstream-runtime/host/](../../research/upstream-
   UPSTREAM_CAMPAIGN_RESILIENCE waterMigrated=true resetOk=true backupRecovered=true corruptHandled=true
   UPSTREAM_CAMPAIGN_PASS tech_nodes=375 sectors=95
   ```
+
+## ARM11 Arc Settings Round-Trip
+
+`-Pprobe=campaign-settings` compiles the real Arc `Settings` class and drives
+`settings.bin` through the TeaVM/libctru file adapter:
+
+```sh
+gradle -PupstreamCheckout=/path/to/Mindustry \
+  -PreferenceJar=/path/to/server-release.jar \
+  -ParcCheckout=/path/to/Arc -Pprobe=campaign-settings runProbeJvm
+bash research/upstream-runtime/arm11/build.sh \
+  build/generated/teavm/c build/probe-3ds-campaign-settings
+```
+
+JVM and ARM11/Azahar both emit:
+
+```text
+UPSTREAM_CAMPAIGN_SETTINGS bytes=65 int=12345 string=ok reload=ok
+```
+
+The probe writes a fresh `settings.bin` under the Java temporary directory
+(`/3ds/min3dstry/tmp/m3ds-campaign-settings` on 3DS), reloads it with a second
+`Settings` instance, and verifies fixed integer/string values. It does not
+overwrite live campaign settings. Azahar `2126.2` verified the line on both New
+and Old 3DS profiles; the `.3dsx` build uses the pinned devkitARM image.
 
 ## Remaining Scope for Issue #41 (3DS Hardware / ARM11 Runtime)
 

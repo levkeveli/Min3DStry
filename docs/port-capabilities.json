@@ -245,6 +245,8 @@
         "include/platform/settings_store.h",
         "src/platform/settings_store.c",
         "tests/platform/test_settings_store.c",
+        "research/upstream-runtime/src/campaign-settings/java/UpstreamCampaignSettingsProbe.java",
+        "research/upstream-runtime/build.gradle",
         "docs/porting/campaign-progression.md",
         "docs/porting/sd-storage-paths.md"
       ]
