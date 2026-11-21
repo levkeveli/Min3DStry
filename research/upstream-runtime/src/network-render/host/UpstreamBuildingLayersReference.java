@@ -21,6 +21,8 @@ import java.util.List;
 import mindustry.Vars;
 import mindustry.content.Blocks;
 import mindustry.content.Liquids;
+import mindustry.content.UnitTypes;
+import mindustry.gen.Player;
 import mindustry.world.blocks.liquid.Conduit.ConduitBuild;
 import mindustry.world.blocks.liquid.LiquidBlock;
 import mindustry.game.Team;
@@ -90,6 +92,35 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         target.verifyBuildingEffects(layers, viewport, viewer);
         target.verifyPayloadMix(layers, viewport, viewer);
         target.verifyCarriedBuildings(layers, viewport, viewer);
+        target.verifyUnits(viewer);
+    }
+
+    private void verifyUnits(Team viewer) {
+        Vars.player = Player.create();
+        Vars.player.team(viewer);
+        UpstreamRenderedNetworkProbe.loadUnitGraphics();
+        var gamma = UnitTypes.gamma.spawn(viewer, 240f, 288f, 90f);
+        var dagger = UnitTypes.dagger.spawn(Team.crux, 256f, 288f, 90f);
+
+        sprites.clear();
+        Draw.sort(true);
+        gamma.type().draw(gamma);
+        dagger.type().draw(dagger);
+        Draw.sort(false);
+
+        for (String name : List.of("unit-gamma-full", "particle", "circle", "gamma",
+                "gamma-cell", "small-mount-weapon", "small-mount-weapon-outline", "dagger-base",
+                "dagger-leg", "dagger", "power-cell", "large-weapon", "large-weapon-outline")) {
+            requireRegion(Core.atlas.find(name));
+        }
+        for (var unit : List.of(gamma, dagger)) {
+            var cell = unit.type().cellRegion;
+            int expected = Color.floatToIntColor(unit.team().color.toFloatBits());
+            if (sprites.stream().noneMatch(sprite -> matchesRegion(sprite, cell) && sprite.color() == expected)) {
+                throw new AssertionError("Missing stock team cell color for " + unit.type().name);
+            }
+        }
+        System.out.println("UPSTREAM_UNIT_DRAW gamma=shadow,engine,body,cell,weapons dagger=legs,base,body,cell,weapons");
     }
 
     private void verifyCarriedBuildings(UpstreamBuildingLayers layers, UpstreamTerrainDrawProbe.Viewport viewport,
@@ -288,11 +319,15 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
     }
 
     private void requireRegion(TextureRegion region) {
-        if (sprites.stream().noneMatch(sprite -> sprite.page() == UpstreamTerrainDrawProbe.pageIndex(region)
-                && sprite.left() == region.getX() && sprite.top() == region.getY()
-                && sprite.width() == region.width && sprite.height() == region.height)) {
-            throw new AssertionError("Missing stock frame or cropped corner region: " + sprites);
+        if (sprites.stream().noneMatch(sprite -> matchesRegion(sprite, region))) {
+            throw new AssertionError("Missing stock region at " + region.getX() + "," + region.getY() + ": " + sprites);
         }
+    }
+
+    private static boolean matchesRegion(Sprite sprite, TextureRegion region) {
+        return sprite.page() == UpstreamTerrainDrawProbe.pageIndex(region)
+            && sprite.left() == region.getX() && sprite.top() == region.getY()
+            && sprite.width() == region.width && sprite.height() == region.height;
     }
 
     private void verifyCrack(TextureRegion crack, mindustry.gen.Building build) {

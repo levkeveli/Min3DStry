@@ -15,6 +15,7 @@ import mindustry.gen.Building;
 import mindustry.gen.Groups;
 import mindustry.gen.Unit;
 import mindustry.graphics.CacheLayer;
+import mindustry.type.UnitType;
 import mindustry.world.blocks.payloads.BuildPayload;
 import mindustry.world.blocks.payloads.PayloadConveyor.PayloadConveyorBuild;
 import mindustry.world.blocks.liquid.Conduit;
@@ -59,6 +60,7 @@ public final class UpstreamRenderedNetworkProbe {
         System.out.println("UPSTREAM_INTERFACE_GRAPHICS atlas");
         UpstreamTerrainDrawProbe.loadAtlas(atlas, UpstreamFluidAtlas::load);
         UpstreamCrackAtlas.load();
+        loadUnitGraphics();
         viewport = UpstreamTerrainDrawProbe.liveViewport(target);
         target.initialize();
         System.out.println("UPSTREAM_INTERFACE_GRAPHICS labels");
@@ -67,6 +69,13 @@ public final class UpstreamRenderedNetworkProbe {
             "List", "Config", Core.bundle.get("back")) + "\0";
         target.buildLabels(labels.getBytes(StandardCharsets.UTF_8));
         System.out.println("UPSTREAM_INTERFACE_GRAPHICS ready");
+    }
+
+    static void loadUnitGraphics() {
+        for (var type : new UnitType[]{UnitTypes.gamma, UnitTypes.dagger}) {
+            type.loadIcon();
+            type.load();
+        }
     }
 
     private void render(Unit unit) {
@@ -119,14 +128,18 @@ public final class UpstreamRenderedNetworkProbe {
                     + " y=" + building.tileY() + " rotation=" + building.rotation);
             }
         }
-        for (var unit : Groups.unit) {
-            if (unit.type() != UnitTypes.gamma && unit.type() != UnitTypes.dagger) continue;
-            int x = World.toTile(unit.x()), y = World.toTile(unit.y());
-            if (x < viewport.left || x >= viewport.left + UpstreamTerrainDrawProbe.VIEW_WIDTH
-                    || y < viewport.bottom || y >= viewport.bottom + UpstreamTerrainDrawProbe.VIEW_HEIGHT) continue;
-            // UnitType.drawBody uses the atlas region, world position and rotation minus 90 degrees.
-            Draw.rect(Core.atlas.find(unit.type().name), unit.x(), unit.y(), unit.rotation() - 90f);
-            if (unit == controlled) draws++;
+        Draw.sort(true);
+        try {
+            for (var unit : Groups.unit) {
+                if (unit.type() != UnitTypes.gamma && unit.type() != UnitTypes.dagger) continue;
+                int x = World.toTile(unit.x()), y = World.toTile(unit.y());
+                if (x < viewport.left || x >= viewport.left + UpstreamTerrainDrawProbe.VIEW_WIDTH
+                        || y < viewport.bottom || y >= viewport.bottom + UpstreamTerrainDrawProbe.VIEW_HEIGHT) continue;
+                unit.type().draw(unit);
+                if (unit == controlled) draws++;
+            }
+        } finally {
+            Draw.sort(false);
         }
         var block = buildingControls.block();
         var catalog = buildingControls.catalog();
