@@ -4,7 +4,7 @@
 
 ## Upstream v160.8 ARM11 Bring-Up
 
-- [Upstream source runtime & resource probes](../research/upstream-runtime/README.md): Pinned Mindustry v160.8 + Arc `7445105cd2` compiled with TeaVM C against `libctru` adapters (tested in Azahar for `LogicOp`, `MapIO` Glacier metadata, Arc `Fi` resources, and JVM content registry baseline).
+- [Upstream source runtime & resource probes](../research/upstream-runtime/README.md): Pinned Mindustry v160.8 + Arc `7445105cd2` compiled with TeaVM C against `libctru` adapters (tested in Azahar for `LogicOp`, `MapIO` Glacier metadata, Arc `Fi` resources, the JVM content registry baseline, and the upstream combat, wave and ground-routing probes on ARM11).
 
 ## 3DS Platform & Hardware Test Harnesses (NOT the Game)
 

@@ -188,20 +188,29 @@
       "category": "Core Simulation",
       "name": "Crafters, Power Grid & Liquid Graph",
       "weight": 6,
-      "stage": "planned",
+      "stage": "experimental",
       "issue": 39,
-      "evidence": []
+      "evidence": [
+        "research/upstream-runtime/host/UpstreamProductionBaseline.java",
+        "research/upstream-runtime/src/gameplay/java/UpstreamProductionTickProbe.java",
+        "docs/porting/production-power-liquids.md",
+        "research/upstream-runtime/README.md"
+      ]
     },
     {
       "id": "combat-waves-ai",
       "category": "Core Simulation",
       "name": "Turrets, Waves, Units & Flow Pathfinding",
       "weight": 8,
-      "stage": "planned",
+      "stage": "experimental",
       "issue": 30,
       "evidence": [
         "research/upstream-runtime/src/gameplay/java/UpstreamCombatTickProbe.java",
-        "research/upstream-runtime/README.md"
+        "research/upstream-runtime/src/gameplay/java/UpstreamWaveRoutingProbe.java",
+        "research/upstream-runtime/src/gameplay/java/UpstreamSimulationWorld.java",
+        "research/upstream-runtime/build.gradle",
+        "research/upstream-runtime/README.md",
+        ".github/workflows/upstream-arm11-smoke.yml"
       ]
     },
     {

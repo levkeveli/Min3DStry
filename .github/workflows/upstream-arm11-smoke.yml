@@ -39,7 +39,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        probe: [logic, map, resource, executor, campaign-settings, campaign-content]
+        probe: [logic, map, resource, executor, campaign-settings, campaign-content, wave-routing]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -61,7 +61,7 @@ jobs:
             -o "$RUNNER_TEMP/server-release.jar"
 
       - name: Fetch pinned Arc source
-        if: matrix.probe == 'resource' || matrix.probe == 'executor' || matrix.probe == 'campaign-settings' || matrix.probe == 'campaign-content'
+        if: matrix.probe == 'resource' || matrix.probe == 'executor' || matrix.probe == 'campaign-settings' || matrix.probe == 'campaign-content' || matrix.probe == 'wave-routing'
         run: |
           git clone --filter=blob:none --no-checkout \
             https://github.com/Anuken/Arc.git "$RUNNER_TEMP/Arc"
@@ -71,13 +71,23 @@ jobs:
           test "$(git -C "$RUNNER_TEMP/Arc" rev-parse HEAD)" = \
             "7445105cd2683daf5b9ac7033ebb07265d3e814d"
 
+      - name: Extract Glacier map for wave routing
+        if: matrix.probe == 'wave-routing'
+        run: |
+          git -C "$RUNNER_TEMP/Mindustry" show \
+            HEAD:core/assets/maps/default/glacier.msav > "$RUNNER_TEMP/glacier.msav"
+
       - name: Run JVM reference and generate TeaVM C
         shell: bash
         run: |
           set -o pipefail
           extra=()
-          if [ "${{ matrix.probe }}" = "resource" ] || [ "${{ matrix.probe }}" = "executor" ] || [ "${{ matrix.probe }}" = "campaign-settings" ] || [ "${{ matrix.probe }}" = "campaign-content" ]; then
+          if [ "${{ matrix.probe }}" = "resource" ] || [ "${{ matrix.probe }}" = "executor" ] || [ "${{ matrix.probe }}" = "campaign-settings" ] || [ "${{ matrix.probe }}" = "campaign-content" ] || [ "${{ matrix.probe }}" = "wave-routing" ]; then
             extra=("-ParcCheckout=$RUNNER_TEMP/Arc")
+          fi
+          probe_args=()
+          if [ "${{ matrix.probe }}" = "wave-routing" ]; then
+            probe_args=("-PprobeArgs=$RUNNER_TEMP/glacier.msav")
           fi
           bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime \
             --no-daemon --console=plain \
@@ -85,6 +95,7 @@ jobs:
             "-PreferenceJar=$RUNNER_TEMP/server-release.jar" \
             -Pprobe=${{ matrix.probe }} \
             "${extra[@]}" \
+            "${probe_args[@]}" \
             runProbeJvm generateC | tee "$RUNNER_TEMP/probe.log"
           if [ "${{ matrix.probe }}" = "resource" ]; then
             grep -F 'UPSTREAM_RESOURCE size=709 crc32=3921318438 classpath=ok internal=ok missing=ok' \
@@ -98,6 +109,18 @@ jobs:
           fi
           if [ "${{ matrix.probe }}" = "campaign-content" ]; then
             grep -F 'lockedBefore=ok conveyorUnlocked=true key=conveyor-unlocked research=50 reload=ok' "$RUNNER_TEMP/probe.log"
+          fi
+          if [ "${{ matrix.probe }}" = "wave-routing" ]; then
+            grep -F 'UPSTREAM_WAVE_SETUP core=81,26 enemyCore=81,224 groundSpawns=1 fieldHash=629058db4926d64e' \
+              "$RUNNER_TEMP/probe.log"
+            grep -F 'UPSTREAM_WAVE wave=1 spawned=dagger=1 groundSpawned=1 first=79,218->80,172 distance=1533->1165 min=1165 alive=1/1 ammo=30 nextWave=2' \
+              "$RUNNER_TEMP/probe.log"
+            grep -F 'UPSTREAM_WAVE wave=2 spawned=dagger=1,gamma=2 groundSpawned=1 first=82,217->80,171 distance=1524->1159 min=1159 alive=1/1 ammo=30 nextWave=3' \
+              "$RUNNER_TEMP/probe.log"
+            grep -F 'UPSTREAM_WAVE wave=3 spawned=dagger=2 groundSpawned=2 first=79,219->80,173 distance=1545->1177 min=1177 alive=2/2 ammo=30 nextWave=4' \
+              "$RUNNER_TEMP/probe.log"
+            grep -F 'UPSTREAM_WAVE wave=4 spawned=dagger=2 groundSpawned=2 first=79,219->80,173 distance=1546->1177 min=1177 alive=2/2 ammo=29 nextWave=5' \
+              "$RUNNER_TEMP/probe.log"
           fi
 
       - name: Build ARM11 probe with pinned devkitARM image
@@ -481,3 +504,91 @@ jobs:
           grep -F 'UPSTREAM_NET_PASS sessions=2 mismatch=clientOutdated' "$RUNNER_TEMP/net-session.log"
           grep -F 'DECODE_PKT_OK ' "$RUNNER_TEMP/net-session.log"
           grep -F 'compression=1 ' "$RUNNER_TEMP/net-session.log"
+
+  production-baseline:
+    name: Production, power, and liquid baseline
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Fetch pinned upstream source, map, server JAR, and Arc
+        run: |
+          git clone --depth 1 --branch v160.8 \
+            https://github.com/Anuken/Mindustry.git "$RUNNER_TEMP/Mindustry"
+          test "$(git -C "$RUNNER_TEMP/Mindustry" rev-parse HEAD)" = \
+            "19a0f40d44514f4802a8b79770456e7e32e34da0"
+          git -C "$RUNNER_TEMP/Mindustry" show \
+            HEAD:core/assets/maps/default/glacier.msav > "$RUNNER_TEMP/glacier.msav"
+          curl --fail --silent --show-error --location \
+            https://github.com/Anuken/Mindustry/releases/download/v160.8/server-release.jar \
+            -o "$RUNNER_TEMP/server-release.jar"
+          echo "faeaf247a8b622de940181a96cb21cb20692d3c3da4e8ac3f79cb4af5059aa6c  $RUNNER_TEMP/server-release.jar" | sha256sum -c -
+          git clone --filter=blob:none --no-checkout \
+            https://github.com/Anuken/Arc.git "$RUNNER_TEMP/Arc"
+          git -C "$RUNNER_TEMP/Arc" fetch --depth 1 origin \
+            7445105cd2683daf5b9ac7033ebb07265d3e814d
+          git -C "$RUNNER_TEMP/Arc" checkout --detach FETCH_HEAD
+          test "$(git -C "$RUNNER_TEMP/Arc" rev-parse HEAD)" = \
+            "7445105cd2683daf5b9ac7033ebb07265d3e814d"
+
+      - name: Run pinned production, power, and liquid baseline
+        run: |
+          java -cp "$RUNNER_TEMP/server-release.jar" \
+            research/upstream-runtime/host/UpstreamProductionBaseline.java \
+            | tee "$RUNNER_TEMP/production.log"
+          grep -Fx 'UPSTREAM_PRODUCTION_CATALOG blocks=12 manifest_sha256=29d41b2000392e726c81fae375b0acf903b68c987bb0e4955e15646712da0996' "$RUNNER_TEMP/production.log"
+          grep -Fx 'UPSTREAM_PRODUCTION_STARVED ticks=60 waterMilli=4641 pods=0 graphite=0' "$RUNNER_TEMP/production.log"
+          grep -Fx 'UPSTREAM_PRODUCTION_DISCONNECT graphiteTick=90 first=199 paused=60 pods=1' "$RUNNER_TEMP/production.log"
+          grep -Fx 'UPSTREAM_PRODUCTION_FULL filled=2254 held=120 pods=10 waterCapOk=true' "$RUNNER_TEMP/production.log"
+          grep -Fx 'UPSTREAM_PRODUCTION_ORDER runs=2 ticks=2693 trace_hash=0x596d5082ce819d54' "$RUNNER_TEMP/production.log"
+
+      - name: Run production-ticks JVM probe and generate TeaVM C
+        shell: bash
+        run: |
+          set -o pipefail
+          bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime \
+            --no-daemon --console=plain \
+            "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" \
+            "-PreferenceJar=$RUNNER_TEMP/server-release.jar" \
+            "-ParcCheckout=$RUNNER_TEMP/Arc" \
+            -Pprobe=production-ticks \
+            runProbeJvm "--args=$RUNNER_TEMP/glacier.msav" generateC | tee "$RUNNER_TEMP/production-probe-jvm.log"
+          grep -Fx 'UPSTREAM_PRODUCTION_STARVED ticks=60 waterMilli=4641 pods=0' "$RUNNER_TEMP/production-probe-jvm.log"
+          grep -Fx 'UPSTREAM_PRODUCTION_DISCONNECT first=199 paused=60 pods=1' "$RUNNER_TEMP/production-probe-jvm.log"
+          grep -Fx 'UPSTREAM_PRODUCTION_FULL filled=2254 held=120 pods=10' "$RUNNER_TEMP/production-probe-jvm.log"
+
+      - name: Verify generated TeaVM C at -O0 and -O2 against JVM trace
+        run: |
+          rm -rf "$RUNNER_TEMP/teavm-c-host"
+          cp -R research/upstream-runtime/build/generated/teavm/c "$RUNNER_TEMP/teavm-c-host"
+          python3 research/upstream-runtime/arm11/fix_reflection_lifetime.py "$RUNNER_TEMP/teavm-c-host"
+          cc -std=gnu11 -O0 -fwrapv "$RUNNER_TEMP/teavm-c-host/all.c" -lm -lpthread \
+            -o "$RUNNER_TEMP/teavm-c-host/probe_o0"
+          cc -std=gnu11 -O2 -fwrapv "$RUNNER_TEMP/teavm-c-host/all.c" -lm -lpthread \
+            -o "$RUNNER_TEMP/teavm-c-host/probe_o2"
+          "$RUNNER_TEMP/teavm-c-host/probe_o0" "$RUNNER_TEMP/glacier.msav" | tee "$RUNNER_TEMP/production-o0.log"
+          "$RUNNER_TEMP/teavm-c-host/probe_o2" "$RUNNER_TEMP/glacier.msav" | tee "$RUNNER_TEMP/production-o2.log"
+          for log in "$RUNNER_TEMP/production-o0.log" "$RUNNER_TEMP/production-o2.log"; do
+            grep -Fx 'UPSTREAM_PRODUCTION_STARVED ticks=60 waterMilli=4641 pods=0' "$log"
+            grep -Fx 'UPSTREAM_PRODUCTION_DISCONNECT first=199 paused=60 pods=1' "$log"
+            grep -Fx 'UPSTREAM_PRODUCTION_FULL filled=2254 held=120 pods=10' "$log"
+          done
+
+      - name: Build ARM11 production-ticks probe with pinned devkitARM image
+        run: |
+          image=devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5
+          docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/work" -w /work "$image" bash -lc '
+            source /opt/devkitpro/3dsvars.sh
+            bash research/upstream-runtime/arm11/build.sh \
+              research/upstream-runtime/build/generated/teavm/c \
+              research/upstream-runtime/build/probe-3ds-production'
+          test -s research/upstream-runtime/build/probe-3ds-production/upstream-probe.3dsx
+          test -s research/upstream-runtime/build/probe-3ds-production/upstream-probe.elf
