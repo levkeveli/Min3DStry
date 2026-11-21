@@ -121,13 +121,26 @@ def main() -> int:
                 ],
                 text=True,
                 capture_output=True,
-                check=True,
+                check=False,
             )
+            if session_proc.returncode != 0:
+                if session_proc.stdout:
+                    print(session_proc.stdout, file=sys.stderr)
+                if session_proc.stderr:
+                    print(session_proc.stderr, file=sys.stderr)
+                raise subprocess.CalledProcessError(
+                    session_proc.returncode,
+                    session_proc.args,
+                    output=session_proc.stdout,
+                    stderr=session_proc.stderr,
+                )
             session_out = session_proc.stdout.strip()
             print(session_out)
             for token in (
                 f"UPSTREAM_NET_DISCOVERY map={args.map} version=160 vertype=official",
                 "UPSTREAM_NET_MISMATCH build=159 kick=clientOutdated",
+                "UPSTREAM_NET_ACTION run=1 op=build conveyor=85,26@rot1 wall=86,26 copper=200->193 buildings=2->4",
+                "UPSTREAM_NET_ACTION run=2 op=rejoin_deconstruct persisted=4 wall_removed=86,26 copper=193->196 buildings=4->3",
                 "UPSTREAM_NET_SESSION run=1 ",
                 "UPSTREAM_NET_SESSION run=2 ",
                 "UPSTREAM_LZ4_PACKET ",
@@ -137,6 +150,10 @@ def main() -> int:
                     raise AssertionError(
                         f"Missing expected session marker {token!r} in output:\n{session_out}"
                     )
+            if "entity_snapshots=0" in session_out:
+                raise AssertionError(
+                    f"Expected live EntitySnapshotCallPacket updates in both sessions:\n{session_out}"
+                )
 
             decode_line = run_probe(
                 probe_bin,
