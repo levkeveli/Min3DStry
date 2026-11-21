@@ -53,6 +53,9 @@ import mindustry.gen.SetPositionCallPacket;
 import mindustry.gen.StateSnapshotCallPacket;
 import mindustry.gen.TileConfigCallPacket;
 import mindustry.gen.Unit;
+import mindustry.gen.UnitDespawnCallPacket;
+import mindustry.gen.UnitDestroyCallPacket;
+import mindustry.gen.UnitSpawnCallPacket;
 import mindustry.gen.UpdateMarkerCallPacket;
 import mindustry.gen.UpdateMarkerTextCallPacket;
 import mindustry.gen.UpdateMarkerTextureCallPacket;
@@ -284,6 +287,9 @@ public final class UpstreamLiveNetworkProbe {
         long udpKeepAlive = start + UDP_KEEP_ALIVE_NS;
         int snapshotId = unsignedId(StateSnapshotCallPacket.class);
         int entityId = unsignedId(EntitySnapshotCallPacket.class);
+        int unitSpawnId = unsignedId(UnitSpawnCallPacket.class);
+        int unitDespawnId = unsignedId(UnitDespawnCallPacket.class);
+        int unitDestroyId = unsignedId(UnitDestroyCallPacket.class);
         int initialWave = Vars.state.wave;
         var movement = mode == Mode.MOVEMENT ? new MovementCheck(join) : null;
         var initialEnemies = new IntSet();
@@ -319,6 +325,12 @@ public final class UpstreamLiveNetworkProbe {
                 }
             } else if (id == entityId) {
                 decode(new EntitySnapshotCallPacket(), received).handleClient();
+            } else if (id == unitSpawnId) {
+                handleUnitSpawn(received);
+            } else if (id == unitDespawnId) {
+                handleUnitDespawn(received);
+            } else if (id == unitDestroyId) {
+                handleUnitDestroy(received);
             }
             app.runPosted();
             if (movement != null) movement.update(now);
@@ -336,6 +348,28 @@ public final class UpstreamLiveNetworkProbe {
         }
         throw new IOException("Incomplete live state check; movement complete="
             + (movement == null || movement.finished()));
+    }
+
+    private void handleUnitSpawn(int received){
+        // TypeIO.readUnitContainer adds the unit and returns null, so read the leading id
+        // from the packet payload before the decoder consumes it.
+        int id = reader(received).i();
+        decode(new UnitSpawnCallPacket(), received).handleClient();
+        System.out.println("UPSTREAM_LIVE_UNIT_SPAWN id=" + id);
+    }
+
+    private void handleUnitDespawn(int received){
+        var despawn = decode(new UnitDespawnCallPacket(), received);
+        despawn.handleClient();
+        if (despawn.unit != null) {
+            System.out.println("UPSTREAM_LIVE_UNIT_DESPAWN id=" + despawn.unit.id);
+        }
+    }
+
+    private void handleUnitDestroy(int received){
+        var destroy = decode(new UnitDestroyCallPacket(), received);
+        destroy.handleClient();
+        System.out.println("UPSTREAM_LIVE_UNIT_DESTROY id=" + destroy.uid);
     }
 
     private StateSnapshotCallPacket applyState(int received) throws IOException {
@@ -362,6 +396,11 @@ public final class UpstreamLiveNetworkProbe {
         long lastFrame = 0;
         int stateId = unsignedId(StateSnapshotCallPacket.class);
         int entityId = unsignedId(EntitySnapshotCallPacket.class);
+        int unitSpawnId = unsignedId(UnitSpawnCallPacket.class);
+        int unitDespawnId = unsignedId(UnitDespawnCallPacket.class);
+        int unitDestroyId = unsignedId(UnitDestroyCallPacket.class);
+        System.out.println("UPSTREAM_LIVE_PACKET_IDS spawn=" + unitSpawnId
+            + " despawn=" + unitDespawnId + " destroy=" + unitDestroyId);
         System.out.println(frame == null ? "Circle Pad or D-pad moves. START leaves."
             : "Tap the build grid to place. R rotates. B toggles removal. START leaves.");
         while (true) {
@@ -383,7 +422,7 @@ public final class UpstreamLiveNetworkProbe {
                     if (!unit.isLocal()) unit.interpolate();
                 }
             }
-            lastWave = receiveLiveUpdates(stateId, entityId, lastWave);
+            lastWave = receiveLiveUpdates(stateId, entityId, unitSpawnId, unitDespawnId, unitDestroyId, lastWave);
             app.runPosted();
             now = System.nanoTime();
             controls.update(input, now);
@@ -397,10 +436,12 @@ public final class UpstreamLiveNetworkProbe {
         }
     }
 
-    private int receiveLiveUpdates(int stateId, int entityId, int lastWave) throws IOException {
-        // Bound each drain by packet count. A slow render can leave several snapshots queued,
-        // and checking a short frame deadline after each packet lets that queue keep growing.
-        for (int i = 0; i < 16; i++) {
+    private int receiveLiveUpdates(int stateId, int entityId, int unitSpawnId, int unitDespawnId,
+                                   int unitDestroyId, int lastWave) throws IOException {
+        // Bound each drain by packet count. The graphical loop needs a larger budget so
+        // reliable control packets are not stuck behind stock block snapshots.
+        int budget = frame == null ? 16 : 128;
+        for (int i = 0; i < budget; i++) {
             // Alternate to give construction traffic and periodic snapshots a turn.
             int preferred = nextLiveTransport;
             nextLiveTransport ^= 1;
@@ -427,6 +468,12 @@ public final class UpstreamLiveNetworkProbe {
                 }
             } else if (id == entityId) {
                 decode(new EntitySnapshotCallPacket(), received).handleClient();
+            } else if (id == unitSpawnId) {
+                handleUnitSpawn(received);
+            } else if (id == unitDespawnId) {
+                handleUnitDespawn(received);
+            } else if (id == unitDestroyId) {
+                handleUnitDestroy(received);
             } else if (id == unsignedId(CompleteObjectiveCallPacket.class)) {
                 var completion = decode(new CompleteObjectiveCallPacket(), received);
                 completion.handleClient();
@@ -444,6 +491,15 @@ public final class UpstreamLiveNetworkProbe {
                 } else if (frame != null) {
                     applyBuildingUpdate(id, received);
                 }
+            }
+        }
+        // UnitDestroyCallPacket is unreliable; sweep dead wave units so a lost packet
+        // cannot leave a destroyed enemy rendered by the graphical client.
+        for (int i = Groups.unit.size() - 1; i >= 0; i--) {
+            var unit = Groups.unit.index(i);
+            if (unit.team == Vars.state.rules.waveTeam && (unit.dead || unit.health <= 0f)) {
+                System.out.println("UPSTREAM_LIVE_UNIT_REMOVED id=" + unit.id);
+                unit.remove();
             }
         }
         return lastWave;
