@@ -1,6 +1,6 @@
 # Production, Power Graph & Liquid Flow Baseline (Issue #39)
 
-**Verification status:** Host-verified across pinned upstream Mindustry `v160.8` JVM and TeaVM C `-O0` / `-O2` (`-Pprobe=production-ticks`), with ARM11 `.3dsx`/`.elf` compiled; `production-power-liquids` in [port-capabilities.json](../port-capabilities.json) is **Experimental** under [#39](https://github.com/levkeveli/Min3DStry/issues/39) pending Azahar runtime execution and physical 3DS verification.
+**Verification status:** Emulator-tested across pinned upstream Mindustry `v160.8` JVM, TeaVM C `-O0` / `-O2`, and Azahar `2126.2` New/Old 3DS profiles (`-Pprobe=production-ticks`); `production-power-liquids` in [port-capabilities.json](../port-capabilities.json) is **Emulator-tested** under [#39](https://github.com/levkeveli/Min3DStry/issues/39). Physical 3DS memory/frame-time verification remains open.
 
 ## 1:1 Upstream Mandate
 
@@ -50,7 +50,24 @@ UPSTREAM_PRODUCTION_ORDER runs=2 ticks=2693 trace_hash=0x596d5082ce819d54
 - **Generated TeaVM C on Linux host (`cc -std=gnu11 -O0 -fwrapv` vs `-O2 -fwrapv` after `arm11/fix_reflection_lifetime.py`):** Both optimization levels produced identical `UPSTREAM_WORLD_FINGERPRINT 2e7b9f883994de6c`, `UPSTREAM_PRODUCTION_STARVED`, `UPSTREAM_PRODUCTION_DISCONNECT`, and `UPSTREAM_PRODUCTION_FULL` records matching JVM.
 - **ARM11 build (`arm11/build.sh` with pinned `devkitpro/devkitarm` `-O2`):** Produced a `21,897,852`-byte `upstream-probe.3dsx` and `114,039,440`-byte ELF (`37,781,504` bytes / `36.03 MiB` page-rounded ELF LOAD segments; `64.28 MiB` subtotal with `24 MiB` managed heap, `4 MiB` linear heap, and `256 KiB` native stack, exceeding the `64 MiB` Original 3DS AppMem budget before GC metadata).
 
+### Azahar ARM11 execution
+
+A local `-O0` build of the same probe booted in Azahar `2126.2` on both
+console profiles and emitted the documented trace unchanged:
+
+```text
+UPSTREAM_WORLD_FINGERPRINT 2e7b9f883994de6c
+UPSTREAM_PRODUCTION_STARVED ticks=60 waterMilli=4641 pods=0
+UPSTREAM_PRODUCTION_DISCONNECT first=199 paused=60 pods=1
+UPSTREAM_PRODUCTION_FULL filled=2254 held=120 pods=10
+```
+
+`UPSTREAM_MEMORY` reported `appHeap=83,783,680` on New 3DS and
+`54,423,552` on Original 3DS, each with a 4 MiB linear heap and 256 KiB
+native stack. The top-screen probe console and the corresponding
+`svcOutputDebugString` records were inspected on both profiles.
+
 ## Remaining Scope for Issue #39
 
-- Run `-Pprobe=production-ticks` `upstream-probe.3dsx` in Azahar across Old and New 3DS modes (`UPSTREAM_PRODUCTION_*` log verification on console) before advancing `production-power-liquids` to `emulator-tested`.
-- Reduce ARM11 footprint within Old 3DS XL (`64 MiB` AppMem) and verify physical Old/New 3DS XL hardware execution.
+- Reduce the ARM11 footprint within the Old 3DS XL (`64 MiB` AppMem) budget.
+- Verify production, power and liquid execution on physical Old/New 3DS XL hardware.
