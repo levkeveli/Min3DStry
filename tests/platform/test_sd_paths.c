@@ -15,6 +15,9 @@ static void test_settings_paths(void) {
 
     assert(m3ds_sd_settings_path("/3ds/min3dstry/", path, sizeof(path)));
     assert(strcmp(path, "/3ds/min3dstry/settings.bin") == 0);
+    assert(m3ds_sd_join(
+        "sdmc:/3ds/min3dstry", "storage-probe.bin", path, sizeof(path)));
+    assert(strcmp(path, "sdmc:/3ds/min3dstry/storage-probe.bin") == 0);
 }
 
 static void test_sector_paths(void) {
@@ -36,6 +39,10 @@ static void test_invalid_paths(void) {
     assert(!m3ds_sd_join(M3DS_SD_ROOT, "", path, sizeof(path)));
     assert(!m3ds_sd_join(NULL, "settings.bin", path, sizeof(path)));
     assert(!m3ds_sd_join("/3ds/../min3dstry", "settings.bin", path, sizeof(path)));
+    assert(!m3ds_sd_join("foo:bar", "settings.bin", path, sizeof(path)));
+    assert(!m3ds_sd_join("/3ds:min3dstry", "settings.bin", path, sizeof(path)));
+    assert(!m3ds_sd_join("sdmc:", "settings.bin", path, sizeof(path)));
+    assert(!m3ds_sd_join("sdmc:/3ds/../min3dstry", "settings.bin", path, sizeof(path)));
     assert(!m3ds_sd_join(M3DS_SD_ROOT, "settings.bin", path, 5u));
 
     assert(!m3ds_sd_sector_save_path(

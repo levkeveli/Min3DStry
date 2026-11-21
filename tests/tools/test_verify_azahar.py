@@ -62,6 +62,7 @@ class VerifyAzaharTests(unittest.TestCase):
             "[   3.95] Kernel.SVC <Debug> svc.cpp:100: [MIN3DSTRY] HW: New 3DS XL (N3DS, 804 MHz, L2:on, AppMem:124 MiB, FIRM:2.50.11)\n"
             "[   3.95] Kernel.SVC <Debug> svc.cpp:100: [MIN3DSTRY] ATLAS loaded\n"
             "[   3.95] Kernel.SVC <Debug> svc.cpp:100: [MIN3DSTRY] STORAGE root=/3ds/min3dstry settings=/3ds/min3dstry/settings.bin sector=/3ds/min3dstry/sector-serpulo-170.msav\n"
+            "[   3.95] Kernel.SVC <Debug> svc.cpp:100: [MIN3DSTRY] STORAGE_ROUNDTRIP status=ok bytes=4 root=sdmc:/3ds/min3dstry\n"
             "[   3.96] Debug.Emulated <Debug> svc.cpp:100: [MIN3DSTRY] PARITY scenario=starter_copper_defense_v1 ticks=240 hash=0x11223344 copper=25 delivered=14 killed=2 hp=200\n"
             "[   3.97] Debug.Emulated <Debug> svc.cpp:100: [MIN3DSTRY] AUDIO backend=ndsp state=fallback_no_dsp rc=0xd8e06406 rate=22050 voices=0/8 clips=2\n"
             "[   3.97] Debug.Emulated <Debug> svc.cpp:100: [MIN3DSTRY] AUDIO_ROMFS status=ok clips=3 bytes=251916 ui=0\n"
@@ -85,6 +86,8 @@ class VerifyAzaharTests(unittest.TestCase):
         self.assertEqual(parsed["storage"]["settings"], "/3ds/min3dstry/settings.bin")
         self.assertEqual(
             parsed["storage"]["sector"], "/3ds/min3dstry/sector-serpulo-170.msav")
+        self.assertEqual(parsed["storage_roundtrip"]["status"], "ok")
+        self.assertEqual(parsed["storage_roundtrip"]["bytes"], 4)
         self.assertEqual(parsed["parity"]["trace_hash"], "0x11223344")
         self.assertEqual(parsed["parity"]["enemies_killed"], 2)
         self.assertEqual(parsed["audio"]["backend"], "ndsp")

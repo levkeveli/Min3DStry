@@ -1,6 +1,6 @@
 # SD storage path contract
 
-Status: **host-tested path contract + Azahar startup telemetry**. No settings or save bytes are written yet; Java/TeaVM filesystem integration remains open under [#41](https://github.com/levkeveli/Min3DStry/issues/41).
+Status: **host-tested atomic storage + Azahar probe round-trip**. Settings/save payloads are still owned by upstream Arc/SaveIO; Java filesystem wiring remains open under [#41](https://github.com/levkeveli/Min3DStry/issues/41).
 
 ## Paths
 
@@ -22,22 +22,38 @@ settings format.
 
 ## Runtime evidence
 
-`main_3ds.c` logs one startup line:
+`main_3ds.c` logs:
 
 ```text
 [MIN3DSTRY] STORAGE root=/3ds/min3dstry settings=/3ds/min3dstry/settings.bin sector=/3ds/min3dstry/sector-serpulo-170.msav
+[MIN3DSTRY] STORAGE_ROUNDTRIP status=ok bytes=4 root=sdmc:/3ds/min3dstry
 ```
 
-The Azahar verifier requires the exact paths on both models and includes them in
-the report. No file is created or modified by this slice.
+The round-trip writes, reads back and deletes a four-byte
+`storage-probe.bin` through `sdmc:`; it never touches `settings.bin` or sector
+saves. The Azahar verifier requires both lines on both models.
+
+## Atomic storage
+
+`include/platform/settings_store.h` stores opaque bytes:
+
+- `m3ds_settings_store_write/read`: temp file + rename, with the previous
+  `settings.bin` moved to `settings_backup.bin`; reads fall back to the backup.
+- `m3ds_sector_store_write/read`: temp file + rename for
+  `sector-<planet>-<id>.msav`.
+- `m3ds_storage_probe_roundtrip`: target-filesystem probe with cleanup.
+
+No content format is parsed or invented here.
 
 ## Tests
 
 - `tests/platform/test_sd_paths.c`: settings/backup/backups/sector paths,
   trailing-slash roots, id formatting, traversal/absolute/separator/truncation
   rejection.
-- `./dev.sh test` runs the test.
-- `./dev.sh emu-test` verifies the STORAGE telemetry alongside parity/atlas.
+- `tests/platform/test_settings_store.c`: primary/backup settings round-trips,
+  backup fallback, atomic sector write/read, probe round-trip and cleanup.
+- `./dev.sh test` runs both tests.
+- `./dev.sh emu-test` verifies STORAGE paths and the SD probe round-trip.
 
 ## Remaining work
 

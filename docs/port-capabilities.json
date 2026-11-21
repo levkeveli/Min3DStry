@@ -240,6 +240,9 @@
         "include/platform/sd_paths.h",
         "src/platform/sd_paths.c",
         "tests/platform/test_sd_paths.c",
+        "include/platform/settings_store.h",
+        "src/platform/settings_store.c",
+        "tests/platform/test_settings_store.c",
         "docs/porting/campaign-progression.md",
         "docs/porting/sd-storage-paths.md"
       ]
