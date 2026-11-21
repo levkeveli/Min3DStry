@@ -866,9 +866,10 @@ v160.8 server on both Azahar profiles. Both kept the session active,
 restored 20 objectives, 19 dependency links and 20 markers, verified the
 first objective's 60 beryllium target, and matched eight original atlas
 samples across Evoke and Core Bastion at the stock spawn.
-The `-O0` build reserves 65.03 MiB for load segments, stacks, heaps and
-the SOC buffer before GC metadata. Physical-console memory and frame rate
-remain to be verified.
+The same Onset checks passed at both `-O0` and `-O2`. The builds reserve
+65.03 MiB and 62.11 MiB respectively for load segments, stacks, heaps and
+the SOC buffer. These subtotals exclude GC metadata and other native
+allocations. Physical-console memory and frame rate remain to be verified.
 
 The renderer still selects blocks that use the supported sprite operations.
 Textured raw vertices, additional payload types and other rendering services
