@@ -428,12 +428,12 @@ matching the stock server's CRC32 `3861859253` for all 262,144 tile data
 bytes on both joins.
 
 Pass `--live-audio` to `arm11/prepare_terrain_assets.py` along with its
-multiplayer inputs. The packer verifies and stages all 205 [stock sound
-assets](../../docs/audio/sound-catalog.md) from the pinned desktop JAR. It
-also converts 194 effects of up to six seconds to 22.05 kHz PCM16, retaining
+multiplayer inputs. The packer verifies and stages all 205 stock sound
+assets from the pinned desktop JAR. It also converts 194 effects of up to
+six seconds to 22.05 kHz PCM16, retaining
 their original channels, and emits an index keyed by upstream sound ID.
 The remaining 11 effects are staged as their original Ogg files for the
-streaming work tracked in #250.
+[streaming follow-up](https://github.com/levkeveli/Min3DStry/issues/250).
 
 The graphical live client binds the generated `Sounds.load()` registry
 before content initialization. It uses Arc gain, pan, pitch and deduplication
@@ -455,13 +455,26 @@ and positional wave spawn (198). The report includes resident PCM, cache
 hits and voice counts. Azahar without DSP firmware exercises asset loading
 and request routing.
 
-The [earlier Gamma-only build with the shared mixer](https://github.com/levkeveli/Min3DStry/actions/runs/44950022754)
-passed the Glacier replay on both Azahar profiles. Each run loaded 11,510 mono
+The stock SFX ARM11 build from `94e74c9` passed the expanded Glacier replay
+on both Azahar profiles. The native cache started with zero resident PCM.
+Each run routed IDs 117, 185 and 198 and
+finished with six clips and 478,160 resident PCM bytes. Old 3DS logged 227
+requests and 221 cache hits. New 3DS logged 237 requests and 231 hits. The
+Java server confirmed both weapon releases, and the client showed the stock
+bolt and cleared its local projectiles. The same ROM completed two
+consecutive joins to the stock 512×512 Onset map on each profile, matching
+the server's tile CRC32 `3861859253`. The emulator ran in no-DSP fallback,
+so audible playback remains a physical-console test.
+[ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44952393858)
+
+The earlier Gamma-only build with the shared mixer passed the Glacier
+replay on both Azahar profiles. Each run loaded 11,510 mono
 PCM bytes, captured the Gamma bolt and its active trail, and delivered
 positional firing requests to the mixer. Azahar entered its no-DSP
 fallback, which recorded 12 drops on Old 3DS and 10 on New 3DS. The same
 ROM passed two consecutive Onset joins on each profile with stock tile
-data CRC32 `3861859253`. Audible playback still needs physical testing.
+data CRC32 `3861859253`.
+[Earlier ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44950022754)
 
 Run the same verifier with `--controls --model old3ds` and then
 `--controls --model new3ds`. Follow its prompts to move right with the

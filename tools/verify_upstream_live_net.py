@@ -106,7 +106,9 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
         leave_at = circle_at + 30
     movement_hold = 3 if graphical_movement and not needs_settling_time else 1
     if weapons:
-        leave_at = first_move + 38
+        # Slow render profiles cap per-frame simulation delta. Leave enough input-idle
+        # time after the north burst to observe the last stock projectile expire.
+        leave_at = first_move + 60
     frames = (128 if erekir_build or mining else leave_at + 7) * samples_per_second
     header = struct.pack("<4sQ20sQQ32sIQq156x", b"CTM\x1b", 0, revision, 1780000000,
                          0x4D334453, b"Min3DStry input verification", 0, frames, 0)
@@ -2121,7 +2123,7 @@ def main():
     parser.add_argument("--verify-projectiles", action="store_true",
                         help="Also verify the original Gamma bolt appears on the handheld viewport and clears")
     parser.add_argument("--verify-live-audio", action="store_true",
-                        help="Check stock Gamma firing sound reaches the ARM11 audio mixer")
+                        help="Check local Gamma fire and both stock server sound packets reach the mixer")
     args = parser.parse_args()
     if args.controls_rejoin and (not args.controls or args.controls_replay or not args.terrain_atlas
                                  or args.map_spawn not in MAP_SPAWN_PIXELS or args.verify_objective_markers
