@@ -22,6 +22,16 @@ bool m3ds_msav_inflate_prefix(
     const uint8_t *zlib_data, size_t zlib_size, uint8_t *out,
     size_t out_capacity, size_t *out_size);
 
+/*
+ * Inflates the complete zlib stream into a heap buffer that grows as needed.
+ * max_size bounds the allocation; exceeding it returns false with *too_large
+ * set, which lets callers distinguish an oversized save from corrupt data.
+ * On success the caller owns *out and must free it.
+ */
+bool m3ds_msav_inflate_all(
+    const uint8_t *zlib_data, size_t zlib_size, uint8_t **out,
+    size_t *out_size, size_t max_size, bool *too_large);
+
 #ifdef __cplusplus
 }
 #endif

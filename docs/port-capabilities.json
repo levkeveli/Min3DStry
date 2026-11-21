@@ -222,7 +222,11 @@
         "research/upstream-runtime/build.gradle",
         "research/upstream-runtime/README.md",
         "docs/porting/combat-waves-pathfinding.md",
-        ".github/workflows/upstream-arm11-smoke.yml"
+        ".github/workflows/upstream-arm11-smoke.yml",
+        "research/upstream-runtime/src/network-live/java/UpstreamLiveNetworkProbe.java",
+        "research/upstream-runtime/src/network-render/java/UpstreamRenderedNetworkProbe.java",
+        "tools/verify_upstream_live_net.py",
+        "docs/gameplay/live-combat.md"
       ]
     },
     {
@@ -287,7 +291,17 @@
         "src/platform/save_slot.c",
         "include/platform/msav_inflate.h",
         "src/platform/msav_inflate.c",
-        "tests/platform/test_save_slot.c"
+        "tests/platform/test_save_slot.c",
+        "include/platform/msav_world.h",
+        "src/platform/msav_world.c",
+        "tests/platform/test_msav_world.c",
+        "tests/fixtures/glacier-v13.msav",
+        "tests/fixtures/glacier-v13-decoded.txt",
+        "tests/fixtures/README.md",
+        "research/upstream-runtime/src/world/java/UpstreamSaveDecodeBaseline.java",
+        "include/render/save_world_preview.h",
+        "src/render/save_world_preview.c",
+        "tests/render/test_save_world_preview.c"
       ]
     },
     {

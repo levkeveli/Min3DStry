@@ -39,6 +39,17 @@ bool m3ds_sector_store_read(
     size_t capacity,
     size_t *out_size);
 
+/*
+ * Reads a whole sector save into a heap buffer sized from the file. The caller
+ * owns *out and must free it. Missing or empty files return false.
+ */
+bool m3ds_sector_store_read_alloc(
+    const char *root,
+    const char *planet,
+    uint32_t sector_id,
+    void **out,
+    size_t *out_size);
+
 typedef struct M3dsSettingsStatus {
     bool primary_present;
     bool backup_present;

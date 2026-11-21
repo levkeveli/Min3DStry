@@ -1,6 +1,6 @@
 # Combat, Turrets, Enemy Waves & Flowfield Pathfinding Baseline (Issue #30)
 
-**Verification status:** Host-verified across pinned upstream Mindustry `v160.8` JVM (`UpstreamCombatBaseline.java`, `UpstreamCombatSimulationBaseline.java`, `-Pprobe=combat-ticks`, and `-Pprobe=wave-routing`) and TeaVM C `-O0` / `-O2` (`cc -std=gnu11 -fwrapv -ffp-contract=off`), with ARM11 `.3dsx`/`.elf` compiled and both gameplay probes executed on Azahar `2126.2` New and Old profiles. `combat-waves-ai` in [port-capabilities.json](../port-capabilities.json) is **Emulator-tested** under [#30](https://github.com/levkeveli/Min3DStry/issues/30); live-session integration, Old 3DS memory budget optimization, and physical hardware verification remain open.
+**Verification status:** Host-verified across pinned upstream Mindustry `v160.8` JVM (`UpstreamCombatBaseline.java`, `UpstreamCombatSimulationBaseline.java`, `-Pprobe=combat-ticks`, and `-Pprobe=wave-routing`) and TeaVM C `-O0` / `-O2` (`cc -std=gnu11 -fwrapv -ffp-contract=off`), with ARM11 `.3dsx`/`.elf` compiled and both gameplay probes executed on Azahar `2126.2` New and Old profiles. `combat-waves-ai` in [port-capabilities.json](../port-capabilities.json) is **Emulator-tested** under [#30](https://github.com/levkeveli/Min3DStry/issues/30); the separate stock-server live slice is tracked in [live-combat.md](../gameplay/live-combat.md), while full in-app combat simulation, Old 3DS memory budget optimization, and physical hardware verification remain open.
 
 ## 1:1 Upstream Mandate
 
@@ -55,7 +55,7 @@ Both gameplay probes under [research/upstream-runtime/src/gameplay/java/](../../
    UPSTREAM_WAVE wave=3 spawned=dagger=2 groundSpawned=2 first=79,219->80,173 distance=1545->1177 min=1177 alive=2/2 ammo=30 nextWave=4
    UPSTREAM_WAVE wave=4 spawned=dagger=2 groundSpawned=2 first=79,219->80,173 distance=1546->1177 min=1177 alive=2/2 ammo=29 nextWave=5
    ```
-   - Earlier Azahar `2126.2` runs on Old and New 3DS profiles for [combat-ticks](../../research/upstream-runtime/README.md#exercise-upstream-combat-and-the-first-glacier-wave) and [wave-routing](../../research/upstream-runtime/README.md#exercise-upstream-waves-and-ground-routing) matched these traces, while the current PR verifies JVM reference, TeaVM C `-O0`/`-O2`, and ARM11 `.3dsx`/`.elf` compilation.
+   - The current probes are verified on the pinned JVM reference, host TeaVM C `-O0`/`-O2`, and both ARM11 Azahar profiles. Earlier Azahar `2126.2` runs for [combat-ticks](../../research/upstream-runtime/README.md#exercise-upstream-combat-and-the-first-glacier-wave) and [wave-routing](../../research/upstream-runtime/README.md#exercise-upstream-waves-and-ground-routing) matched these traces; the runtime evidence below is from the merged probes.
 
 ### Azahar `2126.2` runtime evidence
 
