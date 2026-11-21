@@ -42,7 +42,7 @@ public final class UpstreamCampaignSavesLoadProbe {
         String mapPath = args.length > 1
             ? args[1]
             : (live ? "/3ds/min3dstry/glacier.msav" : base + "/glacier.msav");
-        UpstreamWorldLoadProbe.load(new String[]{mapPath});
+        var app = UpstreamWorldLoadProbe.load(new String[]{mapPath});
         step("world");
 
         Core.settings = new Settings();
@@ -83,13 +83,24 @@ public final class UpstreamCampaignSavesLoadProbe {
             if(saves.getLastSector() != null){
                 throw new IllegalStateException("A metadata-free slot was treated as a sector save");
             }
-            String name = slots.first().file.name();
+            var slot = slots.first();
+            SaveIO.load(slot.file, Vars.world.makeSectorContext(sector));
+            app.runPosted();
+            step("launch");
+            if(Vars.state.rules.sector != sector || Vars.state.wave != 5
+                    || Vars.world.width() != 150 || Vars.world.height() != 250){
+                throw new IllegalStateException(
+                    "Launched save did not restore sector/wave/world: sector="
+                    + Vars.state.rules.sector + " wave=" + Vars.state.wave
+                    + " world=" + Vars.world.width() + "x" + Vars.world.height());
+            }
+            String name = slot.file.name();
             long bytes = slotFile.length();
             directory.emptyDirectory();
             directory.delete();
             System.out.println(
                 "UPSTREAM_CAMPAIGN_SAVES_LOAD path=" + (live ? "live" : "tmp")
-                + " slots=1 file=" + name + " bytes=" + bytes + " load=ok");
+                + " slots=1 file=" + name + " bytes=" + bytes + " load=ok launch=ok");
         }finally{
             Vars.mainExecutor.shutdownNow();
         }

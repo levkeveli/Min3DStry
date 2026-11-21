@@ -408,12 +408,14 @@ bash arm11/build.sh build/generated/teavm/c build/probe-3ds-campaign-saves-load
 Both Azahar profiles report:
 
 ```text
-UPSTREAM_CAMPAIGN_SAVES_LOAD path=live slots=1 file=sector-serpulo-15.msav bytes=11036 load=ok
+UPSTREAM_CAMPAIGN_SAVES_LOAD path=live slots=1 file=sector-serpulo-15.msav bytes=11036 load=ok launch=ok
 ```
 
 The probe asserts one discovered slot and that the generic save is not treated
-as a sector remap. It does not call `SaveSlot.load()` or load a world; the live
-campaign startup still needs to invoke this path.
+as a sector remap. It then launches the discovered slot through
+`SaveIO.load(slot.file, Vars.world.makeSectorContext(sector))` and verifies the
+sector, wave and `150x250` world are restored. The live campaign startup still
+needs to invoke this path from its UI.
 
 ## Remaining Scope for Issue #41 (3DS Hardware / ARM11 Runtime)
 

@@ -15,7 +15,7 @@ report `path=live` and restore live settings or delete probe slots.
 | Planet last-sector routing | `campaign-planet` | `UPSTREAM_CAMPAIGN_PLANET path=live planet=serpulo sector=86 preset=frozenForest lastSector=86 reload=ok sectors=272` |
 | Sector play/capture transitions | `campaign-sector-state` | `UPSTREAM_CAMPAIGN_SECTOR_STATE sector=15 groundZero=ok played=ok captured=ok waves=locked gameOver=ok menu=ok` |
 | Sector save launch | `campaign-launch` | `UPSTREAM_CAMPAIGN_LAUNCH slot=sector-serpulo-15.msav bytes=11036 version=13 sector=15 wave=5 world=150x250 launch=ok` |
-| Upstream `Saves.load()` on live SD path | `campaign-saves-load` | `UPSTREAM_CAMPAIGN_SAVES_LOAD path=live slots=1 file=sector-serpulo-15.msav bytes=11036 load=ok` |
+| Upstream `Saves.load()` + sector launch on live SD path | `campaign-saves-load` | `UPSTREAM_CAMPAIGN_SAVES_LOAD path=live slots=1 file=sector-serpulo-15.msav bytes=11036 load=ok launch=ok` |
 
 The native path/storage contract is covered by `sd_paths` and
 `settings_store` host tests. The read-only SD sector catalog
