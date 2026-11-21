@@ -20,6 +20,7 @@ def placementSource = 'core/src/mindustry/ui/fragments/PlacementFragment.java'
 def itemSelectionSource = 'core/src/mindustry/world/blocks/ItemSelection.java'
 def planetGridSource = 'core/src/mindustry/graphics/g3d/PlanetGrid.java'
 def pixmapSource = 'arc-core/src/arc/graphics/Pixmap.java'
+def jsonSource = 'arc-core/src/arc/util/serialization/Json.java'
 def pixmapPatch = file('patches/arc-pixmap-direct-buffer.patch')
 def glacier = 'core/assets/maps/default/glacier.msav'
 def upstream = providers.gradleProperty('upstreamCheckout')
@@ -50,7 +51,8 @@ def entryPoints = [
     'campaign-sector': 'UpstreamCampaignSectorProbe',
     'campaign-content': 'UpstreamCampaignContentStateProbe',
     'campaign-research': 'UpstreamCampaignResearchStateProbe',
-    'campaign-slot-meta': 'UpstreamCampaignSlotMetaProbe'
+    'campaign-slot-meta': 'UpstreamCampaignSlotMetaProbe',
+    'campaign-sector-info': 'UpstreamCampaignSectorInfoProbe'
 ]
 if (!entryPoints.containsKey(probe)) {
     throw new GradleException("Expected -Pprobe to be one of ${entryPoints.keySet()}")
@@ -66,9 +68,10 @@ def usesCampaignSector = probe == 'campaign-sector'
 def usesCampaignContent = probe == 'campaign-content'
 def usesCampaignResearch = probe == 'campaign-research'
 def usesCampaignSlotMeta = probe == 'campaign-slot-meta'
+def usesCampaignSectorInfo = probe == 'campaign-sector-info'
 def usesWorldSources = probe in ['world', 'world-save', 'world-roundtrip', 'world-stream',
                                  'terrain-draw'] || usesCampaignSector || usesCampaignSlotMeta || usesLiveNetwork || usesTerrainRenderer || usesSimulation
-def initializesContent = probe == 'content-init' || usesWorldSources || usesCampaignContent || usesCampaignResearch
+def initializesContent = probe == 'content-init' || usesWorldSources || usesCampaignContent || usesCampaignResearch || usesCampaignSectorInfo
 def usesContentSources = probe == 'content' || initializesContent
 def usesExecutor = usesContentSources || probe == 'executor' || usesCampaignSettings
 def usesArcSources = usesContentSources || probe == 'resource' || usesCampaignSettings
@@ -76,8 +79,11 @@ def usesWorldStream = probe == 'world-stream' || usesLiveNetwork
 def pluginsToLoad = []
 if (usesArcSources) pluginsToLoad.add('port.ResourceVirtualMethods')
 if (usesExecutor) pluginsToLoad.add('port.concurrent.ArcPoolSupport')
+if (usesWorldSources || usesCampaignSectorInfo) {
+    pluginsToLoad.add('port.AnonymousClassSupport')
+}
 if (usesWorldSources) {
-    pluginsToLoad.addAll(['port.AnonymousClassSupport', 'port.WorldProbeSupport'])
+    pluginsToLoad.add('port.WorldProbeSupport')
 }
 def referenceJar = file(providers.gradleProperty('referenceJar').getOrElse('server-release.jar'))
 def sourceDir = layout.buildDirectory.dir("upstream-src/${probe}")
@@ -88,6 +94,7 @@ def annotationsFile = sourceDir.map { it.file('mindustry/annotations/Annotations
 def arcFile = sourceDir.map { it.file('arc/files/Fi.java') }
 def arcOsFile = sourceDir.map { it.file('arc/util/OS.java') }
 def arcPixmapFile = sourceDir.map { it.file('arc/graphics/Pixmap.java') }
+def arcJsonFile = sourceDir.map { it.file('arc/util/serialization/Json.java') }
 def networkIoFile = sourceDir.map { it.file('mindustry/net/NetworkIO.java') }
 def netClientFile = sourceDir.map { it.file('mindustry/core/NetClient.java') }
 def placementFile = sourceDir.map { it.file('UpstreamPlacementCatalog.java') }
@@ -95,6 +102,7 @@ def itemChoicesFile = sourceDir.map { it.file('UpstreamItemChoices.java') }
 def planetGridFile = sourceDir.map { it.file('mindustry/graphics/g3d/PlanetGrid.java') }
 def compilerResources = layout.buildDirectory.dir("compiler-resources/${probe}")
 def pluginFile = compilerResources.map { it.file('META-INF/services/org.teavm.vm.spi.TeaVMPlugin') }
+def reflectionPolicyFile = compilerResources.map { it.file('META-INF/services/org.teavm.extension.spi.reflection.ReflectionPolicy') }
 def readUpstream = { path ->
     providers.exec {
         commandLine 'git', '-C', upstream.get(), 'show', "${revision}:${path}"
@@ -124,6 +132,9 @@ if (usesArcSources || usesExecutor) {
     if (patchesPlanetGrid) {
         stagedClasses.addAll(['mindustry/graphics/g3d/PlanetGrid.class', 'mindustry/graphics/g3d/PlanetGrid$*.class'])
     }
+    if (usesCampaignSectorInfo) {
+        stagedClasses.addAll(['arc/util/serialization/Json.class', 'arc/util/serialization/Json$*.class'])
+    }
     // TeaVM resolves dependency classes before compiled project classes.
     def contentDependencies = tasks.register('prepareContentDependencies', Zip) {
         dependsOn 'prepareUpstreamProbe'
@@ -141,8 +152,14 @@ if (usesArcSources || usesExecutor) {
 if (usesArcSources) {
     sourceSets.main.java.srcDir('src/resource/java')
 }
-if (!pluginsToLoad.isEmpty()) {
-    dependencies { compileOnly 'org.teavm:teavm-core:0.16.0' }
+if (!pluginsToLoad.isEmpty() || usesCampaignSectorInfo) {
+    dependencies {
+        compileOnly 'org.teavm:teavm-core:0.16.0'
+        if (usesCampaignSectorInfo) {
+            compileOnly 'org.teavm:teavm-extension-apis:0.16.0'
+            compileOnly 'org.teavm:teavm-extension-spi:0.16.0'
+        }
+    }
     sourceSets.main.resources.srcDir(compilerResources)
     tasks.named('processResources') { dependsOn 'prepareUpstreamProbe' }
 }
@@ -187,6 +204,9 @@ if (usesCampaignResearch) {
 }
 if (usesCampaignSlotMeta) {
     sourceSets.main.java.srcDir('src/campaign-slot-meta/java')
+}
+if (usesCampaignSectorInfo) {
+    sourceSets.main.java.srcDirs('src/campaign-sector-info/java')
 }
 dependencies {
     if (usesMapSources || usesLiveNetwork || usesTerrainRenderer) {
@@ -238,11 +258,19 @@ tasks.register('prepareUpstreamProbe') {
     if (patchesPlanetGrid) {
         outputs.file(planetGridFile)
     }
+    if (usesCampaignSectorInfo) {
+        outputs.files(reflectionPolicyFile, arcJsonFile)
+    }
     doLast {
         if (!pluginsToLoad.isEmpty()) {
             def service = pluginFile.get().asFile
             service.parentFile.mkdirs()
             service.setText(pluginsToLoad.join('\n') + '\n', 'UTF-8')
+        }
+        if (usesCampaignSectorInfo) {
+            def policy = reflectionPolicyFile.get().asFile
+            policy.parentFile.mkdirs()
+            policy.setText('port.SectorInfoReflectionPolicy\n', 'UTF-8')
         }
         def sha256 = MessageDigest.getInstance('SHA-256').digest(referenceJar.bytes).encodeHex().toString()
         if (sha256 != 'faeaf247a8b622de940181a96cb21cb20692d3c3da4e8ac3f79cb4af5059aa6c') {
@@ -321,6 +349,22 @@ final class GlacierFixture {
             providers.exec {
                 commandLine 'git', '-C', sourceDir.get().asFile, 'apply', '--no-index', pixmapPatch
             }.result.get()
+        }
+        if (usesCampaignSectorInfo) {
+            def source = new String(providers.exec {
+                commandLine 'git', '-C', arc.get(), 'show', "${arcRevision}:${jsonSource}"
+            }.standardOutput.asBytes.get(), 'UTF-8')
+            def reflective = 'return type.getDeclaredConstructor().newInstance();'
+            def accessibility = 'if(!field.isAccessible()){'
+            if (source.count(reflective) != 1 || source.count(accessibility) != 1) {
+                throw new GradleException('Pinned Arc Json reflection hooks changed')
+            }
+            // TeaVM instantiates retained classes directly and reports public fields inaccessible.
+            source = source.replace(reflective, 'return type.newInstance();')
+            source = source.replace(accessibility, 'if(false){')
+            def adapted = arcJsonFile.get().asFile
+            adapted.parentFile.mkdirs()
+            adapted.setText(source, 'UTF-8')
         }
         if (usesWorldStream) {
             def source = new String(readUpstream(networkIoSource), 'UTF-8')

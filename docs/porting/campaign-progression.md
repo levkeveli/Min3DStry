@@ -177,6 +177,31 @@ header/version plus `SaveMeta` tags (`sectorPreset=groundZero`, `wave=1`,
 `/3ds/min3dstry` directory and deletes the slot after verification. Azahar
 `2126.2` New and Old profiles both reported the marker.
 
+## ARM11 SectorInfo JSON Round-Trip
+
+`-Pprobe=campaign-sector-info` persists and reloads the upstream
+`serpulo-s-170-info` settings key with a TeaVM `ReflectionPolicy`:
+
+```sh
+gradle -PupstreamCheckout=/path/to/Mindustry \
+  -PreferenceJar=/path/to/server-release.jar \
+  -ParcCheckout=/path/to/Arc -Pprobe=campaign-sector-info runProbeJvm
+```
+
+JVM and ARM11/Azahar report:
+
+```text
+UPSTREAM_CAMPAIGN_SECTOR_INFO path=live key=serpulo-s-170-info captured=ok wave=7 items=250:75 reload=ok blocks=447
+```
+
+The probe writes a real `SectorInfo` through `Settings.putJson`, reloads a fresh
+`Settings` from `settings.bin`, and verifies `wasCaptured`, `wave`,
+`storageCapacity`, `name`, and the copper/lead `ItemSeq`. TeaVM needs
+`SectorInfoReflectionPolicy` to expose `SectorInfo` fields to Arc's JSON
+reader; `bestCoreType` is nulled for this scalar/items round-trip. On 3DS the
+probe targets live `/3ds/min3dstry` and restores or removes the prior settings.
+Azahar `2126.2` New and Old profiles both reported `path=live`.
+
 ## Remaining Scope for Issue #41 (3DS Hardware / ARM11 Runtime)
 
 The host-verified path contract is recorded in [sd-storage-paths.md](sd-storage-paths.md); it does not write settings or sector saves yet. Once the ARM11 TeaVM runtime bring-up integrates `Core.files` and `Core.settings` onto SD card storage under `/3ds/min3dstry/`:
