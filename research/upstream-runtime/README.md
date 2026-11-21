@@ -733,6 +733,10 @@ a controlled sequence of stock entity snapshots. The
 [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44874607258)
 passed on both Azahar profiles with 22 exact shallow-water wake pixels
 on each side of the Risso per profile.
+The same build passed pad construction on Old 3DS and touch construction
+on New 3DS, including settled D-pad and Circle Pad movement, wave sync
+and disconnect. The touch verifier waits for the matching presented
+pixels and gives each movement time to settle before sending the next.
 
 The renderer still selects blocks that use the supported sprite operations.
 Textured raw vertices, additional payload types and other rendering services

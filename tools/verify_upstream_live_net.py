@@ -50,9 +50,10 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
     # The pinned Azahar movie header and HID sample definitions use packed little-endian fields.
     revision = bytes.fromhex("219d743a1e698101fe1ab8bef43e6563126c3c27")
     samples_per_second = 234
-    # In the construction replay the O0 renderer can take longer between input polls.
-    circle_at = first_move + (18 if building else 6)
-    leave_at = first_move + (44 if building else 16)
+    # Construction and configuration replays can take longer between input polls.
+    needs_settling_time = building or touch_build or touch_config
+    circle_at = first_move + (18 if needs_settling_time else 6)
+    leave_at = first_move + (44 if needs_settling_time else 16)
     frames = (leave_at + 7) * samples_per_second
     header = struct.pack("<4sQ20sQQ32sIQq156x", b"CTM\x1b", 0, revision, 1780000000,
                          0x4D334453, b"Min3DStry input verification", 0, frames, 0)
@@ -196,6 +197,18 @@ def verify_conveyor(log, emulator, server_log, server, timeout, capture, positio
         print(f"The ARM11 client applied and drew the PC conveyor at ({desktop_x}, {desktop_y}).", flush=True)
 
 
+def wait_for_touch_pixels(capture, phase, position, expected):
+    # The packet handler logs completion before the graphics backend presents the resulting frame.
+    deadline = time.monotonic() + 5
+    while True:
+        pixels = capture(phase, position)
+        if pixels == expected:
+            return
+        if time.monotonic() >= deadline:
+            raise RuntimeError(f"Expected {phase} pixels {expected}, got {pixels}")
+        time.sleep(0.1)
+
+
 def verify_touch_build(log, emulator, server_log, server, timeout, capture, position, ground_pixels):
     _, _, x, y = position
     tx, ty = math.floor(float(x) / 8 + 0.5) + 4, math.floor(float(y) / 8 + 0.5)
@@ -212,17 +225,17 @@ def verify_touch_build(log, emulator, server_log, server, timeout, capture, posi
         result = inspect_building(server_log, server, f"touch-{block}", tile_x, ty)
         if result != (block, "1", str(rotation), str(copper), "true"):
             raise RuntimeError(f"Unexpected stock {block} placement: {result}")
-        build_pixels = capture(f"touch-{block}", position)
+        if block == "copper-wall":
+            wait_for_touch_pixels(capture, "touch-copper-wall", position, ((200, 165, 143),) * 3)
+        else:
+            capture(f"touch-{block}", position)
     wait_for(log, emulator, rf"UPSTREAM_TOUCH_PLAN block=break x={tx + 1} y={ty}\b", timeout)
     wait_for(log, emulator, rf"UPSTREAM_LIVE_REMOVED x={tx + 1} y={ty}\b", timeout)
     removed = inspect_building(server_log, server, "touch-removed", tx + 1, ty)
     retained = inspect_building(server_log, server, "touch-retained", tx, ty)
     if removed != ("air", "0", "-1", str(copper + 3), "false") or retained[:3] != ("conveyor", "1", "1"):
         raise RuntimeError(f"Unexpected stock removal, copper refund or adjacent conveyor: {removed}, {retained}")
-    removed_pixels = capture("touch-removed", position)
-    if build_pixels == ground_pixels or removed_pixels != ground_pixels:
-        raise RuntimeError(f"Wall sprite did not appear and clear: {ground_pixels} -> "
-                           f"{build_pixels} -> {removed_pixels}")
+    wait_for_touch_pixels(capture, "touch-removed", position, ground_pixels)
     print(f"Stock server verified both touch placements and the wall refund; copper={removed[3]}.", flush=True)
     wait_for(log, emulator, r"UPSTREAM_CATALOG_PAGE category=distribution page=2\b", timeout)
     time.sleep(0.2)  # The input event is logged before Citro2D presents the page.
@@ -342,8 +355,6 @@ def capture_viewport(log, emulator, rpc, destination, position,
         # The backend reports the first split. The fixture wall is drawn before the core.
         split = r"2365,342\+64x64 fragments=2" if require_building_layers else r"1037,3190\+160x160 fragments=6"
         wait_for(log, emulator, rf"UPSTREAM_WORLD_ATLAS page=0 rect={split}\b", 5)
-    screenshot = rpc.screenshot(res_scale=1)
-    destination.write_bytes(screenshot)
     # Default layout centers the 320px bottom screen at x=40 below the top screen.
     if destination.stem.endswith("-touch-catalog"):
         palette_pixels = {(50, 250): (45, 52, 64), (52, 293): (45, 52, 64)}
@@ -371,7 +382,16 @@ def capture_viewport(log, emulator, rpc, destination, position,
         samples += tuple(CORE_PIXELS)
     if require_building_layers:
         samples += tuple(BUILDING_CRACK_PIXELS if require_building_cracks else BUILDING_LAYER_PIXELS)
-    pixels = az.inspect_png(screenshot, samples)
+    # Palette and menu input can be logged before the matching Citro2D frame is presented.
+    deadline = time.monotonic() + 5
+    while True:
+        screenshot = rpc.screenshot(res_scale=1)
+        pixels = az.inspect_png(screenshot, samples)
+        if (not require_palette or all(pixels["samples"][point] == color for point, color in points.items())
+                or time.monotonic() >= deadline):
+            break
+        time.sleep(0.1)
+    destination.write_bytes(screenshot)
     if pixels["width"] != 400 or pixels["height"] != 480 or pixels["top_distinct_colors"] < 8:
         raise RuntimeError(f"Expected the textured Glacier viewport on the top screen: {pixels}")
     if require_world_atlas and any(pixels["samples"][point] != color for point, color in CORE_PIXELS.items()):
