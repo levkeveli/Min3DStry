@@ -202,6 +202,29 @@ reader; `bestCoreType` is nulled for this scalar/items round-trip. On 3DS the
 probe targets live `/3ds/min3dstry` and restores or removes the prior settings.
 Azahar `2126.2` New and Old profiles both reported `path=live`.
 
+## ARM11 Planet Last-Sector Routing
+
+`-Pprobe=campaign-planet` verifies the upstream planet last-sector setting:
+
+```sh
+gradle -PupstreamCheckout=/path/to/Mindustry \
+  -PreferenceJar=/path/to/server-release.jar \
+  -ParcCheckout=/path/to/Arc -Pprobe=campaign-planet runProbeJvm
+```
+
+JVM and ARM11/Azahar report:
+
+```text
+UPSTREAM_CAMPAIGN_PLANET path=live planet=serpulo sector=86 preset=frozenForest lastSector=86 reload=ok sectors=272
+```
+
+The probe initializes the real `Planets.serpulo` sectors and `SectorPresets`,
+calls `Planets.serpulo.setLastSector` for frozen forest (86, deliberately not
+the start sector), saves `settings.bin`, reloads a fresh `Settings`, and
+asserts `getLastSector()` resolves sector 86 with the frozen-forest preset. On
+3DS it targets live `/3ds/min3dstry` and restores/removes the prior settings.
+Azahar `2126.2` New and Old profiles both reported `path=live`.
+
 ## Remaining Scope for Issue #41 (3DS Hardware / ARM11 Runtime)
 
 The host-verified path contract is recorded in [sd-storage-paths.md](sd-storage-paths.md); it does not write settings or sector saves yet. Once the ARM11 TeaVM runtime bring-up integrates `Core.files` and `Core.settings` onto SD card storage under `/3ds/min3dstry/`:
