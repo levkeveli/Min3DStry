@@ -58,7 +58,8 @@ def entryPoints = [
     'campaign-planet': 'UpstreamCampaignPlanetStateProbe',
     'campaign-sector-state': 'UpstreamCampaignSectorStateProbe',
     'campaign-launch': 'UpstreamCampaignLaunchProbe',
-    'campaign-saves': 'UpstreamCampaignSavesProbe'
+    'campaign-saves': 'UpstreamCampaignSavesProbe',
+    'campaign-slot-discovery': 'UpstreamCampaignSlotDiscoveryProbe'
 ]
 if (!entryPoints.containsKey(probe)) {
     throw new GradleException("Expected -Pprobe to be one of ${entryPoints.keySet()}")
@@ -98,8 +99,10 @@ def usesCampaignPlanet = probe == 'campaign-planet'
 def usesCampaignSectorState = probe == 'campaign-sector-state'
 def usesCampaignLaunch = probe == 'campaign-launch'
 def usesCampaignSaves = probe == 'campaign-saves'
+def usesCampaignSlotDiscovery = probe == 'campaign-slot-discovery'
+def usesCampaignJsonCompat = usesCampaignSectorInfo || usesCampaignSlotDiscovery
 def usesWorldSources = probe in ['world', 'world-save', 'world-roundtrip', 'world-stream',
-                                 'terrain-draw'] || usesCampaignSector || usesCampaignSlotMeta || usesCampaignLaunch || usesLiveNetwork || usesTerrainRenderer || usesSimulation
+                                 'terrain-draw'] || usesCampaignSector || usesCampaignSlotMeta || usesCampaignLaunch || usesCampaignSlotDiscovery || usesLiveNetwork || usesTerrainRenderer || usesSimulation
 def initializesContent = probe == 'content-init' || usesWorldSources || usesCampaignContent || usesCampaignResearch || usesCampaignSectorInfo || usesCampaignPlanet || usesCampaignSectorState || usesCampaignLaunch || usesCampaignSaves
 def usesContentSources = probe == 'content' || initializesContent
 def usesExecutor = usesContentSources || probe == 'executor' || usesCampaignSettings
@@ -206,7 +209,7 @@ if (usesArcSources || usesExecutor) {
             stagedClasses.addAll([type + '.class', type + '$*.class'])
         }
     }
-    if (usesCampaignSectorInfo) {
+    if (usesCampaignJsonCompat) {
         stagedClasses.addAll(['arc/util/serialization/Json.class', 'arc/util/serialization/Json$*.class'])
     }
     // TeaVM resolves dependency classes before compiled project classes.
@@ -230,7 +233,7 @@ if (usesArcSources || usesExecutor) {
 if (usesArcSources) {
     sourceSets.main.java.srcDir('src/resource/java')
 }
-if (!pluginsToLoad.isEmpty() || usesCampaignSectorInfo) {
+if (!pluginsToLoad.isEmpty() || usesCampaignJsonCompat) {
     dependencies {
         compileOnly 'org.teavm:teavm-core:0.16.0'
         if (usesCampaignSectorInfo) {
@@ -292,6 +295,9 @@ if (usesCampaignResearch) {
 }
 if (usesCampaignSlotMeta) {
     sourceSets.main.java.srcDir('src/campaign-slot-meta/java')
+}
+if (usesCampaignSlotDiscovery) {
+    sourceSets.main.java.srcDir('src/campaign-slot-discovery/java')
 }
 if (usesCampaignSectorInfo) {
     sourceSets.main.java.srcDirs('src/campaign-sector-info/java')
@@ -366,8 +372,11 @@ tasks.register('prepareUpstreamProbe') {
         outputs.file(contentColorsFile)
         shieldModeSources.keySet().each { outputs.file(sourceDir.map { dir -> dir.file(it) }) }
     }
+    if (usesCampaignJsonCompat) {
+        outputs.file(arcJsonFile)
+    }
     if (usesCampaignSectorInfo) {
-        outputs.files(reflectionPolicyFile, arcJsonFile)
+        outputs.file(reflectionPolicyFile)
     }
     doLast {
         if (probe == 'network-render') {
@@ -513,7 +522,7 @@ final class GlacierFixture {
                 commandLine 'git', '-C', sourceDir.get().asFile, 'apply', '--no-index', pixmapPatch
             }.result.get()
         }
-        if (usesCampaignSectorInfo) {
+        if (usesCampaignJsonCompat) {
             def source = new String(providers.exec {
                 commandLine 'git', '-C', arc.get(), 'show', "${arcRevision}:${jsonSource}"
             }.standardOutput.asBytes.get(), 'UTF-8')

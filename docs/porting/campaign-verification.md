@@ -17,5 +17,11 @@ report `path=live` and restore live settings or delete probe slots.
 | Sector save launch | `campaign-launch` | `UPSTREAM_CAMPAIGN_LAUNCH slot=sector-serpulo-15.msav bytes=11036 version=13 sector=15 wave=5 world=150x250 launch=ok` |
 
 The native path/storage contract is covered by `sd_paths` and
-`settings_store` host tests. Live campaign UI/launch dialogs, capture rewards,
-and physical Old/New 3DS verification remain open.
+`settings_store` host tests. The read-only SD sector catalog
+(`include/platform/sector_catalog.h`) is covered by
+`tests/platform/test_sector_catalog.c` and by Azahar New/Old runs:
+with raw `sector-serpulo-170.msav` and zlib `sector-erekir-64.msav` staged in
+`sdmc:/3ds/min3dstry`, both profiles report `SECTOR_CATALOG count=2`, the two
+sorted `SECTOR_SLOT` lines, and the matching bottom-HUD `Sectors:`/`Sector`
+lines. Live campaign UI/launch dialogs, capture rewards, and physical Old/New
+3DS verification remain open.
