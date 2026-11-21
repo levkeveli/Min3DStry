@@ -986,6 +986,167 @@ count. Index 1 requires one Turbine Condenser. The page-rounded ELF load
 segments for this debug build total 41.14 MiB before heap, stack and
 network allocations. Physical memory and frame rate remain to be tested.
 
+### Campaign objective display
+
+The graphical probe displays eligible, visible objectives on the top
+screen in their upstream order. It uses the stock objective text and
+localized content names. The 3DS adapter draws the original content
+icons from the paged atlas alongside the system-font text.
+
+Pass the path to the official `bundle` base as the optional fourth
+argument to `runBuildingLayersJvm` to verify the changing Onset count,
+the Turbine Condenser text and icons, and hidden objective filtering.
+Run the stationary live verifier with `--controls --map-spawn "The Onset"
+--erekir-sector onset --verify-objective-hud --locale en --terrain-atlas
+PATH`. The stock server hosts the unchanged sector from the release JAR.
+The verifier captures 0/60, sets 17 beryllium in the server's core and
+captures the updated count, then sets 60 and captures the next objective
+after the stock executor completes the first. The separate wall-mining
+replay still checks objective completion through player mining.
+
+The [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44912172962)
+passed this check on both Original and New 3DS Azahar profiles. Both
+displayed the original Beryllium and Turbine Condenser icons and matched
+the server's objective completion and flag count.
+
+### Onset tutorial markers in world space
+
+The live viewport calls the pinned `ShapeTextMarker.draw` and
+`TextMarker.draw` for the objectives selected by the stock executor.
+The renderer preserves the original Arc shapes, world anchors, world
+visibility, localization lookup, layer, and zoom scaling. A staging
+adapter redirects those two classes' `WorldLabel.drawAt` calls to
+Citro2D with the stock background flag. Visible anchors keep long
+text within the 3DS viewport. Marker text selects the upstream touch-control language
+variant when present. Original glyph art and styled spans are tracked
+in [#199](https://github.com/levkeveli/Min3DStry/issues/199). Lighting,
+minimap marker drawing remains pending.
+
+Run `runObjectiveMarkersJvm` under `-Pprobe=network-render` with the
+original `maps/erekir/onset.msav` from the release JAR, `sprites.aatls`,
+and the official `bundle` base. It checks the mining and research shapes
+and labels and the later ducts text marker from the actual map.
+Add `--verify-objective-markers` to the stationary objective HUD
+verifier to use stock position corrections to frame the world markers
+before and after the beryllium objective transition.
+
+The [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44914292683)
+displayed both original shapes and the localized directions on Original
+and New 3DS Azahar profiles connected to the unmodified v160.8 server.
+Both captures show the stock touch mining prompt and the complete
+research label inside the top-screen viewport.
+
+### Original v160.8 font rasterization
+
+The multiplayer asset pack carries the unmodified `font.woff`,
+`font_jp.woff`, `icon.ttf`, and `icons/icons.properties` from the
+official release assets. The ARM11 build uses devkitPro's 3DS FreeType
+port. World labels use the stock 18 px face, rounded 2 px outline, and
+Japanese face override when the selected locale is Japanese. Face-wide
+hinting tables are initialized before opening the multiplayer socket.
+The stock graphical client drops shadowed locale entries before
+loading the world. The selected bundle still resolves the same keys,
+fallback values and formatting locale.
+The renderer keeps the current glyphs in one 512 × 512 RGBA8 texture.
+It prefers VRAM so the world texture pages retain their linear-memory
+budget. It reuses older slots after the previous frame has finished and rasters up
+to two cold glyphs per frame so the live loop can service the connection.
+The existing system-font path displays a label as its glyphs load.
+During graphical sessions the serialized native TCP heartbeat stays
+active while first-frame presentation or font work occupies the main
+thread. World loading continues to use the same transport on its own phase.
+
+For host verification, compile `arm11/m3ds_stock_font.c` and
+`arm11/test_stock_font.c` with the system FreeType development library.
+Pass the extracted `assets/fonts` directory to the test executable.
+It covers the default and Japanese faces, original tech-tree glyph, blank
+advance and outline. On the live emulator verifier, add
+`--verify-stock-font` to the Onset marker check to require the original
+font path on both world labels. Use `--locale ja` without the English-only
+`--verify-objective-hud` check to validate and capture localised Japanese
+world markers separately.
+
+World labels use Arc's existing GlyphLayout parser for color runs and
+newlines. It looks up the content icons used by each label in the
+official ROMFS table. Built-in symbols use the original icon
+face. Pass the original `icons/icons.properties` as the optional fourth
+argument to `runObjectiveMarkersJvm` to check the original marker icon
+regions and color runs. Add `--verify-styled-markers` to the live font
+check to verify the ARM11 renderer submits both original item and block icons.
+The objective HUD uses the same font and markup path, with the original
+content art already displayed in its compact 3DS panel. Use
+`--verify-stock-hud` with the Onset HUD or marker verifier to require
+the original font for each checked objective row.
+
+The touch palette, build catalog, and Sorter item menu use the same
+glyph atlas. Their labels fit within the bottom-screen controls and use
+the system font during glyph warm-up. Pass
+`--controls --controls-replay --touch-config --menu-icons --verify-stock-menu-font`
+with the stock Glacier fixture to check that each visible palette label
+and both menus present the original font. Further Arc UI text remains
+tracked under #199.
+
+The [ARM11 menu build](https://github.com/levkeveli/Min3DStry/actions/runs/44923414603)
+passed the palette and both menu checks on Original and New 3DS emulator
+profiles. Both profiles displayed the original block and item icons
+and agreed with the Java v160.8 server on the original Sorter's Copper,
+Lead, and cleared states. The replay waited for matching sprite pixels
+after each configuration packet.
+
+The ARM11 ROM from [build 44921952248](https://github.com/levkeveli/Min3DStry/actions/runs/44921952248)
+passed both Original and New 3DS emulator profiles against the unmodified
+Java v160.8 server. The English HUD drew the 0/60 and 17/60 Beryllium
+counts and the Turbine Condenser objective in the stock font. The Japanese
+HUD drew the initial Beryllium count and the Turbine Condenser objective
+in the original Japanese face. Both locales showed the original icons and
+colors in the mining and research labels. At 60 Beryllium, client and server
+agreed on the transition to the build objective. These runs used a
+diagnostic build. Console frame-rate and memory-budget measurements remain
+pending.
+
+### Stock map logic markers
+
+The live client applies the original v160.8 marker packets to
+`GameState.markers`. The world pass uses the upstream visibility lists
+and draw routines for text, points, shapes, lines, and atlas-backed texture
+markers. The ARM11 visual clock feeds Arc's global time for the original
+point animation. The texture marker adapter resolves names and content
+icons through the original atlas, including the stock error sprite. Lighting,
+minimap display, arbitrary textured quads, and dynamic Canvas and Logic
+Display textures require further renderer support.
+
+The `runProbeJvm` snapshot reference round-trips the original create,
+control, text, texture, and remove packet classes against the client
+registry. The `runObjectiveMarkersJvm` reference also compares the world
+geometry and packed colors with direct stock draw calls on the same batch.
+Run the live verifier with `--controls --verify-logic-markers` and
+`--terrain-atlas` to compare marker visibility and position before
+creation, after an update, and after removal on Glacier.
+
+The [ARM11 ROM](https://github.com/levkeveli/Min3DStry/actions/runs/44925486810)
+passed this replay on Original and New 3DS emulator profiles against
+the unmodified Java v160.8 server. Both profiles displayed the point,
+shape, line and label. The shape disappeared on a world-visibility
+update, the line moved, the label changed, and removing the markers
+restored the sampled terrain.
+The [integrated renderer replay](https://github.com/levkeveli/Min3DStry/actions/runs/44937074108)
+passed the same Glacier marker checks on both profiles with the original
+v160.8 font renderer enabled.
+
+Add `--verify-texture-markers` to compare opaque pixels from the original
+Router and Copper sprites as the Java server creates, rotates, changes,
+and removes the texture marker. The same replay sends an unresolved name
+to check the original error sprite.
+
+The [ARM11 texture marker build](https://github.com/levkeveli/Min3DStry/actions/runs/44927000612)
+passed the stock geometry and texture replays on both emulator profiles.
+The Java v160.8 server delivered the original create, rotation, texture
+change, and removal packets. The replay verified the Router in both
+orientations, the original Copper icon, the error sprite and the restored
+terrain against sampled pixels.
+The [integrated renderer build](https://github.com/levkeveli/Min3DStry/actions/runs/44937074108)
+also passed those checks on both profiles with the stock font path enabled.
+
 ### Verify the Arc executor pools
 
 Use `-Pprobe=executor` with the JVM and ARM11 build commands. The JVM uses the

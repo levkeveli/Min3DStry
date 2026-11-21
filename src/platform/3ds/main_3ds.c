@@ -164,6 +164,20 @@ int main(int argc, char *argv[]) {
     }
     m3ds_emit_debug_line(log_socket, dbg_line);
 
+    M3dsSettingsStatus settings_status;
+    if (m3ds_settings_store_status(M3DS_SD_ROOT, &settings_status)) {
+        snprintf(dbg_line, sizeof(dbg_line),
+                 "[MIN3DSTRY] SETTINGS primary=%d backup=%d primary_bytes=%u backup_bytes=%u\n",
+                 settings_status.primary_present ? 1 : 0,
+                 settings_status.backup_present ? 1 : 0,
+                 (unsigned)settings_status.primary_bytes,
+                 (unsigned)settings_status.backup_bytes);
+    } else {
+        snprintf(dbg_line, sizeof(dbg_line),
+                 "[MIN3DSTRY] SETTINGS status=invalid\n");
+    }
+    m3ds_emit_debug_line(log_socket, dbg_line);
+
     M3dsSaveSlotInfo save_slot = {0};
     char save_slot_path[96];
     if (m3ds_sd_sector_save_path(
@@ -743,25 +757,20 @@ int main(int argc, char *argv[]) {
             printf("\x1b[20;1HSave: none\x1b[K");
         }
         printf("\x1b[21;1HSectors: %u\x1b[K", (unsigned)sector_count);
-        if (sector_count > 0u) {
-            if (sectors[0].has_meta) {
-                printf("\x1b[22;1HSector %s-%u %s w%u\x1b[K",
-                       sectors[0].planet, (unsigned)sectors[0].id,
-                       sectors[0].map_name, (unsigned)sectors[0].wave);
+        for (size_t i = 0; i < 4u; ++i) {
+            char label[64];
+            if (i < sector_count && m3ds_sector_catalog_label(
+                    &sectors[i], label, sizeof(label))) {
+                printf("\x1b[%u;1H %s\x1b[K", (unsigned)(22u + i), label);
             } else {
-                printf("\x1b[22;1HSector %s-%u %s %uB\x1b[K",
-                       sectors[0].planet, (unsigned)sectors[0].id,
-                       sectors[0].valid ? "v" : (sectors[0].compressed ? "zlib" : "invalid"),
-                       (unsigned)sectors[0].bytes);
+                printf("\x1b[%u;1H\x1b[K", (unsigned)(22u + i));
             }
-        } else {
-            printf("\x1b[22;1H\x1b[K");
         }
         if (save_slot.has_meta) {
-            printf("\x1b[23;1HMap: %s wave=%u\x1b[K",
+            printf("\x1b[26;1HMap: %s wave=%u\x1b[K",
                    save_slot.map_name, (unsigned)save_slot.wave);
         } else {
-            printf("\x1b[23;1H\x1b[K");
+            printf("\x1b[26;1H\x1b[K");
         }
         if (pause_menu.open) {
             printf("\x1b[15;1H=== PAUSED ===  Up/Down + A\x1b[K");

@@ -37,6 +37,7 @@ import mindustry.gen.ClientSnapshotCallPacket;
 import mindustry.gen.ClearObjectivesCallPacket;
 import mindustry.gen.CompleteObjectiveCallPacket;
 import mindustry.gen.ConnectConfirmCallPacket;
+import mindustry.gen.CreateMarkerCallPacket;
 import mindustry.gen.ConstructFinishCallPacket;
 import mindustry.gen.DeconstructFinishCallPacket;
 import mindustry.gen.EntitySnapshotCallPacket;
@@ -45,11 +46,16 @@ import mindustry.gen.KickCallPacket;
 import mindustry.gen.KickCallPacket2;
 import mindustry.gen.Mechc;
 import mindustry.gen.Player;
+import mindustry.gen.RemoveMarkerCallPacket;
 import mindustry.gen.RemoveQueueBlockCallPacket;
 import mindustry.gen.SetObjectivesCallPacket;
+import mindustry.gen.SetPositionCallPacket;
 import mindustry.gen.StateSnapshotCallPacket;
 import mindustry.gen.TileConfigCallPacket;
 import mindustry.gen.Unit;
+import mindustry.gen.UpdateMarkerCallPacket;
+import mindustry.gen.UpdateMarkerTextCallPacket;
+import mindustry.gen.UpdateMarkerTextureCallPacket;
 import mindustry.mod.Mods;
 import mindustry.net.Host;
 import mindustry.net.Net;
@@ -180,12 +186,12 @@ public final class UpstreamLiveNetworkProbe {
         int total = Native.streamTotal();
         var stream = new WorldStreamInput(Native.streamId(), total);
         Vars.player = Player.create();
-        if (Native.beginWorldLoad() == 0) throw new IOException("Unable to keep the connection open during world loading");
+        if (Native.beginKeepAlive(0) == 0) throw new IOException("Unable to keep the connection open during world loading");
         try {
             NetworkIO.loadWorld(new InflaterInputStream(stream));
             app.runPosted();
         } finally {
-            Native.endWorldLoad();
+            Native.endKeepAlive();
         }
         if (stream.remaining != 0 || Groups.player.size() != 1 || !PLAYER_NAME.equals(Vars.player.name)
                 || Vars.world.width() <= 0 || Vars.world.height() <= 0) {
@@ -346,8 +352,10 @@ public final class UpstreamLiveNetworkProbe {
     private void driveLiveClient(UpstreamWorldLoadProbe.ProbeApplication app) throws IOException {
         var controls = new LiveControls(building);
         int lastWave = -1;
-        // Leave headroom for rendering on an ARM11 while the server runs its own clock.
-        long tcpKeepAliveInterval = frame == null ? TCP_KEEP_ALIVE_NS : TCP_KEEP_ALIVE_NS / 2;
+        // A slow first presentation must not postpone the stock TCP heartbeat.
+        if (frame != null && Native.beginKeepAlive(1) == 0) {
+            throw new IOException("Unable to keep the connection open during rendering");
+        }
         keepAlive(1);
         long lastTcpSend = System.nanoTime();
         long lastUdpKeepAlive = lastTcpSend;
@@ -360,7 +368,7 @@ public final class UpstreamLiveNetworkProbe {
             int input = Native.input();
             if (input < 0) return;
             long now = System.nanoTime();
-            if (now - lastTcpSend >= tcpKeepAliveInterval) {
+            if (frame == null && now - lastTcpSend >= TCP_KEEP_ALIVE_NS) {
                 keepAlive(1);
                 lastTcpSend = now;
             }
@@ -425,13 +433,29 @@ public final class UpstreamLiveNetworkProbe {
                 logObjectiveCompletion(completion.index);
             } else if (id == unsignedId(ClearObjectivesCallPacket.class)) {
                 decode(new ClearObjectivesCallPacket(), received).handleClient();
+            } else if (id == unsignedId(SetPositionCallPacket.class)) {
+                decode(new SetPositionCallPacket(), received).handleClient();
             } else if (id == unsignedId(SetObjectivesCallPacket.class)) {
                 decode(new SetObjectivesCallPacket(), received).handleClient();
-            } else if (frame != null) {
-                applyBuildingUpdate(id, received);
+            } else {
+                var marker = markerPacket(id);
+                if (marker != null) {
+                    decode(marker, received).handleClient();
+                } else if (frame != null) {
+                    applyBuildingUpdate(id, received);
+                }
             }
         }
         return lastWave;
+    }
+
+    static Packet markerPacket(int id) {
+        if (id == unsignedId(CreateMarkerCallPacket.class)) return new CreateMarkerCallPacket();
+        if (id == unsignedId(UpdateMarkerCallPacket.class)) return new UpdateMarkerCallPacket();
+        if (id == unsignedId(UpdateMarkerTextCallPacket.class)) return new UpdateMarkerTextCallPacket();
+        if (id == unsignedId(UpdateMarkerTextureCallPacket.class)) return new UpdateMarkerTextureCallPacket();
+        if (id == unsignedId(RemoveMarkerCallPacket.class)) return new RemoveMarkerCallPacket();
+        return null;
     }
 
     private static void logObjectiveCompletion(int index) {
@@ -756,10 +780,10 @@ public final class UpstreamLiveNetworkProbe {
         static native int send(Address packet, int length, int packetId, int reliable);
         @Import(name = "m3ds_live_net_keep_alive")
         static native int keepAlive(int reliable);
-        @Import(name = "m3ds_live_net_begin_world_load")
-        static native int beginWorldLoad();
-        @Import(name = "m3ds_live_net_end_world_load")
-        static native void endWorldLoad();
+        @Import(name = "m3ds_live_net_begin_keep_alive")
+        static native int beginKeepAlive(int rendering);
+        @Import(name = "m3ds_live_net_end_keep_alive")
+        static native void endKeepAlive();
         @Import(name = "m3ds_live_net_input")
         static native int input();
 

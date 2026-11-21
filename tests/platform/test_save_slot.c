@@ -6,6 +6,7 @@
 #include <string.h>
 
 static const char *path = "build/host/test-save-slot.msav";
+static const char *backup = "build/host/test-save-slot-backup.msav";
 
 static const uint8_t fixed_stream[16] = {
     0x78, 0xda, 0xf3, 0x0d, 0x76, 0x0c, 0x63, 0x60, 0x60, 0xe0, 0x05, 0x00,
@@ -24,11 +25,15 @@ static const uint8_t dynamic_stream[106] = {
     0x2c, 0xcb, 0xf2, 0x9f, 0xe6, 0x1f, 0xcf, 0xd1, 0xb9, 0x71,
 };
 
-static void write_bytes(const uint8_t *data, size_t size) {
-    FILE *file = fopen(path, "wb");
+static void write_named(const char *target, const uint8_t *data, size_t size) {
+    FILE *file = fopen(target, "wb");
     assert(file != NULL);
     assert(fwrite(data, 1, size, file) == size);
     fclose(file);
+}
+
+static void write_bytes(const uint8_t *data, size_t size) {
+    write_named(path, data, size);
 }
 
 static void write_stored_stream(const uint8_t *payload, size_t size) {
@@ -210,7 +215,43 @@ static void test_metadata(void) {
     remove(path);
 }
 
+static void test_backup_fallback(void) {
+    uint8_t good[128];
+    memset(good, 0x42, sizeof(good));
+    memcpy(good, "MSAV", 4);
+    memset(good + 4, 0, 4);
+    good[7] = 13;
+    uint8_t bad[8] = {'X', 'S', 'A', 'V', 13, 0, 0, 0};
+    M3dsSaveSlotInfo info;
+
+    remove(path);
+    remove(backup);
+    write_named(backup, good, sizeof(good));
+    assert(m3ds_save_slot_probe(path, &info));
+    assert(info.present && info.valid);
+    assert(info.version == 13u);
+    assert(info.bytes == sizeof(good));
+    remove(backup);
+
+    write_named(path, bad, sizeof(bad));
+    write_named(backup, good, sizeof(good));
+    assert(m3ds_save_slot_probe(path, &info));
+    assert(info.present && info.valid);
+    assert(info.version == 13u);
+    assert(info.bytes == sizeof(good));
+    remove(path);
+    remove(backup);
+
+    write_named(path, bad, sizeof(bad));
+    write_named(backup, bad, sizeof(bad));
+    assert(m3ds_save_slot_probe(path, &info));
+    assert(info.present && !info.valid);
+    remove(path);
+    remove(backup);
+}
+
 static void test_bad_and_short_headers(void) {
+    remove(backup);
     uint8_t bad[8] = {'X', 'S', 'A', 'V', 13, 0, 0, 0};
     write_bytes(bad, sizeof(bad));
     M3dsSaveSlotInfo info;
@@ -241,11 +282,14 @@ static void test_missing_and_invalid(void) {
 }
 
 int main(void) {
+    remove(path);
+    remove(backup);
     test_valid_slot();
     test_zlib_header_without_stream();
     test_compressed_version();
     test_inflate_prefix();
     test_metadata();
+    test_backup_fallback();
     test_bad_and_short_headers();
     test_missing_and_invalid();
     return 0;

@@ -90,7 +90,7 @@ BUILDING_CRACK_PIXELS = {
 
 
 def write_controls_replay(path, first_move=22, building=False, touch_build=False, touch_config=False,
-                          erekir_build=False, mining=None, model="old3ds"):
+                          erekir_build=False, mining=None, model="old3ds", stock_menu_font=False):
     """Write the Azahar 2126.2 CTM input for this probe's pad/touch polling."""
     # The pinned Azahar movie header and HID sample definitions use packed little-endian fields.
     revision = bytes.fromhex("219d743a1e698101fe1ab8bef43e6563126c3c27")
@@ -115,6 +115,13 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
             (58, (305, 64)), (62, (232, 136)), (67, (160, 55)),
             (75, (305, 64)), (79, (232, 136)), (84, (160, 80)),
         )
+        if stock_menu_font:
+            # Keep both menus open while their cold glyphs enter the atlas.
+            taps = (
+                (35, (15, 64)), (42, (268, 218)), (70, (160, 80)), (76, (232, 136)),
+                (84, (305, 64)), (90, (232, 136)), (120, (160, 55)),
+                (130, (305, 64)), (136, (232, 136)), (144, (160, 80)),
+            )
     if erekir_build:
         taps = ((60, (40, 24)), (76, (216, 152)),
                 (91, (120, 24)), (96, (216, 168)))
@@ -329,9 +336,85 @@ def verify_mining(log, emulator, server_log, server, timeout, capture, mining, i
         verify_onset_objective(log, emulator, server_log, server, settled[1])
 
 
-def verify_onset_objective(log, emulator, server_log, server, beryllium):
+ONSET_MARKER_TEXT = {
+    "en": ("Tap to mine", "on the vent."),
+    "ja": ("壁から", "ジェットホールに配置しましょう。"),
+}
+
+
+def set_onset_beryllium(server, amount):
+    server.stdin.write(f'js Vars.state.rules.defaultTeam.core().items.set(Items.beryllium, {amount})\n')
+    server.stdin.flush()
+
+
+def require_stock_objective_font(log, emulator, icon, timeout, label=None):
+    text = re.escape(label) if label is not None else r"[^\r\n]+"
+    wait_for(log, emulator, rf"UPSTREAM_OBJECTIVE_FONT source=v160\.8 icon={icon} text={text}", timeout)
+
+
+def verify_onset_objective_hud(log, emulator, server_log, server, capture, position, markers=None, stock_timeout=0):
+    wait_for(log, emulator, r"UPSTREAM_OBJECTIVE_HUD icon=beryllium text=Obtain: 0/60\|Beryllium\b", 10)
+    if stock_timeout:
+        require_stock_objective_font(log, emulator, "beryllium", stock_timeout, "Obtain: 0/60|Beryllium")
+    if markers:
+        markers("mine", 2320, 864, 868, ONSET_MARKER_TEXT["en"][0])
+    # Drive the real server's item module and let its regular snapshots and objective executor
+    # publish the changes. Hold each state until the client presents it for capture.
+    for amount, icon, label, phase in (
+        (17, "beryllium", "Obtain: 17/60|Beryllium", "objective-progress"),
+        (60, "turbine-condenser", "Build: 1x|Turbine Condenser", "objective-next"),
+    ):
+        set_onset_beryllium(server, amount)
+        wait_for(log, emulator, rf"UPSTREAM_OBJECTIVE_HUD icon={icon} text={re.escape(label)}\b", stock_timeout or 25)
+        if stock_timeout:
+            require_stock_objective_font(log, emulator, icon, stock_timeout, label)
+        if not markers:
+            capture(phase, position)
+    verify_onset_objective(log, emulator, server_log, server, 60)
+    if markers:
+        markers("research", 2312, 944, 957.8, ONSET_MARKER_TEXT["en"][1])
+    print("The objective HUD displayed the stock inventory progress and Turbine Condenser objective.", flush=True)
+
+
+def capture_onset_marker(log, emulator, server, rpc, output, model, stock_timeout, styled, phase, x, y, label_y, words):
+    # Use the stock server correction RPC to frame each marker without changing its coordinates.
+    server.stdin.write(
+        f'js (() => {{ const p = Groups.player.find(boolf(v => String(v.name) === "{PLAYER}")); '
+        f'p.unit().set({x}, {y}); p.set({x}, {y}); Call.setPosition(p.con, {x}, {y}); }})()\n'
+    )
+    server.stdin.flush()
+    wait_for(log, emulator, rf"UPSTREAM_NETWORK_FRAME unit=\d+ left={x // 8 - 8} bottom={y // 8 - 6}\b", stock_timeout or 12)
+    marker_y = re.escape(f"{label_y:.1f}")
+    trace = rf"UPSTREAM_WORLD_LABEL x={x}\.0 y={marker_y} text=[^\r\n]*{re.escape(words)}"
+    wait_for(log, emulator, trace, stock_timeout or 12)
+    if stock_timeout:
+        wait_for(log, emulator, rf"UPSTREAM_WORLD_LABEL_FONT x={x}\.0 y={marker_y} source=v160\.8\b", stock_timeout)
+    if styled:
+        code = 63304 if phase == "mine" else 63294
+        wait_for(log, emulator, rf"UPSTREAM_WORLD_INLINE_GLYPH code={code}\b", 5)
+    destination = output / f"{model}-marker-{phase}.png"
+    # Both stock shapes use the same outline color. Inspect the area below the label.
+    area = tuple((sx, sy) for sx in range(124, 299) for sy in range(100, 235))
+    deadline = time.monotonic() + 8
+    while True:
+        screenshot = rpc.screenshot()
+        colors = az.inspect_png(screenshot, area)["samples"]
+        if sum(rgb == (255, 211, 127) for rgb in colors.values()) >= 8:
+            destination.write_bytes(screenshot)
+            print(f"{model}: visible stock Onset {phase} marker", flush=True)
+            return
+        if time.monotonic() >= deadline:
+            destination.write_bytes(screenshot)
+            raise RuntimeError(f"No stock Onset {phase} marker outline in {destination}")
+        time.sleep(0.25)
+
+
+def verify_onset_objective(log, emulator, server_log, server, beryllium, receive_timeout=5):
     if beryllium < 60:
         raise RuntimeError(f"Expected at least 60 beryllium for the original objective, got {beryllium}")
+    completion = re.compile(r"UPSTREAM_OBJECTIVE_COMPLETE index=0 kind=ItemObjective "
+                            r"next=1 nextKind=BuildCountObjective flags=(\d+)\b")
+    client_flags = completion.search(wait_for(log, emulator, completion, receive_timeout))[1]
     server.stdin.write(
         'js (() => { var rules=Vars.state.rules, all=rules.objectives.all, first=all.get(0), next=all.get(1); '
         'return "UPSTREAM_SERVER_ONSET_OBJECTIVE first=" + first.getClass().getSimpleName() + '
@@ -342,8 +425,8 @@ def verify_onset_objective(log, emulator, server_log, server, beryllium):
     record = re.compile(r"UPSTREAM_SERVER_ONSET_OBJECTIVE first=ItemObjective completed=true "
                         r"next=BuildCountObjective eligible=true flags=(\d+)\b")
     flags = record.search(wait_for(server_log, server, record, 5))[1]
-    match = r"UPSTREAM_OBJECTIVE_COMPLETE index=0 kind=ItemObjective next=1 nextKind=BuildCountObjective"
-    wait_for(log, emulator, rf"{match} flags={flags}\b", 5)
+    if flags != client_flags:
+        raise RuntimeError(f"Expected {flags} stock objective flags, observed {client_flags}")
     print("The stock server and ARM11 client advanced to Onset objective 1 after 60 beryllium.", flush=True)
 
 
@@ -432,13 +515,16 @@ def verify_touch_build(log, emulator, server_log, server, timeout, capture, posi
     print(f"Stock server verified the catalog Router; copper={router[3]}.", flush=True)
 
 
-def verify_touch_config(log, emulator, server_log, server, timeout, capture, position, menu_icons=False):
+def verify_touch_config(log, emulator, server_log, server, timeout, capture, position, menu_icons=False,
+                        stock_menu_font=False):
     _, _, x, y = position
     tx, ty = math.floor(float(x) / 8 + 0.5) + 4, math.floor(float(y) / 8 + 0.5)
     original = inspect_building(server_log, server, "config-before", tx, ty)
     catalog_open = r"UPSTREAM_CATALOG_PAGE category=distribution page=2\b"
     if menu_icons:
-        catalog_open += r"[\s\S]*?UPSTREAM_MENU_ICONS type=block drawn=6\b"
+        wait_for(log, emulator, catalog_open + r"[\s\S]*?UPSTREAM_MENU_ICONS type=block drawn=6\b", timeout)
+    if stock_menu_font:
+        catalog_open += r"[\s\S]*?UPSTREAM_MENU_FONT source=v160\.8 catalog=block\b"
     wait_for(log, emulator, catalog_open, timeout)
     time.sleep(0.2)
     capture("touch-catalog", position)
@@ -446,10 +532,13 @@ def verify_touch_config(log, emulator, server_log, server, timeout, capture, pos
     placed = inspect_building(server_log, server, "config-placed", tx, ty)
     if original[0] != "air" or placed != ("sorter", "1", "0", str(int(original[3]) - 2), "true"):
         raise RuntimeError(f"Unexpected stock Sorter placement: {original} -> {placed}")
-    unconfigured = capture("touch-sorter", position)
+    unconfigured = ((110, 112, 128), (110, 112, 128), (102, 103, 118))
+    wait_for_touch_pixels(capture, "touch-sorter", position, unconfigured)
     config_open = rf"UPSTREAM_CONFIG_OPEN x={tx} y={ty}\b"
     if menu_icons:
-        config_open += r"[\s\S]*?UPSTREAM_MENU_ICONS type=item drawn=6\b"
+        wait_for(log, emulator, config_open + r"[\s\S]*?UPSTREAM_MENU_ICONS type=item drawn=6\b", timeout)
+    if stock_menu_font:
+        config_open += r"[\s\S]*?UPSTREAM_MENU_FONT source=v160\.8 catalog=item\b"
     wait_for(log, emulator, config_open, timeout)
     time.sleep(0.2)  # The open event precedes presentation.
     capture("touch-config-menu", position)
@@ -466,24 +555,24 @@ def verify_touch_config(log, emulator, server_log, server, timeout, capture, pos
     wait_for(log, emulator, rf"UPSTREAM_CONFIG_LOCAL x={tx} y={ty} item=copper\b", timeout)
     time.sleep(0.2)  # Allow the stock server to process the reliable request.
     server_item("from-3ds", "copper")
-    copper = capture("touch-config-copper", position)
+    wait_for_touch_pixels(capture, "touch-config-copper", position, ((217, 157, 115),) * 3)
     server_item("to-3ds", "lead", "b.configureAny(Items.lead);")
     wait_for(log, emulator, rf"UPSTREAM_CONFIG_REMOTE x={tx} y={ty} item=lead\b", timeout)
-    time.sleep(0.2)
-    lead = capture("touch-config-lead", position)
+    wait_for_touch_pixels(capture, "touch-config-lead", position, ((140, 127, 169),) * 3)
     wait_for(log, emulator, rf"UPSTREAM_CONFIG_LOCAL x={tx} y={ty} item=none\b", timeout)
     time.sleep(0.2)
     server_item("cleared", "none")
-    cleared = capture("touch-config-cleared", position)
-    if unconfigured != cleared or len({unconfigured, copper, lead}) != 3:
-        raise RuntimeError(f"Expected distinct original Sorter colors and the clear sprite: "
-                           f"{unconfigured}, {copper}, {lead}, {cleared}")
+    wait_for_touch_pixels(capture, "touch-config-cleared", position, unconfigured)
     print("Stock server verified Copper, returned Lead, and accepted clearing the Sorter.", flush=True)
 
 
 def verify_controls(log, emulator, server_log, server, timeout, capture=None,
-                    building=False, desktop_name=None, touch_build=False, touch_config=False, menu_icons=False):
+                    building=False, desktop_name=None, touch_build=False, touch_config=False, menu_icons=False,
+                    stock_menu_font=False):
     wait_for(log, emulator, r"UPSTREAM_LIVE_CONTROLS_READY unit=\d+", timeout)
+    if stock_menu_font:
+        for index in (0, 1, 2, 3, 4, 5, 7):
+            wait_for(log, emulator, rf"UPSTREAM_MENU_FONT source=v160\.8 palette={index}\b", timeout)
     baseline = server_position(server_log, server, "UPSTREAM_SERVER_CONTROLS_READY").groups()
     ground_pixels = capture("spawn", baseline) if capture else None
     if building:
@@ -491,7 +580,8 @@ def verify_controls(log, emulator, server_log, server, timeout, capture=None,
     if touch_build:
         verify_touch_build(log, emulator, server_log, server, timeout, capture, baseline, ground_pixels)
     if touch_config:
-        verify_touch_config(log, emulator, server_log, server, timeout, capture, baseline, menu_icons)
+        verify_touch_config(log, emulator, server_log, server, timeout, capture, baseline,
+                            menu_icons, stock_menu_font)
     for device, direction, axis in (("dpad", "right", 2), ("circle", "up", 3)):
         print(f"Move {direction} with the {device}, then release it.", flush=True)
         stopped = re.compile(rf"UPSTREAM_LIVE_CONTROLS_STOPPED unit=(\d+) input={device} "
@@ -527,14 +617,14 @@ def verify_controls(log, emulator, server_log, server, timeout, capture=None,
 def capture_viewport(log, emulator, rpc, destination, position,
                      require_palette=False, require_icons=False, require_world_atlas=False,
                      require_building_layers=False, require_building_cracks=False,
-                     world_size=(150, 250), spawn_pixels=None):
+                     world_size=(150, 250), spawn_pixels=None, frame_timeout=5):
     unit, _, x, y = position
     # The renderer centers a 16 × 12 tile viewport in the loaded map.
     width, height = world_size
     left = max(0, min(width - 16, math.floor(float(x) / 8 + 0.5) - 8))
     bottom = max(0, min(height - 12, math.floor(float(y) / 8 + 0.5) - 6))
     frame = f"UPSTREAM_NETWORK_FRAME unit={unit} left={left} bottom={bottom} sprites=1"
-    wait_for(log, emulator, rf"{frame}\b", 5)
+    wait_for(log, emulator, rf"{frame}\b", frame_timeout)
     if require_world_atlas:
         # The backend reports the first split. The fixture wall is drawn before the core.
         split = r"2365,342\+64x64 fragments=2" if require_building_layers else r"1037,3190\+160x160 fragments=6"
@@ -1053,11 +1143,116 @@ def verify_conduit_frames(log, rpc, output, model):
     raise RuntimeError(f"Expected animated stock water in conduits at {missing}")
 
 
+def send_marker_phase(server_log, server, phase, commands):
+    server.stdin.write(f'js (() => {{ {commands} return "UPSTREAM_LOGIC_MARKERS {phase}"; }})()\n')
+    server.stdin.flush()
+    wait_for(server_log, server, rf"UPSTREAM_LOGIC_MARKERS {phase}\b", 5)
+
+
+def verify_logic_markers(log, emulator, server_log, server, rpc, output, model, position, timeout):
+    # Use the same 16 × 12 viewport and tile-rounded center as the graphical client.
+    _, _, x, y = position
+    x, y = (math.floor(float(value) / 8 + 0.5) * 8 for value in (x, y))
+    # The viewport begins at the outer edge of the first tile, half a tile before its center.
+    shape_sample, line_sample, moved_sample = (130, 55), (210, 155), (210, 175)
+    magenta, turquoise = (235, 29, 180), (24, 229, 199)
+    point_area = tuple((px, py) for px in range(263, 298) for py in range(48, 83))
+    point_color = (67, 245, 91)
+
+    def capture(phase, shape, line, moved, point):
+        samples = (shape_sample, line_sample, moved_sample)
+        colors = (magenta, turquoise, turquoise)
+        deadline = time.monotonic() + timeout
+        while True:
+            png = rpc.screenshot(res_scale=1)
+            pixels = az.inspect_png(png, samples + point_area)["samples"]
+            visible = tuple(pixels[point] == color for point, color in zip(samples, colors))
+            point_visible = any(pixels[pixel] == point_color for pixel in point_area)
+            if visible == (shape, line, moved) and point_visible == point:
+                (output / f"{model}-logic-markers-{phase}.png").write_bytes(png)
+                return
+            if time.monotonic() >= deadline:
+                (output / f"{model}-logic-markers-{phase}-unexpected.png").write_bytes(png)
+                observed = tuple(pixels[sample] for sample in samples)
+                raise RuntimeError(f"Unexpected {phase} marker pixels {observed}, visibility {visible}, "
+                                   f"point visible {point_visible}")
+            time.sleep(0.1)
+
+    capture("baseline", False, False, False, False)
+    send_marker_phase(server_log, server, "created",
+        f"const shape = new MapObjectives.ShapeMarker({x - 32}, {y + 22}); "
+        'shape.fill = true; shape.radius = 7; shape.color.set(Color.valueOf("eb1db4")); '
+        f"const line = new MapObjectives.LineMarker({x - 28}, {y - 18}, {x + 28}, {y - 18}, 3); "
+        'line.color1.set(Color.valueOf("18e5c7")); line.color2.set(line.color1); '
+        f'const point = new MapObjectives.PointMarker({x + 28}, {y + 18}, 0.8, 3, Color.valueOf("43f55b")); '
+        f'const text = new MapObjectives.TextMarker("Logic marker created", {x}, {y + 24}); '
+        "Call.createMarker(745, shape); Call.createMarker(746, line); "
+        "Call.createMarker(747, point); Call.createMarker(748, text);")
+    wait_for(log, emulator, r"UPSTREAM_WORLD_LABEL .*text=Logic marker created\b", timeout)
+    capture("created", True, True, False, True)
+
+    control = "Packages.mindustry.logic.LMarkerControl"
+    send_marker_phase(server_log, server, "updated",
+        f"const control = {control}; "
+        "Call.updateMarker(745, control.world, 0, NaN, NaN); "
+        f"Call.updateMarker(746, control.pos, {(x - 28) / 8}, {(y - 26) / 8}, NaN); "
+        f"Call.updateMarker(746, control.endPos, {(x + 28) / 8}, {(y - 26) / 8}, NaN); "
+        'Call.updateMarkerText(748, control.flushText, false, "Logic marker updated");')
+    wait_for(log, emulator, r"UPSTREAM_WORLD_LABEL .*text=Logic marker updated\b", timeout)
+    capture("updated", False, False, True, True)
+
+    send_marker_phase(server_log, server, "removed", "for (let id = 745; id <= 748; id++) Call.removeMarker(id);")
+    capture("removed", False, False, False, False)
+    print(f"{model}: original logic marker drawing, visibility, position, text and removal passed.", flush=True)
+
+
+def verify_texture_markers(server_log, server, rpc, output, model, position, timeout):
+    _, _, x, y = position
+    x, y = (math.floor(float(value) / 8 + 0.5) * 8 for value in (x, y))
+    # The 40px marker is centered at (140, 50). Take opaque samples from the
+    # v160.8 atlas crops for block-router-ui, item-copper and error.
+    points = ((128, 44), (128, 50), (152, 53))
+    plain = ((110, 112, 128), (110, 112, 128), (152, 154, 164))
+    rotated = ((152, 154, 164), (152, 154, 164), (110, 112, 128))
+    copper = ((216, 157, 115), (234, 193, 168), (184, 112, 92))
+    error = ((255, 255, 255),) * 3
+
+    def capture(phase, expected=None):
+        deadline = time.monotonic() + timeout
+        while True:
+            png = rpc.screenshot(res_scale=1)
+            pixels = az.inspect_png(png, points)["samples"]
+            samples = tuple(pixels[point] for point in points)
+            if expected is None or all(abs(a - b) <= 1 for actual, exact in zip(samples, expected)
+                                       for a, b in zip(actual, exact)):
+                (output / f"{model}-texture-marker-{phase}.png").write_bytes(png)
+                return samples
+            if time.monotonic() >= deadline:
+                (output / f"{model}-texture-marker-{phase}-unexpected.png").write_bytes(png)
+                raise RuntimeError(f"Texture marker {phase}: expected {expected}, got {samples}")
+            time.sleep(0.1)
+
+    baseline = capture("baseline")
+    send_marker_phase(server_log, server, "texture-created",
+        f'Call.createMarker(749, new MapObjectives.TextureMarker("block-router-ui", {x - 28}, {y + 24}, 16, 16));')
+    capture("created", plain)
+    send_marker_phase(server_log, server, "texture-rotated",
+        "Call.updateMarker(749, Packages.mindustry.logic.LMarkerControl.rotation, 90, NaN, NaN);")
+    capture("rotated", rotated)
+    send_marker_phase(server_log, server, "texture-content", "Call.updateMarkerTexture(749, Items.copper);")
+    capture("content", copper)
+    send_marker_phase(server_log, server, "texture-error", 'Call.updateMarkerTexture(749, "min3dstry-missing-region");')
+    capture("error", error)
+    send_marker_phase(server_log, server, "texture-removed", "Call.removeMarker(749);")
+    capture("removed", baseline)
+    print(f"{model}: original texture marker creation, rotation, content, fallback and removal passed.", flush=True)
+
+
 def run_model(args, model, config, original_config, log, output):
     stationary = (args.world_atlas_recycle or args.building_layers or args.liquids
                   or args.building_effects or args.payload_mix or args.carried_buildings
                   or args.payload_handoff or args.unit_layers or args.unit_roster or args.naval_wake
-                  or args.tank_treads or args.map_spawn)
+                  or args.tank_treads or args.map_spawn or args.verify_logic_markers or args.verify_texture_markers)
     map_name = args.map_spawn or "Glacier"
     overrides = {
         "Miscellaneous": {"log_filter": "*:Info Debug.Emulated:Debug Service.SOC:Debug",
@@ -1112,7 +1307,7 @@ def run_model(args, model, config, original_config, log, output):
                     f'Vars.state.rules.defaultTeam.core().items.get(Items.{mine_item})\n')
                 server.stdin.flush()
                 wait_for(server_log, server, rf"UPSTREAM_MINING_START {mine_item}=0\b", 5)
-            if args.verify_objectives:
+            if args.verify_objectives or args.verify_objective_hud or args.verify_objective_markers:
                 server.stdin.write(
                     'js (() => { var all=Vars.state.rules.objectives.all, first=all.get(0), next=all.get(1); '
                     'return "UPSTREAM_SERVER_ONSET_START item=" + first.item.name + " amount=" + first.amount + '
@@ -1184,10 +1379,11 @@ def run_model(args, model, config, original_config, log, output):
                 if args.touch_build:
                     first_move = 101
                 if args.touch_config:
-                    first_move = 92
+                    first_move = 154 if args.verify_stock_menu_font else 92
                 write_controls_replay(replay, first_move=first_move, building=args.building,
                                       touch_build=args.touch_build, touch_config=args.touch_config,
-                                      erekir_build=args.erekir_build, mining=args.mining, model=model)
+                                      erekir_build=args.erekir_build, mining=args.mining, model=model,
+                                      stock_menu_font=args.verify_stock_menu_font)
                 command += ["-p", str(replay)]
             command.append(str(args.rom))
             emulator = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -1211,6 +1407,7 @@ def run_model(args, model, config, original_config, log, output):
                                                 require_building_layers=args.building_layers,
                                                 require_building_cracks=args.building_cracks,
                                                 world_size=world_size,
+                                                frame_timeout=25 if args.verify_stock_font else 5,
                                                 spawn_pixels=(MAP_SPAWN_PIXELS.get(args.map_spawn) if phase == "spawn"
                                                               else EREKIR_BUILD_PIXELS.get(phase)))
 
@@ -1246,11 +1443,36 @@ def run_model(args, model, config, original_config, log, output):
                         if args.building_layers:
                             phase = "building-cracks" if args.building_cracks else "building-layers"
                         capture(phase, spawn)
+                        if args.verify_logic_markers:
+                            verify_logic_markers(log, emulator, server_log, server, rpc, output, model, spawn, args.timeout)
+                        if args.verify_texture_markers:
+                            verify_texture_markers(server_log, server, rpc, output, model, spawn, args.timeout)
+                        if args.verify_stock_font:
+                            wait_for(log, emulator, r"UPSTREAM_RENDER_KEEPALIVE transport=tcp\b", 5)
                         if args.erekir_build:
                             verify_erekir_construction(log, emulator, server_log, server, args.timeout, capture, spawn)
                         if args.mining:
                             verify_mining(log, emulator, server_log, server, args.timeout, capture,
                                           args.mining, mine_item, args.verify_objectives)
+                        if args.verify_objective_hud or args.verify_objective_markers:
+                            def capture_marker(*marker):
+                                capture_onset_marker(log, emulator, server, rpc, output, model,
+                                                     args.timeout if args.verify_stock_font else 0,
+                                                     args.verify_styled_markers, *marker)
+                            if args.verify_objective_hud:
+                                verify_onset_objective_hud(log, emulator, server_log, server, capture, spawn,
+                                                           capture_marker if args.verify_objective_markers else None,
+                                                           args.timeout if args.verify_stock_hud else 0)
+                            else:
+                                mining, research = ONSET_MARKER_TEXT[args.locale]
+                                if args.verify_stock_hud:
+                                    require_stock_objective_font(log, emulator, "beryllium", args.timeout)
+                                capture_marker("mine", 2320, 864, 868, mining)
+                                set_onset_beryllium(server, 60)
+                                verify_onset_objective(log, emulator, server_log, server, 60, args.timeout)
+                                if args.verify_stock_hud:
+                                    require_stock_objective_font(log, emulator, "turbine-condenser", args.timeout)
+                                capture_marker("research", 2312, 944, 957.8, research)
                         if args.building_effects:
                             verify_building_effects((output / f"{model}-{phase}.png").read_bytes())
                         if args.payload_mix:
@@ -1280,7 +1502,8 @@ def run_model(args, model, config, original_config, log, output):
                     else:
                         verify_controls(log, emulator, server_log, server, args.timeout,
                                         capture if args.terrain_atlas else None, args.building, args.desktop_name,
-                                        args.touch_build, args.touch_config, args.menu_icons)
+                                        args.touch_build, args.touch_config, args.menu_icons,
+                                        args.verify_stock_menu_font)
                         (output / f"{model}.png").write_bytes(rpc.screenshot())
                         print("Wave 2 applied. Press the emulated START button to leave.", flush=True)
                         emu_log = wait_for(log, emulator, "UPSTREAM_LIVE_CONTROLS_LEFT", args.timeout)
@@ -1378,6 +1601,8 @@ def main():
                         help="Stage the official v160.8 sprites.aatls and verify the rendered viewport")
     parser.add_argument("--locale", help="Stage a stock locale code and verify the graphical probe loads it")
     parser.add_argument("--menu-icons", action="store_true", help="Verify original block and item icons in the touch menus")
+    parser.add_argument("--verify-stock-menu-font", action="store_true",
+                        help="Require the original font on the touch palette and both configuration menus")
     parser.add_argument("--world-atlas", action="store_true", help="Verify the paged Core Nucleus sprite at Glacier spawn")
     parser.add_argument("--world-atlas-recycle", action="store_true",
                         help="Require the bounded atlas cache to submit and recycle inside the spawn frame")
@@ -1421,6 +1646,20 @@ def main():
                                help="Verify touch mining and core delivery on The Onset or Ground Zero")
     parser.add_argument("--verify-objectives", action="store_true",
                         help="Compare the original first Onset objective transition between client and server")
+    parser.add_argument("--verify-objective-hud", action="store_true",
+                        help="Verify the rendered Onset objective labels as the stock progress changes")
+    parser.add_argument("--verify-objective-markers", action="store_true",
+                        help="Verify the original Onset mining and research directions in world space")
+    parser.add_argument("--verify-logic-markers", action="store_true",
+                        help="Verify stock logic marker packets and visible state on Glacier")
+    parser.add_argument("--verify-texture-markers", action="store_true",
+                        help="Verify original atlas-backed texture markers on Glacier")
+    parser.add_argument("--verify-stock-font", action="store_true",
+                        help="Require original font rendering for the Onset world markers")
+    parser.add_argument("--verify-styled-markers", action="store_true",
+                        help="Require the original inline item and block art in the Onset markers")
+    parser.add_argument("--verify-stock-hud", action="store_true",
+                        help="Require the original font on the campaign objective HUD")
     parser.add_argument("--require-relocation-spill", action="store_true",
                         help="Require the ARM11 collector to grow its relocation table during the spawn check")
     args = parser.parse_args()
@@ -1442,6 +1681,8 @@ def main():
         parser.error("--touch-config needs --terrain-atlas")
     if args.menu_icons and not args.touch_config:
         parser.error("--menu-icons needs --touch-config")
+    if args.verify_stock_menu_font and not args.touch_config:
+        parser.error("--verify-stock-menu-font needs --touch-config")
     if args.world_atlas_recycle and not args.world_atlas:
         parser.error("--world-atlas-recycle needs --world-atlas")
     if args.world_atlas_recycle and (args.controls_replay or args.building or args.touch_build or args.touch_config):
@@ -1478,6 +1719,28 @@ def main():
         parser.error('--mining floor needs --map-spawn "Ground Zero" and --controls-replay')
     if args.verify_objectives and args.mining != "wall":
         parser.error("--verify-objectives needs --mining wall")
+    if args.verify_objective_hud and (
+        args.map_spawn != "The Onset" or args.erekir_sector != "onset" or args.locale != "en"
+        or args.mining or args.erekir_build or args.controls_replay
+    ):
+        parser.error('--verify-objective-hud needs a stationary --map-spawn "The Onset", '
+                     '--erekir-sector onset and --locale en')
+    if args.verify_logic_markers and (not args.controls or not args.terrain_atlas or args.controls_replay or args.map_spawn):
+        parser.error("--verify-logic-markers needs stationary --controls and --terrain-atlas on Glacier")
+    if args.verify_texture_markers and (not args.controls or not args.terrain_atlas or args.controls_replay or args.map_spawn):
+        parser.error("--verify-texture-markers needs stationary --controls and --terrain-atlas on Glacier")
+    if args.verify_objective_markers and (
+        args.map_spawn != "The Onset" or args.erekir_sector != "onset" or args.locale not in ONSET_MARKER_TEXT
+        or args.mining or args.erekir_build or args.controls_replay
+    ):
+        parser.error('--verify-objective-markers needs a stationary --map-spawn "The Onset", '
+                     '--erekir-sector onset and --locale en or ja')
+    if args.verify_stock_font and not args.verify_objective_markers:
+        parser.error("--verify-stock-font needs --verify-objective-markers")
+    if args.verify_styled_markers and not args.verify_stock_font:
+        parser.error("--verify-styled-markers needs --verify-stock-font")
+    if args.verify_stock_hud and not (args.verify_objective_hud or args.verify_objective_markers):
+        parser.error("--verify-stock-hud needs --verify-objective-hud or --verify-objective-markers")
     if args.erekir_sector is not None:
         if not args.map_spawn or not re.fullmatch(r"[a-z][a-z-]*", args.erekir_sector):
             parser.error("--erekir-sector needs --map-spawn and a sector slug such as onset")
@@ -1512,7 +1775,9 @@ def main():
     if args.terrain_atlas:
         originals[atlas_path] = atlas_path.read_bytes() if atlas_path.exists() else None
     output = args.rom.parent / "upstream-live-net"
-    output.mkdir(exist_ok=True)
+    if args.verify_objective_markers and args.locale != "en":
+        output /= args.locale
+    output.mkdir(parents=True, exist_ok=True)
     try:
         for path in originals:
             path.parent.mkdir(parents=True, exist_ok=True)

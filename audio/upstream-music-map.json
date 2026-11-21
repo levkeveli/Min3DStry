@@ -1,0 +1,134 @@
+{
+  "format": 1,
+  "upstream_commit": "19a0f40d44514f4802a8b79770456e7e32e34da0",
+  "entries": [
+    {
+      "index": 0,
+      "id": "boss1",
+      "source": "core/assets/music/boss1.ogg",
+      "trigger_file": "core/src/mindustry/audio/SoundControl.java",
+      "trigger_symbol": "Musics.boss1",
+      "description": "Boss wave music rotation"
+    },
+    {
+      "index": 1,
+      "id": "boss2",
+      "source": "core/assets/music/boss2.ogg",
+      "trigger_file": "core/src/mindustry/audio/SoundControl.java",
+      "trigger_symbol": "Musics.boss2",
+      "description": "Boss wave music rotation"
+    },
+    {
+      "index": 2,
+      "id": "editor",
+      "source": "core/assets/music/editor.ogg",
+      "trigger_file": "core/src/mindustry/audio/SoundControl.java",
+      "trigger_symbol": "Musics.editor",
+      "description": "Map editor music"
+    },
+    {
+      "index": 3,
+      "id": "fine",
+      "source": "core/assets/music/fine.ogg",
+      "trigger_file": "core/src/mindustry/audio/SoundControl.java",
+      "trigger_symbol": "Musics.fine",
+      "description": "Ambient gameplay music rotation"
+    },
+    {
+      "index": 4,
+      "id": "game1",
+      "source": "core/assets/music/game1.ogg",
+      "trigger_file": "core/src/mindustry/audio/SoundControl.java",
+      "trigger_symbol": "Musics.game1",
+      "description": "Ambient gameplay music rotation"
+    },
+    {
+      "index": 5,
+      "id": "game2",
+      "source": "core/assets/music/game2.ogg",
+      "trigger_file": "core/src/mindustry/audio/SoundControl.java",
+      "trigger_symbol": "Musics.game2",
+      "description": "Dark and boss gameplay music rotation"
+    },
+    {
+      "index": 6,
+      "id": "game3",
+      "source": "core/assets/music/game3.ogg",
+      "trigger_file": "core/src/mindustry/audio/SoundControl.java",
+      "trigger_symbol": "Musics.game3",
+      "description": "Ambient gameplay music rotation"
+    },
+    {
+      "index": 7,
+      "id": "game4",
+      "source": "core/assets/music/game4.ogg",
+      "trigger_file": "core/src/mindustry/audio/SoundControl.java",
+      "trigger_symbol": "Musics.game4",
+      "description": "Dark gameplay music rotation"
+    },
+    {
+      "index": 8,
+      "id": "game5",
+      "source": "core/assets/music/game5.ogg",
+      "trigger_file": "core/src/mindustry/audio/SoundControl.java",
+      "trigger_symbol": "Musics.game5",
+      "description": "Dark and boss gameplay music rotation"
+    },
+    {
+      "index": 9,
+      "id": "game6",
+      "source": "core/assets/music/game6.ogg",
+      "trigger_file": "core/src/mindustry/audio/SoundControl.java",
+      "trigger_symbol": "Musics.game6",
+      "description": "Ambient gameplay music rotation"
+    },
+    {
+      "index": 10,
+      "id": "game7",
+      "source": "core/assets/music/game7.ogg",
+      "trigger_file": "core/src/mindustry/audio/SoundControl.java",
+      "trigger_symbol": "Musics.game7",
+      "description": "Dark gameplay music rotation"
+    },
+    {
+      "index": 11,
+      "id": "game8",
+      "source": "core/assets/music/game8.ogg",
+      "trigger_file": "core/src/mindustry/audio/SoundControl.java",
+      "trigger_symbol": "Musics.game8",
+      "description": "Ambient gameplay music rotation"
+    },
+    {
+      "index": 12,
+      "id": "game9",
+      "source": "core/assets/music/game9.ogg",
+      "trigger_file": "core/src/mindustry/audio/SoundControl.java",
+      "trigger_symbol": "Musics.game9",
+      "description": "Ambient gameplay music rotation"
+    },
+    {
+      "index": 13,
+      "id": "land",
+      "source": "core/assets/music/land.ogg",
+      "trigger_file": "core/src/mindustry/world/blocks/storage/CoreBlock.java",
+      "trigger_symbol": "Musics.land",
+      "description": "Sector landing music"
+    },
+    {
+      "index": 14,
+      "id": "launch",
+      "source": "core/assets/music/launch.ogg",
+      "trigger_file": "core/src/mindustry/type/Planet.java",
+      "trigger_symbol": "Musics.launch",
+      "description": "Planet launch music"
+    },
+    {
+      "index": 15,
+      "id": "menu",
+      "source": "core/assets/music/menu.ogg",
+      "trigger_file": "core/src/mindustry/audio/SoundControl.java",
+      "trigger_symbol": "Musics.menu",
+      "description": "Main menu music"
+    }
+  ]
+}
