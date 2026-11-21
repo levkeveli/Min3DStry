@@ -532,7 +532,8 @@ def verify_touch_config(log, emulator, server_log, server, timeout, capture, pos
     placed = inspect_building(server_log, server, "config-placed", tx, ty)
     if original[0] != "air" or placed != ("sorter", "1", "0", str(int(original[3]) - 2), "true"):
         raise RuntimeError(f"Unexpected stock Sorter placement: {original} -> {placed}")
-    unconfigured = capture("touch-sorter", position)
+    unconfigured = ((110, 112, 128), (110, 112, 128), (102, 103, 118))
+    wait_for_touch_pixels(capture, "touch-sorter", position, unconfigured)
     config_open = rf"UPSTREAM_CONFIG_OPEN x={tx} y={ty}\b"
     if menu_icons:
         wait_for(log, emulator, config_open + r"[\s\S]*?UPSTREAM_MENU_ICONS type=item drawn=6\b", timeout)
@@ -554,18 +555,14 @@ def verify_touch_config(log, emulator, server_log, server, timeout, capture, pos
     wait_for(log, emulator, rf"UPSTREAM_CONFIG_LOCAL x={tx} y={ty} item=copper\b", timeout)
     time.sleep(0.2)  # Allow the stock server to process the reliable request.
     server_item("from-3ds", "copper")
-    copper = capture("touch-config-copper", position)
+    wait_for_touch_pixels(capture, "touch-config-copper", position, ((217, 157, 115),) * 3)
     server_item("to-3ds", "lead", "b.configureAny(Items.lead);")
     wait_for(log, emulator, rf"UPSTREAM_CONFIG_REMOTE x={tx} y={ty} item=lead\b", timeout)
-    time.sleep(0.2)
-    lead = capture("touch-config-lead", position)
+    wait_for_touch_pixels(capture, "touch-config-lead", position, ((140, 127, 169),) * 3)
     wait_for(log, emulator, rf"UPSTREAM_CONFIG_LOCAL x={tx} y={ty} item=none\b", timeout)
     time.sleep(0.2)
     server_item("cleared", "none")
-    cleared = capture("touch-config-cleared", position)
-    if unconfigured != cleared or len({unconfigured, copper, lead}) != 3:
-        raise RuntimeError(f"Expected distinct original Sorter colors and the clear sprite: "
-                           f"{unconfigured}, {copper}, {lead}, {cleared}")
+    wait_for_touch_pixels(capture, "touch-config-cleared", position, unconfigured)
     print("Stock server verified Copper, returned Lead, and accepted clearing the Sorter.", flush=True)
 
 

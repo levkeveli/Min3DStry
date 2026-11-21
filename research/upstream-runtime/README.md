@@ -1064,7 +1064,14 @@ check to verify the ARM11 renderer submits both original item and block icons.
 The objective HUD uses the same font and markup path, with the original
 content art already displayed in its compact 3DS panel. Use
 `--verify-stock-hud` with the Onset HUD or marker verifier to require
-the original font for each checked objective row. Other menus remain
+the original font for each checked objective row.
+
+The touch palette, build catalog, and Sorter item menu use the same
+glyph atlas. Their labels fit within the bottom-screen controls and use
+the system font during glyph warm-up. Pass
+`--controls --controls-replay --touch-config --menu-icons --verify-stock-menu-font`
+with the stock Glacier fixture to check that each visible palette label
+and both menus present the original font. Further Arc UI text remains
 tracked under #199.
 
 The ARM11 ROM from [build 44921952248](https://github.com/levkeveli/Min3DStry/actions/runs/44921952248)
