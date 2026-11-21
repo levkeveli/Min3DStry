@@ -104,6 +104,21 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         target.verifyNavalWake(viewer);
         target.verifyTankTreads(viewer);
         target.verifyCoreVariants(layers, viewport, viewer);
+        target.verifyErekirStarterBlocks(layers, viewport, viewer);
+    }
+
+    private void verifyErekirStarterBlocks(UpstreamBuildingLayers layers, UpstreamTerrainDrawProbe.Viewport viewport,
+                                           Team viewer) {
+        var duct = Vars.world.tile(48, 34);
+        var wall = Vars.world.tile(49, 34);
+        duct.setBlock(Blocks.duct, viewer, 1);
+        wall.setBlock(Blocks.berylliumWall, viewer, 0);
+        sprites.clear();
+        layers.render(viewport, viewer, build -> (build == duct.build || build == wall.build)
+            && UpstreamRenderedNetworkProbe.supportsBuildingDraw(build));
+        requireRegion(Core.atlas.find("duct-top-0"));
+        requireRegion(Blocks.berylliumWall.region);
+        System.out.println("UPSTREAM_EREKIR_BUILDINGS duct=1 berylliumWall=1");
     }
 
     private void verifyCoreVariants(UpstreamBuildingLayers layers, UpstreamTerrainDrawProbe.Viewport viewport,

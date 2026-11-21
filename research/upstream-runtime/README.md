@@ -887,6 +887,39 @@ The renderer still selects blocks that use the supported sprite operations.
 Textured raw vertices, additional payload types and other rendering services
 are tracked in [#139](https://github.com/levkeveli/Min3DStry/issues/139).
 
+### Verify Erekir construction
+
+The touchscreen starter shortcuts use the planet from the streamed rules.
+On Erekir they select the stock Duct and Beryllium Wall and show the original
+localized block names. Conveyor and Copper Wall remain the Serpulo shortcuts.
+The original build queue and BlockRenderer handle placement and drawing.
+
+Run the live verifier with
+`--controls --controls-replay --map-spawn "The Onset" --erekir-sector onset --erekir-build --terrain-atlas <sprites.aatls>`.
+The verifier hosts the original map with the stock server command
+`host The_Onset survival`. The map's Attack flag stays set, and the fixture
+adds 16 beryllium to the Core Bastion. The replay rotates the Duct with R,
+places it at (280, 107) by touch, and then places a Beryllium Wall at (280, 106).
+The verifier checks the server's placement, rotation, builder and balances
+of 15 and 9 beryllium, then compares samples from the original atlas.
+The pinned JVM control check also exercises the touchscreen Rotate button.
+
+The [devkitARM build](https://github.com/levkeveli/Min3DStry/actions/runs/44903239394)
+passed in Azahar 2126.2 Original and New 3DS modes using the unmodified
+v160.8 server. In both modes the server recorded Duct rotation 1 and Beryllium
+Wall rotation 0, attributed both builds to the ARM11 player, and deducted
+exactly seven beryllium. The presented sprites matched the sampled RGB
+values from the original atlas. Both modes also passed the Fortress spawn
+capture and reported the Serpulo Conveyor and Copper Wall shortcuts.
+
+To repeat with an unmodified v160.8 desktop peer, add
+`--model old3ds --desktop-name "Min3DStry PC Builder"` and join the printed
+loopback server with that player name. Repeat with `--model new3ds`. Both
+profiles passed the placement and sprite checks while the official desktop
+JAR stayed connected. With the New 3DS profile, the desktop view showed the
+ARM11 Evoke and the newly placed Duct pointing north as the displayed
+beryllium balance went from 16 to 15.
+
 ### Verify the Arc executor pools
 
 Use `-Pprobe=executor` with the JVM and ARM11 build commands. The JVM uses the
