@@ -482,7 +482,7 @@ jobs:
   production-baseline:
     name: Production, power, and liquid baseline
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
         with:
@@ -493,12 +493,25 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Fetch pinned official server JAR
+      - name: Fetch pinned upstream source, map, server JAR, and Arc
         run: |
+          git clone --depth 1 --branch v160.8 \
+            https://github.com/Anuken/Mindustry.git "$RUNNER_TEMP/Mindustry"
+          test "$(git -C "$RUNNER_TEMP/Mindustry" rev-parse HEAD)" = \
+            "19a0f40d44514f4802a8b79770456e7e32e34da0"
+          git -C "$RUNNER_TEMP/Mindustry" show \
+            HEAD:core/assets/maps/default/glacier.msav > "$RUNNER_TEMP/glacier.msav"
           curl --fail --silent --show-error --location \
             https://github.com/Anuken/Mindustry/releases/download/v160.8/server-release.jar \
             -o "$RUNNER_TEMP/server-release.jar"
           echo "faeaf247a8b622de940181a96cb21cb20692d3c3da4e8ac3f79cb4af5059aa6c  $RUNNER_TEMP/server-release.jar" | sha256sum -c -
+          git clone --filter=blob:none --no-checkout \
+            https://github.com/Anuken/Arc.git "$RUNNER_TEMP/Arc"
+          git -C "$RUNNER_TEMP/Arc" fetch --depth 1 origin \
+            7445105cd2683daf5b9ac7033ebb07265d3e814d
+          git -C "$RUNNER_TEMP/Arc" checkout --detach FETCH_HEAD
+          test "$(git -C "$RUNNER_TEMP/Arc" rev-parse HEAD)" = \
+            "7445105cd2683daf5b9ac7033ebb07265d3e814d"
 
       - name: Run pinned production, power, and liquid baseline
         run: |
@@ -510,3 +523,46 @@ jobs:
           grep -Fx 'UPSTREAM_PRODUCTION_DISCONNECT graphiteTick=90 first=199 paused=60 pods=1' "$RUNNER_TEMP/production.log"
           grep -Fx 'UPSTREAM_PRODUCTION_FULL filled=2254 held=120 pods=10 waterCapOk=true' "$RUNNER_TEMP/production.log"
           grep -Fx 'UPSTREAM_PRODUCTION_ORDER runs=2 ticks=2693 trace_hash=0x596d5082ce819d54' "$RUNNER_TEMP/production.log"
+
+      - name: Run production-ticks JVM probe and generate TeaVM C
+        shell: bash
+        run: |
+          set -o pipefail
+          bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime \
+            --no-daemon --console=plain \
+            "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" \
+            "-PreferenceJar=$RUNNER_TEMP/server-release.jar" \
+            "-ParcCheckout=$RUNNER_TEMP/Arc" \
+            -Pprobe=production-ticks \
+            runProbeJvm "--args=$RUNNER_TEMP/glacier.msav" generateC | tee "$RUNNER_TEMP/production-probe-jvm.log"
+          grep -Fx 'UPSTREAM_PRODUCTION_STARVED ticks=60 waterMilli=4641 pods=0' "$RUNNER_TEMP/production-probe-jvm.log"
+          grep -Fx 'UPSTREAM_PRODUCTION_DISCONNECT first=199 paused=60 pods=1' "$RUNNER_TEMP/production-probe-jvm.log"
+          grep -Fx 'UPSTREAM_PRODUCTION_FULL filled=2254 held=120 pods=10' "$RUNNER_TEMP/production-probe-jvm.log"
+
+      - name: Verify generated TeaVM C at -O0 and -O2 against JVM trace
+        run: |
+          rm -rf "$RUNNER_TEMP/teavm-c-host"
+          cp -R research/upstream-runtime/build/generated/teavm/c "$RUNNER_TEMP/teavm-c-host"
+          python3 research/upstream-runtime/arm11/fix_reflection_lifetime.py "$RUNNER_TEMP/teavm-c-host"
+          cc -std=gnu11 -O0 -fwrapv "$RUNNER_TEMP/teavm-c-host/all.c" -lm -lpthread \
+            -o "$RUNNER_TEMP/teavm-c-host/probe_o0"
+          cc -std=gnu11 -O2 -fwrapv "$RUNNER_TEMP/teavm-c-host/all.c" -lm -lpthread \
+            -o "$RUNNER_TEMP/teavm-c-host/probe_o2"
+          "$RUNNER_TEMP/teavm-c-host/probe_o0" "$RUNNER_TEMP/glacier.msav" | tee "$RUNNER_TEMP/production-o0.log"
+          "$RUNNER_TEMP/teavm-c-host/probe_o2" "$RUNNER_TEMP/glacier.msav" | tee "$RUNNER_TEMP/production-o2.log"
+          for log in "$RUNNER_TEMP/production-o0.log" "$RUNNER_TEMP/production-o2.log"; do
+            grep -Fx 'UPSTREAM_PRODUCTION_STARVED ticks=60 waterMilli=4641 pods=0' "$log"
+            grep -Fx 'UPSTREAM_PRODUCTION_DISCONNECT first=199 paused=60 pods=1' "$log"
+            grep -Fx 'UPSTREAM_PRODUCTION_FULL filled=2254 held=120 pods=10' "$log"
+          done
+
+      - name: Build ARM11 production-ticks probe with pinned devkitARM image
+        run: |
+          image=devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5
+          docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/work" -w /work "$image" bash -lc '
+            source /opt/devkitpro/3dsvars.sh
+            bash research/upstream-runtime/arm11/build.sh \
+              research/upstream-runtime/build/generated/teavm/c \
+              research/upstream-runtime/build/probe-3ds-production'
+          test -s research/upstream-runtime/build/probe-3ds-production/upstream-probe.3dsx
+          test -s research/upstream-runtime/build/probe-3ds-production/upstream-probe.elf

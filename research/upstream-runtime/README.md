@@ -689,6 +689,43 @@ before bookkeeping and other allocations, above the 64 MiB Original 3DS
 budget. Physical-console memory and performance still need verification.
 Factory parity is tracked in #26.
 
+### Exercise upstream power, water and production
+
+[Issue #39](https://github.com/levkeveli/Min3DStry/issues/39) loads the pinned
+Glacier scenario through `UpstreamSimulationWorld.play` and places a local
+water fixture tile under a mechanical pump feeding a conduit into a cultivator,
+plus two coal-fed combustion generators connected through a battery. Using
+unmodified `Logic.update` at a 60 Hz clock, `-Pprobe=production-ticks` checks
+unfueled liquid accumulation with zero power, active fuel consumption to the
+first spore pod, battery removal disconnecting the `PowerGraph` across 60 ticks,
+battery reconnection filling `itemCapacity` (10 pods), and capacity clamping.
+
+```sh
+gradle -PupstreamCheckout=/path/to/Mindustry -PreferenceJar=/path/to/server-release.jar \
+  -ParcCheckout=/path/to/Arc -Pprobe=production-ticks \
+  runProbeJvm --args=/path/to/glacier.msav generateC
+```
+
+The pinned JVM and generated TeaVM C compiled with `cc -std=gnu11 -fwrapv` at
+both `-O0` and `-O2` (after `arm11/fix_reflection_lifetime.py`) emitted
+identical traces:
+
+```text
+UPSTREAM_PRODUCTION_STARVED ticks=60 waterMilli=4641 pods=0
+UPSTREAM_PRODUCTION_DISCONNECT first=199 paused=60 pods=1
+UPSTREAM_PRODUCTION_FULL filled=2254 held=120 pods=10
+```
+
+Cross-building the generated C at `-O2` with `arm11/build.sh` produced a
+21,897,852-byte `upstream-probe.3dsx` whose page-rounded ELF LOAD segments total
+36.03 MiB (64.28 MiB subtotal including the 24 MiB managed heap, 4 MiB linear
+heap, and 256 KiB stack before GC metadata and other allocations, exceeding
+Original 3DS's 64 MiB application budget). Azahar emulator execution on `main`
+and physical hardware memory/frame-time measurements remain open on #39. Source
+behavior comes from pinned
+[`Blocks.java`](https://github.com/Anuken/Mindustry/blob/19a0f40d44514f4802a8b79770456e7e32e34da0/core/src/mindustry/content/Blocks.java)
+and [`GenericCrafter.java`](https://github.com/Anuken/Mindustry/blob/19a0f40d44514f4802a8b79770456e7e32e34da0/core/src/mindustry/world/blocks/production/GenericCrafter.java).
+
 ### Exercise upstream combat and the first Glacier wave
 
 [Issue #82](https://github.com/levkeveli/Min3DStry/issues/82) uses the same
