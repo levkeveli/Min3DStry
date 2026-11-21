@@ -54,6 +54,10 @@ The host check compares every RGBA texel against the release PNGs
 including RGB beneath transparent pixels. Use `--world-atlas` with the
 graphical live verifier to check the six-fragment Core Nucleus draw and
 compare captured pixels at the seams to the earlier compact-sheet draw.
+The [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44858877932)
+passed this check in the Azahar Old and New 3DS profiles on a live
+Glacier session from the stock v160.8 Java server. Both profiles matched
+the nine sampled pixels across the Core Nucleus seams.
 
 ## Build the platform test fixtures
 
