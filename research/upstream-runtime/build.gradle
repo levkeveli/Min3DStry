@@ -99,7 +99,7 @@ if (probe == 'network-render') {
         destinationDirectory = layout.buildDirectory.dir('building-renderer-tool')
     }
     stageRenderedBuilding = tasks.register('stageRenderedBuilding', JavaExec) {
-        dependsOn adapter
+        dependsOn adapter, 'prepareUpstreamProbe'
         classpath = files(adapter.flatMap { it.destinationDirectory }) + asm
         mainClass = 'StageBuildingCrackAdapter'
         inputs.file(referenceJar)
