@@ -1,6 +1,8 @@
 import arc.graphics.Blending;
 import arc.graphics.g2d.TextureRegion;
+import arc.util.Align;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import mindustry.Vars;
 import org.teavm.interop.Import;
 import org.teavm.interop.Address;
@@ -51,6 +53,14 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
         if (icon == null) return NativeTerrain.drawObjective(Address.ofData(label), -1, 0, 0, 0, 0, y);
         return NativeTerrain.drawObjective(Address.ofData(label), UpstreamTerrainDrawProbe.pageIndex(icon),
             icon.getX(), icon.getY(), icon.width, icon.height, y);
+    }
+
+    boolean drawWorldLabel(String label, float x, float y, int flags, float size, int align, int lineAlign) {
+        int horizontal = Align.isLeft(align) ? -1 : Align.isRight(align) ? 1 : 0;
+        int vertical = Align.isTop(align) ? -1 : Align.isBottom(align) ? 1 : 0;
+        int lines = Align.isLeft(lineAlign) ? -1 : Align.isRight(lineAlign) ? 1 : 0;
+        byte[] text = (label + "\0").getBytes(StandardCharsets.UTF_8);
+        return NativeTerrain.drawWorldLabel(Address.ofData(text), x, y, flags, size, horizontal, vertical, lines) != 0;
     }
 
     @Override
@@ -131,5 +141,9 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
 
         @Import(name = "m3ds_terrain_draw_objective")
         static native float drawObjective(Address label, int page, int x, int y, int width, int height, float top);
+
+        @Import(name = "m3ds_terrain_draw_world_label")
+        static native int drawWorldLabel(Address label, float x, float y, int flags, float size,
+                                         int horizontal, int vertical, int lines);
     }
 }
