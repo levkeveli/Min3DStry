@@ -18,6 +18,7 @@ typedef struct M3dsWorkerBenchmarkResult {
     uint32_t items;
     uint32_t chunks;
     uint32_t workers;
+    uint32_t active_workers;
     uint32_t serial_checksum;
     uint32_t parallel_checksum;
     uint64_t serial_micros;

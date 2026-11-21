@@ -39,6 +39,7 @@ static void run_and_check(uint32_t workers) {
     assert(m3ds_worker_pool_init(&pool, workers));
     assert(m3ds_worker_pool_run(
         &pool, sum_job, &test, TEST_ITEMS, TEST_CHUNK_SIZE));
+    assert(m3ds_worker_pool_active_workers(&pool) == workers);
     for (uint32_t chunk = 0u; chunk < TEST_CHUNKS; ++chunk) {
         assert(test.calls[chunk] == 1u);
         uint32_t begin = chunk * TEST_CHUNK_SIZE;
@@ -74,6 +75,7 @@ int main(void) {
     TestContext empty;
     reset_context(&empty);
     assert(m3ds_worker_pool_run(&pool, sum_job, &empty, 0u, TEST_CHUNK_SIZE));
+    assert(m3ds_worker_pool_active_workers(&pool) == 1u);
     for (uint32_t chunk = 0u; chunk < TEST_CHUNKS; ++chunk) {
         assert(empty.calls[chunk] == 0u);
     }

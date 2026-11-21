@@ -13,17 +13,20 @@ int main(void) {
     assert(serial.items == M3DS_WORKER_BENCH_ITEMS);
     assert(serial.chunks == 40u);
     assert(serial.workers == 1u);
+    assert(serial.active_workers == 1u);
     assert(serial.serial_checksum == serial.parallel_checksum);
 
     assert(m3ds_worker_benchmark_run(2u, 2u, &two));
     assert(two.match);
     assert(two.workers == 2u);
+    assert(two.active_workers == 2u);
     assert(two.serial_checksum == two.parallel_checksum);
     assert(two.serial_checksum == serial.serial_checksum);
 
     assert(m3ds_worker_benchmark_run(4u, 2u, &four));
     assert(four.match);
     assert(four.workers == 4u);
+    assert(four.active_workers == 4u);
     assert(four.serial_checksum == four.parallel_checksum);
     assert(four.serial_checksum == serial.serial_checksum);
 

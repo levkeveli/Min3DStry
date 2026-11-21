@@ -35,8 +35,12 @@ that violate the disjoint-range rule are outside the API contract.
   - 3DS builds use `libctru` `threadCreate`/`threadJoin` with a 16 KiB stack per
     worker and any-core affinity;
   - `workers=0` or `1` runs the serial fallback;
-  - `M3DS_WORKER_MAX` is `4`; a failed thread or stack allocation falls back to
-    serial work for the remaining chunks.
+  - `M3DS_WORKER_MAX` is `4`; each lane takes a strided range covering all
+    chunks, and a failed thread creation falls back to serial work for the
+    remaining lanes;
+  - `m3ds_worker_pool_active_workers()` reports the number of lanes that
+    actually ran, so telemetry cannot claim a multi-worker run after a silent
+    fallback.
 - [`src/platform/worker_benchmark.c`](../../src/platform/worker_benchmark.c):
   - hashes a deterministic `200 x 200` read-only grid (`40,000` items, `40`
     chunks of `1024`);
@@ -59,8 +63,8 @@ that violate the disjoint-range rule are outside the API contract.
   parity/audio/frame assertions and logged:
 
   ```text
-  [MIN3DSTRY] WORKERS workers=2 chunks=40 items=40000 match=1 checksum=0x4bb2b98d serial_us=1348 parallel_us=1406
-  [MIN3DSTRY] WORKERS workers=4 chunks=40 items=40000 match=1 checksum=0x4bb2b98d serial_us=1348 parallel_us=1495
+  [MIN3DSTRY] WORKERS workers=2 active=2 chunks=40 items=40000 match=1 checksum=0x4bb2b98d serial_us=1348 parallel_us=1406
+  [MIN3DSTRY] WORKERS workers=4 active=4 chunks=40 items=40000 match=1 checksum=0x4bb2b98d serial_us=1348 parallel_us=1492
   ```
 
   Both profiles passed with parity `0x53a483c7`. Azahar FPS varied with host

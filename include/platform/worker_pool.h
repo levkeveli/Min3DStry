@@ -25,6 +25,7 @@ typedef void (*M3dsWorkerJob)(
 
 typedef struct M3dsWorkerPool {
     uint32_t workers;
+    uint32_t active_workers;
     bool initialized;
 } M3dsWorkerPool;
 
@@ -37,6 +38,9 @@ bool m3ds_worker_pool_run(
     uint32_t item_count,
     uint32_t chunk_size);
 uint32_t m3ds_worker_pool_workers(const M3dsWorkerPool *pool);
+
+/* Workers that actually participated in the last run (1 means serial). */
+uint32_t m3ds_worker_pool_active_workers(const M3dsWorkerPool *pool);
 
 #ifdef __cplusplus
 }

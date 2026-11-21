@@ -244,8 +244,9 @@ int main(int argc, char *argv[]) {
             snprintf(
                 dbg_line,
                 sizeof(dbg_line),
-                "[MIN3DSTRY] WORKERS workers=%u chunks=%u items=%u match=%d checksum=0x%08lx serial_us=%llu parallel_us=%llu\n",
+                "[MIN3DSTRY] WORKERS workers=%u active=%u chunks=%u items=%u match=%d checksum=0x%08lx serial_us=%llu parallel_us=%llu\n",
                 (unsigned)worker_result.workers,
+                (unsigned)worker_result.active_workers,
                 (unsigned)worker_result.chunks,
                 (unsigned)worker_result.items,
                 worker_result.match ? 1 : 0,

@@ -133,7 +133,7 @@ BLOCK_BREAK_EVENT_RE = re.compile(
 
 WORKERS_RE = re.compile(
     r"\[MIN3DSTRY\] WORKERS workers=(?P<workers>\d+) "
-    r"chunks=(?P<chunks>\d+) items=(?P<items>\d+) "
+    r"active=(?P<active>\d+) chunks=(?P<chunks>\d+) items=(?P<items>\d+) "
     r"match=(?P<match>\d+) checksum=0x(?P<checksum>[0-9a-fA-F]+) "
     r"serial_us=(?P<serial>\d+) parallel_us=(?P<parallel>\d+)"
 )
@@ -521,6 +521,7 @@ def parse_azahar_log(log_text: str) -> dict[str, Any]:
                 workers.append(
                     {
                         "workers": int(wg["workers"]),
+                        "active": int(wg["active"]),
                         "chunks": int(wg["chunks"]),
                         "items": int(wg["items"]),
                         "match": int(wg["match"]),
@@ -888,11 +889,12 @@ def run_model_check(
         checksums = {record["checksum"] for record in workers}
         if len(checksums) != 1:
             raise AssertionError(f"Worker checksum mismatch for {model}: {workers}")
-        if not any(record["workers"] >= 2 for record in workers):
-            raise AssertionError(f"No multi-worker benchmark record for {model}: {workers}")
+        if not any(record["active"] >= 2 for record in workers):
+            raise AssertionError(f"No active multi-worker benchmark for {model}: {workers}")
         for record in workers:
             if (
                 record["match"] != 1
+                or record["active"] != record["workers"]
                 or record["items"] != 40000
                 or record["chunks"] != 40
             ):

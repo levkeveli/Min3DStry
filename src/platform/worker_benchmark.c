@@ -1,3 +1,7 @@
+#if !defined(_WIN32) && !defined(__3DS__)
+#define _POSIX_C_SOURCE 200809L
+#endif
+
 #include "platform/worker_benchmark.h"
 
 #include <string.h>
@@ -76,6 +80,7 @@ static bool benchmark_run_mode(
     uint32_t workers,
     uint32_t iterations,
     uint32_t *out_checksum,
+    uint32_t *out_active_workers,
     uint64_t *out_micros) {
     M3dsWorkerPool pool;
     if (!m3ds_worker_pool_init(&pool, workers)) {
@@ -116,9 +121,11 @@ static bool benchmark_run_mode(
         }
     }
     uint64_t elapsed = benchmark_now_micros() - start;
+    uint32_t active = m3ds_worker_pool_active_workers(&pool);
     m3ds_worker_pool_shutdown(&pool);
 
     *out_checksum = benchmark_combine(parts, chunks);
+    *out_active_workers = active;
     *out_micros = elapsed / iterations;
     return true;
 }
@@ -142,11 +149,15 @@ bool m3ds_worker_benchmark_run(
 
     uint32_t serial_checksum = 0u;
     uint32_t parallel_checksum = 0u;
+    uint32_t serial_active = 0u;
+    uint32_t parallel_active = 0u;
     uint64_t serial_micros = 0u;
     uint64_t parallel_micros = 0u;
-    if (!benchmark_run_mode(1u, iterations, &serial_checksum, &serial_micros) ||
+    if (!benchmark_run_mode(
+            1u, iterations, &serial_checksum, &serial_active, &serial_micros) ||
         !benchmark_run_mode(
-            workers, iterations, &parallel_checksum, &parallel_micros)) {
+            workers, iterations, &parallel_checksum, &parallel_active, &parallel_micros) ||
+        serial_active != 1u) {
         return false;
     }
 
@@ -155,6 +166,7 @@ bool m3ds_worker_benchmark_run(
         (M3DS_WORKER_BENCH_ITEMS + M3DS_WORKER_BENCH_CHUNK_SIZE - 1u) /
         M3DS_WORKER_BENCH_CHUNK_SIZE;
     out_result->workers = workers;
+    out_result->active_workers = parallel_active;
     out_result->serial_checksum = serial_checksum;
     out_result->parallel_checksum = parallel_checksum;
     out_result->serial_micros = serial_micros;
