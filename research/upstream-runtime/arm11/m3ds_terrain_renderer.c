@@ -14,6 +14,12 @@ typedef struct {
 } ArcAtlasRegion;
 
 #include "terrain_layout.h"
+#ifdef M3DS_STOCK_FONT
+#include "m3ds_stock_text.h"
+
+/* Each label is laid out and drawn synchronously by the renderer. */
+static M3DS_StockText stock_text;
+#endif
 #ifdef M3DS_WORLD_ATLAS
 #include "m3ds_world_fragment.h"
 #include "world_atlas_layout.h"
@@ -42,6 +48,10 @@ static C3D_RenderTarget *target;
 static C3D_RenderTarget *palette;
 static C2D_TextBuf palette_buffer;
 static C2D_Text palette_labels[8];
+#ifdef M3DS_STOCK_FONT
+enum { menu_label_glyphs = 64 };
+static char palette_utf8[8][4 * menu_label_glyphs + 1];
+#endif
 static C2D_TextBuf catalog_buffer;
 static struct {
     C2D_SpriteSheet sheet;
@@ -65,6 +75,15 @@ int32_t m3ds_terrain_system_language(void) {
         cfguExit();
     }
     return language;
+}
+
+int32_t m3ds_terrain_load_stock_font(int32_t japanese) {
+#ifdef M3DS_STOCK_FONT
+    return m3ds_stock_text_open(japanese != 0);
+#else
+    (void)japanese;
+    return 0;
+#endif
 }
 
 int32_t m3ds_terrain_initialize(void) {
@@ -120,6 +139,9 @@ int32_t m3ds_terrain_begin(int32_t left, int32_t bottom, int32_t width, int32_t 
     draws = 0;
     frame_open = C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
     if (!frame_open) return -7;
+#ifdef M3DS_STOCK_FONT
+    m3ds_stock_text_begin();
+#endif
 #ifdef M3DS_WORLD_ATLAS
     world_pass++;
 #endif
@@ -395,6 +417,51 @@ int32_t m3ds_terrain_palette_active(void) {
     return palette != NULL;
 }
 
+#ifdef M3DS_STOCK_FONT
+static bool draw_stock_menu_label(const char *text, float x, float y, float system_scale,
+                                  float max_width, u32 color) {
+    static int32_t characters[menu_label_glyphs * M3DS_STOCK_TEXT_FIELDS];
+    int32_t count = 0;
+    while (*text) {
+        if (count == menu_label_glyphs) return false;
+        uint32_t codepoint;
+        ssize_t bytes = decode_utf8(&codepoint, (const uint8_t *)text);
+        if (bytes <= 0) return false;
+        int32_t *glyph = characters + count * M3DS_STOCK_TEXT_FIELDS;
+        glyph[0] = codepoint;
+        glyph[1] = color;
+        glyph[2] = -1;
+        ++count;
+        text += bytes;
+    }
+    if (!m3ds_stock_text_layout(&stock_text, characters, count, false)) return false;
+    // Match the line height of the existing 30 px system-font labels.
+    float fit = fminf(system_scale * 30.0f / stock_text.height, max_width / fmaxf(1.0f, stock_text.width));
+    m3ds_stock_text_draw(&stock_text, x - stock_text.width * fit * 0.5f, y, fit, fit, 0, NULL);
+    return true;
+}
+#endif
+
+static bool draw_palette_label(int index, float x, float y, float label_scale, float max_width, u32 color) {
+#ifdef M3DS_STOCK_FONT
+    if (draw_stock_menu_label(palette_utf8[index], x, y, label_scale, max_width, color)) {
+        static unsigned reported;
+        if (!(reported & (1u << index))) {
+            reported |= 1u << index;
+            char message[80];
+            int length = snprintf(message, sizeof(message), "UPSTREAM_MENU_FONT source=v160.8 palette=%d\n", index);
+            if (length > 0 && length < (int)sizeof(message)) svcOutputDebugString(message, length);
+        }
+        return true;
+    }
+#else
+    (void)max_width;
+#endif
+    C2D_DrawText(&palette_labels[index], C2D_WithColor | C2D_AlignCenter,
+        x, y, 0.5f, label_scale, label_scale, color);
+    return false;
+}
+
 int32_t m3ds_terrain_build_labels(const char *labels) {
     if (!palette_buffer) palette_buffer = C2D_TextBufNew(256);
     if (!catalog_buffer) catalog_buffer = C2D_TextBufNew(512);
@@ -408,9 +475,14 @@ int32_t m3ds_terrain_build_labels(const char *labels) {
     }
     C2D_TextBufClear(palette_buffer);
     for (size_t i = 0; i < sizeof(palette_labels) / sizeof(palette_labels[0]); i++) {
+        size_t length = strlen(labels) + 1;
         C2D_TextParse(&palette_labels[i], palette_buffer, labels);
         C2D_TextOptimize(&palette_labels[i]);
-        labels += strlen(labels) + 1;
+#ifdef M3DS_STOCK_FONT
+        if (length <= sizeof(palette_utf8[i])) memcpy(palette_utf8[i], labels, length);
+        else palette_utf8[i][0] = '\0';
+#endif
+        labels += length;
     }
     return 1;
 }
@@ -442,20 +514,20 @@ int32_t m3ds_terrain_build_overlay(int32_t column, int32_t row, int32_t block, i
     C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_COLOR);
     if (catalog_open) return 1;
     C2D_DrawRectSolid(2, 48, 0.5f, 26, 31, C2D_Color32(45, 52, 64, 255));
-    C2D_DrawText(&palette_labels[4], C2D_WithColor | C2D_AlignCenter, 15, 57, 0.5f,
-        0.34f, 0.34f, block < 0 && !removing ? accent : C2D_Color32(239, 241, 247, 255));
+    draw_palette_label(4, 15, 57, 0.34f, 24,
+        block < 0 && !removing ? accent : C2D_Color32(239, 241, 247, 255));
     C2D_DrawRectSolid(292, 48, 0.5f, 26, 31, C2D_Color32(45, 52, 64, 255));
-    C2D_DrawText(&palette_labels[5], C2D_WithColor | C2D_AlignCenter, 305, 57, 0.5f,
-        0.30f, 0.30f, configuring ? accent : C2D_Color32(239, 241, 247, 255));
+    draw_palette_label(5, 305, 57, 0.30f, 24,
+        configuring ? accent : C2D_Color32(239, 241, 247, 255));
     C2D_DrawRectSolid(292, 80, 0.5f, 26, 31, C2D_Color32(45, 52, 64, 255));
-    C2D_DrawText(&palette_labels[7], C2D_WithColor | C2D_AlignCenter, 305, 89, 0.5f,
-        0.30f, 0.30f, selecting_mine ? accent : C2D_Color32(239, 241, 247, 255));
+    draw_palette_label(7, 305, 89, 0.30f, 24,
+        selecting_mine ? accent : C2D_Color32(239, 241, 247, 255));
     for (int i = 0; i < 4; i++) {
         bool active = !selecting_mine && (removing ? i == 3 : i == block);
         C2D_DrawRectSolid(i * 80 + 2, 4, 0.5f, 76, 39,
             active ? C2D_Color32(85, 71, 52, 255) : C2D_Color32(45, 52, 64, 255));
-        C2D_DrawText(&palette_labels[i], C2D_WithColor | C2D_AlignCenter, i * 80 + 40, 16, 0.5f,
-            0.42f, 0.42f, active ? accent : C2D_Color32(239, 241, 247, 255));
+        draw_palette_label(i, i * 80 + 40, 16, 0.42f, 72,
+            active ? accent : C2D_Color32(239, 241, 247, 255));
     }
     for (int x = 0; x <= 16; x++) {
         C2D_DrawRectSolid(32 + x * 16, 48, 0.5f, 1, 192, C2D_Color32(65, 74, 88, 255));
@@ -469,18 +541,38 @@ int32_t m3ds_terrain_build_overlay(int32_t column, int32_t row, int32_t block, i
     return 1;
 }
 
-float m3ds_terrain_draw_objective(const char *label, int32_t page, int32_t left, int32_t top,
-                                 int32_t width, int32_t height, float y) {
+#ifdef M3DS_STOCK_FONT
+static void draw_label_art(const int32_t *glyph, float x, float y, float width, float height);
+#endif
+
+float m3ds_terrain_draw_objective(const char *label, const int32_t *characters, int32_t count,
+                                 int32_t page, int32_t left, int32_t top,
+                                 int32_t width, int32_t height, float y, int32_t *stock_font) {
+    *stock_font = 0;
     if (!frame_open || !catalog_buffer) return 240.0f;
-    C2D_Text text;
-    C2D_TextBufClear(catalog_buffer);
-    if (!C2D_TextParse(&text, catalog_buffer, label)) return 240.0f;
-    C2D_TextOptimize(&text);
     bool has_icon = page >= 0 && width > 0 && height > 0;
     float inset = has_icon ? 32.0f : 6.0f;
-    float font_scale = fminf(0.44f, (230.0f - inset) / fmaxf(1.0f, text.width));
-    float text_width, text_height;
-    C2D_TextGetDimensions(&text, font_scale, font_scale, &text_width, &text_height);
+    float font_scale, text_width, text_height;
+    bool using_stock = false;
+#ifdef M3DS_STOCK_FONT
+    using_stock = m3ds_stock_text_layout(&stock_text, characters, count, false);
+    if (using_stock) {
+        font_scale = fminf(0.73f, (230.0f - inset) / fmaxf(1.0f, stock_text.width));
+        text_width = stock_text.width * font_scale;
+        text_height = stock_text.height * font_scale;
+    }
+#else
+    (void)characters;
+    (void)count;
+#endif
+    C2D_Text text;
+    if (!using_stock) {
+        C2D_TextBufClear(catalog_buffer);
+        if (!C2D_TextParse(&text, catalog_buffer, label)) return 240.0f;
+        C2D_TextOptimize(&text);
+        font_scale = fminf(0.44f, (230.0f - inset) / fmaxf(1.0f, text.width));
+        C2D_TextGetDimensions(&text, font_scale, font_scale, &text_width, &text_height);
+    }
     float panel_height = fmaxf(has_icon ? 32.0f : 0.0f, text_height + 10.0f);
     if (y + panel_height > screen_bottom - 4.0f) return 240.0f;
 
@@ -499,26 +591,66 @@ float m3ds_terrain_draw_objective(const char *label, int32_t page, int32_t left,
             return 240.0f;
         }
     }
+#ifdef M3DS_STOCK_FONT
+    if (using_stock) {
+        m3ds_stock_text_draw(&stock_text, x + inset, y + 5.0f, font_scale, font_scale, -1, draw_label_art);
+        *stock_font = 1;
+        return y + panel_height + 3.0f;
+    }
+#endif
     C2D_DrawText(&text, C2D_WithColor, x + inset, y + 5.0f, 0.5f, font_scale, font_scale,
         C2D_Color32(239, 241, 247, 255));
     return y + panel_height + 3.0f;
 }
 
-int32_t m3ds_terrain_draw_world_label(const char *label, float x, float y, int32_t flags, float size,
+#ifdef M3DS_STOCK_FONT
+static void draw_label_art(const int32_t *glyph, float x, float y, float width, float height) {
+    int drawn = m3ds_terrain_draw(glyph[2], glyph[3], glyph[4], glyph[5], glyph[6],
+        world_left + (x - screen_left) / scale, world_bottom + (screen_bottom - y - height) / scale,
+        0.0f, 0.0f, width / scale, height / scale, 0.0f, glyph[1], 0, 0);
+    static uint32_t reported[2048];
+    uint32_t code = glyph[0];
+    if (drawn && code < 65536 && !(reported[code / 32] & (1u << (code % 32)))) {
+        reported[code / 32] |= 1u << (code % 32);
+        char message[64];
+        int length = snprintf(message, sizeof(message), "UPSTREAM_WORLD_INLINE_GLYPH code=%lu\n", (unsigned long)code);
+        if (length > 0 && length < (int)sizeof(message)) svcOutputDebugString(message, length);
+    }
+}
+#endif
+
+int32_t m3ds_terrain_draw_world_label(const char *label, const int32_t *characters, int32_t count,
+                                     float x, float y, int32_t flags, float size,
                                      int32_t horizontal, int32_t vertical, int32_t lines) {
     if (!frame_open || !catalog_buffer || !(size > 0.0f) || !isfinite(size)) return 0;
-    C2D_Text text;
-    C2D_TextBufClear(catalog_buffer);
-    const char *end = C2D_TextParse(&text, catalog_buffer, label);
-    if (!end || *end != '\0') return 0;
     const float screen_right = 400.0f - screen_left;
     const float screen_top = 240.0f - screen_bottom;
-    // Pinned WorldLabel uses the 18 px game font at quarter scale in world units.
-    // Citro2D's system font is 30 px. Fit long translations inside the 3DS viewport.
-    float scale_y = 0.25f * (18.0f / 30.0f) * size * scale;
-    float scale_x = fminf(scale_y, (screen_right - screen_left - 8.0f) / fmaxf(1.0f, text.width));
-    float width, height;
-    C2D_TextGetDimensions(&text, scale_x, scale_y, &width, &height);
+    float width, height, scale_x, scale_y;
+    bool outline = (flags & 2) != 0;
+    bool using_stock = false;
+#ifdef M3DS_STOCK_FONT
+    using_stock = m3ds_stock_text_layout(&stock_text, characters, count, outline);
+    if (using_stock) {
+        scale_y = 0.25f * size * scale;
+        scale_x = fminf(scale_y, (screen_right - screen_left - 8.0f) / fmaxf(1.0f, stock_text.width));
+        width = stock_text.width * scale_x;
+        height = stock_text.height * scale_y;
+    }
+#else
+    (void)characters;
+    (void)count;
+#endif
+    C2D_Text text;
+    if (!using_stock) {
+        C2D_TextBufClear(catalog_buffer);
+        const char *end = C2D_TextParse(&text, catalog_buffer, label);
+        if (!end || *end != '\0') return 0;
+        // The fallback system font is 30 px, while the stock UI font is 18 px.
+        scale_y = 0.25f * (18.0f / 30.0f) * size * scale;
+        scale_x = fminf(scale_y, (screen_right - screen_left - 8.0f) / fmaxf(1.0f, text.width));
+        C2D_TextGetDimensions(&text, scale_x, scale_y, &width, &height);
+        C2D_TextOptimize(&text);
+    }
     float sx = screen_left + (x - world_left) * scale;
     float sy = screen_bottom - (y - world_bottom) * scale;
     bool anchor_visible = sx >= screen_left && sx <= screen_right;
@@ -532,16 +664,21 @@ int32_t m3ds_terrain_draw_world_label(const char *label, float x, float y, int32
     }
     if (sx + width < screen_left || sx > screen_right || sy + height < screen_top || sy > screen_bottom) return 0;
 
-    C2D_TextOptimize(&text);
     set_world_blend(0);
     set_world_mix(0, 0);
     if (background) {
         C2D_DrawRectSolid(sx - border, sy - 1.5f * border, 0.5f, width + 2.0f * border,
             height + 3.0f * border, C2D_Color32(0, 0, 0, 77));
     }
+#ifdef M3DS_STOCK_FONT
+    if (using_stock) {
+        m3ds_stock_text_draw(&stock_text, sx, sy, scale_x, scale_y, lines, draw_label_art);
+        return 2;
+    }
+#endif
     u32 align = lines < 0 ? C2D_AlignLeft : lines > 0 ? C2D_AlignRight : C2D_AlignCenter;
     sx += width * 0.5f * (1 + lines);
-    if ((flags & 2) != 0) {
+    if (outline) {
         C2D_DrawText(&text, C2D_WithColor | align, sx + 0.75f, sy + 1.0f, 0.5f, scale_x, scale_y,
             C2D_Color32(45, 45, 45, 255));
     }
@@ -549,11 +686,17 @@ int32_t m3ds_terrain_draw_world_label(const char *label, float x, float y, int32
     return 1;
 }
 
-static void catalog_label(const char *text, float x, float y, float scale, u32 color) {
+static bool catalog_label(const char *text, float x, float y, float scale, float max_width, u32 color) {
+#ifdef M3DS_STOCK_FONT
+    if (draw_stock_menu_label(text, x, y, scale, max_width, color)) return true;
+#else
+    (void)max_width;
+#endif
     C2D_Text label;
     C2D_TextParse(&label, catalog_buffer, text);
     C2D_TextOptimize(&label);
     C2D_DrawText(&label, C2D_WithColor | C2D_AlignCenter, x, y, 0.5f, scale, scale, color);
+    return false;
 }
 
 static bool draw_menu_icon(int row, int32_t id, bool categories, float y) {
@@ -581,13 +724,17 @@ int32_t m3ds_terrain_build_catalog(const char *labels, const int32_t *icons, int
     const u32 panel = C2D_Color32(45, 52, 64, 255), text = C2D_Color32(239, 241, 247, 255);
     const u32 selected_panel = C2D_Color32(85, 71, 52, 255), accent = C2D_Color32(250, 213, 107, 255);
     C2D_TextBufClear(catalog_buffer);
+    bool stock_labels = true;
+#ifdef M3DS_STOCK_FONT
+    const char *first_row = labels + strlen(labels) + 1;
+#endif
     if (categories) {
         C2D_DrawRectSolid(8, 4, 0.5f, 54, 34, panel);
         C2D_DrawRectSolid(258, 4, 0.5f, 54, 34, panel);
-        catalog_label("<", 35, 15, 0.55f, text);
-        catalog_label(">", 285, 15, 0.55f, text);
+        stock_labels &= catalog_label("<", 35, 15, 0.55f, 50, text);
+        stock_labels &= catalog_label(">", 285, 15, 0.55f, 50, text);
     }
-    catalog_label(labels, 160, 15, 0.52f, text);
+    stock_labels &= catalog_label(labels, 160, 15, 0.52f, categories ? 190 : 300, text);
     int32_t visible_icons = 0;
     for (int row = 0; row < 6; row++) {
         labels += strlen(labels) + 1;
@@ -595,24 +742,40 @@ int32_t m3ds_terrain_build_catalog(const char *labels, const int32_t *icons, int
         float y = 44 + row * 25;
         C2D_DrawRectSolid(8, y, 0.5f, 304, 23, row == selected ? selected_panel : panel);
         if (draw_menu_icon(row, icons[row], categories != 0, y)) visible_icons++;
-        catalog_label(labels, 177, y + 4, 0.50f, row == selected ? accent : text);
+        stock_labels &= catalog_label(labels, 177, y + 4, 0.50f, 254, row == selected ? accent : text);
     }
     if (previous) {
         C2D_DrawRectSolid(8, 201, 0.5f, 88, 34, panel);
-        catalog_label("Prev page", 52, 212, 0.45f, text);
+        stock_labels &= catalog_label("Prev page", 52, 212, 0.45f, 84, text);
     }
     C2D_DrawRectSolid(104, 201, 0.5f, 112, 34, panel);
-    C2D_DrawText(&palette_labels[6], C2D_WithColor | C2D_AlignCenter, 160, 212, 0.5f, 0.45f, 0.45f, text);
+    stock_labels &= draw_palette_label(6, 160, 212, 0.45f, 84, text);
     if (next) {
         C2D_DrawRectSolid(224, 201, 0.5f, 88, 34, panel);
-        catalog_label("Next page", 268, 212, 0.45f, text);
+        stock_labels &= catalog_label("Next page", 268, 212, 0.45f, 84, text);
     }
+#ifdef M3DS_STOCK_FONT
+    static char reported[2][4 * menu_label_glyphs + 1];
+    int menu = categories != 0;
+    if (stock_labels && strcmp(reported[menu], first_row) != 0) {
+        // A stock-rendered row fits the UTF-8 capacity of the logged page identity.
+        memcpy(reported[menu], first_row, strlen(first_row) + 1);
+        static const char blocks[] = "UPSTREAM_MENU_FONT source=v160.8 catalog=block\n";
+        static const char items[] = "UPSTREAM_MENU_FONT source=v160.8 catalog=item\n";
+        svcOutputDebugString(menu ? blocks : items, menu ? sizeof(blocks) - 1 : sizeof(items) - 1);
+    }
+#else
+    (void)stock_labels;
+#endif
     return visible_icons;
 }
 
 void m3ds_terrain_fini(void) {
     if (frame_open) m3ds_terrain_end();
     if (gpu_ready && C3D_FrameBegin(0)) C3D_FrameEnd(0);
+#ifdef M3DS_STOCK_FONT
+    m3ds_stock_text_close();
+#endif
 #ifdef M3DS_WORLD_ATLAS
     for (size_t i = 0; i < sizeof(world_textures) / sizeof(world_textures[0]); i++) {
         if (world_textures[i].sheet) C2D_SpriteSheetFree(world_textures[i].sheet);

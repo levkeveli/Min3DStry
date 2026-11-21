@@ -39,20 +39,33 @@ static void test_settings_roundtrip_and_backup(void) {
     remove_paths();
 
     assert(m3ds_settings_store_write(root, "alpha", 5u));
+    M3dsSettingsStatus status;
+    assert(m3ds_settings_store_status(root, &status));
+    assert(status.primary_present && !status.backup_present);
+    assert(status.primary_bytes == 5u && status.backup_bytes == 0u);
     char buffer[32];
     size_t size = 0u;
     assert(m3ds_settings_store_read(root, buffer, sizeof(buffer), &size));
     assert(size == 5u && memcmp(buffer, "alpha", 5u) == 0);
 
     assert(m3ds_settings_store_write(root, "beta!", 5u));
+    assert(m3ds_settings_store_status(root, &status));
+    assert(status.primary_present && status.backup_present);
+    assert(status.primary_bytes == 5u && status.backup_bytes == 5u);
     assert(m3ds_settings_store_read(root, buffer, sizeof(buffer), &size));
     assert(size == 5u && memcmp(buffer, "beta!", 5u) == 0);
 
     char path[128];
     assert(m3ds_sd_settings_path(root, path, sizeof(path)));
     assert(remove(path) == 0);
+    assert(m3ds_settings_store_status(root, &status));
+    assert(!status.primary_present && status.backup_present);
+    assert(status.primary_bytes == 0u && status.backup_bytes == 5u);
     assert(m3ds_settings_store_read(root, buffer, sizeof(buffer), &size));
     assert(size == 5u && memcmp(buffer, "alpha", 5u) == 0);
+
+    assert(!m3ds_settings_store_status(NULL, &status));
+    assert(!m3ds_settings_store_status(root, NULL));
 
     assert(!m3ds_settings_store_read(root, buffer, 2u, &size));
     assert(!m3ds_settings_store_read(root, NULL, sizeof(buffer), &size));

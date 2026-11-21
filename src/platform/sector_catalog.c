@@ -69,13 +69,36 @@ size_t m3ds_sector_catalog_scan(
         }
         M3dsSectorSlot slot;
         memset(&slot, 0, sizeof(slot));
-        snprintf(slot.planet, sizeof(slot.planet), "%s", planet);
+        snprintf(slot.planet, sizeof(slot.planet), "%.15s", planet);
         slot.id = (uint32_t)id;
         slot.valid = info.valid;
         slot.compressed = info.compressed;
+        slot.has_meta = info.has_meta;
+        slot.wave = info.wave;
+        snprintf(slot.map_name, sizeof(slot.map_name), "%.47s", info.map_name);
         slot.bytes = info.bytes;
         insert_sorted(slots, &count, capacity, &slot);
     }
     closedir(handle);
     return count;
+}
+
+bool m3ds_sector_catalog_label(
+    const M3dsSectorSlot *slot, char *out, size_t capacity) {
+    if (!slot || !out || capacity == 0u) {
+        return false;
+    }
+    int written;
+    if (slot->has_meta) {
+        written = snprintf(out, capacity, "%.15s-%u %.47s w%u",
+                           slot->planet, (unsigned)slot->id, slot->map_name,
+                           (unsigned)slot->wave);
+    } else {
+        written = snprintf(out, capacity, "%.15s-%u %s %uB",
+                           slot->planet, (unsigned)slot->id,
+                           slot->valid ? "v"
+                               : (slot->compressed ? "zlib" : "invalid"),
+                           (unsigned)slot->bytes);
+    }
+    return written > 0 && (size_t)written < capacity;
 }
