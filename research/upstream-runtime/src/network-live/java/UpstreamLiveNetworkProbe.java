@@ -75,12 +75,12 @@ public final class UpstreamLiveNetworkProbe {
     private static final long TCP_KEEP_ALIVE_NS = 8_000_000_000L;
     private static final long UDP_KEEP_ALIVE_NS = 19_000_000_000L;
     private static final String PLAYER_NAME = "Min3DStry ARM11";
-    private enum Mode { SNAPSHOTS, MOVEMENT, CONTROLS }
+    private enum Mode { SNAPSHOTS, MOVEMENT, CONTROLS, REJOIN }
     private final byte[] packet = new byte[32_768];
     private final Mode mode;
     private final Consumer<Unit> frame;
     private final UpstreamLiveBuildControls building;
-    private Runnable afterWorldLoad;
+    private final Runnable afterWorldLoad;
     private int nextLiveTransport = 1;
 
     private UpstreamLiveNetworkProbe(Mode mode, Runnable afterWorldLoad, Consumer<Unit> frame,
@@ -108,8 +108,10 @@ public final class UpstreamLiveNetworkProbe {
         Mode mode = endpoint.length == 2 ? (frame == null ? Mode.SNAPSHOTS : Mode.CONTROLS) : switch (endpoint[2]) {
             case "movement" -> Mode.MOVEMENT;
             case "controls" -> Mode.CONTROLS;
+            case "rejoin" -> Mode.REJOIN;
             default -> throw new IllegalArgumentException("Unknown live network mode: " + endpoint[2]);
         };
+        if (mode == Mode.REJOIN && frame == null) throw new IllegalArgumentException("Rejoin needs the graphical client");
         byte[] host = endpoint[0].getBytes(StandardCharsets.UTF_8);
         int port = Integer.parseInt(endpoint[1]);
         String stage = "content";
@@ -148,14 +150,16 @@ public final class UpstreamLiveNetworkProbe {
             System.out.println("UPSTREAM_LIVE_CONTROLS_LEFT");
             return;
         }
-        try {
-            int result = open(host, port, BUILD - 1);
-            if (result != REJECTED || Native.rejectedPacket() != unsignedId(KickCallPacket2.class)) {
-                throw new IOException("Expected a server kick for the outdated build, status=" + result);
+        if (mode != Mode.REJOIN) {
+            try {
+                int result = open(host, port, BUILD - 1);
+                if (result != REJECTED || Native.rejectedPacket() != unsignedId(KickCallPacket2.class)) {
+                    throw new IOException("Expected a server kick for the outdated build, status=" + result);
+                }
+                System.out.println("UPSTREAM_LIVE_NET_REJECT build=" + (BUILD - 1) + " packet=KickCallPacket2");
+            } finally {
+                Native.close();
             }
-            System.out.println("UPSTREAM_LIVE_NET_REJECT build=" + (BUILD - 1) + " packet=KickCallPacket2");
-        } finally {
-            Native.close();
         }
         for (int join = 1; join <= 2; join++) {
             try {
@@ -197,9 +201,8 @@ public final class UpstreamLiveNetworkProbe {
                 throw new IOException("Server world or assigned player did not load");
             }
             if (afterWorldLoad != null) {
-                System.out.println("UPSTREAM_WORLD_DECODED beforeGraphics=true");
+                System.out.println("UPSTREAM_WORLD_DECODED join=" + join);
                 afterWorldLoad.run();
-                afterWorldLoad = null;
             }
         } finally {
             Native.endKeepAlive();
@@ -222,8 +225,8 @@ public final class UpstreamLiveNetworkProbe {
         }
         Vars.state.set(State.playing);
         send(new ConnectConfirmCallPacket(), true);
-        if (mode == Mode.CONTROLS) {
-            driveLiveClient(app);
+        if (mode == Mode.CONTROLS || mode == Mode.REJOIN) {
+            driveLiveClient(app, join);
         } else {
             waitForWave(join, app);
         }
@@ -356,8 +359,9 @@ public final class UpstreamLiveNetworkProbe {
         return snapshot;
     }
 
-    private void driveLiveClient(UpstreamWorldLoadProbe.ProbeApplication app) throws IOException {
+    private void driveLiveClient(UpstreamWorldLoadProbe.ProbeApplication app, int join) throws IOException {
         var controls = new LiveControls(building);
+        int initialWave = Vars.state.wave;
         int lastWave = -1;
         // A slow first presentation must not postpone the stock TCP heartbeat.
         if (frame != null && Native.beginKeepAlive(1) == 0) {
@@ -398,9 +402,14 @@ public final class UpstreamLiveNetworkProbe {
                 var unit = controlledUnit();
                 if (unit != null || lastFrame != 0) {
                     frame.accept(unit);
+                    if (mode == Mode.REJOIN && lastFrame == 0) {
+                        System.out.println("UPSTREAM_LIVE_NET_REJOIN_READY join=" + join + " unit=" + unit.id()
+                            + " width=" + Vars.world.width() + " height=" + Vars.world.height());
+                    }
                     lastFrame = now;
                 }
             }
+            if (mode == Mode.REJOIN && lastFrame != 0 && lastWave > initialWave) return;
         }
     }
 

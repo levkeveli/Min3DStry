@@ -905,6 +905,13 @@ and world markers, and advanced to the Turbine Condenser objective when
 the unmodified Java server received 60 beryllium. Both profiles also
 passed the Glacier offscreen display marker replay with that ROM.
 
+To exercise two joins in the same graphical ARM11 process, run the live
+verifier with `--controls --controls-rejoin --map-spawn "The Onset"
+--erekir-sector onset --terrain-atlas /path/to/sprites.aatls`. The verifier
+checks the server-assigned unit, world size and original spawn pixels on
+each join. It uses the genuine server's wave snapshot to complete each
+connection and checks that the same renderer assets serve both worlds.
+
 The renderer still selects blocks that use the supported sprite operations.
 Textured raw vertices, additional payload types and other rendering services
 are tracked in [#139](https://github.com/levkeveli/Min3DStry/issues/139).

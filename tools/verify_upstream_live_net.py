@@ -225,9 +225,9 @@ def inspect_map_spawn(server_log, server):
     return record.groups()
 
 
-def verify_map_spawn(log, emulator, map_name, fixture, position):
+def verify_map_spawn(log, emulator, map_name, fixture, position, join=1):
     width, height, core, unit, tile_x, tile_y = fixture
-    wait_for(log, emulator, rf"UPSTREAM_LIVE_NET_WORLD join=1 map={re.escape(map_name)} bytes=", 5)
+    wait_for(log, emulator, rf"UPSTREAM_LIVE_NET_WORLD join={join} map={re.escape(map_name)} bytes=", 5)
     wait_for(log, emulator, rf"UPSTREAM_WORLD width={width} height={height} tiles={int(width) * int(height)}\b", 5)
     wait_for(log, emulator, rf"UPSTREAM_WORLD_BUILDING {tile_x} {tile_y} {re.escape(core)} ", 5)
     if map_name in MAP_SPAWNS and fixture != MAP_SPAWNS[map_name]:
@@ -238,6 +238,36 @@ def verify_map_spawn(log, emulator, map_name, fixture, position):
         wait_for(log, emulator, r"UPSTREAM_WORLD_ITEM_OBJECTIVE item=beryllium amount=60\b", 5)
     if any(abs(float(observed) - int(tile) * 8) > 4 for observed, tile in zip(position[2:], (tile_x, tile_y))):
         raise RuntimeError(f"Expected controlled unit {unit} near its stock spawn, observed {position}")
+
+
+def verify_graphical_rejoin(args, model, log, emulator, server_log, server, rpc, output):
+    fixture = None
+    units = []
+    for join in (1, 2):
+        pattern = re.compile(rf"UPSTREAM_LIVE_NET_REJOIN_READY join={join} unit=(\d+) width=(\d+) height=(\d+)")
+        unit, width, height = pattern.search(wait_for(log, emulator, pattern, args.timeout)).groups()
+        units.append(unit)
+        position = server_position(server_log, server, f"UPSTREAM_SERVER_REJOIN_READY join={join}").groups()
+        if position[0] != unit:
+            raise RuntimeError(f"{model} join {join} showed unit {unit}, but the server assigned {position[0]}")
+        if fixture is None:
+            fixture = inspect_map_spawn(server_log, server)
+        if (width, height) != fixture[:2]:
+            raise RuntimeError(f"{model} join {join} loaded {width}×{height}, expected {fixture[:2]}")
+        verify_map_spawn(log, emulator, args.map_spawn, fixture, position, join)
+        capture_viewport(log, emulator, rpc, output / f"{model}-rejoin-{join}.png", position,
+                         world_size=(int(width), int(height)), frame_timeout=25,
+                         spawn_pixels=MAP_SPAWN_PIXELS[args.map_spawn])
+        server.stdin.write("runwave\n")
+        server.stdin.flush()
+        wait_for(log, emulator, rf"UPSTREAM_LIVE_NET_DISCONNECTED join={join}\b", args.timeout)
+    if units[0] == units[1]:
+        raise RuntimeError(f"{model} expected a fresh server-assigned unit after rejoining")
+    trace = wait_for(log, emulator, "UPSTREAM_LIVE_NET_PASS", args.timeout)
+    if trace.count("UPSTREAM_INTERFACE_GRAPHICS ready") != 1:
+        raise RuntimeError(f"{model} expected renderer assets to stay resident across both joins")
+    print(f"{model}: rendered the stock {args.map_spawn} spawn on both joins in one ARM11 process.", flush=True)
+    return trace
 
 
 def verify_movement(log, emulator, server_log, server, join, timeout):
@@ -1638,7 +1668,9 @@ def run_model(args, model, config, original_config, log, output):
                     pattern = rf"UPSTREAM_INTERFACE_LOCALE system=\d+ bundle={re.escape(args.locale)}\b{words}"
                     localized = wait_for(log, emulator, pattern, args.timeout)
                     print(re.search(pattern, localized).group(0), flush=True)
-                if args.controls:
+                if args.controls_rejoin:
+                    emu_log = verify_graphical_rejoin(args, model, log, emulator, server_log, server, rpc, output)
+                elif args.controls:
                     def capture(phase, position):
                         if args.world_atlas_recycle and phase == "spawn":
                             wait_for(log, emulator, r"UPSTREAM_WORLD_ATLAS_RECYCLE\b", 5)
@@ -1780,7 +1812,7 @@ def run_model(args, model, config, original_config, log, output):
             if not args.controls:
                 validate(emu_log)
             disconnected = rf"{PLAYER} has disconnected"
-            if not args.controls:
+            if not args.controls or args.controls_rejoin:
                 disconnected += rf"[\s\S]*{PLAYER} has disconnected"
             before_shutdown = wait_for(server_log, server, disconnected, 5)
             if args.desktop_name:
@@ -1801,7 +1833,7 @@ def run_model(args, model, config, original_config, log, output):
             if stationary and any("(error)" in line for line in departures):
                 print(f"{model}: stationary verification ended by emulator kill; "
                       "accepted the server's (error) departure", flush=True)
-            expected_joins = 1 if args.controls else 2
+            expected_joins = 2 if args.controls_rejoin or not args.controls else 1
             if ((not args.controls and "clientOutdated" not in upstream)
                     or upstream.count(f"{PLAYER} has connected") != expected_joins
                     or len(departures) != expected_joins or not expected_departures):
@@ -1851,6 +1883,8 @@ def main():
     mode.add_argument("--controls", action="store_true", help="Verify D-pad and Circle Pad input and START disconnect")
     parser.add_argument("--controls-replay", action="store_true",
                         help="Replay the controls test input in Azahar 2126.2")
+    parser.add_argument("--controls-rejoin", action="store_true",
+                        help="Render two joins to the same stock map in one graphical process")
     parser.add_argument("--terrain-atlas", type=Path,
                         help="Stage the official v160.8 sprites.aatls and verify the rendered viewport")
     parser.add_argument("--locale", help="Stage a stock locale code and verify the graphical probe loads it")
@@ -1929,6 +1963,9 @@ def main():
     parser.add_argument("--require-relocation-spill", action="store_true",
                         help="Require the ARM11 collector to grow its relocation table during the spawn check")
     args = parser.parse_args()
+    if args.controls_rejoin and (not args.controls or args.controls_replay or not args.terrain_atlas
+                                 or args.map_spawn not in MAP_SPAWN_PIXELS):
+        parser.error("--controls-rejoin needs --controls, --terrain-atlas and a supported stock --map-spawn")
     args.server, args.rom, args.azahar = (path.resolve() for path in (args.server, args.rom, args.azahar))
     with args.server.open("rb") as archive:
         if hashlib.file_digest(archive, "sha256").hexdigest() != SERVER_SHA256:
@@ -2063,7 +2100,7 @@ def main():
     try:
         for path in originals:
             path.parent.mkdir(parents=True, exist_ok=True)
-        suffix = " controls" if args.controls else " movement" if args.movement else ""
+        suffix = " rejoin" if args.controls_rejoin else " controls" if args.controls else " movement" if args.movement else ""
         endpoint.write_text(f"127.0.0.1 {args.port}{suffix}\n", encoding="ascii")
         if args.locale:
             locale_path.write_text(args.locale + "\n", encoding="ascii")

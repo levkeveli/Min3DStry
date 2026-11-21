@@ -84,7 +84,7 @@ public final class UpstreamRenderedNetworkProbe {
             + (locale.getLanguage().isEmpty() ? "en" : locale) + " router=" + Core.bundle.get("block.router.name")
             + " copper=" + Core.bundle.get("item.copper.name"));
         CacheLayer.init();
-        UpstreamLiveNetworkProbe.run(endpoint, view::prepareClient, view::loadGraphics, view::render, view.buildingControls);
+        UpstreamLiveNetworkProbe.run(endpoint, view::prepareClient, view::worldLoaded, view::render, view.buildingControls);
     }
 
     private void prepareClient() {
@@ -98,6 +98,15 @@ public final class UpstreamRenderedNetworkProbe {
         };
         var locale = Core.bundle.getLocale();
         Core.settings.put("locale", locale.getLanguage().isEmpty() ? "en" : locale.toString());
+    }
+
+    private void worldLoaded() {
+        if (viewport == null) loadGraphics();
+        previousVisualFrame = 0;
+        lastLeft = lastBottom = -1;
+        reportedConveyors.clear();
+        reportedWorldLabels.clear();
+        lastObjectives = null;
     }
 
     private void loadGraphics() {
