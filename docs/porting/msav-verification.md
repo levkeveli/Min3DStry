@@ -14,6 +14,7 @@ markers they emit on the JVM and/or ARM11/Azahar.
 | Save rejection/backup resilience | host `UpstreamSaveResilienceProbe` | Host/JVM | `UPSTREAM_SAVE_RESILIENCE_PASS`, `MIN3DSTRY_SAVE_POLICY existing=protected interrupted=rejected` |
 | Compressed header version (native) | save-slot probe + `msav_inflate` | Host + Azahar | `MIN3DSTRY SAVE_SLOT present=1 valid=1 compressed=1 version=13 bytes=11072`; `SAVE_META map=Glacier wave=1`; HUD `Save: v13 11072B`, `Map: Glacier wave=1` |
 | Save-slot backup fallback | save-slot probe | Host + Azahar | invalid primary + valid `*-backup.msav` -> `SAVE_SLOT present=1 valid=1 version=13`; HUD `Save: v13` |
+| Full save zlib inflate (native) | save-slot read + `msav_inflate` | Host + Azahar | `SECTOR_INFLATE planet=serpulo id=170 raw=11072 bytes=45955 status=ok` |
 | Save writer baseline | host `UpstreamSaveBaseline` | Host/JVM | `UPSTREAM_SAVE header=MSAV version=13` |
 
 Rows marked `JVM + Azahar` run in Azahar `2126.2` on both New and Old 3DS

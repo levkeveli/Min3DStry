@@ -65,12 +65,22 @@ be decoded, `Save: invalid <bytes>B`, or `Save: none`, plus
 
 ### Compressed header prefix
 
-`include/platform/msav_inflate.h` decodes only the prefix of the zlib stream
+`include/platform/msav_inflate.h` decodes the prefix of the zlib stream
 (RFC 1950/1951), so the `MSAV` magic, big-endian version and the early metadata
 string map (`mapname`, `wave`) are available without inflating a whole world.
 It handles stored, fixed-Huffman and dynamic-Huffman DEFLATE blocks and stops
 as soon as the requested prefix is produced. Malformed headers, FDICT streams,
 and truncated input fail closed.
+
+The app also inflates the complete first sector slot into a 64 KiB buffer and
+logs:
+
+```text
+[MIN3DSTRY] SECTOR_INFLATE planet=serpulo id=170 raw=11072 bytes=45955 status=ok
+```
+
+This proves the full compressed container is readable and inflatable on ARM11;
+world parsing/loading is still separate work.
 
 ## SD sector catalog
 

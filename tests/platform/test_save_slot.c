@@ -153,6 +153,13 @@ static void test_inflate_prefix(void) {
     assert(size == 2);
     assert(memcmp(short_out, "MS", 2) == 0);
 
+    uint8_t full[16384];
+    assert(m3ds_msav_inflate_prefix(
+        dynamic_stream, sizeof(dynamic_stream), full, sizeof(full), &size));
+    assert(size == 9008u);
+    assert(memcmp(full, "MSAV", 4) == 0);
+    assert(full[8] == 't');
+
     assert(!m3ds_msav_inflate_prefix(
         fixed_stream, sizeof(fixed_stream), NULL, 4, &size));
     assert(!m3ds_msav_inflate_prefix(

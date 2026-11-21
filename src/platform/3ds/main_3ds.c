@@ -17,6 +17,7 @@
 #include "ndsp_backend.h"
 #include "platform/hardware_profile.h"
 #include "platform/memory_budget.h"
+#include "platform/msav_inflate.h"
 #include "platform/save_slot.h"
 #include "platform/sector_catalog.h"
 #include "platform/sd_paths.h"
@@ -210,6 +211,31 @@ int main(int argc, char *argv[]) {
             dbg_line[used] = '\0';
         }
         m3ds_emit_debug_line(log_socket, dbg_line);
+    }
+
+    if (sector_count > 0u) {
+        const size_t inflate_capacity = 64u * 1024u;
+        uint8_t *raw = malloc(inflate_capacity);
+        uint8_t *inflated = malloc(inflate_capacity);
+        size_t raw_size = 0u;
+        size_t inflated_size = 0u;
+        bool read_ok = raw && inflated
+            && m3ds_sector_store_read(
+                "sdmc:/3ds/min3dstry", sectors[0].planet, sectors[0].id,
+                raw, inflate_capacity, &raw_size);
+        bool inflate_ok = read_ok
+            && m3ds_msav_inflate_prefix(
+                raw, raw_size, inflated, inflate_capacity, &inflated_size)
+            && inflated_size >= 8u
+            && memcmp(inflated, "MSAV", 4) == 0;
+        snprintf(dbg_line, sizeof(dbg_line),
+                 "[MIN3DSTRY] SECTOR_INFLATE planet=%s id=%u raw=%u bytes=%u status=%s\n",
+                 sectors[0].planet, (unsigned)sectors[0].id,
+                 (unsigned)raw_size, (unsigned)inflated_size,
+                 inflate_ok ? "ok" : "failed");
+        m3ds_emit_debug_line(log_socket, dbg_line);
+        free(raw);
+        free(inflated);
     }
 
     {
