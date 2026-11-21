@@ -115,14 +115,16 @@ gradle -PupstreamCheckout=/path/to/Mindustry \
 JVM and ARM11/Azahar report:
 
 ```text
-UPSTREAM_CAMPAIGN_CONTENT path=live conveyorUnlocked=true key=conveyor-unlocked research=50 blocks=447
+UPSTREAM_CAMPAIGN_CONTENT path=live lockedBefore=ok conveyorUnlocked=true key=conveyor-unlocked research=50 reload=ok blocks=447
 ```
 
-The probe writes the upstream `conveyor-unlocked` and `req-conveyor-copper`
-keys through Arc `Settings`, assigns `Core.settings`, runs the upstream
-`ContentLoader` (`createBaseContent`/`init`), and verifies
-`Blocks.conveyor.unlocked()` plus the research value. On 3DS it targets the
-live `/3ds/min3dstry` directory and restores/removes the prior settings state.
+The probe first runs the upstream `ContentLoader` (`createBaseContent`/`init`)
+with empty settings and verifies conveyor is locked, writes the upstream
+`conveyor-unlocked` and `req-conveyor-copper` keys through Arc `Settings`, then
+reloads a fresh `Settings` instance from `settings.bin` and rebuilds content.
+It verifies `Blocks.conveyor.unlocked()` plus the research value only after the
+reload. On 3DS it targets the live `/3ds/min3dstry` directory and restores or
+removes the prior settings state.
 Azahar `2126.2` New and Old profiles both reported `path=live ... blocks=447`
 and left no `settings.bin` behind.
 

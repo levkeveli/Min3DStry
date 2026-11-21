@@ -97,7 +97,7 @@ jobs:
             grep -F 'campaign=unlocked:conveyor,research:50 reload=ok' "$RUNNER_TEMP/probe.log"
           fi
           if [ "${{ matrix.probe }}" = "campaign-content" ]; then
-            grep -F 'conveyorUnlocked=true key=conveyor-unlocked research=50' "$RUNNER_TEMP/probe.log"
+            grep -F 'lockedBefore=ok conveyorUnlocked=true key=conveyor-unlocked research=50 reload=ok' "$RUNNER_TEMP/probe.log"
           fi
 
       - name: Build ARM11 probe with pinned devkitARM image

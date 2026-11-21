@@ -7,8 +7,24 @@ import mindustry.content.Items;
 import mindustry.core.ContentLoader;
 import mindustry.core.GameState;
 
-/** Loads upstream content with campaign unlock keys already present. */
+/** Loads upstream content with campaign unlock keys present in settings.bin. */
 public final class UpstreamCampaignContentStateProbe {
+    /** Disables Arc's asynchronous settings backup, which has no lane on TeaVM C. */
+    private static final class ProbeSettings extends Settings {
+        void disableBackup(){
+            executor.shutdownNow();
+        }
+
+        void saveWithoutBackup(){
+            disableBackup();
+            try{
+                saveValues();
+            }catch(RuntimeException expected){
+                // The file is written before Arc schedules its background backup copy.
+            }
+        }
+    }
+
     public static void main(String[] args) {
         String temporary = System.getProperty("java.io.tmpdir");
         boolean live = temporary != null && temporary.startsWith("/3ds/min3dstry");
@@ -25,60 +41,79 @@ public final class UpstreamCampaignContentStateProbe {
         byte[] oldSettings = settingsFile.exists() ? settingsFile.readBytes() : null;
         byte[] oldBackup = backupFile.exists() ? backupFile.readBytes() : null;
         boolean backupsExisted = backupsDir.exists();
-        int blocks;
+        int blocks = -1;
         try {
             settingsFile.delete();
             backupFile.delete();
 
-            Settings settings = new Settings();
-            settings.setDataDirectory(dir);
-            settings.setAutosave(false);
-            settings.load();
-            settings.put("conveyor-unlocked", true);
-            settings.put("req-conveyor-copper", 50);
-            settings.forceSave();
-            Core.settings = settings;
+            ProbeSettings blank = new ProbeSettings();
+            blank.setDataDirectory(dir);
+            blank.setAutosave(false);
+            blank.load();
+            Core.settings = blank;
 
             Vars.headless = true;
             Vars.state = new GameState();
             Vars.content = new ContentLoader();
             Vars.content.createBaseContent();
             Vars.content.init();
-
-            if (!Blocks.conveyor.unlocked()) {
-                throw new IllegalStateException("Upstream conveyor unlock was not loaded");
-            }
-            if (!"conveyor-unlocked".equals(Blocks.conveyor.name + "-unlocked")) {
-                throw new IllegalStateException("Unexpected conveyor unlock key");
-            }
-            if (!"req-conveyor-copper".equals(
-                    "req-" + Blocks.conveyor.name + "-" + Items.copper.name)) {
-                throw new IllegalStateException("Unexpected conveyor research key");
-            }
-            Object research = settings.get("req-conveyor-copper", null);
-            if (!(research instanceof Integer) || ((Integer)research) != 50) {
-                throw new IllegalStateException("Campaign research key did not load");
-            }
             blocks = Vars.content.blocks().size;
+
+            if(Blocks.conveyor.unlocked()){
+                throw new IllegalStateException("Conveyor was unlocked before its key was persisted");
+            }
+
+            blank.put("conveyor-unlocked", true);
+            blank.put("req-conveyor-copper", 50);
+            blank.saveWithoutBackup();
+
+            if(!settingsFile.exists() || settingsFile.length() <= 0){
+                throw new IllegalStateException("settings.bin was not written");
+            }
+
+            // A fresh instance must recover the unlock state from settings.bin,
+            // not from the in-memory map used to write it.
+            ProbeSettings reloaded = new ProbeSettings();
+            reloaded.setDataDirectory(dir);
+            reloaded.setAutosave(false);
+            reloaded.load();
+            Core.settings = reloaded;
+
+            if(!reloaded.getBool("conveyor-unlocked", false)){
+                throw new IllegalStateException("Campaign unlock did not reload from disk");
+            }
+            Object research = reloaded.get("req-conveyor-copper", null);
+            if(!(research instanceof Integer) || ((Integer)research) != 50){
+                throw new IllegalStateException("Campaign research did not reload from disk");
+            }
+
+            // Rebuild content against the reloaded settings so UnlockableContent
+            // reads the persisted key during construction.
+            Vars.content = new ContentLoader();
+            Vars.content.createBaseContent();
+            Vars.content.init();
+            if(!Blocks.conveyor.unlocked()){
+                throw new IllegalStateException("Upstream content did not load the persisted unlock");
+            }
         } finally {
-            if (oldSettings == null) {
+            if(oldSettings == null){
                 settingsFile.delete();
-            } else {
+            }else{
                 settingsFile.writeBytes(oldSettings);
             }
-            if (oldBackup == null) {
+            if(oldBackup == null){
                 backupFile.delete();
-            } else {
+            }else{
                 backupFile.writeBytes(oldBackup);
             }
-            if (!backupsExisted && backupsDir.exists()) {
+            if(!backupsExisted && backupsDir.exists()){
                 backupsDir.deleteDirectory();
             }
         }
 
         System.out.println(
             "UPSTREAM_CAMPAIGN_CONTENT path=" + (live ? "live" : "tmp")
-            + " conveyorUnlocked=true key=conveyor-unlocked research=50"
-            + " blocks=" + blocks);
+            + " lockedBefore=ok conveyorUnlocked=true key=conveyor-unlocked research=50"
+            + " reload=ok blocks=" + blocks);
     }
 }

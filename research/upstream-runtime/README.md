@@ -268,13 +268,14 @@ marker and left no slot file behind.
 
 ### Campaign content unlock state
 
-`-Pprobe=campaign-content` persists the upstream `conveyor-unlocked` and
-`req-conveyor-copper` settings, assigns them to `Core.settings`, then runs the
-upstream `ContentLoader` and checks `Blocks.conveyor.unlocked()`. JVM and
-ARM11/Azahar report:
+`-Pprobe=campaign-content` verifies conveyor is locked with empty settings,
+persists the upstream `conveyor-unlocked` and `req-conveyor-copper` settings,
+reloads a fresh `Settings` from `settings.bin`, rebuilds content, and checks
+`Blocks.conveyor.unlocked()` only from the reloaded state. JVM and ARM11/Azahar
+report:
 
 ```text
-UPSTREAM_CAMPAIGN_CONTENT path=live conveyorUnlocked=true key=conveyor-unlocked research=50 blocks=447
+UPSTREAM_CAMPAIGN_CONTENT path=live lockedBefore=ok conveyorUnlocked=true key=conveyor-unlocked research=50 reload=ok blocks=447
 ```
 
 The probe snapshots and restores live settings on 3DS; Azahar 2126.2 New and
