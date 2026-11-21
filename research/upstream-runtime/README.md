@@ -444,6 +444,143 @@ exercises the classpath fallback, including a failed filesystem lookup for the
 internal handle. It has not verified reading a real file through Arc on SD or
 running on physical hardware.
 
+### Exercise upstream factory ticks
+
+Use `-Pprobe=factory-ticks` with the world probe's Gradle properties and
+pass the original Glacier path to `runProbeJvm`. The probe starts the
+world through Mindustry's `Logic.play`, gives an upstream conveyor one
+copper item, and calls the original `Logic.update` 240 times at a fixed
+60 Hz clock. It checks core inventory and the exact delivery tick. A
+second phase places a mechanical drill over four copper ore tiles and
+checks deliveries through the original router and conveyor through tick
+720. The probe initializes the upstream cache layers before creating the
+content and registers the block indexer and wave spawner before the world
+loads.
+
+The pinned Java release, generated Windows x64 C, and both Azahar 2126.2
+console profiles reported these results.
+
+```text
+UPSTREAM_FACTORY updates=240 wave=1 arrival=29 copper=201
+UPSTREAM_DRILL updates=720 wave=1 copper=203 arrivals=464=202,626=203
+```
+
+The C build links `logicids.dat`, the base-part list, and the schematics
+named by that list directly from the hash-checked server JAR.
+[DevkitARM build 44795739970](https://github.com/levkeveli/Min3DStry/actions/runs/44795739970)
+ran with C optimization disabled, a 24 MiB managed heap, a 4 MiB linear
+heap for the debug console, and a 256 KiB native stack. Its ELF load
+segments and those reservations total 67.50 MiB before GC bookkeeping
+and other application allocations.
+[DevkitARM build 44796141596](https://github.com/levkeveli/Min3DStry/actions/runs/44796141596)
+used the standard `-O2` flags and matched both traces in the Original and
+New 3DS Azahar profiles. The page-rounded ELF segments occupy 36.38 MiB.
+With the same heap and stack reservations, the subtotal is 64.63 MiB
+before bookkeeping and other allocations, above the 64 MiB Original 3DS
+budget. Physical-console memory and performance still need verification.
+Factory parity is tracked in #26.
+
+### Capture upstream Glacier terrain commands
+
+[Issue #73](https://github.com/levkeveli/Min3DStry/issues/73) exercises the
+renderer boundary without a graphics context. Arc reads `sprites.aatls`
+from the [pinned v160.8 release](https://github.com/Anuken/Mindustry/releases/tag/v160.8).
+Each page descriptor supplies its original dimensions so Arc computes
+the same UVs for full sprites and split regions. No page images are
+needed for this probe. It calls upstream `Floor.load` and `Floor.drawBase`
+over a 16 × 12 viewport near the first copper tile in the original
+Glacier world. A Batch captures the order, texture page, UVs, geometry,
+and packed color and mix color of the draw requests.
+
+The pinned `Floor.drawBase` calls `drawOverlay`, which submits ore
+sprites as part of that floor pass.
+
+With the verified official `assets.jar` from the
+[sprite pipeline](../../docs/rendering/asset-pipeline.md), extract the
+original atlas file into your scratch directory.
+
+```sh
+unzip -p /path/to/assets.jar assets/sprites/sprites.aatls > /path/to/sprites.aatls
+gradle -PupstreamCheckout=/path/to/Mindustry -PreferenceJar=/path/to/server-release.jar \
+  -ParcCheckout=/path/to/Arc -Pprobe=terrain-draw \
+  runProbeJvm --args='/path/to/glacier.msav /path/to/sprites.aatls' generateC
+```
+
+The unmodified v160.8 JVM classes, adapted JVM build, and generated
+Windows x64 C executable emitted this trace:
+
+```text
+UPSTREAM_TERRAIN viewport=18,0+16x12 commands=320 copper=26 edges=88 hash=de709773b1b58465
+```
+
+To check the original JVM classes, compile the probe and
+`UpstreamWorldLoadProbe.java` against the unmodified server JAR, then
+run `UpstreamTerrainDrawProbe` with the same two paths. To check the
+generated C, run `arm11/fix_reflection_lifetime.py` on a scratch copy of
+the generated directory before compiling `all.c` with the host compiler.
+Pass the same two paths to the executable. The ARM11 build script applies
+the reflection fix during staging.
+
+For the ARM11 probe, put the original `glacier.msav` and `sprites.aatls` in
+`/3ds/min3dstry/` on the SD card.
+[DevkitARM build 44799955644](https://github.com/levkeveli/Min3DStry/actions/runs/44799955644)
+used the standard `-O2` flags. Both Azahar 2126.2 console profiles
+emitted the identical terrain trace and Glacier world fingerprint.
+The trace precedes the Citro2D presentation step tracked in #38.
+
+[The integration build](https://github.com/levkeveli/Min3DStry/actions/runs/44833286449)
+reproduced the same 320 commands, 26 copper draws, and hash on both
+Azahar console profiles after combining the probe with the merged world loader.
+
+The current viewport uses 13 upstream atlas regions. A local build of
+that set with tex3ds v2.3.0 produced a 128 × 256 RGBA8 page (128 KiB).
+To reproduce the page, pass the names below, in this order, to the
+[upstream sprite converter](../../docs/rendering/asset-pipeline.md).
+
+```text
+ice-edge ice1 ice2 ice3 ore-coal1 ore-coal2 ore-coal3
+ore-copper1 ore-copper2 ore-copper3 stone1 stone2 stone3
+```
+
+Arc draws 32 × 32 subregions of `ice-edge`. Keep the 96 × 96 parent
+rectangle so the renderer can translate the original page UVs.
+
+### Build the Citro2D terrain viewport
+
+[Issue #75](https://github.com/levkeveli/Min3DStry/issues/75) connects
+that Arc batch to Citro2D. The 3DS program loads the original Glacier
+map at startup. Arc emits the terrain draws and the native backend
+translates their atlas page and rectangles to the packed RomFS texture.
+The texture uses nearest-neighbor filtering. The renderer submits the
+draws in Arc's order and uses the top screen with the debug console below.
+This probe draws a single fixed viewport.
+
+Use the same pinned inputs and Gradle properties as the terrain trace.
+Generate C with `-Pprobe=terrain-render` and prepare the RomFS texture
+with JDK 17+ and tex3ds v2.3.0 on `PATH`.
+
+```sh
+python3 arm11/prepare_terrain_assets.py --assets /path/to/assets.jar \
+  --server /path/to/server-release.jar --output-dir build/terrain-assets
+bash arm11/build.sh build/generated/teavm/c build/terrain-3ds build/terrain-assets
+```
+
+Run from this directory in the devkitPro 3DS environment. The build
+produces `build/terrain-3ds/upstream-probe.3dsx`. Stage the original
+`glacier.msav` and `sprites.aatls` in `/3ds/min3dstry/` on the SD card.
+
+The [DevkitARM builds](https://github.com/levkeveli/Min3DStry/actions/runs/44802428728)
+at `-O0` and `-O2` submitted all 320 draws and matched the terrain trace on
+both Azahar 2126.2 console profiles. A host reference composited the same upstream draw
+rectangles directly from the official atlas. Across 68,352 screenshot
+pixels away from nearest-neighbor sampling boundaries, every RGB channel
+matched the reference within one 8-bit level on both profiles.
+
+The `-O2` ELF reserves 30.41 MiB in page-rounded load segments. With the
+16 MiB managed heap, 4 MiB linear heap and 256 KiB stack, the subtotal is
+50.66 MiB before GC metadata and other allocations. A fixed frame
+provides no sustained frame-time measurement.
+
 ## Read SD file metadata on ARM11
 
 [Issue #91](https://github.com/levkeveli/Min3DStry/issues/91) exposes
