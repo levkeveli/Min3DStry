@@ -101,7 +101,7 @@ case "${1:-}" in
     "$host_python" tools/port_progress.py --check
     "$host_python" -m unittest discover -s .github/scripts -p 'test_*.py'
     "$host_python" -m unittest discover -s tests/tools -p 'test_*.py'
-    for file in docs/porting/combat-waves-pathfinding.md research/upstream-runtime/host/UpstreamCombatSimulationBaseline.java research/upstream-runtime/src/gameplay/java/UpstreamCombatTickProbe.java research/upstream-runtime/src/gameplay/java/UpstreamWaveRoutingProbe.java; do
+    for file in docs/porting/combat-waves-pathfinding.md research/upstream-runtime/host/UpstreamCombatSimulationBaseline.java research/upstream-runtime/src/gameplay/java/UpstreamCombatTickProbe.java research/upstream-runtime/src/gameplay/java/UpstreamWaveRoutingProbe.java docs/porting/audio-runtime-bindings.md research/upstream-runtime/host/UpstreamAudioBaseline.java research/upstream-runtime/src/gameplay/java/UpstreamAudioTickProbe.java; do
       test -s "$file" || { echo "Missing or empty: $file" >&2; exit 1; }
     done
 
@@ -143,6 +143,10 @@ case "${1:-}" in
     "$host_cc" -std=c11 -Wall -Wextra -Werror -Iinclude \
       src/platform/memory_budget.c tests/platform/test_memory_budget.c -o build/host/test_memory_budget
     ./build/host/test_memory_budget
+
+    "$host_cc" -std=c11 -Wall -Wextra -Werror -Iresearch/upstream-runtime/arm11 \
+      tests/platform/test_array_class_pool.c -o build/host/test_array_class_pool
+    ./build/host/test_array_class_pool
 
     "$host_cc" -std=c11 -Wall -Wextra -Werror -Iinclude \
       src/platform/sd_paths.c tests/platform/test_sd_paths.c -o build/host/test_sd_paths
