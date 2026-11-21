@@ -1339,10 +1339,15 @@ glyph metrics and pixels for the 3DS client.
 
 Pass the packed `world-atlas` directory and `logic-font.dat` as arguments
 six and seven to `runBuildingLayersJvm`. The stock processor replay checks
-clear, alpha, transform, linked display sampling, the original Copper icon
-and the logic font. Run the live verifier on stationary Glacier with
+clear, alpha, transform, linked display sampling, the original Copper icon,
+the logic font and the grouped tile texture. Run the live verifier on stationary Glacier with
 `--controls --verify-logic-displays --terrain-atlas /path/to/sprites.aatls`.
 The unmodified Java server supplies the stock processor configuration.
+The [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44934523666)
+passed on both Old and New 3DS Azahar profiles. Its replay checked framebuffer
+pixels before and after configuration for the 80 px display, 176 px large
+display and a joined 52 by 20 px tiled display. It also checked the visible
+font and pixels sampled from the linked large display.
 
 ### Verify the Arc executor pools
 
