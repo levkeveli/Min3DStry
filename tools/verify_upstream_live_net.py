@@ -423,6 +423,15 @@ def run_model(args, model, config, original_config, log, output):
                 print(f"{model}: Join 127.0.0.1:{args.port} from the stock PC client as "
                       f"{args.desktop_name!r}.", flush=True)
                 wait_for(server_log, server, rf"{re.escape(args.desktop_name)} has connected", args.timeout)
+            if args.combat:
+                # Spawn before the client joins so the unit is in its initial snapshots.
+                spawn = (
+                    '(() => { const u = UnitTypes.dagger.spawn(Vars.state.rules.waveTeam, 78 * 8, 26 * 8); '
+                    'for (let i = 0; i < 5; i++) Packages.mindustry.entities.Units.notifyUnitSpawn(u); '
+                    'return "UPSTREAM_COMBAT_SPAWN id=" + u.id; })()')
+                server.stdin.write("js " + spawn + "\n")
+                server.stdin.flush()
+                wait_for(server_log, server, r"UPSTREAM_COMBAT_SPAWN id=\d+", 10)
             command = [str(args.azahar)]
             if args.controls_replay:
                 replay = Path(work) / "controls.ctm"
@@ -456,7 +465,42 @@ def run_model(args, model, config, original_config, log, output):
                                                 require_icons=args.menu_icons,
                                                 require_world_atlas=args.world_atlas and phase == "spawn")
 
-                    if args.world_atlas_recycle:
+                    if args.combat:
+                        wait_for(log, emulator, r"UPSTREAM_LIVE_CONTROLS_READY unit=\d+", args.timeout)
+                        fixture = (
+                            '(() => { const t = Vars.world.tile(76, 26); '
+                            't.setBlock(Blocks.duo, Vars.state.rules.defaultTeam, 0); '
+                            'const b = t.build; b.handleItem(b, Items.copper); '
+                            'return "UPSTREAM_COMBAT_FIXTURE block=" + t.block().name + " ammo=" + b.totalAmmo; })()')
+                        server.stdin.write("js " + fixture + "\n")
+                        server.stdin.flush()
+                        setup = wait_for(server_log, server,
+                                         r"UPSTREAM_COMBAT_FIXTURE block=\S+ ammo=(\d+)", 10)
+                        initial_ammo = int(re.search(r"ammo=(\d+)", setup).group(1))
+                        enemy = wait_for(log, emulator, r"UPSTREAM_LIVE_ENEMY type=dagger id=\d+", args.timeout)
+                        print(re.search(r"UPSTREAM_LIVE_ENEMY[^\n]*", enemy).group(0), flush=True)
+                        time.sleep(1.0)
+                        query = (
+                            '(() => { const u = Groups.unit.find(x => x.type === UnitTypes.dagger && '
+                            'x.team === Vars.state.rules.waveTeam); const b = Vars.world.tile(76, 26).build; '
+                            'return "UPSTREAM_SERVER_COMBAT dagger=" + (u ? Math.round(u.health) : -1) + '
+                            '" ammo=" + b.totalAmmo; })()')
+                        server.stdin.write("js " + query + "\n")
+                        server.stdin.flush()
+                        result = wait_for(server_log, server,
+                                          r"UPSTREAM_SERVER_COMBAT dagger=(-?\d+) ammo=(\d+)", 10)
+                        dagger, ammo = (int(value) for value in
+                                        re.search(r"dagger=(-?\d+) ammo=(\d+)", result).groups())
+                        # Dagger max health in v160.8 is 150; -1 means it was destroyed.
+                        if ammo >= initial_ammo or (dagger != -1 and dagger >= 150):
+                            raise RuntimeError(
+                                f"Turret did not damage the Dagger: ammo {initial_ammo}->{ammo}, health={dagger}")
+                        (output / f"{model}-combat.png").write_bytes(rpc.screenshot())
+                        print(f"Stock Duo fired; Dagger health={dagger}, ammo {initial_ammo}->{ammo}.", flush=True)
+                        emu_log = log.read_text(encoding="utf-8", errors="replace")
+                        if "UPSTREAM_LIVE_NET_ERROR" in emu_log:
+                            raise RuntimeError("The client failed during the live combat check")
+                    elif args.world_atlas_recycle:
                         wait_for(log, emulator, r"UPSTREAM_LIVE_CONTROLS_READY unit=\d+", args.timeout)
                         spawn = server_position(server_log, server, "UPSTREAM_SERVER_CONTROLS_READY").groups()
                         capture("spawn", spawn)
@@ -508,10 +552,11 @@ def run_model(args, model, config, original_config, log, output):
             # The stationary atlas-recycle run ends by killing the emulator process, so the server
             # can report `(error)` instead of a clean disconnect. Only this mode accepts it; normal
             # control runs still require `(closed)` or `(disappeared)`.
-            departure = r"\((closed|disappeared|error)\)" if args.world_atlas_recycle else r"\((closed|disappeared)\)"
+            departure = (r"\((closed|disappeared|error)\)"
+                         if args.world_atlas_recycle or args.combat else r"\((closed|disappeared)\)")
             expected_departures = all(re.search(departure, line) for line in departures)
-            if args.world_atlas_recycle and any("(error)" in line for line in departures):
-                print(f"{model}: atlas-recycle run ended by emulator kill; "
+            if (args.world_atlas_recycle or args.combat) and any("(error)" in line for line in departures):
+                print(f"{model}: stationary run ended by emulator kill; "
                       "accepted the server's (error) departure", flush=True)
             expected_joins = 1 if args.controls else 2
             if ((not args.controls and "clientOutdated" not in upstream)
@@ -561,6 +606,8 @@ def main():
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--movement", action="store_true", help="Verify the stock server applies scripted ARM11 movement")
     mode.add_argument("--controls", action="store_true", help="Verify D-pad and Circle Pad input and START disconnect")
+    parser.add_argument("--combat", action="store_true",
+                        help="Verify a stock-server Duo engaging a spawned Dagger")
     parser.add_argument("--controls-replay", action="store_true",
                         help="Replay the controls test input in Azahar 2126.2")
     parser.add_argument("--terrain-atlas", type=Path,
@@ -588,6 +635,10 @@ def main():
         parser.error("The PC client needs a distinct player name")
     if args.controls_replay and not args.controls:
         parser.error("--controls-replay needs --controls")
+    if args.combat and (not args.controls or not args.terrain_atlas):
+        parser.error("--combat needs --controls and --terrain-atlas")
+    if args.combat and (args.building or args.touch_build or args.touch_config or args.world_atlas_recycle):
+        parser.error("--combat runs a stationary combat check")
     if args.building and not args.terrain_atlas:
         parser.error("--building needs --terrain-atlas")
     if args.touch_build and not args.terrain_atlas:

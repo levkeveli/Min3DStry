@@ -46,6 +46,7 @@ import mindustry.gen.RemoveQueueBlockCallPacket;
 import mindustry.gen.StateSnapshotCallPacket;
 import mindustry.gen.TileConfigCallPacket;
 import mindustry.gen.Unit;
+import mindustry.gen.UnitSpawnCallPacket;
 import mindustry.mod.Mods;
 import mindustry.net.Host;
 import mindustry.net.Net;
@@ -255,6 +256,7 @@ public final class UpstreamLiveNetworkProbe {
         long udpKeepAlive = start + UDP_KEEP_ALIVE_NS;
         int snapshotId = unsignedId(StateSnapshotCallPacket.class);
         int entityId = unsignedId(EntitySnapshotCallPacket.class);
+        int unitSpawnId = unsignedId(UnitSpawnCallPacket.class);
         int initialWave = Vars.state.wave;
         var movement = mode == Mode.MOVEMENT ? new MovementCheck(join) : null;
         var initialEnemies = new IntSet();
@@ -290,6 +292,8 @@ public final class UpstreamLiveNetworkProbe {
                 }
             } else if (id == entityId) {
                 decode(new EntitySnapshotCallPacket(), received).handleClient();
+            } else if (id == unitSpawnId) {
+                decode(new UnitSpawnCallPacket(), received).handleClient();
             }
             app.runPosted();
             if (movement != null) movement.update(now);
@@ -331,6 +335,7 @@ public final class UpstreamLiveNetworkProbe {
         long lastFrame = 0;
         int stateId = unsignedId(StateSnapshotCallPacket.class);
         int entityId = unsignedId(EntitySnapshotCallPacket.class);
+        int unitSpawnId = unsignedId(UnitSpawnCallPacket.class);
         System.out.println(frame == null ? "Circle Pad or D-pad moves. START leaves."
             : "Tap the build grid to place. R rotates. B toggles removal. START leaves.");
         while (true) {
@@ -345,7 +350,7 @@ public final class UpstreamLiveNetworkProbe {
                 keepAlive(0);
                 lastUdpKeepAlive = now;
             }
-            lastWave = receiveLiveUpdates(stateId, entityId, lastWave);
+            lastWave = receiveLiveUpdates(stateId, entityId, unitSpawnId, lastWave);
             app.runPosted();
             now = System.nanoTime();
             controls.update(input, now);
@@ -359,7 +364,7 @@ public final class UpstreamLiveNetworkProbe {
         }
     }
 
-    private int receiveLiveUpdates(int stateId, int entityId, int lastWave) throws IOException {
+    private int receiveLiveUpdates(int stateId, int entityId, int unitSpawnId, int lastWave) throws IOException {
         // Drain queued snapshots before drawing again and bound the work between input polls.
         long deadline = System.nanoTime() + 8_000_000L;
         for (int i = 0; i < 16; i++) {
@@ -375,6 +380,8 @@ public final class UpstreamLiveNetworkProbe {
                 }
             } else if (id == entityId) {
                 decode(new EntitySnapshotCallPacket(), received).handleClient();
+            } else if (id == unitSpawnId) {
+                decode(new UnitSpawnCallPacket(), received).handleClient();
             } else if (frame != null) {
                 applyBuildingUpdate(id, received);
             }
