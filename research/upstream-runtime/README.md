@@ -570,6 +570,9 @@ Use the existing pinned Gradle settings with `-Pprobe=network-render`:
 gradle runBuildingLayersJvm --args='/path/to/glacier.msav /path/to/sprites.aatls /path/to/block_colors.png'
 ```
 
+Take `block_colors.png` from `assets/sprites/` in the stock v160.8 asset
+archive. The multiplayer asset pack places the same file in RomFS.
+
 The JVM verifier checks the sorted sprite state and actual upstream Conveyor,
 Large Copper Wall and Mechanical Drill draw order. The wall's anchor is
 outside the viewport, and a second wall lies entirely outside. The live
@@ -699,9 +702,9 @@ passed the free and carried unit capture on both profiles. On the same
 build, the stock server's periodic block snapshot moved a Copper Wall
 and a Dagger to their receiving belts after the client joined.
 
-The unit renderer loads 20 Serpulo types, including all three core
+The unit renderer loads 30 Serpulo types, including all three core
 drones, the five assault mechs, the five attack aircraft, Crawler,
-Nova through Vela, Mono and Poly. The JVM traces each stock body,
+Nova through Vela, Mono, Poly and all ten ships. The JVM traces each stock body,
 cell and available weapon and heat sprites. The Quasar's
 `ForceFieldAbility.draw` uses its original unshaded polygon and outline
 when the desktop renderer is absent, matching the construction beam's
@@ -714,6 +717,22 @@ outline of an active Quasar shield. The
 passed on both Old and New 3DS Azahar profiles with Alpha, Beta, Flare,
 Fortress, Pulsar, Vela and Quasar in the same Glacier viewport.
 The same build also passed the live wall and Dagger handoff on both profiles.
+
+For naval wakes, the build exposes the original `WaterMoveComp` wake
+update from the pinned generated `UnitWaterMove` class. The client
+interpolates remote units with their stock network interpolation method,
+then advances the wake history and calls the generated entity draw.
+The asset pipeline packages the original `assets/sprites/block_colors.png`
+for the upstream palette loader. This gives the wake the source water
+color. The JVM checks both Risso wake trails, their color and that the
+wake update leaves the boat's simulation state intact.
+
+Run `--controls --naval-wake --terrain-atlas` to stream a Risso and
+Retusa from the Java server, then check both Risso wakes after sending
+a controlled sequence of stock entity snapshots. The
+[ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44874607258)
+passed on both Azahar profiles with 22 exact shallow-water wake pixels
+on each side of the Risso per profile.
 
 The renderer still selects blocks that use the supported sprite operations.
 Textured raw vertices, additional payload types and other rendering services
