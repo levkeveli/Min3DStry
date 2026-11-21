@@ -22,6 +22,8 @@ import mindustry.Vars;
 import mindustry.content.Blocks;
 import mindustry.content.Liquids;
 import mindustry.content.UnitTypes;
+import mindustry.entities.units.BuildPlan;
+import mindustry.gen.Builderc;
 import mindustry.gen.Player;
 import mindustry.world.blocks.liquid.Conduit.ConduitBuild;
 import mindustry.world.blocks.liquid.LiquidBlock;
@@ -120,6 +122,17 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
                 throw new AssertionError("Missing stock team cell color for " + unit.type().name);
             }
         }
+        Vars.player.unit(gamma);
+        gamma.addBuild(new BuildPlan(30, 36, 0, Blocks.conveyor));
+        ((Builderc) gamma).buildAlpha(1f);
+        sprites.clear();
+        solidQuads.clear();
+        gamma.type().draw(gamma);
+        if (solidQuads.size() != 2) {
+            throw new AssertionError("Expected two stock construction beam lines, got " + solidQuads.size());
+        }
+        requireRegion(Core.atlas.white());
+        gamma.clearBuilding();
         System.out.println("UPSTREAM_UNIT_DRAW gamma=shadow,engine,body,cell,weapons dagger=legs,base,body,cell,weapons");
     }
 

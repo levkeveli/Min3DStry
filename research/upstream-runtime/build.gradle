@@ -100,6 +100,7 @@ def netClientFile = sourceDir.map { it.file('mindustry/core/NetClient.java') }
 def placementFile = sourceDir.map { it.file('UpstreamPlacementCatalog.java') }
 def itemChoicesFile = sourceDir.map { it.file('UpstreamItemChoices.java') }
 def planetGridFile = sourceDir.map { it.file('mindustry/graphics/g3d/PlanetGrid.java') }
+def drawfFile = sourceDir.map { it.file('mindustry/graphics/Drawf.java') }
 def compilerResources = layout.buildDirectory.dir("compiler-resources/${probe}")
 def pluginFile = compilerResources.map { it.file('META-INF/services/org.teavm.vm.spi.TeaVMPlugin') }
 def readUpstream = { path ->
@@ -151,7 +152,7 @@ if (usesArcSources || usesExecutor) {
         stagedClasses.addAll(['mindustry/graphics/g3d/PlanetGrid.class', 'mindustry/graphics/g3d/PlanetGrid$*.class'])
     }
     if (stageRenderedBuilding != null) {
-        stagedClasses.add('mindustry/gen/Building.class')
+        stagedClasses.addAll(['mindustry/gen/Building.class', 'mindustry/graphics/Drawf.class'])
         fluidSources.keySet().each { path ->
             def type = path.substring(0, path.length() - '.java'.length())
             stagedClasses.addAll([type + '.class', type + '$*.class'])
@@ -266,8 +267,18 @@ tasks.register('prepareUpstreamProbe') {
         outputs.file(planetGridFile)
         fluidSources.keySet().each { outputs.file(sourceDir.map { dir -> dir.file(it) }) }
     }
+    if (probe == 'network-render') outputs.file(drawfFile)
     doLast {
         if (probe == 'network-render') {
+            def drawf = new String(readUpstream('core/src/mindustry/graphics/Drawf.java'), 'UTF-8')
+            def animatedBeam = 'if(renderer.animateShields){'
+            if (drawf.count(animatedBeam) != 1) {
+                throw new GradleException('Pinned Drawf.buildBeam rendering mode check changed')
+            }
+            def adaptedDrawf = drawfFile.get().asFile
+            adaptedDrawf.parentFile.mkdirs()
+            // Reuse the stock line beam when this backend has no desktop shield shader.
+            adaptedDrawf.setText(drawf.replace(animatedBeam, 'if(renderer != null && renderer.animateShields){'), 'UTF-8')
             fluidSources.each { path, substitutions ->
                 def source = new String(readUpstream("core/src/${path}"), 'UTF-8')
                 substitutions.each { original, replacement ->
