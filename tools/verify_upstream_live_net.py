@@ -390,6 +390,40 @@ def capture_viewport(log, emulator, rpc, destination, position,
         return tuple(pixels["samples"][point] for point in interior)
 
 
+def load_payload_mix_fixture(server_log, server):
+    # Freeze the original conveyor interpolation at full and partial team glows.
+    server.stdin.write(
+        'pause on\n'
+        'js (() => { const team = Vars.state.rules.defaultTeam; '
+        'const full = Vars.world.tile(75,28), partial = Vars.world.tile(86,24); '
+        'full.setBlock(Blocks.payloadConveyor,team,0); '
+        'partial.setBlock(Blocks.payloadConveyor,team,0); '
+        'const phase = Vars.world.tile(86,28); phase.setBlock(Blocks.phaseWeaver,team,0); phase.build.warmup=1; '
+        'full.build.progress=Blocks.payloadConveyor.moveTime*0.5; '
+        'partial.build.progress=Blocks.payloadConveyor.moveTime*0.4352753; '
+        'return "UPSTREAM_PAYLOAD_FIXTURE fractions=" + Math.round(full.build.fract()*100) '
+        '+ "," + Math.round(partial.build.fract()*100); })()\n'
+    )
+    server.stdin.flush()
+    wait_for(server_log, server, r"UPSTREAM_PAYLOAD_FIXTURE fractions=50,25\b", 5)
+
+
+def verify_payload_mix(screenshot):
+    # Opaque texels from both halves of the full glow, two 37.5% glow
+    # texels, and a transparent overlay texel that must show the base.
+    exact = {(71, 59): (255, 211, 127), (105, 76): (255, 211, 127),
+             (305, 150): (74, 75, 83), (70, 296): (24, 27, 32),
+             # These pixel centers lie exactly on a tile split in the conveyor base.
+             (67, 62): (74, 75, 83), (287, 141): (74, 75, 83)}
+    partial = {(322, 142): (164, 149, 128), (325, 156): (164, 149, 128)}
+    colors = az.inspect_png(screenshot, (*exact, *partial))["samples"]
+    if any(colors[point] != expected for point, expected in exact.items()) or any(
+            abs(channel - target) > 1
+            for point, expected in partial.items() for channel, target in zip(colors[point], expected)):
+        raise RuntimeError(f"Original payload conveyor mix differs: {colors}")
+    verify_building_effects(screenshot)
+
+
 def load_building_effects_fixture(server_log, server):
     # Freeze the stock simulation at known serialized display states.
     server.stdin.write(
@@ -469,7 +503,8 @@ def verify_conduit_frames(log, rpc, output, model):
 
 
 def run_model(args, model, config, original_config, log, output):
-    stationary = args.world_atlas_recycle or args.building_layers or args.liquids or args.building_effects
+    stationary = (args.world_atlas_recycle or args.building_layers or args.liquids
+                  or args.building_effects or args.payload_mix)
     overrides = {
         "Miscellaneous": {"log_filter": "*:Info Debug.Emulated:Debug Service.SOC:Debug",
                           "check_for_update_on_start": "false"},
@@ -512,6 +547,8 @@ def run_model(args, model, config, original_config, log, output):
                                    'return "UPSTREAM_CONFIG_FIXTURE lead=" + items.get(Items.lead); })()\n')
                 server.stdin.flush()
                 wait_for(server_log, server, r"UPSTREAM_CONFIG_FIXTURE lead=\d+", 5)
+            if args.payload_mix:
+                load_payload_mix_fixture(server_log, server)
             if args.building_effects:
                 load_building_effects_fixture(server_log, server)
             if args.liquids:
@@ -573,12 +610,18 @@ def run_model(args, model, config, original_config, log, output):
                     if stationary:
                         wait_for(log, emulator, r"UPSTREAM_LIVE_CONTROLS_READY unit=\d+", args.timeout)
                         spawn = server_position(server_log, server, "UPSTREAM_SERVER_CONTROLS_READY").groups()
-                        phase = "building-effects" if args.building_effects else "spawn"
+                        phase = "spawn"
+                        if args.building_effects:
+                            phase = "building-effects"
+                        elif args.payload_mix:
+                            phase = "payload-mix"
                         if args.building_layers:
                             phase = "building-cracks" if args.building_cracks else "building-layers"
                         capture(phase, spawn)
                         if args.building_effects:
                             verify_building_effects((output / f"{model}-{phase}.png").read_bytes())
+                        if args.payload_mix:
+                            verify_payload_mix((output / f"{model}-{phase}.png").read_bytes())
                         if args.liquids:
                             verify_conduit_frames(log, rpc, output, model)
                         print("Verified the stationary Glacier capture.", flush=True)
@@ -701,6 +744,8 @@ def main():
                             help="Verify animated stock water in straight and mirrored Glacier conduits")
     build_mode.add_argument("--building-effects", action="store_true",
                             help="Verify the original active Phase Weaver line and Overdrive sprite pass")
+    build_mode.add_argument("--payload-mix", action="store_true",
+                            help="Verify original full and partial team-color glow on stock Payload Conveyors")
     args = parser.parse_args()
     args.server, args.rom, args.azahar = (path.resolve() for path in (args.server, args.rom, args.azahar))
     with args.server.open("rb") as archive:
@@ -726,6 +771,8 @@ def main():
         parser.error("--world-atlas-recycle runs a stationary spawn check")
     if args.building_cracks and not args.building_layers:
         parser.error("--building-cracks needs --building-layers")
+    if args.payload_mix and (not args.terrain_atlas or not args.controls or args.controls_replay):
+        parser.error("--payload-mix needs --controls and --terrain-atlas for a stationary capture")
     if args.building_effects and (not args.terrain_atlas or not args.controls or args.controls_replay):
         parser.error("--building-effects needs --controls and --terrain-atlas for a stationary capture")
     if args.liquids and (not args.terrain_atlas or not args.controls or args.controls_replay):
