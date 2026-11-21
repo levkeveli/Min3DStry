@@ -31,6 +31,28 @@ static void write_bytes(const uint8_t *data, size_t size) {
     fclose(file);
 }
 
+static size_t put_be16(uint8_t *out, uint16_t value) {
+    out[0] = (uint8_t)(value >> 8);
+    out[1] = (uint8_t)value;
+    return 2u;
+}
+
+static size_t put_be32(uint8_t *out, uint32_t value) {
+    out[0] = (uint8_t)(value >> 24);
+    out[1] = (uint8_t)(value >> 16);
+    out[2] = (uint8_t)(value >> 8);
+    out[3] = (uint8_t)value;
+    return 4u;
+}
+
+static size_t put_utf(uint8_t *out, const char *text) {
+    size_t length = strlen(text);
+    assert(length <= 0xffffu);
+    size_t written = put_be16(out, (uint16_t)length);
+    memcpy(out + written, text, length);
+    return written + length;
+}
+
 static void assert_stream_version(const uint8_t *data, size_t size) {
     write_bytes(data, size);
     M3dsSaveSlotInfo info;
@@ -125,6 +147,45 @@ static void test_inflate_prefix(void) {
     assert(!m3ds_msav_inflate_prefix(truncated, 3, out, 4, &size));
 }
 
+static void test_metadata(void) {
+    uint8_t payload[256];
+    size_t size = 0u;
+    memcpy(payload + size, "MSAV", 4);
+    size += 4u;
+    size += put_be32(payload + size, 13u);
+    size_t length_position = size;
+    size += 4u;
+    size_t metadata_start = size;
+    size += put_be16(payload + size, 2u);
+    size += put_utf(payload + size, "mapname");
+    size += put_utf(payload + size, "Glacier");
+    size += put_utf(payload + size, "wave");
+    size += put_utf(payload + size, "7");
+    put_be32(payload + length_position, (uint32_t)(size - metadata_start));
+
+    uint8_t stream[2 + 5 + sizeof(payload)];
+    size_t total = 0u;
+    stream[total++] = 0x78;
+    stream[total++] = 0x01;
+    stream[total++] = 0x01;
+    stream[total++] = (uint8_t)size;
+    stream[total++] = (uint8_t)(size >> 8);
+    stream[total++] = (uint8_t)(~size);
+    stream[total++] = (uint8_t)(~size >> 8);
+    memcpy(stream + total, payload, size);
+    total += size;
+
+    write_bytes(stream, total);
+    M3dsSaveSlotInfo info;
+    assert(m3ds_save_slot_probe(path, &info));
+    assert(info.present && info.valid && info.compressed);
+    assert(info.version == 13u);
+    assert(info.has_meta);
+    assert(strcmp(info.map_name, "Glacier") == 0);
+    assert(info.wave == 7u);
+    remove(path);
+}
+
 static void test_bad_and_short_headers(void) {
     uint8_t bad[8] = {'X', 'S', 'A', 'V', 13, 0, 0, 0};
     write_bytes(bad, sizeof(bad));
@@ -160,6 +221,7 @@ int main(void) {
     test_zlib_header_without_stream();
     test_compressed_version();
     test_inflate_prefix();
+    test_metadata();
     test_bad_and_short_headers();
     test_missing_and_invalid();
     return 0;
