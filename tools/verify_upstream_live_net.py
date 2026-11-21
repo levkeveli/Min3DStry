@@ -1143,6 +1143,12 @@ def verify_conduit_frames(log, rpc, output, model):
     raise RuntimeError(f"Expected animated stock water in conduits at {missing}")
 
 
+def send_marker_phase(server_log, server, phase, commands):
+    server.stdin.write(f'js (() => {{ {commands} return "UPSTREAM_LOGIC_MARKERS {phase}"; }})()\n')
+    server.stdin.flush()
+    wait_for(server_log, server, rf"UPSTREAM_LOGIC_MARKERS {phase}\b", 5)
+
+
 def verify_logic_markers(log, emulator, server_log, server, rpc, output, model, position, timeout):
     # Use the same 16 × 12 viewport and tile-rounded center as the graphical client.
     _, _, x, y = position
@@ -1152,11 +1158,6 @@ def verify_logic_markers(log, emulator, server_log, server, rpc, output, model, 
     magenta, turquoise = (235, 29, 180), (24, 229, 199)
     point_area = tuple((px, py) for px in range(263, 298) for py in range(48, 83))
     point_color = (67, 245, 91)
-
-    def server_phase(phase, commands):
-        server.stdin.write(f'js (() => {{ {commands} return "UPSTREAM_LOGIC_MARKERS {phase}"; }})()\n')
-        server.stdin.flush()
-        wait_for(server_log, server, rf"UPSTREAM_LOGIC_MARKERS {phase}\b", 5)
 
     def capture(phase, shape, line, moved, point):
         samples = (shape_sample, line_sample, moved_sample)
@@ -1178,7 +1179,7 @@ def verify_logic_markers(log, emulator, server_log, server, rpc, output, model, 
             time.sleep(0.1)
 
     capture("baseline", False, False, False, False)
-    server_phase("created",
+    send_marker_phase(server_log, server, "created",
         f"const shape = new MapObjectives.ShapeMarker({x - 32}, {y + 22}); "
         'shape.fill = true; shape.radius = 7; shape.color.set(Color.valueOf("eb1db4")); '
         f"const line = new MapObjectives.LineMarker({x - 28}, {y - 18}, {x + 28}, {y - 18}, 3); "
@@ -1191,7 +1192,7 @@ def verify_logic_markers(log, emulator, server_log, server, rpc, output, model, 
     capture("created", True, True, False, True)
 
     control = "Packages.mindustry.logic.LMarkerControl"
-    server_phase("updated",
+    send_marker_phase(server_log, server, "updated",
         f"const control = {control}; "
         "Call.updateMarker(745, control.world, 0, NaN, NaN); "
         f"Call.updateMarker(746, control.pos, {(x - 28) / 8}, {(y - 26) / 8}, NaN); "
@@ -1200,16 +1201,58 @@ def verify_logic_markers(log, emulator, server_log, server, rpc, output, model, 
     wait_for(log, emulator, r"UPSTREAM_WORLD_LABEL .*text=Logic marker updated\b", timeout)
     capture("updated", False, False, True, True)
 
-    server_phase("removed", "for (let id = 745; id <= 748; id++) Call.removeMarker(id);")
+    send_marker_phase(server_log, server, "removed", "for (let id = 745; id <= 748; id++) Call.removeMarker(id);")
     capture("removed", False, False, False, False)
     print(f"{model}: original logic marker drawing, visibility, position, text and removal passed.", flush=True)
+
+
+def verify_texture_markers(server_log, server, rpc, output, model, position, timeout):
+    _, _, x, y = position
+    x, y = (math.floor(float(value) / 8 + 0.5) * 8 for value in (x, y))
+    # The 40px marker is centered at (140, 50). Take opaque samples from the
+    # v160.8 atlas crops for block-router-ui, item-copper and error.
+    points = ((128, 44), (128, 50), (152, 53))
+    plain = ((110, 112, 128), (110, 112, 128), (152, 154, 164))
+    rotated = ((152, 154, 164), (152, 154, 164), (110, 112, 128))
+    copper = ((216, 157, 115), (234, 193, 168), (184, 112, 92))
+    error = ((255, 255, 255),) * 3
+
+    def capture(phase, expected=None):
+        deadline = time.monotonic() + timeout
+        while True:
+            png = rpc.screenshot(res_scale=1)
+            pixels = az.inspect_png(png, points)["samples"]
+            samples = tuple(pixels[point] for point in points)
+            if expected is None or all(abs(a - b) <= 1 for actual, exact in zip(samples, expected)
+                                       for a, b in zip(actual, exact)):
+                (output / f"{model}-texture-marker-{phase}.png").write_bytes(png)
+                return samples
+            if time.monotonic() >= deadline:
+                (output / f"{model}-texture-marker-{phase}-unexpected.png").write_bytes(png)
+                raise RuntimeError(f"Texture marker {phase}: expected {expected}, got {samples}")
+            time.sleep(0.1)
+
+    baseline = capture("baseline")
+    send_marker_phase(server_log, server, "texture-created",
+        f'Call.createMarker(749, new MapObjectives.TextureMarker("block-router-ui", {x - 28}, {y + 24}, 16, 16));')
+    capture("created", plain)
+    send_marker_phase(server_log, server, "texture-rotated",
+        "Call.updateMarker(749, Packages.mindustry.logic.LMarkerControl.rotation, 90, NaN, NaN);")
+    capture("rotated", rotated)
+    send_marker_phase(server_log, server, "texture-content", "Call.updateMarkerTexture(749, Items.copper);")
+    capture("content", copper)
+    send_marker_phase(server_log, server, "texture-error", 'Call.updateMarkerTexture(749, "min3dstry-missing-region");')
+    capture("error", error)
+    send_marker_phase(server_log, server, "texture-removed", "Call.removeMarker(749);")
+    capture("removed", baseline)
+    print(f"{model}: original texture marker creation, rotation, content, fallback and removal passed.", flush=True)
 
 
 def run_model(args, model, config, original_config, log, output):
     stationary = (args.world_atlas_recycle or args.building_layers or args.liquids
                   or args.building_effects or args.payload_mix or args.carried_buildings
                   or args.payload_handoff or args.unit_layers or args.unit_roster or args.naval_wake
-                  or args.tank_treads or args.map_spawn or args.verify_logic_markers)
+                  or args.tank_treads or args.map_spawn or args.verify_logic_markers or args.verify_texture_markers)
     map_name = args.map_spawn or "Glacier"
     overrides = {
         "Miscellaneous": {"log_filter": "*:Info Debug.Emulated:Debug Service.SOC:Debug",
@@ -1402,6 +1445,8 @@ def run_model(args, model, config, original_config, log, output):
                         capture(phase, spawn)
                         if args.verify_logic_markers:
                             verify_logic_markers(log, emulator, server_log, server, rpc, output, model, spawn, args.timeout)
+                        if args.verify_texture_markers:
+                            verify_texture_markers(server_log, server, rpc, output, model, spawn, args.timeout)
                         if args.verify_stock_font:
                             wait_for(log, emulator, r"UPSTREAM_RENDER_KEEPALIVE transport=tcp\b", 5)
                         if args.erekir_build:
@@ -1607,6 +1652,8 @@ def main():
                         help="Verify the original Onset mining and research directions in world space")
     parser.add_argument("--verify-logic-markers", action="store_true",
                         help="Verify stock logic marker packets and visible state on Glacier")
+    parser.add_argument("--verify-texture-markers", action="store_true",
+                        help="Verify original atlas-backed texture markers on Glacier")
     parser.add_argument("--verify-stock-font", action="store_true",
                         help="Require original font rendering for the Onset world markers")
     parser.add_argument("--verify-styled-markers", action="store_true",
@@ -1680,6 +1727,8 @@ def main():
                      '--erekir-sector onset and --locale en')
     if args.verify_logic_markers and (not args.controls or not args.terrain_atlas or args.controls_replay or args.map_spawn):
         parser.error("--verify-logic-markers needs stationary --controls and --terrain-atlas on Glacier")
+    if args.verify_texture_markers and (not args.controls or not args.terrain_atlas or args.controls_replay or args.map_spawn):
+        parser.error("--verify-texture-markers needs stationary --controls and --terrain-atlas on Glacier")
     if args.verify_objective_markers and (
         args.map_spawn != "The Onset" or args.erekir_sector != "onset" or args.locale not in ONSET_MARKER_TEXT
         or args.mining or args.erekir_build or args.controls_replay
