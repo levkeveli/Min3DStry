@@ -272,7 +272,10 @@
         "research/upstream-runtime/src/map/java/mindustry/maps/UpstreamMapProbe.java",
         "research/upstream-runtime/src/content/java/UpstreamWorldLoadProbe.java",
         "research/upstream-runtime/src/world/java/UpstreamWorldRoundTripProbe.java",
-        "research/upstream-runtime/host/UpstreamSaveResilienceProbe.java"
+        "research/upstream-runtime/host/UpstreamSaveResilienceProbe.java",
+        "include/platform/save_slot.h",
+        "src/platform/save_slot.c",
+        "tests/platform/test_save_slot.c"
       ]
     },
     {
