@@ -423,6 +423,9 @@ passed the Glacier replay on both Azahar profiles. Each run captured the
 original yellow bolt east of the Gamma, observed the stock Java server
 fire in both directions and clear both releases, then confirmed that all
 local bullets expired before START disconnected.
+The same ROM also passed two consecutive Onset joins on each profile,
+matching the stock server's CRC32 `3861859253` for all 262,144 tile data
+bytes on both joins.
 
 Run the same verifier with `--controls --model old3ds` and then
 `--controls --model new3ds`. Follow its prompts to move right with the
