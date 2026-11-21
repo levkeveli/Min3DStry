@@ -181,7 +181,7 @@
       "category": "Core Simulation",
       "name": "Drills, Conveyors, Routers & Core Storage",
       "weight": 6,
-      "stage": "experimental",
+      "stage": "emulator-tested",
       "issue": 26,
       "evidence": [
         "src/render/factory_demo.c",
@@ -227,12 +227,13 @@
       "category": "Controls & Dual-Screen UI",
       "name": "Bottom-Screen Touch Build & Rotation UI",
       "weight": 6,
-      "stage": "experimental",
+      "stage": "emulator-tested",
       "issue": 27,
       "evidence": [
         "research/upstream-runtime/README.md",
         "research/upstream-runtime/src/network-live/host/UpstreamBuildControlsReference.java",
-        "tools/verify_upstream_live_net.py"
+        "tools/verify_upstream_live_net.py",
+        "docs/gameplay/touch-build-palette.md"
       ]
     },
     {
@@ -240,7 +241,7 @@
       "category": "Controls & Dual-Screen UI",
       "name": "Top/Bottom HUD, Menus & Minimap",
       "weight": 6,
-      "stage": "experimental",
+      "stage": "emulator-tested",
       "issue": 40,
       "evidence": [
         "include/render/minimap.h",
@@ -251,6 +252,9 @@
         "src/ui/pause_menu.c",
         "tests/ui/test_pause_menu.c",
         "docs/ui/pause-menu.md",
+        "include/ui/pause_overlay.h",
+        "src/ui/pause_overlay.c",
+        "tests/ui/test_pause_overlay.c",
         "include/ui/touch_controls.h",
         "src/ui/touch_controls.c",
         "tests/ui/test_touch_controls.c",
@@ -262,14 +266,25 @@
       "category": "Maps, Campaign & Saves",
       "name": "Upstream .msav Map & Save Reader/Writer",
       "weight": 6,
-      "stage": "experimental",
+      "stage": "emulator-tested",
       "issue": 28,
       "evidence": [
         "research/upstream-runtime/README.md",
         "research/upstream-runtime/src/map/java/mindustry/maps/UpstreamMapProbe.java",
         "research/upstream-runtime/src/content/java/UpstreamWorldLoadProbe.java",
         "research/upstream-runtime/src/world/java/UpstreamWorldRoundTripProbe.java",
-        "research/upstream-runtime/host/UpstreamSaveResilienceProbe.java"
+        "research/upstream-runtime/host/UpstreamSaveResilienceProbe.java",
+        "docs/porting/msav-verification.md",
+        "research/upstream-runtime/src/campaign-sector/java/UpstreamCampaignSectorProbe.java",
+        "research/upstream-runtime/src/campaign-slot-meta/java/UpstreamCampaignSlotMetaProbe.java",
+        "research/upstream-runtime/src/campaign-launch/java/UpstreamCampaignLaunchProbe.java",
+        "research/upstream-runtime/host/UpstreamSaveBaseline.java",
+        "docs/porting/campaign-progression.md",
+        "include/platform/save_slot.h",
+        "src/platform/save_slot.c",
+        "include/platform/msav_inflate.h",
+        "src/platform/msav_inflate.c",
+        "tests/platform/test_save_slot.c"
       ]
     },
     {
@@ -277,7 +292,7 @@
       "category": "Maps, Campaign & Saves",
       "name": "Tech Tree & Sector Progression",
       "weight": 4,
-      "stage": "experimental",
+      "stage": "emulator-tested",
       "issue": 41,
       "evidence": [
         "include/platform/sd_paths.h",
@@ -286,6 +301,10 @@
         "include/platform/settings_store.h",
         "src/platform/settings_store.c",
         "tests/platform/test_settings_store.c",
+        "include/platform/sector_catalog.h",
+        "src/platform/sector_catalog.c",
+        "tests/platform/test_sector_catalog.c",
+        "research/upstream-runtime/src/campaign-slot-discovery/java/UpstreamCampaignSlotDiscoveryProbe.java",
         "research/upstream-runtime/src/campaign-saves/java/UpstreamCampaignSavesProbe.java",
         "research/upstream-runtime/src/campaign-launch/java/UpstreamCampaignLaunchProbe.java",
         "research/upstream-runtime/src/campaign-sector-state/java/UpstreamCampaignSectorStateProbe.java",
