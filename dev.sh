@@ -101,6 +101,9 @@ case "${1:-}" in
     "$host_python" tools/port_progress.py --check
     "$host_python" -m unittest discover -s .github/scripts -p 'test_*.py'
     "$host_python" -m unittest discover -s tests/tools -p 'test_*.py'
+    for file in docs/porting/combat-waves-pathfinding.md research/upstream-runtime/host/UpstreamCombatSimulationBaseline.java research/upstream-runtime/src/gameplay/java/UpstreamCombatTickProbe.java research/upstream-runtime/src/gameplay/java/UpstreamWaveRoutingProbe.java; do
+      test -s "$file" || { echo "Missing or empty: $file" >&2; exit 1; }
+    done
 
     mkdir -p build/host
     "$host_cc" -std=c11 -Wall -Wextra -Werror -Iinclude \

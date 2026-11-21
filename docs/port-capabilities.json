@@ -214,11 +214,14 @@
       "stage": "experimental",
       "issue": 30,
       "evidence": [
+        "research/upstream-runtime/host/UpstreamCombatBaseline.java",
+        "research/upstream-runtime/host/UpstreamCombatSimulationBaseline.java",
         "research/upstream-runtime/src/gameplay/java/UpstreamCombatTickProbe.java",
         "research/upstream-runtime/src/gameplay/java/UpstreamWaveRoutingProbe.java",
         "research/upstream-runtime/src/gameplay/java/UpstreamSimulationWorld.java",
         "research/upstream-runtime/build.gradle",
         "research/upstream-runtime/README.md",
+        "docs/porting/combat-waves-pathfinding.md",
         ".github/workflows/upstream-arm11-smoke.yml"
       ]
     },
