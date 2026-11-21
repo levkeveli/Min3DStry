@@ -340,6 +340,11 @@ directories. `./dev.sh test` runs it. With `sector-serpulo-170.msav` (raw
 `sdmc:/3ds/min3dstry`, `./dev.sh emu-test --expect-sector-catalog 2` verified
 `count=2` and the HUD lines on both New 3DS (804 MHz) and Old 3DS (268 MHz)
 profiles.
+
+The upstream `campaign-slot-discovery` probe below validates `SaveIO`-style slot
+enumeration and validation; the native catalog presents the discovered slots to
+the HUD without adding a new save format.
+
 ## ARM11 Save-Slot Discovery
 
 `-Pprobe=campaign-slot-discovery` writes a sector slot into a probe directory
