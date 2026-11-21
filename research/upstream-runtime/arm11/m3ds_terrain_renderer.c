@@ -16,14 +16,19 @@ typedef struct {
 #ifdef M3DS_WORLD_ATLAS
 #include "world_atlas_layout.h"
 
-// Retain at most 1.5 MiB of RGBA8 atlas backing. A frame never evicts its own textures.
+// Retain at most 1.5 MiB of RGBA8 atlas backing in the default build.
+#ifndef M3DS_WORLD_ATLAS_SLOTS
+#define M3DS_WORLD_ATLAS_SLOTS 24
+#endif
+_Static_assert(M3DS_WORLD_ATLAS_SLOTS > 0, "The world atlas cache needs at least one slot");
 static struct {
     C2D_SpriteSheet sheet;
     int page, x, y;
     uint32_t frame;
-} world_textures[24];
-static uint32_t world_frame;
+} world_textures[M3DS_WORLD_ATLAS_SLOTS];
+static uint32_t world_pass;
 static bool reported_split;
+static bool reported_recycle;
 #endif
 
 static bool romfs_ready;
@@ -102,7 +107,7 @@ int32_t m3ds_terrain_begin(int32_t left, int32_t bottom, int32_t width, int32_t 
     frame_open = C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
     if (!frame_open) return -7;
 #ifdef M3DS_WORLD_ATLAS
-    world_frame++;
+    world_pass++;
 #endif
     C2D_TargetClear(target, C2D_Color32(24, 27, 32, 255));
     C2D_SceneBegin(target);
@@ -112,22 +117,49 @@ int32_t m3ds_terrain_begin(int32_t left, int32_t bottom, int32_t width, int32_t 
 }
 
 #ifdef M3DS_WORLD_ATLAS
+static bool recycle_world_pass(void) {
+    // Submit finished draws to the same render target without displaying a partial frame.
+    const u32 transfer_flags = target->transferFlags;
+    C3D_RenderTargetDetachOutput(target);
+    C3D_FrameEnd(0);
+    frame_open = C3D_FrameBegin(0);
+    C3D_RenderTargetSetOutput(target, GFX_TOP, GFX_LEFT, transfer_flags);
+    if (!frame_open) return false;
+
+    // FrameBegin waited for the previous command queue. Clear Citro2D's saved texture
+    // pointer before freeing any sheet, then continue without clearing the framebuffer.
+    C2D_Prepare();
+    C2D_SceneBegin(target);
+    C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_COLOR);
+    C2D_SetTintMode(C2D_TintMult);
+    world_pass++;
+    if (!reported_recycle) {
+        static const char record[] = "UPSTREAM_WORLD_ATLAS_RECYCLE\n";
+        svcOutputDebugString(record, sizeof(record) - 1);
+        reported_recycle = true;
+    }
+    return true;
+}
+
 static C2D_SpriteSheet get_world_texture(int page, int x, int y) {
     int victim = -1;
     for (size_t i = 0; i < sizeof(world_textures) / sizeof(world_textures[0]); i++) {
         if (world_textures[i].sheet && world_textures[i].page == page
                 && world_textures[i].x == x && world_textures[i].y == y) {
-            world_textures[i].frame = world_frame;
+            world_textures[i].frame = world_pass;
             return world_textures[i].sheet;
         }
-        if (!world_textures[i].sheet || world_textures[i].frame != world_frame) {
+        if (!world_textures[i].sheet || world_textures[i].frame != world_pass) {
             if (victim < 0 || (world_textures[victim].sheet && (!world_textures[i].sheet
                     || world_textures[i].frame < world_textures[victim].frame))) {
                 victim = (int)i;
             }
         }
     }
-    if (victim < 0) return NULL;
+    if (victim < 0) {
+        if (!recycle_world_pass()) return NULL;
+        victim = 0;
+    }
     if (world_textures[victim].sheet) C2D_SpriteSheetFree(world_textures[victim].sheet);
     char path[48];
     snprintf(path, sizeof(path), "romfs:/world-atlas/%d-%d-%d.t3x", page, x, y);
@@ -137,7 +169,7 @@ static C2D_SpriteSheet get_world_texture(int page, int x, int y) {
     world_textures[victim].page = page;
     world_textures[victim].x = x;
     world_textures[victim].y = y;
-    world_textures[victim].frame = world_frame;
+    world_textures[victim].frame = world_pass;
     C3D_TexSetFilter(C2D_SpriteSheetGetImage(sheet, 0).tex, GPU_NEAREST, GPU_NEAREST);
     return sheet;
 }

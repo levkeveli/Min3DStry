@@ -425,6 +425,8 @@ def run_model(args, model, config, original_config, log, output):
                     print(re.search(pattern, localized).group(0), flush=True)
                 if args.controls:
                     def capture(phase, position):
+                        if args.world_atlas_recycle and phase == "spawn":
+                            wait_for(log, emulator, r"UPSTREAM_WORLD_ATLAS_RECYCLE\b", 5)
                         return capture_viewport(log, emulator, rpc, output / f"{model}-{phase}.png", position,
                                                 require_palette=args.touch_build or args.touch_config,
                                                 require_icons=args.menu_icons,
@@ -526,6 +528,8 @@ def main():
     parser.add_argument("--locale", help="Stage a stock locale code and verify the graphical probe loads it")
     parser.add_argument("--menu-icons", action="store_true", help="Verify original block and item icons in the touch menus")
     parser.add_argument("--world-atlas", action="store_true", help="Verify the paged Core Nucleus sprite at Glacier spawn")
+    parser.add_argument("--world-atlas-recycle", action="store_true",
+                        help="Require the bounded atlas cache to submit and recycle inside the spawn frame")
     build_mode = parser.add_mutually_exclusive_group()
     build_mode.add_argument("--building", action="store_true",
                         help="Verify the ARM11 conveyor plan, copper cost and rendered response")
@@ -552,6 +556,8 @@ def main():
         parser.error("--touch-config needs --terrain-atlas")
     if args.menu_icons and not args.touch_config:
         parser.error("--menu-icons needs --touch-config")
+    if args.world_atlas_recycle and not args.world_atlas:
+        parser.error("--world-atlas-recycle needs --world-atlas")
     if args.world_atlas and not args.terrain_atlas:
         parser.error("--world-atlas needs --terrain-atlas")
     if args.locale and (not args.terrain_atlas or not re.fullmatch(r"[a-z]{2,3}(?:_[A-Z]{2})?", args.locale)):
