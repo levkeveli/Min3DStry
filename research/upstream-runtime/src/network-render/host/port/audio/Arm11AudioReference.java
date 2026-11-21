@@ -166,11 +166,14 @@ public final class Arm11AudioReference {
             for (int tick = 0; tick < 30; tick++) controller.update();
             if (loop.starts != 0) throw new AssertionError("The sampler ran before the stock 20 Hz interval");
 
-            controller.sampleLiveBuildingAmbience(buildings, 50_000_000L);
+            controller.sampleLiveBuildingAmbience(buildings, 67_000_000L);
             for (int tick = 0; tick < 30; tick++) controller.update();
             if (loop.starts != 1 || !loop.playing) throw new AssertionError("The stock drill loop did not start");
 
             tile.setBlock(Blocks.air);
+            controller.sampleLiveBuildingAmbience(buildings, 99_000_000L);
+            for (int tick = 0; tick < 120; tick++) controller.update();
+            if (!loop.playing) throw new AssertionError("The sampler advanced before the original deadline");
             controller.sampleLiveBuildingAmbience(buildings, 100_000_000L);
             for (int tick = 0; tick < 120; tick++) controller.update();
             if (loop.playing || loop.stops != 1) throw new AssertionError("Removed drill loop did not fade out and stop");

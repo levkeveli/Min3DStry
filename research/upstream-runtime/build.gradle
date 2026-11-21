@@ -461,17 +461,19 @@ tasks.register('prepareUpstreamProbe') {
             }
             def loopMixer = '    protected void updateLoops(){'
             if (musicControl.count(loopMixer) != 1) throw new GradleException('Pinned ambient loop mixer changed')
-            musicControl = musicControl.replace(loopMixer, '''    private long lastLiveBuildingSample;
+            musicControl = musicControl.replace(loopMixer, '''    private long nextLiveBuildingSample;
 
     /** Use the stock 20 Hz sampler on the live ARM11 world thread. */
     public void sampleLiveBuildingAmbience(Iterable<? extends AmbientSource> buildings, long now){
         if(!state.isPlaying()) return;
         if(ambientThread == null){
             ambientThread = new AudioThread();
-        }else if(now - lastLiveBuildingSample < AudioThread.targetNanos){
-            return;
+            nextLiveBuildingSample = now;
         }
-        lastLiveBuildingSample = now;
+        long overdue = now - nextLiveBuildingSample;
+        if(overdue < 0L) return;
+        // Keep the stock cadence between render frames and skip missed samples.
+        nextLiveBuildingSample = now + AudioThread.targetNanos - overdue % AudioThread.targetNanos;
         ambientThread.sources.clear();
         for(var building : buildings){
             if(building.getAmbientSound() != Sounds.none) ambientThread.sources.add(building);
@@ -483,7 +485,7 @@ tasks.register('prepareUpstreamProbe') {
         ambientThread = null;
         localData.clear();
         sounds.clear();
-        lastLiveBuildingSample = 0L;
+        nextLiveBuildingSample = 0L;
     }
 
     protected void updateLoops(){''')
