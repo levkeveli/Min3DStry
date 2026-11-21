@@ -77,7 +77,47 @@ public final class UpstreamBuildControlsReference {
         verifyCatalog(controls, unit);
         verifyConfiguration(controls, unit);
         verifyPlanetShortcuts(unit);
+        verifyMining(unit);
         System.out.println("UPSTREAM_TOUCH_REFERENCE conveyor=85,26,1 wall=86,26 break=86,26");
+    }
+
+    private static void verifyMining(Unit gamma) {
+        gamma.add();
+        var floorOre = Vars.world.tile(85, 26);
+        var wallOre = Vars.world.tile(86, 26);
+        floorOre.setBlock(Blocks.air);
+        floorOre.setOverlay(Blocks.oreCopper);
+        wallOre.setBlock(Blocks.beryllicStoneWall);
+        wallOre.setOverlay(Blocks.wallOreBeryllium);
+        var controls = new UpstreamLiveBuildControls();
+        controls.viewport(73, 20);
+        controls.update(gamma, 0, touch(305, 96));
+        controls.update(gamma, 0, touch(232, 136));
+        if (gamma.mineTile != floorOre || gamma.getMineResult(floorOre) != Items.copper) {
+            throw new AssertionError("Gamma should select the upstream copper floor deposit");
+        }
+        controls.update(gamma, 0, touch(248, 136));
+        if (gamma.mineTile != floorOre) throw new AssertionError("Gamma should ignore wall ore");
+        controls.update(gamma, 0, touch(232, 136));
+        if (gamma.mineTile != null) throw new AssertionError("Tapping the target again should stop mining");
+
+        var evoke = UnitTypes.evoke.create(gamma.team());
+        Vars.player.unit(evoke);
+        evoke.set(0f, 0f);
+        evoke.add();
+        controls.update(evoke, 0, touch(248, 136));
+        if (evoke.mineTile != null) throw new AssertionError("Evoke should ignore an out-of-range wall deposit");
+        evoke.set(gamma.x(), gamma.y());
+        controls.update(evoke, 0, touch(232, 136));
+        if (evoke.mineTile != null) throw new AssertionError("Evoke should ignore floor ore");
+        controls.update(evoke, 0, touch(248, 136));
+        if (evoke.mineTile != wallOre || evoke.getMineResult(wallOre) != Items.beryllium) {
+            throw new AssertionError("Evoke should select the upstream beryllium wall deposit");
+        }
+        if (!gamma.plans().isEmpty() || !evoke.plans().isEmpty()) {
+            throw new AssertionError("Selecting a deposit should leave the build queue empty");
+        }
+        System.out.println("UPSTREAM_MINE_REFERENCE copper=floor beryllium=wall invalid=ignored cancel=ok");
     }
 
     private static void verifyPlanetShortcuts(Unit unit) {

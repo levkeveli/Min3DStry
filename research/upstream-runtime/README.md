@@ -908,6 +908,20 @@ JAR stayed connected. With the New 3DS profile, the desktop view showed the
 ARM11 Evoke and the newly placed Duct pointing north as the displayed
 beryllium balance went from 16 to 15.
 
+### Player mining input
+
+Tap Mine beside the touchscreen grid and select a deposit. Tap that target
+again to stop. The 3DS selects a world tile and uses the same upstream
+`Unit.validMine` and item acceptance checks as the v160.8 player input.
+Movement outside mining range clears the target. `ClientSnapshotCallPacket`
+carries the target to the server, where the original MinerComp handles
+extraction and item delivery.
+
+`runBuildControlsJvm` checks that Gamma selects copper floor ore, Evoke
+selects beryllium wall ore, incompatible and out-of-range targets are
+ignored, and tapping the target again cancels mining. Live ARM11 mining
+and inventory synchronization are tracked in [#176](https://github.com/levkeveli/Min3DStry/issues/176).
+
 ### Verify the Arc executor pools
 
 Use `-Pprobe=executor` with the JVM and ARM11 build commands. The JVM uses the

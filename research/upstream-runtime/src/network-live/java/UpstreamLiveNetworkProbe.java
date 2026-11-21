@@ -473,6 +473,7 @@ public final class UpstreamLiveNetworkProbe {
         snapshot.baseRotation = unit instanceof Mechc mech ? mech.baseRotation() : 0f;
         snapshot.xVelocity = unit.vel.x;
         snapshot.yVelocity = unit.vel.y;
+        snapshot.mining = unit.mineTile;
         snapshot.building = building;
         if (building) snapshot.plans = unit.plans();
         snapshot.selectedBlock = player.selectedBlock;
@@ -534,6 +535,7 @@ public final class UpstreamLiveNetworkProbe {
                         + " input=" + inputDevice + " x=" + unit.x() + " y=" + unit.y());
                 }
             }
+            if (unit.mineTile != null && !unit.validMine(unit.mineTile)) unit.mineTile = null;
             if (now - lastSnapshot >= SNAPSHOT_NS) {
                 if (buildingControls != null) unit.validatePlans();
                 sendPosition(unit, sequence++, buildingControls != null && !unit.plans().isEmpty());
