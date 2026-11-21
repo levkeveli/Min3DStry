@@ -2,6 +2,7 @@
 
 #include <3ds.h>
 #include <citro2d.h>
+#include <errno.h>
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
@@ -148,6 +149,14 @@ static bool recycle_world_pass(void) {
     return true;
 }
 
+static void report_atlas_failure(const char *stage, int page, int x, int y, int error) {
+    char record[120];
+    int length = snprintf(record, sizeof(record),
+        "UPSTREAM_WORLD_ATLAS_ERROR stage=%s page=%d tile=%d,%d error=%d linear=%lu\n",
+        stage, page, x, y, error, (unsigned long)linearSpaceFree());
+    if (length > 0 && length < (int)sizeof(record)) svcOutputDebugString(record, length);
+}
+
 static C2D_SpriteSheet get_world_texture(int page, int x, int y) {
     int victim = -1;
     for (size_t i = 0; i < sizeof(world_textures) / sizeof(world_textures[0]); i++) {
@@ -164,15 +173,29 @@ static C2D_SpriteSheet get_world_texture(int page, int x, int y) {
         }
     }
     if (victim < 0) {
-        if (!recycle_world_pass()) return NULL;
+        if (!recycle_world_pass()) {
+            report_atlas_failure("recycle", page, x, y, 0);
+            return NULL;
+        }
         victim = 0;
     }
     if (world_textures[victim].sheet) C2D_SpriteSheetFree(world_textures[victim].sheet);
     char path[48];
     snprintf(path, sizeof(path), "romfs:/world-atlas/%d-%d-%d.t3x", page, x, y);
-    C2D_SpriteSheet sheet = C2D_SpriteSheetLoad(path);
+    world_textures[victim].sheet = NULL;
+    FILE *file = fopen(path, "rb");
+    if (!file) {
+        report_atlas_failure("open", page, x, y, errno);
+        return NULL;
+    }
+    setvbuf(file, NULL, _IOFBF, 64 * 1024);
+    C2D_SpriteSheet sheet = C2D_SpriteSheetLoadFromHandle(file);
+    fclose(file);
+    if (!sheet) {
+        report_atlas_failure("import", page, x, y, 0);
+        return NULL;
+    }
     world_textures[victim].sheet = sheet;
-    if (!sheet) return NULL;
     world_textures[victim].page = page;
     world_textures[victim].x = x;
     world_textures[victim].y = y;
@@ -213,7 +236,10 @@ static int32_t draw_world_region(int page, int left, int top, int w, int h,
             // Retain the original pivot even when it lies outside this fragment.
             piece.center.x -= step_x < 0 ? (right - col_end) * -step_x : (x - left) * step_x;
             piece.center.y -= step_y < 0 ? (bottom - row_end) * -step_y : (y - top) * step_y;
-            if (!C2D_DrawImage(image, &piece, tint)) return 0;
+            if (!C2D_DrawImage(image, &piece, tint)) {
+                report_atlas_failure("draw", page, tile_x, tile_y, 0);
+                return 0;
+            }
             fragments++;
             x = col_end;
         }
