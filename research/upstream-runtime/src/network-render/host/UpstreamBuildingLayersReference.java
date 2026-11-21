@@ -5,18 +5,30 @@ import arc.files.Fi;
 import arc.graphics.Blending;
 import arc.graphics.Color;
 import arc.graphics.g2d.Draw;
+import arc.graphics.g2d.Fill;
+import arc.graphics.g2d.SpriteBatch;
 import arc.graphics.g2d.TextureRegion;
+import arc.util.Time;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import mindustry.Vars;
 import mindustry.content.Blocks;
+import mindustry.content.Liquids;
+import mindustry.world.blocks.liquid.Conduit.ConduitBuild;
+import mindustry.world.blocks.liquid.LiquidBlock;
 import mindustry.game.Team;
 import mindustry.graphics.CacheLayer;
 import mindustry.graphics.Layer;
+import mindustry.graphics.Pal;
+import mindustry.world.blocks.defense.OverdriveProjector.OverdriveBuild;
+import mindustry.world.blocks.defense.ShockwaveTower.ShockwaveTowerBuild;
+import mindustry.world.blocks.production.GenericCrafter.GenericCrafterBuild;
 
 public final class UpstreamBuildingLayersReference implements UpstreamTerrainDrawProbe.TerrainTarget {
-    private record Sprite(float x, float y, int page, int left, int top, float rotation, int color, Blending blending) {}
+    private record Sprite(float x, float y, int page, int left, int top, int width, int height, float rotation, int color, Blending blending) {}
     private final List<Sprite> sprites = new ArrayList<>();
+    private final List<float[]> solidQuads = new ArrayList<>();
 
     public static void main(String[] args) throws Exception {
         if (args.length != 2) throw new IllegalArgumentException("Expected Glacier and sprites.aatls");
@@ -65,6 +77,123 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         target.verifyCrack(crack, edgeWall.build);
         target.verifyCrack(crack, drill.build);
         System.out.println("UPSTREAM_BUILDING_CRACKS region=cracks-2-4 wall=1 drill=1");
+        target.verifyFluidDrawing(layers, viewport, viewer);
+        target.verifyBuildingEffects(layers, viewport, viewer);
+    }
+
+    private void verifyBuildingEffects(UpstreamBuildingLayers layers, UpstreamTerrainDrawProbe.Viewport viewport,
+                                       Team viewer) {
+        // Fill writes to a shared float array. A later draw must not overwrite queued geometry.
+        solidQuads.clear();
+        Draw.sort(true);
+        Draw.z(Layer.effect);
+        Fill.quad(1, 2, Color.red.toFloatBits(), 1, 3, Color.green.toFloatBits(),
+            2, 3, Color.blue.toFloatBits(), 2, 2, Color.whiteFloatBits);
+        Draw.z(Layer.block);
+        Fill.quad(4, 7, 4, 8, 5, 8, 5, 7);
+        if (!solidQuads.isEmpty()) throw new AssertionError("A solid quad escaped the Arc layer queue");
+        Draw.sort(false);
+        if (solidQuads.size() != 2 || solidQuads.get(0)[0] != 4 || solidQuads.get(1)[0] != 1
+                || solidQuads.get(1)[8] != Color.green.toFloatBits()
+                || solidQuads.get(1)[14] != Color.blue.toFloatBits()) {
+            throw new AssertionError("Solid quad queue lost vertex order or color");
+        }
+
+        var weaving = Vars.world.tile(31, 31);
+        var overdrive = Vars.world.tile(34, 34);
+        var shockwave = Vars.world.tile(37, 38);
+        weaving.setBlock(Blocks.phaseWeaver, viewer, 0);
+        overdrive.setBlock(Blocks.overdriveProjector, viewer, 0);
+        shockwave.setBlock(Blocks.shockwaveTower, viewer, 0);
+        ((GenericCrafterBuild) weaving.build).warmup = 1f;
+        ((OverdriveBuild) overdrive.build).heat = 1f;
+        ((ShockwaveTowerBuild) shockwave.build).heat = 0.5f;
+        shockwave.build.potentialEfficiency = 1f;
+        Time.setInternalTime(42);
+
+        solidQuads.clear();
+        layers.render(viewport, viewer, block -> block == Blocks.phaseWeaver);
+        if (solidQuads.size() != 1 || solidQuads.get(0)[2] != Pal.accent.toFloatBits()) {
+            throw new AssertionError("Missing original active weave line");
+        }
+        solidQuads.clear();
+        layers.render(viewport, viewer, block -> block == Blocks.overdriveProjector);
+        int outline = solidQuads.size();
+        solidQuads.clear();
+        layers.render(viewport, viewer, block -> block == Blocks.shockwaveTower);
+        if (outline != 4 || solidQuads.isEmpty()) throw new AssertionError("Missing stock building effects");
+        System.out.printf("UPSTREAM_SOLID_BUILDING_EFFECTS weave=1 overdrive=%d shockwave=%d%n",
+            outline, solidQuads.size());
+    }
+
+    private void verifyFluidDrawing(UpstreamBuildingLayers layers, UpstreamTerrainDrawProbe.Viewport viewport,
+                                    Team viewer) {
+        var straight = Vars.world.tile(27, 32);
+        var corner = Vars.world.tile(34, 37);
+        var mirror = Vars.world.tile(37, 35);
+        straight.setBlock(Blocks.conduit, viewer, 0);
+        Vars.world.tile(26, 32).setBlock(Blocks.conduit, viewer, 0);
+        corner.setBlock(Blocks.conduit, viewer, 0);
+        Vars.world.tile(34, 36).setBlock(Blocks.conduit, viewer, 1);
+        mirror.setBlock(Blocks.conduit, viewer, 0);
+        Vars.world.tile(37, 36).setBlock(Blocks.conduit, viewer, 3);
+
+        var straightBuild = (ConduitBuild) straight.build;
+        var cornerBuild = (ConduitBuild) corner.build;
+        var mirrorBuild = (ConduitBuild) mirror.build;
+        if (straightBuild.blendbits == 1 || cornerBuild.blendbits != 1 || mirrorBuild.blendbits != 1
+                || cornerBuild.yscl == mirrorBuild.yscl) {
+            throw new AssertionError("Stock conduit adjacency did not produce both corner orientations: "
+                + straightBuild.blendbits + "," + cornerBuild.blendbits + "," + mirrorBuild.blendbits
+                + " scales=" + cornerBuild.yscl + "," + mirrorBuild.yscl);
+        }
+        for (var conduit : List.of(straightBuild, cornerBuild, mirrorBuild)) {
+            conduit.liquids.add(Liquids.water, conduit.block.liquidCapacity);
+            Time.delta = 1f;
+            conduit.advanceLiquidDraw();
+            if (Math.abs(conduit.smoothLiquid - 0.05f) > 1e-6f) {
+                throw new AssertionError("Unexpected original smoothing rate");
+            }
+        }
+        Time.setInternalTime(0);
+        verifyWaterFrame(layers, viewport, viewer, straightBuild, cornerBuild, mirrorBuild);
+        int previous = Liquids.water.getAnimationFrame();
+        Time.setInternalTime(37);
+        if (previous == Liquids.water.getAnimationFrame()) throw new AssertionError("Liquid frame did not advance");
+        verifyWaterFrame(layers, viewport, viewer, straightBuild, cornerBuild, mirrorBuild);
+
+        sprites.clear();
+        LiquidBlock.drawTiledFrames(2, 0, 0, 2f, Liquids.nitrogen, 1f);
+        var gas = Core.atlas.find("fluid-gas-" + Liquids.nitrogen.getAnimationFrame());
+        if (sprites.size() != 4 || sprites.stream().noneMatch(sprite ->
+                sprite.page() == UpstreamTerrainDrawProbe.pageIndex(gas)
+                    && sprite.left() == gas.getX() && sprite.top() == gas.getY()
+                    && sprite.width() == gas.width && sprite.height() == gas.height)
+                || sprites.stream().noneMatch(sprite -> sprite.width() < gas.width || sprite.height() < gas.height)) {
+            throw new AssertionError("Stock tiled gas frame did not preserve original padding: " + sprites);
+        }
+        System.out.println("UPSTREAM_FLUID_LAYERS straight=1 corners=2 waterFrames=2 gasTiles=4");
+    }
+
+    private void verifyWaterFrame(UpstreamBuildingLayers layers, UpstreamTerrainDrawProbe.Viewport viewport,
+                                  Team viewer, ConduitBuild straight, ConduitBuild corner, ConduitBuild mirror) {
+        sprites.clear();
+        layers.render(viewport, viewer, block -> block == Blocks.conduit);
+        int frame = Liquids.water.getAnimationFrame();
+        var conduit = (mindustry.world.blocks.liquid.Conduit) corner.block;
+        requireRegion(Core.atlas.find("fluid-liquid-" + frame));
+        for (var elbow : List.of(corner, mirror)) {
+            requireRegion(conduit.rotateRegions[elbow.yscl == -1 ? 3 : 0][0][frame]);
+        }
+        if (firstAt(straight.x, straight.y) < 0) throw new AssertionError("Straight conduit was culled");
+    }
+
+    private void requireRegion(TextureRegion region) {
+        if (sprites.stream().noneMatch(sprite -> sprite.page() == UpstreamTerrainDrawProbe.pageIndex(region)
+                && sprite.left() == region.getX() && sprite.top() == region.getY()
+                && sprite.width() == region.width && sprite.height() == region.height)) {
+            throw new AssertionError("Missing stock frame or cropped corner region: " + sprites);
+        }
     }
 
     private void verifyCrack(TextureRegion crack, mindustry.gen.Building build) {
@@ -122,7 +251,12 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
     @Override
     public void draw(int page, int left, int top, int width, int height, float x, float y,
                      float originX, float originY, float drawWidth, float drawHeight, float rotation, int color, Blending blending) {
-        sprites.add(new Sprite(x + drawWidth / 2f, y + drawHeight / 2f, page, left, top, rotation, color, blending));
+        sprites.add(new Sprite(x + drawWidth / 2f, y + drawHeight / 2f, page, left, top, width, height, rotation, color, blending));
+    }
+
+    @Override
+    public void drawSolidQuad(float[] vertices, int offset, Blending blending) {
+        solidQuads.add(Arrays.copyOfRange(vertices, offset, offset + SpriteBatch.SPRITE_SIZE));
     }
 
     @Override public void begin(int left, int bottom, int width, int height) {}

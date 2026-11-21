@@ -5,6 +5,7 @@ import arc.graphics.Color;
 import arc.graphics.Texture;
 import arc.graphics.g2d.Batch;
 import arc.graphics.g2d.Draw;
+import arc.graphics.g2d.SpriteBatch;
 import arc.graphics.g2d.TextureAtlas;
 import arc.graphics.g2d.TextureAtlas.AtlasRegion;
 import arc.graphics.g2d.TextureAtlas.TextureAtlasData;
@@ -12,6 +13,7 @@ import arc.graphics.g2d.TextureRegion;
 import arc.math.Mathf;
 import arc.struct.Seq;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Comparator;
 import mindustry.Vars;
 import mindustry.content.Blocks;
@@ -34,6 +36,7 @@ public final class UpstreamTerrainDrawProbe {
         void draw(int page, int left, int top, int width, int height,
                   float x, float y, float originX, float originY, float drawWidth, float drawHeight,
                   float rotation, int color, Blending blending);
+        void drawSolidQuad(float[] vertices, int offset, Blending blending);
         void end();
     }
 
@@ -214,7 +217,33 @@ public final class UpstreamTerrainDrawProbe {
 
         @Override
         protected void draw(Texture texture, float[] vertices, int offset, int count) {
-            throw new IllegalStateException("Unexpected raw vertices in the terrain probe");
+            // Arc Fill uses one opaque white texel for every vertex of these quads.
+            var white = Core.atlas.white();
+            if (texture != white.texture || offset < 0 || count < 0
+                    || offset > vertices.length - count || count % SpriteBatch.SPRITE_SIZE != 0) {
+                throw new IllegalStateException("Unsupported Arc vertex batch");
+            }
+            for (int i = offset; i < offset + count; i += SpriteBatch.VERTEX_SIZE) {
+                float u = vertices[i + 3], v = vertices[i + 4];
+                if (!(u >= white.u && u <= white.u2 && v >= white.v && v <= white.v2)
+                        || vertices[i + 5] != Color.clearFloatBits) {
+                    throw new IllegalStateException("Raw textured or mixed Arc vertices need a texture shader");
+                }
+            }
+            if (target == null) return;
+            if (sort && !flushing) {
+                // Arc reuses the Fill vertex array for the next command.
+                float[] snapshot = Arrays.copyOfRange(vertices, offset, offset + count);
+                draw(() -> emitSolidQuads(snapshot, 0, snapshot.length));
+            } else {
+                emitSolidQuads(vertices, offset, count);
+            }
+        }
+
+        private void emitSolidQuads(float[] vertices, int offset, int count) {
+            for (int i = offset; i < offset + count; i += SpriteBatch.SPRITE_SIZE) {
+                target.drawSolidQuad(vertices, i, blending);
+            }
         }
 
         @Override
