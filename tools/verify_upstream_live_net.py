@@ -1349,7 +1349,7 @@ def verify_client_processor(server_log, server, rpc, output, model, timeout):
 
 
 def verify_logic_displays(server_log, server, rpc, output, model, timeout):
-    points = ((115, 39), (130, 50), (141, 63), (300, 50))
+    points = ((115, 39), (150, 70), (141, 63), (300, 50))
     capture_marker_pixels(rpc, output, model, "display-background", points, timeout, ((86, 86, 102),) * 4)
     code = """getlink primary 0
 getlink source 1

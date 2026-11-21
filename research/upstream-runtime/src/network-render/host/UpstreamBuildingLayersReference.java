@@ -4,6 +4,7 @@ import port.render.UpstreamCanvasTexture;
 import port.render.UpstreamLogicAtlas;
 import port.render.UpstreamLogicFont;
 import port.render.UpstreamLogicFramebuffer;
+import port.render.UpstreamLogicFramebuffer.RasterTexture;
 import port.logic.UpstreamClientLogic;
 import arc.Core;
 import arc.files.Fi;
@@ -14,6 +15,7 @@ import arc.graphics.g2d.Fill;
 import arc.graphics.g2d.Lines;
 import arc.graphics.g2d.SpriteBatch;
 import arc.graphics.g2d.TextureRegion;
+import arc.mock.MockGraphics;
 import arc.struct.Seq;
 import arc.util.Time;
 import arc.util.io.Reads;
@@ -57,6 +59,7 @@ import mindustry.world.blocks.logic.LogicBlock;
 import mindustry.world.blocks.logic.LogicBlock.LogicBuild;
 import mindustry.world.blocks.logic.LogicBlock.LogicLink;
 import mindustry.world.blocks.logic.LogicDisplay.LogicDisplayBuild;
+import mindustry.world.blocks.logic.TileableLogicDisplay.TileableLogicDisplayBuild;
 import mindustry.world.blocks.payloads.BuildPayload;
 import mindustry.world.blocks.payloads.Payload;
 import mindustry.world.blocks.payloads.UnitPayload;
@@ -70,6 +73,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
     private final List<UpstreamCanvasTexture> canvasDraws = new ArrayList<>();
     private UpstreamCanvasTexture canvasQuadTexture;
     private float[] canvasQuadVertices;
+    private final List<RasterTexture> displayDraws = new ArrayList<>();
 
     public static void main(String[] args) throws Exception {
         if (args.length < 3 || args.length == 6 || args.length > 7) {
@@ -136,7 +140,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         target.verifyCanvas(viewer);
         if (args.length >= 4) verifyObjectiveHud();
         if (args.length >= 5) verifyClientProcessor(new Fi(args[4]), viewer);
-        if (args.length == 7) verifyLogicDisplay(new Fi(args[5]), new Fi(args[6]), viewer);
+        if (args.length == 7) target.verifyLogicDisplay(new Fi(args[5]), new Fi(args[6]), viewer);
     }
 
     private static void verifyClientProcessor(Fi ids, Team team) {
@@ -168,7 +172,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         System.out.println("UPSTREAM_CLIENT_PROCESSOR_REFERENCE ids=ok compressed=ok link=ok canvas=5");
     }
 
-    private static void verifyLogicDisplay(Fi tiles, Fi font, Team team) {
+    private void verifyLogicDisplay(Fi tiles, Fi font, Team team) {
         var atlas = new UpstreamLogicAtlas(tiles);
         UpstreamLogicFramebuffer.atlasPixels((texture, x, y) ->
             atlas.sample(UpstreamTerrainDrawProbe.pageIndex(texture), x, y));
@@ -224,12 +228,57 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
                 || processor.executor.links[0] != display) {
             throw new AssertionError("Original copper icon, logic font or display link missing");
         }
+        displayDraws.clear();
+        display.draw();
+        if (displayDraws.size() != 1 || displayDraws.get(0) != display.buffer.getTexture()) {
+            throw new AssertionError("Original display did not submit its framebuffer texture");
+        }
         var buffer = display.buffer;
         displayTile.setBlock(Blocks.air);
         if (!buffer.isDisposed()) {
             throw new AssertionError("Removed display did not dispose its framebuffer");
         }
-        System.out.println("UPSTREAM_LOGIC_DISPLAY_REFERENCE flush=ok clear=ok alpha=ok transform=ok offscreen=ok copper=ok font=ok dispose=ok");
+        verifyTiledDisplay(team);
+        System.out.println("UPSTREAM_LOGIC_DISPLAY_REFERENCE flush=ok clear=ok alpha=ok transform=ok offscreen=ok copper=ok font=ok tiles=ok dispose=ok");
+    }
+
+    private void verifyTiledDisplay(Team team) {
+        var left = Vars.world.tile(73, 19);
+        var right = Vars.world.tile(74, 19);
+        left.setBlock(Blocks.tileLogicDisplay, team);
+        right.setBlock(Blocks.tileLogicDisplay, team);
+        var a = (TileableLogicDisplayBuild)left.build;
+        var b = (TileableLogicDisplayBuild)right.build;
+        a.updateTile();
+        b.updateTile();
+        if (a.rootDisplay != b.rootDisplay || !a.rectangular || a.tilesWidth != 2 || a.tilesHeight != 1) {
+            throw new AssertionError("Original tileable displays did not form a two-tile framebuffer");
+        }
+        Core.graphics = new MockGraphics() {
+            @Override public long getFrameId() { return 1; }
+        };
+        displayDraws.clear();
+        Draw.sort(true);
+        try {
+            Draw.z(Layer.block);
+            a.draw();
+            Draw.z(Layer.block);
+            b.draw();
+        } finally {
+            Draw.sort(false);
+        }
+        var buffer = a.rootDisplay.buffer;
+        if (buffer == null || buffer.getWidth() != 52 || buffer.getHeight() != 20
+                || displayDraws.size() != 2 || displayDraws.stream().anyMatch(texture -> texture != buffer.getTexture())) {
+            throw new AssertionError("Original tileable texture crops used the wrong framebuffer: " +
+                (buffer == null ? "none" : buffer.getWidth() + "x" + buffer.getHeight()) + ", draws=" + displayDraws.size());
+        }
+    }
+
+    @Override
+    public void drawLogicDisplay(RasterTexture texture, float[] vertices, int offset, Blending blending) {
+        if (blending != Blending.disabled) throw new AssertionError("Display sprite must draw opaque");
+        displayDraws.add(texture);
     }
 
     private static int displayPixels(LogicDisplayBuild display, int left, int bottom, int right, int top) {
