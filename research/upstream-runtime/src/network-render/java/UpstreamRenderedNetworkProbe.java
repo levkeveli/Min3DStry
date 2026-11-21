@@ -96,17 +96,13 @@ public final class UpstreamRenderedNetworkProbe {
         previousVisualFrame = now;
         if (Vars.state.isPaused()) return;
 
-        // Advance stock visual state independently of the server's building updates.
+        // Advance the original animation clock and conduit smoothing without replaying liquid transfers.
         float oldDelta = Time.delta;
         Time.delta = delta;
         Time.setInternalTime(Time.getInternalTime() + delta);
         try {
             for (var build : Groups.build) {
                 if (build instanceof Conduit.ConduitBuild conduit) conduit.advanceLiquidDraw();
-                if (build instanceof PayloadConveyorBuild conveyor && supportsCargo(conveyor)) {
-                    // The stock building stream carries progress and rotation. Reconstruct the drawing position.
-                    conveyor.updatePayload();
-                }
             }
         } finally {
             Time.delta = oldDelta;
