@@ -32,6 +32,19 @@ static void test_region_boundaries(void) {
     assert(m3ds_touch_action_at(64.0f, 200.0f) == M3DS_TOUCH_ACTION_NONE);
 }
 
+static void test_menu_rows(void) {
+    assert(m3ds_touch_menu_row(119.9f, 3u) == -1);
+    assert(m3ds_touch_menu_row(120.0f, 3u) == 0);
+    assert(m3ds_touch_menu_row(127.9f, 3u) == 0);
+    assert(m3ds_touch_menu_row(128.0f, 3u) == 1);
+    assert(m3ds_touch_menu_row(135.9f, 3u) == 1);
+    assert(m3ds_touch_menu_row(136.0f, 3u) == 2);
+    assert(m3ds_touch_menu_row(143.9f, 3u) == 2);
+    assert(m3ds_touch_menu_row(144.0f, 3u) == -1);
+    assert(m3ds_touch_menu_row(120.0f, 0u) == -1);
+    assert(m3ds_touch_menu_row(240.0f, 3u) == -1);
+}
+
 static void test_outside_and_ids(void) {
     assert(m3ds_touch_action_at(-1.0f, 10.0f) == M3DS_TOUCH_ACTION_NONE);
     assert(m3ds_touch_action_at(10.0f, -1.0f) == M3DS_TOUCH_ACTION_NONE);
@@ -55,6 +68,7 @@ static void test_outside_and_ids(void) {
 int main(void) {
     test_centers();
     test_region_boundaries();
+    test_menu_rows();
     test_outside_and_ids();
     return 0;
 }
