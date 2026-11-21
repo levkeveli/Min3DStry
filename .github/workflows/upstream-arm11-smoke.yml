@@ -120,7 +120,7 @@ jobs:
             grep -F 'version=13 preset=groundZero wave=1 size=150x250 meta=ok' "$RUNNER_TEMP/probe.log"
           fi
           if [ "${{ matrix.probe }}" = "campaign-sector-info" ]; then
-            grep -F 'UPSTREAM_CAMPAIGN_SECTOR_INFO path=tmp key=serpulo-s-170-info captured=ok wave=7 items=250:75 reload=ok' "$RUNNER_TEMP/probe.log"
+            grep -F 'UPSTREAM_CAMPAIGN_SECTOR_INFO path=tmp key=serpulo-s-170-info api=ok captured=ok wave=7 items=250:75 core=coreShard resource=copper-wall reload=ok' "$RUNNER_TEMP/probe.log"
           fi
           if [ "${{ matrix.probe }}" = "campaign-planet" ]; then
             grep -F 'UPSTREAM_CAMPAIGN_PLANET path=tmp planet=serpulo sector=86 preset=frozenForest lastSector=86 reload=ok' "$RUNNER_TEMP/probe.log"
