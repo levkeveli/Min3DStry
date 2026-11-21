@@ -251,6 +251,8 @@ M3dsNetClient *m3ds_net_client_open(
     uint16_t port,
     uint32_t timeout_ms,
     const M3dsNetConnectPacket *connect_pkt,
+    uint8_t kick_text_id,
+    uint8_t kick_reason_id,
     M3dsNetHandshakeResult *out_result);
 
 /* Return 1 for a decoded game packet or an M3dsNetIoResult. A timeout preserves partial TCP frames. */
@@ -259,6 +261,7 @@ int m3ds_net_client_receive(
     uint8_t *packet_id, uint8_t *payload, size_t capacity, size_t *length);
 bool m3ds_net_client_send(
     M3dsNetClient *client, bool reliable, uint8_t packet_id, const uint8_t *payload, size_t length);
+bool m3ds_net_client_keep_alive(M3dsNetClient *client, bool reliable);
 void m3ds_net_client_close(M3dsNetClient *client);
 
 #ifdef __cplusplus

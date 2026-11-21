@@ -255,11 +255,43 @@ python tools/verify_upstream_live_net.py --rom /path/to/upstream-probe.3dsx \
   --azahar /path/to/azahar --server /path/to/server-release.jar
 ```
 
-This entry point exercises the live initial-world path and packet
-exchange. Dispatch through the normal client UI and applying ongoing
-state and entity snapshots are part of #44.
+The live probe also calls the generated state and entity snapshot packets'
+original client handlers. It stages the pinned `NetClient.java` with a
+separate constructor for frontends that manage packet dispatch themselves.
+The original snapshot methods and desktop constructor behavior are preserved.
+The verifier hosts Glacier in Attack mode so the enemy core supplies
+upstream ground spawns. It issues the official server's `runwave` command
+after the first state snapshot on each join. It then checks for an advanced
+wave and a newly created Dagger entity in the client world. The second join
+waits beyond the server's 12-second TCP timeout to exercise Arc keepalive.
+The regular connection UI, outgoing
+player actions and other live packet handlers are tracked in #44.
 
-The [devkitARM verification build](https://github.com/levkeveli/Min3DStry/actions/runs/44824442974)
+For the host reference, run `runProbeJvm` with `-Pprobe=network-live`
+and pass a captured `WorldStream` file through `--args`. The JVM
+version uses upstream item and unit serialization to verify the applied
+wave, clock, core copper inventory and Dagger entity coordinates.
+
+The [snapshot dispatch build](https://github.com/levkeveli/Min3DStry/actions/runs/44828359834)
+passed on the Old and New 3DS profiles in Azahar 2126.2 at both `-O0`
+and `-O2`. Each run rejected build 159, joined the stock v160.8 server,
+applied wave 1 → 2, then rejoined and applied wave 2 → 3 after a
+13-second wait. Each join registered a different Dagger in the upstream
+sync group. The second join logged a TCP keepalive during the wait, and
+the server recorded both departures. The optimized probe's page-rounded
+ELF load segments account for 28.04 MiB. Including the configured heap,
+stack and SOC buffer brings that subtotal to 45.29 MiB.
+
+The same optimized probe shared a Glacier session with the unmodified
+[v160.8 desktop client](https://github.com/Anuken/Mindustry/releases/tag/v160.8)
+on each Azahar profile. The PC client stayed connected through both ARM11
+joins and wave transitions. The desktop view showed the ARM11 player at
+the core. To repeat the test, launch the official desktop JAR and add
+`--model old3ds --desktop-name "Min3DStry PC Oracle"` to the verifier
+command. Join the printed loopback address in the desktop game with that
+player name. Repeat with `--model new3ds`.
+
+Before the snapshot dispatch extension, the [devkitARM verification build](https://github.com/levkeveli/Min3DStry/actions/runs/44824442974)
 passed at `-O0` and `-O2` on both Azahar 2126.2 console profiles. Each run
 rejected build 159 with `clientOutdated`, then joined Glacier twice with
 build 160 and the same test identity. Both joins loaded the 150 × 250 map

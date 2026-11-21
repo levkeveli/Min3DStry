@@ -12,14 +12,21 @@ import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 import java.util.zip.InflaterInputStream;
 import mindustry.Vars;
+import mindustry.content.UnitTypes;
+import mindustry.core.GameState.State;
+import mindustry.core.NetClient;
+import mindustry.game.Universe;
 import mindustry.gen.ConnectConfirmCallPacket;
+import mindustry.gen.EntitySnapshotCallPacket;
 import mindustry.gen.Groups;
+import mindustry.gen.KickCallPacket;
 import mindustry.gen.KickCallPacket2;
 import mindustry.gen.Player;
 import mindustry.gen.StateSnapshotCallPacket;
 import mindustry.mod.Mods;
 import mindustry.net.Net;
 import mindustry.net.NetworkIO;
+import mindustry.net.Packet;
 import mindustry.net.Packets.StreamChunk;
 import org.teavm.interop.Address;
 import org.teavm.interop.Import;
@@ -28,6 +35,9 @@ import org.teavm.interop.c.Include;
 public final class UpstreamLiveNetworkProbe {
     private static final int ACCEPTED = 0, REJECTED = 1, TIMEOUT = -2;
     private static final int BUILD = 160;
+    // Match Arc's pinned TcpConnection and UdpConnection default intervals.
+    private static final long TCP_KEEP_ALIVE_NS = 8_000_000_000L;
+    private static final long UDP_KEEP_ALIVE_NS = 19_000_000_000L;
     private static final String PLAYER_NAME = "Min3DStry ARM11";
     private final byte[] packet = new byte[32_768];
 
@@ -39,6 +49,7 @@ public final class UpstreamLiveNetworkProbe {
         int port = Integer.parseInt(endpoint[1]);
         var app = UpstreamWorldLoadProbe.initialize(config.parent());
         Vars.mods = new Mods();
+        Vars.universe = new Universe();
         try {
             new UpstreamLiveNetworkProbe().run(host, port, app);
         } catch (IOException | RuntimeException error) {
@@ -53,7 +64,7 @@ public final class UpstreamLiveNetworkProbe {
     private void run(byte[] host, int port, UpstreamWorldLoadProbe.ProbeApplication app)
             throws IOException, InterruptedException {
         try {
-            int result = Native.open(Address.ofData(host), host.length, port, BUILD - 1);
+            int result = open(host, port, BUILD - 1);
             if (result != REJECTED || Native.rejectedPacket() != unsignedId(KickCallPacket2.class)) {
                 throw new IOException("Expected a server kick for the outdated build, status=" + result);
             }
@@ -81,16 +92,17 @@ public final class UpstreamLiveNetworkProbe {
 
     private void connect(byte[] host, int port, UpstreamWorldLoadProbe.ProbeApplication app, int join)
             throws IOException {
-        int result = Native.open(Address.ofData(host), host.length, port, BUILD);
+        int result = open(host, port, BUILD);
         if (result != ACCEPTED || Native.streamType() != Net.packetIdWorldStream || Native.streamTotal() <= 0) {
-            throw new IOException("Expected a live multiplayer WorldStream, status=" + result);
+            throw new IOException("Expected a live multiplayer WorldStream, status=" + result
+                + " packet=" + Native.rejectedPacket() + " streamType=" + Native.streamType());
         }
         Vars.net.setClientConnected();
+        Vars.netClient = NetClient.forSnapshotDispatch();
         int total = Native.streamTotal();
         var stream = new WorldStreamInput(Native.streamId(), total);
-        var seenEntities = new IntSet();
         Vars.player = Player.create();
-        NetworkIO.loadWorld(new InflaterInputStream(stream), seenEntities::add);
+        NetworkIO.loadWorld(new InflaterInputStream(stream));
         app.runPosted();
         if (stream.remaining != 0 || Groups.player.size() != 1 || !PLAYER_NAME.equals(Vars.player.name)
                 || Vars.world.width() <= 0 || Vars.world.height() <= 0) {
@@ -99,11 +111,9 @@ public final class UpstreamLiveNetworkProbe {
         String fingerprint = UpstreamWorldLoadProbe.reportTerrain(false);
         System.out.println("UPSTREAM_LIVE_NET_WORLD join=" + join + " map=" + Vars.state.map.name()
             + " bytes=" + total + " team=" + Vars.player.team().id + " fingerprint=" + fingerprint);
+        Vars.state.set(State.playing);
         confirm();
-        StateSnapshotCallPacket snapshot = waitForSnapshot();
-        System.out.println("UPSTREAM_LIVE_NET_STATE join=" + join + " wave=" + snapshot.wave
-            + " time=" + snapshot.timeData + " enemies=" + snapshot.enemies
-            + " coreBytes=" + snapshot.coreData.length);
+        waitForWave(join, app);
     }
 
     private static void confirm() throws IOException {
@@ -116,20 +126,78 @@ public final class UpstreamLiveNetworkProbe {
         }
     }
 
-    private StateSnapshotCallPacket waitForSnapshot() throws IOException {
-        long end = System.nanoTime() + 10_000_000_000L;
+    private void waitForWave(int join, UpstreamWorldLoadProbe.ProbeApplication app) throws IOException {
+        long start = System.nanoTime();
+        long end = start + 30_000_000_000L;
+        long tcpKeepAlive = start + TCP_KEEP_ALIVE_NS;
+        long udpKeepAlive = start + UDP_KEEP_ALIVE_NS;
         int snapshotId = unsignedId(StateSnapshotCallPacket.class);
+        int entityId = unsignedId(EntitySnapshotCallPacket.class);
+        int initialWave = Vars.state.wave;
+        var initialEnemies = new IntSet();
+        for (var unit : Groups.unit) {
+            if (unit.team == Vars.state.rules.waveTeam) initialEnemies.add(unit.id);
+        }
+        boolean receivedState = false;
         while (System.nanoTime() < end) {
-            int received = receive(0, 100);
-            if (received == TIMEOUT) received = receive(1, 50);
-            if (received >= 0 && received >>> 16 == snapshotId) {
-                var snapshot = new StateSnapshotCallPacket();
-                snapshot.read(reader(received), received & 0xffff);
-                snapshot.handled();
-                return snapshot;
+            long now = System.nanoTime();
+            if (now >= tcpKeepAlive) {
+                keepAlive(1);
+                System.out.println("UPSTREAM_LIVE_NET_KEEPALIVE join=" + join + " transport=tcp");
+                tcpKeepAlive = now + TCP_KEEP_ALIVE_NS;
+            }
+            if (now >= udpKeepAlive) {
+                keepAlive(0);
+                udpKeepAlive = now + UDP_KEEP_ALIVE_NS;
+            }
+            int received = receive(1, 0);
+            if (received == TIMEOUT) {
+                received = receive(0, 100);
+                if (received >= 0) udpKeepAlive = System.nanoTime() + UDP_KEEP_ALIVE_NS;
+            }
+            if (received == TIMEOUT) continue;
+            int id = received >>> 16;
+            if (id == snapshotId) {
+                var snapshot = decode(new StateSnapshotCallPacket(), received);
+                snapshot.handleClient();
+                if (Vars.state.wave != snapshot.wave || Vars.state.wavetime != snapshot.waveTime
+                        || Vars.state.enemies != snapshot.enemies || Vars.universe.seconds() != snapshot.timeData
+                        || Vars.state.serverTps != (snapshot.tps & 0xff)) {
+                    throw new IOException("Upstream snapshot did not update client state");
+                }
+                if (!receivedState) {
+                    receivedState = true;
+                    System.out.println("UPSTREAM_LIVE_NET_STATE join=" + join + " wave=" + snapshot.wave
+                        + " time=" + snapshot.timeData + " enemies=" + snapshot.enemies
+                        + " coreBytes=" + snapshot.coreData.length);
+                }
+            } else if (id == entityId) {
+                decode(new EntitySnapshotCallPacket(), received).handleClient();
+            }
+            app.runPosted();
+            if (receivedState && Vars.state.wave > initialWave) {
+                for (var unit : Groups.unit) {
+                    if (unit.team == Vars.state.rules.waveTeam && unit.type == UnitTypes.dagger
+                            && !initialEnemies.contains(unit.id)
+                            && Groups.sync.getByID(unit.id) == unit) {
+                        System.out.println("UPSTREAM_LIVE_NET_SYNC join=" + join + " fromWave=" + initialWave
+                            + " wave=" + Vars.state.wave + " unit=" + unit.type.name + " id=" + unit.id);
+                        return;
+                    }
+                }
             }
         }
-        throw new IOException("No state snapshot after connection confirmation");
+        throw new IOException("No new wave and synchronized enemy after connection confirmation");
+    }
+
+    private static void keepAlive(int reliable) throws IOException {
+        if (Native.keepAlive(reliable) == 0) throw new IOException("Unable to send Arc keepalive");
+    }
+
+    private <T extends Packet> T decode(T decoded, int received) {
+        decoded.read(reader(received), received & 0xffff);
+        decoded.handled();
+        return decoded;
     }
 
     private int receive(int reliable, int timeoutMs) throws IOException {
@@ -146,6 +214,11 @@ public final class UpstreamLiveNetworkProbe {
 
     private static int unsignedId(Class<?> type) {
         return Net.getPacketClassId(type) & 0xff;
+    }
+
+    private static int open(byte[] host, int port, int version) {
+        return Native.open(Address.ofData(host), host.length, port, version,
+            unsignedId(KickCallPacket.class), unsignedId(KickCallPacket2.class));
     }
 
     /** Supplies original StreamChunk data without buffering a second copy of the entire world. */
@@ -179,9 +252,18 @@ public final class UpstreamLiveNetworkProbe {
         private boolean ready() throws IOException {
             if (offset < chunk.length) return true;
             if (remaining == 0) return false;
-            int received = receive(1, 5000);
-            if (received < 0 || received >>> 16 != unsignedId(StreamChunk.class)) {
-                throw new IOException("Expected upstream world chunk");
+            int received = TIMEOUT;
+            for (int skipped = 0; skipped < 16; skipped++) {
+                received = receive(1, 5000);
+                if (received == TIMEOUT) throw new IOException("Timed out waiting for an upstream world chunk");
+                int id = received >>> 16;
+                if (id == unsignedId(StreamChunk.class)) break;
+                if (id == unsignedId(KickCallPacket.class) || id == unsignedId(KickCallPacket2.class)) {
+                    throw new IOException("Server kicked the client during the world transfer");
+                }
+            }
+            if (received >>> 16 != unsignedId(StreamChunk.class)) {
+                throw new IOException("Expected an upstream world chunk");
             }
             var next = new StreamChunk();
             next.read(reader(received));
@@ -199,7 +281,8 @@ public final class UpstreamLiveNetworkProbe {
     @Include(value = "m3ds_net_bridge.h", isSystem = true)
     private static final class Native {
         @Import(name = "m3ds_live_net_open")
-        static native int open(Address host, int length, int port, int version);
+        static native int open(Address host, int length, int port, int version,
+                               int kickTextId, int kickReasonId);
         @Import(name = "m3ds_live_net_stream_id")
         static native int streamId();
         @Import(name = "m3ds_live_net_stream_total")
@@ -212,6 +295,8 @@ public final class UpstreamLiveNetworkProbe {
         static native int receive(Address packet, int capacity, int reliable, int timeoutMs);
         @Import(name = "m3ds_live_net_send")
         static native int send(Address packet, int length, int packetId);
+        @Import(name = "m3ds_live_net_keep_alive")
+        static native int keepAlive(int reliable);
         @Import(name = "m3ds_live_net_close")
         static native void close();
     }

@@ -15,6 +15,7 @@ def arcRevision = '7445105cd2683daf5b9ac7033ebb07265d3e814d'
 def fileSource = 'arc-core/src/arc/files/Fi.java'
 def osSource = 'arc-core/src/arc/util/OS.java'
 def networkIoSource = 'core/src/mindustry/net/NetworkIO.java'
+def netClientSource = 'core/src/mindustry/core/NetClient.java'
 def pixmapSource = 'arc-core/src/arc/graphics/Pixmap.java'
 def pixmapPatch = file('patches/arc-pixmap-direct-buffer.patch')
 def glacier = 'core/assets/maps/default/glacier.msav'
@@ -53,6 +54,7 @@ def usesContentSources = probe == 'content' || initializesContent
 def usesExecutor = usesContentSources || probe == 'executor'
 def usesArcSources = usesContentSources || probe == 'resource'
 def usesWorldStream = probe in ['world-stream', 'network-live']
+def usesLiveNetwork = probe == 'network-live'
 def pluginsToLoad = []
 if (usesArcSources) pluginsToLoad.add('port.ResourceVirtualMethods')
 if (usesExecutor) pluginsToLoad.add('port.concurrent.ArcPoolSupport')
@@ -69,6 +71,7 @@ def arcFile = sourceDir.map { it.file('arc/files/Fi.java') }
 def arcOsFile = sourceDir.map { it.file('arc/util/OS.java') }
 def arcPixmapFile = sourceDir.map { it.file('arc/graphics/Pixmap.java') }
 def networkIoFile = sourceDir.map { it.file('mindustry/net/NetworkIO.java') }
+def netClientFile = sourceDir.map { it.file('mindustry/core/NetClient.java') }
 def compilerResources = layout.buildDirectory.dir("compiler-resources/${probe}")
 def pluginFile = compilerResources.map { it.file('META-INF/services/org.teavm.vm.spi.TeaVMPlugin') }
 def readUpstream = { path ->
@@ -93,6 +96,9 @@ if (usesArcSources || usesExecutor) {
     }
     if (usesWorldStream) {
         stagedClasses.add('mindustry/net/NetworkIO.class')
+    }
+    if (usesLiveNetwork) {
+        stagedClasses.addAll(['mindustry/core/NetClient.class', 'mindustry/core/NetClient$*.class'])
     }
     // TeaVM resolves dependency classes before compiled project classes.
     def contentDependencies = tasks.register('prepareContentDependencies', Zip) {
@@ -134,14 +140,14 @@ if (usesSimulation) {
 if (probe == 'world-stream') {
     sourceSets.main.java.srcDir('src/world-stream/java')
 }
-if (probe == 'network-live') {
-    sourceSets.main.java.srcDir('src/network-live/java')
+if (usesLiveNetwork) {
+    sourceSets.main.java.srcDirs('src/network-live/java', 'src/network-live/host')
 }
 if (probe == 'file-metadata') {
     sourceSets.main.java.srcDir('src/file/java')
 }
 dependencies {
-    if (usesMapSources || probe in ['network-live', 'terrain-render']) {
+    if (usesMapSources || usesLiveNetwork || probe == 'terrain-render') {
         implementation 'org.teavm:teavm-interop:0.16.0'
     }
 }
@@ -183,6 +189,9 @@ tasks.register('prepareUpstreamProbe') {
     }
     if (usesWorldStream) {
         outputs.file(networkIoFile)
+    }
+    if (usesLiveNetwork) {
+        outputs.file(netClientFile)
     }
     doLast {
         if (!pluginsToLoad.isEmpty()) {
@@ -284,6 +293,33 @@ final class GlacierFixture {
     public static void loadWorld(InputStream is, arc.func.Intc recordEntity){''')
                 .replace(addRemoved, 'recordEntity.get(e.id())'), 'UTF-8')
         }
+        if (usesLiveNetwork) {
+            def source = new String(readUpstream(netClientSource), 'UTF-8')
+            def buffer = '''private ReusableByteInStream byteStream = new ReusableByteInStream();
+    private DataInputStream dataStream = new DataInputStream(byteStream);
+    private Reads dataStreamReads = new Reads(dataStream);'''
+            def constructor = 'public NetClient(){'
+            if (source.count(buffer) != 1 || source.count(constructor) != 1) {
+                throw new GradleException('Pinned NetClient snapshot reader changed')
+            }
+            def outputClient = netClientFile.get().asFile
+            outputClient.parentFile.mkdirs()
+            outputClient.setText(source.replace(buffer, '''private final ReusableByteInStream byteStream;
+    private final DataInputStream dataStream;
+    private final Reads dataStreamReads;''').replace(constructor, '''private NetClient(ReusableByteInStream snapshotInput){
+        byteStream = snapshotInput;
+        dataStream = new DataInputStream(byteStream);
+        dataStreamReads = new Reads(dataStream);
+    }
+
+    /** Used when another frontend owns packet dispatch and connection UI. */
+    public static NetClient forSnapshotDispatch(){
+        return new NetClient(new ReusableByteInStream());
+    }
+
+    public NetClient(){
+        this(new ReusableByteInStream());'''), 'UTF-8')
+        }
     }
 }
 
@@ -292,7 +328,8 @@ tasks.named('compileJava') { dependsOn 'prepareUpstreamProbe' }
 tasks.register('runProbeJvm', JavaExec) {
     dependsOn 'classes'
     classpath = sourceSets.main.runtimeClasspath
-    mainClass = ['map-sd': entryPoints.map, 'terrain-render': entryPoints['terrain-draw']]
+    mainClass = ['map-sd': entryPoints.map, 'terrain-render': entryPoints['terrain-draw'],
+                 'network-live': 'UpstreamSnapshotDispatchReference']
         .getOrDefault(probe, entryPoint)
 }
 

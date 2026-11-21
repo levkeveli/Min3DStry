@@ -378,7 +378,12 @@ static void test_mock_handshake(void) {
   st.rx_pos = st.tx_tcp_len = 0U;
   st.closed = false;
   st.max_tcp_chunk = 1U;
-  M3dsNetClient *client = m3ds_net_client_open(&tr, "127.0.0.1", M3DS_NET_DEFAULT_PORT, 1000U, &pkt, &res);
+  st.rx_len -= sb_env_len + 2U;
+  const uint8_t notice[] = {23, 0, 1, 0, 42};
+  mock_queue_tcp_frame(&st, notice, sizeof(notice));
+  mock_queue_tcp_frame(&st, sb_env, sb_env_len);
+  M3dsNetClient *client = m3ds_net_client_open(
+      &tr, "127.0.0.1", M3DS_NET_DEFAULT_PORT, 1000U, &pkt, 65U, 66U, &res);
   assert(client && !st.closed && res.stream_id == 1);
   uint8_t server_payload[] = {0, 0, 0, 1, 0, 2, 0x78, 0x9c};
   size_t message_size;
@@ -406,6 +411,13 @@ static void test_mock_handshake(void) {
   const uint8_t empty_packet[] = {0, 4, 21, 0, 0, 0};
   assert(st.tx_tcp_len == sent_before + sizeof(empty_packet));
   assert(memcmp(st.tx_tcp + sent_before, empty_packet, sizeof(empty_packet)) == 0);
+  const uint8_t keep_alive[] = {0, 2, M3DS_NET_FRAMEWORK_SENTINEL, M3DS_FW_KEEP_ALIVE};
+  sent_before = st.tx_tcp_len;
+  assert(m3ds_net_client_keep_alive(client, true));
+  assert(st.tx_tcp_len == sent_before + sizeof(keep_alive));
+  assert(memcmp(st.tx_tcp + sent_before, keep_alive, sizeof(keep_alive)) == 0);
+  assert(m3ds_net_client_keep_alive(client, false));
+  assert(st.tx_udp_len == 2U && memcmp(st.tx_udp, keep_alive + 2, 2U) == 0);
   m3ds_net_client_close(client);
   assert(st.closed);
 }

@@ -57,13 +57,24 @@ def run_model(args, model, config, original_config, log, output):
             stdout=terminal, stderr=subprocess.STDOUT, text=True,
         )
         try:
-            server.stdin.write(f"config port {args.port}\nhost Glacier\n")
+            server.stdin.write(f"config port {args.port}\nhost Glacier attack\n")
             server.stdin.flush()
             wait_for(server_log, server, f"Opened a server on port {args.port}\\.", 25)
+            if args.desktop_name:
+                print(f"{model}: Join 127.0.0.1:{args.port} from the stock PC client as "
+                      f"{args.desktop_name!r}.", flush=True)
+                wait_for(server_log, server, rf"{re.escape(args.desktop_name)} has connected", args.timeout)
             emulator = subprocess.Popen([str(args.azahar), str(args.rom)],
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             rpc = az.AzaharRpcClient(timeout=2, retries=2)
             try:
+                for join in (1, 2):
+                    wait_for(log, emulator, rf"UPSTREAM_LIVE_NET_STATE join={join}\b", args.timeout)
+                    if join == 2:
+                        time.sleep(13)  # Exceed ArcNet's 12-second TCP timeout.
+                    server.stdin.write("runwave\n")
+                    server.stdin.flush()
+                    wait_for(log, emulator, rf"UPSTREAM_LIVE_NET_SYNC join={join}\b", 25)
                 emu_log = wait_for(log, emulator, "UPSTREAM_LIVE_NET_PASS", args.timeout)
                 (output / f"{model}.png").write_bytes(rpc.screenshot())
             finally:
@@ -72,7 +83,13 @@ def run_model(args, model, config, original_config, log, output):
                 (output / f"{model}-emulator.log").write_bytes(log.read_bytes())
             validate(emu_log)
             disconnected = rf"{PLAYER} has disconnected[\s\S]*{PLAYER} has disconnected"
-            wait_for(server_log, server, disconnected, 5)
+            before_shutdown = wait_for(server_log, server, disconnected, 5)
+            if args.desktop_name:
+                desktop_join = before_shutdown.find(f"{args.desktop_name} has connected")
+                arm_join = before_shutdown.find(f"{PLAYER} has connected")
+                if not 0 <= desktop_join < arm_join or f"{args.desktop_name} has disconnected" in before_shutdown:
+                    raise RuntimeError(f"{model} PC client did not stay connected through both ARM11 joins")
+                print(f"{model}: the PC client stayed connected through both ARM11 joins", flush=True)
             server.stdin.write("exit\n")
             server.stdin.flush()
             server.wait(timeout=10)
@@ -95,14 +112,20 @@ def validate(log):
     state = r"UPSTREAM_LIVE_NET_STATE join=(\d+) wave=(\d+) time=(\d+) enemies=(\d+) coreBytes=(\d+)"
     worlds = re.findall(world, log)
     states = re.findall(state, log)
+    synced = re.findall(r"UPSTREAM_LIVE_NET_SYNC join=(\d+) fromWave=(\d+) wave=(\d+) unit=(\S+) id=(\d+)", log)
     if ("UPSTREAM_LIVE_NET_REJECT build=159 packet=KickCallPacket2" not in log
+            or "UPSTREAM_LIVE_NET_KEEPALIVE join=2 transport=tcp" not in log
             or [event[0] for event in worlds] != ["1", "2"]
             or [event[0] for event in states] != ["1", "2"]
+            or [event[0] for event in synced] != ["1", "2"]
             or re.findall(r"UPSTREAM_LIVE_NET_DISCONNECTED join=(\d+)", log) != ["1", "2"]
             or any(int(event[1]) <= 0 or int(event[2]) <= 0 for event in worlds)
-            or worlds[0][3] != worlds[1][3]
-            or any(int(event[1]) <= 0 or int(event[4]) <= 0 for event in states)):
-        raise RuntimeError("Expected a version rejection, two live worlds, state snapshots and disconnects")
+            or states[1][1] != synced[0][2]
+            or synced[0][4] == synced[1][4]
+            or any(int(event[1]) <= 0 or int(event[4]) <= 0 for event in states)
+            or any(int(event[2]) != int(event[1]) + 1 or event[3] != "dagger"
+                   or int(event[4]) <= 0 for event in synced)):
+        raise RuntimeError("Expected live wave, state and entity updates on both joins")
 
 
 def main():
@@ -113,6 +136,10 @@ def main():
     parser.add_argument("--java", default="java")
     parser.add_argument("--port", default=16568, type=int)
     parser.add_argument("--timeout", default=120, type=float)
+    parser.add_argument("--model", choices=("old3ds", "new3ds"),
+                        help="Check one Azahar profile (default: both)")
+    parser.add_argument("--desktop-name",
+                        help="Wait for a separately launched PC client and verify its connection overlaps both joins")
     args = parser.parse_args()
     args.server, args.rom, args.azahar = (path.resolve() for path in (args.server, args.rom, args.azahar))
     with args.server.open("rb") as archive:
@@ -120,6 +147,8 @@ def main():
             parser.error("Expected the official v160.8 server-release.jar")
     if not 1 <= args.port <= 65535:
         parser.error("Port must be between 1 and 65535")
+    if args.desktop_name is not None and (not args.desktop_name.strip() or args.desktop_name == PLAYER):
+        parser.error("The PC client needs a distinct player name")
     config, log = az.resolve_azahar_paths()
     endpoint = config.parent.parent / "sdmc/3ds/min3dstry/server-endpoint.txt"
     originals = {path: path.read_bytes() if path.exists() else None for path in (config, log, endpoint)}
@@ -129,7 +158,7 @@ def main():
         for path in originals:
             path.parent.mkdir(parents=True, exist_ok=True)
         endpoint.write_text(f"127.0.0.1 {args.port}\n", encoding="ascii")
-        for model in ("old3ds", "new3ds"):
+        for model in ((args.model,) if args.model else ("old3ds", "new3ds")):
             run_model(args, model, config, (originals[config] or b"").decode(), log, output)
     finally:
         for path, data in originals.items():
