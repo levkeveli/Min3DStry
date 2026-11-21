@@ -1028,6 +1028,10 @@ def main() -> int:
     )
     args = parser.parse_args()
 
+    if args.expect_sector_catalog is not None and args.expect_sector_catalog < 0:
+        print("verify_azahar: --expect-sector-catalog must be >= 0", file=sys.stderr)
+        return 2
+
     rom_path = Path(args.rom)
     if not rom_path.is_file():
         print(f"verify_azahar: ROM not found: {rom_path}", file=sys.stderr)

@@ -26,6 +26,12 @@ static void write_file(const char *name, const unsigned char *data, size_t size)
     fclose(file);
 }
 
+static void remove_file(const char *name) {
+    char path[256];
+    snprintf(path, sizeof(path), "%s/%s", dir, name);
+    assert(remove(path) == 0);
+}
+
 static void test_scan_and_sort(void) {
     make_dir(dir);
     unsigned char raw[16] = {'M', 'S', 'A', 'V', 13, 0, 0, 0};
@@ -52,7 +58,11 @@ static void test_scan_and_sort(void) {
     assert(m3ds_sector_catalog_scan(dir, one, 1u) == 1u);
     assert(strcmp(one[0].planet, "erekir") == 0);
 
-    remove_dir(dir);
+    remove_file("sector-serpulo-170.msav");
+    remove_file("sector-erekir-64.msav");
+    remove_file("notes.txt");
+    remove_file("sector-bad.msav");
+    assert(remove_dir(dir) == 0);
 }
 
 static void test_missing_and_invalid(void) {
