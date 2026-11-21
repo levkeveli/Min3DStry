@@ -154,7 +154,7 @@ def verify_conveyor(log, emulator, server_log, server, timeout, capture, positio
         print(f"The ARM11 client applied and drew the PC conveyor at ({desktop_x}, {desktop_y}).", flush=True)
 
 
-def verify_touch_build(log, emulator, server_log, server, timeout, capture, position):
+def verify_touch_build(log, emulator, server_log, server, timeout, capture, position, ground_pixels):
     _, _, x, y = position
     tx, ty = math.floor(float(x) / 8 + 0.5) + 4, math.floor(float(y) / 8 + 0.5)
     print("Tap Rotate, the grid, Copper Wall, the adjacent grid cell, then Remove and the wall.", flush=True)
@@ -170,14 +170,17 @@ def verify_touch_build(log, emulator, server_log, server, timeout, capture, posi
         result = inspect_building(server_log, server, f"touch-{block}", tile_x, ty)
         if result != (block, "1", str(rotation), str(copper), "true"):
             raise RuntimeError(f"Unexpected stock {block} placement: {result}")
-        capture(f"touch-{block}", position)
+        build_pixels = capture(f"touch-{block}", position)
     wait_for(log, emulator, rf"UPSTREAM_TOUCH_PLAN block=break x={tx + 1} y={ty}\b", timeout)
     wait_for(log, emulator, rf"UPSTREAM_LIVE_REMOVED x={tx + 1} y={ty}\b", timeout)
     removed = inspect_building(server_log, server, "touch-removed", tx + 1, ty)
     retained = inspect_building(server_log, server, "touch-retained", tx, ty)
     if removed != ("air", "0", "-1", str(copper + 3), "false") or retained[:3] != ("conveyor", "1", "1"):
         raise RuntimeError(f"Unexpected stock removal, copper refund or adjacent conveyor: {removed}, {retained}")
-    capture("touch-removed", position)
+    removed_pixels = capture("touch-removed", position)
+    if build_pixels == ground_pixels or removed_pixels != ground_pixels:
+        raise RuntimeError(f"Wall sprite did not appear and clear: {ground_pixels} -> "
+                           f"{build_pixels} -> {removed_pixels}")
     print(f"Stock server verified both touch placements and the wall refund; copper={removed[3]}.", flush=True)
 
 
@@ -185,12 +188,11 @@ def verify_controls(log, emulator, server_log, server, timeout, capture=None,
                     building=False, desktop_name=None, touch_build=False):
     wait_for(log, emulator, r"UPSTREAM_LIVE_CONTROLS_READY unit=\d+", timeout)
     baseline = server_position(server_log, server, "UPSTREAM_SERVER_CONTROLS_READY").groups()
-    if capture:
-        capture("spawn", baseline)
+    ground_pixels = capture("spawn", baseline) if capture else None
     if building:
         verify_conveyor(log, emulator, server_log, server, timeout, capture, baseline, desktop_name)
     if touch_build:
-        verify_touch_build(log, emulator, server_log, server, timeout, capture, baseline)
+        verify_touch_build(log, emulator, server_log, server, timeout, capture, baseline, ground_pixels)
     for device, direction, axis in (("dpad", "right", 2), ("circle", "up", 3)):
         print(f"Move {direction} with the {device}, then release it.", flush=True)
         stopped = re.compile(rf"UPSTREAM_LIVE_CONTROLS_STOPPED unit=(\d+) input={device} "
@@ -243,13 +245,16 @@ def capture_viewport(log, emulator, rpc, destination, position, require_palette=
     for phase, (point, color) in cursor_pixels.items():
         if destination.stem.endswith(f"-{phase}"):
             points[point] = color
-    pixels = az.inspect_png(screenshot, tuple(points) if require_palette else ())
+    wall_interior = ((308, 108), (310, 110), (312, 112))
+    pixels = az.inspect_png(screenshot, (*points, *wall_interior) if require_palette else ())
     if pixels["width"] != 400 or pixels["height"] != 480 or pixels["top_distinct_colors"] < 8:
         raise RuntimeError(f"Expected the textured Glacier viewport on the top screen: {pixels}")
     if require_palette:
-        if pixels["samples"] != points:
+        if any(pixels["samples"][point] != color for point, color in points.items()):
             raise RuntimeError(f"Expected palette and cursor pixels {points}, observed {pixels['samples']}")
     print(frame, flush=True)
+    if require_palette:
+        return tuple(pixels["samples"][point] for point in wall_interior)
 
 
 def run_model(args, model, config, original_config, log, output):
@@ -301,8 +306,8 @@ def run_model(args, model, config, original_config, log, output):
             try:
                 if args.controls:
                     def capture(phase, position):
-                        capture_viewport(log, emulator, rpc, output / f"{model}-{phase}.png", position,
-                                         require_palette=args.touch_build)
+                        return capture_viewport(log, emulator, rpc, output / f"{model}-{phase}.png", position,
+                                                require_palette=args.touch_build)
 
                     verify_controls(log, emulator, server_log, server, args.timeout,
                                     capture if args.terrain_atlas else None, args.building, args.desktop_name,
