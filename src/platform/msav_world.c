@@ -78,9 +78,60 @@ static void parse_building_state(M3dsBuildingState *building) {
         }
         building->item_count = count;
     }
-    // Unknown bits or power/liquid/timer/disabler modules are not decoded yet.
-    if ((building->modules & (uint8_t)~0x3Fu) != 0u
-            || (building->modules & 0x36u) != 0u) {
+    building->power_links = 0u;
+    building->power_status = 0.0f;
+    building->liquid_count = 0u;
+    building->liquid0_id = 0u;
+    building->liquid0_amount = 0.0f;
+    if ((building->modules & 0x02u) != 0u) {
+        if (position + 2u > building->payload_size) {
+            return;
+        }
+        uint32_t links = read_be16(building->payload + position);
+        position += 2u;
+        if (links > (building->payload_size - position) / 4u
+                || position + links * 4u + 4u > building->payload_size) {
+            return;
+        }
+        position += (size_t)links * 4u;
+        building->power_status = read_float_be(building->payload + position);
+        position += 4u;
+        building->power_links = links;
+    }
+    if ((building->modules & 0x04u) != 0u) {
+        if (position + 2u > building->payload_size) {
+            return;
+        }
+        uint32_t liquids = read_be16(building->payload + position);
+        position += 2u;
+        if (liquids > (building->payload_size - position) / 6u) {
+            return;
+        }
+        for (uint32_t i = 0; i < liquids; ++i) {
+            uint16_t liquid_id = read_be16(building->payload + position);
+            float amount = read_float_be(building->payload + position + 2u);
+            position += 6u;
+            if (i == 0u) {
+                building->liquid0_id = liquid_id;
+                building->liquid0_amount = amount;
+            }
+        }
+        building->liquid_count = liquids;
+    }
+    if ((building->modules & 0x10u) != 0u) {
+        if (position + 8u > building->payload_size) {
+            return;
+        }
+        position += 8u;
+    }
+    if ((building->modules & 0x20u) != 0u) {
+        if (position + 4u > building->payload_size) {
+            return;
+        }
+        position += 4u;
+    }
+    // Unknown bits are not decoded yet.
+    if ((building->modules & (uint8_t)~0x3Fu) != 0u) {
         return;
     }
     if (flags_version <= 2u) {

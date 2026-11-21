@@ -58,6 +58,11 @@ typedef struct M3dsBuildingState {
     bool partial;
     bool items_truncated;
     M3dsItemStack items[M3DS_BUILDING_ITEMS_MAX];
+    uint32_t power_links;
+    float power_status;
+    uint32_t liquid_count;
+    uint16_t liquid0_id;
+    float liquid0_amount;
 } M3dsBuildingState;
 
 typedef struct M3dsWorldTiles {

@@ -19,7 +19,7 @@ markers they emit on the JVM and/or ARM11/Azahar.
 | Map tile/entity walk (native) | `msav_world` | Host + Azahar | `SECTOR_TILES floors=37500 blocks=2768 data=0 entities=2 map=37500 entity_region=26 hash=bec356915bd24165` |
 | Entity region walk (native) | `msav_world` | Host + Azahar | `SECTOR_ENTITIES mapping=0 teams=2 team_blocks=0 records=0 partial=0 hash=33a31f23a5cfb868` |
 | World tile allocation (native) | `msav_world` | Host + Azahar | `SECTOR_ALLOC tiles=37500 bytes=262500 hash=783fbd80e415dcd7 status=ok` |
-| Building entity state (native) | `msav_world` | Host + Azahar | `SECTOR_BUILDINGS count=2 bytes=44 team=1 rot=0 health=6000 enabled=1 modules=9 items=0 item0=0:0 extra=8 partial=0 trunc=0 hash=5b2a6cb142f2813a status=ok` |
+| Building entity state (native) | `msav_world` | Host + Azahar | `SECTOR_BUILDINGS count=2 bytes=44 team=1 rot=0 health=6000 enabled=1 modules=9 items=0 item0=0:0 power=0:0.0 liquid=0:0:0.00 extra=8 partial=0 trunc=0 hash=5b2a6cb142f2813a status=ok` |
 | Save writer baseline | host `UpstreamSaveBaseline` | Host/JVM | `UPSTREAM_SAVE header=MSAV version=13` |
 
 Rows marked `JVM + Azahar` run in Azahar `2126.2` on both New and Old 3DS
