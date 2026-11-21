@@ -1,13 +1,22 @@
 import arc.Core;
 import arc.files.Fi;
 import arc.graphics.Blending;
+import arc.graphics.Color;
 import arc.graphics.Colors;
+import arc.graphics.g2d.Draw;
+import arc.mock.MockGraphics;
 import arc.util.Align;
+import arc.util.Time;
 import java.util.ArrayList;
 import java.util.List;
 import mindustry.Vars;
 import mindustry.core.UI;
+import mindustry.game.MapObjectives.LineMarker;
+import mindustry.game.MapObjectives.PointMarker;
+import mindustry.game.MapObjectives.ShapeMarker;
 import mindustry.game.MapObjectives.ShapeTextMarker;
+import mindustry.game.MapObjectives.TextMarker;
+import mindustry.game.Rules;
 import mindustry.gen.WorldLabel;
 import mindustry.gen.Iconc;
 import mindustry.io.JsonIO;
@@ -17,7 +26,9 @@ import port.render.UpstreamLabelText;
 
 public final class UpstreamObjectiveMarkersReference implements UpstreamTerrainDrawProbe.TerrainTarget {
     private record Label(String text, float x, float y, int flags, float size, int align, int lineAlign) {}
+    private record Vertex(float x, float y, int color) {}
     private final List<Label> labels = new ArrayList<>();
+    private final List<Vertex> vertices = new ArrayList<>();
     private boolean verifyIcons;
     private int quads;
 
@@ -48,6 +59,45 @@ public final class UpstreamObjectiveMarkersReference implements UpstreamTerrainD
         for (int i = 1; i <= 3; i++) Vars.state.rules.objectives.get(i).done();
         target.verify(4, 2280, 864, "ducts");
         System.out.println("UPSTREAM_WORLD_MARKER_REFERENCE onset=mine,research,ducts worldText=ok shapes=ok");
+        target.verifyLogicGeometry();
+    }
+
+    private void verifyLogicGeometry() {
+        Vars.state.rules = new Rules();
+        Core.graphics = new MockGraphics();
+        var markers = Vars.state.markers;
+        var point = new PointMarker(84, 132);
+        point.autoscale = true;
+        var shape = new ShapeMarker(112, 140);
+        shape.fill = true;
+        var line = new LineMarker(144, 148, 188, 162);
+        line.color1.set(Color.sky);
+        line.color2.set(Color.orange);
+        var text = new TextMarker("Logic marker", 160f, 192f);
+        var hidden = new TextMarker("Hidden", 176f, 192f);
+        hidden.world = -1;
+        markers.add(1, point);
+        markers.add(2, shape);
+        markers.add(3, line);
+        markers.add(4, text);
+        markers.add(5, hidden);
+
+        Time.globalTime = 50f;
+        vertices.clear();
+        point.draw(4f / 2.5f);
+        shape.draw(1f);
+        line.draw(1f);
+        Draw.reset();
+        var original = List.copyOf(vertices);
+        vertices.clear();
+        labels.clear();
+        UpstreamObjectiveMarkers.draw(Vars.state.rules, 2.5f,
+            (value, x, y, flags, size, align, lines) -> labels.add(new Label(value.plain(), x, y, flags, size, align, lines)));
+        if (original.isEmpty() || !vertices.equals(original) || labels.size() != 1
+                || !labels.get(0).text.equals(text.text) || labels.get(0).x != text.pos.x || labels.get(0).y != text.pos.y) {
+            throw new AssertionError("Stock marker geometry, colors, or world visibility changed");
+        }
+        System.out.println("UPSTREAM_LOGIC_MARKER_REFERENCE point=ok shape=ok line=ok text=ok hidden=ok vertices=" + vertices.size());
     }
 
     private static void verifyLocaleFallback(Fi path, String code) {
@@ -121,6 +171,9 @@ public final class UpstreamObjectiveMarkersReference implements UpstreamTerrainD
     @Override
     public void drawSolidQuad(float[] vertices, int offset, Blending blending) {
         quads++;
+        for (int i = offset; i < offset + 24; i += 6) {
+            this.vertices.add(new Vertex(vertices[i], vertices[i + 1], Float.floatToRawIntBits(vertices[i + 2])));
+        }
     }
 
     @Override

@@ -1,7 +1,8 @@
 import arc.graphics.g2d.Draw;
+import mindustry.Vars;
 import mindustry.game.MapObjectives.ObjectiveMarker;
-import mindustry.game.MapObjectives.ShapeTextMarker;
-import mindustry.game.MapObjectives.TextMarker;
+import mindustry.game.MapObjectives.PosMarker;
+import mindustry.game.MapObjectives.TextureMarker;
 import mindustry.game.Rules;
 import port.render.UpstreamWorldLabel;
 
@@ -13,8 +14,11 @@ final class UpstreamObjectiveMarkers {
             try {
                 // Same active set and world flag as the stock Renderer world pass.
                 rules.objectives.eachRunning(objective -> {
-                    for (var marker : objective.markers) drawOne(marker, displayScale);
+                    for (var marker : objective.markers) {
+                        if (marker.world != -1) drawOne(marker, displayScale);
+                    }
                 });
+                for (var marker : Vars.state.markers.worldMarkers) drawOne(marker, displayScale);
             } finally {
                 Draw.sort(false);
                 Draw.reset();
@@ -25,9 +29,10 @@ final class UpstreamObjectiveMarkers {
     }
 
     private static void drawOne(ObjectiveMarker marker, float displayScale) {
-        if (marker.world == -1) return;
-        float scale = marker.autoscale ? 4f / displayScale : 1f;
-        if (marker instanceof TextMarker text) text.draw(scale);
-        if (marker instanceof ShapeTextMarker shape) shape.draw(scale);
+        // Texture and quad markers can reference dynamic display targets that
+        // the current Arc bridge cannot sample.
+        if (marker instanceof PosMarker && !(marker instanceof TextureMarker)) {
+            marker.draw(marker.autoscale ? 4f / displayScale : 1f);
+        }
     }
 }
