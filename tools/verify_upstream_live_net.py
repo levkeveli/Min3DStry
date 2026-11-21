@@ -1104,11 +1104,73 @@ def verify_conduit_frames(log, rpc, output, model):
     raise RuntimeError(f"Expected animated stock water in conduits at {missing}")
 
 
+def verify_logic_markers(log, emulator, server_log, server, rpc, output, model, position, timeout):
+    # Use the same 16 × 12 viewport and tile-rounded center as the graphical client.
+    _, _, x, y = position
+    x, y = (math.floor(float(value) / 8 + 0.5) * 8 for value in (x, y))
+    # The viewport begins at the outer edge of the first tile, half a tile before its center.
+    shape_sample, line_sample, moved_sample = (130, 55), (210, 155), (210, 175)
+    magenta, turquoise = (235, 29, 180), (24, 229, 199)
+    point_area = tuple((px, py) for px in range(263, 298) for py in range(48, 83))
+    point_color = (67, 245, 91)
+
+    def server_phase(phase, commands):
+        server.stdin.write(f'js (() => {{ {commands} return "UPSTREAM_LOGIC_MARKERS {phase}"; }})()\n')
+        server.stdin.flush()
+        wait_for(server_log, server, rf"UPSTREAM_LOGIC_MARKERS {phase}\b", 5)
+
+    def capture(phase, shape, line, moved, point):
+        samples = (shape_sample, line_sample, moved_sample)
+        colors = (magenta, turquoise, turquoise)
+        deadline = time.monotonic() + timeout
+        while True:
+            png = rpc.screenshot(res_scale=1)
+            pixels = az.inspect_png(png, samples + point_area)["samples"]
+            visible = tuple(pixels[point] == color for point, color in zip(samples, colors))
+            point_visible = any(pixels[pixel] == point_color for pixel in point_area)
+            if visible == (shape, line, moved) and point_visible == point:
+                (output / f"{model}-logic-markers-{phase}.png").write_bytes(png)
+                return
+            if time.monotonic() >= deadline:
+                (output / f"{model}-logic-markers-{phase}-unexpected.png").write_bytes(png)
+                observed = tuple(pixels[sample] for sample in samples)
+                raise RuntimeError(f"Unexpected {phase} marker pixels {observed}, visibility {visible}, "
+                                   f"point visible {point_visible}")
+            time.sleep(0.1)
+
+    capture("baseline", False, False, False, False)
+    server_phase("created",
+        f"const shape = new MapObjectives.ShapeMarker({x - 32}, {y + 22}); "
+        'shape.fill = true; shape.radius = 7; shape.color.set(Color.valueOf("eb1db4")); '
+        f"const line = new MapObjectives.LineMarker({x - 28}, {y - 18}, {x + 28}, {y - 18}, 3); "
+        'line.color1.set(Color.valueOf("18e5c7")); line.color2.set(line.color1); '
+        f'const point = new MapObjectives.PointMarker({x + 28}, {y + 18}, 0.8, 3, Color.valueOf("43f55b")); '
+        f'const text = new MapObjectives.TextMarker("Logic marker created", {x}, {y + 24}); '
+        "Call.createMarker(745, shape); Call.createMarker(746, line); "
+        "Call.createMarker(747, point); Call.createMarker(748, text);")
+    wait_for(log, emulator, r"UPSTREAM_WORLD_LABEL .*text=Logic marker created\b", timeout)
+    capture("created", True, True, False, True)
+
+    control = "Packages.mindustry.logic.LMarkerControl"
+    server_phase("updated",
+        f"const control = {control}; "
+        "Call.updateMarker(745, control.world, 0, NaN, NaN); "
+        f"Call.updateMarker(746, control.pos, {(x - 28) / 8}, {(y - 26) / 8}, NaN); "
+        f"Call.updateMarker(746, control.endPos, {(x + 28) / 8}, {(y - 26) / 8}, NaN); "
+        'Call.updateMarkerText(748, control.flushText, false, "Logic marker updated");')
+    wait_for(log, emulator, r"UPSTREAM_WORLD_LABEL .*text=Logic marker updated\b", timeout)
+    capture("updated", False, False, True, True)
+
+    server_phase("removed", "for (let id = 745; id <= 748; id++) Call.removeMarker(id);")
+    capture("removed", False, False, False, False)
+    print(f"{model}: original logic marker drawing, visibility, position, text and removal passed.", flush=True)
+
+
 def run_model(args, model, config, original_config, log, output):
     stationary = (args.world_atlas_recycle or args.building_layers or args.liquids
                   or args.building_effects or args.payload_mix or args.carried_buildings
                   or args.payload_handoff or args.unit_layers or args.unit_roster or args.naval_wake
-                  or args.tank_treads or args.map_spawn)
+                  or args.tank_treads or args.map_spawn or args.verify_logic_markers)
     map_name = args.map_spawn or "Glacier"
     overrides = {
         "Miscellaneous": {"log_filter": "*:Info Debug.Emulated:Debug Service.SOC:Debug",
@@ -1297,6 +1359,8 @@ def run_model(args, model, config, original_config, log, output):
                         if args.building_layers:
                             phase = "building-cracks" if args.building_cracks else "building-layers"
                         capture(phase, spawn)
+                        if args.verify_logic_markers:
+                            verify_logic_markers(log, emulator, server_log, server, rpc, output, model, spawn, args.timeout)
                         if args.erekir_build:
                             verify_erekir_construction(log, emulator, server_log, server, args.timeout, capture, spawn)
                         if args.mining:
@@ -1481,6 +1545,8 @@ def main():
                         help="Verify the rendered Onset objective labels as the stock progress changes")
     parser.add_argument("--verify-objective-markers", action="store_true",
                         help="Verify the original Onset mining and research directions in world space")
+    parser.add_argument("--verify-logic-markers", action="store_true",
+                        help="Verify stock logic marker packets and visible state on Glacier")
     parser.add_argument("--require-relocation-spill", action="store_true",
                         help="Require the ARM11 collector to grow its relocation table during the spawn check")
     args = parser.parse_args()
@@ -1546,6 +1612,8 @@ def main():
                      '--erekir-sector onset and --locale en')
     if args.verify_objective_markers and not args.verify_objective_hud:
         parser.error("--verify-objective-markers needs --verify-objective-hud")
+    if args.verify_logic_markers and (not args.controls or not args.terrain_atlas or args.controls_replay or args.map_spawn):
+        parser.error("--verify-logic-markers needs stationary --controls and --terrain-atlas on Glacier")
     if args.erekir_sector is not None:
         if not args.map_spawn or not re.fullmatch(r"[a-z][a-z-]*", args.erekir_sector):
             parser.error("--erekir-sector needs --map-spawn and a sector slug such as onset")
