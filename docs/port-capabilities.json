@@ -89,9 +89,17 @@
       "category": "Hardware & Platform",
       "name": "Dual-Core / N3DS AppCore Scheduling",
       "weight": 3,
-      "stage": "planned",
+      "stage": "emulator-tested",
       "issue": 37,
-      "evidence": []
+      "evidence": [
+        "include/platform/worker_pool.h",
+        "src/platform/worker_pool.c",
+        "include/platform/worker_benchmark.h",
+        "src/platform/worker_benchmark.c",
+        "tests/platform/test_worker_pool.c",
+        "tests/platform/test_worker_benchmark.c",
+        "docs/hardware/worker-scheduling.md"
+      ]
     },
     {
       "id": "citro2d-scene-prototype",
@@ -138,9 +146,16 @@
       "category": "Rendering & Assets",
       "name": "Zoom Camera, Lighting & Effects",
       "weight": 5,
-      "stage": "planned",
+      "stage": "emulator-tested",
       "issue": 38,
-      "evidence": []
+      "evidence": [
+        "include/render/scene_2d.h",
+        "src/render/scene_2d.c",
+        "src/platform/3ds/citro2d_backend.c",
+        "src/platform/3ds/main_3ds.c",
+        "tests/render/test_scene_2d.c",
+        "docs/rendering/citro2d-prototype.md"
+      ]
     },
     {
       "id": "parity-test-harness",
@@ -166,7 +181,9 @@
         "src/render/factory_demo.c",
         "docs/rendering/citro2d-prototype.md",
         "research/upstream-runtime/README.md",
-        "research/upstream-runtime/src/gameplay/java/UpstreamFactoryTickProbe.java"
+        "research/upstream-runtime/src/gameplay/java/UpstreamFactoryTickProbe.java",
+        "research/upstream-runtime/host/UpstreamFactoryBaseline.java",
+        "docs/porting/factory-logistics.md"
       ]
     },
     {
@@ -174,20 +191,29 @@
       "category": "Core Simulation",
       "name": "Crafters, Power Grid & Liquid Graph",
       "weight": 6,
-      "stage": "planned",
+      "stage": "emulator-tested",
       "issue": 39,
-      "evidence": []
+      "evidence": [
+        "research/upstream-runtime/host/UpstreamProductionBaseline.java",
+        "research/upstream-runtime/src/gameplay/java/UpstreamProductionTickProbe.java",
+        "docs/porting/production-power-liquids.md",
+        "research/upstream-runtime/README.md"
+      ]
     },
     {
       "id": "combat-waves-ai",
       "category": "Core Simulation",
       "name": "Turrets, Waves, Units & Flow Pathfinding",
       "weight": 8,
-      "stage": "planned",
+      "stage": "experimental",
       "issue": 30,
       "evidence": [
         "research/upstream-runtime/src/gameplay/java/UpstreamCombatTickProbe.java",
-        "research/upstream-runtime/README.md"
+        "research/upstream-runtime/src/gameplay/java/UpstreamWaveRoutingProbe.java",
+        "research/upstream-runtime/src/gameplay/java/UpstreamSimulationWorld.java",
+        "research/upstream-runtime/build.gradle",
+        "research/upstream-runtime/README.md",
+        ".github/workflows/upstream-arm11-smoke.yml"
       ]
     },
     {
@@ -214,7 +240,15 @@
         "include/render/minimap.h",
         "src/render/minimap.c",
         "tests/render/test_minimap.c",
-        "docs/rendering/minimap.md"
+        "docs/rendering/minimap.md",
+        "include/ui/pause_menu.h",
+        "src/ui/pause_menu.c",
+        "tests/ui/test_pause_menu.c",
+        "docs/ui/pause-menu.md",
+        "include/ui/touch_controls.h",
+        "src/ui/touch_controls.c",
+        "tests/ui/test_touch_controls.c",
+        "docs/ui/touch-controls.md"
       ]
     },
     {
@@ -227,7 +261,9 @@
       "evidence": [
         "research/upstream-runtime/README.md",
         "research/upstream-runtime/src/map/java/mindustry/maps/UpstreamMapProbe.java",
-        "research/upstream-runtime/src/content/java/UpstreamWorldLoadProbe.java"
+        "research/upstream-runtime/src/content/java/UpstreamWorldLoadProbe.java",
+        "research/upstream-runtime/src/world/java/UpstreamWorldRoundTripProbe.java",
+        "research/upstream-runtime/host/UpstreamSaveResilienceProbe.java"
       ]
     },
     {
@@ -237,7 +273,25 @@
       "weight": 4,
       "stage": "planned",
       "issue": 41,
-      "evidence": []
+      "evidence": [
+        "include/platform/sd_paths.h",
+        "src/platform/sd_paths.c",
+        "tests/platform/test_sd_paths.c",
+        "include/platform/settings_store.h",
+        "src/platform/settings_store.c",
+        "tests/platform/test_settings_store.c",
+        "research/upstream-runtime/src/campaign-planet/java/UpstreamCampaignPlanetStateProbe.java",
+        "research/upstream-runtime/src/campaign-sector-info/java/UpstreamCampaignSectorInfoProbe.java",
+        "research/upstream-runtime/src/campaign-sector-info/java/port/SectorInfoReflectionPolicy.java",
+        "research/upstream-runtime/src/campaign-slot-meta/java/UpstreamCampaignSlotMetaProbe.java",
+        "research/upstream-runtime/src/campaign-research/java/UpstreamCampaignResearchStateProbe.java",
+        "research/upstream-runtime/src/campaign-settings/java/UpstreamCampaignSettingsProbe.java",
+        "research/upstream-runtime/src/campaign-sector/java/UpstreamCampaignSectorProbe.java",
+        "research/upstream-runtime/src/campaign-content/java/UpstreamCampaignContentStateProbe.java",
+        "research/upstream-runtime/build.gradle",
+        "docs/porting/campaign-progression.md",
+        "docs/porting/sd-storage-paths.md"
+      ]
     },
     {
       "id": "ndsp-sfx-music",

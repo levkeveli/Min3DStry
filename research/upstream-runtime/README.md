@@ -19,7 +19,8 @@ Both runs should print UPSTREAM_LOGIC quotient=-3 remainder=1 xor=6.
 ## Continuous verification
 
 [`upstream-arm11-smoke.yml`](../../.github/workflows/upstream-arm11-smoke.yml)
-runs the `logic`, `map` and `resource` probes for PRs and pushes touching this
+runs the `logic`, `map`, `resource`, `executor`, `campaign-settings` and
+`wave-routing` probes for PRs and pushes touching this
 directory, then cross-builds each generated C output with the pinned devkitARM
 container and uploads the `.3dsx`/ELF artifacts. It also runs the pinned
 upstream save-writer, sound/music, sector/tech-tree, and unit/bullet metadata
@@ -158,9 +159,18 @@ The probe reserves a 256 KiB native stack for the generated serializer.
 Use `-Pprobe=world-save` to load both fixtures. Copy the generated v13 save
 to `/3ds/min3dstry/glacier-v13.msav`. Use `-Pprobe=world-roundtrip` to also
 write and reload `/3ds/min3dstry/glacier-roundtrip.msav`. The round trip
-reserves a new output file and rejects an existing destination. On the
+reserves a new output file and rejects an existing destination. The probe also
+checks the new file through `SaveIO.isSaveValid` before reloading it. On the
 JVM, pass the map, v13 input, and new output paths as arguments. The
 round-trip check ends with `UPSTREAM_SAVE_ROUNDTRIP version=13 marker=ok`.
+
+The host-side [save resilience probe](host/README.md#save-resilience-checks)
+uses the same pinned server JAR and Glacier fixture to reject truncated,
+bad-header and unknown-version saves and to exercise the upstream backup path.
+Port-side `MIN3DSTRY_SAVE_POLICY` checks separately verify that an injected
+write failure leaves no final or temporary save. It runs without devkitARM; the
+ARM11 write path still uses a new output file and rejects an existing
+destination.
 
 [DevkitARM test builds with standard flags](https://github.com/levkeveli/Min3DStry/actions/runs/44793525705)
 and [with C optimization disabled](https://github.com/levkeveli/Min3DStry/actions/runs/44792277588)
@@ -229,6 +239,48 @@ With its 16 MiB managed heap and 256 KiB native stack, those components
 total 41.64 MiB. Physical-console memory and networking still need testing.
 Live 3DS sockets, connection confirmation and gameplay synchronization
 are tracked in #44.
+
+### Arc `settings.bin` round-trip
+
+`-Pprobe=campaign-settings` uses the real upstream Arc `Settings` class rather
+than a native reimplementation. It writes a fresh `settings.bin` under the Java
+temporary directory, reloads it with a second `Settings` instance, verifies an
+integer and string value, and prints:
+
+```text
+UPSTREAM_CAMPAIGN_SETTINGS path=live bytes=112 int=12345 string=ok campaign=unlocked:conveyor,research:50 reload=ok
+```
+
+The JVM uses a temporary directory and reports `path=tmp`. On 3DS the probe
+targets the live `/3ds/min3dstry`, snapshots existing settings/backup/backups,
+runs the round-trip (including upstream campaign unlock/research keys), then
+restores or removes the prior state. The ARM11 probe
+is built with the normal `arm11/build.sh` command; both Azahar 2126.2 profiles
+reported `path=live`.
+
+### Sector slot `.msav` round-trip
+
+`-Pprobe=campaign-sector` writes the real `sector-serpulo-170.msav` slot through
+upstream `SaveIO`, verifies it via `SaveIO.isSaveValid`/reload, prints
+`UPSTREAM_CAMPAIGN_SECTOR slot=sector-serpulo-170.msav ... version=13 marker=ok`,
+and removes the slot. The same probe is built for ARM11 in the
+`world-roundtrip` CI job. Azahar 2126.2 New and Old profiles both reported the
+marker and left no slot file behind.
+
+### Campaign content unlock state
+
+`-Pprobe=campaign-content` verifies conveyor is locked with empty settings,
+persists the upstream `conveyor-unlocked` and `req-conveyor-copper` settings,
+reloads a fresh `Settings` from `settings.bin`, rebuilds content, and checks
+`Blocks.conveyor.unlocked()` only from the reloaded state. JVM and ARM11/Azahar
+report:
+
+```text
+UPSTREAM_CAMPAIGN_CONTENT path=live lockedBefore=ok conveyorUnlocked=true key=conveyor-unlocked research=50 reload=ok blocks=447
+```
+
+The probe snapshots and restores live settings on 3DS; Azahar 2126.2 New and
+Old profiles both reported the marker and left no `settings.bin` behind.
 
 ### Join the upstream server from the ARM11 probe
 
@@ -902,6 +954,46 @@ before bookkeeping and other allocations, above the 64 MiB Original 3DS
 budget. Physical-console memory and performance still need verification.
 Factory parity is tracked in #26.
 
+### Exercise upstream power, water and production
+
+[Issue #39](https://github.com/levkeveli/Min3DStry/issues/39) loads the pinned
+Glacier scenario through `UpstreamSimulationWorld.play` and places a local
+water fixture tile under a mechanical pump feeding a conduit into a cultivator,
+plus two coal-fed combustion generators connected through a battery. Using
+unmodified `Logic.update` at a 60 Hz clock, `-Pprobe=production-ticks` checks
+unfueled liquid accumulation with zero power, active fuel consumption to the
+first spore pod, battery removal disconnecting the `PowerGraph` across 60 ticks,
+battery reconnection filling `itemCapacity` (10 pods), and capacity clamping.
+
+```sh
+gradle -PupstreamCheckout=/path/to/Mindustry -PreferenceJar=/path/to/server-release.jar \
+  -ParcCheckout=/path/to/Arc -Pprobe=production-ticks \
+  runProbeJvm --args=/path/to/glacier.msav generateC
+```
+
+The pinned JVM and generated TeaVM C compiled with `cc -std=gnu11 -fwrapv` at
+both `-O0` and `-O2` (after `arm11/fix_reflection_lifetime.py`) emitted
+identical traces:
+
+```text
+UPSTREAM_PRODUCTION_STARVED ticks=60 waterMilli=4641 pods=0
+UPSTREAM_PRODUCTION_DISCONNECT first=199 paused=60 pods=1
+UPSTREAM_PRODUCTION_FULL filled=2254 held=120 pods=10
+```
+
+Cross-building the generated C at `-O2` with `arm11/build.sh` produced a
+21,897,852-byte `upstream-probe.3dsx` whose page-rounded ELF LOAD segments total
+36.03 MiB (64.28 MiB subtotal including the 24 MiB managed heap, 4 MiB linear
+heap, and 256 KiB stack before GC metadata and other allocations, exceeding
+Original 3DS's 64 MiB application budget). A local `-O0` devkitARM build then
+booted in both Azahar `2126.2` profiles and emitted the same three records,
+with `UPSTREAM_MEMORY appHeap=83,783,680` on New 3DS and `54,423,552` on
+Original 3DS. Physical hardware memory/frame-time measurements remain open
+on #39. Source
+behavior comes from pinned
+[`Blocks.java`](https://github.com/Anuken/Mindustry/blob/19a0f40d44514f4802a8b79770456e7e32e34da0/core/src/mindustry/content/Blocks.java)
+and [`GenericCrafter.java`](https://github.com/Anuken/Mindustry/blob/19a0f40d44514f4802a8b79770456e7e32e34da0/core/src/mindustry/world/blocks/production/GenericCrafter.java).
+
 ### Exercise upstream combat and the first Glacier wave
 
 [Issue #82](https://github.com/levkeveli/Min3DStry/issues/82) uses the same
@@ -911,9 +1003,11 @@ original `Logic.update` until the turret destroys a stationary Dagger.
 Holding the unit still isolates targeting, projectile motion and damage.
 The fixture uses Arc's `MockAudio` for the headless sound device.
 
-After the duel, it invokes `Logic.runWave` with Glacier's unchanged rules
-and counts the spawned enemy types. Glacier's first wave in this fixture
-spawns one Gamma. Ground pathfinding and subsequent waves are tracked in #30.
+After the duel, it invokes `Logic.runWave` and counts the enemy types. The
+raw map loads with `rules.waves=false` and no ground spawn markers, so this
+call does not spawn a ground wave; the recorded `gamma=1` is the enemy
+core's guard unit from `coreNucleus.unitType`. Real wave spawning and ground
+routing are covered by the `wave-routing` probe below.
 
 Use the world probe's pinned Gradle properties with `-Pprobe=combat-ticks`
 and pass the original Glacier path to `runProbeJvm`. For a JVM reference
@@ -938,6 +1032,53 @@ The upstream source boundaries are
 [`Logic.java`](https://github.com/Anuken/Mindustry/blob/19a0f40d44514f4802a8b79770456e7e32e34da0/core/src/mindustry/core/Logic.java),
 [`ItemTurret.java`](https://github.com/Anuken/Mindustry/blob/19a0f40d44514f4802a8b79770456e7e32e34da0/core/src/mindustry/world/blocks/defense/turrets/ItemTurret.java)
 and [`WaveSpawner.java`](https://github.com/Anuken/Mindustry/blob/19a0f40d44514f4802a8b79770456e7e32e34da0/core/src/mindustry/ai/WaveSpawner.java).
+
+### Exercise upstream waves and ground routing
+
+[Issue #30](https://github.com/levkeveli/Min3DStry/issues/30) starts the
+original `Pathfinder`, `ControlPathfinder` and `AsyncCore` before loading
+Glacier. The raw map contains the generated wave groups but no `spawn`
+overlays and loads with `rules.waves=false`, so the probe applies the
+campaign sector rules (`waves=true`, `attackMode=true`) and resets the
+upstream `WaveSpawner`. Ground groups then use the original enemy-core
+spawn path in `WaveSpawner.eachGroundSpawn`.
+
+The probe keeps a copper-fed Duo near the player core, advances four waves
+for 900 ticks each, and records the first ground unit's tile path, distance
+to the core, surviving count and turret ammo. It also fingerprints the
+completed ground flowfield. Three unmodified v160.8 JVM runs agreed:
+
+```text
+UPSTREAM_WAVE_SETUP core=81,26 enemyCore=81,224 groundSpawns=1 fieldHash=629058db4926d64e
+UPSTREAM_WAVE wave=1 spawned=dagger=1 groundSpawned=1 first=79,218->80,172 distance=1533->1165 min=1165 alive=1/1 ammo=30 nextWave=2
+UPSTREAM_WAVE wave=2 spawned=dagger=1,gamma=2 groundSpawned=1 first=82,217->80,171 distance=1524->1159 min=1159 alive=1/1 ammo=30 nextWave=3
+UPSTREAM_WAVE wave=3 spawned=dagger=2 groundSpawned=2 first=79,219->80,173 distance=1545->1177 min=1177 alive=2/2 ammo=30 nextWave=4
+UPSTREAM_WAVE wave=4 spawned=dagger=2 groundSpawned=2 first=79,219->80,173 distance=1546->1177 min=1177 alive=2/2 ammo=29 nextWave=5
+```
+
+Use `-Pprobe=wave-routing -PprobeArgs=/path/to/glacier.msav` with the same
+pinned Gradle properties as the combat probe. For a standalone JVM
+reference, compile `UpstreamWorldLoadProbe.java`, `UpstreamSimulationWorld.java`
+and `UpstreamWaveRoutingProbe.java` against the unchanged server JAR, then
+run `UpstreamWaveRoutingProbe /path/to/glacier.msav`.
+
+A local `-O0` devkitARM build matched all four records in both Azahar
+`2126.2` profiles. The probe reported `appHeap=84,910,080` on New 3DS and
+`appHeap=55,549,952` on Original 3DS, with the same
+`UPSTREAM_WORLD_FINGERPRINT 2e7b9f883994de6c`. The CI smoke job cross-builds
+the same probe with `-O2` in the pinned devkitARM container.
+Physical-console behavior and memory remain unverified.
+
+This probe validates the upstream simulation slice only; it is not yet
+part of `min3dstry.3dsx`, so the ledger keeps `combat-waves-ai` at
+`experimental` rather than claiming live-session parity.
+
+The wave and routing calls use the pinned
+[`Logic.runWave`](https://github.com/Anuken/Mindustry/blob/19a0f40d44514f4802a8b79770456e7e32e34da0/core/src/mindustry/core/Logic.java),
+[`WaveSpawner.java`](https://github.com/Anuken/Mindustry/blob/19a0f40d44514f4802a8b79770456e7e32e34da0/core/src/mindustry/ai/WaveSpawner.java),
+[`Pathfinder.java`](https://github.com/Anuken/Mindustry/blob/19a0f40d44514f4802a8b79770456e7e32e34da0/core/src/mindustry/ai/Pathfinder.java),
+[`GroundAI.java`](https://github.com/Anuken/Mindustry/blob/19a0f40d44514f4802a8b79770456e7e32e34da0/core/src/mindustry/ai/types/GroundAI.java)
+and [`AsyncCore.java`](https://github.com/Anuken/Mindustry/blob/19a0f40d44514f4802a8b79770456e7e32e34da0/core/src/mindustry/async/AsyncCore.java).
 
 ### Capture upstream Glacier terrain commands
 

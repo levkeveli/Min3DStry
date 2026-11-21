@@ -15,6 +15,7 @@ typedef struct {
 
 #include "terrain_layout.h"
 #ifdef M3DS_WORLD_ATLAS
+#include "m3ds_world_fragment.h"
 #include "world_atlas_layout.h"
 
 // Retain at most 1.5 MiB of RGBA8 atlas backing in the default build.
@@ -133,7 +134,7 @@ static bool recycle_world_pass(void) {
     const u32 transfer_flags = target->transferFlags;
     C3D_RenderTargetDetachOutput(target);
     C3D_FrameEnd(0);
-    frame_open = C3D_FrameBegin(0);
+    frame_open = C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
     C3D_RenderTargetSetOutput(target, GFX_TOP, GFX_LEFT, transfer_flags);
     if (!frame_open) return false;
 
@@ -250,9 +251,9 @@ static int32_t draw_world_region(int page, int left, int top, int w, int h,
             C2D_DrawParams piece = *whole;
             piece.pos.w = sub.width * step_x;
             piece.pos.h = sub.height * step_y;
-            // Retain the original pivot even when it lies outside this fragment.
-            piece.center.x -= step_x < 0 ? (right - col_end) * -step_x : (x - left) * step_x;
-            piece.center.y -= step_y < 0 ? (bottom - row_end) * -step_y : (y - top) * step_y;
+            // Retain the original pivot for positive and mirrored fragments.
+            piece.center.x = m3ds_world_fragment_center(whole->center.x, x, left, step_x);
+            piece.center.y = m3ds_world_fragment_center(whole->center.y, y, top, step_y);
             if (!C2D_DrawImage(image, &piece, tint)) {
                 report_atlas_failure("draw", page, tile_x, tile_y, 0);
                 return 0;

@@ -22,6 +22,9 @@ public final class UpstreamWorldRoundTripProbe {
         }
         Vars.mods = new Mods();
         SaveIO.write(output);
+        if (!SaveIO.isSaveValid(output)) {
+            throw new IllegalStateException("Round trip output is not a valid save: " + output);
+        }
         UpstreamWorldLoadProbe.loadCurrentSave(app, output);
         System.out.println("UPSTREAM_SAVE_ROUNDTRIP version=13 marker=ok");
     }

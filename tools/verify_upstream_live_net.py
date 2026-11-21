@@ -1147,6 +1147,9 @@ def run_model(args, model, config, original_config, log, output):
             # The stationary render check ends by terminating the emulator process.
             departure = r"\((closed|disappeared|error)\)" if stationary else r"\((closed|disappeared)\)"
             expected_departures = all(re.search(departure, line) for line in departures)
+            if stationary and any("(error)" in line for line in departures):
+                print(f"{model}: stationary verification ended by emulator kill; "
+                      "accepted the server's (error) departure", flush=True)
             expected_joins = 1 if args.controls else 2
             if ((not args.controls and "clientOutdated" not in upstream)
                     or upstream.count(f"{PLAYER} has connected") != expected_joins
