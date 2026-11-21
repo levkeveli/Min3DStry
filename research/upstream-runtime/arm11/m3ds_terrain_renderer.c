@@ -252,8 +252,8 @@ static int32_t draw_world_region(int page, int left, int top, int w, int h,
             piece.pos.w = sub.width * step_x;
             piece.pos.h = sub.height * step_y;
             // Retain the original pivot for positive and mirrored fragments.
-            piece.center.x = m3ds_world_fragment_center(whole->center.x, x, left, step_x);
-            piece.center.y = m3ds_world_fragment_center(whole->center.y, y, top, step_y);
+            piece.center.x = m3ds_world_fragment_center(whole->center.x, x, col_end, left, right, step_x);
+            piece.center.y = m3ds_world_fragment_center(whole->center.y, y, row_end, top, bottom, step_y);
             if (!C2D_DrawImage(image, &piece, tint)) {
                 report_atlas_failure("draw", page, tile_x, tile_y, 0);
                 return 0;
