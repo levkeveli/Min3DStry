@@ -63,6 +63,9 @@ class VerifyAzaharTests(unittest.TestCase):
             "[   3.95] Kernel.SVC <Debug> svc.cpp:100: [MIN3DSTRY] ATLAS loaded\n"
             "[   3.95] Kernel.SVC <Debug> svc.cpp:100: [MIN3DSTRY] STORAGE root=/3ds/min3dstry settings=/3ds/min3dstry/settings.bin sector=/3ds/min3dstry/sector-serpulo-170.msav\n"
             "[   3.95] Kernel.SVC <Debug> svc.cpp:100: [MIN3DSTRY] STORAGE_ROUNDTRIP status=ok bytes=4 root=sdmc:/3ds/min3dstry\n"
+            "[   3.95] Kernel.SVC <Debug> svc.cpp:100: [MIN3DSTRY] SECTOR_CATALOG count=2\n"
+            "[   3.95] Kernel.SVC <Debug> svc.cpp:100: [MIN3DSTRY] SECTOR_SLOT planet=erekir id=64 valid=0 compressed=1 bytes=16\n"
+            "[   3.95] Kernel.SVC <Debug> svc.cpp:100: [MIN3DSTRY] SECTOR_SLOT planet=serpulo id=170 valid=1 compressed=0 bytes=20\n"
             "[   3.96] Debug.Emulated <Debug> svc.cpp:100: [MIN3DSTRY] PARITY scenario=starter_copper_defense_v1 ticks=240 hash=0x11223344 copper=25 delivered=14 killed=2 hp=200\n"
             "[   3.97] Debug.Emulated <Debug> svc.cpp:100: [MIN3DSTRY] AUDIO backend=ndsp state=fallback_no_dsp rc=0xd8e06406 rate=22050 voices=0/8 clips=2\n"
             "[   3.97] Debug.Emulated <Debug> svc.cpp:100: [MIN3DSTRY] AUDIO_ROMFS status=ok clips=3 bytes=251916 ui=0\n"
@@ -90,6 +93,16 @@ class VerifyAzaharTests(unittest.TestCase):
             parsed["storage"]["sector"], "/3ds/min3dstry/sector-serpulo-170.msav")
         self.assertEqual(parsed["storage_roundtrip"]["status"], "ok")
         self.assertEqual(parsed["storage_roundtrip"]["bytes"], 4)
+        self.assertEqual(parsed["sector_catalog"]["count"], 2)
+        self.assertEqual(len(parsed["sector_slots"]), 2)
+        self.assertEqual(parsed["sector_slots"][0]["planet"], "erekir")
+        self.assertEqual(parsed["sector_slots"][0]["id"], 64)
+        self.assertTrue(parsed["sector_slots"][0]["compressed"])
+        self.assertFalse(parsed["sector_slots"][0]["valid"])
+        self.assertEqual(parsed["sector_slots"][1]["planet"], "serpulo")
+        self.assertEqual(parsed["sector_slots"][1]["id"], 170)
+        self.assertTrue(parsed["sector_slots"][1]["valid"])
+        self.assertEqual(parsed["sector_slots"][1]["bytes"], 20)
         self.assertEqual(parsed["parity"]["trace_hash"], "0x11223344")
         self.assertEqual(parsed["parity"]["enemies_killed"], 2)
         self.assertEqual(parsed["audio"]["backend"], "ndsp")
