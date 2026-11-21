@@ -268,7 +268,7 @@
       "category": "Maps, Campaign & Saves",
       "name": "Upstream .msav Map & Save Reader/Writer",
       "weight": 6,
-      "stage": "experimental",
+      "stage": "emulator-tested",
       "issue": 28,
       "evidence": [
         "research/upstream-runtime/README.md",
@@ -276,6 +276,12 @@
         "research/upstream-runtime/src/content/java/UpstreamWorldLoadProbe.java",
         "research/upstream-runtime/src/world/java/UpstreamWorldRoundTripProbe.java",
         "research/upstream-runtime/host/UpstreamSaveResilienceProbe.java",
+        "docs/porting/msav-verification.md",
+        "research/upstream-runtime/src/campaign-sector/java/UpstreamCampaignSectorProbe.java",
+        "research/upstream-runtime/src/campaign-slot-meta/java/UpstreamCampaignSlotMetaProbe.java",
+        "research/upstream-runtime/src/campaign-launch/java/UpstreamCampaignLaunchProbe.java",
+        "research/upstream-runtime/host/UpstreamSaveBaseline.java",
+        "docs/porting/campaign-progression.md",
         "include/platform/save_slot.h",
         "src/platform/save_slot.c",
         "tests/platform/test_save_slot.c"
