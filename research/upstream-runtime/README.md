@@ -411,6 +411,15 @@ Sorter, tap Config beside the grid, then tap the building. Select an
 item or tap the active item again to clear it. The choices use the
 original item eligibility rule from `ItemSelection.java`.
 
+The multiplayer image keeps the original v160.8 translation bundles in
+RomFS. It loads the 3DS system language through Arc's `I18NBundle` before
+creating content so categories, blocks and items use the game's names.
+To choose a packaged locale for the graphical probe, put its code in
+`/3ds/min3dstry/locale.txt` on the SD card. For example, use `de` for
+German or `pt_BR` for Brazilian Portuguese. A missing or unknown code
+uses the console language. Some controls specific to the 3DS probe still
+use English labels.
+
 Tap List beside the grid to browse the upstream construction catalog.
 The arrows switch categories and the footer switches pages. Tap a block
 name to return to the grid with that block selected. The build extracts
@@ -434,7 +443,7 @@ stock server, checks the cursor and grid in both screen captures, and
 then exercises movement and START. For the JVM reference, use
 `runBuildControlsJvm -Pprobe=network-render --args=/path/to/glacier-world-stream.bin`
 with the captured Glacier WorldStream. The graphical probe still packs a
-Glacier-specific atlas. The remaining block visuals, localization and
+Glacier-specific atlas. The remaining block visuals, interface text and
 configuration for other block types are tracked in issue #27.
 
 The [devkitARM build](https://github.com/levkeveli/Min3DStry/actions/runs/44850937824)
@@ -464,6 +473,11 @@ Sorter changed from its unconfigured sprite to Copper and then Lead,
 and returned to its first appearance after clearing the selection.
 The JVM test also checks that selecting and clearing Copper changes
 the original routing decisions for both Sorter variants.
+
+Add `--locale de` to the graphical verifier to stage the override and
+verify the selected bundle and its original labels. Pass an extracted
+`assets/bundles/bundle` base path as the second JVM reference argument to
+exercise all packaged locale choices.
 
 Before the snapshot dispatch extension, the [devkitARM verification build](https://github.com/levkeveli/Min3DStry/actions/runs/44824442974)
 passed at `-O0` and `-O2` on both Azahar 2126.2 console profiles. Each run

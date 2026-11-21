@@ -81,7 +81,11 @@ def wait_for(path, proc, pattern, timeout):
         text = path.read_text(encoding="utf-8", errors="replace")
         if re.search(pattern, text):
             return text
-        if proc.poll() is not None or re.search(r"Core::LogException|UPSTREAM_LIVE_NET_ERROR", text):
+        if "UPSTREAM_LIVE_NET_ERROR" in text:
+            time.sleep(0.25)  # Preserve the Java stack trace written after the error marker.
+            text = path.read_text(encoding="utf-8", errors="replace")
+            raise RuntimeError(f"Process stopped before {pattern}:\n{text[-5000:]}")
+        if proc.poll() is not None or re.search(r"Core::LogException", text):
             raise RuntimeError(f"Process stopped before {pattern}:\n{text[-2500:]}")
         time.sleep(0.05)
     raise RuntimeError(f"Timed out waiting for {pattern}:\n{text[-2500:]}")
@@ -209,6 +213,9 @@ def verify_touch_config(log, emulator, server_log, server, timeout, capture, pos
     _, _, x, y = position
     tx, ty = math.floor(float(x) / 8 + 0.5) + 4, math.floor(float(y) / 8 + 0.5)
     original = inspect_building(server_log, server, "config-before", tx, ty)
+    wait_for(log, emulator, r"UPSTREAM_CATALOG_PAGE category=distribution page=2\b", timeout)
+    time.sleep(0.2)
+    capture("touch-catalog", position)
     wait_for(log, emulator, rf"UPSTREAM_LIVE_BUILD block=sorter x={tx} y={ty} rotation=0 team=1\b", timeout)
     placed = inspect_building(server_log, server, "config-placed", tx, ty)
     if original[0] != "air" or placed != ("sorter", "1", "0", str(int(original[3]) - 2), "true"):
@@ -382,6 +389,13 @@ def run_model(args, model, config, original_config, log, output):
             emulator = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             rpc = az.AzaharRpcClient(timeout=2, retries=2)
             try:
+                if args.locale:
+                    names = {"en": ("Router", "Copper"), "de": ("Verteiler", "Kupfer")}
+                    labels = names.get(args.locale)
+                    words = " router=" + re.escape(labels[0]) + " copper=" + re.escape(labels[1]) if labels else ""
+                    pattern = rf"UPSTREAM_INTERFACE_LOCALE system=\d+ bundle={re.escape(args.locale)}\b{words}"
+                    localized = wait_for(log, emulator, pattern, args.timeout)
+                    print(re.search(pattern, localized).group(0), flush=True)
                 if args.controls:
                     def capture(phase, position):
                         return capture_viewport(log, emulator, rpc, output / f"{model}-{phase}.png", position,
@@ -480,6 +494,7 @@ def main():
                         help="Replay the controls test input in Azahar 2126.2")
     parser.add_argument("--terrain-atlas", type=Path,
                         help="Stage the official v160.8 sprites.aatls and verify the rendered viewport")
+    parser.add_argument("--locale", help="Stage a stock locale code and verify the graphical probe loads it")
     build_mode = parser.add_mutually_exclusive_group()
     build_mode.add_argument("--building", action="store_true",
                         help="Verify the ARM11 conveyor plan, copper cost and rendered response")
@@ -504,6 +519,8 @@ def main():
         parser.error("--touch-build needs --terrain-atlas")
     if args.touch_config and not args.terrain_atlas:
         parser.error("--touch-config needs --terrain-atlas")
+    if args.locale and (not args.terrain_atlas or not re.fullmatch(r"[a-z]{2,3}(?:_[A-Z]{2})?", args.locale)):
+        parser.error("--locale needs --terrain-atlas and a stock locale code such as de or pt_BR")
     if args.terrain_atlas:
         if not args.controls:
             parser.error("--terrain-atlas needs --controls")
@@ -514,6 +531,9 @@ def main():
     endpoint = config.parent.parent / "sdmc/3ds/min3dstry/server-endpoint.txt"
     originals = {path: path.read_bytes() if path.exists() else None for path in (config, log, endpoint)}
     atlas_path = endpoint.with_name("sprites.aatls")
+    locale_path = endpoint.with_name("locale.txt")
+    if args.locale:
+        originals[locale_path] = locale_path.read_bytes() if locale_path.exists() else None
     if args.terrain_atlas:
         originals[atlas_path] = atlas_path.read_bytes() if atlas_path.exists() else None
     output = args.rom.parent / "upstream-live-net"
@@ -523,6 +543,8 @@ def main():
             path.parent.mkdir(parents=True, exist_ok=True)
         suffix = " controls" if args.controls else " movement" if args.movement else ""
         endpoint.write_text(f"127.0.0.1 {args.port}{suffix}\n", encoding="ascii")
+        if args.locale:
+            locale_path.write_text(args.locale + "\n", encoding="ascii")
         if args.terrain_atlas:
             atlas_path.write_bytes(atlas_bytes)
         for model in ((args.model,) if args.model else ("old3ds", "new3ds")):
