@@ -286,6 +286,8 @@
         "docs/porting/campaign-progression.md",
         "include/platform/save_slot.h",
         "src/platform/save_slot.c",
+        "include/platform/msav_inflate.h",
+        "src/platform/msav_inflate.c",
         "tests/platform/test_save_slot.c"
       ]
     },
