@@ -201,6 +201,7 @@ if (usesArcSources || usesExecutor) {
                               'mindustry/game/MapObjectives$ShapeTextMarker.class',
                               'mindustry/game/MapObjectives$TextMarker.class',
                               'mindustry/game/MapObjectives$TextureMarker.class',
+                              'mindustry/game/MapObjectives$QuadMarker.class',
                               'mindustry/core/ContentLoader.class'])
         shieldModeSources.keySet().each { path ->
             stagedClasses.add(path.replace('.java', '.class'))

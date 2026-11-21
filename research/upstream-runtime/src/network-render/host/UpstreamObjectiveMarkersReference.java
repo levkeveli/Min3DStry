@@ -8,11 +8,13 @@ import arc.mock.MockGraphics;
 import arc.util.Align;
 import arc.util.Time;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import mindustry.Vars;
 import mindustry.content.Items;
 import mindustry.game.MapObjectives.LineMarker;
 import mindustry.game.MapObjectives.PointMarker;
+import mindustry.game.MapObjectives.QuadMarker;
 import mindustry.game.MapObjectives.ShapeMarker;
 import mindustry.game.MapObjectives.ShapeTextMarker;
 import mindustry.game.MapObjectives.TextMarker;
@@ -21,6 +23,8 @@ import mindustry.game.Rules;
 import mindustry.gen.CreateMarkerCallPacket;
 import mindustry.gen.WorldLabel;
 import mindustry.gen.UpdateMarkerTextureCallPacket;
+import mindustry.gen.UpdateMarkerCallPacket;
+import mindustry.logic.LMarkerControl;
 import mindustry.io.JsonIO;
 import mindustry.io.MapIO;
 import mindustry.type.MapLocales;
@@ -34,6 +38,8 @@ public final class UpstreamObjectiveMarkersReference implements UpstreamTerrainD
     private final List<Label> labels = new ArrayList<>();
     private final List<Vertex> vertices = new ArrayList<>();
     private final List<Sprite> sprites = new ArrayList<>();
+    private float[] texturedQuad;
+    private int texturedPage;
     private int quads;
 
     public static void main(String[] args) throws Exception {
@@ -57,6 +63,61 @@ public final class UpstreamObjectiveMarkersReference implements UpstreamTerrainD
         System.out.println("UPSTREAM_WORLD_MARKER_REFERENCE onset=mine,research,ducts worldText=ok shapes=ok");
         target.verifyLogicGeometry();
         target.verifyTextureMarker();
+        target.verifyQuadMarker();
+    }
+
+    private void verifyQuadMarker() {
+        var markers = Vars.state.markers;
+        markers.clear();
+        var marker = new QuadMarker();
+        marker.texture.value = "block-router-ui";
+        marker.vertices = new float[]{
+            88f, 104f, Color.whiteFloatBits, 0f, 0f, Color.clearFloatBits,
+            90f, 152f, Color.sky.toFloatBits(), 0f, 1f, Color.clearFloatBits,
+            143f, 160f, Color.orange.toFloatBits(), 1f, 1f, Color.clearFloatBits,
+            137f, 110f, Color.whiteFloatBits, 1f, 0f, Color.clearFloatBits
+        };
+        var create = new CreateMarkerCallPacket();
+        create.id = 7;
+        create.marker = marker;
+        UpstreamSnapshotDispatchReference.applyMarkerPacket(create);
+        var decoded = (QuadMarker) markers.get(create.id);
+
+        // A control packet can arrive between creation and the first frame.
+        var update = new UpdateMarkerCallPacket();
+        update.id = create.id;
+        update.control = LMarkerControl.uvi;
+        update.p1 = 2;
+        update.p2 = 0.75;
+        update.p3 = 0.875;
+        UpstreamSnapshotDispatchReference.applyMarkerPacket(update);
+        verifyQuadSubmission(decoded, Core.atlas.find("block-router-ui"));
+
+        update.control = LMarkerControl.posi;
+        update.p2 = 19;
+        update.p3 = 21;
+        UpstreamSnapshotDispatchReference.applyMarkerPacket(update);
+        var texture = new UpdateMarkerTextureCallPacket();
+        texture.id = create.id;
+        texture.texture = Items.copper;
+        UpstreamSnapshotDispatchReference.applyMarkerPacket(texture);
+        if (decoded.vertices[12] != 19 * Vars.tilesize || decoded.vertices[13] != 21 * Vars.tilesize) {
+            throw new AssertionError("Quad control did not preserve stock corner position");
+        }
+        verifyQuadSubmission(decoded, Items.copper.fullIcon);
+        System.out.println("UPSTREAM_QUAD_MARKER_REFERENCE create=ok uvBeforeDraw=ok corners=ok tint=ok retarget=ok");
+    }
+
+    private void verifyQuadSubmission(QuadMarker marker, TextureRegion region) {
+        texturedQuad = null;
+        UpstreamObjectiveMarkers.draw(Vars.state.rules, 2.5f, (text, x, y, flags, size, align, lines) -> {});
+        float u = region.u + (region.u2 - region.u) * 0.75f;
+        float v = region.v + (region.v2 - region.v) * 0.125f;
+        if (texturedPage != UpstreamTerrainDrawProbe.pageIndex(region) || !Arrays.equals(texturedQuad, marker.vertices)
+                || Math.abs(marker.vertices[15] - u) > 0.00001f || Math.abs(marker.vertices[16] - v) > 0.00001f
+                || marker.vertices[8] != Color.sky.toFloatBits() || marker.vertices[14] != Color.orange.toFloatBits()) {
+            throw new AssertionError("Stock quad sprite changed: " + Arrays.toString(texturedQuad));
+        }
     }
 
     private void verifyTextureMarker() {
@@ -176,6 +237,15 @@ public final class UpstreamObjectiveMarkersReference implements UpstreamTerrainD
         for (int i = offset; i < offset + 24; i += 6) {
             this.vertices.add(new Vertex(vertices[i], vertices[i + 1], Float.floatToRawIntBits(vertices[i + 2])));
         }
+    }
+
+    @Override
+    public void drawTexturedQuad(int page, int width, int height, float[] vertices, int offset, Blending blending) {
+        if (texturedQuad != null || width <= 0 || height <= 0 || blending != Blending.normal) {
+            throw new AssertionError("Unexpected textured quad submission");
+        }
+        texturedPage = page;
+        texturedQuad = Arrays.copyOfRange(vertices, offset, offset + 24);
     }
 
     @Override

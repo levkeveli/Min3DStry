@@ -15,6 +15,8 @@ typedef struct {
 
 #include "terrain_layout.h"
 #ifdef M3DS_WORLD_ATLAS
+#include "m3ds_quad_clip.h"
+#include "m3ds_quad_shbin.h"
 #include "m3ds_world_fragment.h"
 #include "world_atlas_layout.h"
 
@@ -31,6 +33,11 @@ static struct {
 static uint32_t world_pass;
 static bool reported_split;
 static bool reported_recycle;
+static DVLB_s *quad_shader;
+static shaderProgram_s quad_program;
+static C3D_AttrInfo quad_attributes;
+static C3D_Mtx quad_projection;
+static int quad_projection_uniform;
 #endif
 
 static bool romfs_ready;
@@ -384,6 +391,120 @@ int32_t m3ds_terrain_draw_solid_quad(const float *vertices, int32_t offset, int3
     return 1;
 }
 
+#ifdef M3DS_WORLD_ATLAS
+static bool initialize_quad_shader(void) {
+    if (quad_shader) return true;
+    quad_shader = DVLB_ParseFile((u32 *)m3ds_quad_shbin, m3ds_quad_shbin_size);
+    if (!quad_shader) return false;
+    shaderProgramInit(&quad_program);
+    shaderProgramSetVsh(&quad_program, &quad_shader->DVLE[0]);
+    quad_projection_uniform = shaderInstanceGetUniformLocation(quad_program.vertexShader, "projection");
+    AttrInfo_Init(&quad_attributes);
+    AttrInfo_AddLoader(&quad_attributes, 0, GPU_FLOAT, 4);
+    AttrInfo_AddLoader(&quad_attributes, 1, GPU_FLOAT, 2);
+    AttrInfo_AddLoader(&quad_attributes, 2, GPU_FLOAT, 4);
+    Mtx_OrthoTilt(&quad_projection, 0, 400, 240, 0, 1, -1, true);
+    return true;
+}
+
+static void draw_quad_piece(C3D_Tex *texture, const M3DS_QuadVertex *polygon, int count,
+                            int x, int y, uint32_t mix) {
+    C2D_Flush();
+    C3D_BindProgram(&quad_program);
+    C3D_SetAttrInfo(&quad_attributes);
+    C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, quad_projection_uniform, &quad_projection);
+    C3D_TexBind(0, texture);
+
+    // Arc mixes RGB before multiplying the interpolated vertex tint.
+    for (int i = 0; i < 6; i++) C3D_TexEnvInit(C3D_GetTexEnv(i));
+    C3D_TexEnv *env = C3D_GetTexEnv(0);
+    C3D_TexEnvSrc(env, C3D_Both, GPU_TEXTURE0, GPU_CONSTANT, GPU_CONSTANT);
+    C3D_TexEnvOpRgb(env, GPU_TEVOP_RGB_SRC_COLOR, GPU_TEVOP_RGB_SRC_COLOR, GPU_TEVOP_RGB_ONE_MINUS_SRC_ALPHA);
+    C3D_TexEnvFunc(env, C3D_RGB, GPU_INTERPOLATE);
+    C3D_TexEnvColor(env, mix);
+    env = C3D_GetTexEnv(1);
+    C3D_TexEnvSrc(env, C3D_Both, GPU_PREVIOUS, GPU_PRIMARY_COLOR, GPU_PRIMARY_COLOR);
+    C3D_TexEnvFunc(env, C3D_Both, GPU_MODULATE);
+
+    C3D_ImmDrawBegin(GPU_TRIANGLES);
+    for (int i = 1; i + 1 < count; i++) {
+        const int indices[] = {0, i, i + 1};
+        for (int corner = 0; corner < 3; corner++) {
+            M3DS_QuadVertex v = polygon[indices[corner]];
+            C3D_ImmSendAttrib(v.x, v.y, 0.5f, 1.0f);
+            C3D_ImmSendAttrib((v.u - x) / WORLD_ATLAS_TILE, 1.0f - (v.v - y) / WORLD_ATLAS_TILE, 0, 0);
+            C3D_ImmSendAttrib(v.color[0], v.color[1], v.color[2], v.color[3]);
+        }
+    }
+    C3D_ImmDrawEnd();
+    C2D_Prepare();
+    begin_world_scene();
+}
+#endif
+
+int32_t m3ds_terrain_draw_textured_quad(int32_t page, int32_t width, int32_t height,
+                                      const float *vertices, int32_t offset, int32_t blend_mode) {
+#ifdef M3DS_WORLD_ATLAS
+    if (!frame_open || page < 0 || (size_t)page >= sizeof(world_atlas_sizes) / sizeof(world_atlas_sizes[0])
+            || width != world_atlas_sizes[page][0] || height != world_atlas_sizes[page][1]
+            || !initialize_quad_shader()) return 0;
+    M3DS_QuadVertex corners[4];
+    uint32_t mix;
+    memcpy(&mix, vertices + offset + 5, sizeof(mix));
+    for (int i = 0; i < 4; i++) {
+        const float *v = vertices + offset + i * 6;
+        uint32_t color, corner_mix;
+        memcpy(&color, v + 2, sizeof(color));
+        memcpy(&corner_mix, v + 5, sizeof(corner_mix));
+        if (mix != corner_mix) return 0;
+        if (!isfinite(v[0]) || !isfinite(v[1]) || !isfinite(v[3]) || !isfinite(v[4])) return 1;
+        corners[i] = (M3DS_QuadVertex){
+            .x = screen_left + (v[0] - world_left) * scale,
+            .y = screen_bottom - (v[1] - world_bottom) * scale,
+            .u = fminf(fmaxf(v[3] * width, 0), nextafterf(width, 0)),
+            .v = fminf(fmaxf(v[4] * height, 0), nextafterf(height, 0)),
+            .color = {(color & 255) / 255.0f, ((color >> 8) & 255) / 255.0f,
+                      ((color >> 16) & 255) / 255.0f, (color >> 24) / 254.0f},
+        };
+    }
+    mix = (mix & 0x00ffffffu) | ((uint32_t)((mix >> 24) * (255.0f / 254.0f)) << 24);
+    set_world_blend(blend_mode);
+    set_world_mix(0, 0);
+    static const int triangles[2][3] = {{0, 1, 2}, {2, 3, 0}};
+    int pieces = 0;
+    for (int i = 0; i < 2; i++) {
+        M3DS_QuadVertex tri[3] = {corners[triangles[i][0]], corners[triangles[i][1]], corners[triangles[i][2]]};
+        int left = (int)fminf(tri[0].u, fminf(tri[1].u, tri[2].u)) / WORLD_ATLAS_TILE;
+        int top = (int)fminf(tri[0].v, fminf(tri[1].v, tri[2].v)) / WORLD_ATLAS_TILE;
+        int right = (int)fmaxf(tri[0].u, fmaxf(tri[1].u, tri[2].u)) / WORLD_ATLAS_TILE;
+        int bottom = (int)fmaxf(tri[0].v, fmaxf(tri[1].v, tri[2].v)) / WORLD_ATLAS_TILE;
+        for (int tile_y = top; tile_y <= bottom; tile_y++) {
+            for (int tile_x = left; tile_x <= right; tile_x++) {
+                int x = tile_x * WORLD_ATLAS_TILE, y = tile_y * WORLD_ATLAS_TILE;
+                M3DS_QuadVertex polygon[M3DS_QUAD_MAX_VERTICES];
+                int count = m3ds_quad_clip_triangle(tri, polygon, x, y, x + WORLD_ATLAS_TILE, y + WORLD_ATLAS_TILE);
+                if (count < 3) continue;
+                C2D_SpriteSheet atlas = get_world_texture(page, tile_x, tile_y);
+                if (!atlas) return 0;
+                draw_quad_piece(C2D_SpriteSheetGetImage(atlas, 0).tex, polygon, count, x, y, mix);
+                pieces++;
+            }
+        }
+    }
+    static bool reported;
+    if (pieces && !reported) {
+        static const char message[] = "UPSTREAM_TEXTURED_QUAD source=arc gpu=citro3d\n";
+        svcOutputDebugString(message, sizeof(message) - 1);
+        reported = true;
+    }
+    draws += pieces;
+    return 1;
+#else
+    (void)page; (void)width; (void)height; (void)vertices; (void)offset; (void)blend_mode;
+    return 0;
+#endif
+}
+
 int32_t m3ds_terrain_end(void) {
     if (!frame_open) return 0;
     C3D_FrameEnd(0);
@@ -614,6 +735,11 @@ void m3ds_terrain_fini(void) {
     if (frame_open) m3ds_terrain_end();
     if (gpu_ready && C3D_FrameBegin(0)) C3D_FrameEnd(0);
 #ifdef M3DS_WORLD_ATLAS
+    if (quad_shader) {
+        shaderProgramFree(&quad_program);
+        DVLB_Free(quad_shader);
+        quad_shader = NULL;
+    }
     for (size_t i = 0; i < sizeof(world_textures) / sizeof(world_textures[0]); i++) {
         if (world_textures[i].sheet) C2D_SpriteSheetFree(world_textures[i].sheet);
     }
