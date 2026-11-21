@@ -3,6 +3,7 @@
 
 import argparse
 import hashlib
+import json
 import math
 from pathlib import Path
 import re
@@ -20,7 +21,7 @@ PLAYER = "Min3DStry ARM11"
 NUMBER = r"-?\d+(?:\.\d+)?"
 
 
-def write_controls_replay(path, first_move=22):
+def write_controls_replay(path, first_move=22, building=False):
     """Write the Azahar 2126.2 CTM input for this probe's pad/touch polling."""
     # The pinned Azahar movie header and HID sample definitions use packed little-endian fields.
     revision = bytes.fromhex("219d743a1e698101fe1ab8bef43e6563126c3c27")
@@ -34,6 +35,8 @@ def write_controls_replay(path, first_move=22):
         for frame in range(frames):
             seconds = frame // samples_per_second
             buttons = (1 << 4) if seconds == first_move else (1 << 3) if seconds == first_move + 16 else 0
+            if building and seconds in (35, 37, 39):
+                buttons = 1  # A, with releases so a late HID poll can observe another press.
             circle_y = 106 if seconds == first_move + 6 else 0
             movie.write(struct.pack("<BHhh", 0, buttons, 0, circle_y))
             movie.write(touch_idle)
@@ -89,11 +92,60 @@ def verify_movement(log, emulator, server_log, server, join, timeout):
     print(observed.group(0), flush=True)
 
 
-def verify_controls(log, emulator, server_log, server, timeout, capture=None):
+def verify_conveyor(log, emulator, server_log, server, timeout, capture, position, desktop_name):
+    _, _, x, y = position
+    tx, ty = math.floor(float(x) / 8 + 0.5) + 4, math.floor(float(y) / 8 + 0.5)
+
+    def inspect_server(phase, tile_x, tile_y, builder):
+        marker = f"UPSTREAM_SERVER_CONVEYOR phase={phase}"
+        server.stdin.write(
+            f'js (() => {{ const p = Groups.player.find(boolf(v => String(v.name) === "{PLAYER}")); '
+            f'const builder = Groups.player.find(boolf(v => String(v.name) === {json.dumps(builder)})); '
+            f'const tile = Vars.world.tile({tile_x}, {tile_y}); '
+            'const owned = builder != null && tile.build != null && '
+            'String(tile.build.lastAccessed) === String(builder.coloredName()); '
+            f'return "{marker} block=" + tile.block().name + " team=" + tile.team().id '
+            '+ " rotation=" + (tile.build == null ? -1 : tile.build.rotation) '
+            '+ " copper=" + p.team().core().items.get(Items.copper) + " builder=" + owned; })()\n'
+        )
+        server.stdin.flush()
+        check = re.compile(rf"{marker} block=(\S+) team=(\d+) rotation=(-?\d+) copper=(\d+) builder=(true|false)")
+        return check.search(wait_for(server_log, server, check, 5)).groups()
+
+    original = inspect_server("before", tx, ty, PLAYER)
+    print(f"Press A to queue a conveyor at ({tx}, {ty}).", flush=True)
+    wait_for(log, emulator, rf"UPSTREAM_LIVE_BUILD_PLAN x={tx} y={ty} rotation=0\b", timeout)
+    completed = re.compile(rf"UPSTREAM_LIVE_BUILD block=conveyor x={tx} y={ty} rotation=0 team=(\d+)")
+    accepted = completed.search(wait_for(log, emulator, completed, timeout))
+    finished = inspect_server("after", tx, ty, PLAYER)
+    if (original[0] != "air" or finished[:3] != ("conveyor", accepted[1], "0")
+            or int(original[3]) - int(finished[3]) != 1 or finished[4] != "true"):
+        raise RuntimeError(f"Unexpected stock conveyor or copper cost: {original} -> {finished}")
+    wait_for(log, emulator, rf"UPSTREAM_NETWORK_CONVEYOR x={tx} y={ty} rotation=0\b", timeout)
+    capture("conveyor", position)
+    print(f"Stock server placed the conveyor on team {finished[1]} for one copper.", flush=True)
+    if desktop_name:
+        print(f"Confirm the conveyor at ({tx}, {ty}) in the stock PC client. Then place another "
+              f"conveyor within the 3DS viewport, for example at ({tx}, {ty + 2}).", flush=True)
+        pc_build = re.compile(rf"UPSTREAM_LIVE_BUILD block=conveyor (?!x={tx} y={ty} )x=(\d+) y=(\d+) "
+                              rf"rotation=([0-3]) team={finished[1]}\b")
+        desktop_x, desktop_y, rotation = pc_build.search(wait_for(log, emulator, pc_build, timeout)).groups()
+        second_finished = inspect_server("desktop-after", int(desktop_x), int(desktop_y), desktop_name)
+        if (second_finished[:3] != ("conveyor", finished[1], rotation)
+                or int(finished[3]) - int(second_finished[3]) != 1 or second_finished[4] != "true"):
+            raise RuntimeError(f"Unexpected PC conveyor builder or copper cost: {finished} -> {second_finished}")
+        wait_for(log, emulator, rf"UPSTREAM_NETWORK_CONVEYOR x={desktop_x} y={desktop_y} rotation={rotation}\b", timeout)
+        capture("desktop-conveyor", position)
+        print(f"The ARM11 client applied and drew the PC conveyor at ({desktop_x}, {desktop_y}).", flush=True)
+
+
+def verify_controls(log, emulator, server_log, server, timeout, capture=None, building=False, desktop_name=None):
     wait_for(log, emulator, r"UPSTREAM_LIVE_CONTROLS_READY unit=\d+", timeout)
     baseline = server_position(server_log, server, "UPSTREAM_SERVER_CONTROLS_READY").groups()
     if capture:
         capture("spawn", baseline)
+    if building:
+        verify_conveyor(log, emulator, server_log, server, timeout, capture, baseline, desktop_name)
     for device, direction, axis in (("dpad", "right", 2), ("circle", "up", 3)):
         print(f"Move {direction} with the {device}, then release it.", flush=True)
         stopped = re.compile(rf"UPSTREAM_LIVE_CONTROLS_STOPPED unit=(\d+) input={device} "
@@ -173,7 +225,10 @@ def run_model(args, model, config, original_config, log, output):
             command = [str(args.azahar)]
             if args.controls_replay:
                 replay = Path(work) / "controls.ctm"
-                write_controls_replay(replay, first_move=42 if args.terrain_atlas else 22)
+                first_move = 42 if args.terrain_atlas else 22
+                if args.building and args.desktop_name:
+                    first_move = 120  # Allow time to inspect and place a block in the desktop client.
+                write_controls_replay(replay, first_move=first_move, building=args.building)
                 command += ["-p", str(replay)]
             command.append(str(args.rom))
             emulator = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -184,7 +239,7 @@ def run_model(args, model, config, original_config, log, output):
                         capture_viewport(log, emulator, rpc, output / f"{model}-{phase}.png", position)
 
                     verify_controls(log, emulator, server_log, server, args.timeout,
-                                    capture if args.terrain_atlas else None)
+                                    capture if args.terrain_atlas else None, args.building, args.desktop_name)
                     (output / f"{model}.png").write_bytes(rpc.screenshot())
                     print("Wave 2 applied. Press the emulated START button to leave.", flush=True)
                     emu_log = wait_for(log, emulator, "UPSTREAM_LIVE_CONTROLS_LEFT", args.timeout)
@@ -275,6 +330,8 @@ def main():
                         help="Replay the controls test input in Azahar 2126.2")
     parser.add_argument("--terrain-atlas", type=Path,
                         help="Stage the official v160.8 sprites.aatls and verify the rendered viewport")
+    parser.add_argument("--building", action="store_true",
+                        help="Verify the ARM11 conveyor plan, copper cost and rendered response")
     args = parser.parse_args()
     args.server, args.rom, args.azahar = (path.resolve() for path in (args.server, args.rom, args.azahar))
     with args.server.open("rb") as archive:
@@ -286,6 +343,8 @@ def main():
         parser.error("The PC client needs a distinct player name")
     if args.controls_replay and not args.controls:
         parser.error("--controls-replay needs --controls")
+    if args.building and not args.terrain_atlas:
+        parser.error("--building needs --terrain-atlas")
     if args.terrain_atlas:
         if not args.controls:
             parser.error("--terrain-atlas needs --controls")

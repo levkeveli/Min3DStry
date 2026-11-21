@@ -84,7 +84,8 @@ int32_t m3ds_live_net_input(void) {
     if (!aptMainLoop()) return -1;
     hidScanInput();
     const u32 keys = hidKeysHeld();
-    if (hidKeysDown() & KEY_START) return -1;
+    const u32 pressed = hidKeysDown();
+    if (pressed & KEY_START) return -1;
 
     circlePosition pad = {0};
     hidCircleRead(&pad);
@@ -94,5 +95,6 @@ int32_t m3ds_live_net_input(void) {
         pad.dx = 127 * ((int)((keys & KEY_DRIGHT) != 0) - (int)((keys & KEY_DLEFT) != 0));
         pad.dy = 127 * ((int)((keys & KEY_DUP) != 0) - (int)((keys & KEY_DDOWN) != 0));
     }
-    return (int32_t)pack_axis(pad.dx) | ((int32_t)pack_axis(pad.dy) << 8) | ((int32_t)dpad << 16);
+    return (int32_t)pack_axis(pad.dx) | ((int32_t)pack_axis(pad.dy) << 8) |
+           ((int32_t)dpad << 16) | ((int32_t)((pressed & KEY_A) != 0) << 17);
 }
