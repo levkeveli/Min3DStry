@@ -10,13 +10,17 @@ extern "C" {
 #endif
 
 #define M3DS_SECTOR_PLANET_MAX 16u
+#define M3DS_SECTOR_MAP_MAX 48u
 #define M3DS_SECTOR_CATALOG_MAX 8u
 
 typedef struct M3dsSectorSlot {
     char planet[M3DS_SECTOR_PLANET_MAX];
+    char map_name[M3DS_SECTOR_MAP_MAX];
     uint32_t id;
+    uint32_t wave;
     bool valid;
     bool compressed;
+    bool has_meta;
     uint32_t bytes;
 } M3dsSectorSlot;
 
