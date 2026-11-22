@@ -37,12 +37,18 @@ splits the rotating quad at the shader's stripe boundaries.
 
 The JVM rendering reference checks the idle layers, construction
 parameters, scan line, and output payload with Crawler. The host C
-reference covers the shader equations and texture layout. ARM11 replay
-and physical hardware verification remain to be recorded.
+reference covers the shader equations and texture layout.
 
 The emulator verifier creates four Glacier saves with the unmodified
 v160.8 server. It compares the empty footprint, idle factory,
 in-progress construction, and produced payload.
+
+On Azahar 2126.2, the [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45074830155)
+drew all four states on both the Original and New 3DS profiles. Each
+profile recorded 729 changed pixels from terrain to idle in the factory
+footprint, 105 from idle to construction, and 99 from idle to payload.
+Both construction replays logged the original shader adapter. This replay
+used offline saves. Physical hardware verification remains open in #43.
 
 ```bash
 python3 tools/verify_upstream_factory_graphics.py \
@@ -82,8 +88,8 @@ The same verifier accepts `--live` to send the touch selection from the
 ARM11 client and check the selected plan and production on the stock
 server. The live fixture uses an original Power Source to keep the factory
 powered during connection and menu navigation.
-Factory world sprites and the construction effect are tracked in
-[#358](https://github.com/levkeveli/Min3DStry/issues/358).
+See [Factory world graphics](#factory-world-graphics) for the drawing
+passes and their replay.
 
 ```bash
 python3 tools/verify_upstream_factory_plans.py \
