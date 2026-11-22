@@ -291,7 +291,11 @@ python3 tools/verify_offline_liquid_buildings.py \
   --output build/offline-liquid-buildings --live
 ```
 
-The optional live replay uses the unmodified Java v160.8 server.
+The [ARM11 replay](https://github.com/levkeveli/Min3DStry/actions/runs/45083291894)
+drew all eight buildings on both Azahar profiles. Each profile showed
+water and nitrogen in the tanks, the configured source, and both bridge
+spans when loading the save offline and after joining the unmodified
+Java v160.8 server.
 
 ## Original turret graphics
 
