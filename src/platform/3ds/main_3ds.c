@@ -259,7 +259,7 @@ int main(int argc, char *argv[]) {
             g_save_world.valid = true;
             g_save_world_ready = true;
             snprintf(dbg_line, sizeof(dbg_line),
-                     "[MIN3DSTRY] SECTOR_ALLOC tiles=%u bytes=%u hash=%016llx status=ok\n",
+                     "[MIN3DSTRY] SECTOR_ALLOC tiles=%u bytes=%u hash=%016llx status=loaded\n",
                      (unsigned)upstream.count,
                      (unsigned)m3ds_msav_world_bytes(&upstream),
                      (unsigned long long)upstream.hash);
@@ -271,14 +271,14 @@ int main(int argc, char *argv[]) {
                 }
             }
             snprintf(dbg_line, sizeof(dbg_line),
-                     "[MIN3DSTRY] SECTOR_TILE_STATE tiles=%u buildings=%u linked=%u hash=%016llx status=ok\n",
+                     "[MIN3DSTRY] SECTOR_TILE_STATE tiles=%u buildings=%u linked=%u hash=%016llx status=loaded\n",
                      (unsigned)upstream.count,
                      (unsigned)upstream.building_count,
                      (unsigned)linked,
                      (unsigned long long)upstream.tile_state_hash);
             m3ds_emit_debug_line(log_socket, dbg_line);
             snprintf(dbg_line, sizeof(dbg_line),
-                     "[MIN3DSTRY] SECTOR_PARITY buildings=%u hash=%016llx status=ok\n",
+                     "[MIN3DSTRY] SECTOR_PARITY buildings=%u hash=%016llx verified=0 status=loaded\n",
                      (unsigned)upstream.building_count,
                      (unsigned long long)upstream.save_state_hash);
             m3ds_emit_debug_line(log_socket, dbg_line);

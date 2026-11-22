@@ -37,10 +37,13 @@ public final class UpstreamSaveRowsProbe {
     }
 
     public static void main(String[] args) throws Exception {
-        byte[] pathBytes = new byte[160];
+        byte[] pathBytes = new byte[256];
         int pathLength = NativeRows.copyPath(
             Address.ofData(pathBytes), pathBytes.length);
-        boolean verifyFixture = pathLength < 0;
+        if (pathLength == -1) {
+            throw new IllegalStateException("Native save path is too long");
+        }
+        boolean verifyFixture = pathLength == -2;
         String path = args.length > 0 ? args[0]
             : (pathLength > 0 ? asciiString(pathBytes, pathLength)
                 : "/3ds/min3dstry/glacier-v13.msav");

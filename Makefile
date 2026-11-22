@@ -50,8 +50,10 @@ LDFLAGS  = -specs=3dsx.specs -g $(ARCH) -Wl,-Map,$(notdir $*.map)
 LIBS    := -lcitro2d -lcitro3d -lvorbisidec -logg -lctru -lm
 
 ifneq ($(strip $(TEAVM_LOADER_DIR)),)
+TEAVM_LOADER_DIR := $(abspath $(TEAVM_LOADER_DIR))
 CFLAGS  += -DM3DS_TEAVM_LOADER_EMBEDDED
-LIBS    += -L$(TEAVM_LOADER_DIR) -lm3dsloader
+# The archive references libctru/libm, so it must be scanned before them.
+LIBS    := -L$(TEAVM_LOADER_DIR) -lm3dsloader $(LIBS)
 endif
 
 LIBDIRS := $(PORTLIBS) $(CTRULIB)

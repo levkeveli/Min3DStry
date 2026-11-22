@@ -22,7 +22,10 @@ static bool g_loaded_ready;
 static const char *g_requested_save_path;
 
 int m3ds_save_rows_copy_path(void *destination, int capacity) {
-    if (!g_requested_save_path || !destination || capacity <= 0) {
+    if (!g_requested_save_path) {
+        return -2;
+    }
+    if (!destination || capacity <= 0) {
         return -1;
     }
     int length = (int)strlen(g_requested_save_path);
@@ -154,7 +157,7 @@ int m3ds_save_rows_end(void) {
         } else {
             result = 0;
         }
-        if (result == 0) {
+        if (result == 0 && !g_verify_fixture) {
             g_loaded_tiles = tiles;
             g_loaded_ready = true;
         } else {
@@ -177,6 +180,10 @@ bool m3ds_teavm_world_load(const char *save_path, M3dsWorldTiles *out) {
     int result = m3ds_teavm_main(0, NULL);
     g_requested_save_path = NULL;
     if (result != 0 || !g_loaded_ready) {
+        if (g_loaded_ready) {
+            m3ds_msav_free_world(&g_loaded_tiles);
+            g_loaded_ready = false;
+        }
         return false;
     }
     *out = g_loaded_tiles;

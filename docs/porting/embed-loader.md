@@ -43,11 +43,18 @@ linked, and falls back to the native parser when it is not.
 ## Reproduce
 
 ```sh
-gradle -Pprobe=save-rows ... generateC
-bash tools/build_teavm_loader.sh \
-    research/upstream-runtime/build/generated/teavm/c build/teavm-loader
-make TEAVM_LOADER_DIR=build/teavm-loader
+UPSTREAM_MINDUSTRY=/path/to/Mindustry \
+MINDUSTRY_SERVER_JAR=/path/to/server-release.jar \
+ARC_CHECKOUT=/path/to/Arc \
+GRADLE_BIN=/path/to/gradle \
+./dev.sh loader
+
+./dev.sh build   # auto-builds/links when UPSTREAM_MINDUSTRY is set
 ```
 
-The remaining step is to make the shipped 3DS build always generate and link
-this library, then delete the native parser from the startup path.
+`dev.sh build` passes an absolute `TEAVM_LOADER_DIR` to make, and the Makefile
+also normalizes a relative path. `M3DS_REBUILD_LOADER=1` forces regeneration.
+CI now runs `make TEAVM_LOADER_DIR=...` in the pinned container.
+
+The remaining step is to make this linked build the only shipped path and
+delete the native parser from the startup path.

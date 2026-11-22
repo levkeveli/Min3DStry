@@ -435,6 +435,16 @@ jobs:
             test -s build/embed-loader-smoke.elf
           '
 
+      - name: Link the app with the embedded loader
+        run: |
+          image=devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5
+          docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/work" -w /work "$image" bash -lc '
+            source /opt/devkitpro/3dsvars.sh
+            make PYTHON=python3 TEAVM_LOADER_DIR=/work/build/teavm-loader
+            test -s build/min3dstry.3dsx
+            ls -l build/min3dstry.3dsx
+          '
+
       - name: Generate and build the ARM11 sector-slot probe
         run: |
           bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime \
