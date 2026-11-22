@@ -166,12 +166,17 @@ UPSTREAM_CAMPAIGN_SELECTED slot=sector-serpulo-15.msav name=Ground Zero
 UPSTREAM_SP_LOADED source=campaign map=Editor_Playtesting size=150x250 wave=1 copper=0
 UPSTREAM_CAMPAIGN_SAVED slot=sector-serpulo-15.msav
 UPSTREAM_SP_EXIT
+UPSTREAM_CAMPAIGN_CAPTURED sector=15
+UPSTREAM_CAMPAIGN_CAPTURE_REWARDS copper=250 lead=75 core=core-nucleus storage=13000
 UPSTREAM_CAMPAIGN_CAPTURE sector=15 captured=ok waves=off attack=off event=ok persisted=ok
 ```
 
 **Evidence:** raw logs for both ROMs, slot directory listing, save-back file
-hash before/after, and screenshots of the menu and loaded world. Capture
-rewards UI is not implemented yet; this card verifies state/persistence only.
+hash before/after, and screenshots of the menu and loaded world. The live app
+installs the same `UpstreamSectorCapture` handler as the probe, so a live
+capture also emits `UPSTREAM_CAMPAIGN_CAPTURED` and persists the reward items.
+Capture rewards UI is not implemented yet; this card verifies the state,
+items/core metadata and persistence.
 
 ## HWT-04 — NDSP audio and DSP firmware
 
