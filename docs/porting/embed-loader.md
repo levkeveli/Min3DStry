@@ -1,8 +1,8 @@
 # Embedded TeaVM save loader
 
-The main app can link the upstream `save-rows` producer as an optional in-process
-loader. When present, startup tries the upstream loader before the
-verification-only native parser.
+The main app links the upstream `save-rows` producer as an in-process loader.
+Startup uses it as the only world-loading path: there is no native `.msav`
+parser fallback in the runtime (the native parser remains host-test only).
 
 - `include/platform/teavm_world_loader.h` declares
   `m3ds_teavm_world_loader_available()` and
@@ -61,7 +61,17 @@ not enforce the physical ceiling, so this remains an emulator-only measurement.
 
 The app call site in `main_3ds.c` logs
 `SECTOR_LOADER source=teavm available=1 loaded=1` when the embedded loader is
-linked, and falls back to the native parser when it is not.
+linked and the save loads. If the loader is not linked (`available=0`) or the
+save is missing/corrupt (`loaded=0`), no world is loaded and no native parser
+runs; the app keeps running with an empty world.
+
+A 100-byte truncated `sector-serpulo-170.msav` on New 3DS logs:
+
+```text
+SECTOR_LOADER source=teavm available=1 loaded=0 path=/3ds/min3dstry/sector-serpulo-170.msav tiles=0 buildings=0
+```
+
+and the verifier still passes (`FPS=59.51`, no abort).
 
 ## Reproduce
 
@@ -90,5 +100,9 @@ stub object. CI asserts `arm-none-eabi-nm build/min3dstry.elf` reports the
 strong `T m3ds_teavm_world_load` symbol (not the weak `W` stub) and compiles
 both smoke variants.
 
-The remaining step is to make this linked build the only shipped path and
-delete the native parser from the startup path.
+Status: the linked build is the only shipped startup path (#275 removed the
+143-line native parser block). `src/platform/msav_world.c` and
+`src/platform/msav_inflate.c` stay in the tree for host compatibility tests and
+are not called from `main_3ds.c`. The default CI build links the loader, so a
+plain build without `TEAVM_LOADER_DIR` is no longer the supported app
+configuration.
