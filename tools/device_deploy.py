@@ -18,6 +18,7 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from verify_azahar import parse_azahar_log  # noqa: E402
+import hw_evidence  # noqa: E402
 
 MANAGED_HEAP_BUDGET_BYTES = 24 * 1024 * 1024
 
@@ -622,7 +623,49 @@ def build_parser() -> argparse.ArgumentParser:
     p_bench.add_argument("--strict", action="store_true")
     p_bench.set_defaults(func=cmd_benchmark_report)
 
+    p_ev = sub.add_parser(
+        "evidence",
+        help="Verify a captured hardware log and emit checked Markdown/JSON evidence.",
+    )
+    p_ev.add_argument("--input", required=True)
+    p_ev.add_argument("--rom", default=None)
+    p_ev.add_argument("--commit", default="unknown")
+    p_ev.add_argument("--target", default="3DS Hardware")
+    p_ev.add_argument("--profile", choices=sorted(hw_evidence.PROFILES), default="new3ds")
+    p_ev.add_argument("--scenario", choices=hw_evidence.SCENARIOS, default="sector170")
+    p_ev.add_argument("--format", choices=["markdown", "json"], default="markdown")
+    p_ev.add_argument("--out", default=None)
+    p_ev.add_argument("--timestamp", default=None)
+    p_ev.add_argument("--strict", action="store_true")
+    p_ev.set_defaults(func=cmd_evidence)
+
     return parser
+
+
+def cmd_evidence(args: argparse.Namespace) -> int:
+    argv = [
+        "--input",
+        args.input,
+        "--commit",
+        args.commit,
+        "--target",
+        args.target,
+        "--profile",
+        args.profile,
+        "--scenario",
+        args.scenario,
+        "--format",
+        args.format,
+    ]
+    if args.strict:
+        argv.append("--strict")
+    if args.rom:
+        argv.extend(["--rom", args.rom])
+    if args.out:
+        argv.extend(["--out", args.out])
+    if args.timestamp:
+        argv.extend(["--timestamp", args.timestamp])
+    return hw_evidence.main(argv)
 
 
 def main() -> int:
