@@ -56,6 +56,10 @@ if [[ $# -gt 0 ]]; then
         echo "Prepare singleplayer terrain assets with --singleplayer to include the original Custom Game maps" >&2
         exit 2
     fi
+    if [[ ${#native_input[@]} -gt 0 && ! -s "$1/planets/serpulo.json" ]]; then
+        echo "Prepare singleplayer terrain assets with --singleplayer to include the original planet data" >&2
+        exit 2
+    fi
     if [[ ( ${#native_network[@]} -gt 0 || ${#native_input[@]} -gt 0 ) &&
           ( ! -f "$1/bundles/bundle.properties" || ! -d "$1/world-atlas" || ! -f "$1/block_colors.png" ) ]]; then
         echo "Prepare multiplayer or singleplayer terrain assets to include the original bundles, atlas and block palette" >&2
@@ -75,6 +79,9 @@ if [[ $# -gt 0 ]]; then
     fi
     if [[ -d "$1/maps" ]]; then
         cp -R "$1/maps" "$output/romfs/maps"
+    fi
+    if [[ -d "$1/planets" ]]; then
+        cp -R "$1/planets" "$output/romfs/planets"
     fi
     if [[ -d "$1/bundles" ]]; then
         cp -R "$1/bundles" "$output/romfs/bundles"
