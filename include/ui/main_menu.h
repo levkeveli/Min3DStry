@@ -1,0 +1,67 @@
+#ifndef MIN3DSTRY_UI_MAIN_MENU_H
+#define MIN3DSTRY_UI_MAIN_MENU_H
+
+#include <stdbool.h>
+#include <stddef.h>
+
+/*
+ * Stock title menu shell derived from upstream Mindustry v160.8
+ * core/src/mindustry/ui/fragments/MenuFragment.java (commit 19a0f40d).
+ *
+ * Upstream hierarchy (desktopButtons):
+ *   Play      -> Campaign, Join Game, Custom Game, Load Game
+ *   Database  -> Schematics, Core Database, About
+ *   Editor
+ *   Mods
+ *   Settings
+ *   Quit
+ *
+ * This port only implements the Play/Campaign and Settings branches so far.
+ * Unbuilt branches stay visible (matching the upstream menu) but report
+ * M3DS_MENU_ACTION_UNAVAILABLE so the caller can log them instead of silently
+ * pretending they work.
+ */
+
+typedef enum {
+    M3DS_MENU_SCREEN_TITLE = 0,
+    M3DS_MENU_SCREEN_PLAY,
+    M3DS_MENU_SCREEN_SETTINGS,
+} M3dsMenuScreen;
+
+typedef enum {
+    M3DS_MENU_ACTION_NONE = 0,
+    M3DS_MENU_ACTION_PLAY_CAMPAIGN,
+    M3DS_MENU_ACTION_TOGGLE_MUTE,
+    M3DS_MENU_ACTION_TOGGLE_LIGHTING,
+    M3DS_MENU_ACTION_RESET_CAMERA,
+    M3DS_MENU_ACTION_QUIT,
+    M3DS_MENU_ACTION_UNAVAILABLE,
+} M3dsMenuAction;
+
+typedef struct {
+    bool open;
+    M3dsMenuScreen screen;
+    unsigned selected;
+    bool muted;
+    bool lighting;
+} M3dsMainMenu;
+
+void m3ds_main_menu_init(M3dsMainMenu *menu);
+
+void m3ds_main_menu_move(M3dsMainMenu *menu, int delta);
+
+size_t m3ds_main_menu_count(const M3dsMainMenu *menu);
+
+const char *m3ds_main_menu_key(const M3dsMainMenu *menu, size_t index);
+
+const char *m3ds_main_menu_label(const M3dsMainMenu *menu, size_t index);
+
+bool m3ds_main_menu_enabled(const M3dsMainMenu *menu, size_t index);
+
+M3dsMenuAction m3ds_main_menu_confirm(M3dsMainMenu *menu);
+
+bool m3ds_main_menu_back(M3dsMainMenu *menu);
+
+const char *m3ds_main_menu_screen_name(const M3dsMainMenu *menu);
+
+#endif
