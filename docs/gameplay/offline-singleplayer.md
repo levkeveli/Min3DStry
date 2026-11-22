@@ -205,7 +205,12 @@ to reopen the defeated and recovered saves and settings in the unmodified PC
 server. The server checks the core, retry attempt, and surviving derelict
 state. Add `--rom upstream-probe.3dsx` to replay the loss and retry with
 controller input on both Azahar profiles before running the same PC
-readback. ARM11 replay results are pending.
+readback. The [ARM11 build from `3de099b`](https://github.com/levkeveli/Min3DStry/actions/runs/45055970330)
+passed in Original and New 3DS profiles in Azahar 2126.2. Hostile units
+destroyed the last core in Ground Zero and The Onset. The controller retried
+each sector and saved the original 256×256 and 512×512 worlds, respectively.
+Stock v160.8 reopened the defeated and recovered saves for all four replays
+and verified the persisted sector state.
 
 ## Custom Game
 
