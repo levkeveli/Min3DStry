@@ -24,8 +24,8 @@ Quit
 
 ## What this port implements
 
-`include/ui/main_menu.h` / `src/ui/main_menu.c` model that hierarchy as a three-screen state machine
-(`title`, `play`, `settings`) with the same keys and English labels.
+`include/ui/main_menu.h` / `src/ui/main_menu.c` model that hierarchy as a five-screen state machine
+(`title`, `play`, `settings`, `database`, `about`) with the same keys and English labels.
 
 | Branch | Behaviour |
 | --- | --- |
@@ -34,12 +34,55 @@ Quit
 | Settings -> Lighting | toggles the live scene lighting (`MAIN_MENU action=settings.lighting lighting=<0\|1>`) |
 | Settings -> Reset camera | recentres the camera (`MAIN_MENU action=settings.camera reset=1`) |
 | Settings -> Back | returns to the title menu |
+| Database | opens the upstream `database.button` submenu |
+| Database -> Schematics | opens the read-only list of 210 pinned base-part `.msch` files |
+| Database -> Core Database | opens the generated items/blocks catalog (D-pad scrolls, L/R switches Items/Blocks, B returns) |
+| Database -> About | opens the About page (upstream version, source commit, GPL-3.0, port status) |
+| About -> Back | returns to the Database submenu (B from Database returns to the title) |
 | Quit | exits the app |
-| Join Game / Custom Game / Load Game / Database / Editor / Mods | rendered as `(unavailable)`; logs `MAIN_MENU unavailable=<key>` |
+| Join Game / Custom Game / Load Game / Editor / Mods | rendered as `-` (unavailable); log `MAIN_MENU unavailable=<key>` |
 
 The settings rows are the port's live audio/lighting/camera controls, not upstream's tabbed settings
 dialog. The title, Play submenu and labels match the pinned upstream source; the rest of the upstream
 menu tree is intentionally visible but disabled so the gap is obvious rather than silently missing.
+
+### Core Database browser
+
+`include/ui/content_catalog.h` and the generated `include/ui/content_catalog_data.h` expose the pinned
+v160.8 bundle entries (`item.<id>.name`, `item.<id>.description`, `block.<id>.name`,
+`block.<id>.description`) plus each block's upstream `Category` from `Blocks.java`: **22 items** and
+**258 blocks**. Blocks without a `description` entry (parallax, cliffs, boulders, floor variants) are
+environment-only and excluded. The console view shows 12 rows with wrap-around scrolling; L/R switches
+Items/Blocks; X cycles the block-category filter (`All`, `distribution`, `production`, …); A opens a
+wrapped description detail showing the category (A or B returns); B leaves the catalog.
+
+Data and header are reproducible:
+
+```bash
+python3 tools/gen_content_catalog.py --bundle /path/to/bundle.properties
+python3 tools/gen_content_catalog.py --check   # also runs in ./dev.sh test
+```
+
+Upstream category tabs, icons, descriptions and unlock state are not modelled yet.
+
+### Schematics (read-only)
+
+`include/ui/schematics_catalog.h` and the generated `include/ui/schematics_catalog_data.h` list the
+**210** pinned base-part schematics from the `core/assets/baseparts` `.msch` files at `19a0f40d4451`.
+The generator decompresses each `.msch` (magic `msch`, version byte, zlib payload), reads
+`width/height`, tags, block count and block-type names, and stores the first five types as a summary.
+
+The list shows the upstream file name (truncated to the console width) with wrap-around scrolling; A
+opens a detail page with dimensions, block count and the block summary; B returns. **L/R** switches
+between the built-in table and user files scanned from `sd:/3ds/min3dstry/schematics/`: the same
+metadata parser runs on each `*.msch` (bounded to 64 files and 64 KiB per file, malformed files
+skipped), and the empty state points at the expected path. It is read-only: importing into the game,
+exporting or editing schematics is not implemented.
+
+```bash
+python3 tools/gen_schematics_catalog.py --dir /path/to/core/assets/baseparts
+python3 tools/gen_schematics_catalog.py --check   # also runs in ./dev.sh test
+```
 
 ## Input
 
@@ -71,8 +114,68 @@ MAIN_MENU action=play.campaign
   After Campaign the menu closes and the HUD resumes (`Tick: ... (RUN)`, `Audio: ... (MUTED)`). Old 3DS
   renders the same hierarchy; both runs keep `SECTOR_LOADER loaded=1` and `PARITY hash=0x53a483c7`.
 
+Scripted Database/About navigation on both profiles:
+
+```text
+MAIN_MENU screen=database selected=schematics
+MAIN_MENU screen=about selected=back
+MAIN_MENU screen=database selected=schematics   # B from About
+MAIN_MENU screen=title selected=play            # B from Database
+```
+
+The About page shows `Mindustry v160.8`, `Upstream: Anuken/Mindustry`, `Commit: 19a0f40d4451`,
+`License: GPL-3.0`, and `Port: Min3DStry (in progress)`. Schematics stays visible as `-` and logs
+`MAIN_MENU unavailable=<key>`.
+
+Core Database navigation on both profiles:
+
+```text
+MAIN_MENU screen=catalog selected=beryllium   # 1/22, Items
+MAIN_MENU catalog=Blocks count=258            # L switches category
+MAIN_MENU screen=database selected=database   # B returns
+```
+
+The catalog renders `Core Database 1/22` (then `1/258` for Blocks), the category name, and 12 rows with
+wrap-around scrolling. Screenshots confirm the Items list (`Beryllium … Phase Fabric`), the Blocks list
+(`Additive Reconstructor … Basic Assembler Module`), and both detail pages:
+
+```text
+MAIN_MENU catalog=Items selected=copper detail=1
+MAIN_MENU catalog=Blocks selected=additive-reconstructor detail=1
+MAIN_MENU filter=distribution count=28
+```
+
+`Copper` shows "Used in all types of construction and ammunition."; `Additive Reconstructor` shows
+"Upgrades inputted units to the second tier." Descriptions are the pinned bundle prose with formatting
+tags and literal newlines normalised for the console. The block detail adds `Category: distribution`
+(from `Blocks.java`), and the filtered Blocks list shows `Blocks / distribution` with its own count.
+
+Schematics navigation on both profiles:
+
+```text
+MAIN_MENU screen=schematics selected=<file> detail=0
+MAIN_MENU screen=schematics selected=<file> detail=1
+```
+
+The list shows `Schematics n/210` with the upstream file names; the detail page shows `WxH, N blocks`
+and the first block types (for example `2x2, 1 blocks` / `power-node-large`).
+
+With two fixtures staged at `sd:/3ds/min3dstry/schematics/` (`a single large power node.msch`,
+`battery node.msch`), both profiles report:
+
+```text
+MAIN_MENU source=sd count=2
+MAIN_MENU screen=schematics selected=battery node detail=1
+```
+
+and render `Schematics 2/2`, `Source: SD card`, `battery node`, `5x3, 2 blocks`,
+`battery-large, power-node-large`.
+
 ## Remaining work
 
 - Port the real upstream Scene2D `MenuFragment` rendering instead of the console shell.
-- Core database UI, schematic copy/paste, and RTS unit selection/command.
+- Schematic import/export and RTS unit selection/command.
+- Database category tabs, icons, descriptions and unlock state (the current browser lists the pinned
+  bundle names only).
+- The About page is a static port page, not the upstream links/credits dialog.
 - Upstream settings dialog (graphics/audio/game/controls tabs) instead of the live-control subset.

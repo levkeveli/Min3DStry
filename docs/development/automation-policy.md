@@ -20,7 +20,7 @@ Enable high-throughput AI-first development **without routine human PR merges**.
 
 ## Required conditions for unattended merge
 
-1. PR originates from a same-repo branch (not an external fork) and is not a draft.
+1. PR originates from a same-repo branch (not an external fork) and is not a draft; the auto-merge job skips drafts cleanly instead of failing the workflow.
 2. Merge base has no conflicts.
 3. Required checks (`Bootstrap checks`, `PR policy gate`, `AI review`) pass on the head commit.
 4. `AI review` approves the exact head commit with no unresolved critical/major bugs, security/secret leaks, license violations, or determinism/networking regressions.

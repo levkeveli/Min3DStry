@@ -270,13 +270,30 @@
     {
       "id": "menus-schematics-rts",
       "domain": "Controls & Dual-Screen UI",
-      "name": "Core Database, Schematics & RTS Unit Command",
-      "weight": 2,
+      "name": "Schematic Import/Export & RTS Unit Command",
+      "weight": 1,
       "status": "missing",
       "modes": [],
       "issue": 40,
       "evidence": [],
-      "notes": "Content database UI, blueprint schematics copy/paste, and RTS unit selection/command are not yet implemented."
+      "notes": "Read-only list of the 210 pinned base-part .msch files plus user .msch files from sd:/3ds/min3dstry/schematics (dimensions, block count, block summary); import into the game, export and RTS selection/command are not implemented."
+    },
+    {
+      "id": "content-database-page",
+      "domain": "Controls & Dual-Screen UI",
+      "name": "Core Database Browser (Items & Blocks)",
+      "weight": 1,
+      "status": "harness-only",
+      "modes": ["harness"],
+      "issue": 40,
+      "evidence": [
+        "docs/ui/main-menu.md",
+        "src/ui/content_catalog.c",
+        "include/ui/content_catalog_data.h",
+        "data/upstream-content.json",
+        "tests/ui/test_content_catalog.c"
+      ],
+      "notes": "Console catalog over the pinned v160.8 bundle: 22 items and 258 described blocks with upstream Categories, scrollable, L/R type switch, X category filter, A opens a wrapped description. Upstream planet tabs, icons and unlock state are not modelled."
     },
     {
       "id": "menus-title-settings-shell",
@@ -291,7 +308,7 @@
         "src/ui/main_menu.c",
         "tests/ui/test_main_menu.c"
       ],
-      "notes": "Navigation shell with upstream v160.8 MenuFragment keys/labels; Play->Campaign and Settings mute/lighting/camera are wired. The upstream Scene2D fragment, database, schematics and RTS remain unimplemented."
+      "notes": "Navigation shell with upstream v160.8 MenuFragment keys/labels; Play->Campaign, Settings mute/lighting/camera, and Database->About are wired. The upstream Scene2D fragment, schematic UI and RTS remain unimplemented."
     },
     {
       "id": "player-unit-flight-camera",
