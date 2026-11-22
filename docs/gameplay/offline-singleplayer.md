@@ -270,6 +270,33 @@ Both Azahar profiles joined and drew the beam with 15 of 25 sample pixels
 changed in the [live ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45078491985).
 The world lighting pass is tracked in #38.
 
+## Original liquid buildings
+
+The offline and live renderers draw the original v160.8 liquid catalog
+through the stock building drawers. Pumps, conduits, junctions, tanks,
+routers, and bridges use their upstream sprite layers. The drawers read
+liquid type, fill, and link state from the original simulation and saves.
+The network renderer keeps stock conduit fill interpolation.
+
+The JVM references exercise all 21 stock liquid buildings. The offline
+reference also checks filled water and nitrogen states and linked bridge
+spans. The ARM11 verifier replays an original Glacier save with eight
+representative Serpulo and Erekir placements, filled tanks, a configured
+sandbox source, and both kinds of bridge link.
+
+```bash
+python3 tools/verify_offline_liquid_buildings.py \
+  --rom /path/to/unified/upstream-probe.3dsx \
+  --server /path/to/server-release.jar \
+  --output build/offline-liquid-buildings --live
+```
+
+The [ARM11 replay](https://github.com/levkeveli/Min3DStry/actions/runs/45083291894)
+drew all eight buildings on both Azahar profiles. Each profile showed
+water and nitrogen in the tanks, the configured source, and both bridge
+spans when loading the save offline and after joining the unmodified
+Java v160.8 server.
+
 ## Original turret graphics
 
 The offline and live world passes use the original v160.8 turret drawers

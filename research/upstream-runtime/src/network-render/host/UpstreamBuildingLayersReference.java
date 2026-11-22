@@ -19,6 +19,7 @@ import java.io.DataOutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Predicate;
 import mindustry.Vars;
 import mindustry.content.Blocks;
 import mindustry.content.Items;
@@ -38,6 +39,8 @@ import mindustry.game.MapObjectives.ItemObjective;
 import mindustry.graphics.CacheLayer;
 import mindustry.graphics.Layer;
 import mindustry.graphics.Pal;
+import mindustry.type.Category;
+import mindustry.world.Block;
 import mindustry.world.blocks.defense.OverdriveProjector.OverdriveBuild;
 import mindustry.world.blocks.defense.ShockwaveTower.ShockwaveTowerBuild;
 import mindustry.world.blocks.defense.turrets.BaseTurret;
@@ -120,7 +123,9 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         target.verifyTankTreads(viewer);
         target.verifyCoreVariants(layers, viewport, viewer);
         target.verifyErekirStarterBlocks(layers, viewport, viewer);
-        target.verifyLiveTurretRegistry(layers, viewport, viewer);
+        target.verifyLiveBuildingRegistry(layers, viewport, viewer, block -> block instanceof BaseTurret, "TURRET");
+        target.verifyLiveBuildingRegistry(layers, viewport, viewer, block -> block.category == Category.liquid,
+            "LIQUID");
         if (args.length == 4) verifyObjectiveHud();
     }
 
@@ -187,26 +192,26 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         unitBuilds.add(new UnitBuild(page, left, top, width, height, x, y, rotation, progress, alpha, phase));
     }
 
-    private void verifyLiveTurretRegistry(UpstreamBuildingLayers layers, UpstreamTerrainDrawProbe.Viewport viewport,
-                                          Team viewer) {
+    private void verifyLiveBuildingRegistry(UpstreamBuildingLayers layers, UpstreamTerrainDrawProbe.Viewport viewport,
+                                            Team viewer, Predicate<Block> included, String category) {
         viewport.moveTo(24, 30);
         var tile = Vars.world.tile(31, 36);
         int tested = 0;
         for (var block : Vars.content.blocks()) {
-            if (!(block instanceof BaseTurret)) continue;
+            if (!block.hasBuilding() || !included.test(block)) continue;
             tile.setBlock(block, viewer, 0);
             try {
-                var turret = tile.build;
+                var building = tile.build;
                 sprites.clear();
-                layers.render(viewport, viewer, build -> build == turret
+                layers.render(viewport, viewer, build -> build == building
                     && UpstreamRenderedNetworkProbe.supportsBuildingDraw(build));
-                if (sprites.isEmpty()) throw new AssertionError("The live turret draw pass excludes " + block.name);
+                if (sprites.isEmpty()) throw new AssertionError("The live draw pass excludes " + block.name);
                 tested++;
             } finally {
                 tile.setBlock(Blocks.air);
             }
         }
-        System.out.println("UPSTREAM_STOCK_LIVE_TURRET_DRAW tested=" + tested);
+        System.out.printf("UPSTREAM_STOCK_LIVE_%s_DRAW tested=%d%n", category, tested);
     }
 
     private static void verifyObjectiveHud() {

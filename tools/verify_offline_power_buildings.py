@@ -68,7 +68,7 @@ def check_pixels(model, before, after, samples):
         raise AssertionError(f"{model}: power graphics did not cover their expected sample points")
 
 
-def verify_live(args, model, azahar, fixture, terrain, output, samples=SAMPLES):
+def verify_live(args, model, azahar, fixture, terrain, output, samples=SAMPLES, min_changed=12):
     server_dir = output / "server"
     save = server_dir / "config/saves/world.msav"
     save.parent.mkdir(parents=True)
@@ -101,7 +101,7 @@ def verify_live(args, model, azahar, fixture, terrain, output, samples=SAMPLES):
                     frame = rpc.screenshot()
                     (output / "world.png").write_bytes(frame)
                     counts = changed_pixels(terrain, frame, samples)
-                    if min(counts.values()) >= 12:
+                    if min(counts.values()) >= min_changed:
                         return counts
                 except (RuntimeError, TimeoutError):
                     if proc.poll() is not None:
