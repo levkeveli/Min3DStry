@@ -259,6 +259,34 @@ asserts it is no longer being played, resets game-over, and verifies the menu
 transition alone ends play state. No settings or save files are
 written. Azahar `2126.2` New and Old profiles both reported the marker.
 
+## ARM11 Campaign Sector Capture
+
+`-Pprobe=campaign-capture` runs the upstream `Logic.sectorCapture()` path,
+asserts the `SectorCaptureEvent`, the cleared waves/attack rules, and the
+`SectorInfo` JSON round-trip:
+
+```sh
+gradle -PupstreamCheckout=/path/to/Mindustry \
+  -PreferenceJar=/path/to/server-release.jar \
+  -ParcCheckout=/path/to/Arc -Pprobe=campaign-capture \
+  runProbeJvm --args=/path/to/glacier.msav
+```
+
+JVM and ARM11/Azahar report:
+
+```text
+UPSTREAM_CAMPAIGN_CAPTURE sector=15 captured=ok waves=off attack=off event=ok persisted=ok
+```
+
+The probe sets ground zero playing with waves and attack mode enabled, calls
+`Logic.sectorCapture()`, verifies `wasCaptured`, `isCaptured()`, and
+`rules.waves`/`rules.attackMode` are cleared, then persists `SectorInfo` and
+reads the saved JSON key back. `Sector.clearInfo()` is deliberately not used
+because upstream removes the settings key there. The ARM11 build uses the
+scoped `M3DS_RELAX_POINTER_TYPES=1` setting required by the `SectorInfo`
+reflection policy. Azahar `2126.2` New and Old profiles both reported the
+marker.
+
 ## ARM11 Campaign Sector Launch
 
 `-Pprobe=campaign-launch` launches a real sector save through the upstream
