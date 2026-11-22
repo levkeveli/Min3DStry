@@ -198,3 +198,40 @@ Both profiles executed Boot 1 (load `groundZero.msav`, select Mine + copper ore 
 
 - **`new3ds` (`is_new_3ds=true`):** `UPSTREAM_MEMORY appHeap=108834816 linearHeap=4194304 stack=262144`, `saved=wave:2,copper:29,bytes:18700`, `reloaded=wave:2,copper:29`, `game_fps=4.72` (unoptimized headless emulator baseline).
 - **`old3ds` (`is_new_3ds=false`):** `UPSTREAM_MEMORY appHeap=79474688 linearHeap=4194304 stack=262144` (~`75.8 MiB` emulator-reported `envGetHeapSize()` region, not the physical retail Original 3DS `64 MiB` `APPMEMTYPE 0` limit against which the `44.44 MiB` static subtotal is budgeted), `saved=wave:2,copper:29,bytes:18685`, `reloaded=wave:2,copper:29`, `game_fps=3.48` (unoptimized headless emulator baseline).
+
+## Original material buildings
+
+The offline renderer draws stock crafters, separators, pumps, liquid
+routers and tanks, and item storage using the upstream building passes
+and v160.8 atlas. Their original recipes and save data use the existing
+upstream simulation and serialization.
+The offline session initializes cache layers before registering content so
+stock blocks retain the correct layer for their dynamic draw calls.
+
+The JVM reference exercises all 49 definitions in these families outside
+the already supported cores. Each definition must draw a stock atlas
+sprite both at rest and with active draw state. Run it with the pinned
+Glacier map, atlas metadata, and block colors from the official assets.
+
+```bash
+bash /path/to/Mindustry/gradlew -p research/upstream-runtime \
+  -PupstreamCheckout=/path/to/Mindustry -ParcCheckout=/path/to/Arc \
+  -PreferenceJar=/path/to/server-release.jar -Pprobe=singleplayer \
+  runOfflineMaterialsJvm \
+  --args="/path/to/glacier.msav /path/to/sprites.aatls /path/to/block_colors.png"
+```
+
+The emulator verifier uses an unmodified v160.8 server to write two Glacier
+saves with identical terrain. The populated save adds a silicon smelter,
+plastanium compressor, vault, liquid tank, mechanical pump, electrolyzer,
+and separator. It reopens that save on the stock server, then checks
+that each structure changes the expected portion of the top screen
+on both Azahar profiles. The verifier uses isolated virtual SD directories
+and retains the saves, screenshots, and logs.
+
+```bash
+python3 tools/verify_offline_material_buildings.py \
+  --rom /path/to/upstream-probe.3dsx \
+  --server /path/to/server-release.jar \
+  --output build/offline-material-buildings
+```
