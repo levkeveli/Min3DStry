@@ -11,9 +11,14 @@ public final class UpstreamStatusRows {
     }
 
     public static List<String> texts(I18NBundle bundle, boolean waves, boolean campaign,
-            boolean waveTimer, boolean waitingWave, int wave, int winWave,
-            int enemies, int seconds) {
+            boolean attackMode, boolean waveTimer, boolean waitingWave, int wave, int winWave,
+            int enemies, int enemyCores, int seconds) {
         var rows = new ArrayList<String>();
+        if (!waves && attackMode) {
+            rows.add(bundle.format(enemyCores > 1 ? "wave.enemycores" : "wave.enemycore",
+                Math.max(1, enemyCores)));
+            return rows;
+        }
         if (waves) {
             rows.add(winWave > 1 && winWave >= wave
                 ? bundle.format("wave.cap", wave, winWave)
@@ -30,6 +35,19 @@ public final class UpstreamStatusRows {
             }
         } else if (campaign) {
             rows.add(bundle.get("sector.curcapture"));
+        }
+        return rows;
+    }
+
+    /** Left-side health/ammo values used by the stock HUD status area. */
+    public static List<String> unitRows(I18NBundle bundle, int health, int maxHealth,
+            int ammoPercent, int ammoCapacity) {
+        var rows = new ArrayList<String>();
+        if (maxHealth > 0) {
+            rows.add(bundle.get("stat.health") + " " + health + "/" + maxHealth);
+        }
+        if (ammoCapacity > 0) {
+            rows.add(bundle.get("stat.ammo") + " " + ammoPercent + "%");
         }
         return rows;
     }

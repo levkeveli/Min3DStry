@@ -167,6 +167,7 @@ UPSTREAM_SP_LOADED source=campaign map=Editor_Playtesting size=150x250 wave=1 co
 UPSTREAM_CAMPAIGN_SAVED slot=sector-serpulo-15.msav
 UPSTREAM_SP_EXIT
 UPSTREAM_CAMPAIGN_CAPTURED sector=15
+UPSTREAM_CAMPAIGN_NOTIFICATION text=Sector Captured
 UPSTREAM_CAMPAIGN_CAPTURE_REWARDS copper=250 lead=75 core=core-nucleus storage=13000
 UPSTREAM_CAMPAIGN_CAPTURE sector=15 captured=ok waves=off attack=off event=ok persisted=ok
 ```
