@@ -26,6 +26,34 @@ full upstream catalog/layout parity remains open.
 - The ARM11 client drew the constructed sprites after each stock-server
   acknowledgement.
 
+## Stock item selectors
+
+Tap **Config**, then a building with a stock item choice. The palette
+supports both Sorters, Duct Router, Surge Router, Unloader, Duct Unloader,
+Item Source, Unit Cargo Unload Point, and Landing Pad. It uses the
+original item order and the selection rules from upstream
+`ItemSelection`. The current filter opens at its saved page.
+
+Choosing a row sends the original item through `Building.configure`.
+Choosing the selected item again calls the stock clear handler.
+Landing Pad availability follows its original game-mode rules.
+The JVM reference tests all nine blocks and pages to Beryllium using
+Erekir's item catalog.
+
+```bash
+python3 tools/verify_stock_item_selectors.py \
+  --rom /path/to/unified/upstream-probe.3dsx \
+  --server /path/to/server-release.jar \
+  --output build/stock-item-selectors --live
+```
+
+The [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45084844883)
+passed the replay on both Azahar 2126.2 profiles. It opens a Duct Router
+with a saved Beryllium filter highlighted on page 2, clears the filter,
+and selects Tungsten on a Duct Unloader. The unmodified v160.8 Java
+server verified those final selections in both ARM11 saves and during
+live sessions on each profile.
+
 ## Factory world graphics
 
 The graphical client calls the pinned `UnitFactoryBuild.draw` for the

@@ -69,15 +69,17 @@ def stock_server(args, output, result=None):
         stop(server)
 
 
-def write_movie(path, model, live=False):
+def write_movie(path, model, live=False, *, taps=None, buttons=None, seconds=90):
     samples = sp.CTM_SAMPLES_PER_SECOND
-    frames = 90 * samples
-    taps = ({42: (305, 64), 49: (120, 200), 60: (160, 46)} if live
-            else {40: (305, 64), 45: (120, 200), 55: (160, 46)})
-    buttons = {0: sp.KEY_X, 80: sp.KEY_START} if live else {75: sp.KEY_SELECT, 82: sp.KEY_START}
+    frames = seconds * samples
+    if taps is None:
+        taps = ({42: (305, 64), 49: (120, 200), 60: (160, 46)} if live
+                else {40: (305, 64), 45: (120, 200), 55: (160, 46)})
+    if buttons is None:
+        buttons = {0: sp.KEY_X, 80: sp.KEY_START} if live else {75: sp.KEY_SELECT, 82: sp.KEY_START}
     with path.open("wb") as movie:
         movie.write(struct.pack("<4sQ20sQQ32sIQq156x", b"CTM\x1b", 0, sp.CTM_REVISION, 1780000000,
-                                0x4D334453, b"Min3DStry factory plan", 0, frames, 0))
+                                0x4D334453, b"Min3DStry touch replay", 0, frames, 0))
         idle_touch = struct.pack("<B6x", 1)
         for frame in range(frames):
             sec = frame // samples
