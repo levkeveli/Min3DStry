@@ -280,12 +280,19 @@ UPSTREAM_CAMPAIGN_CAPTURE sector=15 captured=ok waves=off attack=off event=ok pe
 
 The probe sets ground zero playing with waves and attack mode enabled, calls
 `Logic.sectorCapture()`, verifies `wasCaptured`, `isCaptured()`, and
-`rules.waves`/`rules.attackMode` are cleared, then persists `SectorInfo` and
-reads the saved JSON key back. `Sector.clearInfo()` is deliberately not used
+`rules.waves`/`rules.attackMode` are cleared, then the shared
+`UpstreamSectorCapture` listener persists `SectorInfo`; the probe reads the
+saved JSON key back. `Sector.clearInfo()` is deliberately not used
 because upstream removes the settings key there. The ARM11 build uses the
 scoped `M3DS_RELAX_POINTER_TYPES=1` setting required by the `SectorInfo`
 reflection policy. Azahar `2126.2` New and Old profiles both reported the
 marker.
+
+The same `UpstreamSectorCapture` listener is installed by the live
+single-player app. A live `Logic` capture emits
+`UPSTREAM_CAMPAIGN_CAPTURED sector=<id>` and writes the `SectorInfo` settings
+key; the existing START-exit path then writes the sector `.msav`. The capture
+probe exercises this exact listener on JVM and both Azahar profiles.
 
 ## ARM11 Campaign Sector Launch
 

@@ -98,6 +98,7 @@ public final class UpstreamSinglePlayerApp {
 
         Fi mapDir = saveFile.parent() != null ? saveFile.parent() : new Fi("/3ds/min3dstry");
         session = UpstreamSinglePlayerSession.create(mapDir, bundleTag);
+        UpstreamSectorCapture.install();
         try {
             List<UpstreamSinglePlayerSession.SectorSlot> sectorSaves =
                 args.length < 2 ? session.sectorSaves() : List.of();

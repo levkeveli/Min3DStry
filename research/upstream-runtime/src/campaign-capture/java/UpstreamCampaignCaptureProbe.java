@@ -26,6 +26,7 @@ public final class UpstreamCampaignCaptureProbe {
         settings.setAutosave(false);
         settings.setJson(JsonIO.json);
         Core.settings = settings;
+        UpstreamSectorCapture.install();
 
         Sector sector = SectorPresets.groundZero.sector;
         if(sector == null || sector.id != 15 || sector.preset != SectorPresets.groundZero){
@@ -68,7 +69,6 @@ public final class UpstreamCampaignCaptureProbe {
         }
 
         sector.info.prepare(sector);
-        sector.saveInfo();
         String key = sector.planet.name + "-s-" + sector.id + "-info";
         var persisted = Core.settings.getJson(key, mindustry.game.SectorInfo.class,
             mindustry.game.SectorInfo::new);
