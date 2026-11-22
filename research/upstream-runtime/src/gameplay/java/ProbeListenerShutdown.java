@@ -7,6 +7,7 @@ final class ProbeListenerShutdown {
     }
 
     static void dispose() {
+        if (Core.app == null) return;
         for (ApplicationListener listener : Core.app.getListeners().copy()) {
             try {
                 listener.dispose();
