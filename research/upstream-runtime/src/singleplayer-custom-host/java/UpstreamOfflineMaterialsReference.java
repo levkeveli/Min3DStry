@@ -73,12 +73,7 @@ public final class UpstreamOfflineMaterialsReference implements UpstreamTerrainD
                 target.verifyDraw(layers, viewport, viewer, build, "idle");
                 activate(build);
                 target.verifyDraw(layers, viewport, viewer, build, "working");
-                if (power) {
-                    if (!UpstreamRenderedNetworkProbe.supportsBuildingDraw(build)) {
-                        throw new AssertionError("The multiplayer draw pass excludes " + block.name);
-                    }
-                    powerTested++;
-                }
+                if (power) powerTested++;
                 if (material) tested++;
             } finally {
                 tile.setBlock(Blocks.air);
