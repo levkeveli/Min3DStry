@@ -29,6 +29,8 @@ UPSTREAM_STATUS_HUD wave=1 enemies=0 copper=200 rows=3
 
 The same runs complete the stock-server combat check and report the packet
 and destroy markers documented in [live-combat.md](../gameplay/live-combat.md).
+While the wave timer is counting down, the status text changes once per second,
+so `UPSTREAM_STATUS_HUD` is also emitted once per second in timer-on runs.
 
 The live fixture exercises the countdown/waiting path with `enemies=0`. The
 singular/plural enemy rows, the `wave.waveInProgress` branch, and the `m:ss`
