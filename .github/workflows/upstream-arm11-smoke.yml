@@ -417,6 +417,24 @@ jobs:
               research/upstream-runtime/build/probe-3ds-save-rows --save-rows'
           test -s research/upstream-runtime/build/probe-3ds-save-rows/upstream-probe.3dsx
 
+      - name: Build the embedded TeaVM loader smoke
+        run: |
+          image=devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5
+          docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/work" -w /work "$image" bash -lc '
+            source /opt/devkitpro/3dsvars.sh
+            bash tools/build_teavm_loader.sh \
+              research/upstream-runtime/build/generated/teavm/c build/teavm-loader
+            arm-none-eabi-gcc -std=gnu11 -g -Os -fwrapv -D__3DS__ \
+              -mword-relocations -march=armv6k -mtune=mpcore -mfpu=vfp \
+              -mfloat-abi=hard -mtp=soft -Iinclude \
+              -I"$DEVKITPRO/libctru/include" -L"$DEVKITPRO/libctru/lib" \
+              -Lbuild/teavm-loader -specs=3dsx.specs \
+              tests/platform/embed_loader_smoke.c src/platform/world_rows.c \
+              src/platform/msav_world.c -lm3dsloader -lctru -lm \
+              -o build/embed-loader-smoke.elf
+            test -s build/embed-loader-smoke.elf
+          '
+
       - name: Generate and build the ARM11 sector-slot probe
         run: |
           bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime \

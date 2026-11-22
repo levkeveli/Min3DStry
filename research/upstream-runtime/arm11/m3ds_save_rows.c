@@ -5,7 +5,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "platform/teavm_world_loader.h"
 #include "platform/world_rows.h"
+
+extern int m3ds_teavm_main(int argc, char **argv);
 
 static M3dsWorldTileRow *g_rows;
 static M3dsWorldBuildingRow *g_buildings;
@@ -13,6 +16,22 @@ static size_t g_width;
 static size_t g_height;
 static size_t g_tile_count;
 static size_t g_building_count;
+static bool g_verify_fixture;
+static M3dsWorldTiles g_loaded_tiles;
+static bool g_loaded_ready;
+static const char *g_requested_save_path;
+
+int m3ds_save_rows_copy_path(void *destination, int capacity) {
+    if (!g_requested_save_path || !destination || capacity <= 0) {
+        return -1;
+    }
+    int length = (int)strlen(g_requested_save_path);
+    if (length >= capacity) {
+        return -1;
+    }
+    memcpy(destination, g_requested_save_path, (size_t)length + 1u);
+    return length;
+}
 
 static void release_rows(void) {
     free(g_buildings);
@@ -25,8 +44,14 @@ static void release_rows(void) {
     g_building_count = 0;
 }
 
-int m3ds_save_rows_begin(int width, int height, int tiles, int buildings) {
+int m3ds_save_rows_begin(
+    int width, int height, int tiles, int buildings, int verifyFixture) {
     release_rows();
+    if (g_loaded_ready) {
+        m3ds_msav_free_world(&g_loaded_tiles);
+        g_loaded_ready = false;
+    }
+    g_verify_fixture = verifyFixture != 0;
     if (width <= 0 || height <= 0 || tiles != width * height || buildings < 0) {
         return 1;
     }
@@ -121,12 +146,41 @@ int m3ds_save_rows_end(void) {
         if (length > 0 && length < (int)sizeof(line)) {
             svcOutputDebugString(line, length);
         }
-        result = tiles.hash == UINT64_C(0x783fbd80e415dcd7)
-                && tiles.tile_state_hash == UINT64_C(0xe35397041df8e5fe)
-                && tiles.save_state_hash == UINT64_C(0x3a375fd4f81c5680)
-                && tiles.building_count == 2u ? 0 : 1;
-        m3ds_msav_free_world(&tiles);
+        if (g_verify_fixture) {
+            result = tiles.hash == UINT64_C(0x783fbd80e415dcd7)
+                    && tiles.tile_state_hash == UINT64_C(0xe35397041df8e5fe)
+                    && tiles.save_state_hash == UINT64_C(0x3a375fd4f81c5680)
+                    && tiles.building_count == 2u ? 0 : 1;
+        } else {
+            result = 0;
+        }
+        if (result == 0) {
+            g_loaded_tiles = tiles;
+            g_loaded_ready = true;
+        } else {
+            m3ds_msav_free_world(&tiles);
+        }
     }
     release_rows();
     return result;
+}
+
+bool m3ds_teavm_world_loader_available(void) {
+    return true;
+}
+
+bool m3ds_teavm_world_load(const char *save_path, M3dsWorldTiles *out) {
+    if (!save_path || !out) {
+        return false;
+    }
+    g_requested_save_path = save_path;
+    int result = m3ds_teavm_main(0, NULL);
+    g_requested_save_path = NULL;
+    if (result != 0 || !g_loaded_ready) {
+        return false;
+    }
+    *out = g_loaded_tiles;
+    memset(&g_loaded_tiles, 0, sizeof(g_loaded_tiles));
+    g_loaded_ready = false;
+    return true;
 }

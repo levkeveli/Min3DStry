@@ -20,6 +20,7 @@ ATLAS           := build/atlas
 AUDIO_ROMFS     := build/audio-romfs
 BUILD_CONFIG    := $(BUILD)/build-config.h
 UPSTREAM_MINDUSTRY ?=
+TEAVM_LOADER_DIR ?=
 PYTHON          ?= python3
 TEX3DS          ?= tex3ds
 
@@ -48,12 +49,18 @@ LDFLAGS  = -specs=3dsx.specs -g $(ARCH) -Wl,-Map,$(notdir $*.map)
 
 LIBS    := -lcitro2d -lcitro3d -lvorbisidec -logg -lctru -lm
 
+ifneq ($(strip $(TEAVM_LOADER_DIR)),)
+CFLAGS  += -DM3DS_TEAVM_LOADER_EMBEDDED
+LIBS    += -L$(TEAVM_LOADER_DIR) -lm3dsloader
+endif
+
 LIBDIRS := $(PORTLIBS) $(CTRULIB)
 
 ifneq ($(CURDIR),$(TOPDIR)/$(BUILD))
 
 export OUTPUT := $(CURDIR)/build/$(TARGET)
 export TOPDIR := $(CURDIR)
+export TEAVM_LOADER_DIR
 
 export VPATH := $(foreach dir,$(SOURCES),$(CURDIR)/$(dir)) \
                 $(foreach dir,$(DATA),$(CURDIR)/$(dir))
@@ -150,6 +157,9 @@ endif
 citro2d_backend.o : $(TOPDIR)/$(ATLAS)/sprites.h
 
 $(OUTPUT).elf : $(OFILES)
+ifneq ($(strip $(TEAVM_LOADER_DIR)),)
+$(OUTPUT).elf : $(TEAVM_LOADER_DIR)/libm3dsloader.a
+endif
 
 -include $(DEPSDIR)/*.d
 

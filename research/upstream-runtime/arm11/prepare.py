@@ -19,6 +19,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("generated", type=Path)
     parser.add_argument("output", type=Path, help="new staging directory")
+    parser.add_argument(
+        "--embed", action="store_true",
+        help="stage a loader without the probe main or 3DS heap symbols")
     args = parser.parse_args()
     if args.output.exists():
         parser.error("use a new staging directory")
@@ -106,8 +109,9 @@ def main():
             ('#include "file.c"', '#include "m3ds_file.c"'),
             ('#include "time.c"', ""),
             ('#include "main.c"', '#define main m3ds_teavm_main\n#include "main.c"\n#undef main'),
+        ] + ([] if args.embed else [
             ('#include "virtcall.c"', '#include "virtcall.c"\n#include "m3ds_main.c"'),
-        ],
+        ]),
         "memory.c": [
             ("void* teavm_gc_heapAddress", "static int64_t teavm_pageSize(void);\nstatic void* teavm_virtualAlloc(int64_t size);\nstatic void teavm_virtualCommit(void* address, int64_t size);\nstatic void teavm_virtualUncommit(void* address, int64_t size);\n\nvoid* teavm_gc_heapAddress"),
         ],
@@ -138,7 +142,15 @@ def main():
             replace(args.output / name, old, new)
     for name in ("m3ds_date.c", "m3ds_platform.c", "m3ds_file.c", "m3ds_main.c",
                  "m3ds_gc_relocations.h", "m3ds_array_class_pool.h", "m3ds_callsites.h"):
+        if args.embed and name == "m3ds_main.c":
+            continue
         shutil.copyfile(Path(__file__).with_name(name), args.output / name)
+    if args.embed:
+        platform = args.output / "m3ds_platform.c"
+        text = platform.read_text(encoding="utf-8")
+        text = text.replace("u32 __stacksize__ = 256 * 1024;\n", "")
+        text = text.replace("u32 __ctru_linear_heap_size = 4 * 1024 * 1024;\n", "")
+        platform.write_text(text, encoding="utf-8")
     includes = args.output / "nativeinclude"
     includes.mkdir()
     shutil.copyfile(Path(__file__).with_name("m3ds_map_file.h"), includes / "m3ds_map_file.h")
