@@ -75,9 +75,13 @@ public final class UpstreamRenderedNetworkProbe {
     }
 
     static void run(Fi endpoint, Fi atlas) throws IOException, InterruptedException {
+        run(endpoint.parent(), endpoint.readString(), atlas);
+    }
+
+    static void run(Fi directory, String address, Fi atlas) throws IOException, InterruptedException {
         var view = new UpstreamRenderedNetworkProbe(atlas);
         int language = view.target.mountAssets();
-        var preference = endpoint.sibling("locale.txt");
+        var preference = directory.child("locale.txt");
         String requested = preference.exists() && preference.length() <= 16 ? preference.readString("UTF-8").trim() : "";
         Core.bundle = UpstreamInterfaceLocale.loadForStockClient(new Fi("/romfs/bundles/bundle"), language, requested);
         var locale = Core.bundle.getLocale();
@@ -85,7 +89,7 @@ public final class UpstreamRenderedNetworkProbe {
             + (locale.getLanguage().isEmpty() ? "en" : locale) + " router=" + Core.bundle.get("block.router.name")
             + " copper=" + Core.bundle.get("item.copper.name"));
         CacheLayer.init();
-        UpstreamLiveNetworkProbe.run(endpoint, view::loadGraphics, view::render, view.buildingControls);
+        UpstreamLiveNetworkProbe.run(directory, address, view::loadGraphics, view::render, view.buildingControls);
     }
 
     private void loadGraphics() {
