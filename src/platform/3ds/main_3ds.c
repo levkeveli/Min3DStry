@@ -235,7 +235,7 @@ int main(int argc, char *argv[]) {
     }
 
     if (sector_count > 0u) {
-        char save_path[160];
+        char save_path[160] = {0};
         bool have_path = m3ds_sd_sector_save_path(
             "/3ds/min3dstry", sectors[0].planet, sectors[0].id,
             save_path, sizeof(save_path));
@@ -243,9 +243,9 @@ int main(int argc, char *argv[]) {
         bool loader_ok = have_path
             && m3ds_teavm_world_load(save_path, &upstream);
         snprintf(dbg_line, sizeof(dbg_line),
-                 "[MIN3DSTRY] SECTOR_LOADER source=teavm available=%d loaded=%d tiles=%u buildings=%u\n",
+                 "[MIN3DSTRY] SECTOR_LOADER source=teavm available=%d loaded=%d path=%s tiles=%u buildings=%u\n",
                  m3ds_teavm_world_loader_available() ? 1 : 0,
-                 loader_ok ? 1 : 0,
+                 loader_ok ? 1 : 0, save_path,
                  (unsigned)(loader_ok ? upstream.count : 0u),
                  (unsigned)(loader_ok ? upstream.building_count : 0u));
         m3ds_emit_debug_line(log_socket, dbg_line);

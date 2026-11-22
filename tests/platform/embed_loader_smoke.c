@@ -28,7 +28,8 @@ int main(void) {
         && tiles.count == 37500u && tiles.building_count == 2u
         && tiles.hash == UINT64_C(0x783fbd80e415dcd7)
         && tiles.tile_state_hash == UINT64_C(0xe35397041df8e5fe)
-        && tiles.save_state_hash == UINT64_C(0x3a375fd4f81c5680);
+        && tiles.save_state_hash == UINT64_C(0x3a375fd4f81c5680)
+        && m3ds_teavm_world_loaded_version() == 13u;
     char line[256];
     int length = snprintf(line, sizeof(line),
         "EMBED_LOADER missing=0 ok=%d verified=%d version=%u tiles=%u"

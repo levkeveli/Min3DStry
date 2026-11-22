@@ -22,6 +22,8 @@ static M3dsWorldTiles g_loaded_tiles;
 static bool g_loaded_ready;
 static const char *g_requested_save_path;
 static uint32_t g_loaded_version;
+static bool g_loading;
+static bool g_loader_used;
 
 void m3ds_save_rows_set_version(int version) {
     g_loaded_version = (uint32_t)version;
@@ -190,12 +192,16 @@ bool m3ds_teavm_world_loader_available(void) {
 }
 
 bool m3ds_teavm_world_load(const char *save_path, M3dsWorldTiles *out) {
-    if (!save_path || !out) {
+    if (!save_path || !out || g_loading || g_loader_used) {
         return false;
     }
+    g_loading = true;
+    g_loader_used = true;
     g_requested_save_path = save_path;
     int result = m3ds_teavm_main(0, NULL);
     g_requested_save_path = NULL;
+    release_rows();
+    g_loading = false;
     if (result != 0 || !g_loaded_ready) {
         if (g_loaded_ready) {
             m3ds_msav_free_world(&g_loaded_tiles);

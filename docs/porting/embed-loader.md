@@ -37,7 +37,8 @@ New 3DS valid:
   EMBED_LOADER missing=0 ok=1 verified=1 version=13 tiles=37500 buildings=2 flat=783fbd80e415dcd7 tile=e35397041df8e5fe save=3a375fd4f81c5680
 
 Old 3DS valid:
-  same rows/heap/status/loaded values
+  same rows/status/loaded values
+  UPSTREAM_HEAP used=20535816 free=71160
 
 New/Old 3DS missing save:
   UPSTREAM_SAVE_ROWS error=arc.util.ArcRuntimeException: Error reading file: /3ds/min3dstry/does-not-exist.msav (absolute)
@@ -45,12 +46,18 @@ New/Old 3DS missing save:
 ```
 
 The smoke harness builds two variants: one loads the real fixture and asserts
-the hashes; the other loads a missing path and asserts the loader returns false
-without aborting. The Java entry catches load/extraction failures, reports
-them, and clears `Vars.world` after extracting rows so the TeaVM world is not
-retained alongside the native copy. The save version is propagated through
-`m3ds_save_rows_set_version`. `UPSTREAM_HEAP` records newlib heap usage after
-the load (about 20.5 MiB used for the Glacier fixture).
+the tile/building hashes and `version == 13`; the other loads a missing path and
+asserts the loader returns false without aborting. The Java entry catches
+load/extraction failures, reports them, and clears `Vars.world` after extracting
+rows so the TeaVM world is not retained alongside the native copy. The save
+version is propagated through `m3ds_save_rows_set_version`.
+
+`UPSTREAM_HEAP` records newlib heap usage after the load. Azahar reports
+`used=20,535,816 free=71,160` for the linked app on both profiles; the New test
+reported `used=20,534,480 free=72,496`. Clearing `Vars.world` removes the live
+Java world references, but the TeaVM managed heap is not returned to libctru.
+The Old 3DS application-memory ceiling is lower than New 3DS, and Azahar does
+not enforce the physical ceiling, so this remains an emulator-only measurement.
 
 The app call site in `main_3ds.c` logs
 `SECTOR_LOADER source=teavm available=1 loaded=1` when the embedded loader is
@@ -59,18 +66,16 @@ linked, and falls back to the native parser when it is not.
 ## Reproduce
 
 ```sh
-UPSTREAM_MINDUSTRY=/path/to/Mindustry \
-MINDUSTRY_SERVER_JAR=/path/to/server-release.jar \
-ARC_CHECKOUT=/path/to/Arc \
-GRADLE_BIN=/path/to/gradle \
-./dev.sh loader
-
-./dev.sh build   # auto-builds/links when UPSTREAM_MINDUSTRY is set
+gradle -Pprobe=save-rows ... generateC
+bash tools/build_teavm_loader.sh \
+    research/upstream-runtime/build/generated/teavm/c build/teavm-loader
+make TEAVM_LOADER_DIR="$PWD/build/teavm-loader"
 ```
 
-`dev.sh build` passes an absolute `TEAVM_LOADER_DIR` to make, and the Makefile
-also normalizes a relative path. `M3DS_REBUILD_LOADER=1` forces regeneration.
-CI now runs `make TEAVM_LOADER_DIR=...` in the pinned container.
+The Makefile normalizes the path to an absolute value with `override`, and the
+loader/stub selection is written into `build-config.h` so toggling rebuilds the
+stub object. A separate build-integration change adds `dev.sh loader` and
+auto-linking to `dev.sh build`; this PR only adds the script and Makefile hook.
 
 The remaining step is to make this linked build the only shipped path and
 delete the native parser from the startup path.
