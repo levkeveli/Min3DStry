@@ -111,6 +111,7 @@ public final class UpstreamSinglePlayerApp {
 
         Fi mapDir = saveFile.parent() != null ? saveFile.parent() : new Fi("/3ds/min3dstry");
         session = UpstreamSinglePlayerSession.create(mapDir, bundleTag, new Fi("/romfs/planets"));
+        UpstreamSectorCapture.install();
         try {
             CustomGame custom = null;
             Fi customSave = mapDir.child("custom-game-save.msav");

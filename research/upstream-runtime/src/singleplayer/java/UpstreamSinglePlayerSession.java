@@ -350,6 +350,9 @@ public final class UpstreamSinglePlayerSession {
         if (saveFile.parent() != null) {
             saveFile.parent().mkdirs();
         }
+        if (Vars.state.rules.sector != null) {
+            UpstreamSectorCapture.persist(Vars.state.rules.sector);
+        }
         SaveIO.save(saveFile);
         try (var input = SaveIO.getStream(saveFile)) {
             if (!SaveIO.isSaveValid(input)) {

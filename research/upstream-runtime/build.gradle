@@ -66,6 +66,7 @@ def entryPoints = [
     'campaign-sector-state': 'UpstreamCampaignSectorStateProbe',
     'campaign-launch': 'UpstreamCampaignLaunchProbe',
     'campaign-capture': 'UpstreamCampaignCaptureProbe',
+    'status-hud': 'UpstreamStatusRowsProbe',
     'campaign-saves': 'UpstreamCampaignSavesProbe',
     'campaign-saves-load': 'UpstreamCampaignSavesLoadProbe',
     'campaign-slot-discovery': 'UpstreamCampaignSlotDiscoveryProbe'
@@ -112,6 +113,7 @@ def usesCampaignPlanet = probe == 'campaign-planet'
 def usesCampaignSectorState = probe == 'campaign-sector-state'
 def usesCampaignLaunch = probe == 'campaign-launch'
 def usesCampaignCapture = probe == 'campaign-capture'
+def usesStatusHud = probe == 'status-hud'
 def usesCampaignSaves = probe == 'campaign-saves'
 def usesCampaignSavesLoad = probe == 'campaign-saves-load'
 def usesCampaignSlotDiscovery = probe == 'campaign-slot-discovery'
@@ -119,7 +121,7 @@ def usesCampaignJsonCompat = usesCampaignSectorInfo || usesCampaignSlotDiscovery
 def usesWorldSources = probe in ['world', 'world-save', 'world-roundtrip', 'world-stream',
                                  'terrain-draw', 'save-decode', 'save-rows'] || usesCampaignSector || usesCampaignSlotMeta || usesCampaignLaunch || usesCampaignCapture || usesCampaignSavesLoad || usesCampaignSlotDiscovery || usesLiveNetwork || usesTerrainRenderer || usesSimulation || usesSinglePlayer
 def initializesContent = probe == 'content-init' || usesWorldSources || usesCampaignContent || usesCampaignResearch || usesCampaignSectorInfo || usesCampaignPlanet || usesCampaignSectorState || usesCampaignLaunch || usesCampaignCapture || usesCampaignSaves
-def usesContentSources = probe == 'content' || initializesContent
+def usesContentSources = probe == 'content' || initializesContent || usesStatusHud
 def usesExecutor = usesContentSources || probe == 'executor' || usesCampaignSettings
 def usesArcSources = usesContentSources || probe == 'resource' || usesCampaignSettings
 def usesWorldStream = probe == 'world-stream' || usesLiveNetwork
@@ -359,6 +361,9 @@ if (usesCampaignLaunch) {
 }
 if (usesCampaignCapture) {
     sourceSets.main.java.srcDir('src/campaign-capture/java')
+}
+if (usesStatusHud) {
+    sourceSets.main.java.srcDir('src/status-hud/java')
 }
 if (usesCampaignSaves) {
     sourceSets.main.java.srcDir('src/campaign-saves/java')
