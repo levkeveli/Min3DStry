@@ -95,6 +95,8 @@ campaign when that planet does not already have a starter save. Use D-pad
 up/down to select and **A** to start. **B** or **START** exits the selector.
 New games use the original sector generator and write the original
 campaign .msav and Arc settings files in the same locations as resumed games.
+The renderer loads each visible unit’s original atlas regions and weapon art
+when it first encounters that unit type.
 
 ## Campaign map assets
 
@@ -111,7 +113,13 @@ scratch directory. It loads the Ground Zero and Onset starters through
 the original world generator, then checks the sector IDs, starter cores,
 launch event, and the saved worlds. The stock v160.8 server reopened both
 JVM-generated saves with the same world size, core, and rules as saves
-from a fresh stock launch.
+from a fresh stock launch. The JVM reference also checks that a captured
+Ground Zero with a Core Shard cannot launch to a numbered sector. It
+upgrades the base to a Core Foundation and verifies that the upstream
+generator opens nearby Serpulo sector 172 at 440×440. Stock Java reopened
+the generated save with the saved origin pointing to Ground Zero. This
+check calls the session directly. The selector still lists starter and
+saved sectors.
 
 Use `python3 tools/verify_upstream_campaign_launch.py --rom upstream-probe.3dsx`
 to replay the fresh campaign menu on both Azahar profiles. The verifier

@@ -65,7 +65,7 @@ def verify(model: str, planet: str, rom: Path, azahar: str, config: Path, log: P
                 raise AssertionError(f"{prefix}: the starter selector did not render")
             (output / f"{prefix}-menu.png").write_bytes(menu)
             sp._wait_for_log(log, proc, rf"UPSTREAM_SP_LOADED source=campaign-new map={world} size={size}x{size}\b", 150)
-            sp._wait_for_log(log, proc, r"UPSTREAM_SP_FRAME ", 120)
+            sp._wait_for_log(log, proc, r"UPSTREAM_SP_FRAME .*\bsprites=[1-9]\d*\b", 120)
             screenshot = rpc.screenshot()
             if sp.az.inspect_png(screenshot)["top_distinct_colors"] < 8:
                 raise AssertionError(f"{prefix}: the starter world did not render")

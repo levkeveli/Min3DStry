@@ -21,7 +21,6 @@ import mindustry.Vars;
 import mindustry.content.Blocks;
 import mindustry.content.Items;
 import mindustry.content.Planets;
-import mindustry.content.UnitTypes;
 import mindustry.core.UI;
 import mindustry.core.World;
 import mindustry.entities.bullet.BulletType;
@@ -319,7 +318,7 @@ public final class UpstreamSinglePlayerApp {
     }
 
     private void loadWorldGraphics() {
-        loadUnitGraphics();
+        drawableUnits.clear();
         loadBulletGraphics();
     }
 
@@ -387,20 +386,20 @@ public final class UpstreamSinglePlayerApp {
         return captions;
     }
 
-    private static void loadUnitGraphics() {
-        var types = new UnitType[]{
-            UnitTypes.alpha, UnitTypes.beta, UnitTypes.gamma,
-            UnitTypes.dagger, UnitTypes.mace, UnitTypes.fortress, UnitTypes.crawler,
-            UnitTypes.flare, UnitTypes.horizon, UnitTypes.zenith,
-            UnitTypes.mono, UnitTypes.poly,
-            UnitTypes.nova, UnitTypes.pulsar
-        };
-        drawableUnits.clear();
-        for (var type : types) {
-            type.loadIcon();
-            type.load();
-            drawableUnits.add(type);
+    private static void loadUnitGraphics(UnitType type) {
+        if (drawableUnits.contains(type)) return;
+        type.loadIcon();
+        type.load();
+        boolean wasHeadless = Vars.headless;
+        Vars.headless = false;
+        try {
+            for (var weapon : type.weapons) {
+                if (weapon.bullet != null) weapon.bullet.load();
+            }
+        } finally {
+            Vars.headless = wasHeadless;
         }
+        drawableUnits.add(type);
     }
 
     private static void loadBulletGraphics() {
@@ -409,11 +408,6 @@ public final class UpstreamSinglePlayerApp {
         try {
             loadTurretBullets(Blocks.duo);
             loadTurretBullets(Blocks.scatter);
-            for (var type : drawableUnits) {
-                for (var weapon : type.weapons) {
-                    if (weapon.bullet != null) weapon.bullet.load();
-                }
-            }
         } finally {
             Vars.headless = wasHeadless;
         }
@@ -581,10 +575,10 @@ public final class UpstreamSinglePlayerApp {
         Draw.sort(true);
         try {
             for (var unit : Groups.unit) {
-                if (!drawableUnits.contains(unit.type())) continue;
                 int x = World.toTile(unit.x()), y = World.toTile(unit.y());
                 if (x < viewport.left || x >= viewport.left + UpstreamTerrainDrawProbe.VIEW_WIDTH
                         || y < viewport.bottom || y >= viewport.bottom + UpstreamTerrainDrawProbe.VIEW_HEIGHT) continue;
+                loadUnitGraphics(unit.type());
                 unit.draw();
                 if (unit == controlled) draws++;
                 if (unit.team == Vars.state.rules.waveTeam && reportedEnemies.add(unit.id)) {

@@ -4,12 +4,15 @@ import arc.files.Fi;
 import arc.util.I18NBundle;
 import java.util.Locale;
 import mindustry.Vars;
+import mindustry.content.Blocks;
+import mindustry.content.Loadouts;
 import mindustry.content.SectorPresets;
 import mindustry.game.EventType.SectorLaunchEvent;
 import mindustry.io.SaveIO;
 import mindustry.type.Sector;
+import mindustry.world.blocks.storage.CoreBlock;
 
-/** Open the pinned campaign maps through the original FileMapGenerator. */
+/** Launch original preset and generated campaign sectors through the offline session. */
 public final class UpstreamCampaignLaunchReference {
     public static void main(String[] args) throws Exception {
         Fi assets = new Fi(args[0]), root = new Fi(args[1]);
@@ -53,6 +56,36 @@ public final class UpstreamCampaignLaunchReference {
                     || !settings.getString("last-sector-save").equals("sector-erekir-10")) {
                 throw new AssertionError("New campaign bases should be discoverable in stock save slots");
             }
+            // Exercise stock eligibility with a captured base before and after a Core Foundation.
+            Fi origin = session.sectorFile(zero);
+            session.start(null, origin, "campaign", zero);
+            zero.info.wasCaptured = true;
+            Vars.state.rules.waves = false;
+            Vars.state.rules.attackMode = false;
+            var generator = zero.planet.generator;
+            if (zero.near().contains(sector -> sector.preset == null && generator.allowLanding(sector))) {
+                throw new AssertionError("Serpulo must require a Core Foundation for numbered-sector launch");
+            }
+            var team = Vars.state.rules.defaultTeam;
+            team.core().tile.setBlock(Blocks.coreFoundation, team);
+            session.save(origin);
+            var target = zero.near().find(sector -> sector.preset == null && !sector.hasEnemyBase()
+                && generator.allowLanding(sector) && generator.findLaunchCandidate(sector, zero) == zero);
+            if (target == null || Vars.bases.cores.isEmpty()) {
+                throw new AssertionError("No landing from " + zero.id + " neighbors=" + zero.near()
+                    + " allowed=" + zero.planet.allowLaunchToNumbered + " base=" + zero.hasBase()
+                    + " attacked=" + zero.isAttacked() + " coreParts=" + Vars.bases.cores.size);
+            }
+            Fi generated = session.sectorFile(target);
+            Vars.universe.updateLoadout((CoreBlock) Blocks.coreFoundation, Loadouts.basicFoundation);
+            session.launchNewSector(zero, target, generated);
+            if (Vars.state.rules.sector != target || target.info.origin != zero || target.info.destination != zero
+                    || !target.hasBase() || launched[0] != target || !SaveIO.isSaveValid(generated)
+                    || SaveIO.getMeta(generated).rules.sector != target) {
+                throw new AssertionError("The original generator did not save a numbered campaign sector with its origin");
+            }
+            System.out.println("UPSTREAM_CAMPAIGN_GENERATED sector=" + target.id + " origin=" + zero.id
+                + " size=" + Vars.world.width() + "x" + Vars.world.height());
         } finally {
             session.shutdown();
         }
