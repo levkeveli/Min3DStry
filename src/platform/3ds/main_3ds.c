@@ -956,14 +956,36 @@ int main(int argc, char *argv[]) {
         }
 
         if (main_menu.open) {
+            const char *screen_title = "Main menu";
+            switch (main_menu.screen) {
+            case M3DS_MENU_SCREEN_PLAY:
+                screen_title = "Play";
+                break;
+            case M3DS_MENU_SCREEN_SETTINGS:
+                screen_title = "Settings";
+                break;
+            case M3DS_MENU_SCREEN_DATABASE:
+                screen_title = "Database";
+                break;
+            case M3DS_MENU_SCREEN_ABOUT:
+                screen_title = "About";
+                break;
+            case M3DS_MENU_SCREEN_TITLE:
+            default:
+                screen_title = "Main menu";
+                break;
+            }
             printf("\x1b[2J");
             printf("\x1b[1;1HMindustry v160.8\x1b[K");
-            printf("\x1b[2;1H%s\x1b[K",
-                   main_menu.screen == M3DS_MENU_SCREEN_TITLE
-                       ? "Main menu"
-                       : (main_menu.screen == M3DS_MENU_SCREEN_PLAY
-                              ? "Play"
-                              : "Settings"));
+            printf("\x1b[2;1H%s\x1b[K", screen_title);
+            unsigned item_row = 4u;
+            if (main_menu.screen == M3DS_MENU_SCREEN_ABOUT) {
+                printf("\x1b[4;1HUpstream: Anuken/Mindustry\x1b[K");
+                printf("\x1b[5;1HCommit: 19a0f40d4451\x1b[K");
+                printf("\x1b[6;1HLicense: GPL-3.0\x1b[K");
+                printf("\x1b[7;1HPort: Min3DStry (in progress)\x1b[K");
+                item_row = 11u;
+            }
             size_t menu_count = m3ds_main_menu_count(&main_menu);
             for (size_t i = 0u; i < menu_count; ++i) {
                 const char *key = m3ds_main_menu_key(&main_menu, i);
@@ -980,11 +1002,11 @@ int main(int argc, char *argv[]) {
                     }
                 }
                 printf("\x1b[%u;1H%c %s%s\x1b[K",
-                       (unsigned)(4u + (unsigned)i),
+                       (unsigned)(item_row + (unsigned)i),
                        i == main_menu.selected ? '>' : (enabled ? ' ' : '-'),
                        label, value);
             }
-            for (unsigned line = (unsigned)(4u + menu_count); line < 20u; ++line) {
+            for (unsigned line = (unsigned)(item_row + menu_count); line < 20u; ++line) {
                 printf("\x1b[%u;1H\x1b[K", line);
             }
             printf("\x1b[24;1HD-Pad: Select  A: Confirm  B: Back  START: Exit\x1b[K");

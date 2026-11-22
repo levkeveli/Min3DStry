@@ -16,16 +16,18 @@
  *   Settings
  *   Quit
  *
- * This port only implements the Play/Campaign and Settings branches so far.
- * Unbuilt branches stay visible (matching the upstream menu) but report
- * M3DS_MENU_ACTION_UNAVAILABLE so the caller can log them instead of silently
- * pretending they work.
+ * This port implements the Play/Campaign, Settings, Database and About branches.
+ * Join/Custom/Load, Schematics, Core Database, Editor and Mods stay visible
+ * (matching the upstream menu) but report M3DS_MENU_ACTION_UNAVAILABLE so the
+ * caller can log them instead of silently pretending they work.
  */
 
 typedef enum {
     M3DS_MENU_SCREEN_TITLE = 0,
     M3DS_MENU_SCREEN_PLAY,
     M3DS_MENU_SCREEN_SETTINGS,
+    M3DS_MENU_SCREEN_DATABASE,
+    M3DS_MENU_SCREEN_ABOUT,
 } M3dsMenuScreen;
 
 typedef enum {
