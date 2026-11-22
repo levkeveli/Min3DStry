@@ -15,9 +15,17 @@ final class UpstreamStatusHud {
         var rows = new ArrayList<UpstreamObjectiveHud.Row>();
         var state = Vars.state;
         var rules = state.rules;
+        int enemyCores = 0;
+        if (rules.attackMode && Vars.player != null && state.teams != null) {
+            var playerTeam = Vars.player.team();
+            for (var data : state.teams.present) {
+                if (data.team != playerTeam) enemyCores += data.cores.size;
+            }
+        }
         var texts = UpstreamStatusRows.texts(Core.bundle, rules.waves, state.isCampaign(),
-            rules.waveTimer, rules.waveTimer && Vars.logic.isWaitingWave(), state.wave,
-            rules.winWave, Math.max(0, state.enemies), (int)(state.wavetime / 60f));
+            rules.attackMode, rules.waveTimer, rules.waveTimer && Vars.logic.isWaitingWave(),
+            state.wave, rules.winWave, Math.max(0, state.enemies), enemyCores,
+            (int)(state.wavetime / 60f));
         for (String text : texts) add(rows, text);
 
         int copper = copper();

@@ -10,6 +10,8 @@ objective panel:
 - the pinned wave row: `wave.cap` (`[accent]Wave {0}/{1}`) when a win wave is
   pending, otherwise the `wave` string (`[accent]Wave {0}`);
 - the pinned `wave.enemy`/`wave.enemies` string only when enemies remain;
+- the stock `wave.enemycore`/`wave.enemycores` row when waves are off and
+  attack mode is active;
 - the pinned `wave.waiting`/`wave.waveInProgress`/`waiting` string when wave
   rules are active, using the stock `HudFragment` timer formatting;
 - the pinned `sector.curcapture` row (`Sector Captured`) when wave rules are
@@ -32,7 +34,7 @@ UPSTREAM_STATUS_HUD wave=1 enemies=0 copper=200 rows=3
 The same runs complete the stock-server combat check and report the packet
 and destroy markers documented in [live-combat.md](../gameplay/live-combat.md).
 
-Host row-text coverage (all eight branches, including the captured row):
+Host row-text coverage (all ten branches, including capture and enemy cores):
 
 ```sh
 gradle -Pprobe=status-hud runProbeJvm \
@@ -40,7 +42,7 @@ gradle -Pprobe=status-hud runProbeJvm \
 ```
 
 ```text
-UPSTREAM_STATUS_ROWS cases=8 ok
+UPSTREAM_STATUS_ROWS cases=10 ok
 ```
 
 While the wave timer is counting down, the status text changes once per second,
