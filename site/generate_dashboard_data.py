@@ -15,6 +15,7 @@ from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "tools"))
+from mechanics_parity import compute_mechanics_parity, load_and_validate_mechanics  # noqa: E402
 from port_progress import compute_progress, load_and_validate_capabilities  # noqa: E402
 
 REPO = "levkeveli/Min3DStry"
@@ -160,6 +161,13 @@ def build_snapshot(sha: str, token: str | None) -> dict[str, Any]:
         port_progress = None
         warnings.append(f"port_progress unavailable: {exc}")
 
+    try:
+        mech_ledger = load_and_validate_mechanics(REPO_ROOT / "docs" / "mechanics-parity.json", REPO_ROOT)
+        mechanics_parity = compute_mechanics_parity(mech_ledger)
+    except Exception as exc:
+        mechanics_parity = None
+        warnings.append(f"mechanics_parity unavailable: {exc}")
+
     return {
         "repo": REPO,
         "sha": sha,
@@ -168,6 +176,7 @@ def build_snapshot(sha: str, token: str | None) -> dict[str, Any]:
         "partial": bool(warnings),
         "warnings": warnings,
         "port_progress": port_progress,
+        "mechanics_parity": mechanics_parity,
         "issues": issues,
         "pulls": pulls,
         "milestones": milestones,
