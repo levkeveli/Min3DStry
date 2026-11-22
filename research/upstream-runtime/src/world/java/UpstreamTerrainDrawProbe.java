@@ -271,7 +271,10 @@ public final class UpstreamTerrainDrawProbe {
             float dx = v[bottomRight] - x, dy = v[bottomRight + 1] - y;
             float ux = v[topLeft] - x, uy = v[topLeft + 1] - y;
             float width = Mathf.len(dx, dy);
-            if (width == 0f) return false;
+            if (width == 0f) {
+                // Both edges must collapse. A quad with only one collapsed edge can still be visible.
+                return v[topRight] == v[topLeft] && v[topRight + 1] == v[topLeft + 1];
+            }
             float height = (dx * uy - dy * ux) / width;
             float error = 0.005f; // Leave room for rounding at the far edge of a large map.
             if (Math.abs((dx * ux + dy * uy) / width) > error
@@ -283,7 +286,12 @@ public final class UpstreamTerrainDrawProbe {
             int right = Math.round(Math.max(u0, u1) * page.width);
             int top = Math.round(Math.min(t0, t1) * page.height);
             int bottom = Math.round(Math.max(t0, t1) * page.height);
-            if (height == 0f || right <= left || bottom <= top) return false;
+            if (height == 0f) {
+                return v[topLeft] == x && v[topLeft + 1] == y
+                    && v[topRight] == v[bottomRight] && v[topRight + 1] == v[bottomRight + 1];
+            }
+            // Rounded-empty UV bounds can still sample a texel on a visible quad.
+            if (right <= left || bottom <= top) return false;
             float rotation = (float)Math.toDegrees(Math.atan2(dy, dx));
             target.draw(page.index, left, top, right - left, bottom - top, x, y, 0f, 0f, width, height,
                 rotation, Color.floatToIntColor(tint), Color.floatToIntColor(mixTint), blending);

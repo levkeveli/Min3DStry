@@ -1147,7 +1147,10 @@ point animation. The texture marker adapter resolves names and content
 icons through the original atlas, including the stock error sprite. For
 atlas-backed QuadMarker draws, the batch submits the two original triangles
 to Citro3D and clips them at atlas tile edges while preserving position, UV
-and interpolated tint. Lighting, minimap display, standalone textures,
+and interpolated tint. Constant mix alpha interpolates RGB before tinting
+while preserving texture alpha, as in the pinned Arc sprite shader. Quads
+with varying mix colors or mismatched atlas dimensions are skipped with a
+one-time debug message. Lighting, minimap display, standalone textures,
 dynamic Canvas and Logic Display textures, and varying legacy mix colors
 require further renderer support.
 
