@@ -16,6 +16,11 @@ final class UpstreamStatusHud {
         String wave = Core.bundle.format("wave", Vars.state.wave);
         rows.add(new UpstreamObjectiveHud.Row(Strings.stripColors(wave), wave, "none", null));
 
+        if (Vars.state.rules.waves) {
+            String enemies = Core.bundle.format("wave.enemies", Math.max(0, Vars.state.enemies));
+            rows.add(new UpstreamObjectiveHud.Row(Strings.stripColors(enemies), enemies, "none", null));
+        }
+
         int copper = copper();
         var item = Items.copper;
         if (item.uiIcon == null) item.loadIcon();
