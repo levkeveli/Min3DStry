@@ -15,6 +15,8 @@ import mindustry.game.Team;
 import mindustry.gen.Groups;
 import mindustry.gen.Unit;
 import mindustry.world.blocks.defense.turrets.ItemTurret.ItemTurretBuild;
+import org.teavm.interop.Import;
+import org.teavm.interop.c.Include;
 
 /**
  * Pinned upstream wave and ground-routing trace for issue #30.
@@ -153,9 +155,17 @@ public final class UpstreamWaveRoutingProbe {
         } finally {
             ProbeListenerShutdown.dispose();
         }
-        // This is a one-shot probe process. Firing ResetEvent here dispatches into
-        // TeaVM's monitor/event queue after the trace and can deadlock the host C
-        // build; the process exits immediately after main instead.
+        // This is a one-shot probe process. Returning from main lets TeaVM's
+        // monitor/event queue resume a pending fiber, which aborts the host C
+        // build after the trace. Flush the trace and terminate the process.
+        System.out.flush();
+        Exit.exit(0);
+    }
+
+    @Include(value = "stdlib.h", isSystem = true)
+    private static final class Exit {
+        @Import(name = "exit")
+        static native void exit(int status);
     }
 
     private static long waitForGroundField(
