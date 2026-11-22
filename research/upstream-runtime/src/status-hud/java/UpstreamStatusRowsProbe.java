@@ -29,7 +29,21 @@ public final class UpstreamStatusRowsProbe {
             "[accent]1[lightgray] Enemy Core");
         check(bundle, "enemy-cores", false, false, true, false, false, 0, 0, 0, 2, 0,
             "[accent]2[lightgray] Enemy Cores");
+        checkUnit(bundle, "full-health", 100, 100, 0, 0, "Health 100/100");
+        checkUnit(bundle, "health-ammo", 37, 100, 25, 20, "Health 37/100", "Ammo 25%");
+        checkUnit(bundle, "no-health", 0, 0, 0, 0);
         System.out.println("UPSTREAM_STATUS_ROWS cases=10 ok");
+        System.out.println("UPSTREAM_UNIT_ROWS cases=3 ok");
+    }
+
+    private static void checkUnit(I18NBundle bundle, String label, int health, int maxHealth,
+            int ammo, int ammoCapacity, String... expected) {
+        var actual = new ArrayList<String>(
+            UpstreamStatusRows.unitRows(bundle, health, maxHealth, ammo, ammoCapacity));
+        List<String> want = Arrays.asList(expected);
+        if (!actual.equals(want)) {
+            throw new IllegalStateException(label + ": expected " + want + " got " + actual);
+        }
     }
 
     private static void check(I18NBundle bundle, String label, boolean waves, boolean campaign,

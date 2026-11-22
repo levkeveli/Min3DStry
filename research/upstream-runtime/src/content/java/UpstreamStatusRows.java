@@ -39,6 +39,19 @@ public final class UpstreamStatusRows {
         return rows;
     }
 
+    /** Left-side health/ammo values used by the stock HUD status area. */
+    public static List<String> unitRows(I18NBundle bundle, int health, int maxHealth,
+            int ammoPercent, int ammoCapacity) {
+        var rows = new ArrayList<String>();
+        if (maxHealth > 0) {
+            rows.add(bundle.get("stat.health") + " " + health + "/" + maxHealth);
+        }
+        if (ammoCapacity > 0) {
+            rows.add(bundle.get("stat.ammo") + " " + ammoPercent + "%");
+        }
+        return rows;
+    }
+
     /** Matches the stock HudFragment timer formatting (seconds-only below one minute). */
     public static String formatTime(int seconds) {
         int m = seconds / 60;

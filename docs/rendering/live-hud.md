@@ -16,6 +16,7 @@ objective panel:
   rules are active, using the stock `HudFragment` timer formatting;
 - the pinned `sector.curcapture` row (`Sector Captured`) when wave rules are
 off and a campaign sector is active;
+- the local unit's stock `stat.health`/`stat.ammo` values;
 - the original copper item glyph and the local core's copper count.
 
 The status rows use the v160.8 font and inline item glyph pipeline shared with
@@ -28,7 +29,7 @@ then submitted through `drawObjective` before the objective rows.
 waits for the renderer marker after the client joins. Both profiles report:
 
 ```text
-UPSTREAM_STATUS_HUD wave=1 enemies=0 copper=200 rows=3
+UPSTREAM_STATUS_HUD wave=1 enemies=0 copper=200 rows=5
 ```
 
 The same runs complete the stock-server combat check and report the packet
@@ -43,6 +44,7 @@ gradle -Pprobe=status-hud runProbeJvm \
 
 ```text
 UPSTREAM_STATUS_ROWS cases=10 ok
+UPSTREAM_UNIT_ROWS cases=3 ok
 ```
 
 While the wave timer is counting down, the status text changes once per second,

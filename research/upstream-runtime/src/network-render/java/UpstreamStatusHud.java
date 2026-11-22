@@ -15,6 +15,14 @@ final class UpstreamStatusHud {
         var rows = new ArrayList<UpstreamObjectiveHud.Row>();
         var state = Vars.state;
         var rules = state.rules;
+        var unit = Vars.player == null ? null : Vars.player.unit();
+        if (unit != null) {
+            for (String text : UpstreamStatusRows.unitRows(Core.bundle,
+                    Math.round(unit.health), Math.round(unit.maxHealth()),
+                    Math.round(unit.ammof() * 100), unit.type.ammoCapacity)) {
+                add(rows, text);
+            }
+        }
         int enemyCores = 0;
         if (rules.attackMode && Vars.player != null && state.teams != null) {
             var playerTeam = Vars.player.team();
