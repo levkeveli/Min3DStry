@@ -4,11 +4,14 @@ Status: **procedure**. Queued handoff cards: [hardware-test-queue.md](../hardwar
 It does not claim any hardware result by itself; the capability ledger only moves when a captured log
 passes [`tools/hw_evidence.py`](../../tools/hw_evidence.py) and is attached to a PR.
 
-Captured so far: [Original 3DS XL smoke](evidence/old3ds-xl-a4a9a96.md) and
-[New 3DS XL sector run](evidence/new3ds-xl-de3e249.md). The New run passed 12/12
-strict checks. Both logs predate the `BENCH` sampler, so the `>= 24 FPS` target
-and the five-minute HWT-01/HWT-02 soak remain **not verified** until a new run
-from a build that contains it.
+Captured so far: [Original 3DS XL smoke](evidence/old3ds-xl-a4a9a96.md),
+[New 3DS XL sector run](evidence/new3ds-xl-de3e249.md), and
+[New 3DS XL FPS run](evidence/new3ds-xl-a328c70.md). The `a328c70` run passed
+12/12 strict checks; its 29 `BENCH` windows have `fps_min=29.92`,
+`fps_max=59.83`, `p95_max=33.50`, verifying the New 3DS `>= 24 FPS` target for
+the `factory_demo` harness. The five-minute HWT-01/HWT-02 gameplay/input soak,
+full campaign gameplay FPS, and the Old 3DS FPS/loader run remain **not
+verified**.
 
 ## What a run can prove
 
