@@ -180,8 +180,16 @@ masked shift counts, while the generated C lookup did not mask the index.
 ARM11 staging restores those masks so positions above 63 can be found
 without repeatedly adding the same tiles. The JVM reference completed the
 original launch and the stock PC server reopened both saves and matched the
-destination terrain. ARM11 generation and in-game departure remain under
-verification.
+destination terrain.
+
+The [ARM11 build from `5aecd95`](https://github.com/levkeveli/Min3DStry/actions/runs/45053996180)
+generated all 432×432 tiles at the original 32 MiB managed limit on the
+New 3DS profile. The controller edited the loadout to 8 copper and saved
+on exit. The unmodified v160.8 server reopened the native save and matched
+every floor, overlay, and block ID with a fresh stock launch using the same
+schematic. It confirmed the selected schematic, destination cargo, and 15
+copper remaining on the origin. Old 3DS and in-game departure verification
+are underway.
 
 ## Custom Game
 
