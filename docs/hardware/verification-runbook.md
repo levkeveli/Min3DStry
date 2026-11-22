@@ -6,8 +6,9 @@ passes [`tools/hw_evidence.py`](../../tools/hw_evidence.py) and is attached to a
 
 Captured so far: [Original 3DS XL smoke](evidence/old3ds-xl-a4a9a96.md) and
 [New 3DS XL sector run](evidence/new3ds-xl-de3e249.md). The New run passed 12/12
-strict checks; neither run contains a `BENCH fps=...` record, so the `>= 24 FPS`
-target and the five-minute HWT-01/HWT-02 soak remain **not verified**.
+strict checks. Both logs predate the `BENCH` sampler, so the `>= 24 FPS` target
+and the five-minute HWT-01/HWT-02 soak remain **not verified** until a new run
+from a build that contains it.
 
 ## What a run can prove
 

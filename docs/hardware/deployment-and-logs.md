@@ -60,6 +60,10 @@ Validate streamed Original or New 3DS logs against the target hardware model (`O
   --commit "$(git rev-parse --short HEAD)" --target "Original 3DS" \
   --profile old3ds --min-fps 24 --expected-hash 0x53a483c7 --strict
 ```
+
+The app emits `[MIN3DSTRY] BENCH fps=... avg_ms=... p95_ms=... frames=... scenario=factory_demo`
+after every 256 rendered frames. A missing `BENCH` record is a **FAIL** for
+`frame_rate`; the report does not pass without a measured frame rate.
 Use `--format json` for structured metrics or `--load-bytes <elf_load_bytes>` to enforce the full `LOAD + linearHeap + stack + 24 MiB` managed-heap budget against `64 MiB` / `124 MiB`.
 
 ### 5. Checked Hardware Evidence (`./dev.sh device evidence`)
