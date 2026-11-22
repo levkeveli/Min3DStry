@@ -120,6 +120,8 @@ and waves, touch palette/rotation, HUD/menus/minimap.
 - `UPSTREAM_SP_BUILT`, `UPSTREAM_SP_REMOVED`, `UPSTREAM_SP_WAVE` and HUD wave
   counters update.
 - No crash/hang; `FRAME ... drop=0`; touch and D-pad input remain responsive.
+- With a captured sector loaded, the status HUD shows the stock
+  `Sector Captured` row.
 
 **Evidence:** raw log, screenshots of HUD/palette/minimap, frame timings and a
 short note on any glitches.

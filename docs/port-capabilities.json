@@ -296,7 +296,9 @@
         "research/upstream-runtime/src/network-render/java/UpstreamStatusHud.java",
         "docs/rendering/live-hud.md",
         "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerApp.java",
-        "docs/gameplay/offline-singleplayer.md"
+        "docs/gameplay/offline-singleplayer.md",
+        "research/upstream-runtime/src/content/java/UpstreamStatusRows.java",
+        "research/upstream-runtime/src/status-hud/java/UpstreamStatusRowsProbe.java"
       ],
       "hardware_test": "HARDWARE_TEST_PENDING"
     },
