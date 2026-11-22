@@ -1,6 +1,17 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stdint.h>
+
+// Arc masks the low alpha bit in float colors, so 254 represents full opacity.
+static inline uint32_t m3ds_quad_alpha(uint32_t color) {
+    uint32_t alpha = color >> 24;
+    return alpha < 254 ? alpha : 254;
+}
+
+static inline uint32_t m3ds_quad_expand_alpha(uint32_t color) {
+    return (color & 0x00ffffffu) | ((m3ds_quad_alpha(color) * 255 / 254) << 24);
+}
 
 enum { M3DS_QUAD_MAX_VERTICES = 8 };
 

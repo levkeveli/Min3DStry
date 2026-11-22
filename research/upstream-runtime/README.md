@@ -1184,7 +1184,8 @@ The [integrated renderer build](https://github.com/levkeveli/Min3DStry/actions/r
 also passed those checks on both profiles with the stock font path enabled.
 
 `./dev.sh test` covers textured triangle clipping, winding, area and tint
-interpolation. `runObjectiveMarkersJvm` checks the original QuadMarker
+interpolation. Packed quad colors treat both alpha bytes 254 and 255 as fully
+opaque, including for the constant mix color. `runObjectiveMarkersJvm` checks the original QuadMarker
 vertices after stock packets set a UV before the first draw, move a corner,
 and change the source texture. Add `--verify-quad-markers` to the Glacier
 replay to compare stock Core Nucleus pixels that span atlas tiles, capture

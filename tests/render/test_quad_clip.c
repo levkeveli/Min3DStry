@@ -19,6 +19,13 @@ static float area(const M3DS_QuadVertex *polygon, int count) {
 }
 
 int main(void) {
+    // Arc whiteFloatBits and its fully opaque RGBA8888 equivalent.
+    assert(m3ds_quad_expand_alpha(0xfeffffffu) == 0xffffffffu);
+    assert(m3ds_quad_expand_alpha(0xffffffffu) == 0xffffffffu);
+    assert(m3ds_quad_alpha(0xffffffffu) == 254);
+    assert(m3ds_quad_expand_alpha(0x80123456u) == 0x80123456u);
+    assert(m3ds_quad_expand_alpha(0x00123456u) == 0x00123456u);
+
     M3DS_QuadVertex triangle[] = {vertex(120, 120), vertex(144, 120), vertex(120, 144)};
     M3DS_QuadVertex piece[M3DS_QUAD_MAX_VERTICES];
     float combined = 0;

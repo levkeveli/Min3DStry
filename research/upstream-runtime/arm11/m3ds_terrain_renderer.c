@@ -486,10 +486,10 @@ int32_t m3ds_terrain_draw_textured_quad(int32_t page, int32_t width, int32_t hei
             .u = fminf(fmaxf(v[3] * width, 0), nextafterf(width, 0)),
             .v = fminf(fmaxf(v[4] * height, 0), nextafterf(height, 0)),
             .color = {(color & 255) / 255.0f, ((color >> 8) & 255) / 255.0f,
-                      ((color >> 16) & 255) / 255.0f, (color >> 24) / 254.0f},
+                      ((color >> 16) & 255) / 255.0f, m3ds_quad_alpha(color) / 254.0f},
         };
     }
-    mix = (mix & 0x00ffffffu) | ((uint32_t)((mix >> 24) * (255.0f / 254.0f)) << 24);
+    mix = m3ds_quad_expand_alpha(mix);
     set_world_blend(blend_mode);
     set_world_mix(0, 0);
     static const int triangles[2][3] = {{0, 1, 2}, {2, 3, 0}};

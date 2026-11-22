@@ -197,7 +197,7 @@ case "${1:-}" in
     "$host_cc" -std=c11 -Wall -Wextra -Werror -Iresearch/upstream-runtime/arm11 \
       tests/render/test_world_fragment.c -lm -o build/host/test_world_fragment
     ./build/host/test_world_fragment
-    "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -Iresearch/upstream-runtime/arm11 \
+    "$host_cc" -std=c11 -Wall -Wextra -Werror -Iresearch/upstream-runtime/arm11 \
       tests/render/test_quad_clip.c -lm -o build/host/test_quad_clip
     ./build/host/test_quad_clip
 
