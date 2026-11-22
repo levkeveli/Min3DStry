@@ -36,6 +36,16 @@ Listen on a host TCP port for streamed diagnostic output and format a Markdown s
 ./dev.sh device parse-log --input build/device-logs/capture.log --commit "$(git rev-parse --short HEAD)" --target "New 3DS XL"
 ```
 
+### 4. Hardware Budget & Performance Benchmark Report (`#43`)
+
+Validate streamed Original or New 3DS logs against the target hardware model (`O3DS` `64 MiB` vs `N3DS` `124 MiB`), the `>= 24 FPS` / frame-time target (`[MIN3DSTRY] BENCH fps=... p95_ms=...`), `UPSTREAM_MEMORY` / `[MIN3DSTRY] MEM` bounds, and parity trace hash:
+```bash
+./dev.sh device benchmark-report --input build/device-logs/capture.log \
+  --commit "$(git rev-parse --short HEAD)" --target "Original 3DS" \
+  --profile old3ds --min-fps 24 --expected-hash 0x53a483c7 --strict
+```
+Use `--format json` for structured metrics or `--load-bytes <elf_load_bytes>` to enforce the full `LOAD + linearHeap + stack + 24 MiB` managed-heap budget against `64 MiB` / `124 MiB`.
+
 ## Verification Status
 
 - **Host unit tests (`tests/tools/test_device_deploy.py`):** **Host-tested** via `./dev.sh test` (`3dslink` command builder, SD staging + SHA-256 manifest, loopback TCP log capture, and provenance Markdown formatter).
