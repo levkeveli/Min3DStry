@@ -4,7 +4,7 @@ Status: **Emulator-tested** on Azahar `2126.2` New and Original 3DS profiles.
 
 ## Scope
 
-The live upstream renderer draws three stock status rows above the campaign
+The live upstream renderer draws variable stock status rows above the campaign
 objective panel:
 
 - the pinned wave row: `wave.cap` (`[accent]Wave {0}/{1}`) when a win wave is

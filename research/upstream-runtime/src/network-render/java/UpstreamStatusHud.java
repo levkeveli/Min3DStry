@@ -12,6 +12,8 @@ final class UpstreamStatusHud {
     }
 
     static List<UpstreamObjectiveHud.Row> collect() {
+        // Mirrors v160.8 HudFragment.makeStatusTable: wave.cap while the win
+        // wave is ahead, enemies only when present, then timer/waiting.
         var rows = new ArrayList<UpstreamObjectiveHud.Row>();
         if (Vars.state.rules.waves) {
             int wave = Vars.state.wave;
