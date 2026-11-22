@@ -157,9 +157,12 @@ public final class UpstreamWaveRoutingProbe {
         }
         // This is a one-shot probe process. Returning from main lets TeaVM's
         // monitor/event queue resume a pending fiber, which aborts the host C
-        // build after the trace. Flush the trace and terminate the process.
+        // build after the trace. Flush the trace and terminate the C process;
+        // the JVM run must return normally.
         System.out.flush();
-        Exit.exit(0);
+        if ("TeaVM".equals(System.getProperty("os.name"))) {
+            Exit.exit(0);
+        }
     }
 
     @Include(value = "stdlib.h", isSystem = true)
