@@ -40,6 +40,17 @@ parameters, scan line, and output payload with Crawler. The host C
 reference covers the shader equations and texture layout. ARM11 replay
 and physical hardware verification remain to be recorded.
 
+The emulator verifier creates four Glacier saves with the unmodified
+v160.8 server. It compares the empty footprint, idle factory,
+in-progress construction, and produced payload.
+
+```bash
+python3 tools/verify_upstream_factory_graphics.py \
+  --rom /path/to/unified/upstream-probe.3dsx \
+  --server /path/to/server-release.jar \
+  --output build/factory-graphics
+```
+
 ## Evidence
 
 The verified traces and screenshot descriptions live in
