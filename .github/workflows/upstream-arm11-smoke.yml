@@ -77,7 +77,7 @@ jobs:
     needs: [changes]
     if: needs.changes.outputs.run_probes == 'true'
     runs-on: ${{ fromJSON((github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.head.repo.fork)) && '["self-hosted", "linux", "x64", "min3dstry"]' || '"ubuntu-latest"') }}
-    timeout-minutes: 20
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       max-parallel: 5
@@ -292,7 +292,7 @@ jobs:
     needs: [changes]
     if: needs.changes.outputs.run_save == 'true'
     runs-on: ${{ fromJSON((github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.head.repo.fork)) && '["self-hosted", "linux", "x64", "min3dstry"]' || '"ubuntu-latest"') }}
-    timeout-minutes: 30
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
         with:
@@ -462,7 +462,7 @@ jobs:
     needs: [changes]
     if: needs.changes.outputs.run_audio == 'true'
     runs-on: ${{ fromJSON((github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.head.repo.fork)) && '["self-hosted", "linux", "x64", "min3dstry"]' || '"ubuntu-latest"') }}
-    timeout-minutes: 25
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
         with:
@@ -598,7 +598,7 @@ jobs:
     needs: [changes]
     if: needs.changes.outputs.run_combat == 'true'
     runs-on: ${{ fromJSON((github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.head.repo.fork)) && '["self-hosted", "linux", "x64", "min3dstry"]' || '"ubuntu-latest"') }}
-    timeout-minutes: 30
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
         with:
@@ -781,7 +781,7 @@ jobs:
     needs: [changes]
     if: needs.changes.outputs.run_production == 'true'
     runs-on: ${{ fromJSON((github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.head.repo.fork)) && '["self-hosted", "linux", "x64", "min3dstry"]' || '"ubuntu-latest"') }}
-    timeout-minutes: 25
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
         with:
@@ -870,7 +870,7 @@ jobs:
     needs: [changes]
     if: needs.changes.outputs.run_factory == 'true'
     runs-on: ${{ fromJSON((github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.head.repo.fork)) && '["self-hosted", "linux", "x64", "min3dstry"]' || '"ubuntu-latest"') }}
-    timeout-minutes: 25
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
         with:

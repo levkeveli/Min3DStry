@@ -6,6 +6,14 @@ if [[ $# -lt 2 || $# -gt 4 ]]; then
     echo "Usage: $0 <TeaVM generated C directory> <new output directory> [--network] [terrain assets directory]" >&2
     exit 2
 fi
+arm11_opt="${M3DS_ARM11_OPT:--Os}"
+case "$arm11_opt" in
+    -O0|-O1|-O2|-O3|-Os|-Og) ;;
+    *)
+        echo "Unsupported M3DS_ARM11_OPT: $arm11_opt (use -O0, -O1, -O2, -O3, -Os, or -Og)" >&2
+        exit 2
+        ;;
+esac
 root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 output="$2"
 python3 "$root/prepare.py" "$1" "$output"
@@ -78,7 +86,7 @@ pointer_flags=()
 if [[ "${M3DS_RELAX_POINTER_TYPES:-0}" == "1" ]]; then
     pointer_flags=(-Wno-error=incompatible-pointer-types)
 fi
-"$DEVKITARM/bin/arm-none-eabi-gcc" -std=gnu11 -g -O2 -fwrapv -D__3DS__ -mword-relocations \
+"$DEVKITARM/bin/arm-none-eabi-gcc" -std=gnu11 -g "$arm11_opt" -fwrapv -D__3DS__ -mword-relocations \
     -march=armv6k -mtune=mpcore -mfpu=vfp -mfloat-abi=hard -mtp=soft \
     -I"$output/nativeinclude" -I"$DEVKITPRO/libctru/include" -L"$DEVKITPRO/libctru/lib" \
     "${terrain_flags[@]}" "${save_rows_flags[@]}" "${pointer_flags[@]}" \
