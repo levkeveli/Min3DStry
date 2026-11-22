@@ -79,6 +79,12 @@ a fixture directory with one valid exported map, and a new output file to
 along with the pinned runtime Gradle properties. It checks and launches every
 stock map, launches Glacier in Sandbox, and reloads the resulting `.msav`.
 
+Run `python3 tools/verify_upstream_custom_game.py --rom upstream-probe.3dsx`
+with Azahar 2126.2 and a virtual SD without user maps to replay the selector,
+start Ancient Caldera in Sandbox, and save and resume the game on both console
+profiles. The verifier retains the native test saves alongside screenshots and
+logs so they can also be opened in the stock v160.8 game.
+
 ## 3DS Controls
 
 | Input | Action |

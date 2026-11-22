@@ -84,7 +84,12 @@ public final class UpstreamSinglePlayerApp {
     private final IntSet reportedEnemies = new IntSet();
 
     public static void main(String[] args) throws IOException {
-        new UpstreamSinglePlayerApp().run(args);
+        try {
+            new UpstreamSinglePlayerApp().run(args);
+        } catch (IOException | RuntimeException failure) {
+            System.out.println("UPSTREAM_SP_ERROR " + failure.getClass().getName() + ": " + failure.getMessage());
+            throw failure;
+        }
     }
 
     private void run(String[] args) throws IOException {
@@ -151,8 +156,11 @@ public final class UpstreamSinglePlayerApp {
             } else {
                 saveFile = customSave;
                 if (custom.map == null) {
+                    System.out.println("UPSTREAM_CUSTOM_GAME_SELECTED source=save");
                     session.start(null, saveFile, "customgame-save");
                 } else {
+                    System.out.println("UPSTREAM_CUSTOM_GAME_SELECTED map=" + custom.map.file.name()
+                        + " mode=" + custom.mode.name());
                     Gamemode mode = session.startCustomGame(custom.map, custom.mode);
                     System.out.println("UPSTREAM_CUSTOM_GAME_STARTED map=" + custom.map.file.name() + " mode=" + mode.name());
                 }
@@ -203,10 +211,15 @@ public final class UpstreamSinglePlayerApp {
         int[][] characters = null;
         target.buildLabels(new byte[8]);
         System.out.println("UPSTREAM_CUSTOM_GAME_MENU maps=" + maps.size());
+        // Consume the launcher's button edges before accepting menu input.
+        UpstreamSinglePlayerInput.poll();
         while (true) {
             long nextFrame = System.nanoTime() + FRAME_NS;
             int input = UpstreamSinglePlayerInput.poll();
-            if (input < 0 || (input & (1 << 19)) != 0) return null;
+            if (input < 0 || (input & (1 << 19)) != 0) {
+                System.out.println("UPSTREAM_CUSTOM_GAME_CANCEL input=" + input);
+                return null;
+            }
             int x = (byte)input;
             int y = (byte)(input >> 8);
             if (y > 60 && lastY <= 20) selected = Math.max(0, selected - 1);
