@@ -198,12 +198,14 @@ those buildings over. The retry writes to the same original sector slot.
 
 With the prepared campaign assets and pinned runtime Gradle properties, use
 `-Pprobe=singleplayer runGraphicalCampaignDefeatJvm --args="/path/to/assets /path/to/new-scratch-dir"`
-to exercise a real core loss and retry on both planets. Run
+to generate and reload starter saves with hostile units attacking a weakened core. The
+reference lets the original simulation cause the loss, then retries both sectors. Run
 `python3 tools/verify_upstream_campaign_defeat.py --server server-release.jar --reference /path/to/new-scratch-dir`
 to reopen the defeated and recovered saves and settings in the unmodified PC
 server. The server checks the core, retry attempt, and surviving derelict
-state. The 3DS loss dialog and controller flow still need emulator
-verification.
+state. Add `--rom upstream-probe.3dsx` to replay the loss and retry with
+controller input on both Azahar profiles before running the same PC
+readback. ARM11 replay results are pending.
 
 ## Custom Game
 

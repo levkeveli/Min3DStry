@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
-"""Reopen defeated and recovered campaign saves in the unmodified v160.8 server."""
+"""Replay stock campaign defeat and retry, and verify the saves in unmodified Mindustry."""
 
 from __future__ import annotations
 
 import argparse
+import re
 import shutil
+import time
 import tempfile
 from pathlib import Path
 
+import verify_upstream_singleplayer as sp
 from campaign_settings_fixture import stock_console
+from verify_upstream_campaign_launch import write_input_replay
 
 CASES = {
     "serpulo": ("groundZero", "sector-serpulo-170.msav", "copperWall"),
@@ -53,19 +57,105 @@ def check(java: str, server: Path, planet: str, world: Path, settings: Path,
     print(f"[PASS] stock v160.8 reopened {name} {planet} sector and settings", flush=True)
 
 
+def verify(model: str, planet: str, rom: Path, azahar: str, config: Path, log: Path,
+           reference: Path, output: Path) -> Path:
+    _, name, _ = CASES[planet]
+    sector_id = Path(name).stem.rsplit("-", 1)[1]
+    root = sp.resolve_sd_save_path(log).parent
+    saves = root / "saves"
+    slot = saves / name
+    settings = root / "settings.bin"
+    backup = root / "settings_backup.bin"
+    backups = root / "settings_backups"
+    override = root / "campaign-select.txt"
+    if any(root.glob("sector-*.msav")) or any(saves.glob("sector-*.msav")) or any(
+            path.exists() for path in (settings, backup, backups, override)):
+        raise RuntimeError("Use an Azahar SD directory without campaign saves, settings, or selection overrides")
+
+    initial_config = config.read_bytes() if config.is_file() else None
+    had_saves = saves.is_dir()
+    result = output / f"{model}-{planet}"
+    result.mkdir(parents=True, exist_ok=True)
+    movie = result / "controls.ctm"
+    write_input_replay(movie, model, [(88, 90, 1), (108, 110, 1), (220, 222, sp.KEY_START)], 220,
+                       b"Min3DStry Campaign Defeat")
+    threatened = reference / "threatened" / planet
+    try:
+        saves.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(threatened / name, slot)
+        shutil.copyfile(threatened / "settings.bin", settings)
+        proc, rpc = sp._launch_azahar(model, rom, azahar, config, log, movie)
+        try:
+            sp._wait_for_log(log, proc, r"UPSTREAM_SP_LOADED source=campaign\b", 120)
+            sp._wait_for_log(log, proc, rf"UPSTREAM_CAMPAIGN_DEFEAT sector={sector_id}\b", 95)
+            lost = result / "lost"
+            lost.mkdir(exist_ok=True)
+            shutil.copyfile(slot, lost / name)
+            shutil.copyfile(settings, lost / "settings.bin")
+
+            time.sleep(1)
+            screenshot = rpc.screenshot()
+            if sp.az.inspect_png(screenshot)["top_distinct_colors"] < 8:
+                raise AssertionError(f"{model} {planet}: the defeat screen did not render")
+            (result / "defeat.png").write_bytes(screenshot)
+            sp._wait_for_log(log, proc, rf"UPSTREAM_CAMPAIGN_WORLD_MENU sector={sector_id}\b", 100)
+            sp._wait_for_log(log, proc, rf"UPSTREAM_CAMPAIGN_GENERATION_DONE planet={planet} sector={sector_id}\b", 190)
+            sp._wait_for_log(log, proc, rf"UPSTREAM_CAMPAIGN_SAVED slot={re.escape(name)}\b", 200)
+            sp._wait_for_log(log, proc, r"UPSTREAM_SP_EXIT\b", 30)
+            shutil.copyfile(slot, result / name)
+            shutil.copyfile(settings, result / "settings.bin")
+            return result
+        finally:
+            rpc.close()
+            sp._stop_proc(proc, azahar)
+            (result / "azahar.log").write_bytes(log.read_bytes())
+    finally:
+        for path in (slot, saves / f"{name}-backup.msav", settings, backup):
+            path.unlink(missing_ok=True)
+        if backups.is_dir() and backups.resolve().parent == root.resolve():
+            shutil.rmtree(backups)
+        if not had_saves and saves.is_dir() and not any(saves.iterdir()):
+            saves.rmdir()
+        if initial_config is None:
+            config.unlink(missing_ok=True)
+        else:
+            config.write_bytes(initial_config)
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--java", default="java")
     parser.add_argument("--server", type=Path, required=True)
     parser.add_argument("--reference", type=Path, required=True)
+    parser.add_argument("--rom", type=Path, help="Run the threatened-sector fixture in Azahar before stock readback")
+    parser.add_argument("--azahar")
+    parser.add_argument("--model", choices=("new3ds", "old3ds"))
+    parser.add_argument("--planet", choices=CASES)
+    parser.add_argument("--output-dir", type=Path, default=Path("build/campaign-defeat-emu"))
     args = parser.parse_args()
-    for planet, (_, name, _) in CASES.items():
-        lost = args.reference / "lost" / planet
-        x, y, spawn = (int(value) for value in (lost / "placement.txt").read_text().split())
-        check(args.java, args.server, planet, lost / name, lost / "settings.bin", x, y, spawn, False)
-        check(args.java, args.server, planet, args.reference / "saves" / name,
-              args.reference / "settings.bin", x, y, spawn, True)
 
+    def readback(planet: str, lost: Path, save: Path, settings: Path) -> None:
+        _, name, _ = CASES[planet]
+        placement = args.reference / "lost" / planet / "placement.txt"
+        x, y, spawn = (int(value) for value in placement.read_text().split())
+        check(args.java, args.server, planet, lost / name, lost / "settings.bin", x, y, spawn, False)
+        check(args.java, args.server, planet, save, settings, x, y, spawn, True)
+
+    planets = (args.planet,) if args.planet else CASES
+    if not args.rom:
+        for planet in planets:
+            _, name, _ = CASES[planet]
+            readback(planet, args.reference / "lost" / planet, args.reference / "saves" / name,
+                     args.reference / "settings.bin")
+        return
+
+    azahar = sp.az.resolve_azahar_bin(args.azahar)
+    config, log = sp.az.resolve_azahar_paths(azahar)
+    for model in (args.model,) if args.model else ("new3ds", "old3ds"):
+        for planet in planets:
+            _, name, _ = CASES[planet]
+            result = verify(model, planet, args.rom, azahar, config, log, args.reference, args.output_dir)
+            readback(planet, result / "lost", result / name, result / "settings.bin")
+            print(f"[PASS] {model} {planet} campaign defeat and retry", flush=True)
 
 if __name__ == "__main__":
     main()

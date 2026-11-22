@@ -7,6 +7,7 @@ import mindustry.Vars;
 import mindustry.content.Blocks;
 import mindustry.game.Team;
 import mindustry.content.Planets;
+import mindustry.content.UnitTypes;
 import mindustry.game.EventType.GameOverEvent;
 import mindustry.io.SaveIO;
 import mindustry.type.Sector;
@@ -61,9 +62,27 @@ public final class UpstreamCampaignDefeatReference {
         if (placed == null) throw new AssertionError("Fixture has no valid wall location");
         int x = placed.x, y = placed.y;
         placed.setBlock(wall, team);
+        core.health = 1f;
+        var enemy = clears ? UnitTypes.stell : UnitTypes.dagger;
+        for (int offset : new int[]{-32, 32}) {
+            enemy.spawn(Vars.state.rules.waveTeam, core.x + offset, core.y);
+            enemy.spawn(Vars.state.rules.waveTeam, core.x, core.y + offset);
+        }
+        session.save(slot);
+        Fi threatened = root.child("threatened").child(sector.planet.name);
+        slot.copyTo(threatened.child(slot.name()));
+        Core.settings.forceSave();
+        Core.settings.getSettingsFile().copyTo(threatened.child("settings.bin"));
+
         byte[] original = slot.readBytes();
-        core.tile.remove();
-        session.stepSimulation(0f, 0f);
+        Vars.logic.reset();
+        if (!session.start(null, slot, "campaign-threatened-reference", sector) || session.core() == null
+                || session.core().health != 1f) {
+            throw new AssertionError("The threatened base did not reload in its original state");
+        }
+        for (int tick = 0; tick < 1800 && !Vars.state.gameOver; tick++) {
+            session.stepSimulation(0f, 0f);
+        }
         if (losses[0] != expected || !Vars.state.gameOver || session.core() != null
                 || !session.saveCampaignDefeat(slot)) {
             throw new AssertionError("Upstream Logic did not report the core loss");
