@@ -166,7 +166,7 @@ class MechanicsParityTests(unittest.TestCase):
             mech = snapshot["mechanics_parity"]
             self.assertIsNotNone(mech)
             self.assertEqual(mech["total_points"], 100)
-            self.assertEqual(mech["feature_count"], 36)
+            self.assertEqual(mech["feature_count"], 37)
             self.assertEqual(len(mech["domains"]), 8)
             first = mech["features"][0]
             for field in ("status", "modes", "notes", "primary_doc", "evidence_count"):

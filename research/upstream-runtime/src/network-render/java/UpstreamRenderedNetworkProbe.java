@@ -289,7 +289,8 @@ public final class UpstreamRenderedNetworkProbe {
             lastStatus = rows;
             System.out.println("UPSTREAM_STATUS_HUD wave=" + Vars.state.wave
                 + " enemies=" + Math.max(0, Vars.state.enemies)
-                + " copper=" + UpstreamStatusHud.copper());
+                + " copper=" + UpstreamStatusHud.copper()
+                + " rows=" + rows.size());
         }
         float y = 4f;
         for (int i = 0; i < rows.size() && y < 240f; i++) {
