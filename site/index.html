@@ -396,6 +396,18 @@
   .progress-earned { height: 100%; background: var(--amber); }
   .progress-hw { height: 100%; background: rgba(245, 184, 65, 0.34); }
   .progress-rel { height: 100%; background: rgba(88, 166, 255, 0.30); }
+  .progress-mech-complete { height: 100%; background: var(--green); }
+  .progress-mech-live { height: 100%; background: var(--amber); }
+  .progress-mech-partial { height: 100%; background: var(--blue); }
+  .progress-mech-probe { height: 100%; background: var(--copper); }
+  .progress-mech-harness { height: 100%; background: var(--purple); }
+  .gauge-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-muted);
+  }
   .gap-strip {
     display: flex;
     flex-wrap: wrap;
@@ -421,8 +433,19 @@
     padding: 16px;
   }
   .panel h2 { margin: 0 0 12px; font-size: 14px; font-weight: 600; }
+  .panel-head {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  .panel-head h2 { margin: 0; }
+  .panel-filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .mech-notes { font-size: 12px; color: var(--muted); margin-top: 3px; line-height: 1.35; }
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  th, td { padding: 8px 6px; border-bottom: 1px solid var(--border-muted); text-align: left; }
+  th, td { padding: 8px 6px; border-bottom: 1px solid var(--border-muted); text-align: left; vertical-align: top; }
   th { color: var(--muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
 
   .badge {
@@ -437,6 +460,8 @@
   .badge-unverified { color: var(--gray); background: var(--gray-subtle); border-color: rgba(139, 148, 158, 0.35); }
   .badge-ok { color: var(--green); background: var(--green-subtle); border-color: rgba(63, 185, 80, 0.35); }
   .badge-warn { color: var(--amber); background: var(--amber-subtle); border-color: rgba(245, 184, 65, 0.35); }
+  .badge-info { color: var(--blue); background: var(--blue-subtle); border-color: rgba(88, 166, 255, 0.35); }
+  .badge-purple { color: var(--purple); background: var(--purple-subtle); border-color: rgba(188, 140, 255, 0.35); }
   .badge-fail { color: var(--red); background: var(--red-subtle); border-color: rgba(248, 81, 73, 0.35); }
 
   .activity-list { display: flex; flex-direction: column; gap: 6px; }
@@ -494,10 +519,12 @@
 
   @media (max-width: 1080px) {
     .overview-grid { grid-template-columns: 1fr; }
+    .gauge-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .stats-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .two-col { grid-template-columns: 1fr; }
   }
   @media (max-width: 640px) {
+    .gauge-grid { grid-template-columns: 1fr; }
     .stats-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .input { min-width: 100%; }
     .board { grid-template-columns: repeat(6, minmax(250px, 84vw)); }
@@ -573,13 +600,40 @@
       <span id="portProgressGap" class="sub" style="font-family:var(--mono);"></span>
     </div>
     <div class="stage-pills" id="portProgressStages"></div>
-    <div class="overview-grid" id="portProgressCategories" style="grid-template-columns: repeat(4, minmax(0, 1fr));"></div>
+    <div class="gauge-grid" id="portProgressCategories"></div>
+  </section>
+
+  <section class="overview-box" id="mechanicsParityBox" style="border-left-color: var(--blue);" aria-label="Mechanics &amp; Feature Parity Gauge">
+    <div class="overview-head">
+      <h1>Mechanics &amp; Feature Parity Gauge (Mindustry v160.8)</h1>
+      <span class="overview-maintainers" id="mechanicsParitySummary">Loading mechanics ledger...</span>
+    </div>
+    <div class="progress-track" style="height: 14px; margin-bottom: 10px;">
+      <div class="progress-mech-complete" id="mechSegComplete" style="width: 0%;"></div>
+      <div class="progress-mech-live" id="mechSegLive" style="width: 0%;"></div>
+      <div class="progress-mech-partial" id="mechSegPartial" style="width: 0%;"></div>
+      <div class="progress-mech-probe" id="mechSegProbe" style="width: 0%;"></div>
+      <div class="progress-mech-harness" id="mechSegHarness" style="width: 0%;"></div>
+    </div>
+    <div class="gap-strip">
+      <div class="gap-legend">
+        <span class="gap-item"><span class="gap-swatch" style="background:var(--green)"></span>Complete</span>
+        <span class="gap-item"><span class="gap-swatch" style="background:var(--amber)"></span>Live ARM11 (85%)</span>
+        <span class="gap-item"><span class="gap-swatch" style="background:var(--blue)"></span>Partial ARM11 (60%)</span>
+        <span class="gap-item"><span class="gap-swatch" style="background:var(--copper)"></span>Probe ARM11 (40%)</span>
+        <span class="gap-item"><span class="gap-swatch" style="background:var(--purple)"></span>C Harness (15%)</span>
+      </div>
+      <span id="mechanicsParityGap" class="sub" style="font-family:var(--mono);"></span>
+    </div>
+    <div class="stage-pills" id="mechanicsParityStatuses"></div>
+    <div class="gauge-grid" id="mechanicsParityDomains"></div>
   </section>
 
   <div class="nav-bar">
     <div class="tabs" role="tablist">
       <button class="tab active" data-view="kanban" type="button">Kanban Board</button>
       <button class="tab" data-view="roadmap" type="button">Roadmap by Phase</button>
+      <button class="tab" data-view="mechanics" type="button">Mechanics Parity</button>
       <button class="tab" data-view="compat" type="button">Compatibility &amp; Activity</button>
     </div>
     <div class="filters">
@@ -622,6 +676,33 @@
   <main>
     <section id="view-kanban" class="board"></section>
     <section id="view-roadmap" class="roadmap-list hidden"></section>
+    <section id="view-mechanics" class="hidden">
+      <div class="panel">
+        <div class="panel-head">
+          <h2 id="mechanicsMatrixHeading">Mindustry v160.8 Mechanics &amp; Feature Parity Matrix</h2>
+          <div class="panel-filters">
+            <select class="select" id="mechDomainFilter">
+              <option value="all">All Domains</option>
+            </select>
+            <select class="select" id="mechStatusFilter">
+              <option value="all">All Statuses</option>
+              <option value="complete">Complete</option>
+              <option value="live-arm11">Live ARM11</option>
+              <option value="partial-arm11">Partial ARM11</option>
+              <option value="probe-arm11">ARM11 Probe</option>
+              <option value="harness-only">C Harness Only</option>
+              <option value="missing">Missing</option>
+            </select>
+          </div>
+        </div>
+        <table>
+          <thead><tr><th>Mechanic &amp; Notes</th><th>Status</th><th>Modes</th><th>Points</th><th>Evidence</th></tr></thead>
+          <tbody id="mechanicsTableBody">
+            <tr><td colspan="5" class="sub">Loading mechanics ledger...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
     <section id="view-compat" class="two-col hidden">
       <div class="panel">
         <h2>Capability Verification Matrix (22 Capabilities)</h2>
@@ -695,7 +776,9 @@
     phase: "all",
     area: "all",
     assignee: "all",
-    search: ""
+    search: "",
+    mechDomain: "all",
+    mechStatus: "all"
   };
 
   function esc(str) {
@@ -961,6 +1044,134 @@
     }).join("");
   }
 
+  function renderMechanicsParity() {
+    const mech = state.data.mechanics_parity;
+    const summaryEl = document.getElementById("mechanicsParitySummary");
+    const gapEl = document.getElementById("mechanicsParityGap");
+    const statusesEl = document.getElementById("mechanicsParityStatuses");
+    const gridEl = document.getElementById("mechanicsParityDomains");
+    const segIds = [
+      ["complete", "mechSegComplete", "Complete", "var(--green)"],
+      ["live-arm11", "mechSegLive", "Live ARM11", "var(--amber)"],
+      ["partial-arm11", "mechSegPartial", "Partial ARM11", "var(--blue)"],
+      ["probe-arm11", "mechSegProbe", "ARM11 Probe", "var(--copper)"],
+      ["harness-only", "mechSegHarness", "C Harness", "var(--purple)"],
+      ["missing", null, "Missing", "var(--gray)"]
+    ];
+    if (!mech) {
+      summaryEl.textContent = "Mechanics parity ledger unavailable offline";
+      return;
+    }
+    const pct = Number(mech.percent);
+    const total = Number(mech.total_points || 100);
+    const earned = Number(mech.earned_points);
+    const se = mech.status_earned_points || {};
+    const sw = mech.status_weight_points || {};
+    const sc = mech.status_counts || {};
+
+    summaryEl.innerHTML = `<strong style="color:var(--blue)">${pct.toFixed(1)}%</strong> (${earned.toFixed(2)} / ${total} pts across ${mech.feature_count} mechanics)`;
+    for (const [key, elemId] of segIds) {
+      if (!elemId) continue;
+      const wPct = total ? Math.max(0, Math.min(100, (Number(se[key] || 0) / total) * 100)) : 0;
+      document.getElementById(elemId).style.width = `${wPct}%`;
+    }
+    const livePartialWt = Number(sw["complete"] || 0) + Number(sw["live-arm11"] || 0) + Number(sw["partial-arm11"] || 0);
+    const probeHarnessWt = Number(sw["probe-arm11"] || 0) + Number(sw["harness-only"] || 0);
+    const missingWt = Number(sw["missing"] || 0);
+    gapEl.textContent = `Weight: Live/Partial ${livePartialWt}/${total} · Probe/Harness ${probeHarnessWt}/${total} · Missing ${missingWt}/${total}`;
+
+    statusesEl.innerHTML = segIds
+      .filter(([key]) => Number(sc[key] || 0) > 0)
+      .map(([key, , label, color]) => `<span class="pill"><span class="dot" style="background:${color};margin-right:5px;"></span>${esc(label)}: ${sc[key]}</span>`)
+      .join("");
+
+    gridEl.innerHTML = (mech.domains || []).map((dom) => {
+      const domEarned = Number(dom.earned);
+      const domWeight = Number(dom.weight);
+      const domMissing = Number(dom.missing ?? (domWeight - domEarned));
+      const domPct = Number(dom.percent);
+      const barColor = domPct >= 70 ? "var(--green)" : (domPct >= 40 ? "var(--amber)" : (domPct > 0 ? "var(--copper)" : "var(--gray)"));
+      return `
+        <div class="overview-item">
+          <h2>${esc(dom.name)}</h2>
+          <div class="progress-label"><span>${domEarned.toFixed(2)}/${domWeight} pts (-${domMissing.toFixed(2)})</span><span>${domPct.toFixed(1)}%</span></div>
+          <div class="progress-track"><div class="progress-fill" style="width:${domPct}%;background:${barColor}"></div></div>
+        </div>
+      `;
+    }).join("");
+  }
+
+  function renderMechanicsMatrix() {
+    const body = document.getElementById("mechanicsTableBody");
+    const heading = document.getElementById("mechanicsMatrixHeading");
+    const domainSelect = document.getElementById("mechDomainFilter");
+    const mech = state.data.mechanics_parity;
+    const feats = mech && mech.features;
+    if (!feats || !feats.length) {
+      body.innerHTML = `<tr><td colspan="5" class="sub">Mechanics parity ledger unavailable offline (see <code>docs/mechanics-parity.json</code>).</td></tr>`;
+      return;
+    }
+    if (domainSelect.options.length <= 1 && mech.domains) {
+      for (const dom of mech.domains) {
+        const opt = document.createElement("option");
+        opt.value = dom.name;
+        opt.textContent = dom.name;
+        domainSelect.appendChild(opt);
+      }
+      domainSelect.value = state.mechDomain;
+    }
+
+    const q = state.search.trim().toLowerCase();
+    const visible = feats.filter((f) => {
+      if (state.mechDomain !== "all" && f.domain !== state.mechDomain) return false;
+      if (state.mechStatus !== "all" && f.status !== state.mechStatus) return false;
+      if (q) {
+        const hay = `${f.id} ${f.name} ${f.domain} ${f.status} ${f.notes} ${(f.modes || []).join(" ")} ${f.issue ? "#" + f.issue : ""}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+    heading.textContent = `Mindustry v160.8 Mechanics & Feature Parity Matrix (${visible.length} / ${feats.length})`;
+
+    const statusBadges = {
+      "complete": ["badge-ok", "Complete"],
+      "live-arm11": ["badge-ok", "Live ARM11"],
+      "partial-arm11": ["badge-info", "Partial ARM11"],
+      "probe-arm11": ["badge-warn", "ARM11 Probe"],
+      "harness-only": ["badge-purple", "C Harness Only"],
+      "missing": ["badge-fail", "Missing"]
+    };
+    if (!visible.length) {
+      body.innerHTML = `<tr><td colspan="5" class="sub">No matching mechanics for current filters.</td></tr>`;
+      return;
+    }
+    body.innerHTML = visible.map((feat) => {
+      const [badgeCls, badgeLabel] = statusBadges[feat.status] || ["badge-unverified", feat.status];
+      const modesHtml = (feat.modes && feat.modes.length)
+        ? `<div class="pills">${feat.modes.map((m) => `<span class="pill">${esc(m)}</span>`).join("")}</div>`
+        : `<span class="sub">—</span>`;
+      const issueHtml = feat.issue
+        ? `<a href="https://github.com/${REPO}/issues/${Number(feat.issue)}" target="_blank" rel="noopener">#${Number(feat.issue)}</a>`
+        : "—";
+      const docHtml = feat.primary_doc
+        ? `<a href="https://github.com/${REPO}/blob/main/${esc(feat.primary_doc)}" target="_blank" rel="noopener"><code>${esc(feat.primary_doc.split("/").pop())}</code></a>`
+        : `<span class="sub">none</span>`;
+      const evCount = Number(feat.evidence_count || 0);
+      return `
+        <tr>
+          <td>
+            <div><strong>${esc(feat.name)}</strong> <span class="sub">· ${esc(feat.domain)}</span></div>
+            <div class="mech-notes">${esc(feat.notes)}</div>
+          </td>
+          <td><span class="badge ${badgeCls}">${esc(badgeLabel)}</span></td>
+          <td>${modesHtml}</td>
+          <td class="sub" style="white-space:nowrap;">${Number(feat.earned).toFixed(2)}/${feat.weight}</td>
+          <td style="white-space:nowrap;">${issueHtml} · ${docHtml} <span class="sub">(${evCount})</span></td>
+        </tr>
+      `;
+    }).join("");
+  }
+
   function renderCompatMatrix() {
     const body = document.getElementById("compatTableBody");
     const caps = state.data.port_progress && state.data.port_progress.capabilities;
@@ -998,12 +1209,15 @@
 
   function renderAll() {
     renderPortProgress();
+    renderMechanicsParity();
     renderStats();
     document.getElementById("view-kanban").classList.toggle("hidden", state.view !== "kanban");
     document.getElementById("view-roadmap").classList.toggle("hidden", state.view !== "roadmap");
+    document.getElementById("view-mechanics").classList.toggle("hidden", state.view !== "mechanics");
     document.getElementById("view-compat").classList.toggle("hidden", state.view !== "compat");
     if (state.view === "kanban") renderKanban();
     if (state.view === "roadmap") renderRoadmap();
+    if (state.view === "mechanics") renderMechanicsMatrix();
     if (state.view === "compat") {
       renderCompatMatrix();
       renderActivity();
@@ -1047,6 +1261,7 @@
         sha: state.data.sha,
         generated_at: new Date().toISOString(),
         port_progress: state.data.port_progress || null,
+        mechanics_parity: state.data.mechanics_parity || null,
         issues: issuesRaw.filter((i) => !i.pull_request).map(normalizeIssue),
         pulls: pullsRaw.map((p) => ({
           number: p.number,
@@ -1098,6 +1313,14 @@
   });
   document.getElementById("assigneeFilter").addEventListener("change", (e) => {
     state.assignee = e.target.value;
+    renderAll();
+  });
+  document.getElementById("mechDomainFilter").addEventListener("change", (e) => {
+    state.mechDomain = e.target.value;
+    renderAll();
+  });
+  document.getElementById("mechStatusFilter").addEventListener("change", (e) => {
+    state.mechStatus = e.target.value;
     renderAll();
   });
   document.getElementById("refreshBtn").addEventListener("click", () => loadLiveGitHub(false));
