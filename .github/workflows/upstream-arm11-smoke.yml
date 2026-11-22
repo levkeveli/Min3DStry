@@ -1086,3 +1086,23 @@ jobs:
               research/upstream-runtime/build/probe-3ds-singleplayer'
           test -s research/upstream-runtime/build/probe-3ds-singleplayer/upstream-probe.3dsx
           test -s research/upstream-runtime/build/probe-3ds-singleplayer/upstream-probe.elf
+
+      - name: Resume and save stock PC campaign slots on the JVM
+        shell: bash
+        run: |
+          set -o pipefail
+          check_dir=$(mktemp -d "$RUNNER_TEMP/campaign-resume.XXXXXX")
+          fixtures="$check_dir/fixtures"
+          python3 tools/campaign_resume_fixtures.py --server "$RUNNER_TEMP/server-release.jar" --output "$fixtures"
+          mkdir -p "$fixtures/planets"
+          git -C "$RUNNER_TEMP/Mindustry" show HEAD:core/assets/bundles/bundle.properties > "$fixtures/bundle.properties"
+          git -C "$RUNNER_TEMP/Mindustry" show HEAD:core/assets/planets/serpulo.json > "$fixtures/planets/serpulo.json"
+          bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime \
+            --no-daemon --console=plain \
+            "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" \
+            "-PreferenceJar=$RUNNER_TEMP/server-release.jar" \
+            "-ParcCheckout=$RUNNER_TEMP/Arc" \
+            -Pprobe=singleplayer runCampaignResumeJvm "--args=$fixtures $check_dir/save" \
+            | tee "$RUNNER_TEMP/campaign-resume-jvm.log"
+          grep -F 'UPSTREAM_CAMPAIGN_RESUME_REFERENCE slots=2 groundZero=170 frozenForest=64 backup=ok' \
+            "$RUNNER_TEMP/campaign-resume-jvm.log"

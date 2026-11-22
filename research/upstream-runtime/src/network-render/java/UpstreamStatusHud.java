@@ -12,40 +12,13 @@ final class UpstreamStatusHud {
     }
 
     static List<UpstreamObjectiveHud.Row> collect() {
-        // Mirrors v160.8 HudFragment.makeStatusTable: wave.cap while the win
-        // wave is ahead, enemies only when present, then timer/waiting.
         var rows = new ArrayList<UpstreamObjectiveHud.Row>();
-        if (Vars.state.rules.waves) {
-            int wave = Vars.state.wave;
-            String waveText = Vars.state.rules.winWave > 1 && Vars.state.rules.winWave >= wave
-                ? Core.bundle.format("wave.cap", wave, Vars.state.rules.winWave)
-                : Core.bundle.format("wave", wave);
-            add(rows, waveText);
-
-            int enemies = Math.max(0, Vars.state.enemies);
-            if (enemies > 0) {
-                add(rows, Core.bundle.format(enemies == 1 ? "wave.enemy" : "wave.enemies", enemies));
-            }
-
-            if (Vars.state.rules.waveTimer) {
-                // v160.8 HudFragment.makeStatusTable():
-                //   if(state.rules.waveTimer){
-                //       builder.append(logic.isWaitingWave()
-                //           ? @wave.waveInProgress
-                //           : waitingf.get((int)(state.wavetime/60)));
-                //   }else if(state.enemies == 0){
-                //       builder.append(@waiting);
-                //   }
-                // Logic.isWaitingWave() is
-                //   (waitEnemies || (wave >= winWave && winWave > 0)) && enemies > 0,
-                // so it is only queried while the wave timer is enabled.
-                add(rows, Vars.logic.isWaitingWave()
-                    ? Core.bundle.get("wave.waveInProgress")
-                    : Core.bundle.format("wave.waiting", formatTime((int)(Vars.state.wavetime / 60f))));
-            } else if (enemies == 0) {
-                add(rows, Core.bundle.get("waiting"));
-            }
-        }
+        var state = Vars.state;
+        var rules = state.rules;
+        var texts = UpstreamStatusRows.texts(Core.bundle, rules.waves, state.isCampaign(),
+            rules.waveTimer, rules.waveTimer && Vars.logic.isWaitingWave(), state.wave,
+            rules.winWave, Math.max(0, state.enemies), (int)(state.wavetime / 60f));
+        for (String text : texts) add(rows, text);
 
         int copper = copper();
         var item = Items.copper;
@@ -62,15 +35,6 @@ final class UpstreamStatusHud {
         rows.add(new UpstreamObjectiveHud.Row(Strings.stripColors(text), text, "none", null));
     }
 
-    /** Matches the stock HudFragment wave timer formatting. */
-    static String formatTime(int seconds) {
-        int m = seconds / 60;
-        int s = seconds % 60;
-        if (m > 0) {
-            return m + ":" + (s < 10 ? "0" : "") + s;
-        }
-        return Integer.toString(s);
-    }
 
     static int copper() {
         var core = core();

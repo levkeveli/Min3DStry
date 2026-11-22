@@ -112,6 +112,7 @@ public final class UpstreamSinglePlayerApp {
         Fi mapDir = saveFile.parent() != null ? saveFile.parent() : new Fi("/3ds/min3dstry");
         var settings = UpstreamSinglePlayerSession.loadSettings(mapDir);
         session = UpstreamSinglePlayerSession.create(mapDir, bundleTag, new Fi("/romfs/planets"), settings);
+        UpstreamSectorCapture.install();
         try {
             CustomGame custom = null;
             Fi customSave = mapDir.child("custom-game-save.msav");
@@ -129,7 +130,7 @@ public final class UpstreamSinglePlayerApp {
             UpstreamSinglePlayerSession.SectorSlot selected = null;
             if (sectorSaves.size() == 1) {
                 selected = sectorSaves.get(0);
-                System.out.println("UPSTREAM_CAMPAIGN_SELECTED slot=" + selected.file.name() + " source=single");
+                System.out.println("UPSTREAM_CAMPAIGN_SELECTED slot=" + selected.file.name() + " source=single name=" + selected.sector.name());
             } else if (!sectorSaves.isEmpty()) {
                 loadInterfaceRenderer();
                 selected = chooseSector(sectorSaves, mapDir.child("campaign-select.txt"));
@@ -138,7 +139,7 @@ public final class UpstreamSinglePlayerApp {
             // Load the world before initializing world sprites to keep peak TeaVM heap bounded.
             if (selected != null) {
                 saveFile = selected.file;
-                session.start(null, saveFile, "campaign", selected.sector);
+                if (!session.start(null, saveFile, "campaign", selected.sector)) return;
                 campaignSlot = saveFile;
             } else if (custom == null) {
                 session.start(mapFile, saveFile, null);
@@ -314,7 +315,7 @@ public final class UpstreamSinglePlayerApp {
                 int index = Integer.parseInt(automatic.readString("UTF-8").trim());
                 if (index >= 0 && index < slots.size()) {
                     var slot = slots.get(index);
-                    System.out.println("UPSTREAM_CAMPAIGN_SELECTED slot=" + slot.file.name() + " source=auto");
+                    System.out.println("UPSTREAM_CAMPAIGN_SELECTED slot=" + slot.file.name() + " source=auto name=" + slot.sector.name());
                     return slot;
                 }
             } catch (NumberFormatException ignored) {
@@ -341,7 +342,7 @@ public final class UpstreamSinglePlayerApp {
             lastAxis = axis;
             if ((input & (1 << 17)) != 0) {
                 var slot = slots.get(selected);
-                System.out.println("UPSTREAM_CAMPAIGN_SELECTED slot=" + slot.file.name());
+                System.out.println("UPSTREAM_CAMPAIGN_SELECTED slot=" + slot.file.name() + " name=" + slot.sector.name());
                 return slot;
             }
             if (renderedRow != selected) {
