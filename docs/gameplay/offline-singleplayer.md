@@ -278,3 +278,35 @@ python3 tools/verify_offline_material_buildings.py \
   --server /path/to/server-release.jar \
   --output build/offline-material-buildings
 ```
+
+## Original power buildings
+
+The offline and multiplayer world draw passes use the pinned power blocks'
+own sprites, layered drawers, and connection geometry. The renderer
+also records the upstream revealed-building flags for visible tiles,
+which the stock Erekir beam nodes use to decide whether to draw their link.
+
+The same JVM reference uses the original atlas to exercise idle and active
+draws for the 25 v160.8 power-category definitions. It also verifies that
+two linked stock beam nodes submit exactly one beam segment.
+
+```bash
+python3 tools/verify_offline_power_buildings.py \
+  --rom /path/to/unified/upstream-probe.3dsx \
+  --server /path/to/server-release.jar \
+  --output build/offline-power-buildings
+```
+
+The replay uses stock Glacier saves to compare an empty area, Serpulo
+and Erekir power buildings with a connected beam, and a heated Thorium
+Reactor. On Azahar 2126.2, the [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45076601292)
+produced matching results on Original and New 3DS profiles. Each profile
+changed all 25 sample pixels at each of the seven placements, 15 of 25
+along the beam, and all 25 at the heated reactor.
+
+Add `--live` to replay the same stock save against the unmodified v160.8
+Java server. The client refreshes the beam caches using the original tile
+change rules, since the server snapshot does not carry cached beam endpoints.
+Both Azahar profiles joined and drew the beam with 15 of 25 sample pixels
+changed in the [live ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45078491985).
+The world lighting pass is tracked in #38.
