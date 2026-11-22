@@ -8,12 +8,20 @@ import mindustry.gen.Building;
 import mindustry.graphics.BuildingCacheLayer;
 import mindustry.graphics.CacheLayer;
 import mindustry.graphics.Layer;
+import mindustry.world.Block;
 import mindustry.world.blocks.payloads.PayloadConveyor.PayloadConveyorBuild;
+import mindustry.world.blocks.power.LightBlock;
+import mindustry.world.blocks.power.PowerBlock;
+import mindustry.world.blocks.power.PowerDiode;
 
 /** Arc draw commands for the cached and dynamic passes in upstream BlockRenderer. */
 final class UpstreamBuildingLayers {
     private final Seq<Building> visible = new Seq<>();
     private final IntSet visited = new IntSet();
+
+    static boolean supportsPowerDraw(Block block) {
+        return block instanceof PowerBlock || block instanceof PowerDiode || block instanceof LightBlock;
+    }
 
     void render(UpstreamTerrainDrawProbe.Viewport viewport, Team viewer, Predicate<Building> supported) {
         int right = Math.min(viewport.left + UpstreamTerrainDrawProbe.VIEW_WIDTH, Vars.world.width());
