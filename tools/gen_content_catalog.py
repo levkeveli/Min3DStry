@@ -10,11 +10,13 @@ pinned Mindustry v160.8 bundle:
 `item.<id>.name` and `block.<id>.name` give the ID/display pairs. Blocks without
 a `block.<id>.description` entry are environment-only tiles (parallax, cliffs,
 boulders, floor variants) that the upstream database does not describe, so they
-are filtered out. Upstream category tabs and unlock state are not modelled yet.
+are filtered out. Block categories come from `Blocks.java` (`Category.<name>`
+near each constructor). Upstream planet tabs and unlock state are not modelled.
 
 Usage:
     # Re-extract from a checkout (writes both files):
     python3 tools/gen_content_catalog.py --bundle /path/to/bundle.properties \
+        --blocks-java /path/to/Blocks.java \
         --json data/upstream-content.json --header include/ui/content_catalog_data.h
 
     # Verify the committed header matches the committed JSON:
@@ -34,10 +36,42 @@ ITEM_RE = re.compile(r"^item\.([a-z0-9-]+)\.name = (.+)$")
 ITEM_DESC_RE = re.compile(r"^item\.([a-z0-9-]+)\.description = (.+)$")
 BLOCK_RE = re.compile(r"^block\.([a-z0-9-]+)\.name = (.+)$")
 BLOCK_DESC_RE = re.compile(r"^block\.([a-z0-9-]+)\.description = (.+)$")
+BLOCK_NEW_RE = re.compile(r'new\s+\w+\s*\(\s*"([a-z0-9-]+)"')
+BLOCK_CATEGORY_RE = re.compile(r"Category\.([a-zA-Z]+)")
+
+# Mirrors mindustry.world.meta.BlockGroup / Category names used by Blocks.java.
+BLOCK_CATEGORIES = {
+    "distribution",
+    "production",
+    "storage",
+    "liquid",
+    "power",
+    "defense",
+    "turret",
+    "units",
+    "crafting",
+    "logic",
+    "effect",
+}
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_JSON = ROOT / "data" / "upstream-content.json"
 DEFAULT_HEADER = ROOT / "include" / "ui" / "content_catalog_data.h"
+
+
+def extract_categories(blocks_java: Path) -> dict[str, str]:
+    """Map block IDs to their upstream Category using the constructor window."""
+    source = blocks_java.read_text(encoding="utf-8")
+    categories: dict[str, str] = {}
+    for match in BLOCK_NEW_RE.finditer(source):
+        block_id = match.group(1)
+        window = source[match.end(): match.end() + 500]
+        category = BLOCK_CATEGORY_RE.search(window)
+        if category and block_id not in categories:
+            name = category.group(1).lower()
+            if name in BLOCK_CATEGORIES:
+                categories[block_id] = name
+    return categories
 
 
 def _clean(text: str) -> str:
@@ -47,7 +81,7 @@ def _clean(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
-def extract(bundle_path: Path) -> dict:
+def extract(bundle_path: Path, blocks_java: Path) -> dict:
     items: dict[str, str] = {}
     item_descs: dict[str, str] = {}
     blocks: dict[str, str] = {}
@@ -69,17 +103,28 @@ def extract(bundle_path: Path) -> dict:
         if match:
             block_descs[match.group(1)] = _clean(match.group(2))
 
+    categories = extract_categories(blocks_java)
     catalog = {
-        "format": 2,
+        "format": 3,
         "upstream_commit": UPSTREAM_COMMIT,
         "source": "core/assets/bundles/bundle.properties",
         "filter": "blocks with a description entry (upstream database content)",
         "items": [
-            {"id": key, "name": value, "description": item_descs.get(key, "")}
+            {
+                "id": key,
+                "name": value,
+                "description": item_descs.get(key, ""),
+                "category": "",
+            }
             for key, value in sorted(items.items(), key=lambda pair: pair[1].lower())
         ],
         "blocks": [
-            {"id": key, "name": value, "description": block_descs[key]}
+            {
+                "id": key,
+                "name": value,
+                "description": block_descs[key],
+                "category": categories.get(key, ""),
+            }
             for key, value in sorted(
                 ((k, v) for k, v in blocks.items() if k in block_descs),
                 key=lambda pair: pair[1].lower(),
@@ -114,7 +159,7 @@ def render_header(catalog: dict) -> str:
     for entry in items:
         lines.append(
             f"    {{{_c_string(entry['id'])}, {_c_string(entry['name'])}, "
-            f"{_c_string(entry['description'])}}},"
+            f"{_c_string(entry['description'])}, {_c_string(entry['category'])}}},"
         )
     lines.append("};")
     lines.append("")
@@ -122,7 +167,7 @@ def render_header(catalog: dict) -> str:
     for entry in blocks:
         lines.append(
             f"    {{{_c_string(entry['id'])}, {_c_string(entry['name'])}, "
-            f"{_c_string(entry['description'])}}},"
+            f"{_c_string(entry['description'])}, {_c_string(entry['category'])}}},"
         )
     lines.append("};")
     lines.append("")
@@ -134,6 +179,7 @@ def render_header(catalog: dict) -> str:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--bundle", default=None, help="Path to upstream bundle.properties.")
+    parser.add_argument("--blocks-java", default=None, help="Path to upstream Blocks.java.")
     parser.add_argument("--json", default=str(DEFAULT_JSON))
     parser.add_argument("--header", default=str(DEFAULT_HEADER))
     parser.add_argument("--check", action="store_true")
@@ -161,14 +207,21 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 0
 
-    if not args.bundle:
-        print("gen_content_catalog: --bundle is required without --check", file=sys.stderr)
+    if not args.bundle or not args.blocks_java:
+        print(
+            "gen_content_catalog: --bundle and --blocks-java are required without --check",
+            file=sys.stderr,
+        )
         return 2
     bundle = Path(args.bundle)
     if not bundle.is_file():
         print(f"gen_content_catalog: bundle not found: {bundle}", file=sys.stderr)
         return 2
-    catalog = extract(bundle)
+    blocks_java = Path(args.blocks_java)
+    if not blocks_java.is_file():
+        print(f"gen_content_catalog: Blocks.java not found: {blocks_java}", file=sys.stderr)
+        return 2
+    catalog = extract(bundle, blocks_java)
     json_path.parent.mkdir(parents=True, exist_ok=True)
     json_path.write_text(
         json.dumps(catalog, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"

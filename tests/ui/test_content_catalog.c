@@ -56,12 +56,56 @@ static void test_counts_and_names(void) {
     if (conveyor) {
         CHECK(strcmp(conveyor->name, "Conveyor") == 0);
         CHECK(strstr(conveyor->description, "Transports") != NULL);
+        CHECK(strcmp(conveyor->category, "distribution") == 0);
+    }
+    const M3dsCatalogEntry *duo = find_entry(M3DS_CATALOG_BLOCKS, "duo");
+    CHECK(duo != NULL);
+    if (duo) {
+        CHECK(strcmp(duo->category, "turret") == 0);
     }
     const M3dsCatalogEntry *copper_desc = find_entry(M3DS_CATALOG_ITEMS, "copper");
     CHECK(copper_desc != NULL);
     if (copper_desc) {
         CHECK(strstr(copper_desc->description, "construction") != NULL);
+        CHECK(copper_desc->category[0] == '\0');
     }
+}
+
+static void test_filters(void) {
+    CHECK(m3ds_catalog_filter_count(M3DS_CATALOG_ITEMS) == 1u);
+    CHECK(m3ds_catalog_filter_count(M3DS_CATALOG_BLOCKS) > 1u);
+    CHECK(strcmp(m3ds_catalog_filter_name(M3DS_CATALOG_ITEMS, 0u), "All") == 0);
+    CHECK(strcmp(m3ds_catalog_filter_name(M3DS_CATALOG_BLOCKS, 0u), "All") == 0);
+    CHECK(m3ds_catalog_filtered_count(M3DS_CATALOG_BLOCKS, 0u) == 258u);
+
+    size_t filters = m3ds_catalog_filter_count(M3DS_CATALOG_BLOCKS);
+    size_t sum = 0u;
+    for (size_t filter = 1u; filter < filters; ++filter) {
+        const char *name =
+            m3ds_catalog_filter_name(M3DS_CATALOG_BLOCKS, filter);
+        CHECK(name[0] != '\0');
+        size_t count =
+            m3ds_catalog_filtered_count(M3DS_CATALOG_BLOCKS, filter);
+        CHECK(count > 0u);
+        sum += count;
+        for (size_t i = 0; i < count; ++i) {
+            const M3dsCatalogEntry *entry = m3ds_catalog_filtered_entry(
+                M3DS_CATALOG_BLOCKS, filter, i);
+            CHECK(entry != NULL);
+            if (entry) {
+                CHECK(strcmp(entry->category, name) == 0);
+            }
+        }
+        CHECK(m3ds_catalog_filtered_entry(M3DS_CATALOG_BLOCKS, filter, count) ==
+              NULL);
+    }
+    CHECK(sum == m3ds_catalog_count(M3DS_CATALOG_BLOCKS));
+
+    const M3dsCatalogEntry *first_distribution = m3ds_catalog_filtered_entry(
+        M3DS_CATALOG_BLOCKS, 1u, 0u);
+    CHECK(first_distribution != NULL);
+    CHECK(m3ds_catalog_filtered_count(M3DS_CATALOG_BLOCKS, 99u) == 0u);
+    CHECK(m3ds_catalog_filtered_entry(M3DS_CATALOG_BLOCKS, 99u, 0u) == NULL);
 }
 
 static void test_wrap(void) {
@@ -106,6 +150,7 @@ static void test_sorted_and_nonempty(void) {
 int main(void) {
     test_counts_and_names();
     test_sorted_and_nonempty();
+    test_filters();
     test_wrap();
     if (failures != 0) {
         printf("CONTENT_CATALOG FAIL failures=%d\n", failures);

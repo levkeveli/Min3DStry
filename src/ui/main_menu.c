@@ -96,6 +96,7 @@ void m3ds_main_menu_init(M3dsMainMenu *menu) {
     menu->catalog_selected = 0u;
     menu->catalog_scroll = 0u;
     menu->catalog_detail = false;
+    menu->catalog_filter = M3DS_CATALOG_FILTER_ALL;
 }
 
 void m3ds_main_menu_catalog_switch(M3dsMainMenu *menu, int delta) {
@@ -108,6 +109,35 @@ void m3ds_main_menu_catalog_switch(M3dsMainMenu *menu, int delta) {
                                                        : M3DS_CATALOG_ITEMS;
     menu->catalog_selected = 0u;
     menu->catalog_scroll = 0u;
+    menu->catalog_filter = M3DS_CATALOG_FILTER_ALL;
+}
+
+void m3ds_main_menu_catalog_filter_next(M3dsMainMenu *menu, int delta) {
+    if (!menu || !menu->open || menu->screen != M3DS_MENU_SCREEN_CATALOG ||
+        delta == 0 || menu->catalog_detail) {
+        return;
+    }
+    size_t count = m3ds_catalog_filter_count(menu->catalog_category);
+    if (count == 0u) {
+        return;
+    }
+    int next = (int)menu->catalog_filter + delta;
+    int wrapped = next % (int)count;
+    if (wrapped < 0) {
+        wrapped += (int)count;
+    }
+    menu->catalog_filter = (unsigned)wrapped;
+    menu->catalog_selected = 0u;
+    menu->catalog_scroll = 0u;
+}
+
+const M3dsCatalogEntry *m3ds_main_menu_catalog_entry(const M3dsMainMenu *menu,
+                                                     size_t index) {
+    if (!menu || menu->screen != M3DS_MENU_SCREEN_CATALOG) {
+        return NULL;
+    }
+    return m3ds_catalog_filtered_entry(menu->catalog_category,
+                                       menu->catalog_filter, index);
 }
 
 void m3ds_main_menu_move(M3dsMainMenu *menu, int delta) {
@@ -118,7 +148,7 @@ void m3ds_main_menu_move(M3dsMainMenu *menu, int delta) {
         if (menu->catalog_detail) {
             return;
         }
-        size_t total = m3ds_catalog_count(menu->catalog_category);
+        size_t total = m3ds_catalog_filtered_count(menu->catalog_category, menu->catalog_filter);
         if (total == 0u) {
             return;
         }
@@ -155,7 +185,8 @@ size_t m3ds_main_menu_count(const M3dsMainMenu *menu) {
         return 0u;
     }
     if (menu->screen == M3DS_MENU_SCREEN_CATALOG) {
-        return m3ds_catalog_count(menu->catalog_category);
+        return m3ds_catalog_filtered_count(menu->catalog_category,
+                                           menu->catalog_filter);
     }
     size_t count = 0u;
     (void)current_items(menu, &count);
@@ -167,8 +198,8 @@ const char *m3ds_main_menu_key(const M3dsMainMenu *menu, size_t index) {
         return "";
     }
     if (menu->screen == M3DS_MENU_SCREEN_CATALOG) {
-        const M3dsCatalogEntry *entry =
-            m3ds_catalog_entry(menu->catalog_category, index);
+        const M3dsCatalogEntry *entry = m3ds_catalog_filtered_entry(
+            menu->catalog_category, menu->catalog_filter, index);
         return entry ? entry->id : "";
     }
     size_t count = 0u;
@@ -184,8 +215,8 @@ const char *m3ds_main_menu_label(const M3dsMainMenu *menu, size_t index) {
         return "";
     }
     if (menu->screen == M3DS_MENU_SCREEN_CATALOG) {
-        const M3dsCatalogEntry *entry =
-            m3ds_catalog_entry(menu->catalog_category, index);
+        const M3dsCatalogEntry *entry = m3ds_catalog_filtered_entry(
+            menu->catalog_category, menu->catalog_filter, index);
         return entry ? entry->name : "";
     }
     size_t count = 0u;
@@ -201,7 +232,9 @@ bool m3ds_main_menu_enabled(const M3dsMainMenu *menu, size_t index) {
         return false;
     }
     if (menu->screen == M3DS_MENU_SCREEN_CATALOG) {
-        return index < m3ds_catalog_count(menu->catalog_category);
+        return index <
+               m3ds_catalog_filtered_count(menu->catalog_category,
+                                           menu->catalog_filter);
     }
     size_t count = 0u;
     const MenuEntry *items = current_items(menu, &count);
@@ -280,6 +313,7 @@ M3dsMenuAction m3ds_main_menu_confirm(M3dsMainMenu *menu) {
             menu->catalog_selected = 0u;
             menu->catalog_scroll = 0u;
             menu->catalog_detail = false;
+            menu->catalog_filter = M3DS_CATALOG_FILTER_ALL;
             return M3DS_MENU_ACTION_NONE;
         }
         if (strcmp(entry->key, "about") == 0) {
