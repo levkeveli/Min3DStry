@@ -199,13 +199,11 @@ jobs:
           rm -rf "$RUNNER_TEMP/teavm-c-wave"
           cp -R research/upstream-runtime/build/generated/teavm/c "$RUNNER_TEMP/teavm-c-wave"
           python3 research/upstream-runtime/arm11/fix_reflection_lifetime.py "$RUNNER_TEMP/teavm-c-wave"
-          cc_flags=(-std=gnu11 -fwrapv -ffp-contract=off)
-          if cc --version 2>&1 | grep -qi 'gcc'; then
-            cc_flags+=(-fno-tree-coalesce-vars)
-          fi
-          cc "${cc_flags[@]}" -O0 "$RUNNER_TEMP/teavm-c-wave/all.c" -lm -lpthread \
+          host_cc=cc
+          if command -v clang >/dev/null 2>&1; then host_cc=clang; fi
+          "$host_cc" -std=gnu11 -O0 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-wave/all.c" -lm -lpthread \
             -o "$RUNNER_TEMP/teavm-c-wave/probe_o0"
-          cc "${cc_flags[@]}" -O2 "$RUNNER_TEMP/teavm-c-wave/all.c" -lm -lpthread \
+          "$host_cc" -std=gnu11 -O2 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-wave/all.c" -lm -lpthread \
             -o "$RUNNER_TEMP/teavm-c-wave/probe_o2"
           "$RUNNER_TEMP/teavm-c-wave/probe_o0" "$RUNNER_TEMP/glacier.msav" | tee "$RUNNER_TEMP/wave-o0.log"
           "$RUNNER_TEMP/teavm-c-wave/probe_o2" "$RUNNER_TEMP/glacier.msav" | tee "$RUNNER_TEMP/wave-o2.log"
@@ -698,13 +696,11 @@ jobs:
           rm -rf "$RUNNER_TEMP/teavm-c-combat"
           cp -R research/upstream-runtime/build/generated/teavm/c "$RUNNER_TEMP/teavm-c-combat"
           python3 research/upstream-runtime/arm11/fix_reflection_lifetime.py "$RUNNER_TEMP/teavm-c-combat"
-          cc_flags=(-std=gnu11 -fwrapv -ffp-contract=off)
-          if cc --version 2>&1 | grep -qi 'gcc'; then
-            cc_flags+=(-fno-tree-coalesce-vars)
-          fi
-          cc "${cc_flags[@]}" -O0 "$RUNNER_TEMP/teavm-c-combat/all.c" -lm -lpthread \
+          host_cc=cc
+          if command -v clang >/dev/null 2>&1; then host_cc=clang; fi
+          "$host_cc" -std=gnu11 -O0 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-combat/all.c" -lm -lpthread \
             -o "$RUNNER_TEMP/teavm-c-combat/probe_o0"
-          cc "${cc_flags[@]}" -O2 "$RUNNER_TEMP/teavm-c-combat/all.c" -lm -lpthread \
+          "$host_cc" -std=gnu11 -O2 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-combat/all.c" -lm -lpthread \
             -o "$RUNNER_TEMP/teavm-c-combat/probe_o2"
           "$RUNNER_TEMP/teavm-c-combat/probe_o0" "$RUNNER_TEMP/glacier.msav" | tee "$RUNNER_TEMP/combat-o0.log"
           "$RUNNER_TEMP/teavm-c-combat/probe_o2" "$RUNNER_TEMP/glacier.msav" | tee "$RUNNER_TEMP/combat-o2.log"
