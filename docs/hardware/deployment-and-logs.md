@@ -48,7 +48,7 @@ Validate streamed Original or New 3DS logs against the target hardware model (`O
   --commit "$(git rev-parse --short HEAD)" --target "Original 3DS" \
   --profile old3ds --min-fps 24 --expected-hash 0x53a483c7 --strict
 ```
-Use `--format json` for structured metrics or `--load-bytes <elf_load_bytes>` to enforce the full `LOAD + linearHeap + stack + 24 MiB` managed-heap budget against `64 MiB` / `124 MiB`.
+Use `--format json` for structured metrics or `--load-bytes <elf_load_bytes>` to check `LOAD + linearHeap + stack + managedLimit` against `64 MiB` / `124 MiB`. For older logs, the check uses the previous 24 MiB heap estimate.
 
 ### 5. Checked Hardware Evidence (`./dev.sh device evidence`)
 
