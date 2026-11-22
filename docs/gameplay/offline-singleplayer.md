@@ -261,5 +261,11 @@ and Erekir power buildings with a connected beam, and a heated Thorium
 Reactor. On Azahar 2126.2, the [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45076601292)
 produced matching results on Original and New 3DS profiles. Each profile
 changed all 25 sample pixels at each of the seven placements, 15 of 25
-along the beam, and all 25 at the heated reactor. The world lighting pass
-is tracked in #38. The replay covers offline gameplay.
+along the beam, and all 25 at the heated reactor.
+
+Add `--live` to replay the same stock save against the unmodified v160.8
+Java server. The client refreshes the beam caches using the original tile
+change rules, since the server snapshot does not carry cached beam endpoints.
+Both Azahar profiles joined and drew the beam with 15 of 25 sample pixels
+changed in the [live ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45078491985).
+The world lighting pass is tracked in #38.
