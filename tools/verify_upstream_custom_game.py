@@ -74,6 +74,7 @@ def verify(model: str, rom: Path, azahar: str, config: Path, log: Path, output: 
                     sp._wait_for_log(log, proc, r"UPSTREAM_SP_SAVED path=\S*custom-game-save\.msav\b", timeout)
                     if not save.is_file() or not save.stat().st_size:
                         raise AssertionError(f"{model}: the Custom Game save was not written")
+                    (output / f"{model}-sandbox.msav").write_bytes(save.read_bytes())
             finally:
                 rpc.close()
                 sp._stop_proc(proc, azahar)
