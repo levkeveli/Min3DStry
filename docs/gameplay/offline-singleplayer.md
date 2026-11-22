@@ -161,7 +161,8 @@ settings from an empty test SD directory. Pass `--server server-release.jar`
 to compare those outputs with a fresh stock Java launch.
 Pass `--departure /path/to/reference-output/departure` to replay the funded
 numbered-sector launch fixture produced by the JVM task. With `--server` it
-also verifies the saved cargo and origin with stock Java. Add `--manual-cargo`
+also verifies the saved cargo and origin with stock Java and compares the
+generated floor, overlay, and block IDs with a fresh stock launch. Add `--manual-cargo`
 to exercise the editor and transfer 8 copper while leaving 15 in Ground Zero.
 Use `--in-game` to start at Ground Zero, open and cancel the selector,
 then reopen it and depart without restarting the app.
