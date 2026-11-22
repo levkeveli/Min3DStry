@@ -32,6 +32,12 @@ def main():
     fix_reflection_lifetime(args.output)
     fix_constructor_roots(args.output)
     replacements = {
+        # TeaVM can reuse the same local for an array and a string in different
+        # parts of a coroutine. Both values are Java object references.
+        "strings.h": [
+            ("#define TEAVM_GET_STRING(i) teavm_stringPool[i]",
+             "#define TEAVM_GET_STRING(i) ((void*)teavm_stringPool[i])"),
+        ],
         "c/o/t/r/GC.c": [
             ('#include "RelocationBlock.h"', '#include "RelocationBlock.h"\n#include "../../../../m3ds_gc_relocations.h"'),
             (
