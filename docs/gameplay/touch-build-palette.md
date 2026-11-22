@@ -45,8 +45,9 @@ active row again clears the plan using the original configuration handler.
 
 The JVM touch reference verifies that a banned first plan leaves the
 second plan's index intact. It then verifies that selection resets progress
-and that the original factory consumes the recipe items and produces the
-selected Crawler. ARM11 interaction and save/reload verification are pending.
+and that the original factory consumes its recipe items and produces the
+selected Crawler. A stock JVM save round trip preserves the selected plan
+and the produced payload. ARM11 interaction and save/reload are pending.
 
 ## Limits
 

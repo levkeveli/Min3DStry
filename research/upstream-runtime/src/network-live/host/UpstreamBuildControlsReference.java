@@ -1,6 +1,7 @@
 import arc.Core;
 import arc.files.Fi;
 import arc.mock.MockAudio;
+import java.nio.file.Files;
 import java.util.zip.InflaterInputStream;
 import mindustry.Vars;
 import mindustry.ai.BlockIndexer;
@@ -17,6 +18,7 @@ import mindustry.mod.Mods;
 import mindustry.net.NetworkIO;
 import mindustry.net.Net;
 import mindustry.type.Category;
+import mindustry.io.SaveIO;
 import mindustry.world.blocks.distribution.Sorter;
 import mindustry.world.blocks.payloads.UnitPayload;
 import mindustry.world.blocks.units.UnitFactory;
@@ -79,13 +81,14 @@ public final class UpstreamBuildControlsReference {
         }
         verifyCatalog(controls, unit);
         verifyConfiguration(controls, unit);
-        verifyFactoryConfiguration(controls, unit);
         verifyPlanetShortcuts(unit);
         verifyMining(unit);
+        Vars.player.unit(unit);
+        verifyFactoryConfiguration(controls, unit);
         System.out.println("UPSTREAM_TOUCH_REFERENCE conveyor=85,26,1 wall=86,26 break=86,26");
     }
 
-    private static void verifyFactoryConfiguration(UpstreamLiveBuildControls controls, Unit unit) {
+    private static void verifyFactoryConfiguration(UpstreamLiveBuildControls controls, Unit unit) throws Exception {
         var block = (UnitFactory)Blocks.groundFactory;
         var tile = Vars.world.tile(78, 22);
         tile.setBlock(block, unit.team(), 0);
@@ -122,12 +125,35 @@ public final class UpstreamBuildControlsReference {
             controls.update(unit, 0, touch(120, 200));
             controls.update(unit, 0, touch(160, row));
             if (factory.currentPlan != -1) throw new AssertionError("Tapping the selected plan must clear it");
+            controls.update(unit, 0, touch(305, 64));
+            controls.update(unit, 0, touch(120, 200));
+            controls.update(unit, 0, touch(160, row));
+            verifyFactorySave(factory, selected);
             System.out.println("UPSTREAM_FACTORY_PLAN_REFERENCE banned=" + banned.name
-                + " selected=" + selected.unit.name + " plan=1 reset=ok production=ok clear=ok");
+                + " selected=" + selected.unit.name + " plan=1 reset=ok production=ok clear=ok reload=ok");
         } finally {
             Core.audio = oldAudio;
             Vars.state.rules.bannedUnits.remove(banned);
             tile.setBlock(Blocks.air);
+        }
+    }
+
+    private static void verifyFactorySave(UnitFactory.UnitFactoryBuild factory, UnitFactory.UnitPlan selected)
+            throws Exception {
+        int x = factory.tileX(), y = factory.tileY();
+        var path = Files.createTempFile("min3dstry-factory-plan-", ".msav");
+        try {
+            Files.delete(path);
+            var save = new Fi(path.toFile());
+            SaveIO.save(save);
+            SaveIO.load(save);
+            if (!(Vars.world.build(x, y) instanceof UnitFactory.UnitFactoryBuild restored)
+                    || restored.currentPlan != 1 || restored.unit() != selected.unit
+                    || !(restored.getPayload() instanceof UnitPayload payload) || payload.unit.type != selected.unit) {
+                throw new AssertionError("The stock save did not restore the factory plan and produced unit");
+            }
+        } finally {
+            Files.deleteIfExists(path);
         }
     }
 
