@@ -121,14 +121,15 @@
       "name": "Generic Crafters & Multi-Item Production Chains",
       "weight": 3,
       "status": "partial-arm11",
-      "modes": ["probe", "multiplayer"],
+      "modes": ["probe", "offline", "multiplayer"],
       "issue": 39,
       "evidence": [
         "docs/porting/production-power-liquids.md",
+        "docs/gameplay/offline-singleplayer.md",
         "research/upstream-runtime/src/gameplay/java/UpstreamProductionTickProbe.java",
         "research/upstream-runtime/src/network-render/java/UpstreamRenderedNetworkProbe.java"
       ],
-      "notes": "Full upstream crafter ticks verified in ARM11 production-ticks probe; live draw covers select blocks (Graphite Press, Phase Weaver, Overdrive), full crafter set and FX pending."
+      "notes": "The ARM11 production-ticks probe verifies upstream recipes. The offline draw pass uses the full GenericCrafter and Separator families, with representative stock saves verified on both Azahar profiles. Full multiplayer rendering and effects coverage remains open."
     },
     {
       "id": "power-grid-generators",
@@ -151,14 +152,15 @@
       "name": "Liquid Pumps, Conduits, Routers & Bridges",
       "weight": 2,
       "status": "partial-arm11",
-      "modes": ["probe", "multiplayer"],
+      "modes": ["probe", "offline", "multiplayer"],
       "issue": 39,
       "evidence": [
         "docs/porting/production-power-liquids.md",
+        "docs/gameplay/offline-singleplayer.md",
         "research/upstream-runtime/src/gameplay/java/UpstreamProductionTickProbe.java",
         "research/upstream-runtime/src/network-render/java/UpstreamRenderedNetworkProbe.java"
       ],
-      "notes": "LiquidModule and Conduit simulation verified in ARM11 probe; live draw covers Conduit tiling; full pump, tank, bridge, and liquid HUD coverage pending."
+      "notes": "The ARM11 probe verifies LiquidModule and Conduit simulation. The offline renderer draws original pumps and liquid routers, including the tested Mechanical Pump and Liquid Tank. Live conduit tiling is verified. Liquid bridges and full liquid HUD coverage remain open."
     },
     {
       "id": "payloads-unit-factories",

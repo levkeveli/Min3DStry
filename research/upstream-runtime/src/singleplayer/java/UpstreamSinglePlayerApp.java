@@ -42,9 +42,13 @@ import mindustry.world.blocks.defense.Wall;
 import mindustry.world.blocks.defense.turrets.ItemTurret;
 import mindustry.world.blocks.distribution.Conveyor;
 import mindustry.world.blocks.distribution.Sorter;
+import mindustry.world.blocks.liquid.LiquidRouter;
 import mindustry.world.blocks.liquid.Conduit;
 import mindustry.world.blocks.power.PowerNode;
-import mindustry.world.blocks.storage.CoreBlock;
+import mindustry.world.blocks.production.GenericCrafter;
+import mindustry.world.blocks.production.Pump;
+import mindustry.world.blocks.production.Separator;
+import mindustry.world.blocks.storage.StorageBlock;
 
 /** Graphical offline single-player Mindustry v160.8 ARM11 entry point on Ground Zero. */
 public final class UpstreamSinglePlayerApp {
@@ -687,14 +691,15 @@ public final class UpstreamSinglePlayerApp {
 
     static boolean supportsBuildingDraw(Building build) {
         var block = build.block;
-        return block instanceof CoreBlock || block instanceof Conveyor || block instanceof Wall
+        return block instanceof StorageBlock || block instanceof Conveyor || block instanceof Wall
             || block == Blocks.router || block == Blocks.distributor || block == Blocks.junction
             || block == Blocks.overflowGate || block == Blocks.underflowGate
             || block instanceof Sorter || block == Blocks.mechanicalDrill || block == Blocks.pneumaticDrill
             || block == Blocks.duo || block == Blocks.scatter || block instanceof Conduit
-            || block == Blocks.graphitePress || block == Blocks.combustionGenerator
+            || block instanceof GenericCrafter || block instanceof Separator || block instanceof Pump
+            || block instanceof LiquidRouter || block == Blocks.combustionGenerator
             || block instanceof PowerNode || block == Blocks.duct || block == Blocks.berylliumWall
-            || block == Blocks.phaseWeaver || block == Blocks.overdriveProjector
+            || block == Blocks.overdriveProjector
             || block == Blocks.overdriveDome || block == Blocks.shockwaveTower;
     }
 
