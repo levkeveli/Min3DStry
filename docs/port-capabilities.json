@@ -340,7 +340,8 @@
         "docs/porting/campaign-verification.md",
         "docs/porting/sd-storage-paths.md",
         "research/upstream-runtime/arm11/m3ds_file.c",
-        "research/upstream-runtime/src/file/java/port/UpstreamFileMetadataProbe.java"
+        "research/upstream-runtime/src/file/java/port/UpstreamFileMetadataProbe.java",
+        "research/upstream-runtime/src/campaign-saves-load/java/UpstreamCampaignSavesLoadProbe.java"
       ]
     },
     {
