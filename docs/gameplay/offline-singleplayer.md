@@ -261,5 +261,31 @@ and Erekir power buildings with a connected beam, and a heated Thorium
 Reactor. On Azahar 2126.2, the [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45076601292)
 produced matching results on Original and New 3DS profiles. Each profile
 changed all 25 sample pixels at each of the seven placements, 15 of 25
-along the beam, and all 25 at the heated reactor. The world lighting pass
-is tracked in #38. The replay covers offline gameplay.
+along the beam, and all 25 at the heated reactor.
+
+Add `--live` to replay the same stock save against the unmodified v160.8
+Java server. The client refreshes the beam caches using the original tile
+change rules, since the server snapshot does not carry cached beam endpoints.
+Both Azahar profiles joined and drew the beam with 15 of 25 sample pixels
+changed in the [live ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45078491985).
+The world lighting pass is tracked in #38.
+
+## Original turret graphics
+
+The offline and live world passes use the original v160.8 turret drawers
+for Serpulo and Erekir. The drawers use the stock atlas and existing
+turret state for heading, recoil, heat, charge, and ammunition or liquid
+layers. The port continues to use upstream targeting and ammo rules.
+
+The offline JVM reference exercises idle and active draw commands for
+all 29 turret definitions. The live renderer reference draws the same
+catalog through its own building predicate. The ARM11 replay loads
+Glacier saves produced by the unmodified Java v160.8 server and checks
+Wave, Ripple, Parallax, Segment, Breach, and Sublimate at two headings.
+
+```bash
+python3 tools/verify_offline_turret_buildings.py \
+  --rom /path/to/unified/upstream-probe.3dsx \
+  --server /path/to/server-release.jar \
+  --output build/offline-turret-buildings
+```

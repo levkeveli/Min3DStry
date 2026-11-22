@@ -11,6 +11,7 @@ import mindustry.content.Items;
 import mindustry.content.Liquids;
 import mindustry.game.Team;
 import mindustry.gen.Building;
+import mindustry.net.Net;
 import mindustry.type.Category;
 import mindustry.world.blocks.defense.turrets.BaseTurret;
 import mindustry.world.blocks.defense.turrets.BaseTurret.BaseTurretBuild;
@@ -104,16 +105,18 @@ public final class UpstreamOfflineMaterialsReference implements UpstreamTerrainD
         var second = Vars.world.tile(31, 40);
         first.setBlock(Blocks.beamNode, viewer, 0);
         second.setBlock(Blocks.beamNode, viewer, 0);
+        var previousNet = Vars.net;
         try {
             var from = (BeamNodeBuild)first.build;
             var to = (BeamNodeBuild)second.build;
-            from.updateDirections();
-            to.updateDirections();
+            Vars.net = new Net(null);
+            Vars.net.setClientConnected();
             beamRegion = (AtlasRegion)((BeamNode)from.block).laser;
             beamSegments = 0;
             layers.render(viewport, viewer, candidate -> candidate == from || candidate == to);
             if (beamSegments != 1) throw new AssertionError("Expected one stock beam, got " + beamSegments);
         } finally {
+            Vars.net = previousNet;
             first.setBlock(Blocks.air);
             second.setBlock(Blocks.air);
         }
