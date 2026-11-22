@@ -291,3 +291,30 @@ python3 tools/verify_offline_distribution.py \
 ```
 
 The optional live replay loads the same save on the unmodified Java server.
+
+## Original turret graphics
+
+The offline and live world passes use the original v160.8 turret drawers
+for Serpulo and Erekir. The drawers use the stock atlas and existing
+turret state for heading, recoil, heat, charge, and ammunition or liquid
+layers. The port continues to use upstream targeting and ammo rules.
+
+The offline JVM reference exercises idle and active draw commands for
+all 29 turret definitions. The live renderer reference draws the same
+catalog through its own building predicate. The ARM11 replay loads
+Glacier saves produced by the unmodified Java v160.8 server and checks
+Wave, Ripple, Parallax, Segment, Breach, and Sublimate at two headings.
+
+The [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45079715312)
+drew all six turrets on both Azahar profiles. All six headings changed
+the sampled turret pixels. Add `--live` to load the same fixture on the
+unmodified Java server and check the sprites after joining from Azahar.
+The live replay tests the stock snapshot and draw path. The JVM reference
+tests active draw states including recoil, charge, and the Parallax beam.
+
+```bash
+python3 tools/verify_offline_turret_buildings.py \
+  --rom /path/to/unified/upstream-probe.3dsx \
+  --server /path/to/server-release.jar \
+  --output build/offline-turret-buildings
+```
