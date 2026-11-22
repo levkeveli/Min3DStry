@@ -107,6 +107,11 @@ campaign .msav and Arc settings files in the same locations as resumed games.
 The renderer loads each visible unit’s original atlas regions and weapon art
 when it first encounters that unit type.
 
+The [ARM11 build from `2c8f6e7`](https://github.com/levkeveli/Min3DStry/actions/runs/45043634996)
+showed the controlled unit and saved successfully in Ground Zero and Onset
+on both Azahar profiles. The stock v160.8 server reopened all four saves
+and settings pairs.
+
 ## Campaign map assets
 
 The offline package stages the 78 Serpulo maps and 17 Erekir maps from the
