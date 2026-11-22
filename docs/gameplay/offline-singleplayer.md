@@ -127,6 +127,21 @@ Duct in Onset on each profile. The unmodified v160.8 server reopened all
 four sector saves and settings pairs and confirmed the inventories and
 research progress. This build predates the merged live capture integration.
 
+The [integrated ARM11 build from `522c8ca`](https://github.com/levkeveli/Min3DStry/actions/runs/45058012737)
+passed a continuous progression replay on both Azahar profiles. A stock
+final-wave Ground Zero save reached capture through the upstream simulation.
+The replay researched Router with controller input, unlocked Frozen Forest,
+selected it for launch, rendered the original 200×200 world, and saved.
+The stock server reopened both saves and confirmed the capture, research,
+unlock, and launch origin on each profile.
+
+Reproduce that replay with the integrated campaign ROM and a stock checkpoint.
+
+```sh
+python3 tools/campaign_research_fixture.py --server server-release.jar --create-progression-in /path/to/checkpoint
+python3 tools/verify_upstream_campaign_progression.py --rom upstream-probe.3dsx --fixture /path/to/checkpoint --server server-release.jar
+```
+
 Generate fixtures with the stock server and copy the original
 `bundle.properties`, `planets/serpulo.json`, and staged campaign `maps/`
 directory into the fixture directory for the JVM reference. Use the regular pinned runtime Gradle properties.
