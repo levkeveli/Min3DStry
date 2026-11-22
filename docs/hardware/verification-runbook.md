@@ -8,6 +8,7 @@ passes [`tools/hw_evidence.py`](../../tools/hw_evidence.py) and is attached to a
 
 | Evidence in the log | Capability it supports |
 | --- | --- |
+| `BUILD commit=<sha> dirty=0` | provenance for every row below (exact binary identity) |
 | `HW:` tag, clock, L2, application memory, FIRM | `old-new-3ds-probe`, `memory-budget-runtime` |
 | `STORAGE_ROUNDTRIP status=ok`, `SAVE_SLOT`, settings | `msav-map-save-compat`, `sd-storage` paths |
 | `SECTOR_LOADER`/`SECTOR_ALLOC`/`SECTOR_TILE_STATE`/`SECTOR_PARITY` | embedded upstream `SaveIO` loader, `world-rows-bridge` |
@@ -28,6 +29,11 @@ Record the full SHA and the `.3dsx` SHA-256; the ingest tool hashes the ROM for 
 sha256sum build/min3dstry.3dsx
 git rev-parse HEAD
 ```
+
+The binary logs the commit it was built from (`BUILD commit=<sha> dirty=<0|1>`). The Makefile prefers
+`M3DS_BUILD_COMMIT` (exported by `dev.sh build`), then `git rev-parse`, then a git-free reader
+(`tools/git_head_sha.sh`) so container builds without a git package still get a real SHA. A build from
+a dirty tree logs `dirty=1` and cannot be used as evidence.
 
 For audio coverage build with the upstream assets:
 
@@ -96,13 +102,16 @@ console without the fixture. `--format json` emits the same data for automation;
 record goes to stdout.
 
 The tool exits `0` only when every required check matches and `1` otherwise (with `--strict`); `2`
-means the log or ROM path is missing. It also verifies the ROM SHA-256 and embeds the raw records, so a
-reviewer can re-run it on the same file.
+means the log or ROM path is missing. The logged `BUILD` commit must match `--commit`, and `dirty=1`
+fails: evidence has to come from a clean checkout of the commit you name. Builds older than the
+provenance change have no `BUILD` record and need to be rebuilt. The record also carries the ROM
+SHA-256 and every raw captured line, so a reviewer can re-run the tool on the same file.
 
 ## 6. Expected canonical values
 
 | Record | New 3DS | Original 3DS |
 | --- | --- | --- |
+| `BUILD` | `commit=<12-char sha> dirty=0` | same |
 | `HW:` tag / AppMem | `N3DS`, `124 MiB` | `O3DS`, `64 MiB` |
 | `STORAGE_ROUNDTRIP` | `status=ok` | `status=ok` |
 | `SAVE_SLOT` | `present=1 valid=1 version=13` | same |

@@ -13,6 +13,17 @@
 #include "audio/audio_mixer.h"
 #include "audio/audio_registry.h"
 #include "build-config.h"
+#if defined(__has_include)
+#if __has_include("build-info.h")
+#include "build-info.h"
+#endif
+#endif
+#ifndef M3DS_BUILD_COMMIT
+#define M3DS_BUILD_COMMIT "unknown"
+#endif
+#ifndef M3DS_BUILD_DIRTY
+#define M3DS_BUILD_DIRTY -1
+#endif
 #include "citro2d_backend.h"
 #include "ndsp_backend.h"
 #include "platform/hardware_profile.h"
@@ -141,6 +152,9 @@ int main(int argc, char *argv[]) {
         m3ds_hardware_profile_format(&hw_profile, hw_summary, sizeof(hw_summary));
     }
     char dbg_line[320];
+    snprintf(dbg_line, sizeof(dbg_line), "[MIN3DSTRY] BUILD commit=%s dirty=%d\n",
+             M3DS_BUILD_COMMIT, M3DS_BUILD_DIRTY);
+    m3ds_emit_debug_line(log_socket, dbg_line);
     snprintf(dbg_line, sizeof(dbg_line), "[MIN3DSTRY] HW: %s\n", hw_summary);
     m3ds_emit_debug_line(log_socket, dbg_line);
 
