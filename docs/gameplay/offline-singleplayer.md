@@ -270,6 +270,32 @@ Both Azahar profiles joined and drew the beam with 15 of 25 sample pixels
 changed in the [live ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45078491985).
 The world lighting pass is tracked in #38.
 
+## Original item distribution graphics
+
+The offline and live renderers use the stock v160.8 distribution drawers.
+The original world atlas supplies carried item sprites. Item bridges and
+duct bridges draw their stock spans from the original link state. Cargo
+loaders use the same construction shader adapter as original unit factories.
+
+The offline and live JVM tests exercise all 28 distribution buildings,
+including the sandbox item source and void. The offline reference also
+checks carried copper, the bridge spans, and the Manifold construction
+overlay. The ARM11 verifier
+uses stock Glacier saves with seven representative distribution buildings,
+a loaded Plastanium Conveyor, and linked Item and Duct Bridges.
+
+```bash
+python3 tools/verify_offline_distribution.py \
+  --rom /path/to/unified/upstream-probe.3dsx \
+  --server /path/to/server-release.jar \
+  --output build/offline-distribution --live
+```
+
+Both Azahar profiles drew all seven buildings, the carried stack, and the
+two bridge spans in the [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45081828980).
+The same checks passed after each profile joined the unmodified Java v160.8
+server using the active save.
+
 ## Original liquid buildings
 
 The offline and live renderers draw the original v160.8 liquid catalog

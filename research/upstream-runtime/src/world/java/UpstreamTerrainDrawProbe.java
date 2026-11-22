@@ -21,6 +21,7 @@ import mindustry.gen.Building;
 import mindustry.graphics.CacheLayer;
 import mindustry.world.Tile;
 import mindustry.world.blocks.environment.Floor;
+import mindustry.world.blocks.units.UnitCargoLoader;
 import port.render.UpstreamUnitBuildTarget;
 
 /** Captures the upstream terrain draw calls before they reach a GPU. */
@@ -73,12 +74,19 @@ public final class UpstreamTerrainDrawProbe {
         boolean wasHeadless = Vars.headless;
         Vars.headless = false;
         try {
+            if (prepareLiveAtlas != null) {
+                // Conveyors and stack conveyors draw the original Item.fullIcon.
+                for (var item : Vars.content.items()) item.loadIcon();
+            }
             for (var block : Vars.content.blocks()) {
                 if (block == Blocks.air) continue;
                 if (block instanceof Floor || prepareLiveAtlas != null) {
                     block.load();
                 }
-                if (prepareLiveAtlas != null) block.loadIcon();
+                if (prepareLiveAtlas != null) {
+                    block.loadIcon();
+                    if (block instanceof UnitCargoLoader loader) loader.unitType.loadIcon();
+                }
             }
         } finally {
             Vars.headless = wasHeadless;
