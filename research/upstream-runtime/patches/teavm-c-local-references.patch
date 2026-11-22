@@ -1,0 +1,13 @@
+--- a/org/teavm/backend/c/generate/CodeWriter.java
++++ b/org/teavm/backend/c/generate/CodeWriter.java
+@@ -123,6 +123,9 @@
+             case FLOAT_ARRAY:
+             case DOUBLE_ARRAY:
+             case OBJECT_ARRAY:
+-                print("TeaVM_Array*");
++                // A C local register can be reused for non-overlapping array and
++                // object lifetimes after coroutine lowering. Array access macros
++                // already cast the local to TeaVM_Array* at the point of access.
++                print("void*");
+                 break;
+         }
