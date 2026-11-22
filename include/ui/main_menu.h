@@ -5,6 +5,7 @@
 #include <stddef.h>
 
 #include "ui/content_catalog.h"
+#include "ui/schematics_catalog.h"
 
 /*
  * Stock title menu shell derived from upstream Mindustry v160.8
@@ -18,10 +19,11 @@
  *   Settings
  *   Quit
  *
- * This port implements the Play/Campaign, Settings, Database and About branches.
- * Join/Custom/Load, Schematics, Core Database, Editor and Mods stay visible
- * (matching the upstream menu) but report M3DS_MENU_ACTION_UNAVAILABLE so the
- * caller can log them instead of silently pretending they work.
+ * This port implements the Play/Campaign, Settings, Database (About, Core
+ * Database, read-only Schematics) branches. Join/Custom/Load, Editor and Mods
+ * stay visible (matching the upstream menu) but report
+ * M3DS_MENU_ACTION_UNAVAILABLE so the caller can log them instead of silently
+ * pretending they work.
  */
 
 typedef enum {
@@ -31,6 +33,7 @@ typedef enum {
     M3DS_MENU_SCREEN_DATABASE,
     M3DS_MENU_SCREEN_ABOUT,
     M3DS_MENU_SCREEN_CATALOG,
+    M3DS_MENU_SCREEN_SCHEMATICS,
 } M3dsMenuScreen;
 
 typedef enum {
@@ -54,6 +57,9 @@ typedef struct {
     unsigned catalog_scroll;
     bool catalog_detail;
     unsigned catalog_filter;
+    unsigned schematic_selected;
+    unsigned schematic_scroll;
+    bool schematic_detail;
 } M3dsMainMenu;
 
 void m3ds_main_menu_init(M3dsMainMenu *menu);
@@ -69,6 +75,10 @@ void m3ds_main_menu_catalog_filter_next(M3dsMainMenu *menu, int delta);
 /* Entry under the cursor in the filtered catalog (NULL when empty). */
 const M3dsCatalogEntry *m3ds_main_menu_catalog_entry(const M3dsMainMenu *menu,
                                                      size_t index);
+
+/* Entry under the cursor in the read-only Schematics list (NULL when empty). */
+const M3dsSchematicRow *m3ds_main_menu_schematic_entry(const M3dsMainMenu *menu,
+                                                       size_t index);
 
 size_t m3ds_main_menu_count(const M3dsMainMenu *menu);
 

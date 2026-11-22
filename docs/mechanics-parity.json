@@ -270,13 +270,13 @@
     {
       "id": "menus-schematics-rts",
       "domain": "Controls & Dual-Screen UI",
-      "name": "Schematics & RTS Unit Command",
+      "name": "Schematic Import/Export & RTS Unit Command",
       "weight": 1,
       "status": "missing",
       "modes": [],
       "issue": 40,
       "evidence": [],
-      "notes": "Blueprint schematics copy/paste and RTS unit selection/command are not yet implemented."
+      "notes": "Read-only list of the 210 pinned base-part .msch files is implemented (dimensions, block count, block summary); schematic import/export and RTS selection/command are not."
     },
     {
       "id": "content-database-page",
