@@ -115,7 +115,14 @@ Frozen Forest objective, persists a 3-of-5 copper contribution to Conveyor,
 and tests completion across live and remote inventories. On Erekir it checks
 the original planet objective and the effective four-beryllium Duct cost. The
 unmodified v160.8 server reopened the resulting Serpulo and Erekir saves and
-settings. The graphical screen still needs emulator verification.
+settings.
+
+The [ARM11 build from `428ae40`](https://github.com/levkeveli/Min3DStry/actions/runs/45050806782)
+opened the research screen on both Old and New 3DS profiles in Azahar. The
+controller replay partially researched Conveyor in Ground Zero and unlocked
+Duct in Onset on each profile. The unmodified v160.8 server reopened all
+four sector saves and settings pairs and confirmed the inventories and
+research progress. This build predates the merged live capture integration.
 
 Generate fixtures with the stock server and copy the original
 `bundle.properties` and `planets/serpulo.json` into that directory for the JVM
