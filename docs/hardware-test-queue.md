@@ -233,10 +233,10 @@ AppMem, and the benchmark reports `>= 24 FPS`. **Evidence:** strict
 `hw_evidence.py` JSON/Markdown for both models, benchmark log lines, and
 thermal/SD notes. Only this card can clear `physical-hardware-parity`.
 
-> Current gap: the app logs `FRAME` draw/cull/CPU/GPU telemetry but no
-> `BENCH fps=... p95_ms=...` record, so a `>= 24 FPS` claim is not yet possible.
-> Add the frame-time sampler and make `benchmark-report` fail when the record
-> is missing before running this card.
+> `BENCH fps=... p95_ms=...` is now emitted every 256 rendered frames
+> (`scenario=factory_demo`), and `benchmark-report` fails `frame_rate` when the
+> record is missing. The existing `de3e249`/`a4a9a96` logs predate it, so this
+> card still needs a fresh run from a build that contains the sampler.
 
 ## Current exclusions
 
