@@ -278,6 +278,9 @@ public final class UpstreamSinglePlayerSession {
         if (saveFile.parent() != null) {
             saveFile.parent().mkdirs();
         }
+        if (Vars.state.rules.sector != null) {
+            UpstreamSectorCapture.persist(Vars.state.rules.sector);
+        }
         SaveIO.write(saveFile);
         if (!SaveIO.isSaveValid(saveFile)) {
             throw new IOException("Written offline save failed validation: " + saveFile.path());

@@ -291,8 +291,10 @@ marker.
 The same `UpstreamSectorCapture` listener is installed by the live
 single-player app. A live `Logic` capture emits
 `UPSTREAM_CAMPAIGN_CAPTURED sector=<id>` and writes the `SectorInfo` settings
-key; the existing START-exit path then writes the sector `.msav`. The capture
-probe exercises this exact listener on JVM and both Azahar profiles.
+key. `UpstreamSinglePlayerSession.save` persists the active sector's
+`SectorInfo` before every `.msav` write, so SELECT and START-exit save-back
+keep capture state in sync. The capture probe exercises the listener on JVM
+and both Azahar profiles.
 
 ## ARM11 Campaign Sector Launch
 
