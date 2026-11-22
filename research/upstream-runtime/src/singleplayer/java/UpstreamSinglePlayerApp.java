@@ -39,6 +39,7 @@ import mindustry.type.UnitType;
 import mindustry.world.Block;
 import mindustry.world.blocks.ConstructBlock.ConstructBuild;
 import mindustry.world.blocks.defense.Wall;
+import mindustry.world.blocks.defense.turrets.BaseTurret;
 import mindustry.world.blocks.defense.turrets.ItemTurret;
 import mindustry.world.blocks.distribution.Conveyor;
 import mindustry.world.blocks.distribution.Sorter;
@@ -48,6 +49,7 @@ import mindustry.world.blocks.production.GenericCrafter;
 import mindustry.world.blocks.production.Pump;
 import mindustry.world.blocks.production.Separator;
 import mindustry.world.blocks.storage.StorageBlock;
+import mindustry.world.blocks.units.UnitFactory;
 
 /** Graphical offline single-player Mindustry v160.8 ARM11 entry point on Ground Zero. */
 public final class UpstreamSinglePlayerApp {
@@ -691,12 +693,12 @@ public final class UpstreamSinglePlayerApp {
 
     static boolean supportsBuildingDraw(Building build) {
         var block = build.block;
-        return UpstreamBuildingLayers.supportsPowerDraw(block)
+        return UpstreamBuildingLayers.supportsPowerDraw(block) || block instanceof UnitFactory
             || block instanceof StorageBlock || block instanceof Conveyor || block instanceof Wall
             || block == Blocks.router || block == Blocks.distributor || block == Blocks.junction
             || block == Blocks.overflowGate || block == Blocks.underflowGate
             || block instanceof Sorter || block == Blocks.mechanicalDrill || block == Blocks.pneumaticDrill
-            || block == Blocks.duo || block == Blocks.scatter || block instanceof Conduit
+            || block instanceof BaseTurret || block instanceof Conduit
             || block instanceof GenericCrafter || block instanceof Separator || block instanceof Pump
             || block instanceof LiquidRouter || block == Blocks.duct || block == Blocks.berylliumWall
             || block == Blocks.overdriveProjector
