@@ -62,12 +62,15 @@ final class UpstreamLiveBuildControls {
         boolean submit = !selectingMine && (buttons & PLACE_PRESSED) != 0;
         if (touch >= 0) {
             int x = touch & 0xffff, y = touch >>> 16;
+            System.out.println("UPSTREAM_BUILD_TOUCH x=" + x + " y=" + y
+                + " mine=" + selectingMine + " viewport=" + left + "," + bottom);
             if (x >= 288 && y >= GRID_Y && y < 80) {
                 selectingMine = false;
                 configuring = !configuring;
                 return;
             } else if (x >= 288 && y >= 80 && y < 112) {
                 selectingMine = true;
+                System.out.println("UPSTREAM_MINE_MODE active=true");
                 configuring = false;
                 removing = false;
                 return;
@@ -115,19 +118,40 @@ final class UpstreamLiveBuildControls {
     }
 
     private void selectMine(Unit unit, Tile tile) {
-        if (tile == null) return;
+        if (tile == null) {
+            logMineRejected("outside-world");
+            return;
+        }
         if (unit.mineTile == tile) {
             unit.mineTile = null;
             System.out.println("UPSTREAM_MINE_CANCEL x=" + tile.x + " y=" + tile.y);
             return;
         }
         // Match v160.8 InputHandler.canMine after the 3DS hit test has selected a world tile.
-        if (Vars.player.dead() || !unit.validMine(tile) || !unit.acceptsItem(unit.getMineResult(tile))) return;
+        if (Vars.player.dead()) {
+            logMineRejected("player-dead");
+            return;
+        }
+        if (!unit.validMine(tile)) {
+            logMineRejected("invalid-tile");
+            return;
+        }
+        if (!unit.acceptsItem(unit.getMineResult(tile))) {
+            logMineRejected("inventory");
+            return;
+        }
         var oreLayer = tile.overlay().itemDrop == null ? tile.floor() : tile.overlay();
-        if (oreLayer.playerUnmineable && !Core.settings.getBool("doubletapmine")) return;
+        if (oreLayer.playerUnmineable && !Core.settings.getBool("doubletapmine")) {
+            logMineRejected("doubletapmine-disabled");
+            return;
+        }
         unit.mineTile = tile;
         System.out.println("UPSTREAM_MINE_TARGET x=" + tile.x + " y=" + tile.y
             + " item=" + unit.getMineResult(tile).name);
+    }
+
+    private void logMineRejected(String reason) {
+        System.out.println("UPSTREAM_MINE_REJECT x=" + tileX + " y=" + tileY + " reason=" + reason);
     }
 
     private void rotate() {

@@ -123,6 +123,19 @@ profiles. Physical console memory use and frame-rate targets remain open.
 | `SELECT` | Save `.msav` snapshot to `/3ds/min3dstry/singleplayer-save.msav` (`UPSTREAM_SP_SAVED`) |
 | `START` | Exit application cleanly |
 
+## Capture gameplay logs on a physical 3DS
+
+Open NetLoader in Homebrew Launcher and deploy the standalone game with
+`./dev.sh device deploy --rom /path/to/upstream-probe.3dsx --ip <3DS_IP>
+--stream-logs --log-out build/device-logs/ground-zero.log`.
+The native launcher consumes the log-stream option before interpreting any
+map or save arguments. Debugger output is still available without NetLoader.
+
+For touch mining, look for `UPSTREAM_BUILD_TOUCH` (touch coordinates and
+viewport origin), `UPSTREAM_MINE_MODE`, then `UPSTREAM_MINE_TARGET` or
+`UPSTREAM_MINE_REJECT` (world tile and rejection reason). The game reports
+`UPSTREAM_SP_MINED` when mining increases the core's copper count.
+
 ## Build & Verification Commands
 
 ### 1. Host JVM vs TeaVM C (`-O0` and `-Os`) Deterministic Parity
