@@ -20,6 +20,7 @@
 #include "platform/msav_inflate.h"
 #include "platform/msav_world.h"
 #include "platform/save_slot.h"
+#include "platform/teavm_world_loader.h"
 #include "platform/sector_catalog.h"
 #include "platform/sd_paths.h"
 #include "platform/settings_store.h"
@@ -234,6 +235,57 @@ int main(int argc, char *argv[]) {
     }
 
     if (sector_count > 0u) {
+        char save_path[160] = {0};
+        bool have_path = m3ds_sd_sector_save_path(
+            "/3ds/min3dstry", sectors[0].planet, sectors[0].id,
+            save_path, sizeof(save_path));
+        M3dsWorldTiles upstream = {0};
+        bool loader_ok = have_path
+            && m3ds_teavm_world_load(save_path, &upstream);
+        snprintf(dbg_line, sizeof(dbg_line),
+                 "[MIN3DSTRY] SECTOR_LOADER source=teavm available=%d loaded=%d path=%s tiles=%u buildings=%u\n",
+                 m3ds_teavm_world_loader_available() ? 1 : 0,
+                 loader_ok ? 1 : 0, save_path,
+                 (unsigned)(loader_ok ? upstream.count : 0u),
+                 (unsigned)(loader_ok ? upstream.building_count : 0u));
+        m3ds_emit_debug_line(log_socket, dbg_line);
+        if (loader_ok) {
+            g_save_tiles = upstream;
+            g_save_world.version = m3ds_teavm_world_loaded_version();
+            g_save_world.width = upstream.width;
+            g_save_world.height = upstream.height;
+            g_save_world.floor_tiles = (uint32_t)upstream.count;
+            g_save_world.entity_tiles = (uint32_t)upstream.building_count;
+            g_save_world.valid = true;
+            g_save_world_ready = true;
+            snprintf(dbg_line, sizeof(dbg_line),
+                     "[MIN3DSTRY] SECTOR_ALLOC tiles=%u bytes=%u hash=%016llx status=loaded\n",
+                     (unsigned)upstream.count,
+                     (unsigned)m3ds_msav_world_bytes(&upstream),
+                     (unsigned long long)upstream.hash);
+            m3ds_emit_debug_line(log_socket, dbg_line);
+            size_t linked = 0u;
+            for (size_t i = 0; i < upstream.building_count; ++i) {
+                if (upstream.buildings[i].tile) {
+                    ++linked;
+                }
+            }
+            snprintf(dbg_line, sizeof(dbg_line),
+                     "[MIN3DSTRY] SECTOR_TILE_STATE tiles=%u buildings=%u linked=%u hash=%016llx status=loaded\n",
+                     (unsigned)upstream.count,
+                     (unsigned)upstream.building_count,
+                     (unsigned)linked,
+                     (unsigned long long)upstream.tile_state_hash);
+            m3ds_emit_debug_line(log_socket, dbg_line);
+            snprintf(dbg_line, sizeof(dbg_line),
+                     "[MIN3DSTRY] SECTOR_PARITY buildings=%u hash=%016llx verified=0 status=loaded\n",
+                     (unsigned)upstream.building_count,
+                     (unsigned long long)upstream.save_state_hash);
+            m3ds_emit_debug_line(log_socket, dbg_line);
+        }
+    }
+
+    if (sector_count > 0u && !g_save_world_ready) {
         const size_t inflate_limit = 8u * 1024u * 1024u;
         uint8_t *raw = NULL;
         uint8_t *inflated = NULL;
