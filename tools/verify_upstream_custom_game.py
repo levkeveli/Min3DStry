@@ -16,7 +16,7 @@ def write_replay(path: Path, model: str, resume: bool) -> None:
     if resume:
         windows.append((33, 35, 1))  # A on Load Game.
     else:
-        windows += [(25, 27, 1 << 7), (28, 30, 1 << 4), (33, 35, 1), (61, 63, sp.KEY_SELECT)]
+        windows += [(28, 30, 1 << 4), (33, 35, 1), (61, 63, sp.KEY_SELECT)]
     frames = sp.CTM_SAMPLES_PER_SECOND * 72
     header = struct.pack("<4sQ20sQQ32sIQq156x", b"CTM\x1b", 0, sp.CTM_REVISION, 1780000000,
                          0x4D334453, b"Min3DStry Custom Game", 0, frames, 0)
@@ -56,9 +56,9 @@ def verify(model: str, rom: Path, azahar: str, config: Path, log: Path, output: 
                         raise AssertionError(f"{model}: expected a rendered Custom Game menu")
                     (output / f"{model}-menu.png").write_bytes(menu)
                 if resume:
-                    loaded = r"UPSTREAM_SP_LOADED source=customgame-save map=Archipelago\b"
+                    loaded = r"UPSTREAM_SP_LOADED source=customgame-save map=Ancient_Caldera\b"
                 else:
-                    loaded = r"UPSTREAM_CUSTOM_GAME_STARTED map=archipelago\.msav mode=sandbox\b"
+                    loaded = r"UPSTREAM_CUSTOM_GAME_STARTED map=caldera\.msav mode=sandbox\b"
                 sp._wait_for_log(log, proc, loaded, timeout)
                 sp._wait_for_log(log, proc, r"UPSTREAM_SP_FRAME ", timeout)
                 shot = rpc.screenshot()
@@ -75,7 +75,7 @@ def verify(model: str, rom: Path, azahar: str, config: Path, log: Path, output: 
                 sp._stop_proc(proc, azahar)
                 trace = log.read_text(encoding="utf-8", errors="replace")
                 (output / f"{model}-{stage}.log").write_text(trace, encoding="utf-8")
-        print(f"[PASS] {model}: stock maps=18 Archipelago sandbox save=ok resume=ok", flush=True)
+        print(f"[PASS] {model}: stock maps=18 Ancient Caldera sandbox save=ok resume=ok", flush=True)
     finally:
         for path, original in backups.items():
             if original is None:

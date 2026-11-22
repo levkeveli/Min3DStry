@@ -76,8 +76,8 @@ The JVM regression uses an assets directory staged with
 `prepare_terrain_assets.py --singleplayer`. Pass its `maps/default` directory,
 a fixture directory with one valid exported map, and a new output file to
 `-Pprobe=singleplayer runCustomGameJvm --args="/path/to/maps/default /path/to/user-maps /path/to/roundtrip.msav"`
-along with the pinned runtime Gradle properties. It compares the stock catalog,
-launches Glacier in Sandbox, and reloads the resulting `.msav`.
+along with the pinned runtime Gradle properties. It checks and launches every
+stock map, launches Glacier in Sandbox, and reloads the resulting `.msav`.
 
 ## 3DS Controls
 

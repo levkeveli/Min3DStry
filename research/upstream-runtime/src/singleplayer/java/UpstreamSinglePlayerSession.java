@@ -31,6 +31,7 @@ import mindustry.game.Gamemode;
 import mindustry.game.Saves;
 import mindustry.game.Team;
 import mindustry.game.Universe;
+import mindustry.game.Waves;
 import mindustry.gen.Groups;
 import mindustry.gen.Player;
 import mindustry.gen.Unit;
@@ -80,6 +81,7 @@ public final class UpstreamSinglePlayerSession {
         Vars.indexer = new BlockIndexer();
         Vars.spawner = new WaveSpawnerProxy().create();
         Vars.universe = new Universe();
+        Vars.waves = new Waves();
         Vars.logicVars = new GlobalVars();
         Vars.logicVars.init();
         Vars.collisions = new EntityCollisions();

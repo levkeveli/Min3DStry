@@ -20,6 +20,13 @@ public final class UpstreamCustomGameReference {
             if (!actual.equals(expected) || maps.stream().filter(map -> map.custom).count() != 1) {
                 throw new AssertionError("Packaged or user Custom Game map catalog disagrees with stock");
             }
+            for (var entry : maps) {
+                var mode = session.startCustomGame(entry, Gamemode.survival);
+                if (!mode.valid(entry) || Vars.state.map != entry || session.core() == null
+                        || Vars.world.width() != entry.width || Vars.world.height() != entry.height) {
+                    throw new AssertionError("Could not launch the original map " + entry.file.name());
+                }
+            }
             var map = maps.stream().filter(entry -> !entry.custom && entry.file.nameWithoutExtension().equals("glacier"))
                 .findFirst().orElseThrow();
             var expectedRules = map.applyRules(Gamemode.sandbox);
