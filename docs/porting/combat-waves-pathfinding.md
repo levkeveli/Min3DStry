@@ -76,18 +76,21 @@ UPSTREAM_WAVE wave=3 spawned=dagger=2 groundSpawned=2 first=79,219->80,173 dista
 UPSTREAM_WAVE wave=4 spawned=dagger=2 groundSpawned=2 first=79,219->80,173 distance=1546->1177 min=1177 alive=2/2 ammo=29 nextWave=5
 ```
 
-Both profiles matched the JVM and host TeaVM C traces exactly.
+Both Azahar profiles matched the JVM trace exactly. The host TeaVM C trace is
+pending on the current head; the workflow asserts the same six lines at `-O0`
+and `-O2`.
 
 The standalone host probe exits after printing the trace without firing
 `ResetEvent`; dispatching that reset into TeaVM's monitor/event queue after
-the trace can deadlock the host C build. It also disposes registered
-application listeners through the probe-local `ProbeListenerShutdown` helper
-before returning, so Arc listener fibers cannot resume during TeaVM shutdown.
-The emitted trace is unchanged. Host-C checks go through
-`.github/scripts/cc_host.sh`, which prefers `clang` and otherwise uses GCC with
-`-fno-tree-coalesce-vars`, avoiding a GCC 13 `rewrite_out_of_ssa` internal
-compiler error in `TypeIO.c` that the larger generated translation unit can
-trigger.
+the trace can deadlock the host C build. It also disposes and removes
+registered application listeners through the probe-local
+`ProbeListenerShutdown` helper before returning, so Arc listener fibers cannot
+resume during TeaVM shutdown. The emitted trace is unchanged. Host-C checks go
+through `.github/scripts/cc_host.sh`, which prefers `clang`, otherwise uses
+GCC with `-fno-tree-coalesce-vars` when the compiler accepts it, and fails
+with a clear diagnostic if neither compiler exists. The flag avoids a GCC 13
+`rewrite_out_of_ssa` internal compiler error in `TypeIO.c` that the larger
+generated translation unit can trigger.
 
 ## Remaining Scope for Issue #30
 

@@ -5,7 +5,11 @@ set -euo pipefail
 if command -v clang >/dev/null 2>&1; then
     exec clang "$@"
 fi
-if cc --version 2>&1 | grep -qi 'gcc'; then
+if ! command -v cc >/dev/null 2>&1; then
+    echo "cc_host.sh: neither clang nor cc is available on PATH" >&2
+    exit 127
+fi
+if cc -fno-tree-coalesce-vars -E -x c /dev/null >/dev/null 2>&1; then
     exec cc -fno-tree-coalesce-vars "$@"
 fi
 exec cc "$@"
