@@ -1,3 +1,4 @@
+import os
 import struct
 import sys
 import unittest
@@ -277,6 +278,33 @@ class VerifyAzaharTests(unittest.TestCase):
         self.assertEqual(client._request(verify_azahar.REQ_PROCESS_LIST, b""), b"")
         self.assertEqual(len(sent), 2)
 
+    def test_flatpak_azahar_resolution_and_paths(self) -> None:
+        fake_home = Path("/tmp/fake-home-azahar")
+        expected_bin = fake_home / ".local" / "share" / "flatpak" / "exports" / "bin" / "org.azahar_emu.Azahar"
+
+        with mock.patch.dict(os.environ, {}, clear=True), mock.patch(
+            "shutil.which", return_value=None
+        ), mock.patch("pathlib.Path.home", return_value=fake_home), mock.patch(
+            "pathlib.Path.is_file",
+            autospec=True,
+            side_effect=lambda p: p == expected_bin,
+        ):
+            self.assertEqual(verify_azahar.resolve_azahar_bin(None), str(expected_bin))
+
+        with mock.patch("pathlib.Path.home", return_value=fake_home), mock.patch.dict(
+            os.environ, {}, clear=True
+        ):
+            cfg, log = verify_azahar.resolve_azahar_paths(str(expected_bin))
+            self.assertEqual(
+                cfg, fake_home / ".var" / "app" / "org.azahar_emu.Azahar" / "config" / "azahar-emu" / "qt-config.ini"
+            )
+            self.assertEqual(
+                log, fake_home / ".var" / "app" / "org.azahar_emu.Azahar" / "data" / "azahar-emu" / "log" / "azahar_log.txt"
+            )
+
+            xdg_cfg, xdg_log = verify_azahar.resolve_azahar_paths("/usr/bin/azahar")
+            self.assertEqual(xdg_cfg, fake_home / ".config" / "azahar-emu" / "qt-config.ini")
+            self.assertEqual(xdg_log, fake_home / ".local" / "share" / "azahar-emu" / "log" / "azahar_log.txt")
 
 
 if __name__ == "__main__":

@@ -245,7 +245,10 @@ case "${1:-}" in
     ;;
   emu-test)
     test -s build/min3dstry.3dsx || { echo 'emu-test: build/min3dstry.3dsx missing; run ./dev.sh build first.' >&2; exit 2; }
-    if [[ -z "${AZAHAR_BIN:-}" ]] && ! command -v azahar >/dev/null 2>&1 && ! command -v azahar.exe >/dev/null 2>&1; then
+    if [[ -z "${AZAHAR_BIN:-}" ]] &&
+       ! command -v azahar >/dev/null 2>&1 &&
+       ! command -v azahar.exe >/dev/null 2>&1 &&
+       ! { command -v flatpak >/dev/null 2>&1 && flatpak info org.azahar_emu.Azahar >/dev/null 2>&1; }; then
       echo 'emu-test: no 3DS emulator (azahar) is installed.' >&2
       exit 2
     fi
