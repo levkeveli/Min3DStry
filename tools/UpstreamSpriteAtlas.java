@@ -18,6 +18,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.zip.ZipFile;
 import javax.imageio.ImageIO;
@@ -25,6 +26,8 @@ import mindustry.Vars;
 import mindustry.core.ContentLoader;
 import mindustry.core.GameState;
 import mindustry.ctype.UnlockableContent;
+import mindustry.type.UnitType;
+import mindustry.world.blocks.units.UnitFactory;
 import mindustry.world.meta.BuildVisibility;
 
 // Host-side tooling. Arc reads the original atlas metadata without creating GL textures.
@@ -124,15 +127,22 @@ class UpstreamSpriteAtlas {
         Vars.content.init();
 
         Map<String, Region> icons = new LinkedHashMap<>();
+        var factoryUnits = new LinkedHashSet<UnitType>();
         Path catalog = Files.createDirectory(output.resolve("catalog"));
         try (var manifest = Files.newBufferedWriter(output.resolve("menu-icons.tsv"))) {
             manifest.write("file\tcontent\tregion\twidth\theight\n");
             for (var block : Vars.content.blocks()) {
                 addMenuIcon(block, "block", block.placeablePlayer && block.buildVisibility != BuildVisibility.hidden,
                     regions, icons, manifest);
+                if (block instanceof UnitFactory factory && block.configurable) {
+                    for (var plan : factory.plans) factoryUnits.add(plan.unit);
+                }
             }
             for (var item : Vars.content.items()) {
                 addMenuIcon(item, "item", true, regions, icons, manifest);
+            }
+            for (var unit : factoryUnits) {
+                addMenuIcon(unit, "unit", true, regions, icons, manifest);
             }
         }
         for (AtlasPage page : atlas.getPages()) {
@@ -145,8 +155,9 @@ class UpstreamSpriteAtlas {
                 writeTexture(pixels, catalog.resolve(entry.getKey() + ".t3x"));
             }
         }
-        System.out.printf("Original menu icons: %d of %d blocks, %d items%n",
-            icons.size() - Vars.content.items().size, Vars.content.blocks().size, Vars.content.items().size);
+        System.out.printf("Original menu icons: %d of %d blocks, %d items, %d factory units%n",
+            icons.size() - Vars.content.items().size - factoryUnits.size(), Vars.content.blocks().size,
+            Vars.content.items().size, factoryUnits.size());
     }
 
     /** Tex3DS single-region, uncompressed RGBA8 sheet. Pixels are tiled in Morton order. */
