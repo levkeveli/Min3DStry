@@ -1,13 +1,17 @@
 import arc.Core;
 import arc.Events;
+import arc.assets.AssetManager;
 import arc.files.Fi;
 import arc.math.Mathf;
 import arc.math.geom.Vec2;
 import arc.mock.MockAudio;
 import arc.mock.MockFiles;
 import arc.mock.MockGraphics;
+import arc.util.Threads;
 import arc.util.Time;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import mindustry.Vars;
 import mindustry.ai.BlockIndexer;
 import mindustry.ai.ControlPathfinder;
@@ -21,6 +25,7 @@ import mindustry.entities.EntityCollisions;
 import mindustry.entities.units.BuildPlan;
 import mindustry.game.EventType.ResetEvent;
 import mindustry.game.FogControl;
+import mindustry.game.Saves;
 import mindustry.game.Team;
 import mindustry.game.Universe;
 import mindustry.gen.Groups;
@@ -29,6 +34,8 @@ import mindustry.gen.Unit;
 import mindustry.graphics.CacheLayer;
 import mindustry.io.MapIO;
 import mindustry.io.SaveIO;
+import mindustry.type.Planet;
+import mindustry.type.Sector;
 import mindustry.logic.GlobalVars;
 import mindustry.mod.Mods;
 import mindustry.world.Tile;
@@ -97,10 +104,19 @@ public final class UpstreamSinglePlayerSession {
         this.deltaSeconds = seconds;
     }
 
-    void start(Fi mapFile, Fi saveFile, String sourceTagOverride) throws IOException {
+    boolean start(Fi mapFile, Fi saveFile, String sourceTagOverride) throws IOException {
+        return start(mapFile, saveFile, sourceTagOverride, null);
+    }
+
+    boolean start(Fi mapFile, Fi saveFile, String sourceTagOverride, Sector sector) throws IOException {
         String source;
-        if (saveFile != null && saveFile.exists() && SaveIO.isSaveValid(saveFile)) {
-            SaveIO.load(saveFile);
+        boolean loadedFromSave = saveFile != null && saveFile.exists() && SaveIO.isSaveValid(saveFile);
+        if (loadedFromSave) {
+            if (sector != null) {
+                SaveIO.load(saveFile, Vars.world.makeSectorContext(sector));
+            } else {
+                SaveIO.load(saveFile);
+            }
             app.runPosted();
             Vars.avoidance.init();
             Vars.state.set(State.playing);
@@ -125,6 +141,71 @@ public final class UpstreamSinglePlayerSession {
             + " map=" + (Vars.state.map == null ? "unknown" : Vars.state.map.name().replace(' ', '_'))
             + " size=" + Vars.world.width() + "x" + Vars.world.height()
             + " wave=" + Vars.state.wave + " copper=" + copper);
+        return loadedFromSave;
+    }
+
+    /** A discovered campaign slot and the upstream sector context decoded from its metadata. */
+    static final class SectorSlot {
+        final Fi file;
+        final Sector sector;
+
+        SectorSlot(Fi file, Sector sector) {
+            this.file = file;
+            this.sector = sector;
+        }
+    }
+
+    List<SectorSlot> sectorSaves() {
+        Core.assets = new AssetManager(path -> new Fi(path), false);
+        Fi previousSaveDirectory = Vars.saveDirectory;
+        Vars.saveDirectory = Vars.customMapDirectory;
+        Vars.mainExecutor = Threads.executor("campaign-select");
+        try {
+            var saves = new Saves();
+            saves.load();
+            var result = new ArrayList<SectorSlot>();
+            for (var slot : saves.getSaveSlots()) {
+                String name = slot.file.name();
+                // Saves.load() walks recursively; campaign slots live directly in the save directory.
+                if (slot.file.parent() == null || !slot.file.parent().equals(Vars.saveDirectory)) continue;
+                if (name.startsWith("sector-") && name.endsWith(".msav")) {
+                    Sector sector = slot.getSector();
+                    if (sector == null) sector = sectorFor(slot.file);
+                    result.add(new SectorSlot(slot.file, sector));
+                }
+            }
+            return result;
+        } finally {
+            Vars.saveDirectory = previousSaveDirectory;
+            Vars.mainExecutor.shutdownNow();
+        }
+    }
+
+    /** Fallback for saves without a decoded sector: match planet and id from sector-&lt;planet&gt;-&lt;id&gt;.msav. */
+    Sector sectorFor(Fi file) {
+        return sectorFor(file, Vars.content.planets());
+    }
+
+    static Sector sectorFor(Fi file, Iterable<Planet> planets) {
+        String name = file.name();
+        if (!name.startsWith("sector-") || !name.endsWith(".msav")) return null;
+        String stem = name.substring("sector-".length(), name.length() - ".msav".length());
+        int dash = stem.lastIndexOf('-');
+        if (dash <= 0 || dash + 1 >= stem.length()) return null;
+        String planetName = stem.substring(0, dash);
+        int id;
+        try {
+            id = Integer.parseInt(stem.substring(dash + 1));
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+        for (var planet : planets) {
+            if (!planet.name.equals(planetName)) continue;
+            for (var sector : planet.sectors) {
+                if (sector.id == id) return sector;
+            }
+        }
+        return null;
     }
 
     Unit ensurePlayerSpawn() {
@@ -240,6 +321,24 @@ public final class UpstreamSinglePlayerSession {
             saveFile.delete();
             session = create(saveFile.parent() != null ? saveFile.parent() : mapFile.parent(), "en");
             session.start(mapFile, null, null);
+
+            var serpulo15 = sectorFor(new Fi("sector-serpulo-15.msav"), Vars.content.planets());
+            if (serpulo15 == null || serpulo15.id != 15 || !serpulo15.planet.name.equals("serpulo")) {
+                throw new IllegalStateException("Serpulo sector 15 did not resolve: " + serpulo15);
+            }
+            var erekirPlanet = Vars.content.planet("erekir");
+            if (erekirPlanet == null || erekirPlanet.sectors.isEmpty()) {
+                throw new IllegalStateException("Erekir sectors did not initialize");
+            }
+            var erekirSector = erekirPlanet.sectors.first();
+            var erekirByName = sectorFor(new Fi("sector-erekir-" + erekirSector.id + ".msav"),
+                Vars.content.planets());
+            if (erekirByName != erekirSector) {
+                throw new IllegalStateException("sector-erekir-" + erekirSector.id
+                    + ".msav resolved to " + erekirByName + " instead of " + erekirSector);
+            }
+            System.out.println("UPSTREAM_SP_SECTOR_RESOLVE serpulo=15 erekir=" + erekirSector.id
+                + " planet=ok");
 
             if (Vars.world.width() != 256 || Vars.world.height() != 256) {
                 throw new IllegalStateException("Unexpected Ground Zero dimensions: "

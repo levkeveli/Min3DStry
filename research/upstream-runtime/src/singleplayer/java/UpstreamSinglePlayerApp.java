@@ -58,6 +58,7 @@ public final class UpstreamSinglePlayerApp {
     private UpstreamSinglePlayerSession session;
     private UpstreamTerrainDrawProbe.Viewport viewport;
     private Unit controlled;
+    private Fi campaignSlot;
     private int draws;
     private long previousVisualFrame;
     private float frameSeconds = 1f / 60f;
@@ -98,9 +99,36 @@ public final class UpstreamSinglePlayerApp {
         Fi mapDir = saveFile.parent() != null ? saveFile.parent() : new Fi("/3ds/min3dstry");
         session = UpstreamSinglePlayerSession.create(mapDir, bundleTag);
         try {
-            // Load the world before initializing graphics assets to keep peak TeaVM heap bounded.
-            session.start(mapFile, saveFile, null);
-            loadGraphics(atlas);
+            List<UpstreamSinglePlayerSession.SectorSlot> sectorSaves =
+                args.length < 2 ? session.sectorSaves() : List.of();
+            UpstreamSinglePlayerSession.SectorSlot selected = null;
+            if (sectorSaves.size() > 1) {
+                loadInterfaceGraphics(atlas);
+                // Drain the boot-time START press used by the homebrew launcher.
+                UpstreamSinglePlayerInput.poll();
+                try {
+                    selected = chooseSector(sectorSaves);
+                } catch (Throwable failure) {
+                    System.out.println("UPSTREAM_CAMPAIGN_SELECT_ERROR "
+                        + failure.getClass().getName() + ": " + failure.getMessage());
+                    throw failure;
+                }
+                if (selected == null) {
+                    return;
+                }
+                saveFile = selected.file;
+            }
+            // Load the world before initializing world sprites to keep peak TeaVM heap bounded.
+            boolean loadedCampaign = session.start(mapFile, saveFile, selected == null ? null : "campaign",
+                selected == null ? null : selected.sector);
+            if (selected != null && loadedCampaign) {
+                // Only write back a slot that actually loaded; a failed load must not overwrite it.
+                campaignSlot = selected.file;
+            }
+            if (sectorSaves.size() <= 1) {
+                loadInterfaceGraphics(atlas);
+            }
+            loadWorldGraphics();
             Events.on(BlockBuildEndEvent.class, event -> {
                 if (event.tile == null) return;
                 if (!event.breaking && event.tile.build != null) {
@@ -113,6 +141,15 @@ public final class UpstreamSinglePlayerApp {
             });
             runMainLoop(saveFile);
         } finally {
+            if (campaignSlot != null) {
+                try {
+                    session.save(campaignSlot);
+                    System.out.println("UPSTREAM_CAMPAIGN_SAVED slot=" + campaignSlot.name());
+                } catch (Throwable failure) {
+                    System.out.println("UPSTREAM_CAMPAIGN_SAVE_ERROR "
+                        + failure.getClass().getName() + ": " + failure.getMessage());
+                }
+            }
             session.shutdown();
             System.out.println("UPSTREAM_SP_EXIT");
         }
@@ -123,19 +160,72 @@ public final class UpstreamSinglePlayerApp {
         return first.exists() ? first : new Fi(fallback);
     }
 
-    private void loadGraphics(Fi atlas) {
+    private void loadInterfaceGraphics(Fi atlas) {
         System.out.println("UPSTREAM_INTERFACE_GRAPHICS atlas");
         UpstreamTerrainDrawProbe.loadAtlas(atlas, UpstreamFluidAtlas::load);
         Vars.content.loadColors(new Fi("/romfs/block_colors.png"));
         UpstreamCrackAtlas.load();
-        loadUnitGraphics();
-        loadBulletGraphics();
         viewport = UpstreamTerrainDrawProbe.liveViewport(target);
         target.initialize();
         var locale = Core.bundle.getLocale();
         boolean stock = target.loadStockFont(locale.getLanguage().equals("ja"));
         System.out.println("UPSTREAM_INTERFACE_FONT source=" + (stock ? "v160.8" : "system"));
         System.out.println("UPSTREAM_INTERFACE_GRAPHICS ready");
+    }
+
+    private void loadWorldGraphics() {
+        loadUnitGraphics();
+        loadBulletGraphics();
+    }
+
+    private UpstreamSinglePlayerSession.SectorSlot chooseSector(
+            List<UpstreamSinglePlayerSession.SectorSlot> slots) {
+        int selected = 0;
+        int lastAxis = 0;
+        System.out.println("UPSTREAM_CAMPAIGN_MENU slots=" + slots.size());
+        Fi automatic = new Fi("/3ds/min3dstry/campaign-select.txt");
+        if (automatic.exists()) {
+            int index = Integer.parseInt(automatic.readString("UTF-8").trim());
+            if (index < 0 || index >= slots.size()) index = 0;
+            var slot = slots.get(index);
+            System.out.println("UPSTREAM_CAMPAIGN_SELECTED slot=" + slot.file.name() + " source=auto");
+            return slot;
+        }
+        while (true) {
+            long nextFrame = System.nanoTime() + 16_666_667L;
+            int input = UpstreamSinglePlayerInput.poll();
+            if (input == -1) {
+                System.out.println("UPSTREAM_CAMPAIGN_CANCEL");
+                return null;
+            }
+            int axis = (byte)((input >> 8) & 0xff);
+            if (axis > 60 && lastAxis <= 20 && selected > 0) {
+                selected--;
+            } else if (axis < -60 && lastAxis >= -20 && selected + 1 < slots.size()) {
+                selected++;
+            }
+            lastAxis = axis;
+            viewport.draw(() -> {
+                Draw.color(0f, 0f, 0f, 1f);
+                Draw.rect(Core.atlas.white(), 160f, 120f, 320f, 240f);
+                Draw.color();
+            });
+            drawSectorMenu(slots, selected);
+            if ((input & (1 << 17)) != 0) {
+                var slot = slots.get(selected);
+                System.out.println("UPSTREAM_CAMPAIGN_SELECTED slot=" + slot.file.name());
+                return slot;
+            }
+            while (System.nanoTime() < nextFrame) Thread.yield();
+        }
+    }
+
+    private void drawSectorMenu(List<UpstreamSinglePlayerSession.SectorSlot> slots, int selected) {
+        StringBuilder labels = new StringBuilder("Select sector\0");
+        for (int i = 0; i < slots.size(); i++) {
+            labels.append(i == selected ? "> " : "  ").append(slots.get(i).file.name()).append('\0');
+        }
+        target.buildLabels(labels.toString().getBytes(StandardCharsets.UTF_8));
     }
 
     private static void loadUnitGraphics() {
