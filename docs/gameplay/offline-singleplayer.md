@@ -36,6 +36,15 @@ Verified on Azahar `2126.2` New and Old profiles with two staged sector files.
 A-button selection was verified by injecting Azahar 2126.2's keyboard A mapping
 on both New and Old profiles; the auto-select hook remains for automation.
 
+On START exit, a selected sector slot is written back through `SaveIO.write`:
+
+```text
+UPSTREAM_CAMPAIGN_SAVED slot=sector-serpulo-15.msav
+UPSTREAM_SP_EXIT
+```
+
+The save-back was verified on both profiles.
+
 ## 3DS Controls
 
 | Input | Action |

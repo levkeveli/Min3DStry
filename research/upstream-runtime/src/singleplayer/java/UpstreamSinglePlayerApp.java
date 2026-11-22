@@ -58,6 +58,7 @@ public final class UpstreamSinglePlayerApp {
     private UpstreamSinglePlayerSession session;
     private UpstreamTerrainDrawProbe.Viewport viewport;
     private Unit controlled;
+    private Fi campaignSlot;
     private int draws;
     private long previousVisualFrame;
     private float frameSeconds = 1f / 60f;
@@ -115,6 +116,7 @@ public final class UpstreamSinglePlayerApp {
                     return;
                 }
                 saveFile = selected;
+                campaignSlot = selected;
             }
             // Load the world before initializing world sprites to keep peak TeaVM heap bounded.
             session.start(mapFile, saveFile, selected == null ? null : "campaign",
@@ -135,6 +137,15 @@ public final class UpstreamSinglePlayerApp {
             });
             runMainLoop(saveFile);
         } finally {
+            if (campaignSlot != null) {
+                try {
+                    session.save(campaignSlot);
+                    System.out.println("UPSTREAM_CAMPAIGN_SAVED slot=" + campaignSlot.name());
+                } catch (Throwable failure) {
+                    System.out.println("UPSTREAM_CAMPAIGN_SAVE_ERROR "
+                        + failure.getClass().getName() + ": " + failure.getMessage());
+                }
+            }
             session.shutdown();
             System.out.println("UPSTREAM_SP_EXIT");
         }

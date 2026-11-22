@@ -406,8 +406,9 @@ UPSTREAM_CAMPAIGN_SELECTED slot=sector-serpulo-86.msav source=auto
 UPSTREAM_SP_LOADED source=campaign map=Editor_Playtesting size=150x250 wave=1 copper=0
 ```
 
-The menu, A-button selection and launch are emulator-tested on both profiles;
-the live campaign dialogs and capture rewards remain open.
+The menu, A-button selection, launch and START-exit save-back
+(`UPSTREAM_CAMPAIGN_SAVED slot=sector-serpulo-15.msav`) are emulator-tested on
+both profiles; the live campaign dialogs and capture rewards remain open.
 ## ARM11 `Saves.load()`
 
 `-Pprobe=campaign-saves-load` wires the upstream save environment on the live
