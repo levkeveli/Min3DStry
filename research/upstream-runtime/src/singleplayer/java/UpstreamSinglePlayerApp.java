@@ -176,6 +176,7 @@ public final class UpstreamSinglePlayerApp {
             return slot;
         }
         while (true) {
+            long nextFrame = System.nanoTime() + 16_666_667L;
             int input = UpstreamSinglePlayerInput.poll();
             if (input == -1) {
                 // The homebrew launcher can leave START held during boot; ignore it here.
@@ -189,13 +190,18 @@ public final class UpstreamSinglePlayerApp {
                 selected++;
             }
             lastAxis = axis;
+            viewport.draw(() -> {
+                Draw.color(0f, 0f, 0f, 1f);
+                Draw.rect(Core.atlas.white(), 160f, 120f, 320f, 240f);
+                Draw.color();
+            });
             drawSectorMenu(slots, selected);
             if ((input & (1 << 17)) != 0) {
                 var slot = slots.get(selected);
                 System.out.println("UPSTREAM_CAMPAIGN_SELECTED slot=" + slot.name());
                 return slot;
             }
-            Thread.yield();
+            while (System.nanoTime() < nextFrame) Thread.yield();
         }
     }
 
@@ -260,6 +266,7 @@ public final class UpstreamSinglePlayerApp {
         long previousTime = System.nanoTime();
         long accumulator = 0L;
         while (true) {
+            long nextFrame = System.nanoTime() + 16_666_667L;
             int input = UpstreamSinglePlayerInput.poll();
             if (input == -1) break;
             int touch = UpstreamSinglePlayerInput.touch();
