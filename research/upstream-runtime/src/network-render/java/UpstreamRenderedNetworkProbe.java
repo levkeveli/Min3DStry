@@ -339,7 +339,8 @@ public final class UpstreamRenderedNetworkProbe {
     static boolean supportsBuildingDraw(Building build) {
         var block = build.block;
         // These blocks use the sprite operations available in the live backend.
-        return block instanceof CoreBlock || block == Blocks.conveyor || block == Blocks.copperWall
+        return UpstreamBuildingLayers.supportsPowerDraw(block)
+            || block instanceof CoreBlock || block == Blocks.conveyor || block == Blocks.copperWall
             || block == Blocks.duct || block == Blocks.berylliumWall
             || block == Blocks.copperWallLarge || block == Blocks.router || block instanceof Sorter
             || block == Blocks.mechanicalDrill || block instanceof Conduit
