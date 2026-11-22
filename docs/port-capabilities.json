@@ -62,7 +62,8 @@
         "tools/device_deploy.py",
         "docs/hardware/deployment-and-logs.md",
         "docs/hardware/evidence/old3ds-xl-a4a9a96.md",
-        "docs/hardware/evidence/new3ds-xl-de3e249.md"
+        "docs/hardware/evidence/new3ds-xl-de3e249.md",
+        "docs/hardware/evidence/new3ds-xl-a328c70.md"
       ]
     },
     {
@@ -76,7 +77,8 @@
         "src/platform/3ds/hardware_probe_3ds.c",
         "docs/hardware/detection.md",
         "docs/hardware/evidence/old3ds-xl-a4a9a96.md",
-        "docs/hardware/evidence/new3ds-xl-de3e249.md"
+        "docs/hardware/evidence/new3ds-xl-de3e249.md",
+        "docs/hardware/evidence/new3ds-xl-a328c70.md"
       ]
     },
     {
@@ -121,20 +123,21 @@
       "category": "Rendering & Assets",
       "name": "Bounded Citro2D Scene Renderer",
       "weight": 4,
-      "stage": "emulator-tested",
+      "stage": "hardware-verified",
       "issue": 3,
       "evidence": [
         "src/render/scene_2d.c",
-        "docs/rendering/citro2d-prototype.md"
-      ],
-      "hardware_test": "HARDWARE_TEST_PENDING"
+        "docs/rendering/citro2d-prototype.md",
+        "docs/hardware/evidence/new3ds-xl-a328c70.md",
+        "docs/hardware/evidence/old3ds-xl-a4a9a96.md"
+      ]
     },
     {
       "id": "sprite-atlas-pipeline",
       "category": "Rendering & Assets",
       "name": "Deterministic RGBA8 Sprite Atlas Tooling",
       "weight": 3,
-      "stage": "emulator-tested",
+      "stage": "hardware-verified",
       "issue": 4,
       "evidence": [
         "tools/build_sprite_atlas.py",
@@ -142,16 +145,17 @@
         "tests/tools/verify_upstream_sprite_atlas.py",
         "tests/tools/VerifyUpstreamWorldAtlas.java",
         "docs/rendering/asset-pipeline.md",
-        "docs/rendering/azahar-atlas-evidence.md"
-      ],
-      "hardware_test": "HARDWARE_TEST_PENDING"
+        "docs/rendering/azahar-atlas-evidence.md",
+        "docs/hardware/evidence/new3ds-xl-a328c70.md",
+        "docs/hardware/evidence/old3ds-xl-a4a9a96.md"
+      ]
     },
     {
       "id": "world-sprite-renderer",
       "category": "Rendering & Assets",
       "name": "Textured World & Unit Citro2D Renderer",
       "weight": 6,
-      "stage": "emulator-tested",
+      "stage": "hardware-verified",
       "issue": 25,
       "evidence": [
         "src/platform/3ds/citro2d_backend.c",
@@ -162,16 +166,17 @@
         "tools/verify_upstream_factory_graphics.py",
         "tools/verify_upstream_live_net.py",
         "tests/tools/test_verify_world_atlas.py",
-        "docs/rendering/asset-pipeline.md"
-      ],
-      "hardware_test": "HARDWARE_TEST_PENDING"
+        "docs/rendering/asset-pipeline.md",
+        "docs/hardware/evidence/new3ds-xl-a328c70.md",
+        "docs/hardware/evidence/old3ds-xl-a4a9a96.md"
+      ]
     },
     {
       "id": "lighting-effects-camera",
       "category": "Rendering & Assets",
       "name": "Zoom Camera, Lighting & Effects",
       "weight": 5,
-      "stage": "emulator-tested",
+      "stage": "hardware-verified",
       "issue": 38,
       "evidence": [
         "include/render/scene_2d.h",
@@ -179,9 +184,10 @@
         "src/platform/3ds/citro2d_backend.c",
         "src/platform/3ds/main_3ds.c",
         "tests/render/test_scene_2d.c",
-        "docs/rendering/citro2d-prototype.md"
-      ],
-      "hardware_test": "HARDWARE_TEST_PENDING"
+        "docs/rendering/citro2d-prototype.md",
+        "docs/hardware/evidence/new3ds-xl-a328c70.md",
+        "docs/hardware/evidence/old3ds-xl-a4a9a96.md"
+      ]
     },
     {
       "id": "parity-test-harness",
