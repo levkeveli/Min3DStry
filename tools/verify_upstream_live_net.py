@@ -1696,7 +1696,8 @@ def verify_stock_weather_layers(log, emulator, server_log, server, rpc, output, 
     wait_for(log, emulator, r"UPSTREAM_NETWORK_FRAME unit=\d+", timeout)
     world = [(x, y) for y in range(12, 231, 6) for x in range(52, 349, 6)
              if not (165 < x < 235 and 82 < y < 151)]
-    touch = [(x, y) for y in (260, 300, 400, 445) for x in range(54, 347, 8)]
+    # Sample the touch grid after the button labels, which can switch fonts on startup.
+    touch = [(x, y) for y in (350, 385, 415, 445) for x in range(54, 347, 8)]
     before = rpc.screenshot(res_scale=1)
     (output / f"{model}-weather-clear.png").write_bytes(before)
     baseline = az.inspect_png(before, world + touch)["samples"]
@@ -1719,9 +1720,9 @@ def verify_stock_weather_layers(log, emulator, server_log, server, rpc, output, 
         frame = rpc.screenshot(res_scale=1)
         pixels = az.inspect_png(frame, world + touch)["samples"]
         changed = sum(max(abs(a - b) for a, b in zip(pixels[p], baseline[p])) >= 12 for p in world)
-        if changed >= 36 and all(pixels[p] == baseline[p] for p in touch):
+        if changed >= 96 and all(pixels[p] == baseline[p] for p in touch):
             (output / f"{model}-weather-active.png").write_bytes(frame)
-            print(f"{model}: the stock weather changed {changed} sampled world pixels with an unchanged touch UI.", flush=True)
+            print(f"{model}: the stock weather changed {changed} sampled world pixels with an unchanged touch grid.", flush=True)
             return log.read_text(encoding="utf-8", errors="replace")
         time.sleep(0.2)
     (output / f"{model}-weather-unexpected.png").write_bytes(frame)
@@ -1776,7 +1777,8 @@ def run_model(args, model, config, original_config, log, output):
                   or args.payload_handoff or args.unit_layers or args.unit_roster or args.naval_wake
                   or args.tank_treads or args.map_spawn or args.verify_logic_markers or args.verify_texture_markers
                   or args.verify_quad_markers or args.verify_canvas or args.verify_canvas_quads
-                  or args.verify_client_processor or args.verify_logic_displays or args.verify_display_markers)
+                  or args.verify_client_processor or args.verify_logic_displays or args.verify_display_markers
+                  or args.verify_weather_layers)
     map_name = args.map_spawn or "Glacier"
     overrides = {
         "Miscellaneous": {"log_filter": "*:Info Debug.Emulated:Debug Service.SOC:Debug",
