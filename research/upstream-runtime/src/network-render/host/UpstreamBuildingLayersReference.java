@@ -368,16 +368,23 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
     private void verifyUnits(Team viewer) {
         Vars.player = Player.create();
         Vars.player.team(viewer);
-        var types = UpstreamRenderedNetworkProbe.loadUnitGraphics();
+        var types = Vars.content.units();
         for (var type : types) {
+            if (!UpstreamRenderedNetworkProbe.loadUnitGraphics(type)) {
+                throw new AssertionError("Could not load stock unit " + type.name);
+            }
             var unit = type.spawn(Team.crux, 300f, 288f, 90f);
             for (var mount : unit.mounts) mount.heat = 1f;
             if (type == UnitTypes.quasar) unit.shield = 100f;
             sprites.clear();
             solidQuads.clear();
             Draw.sort(true);
-            unit.draw();
-            Draw.sort(false);
+            try {
+                unit.draw();
+                Draw.sort(false);
+            } catch (IllegalStateException failure) {
+                throw new AssertionError("Stock unit draw failed for " + type.name, failure);
+            }
             requireRegion(type.region);
             if (type.drawCell) requireRegion(type.cellRegion);
             for (var mount : unit.mounts) {
@@ -389,7 +396,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
             }
             unit.remove();
         }
-        System.out.println("UPSTREAM_UNIT_ROSTER types=" + types.length + " quasarShield=ok");
+        System.out.println("UPSTREAM_UNIT_ROSTER types=" + types.size + " quasarShield=ok");
         var gamma = UnitTypes.gamma.spawn(viewer, 240f, 288f, 90f);
         var dagger = UnitTypes.dagger.spawn(Team.crux, 256f, 288f, 90f);
 
