@@ -33,6 +33,8 @@ import mindustry.gen.Groups;
 import mindustry.gen.Tankc;
 import mindustry.gen.Unit;
 import mindustry.gen.UnitWaterMove;
+import mindustry.type.ItemSeq;
+import mindustry.type.Planet;
 import mindustry.type.UnitType;
 import mindustry.world.Block;
 import mindustry.world.blocks.ConstructBlock.ConstructBuild;
@@ -373,7 +375,8 @@ public final class UpstreamSinglePlayerApp {
         var choices = UpstreamCampaignLoadout.choices(selected.origin, selected.sector);
         int schematic = choices.selected();
         boolean maximumCargo = Core.settings.getBool("maxresources", true);
-        var deployment = UpstreamCampaignLoadout.prepare(selected.origin, selected.sector, choices, schematic, maximumCargo);
+        var requestedCargo = Vars.universe.getLaunchResources().copy();
+        var deployment = UpstreamCampaignLoadout.prepare(selected.origin, selected.sector, choices, schematic, maximumCargo, requestedCargo);
         System.out.println("UPSTREAM_CAMPAIGN_LOADOUT sector=" + selected.sector.id
             + " origin=" + selected.origin.id + " affordable=" + deployment.affordable());
         var cost = deployment.cost().toArray();
@@ -394,8 +397,12 @@ public final class UpstreamSinglePlayerApp {
             lastHorizontal = horizontal;
             boolean toggleCargo = selected.sector.allowLaunchLoadout() && (input & UpstreamSinglePlayerInput.PAUSE_PRESSED) != 0;
             if (toggleCargo) maximumCargo = !maximumCargo;
-            if (schematic != previous || toggleCargo) {
-                deployment = UpstreamCampaignLoadout.prepare(selected.origin, selected.sector, choices, schematic, maximumCargo);
+            boolean edit = selected.sector.allowLaunchLoadout() && !maximumCargo
+                && (input & UpstreamSinglePlayerInput.WAVE_PRESSED) != 0;
+            if (edit && !editLaunchCargo(selected.origin.planet, requestedCargo,
+                    UpstreamCampaignLoadout.cargoCapacity(selected.origin, choices.options().get(schematic)))) return null;
+            if (schematic != previous || toggleCargo || edit) {
+                deployment = UpstreamCampaignLoadout.prepare(selected.origin, selected.sector, choices, schematic, maximumCargo, requestedCargo);
                 cost = deployment.cost().toArray();
                 page = 0;
                 rendered = -1;
@@ -419,6 +426,49 @@ public final class UpstreamSinglePlayerApp {
                 if (selected.sector.allowLaunchLoadout() && maximumCargo) captions[count + 2] += " / " + Core.bundle.get("resources.max");
                 rows = encodeMenuRows(captions);
                 rendered = page;
+            }
+            drawMenuRows(rows);
+            while (System.nanoTime() < nextFrame) Thread.yield();
+        }
+    }
+
+    private boolean editLaunchCargo(Planet planet, ItemSeq requested, int capacity) {
+        var items = Vars.content.items().select(item -> item.isOnPlanet(planet)
+            && (requested.get(item) > 0 || item.unlocked() && !item.isHidden()));
+        if (items.isEmpty()) return true;
+        requested.min(capacity);
+        int selected = 0, lastVertical = 0, lastHorizontal = 0;
+        MenuRows rows = null;
+        while (true) {
+            long nextFrame = System.nanoTime() + FRAME_NS;
+            int input = UpstreamSinglePlayerInput.poll();
+            if (input == -1) return false;
+            if ((input & ((1 << 17) | (1 << 19))) != 0) return true;
+            int vertical = (byte) ((input >> 8) & 0xff);
+            int horizontal = (byte) (input & 0xff);
+            int previous = selected;
+            if (vertical > 60 && lastVertical <= 20 && selected > 0) selected--;
+            if (vertical < -60 && lastVertical >= -20 && selected + 1 < items.size) selected++;
+            int direction = horizontal > 60 && lastHorizontal <= 20 ? 1
+                : horizontal < -60 && lastHorizontal >= -20 ? -1 : 0;
+            lastVertical = vertical;
+            lastHorizontal = horizontal;
+            if (direction != 0) {
+                var item = items.get(selected);
+                boolean fine = (input & UpstreamSinglePlayerInput.CAMPAIGN_HELD) != 0;
+                int amount = UpstreamCampaignLoadout.adjustCargo(requested.get(item), direction, capacity, fine);
+                requested.set(item, amount);
+                System.out.println("UPSTREAM_CAMPAIGN_CARGO item=" + item.name + " amount=" + amount);
+            }
+            if (rows == null || selected != previous || direction != 0) {
+                int first = (selected / 5) * 5, end = Math.min(first + 5, items.size);
+                String[] captions = new String[1 + end - first];
+                captions[0] = Core.bundle.get("resources");
+                for (int i = first; i < end; i++) {
+                    var item = items.get(i);
+                    captions[1 + i - first] = (i == selected ? "> " : "  ") + item.localizedName + "  " + requested.get(item);
+                }
+                rows = encodeMenuRows(captions);
             }
             drawMenuRows(rows);
             while (System.nanoTime() < nextFrame) Thread.yield();

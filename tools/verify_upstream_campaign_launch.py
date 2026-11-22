@@ -20,10 +20,12 @@ STARTERS = {
 }
 
 
-def write_replay(path: Path, model: str, planet: str) -> None:
+def write_replay(path: Path, model: str, planet: str, manual_cargo: bool = False) -> None:
     windows = [(0, 24, 1 << 8), (50, 52, 1), (120, 122, sp.KEY_START)]
     if planet == "erekir":
         windows.append((43, 45, 1 << 7))
+    if manual_cargo:
+        windows.extend([(30, 32, 1 << 10), (35, 37, 1 << 11), (40, 42, (1 << 8) | (1 << 4)), (45, 47, 1 << 1)])
     frames = sp.CTM_SAMPLES_PER_SECOND * 130
     header = struct.pack("<4sQ20sQQ32sIQq156x", b"CTM\x1b", 0, sp.CTM_REVISION, 1780000000,
                          0x4D334453, b"Min3DStry Campaign Launch", 0, frames, 0)
@@ -40,7 +42,7 @@ def write_replay(path: Path, model: str, planet: str) -> None:
 
 
 def verify(model: str, planet: str, rom: Path, azahar: str, config: Path, log: Path, output: Path,
-           departure: Path | None = None) -> None:
+           departure: Path | None = None, manual_cargo: bool = False) -> None:
     if departure:
         sector_id, size = (int(value) for value in (departure / "destination.txt").read_text().split())
         name, world = f"sector-serpulo-{sector_id}.msav", f"Serpulo;_Sector_{sector_id}"
@@ -66,7 +68,7 @@ def verify(model: str, planet: str, rom: Path, azahar: str, config: Path, log: P
     had_saves = saves.is_dir()
     prefix = f"{model}-{planet}"
     replay = output / f"{prefix}.ctm"
-    write_replay(replay, model, planet)
+    write_replay(replay, model, planet, manual_cargo)
     staged_saves = []
     try:
         if departure:
@@ -90,6 +92,8 @@ def verify(model: str, planet: str, rom: Path, azahar: str, config: Path, log: P
             if sp.az.inspect_png(menu)["top_distinct_colors"] < 8:
                 raise AssertionError(f"{prefix}: the starter selector did not render")
             (output / f"{prefix}-menu.png").write_bytes(menu)
+            if manual_cargo:
+                sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_CARGO item=copper amount=8\b", 70)
             sp._wait_for_log(log, proc, rf"UPSTREAM_SP_LOADED source=campaign-new map={world} size={size}x{size}\b", 150)
             sp._wait_for_log(log, proc, r"UPSTREAM_SP_FRAME .*\bsprites=[1-9]\d*\b", 120)
             screenshot = rpc.screenshot()
@@ -173,7 +177,9 @@ def check_stock(java: str, server: Path, save: Path, settings: Path, planet: str
     print(f"[PASS] stock v160.8 reopened {save.name} and its settings", flush=True)
 
 
-def check_numbered_stock(java: str, server: Path, output: Path, model: str, departure: Path) -> None:
+def check_numbered_stock(java: str, server: Path, output: Path, model: str, departure: Path,
+                         manual_cargo: bool = False) -> None:
+    cargo, remaining = (8, 15) if manual_cargo else (23, 0)
     sector_id, size = (int(value) for value in (departure / "destination.txt").read_text().split())
     with tempfile.TemporaryDirectory(prefix="m3ds-stock-numbered-readback-") as temp:
         root = Path(temp)
@@ -194,15 +200,16 @@ def check_numbered_stock(java: str, server: Path, output: Path, model: str, depa
             const from = sectors.get(170), to = sectors.get({sector_id});
             const io = Packages.mindustry.io.SaveIO, slot = Packages.arc.files.Fi.get("port.msav");
             io.load(slot, Vars.world.makeSectorContext(to));
-            if (!to.info.origin.equals(from) || from.info.items.get(items.copper) !== 0
-                || Vars.state.rules.defaultTeam.items().get(items.copper) !== 23
+            if (!to.info.origin.equals(from) || from.info.items.get(items.copper) !== {remaining}
+                || Vars.state.rules.defaultTeam.items().get(items.copper) !== {cargo}
+                || Packages.arc.Core.settings.getBool("maxresources", true) !== {str(not manual_cargo).lower()}
                 || Vars.world.width() !== {size} || Vars.world.height() !== {size}
                 || !io.getMeta(slot).rules.sector.equals(to)) {{
                 throw new Error("Numbered sector or cargo differs");
             }}
             io.load(Packages.arc.files.Fi.get("origin.msav"), Vars.world.makeSectorContext(from));
             if (!Vars.state.rules.sector.equals(from) || !from.info.wasCaptured || Vars.state.rules.waves
-                || Vars.state.rules.defaultTeam.items().get(items.copper) !== 0) {{
+                || Vars.state.rules.defaultTeam.items().get(items.copper) !== {remaining}) {{
                 throw new Error("The captured origin did not retain its post-launch inventory");
             }}
             return "UPSTREAM_PC_NUMBERED_REOPENED";
@@ -221,16 +228,19 @@ def main() -> int:
     selection = parser.add_mutually_exclusive_group()
     selection.add_argument("--planet", choices=STARTERS)
     selection.add_argument("--departure", type=Path, help="JVM reference numbered-sector departure fixture")
+    parser.add_argument("--manual-cargo", action="store_true", help="Edit a departure fixture using the cargo controls")
     parser.add_argument("--output-dir", type=Path, default=Path("build/campaign-launch-emu"))
     args = parser.parse_args()
+    if args.manual_cargo and not args.departure:
+        parser.error("--manual-cargo requires --departure")
     azahar = sp.az.resolve_azahar_bin(args.azahar)
     config, log = sp.az.resolve_azahar_paths(azahar)
     args.output_dir.mkdir(parents=True, exist_ok=True)
     for model in (args.model,) if args.model else ("new3ds", "old3ds"):
         if args.departure:
-            verify(model, "numbered", args.rom, azahar, config, log, args.output_dir, args.departure)
+            verify(model, "numbered", args.rom, azahar, config, log, args.output_dir, args.departure, args.manual_cargo)
             if args.server:
-                check_numbered_stock(args.java, args.server, args.output_dir, model, args.departure)
+                check_numbered_stock(args.java, args.server, args.output_dir, model, args.departure, args.manual_cargo)
             continue
         for planet in (args.planet,) if args.planet else STARTERS:
             verify(model, planet, args.rom, azahar, config, log, args.output_dir)

@@ -22,6 +22,7 @@ import mindustry.type.Sector;
 public final class UpstreamCampaignLaunchReference {
     public static void main(String[] args) throws Exception {
         Fi assets = new Fi(args[0]), root = new Fi(args[1]);
+        boolean manual = args.length > 2 && args[2].equals("manual");
         if (root.exists()) throw new IllegalArgumentException("Use a new scratch campaign directory");
         root.mkdirs();
         Core.bundle = I18NBundle.createBundle(assets.child("bundle"), Locale.ENGLISH);
@@ -129,6 +130,17 @@ public final class UpstreamCampaignLaunchReference {
             if (!configured.affordable() || configured.resources().get(Items.copper) != 7) {
                 throw new AssertionError("The launch must preserve configured cargo with maximum cargo disabled");
             }
+            var editedCargo = configured.resources().copy();
+            int capacity = UpstreamCampaignLoadout.cargoCapacity(zero, configured.schematic());
+            editedCargo.set(Items.copper, UpstreamCampaignLoadout.adjustCargo(7, 1, capacity, true));
+            var edited = UpstreamCampaignLoadout.prepare(zero, target, alternatives, alternatives.selected(), false, editedCargo);
+            if (!edited.affordable() || edited.resources().get(Items.copper) != 8
+                    || Vars.universe.getLaunchResources().get(Items.copper) != 7
+                    || UpstreamCampaignLoadout.adjustCargo(1000, 1, capacity, false) != 1200
+                    || UpstreamCampaignLoadout.adjustCargo(capacity, 1, capacity, false) != capacity
+                    || UpstreamCampaignLoadout.adjustCargo(0, -1, capacity, false) != 0) {
+                throw new AssertionError("Cargo edits must use stock bounds and preserve the stored draft until launch");
+            }
             settings.put("maxresources", true);
             settings.put("lastloadout-core-foundation", customFile.nameWithoutExtension());
             session.save(origin);
@@ -148,8 +160,12 @@ public final class UpstreamCampaignLaunchReference {
             fixture.child("campaign-select.txt").writeString(Integer.toString(launchSlots.indexOf(selected)));
             fixture.child("destination.txt").writeString(target.id + " " + target.getSize());
             Fi generated = selected.file;
-            session.launchNewSector(zero, target, generated, funded);
-            if (zero.items().get(Items.copper) != 0 || Vars.state.rules.defaultTeam.items().get(Items.copper) != 23) {
+            int carried = manual ? 8 : 23;
+            int remaining = 23 - carried;
+            session.launchNewSector(zero, target, generated, manual ? edited : funded);
+            if (zero.items().get(Items.copper) != remaining
+                    || Vars.state.rules.defaultTeam.items().get(Items.copper) != carried
+                    || settings.getBool("maxresources", true) == manual) {
                 throw new AssertionError("Launch must debit origin and deliver cargo to the new base");
             }
             if (Vars.state.rules.sector != target || target.info.origin != zero || target.info.destination != zero
@@ -160,7 +176,7 @@ public final class UpstreamCampaignLaunchReference {
             System.out.println("UPSTREAM_CAMPAIGN_GENERATED sector=" + target.id + " origin=" + zero.id
                 + " size=" + Vars.world.width() + "x" + Vars.world.height());
             session.start(null, origin, "campaign", zero);
-            if (zero.items().get(Items.copper) != 0) {
+            if (zero.items().get(Items.copper) != remaining) {
                 throw new AssertionError("Resuming the old base must apply its post-launch inventory");
             }
         } finally {

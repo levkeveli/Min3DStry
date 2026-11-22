@@ -14,6 +14,16 @@ record UpstreamCampaignLoadout(CoreBlock core, Schematic schematic, ItemSeq reso
                                boolean affordable, boolean maximumCargo) {
     record Choices(CoreBlock core, Seq<Schematic> options, int selected) {}
 
+    static int cargoCapacity(Sector from, Schematic schematic) {
+        return (int) (from.planet.launchCapacityMultiplier * schematic.findCore().itemCapacity);
+    }
+
+    static int adjustCargo(int amount, int direction, int capacity, boolean fine) {
+        // Match LoadoutDialog's quantity steps, with single-item adjustment on the handheld.
+        int step = fine ? 1 : amount < 1000 ? 100 : amount < 2000 ? 200 : amount < 5000 ? 500 : 1000;
+        return Mathf.clamp(amount + direction * step, 0, capacity);
+    }
+
     static Choices choices(Sector from, Sector to) {
         if (Vars.schematics == null) {
             Vars.schematics = new Schematics();
@@ -41,20 +51,22 @@ record UpstreamCampaignLoadout(CoreBlock core, Schematic schematic, ItemSeq reso
 
     static UpstreamCampaignLoadout prepare(Sector from, Sector to) {
         var choices = choices(from, to);
-        return prepare(from, to, choices, choices.selected(), Core.settings.getBool("maxresources", true));
+        return prepare(from, to, choices, choices.selected(), Core.settings.getBool("maxresources", true),
+            Vars.universe.getLaunchResources());
     }
 
-    static UpstreamCampaignLoadout prepare(Sector from, Sector to, Choices choices, int selected, boolean maximumCargo) {
+    static UpstreamCampaignLoadout prepare(Sector from, Sector to, Choices choices, int selected,
+                                          boolean maximumCargo, ItemSeq requested) {
         Schematic schematic = choices.options().get(selected);
         ItemSeq stock = from.items();
         ItemSeq materials = schematic.requirements();
-        ItemSeq resources = Vars.universe.getLaunchResources();
+        ItemSeq resources = requested.copy();
         if (from.planet.allowLaunchLoadout) {
             for (var item : Vars.content.items()) {
                 if (!item.isOnPlanet(from.planet)) resources.set(item, 0);
             }
         }
-        int capacity = (int) (from.planet.launchCapacityMultiplier * schematic.findCore().itemCapacity);
+        int capacity = cargoCapacity(from, schematic);
         resources.min(capacity);
         if (!to.allowLaunchLoadout()) {
             resources.clear();

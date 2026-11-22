@@ -141,8 +141,12 @@ candidate exists. Choose a destination to review the selected schematic, its
 origin, and the total items that will be debited. Copy stock Java `.msch`
 files to `/3ds/min3dstry/schematics/` to use valid custom launch schematics.
 Use D-pad left/right to choose a schematic and up/down to review additional
-items. **X** switches between maximum cargo and the stored stock cargo.
-**A** confirms an affordable launch, and **B** goes back.
+items. **X** switches between maximum cargo and a manually selected loadout.
+With maximum cargo off, **Y** opens the cargo editor. Use D-pad up/down to
+select an item and left/right to change its quantity. Hold **R** to adjust
+one item at a time. **A** or **B** returns to the summary. There, **A**
+confirms an affordable launch and **B** cancels. The saved cargo changes
+when the launch is confirmed.
 
 Use `python3 tools/verify_upstream_campaign_launch.py --rom upstream-probe.3dsx`
 to replay the fresh campaign menu on both Azahar profiles. The verifier
@@ -151,7 +155,8 @@ settings from an empty test SD directory. Pass `--server server-release.jar`
 to compare those outputs with a fresh stock Java launch.
 Pass `--departure /path/to/reference-output/departure` to replay the funded
 numbered-sector launch fixture produced by the JVM task. With `--server` it
-also verifies the saved cargo and origin with stock Java.
+also verifies the saved cargo and origin with stock Java. Add `--manual-cargo`
+to exercise the editor and transfer 8 copper while leaving 15 in Ground Zero.
 
 ## Custom Game
 
