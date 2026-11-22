@@ -30,6 +30,8 @@ import mindustry.content.UnitTypes;
 import mindustry.entities.units.BuildPlan;
 import mindustry.gen.Builderc;
 import mindustry.gen.Groups;
+import mindustry.gen.BlockUnitc;
+import mindustry.gen.Crawlc;
 import mindustry.gen.Player;
 import mindustry.gen.Tankc;
 import mindustry.gen.UnitWaterMove;
@@ -63,6 +65,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
     private record UnitBuild(int page, int left, int top, int width, int height, float x, float y,
                              float rotation, float progress, float alpha, float phase) {}
     private final List<UnitBuild> unitBuilds = new ArrayList<>();
+    private int texturedQuads;
 
     public static void main(String[] args) throws Exception {
         if (args.length < 3 || args.length > 4) {
@@ -369,7 +372,10 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         Vars.player = Player.create();
         Vars.player.team(viewer);
         var types = Vars.content.units();
+        int drawn = 0;
         for (var type : types) {
+            // Stock BlockUnit proxies belong to buildings and cannot be added to Groups.unit.
+            if (type.sample instanceof BlockUnitc) continue;
             if (!UpstreamRenderedNetworkProbe.loadUnitGraphics(type)) {
                 throw new AssertionError("Could not load stock unit " + type.name);
             }
@@ -378,6 +384,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
             if (type == UnitTypes.quasar) unit.shield = 100f;
             sprites.clear();
             solidQuads.clear();
+            texturedQuads = 0;
             Draw.sort(true);
             try {
                 unit.draw();
@@ -385,8 +392,12 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
             } catch (IllegalStateException failure) {
                 throw new AssertionError("Stock unit draw failed for " + type.name, failure);
             }
-            requireRegion(type.region);
-            if (type.drawCell) requireRegion(type.cellRegion);
+            if (type.drawBody) requireRegion(type.region);
+            if (unit instanceof Crawlc) {
+                for (var segment : type.segmentRegions) requireRegion(segment);
+            } else if (type.drawCell) {
+                requireRegion(type.cellRegion);
+            }
             for (var mount : unit.mounts) {
                 if (mount.weapon.region.found()) requireRegion(mount.weapon.region);
                 if (mount.weapon.heatRegion.found()) requireRegion(mount.weapon.heatRegion);
@@ -394,9 +405,14 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
             if (type == UnitTypes.quasar && solidQuads.isEmpty()) {
                 throw new AssertionError("Missing stock unshaded Quasar shield");
             }
+            if (type.name.equals("anthicus-missile") && texturedQuads == 0) {
+                throw new AssertionError("Missing original Anthicus missile quad");
+            }
             unit.remove();
+            drawn++;
         }
-        System.out.println("UPSTREAM_UNIT_ROSTER types=" + types.size + " quasarShield=ok");
+        System.out.println("UPSTREAM_UNIT_ROSTER types=" + types.size + " drawn=" + drawn
+            + " quasarShield=ok anthicusQuad=ok");
         var gamma = UnitTypes.gamma.spawn(viewer, 240f, 288f, 90f);
         var dagger = UnitTypes.dagger.spawn(Team.crux, 256f, 288f, 90f);
 
@@ -803,6 +819,11 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
     @Override
     public void drawSolidQuad(float[] vertices, int offset, Blending blending) {
         solidQuads.add(Arrays.copyOfRange(vertices, offset, offset + SpriteBatch.SPRITE_SIZE));
+    }
+
+    @Override
+    public void drawTexturedQuad(int page, int pageWidth, int pageHeight, float[] vertices, int offset, Blending blending) {
+        texturedQuads++;
     }
 
     @Override public void begin(int left, int bottom, int width, int height) {}
