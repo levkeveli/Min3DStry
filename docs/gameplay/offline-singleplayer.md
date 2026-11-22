@@ -191,11 +191,11 @@ unmodified v160.8 server reopened both initial saves and matched the CRC
 across floor, overlay, and block IDs for all tiles against a fresh stock
 launch using the same schematic. It confirmed the selected schematic,
 destination cargo, and 15 copper remaining on the origin. Both profiles
-completed the exit save and PC readback. In the New 3DS in-game replay, the
-controller opened, canceled, and reopened the selector from Ground Zero,
-then launched eligible sector 63 at 430×430. The stock server reopened the
-initial native save and confirmed matching terrain, cargo, and the captured
-origin. Exit save and the Old 3DS in-game replay remain under verification.
+completed the exit save and PC readback. In separate in-game replays on both
+Azahar profiles, the controller opened, canceled, and reopened the selector
+from captured Ground Zero and launched eligible sector 63 at 430×430. The
+stock v160.8 server reopened both exit saves and confirmed the original
+terrain, 8 copper at the destination, and 15 remaining in the captured origin.
 
 The build's ELF LOAD segments plus the logged managed limit, linear heap,
 and stack total 64.58 MiB. This exceeds the 64 MiB Original 3DS application
