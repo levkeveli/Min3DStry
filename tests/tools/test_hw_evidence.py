@@ -14,6 +14,8 @@ def sample_log(
     *,
     tag: str = "N3DS",
     app_mem: int = 124,
+    build_commit: str = "c0ffee1234ab",
+    build_dirty: int = 0,
     loader_loaded: int = 1,
     alloc_hash: str = "783fbd80e415dcd7",
     tile_hash: str = "e35397041df8e5fe",
@@ -27,6 +29,7 @@ def sample_log(
     include: tuple[str, ...] | None = None,
 ) -> str:
     lines = [
+        f"[MIN3DSTRY] BUILD commit={build_commit} dirty={build_dirty}",
         "[MIN3DSTRY] HW: New 3DS XL "
         f"({tag}, 804 MHz, L2:on, AppMem:{app_mem} MiB, FIRM:2.58.0)",
         "[MIN3DSTRY] STORAGE root=/3ds/min3dstry settings=/3ds/min3dstry/settings.bin "
@@ -87,7 +90,9 @@ class HwEvidenceTests(unittest.TestCase):
     def test_new3ds_valid_log_passes_every_required_check(self) -> None:
         records = hw_evidence.parse_records(sample_log())
         hardware = hw_evidence.hardware_summary(hw_evidence.first(records, "HW"))
-        checks = hw_evidence.build_checks(records, "new3ds", "sector170", hardware)
+        checks = hw_evidence.build_checks(
+            records, "new3ds", "sector170", hardware, "c0ffee1234ab"
+        )
         failed = [check for check in checks if check.required and not check.ok]
         self.assertEqual(failed, [])
         self.assertTrue(all(check.ok for check in checks if check.required))
@@ -158,14 +163,14 @@ class HwEvidenceTests(unittest.TestCase):
         self.assertNotIn("hardware.profile", failed)
 
     def test_smoke_scenario_skips_sector_requirements(self) -> None:
-        records = hw_evidence.parse_records(sample_log(include=("HW", "STORAGE_ROUNDTRIP", "PARITY", "WORKERS", "MEM", "FRAME")))
+        records = hw_evidence.parse_records(sample_log(include=("BUILD", "HW", "STORAGE_ROUNDTRIP", "PARITY", "WORKERS", "MEM", "FRAME")))
         hardware = hw_evidence.hardware_summary(hw_evidence.first(records, "HW"))
         checks = hw_evidence.build_checks(records, "new3ds", "smoke", hardware)
         failed = [check.id for check in checks if check.required and not check.ok]
         self.assertEqual(failed, [])
 
     def test_markdown_and_json_include_provenance(self) -> None:
-        log = self.write_log(sample_log(audio_state="fallback_no_dsp"))
+        log = self.write_log(sample_log(build_commit="ea77d0b1234", audio_state="fallback_no_dsp"))
         rom = Path(log.parent) / "min3dstry.3dsx"
         rom.write_bytes(b"fake-rom")
         self.addCleanup(rom.unlink, missing_ok=True)
@@ -217,10 +222,50 @@ class HwEvidenceTests(unittest.TestCase):
             hardware_check = next(check for check in checks if check.id == "hardware.profile")
             self.assertFalse(hardware_check.ok, msg=f"{tag}/{profile}")
 
+    def test_build_commit_mismatch_fails(self) -> None:
+        records = hw_evidence.parse_records(sample_log(build_commit="aaaabbbbcccc"))
+        hardware = hw_evidence.hardware_summary(hw_evidence.first(records, "HW"))
+        checks = hw_evidence.build_checks(
+            records, "new3ds", "sector170", hardware, "dddddeeeefff"
+        )
+        build_check = next(check for check in checks if check.id == "build.commit")
+        self.assertFalse(build_check.ok)
+        self.assertIn("--commit says", build_check.detail)
+
+    def test_build_commit_accepts_short_prefix(self) -> None:
+        records = hw_evidence.parse_records(sample_log(build_commit="c0ffee1234ab"))
+        hardware = hw_evidence.hardware_summary(hw_evidence.first(records, "HW"))
+        checks = hw_evidence.build_checks(records, "new3ds", "sector170", hardware, "c0ffee1")
+        build_check = next(check for check in checks if check.id == "build.commit")
+        self.assertTrue(build_check.ok)
+
+    def test_dirty_build_fails(self) -> None:
+        records = hw_evidence.parse_records(sample_log(build_dirty=1))
+        hardware = hw_evidence.hardware_summary(hw_evidence.first(records, "HW"))
+        checks = hw_evidence.build_checks(
+            records, "new3ds", "sector170", hardware, "c0ffee1234ab"
+        )
+        build_check = next(check for check in checks if check.id == "build.commit")
+        self.assertFalse(build_check.ok)
+        self.assertIn("dirty", build_check.detail)
+
+    def test_missing_build_record_fails(self) -> None:
+        text = "\n".join(
+            line
+            for line in sample_log().splitlines()
+            if not line.startswith("[MIN3DSTRY] BUILD")
+        )
+        records = hw_evidence.parse_records(text)
+        hardware = hw_evidence.hardware_summary(hw_evidence.first(records, "HW"))
+        checks = hw_evidence.build_checks(records, "new3ds", "smoke", hardware)
+        build_check = next(check for check in checks if check.id == "build.commit")
+        self.assertFalse(build_check.ok)
+        self.assertIn("no BUILD record", build_check.detail)
+
     def test_device_wrapper_delegates_to_evidence(self) -> None:
         import device_deploy
 
-        log = self.write_log(sample_log())
+        log = self.write_log(sample_log(build_commit="ea77d0b1234"))
         parser = device_deploy.build_parser()
         args = parser.parse_args(
             [

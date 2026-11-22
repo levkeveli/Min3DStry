@@ -19,6 +19,7 @@ ROMFS           := build/romfs
 ATLAS           := build/atlas
 AUDIO_ROMFS     := build/audio-romfs
 BUILD_CONFIG    := $(BUILD)/build-config.h
+BUILD_INFO      := $(BUILD)/build-info.h
 UPSTREAM_MINDUSTRY ?=
 TEAVM_LOADER_DIR ?=
 PYTHON          ?= python3
@@ -113,7 +114,7 @@ else
 all: romfs-audio-clean
 endif
 
-all: $(BUILD_CONFIG) $(ATLAS)/sprites.h $(ROMFS)/sprites.t3x
+all: $(BUILD_CONFIG) $(BUILD_INFO) $(ATLAS)/sprites.h $(ROMFS)/sprites.t3x
 	@mkdir -p $(BUILD) $(dir $(OUTPUT))
 	@$(MAKE) --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile
 
@@ -123,6 +124,31 @@ $(BUILD_CONFIG): force-config
 	@if cmp -s $@.tmp $@; then rm -f $@.tmp; else mv $@.tmp $@; fi
 
 force-config:
+
+# Build provenance for hardware evidence. Kept out of build-config.h so a new
+# commit only rebuilds main_3ds.o instead of every object. M3DS_BUILD_COMMIT is
+# exported by dev.sh/CI; otherwise ask git, and fall back to "unknown".
+$(BUILD_INFO): force-config
+	@mkdir -p $(BUILD)
+	@commit='$(M3DS_BUILD_COMMIT)'; \
+	if [ "$$commit" = "unknown" ]; then commit=''; fi; \
+	if [ -z "$$commit" ] && command -v git >/dev/null 2>&1; then \
+	  commit="$$(git -C $(TOPDIR) rev-parse --short=12 HEAD 2>/dev/null || true)"; \
+	fi; \
+	if [ -z "$$commit" ]; then \
+	  commit="$$(sh $(TOPDIR)/tools/git_head_sha.sh $(TOPDIR) 2>/dev/null || true)"; \
+	fi; \
+	if [ -z "$$commit" ]; then commit=unknown; fi; \
+	dirty='$(M3DS_BUILD_DIRTY)'; \
+	if [ -z "$$dirty" ]; then \
+	  dirty=0; \
+	  if [ "$$commit" != "unknown" ] && command -v git >/dev/null 2>&1 && \
+	     ! git -C $(TOPDIR) diff --quiet --ignore-submodules HEAD 2>/dev/null; then \
+	    dirty=1; \
+	  fi; \
+	fi; \
+	printf '#define M3DS_BUILD_COMMIT "%s"\n#define M3DS_BUILD_DIRTY %s\n' "$$commit" "$$dirty" > $@.tmp; \
+	if cmp -s $@.tmp $@; then rm -f $@.tmp; else mv $@.tmp $@; fi
 
 romfs-audio-clean:
 	@rm -rf $(ROMFS)/audio
@@ -162,6 +188,7 @@ ifneq ($(strip $(UPSTREAM_MINDUSTRY)),)
 $(OFILES_SOURCES) : $(TOPDIR)/$(BUILD)/audio-index.h
 endif
 citro2d_backend.o : $(TOPDIR)/$(ATLAS)/sprites.h
+main_3ds.o : $(TOPDIR)/$(BUILD_INFO)
 
 $(OUTPUT).elf : $(OFILES)
 ifneq ($(strip $(TEAVM_LOADER_DIR)),)
