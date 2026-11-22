@@ -328,10 +328,14 @@ if (usesSinglePlayer) {
     }
 }
 if (probe == 'unified') {
-    sourceSets.main.java.srcDirs('src/unified/java', 'src/unified/host')
+    sourceSets.main.java.srcDir('src/unified/java')
+    def addressReference = sourceSets.create('serverAddressReference') {
+        java.srcDir('src/unified/host')
+        compileClasspath += sourceSets.main.runtimeClasspath
+        runtimeClasspath += sourceSets.main.runtimeClasspath
+    }
     tasks.register('runServerAddressJvm', JavaExec) {
-        dependsOn 'classes'
-        classpath = sourceSets.main.runtimeClasspath
+        classpath = addressReference.runtimeClasspath
         mainClass = 'UpstreamServerAddressReference'
     }
 }

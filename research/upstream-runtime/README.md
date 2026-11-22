@@ -85,6 +85,7 @@ bash arm11/build.sh build/generated/teavm/c build/unified-3ds --unified build/te
 The resulting `build/unified-3ds/upstream-probe.3dsx` starts offline play by
 default. Hold **X** while launching to open Join. Enter an IPv4 address or
 hostname and an optional port, such as `game.example.org:6567`.
+Direct entry uses the IPv4 transport and accepts ASCII hostnames.
 Omitting the port uses the upstream default, 6567. The keyboard reopens
 with a validation prompt after an invalid address. Cancel leaves the app
 without opening a network connection. Address input stays in memory.
