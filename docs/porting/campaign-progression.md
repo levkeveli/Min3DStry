@@ -275,6 +275,7 @@ gradle -PupstreamCheckout=/path/to/Mindustry \
 JVM and ARM11/Azahar report:
 
 ```text
+UPSTREAM_CAMPAIGN_CAPTURE_REWARDS copper=250 lead=75 core=core-nucleus storage=13000
 UPSTREAM_CAMPAIGN_CAPTURE sector=15 captured=ok waves=off attack=off event=ok persisted=ok
 ```
 
