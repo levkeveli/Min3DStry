@@ -124,6 +124,8 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         target.verifyCoreVariants(layers, viewport, viewer);
         target.verifyErekirStarterBlocks(layers, viewport, viewer);
         target.verifyLiveBuildingRegistry(layers, viewport, viewer, block -> block instanceof BaseTurret, "TURRET");
+        target.verifyLiveBuildingRegistry(layers, viewport, viewer, UpstreamBuildingLayers::supportsDistributionDraw,
+            "DISTRIBUTION");
         target.verifyLiveBuildingRegistry(layers, viewport, viewer, block -> block.category == Category.liquid,
             "LIQUID");
         if (args.length == 4) verifyObjectiveHud();
