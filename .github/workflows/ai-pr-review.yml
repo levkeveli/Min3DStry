@@ -14,7 +14,7 @@ permissions: {}
 jobs:
   policy-gate:
     name: PR policy gate
-    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.head.repo.fork)) && '["self-hosted", "linux", "x64", "min3dstry"]' || '"ubuntu-latest"') }}
+    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.head.repo.fork)) && '["self-hosted", "linux", "x64", "min3dstry-fast"]' || '"ubuntu-latest"') }}
     timeout-minutes: 5
     permissions:
       contents: read
@@ -44,7 +44,7 @@ jobs:
       github.event.pull_request.head.repo.full_name == github.repository &&
       !github.event.pull_request.head.repo.fork &&
       needs.policy-gate.outputs.eligible_for_ai_review == 'true'
-    runs-on: [self-hosted, linux, x64, min3dstry]
+    runs-on: [self-hosted, linux, x64, min3dstry-fast]
     timeout-minutes: 15
     permissions:
       contents: read
@@ -79,7 +79,7 @@ jobs:
       !github.event.pull_request.head.repo.fork &&
       needs.policy-gate.outputs.eligible_for_auto_merge == 'true' &&
       needs.ai-review.outputs.approved == 'true'
-    runs-on: [self-hosted, linux, x64, min3dstry]
+    runs-on: [self-hosted, linux, x64, min3dstry-fast]
     timeout-minutes: 5
     permissions:
       contents: write
