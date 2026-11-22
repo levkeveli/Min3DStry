@@ -14,16 +14,6 @@ u32 __stacksize__ = 256 * 1024;
 u32 __ctru_linear_heap_size = 4 * 1024 * 1024;
 
 static void m3ds_init_heap(int64_t minimum, int64_t maximum) {
-#ifdef M3DS_SINGLEPLAYER
-    const int64_t new3ds_limit = 48 * 1024 * 1024;
-    const u32 required_app_heap = 72 * 1024 * 1024;
-    bool is_new_3ds = false;
-    // Leave space in the application heap for the GC tables, SD I/O and renderer.
-    if (maximum < new3ds_limit && envGetHeapSize() >= required_app_heap
-            && R_SUCCEEDED(APT_CheckNew3DS(&is_new_3ds)) && is_new_3ds) {
-        maximum = new3ds_limit;
-    }
-#endif
     char message[80];
     int length = snprintf(message, sizeof(message), "UPSTREAM_MEMORY managedLimit=%lu\n",
         (unsigned long)maximum);

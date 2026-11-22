@@ -174,11 +174,14 @@ The [ARM11 build from `24338a2`](https://github.com/levkeveli/Min3DStry/actions/
 rendered the numbered-sector launch dialog in the New 3DS profile and
 accepted the 8-copper edit. With the longer controller movie, the stock
 432×432 sector 15 generator exhausted its 32 MiB TeaVM heap before the world
-opened. The emulator reported a 96,350,208-byte application heap and a
-524,288-byte stack. The JVM
-reference on the integrated branch completed this launch and the stock PC
-server reopened both saved sectors. ARM11 generation and in-game departure
-remain under verification.
+opened. GDB stopped at a 7,784,656-byte `PQueue` allocation in the upstream
+Serpulo generator's A* path search. Arc's visited-tile bitset uses Java's
+masked shift counts, while the generated C lookup did not mask the index.
+ARM11 staging restores those masks so positions above 63 can be found
+without repeatedly adding the same tiles. The JVM reference completed the
+original launch and the stock PC server reopened both saves and matched the
+destination terrain. ARM11 generation and in-game departure remain under
+verification.
 
 ## Custom Game
 
@@ -219,11 +222,10 @@ started Ancient Caldera in Sandbox, saved, and resumed it on both Azahar
 reported the same map size, planet, infinite resources, waves, and wave-timer
 settings as its own Ancient Caldera Sandbox session.
 
-The graphical app defaults to a 32 MiB TeaVM heap for the decoded world,
-pathfinder grids, and sprite atlas. It selects a 48 MiB limit on New 3DS
-when libctru reports at least 72 MiB in the application heap. The startup log
-reports the selected managed limit. The new setting still needs console
-verification. In the preceding 24 MiB build, the Old 3DS
+The graphical app reserves a 32 MiB TeaVM heap for the decoded world,
+pathfinder grids, and sprite atlas. The startup log reports the managed
+limit so device budget reports can account for it. In the preceding 24 MiB
+build, the Old 3DS
 debugger caught Archipelago's 1,000,016-byte pathfinder allocation after
 collection left only 40 bytes free. The
 [ARM11 build from `fc3881c`](https://github.com/levkeveli/Min3DStry/actions/runs/45032641678)
