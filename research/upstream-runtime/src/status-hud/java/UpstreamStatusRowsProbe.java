@@ -1,15 +1,36 @@
+import arc.Core;
+import arc.Settings;
 import arc.files.Fi;
 import arc.util.I18NBundle;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import mindustry.Vars;
+import mindustry.content.StatusEffects;
+import mindustry.content.UnitTypes;
+import mindustry.core.ContentLoader;
+import mindustry.core.GameState;
+import mindustry.game.Rules;
+import mindustry.game.SpawnGroup;
+import mindustry.mod.Mods;
+import mindustry.net.Net;
 
 /** Host coverage for every v160.8 HudFragment status-row branch. */
 public final class UpstreamStatusRowsProbe {
     public static void main(String[] args) {
         String path = args.length > 0 ? args[0] : "/3ds/min3dstry/bundles/bundle";
         I18NBundle bundle = I18NBundle.createBundle(new Fi(path), Locale.ROOT);
+        Core.bundle = bundle;
+        Vars.headless = true;
+        Core.settings = new Settings();
+        Core.settings.setAutosave(false);
+        Vars.state = new GameState();
+        Vars.mods = new Mods();
+        Vars.content = new ContentLoader();
+        Vars.content.createBaseContent();
+        Vars.content.init();
+        Vars.net = new Net(null);
         check(bundle, "cap-enemy-timer", true, true, false, true, false, 2, 10, 1, 0, 309,
             "[accent]Wave 2/10", "[lightgray]1 Enemy Remaining", "[lightgray]Wave in 5:09");
         check(bundle, "plural-enemies", true, true, false, true, false, 2, 10, 2, 0, 309,
@@ -44,7 +65,32 @@ public final class UpstreamStatusRowsProbe {
         if (UpstreamNotification.current() != null) {
             throw new IllegalStateException("notification did not expire");
         }
+        Rules rules = new Rules();
+        rules.winWave = 20;
+        SpawnGroup boss = new SpawnGroup(UnitTypes.dagger);
+        boss.effect = StatusEffects.boss;
+        boss.begin = 8;
+        boss.end = 9;
+        boss.unitAmount = 1;
+        rules.spawns.add(boss);
+        if (!"Guardian approaching in [accent]1[] wave.".equals(
+                UpstreamGuardianWarning.find(rules, 9))) {
+            throw new IllegalStateException("guardian one-wave warning mismatch");
+        }
+        SpawnGroup later = new SpawnGroup(UnitTypes.dagger);
+        later.effect = StatusEffects.boss;
+        later.begin = 11;
+        later.end = 12;
+        later.unitAmount = 1;
+        Rules laterRules = new Rules();
+        laterRules.winWave = 20;
+        laterRules.spawns.add(later);
+        if (!"Guardian approaching in [accent]5[] waves.".equals(
+                UpstreamGuardianWarning.find(laterRules, 8))) {
+            throw new IllegalStateException("guardian five-wave warning mismatch");
+        }
         System.out.println("UPSTREAM_STATUS_ROWS cases=10 ok");
+        System.out.println("UPSTREAM_GUARDIAN_WARNING cases=2 ok");
         System.out.println("UPSTREAM_UNIT_ROWS cases=3 ok");
         System.out.println("UPSTREAM_NOTIFICATION cases=2 ok");
     }
