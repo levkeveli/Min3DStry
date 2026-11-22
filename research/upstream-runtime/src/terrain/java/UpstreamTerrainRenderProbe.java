@@ -42,9 +42,10 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
 
     void buildOverlay(int column, int row, int block, int rotation,
                       boolean removing, boolean rotatable, boolean catalogOpen, boolean configuring,
-                      boolean selectingMine) {
+                      boolean selectingMine, int buildingPaused) {
         if (NativeTerrain.buildOverlay(column, row, block, rotation, removing ? 1 : 0, Vars.tilesize,
-                rotatable ? 1 : 0, catalogOpen ? 1 : 0, configuring ? 1 : 0, selectingMine ? 1 : 0) == 0) {
+                rotatable ? 1 : 0, catalogOpen ? 1 : 0, configuring ? 1 : 0, selectingMine ? 1 : 0,
+                buildingPaused) == 0) {
             throw new IllegalStateException("Unable to draw the Citro2D build palette");
         }
     }
@@ -147,7 +148,7 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
 
         @Import(name = "m3ds_terrain_build_overlay")
         static native int buildOverlay(int column, int row, int block, int rotation, int removing, int tileSize,
-                                       int rotatable, int catalogOpen, int configuring, int selectingMine);
+                                       int rotatable, int catalogOpen, int configuring, int selectingMine, int buildingPaused);
 
         @Import(name = "m3ds_terrain_build_catalog")
         static native int buildCatalog(Address labels, Address icons, int selected,

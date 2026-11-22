@@ -112,7 +112,7 @@ public final class UpstreamRenderedNetworkProbe {
         System.out.println("UPSTREAM_INTERFACE_GRAPHICS labels");
         var labels = String.join("\0", primary.localizedName, secondary.localizedName,
             Core.bundle.get("keybind.rotate.name"), Core.bundle.get("waves.remove"),
-            "List", "Config", Core.bundle.get("back"), Core.bundle.get("command.mine")) + "\0";
+            "List", "Config", Core.bundle.get("back"), Core.bundle.get("command.mine"), "", "") + "\0";
         target.buildLabels(labels.getBytes(StandardCharsets.UTF_8));
         lastPrimaryShortcut = primary;
         System.out.println("UPSTREAM_BUILD_SHORTCUTS primary=" + primary.name + " secondary=" + secondary.name);
@@ -234,7 +234,7 @@ public final class UpstreamRenderedNetworkProbe {
         int shortcut = block == buildingControls.shortcut(0) ? 0 : block == buildingControls.shortcut(1) ? 1 : -1;
         target.buildOverlay(buildingControls.cursorX() - viewport.left, buildingControls.cursorY() - viewport.bottom,
             shortcut, buildingControls.rotation(), buildingControls.removing(), block.rotate,
-            catalog.isOpen() || config.isOpen(), buildingControls.configuring(), buildingControls.selectingMine());
+            catalog.isOpen() || config.isOpen(), buildingControls.configuring(), buildingControls.selectingMine(), -1);
         if (catalog.isOpen()) {
             drawMenu(catalog.labels(), catalog.iconIds(), catalog.selectedRow(block),
                 catalog.previousPage(), catalog.nextPage(), true);

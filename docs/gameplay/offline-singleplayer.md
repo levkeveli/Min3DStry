@@ -117,6 +117,7 @@ profiles. Physical console memory use and frame-rate targets remain open.
 | Touch grid (`16x12`) | Place / break / configure / select mine ore at tile |
 | Touch `Mine` (`x >= 288, 80 <= y < 112`) | Toggle ore mining target selection |
 | Touch `List` / `Config` / Bottom bar | Open block catalog (`UpstreamBuildMenu`), block config (`UpstreamItemConfig`), shortcuts, `Rotate`, or `Remove` |
+| Touch `Pause` / `Resume` below `Mine` | Pause or resume construction while retaining plans. Mining and waves continue. |
 | `A` / `R` / `B` | Place at cursor / rotate block / toggle remove mode |
 | `X` | Toggle simulation Pause / Resume (`UPSTREAM_SP_PAUSE`) |
 | `Y` | Trigger next enemy wave (`UPSTREAM_SP_WAVE`) |
@@ -182,6 +183,10 @@ bash research/upstream-runtime/arm11/build.sh \
 python3 tools/verify_upstream_singleplayer.py \
   --rom research/upstream-runtime/build/probe-3ds-singleplayer/upstream-probe.3dsx
 ```
+
+The replay pauses construction, queues a conveyor, and verifies that copper
+reaches the core while that plan remains queued. It then resumes construction
+and checks that the conveyor completes at the tile selected by the touch grid.
 
 Unit tests covering `verify_upstream_singleplayer.py` CTM generation, SD save path resolution, and telemetry parsing run via:
 

@@ -47,10 +47,10 @@ static C2D_SpriteSheet sheet;
 static C3D_RenderTarget *target;
 static C3D_RenderTarget *palette;
 static C2D_TextBuf palette_buffer;
-static C2D_Text palette_labels[8];
+static C2D_Text palette_labels[10];
 #ifdef M3DS_STOCK_FONT
 enum { menu_label_glyphs = 64 };
-static char palette_utf8[8][4 * menu_label_glyphs + 1];
+static char palette_utf8[10][4 * menu_label_glyphs + 1];
 #endif
 static C2D_TextBuf catalog_buffer;
 static struct {
@@ -489,7 +489,7 @@ int32_t m3ds_terrain_build_labels(const char *labels) {
 
 int32_t m3ds_terrain_build_overlay(int32_t column, int32_t row, int32_t block, int32_t rotation,
                                   int32_t removing, int32_t tile_size, int32_t rotatable, int32_t catalog_open,
-                                  int32_t configuring, int32_t selecting_mine) {
+                                  int32_t configuring, int32_t selecting_mine, int32_t building_paused) {
     if (!frame_open || !palette) return 0;
     set_world_blend(0);
     set_world_mix(0, 0);
@@ -522,6 +522,11 @@ int32_t m3ds_terrain_build_overlay(int32_t column, int32_t row, int32_t block, i
     C2D_DrawRectSolid(292, 80, 0.5f, 26, 31, C2D_Color32(45, 52, 64, 255));
     draw_palette_label(7, 305, 89, 0.30f, 24,
         selecting_mine ? accent : C2D_Color32(239, 241, 247, 255));
+    if (building_paused >= 0) {
+        C2D_DrawRectSolid(292, 112, 0.5f, 26, 31, C2D_Color32(45, 52, 64, 255));
+        draw_palette_label(building_paused ? 9 : 8, 305, 121, 0.30f, 24,
+            building_paused ? accent : C2D_Color32(239, 241, 247, 255));
+    }
     for (int i = 0; i < 4; i++) {
         bool active = !selecting_mine && (removing ? i == 3 : i == block);
         C2D_DrawRectSolid(i * 80 + 2, 4, 0.5f, 76, 39,

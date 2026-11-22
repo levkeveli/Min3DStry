@@ -50,6 +50,7 @@ public final class UpstreamSinglePlayerApp {
     private static final long FRAME_NS = 16_666_667L;
     private static final float DEAD_ZONE = 20f / 127f;
     private static final float STOP_SPEED = 0.03f;
+    private static final int BUILD_TOGGLE_Y = 112;
     private static final ObjectSet<UnitType> drawableUnits = new ObjectSet<>();
 
     private final UpstreamTerrainRenderProbe target = new UpstreamTerrainRenderProbe(false);
@@ -62,6 +63,7 @@ public final class UpstreamSinglePlayerApp {
     private UpstreamSinglePlayerSession session;
     private UpstreamTerrainDrawProbe.Viewport viewport;
     private boolean rendererReady;
+    private boolean buildingPaused;
     private Unit controlled;
     private Fi campaignSlot;
     private int draws;
@@ -210,7 +212,7 @@ public final class UpstreamSinglePlayerApp {
         int count = firstMap + maps.size();
         int selected = 0, mode = 0, lastX = 0, lastY = 0, renderedRow = -1, renderedMode = -1;
         CustomGameRows rows = null;
-        target.buildLabels(new byte[8]);
+        target.buildLabels(new byte[10]);
         System.out.println("UPSTREAM_CUSTOM_GAME_MENU maps=" + maps.size());
         // Consume the launcher's button edges before accepting menu input.
         UpstreamSinglePlayerInput.poll();
@@ -372,6 +374,8 @@ public final class UpstreamSinglePlayerApp {
         for (int i = 0; i < slots.size(); i++) {
             labels.append(i == selected ? "> " : "  ").append(slotName(slots.get(i))).append('\0');
         }
+        // The native palette always reads ten null-terminated labels.
+        labels.append("\0".repeat(Math.max(0, 9 - slots.size())));
         target.buildLabels(labels.toString().getBytes(StandardCharsets.UTF_8));
     }
 
@@ -447,6 +451,15 @@ public final class UpstreamSinglePlayerApp {
 
             unit = session.ensurePlayerSpawn();
             if (unit != null) {
+                if (touch >= 0 && (touch & 0xffff) >= 288
+                        && (touch >>> 16) >= BUILD_TOGGLE_Y && (touch >>> 16) < BUILD_TOGGLE_Y + 32
+                        && !buildingControls.catalog().isOpen() && !buildingControls.itemConfig().isOpen()) {
+                    buildingPaused = !buildingPaused;
+                    touch = -1;
+                    System.out.println("UPSTREAM_SP_BUILDING paused=" + buildingPaused
+                        + " queued=" + unit.plans().size);
+                }
+                unit.updateBuilding(!buildingPaused);
                 buildingControls.update(unit, input, touch);
             }
 
@@ -512,7 +525,8 @@ public final class UpstreamSinglePlayerApp {
         System.out.println("UPSTREAM_INTERFACE_GRAPHICS labels");
         var labels = String.join("\0", primary.localizedName, secondary.localizedName,
             Core.bundle.get("keybind.rotate.name"), Core.bundle.get("waves.remove"),
-            "List", "Config", Core.bundle.get("back"), Core.bundle.get("command.mine")) + "\0";
+            "List", "Config", Core.bundle.get("back"), Core.bundle.get("command.mine"),
+            Core.bundle.get("keybind.pause.name"), Core.bundle.get("sectors.resume")) + "\0";
         target.buildLabels(labels.getBytes(StandardCharsets.UTF_8));
         lastPrimaryShortcut = primary;
         System.out.println("UPSTREAM_BUILD_SHORTCUTS primary=" + primary.name + " secondary=" + secondary.name);
@@ -598,7 +612,8 @@ public final class UpstreamSinglePlayerApp {
         int shortcut = block == buildingControls.shortcut(0) ? 0 : block == buildingControls.shortcut(1) ? 1 : -1;
         target.buildOverlay(buildingControls.cursorX() - viewport.left, buildingControls.cursorY() - viewport.bottom,
             shortcut, buildingControls.rotation(), buildingControls.removing(), block.rotate,
-            catalog.isOpen() || config.isOpen(), buildingControls.configuring(), buildingControls.selectingMine());
+            catalog.isOpen() || config.isOpen(), buildingControls.configuring(), buildingControls.selectingMine(),
+            buildingPaused ? 1 : 0);
         if (catalog.isOpen()) {
             drawMenu(catalog.labels(), catalog.iconIds(), catalog.selectedRow(block),
                 catalog.previousPage(), catalog.nextPage(), true);

@@ -68,14 +68,13 @@ def write_singleplayer_ctm(path: Path, model: str) -> None:
         0,
     )
     touch_idle = struct.pack("<B6x", 1)
-    # Camera starts centered on Core: Shard @(129,55) -> viewport left=121, bottom=49.
-    # Mine button @(305,96), copper ore (129,49) @(168,232), shortcut 0 (conveyor) @(40,24),
-    # build tile (131,55) @(200,136).
+    # Pause construction, queue a conveyor, mine while it is queued, then resume.
     taps = (
-        (t0, (305, 96)),
-        (t0 + 4, (168, 232)),
-        (t0 + 20, (40, 24)),
-        (t0 + 24, (200, 136)),
+        (t0, (305, 128)),
+        (t0 + 4, (200, 136)),
+        (t0 + 8, (305, 96)),
+        (t0 + 12, (168, 232)),
+        (t0 + 24, (305, 128)),
     )
     button_windows = (
         (t0 + 36, KEY_X),      # Pause
@@ -229,8 +228,15 @@ def run_singleplayer_model(
         proc, rpc = _launch_azahar(model, rom_path, azahar_bin, config_path, log_path, ctm_path)
         try:
             _wait_for_log(log_path, proc, r"UPSTREAM_SP_READY ", timeout)
-            _wait_for_log(log_path, proc, r"UPSTREAM_SP_MINED item=copper ", timeout)
-            _wait_for_log(log_path, proc, r"UPSTREAM_SP_BUILT block=conveyor x=131 y=55\b", timeout)
+            trace = _wait_for_log(log_path, proc, r"UPSTREAM_SP_BUILDING paused=false queued=1", timeout)
+            paused = trace.find("UPSTREAM_SP_BUILDING paused=true queued=0")
+            queued = re.search(r"UPSTREAM_TOUCH_PLAN block=conveyor x=(\d+) y=(\d+)", trace)
+            mined = trace.find("UPSTREAM_SP_MINED item=copper ")
+            resumed = trace.find("UPSTREAM_SP_BUILDING paused=false queued=1")
+            if queued is None or not 0 <= paused < queued.start() < mined < resumed:
+                raise RuntimeError("Expected copper mining with a paused, retained conveyor plan")
+            x, y = queued.groups()
+            _wait_for_log(log_path, proc, rf"UPSTREAM_SP_BUILT block=conveyor x={x} y={y}\b", timeout)
             rpc.perf_stats(reset=True)
             time.sleep(1.5)
             perf = rpc.perf_stats(reset=True) or {}
