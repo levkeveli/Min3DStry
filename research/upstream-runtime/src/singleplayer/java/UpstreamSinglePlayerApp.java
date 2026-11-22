@@ -116,6 +116,7 @@ public final class UpstreamSinglePlayerApp {
         var settings = UpstreamSinglePlayerSession.loadSettings(mapDir);
         session = UpstreamSinglePlayerSession.create(mapDir, bundleTag, new Fi("/romfs/planets"), settings,
             new Fi("/romfs/maps"));
+        UpstreamSectorCapture.install();
         try {
             CustomGame custom = null;
             Fi customSave = mapDir.child("custom-game-save.msav");
@@ -134,7 +135,7 @@ public final class UpstreamSinglePlayerApp {
             CampaignGame campaign = null;
             if (sectorSaves.size() == 1 && !campaignRequested) {
                 var selected = sectorSaves.get(0);
-                System.out.println("UPSTREAM_CAMPAIGN_SELECTED slot=" + selected.file.name() + " source=single");
+                System.out.println("UPSTREAM_CAMPAIGN_SELECTED slot=" + selected.file.name() + " source=single name=" + selected.sector.name());
                 campaign = new CampaignGame(selected, null);
             } else if (!sectorSaves.isEmpty()) {
                 campaign = chooseCampaign(sectorSaves, mapDir.child("campaign-select.txt"));
@@ -377,7 +378,7 @@ public final class UpstreamSinglePlayerApp {
                 int index = Integer.parseInt(automatic.readString("UTF-8").trim());
                 if (index >= 0 && index < slots.size()) {
                     var slot = slots.get(index);
-                    System.out.println("UPSTREAM_CAMPAIGN_SELECTED slot=" + slot.file.name() + " source=auto");
+                    System.out.println("UPSTREAM_CAMPAIGN_SELECTED slot=" + slot.file.name() + " source=auto name=" + slot.sector.name());
                     return slot;
                 }
             } catch (NumberFormatException ignored) {
@@ -403,7 +404,7 @@ public final class UpstreamSinglePlayerApp {
             lastAxis = axis;
             if ((input & (1 << 17)) != 0) {
                 var slot = slots.get(selected);
-                System.out.println("UPSTREAM_CAMPAIGN_SELECTED slot=" + slot.file.name());
+                System.out.println("UPSTREAM_CAMPAIGN_SELECTED slot=" + slot.file.name() + " name=" + slot.sector.name());
                 return slot;
             }
             if (renderedRow != selected) {

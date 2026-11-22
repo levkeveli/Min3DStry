@@ -2,6 +2,7 @@ import arc.Core;
 import arc.files.Fi;
 import arc.util.I18NBundle;
 import java.util.Arrays;
+import java.util.zip.DeflaterOutputStream;
 import java.util.Locale;
 import mindustry.Vars;
 import mindustry.content.SectorPresets;
@@ -37,6 +38,11 @@ public final class UpstreamCampaignResumeReference {
             Fi second = root.child(forestName);
             copy(fixtures.child(forestName), second);
             root.child("sector-serpulo-86.msav").writeString("broken header");
+            // Keep a valid magic and save version but omit the metadata region.
+            try (var input = SaveIO.getStream(canonical);
+                    var malformed = new DeflaterOutputStream(root.child("sector-serpulo-15.msav").write())) {
+                malformed.write(input.readNBytes(8));
+            }
             var slots = session.sectorSaves();
             if (slots.size() != 2 || slots.get(0).timestamp < slots.get(1).timestamp) {
                 throw new AssertionError("Expected two stock sector slots in last-saved order");

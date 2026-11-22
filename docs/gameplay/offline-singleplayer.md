@@ -25,7 +25,8 @@ sector data, including the v160.8 Serpulo preset assignments loaded from
 A single sector opens immediately. With more than one, the top screen lists
 the sectors most recently saved first. D-pad up/down changes the selection,
 **A** opens it, and **START** exits the selector. A valid zero-based index in
-`/3ds/min3dstry/campaign-select.txt` can select a row for automation.
+`/3ds/min3dstry/campaign-select.txt` can select a row for automation. Selection logs include the save filename and
+the original sector name.
 
 The app loads the sector through `SaveIO.load(file, world.makeSectorContext(sector))`.
 The **SELECT** save button and **START** exit write to the selected file with
