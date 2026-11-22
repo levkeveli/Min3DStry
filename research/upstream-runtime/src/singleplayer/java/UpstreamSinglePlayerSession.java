@@ -1,13 +1,14 @@
 import arc.Core;
 import arc.Events;
-import arc.assets.AssetManager;
 import arc.files.Fi;
 import arc.math.Mathf;
 import arc.math.geom.Vec2;
 import arc.mock.MockAudio;
 import arc.mock.MockFiles;
 import arc.mock.MockGraphics;
-import arc.util.Threads;
+import arc.struct.ObjectSet;
+import arc.struct.Seq;
+import arc.util.ArcRuntimeException;
 import arc.util.Time;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -28,7 +29,6 @@ import mindustry.game.EventType.RulesLoadEvent;
 import mindustry.game.EventType.Trigger;
 import mindustry.game.FogControl;
 import mindustry.game.Gamemode;
-import mindustry.game.Saves;
 import mindustry.game.Team;
 import mindustry.game.Universe;
 import mindustry.game.Waves;
@@ -38,6 +38,7 @@ import mindustry.gen.Unit;
 import mindustry.graphics.CacheLayer;
 import mindustry.io.MapIO;
 import mindustry.io.SaveIO;
+import mindustry.io.SaveMeta;
 import mindustry.maps.Map;
 import mindustry.type.Planet;
 import mindustry.type.Sector;
@@ -62,6 +63,17 @@ public final class UpstreamSinglePlayerSession {
     }
 
     static UpstreamSinglePlayerSession create(Fi mapDirectory, String locale) {
+        return create(mapDirectory, locale, null);
+    }
+
+    static UpstreamSinglePlayerSession create(Fi mapDirectory, String locale, Fi planetData) {
+        if (planetData != null && planetData.isDirectory()) {
+            for (Fi file : planetData.list()) {
+                if (!file.isDirectory() && file.extension().equals("json")) {
+                    Vars.tree.addFile("planets/" + file.name(), file);
+                }
+            }
+        }
         var app = UpstreamWorldLoadProbe.initialize(mapDirectory);
         Core.settings.put("locale", locale == null || locale.isEmpty() ? "en" : locale);
         Core.audio = new MockAudio();
@@ -196,36 +208,48 @@ public final class UpstreamSinglePlayerSession {
     static final class SectorSlot {
         final Fi file;
         final Sector sector;
+        final long timestamp;
 
-        SectorSlot(Fi file, Sector sector) {
+        SectorSlot(Fi file, Sector sector, long timestamp) {
             this.file = file;
             this.sector = sector;
+            this.timestamp = timestamp;
         }
     }
 
     List<SectorSlot> sectorSaves() {
-        Core.assets = new AssetManager(path -> new Fi(path), false);
-        Fi previousSaveDirectory = Vars.saveDirectory;
-        Vars.saveDirectory = Vars.customMapDirectory;
-        Vars.mainExecutor = Threads.executor("campaign-select");
-        try {
-            var saves = new Saves();
-            saves.load();
-            var result = new ArrayList<SectorSlot>();
-            for (var slot : saves.getSaveSlots()) {
-                String name = slot.file.name();
-                // Saves.load() walks recursively; campaign slots live directly in the save directory.
-                if (slot.file.parent() == null || !slot.file.parent().equals(Vars.saveDirectory)) continue;
-                if (name.startsWith("sector-") && name.endsWith(".msav")) {
-                    Sector sector = slot.getSector();
-                    if (sector == null) sector = sectorFor(slot.file);
-                    result.add(new SectorSlot(slot.file, sector));
-                }
+        Fi directory = Vars.customMapDirectory;
+        var result = new Seq<SectorSlot>();
+        var found = new ObjectSet<Sector>();
+        readSectorSaves(directory.child("saves"), result, found);
+        readSectorSaves(directory, result, found);
+        result.sort((a, b) -> {
+            int order = Long.compare(b.timestamp, a.timestamp);
+            return order == 0 ? a.file.name().compareTo(b.file.name()) : order;
+        });
+        var slots = new ArrayList<SectorSlot>(result.size);
+        for (SectorSlot slot : result) slots.add(slot);
+        return slots;
+    }
+
+    private void readSectorSaves(Fi directory, Seq<SectorSlot> result, ObjectSet<Sector> found) {
+        if (!directory.isDirectory()) return;
+        // Scan only the sector paths accepted by the launcher. Saves.load() also remaps campaign files.
+        for (Fi file : directory.list()) {
+            String name = file.name();
+            if (file.isDirectory() || !name.startsWith("sector-") || !name.endsWith(".msav")
+                    || name.endsWith("-backup.msav") || !SaveIO.isSaveValid(file)) continue;
+            SaveMeta meta;
+            try {
+                meta = SaveIO.getMeta(file);
+            } catch (ArcRuntimeException ignored) {
+                continue;
             }
-            return result;
-        } finally {
-            Vars.saveDirectory = previousSaveDirectory;
-            Vars.mainExecutor.shutdownNow();
+            Sector sector = meta.rules == null ? null : meta.rules.sector;
+            if (sector == null) sector = sectorFor(file);
+            var preset = Vars.content.sector(meta.tags.get("sectorPreset", ""));
+            if (preset != null && preset.requireUnlock) sector = preset.sector;
+            if (sector != null && found.add(sector)) result.add(new SectorSlot(file, sector, meta.timestamp));
         }
     }
 
@@ -329,9 +353,11 @@ public final class UpstreamSinglePlayerSession {
         if (Vars.state.rules.sector != null) {
             UpstreamSectorCapture.persist(Vars.state.rules.sector);
         }
-        SaveIO.write(saveFile);
-        if (!SaveIO.isSaveValid(saveFile)) {
-            throw new IOException("Written offline save failed validation: " + saveFile.path());
+        SaveIO.save(saveFile);
+        try (var input = SaveIO.getStream(saveFile)) {
+            if (!SaveIO.isSaveValid(input)) {
+                throw new IOException("Written offline save failed validation: " + saveFile.path());
+            }
         }
         long bytes = saveFile.length();
         var core = core();

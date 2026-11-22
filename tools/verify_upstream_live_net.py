@@ -100,6 +100,10 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
     needs_settling_time = building or touch_build or touch_config
     circle_at = first_move + (18 if needs_settling_time else 6)
     leave_at = first_move + (44 if needs_settling_time else 16)
+    if unified_boot:
+        # Let each input settle and confirm idle snapshots at the combined ROM's slower frame cadence.
+        circle_at = first_move + 28
+        leave_at = circle_at + 28
     frames = (128 if erekir_build or mining else leave_at + 7) * samples_per_second
     header = struct.pack("<4sQ20sQQ32sIQq156x", b"CTM\x1b", 0, revision, 1780000000,
                          0x4D334453, b"Min3DStry input verification", 0, frames, 0)

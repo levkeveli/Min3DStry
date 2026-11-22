@@ -309,10 +309,14 @@ if (probe in ['network-render', 'unified']) {
 if (usesSinglePlayer) {
     sourceSets.main.java.srcDir('src/singleplayer/java')
     if (usesSinglePlayerApp) {
-        sourceSets.main.java.srcDir('src/singleplayer-custom-host/java')
+        sourceSets.main.java.srcDirs('src/singleplayer-custom-host/java', 'src/singleplayer-campaign-host/java')
         tasks.register('runCustomGameJvm', JavaExec) {
             classpath = sourceSets.main.runtimeClasspath
             mainClass = 'UpstreamCustomGameReference'
+        }
+        tasks.register('runCampaignResumeJvm', JavaExec) {
+            classpath = sourceSets.main.runtimeClasspath
+            mainClass = 'UpstreamCampaignResumeReference'
         }
     }
     if (!usesSinglePlayerApp) {
