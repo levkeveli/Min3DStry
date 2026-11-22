@@ -101,7 +101,12 @@ public final class UpstreamLiveNetworkProbe {
 
     static void run(Fi config, Runnable beforeConnect, Consumer<Unit> frame, UpstreamLiveBuildControls building)
             throws IOException, InterruptedException {
-        String[] endpoint = config.readString().trim().split("\\s+");
+        run(config.parent(), config.readString(), beforeConnect, frame, building);
+    }
+
+    static void run(Fi directory, String address, Runnable beforeConnect, Consumer<Unit> frame,
+                    UpstreamLiveBuildControls building) throws IOException, InterruptedException {
+        String[] endpoint = address.trim().split("\\s+");
         if (endpoint.length < 2 || endpoint.length > 3) {
             throw new IllegalArgumentException("Expected a server host and port with optional movement or controls mode");
         }
@@ -114,7 +119,7 @@ public final class UpstreamLiveNetworkProbe {
         int port = Integer.parseInt(endpoint[1]);
         String stage = "content";
         try {
-            var app = UpstreamWorldLoadProbe.initialize(config.parent());
+            var app = UpstreamWorldLoadProbe.initialize(directory);
             stage = "services";
             Vars.mods = new Mods();
             Vars.universe = new Universe();

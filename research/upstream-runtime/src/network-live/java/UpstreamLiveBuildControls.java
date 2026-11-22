@@ -7,7 +7,6 @@ import mindustry.gen.Unit;
 import mindustry.world.Block;
 import mindustry.world.Build;
 import mindustry.world.Tile;
-import mindustry.world.blocks.distribution.Sorter;
 
 /** Maps the 3DS touch grid to the last presented viewport and queues upstream plans. */
 final class UpstreamLiveBuildControls {
@@ -27,7 +26,7 @@ final class UpstreamLiveBuildControls {
     private int rotation;
     private boolean removing;
     private final UpstreamBuildMenu catalog = new UpstreamBuildMenu();
-    private final UpstreamItemConfig itemConfig = new UpstreamItemConfig();
+    private final UpstreamBuildingConfig buildingConfig = new UpstreamBuildingConfig();
     private boolean configuring;
     private boolean selectingMine;
 
@@ -42,9 +41,9 @@ final class UpstreamLiveBuildControls {
     }
 
     void update(Unit unit, int buttons, int touch) {
-        itemConfig.validate();
-        if (itemConfig.isOpen()) {
-            if (touch >= 0) itemConfig.tap(touch & 0xffff, touch >>> 16);
+        buildingConfig.validate();
+        if (buildingConfig.isOpen()) {
+            if (touch >= 0) buildingConfig.tap(touch & 0xffff, touch >>> 16);
             return;
         }
         if (catalog.isOpen()) {
@@ -92,7 +91,7 @@ final class UpstreamLiveBuildControls {
                 }
                 if (configuring) {
                     configuring = false;
-                    if (Vars.world.build(tileX, tileY) instanceof Sorter.SorterBuild sorter) itemConfig.open(sorter);
+                    buildingConfig.open(Vars.world.build(tileX, tileY));
                     return;
                 }
                 submit = true;
@@ -172,7 +171,7 @@ final class UpstreamLiveBuildControls {
     int rotation() { return rotation; }
     boolean removing() { return removing; }
     UpstreamBuildMenu catalog() { return catalog; }
-    UpstreamItemConfig itemConfig() { return itemConfig; }
+    UpstreamBuildingConfig buildingConfig() { return buildingConfig; }
     boolean configuring() { return configuring; }
     boolean selectingMine() { return selectingMine; }
 }

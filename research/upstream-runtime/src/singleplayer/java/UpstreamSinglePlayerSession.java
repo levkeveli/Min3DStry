@@ -88,6 +88,8 @@ public final class UpstreamSinglePlayerSession {
                 }
             }
         }
+        // Blocks capture their default cache layer while the content registry is created.
+        CacheLayer.init();
         settings.defaults("locale", locale == null || locale.isEmpty() ? "en" : locale);
         var app = UpstreamWorldLoadProbe.initialize(mapDirectory, settings);
         Core.audio = new MockAudio();
@@ -102,7 +104,6 @@ public final class UpstreamSinglePlayerSession {
             }
         };
         Time.setDeltaProvider(() -> 1f);
-        CacheLayer.init();
         Vars.mods = new Mods();
         Vars.indexer = new BlockIndexer();
         Vars.spawner = new WaveSpawnerProxy().create();

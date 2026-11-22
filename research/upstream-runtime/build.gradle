@@ -53,6 +53,7 @@ def entryPoints = [
     'network-render': 'UpstreamRenderedNetworkProbe',
     'singleplayer-sim': 'UpstreamSinglePlayerSession',
     'singleplayer': 'UpstreamSinglePlayerApp',
+    'unified': 'UpstreamUnifiedApp',
     'terrain-draw': 'UpstreamTerrainDrawProbe',
     'terrain-render': 'UpstreamTerrainRenderProbe',
     'file-metadata': 'port.UpstreamFileMetadataProbe',
@@ -76,12 +77,12 @@ if (!entryPoints.containsKey(probe)) {
 }
 def entryPoint = entryPoints[probe]
 def usesMapSources = probe in ['map', 'map-sd']
-def usesSinglePlayerApp = probe == 'singleplayer'
-def usesSinglePlayer = probe in ['singleplayer-sim', 'singleplayer']
-def usesLiveNetwork = probe in ['network-live', 'network-render']
-def usesRenderedClient = probe in ['network-render', 'singleplayer']
-def usesBuildControls = probe in ['network-live', 'network-render', 'singleplayer']
-def usesTerrainRenderer = probe in ['terrain-render', 'network-render', 'singleplayer']
+def usesSinglePlayerApp = probe in ['singleplayer', 'unified']
+def usesSinglePlayer = usesSinglePlayerApp || probe == 'singleplayer-sim'
+def usesLiveNetwork = probe in ['network-live', 'network-render', 'unified']
+def usesRenderedClient = usesSinglePlayerApp || probe == 'network-render'
+def usesBuildControls = usesSinglePlayerApp || usesLiveNetwork
+def usesTerrainRenderer = usesRenderedClient || probe == 'terrain-render'
 def patchesPlanetGrid = usesRenderedClient
 def conduitSmoothing = 'smoothLiquid = Mathf.lerpDelta(smoothLiquid, liquids.currentAmount() / liquidCapacity, 0.05f);'
 def conduitUpdate = '@Override\n        public void updateTile(){'
@@ -292,7 +293,7 @@ if (probe == 'world-stream') {
 if (usesLiveNetwork) {
     sourceSets.main.java.srcDirs('src/network-live/java', 'src/network-live/host')
 }
-if (probe == 'network-render') {
+if (probe in ['network-render', 'unified']) {
     sourceSets.main.java.srcDirs('src/network-render/java', 'src/network-render/host')
     tasks.register('runBuildingLayersJvm', JavaExec) {
         dependsOn 'classes'
@@ -307,11 +308,16 @@ if (probe == 'network-render') {
 }
 if (usesSinglePlayer) {
     sourceSets.main.java.srcDir('src/singleplayer/java')
-    if (probe == 'singleplayer') {
+    if (usesSinglePlayerApp) {
         sourceSets.main.java.srcDirs('src/singleplayer-custom-host/java', 'src/singleplayer-campaign-host/java')
         tasks.register('runCustomGameJvm', JavaExec) {
             classpath = sourceSets.main.runtimeClasspath
             mainClass = 'UpstreamCustomGameReference'
+        }
+        tasks.register('runOfflineMaterialsJvm', JavaExec) {
+            classpath = sourceSets.main.runtimeClasspath
+            mainClass = 'UpstreamOfflineMaterialsReference'
+            workingDir = temporaryDir
         }
         tasks.register('runCampaignResumeJvm', JavaExec) {
             classpath = sourceSets.main.runtimeClasspath
@@ -324,10 +330,22 @@ if (usesSinglePlayer) {
     }
     if (!usesSinglePlayerApp) {
         sourceSets.main.java.exclude('UpstreamSinglePlayerApp.java', 'UpstreamSinglePlayerInput.java')
-    } else {
+    } else if (!usesLiveNetwork) {
         sourceSets.main.java.srcDir('src/network-live/java')
         sourceSets.main.java.srcDir('src/network-render/java')
         sourceSets.main.java.exclude('UpstreamLiveNetworkProbe.java', 'UpstreamRenderedNetworkProbe.java')
+    }
+}
+if (probe == 'unified') {
+    sourceSets.main.java.srcDir('src/unified/java')
+    def addressReference = sourceSets.create('serverAddressReference') {
+        java.srcDir('src/unified/host')
+        compileClasspath += sourceSets.main.runtimeClasspath
+        runtimeClasspath += sourceSets.main.runtimeClasspath
+    }
+    tasks.register('runServerAddressJvm', JavaExec) {
+        classpath = addressReference.runtimeClasspath
+        mainClass = 'UpstreamServerAddressReference'
     }
 }
 if (probe == 'file-metadata') {
@@ -744,7 +762,8 @@ tasks.register('runProbeJvm', JavaExec) {
     classpath = sourceSets.main.runtimeClasspath
     mainClass = ['map-sd': entryPoints.map, 'terrain-render': entryPoints['terrain-draw'],
                  'network-live': 'UpstreamSnapshotDispatchReference',
-                 'network-render': 'UpstreamSnapshotDispatchReference']
+                   'network-render': 'UpstreamSnapshotDispatchReference',
+                   'unified': 'UpstreamSnapshotDispatchReference']
         .getOrDefault(probe, entryPoint)
     def probeArgs = providers.gradleProperty('probeArgs')
     if (probeArgs.isPresent()) {
@@ -775,7 +794,7 @@ teavm {
     if (usesExecutor) {
         c { obfuscated = false }
     }
-    if (probe == 'singleplayer') {
+    if (usesSinglePlayerApp) {
         // Large offline maps allocate the original Pathfinder grid while the
         // decoded world is live, then still need to load the world atlas.
         c { maxHeapSize = 32 }
