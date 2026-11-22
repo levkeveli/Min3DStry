@@ -60,10 +60,14 @@ def write_replay(path: Path, model: str, planet: str, manual_cargo: bool = False
 
 
 def verify(model: str, planet: str, rom: Path, azahar: str, config: Path, log: Path, output: Path,
-           departure: Path | None = None, manual_cargo: bool = False, in_game: bool = False) -> None:
+           departure: Path | None = None, manual_cargo: bool = False,
+           in_game: bool = False) -> tuple[int, int] | None:
     if departure:
         sector_id, size = (int(value) for value in (departure / "destination.txt").read_text().split())
         name, world = f"sector-serpulo-{sector_id}.msav", f"Serpulo;_Sector_{sector_id}"
+        if in_game:
+            destinations = {int(row[0]): int(row[1]) for row in
+                            (line.split() for line in (departure / "destinations.txt").read_text().splitlines())}
     else:
         name, world, size = STARTERS[planet]
     root = sp.resolve_sd_save_path(log).parent
@@ -109,7 +113,18 @@ def verify(model: str, planet: str, rom: Path, azahar: str, config: Path, log: P
             if in_game:
                 menu = r"UPSTREAM_CAMPAIGN_WORLD_MENU sector=170\b"
                 sp._wait_for_log(log, proc, rf"{menu}(?s:.*?)UPSTREAM_CAMPAIGN_CANCEL(?s:.*?){menu}", 170)
-            sp._wait_for_log(log, proc, menu_marker, 120)
+            if in_game:
+                launch = r"UPSTREAM_CAMPAIGN_LOADOUT sector=(\d+) origin=170 affordable=true\b"
+                text = sp._wait_for_log(log, proc, launch, 120)
+                selected = re.search(launch, text)
+                assert selected is not None
+                sector_id = int(selected.group(1))
+                name, world = f"sector-serpulo-{sector_id}.msav", f"Serpulo;_Sector_{sector_id}"
+                if sector_id not in destinations:
+                    raise AssertionError(f"{prefix}: sector {sector_id} was not an eligible stock destination")
+                size = destinations[sector_id]
+            else:
+                sp._wait_for_log(log, proc, menu_marker, 120)
             time.sleep(2)
             menu = rpc.screenshot()
             if sp.az.inspect_png(menu)["top_distinct_colors"] < 8:
@@ -135,6 +150,7 @@ def verify(model: str, planet: str, rom: Path, azahar: str, config: Path, log: P
                                  for slot in staged_saves if not in_game or slot != origin_slot):
                 raise AssertionError(f"{prefix}: departure overwrote a preexisting world save")
             print(f"[PASS] {prefix}: {world} rendered and saved at {size}x{size}", flush=True)
+            return (sector_id, size) if departure else None
         finally:
             rpc.close()
             sp._stop_proc(proc, azahar)
@@ -205,9 +221,10 @@ def check_stock(java: str, server: Path, save: Path, settings: Path, planet: str
 
 
 def check_numbered_stock(java: str, server: Path, output: Path, model: str, departure: Path,
-                         manual_cargo: bool = False, in_game: bool = False) -> None:
+                         manual_cargo: bool = False, in_game: bool = False,
+                         destination: tuple[int, int] | None = None) -> None:
     cargo, remaining = (8, 15) if manual_cargo else (23, 0)
-    sector_id, size = (int(value) for value in (departure / "destination.txt").read_text().split())
+    sector_id, size = destination or tuple(int(value) for value in (departure / "destination.txt").read_text().split())
     with tempfile.TemporaryDirectory(prefix="m3ds-stock-numbered-readback-") as temp:
         root = Path(temp)
         (root / "config").mkdir()
@@ -300,11 +317,11 @@ def main() -> int:
     args.output_dir.mkdir(parents=True, exist_ok=True)
     for model in (args.model,) if args.model else ("new3ds", "old3ds"):
         if args.departure:
-            verify(model, "numbered", args.rom, azahar, config, log, args.output_dir,
-                   args.departure, args.manual_cargo, args.in_game)
+            destination = verify(model, "numbered", args.rom, azahar, config, log, args.output_dir,
+                                 args.departure, args.manual_cargo, args.in_game)
             if args.server:
                 check_numbered_stock(args.java, args.server, args.output_dir, model,
-                                     args.departure, args.manual_cargo, args.in_game)
+                                     args.departure, args.manual_cargo, args.in_game, destination)
             continue
         for planet in (args.planet,) if args.planet else STARTERS:
             verify(model, planet, args.rom, azahar, config, log, args.output_dir)

@@ -164,6 +164,13 @@ public final class UpstreamCampaignLaunchReference {
             settings.getSettingsFile().copyTo(fixture.child("settings.bin"));
             fixture.child("campaign-select.txt").writeString(Integer.toString(launchSlots.indexOf(selected)));
             fixture.child("destination.txt").writeString(target.id + " " + target.getSize());
+            var destinations = new StringBuilder();
+            for (var candidate : launchSlots) {
+                if (candidate.origin == zero && candidate.sector.preset == null) {
+                    destinations.append(candidate.sector.id).append(' ').append(candidate.sector.getSize()).append('\n');
+                }
+            }
+            fixture.child("destinations.txt").writeString(destinations.toString());
             Fi generated = selected.file;
             int carried = manual ? 8 : 23;
             int remaining = 23 - carried;
