@@ -75,9 +75,13 @@ public final class UpstreamRenderedNetworkProbe {
     }
 
     static void run(Fi endpoint, Fi atlas) throws IOException, InterruptedException {
+        run(endpoint.parent(), endpoint.readString(), atlas);
+    }
+
+    static void run(Fi directory, String address, Fi atlas) throws IOException, InterruptedException {
         var view = new UpstreamRenderedNetworkProbe(atlas);
         int language = view.target.mountAssets();
-        var preference = endpoint.sibling("locale.txt");
+        var preference = directory.child("locale.txt");
         String requested = preference.exists() && preference.length() <= 16 ? preference.readString("UTF-8").trim() : "";
         Core.bundle = UpstreamInterfaceLocale.loadForStockClient(new Fi("/romfs/bundles/bundle"), language, requested);
         var locale = Core.bundle.getLocale();
@@ -85,7 +89,7 @@ public final class UpstreamRenderedNetworkProbe {
             + (locale.getLanguage().isEmpty() ? "en" : locale) + " router=" + Core.bundle.get("block.router.name")
             + " copper=" + Core.bundle.get("item.copper.name"));
         CacheLayer.init();
-        UpstreamLiveNetworkProbe.run(endpoint, view::loadGraphics, view::render, view.buildingControls);
+        UpstreamLiveNetworkProbe.run(directory, address, view::loadGraphics, view::render, view.buildingControls);
     }
 
     private void loadGraphics() {
@@ -234,17 +238,18 @@ public final class UpstreamRenderedNetworkProbe {
         drawObjectives(drawStatusHud());
         var block = buildingControls.block();
         var catalog = buildingControls.catalog();
-        var config = buildingControls.itemConfig();
+        var config = buildingControls.buildingConfig();
         int shortcut = block == buildingControls.shortcut(0) ? 0 : block == buildingControls.shortcut(1) ? 1 : -1;
         target.buildOverlay(buildingControls.cursorX() - viewport.left, buildingControls.cursorY() - viewport.bottom,
             shortcut, buildingControls.rotation(), buildingControls.removing(), block.rotate,
             catalog.isOpen() || config.isOpen(), buildingControls.configuring(), buildingControls.selectingMine());
         if (catalog.isOpen()) {
             drawMenu(catalog.labels(), catalog.iconIds(), catalog.selectedRow(block),
-                catalog.previousPage(), catalog.nextPage(), true);
+                catalog.previousPage(), catalog.nextPage(), UpstreamTerrainRenderProbe.BLOCK_CATALOG);
         } else if (config.isOpen()) {
             drawMenu(config.labels(), config.iconIds(), config.selectedRow(),
-                config.previousPage(), config.nextPage(), false);
+                config.previousPage(), config.nextPage(),
+                config.unitPlans() ? UpstreamTerrainRenderProbe.UNIT_CATALOG : UpstreamTerrainRenderProbe.ITEM_CATALOG);
         } else {
             lastMenu = null;
         }
@@ -334,7 +339,8 @@ public final class UpstreamRenderedNetworkProbe {
     static boolean supportsBuildingDraw(Building build) {
         var block = build.block;
         // These blocks use the sprite operations available in the live backend.
-        return block instanceof CoreBlock || block == Blocks.conveyor || block == Blocks.copperWall
+        return UpstreamBuildingLayers.supportsPowerDraw(block)
+            || block instanceof CoreBlock || block == Blocks.conveyor || block == Blocks.copperWall
             || block == Blocks.duct || block == Blocks.berylliumWall
             || block == Blocks.copperWallLarge || block == Blocks.router || block instanceof Sorter
             || block == Blocks.mechanicalDrill || block instanceof Conduit
@@ -356,10 +362,15 @@ public final class UpstreamRenderedNetworkProbe {
     }
 
     private void drawMenu(byte[] labels, int[] icons, int selected,
-                          boolean previous, boolean next, boolean categories) {
-        int drawn = target.buildCatalog(labels, icons, selected, previous, next, categories);
+                            boolean previous, boolean next, int catalog) {
+        int drawn = target.buildCatalog(labels, icons, selected, previous, next, catalog);
         if (lastMenu != labels) {
-            System.out.println("UPSTREAM_MENU_ICONS type=" + (categories ? "block" : "item") + " drawn=" + drawn);
+            String type = switch (catalog) {
+                case UpstreamTerrainRenderProbe.BLOCK_CATALOG -> "block";
+                case UpstreamTerrainRenderProbe.UNIT_CATALOG -> "unit";
+                default -> "item";
+            };
+            System.out.println("UPSTREAM_MENU_ICONS type=" + type + " drawn=" + drawn);
             lastMenu = labels;
         }
     }

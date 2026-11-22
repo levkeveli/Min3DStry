@@ -119,7 +119,7 @@ profiles. Physical console memory use and frame-rate targets remain open.
 | Circle Pad / D-Pad | Move player `Alpha` unit and pan centered viewport |
 | Touch grid (`16x12`) | Place / break / configure / select mine ore at tile |
 | Touch `Mine` (`x >= 288, 80 <= y < 112`) | Toggle ore mining target selection |
-| Touch `List` / `Config` / Bottom bar | Open block catalog (`UpstreamBuildMenu`), block config (`UpstreamItemConfig`), shortcuts, `Rotate`, or `Remove` |
+| Touch `List` / `Config` / Bottom bar | Open block catalog (`UpstreamBuildMenu`), block config (`UpstreamBuildingConfig`), shortcuts, `Rotate`, or `Remove` |
 | `A` / `R` / `B` | Place at cursor / rotate block / toggle remove mode |
 | `X` | Toggle simulation Pause / Resume (`UPSTREAM_SP_PAUSE`) |
 | `Y` | Trigger next enemy wave (`UPSTREAM_SP_WAVE`) |
@@ -219,3 +219,68 @@ Both profiles executed Boot 1 (load `groundZero.msav`, select Mine + copper ore 
 
 - **`new3ds` (`is_new_3ds=true`):** `UPSTREAM_MEMORY appHeap=108834816 linearHeap=4194304 stack=262144`, `saved=wave:2,copper:29,bytes:18700`, `reloaded=wave:2,copper:29`, `game_fps=4.72` (unoptimized headless emulator baseline).
 - **`old3ds` (`is_new_3ds=false`):** `UPSTREAM_MEMORY appHeap=79474688 linearHeap=4194304 stack=262144` (~`75.8 MiB` emulator-reported `envGetHeapSize()` region, not the physical retail Original 3DS `64 MiB` `APPMEMTYPE 0` limit against which the `44.44 MiB` static subtotal is budgeted), `saved=wave:2,copper:29,bytes:18685`, `reloaded=wave:2,copper:29`, `game_fps=3.48` (unoptimized headless emulator baseline).
+
+## Original material buildings
+
+The offline renderer draws stock crafters, separators, pumps, liquid
+routers and tanks, and item storage using the upstream building passes
+and v160.8 atlas. Their original recipes and save data use the existing
+upstream simulation and serialization.
+The offline session initializes cache layers before registering content so
+stock blocks retain the correct layer for their dynamic draw calls.
+
+The JVM reference exercises all 49 definitions in these families outside
+the already supported cores. Each definition must draw a stock atlas
+sprite both at rest and with active draw state. Run it with the pinned
+Glacier map, atlas metadata, and block colors from the official assets.
+
+```bash
+bash /path/to/Mindustry/gradlew -p research/upstream-runtime \
+  -PupstreamCheckout=/path/to/Mindustry -ParcCheckout=/path/to/Arc \
+  -PreferenceJar=/path/to/server-release.jar -Pprobe=singleplayer \
+  runOfflineMaterialsJvm \
+  --args="/path/to/glacier.msav /path/to/sprites.aatls /path/to/block_colors.png"
+```
+
+The emulator verifier uses an unmodified v160.8 server to write two Glacier
+saves with identical terrain. The populated save adds a silicon smelter,
+plastanium compressor, vault, liquid tank, mechanical pump, electrolyzer,
+and separator. It reopens that save on the stock server, then checks
+that each structure changes the expected portion of the top screen
+on both Azahar profiles. The verifier uses isolated virtual SD directories
+and retains the saves, screenshots, and logs.
+All 25 sample points per building differed from the empty scene on both
+profiles with the [ARM11 test build](https://github.com/levkeveli/Min3DStry/actions/runs/45069415082).
+
+```bash
+python3 tools/verify_offline_material_buildings.py \
+  --rom /path/to/upstream-probe.3dsx \
+  --server /path/to/server-release.jar \
+  --output build/offline-material-buildings
+```
+
+## Original power buildings
+
+The offline and multiplayer world draw passes use the pinned power blocks'
+own sprites, layered drawers, and connection geometry. The renderer
+also records the upstream revealed-building flags for visible tiles,
+which the stock Erekir beam nodes use to decide whether to draw their link.
+
+The same JVM reference uses the original atlas to exercise idle and active
+draws for the 25 v160.8 power-category definitions. It also verifies that
+two linked stock beam nodes submit exactly one beam segment.
+
+```bash
+python3 tools/verify_offline_power_buildings.py \
+  --rom /path/to/unified/upstream-probe.3dsx \
+  --server /path/to/server-release.jar \
+  --output build/offline-power-buildings
+```
+
+The replay uses stock Glacier saves to compare an empty area, Serpulo
+and Erekir power buildings with a connected beam, and a heated Thorium
+Reactor. On Azahar 2126.2, the [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45076601292)
+produced matching results on Original and New 3DS profiles. Each profile
+changed all 25 sample pixels at each of the seven placements, 15 of 25
+along the beam, and all 25 at the heated reactor. The world lighting pass
+is tracked in #38. The replay covers offline gameplay.

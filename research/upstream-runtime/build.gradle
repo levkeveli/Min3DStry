@@ -314,6 +314,11 @@ if (usesSinglePlayer) {
             classpath = sourceSets.main.runtimeClasspath
             mainClass = 'UpstreamCustomGameReference'
         }
+        tasks.register('runOfflineMaterialsJvm', JavaExec) {
+            classpath = sourceSets.main.runtimeClasspath
+            mainClass = 'UpstreamOfflineMaterialsReference'
+            workingDir = temporaryDir
+        }
         tasks.register('runCampaignResumeJvm', JavaExec) {
             classpath = sourceSets.main.runtimeClasspath
             mainClass = 'UpstreamCampaignResumeReference'
@@ -329,6 +334,15 @@ if (usesSinglePlayer) {
 }
 if (probe == 'unified') {
     sourceSets.main.java.srcDir('src/unified/java')
+    def addressReference = sourceSets.create('serverAddressReference') {
+        java.srcDir('src/unified/host')
+        compileClasspath += sourceSets.main.runtimeClasspath
+        runtimeClasspath += sourceSets.main.runtimeClasspath
+    }
+    tasks.register('runServerAddressJvm', JavaExec) {
+        classpath = addressReference.runtimeClasspath
+        mainClass = 'UpstreamServerAddressReference'
+    }
 }
 if (probe == 'file-metadata') {
     sourceSets.main.java.srcDir('src/file/java')

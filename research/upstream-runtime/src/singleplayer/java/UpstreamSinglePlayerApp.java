@@ -42,10 +42,13 @@ import mindustry.world.blocks.ConstructBlock.ConstructBuild;
 import mindustry.world.blocks.defense.Wall;
 import mindustry.world.blocks.distribution.Conveyor;
 import mindustry.world.blocks.distribution.Sorter;
+import mindustry.world.blocks.liquid.LiquidRouter;
 import mindustry.world.blocks.liquid.Conduit;
 import mindustry.world.blocks.payloads.UnitPayload;
-import mindustry.world.blocks.power.PowerNode;
-import mindustry.world.blocks.storage.CoreBlock;
+import mindustry.world.blocks.production.GenericCrafter;
+import mindustry.world.blocks.production.Pump;
+import mindustry.world.blocks.production.Separator;
+import mindustry.world.blocks.storage.StorageBlock;
 
 /** Graphical offline single-player Mindustry v160.8 ARM11 entry point on Ground Zero. */
 public final class UpstreamSinglePlayerApp {
@@ -572,17 +575,18 @@ public final class UpstreamSinglePlayerApp {
         drawObjectives(drawStatusHud());
         var block = buildingControls.block();
         var catalog = buildingControls.catalog();
-        var config = buildingControls.itemConfig();
+        var config = buildingControls.buildingConfig();
         int shortcut = block == buildingControls.shortcut(0) ? 0 : block == buildingControls.shortcut(1) ? 1 : -1;
         target.buildOverlay(buildingControls.cursorX() - viewport.left, buildingControls.cursorY() - viewport.bottom,
             shortcut, buildingControls.rotation(), buildingControls.removing(), block.rotate,
             catalog.isOpen() || config.isOpen(), buildingControls.configuring(), buildingControls.selectingMine());
         if (catalog.isOpen()) {
             drawMenu(catalog.labels(), catalog.iconIds(), catalog.selectedRow(block),
-                catalog.previousPage(), catalog.nextPage(), true);
+                catalog.previousPage(), catalog.nextPage(), UpstreamTerrainRenderProbe.BLOCK_CATALOG);
         } else if (config.isOpen()) {
             drawMenu(config.labels(), config.iconIds(), config.selectedRow(),
-                config.previousPage(), config.nextPage(), false);
+                config.previousPage(), config.nextPage(),
+                config.unitPlans() ? UpstreamTerrainRenderProbe.UNIT_CATALOG : UpstreamTerrainRenderProbe.ITEM_CATALOG);
         } else {
             lastMenu = null;
         }
@@ -668,20 +672,21 @@ public final class UpstreamSinglePlayerApp {
 
     static boolean supportsBuildingDraw(Building build) {
         var block = build.block;
-        return block instanceof CoreBlock || block instanceof Conveyor || block instanceof Wall
+        return UpstreamBuildingLayers.supportsPowerDraw(block)
+            || block instanceof StorageBlock || block instanceof Conveyor || block instanceof Wall
             || block == Blocks.router || block == Blocks.distributor || block == Blocks.junction
             || block == Blocks.overflowGate || block == Blocks.underflowGate
             || block instanceof Sorter || block == Blocks.mechanicalDrill || block == Blocks.pneumaticDrill
             || block == Blocks.duo || block == Blocks.scatter || block instanceof Conduit
-            || block == Blocks.graphitePress || block == Blocks.combustionGenerator
-            || block instanceof PowerNode || block == Blocks.duct || block == Blocks.berylliumWall
-            || block == Blocks.phaseWeaver || block == Blocks.overdriveProjector
+            || block instanceof GenericCrafter || block instanceof Separator || block instanceof Pump
+            || block instanceof LiquidRouter || block == Blocks.duct || block == Blocks.berylliumWall
+            || block == Blocks.overdriveProjector
             || block == Blocks.overdriveDome || block == Blocks.shockwaveTower;
     }
 
     private void drawMenu(byte[] labels, int[] icons, int selected,
-                          boolean previous, boolean next, boolean categories) {
-        target.buildCatalog(labels, icons, selected, previous, next, categories);
+                            boolean previous, boolean next, int catalog) {
+        target.buildCatalog(labels, icons, selected, previous, next, catalog);
         lastMenu = labels;
     }
 }
