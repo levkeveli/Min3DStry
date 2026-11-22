@@ -48,6 +48,34 @@ has_docker_devkitarm() {
     docker image inspect devkitpro/devkitarm:latest >/dev/null 2>&1
 }
 
+build_teavm_loader() {
+  local upstream="${UPSTREAM_MINDUSTRY:-}"
+  if [[ -z "$upstream" || ! -d "$upstream" ]]; then
+    echo 'loader: set UPSTREAM_MINDUSTRY to the pinned Mindustry checkout.' >&2
+    return 1
+  fi
+  local server="${MINDUSTRY_SERVER_JAR:-$(dirname "$upstream")/server-release.jar}"
+  local arc="${ARC_CHECKOUT:-$(dirname "$upstream")/Arc}"
+  local gradle="${GRADLE_BIN:-}"
+  if [[ -z "$gradle" && -x "$upstream/gradlew" ]]; then
+    gradle="$upstream/gradlew"
+  fi
+  if [[ -z "$gradle" ]] && command -v gradle >/dev/null 2>&1; then
+    gradle="$(command -v gradle)"
+  fi
+  if [[ -z "$gradle" ]]; then
+    echo 'loader: set GRADLE_BIN or provide an executable upstream/gradlew.' >&2
+    return 1
+  fi
+  "$gradle" --no-daemon --console=plain -p research/upstream-runtime \
+    "-PupstreamCheckout=$upstream" \
+    "-PreferenceJar=$server" \
+    "-ParcCheckout=$arc" \
+    -Pprobe=save-rows generateC
+  bash tools/build_teavm_loader.sh \
+    research/upstream-runtime/build/generated/teavm/c build/teavm-loader
+}
+
 case "${1:-}" in
   doctor)
     git --version
@@ -75,16 +103,36 @@ case "${1:-}" in
       echo '3DS emulator (azahar) not installed.'
     fi
     ;;
+  loader)
+    build_teavm_loader
+    ;;
   build)
+    make_args=()
+    if [[ -n "${UPSTREAM_MINDUSTRY:-}" && -d "${UPSTREAM_MINDUSTRY:-}" ]] &&
+        has_native_devkitarm; then
+      if [[ ! -f build/teavm-loader/libm3dsloader.a ||
+            "${M3DS_REBUILD_LOADER:-0}" == "1" ]]; then
+        build_teavm_loader
+      fi
+      make_args+=("TEAVM_LOADER_DIR=$PWD/build/teavm-loader")
+    fi
     if has_native_devkitarm; then
       if [[ -z "${DEVKITARM:-}" && -f "/opt/devkitpro/3dsvars.sh" ]]; then
         # shellcheck disable=SC1091
         source /opt/devkitpro/3dsvars.sh
       fi
-      make
+      make "${make_args[@]}"
     elif has_docker_devkitarm; then
-      docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/work" -w /work devkitpro/devkitarm:latest \
-        bash -lc 'source /opt/devkitpro/3dsvars.sh && make'
+      if [[ -f build/teavm-loader/libm3dsloader.a ]]; then
+        docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/work" -w /work \
+          -e TEAVM_LOADER_DIR=/work/build/teavm-loader \
+          devkitpro/devkitarm:latest bash -lc \
+          'source /opt/devkitpro/3dsvars.sh && make TEAVM_LOADER_DIR=/work/build/teavm-loader'
+      else
+        docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/work" -w /work \
+          devkitpro/devkitarm:latest bash -lc \
+          'source /opt/devkitpro/3dsvars.sh && make'
+      fi
     else
       echo 'build: devkitARM is not installed locally and devkitpro/devkitarm:latest is unavailable in Docker.' >&2
       exit 2
@@ -282,7 +330,7 @@ case "${1:-}" in
     exit 2
     ;;
   *)
-    echo 'Usage: ./dev.sh doctor|build|test|emu-test|poc|run|device|package|status' >&2
+    echo 'Usage: ./dev.sh doctor|loader|build|test|emu-test|poc|run|device|package|status' >&2
     exit 2
     ;;
 esac

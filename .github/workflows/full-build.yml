@@ -9,6 +9,9 @@ on:
       - "Makefile"
       - "tools/build_sprite_atlas.py"
       - "tests/assets/**"
+      - "research/upstream-runtime/**"
+      - "tools/build_teavm_loader.sh"
+      - "tests/platform/embed_loader_smoke.c"
       - ".github/workflows/full-build.yml"
   push:
     branches: [main]
@@ -18,6 +21,9 @@ on:
       - "Makefile"
       - "tools/build_sprite_atlas.py"
       - "tests/assets/**"
+      - "research/upstream-runtime/**"
+      - "tools/build_teavm_loader.sh"
+      - "tests/platform/embed_loader_smoke.c"
       - ".github/workflows/full-build.yml"
   workflow_dispatch:
 
@@ -38,7 +44,39 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Build with pinned devkitARM image
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Fetch pinned upstream source, server JAR and Arc
+        run: |
+          git clone --depth 1 --branch v160.8 \
+            https://github.com/Anuken/Mindustry.git "$RUNNER_TEMP/Mindustry"
+          test "$(git -C "$RUNNER_TEMP/Mindustry" rev-parse HEAD)" = \
+            "19a0f40d44514f4802a8b79770456e7e32e34da0"
+          curl --fail --silent --show-error --location \
+            https://github.com/Anuken/Mindustry/releases/download/v160.8/server-release.jar \
+            -o "$RUNNER_TEMP/server-release.jar"
+          git clone --filter=blob:none --no-checkout \
+            https://github.com/Anuken/Arc.git "$RUNNER_TEMP/Arc"
+          git -C "$RUNNER_TEMP/Arc" fetch --depth 1 origin \
+            7445105cd2683daf5b9ac7033ebb07265d3e814d
+          git -C "$RUNNER_TEMP/Arc" checkout --detach FETCH_HEAD
+          test "$(git -C "$RUNNER_TEMP/Arc" rev-parse HEAD)" = \
+            "7445105cd2683daf5b9ac7033ebb07265d3e814d"
+
+      - name: Generate TeaVM loader C
+        run: |
+          bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime \
+            --no-daemon --console=plain \
+            "-Dorg.gradle.jvmargs=-Xmx3g" \
+            "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" \
+            "-PreferenceJar=$RUNNER_TEMP/server-release.jar" \
+            "-ParcCheckout=$RUNNER_TEMP/Arc" \
+            -Pprobe=save-rows generateC
+
+      - name: Build with embedded loader
         run: |
           image=devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5
           docker_numa_args=()
@@ -52,7 +90,9 @@ jobs:
             source /opt/devkitpro/3dsvars.sh
             python3 --version
             tex3ds --version
-            make PYTHON=python3
+            bash tools/build_teavm_loader.sh \
+              research/upstream-runtime/build/generated/teavm/c build/teavm-loader
+            make PYTHON=python3 TEAVM_LOADER_DIR=/work/build/teavm-loader
             test -s build/min3dstry.3dsx
             test -s build/min3dstry.smdh
             ls -l build/min3dstry.3dsx
