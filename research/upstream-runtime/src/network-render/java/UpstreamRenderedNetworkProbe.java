@@ -28,6 +28,7 @@ import mindustry.world.blocks.units.UnitFactory;
 import mindustry.world.Block;
 import mindustry.type.Category;
 import mindustry.world.blocks.defense.turrets.BaseTurret;
+import mindustry.world.blocks.liquid.Conduit.ConduitBuild;
 import mindustry.world.blocks.payloads.BuildPayload;
 import mindustry.world.blocks.payloads.PayloadConveyor.PayloadConveyorBuild;
 import mindustry.world.blocks.payloads.UnitPayload;
@@ -184,7 +185,7 @@ public final class UpstreamRenderedNetworkProbe {
         Time.setInternalTime(Time.getInternalTime() + delta);
         try {
             for (var build : Groups.build) {
-                if (build instanceof Conduit.ConduitBuild conduit) conduit.advanceLiquidDraw();
+                if (build instanceof ConduitBuild conduit) conduit.advanceLiquidDraw();
             }
             for (var unit : Groups.unit) {
                 if (unit instanceof UnitWaterMove boat) boat.advanceWake();
