@@ -579,7 +579,10 @@ float m3ds_terrain_draw_objective(const char *label, const int32_t *characters, 
     set_world_blend(0);
     set_world_mix(0, 0);
     float x = screen_left + 4.0f;
-    C2D_DrawRectSolid(x, y, 0.5f, inset + text_width + 6.0f, panel_height, C2D_Color32(24, 27, 32, 224));
+    if (!C2D_DrawRectSolid(x, y, 0.5f, inset + text_width + 6.0f, panel_height, C2D_Color32(24, 27, 32, 224))) {
+        return 240.0f;
+    }
+    draws++;
     if (has_icon) {
         float icon_scale = 20.0f / fmaxf((float)width, (float)height);
         float icon_width = width * icon_scale, icon_height = height * icon_scale;

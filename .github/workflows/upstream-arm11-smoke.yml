@@ -105,10 +105,10 @@ jobs:
       - name: Fetch pinned upstream v160.8 source, server JAR, and Arc
         run: |
           args=(--mindustry --server-jar)
-          if [ "${{ matrix.probe }}" = "resource" ] || [ "${{ matrix.probe }}" = "executor" ] || [ "${{ matrix.probe }}" = "campaign-settings" ] || [ "${{ matrix.probe }}" = "campaign-content" ] || [ "${{ matrix.probe }}" = "campaign-research" ] || [ "${{ matrix.probe }}" = "campaign-slot-meta" ] || [ "${{ matrix.probe }}" = "campaign-sector-info" ] || [ "${{ matrix.probe }}" = "campaign-planet" ] || [ "${{ matrix.probe }}" = "campaign-sector-state" ] || [ "${{ matrix.probe }}" = "campaign-launch" ] || [ "${{ matrix.probe }}" = "campaign-saves" ] || [ "${{ matrix.probe }}" = "campaign-slot-discovery" ] || [ "${{ matrix.probe }}" = "wave-routing" ]; then
+          if [ "${{ matrix.probe }}" = "resource" ] || [ "${{ matrix.probe }}" = "executor" ] || [ "${{ matrix.probe }}" = "campaign-settings" ] || [ "${{ matrix.probe }}" = "campaign-content" ] || [ "${{ matrix.probe }}" = "campaign-research" ] || [ "${{ matrix.probe }}" = "campaign-slot-meta" ] || [ "${{ matrix.probe }}" = "campaign-sector-info" ] || [ "${{ matrix.probe }}" = "campaign-planet" ] || [ "${{ matrix.probe }}" = "campaign-sector-state" ] || [ "${{ matrix.probe }}" = "campaign-launch" ] || [ "${{ matrix.probe }}" = "campaign-capture" ] || [ "${{ matrix.probe }}" = "campaign-saves" ] || [ "${{ matrix.probe }}" = "campaign-slot-discovery" ] || [ "${{ matrix.probe }}" = "wave-routing" ]; then
             args+=(--arc)
           fi
-          if [ "${{ matrix.probe }}" = "wave-routing" ] || [ "${{ matrix.probe }}" = "campaign-slot-meta" ] || [ "${{ matrix.probe }}" = "campaign-launch" ] || [ "${{ matrix.probe }}" = "campaign-slot-discovery" ]; then
+          if [ "${{ matrix.probe }}" = "wave-routing" ] || [ "${{ matrix.probe }}" = "campaign-slot-meta" ] || [ "${{ matrix.probe }}" = "campaign-launch" ] || [ "${{ matrix.probe }}" = "campaign-capture" ] || [ "${{ matrix.probe }}" = "campaign-slot-discovery" ]; then
             args+=(--glacier)
           fi
           bash .github/scripts/fetch_upstream_v160.sh "${args[@]}"
@@ -118,7 +118,7 @@ jobs:
         run: |
           set -o pipefail
           extra=()
-          if [ "${{ matrix.probe }}" = "resource" ] || [ "${{ matrix.probe }}" = "executor" ] || [ "${{ matrix.probe }}" = "campaign-settings" ] || [ "${{ matrix.probe }}" = "campaign-content" ] || [ "${{ matrix.probe }}" = "campaign-research" ] || [ "${{ matrix.probe }}" = "campaign-slot-meta" ] || [ "${{ matrix.probe }}" = "campaign-sector-info" ] || [ "${{ matrix.probe }}" = "campaign-planet" ] || [ "${{ matrix.probe }}" = "campaign-sector-state" ] || [ "${{ matrix.probe }}" = "campaign-launch" ] || [ "${{ matrix.probe }}" = "campaign-saves" ] || [ "${{ matrix.probe }}" = "campaign-slot-discovery" ] || [ "${{ matrix.probe }}" = "wave-routing" ]; then
+          if [ "${{ matrix.probe }}" = "resource" ] || [ "${{ matrix.probe }}" = "executor" ] || [ "${{ matrix.probe }}" = "campaign-settings" ] || [ "${{ matrix.probe }}" = "campaign-content" ] || [ "${{ matrix.probe }}" = "campaign-research" ] || [ "${{ matrix.probe }}" = "campaign-slot-meta" ] || [ "${{ matrix.probe }}" = "campaign-sector-info" ] || [ "${{ matrix.probe }}" = "campaign-planet" ] || [ "${{ matrix.probe }}" = "campaign-sector-state" ] || [ "${{ matrix.probe }}" = "campaign-launch" ] || [ "${{ matrix.probe }}" = "campaign-capture" ] || [ "${{ matrix.probe }}" = "campaign-saves" ] || [ "${{ matrix.probe }}" = "campaign-slot-discovery" ] || [ "${{ matrix.probe }}" = "wave-routing" ]; then
             extra=("-ParcCheckout=$RUNNER_TEMP/Arc")
           fi
           probe_args=()
@@ -126,6 +126,8 @@ jobs:
             probe_args=("-PprobeArgs=$RUNNER_TEMP/glacier.msav")
           elif [ "${{ matrix.probe }}" = "campaign-slot-meta" ] || [ "${{ matrix.probe }}" = "campaign-launch" ]; then
             probe_args=("-PprobeArgs=$RUNNER_TEMP/glacier.msav $RUNNER_TEMP/sector-serpulo-15.msav")
+          elif [ "${{ matrix.probe }}" = "campaign-capture" ]; then
+            probe_args=("-PprobeArgs=$RUNNER_TEMP/glacier.msav")
           elif [ "${{ matrix.probe }}" = "campaign-slot-discovery" ]; then
             probe_args=("-PprobeArgs=$RUNNER_TEMP/slot-discovery-base $RUNNER_TEMP/glacier.msav")
           fi
@@ -169,6 +171,9 @@ jobs:
           if [ "${{ matrix.probe }}" = "campaign-launch" ]; then
             grep -F 'UPSTREAM_CAMPAIGN_LAUNCH slot=sector-serpulo-15.msav' "$RUNNER_TEMP/probe.log"
             grep -F 'version=13 sector=15 wave=5 world=150x250 launch=ok' "$RUNNER_TEMP/probe.log"
+          fi
+          if [ "${{ matrix.probe }}" = "campaign-capture" ]; then
+            grep -F 'UPSTREAM_CAMPAIGN_CAPTURE sector=15 captured=ok waves=off attack=off event=ok persisted=ok' "$RUNNER_TEMP/probe.log"
           fi
           if [ "${{ matrix.probe }}" = "campaign-saves" ]; then
             grep -F 'UPSTREAM_CAMPAIGN_SAVES path=tmp sector=sector-serpulo-15.msav' "$RUNNER_TEMP/probe.log"
@@ -216,7 +221,7 @@ jobs:
 
       - name: Build ARM11 probe with pinned devkitARM image
         env:
-          M3DS_RELAX_POINTER_TYPES: ${{ matrix.probe == 'campaign-slot-discovery' && '1' || '0' }}
+          M3DS_RELAX_POINTER_TYPES: ${{ (matrix.probe == 'campaign-slot-discovery' || matrix.probe == 'campaign-capture') && '1' || '0' }}
         run: |
           image=devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5
           docker_numa_args=()
@@ -1081,3 +1086,23 @@ jobs:
               research/upstream-runtime/build/probe-3ds-singleplayer'
           test -s research/upstream-runtime/build/probe-3ds-singleplayer/upstream-probe.3dsx
           test -s research/upstream-runtime/build/probe-3ds-singleplayer/upstream-probe.elf
+
+      - name: Resume and save stock PC campaign slots on the JVM
+        shell: bash
+        run: |
+          set -o pipefail
+          check_dir=$(mktemp -d "$RUNNER_TEMP/campaign-resume.XXXXXX")
+          fixtures="$check_dir/fixtures"
+          python3 tools/campaign_resume_fixtures.py --server "$RUNNER_TEMP/server-release.jar" --output "$fixtures"
+          mkdir -p "$fixtures/planets"
+          git -C "$RUNNER_TEMP/Mindustry" show HEAD:core/assets/bundles/bundle.properties > "$fixtures/bundle.properties"
+          git -C "$RUNNER_TEMP/Mindustry" show HEAD:core/assets/planets/serpulo.json > "$fixtures/planets/serpulo.json"
+          bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime \
+            --no-daemon --console=plain \
+            "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" \
+            "-PreferenceJar=$RUNNER_TEMP/server-release.jar" \
+            "-ParcCheckout=$RUNNER_TEMP/Arc" \
+            -Pprobe=singleplayer runCampaignResumeJvm "--args=$fixtures $check_dir/save" \
+            | tee "$RUNNER_TEMP/campaign-resume-jvm.log"
+          grep -F 'UPSTREAM_CAMPAIGN_RESUME_REFERENCE slots=2 groundZero=170 frozenForest=64 backup=ok' \
+            "$RUNNER_TEMP/campaign-resume-jvm.log"

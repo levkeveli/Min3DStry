@@ -68,6 +68,48 @@ Boot the probe in Azahar with the desired console model. The top screen and the 
 
 The probe provides libctru event waits, clocks, debug output, and a fully backed scratch heap. It aligns dynamic class entries on ARM so TeaVM's compressed references can represent them. It uses TeaVM's small existing character-conversion fallback and a libctru SD adapter for Arc file streams. Full game runtime services, Unicode coverage, physical hardware, gameplay and multiplayer are unverified. See [the port plan](../../docs/upstream-port.md).
 
+## Combined offline and stock-server build
+
+The experimental `unified` target compiles the offline app and the graphical
+v160.8 network client into the same TeaVM program. Build it with the pinned
+Mindustry and Arc checkouts, server JAR, and official v160.8 `assets.jar`.
+
+```sh
+gradle -PupstreamCheckout=/path/to/Mindustry -PreferenceJar=/path/to/server-release.jar \
+    -ParcCheckout=/path/to/Arc -Pprobe=unified generateC
+python3 arm11/prepare_terrain_assets.py --assets /path/to/assets.jar \
+    --server /path/to/server-release.jar --singleplayer --output-dir build/terrain-assets
+bash arm11/build.sh build/generated/teavm/c build/unified-3ds --unified build/terrain-assets
+```
+
+The resulting `build/unified-3ds/upstream-probe.3dsx` starts offline play by
+default. To join, put the host and port on one line in
+`sd:/3ds/min3dstry/server-endpoint.txt` and hold **X** when launching.
+If the endpoint file is absent, holding **X** starts offline play.
+Argument-capable launchers can also pass `--join [endpoint-file]`.
+The unified client uses its packaged v160.8 atlas in both modes. Restart the
+ROM to switch modes. Menu and browser integration are tracked in
+[#40](https://github.com/levkeveli/Min3DStry/issues/40) and
+[#44](https://github.com/levkeveli/Min3DStry/issues/44).
+From the repository root, replay the stock-server join and input with
+`python3 tools/verify_upstream_live_net.py --rom /path/to/upstream-probe.3dsx
+--server /path/to/server-release.jar --controls --controls-replay --unified-boot`.
+The controls verifier runs `runwave` on the stock server and requires
+`UPSTREAM_LIVE_CONTROLS_STATE wave=2` in the client log before checking exit.
+
+The [combined devkitARM test build](https://github.com/levkeveli/Min3DStry/actions/runs/45060811199)
+also includes the campaign launch, research, and defeat/retry branches.
+Both Azahar 2126.2 profiles ran the same ROM to capture Ground Zero,
+research Router, launch Frozen Forest, and save both sectors. In separate
+boots, both profiles joined unmodified v160.8 Glacier, synchronized both
+movement inputs and the next wave, and exited with **START**. The server
+logged a departure in each session. The build's offline executable and
+configured memory subtotal is 66.49 MiB, above the Original 3DS 64 MiB
+application budget before remaining runtime allocations. Physical cross-play
+and the separate Old/New hardware budgets remain open in
+[#43](https://github.com/levkeveli/Min3DStry/issues/43) and
+[#44](https://github.com/levkeveli/Min3DStry/issues/44).
+
 ## Upstream map metadata probe
 
 Add `-Pprobe=map` to the Gradle command to extract the original Glacier map from the pinned Git revision at build time. The fixture adapter supplies those exact bytes to upstream `MapIO.createMap` through a buffered stream. This keeps Arc's file initialization and executor dependencies outside the metadata test. Run the ARM11 build command with a new output directory after switching probes.

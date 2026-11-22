@@ -27,14 +27,16 @@
       "category": "Foundation & Tooling",
       "name": "ARM11 .3dsx Build & Azahar Harness",
       "weight": 3,
-      "stage": "emulator-tested",
+      "stage": "hardware-verified",
       "issue": 3,
       "evidence": [
         "Makefile",
         "tools/verify_azahar.py",
         "research/upstream-runtime/arm11/build.sh",
         "tools/build_teavm_loader.sh",
-        "tools/verify_upstream_singleplayer.py"
+        "tools/verify_upstream_singleplayer.py",
+        "docs/hardware/evidence/new3ds-xl-de3e249.md",
+        "docs/hardware/evidence/old3ds-xl-a4a9a96.md"
       ]
     },
     {
@@ -58,7 +60,9 @@
       "issue": 6,
       "evidence": [
         "tools/device_deploy.py",
-        "docs/hardware/deployment-and-logs.md"
+        "docs/hardware/deployment-and-logs.md",
+        "docs/hardware/evidence/old3ds-xl-a4a9a96.md",
+        "docs/hardware/evidence/new3ds-xl-de3e249.md"
       ]
     },
     {
@@ -66,11 +70,13 @@
       "category": "Hardware & Platform",
       "name": "Original / New 3DS Hardware Probe",
       "weight": 4,
-      "stage": "emulator-tested",
+      "stage": "hardware-verified",
       "issue": 2,
       "evidence": [
         "src/platform/3ds/hardware_probe_3ds.c",
-        "docs/hardware/detection.md"
+        "docs/hardware/detection.md",
+        "docs/hardware/evidence/old3ds-xl-a4a9a96.md",
+        "docs/hardware/evidence/new3ds-xl-de3e249.md"
       ]
     },
     {
@@ -78,7 +84,7 @@
       "category": "Hardware & Platform",
       "name": "64 MiB Old 3DS Memory Allocator",
       "weight": 3,
-      "stage": "emulator-tested",
+      "stage": "hardware-verified",
       "issue": 36,
       "evidence": [
         "include/platform/memory_budget.h",
@@ -86,7 +92,9 @@
         "tests/platform/test_memory_budget.c",
         "docs/hardware/memory-budget.md",
         "research/upstream-runtime/arm11/prepare.py",
-        "research/upstream-runtime/arm11/compact_callsites.py"
+        "research/upstream-runtime/arm11/compact_callsites.py",
+        "docs/hardware/evidence/new3ds-xl-de3e249.md",
+        "docs/hardware/evidence/old3ds-xl-a4a9a96.md"
       ]
     },
     {
@@ -94,7 +102,7 @@
       "category": "Hardware & Platform",
       "name": "Dual-Core / N3DS AppCore Scheduling",
       "weight": 3,
-      "stage": "emulator-tested",
+      "stage": "hardware-verified",
       "issue": 37,
       "evidence": [
         "include/platform/worker_pool.h",
@@ -103,7 +111,9 @@
         "src/platform/worker_benchmark.c",
         "tests/platform/test_worker_pool.c",
         "tests/platform/test_worker_benchmark.c",
-        "docs/hardware/worker-scheduling.md"
+        "docs/hardware/worker-scheduling.md",
+        "docs/hardware/evidence/new3ds-xl-de3e249.md",
+        "docs/hardware/evidence/old3ds-xl-a4a9a96.md"
       ]
     },
     {
@@ -116,7 +126,8 @@
       "evidence": [
         "src/render/scene_2d.c",
         "docs/rendering/citro2d-prototype.md"
-      ]
+      ],
+      "hardware_test": "HARDWARE_TEST_PENDING"
     },
     {
       "id": "sprite-atlas-pipeline",
@@ -132,7 +143,8 @@
         "tests/tools/VerifyUpstreamWorldAtlas.java",
         "docs/rendering/asset-pipeline.md",
         "docs/rendering/azahar-atlas-evidence.md"
-      ]
+      ],
+      "hardware_test": "HARDWARE_TEST_PENDING"
     },
     {
       "id": "world-sprite-renderer",
@@ -150,7 +162,8 @@
         "tools/verify_upstream_live_net.py",
         "tests/tools/test_verify_world_atlas.py",
         "docs/rendering/asset-pipeline.md"
-      ]
+      ],
+      "hardware_test": "HARDWARE_TEST_PENDING"
     },
     {
       "id": "lighting-effects-camera",
@@ -166,7 +179,8 @@
         "src/platform/3ds/main_3ds.c",
         "tests/render/test_scene_2d.c",
         "docs/rendering/citro2d-prototype.md"
-      ]
+      ],
+      "hardware_test": "HARDWARE_TEST_PENDING"
     },
     {
       "id": "parity-test-harness",
@@ -197,7 +211,8 @@
         "docs/porting/factory-logistics.md",
         "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerSession.java",
         "docs/gameplay/offline-singleplayer.md"
-      ]
+      ],
+      "hardware_test": "HARDWARE_TEST_PENDING"
     },
     {
       "id": "production-power-liquids",
@@ -211,7 +226,8 @@
         "research/upstream-runtime/src/gameplay/java/UpstreamProductionTickProbe.java",
         "docs/porting/production-power-liquids.md",
         "research/upstream-runtime/README.md"
-      ]
+      ],
+      "hardware_test": "HARDWARE_TEST_PENDING"
     },
     {
       "id": "combat-waves-ai",
@@ -237,7 +253,8 @@
         "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerSession.java",
         "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerApp.java",
         "docs/gameplay/offline-singleplayer.md"
-      ]
+      ],
+      "hardware_test": "HARDWARE_TEST_PENDING"
     },
     {
       "id": "touch-build-palette",
@@ -255,7 +272,8 @@
         "research/upstream-runtime/arm11/m3ds_input.c",
         "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerInput.java",
         "docs/gameplay/offline-singleplayer.md"
-      ]
+      ],
+      "hardware_test": "HARDWARE_TEST_PENDING"
     },
     {
       "id": "hud-menus-minimap",
@@ -283,15 +301,18 @@
         "research/upstream-runtime/src/network-render/java/UpstreamStatusHud.java",
         "docs/rendering/live-hud.md",
         "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerApp.java",
-        "docs/gameplay/offline-singleplayer.md"
-      ]
+        "docs/gameplay/offline-singleplayer.md",
+        "research/upstream-runtime/src/content/java/UpstreamStatusRows.java",
+        "research/upstream-runtime/src/status-hud/java/UpstreamStatusRowsProbe.java"
+      ],
+      "hardware_test": "HARDWARE_TEST_PENDING"
     },
     {
       "id": "msav-map-save-compat",
       "category": "Maps, Campaign & Saves",
       "name": "Upstream .msav Map & Save Reader/Writer",
       "weight": 6,
-      "stage": "emulator-tested",
+      "stage": "hardware-verified",
       "issue": 28,
       "evidence": [
         "research/upstream-runtime/README.md",
@@ -326,7 +347,8 @@
         "docs/porting/embed-loader.md",
         "research/upstream-runtime/src/world/java/port/WorldReflectionPolicy.java",
         "docs/gameplay/offline-singleplayer.md",
-        "tools/verify_upstream_singleplayer.py"
+        "tools/verify_upstream_singleplayer.py",
+        "docs/hardware/evidence/new3ds-xl-de3e249.md"
       ]
     },
     {
@@ -350,6 +372,7 @@
         "research/upstream-runtime/src/campaign-saves/java/UpstreamCampaignSavesProbe.java",
         "research/upstream-runtime/src/campaign-launch/java/UpstreamCampaignLaunchProbe.java",
         "research/upstream-runtime/src/campaign-sector-state/java/UpstreamCampaignSectorStateProbe.java",
+        "research/upstream-runtime/src/campaign-capture/java/UpstreamCampaignCaptureProbe.java",
         "research/upstream-runtime/src/campaign-planet/java/UpstreamCampaignPlanetStateProbe.java",
         "research/upstream-runtime/src/campaign-sector-info/java/UpstreamCampaignSectorInfoProbe.java",
         "research/upstream-runtime/src/campaign-sector-info/java/port/SectorInfoReflectionPolicy.java",
@@ -367,8 +390,11 @@
         "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerApp.java",
         "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerSession.java",
         "docs/gameplay/offline-singleplayer.md",
+        "research/upstream-runtime/src/unified/java/UpstreamUnifiedApp.java",
+        "research/upstream-runtime/README.md",
         "research/upstream-runtime/src/campaign-saves-load/java/UpstreamCampaignSavesLoadProbe.java"
-      ]
+      ],
+      "hardware_test": "HARDWARE_TEST_PENDING"
     },
     {
       "id": "ndsp-sfx-music",
@@ -403,7 +429,8 @@
         "docs/audio/music-assets.md",
         "docs/audio/music-streaming.md",
         "tools/stage_music_assets.py"
-      ]
+      ],
+      "hardware_test": "HARDWARE_TEST_PENDING"
     },
     {
       "id": "crossplay-net-protocol",
@@ -421,8 +448,10 @@
         "docs/net/upstream-protocol.md",
         "tools/verify_upstream_live_net.py",
         "research/upstream-runtime/arm11/m3ds_net_bridge.c",
+        "research/upstream-runtime/src/unified/java/UpstreamUnifiedApp.java",
         "research/upstream-runtime/README.md"
-      ]
+      ],
+      "hardware_test": "HARDWARE_TEST_PENDING"
     },
     {
       "id": "physical-hardware-parity",
@@ -431,7 +460,8 @@
       "weight": 5,
       "stage": "planned",
       "issue": 43,
-      "evidence": []
+      "evidence": [],
+      "hardware_test": "HARDWARE_TEST_PENDING"
     }
   ]
 }

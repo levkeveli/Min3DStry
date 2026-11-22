@@ -23,6 +23,7 @@ ALL_PROBES = [
     "campaign-planet",
     "campaign-sector-state",
     "campaign-launch",
+    "campaign-capture",
     "campaign-saves",
     "campaign-slot-discovery",
     "wave-routing",
@@ -37,6 +38,7 @@ NARROW_CAMPAIGN_PROBES = {
     "campaign-planet",
     "campaign-sector-state",
     "campaign-launch",
+    "campaign-capture",
     "campaign-saves",
     "campaign-slot-discovery",
 }

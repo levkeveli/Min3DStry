@@ -71,7 +71,11 @@ public final class UpstreamRenderedNetworkProbe {
 
     public static void main(String[] args) throws IOException, InterruptedException {
         var endpoint = UpstreamLiveNetworkProbe.endpointFile(args);
-        var view = new UpstreamRenderedNetworkProbe(endpoint.sibling("sprites.aatls"));
+        run(endpoint, endpoint.sibling("sprites.aatls"));
+    }
+
+    static void run(Fi endpoint, Fi atlas) throws IOException, InterruptedException {
+        var view = new UpstreamRenderedNetworkProbe(atlas);
         int language = view.target.mountAssets();
         var preference = endpoint.sibling("locale.txt");
         String requested = preference.exists() && preference.length() <= 16 ? preference.readString("UTF-8").trim() : "";
@@ -289,7 +293,8 @@ public final class UpstreamRenderedNetworkProbe {
             lastStatus = rows;
             System.out.println("UPSTREAM_STATUS_HUD wave=" + Vars.state.wave
                 + " enemies=" + Math.max(0, Vars.state.enemies)
-                + " copper=" + UpstreamStatusHud.copper());
+                + " copper=" + UpstreamStatusHud.copper()
+                + " rows=" + rows.size());
         }
         float y = 4f;
         for (int i = 0; i < rows.size() && y < 240f; i++) {

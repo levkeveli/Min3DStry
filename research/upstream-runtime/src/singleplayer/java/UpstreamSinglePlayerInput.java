@@ -8,6 +8,8 @@ final class UpstreamSinglePlayerInput {
     static final int PAUSE_PRESSED = 1 << 20;
     static final int WAVE_PRESSED = 1 << 21;
     static final int SAVE_PRESSED = 1 << 22;
+    static final int CUSTOM_GAME_HELD = 1 << 23;
+    static final int JOIN_HELD = 1 << 25;
 
     private UpstreamSinglePlayerInput() {
     }

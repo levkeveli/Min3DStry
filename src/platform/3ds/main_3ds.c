@@ -13,9 +13,21 @@
 #include "audio/audio_mixer.h"
 #include "audio/audio_registry.h"
 #include "build-config.h"
+#if defined(__has_include)
+#if __has_include("build-info.h")
+#include "build-info.h"
+#endif
+#endif
+#ifndef M3DS_BUILD_COMMIT
+#define M3DS_BUILD_COMMIT "unknown"
+#endif
+#ifndef M3DS_BUILD_DIRTY
+#define M3DS_BUILD_DIRTY -1
+#endif
 #include "citro2d_backend.h"
 #include "ndsp_backend.h"
 #include "platform/hardware_profile.h"
+#include "platform/frame_stats.h"
 #include "platform/memory_budget.h"
 #include "platform/msav_world.h"
 #include "platform/save_slot.h"
@@ -29,6 +41,7 @@
 #include "render/save_world_preview.h"
 #include "render/scene_2d.h"
 #include "sim/parity_scenario.h"
+#include "ui/main_menu.h"
 #include "ui/pause_menu.h"
 #include "ui/pause_overlay.h"
 #include "ui/touch_controls.h"
@@ -141,6 +154,9 @@ int main(int argc, char *argv[]) {
         m3ds_hardware_profile_format(&hw_profile, hw_summary, sizeof(hw_summary));
     }
     char dbg_line[320];
+    snprintf(dbg_line, sizeof(dbg_line), "[MIN3DSTRY] BUILD commit=%s dirty=%d\n",
+             M3DS_BUILD_COMMIT, M3DS_BUILD_DIRTY);
+    m3ds_emit_debug_line(log_socket, dbg_line);
     snprintf(dbg_line, sizeof(dbg_line), "[MIN3DSTRY] HW: %s\n", hw_summary);
     m3ds_emit_debug_line(log_socket, dbg_line);
 
@@ -484,6 +500,10 @@ int main(int argc, char *argv[]) {
 
     M3dsDrawStats stats = {0};
     bool emitted_frame_diag = false;
+    /* Keep this off main's stack: the embedded TeaVM loader runs from this
+     * frame, and a 1 KiB local exhausts its stack budget on hardware. */
+    static M3dsFrameStats frame_stats;
+    m3ds_frame_stats_reset(&frame_stats);
     uint32_t prev_delivered = factory.items_delivered;
     uint32_t prev_enemies_spawned = factory.enemies_spawned;
     uint32_t prev_shots_fired = factory.shots_fired;
@@ -496,15 +516,153 @@ int main(int argc, char *argv[]) {
     M3dsTouchAction touch_held = M3DS_TOUCH_ACTION_NONE;
     M3dsPauseMenu pause_menu;
     m3ds_pause_menu_init(&pause_menu);
+    M3dsMainMenu main_menu;
+    m3ds_main_menu_init(&main_menu);
+    main_menu.muted = m3ds_audio_mixer_is_muted(&audio_mixer);
+    main_menu.lighting = m3ds_scene_lighting(&scene);
     snprintf(dbg_line, sizeof(dbg_line),
              "[MIN3DSTRY] MENU state=closed actions=%u\n",
              (unsigned)M3DS_PAUSE_ACTION_COUNT);
+    m3ds_emit_debug_line(log_socket, dbg_line);
+    snprintf(dbg_line, sizeof(dbg_line),
+             "[MIN3DSTRY] MAIN_MENU screen=%s selected=%s items=%u\n",
+             m3ds_main_menu_screen_name(&main_menu),
+             m3ds_main_menu_key(&main_menu, main_menu.selected),
+             (unsigned)m3ds_main_menu_count(&main_menu));
     m3ds_emit_debug_line(log_socket, dbg_line);
 
     while (aptMainLoop()) {
         hidScanInput();
         u32 kDown = hidKeysDown();
         u32 kHeld = hidKeysHeld();
+
+        if (main_menu.open) {
+            if (kDown & KEY_UP) {
+                m3ds_main_menu_move(&main_menu, -1);
+            }
+            if (kDown & KEY_DOWN) {
+                m3ds_main_menu_move(&main_menu, 1);
+            }
+            if (main_menu.screen == M3DS_MENU_SCREEN_CATALOG &&
+                (kDown & KEY_L || kDown & KEY_R)) {
+                m3ds_main_menu_catalog_switch(
+                    &main_menu, (kDown & KEY_L) ? 1 : -1);
+                snprintf(dbg_line, sizeof(dbg_line),
+                         "[MIN3DSTRY] MAIN_MENU catalog=%s count=%u\n",
+                         m3ds_catalog_category_name(main_menu.catalog_category),
+                         (unsigned)m3ds_main_menu_count(&main_menu));
+                m3ds_emit_debug_line(log_socket, dbg_line);
+            }
+            if (main_menu.screen == M3DS_MENU_SCREEN_CATALOG &&
+                (kDown & KEY_X)) {
+                m3ds_main_menu_catalog_filter_next(&main_menu, 1);
+                snprintf(dbg_line, sizeof(dbg_line),
+                         "[MIN3DSTRY] MAIN_MENU filter=%s count=%u\n",
+                         m3ds_catalog_filter_name(main_menu.catalog_category,
+                                                  main_menu.catalog_filter),
+                         (unsigned)m3ds_main_menu_count(&main_menu));
+                m3ds_emit_debug_line(log_socket, dbg_line);
+            }
+            if (main_menu.screen == M3DS_MENU_SCREEN_SCHEMATICS &&
+                (kDown & KEY_L || kDown & KEY_R)) {
+                m3ds_main_menu_schematics_toggle_source(&main_menu);
+                snprintf(dbg_line, sizeof(dbg_line),
+                         "[MIN3DSTRY] MAIN_MENU source=%s count=%u\n",
+                         main_menu.schematics_user ? "sd" : "builtin",
+                         (unsigned)m3ds_main_menu_count(&main_menu));
+                m3ds_emit_debug_line(log_socket, dbg_line);
+            }
+            if (kDown & KEY_B) {
+                const char *from_screen =
+                    m3ds_main_menu_screen_name(&main_menu);
+                unsigned from_index =
+                    main_menu.screen == M3DS_MENU_SCREEN_CATALOG
+                        ? main_menu.catalog_selected
+                        : (main_menu.screen == M3DS_MENU_SCREEN_SCHEMATICS
+                               ? main_menu.schematic_selected
+                               : main_menu.selected);
+                const char *from_key =
+                    m3ds_main_menu_key(&main_menu, from_index);
+                if (m3ds_main_menu_back(&main_menu)) {
+                    snprintf(dbg_line, sizeof(dbg_line),
+                             "[MIN3DSTRY] MAIN_MENU screen=%s selected=%s\n",
+                             from_screen, from_key);
+                    m3ds_emit_debug_line(log_socket, dbg_line);
+                }
+            }
+            if (kDown & KEY_A) {
+                const char *item_key =
+                    m3ds_main_menu_key(&main_menu, main_menu.selected);
+                M3dsMenuAction action = m3ds_main_menu_confirm(&main_menu);
+                switch (action) {
+                case M3DS_MENU_ACTION_PLAY_CAMPAIGN:
+                    m3ds_emit_debug_line(log_socket,
+                                         "[MIN3DSTRY] MAIN_MENU action=play.campaign\n");
+                    break;
+                case M3DS_MENU_ACTION_TOGGLE_MUTE:
+                    m3ds_audio_mixer_set_muted(&audio_mixer, main_menu.muted);
+                    snprintf(dbg_line, sizeof(dbg_line),
+                             "[MIN3DSTRY] MAIN_MENU action=settings.audio muted=%d\n",
+                             main_menu.muted ? 1 : 0);
+                    m3ds_emit_debug_line(log_socket, dbg_line);
+                    break;
+                case M3DS_MENU_ACTION_TOGGLE_LIGHTING:
+                    m3ds_scene_set_lighting(&scene, main_menu.lighting);
+                    snprintf(dbg_line, sizeof(dbg_line),
+                             "[MIN3DSTRY] MAIN_MENU action=settings.lighting lighting=%d\n",
+                             main_menu.lighting ? 1 : 0);
+                    m3ds_emit_debug_line(log_socket, dbg_line);
+                    break;
+                case M3DS_MENU_ACTION_RESET_CAMERA:
+                    m3ds_scene_reset_camera(&scene);
+                    m3ds_emit_debug_line(
+                        log_socket,
+                        "[MIN3DSTRY] MAIN_MENU action=settings.camera reset=1\n");
+                    break;
+                case M3DS_MENU_ACTION_QUIT:
+                    quit_requested = true;
+                    break;
+                case M3DS_MENU_ACTION_UNAVAILABLE:
+                    snprintf(dbg_line, sizeof(dbg_line),
+                             "[MIN3DSTRY] MAIN_MENU unavailable=%s\n", item_key);
+                    m3ds_emit_debug_line(log_socket, dbg_line);
+                    break;
+                default:
+                    if (main_menu.screen == M3DS_MENU_SCREEN_SCHEMATICS) {
+                        snprintf(
+                            dbg_line, sizeof(dbg_line),
+                            "[MIN3DSTRY] MAIN_MENU screen=schematics selected=%s detail=%d\n",
+                            m3ds_main_menu_key(&main_menu,
+                                               main_menu.schematic_selected),
+                            main_menu.schematic_detail ? 1 : 0);
+                    } else if (main_menu.screen == M3DS_MENU_SCREEN_CATALOG) {
+                        snprintf(
+                            dbg_line, sizeof(dbg_line),
+                            "[MIN3DSTRY] MAIN_MENU catalog=%s selected=%s detail=%d\n",
+                            m3ds_catalog_category_name(main_menu.catalog_category),
+                            m3ds_main_menu_key(&main_menu, main_menu.catalog_selected),
+                            main_menu.catalog_detail ? 1 : 0);
+                    } else {
+                        snprintf(dbg_line, sizeof(dbg_line),
+                                 "[MIN3DSTRY] MAIN_MENU screen=%s selected=%s\n",
+                                 m3ds_main_menu_screen_name(&main_menu),
+                                 m3ds_main_menu_key(&main_menu, main_menu.selected));
+                    }
+                    m3ds_emit_debug_line(log_socket, dbg_line);
+                    break;
+                }
+            }
+            if (kDown & KEY_START) {
+                quit_requested = true;
+            }
+            if (quit_requested) {
+                break;
+            }
+            /* While the title menu is open, no gameplay input is processed. */
+            kDown = 0;
+            kHeld = 0;
+            touch_held = M3DS_TOUCH_ACTION_NONE;
+        }
 
         if (kDown & KEY_TOUCH) {
             touchPosition touch;
@@ -779,6 +937,27 @@ int main(int argc, char *argv[]) {
             &backend, &scene.viewport, scene.paused, &overlay_stats);
         C3D_FrameEnd(0);
 
+        m3ds_frame_stats_sample(&frame_stats, svcGetSystemTick());
+        if (m3ds_frame_stats_ready(&frame_stats)) {
+            M3dsFrameStatsSummary frame_summary;
+            if (m3ds_frame_stats_summarize(&frame_stats, SYSCLOCK_ARM11,
+                                           &frame_summary)) {
+                snprintf(
+                    dbg_line, sizeof(dbg_line),
+                    "[MIN3DSTRY] BENCH fps=%lu.%02lu avg_ms=%lu.%02lu "
+                    "p95_ms=%lu.%02lu frames=%lu scenario=factory_demo\n",
+                    (unsigned long)(frame_summary.fps_x100 / 100u),
+                    (unsigned long)(frame_summary.fps_x100 % 100u),
+                    (unsigned long)(frame_summary.avg_ms_x100 / 100u),
+                    (unsigned long)(frame_summary.avg_ms_x100 % 100u),
+                    (unsigned long)(frame_summary.p95_ms_x100 / 100u),
+                    (unsigned long)(frame_summary.p95_ms_x100 % 100u),
+                    (unsigned long)frame_summary.frames);
+                m3ds_emit_debug_line(log_socket, dbg_line);
+            }
+            m3ds_frame_stats_reset(&frame_stats);
+        }
+
         printf("\x1b[1;1HMin3DStry - Factory Prototype\x1b[K");
         printf("\x1b[2;1HTick: %lu (%s)\x1b[K",
                (unsigned long)scene.tick, scene.paused ? "PAUSED" : "RUN");
@@ -853,6 +1032,224 @@ int main(int argc, char *argv[]) {
         } else {
             for (unsigned line = 15u; line <= 18u; ++line) {
                 printf("\x1b[%u;1H\x1b[K", line);
+            }
+        }
+
+        if (main_menu.open) {
+            const char *screen_title = "Main menu";
+            switch (main_menu.screen) {
+            case M3DS_MENU_SCREEN_PLAY:
+                screen_title = "Play";
+                break;
+            case M3DS_MENU_SCREEN_SETTINGS:
+                screen_title = "Settings";
+                break;
+            case M3DS_MENU_SCREEN_DATABASE:
+                screen_title = "Database";
+                break;
+            case M3DS_MENU_SCREEN_ABOUT:
+                screen_title = "About";
+                break;
+            case M3DS_MENU_SCREEN_CATALOG:
+                screen_title = "Core Database";
+                break;
+            case M3DS_MENU_SCREEN_SCHEMATICS:
+                screen_title = "Schematics";
+                break;
+            case M3DS_MENU_SCREEN_TITLE:
+            default:
+                screen_title = "Main menu";
+                break;
+            }
+            printf("\x1b[2J");
+            printf("\x1b[1;1HMindustry v160.8\x1b[K");
+            if (main_menu.screen == M3DS_MENU_SCREEN_SCHEMATICS) {
+                size_t total = m3ds_main_menu_count(&main_menu);
+                unsigned selected = main_menu.schematic_selected;
+                printf("\x1b[2;1H%s %u/%u\x1b[K", screen_title,
+                       (unsigned)(selected + 1u), (unsigned)total);
+                printf("\x1b[3;1HSource: %s\x1b[K",
+                       main_menu.schematics_user ? "SD card" : "built-in");
+                if (main_menu.schematic_detail) {
+                    const char *entry_name = NULL;
+                    const char *summary = "";
+                    unsigned width = 0u;
+                    unsigned height = 0u;
+                    unsigned blocks = 0u;
+                    if (main_menu.schematics_user) {
+                        const M3dsUserSchematic *row =
+                            m3ds_main_menu_user_schematic(&main_menu, selected);
+                        if (row) {
+                            entry_name = row->name;
+                            summary = row->summary;
+                            width = row->width;
+                            height = row->height;
+                            blocks = row->blocks;
+                        }
+                    } else {
+                        const M3dsSchematicRow *row =
+                            m3ds_main_menu_schematic_entry(&main_menu, selected);
+                        if (row) {
+                            entry_name = row->name;
+                            summary = row->summary;
+                            width = row->width;
+                            height = row->height;
+                            blocks = row->blocks;
+                        }
+                    }
+                    if (entry_name) {
+                        printf("\x1b[4;1H%.36s\x1b[K", entry_name);
+                        printf("\x1b[5;1H%ux%u, %u blocks\x1b[K", width,
+                               height, blocks);
+                        char wrapped[640];
+                        (void)m3ds_catalog_wrap(summary, 38u, wrapped,
+                                                sizeof(wrapped));
+                        unsigned line = 7u;
+                        const char *cursor = wrapped;
+                        while (*cursor && line < 22u) {
+                            const char *newline = strchr(cursor, '\n');
+                            size_t length =
+                                newline ? (size_t)(newline - cursor)
+                                        : strlen(cursor);
+                            printf("\x1b[%u;1H%.*s\x1b[K", line, (int)length,
+                                   cursor);
+                            ++line;
+                            if (!newline) {
+                                break;
+                            }
+                            cursor = newline + 1;
+                        }
+                        for (; line < 22u; ++line) {
+                            printf("\x1b[%u;1H\x1b[K", line);
+                        }
+                    }
+                    printf("\x1b[24;1HRead-only  A/B: Back  START: Exit\x1b[K");
+                } else if (total == 0u && main_menu.schematics_user) {
+                    printf("\x1b[5;1HNo .msch files in\x1b[K");
+                    printf("\x1b[6;1Hsdmc:/3ds/min3dstry/schematics\x1b[K");
+                    for (unsigned line = 7u; line < 22u; ++line) {
+                        printf("\x1b[%u;1H\x1b[K", line);
+                    }
+                    printf("\x1b[24;1HL/R: Built-in  B: Back\x1b[K");
+                } else {
+                    for (unsigned row_index = 0u;
+                         row_index < M3DS_SCHEMATIC_ROWS; ++row_index) {
+                        unsigned index = main_menu.schematic_scroll + row_index;
+                        if (index >= total) {
+                            printf("\x1b[%u;1H\x1b[K",
+                                   (unsigned)(4u + row_index));
+                            continue;
+                        }
+                        printf("\x1b[%u;1H%c %.34s\x1b[K",
+                               (unsigned)(4u + row_index),
+                               index == selected ? '>' : ' ',
+                               m3ds_main_menu_label(&main_menu, index));
+                    }
+                    for (unsigned line = (unsigned)(4u + M3DS_SCHEMATIC_ROWS);
+                         line < 22u; ++line) {
+                        printf("\x1b[%u;1H\x1b[K", line);
+                    }
+                    printf("\x1b[24;1HPad Scroll  L/R Source  A Detail  B Back\x1b[K");
+                }
+                printf("\x1b[25;1H\x1b[K");
+            } else if (main_menu.screen == M3DS_MENU_SCREEN_CATALOG) {
+                size_t total = m3ds_main_menu_count(&main_menu);
+                unsigned selected = main_menu.catalog_selected;
+                if (main_menu.catalog_detail) {
+                    const M3dsCatalogEntry *entry =
+                        m3ds_main_menu_catalog_entry(&main_menu, selected);
+                    const char *description = (entry && entry->description[0])
+                                                  ? entry->description
+                                                  : "No description in the pinned bundle.";
+                    char wrapped[640];
+                    (void)m3ds_catalog_wrap(description, 38u, wrapped,
+                                            sizeof(wrapped));
+                    printf("\x1b[2;1H%s %u/%u\x1b[K", screen_title,
+                           (unsigned)(selected + 1u), (unsigned)total);
+                    printf("\x1b[3;1H%s\x1b[K",
+                           m3ds_main_menu_label(&main_menu, selected));
+                    printf("\x1b[4;1HCategory: %s\x1b[K",
+                           (entry && entry->category[0]) ? entry->category
+                                                         : "none");
+                    unsigned row = 6u;
+                    const char *cursor = wrapped;
+                    while (*cursor && row < 22u) {
+                        const char *newline = strchr(cursor, '\n');
+                        size_t length =
+                            newline ? (size_t)(newline - cursor) : strlen(cursor);
+                        printf("\x1b[%u;1H%.*s\x1b[K", row, (int)length, cursor);
+                        ++row;
+                        if (!newline) {
+                            break;
+                        }
+                        cursor = newline + 1;
+                    }
+                    for (; row < 22u; ++row) {
+                        printf("\x1b[%u;1H\x1b[K", row);
+                    }
+                    printf("\x1b[24;1HDetail  A/B: Back  START: Exit\x1b[K");
+                    printf("\x1b[25;1H\x1b[K");
+                } else {
+                    printf("\x1b[2;1H%s %u/%u\x1b[K", screen_title,
+                           (unsigned)(selected + 1u), (unsigned)total);
+                    printf("\x1b[3;1H%s / %s\x1b[K",
+                           m3ds_catalog_category_name(main_menu.catalog_category),
+                           m3ds_catalog_filter_name(main_menu.catalog_category,
+                                                    main_menu.catalog_filter));
+                    for (unsigned row = 0u; row < M3DS_CATALOG_ROWS; ++row) {
+                        unsigned index = main_menu.catalog_scroll + row;
+                        if (index >= total) {
+                            printf("\x1b[%u;1H\x1b[K", (unsigned)(4u + row));
+                            continue;
+                        }
+                        printf("\x1b[%u;1H%c %s\x1b[K",
+                               (unsigned)(4u + row),
+                               index == selected ? '>' : ' ',
+                               m3ds_main_menu_label(&main_menu, index));
+                    }
+                    for (unsigned line = (unsigned)(4u + M3DS_CATALOG_ROWS);
+                         line < 22u; ++line) {
+                        printf("\x1b[%u;1H\x1b[K", line);
+                    }
+                    printf("\x1b[24;1HPad Scroll  L/R Type  X Filter  B Back\x1b[K");
+                    printf("\x1b[25;1H\x1b[K");
+                }
+            } else {
+                printf("\x1b[2;1H%s\x1b[K", screen_title);
+                unsigned item_row = 4u;
+                if (main_menu.screen == M3DS_MENU_SCREEN_ABOUT) {
+                    printf("\x1b[4;1HUpstream: Anuken/Mindustry\x1b[K");
+                    printf("\x1b[5;1HCommit: 19a0f40d4451\x1b[K");
+                    printf("\x1b[6;1HLicense: GPL-3.0\x1b[K");
+                    printf("\x1b[7;1HPort: Min3DStry (in progress)\x1b[K");
+                    item_row = 11u;
+                }
+                size_t menu_count = m3ds_main_menu_count(&main_menu);
+                for (size_t i = 0u; i < menu_count; ++i) {
+                    const char *key = m3ds_main_menu_key(&main_menu, i);
+                    const char *label = m3ds_main_menu_label(&main_menu, i);
+                    char value[32] = {0};
+                    bool enabled = m3ds_main_menu_enabled(&main_menu, i);
+                    if (main_menu.screen == M3DS_MENU_SCREEN_SETTINGS) {
+                        if (strcmp(key, "audio") == 0) {
+                            snprintf(value, sizeof(value), ": %s",
+                                     main_menu.muted ? "OFF" : "ON");
+                        } else if (strcmp(key, "lighting") == 0) {
+                            snprintf(value, sizeof(value), ": %s",
+                                     main_menu.lighting ? "ON" : "OFF");
+                        }
+                    }
+                    printf("\x1b[%u;1H%c %s%s\x1b[K",
+                           (unsigned)(item_row + (unsigned)i),
+                           i == main_menu.selected ? '>' : (enabled ? ' ' : '-'),
+                           label, value);
+                }
+                for (unsigned line = (unsigned)(item_row + menu_count); line < 20u;
+                     ++line) {
+                    printf("\x1b[%u;1H\x1b[K", line);
+                }
+                printf("\x1b[24;1HD-Pad: Select  A: Confirm  B: Back  START: Exit\x1b[K");
+                printf("\x1b[25;1H- = unavailable in this build\x1b[K");
             }
         }
 

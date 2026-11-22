@@ -1,6 +1,6 @@
 # NDSP Audio Mixer Prototype
 
-Status: **Experimental** (`emulator-tested` for the RomFS registry, event routing, mixer state and missing-DSP fallback on both Azahar models; audible NDSP playback still requires physical hardware).
+Status: **Experimental** (`emulator-tested` for the RomFS registry, event routing, mixer state and missing-DSP fallback on both Azahar models; NDSP initializes with `state=ready` on physical Original/New 3DS, but audible playback and music streaming still need a listening report).
 
 ## Architecture
 
@@ -48,4 +48,4 @@ Status: **Experimental** (`emulator-tested` for the RomFS registry, event routin
   - Parity remained `0x53a483c7`, and inspected top/bottom PNG screenshots confirmed textured rendering alongside bottom-screen `Audio: fallback_no_dsp`.
   - Full transcript excerpt: [azahar-evidence.md](azahar-evidence.md).
 - **Capability stage (`emulator-tested`):** Azahar runs load nine packed clips, resolve every wired event to a clip, exercise fallback startup/teardown, and preserve parity on both models. This stage does not claim audible output; that remains gated on physical hardware with DSP firmware.
-- **Physical 3DS Hardware Audio (`dspfirm.cdc` present):** **Not yet tested**; live NDSP PCM playback requires deploying onto physical Original and New 3DS consoles with dumped `sdmc:/3ds/dspfirm.cdc`, confirming `state=ready rc=0x00000000`, and verifying stereo PCM16 `ndspWaveBuf.nsamples` per-channel frame duration on hardware.
+- **Physical 3DS Hardware Audio (`dspfirm.cdc` present):** **Partially verified.** The New 3DS XL (`de3e249`) and Original 3DS XL (`a4a9a96`) runs logged `AUDIO backend=ndsp state=ready rc=0x00000000 rate=22050`, loaded 9-10 clips, and allocated voices for conveyor/drill/UI/shoot/break events ([New](../hardware/evidence/new3ds-xl-de3e249.md), [Old](../hardware/evidence/old3ds-xl-a4a9a96.md)). Audible output, music streaming, mute toggle and crackling still require the HWT-04 listening test, so `ndsp-sfx-music` remains `emulator-tested`.

@@ -13,12 +13,30 @@ final class UpstreamStatusHud {
 
     static List<UpstreamObjectiveHud.Row> collect() {
         var rows = new ArrayList<UpstreamObjectiveHud.Row>();
-        if (Vars.state.rules.waves) {
-            String wave = Core.bundle.format("wave", Vars.state.wave);
-            rows.add(new UpstreamObjectiveHud.Row(Strings.stripColors(wave), wave, "none", null));
-            String enemies = Core.bundle.format("wave.enemies", Math.max(0, Vars.state.enemies));
-            rows.add(new UpstreamObjectiveHud.Row(Strings.stripColors(enemies), enemies, "none", null));
+        var state = Vars.state;
+        String notification = UpstreamNotification.current();
+        if (notification != null) add(rows, notification);
+        var rules = state.rules;
+        var unit = Vars.player == null ? null : Vars.player.unit();
+        if (unit != null) {
+            for (String text : UpstreamStatusRows.unitRows(Core.bundle,
+                    Math.round(unit.health), Math.round(unit.maxHealth()),
+                    Math.round(unit.ammof() * 100), unit.type.ammoCapacity)) {
+                add(rows, text);
+            }
         }
+        int enemyCores = 0;
+        if (rules.attackMode && Vars.player != null && state.teams != null) {
+            var playerTeam = Vars.player.team();
+            for (var data : state.teams.present) {
+                if (data.team != playerTeam) enemyCores += data.cores.size;
+            }
+        }
+        var texts = UpstreamStatusRows.texts(Core.bundle, rules.waves, state.isCampaign(),
+            rules.attackMode, rules.waveTimer, rules.waveTimer && Vars.logic.isWaitingWave(),
+            state.wave, rules.winWave, Math.max(0, state.enemies), enemyCores,
+            (int)(state.wavetime / 60f));
+        for (String text : texts) add(rows, text);
 
         int copper = copper();
         var item = Items.copper;
@@ -30,6 +48,11 @@ final class UpstreamStatusHud {
             item.uiIcon != null && item.uiIcon.found() ? item.uiIcon : null));
         return rows;
     }
+
+    private static void add(List<UpstreamObjectiveHud.Row> rows, String text) {
+        rows.add(new UpstreamObjectiveHud.Row(Strings.stripColors(text), text, "none", null));
+    }
+
 
     static int copper() {
         var core = core();

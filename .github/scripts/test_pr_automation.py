@@ -47,13 +47,40 @@ class PrAutomationTests(unittest.TestCase):
         args = pr_automation.build_parser().parse_args(
             ["auto-merge", "--pr-number", "13", "--head-sha", "abc123", "--tier", "A", "--eligible", "true"]
         )
+        draft_proc = mock.Mock(returncode=0, stdout="false\n", stderr="")
         fake_proc = mock.Mock(returncode=0, stdout="", stderr="")
         with mock.patch.dict(os.environ, {"GITHUB_REPOSITORY": "levkeveli/Min3DStry"}):
-            with mock.patch("subprocess.run", return_value=fake_proc) as run_mock:
+            with mock.patch("subprocess.run", side_effect=[draft_proc, fake_proc]) as run_mock:
+                rc = pr_automation.cmd_auto_merge(args)
+        self.assertEqual(rc, 0)
+        self.assertEqual(
+            run_mock.call_args_list[0],
+            mock.call(
+                ["gh", "pr", "view", "13", "-R", "levkeveli/Min3DStry", "--json", "isDraft", "--jq", ".isDraft"],
+                text=True,
+                capture_output=True,
+            ),
+        )
+        self.assertEqual(
+            run_mock.call_args_list[1],
+            mock.call(
+                ["gh", "pr", "merge", "13", "-R", "levkeveli/Min3DStry", "--squash", "--match-head-commit", "abc123", "--auto"],
+                text=True,
+                capture_output=True,
+            ),
+        )
+
+    def test_auto_merge_skips_draft(self) -> None:
+        args = pr_automation.build_parser().parse_args(
+            ["auto-merge", "--pr-number", "13", "--head-sha", "abc123", "--tier", "A", "--eligible", "true"]
+        )
+        draft_proc = mock.Mock(returncode=0, stdout="true\n", stderr="")
+        with mock.patch.dict(os.environ, {"GITHUB_REPOSITORY": "levkeveli/Min3DStry"}):
+            with mock.patch("subprocess.run", return_value=draft_proc) as run_mock:
                 rc = pr_automation.cmd_auto_merge(args)
         self.assertEqual(rc, 0)
         run_mock.assert_called_once_with(
-            ["gh", "pr", "merge", "13", "-R", "levkeveli/Min3DStry", "--squash", "--match-head-commit", "abc123", "--auto"],
+            ["gh", "pr", "view", "13", "-R", "levkeveli/Min3DStry", "--json", "isDraft", "--jq", ".isDraft"],
             text=True,
             capture_output=True,
         )
