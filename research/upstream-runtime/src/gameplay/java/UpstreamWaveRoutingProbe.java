@@ -152,7 +152,7 @@ public final class UpstreamWaveRoutingProbe {
             System.err.println("WAVE_ROUTING_ERROR " + failure);
             throw failure;
         } finally {
-            if (app != null) app.disposeListeners();
+            ProbeListenerShutdown.dispose();
         }
         // This is a one-shot probe process. Firing ResetEvent here dispatches into
         // TeaVM's monitor/event queue after the trace and can deadlock the host C

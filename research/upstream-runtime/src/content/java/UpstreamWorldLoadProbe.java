@@ -345,15 +345,5 @@ public final class UpstreamWorldLoadProbe {
                 posted.remove().run();
             }
         }
-
-        /** Stop registered listener fibers before a one-shot host process exits. */
-        void disposeListeners() {
-            for (ApplicationListener listener : getListeners().copy()) {
-                try {
-                    listener.dispose();
-                } catch (Throwable ignored) {
-                }
-            }
-        }
     }
 }
