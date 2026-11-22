@@ -10,12 +10,13 @@ import verify_upstream_singleplayer as singleplayer
 from verify_upstream_live_net import stop, wait_for
 
 # Stock Glacier spawn is (81, 26). Keep the core and status panel clear.
+PUMP_POSITION = (84, 31)
 BUILDINGS = (
     ("siliconSmelter", "silicon-smelter", 75, 23, 2),
     ("plastaniumCompressor", "plastanium-compressor", 80, 22, 2),
     ("vault", "vault", 86, 23, 3),
     ("liquidTank", "liquid-tank", 86, 29, 3),
-    ("mechanicalPump", "mechanical-pump", 76, 28, 1),
+    ("mechanicalPump", "mechanical-pump", *PUMP_POSITION, 1),
     ("electrolyzer", "electrolyzer", 80, 30, 3),
     ("separator", "separator", 86, 26, 2),
 )
@@ -40,7 +41,7 @@ def create_fixtures(output, java, server_jar, port):
             run(f"config port {port}\nhost Glacier survival", rf"Opened a server on port {port}\.")
             run(
                 'js (() => { Vars.state.rules.waves = false; '
-                'Vars.world.tile(76,28).setFloor(Blocks.water.asFloor()); '
+                f'Vars.world.tile({PUMP_POSITION[0]},{PUMP_POSITION[1]}).setFloor(Blocks.water.asFloor()); '
                 'return "MATERIAL_TERRAIN_READY"; })()',
                 "MATERIAL_TERRAIN_READY",
             )

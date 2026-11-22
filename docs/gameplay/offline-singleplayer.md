@@ -228,6 +228,8 @@ and separator. It reopens that save on the stock server, then checks
 that each structure changes the expected portion of the top screen
 on both Azahar profiles. The verifier uses isolated virtual SD directories
 and retains the saves, screenshots, and logs.
+All 25 sample points per building differed from the empty scene on both
+profiles with the [ARM11 test build](https://github.com/levkeveli/Min3DStry/actions/runs/45069415082).
 
 ```bash
 python3 tools/verify_offline_material_buildings.py \
