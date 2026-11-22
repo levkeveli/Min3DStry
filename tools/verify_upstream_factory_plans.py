@@ -86,9 +86,30 @@ def write_movie(path, model, live=False):
                          if start <= sec < start + (6 if live and start == 0 else 2)), 0)
             pad = struct.pack("<BHhh", 0, mask, 0, 0)
             touch = struct.pack("<BHHBx", 1, *point, 1) if point else idle_touch
-            movie.write(touch * 2 if point else pad * 2 if mask else pad + idle_touch)
+            if point:
+                movie.write(touch * 2)
+            elif mask:
+                movie.write(pad * 2)
+            else:
+                movie.write(pad + idle_touch)
             if model == "new3ds" and frame % 7 in (0, 2, 4):
                 movie.write(touch if point else pad)
+
+
+def capture_factory_menu(rpc):
+    # Lower-screen padding is 40 pixels. The first row icon is centered at (27, 55).
+    points = tuple((x, y) for x in range(60, 75) for y in range(288, 304))
+    deadline = time.monotonic() + 6
+    while time.monotonic() < deadline:
+        try:
+            screenshot = rpc.screenshot()
+            colors = sp.az.inspect_png(screenshot, points)["samples"]
+            if len(set(colors.values())) >= 4:
+                return screenshot
+        except (RuntimeError, TimeoutError):
+            pass  # The stock-font log can precede the completed GPU frame.
+        time.sleep(0.2)
+    raise AssertionError("The factory menu did not render the first unit icon")
 
 
 def replay(args, model, fixture):
@@ -134,7 +155,7 @@ def replay(args, model, fixture):
                 sp._wait_for_log(log, proc, r"UPSTREAM_SP_READY .*x=648\.0 y=208\.0", 120)
             sp._wait_for_log(log, proc, r"UPSTREAM_CONFIG_OPEN x=78 y=22\b", 120)
             sp._wait_for_log(log, proc, r"UPSTREAM_MENU_FONT source=v160.8 catalog=unit\b", 15)
-            (output / "factory-menu.png").write_bytes(rpc.screenshot())
+            (output / "factory-menu.png").write_bytes(capture_factory_menu(rpc))
             sp._wait_for_log(log, proc, r"UPSTREAM_FACTORY_PLAN x=78 y=22 plan=1 unit=crawler\b", 55)
             if args.live:
                 # The server's original simulation runs independent of ARM11 frame rate.
