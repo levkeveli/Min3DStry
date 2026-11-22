@@ -80,32 +80,63 @@ def load_and_validate_capabilities(ledger_path: Path, repo_root: Path) -> dict[s
 
 def compute_progress(ledger: dict[str, Any]) -> dict[str, Any]:
     """Compute weighted overall and per-category port completion progress."""
-    stage_weights: dict[str, float] = ledger["stage_weights"]
+    stage_weights: dict[str, float] = {str(k): float(v) for k, v in ledger["stage_weights"].items()}
     caps: list[dict[str, Any]] = ledger["capabilities"]
+    hw_mult = stage_weights["hardware-verified"]
+    comp_mult = stage_weights["complete"]
 
     stage_counts = {s: 0 for s in REQUIRED_STAGES}
     categories_map: dict[str, dict[str, Any]] = {}
+    capabilities_summary: list[dict[str, Any]] = []
     total_weight = 0
     earned_total = 0.0
+    hw_gap_total = 0.0
+    rel_gap_total = 0.0
 
     for item in caps:
         weight = int(item["weight"])
         stage = str(item["stage"])
         cat_name = str(item["category"])
-        mult = float(stage_weights[stage])
+        mult = stage_weights[stage]
         earned = weight * mult
+        missing = weight - earned
+        hw_gap = weight * max(0.0, hw_mult - mult)
+        rel_gap = weight * max(0.0, comp_mult - max(mult, hw_mult))
+        evidence_list = [str(p) for p in item.get("evidence", [])]
+        primary_doc = next((p for p in evidence_list if p.endswith(".md")), evidence_list[0] if evidence_list else None)
 
         total_weight += weight
         earned_total += earned
+        hw_gap_total += hw_gap
+        rel_gap_total += rel_gap
         stage_counts[stage] += 1
+
+        capabilities_summary.append(
+            {
+                "id": str(item["id"]),
+                "name": str(item["name"]),
+                "category": cat_name,
+                "stage": stage,
+                "weight": weight,
+                "earned": round(earned, 2),
+                "missing": round(missing, 2),
+                "hw_gap": round(hw_gap, 2),
+                "release_gap": round(rel_gap, 2),
+                "issue": item.get("issue"),
+                "evidence_count": len(evidence_list),
+                "primary_doc": primary_doc,
+            }
+        )
 
         bucket = categories_map.setdefault(
             cat_name,
-            {"name": cat_name, "earned": 0.0, "weight": 0, "count": 0},
+            {"name": cat_name, "earned": 0.0, "weight": 0, "count": 0, "hw_gap": 0.0, "release_gap": 0.0},
         )
         bucket["earned"] += earned
         bucket["weight"] += weight
         bucket["count"] += 1
+        bucket["hw_gap"] += hw_gap
+        bucket["release_gap"] += rel_gap
 
     categories: list[dict[str, Any]] = []
     for bucket in categories_map.values():
@@ -119,30 +150,45 @@ def compute_progress(ledger: dict[str, Any]) -> dict[str, Any]:
                 "weight": w,
                 "count": bucket["count"],
                 "percent": pct,
+                "missing": round(w - bucket["earned"], 2),
+                "hw_gap": round(bucket["hw_gap"], 2),
+                "release_gap": round(bucket["release_gap"], 2),
             }
         )
 
     percent = round((earned_total / total_weight) * 100.0, 1) if total_weight else 0.0
     return {
         "earned_points": round(earned_total, 2),
+        "missing_points": round(total_weight - earned_total, 2),
+        "hardware_gap_points": round(hw_gap_total, 2),
+        "release_gap_points": round(rel_gap_total, 2),
         "total_points": total_weight,
         "percent": percent,
         "capability_count": len(caps),
+        "stage_weights": stage_weights,
         "stage_counts": stage_counts,
         "categories": categories,
+        "capabilities": capabilities_summary,
     }
 
 
 def render_progress_svg(summary: dict[str, Any]) -> str:
     """Render a deterministic, timestamp-free SVG port completion gauge."""
     width = 760
-    height = 292
+    height = 308
     pct = float(summary["percent"])
     earned = float(summary["earned_points"])
     total = int(summary["total_points"])
+    missing = float(summary.get("missing_points", max(0.0, total - earned)))
+    hw_pts = float(summary.get("hardware_gap_points", 0.0))
+    rel_pts = float(summary.get("release_gap_points", max(0.0, missing - hw_pts)))
+    hw_target_pct = round(((earned + hw_pts) / total) * 100.0, 1) if total else 0.0
+
     bar_x = 24
     bar_w = width - 48
     fill_w = max(0.0, min(float(bar_w), round((pct / 100.0) * bar_w, 1)))
+    hw_w = max(0.0, min(float(bar_w) - fill_w, round((hw_pts / total) * bar_w, 1))) if total else 0.0
+    rel_w = max(0.0, min(float(bar_w) - fill_w - hw_w, round((rel_pts / total) * bar_w, 1))) if total else 0.0
 
     sc = summary["stage_counts"]
     pills_text = (
@@ -150,10 +196,17 @@ def render_progress_svg(summary: dict[str, Any]) -> str:
         f"Emulator: {sc['emulator-tested']}  ·  Host: {sc['host-tested']}  ·  "
         f"Exp: {sc['experimental']}  ·  Planned: {sc['planned']}"
     )
+    gap_text = (
+        f"Remaining: -{missing:.2f} pts  (HW gate ->{hw_target_pct:.1f}%: +{hw_pts:.2f} pts  ·  "
+        f"Release parity ->100.0%: +{rel_pts:.2f} pts)"
+    )
 
     lines = [
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" '
         f'viewBox="0 0 {width} {height}" role="img" aria-label="Min3DStry Port Completion {pct:.1f}%">',
+        '  <defs>',
+        f'    <clipPath id="barClip"><rect x="{bar_x}" y="66" width="{bar_w}" height="14" rx="7"/></clipPath>',
+        '  </defs>',
         f'  <rect x="0.5" y="0.5" width="{width - 1}" height="{height - 1}" rx="8" fill="#0d1117" stroke="#30363d"/>',
         '  <text x="24" y="34" fill="#e6edf3" font-family="Segoe UI, Ubuntu, Arial, sans-serif" '
         'font-size="16" font-weight="700">Min3DStry Full-Port Completion Gauge</text>',
@@ -161,19 +214,33 @@ def render_progress_svg(summary: dict[str, Any]) -> str:
         'font-family="Consolas, Liberation Mono, monospace" font-size="20" font-weight="700">'
         f'{pct:.1f}%</text>',
         '  <text x="24" y="54" fill="#8b949e" font-family="Segoe UI, Ubuntu, Arial, sans-serif" '
-        'font-size="12">Evidence-weighted across 22 capabilities '
+        f'font-size="12">Evidence-weighted across {summary["capability_count"]} capabilities '
         f'({earned:.2f} / {total} pts · verified against docs/port-capabilities.json)</text>',
         f'  <rect x="{bar_x}" y="66" width="{bar_w}" height="14" rx="7" fill="#161b22" stroke="#30363d"/>',
-        f'  <rect x="{bar_x}" y="66" width="{fill_w}" height="14" rx="7" fill="#f5b841"/>',
-        '  <text x="24" y="99" fill="#8b949e" font-family="Consolas, Liberation Mono, monospace" '
-        f'font-size="11">{escape(pills_text)}</text>',
-        '  <line x1="24" y1="112" x2="736" y2="112" stroke="#21262d" stroke-width="1"/>',
+        '  <g clip-path="url(#barClip)">',
+        f'    <rect x="{bar_x}" y="66" width="{fill_w}" height="14" fill="#f5b841"/>',
     ]
+    if hw_w > 0.0:
+        lines.append(
+            f'    <rect x="{bar_x + fill_w:.1f}" y="66" width="{hw_w}" height="14" fill="#d29922" fill-opacity="0.32"/>'
+        )
+    if rel_w > 0.0:
+        lines.append(
+            f'    <rect x="{bar_x + fill_w + hw_w:.1f}" y="66" width="{rel_w}" height="14" fill="#58a6ff" fill-opacity="0.28"/>'
+        )
+    lines.extend([
+        '  </g>',
+        '  <text x="24" y="98" fill="#8b949e" font-family="Consolas, Liberation Mono, monospace" '
+        f'font-size="11">{escape(pills_text)}</text>',
+        '  <text x="24" y="114" fill="#8b949e" font-family="Consolas, Liberation Mono, monospace" '
+        f'font-size="11">{escape(gap_text)}</text>',
+        '  <line x1="24" y1="126" x2="736" y2="126" stroke="#21262d" stroke-width="1"/>',
+    ])
 
     categories = summary["categories"]
     col_w = 344
     gap_x = 24
-    start_y = 132
+    start_y = 146
     row_h = 38
     mini_w = 344
 

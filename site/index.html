@@ -391,8 +391,25 @@
     color: var(--muted);
     margin-bottom: 4px;
   }
-  .progress-track { height: 6px; border-radius: 999px; background: var(--bg); border: 1px solid var(--border); overflow: hidden; }
+  .progress-track { height: 6px; border-radius: 999px; background: var(--bg); border: 1px solid var(--border); overflow: hidden; display: flex; }
   .progress-fill { height: 100%; background: var(--green); }
+  .progress-earned { height: 100%; background: var(--amber); }
+  .progress-hw { height: 100%; background: rgba(245, 184, 65, 0.34); }
+  .progress-rel { height: 100%; background: rgba(88, 166, 255, 0.30); }
+  .gap-strip {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px 16px;
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 12px;
+  }
+  .gap-legend { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+  .gap-item { display: inline-flex; align-items: center; gap: 5px; }
+  .gap-swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+  .stage-pills { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
   .phase-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; }
 
   /* Compatibility & Activity */
@@ -510,7 +527,7 @@
   <div class="meta-strip">
     <span>Published commit: <a href="https://github.com/levkeveli/Min3DStry/commit/@SHA@" target="_blank" rel="noopener"><code>@SHA@</code></a></span>
     <span id="dataSourceText">Source: loading...</span>
-    <span>Scale: <code>Planned</code> → <code>Experimental</code> → <code>Host-tested</code> → <code>Emulator-tested</code> → <code>Hardware-verified</code> → <code>Released</code></span>
+    <span>Scale: <code>Planned</code> → <code>Experimental</code> → <code>Host-tested</code> → <code>Emulator-tested</code> → <code>Hardware-verified</code> → <code>Complete / Released</code></span>
   </div>
 
   <section class="overview-box" aria-label="What Min3DStry currently is">
@@ -524,15 +541,15 @@
     <div class="overview-grid">
       <div class="overview-item">
         <h2>Upstream v160.8 on ARM11</h2>
-        <p>Pinned Mindustry/Arc probes compile via TeaVM C against <code>libctru</code> and match Java in Azahar (<code>LogicOp</code>, <code>Glacier</code> <code>.msav</code> metadata from SD, and Arc <code>Fi</code> resource streams); JVM baseline covers 922 content records and 447 building factories.</p>
+        <p>TeaVM C (<code>-Os</code> default with dead-string pruning) links against <code>libctru</code> and matches JVM &amp; host C in Azahar <code>2126.2</code> (Old &amp; New 3DS): offline single-player Ground Zero (<code>44.44</code> MiB Old 3DS static subtotal, <code>.msav</code> save/reload), live PC <code>v160.8</code> multiplayer (<code>network-render</code>, full atlas, touch build/catalog/config, stock HUD), embedded TeaVM <code>SaveIO</code> loader as default <code>min3dstry.3dsx</code> startup path, plus factory, production, combat/wave, and campaign <code>Saves.load</code> probes.</p>
       </div>
       <div class="overview-item">
-        <h2>3DS Platform Harness</h2>
-        <p>Azahar- &amp; New 3DS XL-verified platform testbed (<code>min3dstry.3dsx</code>): Citro2D sprite-atlas renderer, Old/New 3DS probe, deterministic parity harness (<code>0x53a483c7</code>), NDSP mixer, and <code>3dslink</code>/SD log deploy.</p>
+        <h2>3DS Platform &amp; Tooling</h2>
+        <p>Citro2D world/atlas renderer, <code>libctru</code> HID &amp; touch palette, NDSP mixer + OGG Vorbis music streaming (<code>libvorbisidec</code>), Old/New 3DS probe, bounded allocator, New 3DS XL-verified parity harness (<code>0x53a483c7</code>) &amp; <code>3dslink</code>/SD deploy with <code>benchmark-report</code>, Flatpak/native Azahar harness (<code>./dev.sh emu-test</code>), and self-hosted NUMA CI runners.</p>
       </div>
       <div class="overview-item">
-        <h2>Not Built Yet</h2>
-        <p>Full upstream v160.8 world loading &amp; game loop on 3DS, complete block/unit/campaign catalog, dual-screen HUD/menus, <code>.msav</code> save writing, NDSP DSP playback on hardware, PC crossplay, and Original 3DS physical hardware runs.</p>
+        <h2>What's Still Missing (43.7 pts)</h2>
+        <p>Physical Original (64 MiB) &amp; New 3DS hardware verification (<code>#43</code>, <code>+29.45</code> pts across <code>#43</code> and 17 emulator-tested capabilities), optimization to <code>&ge; 24 FPS</code> on both hardware generations (unoptimized Azahar offline baseline is <code>4.72</code> / <code>3.48 FPS</code>), and unifying single-player, multiplayer, campaign/tech-tree UI, full stock audio (<code>#29</code>), logic/weapons, and full block/unit/lighting/minimap/pause-menu coverage into one <code>.3dsx</code> (<code>+14.25</code> pts).</p>
       </div>
     </div>
   </section>
@@ -542,9 +559,20 @@
       <h1>Full-Port Completion Gauge</h1>
       <span class="overview-maintainers" id="portProgressSummary">Loading capability ledger...</span>
     </div>
-    <div class="progress-track" style="height: 12px; margin-bottom: 12px;">
-      <div class="progress-fill" id="portProgressFill" style="width: 0%;"></div>
+    <div class="progress-track" style="height: 14px; margin-bottom: 10px;">
+      <div class="progress-earned" id="portProgressFill" style="width: 0%;"></div>
+      <div class="progress-hw" id="portProgressHw" style="width: 0%;"></div>
+      <div class="progress-rel" id="portProgressRel" style="width: 0%;"></div>
     </div>
+    <div class="gap-strip">
+      <div class="gap-legend">
+        <span class="gap-item"><span class="gap-swatch" style="background:var(--amber)"></span>Earned</span>
+        <span class="gap-item"><span class="gap-swatch" style="background:rgba(245, 184, 65, 0.34)"></span>Hardware gate (&rarr;85%)</span>
+        <span class="gap-item"><span class="gap-swatch" style="background:rgba(88, 166, 255, 0.30)"></span>Release parity (&rarr;100%)</span>
+      </div>
+      <span id="portProgressGap" class="sub" style="font-family:var(--mono);"></span>
+    </div>
+    <div class="stage-pills" id="portProgressStages"></div>
     <div class="overview-grid" id="portProgressCategories" style="grid-template-columns: repeat(4, minmax(0, 1fr));"></div>
   </section>
 
@@ -572,6 +600,7 @@
         <option value="rendering">Rendering</option>
         <option value="assets">Assets</option>
         <option value="simulation">Simulation</option>
+        <option value="gameplay">Gameplay</option>
         <option value="ui">UI &amp; Controls</option>
         <option value="audio">Audio</option>
         <option value="network">Networking</option>
@@ -595,16 +624,11 @@
     <section id="view-roadmap" class="roadmap-list hidden"></section>
     <section id="view-compat" class="two-col hidden">
       <div class="panel">
-        <h2>Verified Compatibility Matrix</h2>
+        <h2>Capability Verification Matrix (22 Capabilities)</h2>
         <table>
-          <thead><tr><th>Capability / Target</th><th>Status</th><th>Notes</th></tr></thead>
-          <tbody>
-            <tr><td>Repository, CI &amp; AI PR review</td><td><span class="badge badge-ok">Complete</span></td><td><code>./dev.sh test</code> (Linux + Windows), PR policy gate, AI review</td></tr>
-            <tr><td>Citro2D prototype &amp; Azahar Old/New 3DS boot</td><td><span class="badge badge-ok">Emulator-tested</span></td><td>Azahar 2126.2 via <code>./dev.sh emu-test</code> (<code>R:456 C:30 Sw:1</code>)</td></tr>
-            <tr><td>Deterministic parity harness</td><td><span class="badge badge-ok">Emulator-tested</span></td><td><code>trace_hash=0x53a483c7</code> matching host <code>-O0</code>/<code>-O2</code> and ARM11</td></tr>
-            <tr><td>Sprite atlas &amp; device deploy tooling</td><td><span class="badge badge-warn">Host-tested</span></td><td><code>tools/build_sprite_atlas.py</code> &amp; <code>./dev.sh device</code></td></tr>
-            <tr><td>Physical Original &amp; New 3DS console boot</td><td><span class="badge badge-unverified">Unverified</span></td><td>Awaiting physical 3DS run via <code>./dev.sh device</code></td></tr>
-            <tr><td>Playable gameplay, <code>.msav</code>, audio &amp; multiplayer</td><td><span class="badge badge-unverified">Unverified</span></td><td>Next wave tracked in Issues #25–#31</td></tr>
+          <thead><tr><th>Capability</th><th>Stage</th><th>Points</th><th>Evidence</th></tr></thead>
+          <tbody id="compatTableBody">
+            <tr><td colspan="4" class="sub">Loading capability ledger...</td></tr>
           </tbody>
         </table>
       </div>
@@ -886,20 +910,90 @@
     const prog = state.data.port_progress;
     const summaryEl = document.getElementById("portProgressSummary");
     const fillEl = document.getElementById("portProgressFill");
+    const hwEl = document.getElementById("portProgressHw");
+    const relEl = document.getElementById("portProgressRel");
+    const gapEl = document.getElementById("portProgressGap");
+    const stagesEl = document.getElementById("portProgressStages");
     const gridEl = document.getElementById("portProgressCategories");
     if (!prog) {
       summaryEl.textContent = "Capability gauge unavailable offline";
       return;
     }
-    summaryEl.innerHTML = `<strong style="color:var(--amber)">${Number(prog.percent).toFixed(1)}%</strong> (${Number(prog.earned_points).toFixed(2)} / ${prog.total_points} pts across ${prog.capability_count} capabilities)`;
-    fillEl.style.width = `${Math.max(0, Math.min(100, Number(prog.percent)))}%`;
-    gridEl.innerHTML = (prog.categories || []).map((cat) => `
-      <div class="overview-item">
-        <h2>${esc(cat.name)}</h2>
-        <div class="progress-label"><span>${Number(cat.earned).toFixed(2)}/${cat.weight} pts</span><span>${Number(cat.percent).toFixed(1)}%</span></div>
-        <div class="progress-track"><div class="progress-fill" style="width:${Number(cat.percent)}%"></div></div>
-      </div>
-    `).join("");
+    const pct = Number(prog.percent);
+    const total = Number(prog.total_points || 100);
+    const earned = Number(prog.earned_points);
+    const missing = Number(prog.missing_points ?? (total - earned));
+    const hwGap = Number(prog.hardware_gap_points || 0);
+    const relGap = Number(prog.release_gap_points ?? Math.max(0, missing - hwGap));
+    const hwTargetPct = total ? (((earned + hwGap) / total) * 100).toFixed(1) : "0.0";
+
+    summaryEl.innerHTML = `<strong style="color:var(--amber)">${pct.toFixed(1)}%</strong> (${earned.toFixed(2)} / ${total} pts across ${prog.capability_count} capabilities)`;
+    fillEl.style.width = `${Math.max(0, Math.min(100, pct))}%`;
+    hwEl.style.width = `${total ? Math.max(0, Math.min(100, (hwGap / total) * 100)) : 0}%`;
+    relEl.style.width = `${total ? Math.max(0, Math.min(100, (relGap / total) * 100)) : 0}%`;
+    gapEl.textContent = `-${missing.toFixed(2)} pts remaining (+${hwGap.toFixed(2)} HW -> ${hwTargetPct}%, +${relGap.toFixed(2)} release -> 100%)`;
+
+    const sc = prog.stage_counts || {};
+    const stageLabels = [
+      ["complete", "Complete", "var(--green)"],
+      ["hardware-verified", "Hardware", "var(--blue)"],
+      ["emulator-tested", "Emulator", "var(--amber)"],
+      ["host-tested", "Host", "var(--copper)"],
+      ["experimental", "Exp", "var(--purple)"],
+      ["planned", "Planned", "var(--gray)"]
+    ];
+    stagesEl.innerHTML = stageLabels
+      .filter(([key]) => Number(sc[key] || 0) > 0)
+      .map(([key, label, color]) => `<span class="pill"><span class="dot" style="background:${color};margin-right:5px;"></span>${esc(label)}: ${sc[key]}</span>`)
+      .join("");
+
+    gridEl.innerHTML = (prog.categories || []).map((cat) => {
+      const catEarned = Number(cat.earned);
+      const catWeight = Number(cat.weight);
+      const catMissing = Number(cat.missing ?? (catWeight - catEarned));
+      return `
+        <div class="overview-item">
+          <h2>${esc(cat.name)}</h2>
+          <div class="progress-label"><span>${catEarned.toFixed(2)}/${catWeight} pts (-${catMissing.toFixed(2)})</span><span>${Number(cat.percent).toFixed(1)}%</span></div>
+          <div class="progress-track"><div class="progress-fill" style="width:${Number(cat.percent)}%"></div></div>
+        </div>
+      `;
+    }).join("");
+  }
+
+  function renderCompatMatrix() {
+    const body = document.getElementById("compatTableBody");
+    const caps = state.data.port_progress && state.data.port_progress.capabilities;
+    if (!caps || !caps.length) {
+      body.innerHTML = `<tr><td colspan="4" class="sub">Capability ledger unavailable offline (see <code>docs/port-capabilities.json</code>).</td></tr>`;
+      return;
+    }
+    const stageBadges = {
+      "complete": ["badge-ok", "Complete"],
+      "hardware-verified": ["badge-ok", "Hardware-verified"],
+      "emulator-tested": ["badge-warn", "Emulator-tested"],
+      "host-tested": ["badge-warn", "Host-tested"],
+      "experimental": ["badge-unverified", "Experimental"],
+      "planned": ["badge-unverified", "Planned"]
+    };
+    body.innerHTML = caps.map((cap) => {
+      const [badgeCls, badgeLabel] = stageBadges[cap.stage] || ["badge-unverified", cap.stage];
+      const issueHtml = cap.issue
+        ? `<a href="https://github.com/${REPO}/issues/${Number(cap.issue)}" target="_blank" rel="noopener">#${Number(cap.issue)}</a>`
+        : "—";
+      const docHtml = cap.primary_doc
+        ? `<a href="https://github.com/${REPO}/blob/main/${esc(cap.primary_doc)}" target="_blank" rel="noopener"><code>${esc(cap.primary_doc.split("/").pop())}</code></a>`
+        : `<span class="sub">none</span>`;
+      const evCount = Number(cap.evidence_count || 0);
+      return `
+        <tr>
+          <td><div><strong>${esc(cap.name)}</strong></div><div class="sub">${esc(cap.category)}</div></td>
+          <td><span class="badge ${badgeCls}">${esc(badgeLabel)}</span></td>
+          <td class="sub">${Number(cap.earned).toFixed(2)}/${cap.weight}</td>
+          <td>${issueHtml} · ${docHtml} <span class="sub">(${evCount})</span></td>
+        </tr>
+      `;
+    }).join("");
   }
 
   function renderAll() {
@@ -910,7 +1004,10 @@
     document.getElementById("view-compat").classList.toggle("hidden", state.view !== "compat");
     if (state.view === "kanban") renderKanban();
     if (state.view === "roadmap") renderRoadmap();
-    if (state.view === "compat") renderActivity();
+    if (state.view === "compat") {
+      renderCompatMatrix();
+      renderActivity();
+    }
   }
 
   async function loadSnapshot() {

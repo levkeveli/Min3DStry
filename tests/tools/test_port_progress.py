@@ -21,9 +21,22 @@ class PortProgressTests(unittest.TestCase):
         self.assertEqual(summary["total_points"], 100)
         self.assertGreater(summary["percent"], 0.0)
         self.assertLess(summary["percent"], 100.0)
+        self.assertAlmostEqual(summary["earned_points"] + summary["missing_points"], 100.0, places=2)
+        self.assertAlmostEqual(
+            summary["hardware_gap_points"] + summary["release_gap_points"],
+            summary["missing_points"],
+            places=2,
+        )
+        self.assertEqual(len(summary["capabilities"]), summary["capability_count"])
+        for cap in summary["capabilities"]:
+            self.assertIn(cap["stage"], summary["stage_weights"])
+            self.assertGreaterEqual(cap["evidence_count"], 1 if cap["stage"] != "planned" else 0)
+            if cap["primary_doc"]:
+                self.assertTrue((REPO_ROOT / cap["primary_doc"]).is_file())
 
         svg = port_progress.render_progress_svg(summary)
         self.assertIn(f"{summary['percent']:.1f}%", svg)
+        self.assertIn("Remaining:", svg)
         for cat in summary["categories"]:
             self.assertIn(escape(cat["name"]), svg)
 
@@ -90,6 +103,40 @@ class PortProgressTests(unittest.TestCase):
             )
             with self.assertRaises(ValueError):
                 port_progress.load_and_validate_capabilities(ledger_file, root)
+
+    def test_dashboard_generator_exports_capabilities_and_gaps(self) -> None:
+        from unittest import mock
+
+        site_dir = REPO_ROOT / "site"
+        sys.path.insert(0, str(site_dir))
+        try:
+            import generate_dashboard_data  # type: ignore  # noqa: E402
+
+            with (
+                mock.patch.object(generate_dashboard_data, "api_get_paginated", return_value=[]),
+                mock.patch.object(
+                    generate_dashboard_data,
+                    "api_get",
+                    side_effect=lambda path, _tok: {} if path.startswith("actions/runs") else [],
+                ),
+            ):
+                snapshot = generate_dashboard_data.build_snapshot("testsha", None)
+
+            self.assertFalse(snapshot["partial"], snapshot.get("warnings"))
+            progress = snapshot["port_progress"]
+            self.assertIsNotNone(progress)
+            self.assertEqual(progress["total_points"], 100)
+            self.assertEqual(len(progress["capabilities"]), 22)
+            self.assertAlmostEqual(
+                progress["hardware_gap_points"] + progress["release_gap_points"],
+                progress["missing_points"],
+                places=2,
+            )
+            self.assertIn("primary_doc", progress["capabilities"][0])
+            self.assertIn("evidence_count", progress["capabilities"][0])
+        finally:
+            if str(site_dir) in sys.path:
+                sys.path.remove(str(site_dir))
 
 
 if __name__ == "__main__":
