@@ -252,7 +252,6 @@ public final class UpstreamSinglePlayerApp {
         int count = firstMap + maps.size();
         int selected = 0, mode = 0, lastX = 0, lastY = 0, renderedRow = -1, renderedMode = -1;
         MenuRows rows = null;
-        target.buildLabels(new byte[8]);
         System.out.println("UPSTREAM_CUSTOM_GAME_MENU maps=" + maps.size());
         // Consume the launcher's button edges before accepting menu input.
         UpstreamSinglePlayerInput.poll();
@@ -348,6 +347,7 @@ public final class UpstreamSinglePlayerApp {
     private void loadInterfaceRenderer() {
         if (rendererReady) return;
         target.initialize();
+        target.buildLabels(new byte[8]);
         var locale = Core.bundle.getLocale();
         boolean stock = target.loadStockFont(locale.getLanguage().equals("ja"));
         rendererReady = true;
@@ -378,7 +378,6 @@ public final class UpstreamSinglePlayerApp {
         }
         int renderedRow = -1;
         MenuRows rows = null;
-        target.buildLabels(new byte[8]);
         UpstreamSinglePlayerInput.poll();
         while (true) {
             long nextFrame = System.nanoTime() + FRAME_NS;
