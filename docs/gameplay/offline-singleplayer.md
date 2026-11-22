@@ -93,8 +93,17 @@ The [ARM11 build from `431c7e8`](https://github.com/levkeveli/Min3DStry/actions/
 started Ancient Caldera in Sandbox, saved, and resumed it on both Azahar
 2126.2 profiles. An unmodified v160.8 server loaded both native saves and
 reported the same map size, planet, infinite resources, waves, and wave-timer
-settings as its own Ancient Caldera Sandbox session. Physical console testing
-and frame-rate targets remain open.
+settings as its own Ancient Caldera Sandbox session.
+
+The graphical app reserves a 32 MiB TeaVM heap for the decoded world,
+pathfinder grids, and sprite atlas. In the preceding 24 MiB build, the Old 3DS
+debugger caught Archipelago's 1,000,016-byte pathfinder allocation after
+collection left only 40 bytes free. The
+[ARM11 build from `fc3881c`](https://github.com/levkeveli/Min3DStry/actions/runs/45032641678)
+started the original 500×500 Archipelago in Sandbox, saved, and resumed it on
+both Azahar profiles. The unmodified v160.8 server opened both native saves and
+matched the same Sandbox flags, planet, and dimensions. Physical console
+memory use and frame-rate targets remain open.
 
 ## 3DS Controls
 
