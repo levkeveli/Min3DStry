@@ -428,6 +428,7 @@ public final class UpstreamSinglePlayerApp {
         long previousTime = System.nanoTime();
         long accumulator = 0L;
         while (true) {
+            UpstreamNotification.update(1f / 60f);
             int input = UpstreamSinglePlayerInput.poll();
             if (input == -1) break;
             int touch = UpstreamSinglePlayerInput.touch();

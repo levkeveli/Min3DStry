@@ -14,6 +14,8 @@ final class UpstreamStatusHud {
     static List<UpstreamObjectiveHud.Row> collect() {
         var rows = new ArrayList<UpstreamObjectiveHud.Row>();
         var state = Vars.state;
+        String notification = UpstreamNotification.current();
+        if (notification != null) add(rows, notification);
         var rules = state.rules;
         var unit = Vars.player == null ? null : Vars.player.unit();
         if (unit != null) {

@@ -16,6 +16,7 @@ objective panel:
   rules are active, using the stock `HudFragment` timer formatting;
 - the pinned `sector.curcapture` row (`Sector Captured`) when wave rules are
 off and a campaign sector is active;
+- a timed stock `sector.capture.current` notification row;
 - the local unit's stock `stat.health`/`stat.ammo` values;
 - the original copper item glyph and the local core's copper count.
 
@@ -45,6 +46,7 @@ gradle -Pprobe=status-hud runProbeJvm \
 ```text
 UPSTREAM_STATUS_ROWS cases=10 ok
 UPSTREAM_UNIT_ROWS cases=3 ok
+UPSTREAM_NOTIFICATION cases=2 ok
 ```
 
 While the wave timer is counting down, the status text changes once per second,
@@ -60,6 +62,6 @@ exactly.
 ## Limitations
 
 - This is the wave/timer/copper slice of the stock HUD, not the complete HUD.
-- Health, ammo, full item list, minimap, notifications and the full stock
-  layout remain open under #40.
+- Full item list, minimap, additional notifications and the full stock layout
+  remain open under #40.
 - Physical Old/New 3DS verification remains open with #43.

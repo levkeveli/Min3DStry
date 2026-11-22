@@ -32,8 +32,21 @@ public final class UpstreamStatusRowsProbe {
         checkUnit(bundle, "full-health", 100, 100, 0, 0, "Health 100/100");
         checkUnit(bundle, "health-ammo", 37, 100, 25, 20, "Health 37/100", "Ammo 25%");
         checkUnit(bundle, "no-health", 0, 0, 0, 0);
+        UpstreamNotification.show("Sector Captured!", 5f);
+        if (!"Sector Captured!".equals(UpstreamNotification.current())) {
+            throw new IllegalStateException("notification was not shown");
+        }
+        UpstreamNotification.update(2f);
+        if (UpstreamNotification.current() == null) {
+            throw new IllegalStateException("notification expired too early");
+        }
+        UpstreamNotification.update(4f);
+        if (UpstreamNotification.current() != null) {
+            throw new IllegalStateException("notification did not expire");
+        }
         System.out.println("UPSTREAM_STATUS_ROWS cases=10 ok");
         System.out.println("UPSTREAM_UNIT_ROWS cases=3 ok");
+        System.out.println("UPSTREAM_NOTIFICATION cases=2 ok");
     }
 
     private static void checkUnit(I18NBundle bundle, String label, int health, int maxHealth,
