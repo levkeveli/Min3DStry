@@ -1,6 +1,6 @@
 # Physical verification runbook
 
-Status: **procedure**. This page defines how a physical Old/New 3DS run becomes checked evidence.
+Status: **procedure**. Queued handoff cards: [hardware-test-queue.md](../hardware-test-queue.md). This page defines how a physical Old/New 3DS run becomes checked evidence.
 It does not claim any hardware result by itself; the capability ledger only moves when a captured log
 passes [`tools/hw_evidence.py`](../../tools/hw_evidence.py) and is attached to a PR.
 
