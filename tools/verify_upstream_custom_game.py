@@ -4,8 +4,8 @@
 from __future__ import annotations
 
 import argparse
-import re
 import struct
+import time
 from pathlib import Path
 
 import verify_upstream_singleplayer as sp
@@ -16,7 +16,7 @@ def write_replay(path: Path, model: str, resume: bool) -> None:
     if resume:
         windows.append((33, 35, 1))  # A on Load Game.
     else:
-        windows += [(28, 30, 1 << 4), (33, 35, 1), (61, 63, sp.KEY_SELECT)]
+        windows += [(25, 27, 1 << 7), (28, 30, 1 << 4), (33, 35, 1), (61, 63, sp.KEY_SELECT)]
     frames = sp.CTM_SAMPLES_PER_SECOND * 72
     header = struct.pack("<4sQ20sQQ32sIQq156x", b"CTM\x1b", 0, sp.CTM_REVISION, 1780000000,
                          0x4D334453, b"Min3DStry Custom Game", 0, frames, 0)
@@ -36,9 +36,11 @@ def verify(model: str, rom: Path, azahar: str, config: Path, log: Path, output: 
     save = sp.resolve_sd_save_path(log).with_name("custom-game-save.msav")
     if any(save.with_name("maps").glob("*.msav")):
         raise RuntimeError("Use an Azahar SD directory without user maps for the stock catalog test")
-    backups = {p: p.read_bytes() if p.is_file() else None for p in (config, save, save.with_suffix(".msav.bak"))}
+    backup = save.with_name(f"{save.name}-backup.msav")
+    backups = {p: p.read_bytes() if p.is_file() else None for p in (config, save, backup)}
     save.parent.mkdir(parents=True, exist_ok=True)
     save.unlink(missing_ok=True)
+    backup.unlink(missing_ok=True)
     try:
         for resume in (False, True):
             stage = "resume" if resume else "play"
@@ -47,6 +49,12 @@ def verify(model: str, rom: Path, azahar: str, config: Path, log: Path, output: 
             proc, rpc = sp._launch_azahar(model, rom, azahar, config, log, replay)
             try:
                 sp._wait_for_log(log, proc, r"UPSTREAM_CUSTOM_GAME_MENU maps=18\b", timeout)
+                if not resume:
+                    time.sleep(2)
+                    menu = rpc.screenshot()
+                    if sp.az.inspect_png(menu)["top_distinct_colors"] < 8:
+                        raise AssertionError(f"{model}: expected a rendered Custom Game menu")
+                    (output / f"{model}-menu.png").write_bytes(menu)
                 if resume:
                     loaded = r"UPSTREAM_SP_LOADED source=customgame-save map=Archipelago\b"
                 else:

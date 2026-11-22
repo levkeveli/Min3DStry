@@ -61,6 +61,10 @@ if [[ $# -gt 0 ]]; then
         echo "Prepare singleplayer terrain assets with --singleplayer to include sprites.aatls and maps/groundZero.msav" >&2
         exit 2
     fi
+    if [[ ${#native_input[@]} -gt 0 && ! -d "$1/maps/default" ]]; then
+        echo "Prepare singleplayer terrain assets with --singleplayer to include the original Custom Game maps" >&2
+        exit 2
+    fi
     terrain_flags=(-DM3DS_TERRAIN_RENDERER -I"$root" -I"$1")
     terrain_sources=("$root/m3ds_terrain_renderer.c")
     terrain_libraries=(-lcitro2d -lcitro3d)

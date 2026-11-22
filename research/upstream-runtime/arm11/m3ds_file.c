@@ -102,7 +102,7 @@ int32_t teavm_file_rename(char16_t* name, int32_t name_size,
 }
 
 TeaVM_StringList* teavm_file_listFiles(char16_t* name, int32_t name_size) {
-    char* path = teavm_char16ToMb(name, name_size);
+    char* path = m3ds_file_read_path(name, name_size);
     if (path == NULL) {
         return NULL;
     }
