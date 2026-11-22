@@ -180,6 +180,7 @@ def check_numbered_stock(java: str, server: Path, output: Path, model: str, depa
         (root / "config").mkdir()
         shutil.copyfile(output / f"{model}-numbered-settings.bin", root / "config/settings.bin")
         shutil.copyfile(output / f"{model}-numbered-sector-serpulo-{sector_id}.msav", root / "port.msav")
+        shutil.copyfile(departure / "saves/sector-serpulo-170.msav", root / "origin.msav")
         custom_expected = (departure / "schematics/campaign-test.msch").is_file()
         custom_check = """
             if (String(Packages.arc.Core.settings.getString("lastloadout-core-foundation", "")) !== "campaign-test") {
@@ -198,6 +199,11 @@ def check_numbered_stock(java: str, server: Path, output: Path, model: str, depa
                 || Vars.world.width() !== {size} || Vars.world.height() !== {size}
                 || !io.getMeta(slot).rules.sector.equals(to)) {{
                 throw new Error("Numbered sector or cargo differs");
+            }}
+            io.load(Packages.arc.files.Fi.get("origin.msav"), Vars.world.makeSectorContext(from));
+            if (!Vars.state.rules.sector.equals(from) || !from.info.wasCaptured || Vars.state.rules.waves
+                || Vars.state.rules.defaultTeam.items().get(items.copper) !== 0) {{
+                throw new Error("The captured origin did not retain its post-launch inventory");
             }}
             return "UPSTREAM_PC_NUMBERED_REOPENED";
         """

@@ -128,11 +128,13 @@ the original world generator, then checks the sector IDs, starter cores,
 launch event, and the saved worlds. The stock v160.8 server reopened both
 JVM-generated saves with the same world size, core, and rules as saves
 from a fresh stock launch. The JVM reference also checks the stock numbered
-landing rule. It upgrades a captured Ground Zero to a Core Foundation,
+landing rule. The test seeds the last wave with no enemies and lets the
+upstream game loop capture Ground Zero. It then upgrades to a Core Foundation,
 checks the original default launch schematic and the maximum cargo preference,
 and verifies that the origin pays for the schematic and the loaded cargo.
 The new Serpulo sector opens with 23 copper and Ground Zero resumes with the
-remaining inventory.
+remaining inventory. The stock server reopens the new sector and the still
+captured origin, and confirms that the cargo was deducted from the old base.
 
 The campaign selector includes open launch destinations when a stock landing
 candidate exists. Choose a destination to review the selected schematic, its

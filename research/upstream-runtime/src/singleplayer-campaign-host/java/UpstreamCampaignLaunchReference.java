@@ -10,6 +10,7 @@ import mindustry.content.Blocks;
 import mindustry.content.Items;
 import mindustry.content.Loadouts;
 import mindustry.content.SectorPresets;
+import mindustry.game.EventType.SectorCaptureEvent;
 import mindustry.game.EventType.SectorLaunchEvent;
 import mindustry.game.Schematic;
 import mindustry.game.Schematics;
@@ -69,9 +70,17 @@ public final class UpstreamCampaignLaunchReference {
             // Exercise stock eligibility with a captured base before and after a Core Foundation.
             Fi origin = session.sectorFile(zero);
             session.start(null, origin, "campaign", zero);
-            zero.info.wasCaptured = true;
-            Vars.state.rules.waves = false;
-            Vars.state.rules.attackMode = false;
+            // Seed the last wave with no surviving enemies and let upstream Logic do the capture.
+            var captured = new Sector[1];
+            Events.on(SectorCaptureEvent.class, event -> captured[0] = event.sector);
+            if (!Vars.state.rules.waves || Vars.state.rules.winWave <= 0 || zero.info.wasCaptured) {
+                throw new AssertionError("Expected a fresh wave-based Ground Zero campaign");
+            }
+            Vars.state.wave = Vars.state.rules.winWave;
+            session.stepSimulation(0f, 0f);
+            if (captured[0] != zero || !zero.isCaptured() || !zero.info.wasCaptured) {
+                throw new AssertionError("Stock wave completion did not capture Ground Zero");
+            }
             if (session.campaignSlots(session.sectorSaves()).stream().anyMatch(slot -> slot.origin == zero && slot.sector.preset == null)) {
                 throw new AssertionError("Serpulo must require a Core Foundation for numbered-sector launch");
             }
