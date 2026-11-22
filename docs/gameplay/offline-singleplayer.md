@@ -89,6 +89,13 @@ profiles. The verifier retains the native test saves alongside screenshots and
 logs so they can also be opened in the stock v160.8 game.
 Use `--map archipelago` to exercise the original 500×500 map separately.
 
+The [ARM11 build from `431c7e8`](https://github.com/levkeveli/Min3DStry/actions/runs/45030664788)
+started Ancient Caldera in Sandbox, saved, and resumed it on both Azahar
+2126.2 profiles. An unmodified v160.8 server loaded both native saves and
+reported the same map size, planet, infinite resources, waves, and wave-timer
+settings as its own Ancient Caldera Sandbox session. Physical console testing
+and frame-rate targets remain open.
+
 ## 3DS Controls
 
 | Input | Action |
