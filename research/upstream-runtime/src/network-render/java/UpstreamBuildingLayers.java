@@ -29,10 +29,14 @@ final class UpstreamBuildingLayers {
         for (int y = viewport.bottom; y < top; y++) {
             for (int x = viewport.left; x < right; x++) {
                 var build = Vars.world.tile(x, y).build;
-                if (build != null && visited.add(build.pos()) && supported.test(build)
-                        && (!build.inFogTo(viewer) || build.wasVisible)) {
-                    visible.add(build);
+                if (build == null || !visited.add(build.pos())) continue;
+                if (!build.inFogTo(viewer)) {
+                    // The stock draw pass records revealed buildings. Beam nodes consult
+                    // this state on the destination building before drawing a connection.
+                    build.visibleFlags |= 1L << viewer.id;
+                    build.wasVisible = true;
                 }
+                if (build.wasVisible && supported.test(build)) visible.add(build);
             }
         }
         visited.clear();

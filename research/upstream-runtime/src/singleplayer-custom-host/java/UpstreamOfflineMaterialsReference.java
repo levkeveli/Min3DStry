@@ -8,7 +8,10 @@ import mindustry.content.Items;
 import mindustry.content.Liquids;
 import mindustry.game.Team;
 import mindustry.gen.Building;
+import mindustry.type.Category;
 import mindustry.world.blocks.liquid.LiquidRouter;
+import mindustry.world.blocks.power.BeamNode;
+import mindustry.world.blocks.power.BeamNode.BeamNodeBuild;
 import mindustry.world.blocks.power.ConsumeGenerator.ConsumeGeneratorBuild;
 import mindustry.world.blocks.power.ImpactReactor.ImpactReactorBuild;
 import mindustry.world.blocks.power.NuclearReactor.NuclearReactorBuild;
@@ -25,9 +28,11 @@ import mindustry.world.blocks.storage.StorageBlock;
 import port.render.UpstreamCrackAtlas;
 import port.render.UpstreamFluidAtlas;
 
-/** Exercise each stock offline material building through the same pass as the ARM11 app. */
+/** Exercise stock material and power building draw passes using the pinned atlas. */
 public final class UpstreamOfflineMaterialsReference implements UpstreamTerrainDrawProbe.TerrainTarget {
     private int sprites;
+    private int beamSegments;
+    private arc.graphics.g2d.TextureAtlas.AtlasRegion beamRegion;
 
     public static void main(String[] args) throws Exception {
         if (args.length != 3) throw new IllegalArgumentException("Expected Glacier, sprites.aatls and block_colors.png");
@@ -53,7 +58,7 @@ public final class UpstreamOfflineMaterialsReference implements UpstreamTerrainD
         int tested = 0;
         int powerTested = 0;
         for (var block : Vars.content.blocks()) {
-            boolean power = block.category == mindustry.type.Category.power;
+            boolean power = block.category == Category.power;
             boolean material = block instanceof GenericCrafter || block instanceof Separator || block instanceof Pump
                 || block instanceof LiquidRouter || block instanceof StorageBlock && !(block instanceof CoreBlock);
             if (!power && !material) continue;
@@ -79,8 +84,29 @@ public final class UpstreamOfflineMaterialsReference implements UpstreamTerrainD
         }
         if (tested == 0) throw new AssertionError("The stock material registry was empty");
         if (powerTested == 0) throw new AssertionError("The stock power registry was empty");
+        target.verifyBeam(layers, viewport, viewer);
         System.out.println("UPSTREAM_OFFLINE_MATERIAL_DRAW tested=" + tested);
         System.out.println("UPSTREAM_STOCK_POWER_DRAW tested=" + powerTested);
+    }
+
+    private void verifyBeam(UpstreamBuildingLayers layers, UpstreamTerrainDrawProbe.Viewport viewport, Team viewer) {
+        var first = Vars.world.tile(31, 36);
+        var second = Vars.world.tile(31, 40);
+        first.setBlock(Blocks.beamNode, viewer, 0);
+        second.setBlock(Blocks.beamNode, viewer, 0);
+        try {
+            var from = (BeamNodeBuild)first.build;
+            var to = (BeamNodeBuild)second.build;
+            from.updateDirections();
+            to.updateDirections();
+            beamRegion = (arc.graphics.g2d.TextureAtlas.AtlasRegion)((BeamNode)from.block).laser;
+            beamSegments = 0;
+            layers.render(viewport, viewer, candidate -> candidate == from || candidate == to);
+            if (beamSegments != 1) throw new AssertionError("Expected one stock beam, got " + beamSegments);
+        } finally {
+            first.setBlock(Blocks.air);
+            second.setBlock(Blocks.air);
+        }
     }
 
     private static void activate(Building build) {
@@ -137,6 +163,10 @@ public final class UpstreamOfflineMaterialsReference implements UpstreamTerrainD
                      float originX, float originY, float drawWidth, float drawHeight,
                      float rotation, int color, int mixColor, Blending blending) {
         var error = (arc.graphics.g2d.TextureAtlas.AtlasRegion)Core.atlas.find("error");
+        if (beamRegion != null && page == UpstreamTerrainDrawProbe.pageIndex(beamRegion)
+                && left == beamRegion.getX() && top == beamRegion.getY()) {
+            beamSegments++;
+        }
         if (page != UpstreamTerrainDrawProbe.pageIndex(error) || left != error.getX() || top != error.getY()) {
             sprites++;
         }
