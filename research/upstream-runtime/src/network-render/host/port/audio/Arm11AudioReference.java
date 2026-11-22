@@ -10,17 +10,22 @@ import arc.graphics.Camera;
 import arc.mock.MockAudio;
 import arc.struct.Seq;
 import arc.util.Time;
+import arc.util.noise.Noise;
 import mindustry.Vars;
 import mindustry.audio.MusicContainer;
 import mindustry.audio.SoundControl;
 import mindustry.core.GameState;
+import mindustry.core.NetClient;
 import mindustry.content.Blocks;
+import mindustry.content.Weathers;
 import mindustry.game.Rules;
 import mindustry.game.Team;
 import mindustry.gen.Musics;
+import mindustry.gen.Groups;
 import mindustry.gen.SetRuleCallPacket;
 import mindustry.gen.SetRulesCallPacket;
 import mindustry.gen.Sounds;
+import mindustry.type.Weather;
 
 import java.util.HashSet;
 
@@ -58,6 +63,7 @@ public final class Arm11AudioReference {
             }
             verifyStockRulePlayback(stock);
             verifyStockBuildingAmbience();
+            verifyStockWeatherAmbience();
         } finally {
             Core.assets = assets;
             stock.dispose();
@@ -204,6 +210,111 @@ public final class Arm11AudioReference {
             starts++;
             playing = true;
             return 1;
+        }
+
+        @Override public void stop() { stops++; playing = false; }
+    }
+
+    private static void verifyStockWeatherAmbience() {
+        var audio = Core.audio;
+        var camera = Core.camera;
+        var settings = Core.settings;
+        var state = Vars.state;
+        var netClient = Vars.netClient;
+        float delta = Time.delta, time = Time.time;
+        if (!Groups.weather.isEmpty()) throw new AssertionError("Expected clear weather in the fixture");
+        try {
+            Core.camera = new Camera();
+            Core.camera.width = Core.camera.height = 128f;
+            Core.settings = new Settings();
+            Core.settings.defaults("musicvol", 0, "ambientvol", 100);
+            Vars.state = new GameState();
+            Vars.state.set(GameState.State.playing);
+            Vars.netClient = NetClient.forSnapshotDispatch();
+            Time.delta = 1f;
+            Time.time = 128f;
+            verifyWeather(Weathers.rain, 105);
+            verifyWeather(Weathers.sandstorm, 199);
+            verifyWeather(Weathers.sporestorm, 199);
+            verifyWeather(Weathers.snow, 202);
+            System.out.println("UPSTREAM_WEATHER_AMBIENCE_REFERENCE rain=105 wind=199 snow=202 expiry=ok");
+        } finally {
+            Groups.weather.clear();
+            Core.audio = audio;
+            Core.camera = camera;
+            Core.settings = settings;
+            Vars.state = state;
+            Vars.netClient = netClient;
+            Time.delta = delta;
+            Time.time = time;
+        }
+    }
+
+    private static void verifyWeather(Weather weather, int stockId) {
+        Sound stockSound = weather.sound;
+        if (Sounds.getSoundId(stockSound) != stockId) {
+            throw new AssertionError("Unexpected stock sound for " + weather.name);
+        }
+        var loop = new RecordingWeatherLoop();
+        Core.audio = new MockAudio() {
+            @Override public boolean initialized() { return true; }
+            @Override public boolean isPlaying(int voice) { return voice == 1 && loop.playing; }
+            @Override public void set(int voice, float pan, float gain) {
+                if (voice == 1) loop.mix(pan, gain);
+            }
+        };
+        var control = new SoundControl() {
+            @Override protected boolean acceptsWorldLoops() { return true; }
+        };
+        try {
+            weather.sound = loop;
+            var event = weather.create(1f, 600f);
+            event.windVector.setZero();
+            event.opacity(0.5f);
+            float expected = 0f;
+            for (int tick = 0; tick < 45; tick++) {
+                Groups.weather.update();
+                weather.updateSound(event, control);
+                control.update();
+                float fluctuation = (float)Math.abs(Noise.rawNoise(Time.time / weather.soundVolOscScl))
+                    * weather.soundVolOscMag;
+                float stockGain = Math.max((weather.soundVol + fluctuation) * event.opacity(), weather.soundVolMin);
+                expected += (stockGain - expected) * 0.11f;
+                if (expected > 0.01f && (!loop.playing || Math.abs(expected - loop.gain) > 0.0001f)) {
+                    throw new AssertionError("Stock weather gain differs for " + weather.name);
+                }
+            }
+            event.life(0f);
+            Groups.weather.update();
+            for (int tick = 0; tick < 120; tick++) control.update();
+            if (event.isAdded() || loop.starts != 1 || loop.playing || loop.stops != 1) {
+                throw new AssertionError("Stock weather loop failed to expire for " + weather.name);
+            }
+        } finally {
+            weather.remove();
+            weather.sound = stockSound;
+        }
+    }
+
+    private static final class RecordingWeatherLoop extends Sound {
+        int starts, stops;
+        boolean playing;
+        float gain;
+
+        @Override public boolean valid() { return true; }
+
+        @Override
+        protected int playSource(AudioBus bus, float volume, float pitch, float pan, boolean looping) {
+            if (!looping || pitch != 1f) throw new AssertionError("Expected original weather loop and pitch");
+            mix(pan, volume);
+            starts++;
+            playing = true;
+            return 1;
+        }
+
+        void mix(float pan, float volume) {
+            if (Math.abs(pan) > 0.0001f) throw new AssertionError("Weather loop drifted from the camera center");
+            gain = volume;
         }
 
         @Override public void stop() { stops++; playing = false; }

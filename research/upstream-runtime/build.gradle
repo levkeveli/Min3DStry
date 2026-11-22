@@ -231,6 +231,7 @@ if (usesArcSources || usesExecutor) {
         stagedClasses.addAll(['mindustry/core/World.class', 'mindustry/core/World$*.class'])
         stagedClasses.addAll(['arc/audio/Sound.class', 'arc/audio/Sound$*.class'])
         stagedClasses.addAll(['mindustry/audio/SoundControl.class', 'mindustry/audio/SoundControl$*.class'])
+        stagedClasses.addAll(['mindustry/type/Weather.class', 'mindustry/type/Weather$*.class'])
         stagedClasses.addAll(['mindustry/entities/bullet/BulletType.class', 'mindustry/entities/bullet/BulletType$*.class'])
     }
     if (usesCampaignJsonCompat) {
@@ -398,6 +399,7 @@ tasks.register('prepareUpstreamProbe') {
         outputs.file(sourceDir.map { it.file(bulletTypeSource) })
         outputs.file(sourceDir.map { it.file('arc/audio/Sound.java') })
         outputs.file(sourceDir.map { it.file('mindustry/audio/SoundControl.java') })
+        outputs.file(sourceDir.map { it.file('mindustry/type/Weather.java') })
         outputs.file(sourceDir.map { it.file(logicExecutorSource) })
         logicDisplaySources.each { outputs.file(sourceDir.map { dir -> dir.file(it) }) }
         shieldModeSources.keySet().each { outputs.file(sourceDir.map { dir -> dir.file(it) }) }
@@ -440,6 +442,15 @@ tasks.register('prepareUpstreamProbe') {
                 'state.isGame() && Core.scene.hasDialog()': 'state.isGame() && Core.scene != null && Core.scene.hasDialog()',
                 'if(ui.planet.isShown())': 'if(ui != null && ui.planet.isShown())',
                 'else if(ui.editor.isShown())': 'else if(ui != null && ui.editor.isShown())',
+                '''    public void loop(Sound sound, float volume){
+        if(Vars.headless) return;''': '''    protected boolean acceptsWorldLoops(){
+        return !Vars.headless;
+    }
+
+    public void loop(Sound sound, float volume){
+        if(!acceptsWorldLoops()) return;''',
+                'if(Vars.headless || sound == Sounds.none || volume <= 0.00001f) return;':
+                    'if(!acceptsWorldLoops() || sound == Sounds.none || volume <= 0.00001f) return;',
                 'LinkedBlockingQueue<AmbientSource> inputSources = new LinkedBlockingQueue<>();':
                     'final java.util.ArrayDeque<AmbientSource> inputSources = new java.util.ArrayDeque<>();',
                 'ambientThread.inputSources.add(source);':
@@ -492,6 +503,25 @@ tasks.register('prepareUpstreamProbe') {
             def adaptedMusicControl = sourceDir.get().file('mindustry/audio/SoundControl.java').asFile
             adaptedMusicControl.parentFile.mkdirs()
             adaptedMusicControl.setText(musicControl, 'UTF-8')
+            def weather = new String(readUpstream('core/src/mindustry/type/Weather.java'), 'UTF-8')
+            def weatherImports = 'import mindustry.annotations.Annotations.*;'
+            def weatherGuard = '        if(!headless && sound != Sounds.none){'
+            def weatherLoop = '            control.sound.loop(sound, Math.max((soundVol + noise) * state.opacity, soundVolMin));'
+            if (weather.count(weatherImports) != 1 || weather.count(weatherGuard) != 1 || weather.count(weatherLoop) != 1) {
+                throw new GradleException('Pinned weather audio changed')
+            }
+            def adaptedWeather = sourceDir.get().file('mindustry/type/Weather.java').asFile
+            adaptedWeather.parentFile.mkdirs()
+            adaptedWeather.setText(weather.replace(weatherImports, '''import mindustry.annotations.Annotations.*;
+import mindustry.audio.SoundControl;
+import port.audio.Arm11Audio;''')
+                .replace(weatherGuard, '''        var audio = headless ? Arm11Audio.musicControl() : control.sound;
+        updateSound(state, audio);
+    }
+
+    public void updateSound(WeatherState state, SoundControl audio){
+        if(audio != null && sound != Sounds.none){''')
+                .replace(weatherLoop, weatherLoop.replace('control.sound', 'audio')), 'UTF-8')
             def globalLogic = new String(readUpstream(globalLogicSource), 'UTF-8')
             def logicChanges = [
                 'import arc.*;': 'import port.audio.Arm11Audio;\nimport port.logic.UpstreamClientLogic;\n\nimport arc.*;',

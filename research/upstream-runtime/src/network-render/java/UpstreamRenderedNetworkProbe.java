@@ -216,9 +216,13 @@ public final class UpstreamRenderedNetworkProbe {
         float delta = Math.min(frameSeconds * 60f, Vars.maxDeltaClient);
         Time.delta = delta;
         try {
+            boolean paused = Vars.state.isPaused();
+            if (!paused) {
+                Time.update();
+                Groups.weather.update();
+            }
             Arm11Audio.updateClientAudio(now);
-            if (Vars.state.isPaused()) return;
-            Time.update();
+            if (paused) return;
             for (var build : Groups.build) {
                 if (build instanceof TileableLogicDisplayBuild display) display.updateTile();
                 if (build instanceof Conduit.ConduitBuild conduit) conduit.advanceLiquidDraw();

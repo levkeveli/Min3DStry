@@ -39,6 +39,7 @@ import mindustry.gen.ClearObjectivesCallPacket;
 import mindustry.gen.CompleteObjectiveCallPacket;
 import mindustry.gen.ConnectConfirmCallPacket;
 import mindustry.gen.CreateMarkerCallPacket;
+import mindustry.gen.CreateWeatherCallPacket;
 import mindustry.gen.ConstructFinishCallPacket;
 import mindustry.gen.DeconstructFinishCallPacket;
 import mindustry.gen.EntitySnapshotCallPacket;
@@ -475,6 +476,10 @@ public final class UpstreamLiveNetworkProbe {
                 decode(new SoundCallPacket(), received).handleClient();
             } else if (frame != null && id == unsignedId(SoundAtCallPacket.class)) {
                 decode(new SoundAtCallPacket(), received).handleClient();
+            } else if (frame != null && id == unsignedId(CreateWeatherCallPacket.class)) {
+                var weather = decode(new CreateWeatherCallPacket(), received);
+                weather.handleClient();
+                System.out.println("UPSTREAM_LIVE_WEATHER name=" + weather.weather.name);
             } else {
                 var marker = markerPacket(id);
                 if (marker != null) {

@@ -510,6 +510,20 @@ Azahar used the no-DSP fallback, so audible ambience remains a physical
 console test.
 [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44960910357)
 
+The live client dispatches the stock `CreateWeatherCallPacket` and advances
+`WeatherState` with the original client delta. The stock transition,
+wind and status effects run before the normal audio update. The weather
+sound comes from upstream `Weather.updateEffect` and uses the stock
+`SoundControl` loop and fade at the camera center. World reset clears the
+weather entities and audio. Weather particles and the noise shader require
+their own rendering support.
+
+Add `--verify-weather-audio` to the Glacier weapon replay. The unmodified
+Java server sends weather after the first rendered frame. The verifier
+checks the incoming weather packets and stock sound IDs for rain (105),
+sandstorm (199), and snow (202). The JVM reference also checks the shared sporestorm loop,
+the original gains and centered pan, and fade-out after weather expiry.
+
 Run `python3 tools/verify_live_stock_audio.py <terrain-assets>` with the
 staged directory to exercise all 205 PCM files through the live mixer and
 streamer on a host. The test holds a looping Gamma firing voice while it

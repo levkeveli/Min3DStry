@@ -1660,6 +1660,36 @@ def verify_stock_building_ambience(text, model):
     print(f"{model}: stock Mechanical Drill ambience. {emitted[0]}", flush=True)
 
 
+def start_stock_weather(log, emulator, server_log, server, timeout):
+    wait_for(log, emulator, r"UPSTREAM_NETWORK_FRAME unit=\d+", timeout)
+    server.stdin.write(
+        'js (() => { Call.createWeather(Weathers.rain, 1, 600, 0, 0); '
+        'Call.createWeather(Weathers.snow, 1, 600, 0, 0); '
+        'Call.createWeather(Weathers.sandstorm, 1, 600, 0, 0); '
+        'return "UPSTREAM_STOCK_WEATHER fixture=rain,snow,sandstorm"; })()\n'
+    )
+    server.stdin.flush()
+    wait_for(server_log, server, r"UPSTREAM_STOCK_WEATHER fixture=rain,snow,sandstorm\b", 5)
+
+
+def verify_stock_weather(text, model):
+    ready = "state=ready" in text
+    for weather, sound_id, frames, max_gain in (
+        ("rain", 105, 195235, 0.25),
+        ("sandstorm", 199, 132108, 0.8),
+        ("snowing", 202, 602477, 1.0),
+    ):
+        received = re.search(rf"UPSTREAM_LIVE_WEATHER name={weather}\b", text)
+        pattern = (rf"UPSTREAM_LIVE_STREAM_PLAY id={sound_id} volume=({NUMBER}) pitch=1\.000 "
+                   rf"pan=({NUMBER}) voice=(\d+) frames={frames} loop=1\b")
+        played = re.search(pattern, text)
+        if (not received or not played or played.start() < received.start()
+                or not 0.01 <= float(played[1]) <= max_gain or abs(float(played[2])) > 0.001
+                or ready != (int(played[3]) > 0)):
+            raise RuntimeError(f"{model} did not receive and route the stock {weather} loop")
+        print(f"{model}: stock {weather}. {played[0]}", flush=True)
+
+
 def set_stock_music_fixture(server_log, server):
     server.stdin.write(
         'js (() => { const rules = Vars.state.rules; '
@@ -1887,6 +1917,8 @@ def run_model(args, model, config, original_config, log, output):
                 if args.controls_rejoin:
                     emu_log = verify_graphical_rejoin(args, model, log, emulator, server_log, server, rpc, output)
                 elif args.verify_weapons:
+                    if args.verify_weather_audio:
+                        start_stock_weather(log, emulator, server_log, server, args.timeout)
                     if args.verify_live_audio:
                         send_live_sound_packets(log, emulator, server_log, server, args.timeout)
                     if args.verify_live_music:
@@ -1915,6 +1947,8 @@ def run_model(args, model, config, original_config, log, output):
                         verify_stock_music(log, emulator, model, args.timeout)
                     if args.verify_building_ambience:
                         verify_stock_building_ambience(emu_log, model)
+                    if args.verify_weather_audio:
+                        verify_stock_weather(emu_log, model)
                 elif args.controls:
                     def capture(phase, position):
                         if args.world_atlas_recycle and phase == "spawn":
@@ -2217,6 +2251,8 @@ def main():
                         help="Check the stock live soundtrack selection and native Vorbis decoder")
     parser.add_argument("--verify-building-ambience", action="store_true",
                         help="Verify the stock Mechanical Drill emits positional loop audio")
+    parser.add_argument("--verify-weather-audio", action="store_true",
+                        help="Verify stock rainy, snowy and windy weather packets route their original ambient loops")
     args = parser.parse_args()
     if args.controls_rejoin and (not args.controls or args.controls_replay or not args.terrain_atlas
                                  or args.map_spawn not in MAP_SPAWN_PIXELS or args.verify_objective_markers
@@ -2243,6 +2279,8 @@ def main():
         parser.error("--verify-live-music needs --verify-weapons and --terrain-atlas on Glacier")
     if args.verify_building_ambience and (not args.verify_weapons or not args.terrain_atlas):
         parser.error("--verify-building-ambience needs --verify-weapons and --terrain-atlas on Glacier")
+    if args.verify_weather_audio and (not args.verify_weapons or not args.terrain_atlas):
+        parser.error("--verify-weather-audio needs --verify-weapons and --terrain-atlas on Glacier")
     if args.building and not args.terrain_atlas:
         parser.error("--building needs --terrain-atlas")
     if args.touch_build and not args.terrain_atlas:
