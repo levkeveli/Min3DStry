@@ -128,7 +128,7 @@ public final class UpstreamSinglePlayerApp {
             UpstreamSinglePlayerSession.SectorSlot selected = null;
             if (sectorSaves.size() == 1) {
                 selected = sectorSaves.get(0);
-                System.out.println("UPSTREAM_CAMPAIGN_SELECTED slot=" + selected.file.name() + " source=single");
+                System.out.println("UPSTREAM_CAMPAIGN_SELECTED slot=" + selected.file.name() + " source=single name=" + selected.sector.name());
             } else if (!sectorSaves.isEmpty()) {
                 loadInterfaceRenderer();
                 selected = chooseSector(sectorSaves, mapDir.child("campaign-select.txt"));
@@ -313,7 +313,7 @@ public final class UpstreamSinglePlayerApp {
                 int index = Integer.parseInt(automatic.readString("UTF-8").trim());
                 if (index >= 0 && index < slots.size()) {
                     var slot = slots.get(index);
-                    System.out.println("UPSTREAM_CAMPAIGN_SELECTED slot=" + slot.file.name() + " source=auto");
+                    System.out.println("UPSTREAM_CAMPAIGN_SELECTED slot=" + slot.file.name() + " source=auto name=" + slot.sector.name());
                     return slot;
                 }
             } catch (NumberFormatException ignored) {
@@ -340,7 +340,7 @@ public final class UpstreamSinglePlayerApp {
             lastAxis = axis;
             if ((input & (1 << 17)) != 0) {
                 var slot = slots.get(selected);
-                System.out.println("UPSTREAM_CAMPAIGN_SELECTED slot=" + slot.file.name());
+                System.out.println("UPSTREAM_CAMPAIGN_SELECTED slot=" + slot.file.name() + " name=" + slot.sector.name());
                 return slot;
             }
             if (renderedRow != selected) {
