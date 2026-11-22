@@ -66,7 +66,9 @@ the last-sector selection. The graphical app loads the file through Arc
 stock last save name or planet sector preference determines the initial row
 when it matches an available save. Saving the sector updates the original
 Mindustry settings keys through `SaveIO` and flushes `Settings` to the same
-SD directory. Arc manages the settings backup.
+SD directory. Arc manages the settings backup. The offline executable
+reserves a 512 KiB native stack for the nested upstream serializer used by
+campaign saves with objective markers.
 
 Use the stock v160.8 server to add `settings.bin` to the sector fixture directory.
 
@@ -81,8 +83,9 @@ metadata, the settings backup, and the research update after saving.
 Passing the same fixtures to `tools/verify_upstream_campaign_resume.py`
 checks the initial menu selection and saves a copy of the native settings for
 each run. The stock reader can check those files with
-`python3 tools/campaign_settings_fixture.py --server server-release.jar --check /path/to/new3ds-single-settings.bin --sector 170`
-and `--sector 64` for the two-slot run.
+`python3 tools/campaign_settings_fixture.py --server server-release.jar --check /path/to/new3ds-single-settings.bin --sector 170 --after-play`
+and `--sector 64` without `--after-play` for the two-slot run. The replay
+allows the active sector’s stock production average to decay while idle.
 
 ## New campaign
 

@@ -31,7 +31,7 @@ if [[ ${1:-} == --network ]]; then
 elif [[ ${1:-} == --singleplayer ]]; then
     title="Min3DStry"
     subtitle="Mindustry v160.8 Ground Zero"
-    native_input=(-I"$root" "$root/m3ds_input.c")
+    native_input=(-DM3DS_SINGLEPLAYER -I"$root" "$root/m3ds_input.c")
     shift
 fi
 save_rows_flags=()
