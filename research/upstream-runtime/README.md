@@ -92,10 +92,11 @@ without opening a network connection. Address input stays in memory.
 For scripted launches, put the host and port on one line in
 `sd:/3ds/min3dstry/server-endpoint.txt` to skip the keyboard.
 Argument-capable launchers can also pass `--join [endpoint-file]`.
-The [keyboard test build](https://github.com/levkeveli/Min3DStry/actions/runs/45065426179)
-rejected port 0 on both Azahar 2126.2 profiles and joined an unmodified
-v160.8 Glacier server after the address was corrected, without writing an
-endpoint file.
+The [unified launch test build](https://github.com/levkeveli/Min3DStry/actions/runs/45071161323)
+booted and rendered Ground Zero on both Azahar 2126.2 profiles with fresh
+virtual SD cards and no input. With **X** held at launch, the same ROM
+rejected port 0 and joined an unmodified v160.8 Glacier server after the
+address was corrected, without writing an endpoint file.
 The unified client uses its packaged v160.8 atlas in both modes. Restart the
 ROM to switch modes. Menu and browser integration are tracked in
 [#40](https://github.com/levkeveli/Min3DStry/issues/40) and
