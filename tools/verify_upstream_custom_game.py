@@ -42,6 +42,7 @@ def verify(model: str, rom: Path, azahar: str, config: Path, log: Path, output: 
     save.unlink(missing_ok=True)
     backup.unlink(missing_ok=True)
     try:
+        game_fps = {}
         for resume in (False, True):
             stage = "resume" if resume else "play"
             replay = output / f"{model}-{stage}.ctm"
@@ -61,6 +62,9 @@ def verify(model: str, rom: Path, azahar: str, config: Path, log: Path, output: 
                     loaded = r"UPSTREAM_CUSTOM_GAME_STARTED map=caldera\.msav mode=sandbox\b"
                 sp._wait_for_log(log, proc, loaded, timeout)
                 sp._wait_for_log(log, proc, r"UPSTREAM_SP_FRAME ", timeout)
+                rpc.perf_stats(reset=True)
+                time.sleep(1.5)
+                game_fps[stage] = (rpc.perf_stats(reset=True) or {}).get("game_fps", 0)
                 shot = rpc.screenshot()
                 info = sp.az.inspect_png(shot)
                 if min(info["top_distinct_colors"], info["bottom_distinct_colors"]) < 8:
@@ -75,7 +79,8 @@ def verify(model: str, rom: Path, azahar: str, config: Path, log: Path, output: 
                 sp._stop_proc(proc, azahar)
                 trace = log.read_text(encoding="utf-8", errors="replace")
                 (output / f"{model}-{stage}.log").write_text(trace, encoding="utf-8")
-        print(f"[PASS] {model}: stock maps=18 Ancient Caldera sandbox save=ok resume=ok", flush=True)
+        print(f"[PASS] {model}: stock maps=18 Ancient Caldera sandbox save=ok resume=ok "
+              f"azahar_game_fps={game_fps['play']:.2f}/{game_fps['resume']:.2f}", flush=True)
     finally:
         for path, original in backups.items():
             if original is None:
