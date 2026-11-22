@@ -112,7 +112,7 @@ TeaVM 0.16.0's non-obfuscated `callsites.c` (`36.86 MB` of C source on `audio-ti
 
 - **Trade-off & debug opt-out:** Stack traces (`printStack()` / `fillStackTrace()`) omit per-frame source file/line names under default compaction (`location == NULL`); set `M3DS_KEEP_CALLSITE_LOCATIONS=1` when staging/building to retain the full TeaVM location tables verbatim.
 
-Measured with pinned `devkitpro/devkitarm` (`-O2`) on identical generated `audio-ticks` TeaVM C (comparing `M3DS_KEEP_CALLSITE_LOCATIONS=1` vs. default sparse compaction, both using the lazy array class pool):
+Measured with pinned `devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5` (`-O2`) on identical generated `audio-ticks` TeaVM C (comparing `M3DS_KEEP_CALLSITE_LOCATIONS=1` vs. default sparse compaction on base commit `a4136f6`, both using the lazy array class pool):
 
 | Metric | Keep locations (`#226`) | Sparse call sites (`#233`) | Delta |
 |---|---|---|---|
@@ -123,3 +123,20 @@ Measured with pinned `devkitpro/devkitarm` (`-O2`) on identical generated `audio
 | Subtotal (`LOAD` + `24 MiB` heap + `4 MiB` linear + `256 KiB` stack) | `47.89 MiB` | `44.59 MiB` | `-3.30 MiB` |
 
 Host unit tests ([`tests/platform/test_callsites.c`](../../tests/platform/test_callsites.c), [`tests/tools/test_compact_callsites.py`](../../tests/tools/test_compact_callsites.py) in `./dev.sh test`) and compacted `-O2` Linux host execution on `audio-ticks` (`UPSTREAM_WORLD_FINGERPRINT 2e7b9f883994de6c`, `trace=8dd46207043810fc`) pass; Azahar emulator runs and physical Original/New 3DS verification of the reduced `.3dsx` remain separate pending checks (`#43`).
+
+## Upstream TeaVM dead string-pool pruning ([#43](https://github.com/levkeveli/Min3DStry/issues/43))
+
+After stripping `callsites.c` location tables, the trailing string constants emitted solely for source file/class/method names become unreferenced everywhere else in the C program. When `M3DS_KEEP_CALLSITE_LOCATIONS != 1`, [`prune_unused_strings`](../../research/upstream-runtime/arm11/compact_callsites.py) (invoked by [`prepare.py`](../../research/upstream-runtime/arm11/prepare.py) after staging all `.c`/`.h` files) scans every non-`strings.{c,h}` source for `TEAVM_GET_STRING` / `TEAVM_GET_STRING_ADDRESS` indices, truncates the unreferenced tail, replaces any interior dead slots with `NULL`, shrinks the `teavm_initStringPool()` loop bound to avoid startup string-interning work, and fails closed without rewriting `strings.c` if any non-constant `teavm_stringPool` reference is detected.
+
+Measured with pinned `devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5` (`-O2`) on identical `audio-ticks` TeaVM C staged atop base commit `a4136f6` (sparse call sites before vs. after `prune_unused_strings`):
+
+| Metric | Sparse call sites (`#233`) | + Dead string pruning (`#43`) | Delta |
+|---|---|---|---|
+| `teavm_stringPool` entries | `19,586` | `13,263` | `-6,323` (`6,323` fewer `teavm_registerString()` interning entries) |
+| Generated `strings.c` | `1,451,892` bytes (`1.38 MiB`) | `948,600` bytes (`0.90 MiB`) | `-503,292` bytes (`-34.7%`) |
+| ELF `.data` | `4,272,600` bytes (`4.07 MiB`) | `3,736,800` bytes (`3.56 MiB`) | `-535,800` bytes (`-0.51 MiB`) |
+| Page-rounded ELF `LOAD` segments | `17,133,568` bytes (`16.34 MiB`) | `16,596,992` bytes (`15.83 MiB`) | `-536,576` bytes (`-0.51 MiB`) |
+| Packaged `.3dsx` size | `17,521,408` bytes (`16.71 MiB`) | `16,960,316` bytes (`16.17 MiB`) | `-561,092` bytes (`-0.54 MiB`) |
+| Subtotal (`LOAD` + `24 MiB` heap + `4 MiB` linear + `256 KiB` stack) | `44.59 MiB` | `44.08 MiB` | `-0.51 MiB` |
+
+Host unit tests (`tests/tools/test_compact_callsites.py` in `./dev.sh test`) and compacted + pruned `-O2` Linux host execution on `audio-ticks` (`UPSTREAM_WORLD_FINGERPRINT 2e7b9f883994de6c`, `UPSTREAM_AUDIO_REGISTRY sounds=205 musics=16 duo=136 death=192 convLoop=63 drillLoop=67`, `trace=8dd46207043810fc`) pass; Azahar emulator runs and physical Original/New 3DS hardware verification remain separate pending checks (`#43`).

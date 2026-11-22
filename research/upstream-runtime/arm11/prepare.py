@@ -3,7 +3,7 @@ import argparse
 import os
 import shutil
 from pathlib import Path
-from compact_callsites import compact_callsites
+from compact_callsites import compact_callsites, prune_unused_strings
 from fix_heap_alignment import fix_heap_alignment
 from fix_reflection_lifetime import fix_constructor_roots, fix_reflection_lifetime
 
@@ -136,14 +136,15 @@ def main():
     for name, changes in replacements.items():
         for old, new in changes:
             replace(args.output / name, old, new)
-    if not keep_callsite_locations:
-        compact_callsites(args.output)
     for name in ("m3ds_date.c", "m3ds_platform.c", "m3ds_file.c", "m3ds_main.c",
                  "m3ds_gc_relocations.h", "m3ds_array_class_pool.h", "m3ds_callsites.h"):
         shutil.copyfile(Path(__file__).with_name(name), args.output / name)
     includes = args.output / "nativeinclude"
     includes.mkdir()
     shutil.copyfile(Path(__file__).with_name("m3ds_map_file.h"), includes / "m3ds_map_file.h")
+    if not keep_callsite_locations:
+        compact_callsites(args.output)
+        prune_unused_strings(args.output)
 
 
 if __name__ == "__main__":
