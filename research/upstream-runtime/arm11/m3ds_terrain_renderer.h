@@ -14,6 +14,8 @@ int32_t m3ds_terrain_draw(int32_t page, int32_t left, int32_t top, int32_t width
                           float draw_height, float rotation, int32_t color, int32_t mix_color, int32_t blend_mode);
 int32_t m3ds_terrain_draw_solid_quad(const float *vertices, int32_t offset, int32_t blend_mode);
 int32_t m3ds_terrain_end(void);
+void m3ds_terrain_minimap_upload(const uint8_t *pixels, int32_t width, int32_t height);
+void m3ds_terrain_minimap_draw(float x, float y, float size);
 int32_t m3ds_terrain_build_overlay(int32_t column, int32_t row, int32_t block, int32_t rotation,
                                   int32_t removing, int32_t tile_size, int32_t rotatable, int32_t catalog_open,
                                   int32_t configuring, int32_t selecting_mine);

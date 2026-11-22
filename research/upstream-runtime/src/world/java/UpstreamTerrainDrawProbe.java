@@ -37,6 +37,8 @@ public final class UpstreamTerrainDrawProbe {
                   float x, float y, float originX, float originY, float drawWidth, float drawHeight,
                   float rotation, int color, int mixColor, Blending blending);
         void drawSolidQuad(float[] vertices, int offset, Blending blending);
+        default void overlay() {
+        }
         void end();
     }
 
@@ -149,7 +151,10 @@ public final class UpstreamTerrainDrawProbe {
                 }
             }
             buildings.run();
-            if (batch.target != null) batch.target.end();
+            if (batch.target != null) {
+                batch.target.overlay();
+                batch.target.end();
+            }
         }
     }
 

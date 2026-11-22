@@ -18,11 +18,20 @@ objective panel:
 off and a campaign sector is active;
 - timed stock `sector.capture.current` and `wave.guardianwarn` notification rows;
 - the local unit's stock `stat.health`/`stat.ammo` values;
-- the original copper item glyph and the local core's copper count.
+- the original copper item glyph and the local core's copper count;
+- a 64x64 live minimap in the top-right corner, sampled from stock
+  `Block.getColor()` values with the local player drawn as a white dot and
+  refreshed every 60 frames.
 
 The status rows use the v160.8 font and inline item glyph pipeline shared with
 the objective HUD. They are rebuilt only when the rendered status text changes,
 then submitted through `drawObjective` before the objective rows.
+
+The minimap is a native citro2d texture. TeaVM samples the live world into an
+RGBA8 grid; the ARM11 renderer converts it to the PICA200's in-memory ABGR
+order and uploads it through an aligned static buffer. Uploads happen once at
+startup and every 60 rendered frames. The texture draw rebinds the top screen
+because the build palette leaves the bottom screen selected.
 
 ## Verification
 
@@ -53,6 +62,23 @@ UPSTREAM_GUARDIAN_WARNING cases=2 ok
 While the wave timer is counting down, the status text changes once per second,
 so `UPSTREAM_STATUS_HUD` is also emitted once per second in timer-on runs.
 
+The minimap has an emulator check on both Azahar profiles:
+
+```sh
+python tools/verify_minimap_azahar.py --model new3ds
+python tools/verify_minimap_azahar.py --model old3ds
+```
+
+```text
+UPSTREAM_MINIMAP size=64 hash=e32ce219f3b55675
+[PASS] minimap model=new3ds distinct=7 size=400x480 PNG=build/emu-verify/minimap-new3ds.png
+[PASS] minimap model=old3ds distinct=7 size=400x480 PNG=build/emu-verify/minimap-old3ds.png
+```
+
+The verifier selects a sector through `campaign-select.txt`, waits for the
+singleplayer load and minimap upload markers, captures the frame, and rejects a
+flat minimap region (fewer than four distinct sampled colors).
+
 The live fixture exercises the countdown/waiting path with `enemies=0`. The
 singular/plural enemy rows, the `wave.waveInProgress` branch, and the `m:ss`
 timer path are copied from v160.8 `HudFragment.makeStatusTable()` but are not
@@ -62,7 +88,11 @@ exactly.
 
 ## Limitations
 
-- This is the wave/timer/copper slice of the stock HUD, not the complete HUD.
-- Full item list, minimap, additional notifications and the full stock layout
-  remain open under #40.
+- This is the wave/timer/copper/minimap slice of the stock HUD, not the
+  complete HUD.
+- The minimap is the always-on 56 px slice: fullscreen/zoom, unit blips beyond
+  the local player, fog of war and the full stock minimap panel layout remain
+  open under #40.
+- Full item list, additional notifications and the full stock layout remain
+  open under #40.
 - Physical Old/New 3DS verification remains open with #43.

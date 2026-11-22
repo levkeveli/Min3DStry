@@ -62,6 +62,56 @@ static float world_left, world_bottom, scale, screen_left, screen_bottom;
 static int32_t draws;
 static int32_t world_blend = -1;
 static u32 world_fade;
+static C3D_Tex minimap_texture;
+static C2D_Image minimap_image;
+static Tex3DS_SubTexture minimap_subtexture;
+static bool minimap_ready;
+static int minimap_width, minimap_height;
+static uint8_t minimap_pixels[128 * 128 * 4] __attribute__((aligned(8)));
+
+void m3ds_terrain_minimap_upload(const uint8_t *pixels, int32_t width, int32_t height) {
+    if (!pixels || width <= 0 || height <= 0 || width > 128 || height > 128) return;
+    if (!minimap_ready || width != minimap_width || height != minimap_height) {
+        if (minimap_ready) C3D_TexDelete(&minimap_texture);
+        if (!C3D_TexInit(&minimap_texture, (u16)width, (u16)height, GPU_RGBA8)) return;
+        C3D_TexSetFilter(&minimap_texture, GPU_NEAREST, GPU_NEAREST);
+        C3D_TexSetWrap(&minimap_texture, GPU_CLAMP_TO_EDGE, GPU_CLAMP_TO_EDGE);
+        minimap_subtexture = (Tex3DS_SubTexture){
+            .width = (u16)width, .height = (u16)height,
+            .left = 0.0f, .top = 1.0f, .right = 1.0f, .bottom = 0.0f
+        };
+        minimap_image.tex = &minimap_texture;
+        minimap_image.subtex = &minimap_subtexture;
+        minimap_width = width;
+        minimap_height = height;
+        minimap_ready = true;
+    }
+    // PICA200 GPU_RGBA8 stores texels as ABGR in memory, and
+    // C3D_TexLoadImage needs an 8-byte-aligned source. A Java byte[]
+    // pointer is not guaranteed aligned, so convert into the static buffer.
+    size_t count = (size_t)width * (size_t)height;
+    for (size_t i = 0; i < count; i++) {
+        minimap_pixels[i * 4 + 0] = pixels[i * 4 + 3];
+        minimap_pixels[i * 4 + 1] = pixels[i * 4 + 2];
+        minimap_pixels[i * 4 + 2] = pixels[i * 4 + 1];
+        minimap_pixels[i * 4 + 3] = pixels[i * 4 + 0];
+    }
+    C3D_TexUpload(&minimap_texture, minimap_pixels);
+}
+
+void m3ds_terrain_minimap_draw(float x, float y, float size) {
+    if (!minimap_ready || !target || size <= 0.0f) return;
+    // The build palette rebinds the bottom screen inside drawEntities().
+    // Rebind the world target before drawing the HUD minimap.
+    C2D_SceneBegin(target);
+    C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_COLOR);
+    C3D_SetScissor(GPU_SCISSOR_DISABLE, 0, 0, 0, 0);
+    C2D_SetTintMode(C2D_TintMult);
+    C2D_ImageTint tint;
+    C2D_PlainImageTint(&tint, C2D_Color32(255, 255, 255, 255), 1.0f);
+    C2D_DrawImageAt(minimap_image, x, y, 0.3f, &tint,
+        size / (float)minimap_width, size / (float)minimap_height);
+}
 
 int32_t m3ds_terrain_mount_assets(void) {
     if (!romfs_ready) romfs_ready = R_SUCCEEDED(romfsInit());

@@ -405,6 +405,13 @@ public final class UpstreamSinglePlayerSession {
                 throw new IllegalStateException("Alpha player unit did not spawn");
             }
 
+            byte[] minimap = UpstreamMinimap.sample(32);
+            if (minimap == null || minimap.length != 32 * 32 * 4) {
+                throw new IllegalStateException("Minimap sampler returned an invalid grid");
+            }
+            System.out.println("UPSTREAM_MINIMAP sample=32 hash="
+                + Long.toUnsignedString(UpstreamMinimap.hash(minimap), 16));
+
             // 1. Movement check along Y-axis.
             float startY = unit.y();
             for (int tick = 1; tick <= 30; tick++) {

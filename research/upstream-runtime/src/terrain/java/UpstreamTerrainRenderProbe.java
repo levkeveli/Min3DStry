@@ -100,6 +100,15 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
         }
     }
 
+    @Override
+    public void overlay() {
+        NativeTerrain.minimapDraw(336f, 8f, 56f);
+    }
+
+    void minimapUpload(byte[] pixels, int width, int height) {
+        NativeTerrain.minimapUpload(Address.ofData(pixels), width, height);
+    }
+
     private static int blendMode(Blending blending) {
         if (blending == Blending.normal) return 0;
         if (blending == Blending.additive) return 1;
@@ -160,5 +169,11 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
         @Import(name = "m3ds_terrain_draw_world_label")
         static native int drawWorldLabel(Address label, Address characters, int count, float x, float y, int flags, float size,
                                          int horizontal, int vertical, int lines);
+
+        @Import(name = "m3ds_terrain_minimap_upload")
+        static native void minimapUpload(Address pixels, int width, int height);
+
+        @Import(name = "m3ds_terrain_minimap_draw")
+        static native void minimapDraw(float x, float y, float size);
     }
 }
