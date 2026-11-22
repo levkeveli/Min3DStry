@@ -135,6 +135,15 @@ def main():
             ("            putwchar(c);", "            m3ds_log_codepoint(c);"),
         ],
     }
+    if not args.embed:
+        replacements["main.c"] = [
+            (
+                "int main(int argc, char** argv) {",
+                "static void m3ds_init_heap(int64_t minimum, int64_t maximum);\n\n"
+                "int main(int argc, char** argv) {",
+            ),
+            ("    teavm_initHeap(", "    m3ds_init_heap("),
+        ]
     keep_callsite_locations = os.environ.get("M3DS_KEEP_CALLSITE_LOCATIONS", "0") == "1"
     if not keep_callsite_locations:
         replacements["stack.h"] = [
