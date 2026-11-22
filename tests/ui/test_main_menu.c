@@ -151,6 +151,16 @@ static void test_schematics(void) {
     CHECK(!menu.schematic_detail);
     CHECK(menu.screen == M3DS_MENU_SCREEN_SCHEMATICS);
 
+    /* SD source: the host has no sd:/ path, so the scan yields an empty list. */
+    m3ds_main_menu_schematics_toggle_source(&menu);
+    CHECK(menu.schematics_user);
+    CHECK(m3ds_main_menu_count(&menu) == 0u);
+    CHECK(m3ds_main_menu_user_schematic(&menu, 0u) == NULL);
+    CHECK(m3ds_main_menu_schematic_entry(&menu, 0u) == NULL);
+    m3ds_main_menu_schematics_toggle_source(&menu);
+    CHECK(!menu.schematics_user);
+    CHECK(m3ds_main_menu_count(&menu) == 210u);
+
     CHECK(m3ds_main_menu_back(&menu) == true);
     CHECK(menu.screen == M3DS_MENU_SCREEN_DATABASE);
     CHECK(menu.selected == 0u);

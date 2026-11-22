@@ -558,6 +558,15 @@ int main(int argc, char *argv[]) {
                          (unsigned)m3ds_main_menu_count(&main_menu));
                 m3ds_emit_debug_line(log_socket, dbg_line);
             }
+            if (main_menu.screen == M3DS_MENU_SCREEN_SCHEMATICS &&
+                (kDown & KEY_L || kDown & KEY_R)) {
+                m3ds_main_menu_schematics_toggle_source(&main_menu);
+                snprintf(dbg_line, sizeof(dbg_line),
+                         "[MIN3DSTRY] MAIN_MENU source=%s count=%u\n",
+                         main_menu.schematics_user ? "sd" : "builtin",
+                         (unsigned)m3ds_main_menu_count(&main_menu));
+                m3ds_emit_debug_line(log_socket, dbg_line);
+            }
             if (kDown & KEY_B) {
                 const char *from_screen =
                     m3ds_main_menu_screen_name(&main_menu);
@@ -1033,17 +1042,43 @@ int main(int argc, char *argv[]) {
                 unsigned selected = main_menu.schematic_selected;
                 printf("\x1b[2;1H%s %u/%u\x1b[K", screen_title,
                        (unsigned)(selected + 1u), (unsigned)total);
+                printf("\x1b[3;1HSource: %s\x1b[K",
+                       main_menu.schematics_user ? "SD card" : "built-in");
                 if (main_menu.schematic_detail) {
-                    const M3dsSchematicRow *row =
-                        m3ds_main_menu_schematic_entry(&main_menu, selected);
-                    if (row) {
-                        printf("\x1b[3;1H%.38s\x1b[K", row->name);
-                        printf("\x1b[4;1H%ux%u, %u blocks\x1b[K",
-                               row->width, row->height, row->blocks);
+                    const char *entry_name = NULL;
+                    const char *summary = "";
+                    unsigned width = 0u;
+                    unsigned height = 0u;
+                    unsigned blocks = 0u;
+                    if (main_menu.schematics_user) {
+                        const M3dsUserSchematic *row =
+                            m3ds_main_menu_user_schematic(&main_menu, selected);
+                        if (row) {
+                            entry_name = row->name;
+                            summary = row->summary;
+                            width = row->width;
+                            height = row->height;
+                            blocks = row->blocks;
+                        }
+                    } else {
+                        const M3dsSchematicRow *row =
+                            m3ds_main_menu_schematic_entry(&main_menu, selected);
+                        if (row) {
+                            entry_name = row->name;
+                            summary = row->summary;
+                            width = row->width;
+                            height = row->height;
+                            blocks = row->blocks;
+                        }
+                    }
+                    if (entry_name) {
+                        printf("\x1b[4;1H%.36s\x1b[K", entry_name);
+                        printf("\x1b[5;1H%ux%u, %u blocks\x1b[K", width,
+                               height, blocks);
                         char wrapped[640];
-                        (void)m3ds_catalog_wrap(row->summary, 38u, wrapped,
+                        (void)m3ds_catalog_wrap(summary, 38u, wrapped,
                                                 sizeof(wrapped));
-                        unsigned line = 6u;
+                        unsigned line = 7u;
                         const char *cursor = wrapped;
                         while (*cursor && line < 22u) {
                             const char *newline = strchr(cursor, '\n');
@@ -1063,6 +1098,13 @@ int main(int argc, char *argv[]) {
                         }
                     }
                     printf("\x1b[24;1HRead-only  A/B: Back  START: Exit\x1b[K");
+                } else if (total == 0u && main_menu.schematics_user) {
+                    printf("\x1b[5;1HNo .msch files in\x1b[K");
+                    printf("\x1b[6;1Hsdmc:/3ds/min3dstry/schematics\x1b[K");
+                    for (unsigned line = 7u; line < 22u; ++line) {
+                        printf("\x1b[%u;1H\x1b[K", line);
+                    }
+                    printf("\x1b[24;1HL/R: Built-in  B: Back\x1b[K");
                 } else {
                     for (unsigned row_index = 0u;
                          row_index < M3DS_SCHEMATIC_ROWS; ++row_index) {
@@ -1081,7 +1123,7 @@ int main(int argc, char *argv[]) {
                          line < 22u; ++line) {
                         printf("\x1b[%u;1H\x1b[K", line);
                     }
-                    printf("\x1b[24;1HPad Scroll  A Detail  B Back\x1b[K");
+                    printf("\x1b[24;1HPad Scroll  L/R Source  A Detail  B Back\x1b[K");
                 }
                 printf("\x1b[25;1H\x1b[K");
             } else if (main_menu.screen == M3DS_MENU_SCREEN_CATALOG) {
