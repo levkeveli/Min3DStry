@@ -1,0 +1,518 @@
+{
+  "version": 1,
+  "status_weights": {
+    "missing": 0.0,
+    "harness-only": 0.15,
+    "probe-arm11": 0.4,
+    "partial-arm11": 0.6,
+    "live-arm11": 0.85,
+    "complete": 1.0
+  },
+  "features": [
+    {
+      "id": "content-catalog-init",
+      "domain": "World, Content & Saves",
+      "name": "Full v160.8 Content Catalog (922 Records / 447 Buildings)",
+      "weight": 3,
+      "status": "live-arm11",
+      "modes": ["offline", "multiplayer"],
+      "issue": 28,
+      "evidence": [
+        "research/upstream-runtime/src/content/java/UpstreamContentInitializationProbe.java",
+        "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerSession.java"
+      ],
+      "notes": "All 922 upstream content records and 447 building factories initialize on ARM11; physical hardware >= 24 FPS verification pending."
+    },
+    {
+      "id": "msav-map-load-embed",
+      "domain": "World, Content & Saves",
+      "name": ".msav Map Loading & Embedded Startup Loader",
+      "weight": 3,
+      "status": "live-arm11",
+      "modes": ["offline", "multiplayer"],
+      "issue": 28,
+      "evidence": [
+        "docs/porting/embed-loader.md",
+        "research/upstream-runtime/src/content/java/UpstreamWorldLoadProbe.java",
+        "research/upstream-runtime/src/world/java/UpstreamSaveRowsProbe.java"
+      ],
+      "notes": "Upstream SaveIO/MapIO streaming decode runs on ARM11 and is linked as the default min3dstry.3dsx startup path."
+    },
+    {
+      "id": "msav-save-roundtrip",
+      "domain": "World, Content & Saves",
+      "name": ".msav Save Writing, Reload & Persistence",
+      "weight": 3,
+      "status": "live-arm11",
+      "modes": ["offline"],
+      "issue": 28,
+      "evidence": [
+        "docs/gameplay/offline-singleplayer.md",
+        "research/upstream-runtime/src/world/java/UpstreamWorldRoundTripProbe.java",
+        "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerSession.java"
+      ],
+      "notes": "SaveIO write and reload across Azahar Boot 1 -> Boot 2 persists tiles, core inventory, buildings, GameStats, and Rules."
+    },
+    {
+      "id": "terrain-world-atlas",
+      "domain": "World, Content & Saves",
+      "name": "Full 4-Page World Atlas, Terrain & Layered Building Draw",
+      "weight": 3,
+      "status": "live-arm11",
+      "modes": ["offline", "multiplayer"],
+      "issue": 25,
+      "evidence": [
+        "docs/rendering/asset-pipeline.md",
+        "research/upstream-runtime/arm11/m3ds_terrain_renderer.c",
+        "research/upstream-runtime/src/network-render/java/UpstreamBuildingLayers.java",
+        "research/upstream-runtime/src/network-render/java/port/render/UpstreamFluidAtlas.java"
+      ],
+      "notes": "All 4 upstream atlas pages (5,200 regions), animated fluids, cracks, and BlockRenderer static/dynamic layers render on ARM11."
+    },
+    {
+      "id": "player-ore-mining",
+      "domain": "Extraction & Logistics",
+      "name": "Player Unit Ore Mining & Core Deposit",
+      "weight": 2,
+      "status": "live-arm11",
+      "modes": ["offline", "multiplayer"],
+      "issue": 27,
+      "evidence": [
+        "docs/gameplay/offline-singleplayer.md",
+        "research/upstream-runtime/src/network-live/java/UpstreamLiveBuildControls.java",
+        "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerApp.java"
+      ],
+      "notes": "Touch Mine targeting, mining laser beam, ore harvesting, and automatic core copper/lead deposit work live on ARM11."
+    },
+    {
+      "id": "drills-extraction",
+      "domain": "Extraction & Logistics",
+      "name": "Mechanical & Pneumatic Drills (Automated Extraction)",
+      "weight": 3,
+      "status": "live-arm11",
+      "modes": ["offline", "multiplayer"],
+      "issue": 26,
+      "evidence": [
+        "docs/porting/factory-logistics.md",
+        "research/upstream-runtime/src/gameplay/java/UpstreamFactoryTickProbe.java",
+        "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerApp.java"
+      ],
+      "notes": "Drill resource extraction ticks, rotary/top sprite layers, and item output into conveyors and cores run live on ARM11."
+    },
+    {
+      "id": "conveyors-sorting-storage",
+      "domain": "Extraction & Logistics",
+      "name": "Conveyors, Routers, Junctions, Sorters & Core Storage",
+      "weight": 3,
+      "status": "live-arm11",
+      "modes": ["offline", "multiplayer"],
+      "issue": 26,
+      "evidence": [
+        "docs/porting/factory-logistics.md",
+        "research/upstream-runtime/src/gameplay/java/UpstreamFactoryTickProbe.java",
+        "research/upstream-runtime/src/network-live/java/UpstreamItemConfig.java",
+        "research/upstream-runtime/src/network-render/java/UpstreamRenderedNetworkProbe.java"
+      ],
+      "notes": "Belt transport, routers, junctions, overflow/underflow gates, configurable sorters, and core item storage run live on ARM11."
+    },
+    {
+      "id": "item-crafters-factories",
+      "domain": "Extraction & Logistics",
+      "name": "Generic Crafters & Multi-Item Production Chains",
+      "weight": 3,
+      "status": "partial-arm11",
+      "modes": ["probe", "multiplayer"],
+      "issue": 39,
+      "evidence": [
+        "docs/porting/production-power-liquids.md",
+        "research/upstream-runtime/src/gameplay/java/UpstreamProductionTickProbe.java",
+        "research/upstream-runtime/src/network-render/java/UpstreamRenderedNetworkProbe.java"
+      ],
+      "notes": "Full upstream crafter ticks verified in ARM11 production-ticks probe; live draw covers select blocks (Graphite Press, Phase Weaver, Overdrive), full crafter set and FX pending."
+    },
+    {
+      "id": "power-grid-generators",
+      "domain": "Extraction & Logistics",
+      "name": "Power Grids, Generators, Nodes & Batteries",
+      "weight": 3,
+      "status": "partial-arm11",
+      "modes": ["probe", "multiplayer"],
+      "issue": 39,
+      "evidence": [
+        "docs/porting/production-power-liquids.md",
+        "research/upstream-runtime/src/gameplay/java/UpstreamProductionTickProbe.java",
+        "research/upstream-runtime/src/network-render/java/UpstreamRenderedNetworkProbe.java"
+      ],
+      "notes": "PowerGraph and GraphUpdater ticks verified in ARM11 probe; live draw covers Combustion Generator and PowerNode beams; power HUD bar and full reactor/battery coverage pending."
+    },
+    {
+      "id": "liquids-pumps-conduits",
+      "domain": "Extraction & Logistics",
+      "name": "Liquid Pumps, Conduits, Routers & Bridges",
+      "weight": 2,
+      "status": "partial-arm11",
+      "modes": ["probe", "multiplayer"],
+      "issue": 39,
+      "evidence": [
+        "docs/porting/production-power-liquids.md",
+        "research/upstream-runtime/src/gameplay/java/UpstreamProductionTickProbe.java",
+        "research/upstream-runtime/src/network-render/java/UpstreamRenderedNetworkProbe.java"
+      ],
+      "notes": "LiquidModule and Conduit simulation verified in ARM11 probe; live draw covers Conduit tiling; full pump, tank, bridge, and liquid HUD coverage pending."
+    },
+    {
+      "id": "payloads-unit-factories",
+      "domain": "Extraction & Logistics",
+      "name": "Payload Conveyors, Unit Factories & Reconstructors",
+      "weight": 2,
+      "status": "partial-arm11",
+      "modes": ["multiplayer"],
+      "issue": 30,
+      "evidence": [
+        "research/upstream-runtime/src/network-render/java/UpstreamRenderedNetworkProbe.java"
+      ],
+      "notes": "PayloadConveyorBuild draw is wired in network-render; full payload routing, unit factory build queues, and reconstructor loops are not yet wired/verified."
+    },
+    {
+      "id": "touch-build-deconstruct",
+      "domain": "Controls & Dual-Screen UI",
+      "name": "Touch Build, Rotate (R), Deconstruct (B) & BuildPlans",
+      "weight": 3,
+      "status": "live-arm11",
+      "modes": ["offline", "multiplayer"],
+      "issue": 27,
+      "evidence": [
+        "docs/gameplay/touch-build-palette.md",
+        "docs/gameplay/offline-singleplayer.md",
+        "research/upstream-runtime/src/network-live/java/UpstreamLiveBuildControls.java",
+        "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerInput.java"
+      ],
+      "notes": "Stylus tile placement, 4-way rotation, deconstruction, and BuildPlan queue execution work live in offline and multiplayer ARM11 builds."
+    },
+    {
+      "id": "block-catalog-item-config",
+      "domain": "Controls & Dual-Screen UI",
+      "name": "Unlocked Block Catalog Menu & Sorter Item Config",
+      "weight": 3,
+      "status": "live-arm11",
+      "modes": ["offline", "multiplayer"],
+      "issue": 27,
+      "evidence": [
+        "research/upstream-runtime/src/network-live/java/UpstreamBuildMenu.java",
+        "research/upstream-runtime/src/network-live/java/UpstreamItemConfig.java",
+        "docs/gameplay/touch-build-palette.md"
+      ],
+      "notes": "Full unlocked block catalog with 425/447 icons and bottom-screen Sorter item configuration work live on ARM11; other block config UIs (bridges/factories/processors) pending."
+    },
+    {
+      "id": "stock-fonts-i18n-labels",
+      "domain": "Controls & Dual-Screen UI",
+      "name": "Stock v160.8 Fonts, Localization Bundles & World Labels",
+      "weight": 2,
+      "status": "live-arm11",
+      "modes": ["offline", "multiplayer"],
+      "issue": 40,
+      "evidence": [
+        "research/upstream-runtime/arm11/m3ds_stock_font.c",
+        "research/upstream-runtime/arm11/m3ds_stock_text.c",
+        "research/upstream-runtime/src/network-live/java/UpstreamInterfaceLocale.java",
+        "research/upstream-runtime/src/network-render/java/UpstreamObjectiveMarkers.java"
+      ],
+      "notes": "Upstream bitmap/TTF font rasterization, inline emoji icons, locale bundles (incl. JP), and world objective markers/labels render on ARM11."
+    },
+    {
+      "id": "top-screen-status-hud",
+      "domain": "Controls & Dual-Screen UI",
+      "name": "Top-Screen Status HUD (Wave, Copper, Enemies & Objectives)",
+      "weight": 3,
+      "status": "live-arm11",
+      "modes": ["offline", "multiplayer"],
+      "issue": 40,
+      "evidence": [
+        "docs/rendering/live-hud.md",
+        "research/upstream-runtime/src/network-render/java/UpstreamStatusHud.java",
+        "research/upstream-runtime/src/network-render/java/UpstreamObjectiveHud.java"
+      ],
+      "notes": "Stock Wave, Enemies Remaining, Core Copper, and Map Objective HUD rows render live on top screen; multi-item core inventory and power HUD pending."
+    },
+    {
+      "id": "offline-session-controls",
+      "domain": "Controls & Dual-Screen UI",
+      "name": "Session Controls (Pause/Resume, Next Wave, Quick-Save)",
+      "weight": 2,
+      "status": "live-arm11",
+      "modes": ["offline"],
+      "issue": 27,
+      "evidence": [
+        "docs/gameplay/offline-singleplayer.md",
+        "research/upstream-runtime/arm11/m3ds_input.c",
+        "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerApp.java"
+      ],
+      "notes": "X pause/resume, Y wave trigger, and SELECT quick-save work in offline single-player; interactive pause menu overlay not yet wired to upstream runtime."
+    },
+    {
+      "id": "minimap-pause-overlay",
+      "domain": "Controls & Dual-Screen UI",
+      "name": "Upstream Minimap & Interactive Pause Menu Overlay",
+      "weight": 2,
+      "status": "harness-only",
+      "modes": ["harness"],
+      "issue": 40,
+      "evidence": [
+        "docs/rendering/minimap.md",
+        "docs/ui/pause-menu.md",
+        "src/render/minimap.c",
+        "src/ui/pause_menu.c",
+        "src/ui/pause_overlay.c"
+      ],
+      "notes": "Verified in the C platform harness (min3dstry.3dsx) only; not yet bound to upstream Mindustry world state or runtime menu controls."
+    },
+    {
+      "id": "menus-schematics-rts",
+      "domain": "Controls & Dual-Screen UI",
+      "name": "Main Menu, Settings UI, Core Database, Schematics & RTS Unit Command",
+      "weight": 3,
+      "status": "missing",
+      "modes": [],
+      "issue": 40,
+      "evidence": [],
+      "notes": "Title/main menu, in-game settings UI, content database, blueprint schematics copy/paste, and RTS unit selection/command are not yet implemented."
+    },
+    {
+      "id": "player-unit-flight-camera",
+      "domain": "Combat, Units & Visual FX",
+      "name": "Player Unit Flight/Movement & Follow Camera",
+      "weight": 3,
+      "status": "live-arm11",
+      "modes": ["offline", "multiplayer"],
+      "issue": 30,
+      "evidence": [
+        "docs/gameplay/offline-singleplayer.md",
+        "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerApp.java",
+        "research/upstream-runtime/src/network-render/java/UpstreamRenderedNetworkProbe.java"
+      ],
+      "notes": "Circle Pad and D-Pad player movement (Alpha/Gamma) with top-screen camera follow work live in offline and multiplayer ARM11 builds."
+    },
+    {
+      "id": "enemy-waves-pathfinding",
+      "domain": "Combat, Units & Visual FX",
+      "name": "Enemy Wave Spawner & Ground Flowfield Pathfinding",
+      "weight": 4,
+      "status": "live-arm11",
+      "modes": ["offline", "multiplayer"],
+      "issue": 30,
+      "evidence": [
+        "docs/porting/combat-waves-pathfinding.md",
+        "docs/gameplay/offline-singleplayer.md",
+        "research/upstream-runtime/src/gameplay/java/UpstreamWaveRoutingProbe.java",
+        "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerSession.java"
+      ],
+      "notes": "Upstream WaveSpawner, Pathfinder, and ControlPathfinder ground flowfields match JVM bit-for-bit and drive live Dagger waves on ARM11."
+    },
+    {
+      "id": "turrets-ammo-bullets",
+      "domain": "Combat, Units & Visual FX",
+      "name": "Turret Targeting, Ammo Feed, Projectiles & Unit Destruction",
+      "weight": 4,
+      "status": "partial-arm11",
+      "modes": ["probe", "offline", "multiplayer"],
+      "issue": 30,
+      "evidence": [
+        "docs/porting/combat-waves-pathfinding.md",
+        "docs/gameplay/live-combat.md",
+        "research/upstream-runtime/src/gameplay/java/UpstreamCombatTickProbe.java",
+        "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerApp.java"
+      ],
+      "notes": "Duo/Scatter targeting, ammo consumption, bullet hits, and kills are ARM11-verified in probes and multiplayer; live offline bullet draw wired, full turret catalog/beams/status effects pending."
+    },
+    {
+      "id": "unit-catalog-player-weapons",
+      "domain": "Combat, Units & Visual FX",
+      "name": "Complete Unit Types (Mechs/Legs/Naval/Bosses) & Player Aim/Fire",
+      "weight": 3,
+      "status": "partial-arm11",
+      "modes": ["offline", "multiplayer"],
+      "issue": 30,
+      "evidence": [
+        "docs/gameplay/live-combat.md",
+        "research/upstream-runtime/src/network-render/java/UpstreamRenderedNetworkProbe.java",
+        "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerApp.java"
+      ],
+      "notes": "14 unit types draw in offline singleplayer and 37 (incl. naval wakes and tank treads) in network-render; full Serpulo/Erekir unit abilities and manual player weapon aim/fire are in progress."
+    },
+    {
+      "id": "lighting-weather-fx-zoom",
+      "domain": "Combat, Units & Visual FX",
+      "name": "Dynamic Lighting, Weather, Particle Effects & Camera Zoom",
+      "weight": 2,
+      "status": "harness-only",
+      "modes": ["harness"],
+      "issue": 38,
+      "evidence": [
+        "docs/rendering/citro2d-prototype.md",
+        "src/render/scene_2d.c",
+        "src/platform/3ds/citro2d_backend.c"
+      ],
+      "notes": "Camera zoom, bloom/glow, and particle prototypes exist in the C Citro2D harness only; upstream world renderer has no dynamic lighting, weather, particle FX, or zoom yet."
+    },
+    {
+      "id": "logic-vm-execution",
+      "domain": "Logic & Processors",
+      "name": "Mindustry Logic VM (LogicOp / LExecutor) Parity",
+      "weight": 3,
+      "status": "probe-arm11",
+      "modes": ["probe"],
+      "issue": 30,
+      "evidence": [
+        "research/upstream-runtime/src/main/java/mindustry/logic/UpstreamLogicProbe.java",
+        "research/upstream-runtime/README.md"
+      ],
+      "notes": "Upstream LogicOp/LExecutor instruction parity verified on ARM11 in standalone logic probe; not yet enabled in live interactive runtime."
+    },
+    {
+      "id": "logic-processors-displays",
+      "domain": "Logic & Processors",
+      "name": "In-World Processors, Logic Displays & Editor UI",
+      "weight": 3,
+      "status": "missing",
+      "modes": [],
+      "issue": 40,
+      "evidence": [],
+      "notes": "Live processor building execution, logic display rendering, world-processor markers/messages, and bottom-screen logic editor UI are not yet merged on main."
+    },
+    {
+      "id": "campaign-backend-saves",
+      "domain": "Campaign & Planets",
+      "name": "Campaign Sector State, Tech-Tree Data, Planet Grid & Saves.load",
+      "weight": 4,
+      "status": "probe-arm11",
+      "modes": ["probe"],
+      "issue": 41,
+      "evidence": [
+        "docs/porting/campaign-progression.md",
+        "docs/porting/campaign-verification.md",
+        "research/upstream-runtime/src/campaign-saves-load/java/UpstreamCampaignSavesLoadProbe.java",
+        "research/upstream-runtime/src/campaign-research/java/UpstreamCampaignResearchStateProbe.java",
+        "research/upstream-runtime/src/campaign-planet/java/UpstreamCampaignPlanetStateProbe.java"
+      ],
+      "notes": "All 12 campaign probes (sector info, planet state, research unlock state, slot discovery, and Saves.load) pass on ARM11 in Azahar; headless probes only."
+    },
+    {
+      "id": "planet-map-techtree-ui",
+      "domain": "Campaign & Planets",
+      "name": "Interactive Planet Map, Sector Launch & Tech-Tree Unlock UI",
+      "weight": 4,
+      "status": "missing",
+      "modes": [],
+      "issue": 41,
+      "evidence": [],
+      "notes": "Planet sector picker, launch loadout UI, interactive tech-tree graph, and background sector attack/export simulation are not yet merged on main."
+    },
+    {
+      "id": "erekir-planet-mechanics",
+      "domain": "Campaign & Planets",
+      "name": "Erekir Content & Mechanics (Ducts, Heat, Neoplasm, Sectors)",
+      "weight": 2,
+      "status": "missing",
+      "modes": [],
+      "issue": 41,
+      "evidence": [],
+      "notes": "Basic duct and beryllium wall draw shortcuts exist in network-render, but Erekir heat, neoplasm, duct logistics simulation, units, and campaign sectors are not yet implemented."
+    },
+    {
+      "id": "audio-trigger-catalog",
+      "domain": "Audio & Soundtrack",
+      "name": "Upstream Sounds / Musics Trigger & Catalog Parity",
+      "weight": 2,
+      "status": "probe-arm11",
+      "modes": ["probe"],
+      "issue": 29,
+      "evidence": [
+        "docs/porting/audio-runtime-bindings.md",
+        "research/upstream-runtime/src/gameplay/java/UpstreamAudioTickProbe.java",
+        "audio/upstream-audio-map.json",
+        "audio/upstream-audio-triggers.json"
+      ],
+      "notes": "Real upstream gameplay audio triggers (place, drill, shoot, hit, explosion) match JVM in ARM11 audio-ticks probe; not yet wired to NDSP playback in interactive app."
+    },
+    {
+      "id": "ndsp-mixer-ogg-streamer",
+      "domain": "Audio & Soundtrack",
+      "name": "NDSP Hardware Mixer & Tremor OGG Music Streamer Backend",
+      "weight": 3,
+      "status": "harness-only",
+      "modes": ["harness"],
+      "issue": 29,
+      "evidence": [
+        "docs/audio/ndsp-mixer.md",
+        "docs/audio/music-streaming.md",
+        "docs/audio/music-assets.md",
+        "src/platform/3ds/ndsp_backend.c",
+        "src/platform/3ds/ndsp_stream_backend.c",
+        "src/platform/3ds/tremor_stream_source.c"
+      ],
+      "notes": "24-channel NDSP mixer, 16 staged OGG music tracks, and double-buffered Tremor decoder are verified in C harness and Azahar; awaiting bridge into upstream TeaVM runtime."
+    },
+    {
+      "id": "live-ingame-sfx-music",
+      "domain": "Audio & Soundtrack",
+      "name": "Live In-Game Upstream SFX, Ambience & Dynamic Soundtrack",
+      "weight": 3,
+      "status": "missing",
+      "modes": [],
+      "issue": 29,
+      "evidence": [],
+      "notes": "Live upstream Sound.at / Music.play playback (turrets, drills, explosions, UI clicks, ambient hum, dynamic tracks) is not yet merged into the interactive ARM11 app."
+    },
+    {
+      "id": "mp-crossplay-client",
+      "domain": "Multiplayer & Hardware",
+      "name": "Cross-Platform Multiplayer Client (Unmodified Java PC v160.8)",
+      "weight": 4,
+      "status": "live-arm11",
+      "modes": ["multiplayer"],
+      "issue": 31,
+      "evidence": [
+        "docs/net/upstream-protocol.md",
+        "research/upstream-runtime/arm11/m3ds_net_bridge.c",
+        "research/upstream-runtime/src/network-live/java/UpstreamLiveNetworkProbe.java",
+        "research/upstream-runtime/src/network-render/java/UpstreamRenderedNetworkProbe.java",
+        "tools/verify_upstream_live_net.py"
+      ],
+      "notes": "Wire-exact TCP/UDP client connects to stock Java PC v160.8 server in Azahar with live movement, mining, touch build, HUD, and combat snapshots."
+    },
+    {
+      "id": "mp-host-server-browser",
+      "domain": "Multiplayer & Hardware",
+      "name": "3DS Multiplayer Host/LAN Server & In-App Server Browser",
+      "weight": 2,
+      "status": "missing",
+      "modes": [],
+      "issue": 31,
+      "evidence": [],
+      "notes": "Hosting a game from 3DS, LAN discovery/broadcast, direct IP entry UI, and server list browser are not yet implemented."
+    },
+    {
+      "id": "unified-single-3dsx",
+      "domain": "Multiplayer & Hardware",
+      "name": "Unified Playable .3dsx (Offline + Campaign + MP + Audio + UI)",
+      "weight": 3,
+      "status": "missing",
+      "modes": [],
+      "issue": 43,
+      "evidence": [],
+      "notes": "Offline singleplayer, live multiplayer (network-render), embedded save loader, campaign probes, and NDSP audio currently live in separate targets rather than one unified .3dsx."
+    },
+    {
+      "id": "physical-3ds-24fps",
+      "domain": "Multiplayer & Hardware",
+      "name": "Physical Old (64 MiB) & New 3DS Hardware >= 24 FPS Parity",
+      "weight": 3,
+      "status": "missing",
+      "modes": [],
+      "issue": 43,
+      "evidence": [],
+      "notes": "Unoptimized Azahar offline baseline is 4.72 FPS (New 3DS) / 3.48 FPS (Old 3DS) at 44.44 MiB Old 3DS static subtotal; physical Old & New 3DS runs and >= 24 FPS optimization are pending."
+    }
+  ]
+}

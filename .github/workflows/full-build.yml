@@ -9,6 +9,9 @@ on:
       - "Makefile"
       - "tools/build_sprite_atlas.py"
       - "tests/assets/**"
+      - "research/upstream-runtime/**"
+      - "tools/build_teavm_loader.sh"
+      - "tests/platform/embed_loader_smoke.c"
       - ".github/workflows/full-build.yml"
   push:
     branches: [main]
@@ -18,8 +21,15 @@ on:
       - "Makefile"
       - "tools/build_sprite_atlas.py"
       - "tests/assets/**"
+      - "research/upstream-runtime/**"
+      - "tools/build_teavm_loader.sh"
+      - "tests/platform/embed_loader_smoke.c"
       - ".github/workflows/full-build.yml"
   workflow_dispatch:
+
+concurrency:
+  group: full-build-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -27,22 +37,100 @@ permissions:
 jobs:
   build:
     name: Build default 3DS app
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.head.repo.fork)) && '["self-hosted", "linux", "x64", "min3dstry"]' || '"ubuntu-latest"') }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
 
-      - name: Build with pinned devkitARM image
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Fetch pinned upstream source, server JAR and Arc
+        run: |
+          git clone --depth 1 --branch v160.8 \
+            https://github.com/Anuken/Mindustry.git "$RUNNER_TEMP/Mindustry"
+          test "$(git -C "$RUNNER_TEMP/Mindustry" rev-parse HEAD)" = \
+            "19a0f40d44514f4802a8b79770456e7e32e34da0"
+          curl --fail --silent --show-error --location \
+            https://github.com/Anuken/Mindustry/releases/download/v160.8/server-release.jar \
+            -o "$RUNNER_TEMP/server-release.jar"
+          # Official v160.8 server-release.jar (19,353,710 bytes) checksum.
+          echo 'faeaf247a8b622de940181a96cb21cb20692d3c3da4e8ac3f79cb4af5059aa6c  '"$RUNNER_TEMP"'/server-release.jar' \
+            | sha256sum --check --strict
+          # The Arc revision lives in research/upstream-runtime/build.gradle;
+          # read it from there so the workflow cannot drift from the pinned build.
+          arc_revision="$(
+            sed -n "s/^def arcRevision = '\([0-9a-f]\{40\}\)'.*/\1/p" \
+              research/upstream-runtime/build.gradle
+          )"
+          test -n "$arc_revision"
+          git clone --filter=blob:none --no-checkout \
+            https://github.com/Anuken/Arc.git "$RUNNER_TEMP/Arc"
+          git -C "$RUNNER_TEMP/Arc" fetch --depth 1 origin "$arc_revision"
+          git -C "$RUNNER_TEMP/Arc" checkout --detach FETCH_HEAD
+          test "$(git -C "$RUNNER_TEMP/Arc" rev-parse HEAD)" = "$arc_revision"
+
+      - name: Generate TeaVM loader C
+        run: |
+          bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime \
+            --no-daemon --console=plain \
+            "-Dorg.gradle.jvmargs=-Xmx3g" \
+            "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" \
+            "-PreferenceJar=$RUNNER_TEMP/server-release.jar" \
+            "-ParcCheckout=$RUNNER_TEMP/Arc" \
+            -Pprobe=save-rows generateC
+
+      - name: Build with embedded loader
         run: |
           image=devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5
-          docker run --rm -v "$PWD:/work" -w /work "$image" bash -lc '
+          docker_numa_args=()
+          if [ -n "${M3DS_DOCKER_CPUSET_CPUS:-}" ]; then
+            docker_numa_args+=(--cpuset-cpus "$M3DS_DOCKER_CPUSET_CPUS")
+          fi
+          if [ -n "${M3DS_DOCKER_CPUSET_MEMS:-}" ]; then
+            docker_numa_args+=(--cpuset-mems "$M3DS_DOCKER_CPUSET_MEMS")
+          fi
+          docker run --rm "${docker_numa_args[@]}" -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/work" -w /work "$image" bash -lc '
             source /opt/devkitpro/3dsvars.sh
             python3 --version
             tex3ds --version
-            make PYTHON=python3
+            bash tools/build_teavm_loader.sh \
+              research/upstream-runtime/build/generated/teavm/c build/teavm-loader
+            make PYTHON=python3 TEAVM_LOADER_DIR=/work/build/teavm-loader
             test -s build/min3dstry.3dsx
             test -s build/min3dstry.smdh
+            # The strong embedded-loader symbol must win over the weak stub,
+            # otherwise the app silently falls back to the native parser.
+            arm-none-eabi-nm build/min3dstry.elf \
+              | grep -q " T m3ds_teavm_world_load$"
+            # Build (do not run) the loader smoke variants so the test file is
+            # compiled by CI instead of only being referenced by a path filter.
+            arm-none-eabi-gcc -std=gnu11 -g -Os -fwrapv -D__3DS__ \
+              -mword-relocations -march=armv6k -mtune=mpcore -mfpu=vfp \
+              -mfloat-abi=hard -mtp=soft \
+              -Iinclude -I"$DEVKITPRO/libctru/include" \
+              -L"$DEVKITPRO/libctru/lib" -Lbuild/teavm-loader -specs=3dsx.specs \
+              tests/platform/embed_loader_smoke.c src/platform/world_rows.c \
+              src/platform/msav_world.c -lm3dsloader -lctru -lm \
+              -o build/embed-loader.elf
+            arm-none-eabi-gcc -std=gnu11 -g -Os -fwrapv -D__3DS__ \
+              -DM3DS_SMOKE_MISSING -mword-relocations -march=armv6k -mtune=mpcore \
+              -mfpu=vfp -mfloat-abi=hard -mtp=soft \
+              -Iinclude -I"$DEVKITPRO/libctru/include" \
+              -L"$DEVKITPRO/libctru/lib" -Lbuild/teavm-loader -specs=3dsx.specs \
+              tests/platform/embed_loader_smoke.c src/platform/world_rows.c \
+              src/platform/msav_world.c -lm3dsloader -lctru -lm \
+              -o build/embed-loader-missing.elf
             ls -l build/min3dstry.3dsx
           '
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: min3dstry-embedded-loader
+          path: |
+            build/min3dstry.3dsx
+            build/min3dstry.smdh

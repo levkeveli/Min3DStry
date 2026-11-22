@@ -20,6 +20,7 @@ ATLAS           := build/atlas
 AUDIO_ROMFS     := build/audio-romfs
 BUILD_CONFIG    := $(BUILD)/build-config.h
 UPSTREAM_MINDUSTRY ?=
+TEAVM_LOADER_DIR ?=
 PYTHON          ?= python3
 TEX3DS          ?= tex3ds
 
@@ -27,6 +28,12 @@ ifneq ($(strip $(UPSTREAM_MINDUSTRY)),)
 M3DS_AUDIO_ROMFS_VALUE := 1
 else
 M3DS_AUDIO_ROMFS_VALUE := 0
+endif
+
+ifneq ($(strip $(TEAVM_LOADER_DIR)),)
+M3DS_TEAVM_LOADER_VALUE := 1
+else
+M3DS_TEAVM_LOADER_VALUE := 0
 endif
 
 APP_TITLE       := Min3DStry Citro2D
@@ -48,12 +55,19 @@ LDFLAGS  = -specs=3dsx.specs -g $(ARCH) -Wl,-Map,$(notdir $*.map)
 
 LIBS    := -lcitro2d -lcitro3d -lvorbisidec -logg -lctru -lm
 
+ifneq ($(strip $(TEAVM_LOADER_DIR)),)
+override TEAVM_LOADER_DIR := $(abspath $(TEAVM_LOADER_DIR))
+# The archive references libctru/libm, so it must be scanned before them.
+LIBS    := -L$(TEAVM_LOADER_DIR) -lm3dsloader $(LIBS)
+endif
+
 LIBDIRS := $(PORTLIBS) $(CTRULIB)
 
 ifneq ($(CURDIR),$(TOPDIR)/$(BUILD))
 
 export OUTPUT := $(CURDIR)/build/$(TARGET)
 export TOPDIR := $(CURDIR)
+export TEAVM_LOADER_DIR
 
 export VPATH := $(foreach dir,$(SOURCES),$(CURDIR)/$(dir)) \
                 $(foreach dir,$(DATA),$(CURDIR)/$(dir))
@@ -105,7 +119,7 @@ all: $(BUILD_CONFIG) $(ATLAS)/sprites.h $(ROMFS)/sprites.t3x
 
 $(BUILD_CONFIG): force-config
 	@mkdir -p $(BUILD)
-	@printf '#define M3DS_AUDIO_ROMFS %s\n' '$(M3DS_AUDIO_ROMFS_VALUE)' > $@.tmp
+	@printf '#define M3DS_AUDIO_ROMFS %s\n#define M3DS_TEAVM_LOADER_EMBEDDED %s\n' '$(M3DS_AUDIO_ROMFS_VALUE)' '$(M3DS_TEAVM_LOADER_VALUE)' > $@.tmp
 	@if cmp -s $@.tmp $@; then rm -f $@.tmp; else mv $@.tmp $@; fi
 
 force-config:
@@ -150,6 +164,9 @@ endif
 citro2d_backend.o : $(TOPDIR)/$(ATLAS)/sprites.h
 
 $(OUTPUT).elf : $(OFILES)
+ifneq ($(strip $(TEAVM_LOADER_DIR)),)
+$(OUTPUT).elf : $(TEAVM_LOADER_DIR)/libm3dsloader.a
+endif
 
 -include $(DEPSDIR)/*.d
 

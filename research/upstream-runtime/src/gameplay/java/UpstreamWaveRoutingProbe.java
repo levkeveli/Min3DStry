@@ -1,5 +1,4 @@
 import arc.Core;
-import arc.Events;
 import arc.math.Mathf;
 import arc.mock.MockAudio;
 import arc.struct.Seq;
@@ -12,7 +11,6 @@ import mindustry.ai.Pathfinder;
 import mindustry.async.AsyncCore;
 import mindustry.content.Blocks;
 import mindustry.content.Items;
-import mindustry.game.EventType.ResetEvent;
 import mindustry.game.Team;
 import mindustry.gen.Groups;
 import mindustry.gen.Unit;
@@ -152,18 +150,22 @@ public final class UpstreamWaveRoutingProbe {
         } catch (RuntimeException failure) {
             System.err.println("WAVE_ROUTING_ERROR " + failure);
             throw failure;
-        } finally {
-            Events.fire(new ResetEvent());
         }
+        // This is a one-shot probe process. Firing ResetEvent here dispatches into
+        // TeaVM's monitor/event queue after the trace and can deadlock the host C
+        // build; the process exits immediately after main instead.
     }
 
     private static long waitForGroundField(
         UpstreamWorldLoadProbe.ProbeApplication app, Team enemy)
         throws InterruptedException {
         var field = Vars.pathfinder.getField(enemy, Pathfinder.costGround, Pathfinder.fieldCore);
-        for (int poll = 0; poll < 250 && !field.hasCompleteWeights(); poll++) {
+        // Avoid TeaVM's sleep timer/fiber here: the host C runtime can abort in
+        // Object.monitorEnterWait while unwinding a pending sleep callback.
+        long deadline = System.nanoTime() + 4_000_000_000L;
+        while (!field.hasCompleteWeights() && System.nanoTime() < deadline) {
             app.runPosted();
-            Thread.sleep(16);
+            Thread.yield();
         }
         if (!field.hasCompleteWeights()) {
             throw new IllegalStateException("Ground flowfield did not finish");
