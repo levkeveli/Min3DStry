@@ -114,6 +114,74 @@ The JVM reference opens a stock Ground Zero save, checks the Frozen Forest
 prerequisite, spends 3 of 5 copper toward Conveyor, and then completes the
 research using remote and live inventories. It reopens the resulting Arc
 settings file. The graphical screen still needs console verification.
+## New campaign
+
+Hold **R** while launching the standalone graphical .3dsx to open the
+campaign selector. The selector includes a new Ground Zero or Onset
+campaign when that planet does not already have a starter save. Use D-pad
+up/down to select and **A** to start. **B** or **START** exits the selector.
+New games use the original sector generator and write the original
+campaign .msav and Arc settings files in the same locations as resumed games.
+The renderer loads each visible unit’s original atlas regions and weapon art
+when it first encounters that unit type.
+
+The [ARM11 build from `2c8f6e7`](https://github.com/levkeveli/Min3DStry/actions/runs/45043634996)
+showed the controlled unit and saved successfully in Ground Zero and Onset
+on both Azahar profiles. The stock v160.8 server reopened all four saves
+and settings pairs.
+
+## Campaign map assets
+
+The offline package stages the 78 Serpulo maps and 17 Erekir maps from the
+pinned v160.8 assets archive. It preserves their paths under
+`maps/serpulo/` and `maps/erekir/`, including the original Serpulo hidden
+map directory. The graphical app mounts these paths before Mindustry creates
+its `FileMapGenerator` instances. The existing `maps/groundZero.msav`
+path remains available for the standalone Ground Zero mode.
+
+The host task `runGraphicalCampaignPresetMapsJvm` takes a staged assets
+directory with `maps/`, `planets/` and `bundle.properties`, and a new
+scratch directory. It loads the Ground Zero and Onset starters through
+the original world generator, then checks the sector IDs, starter cores,
+launch event, and the saved worlds. The stock v160.8 server reopened both
+JVM-generated saves with the same world size, core, and rules as saves
+from a fresh stock launch. The JVM reference also checks the stock numbered
+landing rule. The test seeds the last wave with no enemies and lets the
+upstream game loop capture Ground Zero. It then upgrades to a Core Foundation,
+checks the original default launch schematic and the maximum cargo preference,
+and verifies that the origin pays for the schematic and the loaded cargo.
+The new Serpulo sector opens with 23 copper and Ground Zero resumes with the
+remaining inventory. The stock server reopens the new sector and the still
+captured origin, and confirms that the cargo was deducted from the old base.
+
+The campaign selector includes open launch destinations when a stock landing
+candidate exists. Choose a destination to review the selected schematic, its
+origin, and the total items that will be debited. Copy stock Java `.msch`
+files to `/3ds/min3dstry/schematics/` to use valid custom launch schematics.
+Use D-pad left/right to choose a schematic and up/down to review additional
+items. **X** switches between maximum cargo and a manually selected loadout.
+With maximum cargo off, **Y** opens the cargo editor. Use D-pad up/down to
+select an item and left/right to change its quantity. Hold **R** to adjust
+one item at a time. **A** or **B** returns to the summary. There, **A**
+confirms an affordable launch and **B** cancels. The saved cargo changes
+when the launch is confirmed.
+
+During an active campaign, hold **R** and press **SELECT** to save the
+current sector and open the campaign selector. **B** returns to the current
+sector. Selecting another sector resumes its save or starts its launch
+sequence in the same app. Regular **SELECT** saves, and **START** exits play.
+
+Use `python3 tools/verify_upstream_campaign_launch.py --rom upstream-probe.3dsx`
+to replay the fresh campaign menu on both Azahar profiles. The verifier
+captures the menu and starting worlds, then collects the resulting saves and
+settings from an empty test SD directory. Pass `--server server-release.jar`
+to compare those outputs with a fresh stock Java launch.
+Pass `--departure /path/to/reference-output/departure` to replay the funded
+numbered-sector launch fixture produced by the JVM task. With `--server` it
+also verifies the saved cargo and origin with stock Java. Add `--manual-cargo`
+to exercise the editor and transfer 8 copper while leaving 15 in Ground Zero.
+Use `--in-game` to start at Ground Zero, open and cancel the selector,
+then reopen it and depart without restarting the app.
 
 ## Custom Game
 

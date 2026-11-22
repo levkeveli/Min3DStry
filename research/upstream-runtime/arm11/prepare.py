@@ -4,6 +4,7 @@ import os
 import shutil
 from pathlib import Path
 from compact_callsites import compact_callsites, prune_unused_strings
+from fix_gc_monitors import fix_gc_monitors
 from fix_heap_alignment import fix_heap_alignment
 from fix_reflection_lifetime import fix_constructor_roots, fix_reflection_lifetime
 
@@ -27,9 +28,16 @@ def main():
         parser.error("use a new staging directory")
     shutil.copytree(args.generated, args.output)
     fix_heap_alignment(args.output)
+    fix_gc_monitors(args.output)
     fix_reflection_lifetime(args.output)
     fix_constructor_roots(args.output)
     replacements = {
+        # TeaVM can reuse the same local for an array and a string in different
+        # parts of a coroutine. Both values are Java object references.
+        "strings.h": [
+            ("#define TEAVM_GET_STRING(i) teavm_stringPool[i]",
+             "#define TEAVM_GET_STRING(i) ((void*)teavm_stringPool[i])"),
+        ],
         "c/o/t/r/GC.c": [
             ('#include "RelocationBlock.h"', '#include "RelocationBlock.h"\n#include "../../../../m3ds_gc_relocations.h"'),
             (
