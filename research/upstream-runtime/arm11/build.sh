@@ -3,7 +3,7 @@ set -euo pipefail
 : "${DEVKITARM:?Set DEVKITARM with devkitPro's 3dsvars.sh}"
 : "${DEVKITPRO:?Set DEVKITPRO with devkitPro's 3dsvars.sh}"
 if [[ $# -lt 2 || $# -gt 4 ]]; then
-    echo "Usage: $0 <TeaVM generated C directory> <new output directory> [--network|--singleplayer|--save-rows] [terrain assets directory]" >&2
+    echo "Usage: $0 <TeaVM generated C directory> <new output directory> [--network|--singleplayer|--unified|--save-rows] [terrain assets directory]" >&2
     exit 2
 fi
 arm11_opt="${M3DS_ARM11_OPT:--Os}"
@@ -14,6 +14,10 @@ case "$arm11_opt" in
         exit 2
         ;;
 esac
+if [[ ${3:-} == --unified && ($# != 4 || $4 == --save-rows || ! -d $4) ]]; then
+    echo "Unified builds require a terrain assets directory after --unified" >&2
+    exit 2
+fi
 root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 output="$2"
 python3 "$root/prepare.py" "$1" "$output"
@@ -22,16 +26,22 @@ native_network=()
 native_input=()
 title="Min3DStry Terrain"
 subtitle="Mindustry v160.8 Glacier"
-if [[ ${1:-} == --network ]]; then
+mode=${1:-}
+if [[ $mode == --network || $mode == --unified ]]; then
     title="Min3DStry"
     repo="$root/../../.."
     native_network=(-I"$root" -I"$repo/include" -I"$repo/src/platform/3ds"
         "$root/m3ds_net_bridge.c" "$repo/src/net/mindustry_net.c" "$repo/src/platform/3ds/net_3ds.c")
-    shift
-elif [[ ${1:-} == --singleplayer ]]; then
+fi
+if [[ $mode == --singleplayer || $mode == --unified ]]; then
     title="Min3DStry"
     subtitle="Mindustry v160.8 Ground Zero"
     native_input=(-I"$root" "$root/m3ds_input.c")
+fi
+if [[ $mode == --unified ]]; then
+    subtitle="Mindustry v160.8"
+fi
+if [[ $mode == --network || $mode == --singleplayer || $mode == --unified ]]; then
     shift
 fi
 save_rows_flags=()

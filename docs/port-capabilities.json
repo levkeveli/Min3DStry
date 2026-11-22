@@ -390,6 +390,8 @@
         "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerApp.java",
         "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerSession.java",
         "docs/gameplay/offline-singleplayer.md",
+        "research/upstream-runtime/src/unified/java/UpstreamUnifiedApp.java",
+        "research/upstream-runtime/README.md",
         "research/upstream-runtime/src/campaign-saves-load/java/UpstreamCampaignSavesLoadProbe.java"
       ],
       "hardware_test": "HARDWARE_TEST_PENDING"
@@ -446,6 +448,7 @@
         "docs/net/upstream-protocol.md",
         "tools/verify_upstream_live_net.py",
         "research/upstream-runtime/arm11/m3ds_net_bridge.c",
+        "research/upstream-runtime/src/unified/java/UpstreamUnifiedApp.java",
         "research/upstream-runtime/README.md"
       ],
       "hardware_test": "HARDWARE_TEST_PENDING"

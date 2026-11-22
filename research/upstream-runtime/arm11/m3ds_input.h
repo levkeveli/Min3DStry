@@ -10,7 +10,8 @@ extern "C" {
  * Poll 3DS HID buttons, Circle Pad / D-pad movement axes, and touch press.
  * Returns -1 when APT requests exit or KEY_START is pressed; otherwise returns
  * packed bits matching m3ds_live_net_input for bits 0..19 plus bit 20 (X pause),
- * bit 21 (Y trigger wave), and bit 22 (SELECT save .msav).
+ * bit 21 (Y trigger wave), bit 22 (SELECT save .msav), bit 23 (L held at boot),
+ * and bit 25 (X held to join at boot).
  */
 int32_t m3ds_input_poll(void);
 
