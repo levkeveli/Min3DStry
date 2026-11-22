@@ -314,6 +314,11 @@ if (usesSinglePlayer) {
             classpath = sourceSets.main.runtimeClasspath
             mainClass = 'UpstreamCustomGameReference'
         }
+        tasks.register('runOfflineMaterialsJvm', JavaExec) {
+            classpath = sourceSets.main.runtimeClasspath
+            mainClass = 'UpstreamOfflineMaterialsReference'
+            workingDir = temporaryDir
+        }
         tasks.register('runCampaignResumeJvm', JavaExec) {
             classpath = sourceSets.main.runtimeClasspath
             mainClass = 'UpstreamCampaignResumeReference'
