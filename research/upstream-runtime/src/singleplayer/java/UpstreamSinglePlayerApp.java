@@ -111,7 +111,8 @@ public final class UpstreamSinglePlayerApp {
             + " router=" + Core.bundle.get("block.router.name") + " copper=" + Core.bundle.get("item.copper.name"));
 
         Fi mapDir = saveFile.parent() != null ? saveFile.parent() : new Fi("/3ds/min3dstry");
-        session = UpstreamSinglePlayerSession.create(mapDir, bundleTag, new Fi("/romfs/planets"));
+        var settings = UpstreamSinglePlayerSession.loadSettings(mapDir);
+        session = UpstreamSinglePlayerSession.create(mapDir, bundleTag, new Fi("/romfs/planets"), settings);
         UpstreamSectorCapture.install();
         Events.on(WaveEvent.class, event -> {
             String warning = UpstreamGuardianWarning.find(Vars.state.rules, Vars.state.wave);
@@ -311,9 +312,9 @@ public final class UpstreamSinglePlayerApp {
 
     private UpstreamSinglePlayerSession.SectorSlot chooseSector(
             List<UpstreamSinglePlayerSession.SectorSlot> slots, Fi automatic) {
-        int selected = 0;
+        int selected = UpstreamSinglePlayerSession.lastSectorRow(slots);
         int lastAxis = 0;
-        System.out.println("UPSTREAM_CAMPAIGN_MENU slots=" + slots.size());
+        System.out.println("UPSTREAM_CAMPAIGN_MENU slots=" + slots.size() + " selected=" + slots.get(selected).file.name());
         if (automatic.exists() && !automatic.isDirectory() && automatic.length() <= 16) {
             try {
                 int index = Integer.parseInt(automatic.readString("UTF-8").trim());

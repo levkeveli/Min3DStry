@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import shutil
 import struct
 import time
 from pathlib import Path
@@ -39,6 +40,13 @@ def verify(model: str, rom: Path, azahar: str, config: Path, log: Path,
         raise RuntimeError("Use an Azahar virtual SD without existing campaign saves")
     if (sd_root / "campaign-select.txt").exists():
         raise RuntimeError("Use an Azahar virtual SD without a campaign selection override")
+    settings = sd_root / "settings.bin"
+    settings_backup = sd_root / "settings_backup.bin"
+    settings_backups = sd_root / "settings_backups"
+    if any(path.exists() for path in (settings, settings_backup, settings_backups)):
+        raise RuntimeError("Use an Azahar virtual SD without existing settings data")
+    fixture_settings = fixtures / settings.name
+    source_settings = fixture_settings.read_bytes() if fixture_settings.exists() else None
     initial_config = config.read_bytes() if config.is_file() else None
     had_saves = saves.exists()
     saves.mkdir(parents=True, exist_ok=True)
@@ -53,12 +61,15 @@ def verify(model: str, rom: Path, azahar: str, config: Path, log: Path,
             zero.write_bytes(source_zero)
             if multiple:
                 forest.write_bytes(source_forest)
+            if source_settings is not None:
+                settings.write_bytes(source_settings)
             replay = output / f"{model}-{stage}.ctm"
             write_replay(replay, model, multiple)
             proc, rpc = sp._launch_azahar(model, rom, azahar, config, log, replay)
             try:
                 if multiple:
-                    sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_MENU slots=2\b", 100)
+                    initial = r" selected=sector-serpulo-64\.msav" if source_settings is not None else ""
+                    sp._wait_for_log(log, proc, rf"UPSTREAM_CAMPAIGN_MENU slots=2{initial}\b", 100)
                     time.sleep(2)
                     menu = rpc.screenshot()
                     if sp.az.inspect_png(menu)["top_distinct_colors"] < 8:
@@ -81,6 +92,10 @@ def verify(model: str, rom: Path, azahar: str, config: Path, log: Path,
                 if multiple and zero.read_bytes() != source_zero:
                     raise AssertionError(f"{model}: selecting Frozen Forest modified the Ground Zero save")
                 (output / f"{model}-{selected.name}").write_bytes(selected.read_bytes())
+                if source_settings is not None:
+                    if settings_backup.read_bytes() != source_settings:
+                        raise AssertionError(f"{model}: the original PC settings backup was lost")
+                    (output / f"{model}-{stage}-settings.bin").write_bytes(settings.read_bytes())
                 print(f"[PASS] {model} {stage}: {map_name} saved with stock backup, "
                       f"azahar_game_fps={stats.get('game_fps', 0):.2f}", flush=True)
             finally:
@@ -88,8 +103,10 @@ def verify(model: str, rom: Path, azahar: str, config: Path, log: Path,
                 sp._stop_proc(proc, azahar)
                 (output / f"{model}-{stage}.log").write_bytes(log.read_bytes())
     finally:
-        for path in (zero, forest, *backups.values()):
+        for path in (zero, forest, *backups.values(), settings, settings_backup):
             path.unlink(missing_ok=True)
+        if settings_backups.is_dir():
+            shutil.rmtree(settings_backups)
         if not had_saves and not any(saves.iterdir()):
             saves.rmdir()
         if initial_config is None:
