@@ -142,8 +142,8 @@ public final class UpstreamSinglePlayerApp {
                     if (selected == null) return;
                     deployment = null;
                     if (selected.origin == null || selected.origin == selected.sector) break;
-                    deployment = UpstreamCampaignLoadout.prepare(selected.origin, selected.sector);
-                    if (confirmLaunch(selected, deployment)) break;
+                    deployment = confirmLaunch(selected);
+                    if (deployment != null) break;
                     automatic = null;
                 }
             }
@@ -369,20 +369,38 @@ public final class UpstreamSinglePlayerApp {
         }
     }
 
-    private boolean confirmLaunch(UpstreamSinglePlayerSession.SectorSlot selected, UpstreamCampaignLoadout deployment) {
+    private UpstreamCampaignLoadout confirmLaunch(UpstreamSinglePlayerSession.SectorSlot selected) {
+        var choices = UpstreamCampaignLoadout.choices(selected.origin, selected.sector);
+        int schematic = choices.selected();
+        boolean maximumCargo = Core.settings.getBool("maxresources", true);
+        var deployment = UpstreamCampaignLoadout.prepare(selected.origin, selected.sector, choices, schematic, maximumCargo);
         System.out.println("UPSTREAM_CAMPAIGN_LOADOUT sector=" + selected.sector.id
             + " origin=" + selected.origin.id + " affordable=" + deployment.affordable());
         var cost = deployment.cost().toArray();
         int page = 0;
         int lastAxis = 0;
+        int lastHorizontal = 0;
         int rendered = -1;
         MenuRows rows = null;
         UpstreamSinglePlayerInput.poll();
         while (true) {
             long nextFrame = System.nanoTime() + FRAME_NS;
             int input = UpstreamSinglePlayerInput.poll();
-            if (input == -1 || (input & (1 << 19)) != 0) return false;
-            if ((input & (1 << 17)) != 0 && deployment.affordable()) return true;
+            if (input == -1 || (input & (1 << 19)) != 0) return null;
+            int horizontal = (byte) (input & 0xff);
+            int previous = schematic;
+            if (horizontal > 60 && lastHorizontal <= 20 && schematic + 1 < choices.options().size) schematic++;
+            if (horizontal < -60 && lastHorizontal >= -20 && schematic > 0) schematic--;
+            lastHorizontal = horizontal;
+            boolean toggleCargo = selected.sector.allowLaunchLoadout() && (input & UpstreamSinglePlayerInput.PAUSE_PRESSED) != 0;
+            if (toggleCargo) maximumCargo = !maximumCargo;
+            if (schematic != previous || toggleCargo) {
+                deployment = UpstreamCampaignLoadout.prepare(selected.origin, selected.sector, choices, schematic, maximumCargo);
+                cost = deployment.cost().toArray();
+                page = 0;
+                rendered = -1;
+            }
+            if ((input & (1 << 17)) != 0 && deployment.affordable()) return deployment;
             int axis = (byte) ((input >> 8) & 0xff);
             if (axis > 60 && lastAxis <= 20 && page > 0) page--;
             if (axis < -60 && lastAxis >= -20 && (page + 1) * 4 < cost.length) page++;
@@ -398,6 +416,7 @@ public final class UpstreamSinglePlayerApp {
                     captions[i + 2] = stack.item.localizedName + "  " + stack.amount;
                 }
                 captions[count + 2] = Strings.stripColors(Core.bundle.get(deployment.affordable() ? "launch.text" : "sector.missingresources"));
+                if (selected.sector.allowLaunchLoadout() && maximumCargo) captions[count + 2] += " / " + Core.bundle.get("resources.max");
                 rows = encodeMenuRows(captions);
                 rendered = page;
             }

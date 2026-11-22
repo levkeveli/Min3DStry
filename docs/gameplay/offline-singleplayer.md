@@ -130,11 +130,12 @@ The new Serpulo sector opens with 23 copper and Ground Zero resumes with the
 remaining inventory.
 
 The campaign selector includes open launch destinations when a stock landing
-candidate exists. Choose a destination to review the default schematic, its
-origin, and the total items that will be debited. Use D-pad up/down to review
-additional items, **A** to confirm an affordable launch, or **B** to go back.
-The launch uses the current stock maximum cargo preference and carries over
-configured launch resources when that preference is off.
+candidate exists. Choose a destination to review the selected schematic, its
+origin, and the total items that will be debited. Copy stock Java `.msch`
+files to `/3ds/min3dstry/schematics/` to use valid custom launch schematics.
+Use D-pad left/right to choose a schematic and up/down to review additional
+items. **X** switches between maximum cargo and the stored stock cargo.
+**A** confirms an affordable launch, and **B** goes back.
 
 Use `python3 tools/verify_upstream_campaign_launch.py --rom upstream-probe.3dsx`
 to replay the fresh campaign menu on both Azahar profiles. The verifier

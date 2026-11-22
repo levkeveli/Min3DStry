@@ -108,6 +108,7 @@ public final class UpstreamSinglePlayerSession {
             }
         }
         Vars.saveDirectory = mapDirectory.child("saves");
+        Vars.schematicDirectory = mapDirectory.child("schematics");
         settings.defaults("locale", locale == null || locale.isEmpty() ? "en" : locale);
         var app = UpstreamWorldLoadProbe.initialize(mapDirectory, settings, campaignMaps != null);
         Core.audio = new MockAudio();
@@ -206,6 +207,7 @@ public final class UpstreamSinglePlayerSession {
         if (origin == sector) Vars.universe.clearLoadoutInfo();
         Vars.logic.reset(); // WorldReloader.begin() when neither a server nor a multiplayer client.
         if (loadout != null) {
+            if (sector.allowLaunchLoadout()) Core.settings.put("maxresources", loadout.maximumCargo());
             Vars.universe.updateLoadout(loadout.core(), loadout.schematic());
             Vars.universe.updateLaunchResources(loadout.resources());
         }

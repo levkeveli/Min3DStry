@@ -55,6 +55,13 @@ def verify(model: str, planet: str, rom: Path, azahar: str, config: Path, log: P
     if any(root.glob("sector-*.msav")) or any(saves.glob("sector-*.msav")) or any(
             path.exists() for path in (settings, backup, settings_backups, override)):
         raise RuntimeError("Use an Azahar SD directory without campaign saves, settings, or selection overrides")
+    custom_name = "campaign-test.msch"
+    staged_schematic = root / "schematics" / custom_name
+    custom_source = departure / "schematics" / custom_name if departure else None
+    has_custom = custom_source is not None and custom_source.is_file()
+    had_schematics = staged_schematic.parent.is_dir()
+    if has_custom and staged_schematic.exists():
+        raise RuntimeError("The test schematic already exists on the virtual SD")
     initial_config = config.read_bytes() if config.is_file() else None
     had_saves = saves.is_dir()
     prefix = f"{model}-{planet}"
@@ -70,6 +77,9 @@ def verify(model: str, planet: str, rom: Path, azahar: str, config: Path, log: P
                 shutil.copyfile(departure / "saves" / starter, slot)
             shutil.copyfile(departure / "settings.bin", settings)
             shutil.copyfile(departure / "campaign-select.txt", override)
+            if has_custom:
+                staged_schematic.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(custom_source, staged_schematic)
         proc, rpc = sp._launch_azahar(model, rom, azahar, config, log, replay)
         try:
             menu_marker = (rf"UPSTREAM_CAMPAIGN_LOADOUT sector={sector_id} origin=170 affordable=true\b"
@@ -99,6 +109,10 @@ def verify(model: str, planet: str, rom: Path, azahar: str, config: Path, log: P
             sp._stop_proc(proc, azahar)
             (output / f"{prefix}.log").write_bytes(log.read_bytes())
     finally:
+        if has_custom:
+            staged_schematic.unlink(missing_ok=True)
+            if not had_schematics and staged_schematic.parent.is_dir() and not any(staged_schematic.parent.iterdir()):
+                staged_schematic.parent.rmdir()
         test_slots = {name, *(starter for starter, _, _ in STARTERS.values())}
         for slot in test_slots:
             (saves / slot).unlink(missing_ok=True)
@@ -166,7 +180,14 @@ def check_numbered_stock(java: str, server: Path, output: Path, model: str, depa
         (root / "config").mkdir()
         shutil.copyfile(output / f"{model}-numbered-settings.bin", root / "config/settings.bin")
         shutil.copyfile(output / f"{model}-numbered-sector-serpulo-{sector_id}.msav", root / "port.msav")
+        custom_expected = (departure / "schematics/campaign-test.msch").is_file()
+        custom_check = """
+            if (String(Packages.arc.Core.settings.getString("lastloadout-core-foundation", "")) !== "campaign-test") {
+                throw new Error("Expected the selected upstream custom schematic");
+            }
+        """ if custom_expected else ""
         script = f"""
+            {custom_check}
             const sectors = Packages.mindustry.content.Planets.serpulo.sectors;
             const items = Packages.mindustry.content.Items;
             const from = sectors.get(170), to = sectors.get({sector_id});

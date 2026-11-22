@@ -1,14 +1,18 @@
 import arc.Core;
 import arc.Events;
 import arc.files.Fi;
+import arc.struct.StringMap;
 import arc.util.I18NBundle;
 import java.io.IOException;
 import java.util.Locale;
 import mindustry.Vars;
 import mindustry.content.Blocks;
 import mindustry.content.Items;
+import mindustry.content.Loadouts;
 import mindustry.content.SectorPresets;
 import mindustry.game.EventType.SectorLaunchEvent;
+import mindustry.game.Schematic;
+import mindustry.game.Schematics;
 import mindustry.io.SaveIO;
 import mindustry.type.ItemSeq;
 import mindustry.type.Sector;
@@ -80,6 +84,20 @@ public final class UpstreamCampaignLaunchReference {
                 .findFirst().orElseThrow();
             var target = selected.sector;
             if (Vars.bases.cores.isEmpty()) throw new AssertionError("No upstream base parts");
+            Blocks.coreFoundation.quietUnlock();
+            var stockSchematic = Loadouts.basicFoundation;
+            var custom = new Schematic(stockSchematic.tiles.copy(), StringMap.of("name", "Campaign test"),
+                stockSchematic.width, stockSchematic.height);
+            Fi customFile = root.child("schematics/campaign-test.msch");
+            customFile.parent().mkdirs();
+            Schematics.write(custom, customFile);
+            settings.put("lastloadout-core-foundation", customFile.nameWithoutExtension());
+            var alternatives = UpstreamCampaignLoadout.choices(zero, target);
+            if (!alternatives.options().contains(stockSchematic, true)
+                    || !alternatives.options().get(alternatives.selected()).name().equals("Campaign test")) {
+                throw new AssertionError("Stock Schematics must load the default and remembered custom launch option");
+            }
+            settings.remove("lastloadout-core-foundation");
             var unfunded = UpstreamCampaignLoadout.prepare(zero, target);
             if (unfunded.affordable() || selected.file.exists()) {
                 throw new AssertionError("An unfunded departure must not be able to launch");
@@ -103,13 +121,17 @@ public final class UpstreamCampaignLaunchReference {
                 throw new AssertionError("The launch must preserve configured cargo with maximum cargo disabled");
             }
             settings.put("maxresources", true);
+            settings.put("lastloadout-core-foundation", customFile.nameWithoutExtension());
             session.save(origin);
             var funded = UpstreamCampaignLoadout.prepare(zero, target);
-            if (!funded.affordable() || funded.resources().get(Items.copper) != 23) {
+            if (!funded.affordable() || funded.resources().get(Items.copper) != 23
+                    || !funded.schematic().name().equals("Campaign test")) {
                 throw new AssertionError("Stock max-resource loadout must subtract schematic requirements");
             }
             Fi fixture = root.child("departure");
             fixture.child("saves").mkdirs();
+            fixture.child("schematics").mkdirs();
+            customFile.copyTo(fixture.child("schematics").child(customFile.name()));
             origin.copyTo(fixture.child("saves").child(origin.name()));
             Fi onsetSave = session.sectorFile(onset);
             onsetSave.copyTo(fixture.child("saves").child(onsetSave.name()));
