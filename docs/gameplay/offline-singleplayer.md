@@ -69,7 +69,10 @@ the last-sector selection. The graphical app loads the file through Arc
 stock last save name or planet sector preference determines the initial row
 when it matches an available save. Saving the sector updates the original
 Mindustry settings keys through `SaveIO` and flushes `Settings` to the same
-SD directory. Arc manages the settings backup. The offline executable
+SD directory. The offline interface uses the saved PC language preference
+when available. A nonempty SD `locale.txt` overrides the displayed language
+for that launch and preserves the PC setting. Arc manages the settings backup.
+The offline executable
 reserves a 512 KiB native stack for the nested upstream serializer used by
 campaign saves with objective markers.
 
@@ -89,7 +92,8 @@ python3 tools/campaign_settings_fixture.py --server server-release.jar --create-
 Run Gradle with the pinned runtime properties and
 `-Pprobe=singleplayer runGraphicalCampaignSettingsJvm --args="/path/to/fixtures /path/to/new-scratch-dir"`.
 It checks unlocks and partial research at content startup, the stock sector
-metadata, the settings backup, and the research update after saving.
+metadata, language selection, the settings backup, and the research update
+after saving.
 Passing the same fixtures to `tools/verify_upstream_campaign_resume.py`
 checks the initial menu selection and saves a copy of the native settings for
 each run. The stock reader can check those files with

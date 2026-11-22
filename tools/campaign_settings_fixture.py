@@ -34,6 +34,7 @@ def create_settings(java: str, server: Path, fixtures: Path) -> None:
             const presets = Packages.mindustry.content.SectorPresets;
             const items = Packages.mindustry.content.Items;
             const zero = presets.groundZero.sector, forest = presets.frozenForest.sector;
+            settings.put("locale", "de");
             settings.put("conveyor-unlocked", Packages.java.lang.Boolean.TRUE);
             settings.put("req-conveyor-copper", new Packages.java.lang.Integer(7));
             settings.put("campaign-fixture-text", "preserved");

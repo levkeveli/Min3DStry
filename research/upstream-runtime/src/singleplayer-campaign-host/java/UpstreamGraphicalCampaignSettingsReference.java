@@ -21,6 +21,14 @@ public final class UpstreamGraphicalCampaignSettingsReference {
         sourceSettings.copyTo(root.child("settings.bin"));
         Core.bundle = I18NBundle.createBundle(fixtures.child("bundle"), Locale.ENGLISH);
         var settings = UpstreamSinglePlayerSession.loadSettings(root);
+        Fi preference = root.child("locale.txt");
+        if (!UpstreamSinglePlayerApp.requestedLocale(preference, settings).equals("de")) {
+            throw new AssertionError("Did not select the stock PC language");
+        }
+        preference.writeString("pt_BR");
+        if (!UpstreamSinglePlayerApp.requestedLocale(preference, settings).equals("pt_BR")) {
+            throw new AssertionError("The handheld locale override lost priority");
+        }
         var session = UpstreamSinglePlayerSession.create(root, "en", fixtures.child("planets"), settings);
         try {
             var zero = SectorPresets.groundZero.sector;
@@ -53,6 +61,7 @@ public final class UpstreamGraphicalCampaignSettingsReference {
             if (!reopened.getBool("conveyor-unlocked") || reopened.getInt("req-conveyor-copper") != 8
                     || reopened.getInt("serpulo-last-sector") != zero.id
                     || !reopened.getString("last-sector-save").equals("Stock Ground Zero")
+                    || !reopened.getString("locale").equals("de")
                     || !reopened.getString("campaign-fixture-text").equals("preserved")
                     || reopened.getInt("campaign-fixture-int") != 47
                     || !matchesStockSector(reopened.getJson("serpulo-s-170-info", SectorInfo.class, SectorInfo::new))
