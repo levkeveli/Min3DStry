@@ -169,6 +169,15 @@ The game shows the destination and the upstream loading label while terrain
 generation runs. Numbered-sector movies allow extra time for the original
 procedural generator before sending the exit input.
 
+The [ARM11 build from `24338a2`](https://github.com/levkeveli/Min3DStry/actions/runs/45048947159)
+rendered the numbered-sector launch dialog in the New 3DS profile and
+accepted the 8-copper edit. With the longer controller movie, the stock
+432×432 sector 15 generator exhausted the managed heap with a 96,350,208-byte
+application heap and a 524,288-byte stack before the world opened. The JVM
+reference on the integrated branch completed this launch and the stock PC
+server reopened both saved sectors. ARM11 generation and in-game departure
+remain under verification.
+
 ## Custom Game
 
 Hold **L** while launching the standalone graphical `.3dsx` to open the
