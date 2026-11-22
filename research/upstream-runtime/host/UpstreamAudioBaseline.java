@@ -92,11 +92,9 @@ public final class UpstreamAudioBaseline {
     public static void main(String[] args) throws Exception {
         if (args.length > 1) {
             throw new IllegalArgumentException(
-                "Usage: UpstreamAudioBaseline [path/to/upstream-audio-map.json]");
+                "Usage: UpstreamAudioBaseline [path/to/upstream-audio-map.json | --sound-catalog]");
         }
-        final Path audioMapPath = args.length == 1
-            ? Path.of(args[0])
-            : Path.of("audio/upstream-audio-map.json");
+        boolean catalog = args.length == 1 && args[0].equals("--sound-catalog");
         final Path tempDataDir = Files.createTempDirectory("min3dstry-audio-");
         Runtime.getRuntime().addShutdownHook(new Thread(() -> deleteTree(tempDataDir)));
 
@@ -105,7 +103,12 @@ public final class UpstreamAudioBaseline {
         ProbeApplication app = initializeApp(tempDataDir, assets, audio);
 
         try {
-            verifyRegistry(assets);
+            var records = verifyRegistry(assets);
+            if (catalog) {
+                records.stream().filter(record -> record.startsWith("sound\t")).forEach(System.out::println);
+                return;
+            }
+            Path audioMapPath = Path.of(args.length == 1 ? args[0] : "audio/upstream-audio-map.json");
             verifyContentBindings(assets, audioMapPath);
             verifyPositionalAndLoops(audio);
 
@@ -174,7 +177,7 @@ public final class UpstreamAudioBaseline {
         return app;
     }
 
-    private static void verifyRegistry(DirectAssetManager assets) throws Exception {
+    private static List<String> verifyRegistry(DirectAssetManager assets) throws Exception {
         if (Sounds.getSoundId(Sounds.none) != -1 || Sounds.getSoundId(Sounds.unset) != -1) {
             throw new IllegalStateException("Expected Sounds.none and Sounds.unset to map to -1");
         }
@@ -233,6 +236,7 @@ public final class UpstreamAudioBaseline {
             musics.length,
             uiCount,
             digest);
+        return records;
     }
 
     private static void verifyContentBindings(
