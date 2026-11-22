@@ -90,7 +90,8 @@ BUILDING_CRACK_PIXELS = {
 
 
 def write_controls_replay(path, first_move=22, building=False, touch_build=False, touch_config=False,
-                          erekir_build=False, mining=None, model="old3ds", stock_menu_font=False):
+                          erekir_build=False, mining=None, model="old3ds", stock_menu_font=False,
+                          unified_boot=False):
     """Write the Azahar 2126.2 CTM input for this probe's pad/touch polling."""
     # The pinned Azahar movie header and HID sample definitions use packed little-endian fields.
     revision = bytes.fromhex("219d743a1e698101fe1ab8bef43e6563126c3c27")
@@ -148,6 +149,8 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
                 buttons = (1 << 4) if seconds == first_move else (1 << 3) if seconds == leave_at else 0
             if building and seconds in (35, 37, 39):
                 buttons = 1  # A, with releases so a late HID poll can observe another press.
+            if unified_boot and seconds < 6:
+                buttons |= 1 << 10  # X, sampled once before the game starts.
             circle_x = 65 if mining == "wall" and 54 <= seconds < pan_end else 0
             circle_y = 106 if seconds == circle_at and not (erekir_build or mining) else 0
             if mining == "floor" and 88 <= seconds < 94:
@@ -1402,12 +1405,14 @@ def run_model(args, model, config, original_config, log, output):
                 write_controls_replay(replay, first_move=first_move, building=args.building,
                                       touch_build=args.touch_build, touch_config=args.touch_config,
                                       erekir_build=args.erekir_build, mining=args.mining, model=model,
-                                      stock_menu_font=args.verify_stock_menu_font)
+                                      stock_menu_font=args.verify_stock_menu_font, unified_boot=args.unified_boot)
                 command += ["-p", str(replay)]
             command.append(str(args.rom))
             emulator = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             rpc = az.AzaharRpcClient(timeout=2, retries=2)
             try:
+                if args.unified_boot:
+                    wait_for(log, emulator, r"UPSTREAM_BOOT mode=join\b", args.timeout)
                 if args.locale:
                     names = {"en": ("Router", "Copper"), "de": ("Verteiler", "Kupfer")}
                     labels = names.get(args.locale)
@@ -1702,6 +1707,8 @@ def main():
     mode.add_argument("--controls", action="store_true", help="Verify D-pad and Circle Pad input and START disconnect")
     parser.add_argument("--controls-replay", action="store_true",
                         help="Replay the controls test input in Azahar 2126.2")
+    parser.add_argument("--unified-boot", action="store_true",
+                        help="Hold X at startup to join from the unified offline and multiplayer ROM")
     parser.add_argument("--terrain-atlas", type=Path,
                         help="Stage the official v160.8 sprites.aatls and verify the rendered viewport")
     parser.add_argument("--locale", help="Stage a stock locale code and verify the graphical probe loads it")
@@ -1780,6 +1787,8 @@ def main():
         parser.error("The PC client needs a distinct player name")
     if args.controls_replay and not args.controls:
         parser.error("--controls-replay needs --controls")
+    if args.unified_boot and not args.controls_replay:
+        parser.error("--unified-boot needs --controls-replay")
     if args.combat and (not args.controls or not args.terrain_atlas):
         parser.error("--combat needs --controls and --terrain-atlas")
     if args.combat and (args.controls_replay or args.building or args.touch_build or args.touch_config

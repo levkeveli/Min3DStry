@@ -90,6 +90,9 @@ The unified client uses its packaged v160.8 atlas in both modes. Restart the
 ROM to switch modes. Menu and browser integration are tracked in
 [#40](https://github.com/levkeveli/Min3DStry/issues/40) and
 [#44](https://github.com/levkeveli/Min3DStry/issues/44).
+From the repository root, replay the stock-server join and input with
+`python3 tools/verify_upstream_live_net.py --rom /path/to/upstream-probe.3dsx
+--server /path/to/server-release.jar --controls --controls-replay --unified-boot`.
 
 ## Upstream map metadata probe
 
