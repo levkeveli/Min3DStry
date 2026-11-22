@@ -24,3 +24,23 @@ The taps reached the game and selected copper. The second tap in the same
 grid cell canceled that target. Earlier taps in build mode queued conveyor
 plans. Upstream mining pauses while the unit is actively building; the logs
 do not establish whether active plans delayed mining in this session.
+
+## Pause Building follow-up
+
+On the same Original 3DS XL, build `ead6427` resumed the Ground Zero save.
+Its ROM SHA-256 was
+`7ebd62042050c7c8971367038e04991c99569ddf3d389471bd8599a9a3b15932`.
+
+```text
+UPSTREAM_SP_BUILDING paused=true queued=5
+UPSTREAM_MINE_TARGET x=137 y=53 item=copper
+UPSTREAM_SP_BUILDING paused=false queued=5
+UPSTREAM_SP_BUILDING paused=true queued=5
+UPSTREAM_MINE_REJECT x=137 y=51 reason=inventory
+UPSTREAM_MINE_REJECT x=137 y=53 reason=inventory
+```
+
+The operator saw a mining animation. Pause and Resume both responded and
+retained five plans. The trace recorded no increase in core copper. Later
+taps reached the ore check but failed the unit inventory check. This build
+did not report whether the unit held copper or another item.

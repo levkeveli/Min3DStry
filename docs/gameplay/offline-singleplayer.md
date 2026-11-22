@@ -136,6 +136,8 @@ For touch mining, look for `UPSTREAM_BUILD_TOUCH` (touch coordinates and
 viewport origin), `UPSTREAM_MINE_MODE`, then `UPSTREAM_MINE_TARGET` or
 `UPSTREAM_MINE_REJECT` (world tile and rejection reason). The game reports
 `UPSTREAM_SP_MINED` when mining increases the core's copper count.
+`UPSTREAM_SP_MINING` and `UPSTREAM_SP_MINING_INVENTORY` distinguish a
+selected target from simulation progress, carried inventory, and core range.
 
 ## Build & Verification Commands
 

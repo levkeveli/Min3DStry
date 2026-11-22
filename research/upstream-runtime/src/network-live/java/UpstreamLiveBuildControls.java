@@ -137,7 +137,8 @@ final class UpstreamLiveBuildControls {
             return;
         }
         if (!unit.acceptsItem(unit.getMineResult(tile))) {
-            logMineRejected("inventory");
+            logMineRejected("inventory held=" + unit.stack.item.name + ":" + unit.stack.amount
+                + " capacity=" + unit.itemCapacity());
             return;
         }
         var oreLayer = tile.overlay().itemDrop == null ? tile.floor() : tile.overlay();

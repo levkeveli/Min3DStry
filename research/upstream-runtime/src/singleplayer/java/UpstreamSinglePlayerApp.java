@@ -71,6 +71,8 @@ public final class UpstreamSinglePlayerApp {
     private float frameSeconds = 1f / 60f;
     private int lastLeft = -1, lastBottom = -1;
     private int lastCopper = -1;
+    private int lastMiningTile = -1;
+    private long lastMiningReport;
     private boolean moving;
     private String inputDevice;
     private UpstreamLabelText.Label encodedLabel;
@@ -490,13 +492,13 @@ public final class UpstreamSinglePlayerApp {
             }
 
             unit = session.ensurePlayerSpawn();
-            updateTelemetry(unit, input);
+            updateTelemetry(unit, input, now);
             render(unit);
             Thread.yield();
         }
     }
 
-    private void updateTelemetry(Unit unit, int input) {
+    private void updateTelemetry(Unit unit, int input, long now) {
         if (unit != null) {
             if (!moveInput.isZero() && !moving) {
                 moving = true;
@@ -510,6 +512,23 @@ public final class UpstreamSinglePlayerApp {
         }
         var core = session.core();
         int copper = core == null ? 0 : core.items.get(Items.copper);
+        if (unit != null && unit.mineTile != null) {
+            int tile = unit.mineTile.pos();
+            if (tile != lastMiningTile || now - lastMiningReport >= 5_000_000_000L) {
+                var miningCore = unit.closestCore();
+                System.out.println("UPSTREAM_SP_MINING tile=" + unit.mineTile.x + "," + unit.mineTile.y
+                    + " tick=" + Vars.state.updateId + " progress=" + unit.mineTimer()
+                    + " building=" + unit.activelyBuilding() + " player=" + unit.isPlayer());
+                System.out.println("UPSTREAM_SP_MINING_INVENTORY held=" + unit.stack.item.name + ":" + unit.stack.amount
+                    + " core=" + (miningCore == null ? "none" : "present")
+                    + " inRange=" + (miningCore != null && unit.within(miningCore, Vars.mineTransferRange))
+                    + " copper=" + copper);
+                lastMiningTile = tile;
+                lastMiningReport = now;
+            }
+        } else {
+            lastMiningTile = -1;
+        }
         if (copper != lastCopper) {
             if (copper > lastCopper) {
                 System.out.println("UPSTREAM_SP_MINED item=copper copper=" + copper);
