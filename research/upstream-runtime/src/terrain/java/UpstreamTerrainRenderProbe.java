@@ -7,6 +7,7 @@ import mindustry.Vars;
 import org.teavm.interop.Import;
 import org.teavm.interop.Address;
 import org.teavm.interop.c.Include;
+import port.render.WeatherNoiseTexture;
 
 public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProbe.TerrainTarget {
     private final boolean reportFrame;
@@ -100,6 +101,15 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
         }
     }
 
+    @Override
+    public void drawWeatherNoise(WeatherNoiseTexture texture, float x, float y, float width, float height,
+                                 float u, float v, float u2, float v2, int tint, int mix, Blending blending) {
+        if (NativeTerrain.drawWeatherNoise(texture.index, x, y, width, height, u, v, u2, v2,
+                tint, mix, blendMode(blending)) == 0) {
+            throw new IllegalStateException("Citro2D could not draw the stock weather noise texture");
+        }
+    }
+
     private static int blendMode(Blending blending) {
         if (blending == Blending.normal) return 0;
         if (blending == Blending.additive) return 1;
@@ -141,6 +151,10 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
 
         @Import(name = "m3ds_terrain_draw_solid_quad")
         static native int drawSolidQuad(Address vertices, int offset, int blendMode);
+
+        @Import(name = "m3ds_terrain_draw_weather_noise")
+        static native int drawWeatherNoise(int texture, float x, float y, float width, float height,
+                                           float u, float v, float u2, float v2, int tint, int mix, int blendMode);
 
         @Import(name = "m3ds_terrain_end")
         static native int end();

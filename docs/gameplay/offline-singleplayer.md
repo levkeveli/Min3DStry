@@ -12,6 +12,22 @@ This vertical slice boots and runs unmodified upstream Mindustry `v160.8` **Grou
 - [`WorldReflectionPolicy.java`](../../research/upstream-runtime/src/world/java/port/WorldReflectionPolicy.java): Registers 0-argument constructors for `arc.struct.{IntMap,IntSet,ObjectIntMap,ObjectMap,ObjectSet,StringMap}` so Arc `Json` restores populated `GameStats` (`placedBlockCount`, etc.) and `Rules` fields when reloading `.msav` saves.
 - [`prepare_terrain_assets.py`](../../research/upstream-runtime/arm11/prepare_terrain_assets.py) (`--singleplayer`) & [`build.sh`](../../research/upstream-runtime/arm11/build.sh) (`--singleplayer`): Stages `maps/groundZero.msav` and `sprites.aatls` alongside bundles, `world-atlas`, `block_colors.png`, menu icons, and stock fonts, then links the ARM11 `.elf`/`.3dsx` (default `-Os`).
 
+## Weather in the graphical campaign
+
+The graphical campaign uses the v160.8 weather entities, particle and debris
+draw routines, and original fog and sandstorm noise textures. `SaveIO` restores
+active weather from a stock `.msav` and saves it again through the existing
+offline session. The simulation advances weather on its fixed step. The weather
+overlay follows the original renderer's alpha fade while the game is paused.
+Regenerate the RomFS assets with `prepare_terrain_assets.py --singleplayer` to
+include both weather textures.
+
+Run the JVM regression with the usual pinned runtime Gradle properties and
+`-Pprobe=singleplayer runOfflineWeatherJvm --args="clear.msav weather.msav sprites.aatls roundtrip.msav"`.
+Use two stock v160.8 Ground Zero saves with no weather in the first and exactly
+rain, sandstorm, and fog at opacity 0.75 in the second. The regression checks one
+simulation tick, the save round trip, particles, and both repeating textures.
+
 ## Campaign sector selection
 
 When `/3ds/min3dstry` contains more than one `sector-*.msav` slot, the app

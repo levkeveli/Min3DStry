@@ -21,6 +21,7 @@ import mindustry.gen.Building;
 import mindustry.graphics.CacheLayer;
 import mindustry.world.Tile;
 import mindustry.world.blocks.environment.Floor;
+import port.render.WeatherNoiseTexture;
 
 /** Captures the upstream terrain draw calls before they reach a GPU. */
 public final class UpstreamTerrainDrawProbe {
@@ -37,6 +38,10 @@ public final class UpstreamTerrainDrawProbe {
                   float x, float y, float originX, float originY, float drawWidth, float drawHeight,
                   float rotation, int color, int mixColor, Blending blending);
         void drawSolidQuad(float[] vertices, int offset, Blending blending);
+        default void drawWeatherNoise(WeatherNoiseTexture texture, float x, float y, float width, float height,
+                                      float u, float v, float u2, float v2, int tint, int mix, Blending blending) {
+            throw new IllegalStateException("Unsupported Arc weather noise texture");
+        }
         void end();
     }
 
@@ -129,6 +134,10 @@ public final class UpstreamTerrainDrawProbe {
         }
 
         void draw(Runnable buildings) {
+            draw(null, buildings);
+        }
+
+        void draw(Runnable debris, Runnable buildings) {
             if (batch.target != null) batch.target.begin(left, bottom, VIEW_WIDTH, VIEW_HEIGHT);
             Draw.reset();
             Draw.z(0f);
@@ -140,6 +149,7 @@ public final class UpstreamTerrainDrawProbe {
                     tile.floor().drawBase(tile);
                 }
             }
+            if (debris != null) debris.run();
             if (drawStaticBlocks) {
                 for (int y = bottom; y < top; y++) {
                     for (int x = left; x < right; x++) {
@@ -292,6 +302,15 @@ public final class UpstreamTerrainDrawProbe {
                             float width, float height, float rotation) {
             // OpenGL discards degenerate quads, including an empty payload crop.
             if (region.width == 0 || region.height == 0 || width == 0f || height == 0f) return;
+            if (region.texture instanceof WeatherNoiseTexture noise) {
+                if (target != null) {
+                    int tint = Color.floatToIntColor(colorPacked), mix = Color.floatToIntColor(mixColorPacked);
+                    float u = region.u, v = region.v, u2 = region.u2, v2 = region.v2;
+                    draw(() -> target.drawWeatherNoise(noise, x, y, width, height, u, v, u2, v2,
+                        tint, mix, blending));
+                }
+                return;
+            }
             if (region == Core.atlas.find("error")) throw new IllegalStateException("Missing terrain sprite");
             var page = (AtlasPageTexture) region.texture;
             if (edgeSources != null) collect(region, page, x, y, originX, originY, width, height, rotation);
