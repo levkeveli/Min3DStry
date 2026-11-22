@@ -97,6 +97,24 @@ each run. The stock reader can check those files with
 and `--sector 64` without `--after-play` for the two-slot run. The replay
 allows the active sector’s stock production average to decay while idle.
 
+## Campaign research
+
+Press **L + SELECT** in a campaign sector to open its research tree. Use
+D-pad up/down to browse the original tech nodes and **A** to view a node.
+The detail screen shows upstream objectives, the amount already contributed,
+and resources available for each requirement. Use **A** to contribute and
+**B** to return to the list or close the screen.
+
+Research follows the original v160.8 objective and unlock rules. It consumes
+resources from other active bases on the same planet before spending from
+the live core. Partial research and unlocks use the original Arc settings
+keys, and the offline app saves the active sector after a contribution.
+
+The JVM reference opens a stock Ground Zero save, checks the Frozen Forest
+prerequisite, spends 3 of 5 copper toward Conveyor, and then completes the
+research using remote and live inventories. It reopens the resulting Arc
+settings file. The graphical screen still needs console verification.
+
 ## Custom Game
 
 Hold **L** while launching the standalone graphical `.3dsx` to open the
