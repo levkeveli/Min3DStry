@@ -33,8 +33,8 @@ UPSTREAM_SP_LOADED source=campaign map=Editor_Playtesting size=150x250 wave=1 co
 ```
 
 Verified on Azahar `2126.2` New and Old profiles with two staged sector files.
-Button-driven A selection remains to be verified with a working Azahar input
-replay; the menu render and auto-selected launch path are emulator-tested.
+A-button selection was verified by injecting the emulator's keyboard A mapping
+on both New and Old Azahar profiles; the auto-select hook remains for automation.
 
 ## 3DS Controls
 
