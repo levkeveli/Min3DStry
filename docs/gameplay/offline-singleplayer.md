@@ -164,6 +164,9 @@ also verifies the saved cargo and origin with stock Java. Add `--manual-cargo`
 to exercise the editor and transfer 8 copper while leaving 15 in Ground Zero.
 Use `--in-game` to start at Ground Zero, open and cancel the selector,
 then reopen it and depart without restarting the app.
+The game shows the destination and the upstream loading label while terrain
+generation runs. Numbered-sector movies allow extra time for the original
+procedural generator before sending the exit input.
 
 ## Custom Game
 

@@ -223,9 +223,17 @@ public final class UpstreamSinglePlayerApp {
         // A failed load must never save the partially loaded world over the origin.
         campaignSlot = null;
         if (slot.timestamp < 0) {
+            drawMenuRows(encodeMenuRows(new String[]{
+                Strings.stripColors(Core.bundle.get("loading")), slot.sector.name()
+            }));
+            System.out.println("UPSTREAM_CAMPAIGN_GENERATING planet=" + slot.sector.planet.name
+                + " sector=" + slot.sector.id);
+            long started = System.nanoTime();
             session.launchNewSector(slot.origin, slot.sector, slot.file, choice.loadout());
-        } else {
-            session.start(null, slot.file, "campaign", slot.sector);
+            System.out.println("UPSTREAM_CAMPAIGN_GENERATION_DONE planet=" + slot.sector.planet.name
+                + " sector=" + slot.sector.id + " elapsedMs=" + (System.nanoTime() - started) / 1_000_000);
+        } else if (!session.start(null, slot.file, "campaign", slot.sector)) {
+            throw new IOException("Unable to load campaign slot " + slot.file.name());
         }
         campaignSlot = slot.file;
         return campaignSlot;
