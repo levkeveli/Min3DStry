@@ -66,16 +66,29 @@ linked, and falls back to the native parser when it is not.
 ## Reproduce
 
 ```sh
-gradle -Pprobe=save-rows ... generateC
-bash tools/build_teavm_loader.sh \
-    research/upstream-runtime/build/generated/teavm/c build/teavm-loader
-make TEAVM_LOADER_DIR="$PWD/build/teavm-loader"
+# One-shot: transpile the pinned SaveIO producer and pack the loader archive.
+UPSTREAM_MINDUSTRY=/path/to/Mindustry \
+MINDUSTRY_SERVER_JAR=/path/to/server-release.jar \
+ARC_CHECKOUT=/path/to/Arc \
+GRADLE_BIN=/path/to/gradle \
+./dev.sh loader
+
+# Default app build: generates the loader when missing (or M3DS_REBUILD_LOADER=1)
+# and links it. Requires a native devkitARM environment.
+UPSTREAM_MINDUSTRY=/path/to/Mindustry ./dev.sh build
 ```
+
+`build_teavm_loader` sources `/opt/devkitpro/3dsvars.sh` when `DEVKITARM` is not
+already exported, so the archive is always produced with the ARM toolchain
+rather than the host compiler. A loader-generation failure aborts `./dev.sh
+build` instead of linking a stale archive, and the Docker fallback warns when
+`UPSTREAM_MINDUSTRY` is set but no archive exists (Docker cannot generate one).
 
 The Makefile normalizes the path to an absolute value with `override`, and the
 loader/stub selection is written into `build-config.h` so toggling rebuilds the
-stub object. A separate build-integration change adds `dev.sh loader` and
-auto-linking to `dev.sh build`; this PR only adds the script and Makefile hook.
+stub object. CI asserts `arm-none-eabi-nm build/min3dstry.elf` reports the
+strong `T m3ds_teavm_world_load` symbol (not the weak `W` stub) and compiles
+both smoke variants.
 
 The remaining step is to make this linked build the only shipped path and
 delete the native parser from the startup path.

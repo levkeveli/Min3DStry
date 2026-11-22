@@ -5,6 +5,7 @@
 ## Upstream v160.8 ARM11 Bring-Up
 
 - [Upstream source runtime & resource probes](../research/upstream-runtime/README.md): Pinned Mindustry v160.8 + Arc `7445105cd2` compiled with TeaVM C against `libctru` adapters (tested in Azahar for `LogicOp`, `MapIO` Glacier metadata, Arc `Fi` resources, the JVM content registry baseline, and the upstream combat, wave and ground-routing probes on ARM11).
+- [Embedded TeaVM save loader](porting/embed-loader.md): `./dev.sh loader` transpiles the pinned `SaveIO` producer and packs `build/teavm-loader/libm3dsloader.a`; `./dev.sh build` generates it when missing (or when `M3DS_REBUILD_LOADER=1`) and passes `TEAVM_LOADER_DIR` to make. Tooling inputs are `UPSTREAM_MINDUSTRY` (absolute pinned checkout), `MINDUSTRY_SERVER_JAR` (defaults to `<parent>/server-release.jar`), `ARC_CHECKOUT` (defaults to `<parent>/Arc`) and `GRADLE_BIN` (defaults to the checkout `gradlew`, then `gradle`). Generation requires a devkitARM environment (`DEVKITARM`/`DEVKITPRO`, sourced from `/opt/devkitpro/3dsvars.sh` when available); the Docker build only links an archive that a native devkitARM environment already produced. CI asserts the strong loader symbol wins over the weak stub in `build/min3dstry.elf`.
 
 ## 3DS Platform & Hardware Test Harnesses (NOT the Game)
 

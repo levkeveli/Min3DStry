@@ -48,7 +48,23 @@ has_docker_devkitarm() {
     docker image inspect devkitpro/devkitarm:latest >/dev/null 2>&1
 }
 
+ensure_devkitarm_env() {
+  if [[ -n "${DEVKITARM:-}" && -f "${DEVKITARM}/3ds_rules" ]]; then
+    return 0
+  fi
+  if [[ -f "/opt/devkitpro/3dsvars.sh" ]]; then
+    # shellcheck disable=SC1091
+    source /opt/devkitpro/3dsvars.sh
+    return 0
+  fi
+  return 1
+}
+
 build_teavm_loader() {
+  if ! ensure_devkitarm_env; then
+    echo 'loader: devkitARM is unavailable; source devkitPro 3dsvars.sh first.' >&2
+    return 1
+  fi
   local upstream="${UPSTREAM_MINDUSTRY:-}"
   if [[ -z "$upstream" || ! -d "$upstream" ]]; then
     echo 'loader: set UPSTREAM_MINDUSTRY to the pinned Mindustry checkout.' >&2
@@ -68,6 +84,7 @@ build_teavm_loader() {
     return 1
   fi
   "$gradle" --no-daemon --console=plain -p research/upstream-runtime \
+    "-Dorg.gradle.jvmargs=-Xmx3g" \
     "-PupstreamCheckout=$upstream" \
     "-PreferenceJar=$server" \
     "-ParcCheckout=$arc" \
@@ -104,23 +121,27 @@ case "${1:-}" in
     fi
     ;;
   loader)
-    build_teavm_loader
+    build_teavm_loader || exit 1
     ;;
   build)
     make_args=()
     if [[ -n "${UPSTREAM_MINDUSTRY:-}" && -d "${UPSTREAM_MINDUSTRY:-}" ]] &&
         has_native_devkitarm; then
+      ensure_devkitarm_env || {
+        echo 'build: devkitARM is unavailable; source devkitPro 3dsvars.sh first.' >&2
+        exit 2
+      }
       if [[ ! -f build/teavm-loader/libm3dsloader.a ||
             "${M3DS_REBUILD_LOADER:-0}" == "1" ]]; then
-        build_teavm_loader
+        build_teavm_loader || {
+          echo 'build: embedded TeaVM loader generation failed; refusing to link a stale or missing archive.' >&2
+          exit 1
+        }
       fi
       make_args+=("TEAVM_LOADER_DIR=$PWD/build/teavm-loader")
     fi
     if has_native_devkitarm; then
-      if [[ -z "${DEVKITARM:-}" && -f "/opt/devkitpro/3dsvars.sh" ]]; then
-        # shellcheck disable=SC1091
-        source /opt/devkitpro/3dsvars.sh
-      fi
+      ensure_devkitarm_env || true
       make "${make_args[@]}"
     elif has_docker_devkitarm; then
       if [[ -f build/teavm-loader/libm3dsloader.a ]]; then
@@ -129,6 +150,10 @@ case "${1:-}" in
           devkitpro/devkitarm:latest bash -lc \
           'source /opt/devkitpro/3dsvars.sh && make TEAVM_LOADER_DIR=/work/build/teavm-loader'
       else
+        if [[ -n "${UPSTREAM_MINDUSTRY:-}" ]]; then
+          echo 'build: UPSTREAM_MINDUSTRY is set but build/teavm-loader/libm3dsloader.a is missing;' >&2
+          echo 'build: the Docker build will link the weak stub without the embedded upstream loader.' >&2
+        fi
         docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/work" -w /work \
           devkitpro/devkitarm:latest bash -lc \
           'source /opt/devkitpro/3dsvars.sh && make'
