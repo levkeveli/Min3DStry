@@ -84,6 +84,15 @@ each run. The stock reader can check those files with
 `python3 tools/campaign_settings_fixture.py --server server-release.jar --check /path/to/new3ds-single-settings.bin --sector 170`
 and `--sector 64` for the two-slot run.
 
+## New campaign
+
+Hold **R** while launching the standalone graphical .3dsx to open the
+campaign selector. The selector includes a new Ground Zero or Onset
+campaign when that planet does not already have a starter save. Use D-pad
+up/down to select and **A** to start. **B** or **START** exits the selector.
+New games use the original sector generator and write the original
+campaign .msav and Arc settings files in the same locations as resumed games.
+
 ## Campaign map assets
 
 The offline package stages the 78 Serpulo maps and 17 Erekir maps from the
@@ -96,8 +105,15 @@ path remains available for the standalone Ground Zero mode.
 The host task `runGraphicalCampaignPresetMapsJvm` takes a staged assets
 directory with `maps/`, `planets/` and `bundle.properties`, and a new
 scratch directory. It loads the Ground Zero and Onset starters through
-the original world generator and checks the campaign sector IDs and core
-spawn. This task exercises the assets and generator on the JVM.
+the original world generator, then checks the sector IDs, starter cores,
+launch event, and the saved worlds. The stock v160.8 server reopened both
+JVM-generated saves with the same world size, core, and rules as saves
+from a fresh stock launch.
+
+Use `python3 tools/verify_upstream_campaign_launch.py --rom upstream-probe.3dsx`
+to replay the fresh campaign menu on both Azahar profiles. The verifier
+captures the menu and starting worlds, then collects the resulting saves and
+settings from an empty test SD directory.
 
 ## Custom Game
 

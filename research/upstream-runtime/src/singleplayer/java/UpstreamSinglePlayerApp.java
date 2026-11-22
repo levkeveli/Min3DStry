@@ -15,10 +15,12 @@ import arc.util.Time;
 import arc.util.Strings;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 import mindustry.Vars;
 import mindustry.content.Blocks;
 import mindustry.content.Items;
+import mindustry.content.Planets;
 import mindustry.content.UnitTypes;
 import mindustry.core.UI;
 import mindustry.core.World;
@@ -34,6 +36,7 @@ import mindustry.gen.Groups;
 import mindustry.gen.Tankc;
 import mindustry.gen.Unit;
 import mindustry.gen.UnitWaterMove;
+import mindustry.type.Planet;
 import mindustry.type.UnitType;
 import mindustry.world.Block;
 import mindustry.world.blocks.ConstructBlock.ConstructBuild;
@@ -97,6 +100,8 @@ public final class UpstreamSinglePlayerApp {
         int bootInput = UpstreamSinglePlayerInput.poll();
         boolean customRequested = args.length == 0 && bootInput >= 0
             && (bootInput & UpstreamSinglePlayerInput.CUSTOM_GAME_HELD) != 0;
+        boolean campaignRequested = args.length == 0 && bootInput >= 0
+            && (bootInput & UpstreamSinglePlayerInput.CAMPAIGN_HELD) != 0 && !customRequested;
         Fi mapFile = args.length >= 1 ? new Fi(args[0]) : firstExisting("/romfs/maps/groundZero.msav", "/3ds/min3dstry/groundZero.msav");
         Fi saveFile = args.length >= 2 ? new Fi(args[1]) : new Fi("/3ds/min3dstry/singleplayer-save.msav");
         Fi atlas = firstExisting("/romfs/sprites.aatls", "/3ds/min3dstry/sprites.aatls");
@@ -127,8 +132,17 @@ public final class UpstreamSinglePlayerApp {
             }
             List<UpstreamSinglePlayerSession.SectorSlot> sectorSaves =
                 args.length < 2 && custom == null ? session.sectorSaves() : List.of();
+            if (campaignRequested) {
+                sectorSaves = new ArrayList<>(sectorSaves);
+                for (var planet : new Planet[]{Planets.serpulo, Planets.erekir}) {
+                    var starter = planet.getStartSector();
+                    if (starter.save != null) continue;
+                    var slot = session.sectorFile(starter);
+                    if (!slot.exists()) sectorSaves.add(new UpstreamSinglePlayerSession.SectorSlot(slot, starter, -1));
+                }
+            }
             UpstreamSinglePlayerSession.SectorSlot selected = null;
-            if (sectorSaves.size() == 1) {
+            if (sectorSaves.size() == 1 && !campaignRequested) {
                 selected = sectorSaves.get(0);
                 System.out.println("UPSTREAM_CAMPAIGN_SELECTED slot=" + selected.file.name() + " source=single");
             } else if (!sectorSaves.isEmpty()) {
@@ -139,7 +153,11 @@ public final class UpstreamSinglePlayerApp {
             // Load the world before initializing world sprites to keep peak TeaVM heap bounded.
             if (selected != null) {
                 saveFile = selected.file;
-                session.start(null, saveFile, "campaign", selected.sector);
+                if (selected.timestamp < 0) {
+                    session.launchNewSector(selected.sector, selected.sector, saveFile);
+                } else {
+                    session.start(null, saveFile, "campaign", selected.sector);
+                }
                 campaignSlot = saveFile;
             } else if (custom == null) {
                 session.start(mapFile, saveFile, null);
@@ -329,7 +347,7 @@ public final class UpstreamSinglePlayerApp {
         while (true) {
             long nextFrame = System.nanoTime() + FRAME_NS;
             int input = UpstreamSinglePlayerInput.poll();
-            if (input == -1) {
+            if (input == -1 || (input & (1 << 19)) != 0) {
                 System.out.println("UPSTREAM_CAMPAIGN_CANCEL");
                 return null;
             }
@@ -360,9 +378,11 @@ public final class UpstreamSinglePlayerApp {
         String[] captions = new String[1 + end - first];
         captions[0] = Core.bundle.get("campaign");
         for (int i = first; i < end; i++) {
-            var sector = slots.get(i).sector;
-            captions[1 + i - first] = (i == selected ? "> " : "  ")
-                + sector.planet.localizedName + " / " + sector.name();
+            var slot = slots.get(i);
+            var sector = slot.sector;
+            String caption = sector.planet.localizedName + " / " + sector.name();
+            if (slot.timestamp < 0) caption += " / " + Core.bundle.get("newgame");
+            captions[1 + i - first] = (i == selected ? "> " : "  ") + caption;
         }
         return captions;
     }

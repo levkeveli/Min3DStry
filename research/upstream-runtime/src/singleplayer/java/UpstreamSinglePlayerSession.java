@@ -1,6 +1,7 @@
 import arc.Core;
 import arc.Events;
 import arc.Settings;
+import arc.assets.AssetManager;
 import arc.files.Fi;
 import arc.math.Mathf;
 import arc.math.geom.Vec2;
@@ -26,9 +27,11 @@ import mindustry.entities.EntityCollisions;
 import mindustry.entities.units.BuildPlan;
 import mindustry.game.EventType.ResetEvent;
 import mindustry.game.EventType.RulesLoadEvent;
+import mindustry.game.EventType.SectorLaunchEvent;
 import mindustry.game.EventType.Trigger;
 import mindustry.game.FogControl;
 import mindustry.game.Gamemode;
+import mindustry.game.Saves;
 import mindustry.game.Team;
 import mindustry.game.Universe;
 import mindustry.game.Waves;
@@ -39,6 +42,7 @@ import mindustry.graphics.CacheLayer;
 import mindustry.io.JsonIO;
 import mindustry.io.MapIO;
 import mindustry.io.SaveIO;
+import mindustry.io.SaveMeta;
 import mindustry.maps.Map;
 import mindustry.type.Planet;
 import mindustry.type.Sector;
@@ -56,6 +60,7 @@ public final class UpstreamSinglePlayerSession {
     private static final float FIXED_STEP_SECONDS = 1f / 60f;
     private final UpstreamWorldLoadProbe.ProbeApplication app;
     private final Vec2 tmpMove = new Vec2();
+    private Saves campaignSaves;
     private float deltaSeconds = FIXED_STEP_SECONDS;
 
     private UpstreamSinglePlayerSession(UpstreamWorldLoadProbe.ProbeApplication app) {
@@ -100,6 +105,7 @@ public final class UpstreamSinglePlayerSession {
                 }
             }
         }
+        Vars.saveDirectory = mapDirectory.child("saves");
         settings.defaults("locale", locale == null || locale.isEmpty() ? "en" : locale);
         var app = UpstreamWorldLoadProbe.initialize(mapDirectory, settings, campaignMaps != null);
         Core.audio = new MockAudio();
@@ -181,6 +187,33 @@ public final class UpstreamSinglePlayerSession {
         }
         reportLoadedWorld(source);
         return loadedFromSave;
+    }
+
+    void launchNewSector(Sector origin, Sector sector, Fi saveFile) throws IOException {
+        if (saveFile.exists()) {
+            throw new IOException("Campaign slot already exists: " + saveFile.path());
+        }
+        // Offline portion of v160.8 Control.playSector and Control.playNewSector.
+        if (origin == sector) Vars.universe.clearLoadoutInfo();
+        Vars.logic.reset(); // WorldReloader.begin() when neither a server nor a multiplayer client.
+        Vars.world.loadSector(sector);
+        Vars.state.rules.sector = sector;
+        sector.info.origin = origin;
+        sector.info.destination = origin;
+        sector.info.attempts++;
+        if (sector.preset != null) sector.preset.quietUnlock();
+        sector.planet.setLastSector(sector);
+
+        app.runPosted();
+        Events.fire(new RulesLoadEvent(Vars.state.rules));
+        Vars.avoidance.init();
+        Vars.logic.play();
+        save(saveFile);
+        Events.fire(new SectorLaunchEvent(sector));
+        Events.fire(Trigger.newGame);
+        Vars.state.set(State.playing);
+        app.runPosted();
+        reportLoadedWorld("campaign-new");
     }
 
     Gamemode startCustomGame(Map map, Gamemode requested) throws IOException {
@@ -289,8 +322,33 @@ public final class UpstreamSinglePlayerSession {
             if (sector == null) sector = sectorFor(file);
             var preset = Vars.content.sector(meta.tags.get("sectorPreset", ""));
             if (preset != null && preset.requireUnlock) sector = preset.sector;
-            if (sector != null && found.add(sector)) result.add(new SectorSlot(file, sector, meta.timestamp));
+            if (sector != null && found.add(sector)) {
+                bindSectorSave(sector, file, meta);
+                result.add(new SectorSlot(file, sector, meta.timestamp));
+            }
         }
+    }
+
+    private Saves campaignSaves() {
+        if (campaignSaves == null) {
+            if (Core.assets == null) Core.assets = new AssetManager(Fi::new, false);
+            campaignSaves = new Saves();
+        }
+        return campaignSaves;
+    }
+
+    Fi sectorFile(Sector sector) {
+        return campaignSaves().getSectorFile(sector);
+    }
+
+    private void bindSectorSave(Sector sector, Fi file, SaveMeta meta) {
+        if (sector.save == null || !sector.save.file.equals(file)) {
+            var saves = campaignSaves();
+            if (sector.save != null) saves.getSaveSlots().remove(sector.save);
+            sector.save = saves.new SaveSlot(file);
+            saves.getSaveSlots().add(sector.save);
+        }
+        sector.save.meta = meta;
     }
 
     /** Fallback for saves without a decoded sector: match planet and id from sector-&lt;planet&gt;-&lt;id&gt;.msav. */
@@ -397,6 +455,7 @@ public final class UpstreamSinglePlayerSession {
             }
         }
         if (Vars.state.rules.sector != null) {
+            bindSectorSave(Vars.state.rules.sector, saveFile, SaveIO.getMeta(saveFile));
             String index = saveFile.nameWithoutExtension();
             String key = slotNameKey(saveFile);
             if (!Core.settings.has(key)) Core.settings.put(key, index);
