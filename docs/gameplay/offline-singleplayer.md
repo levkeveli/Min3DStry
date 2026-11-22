@@ -31,7 +31,7 @@ the original sector name.
 The app loads the sector through `SaveIO.load(file, world.makeSectorContext(sector))`.
 The **SELECT** save button and **START** exit write to the selected file with
 `SaveIO.save`, which keeps the previous save at the original backup path.
-Selection alone performs no writes.
+Selecting a row does not write a sector save.
 
 For verification, create sector fixtures with the stock v160.8 server in a
 temporary directory. Run the following as one server-console command, first
@@ -59,6 +59,43 @@ building, pause, and save/reload replay also passed on both profiles with
 no sector files staged. After integration with the merged Custom Game port,
 the campaign resume JVM reference and the repository host suite passed
 against the combined tree. Physical console verification remains open.
+
+## Campaign settings
+
+Copy the PC `settings.bin` into `/3ds/min3dstry/` alongside the `saves/`
+directory to carry over campaign research, unlocks, sector information, and
+the last-sector selection. The graphical app loads the file through Arc
+`Settings` before initializing Mindustry content. In the sector menu, the
+stock last save name or planet sector preference determines the initial row
+when it matches an available save. Saving the sector updates the original
+Mindustry settings keys through `SaveIO` and flushes `Settings` to the same
+SD directory. Arc manages the settings backup. The offline executable
+reserves a 512 KiB native stack for the nested upstream serializer used by
+campaign saves with objective markers.
+
+The [ARM11 build from `c42a78b`](https://github.com/levkeveli/Min3DStry/actions/runs/45042352829)
+opened Ground Zero, highlighted the stock last save in the two-sector menu,
+and saved back to the selected slot on both Azahar 2126.2 profiles. The
+stock v160.8 server reopened all four save and settings pairs. It found the
+original partial research value, content unlock, custom sector name, origin,
+and unrelated copied preferences, with the correct last sector for each run.
+
+Use the stock v160.8 server to add `settings.bin` to the sector fixture directory.
+
+```sh
+python3 tools/campaign_settings_fixture.py --server server-release.jar --create-in /path/to/fixtures
+```
+
+Run Gradle with the pinned runtime properties and
+`-Pprobe=singleplayer runGraphicalCampaignSettingsJvm --args="/path/to/fixtures /path/to/new-scratch-dir"`.
+It checks unlocks and partial research at content startup, the stock sector
+metadata, the settings backup, and the research update after saving.
+Passing the same fixtures to `tools/verify_upstream_campaign_resume.py`
+checks the initial menu selection and saves a copy of the native settings for
+each run. The stock reader can check those files with
+`python3 tools/campaign_settings_fixture.py --server server-release.jar --check /path/to/new3ds-single-settings.bin --sector 170 --after-play`
+and `--sector 64` without `--after-play` for the two-slot run. The replay
+allows the active sector’s stock production average to decay while idle.
 
 ## Custom Game
 
