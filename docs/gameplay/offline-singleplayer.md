@@ -56,6 +56,58 @@ UPSTREAM_SP_EXIT
 
 Save-back and START cancel were verified on both profiles.
 
+## Custom Game
+
+Hold **L** while launching the standalone graphical `.3dsx` to open the
+Custom Game map list. Use D-pad up/down to select a map, left/right to select
+an upstream mode, and **A** to start. **B** or **START** exits the selector.
+The roster includes all 18 maps listed by the pinned v160.8 Custom Game menu.
+Place compatible `.msav` map exports in `/3ds/min3dstry/maps/` to list them
+alongside the bundled maps. The selector uses the names from each map's stock
+metadata and the stock map ordering. It initializes the text renderer first
+and loads the world sprite atlas after the map. If a mode is unavailable on a
+map, startup uses the first valid mode
+in the upstream mode order.
+
+`SELECT` saves the current Custom Game to
+`/3ds/min3dstry/custom-game-save.msav` using upstream `SaveIO`. The separate
+file preserves the ordinary single-player and campaign slots.
+Select **Load Game** at the top of the Custom Game list to resume that save.
+
+The JVM regression uses an assets directory staged with
+`prepare_terrain_assets.py --singleplayer`. Pass its `maps/default` directory,
+a fixture directory with one valid exported Ground Zero map, a new output file,
+and the `bundles/bundle` resource base from those assets to
+`-Pprobe=singleplayer runCustomGameJvm --args="/path/to/maps/default /path/to/user-maps /path/to/roundtrip.msav /path/to/bundles/bundle"`
+along with the pinned runtime Gradle properties. It checks and launches every
+stock map, launches Glacier in Sandbox, and reloads the resulting `.msav`.
+
+Run `python3 tools/verify_upstream_custom_game.py --rom upstream-probe.3dsx`
+with Azahar 2126.2 and a virtual SD without user maps to replay the selector,
+start Ancient Caldera in Sandbox, and save and resume the game on both console
+profiles. The verifier retains the native test saves alongside screenshots and
+logs so they can also be opened in the stock v160.8 game.
+Use `--map archipelago` to exercise the original 500×500 map separately.
+
+The [ARM11 build from `431c7e8`](https://github.com/levkeveli/Min3DStry/actions/runs/45030664788)
+started Ancient Caldera in Sandbox, saved, and resumed it on both Azahar
+2126.2 profiles. An unmodified v160.8 server loaded both native saves and
+reported the same map size, planet, infinite resources, waves, and wave-timer
+settings as its own Ancient Caldera Sandbox session.
+
+The graphical app reserves a 32 MiB TeaVM heap for the decoded world,
+pathfinder grids, and sprite atlas. In the preceding 24 MiB build, the Old 3DS
+debugger caught Archipelago's 1,000,016-byte pathfinder allocation after
+collection left only 40 bytes free. The
+[ARM11 build from `fc3881c`](https://github.com/levkeveli/Min3DStry/actions/runs/45032641678)
+started the original 500×500 Archipelago in Sandbox, saved, and resumed it on
+both Azahar profiles. The unmodified v160.8 server opened both native saves and
+matched the same Sandbox flags, planet, and dimensions. The same build also
+passed the Ancient Caldera replay and stock server readback, listed and opened
+an SD-imported Glacier beside the 18 bundled maps, and passed the regular
+Ground Zero movement, mining, building, pause, and save/reload replay on both
+profiles. Physical console memory use and frame-rate targets remain open.
+
 ## 3DS Controls
 
 | Input | Action |
