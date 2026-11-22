@@ -71,7 +71,11 @@ public final class UpstreamRenderedNetworkProbe {
 
     public static void main(String[] args) throws IOException, InterruptedException {
         var endpoint = UpstreamLiveNetworkProbe.endpointFile(args);
-        var view = new UpstreamRenderedNetworkProbe(endpoint.sibling("sprites.aatls"));
+        run(endpoint, endpoint.sibling("sprites.aatls"));
+    }
+
+    static void run(Fi endpoint, Fi atlas) throws IOException, InterruptedException {
+        var view = new UpstreamRenderedNetworkProbe(atlas);
         int language = view.target.mountAssets();
         var preference = endpoint.sibling("locale.txt");
         String requested = preference.exists() && preference.length() <= 16 ? preference.readString("UTF-8").trim() : "";
