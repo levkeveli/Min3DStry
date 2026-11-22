@@ -8,6 +8,7 @@
 
 NetLoader transferred the standalone build over Wi-Fi. The operator confirmed
 that it reached gameplay and that the Circle Pad moved the player.
+Pressing START returned the console to Homebrew Launcher.
 
 Touch mining did not work during the session. The operator retried the Mine
 and ore-selection sequence without success. The A button on this console
