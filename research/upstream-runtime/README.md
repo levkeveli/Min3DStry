@@ -544,10 +544,17 @@ Rebuild the terrain asset directory with `--multiplayer` to include them.
 
 `runBuildingLayersJvm` compares the submitted underlay and overlay geometry
 against direct upstream draw calls for all six weather types at fixed
-camera positions and times. Use `--controls --terrain-atlas --verify-weather-layers`
-to capture clear and active screenshots with a stock server. This change
-adapts the live renderer. The offline campaign render path still needs the
-same weather passes and a campaign fixture.
+camera positions and times. It checks dry ground rain lines and the
+original splash sprites over water. Use
+`--controls --terrain-atlas --verify-weather-layers` to capture clear and
+active screenshots with a stock server.
+
+The `dbb1254` ARM11 build loaded both original noise textures and passed
+the Glacier weather capture on both Azahar profiles. The Old and New 3DS
+screens changed 1,462 and 1,480 sampled world pixels respectively, with
+the sampled touch grid unchanged. The offline campaign render path still
+needs the same weather passes and a campaign fixture.
+[ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45022544461)
 
 Run `python3 tools/verify_live_stock_audio.py <terrain-assets>` with the
 staged directory to exercise all 205 PCM files through the live mixer and
