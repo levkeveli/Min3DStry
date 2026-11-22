@@ -73,8 +73,11 @@ The generator decompresses each `.msch` (magic `msch`, version byte, zlib payloa
 `width/height`, tags, block count and block-type names, and stores the first five types as a summary.
 
 The list shows the upstream file name (truncated to the console width) with wrap-around scrolling; A
-opens a detail page with dimensions, block count and the block summary; B returns. It is read-only:
-importing, exporting or editing schematics is not implemented.
+opens a detail page with dimensions, block count and the block summary; B returns. **L/R** switches
+between the built-in table and user files scanned from `sd:/3ds/min3dstry/schematics/`: the same
+metadata parser runs on each `*.msch` (bounded to 64 files and 64 KiB per file, malformed files
+skipped), and the empty state points at the expected path. It is read-only: importing into the game,
+exporting or editing schematics is not implemented.
 
 ```bash
 python3 tools/gen_schematics_catalog.py --dir /path/to/core/assets/baseparts
@@ -156,6 +159,17 @@ MAIN_MENU screen=schematics selected=<file> detail=1
 
 The list shows `Schematics n/210` with the upstream file names; the detail page shows `WxH, N blocks`
 and the first block types (for example `2x2, 1 blocks` / `power-node-large`).
+
+With two fixtures staged at `sd:/3ds/min3dstry/schematics/` (`a single large power node.msch`,
+`battery node.msch`), both profiles report:
+
+```text
+MAIN_MENU source=sd count=2
+MAIN_MENU screen=schematics selected=battery node detail=1
+```
+
+and render `Schematics 2/2`, `Source: SD card`, `battery node`, `5x3, 2 blocks`,
+`battery-large, power-node-large`.
 
 ## Remaining work
 
