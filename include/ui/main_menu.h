@@ -6,6 +6,7 @@
 
 #include "ui/content_catalog.h"
 #include "ui/schematics_catalog.h"
+#include "ui/user_schematics.h"
 
 /*
  * Stock title menu shell derived from upstream Mindustry v160.8
@@ -60,6 +61,7 @@ typedef struct {
     unsigned schematic_selected;
     unsigned schematic_scroll;
     bool schematic_detail;
+    bool schematics_user;
 } M3dsMainMenu;
 
 void m3ds_main_menu_init(M3dsMainMenu *menu);
@@ -78,6 +80,13 @@ const M3dsCatalogEntry *m3ds_main_menu_catalog_entry(const M3dsMainMenu *menu,
 
 /* Entry under the cursor in the read-only Schematics list (NULL when empty). */
 const M3dsSchematicRow *m3ds_main_menu_schematic_entry(const M3dsMainMenu *menu,
+                                                       size_t index);
+
+/* Toggle the Schematics source between built-in data and sd:/3ds/min3dstry/schematics. */
+void m3ds_main_menu_schematics_toggle_source(M3dsMainMenu *menu);
+
+/* Entry under the cursor when the SD-card source is active (NULL otherwise). */
+const M3dsUserSchematic *m3ds_main_menu_user_schematic(const M3dsMainMenu *menu,
                                                        size_t index);
 
 size_t m3ds_main_menu_count(const M3dsMainMenu *menu);

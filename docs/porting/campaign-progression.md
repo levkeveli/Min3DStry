@@ -441,7 +441,7 @@ profiles report:
 
 ```text
 UPSTREAM_CAMPAIGN_MENU slots=2
-UPSTREAM_CAMPAIGN_SELECTED slot=sector-serpulo-15.msav source=auto
+UPSTREAM_CAMPAIGN_SELECTED slot=sector-serpulo-15.msav name=Ground Zero source=auto
 UPSTREAM_SP_LOADED source=campaign map=Editor_Playtesting size=150x250 wave=1 copper=0
 UPSTREAM_CAMPAIGN_SAVED slot=sector-serpulo-15.msav
 UPSTREAM_SP_EXIT

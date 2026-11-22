@@ -276,7 +276,7 @@
       "modes": [],
       "issue": 40,
       "evidence": [],
-      "notes": "Read-only list of the 210 pinned base-part .msch files is implemented (dimensions, block count, block summary); schematic import/export and RTS selection/command are not."
+      "notes": "Read-only list of the 210 pinned base-part .msch files plus user .msch files from sd:/3ds/min3dstry/schematics (dimensions, block count, block summary); import into the game, export and RTS selection/command are not implemented."
     },
     {
       "id": "content-database-page",

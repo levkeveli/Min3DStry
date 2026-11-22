@@ -1,6 +1,6 @@
 # Physical Hardware Deployment and Log Streaming
 
-Status: **Host-tested** for SD staging and log tooling. **New 3DS XL hardware-tested** for Wi-Fi deployment and log streaming. Original 3DS hardware testing is pending.
+Status: **Host-tested** for SD staging and log tooling. **Hardware-tested on Original and New 3DS XL** for Wi-Fi deployment and log streaming.
 
 ## Purpose
 
@@ -17,7 +17,7 @@ Issue #6 provides a repeatable deployment and telemetry capture workflow in [`to
    ./dev.sh device deploy --ip <3DS_IP> --stream-logs --log-out build/device-logs/run.log
    ```
    You can also set `M3DS_DEVICE_IP=<3DS_IP>` instead of passing `--ip`, or inspect the generated command with `--dry-run`.
-   Streaming uses `3dslink -s` and TCP port 17491 on the PC. The app keeps rendering the bottom-screen console and also emits the records to the debugger for Azahar. Let the scene run for a few seconds, then press START to close the stream and save the log.
+   Streaming uses `3dslink -s` and TCP port 17491 on the PC. The app keeps rendering the bottom-screen console and also emits the records to the debugger for Azahar. `deploy` mirrors the output line by line into `--log-out` (flushed as it arrives), and `--stream-seconds N` stops the server automatically (exit 0 for a deliberate bounded stop, even with continuous output). Pressing START closes the app, but `3dslink -s` keeps listening, so use the bounded option (or Ctrl+C) to finish the log.
    The deploy command passes `m3ds-stream-logs` after the ROM path. Homebrew Launcher documents that trailing arguments are forwarded to the launched app, and `3dslink` 0.6.3 serializes them after the app path. [Homebrew Launcher Netloader](https://github.com/devkitPro/3ds-hbmenu#netloader) · [3dslink 0.6.3 argument handling](https://github.com/devkitPro/3dslink/blob/c2df7362a156282bc2fb55370740ad670ca5a8a5/host/src/main.c#L599-L606)
 
 ### 2. SD / FTPD Staging with SHA-256 Verification
@@ -72,4 +72,4 @@ evidence; `./dev.sh emu-test` stays the pre-flight.
 - **Hardware evidence ingest (`tests/tools/test_hw_evidence.py`):** **Host-tested** for valid New/Old profiles, corrupt-save failure, wrong hashes, frame drops, missing records, strict exit codes, and the `device evidence` wrapper.
 - **Build provenance (`tests/tools/test_git_head_sha.py`):** the app logs `BUILD commit=<sha> dirty=<0|1>`; `dev.sh build` exports the short SHA and the Makefile falls back to `tools/git_head_sha.sh` when a container has no git binary. Host-tested for loose refs, packed refs, detached HEAD, and linked worktrees.
 - **Physical New 3DS XL:** On 2026-11-20, [build `07e94ed`](https://github.com/levkeveli/Min3DStry/actions/runs/44739543994) was sent via `3dslink` 0.6.3 over Wi-Fi. The PC received the hardware profile (804 MHz, L2 enabled, 124 MiB application memory, FIRM 2.58.0), the canonical 240-tick scenario hash (`0x53a483c7`, matching the host fixture), and the frame-30 sample (2.63% CPU, 8.10% GPU, 0.26% command buffer, zero budget drops).
-- **Physical Original 3DS/2DS:** Wi-Fi deployment and streaming verification are pending.
+- **Physical Original 3DS XL:** On 2026-11-22, clean main build `a4a9a96` booted after a Wi-Fi transfer and streamed telemetry that passed all seven smoke checks. The operator confirmed START, camera panning, and audible sound. The run covered the default hardware harness. [Original 3DS XL evidence](evidence/old3ds-xl-a4a9a96.md)

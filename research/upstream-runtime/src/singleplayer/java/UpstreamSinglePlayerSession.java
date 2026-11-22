@@ -24,16 +24,21 @@ import mindustry.core.GameState.State;
 import mindustry.entities.EntityCollisions;
 import mindustry.entities.units.BuildPlan;
 import mindustry.game.EventType.ResetEvent;
+import mindustry.game.EventType.RulesLoadEvent;
+import mindustry.game.EventType.Trigger;
 import mindustry.game.FogControl;
+import mindustry.game.Gamemode;
 import mindustry.game.Saves;
 import mindustry.game.Team;
 import mindustry.game.Universe;
+import mindustry.game.Waves;
 import mindustry.gen.Groups;
 import mindustry.gen.Player;
 import mindustry.gen.Unit;
 import mindustry.graphics.CacheLayer;
 import mindustry.io.MapIO;
 import mindustry.io.SaveIO;
+import mindustry.maps.Map;
 import mindustry.type.Planet;
 import mindustry.type.Sector;
 import mindustry.logic.GlobalVars;
@@ -76,6 +81,7 @@ public final class UpstreamSinglePlayerSession {
         Vars.indexer = new BlockIndexer();
         Vars.spawner = new WaveSpawnerProxy().create();
         Vars.universe = new Universe();
+        Vars.waves = new Waves();
         Vars.logicVars = new GlobalVars();
         Vars.logicVars.init();
         Vars.collisions = new EntityCollisions();
@@ -134,6 +140,49 @@ public final class UpstreamSinglePlayerSession {
             app.runPosted();
             source = sourceTagOverride != null ? sourceTagOverride : "map";
         }
+        reportLoadedWorld(source);
+        return loadedFromSave;
+    }
+
+    Gamemode startCustomGame(Map map, Gamemode requested) throws IOException {
+        // Control.playMap wraps these operations in the stock desktop loading UI.
+        var rules = map.applyRules(requested);
+        Vars.logic.reset();
+        Vars.world.loadMap(map, rules);
+        if (Vars.state.map != map || Vars.world.isInvalidMap()) {
+            throw new IOException("Could not load map " + map.file.name());
+        }
+        app.runPosted();
+        map.spawns = Vars.spawner.countSpawns();
+        map.teams.clear();
+        for (var team : Vars.state.teams.getActive()) {
+            if (team.hasCore()) map.teams.add(team.team.id);
+        }
+        Gamemode mode = requested;
+        if (!mode.valid(map)) {
+            // MapPlayDialog defaults to the first valid upstream mode.
+            for (Gamemode candidate : Gamemode.all) {
+                if (!candidate.hidden && candidate.valid(map)) {
+                    mode = candidate;
+                    rules = map.applyRules(mode);
+                    break;
+                }
+            }
+        }
+        rules.retainContentFields(Vars.state.rules);
+        Vars.state.rules = rules;
+        rules.sector = null;
+        rules.editor = false;
+        Events.fire(new RulesLoadEvent(rules));
+        Vars.avoidance.init();
+        Vars.logic.play();
+        Events.fire(Trigger.newGame);
+        app.runPosted();
+        reportLoadedWorld("customgame");
+        return mode;
+    }
+
+    private void reportLoadedWorld(String source) {
         ensurePlayerSpawn();
         var core = core();
         int copper = core == null ? 0 : core.items.get(Items.copper);
@@ -141,7 +190,6 @@ public final class UpstreamSinglePlayerSession {
             + " map=" + (Vars.state.map == null ? "unknown" : Vars.state.map.name().replace(' ', '_'))
             + " size=" + Vars.world.width() + "x" + Vars.world.height()
             + " wave=" + Vars.state.wave + " copper=" + copper);
-        return loadedFromSave;
     }
 
     /** A discovered campaign slot and the upstream sector context decoded from its metadata. */

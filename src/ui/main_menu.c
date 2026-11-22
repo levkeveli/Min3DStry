@@ -3,6 +3,20 @@
 #include <stdint.h>
 #include <string.h>
 
+#define M3DS_SCHEMATIC_SD_DIR "sdmc:/3ds/min3dstry/schematics"
+
+static M3dsUserSchematic g_user_schematics[M3DS_USER_SCHEMATIC_MAX];
+static size_t g_user_schematic_count;
+static bool g_user_schematics_loaded;
+
+static void ensure_user_schematics(void) {
+    if (!g_user_schematics_loaded) {
+        g_user_schematic_count = m3ds_user_schematics_scan(
+            M3DS_SCHEMATIC_SD_DIR, g_user_schematics, M3DS_USER_SCHEMATIC_MAX);
+        g_user_schematics_loaded = true;
+    }
+}
+
 typedef struct {
     const char *key;
     const char *label;
@@ -101,6 +115,7 @@ void m3ds_main_menu_init(M3dsMainMenu *menu) {
     menu->schematic_selected = 0u;
     menu->schematic_scroll = 0u;
     menu->schematic_detail = false;
+    menu->schematics_user = false;
 }
 
 void m3ds_main_menu_catalog_switch(M3dsMainMenu *menu, int delta) {
@@ -146,7 +161,8 @@ const M3dsCatalogEntry *m3ds_main_menu_catalog_entry(const M3dsMainMenu *menu,
 
 const M3dsSchematicRow *m3ds_main_menu_schematic_entry(const M3dsMainMenu *menu,
                                                        size_t index) {
-    if (!menu || menu->screen != M3DS_MENU_SCREEN_SCHEMATICS) {
+    if (!menu || menu->screen != M3DS_MENU_SCREEN_SCHEMATICS ||
+        menu->schematics_user) {
         return NULL;
     }
     return m3ds_schematic_at(index);
@@ -220,6 +236,10 @@ size_t m3ds_main_menu_count(const M3dsMainMenu *menu) {
         return 0u;
     }
     if (menu->screen == M3DS_MENU_SCREEN_SCHEMATICS) {
+        if (menu->schematics_user) {
+            ensure_user_schematics();
+            return g_user_schematic_count;
+        }
         return m3ds_schematic_count();
     }
     if (menu->screen == M3DS_MENU_SCREEN_CATALOG) {
@@ -236,6 +256,11 @@ const char *m3ds_main_menu_key(const M3dsMainMenu *menu, size_t index) {
         return "";
     }
     if (menu->screen == M3DS_MENU_SCREEN_SCHEMATICS) {
+        if (menu->schematics_user) {
+            ensure_user_schematics();
+            return index < g_user_schematic_count ? g_user_schematics[index].name
+                                                  : "";
+        }
         const M3dsSchematicRow *row = m3ds_schematic_at(index);
         return row ? row->id : "";
     }
@@ -257,6 +282,11 @@ const char *m3ds_main_menu_label(const M3dsMainMenu *menu, size_t index) {
         return "";
     }
     if (menu->screen == M3DS_MENU_SCREEN_SCHEMATICS) {
+        if (menu->schematics_user) {
+            ensure_user_schematics();
+            return index < g_user_schematic_count ? g_user_schematics[index].name
+                                                  : "";
+        }
         const M3dsSchematicRow *row = m3ds_schematic_at(index);
         return row ? row->name : "";
     }
@@ -278,6 +308,10 @@ bool m3ds_main_menu_enabled(const M3dsMainMenu *menu, size_t index) {
         return false;
     }
     if (menu->screen == M3DS_MENU_SCREEN_SCHEMATICS) {
+        if (menu->schematics_user) {
+            ensure_user_schematics();
+            return index < g_user_schematic_count;
+        }
         return index < m3ds_schematic_count();
     }
     if (menu->screen == M3DS_MENU_SCREEN_CATALOG) {
@@ -366,6 +400,7 @@ M3dsMenuAction m3ds_main_menu_confirm(M3dsMainMenu *menu) {
             menu->schematic_selected = 0u;
             menu->schematic_scroll = 0u;
             menu->schematic_detail = false;
+            menu->schematics_user = false;
             return M3DS_MENU_ACTION_NONE;
         }
         if (strcmp(entry->key, "database") == 0) {
@@ -429,6 +464,30 @@ bool m3ds_main_menu_back(M3dsMainMenu *menu) {
         return true;
     }
     return false;
+}
+
+void m3ds_main_menu_schematics_toggle_source(M3dsMainMenu *menu) {
+    if (!menu || !menu->open || menu->screen != M3DS_MENU_SCREEN_SCHEMATICS ||
+        menu->schematic_detail) {
+        return;
+    }
+    menu->schematics_user = !menu->schematics_user;
+    ensure_user_schematics();
+    menu->schematic_selected = 0u;
+    menu->schematic_scroll = 0u;
+}
+
+const M3dsUserSchematic *m3ds_main_menu_user_schematic(const M3dsMainMenu *menu,
+                                                       size_t index) {
+    if (!menu || menu->screen != M3DS_MENU_SCREEN_SCHEMATICS ||
+        !menu->schematics_user) {
+        return NULL;
+    }
+    ensure_user_schematics();
+    if (index >= g_user_schematic_count) {
+        return NULL;
+    }
+    return &g_user_schematics[index];
 }
 
 const char *m3ds_main_menu_screen_name(const M3dsMainMenu *menu) {
