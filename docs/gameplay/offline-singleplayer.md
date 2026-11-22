@@ -183,13 +183,19 @@ original launch and the stock PC server reopened both saves and matched the
 destination terrain.
 
 The [ARM11 build from `5aecd95`](https://github.com/levkeveli/Min3DStry/actions/runs/45053996180)
-generated all 432×432 tiles at the original 32 MiB managed limit on the
-New 3DS profile. The controller edited the loadout to 8 copper and saved
-on exit. The unmodified v160.8 server reopened the native save and matched
-every floor, overlay, and block ID with a fresh stock launch using the same
-schematic. It confirmed the selected schematic, destination cargo, and 15
-copper remaining on the origin. Old 3DS and in-game departure verification
-are underway.
+generated 432×432 sector 15 at the original 32 MiB managed limit on both
+Azahar profiles. The controller edited the loadout to 8 copper. The
+unmodified v160.8 server reopened both initial saves and matched the CRC
+across floor, overlay, and block IDs for all tiles against a fresh stock
+launch using the same schematic. It confirmed the selected schematic,
+destination cargo, and 15 copper remaining on the origin. The New 3DS replay
+also completed the exit save and PC readback. Old 3DS exit save and in-game
+departure replay are pending.
+
+The build's ELF LOAD segments plus the logged managed limit, linear heap,
+and stack total 64.58 MiB. This exceeds the 64 MiB Original 3DS application
+budget even before other runtime allocations. Physical memory and frame-rate
+verification remain open.
 
 ## Custom Game
 
