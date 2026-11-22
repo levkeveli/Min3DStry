@@ -1,6 +1,6 @@
 # Physical Hardware Deployment and Log Streaming
 
-Status: **Host-tested** for SD staging and log tooling. **New 3DS XL hardware-tested** for Wi-Fi deployment and log streaming. Original 3DS hardware testing is pending.
+Status: **Host-tested** for SD staging and log tooling. **Hardware-tested on Original and New 3DS XL** for Wi-Fi deployment and log streaming.
 
 ## Purpose
 
@@ -72,4 +72,4 @@ evidence; `./dev.sh emu-test` stays the pre-flight.
 - **Hardware evidence ingest (`tests/tools/test_hw_evidence.py`):** **Host-tested** for valid New/Old profiles, corrupt-save failure, wrong hashes, frame drops, missing records, strict exit codes, and the `device evidence` wrapper.
 - **Build provenance (`tests/tools/test_git_head_sha.py`):** the app logs `BUILD commit=<sha> dirty=<0|1>`; `dev.sh build` exports the short SHA and the Makefile falls back to `tools/git_head_sha.sh` when a container has no git binary. Host-tested for loose refs, packed refs, detached HEAD, and linked worktrees.
 - **Physical New 3DS XL:** On 2026-11-20, [build `07e94ed`](https://github.com/levkeveli/Min3DStry/actions/runs/44739543994) was sent via `3dslink` 0.6.3 over Wi-Fi. The PC received the hardware profile (804 MHz, L2 enabled, 124 MiB application memory, FIRM 2.58.0), the canonical 240-tick scenario hash (`0x53a483c7`, matching the host fixture), and the frame-30 sample (2.63% CPU, 8.10% GPU, 0.26% command buffer, zero budget drops).
-- **Physical Original 3DS/2DS:** Wi-Fi deployment and streaming verification are pending.
+- **Physical Original 3DS XL:** On 2026-11-22, clean main build `a4a9a96` booted after a Wi-Fi transfer and streamed telemetry that passed all seven smoke checks. The operator confirmed START, camera panning, and audible sound. The run covered the default hardware harness. [Original 3DS XL evidence](evidence/old3ds-xl-a4a9a96.md)
