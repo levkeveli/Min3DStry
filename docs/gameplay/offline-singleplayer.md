@@ -110,10 +110,23 @@ resources from other active bases on the same planet before spending from
 the live core. Partial research and unlocks use the original Arc settings
 keys, and the offline app saves the active sector after a contribution.
 
-The JVM reference opens a stock Ground Zero save, checks the Frozen Forest
-prerequisite, spends 3 of 5 copper toward Conveyor, and then completes the
-research using remote and live inventories. It reopens the resulting Arc
-settings file. The graphical screen still needs console verification.
+The JVM reference opens stock Ground Zero and Onset saves. It checks the
+Frozen Forest objective, persists a 3-of-5 copper contribution to Conveyor,
+and tests completion across live and remote inventories. On Erekir it checks
+the original planet objective and the effective four-beryllium Duct cost. The
+unmodified v160.8 server reopened the resulting Serpulo and Erekir saves and
+settings. The graphical screen still needs emulator verification.
+
+Generate fixtures with the stock server and copy the original
+`bundle.properties` and `planets/serpulo.json` into that directory for the JVM
+reference. Use the regular pinned runtime Gradle properties.
+
+```sh
+python3 tools/campaign_research_fixture.py --server server-release.jar --create-in /path/to/fixtures
+gradle -Pprobe=singleplayer runGraphicalCampaignResearchJvm --args="/path/to/fixtures /path/to/new-scratch-dir"
+python3 tools/verify_upstream_campaign_research.py --rom upstream-probe.3dsx --fixtures /path/to/fixtures --server server-release.jar
+```
+
 ## New campaign
 
 Hold **R** while launching the standalone graphical .3dsx to open the
