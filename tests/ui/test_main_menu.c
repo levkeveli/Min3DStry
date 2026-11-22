@@ -200,8 +200,33 @@ static void test_catalog_navigation(void) {
     CHECK(m3ds_main_menu_count(&menu) == 258u);
     CHECK(menu.catalog_selected == 0u);
     CHECK(menu.catalog_scroll == 0u);
+    CHECK(menu.catalog_filter == M3DS_CATALOG_FILTER_ALL);
+
+    m3ds_main_menu_catalog_filter_next(&menu, 1);
+    CHECK(menu.catalog_filter == 1u);
+    CHECK(m3ds_main_menu_count(&menu) ==
+          m3ds_catalog_filtered_count(M3DS_CATALOG_BLOCKS, 1u));
+    CHECK(m3ds_main_menu_count(&menu) < 258u);
+    CHECK(menu.catalog_selected == 0u);
+
+    size_t filters = m3ds_catalog_filter_count(M3DS_CATALOG_BLOCKS);
+    for (size_t i = 1u; i < filters; ++i) {
+        m3ds_main_menu_catalog_filter_next(&menu, 1);
+    }
+    CHECK(menu.catalog_filter == M3DS_CATALOG_FILTER_ALL);
+    CHECK(m3ds_main_menu_count(&menu) == 258u);
+
+    /* Detail suppresses filter cycling and movement. */
+    m3ds_main_menu_confirm(&menu); /* open detail */
+    CHECK(menu.catalog_detail);
+    m3ds_main_menu_catalog_filter_next(&menu, 1);
+    CHECK(menu.catalog_filter == M3DS_CATALOG_FILTER_ALL);
+    m3ds_main_menu_confirm(&menu); /* close detail */
+
     m3ds_main_menu_catalog_switch(&menu, -1);
     CHECK(menu.catalog_category == M3DS_CATALOG_ITEMS);
+    CHECK(menu.catalog_filter == M3DS_CATALOG_FILTER_ALL);
+    CHECK(m3ds_main_menu_count(&menu) == 22u);
 
     CHECK(m3ds_main_menu_back(&menu) == true);
     CHECK(menu.screen == M3DS_MENU_SCREEN_DATABASE);

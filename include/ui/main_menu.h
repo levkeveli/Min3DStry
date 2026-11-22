@@ -53,6 +53,7 @@ typedef struct {
     unsigned catalog_selected;
     unsigned catalog_scroll;
     bool catalog_detail;
+    unsigned catalog_filter;
 } M3dsMainMenu;
 
 void m3ds_main_menu_init(M3dsMainMenu *menu);
@@ -61,6 +62,13 @@ void m3ds_main_menu_move(M3dsMainMenu *menu, int delta);
 
 /* Switch the Core Database category (Items <-> Blocks) during a catalog view. */
 void m3ds_main_menu_catalog_switch(M3dsMainMenu *menu, int delta);
+
+/* Cycle the upstream block-category filter (All, distribution, ...). */
+void m3ds_main_menu_catalog_filter_next(M3dsMainMenu *menu, int delta);
+
+/* Entry under the cursor in the filtered catalog (NULL when empty). */
+const M3dsCatalogEntry *m3ds_main_menu_catalog_entry(const M3dsMainMenu *menu,
+                                                     size_t index);
 
 size_t m3ds_main_menu_count(const M3dsMainMenu *menu);
 

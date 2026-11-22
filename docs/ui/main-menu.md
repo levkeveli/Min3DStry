@@ -49,10 +49,11 @@ menu tree is intentionally visible but disabled so the gap is obvious rather tha
 
 `include/ui/content_catalog.h` and the generated `include/ui/content_catalog_data.h` expose the pinned
 v160.8 bundle entries (`item.<id>.name`, `item.<id>.description`, `block.<id>.name`,
-`block.<id>.description`): **22 items** and **258 blocks**. Blocks without a `description` entry
-(parallax, cliffs, boulders, floor variants) are environment-only and excluded. The console view shows
-12 rows with wrap-around scrolling; L/R switches Items/Blocks; A opens a wrapped description detail
-(A or B returns); B leaves the catalog.
+`block.<id>.description`) plus each block's upstream `Category` from `Blocks.java`: **22 items** and
+**258 blocks**. Blocks without a `description` entry (parallax, cliffs, boulders, floor variants) are
+environment-only and excluded. The console view shows 12 rows with wrap-around scrolling; L/R switches
+Items/Blocks; X cycles the block-category filter (`All`, `distribution`, `production`, …); A opens a
+wrapped description detail showing the category (A or B returns); B leaves the catalog.
 
 Data and header are reproducible:
 
@@ -121,11 +122,13 @@ wrap-around scrolling. Screenshots confirm the Items list (`Beryllium … Phase 
 ```text
 MAIN_MENU catalog=Items selected=copper detail=1
 MAIN_MENU catalog=Blocks selected=additive-reconstructor detail=1
+MAIN_MENU filter=distribution count=28
 ```
 
 `Copper` shows "Used in all types of construction and ammunition."; `Additive Reconstructor` shows
 "Upgrades inputted units to the second tier." Descriptions are the pinned bundle prose with formatting
-tags and literal newlines normalised for the console.
+tags and literal newlines normalised for the console. The block detail adds `Category: distribution`
+(from `Blocks.java`), and the filtered Blocks list shows `Blocks / distribution` with its own count.
 
 ## Remaining work
 

@@ -539,12 +539,22 @@ int main(int argc, char *argv[]) {
                 m3ds_main_menu_move(&main_menu, 1);
             }
             if (main_menu.screen == M3DS_MENU_SCREEN_CATALOG &&
-                (kDown & (KEY_L | KEY_R))) {
+                (kDown & KEY_L || kDown & KEY_R)) {
                 m3ds_main_menu_catalog_switch(
                     &main_menu, (kDown & KEY_L) ? 1 : -1);
                 snprintf(dbg_line, sizeof(dbg_line),
                          "[MIN3DSTRY] MAIN_MENU catalog=%s count=%u\n",
                          m3ds_catalog_category_name(main_menu.catalog_category),
+                         (unsigned)m3ds_main_menu_count(&main_menu));
+                m3ds_emit_debug_line(log_socket, dbg_line);
+            }
+            if (main_menu.screen == M3DS_MENU_SCREEN_CATALOG &&
+                (kDown & KEY_X)) {
+                m3ds_main_menu_catalog_filter_next(&main_menu, 1);
+                snprintf(dbg_line, sizeof(dbg_line),
+                         "[MIN3DSTRY] MAIN_MENU filter=%s count=%u\n",
+                         m3ds_catalog_filter_name(main_menu.catalog_category,
+                                                  main_menu.catalog_filter),
                          (unsigned)m3ds_main_menu_count(&main_menu));
                 m3ds_emit_debug_line(log_socket, dbg_line);
             }
@@ -1003,8 +1013,8 @@ int main(int argc, char *argv[]) {
                 size_t total = m3ds_main_menu_count(&main_menu);
                 unsigned selected = main_menu.catalog_selected;
                 if (main_menu.catalog_detail) {
-                    const M3dsCatalogEntry *entry = m3ds_catalog_entry(
-                        main_menu.catalog_category, selected);
+                    const M3dsCatalogEntry *entry =
+                        m3ds_main_menu_catalog_entry(&main_menu, selected);
                     const char *description = (entry && entry->description[0])
                                                   ? entry->description
                                                   : "No description in the pinned bundle.";
@@ -1015,7 +1025,10 @@ int main(int argc, char *argv[]) {
                            (unsigned)(selected + 1u), (unsigned)total);
                     printf("\x1b[3;1H%s\x1b[K",
                            m3ds_main_menu_label(&main_menu, selected));
-                    unsigned row = 5u;
+                    printf("\x1b[4;1HCategory: %s\x1b[K",
+                           (entry && entry->category[0]) ? entry->category
+                                                         : "none");
+                    unsigned row = 6u;
                     const char *cursor = wrapped;
                     while (*cursor && row < 22u) {
                         const char *newline = strchr(cursor, '\n');
@@ -1036,8 +1049,10 @@ int main(int argc, char *argv[]) {
                 } else {
                     printf("\x1b[2;1H%s %u/%u\x1b[K", screen_title,
                            (unsigned)(selected + 1u), (unsigned)total);
-                    printf("\x1b[3;1HCategory: %s\x1b[K",
-                           m3ds_catalog_category_name(main_menu.catalog_category));
+                    printf("\x1b[3;1H%s / %s\x1b[K",
+                           m3ds_catalog_category_name(main_menu.catalog_category),
+                           m3ds_catalog_filter_name(main_menu.catalog_category,
+                                                    main_menu.catalog_filter));
                     for (unsigned row = 0u; row < M3DS_CATALOG_ROWS; ++row) {
                         unsigned index = main_menu.catalog_scroll + row;
                         if (index >= total) {
@@ -1053,7 +1068,7 @@ int main(int argc, char *argv[]) {
                          line < 22u; ++line) {
                         printf("\x1b[%u;1H\x1b[K", line);
                     }
-                    printf("\x1b[24;1HD-Pad Scroll  L/R Category  B Back\x1b[K");
+                    printf("\x1b[24;1HPad Scroll  L/R Type  X Filter  B Back\x1b[K");
                     printf("\x1b[25;1H\x1b[K");
                 }
             } else {

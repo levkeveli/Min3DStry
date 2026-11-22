@@ -293,7 +293,7 @@
         "data/upstream-content.json",
         "tests/ui/test_content_catalog.c"
       ],
-      "notes": "Console catalog over the pinned v160.8 bundle: 22 items and 258 described blocks, scrollable, L/R category switch, A opens a wrapped upstream description. Upstream category tabs, icons and unlock state are not modelled."
+      "notes": "Console catalog over the pinned v160.8 bundle: 22 items and 258 described blocks with upstream Categories, scrollable, L/R type switch, X category filter, A opens a wrapped description. Upstream planet tabs, icons and unlock state are not modelled."
     },
     {
       "id": "menus-title-settings-shell",
