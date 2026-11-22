@@ -44,3 +44,19 @@ The operator saw a mining animation. Pause and Resume both responded and
 retained five plans. The trace recorded no increase in core copper. Later
 taps reached the ore check but failed the unit inventory check. This build
 did not report whether the unit held copper or another item.
+
+## Mining inventory follow-up
+
+Build `76d1e2b` (ROM SHA-256
+`64a6a748abac4bd5bae286e640c0010cb9696890c1637e5091fe78538cffa063`)
+resumed the wave 8 save. With construction active, the mining timer stayed
+at zero across hundreds of simulation ticks. The Alpha's stack was empty
+and its core was initially in transfer range. The team core later became
+unavailable during the active wave.
+
+```text
+UPSTREAM_SP_MINING tile=133,46 tick=784 progress=0.0 building=true player=true
+UPSTREAM_SP_MINING_INVENTORY held=copper:0 core=present inRange=true copper=0
+UPSTREAM_SP_MINING tile=133,46 tick=838 progress=0.0 building=true player=true
+UPSTREAM_SP_MINING_INVENTORY held=copper:0 core=none inRange=false copper=0
+```
