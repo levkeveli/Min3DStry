@@ -10,8 +10,14 @@ Run `./dev.sh doctor` for environment diagnostics, `./dev.sh test` for host unit
 
 - [Project dashboard](https://levkeveli.github.io/Min3DStry/)
 - [Roadmap and tasks](https://github.com/levkeveli/Min3DStry/issues)
-- [Citro2D rendering prototype](docs/rendering/citro2d-prototype.md) (Experimental: host-tested, `.3dsx` build verified & Azahar emulator-tested; physical hardware pending)
+- [Offline single-player Ground Zero](docs/gameplay/offline-singleplayer.md) (Emulator-tested on Old & New 3DS in Azahar `2126.2`; physical hardware pending `#43`)
+- [Embedded TeaVM save loader](docs/porting/embed-loader.md) (Default `min3dstry.3dsx` startup path linked with `libm3dsloader.a`)
+- [Upstream ARM11 bring-up & live multiplayer](research/upstream-runtime/README.md) (`network-render`, factory/production/combat/waves, and campaign `Saves.load`)
+- [Hardware deployment & benchmark-report](docs/hardware/deployment-and-logs.md) (Wi-Fi deploy/log capture verified on New 3DS XL; Old 3DS & upstream hardware runs pending)
+- [Citro2D platform test harness](docs/rendering/citro2d-prototype.md) (Host-tested, `.3dsx` built, and Azahar emulator-tested; physical hardware pending)
 
 ## Current development status
+
+The completion gauge currently sits at **56.3% (`56.30 / 100` pts across 22 capabilities)**: `2` capabilities are `complete`, `2` are `hardware-verified` (deployment tooling & the C parity harness on New 3DS XL), `17` are `emulator-tested` in Azahar `2126.2`, and `1` is `planned` (Old & New 3DS physical hardware verification, `#43`). Moving existing emulator-tested capabilities and `#43` through physical hardware verification closes **+29.45 pts** (to `85.8%`); the remaining **+14.25 pts** cover ARM11 performance tuning to `≥ 24 FPS` and full unified 1:1 release parity (combining single-player, live multiplayer, campaign/tech-tree UI, audio integration `#29`, and full content/effects coverage into one `.3dsx`).
 
 The [bootstrap backlog](https://github.com/levkeveli/Min3DStry/issues?q=is%3Aissue+is%3Aopen+label%3Astatus%3Abacklog) covers port feasibility, hardware detection, rendering, assets, host testing, device deployment and gameplay parity. Agents work autonomously by claiming `status:ready` issues directly (commenting with branch/agent metadata, swapping `status:ready` to `status:in-progress`), running `./dev.sh test`, `./dev.sh build`, and `./dev.sh emu-test`, and opening same-repo PRs with `Closes #N` for CI + `AI review` auto-merge.
