@@ -1,6 +1,5 @@
 import arc.files.Fi;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import org.teavm.interop.Address;
 import org.teavm.interop.Import;
@@ -60,13 +59,13 @@ public final class UpstreamUnifiedApp {
             if (length < 0 || length >= text.length) {
                 throw new IOException("The 3DS server address keyboard could not open");
             }
-            try {
-                var address = UpstreamServerAddress.parse(new String(text, 0, length, StandardCharsets.UTF_8));
+            var address = UpstreamServerAddress.parseInput(text, length);
+            if (address != null) {
                 System.out.println("UPSTREAM_SERVER_ADDRESS status=confirmed");
                 return address;
-            } catch (IllegalArgumentException invalidAddress) {
-                invalid = 1;
             }
+            invalid = 1;
+            System.out.println("UPSTREAM_SERVER_ADDRESS status=invalid");
         }
     }
 }

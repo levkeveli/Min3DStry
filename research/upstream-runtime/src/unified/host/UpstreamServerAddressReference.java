@@ -1,3 +1,4 @@
+import java.nio.charset.StandardCharsets;
 import mindustry.Vars;
 
 public final class UpstreamServerAddressReference {
@@ -10,19 +11,22 @@ public final class UpstreamServerAddressReference {
         for (var invalid : new String[]{"", "  ", ":6567", "host:", "host:0", "host:65536",
             "host:+12", "host:12:34", "host:655367", "[::1]:6567", "host name",
             "http://host", "---", "a".repeat(254)}) {
-            try {
-                UpstreamServerAddress.parse(invalid);
+            byte[] input = invalid.getBytes(StandardCharsets.UTF_8);
+            if (UpstreamServerAddress.parseInput(input, input.length) != null) {
                 throw new AssertionError("Accepted invalid address: " + invalid);
-            } catch (IllegalArgumentException expected) {
-                // The console asks again before starting the network session.
             }
+        }
+        byte[] nonAscii = "é.example".getBytes(StandardCharsets.UTF_8);
+        if (UpstreamServerAddress.parseInput(nonAscii, nonAscii.length) != null) {
+            throw new AssertionError("Accepted a non-ASCII name on the IPv4 transport");
         }
         System.out.println("UPSTREAM_SERVER_ADDRESS_REFERENCE default=" + Vars.port + " explicit=ok invalid=rejected");
     }
 
     private static void check(String text, String host, int port) {
-        var result = UpstreamServerAddress.parse(text);
-        if (!result.host().equals(host) || result.port() != port) {
+        byte[] input = text.getBytes(StandardCharsets.UTF_8);
+        var result = UpstreamServerAddress.parseInput(input, input.length);
+        if (result == null || !result.host().equals(host) || result.port() != port) {
             throw new AssertionError("Unexpected endpoint for " + text + ": " + result);
         }
     }
