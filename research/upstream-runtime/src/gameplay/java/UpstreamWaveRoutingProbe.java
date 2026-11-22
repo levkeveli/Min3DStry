@@ -1,5 +1,4 @@
 import arc.Core;
-import arc.Events;
 import arc.math.Mathf;
 import arc.mock.MockAudio;
 import arc.struct.Seq;
@@ -12,7 +11,6 @@ import mindustry.ai.Pathfinder;
 import mindustry.async.AsyncCore;
 import mindustry.content.Blocks;
 import mindustry.content.Items;
-import mindustry.game.EventType.ResetEvent;
 import mindustry.game.Team;
 import mindustry.gen.Groups;
 import mindustry.gen.Unit;
@@ -152,9 +150,10 @@ public final class UpstreamWaveRoutingProbe {
         } catch (RuntimeException failure) {
             System.err.println("WAVE_ROUTING_ERROR " + failure);
             throw failure;
-        } finally {
-            Events.fire(new ResetEvent());
         }
+        // This is a one-shot probe process. Firing ResetEvent here dispatches into
+        // TeaVM's monitor/event queue after the trace and can deadlock the host C
+        // build; the process exits immediately after main instead.
     }
 
     private static long waitForGroundField(
