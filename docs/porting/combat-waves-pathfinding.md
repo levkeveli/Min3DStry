@@ -83,9 +83,10 @@ The standalone host probe exits after printing the trace without firing
 the trace can deadlock the host C build. It also disposes registered
 application listeners through the probe-local `ProbeListenerShutdown` helper
 before returning, so Arc listener fibers cannot resume during TeaVM shutdown.
-The emitted trace is unchanged. Host builds add `-fno-tree-coalesce-vars` to
-avoid a GCC 13 `rewrite_out_of_ssa` internal compiler error in `TypeIO.c` that
-the larger generated translation unit can trigger.
+The emitted trace is unchanged. GCC host builds add `-fno-tree-coalesce-vars` to avoid a GCC 13
+`rewrite_out_of_ssa` internal compiler error in `TypeIO.c` that the larger
+generated translation unit can trigger. The CI flag is conditional so clang
+runners keep their normal command.
 
 ## Remaining Scope for Issue #30
 

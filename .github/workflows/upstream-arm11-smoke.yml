@@ -199,9 +199,13 @@ jobs:
           rm -rf "$RUNNER_TEMP/teavm-c-wave"
           cp -R research/upstream-runtime/build/generated/teavm/c "$RUNNER_TEMP/teavm-c-wave"
           python3 research/upstream-runtime/arm11/fix_reflection_lifetime.py "$RUNNER_TEMP/teavm-c-wave"
-          cc -std=gnu11 -O0 -fwrapv -ffp-contract=off -fno-tree-coalesce-vars "$RUNNER_TEMP/teavm-c-wave/all.c" -lm -lpthread \
+          cc_flags=(-std=gnu11 -fwrapv -ffp-contract=off)
+          if cc --version 2>&1 | grep -qi 'gcc'; then
+            cc_flags+=(-fno-tree-coalesce-vars)
+          fi
+          cc "${cc_flags[@]}" -O0 "$RUNNER_TEMP/teavm-c-wave/all.c" -lm -lpthread \
             -o "$RUNNER_TEMP/teavm-c-wave/probe_o0"
-          cc -std=gnu11 -O2 -fwrapv -ffp-contract=off -fno-tree-coalesce-vars "$RUNNER_TEMP/teavm-c-wave/all.c" -lm -lpthread \
+          cc "${cc_flags[@]}" -O2 "$RUNNER_TEMP/teavm-c-wave/all.c" -lm -lpthread \
             -o "$RUNNER_TEMP/teavm-c-wave/probe_o2"
           "$RUNNER_TEMP/teavm-c-wave/probe_o0" "$RUNNER_TEMP/glacier.msav" | tee "$RUNNER_TEMP/wave-o0.log"
           "$RUNNER_TEMP/teavm-c-wave/probe_o2" "$RUNNER_TEMP/glacier.msav" | tee "$RUNNER_TEMP/wave-o2.log"
@@ -564,9 +568,9 @@ jobs:
           rm -rf "$RUNNER_TEMP/teavm-c-audio"
           cp -R research/upstream-runtime/build/generated/teavm/c "$RUNNER_TEMP/teavm-c-audio"
           python3 research/upstream-runtime/arm11/fix_reflection_lifetime.py "$RUNNER_TEMP/teavm-c-audio"
-          cc -std=gnu11 -O0 -fwrapv -ffp-contract=off -fno-tree-coalesce-vars "$RUNNER_TEMP/teavm-c-audio/all.c" -lm -lpthread \
+          cc -std=gnu11 -O0 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-audio/all.c" -lm -lpthread \
             -o "$RUNNER_TEMP/teavm-c-audio/probe_o0"
-          cc -std=gnu11 -O2 -fwrapv -ffp-contract=off -fno-tree-coalesce-vars "$RUNNER_TEMP/teavm-c-audio/all.c" -lm -lpthread \
+          cc -std=gnu11 -O2 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-audio/all.c" -lm -lpthread \
             -o "$RUNNER_TEMP/teavm-c-audio/probe_o2"
           "$RUNNER_TEMP/teavm-c-audio/probe_o0" "$RUNNER_TEMP/glacier.msav" | tee "$RUNNER_TEMP/audio-o0.log"
           "$RUNNER_TEMP/teavm-c-audio/probe_o2" "$RUNNER_TEMP/glacier.msav" | tee "$RUNNER_TEMP/audio-o2.log"
@@ -694,9 +698,13 @@ jobs:
           rm -rf "$RUNNER_TEMP/teavm-c-combat"
           cp -R research/upstream-runtime/build/generated/teavm/c "$RUNNER_TEMP/teavm-c-combat"
           python3 research/upstream-runtime/arm11/fix_reflection_lifetime.py "$RUNNER_TEMP/teavm-c-combat"
-          cc -std=gnu11 -O0 -fwrapv -ffp-contract=off -fno-tree-coalesce-vars "$RUNNER_TEMP/teavm-c-combat/all.c" -lm -lpthread \
+          cc_flags=(-std=gnu11 -fwrapv -ffp-contract=off)
+          if cc --version 2>&1 | grep -qi 'gcc'; then
+            cc_flags+=(-fno-tree-coalesce-vars)
+          fi
+          cc "${cc_flags[@]}" -O0 "$RUNNER_TEMP/teavm-c-combat/all.c" -lm -lpthread \
             -o "$RUNNER_TEMP/teavm-c-combat/probe_o0"
-          cc -std=gnu11 -O2 -fwrapv -ffp-contract=off -fno-tree-coalesce-vars "$RUNNER_TEMP/teavm-c-combat/all.c" -lm -lpthread \
+          cc "${cc_flags[@]}" -O2 "$RUNNER_TEMP/teavm-c-combat/all.c" -lm -lpthread \
             -o "$RUNNER_TEMP/teavm-c-combat/probe_o2"
           "$RUNNER_TEMP/teavm-c-combat/probe_o0" "$RUNNER_TEMP/glacier.msav" | tee "$RUNNER_TEMP/combat-o0.log"
           "$RUNNER_TEMP/teavm-c-combat/probe_o2" "$RUNNER_TEMP/glacier.msav" | tee "$RUNNER_TEMP/combat-o2.log"
@@ -872,9 +880,9 @@ jobs:
           rm -rf "$RUNNER_TEMP/teavm-c-host"
           cp -R research/upstream-runtime/build/generated/teavm/c "$RUNNER_TEMP/teavm-c-host"
           python3 research/upstream-runtime/arm11/fix_reflection_lifetime.py "$RUNNER_TEMP/teavm-c-host"
-          cc -std=gnu11 -O0 -fwrapv -ffp-contract=off -fno-tree-coalesce-vars "$RUNNER_TEMP/teavm-c-host/all.c" -lm -lpthread \
+          cc -std=gnu11 -O0 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-host/all.c" -lm -lpthread \
             -o "$RUNNER_TEMP/teavm-c-host/probe_o0"
-          cc -std=gnu11 -O2 -fwrapv -ffp-contract=off -fno-tree-coalesce-vars "$RUNNER_TEMP/teavm-c-host/all.c" -lm -lpthread \
+          cc -std=gnu11 -O2 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-host/all.c" -lm -lpthread \
             -o "$RUNNER_TEMP/teavm-c-host/probe_o2"
           "$RUNNER_TEMP/teavm-c-host/probe_o0" "$RUNNER_TEMP/glacier.msav" | tee "$RUNNER_TEMP/production-o0.log"
           "$RUNNER_TEMP/teavm-c-host/probe_o2" "$RUNNER_TEMP/glacier.msav" | tee "$RUNNER_TEMP/production-o2.log"
@@ -960,9 +968,9 @@ jobs:
           rm -rf "$RUNNER_TEMP/teavm-c-factory"
           cp -R research/upstream-runtime/build/generated/teavm/c "$RUNNER_TEMP/teavm-c-factory"
           python3 research/upstream-runtime/arm11/fix_reflection_lifetime.py "$RUNNER_TEMP/teavm-c-factory"
-          cc -std=gnu11 -O0 -fwrapv -ffp-contract=off -fno-tree-coalesce-vars "$RUNNER_TEMP/teavm-c-factory/all.c" -lm -lpthread \
+          cc -std=gnu11 -O0 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-factory/all.c" -lm -lpthread \
             -o "$RUNNER_TEMP/teavm-c-factory/probe_o0"
-          cc -std=gnu11 -O2 -fwrapv -ffp-contract=off -fno-tree-coalesce-vars "$RUNNER_TEMP/teavm-c-factory/all.c" -lm -lpthread \
+          cc -std=gnu11 -O2 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-factory/all.c" -lm -lpthread \
             -o "$RUNNER_TEMP/teavm-c-factory/probe_o2"
           "$RUNNER_TEMP/teavm-c-factory/probe_o0" "$RUNNER_TEMP/glacier.msav" | tee "$RUNNER_TEMP/factory-o0.log"
           "$RUNNER_TEMP/teavm-c-factory/probe_o2" "$RUNNER_TEMP/glacier.msav" | tee "$RUNNER_TEMP/factory-o2.log"
@@ -1051,9 +1059,9 @@ jobs:
           fix_reflection_lifetime(root)
           fix_constructor_roots(root)
           PY
-          cc -std=gnu11 -O0 -fwrapv -ffp-contract=off -fno-tree-coalesce-vars "$RUNNER_TEMP/teavm-c-singleplayer/all.c" -lm -lpthread \
+          cc -std=gnu11 -O0 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-singleplayer/all.c" -lm -lpthread \
             -o "$RUNNER_TEMP/teavm-c-singleplayer/probe_o0"
-          cc -std=gnu11 -Os -fwrapv -ffp-contract=off -fno-tree-coalesce-vars "$RUNNER_TEMP/teavm-c-singleplayer/all.c" -lm -lpthread \
+          cc -std=gnu11 -Os -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-singleplayer/all.c" -lm -lpthread \
             -o "$RUNNER_TEMP/teavm-c-singleplayer/probe_os"
           expected=$(grep -F 'UPSTREAM_SP_SIM_PASS ' "$RUNNER_TEMP/singleplayer-jvm.log")
           test -n "$expected"
