@@ -42,6 +42,11 @@ For graphical verification, pass that directory to
 The verifier boots both saves on each Azahar profile, checks that both stock
 textures load with active weather, and compares world and touch-screen samples.
 
+The [ARM11 build from source commit `8e91f20`](https://github.com/levkeveli/Min3DStry/actions/runs/45024372522)
+passed on Azahar 2126.2 in the Old and New 3DS profiles. In both profiles the
+weather changed 110 of 126 sampled world pixels and zero of 40 sampled touch
+pixels. Physical console testing remains pending.
+
 ## Campaign sector selection
 
 When `/3ds/min3dstry` contains more than one `sector-*.msav` slot, the app
