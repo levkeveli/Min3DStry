@@ -148,6 +148,11 @@ one item at a time. **A** or **B** returns to the summary. There, **A**
 confirms an affordable launch and **B** cancels. The saved cargo changes
 when the launch is confirmed.
 
+During an active campaign, hold **R** and press **SELECT** to save the
+current sector and open the campaign selector. **B** returns to the current
+sector. Selecting another sector resumes its save or starts its launch
+sequence in the same app. Regular **SELECT** saves, and **START** exits play.
+
 Use `python3 tools/verify_upstream_campaign_launch.py --rom upstream-probe.3dsx`
 to replay the fresh campaign menu on both Azahar profiles. The verifier
 captures the menu and starting worlds, then collects the resulting saves and
@@ -157,6 +162,8 @@ Pass `--departure /path/to/reference-output/departure` to replay the funded
 numbered-sector launch fixture produced by the JVM task. With `--server` it
 also verifies the saved cargo and origin with stock Java. Add `--manual-cargo`
 to exercise the editor and transfer 8 copper while leaving 15 in Ground Zero.
+Use `--in-game` to start at Ground Zero, open and cancel the selector,
+then reopen it and depart without restarting the app.
 
 ## Custom Game
 

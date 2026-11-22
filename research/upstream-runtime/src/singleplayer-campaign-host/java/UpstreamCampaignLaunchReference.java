@@ -88,7 +88,7 @@ public final class UpstreamCampaignLaunchReference {
             var team = Vars.state.rules.defaultTeam;
             team.core().tile.setBlock(Blocks.coreFoundation, team);
             session.save(origin);
-            var launchSlots = session.campaignSlots(session.sectorSaves());
+            var launchSlots = session.campaignSlots(session.sectorSaves(), zero);
             var selected = launchSlots.stream()
                 .filter(slot -> slot.origin == zero && slot.sector.preset == null && !slot.sector.hasEnemyBase())
                 .findFirst().orElseThrow();

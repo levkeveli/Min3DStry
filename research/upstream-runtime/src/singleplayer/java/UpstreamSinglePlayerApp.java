@@ -55,7 +55,7 @@ public final class UpstreamSinglePlayerApp {
 
     private final UpstreamTerrainRenderProbe target = new UpstreamTerrainRenderProbe(false);
     private final UpstreamBuildingLayers buildingLayers = new UpstreamBuildingLayers();
-    private final UpstreamLiveBuildControls buildingControls = new UpstreamLiveBuildControls();
+    private UpstreamLiveBuildControls buildingControls = new UpstreamLiveBuildControls();
     private final Runnable drawEntities = this::drawEntities;
     private final UpstreamWorldLabel.Target worldLabel = this::drawWorldLabel;
     private final Vec2 moveInput = new Vec2();
@@ -131,33 +131,18 @@ public final class UpstreamSinglePlayerApp {
             List<UpstreamSinglePlayerSession.SectorSlot> sectorSaves =
                 args.length < 2 && custom == null ? session.sectorSaves() : List.of();
             if (campaignRequested) sectorSaves = session.campaignSlots(sectorSaves);
-            UpstreamSinglePlayerSession.SectorSlot selected = null;
-            UpstreamCampaignLoadout deployment = null;
+            CampaignGame campaign = null;
             if (sectorSaves.size() == 1 && !campaignRequested) {
-                selected = sectorSaves.get(0);
+                var selected = sectorSaves.get(0);
                 System.out.println("UPSTREAM_CAMPAIGN_SELECTED slot=" + selected.file.name() + " source=single");
+                campaign = new CampaignGame(selected, null);
             } else if (!sectorSaves.isEmpty()) {
-                loadInterfaceRenderer();
-                Fi automatic = mapDir.child("campaign-select.txt");
-                while (true) {
-                    selected = chooseSector(sectorSaves, automatic);
-                    if (selected == null) return;
-                    deployment = null;
-                    if (selected.origin == null || selected.origin == selected.sector) break;
-                    deployment = confirmLaunch(selected);
-                    if (deployment != null) break;
-                    automatic = null;
-                }
+                campaign = chooseCampaign(sectorSaves, mapDir.child("campaign-select.txt"));
+                if (campaign == null) return;
             }
-            // Load the world before initializing world sprites to keep peak TeaVM heap bounded.
-            if (selected != null) {
-                saveFile = selected.file;
-                if (selected.timestamp < 0) {
-                    session.launchNewSector(selected.origin, selected.sector, saveFile, deployment);
-                } else {
-                    session.start(null, saveFile, "campaign", selected.sector);
-                }
-                campaignSlot = saveFile;
+            // Load the initial world before initializing world sprites to keep peak TeaVM heap bounded.
+            if (campaign != null) {
+                saveFile = openCampaign(campaign);
             } else if (custom == null) {
                 session.start(mapFile, saveFile, null);
             } else {
@@ -184,7 +169,18 @@ public final class UpstreamSinglePlayerApp {
                     System.out.println("UPSTREAM_SP_REMOVED x=" + event.tile.x + " y=" + event.tile.y);
                 }
             });
-            runMainLoop(saveFile);
+            while (runMainLoop(saveFile)) {
+                session.save(campaignSlot);
+                var origin = Vars.state.rules.sector;
+                System.out.println("UPSTREAM_CAMPAIGN_WORLD_MENU sector=" + origin.id);
+                var next = chooseCampaign(session.campaignSlots(session.sectorSaves(), origin), null);
+                // Opening the selector replaces the bottom-screen labels even if the player returns to this sector.
+                lastPrimaryShortcut = null;
+                previousVisualFrame = 0;
+                if (next == null || next.slot().sector == origin) continue;
+                saveFile = openCampaign(next);
+                resetWorldInput();
+            }
         } finally {
             if (campaignSlot != null) {
                 try {
@@ -206,6 +202,47 @@ public final class UpstreamSinglePlayerApp {
     }
 
     private record CustomGame(Map map, Gamemode mode) {}
+
+    private record CampaignGame(UpstreamSinglePlayerSession.SectorSlot slot, UpstreamCampaignLoadout loadout) {}
+
+    private CampaignGame chooseCampaign(List<UpstreamSinglePlayerSession.SectorSlot> slots, Fi automatic) {
+        if (slots.isEmpty()) return null;
+        loadInterfaceRenderer();
+        while (true) {
+            var selected = chooseSector(slots, automatic);
+            if (selected == null) return null;
+            if (selected.origin == null || selected.origin == selected.sector) return new CampaignGame(selected, null);
+            var loadout = confirmLaunch(selected);
+            if (loadout != null) return new CampaignGame(selected, loadout);
+            automatic = null;
+        }
+    }
+
+    private Fi openCampaign(CampaignGame choice) throws IOException {
+        var slot = choice.slot();
+        // A failed load must never save the partially loaded world over the origin.
+        campaignSlot = null;
+        if (slot.timestamp < 0) {
+            session.launchNewSector(slot.origin, slot.sector, slot.file, choice.loadout());
+        } else {
+            session.start(null, slot.file, "campaign", slot.sector);
+        }
+        campaignSlot = slot.file;
+        return campaignSlot;
+    }
+
+    private void resetWorldInput() {
+        buildingControls = new UpstreamLiveBuildControls();
+        controlled = null;
+        moving = false;
+        inputDevice = null;
+        lastLeft = lastBottom = -1;
+        lastMenu = null;
+        lastStatus = null;
+        lastObjectives = null;
+        reportedEnemies.clear();
+        loadWorldGraphics();
+    }
 
     private record MenuRows(byte[][] labels, int[][] characters) {}
 
@@ -526,7 +563,7 @@ public final class UpstreamSinglePlayerApp {
         }
     }
 
-    private void runMainLoop(Fi saveFile) throws IOException {
+    private boolean runMainLoop(Fi saveFile) throws IOException {
         var unit = session.ensurePlayerSpawn();
         var core = session.core();
         lastCopper = core == null ? 0 : core.items.get(Items.copper);
@@ -539,7 +576,9 @@ public final class UpstreamSinglePlayerApp {
         long accumulator = 0L;
         while (true) {
             int input = UpstreamSinglePlayerInput.poll();
-            if (input == -1) break;
+            if (input == -1) return false;
+            if (campaignSlot != null && (input & UpstreamSinglePlayerInput.CAMPAIGN_HELD) != 0
+                    && (input & UpstreamSinglePlayerInput.SAVE_PRESSED) != 0) return true;
             int touch = UpstreamSinglePlayerInput.touch();
 
             if ((input & UpstreamSinglePlayerInput.PAUSE_PRESSED) != 0) {

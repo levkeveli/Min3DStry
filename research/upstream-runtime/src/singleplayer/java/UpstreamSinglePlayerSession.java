@@ -318,19 +318,23 @@ public final class UpstreamSinglePlayerSession {
     }
 
     List<SectorSlot> campaignSlots(List<SectorSlot> saves) {
+        return campaignSlots(saves, null);
+    }
+
+    List<SectorSlot> campaignSlots(List<SectorSlot> saves, Sector selectedOrigin) {
         var slots = new ArrayList<>(saves);
         for (var planet : new Planet[]{Planets.serpulo, Planets.erekir}) {
-            addLaunchSlot(slots, planet.getStartSector());
+            addLaunchSlot(slots, planet.getStartSector(), selectedOrigin);
         }
         for (var planet : new Planet[]{Planets.serpulo, Planets.erekir}) {
             for (var sector : planet.sectors) {
-                if (sector != planet.getStartSector()) addLaunchSlot(slots, sector);
+                if (sector != planet.getStartSector()) addLaunchSlot(slots, sector, selectedOrigin);
             }
         }
         return slots;
     }
 
-    private void addLaunchSlot(List<SectorSlot> slots, Sector sector) {
+    private void addLaunchSlot(List<SectorSlot> slots, Sector sector, Sector selectedOrigin) {
         if (sector.save != null || sector.isShielded()) return;
         // Normal campaign view eligibility from v160.8 PlanetDialog, followed by its launch-candidate check.
         boolean starter = sector == sector.planet.getStartSector();
@@ -340,7 +344,11 @@ public final class UpstreamSinglePlayerSession {
         if (preset != null && (preset.generator.map == null
                 || preset.requireUnlock && preset.locked() && preset.techNode != null)) return;
         if (!starter && (preset == null || !preset.requireUnlock) && !generator.allowLanding(sector)) return;
-        Sector origin = generator.findLaunchCandidate(sector, null);
+        Sector adjacentOrigin = selectedOrigin != null && selectedOrigin.planet == sector.planet ? selectedOrigin : null;
+        Sector origin = generator.findLaunchCandidate(sector, adjacentOrigin);
+        if (origin == null && adjacentOrigin != null && adjacentOrigin.hasBase() && !adjacentOrigin.isAttacked()) {
+            origin = adjacentOrigin;
+        }
         if (origin == null && !starter) return;
         var file = sectorFile(sector);
         if (!file.exists()) slots.add(new SectorSlot(file, sector, -1, origin == null ? sector : origin));
