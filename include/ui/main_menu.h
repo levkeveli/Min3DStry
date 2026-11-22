@@ -4,6 +4,8 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+#include "ui/content_catalog.h"
+
 /*
  * Stock title menu shell derived from upstream Mindustry v160.8
  * core/src/mindustry/ui/fragments/MenuFragment.java (commit 19a0f40d).
@@ -28,6 +30,7 @@ typedef enum {
     M3DS_MENU_SCREEN_SETTINGS,
     M3DS_MENU_SCREEN_DATABASE,
     M3DS_MENU_SCREEN_ABOUT,
+    M3DS_MENU_SCREEN_CATALOG,
 } M3dsMenuScreen;
 
 typedef enum {
@@ -46,11 +49,17 @@ typedef struct {
     unsigned selected;
     bool muted;
     bool lighting;
+    M3dsCatalogCategory catalog_category;
+    unsigned catalog_selected;
+    unsigned catalog_scroll;
 } M3dsMainMenu;
 
 void m3ds_main_menu_init(M3dsMainMenu *menu);
 
 void m3ds_main_menu_move(M3dsMainMenu *menu, int delta);
+
+/* Switch the Core Database category (Items <-> Blocks) during a catalog view. */
+void m3ds_main_menu_catalog_switch(M3dsMainMenu *menu, int delta);
 
 size_t m3ds_main_menu_count(const M3dsMainMenu *menu);
 

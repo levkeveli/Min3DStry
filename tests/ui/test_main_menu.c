@@ -86,12 +86,15 @@ static void test_database_and_about(void) {
     CHECK(strcmp(m3ds_main_menu_label(&menu, 1u), "Core Database") == 0);
     CHECK(strcmp(m3ds_main_menu_key(&menu, 2u), "about") == 0);
     CHECK(!m3ds_main_menu_enabled(&menu, 0u));
-    CHECK(!m3ds_main_menu_enabled(&menu, 1u));
+    CHECK(m3ds_main_menu_enabled(&menu, 1u));
     CHECK(m3ds_main_menu_enabled(&menu, 2u));
 
     CHECK(m3ds_main_menu_confirm(&menu) == M3DS_MENU_ACTION_UNAVAILABLE);
     m3ds_main_menu_move(&menu, 1);
-    CHECK(m3ds_main_menu_confirm(&menu) == M3DS_MENU_ACTION_UNAVAILABLE);
+    CHECK(m3ds_main_menu_confirm(&menu) == M3DS_MENU_ACTION_NONE);
+    CHECK(menu.screen == M3DS_MENU_SCREEN_CATALOG);
+    CHECK(m3ds_main_menu_back(&menu) == true);
+    CHECK(menu.screen == M3DS_MENU_SCREEN_DATABASE);
     m3ds_main_menu_move(&menu, 1);
     CHECK(strcmp(m3ds_main_menu_key(&menu, menu.selected), "about") == 0);
     CHECK(m3ds_main_menu_confirm(&menu) == M3DS_MENU_ACTION_NONE);
@@ -157,6 +160,42 @@ static void test_quit(void) {
     CHECK(m3ds_main_menu_confirm(&menu) == M3DS_MENU_ACTION_QUIT);
 }
 
+static void test_catalog_navigation(void) {
+    M3dsMainMenu menu;
+    m3ds_main_menu_init(&menu);
+    m3ds_main_menu_move(&menu, 1); /* Database */
+    m3ds_main_menu_confirm(&menu);
+    m3ds_main_menu_move(&menu, 1); /* Core Database */
+    CHECK(m3ds_main_menu_confirm(&menu) == M3DS_MENU_ACTION_NONE);
+    CHECK(menu.screen == M3DS_MENU_SCREEN_CATALOG);
+    CHECK(m3ds_main_menu_count(&menu) == 22u);
+    CHECK(menu.catalog_category == M3DS_CATALOG_ITEMS);
+    CHECK(strcmp(m3ds_main_menu_key(&menu, 0u), "beryllium") == 0);
+
+    m3ds_main_menu_move(&menu, 13);
+    CHECK(menu.catalog_selected == 13u);
+    CHECK(menu.catalog_scroll == 2u); /* 13 - 12 + 1 */
+
+    m3ds_main_menu_move(&menu, 8); /* 21, last item */
+    CHECK(menu.catalog_selected == 21u);
+    CHECK(menu.catalog_scroll == 10u);
+    m3ds_main_menu_move(&menu, 1); /* wrap to first */
+    CHECK(menu.catalog_selected == 0u);
+    CHECK(menu.catalog_scroll == 0u);
+
+    m3ds_main_menu_catalog_switch(&menu, 1);
+    CHECK(menu.catalog_category == M3DS_CATALOG_BLOCKS);
+    CHECK(m3ds_main_menu_count(&menu) == 258u);
+    CHECK(menu.catalog_selected == 0u);
+    CHECK(menu.catalog_scroll == 0u);
+    m3ds_main_menu_catalog_switch(&menu, -1);
+    CHECK(menu.catalog_category == M3DS_CATALOG_ITEMS);
+
+    CHECK(m3ds_main_menu_back(&menu) == true);
+    CHECK(menu.screen == M3DS_MENU_SCREEN_DATABASE);
+    CHECK(menu.selected == 1u);
+}
+
 static void test_screen_names(void) {
     M3dsMainMenu menu;
     m3ds_main_menu_init(&menu);
@@ -174,6 +213,10 @@ static void test_screen_names(void) {
     m3ds_main_menu_move(&menu, 2);
     m3ds_main_menu_confirm(&menu);
     CHECK(strcmp(m3ds_main_menu_screen_name(&menu), "about") == 0);
+    m3ds_main_menu_back(&menu);
+    m3ds_main_menu_move(&menu, 1);
+    m3ds_main_menu_confirm(&menu);
+    CHECK(strcmp(m3ds_main_menu_screen_name(&menu), "catalog") == 0);
 }
 
 int main(void) {
@@ -182,6 +225,7 @@ int main(void) {
     test_play_submenu_and_campaign();
     test_unavailable_entries();
     test_database_and_about();
+    test_catalog_navigation();
     test_settings_and_back();
     test_quit();
     test_screen_names();
