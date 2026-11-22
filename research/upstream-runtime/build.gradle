@@ -307,6 +307,11 @@ if (usesSinglePlayer) {
     sourceSets.main.java.srcDir('src/singleplayer/java')
     if (probe == 'singleplayer') {
         sourceSets.main.java.srcDir('src/singleplayer-custom-host/java')
+        sourceSets.main.java.srcDir('src/singleplayer-research-host/java')
+        tasks.register('runGraphicalCampaignResearchJvm', JavaExec) {
+            classpath = sourceSets.main.runtimeClasspath
+            mainClass = 'UpstreamCampaignResearchReference'
+        }
         tasks.register('runCustomGameJvm', JavaExec) {
             classpath = sourceSets.main.runtimeClasspath
             mainClass = 'UpstreamCustomGameReference'
