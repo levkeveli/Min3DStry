@@ -232,6 +232,7 @@ if (usesArcSources || usesExecutor) {
         stagedClasses.addAll(['arc/audio/Sound.class', 'arc/audio/Sound$*.class'])
         stagedClasses.addAll(['mindustry/audio/SoundControl.class', 'mindustry/audio/SoundControl$*.class'])
         stagedClasses.addAll(['mindustry/type/Weather.class', 'mindustry/type/Weather$*.class'])
+        stagedClasses.add('mindustry/type/weather/ParticleWeather.class')
         stagedClasses.addAll(['mindustry/entities/bullet/BulletType.class', 'mindustry/entities/bullet/BulletType$*.class'])
     }
     if (usesCampaignJsonCompat) {
@@ -400,6 +401,7 @@ tasks.register('prepareUpstreamProbe') {
         outputs.file(sourceDir.map { it.file('arc/audio/Sound.java') })
         outputs.file(sourceDir.map { it.file('mindustry/audio/SoundControl.java') })
         outputs.file(sourceDir.map { it.file('mindustry/type/Weather.java') })
+        outputs.file(sourceDir.map { it.file('mindustry/type/weather/ParticleWeather.java') })
         outputs.file(sourceDir.map { it.file(logicExecutorSource) })
         logicDisplaySources.each { outputs.file(sourceDir.map { dir -> dir.file(it) }) }
         shieldModeSources.keySet().each { outputs.file(sourceDir.map { dir -> dir.file(it) }) }
@@ -507,8 +509,10 @@ tasks.register('prepareUpstreamProbe') {
             def weatherImports = 'import mindustry.annotations.Annotations.*;'
             def weatherGuard = '        if(!headless && sound != Sounds.none){'
             def weatherLoop = '            control.sound.loop(sound, Math.max((soundVol + noise) * state.opacity, soundVolMin));'
-            if (weather.count(weatherImports) != 1 || weather.count(weatherGuard) != 1 || weather.count(weatherLoop) != 1) {
-                throw new GradleException('Pinned weather audio changed')
+            def weatherMinScale = 'renderer.minScale()'
+            if (weather.count(weatherImports) != 1 || weather.count(weatherGuard) != 1 ||
+                    weather.count(weatherLoop) != 1 || weather.count(weatherMinScale) != 6) {
+                throw new GradleException('Pinned weather draw or audio changed')
             }
             def adaptedWeather = sourceDir.get().file('mindustry/type/Weather.java').asFile
             adaptedWeather.parentFile.mkdirs()
@@ -521,7 +525,25 @@ import port.audio.Arm11Audio;''')
 
     public void updateSound(WeatherState state, SoundControl audio){
         if(audio != null && sound != Sounds.none){''')
-                .replace(weatherLoop, weatherLoop.replace('control.sound', 'audio')), 'UTF-8')
+                .replace(weatherLoop, weatherLoop.replace('control.sound', 'audio'))
+                .replace(weatherMinScale, 'weatherMinScale()')
+                .replace('    public void drawOver(WeatherState state){', '''    private static float weatherMinScale(){
+        if(renderer != null) return renderer.minScale();
+        // Use Renderer.minScale's in-game zoom and scaling without the desktop renderer.
+        return arc.scene.ui.layout.Scl.scl(1.5f / Core.settings.getFloat("minzoomingamemultiplier", 1f));
+    }
+
+    public void drawOver(WeatherState state){'''), 'UTF-8')
+            def particle = new String(readUpstream('core/src/mindustry/type/weather/ParticleWeather.java'), 'UTF-8')
+            def noiseLoad = 'if(drawNoise && Core.assets != null){'
+            if (particle.count(noiseLoad) != 1) throw new GradleException('Pinned particle weather texture loading changed')
+            def adaptedParticle = sourceDir.get().file('mindustry/type/weather/ParticleWeather.java').asFile
+            adaptedParticle.parentFile.mkdirs()
+            adaptedParticle.setText(particle
+                .replace('import mindustry.type.*;', 'import mindustry.type.*;\nimport port.render.WeatherNoiseTexture;')
+                .replace(noiseLoad, '''if(drawNoise && mindustry.Vars.renderer == null){
+            noise = WeatherNoiseTexture.load(noisePath);
+        }else if(drawNoise && Core.assets != null){'''), 'UTF-8')
             def globalLogic = new String(readUpstream(globalLogicSource), 'UTF-8')
             def logicChanges = [
                 'import arc.*;': 'import port.audio.Arm11Audio;\nimport port.logic.UpstreamClientLogic;\n\nimport arc.*;',

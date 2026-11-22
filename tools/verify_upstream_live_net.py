@@ -1692,6 +1692,42 @@ def verify_stock_weather(text, model):
         print(f"{model}: stock {weather}. {played[0]}", flush=True)
 
 
+def verify_stock_weather_layers(log, emulator, server_log, server, rpc, output, model, timeout):
+    wait_for(log, emulator, r"UPSTREAM_NETWORK_FRAME unit=\d+", timeout)
+    world = [(x, y) for y in range(12, 231, 6) for x in range(52, 349, 6)
+             if not (165 < x < 235 and 82 < y < 151)]
+    touch = [(x, y) for y in (260, 300, 400, 445) for x in range(54, 347, 8)]
+    before = rpc.screenshot(res_scale=1)
+    (output / f"{model}-weather-clear.png").write_bytes(before)
+    baseline = az.inspect_png(before, world + touch)["samples"]
+    server.stdin.write(
+        'js (() => { Call.createWeather(Weathers.rain, 1, 900, 0, 0); '
+        'Call.createWeather(Weathers.snow, 1, 900, 0, 0); '
+        'Call.createWeather(Weathers.sandstorm, 1, 900, 0, 0); '
+        'Call.createWeather(Weathers.fog, 1, 900, 0, 0); '
+        'return "UPSTREAM_STOCK_WEATHER_VISUALS ready"; })()\n'
+    )
+    server.stdin.flush()
+    wait_for(server_log, server, r"UPSTREAM_STOCK_WEATHER_VISUALS ready\b", 5)
+    for name in ("rain", "snowing", "sandstorm", "fog"):
+        wait_for(log, emulator, rf"UPSTREAM_LIVE_WEATHER name={name}\b", timeout)
+    for name in ("noiseAlpha", "fog"):
+        wait_for(log, emulator, rf"UPSTREAM_WEATHER_TEXTURE name={name}\b", timeout)
+    deadline = time.monotonic() + min(timeout, 45)
+    frame = before
+    while time.monotonic() < deadline:
+        frame = rpc.screenshot(res_scale=1)
+        pixels = az.inspect_png(frame, world + touch)["samples"]
+        changed = sum(max(abs(a - b) for a, b in zip(pixels[p], baseline[p])) >= 12 for p in world)
+        if changed >= 36 and all(pixels[p] == baseline[p] for p in touch):
+            (output / f"{model}-weather-active.png").write_bytes(frame)
+            print(f"{model}: the stock weather changed {changed} sampled world pixels with an unchanged touch UI.", flush=True)
+            return log.read_text(encoding="utf-8", errors="replace")
+        time.sleep(0.2)
+    (output / f"{model}-weather-unexpected.png").write_bytes(frame)
+    raise RuntimeError(f"{model} did not composite the original weather inside the world viewport")
+
+
 def set_stock_music_fixture(server_log, server):
     server.stdin.write(
         'js (() => { const rules = Vars.state.rules; '
@@ -1918,6 +1954,8 @@ def run_model(args, model, config, original_config, log, output):
                     print(re.search(pattern, localized).group(0), flush=True)
                 if args.controls_rejoin:
                     emu_log = verify_graphical_rejoin(args, model, log, emulator, server_log, server, rpc, output)
+                elif args.verify_weather_layers:
+                    emu_log = verify_stock_weather_layers(log, emulator, server_log, server, rpc, output, model, args.timeout)
                 elif args.verify_weapons:
                     if args.verify_weather_audio:
                         start_stock_weather(log, emulator, server_log, server, args.timeout)
@@ -2255,6 +2293,8 @@ def main():
                         help="Verify the stock Mechanical Drill emits positional loop audio")
     parser.add_argument("--verify-weather-audio", action="store_true",
                         help="Verify stock rainy, snowy and windy weather packets route their original ambient loops")
+    parser.add_argument("--verify-weather-layers", action="store_true",
+                        help="Capture the original weather above and below a stationary Glacier scene")
     args = parser.parse_args()
     if args.controls_rejoin and (not args.controls or args.controls_replay or not args.terrain_atlas
                                  or args.map_spawn not in MAP_SPAWN_PIXELS or args.verify_objective_markers
@@ -2283,6 +2323,9 @@ def main():
         parser.error("--verify-building-ambience needs --verify-weapons and --terrain-atlas on Glacier")
     if args.verify_weather_audio and (not args.verify_weapons or not args.terrain_atlas):
         parser.error("--verify-weather-audio needs --verify-weapons and --terrain-atlas on Glacier")
+    if args.verify_weather_layers and (not args.controls or not args.terrain_atlas
+                                       or args.controls_replay or args.controls_rejoin or args.map_spawn):
+        parser.error("--verify-weather-layers needs stationary --controls and --terrain-atlas on Glacier")
     if args.building and not args.terrain_atlas:
         parser.error("--building needs --terrain-atlas")
     if args.touch_build and not args.terrain_atlas:

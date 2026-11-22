@@ -515,8 +515,7 @@ The live client dispatches the stock `CreateWeatherCallPacket` and advances
 wind and status effects run before the normal audio update. The weather
 sound comes from upstream `Weather.updateEffect` and uses the stock
 `SoundControl` loop and fade at the camera center. World reset clears the
-weather entities and audio. Weather particles and the noise shader require
-their own rendering support.
+weather entities and audio.
 
 Add `--verify-weather-audio` to the Glacier weapon replay. The unmodified
 Java server sends weather after the first rendered frame. The verifier
@@ -535,6 +534,20 @@ checks. The same binary joined The Onset twice per profile and matched the
 stock server's tile CRC32 `3861859253` on every join. Azahar used its
 no-DSP fallback, so audible playback remains a physical-console test.
 [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45020521037)
+
+The live viewport runs the original `RainWeather`, `ParticleWeather`, and
+`NoiseEffect` draw methods. Rain splashes run above the terrain and below
+blocks. Rain streaks, particles, and the repeated noise overlays run above
+world entities and beneath the interface. Both original noise PNGs are
+packed losslessly and sampled with repeat and linear filtering on ARM11.
+Rebuild the terrain asset directory with `--multiplayer` to include them.
+
+`runBuildingLayersJvm` compares the submitted underlay and overlay geometry
+against direct upstream draw calls for all six weather types at fixed
+camera positions and times. Use `--controls --terrain-atlas --verify-weather-layers`
+to capture clear and active screenshots with a stock server. This change
+adapts the live renderer. The offline campaign render path still needs the
+same weather passes and a campaign fixture.
 
 Run `python3 tools/verify_live_stock_audio.py <terrain-assets>` with the
 staged directory to exercise all 205 PCM files through the live mixer and

@@ -6,6 +6,7 @@ import csv
 import hashlib
 import json
 from pathlib import Path
+import struct
 import subprocess
 import sys
 import tempfile
@@ -75,6 +76,18 @@ def pack_stock_text_assets(archive: zipfile.ZipFile, staged: Path) -> None:
         destination = staged / name
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_bytes(archive.read("assets/" + name))
+
+
+def pack_weather_noise(archive: zipfile.ZipFile, output: Path, scratch: Path, tex3ds: str) -> None:
+    output.mkdir()
+    for name, size in (("noiseAlpha", 128), ("fog", 256)):
+        asset = archive.read(f"assets/sprites/{name}.png")
+        if asset[:8] != b"\x89PNG\r\n\x1a\n" or struct.unpack(">II", asset[16:24]) != (size, size):
+            raise ValueError(f"Unexpected original dimensions for {name}.png")
+        source = scratch / f"{name}.png"
+        source.write_bytes(asset)
+        subprocess.run([tex3ds, "--atlas", "--format", "rgba8", "--border", "none",
+                        "--compress", "auto", "--output", str(output / f"{name}.t3x"), str(source)], check=True)
 
 
 def pack_stock_music(desktop: Path, staged: Path) -> None:
@@ -176,6 +189,7 @@ def main() -> None:
             bundles.mkdir()
             with zipfile.ZipFile(args.assets) as archive:
                 pack_stock_text_assets(archive, staged)
+                pack_weather_noise(archive, staged / "weather", Path(tmp), args.tex3ds)
                 (staged / "block_colors.png").write_bytes(archive.read("assets/sprites/block_colors.png"))
                 (staged / "logicids.dat").write_bytes(archive.read("assets/logicids.dat"))
                 logic_font = Path(tmp) / "logic.ttf"

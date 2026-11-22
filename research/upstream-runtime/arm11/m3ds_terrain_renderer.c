@@ -50,6 +50,7 @@ static shaderProgram_s quad_program;
 static C3D_AttrInfo quad_attributes;
 static C3D_Mtx quad_projection;
 static int quad_projection_uniform;
+static C2D_SpriteSheet weather_noise[2];
 #endif
 
 static bool romfs_ready;
@@ -666,6 +667,56 @@ int32_t m3ds_terrain_draw_canvas_quad(int32_t id, int32_t revision, int32_t widt
 #endif
 }
 
+int32_t m3ds_terrain_draw_weather_noise(int32_t index, float x, float y, float width, float height,
+                                       float u, float v, float u2, float v2,
+                                       int32_t tint, int32_t mix, int32_t blend_mode) {
+#ifdef M3DS_WORLD_ATLAS
+    static const char *const paths[] = {"romfs:/weather/noiseAlpha.t3x", "romfs:/weather/fog.t3x"};
+    static const unsigned sizes[] = {128, 256};
+    if (!frame_open || (uint32_t)index >= sizeof(weather_noise) / sizeof(weather_noise[0])
+            || !initialize_quad_shader()) return 0;
+    if (!weather_noise[index]) {
+        C2D_SpriteSheet loaded = C2D_SpriteSheetLoad(paths[index]);
+        if (!loaded) return 0;
+        C3D_Tex *texture = C2D_SpriteSheetGetImage(loaded, 0).tex;
+        if (!texture || texture->width != sizes[index] || texture->height != sizes[index]) {
+            C2D_SpriteSheetFree(loaded);
+            return 0;
+        }
+        C3D_TexSetWrap(texture, GPU_REPEAT, GPU_REPEAT);
+        C3D_TexSetFilter(texture, GPU_LINEAR, GPU_LINEAR);
+        weather_noise[index] = loaded;
+        static const char *const names[] = {
+            "UPSTREAM_WEATHER_TEXTURE name=noiseAlpha\n",
+            "UPSTREAM_WEATHER_TEXTURE name=fog\n",
+        };
+        svcOutputDebugString(names[index], strlen(names[index]));
+    }
+    C3D_Tex *texture = C2D_SpriteSheetGetImage(weather_noise[index], 0).tex;
+    float tint_bits, mix_bits;
+    memcpy(&tint_bits, &tint, sizeof(tint_bits));
+    memcpy(&mix_bits, &mix, sizeof(mix_bits));
+    const float vertices[] = {
+        x,         y,          tint_bits, u,  v2, mix_bits,
+        x,         y + height, tint_bits, u,  v,  mix_bits,
+        x + width, y + height, tint_bits, u2, v,  mix_bits,
+        x + width, y,          tint_bits, u2, v2, mix_bits,
+    };
+    M3DS_QuadVertex corners[4];
+    uint32_t packed_mix;
+    if (read_quad_vertices(vertices, texture->width, texture->height, corners, &packed_mix, false) != 1) return 0;
+    set_world_blend(blend_mode);
+    set_world_mix(0, 0);
+    draw_quad_piece(texture, corners, 4, 0, 0, packed_mix);
+    draws++;
+    return 1;
+#else
+    (void)index; (void)x; (void)y; (void)width; (void)height; (void)u; (void)v; (void)u2; (void)v2;
+    (void)tint; (void)mix; (void)blend_mode;
+    return 0;
+#endif
+}
+
 int32_t m3ds_terrain_draw_logic_display(int32_t id, int32_t revision, int32_t width, int32_t height,
                                        const uint32_t *pixels, const float *vertices, int32_t offset, int32_t blend_mode) {
 #ifdef M3DS_WORLD_ATLAS
@@ -1070,6 +1121,9 @@ void m3ds_terrain_fini(void) {
     }
     for (size_t i = 0; i < sizeof(world_textures) / sizeof(world_textures[0]); i++) {
         if (world_textures[i].sheet) C2D_SpriteSheetFree(world_textures[i].sheet);
+    }
+    for (size_t i = 0; i < sizeof(weather_noise) / sizeof(weather_noise[0]); i++) {
+        if (weather_noise[i]) C2D_SpriteSheetFree(weather_noise[i]);
     }
 #endif
     for (size_t row = 0; row < sizeof(menu_icons) / sizeof(menu_icons[0]); row++) {

@@ -9,6 +9,7 @@ import org.teavm.interop.Address;
 import org.teavm.interop.c.Include;
 import port.render.UpstreamCanvasTexture;
 import port.render.UpstreamLogicFramebuffer.RasterTexture;
+import port.render.WeatherNoiseTexture;
 
 public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProbe.TerrainTarget {
     private final boolean reportFrame;
@@ -111,6 +112,15 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
     }
 
     @Override
+    public void drawWeatherNoise(WeatherNoiseTexture texture, float x, float y, float width, float height,
+                                 float u, float v, float u2, float v2, int tint, int mix, Blending blending) {
+        if (NativeTerrain.drawWeatherNoise(texture.index, x, y, width, height, u, v, u2, v2,
+                tint, mix, blendMode(blending)) == 0) {
+            throw new IllegalStateException("Citro3D could not draw the stock weather noise texture");
+        }
+    }
+
+    @Override
     public void drawCanvas(UpstreamCanvasTexture texture, float x, float y, float originX, float originY,
                            float width, float height, float rotation, int color, int mixColor, Blending blending) {
         if (NativeTerrain.drawCanvas(texture.id, texture.revision, texture.width, texture.height,
@@ -180,6 +190,10 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
 
         @Import(name = "m3ds_terrain_draw_textured_quad")
         static native int drawTexturedQuad(int page, int pageWidth, int pageHeight, Address vertices, int offset, int blendMode);
+
+        @Import(name = "m3ds_terrain_draw_weather_noise")
+        static native int drawWeatherNoise(int texture, float x, float y, float width, float height,
+                                           float u, float v, float u2, float v2, int tint, int mix, int blendMode);
 
         @Import(name = "m3ds_terrain_draw_canvas")
         static native int drawCanvas(int id, int revision, int width, int height, Address pixels,

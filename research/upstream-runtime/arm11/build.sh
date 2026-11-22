@@ -31,8 +31,9 @@ if [[ $# -gt 0 ]]; then
     fi
     if [[ ${#native_network[@]} -gt 0 &&
           ( ! -f "$1/bundles/bundle.properties" || ! -d "$1/world-atlas"
-            || ! -f "$1/block_colors.png" || ! -f "$1/logicids.dat" || ! -f "$1/logic-font.dat" ) ]]; then
-        echo "Prepare multiplayer terrain assets with --multiplayer to include the original bundles, atlas, block palette, logic IDs and font" >&2
+            || ! -f "$1/block_colors.png" || ! -f "$1/logicids.dat" || ! -f "$1/logic-font.dat"
+            || ! -s "$1/weather/noiseAlpha.t3x" || ! -s "$1/weather/fog.t3x" ) ]]; then
+        echo "Prepare terrain assets with --multiplayer to include the original world, interface and weather textures" >&2
         exit 2
     fi
     terrain_flags=(-DM3DS_TERRAIN_RENDERER -I"$root" -I"$1")
@@ -83,6 +84,9 @@ if [[ $# -gt 0 ]]; then
             "$output/m3ds_quad.shbin" > "$output/m3ds_quad_shader.s"
         terrain_sources+=("$output/m3ds_quad_shader.s")
         cp -R "$1/world-atlas" "$output/romfs/world-atlas"
+    fi
+    if [[ -d "$1/weather" ]]; then
+        cp -R "$1/weather" "$output/romfs/weather"
     fi
     "$DEVKITPRO/tools/bin/smdhtool" --create "$title" "Mindustry v160.8 Glacier" \
         "Min3DStry Contributors" "$DEVKITPRO/libctru/default_icon.png" "$output/upstream-probe.smdh"
