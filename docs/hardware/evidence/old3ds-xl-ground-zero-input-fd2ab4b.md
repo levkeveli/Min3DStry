@@ -60,3 +60,13 @@ UPSTREAM_SP_MINING_INVENTORY held=copper:0 core=present inRange=true copper=0
 UPSTREAM_SP_MINING tile=133,46 tick=838 progress=0.0 building=true player=true
 UPSTREAM_SP_MINING_INVENTORY held=copper:0 core=none inRange=false copper=0
 ```
+
+Later in the same session, with construction paused, the Alpha successfully
+mined and carried five copper. The core was still unavailable, so copper
+could not reach the core HUD counter.
+
+```text
+UPSTREAM_MINE_TARGET x=137 y=53 item=copper
+UPSTREAM_SP_MINING tile=137,53 tick=55974 progress=39.0 building=false player=true
+UPSTREAM_SP_MINING_INVENTORY held=copper:5 core=none inRange=false copper=0
+```
