@@ -1,6 +1,7 @@
 import arc.files.Fi;
 import mindustry.Vars;
 import mindustry.io.SaveIO;
+import org.teavm.interop.Address;
 import org.teavm.interop.Import;
 import org.teavm.interop.c.Include;
 
@@ -14,7 +15,8 @@ public final class UpstreamSaveRowsProbe {
     @Include(value = "m3ds_save_rows.h", isSystem = true)
     private static final class NativeRows {
         @Import(name = "m3ds_save_rows_begin")
-        static native int begin(int width, int height, int tiles, int buildings);
+        static native int begin(int width, int height, int tiles, int buildings,
+            int verifyFixture);
 
         @Import(name = "m3ds_save_rows_tile")
         static native void tile(int index, int floor, int overlay, int block,
@@ -29,14 +31,51 @@ public final class UpstreamSaveRowsProbe {
 
         @Import(name = "m3ds_save_rows_end")
         static native int end();
+
+        @Import(name = "m3ds_save_rows_copy_path")
+        static native int copyPath(Address destination, int capacity);
+
+        @Import(name = "m3ds_save_rows_set_version")
+        static native void setVersion(int version);
     }
 
-    public static void main(String[] args) throws Exception {
-        Fi save = new Fi(args.length > 0 ? args[0] : "/3ds/min3dstry/glacier-v13.msav");
-        var app = UpstreamWorldLoadProbe.initialize(save.parent());
-        SaveIO.load(save);
-        app.runPosted();
+    public static void main(String[] args) {
+        try {
+            run(args);
+        } catch (Throwable error) {
+            System.out.println("UPSTREAM_SAVE_ROWS error=" + error);
+        }
+    }
 
+    private static void run(String[] args) throws Exception {
+        byte[] pathBytes = new byte[256];
+        int pathLength = NativeRows.copyPath(
+            Address.ofData(pathBytes), pathBytes.length);
+        if (pathLength == -1) {
+            throw new IllegalStateException("Native save path is too long");
+        }
+        boolean verifyFixture = pathLength == -2;
+        String path = args.length > 0 ? args[0]
+            : (pathLength > 0 ? asciiString(pathBytes, pathLength)
+                : "/3ds/min3dstry/glacier-v13.msav");
+        Fi save = new Fi(path);
+        var app = UpstreamWorldLoadProbe.initialize(save.parent());
+        try (var input = SaveIO.getStream(save)) {
+            SaveIO.readHeader(input);
+            NativeRows.setVersion(input.readInt());
+        }
+        try {
+            SaveIO.load(save);
+            app.runPosted();
+            extractRows(app, verifyFixture, path);
+        } finally {
+            Vars.world.resize(0, 0);
+        }
+    }
+
+    private static void extractRows(
+        UpstreamWorldLoadProbe.ProbeApplication app, boolean verifyFixture,
+        String path) throws Exception {
         int width = Vars.world.width();
         int height = Vars.world.height();
         int tileCount = width * height;
@@ -49,7 +88,9 @@ public final class UpstreamSaveRowsProbe {
                 buildingCount++;
             }
         }
-        if (NativeRows.begin(width, height, tileCount, buildingCount) != 0) {
+        if (NativeRows.begin(
+                width, height, tileCount, buildingCount, verifyFixture ? 1 : 0)
+                != 0) {
             throw new IllegalStateException("Native row allocation failed");
         }
 
@@ -87,6 +128,14 @@ public final class UpstreamSaveRowsProbe {
         if (result != 0) {
             throw new IllegalStateException("Native row parity differs");
         }
+    }
+
+    private static String asciiString(byte[] bytes, int length) {
+        char[] chars = new char[length];
+        for (int i = 0; i < length; i++) {
+            chars[i] = (char)(bytes[i] & 0xff);
+        }
+        return new String(chars);
     }
 
     private static long buildingStateHash(
