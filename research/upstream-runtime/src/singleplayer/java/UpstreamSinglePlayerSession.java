@@ -21,6 +21,7 @@ import mindustry.ai.Pathfinder;
 import mindustry.async.AvoidanceProcess;
 import mindustry.content.Blocks;
 import mindustry.content.Items;
+import mindustry.content.Planets;
 import mindustry.content.UnitTypes;
 import mindustry.core.GameState.State;
 import mindustry.entities.EntityCollisions;
@@ -28,6 +29,7 @@ import mindustry.entities.units.BuildPlan;
 import mindustry.game.EventType.ResetEvent;
 import mindustry.game.EventType.RulesLoadEvent;
 import mindustry.game.EventType.SectorLaunchEvent;
+import mindustry.game.EventType.SectorLaunchLoadoutEvent;
 import mindustry.game.EventType.Trigger;
 import mindustry.game.FogControl;
 import mindustry.game.Gamemode;
@@ -190,13 +192,28 @@ public final class UpstreamSinglePlayerSession {
     }
 
     void launchNewSector(Sector origin, Sector sector, Fi saveFile) throws IOException {
+        launchNewSector(origin, sector, saveFile, null);
+    }
+
+    void launchNewSector(Sector origin, Sector sector, Fi saveFile, UpstreamCampaignLoadout loadout) throws IOException {
+        if (loadout != null && !origin.items().has(loadout.cost())) {
+            throw new IOException("Insufficient launch resources in " + origin.name());
+        }
         if (saveFile.exists()) {
             throw new IOException("Campaign slot already exists: " + saveFile.path());
         }
         // Offline portion of v160.8 Control.playSector and Control.playNewSector.
         if (origin == sector) Vars.universe.clearLoadoutInfo();
         Vars.logic.reset(); // WorldReloader.begin() when neither a server nor a multiplayer client.
+        if (loadout != null) {
+            Vars.universe.updateLoadout(loadout.core(), loadout.schematic());
+            Vars.universe.updateLaunchResources(loadout.resources());
+        }
         Vars.world.loadSector(sector);
+        if (loadout != null) {
+            origin.removeItems(loadout.cost());
+            Events.fire(new SectorLaunchLoadoutEvent(sector, origin, loadout.schematic()));
+        }
         Vars.state.rules.sector = sector;
         sector.info.origin = origin;
         sector.info.destination = origin;
@@ -269,11 +286,17 @@ public final class UpstreamSinglePlayerSession {
         final Fi file;
         final Sector sector;
         final long timestamp;
+        final Sector origin;
 
         SectorSlot(Fi file, Sector sector, long timestamp) {
+            this(file, sector, timestamp, null);
+        }
+
+        SectorSlot(Fi file, Sector sector, long timestamp, Sector origin) {
             this.file = file;
             this.sector = sector;
             this.timestamp = timestamp;
+            this.origin = origin;
         }
     }
 
@@ -290,6 +313,35 @@ public final class UpstreamSinglePlayerSession {
         var slots = new ArrayList<SectorSlot>(result.size);
         for (SectorSlot slot : result) slots.add(slot);
         return slots;
+    }
+
+    List<SectorSlot> campaignSlots(List<SectorSlot> saves) {
+        var slots = new ArrayList<>(saves);
+        for (var planet : new Planet[]{Planets.serpulo, Planets.erekir}) {
+            addLaunchSlot(slots, planet.getStartSector());
+        }
+        for (var planet : new Planet[]{Planets.serpulo, Planets.erekir}) {
+            for (var sector : planet.sectors) {
+                if (sector != planet.getStartSector()) addLaunchSlot(slots, sector);
+            }
+        }
+        return slots;
+    }
+
+    private void addLaunchSlot(List<SectorSlot> slots, Sector sector) {
+        if (sector.save != null || sector.isShielded()) return;
+        // Normal campaign view eligibility from v160.8 PlanetDialog, followed by its launch-candidate check.
+        boolean starter = sector == sector.planet.getStartSector();
+        var generator = sector.planet.generator;
+        if (generator == null) return;
+        var preset = sector.preset;
+        if (preset != null && (preset.generator.map == null
+                || preset.requireUnlock && preset.locked() && preset.techNode != null)) return;
+        if (!starter && (preset == null || !preset.requireUnlock) && !generator.allowLanding(sector)) return;
+        Sector origin = generator.findLaunchCandidate(sector, null);
+        if (origin == null && !starter) return;
+        var file = sectorFile(sector);
+        if (!file.exists()) slots.add(new SectorSlot(file, sector, -1, origin == null ? sector : origin));
     }
 
     static int lastSectorRow(List<SectorSlot> slots) {

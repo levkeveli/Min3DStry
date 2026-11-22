@@ -15,12 +15,10 @@ import arc.util.Time;
 import arc.util.Strings;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.List;
 import mindustry.Vars;
 import mindustry.content.Blocks;
 import mindustry.content.Items;
-import mindustry.content.Planets;
 import mindustry.core.UI;
 import mindustry.core.World;
 import mindustry.entities.bullet.BulletType;
@@ -35,7 +33,6 @@ import mindustry.gen.Groups;
 import mindustry.gen.Tankc;
 import mindustry.gen.Unit;
 import mindustry.gen.UnitWaterMove;
-import mindustry.type.Planet;
 import mindustry.type.UnitType;
 import mindustry.world.Block;
 import mindustry.world.blocks.ConstructBlock.ConstructBuild;
@@ -131,29 +128,30 @@ public final class UpstreamSinglePlayerApp {
             }
             List<UpstreamSinglePlayerSession.SectorSlot> sectorSaves =
                 args.length < 2 && custom == null ? session.sectorSaves() : List.of();
-            if (campaignRequested) {
-                sectorSaves = new ArrayList<>(sectorSaves);
-                for (var planet : new Planet[]{Planets.serpulo, Planets.erekir}) {
-                    var starter = planet.getStartSector();
-                    if (starter.save != null) continue;
-                    var slot = session.sectorFile(starter);
-                    if (!slot.exists()) sectorSaves.add(new UpstreamSinglePlayerSession.SectorSlot(slot, starter, -1));
-                }
-            }
+            if (campaignRequested) sectorSaves = session.campaignSlots(sectorSaves);
             UpstreamSinglePlayerSession.SectorSlot selected = null;
+            UpstreamCampaignLoadout deployment = null;
             if (sectorSaves.size() == 1 && !campaignRequested) {
                 selected = sectorSaves.get(0);
                 System.out.println("UPSTREAM_CAMPAIGN_SELECTED slot=" + selected.file.name() + " source=single");
             } else if (!sectorSaves.isEmpty()) {
                 loadInterfaceRenderer();
-                selected = chooseSector(sectorSaves, mapDir.child("campaign-select.txt"));
-                if (selected == null) return;
+                Fi automatic = mapDir.child("campaign-select.txt");
+                while (true) {
+                    selected = chooseSector(sectorSaves, automatic);
+                    if (selected == null) return;
+                    deployment = null;
+                    if (selected.origin == null || selected.origin == selected.sector) break;
+                    deployment = UpstreamCampaignLoadout.prepare(selected.origin, selected.sector);
+                    if (confirmLaunch(selected, deployment)) break;
+                    automatic = null;
+                }
             }
             // Load the world before initializing world sprites to keep peak TeaVM heap bounded.
             if (selected != null) {
                 saveFile = selected.file;
                 if (selected.timestamp < 0) {
-                    session.launchNewSector(selected.sector, selected.sector, saveFile);
+                    session.launchNewSector(selected.origin, selected.sector, saveFile, deployment);
                 } else {
                     session.start(null, saveFile, "campaign", selected.sector);
                 }
@@ -327,7 +325,7 @@ public final class UpstreamSinglePlayerApp {
         int selected = UpstreamSinglePlayerSession.lastSectorRow(slots);
         int lastAxis = 0;
         System.out.println("UPSTREAM_CAMPAIGN_MENU slots=" + slots.size() + " selected=" + slots.get(selected).file.name());
-        if (automatic.exists() && !automatic.isDirectory() && automatic.length() <= 16) {
+        if (automatic != null && automatic.exists() && !automatic.isDirectory() && automatic.length() <= 16) {
             try {
                 int index = Integer.parseInt(automatic.readString("UTF-8").trim());
                 if (index >= 0 && index < slots.size()) {
@@ -365,6 +363,43 @@ public final class UpstreamSinglePlayerApp {
             if (renderedRow != selected) {
                 rows = encodeMenuRows(campaignCaptions(slots, selected));
                 renderedRow = selected;
+            }
+            drawMenuRows(rows);
+            while (System.nanoTime() < nextFrame) Thread.yield();
+        }
+    }
+
+    private boolean confirmLaunch(UpstreamSinglePlayerSession.SectorSlot selected, UpstreamCampaignLoadout deployment) {
+        System.out.println("UPSTREAM_CAMPAIGN_LOADOUT sector=" + selected.sector.id
+            + " origin=" + selected.origin.id + " affordable=" + deployment.affordable());
+        var cost = deployment.cost().toArray();
+        int page = 0;
+        int lastAxis = 0;
+        int rendered = -1;
+        MenuRows rows = null;
+        UpstreamSinglePlayerInput.poll();
+        while (true) {
+            long nextFrame = System.nanoTime() + FRAME_NS;
+            int input = UpstreamSinglePlayerInput.poll();
+            if (input == -1 || (input & (1 << 19)) != 0) return false;
+            if ((input & (1 << 17)) != 0 && deployment.affordable()) return true;
+            int axis = (byte) ((input >> 8) & 0xff);
+            if (axis > 60 && lastAxis <= 20 && page > 0) page--;
+            if (axis < -60 && lastAxis >= -20 && (page + 1) * 4 < cost.length) page++;
+            lastAxis = axis;
+            if (rendered != page) {
+                int count = Math.min(4, cost.length - page * 4);
+                String[] captions = new String[count + 3];
+                captions[0] = selected.sector.name();
+                captions[1] = Strings.stripColors(Core.bundle.format("launch.from", selected.origin.name()))
+                    + " / " + Strings.stripColors(deployment.schematic().name());
+                for (int i = 0; i < count; i++) {
+                    var stack = cost[page * 4 + i];
+                    captions[i + 2] = stack.item.localizedName + "  " + stack.amount;
+                }
+                captions[count + 2] = Strings.stripColors(Core.bundle.get(deployment.affordable() ? "launch.text" : "sector.missingresources"));
+                rows = encodeMenuRows(captions);
+                rendered = page;
             }
             drawMenuRows(rows);
             while (System.nanoTime() < nextFrame) Thread.yield();

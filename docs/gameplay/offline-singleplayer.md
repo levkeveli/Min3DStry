@@ -115,19 +115,28 @@ scratch directory. It loads the Ground Zero and Onset starters through
 the original world generator, then checks the sector IDs, starter cores,
 launch event, and the saved worlds. The stock v160.8 server reopened both
 JVM-generated saves with the same world size, core, and rules as saves
-from a fresh stock launch. The JVM reference also checks that a captured
-Ground Zero with a Core Shard cannot launch to a numbered sector. It
-upgrades the base to a Core Foundation and verifies that the upstream
-generator opens nearby Serpulo sector 172 at 440×440. Stock Java reopened
-the generated save with the saved origin pointing to Ground Zero. This
-check calls the session directly. The selector still lists starter and
-saved sectors.
+from a fresh stock launch. The JVM reference also checks the stock numbered
+landing rule. It upgrades a captured Ground Zero to a Core Foundation,
+checks the original default launch schematic and the maximum cargo preference,
+and verifies that the origin pays for the schematic and the loaded cargo.
+The new Serpulo sector opens with 23 copper and Ground Zero resumes with the
+remaining inventory.
+
+The campaign selector includes open launch destinations when a stock landing
+candidate exists. Choose a destination to review the default schematic, its
+origin, and the total items that will be debited. Use D-pad up/down to review
+additional items, **A** to confirm an affordable launch, or **B** to go back.
+The launch uses the current stock maximum cargo preference and carries over
+configured launch resources when that preference is off.
 
 Use `python3 tools/verify_upstream_campaign_launch.py --rom upstream-probe.3dsx`
 to replay the fresh campaign menu on both Azahar profiles. The verifier
 captures the menu and starting worlds, then collects the resulting saves and
 settings from an empty test SD directory. Pass `--server server-release.jar`
 to compare those outputs with a fresh stock Java launch.
+Pass `--departure /path/to/reference-output/departure` to replay the funded
+numbered-sector launch fixture produced by the JVM task. With `--server` it
+also verifies the saved cargo and origin with stock Java.
 
 ## Custom Game
 

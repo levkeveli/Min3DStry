@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Replay the two stock fresh-campaign starters in Azahar."""
+"""Replay stock campaign starters or a numbered-sector departure in Azahar."""
 
 from __future__ import annotations
 
@@ -39,8 +39,13 @@ def write_replay(path: Path, model: str, planet: str) -> None:
                 movie.write(pad)
 
 
-def verify(model: str, planet: str, rom: Path, azahar: str, config: Path, log: Path, output: Path) -> None:
-    name, world, size = STARTERS[planet]
+def verify(model: str, planet: str, rom: Path, azahar: str, config: Path, log: Path, output: Path,
+           departure: Path | None = None) -> None:
+    if departure:
+        sector_id, size = (int(value) for value in (departure / "destination.txt").read_text().split())
+        name, world = f"sector-serpulo-{sector_id}.msav", f"Serpulo;_Sector_{sector_id}"
+    else:
+        name, world, size = STARTERS[planet]
     root = sp.resolve_sd_save_path(log).parent
     saves = root / "saves"
     settings = root / "settings.bin"
@@ -55,10 +60,21 @@ def verify(model: str, planet: str, rom: Path, azahar: str, config: Path, log: P
     prefix = f"{model}-{planet}"
     replay = output / f"{prefix}.ctm"
     write_replay(replay, model, planet)
+    staged_saves = []
     try:
+        if departure:
+            saves.mkdir(parents=True, exist_ok=True)
+            for starter, _, _ in STARTERS.values():
+                slot = saves / starter
+                staged_saves.append(slot)
+                shutil.copyfile(departure / "saves" / starter, slot)
+            shutil.copyfile(departure / "settings.bin", settings)
+            shutil.copyfile(departure / "campaign-select.txt", override)
         proc, rpc = sp._launch_azahar(model, rom, azahar, config, log, replay)
         try:
-            sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_MENU slots=2\b", 120)
+            menu_marker = (rf"UPSTREAM_CAMPAIGN_LOADOUT sector={sector_id} origin=170 affordable=true\b"
+                           if departure else r"UPSTREAM_CAMPAIGN_MENU slots=2\b")
+            sp._wait_for_log(log, proc, menu_marker, 120)
             time.sleep(2)
             menu = rpc.screenshot()
             if sp.az.inspect_png(menu)["top_distinct_colors"] < 8:
@@ -74,16 +90,20 @@ def verify(model: str, planet: str, rom: Path, azahar: str, config: Path, log: P
             sp._wait_for_log(log, proc, r"UPSTREAM_SP_EXIT\b", 20)
             (output / f"{prefix}-{name}").write_bytes((saves / name).read_bytes())
             (output / f"{prefix}-settings.bin").write_bytes(settings.read_bytes())
-            print(f"[PASS] {model}: {planet} starter rendered and saved at {size}x{size}", flush=True)
+            if departure and any(slot.read_bytes() != (departure / "saves" / slot.name).read_bytes()
+                                 for slot in staged_saves):
+                raise AssertionError(f"{prefix}: departure overwrote a preexisting world save")
+            print(f"[PASS] {prefix}: {world} rendered and saved at {size}x{size}", flush=True)
         finally:
             rpc.close()
             sp._stop_proc(proc, azahar)
             (output / f"{prefix}.log").write_bytes(log.read_bytes())
     finally:
-        for starter_name, _, _ in STARTERS.values():
-            (saves / starter_name).unlink(missing_ok=True)
-            (saves / f"{starter_name}-backup.msav").unlink(missing_ok=True)
-        for path in (settings, backup):
+        test_slots = {name, *(starter for starter, _, _ in STARTERS.values())}
+        for slot in test_slots:
+            (saves / slot).unlink(missing_ok=True)
+            (saves / f"{slot}-backup.msav").unlink(missing_ok=True)
+        for path in (settings, backup, override):
             path.unlink(missing_ok=True)
         if settings_backups.is_dir():
             shutil.rmtree(settings_backups)
@@ -139,6 +159,31 @@ def check_stock(java: str, server: Path, save: Path, settings: Path, planet: str
     print(f"[PASS] stock v160.8 reopened {save.name} and its settings", flush=True)
 
 
+def check_numbered_stock(java: str, server: Path, output: Path, model: str, departure: Path) -> None:
+    sector_id, size = (int(value) for value in (departure / "destination.txt").read_text().split())
+    with tempfile.TemporaryDirectory(prefix="m3ds-stock-numbered-readback-") as temp:
+        root = Path(temp)
+        (root / "config").mkdir()
+        shutil.copyfile(output / f"{model}-numbered-settings.bin", root / "config/settings.bin")
+        shutil.copyfile(output / f"{model}-numbered-sector-serpulo-{sector_id}.msav", root / "port.msav")
+        script = f"""
+            const sectors = Packages.mindustry.content.Planets.serpulo.sectors;
+            const items = Packages.mindustry.content.Items;
+            const from = sectors.get(170), to = sectors.get({sector_id});
+            const io = Packages.mindustry.io.SaveIO, slot = Packages.arc.files.Fi.get("port.msav");
+            io.load(slot, Vars.world.makeSectorContext(to));
+            if (!to.info.origin.equals(from) || from.info.items.get(items.copper) !== 0
+                || Vars.state.rules.defaultTeam.items().get(items.copper) !== 23
+                || Vars.world.width() !== {size} || Vars.world.height() !== {size}
+                || !io.getMeta(slot).rules.sector.equals(to)) {{
+                throw new Error("Numbered sector or cargo differs");
+            }}
+            return "UPSTREAM_PC_NUMBERED_REOPENED";
+        """
+        stock_console(java, server, root, " ".join(script.splitlines()), r"UPSTREAM_PC_NUMBERED_REOPENED")
+    print(f"[PASS] stock v160.8 reopened {model} sector {sector_id} and its origin and cargo", flush=True)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--rom", required=True, type=Path)
@@ -146,13 +191,20 @@ def main() -> int:
     parser.add_argument("--server", type=Path, help="Stock v160.8 server for save and settings readback")
     parser.add_argument("--java", default="java")
     parser.add_argument("--model", choices=("new3ds", "old3ds"))
-    parser.add_argument("--planet", choices=STARTERS)
+    selection = parser.add_mutually_exclusive_group()
+    selection.add_argument("--planet", choices=STARTERS)
+    selection.add_argument("--departure", type=Path, help="JVM reference numbered-sector departure fixture")
     parser.add_argument("--output-dir", type=Path, default=Path("build/campaign-launch-emu"))
     args = parser.parse_args()
     azahar = sp.az.resolve_azahar_bin(args.azahar)
     config, log = sp.az.resolve_azahar_paths(azahar)
     args.output_dir.mkdir(parents=True, exist_ok=True)
     for model in (args.model,) if args.model else ("new3ds", "old3ds"):
+        if args.departure:
+            verify(model, "numbered", args.rom, azahar, config, log, args.output_dir, args.departure)
+            if args.server:
+                check_numbered_stock(args.java, args.server, args.output_dir, model, args.departure)
+            continue
         for planet in (args.planet,) if args.planet else STARTERS:
             verify(model, planet, args.rom, azahar, config, log, args.output_dir)
             if args.server:
