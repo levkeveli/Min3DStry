@@ -91,6 +91,10 @@ without opening a network connection. Address input stays in memory.
 For scripted launches, put the host and port on one line in
 `sd:/3ds/min3dstry/server-endpoint.txt` to skip the keyboard.
 Argument-capable launchers can also pass `--join [endpoint-file]`.
+The [keyboard test build](https://github.com/levkeveli/Min3DStry/actions/runs/45065426179)
+rejected port 0 on both Azahar 2126.2 profiles and joined an unmodified
+v160.8 Glacier server after the address was corrected, without writing an
+endpoint file.
 The unified client uses its packaged v160.8 atlas in both modes. Restart the
 ROM to switch modes. Menu and browser integration are tracked in
 [#40](https://github.com/levkeveli/Min3DStry/issues/40) and
@@ -98,6 +102,8 @@ ROM to switch modes. Menu and browser integration are tracked in
 From the repository root, replay the stock-server join and input with
 `python3 tools/verify_upstream_live_net.py --rom /path/to/upstream-probe.3dsx
 --server /path/to/server-release.jar --controls --controls-replay --unified-boot`.
+The controls verifier runs `runwave` on the stock server and requires
+`UPSTREAM_LIVE_CONTROLS_STATE wave=2` in the client log before checking exit.
 
 The [combined devkitARM test build](https://github.com/levkeveli/Min3DStry/actions/runs/45060811199)
 also includes the campaign launch, research, and defeat/retry branches.
@@ -107,7 +113,10 @@ boots, both profiles joined unmodified v160.8 Glacier, synchronized both
 movement inputs and the next wave, and exited with **START**. The server
 logged a departure in each session. The build's offline executable and
 configured memory subtotal is 66.49 MiB, above the Original 3DS 64 MiB
-application budget before remaining runtime allocations.
+application budget before remaining runtime allocations. Physical cross-play
+and the separate Old/New hardware budgets remain open in
+[#43](https://github.com/levkeveli/Min3DStry/issues/43) and
+[#44](https://github.com/levkeveli/Min3DStry/issues/44).
 
 ## Upstream map metadata probe
 
