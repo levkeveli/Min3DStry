@@ -1,28 +1,28 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="760" height="308" viewBox="0 0 760 308" role="img" aria-label="Min3DStry Port Completion 56.3%">
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="308" viewBox="0 0 760 308" role="img" aria-label="Min3DStry Port Completion 57.5%">
   <defs>
     <clipPath id="barClip"><rect x="24" y="66" width="712" height="14" rx="7"/></clipPath>
   </defs>
   <rect x="0.5" y="0.5" width="759" height="307" rx="8" fill="#0d1117" stroke="#30363d"/>
   <text x="24" y="34" fill="#e6edf3" font-family="Segoe UI, Ubuntu, Arial, sans-serif" font-size="16" font-weight="700">Min3DStry Full-Port Completion Gauge</text>
-  <text x="736" y="34" text-anchor="end" fill="#f5b841" font-family="Consolas, Liberation Mono, monospace" font-size="20" font-weight="700">56.3%</text>
-  <text x="24" y="54" fill="#8b949e" font-family="Segoe UI, Ubuntu, Arial, sans-serif" font-size="12">Evidence-weighted across 22 capabilities (56.30 / 100 pts · verified against docs/port-capabilities.json)</text>
+  <text x="736" y="34" text-anchor="end" fill="#f5b841" font-family="Consolas, Liberation Mono, monospace" font-size="20" font-weight="700">57.5%</text>
+  <text x="24" y="54" fill="#8b949e" font-family="Segoe UI, Ubuntu, Arial, sans-serif" font-size="12">Evidence-weighted across 22 capabilities (57.50 / 100 pts · verified against docs/port-capabilities.json)</text>
   <rect x="24" y="66" width="712" height="14" rx="7" fill="#161b22" stroke="#30363d"/>
   <g clip-path="url(#barClip)">
-    <rect x="24" y="66" width="400.9" height="14" fill="#f5b841"/>
-    <rect x="424.9" y="66" width="209.7" height="14" fill="#d29922" fill-opacity="0.32"/>
-    <rect x="634.6" y="66" width="101.40000000000003" height="14" fill="#58a6ff" fill-opacity="0.28"/>
+    <rect x="24" y="66" width="409.4" height="14" fill="#f5b841"/>
+    <rect x="433.4" y="66" width="201.1" height="14" fill="#d29922" fill-opacity="0.32"/>
+    <rect x="634.5" y="66" width="101.5" height="14" fill="#58a6ff" fill-opacity="0.28"/>
   </g>
-  <text x="24" y="98" fill="#8b949e" font-family="Consolas, Liberation Mono, monospace" font-size="11">Complete: 2  ·  Hardware: 2  ·  Emulator: 17  ·  Host: 0  ·  Exp: 0  ·  Planned: 1</text>
-  <text x="24" y="114" fill="#8b949e" font-family="Consolas, Liberation Mono, monospace" font-size="11">Remaining: -43.70 pts  (HW gate -&gt;85.8%: +29.45 pts  ·  Release parity -&gt;100.0%: +14.25 pts)</text>
+  <text x="24" y="98" fill="#8b949e" font-family="Consolas, Liberation Mono, monospace" font-size="11">Complete: 2  ·  Hardware: 3  ·  Emulator: 16  ·  Host: 0  ·  Exp: 0  ·  Planned: 1</text>
+  <text x="24" y="114" fill="#8b949e" font-family="Consolas, Liberation Mono, monospace" font-size="11">Remaining: -42.50 pts  (HW gate -&gt;85.8%: +28.25 pts  ·  Release parity -&gt;100.0%: +14.25 pts)</text>
   <line x1="24" y1="126" x2="736" y2="126" stroke="#21262d" stroke-width="1"/>
   <text x="24" y="146" fill="#e6edf3" font-family="Segoe UI, Ubuntu, Arial, sans-serif" font-size="12" font-weight="600">Foundation &amp; Tooling</text>
   <text x="368" y="146" text-anchor="end" fill="#8b949e" font-family="Consolas, Liberation Mono, monospace" font-size="11">8.35/10 (83.5%)</text>
   <rect x="24" y="152" width="344" height="8" rx="4" fill="#161b22" stroke="#30363d" stroke-width="0.75"/>
   <rect x="24" y="152" width="287.2" height="8" rx="4" fill="#3fb950"/>
   <text x="392" y="146" fill="#e6edf3" font-family="Segoe UI, Ubuntu, Arial, sans-serif" font-size="12" font-weight="600">Hardware &amp; Platform</text>
-  <text x="736" y="146" text-anchor="end" fill="#8b949e" font-family="Consolas, Liberation Mono, monospace" font-size="11">5.50/10 (55.0%)</text>
+  <text x="736" y="146" text-anchor="end" fill="#8b949e" font-family="Consolas, Liberation Mono, monospace" font-size="11">6.70/10 (67.0%)</text>
   <rect x="392" y="152" width="344" height="8" rx="4" fill="#161b22" stroke="#30363d" stroke-width="0.75"/>
-  <rect x="392" y="152" width="189.2" height="8" rx="4" fill="#3fb950"/>
+  <rect x="392" y="152" width="230.5" height="8" rx="4" fill="#3fb950"/>
   <text x="24" y="184" fill="#e6edf3" font-family="Segoe UI, Ubuntu, Arial, sans-serif" font-size="12" font-weight="600">Rendering &amp; Assets</text>
   <text x="368" y="184" text-anchor="end" fill="#8b949e" font-family="Consolas, Liberation Mono, monospace" font-size="11">9.90/18 (55.0%)</text>
   <rect x="24" y="190" width="344" height="8" rx="4" fill="#161b22" stroke="#30363d" stroke-width="0.75"/>

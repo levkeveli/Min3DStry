@@ -59,7 +59,8 @@
       "issue": 6,
       "evidence": [
         "tools/device_deploy.py",
-        "docs/hardware/deployment-and-logs.md"
+        "docs/hardware/deployment-and-logs.md",
+        "docs/hardware/evidence/old3ds-xl-a4a9a96.md"
       ]
     },
     {
@@ -67,13 +68,13 @@
       "category": "Hardware & Platform",
       "name": "Original / New 3DS Hardware Probe",
       "weight": 4,
-      "stage": "emulator-tested",
+      "stage": "hardware-verified",
       "issue": 2,
       "evidence": [
         "src/platform/3ds/hardware_probe_3ds.c",
-        "docs/hardware/detection.md"
-      ],
-      "hardware_test": "HARDWARE_TEST_PENDING"
+        "docs/hardware/detection.md",
+        "docs/hardware/evidence/old3ds-xl-a4a9a96.md"
+      ]
     },
     {
       "id": "memory-budget-runtime",
