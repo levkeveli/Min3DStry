@@ -13,6 +13,7 @@ public final class WorldReflectionPolicy extends SimpleReflectionPolicy {
             "mindustry.game.GameStats",
             "mindustry.game.Rules",
             "mindustry.game.Rules$TeamRule",
+            "mindustry.type.Planet$PlanetData",
             "mindustry.type.Weather$WeatherEntry",
             "arc.math.geom.Point2",
             "arc.math.geom.Vec2"

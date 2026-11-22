@@ -111,14 +111,13 @@ public final class UpstreamSinglePlayerApp {
             + " router=" + Core.bundle.get("block.router.name") + " copper=" + Core.bundle.get("item.copper.name"));
 
         Fi mapDir = saveFile.parent() != null ? saveFile.parent() : new Fi("/3ds/min3dstry");
-        session = UpstreamSinglePlayerSession.create(mapDir, bundleTag);
+        session = UpstreamSinglePlayerSession.create(mapDir, bundleTag, new Fi("/romfs/planets"));
         UpstreamSectorCapture.install();
         Events.on(WaveEvent.class, event -> {
             String warning = UpstreamGuardianWarning.find(Vars.state.rules, Vars.state.wave);
             if (warning != null) UpstreamNotification.show(warning, 5f);
         });
         try {
-            boolean interfaceReady = false;
             CustomGame custom = null;
             Fi customSave = mapDir.child("custom-game-save.msav");
             if (customRequested) {
@@ -133,31 +132,21 @@ public final class UpstreamSinglePlayerApp {
             List<UpstreamSinglePlayerSession.SectorSlot> sectorSaves =
                 args.length < 2 && custom == null ? session.sectorSaves() : List.of();
             UpstreamSinglePlayerSession.SectorSlot selected = null;
-            if (sectorSaves.size() > 1) {
-                loadInterfaceGraphics(atlas);
-                interfaceReady = true;
-                // Drain the boot-time START press used by the homebrew launcher.
-                UpstreamSinglePlayerInput.poll();
-                try {
-                    selected = chooseSector(sectorSaves);
-                } catch (Throwable failure) {
-                    System.out.println("UPSTREAM_CAMPAIGN_SELECT_ERROR "
-                        + failure.getClass().getName() + ": " + failure.getMessage());
-                    throw failure;
-                }
-                if (selected == null) {
-                    return;
-                }
-                saveFile = selected.file;
+            if (sectorSaves.size() == 1) {
+                selected = sectorSaves.get(0);
+                System.out.println("UPSTREAM_CAMPAIGN_SELECTED slot=" + selected.file.name() + " source=single name=" + selected.sector.name());
+            } else if (!sectorSaves.isEmpty()) {
+                loadInterfaceRenderer();
+                selected = chooseSector(sectorSaves, mapDir.child("campaign-select.txt"));
+                if (selected == null) return;
             }
             // Load the world before initializing world sprites to keep peak TeaVM heap bounded.
-            if (custom == null) {
-                boolean loadedCampaign = session.start(mapFile, saveFile, selected == null ? null : "campaign",
-                    selected == null ? null : selected.sector);
-                if (selected != null && loadedCampaign) {
-                    // Only write back a slot that actually loaded; a failed load must not overwrite it.
-                    campaignSlot = selected.file;
-                }
+            if (selected != null) {
+                saveFile = selected.file;
+                if (!session.start(null, saveFile, "campaign", selected.sector)) return;
+                campaignSlot = saveFile;
+            } else if (custom == null) {
+                session.start(mapFile, saveFile, null);
             } else {
                 saveFile = customSave;
                 if (custom.map == null) {
@@ -170,9 +159,7 @@ public final class UpstreamSinglePlayerApp {
                     System.out.println("UPSTREAM_CUSTOM_GAME_STARTED map=" + custom.map.file.name() + " mode=" + mode.name());
                 }
             }
-            if (!interfaceReady) {
-                loadInterfaceGraphics(atlas);
-            }
+            loadInterfaceGraphics(atlas);
             loadWorldGraphics();
             Events.on(BlockBuildEndEvent.class, event -> {
                 if (event.tile == null) return;
@@ -207,14 +194,14 @@ public final class UpstreamSinglePlayerApp {
 
     private record CustomGame(Map map, Gamemode mode) {}
 
-    private record CustomGameRows(byte[][] labels, int[][] characters) {}
+    private record MenuRows(byte[][] labels, int[][] characters) {}
 
     private CustomGame chooseCustomGame(List<Map> maps, boolean canResume) {
         Gamemode[] modes = {Gamemode.survival, Gamemode.sandbox, Gamemode.attack, Gamemode.pvp};
         int firstMap = canResume ? 1 : 0;
         int count = firstMap + maps.size();
         int selected = 0, mode = 0, lastX = 0, lastY = 0, renderedRow = -1, renderedMode = -1;
-        CustomGameRows rows = null;
+        MenuRows rows = null;
         target.buildLabels(new byte[8]);
         System.out.println("UPSTREAM_CUSTOM_GAME_MENU maps=" + maps.size());
         // Consume the launcher's button edges before accepting menu input.
@@ -238,11 +225,11 @@ public final class UpstreamSinglePlayerApp {
                 return new CustomGame(selected < firstMap ? null : maps.get(selected - firstMap), modes[mode]);
             }
             if (selected != renderedRow || mode != renderedMode) {
-                rows = encodeCustomGameRows(customGameCaptions(maps, firstMap, selected, modes[mode]));
+                rows = encodeMenuRows(customGameCaptions(maps, firstMap, selected, modes[mode]));
                 renderedRow = selected;
                 renderedMode = mode;
             }
-            drawCustomGameRows(rows);
+            drawMenuRows(rows);
             while (System.nanoTime() < nextFrame) Thread.yield();
         }
     }
@@ -261,7 +248,7 @@ public final class UpstreamSinglePlayerApp {
         return captions;
     }
 
-    private static CustomGameRows encodeCustomGameRows(String[] captions) {
+    private static MenuRows encodeMenuRows(String[] captions) {
         byte[][] labels = new byte[captions.length][];
         int[][] characters = new int[captions.length][];
         for (int i = 0; i < captions.length; i++) {
@@ -269,7 +256,7 @@ public final class UpstreamSinglePlayerApp {
             labels[i] = (caption + "\0").getBytes(StandardCharsets.UTF_8);
             characters[i] = encodePlainMenuLabel(caption);
         }
-        return new CustomGameRows(labels, characters);
+        return new MenuRows(labels, characters);
     }
 
     private static int[] encodePlainMenuLabel(String caption) {
@@ -286,7 +273,7 @@ public final class UpstreamSinglePlayerApp {
         return glyphs;
     }
 
-    private void drawCustomGameRows(CustomGameRows rows) {
+    private void drawMenuRows(MenuRows rows) {
         target.begin(0, 0, UpstreamTerrainDrawProbe.VIEW_WIDTH, UpstreamTerrainDrawProbe.VIEW_HEIGHT);
         try {
             float rowY = 6f;
@@ -323,21 +310,28 @@ public final class UpstreamSinglePlayerApp {
     }
 
     private UpstreamSinglePlayerSession.SectorSlot chooseSector(
-            List<UpstreamSinglePlayerSession.SectorSlot> slots) {
+            List<UpstreamSinglePlayerSession.SectorSlot> slots, Fi automatic) {
         int selected = 0;
         int lastAxis = 0;
         System.out.println("UPSTREAM_CAMPAIGN_MENU slots=" + slots.size());
-        Fi automatic = new Fi("/3ds/min3dstry/campaign-select.txt");
-        if (automatic.exists()) {
-            int index = Integer.parseInt(automatic.readString("UTF-8").trim());
-            if (index < 0 || index >= slots.size()) index = 0;
-            var slot = slots.get(index);
-            System.out.println("UPSTREAM_CAMPAIGN_SELECTED slot=" + slot.file.name()
-                + " name=" + slotName(slot) + " source=auto");
-            return slot;
+        if (automatic.exists() && !automatic.isDirectory() && automatic.length() <= 16) {
+            try {
+                int index = Integer.parseInt(automatic.readString("UTF-8").trim());
+                if (index >= 0 && index < slots.size()) {
+                    var slot = slots.get(index);
+                    System.out.println("UPSTREAM_CAMPAIGN_SELECTED slot=" + slot.file.name() + " source=auto name=" + slot.sector.name());
+                    return slot;
+                }
+            } catch (NumberFormatException ignored) {
+                // Invalid selection files leave the controller menu available.
+            }
         }
+        int renderedRow = -1;
+        MenuRows rows = null;
+        target.buildLabels(new byte[8]);
+        UpstreamSinglePlayerInput.poll();
         while (true) {
-            long nextFrame = System.nanoTime() + 16_666_667L;
+            long nextFrame = System.nanoTime() + FRAME_NS;
             int input = UpstreamSinglePlayerInput.poll();
             if (input == -1) {
                 System.out.println("UPSTREAM_CAMPAIGN_CANCEL");
@@ -350,34 +344,31 @@ public final class UpstreamSinglePlayerApp {
                 selected++;
             }
             lastAxis = axis;
-            viewport.draw(() -> {
-                Draw.color(0f, 0f, 0f, 1f);
-                Draw.rect(Core.atlas.white(), 160f, 120f, 320f, 240f);
-                Draw.color();
-            });
-            drawSectorMenu(slots, selected);
             if ((input & (1 << 17)) != 0) {
                 var slot = slots.get(selected);
-                System.out.println("UPSTREAM_CAMPAIGN_SELECTED slot=" + slot.file.name()
-                    + " name=" + slotName(slot));
+                System.out.println("UPSTREAM_CAMPAIGN_SELECTED slot=" + slot.file.name() + " name=" + slot.sector.name());
                 return slot;
             }
+            if (renderedRow != selected) {
+                rows = encodeMenuRows(campaignCaptions(slots, selected));
+                renderedRow = selected;
+            }
+            drawMenuRows(rows);
             while (System.nanoTime() < nextFrame) Thread.yield();
         }
     }
 
-    private static String slotName(UpstreamSinglePlayerSession.SectorSlot slot) {
-        if (slot.sector == null) return slot.file.name();
-        String name = slot.sector.name();
-        return name == null || name.isEmpty() ? slot.file.name() : name;
-    }
-
-    private void drawSectorMenu(List<UpstreamSinglePlayerSession.SectorSlot> slots, int selected) {
-        StringBuilder labels = new StringBuilder("Select sector\0");
-        for (int i = 0; i < slots.size(); i++) {
-            labels.append(i == selected ? "> " : "  ").append(slotName(slots.get(i))).append('\0');
+    static String[] campaignCaptions(List<UpstreamSinglePlayerSession.SectorSlot> slots, int selected) {
+        int first = (selected / 6) * 6;
+        int end = Math.min(first + 6, slots.size());
+        String[] captions = new String[1 + end - first];
+        captions[0] = Core.bundle.get("campaign");
+        for (int i = first; i < end; i++) {
+            var sector = slots.get(i).sector;
+            captions[1 + i - first] = (i == selected ? "> " : "  ")
+                + sector.planet.localizedName + " / " + sector.name();
         }
-        target.buildLabels(labels.toString().getBytes(StandardCharsets.UTF_8));
+        return captions;
     }
 
     private static void loadUnitGraphics() {

@@ -14,48 +14,51 @@ This vertical slice boots and runs unmodified upstream Mindustry `v160.8` **Grou
 
 ## Campaign sector selection
 
-When `/3ds/min3dstry` contains more than one `sector-*.msav` slot, the app
-loads `Saves.load()` through the live `Core.settings`/`Core.files` path before
-starting the world. It lists one top-level row per discovered `sector-*.msav`
-file, matching `Saves.getSectorFile()`; nested probe or backup files are
-ignored. Rows use the upstream sector name (`Ground Zero`, `Frozen Forest`)
-with the filename retained in the selection marker:
+Copy original `sector-*.msav` files into `/3ds/min3dstry/saves/`, following
+the PC `saves/` layout. Loose slots in `/3ds/min3dstry/` are also supported.
+Discovery reads the original save metadata and prefers the `saves/` copy
+when both directories contain the same sector. It scans each directory's top
+level and skips backup entries. The title and planet come from the original
+sector data, including the v160.8 Serpulo preset assignments loaded from
+`planets/serpulo.json` before content initialization.
+
+A single sector opens immediately. With more than one, the top screen lists
+the sectors most recently saved first. D-pad up/down changes the selection,
+**A** opens it, and **START** exits the selector. A valid zero-based index in
+`/3ds/min3dstry/campaign-select.txt` can select a row for automation. Selection logs include the save filename and
+the original sector name.
+
+The app loads the sector through `SaveIO.load(file, world.makeSectorContext(sector))`.
+The **SELECT** save button and **START** exit write to the selected file with
+`SaveIO.save`, which keeps the previous save at the original backup path.
+Selection alone performs no writes.
+
+For verification, create sector fixtures with the stock v160.8 server in a
+temporary directory. Run the following as one server-console command, first
+with `frozenForest` and then with `groundZero` so Ground Zero sorts first.
 
 ```text
-UPSTREAM_CAMPAIGN_MENU slots=2
+js (() => { const sector = Packages.mindustry.content.SectorPresets.groundZero.sector; Vars.logic.reset(); Vars.world.loadSector(sector); Vars.logic.play(); const file = Packages.arc.files.Fi.get("sector-" + sector.planet.name + "-" + sector.id + ".msav"); Packages.mindustry.io.SaveIO.write(file); return file.name(); })()
 ```
 
-D-pad up/down changes the selection; A launches the selected slot through
-`SaveIO.load(file, Vars.world.makeSectorContext(sector))`. The sector context is
-taken from the slot's decoded save metadata (`SaveSlot.getSector()`) and falls
-back to a planet-aware `sector-<planet>-<id>.msav` match. START cancels the menu:
+The resulting files are `sector-serpulo-170.msav` and `sector-serpulo-64.msav`.
+Copy the original `bundle.properties` and `planets/serpulo.json` alongside the
+fixtures to run `-Pprobe=singleplayer runCampaignResumeJvm --args="/path/to/fixtures /path/to/new-scratch-dir"`
+with the normal pinned runtime Gradle properties. Use
+`python3 tools/verify_upstream_campaign_resume.py --rom upstream-probe.3dsx --fixtures /path/to/fixtures`
+to exercise sole-save resume, graphical selection, and save-back on both
+Azahar profiles.
 
-```text
-UPSTREAM_CAMPAIGN_CANCEL
-UPSTREAM_SP_EXIT
-```
-
-For automated runs, a file `/3ds/min3dstry/campaign-select.txt` containing a
-zero-based slot index selects without input:
-
-```text
-UPSTREAM_CAMPAIGN_SELECTED slot=sector-serpulo-86.msav name=Frozen Forest source=auto
-UPSTREAM_SP_LOADED source=campaign map=Editor_Playtesting size=150x250 wave=1 copper=0
-```
-
-Verified on Azahar `2126.2` New and Old profiles with two staged sector files.
-A-button selection was verified by injecting Azahar 2126.2's keyboard A mapping
-on both New and Old profiles; the auto-select hook remains for automation.
-
-On START exit, a selected sector slot is written back through `SaveIO.write`,
-but only when the slot actually loaded, so a failed load cannot overwrite it:
-
-```text
-UPSTREAM_CAMPAIGN_SAVED slot=sector-serpulo-15.msav
-UPSTREAM_SP_EXIT
-```
-
-Save-back and START cancel were verified on both profiles.
+The [ARM11 build from `1390790`](https://github.com/levkeveli/Min3DStry/actions/runs/45035851013)
+resumed a lone Ground Zero slot from `saves/` and used the D-pad to select a
+loose Frozen Forest slot from the two-sector menu on both Azahar 2126.2
+profiles. Saving preserved the original files as backups. The unmodified
+v160.8 PC server opened all four new saves and confirmed the same preset,
+sector ID, and dimensions. The standard Ground Zero movement, mining,
+building, pause, and save/reload replay also passed on both profiles with
+no sector files staged. After integration with the merged Custom Game port,
+the campaign resume JVM reference and the repository host suite passed
+against the combined tree. Physical console verification remains open.
 
 ## Custom Game
 

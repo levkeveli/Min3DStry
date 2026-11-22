@@ -73,6 +73,15 @@ def pack_custom_game_maps(archive: zipfile.ZipFile, maps_dir: Path) -> None:
         (builtin / filename).write_bytes(archive.read(f"assets/maps/default/{filename}"))
 
 
+def pack_planet_data(archive: zipfile.ZipFile, output: Path) -> None:
+    output.mkdir(parents=True, exist_ok=True)
+    for member in archive.namelist():
+        if re.fullmatch(r"assets/planets/[^/]+\.json", member):
+            (output / Path(member).name).write_bytes(archive.read(member))
+    if not (output / "serpulo.json").is_file():
+        raise ValueError("The original Serpulo planet data is missing")
+
+
 def pack_stock_text_assets(archive: zipfile.ZipFile, staged: Path) -> None:
     for name in STOCK_TEXT_ASSETS:
         destination = staged / name
@@ -122,6 +131,7 @@ def main() -> None:
                     if re.fullmatch(r"assets/bundles/bundle(?:_[A-Za-z_]+)?\.properties", member):
                         (bundles / Path(member).name).write_bytes(archive.read(member))
                 if args.singleplayer:
+                    pack_planet_data(archive, staged / "planets")
                     maps_dir = staged / "maps"
                     maps_dir.mkdir(parents=True, exist_ok=True)
                     gz_bytes = archive.read("assets/maps/serpulo/groundZero.msav")
