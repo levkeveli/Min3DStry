@@ -345,5 +345,15 @@ public final class UpstreamWorldLoadProbe {
                 posted.remove().run();
             }
         }
+
+        /** Stop listener fibers (notably Arc's Timer thread) before the one-shot host process exits. */
+        @Override public void dispose() {
+            for (ApplicationListener listener : getListeners().copy()) {
+                try {
+                    listener.dispose();
+                } catch (Throwable ignored) {
+                }
+            }
+        }
     }
 }
