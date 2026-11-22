@@ -31,7 +31,7 @@ static const MenuEntry TITLE_ITEMS[] = {
  * Only About is implemented; the other two remain visible and unavailable.
  */
 static const MenuEntry DATABASE_ITEMS[] = {
-    {"schematics", "Schematics", false},
+    {"schematics", "Schematics", true},
     {"database", "Core Database", true},
     {"about", "About", true},
 };
@@ -70,6 +70,7 @@ static const MenuEntry *items_for(M3dsMenuScreen screen, size_t *count) {
         *count = sizeof(ABOUT_ITEMS) / sizeof(ABOUT_ITEMS[0]);
         return ABOUT_ITEMS;
     case M3DS_MENU_SCREEN_CATALOG:
+    case M3DS_MENU_SCREEN_SCHEMATICS:
         *count = 0u;
         return NULL;
     case M3DS_MENU_SCREEN_TITLE:
@@ -97,6 +98,9 @@ void m3ds_main_menu_init(M3dsMainMenu *menu) {
     menu->catalog_scroll = 0u;
     menu->catalog_detail = false;
     menu->catalog_filter = M3DS_CATALOG_FILTER_ALL;
+    menu->schematic_selected = 0u;
+    menu->schematic_scroll = 0u;
+    menu->schematic_detail = false;
 }
 
 void m3ds_main_menu_catalog_switch(M3dsMainMenu *menu, int delta) {
@@ -140,8 +144,39 @@ const M3dsCatalogEntry *m3ds_main_menu_catalog_entry(const M3dsMainMenu *menu,
                                        menu->catalog_filter, index);
 }
 
+const M3dsSchematicRow *m3ds_main_menu_schematic_entry(const M3dsMainMenu *menu,
+                                                       size_t index) {
+    if (!menu || menu->screen != M3DS_MENU_SCREEN_SCHEMATICS) {
+        return NULL;
+    }
+    return m3ds_schematic_at(index);
+}
+
 void m3ds_main_menu_move(M3dsMainMenu *menu, int delta) {
     if (!menu || !menu->open || delta == 0) {
+        return;
+    }
+    if (menu->screen == M3DS_MENU_SCREEN_SCHEMATICS) {
+        if (menu->schematic_detail) {
+            return;
+        }
+        size_t total = m3ds_schematic_count();
+        if (total == 0u) {
+            return;
+        }
+        int next = (int)menu->schematic_selected + delta;
+        int wrapped = next % (int)total;
+        if (wrapped < 0) {
+            wrapped += (int)total;
+        }
+        menu->schematic_selected = (unsigned)wrapped;
+        if (menu->schematic_selected < menu->schematic_scroll) {
+            menu->schematic_scroll = menu->schematic_selected;
+        } else if (menu->schematic_selected >=
+                   menu->schematic_scroll + M3DS_SCHEMATIC_ROWS) {
+            menu->schematic_scroll =
+                menu->schematic_selected - M3DS_SCHEMATIC_ROWS + 1u;
+        }
         return;
     }
     if (menu->screen == M3DS_MENU_SCREEN_CATALOG) {
@@ -184,6 +219,9 @@ size_t m3ds_main_menu_count(const M3dsMainMenu *menu) {
     if (!menu) {
         return 0u;
     }
+    if (menu->screen == M3DS_MENU_SCREEN_SCHEMATICS) {
+        return m3ds_schematic_count();
+    }
     if (menu->screen == M3DS_MENU_SCREEN_CATALOG) {
         return m3ds_catalog_filtered_count(menu->catalog_category,
                                            menu->catalog_filter);
@@ -196,6 +234,10 @@ size_t m3ds_main_menu_count(const M3dsMainMenu *menu) {
 const char *m3ds_main_menu_key(const M3dsMainMenu *menu, size_t index) {
     if (!menu) {
         return "";
+    }
+    if (menu->screen == M3DS_MENU_SCREEN_SCHEMATICS) {
+        const M3dsSchematicRow *row = m3ds_schematic_at(index);
+        return row ? row->id : "";
     }
     if (menu->screen == M3DS_MENU_SCREEN_CATALOG) {
         const M3dsCatalogEntry *entry = m3ds_catalog_filtered_entry(
@@ -214,6 +256,10 @@ const char *m3ds_main_menu_label(const M3dsMainMenu *menu, size_t index) {
     if (!menu) {
         return "";
     }
+    if (menu->screen == M3DS_MENU_SCREEN_SCHEMATICS) {
+        const M3dsSchematicRow *row = m3ds_schematic_at(index);
+        return row ? row->name : "";
+    }
     if (menu->screen == M3DS_MENU_SCREEN_CATALOG) {
         const M3dsCatalogEntry *entry = m3ds_catalog_filtered_entry(
             menu->catalog_category, menu->catalog_filter, index);
@@ -231,6 +277,9 @@ bool m3ds_main_menu_enabled(const M3dsMainMenu *menu, size_t index) {
     if (!menu) {
         return false;
     }
+    if (menu->screen == M3DS_MENU_SCREEN_SCHEMATICS) {
+        return index < m3ds_schematic_count();
+    }
     if (menu->screen == M3DS_MENU_SCREEN_CATALOG) {
         return index <
                m3ds_catalog_filtered_count(menu->catalog_category,
@@ -246,6 +295,10 @@ bool m3ds_main_menu_enabled(const M3dsMainMenu *menu, size_t index) {
 
 M3dsMenuAction m3ds_main_menu_confirm(M3dsMainMenu *menu) {
     if (!menu || !menu->open) {
+        return M3DS_MENU_ACTION_NONE;
+    }
+    if (menu->screen == M3DS_MENU_SCREEN_SCHEMATICS) {
+        menu->schematic_detail = !menu->schematic_detail;
         return M3DS_MENU_ACTION_NONE;
     }
     if (menu->screen == M3DS_MENU_SCREEN_CATALOG) {
@@ -308,6 +361,13 @@ M3dsMenuAction m3ds_main_menu_confirm(M3dsMainMenu *menu) {
         }
         return M3DS_MENU_ACTION_NONE;
     case M3DS_MENU_SCREEN_DATABASE:
+        if (strcmp(entry->key, "schematics") == 0) {
+            menu->screen = M3DS_MENU_SCREEN_SCHEMATICS;
+            menu->schematic_selected = 0u;
+            menu->schematic_scroll = 0u;
+            menu->schematic_detail = false;
+            return M3DS_MENU_ACTION_NONE;
+        }
         if (strcmp(entry->key, "database") == 0) {
             menu->screen = M3DS_MENU_SCREEN_CATALOG;
             menu->catalog_selected = 0u;
@@ -345,6 +405,15 @@ bool m3ds_main_menu_back(M3dsMainMenu *menu) {
         menu->selected = 0u;
         return true;
     }
+    if (menu->screen == M3DS_MENU_SCREEN_SCHEMATICS) {
+        if (menu->schematic_detail) {
+            menu->schematic_detail = false;
+            return true;
+        }
+        menu->screen = M3DS_MENU_SCREEN_DATABASE;
+        menu->selected = 0u;
+        return true;
+    }
     if (menu->screen == M3DS_MENU_SCREEN_CATALOG) {
         if (menu->catalog_detail) {
             menu->catalog_detail = false;
@@ -377,6 +446,8 @@ const char *m3ds_main_menu_screen_name(const M3dsMainMenu *menu) {
         return "about";
     case M3DS_MENU_SCREEN_CATALOG:
         return "catalog";
+    case M3DS_MENU_SCREEN_SCHEMATICS:
+        return "schematics";
     case M3DS_MENU_SCREEN_TITLE:
     default:
         return "title";

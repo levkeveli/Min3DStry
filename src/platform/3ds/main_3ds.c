@@ -559,11 +559,20 @@ int main(int argc, char *argv[]) {
                 m3ds_emit_debug_line(log_socket, dbg_line);
             }
             if (kDown & KEY_B) {
+                const char *from_screen =
+                    m3ds_main_menu_screen_name(&main_menu);
+                unsigned from_index =
+                    main_menu.screen == M3DS_MENU_SCREEN_CATALOG
+                        ? main_menu.catalog_selected
+                        : (main_menu.screen == M3DS_MENU_SCREEN_SCHEMATICS
+                               ? main_menu.schematic_selected
+                               : main_menu.selected);
+                const char *from_key =
+                    m3ds_main_menu_key(&main_menu, from_index);
                 if (m3ds_main_menu_back(&main_menu)) {
                     snprintf(dbg_line, sizeof(dbg_line),
                              "[MIN3DSTRY] MAIN_MENU screen=%s selected=%s\n",
-                             m3ds_main_menu_screen_name(&main_menu),
-                             m3ds_main_menu_key(&main_menu, main_menu.selected));
+                             from_screen, from_key);
                     m3ds_emit_debug_line(log_socket, dbg_line);
                 }
             }
@@ -605,7 +614,14 @@ int main(int argc, char *argv[]) {
                     m3ds_emit_debug_line(log_socket, dbg_line);
                     break;
                 default:
-                    if (main_menu.screen == M3DS_MENU_SCREEN_CATALOG) {
+                    if (main_menu.screen == M3DS_MENU_SCREEN_SCHEMATICS) {
+                        snprintf(
+                            dbg_line, sizeof(dbg_line),
+                            "[MIN3DSTRY] MAIN_MENU screen=schematics selected=%s detail=%d\n",
+                            m3ds_main_menu_key(&main_menu,
+                                               main_menu.schematic_selected),
+                            main_menu.schematic_detail ? 1 : 0);
+                    } else if (main_menu.screen == M3DS_MENU_SCREEN_CATALOG) {
                         snprintf(
                             dbg_line, sizeof(dbg_line),
                             "[MIN3DSTRY] MAIN_MENU catalog=%s selected=%s detail=%d\n",
@@ -1002,6 +1018,9 @@ int main(int argc, char *argv[]) {
             case M3DS_MENU_SCREEN_CATALOG:
                 screen_title = "Core Database";
                 break;
+            case M3DS_MENU_SCREEN_SCHEMATICS:
+                screen_title = "Schematics";
+                break;
             case M3DS_MENU_SCREEN_TITLE:
             default:
                 screen_title = "Main menu";
@@ -1009,7 +1028,63 @@ int main(int argc, char *argv[]) {
             }
             printf("\x1b[2J");
             printf("\x1b[1;1HMindustry v160.8\x1b[K");
-            if (main_menu.screen == M3DS_MENU_SCREEN_CATALOG) {
+            if (main_menu.screen == M3DS_MENU_SCREEN_SCHEMATICS) {
+                size_t total = m3ds_main_menu_count(&main_menu);
+                unsigned selected = main_menu.schematic_selected;
+                printf("\x1b[2;1H%s %u/%u\x1b[K", screen_title,
+                       (unsigned)(selected + 1u), (unsigned)total);
+                if (main_menu.schematic_detail) {
+                    const M3dsSchematicRow *row =
+                        m3ds_main_menu_schematic_entry(&main_menu, selected);
+                    if (row) {
+                        printf("\x1b[3;1H%.38s\x1b[K", row->name);
+                        printf("\x1b[4;1H%ux%u, %u blocks\x1b[K",
+                               row->width, row->height, row->blocks);
+                        char wrapped[640];
+                        (void)m3ds_catalog_wrap(row->summary, 38u, wrapped,
+                                                sizeof(wrapped));
+                        unsigned line = 6u;
+                        const char *cursor = wrapped;
+                        while (*cursor && line < 22u) {
+                            const char *newline = strchr(cursor, '\n');
+                            size_t length =
+                                newline ? (size_t)(newline - cursor)
+                                        : strlen(cursor);
+                            printf("\x1b[%u;1H%.*s\x1b[K", line, (int)length,
+                                   cursor);
+                            ++line;
+                            if (!newline) {
+                                break;
+                            }
+                            cursor = newline + 1;
+                        }
+                        for (; line < 22u; ++line) {
+                            printf("\x1b[%u;1H\x1b[K", line);
+                        }
+                    }
+                    printf("\x1b[24;1HRead-only  A/B: Back  START: Exit\x1b[K");
+                } else {
+                    for (unsigned row_index = 0u;
+                         row_index < M3DS_SCHEMATIC_ROWS; ++row_index) {
+                        unsigned index = main_menu.schematic_scroll + row_index;
+                        if (index >= total) {
+                            printf("\x1b[%u;1H\x1b[K",
+                                   (unsigned)(4u + row_index));
+                            continue;
+                        }
+                        printf("\x1b[%u;1H%c %.34s\x1b[K",
+                               (unsigned)(4u + row_index),
+                               index == selected ? '>' : ' ',
+                               m3ds_main_menu_label(&main_menu, index));
+                    }
+                    for (unsigned line = (unsigned)(4u + M3DS_SCHEMATIC_ROWS);
+                         line < 22u; ++line) {
+                        printf("\x1b[%u;1H\x1b[K", line);
+                    }
+                    printf("\x1b[24;1HPad Scroll  A Detail  B Back\x1b[K");
+                }
+                printf("\x1b[25;1H\x1b[K");
+            } else if (main_menu.screen == M3DS_MENU_SCREEN_CATALOG) {
                 size_t total = m3ds_main_menu_count(&main_menu);
                 unsigned selected = main_menu.catalog_selected;
                 if (main_menu.catalog_detail) {

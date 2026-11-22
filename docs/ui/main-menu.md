@@ -35,11 +35,12 @@ Quit
 | Settings -> Reset camera | recentres the camera (`MAIN_MENU action=settings.camera reset=1`) |
 | Settings -> Back | returns to the title menu |
 | Database | opens the upstream `database.button` submenu |
+| Database -> Schematics | opens the read-only list of 210 pinned base-part `.msch` files |
 | Database -> Core Database | opens the generated items/blocks catalog (D-pad scrolls, L/R switches Items/Blocks, B returns) |
 | Database -> About | opens the About page (upstream version, source commit, GPL-3.0, port status) |
 | About -> Back | returns to the Database submenu (B from Database returns to the title) |
 | Quit | exits the app |
-| Join Game / Custom Game / Load Game / Schematics / Editor / Mods | rendered as `-` (unavailable); log `MAIN_MENU unavailable=<key>` |
+| Join Game / Custom Game / Load Game / Editor / Mods | rendered as `-` (unavailable); log `MAIN_MENU unavailable=<key>` |
 
 The settings rows are the port's live audio/lighting/camera controls, not upstream's tabbed settings
 dialog. The title, Play submenu and labels match the pinned upstream source; the rest of the upstream
@@ -63,6 +64,22 @@ python3 tools/gen_content_catalog.py --check   # also runs in ./dev.sh test
 ```
 
 Upstream category tabs, icons, descriptions and unlock state are not modelled yet.
+
+### Schematics (read-only)
+
+`include/ui/schematics_catalog.h` and the generated `include/ui/schematics_catalog_data.h` list the
+**210** pinned base-part schematics from the `core/assets/baseparts` `.msch` files at `19a0f40d4451`.
+The generator decompresses each `.msch` (magic `msch`, version byte, zlib payload), reads
+`width/height`, tags, block count and block-type names, and stores the first five types as a summary.
+
+The list shows the upstream file name (truncated to the console width) with wrap-around scrolling; A
+opens a detail page with dimensions, block count and the block summary; B returns. It is read-only:
+importing, exporting or editing schematics is not implemented.
+
+```bash
+python3 tools/gen_schematics_catalog.py --dir /path/to/core/assets/baseparts
+python3 tools/gen_schematics_catalog.py --check   # also runs in ./dev.sh test
+```
 
 ## Input
 
@@ -130,10 +147,20 @@ MAIN_MENU filter=distribution count=28
 tags and literal newlines normalised for the console. The block detail adds `Category: distribution`
 (from `Blocks.java`), and the filtered Blocks list shows `Blocks / distribution` with its own count.
 
+Schematics navigation on both profiles:
+
+```text
+MAIN_MENU screen=schematics selected=<file> detail=0
+MAIN_MENU screen=schematics selected=<file> detail=1
+```
+
+The list shows `Schematics n/210` with the upstream file names; the detail page shows `WxH, N blocks`
+and the first block types (for example `2x2, 1 blocks` / `power-node-large`).
+
 ## Remaining work
 
 - Port the real upstream Scene2D `MenuFragment` rendering instead of the console shell.
-- Schematic copy/paste and RTS unit selection/command.
+- Schematic import/export and RTS unit selection/command.
 - Database category tabs, icons, descriptions and unlock state (the current browser lists the pinned
   bundle names only).
 - The About page is a static port page, not the upstream links/credits dialog.

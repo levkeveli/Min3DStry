@@ -85,11 +85,14 @@ static void test_database_and_about(void) {
     CHECK(strcmp(m3ds_main_menu_label(&menu, 0u), "Schematics") == 0);
     CHECK(strcmp(m3ds_main_menu_label(&menu, 1u), "Core Database") == 0);
     CHECK(strcmp(m3ds_main_menu_key(&menu, 2u), "about") == 0);
-    CHECK(!m3ds_main_menu_enabled(&menu, 0u));
+    CHECK(m3ds_main_menu_enabled(&menu, 0u));
     CHECK(m3ds_main_menu_enabled(&menu, 1u));
     CHECK(m3ds_main_menu_enabled(&menu, 2u));
 
-    CHECK(m3ds_main_menu_confirm(&menu) == M3DS_MENU_ACTION_UNAVAILABLE);
+    CHECK(m3ds_main_menu_confirm(&menu) == M3DS_MENU_ACTION_NONE);
+    CHECK(menu.screen == M3DS_MENU_SCREEN_SCHEMATICS);
+    CHECK(m3ds_main_menu_back(&menu) == true);
+    CHECK(menu.screen == M3DS_MENU_SCREEN_DATABASE);
     m3ds_main_menu_move(&menu, 1);
     CHECK(m3ds_main_menu_confirm(&menu) == M3DS_MENU_ACTION_NONE);
     CHECK(menu.screen == M3DS_MENU_SCREEN_CATALOG);
@@ -117,6 +120,40 @@ static void test_database_and_about(void) {
     CHECK(menu.screen == M3DS_MENU_SCREEN_ABOUT);
     CHECK(m3ds_main_menu_back(&menu) == true);
     CHECK(menu.screen == M3DS_MENU_SCREEN_DATABASE);
+}
+
+static void test_schematics(void) {
+    M3dsMainMenu menu;
+    m3ds_main_menu_init(&menu);
+    m3ds_main_menu_move(&menu, 1); /* Database */
+    m3ds_main_menu_confirm(&menu);
+    CHECK(m3ds_main_menu_confirm(&menu) == M3DS_MENU_ACTION_NONE);
+    CHECK(menu.screen == M3DS_MENU_SCREEN_SCHEMATICS);
+    CHECK(strcmp(m3ds_main_menu_screen_name(&menu), "schematics") == 0);
+    CHECK(m3ds_main_menu_count(&menu) == 210u);
+    CHECK(m3ds_main_menu_label(&menu, 0u)[0] != '\0');
+    CHECK(m3ds_main_menu_enabled(&menu, 209u));
+    CHECK(!m3ds_main_menu_enabled(&menu, 210u));
+
+    m3ds_main_menu_move(&menu, 13);
+    CHECK(menu.schematic_selected == 13u);
+    CHECK(menu.schematic_scroll == 2u);
+    m3ds_main_menu_move(&menu, -13);
+    CHECK(menu.schematic_selected == 0u);
+    CHECK(menu.schematic_scroll == 0u);
+
+    CHECK(m3ds_main_menu_confirm(&menu) == M3DS_MENU_ACTION_NONE);
+    CHECK(menu.schematic_detail);
+    unsigned before = menu.schematic_selected;
+    m3ds_main_menu_move(&menu, 1);
+    CHECK(menu.schematic_selected == before);
+    CHECK(m3ds_main_menu_back(&menu) == true);
+    CHECK(!menu.schematic_detail);
+    CHECK(menu.screen == M3DS_MENU_SCREEN_SCHEMATICS);
+
+    CHECK(m3ds_main_menu_back(&menu) == true);
+    CHECK(menu.screen == M3DS_MENU_SCREEN_DATABASE);
+    CHECK(menu.selected == 0u);
 }
 
 static void test_settings_and_back(void) {
@@ -263,6 +300,7 @@ int main(void) {
     test_unavailable_entries();
     test_database_and_about();
     test_catalog_navigation();
+    test_schematics();
     test_settings_and_back();
     test_quit();
     test_screen_names();

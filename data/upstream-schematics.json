@@ -1,0 +1,2552 @@
+{
+  "format": 1,
+  "upstream_commit": "19a0f40d44514f4802a8b79770456e7e32e34da0",
+  "source": "core/assets/baseparts .msch files",
+  "entries": [
+    {
+      "id": "a single large power node",
+      "name": "a single large power node",
+      "width": 2,
+      "height": 2,
+      "blocks": 1,
+      "tags": {
+        "name": "a single large power node",
+        "description": "",
+        "labels": "[]"
+      },
+      "summary": "power-node-large"
+    },
+    {
+      "id": "a single surge tower",
+      "name": "a single surge tower",
+      "width": 2,
+      "height": 2,
+      "blocks": 1,
+      "tags": {
+        "name": "a single surge tower",
+        "description": "",
+        "labels": "[]"
+      },
+      "summary": "surge-tower"
+    },
+    {
+      "id": "actuallyokrtg",
+      "name": "actuallyokrtg",
+      "width": 19,
+      "height": 15,
+      "blocks": 11,
+      "tags": {
+        "name": "actuallyokrtg",
+        "description": "",
+        "labels": "[]"
+      },
+      "summary": "blast-drill, water-extractor, solar-panel-large, solar-panel, titanium-conveyor, ..."
+    },
+    {
+      "id": "atrax-surprise",
+      "name": "atrax-surprise",
+      "width": 12,
+      "height": 18,
+      "blocks": 20,
+      "tags": {
+        "name": "atrax-surprise",
+        "description": "",
+        "labels": "[]"
+      },
+      "summary": "solar-panel-large, laser-drill, water-extractor, silicon-smelter, overflow-gate, ..."
+    },
+    {
+      "id": "battery node",
+      "name": "battery node",
+      "width": 5,
+      "height": 3,
+      "blocks": 2,
+      "tags": {
+        "name": "battery node",
+        "description": "",
+        "labels": "[]"
+      },
+      "summary": "battery-large, power-node-large"
+    },
+    {
+      "id": "copperSalvoSpam",
+      "name": "copperSalvoSpam",
+      "width": 44,
+      "height": 12,
+      "blocks": 17,
+      "tags": {
+        "name": "Copper Defense Wall",
+        "description": "",
+        "labels": "[Serpulo,Basepart]"
+      },
+      "summary": "salvo, surge-tower, duo, distributor, power-node, ..."
+    },
+    {
+      "id": "core-erad1",
+      "name": "core-erad1",
+      "width": 26,
+      "height": 27,
+      "blocks": 34,
+      "tags": {
+        "name": "coreschem erad1",
+        "description": "",
+        "labels": "[]"
+      },
+      "summary": "meltdown, spectre, water-extractor, liquid-container, cryofluid-mixer, ..."
+    },
+    {
+      "id": "core-erad2",
+      "name": "core-erad2",
+      "width": 31,
+      "height": 26,
+      "blocks": 32,
+      "tags": {
+        "name": "coreschem erad2",
+        "description": "",
+        "labels": "[]"
+      },
+      "summary": "rtg-generator, water-extractor, unloader, tsunami, bridge-conduit, ..."
+    },
+    {
+      "id": "core-erad3",
+      "name": "core-erad3",
+      "width": 27,
+      "height": 28,
+      "blocks": 24,
+      "tags": {
+        "name": "coreschem erad3",
+        "description": "",
+        "labels": "[]"
+      },
+      "summary": "battery-large, meltdown, foreshadow, surge-tower, water-extractor, ..."
+    },
+    {
+      "id": "core-extm1",
+      "name": "core-extm1",
+      "width": 24,
+      "height": 23,
+      "blocks": 34,
+      "tags": {
+        "name": "coreschem extreme1",
+        "description": "",
+        "labels": "[]"
+      },
+      "summary": "meltdown, force-projector, tsunami, spectre, segment, ..."
+    },
+    {
+      "id": "core-extm2",
+      "name": "core-extm2",
+      "width": 21,
+      "height": 24,
+      "blocks": 31,
+      "tags": {
+        "name": "coreschem extreme2",
+        "description": "",
+        "labels": "[]"
+      },
+      "summary": "meltdown, plastanium-wall, water-extractor, multiplicative-reconstructor, bridge-conveyor, ..."
+    },
+    {
+      "id": "core-extm3",
+      "name": "core-extm3",
+      "width": 28,
+      "height": 23,
+      "blocks": 37,
+      "tags": {
+        "name": "coreschem extreme3",
+        "description": "",
+        "labels": "[]"
+      },
+      "summary": "door, incinerator, ground-factory, router, titanium-conveyor, ..."
+    },
+    {
+      "id": "core-high1",
+      "name": "core-high1",
+      "width": 20,
+      "height": 23,
+      "blocks": 31,
+      "tags": {
+        "name": "coreschem high1",
+        "description": "",
+        "labels": "[]"
+      },
+      "summary": "cyclone, underflow-gate, unloader, fuse, salvo, ..."
+    },
+    {
+      "id": "core-high2",
+      "name": "core-high2",
+      "width": 21,
+      "height": 20,
+      "blocks": 29,
+      "tags": {
+        "name": "coreschem high2",
+        "description": "",
+        "labels": "[]"
+      },
+      "summary": "tsunami, liquid-router, water-extractor, mend-projector, bridge-conduit, ..."
+    },
+    {
+      "id": "core-high3",
+      "name": "core-high3",
+      "width": 18,
+      "height": 24,
+      "blocks": 25,
+      "tags": {
+        "name": "coreschem high3",
+        "description": "",
+        "labels": "[]"
+      },
+      "summary": "parallax, surge-tower, water-extractor, lancer, ripple, ..."
+    },
+    {
+      "id": "core-low1",
+      "name": "core-low1",
+      "width": 14,
+      "height": 10,
+      "blocks": 19,
+      "tags": {
+        "name": "coreschem low1",
+        "description": "",
+        "labels": "[]"
+      },
+      "summary": "copper-wall-large, water-extractor, scatter, duo, conduit, ..."
+    },
+    {
+      "id": "core-low2",
+      "name": "core-low2",
+      "width": 13,
+      "height": 12,
+      "blocks": 17,
+      "tags": {
+        "name": "coreschem low2",
+        "description": "",
+        "labels": "[]"
+      },
+      "summary": "scatter, duo, conveyor, router, copper-wall-large, ..."
+    },
+    {
+      "id": "core-mid1",
+      "name": "core-mid1",
+      "width": 16,
+      "height": 12,
+      "blocks": 27,
+      "tags": {
+        "name": "coreschem mid1",
+        "description": "",
+        "labels": "[]"
+      },
+      "summary": "scatter, ripple, distributor, rtg-generator, underflow-gate, ..."
+    },
+    {
+      "id": "core-mid2",
+      "name": "core-mid2",
+      "width": 17,
+      "height": 18,
+      "blocks": 22,
+      "tags": {
+        "name": "coreschem mid2",
+        "description": "",
+        "labels": "[]"
+      },
+      "summary": "liquid-router, water-extractor, bridge-conduit, solar-panel, mend-projector, ..."
+    },
+    {
+      "id": "core-mid3",
+      "name": "core-mid3",
+      "width": 16,
+      "height": 14,
+      "blocks": 23,
+      "tags": {
+        "name": "coreschem mid3",
+        "description": "",
+        "labels": "[]"
+      },
+      "summary": "lancer, rtg-generator, surge-tower, ripple, mend-projector, ..."
+    },
+    {
+      "id": "core1",
+      "name": "core1",
+      "width": 23,
+      "height": 23,
+      "blocks": 8,
+      "tags": {
+        "name": "base1"
+      },
+      "summary": "copper-wall-large, copper-wall, salvo, scatter, conveyor, ..."
+    },
+    {
+      "id": "diffGen",
+      "name": "diffGen",
+      "width": 8,
+      "height": 15,
+      "blocks": 13,
+      "tags": {
+        "name": "Landing Pad Differential Generator",
+        "description": "",
+        "labels": "[,Serpulo]"
+      },
+      "summary": "water-extractor, differential-generator, bridge-conduit, solar-panel-large, solar-panel, ..."
+    },
+    {
+      "id": "egFoundationFortress",
+      "name": "egFoundationFortress",
+      "width": 35,
+      "height": 40,
+      "blocks": 38,
+      "tags": {
+        "name": "Foundation Advanced Stronghold",
+        "description": "",
+        "labels": "[Serpulo,Basepart]"
+      },
+      "summary": "shock-mine, payload-conveyor, plastanium-wall-large, meltdown, plastanium-wall, ..."
+    },
+    {
+      "id": "egFoundationQuasar",
+      "name": "egFoundationQuasar",
+      "width": 34,
+      "height": 40,
+      "blocks": 41,
+      "tags": {
+        "name": "Foundation Advanced Stronghold 3",
+        "description": "",
+        "labels": "[Serpulo,Basepart]"
+      },
+      "summary": "door-large, plastanium-wall-large, multiplicative-reconstructor, meltdown, spectre, ..."
+    },
+    {
+      "id": "egFoundationSpiroct",
+      "name": "egFoundationSpiroct",
+      "width": 32,
+      "height": 40,
+      "blocks": 37,
+      "tags": {
+        "name": "Foundation Advanced Stronghold 2",
+        "description": "",
+        "labels": "[Serpulo,Basepart]"
+      },
+      "summary": "plastanium-wall-large, meltdown, door-large, plastanium-wall, spectre, ..."
+    },
+    {
+      "id": "egFoundationSpiroctAndAtrax",
+      "name": "egFoundationSpiroctAndAtrax",
+      "width": 32,
+      "height": 40,
+      "blocks": 38,
+      "tags": {
+        "name": "Foundation Advanced Stronghold 4",
+        "description": "",
+        "labels": "[Serpulo,Basepart]"
+      },
+      "summary": "plastanium-wall-large, shock-mine, plastanium-wall, payload-conveyor, meltdown, ..."
+    },
+    {
+      "id": "flar",
+      "name": "flar",
+      "width": 14,
+      "height": 9,
+      "blocks": 12,
+      "tags": {
+        "name": "flar",
+        "description": "",
+        "labels": "[]"
+      },
+      "summary": "laser-drill, titanium-conveyor, oil-extractor, water-extractor, silicon-smelter, ..."
+    },
+    {
+      "id": "fortress",
+      "name": "fortress",
+      "width": 24,
+      "height": 15,
+      "blocks": 30,
+      "tags": {
+        "name": "fortress",
+        "description": "",
+        "labels": "[]"
+      },
+      "summary": "water-extractor, surge-tower, item-source, power-node, cultivator, ..."
+    },
+    {
+      "id": "foundationBlast",
+      "name": "foundationBlast",
+      "width": 32,
+      "height": 26,
+      "blocks": 24,
+      "tags": {
+        "name": "Foundation Blast Fortress",
+        "description": "",
+        "labels": "[Serpulo,Basepart]"
+      },
+      "summary": "thorium-wall, thorium-wall-large, parallax, swarmer, titanium-conveyor, ..."
+    },
+    {
+      "id": "foundationFortress",
+      "name": "foundationFortress",
+      "width": 29,
+      "height": 27,
+      "blocks": 34,
+      "tags": {
+        "name": "Foundation Fortress Factory",
+        "description": "",
+        "labels": "[Serpulo,Basepart]"
+      },
+      "summary": "cyclone, force-projector, pulse-conduit, liquid-container, ripple, ..."
+    },
+    {
+      "id": "foundationFortressElite",
+      "name": "foundationFortressElite",
+      "width": 29,
+      "height": 27,
+      "blocks": 37,
+      "tags": {
+        "name": "Foundation Elite Fortress Factory",
+        "description": "",
+        "labels": "[Serpulo,Basepart]"
+      },
+      "summary": "cyclone, force-projector, pulse-conduit, liquid-container, ripple, ..."
+    },
+    {
+      "id": "foundationHeavyDefense",
+      "name": "foundationHeavyDefense",
+      "width": 28,
+      "height": 24,
+      "blocks": 25,
+      "tags": {
+        "name": "Foundation Heavy Defense",
+        "description": "",
+        "labels": "[]"
+      },
+      "summary": "scatter, fuse, armored-conveyor, router, mend-projector, ..."
+    },
+    {
+      "id": "foundationQuasar",
+      "name": "foundationQuasar",
+      "width": 29,
+      "height": 27,
+      "blocks": 34,
+      "tags": {
+        "name": "Foundation Quasar Factory",
+        "description": "",
+        "labels": "[Serpulo,Basepart]"
+      },
+      "summary": "cyclone, force-projector, pulse-conduit, liquid-container, ripple, ..."
+    },
+    {
+      "id": "foundationSpiroct",
+      "name": "foundationSpiroct",
+      "width": 29,
+      "height": 27,
+      "blocks": 34,
+      "tags": {
+        "name": "Foundation Spiroct Factory",
+        "description": "",
+        "labels": "[Serpulo,Basepart]"
+      },
+      "summary": "cyclone, force-projector, pulse-conduit, liquid-container, ripple, ..."
+    },
+    {
+      "id": "glassCannons",
+      "name": "glassCannons",
+      "width": 30,
+      "height": 19,
+      "blocks": 16,
+      "tags": {
+        "name": "Landing Pad Anti Air Array",
+        "description": "",
+        "labels": "[,Serpulo]"
+      },
+      "summary": "phase-wall, phase-wall-large, scatter, router, solar-panel-large, ..."
+    },
+    {
+      "id": "graphiteDefenseBigOne",
+      "name": "graphiteDefenseBigOne",
+      "width": 33,
+      "height": 30,
+      "blocks": 27,
+      "tags": {
+        "name": "Advanced Graphite Defense",
+        "description": "",
+        "labels": "[Basepart]"
+      },
+      "summary": "scorch, conveyor, router, spectre, armored-conveyor, ..."
+    },
+    {
+      "id": "impact",
+      "name": "impact",
+      "width": 15,
+      "height": 16,
+      "blocks": 19,
+      "tags": {
+        "name": "Landing Pad Impact Reactor",
+        "description": "",
+        "labels": "[,Serpulo]"
+      },
+      "summary": "plastanium-wall, surge-tower, battery-large, solar-panel, water-extractor, ..."
+    },
+    {
+      "id": "impactMultiOutput",
+      "name": "impactMultiOutput",
+      "width": 15,
+      "height": 16,
+      "blocks": 20,
+      "tags": {
+        "name": "Landing Pad Impact Reactor Multiple Outlets",
+        "description": "",
+        "labels": "[,Serpulo]"
+      },
+      "summary": "plastanium-wall, plastanium-wall-large, surge-tower, battery-large, solar-panel, ..."
+    },
+    {
+      "id": "impactSmall",
+      "name": "impactSmall",
+      "width": 15,
+      "height": 13,
+      "blocks": 19,
+      "tags": {
+        "name": "Landing Pad Impact Reactor Compact",
+        "description": "",
+        "labels": "[,Serpulo]"
+      },
+      "summary": "plastanium-wall, battery-large, solar-panel-large, solar-panel, water-extractor, ..."
+    },
+    {
+      "id": "impending-doom",
+      "name": "impending-doom",
+      "width": 18,
+      "height": 15,
+      "blocks": 19,
+      "tags": {
+        "name": "impending-doom",
+        "description": "",
+        "labels": "[]"
+      },
+      "summary": "solar-panel-large, blast-drill, water-extractor, oil-extractor, distributor, ..."
+    },
+    {
+      "id": "lp4Dagger1",
+      "name": "lp4Dagger1",
+      "width": 14,
+      "height": 16,
+      "blocks": 18,
+      "tags": {
+        "name": "Landing Pad 4 Daggers",
+        "description": "",
+        "labels": "[,Serpulo,Basepart]"
+      },
+      "summary": "door, scatter, bridge-conveyor, conveyor, lancer, ..."
+    },
+    {
+      "id": "lp4Dagger2",
+      "name": "lp4Dagger2",
+      "width": 14,
+      "height": 16,
+      "blocks": 21,
+      "tags": {
+        "name": "Landing Pad 4 Daggers 2",
+        "description": "",
+        "labels": "[,Serpulo,Basepart]"
+      },
+      "summary": "door, salvo, ground-factory, solar-panel-large, inverted-sorter, ..."
+    },
+    {
+      "id": "lp4Dagger3",
+      "name": "lp4Dagger3",
+      "width": 14,
+      "height": 16,
+      "blocks": 21,
+      "tags": {
+        "name": "Landing Pad 4 Daggers 3",
+        "description": "",
+        "labels": "[,Serpulo,Basepart]"
+      },
+      "summary": "door, ripple, hail, salvo, ground-factory, ..."
+    },
+    {
+      "id": "lp4Dagger4",
+      "name": "lp4Dagger4",
+      "width": 14,
+      "height": 16,
+      "blocks": 22,
+      "tags": {
+        "name": "Landing Pad 4 Daggers 4",
+        "description": "",
+        "labels": "[,Serpulo,Basepart]"
+      },
+      "summary": "door, salvo, ground-factory, solar-panel-large, inverted-sorter, ..."
+    },
+    {
+      "id": "lp6Dagger1",
+      "name": "lp6Dagger1",
+      "width": 14,
+      "height": 17,
+      "blocks": 17,
+      "tags": {
+        "name": "Landing Pad 6 Daggers",
+        "description": "",
+        "labels": "[,Serpulo,Basepart]"
+      },
+      "summary": "door, door-large, solar-panel-large, battery, water-extractor, ..."
+    },
+    {
+      "id": "lp6DaggerC",
+      "name": "lp6DaggerC",
+      "width": 14,
+      "height": 16,
+      "blocks": 15,
+      "tags": {
+        "name": "Landing Pad 6 Daggers Compact",
+        "description": "",
+        "labels": "[,Serpulo,Basepart]"
+      },
+      "summary": "door, door-large, surge-tower, water-extractor, unloader, ..."
+    },
+    {
+      "id": "lp6DaggerC2",
+      "name": "lp6DaggerC2",
+      "width": 14,
+      "height": 14,
+      "blocks": 14,
+      "tags": {
+        "name": "Landing Pad 6 Daggers Compact 2",
+        "description": "",
+        "labels": "[,Serpulo,Basepart]"
+      },
+      "summary": "door, door-large, surge-tower, water-extractor, unloader, ..."
+    },
+    {
+      "id": "lpAntumbra",
+      "name": "lpAntumbra",
+      "width": 29,
+      "height": 37,
+      "blocks": 34,
+      "tags": {
+        "name": "Landing Pad Antumbra",
+        "description": "",
+        "labels": "[,Serpulo]"
+      },
+      "summary": "cyclone, door, door-large, parallax, cryofluid-mixer, ..."
+    },
+    {
+      "id": "lpArkyid",
+      "name": "lpArkyid",
+      "width": 29,
+      "height": 37,
+      "blocks": 34,
+      "tags": {
+        "name": "Landing Pad Arkyid",
+        "description": "",
+        "labels": "[,Serpulo]"
+      },
+      "summary": "cyclone, door, door-large, parallax, cryofluid-mixer, ..."
+    },
+    {
+      "id": "lpAtraxBase",
+      "name": "lpAtraxBase",
+      "width": 41,
+      "height": 20,
+      "blocks": 25,
+      "tags": {
+        "name": "Landing Pad Atrax Base",
+        "description": "",
+        "labels": "[,Serpulo]"
+      },
+      "summary": "surge-tower, ripple, hail, salvo, solar-panel-large, ..."
+    },
+    {
+      "id": "lpFlareBase1",
+      "name": "lpFlareBase1",
+      "width": 39,
+      "height": 21,
+      "blocks": 29,
+      "tags": {
+        "name": "Landing Pad Flare RTG Base",
+        "description": "",
+        "labels": "[,Serpulo]"
+      },
+      "summary": "shock-mine, payload-conveyor, air-factory, mend-projector, ripple, ..."
+    },
+    {
+      "id": "lpFlareFS",
+      "name": "lpFlareFS",
+      "width": 39,
+      "height": 41,
+      "blocks": 23,
+      "tags": {
+        "name": "Landing Pad Foreshadow Fort",
+        "description": "",
+        "labels": "[,Serpulo,Basepart]"
+      },
+      "summary": "door, air-factory, armored-conveyor, salvo, battery-large, ..."
+    },
+    {
+      "id": "lpFlareFSMines",
+      "name": "lpFlareFSMines",
+      "width": 42,
+      "height": 49,
+      "blocks": 23,
+      "tags": {
+        "name": "Landing Pad Minefield Foreshadow Fort",
+        "description": "",
+        "labels": "[,Serpulo,Basepart]"
+      },
+      "summary": "air-factory, shock-mine, armored-conveyor, salvo, battery-large, ..."
+    },
+    {
+      "id": "lpHorizonBase1",
+      "name": "lpHorizonBase1",
+      "width": 51,
+      "height": 37,
+      "blocks": 28,
+      "tags": {
+        "name": "Landing Pad Horizon RTG Base 1",
+        "description": "",
+        "labels": "[,Serpulo]"
+      },
+      "summary": "spectre, segment, mend-projector, armored-conveyor, overdrive-projector, ..."
+    },
+    {
+      "id": "lpScrapFortress",
+      "name": "lpScrapFortress",
+      "width": 27,
+      "height": 17,
+      "blocks": 37,
+      "tags": {
+        "name": "Landing Pad Scrap Fortress",
+        "description": "",
+        "labels": "[,Serpulo,Basepart]"
+      },
+      "summary": "ripple, titanium-conveyor, landing-pad, surge-tower, water-extractor, ..."
+    },
+    {
+      "id": "lpScrapQuasar",
+      "name": "lpScrapQuasar",
+      "width": 27,
+      "height": 17,
+      "blocks": 37,
+      "tags": {
+        "name": "Landing Pad Scrap Quasar",
+        "description": "",
+        "labels": "[,Serpulo,Basepart]"
+      },
+      "summary": "ripple, titanium-conveyor, landing-pad, surge-tower, water-extractor, ..."
+    },
+    {
+      "id": "lpScrapZenith",
+      "name": "lpScrapZenith",
+      "width": 27,
+      "height": 16,
+      "blocks": 36,
+      "tags": {
+        "name": "Landing Pad Scrap Zenith",
+        "description": "",
+        "labels": "[,Serpulo,Basepart]"
+      },
+      "summary": "ripple, titanium-conveyor, landing-pad, surge-tower, water-extractor, ..."
+    },
+    {
+      "id": "minefieldLarge",
+      "name": "minefieldLarge",
+      "width": 21,
+      "height": 9,
+      "blocks": 1,
+      "tags": {
+        "name": "Large Minefield",
+        "description": "",
+        "labels": "[Serpulo,Basepart]"
+      },
+      "summary": "shock-mine"
+    },
+    {
+      "id": "minefieldSmall",
+      "name": "minefieldSmall",
+      "width": 5,
+      "height": 5,
+      "blocks": 1,
+      "tags": {
+        "name": "Small Minefield",
+        "description": "",
+        "labels": "[Serpulo,Basepart]"
+      },
+      "summary": "shock-mine"
+    },
+    {
+      "id": "nucleusHard1",
+      "name": "nucleusHard1",
+      "width": 32,
+      "height": 32,
+      "blocks": 33,
+      "tags": {
+        "name": "Nucleus Defense 1",
+        "description": "",
+        "labels": "[Serpulo,Basepart]"
+      },
+      "summary": "plastanium-wall-large, plastanium-wall, meltdown, water-extractor, liquid-tank, ..."
+    },
+    {
+      "id": "pyraTurretsOne",
+      "name": "pyraTurretsOne",
+      "width": 58,
+      "height": 37,
+      "blocks": 23,
+      "tags": {
+        "name": "Landing Pad Pyratite Defense",
+        "description": "",
+        "labels": "[,Serpulo]"
+      },
+      "summary": "phase-wall, phase-wall-large, swarmer, hail, distributor, ..."
+    },
+    {
+      "id": "rtgbrick1",
+      "name": "rtgbrick1",
+      "width": 5,
+      "height": 5,
+      "blocks": 5,
+      "tags": {
+        "name": "rtgbrick1",
+        "description": "",
+        "labels": "[]"
+      },
+      "summary": "laser-drill, surge-tower, solar-panel, item-source, rtg-generator"
+    },
+    {
+      "id": "rtgbrick2",
+      "name": "rtgbrick2",
+      "width": 5,
+      "height": 6,
+      "blocks": 5,
+      "tags": {
+        "name": "rtgbrick2",
+        "description": "",
+        "labels": "[]"
+      },
+      "summary": "rtg-generator, surge-tower, item-source, solar-panel-large, laser-drill"
+    },
+    {
+      "id": "rtgsalvo",
+      "name": "rtgsalvo",
+      "width": 6,
+      "height": 9,
+      "blocks": 8,
+      "tags": {
+        "name": "rtgsalvo",
+        "description": "",
+        "labels": "[]"
+      },
+      "summary": "laser-drill, rtg-generator, item-source, salvo, titanium-conveyor, ..."
+    },
+    {
+      "id": "rtgSpectreAndMeltdown",
+      "name": "rtgSpectreAndMeltdown",
+      "width": 24,
+      "height": 14,
+      "blocks": 20,
+      "tags": {
+        "name": "RTG Defenses",
+        "description": "",
+        "labels": "[Basepart]"
+      },
+      "summary": "spectre, mend-projector, vault, power-node, armored-conveyor, ..."
+    },
+    {
+      "id": "salvoWallOne",
+      "name": "salvoWallOne",
+      "width": 38,
+      "height": 37,
+      "blocks": 17,
+      "tags": {
+        "name": "Salvo Blockade",
+        "description": "",
+        "labels": "[Basepart]"
+      },
+      "summary": "battery-large, solar-panel-large, salvo, thorium-wall-large, conveyor, ..."
+    },
+    {
+      "id": "scatterLancerOne",
+      "name": "scatterLancerOne",
+      "width": 27,
+      "height": 27,
+      "blocks": 12,
+      "tags": {
+        "name": "Scatter-Lancer Outpost",
+        "description": "",
+        "labels": "[Basepart,Serpulo]"
+      },
+      "summary": "scatter, titanium-conveyor, lancer, distributor, solar-panel, ..."
+    },
+    {
+      "id": "scorch",
+      "name": "scorch",
+      "width": 11,
+      "height": 11,
+      "blocks": 6,
+      "tags": {
+        "name": "scorch",
+        "description": "",
+        "labels": "[]"
+      },
+      "summary": "pneumatic-drill, conveyor, copper-wall, scorch, router, ..."
+    },
+    {
+      "id": "shardAtrax",
+      "name": "shardAtrax",
+      "width": 26,
+      "height": 30,
+      "blocks": 31,
+      "tags": {
+        "name": "Shard Atrax Factory",
+        "description": "",
+        "labels": "[Serpulo,Basepart]"
+      },
+      "summary": "arc, mender, power-node, scatter, conveyor, ..."
+    },
+    {
+      "id": "shardDefenseLarge",
+      "name": "shardDefenseLarge",
+      "width": 27,
+      "height": 23,
+      "blocks": 21,
+      "tags": {
+        "name": "Shard Defense Large",
+        "description": "",
+        "labels": "[Serpulo,Basepart]"
+      },
+      "summary": "lancer, titanium-wall-large, mender, power-node, steam-generator, ..."
+    },
+    {
+      "id": "shardHeavyDefense",
+      "name": "shardHeavyDefense",
+      "width": 23,
+      "height": 25,
+      "blocks": 17,
+      "tags": {
+        "name": "Shard Heavy Defense",
+        "description": "",
+        "labels": "[Serpulo,Basepart]"
+      },
+      "summary": "scatter, router, hail, salvo, titanium-conveyor, ..."
+    },
+    {
+      "id": "shardMace",
+      "name": "shardMace",
+      "width": 26,
+      "height": 30,
+      "blocks": 31,
+      "tags": {
+        "name": "Shard Mace Factory",
+        "description": "",
+        "labels": "[Serpulo,Basepart]"
+      },
+      "summary": "arc, mender, power-node, scatter, conveyor, ..."
+    },
+    {
+      "id": "shardNova",
+      "name": "shardNova",
+      "width": 21,
+      "height": 21,
+      "blocks": 15,
+      "tags": {
+        "name": "Shard Nova Factory",
+        "description": "",
+        "labels": "[Serpulo,Basepart]"
+      },
+      "summary": "scatter, titanium-conveyor, router, mender, door, ..."
+    },
+    {
+      "id": "shardPulsar",
+      "name": "shardPulsar",
+      "width": 26,
+      "height": 30,
+      "blocks": 32,
+      "tags": {
+        "name": "Shard Pulsar Factory",
+        "description": "",
+        "labels": "[Serpulo,Basepart]"
+      },
+      "summary": "arc, mender, power-node, scatter, conveyor, ..."
+    },
+    {
+      "id": "simplemeltdown",
+      "name": "simplemeltdown",
+      "width": 17,
+      "height": 18,
+      "blocks": 13,
+      "tags": {
+        "name": "simplemeltdown",
+        "description": "",
+        "labels": "[]"
+      },
+      "summary": "meltdown, battery-large, laser-drill, water-extractor, item-source, ..."
+    },
+    {
+      "id": "solarbrick1",
+      "name": "solarbrick1",
+      "width": 8,
+      "height": 6,
+      "blocks": 2,
+      "tags": {
+        "name": "solarbrick1",
+        "description": "",
+        "labels": "[]"
+      },
+      "summary": "surge-tower, solar-panel-large"
+    },
+    {
+      "id": "solarbrick2",
+      "name": "solarbrick2",
+      "width": 8,
+      "height": 8,
+      "blocks": 2,
+      "tags": {
+        "name": "solarbrick2",
+        "description": "",
+        "labels": "[]"
+      },
+      "summary": "solar-panel-large, surge-tower"
+    },
+    {
+      "id": "solarbrick4",
+      "name": "solarbrick4",
+      "width": 4,
+      "height": 4,
+      "blocks": 2,
+      "tags": {
+        "name": "solarbrick4",
+        "description": "",
+        "labels": "[]"
+      },
+      "summary": "solar-panel, surge-tower"
+    },
+    {
+      "id": "steamgobrr",
+      "name": "steamgobrr",
+      "width": 13,
+      "height": 16,
+      "blocks": 10,
+      "tags": {
+        "name": "steamgobrr",
+        "description": "",
+        "labels": "[]"
+      },
+      "summary": "water-extractor, surge-tower, steam-generator, blast-drill, underflow-gate, ..."
+    },
+    {
+      "id": "steamMeltdown",
+      "name": "steamMeltdown",
+      "width": 24,
+      "height": 16,
+      "blocks": 19,
+      "tags": {
+        "name": "Steam-Powered Meltdown",
+        "description": "",
+        "labels": "[Serpulo,Basepart]"
+      },
+      "summary": "meltdown, water-extractor, mend-projector, liquid-tank, plated-conduit, ..."
+    },
+    {
+      "id": "strong_duos",
+      "name": "strong_duos",
+      "width": 10,
+      "height": 17,
+      "blocks": 7,
+      "tags": {
+        "name": "strong-duos",
+        "description": "",
+        "labels": "[]"
+      },
+      "summary": "mechanical-drill, conveyor, item-source, duo, router, ..."
+    },
+    {
+      "id": "surgeTurretsOne",
+      "name": "surgeTurretsOne",
+      "width": 40,
+      "height": 31,
+      "blocks": 19,
+      "tags": {
+        "name": "Landing Pad Surge Defense",
+        "description": "",
+        "labels": "[,Serpulo]"
+      },
+      "summary": "phase-wall-large, phase-wall, swarmer, armored-conveyor, solar-panel-large, ..."
+    },
+    {
+      "id": "thoriumReactorBaseOne",
+      "name": "thoriumReactorBaseOne",
+      "width": 23,
+      "height": 55,
+      "blocks": 32,
+      "tags": {
+        "name": "Landing Pad Thorium Reactor Base 1",
+        "description": "",
+        "labels": "[,Serpulo]"
+      },
+      "summary": "thorium-wall-large, fuse, solar-panel-large, plated-conduit, liquid-router, ..."
+    },
+    {
+      "id": "thoriumReactorFort",
+      "name": "thoriumReactorFort",
+      "width": 18,
+      "height": 18,
+      "blocks": 24,
+      "tags": {
+        "name": "Landing Pad Fortified Thorium Reactors",
+        "description": "",
+        "labels": "[,Serpulo]"
+      },
+      "summary": "solar-panel-large, water-extractor, spectre, pulse-conduit, liquid-router, ..."
+    },
+    {
+      "id": "threePylons",
+      "name": "threePylons",
+      "width": 4,
+      "height": 4,
+      "blocks": 2,
+      "tags": {
+        "name": "3 Surge Towers",
+        "description": "",
+        "labels": "[Serpulo,Basepart]"
+      },
+      "summary": "surge-tower, battery"
+    },
+    {
+      "id": "turret1",
+      "name": "turret1",
+      "width": 4,
+      "height": 4,
+      "blocks": 4,
+      "tags": {
+        "name": "turret1"
+      },
+      "summary": "duo, conveyor, mechanical-drill, item-source"
+    },
+    {
+      "id": "1591368647700",
+      "name": "1591368647700",
+      "width": 8,
+      "height": 7,
+      "blocks": 6,
+      "tags": {
+        "name": "1"
+      },
+      "summary": "copper-wall-large, duo, item-source, pneumatic-drill, distributor, ..."
+    },
+    {
+      "id": "1591368707268",
+      "name": "1591368707268",
+      "width": 8,
+      "height": 8,
+      "blocks": 6,
+      "tags": {
+        "name": "3"
+      },
+      "summary": "copper-wall-large, hail, item-source, pneumatic-drill, distributor, ..."
+    },
+    {
+      "id": "1591369683871",
+      "name": "1591369683871",
+      "width": 15,
+      "height": 15,
+      "blocks": 11,
+      "tags": {
+        "name": "5555"
+      },
+      "summary": "copper-wall-large, copper-wall, hail, router, pneumatic-drill, ..."
+    },
+    {
+      "id": "1591369726023",
+      "name": "1591369726023",
+      "width": 6,
+      "height": 6,
+      "blocks": 3,
+      "tags": {
+        "name": "4444"
+      },
+      "summary": "scatter, pneumatic-drill, item-source"
+    },
+    {
+      "id": "1591378058396",
+      "name": "1591378058396",
+      "width": 18,
+      "height": 21,
+      "blocks": 5,
+      "tags": {
+        "name": "ggg"
+      },
+      "summary": "scatter, router, conveyor, item-source, mechanical-drill"
+    },
+    {
+      "id": "1591380533871",
+      "name": "1591380533871",
+      "width": 6,
+      "height": 6,
+      "blocks": 8,
+      "tags": {
+        "name": "dsadsad"
+      },
+      "summary": "arc, mechanical-drill, battery, solar-panel, conveyor, ..."
+    },
+    {
+      "id": "1591380739339",
+      "name": "1591380739339",
+      "width": 3,
+      "height": 5,
+      "blocks": 4,
+      "tags": {
+        "name": "dddd"
+      },
+      "summary": "surge-tower, combustion-generator, mechanical-drill, item-source"
+    },
+    {
+      "id": "1591381320600",
+      "name": "1591381320600",
+      "width": 4,
+      "height": 8,
+      "blocks": 8,
+      "tags": {
+        "name": "gggggg",
+        "labels": "[]"
+      },
+      "summary": "solar-panel, hail, mender, battery, mechanical-drill, ..."
+    },
+    {
+      "id": "1591385128968",
+      "name": "1591385128968",
+      "width": 12,
+      "height": 27,
+      "blocks": 6,
+      "tags": {
+        "name": "afasf"
+      },
+      "summary": "pneumatic-drill, conveyor, salvo, unloader, item-source, ..."
+    },
+    {
+      "id": "1591385266195",
+      "name": "1591385266195",
+      "width": 19,
+      "height": 7,
+      "blocks": 6,
+      "tags": {
+        "name": "afff"
+      },
+      "summary": "lancer, solar-panel-large, battery, repair-point, power-node, ..."
+    },
+    {
+      "id": "1591385293703",
+      "name": "1591385293703",
+      "width": 17,
+      "height": 17,
+      "blocks": 4,
+      "tags": {
+        "name": "gasdgag"
+      },
+      "summary": "arc, power-node, battery, solar-panel-large"
+    },
+    {
+      "id": "1591385372367",
+      "name": "1591385372367",
+      "width": 14,
+      "height": 10,
+      "blocks": 9,
+      "tags": {
+        "name": "hsfdhh"
+      },
+      "summary": "conveyor, pneumatic-drill, arc, battery, power-node-large, ..."
+    },
+    {
+      "id": "1591385575600",
+      "name": "1591385575600",
+      "width": 9,
+      "height": 16,
+      "blocks": 13,
+      "tags": {
+        "name": "gsagag"
+      },
+      "summary": "ripple, conduit, water-extractor, solar-panel, item-source, ..."
+    },
+    {
+      "id": "1591385624323",
+      "name": "1591385624323",
+      "width": 10,
+      "height": 20,
+      "blocks": 5,
+      "tags": {
+        "name": "hhh"
+      },
+      "summary": "scatter, conveyor, router, mechanical-drill, item-source"
+    },
+    {
+      "id": "1591385989609",
+      "name": "1591385989609",
+      "width": 15,
+      "height": 9,
+      "blocks": 12,
+      "tags": {
+        "name": "hghh"
+      },
+      "summary": "turbine-generator, conduit, liquid-source, conveyor, power-node, ..."
+    },
+    {
+      "id": "1591389407756",
+      "name": "1591389407756",
+      "width": 10,
+      "height": 8,
+      "blocks": 6,
+      "tags": {
+        "name": "gessgdggsdgdgs"
+      },
+      "summary": "scorch, conveyor, pneumatic-drill, item-source, solar-panel, ..."
+    },
+    {
+      "id": "1591389561116",
+      "name": "1591389561116",
+      "width": 6,
+      "height": 21,
+      "blocks": 5,
+      "tags": {
+        "name": "heraerhag"
+      },
+      "summary": "conveyor, mechanical-drill, duo, distributor, item-source"
+    },
+    {
+      "id": "1591389593326",
+      "name": "1591389593326",
+      "width": 11,
+      "height": 12,
+      "blocks": 5,
+      "tags": {
+        "name": "hgrwwrgh"
+      },
+      "summary": "conveyor, pneumatic-drill, item-source, duo, router"
+    },
+    {
+      "id": "1591389611174",
+      "name": "1591389611174",
+      "width": 4,
+      "height": 6,
+      "blocks": 4,
+      "tags": {
+        "name": "g4wqegw"
+      },
+      "summary": "duo, conveyor, item-source, pneumatic-drill"
+    },
+    {
+      "id": "1599594352859",
+      "name": "1599594352859",
+      "width": 18,
+      "height": 16,
+      "blocks": 17,
+      "tags": {
+        "name": "core2"
+      },
+      "summary": "ripple, titanium-conveyor, rtg-generator, water-extractor, pulse-conduit, ..."
+    },
+    {
+      "id": "1603214967392",
+      "name": "1603214967392",
+      "width": 15,
+      "height": 9,
+      "blocks": 4,
+      "tags": {
+        "name": "fuse1",
+        "description": ""
+      },
+      "summary": "titanium-conveyor, pneumatic-drill, item-source, fuse"
+    },
+    {
+      "id": "1603214996033",
+      "name": "1603214996033",
+      "width": 10,
+      "height": 12,
+      "blocks": 5,
+      "tags": {
+        "name": "fuse2",
+        "description": ""
+      },
+      "summary": "titanium-conveyor, pneumatic-drill, item-source, fuse, router"
+    },
+    {
+      "id": "1603215024189",
+      "name": "1603215024189",
+      "width": 6,
+      "height": 16,
+      "blocks": 4,
+      "tags": {
+        "name": "fuse4",
+        "description": ""
+      },
+      "summary": "titanium-conveyor, pneumatic-drill, item-source, fuse"
+    },
+    {
+      "id": "1603215113546",
+      "name": "1603215113546",
+      "width": 25,
+      "height": 17,
+      "blocks": 5,
+      "tags": {
+        "name": "fuse5",
+        "description": ""
+      },
+      "summary": "fuse, titanium-conveyor, router, pneumatic-drill, item-source"
+    },
+    {
+      "id": "1603215171294",
+      "name": "1603215171294",
+      "width": 10,
+      "height": 11,
+      "blocks": 8,
+      "tags": {
+        "name": "fusearc",
+        "description": ""
+      },
+      "summary": "battery, power-node, arc, pneumatic-drill, titanium-conveyor, ..."
+    },
+    {
+      "id": "1603215272794",
+      "name": "1603215272794",
+      "width": 12,
+      "height": 16,
+      "blocks": 10,
+      "tags": {
+        "name": "fuseparllax",
+        "description": ""
+      },
+      "summary": "surge-tower, solar-panel, titanium-conveyor, pneumatic-drill, battery, ..."
+    },
+    {
+      "id": "1603215345320",
+      "name": "1603215345320",
+      "width": 26,
+      "height": 16,
+      "blocks": 9,
+      "tags": {
+        "name": "fusefort",
+        "description": ""
+      },
+      "summary": "fuse, titanium-conveyor, item-source, laser-drill, router, ..."
+    },
+    {
+      "id": "1603215415778",
+      "name": "1603215415778",
+      "width": 10,
+      "height": 14,
+      "blocks": 5,
+      "tags": {
+        "name": "parllaxsolar",
+        "description": ""
+      },
+      "summary": "power-node-large, surge-tower, parallax, battery, solar-panel-large"
+    },
+    {
+      "id": "1603215454977",
+      "name": "1603215454977",
+      "width": 16,
+      "height": 13,
+      "blocks": 6,
+      "tags": {
+        "name": "coppersalvo",
+        "description": ""
+      },
+      "summary": "salvo, router, vault, titanium-conveyor, item-source, ..."
+    },
+    {
+      "id": "1603215491407",
+      "name": "1603215491407",
+      "width": 19,
+      "height": 9,
+      "blocks": 6,
+      "tags": {
+        "name": "coppersalvo2",
+        "description": ""
+      },
+      "summary": "vault, titanium-conveyor, salvo, unloader, item-source, ..."
+    },
+    {
+      "id": "1603215563717",
+      "name": "1603215563717",
+      "width": 9,
+      "height": 9,
+      "blocks": 7,
+      "tags": {
+        "name": "tsunamiwater",
+        "description": ""
+      },
+      "summary": "rotary-pump, solar-panel, conduit, liquid-source, liquid-tank, ..."
+    },
+    {
+      "id": "1603215697527",
+      "name": "1603215697527",
+      "width": 12,
+      "height": 16,
+      "blocks": 10,
+      "tags": {
+        "name": "tsunamislag",
+        "description": ""
+      },
+      "summary": "solar-panel-large, power-node-large, surge-tower, conduit, melter, ..."
+    },
+    {
+      "id": "1603215771822",
+      "name": "1603215771822",
+      "width": 15,
+      "height": 14,
+      "blocks": 8,
+      "tags": {
+        "name": "coppersalvoadvanced",
+        "description": ""
+      },
+      "summary": "salvo, router, titanium-conveyor, item-source, laser-drill, ..."
+    },
+    {
+      "id": "1603215801163",
+      "name": "1603215801163",
+      "width": 14,
+      "height": 15,
+      "blocks": 3,
+      "tags": {
+        "name": "solararray",
+        "description": ""
+      },
+      "summary": "solar-panel-large, power-node-large, surge-tower"
+    },
+    {
+      "id": "1603216038407",
+      "name": "1603216038407",
+      "width": 13,
+      "height": 18,
+      "blocks": 13,
+      "tags": {
+        "name": "scrapscatter",
+        "description": ""
+      },
+      "summary": "solar-panel-large, item-source, surge-tower, melter, titanium-conveyor, ..."
+    },
+    {
+      "id": "1603216102310",
+      "name": "1603216102310",
+      "width": 11,
+      "height": 14,
+      "blocks": 7,
+      "tags": {
+        "name": "thorsalvo",
+        "description": ""
+      },
+      "summary": "surge-tower, solar-panel, laser-drill, item-source, titanium-conveyor, ..."
+    },
+    {
+      "id": "1603216240041",
+      "name": "1603216240041",
+      "width": 21,
+      "height": 14,
+      "blocks": 12,
+      "tags": {
+        "name": "steampower",
+        "description": ""
+      },
+      "summary": "surge-tower, mechanical-pump, pulse-conduit, solar-panel-large, power-node-large, ..."
+    },
+    {
+      "id": "1603216539888",
+      "name": "1603216539888",
+      "width": 26,
+      "height": 18,
+      "blocks": 13,
+      "tags": {
+        "name": "hailsand",
+        "description": ""
+      },
+      "summary": "titanium-conveyor, pneumatic-drill, pulse-conduit, water-extractor, item-source, ..."
+    },
+    {
+      "id": "1603219216674",
+      "name": "1603219216674",
+      "width": 20,
+      "height": 17,
+      "blocks": 5,
+      "tags": {
+        "name": "ripple1",
+        "description": ""
+      },
+      "summary": "titanium-conveyor, pneumatic-drill, item-source, ripple, graphite-press"
+    },
+    {
+      "id": "1603219241094",
+      "name": "1603219241094",
+      "width": 10,
+      "height": 10,
+      "blocks": 5,
+      "tags": {
+        "name": "ripple2",
+        "description": ""
+      },
+      "summary": "graphite-press, titanium-conveyor, ripple, item-source, pneumatic-drill"
+    },
+    {
+      "id": "1603219316221",
+      "name": "1603219316221",
+      "width": 16,
+      "height": 24,
+      "blocks": 6,
+      "tags": {
+        "name": "ripple3",
+        "description": ""
+      },
+      "summary": "hail, graphite-press, titanium-conveyor, ripple, item-source, ..."
+    },
+    {
+      "id": "1603219367279",
+      "name": "1603219367279",
+      "width": 12,
+      "height": 9,
+      "blocks": 6,
+      "tags": {
+        "name": "salvothor",
+        "description": ""
+      },
+      "summary": "surge-tower, item-source, solar-panel, laser-drill, titanium-conveyor, ..."
+    },
+    {
+      "id": "1603219511695",
+      "name": "1603219511695",
+      "width": 7,
+      "height": 9,
+      "blocks": 4,
+      "tags": {
+        "name": "arcsmall",
+        "description": ""
+      },
+      "summary": "arc, power-node-large, battery, solar-panel-large"
+    },
+    {
+      "id": "1603219540119",
+      "name": "1603219540119",
+      "width": 9,
+      "height": 9,
+      "blocks": 2,
+      "tags": {
+        "name": "solar5",
+        "description": ""
+      },
+      "summary": "surge-tower, solar-panel-large"
+    },
+    {
+      "id": "1603222786081",
+      "name": "1603222786081",
+      "width": 12,
+      "height": 12,
+      "blocks": 10,
+      "tags": {
+        "name": "lancerrtg1",
+        "description": ""
+      },
+      "summary": "battery, solar-panel, laser-drill, lancer, power-node-large, ..."
+    },
+    {
+      "id": "1603222833941",
+      "name": "1603222833941",
+      "width": 15,
+      "height": 15,
+      "blocks": 10,
+      "tags": {
+        "name": "arcparallaxrtg1",
+        "description": ""
+      },
+      "summary": "rtg-generator, router, titanium-conveyor, arc, power-node-large, ..."
+    },
+    {
+      "id": "1603222912251",
+      "name": "1603222912251",
+      "width": 16,
+      "height": 16,
+      "blocks": 12,
+      "tags": {
+        "name": "parallaxrtg",
+        "description": ""
+      },
+      "summary": "segment, surge-tower, rtg-generator, power-node-large, router, ..."
+    },
+    {
+      "id": "1605279968000",
+      "name": "1605279968000",
+      "width": 11,
+      "height": 13,
+      "blocks": 11,
+      "tags": {
+        "name": "spectre1",
+        "description": ""
+      },
+      "summary": "parallax, rtg-generator, solar-panel-large, titanium-conveyor, spectre, ..."
+    },
+    {
+      "id": "1605280014089",
+      "name": "1605280014089",
+      "width": 11,
+      "height": 16,
+      "blocks": 7,
+      "tags": {
+        "name": "spectre2",
+        "description": ""
+      },
+      "summary": "spectre, titanium-conveyor, router, solar-panel-large, laser-drill, ..."
+    },
+    {
+      "id": "1605280470180",
+      "name": "1605280470180",
+      "width": 14,
+      "height": 19,
+      "blocks": 12,
+      "tags": {
+        "name": "sand ripple",
+        "description": ""
+      },
+      "summary": "solar-panel-large, item-source, water-extractor, oil-extractor, pneumatic-drill, ..."
+    },
+    {
+      "id": "1605280548230",
+      "name": "1605280548230",
+      "width": 16,
+      "height": 18,
+      "blocks": 7,
+      "tags": {
+        "name": "spectre3",
+        "description": ""
+      },
+      "summary": "spectre, titanium-conveyor, solar-panel-large, segment, power-node-large, ..."
+    },
+    {
+      "id": "1605281022715",
+      "name": "1605281022715",
+      "width": 11,
+      "height": 12,
+      "blocks": 13,
+      "tags": {
+        "name": "lancers",
+        "description": ""
+      },
+      "summary": "solar-panel-large, water-extractor, battery-large, conveyor, pneumatic-drill, ..."
+    },
+    {
+      "id": "1605281081581",
+      "name": "1605281081581",
+      "width": 8,
+      "height": 7,
+      "blocks": 8,
+      "tags": {
+        "name": "lanceromp",
+        "description": ""
+      },
+      "summary": "lancer, mender, arc, solar-panel-large, battery, ..."
+    },
+    {
+      "id": "1605281121912",
+      "name": "1605281121912",
+      "width": 12,
+      "height": 8,
+      "blocks": 8,
+      "tags": {
+        "name": "lancer2",
+        "description": ""
+      },
+      "summary": "solar-panel, lancer, battery-large, power-node-large, arc, ..."
+    },
+    {
+      "id": "1605281215706",
+      "name": "1605281215706",
+      "width": 16,
+      "height": 14,
+      "blocks": 14,
+      "tags": {
+        "name": "arc2",
+        "description": ""
+      },
+      "summary": "titanium-wall, arc, mender, power-node-large, power-node, ..."
+    },
+    {
+      "id": "1605281306347",
+      "name": "1605281306347",
+      "width": 36,
+      "height": 28,
+      "blocks": 18,
+      "tags": {
+        "name": "graphpos",
+        "description": ""
+      },
+      "summary": "solar-panel-large, spectre, ripple, force-projector, distributor, ..."
+    },
+    {
+      "id": "1605283900306",
+      "name": "1605283900306",
+      "width": 28,
+      "height": 20,
+      "blocks": 20,
+      "tags": {
+        "name": "megacore",
+        "description": ""
+      },
+      "summary": "foreshadow, fuse, rtg-generator, power-node-large, titanium-conveyor, ..."
+    },
+    {
+      "id": "1605284013998",
+      "name": "1605284013998",
+      "width": 15,
+      "height": 16,
+      "blocks": 14,
+      "tags": {
+        "name": "megacore2",
+        "description": ""
+      },
+      "summary": "spectre, battery, rtg-generator, mend-projector, router, ..."
+    },
+    {
+      "id": "1605284595866",
+      "name": "1605284595866",
+      "width": 14,
+      "height": 16,
+      "blocks": 22,
+      "tags": {
+        "name": "scrapmine",
+        "description": ""
+      },
+      "summary": "solar-panel-large, power-node-large, surge-tower, item-source, water-extractor, ..."
+    },
+    {
+      "id": "1605284660452",
+      "name": "1605284660452",
+      "width": 22,
+      "height": 26,
+      "blocks": 20,
+      "tags": {
+        "name": "beegscrap",
+        "description": ""
+      },
+      "summary": "fuse, item-source, titanium-conveyor, router, duo, ..."
+    },
+    {
+      "id": "1605285080497",
+      "name": "1605285080497",
+      "width": 17,
+      "height": 15,
+      "blocks": 19,
+      "tags": {
+        "name": "units",
+        "description": ""
+      },
+      "summary": "titanium-conveyor, ground-factory, item-source, battery, power-node-large, ..."
+    },
+    {
+      "id": "4125616123544",
+      "name": "4125616123544",
+      "width": 26,
+      "height": 20,
+      "blocks": 5,
+      "tags": {
+        "name": "ttt"
+      },
+      "summary": "salvo, titanium-conveyor, router, pneumatic-drill, item-source"
+    },
+    {
+      "id": "752911659508695080",
+      "name": "752911659508695080",
+      "width": 20,
+      "height": 15,
+      "blocks": 14,
+      "tags": {
+        "name": "tierThreePowerTar"
+      },
+      "summary": "coal-centrifuge, liquid-source, titanium-conveyor, rotary-pump, liquid-router, ..."
+    },
+    {
+      "id": "752912199781056583",
+      "name": "752912199781056583",
+      "width": 12,
+      "height": 12,
+      "blocks": 11,
+      "tags": {
+        "name": "coremake"
+      },
+      "summary": "fuse, rtg-generator, salvo, titanium-conveyor, unloader, ..."
+    },
+    {
+      "id": "752912460620496957",
+      "name": "752912460620496957",
+      "width": 13,
+      "height": 13,
+      "blocks": 5,
+      "tags": {
+        "name": "tierOneDefenseScatter"
+      },
+      "summary": "scatter, router, conveyor, item-source, mechanical-drill"
+    },
+    {
+      "id": "752915237476368385",
+      "name": "752915237476368385",
+      "width": 17,
+      "height": 17,
+      "blocks": 5,
+      "tags": {
+        "name": "tierOneDefenseDuo"
+      },
+      "summary": "duo, router, conveyor, mechanical-drill, item-source"
+    },
+    {
+      "id": "752915746673131550",
+      "name": "752915746673131550",
+      "width": 12,
+      "height": 6,
+      "blocks": 7,
+      "tags": {
+        "name": "tierOnePowerCombustionStream"
+      },
+      "summary": "mechanical-drill, conveyor, combustion-generator, battery, power-node, ..."
+    },
+    {
+      "id": "752918895291007041",
+      "name": "752918895291007041",
+      "width": 7,
+      "height": 8,
+      "blocks": 6,
+      "tags": {
+        "name": "tierFourPowerRTGCore"
+      },
+      "summary": "item-source, solar-panel, rtg-generator, laser-drill, surge-tower, ..."
+    },
+    {
+      "id": "752918896331456582",
+      "name": "752918896331456582",
+      "width": 9,
+      "height": 8,
+      "blocks": 8,
+      "tags": {
+        "name": "generator"
+      },
+      "summary": "solar-panel, power-node-large, water-extractor, surge-tower, turbine-generator, ..."
+    },
+    {
+      "id": "752921320802746461",
+      "name": "752921320802746461",
+      "width": 13,
+      "height": 15,
+      "blocks": 20,
+      "tags": {
+        "name": "tierFourHybridRTGL",
+        "description": ""
+      },
+      "summary": "mend-projector, rtg-generator, solar-panel, solar-panel-large, battery, ..."
+    },
+    {
+      "id": "752923816967012442",
+      "name": "752923816967012442",
+      "width": 13,
+      "height": 8,
+      "blocks": 6,
+      "tags": {
+        "name": "artillery"
+      },
+      "summary": "hail, titanium-conveyor, graphite-press, router, item-source, ..."
+    },
+    {
+      "id": "752930133874049034",
+      "name": "752930133874049034",
+      "width": 8,
+      "height": 6,
+      "blocks": 7,
+      "tags": {
+        "name": "hail"
+      },
+      "summary": "hail, router, titanium-conveyor, pneumatic-drill, junction, ..."
+    },
+    {
+      "id": "752930845685448825",
+      "name": "752930845685448825",
+      "width": 11,
+      "height": 10,
+      "blocks": 7,
+      "tags": {
+        "name": "heretical defense"
+      },
+      "summary": "scatter, router, distributor, pneumatic-drill, water-extractor, ..."
+    },
+    {
+      "id": "752932257538506823",
+      "name": "752932257538506823",
+      "width": 11,
+      "height": 11,
+      "blocks": 3,
+      "tags": {
+        "name": "tierTwoPowerSolar"
+      },
+      "summary": "solar-panel, power-node, surge-tower"
+    },
+    {
+      "id": "752937073991745554",
+      "name": "752937073991745554",
+      "width": 7,
+      "height": 17,
+      "blocks": 5,
+      "tags": {
+        "name": "scatter-aa"
+      },
+      "summary": "conveyor, mechanical-drill, scatter, distributor, item-source"
+    },
+    {
+      "id": "752937145978716332",
+      "name": "752937145978716332",
+      "width": 8,
+      "height": 11,
+      "blocks": 5,
+      "tags": {
+        "name": "scatter-aa-2"
+      },
+      "summary": "conveyor, mechanical-drill, scatter, router, item-source"
+    },
+    {
+      "id": "752937230456193185",
+      "name": "752937230456193185",
+      "width": 8,
+      "height": 8,
+      "blocks": 6,
+      "tags": {
+        "name": "steam-gen-4"
+      },
+      "summary": "water-extractor, turbine-generator, item-source, mechanical-drill, surge-tower, ..."
+    },
+    {
+      "id": "752939992300388483",
+      "name": "752939992300388483",
+      "width": 28,
+      "height": 5,
+      "blocks": 10,
+      "tags": {
+        "name": "sporepowerplant"
+      },
+      "summary": "cultivator, liquid-router, conduit, turbine-generator, solar-panel, ..."
+    },
+    {
+      "id": "752941306489077823",
+      "name": "752941306489077823",
+      "width": 6,
+      "height": 6,
+      "blocks": 7,
+      "tags": {
+        "name": "guarded_power_node"
+      },
+      "summary": "segment, power-node, arc, lancer, surge-tower, ..."
+    },
+    {
+      "id": "752942460573057196",
+      "name": "752942460573057196",
+      "width": 13,
+      "height": 13,
+      "blocks": 12,
+      "tags": {
+        "name": "solar core"
+      },
+      "summary": "lancer, arc, hail, router, solar-panel, ..."
+    },
+    {
+      "id": "752955880965799966",
+      "name": "752955880965799966",
+      "width": 29,
+      "height": 33,
+      "blocks": 35,
+      "tags": {
+        "name": "offense"
+      },
+      "summary": "solar-panel-large, titanium-conveyor, multiplicative-reconstructor, additive-reconstructor, air-factory, ..."
+    },
+    {
+      "id": "752961534690328648",
+      "name": "752961534690328648",
+      "width": 14,
+      "height": 16,
+      "blocks": 10,
+      "tags": {
+        "name": "point defense"
+      },
+      "summary": "thorium-wall, lancer, mend-projector, water-extractor, parallax, ..."
+    },
+    {
+      "id": "752967201597947924",
+      "name": "752967201597947924",
+      "width": 14,
+      "height": 11,
+      "blocks": 6,
+      "tags": {
+        "name": "weak-duos"
+      },
+      "summary": "mechanical-drill, item-source, conveyor, duo, router, ..."
+    },
+    {
+      "id": "752995421667721307",
+      "name": "752995421667721307",
+      "width": 9,
+      "height": 13,
+      "blocks": 11,
+      "tags": {
+        "name": "steam gens"
+      },
+      "summary": "water-extractor, solar-panel, turbine-generator, battery, combustion-generator, ..."
+    },
+    {
+      "id": "753005578997071974",
+      "name": "753005578997071974",
+      "width": 16,
+      "height": 14,
+      "blocks": 13,
+      "tags": {
+        "name": "graph ripples"
+      },
+      "summary": "solar-panel-large, surge-tower, multi-press, water-extractor, ripple, ..."
+    },
+    {
+      "id": "753035713162903572",
+      "name": "753035713162903572",
+      "width": 4,
+      "height": 5,
+      "blocks": 4,
+      "tags": {
+        "name": "compact hails"
+      },
+      "summary": "hail, pneumatic-drill, item-source, graphite-press"
+    },
+    {
+      "id": "753059583450415175",
+      "name": "753059583450415175",
+      "width": 19,
+      "height": 16,
+      "blocks": 9,
+      "tags": {
+        "name": "Spectres A (thorium drill)"
+      },
+      "summary": "item-source, phase-wall-large, titanium-wall, mender, spectre, ..."
+    },
+    {
+      "id": "753087301323718736",
+      "name": "753087301323718736",
+      "width": 22,
+      "height": 12,
+      "blocks": 6,
+      "tags": {
+        "name": "5mine-2press-12Salvo-Defence"
+      },
+      "summary": "salvo, graphite-press, sorter, conveyor, mechanical-drill, ..."
+    },
+    {
+      "id": "753087303836106812",
+      "name": "753087303836106812",
+      "width": 16,
+      "height": 16,
+      "blocks": 4,
+      "tags": {
+        "name": "4mine-12scatter-defence"
+      },
+      "summary": "scatter, conveyor, item-source, pneumatic-drill"
+    },
+    {
+      "id": "753087308881985706",
+      "name": "753087308881985706",
+      "width": 14,
+      "height": 12,
+      "blocks": 8,
+      "tags": {
+        "name": "Self-sufficient-power 1600+"
+      },
+      "summary": "item-source, water-extractor, turbine-generator, combustion-generator, pneumatic-drill, ..."
+    },
+    {
+      "id": "753389428575043614",
+      "name": "753389428575043614",
+      "width": 16,
+      "height": 8,
+      "blocks": 12,
+      "tags": {
+        "name": "TurbineGen1"
+      },
+      "summary": "titanium-conveyor, pneumatic-drill, pulse-conduit, surge-tower, item-source, ..."
+    },
+    {
+      "id": "753644716297289769",
+      "name": "753644716297289769",
+      "width": 12,
+      "height": 11,
+      "blocks": 13,
+      "tags": {
+        "name": "sand->silicon->ripples"
+      },
+      "summary": "pneumatic-drill, titanium-conveyor, solar-panel-large, water-extractor, cultivator, ..."
+    },
+    {
+      "id": "753646105383927950",
+      "name": "753646105383927950",
+      "width": 12,
+      "height": 12,
+      "blocks": 7,
+      "tags": {
+        "name": "SteamGen+1000"
+      },
+      "summary": "water-extractor, steam-generator, item-source, battery, pneumatic-drill, ..."
+    },
+    {
+      "id": "753652015078310049",
+      "name": "753652015078310049",
+      "width": 26,
+      "height": 26,
+      "blocks": 13,
+      "tags": {
+        "name": "schem"
+      },
+      "summary": "spectre, water-extractor, distributor, titanium-conveyor, overdrive-projector, ..."
+    },
+    {
+      "id": "753659989050261756",
+      "name": "753659989050261756",
+      "width": 21,
+      "height": 17,
+      "blocks": 4,
+      "tags": {
+        "name": "solar-power-plant"
+      },
+      "summary": "solar-panel, surge-tower, power-node, solar-panel-large"
+    },
+    {
+      "id": "753663419592212490",
+      "name": "753663419592212490",
+      "width": 10,
+      "height": 6,
+      "blocks": 6,
+      "tags": {
+        "name": "combustion-plant"
+      },
+      "summary": "surge-tower, item-source, combustion-generator, power-node, conveyor, ..."
+    },
+    {
+      "id": "753938078997151744",
+      "name": "753938078997151744",
+      "width": 9,
+      "height": 6,
+      "blocks": 9,
+      "tags": {
+        "name": "9x6free500pwr"
+      },
+      "summary": "steam-generator, conduit, water-extractor, coal-centrifuge, spore-press, ..."
+    },
+    {
+      "id": "754024880747315332",
+      "name": "754024880747315332",
+      "width": 9,
+      "height": 16,
+      "blocks": 15,
+      "tags": {
+        "name": "Ripple thing"
+      },
+      "summary": "conveyor, pneumatic-drill, solar-panel-large, mender, combustion-generator, ..."
+    },
+    {
+      "id": "755588030362026104",
+      "name": "755588030362026104",
+      "width": 12,
+      "height": 9,
+      "blocks": 5,
+      "tags": {
+        "name": "schematic"
+      },
+      "summary": "scatter, titanium-conveyor, pneumatic-drill, item-source, router"
+    },
+    {
+      "id": "759634196280508416",
+      "name": "759634196280508416",
+      "width": 15,
+      "height": 24,
+      "blocks": 8,
+      "tags": {
+        "name": "Massive Steam Gen plant"
+      },
+      "summary": "battery-large, solar-panel, water-extractor, pulse-conduit, cultivator, ..."
+    },
+    {
+      "id": "772638841168461854",
+      "name": "772638841168461854",
+      "width": 10,
+      "height": 10,
+      "blocks": 3,
+      "tags": {
+        "name": "_Protected_Batteries",
+        "description": ""
+      },
+      "summary": "surge-tower, arc, battery-large"
+    },
+    {
+      "id": "772642175838191616",
+      "name": "772642175838191616",
+      "width": 9,
+      "height": 9,
+      "blocks": 8,
+      "tags": {
+        "name": "_dumcoal",
+        "description": ""
+      },
+      "summary": "conveyor, item-source, pneumatic-drill, scorch, overflow-gate, ..."
+    },
+    {
+      "id": "772642264635670528",
+      "name": "772642264635670528",
+      "width": 14,
+      "height": 11,
+      "blocks": 9,
+      "tags": {
+        "name": "_rtg",
+        "description": ""
+      },
+      "summary": "titanium-conveyor, laser-drill, item-source, solar-panel, surge-tower, ..."
+    },
+    {
+      "id": "772642357136719872",
+      "name": "772642357136719872",
+      "width": 21,
+      "height": 21,
+      "blocks": 17,
+      "tags": {
+        "name": "_scrap",
+        "description": ""
+      },
+      "summary": "salvo, overflow-gate, titanium-conveyor, item-source, blast-drill, ..."
+    },
+    {
+      "id": "772642606227390504",
+      "name": "772642606227390504",
+      "width": 31,
+      "height": 12,
+      "blocks": 9,
+      "tags": {
+        "name": "_titanium",
+        "description": ""
+      },
+      "summary": "water-extractor, item-source, pulse-conduit, tsunami, cryofluid-mixer, ..."
+    },
+    {
+      "id": "772642700713000960",
+      "name": "772642700713000960",
+      "width": 15,
+      "height": 9,
+      "blocks": 9,
+      "tags": {
+        "name": "_coal",
+        "description": ""
+      },
+      "summary": "combustion-generator, overflow-gate, item-source, conveyor, mender, ..."
+    },
+    {
+      "id": "772754117604409344",
+      "name": "772754117604409344",
+      "width": 19,
+      "height": 17,
+      "blocks": 19,
+      "tags": {
+        "name": "thoriumsalvo",
+        "description": ""
+      },
+      "summary": "water-extractor, pulse-conduit, item-source, laser-drill, mend-projector, ..."
+    },
+    {
+      "id": "772859800051908639",
+      "name": "772859800051908639",
+      "width": 21,
+      "height": 18,
+      "blocks": 23,
+      "tags": {
+        "name": "_Unit_Factory_Mace",
+        "description": ""
+      },
+      "summary": "solar-panel-large, item-source, water-extractor, oil-extractor, titanium-conveyor, ..."
+    },
+    {
+      "id": "772860007561166868",
+      "name": "772860007561166868",
+      "width": 17,
+      "height": 14,
+      "blocks": 13,
+      "tags": {
+        "name": "_Unit_Factory_Crawler",
+        "description": ""
+      },
+      "summary": "laser-drill, item-source, water-extractor, silicon-smelter, titanium-conveyor, ..."
+    },
+    {
+      "id": "772861891516301334",
+      "name": "772861891516301334",
+      "width": 18,
+      "height": 23,
+      "blocks": 20,
+      "tags": {
+        "name": "_Unit_Factory_Mono",
+        "description": ""
+      },
+      "summary": "battery, item-source, solar-panel-large, air-factory, separator, ..."
+    },
+    {
+      "id": "772880624582787112",
+      "name": "772880624582787112",
+      "width": 15,
+      "height": 16,
+      "blocks": 19,
+      "tags": {
+        "name": "_Unit_Factory_Nova",
+        "description": ""
+      },
+      "summary": "water-extractor, item-source, solar-panel-large, solar-panel, oil-extractor, ..."
+    },
+    {
+      "id": "772880838392152095",
+      "name": "772880838392152095",
+      "width": 24,
+      "height": 17,
+      "blocks": 25,
+      "tags": {
+        "name": "_Unit_Factory_Pulsar",
+        "description": ""
+      },
+      "summary": "water-extractor, item-source, cultivator, spore-press, power-node-large, ..."
+    },
+    {
+      "id": "773972917637611530",
+      "name": "773972917637611530",
+      "width": 19,
+      "height": 18,
+      "blocks": 10,
+      "tags": {
+        "name": "ign_thoriumspectredefence",
+        "description": ""
+      },
+      "summary": "spectre, solar-panel-large, battery, mend-projector, unloader, ..."
+    },
+    {
+      "id": "773972978551226368",
+      "name": "773972978551226368",
+      "width": 10,
+      "height": 10,
+      "blocks": 3,
+      "tags": {
+        "name": "ign_solarX",
+        "description": ""
+      },
+      "summary": "battery, solar-panel, surge-tower"
+    },
+    {
+      "id": "773973064429993996",
+      "name": "773973064429993996",
+      "width": 19,
+      "height": 15,
+      "blocks": 8,
+      "tags": {
+        "name": "ign_simpleduos",
+        "description": ""
+      },
+      "summary": "duo, conveyor, router, solar-panel, bridge-conveyor, ..."
+    },
+    {
+      "id": "773973230179319858",
+      "name": "773973230179319858",
+      "width": 10,
+      "height": 7,
+      "blocks": 4,
+      "tags": {
+        "name": "ign_scrapscatterx5",
+        "description": ""
+      },
+      "summary": "scatter, conveyor, mechanical-drill, item-source"
+    },
+    {
+      "id": "773973383956135957",
+      "name": "773973383956135957",
+      "width": 7,
+      "height": 7,
+      "blocks": 5,
+      "tags": {
+        "name": "ign_rtgpower",
+        "description": ""
+      },
+      "summary": "rtg-generator, battery, surge-tower, laser-drill, item-source"
+    },
+    {
+      "id": "773973810848333844",
+      "name": "773973810848333844",
+      "width": 8,
+      "height": 16,
+      "blocks": 6,
+      "tags": {
+        "name": "ign_hailx4simple",
+        "description": ""
+      },
+      "summary": "hail, pneumatic-drill, router, conveyor, graphite-press, ..."
+    },
+    {
+      "id": "773974064850272309",
+      "name": "773974064850272309",
+      "width": 25,
+      "height": 16,
+      "blocks": 9,
+      "tags": {
+        "name": "ign_fusenparallax",
+        "description": ""
+      },
+      "summary": "battery, solar-panel-large, fuse, bridge-conveyor, parallax, ..."
+    },
+    {
+      "id": "773974140545531924",
+      "name": "773974140545531924",
+      "width": 6,
+      "height": 6,
+      "blocks": 4,
+      "tags": {
+        "name": "ign_4xgraphitesalvo",
+        "description": ""
+      },
+      "summary": "salvo, item-source, pneumatic-drill, graphite-press"
+    },
+    {
+      "id": "773976628883619840",
+      "name": "773976628883619840",
+      "width": 14,
+      "height": 21,
+      "blocks": 12,
+      "tags": {
+        "name": "ign_doubleflarefactory",
+        "description": ""
+      },
+      "summary": "air-factory, silicon-smelter, coal-centrifuge, surge-tower, titanium-conveyor, ..."
+    },
+    {
+      "id": "774001709088505867",
+      "name": "774001709088505867",
+      "width": 8,
+      "height": 15,
+      "blocks": 20,
+      "tags": {
+        "name": "ign_polyscrap",
+        "description": ""
+      },
+      "summary": "separator, laser-drill, item-source, titanium-conveyor, inverted-sorter, ..."
+    },
+    {
+      "id": "774002215428816936",
+      "name": "774002215428816936",
+      "width": 24,
+      "height": 20,
+      "blocks": 15,
+      "tags": {
+        "name": "ign_metacyclonesx2",
+        "description": ""
+      },
+      "summary": "separator, pulverizer, titanium-conveyor, kiln, cyclone, ..."
+    },
+    {
+      "id": "774013552553754635",
+      "name": "774013552553754635",
+      "width": 19,
+      "height": 25,
+      "blocks": 24,
+      "tags": {
+        "name": "ign_scrapforeshadow",
+        "description": ""
+      },
+      "summary": "battery, power-node, oil-extractor, coal-centrifuge, foreshadow, ..."
+    }
+  ]
+}
