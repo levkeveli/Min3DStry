@@ -199,10 +199,9 @@ jobs:
           rm -rf "$RUNNER_TEMP/teavm-c-wave"
           cp -R research/upstream-runtime/build/generated/teavm/c "$RUNNER_TEMP/teavm-c-wave"
           python3 research/upstream-runtime/arm11/fix_reflection_lifetime.py "$RUNNER_TEMP/teavm-c-wave"
-          host_cc=$(bash .github/scripts/cc_host.sh)
-          "$host_cc" -std=gnu11 -O0 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-wave/all.c" -lm -lpthread \
+          bash .github/scripts/cc_host.sh -std=gnu11 -O0 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-wave/all.c" -lm -lpthread \
             -o "$RUNNER_TEMP/teavm-c-wave/probe_o0"
-          "$host_cc" -std=gnu11 -O2 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-wave/all.c" -lm -lpthread \
+          bash .github/scripts/cc_host.sh -std=gnu11 -O2 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-wave/all.c" -lm -lpthread \
             -o "$RUNNER_TEMP/teavm-c-wave/probe_o2"
           "$RUNNER_TEMP/teavm-c-wave/probe_o0" "$RUNNER_TEMP/glacier.msav" | tee "$RUNNER_TEMP/wave-o0.log"
           "$RUNNER_TEMP/teavm-c-wave/probe_o2" "$RUNNER_TEMP/glacier.msav" | tee "$RUNNER_TEMP/wave-o2.log"
@@ -565,9 +564,9 @@ jobs:
           rm -rf "$RUNNER_TEMP/teavm-c-audio"
           cp -R research/upstream-runtime/build/generated/teavm/c "$RUNNER_TEMP/teavm-c-audio"
           python3 research/upstream-runtime/arm11/fix_reflection_lifetime.py "$RUNNER_TEMP/teavm-c-audio"
-          host_cc=$(bash .github/scripts/cc_host.sh); "$host_cc" -std=gnu11 -O0 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-audio/all.c" -lm -lpthread \
+          bash .github/scripts/cc_host.sh -std=gnu11 -O0 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-audio/all.c" -lm -lpthread \
             -o "$RUNNER_TEMP/teavm-c-audio/probe_o0"
-          host_cc=$(bash .github/scripts/cc_host.sh); "$host_cc" -std=gnu11 -O2 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-audio/all.c" -lm -lpthread \
+          bash .github/scripts/cc_host.sh -std=gnu11 -O2 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-audio/all.c" -lm -lpthread \
             -o "$RUNNER_TEMP/teavm-c-audio/probe_o2"
           "$RUNNER_TEMP/teavm-c-audio/probe_o0" "$RUNNER_TEMP/glacier.msav" | tee "$RUNNER_TEMP/audio-o0.log"
           "$RUNNER_TEMP/teavm-c-audio/probe_o2" "$RUNNER_TEMP/glacier.msav" | tee "$RUNNER_TEMP/audio-o2.log"
@@ -695,10 +694,9 @@ jobs:
           rm -rf "$RUNNER_TEMP/teavm-c-combat"
           cp -R research/upstream-runtime/build/generated/teavm/c "$RUNNER_TEMP/teavm-c-combat"
           python3 research/upstream-runtime/arm11/fix_reflection_lifetime.py "$RUNNER_TEMP/teavm-c-combat"
-          host_cc=$(bash .github/scripts/cc_host.sh)
-          "$host_cc" -std=gnu11 -O0 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-combat/all.c" -lm -lpthread \
+          bash .github/scripts/cc_host.sh -std=gnu11 -O0 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-combat/all.c" -lm -lpthread \
             -o "$RUNNER_TEMP/teavm-c-combat/probe_o0"
-          "$host_cc" -std=gnu11 -O2 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-combat/all.c" -lm -lpthread \
+          bash .github/scripts/cc_host.sh -std=gnu11 -O2 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-combat/all.c" -lm -lpthread \
             -o "$RUNNER_TEMP/teavm-c-combat/probe_o2"
           "$RUNNER_TEMP/teavm-c-combat/probe_o0" "$RUNNER_TEMP/glacier.msav" | tee "$RUNNER_TEMP/combat-o0.log"
           "$RUNNER_TEMP/teavm-c-combat/probe_o2" "$RUNNER_TEMP/glacier.msav" | tee "$RUNNER_TEMP/combat-o2.log"
@@ -874,9 +872,9 @@ jobs:
           rm -rf "$RUNNER_TEMP/teavm-c-host"
           cp -R research/upstream-runtime/build/generated/teavm/c "$RUNNER_TEMP/teavm-c-host"
           python3 research/upstream-runtime/arm11/fix_reflection_lifetime.py "$RUNNER_TEMP/teavm-c-host"
-          host_cc=$(bash .github/scripts/cc_host.sh); "$host_cc" -std=gnu11 -O0 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-host/all.c" -lm -lpthread \
+          bash .github/scripts/cc_host.sh -std=gnu11 -O0 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-host/all.c" -lm -lpthread \
             -o "$RUNNER_TEMP/teavm-c-host/probe_o0"
-          host_cc=$(bash .github/scripts/cc_host.sh); "$host_cc" -std=gnu11 -O2 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-host/all.c" -lm -lpthread \
+          bash .github/scripts/cc_host.sh -std=gnu11 -O2 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-host/all.c" -lm -lpthread \
             -o "$RUNNER_TEMP/teavm-c-host/probe_o2"
           "$RUNNER_TEMP/teavm-c-host/probe_o0" "$RUNNER_TEMP/glacier.msav" | tee "$RUNNER_TEMP/production-o0.log"
           "$RUNNER_TEMP/teavm-c-host/probe_o2" "$RUNNER_TEMP/glacier.msav" | tee "$RUNNER_TEMP/production-o2.log"
@@ -962,9 +960,9 @@ jobs:
           rm -rf "$RUNNER_TEMP/teavm-c-factory"
           cp -R research/upstream-runtime/build/generated/teavm/c "$RUNNER_TEMP/teavm-c-factory"
           python3 research/upstream-runtime/arm11/fix_reflection_lifetime.py "$RUNNER_TEMP/teavm-c-factory"
-          host_cc=$(bash .github/scripts/cc_host.sh); "$host_cc" -std=gnu11 -O0 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-factory/all.c" -lm -lpthread \
+          bash .github/scripts/cc_host.sh -std=gnu11 -O0 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-factory/all.c" -lm -lpthread \
             -o "$RUNNER_TEMP/teavm-c-factory/probe_o0"
-          host_cc=$(bash .github/scripts/cc_host.sh); "$host_cc" -std=gnu11 -O2 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-factory/all.c" -lm -lpthread \
+          bash .github/scripts/cc_host.sh -std=gnu11 -O2 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-factory/all.c" -lm -lpthread \
             -o "$RUNNER_TEMP/teavm-c-factory/probe_o2"
           "$RUNNER_TEMP/teavm-c-factory/probe_o0" "$RUNNER_TEMP/glacier.msav" | tee "$RUNNER_TEMP/factory-o0.log"
           "$RUNNER_TEMP/teavm-c-factory/probe_o2" "$RUNNER_TEMP/glacier.msav" | tee "$RUNNER_TEMP/factory-o2.log"
@@ -1053,9 +1051,9 @@ jobs:
           fix_reflection_lifetime(root)
           fix_constructor_roots(root)
           PY
-          host_cc=$(bash .github/scripts/cc_host.sh); "$host_cc" -std=gnu11 -O0 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-singleplayer/all.c" -lm -lpthread \
+          bash .github/scripts/cc_host.sh -std=gnu11 -O0 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-singleplayer/all.c" -lm -lpthread \
             -o "$RUNNER_TEMP/teavm-c-singleplayer/probe_o0"
-          host_cc=$(bash .github/scripts/cc_host.sh); "$host_cc" -std=gnu11 -Os -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-singleplayer/all.c" -lm -lpthread \
+          bash .github/scripts/cc_host.sh -std=gnu11 -Os -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-singleplayer/all.c" -lm -lpthread \
             -o "$RUNNER_TEMP/teavm-c-singleplayer/probe_os"
           expected=$(grep -F 'UPSTREAM_SP_SIM_PASS ' "$RUNNER_TEMP/singleplayer-jvm.log")
           test -n "$expected"

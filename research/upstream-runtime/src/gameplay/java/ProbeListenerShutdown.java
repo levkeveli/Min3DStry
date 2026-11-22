@@ -1,7 +1,11 @@
 import arc.ApplicationListener;
 import arc.Core;
 
-/** Disposes registered listener fibers for one-shot probes that exit without app teardown. */
+/**
+ * Disposes registered listener fibers for one-shot probes that exit without
+ * app teardown. Currently used by the wave-routing probe, whose AsyncCore
+ * creates listener-bearing infrastructure; other one-shot probes do not.
+ */
 final class ProbeListenerShutdown {
     private ProbeListenerShutdown() {
     }

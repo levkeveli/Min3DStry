@@ -83,10 +83,11 @@ The standalone host probe exits after printing the trace without firing
 the trace can deadlock the host C build. It also disposes registered
 application listeners through the probe-local `ProbeListenerShutdown` helper
 before returning, so Arc listener fibers cannot resume during TeaVM shutdown.
-The emitted trace is unchanged. All host-C checks require `clang` through
-`.github/scripts/cc_host.sh`; a missing clang is a hard error. This avoids a
-GCC 13 `rewrite_out_of_ssa` internal compiler error in `TypeIO.c` that the
-larger generated translation unit can trigger.
+The emitted trace is unchanged. Host-C checks go through
+`.github/scripts/cc_host.sh`, which prefers `clang` and otherwise uses GCC with
+`-fno-tree-coalesce-vars`, avoiding a GCC 13 `rewrite_out_of_ssa` internal
+compiler error in `TypeIO.c` that the larger generated translation unit can
+trigger.
 
 ## Remaining Scope for Issue #30
 
