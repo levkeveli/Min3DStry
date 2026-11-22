@@ -16,6 +16,9 @@ python3 tools/stage_sound_catalog.py \
 
 The manifest records the original source path, RomFS path, SHA-256,
 channel count, sample rate, and final Vorbis frame count for every sound ID.
+The staging validator expects one Vorbis stream per Ogg file, with a positive
+final sample count and the end-of-stream page at the end of the file.
+
 The 205 files occupy 7,093,890 bytes as Ogg. At their original rates and
 channel counts they represent 112,507,430 bytes of PCM16.
 The runtime loading and playback work is tracked separately.
