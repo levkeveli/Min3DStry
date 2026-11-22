@@ -538,6 +538,16 @@ int main(int argc, char *argv[]) {
             if (kDown & KEY_DOWN) {
                 m3ds_main_menu_move(&main_menu, 1);
             }
+            if (main_menu.screen == M3DS_MENU_SCREEN_CATALOG &&
+                (kDown & (KEY_L | KEY_R))) {
+                m3ds_main_menu_catalog_switch(
+                    &main_menu, (kDown & KEY_L) ? 1 : -1);
+                snprintf(dbg_line, sizeof(dbg_line),
+                         "[MIN3DSTRY] MAIN_MENU catalog=%s count=%u\n",
+                         m3ds_catalog_category_name(main_menu.catalog_category),
+                         (unsigned)m3ds_main_menu_count(&main_menu));
+                m3ds_emit_debug_line(log_socket, dbg_line);
+            }
             if (kDown & KEY_B) {
                 if (m3ds_main_menu_back(&main_menu)) {
                     snprintf(dbg_line, sizeof(dbg_line),
@@ -588,7 +598,11 @@ int main(int argc, char *argv[]) {
                     snprintf(dbg_line, sizeof(dbg_line),
                              "[MIN3DSTRY] MAIN_MENU screen=%s selected=%s\n",
                              m3ds_main_menu_screen_name(&main_menu),
-                             m3ds_main_menu_key(&main_menu, main_menu.selected));
+                             m3ds_main_menu_key(
+                                 &main_menu,
+                                 main_menu.screen == M3DS_MENU_SCREEN_CATALOG
+                                     ? main_menu.catalog_selected
+                                     : main_menu.selected));
                     m3ds_emit_debug_line(log_socket, dbg_line);
                     break;
                 }
@@ -970,6 +984,9 @@ int main(int argc, char *argv[]) {
             case M3DS_MENU_SCREEN_ABOUT:
                 screen_title = "About";
                 break;
+            case M3DS_MENU_SCREEN_CATALOG:
+                screen_title = "Core Database";
+                break;
             case M3DS_MENU_SCREEN_TITLE:
             default:
                 screen_title = "Main menu";
@@ -977,40 +994,67 @@ int main(int argc, char *argv[]) {
             }
             printf("\x1b[2J");
             printf("\x1b[1;1HMindustry v160.8\x1b[K");
-            printf("\x1b[2;1H%s\x1b[K", screen_title);
-            unsigned item_row = 4u;
-            if (main_menu.screen == M3DS_MENU_SCREEN_ABOUT) {
-                printf("\x1b[4;1HUpstream: Anuken/Mindustry\x1b[K");
-                printf("\x1b[5;1HCommit: 19a0f40d4451\x1b[K");
-                printf("\x1b[6;1HLicense: GPL-3.0\x1b[K");
-                printf("\x1b[7;1HPort: Min3DStry (in progress)\x1b[K");
-                item_row = 11u;
-            }
-            size_t menu_count = m3ds_main_menu_count(&main_menu);
-            for (size_t i = 0u; i < menu_count; ++i) {
-                const char *key = m3ds_main_menu_key(&main_menu, i);
-                const char *label = m3ds_main_menu_label(&main_menu, i);
-                char value[32] = {0};
-                bool enabled = m3ds_main_menu_enabled(&main_menu, i);
-                if (main_menu.screen == M3DS_MENU_SCREEN_SETTINGS) {
-                    if (strcmp(key, "audio") == 0) {
-                        snprintf(value, sizeof(value), ": %s",
-                                 main_menu.muted ? "OFF" : "ON");
-                    } else if (strcmp(key, "lighting") == 0) {
-                        snprintf(value, sizeof(value), ": %s",
-                                 main_menu.lighting ? "ON" : "OFF");
+            if (main_menu.screen == M3DS_MENU_SCREEN_CATALOG) {
+                size_t total = m3ds_main_menu_count(&main_menu);
+                unsigned selected = main_menu.catalog_selected;
+                printf("\x1b[2;1H%s %u/%u\x1b[K", screen_title,
+                       (unsigned)(selected + 1u), (unsigned)total);
+                printf("\x1b[3;1HCategory: %s\x1b[K",
+                       m3ds_catalog_category_name(main_menu.catalog_category));
+                for (unsigned row = 0u; row < M3DS_CATALOG_ROWS; ++row) {
+                    unsigned index = main_menu.catalog_scroll + row;
+                    if (index >= total) {
+                        printf("\x1b[%u;1H\x1b[K", (unsigned)(4u + row));
+                        continue;
                     }
+                    printf("\x1b[%u;1H%c %s\x1b[K",
+                           (unsigned)(4u + row),
+                           index == selected ? '>' : ' ',
+                           m3ds_main_menu_label(&main_menu, index));
                 }
-                printf("\x1b[%u;1H%c %s%s\x1b[K",
-                       (unsigned)(item_row + (unsigned)i),
-                       i == main_menu.selected ? '>' : (enabled ? ' ' : '-'),
-                       label, value);
+                for (unsigned line = (unsigned)(4u + M3DS_CATALOG_ROWS); line < 22u;
+                     ++line) {
+                    printf("\x1b[%u;1H\x1b[K", line);
+                }
+                printf("\x1b[24;1HD-Pad Scroll  L/R Category  B Back\x1b[K");
+                printf("\x1b[25;1H\x1b[K");
+            } else {
+                printf("\x1b[2;1H%s\x1b[K", screen_title);
+                unsigned item_row = 4u;
+                if (main_menu.screen == M3DS_MENU_SCREEN_ABOUT) {
+                    printf("\x1b[4;1HUpstream: Anuken/Mindustry\x1b[K");
+                    printf("\x1b[5;1HCommit: 19a0f40d4451\x1b[K");
+                    printf("\x1b[6;1HLicense: GPL-3.0\x1b[K");
+                    printf("\x1b[7;1HPort: Min3DStry (in progress)\x1b[K");
+                    item_row = 11u;
+                }
+                size_t menu_count = m3ds_main_menu_count(&main_menu);
+                for (size_t i = 0u; i < menu_count; ++i) {
+                    const char *key = m3ds_main_menu_key(&main_menu, i);
+                    const char *label = m3ds_main_menu_label(&main_menu, i);
+                    char value[32] = {0};
+                    bool enabled = m3ds_main_menu_enabled(&main_menu, i);
+                    if (main_menu.screen == M3DS_MENU_SCREEN_SETTINGS) {
+                        if (strcmp(key, "audio") == 0) {
+                            snprintf(value, sizeof(value), ": %s",
+                                     main_menu.muted ? "OFF" : "ON");
+                        } else if (strcmp(key, "lighting") == 0) {
+                            snprintf(value, sizeof(value), ": %s",
+                                     main_menu.lighting ? "ON" : "OFF");
+                        }
+                    }
+                    printf("\x1b[%u;1H%c %s%s\x1b[K",
+                           (unsigned)(item_row + (unsigned)i),
+                           i == main_menu.selected ? '>' : (enabled ? ' ' : '-'),
+                           label, value);
+                }
+                for (unsigned line = (unsigned)(item_row + menu_count); line < 20u;
+                     ++line) {
+                    printf("\x1b[%u;1H\x1b[K", line);
+                }
+                printf("\x1b[24;1HD-Pad: Select  A: Confirm  B: Back  START: Exit\x1b[K");
+                printf("\x1b[25;1H- = unavailable in this build\x1b[K");
             }
-            for (unsigned line = (unsigned)(item_row + menu_count); line < 20u; ++line) {
-                printf("\x1b[%u;1H\x1b[K", line);
-            }
-            printf("\x1b[24;1HD-Pad: Select  A: Confirm  B: Back  START: Exit\x1b[K");
-            printf("\x1b[25;1H- = unavailable in this build\x1b[K");
         }
 
         if (!emitted_frame_diag && scene.tick >= 30u) {

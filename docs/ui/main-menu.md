@@ -35,14 +35,32 @@ Quit
 | Settings -> Reset camera | recentres the camera (`MAIN_MENU action=settings.camera reset=1`) |
 | Settings -> Back | returns to the title menu |
 | Database | opens the upstream `database.button` submenu |
+| Database -> Core Database | opens the generated items/blocks catalog (D-pad scrolls, L/R switches Items/Blocks, B returns) |
 | Database -> About | opens the About page (upstream version, source commit, GPL-3.0, port status) |
 | About -> Back | returns to the Database submenu (B from Database returns to the title) |
 | Quit | exits the app |
-| Join Game / Custom Game / Load Game / Schematics / Core Database / Editor / Mods | rendered as `-` (unavailable); log `MAIN_MENU unavailable=<key>` |
+| Join Game / Custom Game / Load Game / Schematics / Editor / Mods | rendered as `-` (unavailable); log `MAIN_MENU unavailable=<key>` |
 
 The settings rows are the port's live audio/lighting/camera controls, not upstream's tabbed settings
 dialog. The title, Play submenu and labels match the pinned upstream source; the rest of the upstream
 menu tree is intentionally visible but disabled so the gap is obvious rather than silently missing.
+
+### Core Database browser
+
+`include/ui/content_catalog.h` and the generated `include/ui/content_catalog_data.h` expose the pinned
+v160.8 bundle entries (`item.<id>.name`, `block.<id>.name`): **22 items** and **258 blocks**. Blocks
+without a `block.<id>.description` entry (parallax, cliffs, boulders, floor variants) are
+environment-only and excluded. The console view shows 12 rows with wrap-around scrolling; L/R switches
+Items/Blocks; B returns to the Database submenu.
+
+Data and header are reproducible:
+
+```bash
+python3 tools/gen_content_catalog.py --bundle /path/to/bundle.properties
+python3 tools/gen_content_catalog.py --check   # also runs in ./dev.sh test
+```
+
+Upstream category tabs, icons, descriptions and unlock state are not modelled yet.
 
 ## Input
 
@@ -84,13 +102,26 @@ MAIN_MENU screen=title selected=play            # B from Database
 ```
 
 The About page shows `Mindustry v160.8`, `Upstream: Anuken/Mindustry`, `Commit: 19a0f40d4451`,
-`License: GPL-3.0`, and `Port: Min3DStry (in progress)`. Schematics and Core Database stay visible as
-`-` and log `MAIN_MENU unavailable=<key>`.
+`License: GPL-3.0`, and `Port: Min3DStry (in progress)`. Schematics stays visible as `-` and logs
+`MAIN_MENU unavailable=<key>`.
+
+Core Database navigation on both profiles:
+
+```text
+MAIN_MENU screen=catalog selected=beryllium   # 1/22, Items
+MAIN_MENU catalog=Blocks count=258            # L switches category
+MAIN_MENU screen=database selected=database   # B returns
+```
+
+The catalog renders `Core Database 1/22` (then `1/258` for Blocks), the category name, and 12 rows with
+wrap-around scrolling. Screenshots confirm the Items list (`Beryllium … Phase Fabric`) and the Blocks
+list (`Additive Reconstructor … Basic Assembler Module`).
 
 ## Remaining work
 
 - Port the real upstream Scene2D `MenuFragment` rendering instead of the console shell.
-- Core database UI and schematic copy/paste (the About page is a static port page, not the upstream
-  links/credits dialog).
-- RTS unit selection and command.
+- Schematic copy/paste and RTS unit selection/command.
+- Database category tabs, icons, descriptions and unlock state (the current browser lists the pinned
+  bundle names only).
+- The About page is a static port page, not the upstream links/credits dialog.
 - Upstream settings dialog (graphics/audio/game/controls tabs) instead of the live-control subset.
