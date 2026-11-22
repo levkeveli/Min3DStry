@@ -1,3 +1,4 @@
+import arc.Core;
 import arc.Events;
 import mindustry.game.EventType.SectorCaptureEvent;
 import mindustry.type.Sector;
@@ -19,6 +20,12 @@ public final class UpstreamSectorCapture {
         Events.on(SectorCaptureEvent.class, event -> {
             if (event.sector == null) return;
             persist(event.sector);
+            String message = "Sector Captured";
+            if (Core.bundle != null) {
+                String value = Core.bundle.get("sector.capture.current");
+                if (value != null && !value.startsWith("???")) message = value;
+            }
+            UpstreamNotification.show(message, 5f);
             System.out.println("UPSTREAM_CAMPAIGN_CAPTURED sector=" + event.sector.id);
         });
     }

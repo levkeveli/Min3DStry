@@ -1,11 +1,13 @@
 # Hardware test queue
 
-Status: **HARDWARE_TEST_PENDING**. No physical Old/New 3DS result is claimed
-here. This is the handoff queue for the hardware-testing owner; emulator and
-host results stay in the capability docs and ledger.
+Status: **Partially verified.** Physical records exist for both models:
+[Original 3DS XL](hardware/evidence/old3ds-xl-a4a9a96.md) (smoke) and
+[New 3DS XL](hardware/evidence/new3ds-xl-de3e249.md) (sector-170, 12/12 strict).
+The cards below remain open; FPS, the five-minute soak/interactions, audible
+audio, live gameplay and cross-play are not claimed.
 
-Baseline commit for queued tests: `1d27718` (update this line when a newer
-merged `main` is used). Record the exact commit and ROM SHA-256 with every run.
+Latest evidenced builds: New `de3e249` (2026-11-22) and Old `a4a9a96`
+(2026-11-22). Record the exact commit and ROM SHA-256 with every run.
 The procedure and evidence schema are in
 [verification-runbook.md](hardware/verification-runbook.md) and
 [deployment-and-logs.md](hardware/deployment-and-logs.md).
@@ -26,20 +28,25 @@ The procedure and evidence schema are in
 6. If a run fails, attach the log and file a defect; do not change the ledger
    stage.
 
-Capabilities currently marked `HARDWARE_TEST_PENDING`:
+Capabilities still marked `HARDWARE_TEST_PENDING`:
 
 | Card | Capabilities |
 | --- | --- |
-| HWT-01 | `arm11-toolchain-build`, `memory-budget-runtime`, `threading-scheduling`, `citro2d-scene-prototype`, `sprite-atlas-pipeline`, `world-sprite-renderer`, `lighting-effects-camera`, `msav-map-save-compat` |
+| HWT-01 | `citro2d-scene-prototype`, `sprite-atlas-pipeline`, `world-sprite-renderer`, `lighting-effects-camera` |
 | HWT-02 | `world-blocks-logistics`, `production-power-liquids`, `combat-waves-ai`, `touch-build-palette`, `hud-menus-minimap` |
 | HWT-03 | `campaign-sectors` |
 | HWT-04 | `ndsp-sfx-music` |
 | HWT-05 | `crossplay-net-protocol` |
 | HWT-06 | `physical-hardware-parity` and the `>= 24 FPS` target |
 
-`old-new-3ds-probe` was promoted to **hardware-verified** by #322 (Original
-3DS XL); its evidence is `docs/hardware/evidence/old3ds-xl-a4a9a96.md` with the
-raw log beside it. Preserve that evidence and do not re-queue that capability.
+Cleared by the `de3e249` New 3DS record: `arm11-toolchain-build`,
+`memory-budget-runtime`, `threading-scheduling` and `msav-map-save-compat`.
+The `a4a9a96` Original 3DS record also backs the first three. Preserve those
+evidence files and do not re-queue the cleared capabilities unless the
+evidence is invalidated.
+
+`old-new-3ds-probe` remains **hardware-verified** with both
+`old3ds-xl-a4a9a96.md` and `new3ds-xl-de3e249.md`.
 
 ## HWT-01 — Boot, storage, parity, memory and render baseline
 
@@ -122,6 +129,8 @@ and waves, touch palette/rotation, HUD/menus/minimap.
 - No crash/hang; `FRAME ... drop=0`; touch and D-pad input remain responsive.
 - With a captured sector loaded, the status HUD shows the stock
   `Sector Captured` row.
+- On a boss wave, the guardian-warning notification appears with the stock
+  `wave.guardianwarn` text.
 
 **Evidence:** raw log, screenshots of HUD/palette/minimap, frame timings and a
 short note on any glitches.
@@ -167,6 +176,7 @@ UPSTREAM_SP_LOADED source=campaign map=Editor_Playtesting size=150x250 wave=1 co
 UPSTREAM_CAMPAIGN_SAVED slot=sector-serpulo-15.msav
 UPSTREAM_SP_EXIT
 UPSTREAM_CAMPAIGN_CAPTURED sector=15
+UPSTREAM_CAMPAIGN_NOTIFICATION text=Sector Captured
 UPSTREAM_CAMPAIGN_CAPTURE_REWARDS copper=250 lead=75 core=core-nucleus storage=13000
 UPSTREAM_CAMPAIGN_CAPTURE sector=15 captured=ok waves=off attack=off event=ok persisted=ok
 ```
@@ -225,9 +235,17 @@ AppMem, and the benchmark reports `>= 24 FPS`. **Evidence:** strict
 `hw_evidence.py` JSON/Markdown for both models, benchmark log lines, and
 thermal/SD notes. Only this card can clear `physical-hardware-parity`.
 
+> `BENCH fps=... p95_ms=...` is now emitted every 256 rendered frames
+> (`scenario=factory_demo`), and `benchmark-report` fails `frame_rate` when the
+> record is missing. The existing `de3e249`/`a4a9a96` logs predate it, so this
+> card still needs a fresh run from a build that contains the sampler.
+
 ## Current exclusions
 
-- No physical hardware is attached to this workspace; do not wait for it.
+- Physical runs need the owner to open Homebrew Launcher -> **Y** (NetLoader)
+  and confirm the console IP. Never use a connect-and-close TCP check against
+  port 17491; hbmenu expects the 3dslink protocol and reports `namelen`. Use
+  the real deploy path (`tools/hw_capture.py` or `./dev.sh device deploy`).
 - Capture rewards UI and the unified 1:1 release build remain implementation
   work, not hardware queue items.
 - Azahar results never satisfy these cards.

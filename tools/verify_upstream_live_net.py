@@ -1433,8 +1433,8 @@ def run_model(args, model, config, original_config, log, output):
                     if args.combat:
                         wait_for(log, emulator, r"UPSTREAM_LIVE_CONTROLS_READY unit=\d+", args.timeout)
                         status = wait_for(log, emulator,
-                                          r"UPSTREAM_STATUS_HUD wave=\d+ enemies=\d+ copper=\d+ rows=3", args.timeout)
-                        print(re.search(r"UPSTREAM_STATUS_HUD wave=\d+ enemies=\d+ copper=\d+ rows=3", status).group(0),
+                                          r"UPSTREAM_STATUS_HUD wave=\d+ enemies=\d+ copper=\d+ rows=5", args.timeout)
+                        print(re.search(r"UPSTREAM_STATUS_HUD wave=\d+ enemies=\d+ copper=\d+ rows=5", status).group(0),
                               flush=True)
                         fixture = (
                             '(() => { for (var i = 0; i < Groups.player.size; i++) { var p = Groups.player.get(i); if (p.unit() != null) p.unit().health = 100000; } for (var x = 75; x <= 80; x++) for (var y = 24; y <= 28; y++) { '
