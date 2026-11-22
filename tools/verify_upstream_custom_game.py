@@ -17,13 +17,16 @@ MAPS = {"caldera": "Ancient_Caldera", "archipelago": "Archipelago"}
 
 def write_replay(path: Path, model: str, resume: bool, map_file: str) -> None:
     windows = [(0, 25, 1 << 9)]  # Hold L at boot.
-    save_at = 100 if map_file == "archipelago" else 61
+    large_map = map_file == "archipelago"
+    select_at = 48 if large_map else 33
+    save_at = 112 if large_map else 61
     if resume:
-        windows.append((33, 35, 1))  # A on Load Game.
+        windows.append((select_at, select_at + 2, 1))  # A on Load Game.
     else:
-        if map_file == "archipelago":
-            windows.append((25, 27, 1 << 7))  # D-pad down from Ancient Caldera.
-        windows += [(28, 30, 1 << 4), (33, 35, 1), (save_at, save_at + 2, sp.KEY_SELECT)]
+        if large_map:
+            windows.append((select_at - 8, select_at - 6, 1 << 7))  # D-pad down from Ancient Caldera.
+        windows += [(select_at - 5, select_at - 3, 1 << 4), (select_at, select_at + 2, 1),
+                    (save_at, save_at + 2, sp.KEY_SELECT)]
     frames = sp.CTM_SAMPLES_PER_SECOND * (save_at + 11)
     header = struct.pack("<4sQ20sQQ32sIQq156x", b"CTM\x1b", 0, sp.CTM_REVISION, 1780000000,
                          0x4D334453, b"Min3DStry Custom Game", 0, frames, 0)
