@@ -94,6 +94,16 @@ From the repository root, replay the stock-server join and input with
 `python3 tools/verify_upstream_live_net.py --rom /path/to/upstream-probe.3dsx
 --server /path/to/server-release.jar --controls --controls-replay --unified-boot`.
 
+The [combined devkitARM test build](https://github.com/levkeveli/Min3DStry/actions/runs/45060811199)
+also includes the campaign launch, research, and defeat/retry branches.
+Both Azahar 2126.2 profiles ran the same ROM to capture Ground Zero,
+research Router, launch Frozen Forest, and save both sectors. In separate
+boots, both profiles joined unmodified v160.8 Glacier, synchronized both
+movement inputs and the next wave, and exited with **START**. The server
+logged a departure in each session. The build's offline executable and
+configured memory subtotal is 66.49 MiB, above the Original 3DS 64 MiB
+application budget before remaining runtime allocations.
+
 ## Upstream map metadata probe
 
 Add `-Pprobe=map` to the Gradle command to extract the original Glacier map from the pinned Git revision at build time. The fixture adapter supplies those exact bytes to upstream `MapIO.createMap` through a buffered stream. This keeps Arc's file initialization and executor dependencies outside the metadata test. Run the ARM11 build command with a new output directory after switching probes.
