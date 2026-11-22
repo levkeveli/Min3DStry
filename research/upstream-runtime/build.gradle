@@ -324,7 +324,12 @@ if (usesSinglePlayer) {
     }
 }
 if (probe == 'unified') {
-    sourceSets.main.java.srcDir('src/unified/java')
+    sourceSets.main.java.srcDirs('src/unified/java', 'src/unified/host')
+    tasks.register('runServerAddressJvm', JavaExec) {
+        dependsOn 'classes'
+        classpath = sourceSets.main.runtimeClasspath
+        mainClass = 'UpstreamServerAddressReference'
+    }
 }
 if (probe == 'file-metadata') {
     sourceSets.main.java.srcDir('src/file/java')

@@ -1,9 +1,19 @@
 import arc.files.Fi;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import org.teavm.interop.Address;
+import org.teavm.interop.Import;
+import org.teavm.interop.c.Include;
 
 /** Select one upstream game session before initializing its content and platform services. */
 public final class UpstreamUnifiedApp {
+    @Include(value = "m3ds_server_address.h", isSystem = true)
+    private static final class NativeInput {
+        @Import(name = "m3ds_read_server_address")
+        static native int serverAddress(Address buffer, int capacity, int invalid);
+    }
+
     private UpstreamUnifiedApp() {
     }
 
@@ -23,10 +33,40 @@ public final class UpstreamUnifiedApp {
         var endpoint = UpstreamLiveNetworkProbe.endpointFile(
             args.length == 0 ? args : Arrays.copyOfRange(args, 1, args.length));
         System.out.println("UPSTREAM_BOOT mode=join");
-        if (!endpoint.exists() || endpoint.isDirectory()) {
+        var atlas = new Fi("/romfs/sprites.aatls");
+        if (endpoint.exists() && !endpoint.isDirectory()) {
+            UpstreamRenderedNetworkProbe.run(endpoint, atlas);
+        } else if (args.length == 2) {
             System.out.println("No server endpoint file at " + endpoint.path());
-            return;
+        } else {
+            var address = readServerAddress();
+            if (address != null) {
+                UpstreamRenderedNetworkProbe.run(endpoint.parent(), address.host() + " " + address.port(), atlas);
+            }
         }
-        UpstreamRenderedNetworkProbe.run(endpoint, new Fi("/romfs/sprites.aatls"));
+    }
+
+    private static UpstreamServerAddress readServerAddress() throws IOException {
+        // One byte for the terminator and up to four UTF-8 bytes per input character.
+        byte[] text = new byte[4 * 259 + 1];
+        int invalid = 0;
+        System.out.println("UPSTREAM_SERVER_ADDRESS status=opened");
+        while (true) {
+            int length = NativeInput.serverAddress(Address.ofData(text), text.length, invalid);
+            if (length == 0) {
+                System.out.println("UPSTREAM_SERVER_ADDRESS status=canceled");
+                return null;
+            }
+            if (length < 0 || length >= text.length) {
+                throw new IOException("The 3DS server address keyboard could not open");
+            }
+            try {
+                var address = UpstreamServerAddress.parse(new String(text, 0, length, StandardCharsets.UTF_8));
+                System.out.println("UPSTREAM_SERVER_ADDRESS status=confirmed");
+                return address;
+            } catch (IllegalArgumentException invalidAddress) {
+                invalid = 1;
+            }
+        }
     }
 }

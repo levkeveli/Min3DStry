@@ -83,8 +83,12 @@ bash arm11/build.sh build/generated/teavm/c build/unified-3ds --unified build/te
 ```
 
 The resulting `build/unified-3ds/upstream-probe.3dsx` starts offline play by
-default. To join, put the host and port on one line in
-`sd:/3ds/min3dstry/server-endpoint.txt` and hold **X** when launching.
+default. Hold **X** while launching to open Join. Enter an IPv4 address or
+hostname and an optional port, such as `game.example.org:6567`.
+Omitting the port uses the upstream default, 6567. Cancel leaves the app
+without opening a network connection. Address input stays in memory.
+For scripted launches, put the host and port on one line in
+`sd:/3ds/min3dstry/server-endpoint.txt` to skip the keyboard.
 Argument-capable launchers can also pass `--join [endpoint-file]`.
 The unified client uses its packaged v160.8 atlas in both modes. Restart the
 ROM to switch modes. Menu and browser integration are tracked in
