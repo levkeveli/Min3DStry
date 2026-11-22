@@ -28,6 +28,17 @@ final class UpstreamStatusHud {
             }
 
             if (Vars.state.rules.waveTimer) {
+                // v160.8 HudFragment.makeStatusTable():
+                //   if(state.rules.waveTimer){
+                //       builder.append(logic.isWaitingWave()
+                //           ? @wave.waveInProgress
+                //           : waitingf.get((int)(state.wavetime/60)));
+                //   }else if(state.enemies == 0){
+                //       builder.append(@waiting);
+                //   }
+                // Logic.isWaitingWave() is
+                //   (waitEnemies || (wave >= winWave && winWave > 0)) && enemies > 0,
+                // so it is only queried while the wave timer is enabled.
                 add(rows, Vars.logic.isWaitingWave()
                     ? Core.bundle.get("wave.waveInProgress")
                     : Core.bundle.format("wave.waiting", formatTime((int)(Vars.state.wavetime / 60f))));

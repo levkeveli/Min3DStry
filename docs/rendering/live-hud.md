@@ -30,6 +30,13 @@ UPSTREAM_STATUS_HUD wave=1 enemies=0 copper=200 rows=3
 The same runs complete the stock-server combat check and report the packet
 and destroy markers documented in [live-combat.md](../gameplay/live-combat.md).
 
+The live fixture exercises the countdown/waiting path with `enemies=0`. The
+singular/plural enemy rows, the `wave.waveInProgress` branch, and the `m:ss`
+timer path are copied from v160.8 `HudFragment.makeStatusTable()` but are not
+separately exercised by this fixture. The `winWave > 1` guard and the
+`isWaitingWave()` placement match that method and `Logic.isWaitingWave()`
+exactly.
+
 ## Limitations
 
 - This is the wave/timer/copper slice of the stock HUD, not the complete HUD.
