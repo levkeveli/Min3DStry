@@ -18,7 +18,8 @@ When `/3ds/min3dstry` contains more than one `sector-*.msav` slot, the app
 loads `Saves.load()` through the live `Core.settings`/`Core.files` path before
 starting the world. It lists one top-level row per discovered `sector-*.msav`
 file, matching `Saves.getSectorFile()`; nested probe or backup files are
-ignored:
+ignored. Rows use the upstream sector name (`Ground Zero`, `Frozen Forest`)
+with the filename retained in the selection marker:
 
 ```text
 UPSTREAM_CAMPAIGN_MENU slots=2
@@ -38,7 +39,7 @@ For automated runs, a file `/3ds/min3dstry/campaign-select.txt` containing a
 zero-based slot index selects without input:
 
 ```text
-UPSTREAM_CAMPAIGN_SELECTED slot=sector-serpulo-86.msav source=auto
+UPSTREAM_CAMPAIGN_SELECTED slot=sector-serpulo-86.msav name=Frozen Forest source=auto
 UPSTREAM_SP_LOADED source=campaign map=Editor_Playtesting size=150x250 wave=1 copper=0
 ```
 

@@ -4,7 +4,7 @@ Status: **HARDWARE_TEST_PENDING**. No physical Old/New 3DS result is claimed
 here. This is the handoff queue for the hardware-testing owner; emulator and
 host results stay in the capability docs and ledger.
 
-Baseline commit for queued tests: `a4a9a96` (update this line when a newer
+Baseline commit for queued tests: `1d27718` (update this line when a newer
 merged `main` is used). Record the exact commit and ROM SHA-256 with every run.
 The procedure and evidence schema are in
 [verification-runbook.md](hardware/verification-runbook.md) and
@@ -30,12 +30,16 @@ Capabilities currently marked `HARDWARE_TEST_PENDING`:
 
 | Card | Capabilities |
 | --- | --- |
-| HWT-01 | `arm11-toolchain-build`, `old-new-3ds-probe`, `memory-budget-runtime`, `threading-scheduling`, `citro2d-scene-prototype`, `sprite-atlas-pipeline`, `world-sprite-renderer`, `lighting-effects-camera`, `msav-map-save-compat` |
+| HWT-01 | `arm11-toolchain-build`, `memory-budget-runtime`, `threading-scheduling`, `citro2d-scene-prototype`, `sprite-atlas-pipeline`, `world-sprite-renderer`, `lighting-effects-camera`, `msav-map-save-compat` |
 | HWT-02 | `world-blocks-logistics`, `production-power-liquids`, `combat-waves-ai`, `touch-build-palette`, `hud-menus-minimap` |
 | HWT-03 | `campaign-sectors` |
 | HWT-04 | `ndsp-sfx-music` |
 | HWT-05 | `crossplay-net-protocol` |
 | HWT-06 | `physical-hardware-parity` and the `>= 24 FPS` target |
+
+`old-new-3ds-probe` was promoted to **hardware-verified** by #322 (Original
+3DS XL); its evidence is `docs/hardware/evidence/old3ds-xl-a4a9a96.md` with the
+raw log beside it. Preserve that evidence and do not re-queue that capability.
 
 ## HWT-01 — Boot, storage, parity, memory and render baseline
 
@@ -156,7 +160,7 @@ Stage at least two top-level `sector-serpulo-*.msav` files in
 
 ```text
 UPSTREAM_CAMPAIGN_MENU slots=2
-UPSTREAM_CAMPAIGN_SELECTED slot=sector-serpulo-15.msav
+UPSTREAM_CAMPAIGN_SELECTED slot=sector-serpulo-15.msav name=Ground Zero
 UPSTREAM_SP_LOADED source=campaign map=Editor_Playtesting size=150x250 wave=1 copper=0
 UPSTREAM_CAMPAIGN_SAVED slot=sector-serpulo-15.msav
 UPSTREAM_SP_EXIT

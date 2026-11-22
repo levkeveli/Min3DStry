@@ -326,7 +326,8 @@ public final class UpstreamSinglePlayerApp {
             int index = Integer.parseInt(automatic.readString("UTF-8").trim());
             if (index < 0 || index >= slots.size()) index = 0;
             var slot = slots.get(index);
-            System.out.println("UPSTREAM_CAMPAIGN_SELECTED slot=" + slot.file.name() + " source=auto");
+            System.out.println("UPSTREAM_CAMPAIGN_SELECTED slot=" + slot.file.name()
+                + " name=" + slotName(slot) + " source=auto");
             return slot;
         }
         while (true) {
@@ -351,17 +352,24 @@ public final class UpstreamSinglePlayerApp {
             drawSectorMenu(slots, selected);
             if ((input & (1 << 17)) != 0) {
                 var slot = slots.get(selected);
-                System.out.println("UPSTREAM_CAMPAIGN_SELECTED slot=" + slot.file.name());
+                System.out.println("UPSTREAM_CAMPAIGN_SELECTED slot=" + slot.file.name()
+                    + " name=" + slotName(slot));
                 return slot;
             }
             while (System.nanoTime() < nextFrame) Thread.yield();
         }
     }
 
+    private static String slotName(UpstreamSinglePlayerSession.SectorSlot slot) {
+        if (slot.sector == null) return slot.file.name();
+        String name = slot.sector.name();
+        return name == null || name.isEmpty() ? slot.file.name() : name;
+    }
+
     private void drawSectorMenu(List<UpstreamSinglePlayerSession.SectorSlot> slots, int selected) {
         StringBuilder labels = new StringBuilder("Select sector\0");
         for (int i = 0; i < slots.size(); i++) {
-            labels.append(i == selected ? "> " : "  ").append(slots.get(i).file.name()).append('\0');
+            labels.append(i == selected ? "> " : "  ").append(slotName(slots.get(i))).append('\0');
         }
         target.buildLabels(labels.toString().getBytes(StandardCharsets.UTF_8));
     }
