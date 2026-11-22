@@ -305,6 +305,13 @@ if (probe == 'network-render') {
 }
 if (usesSinglePlayer) {
     sourceSets.main.java.srcDir('src/singleplayer/java')
+    if (probe == 'singleplayer') {
+        sourceSets.main.java.srcDir('src/singleplayer-custom-host/java')
+        tasks.register('runCustomGameJvm', JavaExec) {
+            classpath = sourceSets.main.runtimeClasspath
+            mainClass = 'UpstreamCustomGameReference'
+        }
+    }
     if (!usesSinglePlayerApp) {
         sourceSets.main.java.exclude('UpstreamSinglePlayerApp.java', 'UpstreamSinglePlayerInput.java')
     } else {
@@ -757,7 +764,11 @@ teavm {
     if (usesExecutor) {
         c { obfuscated = false }
     }
-    if (usesSimulation || usesLiveNetwork || usesSinglePlayer) {
+    if (probe == 'singleplayer') {
+        // Large offline maps allocate the original Pathfinder grid while the
+        // decoded world is live, then still need to load the world atlas.
+        c { maxHeapSize = 32 }
+    } else if (usesSimulation || usesLiveNetwork || usesSinglePlayer) {
         c { maxHeapSize = 24 }
     }
 }
