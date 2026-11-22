@@ -15,18 +15,23 @@ public final class UpstreamUnifiedApp {
             join = (input & UpstreamSinglePlayerInput.JOIN_HELD) != 0;
         }
         if (!join) {
-            System.out.println("UPSTREAM_BOOT mode=offline");
-            UpstreamSinglePlayerApp.main(args);
+            offline(args);
             return;
         }
         if (args.length > 2) throw new IllegalArgumentException("Expected --join [endpoint-file]");
         var endpoint = UpstreamLiveNetworkProbe.endpointFile(
             args.length == 0 ? args : Arrays.copyOfRange(args, 1, args.length));
-        System.out.println("UPSTREAM_BOOT mode=join");
         if (!endpoint.exists() || endpoint.isDirectory()) {
             System.out.println("No server endpoint file at " + endpoint.path());
+            if (args.length == 0) offline(args);
             return;
         }
+        System.out.println("UPSTREAM_BOOT mode=join");
         UpstreamRenderedNetworkProbe.run(endpoint, new Fi("/romfs/sprites.aatls"));
+    }
+
+    private static void offline(String[] args) throws IOException, InterruptedException {
+        System.out.println("UPSTREAM_BOOT mode=offline");
+        UpstreamSinglePlayerApp.main(args);
     }
 }

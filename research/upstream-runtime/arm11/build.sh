@@ -14,6 +14,10 @@ case "$arm11_opt" in
         exit 2
         ;;
 esac
+if [[ ${3:-} == --unified && ($# != 4 || $4 == --save-rows || ! -d $4) ]]; then
+    echo "Unified builds require a terrain assets directory after --unified" >&2
+    exit 2
+fi
 root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 output="$2"
 python3 "$root/prepare.py" "$1" "$output"
@@ -39,10 +43,6 @@ if [[ $mode == --unified ]]; then
 fi
 if [[ $mode == --network || $mode == --singleplayer || $mode == --unified ]]; then
     shift
-fi
-if [[ $mode == --unified && $# == 0 ]]; then
-    echo "Unified builds require the terrain assets directory" >&2
-    exit 2
 fi
 save_rows_flags=()
 save_rows_sources=()
