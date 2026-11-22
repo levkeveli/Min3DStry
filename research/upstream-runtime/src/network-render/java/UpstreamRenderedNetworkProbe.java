@@ -25,6 +25,7 @@ import mindustry.gen.UnitWaterMove;
 import mindustry.graphics.CacheLayer;
 import mindustry.type.UnitType;
 import mindustry.world.Block;
+import mindustry.world.blocks.defense.turrets.BaseTurret;
 import mindustry.world.blocks.payloads.BuildPayload;
 import mindustry.world.blocks.payloads.PayloadConveyor.PayloadConveyorBuild;
 import mindustry.world.blocks.payloads.UnitPayload;
@@ -32,7 +33,6 @@ import mindustry.world.blocks.liquid.Conduit;
 import mindustry.world.blocks.distribution.Conveyor.ConveyorBuild;
 import mindustry.world.blocks.distribution.Sorter;
 import mindustry.world.blocks.storage.CoreBlock;
-import mindustry.world.blocks.defense.turrets.BaseTurret;
 
 /** Presents the received multiplayer world through the ARM11 terrain renderer. */
 public final class UpstreamRenderedNetworkProbe {

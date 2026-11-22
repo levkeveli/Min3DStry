@@ -2,7 +2,9 @@ import arc.Core;
 import arc.files.Fi;
 import arc.graphics.Blending;
 import arc.graphics.g2d.TextureAtlas.AtlasRegion;
+import arc.math.Mathf;
 import arc.util.Time;
+import java.util.Arrays;
 import mindustry.Vars;
 import mindustry.content.Blocks;
 import mindustry.content.Items;
@@ -15,7 +17,10 @@ import mindustry.world.blocks.defense.turrets.BaseTurret.BaseTurretBuild;
 import mindustry.world.blocks.defense.turrets.ContinuousLiquidTurret;
 import mindustry.world.blocks.defense.turrets.ItemTurret;
 import mindustry.world.blocks.defense.turrets.LiquidTurret;
+import mindustry.world.blocks.defense.turrets.PayloadAmmoTurret;
+import mindustry.world.blocks.defense.turrets.PayloadAmmoTurret.PayloadTurretBuild;
 import mindustry.world.blocks.defense.turrets.TractorBeamTurret.TractorBeamBuild;
+import mindustry.world.blocks.defense.turrets.Turret;
 import mindustry.world.blocks.defense.turrets.Turret.TurretBuild;
 import mindustry.world.blocks.liquid.LiquidRouter;
 import mindustry.world.blocks.power.BeamNode;
@@ -39,6 +44,7 @@ import port.render.UpstreamFluidAtlas;
 /** Exercise stock material and power building draw passes using the pinned atlas. */
 public final class UpstreamOfflineMaterialsReference implements UpstreamTerrainDrawProbe.TerrainTarget {
     private int sprites;
+    private int spriteHash;
     private int beamSegments;
     private AtlasRegion beamRegion;
 
@@ -80,12 +86,7 @@ public final class UpstreamOfflineMaterialsReference implements UpstreamTerrainD
                 target.verifyDraw(layers, viewport, viewer, build, "idle");
                 activate(build);
                 target.verifyDraw(layers, viewport, viewer, build, "working");
-                if (power) {
-                    if (!UpstreamRenderedNetworkProbe.supportsBuildingDraw(build)) {
-                        throw new AssertionError("The multiplayer draw pass excludes " + block.name);
-                    }
-                    powerTested++;
-                }
+                if (power) powerTested++;
                 if (material) tested++;
             } finally {
                 tile.setBlock(Blocks.air);
@@ -131,13 +132,16 @@ public final class UpstreamOfflineMaterialsReference implements UpstreamTerrainD
             tile.setBlock(block, viewer, 0);
             try {
                 var build = tile.build;
-                if (!UpstreamSinglePlayerApp.supportsBuildingDraw(build)
-                        || !UpstreamRenderedNetworkProbe.supportsBuildingDraw(build)) {
-                    throw new AssertionError("An ARM11 draw pass excludes " + block.name);
+                if (!UpstreamSinglePlayerApp.supportsBuildingDraw(build)) {
+                    throw new AssertionError("The offline draw pass excludes " + block.name);
                 }
                 target.verifyDraw(layers, viewport, viewer, build, "idle");
+                int idle = target.spriteHash;
                 activateTurret((BaseTurretBuild)build);
                 target.verifyDraw(layers, viewport, viewer, build, "active");
+                if (target.spriteHash == idle) {
+                    throw new AssertionError("Active turret draw unchanged for " + block.name);
+                }
                 tested++;
             } finally {
                 tile.setBlock(Blocks.air);
@@ -151,8 +155,12 @@ public final class UpstreamOfflineMaterialsReference implements UpstreamTerrainD
         build.rotation = 65f;
         build.efficiency = 1f;
         if (build instanceof TurretBuild turret) {
+            var block = (Turret)build.block;
             turret.heat = 0.7f;
             turret.curRecoil = 0.6f;
+            // A real update places the draw offset from this recoil and heading.
+            turret.recoilOffset.trns(turret.rotation, -Mathf.pow(turret.curRecoil, block.recoilPow) * block.recoil);
+            if (turret.curRecoils != null) Arrays.fill(turret.curRecoils, turret.curRecoil);
             turret.charge = 0.65f;
             turret.shootWarmup = 0.8f;
         }
@@ -168,6 +176,8 @@ public final class UpstreamOfflineMaterialsReference implements UpstreamTerrainD
             build.liquids.add(liquid.ammoTypes.keys().next(), build.block.liquidCapacity / 2f);
         } else if (build.block instanceof ContinuousLiquidTurret liquid) {
             build.liquids.add(liquid.ammoTypes.keys().next(), build.block.liquidCapacity / 2f);
+        } else if (build instanceof PayloadTurretBuild turret) {
+            turret.payloads.add(((PayloadAmmoTurret)build.block).ammoTypes.keys().next());
         }
     }
 
@@ -211,6 +221,7 @@ public final class UpstreamOfflineMaterialsReference implements UpstreamTerrainD
     private void verifyDraw(UpstreamBuildingLayers layers, UpstreamTerrainDrawProbe.Viewport viewport,
                             Team viewer, Building build, String state) {
         sprites = 0;
+        spriteHash = 0;
         try {
             layers.render(viewport, viewer, candidate -> candidate == build
                 && UpstreamSinglePlayerApp.supportsBuildingDraw(candidate));
@@ -231,6 +242,13 @@ public final class UpstreamOfflineMaterialsReference implements UpstreamTerrainD
         }
         if (page != UpstreamTerrainDrawProbe.pageIndex(error) || left != error.getX() || top != error.getY()) {
             sprites++;
+            spriteHash = 31 * spriteHash + page;
+            spriteHash = 31 * spriteHash + left;
+            spriteHash = 31 * spriteHash + top;
+            spriteHash = 31 * spriteHash + Float.floatToIntBits(x);
+            spriteHash = 31 * spriteHash + Float.floatToIntBits(y);
+            spriteHash = 31 * spriteHash + Float.floatToIntBits(rotation);
+            spriteHash = 31 * spriteHash + color;
         }
     }
 
