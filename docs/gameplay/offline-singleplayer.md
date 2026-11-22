@@ -188,9 +188,9 @@ Azahar profiles. The controller edited the loadout to 8 copper. The
 unmodified v160.8 server reopened both initial saves and matched the CRC
 across floor, overlay, and block IDs for all tiles against a fresh stock
 launch using the same schematic. It confirmed the selected schematic,
-destination cargo, and 15 copper remaining on the origin. The New 3DS replay
-also completed the exit save and PC readback. Old 3DS exit save and in-game
-departure replay are pending.
+destination cargo, and 15 copper remaining on the origin. Both profiles
+completed the exit save and PC readback. The in-game departure replay is
+running separately.
 
 The build's ELF LOAD segments plus the logged managed limit, linear heap,
 and stack total 64.58 MiB. This exceeds the 64 MiB Original 3DS application
