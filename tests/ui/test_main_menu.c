@@ -25,7 +25,8 @@ static void test_labels_and_counts(void) {
     CHECK(strcmp(m3ds_main_menu_label(&menu, 1u), "Database") == 0);
     CHECK(strcmp(m3ds_main_menu_label(&menu, 5u), "Quit") == 0);
     CHECK(m3ds_main_menu_enabled(&menu, 0u));
-    CHECK(!m3ds_main_menu_enabled(&menu, 1u));
+    CHECK(m3ds_main_menu_enabled(&menu, 1u));
+    CHECK(!m3ds_main_menu_enabled(&menu, 2u));
     CHECK(m3ds_main_menu_enabled(&menu, 5u));
 }
 
@@ -60,11 +61,7 @@ static void test_play_submenu_and_campaign(void) {
 static void test_unavailable_entries(void) {
     M3dsMainMenu menu;
     m3ds_main_menu_init(&menu);
-    m3ds_main_menu_move(&menu, 1); /* Database */
-    CHECK(m3ds_main_menu_confirm(&menu) == M3DS_MENU_ACTION_UNAVAILABLE);
-    CHECK(menu.screen == M3DS_MENU_SCREEN_TITLE);
-
-    m3ds_main_menu_move(&menu, 1); /* Editor */
+    m3ds_main_menu_move(&menu, 2); /* Editor */
     CHECK(m3ds_main_menu_confirm(&menu) == M3DS_MENU_ACTION_UNAVAILABLE);
 
     m3ds_main_menu_move(&menu, 1); /* Mods */
@@ -74,6 +71,49 @@ static void test_unavailable_entries(void) {
     CHECK(m3ds_main_menu_confirm(&menu) == M3DS_MENU_ACTION_NONE);
     m3ds_main_menu_move(&menu, 1); /* Join Game */
     CHECK(m3ds_main_menu_confirm(&menu) == M3DS_MENU_ACTION_UNAVAILABLE);
+}
+
+static void test_database_and_about(void) {
+    M3dsMainMenu menu;
+    m3ds_main_menu_init(&menu);
+    m3ds_main_menu_move(&menu, 1); /* Database */
+    CHECK(strcmp(m3ds_main_menu_key(&menu, menu.selected), "database") == 0);
+    CHECK(m3ds_main_menu_confirm(&menu) == M3DS_MENU_ACTION_NONE);
+    CHECK(menu.screen == M3DS_MENU_SCREEN_DATABASE);
+    CHECK(m3ds_main_menu_count(&menu) == 3u);
+    CHECK(strcmp(m3ds_main_menu_key(&menu, 0u), "schematics") == 0);
+    CHECK(strcmp(m3ds_main_menu_label(&menu, 0u), "Schematics") == 0);
+    CHECK(strcmp(m3ds_main_menu_label(&menu, 1u), "Core Database") == 0);
+    CHECK(strcmp(m3ds_main_menu_key(&menu, 2u), "about") == 0);
+    CHECK(!m3ds_main_menu_enabled(&menu, 0u));
+    CHECK(!m3ds_main_menu_enabled(&menu, 1u));
+    CHECK(m3ds_main_menu_enabled(&menu, 2u));
+
+    CHECK(m3ds_main_menu_confirm(&menu) == M3DS_MENU_ACTION_UNAVAILABLE);
+    m3ds_main_menu_move(&menu, 1);
+    CHECK(m3ds_main_menu_confirm(&menu) == M3DS_MENU_ACTION_UNAVAILABLE);
+    m3ds_main_menu_move(&menu, 1);
+    CHECK(strcmp(m3ds_main_menu_key(&menu, menu.selected), "about") == 0);
+    CHECK(m3ds_main_menu_confirm(&menu) == M3DS_MENU_ACTION_NONE);
+    CHECK(menu.screen == M3DS_MENU_SCREEN_ABOUT);
+    CHECK(m3ds_main_menu_count(&menu) == 1u);
+    CHECK(strcmp(m3ds_main_menu_key(&menu, 0u), "back") == 0);
+
+    CHECK(m3ds_main_menu_confirm(&menu) == M3DS_MENU_ACTION_NONE);
+    CHECK(menu.screen == M3DS_MENU_SCREEN_DATABASE);
+
+    CHECK(m3ds_main_menu_back(&menu) == true);
+    CHECK(menu.screen == M3DS_MENU_SCREEN_TITLE);
+    CHECK(menu.selected == 0u);
+
+    /* B from About goes to Database, not straight to the title. */
+    m3ds_main_menu_move(&menu, 1);
+    m3ds_main_menu_confirm(&menu); /* database */
+    m3ds_main_menu_move(&menu, 2);
+    m3ds_main_menu_confirm(&menu); /* about */
+    CHECK(menu.screen == M3DS_MENU_SCREEN_ABOUT);
+    CHECK(m3ds_main_menu_back(&menu) == true);
+    CHECK(menu.screen == M3DS_MENU_SCREEN_DATABASE);
 }
 
 static void test_settings_and_back(void) {
@@ -127,6 +167,13 @@ static void test_screen_names(void) {
     m3ds_main_menu_move(&menu, 4);
     m3ds_main_menu_confirm(&menu);
     CHECK(strcmp(m3ds_main_menu_screen_name(&menu), "settings") == 0);
+    m3ds_main_menu_back(&menu);
+    m3ds_main_menu_move(&menu, 1); /* Database */
+    m3ds_main_menu_confirm(&menu);
+    CHECK(strcmp(m3ds_main_menu_screen_name(&menu), "database") == 0);
+    m3ds_main_menu_move(&menu, 2);
+    m3ds_main_menu_confirm(&menu);
+    CHECK(strcmp(m3ds_main_menu_screen_name(&menu), "about") == 0);
 }
 
 int main(void) {
@@ -134,6 +181,7 @@ int main(void) {
     test_wrapping();
     test_play_submenu_and_campaign();
     test_unavailable_entries();
+    test_database_and_about();
     test_settings_and_back();
     test_quit();
     test_screen_names();

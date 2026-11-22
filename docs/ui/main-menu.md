@@ -24,8 +24,8 @@ Quit
 
 ## What this port implements
 
-`include/ui/main_menu.h` / `src/ui/main_menu.c` model that hierarchy as a three-screen state machine
-(`title`, `play`, `settings`) with the same keys and English labels.
+`include/ui/main_menu.h` / `src/ui/main_menu.c` model that hierarchy as a five-screen state machine
+(`title`, `play`, `settings`, `database`, `about`) with the same keys and English labels.
 
 | Branch | Behaviour |
 | --- | --- |
@@ -34,8 +34,11 @@ Quit
 | Settings -> Lighting | toggles the live scene lighting (`MAIN_MENU action=settings.lighting lighting=<0\|1>`) |
 | Settings -> Reset camera | recentres the camera (`MAIN_MENU action=settings.camera reset=1`) |
 | Settings -> Back | returns to the title menu |
+| Database | opens the upstream `database.button` submenu |
+| Database -> About | opens the About page (upstream version, source commit, GPL-3.0, port status) |
+| About -> Back | returns to the Database submenu (B from Database returns to the title) |
 | Quit | exits the app |
-| Join Game / Custom Game / Load Game / Database / Editor / Mods | rendered as `(unavailable)`; logs `MAIN_MENU unavailable=<key>` |
+| Join Game / Custom Game / Load Game / Schematics / Core Database / Editor / Mods | rendered as `-` (unavailable); log `MAIN_MENU unavailable=<key>` |
 
 The settings rows are the port's live audio/lighting/camera controls, not upstream's tabbed settings
 dialog. The title, Play submenu and labels match the pinned upstream source; the rest of the upstream
@@ -71,8 +74,23 @@ MAIN_MENU action=play.campaign
   After Campaign the menu closes and the HUD resumes (`Tick: ... (RUN)`, `Audio: ... (MUTED)`). Old 3DS
   renders the same hierarchy; both runs keep `SECTOR_LOADER loaded=1` and `PARITY hash=0x53a483c7`.
 
+Scripted Database/About navigation on both profiles:
+
+```text
+MAIN_MENU screen=database selected=schematics
+MAIN_MENU screen=about selected=back
+MAIN_MENU screen=database selected=schematics   # B from About
+MAIN_MENU screen=title selected=play            # B from Database
+```
+
+The About page shows `Mindustry v160.8`, `Upstream: Anuken/Mindustry`, `Commit: 19a0f40d4451`,
+`License: GPL-3.0`, and `Port: Min3DStry (in progress)`. Schematics and Core Database stay visible as
+`-` and log `MAIN_MENU unavailable=<key>`.
+
 ## Remaining work
 
 - Port the real upstream Scene2D `MenuFragment` rendering instead of the console shell.
-- Core database UI, schematic copy/paste, and RTS unit selection/command.
+- Core database UI and schematic copy/paste (the About page is a static port page, not the upstream
+  links/credits dialog).
+- RTS unit selection and command.
 - Upstream settings dialog (graphics/audio/game/controls tabs) instead of the live-control subset.

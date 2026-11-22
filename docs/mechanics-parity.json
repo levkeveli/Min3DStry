@@ -291,7 +291,7 @@
         "src/ui/main_menu.c",
         "tests/ui/test_main_menu.c"
       ],
-      "notes": "Navigation shell with upstream v160.8 MenuFragment keys/labels; Play->Campaign and Settings mute/lighting/camera are wired. The upstream Scene2D fragment, database, schematics and RTS remain unimplemented."
+      "notes": "Navigation shell with upstream v160.8 MenuFragment keys/labels; Play->Campaign, Settings mute/lighting/camera, and Database->About are wired. The upstream Scene2D fragment, schematic/core-database UIs and RTS remain unimplemented."
     },
     {
       "id": "player-unit-flight-camera",
