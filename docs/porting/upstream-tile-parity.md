@@ -36,5 +36,6 @@ gradle -Pprobe=world-save \
     runProbeJvm "-PprobeArgs=/path/to/glacier.msav /path/to/glacier-v13.msav"
 ```
 
-The remaining step is to feed these upstream tile rows into the live app's
-world arrays and remove the native parser from the runtime path.
+The upstream tile rows now feed the live app's world arrays through the
+embedded TeaVM loader (`SECTOR_TILE_STATE`/`SECTOR_PARITY` logs), and #275
+removed the native parser from the runtime startup path.

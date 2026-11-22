@@ -1,0 +1,122 @@
+import arc.Core;
+import arc.Settings;
+import arc.assets.AssetManager;
+import arc.files.Fi;
+import arc.mock.MockFiles;
+import arc.util.Threads;
+import mindustry.Vars;
+import mindustry.ai.BlockIndexer;
+import mindustry.ai.WaveSpawner;
+import mindustry.content.SectorPresets;
+import mindustry.game.Saves;
+import mindustry.io.JsonIO;
+import mindustry.io.SaveIO;
+import mindustry.mod.Mods;
+import mindustry.type.Sector;
+
+/** Loads real upstream sector slots through Saves.load() on the target executor. */
+public final class UpstreamCampaignSavesLoadProbe {
+    public static void main(String[] args) throws Exception{
+        try{
+            run(args);
+        }catch(Throwable failure){
+            System.out.println("UPSTREAM_CAMPAIGN_SAVES_LOAD_ERROR type="
+                + failure.getClass().getName() + " message=" + failure.getMessage());
+            throw failure;
+        }
+    }
+
+    private static void run(String[] args) throws Exception{
+        String temporary = System.getProperty("java.io.tmpdir");
+        String base = args.length > 0
+            ? args[0]
+            : (temporary != null
+                ? temporary + "/m3ds-campaign-saves-load"
+                : "/3ds/min3dstry");
+        boolean live = base.startsWith("/3ds/");
+        Fi directory = new Fi(base).child("tmp/saves-load");
+        directory.mkdirs();
+        directory.emptyDirectory();
+        step("directory");
+
+        String mapPath = args.length > 1
+            ? args[1]
+            : (live ? "/3ds/min3dstry/glacier.msav" : base + "/glacier.msav");
+        var app = UpstreamWorldLoadProbe.load(new String[]{mapPath});
+        step("world");
+
+        Core.settings = new Settings();
+        Core.settings.setAutosave(false);
+        Core.settings.setJson(JsonIO.json);
+        Core.files = new MockFiles();
+        Core.assets = new AssetManager(path -> new Fi(path), false);
+        Vars.spawner = new WaveSpawner();
+        Vars.indexer = new BlockIndexer();
+        Vars.mods = new Mods();
+        step("content");
+
+        Sector sector = SectorPresets.groundZero.sector;
+        if(sector == null || sector.id != 15 || sector.preset != SectorPresets.groundZero){
+            throw new IllegalStateException("Ground zero sector did not initialize");
+        }
+
+        Vars.state.rules.sector = sector;
+        Vars.state.wave = 5;
+        Fi slotFile = directory.child("sector-serpulo-15.msav");
+        SaveIO.write(slotFile);
+
+        Sector other = SectorPresets.frozenForest.sector;
+        if(other == null || other.id != 86){
+            throw new IllegalStateException("Frozen forest sector did not initialize");
+        }
+        Vars.state.rules.sector = other;
+        Vars.state.wave = 7;
+        Fi otherSlot = directory.child("sector-serpulo-86.msav");
+        SaveIO.write(otherSlot);
+        step("write");
+
+        Vars.saveDirectory = directory;
+        Vars.mainExecutor = Threads.executor("campaign-saves-load");
+        step("executor");
+        try{
+            Saves saves = new Saves();
+            step("saves");
+            saves.load();
+            step("load");
+            var slots = saves.getSaveSlots();
+            if(slots.size != 2){
+                throw new IllegalStateException("Saves.load returned " + slots.size + " slot(s)");
+            }
+            if(saves.getLastSector() != null){
+                throw new IllegalStateException("A metadata-free slot was treated as a sector save");
+            }
+            var slot = slots.find(s -> "sector-serpulo-15.msav".equals(s.file.name()));
+            if(slot == null){
+                throw new IllegalStateException("Sector 15 slot was not selectable");
+            }
+            SaveIO.load(slot.file, Vars.world.makeSectorContext(sector));
+            app.runPosted();
+            step("launch");
+            if(Vars.state.rules.sector != sector || Vars.state.wave != 5
+                    || Vars.world.width() != 150 || Vars.world.height() != 250){
+                throw new IllegalStateException(
+                    "Launched save did not restore sector/wave/world: sector="
+                    + Vars.state.rules.sector + " wave=" + Vars.state.wave
+                    + " world=" + Vars.world.width() + "x" + Vars.world.height());
+            }
+            String name = slot.file.name();
+            long bytes = slotFile.length();
+            directory.emptyDirectory();
+            directory.delete();
+            System.out.println(
+                "UPSTREAM_CAMPAIGN_SAVES_LOAD path=" + (live ? "live" : "tmp")
+                + " slots=2 selected=" + name + " bytes=" + bytes + " load=ok launch=ok");
+        }finally{
+            Vars.mainExecutor.shutdownNow();
+        }
+    }
+
+    private static void step(String name){
+        System.out.println("UPSTREAM_CAMPAIGN_SAVES_LOAD_STEP step=" + name);
+    }
+}

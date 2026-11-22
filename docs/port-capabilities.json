@@ -343,7 +343,8 @@
         "research/upstream-runtime/src/file/java/port/UpstreamFileMetadataProbe.java",
         "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerApp.java",
         "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerSession.java",
-        "docs/gameplay/offline-singleplayer.md"
+        "docs/gameplay/offline-singleplayer.md",
+        "research/upstream-runtime/src/campaign-saves-load/java/UpstreamCampaignSavesLoadProbe.java"
       ]
     },
     {
