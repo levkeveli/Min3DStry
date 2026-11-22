@@ -531,8 +531,9 @@ The client received the three stock packets and requested centered loops
 with gains of `0.026` for rain, `0.014` for sandstorm, and `0.014` for
 snow on Old 3DS. The New 3DS gains were `0.017`, `0.049`, and `0.014`.
 Both profiles passed the existing drill, soundtrack, effect, and projectile
-checks. Azahar used its no-DSP fallback, so audible playback remains a
-physical-console test.
+checks. The same binary joined The Onset twice per profile and matched the
+stock server's tile CRC32 `3861859253` on every join. Azahar used its
+no-DSP fallback, so audible playback remains a physical-console test.
 [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45020521037)
 
 Run `python3 tools/verify_live_stock_audio.py <terrain-assets>` with the
