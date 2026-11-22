@@ -78,6 +78,11 @@ FACTORY_EXACT = {
     "research/upstream-runtime/src/gameplay/java/UpstreamFactoryTickProbe.java",
 }
 
+SINGLEPLAYER_EXACT = {
+    "tools/verify_upstream_singleplayer.py",
+    "tests/tools/test_verify_upstream_singleplayer.py",
+}
+
 FULL_SUITE_EXACT = {
     ".github/workflows/upstream-arm11-smoke.yml",
     ".github/scripts/fetch_upstream_v160.sh",
@@ -97,6 +102,7 @@ def _full_scope() -> dict[str, Any]:
         "run_net": True,
         "run_production": True,
         "run_factory": True,
+        "run_singleplayer": True,
     }
 
 
@@ -147,6 +153,10 @@ def _classify_path(path: str, flags: dict[str, bool], probes: set[str]) -> str:
         flags["run_factory"] = True
         return "scoped"
 
+    if norm in SINGLEPLAYER_EXACT or norm.startswith("research/upstream-runtime/src/singleplayer/"):
+        flags["run_singleplayer"] = True
+        return "scoped"
+
     if norm.startswith("research/upstream-runtime/src/"):
         parts = norm.split("/")
         if len(parts) >= 4 and parts[3] in NARROW_CAMPAIGN_PROBES:
@@ -172,6 +182,7 @@ def classify_smoke_scope(changed_files: list[str], event_name: str) -> dict[str,
         "run_net": False,
         "run_production": False,
         "run_factory": False,
+        "run_singleplayer": False,
     }
     probes: set[str] = set()
     saw_scoped = False
@@ -198,6 +209,7 @@ def classify_smoke_scope(changed_files: list[str], event_name: str) -> dict[str,
         "run_net": flags["run_net"],
         "run_production": flags["run_production"],
         "run_factory": flags["run_factory"],
+        "run_singleplayer": flags["run_singleplayer"],
     }
 
 
@@ -245,6 +257,7 @@ def format_outputs(scope: dict[str, Any]) -> dict[str, str]:
         "run_net": "true" if scope["run_net"] else "false",
         "run_production": "true" if scope["run_production"] else "false",
         "run_factory": "true" if scope["run_factory"] else "false",
+        "run_singleplayer": "true" if scope["run_singleplayer"] else "false",
     }
 
 

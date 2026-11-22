@@ -3,7 +3,7 @@ set -euo pipefail
 : "${DEVKITARM:?Set DEVKITARM with devkitPro's 3dsvars.sh}"
 : "${DEVKITPRO:?Set DEVKITPRO with devkitPro's 3dsvars.sh}"
 if [[ $# -lt 2 || $# -gt 4 ]]; then
-    echo "Usage: $0 <TeaVM generated C directory> <new output directory> [--network] [terrain assets directory]" >&2
+    echo "Usage: $0 <TeaVM generated C directory> <new output directory> [--network|--singleplayer|--save-rows] [terrain assets directory]" >&2
     exit 2
 fi
 arm11_opt="${M3DS_ARM11_OPT:--Os}"
@@ -19,12 +19,19 @@ output="$2"
 python3 "$root/prepare.py" "$1" "$output"
 shift 2
 native_network=()
+native_input=()
 title="Min3DStry Terrain"
+subtitle="Mindustry v160.8 Glacier"
 if [[ ${1:-} == --network ]]; then
     title="Min3DStry"
     repo="$root/../../.."
     native_network=(-I"$root" -I"$repo/include" -I"$repo/src/platform/3ds"
         "$root/m3ds_net_bridge.c" "$repo/src/net/mindustry_net.c" "$repo/src/platform/3ds/net_3ds.c")
+    shift
+elif [[ ${1:-} == --singleplayer ]]; then
+    title="Min3DStry"
+    subtitle="Mindustry v160.8 Ground Zero"
+    native_input=(-I"$root" "$root/m3ds_input.c")
     shift
 fi
 save_rows_flags=()
@@ -45,9 +52,13 @@ if [[ $# -gt 0 ]]; then
         echo "Expected one terrain assets directory" >&2
         exit 2
     fi
-    if [[ ${#native_network[@]} -gt 0 &&
+    if [[ ( ${#native_network[@]} -gt 0 || ${#native_input[@]} -gt 0 ) &&
           ( ! -f "$1/bundles/bundle.properties" || ! -d "$1/world-atlas" || ! -f "$1/block_colors.png" ) ]]; then
-        echo "Prepare multiplayer terrain assets with --multiplayer to include the original bundles, atlas and block palette" >&2
+        echo "Prepare multiplayer or singleplayer terrain assets to include the original bundles, atlas and block palette" >&2
+        exit 2
+    fi
+    if [[ ${#native_input[@]} -gt 0 && ( ! -f "$1/sprites.aatls" || ! -f "$1/maps/groundZero.msav" ) ]]; then
+        echo "Prepare singleplayer terrain assets with --singleplayer to include sprites.aatls and maps/groundZero.msav" >&2
         exit 2
     fi
     terrain_flags=(-DM3DS_TERRAIN_RENDERER -I"$root" -I"$1")
@@ -55,6 +66,12 @@ if [[ $# -gt 0 ]]; then
     terrain_libraries=(-lcitro2d -lcitro3d)
     mkdir "$output/romfs"
     cp "$1/sprites.t3x" "$output/romfs/terrain.t3x"
+    if [[ -f "$1/sprites.aatls" ]]; then
+        cp "$1/sprites.aatls" "$output/romfs/sprites.aatls"
+    fi
+    if [[ -d "$1/maps" ]]; then
+        cp -R "$1/maps" "$output/romfs/maps"
+    fi
     if [[ -d "$1/bundles" ]]; then
         cp -R "$1/bundles" "$output/romfs/bundles"
     fi
@@ -75,7 +92,7 @@ if [[ $# -gt 0 ]]; then
         terrain_flags+=(-DM3DS_WORLD_ATLAS)
         cp -R "$1/world-atlas" "$output/romfs/world-atlas"
     fi
-    "$DEVKITPRO/tools/bin/smdhtool" --create "$title" "Mindustry v160.8 Glacier" \
+    "$DEVKITPRO/tools/bin/smdhtool" --create "$title" "$subtitle" \
         "Min3DStry Contributors" "$DEVKITPRO/libctru/default_icon.png" "$output/upstream-probe.smdh"
     package_flags=(--smdh="$output/upstream-probe.smdh" --romfs="$output/romfs")
 fi
@@ -90,7 +107,7 @@ fi
     -march=armv6k -mtune=mpcore -mfpu=vfp -mfloat-abi=hard -mtp=soft \
     -I"$output/nativeinclude" -I"$DEVKITPRO/libctru/include" -L"$DEVKITPRO/libctru/lib" \
     "${terrain_flags[@]}" "${save_rows_flags[@]}" "${pointer_flags[@]}" \
-    -specs=3dsx.specs "$output/all.c" "${native_network[@]}" \
+    -specs=3dsx.specs "$output/all.c" "${native_network[@]}" "${native_input[@]}" \
     "${terrain_sources[@]}" "${save_rows_sources[@]}" \
     "${terrain_libraries[@]}" -lctru -lm -o "$output/upstream-probe.elf"
 "$DEVKITPRO/tools/bin/3dsxtool" "$output/upstream-probe.elf" "$output/upstream-probe.3dsx" "${package_flags[@]}"
