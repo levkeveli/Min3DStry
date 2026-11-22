@@ -24,6 +24,7 @@ import mindustry.gen.Unit;
 import mindustry.gen.UnitWaterMove;
 import mindustry.graphics.CacheLayer;
 import mindustry.type.UnitType;
+import mindustry.world.blocks.units.UnitFactory;
 import mindustry.world.Block;
 import mindustry.world.blocks.payloads.BuildPayload;
 import mindustry.world.blocks.payloads.PayloadConveyor.PayloadConveyorBuild;
@@ -339,7 +340,7 @@ public final class UpstreamRenderedNetworkProbe {
         var block = build.block;
         // These blocks use the sprite operations available in the live backend.
         return UpstreamBuildingLayers.supportsPowerDraw(block) || UpstreamBuildingLayers.supportsDistributionDraw(block)
-            || block instanceof CoreBlock || block == Blocks.copperWall
+            || block instanceof UnitFactory || block instanceof CoreBlock || block == Blocks.copperWall
             || block == Blocks.berylliumWall || block == Blocks.copperWallLarge
             || block == Blocks.mechanicalDrill || block instanceof Conduit
             || block == Blocks.phaseWeaver || block == Blocks.overdriveProjector

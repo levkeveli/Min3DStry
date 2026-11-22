@@ -493,7 +493,41 @@ tasks.register('prepareUpstreamProbe') {
                 def output = sourceDir.get().file(path).asFile
                 output.parentFile.mkdirs()
                 // Use the existing unshaded geometry when the desktop renderer is absent.
-                output.setText(source.replace(animated, "if(${renderer} != null && ${renderer}.animateShields){"), 'UTF-8')
+                source = source.replace(animated, "if(${renderer} != null && ${renderer}.animateShields){")
+                if (path == 'mindustry/graphics/Drawf.java') {
+                    def stockUniforms = '''        Shaders.build.region = region;
+        Shaders.build.progress = progress;
+        Shaders.build.color.set(color);
+        Shaders.build.color.a = alpha;
+        Shaders.build.time = -time / 20f;
+
+        Draw.shader(Shaders.build);
+'''
+                    def constructAtPosition = stockUniforms + '''        Draw.rect(region, x, y, rotation);
+        Draw.shader();'''
+                    def constructAtBuilding = stockUniforms + '''        Draw.rect(region, t.x, t.y, rotation);
+        Draw.shader();'''
+                    def entry = '    public static void construct(Building t, UnlockableContent content,'
+                    if (source.count(constructAtPosition) != 1 || source.count(constructAtBuilding) != 1
+                            || source.count(entry) != 1) {
+                        throw new GradleException('Pinned unit construction shader entry points changed')
+                    }
+                    source = source.replace(constructAtPosition,
+                        '        constructRegion(region, x, y, color, rotation, progress, alpha, time);')
+                    source = source.replace(constructAtBuilding,
+                        '        constructRegion(region, t.x, t.y, color, rotation, progress, alpha, time);')
+                    source = source.replace(entry, '''    private static void constructRegion(TextureRegion region,
+            float x, float y, Color color, float rotation, float progress, float alpha, float time){
+        if(Core.batch instanceof port.render.UpstreamUnitBuildTarget platform){
+            platform.drawUnitBuild(region, x, y, rotation, progress, color, alpha, -time / 20f);
+            return;
+        }
+''' + constructAtPosition + '''
+    }
+
+''' + entry)
+                }
+                output.setText(source, 'UTF-8')
             }
             fluidSources.each { path, substitutions ->
                 def source = new String(readUpstream("core/src/${path}"), 'UTF-8')

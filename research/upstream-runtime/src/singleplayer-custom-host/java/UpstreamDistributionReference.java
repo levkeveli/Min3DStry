@@ -1,4 +1,5 @@
 import arc.graphics.Blending;
+import arc.graphics.Color;
 import arc.graphics.g2d.TextureAtlas.AtlasRegion;
 import mindustry.Vars;
 import mindustry.content.Blocks;
@@ -10,6 +11,8 @@ import mindustry.world.blocks.distribution.Conveyor.ConveyorBuild;
 import mindustry.world.blocks.distribution.DirectionBridge.DirectionBridgeBuild;
 import mindustry.world.blocks.distribution.ItemBridge.ItemBridgeBuild;
 import mindustry.world.blocks.distribution.StackConveyor.StackConveyorBuild;
+import mindustry.world.blocks.units.UnitCargoLoader;
+import mindustry.world.blocks.units.UnitCargoLoader.UnitTransportSourceBuild;
 import mindustry.world.meta.BuildVisibility;
 
 /** Check the stock distribution draw path with the atlas prepared by the offline app. */
@@ -20,6 +23,7 @@ final class UpstreamDistributionReference implements UpstreamTerrainDrawProbe.Te
     private int sprites;
     private int copperSprites;
     private boolean bridgeSpan;
+    private float constructionProgress;
 
     static void verify() {
         var target = new UpstreamDistributionReference();
@@ -68,6 +72,14 @@ final class UpstreamDistributionReference implements UpstreamTerrainDrawProbe.Te
             } finally {
                 other.setBlock(Blocks.air);
             }
+        } else if (build instanceof UnitTransportSourceBuild loader) {
+            loader.buildProgress = 0.5f;
+            loader.warmup = 0.75f;
+            loader.totalProgress = 24f;
+            drawBuilding(build);
+            if (constructionProgress != 0.5f) {
+                throw new AssertionError("Missing the original cargo loader construction overlay");
+            }
         }
     }
 
@@ -75,7 +87,20 @@ final class UpstreamDistributionReference implements UpstreamTerrainDrawProbe.Te
         sprites = 0;
         copperSprites = 0;
         bridgeSpan = false;
+        constructionProgress = -1;
         layers.render(viewport, build.team, candidate -> candidate == build);
+    }
+
+    @Override
+    public void drawUnitBuild(int page, int left, int top, int width, int height,
+                              float x, float y, float drawWidth, float drawHeight, float rotation,
+                              float progress, Color tint, float alpha, float phase, int vertexColor) {
+        var loader = (UnitCargoLoader)Blocks.unitCargoLoader;
+        var icon = (AtlasRegion)loader.unitType.fullIcon;
+        if (page != UpstreamTerrainDrawProbe.pageIndex(icon) || left != icon.getX() || top != icon.getY()) {
+            throw new AssertionError("Cargo loader drew a different unit icon");
+        }
+        constructionProgress = progress;
     }
 
     @Override

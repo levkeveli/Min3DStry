@@ -46,6 +46,7 @@ import mindustry.world.blocks.production.GenericCrafter;
 import mindustry.world.blocks.production.Pump;
 import mindustry.world.blocks.production.Separator;
 import mindustry.world.blocks.storage.StorageBlock;
+import mindustry.world.blocks.units.UnitFactory;
 
 /** Graphical offline single-player Mindustry v160.8 ARM11 entry point on Ground Zero. */
 public final class UpstreamSinglePlayerApp {
@@ -690,7 +691,7 @@ public final class UpstreamSinglePlayerApp {
     static boolean supportsBuildingDraw(Building build) {
         var block = build.block;
         return UpstreamBuildingLayers.supportsPowerDraw(block) || UpstreamBuildingLayers.supportsDistributionDraw(block)
-            || block instanceof StorageBlock || block instanceof Wall
+            || block instanceof UnitFactory || block instanceof StorageBlock || block instanceof Wall
             || block == Blocks.mechanicalDrill || block == Blocks.pneumaticDrill
             || block == Blocks.duo || block == Blocks.scatter || block instanceof Conduit
             || block instanceof GenericCrafter || block instanceof Separator || block instanceof Pump
