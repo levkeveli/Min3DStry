@@ -55,7 +55,9 @@ profiles. Saving preserved the original files as backups. The unmodified
 v160.8 PC server opened all four new saves and confirmed the same preset,
 sector ID, and dimensions. The standard Ground Zero movement, mining,
 building, pause, and save/reload replay also passed on both profiles with
-no sector files staged. Physical console verification remains open.
+no sector files staged. After integration with the merged Custom Game port,
+the campaign resume JVM reference and the repository host suite passed
+against the combined tree. Physical console verification remains open.
 
 ## Custom Game
 
