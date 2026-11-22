@@ -113,7 +113,7 @@ def usesCampaignLaunch = probe == 'campaign-launch'
 def usesCampaignSaves = probe == 'campaign-saves'
 def usesCampaignSavesLoad = probe == 'campaign-saves-load'
 def usesCampaignSlotDiscovery = probe == 'campaign-slot-discovery'
-def usesCampaignJsonCompat = usesCampaignSectorInfo || usesCampaignSlotDiscovery
+def usesCampaignJsonCompat = usesCampaignSectorInfo || usesCampaignSlotDiscovery || usesSinglePlayerApp
 def usesWorldSources = probe in ['world', 'world-save', 'world-roundtrip', 'world-stream',
                                  'terrain-draw', 'save-decode', 'save-rows'] || usesCampaignSector || usesCampaignSlotMeta || usesCampaignLaunch || usesCampaignSavesLoad || usesCampaignSlotDiscovery || usesLiveNetwork || usesTerrainRenderer || usesSimulation || usesSinglePlayer
 def initializesContent = probe == 'content-init' || usesWorldSources || usesCampaignContent || usesCampaignResearch || usesCampaignSectorInfo || usesCampaignPlanet || usesCampaignSectorState || usesCampaignLaunch || usesCampaignSaves
@@ -312,6 +312,10 @@ if (usesSinglePlayer) {
         tasks.register('runCampaignResumeJvm', JavaExec) {
             classpath = sourceSets.main.runtimeClasspath
             mainClass = 'UpstreamCampaignResumeReference'
+        }
+        tasks.register('runGraphicalCampaignSettingsJvm', JavaExec) {
+            classpath = sourceSets.main.runtimeClasspath
+            mainClass = 'UpstreamGraphicalCampaignSettingsReference'
         }
     }
     if (!usesSinglePlayerApp) {
@@ -589,13 +593,11 @@ final class GlacierFixture {
                 commandLine 'git', '-C', arc.get(), 'show', "${arcRevision}:${jsonSource}"
             }.standardOutput.asBytes.get(), 'UTF-8')
             def reflective = 'return type.getDeclaredConstructor().newInstance();'
-            def accessibility = 'if(!field.isAccessible()){'
-            if (source.count(reflective) != 1 || source.count(accessibility) != 1) {
+            if (source.count(reflective) != 1) {
                 throw new GradleException('Pinned Arc Json reflection hooks changed')
             }
-            // TeaVM instantiates retained classes directly and reports public fields inaccessible.
+            // TeaVM instantiates retained classes directly.
             source = source.replace(reflective, 'return type.newInstance();')
-            source = source.replace(accessibility, 'if(false){')
             def adapted = arcJsonFile.get().asFile
             adapted.parentFile.mkdirs()
             adapted.setText(source, 'UTF-8')

@@ -52,9 +52,13 @@ public final class UpstreamWorldLoadProbe {
     }
 
     static ProbeApplication initialize(Fi mapDirectory) {
+        return initialize(mapDirectory, new Settings());
+    }
+
+    static ProbeApplication initialize(Fi mapDirectory, Settings settings) {
         var app = new ProbeApplication();
         Core.app = app;
-        Core.settings = new Settings();
+        Core.settings = settings;
         Vars.headless = true;
         Vars.state = new GameState();
         Vars.content = new ContentLoader();
