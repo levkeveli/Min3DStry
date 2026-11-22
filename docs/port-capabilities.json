@@ -27,16 +27,17 @@
       "category": "Foundation & Tooling",
       "name": "ARM11 .3dsx Build & Azahar Harness",
       "weight": 3,
-      "stage": "emulator-tested",
+      "stage": "hardware-verified",
       "issue": 3,
       "evidence": [
         "Makefile",
         "tools/verify_azahar.py",
         "research/upstream-runtime/arm11/build.sh",
         "tools/build_teavm_loader.sh",
-        "tools/verify_upstream_singleplayer.py"
-      ],
-      "hardware_test": "HARDWARE_TEST_PENDING"
+        "tools/verify_upstream_singleplayer.py",
+        "docs/hardware/evidence/new3ds-xl-de3e249.md",
+        "docs/hardware/evidence/old3ds-xl-a4a9a96.md"
+      ]
     },
     {
       "id": "host-test-backend",
@@ -60,7 +61,8 @@
       "evidence": [
         "tools/device_deploy.py",
         "docs/hardware/deployment-and-logs.md",
-        "docs/hardware/evidence/old3ds-xl-a4a9a96.md"
+        "docs/hardware/evidence/old3ds-xl-a4a9a96.md",
+        "docs/hardware/evidence/new3ds-xl-de3e249.md"
       ]
     },
     {
@@ -73,7 +75,8 @@
       "evidence": [
         "src/platform/3ds/hardware_probe_3ds.c",
         "docs/hardware/detection.md",
-        "docs/hardware/evidence/old3ds-xl-a4a9a96.md"
+        "docs/hardware/evidence/old3ds-xl-a4a9a96.md",
+        "docs/hardware/evidence/new3ds-xl-de3e249.md"
       ]
     },
     {
@@ -81,7 +84,7 @@
       "category": "Hardware & Platform",
       "name": "64 MiB Old 3DS Memory Allocator",
       "weight": 3,
-      "stage": "emulator-tested",
+      "stage": "hardware-verified",
       "issue": 36,
       "evidence": [
         "include/platform/memory_budget.h",
@@ -89,16 +92,17 @@
         "tests/platform/test_memory_budget.c",
         "docs/hardware/memory-budget.md",
         "research/upstream-runtime/arm11/prepare.py",
-        "research/upstream-runtime/arm11/compact_callsites.py"
-      ],
-      "hardware_test": "HARDWARE_TEST_PENDING"
+        "research/upstream-runtime/arm11/compact_callsites.py",
+        "docs/hardware/evidence/new3ds-xl-de3e249.md",
+        "docs/hardware/evidence/old3ds-xl-a4a9a96.md"
+      ]
     },
     {
       "id": "threading-scheduling",
       "category": "Hardware & Platform",
       "name": "Dual-Core / N3DS AppCore Scheduling",
       "weight": 3,
-      "stage": "emulator-tested",
+      "stage": "hardware-verified",
       "issue": 37,
       "evidence": [
         "include/platform/worker_pool.h",
@@ -107,9 +111,10 @@
         "src/platform/worker_benchmark.c",
         "tests/platform/test_worker_pool.c",
         "tests/platform/test_worker_benchmark.c",
-        "docs/hardware/worker-scheduling.md"
-      ],
-      "hardware_test": "HARDWARE_TEST_PENDING"
+        "docs/hardware/worker-scheduling.md",
+        "docs/hardware/evidence/new3ds-xl-de3e249.md",
+        "docs/hardware/evidence/old3ds-xl-a4a9a96.md"
+      ]
     },
     {
       "id": "citro2d-scene-prototype",
@@ -307,7 +312,7 @@
       "category": "Maps, Campaign & Saves",
       "name": "Upstream .msav Map & Save Reader/Writer",
       "weight": 6,
-      "stage": "emulator-tested",
+      "stage": "hardware-verified",
       "issue": 28,
       "evidence": [
         "research/upstream-runtime/README.md",
@@ -342,9 +347,9 @@
         "docs/porting/embed-loader.md",
         "research/upstream-runtime/src/world/java/port/WorldReflectionPolicy.java",
         "docs/gameplay/offline-singleplayer.md",
-        "tools/verify_upstream_singleplayer.py"
-      ],
-      "hardware_test": "HARDWARE_TEST_PENDING"
+        "tools/verify_upstream_singleplayer.py",
+        "docs/hardware/evidence/new3ds-xl-de3e249.md"
+      ]
     },
     {
       "id": "campaign-sectors",

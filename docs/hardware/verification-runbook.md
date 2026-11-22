@@ -4,6 +4,11 @@ Status: **procedure**. Queued handoff cards: [hardware-test-queue.md](../hardwar
 It does not claim any hardware result by itself; the capability ledger only moves when a captured log
 passes [`tools/hw_evidence.py`](../../tools/hw_evidence.py) and is attached to a PR.
 
+Captured so far: [Original 3DS XL smoke](evidence/old3ds-xl-a4a9a96.md) and
+[New 3DS XL sector run](evidence/new3ds-xl-de3e249.md). The New run passed 12/12
+strict checks; neither run contains a `BENCH fps=...` record, so the `>= 24 FPS`
+target and the five-minute HWT-01/HWT-02 soak remain **not verified**.
+
 ## What a run can prove
 
 | Evidence in the log | Capability it supports |
@@ -14,8 +19,9 @@ passes [`tools/hw_evidence.py`](../../tools/hw_evidence.py) and is attached to a
 | `SECTOR_LOADER`/`SECTOR_ALLOC`/`SECTOR_TILE_STATE`/`SECTOR_PARITY` | embedded upstream `SaveIO` loader, `world-rows-bridge` |
 | `PARITY ... hash=0x53a483c7` | `parity-test-harness` |
 | `WORKERS ... match=1` | `threading-scheduling` |
-| `FRAME ... drop=0` | `world-sprite-renderer`, `lighting-effects-camera`, frame budget |
-| `AUDIO backend=ndsp state=ready` | `ndsp-sfx-music` (with an audio build) |
+| `FRAME ... drop=0` | draw/cull telemetry only; visual correctness and FPS need screenshots and a `BENCH` record |
+| `BENCH fps=... p95_ms=...` | `>= 24 FPS` target (`physical-hardware-parity`) |
+| `AUDIO backend=ndsp state=ready` | NDSP init and asset load only; audible output needs the HWT-04 listening report |
 | Pad/touch interactions you perform | `touch-build-palette`, `hud-menus-minimap` |
 
 Emulator output is **not** hardware evidence. `./dev.sh emu-test` stays the fast pre-flight.

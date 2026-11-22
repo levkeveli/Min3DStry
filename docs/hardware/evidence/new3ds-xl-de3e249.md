@@ -1,0 +1,68 @@
+# Hardware evidence — New 3DS XL
+
+- Commit: `de3e249`
+- Build record: `commit=de3e24936eab dirty=0`
+- Profile: `new3ds`
+- Scenario: `sector170`
+- Captured: `2026-11-22T18:12:59Z`
+- Model: New 3DS XL (N3DS, 804 MHz, L2:on, AppMem:124 MiB, FIRM:2.58.0)
+- ROM: `build/hw-test-de3e249/min3dstry.3dsx` (sha256 `93644868e507382cf1422cce653cef01c77c93d903cd793d9bc6b4afdea9ad8a`, 10948348 bytes)
+- Verdict: **PASS** (12/12 required checks passed, 33 records)
+
+| Check | Expected | Observed | Result |
+| --- | --- | --- | --- |
+| `build.commit` | commit=<sha> dirty=0 (matches --commit) | commit=de3e24936eab dirty=0 | PASS |
+| `hardware.profile` | N3DS AppMem:124 MiB | N3DS AppMem:124 MiB | PASS |
+| `storage.roundtrip` | status=ok | ok | PASS |
+| `save.slot` | present=1 valid=1 version=13 | present=1 valid=1 version=13 | PASS |
+| `loader.sector` | available=1 loaded=1 tiles=37500 buildings=2 | available=1 loaded=1 tiles=37500 buildings=2 | PASS |
+| `loader.alloc` | hash=783fbd80e415dcd7 | 783fbd80e415dcd7 | PASS |
+| `loader.tile_state` | linked=2 hash=e35397041df8e5fe | linked=2 hash=e35397041df8e5fe | PASS |
+| `loader.save_parity` | hash=3a375fd4f81c5680 | 3a375fd4f81c5680 | PASS |
+| `sim.parity` | scenario=starter_copper_defense_v1 hash=0x53a483c7 | scenario=starter_copper_defense_v1 hash=0x53a483c7 | PASS |
+| `workers.checksum` | match=1 checksum=0x4bb2b98d | match=1 checksum=0x4bb2b98d | PASS |
+| `frame.drops` | >=1 FRAME record, max drop=0 | frames=1 max_drop=0 | PASS |
+| `memory.budget` | status=ok failures=0 | status=ok failures=0 | PASS |
+| `audio.state` | ready (hardware with dspfirm) or fallback_no_dsp | ready | PASS |
+
+## Notes
+
+- `audio.state`: informational: fallback_no_dsp means sd:/3ds/dspfirm.cdc is unavailable
+
+## Captured records
+
+```text
+[MIN3DSTRY] BUILD commit=de3e24936eab dirty=0
+[MIN3DSTRY] HW: New 3DS XL (N3DS, 804 MHz, L2:on, AppMem:124 MiB, FIRM:2.58.0)
+[MIN3DSTRY] STORAGE root=/3ds/min3dstry settings=/3ds/min3dstry/settings.bin sector=/3ds/min3dstry/sector-serpulo-170.msav
+[MIN3DSTRY] STORAGE_ROUNDTRIP status=ok bytes=4 root=sdmc:/3ds/min3dstry
+[MIN3DSTRY] SETTINGS primary=0 backup=0 primary_bytes=0 backup_bytes=0
+[MIN3DSTRY] SAVE_SLOT present=1 valid=1 compressed=1 version=13 bytes=11072 path=sdmc:/3ds/min3dstry/sector-serpulo-170.msav
+[MIN3DSTRY] SAVE_META map=Glacier wave=1
+[MIN3DSTRY] SECTOR_CATALOG count=1
+[MIN3DSTRY] SECTOR_SLOT planet=serpulo id=170 valid=1 compressed=1 bytes=11072 map=Glacier wave=1
+[MIN3DSTRY] SECTOR_LOADER source=teavm available=1 loaded=1 path=/3ds/min3dstry/sector-serpulo-170.msav tiles=37500 buildings=2
+[MIN3DSTRY] SECTOR_ALLOC tiles=37500 bytes=1312788 hash=783fbd80e415dcd7 status=loaded
+[MIN3DSTRY] SECTOR_TILE_STATE tiles=37500 buildings=2 linked=2 hash=e35397041df8e5fe status=loaded
+[MIN3DSTRY] SECTOR_PARITY buildings=2 hash=3a375fd4f81c5680 verified=0 status=loaded
+[MIN3DSTRY] MEM app=124MiB reserve=16MiB budget=1048576 used=553728 peak=553728 remaining=494848 world=480000/524288 textures=8192/262144 transient=65536/262144 failures=0 status=ok
+[MIN3DSTRY] PARITY scenario=starter_copper_defense_v1 ticks=240 hash=0x53a483c7 copper=22 delivered=12 killed=2 hp=160
+[MIN3DSTRY] WORKERS workers=2 active=2 chunks=40 items=40000 match=1 checksum=0x4bb2b98d serial_us=851 parallel_us=1056
+[MIN3DSTRY] WORKERS workers=4 active=4 chunks=40 items=40000 match=1 checksum=0x4bb2b98d serial_us=842 parallel_us=1314
+[MIN3DSTRY] VIEW zoom=1.00 lighting=1
+[MIN3DSTRY] ATLAS loaded
+[MIN3DSTRY] AUDIO_ROMFS status=ok clips=9 bytes=647008 ui=6
+[MIN3DSTRY] AUDIO backend=ndsp state=ready rc=0x00000000 rate=22050 voices=0/8 clips=10
+[MIN3DSTRY] AUDIO_EVENT conveyor.loop clip=2 voice=1
+[MIN3DSTRY] AUDIO_EVENT drill.loop clip=3 voice=2
+[MIN3DSTRY] MENU state=closed actions=3
+[MIN3DSTRY] AUDIO_EVENT wave.spawn spawned=2 clip=8 voice=3
+[MIN3DSTRY] AUDIO_EVENT shoot.duo fired=1 clip=5 voice=4
+[MIN3DSTRY] AUDIO_EVENT block.place clip=1 voice=5
+[MIN3DSTRY] AUDIO_EVENT block.break clip=0 voice=6
+[MIN3DSTRY] AUDIO_EVENT shoot.duo fired=2 clip=5 voice=7
+[MIN3DSTRY] AUDIO_EVENT shoot.duo fired=3 clip=5 voice=8
+[MIN3DSTRY] AUDIO_EVENT enemy.kill killed=1 clip=4 voice=9
+[MIN3DSTRY] FRAME tick=30 paused=0 cam=(88.0,72.0) draw=R:428,L:2,T:0,C:4 cull=448 sw=1 drop=0 cpu=8.24% gpu=10.21% cmdbuf=1.11%
+[MIN3DSTRY] FACTORY tick=60 delivered=2 inventory=11 hash=0xa2e66af9
+```
