@@ -40,6 +40,7 @@
 #include "render/save_world_preview.h"
 #include "render/scene_2d.h"
 #include "sim/parity_scenario.h"
+#include "ui/main_menu.h"
 #include "ui/pause_menu.h"
 #include "ui/pause_overlay.h"
 #include "ui/touch_controls.h"
@@ -510,15 +511,99 @@ int main(int argc, char *argv[]) {
     M3dsTouchAction touch_held = M3DS_TOUCH_ACTION_NONE;
     M3dsPauseMenu pause_menu;
     m3ds_pause_menu_init(&pause_menu);
+    M3dsMainMenu main_menu;
+    m3ds_main_menu_init(&main_menu);
+    main_menu.muted = m3ds_audio_mixer_is_muted(&audio_mixer);
+    main_menu.lighting = m3ds_scene_lighting(&scene);
     snprintf(dbg_line, sizeof(dbg_line),
              "[MIN3DSTRY] MENU state=closed actions=%u\n",
              (unsigned)M3DS_PAUSE_ACTION_COUNT);
+    m3ds_emit_debug_line(log_socket, dbg_line);
+    snprintf(dbg_line, sizeof(dbg_line),
+             "[MIN3DSTRY] MAIN_MENU screen=%s selected=%s items=%u\n",
+             m3ds_main_menu_screen_name(&main_menu),
+             m3ds_main_menu_key(&main_menu, main_menu.selected),
+             (unsigned)m3ds_main_menu_count(&main_menu));
     m3ds_emit_debug_line(log_socket, dbg_line);
 
     while (aptMainLoop()) {
         hidScanInput();
         u32 kDown = hidKeysDown();
         u32 kHeld = hidKeysHeld();
+
+        if (main_menu.open) {
+            if (kDown & KEY_UP) {
+                m3ds_main_menu_move(&main_menu, -1);
+            }
+            if (kDown & KEY_DOWN) {
+                m3ds_main_menu_move(&main_menu, 1);
+            }
+            if (kDown & KEY_B) {
+                if (m3ds_main_menu_back(&main_menu)) {
+                    snprintf(dbg_line, sizeof(dbg_line),
+                             "[MIN3DSTRY] MAIN_MENU screen=%s selected=%s\n",
+                             m3ds_main_menu_screen_name(&main_menu),
+                             m3ds_main_menu_key(&main_menu, main_menu.selected));
+                    m3ds_emit_debug_line(log_socket, dbg_line);
+                }
+            }
+            if (kDown & KEY_A) {
+                const char *item_key =
+                    m3ds_main_menu_key(&main_menu, main_menu.selected);
+                M3dsMenuAction action = m3ds_main_menu_confirm(&main_menu);
+                switch (action) {
+                case M3DS_MENU_ACTION_PLAY_CAMPAIGN:
+                    m3ds_emit_debug_line(log_socket,
+                                         "[MIN3DSTRY] MAIN_MENU action=play.campaign\n");
+                    break;
+                case M3DS_MENU_ACTION_TOGGLE_MUTE:
+                    m3ds_audio_mixer_set_muted(&audio_mixer, main_menu.muted);
+                    snprintf(dbg_line, sizeof(dbg_line),
+                             "[MIN3DSTRY] MAIN_MENU action=settings.audio muted=%d\n",
+                             main_menu.muted ? 1 : 0);
+                    m3ds_emit_debug_line(log_socket, dbg_line);
+                    break;
+                case M3DS_MENU_ACTION_TOGGLE_LIGHTING:
+                    m3ds_scene_set_lighting(&scene, main_menu.lighting);
+                    snprintf(dbg_line, sizeof(dbg_line),
+                             "[MIN3DSTRY] MAIN_MENU action=settings.lighting lighting=%d\n",
+                             main_menu.lighting ? 1 : 0);
+                    m3ds_emit_debug_line(log_socket, dbg_line);
+                    break;
+                case M3DS_MENU_ACTION_RESET_CAMERA:
+                    m3ds_scene_reset_camera(&scene);
+                    m3ds_emit_debug_line(
+                        log_socket,
+                        "[MIN3DSTRY] MAIN_MENU action=settings.camera reset=1\n");
+                    break;
+                case M3DS_MENU_ACTION_QUIT:
+                    quit_requested = true;
+                    break;
+                case M3DS_MENU_ACTION_UNAVAILABLE:
+                    snprintf(dbg_line, sizeof(dbg_line),
+                             "[MIN3DSTRY] MAIN_MENU unavailable=%s\n", item_key);
+                    m3ds_emit_debug_line(log_socket, dbg_line);
+                    break;
+                default:
+                    snprintf(dbg_line, sizeof(dbg_line),
+                             "[MIN3DSTRY] MAIN_MENU screen=%s selected=%s\n",
+                             m3ds_main_menu_screen_name(&main_menu),
+                             m3ds_main_menu_key(&main_menu, main_menu.selected));
+                    m3ds_emit_debug_line(log_socket, dbg_line);
+                    break;
+                }
+            }
+            if (kDown & KEY_START) {
+                quit_requested = true;
+            }
+            if (quit_requested) {
+                break;
+            }
+            /* While the title menu is open, no gameplay input is processed. */
+            kDown = 0;
+            kHeld = 0;
+            touch_held = M3DS_TOUCH_ACTION_NONE;
+        }
 
         if (kDown & KEY_TOUCH) {
             touchPosition touch;
@@ -868,6 +953,42 @@ int main(int argc, char *argv[]) {
             for (unsigned line = 15u; line <= 18u; ++line) {
                 printf("\x1b[%u;1H\x1b[K", line);
             }
+        }
+
+        if (main_menu.open) {
+            printf("\x1b[2J");
+            printf("\x1b[1;1HMindustry v160.8\x1b[K");
+            printf("\x1b[2;1H%s\x1b[K",
+                   main_menu.screen == M3DS_MENU_SCREEN_TITLE
+                       ? "Main menu"
+                       : (main_menu.screen == M3DS_MENU_SCREEN_PLAY
+                              ? "Play"
+                              : "Settings"));
+            size_t menu_count = m3ds_main_menu_count(&main_menu);
+            for (size_t i = 0u; i < menu_count; ++i) {
+                const char *key = m3ds_main_menu_key(&main_menu, i);
+                const char *label = m3ds_main_menu_label(&main_menu, i);
+                char value[32] = {0};
+                bool enabled = m3ds_main_menu_enabled(&main_menu, i);
+                if (main_menu.screen == M3DS_MENU_SCREEN_SETTINGS) {
+                    if (strcmp(key, "audio") == 0) {
+                        snprintf(value, sizeof(value), ": %s",
+                                 main_menu.muted ? "OFF" : "ON");
+                    } else if (strcmp(key, "lighting") == 0) {
+                        snprintf(value, sizeof(value), ": %s",
+                                 main_menu.lighting ? "ON" : "OFF");
+                    }
+                }
+                printf("\x1b[%u;1H%c %s%s\x1b[K",
+                       (unsigned)(4u + (unsigned)i),
+                       i == main_menu.selected ? '>' : (enabled ? ' ' : '-'),
+                       label, value);
+            }
+            for (unsigned line = (unsigned)(4u + menu_count); line < 20u; ++line) {
+                printf("\x1b[%u;1H\x1b[K", line);
+            }
+            printf("\x1b[24;1HD-Pad: Select  A: Confirm  B: Back  START: Exit\x1b[K");
+            printf("\x1b[25;1H- = unavailable in this build\x1b[K");
         }
 
         if (!emitted_frame_diag && scene.tick >= 30u) {
