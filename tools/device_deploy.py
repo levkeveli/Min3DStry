@@ -7,12 +7,14 @@ import argparse
 import hashlib
 import json
 import os
+import queue
 import re
 import shutil
 import socket
 import subprocess
 import sys
 import threading
+import time
 from pathlib import Path
 from typing import Any
 
@@ -467,6 +469,89 @@ def capture_log_tcp(
     return bound_port, captured
 
 
+def _pump_stream(stream: Any, lines: "queue.Queue[str | None]") -> None:
+    try:
+        for line in stream:
+            lines.put(line)
+    finally:
+        lines.put(None)
+
+
+def run_streaming(cmd: list[str], log_out: str | None = None,
+                  max_seconds: float | None = None) -> int:
+    """Mirror a command's merged output to stdout and log_out line by line.
+
+    Unlike subprocess.run(capture_output=True), every received line is written
+    and flushed immediately, so a bounded hardware session survives an
+    interrupted server and is never lost to pipe buffering. A deliberate
+    ``max_seconds`` termination returns 0; other exits propagate the child code.
+    """
+    out_path = Path(log_out) if log_out else None
+    handle = None
+    if out_path:
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        handle = out_path.open("w", encoding="utf-8", newline="")
+
+    def emit(line: str) -> None:
+        if handle:
+            handle.write(line)
+            handle.flush()
+        sys.stdout.write(line)
+        sys.stdout.flush()
+
+    proc = subprocess.Popen(cmd, text=True, stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT, bufsize=1)
+    assert proc.stdout is not None
+    lines: "queue.Queue[str | None]" = queue.Queue()
+    reader = threading.Thread(target=_pump_stream, args=(proc.stdout, lines),
+                              daemon=True)
+    reader.start()
+    started = time.monotonic()
+    terminated = False
+    try:
+        while True:
+            remaining = None
+            if max_seconds is not None:
+                remaining = max_seconds - (time.monotonic() - started)
+                if remaining <= 0:
+                    proc.terminate()
+                    terminated = True
+                    break
+            wait = 0.2 if remaining is None else min(0.2, max(0.0, remaining))
+            try:
+                line = lines.get(timeout=wait)
+            except queue.Empty:
+                if proc.poll() is not None:
+                    break
+                continue
+            if line is None:
+                break
+            emit(line)
+    finally:
+        try:
+            proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                pass
+        while True:
+            try:
+                pending = lines.get_nowait()
+            except queue.Empty:
+                break
+            if pending:
+                emit(pending)
+        if proc.stdout is not None:
+            proc.stdout.close()
+        if handle:
+            handle.close()
+    if terminated:
+        return 0
+    return proc.returncode if proc.returncode is not None else 0
+
+
 def cmd_deploy(args: argparse.Namespace) -> int:
     rom_path = Path(args.rom)
     if not rom_path.is_file():
@@ -489,14 +574,9 @@ def cmd_deploy(args: argparse.Namespace) -> int:
         print(json.dumps({"dry_run": True, "command": cmd}, indent=2))
         return 0
 
-    proc = subprocess.run(cmd, text=True, capture_output=bool(args.log_out))
-    if args.log_out:
-        combined = (proc.stdout or "") + (proc.stderr or "")
-        out_path = Path(args.log_out)
-        out_path.parent.mkdir(parents=True, exist_ok=True)
-        out_path.write_text(combined, encoding="utf-8")
-        if combined:
-            print(combined, end="")
+    if args.stream_logs or args.log_out or args.stream_seconds is not None:
+        return run_streaming(cmd, args.log_out, args.stream_seconds)
+    proc = subprocess.run(cmd, text=True)
     return proc.returncode
 
 
@@ -581,6 +661,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_dep.add_argument("--retries", type=int, default=3)
     p_dep.add_argument("--stream-logs", action="store_true")
     p_dep.add_argument("--log-out", default=None)
+    p_dep.add_argument(
+        "--stream-seconds", type=float, default=None,
+        help="Stop the log server after N seconds (bounded hardware runs).",
+    )
     p_dep.add_argument("--3dslink", dest="threed_slink", default=None)
     p_dep.add_argument("--dry-run", action="store_true")
     p_dep.set_defaults(func=cmd_deploy)

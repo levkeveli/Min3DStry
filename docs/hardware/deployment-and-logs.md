@@ -17,7 +17,7 @@ Issue #6 provides a repeatable deployment and telemetry capture workflow in [`to
    ./dev.sh device deploy --ip <3DS_IP> --stream-logs --log-out build/device-logs/run.log
    ```
    You can also set `M3DS_DEVICE_IP=<3DS_IP>` instead of passing `--ip`, or inspect the generated command with `--dry-run`.
-   Streaming uses `3dslink -s` and TCP port 17491 on the PC. The app keeps rendering the bottom-screen console and also emits the records to the debugger for Azahar. Let the scene run for a few seconds, then press START to close the stream and save the log.
+   Streaming uses `3dslink -s` and TCP port 17491 on the PC. The app keeps rendering the bottom-screen console and also emits the records to the debugger for Azahar. `deploy` mirrors the output line by line into `--log-out` (flushed as it arrives), and `--stream-seconds N` stops the server automatically (exit 0 for a deliberate bounded stop, even with continuous output). Pressing START closes the app, but `3dslink -s` keeps listening, so use the bounded option (or Ctrl+C) to finish the log.
    The deploy command passes `m3ds-stream-logs` after the ROM path. Homebrew Launcher documents that trailing arguments are forwarded to the launched app, and `3dslink` 0.6.3 serializes them after the app path. [Homebrew Launcher Netloader](https://github.com/devkitPro/3ds-hbmenu#netloader) · [3dslink 0.6.3 argument handling](https://github.com/devkitPro/3dslink/blob/c2df7362a156282bc2fb55370740ad670ca5a8a5/host/src/main.c#L599-L606)
 
 ### 2. SD / FTPD Staging with SHA-256 Verification

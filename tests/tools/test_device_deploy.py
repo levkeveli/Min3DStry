@@ -6,6 +6,7 @@ import socket
 import sys
 import tempfile
 import threading
+import time
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
@@ -243,6 +244,59 @@ class DeviceDeployTests(unittest.TestCase):
             self.assertEqual(rc_fail, 1)
             self.assertIn("`FAIL`", md_buf.getvalue())
             self.assertIn("| `frame_rate` | `FAIL` |", md_buf.getvalue())
+
+
+class StreamingCaptureTests(unittest.TestCase):
+    def test_streams_lines_and_enforces_timeout(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            log = Path(tmp) / "capture.log"
+            code = (
+                "import time\n"
+                "for i in range(3):\n"
+                "    print('line', i, flush=True)\n"
+                "    time.sleep(0.1)\n"
+                "time.sleep(5)\n"
+            )
+            started = time.monotonic()
+            code_rc = device_deploy.run_streaming(
+                [sys.executable, "-c", code], str(log), max_seconds=0.6
+            )
+            elapsed = time.monotonic() - started
+            text = log.read_text(encoding="utf-8")
+            self.assertIn("line 0", text)
+            self.assertIn("line 2", text)
+            self.assertLess(elapsed, 4.0)
+            self.assertIsInstance(code_rc, int)
+
+    def test_timeout_holds_under_continuous_output(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            log = Path(tmp) / "continuous.log"
+            code = (
+                "import time\n"
+                "end = time.time() + 10\n"
+                "i = 0\n"
+                "while time.time() < end:\n"
+                "    print('tick', i, flush=True)\n"
+                "    i += 1\n"
+                "    time.sleep(0.02)\n"
+            )
+            started = time.monotonic()
+            code_rc = device_deploy.run_streaming(
+                [sys.executable, "-c", code], str(log), max_seconds=0.5
+            )
+            elapsed = time.monotonic() - started
+            self.assertEqual(code_rc, 0)
+            self.assertLess(elapsed, 4.0)
+            self.assertIn("tick 0", log.read_text(encoding="utf-8"))
+
+    def test_writes_complete_output_without_timeout(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            log = Path(tmp) / "complete.log"
+            code_rc = device_deploy.run_streaming(
+                [sys.executable, "-c", "print('done', flush=True)"], str(log)
+            )
+            self.assertEqual(code_rc, 0)
+            self.assertIn("done", log.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":
