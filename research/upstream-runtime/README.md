@@ -813,6 +813,15 @@ outline of an active Quasar shield. The
 [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44872900057)
 passed on both Old and New 3DS Azahar profiles with Alpha, Beta, Flare,
 Fortress, Pulsar, Vela and Quasar in the same Glacier viewport.
+
+The live draw path loads stock unit art when the unit or its payload first
+appears in the viewport. It reads each type from the upstream content registry.
+The JVM reference drew all 68 v160.8 world unit types with the official atlas,
+including the Anthicus missile's textured quad and the segmented crawler
+sprites. The registry also has two internal `BlockUnit` types that upstream
+keeps attached to buildings. This check also covers team tint, weapon layers,
+payloads, naval wakes, tank treads, and the Quasar shield. Emulator coverage of
+the expanded roster is pending.
 The same build also passed the live wall and Dagger handoff on both profiles.
 
 For naval wakes, the build exposes the original `WaterMoveComp` wake
