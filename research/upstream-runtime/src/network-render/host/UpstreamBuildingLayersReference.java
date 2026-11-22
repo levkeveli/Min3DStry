@@ -40,17 +40,22 @@ import mindustry.graphics.Layer;
 import mindustry.graphics.Pal;
 import mindustry.world.blocks.defense.OverdriveProjector.OverdriveBuild;
 import mindustry.world.blocks.defense.ShockwaveTower.ShockwaveTowerBuild;
+import mindustry.world.blocks.defense.turrets.BaseTurret;
 import mindustry.world.blocks.production.GenericCrafter.GenericCrafterBuild;
 import mindustry.world.blocks.payloads.BuildPayload;
 import mindustry.world.blocks.payloads.Payload;
 import mindustry.world.blocks.payloads.UnitPayload;
 import mindustry.world.blocks.payloads.PayloadConveyor;
 import mindustry.world.blocks.payloads.PayloadConveyor.PayloadConveyorBuild;
+import mindustry.world.blocks.units.UnitFactory;
 
 public final class UpstreamBuildingLayersReference implements UpstreamTerrainDrawProbe.TerrainTarget {
     private record Sprite(float x, float y, int page, int left, int top, int width, int height, float rotation, int color, int mixColor, Blending blending) {}
     private final List<Sprite> sprites = new ArrayList<>();
     private final List<float[]> solidQuads = new ArrayList<>();
+    private record UnitBuild(int page, int left, int top, int width, int height, float x, float y,
+                             float rotation, float progress, float alpha, float phase) {}
+    private final List<UnitBuild> unitBuilds = new ArrayList<>();
 
     public static void main(String[] args) throws Exception {
         if (args.length < 3 || args.length > 4) {
@@ -67,6 +72,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         var viewport = UpstreamTerrainDrawProbe.liveViewport(target);
         target.verifyArcOrder();
         target.verifyTexturedLine();
+        target.verifyFactory(viewport);
 
         // The visible two-tile wall starts one tile west of the viewport.
         viewport.moveTo(24, 30);
@@ -114,7 +120,93 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         target.verifyTankTreads(viewer);
         target.verifyCoreVariants(layers, viewport, viewer);
         target.verifyErekirStarterBlocks(layers, viewport, viewer);
+        target.verifyLiveTurretRegistry(layers, viewport, viewer);
         if (args.length == 4) verifyObjectiveHud();
+    }
+
+    private void verifyFactory(UpstreamTerrainDrawProbe.Viewport viewport) {
+        for (var block : Vars.content.blocks()) {
+            if (!(block instanceof UnitFactory factory)) continue;
+            for (var plan : factory.plans) {
+                plan.unit.loadIcon();
+                var icon = plan.unit.fullIcon;
+                if (icon.width > 128 || icon.height > 128 || !icon.found()) {
+                    throw new AssertionError("The original factory icon does not fit the ARM11 scratch atlas: "
+                        + plan.unit.name + " " + icon.width + "x" + icon.height);
+                }
+            }
+        }
+        viewport.moveTo(24, 30);
+        var viewer = Team.sharded;
+        var tile = Vars.world.tile(31, 35);
+        tile.setBlock(Blocks.groundFactory, viewer, 1);
+        var factory = (UnitFactory.UnitFactoryBuild)tile.build;
+        var layers = new UpstreamBuildingLayers();
+        var oldPlayer = Vars.player;
+        Vars.player = Player.create();
+        Vars.player.team(viewer);
+        try {
+            factory.currentPlan = -1;
+            sprites.clear();
+            unitBuilds.clear();
+            layers.render(viewport, viewer, build -> build == factory);
+            int idleSprites = sprites.size();
+            if (idleSprites != 3 || !unitBuilds.isEmpty()) {
+                throw new AssertionError("Expected the original factory base, output and top layers at rest");
+            }
+            factory.currentPlan = 1;
+            factory.progress = ((UnitFactory)factory.block).plans.get(1).time / 2f;
+            factory.speedScl = 0.75f;
+            factory.time = 40;
+            solidQuads.clear();
+            layers.render(viewport, viewer, build -> build == factory);
+            var icon = UnitTypes.crawler.fullIcon;
+            var expected = new UnitBuild(UpstreamTerrainDrawProbe.pageIndex(icon), icon.getX(), icon.getY(),
+                icon.width, icon.height, factory.x, factory.y, factory.rotdeg() - 90f, 0.5f, 0.75f, -2f);
+            if (!unitBuilds.equals(List.of(expected)) || solidQuads.isEmpty()) {
+                throw new AssertionError("The pinned construction sprite or scan line was altered: " + unitBuilds);
+            }
+            factory.payload = new UnitPayload(UnitTypes.crawler.create(viewer));
+            sprites.clear();
+            layers.render(viewport, viewer, build -> build == factory);
+            if (sprites.size() <= idleSprites) throw new AssertionError("Factory did not draw its stock output payload");
+            System.out.println("UPSTREAM_FACTORY_GRAPHICS idle=3 construction=crawler progress=0.5 payload=ok");
+        } finally {
+            Vars.player = oldPlayer;
+            tile.setBlock(Blocks.air);
+            sprites.clear();
+            solidQuads.clear();
+            unitBuilds.clear();
+        }
+    }
+
+    @Override
+    public void drawUnitBuild(int page, int left, int top, int width, int height,
+                              float x, float y, float drawWidth, float drawHeight, float rotation,
+                              float progress, Color tint, float alpha, float phase, int vertexColor) {
+        unitBuilds.add(new UnitBuild(page, left, top, width, height, x, y, rotation, progress, alpha, phase));
+    }
+
+    private void verifyLiveTurretRegistry(UpstreamBuildingLayers layers, UpstreamTerrainDrawProbe.Viewport viewport,
+                                          Team viewer) {
+        viewport.moveTo(24, 30);
+        var tile = Vars.world.tile(31, 36);
+        int tested = 0;
+        for (var block : Vars.content.blocks()) {
+            if (!(block instanceof BaseTurret)) continue;
+            tile.setBlock(block, viewer, 0);
+            try {
+                var turret = tile.build;
+                sprites.clear();
+                layers.render(viewport, viewer, build -> build == turret
+                    && UpstreamRenderedNetworkProbe.supportsBuildingDraw(build));
+                if (sprites.isEmpty()) throw new AssertionError("The live turret draw pass excludes " + block.name);
+                tested++;
+            } finally {
+                tile.setBlock(Blocks.air);
+            }
+        }
+        System.out.println("UPSTREAM_STOCK_LIVE_TURRET_DRAW tested=" + tested);
     }
 
     private static void verifyObjectiveHud() {

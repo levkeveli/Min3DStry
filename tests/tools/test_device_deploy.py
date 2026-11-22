@@ -6,6 +6,7 @@ import socket
 import sys
 import tempfile
 import threading
+import time
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
@@ -189,6 +190,40 @@ class DeviceDeployTests(unittest.TestCase):
         self.assertEqual(res["checks"]["frame_rate"]["status"], "fail")
         self.assertEqual(res["checks"]["parity_hash"]["status"], "fail")
 
+    def test_benchmark_uses_minimum_window_not_last(self) -> None:
+        log = (
+            "[MIN3DSTRY] HW: New 3DS XL (N3DS, 804 MHz, L2:on, AppMem:124 MiB, FIRM:11.17.0)\n"
+            "[MIN3DSTRY] PARITY scenario=starter_copper_defense_v1 ticks=240 "
+            "hash=0x53a483c7 copper=22 delivered=12 killed=2 hp=160\n"
+            "[MIN3DSTRY] BENCH fps=22.00 p95_ms=50.00\n"
+            "[MIN3DSTRY] BENCH fps=60.00 p95_ms=16.00\n"
+        )
+        parsed = device_deploy.parse_device_log(log)
+        self.assertEqual(len(parsed["benches"]), 2)
+        res = device_deploy.evaluate_hardware_budget(
+            parsed, profile="new3ds", min_fps=24.0,
+            expected_hash="0x53a483c7",
+        )
+        self.assertFalse(res["passed"])
+        self.assertEqual(res["checks"]["frame_rate"]["status"], "fail")
+        self.assertIn("fps_min=22.00", res["checks"]["frame_rate"]["detail"])
+        self.assertIn("windows=2", res["checks"]["frame_rate"]["detail"])
+
+    def test_missing_bench_fails_frame_rate(self) -> None:
+        log = (
+            "[MIN3DSTRY] HW: Original 3DS (O3DS, 268 MHz, L2:off, AppMem:64 MiB, FIRM:11.17.0)\n"
+            "[MIN3DSTRY] PARITY scenario=starter_copper_defense_v1 ticks=240 "
+            "hash=0x53a483c7 copper=22 delivered=12 killed=2 hp=160\n"
+        )
+        parsed = device_deploy.parse_device_log(log)
+        res = device_deploy.evaluate_hardware_budget(
+            parsed, profile="old3ds", min_fps=24.0,
+            expected_hash="0x53a483c7",
+        )
+        self.assertFalse(res["passed"])
+        self.assertEqual(res["checks"]["frame_rate"]["status"], "fail")
+        self.assertIn("BENCH", res["checks"]["frame_rate"]["detail"])
+
     def test_benchmark_report_cli_json_and_strict(self) -> None:
         sample_log = (
             "[MIN3DSTRY] HW: Original 3DS (O3DS, 268 MHz, L2:off, AppMem:64 MiB, FIRM:11.17.0)\n"
@@ -243,6 +278,83 @@ class DeviceDeployTests(unittest.TestCase):
             self.assertEqual(rc_fail, 1)
             self.assertIn("`FAIL`", md_buf.getvalue())
             self.assertIn("| `frame_rate` | `FAIL` |", md_buf.getvalue())
+
+
+class StreamingCaptureTests(unittest.TestCase):
+    def test_streams_lines_and_enforces_timeout(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            log = Path(tmp) / "capture.log"
+            code = (
+                "import time\n"
+                "for i in range(3):\n"
+                "    print('line', i, flush=True)\n"
+                "    time.sleep(0.1)\n"
+                "time.sleep(5)\n"
+            )
+            started = time.monotonic()
+            code_rc = device_deploy.run_streaming(
+                [sys.executable, "-c", code], str(log), max_seconds=0.6
+            )
+            elapsed = time.monotonic() - started
+            text = log.read_text(encoding="utf-8")
+            self.assertIn("line 0", text)
+            self.assertIn("line 2", text)
+            self.assertLess(elapsed, 4.0)
+            self.assertIsInstance(code_rc, int)
+
+    def test_timeout_holds_under_continuous_output(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            log = Path(tmp) / "continuous.log"
+            code = (
+                "import time\n"
+                "end = time.time() + 10\n"
+                "i = 0\n"
+                "while time.time() < end:\n"
+                "    print('tick', i, flush=True)\n"
+                "    i += 1\n"
+                "    time.sleep(0.02)\n"
+            )
+            started = time.monotonic()
+            code_rc = device_deploy.run_streaming(
+                [sys.executable, "-c", code], str(log), max_seconds=0.5
+            )
+            elapsed = time.monotonic() - started
+            self.assertEqual(code_rc, 0)
+            self.assertLess(elapsed, 4.0)
+            self.assertIn("tick 0", log.read_text(encoding="utf-8"))
+
+    def test_resolve_3dslink_accepts_env_aliases_and_explicit_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            fake = Path(tmp) / "3dslink.exe"
+            fake.write_text("", encoding="utf-8")
+            saved = {
+                key: os.environ.get(key)
+                for key in ("THREEDSLINK_BIN", "THREESLINK_BIN")
+            }
+            try:
+                os.environ["THREESLINK_BIN"] = str(fake)
+                self.assertEqual(device_deploy.resolve_3dslink(None), str(fake))
+                os.environ.pop("THREESLINK_BIN", None)
+                os.environ["THREEDSLINK_BIN"] = str(fake)
+                self.assertEqual(device_deploy.resolve_3dslink(None), str(fake))
+                self.assertEqual(
+                    device_deploy.resolve_3dslink(str(fake)), str(fake)
+                )
+            finally:
+                for key, value in saved.items():
+                    if value is None:
+                        os.environ.pop(key, None)
+                    else:
+                        os.environ[key] = value
+
+    def test_writes_complete_output_without_timeout(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            log = Path(tmp) / "complete.log"
+            code_rc = device_deploy.run_streaming(
+                [sys.executable, "-c", "print('done', flush=True)"], str(log)
+            )
+            self.assertEqual(code_rc, 0)
+            self.assertIn("done", log.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

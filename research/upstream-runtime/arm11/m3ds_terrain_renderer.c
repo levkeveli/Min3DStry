@@ -24,6 +24,7 @@ static M3DS_StockText stock_text;
 #include "m3ds_quad_clip.h"
 #include "m3ds_quad_shbin.h"
 #include "m3ds_world_fragment.h"
+#include "m3ds_unit_build.h"
 #include "world_atlas_layout.h"
 
 // Retain at most 1.5 MiB of RGBA8 atlas backing in the default build.
@@ -36,6 +37,11 @@ static struct {
     int page, x, y;
     uint32_t frame;
 } world_textures[M3DS_WORLD_ATLAS_SLOTS];
+typedef struct {
+    C3D_Tex textures[2];
+    uint32_t pass;
+} UnitBuildTextures;
+static UnitBuildTextures unit_build_textures[4];
 static uint32_t world_pass;
 static bool reported_split;
 static bool reported_recycle;
@@ -59,10 +65,12 @@ enum { menu_label_glyphs = 64 };
 static char palette_utf8[8][4 * menu_label_glyphs + 1];
 #endif
 static C2D_TextBuf catalog_buffer;
+enum { item_catalog, block_catalog, unit_catalog, catalog_count };
+static const char *const catalog_names[] = { "item", "block", "unit" };
 static struct {
     C2D_SpriteSheet sheet;
-    int32_t id;
-    bool categories, requested;
+    int32_t id, catalog;
+    bool requested;
 } menu_icons[6];
 static float world_left, world_bottom, scale, screen_left, screen_bottom;
 static int32_t draws;
@@ -328,6 +336,124 @@ static void set_world_mix(u32 tint, u32 mix_color) {
     C2D_Flush();
     C2D_Fade(fade);
     world_fade = fade;
+}
+
+#ifdef M3DS_WORLD_ATLAS
+static UnitBuildTextures *unit_build_texture(unsigned width, unsigned height) {
+    size_t slot = 0;
+    for (; slot < sizeof(unit_build_textures) / sizeof(unit_build_textures[0]); ++slot) {
+        if (unit_build_textures[slot].pass != world_pass) break;
+    }
+    if (slot == sizeof(unit_build_textures) / sizeof(unit_build_textures[0])) {
+        // Submit queued sprite vertices and wait for their textures to become free.
+        C2D_Flush();
+        if (!recycle_world_pass()) return NULL;
+        slot = 0;
+    }
+    UnitBuildTextures *result = &unit_build_textures[slot];
+    for (int stripe = 0; stripe < 2; ++stripe) {
+        C3D_Tex *texture = &result->textures[stripe];
+        if (texture->data && (texture->width != width || texture->height != height)) {
+            C3D_TexDelete(texture);
+            memset(texture, 0, sizeof(*texture));
+        }
+        if (!texture->data && !C3D_TexInit(texture, width, height, GPU_RGBA8)) return NULL;
+        C3D_TexSetFilter(texture, GPU_NEAREST, GPU_NEAREST);
+        C3D_TexSetWrap(texture, GPU_CLAMP_TO_EDGE, GPU_CLAMP_TO_EDGE);
+    }
+    return result;
+}
+
+static bool shade_unit_build_textures(UnitBuildTextures *result, int page, int left, int top, int width,
+                                      int height, float progress, const float accent[4]) {
+    const int right = left + width, bottom = top + height;
+    const int tile = WORLD_ATLAS_TILE;
+    for (int y = top; y < bottom;) {
+        const int tile_y = y / tile;
+        const int row_end = (tile_y + 1) * tile < bottom ? (tile_y + 1) * tile : bottom;
+        for (int x = left; x < right;) {
+            const int tile_x = x / tile;
+            const int column_end = (tile_x + 1) * tile < right ? (tile_x + 1) * tile : right;
+            C2D_SpriteSheet atlas = get_world_texture(page, tile_x, tile_y);
+            if (!atlas) return false;
+            const uint8_t *input = C2D_SpriteSheetGetImage(atlas, 0).tex->data;
+            for (int src_x = x; src_x < column_end; ++src_x) {
+                for (int src_y = y; src_y < row_end; ++src_y) {
+                    const unsigned offset_in = m3ds_unit_build_texel_offset(src_x % tile, src_y % tile, tile);
+                    const unsigned offset_out = m3ds_unit_build_texel_offset(src_x - left, src_y - top,
+                        result->textures[0].width);
+                    for (int stripe = 0; stripe < 2; ++stripe) {
+                        m3ds_shade_unit_build_pixel((uint8_t *)result->textures[stripe].data + offset_out,
+                            input + offset_in, progress, accent, stripe);
+                    }
+                }
+            }
+            x = column_end;
+        }
+        y = row_end;
+    }
+    for (int stripe = 0; stripe < 2; ++stripe) C3D_TexFlush(&result->textures[stripe]);
+    return true;
+}
+#endif
+
+int32_t m3ds_terrain_draw_unit_build(int32_t page, int32_t left, int32_t top, int32_t width, int32_t height,
+                                     float x, float y, float draw_width, float draw_height, float rotation,
+                                     float progress, float r, float g, float b, float alpha, float phase,
+                                     int32_t vertex_color) {
+#ifdef M3DS_WORLD_ATLAS
+    if (!frame_open || width <= 0 || height <= 0
+            || width > M3DS_UNIT_BUILD_TEXTURE_LIMIT || height > M3DS_UNIT_BUILD_TEXTURE_LIMIT
+            || page < 0 || (size_t)page >= sizeof(world_atlas_sizes) / sizeof(world_atlas_sizes[0])
+            || left < 0 || top < 0 || width > world_atlas_sizes[page][0] - left
+            || height > world_atlas_sizes[page][1] - top) return 0;
+    unsigned texture_width = 8, texture_height = 8;
+    while (texture_width < (unsigned)width) texture_width *= 2;
+    while (texture_height < (unsigned)height) texture_height *= 2;
+    UnitBuildTextures *textures = unit_build_texture(texture_width, texture_height);
+    const float accent[] = { alpha, b, g, r };
+    if (!textures || !shade_unit_build_textures(textures, page, left, top, width, height, progress, accent)) {
+        return 0;
+    }
+    textures->pass = world_pass;
+    const C2D_DrawParams whole = {
+        .pos = { screen_left + (x - world_left) * scale, screen_bottom - (y - world_bottom) * scale,
+                 draw_width * scale, draw_height * scale },
+        .center = { draw_width * scale / 2.0f, draw_height * scale / 2.0f },
+        .depth = 0.5f,
+        .angle = rotation * (-3.14159265358979323846f / 180.0f),
+    };
+    C2D_ImageTint tint;
+    C2D_PlainImageTint(&tint, (u32)vertex_color, 1.0f);
+    set_world_blend(0);
+    set_world_mix(0, 0);
+    float edges[6];
+    int count = m3ds_unit_build_edges(phase, edges);
+    for (int i = 0; i + 1 < count; ++i) {
+        const float from = edges[i], to = edges[i + 1];
+        const int stripe = fabsf(sinf(from + to + phase)) <= 0.9f;
+        const Tex3DS_SubTexture region = {
+            .width = width, .height = height,
+            .left = from * width / texture_width, .right = to * width / texture_width,
+            .top = 1.0f, .bottom = 1.0f - (float)height / texture_height
+        };
+        const M3dsUnitBuildSlice slice = m3ds_unit_build_slice(whole.center.x, whole.pos.w, from, to);
+        C2D_DrawParams part = whole;
+        part.center.x = slice.pivot_x;
+        part.pos.w = slice.width;
+        if (!C2D_DrawImage((C2D_Image){ &textures->textures[stripe], &region }, &part, &tint)) return 0;
+        draws++;
+    }
+    static bool reported;
+    if (!reported && progress > 0.0f && alpha > 0.0f) {
+        static const char record[] = "UPSTREAM_UNIT_BUILD_SHADER source=unitbuild.frag\n";
+        svcOutputDebugString(record, sizeof(record) - 1);
+        reported = true;
+    }
+    return 1;
+#else
+    return 0;
+#endif
 }
 
 int32_t m3ds_terrain_draw(int32_t page, int32_t left, int32_t top, int32_t width, int32_t height,
@@ -716,7 +842,10 @@ float m3ds_terrain_draw_objective(const char *label, const int32_t *characters, 
     set_world_blend(0);
     set_world_mix(0, 0);
     float x = screen_left + 4.0f;
-    C2D_DrawRectSolid(x, y, 0.5f, inset + text_width + 6.0f, panel_height, C2D_Color32(24, 27, 32, 224));
+    if (!C2D_DrawRectSolid(x, y, 0.5f, inset + text_width + 6.0f, panel_height, C2D_Color32(24, 27, 32, 224))) {
+        return 240.0f;
+    }
+    draws++;
     if (has_icon) {
         float icon_scale = 20.0f / fmaxf((float)width, (float)height);
         float icon_width = width * icon_scale, icon_height = height * icon_scale;
@@ -836,16 +965,16 @@ static bool catalog_label(const char *text, float x, float y, float scale, float
     return false;
 }
 
-static bool draw_menu_icon(int row, int32_t id, bool categories, float y) {
+static bool draw_menu_icon(int row, int32_t id, int32_t catalog, float y) {
     if (id < 0) return false;
-    if (!menu_icons[row].requested || menu_icons[row].id != id || menu_icons[row].categories != categories) {
+    if (!menu_icons[row].requested || menu_icons[row].id != id || menu_icons[row].catalog != catalog) {
         // FrameBegin completed the previous frame before any row texture can be replaced.
         if (menu_icons[row].sheet) C2D_SpriteSheetFree(menu_icons[row].sheet);
         menu_icons[row].id = id;
-        menu_icons[row].categories = categories;
+        menu_icons[row].catalog = catalog;
         menu_icons[row].requested = true;
         char path[48];
-        snprintf(path, sizeof(path), "romfs:/catalog/%s-%ld.t3x", categories ? "block" : "item", (long)id);
+        snprintf(path, sizeof(path), "romfs:/catalog/%s-%ld.t3x", catalog_names[catalog], (long)id);
         menu_icons[row].sheet = C2D_SpriteSheetLoad(path);
     }
     if (!menu_icons[row].sheet) return false;
@@ -857,7 +986,9 @@ static bool draw_menu_icon(int row, int32_t id, bool categories, float y) {
 }
 
 int32_t m3ds_terrain_build_catalog(const char *labels, const int32_t *icons, int32_t selected,
-                                    int32_t previous, int32_t next, int32_t categories) {
+                                    int32_t previous, int32_t next, int32_t catalog) {
+    if (catalog < 0 || catalog >= catalog_count) return 0;
+    const bool categories = catalog == block_catalog;
     const u32 panel = C2D_Color32(45, 52, 64, 255), text = C2D_Color32(239, 241, 247, 255);
     const u32 selected_panel = C2D_Color32(85, 71, 52, 255), accent = C2D_Color32(250, 213, 107, 255);
     C2D_TextBufClear(catalog_buffer);
@@ -878,7 +1009,7 @@ int32_t m3ds_terrain_build_catalog(const char *labels, const int32_t *icons, int
         if (!*labels) continue;
         float y = 44 + row * 25;
         C2D_DrawRectSolid(8, y, 0.5f, 304, 23, row == selected ? selected_panel : panel);
-        if (draw_menu_icon(row, icons[row], categories != 0, y)) visible_icons++;
+        if (draw_menu_icon(row, icons[row], catalog, y)) visible_icons++;
         stock_labels &= catalog_label(labels, 177, y + 4, 0.50f, 254, row == selected ? accent : text);
     }
     if (previous) {
@@ -892,14 +1023,14 @@ int32_t m3ds_terrain_build_catalog(const char *labels, const int32_t *icons, int
         stock_labels &= catalog_label("Next page", 268, 212, 0.45f, 84, text);
     }
 #ifdef M3DS_STOCK_FONT
-    static char reported[2][4 * menu_label_glyphs + 1];
-    int menu = categories != 0;
-    if (stock_labels && strcmp(reported[menu], first_row) != 0) {
+    static char reported[catalog_count][4 * menu_label_glyphs + 1];
+    if (stock_labels && strcmp(reported[catalog], first_row) != 0) {
         // A stock-rendered row fits the UTF-8 capacity of the logged page identity.
-        memcpy(reported[menu], first_row, strlen(first_row) + 1);
-        static const char blocks[] = "UPSTREAM_MENU_FONT source=v160.8 catalog=block\n";
-        static const char items[] = "UPSTREAM_MENU_FONT source=v160.8 catalog=item\n";
-        svcOutputDebugString(menu ? blocks : items, menu ? sizeof(blocks) - 1 : sizeof(items) - 1);
+        memcpy(reported[catalog], first_row, strlen(first_row) + 1);
+        char record[64];
+        int length = snprintf(record, sizeof(record), "UPSTREAM_MENU_FONT source=v160.8 catalog=%s\n",
+            catalog_names[catalog]);
+        svcOutputDebugString(record, length);
     }
 #else
     (void)stock_labels;
@@ -921,6 +1052,12 @@ void m3ds_terrain_fini(void) {
     }
     for (size_t i = 0; i < sizeof(world_textures) / sizeof(world_textures[0]); i++) {
         if (world_textures[i].sheet) C2D_SpriteSheetFree(world_textures[i].sheet);
+    }
+    for (size_t i = 0; i < sizeof(unit_build_textures) / sizeof(unit_build_textures[0]); ++i) {
+        for (int stripe = 0; stripe < 2; ++stripe) {
+            C3D_Tex *texture = &unit_build_textures[i].textures[stripe];
+            if (texture->data) C3D_TexDelete(texture);
+        }
     }
 #endif
     for (size_t row = 0; row < sizeof(menu_icons) / sizeof(menu_icons[0]); row++) {

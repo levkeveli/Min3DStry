@@ -1,4 +1,5 @@
 import arc.graphics.Blending;
+import arc.graphics.Color;
 import arc.graphics.g2d.TextureRegion;
 import arc.util.Align;
 import java.io.IOException;
@@ -49,9 +50,12 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
         }
     }
 
-    int buildCatalog(byte[] labels, int[] icons, int selected, boolean previous, boolean next, boolean categories) {
+    // Keep the catalog kinds in the same order as the native renderer.
+    static final int ITEM_CATALOG = 0, BLOCK_CATALOG = 1, UNIT_CATALOG = 2;
+
+    int buildCatalog(byte[] labels, int[] icons, int selected, boolean previous, boolean next, int catalog) {
         return NativeTerrain.buildCatalog(Address.ofData(labels), Address.ofData(icons), selected,
-            previous ? 1 : 0, next ? 1 : 0, categories ? 1 : 0);
+            previous ? 1 : 0, next ? 1 : 0, catalog);
     }
 
     float drawObjective(byte[] label, int[] characters, TextureRegion icon, float y) {
@@ -90,6 +94,16 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
                 drawWidth, drawHeight, rotation, color, mixColor, blendMode(blending)) == 0) {
             throw new IllegalStateException("Citro2D could not draw an upstream terrain region: "
                 + page + "," + left + "," + top + "+" + width + "x" + height);
+        }
+    }
+
+    @Override
+    public void drawUnitBuild(int page, int left, int top, int width, int height,
+                              float x, float y, float drawWidth, float drawHeight, float rotation,
+                              float progress, Color tint, float alpha, float phase, int vertexColor) {
+        if (NativeTerrain.drawUnitBuild(page, left, top, width, height, x, y, drawWidth, drawHeight,
+                rotation, progress, tint.r, tint.g, tint.b, alpha, phase, vertexColor) == 0) {
+            throw new IllegalStateException("Citro2D could not draw stock unit construction");
         }
     }
 
@@ -142,6 +156,12 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
         @Import(name = "m3ds_terrain_begin")
         static native int begin(int left, int bottom, int width, int height, int tileSize);
 
+        @Import(name = "m3ds_terrain_draw_unit_build")
+        static native int drawUnitBuild(int page, int left, int top, int width, int height,
+                                        float x, float y, float drawWidth, float drawHeight, float rotation,
+                                        float progress, float r, float g, float b, float alpha, float phase,
+                                        int vertexColor);
+
         @Import(name = "m3ds_terrain_draw")
         static native int draw(int page, int left, int top, int width, int height,
                                float x, float y, float originX, float originY, float drawWidth,
@@ -162,7 +182,7 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
 
         @Import(name = "m3ds_terrain_build_catalog")
         static native int buildCatalog(Address labels, Address icons, int selected,
-                                       int previous, int next, int categories);
+                                       int previous, int next, int catalog);
 
         @Import(name = "m3ds_terrain_draw_objective")
         static native float drawObjective(Address label, Address characters, int count,

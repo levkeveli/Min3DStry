@@ -7,12 +7,14 @@ import argparse
 import hashlib
 import json
 import os
+import queue
 import re
 import shutil
 import socket
 import subprocess
 import sys
 import threading
+import time
 from pathlib import Path
 from typing import Any
 
@@ -49,15 +51,24 @@ def _cygpath_w(path_str: str) -> str:
 
 
 def resolve_3dslink(explicit: str | None = None) -> str:
-    """Locate 3dslink executable from argument, env var, PATH, or devkitPro default."""
+    """Locate 3dslink from argument, env, PATH, or a local devkitPro install."""
     candidates = [
         explicit,
         os.environ.get("THREEDSLINK_BIN"),
+        os.environ.get("THREESLINK_BIN"),
         shutil.which("3dslink"),
         shutil.which("3dslink.exe"),
         "/opt/devkitpro/tools/bin/3dslink",
         "/opt/devkitpro/tools/bin/3dslink.exe",
     ]
+    roots = []
+    if os.environ.get("DEVKITPRO"):
+        roots.append(Path(os.environ["DEVKITPRO"]))
+    roots.append(Path.home() / "devkitPro")
+    roots.append(Path("C:/devkitPro"))
+    for root in roots:
+        candidates.append(str(root / "tools" / "bin" / "3dslink.exe"))
+        candidates.append(str(root / "tools" / "bin" / "3dslink"))
     for cand in candidates:
         if not cand:
             continue
@@ -65,7 +76,8 @@ def resolve_3dslink(explicit: str | None = None) -> str:
         if p.is_file() or shutil.which(cand):
             return cand
     raise FileNotFoundError(
-        "3dslink executable not found (install 3dslink via devkitPro or set THREEDSLINK_BIN)."
+        "3dslink executable not found (install 3dslink via devkitPro, pass --3dslink, "
+        "or set THREEDSLINK_BIN/THREESLINK_BIN)."
     )
 
 
@@ -172,6 +184,7 @@ def parse_device_log(log_text: str) -> dict[str, Any]:
     parsed = parse_azahar_log(log_text)
     upstream_memory: dict[str, int] | None = None
     bench: dict[str, Any] | None = None
+    benches: list[dict[str, Any]] = []
 
     for line in log_text.splitlines():
         um_match = UPSTREAM_MEMORY_RE.search(line)
@@ -186,6 +199,7 @@ def parse_device_log(log_text: str) -> dict[str, Any]:
         if bench_match:
             parsed_bench = _parse_bench_line(bench_match.group("body"))
             if parsed_bench is not None:
+                benches.append(parsed_bench)
                 bench = parsed_bench
 
     hw_line = parsed.get("hw_line")
@@ -206,6 +220,7 @@ def parse_device_log(log_text: str) -> dict[str, Any]:
         "mem": mem,
         "upstream_memory": upstream_memory,
         "bench": bench,
+        "benches": benches,
         "app_mem_mib": app_mem_mib,
     }
 
@@ -260,17 +275,27 @@ def format_provenance_markdown(
             f"appHeap={um.get('app_heap_bytes')}B linearHeap={um.get('linear_heap_bytes')}B "
             f"stack={um.get('stack_bytes')}B"
         )
-    bench = parsed.get("bench")
-    if isinstance(bench, dict):
-        extras = []
-        if "avg_ms" in bench:
-            extras.append(f"avg={bench['avg_ms']:.2f}ms")
-        if "p95_ms" in bench:
-            extras.append(f"p95={bench['p95_ms']:.2f}ms")
-        if "scenario" in bench:
-            extras.append(f"scenario={bench['scenario']}")
+    benches = parsed.get("benches")
+    if not isinstance(benches, list):
+        bench = parsed.get("bench")
+        benches = [bench] if isinstance(bench, dict) else []
+    if benches:
+        fps_values = [float(b["fps"]) for b in benches if "fps" in b]
+        p95_values = [float(b["p95_ms"]) for b in benches if "p95_ms" in b]
+        extras = [f"windows={len(benches)}"]
+        if fps_values:
+            headline = (
+                f"fps_min={min(fps_values):.2f} fps_max={max(fps_values):.2f}"
+            )
+        else:
+            headline = "fps=unknown"
+        if p95_values:
+            extras.append(f"p95_max={max(p95_values):.2f}ms")
+        scenarios = sorted({str(b["scenario"]) for b in benches if "scenario" in b})
+        if scenarios:
+            extras.append(f"scenario={','.join(scenarios)}")
         suffix = f" ({', '.join(extras)})" if extras else ""
-        lines.append(f"- **Benchmark:** `fps={bench.get('fps'):.2f}`{suffix}")
+        lines.append(f"- **Benchmark:** `{headline}`{suffix}")
     return "\n".join(lines) + "\n"
 
 
@@ -361,21 +386,44 @@ def evaluate_hardware_budget(
             "detail": "no UPSTREAM_MEMORY record or --load-bytes",
         }
 
-    bench = parsed.get("bench")
-    if isinstance(bench, dict):
-        fps = float(bench["fps"])
+    benches = parsed.get("benches")
+    if not isinstance(benches, list):
+        bench = parsed.get("bench")
+        benches = [bench] if isinstance(bench, dict) else []
+    benches = [b for b in benches if isinstance(b, dict) and "fps" in b]
+    if benches:
         max_frame_ms = (1000.0 / min_fps) + 0.05
-        p95_ms = bench.get("p95_ms")
-        fps_ok = fps >= min_fps and (p95_ms is None or float(p95_ms) <= max_frame_ms)
-        detail = f"fps={fps:.2f} (min {min_fps:.2f})"
-        if p95_ms is not None:
-            detail += f", p95_ms={float(p95_ms):.2f} (limit {1000.0 / min_fps:.2f})"
+        fps_values = [float(b["fps"]) for b in benches]
+        p95_values = [float(b["p95_ms"]) for b in benches if "p95_ms" in b]
+        fps_min = min(fps_values)
+        fps_max = max(fps_values)
+        p95_max = max(p95_values) if p95_values else None
+        fps_ok = fps_min >= min_fps and (
+            p95_max is None or p95_max <= max_frame_ms
+        )
+        detail = (
+            f"windows={len(benches)} fps_min={fps_min:.2f} "
+            f"fps_max={fps_max:.2f} (min {min_fps:.2f})"
+        )
+        if p95_max is not None:
+            detail += (
+                f", p95_max={p95_max:.2f} (limit {1000.0 / min_fps:.2f})"
+            )
         checks["frame_rate"] = {
             "status": "pass" if fps_ok else "fail",
             "detail": detail,
+            "windows": len(benches),
+            "fps_min": fps_min,
+            "fps_max": fps_max,
+            "p95_max_ms": p95_max,
         }
     else:
-        checks["frame_rate"] = {"status": "skipped", "detail": "no [MIN3DSTRY] BENCH record"}
+        checks["frame_rate"] = {
+            "status": "fail",
+            "detail": (
+                f"no [MIN3DSTRY] BENCH record; cannot verify >= {min_fps:.2f} FPS"
+            ),
+        }
 
     parity = parsed.get("parity")
     if expected_hash is not None:
@@ -416,6 +464,7 @@ def format_benchmark_markdown(
     verdict = "PASS" if evaluation.get("passed") else "FAIL"
     lines = [
         format_provenance_markdown(parsed, commit_sha=commit_sha, target_label=target_label).rstrip("\n"),
+        "- **FPS rule:** `frame_rate` uses the minimum of all `BENCH` windows; the sampler runs the `factory_demo` harness, not upstream campaign gameplay.",
         f"- **Budget profile:** `{evaluation['profile']}` ({evaluation['profile_label']})",
         f"- **Overall verdict:** `{verdict}`",
         "",
@@ -467,6 +516,89 @@ def capture_log_tcp(
     return bound_port, captured
 
 
+def _pump_stream(stream: Any, lines: "queue.Queue[str | None]") -> None:
+    try:
+        for line in stream:
+            lines.put(line)
+    finally:
+        lines.put(None)
+
+
+def run_streaming(cmd: list[str], log_out: str | None = None,
+                  max_seconds: float | None = None) -> int:
+    """Mirror a command's merged output to stdout and log_out line by line.
+
+    Unlike subprocess.run(capture_output=True), every received line is written
+    and flushed immediately, so a bounded hardware session survives an
+    interrupted server and is never lost to pipe buffering. A deliberate
+    ``max_seconds`` termination returns 0; other exits propagate the child code.
+    """
+    out_path = Path(log_out) if log_out else None
+    handle = None
+    if out_path:
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        handle = out_path.open("w", encoding="utf-8", newline="")
+
+    def emit(line: str) -> None:
+        if handle:
+            handle.write(line)
+            handle.flush()
+        sys.stdout.write(line)
+        sys.stdout.flush()
+
+    proc = subprocess.Popen(cmd, text=True, stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT, bufsize=1)
+    assert proc.stdout is not None
+    lines: "queue.Queue[str | None]" = queue.Queue()
+    reader = threading.Thread(target=_pump_stream, args=(proc.stdout, lines),
+                              daemon=True)
+    reader.start()
+    started = time.monotonic()
+    terminated = False
+    try:
+        while True:
+            remaining = None
+            if max_seconds is not None:
+                remaining = max_seconds - (time.monotonic() - started)
+                if remaining <= 0:
+                    proc.terminate()
+                    terminated = True
+                    break
+            wait = 0.2 if remaining is None else min(0.2, max(0.0, remaining))
+            try:
+                line = lines.get(timeout=wait)
+            except queue.Empty:
+                if proc.poll() is not None:
+                    break
+                continue
+            if line is None:
+                break
+            emit(line)
+    finally:
+        try:
+            proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                pass
+        while True:
+            try:
+                pending = lines.get_nowait()
+            except queue.Empty:
+                break
+            if pending:
+                emit(pending)
+        if proc.stdout is not None:
+            proc.stdout.close()
+        if handle:
+            handle.close()
+    if terminated:
+        return 0
+    return proc.returncode if proc.returncode is not None else 0
+
+
 def cmd_deploy(args: argparse.Namespace) -> int:
     rom_path = Path(args.rom)
     if not rom_path.is_file():
@@ -489,14 +621,9 @@ def cmd_deploy(args: argparse.Namespace) -> int:
         print(json.dumps({"dry_run": True, "command": cmd}, indent=2))
         return 0
 
-    proc = subprocess.run(cmd, text=True, capture_output=bool(args.log_out))
-    if args.log_out:
-        combined = (proc.stdout or "") + (proc.stderr or "")
-        out_path = Path(args.log_out)
-        out_path.parent.mkdir(parents=True, exist_ok=True)
-        out_path.write_text(combined, encoding="utf-8")
-        if combined:
-            print(combined, end="")
+    if args.stream_logs or args.log_out or args.stream_seconds is not None:
+        return run_streaming(cmd, args.log_out, args.stream_seconds)
+    proc = subprocess.run(cmd, text=True)
     return proc.returncode
 
 
@@ -581,6 +708,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_dep.add_argument("--retries", type=int, default=3)
     p_dep.add_argument("--stream-logs", action="store_true")
     p_dep.add_argument("--log-out", default=None)
+    p_dep.add_argument(
+        "--stream-seconds", type=float, default=None,
+        help="Stop the log server after N seconds (bounded hardware runs).",
+    )
     p_dep.add_argument("--3dslink", dest="threed_slink", default=None)
     p_dep.add_argument("--dry-run", action="store_true")
     p_dep.set_defaults(func=cmd_deploy)

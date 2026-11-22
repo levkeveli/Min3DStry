@@ -1,20 +1,33 @@
 # Physical verification runbook
 
-Status: **procedure**. This page defines how a physical Old/New 3DS run becomes checked evidence.
+Status: **procedure**. Queued handoff cards: [hardware-test-queue.md](../hardware-test-queue.md). This page defines how a physical Old/New 3DS run becomes checked evidence.
 It does not claim any hardware result by itself; the capability ledger only moves when a captured log
 passes [`tools/hw_evidence.py`](../../tools/hw_evidence.py) and is attached to a PR.
+
+Captured so far: [Original 3DS XL smoke](evidence/old3ds-xl-a4a9a96.md),
+[New 3DS XL sector run](evidence/new3ds-xl-de3e249.md), and
+[New 3DS XL combined run](evidence/new3ds-xl-a328c70.md). The `a328c70` run
+passed 12/12 over ~10 minutes (132 `BENCH` windows, `fps_min=29.92`,
+`fps_max=59.84`, `p95_max=33.50`) and the operator confirmed the scene,
+pan/zoom, lighting, pause/resume and menus worked. The five-minute soak and the
+New 3DS `factory_demo` FPS target are verified. Still **not verified**: full
+campaign gameplay FPS, the Old 3DS FPS/loader run, audible audio (all seven
+`AUDIO_EVENT`s were `clip=-1`), and the touch-label layout (the zones respond,
+but the visible legend is outside them).
 
 ## What a run can prove
 
 | Evidence in the log | Capability it supports |
 | --- | --- |
+| `BUILD commit=<sha> dirty=0` | provenance for every row below (exact binary identity) |
 | `HW:` tag, clock, L2, application memory, FIRM | `old-new-3ds-probe`, `memory-budget-runtime` |
 | `STORAGE_ROUNDTRIP status=ok`, `SAVE_SLOT`, settings | `msav-map-save-compat`, `sd-storage` paths |
 | `SECTOR_LOADER`/`SECTOR_ALLOC`/`SECTOR_TILE_STATE`/`SECTOR_PARITY` | embedded upstream `SaveIO` loader, `world-rows-bridge` |
 | `PARITY ... hash=0x53a483c7` | `parity-test-harness` |
 | `WORKERS ... match=1` | `threading-scheduling` |
-| `FRAME ... drop=0` | `world-sprite-renderer`, `lighting-effects-camera`, frame budget |
-| `AUDIO backend=ndsp state=ready` | `ndsp-sfx-music` (with an audio build) |
+| `FRAME ... drop=0` | draw/cull telemetry only; visual correctness and FPS need screenshots and a `BENCH` record |
+| `BENCH fps=... p95_ms=...` | `>= 24 FPS` target (`physical-hardware-parity`) |
+| `AUDIO backend=ndsp state=ready` | NDSP init and asset load only; audible output needs the HWT-04 listening report |
 | Pad/touch interactions you perform | `touch-build-palette`, `hud-menus-minimap` |
 
 Emulator output is **not** hardware evidence. `./dev.sh emu-test` stays the fast pre-flight.
@@ -28,6 +41,11 @@ Record the full SHA and the `.3dsx` SHA-256; the ingest tool hashes the ROM for 
 sha256sum build/min3dstry.3dsx
 git rev-parse HEAD
 ```
+
+The binary logs the commit it was built from (`BUILD commit=<sha> dirty=<0|1>`). The Makefile prefers
+`M3DS_BUILD_COMMIT` (exported by `dev.sh build`), then `git rev-parse`, then a git-free reader
+(`tools/git_head_sha.sh`) so container builds without a git package still get a real SHA. A build from
+a dirty tree logs `dirty=1` and cannot be used as evidence.
 
 For audio coverage build with the upstream assets:
 
@@ -96,13 +114,16 @@ console without the fixture. `--format json` emits the same data for automation;
 record goes to stdout.
 
 The tool exits `0` only when every required check matches and `1` otherwise (with `--strict`); `2`
-means the log or ROM path is missing. It also verifies the ROM SHA-256 and embeds the raw records, so a
-reviewer can re-run it on the same file.
+means the log or ROM path is missing. The logged `BUILD` commit must match `--commit`, and `dirty=1`
+fails: evidence has to come from a clean checkout of the commit you name. Builds older than the
+provenance change have no `BUILD` record and need to be rebuilt. The record also carries the ROM
+SHA-256 and every raw captured line, so a reviewer can re-run the tool on the same file.
 
 ## 6. Expected canonical values
 
 | Record | New 3DS | Original 3DS |
 | --- | --- | --- |
+| `BUILD` | `commit=<12-char sha> dirty=0` | same |
 | `HW:` tag / AppMem | `N3DS`, `124 MiB` | `O3DS`, `64 MiB` |
 | `STORAGE_ROUNDTRIP` | `status=ok` | `status=ok` |
 | `SAVE_SLOT` | `present=1 valid=1 version=13` | same |

@@ -653,6 +653,15 @@ def cmd_auto_merge(args: argparse.Namespace) -> int:
         print(f"Skipping auto-merge for PR #{pr_number}: not eligible.")
         return 0
 
+    draft = subprocess.run(
+        ["gh", "pr", "view", pr_number, "-R", repo, "--json", "isDraft", "--jq", ".isDraft"],
+        text=True,
+        capture_output=True,
+    )
+    if draft.returncode == 0 and draft.stdout.strip() == "true":
+        print(f"Skipping auto-merge for PR #{pr_number}: PR is a draft.")
+        return 0
+
     base_cmd = ["gh", "pr", "merge", pr_number, "-R", repo, "--squash"]
     if args.head_sha:
         base_cmd.extend(["--match-head-commit", args.head_sha])

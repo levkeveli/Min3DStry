@@ -21,6 +21,7 @@ import mindustry.gen.Building;
 import mindustry.graphics.CacheLayer;
 import mindustry.world.Tile;
 import mindustry.world.blocks.environment.Floor;
+import port.render.UpstreamUnitBuildTarget;
 
 /** Captures the upstream terrain draw calls before they reach a GPU. */
 public final class UpstreamTerrainDrawProbe {
@@ -39,6 +40,11 @@ public final class UpstreamTerrainDrawProbe {
         void drawSolidQuad(float[] vertices, int offset, Blending blending);
         default void drawTexturedQuad(int page, int pageWidth, int pageHeight, float[] vertices, int offset, Blending blending) {
             throw new IllegalStateException("Unsupported Arc textured geometry");
+        }
+        default void drawUnitBuild(int page, int left, int top, int width, int height,
+                                   float x, float y, float drawWidth, float drawHeight, float rotation,
+                                   float progress, Color tint, float alpha, float phase, int vertexColor) {
+            throw new UnsupportedOperationException("This terrain target does not draw stock unit construction");
         }
         void end();
     }
@@ -200,7 +206,7 @@ public final class UpstreamTerrainDrawProbe {
         return ((AtlasPageTexture) region.texture).index;
     }
 
-    private static final class TerrainBatch extends Batch {
+    private static final class TerrainBatch extends Batch implements UpstreamUnitBuildTarget {
         // Arc SpriteBatch queues draw requests while sorting. A deferred callback can
         // draw immediately during the flush, and equal depths retain submission order.
         private record DrawRequest(float depth, Blending blending, Runnable draw) {}
@@ -296,6 +302,25 @@ public final class UpstreamTerrainDrawProbe {
             target.draw(page.index, left, top, right - left, bottom - top, x, y, 0f, 0f, width, height,
                 rotation, Color.floatToIntColor(tint), Color.floatToIntColor(mixTint), blending);
             return true;
+        }
+
+        @Override
+        public void drawUnitBuild(TextureRegion region, float x, float y, float rotation, float progress,
+                                  Color tint, float alpha, float phase) {
+            if (region == Core.atlas.find("error")) throw new IllegalStateException("Missing unit construction sprite");
+            var page = (AtlasPageTexture)region.texture;
+            int left = region.getX(), top = region.getY(), width = region.width, height = region.height;
+            float drawWidth = width * region.scl() * Draw.xscl;
+            float drawHeight = height * region.scl() * Draw.yscl;
+            int vertexColor = Color.floatToIntColor(colorPacked);
+            if (sort && !flushing) {
+                Color savedTint = tint.cpy();
+                draw(() -> target.drawUnitBuild(page.index, left, top, width, height, x, y, drawWidth,
+                    drawHeight, rotation, progress, savedTint, alpha, phase, vertexColor));
+            } else {
+                target.drawUnitBuild(page.index, left, top, width, height, x, y, drawWidth,
+                    drawHeight, rotation, progress, tint, alpha, phase, vertexColor);
+            }
         }
 
         @Override

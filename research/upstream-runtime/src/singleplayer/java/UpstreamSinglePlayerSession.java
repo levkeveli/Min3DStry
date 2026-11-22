@@ -1,13 +1,14 @@
 import arc.Core;
 import arc.Events;
-import arc.assets.AssetManager;
 import arc.files.Fi;
 import arc.math.Mathf;
 import arc.math.geom.Vec2;
 import arc.mock.MockAudio;
 import arc.mock.MockFiles;
 import arc.mock.MockGraphics;
-import arc.util.Threads;
+import arc.struct.ObjectSet;
+import arc.struct.Seq;
+import arc.util.ArcRuntimeException;
 import arc.util.Time;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -24,16 +25,21 @@ import mindustry.core.GameState.State;
 import mindustry.entities.EntityCollisions;
 import mindustry.entities.units.BuildPlan;
 import mindustry.game.EventType.ResetEvent;
+import mindustry.game.EventType.RulesLoadEvent;
+import mindustry.game.EventType.Trigger;
 import mindustry.game.FogControl;
-import mindustry.game.Saves;
+import mindustry.game.Gamemode;
 import mindustry.game.Team;
 import mindustry.game.Universe;
+import mindustry.game.Waves;
 import mindustry.gen.Groups;
 import mindustry.gen.Player;
 import mindustry.gen.Unit;
 import mindustry.graphics.CacheLayer;
 import mindustry.io.MapIO;
 import mindustry.io.SaveIO;
+import mindustry.io.SaveMeta;
+import mindustry.maps.Map;
 import mindustry.type.Planet;
 import mindustry.type.Sector;
 import mindustry.logic.GlobalVars;
@@ -57,6 +63,19 @@ public final class UpstreamSinglePlayerSession {
     }
 
     static UpstreamSinglePlayerSession create(Fi mapDirectory, String locale) {
+        return create(mapDirectory, locale, null);
+    }
+
+    static UpstreamSinglePlayerSession create(Fi mapDirectory, String locale, Fi planetData) {
+        if (planetData != null && planetData.isDirectory()) {
+            for (Fi file : planetData.list()) {
+                if (!file.isDirectory() && file.extension().equals("json")) {
+                    Vars.tree.addFile("planets/" + file.name(), file);
+                }
+            }
+        }
+        // Blocks capture their default cache layer while the content registry is created.
+        CacheLayer.init();
         var app = UpstreamWorldLoadProbe.initialize(mapDirectory);
         Core.settings.put("locale", locale == null || locale.isEmpty() ? "en" : locale);
         Core.audio = new MockAudio();
@@ -71,11 +90,11 @@ public final class UpstreamSinglePlayerSession {
             }
         };
         Time.setDeltaProvider(() -> 1f);
-        CacheLayer.init();
         Vars.mods = new Mods();
         Vars.indexer = new BlockIndexer();
         Vars.spawner = new WaveSpawnerProxy().create();
         Vars.universe = new Universe();
+        Vars.waves = new Waves();
         Vars.logicVars = new GlobalVars();
         Vars.logicVars.init();
         Vars.collisions = new EntityCollisions();
@@ -134,6 +153,49 @@ public final class UpstreamSinglePlayerSession {
             app.runPosted();
             source = sourceTagOverride != null ? sourceTagOverride : "map";
         }
+        reportLoadedWorld(source);
+        return loadedFromSave;
+    }
+
+    Gamemode startCustomGame(Map map, Gamemode requested) throws IOException {
+        // Control.playMap wraps these operations in the stock desktop loading UI.
+        var rules = map.applyRules(requested);
+        Vars.logic.reset();
+        Vars.world.loadMap(map, rules);
+        if (Vars.state.map != map || Vars.world.isInvalidMap()) {
+            throw new IOException("Could not load map " + map.file.name());
+        }
+        app.runPosted();
+        map.spawns = Vars.spawner.countSpawns();
+        map.teams.clear();
+        for (var team : Vars.state.teams.getActive()) {
+            if (team.hasCore()) map.teams.add(team.team.id);
+        }
+        Gamemode mode = requested;
+        if (!mode.valid(map)) {
+            // MapPlayDialog defaults to the first valid upstream mode.
+            for (Gamemode candidate : Gamemode.all) {
+                if (!candidate.hidden && candidate.valid(map)) {
+                    mode = candidate;
+                    rules = map.applyRules(mode);
+                    break;
+                }
+            }
+        }
+        rules.retainContentFields(Vars.state.rules);
+        Vars.state.rules = rules;
+        rules.sector = null;
+        rules.editor = false;
+        Events.fire(new RulesLoadEvent(rules));
+        Vars.avoidance.init();
+        Vars.logic.play();
+        Events.fire(Trigger.newGame);
+        app.runPosted();
+        reportLoadedWorld("customgame");
+        return mode;
+    }
+
+    private void reportLoadedWorld(String source) {
         ensurePlayerSpawn();
         var core = core();
         int copper = core == null ? 0 : core.items.get(Items.copper);
@@ -141,43 +203,54 @@ public final class UpstreamSinglePlayerSession {
             + " map=" + (Vars.state.map == null ? "unknown" : Vars.state.map.name().replace(' ', '_'))
             + " size=" + Vars.world.width() + "x" + Vars.world.height()
             + " wave=" + Vars.state.wave + " copper=" + copper);
-        return loadedFromSave;
     }
 
     /** A discovered campaign slot and the upstream sector context decoded from its metadata. */
     static final class SectorSlot {
         final Fi file;
         final Sector sector;
+        final long timestamp;
 
-        SectorSlot(Fi file, Sector sector) {
+        SectorSlot(Fi file, Sector sector, long timestamp) {
             this.file = file;
             this.sector = sector;
+            this.timestamp = timestamp;
         }
     }
 
     List<SectorSlot> sectorSaves() {
-        Core.assets = new AssetManager(path -> new Fi(path), false);
-        Fi previousSaveDirectory = Vars.saveDirectory;
-        Vars.saveDirectory = Vars.customMapDirectory;
-        Vars.mainExecutor = Threads.executor("campaign-select");
-        try {
-            var saves = new Saves();
-            saves.load();
-            var result = new ArrayList<SectorSlot>();
-            for (var slot : saves.getSaveSlots()) {
-                String name = slot.file.name();
-                // Saves.load() walks recursively; campaign slots live directly in the save directory.
-                if (slot.file.parent() == null || !slot.file.parent().equals(Vars.saveDirectory)) continue;
-                if (name.startsWith("sector-") && name.endsWith(".msav")) {
-                    Sector sector = slot.getSector();
-                    if (sector == null) sector = sectorFor(slot.file);
-                    result.add(new SectorSlot(slot.file, sector));
-                }
+        Fi directory = Vars.customMapDirectory;
+        var result = new Seq<SectorSlot>();
+        var found = new ObjectSet<Sector>();
+        readSectorSaves(directory.child("saves"), result, found);
+        readSectorSaves(directory, result, found);
+        result.sort((a, b) -> {
+            int order = Long.compare(b.timestamp, a.timestamp);
+            return order == 0 ? a.file.name().compareTo(b.file.name()) : order;
+        });
+        var slots = new ArrayList<SectorSlot>(result.size);
+        for (SectorSlot slot : result) slots.add(slot);
+        return slots;
+    }
+
+    private void readSectorSaves(Fi directory, Seq<SectorSlot> result, ObjectSet<Sector> found) {
+        if (!directory.isDirectory()) return;
+        // Scan only the sector paths accepted by the launcher. Saves.load() also remaps campaign files.
+        for (Fi file : directory.list()) {
+            String name = file.name();
+            if (file.isDirectory() || !name.startsWith("sector-") || !name.endsWith(".msav")
+                    || name.endsWith("-backup.msav") || !SaveIO.isSaveValid(file)) continue;
+            SaveMeta meta;
+            try {
+                meta = SaveIO.getMeta(file);
+            } catch (ArcRuntimeException ignored) {
+                continue;
             }
-            return result;
-        } finally {
-            Vars.saveDirectory = previousSaveDirectory;
-            Vars.mainExecutor.shutdownNow();
+            Sector sector = meta.rules == null ? null : meta.rules.sector;
+            if (sector == null) sector = sectorFor(file);
+            var preset = Vars.content.sector(meta.tags.get("sectorPreset", ""));
+            if (preset != null && preset.requireUnlock) sector = preset.sector;
+            if (sector != null && found.add(sector)) result.add(new SectorSlot(file, sector, meta.timestamp));
         }
     }
 
@@ -278,9 +351,14 @@ public final class UpstreamSinglePlayerSession {
         if (saveFile.parent() != null) {
             saveFile.parent().mkdirs();
         }
-        SaveIO.write(saveFile);
-        if (!SaveIO.isSaveValid(saveFile)) {
-            throw new IOException("Written offline save failed validation: " + saveFile.path());
+        if (Vars.state.rules.sector != null) {
+            UpstreamSectorCapture.persist(Vars.state.rules.sector);
+        }
+        SaveIO.save(saveFile);
+        try (var input = SaveIO.getStream(saveFile)) {
+            if (!SaveIO.isSaveValid(input)) {
+                throw new IOException("Written offline save failed validation: " + saveFile.path());
+            }
         }
         long bytes = saveFile.length();
         var core = core();
