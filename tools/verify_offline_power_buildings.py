@@ -2,10 +2,13 @@
 
 import argparse
 from pathlib import Path
+import shutil
+import time
 
+import verify_upstream_singleplayer as singleplayer
 from verify_offline_material_buildings import capture, changed_pixels
 from verify_upstream_factory_plans import start_server, stock_command
-from verify_upstream_live_net import stop, wait_for
+from verify_upstream_live_net import stop, wait_for, write_controls_replay
 from verify_upstream_singleplayer import az
 
 
@@ -65,6 +68,62 @@ def check_pixels(model, before, after, samples):
         raise AssertionError(f"{model}: power graphics did not cover their expected sample points")
 
 
+def verify_live(args, model, azahar, fixture, terrain, output):
+    server_dir = output / "server"
+    save = server_dir / "config/saves/power.msav"
+    save.parent.mkdir(parents=True)
+    shutil.copyfile(fixture, save)
+    server_log = output / "server.log"
+    sd = (output / "sdmc").resolve()
+    endpoint = sd / "3ds/min3dstry/server-endpoint.txt"
+    endpoint.parent.mkdir(parents=True)
+    endpoint.write_text(f"127.0.0.1 {args.port}\n", encoding="ascii")
+    movie = output / "join.ctm"
+    write_controls_replay(movie, first_move=90, model=model, unified_boot=True)
+    config, log = az.resolve_azahar_paths(azahar)
+    originals = {path: path.read_bytes() if path.is_file() else None for path in (config, log)}
+    server = start_server(args, server_dir, server_log)
+    try:
+        wait_for(server_log, server, r"Server loaded\.", 30)
+        stock_command(server, server_log, f"config port {args.port}\nload power",
+                      rf"Opened a server on port {args.port}\.")
+        isolated = {"Data Storage": {"use_custom_storage": "true", "sdmc_directory": sd.as_posix() + "/"}}
+        config.parent.mkdir(parents=True, exist_ok=True)
+        initial = (originals[config] or b"").decode("utf-8")
+        config.write_text(az.patch_qt_config_text(initial, isolated), encoding="utf-8")
+        proc, rpc = singleplayer._launch_azahar(model, args.rom, azahar, config, log, movie)
+        try:
+            singleplayer._wait_for_log(log, proc, r"UPSTREAM_NETWORK_FRAME .*left=73 bottom=20 sprites=1", 120)
+            wait_for(server_log, server, r"Min3DStry ARM11 has connected", 20)
+            deadline = time.monotonic() + 25
+            while time.monotonic() < deadline:
+                try:
+                    frame = rpc.screenshot()
+                    (output / "world.png").write_bytes(frame)
+                    counts = changed_pixels(terrain, frame, SAMPLES)
+                    if min(counts.values()) >= 12:
+                        print(f"UPSTREAM_LIVE_POWER_PIXELS model={model} beam={counts['beam-between-nodes']}/25",
+                              flush=True)
+                        return
+                except (RuntimeError, TimeoutError):
+                    if proc.poll() is not None:
+                        raise
+                time.sleep(0.25)
+            raise AssertionError(f"{model}: missing power graphics from the original Java server")
+        finally:
+            rpc.close()
+            singleplayer._stop_proc(proc, azahar)
+            if log.is_file():
+                shutil.copyfile(log, output / "azahar.log")
+    finally:
+        stop(server)
+        for path, data in originals.items():
+            if data is None:
+                path.unlink(missing_ok=True)
+            else:
+                path.write_bytes(data)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--rom", type=Path, required=True)
@@ -73,6 +132,7 @@ def main():
     parser.add_argument("--azahar")
     parser.add_argument("--port", type=int, default=16590)
     parser.add_argument("--fixture", type=Path, help="An existing directory of stock fixture saves")
+    parser.add_argument("--live", action="store_true", help="Also verify power graphics in a stock-server session")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     azahar = az.resolve_azahar_bin(args.azahar)
@@ -85,6 +145,8 @@ def main():
         check_pixels(model, terrain, stock, SAMPLES)
         heated = capture(out / "heated", model, fixture / "heated.msav", args.rom, azahar, stock, (REACTOR,))
         check_pixels(model, stock, heated, (REACTOR,))
+        if args.live:
+            verify_live(args, model, azahar, fixture / "stock.msav", terrain, out / "live")
 
 
 if __name__ == "__main__":
