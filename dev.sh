@@ -48,6 +48,51 @@ has_docker_devkitarm() {
     docker image inspect devkitpro/devkitarm:latest >/dev/null 2>&1
 }
 
+ensure_devkitarm_env() {
+  if [[ -n "${DEVKITARM:-}" && -f "${DEVKITARM}/3ds_rules" ]]; then
+    return 0
+  fi
+  if [[ -f "/opt/devkitpro/3dsvars.sh" ]]; then
+    # shellcheck disable=SC1091
+    source /opt/devkitpro/3dsvars.sh
+    return 0
+  fi
+  return 1
+}
+
+build_teavm_loader() {
+  if ! ensure_devkitarm_env; then
+    echo 'loader: devkitARM is unavailable; source devkitPro 3dsvars.sh first.' >&2
+    return 1
+  fi
+  local upstream="${UPSTREAM_MINDUSTRY:-}"
+  if [[ -z "$upstream" || ! -d "$upstream" ]]; then
+    echo 'loader: set UPSTREAM_MINDUSTRY to the pinned Mindustry checkout.' >&2
+    return 1
+  fi
+  local server="${MINDUSTRY_SERVER_JAR:-$(dirname "$upstream")/server-release.jar}"
+  local arc="${ARC_CHECKOUT:-$(dirname "$upstream")/Arc}"
+  local gradle="${GRADLE_BIN:-}"
+  if [[ -z "$gradle" && -x "$upstream/gradlew" ]]; then
+    gradle="$upstream/gradlew"
+  fi
+  if [[ -z "$gradle" ]] && command -v gradle >/dev/null 2>&1; then
+    gradle="$(command -v gradle)"
+  fi
+  if [[ -z "$gradle" ]]; then
+    echo 'loader: set GRADLE_BIN or provide an executable upstream/gradlew.' >&2
+    return 1
+  fi
+  "$gradle" --no-daemon --console=plain -p research/upstream-runtime \
+    "-Dorg.gradle.jvmargs=-Xmx3g" \
+    "-PupstreamCheckout=$upstream" \
+    "-PreferenceJar=$server" \
+    "-ParcCheckout=$arc" \
+    -Pprobe=save-rows generateC
+  bash tools/build_teavm_loader.sh \
+    research/upstream-runtime/build/generated/teavm/c build/teavm-loader
+}
+
 case "${1:-}" in
   doctor)
     git --version
@@ -75,16 +120,44 @@ case "${1:-}" in
       echo '3DS emulator (azahar) not installed.'
     fi
     ;;
+  loader)
+    build_teavm_loader || exit 1
+    ;;
   build)
-    if has_native_devkitarm; then
-      if [[ -z "${DEVKITARM:-}" && -f "/opt/devkitpro/3dsvars.sh" ]]; then
-        # shellcheck disable=SC1091
-        source /opt/devkitpro/3dsvars.sh
+    make_args=()
+    if [[ -n "${UPSTREAM_MINDUSTRY:-}" && -d "${UPSTREAM_MINDUSTRY:-}" ]] &&
+        has_native_devkitarm; then
+      ensure_devkitarm_env || {
+        echo 'build: devkitARM is unavailable; source devkitPro 3dsvars.sh first.' >&2
+        exit 2
+      }
+      if [[ ! -f build/teavm-loader/libm3dsloader.a ||
+            "${M3DS_REBUILD_LOADER:-0}" == "1" ]]; then
+        build_teavm_loader || {
+          echo 'build: embedded TeaVM loader generation failed; refusing to link a stale or missing archive.' >&2
+          exit 1
+        }
       fi
-      make
+      make_args+=("TEAVM_LOADER_DIR=$PWD/build/teavm-loader")
+    fi
+    if has_native_devkitarm; then
+      ensure_devkitarm_env || true
+      make "${make_args[@]}"
     elif has_docker_devkitarm; then
-      docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/work" -w /work devkitpro/devkitarm:latest \
-        bash -lc 'source /opt/devkitpro/3dsvars.sh && make'
+      if [[ -f build/teavm-loader/libm3dsloader.a ]]; then
+        docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/work" -w /work \
+          -e TEAVM_LOADER_DIR=/work/build/teavm-loader \
+          devkitpro/devkitarm:latest bash -lc \
+          'source /opt/devkitpro/3dsvars.sh && make TEAVM_LOADER_DIR=/work/build/teavm-loader'
+      else
+        if [[ -n "${UPSTREAM_MINDUSTRY:-}" ]]; then
+          echo 'build: UPSTREAM_MINDUSTRY is set but build/teavm-loader/libm3dsloader.a is missing;' >&2
+          echo 'build: the Docker build will link the weak stub without the embedded upstream loader.' >&2
+        fi
+        docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/work" -w /work \
+          devkitpro/devkitarm:latest bash -lc \
+          'source /opt/devkitpro/3dsvars.sh && make'
+      fi
     else
       echo 'build: devkitARM is not installed locally and devkitpro/devkitarm:latest is unavailable in Docker.' >&2
       exit 2
@@ -94,11 +167,12 @@ case "${1:-}" in
     bash -n dev.sh
     host_python="$(find_host_python)" || exit 1
     host_cc="$(find_host_cc)" || { echo 'test: no host C compiler found (install cc/gcc/clang or set CC).' >&2; exit 1; }
-    for file in README.md AGENTS.md CONTRIBUTING.md SECURITY.md docs/architecture.md docs/research/java-to-native.md docs/development/automation-policy.md docs/rendering/citro2d-prototype.md docs/rendering/minimap.md docs/rendering/azahar-atlas-evidence.md docs/testing/parity-harness.md docs/hardware/deployment-and-logs.md docs/hardware/memory-budget.md docs/hardware/worker-scheduling.md docs/audio/ndsp-mixer.md docs/audio/asset-conversion.md docs/audio/azahar-evidence.md docs/net/upstream-protocol.md docs/porting/msav-verification.md docs/porting/campaign-verification.md docs/porting/campaign-progression.md docs/porting/factory-logistics.md docs/porting/production-power-liquids.md docs/porting/sd-storage-paths.md include/platform/save_slot.h src/platform/save_slot.c tests/platform/test_save_slot.c include/platform/msav_inflate.h src/platform/msav_inflate.c include/platform/msav_world.h src/platform/msav_world.c tests/platform/test_msav_world.c tests/fixtures/glacier-v13.msav tests/fixtures/glacier-v13-decoded.txt tests/fixtures/README.md include/platform/sector_catalog.h src/platform/sector_catalog.c tests/platform/test_sector_catalog.c docs/port-capabilities.json docs/progress-gauge.svg site/index.html .github/scripts/pr_automation.py .github/scripts/test_pr_automation.py .github/workflows/ai-pr-review.yml .github/workflows/upstream-arm11-smoke.yml .github/workflows/full-build.yml Makefile include/audio/audio_mixer.h src/audio/audio_mixer.c tests/audio/test_audio_mixer.c include/audio/audio_registry.h src/audio/audio_registry.c tests/audio/test_audio_registry.c include/audio/audio_events.h src/audio/audio_events.c tests/audio/test_audio_events.c include/audio/audio_ambient.h src/audio/audio_ambient.c tests/audio/test_audio_ambient.c include/net/mindustry_net.h src/net/mindustry_net.c tests/net/test_mindustry_net.c include/render/scene_2d.h src/render/scene_2d.c tests/render/test_scene_2d.c include/render/minimap.h src/render/minimap.c tests/render/test_minimap.c include/render/save_world_preview.h src/render/save_world_preview.c tests/render/test_save_world_preview.c include/sim/parity_scenario.h src/sim/parity_scenario.c tests/sim/test_parity_harness.c tests/parity/starter_copper_defense_v1.json include/platform/memory_budget.h src/platform/memory_budget.c tests/platform/test_memory_budget.c include/platform/worker_pool.h src/platform/worker_pool.c tests/platform/test_worker_pool.c include/platform/worker_benchmark.h src/platform/worker_benchmark.c tests/platform/test_worker_benchmark.c include/platform/sd_paths.h src/platform/sd_paths.c tests/platform/test_sd_paths.c include/platform/settings_store.h src/platform/settings_store.c tests/platform/test_settings_store.c research/upstream-runtime/host/UpstreamSaveBaseline.java research/upstream-runtime/host/UpstreamAudioInventory.java research/upstream-runtime/host/UpstreamProgressionBaseline.java research/upstream-runtime/host/UpstreamCombatBaseline.java research/upstream-runtime/host/UpstreamNetSessionBaseline.java research/upstream-runtime/host/UpstreamCampaignPersistenceBaseline.java research/upstream-runtime/host/UpstreamProductionBaseline.java research/upstream-runtime/host/UpstreamFactoryBaseline.java research/upstream-runtime/host/UpstreamSaveResilienceProbe.java research/upstream-runtime/src/gameplay/java/UpstreamFactoryTickProbe.java research/upstream-runtime/src/gameplay/java/UpstreamProductionTickProbe.java tools/verify_azahar.py tools/check_parity.py tools/device_deploy.py tools/port_progress.py tools/build_audio_assets.py tools/verify_upstream_net.py tests/tools/verify_upstream_sprite_atlas.py tests/tools/test_verify_azahar.py tests/tools/test_check_parity.py tests/tools/test_device_deploy.py tests/tools/test_port_progress.py tests/tools/test_audio_assets.py audio/upstream-audio-map.json audio/upstream-audio-triggers.json research/upstream-runtime/src/campaign-slot-discovery/java/UpstreamCampaignSlotDiscoveryProbe.java research/upstream-runtime/src/campaign-saves/java/UpstreamCampaignSavesProbe.java research/upstream-runtime/src/campaign-launch/java/UpstreamCampaignLaunchProbe.java research/upstream-runtime/src/campaign-sector-state/java/UpstreamCampaignSectorStateProbe.java research/upstream-runtime/src/campaign-planet/java/UpstreamCampaignPlanetStateProbe.java research/upstream-runtime/src/campaign-sector-info/java/UpstreamCampaignSectorInfoProbe.java research/upstream-runtime/src/campaign-sector-info/java/port/SectorInfoReflectionPolicy.java research/upstream-runtime/src/campaign-slot-meta/java/UpstreamCampaignSlotMetaProbe.java research/upstream-runtime/src/campaign-research/java/UpstreamCampaignResearchStateProbe.java research/upstream-runtime/src/campaign-settings/java/UpstreamCampaignSettingsProbe.java research/upstream-runtime/src/campaign-content/java/UpstreamCampaignContentStateProbe.java research/upstream-runtime/src/campaign-sector/java/UpstreamCampaignSectorProbe.java research/upstream-runtime/build.gradle include/ui/pause_menu.h src/ui/pause_menu.c tests/ui/test_pause_menu.c docs/ui/pause-menu.md include/ui/pause_overlay.h src/ui/pause_overlay.c tests/ui/test_pause_overlay.c research/upstream-runtime/arm11/m3ds_world_fragment.h tests/render/test_world_fragment.c include/ui/touch_controls.h src/ui/touch_controls.c tests/ui/test_touch_controls.c docs/ui/touch-controls.md docs/rendering/asset-pipeline.md tools/verify_upstream_live_net.py tests/tools/test_verify_world_atlas.py research/upstream-runtime/arm11/m3ds_callsites.h research/upstream-runtime/arm11/compact_callsites.py tests/platform/test_callsites.c tests/tools/test_compact_callsites.py; do
+    for file in README.md AGENTS.md CONTRIBUTING.md SECURITY.md docs/architecture.md docs/research/java-to-native.md docs/development/automation-policy.md docs/rendering/citro2d-prototype.md docs/rendering/minimap.md docs/rendering/azahar-atlas-evidence.md docs/testing/parity-harness.md docs/hardware/deployment-and-logs.md docs/hardware/verification-runbook.md tools/hw_evidence.py tests/tools/test_hw_evidence.py docs/hardware/memory-budget.md docs/hardware/worker-scheduling.md docs/audio/ndsp-mixer.md docs/audio/asset-conversion.md docs/audio/azahar-evidence.md docs/net/upstream-protocol.md docs/porting/msav-verification.md docs/porting/campaign-verification.md docs/porting/campaign-progression.md docs/porting/factory-logistics.md docs/porting/production-power-liquids.md docs/porting/sd-storage-paths.md include/platform/save_slot.h src/platform/save_slot.c tests/platform/test_save_slot.c include/platform/msav_inflate.h src/platform/msav_inflate.c include/platform/msav_world.h src/platform/msav_world.c tests/platform/test_msav_world.c include/platform/world_rows.h src/platform/world_rows.c tests/platform/test_world_rows.c docs/porting/world-rows-bridge.md tests/fixtures/glacier-v13.msav tests/fixtures/glacier-v13-decoded.txt tests/fixtures/README.md include/platform/sector_catalog.h src/platform/sector_catalog.c tests/platform/test_sector_catalog.c docs/port-capabilities.json docs/progress-gauge.svg site/index.html .github/scripts/pr_automation.py .github/scripts/test_pr_automation.py .github/workflows/ai-pr-review.yml .github/workflows/upstream-arm11-smoke.yml .github/workflows/full-build.yml Makefile include/audio/audio_mixer.h src/audio/audio_mixer.c tests/audio/test_audio_mixer.c include/audio/audio_registry.h src/audio/audio_registry.c tests/audio/test_audio_registry.c include/audio/audio_events.h src/audio/audio_events.c tests/audio/test_audio_events.c include/audio/audio_ambient.h src/audio/audio_ambient.c tests/audio/test_audio_ambient.c include/net/mindustry_net.h src/net/mindustry_net.c tests/net/test_mindustry_net.c include/render/scene_2d.h src/render/scene_2d.c tests/render/test_scene_2d.c include/render/minimap.h src/render/minimap.c tests/render/test_minimap.c include/render/save_world_preview.h src/render/save_world_preview.c tests/render/test_save_world_preview.c include/sim/parity_scenario.h src/sim/parity_scenario.c tests/sim/test_parity_harness.c tests/parity/starter_copper_defense_v1.json include/platform/memory_budget.h src/platform/memory_budget.c tests/platform/test_memory_budget.c include/platform/worker_pool.h src/platform/worker_pool.c tests/platform/test_worker_pool.c include/platform/worker_benchmark.h src/platform/worker_benchmark.c tests/platform/test_worker_benchmark.c include/platform/sd_paths.h src/platform/sd_paths.c tests/platform/test_sd_paths.c include/platform/settings_store.h src/platform/settings_store.c tests/platform/test_settings_store.c research/upstream-runtime/host/UpstreamSaveBaseline.java research/upstream-runtime/host/UpstreamAudioInventory.java research/upstream-runtime/host/UpstreamProgressionBaseline.java research/upstream-runtime/host/UpstreamCombatBaseline.java research/upstream-runtime/host/UpstreamNetSessionBaseline.java research/upstream-runtime/host/UpstreamCampaignPersistenceBaseline.java research/upstream-runtime/host/UpstreamProductionBaseline.java research/upstream-runtime/host/UpstreamFactoryBaseline.java research/upstream-runtime/host/UpstreamSaveResilienceProbe.java research/upstream-runtime/src/gameplay/java/UpstreamFactoryTickProbe.java research/upstream-runtime/src/gameplay/java/UpstreamProductionTickProbe.java tools/verify_azahar.py tools/check_parity.py tools/device_deploy.py tools/hw_evidence.py tools/port_progress.py tools/mechanics_parity.py tools/build_audio_assets.py tools/verify_upstream_net.py tests/tools/verify_upstream_sprite_atlas.py tests/tools/test_verify_azahar.py tests/tools/test_check_parity.py tests/tools/test_device_deploy.py tests/tools/test_port_progress.py docs/mechanics-parity.json docs/mechanics-gauge.svg tools/mechanics_parity.py tests/tools/test_mechanics_parity.py tests/tools/test_audio_assets.py audio/upstream-audio-map.json audio/upstream-audio-triggers.json research/upstream-runtime/src/campaign-slot-discovery/java/UpstreamCampaignSlotDiscoveryProbe.java research/upstream-runtime/src/campaign-saves/java/UpstreamCampaignSavesProbe.java research/upstream-runtime/src/campaign-launch/java/UpstreamCampaignLaunchProbe.java research/upstream-runtime/src/campaign-sector-state/java/UpstreamCampaignSectorStateProbe.java research/upstream-runtime/src/campaign-planet/java/UpstreamCampaignPlanetStateProbe.java research/upstream-runtime/src/campaign-sector-info/java/UpstreamCampaignSectorInfoProbe.java research/upstream-runtime/src/campaign-sector-info/java/port/SectorInfoReflectionPolicy.java research/upstream-runtime/src/campaign-slot-meta/java/UpstreamCampaignSlotMetaProbe.java research/upstream-runtime/src/campaign-research/java/UpstreamCampaignResearchStateProbe.java research/upstream-runtime/src/campaign-settings/java/UpstreamCampaignSettingsProbe.java research/upstream-runtime/src/campaign-content/java/UpstreamCampaignContentStateProbe.java research/upstream-runtime/src/campaign-sector/java/UpstreamCampaignSectorProbe.java research/upstream-runtime/build.gradle include/ui/pause_menu.h src/ui/pause_menu.c tests/ui/test_pause_menu.c docs/ui/pause-menu.md include/ui/pause_overlay.h src/ui/pause_overlay.c tests/ui/test_pause_overlay.c research/upstream-runtime/arm11/m3ds_world_fragment.h tests/render/test_world_fragment.c include/ui/touch_controls.h src/ui/touch_controls.c tests/ui/test_touch_controls.c docs/ui/touch-controls.md docs/rendering/asset-pipeline.md tools/verify_upstream_live_net.py tests/tools/test_verify_world_atlas.py research/upstream-runtime/arm11/m3ds_callsites.h research/upstream-runtime/arm11/compact_callsites.py tests/platform/test_callsites.c tests/tools/test_compact_callsites.py; do
       test -s "$file" || { echo "Missing or empty: $file" >&2; exit 1; }
     done
-    "$host_python" -m py_compile .github/scripts/pr_automation.py .github/scripts/test_pr_automation.py research/java-to-native/budget_model.py research/java-to-native/run_poc.py tools/verify_azahar.py tools/check_parity.py tools/device_deploy.py tools/port_progress.py tools/build_audio_assets.py tools/verify_upstream_net.py tests/tools/verify_upstream_sprite_atlas.py tests/tools/test_verify_azahar.py tests/tools/test_check_parity.py tests/tools/test_device_deploy.py tests/tools/test_port_progress.py tests/tools/test_audio_assets.py research/upstream-runtime/arm11/compact_callsites.py tests/tools/test_compact_callsites.py
+    "$host_python" -m py_compile .github/scripts/pr_automation.py .github/scripts/test_pr_automation.py research/java-to-native/budget_model.py research/java-to-native/run_poc.py tools/verify_azahar.py tools/check_parity.py tools/device_deploy.py tools/hw_evidence.py tools/port_progress.py tools/mechanics_parity.py tools/build_audio_assets.py tools/verify_upstream_net.py tests/tools/verify_upstream_sprite_atlas.py tests/tools/test_verify_azahar.py tests/tools/test_check_parity.py tests/tools/test_device_deploy.py tests/tools/test_port_progress.py tests/tools/test_mechanics_parity.py tests/tools/test_audio_assets.py research/upstream-runtime/arm11/compact_callsites.py tests/tools/test_compact_callsites.py
     "$host_python" tools/port_progress.py --check
+    "$host_python" tools/mechanics_parity.py --check
     "$host_python" -m unittest discover -s .github/scripts -p 'test_*.py'
     "$host_python" -m unittest discover -s tests/tools -p 'test_*.py'
     for file in docs/porting/combat-waves-pathfinding.md research/upstream-runtime/host/UpstreamCombatSimulationBaseline.java research/upstream-runtime/src/gameplay/java/UpstreamCombatTickProbe.java research/upstream-runtime/src/gameplay/java/UpstreamWaveRoutingProbe.java docs/porting/audio-runtime-bindings.md research/upstream-runtime/host/UpstreamAudioBaseline.java research/upstream-runtime/src/gameplay/java/UpstreamAudioTickProbe.java include/audio/audio_stream.h src/audio/audio_stream.c src/platform/3ds/ndsp_stream_backend.h src/platform/3ds/ndsp_stream_backend.c tests/audio/test_audio_stream.c docs/audio/music-streaming.md include/audio/audio_vorbis_stream.h src/audio/audio_vorbis_stream.c src/platform/3ds/tremor_stream_source.h src/platform/3ds/tremor_stream_source.c tests/audio/test_audio_vorbis_stream.c; do
@@ -178,8 +252,15 @@ case "${1:-}" in
 
     "$host_cc" -std=c11 -Wall -Wextra -Werror -Iinclude \
       src/platform/msav_inflate.c src/platform/msav_world.c \
-      tests/platform/test_msav_world.c -o build/host/test_msav_world
+      src/platform/world_rows.c tests/platform/test_msav_world.c \
+      -o build/host/test_msav_world
     ./build/host/test_msav_world
+
+    "$host_cc" -std=c11 -Wall -Wextra -Werror -Iinclude \
+      src/platform/msav_inflate.c src/platform/msav_world.c \
+      src/platform/world_rows.c tests/platform/test_world_rows.c \
+      -o build/host/test_world_rows
+    ./build/host/test_world_rows
 
     "$host_cc" -std=c11 -Wall -Wextra -Werror -Iinclude \
       src/platform/save_slot.c src/platform/msav_inflate.c \
@@ -238,7 +319,10 @@ case "${1:-}" in
     ;;
   emu-test)
     test -s build/min3dstry.3dsx || { echo 'emu-test: build/min3dstry.3dsx missing; run ./dev.sh build first.' >&2; exit 2; }
-    if [[ -z "${AZAHAR_BIN:-}" ]] && ! command -v azahar >/dev/null 2>&1 && ! command -v azahar.exe >/dev/null 2>&1; then
+    if [[ -z "${AZAHAR_BIN:-}" ]] &&
+       ! command -v azahar >/dev/null 2>&1 &&
+       ! command -v azahar.exe >/dev/null 2>&1 &&
+       ! { command -v flatpak >/dev/null 2>&1 && flatpak info org.azahar_emu.Azahar >/dev/null 2>&1; }; then
       echo 'emu-test: no 3DS emulator (azahar) is installed.' >&2
       exit 2
     fi
@@ -272,7 +356,7 @@ case "${1:-}" in
     exit 2
     ;;
   *)
-    echo 'Usage: ./dev.sh doctor|build|test|emu-test|poc|run|device|package|status' >&2
+    echo 'Usage: ./dev.sh doctor|loader|build|test|emu-test|poc|run|device|package|status' >&2
     exit 2
     ;;
 esac

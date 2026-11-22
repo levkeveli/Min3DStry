@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import shutil
 import socket
 import subprocess
@@ -17,6 +18,29 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from verify_azahar import parse_azahar_log  # noqa: E402
+import hw_evidence  # noqa: E402
+
+MANAGED_HEAP_BUDGET_BYTES = 24 * 1024 * 1024
+
+UPSTREAM_MEMORY_RE = re.compile(
+    r"UPSTREAM_MEMORY\s+appHeap=(?P<app_heap>\d+)\s+"
+    r"linearHeap=(?P<linear_heap>\d+)\s+stack=(?P<stack>\d+)"
+)
+BENCH_LINE_RE = re.compile(r"\[MIN3DSTRY\] BENCH\s+(?P<body>.+)$")
+APPMEM_HW_RE = re.compile(r"AppMem:(?P<mib>\d+)\s*MiB")
+
+HARDWARE_BUDGET_PROFILES: dict[str, dict[str, Any]] = {
+    "old3ds": {
+        "label": "Original 3DS/2DS (APPMEMTYPE 0)",
+        "expected_tag": "O3DS",
+        "app_mem_limit_mib": 64,
+    },
+    "new3ds": {
+        "label": "New 3DS/2DS (APPMEMTYPE 6)",
+        "expected_tag": "N3DS",
+        "app_mem_limit_mib": 124,
+    },
+}
 
 
 def _cygpath_w(path_str: str) -> str:
@@ -121,14 +145,68 @@ def stage_to_sd(
     return {"manifest_path": str(manifest_path), **manifest}
 
 
+def _parse_bench_line(body: str) -> dict[str, Any] | None:
+    fields: dict[str, str] = {}
+    for token in body.split():
+        if "=" not in token:
+            continue
+        k, v = token.split("=", 1)
+        fields[k] = v
+    if "fps" not in fields:
+        return None
+    try:
+        bench: dict[str, Any] = {"fps": float(fields["fps"])}
+        if "p95_ms" in fields:
+            bench["p95_ms"] = float(fields["p95_ms"])
+        if "avg_ms" in fields:
+            bench["avg_ms"] = float(fields["avg_ms"])
+    except ValueError:
+        return None
+    if "scenario" in fields:
+        bench["scenario"] = fields["scenario"]
+    return bench
+
+
 def parse_device_log(log_text: str) -> dict[str, Any]:
-    """Extract [MIN3DSTRY] HW, PARITY, AUDIO, and FRAME records from streamed device output."""
+    """Extract [MIN3DSTRY] HW, PARITY, AUDIO, FRAME, MEM, BENCH, and UPSTREAM_MEMORY records."""
     parsed = parse_azahar_log(log_text)
+    upstream_memory: dict[str, int] | None = None
+    bench: dict[str, Any] | None = None
+
+    for line in log_text.splitlines():
+        um_match = UPSTREAM_MEMORY_RE.search(line)
+        if um_match:
+            upstream_memory = {
+                "app_heap_bytes": int(um_match.group("app_heap")),
+                "linear_heap_bytes": int(um_match.group("linear_heap")),
+                "stack_bytes": int(um_match.group("stack")),
+            }
+            continue
+        bench_match = BENCH_LINE_RE.search(line)
+        if bench_match:
+            parsed_bench = _parse_bench_line(bench_match.group("body"))
+            if parsed_bench is not None:
+                bench = parsed_bench
+
+    hw_line = parsed.get("hw_line")
+    mem = parsed.get("mem")
+    app_mem_mib: int | None = None
+    if isinstance(hw_line, str):
+        app_match = APPMEM_HW_RE.search(hw_line)
+        if app_match:
+            app_mem_mib = int(app_match.group("mib"))
+    if app_mem_mib is None and isinstance(mem, dict) and "app_mib" in mem:
+        app_mem_mib = int(mem["app_mib"])
+
     return {
-        "hw_line": parsed.get("hw_line"),
+        "hw_line": hw_line,
         "parity": parsed.get("parity"),
         "audio": parsed.get("audio"),
         "frame": parsed.get("frame"),
+        "mem": mem,
+        "upstream_memory": upstream_memory,
+        "bench": bench,
+        "app_mem_mib": app_mem_mib,
     }
 
 
@@ -138,7 +216,7 @@ def format_provenance_markdown(
     commit_sha: str = "unknown",
     target_label: str = "3DS Hardware",
 ) -> str:
-    """Format parsed hardware/parity/audio/frame telemetry as a concise Markdown verification record."""
+    """Format parsed hardware/parity/audio/frame/memory/bench telemetry as Markdown."""
     lines = [
         f"- **Target:** {target_label} (`commit {commit_sha}`)",
         f"- **Hardware probe:** `{parsed.get('hw_line') or 'missing'}`",
@@ -168,6 +246,184 @@ def format_provenance_markdown(
             f"Sw:{frame.get('state_switches')} Drop:{frame.get('budget_dropped')} "
             f"CPU={frame.get('cpu_pct')}% GPU={frame.get('gpu_pct')}% CmdBuf={frame.get('cmdbuf_pct')}%"
         )
+    mem = parsed.get("mem")
+    if isinstance(mem, dict):
+        lines.append(
+            "- **Arena memory:** "
+            f"app={mem.get('app_mib')}MiB used={mem.get('used')}/{mem.get('budget')}B "
+            f"peak={mem.get('peak')}B failures={mem.get('failures')} status={mem.get('status')}"
+        )
+    um = parsed.get("upstream_memory")
+    if isinstance(um, dict):
+        lines.append(
+            "- **Upstream runtime heaps:** "
+            f"appHeap={um.get('app_heap_bytes')}B linearHeap={um.get('linear_heap_bytes')}B "
+            f"stack={um.get('stack_bytes')}B"
+        )
+    bench = parsed.get("bench")
+    if isinstance(bench, dict):
+        extras = []
+        if "avg_ms" in bench:
+            extras.append(f"avg={bench['avg_ms']:.2f}ms")
+        if "p95_ms" in bench:
+            extras.append(f"p95={bench['p95_ms']:.2f}ms")
+        if "scenario" in bench:
+            extras.append(f"scenario={bench['scenario']}")
+        suffix = f" ({', '.join(extras)})" if extras else ""
+        lines.append(f"- **Benchmark:** `fps={bench.get('fps'):.2f}`{suffix}")
+    return "\n".join(lines) + "\n"
+
+
+def evaluate_hardware_budget(
+    parsed: dict[str, Any],
+    *,
+    profile: str = "old3ds",
+    min_fps: float = 24.0,
+    expected_hash: str | None = None,
+    load_bytes: int | None = None,
+) -> dict[str, Any]:
+    """Evaluate captured hardware telemetry against Old/New 3DS FPS and memory budgets."""
+    if profile not in HARDWARE_BUDGET_PROFILES:
+        valid = ", ".join(sorted(HARDWARE_BUDGET_PROFILES))
+        raise ValueError(f"Unsupported hardware profile '{profile}' (expected one of: {valid}).")
+    if min_fps <= 0:
+        raise ValueError("min_fps must be > 0.")
+    if load_bytes is not None and load_bytes < 0:
+        raise ValueError("load_bytes must be >= 0.")
+
+    cfg = HARDWARE_BUDGET_PROFILES[profile]
+    limit_mib = int(cfg["app_mem_limit_mib"])
+    limit_bytes = limit_mib * 1024 * 1024
+    expected_tag = str(cfg["expected_tag"])
+    checks: dict[str, dict[str, Any]] = {}
+
+    hw_line = parsed.get("hw_line")
+    if isinstance(hw_line, str) and expected_tag in hw_line:
+        checks["hw_profile"] = {
+            "status": "pass",
+            "detail": f"matched {expected_tag} in HW line",
+        }
+    else:
+        checks["hw_profile"] = {
+            "status": "fail",
+            "detail": f"expected {expected_tag} in HW line, got {hw_line!r}",
+        }
+
+    mem = parsed.get("mem")
+    if isinstance(mem, dict):
+        mem_ok = (
+            mem.get("status") == "ok"
+            and mem.get("failures", 1) == 0
+            and mem.get("used", 0) <= mem.get("budget", 0)
+            and mem.get("peak", 0) <= mem.get("budget", 0)
+        )
+        checks["memory_budget"] = {
+            "status": "pass" if mem_ok else "fail",
+            "detail": (
+                f"used={mem.get('used')}/{mem.get('budget')} peak={mem.get('peak')} "
+                f"failures={mem.get('failures')} status={mem.get('status')}"
+            ),
+        }
+    else:
+        checks["memory_budget"] = {"status": "skipped", "detail": "no [MIN3DSTRY] MEM record"}
+
+    um = parsed.get("upstream_memory")
+    if isinstance(um, dict) or load_bytes is not None:
+        app_heap = int(um["app_heap_bytes"]) if isinstance(um, dict) else None
+        linear_heap = int(um["linear_heap_bytes"]) if isinstance(um, dict) else 0
+        stack = int(um["stack_bytes"]) if isinstance(um, dict) else 0
+        reserved = (load_bytes or 0) + linear_heap + stack
+        if load_bytes is not None:
+            footprint_ok = (
+                (app_heap is None or app_heap > 0)
+                and (reserved + MANAGED_HEAP_BUDGET_BYTES <= limit_bytes)
+            )
+            detail = (
+                f"reserved_with_24MiB_heap={(reserved + MANAGED_HEAP_BUDGET_BYTES) / (1024 * 1024):.2f} MiB "
+                f"<= {limit_mib} MiB (available_app_heap={app_heap})"
+            )
+        else:
+            footprint_ok = (app_heap is not None and app_heap > 0) and (reserved < limit_bytes)
+            detail = (
+                f"reserved={reserved / (1024 * 1024):.2f} MiB < {limit_mib} MiB, "
+                f"available_app_heap={app_heap}"
+            )
+        checks["upstream_memory_footprint"] = {
+            "status": "pass" if footprint_ok else "fail",
+            "available_heap_bytes": app_heap,
+            "reserved_bytes": reserved,
+            "limit_bytes": limit_bytes,
+            "detail": detail,
+        }
+    else:
+        checks["upstream_memory_footprint"] = {
+            "status": "skipped",
+            "detail": "no UPSTREAM_MEMORY record or --load-bytes",
+        }
+
+    bench = parsed.get("bench")
+    if isinstance(bench, dict):
+        fps = float(bench["fps"])
+        max_frame_ms = (1000.0 / min_fps) + 0.05
+        p95_ms = bench.get("p95_ms")
+        fps_ok = fps >= min_fps and (p95_ms is None or float(p95_ms) <= max_frame_ms)
+        detail = f"fps={fps:.2f} (min {min_fps:.2f})"
+        if p95_ms is not None:
+            detail += f", p95_ms={float(p95_ms):.2f} (limit {1000.0 / min_fps:.2f})"
+        checks["frame_rate"] = {
+            "status": "pass" if fps_ok else "fail",
+            "detail": detail,
+        }
+    else:
+        checks["frame_rate"] = {"status": "skipped", "detail": "no [MIN3DSTRY] BENCH record"}
+
+    parity = parsed.get("parity")
+    if expected_hash is not None:
+        actual_hash = parity.get("trace_hash") if isinstance(parity, dict) else None
+        hash_ok = isinstance(actual_hash, str) and actual_hash.lower() == expected_hash.lower()
+        checks["parity_hash"] = {
+            "status": "pass" if hash_ok else "fail",
+            "detail": f"expected={expected_hash}, actual={actual_hash}",
+        }
+    elif isinstance(parity, dict):
+        checks["parity_hash"] = {
+            "status": "pass",
+            "detail": f"hash={parity.get('trace_hash')} (ticks={parity.get('total_ticks')})",
+        }
+    else:
+        checks["parity_hash"] = {"status": "skipped", "detail": "no [MIN3DSTRY] PARITY record"}
+
+    statuses = [entry["status"] for entry in checks.values()]
+    passed = ("fail" not in statuses) and ("pass" in statuses)
+    return {
+        "profile": profile,
+        "profile_label": cfg["label"],
+        "app_mem_limit_mib": limit_mib,
+        "min_fps": min_fps,
+        "passed": passed,
+        "checks": checks,
+    }
+
+
+def format_benchmark_markdown(
+    parsed: dict[str, Any],
+    evaluation: dict[str, Any],
+    *,
+    commit_sha: str = "unknown",
+    target_label: str = "3DS Hardware",
+) -> str:
+    """Format parsed hardware telemetry plus budget pass/fail table as Markdown."""
+    verdict = "PASS" if evaluation.get("passed") else "FAIL"
+    lines = [
+        format_provenance_markdown(parsed, commit_sha=commit_sha, target_label=target_label).rstrip("\n"),
+        f"- **Budget profile:** `{evaluation['profile']}` ({evaluation['profile_label']})",
+        f"- **Overall verdict:** `{verdict}`",
+        "",
+        "| Check | Status | Detail |",
+        "|---|---|---|",
+    ]
+    for name, check in (evaluation.get("checks") or {}).items():
+        lines.append(f"| `{name}` | `{check['status'].upper()}` | {check['detail']} |")
     return "\n".join(lines) + "\n"
 
 
@@ -284,6 +540,37 @@ def cmd_parse_log(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_benchmark_report(args: argparse.Namespace) -> int:
+    log_text = Path(args.input).read_text(encoding="utf-8", errors="replace")
+    parsed = parse_device_log(log_text)
+    try:
+        evaluation = evaluate_hardware_budget(
+            parsed,
+            profile=args.profile,
+            min_fps=args.min_fps,
+            expected_hash=args.expected_hash,
+            load_bytes=args.load_bytes,
+        )
+    except ValueError as exc:
+        print(f"device benchmark-report: {exc}", file=sys.stderr)
+        return 2
+    if args.format == "json":
+        print(json.dumps({"parsed": parsed, "evaluation": evaluation}, indent=2))
+    else:
+        print(
+            format_benchmark_markdown(
+                parsed,
+                evaluation,
+                commit_sha=args.commit,
+                target_label=args.target,
+            ),
+            end="",
+        )
+    if args.strict and not evaluation["passed"]:
+        return 1
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="subcmd", required=True)
@@ -321,7 +608,64 @@ def build_parser() -> argparse.ArgumentParser:
     p_parse.add_argument("--format", choices=["markdown", "json"], default="markdown")
     p_parse.set_defaults(func=cmd_parse_log)
 
+    p_bench = sub.add_parser(
+        "benchmark-report",
+        help="Evaluate captured device logs against FPS, parity, and Old/New 3DS memory budgets.",
+    )
+    p_bench.add_argument("--input", required=True)
+    p_bench.add_argument("--commit", default="unknown")
+    p_bench.add_argument("--target", default="3DS Hardware")
+    p_bench.add_argument("--profile", choices=sorted(HARDWARE_BUDGET_PROFILES), default="old3ds")
+    p_bench.add_argument("--min-fps", type=float, default=24.0)
+    p_bench.add_argument("--expected-hash", default=None)
+    p_bench.add_argument("--load-bytes", type=int, default=None)
+    p_bench.add_argument("--format", choices=["markdown", "json"], default="markdown")
+    p_bench.add_argument("--strict", action="store_true")
+    p_bench.set_defaults(func=cmd_benchmark_report)
+
+    p_ev = sub.add_parser(
+        "evidence",
+        help="Verify a captured hardware log and emit checked Markdown/JSON evidence.",
+    )
+    p_ev.add_argument("--input", required=True)
+    p_ev.add_argument("--rom", default=None)
+    p_ev.add_argument("--commit", default="unknown")
+    p_ev.add_argument("--target", default="3DS Hardware")
+    p_ev.add_argument("--profile", choices=sorted(hw_evidence.PROFILES), default="new3ds")
+    p_ev.add_argument("--scenario", choices=hw_evidence.SCENARIOS, default="sector170")
+    p_ev.add_argument("--format", choices=["markdown", "json"], default="markdown")
+    p_ev.add_argument("--out", default=None)
+    p_ev.add_argument("--timestamp", default=None)
+    p_ev.add_argument("--strict", action="store_true")
+    p_ev.set_defaults(func=cmd_evidence)
+
     return parser
+
+
+def cmd_evidence(args: argparse.Namespace) -> int:
+    argv = [
+        "--input",
+        args.input,
+        "--commit",
+        args.commit,
+        "--target",
+        args.target,
+        "--profile",
+        args.profile,
+        "--scenario",
+        args.scenario,
+        "--format",
+        args.format,
+    ]
+    if args.strict:
+        argv.append("--strict")
+    if args.rom:
+        argv.extend(["--rom", args.rom])
+    if args.out:
+        argv.extend(["--out", args.out])
+    if args.timestamp:
+        argv.extend(["--timestamp", args.timestamp])
+    return hw_evidence.main(argv)
 
 
 def main() -> int:

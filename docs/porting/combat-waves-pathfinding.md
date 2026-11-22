@@ -78,6 +78,10 @@ UPSTREAM_WAVE wave=4 spawned=dagger=2 groundSpawned=2 first=79,219->80,173 dista
 
 Both profiles matched the JVM and host TeaVM C traces exactly.
 
+The standalone host probe exits after printing the trace without firing
+`ResetEvent`; dispatching that reset into TeaVM's monitor/event queue after
+the trace can deadlock the host C build. The emitted trace is unchanged.
+
 ## Remaining Scope for Issue #30
 
 - Integrate the upstream turret, wave spawner, unit AI, and pathfinder loop into the live interactive `min3dstry.3dsx` session (currently standalone probe artifacts).

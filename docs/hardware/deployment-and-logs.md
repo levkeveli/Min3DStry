@@ -36,8 +36,37 @@ Listen on a host TCP port for streamed diagnostic output and format a Markdown s
 ./dev.sh device parse-log --input build/device-logs/capture.log --commit "$(git rev-parse --short HEAD)" --target "New 3DS XL"
 ```
 
+### 4. Hardware Budget & Performance Benchmark Report (`#43`)
+
+Validate streamed Original or New 3DS logs against the target hardware model (`O3DS` `64 MiB` vs `N3DS` `124 MiB`), the `>= 24 FPS` / frame-time target (`[MIN3DSTRY] BENCH fps=... p95_ms=...`), `UPSTREAM_MEMORY` / `[MIN3DSTRY] MEM` bounds, and parity trace hash:
+```bash
+./dev.sh device benchmark-report --input build/device-logs/capture.log \
+  --commit "$(git rev-parse --short HEAD)" --target "Original 3DS" \
+  --profile old3ds --min-fps 24 --expected-hash 0x53a483c7 --strict
+```
+Use `--format json` for structured metrics or `--load-bytes <elf_load_bytes>` to enforce the full `LOAD + linearHeap + stack + 24 MiB` managed-heap budget against `64 MiB` / `124 MiB`.
+
+### 5. Checked Hardware Evidence (`./dev.sh device evidence`)
+
+Turn a captured log into a reviewed record with [`tools/hw_evidence.py`](../../tools/hw_evidence.py):
+it verifies the canonical sector-170 values (loader/tile/save hashes, simulation parity, worker
+checksum, frame drops, memory budget), checks the model/app-memory profile, hashes the `.3dsx`, and emits
+Markdown or JSON. `--strict` exits non-zero on any required mismatch.
+
+```bash
+./dev.sh device evidence --input build/device-logs/capture.log \
+  --rom build/min3dstry.3dsx --commit "$(git rev-parse HEAD)" \
+  --target "New 3DS XL" --profile new3ds --strict \
+  --out docs/hardware/evidence/new3ds-$(git rev-parse --short HEAD).md
+```
+
+The full procedure, expected values per generation, and how a result promotes a capability live in
+[the physical verification runbook](verification-runbook.md). Emulator output never counts as hardware
+evidence; `./dev.sh emu-test` stays the pre-flight.
+
 ## Verification Status
 
 - **Host unit tests (`tests/tools/test_device_deploy.py`):** **Host-tested** via `./dev.sh test` (`3dslink` command builder, SD staging + SHA-256 manifest, loopback TCP log capture, and provenance Markdown formatter).
+- **Hardware evidence ingest (`tests/tools/test_hw_evidence.py`):** **Host-tested** for valid New/Old profiles, corrupt-save failure, wrong hashes, frame drops, missing records, strict exit codes, and the `device evidence` wrapper.
 - **Physical New 3DS XL:** On 2026-11-20, [build `07e94ed`](https://github.com/levkeveli/Min3DStry/actions/runs/44739543994) was sent via `3dslink` 0.6.3 over Wi-Fi. The PC received the hardware profile (804 MHz, L2 enabled, 124 MiB application memory, FIRM 2.58.0), the canonical 240-tick scenario hash (`0x53a483c7`, matching the host fixture), and the frame-30 sample (2.63% CPU, 8.10% GPU, 0.26% command buffer, zero budget drops).
 - **Physical Original 3DS/2DS:** Wi-Fi deployment and streaming verification are pending.

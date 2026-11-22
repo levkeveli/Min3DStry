@@ -157,6 +157,24 @@ For the generated Glacier fixture the aggregate must be
 reader prints the same `SECTOR_PARITY` hash; the two are compared before
 `.msav` world/building rows are called verified.
 
+## TeaVM world-row producer
+
+`-Pprobe=save-rows` loads a v13 save and streams every tile/building through
+TeaVM `@Import` calls into the native `M3dsWorldTileRow`/`M3dsWorldBuildingRow`
+arrays, then calls `m3ds_world_rows_alloc`. Generate the C and build with the
+extra native sources:
+
+    gradle -Pprobe=save-rows ... generateC
+    bash arm11/build.sh build/generated/teavm/c build/probe-save-rows --save-rows
+
+With `glacier-v13.msav` on the SD card, Azahar reports:
+
+    UPSTREAM_ROWS flat=783fbd80e415dcd7 tile=e35397041df8e5fe save=3a375fd4f81c5680 building=9a691300c548b8fb buildings=2
+    UPSTREAM_SAVE_ROWS status=0
+
+The flat/tile/save hashes match the native reader; `building` omits raw entity
+payload bytes.
+
 The C build recompiles two compiler classes from the hash-checked TeaVM
 0.16.0 source archive. The patches retain the original entry block's
 liveness during coroutine splitting and use the primitive array opcode to

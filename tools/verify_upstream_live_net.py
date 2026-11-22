@@ -1432,6 +1432,10 @@ def run_model(args, model, config, original_config, log, output):
 
                     if args.combat:
                         wait_for(log, emulator, r"UPSTREAM_LIVE_CONTROLS_READY unit=\d+", args.timeout)
+                        status = wait_for(log, emulator,
+                                          r"UPSTREAM_STATUS_HUD wave=\d+ enemies=\d+ copper=\d+", args.timeout)
+                        print(re.search(r"UPSTREAM_STATUS_HUD wave=\d+ enemies=\d+ copper=\d+", status).group(0),
+                              flush=True)
                         fixture = (
                             '(() => { for (var i = 0; i < Groups.player.size; i++) { var p = Groups.player.get(i); if (p.unit() != null) p.unit().health = 100000; } for (var x = 75; x <= 80; x++) for (var y = 24; y <= 28; y++) { '
                             'var tile = Vars.world.tile(x, y); tile.setBlock(Blocks.air); '
@@ -1468,19 +1472,23 @@ def run_model(args, model, config, original_config, log, output):
                                 f"Could not isolate the post-join Dagger id={post_id} in the client log")
                         print(enemy_line.group(0), flush=True)
                         dagger, ammo = -1, initial_ammo
+                        query_seq = 0
                         deadline = time.monotonic() + 20
                         while time.monotonic() < deadline:
+                            query_seq += 1
                             query = (
                                 f'(() => {{ const u = Groups.unit.find(x => x.id === {post_id}); '
                                 'const b = Vars.world.tile(76, 26).build; '
-                                'return "UPSTREAM_SERVER_COMBAT dagger=" + (u ? Math.round(u.health) : -1) + '
-                                '" ammo=" + b.totalAmmo; })()')
+                                f'return "UPSTREAM_SERVER_COMBAT seq={query_seq} dagger=" '
+                                '+ (u ? Math.round(u.health) : -1) + " ammo=" + b.totalAmmo; })()')
                             server.stdin.write("js " + query + "\n")
                             server.stdin.flush()
-                            result = wait_for(server_log, server,
-                                              r"UPSTREAM_SERVER_COMBAT dagger=(-?\d+) ammo=(\d+)", 10)
+                            result = wait_for(
+                                server_log, server,
+                                rf"UPSTREAM_SERVER_COMBAT seq={query_seq} dagger=(-?\d+) ammo=(\d+)", 10)
                             dagger, ammo = (int(value) for value in
-                                            re.search(r"dagger=(-?\d+) ammo=(\d+)", result).groups())
+                                            re.search(rf"seq={query_seq} dagger=(-?\d+) ammo=(\d+)",
+                                                      result).groups())
                             if dagger == -1:
                                 break
                             time.sleep(1.0)
