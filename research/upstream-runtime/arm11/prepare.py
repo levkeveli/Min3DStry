@@ -1,6 +1,7 @@
 """Stage the pinned TeaVM translation for the 3DS smoke probe."""
 import argparse
 import os
+import re
 import shutil
 from pathlib import Path
 from compact_callsites import compact_callsites, prune_unused_strings
@@ -16,6 +17,24 @@ def replace(path, old, new):
     path.write_text(text.replace(old, new), encoding="utf-8", newline="\n")
 
 
+def fix_arc_bit_shifts(root):
+    """Preserve Java's masked long shifts in Arc's TeaVM C bitset."""
+    bits = root / "c/a/s/Bits.c"
+    if not bits.is_file():
+        return
+    text = bits.read_text(encoding="utf-8")
+    # The range setter shifts an all-ones mask by absolute endpoints.
+    text = re.sub(r"-INT64_C\(1\) << (teavm_local_\d+)", r"UINT64_MAX << (\1 & 63u)", text)
+    text = re.sub(
+        r"\(uint64_t\) -INT64_C\(1\) >> \(-(teavm_local_\d+)\)",
+        r"UINT64_MAX >> ((0u - (uint32_t) \1) & 63u)",
+        text,
+    )
+    # Bits.get (and therefore GridBits.get) shifts by absolute bit index.
+    text = re.sub(r"\bINT64_C\(1\) << (teavm_local_\d+)", r"UINT64_C(1) << (\1 & 63u)", text)
+    text = re.sub(r"\bINT64_C\(1\) << \(", "UINT64_C(1) << (", text)
+    bits.write_text(text, encoding="utf-8", newline="\n")
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("generated", type=Path)
@@ -28,6 +47,7 @@ def main():
         parser.error("use a new staging directory")
     shutil.copytree(args.generated, args.output)
     fix_heap_alignment(args.output)
+    fix_arc_bit_shifts(args.output)
     fix_gc_monitors(args.output)
     fix_reflection_lifetime(args.output)
     fix_constructor_roots(args.output)
@@ -135,6 +155,15 @@ def main():
             ("            putwchar(c);", "            m3ds_log_codepoint(c);"),
         ],
     }
+    if not args.embed:
+        replacements["main.c"] = [
+            (
+                "int main(int argc, char** argv) {",
+                "static void m3ds_init_heap(int64_t minimum, int64_t maximum);\n\n"
+                "int main(int argc, char** argv) {",
+            ),
+            ("    teavm_initHeap(", "    m3ds_init_heap("),
+        ]
     keep_callsite_locations = os.environ.get("M3DS_KEEP_CALLSITE_LOCATIONS", "0") == "1"
     if not keep_callsite_locations:
         replacements["stack.h"] = [

@@ -219,7 +219,10 @@ def check_numbered_stock(java: str, server: Path, output: Path, model: str, depa
         shutil.copyfile(output / f"{model}-numbered-sector-serpulo-{sector_id}.msav", root / "port.msav")
         origin = output / f"{model}-numbered-origin.msav" if in_game else departure / "saves/sector-serpulo-170.msav"
         shutil.copyfile(origin, root / "origin.msav")
-        custom_expected = (departure / "schematics/campaign-test.msch").is_file()
+        custom_source = departure / "schematics/campaign-test.msch"
+        custom_expected = custom_source.is_file()
+        if custom_expected:
+            shutil.copyfile(custom_source, root / custom_source.name)
         custom_check = """
             if (String(Packages.arc.Core.settings.getString("lastloadout-core-foundation", "")) !== "campaign-test") {
                 throw new Error("Expected the selected upstream custom schematic");
@@ -231,6 +234,21 @@ def check_numbered_stock(java: str, server: Path, output: Path, model: str, depa
             const items = Packages.mindustry.content.Items;
             const from = sectors.get(170), to = sectors.get({sector_id});
             const io = Packages.mindustry.io.SaveIO, slot = Packages.arc.files.Fi.get("port.msav");
+            function terrainDigest() {{
+                const crc = new Packages.java.util.zip.CRC32();
+                for (var y = 0; y < Vars.world.height(); y++) {{
+                    for (var x = 0; x < Vars.world.width(); x++) {{
+                        var tile = Vars.world.tile(x, y);
+                        var ids = [tile.floor().id, tile.overlay().id, tile.block().id];
+                        for (var i = 0; i < ids.length; i++) {{
+                            var id = ids[i];
+                            crc.update(id & 255);
+                            crc.update(id >>> 8);
+                        }}
+                    }}
+                }}
+                return crc.getValue();
+            }}
             io.load(slot, Vars.world.makeSectorContext(to));
             if (!to.info.origin.equals(from) || from.info.items.get(items.copper) !== {remaining}
                 || Vars.state.rules.defaultTeam.items().get(items.copper) !== {cargo}
@@ -239,15 +257,30 @@ def check_numbered_stock(java: str, server: Path, output: Path, model: str, depa
                 || !io.getMeta(slot).rules.sector.equals(to)) {{
                 throw new Error("Numbered sector or cargo differs");
             }}
+            const actualTerrain = terrainDigest();
+            const launchedCore = Vars.state.rules.defaultTeam.core().block;
+            const launchItems = Vars.universe.getLaunchResources().copy();
             io.load(Packages.arc.files.Fi.get("origin.msav"), Vars.world.makeSectorContext(from));
             if (!Vars.state.rules.sector.equals(from) || !from.info.wasCaptured || Vars.state.rules.waves
                 || Vars.state.rules.defaultTeam.items().get(items.copper) !== {remaining}) {{
                 throw new Error("The captured origin did not retain its post-launch inventory");
             }}
+            if ({str(custom_expected).lower()}) {{
+                const schematic = Packages.mindustry.game.Schematics.read(Packages.arc.files.Fi.get("campaign-test.msch"));
+                Vars.universe.updateLoadout(launchedCore, schematic);
+            }}
+            Vars.universe.updateLaunchResources(launchItems);
+            Vars.logic.reset();
+            Vars.world.loadSector(to);
+            Vars.logic.play();
+            const expectedTerrain = terrainDigest();
+            if (actualTerrain !== expectedTerrain) {{
+                throw new Error("Generated terrain differs. PC " + expectedTerrain + ", 3DS " + actualTerrain);
+            }}
             return "UPSTREAM_PC_NUMBERED_REOPENED";
         """
         stock_console(java, server, root, " ".join(script.splitlines()), r"UPSTREAM_PC_NUMBERED_REOPENED")
-    print(f"[PASS] stock v160.8 reopened {model} sector {sector_id} and its origin and cargo", flush=True)
+    print(f"[PASS] stock v160.8 reopened {model} sector {sector_id} with matching terrain, origin and cargo", flush=True)
 
 
 def main() -> int:

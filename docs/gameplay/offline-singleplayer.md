@@ -198,13 +198,41 @@ settings from an empty test SD directory. Pass `--server server-release.jar`
 to compare those outputs with a fresh stock Java launch.
 Pass `--departure /path/to/reference-output/departure` to replay the funded
 numbered-sector launch fixture produced by the JVM task. With `--server` it
-also verifies the saved cargo and origin with stock Java. Add `--manual-cargo`
+also verifies the saved cargo and origin with stock Java and compares the
+generated floor, overlay, and block IDs with a fresh stock launch. Add `--manual-cargo`
 to exercise the editor and transfer 8 copper while leaving 15 in Ground Zero.
 Use `--in-game` to start at Ground Zero, open and cancel the selector,
 then reopen it and depart without restarting the app.
 The game shows the destination and the upstream loading label while terrain
 generation runs. Numbered-sector movies allow extra time for the original
 procedural generator before sending the exit input.
+
+The [ARM11 build from `24338a2`](https://github.com/levkeveli/Min3DStry/actions/runs/45048947159)
+rendered the numbered-sector launch dialog in the New 3DS profile and
+accepted the 8-copper edit. With the longer controller movie, the stock
+432×432 sector 15 generator exhausted its 32 MiB TeaVM heap before the world
+opened. GDB stopped at a 7,784,656-byte `PQueue` allocation in the upstream
+Serpulo generator's A* path search. Arc's visited-tile bitset uses Java's
+masked shift counts, while the generated C lookup did not mask the index.
+ARM11 staging restores those masks so positions above 63 can be found
+without repeatedly adding the same tiles. The JVM reference completed the
+original launch and the stock PC server reopened both saves and matched the
+destination terrain.
+
+The [ARM11 build from `5aecd95`](https://github.com/levkeveli/Min3DStry/actions/runs/45053996180)
+generated 432×432 sector 15 at the original 32 MiB managed limit on both
+Azahar profiles. The controller edited the loadout to 8 copper. The
+unmodified v160.8 server reopened both initial saves and matched the CRC
+across floor, overlay, and block IDs for all tiles against a fresh stock
+launch using the same schematic. It confirmed the selected schematic,
+destination cargo, and 15 copper remaining on the origin. The New 3DS replay
+also completed the exit save and PC readback. Old 3DS exit save and in-game
+departure replay are pending.
+
+The build's ELF LOAD segments plus the logged managed limit, linear heap,
+and stack total 64.58 MiB. This exceeds the 64 MiB Original 3DS application
+budget even before other runtime allocations. Physical memory and frame-rate
+verification remain open.
 
 ## Custom Game
 
@@ -246,7 +274,9 @@ reported the same map size, planet, infinite resources, waves, and wave-timer
 settings as its own Ancient Caldera Sandbox session.
 
 The graphical app reserves a 32 MiB TeaVM heap for the decoded world,
-pathfinder grids, and sprite atlas. In the preceding 24 MiB build, the Old 3DS
+pathfinder grids, and sprite atlas. The startup log reports the managed
+limit so device budget reports can account for it. In the preceding 24 MiB
+build, the Old 3DS
 debugger caught Archipelago's 1,000,016-byte pathfinder allocation after
 collection left only 40 bytes free. The
 [ARM11 build from `fc3881c`](https://github.com/levkeveli/Min3DStry/actions/runs/45032641678)

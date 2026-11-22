@@ -165,6 +165,15 @@ class DeviceDeployTests(unittest.TestCase):
         )
         self.assertTrue(ok_new["passed"])
 
+        reported_log = old3ds_log + "UPSTREAM_MEMORY managedLimit=33554432\n"
+        reported = device_deploy.parse_device_log(reported_log)
+        self.assertEqual(reported["upstream_memory"]["managed_limit_bytes"], 32 * 1024 * 1024)
+        footprint = device_deploy.evaluate_hardware_budget(
+            reported, profile="old3ds", load_bytes=34 * 1024 * 1024, min_fps=24.0
+        )["checks"]["upstream_memory_footprint"]
+        self.assertEqual(footprint["status"], "fail")
+        self.assertEqual(footprint["managed_limit_bytes"], 32 * 1024 * 1024)
+
     def test_evaluate_hardware_budget_detects_failures(self) -> None:
         bad_log = (
             "[MIN3DSTRY] HW: New 3DS XL (N3DS, 804 MHz, L2:on, AppMem:124 MiB, FIRM:11.17.0)\n"
