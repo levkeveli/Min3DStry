@@ -21,13 +21,17 @@ on:
       - ".github/workflows/full-build.yml"
   workflow_dispatch:
 
+concurrency:
+  group: full-build-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 permissions:
   contents: read
 
 jobs:
   build:
     name: Build default 3DS app
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.head.repo.fork)) && '["self-hosted", "linux", "x64", "min3dstry"]' || '"ubuntu-latest"') }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
@@ -37,7 +41,14 @@ jobs:
       - name: Build with pinned devkitARM image
         run: |
           image=devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5
-          docker run --rm -v "$PWD:/work" -w /work "$image" bash -lc '
+          docker_numa_args=()
+          if [ -n "${M3DS_DOCKER_CPUSET_CPUS:-}" ]; then
+            docker_numa_args+=(--cpuset-cpus "$M3DS_DOCKER_CPUSET_CPUS")
+          fi
+          if [ -n "${M3DS_DOCKER_CPUSET_MEMS:-}" ]; then
+            docker_numa_args+=(--cpuset-mems "$M3DS_DOCKER_CPUSET_MEMS")
+          fi
+          docker run --rm "${docker_numa_args[@]}" -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/work" -w /work "$image" bash -lc '
             source /opt/devkitpro/3dsvars.sh
             python3 --version
             tex3ds --version

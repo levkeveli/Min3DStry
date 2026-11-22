@@ -7,10 +7,16 @@ on:
       - "research/upstream-runtime/**"
       - "audio/**"
       - "tools/build_audio_assets.py"
+      - "tools/stage_music_assets.py"
       - "tools/verify_upstream_net.py"
+      - "tools/verify_upstream_live_net.py"
       - "tests/tools/test_audio_assets.py"
+      - "tests/tools/test_stage_music_assets.py"
       - "src/net/mindustry_net.c"
+      - "include/net/**"
       - "tests/net/**"
+      - ".github/scripts/fetch_upstream_v160.sh"
+      - ".github/scripts/smoke_scope.py"
       - ".github/workflows/upstream-arm11-smoke.yml"
   push:
     branches: [main]
@@ -18,29 +24,65 @@ on:
       - "research/upstream-runtime/**"
       - "audio/**"
       - "tools/build_audio_assets.py"
+      - "tools/stage_music_assets.py"
       - "tools/verify_upstream_net.py"
+      - "tools/verify_upstream_live_net.py"
       - "tests/tools/test_audio_assets.py"
+      - "tests/tools/test_stage_music_assets.py"
       - "src/net/mindustry_net.c"
+      - "include/net/**"
       - "tests/net/**"
+      - ".github/scripts/fetch_upstream_v160.sh"
+      - ".github/scripts/smoke_scope.py"
       - ".github/workflows/upstream-arm11-smoke.yml"
   workflow_dispatch:
+
+concurrency:
+  group: upstream-arm11-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
 
 jobs:
+  changes:
+    name: Scope smoke checks
+    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.head.repo.fork)) && '["self-hosted", "linux", "x64", "min3dstry"]' || '"ubuntu-latest"') }}
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      run_all: ${{ steps.scope.outputs.run_all }}
+      run_probes: ${{ steps.scope.outputs.run_probes }}
+      probes_json: ${{ steps.scope.outputs.probes_json }}
+      run_save: ${{ steps.scope.outputs.run_save }}
+      run_audio: ${{ steps.scope.outputs.run_audio }}
+      run_progression: ${{ steps.scope.outputs.run_progression }}
+      run_combat: ${{ steps.scope.outputs.run_combat }}
+      run_net: ${{ steps.scope.outputs.run_net }}
+      run_production: ${{ steps.scope.outputs.run_production }}
+      run_factory: ${{ steps.scope.outputs.run_factory }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - id: scope
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 .github/scripts/smoke_scope.py
+
   probe:
     name: Probe ${{ matrix.probe }}
-    runs-on: ubuntu-latest
+    needs: [changes]
+    if: needs.changes.outputs.run_probes == 'true'
+    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.head.repo.fork)) && '["self-hosted", "linux", "x64", "min3dstry"]' || '"ubuntu-latest"') }}
     timeout-minutes: 20
-    concurrency:
-      group: upstream-arm11-${{ github.ref }}-${{ matrix.probe }}
-      cancel-in-progress: true
     strategy:
       fail-fast: false
-      max-parallel: 4
+      max-parallel: 5
       matrix:
-        probe: [logic, map, resource, executor, campaign-settings, campaign-content, campaign-research, campaign-slot-meta, campaign-sector-info, campaign-planet, campaign-sector-state, campaign-launch, campaign-saves, campaign-slot-discovery, wave-routing]
+        probe: ${{ fromJSON(needs.changes.outputs.probes_json) }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -51,32 +93,24 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Fetch pinned upstream v160.8 source and server JAR
-        run: |
-          git clone --depth 1 --branch v160.8 \
-            https://github.com/Anuken/Mindustry.git "$RUNNER_TEMP/Mindustry"
-          test "$(git -C "$RUNNER_TEMP/Mindustry" rev-parse HEAD)" = \
-            "19a0f40d44514f4802a8b79770456e7e32e34da0"
-          curl --fail --silent --show-error --location \
-            https://github.com/Anuken/Mindustry/releases/download/v160.8/server-release.jar \
-            -o "$RUNNER_TEMP/server-release.jar"
+      - uses: actions/cache@v4
+        if: runner.environment == 'github-hosted'
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-v1-${{ hashFiles('research/upstream-runtime/build.gradle', 'research/upstream-runtime/gradle/**') }}
 
-      - name: Fetch pinned Arc source
-        if: matrix.probe == 'resource' || matrix.probe == 'executor' || matrix.probe == 'campaign-settings' || matrix.probe == 'campaign-content' || matrix.probe == 'campaign-research' || matrix.probe == 'campaign-slot-meta' || matrix.probe == 'campaign-sector-info' || matrix.probe == 'campaign-planet' || matrix.probe == 'campaign-sector-state' || matrix.probe == 'campaign-launch' || matrix.probe == 'campaign-saves' || matrix.probe == 'campaign-slot-discovery' || matrix.probe == 'wave-routing'
+      - name: Fetch pinned upstream v160.8 source, server JAR, and Arc
         run: |
-          git clone --filter=blob:none --no-checkout \
-            https://github.com/Anuken/Arc.git "$RUNNER_TEMP/Arc"
-          git -C "$RUNNER_TEMP/Arc" fetch --depth 1 origin \
-            7445105cd2683daf5b9ac7033ebb07265d3e814d
-          git -C "$RUNNER_TEMP/Arc" checkout --detach FETCH_HEAD
-          test "$(git -C "$RUNNER_TEMP/Arc" rev-parse HEAD)" = \
-            "7445105cd2683daf5b9ac7033ebb07265d3e814d"
-
-      - name: Extract Glacier map for world probes
-        if: matrix.probe == 'wave-routing' || matrix.probe == 'campaign-slot-meta' || matrix.probe == 'campaign-launch' || matrix.probe == 'campaign-slot-discovery'
-        run: |
-          git -C "$RUNNER_TEMP/Mindustry" show \
-            HEAD:core/assets/maps/default/glacier.msav > "$RUNNER_TEMP/glacier.msav"
+          args=(--mindustry --server-jar)
+          if [ "${{ matrix.probe }}" = "resource" ] || [ "${{ matrix.probe }}" = "executor" ] || [ "${{ matrix.probe }}" = "campaign-settings" ] || [ "${{ matrix.probe }}" = "campaign-content" ] || [ "${{ matrix.probe }}" = "campaign-research" ] || [ "${{ matrix.probe }}" = "campaign-slot-meta" ] || [ "${{ matrix.probe }}" = "campaign-sector-info" ] || [ "${{ matrix.probe }}" = "campaign-planet" ] || [ "${{ matrix.probe }}" = "campaign-sector-state" ] || [ "${{ matrix.probe }}" = "campaign-launch" ] || [ "${{ matrix.probe }}" = "campaign-saves" ] || [ "${{ matrix.probe }}" = "campaign-slot-discovery" ] || [ "${{ matrix.probe }}" = "wave-routing" ]; then
+            args+=(--arc)
+          fi
+          if [ "${{ matrix.probe }}" = "wave-routing" ] || [ "${{ matrix.probe }}" = "campaign-slot-meta" ] || [ "${{ matrix.probe }}" = "campaign-launch" ] || [ "${{ matrix.probe }}" = "campaign-slot-discovery" ]; then
+            args+=(--glacier)
+          fi
+          bash .github/scripts/fetch_upstream_v160.sh "${args[@]}"
 
       - name: Run JVM reference and generate TeaVM C
         shell: bash
@@ -184,7 +218,14 @@ jobs:
           M3DS_RELAX_POINTER_TYPES: ${{ matrix.probe == 'campaign-slot-discovery' && '1' || '0' }}
         run: |
           image=devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5
-          docker run --rm -e M3DS_RELAX_POINTER_TYPES -u "$(id -u):$(id -g)" -v "$PWD:/work" -w /work "$image" bash -lc '
+          docker_numa_args=()
+          if [ -n "${M3DS_DOCKER_CPUSET_CPUS:-}" ]; then
+            docker_numa_args+=(--cpuset-cpus "$M3DS_DOCKER_CPUSET_CPUS")
+          fi
+          if [ -n "${M3DS_DOCKER_CPUSET_MEMS:-}" ]; then
+            docker_numa_args+=(--cpuset-mems "$M3DS_DOCKER_CPUSET_MEMS")
+          fi
+          docker run --rm "${docker_numa_args[@]}" -e M3DS_RELAX_POINTER_TYPES -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/work" -w /work "$image" bash -lc '
             source /opt/devkitpro/3dsvars.sh
             bash research/upstream-runtime/arm11/build.sh \
               research/upstream-runtime/build/generated/teavm/c \
@@ -202,7 +243,9 @@ jobs:
 
   save-baseline:
     name: Save writer baseline
-    runs-on: ubuntu-latest
+    needs: [changes]
+    if: needs.changes.outputs.run_save == 'true'
+    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.head.repo.fork)) && '["self-hosted", "linux", "x64", "min3dstry"]' || '"ubuntu-latest"') }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -215,16 +258,7 @@ jobs:
           java-version: "17"
 
       - name: Fetch pinned upstream map and server JAR
-        run: |
-          git clone --depth 1 --branch v160.8 \
-            https://github.com/Anuken/Mindustry.git "$RUNNER_TEMP/Mindustry"
-          test "$(git -C "$RUNNER_TEMP/Mindustry" rev-parse HEAD)" = \
-            "19a0f40d44514f4802a8b79770456e7e32e34da0"
-          git -C "$RUNNER_TEMP/Mindustry" show \
-            HEAD:core/assets/maps/default/glacier.msav > "$RUNNER_TEMP/glacier.msav"
-          curl --fail --silent --show-error --location \
-            https://github.com/Anuken/Mindustry/releases/download/v160.8/server-release.jar \
-            -o "$RUNNER_TEMP/server-release.jar"
+        run: bash .github/scripts/fetch_upstream_v160.sh --glacier --server-jar
 
       - name: Run upstream SaveIO writer baseline
         run: |
@@ -255,7 +289,9 @@ jobs:
 
   world-roundtrip:
     name: World save round trip
-    runs-on: ubuntu-latest
+    needs: [changes]
+    if: needs.changes.outputs.run_save == 'true'
+    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.head.repo.fork)) && '["self-hosted", "linux", "x64", "min3dstry"]' || '"ubuntu-latest"') }}
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -267,24 +303,16 @@ jobs:
           distribution: temurin
           java-version: "17"
 
+      - uses: actions/cache@v4
+        if: runner.environment == 'github-hosted'
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-v1-${{ hashFiles('research/upstream-runtime/build.gradle', 'research/upstream-runtime/gradle/**') }}
+
       - name: Fetch pinned upstream source, map, server JAR and Arc
-        run: |
-          git clone --depth 1 --branch v160.8 \
-            https://github.com/Anuken/Mindustry.git "$RUNNER_TEMP/Mindustry"
-          test "$(git -C "$RUNNER_TEMP/Mindustry" rev-parse HEAD)" = \
-            "19a0f40d44514f4802a8b79770456e7e32e34da0"
-          git -C "$RUNNER_TEMP/Mindustry" show \
-            HEAD:core/assets/maps/default/glacier.msav > "$RUNNER_TEMP/glacier.msav"
-          curl --fail --silent --show-error --location \
-            https://github.com/Anuken/Mindustry/releases/download/v160.8/server-release.jar \
-            -o "$RUNNER_TEMP/server-release.jar"
-          git clone --filter=blob:none --no-checkout \
-            https://github.com/Anuken/Arc.git "$RUNNER_TEMP/Arc"
-          git -C "$RUNNER_TEMP/Arc" fetch --depth 1 origin \
-            7445105cd2683daf5b9ac7033ebb07265d3e814d
-          git -C "$RUNNER_TEMP/Arc" checkout --detach FETCH_HEAD
-          test "$(git -C "$RUNNER_TEMP/Arc" rev-parse HEAD)" = \
-            "7445105cd2683daf5b9ac7033ebb07265d3e814d"
+        run: bash .github/scripts/fetch_upstream_v160.sh --glacier --server-jar --arc
 
       - name: Generate v13 fixture and run JVM round trip
         shell: bash
@@ -351,7 +379,14 @@ jobs:
             "-ParcCheckout=$RUNNER_TEMP/Arc" \
             -Pprobe=world-roundtrip generateC
           image=devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5
-          docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/work" -w /work "$image" bash -lc '
+          docker_numa_args=()
+          if [ -n "${M3DS_DOCKER_CPUSET_CPUS:-}" ]; then
+            docker_numa_args+=(--cpuset-cpus "$M3DS_DOCKER_CPUSET_CPUS")
+          fi
+          if [ -n "${M3DS_DOCKER_CPUSET_MEMS:-}" ]; then
+            docker_numa_args+=(--cpuset-mems "$M3DS_DOCKER_CPUSET_MEMS")
+          fi
+          docker run --rm "${docker_numa_args[@]}" -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/work" -w /work "$image" bash -lc '
             source /opt/devkitpro/3dsvars.sh
             bash research/upstream-runtime/arm11/build.sh \
               research/upstream-runtime/build/generated/teavm/c \
@@ -368,7 +403,14 @@ jobs:
             "-ParcCheckout=$RUNNER_TEMP/Arc" \
             -Pprobe=save-rows generateC
           image=devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5
-          docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/work" -w /work "$image" bash -lc '
+          docker_numa_args=()
+          if [ -n "${M3DS_DOCKER_CPUSET_CPUS:-}" ]; then
+            docker_numa_args+=(--cpuset-cpus "$M3DS_DOCKER_CPUSET_CPUS")
+          fi
+          if [ -n "${M3DS_DOCKER_CPUSET_MEMS:-}" ]; then
+            docker_numa_args+=(--cpuset-mems "$M3DS_DOCKER_CPUSET_MEMS")
+          fi
+          docker run --rm "${docker_numa_args[@]}" -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/work" -w /work "$image" bash -lc '
             source /opt/devkitpro/3dsvars.sh
             bash research/upstream-runtime/arm11/build.sh \
               research/upstream-runtime/build/generated/teavm/c \
@@ -385,7 +427,14 @@ jobs:
             "-ParcCheckout=$RUNNER_TEMP/Arc" \
             -Pprobe=campaign-sector generateC
           image=devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5
-          docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/work" -w /work "$image" bash -lc '
+          docker_numa_args=()
+          if [ -n "${M3DS_DOCKER_CPUSET_CPUS:-}" ]; then
+            docker_numa_args+=(--cpuset-cpus "$M3DS_DOCKER_CPUSET_CPUS")
+          fi
+          if [ -n "${M3DS_DOCKER_CPUSET_MEMS:-}" ]; then
+            docker_numa_args+=(--cpuset-mems "$M3DS_DOCKER_CPUSET_MEMS")
+          fi
+          docker run --rm "${docker_numa_args[@]}" -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/work" -w /work "$image" bash -lc '
             source /opt/devkitpro/3dsvars.sh
             bash research/upstream-runtime/arm11/build.sh \
               research/upstream-runtime/build/generated/teavm/c \
@@ -410,7 +459,9 @@ jobs:
 
   audio-inventory:
     name: Audio asset inventory
-    runs-on: ubuntu-latest
+    needs: [changes]
+    if: needs.changes.outputs.run_audio == 'true'
+    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.head.repo.fork)) && '["self-hosted", "linux", "x64", "min3dstry"]' || '"ubuntu-latest"') }}
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
@@ -422,25 +473,16 @@ jobs:
           distribution: temurin
           java-version: "17"
 
+      - uses: actions/cache@v4
+        if: runner.environment == 'github-hosted'
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-v1-${{ hashFiles('research/upstream-runtime/build.gradle', 'research/upstream-runtime/gradle/**') }}
+
       - name: Fetch pinned upstream asset tree, map, server JAR, and Arc
-        run: |
-          git clone --depth 1 --branch v160.8 \
-            https://github.com/Anuken/Mindustry.git "$RUNNER_TEMP/Mindustry"
-          test "$(git -C "$RUNNER_TEMP/Mindustry" rev-parse HEAD)" = \
-            "19a0f40d44514f4802a8b79770456e7e32e34da0"
-          git -C "$RUNNER_TEMP/Mindustry" show \
-            HEAD:core/assets/maps/default/glacier.msav > "$RUNNER_TEMP/glacier.msav"
-          curl --fail --silent --show-error --location \
-            https://github.com/Anuken/Mindustry/releases/download/v160.8/server-release.jar \
-            -o "$RUNNER_TEMP/server-release.jar"
-          echo "faeaf247a8b622de940181a96cb21cb20692d3c3da4e8ac3f79cb4af5059aa6c  $RUNNER_TEMP/server-release.jar" | sha256sum -c -
-          git clone --filter=blob:none --no-checkout \
-            https://github.com/Anuken/Arc.git "$RUNNER_TEMP/Arc"
-          git -C "$RUNNER_TEMP/Arc" fetch --depth 1 origin \
-            7445105cd2683daf5b9ac7033ebb07265d3e814d
-          git -C "$RUNNER_TEMP/Arc" checkout --detach FETCH_HEAD
-          test "$(git -C "$RUNNER_TEMP/Arc" rev-parse HEAD)" = \
-            "7445105cd2683daf5b9ac7033ebb07265d3e814d"
+        run: bash .github/scripts/fetch_upstream_v160.sh --glacier --server-jar --arc
 
       - name: Run pinned audio inventory and runtime bindings baseline
         shell: bash
@@ -500,7 +542,14 @@ jobs:
       - name: Build ARM11 audio-ticks probe with pinned devkitARM image
         run: |
           image=devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5
-          docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/work" -w /work "$image" bash -lc '
+          docker_numa_args=()
+          if [ -n "${M3DS_DOCKER_CPUSET_CPUS:-}" ]; then
+            docker_numa_args+=(--cpuset-cpus "$M3DS_DOCKER_CPUSET_CPUS")
+          fi
+          if [ -n "${M3DS_DOCKER_CPUSET_MEMS:-}" ]; then
+            docker_numa_args+=(--cpuset-mems "$M3DS_DOCKER_CPUSET_MEMS")
+          fi
+          docker run --rm "${docker_numa_args[@]}" -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/work" -w /work "$image" bash -lc '
             source /opt/devkitpro/3dsvars.sh
             bash research/upstream-runtime/arm11/build.sh \
               research/upstream-runtime/build/generated/teavm/c \
@@ -510,7 +559,9 @@ jobs:
 
   progression-baseline:
     name: Progression baseline
-    runs-on: ubuntu-latest
+    needs: [changes]
+    if: needs.changes.outputs.run_progression == 'true'
+    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.head.repo.fork)) && '["self-hosted", "linux", "x64", "min3dstry"]' || '"ubuntu-latest"') }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -523,10 +574,7 @@ jobs:
           java-version: "17"
 
       - name: Fetch pinned official server JAR
-        run: |
-          curl --fail --silent --show-error --location \
-            https://github.com/Anuken/Mindustry/releases/download/v160.8/server-release.jar \
-            -o "$RUNNER_TEMP/server-release.jar"
+        run: bash .github/scripts/fetch_upstream_v160.sh --server-jar
 
       - name: Run pinned sector/tech-tree baseline
         run: |
@@ -547,7 +595,9 @@ jobs:
 
   combat-baseline:
     name: Combat and pathfinding baseline
-    runs-on: ubuntu-latest
+    needs: [changes]
+    if: needs.changes.outputs.run_combat == 'true'
+    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.head.repo.fork)) && '["self-hosted", "linux", "x64", "min3dstry"]' || '"ubuntu-latest"') }}
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -559,25 +609,16 @@ jobs:
           distribution: temurin
           java-version: "17"
 
+      - uses: actions/cache@v4
+        if: runner.environment == 'github-hosted'
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-v1-${{ hashFiles('research/upstream-runtime/build.gradle', 'research/upstream-runtime/gradle/**') }}
+
       - name: Fetch pinned upstream source, map, server JAR, and Arc
-        run: |
-          git clone --depth 1 --branch v160.8 \
-            https://github.com/Anuken/Mindustry.git "$RUNNER_TEMP/Mindustry"
-          test "$(git -C "$RUNNER_TEMP/Mindustry" rev-parse HEAD)" = \
-            "19a0f40d44514f4802a8b79770456e7e32e34da0"
-          git -C "$RUNNER_TEMP/Mindustry" show \
-            HEAD:core/assets/maps/default/glacier.msav > "$RUNNER_TEMP/glacier.msav"
-          curl --fail --silent --show-error --location \
-            https://github.com/Anuken/Mindustry/releases/download/v160.8/server-release.jar \
-            -o "$RUNNER_TEMP/server-release.jar"
-          echo "faeaf247a8b622de940181a96cb21cb20692d3c3da4e8ac3f79cb4af5059aa6c  $RUNNER_TEMP/server-release.jar" | sha256sum -c -
-          git clone --filter=blob:none --no-checkout \
-            https://github.com/Anuken/Arc.git "$RUNNER_TEMP/Arc"
-          git -C "$RUNNER_TEMP/Arc" fetch --depth 1 origin \
-            7445105cd2683daf5b9ac7033ebb07265d3e814d
-          git -C "$RUNNER_TEMP/Arc" checkout --detach FETCH_HEAD
-          test "$(git -C "$RUNNER_TEMP/Arc" rev-parse HEAD)" = \
-            "7445105cd2683daf5b9ac7033ebb07265d3e814d"
+        run: bash .github/scripts/fetch_upstream_v160.sh --glacier --server-jar --arc
 
       - name: Run pinned unit/bullet and combat simulation baselines
         run: |
@@ -630,7 +671,14 @@ jobs:
       - name: Build ARM11 combat-ticks probe with pinned devkitARM image
         run: |
           image=devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5
-          docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/work" -w /work "$image" bash -lc '
+          docker_numa_args=()
+          if [ -n "${M3DS_DOCKER_CPUSET_CPUS:-}" ]; then
+            docker_numa_args+=(--cpuset-cpus "$M3DS_DOCKER_CPUSET_CPUS")
+          fi
+          if [ -n "${M3DS_DOCKER_CPUSET_MEMS:-}" ]; then
+            docker_numa_args+=(--cpuset-mems "$M3DS_DOCKER_CPUSET_MEMS")
+          fi
+          docker run --rm "${docker_numa_args[@]}" -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/work" -w /work "$image" bash -lc '
             source /opt/devkitpro/3dsvars.sh
             bash research/upstream-runtime/arm11/build.sh \
               research/upstream-runtime/build/generated/teavm/c \
@@ -640,7 +688,9 @@ jobs:
 
   audio-conversion:
     name: Audio conversion
-    runs-on: ubuntu-latest
+    needs: [changes]
+    if: needs.changes.outputs.run_audio == 'true'
+    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.head.repo.fork)) && '["self-hosted", "linux", "x64", "min3dstry"]' || '"ubuntu-latest"') }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -648,11 +698,7 @@ jobs:
           persist-credentials: false
 
       - name: Fetch pinned upstream asset tree
-        run: |
-          git clone --depth 1 --branch v160.8 \
-            https://github.com/Anuken/Mindustry.git "$RUNNER_TEMP/Mindustry"
-          test "$(git -C "$RUNNER_TEMP/Mindustry" rev-parse HEAD)" = \
-            "19a0f40d44514f4802a8b79770456e7e32e34da0"
+        run: bash .github/scripts/fetch_upstream_v160.sh --mindustry
 
       - name: Ensure ffmpeg is available
         run: |
@@ -704,7 +750,9 @@ jobs:
 
   net-session-baseline:
     name: Net session baseline
-    runs-on: ubuntu-latest
+    needs: [changes]
+    if: needs.changes.outputs.run_net == 'true'
+    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.head.repo.fork)) && '["self-hosted", "linux", "x64", "min3dstry"]' || '"ubuntu-latest"') }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -717,11 +765,7 @@ jobs:
           java-version: "17"
 
       - name: Fetch pinned official server JAR
-        run: |
-          curl --fail --silent --show-error --location \
-            https://github.com/Anuken/Mindustry/releases/download/v160.8/server-release.jar \
-            -o "$RUNNER_TEMP/server-release.jar"
-          echo "faeaf247a8b622de940181a96cb21cb20692d3c3da4e8ac3f79cb4af5059aa6c  $RUNNER_TEMP/server-release.jar" | sha256sum -c -
+        run: bash .github/scripts/fetch_upstream_v160.sh --server-jar
 
       - name: Run live v160.8 handshake, session, and LZ4 cross-check
         run: |
@@ -734,7 +778,9 @@ jobs:
 
   production-baseline:
     name: Production, power, and liquid baseline
-    runs-on: ubuntu-latest
+    needs: [changes]
+    if: needs.changes.outputs.run_production == 'true'
+    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.head.repo.fork)) && '["self-hosted", "linux", "x64", "min3dstry"]' || '"ubuntu-latest"') }}
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
@@ -746,25 +792,16 @@ jobs:
           distribution: temurin
           java-version: "17"
 
+      - uses: actions/cache@v4
+        if: runner.environment == 'github-hosted'
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-v1-${{ hashFiles('research/upstream-runtime/build.gradle', 'research/upstream-runtime/gradle/**') }}
+
       - name: Fetch pinned upstream source, map, server JAR, and Arc
-        run: |
-          git clone --depth 1 --branch v160.8 \
-            https://github.com/Anuken/Mindustry.git "$RUNNER_TEMP/Mindustry"
-          test "$(git -C "$RUNNER_TEMP/Mindustry" rev-parse HEAD)" = \
-            "19a0f40d44514f4802a8b79770456e7e32e34da0"
-          git -C "$RUNNER_TEMP/Mindustry" show \
-            HEAD:core/assets/maps/default/glacier.msav > "$RUNNER_TEMP/glacier.msav"
-          curl --fail --silent --show-error --location \
-            https://github.com/Anuken/Mindustry/releases/download/v160.8/server-release.jar \
-            -o "$RUNNER_TEMP/server-release.jar"
-          echo "faeaf247a8b622de940181a96cb21cb20692d3c3da4e8ac3f79cb4af5059aa6c  $RUNNER_TEMP/server-release.jar" | sha256sum -c -
-          git clone --filter=blob:none --no-checkout \
-            https://github.com/Anuken/Arc.git "$RUNNER_TEMP/Arc"
-          git -C "$RUNNER_TEMP/Arc" fetch --depth 1 origin \
-            7445105cd2683daf5b9ac7033ebb07265d3e814d
-          git -C "$RUNNER_TEMP/Arc" checkout --detach FETCH_HEAD
-          test "$(git -C "$RUNNER_TEMP/Arc" rev-parse HEAD)" = \
-            "7445105cd2683daf5b9ac7033ebb07265d3e814d"
+        run: bash .github/scripts/fetch_upstream_v160.sh --glacier --server-jar --arc
 
       - name: Run pinned production, power, and liquid baseline
         run: |
@@ -813,7 +850,14 @@ jobs:
       - name: Build ARM11 production-ticks probe with pinned devkitARM image
         run: |
           image=devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5
-          docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/work" -w /work "$image" bash -lc '
+          docker_numa_args=()
+          if [ -n "${M3DS_DOCKER_CPUSET_CPUS:-}" ]; then
+            docker_numa_args+=(--cpuset-cpus "$M3DS_DOCKER_CPUSET_CPUS")
+          fi
+          if [ -n "${M3DS_DOCKER_CPUSET_MEMS:-}" ]; then
+            docker_numa_args+=(--cpuset-mems "$M3DS_DOCKER_CPUSET_MEMS")
+          fi
+          docker run --rm "${docker_numa_args[@]}" -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/work" -w /work "$image" bash -lc '
             source /opt/devkitpro/3dsvars.sh
             bash research/upstream-runtime/arm11/build.sh \
               research/upstream-runtime/build/generated/teavm/c \
@@ -823,7 +867,9 @@ jobs:
 
   factory-baseline:
     name: Factory and logistics baseline
-    runs-on: ubuntu-latest
+    needs: [changes]
+    if: needs.changes.outputs.run_factory == 'true'
+    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.head.repo.fork)) && '["self-hosted", "linux", "x64", "min3dstry"]' || '"ubuntu-latest"') }}
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
@@ -835,25 +881,16 @@ jobs:
           distribution: temurin
           java-version: "17"
 
+      - uses: actions/cache@v4
+        if: runner.environment == 'github-hosted'
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-v1-${{ hashFiles('research/upstream-runtime/build.gradle', 'research/upstream-runtime/gradle/**') }}
+
       - name: Fetch pinned upstream source, map, server JAR, and Arc
-        run: |
-          git clone --depth 1 --branch v160.8 \
-            https://github.com/Anuken/Mindustry.git "$RUNNER_TEMP/Mindustry"
-          test "$(git -C "$RUNNER_TEMP/Mindustry" rev-parse HEAD)" = \
-            "19a0f40d44514f4802a8b79770456e7e32e34da0"
-          git -C "$RUNNER_TEMP/Mindustry" show \
-            HEAD:core/assets/maps/default/glacier.msav > "$RUNNER_TEMP/glacier.msav"
-          curl --fail --silent --show-error --location \
-            https://github.com/Anuken/Mindustry/releases/download/v160.8/server-release.jar \
-            -o "$RUNNER_TEMP/server-release.jar"
-          echo "faeaf247a8b622de940181a96cb21cb20692d3c3da4e8ac3f79cb4af5059aa6c  $RUNNER_TEMP/server-release.jar" | sha256sum -c -
-          git clone --filter=blob:none --no-checkout \
-            https://github.com/Anuken/Arc.git "$RUNNER_TEMP/Arc"
-          git -C "$RUNNER_TEMP/Arc" fetch --depth 1 origin \
-            7445105cd2683daf5b9ac7033ebb07265d3e814d
-          git -C "$RUNNER_TEMP/Arc" checkout --detach FETCH_HEAD
-          test "$(git -C "$RUNNER_TEMP/Arc" rev-parse HEAD)" = \
-            "7445105cd2683daf5b9ac7033ebb07265d3e814d"
+        run: bash .github/scripts/fetch_upstream_v160.sh --glacier --server-jar --arc
 
       - name: Run pinned factory and logistics baseline
         run: |
@@ -900,7 +937,14 @@ jobs:
       - name: Build ARM11 factory-ticks probe with pinned devkitARM image
         run: |
           image=devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5
-          docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/work" -w /work "$image" bash -lc '
+          docker_numa_args=()
+          if [ -n "${M3DS_DOCKER_CPUSET_CPUS:-}" ]; then
+            docker_numa_args+=(--cpuset-cpus "$M3DS_DOCKER_CPUSET_CPUS")
+          fi
+          if [ -n "${M3DS_DOCKER_CPUSET_MEMS:-}" ]; then
+            docker_numa_args+=(--cpuset-mems "$M3DS_DOCKER_CPUSET_MEMS")
+          fi
+          docker run --rm "${docker_numa_args[@]}" -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/work" -w /work "$image" bash -lc '
             source /opt/devkitpro/3dsvars.sh
             bash research/upstream-runtime/arm11/build.sh \
               research/upstream-runtime/build/generated/teavm/c \
