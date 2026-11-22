@@ -1,4 +1,5 @@
 import arc.graphics.Blending;
+import arc.graphics.Color;
 import arc.graphics.g2d.TextureRegion;
 import arc.util.Align;
 import java.io.IOException;
@@ -97,6 +98,16 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
     }
 
     @Override
+    public void drawUnitBuild(int page, int left, int top, int width, int height,
+                              float x, float y, float drawWidth, float drawHeight, float rotation,
+                              float progress, Color tint, float alpha, float phase, int vertexColor) {
+        if (NativeTerrain.drawUnitBuild(page, left, top, width, height, x, y, drawWidth, drawHeight,
+                rotation, progress, tint.r, tint.g, tint.b, alpha, phase, vertexColor) == 0) {
+            throw new IllegalStateException("Citro2D could not draw stock unit construction");
+        }
+    }
+
+    @Override
     public void drawSolidQuad(float[] vertices, int offset, Blending blending) {
         if (NativeTerrain.drawSolidQuad(Address.ofData(vertices), offset, blendMode(blending)) == 0) {
             throw new IllegalStateException("Citro2D could not draw a stock Arc solid quad");
@@ -136,6 +147,12 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
 
         @Import(name = "m3ds_terrain_begin")
         static native int begin(int left, int bottom, int width, int height, int tileSize);
+
+        @Import(name = "m3ds_terrain_draw_unit_build")
+        static native int drawUnitBuild(int page, int left, int top, int width, int height,
+                                        float x, float y, float drawWidth, float drawHeight, float rotation,
+                                        float progress, float r, float g, float b, float alpha, float phase,
+                                        int vertexColor);
 
         @Import(name = "m3ds_terrain_draw")
         static native int draw(int page, int left, int top, int width, int height,

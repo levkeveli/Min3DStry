@@ -1,5 +1,6 @@
 import arc.graphics.g2d.Draw;
 import arc.struct.IntSet;
+import arc.struct.ObjectSet;
 import arc.struct.Seq;
 import java.util.function.Predicate;
 import mindustry.Vars;
@@ -8,17 +9,21 @@ import mindustry.gen.Building;
 import mindustry.graphics.BuildingCacheLayer;
 import mindustry.graphics.CacheLayer;
 import mindustry.graphics.Layer;
+import mindustry.type.UnitType;
 import mindustry.world.Block;
 import mindustry.world.blocks.payloads.PayloadConveyor.PayloadConveyorBuild;
+import mindustry.world.blocks.payloads.UnitPayload;
 import mindustry.world.blocks.power.BeamNode.BeamNodeBuild;
 import mindustry.world.blocks.power.LightBlock;
 import mindustry.world.blocks.power.PowerBlock;
 import mindustry.world.blocks.power.PowerDiode;
+import mindustry.world.blocks.units.UnitFactory.UnitFactoryBuild;
 
 /** Arc draw commands for the cached and dynamic passes in upstream BlockRenderer. */
 final class UpstreamBuildingLayers {
     private final Seq<Building> visible = new Seq<>();
     private final IntSet visited = new IntSet();
+    private final ObjectSet<UnitType> factoryGraphics = new ObjectSet<>();
 
     static boolean supportsPowerDraw(Block block) {
         return block instanceof PowerBlock || block instanceof PowerDiode || block instanceof LightBlock;
@@ -43,6 +48,12 @@ final class UpstreamBuildingLayers {
                     // The live snapshot does not carry BeamNode's cached endpoints.
                     // Refresh them using the stock tile-change and link rules.
                     if (live && build instanceof BeamNodeBuild beam) beam.updateTile();
+                    if (build instanceof UnitFactoryBuild factory) {
+                        loadFactoryGraphics(factory.unit());
+                        if (factory.getPayload() instanceof UnitPayload payload) {
+                            loadFactoryGraphics(payload.unit.type());
+                        }
+                    }
                 }
             }
         }
@@ -76,6 +87,13 @@ final class UpstreamBuildingLayers {
                 visible.clear();
             }
         }
+    }
+
+    private void loadFactoryGraphics(UnitType type) {
+        if (type == null || !factoryGraphics.add(type)) return;
+        // Resolve regions in the loaded stock atlas before submitting building draws.
+        type.loadIcon();
+        type.load();
     }
 
     private static void drawCracks(Building build) {

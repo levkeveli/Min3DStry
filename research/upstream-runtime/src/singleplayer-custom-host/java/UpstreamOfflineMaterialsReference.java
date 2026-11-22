@@ -59,6 +59,7 @@ public final class UpstreamOfflineMaterialsReference implements UpstreamTerrainD
             UpstreamCrackAtlas.load();
             verifyRegistry();
             verifyTurretRegistry();
+            UpstreamLiquidReference.verify();
         } finally {
             session.shutdown();
         }
