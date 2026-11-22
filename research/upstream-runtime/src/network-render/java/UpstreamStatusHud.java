@@ -14,10 +14,28 @@ final class UpstreamStatusHud {
     static List<UpstreamObjectiveHud.Row> collect() {
         var rows = new ArrayList<UpstreamObjectiveHud.Row>();
         var state = Vars.state;
+        String notification = UpstreamNotification.current();
+        if (notification != null) add(rows, notification);
         var rules = state.rules;
+        var unit = Vars.player == null ? null : Vars.player.unit();
+        if (unit != null) {
+            for (String text : UpstreamStatusRows.unitRows(Core.bundle,
+                    Math.round(unit.health), Math.round(unit.maxHealth()),
+                    Math.round(unit.ammof() * 100), unit.type.ammoCapacity)) {
+                add(rows, text);
+            }
+        }
+        int enemyCores = 0;
+        if (rules.attackMode && Vars.player != null && state.teams != null) {
+            var playerTeam = Vars.player.team();
+            for (var data : state.teams.present) {
+                if (data.team != playerTeam) enemyCores += data.cores.size;
+            }
+        }
         var texts = UpstreamStatusRows.texts(Core.bundle, rules.waves, state.isCampaign(),
-            rules.waveTimer, rules.waveTimer && Vars.logic.isWaitingWave(), state.wave,
-            rules.winWave, Math.max(0, state.enemies), (int)(state.wavetime / 60f));
+            rules.attackMode, rules.waveTimer, rules.waveTimer && Vars.logic.isWaitingWave(),
+            state.wave, rules.winWave, Math.max(0, state.enemies), enemyCores,
+            (int)(state.wavetime / 60f));
         for (String text : texts) add(rows, text);
 
         int copper = copper();

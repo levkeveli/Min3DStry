@@ -23,6 +23,7 @@ import mindustry.core.UI;
 import mindustry.core.World;
 import mindustry.entities.bullet.BulletType;
 import mindustry.game.EventType.BlockBuildEndEvent;
+import mindustry.game.EventType.WaveEvent;
 import mindustry.game.Gamemode;
 import mindustry.graphics.Layer;
 import mindustry.graphics.Pal;
@@ -117,6 +118,10 @@ public final class UpstreamSinglePlayerApp {
         session = UpstreamSinglePlayerSession.create(mapDir, bundleTag, new Fi("/romfs/planets"), settings,
             new Fi("/romfs/maps"));
         UpstreamSectorCapture.install();
+        Events.on(WaveEvent.class, event -> {
+            String warning = UpstreamGuardianWarning.find(Vars.state.rules, Vars.state.wave);
+            if (warning != null) UpstreamNotification.show(warning, 5f);
+        });
         try {
             CustomGame custom = null;
             Fi customSave = mapDir.child("custom-game-save.msav");
@@ -583,6 +588,7 @@ public final class UpstreamSinglePlayerApp {
         long previousTime = System.nanoTime();
         long accumulator = 0L;
         while (true) {
+            UpstreamNotification.update(1f / 60f);
             int input = UpstreamSinglePlayerInput.poll();
             if (input == -1) return false;
             if (campaignSlot != null && (input & UpstreamSinglePlayerInput.CAMPAIGN_HELD) != 0

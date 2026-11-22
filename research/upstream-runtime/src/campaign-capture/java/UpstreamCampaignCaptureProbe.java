@@ -62,6 +62,11 @@ public final class UpstreamCampaignCaptureProbe {
 
         Logic.sectorCapture();
         app.runPosted();
+        if(UpstreamNotification.current() == null){
+            throw new IllegalStateException("Capture notification was not raised");
+        }
+        System.out.println("UPSTREAM_CAMPAIGN_NOTIFICATION text="
+            + UpstreamNotification.current());
 
         if(!eventCaptured[0]){
             throw new IllegalStateException("SectorCaptureEvent was not dispatched");

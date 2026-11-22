@@ -1,6 +1,6 @@
 # Memory budget
 
-Status: **Experimental** (`host-tested`; Azahar Old/New 3DS telemetry recorded; physical Original/New 3DS pending).
+Status: **Hardware-verified** on physical Original 3DS XL (64 MiB) and New 3DS XL (124 MiB); see [Old 3DS evidence](evidence/old3ds-xl-a4a9a96.md) and [New 3DS evidence](evidence/new3ds-xl-de3e249.md). The allocator reported `status=ok failures=0` with `used=553728` bytes on both. Sustained gameplay under the `>= 24 FPS` budget remains open (#43).
 
 Issue: [#36](https://github.com/levkeveli/Min3DStry/issues/36) · Capability: `memory-budget-runtime`.
 

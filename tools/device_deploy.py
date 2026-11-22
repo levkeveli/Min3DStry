@@ -398,7 +398,12 @@ def evaluate_hardware_budget(
             "detail": detail,
         }
     else:
-        checks["frame_rate"] = {"status": "skipped", "detail": "no [MIN3DSTRY] BENCH record"}
+        checks["frame_rate"] = {
+            "status": "fail",
+            "detail": (
+                f"no [MIN3DSTRY] BENCH record; cannot verify >= {min_fps:.2f} FPS"
+            ),
+        }
 
     parity = parsed.get("parity")
     if expected_hash is not None:

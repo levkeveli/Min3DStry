@@ -1,5 +1,12 @@
 # Upstream `.msav` Map & Save Verification
 
+Status: **Hardware-verified** on a physical New 3DS XL (`de3e249`, dirty=0): the
+stock `sector-serpulo-170.msav` loaded through the embedded TeaVM `SaveIO`
+path, and the logs matched the canonical allocation, tile-state and save
+hashes. See [New 3DS XL evidence](hardware/evidence/new3ds-xl-de3e249.md).
+The earlier Original 3DS XL smoke run did not have the sector fixture staged,
+so its loader rows are informational only.
+
 This matrix maps the `msav-map-save-compat` capability to merged probes and the
 markers they emit on the JVM and/or ARM11/Azahar.
 
@@ -13,6 +20,7 @@ markers they emit on the JVM and/or ARM11/Azahar.
 | Sector save launch | `campaign-launch` | JVM + Azahar | `UPSTREAM_CAMPAIGN_LAUNCH slot=sector-serpulo-15.msav ... sector=15 wave=5 world=150x250 launch=ok` |
 | Save rejection/backup resilience | host `UpstreamSaveResilienceProbe` | Host/JVM | `UPSTREAM_SAVE_RESILIENCE_PASS`, `MIN3DSTRY_SAVE_POLICY existing=protected interrupted=rejected` |
 | Compressed header version (native) | save-slot probe + `msav_inflate` | Host + Azahar | `MIN3DSTRY SAVE_SLOT present=1 valid=1 compressed=1 version=13 bytes=11072`; `SAVE_META map=Glacier wave=1`; HUD `Save: v13 11072B`, `Map: Glacier wave=1` |
+| Physical New 3DS XL boot | app startup + embedded loader | Hardware | `SAVE_SLOT present=1 valid=1 version=13 bytes=11072`; `SECTOR_LOADER loaded=1 tiles=37500 buildings=2`; `SECTOR_ALLOC hash=783fbd80e415dcd7`; `SECTOR_TILE_STATE linked=2 hash=e35397041df8e5fe`; `SECTOR_PARITY hash=3a375fd4f81c5680` |
 | Save-slot backup fallback | save-slot probe | Host + Azahar | invalid primary + valid `*-backup.msav` -> `SAVE_SLOT present=1 valid=1 version=13`; HUD `Save: v13` |
 | Full save zlib inflate (native) | save-slot read + `msav_inflate` | Host + Azahar | `SECTOR_INFLATE planet=serpulo id=170 raw=11072 bytes=45955 limit=8388608 status=ok` |
 | Inflated world header (native) | `msav_world` | Host + Azahar | `SECTOR_WORLD version=13 width=150 height=250 status=ok` |
