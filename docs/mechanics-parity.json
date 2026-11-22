@@ -110,7 +110,7 @@
       "evidence": [
         "docs/porting/factory-logistics.md",
         "research/upstream-runtime/src/gameplay/java/UpstreamFactoryTickProbe.java",
-        "research/upstream-runtime/src/network-live/java/UpstreamItemConfig.java",
+        "research/upstream-runtime/src/network-live/java/UpstreamBuildingConfig.java",
         "research/upstream-runtime/src/network-render/java/UpstreamRenderedNetworkProbe.java"
       ],
       "notes": "Belt transport, routers, junctions, overflow/underflow gates, configurable sorters, and core item storage run live on ARM11."
@@ -201,7 +201,7 @@
       "issue": 27,
       "evidence": [
         "research/upstream-runtime/src/network-live/java/UpstreamBuildMenu.java",
-        "research/upstream-runtime/src/network-live/java/UpstreamItemConfig.java",
+        "research/upstream-runtime/src/network-live/java/UpstreamBuildingConfig.java",
         "docs/gameplay/touch-build-palette.md"
       ],
       "notes": "Full unlocked block catalog with 425/447 icons and bottom-screen Sorter item configuration work live on ARM11; other block config UIs (bridges/factories/processors) pending."

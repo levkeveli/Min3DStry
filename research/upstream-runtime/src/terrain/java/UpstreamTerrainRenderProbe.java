@@ -50,9 +50,12 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
         }
     }
 
-    int buildCatalog(byte[] labels, int[] icons, int selected, boolean previous, boolean next, boolean categories) {
+    // Keep the catalog kinds in the same order as the native renderer.
+    static final int ITEM_CATALOG = 0, BLOCK_CATALOG = 1, UNIT_CATALOG = 2;
+
+    int buildCatalog(byte[] labels, int[] icons, int selected, boolean previous, boolean next, int catalog) {
         return NativeTerrain.buildCatalog(Address.ofData(labels), Address.ofData(icons), selected,
-            previous ? 1 : 0, next ? 1 : 0, categories ? 1 : 0);
+            previous ? 1 : 0, next ? 1 : 0, catalog);
     }
 
     float drawObjective(byte[] label, int[] characters, TextureRegion icon, float y) {
@@ -168,7 +171,7 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
 
         @Import(name = "m3ds_terrain_build_catalog")
         static native int buildCatalog(Address labels, Address icons, int selected,
-                                       int previous, int next, int categories);
+                                       int previous, int next, int catalog);
 
         @Import(name = "m3ds_terrain_draw_objective")
         static native float drawObjective(Address label, Address characters, int count,

@@ -49,6 +49,38 @@ under the touch build/catalog sections; the automated paths are
 `--controls-replay`. `research/upstream-runtime/src/network-live/host/UpstreamBuildControlsReference.java`
 checks the JVM-side selection/rotation/removal decisions.
 
+## Unit factory plans
+
+Tap **Config**, then a configurable unit factory in the world grid.
+The menu uses the factory's original production plans, stock names, and
+unit icons. It omits locked or banned units. Selecting a row sends the
+existing stock plan index through `Building.configure`. Selecting the
+active row again clears the plan using the original configuration handler.
+
+The JVM touch reference verifies that a banned first plan leaves the
+second plan's index intact. It then verifies that selection resets progress
+and that the original factory consumes its recipe items and produces the
+selected Crawler. A stock JVM save round trip preserves the selected plan
+and the produced payload.
+
+On both Azahar 2126.2 profiles, the [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45072409295)
+selected Crawler in the original Glacier world and produced it offline.
+The unmodified Java server reopened each console save and verified the
+factory plan, the Crawler payload, and the consumed ingredients.
+The same verifier accepts `--live` to send the touch selection from the
+ARM11 client and check the selected plan and production on the stock
+server. The live fixture uses an original Power Source to keep the factory
+powered during connection and menu navigation.
+Factory world sprites and the construction effect are tracked in
+[#358](https://github.com/levkeveli/Min3DStry/issues/358).
+
+```bash
+python3 tools/verify_upstream_factory_plans.py \
+  --rom /path/to/unified/upstream-probe.3dsx \
+  --server /path/to/server-release.jar \
+  --output build/factory-plans
+```
+
 ## Limits
 
 - The palette is a bounded prototype, not the final upstream layout; not every

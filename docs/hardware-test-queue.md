@@ -3,11 +3,16 @@
 Status: **Partially verified.** Physical records exist for both models:
 [Original 3DS XL](hardware/evidence/old3ds-xl-a4a9a96.md) (smoke) and
 [New 3DS XL](hardware/evidence/new3ds-xl-de3e249.md) (sector-170, 12/12 strict).
-The cards below remain open; FPS, the five-minute soak/interactions, audible
-audio, live gameplay and cross-play are not claimed.
+A newer New 3DS run (`a328c70`) also passed 12/12 and measured **29.92 FPS
+minimum / 59.83 FPS steady-state** (`p95_max 33.50 ms`) in the `factory_demo`
+harness, verifying the New 3DS `>= 24 FPS` target for that harness. Still not
+claimed: the five-minute gameplay/input soak, full upstream campaign gameplay
+performance, audible audio, live gameplay, cross-play, and the Old 3DS
+sector-loader/FPS run.
 
-Latest evidenced builds: New `de3e249` (2026-11-22) and Old `a4a9a96`
-(2026-11-22). Record the exact commit and ROM SHA-256 with every run.
+Latest evidenced builds: New `a328c70` (2026-11-22, FPS PASS), New `de3e249`
+(2026-11-22), and Old `a4a9a96` (2026-11-22). Record the exact commit and ROM
+SHA-256 with every run.
 The procedure and evidence schema are in
 [verification-runbook.md](hardware/verification-runbook.md) and
 [deployment-and-logs.md](hardware/deployment-and-logs.md).
@@ -37,13 +42,17 @@ Capabilities still marked `HARDWARE_TEST_PENDING`:
 | HWT-03 | `campaign-sectors` |
 | HWT-04 | `ndsp-sfx-music` |
 | HWT-05 | `crossplay-net-protocol` |
-| HWT-06 | `physical-hardware-parity` and the `>= 24 FPS` target |
+| HWT-06 | `physical-hardware-parity`; New 3DS FPS is verified, Old 3DS FPS and the both-model 5-minute gameplay/input soak remain |
 
 Cleared by the `de3e249` New 3DS record: `arm11-toolchain-build`,
 `memory-budget-runtime`, `threading-scheduling` and `msav-map-save-compat`.
-The `a4a9a96` Original 3DS record also backs the first three. Preserve those
-evidence files and do not re-queue the cleared capabilities unless the
-evidence is invalidated.
+The `a4a9a96` Original 3DS record also backs the first three. The `a328c70`
+New 3DS run also passed 12/12 and its `BENCH` windows verify the New 3DS
+`>= 24 FPS` target for the `factory_demo` harness (`fps_min=29.92`,
+`fps_max=59.83`, `p95_max=33.50`); it does not clear HWT-06 by itself because
+the Old 3DS FPS run, full campaign gameplay, and the 5-minute gameplay/input
+soak are still open. Preserve those evidence files and do not re-queue cleared
+capabilities unless the evidence is invalidated.
 
 `old-new-3ds-probe` remains **hardware-verified** with both
 `old3ds-xl-a4a9a96.md` and `new3ds-xl-de3e249.md`.
@@ -235,10 +244,11 @@ AppMem, and the benchmark reports `>= 24 FPS`. **Evidence:** strict
 `hw_evidence.py` JSON/Markdown for both models, benchmark log lines, and
 thermal/SD notes. Only this card can clear `physical-hardware-parity`.
 
-> `BENCH fps=... p95_ms=...` is now emitted every 256 rendered frames
-> (`scenario=factory_demo`), and `benchmark-report` fails `frame_rate` when the
-> record is missing. The existing `de3e249`/`a4a9a96` logs predate it, so this
-> card still needs a fresh run from a build that contains the sampler.
+> New 3DS `a328c70` now satisfies the harness FPS half: strict 12/12,
+> `fps_min=29.92`, `fps_max=59.83`, `p95_max=33.50`, with the sector loader
+> and parity intact. Remaining: the Old 3DS HWT-01/02/FPS run, full campaign
+> gameplay performance, and a New 3DS run lasting at least five minutes with
+> the requested pan/zoom, lighting, pause/resume and menu input.
 
 ## Current exclusions
 

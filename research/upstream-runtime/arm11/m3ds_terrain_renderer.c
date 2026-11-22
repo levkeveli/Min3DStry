@@ -59,10 +59,12 @@ enum { menu_label_glyphs = 64 };
 static char palette_utf8[8][4 * menu_label_glyphs + 1];
 #endif
 static C2D_TextBuf catalog_buffer;
+enum { item_catalog, block_catalog, unit_catalog, catalog_count };
+static const char *const catalog_names[] = { "item", "block", "unit" };
 static struct {
     C2D_SpriteSheet sheet;
-    int32_t id;
-    bool categories, requested;
+    int32_t id, catalog;
+    bool requested;
 } menu_icons[6];
 static float world_left, world_bottom, scale, screen_left, screen_bottom;
 static int32_t draws;
@@ -822,16 +824,16 @@ static bool catalog_label(const char *text, float x, float y, float scale, float
     return false;
 }
 
-static bool draw_menu_icon(int row, int32_t id, bool categories, float y) {
+static bool draw_menu_icon(int row, int32_t id, int32_t catalog, float y) {
     if (id < 0) return false;
-    if (!menu_icons[row].requested || menu_icons[row].id != id || menu_icons[row].categories != categories) {
+    if (!menu_icons[row].requested || menu_icons[row].id != id || menu_icons[row].catalog != catalog) {
         // FrameBegin completed the previous frame before any row texture can be replaced.
         if (menu_icons[row].sheet) C2D_SpriteSheetFree(menu_icons[row].sheet);
         menu_icons[row].id = id;
-        menu_icons[row].categories = categories;
+        menu_icons[row].catalog = catalog;
         menu_icons[row].requested = true;
         char path[48];
-        snprintf(path, sizeof(path), "romfs:/catalog/%s-%ld.t3x", categories ? "block" : "item", (long)id);
+        snprintf(path, sizeof(path), "romfs:/catalog/%s-%ld.t3x", catalog_names[catalog], (long)id);
         menu_icons[row].sheet = C2D_SpriteSheetLoad(path);
     }
     if (!menu_icons[row].sheet) return false;
@@ -843,7 +845,9 @@ static bool draw_menu_icon(int row, int32_t id, bool categories, float y) {
 }
 
 int32_t m3ds_terrain_build_catalog(const char *labels, const int32_t *icons, int32_t selected,
-                                    int32_t previous, int32_t next, int32_t categories) {
+                                    int32_t previous, int32_t next, int32_t catalog) {
+    if (catalog < 0 || catalog >= catalog_count) return 0;
+    const bool categories = catalog == block_catalog;
     const u32 panel = C2D_Color32(45, 52, 64, 255), text = C2D_Color32(239, 241, 247, 255);
     const u32 selected_panel = C2D_Color32(85, 71, 52, 255), accent = C2D_Color32(250, 213, 107, 255);
     C2D_TextBufClear(catalog_buffer);
@@ -864,7 +868,7 @@ int32_t m3ds_terrain_build_catalog(const char *labels, const int32_t *icons, int
         if (!*labels) continue;
         float y = 44 + row * 25;
         C2D_DrawRectSolid(8, y, 0.5f, 304, 23, row == selected ? selected_panel : panel);
-        if (draw_menu_icon(row, icons[row], categories != 0, y)) visible_icons++;
+        if (draw_menu_icon(row, icons[row], catalog, y)) visible_icons++;
         stock_labels &= catalog_label(labels, 177, y + 4, 0.50f, 254, row == selected ? accent : text);
     }
     if (previous) {
@@ -878,14 +882,14 @@ int32_t m3ds_terrain_build_catalog(const char *labels, const int32_t *icons, int
         stock_labels &= catalog_label("Next page", 268, 212, 0.45f, 84, text);
     }
 #ifdef M3DS_STOCK_FONT
-    static char reported[2][4 * menu_label_glyphs + 1];
-    int menu = categories != 0;
-    if (stock_labels && strcmp(reported[menu], first_row) != 0) {
+    static char reported[catalog_count][4 * menu_label_glyphs + 1];
+    if (stock_labels && strcmp(reported[catalog], first_row) != 0) {
         // A stock-rendered row fits the UTF-8 capacity of the logged page identity.
-        memcpy(reported[menu], first_row, strlen(first_row) + 1);
-        static const char blocks[] = "UPSTREAM_MENU_FONT source=v160.8 catalog=block\n";
-        static const char items[] = "UPSTREAM_MENU_FONT source=v160.8 catalog=item\n";
-        svcOutputDebugString(menu ? blocks : items, menu ? sizeof(blocks) - 1 : sizeof(items) - 1);
+        memcpy(reported[catalog], first_row, strlen(first_row) + 1);
+        char record[64];
+        int length = snprintf(record, sizeof(record), "UPSTREAM_MENU_FONT source=v160.8 catalog=%s\n",
+            catalog_names[catalog]);
+        svcOutputDebugString(record, length);
     }
 #else
     (void)stock_labels;
