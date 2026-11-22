@@ -723,8 +723,28 @@ def _cygpath(flag: str, path_str: str) -> str:
     return proc.stdout.strip()
 
 
+def _is_flatpak_azahar(azahar_bin: str | None) -> bool:
+    return bool(azahar_bin and "org.azahar_emu.Azahar" in azahar_bin)
+
+
+def _find_flatpak_azahar_bin() -> str | None:
+    for candidate in (
+        Path.home() / ".local" / "share" / "flatpak" / "exports" / "bin" / "org.azahar_emu.Azahar",
+        Path("/var/lib/flatpak/exports/bin/org.azahar_emu.Azahar"),
+    ):
+        if candidate.is_file():
+            return str(candidate)
+    return None
+
+
 def resolve_azahar_bin(explicit: str | None) -> str:
-    for candidate in (explicit, os.environ.get("AZAHAR_BIN"), shutil.which("azahar"), shutil.which("azahar.exe")):
+    for candidate in (
+        explicit,
+        os.environ.get("AZAHAR_BIN"),
+        shutil.which("azahar"),
+        shutil.which("azahar.exe"),
+        _find_flatpak_azahar_bin(),
+    ):
         if candidate:
             return candidate
     raise FileNotFoundError("Azahar executable not found on PATH or via --azahar / AZAHAR_BIN.")
@@ -737,7 +757,14 @@ def to_azahar_cli_path(path: Path, azahar_bin: str) -> str:
     return resolved
 
 
-def resolve_azahar_paths() -> tuple[Path, Path]:
+def resolve_azahar_paths(azahar_bin: str | None = None) -> tuple[Path, Path]:
+    if _is_flatpak_azahar(azahar_bin):
+        base = Path.home() / ".var" / "app" / "org.azahar_emu.Azahar"
+        return (
+            base / "config" / "azahar-emu" / "qt-config.ini",
+            base / "data" / "azahar-emu" / "log" / "azahar_log.txt",
+        )
+
     appdata = os.environ.get("APPDATA")
     if appdata:
         base = Path(_cygpath("-u", appdata) if sys.platform in ("cygwin", "msys") else appdata) / "Azahar"
@@ -999,6 +1026,13 @@ def run_model_check(
         }
     finally:
         rpc.close()
+        if _is_flatpak_azahar(azahar_bin) and shutil.which("flatpak"):
+            subprocess.run(
+                ["flatpak", "kill", "org.azahar_emu.Azahar"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False,
+            )
         if proc.poll() is None:
             proc.terminate()
             try:
@@ -1038,7 +1072,7 @@ def main() -> int:
         return 2
 
     azahar_bin = resolve_azahar_bin(args.azahar)
-    config_path, log_path = resolve_azahar_paths()
+    config_path, log_path = resolve_azahar_paths(azahar_bin)
     out_dir = Path(args.out_dir)
 
     models = [m.strip().lower() for m in args.models.split(",") if m.strip()]
