@@ -166,11 +166,11 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
                 # Keep the touch held for the whole burst regardless of the poll phase.
                 touch = struct.pack("<BHHBx", 1, *point, 1)
                 movie.write(touch * 2)
-            elif taps and (buttons or circle_x or circle_y):
+            elif (taps or unified_boot) and (buttons or circle_x or circle_y):
                 movie.write(pad * 2)
             else:
                 movie.write(pad + touch_idle)
-            if taps and model == "new3ds" and frame % 7 in (0, 2, 4):
+            if (taps or unified_boot) and model == "new3ds" and frame % 7 in (0, 2, 4):
                 movie.write(touch if point else pad)
 
 
@@ -1271,7 +1271,7 @@ def run_model(args, model, config, original_config, log, output):
         "Renderer": {"graphics_api": "2"},
         "Data Storage": {"use_virtual_sd": "true"},
     }
-    if args.touch_build or args.touch_config or args.erekir_build or args.mining:
+    if args.touch_build or args.touch_config or args.erekir_build or args.mining or args.unified_boot:
         # The synthetic bursts intentionally offer one sample type to all devices.
         overrides["Miscellaneous"]["log_filter"] += " Movie:Critical"
     if args.terrain_atlas:
