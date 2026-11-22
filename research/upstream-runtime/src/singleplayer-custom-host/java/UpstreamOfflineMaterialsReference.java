@@ -1,0 +1,113 @@
+import arc.Core;
+import arc.files.Fi;
+import arc.graphics.Blending;
+import arc.util.Time;
+import mindustry.Vars;
+import mindustry.content.Blocks;
+import mindustry.content.Items;
+import mindustry.content.Liquids;
+import mindustry.game.Team;
+import mindustry.gen.Building;
+import mindustry.graphics.CacheLayer;
+import mindustry.world.blocks.liquid.LiquidRouter;
+import mindustry.world.blocks.production.GenericCrafter;
+import mindustry.world.blocks.production.GenericCrafter.GenericCrafterBuild;
+import mindustry.world.blocks.production.Pump;
+import mindustry.world.blocks.production.Pump.PumpBuild;
+import mindustry.world.blocks.production.Separator;
+import mindustry.world.blocks.production.Separator.SeparatorBuild;
+import mindustry.world.blocks.storage.CoreBlock;
+import mindustry.world.blocks.storage.StorageBlock;
+import port.render.UpstreamCrackAtlas;
+import port.render.UpstreamFluidAtlas;
+
+/** Exercise each stock offline material building through the same pass as the ARM11 app. */
+public final class UpstreamOfflineMaterialsReference implements UpstreamTerrainDrawProbe.TerrainTarget {
+    private int sprites;
+
+    public static void main(String[] args) throws Exception {
+        if (args.length != 3) throw new IllegalArgumentException("Expected Glacier, sprites.aatls and block_colors.png");
+        CacheLayer.init();
+        UpstreamWorldLoadProbe.load(new String[]{args[0]});
+        UpstreamTerrainDrawProbe.loadAtlas(new Fi(args[1]), UpstreamFluidAtlas::load);
+        Vars.content.loadColors(new Fi(args[2]));
+        UpstreamCrackAtlas.load();
+
+        var target = new UpstreamOfflineMaterialsReference();
+        var viewport = UpstreamTerrainDrawProbe.liveViewport(target);
+        viewport.moveTo(24, 30);
+        var tile = Vars.world.tile(31, 36);
+        var viewer = Team.sharded;
+        var layers = new UpstreamBuildingLayers();
+        int tested = 0;
+        for (var block : Vars.content.blocks()) {
+            if (!(block instanceof GenericCrafter || block instanceof Separator || block instanceof Pump
+                    || block instanceof LiquidRouter || block instanceof StorageBlock && !(block instanceof CoreBlock))) {
+                continue;
+            }
+            tile.setBlock(block, viewer, 0);
+            var build = tile.build;
+            try {
+                if (!UpstreamSinglePlayerApp.supportsBuildingDraw(build)) {
+                    throw new AssertionError("The offline draw pass excludes " + block.name);
+                }
+                target.verifyDraw(layers, viewport, viewer, build, "idle");
+                activate(build);
+                target.verifyDraw(layers, viewport, viewer, build, "working");
+                tested++;
+            } finally {
+                tile.setBlock(Blocks.air);
+            }
+        }
+        if (tested == 0) throw new AssertionError("The stock material registry was empty");
+        System.out.println("UPSTREAM_OFFLINE_MATERIAL_DRAW tested=" + tested);
+    }
+
+    private static void activate(Building build) {
+        Time.setInternalTime(42f);
+        build.efficiency = 1f;
+        if (build.items != null) build.items.add(Items.copper, 1);
+        if (build.liquids != null) {
+            build.liquids.add(Liquids.water, build.block.liquidCapacity / 2);
+        }
+        if (build instanceof GenericCrafterBuild crafter) {
+            crafter.progress = 0.5f;
+            crafter.warmup = 1f;
+            crafter.totalProgress = 42f;
+        } else if (build instanceof PumpBuild pump) {
+            pump.liquidDrop = Liquids.water;
+            pump.warmup = 1f;
+            pump.totalProgress = 42f;
+        } else if (build instanceof SeparatorBuild separator) {
+            separator.progress = 0.5f;
+            separator.warmup = 1f;
+            separator.totalProgress = 42f;
+        }
+    }
+
+    private void verifyDraw(UpstreamBuildingLayers layers, UpstreamTerrainDrawProbe.Viewport viewport,
+                            Team viewer, Building build, String state) {
+        sprites = 0;
+        try {
+            layers.render(viewport, viewer, candidate -> candidate == build
+                && UpstreamSinglePlayerApp.supportsBuildingDraw(candidate));
+            if (sprites == 0) throw new AssertionError("No stock atlas sprites");
+        } catch (RuntimeException | AssertionError failure) {
+            throw new AssertionError(build.block.name + " (" + state + ")", failure);
+        }
+    }
+
+    @Override
+    public void draw(int page, int left, int top, int width, int height, float x, float y,
+                     float originX, float originY, float drawWidth, float drawHeight,
+                     float rotation, int color, int mixColor, Blending blending) {
+        var error = (arc.graphics.g2d.TextureAtlas.AtlasRegion)Core.atlas.find("error");
+        if (page != UpstreamTerrainDrawProbe.pageIndex(error) || left != error.getX() || top != error.getY()) {
+            sprites++;
+        }
+    }
+
+    @Override public void begin(int left, int bottom, int width, int height) {}
+    @Override public void drawSolidQuad(float[] vertices, int offset, Blending blending) {}
+    @Override public void end() {}
+}
