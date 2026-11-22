@@ -4,6 +4,7 @@ import argparse
 from pathlib import Path
 
 from verify_offline_material_buildings import capture, changed_pixels
+from verify_offline_power_buildings import verify_live
 from verify_upstream_factory_plans import start_server, stock_command
 from verify_upstream_live_net import stop, wait_for
 from verify_upstream_singleplayer import az
@@ -69,6 +70,9 @@ def verify_model(args, model, azahar, fixture):
     if min(buildings.values()) < 12 or min(rotated.values()) < 2:
         raise AssertionError(f"{model}: stock turret draw or rotation missing: {buildings=} {rotated=}")
     print(f"UPSTREAM_OFFLINE_TURRET_PIXELS model={model} buildings={buildings} rotated={rotated}", flush=True)
+    if args.live:
+        live = verify_live(args, model, azahar, fixture / "east.msav", terrain, out / "live", TURRETS)
+        print(f"UPSTREAM_LIVE_TURRET_PIXELS model={model} buildings={live}", flush=True)
 
 
 def main():
@@ -79,6 +83,7 @@ def main():
     parser.add_argument("--azahar")
     parser.add_argument("--port", type=int, default=16593)
     parser.add_argument("--fixture", type=Path, help="An existing directory of stock fixture saves")
+    parser.add_argument("--live", action="store_true", help="Also verify turret sprites in a stock-server session")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     azahar = az.resolve_azahar_bin(args.azahar)

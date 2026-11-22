@@ -283,6 +283,13 @@ catalog through its own building predicate. The ARM11 replay loads
 Glacier saves produced by the unmodified Java v160.8 server and checks
 Wave, Ripple, Parallax, Segment, Breach, and Sublimate at two headings.
 
+The [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45079715312)
+drew all six turrets on both Azahar profiles. All six headings changed
+the sampled turret pixels. Add `--live` to load the same fixture on the
+unmodified Java server and check the sprites after joining from Azahar.
+The live replay tests the stock snapshot and draw path. The JVM reference
+tests active draw states including recoil, charge, and the Parallax beam.
+
 ```bash
 python3 tools/verify_offline_turret_buildings.py \
   --rom /path/to/unified/upstream-probe.3dsx \
