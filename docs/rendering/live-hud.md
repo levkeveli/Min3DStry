@@ -16,7 +16,7 @@ objective panel:
   rules are active, using the stock `HudFragment` timer formatting;
 - the pinned `sector.curcapture` row (`Sector Captured`) when wave rules are
 off and a campaign sector is active;
-- a timed stock `sector.capture.current` notification row;
+- timed stock `sector.capture.current` and `wave.guardianwarn` notification rows;
 - the local unit's stock `stat.health`/`stat.ammo` values;
 - the original copper item glyph and the local core's copper count.
 
@@ -47,6 +47,7 @@ gradle -Pprobe=status-hud runProbeJvm \
 UPSTREAM_STATUS_ROWS cases=10 ok
 UPSTREAM_UNIT_ROWS cases=3 ok
 UPSTREAM_NOTIFICATION cases=2 ok
+UPSTREAM_GUARDIAN_WARNING cases=2 ok
 ```
 
 While the wave timer is counting down, the status text changes once per second,
