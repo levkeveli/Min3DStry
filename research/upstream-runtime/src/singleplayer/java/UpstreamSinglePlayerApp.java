@@ -98,9 +98,31 @@ public final class UpstreamSinglePlayerApp {
         Fi mapDir = saveFile.parent() != null ? saveFile.parent() : new Fi("/3ds/min3dstry");
         session = UpstreamSinglePlayerSession.create(mapDir, bundleTag);
         try {
-            // Load the world before initializing graphics assets to keep peak TeaVM heap bounded.
-            session.start(mapFile, saveFile, null);
-            loadGraphics(atlas);
+            List<Fi> sectorSaves = args.length < 2 ? session.sectorSaves() : List.of();
+            Fi selected = null;
+            if (sectorSaves.size() > 1) {
+                loadInterfaceGraphics(atlas);
+                // Drain the boot-time START press used by the homebrew launcher.
+                UpstreamSinglePlayerInput.poll();
+                try {
+                    selected = chooseSector(sectorSaves);
+                } catch (Throwable failure) {
+                    System.out.println("UPSTREAM_CAMPAIGN_SELECT_ERROR "
+                        + failure.getClass().getName() + ": " + failure.getMessage());
+                    throw failure;
+                }
+                if (selected == null) {
+                    return;
+                }
+                saveFile = selected;
+            }
+            // Load the world before initializing world sprites to keep peak TeaVM heap bounded.
+            session.start(mapFile, saveFile, selected == null ? null : "campaign",
+                selected == null ? null : session.sectorFor(selected));
+            if (sectorSaves.size() <= 1) {
+                loadInterfaceGraphics(atlas);
+            }
+            loadWorldGraphics();
             Events.on(BlockBuildEndEvent.class, event -> {
                 if (event.tile == null) return;
                 if (!event.breaking && event.tile.build != null) {
@@ -123,19 +145,66 @@ public final class UpstreamSinglePlayerApp {
         return first.exists() ? first : new Fi(fallback);
     }
 
-    private void loadGraphics(Fi atlas) {
+    private void loadInterfaceGraphics(Fi atlas) {
         System.out.println("UPSTREAM_INTERFACE_GRAPHICS atlas");
         UpstreamTerrainDrawProbe.loadAtlas(atlas, UpstreamFluidAtlas::load);
         Vars.content.loadColors(new Fi("/romfs/block_colors.png"));
         UpstreamCrackAtlas.load();
-        loadUnitGraphics();
-        loadBulletGraphics();
         viewport = UpstreamTerrainDrawProbe.liveViewport(target);
         target.initialize();
         var locale = Core.bundle.getLocale();
         boolean stock = target.loadStockFont(locale.getLanguage().equals("ja"));
         System.out.println("UPSTREAM_INTERFACE_FONT source=" + (stock ? "v160.8" : "system"));
         System.out.println("UPSTREAM_INTERFACE_GRAPHICS ready");
+    }
+
+    private void loadWorldGraphics() {
+        loadUnitGraphics();
+        loadBulletGraphics();
+    }
+
+    private Fi chooseSector(List<Fi> slots) {
+        int selected = 0;
+        int lastAxis = 0;
+        System.out.println("UPSTREAM_CAMPAIGN_MENU slots=" + slots.size());
+        Fi automatic = new Fi("/3ds/min3dstry/campaign-select.txt");
+        if (automatic.exists()) {
+            int index = Integer.parseInt(automatic.readString("UTF-8").trim());
+            if (index < 0 || index >= slots.size()) index = 0;
+            var slot = slots.get(index);
+            System.out.println("UPSTREAM_CAMPAIGN_SELECTED slot=" + slot.name() + " source=auto");
+            return slot;
+        }
+        while (true) {
+            int input = UpstreamSinglePlayerInput.poll();
+            if (input == -1) {
+                // The homebrew launcher can leave START held during boot; ignore it here.
+                Thread.yield();
+                continue;
+            }
+            int axis = (byte)((input >> 8) & 0xff);
+            if (axis > 60 && lastAxis <= 20 && selected > 0) {
+                selected--;
+            } else if (axis < -60 && lastAxis >= -20 && selected + 1 < slots.size()) {
+                selected++;
+            }
+            lastAxis = axis;
+            drawSectorMenu(slots, selected);
+            if ((input & (1 << 17)) != 0) {
+                var slot = slots.get(selected);
+                System.out.println("UPSTREAM_CAMPAIGN_SELECTED slot=" + slot.name());
+                return slot;
+            }
+            Thread.yield();
+        }
+    }
+
+    private void drawSectorMenu(List<Fi> slots, int selected) {
+        StringBuilder labels = new StringBuilder("Select sector\0");
+        for (int i = 0; i < slots.size(); i++) {
+            labels.append(i == selected ? "> " : "  ").append(slots.get(i).name()).append('\0');
+        }
+        target.buildLabels(labels.toString().getBytes(StandardCharsets.UTF_8));
     }
 
     private static void loadUnitGraphics() {

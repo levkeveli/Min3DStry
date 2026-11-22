@@ -1,13 +1,17 @@
 import arc.Core;
 import arc.Events;
+import arc.assets.AssetManager;
 import arc.files.Fi;
 import arc.math.Mathf;
 import arc.math.geom.Vec2;
 import arc.mock.MockAudio;
 import arc.mock.MockFiles;
 import arc.mock.MockGraphics;
+import arc.util.Threads;
 import arc.util.Time;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import mindustry.Vars;
 import mindustry.ai.BlockIndexer;
 import mindustry.ai.ControlPathfinder;
@@ -21,6 +25,7 @@ import mindustry.entities.EntityCollisions;
 import mindustry.entities.units.BuildPlan;
 import mindustry.game.EventType.ResetEvent;
 import mindustry.game.FogControl;
+import mindustry.game.Saves;
 import mindustry.game.Team;
 import mindustry.game.Universe;
 import mindustry.gen.Groups;
@@ -29,6 +34,7 @@ import mindustry.gen.Unit;
 import mindustry.graphics.CacheLayer;
 import mindustry.io.MapIO;
 import mindustry.io.SaveIO;
+import mindustry.type.Sector;
 import mindustry.logic.GlobalVars;
 import mindustry.mod.Mods;
 import mindustry.world.Tile;
@@ -98,9 +104,17 @@ public final class UpstreamSinglePlayerSession {
     }
 
     void start(Fi mapFile, Fi saveFile, String sourceTagOverride) throws IOException {
+        start(mapFile, saveFile, sourceTagOverride, null);
+    }
+
+    void start(Fi mapFile, Fi saveFile, String sourceTagOverride, Sector sector) throws IOException {
         String source;
         if (saveFile != null && saveFile.exists() && SaveIO.isSaveValid(saveFile)) {
-            SaveIO.load(saveFile);
+            if (sector != null) {
+                SaveIO.load(saveFile, Vars.world.makeSectorContext(sector));
+            } else {
+                SaveIO.load(saveFile);
+            }
             app.runPosted();
             Vars.avoidance.init();
             Vars.state.set(State.playing);
@@ -125,6 +139,41 @@ public final class UpstreamSinglePlayerSession {
             + " map=" + (Vars.state.map == null ? "unknown" : Vars.state.map.name().replace(' ', '_'))
             + " size=" + Vars.world.width() + "x" + Vars.world.height()
             + " wave=" + Vars.state.wave + " copper=" + copper);
+    }
+
+    List<Fi> sectorSaves() {
+        Core.assets = new AssetManager(path -> new Fi(path), false);
+        Vars.saveDirectory = Vars.customMapDirectory;
+        Vars.mainExecutor = Threads.executor("campaign-select");
+        try {
+            var saves = new Saves();
+            saves.load();
+            var result = new ArrayList<Fi>();
+            for (var slot : saves.getSaveSlots()) {
+                String name = slot.file.name();
+                if (name.startsWith("sector-") && name.endsWith(".msav")) result.add(slot.file);
+            }
+            return result;
+        } finally {
+            Vars.mainExecutor.shutdownNow();
+        }
+    }
+
+    Sector sectorFor(Fi file) {
+        String name = file.name();
+        int dash = name.lastIndexOf('-');
+        int dot = name.indexOf('.', dash);
+        if (dash < 0 || dot <= dash + 1) return null;
+        int id;
+        try {
+            id = Integer.parseInt(name.substring(dash + 1, dot));
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+        for (var preset : Vars.content.sectors()) {
+            if (preset.sector != null && preset.sector.id == id) return preset.sector;
+        }
+        return null;
     }
 
     Unit ensurePlayerSpawn() {

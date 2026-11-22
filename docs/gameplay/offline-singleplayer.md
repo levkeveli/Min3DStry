@@ -12,6 +12,30 @@ This vertical slice boots and runs unmodified upstream Mindustry `v160.8` **Grou
 - [`WorldReflectionPolicy.java`](../../research/upstream-runtime/src/world/java/port/WorldReflectionPolicy.java): Registers 0-argument constructors for `arc.struct.{IntMap,IntSet,ObjectIntMap,ObjectMap,ObjectSet,StringMap}` so Arc `Json` restores populated `GameStats` (`placedBlockCount`, etc.) and `Rules` fields when reloading `.msav` saves.
 - [`prepare_terrain_assets.py`](../../research/upstream-runtime/arm11/prepare_terrain_assets.py) (`--singleplayer`) & [`build.sh`](../../research/upstream-runtime/arm11/build.sh) (`--singleplayer`): Stages `maps/groundZero.msav` and `sprites.aatls` alongside bundles, `world-atlas`, `block_colors.png`, menu icons, and stock fonts, then links the ARM11 `.elf`/`.3dsx` (default `-Os`).
 
+## Campaign sector selection
+
+When `/3ds/min3dstry` contains more than one `sector-*.msav` slot, the app
+loads `Saves.load()` through the live `Core.settings`/`Core.files` path before
+starting the world. It lists the slots on the bottom screen:
+
+```text
+UPSTREAM_CAMPAIGN_MENU slots=2
+```
+
+D-pad up/down changes the selection; A launches the selected slot through
+`SaveIO.load(file, Vars.world.makeSectorContext(sector))`. For automated
+runs, a file `/3ds/min3dstry/campaign-select.txt` containing a zero-based slot
+index selects without input:
+
+```text
+UPSTREAM_CAMPAIGN_SELECTED slot=sector-serpulo-86.msav source=auto
+UPSTREAM_SP_LOADED source=campaign map=Editor_Playtesting size=150x250 wave=1 copper=0
+```
+
+Verified on Azahar `2126.2` New and Old profiles with two staged sector files.
+Button-driven A selection remains to be verified with a working Azahar input
+replay; the menu render and auto-selected launch path are emulator-tested.
+
 ## 3DS Controls
 
 | Input | Action |

@@ -391,7 +391,27 @@ M3DS_RELAX_POINTER_TYPES=1 bash arm11/build.sh \
 The runtime result is verified on both Azahar profiles. The opt-in is tracked
 for removal once the TeaVM object-reference cast issue is fixed.
 
+## ARM11 sector selection and launch
+
+The offline single-player app lists `sector-*.msav` slots through the live
+`Saves.load()` path when more than one slot exists. Selecting a slot and
+pressing A launches it through
+`SaveIO.load(file, Vars.world.makeSectorContext(sector))`; automated runs can
+select by index with `/3ds/min3dstry/campaign-select.txt`. Both Azahar
+profiles report:
+
+```text
+UPSTREAM_CAMPAIGN_MENU slots=3
+UPSTREAM_CAMPAIGN_SELECTED slot=sector-serpulo-86.msav source=auto
+UPSTREAM_SP_LOADED source=campaign map=Editor_Playtesting size=150x250 wave=1 copper=0
+```
+
+The menu and auto-selected launch are emulator-tested; button-driven selection
+still needs a working replay harness. The live campaign dialogs and capture
+rewards remain open.
+
 ## Remaining Scope for Issue #41 (3DS Hardware / ARM11 Runtime)
+
 
 The capability is marked `emulator-tested` because the probes in [campaign-verification.md](campaign-verification.md) verify upstream settings, sector `.msav` slots, `SectorInfo` JSON, tech-tree requirements, planet last-sector routing, sector play/capture transitions, and sector-save launch on ARM11/Azahar. The host-verified path contract is recorded in [sd-storage-paths.md](sd-storage-paths.md). The live runtime still needs to consume these paths end-to-end:
 
