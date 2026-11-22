@@ -500,7 +500,9 @@ int main(int argc, char *argv[]) {
 
     M3dsDrawStats stats = {0};
     bool emitted_frame_diag = false;
-    M3dsFrameStats frame_stats;
+    /* Keep this off main's stack: the embedded TeaVM loader runs from this
+     * frame, and a 1 KiB local exhausts its stack budget on hardware. */
+    static M3dsFrameStats frame_stats;
     m3ds_frame_stats_reset(&frame_stats);
     uint32_t prev_delivered = factory.items_delivered;
     uint32_t prev_enemies_spawned = factory.enemies_spawned;
