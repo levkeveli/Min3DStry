@@ -1185,16 +1185,31 @@ also passed those checks on both profiles with the stock font path enabled.
 Use `-Pprobe=executor` with the JVM and ARM11 build commands. The JVM uses the
 unmodified Arc class. The TeaVM build substitutes Arc's named bounded and
 unbounded pool factories and exercises queued work, immediate worker
-handoff, cancellation, and shutdown. It should report:
+handoff, cancellation, shutdown, and monitor handoffs across
+allocation-triggered garbage collection. It should report:
 
 ```text
 UPSTREAM_EXECUTOR workers=1 result=37 exception=ok cancel=ok timeout=ok shutdown=ok
 UPSTREAM_EXECUTOR_POOLS bounded=ok unbounded=ok
+UPSTREAM_EXECUTOR_MONITOR_GC object=ok array=ok
 ```
 
-The JVM and generated Windows x64 program emitted both lines. The
+The JVM and generated Windows x64 program emitted the first two lines. The
 [devkitARM build](https://github.com/levkeveli/Min3DStry/actions/runs/44781211433)
 emitted both in Azahar 2126.2 Original and New 3DS modes.
+
+TeaVM 0.16.0 stores a monitor reference in the object header's hash word.
+Native ARM11 staging and host C verification trace that reference during
+collection and update it during compaction, including when the lock object
+itself moves. The executor probe checks collection while a lock is held
+and then verifies handoff and identity for an ordinary object and an array.
+The wave-routing probe still compares the four Glacier wave records with the
+stock JVM while running the upstream pathfinders and AsyncCore processes.
+The Windows C executor probe reproduced the failure before applying the
+collector fix and passed afterward. With the fix, the earlier
+`fff7a8e` wave probe matched the stock trace 30 times at `-O0` and
+30 times at `-O2`.
+
 ### Check the upstream content registry and building factories
 
 The [JVM content and factory probes](host/README.md) compare the pinned release
