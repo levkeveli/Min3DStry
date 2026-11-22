@@ -153,9 +153,39 @@ def build_checks(
     profile: str,
     scenario: str,
     hardware: dict[str, Any],
+    commit: str = "unknown",
 ) -> list[Check]:
     checks: list[Check] = []
     cfg = PROFILES[profile]
+
+    build = first(records, "BUILD")
+    logged = build["kv"].get("commit", "") if build else ""
+    dirty = build["kv"].get("dirty", "") if build else ""
+    expected = (commit or "").strip()
+    commit_matches = bool(logged) and logged != "unknown" and (
+        expected in ("", "unknown")
+        or logged.startswith(expected)
+        or expected.startswith(logged)
+    )
+    build_ok = bool(build) and dirty == "0" and commit_matches
+    if not build:
+        build_detail = "no BUILD record; rebuild with the build-provenance change"
+    elif dirty != "0":
+        build_detail = "build tree was dirty; evidence must come from a clean checkout"
+    elif logged == "unknown":
+        build_detail = "build has no git commit (M3DS_BUILD_COMMIT unset and git unavailable)"
+    elif not commit_matches:
+        build_detail = f"log records {logged}, --commit says {expected}"
+    else:
+        build_detail = ""
+    _check(
+        checks,
+        "build.commit",
+        build_ok,
+        "commit=<sha> dirty=0 (matches --commit)",
+        f"commit={logged or 'missing'} dirty={dirty or 'missing'}",
+        detail=build_detail,
+    )
 
     tag = hardware.get("tag", "")
     mem = hardware.get("app_mem_mib")
@@ -346,6 +376,7 @@ def build_summary(
     timestamp: str,
 ) -> dict[str, Any]:
     hardware = hardware_summary(first(records, "HW"))
+    build = first(records, "BUILD")
     loader = first(records, "SECTOR_LOADER")
     parity = first(records, "PARITY")
     frames = [record for record in records if record["tag"] == "FRAME"]
@@ -359,6 +390,11 @@ def build_summary(
         "scenario": scenario,
         "timestamp": timestamp,
         "hardware": hardware,
+        "build": (
+            {"commit": build["kv"].get("commit"), "dirty": build["kv"].get("dirty")}
+            if build
+            else None
+        ),
         "rom": (
             {"path": str(rom), "sha256": sha256_file(rom), "bytes": rom.stat().st_size}
             if rom
@@ -402,6 +438,7 @@ def build_summary(
 
 def render_markdown(summary: dict[str, Any]) -> str:
     hardware = summary["hardware"]
+    build = summary.get("build") or {}
     rom = summary["rom"]
     verdict = summary["verdict"].upper()
     counts = summary["counts"]
@@ -409,6 +446,7 @@ def render_markdown(summary: dict[str, Any]) -> str:
         f"# Hardware evidence — {summary['target']}",
         "",
         f"- Commit: `{summary['commit']}`",
+        f"- Build record: `commit={build.get('commit', 'missing')} dirty={build.get('dirty', 'missing')}`",
         f"- Profile: `{summary['profile']}`",
         f"- Scenario: `{summary['scenario']}`",
         f"- Captured: `{summary['timestamp']}`",
@@ -475,7 +513,7 @@ def main(argv: list[str] | None = None) -> int:
 
     records = parse_records(log_path.read_text(encoding="utf-8", errors="replace"))
     hardware = hardware_summary(first(records, "HW"))
-    checks = build_checks(records, args.profile, args.scenario, hardware)
+    checks = build_checks(records, args.profile, args.scenario, hardware, args.commit)
     timestamp = args.timestamp or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     summary = build_summary(
         records,
