@@ -8,7 +8,6 @@ import mindustry.content.Items;
 import mindustry.content.Liquids;
 import mindustry.game.Team;
 import mindustry.gen.Building;
-import mindustry.graphics.CacheLayer;
 import mindustry.world.blocks.liquid.LiquidRouter;
 import mindustry.world.blocks.production.GenericCrafter;
 import mindustry.world.blocks.production.GenericCrafter.GenericCrafterBuild;
@@ -27,12 +26,19 @@ public final class UpstreamOfflineMaterialsReference implements UpstreamTerrainD
 
     public static void main(String[] args) throws Exception {
         if (args.length != 3) throw new IllegalArgumentException("Expected Glacier, sprites.aatls and block_colors.png");
-        CacheLayer.init();
-        UpstreamWorldLoadProbe.load(new String[]{args[0]});
-        UpstreamTerrainDrawProbe.loadAtlas(new Fi(args[1]), UpstreamFluidAtlas::load);
-        Vars.content.loadColors(new Fi(args[2]));
-        UpstreamCrackAtlas.load();
+        var session = UpstreamSinglePlayerSession.create(new Fi("."), "en");
+        try {
+            session.start(new Fi(args[0]), null, "map");
+            UpstreamTerrainDrawProbe.loadAtlas(new Fi(args[1]), UpstreamFluidAtlas::load);
+            Vars.content.loadColors(new Fi(args[2]));
+            UpstreamCrackAtlas.load();
+            verifyRegistry();
+        } finally {
+            session.shutdown();
+        }
+    }
 
+    private static void verifyRegistry() {
         var target = new UpstreamOfflineMaterialsReference();
         var viewport = UpstreamTerrainDrawProbe.liveViewport(target);
         viewport.moveTo(24, 30);
