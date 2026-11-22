@@ -60,8 +60,8 @@ jobs:
             "$RUNNER_TEMP/teavm-c-wave/all.c" -lm -lpthread -o "$RUNNER_TEMP/teavm-c-wave/probe_o0"
           bash .github/scripts/cc_host.sh -std=gnu11 -O2 -fwrapv -ffp-contract=off \
             "$RUNNER_TEMP/teavm-c-wave/all.c" -lm -lpthread -o "$RUNNER_TEMP/teavm-c-wave/probe_o2"
-          "$RUNNER_TEMP/teavm-c-wave/probe_o0" "$RUNNER_TEMP/glacier.msav" | tee "$RUNNER_TEMP/wave-o0.log"
-          "$RUNNER_TEMP/teavm-c-wave/probe_o2" "$RUNNER_TEMP/glacier.msav" | tee "$RUNNER_TEMP/wave-o2.log"
+          stdbuf -oL -eL "$RUNNER_TEMP/teavm-c-wave/probe_o0" "$RUNNER_TEMP/glacier.msav" | tee "$RUNNER_TEMP/wave-o0.log"
+          stdbuf -oL -eL "$RUNNER_TEMP/teavm-c-wave/probe_o2" "$RUNNER_TEMP/glacier.msav" | tee "$RUNNER_TEMP/wave-o2.log"
           for log in "$RUNNER_TEMP/wave-o0.log" "$RUNNER_TEMP/wave-o2.log"; do
             grep -Fx 'UPSTREAM_WORLD_FINGERPRINT 2e7b9f883994de6c' "$log"
             grep -Fx 'UPSTREAM_WAVE_SETUP core=81,26 enemyCore=81,224 groundSpawns=1 fieldHash=629058db4926d64e' "$log"
