@@ -48,10 +48,11 @@ menu tree is intentionally visible but disabled so the gap is obvious rather tha
 ### Core Database browser
 
 `include/ui/content_catalog.h` and the generated `include/ui/content_catalog_data.h` expose the pinned
-v160.8 bundle entries (`item.<id>.name`, `block.<id>.name`): **22 items** and **258 blocks**. Blocks
-without a `block.<id>.description` entry (parallax, cliffs, boulders, floor variants) are
-environment-only and excluded. The console view shows 12 rows with wrap-around scrolling; L/R switches
-Items/Blocks; B returns to the Database submenu.
+v160.8 bundle entries (`item.<id>.name`, `item.<id>.description`, `block.<id>.name`,
+`block.<id>.description`): **22 items** and **258 blocks**. Blocks without a `description` entry
+(parallax, cliffs, boulders, floor variants) are environment-only and excluded. The console view shows
+12 rows with wrap-around scrolling; L/R switches Items/Blocks; A opens a wrapped description detail
+(A or B returns); B leaves the catalog.
 
 Data and header are reproducible:
 
@@ -114,8 +115,17 @@ MAIN_MENU screen=database selected=database   # B returns
 ```
 
 The catalog renders `Core Database 1/22` (then `1/258` for Blocks), the category name, and 12 rows with
-wrap-around scrolling. Screenshots confirm the Items list (`Beryllium … Phase Fabric`) and the Blocks
-list (`Additive Reconstructor … Basic Assembler Module`).
+wrap-around scrolling. Screenshots confirm the Items list (`Beryllium … Phase Fabric`), the Blocks list
+(`Additive Reconstructor … Basic Assembler Module`), and both detail pages:
+
+```text
+MAIN_MENU catalog=Items selected=copper detail=1
+MAIN_MENU catalog=Blocks selected=additive-reconstructor detail=1
+```
+
+`Copper` shows "Used in all types of construction and ammunition."; `Additive Reconstructor` shows
+"Upgrades inputted units to the second tier." Descriptions are the pinned bundle prose with formatting
+tags and literal newlines normalised for the console.
 
 ## Remaining work
 

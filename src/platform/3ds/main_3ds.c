@@ -595,14 +595,19 @@ int main(int argc, char *argv[]) {
                     m3ds_emit_debug_line(log_socket, dbg_line);
                     break;
                 default:
-                    snprintf(dbg_line, sizeof(dbg_line),
-                             "[MIN3DSTRY] MAIN_MENU screen=%s selected=%s\n",
-                             m3ds_main_menu_screen_name(&main_menu),
-                             m3ds_main_menu_key(
-                                 &main_menu,
-                                 main_menu.screen == M3DS_MENU_SCREEN_CATALOG
-                                     ? main_menu.catalog_selected
-                                     : main_menu.selected));
+                    if (main_menu.screen == M3DS_MENU_SCREEN_CATALOG) {
+                        snprintf(
+                            dbg_line, sizeof(dbg_line),
+                            "[MIN3DSTRY] MAIN_MENU catalog=%s selected=%s detail=%d\n",
+                            m3ds_catalog_category_name(main_menu.catalog_category),
+                            m3ds_main_menu_key(&main_menu, main_menu.catalog_selected),
+                            main_menu.catalog_detail ? 1 : 0);
+                    } else {
+                        snprintf(dbg_line, sizeof(dbg_line),
+                                 "[MIN3DSTRY] MAIN_MENU screen=%s selected=%s\n",
+                                 m3ds_main_menu_screen_name(&main_menu),
+                                 m3ds_main_menu_key(&main_menu, main_menu.selected));
+                    }
                     m3ds_emit_debug_line(log_socket, dbg_line);
                     break;
                 }
@@ -997,27 +1002,60 @@ int main(int argc, char *argv[]) {
             if (main_menu.screen == M3DS_MENU_SCREEN_CATALOG) {
                 size_t total = m3ds_main_menu_count(&main_menu);
                 unsigned selected = main_menu.catalog_selected;
-                printf("\x1b[2;1H%s %u/%u\x1b[K", screen_title,
-                       (unsigned)(selected + 1u), (unsigned)total);
-                printf("\x1b[3;1HCategory: %s\x1b[K",
-                       m3ds_catalog_category_name(main_menu.catalog_category));
-                for (unsigned row = 0u; row < M3DS_CATALOG_ROWS; ++row) {
-                    unsigned index = main_menu.catalog_scroll + row;
-                    if (index >= total) {
-                        printf("\x1b[%u;1H\x1b[K", (unsigned)(4u + row));
-                        continue;
+                if (main_menu.catalog_detail) {
+                    const M3dsCatalogEntry *entry = m3ds_catalog_entry(
+                        main_menu.catalog_category, selected);
+                    const char *description = (entry && entry->description[0])
+                                                  ? entry->description
+                                                  : "No description in the pinned bundle.";
+                    char wrapped[640];
+                    (void)m3ds_catalog_wrap(description, 38u, wrapped,
+                                            sizeof(wrapped));
+                    printf("\x1b[2;1H%s %u/%u\x1b[K", screen_title,
+                           (unsigned)(selected + 1u), (unsigned)total);
+                    printf("\x1b[3;1H%s\x1b[K",
+                           m3ds_main_menu_label(&main_menu, selected));
+                    unsigned row = 5u;
+                    const char *cursor = wrapped;
+                    while (*cursor && row < 22u) {
+                        const char *newline = strchr(cursor, '\n');
+                        size_t length =
+                            newline ? (size_t)(newline - cursor) : strlen(cursor);
+                        printf("\x1b[%u;1H%.*s\x1b[K", row, (int)length, cursor);
+                        ++row;
+                        if (!newline) {
+                            break;
+                        }
+                        cursor = newline + 1;
                     }
-                    printf("\x1b[%u;1H%c %s\x1b[K",
-                           (unsigned)(4u + row),
-                           index == selected ? '>' : ' ',
-                           m3ds_main_menu_label(&main_menu, index));
+                    for (; row < 22u; ++row) {
+                        printf("\x1b[%u;1H\x1b[K", row);
+                    }
+                    printf("\x1b[24;1HDetail  A/B: Back  START: Exit\x1b[K");
+                    printf("\x1b[25;1H\x1b[K");
+                } else {
+                    printf("\x1b[2;1H%s %u/%u\x1b[K", screen_title,
+                           (unsigned)(selected + 1u), (unsigned)total);
+                    printf("\x1b[3;1HCategory: %s\x1b[K",
+                           m3ds_catalog_category_name(main_menu.catalog_category));
+                    for (unsigned row = 0u; row < M3DS_CATALOG_ROWS; ++row) {
+                        unsigned index = main_menu.catalog_scroll + row;
+                        if (index >= total) {
+                            printf("\x1b[%u;1H\x1b[K", (unsigned)(4u + row));
+                            continue;
+                        }
+                        printf("\x1b[%u;1H%c %s\x1b[K",
+                               (unsigned)(4u + row),
+                               index == selected ? '>' : ' ',
+                               m3ds_main_menu_label(&main_menu, index));
+                    }
+                    for (unsigned line = (unsigned)(4u + M3DS_CATALOG_ROWS);
+                         line < 22u; ++line) {
+                        printf("\x1b[%u;1H\x1b[K", line);
+                    }
+                    printf("\x1b[24;1HD-Pad Scroll  L/R Category  B Back\x1b[K");
+                    printf("\x1b[25;1H\x1b[K");
                 }
-                for (unsigned line = (unsigned)(4u + M3DS_CATALOG_ROWS); line < 22u;
-                     ++line) {
-                    printf("\x1b[%u;1H\x1b[K", line);
-                }
-                printf("\x1b[24;1HD-Pad Scroll  L/R Category  B Back\x1b[K");
-                printf("\x1b[25;1H\x1b[K");
             } else {
                 printf("\x1b[2;1H%s\x1b[K", screen_title);
                 unsigned item_row = 4u;

@@ -19,6 +19,7 @@ typedef enum {
 typedef struct {
     const char *id;
     const char *name;
+    const char *description;
 } M3dsCatalogEntry;
 
 /* Rows visible in the console catalog view. */
@@ -29,5 +30,12 @@ size_t m3ds_catalog_count(M3dsCatalogCategory category);
 const M3dsCatalogEntry *m3ds_catalog_entry(M3dsCatalogCategory category, size_t index);
 
 const char *m3ds_catalog_category_name(M3dsCatalogCategory category);
+
+/*
+ * Greedy word wrap for the console detail view. Writes at most `out_size - 1`
+ * bytes into `out`, separates lines with '\n', and returns the number of
+ * complete lines written (0 for empty text).
+ */
+size_t m3ds_catalog_wrap(const char *text, size_t width, char *out, size_t out_size);
 
 #endif
