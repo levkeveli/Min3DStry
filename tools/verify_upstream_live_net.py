@@ -1674,14 +1674,16 @@ def start_stock_weather(log, emulator, server_log, server, timeout):
 
 def verify_stock_weather(text, model):
     ready = "state=ready" in text
-    for weather, sound_id, frames, max_gain in (
+    for weather, sound_id, stream_frames, max_gain in (
         ("rain", 105, 195235, 0.25),
-        ("sandstorm", 199, 132108, 0.8),
+        ("sandstorm", 199, None, 0.8),
         ("snowing", 202, 602477, 1.0),
     ):
         received = re.search(rf"UPSTREAM_LIVE_WEATHER name={weather}\b", text)
-        pattern = (rf"UPSTREAM_LIVE_STREAM_PLAY id={sound_id} volume=({NUMBER}) pitch=1\.000 "
-                   rf"pan=({NUMBER}) voice=(\d+) frames={frames} loop=1\b")
+        route = "STREAM_PLAY" if stream_frames is not None else "AUDIO_PLAY"
+        buffer = rf"frames={stream_frames}" if stream_frames is not None else r"pcmBytes=\d+"
+        pattern = (rf"UPSTREAM_LIVE_{route} id={sound_id} volume=({NUMBER}) pitch=1\.000 "
+                   rf"pan=({NUMBER}) voice=(\d+) {buffer} loop=1\b")
         played = re.search(pattern, text)
         if (not received or not played or played.start() < received.start()
                 or not 0.01 <= float(played[1]) <= max_gain or abs(float(played[2])) > 0.001

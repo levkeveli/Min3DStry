@@ -173,7 +173,8 @@ static void verify_stream(unsigned id, const M3dsAudioIndexEntry *entry) {
 }
 
 static void verify_parallel_streams(void) {
-    const int ids[] = {6, 7, 35, 54};
+    // The streamed weather loops can share all four lanes with two long effects.
+    const int ids[] = {105, 202, 200, 6};
     int32_t voices[4];
     uint64_t before = streamed_frames;
     uint64_t file_frames = 0;
@@ -186,6 +187,8 @@ static void verify_parallel_streams(void) {
         assert(voices[i] > 0);
         for (size_t j = 0; j < i; j++) assert(voices[i] != voices[j]);
     }
+    int32_t wind = m3ds_live_audio_play(199, 0.5f, 1.f, 0.f, 1);
+    assert(wind > 0 && m3ds_live_audio_is_active(wind));
     assert(m3ds_live_audio_play(59, 0.5f, 1.f, 0.f, 0) == 0);
     m3ds_live_audio_set_mix(voices[0], -0.5f, 0.5f);
     m3ds_live_audio_set_pitch(voices[0], 0.5f);
@@ -205,7 +208,10 @@ static void verify_parallel_streams(void) {
         assert(m3ds_live_audio_is_active(voices[i]));
     }
     m3ds_live_audio_reset();
-    assert(!m3ds_live_audio_is_active(replacement));
+    assert(!m3ds_live_audio_is_active(replacement) && !m3ds_live_audio_is_active(wind));
+    for (size_t i = 0; i < sizeof(voices) / sizeof(voices[0]); i++) {
+        assert(!m3ds_live_audio_is_active(voices[i]));
+    }
 }
 
 static void verify_source_stop(void) {

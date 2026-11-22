@@ -521,8 +521,10 @@ their own rendering support.
 Add `--verify-weather-audio` to the Glacier weapon replay. The unmodified
 Java server sends weather after the first rendered frame. The verifier
 checks the incoming weather packets and stock sound IDs for rain (105),
-sandstorm (199), and snow (202). The JVM reference also checks the shared sporestorm loop,
-the original gains and centered pan, and fade-out after weather expiry.
+sandstorm (199), and snow (202). The JVM reference checks the shared
+sporestorm loop, gains, centered pan, and fade-out after expiry. The mock
+DSP test plays cached wind and the two streamed weather loops alongside
+two long effects, then checks that reset releases every voice.
 
 Run `python3 tools/verify_live_stock_audio.py <terrain-assets>` with the
 staged directory to exercise all 205 PCM files through the live mixer and
