@@ -1,0 +1,72 @@
+name: Wave routing host C
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/wave-routing-host.yml"
+      - ".github/scripts/cc_host.sh"
+      - ".github/scripts/fetch_upstream_v160.sh"
+      - "research/upstream-runtime/src/content/java/UpstreamWorldLoadProbe.java"
+      - "research/upstream-runtime/src/gameplay/java/UpstreamWaveRoutingProbe.java"
+      - "research/upstream-runtime/src/gameplay/java/ProbeListenerShutdown.java"
+      - "research/upstream-runtime/build.gradle"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  host-c:
+    name: Host C wave-routing trace
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Fetch pinned upstream source, map, server JAR, and Arc
+        run: |
+          bash .github/scripts/fetch_upstream_v160.sh \
+            --mindustry --server-jar --arc --glacier
+
+      - name: Generate TeaVM C
+        run: |
+          bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime \
+            --no-daemon --console=plain \
+            "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" \
+            "-PreferenceJar=$RUNNER_TEMP/server-release.jar" \
+            "-ParcCheckout=$RUNNER_TEMP/Arc" \
+            "-PprobeArgs=$RUNNER_TEMP/glacier.msav" \
+            -Pprobe=wave-routing \
+            runProbeJvm generateC | tee "$RUNNER_TEMP/wave-jvm.log"
+          grep -F 'UPSTREAM_WAVE_SETUP core=81,26 enemyCore=81,224 groundSpawns=1 fieldHash=629058db4926d64e' \
+            "$RUNNER_TEMP/wave-jvm.log"
+          grep -F 'UPSTREAM_WAVE wave=4 spawned=dagger=2 groundSpawned=2 first=79,219->80,173 distance=1546->1177 min=1177 alive=2/2 ammo=29 nextWave=5' \
+            "$RUNNER_TEMP/wave-jvm.log"
+
+      - name: Compile and run host C at -O0 and -O2
+        run: |
+          set -o pipefail
+          rm -rf "$RUNNER_TEMP/teavm-c-wave"
+          cp -R research/upstream-runtime/build/generated/teavm/c "$RUNNER_TEMP/teavm-c-wave"
+          python3 research/upstream-runtime/arm11/fix_reflection_lifetime.py "$RUNNER_TEMP/teavm-c-wave"
+          bash .github/scripts/cc_host.sh -std=gnu11 -O0 -fwrapv -ffp-contract=off \
+            "$RUNNER_TEMP/teavm-c-wave/all.c" -lm -lpthread -o "$RUNNER_TEMP/teavm-c-wave/probe_o0"
+          bash .github/scripts/cc_host.sh -std=gnu11 -O2 -fwrapv -ffp-contract=off \
+            "$RUNNER_TEMP/teavm-c-wave/all.c" -lm -lpthread -o "$RUNNER_TEMP/teavm-c-wave/probe_o2"
+          "$RUNNER_TEMP/teavm-c-wave/probe_o0" "$RUNNER_TEMP/glacier.msav" | tee "$RUNNER_TEMP/wave-o0.log"
+          "$RUNNER_TEMP/teavm-c-wave/probe_o2" "$RUNNER_TEMP/glacier.msav" | tee "$RUNNER_TEMP/wave-o2.log"
+          for log in "$RUNNER_TEMP/wave-o0.log" "$RUNNER_TEMP/wave-o2.log"; do
+            grep -Fx 'UPSTREAM_WORLD_FINGERPRINT 2e7b9f883994de6c' "$log"
+            grep -Fx 'UPSTREAM_WAVE_SETUP core=81,26 enemyCore=81,224 groundSpawns=1 fieldHash=629058db4926d64e' "$log"
+            grep -Fx 'UPSTREAM_WAVE wave=1 spawned=dagger=1 groundSpawned=1 first=79,218->80,172 distance=1533->1165 min=1165 alive=1/1 ammo=30 nextWave=2' "$log"
+            grep -Fx 'UPSTREAM_WAVE wave=2 spawned=dagger=1,gamma=2 groundSpawned=1 first=82,217->80,171 distance=1524->1159 min=1159 alive=1/1 ammo=30 nextWave=3' "$log"
+            grep -Fx 'UPSTREAM_WAVE wave=3 spawned=dagger=2 groundSpawned=2 first=79,219->80,173 distance=1545->1177 min=1177 alive=2/2 ammo=30 nextWave=4' "$log"
+            grep -Fx 'UPSTREAM_WAVE wave=4 spawned=dagger=2 groundSpawned=2 first=79,219->80,173 distance=1546->1177 min=1177 alive=2/2 ammo=29 nextWave=5' "$log"
+          done
