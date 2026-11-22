@@ -1,5 +1,6 @@
 import arc.Core;
 import arc.files.Fi;
+import arc.mock.MockAudio;
 import java.util.zip.InflaterInputStream;
 import mindustry.Vars;
 import mindustry.ai.BlockIndexer;
@@ -17,6 +18,8 @@ import mindustry.net.NetworkIO;
 import mindustry.net.Net;
 import mindustry.type.Category;
 import mindustry.world.blocks.distribution.Sorter;
+import mindustry.world.blocks.payloads.UnitPayload;
+import mindustry.world.blocks.units.UnitFactory;
 
 /** Runs the touch adapter against the pinned upstream world, unit and build queue. */
 public final class UpstreamBuildControlsReference {
@@ -76,9 +79,56 @@ public final class UpstreamBuildControlsReference {
         }
         verifyCatalog(controls, unit);
         verifyConfiguration(controls, unit);
+        verifyFactoryConfiguration(controls, unit);
         verifyPlanetShortcuts(unit);
         verifyMining(unit);
         System.out.println("UPSTREAM_TOUCH_REFERENCE conveyor=85,26,1 wall=86,26 break=86,26");
+    }
+
+    private static void verifyFactoryConfiguration(UpstreamLiveBuildControls controls, Unit unit) {
+        var block = (UnitFactory)Blocks.groundFactory;
+        var tile = Vars.world.tile(78, 22);
+        tile.setBlock(block, unit.team(), 0);
+        var factory = (UnitFactory.UnitFactoryBuild)tile.build;
+        var banned = block.plans.get(0).unit;
+        var selected = block.plans.get(1);
+        var oldAudio = Core.audio;
+        Core.audio = new MockAudio();
+        Vars.state.rules.bannedUnits.add(banned);
+        controls.viewport(73, 20);
+        try {
+            factory.progress = 10f;
+            controls.update(unit, 0, touch(305, 64));
+            controls.update(unit, 0, touch(120, 200));
+            var config = controls.buildingConfig();
+            if (!config.isOpen() || !config.unitPlans() || config.iconIds()[0] != selected.unit.id) {
+                throw new AssertionError("Factory menu must omit banned units and show original unit icons");
+            }
+            int row = UpstreamBuildMenu.ROW_TOP + 2;
+            controls.update(unit, 0, touch(160, row));
+            if (factory.currentPlan != 1 || factory.progress != 0 || factory.unit() != selected.unit) {
+                throw new AssertionError("Expected the stock plan index and progress reset");
+            }
+            for (var cost : selected.requirements) factory.items.add(cost.item, cost.amount);
+            factory.progress = selected.time;
+            factory.updateTile();
+            if (!(factory.getPayload() instanceof UnitPayload payload) || payload.unit.type != selected.unit) {
+                throw new AssertionError("The stock factory did not produce the selected unit");
+            }
+            for (var cost : selected.requirements) {
+                if (factory.items.has(cost.item)) throw new AssertionError("Factory did not consume " + cost.item.name);
+            }
+            controls.update(unit, 0, touch(305, 64));
+            controls.update(unit, 0, touch(120, 200));
+            controls.update(unit, 0, touch(160, row));
+            if (factory.currentPlan != -1) throw new AssertionError("Tapping the selected plan must clear it");
+            System.out.println("UPSTREAM_FACTORY_PLAN_REFERENCE banned=" + banned.name
+                + " selected=" + selected.unit.name + " plan=1 reset=ok production=ok clear=ok");
+        } finally {
+            Core.audio = oldAudio;
+            Vars.state.rules.bannedUnits.remove(banned);
+            tile.setBlock(Blocks.air);
+        }
     }
 
     private static void verifyMining(Unit gamma) {

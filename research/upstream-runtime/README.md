@@ -562,7 +562,8 @@ use English labels.
 The touchscreen block catalog and Sorter item menu draw their original
 icons. Multiplayer asset preparation uses the stock v160.8 registry and
 `UnlockableContent.loadIcon` to select each texture by the upstream ID.
-It exports 425 block icons and all 22 item icons. The renderer keeps up
+It exports 425 block icons, all 22 item icons, and seven original unit
+icons for the stock configurable factory plans. The renderer keeps up
 to six icon textures resident, with a combined texel budget of at most
 384 KiB. It replaces each row's old texture after the preceding GPU
 frame completes.

@@ -119,7 +119,7 @@ profiles. Physical console memory use and frame-rate targets remain open.
 | Circle Pad / D-Pad | Move player `Alpha` unit and pan centered viewport |
 | Touch grid (`16x12`) | Place / break / configure / select mine ore at tile |
 | Touch `Mine` (`x >= 288, 80 <= y < 112`) | Toggle ore mining target selection |
-| Touch `List` / `Config` / Bottom bar | Open block catalog (`UpstreamBuildMenu`), block config (`UpstreamItemConfig`), shortcuts, `Rotate`, or `Remove` |
+| Touch `List` / `Config` / Bottom bar | Open block catalog (`UpstreamBuildMenu`), block config (`UpstreamBuildingConfig`), shortcuts, `Rotate`, or `Remove` |
 | `A` / `R` / `B` | Place at cursor / rotate block / toggle remove mode |
 | `X` | Toggle simulation Pause / Resume (`UPSTREAM_SP_PAUSE`) |
 | `Y` | Trigger next enemy wave (`UPSTREAM_SP_WAVE`) |

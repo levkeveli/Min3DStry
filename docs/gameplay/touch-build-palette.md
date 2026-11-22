@@ -35,6 +35,19 @@ under the touch build/catalog sections; the automated paths are
 `--controls-replay`. `research/upstream-runtime/src/network-live/host/UpstreamBuildControlsReference.java`
 checks the JVM-side selection/rotation/removal decisions.
 
+## Unit factory plans
+
+Tap **Config**, then a configurable unit factory in the world grid.
+The menu uses the factory's original production plans, stock names, and
+unit icons. It omits locked or banned units. Selecting a row sends the
+existing stock plan index through `Building.configure`. Selecting the
+active row again clears the plan using the original configuration handler.
+
+The JVM touch reference verifies that a banned first plan leaves the
+second plan's index intact. It then verifies that selection resets progress
+and that the original factory consumes the recipe items and produces the
+selected Crawler. ARM11 interaction and save/reload verification are pending.
+
 ## Limits
 
 - The palette is a bounded prototype, not the final upstream layout; not every

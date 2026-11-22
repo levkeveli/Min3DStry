@@ -234,17 +234,18 @@ public final class UpstreamRenderedNetworkProbe {
         drawObjectives(drawStatusHud());
         var block = buildingControls.block();
         var catalog = buildingControls.catalog();
-        var config = buildingControls.itemConfig();
+        var config = buildingControls.buildingConfig();
         int shortcut = block == buildingControls.shortcut(0) ? 0 : block == buildingControls.shortcut(1) ? 1 : -1;
         target.buildOverlay(buildingControls.cursorX() - viewport.left, buildingControls.cursorY() - viewport.bottom,
             shortcut, buildingControls.rotation(), buildingControls.removing(), block.rotate,
             catalog.isOpen() || config.isOpen(), buildingControls.configuring(), buildingControls.selectingMine());
         if (catalog.isOpen()) {
             drawMenu(catalog.labels(), catalog.iconIds(), catalog.selectedRow(block),
-                catalog.previousPage(), catalog.nextPage(), true);
+                catalog.previousPage(), catalog.nextPage(), UpstreamTerrainRenderProbe.BLOCK_CATALOG);
         } else if (config.isOpen()) {
             drawMenu(config.labels(), config.iconIds(), config.selectedRow(),
-                config.previousPage(), config.nextPage(), false);
+                config.previousPage(), config.nextPage(),
+                config.unitPlans() ? UpstreamTerrainRenderProbe.UNIT_CATALOG : UpstreamTerrainRenderProbe.ITEM_CATALOG);
         } else {
             lastMenu = null;
         }
@@ -356,10 +357,15 @@ public final class UpstreamRenderedNetworkProbe {
     }
 
     private void drawMenu(byte[] labels, int[] icons, int selected,
-                          boolean previous, boolean next, boolean categories) {
-        int drawn = target.buildCatalog(labels, icons, selected, previous, next, categories);
+                            boolean previous, boolean next, int catalog) {
+        int drawn = target.buildCatalog(labels, icons, selected, previous, next, catalog);
         if (lastMenu != labels) {
-            System.out.println("UPSTREAM_MENU_ICONS type=" + (categories ? "block" : "item") + " drawn=" + drawn);
+            String type = switch (catalog) {
+                case UpstreamTerrainRenderProbe.BLOCK_CATALOG -> "block";
+                case UpstreamTerrainRenderProbe.UNIT_CATALOG -> "unit";
+                default -> "item";
+            };
+            System.out.println("UPSTREAM_MENU_ICONS type=" + type + " drawn=" + drawn);
             lastMenu = labels;
         }
     }
