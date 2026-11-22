@@ -97,3 +97,10 @@ jobs:
             test -s build/min3dstry.smdh
             ls -l build/min3dstry.3dsx
           '
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: min3dstry-embedded-loader
+          path: |
+            build/min3dstry.3dsx
+            build/min3dstry.smdh
