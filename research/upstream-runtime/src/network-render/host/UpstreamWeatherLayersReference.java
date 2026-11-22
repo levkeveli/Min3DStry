@@ -11,11 +11,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import mindustry.Vars;
+import mindustry.content.Blocks;
 import mindustry.content.Weathers;
 import mindustry.core.NetClient;
 import mindustry.gen.Groups;
 import mindustry.gen.WeatherState;
 import mindustry.graphics.Layer;
+import mindustry.world.blocks.environment.Floor;
 import port.render.WeatherNoiseTexture;
 
 final class UpstreamWeatherLayersReference implements UpstreamTerrainDrawProbe.TerrainTarget {
@@ -62,6 +64,7 @@ final class UpstreamWeatherLayersReference implements UpstreamTerrainDrawProbe.T
                     Time.time = 207f;
                     target.compare(layers, state, alpha, true);
                     int under = target.commands.size();
+                    if (weather == Weathers.rain) target.verifyWaterSplashes(layers, state, alpha);
                     target.compare(layers, state, alpha, false);
                     int over = target.commands.size();
                     List<String> first = List.copyOf(target.commands);
@@ -90,6 +93,30 @@ final class UpstreamWeatherLayersReference implements UpstreamTerrainDrawProbe.T
             Vars.netClient = client;
             Time.time = time;
             Time.delta = delta;
+        }
+    }
+
+    private void verifyWaterSplashes(UpstreamWeatherLayers layers, WeatherState rain, float alpha) {
+        int left = 72, bottom = 18, columns = 19, rows = 17;
+        var floors = new Floor[rows][columns];
+        try {
+            for (int y = 0; y < rows; y++) {
+                for (int x = 0; x < columns; x++) {
+                    var tile = Vars.world.tile(left + x, bottom + y);
+                    floors[y][x] = tile.floor();
+                    tile.setFloor(Blocks.water.asFloor());
+                }
+            }
+            compare(layers, rain, alpha, true);
+            long splashes = commands.stream().filter(command -> command.startsWith("sprite ")).count();
+            if (splashes == 0) throw new AssertionError("Original rain did not use the stock water splash atlas");
+            System.out.println("UPSTREAM_WEATHER_WATER_SPLASHES sprites=" + splashes);
+        } finally {
+            for (int y = 0; y < rows; y++) {
+                for (int x = 0; x < columns; x++) {
+                    if (floors[y][x] != null) Vars.world.tile(left + x, bottom + y).setFloor(floors[y][x]);
+                }
+            }
         }
     }
 
