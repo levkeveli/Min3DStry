@@ -30,7 +30,6 @@ import mindustry.world.blocks.payloads.PayloadConveyor.PayloadConveyorBuild;
 import mindustry.world.blocks.payloads.UnitPayload;
 import mindustry.world.blocks.liquid.Conduit;
 import mindustry.world.blocks.distribution.Conveyor.ConveyorBuild;
-import mindustry.world.blocks.distribution.Sorter;
 import mindustry.world.blocks.storage.CoreBlock;
 
 /** Presents the received multiplayer world through the ARM11 terrain renderer. */
@@ -339,10 +338,9 @@ public final class UpstreamRenderedNetworkProbe {
     static boolean supportsBuildingDraw(Building build) {
         var block = build.block;
         // These blocks use the sprite operations available in the live backend.
-        return UpstreamBuildingLayers.supportsPowerDraw(block)
-            || block instanceof CoreBlock || block == Blocks.conveyor || block == Blocks.copperWall
-            || block == Blocks.duct || block == Blocks.berylliumWall
-            || block == Blocks.copperWallLarge || block == Blocks.router || block instanceof Sorter
+        return UpstreamBuildingLayers.supportsPowerDraw(block) || UpstreamBuildingLayers.supportsDistributionDraw(block)
+            || block instanceof CoreBlock || block == Blocks.copperWall
+            || block == Blocks.berylliumWall || block == Blocks.copperWallLarge
             || block == Blocks.mechanicalDrill || block instanceof Conduit
             || block == Blocks.phaseWeaver || block == Blocks.overdriveProjector
             || block == Blocks.overdriveDome || block == Blocks.shockwaveTower

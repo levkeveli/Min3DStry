@@ -8,7 +8,9 @@ import mindustry.gen.Building;
 import mindustry.graphics.BuildingCacheLayer;
 import mindustry.graphics.CacheLayer;
 import mindustry.graphics.Layer;
+import mindustry.type.Category;
 import mindustry.world.Block;
+import mindustry.world.meta.BuildVisibility;
 import mindustry.world.blocks.payloads.PayloadConveyor.PayloadConveyorBuild;
 import mindustry.world.blocks.power.BeamNode.BeamNodeBuild;
 import mindustry.world.blocks.power.LightBlock;
@@ -22,6 +24,11 @@ final class UpstreamBuildingLayers {
 
     static boolean supportsPowerDraw(Block block) {
         return block instanceof PowerBlock || block instanceof PowerDiode || block instanceof LightBlock;
+    }
+
+    static boolean supportsDistributionDraw(Block block) {
+        // Uncatalogued blocks also default to the distribution category.
+        return block.category == Category.distribution && block.buildVisibility != BuildVisibility.hidden;
     }
 
     void render(UpstreamTerrainDrawProbe.Viewport viewport, Team viewer, Predicate<Building> supported) {

@@ -67,6 +67,10 @@ public final class UpstreamTerrainDrawProbe {
         boolean wasHeadless = Vars.headless;
         Vars.headless = false;
         try {
+            if (prepareLiveAtlas != null) {
+                // Conveyors and stack conveyors draw the original Item.fullIcon.
+                for (var item : Vars.content.items()) item.loadIcon();
+            }
             for (var block : Vars.content.blocks()) {
                 if (block == Blocks.air) continue;
                 if (block instanceof Floor || prepareLiveAtlas != null) {
