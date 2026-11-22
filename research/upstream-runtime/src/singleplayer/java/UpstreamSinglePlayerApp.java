@@ -36,13 +36,12 @@ import mindustry.gen.Tankc;
 import mindustry.gen.Unit;
 import mindustry.gen.UnitWaterMove;
 import mindustry.type.UnitType;
+import mindustry.type.Category;
 import mindustry.world.Block;
 import mindustry.world.blocks.ConstructBlock.ConstructBuild;
 import mindustry.world.blocks.defense.Wall;
 import mindustry.world.blocks.defense.turrets.BaseTurret;
 import mindustry.world.blocks.defense.turrets.ItemTurret;
-import mindustry.world.blocks.liquid.LiquidRouter;
-import mindustry.world.blocks.liquid.Conduit;
 import mindustry.world.blocks.production.GenericCrafter;
 import mindustry.world.blocks.production.Pump;
 import mindustry.world.blocks.production.Separator;
@@ -692,11 +691,11 @@ public final class UpstreamSinglePlayerApp {
     static boolean supportsBuildingDraw(Building build) {
         var block = build.block;
         return UpstreamBuildingLayers.supportsPowerDraw(block) || UpstreamBuildingLayers.supportsDistributionDraw(block)
-            || block instanceof UnitFactory || block instanceof StorageBlock || block instanceof Wall
+            || block.category == Category.liquid || block instanceof UnitFactory
+            || block instanceof StorageBlock || block instanceof Wall
             || block == Blocks.mechanicalDrill || block == Blocks.pneumaticDrill
-            || block instanceof BaseTurret || block instanceof Conduit
+            || block instanceof BaseTurret
             || block instanceof GenericCrafter || block instanceof Separator || block instanceof Pump
-            || block instanceof LiquidRouter
             || block == Blocks.overdriveProjector
             || block == Blocks.overdriveDome || block == Blocks.shockwaveTower;
     }

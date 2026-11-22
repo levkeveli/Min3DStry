@@ -39,6 +39,7 @@ import mindustry.game.MapObjectives.ItemObjective;
 import mindustry.graphics.CacheLayer;
 import mindustry.graphics.Layer;
 import mindustry.graphics.Pal;
+import mindustry.type.Category;
 import mindustry.world.Block;
 import mindustry.world.blocks.defense.OverdriveProjector.OverdriveBuild;
 import mindustry.world.blocks.defense.ShockwaveTower.ShockwaveTowerBuild;
@@ -125,6 +126,8 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         target.verifyLiveBuildingRegistry(layers, viewport, viewer, block -> block instanceof BaseTurret, "TURRET");
         target.verifyLiveBuildingRegistry(layers, viewport, viewer, UpstreamBuildingLayers::supportsDistributionDraw,
             "DISTRIBUTION");
+        target.verifyLiveBuildingRegistry(layers, viewport, viewer, block -> block.category == Category.liquid,
+            "LIQUID");
         if (args.length == 4) verifyObjectiveHud();
     }
 

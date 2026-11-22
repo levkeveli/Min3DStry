@@ -60,6 +60,7 @@ public final class UpstreamOfflineMaterialsReference implements UpstreamTerrainD
             verifyRegistry();
             UpstreamDistributionReference.verify();
             verifyTurretRegistry();
+            UpstreamLiquidReference.verify();
         } finally {
             session.shutdown();
         }
