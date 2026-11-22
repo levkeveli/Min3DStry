@@ -72,6 +72,13 @@ SD directory. Arc manages the settings backup. The offline executable
 reserves a 512 KiB native stack for the nested upstream serializer used by
 campaign saves with objective markers.
 
+The [ARM11 build from `c42a78b`](https://github.com/levkeveli/Min3DStry/actions/runs/45042352829)
+opened Ground Zero, highlighted the stock last save in the two-sector menu,
+and saved back to the selected slot on both Azahar 2126.2 profiles. The
+stock v160.8 server reopened all four save and settings pairs. It found the
+original partial research value, content unlock, custom sector name, origin,
+and unrelated copied preferences, with the correct last sector for each run.
+
 Use the stock v160.8 server to add `settings.bin` to the sector fixture directory.
 
 ```sh
