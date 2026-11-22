@@ -10,6 +10,13 @@ import mindustry.content.Liquids;
 import mindustry.game.Team;
 import mindustry.gen.Building;
 import mindustry.type.Category;
+import mindustry.world.blocks.defense.turrets.BaseTurret;
+import mindustry.world.blocks.defense.turrets.BaseTurret.BaseTurretBuild;
+import mindustry.world.blocks.defense.turrets.ContinuousLiquidTurret;
+import mindustry.world.blocks.defense.turrets.ItemTurret;
+import mindustry.world.blocks.defense.turrets.LiquidTurret;
+import mindustry.world.blocks.defense.turrets.TractorBeamTurret.TractorBeamBuild;
+import mindustry.world.blocks.defense.turrets.Turret.TurretBuild;
 import mindustry.world.blocks.liquid.LiquidRouter;
 import mindustry.world.blocks.power.BeamNode;
 import mindustry.world.blocks.power.BeamNode.BeamNodeBuild;
@@ -44,6 +51,7 @@ public final class UpstreamOfflineMaterialsReference implements UpstreamTerrainD
             Vars.content.loadColors(new Fi(args[2]));
             UpstreamCrackAtlas.load();
             verifyRegistry();
+            verifyTurretRegistry();
         } finally {
             session.shutdown();
         }
@@ -107,6 +115,59 @@ public final class UpstreamOfflineMaterialsReference implements UpstreamTerrainD
         } finally {
             first.setBlock(Blocks.air);
             second.setBlock(Blocks.air);
+        }
+    }
+
+    private static void verifyTurretRegistry() {
+        var target = new UpstreamOfflineMaterialsReference();
+        var viewport = UpstreamTerrainDrawProbe.liveViewport(target);
+        viewport.moveTo(24, 30);
+        var tile = Vars.world.tile(31, 36);
+        var viewer = Team.sharded;
+        var layers = new UpstreamBuildingLayers();
+        int tested = 0;
+        for (var block : Vars.content.blocks()) {
+            if (!(block instanceof BaseTurret) && block.category != Category.turret) continue;
+            tile.setBlock(block, viewer, 0);
+            try {
+                var build = tile.build;
+                if (!UpstreamSinglePlayerApp.supportsBuildingDraw(build)
+                        || !UpstreamRenderedNetworkProbe.supportsBuildingDraw(build)) {
+                    throw new AssertionError("An ARM11 draw pass excludes " + block.name);
+                }
+                target.verifyDraw(layers, viewport, viewer, build, "idle");
+                activateTurret((BaseTurretBuild)build);
+                target.verifyDraw(layers, viewport, viewer, build, "active");
+                tested++;
+            } finally {
+                tile.setBlock(Blocks.air);
+            }
+        }
+        if (tested == 0) throw new AssertionError("The stock turret registry was empty");
+        System.out.println("UPSTREAM_STOCK_TURRET_DRAW tested=" + tested);
+    }
+
+    private static void activateTurret(BaseTurretBuild build) {
+        build.rotation = 65f;
+        build.efficiency = 1f;
+        if (build instanceof TurretBuild turret) {
+            turret.heat = 0.7f;
+            turret.curRecoil = 0.6f;
+            turret.charge = 0.65f;
+            turret.shootWarmup = 0.8f;
+        }
+        if (build instanceof TractorBeamBuild tractor) {
+            tractor.any = true;
+            tractor.strength = 0.8f;
+            tractor.lastX = build.x - 20f;
+            tractor.lastY = build.y - 16f;
+        }
+        if (build.block instanceof ItemTurret item) {
+            build.handleItem(build, item.ammoTypes.keys().next());
+        } else if (build.block instanceof LiquidTurret liquid) {
+            build.liquids.add(liquid.ammoTypes.keys().next(), build.block.liquidCapacity / 2f);
+        } else if (build.block instanceof ContinuousLiquidTurret liquid) {
+            build.liquids.add(liquid.ammoTypes.keys().next(), build.block.liquidCapacity / 2f);
         }
     }
 
