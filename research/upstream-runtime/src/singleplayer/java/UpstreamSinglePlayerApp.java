@@ -15,7 +15,6 @@ import arc.util.Time;
 import arc.util.Strings;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.List;
 import mindustry.Vars;
 import mindustry.content.Blocks;
@@ -202,13 +201,14 @@ public final class UpstreamSinglePlayerApp {
 
     private record CustomGame(Map map, Gamemode mode) {}
 
+    private record CustomGameRows(byte[][] labels, int[][] characters) {}
+
     private CustomGame chooseCustomGame(List<Map> maps, boolean canResume) {
         Gamemode[] modes = {Gamemode.survival, Gamemode.sandbox, Gamemode.attack, Gamemode.pvp};
         int firstMap = canResume ? 1 : 0;
         int count = firstMap + maps.size();
         int selected = 0, mode = 0, lastX = 0, lastY = 0, renderedRow = -1, renderedMode = -1;
-        byte[][] labels = null;
-        int[][] characters = null;
+        CustomGameRows rows = null;
         target.buildLabels(new byte[8]);
         System.out.println("UPSTREAM_CUSTOM_GAME_MENU maps=" + maps.size());
         // Consume the launcher's button edges before accepting menu input.
@@ -232,34 +232,49 @@ public final class UpstreamSinglePlayerApp {
                 return new CustomGame(selected < firstMap ? null : maps.get(selected - firstMap), modes[mode]);
             }
             if (selected != renderedRow || mode != renderedMode) {
-                var rows = new ArrayList<String>();
-                String title = Core.bundle.get("customgame");
-                rows.add(selected < firstMap ? title : title + " / " + modes[mode]);
-                int first = (selected / 6) * 6;
-                for (int i = first; i < Math.min(first + 6, count); i++) {
-                    String label = i < firstMap ? Core.bundle.get("loadgame")
-                        : Strings.stripColors(maps.get(i - firstMap).name());
-                    rows.add((i == selected ? "> " : "  ") + label);
-                }
-                labels = new byte[rows.size()][];
-                characters = new int[rows.size()][];
-                for (int i = 0; i < rows.size(); i++) {
-                    labels[i] = (rows.get(i) + "\0").getBytes(StandardCharsets.UTF_8);
-                    characters[i] = encodeLabel(UpstreamLabelText.parse(rows.get(i)));
-                }
+                rows = encodeCustomGameRows(customGameCaptions(maps, firstMap, selected, modes[mode]));
                 renderedRow = selected;
                 renderedMode = mode;
             }
-            target.begin(0, 0, UpstreamTerrainDrawProbe.VIEW_WIDTH, UpstreamTerrainDrawProbe.VIEW_HEIGHT);
-            try {
-                float rowY = 6f;
-                for (int i = 0; i < labels.length; i++) {
-                    rowY = target.drawObjective(labels[i], characters[i], null, rowY);
-                }
-            } finally {
-                target.end();
-            }
+            drawCustomGameRows(rows);
             while (System.nanoTime() < nextFrame) Thread.yield();
+        }
+    }
+
+    static String[] customGameCaptions(List<Map> maps, int firstMap, int selected, Gamemode mode) {
+        int first = (selected / 6) * 6;
+        int end = Math.min(first + 6, firstMap + maps.size());
+        String[] captions = new String[1 + end - first];
+        String title = Core.bundle.get("customgame");
+        captions[0] = selected < firstMap ? title : title + " / " + mode;
+        for (int i = first; i < end; i++) {
+            String label = i < firstMap ? Core.bundle.get("loadgame")
+                : Strings.stripColors(maps.get(i - firstMap).name());
+            captions[1 + i - first] = (i == selected ? "> " : "  ") + label;
+        }
+        return captions;
+    }
+
+    private static CustomGameRows encodeCustomGameRows(String[] captions) {
+        byte[][] labels = new byte[captions.length][];
+        int[][] characters = new int[captions.length][];
+        for (int i = 0; i < captions.length; i++) {
+            var caption = captions[i];
+            labels[i] = (caption + "\0").getBytes(StandardCharsets.UTF_8);
+            characters[i] = encodeLabel(UpstreamLabelText.parse(caption));
+        }
+        return new CustomGameRows(labels, characters);
+    }
+
+    private void drawCustomGameRows(CustomGameRows rows) {
+        target.begin(0, 0, UpstreamTerrainDrawProbe.VIEW_WIDTH, UpstreamTerrainDrawProbe.VIEW_HEIGHT);
+        try {
+            float rowY = 6f;
+            for (int i = 0; i < rows.labels.length; i++) {
+                rowY = target.drawObjective(rows.labels[i], rows.characters[i], null, rowY);
+            }
+        } finally {
+            target.end();
         }
     }
 

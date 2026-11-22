@@ -1,4 +1,7 @@
+import arc.Core;
 import arc.files.Fi;
+import arc.util.I18NBundle;
+import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
 import mindustry.Vars;
@@ -9,6 +12,7 @@ import mindustry.maps.Maps;
 public final class UpstreamCustomGameReference {
     public static void main(String[] args) throws Exception {
         Fi bundled = new Fi(args[0]), user = new Fi(args[1]), save = new Fi(args[2]);
+        Core.bundle = I18NBundle.createBundle(new Fi(args[3]), Locale.ENGLISH);
         var session = UpstreamSinglePlayerSession.create(save.parent(), "en");
         try {
             var maps = UpstreamCustomGameMaps.discover(bundled, user);
@@ -19,6 +23,13 @@ public final class UpstreamCustomGameReference {
                 .map(map -> map.file.nameWithoutExtension()).collect(Collectors.toSet());
             if (!actual.equals(expected) || maps.stream().filter(map -> map.custom).count() != 1) {
                 throw new AssertionError("Packaged or user Custom Game map catalog disagrees with stock");
+            }
+            String[] initial = UpstreamSinglePlayerApp.customGameCaptions(maps, 0, 0, Gamemode.sandbox);
+            String[] resume = UpstreamSinglePlayerApp.customGameCaptions(maps, 1, 0, Gamemode.survival);
+            String[] last = UpstreamSinglePlayerApp.customGameCaptions(maps, 0, maps.size() - 1, Gamemode.attack);
+            if (!initial[0].equals("Custom Game / Sandbox") || !initial[1].equals("> Ground Zero")
+                    || !resume[1].equals("> Load Game") || !last[1].equals("> Wasteland")) {
+                throw new AssertionError("Unexpected stock Custom Game selector captions");
             }
             for (var entry : maps) {
                 var mode = session.startCustomGame(entry, Gamemode.survival);

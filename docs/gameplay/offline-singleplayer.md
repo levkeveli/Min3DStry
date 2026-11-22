@@ -74,8 +74,9 @@ Select **Load Game** at the top of the Custom Game list to resume that save.
 
 The JVM regression uses an assets directory staged with
 `prepare_terrain_assets.py --singleplayer`. Pass its `maps/default` directory,
-a fixture directory with one valid exported map, and a new output file to
-`-Pprobe=singleplayer runCustomGameJvm --args="/path/to/maps/default /path/to/user-maps /path/to/roundtrip.msav"`
+a fixture directory with one valid exported Ground Zero map, a new output file,
+and the `bundles/bundle` resource base from those assets to
+`-Pprobe=singleplayer runCustomGameJvm --args="/path/to/maps/default /path/to/user-maps /path/to/roundtrip.msav /path/to/bundles/bundle"`
 along with the pinned runtime Gradle properties. It checks and launches every
 stock map, launches Glacier in Sandbox, and reloads the resulting `.msav`.
 
