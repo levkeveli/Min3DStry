@@ -24,6 +24,7 @@ import mindustry.core.UI;
 import mindustry.core.World;
 import mindustry.entities.bullet.BulletType;
 import mindustry.game.EventType.BlockBuildEndEvent;
+import mindustry.game.EventType.WaveEvent;
 import mindustry.game.Gamemode;
 import mindustry.graphics.Layer;
 import mindustry.graphics.Pal;
@@ -112,6 +113,10 @@ public final class UpstreamSinglePlayerApp {
         Fi mapDir = saveFile.parent() != null ? saveFile.parent() : new Fi("/3ds/min3dstry");
         session = UpstreamSinglePlayerSession.create(mapDir, bundleTag);
         UpstreamSectorCapture.install();
+        Events.on(WaveEvent.class, event -> {
+            String warning = UpstreamGuardianWarning.find(Vars.state.rules, Vars.state.wave);
+            if (warning != null) UpstreamNotification.show(warning, 5f);
+        });
         try {
             boolean interfaceReady = false;
             CustomGame custom = null;

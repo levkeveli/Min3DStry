@@ -129,6 +129,8 @@ and waves, touch palette/rotation, HUD/menus/minimap.
 - No crash/hang; `FRAME ... drop=0`; touch and D-pad input remain responsive.
 - With a captured sector loaded, the status HUD shows the stock
   `Sector Captured` row.
+- On a boss wave, the guardian-warning notification appears with the stock
+  `wave.guardianwarn` text.
 
 **Evidence:** raw log, screenshots of HUD/palette/minimap, frame timings and a
 short note on any glitches.
