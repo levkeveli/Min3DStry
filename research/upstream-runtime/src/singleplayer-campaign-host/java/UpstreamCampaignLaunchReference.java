@@ -72,6 +72,7 @@ public final class UpstreamCampaignLaunchReference {
             Fi origin = session.sectorFile(zero);
             session.start(null, origin, "campaign", zero);
             // Seed the last wave with no surviving enemies and let upstream Logic do the capture.
+            UpstreamSectorCapture.install();
             var captured = new Sector[1];
             Events.on(SectorCaptureEvent.class, event -> captured[0] = event.sector);
             if (!Vars.state.rules.waves || Vars.state.rules.winWave <= 0 || zero.info.wasCaptured) {
@@ -81,6 +82,10 @@ public final class UpstreamCampaignLaunchReference {
             session.stepSimulation(0f, 0f);
             if (captured[0] != zero || !zero.isCaptured() || !zero.info.wasCaptured) {
                 throw new AssertionError("Stock wave completion did not capture Ground Zero");
+            }
+            zero.loadInfo();
+            if (!zero.info.wasCaptured || zero.info.waves || zero.info.attack) {
+                throw new AssertionError("The capture event did not persist the original sector state");
             }
             if (session.campaignSlots(session.sectorSaves()).stream().anyMatch(slot -> slot.origin == zero && slot.sector.preset == null)) {
                 throw new AssertionError("Serpulo must require a Core Foundation for numbered-sector launch");
