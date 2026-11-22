@@ -74,7 +74,7 @@ def pack_custom_game_maps(archive: zipfile.ZipFile, maps_dir: Path) -> None:
 
 
 def pack_planet_data(archive: zipfile.ZipFile, output: Path) -> None:
-    output.mkdir()
+    output.mkdir(parents=True, exist_ok=True)
     for member in archive.namelist():
         if re.fullmatch(r"assets/planets/[^/]+\.json", member):
             (output / Path(member).name).write_bytes(archive.read(member))

@@ -137,7 +137,7 @@ public final class UpstreamSinglePlayerApp {
             // Load the world before initializing world sprites to keep peak TeaVM heap bounded.
             if (selected != null) {
                 saveFile = selected.file;
-                session.start(null, saveFile, "campaign", selected.sector);
+                if (!session.start(null, saveFile, "campaign", selected.sector)) return;
                 campaignSlot = saveFile;
             } else if (custom == null) {
                 session.start(mapFile, saveFile, null);
