@@ -526,6 +526,15 @@ sporestorm loop, gains, centered pan, and fade-out after expiry. The mock
 DSP test plays cached wind and the two streamed weather loops alongside
 two long effects, then checks that reset releases every voice.
 
+The `35de3da` build passed the Glacier replay on both Azahar profiles.
+The client received the three stock packets and requested centered loops
+with gains of `0.026` for rain, `0.014` for sandstorm, and `0.014` for
+snow on Old 3DS. The New 3DS gains were `0.017`, `0.049`, and `0.014`.
+Both profiles passed the existing drill, soundtrack, effect, and projectile
+checks. Azahar used its no-DSP fallback, so audible playback remains a
+physical-console test.
+[ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45020521037)
+
 Run `python3 tools/verify_live_stock_audio.py <terrain-assets>` with the
 staged directory to exercise all 205 PCM files through the live mixer and
 streamer on a host. The test holds a looping Gamma firing voice while it
