@@ -48,6 +48,15 @@ with the normal pinned runtime Gradle properties. Use
 to exercise sole-save resume, graphical selection, and save-back on both
 Azahar profiles.
 
+The [ARM11 build from `1390790`](https://github.com/levkeveli/Min3DStry/actions/runs/45035851013)
+resumed a lone Ground Zero slot from `saves/` and used the D-pad to select a
+loose Frozen Forest slot from the two-sector menu on both Azahar 2126.2
+profiles. Saving preserved the original files as backups. The unmodified
+v160.8 PC server opened all four new saves and confirmed the same preset,
+sector ID, and dimensions. The standard Ground Zero movement, mining,
+building, pause, and save/reload replay also passed on both profiles with
+no sector files staged. Physical console verification remains open.
+
 ## Custom Game
 
 Hold **L** while launching the standalone graphical `.3dsx` to open the

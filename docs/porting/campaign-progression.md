@@ -1,6 +1,6 @@
 # Campaign Progression & Tech-Tree Persistence Baseline (Issue #41)
 
-**Verification status:** **Emulator-tested**. Host baselines and real Arc `Settings`/`settings.bin`, campaign keys, sector slot, sector/content/research/launch/planet state, slot metadata and save probes have run on ARM11 in Azahar New/Old profiles. A native read-only SD sector catalog now lists upstream `sector-<planet>-<id>.msav` slots in the HUD. Campaign UI, sector selection/launch and gameplay integration remain open under [#41](https://github.com/levkeveli/Min3DStry/issues/41).
+**Emulator-tested.** ARM11 probes exercise stock Arc settings, sector metadata, research, and progression. The graphical offline app also resumes and saves original PC sector files on both Azahar profiles. New sector launch, the broader campaign interface, and integrated progression remain open under [#41](https://github.com/levkeveli/Min3DStry/issues/41).
 
 ## 1:1 Upstream Mandate
 
@@ -393,28 +393,13 @@ for removal once the TeaVM object-reference cast issue is fixed.
 
 ## ARM11 sector selection and launch
 
-The offline single-player app lists top-level `sector-*.msav` slots through the
-live `Saves.load()` path when more than one slot exists. It uses the same direct
-`Vars.saveDirectory` children as `Saves.getSectorFile()`, so nested probe or
-backup files do not appear. Each slot is launched with the sector decoded from
-its save metadata (planet-aware filename fallback) through
-`SaveIO.load(file, Vars.world.makeSectorContext(sector))`; automated runs can
-select by index with `/3ds/min3dstry/campaign-select.txt`. Both Azahar
-profiles report:
+The graphical offline app reads stock sector files in `saves/` and loose SD
+slots, then opens the selected file using the original sector world context.
+The app loads the stock Serpulo data before content initialization to resolve
+Ground Zero to sector 170 and Frozen Forest to 64. Both slots were resumed and
+saved on Old and New 3DS profiles in Azahar. The stock v160.8 PC server reopened
+the resulting saves. [Offline resume and verification](../gameplay/offline-singleplayer.md#campaign-sector-selection)
 
-```text
-UPSTREAM_CAMPAIGN_MENU slots=2
-UPSTREAM_CAMPAIGN_SELECTED slot=sector-serpulo-15.msav source=auto
-UPSTREAM_SP_LOADED source=campaign map=Editor_Playtesting size=150x250 wave=1 copper=0
-UPSTREAM_CAMPAIGN_SAVED slot=sector-serpulo-15.msav
-UPSTREAM_SP_EXIT
-```
-
-START in the menu now reports `UPSTREAM_CAMPAIGN_CANCEL` and exits. The menu,
-A-button selection, launch, START cancel and START-exit save-back are
-emulator-tested on both profiles. Save-back runs only when the slot actually
-loaded, so a failed load cannot overwrite the `.msav`; the live campaign dialogs
-and capture rewards remain open.
 ## ARM11 `Saves.load()`
 
 `-Pprobe=campaign-saves-load` wires the upstream save environment on the live
@@ -439,14 +424,14 @@ UPSTREAM_CAMPAIGN_SAVES_LOAD path=live slots=2 selected=sector-serpulo-15.msav b
 The probe discovers both slots, selects `sector-serpulo-15.msav` by name, and
 asserts the generic saves are not treated as sector remaps. It then launches the discovered slot through
 `SaveIO.load(slot.file, Vars.world.makeSectorContext(sector))` and verifies the
-sector, wave and `150x250` world are restored. The live campaign startup still
-needs to invoke this path from its UI.
+sector, wave and `150x250` world are restored. The graphical startup uses the
+same stock sector world context when resuming actual PC campaign saves.
 
 ## Remaining Scope for Issue #41 (3DS Hardware / ARM11 Runtime)
 
 
 The capability is marked `emulator-tested` because the probes in [campaign-verification.md](campaign-verification.md) verify upstream settings, sector `.msav` slots, `SectorInfo` JSON, tech-tree requirements, planet last-sector routing, sector play/capture transitions, and sector-save launch on ARM11/Azahar. The host-verified path contract is recorded in [sd-storage-paths.md](sd-storage-paths.md). The live runtime still needs to consume these paths end-to-end:
 
-1. Route the live `Core.files`/`Core.settings`/`Core.assets` and `Vars.mainExecutor` instances (not only research probes) to `/3ds/min3dstry/`, then call `Saves.load()` during campaign startup so `settings.bin`, `settings_backup.bin`, `settings_backups/`, and `sector-<planet>-<id>.msav` use the verified contract.
-2. Build the live campaign launch/capture UI flow, sector selection and capture rewards on top of the verified persistence/routing APIs and the read-only SD sector catalog.
+1. Load and persist the graphical campaign's Arc settings, sector information, and unlocks through the verified PC file formats.
+2. Build new sector launch, campaign navigation, and capture rewards on top of the stock simulation and persistence APIs.
 3. Advance beyond `emulator-tested` only after those live flows and physical Old/New 3DS verification.
