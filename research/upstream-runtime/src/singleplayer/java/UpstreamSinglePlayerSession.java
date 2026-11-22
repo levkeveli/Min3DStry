@@ -10,6 +10,7 @@ import arc.mock.MockFiles;
 import arc.mock.MockGraphics;
 import arc.struct.ObjectSet;
 import arc.struct.Seq;
+import arc.util.ArcRuntimeException;
 import arc.util.Time;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -379,7 +380,12 @@ public final class UpstreamSinglePlayerSession {
             String name = file.name();
             if (file.isDirectory() || !name.startsWith("sector-") || !name.endsWith(".msav")
                     || name.endsWith("-backup.msav") || !SaveIO.isSaveValid(file)) continue;
-            var meta = SaveIO.getMeta(file);
+            SaveMeta meta;
+            try {
+                meta = SaveIO.getMeta(file);
+            } catch (ArcRuntimeException ignored) {
+                continue;
+            }
             Sector sector = meta.rules == null ? null : meta.rules.sector;
             if (sector == null) sector = sectorFor(file);
             var preset = Vars.content.sector(meta.tags.get("sectorPreset", ""));
@@ -509,6 +515,9 @@ public final class UpstreamSinglePlayerSession {
     long save(Fi saveFile) throws IOException {
         if (saveFile.parent() != null) {
             saveFile.parent().mkdirs();
+        }
+        if (Vars.state.rules.sector != null) {
+            UpstreamSectorCapture.persist(Vars.state.rules.sector);
         }
         SaveIO.save(saveFile);
         try (var input = SaveIO.getStream(saveFile)) {

@@ -14,6 +14,8 @@ from pathlib import Path
 import verify_upstream_singleplayer as sp
 from campaign_settings_fixture import stock_console
 
+NUMBERED_GENERATION_SECONDS = 330
+
 STARTERS = {
     "serpulo": ("sector-serpulo-170.msav", "Ground_Zero", 256),
     "erekir": ("sector-erekir-10.msav", "The_Onset", 512),
@@ -34,6 +36,9 @@ def write_replay(path: Path, model: str, planet: str, manual_cargo: bool = False
             windows.extend([(select + 6, select + 8, 1 << 10), (select + 11, select + 13, 1 << 11),
                             (select + 16, select + 18, (1 << 8) | (1 << 4)), (select + 21, select + 23, 1 << 1)])
         confirm, end = select + 26, select + 110
+    if planet == "numbered":
+        # Azahar pauses at the end of the movie, including while the original generator is running.
+        end = confirm + NUMBERED_GENERATION_SECONDS
     windows.extend([(confirm, confirm + 2, 1), (end, end + 2, sp.KEY_START)])
     if planet == "erekir":
         windows.append((43, 45, 1 << 7))
@@ -117,13 +122,13 @@ def verify(model: str, planet: str, rom: Path, azahar: str, config: Path, log: P
             if manual_cargo:
                 sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_CARGO item=copper amount=8\b", 70)
             loaded = rf"UPSTREAM_SP_LOADED source=campaign-new map={re.escape(world)} size={size}x{size}\b"
-            sp._wait_for_log(log, proc, loaded, 150)
+            sp._wait_for_log(log, proc, loaded, 600 if departure else 150)
             sp._wait_for_log(log, proc, rf"{loaded}(?s:.*?)UPSTREAM_SP_FRAME .*\bsprites=[1-9]\d*\b", 120)
             screenshot = rpc.screenshot()
             if sp.az.inspect_png(screenshot)["top_distinct_colors"] < 8:
                 raise AssertionError(f"{prefix}: the starter world did not render")
             (output / f"{prefix}.png").write_bytes(screenshot)
-            sp._wait_for_log(log, proc, rf"UPSTREAM_CAMPAIGN_SAVED slot={re.escape(name)}\b", 120)
+            sp._wait_for_log(log, proc, rf"UPSTREAM_CAMPAIGN_SAVED slot={re.escape(name)}\b", 480 if departure else 120)
             sp._wait_for_log(log, proc, r"UPSTREAM_SP_EXIT\b", 20)
             (output / f"{prefix}-{name}").write_bytes((saves / name).read_bytes())
             (output / f"{prefix}-settings.bin").write_bytes(settings.read_bytes())

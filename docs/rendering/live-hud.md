@@ -12,6 +12,8 @@ objective panel:
 - the pinned `wave.enemy`/`wave.enemies` string only when enemies remain;
 - the pinned `wave.waiting`/`wave.waveInProgress`/`waiting` string when wave
   rules are active, using the stock `HudFragment` timer formatting;
+- the pinned `sector.curcapture` row (`Sector Captured`) when wave rules are
+off and a campaign sector is active;
 - the original copper item glyph and the local core's copper count.
 
 The status rows use the v160.8 font and inline item glyph pipeline shared with
@@ -29,6 +31,18 @@ UPSTREAM_STATUS_HUD wave=1 enemies=0 copper=200 rows=3
 
 The same runs complete the stock-server combat check and report the packet
 and destroy markers documented in [live-combat.md](../gameplay/live-combat.md).
+
+Host row-text coverage (all eight branches, including the captured row):
+
+```sh
+gradle -Pprobe=status-hud runProbeJvm \
+  --args=/path/to/romfs/bundles/bundle
+```
+
+```text
+UPSTREAM_STATUS_ROWS cases=8 ok
+```
+
 While the wave timer is counting down, the status text changes once per second,
 so `UPSTREAM_STATUS_HUD` is also emitted once per second in timer-on runs.
 
