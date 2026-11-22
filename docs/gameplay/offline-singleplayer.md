@@ -28,6 +28,20 @@ Use two stock v160.8 Ground Zero saves with no weather in the first and exactly
 rain, sandstorm, and fog at opacity 0.75 in the second. The regression checks one
 simulation tick, the save round trip, particles, and both repeating textures.
 
+To create those fixtures, copy `assets/maps/serpulo/groundZero.msav` from the
+v160.8 asset archive into `config/maps/groundZero.msav` in an isolated stock
+server directory. Start the v160.8 `server-release.jar`, enter
+`host Ground_Zero survival`, and run the following as one server-console command.
+
+```text
+js (() => { const save = Packages.mindustry.io.SaveIO; const Fi = Packages.arc.files.Fi; save.write(Fi.get("clear.msav")); const kinds = [Weathers.rain, Weathers.sandstorm, Weathers.fog]; for (let i = 0; i < kinds.length; i++) { const state = kinds[i].create(1, 3600); state.opacity = 0.75; state.windVector.setZero(); } save.write(Fi.get("weather.msav")); })()
+```
+
+For graphical verification, pass that directory to
+`python3 tools/verify_upstream_singleplayer.py --rom upstream-probe.3dsx --weather-fixtures /path/to/fixtures`.
+The verifier boots both saves on each Azahar profile, checks that both stock
+textures load with active weather, and compares world and touch-screen samples.
+
 ## Campaign sector selection
 
 When `/3ds/min3dstry` contains more than one `sector-*.msav` slot, the app
