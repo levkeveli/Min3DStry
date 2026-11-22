@@ -137,6 +137,7 @@ public final class UpstreamRenderedNetworkProbe {
             type.loadIcon();
             type.load();
             drawableUnits.add(type);
+            System.out.println("UPSTREAM_NETWORK_UNIT_ART type=" + type.name);
         }
         return true;
     }
