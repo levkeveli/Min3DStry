@@ -79,6 +79,11 @@ public final class UpstreamSinglePlayerSession {
     }
 
     static UpstreamSinglePlayerSession create(Fi mapDirectory, String locale, Fi planetData, Settings settings) {
+        return create(mapDirectory, locale, planetData, settings, null);
+    }
+
+    static UpstreamSinglePlayerSession create(Fi mapDirectory, String locale, Fi planetData, Settings settings,
+                                             Fi campaignMaps) {
         if (planetData != null && planetData.isDirectory()) {
             for (Fi file : planetData.list()) {
                 if (!file.isDirectory() && file.extension().equals("json")) {
@@ -86,8 +91,17 @@ public final class UpstreamSinglePlayerSession {
                 }
             }
         }
+        if (campaignMaps != null) {
+            for (String directory : new String[]{"serpulo", "serpulo/hidden", "erekir"}) {
+                for (Fi file : campaignMaps.child(directory).list()) {
+                    if (!file.isDirectory() && file.extension().equals(Vars.mapExtension)) {
+                        Vars.tree.addFile("maps/" + directory + "/" + file.name(), file);
+                    }
+                }
+            }
+        }
         settings.defaults("locale", locale == null || locale.isEmpty() ? "en" : locale);
-        var app = UpstreamWorldLoadProbe.initialize(mapDirectory, settings);
+        var app = UpstreamWorldLoadProbe.initialize(mapDirectory, settings, campaignMaps != null);
         Core.audio = new MockAudio();
         Core.files = new MockFiles();
         final UpstreamSinglePlayerSession[] holder = new UpstreamSinglePlayerSession[1];

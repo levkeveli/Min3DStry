@@ -84,6 +84,21 @@ each run. The stock reader can check those files with
 `python3 tools/campaign_settings_fixture.py --server server-release.jar --check /path/to/new3ds-single-settings.bin --sector 170`
 and `--sector 64` for the two-slot run.
 
+## Campaign map assets
+
+The offline package stages the 78 Serpulo maps and 17 Erekir maps from the
+pinned v160.8 assets archive. It preserves their paths under
+`maps/serpulo/` and `maps/erekir/`, including the original Serpulo hidden
+map directory. The graphical app mounts these paths before Mindustry creates
+its `FileMapGenerator` instances. The existing `maps/groundZero.msav`
+path remains available for the standalone Ground Zero mode.
+
+The host task `runGraphicalCampaignPresetMapsJvm` takes a staged assets
+directory with `maps/`, `planets/` and `bundle.properties`, and a new
+scratch directory. It loads the Ground Zero and Onset starters through
+the original world generator and checks the campaign sector IDs and core
+spawn. This task exercises the assets and generator on the JVM.
+
 ## Custom Game
 
 Hold **L** while launching the standalone graphical `.3dsx` to open the
