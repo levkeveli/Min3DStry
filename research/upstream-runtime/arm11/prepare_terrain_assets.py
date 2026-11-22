@@ -20,6 +20,12 @@ GLACIER_INVENTORY = Path(__file__).with_name("glacier-terrain.txt")
 STOCK_TEXT_ASSETS = (
     "fonts/font.woff", "fonts/font_jp.woff", "fonts/icon.ttf", "icons/icons.properties",
 )
+# Mindustry v160.8 Maps.defaultMapNames. The archive also contains Canyon,
+# which the original Custom Game catalog does not list.
+BUILTIN_CUSTOM_GAME_MAPS = (
+    "maze", "fortress", "labyrinth", "islands", "tendrils", "caldera", "wasteland", "shattered", "fork",
+    "triad", "mudFlats", "moltenLake", "archipelago", "debrisField", "domain", "veins", "glacier", "passage",
+)
 
 
 def write_layout(staged: Path, regions: tuple[str, ...]) -> None:
@@ -64,6 +70,14 @@ def pack_stock_text_assets(archive: zipfile.ZipFile, staged: Path) -> None:
         destination = staged / name
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_bytes(archive.read("assets/" + name))
+
+
+def pack_custom_game_maps(archive: zipfile.ZipFile, maps_dir: Path) -> None:
+    builtin = maps_dir / "default"
+    builtin.mkdir()
+    for name in BUILTIN_CUSTOM_GAME_MAPS:
+        filename = f"{name}.msav"
+        (builtin / filename).write_bytes(archive.read(f"assets/maps/default/{filename}"))
 
 
 def main() -> None:
@@ -115,6 +129,7 @@ def main() -> None:
                     if not gz_bytes or not aatls_bytes:
                         raise ValueError("Missing groundZero.msav or sprites.aatls in official archive")
                     (maps_dir / "groundZero.msav").write_bytes(gz_bytes)
+                    pack_custom_game_maps(archive, maps_dir)
                     (staged / "sprites.aatls").write_bytes(aatls_bytes)
             if not (bundles / "bundle.properties").is_file():
                 raise ValueError("The official archive is missing its root translation bundle")

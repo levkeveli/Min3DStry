@@ -12,8 +12,10 @@ import arc.math.geom.Vec2;
 import arc.struct.IntSet;
 import arc.struct.ObjectSet;
 import arc.util.Time;
+import arc.util.Strings;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 import mindustry.Vars;
 import mindustry.content.Blocks;
@@ -23,8 +25,11 @@ import mindustry.core.UI;
 import mindustry.core.World;
 import mindustry.entities.bullet.BulletType;
 import mindustry.game.EventType.BlockBuildEndEvent;
+import mindustry.game.Gamemode;
 import mindustry.graphics.Layer;
 import mindustry.graphics.Pal;
+import mindustry.io.SaveIO;
+import mindustry.maps.Map;
 import mindustry.gen.Building;
 import mindustry.gen.Groups;
 import mindustry.gen.Tankc;
@@ -84,6 +89,9 @@ public final class UpstreamSinglePlayerApp {
 
     private void run(String[] args) throws IOException {
         int language = target.mountAssets();
+        int bootInput = UpstreamSinglePlayerInput.poll();
+        boolean customRequested = args.length == 0 && bootInput >= 0
+            && (bootInput & UpstreamSinglePlayerInput.CUSTOM_GAME_HELD) != 0;
         Fi mapFile = args.length >= 1 ? new Fi(args[0]) : firstExisting("/romfs/maps/groundZero.msav", "/3ds/min3dstry/groundZero.msav");
         Fi saveFile = args.length >= 2 ? new Fi(args[1]) : new Fi("/3ds/min3dstry/singleplayer-save.msav");
         Fi atlas = firstExisting("/romfs/sprites.aatls", "/3ds/min3dstry/sprites.aatls");
@@ -99,11 +107,25 @@ public final class UpstreamSinglePlayerApp {
         Fi mapDir = saveFile.parent() != null ? saveFile.parent() : new Fi("/3ds/min3dstry");
         session = UpstreamSinglePlayerSession.create(mapDir, bundleTag);
         try {
+            boolean interfaceReady = false;
+            CustomGame custom = null;
+            Fi customSave = mapDir.child("custom-game-save.msav");
+            if (customRequested) {
+                var maps = UpstreamCustomGameMaps.discover(new Fi("/romfs/maps/default"), mapDir.child("maps"));
+                boolean canResume = customSave.exists() && SaveIO.isSaveValid(customSave);
+                if (!maps.isEmpty() || canResume) {
+                    loadInterfaceGraphics(atlas);
+                    interfaceReady = true;
+                    custom = chooseCustomGame(maps, canResume);
+                    if (custom == null) return;
+                }
+            }
             List<UpstreamSinglePlayerSession.SectorSlot> sectorSaves =
-                args.length < 2 ? session.sectorSaves() : List.of();
+                args.length < 2 && custom == null ? session.sectorSaves() : List.of();
             UpstreamSinglePlayerSession.SectorSlot selected = null;
             if (sectorSaves.size() > 1) {
                 loadInterfaceGraphics(atlas);
+                interfaceReady = true;
                 // Drain the boot-time START press used by the homebrew launcher.
                 UpstreamSinglePlayerInput.poll();
                 try {
@@ -119,13 +141,23 @@ public final class UpstreamSinglePlayerApp {
                 saveFile = selected.file;
             }
             // Load the world before initializing world sprites to keep peak TeaVM heap bounded.
-            boolean loadedCampaign = session.start(mapFile, saveFile, selected == null ? null : "campaign",
-                selected == null ? null : selected.sector);
-            if (selected != null && loadedCampaign) {
-                // Only write back a slot that actually loaded; a failed load must not overwrite it.
-                campaignSlot = selected.file;
+            if (custom == null) {
+                boolean loadedCampaign = session.start(mapFile, saveFile, selected == null ? null : "campaign",
+                    selected == null ? null : selected.sector);
+                if (selected != null && loadedCampaign) {
+                    // Only write back a slot that actually loaded; a failed load must not overwrite it.
+                    campaignSlot = selected.file;
+                }
+            } else {
+                saveFile = customSave;
+                if (custom.map == null) {
+                    session.start(null, saveFile, "customgame-save");
+                } else {
+                    Gamemode mode = session.startCustomGame(custom.map, custom.mode);
+                    System.out.println("UPSTREAM_CUSTOM_GAME_STARTED map=" + custom.map.file.name() + " mode=" + mode.name());
+                }
             }
-            if (sectorSaves.size() <= 1) {
+            if (!interfaceReady) {
                 loadInterfaceGraphics(atlas);
             }
             loadWorldGraphics();
@@ -158,6 +190,64 @@ public final class UpstreamSinglePlayerApp {
     private static Fi firstExisting(String primary, String fallback) {
         var first = new Fi(primary);
         return first.exists() ? first : new Fi(fallback);
+    }
+
+    private record CustomGame(Map map, Gamemode mode) {}
+
+    private CustomGame chooseCustomGame(List<Map> maps, boolean canResume) {
+        Gamemode[] modes = {Gamemode.survival, Gamemode.sandbox, Gamemode.attack, Gamemode.pvp};
+        int firstMap = canResume ? 1 : 0;
+        int count = firstMap + maps.size();
+        int selected = 0, mode = 0, lastX = 0, lastY = 0, renderedRow = -1, renderedMode = -1;
+        byte[][] labels = null;
+        int[][] characters = null;
+        target.buildLabels(new byte[8]);
+        System.out.println("UPSTREAM_CUSTOM_GAME_MENU maps=" + maps.size());
+        while (true) {
+            long nextFrame = System.nanoTime() + FRAME_NS;
+            int input = UpstreamSinglePlayerInput.poll();
+            if (input < 0 || (input & (1 << 19)) != 0) return null;
+            int x = (byte)input;
+            int y = (byte)(input >> 8);
+            if (y > 60 && lastY <= 20) selected = Math.max(0, selected - 1);
+            if (y < -60 && lastY >= -20) selected = Math.min(count - 1, selected + 1);
+            if (x > 60 && lastX <= 20) mode = (mode + 1) % modes.length;
+            if (x < -60 && lastX >= -20) mode = (mode + modes.length - 1) % modes.length;
+            lastX = x;
+            lastY = y;
+            if ((input & (1 << 17)) != 0) {
+                return new CustomGame(selected < firstMap ? null : maps.get(selected - firstMap), modes[mode]);
+            }
+            if (selected != renderedRow || mode != renderedMode) {
+                var rows = new ArrayList<String>();
+                String title = Core.bundle.get("customgame");
+                rows.add(selected < firstMap ? title : title + " / " + modes[mode]);
+                int first = (selected / 6) * 6;
+                for (int i = first; i < Math.min(first + 6, count); i++) {
+                    String label = i < firstMap ? Core.bundle.get("loadgame")
+                        : Strings.stripColors(maps.get(i - firstMap).name());
+                    rows.add((i == selected ? "> " : "  ") + label);
+                }
+                labels = new byte[rows.size()][];
+                characters = new int[rows.size()][];
+                for (int i = 0; i < rows.size(); i++) {
+                    labels[i] = (rows.get(i) + "\0").getBytes(StandardCharsets.UTF_8);
+                    characters[i] = encodeLabel(UpstreamLabelText.parse(rows.get(i)));
+                }
+                renderedRow = selected;
+                renderedMode = mode;
+            }
+            target.begin(0, 0, UpstreamTerrainDrawProbe.VIEW_WIDTH, UpstreamTerrainDrawProbe.VIEW_HEIGHT);
+            try {
+                float rowY = 6f;
+                for (int i = 0; i < labels.length; i++) {
+                    rowY = target.drawObjective(labels[i], characters[i], null, rowY);
+                }
+            } finally {
+                target.end();
+            }
+            while (System.nanoTime() < nextFrame) Thread.yield();
+        }
     }
 
     private void loadInterfaceGraphics(Fi atlas) {

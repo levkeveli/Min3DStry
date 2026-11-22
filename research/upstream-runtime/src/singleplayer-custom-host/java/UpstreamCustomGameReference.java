@@ -1,0 +1,47 @@
+import arc.files.Fi;
+import java.util.Set;
+import java.util.stream.Collectors;
+import mindustry.Vars;
+import mindustry.game.Gamemode;
+import mindustry.maps.Maps;
+
+/** JVM verification of the pinned map catalog and offline launch using upstream rules. */
+public final class UpstreamCustomGameReference {
+    public static void main(String[] args) throws Exception {
+        Fi bundled = new Fi(args[0]), user = new Fi(args[1]), save = new Fi(args[2]);
+        var session = UpstreamSinglePlayerSession.create(save.parent(), "en");
+        try {
+            var maps = UpstreamCustomGameMaps.discover(bundled, user);
+            var names = Maps.class.getDeclaredField("defaultMapNames");
+            names.setAccessible(true);
+            Set<String> expected = Set.of((String[])names.get(null));
+            Set<String> actual = maps.stream().filter(map -> !map.custom)
+                .map(map -> map.file.nameWithoutExtension()).collect(Collectors.toSet());
+            if (!actual.equals(expected) || maps.stream().filter(map -> map.custom).count() != 1) {
+                throw new AssertionError("Packaged or user Custom Game map catalog disagrees with stock");
+            }
+            var map = maps.stream().filter(entry -> !entry.custom && entry.file.nameWithoutExtension().equals("glacier"))
+                .findFirst().orElseThrow();
+            var expectedRules = map.applyRules(Gamemode.sandbox);
+            var mode = session.startCustomGame(map, Gamemode.sandbox);
+            if (mode != Gamemode.sandbox || Vars.state.map != map || session.core() == null
+                    || Vars.state.rules.infiniteResources != expectedRules.infiniteResources
+                    || Vars.state.rules.waveTimer != expectedRules.waveTimer
+                    || Vars.state.rules.waves != expectedRules.waves
+                    || Vars.state.rules.planet != expectedRules.planet || Vars.state.rules.sector != null
+                    || Vars.state.rules.editor) {
+                throw new AssertionError("Offline Glacier did not apply upstream Sandbox rules");
+            }
+            session.stepSimulation(0f, 0f);
+            session.save(save);
+            if (!session.start(null, save, null) || !Vars.state.rules.infiniteResources || Vars.state.rules.waveTimer
+                    || Vars.world.width() != map.width || Vars.world.height() != map.height) {
+                throw new AssertionError("Custom Game did not survive the original save path");
+            }
+            System.out.println("UPSTREAM_CUSTOM_GAME_REFERENCE bundled=" + actual.size()
+                + " user=1 map=" + map.name() + " mode=" + mode.name() + " save=ok");
+        } finally {
+            session.shutdown();
+        }
+    }
+}
