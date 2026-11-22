@@ -30,6 +30,12 @@ else
 M3DS_AUDIO_ROMFS_VALUE := 0
 endif
 
+ifneq ($(strip $(TEAVM_LOADER_DIR)),)
+M3DS_TEAVM_LOADER_VALUE := 1
+else
+M3DS_TEAVM_LOADER_VALUE := 0
+endif
+
 APP_TITLE       := Min3DStry Citro2D
 APP_DESCRIPTION := Bounded Citro2D rendering prototype
 APP_AUTHOR      := Min3DStry Contributors
@@ -50,8 +56,7 @@ LDFLAGS  = -specs=3dsx.specs -g $(ARCH) -Wl,-Map,$(notdir $*.map)
 LIBS    := -lcitro2d -lcitro3d -lvorbisidec -logg -lctru -lm
 
 ifneq ($(strip $(TEAVM_LOADER_DIR)),)
-TEAVM_LOADER_DIR := $(abspath $(TEAVM_LOADER_DIR))
-CFLAGS  += -DM3DS_TEAVM_LOADER_EMBEDDED
+override TEAVM_LOADER_DIR := $(abspath $(TEAVM_LOADER_DIR))
 # The archive references libctru/libm, so it must be scanned before them.
 LIBS    := -L$(TEAVM_LOADER_DIR) -lm3dsloader $(LIBS)
 endif
@@ -114,7 +119,7 @@ all: $(BUILD_CONFIG) $(ATLAS)/sprites.h $(ROMFS)/sprites.t3x
 
 $(BUILD_CONFIG): force-config
 	@mkdir -p $(BUILD)
-	@printf '#define M3DS_AUDIO_ROMFS %s\n' '$(M3DS_AUDIO_ROMFS_VALUE)' > $@.tmp
+	@printf '#define M3DS_AUDIO_ROMFS %s\n#define M3DS_TEAVM_LOADER_EMBEDDED %s\n' '$(M3DS_AUDIO_ROMFS_VALUE)' '$(M3DS_TEAVM_LOADER_VALUE)' > $@.tmp
 	@if cmp -s $@.tmp $@; then rm -f $@.tmp; else mv $@.tmp $@; fi
 
 force-config:

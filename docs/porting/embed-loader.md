@@ -30,11 +30,27 @@ the public loader API. Built with the pinned devkitARM toolchain and booted in
 Azahar with the real `glacier-v13.msav`:
 
 ```text
-New 3DS: UPSTREAM_ROWS flat=783fbd80e415dcd7 tile=e35397041df8e5fe save=3a375fd4f81c5680 building=9a691300c548b8fb buildings=2
-         UPSTREAM_SAVE_ROWS status=0
-         EMBED_LOADER ok=1 tiles=37500 buildings=2 flat=783fbd80e415dcd7 tile=e35397041df8e5fe save=3a375fd4f81c5680
-Old 3DS: same rows/status/loader
+New 3DS valid:
+  UPSTREAM_ROWS flat=783fbd80e415dcd7 tile=e35397041df8e5fe save=3a375fd4f81c5680 building=9a691300c548b8fb buildings=2
+  UPSTREAM_HEAP used=20534480 free=72496
+  UPSTREAM_SAVE_ROWS status=0
+  EMBED_LOADER missing=0 ok=1 verified=1 version=13 tiles=37500 buildings=2 flat=783fbd80e415dcd7 tile=e35397041df8e5fe save=3a375fd4f81c5680
+
+Old 3DS valid:
+  same rows/heap/status/loaded values
+
+New/Old 3DS missing save:
+  UPSTREAM_SAVE_ROWS error=arc.util.ArcRuntimeException: Error reading file: /3ds/min3dstry/does-not-exist.msav (absolute)
+  EMBED_LOADER missing=1 ok=0 verified=1
 ```
+
+The smoke harness builds two variants: one loads the real fixture and asserts
+the hashes; the other loads a missing path and asserts the loader returns false
+without aborting. The Java entry catches load/extraction failures, reports
+them, and clears `Vars.world` after extracting rows so the TeaVM world is not
+retained alongside the native copy. The save version is propagated through
+`m3ds_save_rows_set_version`. `UPSTREAM_HEAP` records newlib heap usage after
+the load (about 20.5 MiB used for the Glacier fixture).
 
 The app call site in `main_3ds.c` logs
 `SECTOR_LOADER source=teavm available=1 loaded=1` when the embedded loader is

@@ -34,9 +34,20 @@ public final class UpstreamSaveRowsProbe {
 
         @Import(name = "m3ds_save_rows_copy_path")
         static native int copyPath(Address destination, int capacity);
+
+        @Import(name = "m3ds_save_rows_set_version")
+        static native void setVersion(int version);
     }
 
-    public static void main(String[] args) throws Exception {
+    public static void main(String[] args) {
+        try {
+            run(args);
+        } catch (Throwable error) {
+            System.out.println("UPSTREAM_SAVE_ROWS error=" + error);
+        }
+    }
+
+    private static void run(String[] args) throws Exception {
         byte[] pathBytes = new byte[256];
         int pathLength = NativeRows.copyPath(
             Address.ofData(pathBytes), pathBytes.length);
@@ -49,9 +60,22 @@ public final class UpstreamSaveRowsProbe {
                 : "/3ds/min3dstry/glacier-v13.msav");
         Fi save = new Fi(path);
         var app = UpstreamWorldLoadProbe.initialize(save.parent());
-        SaveIO.load(save);
-        app.runPosted();
+        try (var input = SaveIO.getStream(save)) {
+            SaveIO.readHeader(input);
+            NativeRows.setVersion(input.readInt());
+        }
+        try {
+            SaveIO.load(save);
+            app.runPosted();
+            extractRows(app, verifyFixture, path);
+        } finally {
+            Vars.world.resize(0, 0);
+        }
+    }
 
+    private static void extractRows(
+        UpstreamWorldLoadProbe.ProbeApplication app, boolean verifyFixture,
+        String path) throws Exception {
         int width = Vars.world.width();
         int height = Vars.world.height();
         int tileCount = width * height;

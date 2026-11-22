@@ -2,6 +2,7 @@
 #define MIN3DSTRY_PLATFORM_TEAVM_WORLD_LOADER_H
 
 #include <stdbool.h>
+#include <stdint.h>
 
 #include "platform/msav_world.h"
 
@@ -18,6 +19,9 @@ extern "C" {
 bool m3ds_teavm_world_loader_available(void);
 
 bool m3ds_teavm_world_load(const char *save_path, M3dsWorldTiles *out);
+
+/* Save version decoded by the most recent successful loader run. */
+uint32_t m3ds_teavm_world_loaded_version(void);
 
 #ifdef __cplusplus
 }

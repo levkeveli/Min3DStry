@@ -251,7 +251,7 @@ int main(int argc, char *argv[]) {
         m3ds_emit_debug_line(log_socket, dbg_line);
         if (loader_ok) {
             g_save_tiles = upstream;
-            g_save_world.version = 13u;
+            g_save_world.version = m3ds_teavm_world_loaded_version();
             g_save_world.width = upstream.width;
             g_save_world.height = upstream.height;
             g_save_world.floor_tiles = (uint32_t)upstream.count;

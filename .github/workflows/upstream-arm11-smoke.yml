@@ -432,7 +432,16 @@ jobs:
               tests/platform/embed_loader_smoke.c src/platform/world_rows.c \
               src/platform/msav_world.c -lm3dsloader -lctru -lm \
               -o build/embed-loader-smoke.elf
+            arm-none-eabi-gcc -std=gnu11 -g -Os -fwrapv -D__3DS__ \
+              -DM3DS_SMOKE_MISSING -mword-relocations -march=armv6k \
+              -mtune=mpcore -mfpu=vfp -mfloat-abi=hard -mtp=soft -Iinclude \
+              -I"$DEVKITPRO/libctru/include" -L"$DEVKITPRO/libctru/lib" \
+              -Lbuild/teavm-loader -specs=3dsx.specs \
+              tests/platform/embed_loader_smoke.c src/platform/world_rows.c \
+              src/platform/msav_world.c -lm3dsloader -lctru -lm \
+              -o build/embed-loader-missing.elf
             test -s build/embed-loader-smoke.elf
+            test -s build/embed-loader-missing.elf
           '
 
       - name: Link the app with the embedded loader

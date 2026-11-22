@@ -16,6 +16,7 @@ void m3ds_save_rows_building(int index, int tileIndex, int x, int y,
     int stateLow, int stateHigh);
 int m3ds_save_rows_end(void);
 int m3ds_save_rows_copy_path(void *destination, int capacity);
+void m3ds_save_rows_set_version(int version);
 
 #ifdef __cplusplus
 }

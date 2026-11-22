@@ -1,6 +1,7 @@
 #include "m3ds_save_rows.h"
 
 #include <3ds.h>
+#include <malloc.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -20,6 +21,15 @@ static bool g_verify_fixture;
 static M3dsWorldTiles g_loaded_tiles;
 static bool g_loaded_ready;
 static const char *g_requested_save_path;
+static uint32_t g_loaded_version;
+
+void m3ds_save_rows_set_version(int version) {
+    g_loaded_version = (uint32_t)version;
+}
+
+uint32_t m3ds_teavm_world_loaded_version(void) {
+    return g_loaded_version;
+}
 
 int m3ds_save_rows_copy_path(void *destination, int capacity) {
     if (!g_requested_save_path) {
@@ -146,6 +156,13 @@ int m3ds_save_rows_end(void) {
             (unsigned long long)tiles.save_state_hash,
             (unsigned long long)tiles.building_hash,
             (unsigned)tiles.building_count);
+        if (length > 0 && length < (int)sizeof(line)) {
+            svcOutputDebugString(line, length);
+        }
+        struct mallinfo memory = mallinfo();
+        length = snprintf(
+            line, sizeof(line), "UPSTREAM_HEAP used=%u free=%u\n",
+            (unsigned)memory.uordblks, (unsigned)memory.fordblks);
         if (length > 0 && length < (int)sizeof(line)) {
             svcOutputDebugString(line, length);
         }
