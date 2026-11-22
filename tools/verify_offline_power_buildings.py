@@ -68,9 +68,9 @@ def check_pixels(model, before, after, samples):
         raise AssertionError(f"{model}: power graphics did not cover their expected sample points")
 
 
-def verify_live(args, model, azahar, fixture, terrain, output):
+def verify_live(args, model, azahar, fixture, terrain, output, samples=SAMPLES, min_changed=12):
     server_dir = output / "server"
-    save = server_dir / "config/saves/power.msav"
+    save = server_dir / "config/saves/world.msav"
     save.parent.mkdir(parents=True)
     shutil.copyfile(fixture, save)
     server_log = output / "server.log"
@@ -85,7 +85,7 @@ def verify_live(args, model, azahar, fixture, terrain, output):
     server = start_server(args, server_dir, server_log)
     try:
         wait_for(server_log, server, r"Server loaded\.", 30)
-        stock_command(server, server_log, f"config port {args.port}\nload power",
+        stock_command(server, server_log, f"config port {args.port}\nload world",
                       rf"Opened a server on port {args.port}\.")
         isolated = {"Data Storage": {"use_custom_storage": "true", "sdmc_directory": sd.as_posix() + "/"}}
         config.parent.mkdir(parents=True, exist_ok=True)
@@ -100,16 +100,14 @@ def verify_live(args, model, azahar, fixture, terrain, output):
                 try:
                     frame = rpc.screenshot()
                     (output / "world.png").write_bytes(frame)
-                    counts = changed_pixels(terrain, frame, SAMPLES)
-                    if min(counts.values()) >= 12:
-                        print(f"UPSTREAM_LIVE_POWER_PIXELS model={model} beam={counts['beam-between-nodes']}/25",
-                              flush=True)
-                        return
+                    counts = changed_pixels(terrain, frame, samples)
+                    if min(counts.values()) >= min_changed:
+                        return counts
                 except (RuntimeError, TimeoutError):
                     if proc.poll() is not None:
                         raise
                 time.sleep(0.25)
-            raise AssertionError(f"{model}: missing power graphics from the original Java server")
+            raise AssertionError(f"{model}: missing expected world sprites from the original Java server")
         finally:
             rpc.close()
             singleplayer._stop_proc(proc, azahar)
@@ -146,7 +144,8 @@ def main():
         heated = capture(out / "heated", model, fixture / "heated.msav", args.rom, azahar, stock, (REACTOR,))
         check_pixels(model, stock, heated, (REACTOR,))
         if args.live:
-            verify_live(args, model, azahar, fixture / "stock.msav", terrain, out / "live")
+            counts = verify_live(args, model, azahar, fixture / "stock.msav", terrain, out / "live")
+            print(f"UPSTREAM_LIVE_POWER_PIXELS model={model} beam={counts['beam-between-nodes']}/25", flush=True)
 
 
 if __name__ == "__main__":

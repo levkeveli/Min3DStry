@@ -76,7 +76,7 @@ def create_fixtures(output, java, server_jar, port):
     return fixtures / "material-empty.msav", fixtures / "material-stock.msav"
 
 
-def capture(output, model, save, rom, azahar, reference=None, buildings=BUILDINGS):
+def capture(output, model, save, rom, azahar, reference=None, buildings=BUILDINGS, min_changed=12):
     sd = (output / "sdmc").resolve()
     sd_save = sd / "3ds/min3dstry/singleplayer-save.msav"
     sd_save.parent.mkdir(parents=True)
@@ -99,7 +99,7 @@ def capture(output, model, save, rom, azahar, reference=None, buildings=BUILDING
                     frame = rpc.screenshot()
                     if singleplayer.az.inspect_png(frame)["top_distinct_colors"] >= 8:
                         image = frame
-                        if reference is None or min(changed_pixels(reference, image, buildings).values()) >= 12:
+                        if reference is None or min(changed_pixels(reference, image, buildings).values()) >= min_changed:
                             break
                 except (RuntimeError, TimeoutError):
                     if proc.poll() is not None or "UPSTREAM_SP_ERROR" in log.read_text(encoding="utf-8"):
