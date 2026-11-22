@@ -34,7 +34,7 @@ Selection alone performs no writes.
 
 For verification, create sector fixtures with the stock v160.8 server in a
 temporary directory. Run the following as one server-console command, first
-with `groundZero` and then with `frozenForest`.
+with `frozenForest` and then with `groundZero` so Ground Zero sorts first.
 
 ```text
 js (() => { const sector = Packages.mindustry.content.SectorPresets.groundZero.sector; Vars.logic.reset(); Vars.world.loadSector(sector); Vars.logic.play(); const file = Packages.arc.files.Fi.get("sector-" + sector.planet.name + "-" + sector.id + ".msav"); Packages.mindustry.io.SaveIO.write(file); return file.name(); })()

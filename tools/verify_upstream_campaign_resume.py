@@ -14,7 +14,8 @@ import verify_upstream_singleplayer as sp
 def write_replay(path: Path, model: str, multiple: bool) -> None:
     windows = [(76, 78, sp.KEY_START)]
     if multiple:
-        windows += [(40, 42, 1 << 7), (44, 46, 1 << 6), (48, 50, 1)]
+        # The stock fixture saves Ground Zero last, leaving Frozen Forest one row down.
+        windows += [(43, 45, 1 << 7), (48, 50, 1)]
     frames = sp.CTM_SAMPLES_PER_SECOND * 86
     header = struct.pack("<4sQ20sQQ32sIQq156x", b"CTM\x1b", 0, sp.CTM_REVISION, 1780000000,
                          0x4D334453, b"Min3DStry Campaign", 0, frames, 0)
