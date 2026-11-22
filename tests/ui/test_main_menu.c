@@ -172,6 +172,18 @@ static void test_catalog_navigation(void) {
     CHECK(menu.catalog_category == M3DS_CATALOG_ITEMS);
     CHECK(strcmp(m3ds_main_menu_key(&menu, 0u), "beryllium") == 0);
 
+    /* A opens the detail view; movement/category switching is ignored; B closes it. */
+    CHECK(m3ds_main_menu_confirm(&menu) == M3DS_MENU_ACTION_NONE);
+    CHECK(menu.catalog_detail);
+    unsigned before = menu.catalog_selected;
+    m3ds_main_menu_move(&menu, 1);
+    CHECK(menu.catalog_selected == before);
+    m3ds_main_menu_catalog_switch(&menu, 1);
+    CHECK(menu.catalog_category == M3DS_CATALOG_ITEMS);
+    CHECK(m3ds_main_menu_back(&menu) == true);
+    CHECK(!menu.catalog_detail);
+    CHECK(menu.screen == M3DS_MENU_SCREEN_CATALOG);
+
     m3ds_main_menu_move(&menu, 13);
     CHECK(menu.catalog_selected == 13u);
     CHECK(menu.catalog_scroll == 2u); /* 13 - 12 + 1 */

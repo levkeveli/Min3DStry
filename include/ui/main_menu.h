@@ -52,6 +52,7 @@ typedef struct {
     M3dsCatalogCategory catalog_category;
     unsigned catalog_selected;
     unsigned catalog_scroll;
+    bool catalog_detail;
 } M3dsMainMenu;
 
 void m3ds_main_menu_init(M3dsMainMenu *menu);

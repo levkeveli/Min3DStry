@@ -31,22 +31,35 @@ from pathlib import Path
 
 UPSTREAM_COMMIT = "19a0f40d44514f4802a8b79770456e7e32e34da0"
 ITEM_RE = re.compile(r"^item\.([a-z0-9-]+)\.name = (.+)$")
+ITEM_DESC_RE = re.compile(r"^item\.([a-z0-9-]+)\.description = (.+)$")
 BLOCK_RE = re.compile(r"^block\.([a-z0-9-]+)\.name = (.+)$")
-BLOCK_DESC_RE = re.compile(r"^block\.([a-z0-9-]+)\.description = ")
+BLOCK_DESC_RE = re.compile(r"^block\.([a-z0-9-]+)\.description = (.+)$")
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_JSON = ROOT / "data" / "upstream-content.json"
 DEFAULT_HEADER = ROOT / "include" / "ui" / "content_catalog_data.h"
 
 
+def _clean(text: str) -> str:
+    """Normalize bundle prose for the fixed-width console."""
+    text = text.replace("\\n", " ")
+    text = re.sub(r"\[[^\]]*\]", "", text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
 def extract(bundle_path: Path) -> dict:
     items: dict[str, str] = {}
+    item_descs: dict[str, str] = {}
     blocks: dict[str, str] = {}
-    described: set[str] = set()
+    block_descs: dict[str, str] = {}
     for line in bundle_path.read_text(encoding="utf-8").splitlines():
         match = ITEM_RE.match(line)
         if match:
             items[match.group(1)] = match.group(2).strip()
+            continue
+        match = ITEM_DESC_RE.match(line)
+        if match:
+            item_descs[match.group(1)] = _clean(match.group(2))
             continue
         match = BLOCK_RE.match(line)
         if match:
@@ -54,21 +67,21 @@ def extract(bundle_path: Path) -> dict:
             continue
         match = BLOCK_DESC_RE.match(line)
         if match:
-            described.add(match.group(1))
+            block_descs[match.group(1)] = _clean(match.group(2))
 
     catalog = {
-        "format": 1,
+        "format": 2,
         "upstream_commit": UPSTREAM_COMMIT,
         "source": "core/assets/bundles/bundle.properties",
         "filter": "blocks with a description entry (upstream database content)",
         "items": [
-            {"id": key, "name": value}
+            {"id": key, "name": value, "description": item_descs.get(key, "")}
             for key, value in sorted(items.items(), key=lambda pair: pair[1].lower())
         ],
         "blocks": [
-            {"id": key, "name": value}
+            {"id": key, "name": value, "description": block_descs[key]}
             for key, value in sorted(
-                ((k, v) for k, v in blocks.items() if k in described),
+                ((k, v) for k, v in blocks.items() if k in block_descs),
                 key=lambda pair: pair[1].lower(),
             )
         ],
@@ -99,12 +112,18 @@ def render_header(catalog: dict) -> str:
         "static const M3dsCatalogEntry M3DS_CATALOG_ITEM_ROWS[] = {",
     ]
     for entry in items:
-        lines.append(f"    {{{_c_string(entry['id'])}, {_c_string(entry['name'])}}},")
+        lines.append(
+            f"    {{{_c_string(entry['id'])}, {_c_string(entry['name'])}, "
+            f"{_c_string(entry['description'])}}},"
+        )
     lines.append("};")
     lines.append("")
     lines.append("static const M3dsCatalogEntry M3DS_CATALOG_BLOCK_ROWS[] = {")
     for entry in blocks:
-        lines.append(f"    {{{_c_string(entry['id'])}, {_c_string(entry['name'])}}},")
+        lines.append(
+            f"    {{{_c_string(entry['id'])}, {_c_string(entry['name'])}, "
+            f"{_c_string(entry['description'])}}},"
+        )
     lines.append("};")
     lines.append("")
     lines.append("#endif")

@@ -55,7 +55,31 @@ static void test_counts_and_names(void) {
     CHECK(conveyor != NULL);
     if (conveyor) {
         CHECK(strcmp(conveyor->name, "Conveyor") == 0);
+        CHECK(strstr(conveyor->description, "Transports") != NULL);
     }
+    const M3dsCatalogEntry *copper_desc = find_entry(M3DS_CATALOG_ITEMS, "copper");
+    CHECK(copper_desc != NULL);
+    if (copper_desc) {
+        CHECK(strstr(copper_desc->description, "construction") != NULL);
+    }
+}
+
+static void test_wrap(void) {
+    char out[64];
+    size_t lines = m3ds_catalog_wrap("one two three four", 7u, out, sizeof(out));
+    CHECK(lines == 3u);
+    CHECK(strcmp(out, "one two\nthree\nfour") == 0);
+
+    CHECK(m3ds_catalog_wrap("", 10u, out, sizeof(out)) == 0u);
+    CHECK(out[0] == '\0');
+
+    lines = m3ds_catalog_wrap("abcdefghij", 4u, out, sizeof(out));
+    CHECK(lines == 3u);
+    CHECK(strcmp(out, "abcd\nefgh\nij") == 0);
+
+    lines = m3ds_catalog_wrap("short", 20u, out, sizeof(out));
+    CHECK(lines == 1u);
+    CHECK(strcmp(out, "short") == 0);
 }
 
 static void test_sorted_and_nonempty(void) {
@@ -82,6 +106,7 @@ static void test_sorted_and_nonempty(void) {
 int main(void) {
     test_counts_and_names();
     test_sorted_and_nonempty();
+    test_wrap();
     if (failures != 0) {
         printf("CONTENT_CATALOG FAIL failures=%d\n", failures);
         return 1;

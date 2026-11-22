@@ -95,10 +95,12 @@ void m3ds_main_menu_init(M3dsMainMenu *menu) {
     menu->catalog_category = M3DS_CATALOG_ITEMS;
     menu->catalog_selected = 0u;
     menu->catalog_scroll = 0u;
+    menu->catalog_detail = false;
 }
 
 void m3ds_main_menu_catalog_switch(M3dsMainMenu *menu, int delta) {
-    if (!menu || !menu->open || menu->screen != M3DS_MENU_SCREEN_CATALOG || delta == 0) {
+    if (!menu || !menu->open || menu->screen != M3DS_MENU_SCREEN_CATALOG || delta == 0 ||
+        menu->catalog_detail) {
         return;
     }
     menu->catalog_category =
@@ -113,6 +115,9 @@ void m3ds_main_menu_move(M3dsMainMenu *menu, int delta) {
         return;
     }
     if (menu->screen == M3DS_MENU_SCREEN_CATALOG) {
+        if (menu->catalog_detail) {
+            return;
+        }
         size_t total = m3ds_catalog_count(menu->catalog_category);
         if (total == 0u) {
             return;
@@ -210,6 +215,10 @@ M3dsMenuAction m3ds_main_menu_confirm(M3dsMainMenu *menu) {
     if (!menu || !menu->open) {
         return M3DS_MENU_ACTION_NONE;
     }
+    if (menu->screen == M3DS_MENU_SCREEN_CATALOG) {
+        menu->catalog_detail = !menu->catalog_detail;
+        return M3DS_MENU_ACTION_NONE;
+    }
     size_t count = 0u;
     const MenuEntry *items = current_items(menu, &count);
     if (menu->selected >= count) {
@@ -270,6 +279,7 @@ M3dsMenuAction m3ds_main_menu_confirm(M3dsMainMenu *menu) {
             menu->screen = M3DS_MENU_SCREEN_CATALOG;
             menu->catalog_selected = 0u;
             menu->catalog_scroll = 0u;
+            menu->catalog_detail = false;
             return M3DS_MENU_ACTION_NONE;
         }
         if (strcmp(entry->key, "about") == 0) {
@@ -279,7 +289,7 @@ M3dsMenuAction m3ds_main_menu_confirm(M3dsMainMenu *menu) {
         }
         return M3DS_MENU_ACTION_UNAVAILABLE;
     case M3DS_MENU_SCREEN_CATALOG:
-        /* Rows are informational for now; selection is local to the list. */
+        menu->catalog_detail = !menu->catalog_detail;
         return M3DS_MENU_ACTION_NONE;
     case M3DS_MENU_SCREEN_ABOUT:
         if (strcmp(entry->key, "back") == 0) {
@@ -302,6 +312,10 @@ bool m3ds_main_menu_back(M3dsMainMenu *menu) {
         return true;
     }
     if (menu->screen == M3DS_MENU_SCREEN_CATALOG) {
+        if (menu->catalog_detail) {
+            menu->catalog_detail = false;
+            return true;
+        }
         menu->screen = M3DS_MENU_SCREEN_DATABASE;
         menu->selected = 1u;
         return true;
