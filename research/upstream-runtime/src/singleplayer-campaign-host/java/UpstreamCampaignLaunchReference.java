@@ -43,6 +43,7 @@ public final class UpstreamCampaignLaunchReference {
                         || !sector.hasBase() || !SaveIO.isSaveValid(slot) || SaveIO.getMeta(slot).rules.sector != sector) {
                     throw new AssertionError("Cannot load the original starter world: " + sector.preset.name);
                 }
+                settings.getSettingsFile().copyTo(root.child(sector.planet.name + "-settings.bin"));
                 System.out.println("UPSTREAM_CAMPAIGN_PRESET planet=" + sector.planet.name
                     + " preset=" + sector.preset.name + " sector=" + sector.id
                     + " size=" + Vars.world.width() + "x" + Vars.world.height());

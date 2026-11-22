@@ -7,10 +7,12 @@ import argparse
 import re
 import shutil
 import struct
+import tempfile
 import time
 from pathlib import Path
 
 import verify_upstream_singleplayer as sp
+from campaign_settings_fixture import stock_console
 
 STARTERS = {
     "serpulo": ("sector-serpulo-170.msav", "Ground_Zero", 256),
@@ -93,10 +95,56 @@ def verify(model: str, planet: str, rom: Path, azahar: str, config: Path, log: P
             config.write_bytes(initial_config)
 
 
+def check_stock(java: str, server: Path, save: Path, settings: Path, planet: str) -> None:
+    name, _, size = STARTERS[planet]
+    sector_id = int(Path(name).stem.rsplit("-", 1)[1])
+    with tempfile.TemporaryDirectory(prefix="m3ds-stock-launch-readback-") as temp:
+        root = Path(temp)
+        shutil.copyfile(save, root / "port.msav")
+        (root / "config").mkdir()
+        shutil.copyfile(settings, root / "config/settings.bin")
+        script = f"""
+            const planet = Packages.mindustry.content.Planets.{planet};
+            const sector = planet.sectors.get({sector_id});
+            const core = Packages.arc.Core, io = Packages.mindustry.io.SaveIO;
+            const fi = Packages.arc.files.Fi;
+            const port = fi.get("port.msav"), stock = fi.get("stock.msav");
+            if (core.settings.getInt("{planet}-last-sector", -1) !== {sector_id} ||
+                String(core.settings.getString("last-sector-save", "")) !== "{Path(name).stem}" ||
+                !io.getMeta(port).rules.sector.equals(sector)) {{
+                throw new Error("Stock campaign slot or last-sector information differs");
+            }}
+            function digest() {{
+                const rules = Vars.state.rules;
+                return [Vars.world.width(), Vars.world.height(), rules.sector.id, rules.winWave,
+                    rules.attackMode, rules.env, rules.waves, Vars.state.wave,
+                    String(rules.defaultTeam.core().block.name)].join(",");
+            }}
+            Vars.logic.reset();
+            Vars.world.loadSector(sector);
+            Vars.logic.play();
+            const expected = digest();
+            io.write(stock);
+            Vars.logic.reset();
+            io.load(stock, Vars.world.makeSectorContext(sector));
+            const reopened = digest();
+            Vars.logic.reset();
+            io.load(port, Vars.world.makeSectorContext(sector));
+            if (!expected.startsWith("{size},{size},{sector_id},") || reopened !== digest()) {{
+                throw new Error("Expected " + reopened + ", got " + digest());
+            }}
+            return "UPSTREAM_PC_FRESH_CAMPAIGN_REOPENED";
+        """
+        stock_console(java, server, root, " ".join(script.splitlines()), r"UPSTREAM_PC_FRESH_CAMPAIGN_REOPENED")
+    print(f"[PASS] stock v160.8 reopened {save.name} and its settings", flush=True)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--rom", required=True, type=Path)
     parser.add_argument("--azahar")
+    parser.add_argument("--server", type=Path, help="Stock v160.8 server for save and settings readback")
+    parser.add_argument("--java", default="java")
     parser.add_argument("--model", choices=("new3ds", "old3ds"))
     parser.add_argument("--planet", choices=STARTERS)
     parser.add_argument("--output-dir", type=Path, default=Path("build/campaign-launch-emu"))
@@ -107,6 +155,10 @@ def main() -> int:
     for model in (args.model,) if args.model else ("new3ds", "old3ds"):
         for planet in (args.planet,) if args.planet else STARTERS:
             verify(model, planet, args.rom, azahar, config, log, args.output_dir)
+            if args.server:
+                name = STARTERS[planet][0]
+                check_stock(args.java, args.server, args.output_dir / f"{model}-{planet}-{name}",
+                            args.output_dir / f"{model}-{planet}-settings.bin", planet)
     return 0
 
 
