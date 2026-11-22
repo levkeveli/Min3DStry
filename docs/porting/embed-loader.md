@@ -1,8 +1,8 @@
 # Embedded TeaVM save loader
 
-The main app can link the upstream `save-rows` producer as an optional in-process
-loader. When present, startup tries the upstream loader before the
-verification-only native parser.
+The main app links the upstream `save-rows` producer as an in-process loader.
+Startup uses it as the only world-loading path: there is no native `.msav`
+parser fallback in the runtime (the native parser remains host-test only).
 
 - `include/platform/teavm_world_loader.h` declares
   `m3ds_teavm_world_loader_available()` and
@@ -61,21 +61,48 @@ not enforce the physical ceiling, so this remains an emulator-only measurement.
 
 The app call site in `main_3ds.c` logs
 `SECTOR_LOADER source=teavm available=1 loaded=1` when the embedded loader is
-linked, and falls back to the native parser when it is not.
+linked and the save loads. If the loader is not linked (`available=0`) or the
+save is missing/corrupt (`loaded=0`), no world is loaded and no native parser
+runs; the app keeps running with an empty world.
+
+A 100-byte truncated `sector-serpulo-170.msav` on New 3DS logs:
+
+```text
+SECTOR_LOADER source=teavm available=1 loaded=0 path=/3ds/min3dstry/sector-serpulo-170.msav tiles=0 buildings=0
+```
+
+and the verifier still passes (`FPS=59.51`, no abort).
 
 ## Reproduce
 
 ```sh
-gradle -Pprobe=save-rows ... generateC
-bash tools/build_teavm_loader.sh \
-    research/upstream-runtime/build/generated/teavm/c build/teavm-loader
-make TEAVM_LOADER_DIR="$PWD/build/teavm-loader"
+# One-shot: transpile the pinned SaveIO producer and pack the loader archive.
+UPSTREAM_MINDUSTRY=/path/to/Mindustry \
+MINDUSTRY_SERVER_JAR=/path/to/server-release.jar \
+ARC_CHECKOUT=/path/to/Arc \
+GRADLE_BIN=/path/to/gradle \
+./dev.sh loader
+
+# Default app build: generates the loader when missing (or M3DS_REBUILD_LOADER=1)
+# and links it. Requires a native devkitARM environment.
+UPSTREAM_MINDUSTRY=/path/to/Mindustry ./dev.sh build
 ```
+
+`build_teavm_loader` sources `/opt/devkitpro/3dsvars.sh` when `DEVKITARM` is not
+already exported, so the archive is always produced with the ARM toolchain
+rather than the host compiler. A loader-generation failure aborts `./dev.sh
+build` instead of linking a stale archive, and the Docker fallback warns when
+`UPSTREAM_MINDUSTRY` is set but no archive exists (Docker cannot generate one).
 
 The Makefile normalizes the path to an absolute value with `override`, and the
 loader/stub selection is written into `build-config.h` so toggling rebuilds the
-stub object. A separate build-integration change adds `dev.sh loader` and
-auto-linking to `dev.sh build`; this PR only adds the script and Makefile hook.
+stub object. CI asserts `arm-none-eabi-nm build/min3dstry.elf` reports the
+strong `T m3ds_teavm_world_load` symbol (not the weak `W` stub) and compiles
+both smoke variants.
 
-The remaining step is to make this linked build the only shipped path and
-delete the native parser from the startup path.
+Status: the linked build is the only shipped startup path (#275 removed the
+143-line native parser block). `src/platform/msav_world.c` and
+`src/platform/msav_inflate.c` stay in the tree for host compatibility tests and
+are not called from `main_3ds.c`. The default CI build links the loader, so a
+plain build without `TEAVM_LOADER_DIR` is no longer the supported app
+configuration.

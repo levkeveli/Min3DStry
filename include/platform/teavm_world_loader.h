@@ -13,8 +13,9 @@ extern "C" {
 /*
  * Optional in-process upstream SaveIO loader. The weak default implementation
  * reports unavailable; an embedded TeaVM loader overrides these symbols and
- * fills the resident M3dsWorldTiles arrays from the decoded save. Callers must
- * fall back to the verification-only native parser when this returns false.
+ * fills the resident M3dsWorldTiles arrays from the decoded save. A false
+ * return means no world was loaded: the app startup path has no native-parser
+ * fallback, and msav_world.c/msav_inflate.c remain host-test only.
  */
 bool m3ds_teavm_world_loader_available(void);
 
