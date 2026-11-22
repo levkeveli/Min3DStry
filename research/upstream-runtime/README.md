@@ -235,6 +235,9 @@ typing when an array reaches an element read through a generic coroutine
 spill. The C emitter stores local array references as `void*` because
 coroutine lowering can reuse their registers for other Java objects.
 The generated array access macros cast to the array header at access time.
+The graphical campaign build uses the original Arc field-access checks
+for its retained settings fields. The dedicated sector metadata probes
+retain the existing TeaVM field-accessibility workaround.
 For offline generation, pass an
 already downloaded source archive with
 `-PteavmCompilerSources=/path/to/teavm-core-0.16.0-sources.jar`.

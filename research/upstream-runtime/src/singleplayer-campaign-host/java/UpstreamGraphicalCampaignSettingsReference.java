@@ -48,9 +48,11 @@ public final class UpstreamGraphicalCampaignSettingsReference {
             }
             Fi second = root.child("sector-serpulo-64.msav");
             fixtures.child(second.name()).copyTo(second);
+            settings.put("save-sector-serpulo-64-name", "Stock Frozen Forest");
+            settings.put("last-sector-save", "Stock Frozen Forest");
             slots = session.sectorSaves();
             if (slots.size() != 2 || slots.get(UpstreamSinglePlayerSession.lastSectorRow(slots)).sector != forest) {
-                throw new AssertionError("The stock last-sector-save did not highlight Frozen Forest");
+                throw new AssertionError("The stock last-sector-save did not highlight the renamed Frozen Forest slot");
             }
             research.amount = 8;
             session.save(slot);

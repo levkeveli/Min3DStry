@@ -621,11 +621,16 @@ final class GlacierFixture {
                 commandLine 'git', '-C', arc.get(), 'show', "${arcRevision}:${jsonSource}"
             }.standardOutput.asBytes.get(), 'UTF-8')
             def reflective = 'return type.getDeclaredConstructor().newInstance();'
-            if (source.count(reflective) != 1) {
+            def accessibility = 'if(!field.isAccessible()){'
+            if (source.count(reflective) != 1 || source.count(accessibility) != 1) {
                 throw new GradleException('Pinned Arc Json reflection hooks changed')
             }
             // TeaVM instantiates retained classes directly.
             source = source.replace(reflective, 'return type.newInstance();')
+            if (!usesSinglePlayerApp) {
+                // Preserve the existing field accessibility workaround in the standalone probes.
+                source = source.replace(accessibility, 'if(false){')
+            }
             def adapted = arcJsonFile.get().asFile
             adapted.parentFile.mkdirs()
             adapted.setText(source, 'UTF-8')

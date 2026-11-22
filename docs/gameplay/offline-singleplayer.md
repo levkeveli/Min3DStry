@@ -66,15 +66,19 @@ Copy the PC `settings.bin` into `/3ds/min3dstry/` alongside the `saves/`
 directory to carry over campaign research, unlocks, sector information, and
 the last-sector selection. The graphical app loads the file through Arc
 `Settings` before initializing Mindustry content. In the sector menu, the
-stock last save name or planet sector preference determines the initial row
-when it matches an available save. Saving the sector updates the original
+stock last save display name or planet sector preference determines the
+initial row when it matches an available save. The original Saves class
+stores the display name under `last-sector-save`, including renamed saves.
+[Pinned stock implementation](https://github.com/Anuken/Mindustry/blob/19a0f40d44514f4802a8b79770456e7e32e34da0/core/src/mindustry/game/Saves.java#L259-L264)
+
+Saving the sector updates the original
 Mindustry settings keys through `SaveIO` and flushes `Settings` to the same
 SD directory. The offline interface uses the saved PC language preference
 when available. A nonempty SD `locale.txt` overrides the displayed language
 for that launch and preserves the PC setting. Arc manages the settings backup.
-The offline executable
-reserves a 512 KiB native stack for the nested upstream serializer used by
-campaign saves with objective markers.
+The standalone and unified offline modes reserve a 512 KiB native stack
+for campaign saves with nested objective markers. This adds 256 KiB to
+the static budget of builds that used the earlier 256 KiB stack.
 
 The [ARM11 build from `c42a78b`](https://github.com/levkeveli/Min3DStry/actions/runs/45042352829)
 opened Ground Zero, highlighted the stock last save in the two-sector menu,
@@ -92,7 +96,7 @@ python3 tools/campaign_settings_fixture.py --server server-release.jar --create-
 Run Gradle with the pinned runtime properties and
 `-Pprobe=singleplayer runGraphicalCampaignSettingsJvm --args="/path/to/fixtures /path/to/new-scratch-dir"`.
 It checks unlocks and partial research at content startup, the stock sector
-metadata, language selection, the settings backup, and the research update
+metadata, renamed-slot selection, language selection, the settings backup, and the research update
 after saving.
 Passing the same fixtures to `tools/verify_upstream_campaign_resume.py`
 checks the initial menu selection and saves a copy of the native settings for
