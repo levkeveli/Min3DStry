@@ -65,19 +65,19 @@ def pack_world_atlas(args, staged: Path, extracted: Path) -> None:
         (extracted / name).rename(staged / name)
 
 
-def pack_stock_text_assets(archive: zipfile.ZipFile, staged: Path) -> None:
-    for name in STOCK_TEXT_ASSETS:
-        destination = staged / name
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.write_bytes(archive.read("assets/" + name))
-
-
 def pack_custom_game_maps(archive: zipfile.ZipFile, maps_dir: Path) -> None:
     builtin = maps_dir / "default"
     builtin.mkdir()
     for name in BUILTIN_CUSTOM_GAME_MAPS:
         filename = f"{name}.msav"
         (builtin / filename).write_bytes(archive.read(f"assets/maps/default/{filename}"))
+
+
+def pack_stock_text_assets(archive: zipfile.ZipFile, staged: Path) -> None:
+    for name in STOCK_TEXT_ASSETS:
+        destination = staged / name
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(archive.read("assets/" + name))
 
 
 def main() -> None:

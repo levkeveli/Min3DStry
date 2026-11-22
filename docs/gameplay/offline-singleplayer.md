@@ -12,29 +12,6 @@ This vertical slice boots and runs unmodified upstream Mindustry `v160.8` **Grou
 - [`WorldReflectionPolicy.java`](../../research/upstream-runtime/src/world/java/port/WorldReflectionPolicy.java): Registers 0-argument constructors for `arc.struct.{IntMap,IntSet,ObjectIntMap,ObjectMap,ObjectSet,StringMap}` so Arc `Json` restores populated `GameStats` (`placedBlockCount`, etc.) and `Rules` fields when reloading `.msav` saves.
 - [`prepare_terrain_assets.py`](../../research/upstream-runtime/arm11/prepare_terrain_assets.py) (`--singleplayer`) & [`build.sh`](../../research/upstream-runtime/arm11/build.sh) (`--singleplayer`): Stages `maps/groundZero.msav` and `sprites.aatls` alongside bundles, `world-atlas`, `block_colors.png`, menu icons, and stock fonts, then links the ARM11 `.elf`/`.3dsx` (default `-Os`).
 
-## Custom Game
-
-Hold **L** while launching the standalone graphical `.3dsx` to open the
-Custom Game map list. Use D-pad up/down to select a map, left/right to select
-an upstream mode, and **A** to start. **B** or **START** exits the selector.
-The roster includes all 18 maps listed by the pinned v160.8 Custom Game menu.
-Place compatible `.msav` map exports in `/3ds/min3dstry/maps/` to list them
-alongside the bundled maps. The selector uses the names from each map's stock
-metadata. If a mode is unavailable on a map, startup uses the first valid mode
-in the upstream mode order.
-
-`SELECT` saves the current Custom Game to
-`/3ds/min3dstry/custom-game-save.msav` using upstream `SaveIO`. The separate
-file preserves the ordinary single-player and campaign slots.
-Select **Load Game** at the top of the Custom Game list to resume that save.
-
-The JVM regression uses an assets directory staged with
-`prepare_terrain_assets.py --singleplayer`. Pass its `maps/default` directory,
-a fixture directory with one valid exported map, and a new output file to
-`-Pprobe=singleplayer runCustomGameJvm --args="/path/to/maps/default /path/to/user-maps /path/to/roundtrip.msav"`
-along with the pinned runtime Gradle properties. It compares the stock catalog,
-launches Glacier in Sandbox, and reloads the resulting `.msav`.
-
 ## Campaign sector selection
 
 When `/3ds/min3dstry` contains more than one `sector-*.msav` slot, the app
@@ -78,6 +55,29 @@ UPSTREAM_SP_EXIT
 ```
 
 Save-back and START cancel were verified on both profiles.
+
+## Custom Game
+
+Hold **L** while launching the standalone graphical `.3dsx` to open the
+Custom Game map list. Use D-pad up/down to select a map, left/right to select
+an upstream mode, and **A** to start. **B** or **START** exits the selector.
+The roster includes all 18 maps listed by the pinned v160.8 Custom Game menu.
+Place compatible `.msav` map exports in `/3ds/min3dstry/maps/` to list them
+alongside the bundled maps. The selector uses the names from each map's stock
+metadata. If a mode is unavailable on a map, startup uses the first valid mode
+in the upstream mode order.
+
+`SELECT` saves the current Custom Game to
+`/3ds/min3dstry/custom-game-save.msav` using upstream `SaveIO`. The separate
+file preserves the ordinary single-player and campaign slots.
+Select **Load Game** at the top of the Custom Game list to resume that save.
+
+The JVM regression uses an assets directory staged with
+`prepare_terrain_assets.py --singleplayer`. Pass its `maps/default` directory,
+a fixture directory with one valid exported map, and a new output file to
+`-Pprobe=singleplayer runCustomGameJvm --args="/path/to/maps/default /path/to/user-maps /path/to/roundtrip.msav"`
+along with the pinned runtime Gradle properties. It compares the stock catalog,
+launches Glacier in Sandbox, and reloads the resulting `.msav`.
 
 ## 3DS Controls
 
