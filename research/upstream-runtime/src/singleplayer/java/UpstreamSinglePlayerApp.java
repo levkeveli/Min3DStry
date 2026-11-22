@@ -99,8 +99,9 @@ public final class UpstreamSinglePlayerApp {
         Fi mapDir = saveFile.parent() != null ? saveFile.parent() : new Fi("/3ds/min3dstry");
         session = UpstreamSinglePlayerSession.create(mapDir, bundleTag);
         try {
-            List<Fi> sectorSaves = args.length < 2 ? session.sectorSaves() : List.of();
-            Fi selected = null;
+            List<UpstreamSinglePlayerSession.SectorSlot> sectorSaves =
+                args.length < 2 ? session.sectorSaves() : List.of();
+            UpstreamSinglePlayerSession.SectorSlot selected = null;
             if (sectorSaves.size() > 1) {
                 loadInterfaceGraphics(atlas);
                 // Drain the boot-time START press used by the homebrew launcher.
@@ -115,12 +116,15 @@ public final class UpstreamSinglePlayerApp {
                 if (selected == null) {
                     return;
                 }
-                saveFile = selected;
-                campaignSlot = selected;
+                saveFile = selected.file;
             }
             // Load the world before initializing world sprites to keep peak TeaVM heap bounded.
-            session.start(mapFile, saveFile, selected == null ? null : "campaign",
-                selected == null ? null : session.sectorFor(selected));
+            boolean loadedCampaign = session.start(mapFile, saveFile, selected == null ? null : "campaign",
+                selected == null ? null : selected.sector);
+            if (selected != null && loadedCampaign) {
+                // Only write back a slot that actually loaded; a failed load must not overwrite it.
+                campaignSlot = selected.file;
+            }
             if (sectorSaves.size() <= 1) {
                 loadInterfaceGraphics(atlas);
             }
@@ -174,7 +178,8 @@ public final class UpstreamSinglePlayerApp {
         loadBulletGraphics();
     }
 
-    private Fi chooseSector(List<Fi> slots) {
+    private UpstreamSinglePlayerSession.SectorSlot chooseSector(
+            List<UpstreamSinglePlayerSession.SectorSlot> slots) {
         int selected = 0;
         int lastAxis = 0;
         System.out.println("UPSTREAM_CAMPAIGN_MENU slots=" + slots.size());
@@ -183,16 +188,15 @@ public final class UpstreamSinglePlayerApp {
             int index = Integer.parseInt(automatic.readString("UTF-8").trim());
             if (index < 0 || index >= slots.size()) index = 0;
             var slot = slots.get(index);
-            System.out.println("UPSTREAM_CAMPAIGN_SELECTED slot=" + slot.name() + " source=auto");
+            System.out.println("UPSTREAM_CAMPAIGN_SELECTED slot=" + slot.file.name() + " source=auto");
             return slot;
         }
         while (true) {
             long nextFrame = System.nanoTime() + 16_666_667L;
             int input = UpstreamSinglePlayerInput.poll();
             if (input == -1) {
-                // The homebrew launcher can leave START held during boot; ignore it here.
-                Thread.yield();
-                continue;
+                System.out.println("UPSTREAM_CAMPAIGN_CANCEL");
+                return null;
             }
             int axis = (byte)((input >> 8) & 0xff);
             if (axis > 60 && lastAxis <= 20 && selected > 0) {
@@ -209,17 +213,17 @@ public final class UpstreamSinglePlayerApp {
             drawSectorMenu(slots, selected);
             if ((input & (1 << 17)) != 0) {
                 var slot = slots.get(selected);
-                System.out.println("UPSTREAM_CAMPAIGN_SELECTED slot=" + slot.name());
+                System.out.println("UPSTREAM_CAMPAIGN_SELECTED slot=" + slot.file.name());
                 return slot;
             }
             while (System.nanoTime() < nextFrame) Thread.yield();
         }
     }
 
-    private void drawSectorMenu(List<Fi> slots, int selected) {
+    private void drawSectorMenu(List<UpstreamSinglePlayerSession.SectorSlot> slots, int selected) {
         StringBuilder labels = new StringBuilder("Select sector\0");
         for (int i = 0; i < slots.size(); i++) {
-            labels.append(i == selected ? "> " : "  ").append(slots.get(i).name()).append('\0');
+            labels.append(i == selected ? "> " : "  ").append(slots.get(i).file.name()).append('\0');
         }
         target.buildLabels(labels.toString().getBytes(StandardCharsets.UTF_8));
     }
@@ -277,7 +281,6 @@ public final class UpstreamSinglePlayerApp {
         long previousTime = System.nanoTime();
         long accumulator = 0L;
         while (true) {
-            long nextFrame = System.nanoTime() + 16_666_667L;
             int input = UpstreamSinglePlayerInput.poll();
             if (input == -1) break;
             int touch = UpstreamSinglePlayerInput.touch();

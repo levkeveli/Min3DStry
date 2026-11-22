@@ -393,22 +393,28 @@ for removal once the TeaVM object-reference cast issue is fixed.
 
 ## ARM11 sector selection and launch
 
-The offline single-player app lists `sector-*.msav` slots through the live
-`Saves.load()` path when more than one slot exists. Selecting a slot and
-pressing A launches it through
+The offline single-player app lists top-level `sector-*.msav` slots through the
+live `Saves.load()` path when more than one slot exists. It uses the same direct
+`Vars.saveDirectory` children as `Saves.getSectorFile()`, so nested probe or
+backup files do not appear. Each slot is launched with the sector decoded from
+its save metadata (planet-aware filename fallback) through
 `SaveIO.load(file, Vars.world.makeSectorContext(sector))`; automated runs can
 select by index with `/3ds/min3dstry/campaign-select.txt`. Both Azahar
 profiles report:
 
 ```text
-UPSTREAM_CAMPAIGN_MENU slots=3
-UPSTREAM_CAMPAIGN_SELECTED slot=sector-serpulo-86.msav source=auto
+UPSTREAM_CAMPAIGN_MENU slots=2
+UPSTREAM_CAMPAIGN_SELECTED slot=sector-serpulo-15.msav source=auto
 UPSTREAM_SP_LOADED source=campaign map=Editor_Playtesting size=150x250 wave=1 copper=0
+UPSTREAM_CAMPAIGN_SAVED slot=sector-serpulo-15.msav
+UPSTREAM_SP_EXIT
 ```
 
-The menu, A-button selection, launch and START-exit save-back
-(`UPSTREAM_CAMPAIGN_SAVED slot=sector-serpulo-15.msav`) are emulator-tested on
-both profiles; the live campaign dialogs and capture rewards remain open.
+START in the menu now reports `UPSTREAM_CAMPAIGN_CANCEL` and exits. The menu,
+A-button selection, launch, START cancel and START-exit save-back are
+emulator-tested on both profiles. Save-back runs only when the slot actually
+loaded, so a failed load cannot overwrite the `.msav`; the live campaign dialogs
+and capture rewards remain open.
 ## ARM11 `Saves.load()`
 
 `-Pprobe=campaign-saves-load` wires the upstream save environment on the live

@@ -16,16 +16,26 @@ This vertical slice boots and runs unmodified upstream Mindustry `v160.8` **Grou
 
 When `/3ds/min3dstry` contains more than one `sector-*.msav` slot, the app
 loads `Saves.load()` through the live `Core.settings`/`Core.files` path before
-starting the world. It lists the slots on the bottom screen:
+starting the world. It lists one top-level row per discovered `sector-*.msav`
+file, matching `Saves.getSectorFile()`; nested probe or backup files are
+ignored:
 
 ```text
 UPSTREAM_CAMPAIGN_MENU slots=2
 ```
 
 D-pad up/down changes the selection; A launches the selected slot through
-`SaveIO.load(file, Vars.world.makeSectorContext(sector))`. For automated
-runs, a file `/3ds/min3dstry/campaign-select.txt` containing a zero-based slot
-index selects without input:
+`SaveIO.load(file, Vars.world.makeSectorContext(sector))`. The sector context is
+taken from the slot's decoded save metadata (`SaveSlot.getSector()`) and falls
+back to a planet-aware `sector-<planet>-<id>.msav` match. START cancels the menu:
+
+```text
+UPSTREAM_CAMPAIGN_CANCEL
+UPSTREAM_SP_EXIT
+```
+
+For automated runs, a file `/3ds/min3dstry/campaign-select.txt` containing a
+zero-based slot index selects without input:
 
 ```text
 UPSTREAM_CAMPAIGN_SELECTED slot=sector-serpulo-86.msav source=auto
@@ -36,14 +46,15 @@ Verified on Azahar `2126.2` New and Old profiles with two staged sector files.
 A-button selection was verified by injecting Azahar 2126.2's keyboard A mapping
 on both New and Old profiles; the auto-select hook remains for automation.
 
-On START exit, a selected sector slot is written back through `SaveIO.write`:
+On START exit, a selected sector slot is written back through `SaveIO.write`,
+but only when the slot actually loaded, so a failed load cannot overwrite it:
 
 ```text
 UPSTREAM_CAMPAIGN_SAVED slot=sector-serpulo-15.msav
 UPSTREAM_SP_EXIT
 ```
 
-The save-back was verified on both profiles.
+Save-back and START cancel were verified on both profiles.
 
 ## 3DS Controls
 
