@@ -3,6 +3,19 @@
 #include <math.h>
 #include <stdint.h>
 
+#define M3DS_UNIT_BUILD_TEXTURE_LIMIT 128
+
+typedef struct {
+    float pivot_x;
+    float width;
+} M3dsUnitBuildSlice;
+
+/* Citro2D translates by pos after rotating local offsets. Keep pos and
+ * angle fixed, shifting -center.x to the start of this slice. */
+static inline M3dsUnitBuildSlice m3ds_unit_build_slice(float pivot_x, float width, float from, float to) {
+    return (M3dsUnitBuildSlice){ pivot_x - width * from, width * (to - from) };
+}
+
 /* GLSL math from pinned Mindustry core/assets/shaders/unitbuild.frag.
  * Tex3DS stores the RGBA8 channels in ABGR byte order. */
 static inline uint8_t m3ds_unit_build_byte(float value) {

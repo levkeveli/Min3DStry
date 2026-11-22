@@ -339,6 +339,8 @@ static UnitBuildTextures *unit_build_texture(unsigned width, unsigned height) {
         if (unit_build_textures[slot].pass != world_pass) break;
     }
     if (slot == sizeof(unit_build_textures) / sizeof(unit_build_textures[0])) {
+        // Submit queued sprite vertices and wait for their textures to become free.
+        C2D_Flush();
         if (!recycle_world_pass()) return NULL;
         slot = 0;
     }
@@ -394,7 +396,8 @@ int32_t m3ds_terrain_draw_unit_build(int32_t page, int32_t left, int32_t top, in
                                      float progress, float r, float g, float b, float alpha, float phase,
                                      int32_t vertex_color) {
 #ifdef M3DS_WORLD_ATLAS
-    if (!frame_open || width <= 0 || height <= 0 || width > 1024 || height > 1024
+    if (!frame_open || width <= 0 || height <= 0
+            || width > M3DS_UNIT_BUILD_TEXTURE_LIMIT || height > M3DS_UNIT_BUILD_TEXTURE_LIMIT
             || page < 0 || (size_t)page >= sizeof(world_atlas_sizes) / sizeof(world_atlas_sizes[0])
             || left < 0 || top < 0 || width > world_atlas_sizes[page][0] - left
             || height > world_atlas_sizes[page][1] - top) return 0;
@@ -428,9 +431,10 @@ int32_t m3ds_terrain_draw_unit_build(int32_t page, int32_t left, int32_t top, in
             .left = from * width / texture_width, .right = to * width / texture_width,
             .top = 1.0f, .bottom = 1.0f - (float)height / texture_height
         };
+        const M3dsUnitBuildSlice slice = m3ds_unit_build_slice(whole.center.x, whole.pos.w, from, to);
         C2D_DrawParams part = whole;
-        part.center.x -= whole.pos.w * from;
-        part.pos.w *= to - from;
+        part.center.x = slice.pivot_x;
+        part.pos.w = slice.width;
         if (!C2D_DrawImage((C2D_Image){ &textures->textures[stripe], &region }, &part, &tint)) return 0;
         draws++;
     }

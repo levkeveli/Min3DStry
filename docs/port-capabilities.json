@@ -159,6 +159,7 @@
         "research/upstream-runtime/arm11/m3ds_terrain_renderer.c",
         "research/upstream-runtime/arm11/m3ds_world_fragment.h",
         "tests/render/test_world_fragment.c",
+        "tools/verify_upstream_factory_graphics.py",
         "tools/verify_upstream_live_net.py",
         "tests/tools/test_verify_world_atlas.py",
         "docs/rendering/asset-pipeline.md"

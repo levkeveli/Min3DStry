@@ -15,7 +15,18 @@ int main(void) {
     m3ds_shade_unit_build_pixel(out, transparent, 1, accent, 1);
     assert(out[0] == 0 && out[1] == 64 && out[2] == 128 && out[3] == 192);
     m3ds_shade_unit_build_pixel(out, partial, 0.5f, accent, 0);
+    /* GLSL outside the stripe gives progress * src.a * src.a. */
     assert(out[0] == 32);
+
+    const M3dsUnitBuildSlice first = m3ds_unit_build_slice(20, 40, 0, 0.25f);
+    const M3dsUnitBuildSlice middle = m3ds_unit_build_slice(20, 40, 0.25f, 0.75f);
+    const M3dsUnitBuildSlice last = m3ds_unit_build_slice(20, 40, 0.75f, 1);
+    /* C2Di_CalcQuad rotates (-center.x, -center.y), then adds pos.
+     * With a 90 degree rotation and pos.y = 100, x offsets become
+     * y offsets. The three slices meet at y=90 and y=110. */
+    assert(100 - first.pivot_x == 80 && 100 - first.pivot_x + first.width == 90);
+    assert(100 - middle.pivot_x == 90 && 100 - middle.pivot_x + middle.width == 110);
+    assert(100 - last.pivot_x == 110 && 100 - last.pivot_x + last.width == 120);
 
     const float phases[] = {0, 1.3f, -2, 12, -17};
     for (unsigned p = 0; p < sizeof(phases) / sizeof(phases[0]); ++p) {

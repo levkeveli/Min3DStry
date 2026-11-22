@@ -123,6 +123,17 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
     }
 
     private void verifyFactory(UpstreamTerrainDrawProbe.Viewport viewport) {
+        for (var block : Vars.content.blocks()) {
+            if (!(block instanceof UnitFactory factory)) continue;
+            for (var plan : factory.plans) {
+                plan.unit.loadIcon();
+                var icon = plan.unit.fullIcon;
+                if (icon.width > 128 || icon.height > 128 || !icon.found()) {
+                    throw new AssertionError("The original factory icon does not fit the ARM11 scratch atlas: "
+                        + plan.unit.name + " " + icon.width + "x" + icon.height);
+                }
+            }
+        }
         viewport.moveTo(24, 30);
         var viewer = Team.sharded;
         var tile = Vars.world.tile(31, 35);

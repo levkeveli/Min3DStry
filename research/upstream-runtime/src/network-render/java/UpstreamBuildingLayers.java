@@ -29,6 +29,12 @@ final class UpstreamBuildingLayers {
                 if (build != null && visited.add(build.pos()) && supported.test(build)
                         && (!build.inFogTo(viewer) || build.wasVisible)) {
                     visible.add(build);
+                    if (build instanceof UnitFactoryBuild factory) {
+                        loadFactoryGraphics(factory.unit());
+                        if (factory.getPayload() instanceof UnitPayload payload) {
+                            loadFactoryGraphics(payload.unit.type());
+                        }
+                    }
                 }
             }
         }
@@ -43,12 +49,6 @@ final class UpstreamBuildingLayers {
                 if (block.drawDynamic && block.cacheLayer == CacheLayer.normal) {
                     // Streamed conveyors carry progress and rotation. Reconstruct cargo geometry before drawing.
                     if (build instanceof PayloadConveyorBuild conveyor) conveyor.updatePayload();
-                    if (build instanceof UnitFactoryBuild factory) {
-                        loadFactoryGraphics(factory.unit());
-                        if (factory.getPayload() instanceof UnitPayload payload) {
-                            loadFactoryGraphics(payload.unit.type());
-                        }
-                    }
                     Draw.z(Layer.block);
                     block.drawBase(build.tile);
                     Draw.reset();
@@ -72,6 +72,7 @@ final class UpstreamBuildingLayers {
 
     private void loadFactoryGraphics(UnitType type) {
         if (type == null || !factoryGraphics.add(type)) return;
+        // Resolve regions in the loaded stock atlas before submitting building draws.
         type.loadIcon();
         type.load();
     }
