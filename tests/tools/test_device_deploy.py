@@ -289,6 +289,30 @@ class StreamingCaptureTests(unittest.TestCase):
             self.assertLess(elapsed, 4.0)
             self.assertIn("tick 0", log.read_text(encoding="utf-8"))
 
+    def test_resolve_3dslink_accepts_env_aliases_and_explicit_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            fake = Path(tmp) / "3dslink.exe"
+            fake.write_text("", encoding="utf-8")
+            saved = {
+                key: os.environ.get(key)
+                for key in ("THREEDSLINK_BIN", "THREESLINK_BIN")
+            }
+            try:
+                os.environ["THREESLINK_BIN"] = str(fake)
+                self.assertEqual(device_deploy.resolve_3dslink(None), str(fake))
+                os.environ.pop("THREESLINK_BIN", None)
+                os.environ["THREEDSLINK_BIN"] = str(fake)
+                self.assertEqual(device_deploy.resolve_3dslink(None), str(fake))
+                self.assertEqual(
+                    device_deploy.resolve_3dslink(str(fake)), str(fake)
+                )
+            finally:
+                for key, value in saved.items():
+                    if value is None:
+                        os.environ.pop(key, None)
+                    else:
+                        os.environ[key] = value
+
     def test_writes_complete_output_without_timeout(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             log = Path(tmp) / "complete.log"

@@ -51,15 +51,24 @@ def _cygpath_w(path_str: str) -> str:
 
 
 def resolve_3dslink(explicit: str | None = None) -> str:
-    """Locate 3dslink executable from argument, env var, PATH, or devkitPro default."""
+    """Locate 3dslink from argument, env, PATH, or a local devkitPro install."""
     candidates = [
         explicit,
         os.environ.get("THREEDSLINK_BIN"),
+        os.environ.get("THREESLINK_BIN"),
         shutil.which("3dslink"),
         shutil.which("3dslink.exe"),
         "/opt/devkitpro/tools/bin/3dslink",
         "/opt/devkitpro/tools/bin/3dslink.exe",
     ]
+    roots = []
+    if os.environ.get("DEVKITPRO"):
+        roots.append(Path(os.environ["DEVKITPRO"]))
+    roots.append(Path.home() / "devkitPro")
+    roots.append(Path("C:/devkitPro"))
+    for root in roots:
+        candidates.append(str(root / "tools" / "bin" / "3dslink.exe"))
+        candidates.append(str(root / "tools" / "bin" / "3dslink"))
     for cand in candidates:
         if not cand:
             continue
@@ -67,7 +76,8 @@ def resolve_3dslink(explicit: str | None = None) -> str:
         if p.is_file() or shutil.which(cand):
             return cand
     raise FileNotFoundError(
-        "3dslink executable not found (install 3dslink via devkitPro or set THREEDSLINK_BIN)."
+        "3dslink executable not found (install 3dslink via devkitPro, pass --3dslink, "
+        "or set THREEDSLINK_BIN/THREESLINK_BIN)."
     )
 
 
