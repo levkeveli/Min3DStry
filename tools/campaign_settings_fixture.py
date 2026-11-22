@@ -59,8 +59,11 @@ def create_settings(java: str, server: Path, fixtures: Path) -> None:
         shutil.copyfile(root / "config/settings.bin", fixtures / "settings.bin")
 
 
-def check_settings(java: str, server: Path, settings: Path, sector_id: int, research: int) -> None:
+def check_settings(java: str, server: Path, settings: Path, sector_id: int, research: int,
+                   after_play: bool) -> None:
     expected_name = "Stock Ground Zero" if sector_id == 170 else "sector-serpulo-64"
+    # The stock moving average decays in an idle sector during the replay.
+    production_ok = "production.mean >= 0 && production.mean <= 2.5" if after_play else "production.mean === 2.5"
     with tempfile.TemporaryDirectory(prefix="m3ds-read-stock-settings-") as temp:
         root = Path(temp)
         target = root / "config/settings.bin"
@@ -81,7 +84,7 @@ def check_settings(java: str, server: Path, settings: Path, sector_id: int, rese
                 settings.getInt("campaign-fixture-int", -1) !== 47 ||
                 String(info.name) !== "Landing Data" || info.attempts !== 3 || !info.wasCaptured ||
                 !info.origin.equals(forest) || !info.resources.contains(items.lead) ||
-                production == null || production.mean !== 2.5 ||
+                production == null || !({production_ok}) ||
                 info.importCooldownTimers.get(items.lead, -1) !== 3.5) {{
                 throw new Error("PC could not restore campaign settings");
             }}
@@ -100,11 +103,12 @@ def main() -> int:
     operation.add_argument("--check", type=Path, help="Check a settings.bin saved by the port")
     parser.add_argument("--sector", type=int, choices=(64, 170), default=170)
     parser.add_argument("--research", type=int, default=7)
+    parser.add_argument("--after-play", action="store_true", help="The fixture sector ran its stock production averages")
     args = parser.parse_args()
     if args.create_in:
         create_settings(args.java, args.server, args.create_in)
     else:
-        check_settings(args.java, args.server, args.check, args.sector, args.research)
+        check_settings(args.java, args.server, args.check, args.sector, args.research, args.after_play)
     return 0
 
 
