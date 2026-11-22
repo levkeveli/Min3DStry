@@ -70,6 +70,20 @@ class SmokeScopeTests(unittest.TestCase):
         self.assertEqual(scope["probes"], ["wave-routing"])
         self.assertTrue(scope["run_combat"])
         self.assertFalse(scope["run_factory"])
+        self.assertFalse(scope["run_singleplayer"])
+
+    def test_singleplayer_pr_scopes_to_singleplayer_baseline(self) -> None:
+        scope = smoke_scope.classify_smoke_scope(
+            [
+                "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerSession.java",
+                "tools/verify_upstream_singleplayer.py",
+            ],
+            "pull_request",
+        )
+        self.assertFalse(scope["run_all"])
+        self.assertFalse(scope["run_probes"])
+        self.assertTrue(scope["run_singleplayer"])
+        self.assertFalse(scope["run_factory"])
 
     def test_multi_scope_and_unrelated_docs(self) -> None:
         scope = smoke_scope.classify_smoke_scope(

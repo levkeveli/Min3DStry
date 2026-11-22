@@ -21,6 +21,8 @@ def netClientSource = 'core/src/mindustry/core/NetClient.java'
 def placementSource = 'core/src/mindustry/ui/fragments/PlacementFragment.java'
 def itemSelectionSource = 'core/src/mindustry/world/blocks/ItemSelection.java'
 def planetGridSource = 'core/src/mindustry/graphics/g3d/PlanetGrid.java'
+def globalVarsSource = 'core/src/mindustry/logic/GlobalVars.java'
+def unitTypeSource = 'core/src/mindustry/type/UnitType.java'
 def pixmapSource = 'arc-core/src/arc/graphics/Pixmap.java'
 def jsonSource = 'arc-core/src/arc/util/serialization/Json.java'
 def pixmapPatch = file('patches/arc-pixmap-direct-buffer.patch')
@@ -49,6 +51,8 @@ def entryPoints = [
     'world-stream': 'UpstreamWorldStreamProbe',
     'network-live': 'UpstreamLiveNetworkProbe',
     'network-render': 'UpstreamRenderedNetworkProbe',
+    'singleplayer-sim': 'UpstreamSinglePlayerSession',
+    'singleplayer': 'UpstreamSinglePlayerApp',
     'terrain-draw': 'UpstreamTerrainDrawProbe',
     'terrain-render': 'UpstreamTerrainRenderProbe',
     'file-metadata': 'port.UpstreamFileMetadataProbe',
@@ -69,9 +73,13 @@ if (!entryPoints.containsKey(probe)) {
 }
 def entryPoint = entryPoints[probe]
 def usesMapSources = probe in ['map', 'map-sd']
+def usesSinglePlayerApp = probe == 'singleplayer'
+def usesSinglePlayer = probe in ['singleplayer-sim', 'singleplayer']
 def usesLiveNetwork = probe in ['network-live', 'network-render']
-def usesTerrainRenderer = probe in ['terrain-render', 'network-render']
-def patchesPlanetGrid = probe == 'network-render'
+def usesRenderedClient = probe in ['network-render', 'singleplayer']
+def usesBuildControls = probe in ['network-live', 'network-render', 'singleplayer']
+def usesTerrainRenderer = probe in ['terrain-render', 'network-render', 'singleplayer']
+def patchesPlanetGrid = usesRenderedClient
 def conduitSmoothing = 'smoothLiquid = Mathf.lerpDelta(smoothLiquid, liquids.currentAmount() / liquidCapacity, 0.05f);'
 def conduitUpdate = '@Override\n        public void updateTile(){'
 def fluidSources = [
@@ -105,7 +113,7 @@ def usesCampaignSaves = probe == 'campaign-saves'
 def usesCampaignSlotDiscovery = probe == 'campaign-slot-discovery'
 def usesCampaignJsonCompat = usesCampaignSectorInfo || usesCampaignSlotDiscovery
 def usesWorldSources = probe in ['world', 'world-save', 'world-roundtrip', 'world-stream',
-                                 'terrain-draw', 'save-decode', 'save-rows'] || usesCampaignSector || usesCampaignSlotMeta || usesCampaignLaunch || usesCampaignSlotDiscovery || usesLiveNetwork || usesTerrainRenderer || usesSimulation
+                                 'terrain-draw', 'save-decode', 'save-rows'] || usesCampaignSector || usesCampaignSlotMeta || usesCampaignLaunch || usesCampaignSlotDiscovery || usesLiveNetwork || usesTerrainRenderer || usesSimulation || usesSinglePlayer
 def initializesContent = probe == 'content-init' || usesWorldSources || usesCampaignContent || usesCampaignResearch || usesCampaignSectorInfo || usesCampaignPlanet || usesCampaignSectorState || usesCampaignLaunch || usesCampaignSaves
 def usesContentSources = probe == 'content' || initializesContent
 def usesExecutor = usesContentSources || probe == 'executor' || usesCampaignSettings
@@ -138,6 +146,9 @@ def placementFile = sourceDir.map { it.file('UpstreamPlacementCatalog.java') }
 def itemChoicesFile = sourceDir.map { it.file('UpstreamItemChoices.java') }
 def planetGridFile = sourceDir.map { it.file('mindustry/graphics/g3d/PlanetGrid.java') }
 def contentColorsFile = sourceDir.map { it.file('mindustry/core/ContentLoader.java') }
+def globalVarsFile = sourceDir.map { it.file('mindustry/logic/GlobalVars.java') }
+def unitTypeFile = sourceDir.map { it.file('mindustry/type/UnitType.java') }
+def factoryResourcesFile = sourceDir.map { it.file('port/FactoryResources.java') }
 def shieldModeSources = [
     'mindustry/graphics/Drawf.java': 'renderer',
     'mindustry/entities/abilities/ForceFieldAbility.java': 'Vars.renderer'
@@ -153,7 +164,7 @@ def readUpstream = { path ->
 
 def renderedBuilding = layout.buildDirectory.dir('building-renderer-classes')
 def stageRenderedBuilding
-if (probe == 'network-render') {
+if (usesRenderedClient) {
     def asm = configurations.detachedConfiguration(dependencies.create('org.ow2.asm:asm-tree:9.9'))
     def adapter = tasks.register('compileBuildingCrackAdapter', JavaCompile) {
         source files('tools/StageBuildingCrackAdapter.java', 'tools/StageNavalWakeAdapter.java',
@@ -194,6 +205,12 @@ if (usesArcSources || usesExecutor) {
     if (usesLiveNetwork) {
         stagedClasses.addAll(['mindustry/core/NetClient.class', 'mindustry/core/NetClient$*.class',
                               'mindustry/ai/Pathfinder.class', 'mindustry/ai/Pathfinder$*.class'])
+    }
+    if (usesSinglePlayer) {
+        stagedClasses.addAll(['mindustry/logic/GlobalVars.class', 'mindustry/logic/GlobalVars$*.class'])
+    }
+    if (usesRenderedClient) {
+        stagedClasses.addAll(['mindustry/type/UnitType.class', 'mindustry/type/UnitType$*.class'])
     }
     if (patchesPlanetGrid) {
         stagedClasses.addAll(['mindustry/graphics/g3d/PlanetGrid.class', 'mindustry/graphics/g3d/PlanetGrid$*.class'])
@@ -282,6 +299,16 @@ if (probe == 'network-render') {
         mainClass = 'UpstreamObjectiveMarkersReference'
     }
 }
+if (usesSinglePlayer) {
+    sourceSets.main.java.srcDir('src/singleplayer/java')
+    if (!usesSinglePlayerApp) {
+        sourceSets.main.java.exclude('UpstreamSinglePlayerApp.java', 'UpstreamSinglePlayerInput.java')
+    } else {
+        sourceSets.main.java.srcDir('src/network-live/java')
+        sourceSets.main.java.srcDir('src/network-render/java')
+        sourceSets.main.java.exclude('UpstreamLiveNetworkProbe.java', 'UpstreamRenderedNetworkProbe.java')
+    }
+}
 if (probe == 'file-metadata') {
     sourceSets.main.java.srcDir('src/file/java')
 }
@@ -365,15 +392,22 @@ tasks.register('prepareUpstreamProbe') {
     if (usesWorldStream) {
         outputs.file(networkIoFile)
     }
+    if (usesBuildControls) {
+        outputs.files(placementFile, itemChoicesFile)
+    }
     if (usesLiveNetwork) {
-        outputs.files(netClientFile, placementFile, itemChoicesFile, pathfinderFile)
+        outputs.files(netClientFile, pathfinderFile)
+    }
+    if (usesSinglePlayer) {
+        inputs.file('src/gameplay/java/port/FactoryResources.java')
+        outputs.files(globalVarsFile, factoryResourcesFile)
     }
     if (patchesPlanetGrid) {
         outputs.file(planetGridFile)
         fluidSources.keySet().each { outputs.file(sourceDir.map { dir -> dir.file(it) }) }
     }
-    if (probe == 'network-render') {
-        outputs.file(contentColorsFile)
+    if (usesRenderedClient) {
+        outputs.files(contentColorsFile, unitTypeFile)
         shieldModeSources.keySet().each { outputs.file(sourceDir.map { dir -> dir.file(it) }) }
     }
     if (usesCampaignJsonCompat) {
@@ -383,7 +417,7 @@ tasks.register('prepareUpstreamProbe') {
         outputs.file(reflectionPolicyFile)
     }
     doLast {
-        if (probe == 'network-render') {
+        if (usesRenderedClient) {
             def loader = new String(readUpstream('core/src/mindustry/core/ContentLoader.java'), 'UTF-8')
             def loadColors = '''public void loadColors(){
         Pixmap pixmap = new Pixmap(files.internal("sprites/block_colors.png"));'''
@@ -398,6 +432,14 @@ tasks.register('prepareUpstreamProbe') {
 
     public void loadColors(Fi source){
         Pixmap pixmap = new Pixmap(source);'''), 'UTF-8')
+            def unitType = new String(readUpstream(unitTypeSource), 'UTF-8')
+            def localItems = 'if(unit.isLocal() && !renderer.pixelate){'
+            if (unitType.count(localItems) != 1) {
+                throw new GradleException('Pinned UnitType item label check changed')
+            }
+            def adaptedUnitType = unitTypeFile.get().asFile
+            adaptedUnitType.parentFile.mkdirs()
+            adaptedUnitType.setText(unitType.replace(localItems, 'if(renderer != null && Fonts.outline != null && unit.isLocal() && !renderer.pixelate){'), 'UTF-8')
             shieldModeSources.each { path, renderer ->
                 def source = new String(readUpstream("core/src/${path}"), 'UTF-8')
                 def animated = "if(${renderer}.animateShields){"
@@ -608,6 +650,8 @@ final class GlacierFixture {
 
     public NetClient(){
         this(new ReusableByteInStream());'''), 'UTF-8')
+        }
+        if (usesBuildControls) {
             def placement = new String(readUpstream(placementSource), 'UTF-8')
             def selection = placement =~ /(?m)^    Seq<Block> getUnlockedByCategory\(Category cat\)\{[\s\S]*?^    \}/
             def unlocked = placement =~ /(?m)^    boolean unlocked\(Block block\)\{[\s\S]*?^    \}/
@@ -644,6 +688,23 @@ final class UpstreamItemChoices {
     }
 }
 """, 'UTF-8')
+        }
+        if (usesSinglePlayer) {
+            def globalVars = new String(readUpstream(globalVarsSource), 'UTF-8')
+            def soundCheck = '''varClientMusicPlaying.numval = control.sound.isPlaying() ? 1 : 0;
+
+            var music = control.sound.getCurrent();'''
+            if (globalVars.count(soundCheck) != 1) {
+                throw new GradleException('Pinned GlobalVars control.sound check changed')
+            }
+            def adaptedGlobalVars = globalVarsFile.get().asFile
+            adaptedGlobalVars.parentFile.mkdirs()
+            adaptedGlobalVars.setText(globalVars.replace(soundCheck, '''varClientMusicPlaying.numval = control != null && control.sound != null && control.sound.isPlaying() ? 1 : 0;
+
+            var music = control != null && control.sound != null ? control.sound.getCurrent() : null;'''), 'UTF-8')
+            def copiedFactoryResources = factoryResourcesFile.get().asFile
+            copiedFactoryResources.parentFile.mkdirs()
+            copiedFactoryResources.setText(file('src/gameplay/java/port/FactoryResources.java').getText('UTF-8'), 'UTF-8')
         }
     }
 }
@@ -686,7 +747,7 @@ teavm {
     if (usesExecutor) {
         c { obfuscated = false }
     }
-    if (usesSimulation || usesLiveNetwork) {
+    if (usesSimulation || usesLiveNetwork || usesSinglePlayer) {
         c { maxHeapSize = 24 }
     }
 }
