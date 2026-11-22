@@ -26,6 +26,20 @@ full upstream catalog/layout parity remains open.
 - The ARM11 client drew the constructed sprites after each stock-server
   acknowledgement.
 
+## Factory world graphics
+
+The graphical client calls the pinned `UnitFactoryBuild.draw` for the
+factory base, rotated output, top, and produced payload. The 3DS adapter
+keeps the progress, accent color, phase, and scan line from the original
+`Drawf.construct`. It applies the alpha and color equations from
+`core/assets/shaders/unitbuild.frag` to the original atlas pixels and
+splits the rotating quad at the shader's stripe boundaries.
+
+The JVM rendering reference checks the idle layers, construction
+parameters, scan line, and output payload with Crawler. The host C
+reference covers the shader equations and texture layout. ARM11 replay
+and physical hardware verification remain to be recorded.
+
 ## Evidence
 
 The verified traces and screenshot descriptions live in

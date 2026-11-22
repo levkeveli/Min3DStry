@@ -1,5 +1,6 @@
 import arc.graphics.g2d.Draw;
 import arc.struct.IntSet;
+import arc.struct.ObjectSet;
 import arc.struct.Seq;
 import java.util.function.Predicate;
 import mindustry.Vars;
@@ -8,12 +9,16 @@ import mindustry.gen.Building;
 import mindustry.graphics.BuildingCacheLayer;
 import mindustry.graphics.CacheLayer;
 import mindustry.graphics.Layer;
+import mindustry.type.UnitType;
 import mindustry.world.blocks.payloads.PayloadConveyor.PayloadConveyorBuild;
+import mindustry.world.blocks.payloads.UnitPayload;
+import mindustry.world.blocks.units.UnitFactory.UnitFactoryBuild;
 
 /** Arc draw commands for the cached and dynamic passes in upstream BlockRenderer. */
 final class UpstreamBuildingLayers {
     private final Seq<Building> visible = new Seq<>();
     private final IntSet visited = new IntSet();
+    private final ObjectSet<UnitType> factoryGraphics = new ObjectSet<>();
 
     void render(UpstreamTerrainDrawProbe.Viewport viewport, Team viewer, Predicate<Building> supported) {
         int right = Math.min(viewport.left + UpstreamTerrainDrawProbe.VIEW_WIDTH, Vars.world.width());
@@ -38,6 +43,12 @@ final class UpstreamBuildingLayers {
                 if (block.drawDynamic && block.cacheLayer == CacheLayer.normal) {
                     // Streamed conveyors carry progress and rotation. Reconstruct cargo geometry before drawing.
                     if (build instanceof PayloadConveyorBuild conveyor) conveyor.updatePayload();
+                    if (build instanceof UnitFactoryBuild factory) {
+                        loadFactoryGraphics(factory.unit());
+                        if (factory.getPayload() instanceof UnitPayload payload) {
+                            loadFactoryGraphics(payload.unit.type());
+                        }
+                    }
                     Draw.z(Layer.block);
                     block.drawBase(build.tile);
                     Draw.reset();
@@ -57,6 +68,12 @@ final class UpstreamBuildingLayers {
                 visible.clear();
             }
         }
+    }
+
+    private void loadFactoryGraphics(UnitType type) {
+        if (type == null || !factoryGraphics.add(type)) return;
+        type.loadIcon();
+        type.load();
     }
 
     private static void drawCracks(Building build) {
