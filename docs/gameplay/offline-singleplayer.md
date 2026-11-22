@@ -277,9 +277,10 @@ The original world atlas supplies carried item sprites. Item bridges and
 duct bridges draw their stock spans from the original link state. Cargo
 loaders use the same construction shader adapter as original unit factories.
 
-The offline JVM test exercises all 28 distribution buildings, including
-the sandbox item source and void. The reference also checks carried copper,
-the bridge spans, and the Manifold construction overlay. The ARM11 verifier
+The offline and live JVM tests exercise all 28 distribution buildings,
+including the sandbox item source and void. The offline reference also
+checks carried copper, the bridge spans, and the Manifold construction
+overlay. The ARM11 verifier
 uses stock Glacier saves with seven representative distribution buildings,
 a loaded Plastanium Conveyor, and linked Item and Duct Bridges.
 
@@ -290,7 +291,10 @@ python3 tools/verify_offline_distribution.py \
   --output build/offline-distribution --live
 ```
 
-The optional live replay loads the same save on the unmodified Java server.
+Both Azahar profiles drew all seven buildings, the carried stack, and the
+two bridge spans in the [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45081828980).
+The same checks passed after each profile joined the unmodified Java v160.8
+server using the active save.
 
 ## Original turret graphics
 
