@@ -178,7 +178,9 @@ payload bytes.
 The C build recompiles two compiler classes from the hash-checked TeaVM
 0.16.0 source archive. The patches retain the original entry block's
 liveness during coroutine splitting and use the primitive array opcode to
-infer the value type of each element. For offline generation, pass an
+infer the value type of each element. The compiler also retains object reference
+typing when an array reaches an element read through a generic coroutine
+spill. For offline generation, pass an
 already downloaded source archive with
 `-PteavmCompilerSources=/path/to/teavm-core-0.16.0-sources.jar`.
 
