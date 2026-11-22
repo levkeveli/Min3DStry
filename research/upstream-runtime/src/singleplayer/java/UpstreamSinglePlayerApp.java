@@ -39,6 +39,7 @@ import mindustry.type.UnitType;
 import mindustry.world.Block;
 import mindustry.world.blocks.ConstructBlock.ConstructBuild;
 import mindustry.world.blocks.defense.Wall;
+import mindustry.world.blocks.defense.turrets.BaseTurret;
 import mindustry.world.blocks.defense.turrets.ItemTurret;
 import mindustry.world.blocks.distribution.Conveyor;
 import mindustry.world.blocks.distribution.Sorter;
@@ -697,7 +698,7 @@ public final class UpstreamSinglePlayerApp {
             || block == Blocks.router || block == Blocks.distributor || block == Blocks.junction
             || block == Blocks.overflowGate || block == Blocks.underflowGate
             || block instanceof Sorter || block == Blocks.mechanicalDrill || block == Blocks.pneumaticDrill
-            || block == Blocks.duo || block == Blocks.scatter || block instanceof Conduit
+            || block instanceof BaseTurret || block instanceof Conduit
             || block instanceof GenericCrafter || block instanceof Separator || block instanceof Pump
             || block instanceof LiquidRouter || block == Blocks.duct || block == Blocks.berylliumWall
             || block == Blocks.overdriveProjector

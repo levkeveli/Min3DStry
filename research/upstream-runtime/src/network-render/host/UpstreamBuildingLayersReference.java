@@ -40,6 +40,7 @@ import mindustry.graphics.Layer;
 import mindustry.graphics.Pal;
 import mindustry.world.blocks.defense.OverdriveProjector.OverdriveBuild;
 import mindustry.world.blocks.defense.ShockwaveTower.ShockwaveTowerBuild;
+import mindustry.world.blocks.defense.turrets.BaseTurret;
 import mindustry.world.blocks.production.GenericCrafter.GenericCrafterBuild;
 import mindustry.world.blocks.payloads.BuildPayload;
 import mindustry.world.blocks.payloads.Payload;
@@ -119,6 +120,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         target.verifyTankTreads(viewer);
         target.verifyCoreVariants(layers, viewport, viewer);
         target.verifyErekirStarterBlocks(layers, viewport, viewer);
+        target.verifyLiveTurretRegistry(layers, viewport, viewer);
         if (args.length == 4) verifyObjectiveHud();
     }
 
@@ -183,6 +185,28 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
                               float x, float y, float drawWidth, float drawHeight, float rotation,
                               float progress, Color tint, float alpha, float phase, int vertexColor) {
         unitBuilds.add(new UnitBuild(page, left, top, width, height, x, y, rotation, progress, alpha, phase));
+    }
+
+    private void verifyLiveTurretRegistry(UpstreamBuildingLayers layers, UpstreamTerrainDrawProbe.Viewport viewport,
+                                          Team viewer) {
+        viewport.moveTo(24, 30);
+        var tile = Vars.world.tile(31, 36);
+        int tested = 0;
+        for (var block : Vars.content.blocks()) {
+            if (!(block instanceof BaseTurret)) continue;
+            tile.setBlock(block, viewer, 0);
+            try {
+                var turret = tile.build;
+                sprites.clear();
+                layers.render(viewport, viewer, build -> build == turret
+                    && UpstreamRenderedNetworkProbe.supportsBuildingDraw(build));
+                if (sprites.isEmpty()) throw new AssertionError("The live turret draw pass excludes " + block.name);
+                tested++;
+            } finally {
+                tile.setBlock(Blocks.air);
+            }
+        }
+        System.out.println("UPSTREAM_STOCK_LIVE_TURRET_DRAW tested=" + tested);
     }
 
     private static void verifyObjectiveHud() {
