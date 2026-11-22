@@ -102,8 +102,11 @@ collection left only 40 bytes free. The
 [ARM11 build from `fc3881c`](https://github.com/levkeveli/Min3DStry/actions/runs/45032641678)
 started the original 500×500 Archipelago in Sandbox, saved, and resumed it on
 both Azahar profiles. The unmodified v160.8 server opened both native saves and
-matched the same Sandbox flags, planet, and dimensions. Physical console
-memory use and frame-rate targets remain open.
+matched the same Sandbox flags, planet, and dimensions. The same build also
+passed the Ancient Caldera replay and stock server readback, listed and opened
+an SD-imported Glacier beside the 18 bundled maps, and passed the regular
+Ground Zero movement, mining, building, pause, and save/reload replay on both
+profiles. Physical console memory use and frame-rate targets remain open.
 
 ## 3DS Controls
 
