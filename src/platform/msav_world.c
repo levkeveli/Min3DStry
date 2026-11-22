@@ -4,6 +4,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "platform/world_rows.h"
+
 static uint16_t read_be16(const uint8_t *data) {
     return (uint16_t)(((uint16_t)data[0] << 8) | data[1]);
 }
@@ -44,7 +46,7 @@ static uint32_t float_bits(float value) {
  * reader hash exactly the same decoded fields.
  */
 static uint64_t building_state_hash(
-    const M3dsBuildingState *building, uint32_t item_total,
+    const M3dsWorldBuildingRow *building, uint32_t item_total,
     uint64_t item_hash, uint32_t power_links, uint64_t link_hash,
     float power_status, uint32_t liquid_count, uint64_t liquid_hash) {
     uint64_t state = MSAV_HASH_SEED;
@@ -65,7 +67,7 @@ static uint64_t building_state_hash(
     return mix_hash64(state, liquid_hash);
 }
 
-static void parse_building_state(M3dsBuildingState *building) {
+static void parse_building_row(M3dsWorldBuildingRow *building) {
     building->health = 0.0f;
     building->item_count = 0u;
     building->extra_size = building->payload_size;
@@ -528,28 +530,21 @@ bool m3ds_msav_alloc_world(
     if (count == 0u || count > 2u * 1024u * 1024u) {
         return false;
     }
-    out->floor_ids = calloc(count, sizeof(uint16_t));
-    out->overlay_ids = calloc(count, sizeof(uint16_t));
-    out->block_ids = calloc(count, sizeof(uint16_t));
-    out->flags = calloc(count, sizeof(uint8_t));
-    out->building_index = malloc(count * sizeof(uint32_t));
-    out->tile_states = calloc(count, sizeof(M3dsTileState));
     size_t building_capacity = world.entity_tiles > 0u
         ? (size_t)world.entity_tiles : 1u;
-    out->buildings = calloc(building_capacity, sizeof(M3dsBuildingState));
-    if (!out->floor_ids || !out->overlay_ids || !out->block_ids
-            || !out->flags || !out->building_index || !out->tile_states
-            || !out->buildings) {
-        m3ds_msav_free_world(out);
+    M3dsWorldTileRow *rows = calloc(count, sizeof(M3dsWorldTileRow));
+    M3dsWorldBuildingRow *buildings = calloc(
+        building_capacity, sizeof(M3dsWorldBuildingRow));
+    if (!rows || !buildings) {
+        free(buildings);
+        free(rows);
         return false;
     }
-    memset(out->building_index, 0xFF, count * sizeof(uint32_t));
-    out->count = count;
-    out->tile_capacity = count;
-    out->building_capacity = building_capacity;
-    out->width = world.width;
-    out->height = world.height;
-    out->building_hash = UINT64_C(1469598103934665603);
+    for (size_t i = 0; i < count; ++i) {
+        rows[i].x = (uint32_t)(i % world.width);
+        rows[i].y = (uint32_t)(i / world.width);
+        rows[i].building_index = UINT32_MAX;
+    }
 
     size_t position = map_start + 4u;
     size_t created = 0u;
@@ -559,13 +554,15 @@ bool m3ds_msav_alloc_world(
         uint32_t run = 1u + data[position + 4u];
         position += 5u;
         for (uint32_t i = 0; i < run && created < count; ++i) {
-            out->floor_ids[created] = floor_id;
-            out->overlay_ids[created] = overlay_id;
+            rows[created].floor_id = floor_id;
+            rows[created].overlay_id = overlay_id;
             ++created;
         }
     }
 
     size_t block_index = 0u;
+    size_t building_count = 0u;
+    bool ok = false;
     while (block_index < count) {
         uint16_t block_id = read_be16(data + position);
         uint8_t packed = data[position + 2u];
@@ -584,11 +581,10 @@ bool m3ds_msav_alloc_world(
             uint32_t length = read_be32(data + position);
             position += 4u;
             if (length < 1u || length > map_end - position
-                    || out->building_count >= world.entity_tiles) {
-                m3ds_msav_free_world(out);
-                return false;
+                    || building_count >= building_capacity) {
+                goto done;
             }
-            M3dsBuildingState *building = &out->buildings[out->building_count];
+            M3dsWorldBuildingRow *building = &buildings[building_count];
             building->tile_index = (uint32_t)block_index;
             building->x = (uint32_t)(block_index % world.width);
             building->y = (uint32_t)(block_index / world.width);
@@ -596,25 +592,16 @@ bool m3ds_msav_alloc_world(
             building->revision = data[position];
             building->payload_size = length - 1u;
             if (building->payload_size > 0u) {
-                building->payload = malloc(building->payload_size);
-                if (!building->payload) {
-                    m3ds_msav_free_world(out);
-                    return false;
+                uint8_t *payload = malloc(building->payload_size);
+                if (!payload) {
+                    goto done;
                 }
-                memcpy(building->payload, data + position + 1u,
-                       building->payload_size);
+                memcpy(payload, data + position + 1u, building->payload_size);
+                building->payload = payload;
             }
-            parse_building_state(building);
-            out->building_index[block_index] = (uint32_t)out->building_count;
-            uint8_t revision_byte = (uint8_t)building->revision;
-            out->building_hash = hash_bytes(
-                out->building_hash, &revision_byte, 1u);
-            if (building->payload_size > 0u) {
-                out->building_hash = hash_bytes(
-                    out->building_hash, building->payload,
-                    building->payload_size);
-            }
-            ++out->building_count;
+            parse_building_row(building);
+            rows[block_index].building_index = (uint32_t)building_count;
+            ++building_count;
             position += length;
         }
         uint8_t flags = 0u;
@@ -628,53 +615,25 @@ bool m3ds_msav_alloc_world(
             uint32_t run = 1u + data[position];
             ++position;
             for (uint32_t i = 0; i < run && block_index < count; ++i) {
-                out->block_ids[block_index] = block_id;
-                out->flags[block_index] = flags;
+                rows[block_index].block_id = block_id;
+                rows[block_index].flags = flags;
                 ++block_index;
             }
         } else {
-            out->block_ids[block_index] = block_id;
-            out->flags[block_index] = flags;
+            rows[block_index].block_id = block_id;
+            rows[block_index].flags = flags;
             ++block_index;
         }
     }
 
-    for (size_t i = 0; i < count; ++i) {
-        out->tile_states[i].floor_id = out->floor_ids[i];
-        out->tile_states[i].overlay_id = out->overlay_ids[i];
-        out->tile_states[i].block_id = out->block_ids[i];
-        out->tile_states[i].x = (uint32_t)(i % world.width);
-        out->tile_states[i].y = (uint32_t)(i / world.width);
-        out->tile_states[i].flags = out->flags[i];
-        out->tile_states[i].building_index = out->building_index[i];
+    ok = m3ds_world_rows_alloc(
+        world.width, world.height, rows, count, buildings, building_count,
+        out);
+done:
+    for (size_t i = 0; i < building_count; ++i) {
+        free((void *)buildings[i].payload);
     }
-    for (size_t i = 0; i < out->building_count; ++i) {
-        out->buildings[i].tile =
-            &out->tile_states[out->buildings[i].tile_index];
-    }
-    out->tile_state_hash = hash_bytes(
-        UINT64_C(1469598103934665603),
-        (const uint8_t *)out->tile_states, count * sizeof(M3dsTileState));
-
-    uint64_t save_state = MSAV_HASH_SEED;
-    for (size_t i = 0; i < count; ++i) {
-        uint32_t index = out->building_index[i];
-        if (index != UINT32_MAX && index < out->building_count
-                && !out->buildings[index].partial) {
-            save_state = mix_hash64(
-                save_state, out->buildings[index].state_hash);
-        }
-    }
-    out->save_state_hash = save_state;
-
-    uint64_t hash = UINT64_C(1469598103934665603);
-    hash = hash_bytes(hash, (const uint8_t *)out->floor_ids,
-                      count * sizeof(uint16_t));
-    hash = hash_bytes(hash, (const uint8_t *)out->overlay_ids,
-                      count * sizeof(uint16_t));
-    hash = hash_bytes(hash, (const uint8_t *)out->block_ids,
-                      count * sizeof(uint16_t));
-    hash = hash_bytes(hash, out->flags, count);
-    out->hash = hash;
-    return true;
+    free(buildings);
+    free(rows);
+    return ok;
 }
