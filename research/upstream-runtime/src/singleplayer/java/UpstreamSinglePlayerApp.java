@@ -133,6 +133,7 @@ public final class UpstreamSinglePlayerApp {
             }
             List<UpstreamSinglePlayerSession.SectorSlot> sectorSaves =
                 args.length < 2 && custom == null ? session.sectorSaves() : List.of();
+            UpstreamCampaignResearch.installAutoUnlocks();
             if (campaignRequested) sectorSaves = session.campaignSlots(sectorSaves);
             CampaignGame campaign = null;
             if (sectorSaves.size() == 1 && !campaignRequested) {

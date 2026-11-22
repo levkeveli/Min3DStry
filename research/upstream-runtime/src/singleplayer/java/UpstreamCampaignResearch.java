@@ -1,10 +1,14 @@
+import arc.Core;
 import arc.Events;
 import arc.struct.ObjectMap;
 import arc.struct.Seq;
 import mindustry.Vars;
 import mindustry.content.Planets;
+import mindustry.content.TechTree;
 import mindustry.content.TechTree.TechNode;
 import mindustry.game.EventType.ResearchEvent;
+import mindustry.game.EventType.SectorCaptureEvent;
+import mindustry.game.EventType.UnlockEvent;
 import mindustry.type.Item;
 import mindustry.type.ItemSeq;
 import mindustry.type.Planet;
@@ -15,6 +19,8 @@ import mindustry.type.Sector;
  * Upstream: core/src/mindustry/ui/dialogs/ResearchDialog.java at 19a0f40.
  */
 final class UpstreamCampaignResearch {
+    private static boolean autoUnlocksInstalled;
+
     private final TechNode root;
     private final ObjectMap<Sector, ItemSeq> inventory = new ObjectMap<>();
     private final ItemSeq total = new ItemSeq();
@@ -33,6 +39,27 @@ final class UpstreamCampaignResearch {
                 ItemSeq items = sector.items();
                 inventory.put(sector, items);
                 items.each((item, amount) -> total.add(item, Math.max(amount, 0)));
+            }
+        }
+    }
+
+    static void installAutoUnlocks() {
+        if (!autoUnlocksInstalled) {
+            autoUnlocksInstalled = true;
+            Events.on(UnlockEvent.class, event -> checkAutoUnlocks());
+            Events.on(SectorCaptureEvent.class, event -> Core.app.post(UpstreamCampaignResearch::checkAutoUnlocks));
+        }
+        checkAutoUnlocks();
+    }
+
+    // Offline portion of v160.8 Control.checkAutoUnlocks.
+    private static void checkAutoUnlocks() {
+        if (Vars.net.client()) return;
+
+        for (TechNode node : TechTree.all) {
+            if (!node.content.unlocked() && (node.parent == null || node.parent.content.unlocked())
+                    && node.requirements.length == 0 && !node.objectives.contains(objective -> !objective.complete())) {
+                node.content.unlock();
             }
         }
     }

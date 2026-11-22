@@ -115,7 +115,10 @@ Frozen Forest objective, persists a 3-of-5 copper contribution to Conveyor,
 and tests completion across live and remote inventories. On Erekir it checks
 the original planet objective and the effective four-beryllium Duct cost. The
 unmodified v160.8 server reopened the resulting Serpulo and Erekir saves and
-settings.
+settings. The integrated JVM progression test researches Junction and Router,
+captures Ground Zero through the stock Logic event, and automatically
+unlocks and launches the original Frozen Forest. The stock Java server
+reopened both saved sectors with the same capture and unlock settings.
 
 The [ARM11 build from `428ae40`](https://github.com/levkeveli/Min3DStry/actions/runs/45050806782)
 opened the research screen on both Old and New 3DS profiles in Azahar. The
@@ -125,12 +128,13 @@ four sector saves and settings pairs and confirmed the inventories and
 research progress. This build predates the merged live capture integration.
 
 Generate fixtures with the stock server and copy the original
-`bundle.properties` and `planets/serpulo.json` into that directory for the JVM
-reference. Use the regular pinned runtime Gradle properties.
+`bundle.properties`, `planets/serpulo.json`, and staged campaign `maps/`
+directory into the fixture directory for the JVM reference. Use the regular pinned runtime Gradle properties.
 
 ```sh
 python3 tools/campaign_research_fixture.py --server server-release.jar --create-in /path/to/fixtures
 gradle -Pprobe=singleplayer runGraphicalCampaignResearchJvm --args="/path/to/fixtures /path/to/new-scratch-dir"
+python3 tools/campaign_research_fixture.py --server server-release.jar --check-progression /path/to/new-scratch-dir/serpulo
 python3 tools/verify_upstream_campaign_research.py --rom upstream-probe.3dsx --fixtures /path/to/fixtures --server server-release.jar
 ```
 

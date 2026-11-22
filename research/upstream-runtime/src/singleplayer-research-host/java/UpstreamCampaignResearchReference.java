@@ -8,6 +8,7 @@ import mindustry.Vars;
 import mindustry.content.Blocks;
 import mindustry.content.Items;
 import mindustry.content.Planets;
+import mindustry.content.TechTree.TechNode;
 import mindustry.content.SectorPresets;
 import mindustry.game.EventType.ResearchEvent;
 import mindustry.game.Saves;
@@ -32,9 +33,11 @@ public final class UpstreamCampaignResearchReference {
                     || !session.start(null, world, "research-fixture", current)) {
                 throw new AssertionError("Could not open the stock Ground Zero sector");
             }
+            UpstreamSectorCapture.install();
+            UpstreamCampaignResearch.installAutoUnlocks();
             var saves = new Saves();
 
-            Sector remote = SectorPresets.frozenForest.sector;
+            Sector remote = Planets.serpulo.sectors.get(0);
             giveRemoteBase(saves, remote, 2);
             giveRemoteBase(saves, SectorPresets.onset.sector, 500);
             session.core().items.set(Items.copper, 1);
@@ -83,9 +86,47 @@ public final class UpstreamCampaignResearchReference {
             }
             System.out.println("UPSTREAM_CAMPAIGN_RESEARCH_REFERENCE blocked=frozenForest partial=3/"
                 + requirement + " liveCopper=" + expectedCore + " unlocks=1");
+            verifyPresetAutoUnlock(session, current, frozenForest, world);
         } finally {
             session.shutdown();
         }
+    }
+
+    private static void verifyPresetAutoUnlock(UpstreamSinglePlayerSession session, Sector current,
+                                               TechNode frozenForest, Fi world) throws Exception {
+        for (TechNode node : new TechNode[]{Blocks.junction.techNode, Blocks.router.techNode}) {
+            for (var required : node.requirements) {
+                var core = session.core();
+                core.handleItem(core, required.item);
+                core.items.set(required.item, required.amount);
+            }
+            if (!new UpstreamCampaignResearch(Planets.serpulo.techTree).spend(node) || !node.content.unlockedHost()) {
+                throw new AssertionError("Could not research " + node.content.name);
+            }
+        }
+        if (frozenForest.content.unlockedHost() || current.info.wasCaptured || Vars.state.rules.winWave <= 0) {
+            throw new AssertionError("Frozen Forest unlocked before the stock sector-complete objective");
+        }
+        Vars.state.wave = Vars.state.rules.winWave;
+        session.stepSimulation(0f, 0f);
+        if (!current.info.wasCaptured || !frozenForest.content.unlockedHost()
+                || !Core.settings.getBool(frozenForest.content.name + "-unlocked")) {
+            throw new AssertionError("Frozen Forest did not automatically unlock after capture and research");
+        }
+        session.save(world);
+        Sector forest = SectorPresets.frozenForest.sector;
+        var slot = session.campaignSlots(session.sectorSaves(), current).stream()
+            .filter(candidate -> candidate.sector == forest && candidate.origin == current)
+            .findFirst().orElseThrow();
+        var cost = UpstreamCampaignLoadout.prepare(current, forest).cost();
+        cost.each(session.core().items::add);
+        session.save(world);
+        session.launchNewSector(current, forest, slot.file, UpstreamCampaignLoadout.prepare(current, forest));
+        if (Vars.state.rules.sector != forest || forest.info.origin != current || session.core() == null
+                || !forest.hasBase() || Vars.world.width() != forest.preset.generator.map.width) {
+            throw new AssertionError("The newly unlocked original Frozen Forest did not launch");
+        }
+        System.out.println("UPSTREAM_CAMPAIGN_RESEARCH_PROGRESSION captured=groundZero autoUnlocked=frozenForest launched=64");
     }
 
     private static void verifyErekir(Fi fixtures, Fi output) throws Exception {
@@ -129,7 +170,7 @@ public final class UpstreamCampaignResearchReference {
     private static UpstreamSinglePlayerSession create(Fi fixtures, Fi output) {
         Core.assets = null;
         return UpstreamSinglePlayerSession.create(output, "en", fixtures.child("planets"),
-            UpstreamSinglePlayerSession.loadSettings(output));
+            UpstreamSinglePlayerSession.loadSettings(output), fixtures.child("maps"));
     }
 
     private static void giveRemoteBase(Saves saves, Sector sector, int copper) {
