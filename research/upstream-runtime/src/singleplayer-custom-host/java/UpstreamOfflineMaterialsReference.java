@@ -1,6 +1,7 @@
 import arc.Core;
 import arc.files.Fi;
 import arc.graphics.Blending;
+import arc.graphics.g2d.TextureAtlas.AtlasRegion;
 import arc.util.Time;
 import mindustry.Vars;
 import mindustry.content.Blocks;
@@ -32,7 +33,7 @@ import port.render.UpstreamFluidAtlas;
 public final class UpstreamOfflineMaterialsReference implements UpstreamTerrainDrawProbe.TerrainTarget {
     private int sprites;
     private int beamSegments;
-    private arc.graphics.g2d.TextureAtlas.AtlasRegion beamRegion;
+    private AtlasRegion beamRegion;
 
     public static void main(String[] args) throws Exception {
         if (args.length != 3) throw new IllegalArgumentException("Expected Glacier, sprites.aatls and block_colors.png");
@@ -99,7 +100,7 @@ public final class UpstreamOfflineMaterialsReference implements UpstreamTerrainD
             var to = (BeamNodeBuild)second.build;
             from.updateDirections();
             to.updateDirections();
-            beamRegion = (arc.graphics.g2d.TextureAtlas.AtlasRegion)((BeamNode)from.block).laser;
+            beamRegion = (AtlasRegion)((BeamNode)from.block).laser;
             beamSegments = 0;
             layers.render(viewport, viewer, candidate -> candidate == from || candidate == to);
             if (beamSegments != 1) throw new AssertionError("Expected one stock beam, got " + beamSegments);
@@ -162,7 +163,7 @@ public final class UpstreamOfflineMaterialsReference implements UpstreamTerrainD
     public void draw(int page, int left, int top, int width, int height, float x, float y,
                      float originX, float originY, float drawWidth, float drawHeight,
                      float rotation, int color, int mixColor, Blending blending) {
-        var error = (arc.graphics.g2d.TextureAtlas.AtlasRegion)Core.atlas.find("error");
+        var error = (AtlasRegion)Core.atlas.find("error");
         if (beamRegion != null && page == UpstreamTerrainDrawProbe.pageIndex(beamRegion)
                 && left == beamRegion.getX() && top == beamRegion.getY()) {
             beamSegments++;
