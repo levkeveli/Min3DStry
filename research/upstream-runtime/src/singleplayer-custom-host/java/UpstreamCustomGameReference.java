@@ -27,8 +27,11 @@ public final class UpstreamCustomGameReference {
             String[] initial = UpstreamSinglePlayerApp.customGameCaptions(maps, 0, 0, Gamemode.sandbox);
             String[] resume = UpstreamSinglePlayerApp.customGameCaptions(maps, 1, 0, Gamemode.survival);
             String[] last = UpstreamSinglePlayerApp.customGameCaptions(maps, 0, maps.size() - 1, Gamemode.attack);
+            var stockMaps = maps.stream().filter(map -> !map.custom).toList();
             if (!initial[0].equals("Custom Game / Sandbox") || !initial[1].equals("> Ground Zero")
-                    || !resume[1].equals("> Load Game") || !last[1].equals("> Wasteland")) {
+                    || !resume[1].equals("> Load Game") || !last[1].equals("> Wasteland")
+                    || !stockMaps.get(0).file.name().equals("caldera.msav")
+                    || !stockMaps.get(1).file.name().equals("archipelago.msav")) {
                 throw new AssertionError("Unexpected stock Custom Game selector captions");
             }
             for (var entry : maps) {

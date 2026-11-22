@@ -61,6 +61,7 @@ public final class UpstreamSinglePlayerApp {
 
     private UpstreamSinglePlayerSession session;
     private UpstreamTerrainDrawProbe.Viewport viewport;
+    private boolean rendererReady;
     private Unit controlled;
     private Fi campaignSlot;
     private int draws;
@@ -118,8 +119,7 @@ public final class UpstreamSinglePlayerApp {
                 var maps = UpstreamCustomGameMaps.discover(new Fi("/romfs/maps/default"), mapDir.child("maps"));
                 boolean canResume = customSave.exists() && SaveIO.isSaveValid(customSave);
                 if (!maps.isEmpty() || canResume) {
-                    loadInterfaceGraphics(atlas);
-                    interfaceReady = true;
+                    loadInterfaceRenderer();
                     custom = chooseCustomGame(maps, canResume);
                     if (custom == null) return;
                 }
@@ -261,9 +261,23 @@ public final class UpstreamSinglePlayerApp {
         for (int i = 0; i < captions.length; i++) {
             var caption = captions[i];
             labels[i] = (caption + "\0").getBytes(StandardCharsets.UTF_8);
-            characters[i] = encodeLabel(UpstreamLabelText.parse(caption));
+            characters[i] = encodePlainMenuLabel(caption);
         }
         return new CustomGameRows(labels, characters);
+    }
+
+    private static int[] encodePlainMenuLabel(String caption) {
+        int[] glyphs = new int[caption.codePointCount(0, caption.length()) * 7];
+        int slot = 0;
+        for (int offset = 0; offset < caption.length();) {
+            int code = caption.codePointAt(offset);
+            glyphs[slot] = code;
+            glyphs[slot + 1] = -1;
+            glyphs[slot + 2] = -1;
+            slot += 7;
+            offset += Character.charCount(code);
+        }
+        return glyphs;
     }
 
     private void drawCustomGameRows(CustomGameRows rows) {
@@ -284,11 +298,17 @@ public final class UpstreamSinglePlayerApp {
         Vars.content.loadColors(new Fi("/romfs/block_colors.png"));
         UpstreamCrackAtlas.load();
         viewport = UpstreamTerrainDrawProbe.liveViewport(target);
+        loadInterfaceRenderer();
+        System.out.println("UPSTREAM_INTERFACE_GRAPHICS ready");
+    }
+
+    private void loadInterfaceRenderer() {
+        if (rendererReady) return;
         target.initialize();
         var locale = Core.bundle.getLocale();
         boolean stock = target.loadStockFont(locale.getLanguage().equals("ja"));
+        rendererReady = true;
         System.out.println("UPSTREAM_INTERFACE_FONT source=" + (stock ? "v160.8" : "system"));
-        System.out.println("UPSTREAM_INTERFACE_GRAPHICS ready");
     }
 
     private void loadWorldGraphics() {

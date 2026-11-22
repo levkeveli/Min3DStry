@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 import struct
 import time
 from pathlib import Path
@@ -11,13 +12,19 @@ from pathlib import Path
 import verify_upstream_singleplayer as sp
 
 
-def write_replay(path: Path, model: str, resume: bool) -> None:
+MAPS = {"caldera": "Ancient_Caldera", "archipelago": "Archipelago"}
+
+
+def write_replay(path: Path, model: str, resume: bool, map_file: str) -> None:
     windows = [(0, 25, 1 << 9)]  # Hold L at boot.
+    save_at = 100 if map_file == "archipelago" else 61
     if resume:
         windows.append((33, 35, 1))  # A on Load Game.
     else:
-        windows += [(28, 30, 1 << 4), (33, 35, 1), (61, 63, sp.KEY_SELECT)]
-    frames = sp.CTM_SAMPLES_PER_SECOND * 72
+        if map_file == "archipelago":
+            windows.append((25, 27, 1 << 7))  # D-pad down from Ancient Caldera.
+        windows += [(28, 30, 1 << 4), (33, 35, 1), (save_at, save_at + 2, sp.KEY_SELECT)]
+    frames = sp.CTM_SAMPLES_PER_SECOND * (save_at + 11)
     header = struct.pack("<4sQ20sQQ32sIQq156x", b"CTM\x1b", 0, sp.CTM_REVISION, 1780000000,
                          0x4D334453, b"Min3DStry Custom Game", 0, frames, 0)
     touch_idle = struct.pack("<B6x", 1)
@@ -32,7 +39,8 @@ def write_replay(path: Path, model: str, resume: bool) -> None:
                 movie.write(pad)
 
 
-def verify(model: str, rom: Path, azahar: str, config: Path, log: Path, output: Path, timeout: float) -> None:
+def verify(model: str, rom: Path, azahar: str, config: Path, log: Path, output: Path,
+           timeout: float, map_file: str) -> None:
     save = sp.resolve_sd_save_path(log).with_name("custom-game-save.msav")
     if any(save.with_name("maps").glob("*.msav")):
         raise RuntimeError("Use an Azahar SD directory without user maps for the stock catalog test")
@@ -46,7 +54,7 @@ def verify(model: str, rom: Path, azahar: str, config: Path, log: Path, output: 
         for resume in (False, True):
             stage = "resume" if resume else "play"
             replay = output / f"{model}-{stage}.ctm"
-            write_replay(replay, model, resume)
+            write_replay(replay, model, resume, map_file)
             proc, rpc = sp._launch_azahar(model, rom, azahar, config, log, replay)
             try:
                 sp._wait_for_log(log, proc, r"UPSTREAM_CUSTOM_GAME_MENU maps=18\b", timeout)
@@ -57,9 +65,9 @@ def verify(model: str, rom: Path, azahar: str, config: Path, log: Path, output: 
                         raise AssertionError(f"{model}: expected a rendered Custom Game menu")
                     (output / f"{model}-menu.png").write_bytes(menu)
                 if resume:
-                    loaded = r"UPSTREAM_SP_LOADED source=customgame-save map=Ancient_Caldera\b"
+                    loaded = rf"UPSTREAM_SP_LOADED source=customgame-save map={MAPS[map_file]}\b"
                 else:
-                    loaded = r"UPSTREAM_CUSTOM_GAME_STARTED map=caldera\.msav mode=sandbox\b"
+                    loaded = rf"UPSTREAM_CUSTOM_GAME_STARTED map={re.escape(map_file)}\.msav mode=sandbox\b"
                 sp._wait_for_log(log, proc, loaded, timeout)
                 sp._wait_for_log(log, proc, r"UPSTREAM_SP_FRAME ", timeout)
                 rpc.perf_stats(reset=True)
@@ -80,7 +88,7 @@ def verify(model: str, rom: Path, azahar: str, config: Path, log: Path, output: 
                 sp._stop_proc(proc, azahar)
                 trace = log.read_text(encoding="utf-8", errors="replace")
                 (output / f"{model}-{stage}.log").write_text(trace, encoding="utf-8")
-        print(f"[PASS] {model}: stock maps=18 Ancient Caldera sandbox save=ok resume=ok "
+        print(f"[PASS] {model}: stock maps=18 {MAPS[map_file]} sandbox save=ok resume=ok "
               f"azahar_game_fps={game_fps['play']:.2f}/{game_fps['resume']:.2f}", flush=True)
     finally:
         for path, original in backups.items():
@@ -95,6 +103,7 @@ def main() -> int:
     parser.add_argument("--rom", required=True, type=Path)
     parser.add_argument("--azahar")
     parser.add_argument("--model", choices=("new3ds", "old3ds"))
+    parser.add_argument("--map", choices=MAPS, default="caldera")
     parser.add_argument("--output-dir", type=Path, default=Path("build/custom-game-emu"))
     parser.add_argument("--timeout", type=float, default=120)
     args = parser.parse_args()
@@ -102,7 +111,7 @@ def main() -> int:
     config, log = sp.az.resolve_azahar_paths(azahar)
     args.output_dir.mkdir(parents=True, exist_ok=True)
     for model in (args.model,) if args.model else ("new3ds", "old3ds"):
-        verify(model, args.rom, azahar, config, log, args.output_dir, args.timeout)
+        verify(model, args.rom, azahar, config, log, args.output_dir, args.timeout, args.map)
     return 0
 
 

@@ -64,7 +64,9 @@ an upstream mode, and **A** to start. **B** or **START** exits the selector.
 The roster includes all 18 maps listed by the pinned v160.8 Custom Game menu.
 Place compatible `.msav` map exports in `/3ds/min3dstry/maps/` to list them
 alongside the bundled maps. The selector uses the names from each map's stock
-metadata. If a mode is unavailable on a map, startup uses the first valid mode
+metadata and the stock map ordering. It initializes the text renderer first
+and loads the world sprite atlas after the map. If a mode is unavailable on a
+map, startup uses the first valid mode
 in the upstream mode order.
 
 `SELECT` saves the current Custom Game to
@@ -85,6 +87,7 @@ with Azahar 2126.2 and a virtual SD without user maps to replay the selector,
 start Ancient Caldera in Sandbox, and save and resume the game on both console
 profiles. The verifier retains the native test saves alongside screenshots and
 logs so they can also be opened in the stock v160.8 game.
+Use `--map archipelago` to exercise the original 500×500 map separately.
 
 ## 3DS Controls
 
