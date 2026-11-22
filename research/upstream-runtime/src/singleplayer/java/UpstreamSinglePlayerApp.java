@@ -35,6 +35,7 @@ import mindustry.gen.Unit;
 import mindustry.gen.UnitWaterMove;
 import mindustry.type.ItemSeq;
 import mindustry.type.Planet;
+import mindustry.type.Sector;
 import mindustry.type.UnitType;
 import mindustry.world.Block;
 import mindustry.world.blocks.ConstructBlock.ConstructBuild;
@@ -65,6 +66,7 @@ public final class UpstreamSinglePlayerApp {
     private boolean rendererReady;
     private Unit controlled;
     private Fi campaignSlot;
+    private boolean campaignExitRequested;
     private int draws;
     private long previousVisualFrame;
     private float frameSeconds = 1f / 60f;
@@ -131,9 +133,11 @@ public final class UpstreamSinglePlayerApp {
             }
             List<UpstreamSinglePlayerSession.SectorSlot> sectorSaves =
                 args.length < 2 && custom == null ? session.sectorSaves() : List.of();
-            if (campaignRequested) sectorSaves = session.campaignSlots(sectorSaves);
+            boolean showCampaign = campaignRequested
+                || sectorSaves.stream().anyMatch(UpstreamSinglePlayerSession::needsCampaignRetry);
+            if (showCampaign) sectorSaves = session.campaignSlots(sectorSaves);
             CampaignGame campaign = null;
-            if (sectorSaves.size() == 1 && !campaignRequested) {
+            if (sectorSaves.size() == 1 && !showCampaign) {
                 var selected = sectorSaves.get(0);
                 System.out.println("UPSTREAM_CAMPAIGN_SELECTED slot=" + selected.file.name() + " source=single name=" + selected.sector.name());
                 campaign = new CampaignGame(selected, null);
@@ -170,20 +174,31 @@ public final class UpstreamSinglePlayerApp {
                     System.out.println("UPSTREAM_SP_REMOVED x=" + event.tile.x + " y=" + event.tile.y);
                 }
             });
+            campaignLoop:
             while (runMainLoop(saveFile)) {
-                session.save(campaignSlot);
                 var origin = Vars.state.rules.sector;
-                System.out.println("UPSTREAM_CAMPAIGN_WORLD_MENU sector=" + origin.id);
-                var next = chooseCampaign(session.campaignSlots(session.sectorSaves(), origin), null);
+                boolean defeated = Vars.state.gameOver;
+                if (defeated) {
+                    session.saveCampaignDefeat(campaignSlot);
+                } else {
+                    session.save(campaignSlot);
+                }
+                CampaignGame next;
+                do {
+                    if (defeated && !showCampaignDefeat(origin)) break campaignLoop;
+                    System.out.println("UPSTREAM_CAMPAIGN_WORLD_MENU sector=" + origin.id);
+                    next = chooseCampaign(session.campaignSlots(session.sectorSaves(), origin), null);
+                    if (campaignExitRequested) break campaignLoop;
+                } while (defeated && next == null);
                 // Opening the selector replaces the bottom-screen labels even if the player returns to this sector.
                 lastPrimaryShortcut = null;
                 previousVisualFrame = 0;
-                if (next == null || next.slot().sector == origin) continue;
+                if (next == null || !defeated && next.slot().sector == origin) continue;
                 saveFile = openCampaign(next);
                 resetWorldInput();
             }
         } finally {
-            if (campaignSlot != null) {
+            if (campaignSlot != null && !Vars.state.gameOver) {
                 try {
                     session.save(campaignSlot);
                     System.out.println("UPSTREAM_CAMPAIGN_SAVED slot=" + campaignSlot.name());
@@ -209,7 +224,7 @@ public final class UpstreamSinglePlayerApp {
     private CampaignGame chooseCampaign(List<UpstreamSinglePlayerSession.SectorSlot> slots, Fi automatic) {
         if (slots.isEmpty()) return null;
         loadInterfaceRenderer();
-        while (true) {
+        while (!campaignExitRequested) {
             var selected = chooseSector(slots, automatic);
             if (selected == null) return null;
             if (selected.origin == null || selected.origin == selected.sector) return new CampaignGame(selected, null);
@@ -217,20 +232,25 @@ public final class UpstreamSinglePlayerApp {
             if (loadout != null) return new CampaignGame(selected, loadout);
             automatic = null;
         }
+        return null;
     }
 
     private Fi openCampaign(CampaignGame choice) throws IOException {
         var slot = choice.slot();
         // A failed load must never save the partially loaded world over the origin.
         campaignSlot = null;
-        if (slot.timestamp < 0) {
+        if (slot.origin != null) {
             drawMenuRows(encodeMenuRows(new String[]{
                 Strings.stripColors(Core.bundle.get("loading")), slot.sector.name()
             }));
             System.out.println("UPSTREAM_CAMPAIGN_GENERATING planet=" + slot.sector.planet.name
                 + " sector=" + slot.sector.id);
             long started = System.nanoTime();
-            session.launchNewSector(slot.origin, slot.sector, slot.file, choice.loadout());
+            if (slot.timestamp < 0) {
+                session.launchNewSector(slot.origin, slot.sector, slot.file, choice.loadout());
+            } else {
+                session.retryCampaignSector(slot, choice.loadout());
+            }
             System.out.println("UPSTREAM_CAMPAIGN_GENERATION_DONE planet=" + slot.sector.planet.name
                 + " sector=" + slot.sector.id + " elapsedMs=" + (System.nanoTime() - started) / 1_000_000);
         } else if (!session.start(null, slot.file, "campaign", slot.sector)) {
@@ -387,10 +407,10 @@ public final class UpstreamSinglePlayerApp {
         }
         int renderedRow = -1;
         MenuRows rows = null;
-        UpstreamSinglePlayerInput.poll();
+        if (pollCampaignInput() == -1) return null;
         while (true) {
             long nextFrame = System.nanoTime() + FRAME_NS;
-            int input = UpstreamSinglePlayerInput.poll();
+            int input = pollCampaignInput();
             if (input == -1 || (input & (1 << 19)) != 0) {
                 System.out.println("UPSTREAM_CAMPAIGN_CANCEL");
                 return null;
@@ -430,10 +450,10 @@ public final class UpstreamSinglePlayerApp {
         int lastHorizontal = 0;
         int rendered = -1;
         MenuRows rows = null;
-        UpstreamSinglePlayerInput.poll();
+        if (pollCampaignInput() == -1) return null;
         while (true) {
             long nextFrame = System.nanoTime() + FRAME_NS;
-            int input = UpstreamSinglePlayerInput.poll();
+            int input = pollCampaignInput();
             if (input == -1 || (input & (1 << 19)) != 0) return null;
             int horizontal = (byte) (input & 0xff);
             int previous = schematic;
@@ -486,7 +506,7 @@ public final class UpstreamSinglePlayerApp {
         MenuRows rows = null;
         while (true) {
             long nextFrame = System.nanoTime() + FRAME_NS;
-            int input = UpstreamSinglePlayerInput.poll();
+            int input = pollCampaignInput();
             if (input == -1) return false;
             if ((input & ((1 << 17) | (1 << 19))) != 0) return true;
             int vertical = (byte) ((input >> 8) & 0xff);
@@ -530,6 +550,7 @@ public final class UpstreamSinglePlayerApp {
             var sector = slot.sector;
             String caption = sector.planet.localizedName + " / " + sector.name();
             if (slot.timestamp < 0) caption += " / " + Core.bundle.get("newgame");
+            else if (slot.origin != null) caption += " / " + Core.bundle.get("sector.curlost");
             captions[1 + i - first] = (i == selected ? "> " : "  ") + caption;
         }
         return captions;
@@ -568,6 +589,27 @@ public final class UpstreamSinglePlayerApp {
                 BulletType bullet = entry.value;
                 if (bullet != null) bullet.load();
             }
+        }
+    }
+
+    private int pollCampaignInput() {
+        int input = UpstreamSinglePlayerInput.poll();
+        if (input == -1) campaignExitRequested = true;
+        return input;
+    }
+
+    private boolean showCampaignDefeat(Sector sector) {
+        MenuRows rows = encodeMenuRows(new String[]{
+            Strings.stripColors(Core.bundle.format("sector.lost", sector.name())),
+            "A " + Core.bundle.get("continue")
+        });
+        while (true) {
+            long nextFrame = System.nanoTime() + FRAME_NS;
+            int input = pollCampaignInput();
+            if (input == -1) return false;
+            if ((input & (1 << 17)) != 0) return true;
+            drawMenuRows(rows);
+            while (System.nanoTime() < nextFrame) Thread.yield();
         }
     }
 
@@ -625,6 +667,7 @@ public final class UpstreamSinglePlayerApp {
                 int steps = 0;
                 while (accumulator >= FRAME_NS && steps < 2) {
                     session.stepSimulation(moveInput.x, moveInput.y);
+                    if (campaignSlot != null && Vars.state.gameOver) return true;
                     accumulator -= FRAME_NS;
                     steps++;
                 }

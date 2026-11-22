@@ -183,6 +183,28 @@ original launch and the stock PC server reopened both saves and matched the
 destination terrain. ARM11 generation and in-game departure remain under
 verification.
 
+## Campaign defeat and retry
+
+If your last core is destroyed, the game saves the defeated sector and
+shows its original localized loss message. Press **A** to continue to the
+campaign selector or **START** to exit. A defeated starter sector can be
+retried from its original deployment. Other sectors use the same landing
+and cargo rules as a new launch.
+
+Retry follows Mindustry v160.8's clear-sector rules. Under the default
+campaign configuration, Ground Zero retains the original spawn, surviving
+derelict buildings and rebuild plans. The Onset regenerates without carrying
+those buildings over. The retry writes to the same original sector slot.
+
+With the prepared campaign assets and pinned runtime Gradle properties, use
+`-Pprobe=singleplayer runGraphicalCampaignDefeatJvm --args="/path/to/assets /path/to/new-scratch-dir"`
+to exercise a real core loss and retry on both planets. Run
+`python3 tools/verify_upstream_campaign_defeat.py --server server-release.jar --reference /path/to/new-scratch-dir`
+to reopen the defeated and recovered saves and settings in the unmodified PC
+server. The server checks the core, retry attempt, and surviving derelict
+state. The 3DS loss dialog and controller flow still need emulator
+verification.
+
 ## Custom Game
 
 Hold **L** while launching the standalone graphical `.3dsx` to open the
