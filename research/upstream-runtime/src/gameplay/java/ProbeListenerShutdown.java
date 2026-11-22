@@ -11,7 +11,9 @@ final class ProbeListenerShutdown {
         for (ApplicationListener listener : Core.app.getListeners().copy()) {
             try {
                 listener.dispose();
-            } catch (Throwable ignored) {
+            } catch (Throwable failure) {
+                System.err.println("UPSTREAM_PROBE_DISPOSE_ERROR listener="
+                    + listener.getClass().getName() + " " + failure);
             }
         }
     }

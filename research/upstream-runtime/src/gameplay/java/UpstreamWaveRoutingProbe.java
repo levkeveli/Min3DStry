@@ -29,9 +29,8 @@ public final class UpstreamWaveRoutingProbe {
     private static final int TICKS_PER_WAVE = 900;
 
     public static void main(String[] args) throws IOException, InterruptedException {
-        UpstreamWorldLoadProbe.ProbeApplication app = null;
         try {
-            app = UpstreamSimulationWorld.play(args, () -> {
+            var app = UpstreamSimulationWorld.play(args, () -> {
                 Vars.pathfinder = new Pathfinder();
                 Vars.controlPath = new ControlPathfinder();
                 Vars.asyncCore = new AsyncCore();
@@ -152,7 +151,7 @@ public final class UpstreamWaveRoutingProbe {
             System.err.println("WAVE_ROUTING_ERROR " + failure);
             throw failure;
         } finally {
-            if (app != null) ProbeListenerShutdown.dispose();
+            ProbeListenerShutdown.dispose();
         }
         // This is a one-shot probe process. Firing ResetEvent here dispatches into
         // TeaVM's monitor/event queue after the trace and can deadlock the host C
