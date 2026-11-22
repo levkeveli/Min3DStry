@@ -20,14 +20,19 @@ public final class WorldReflectionPolicy extends SimpleReflectionPolicy {
             selectClass(type).reflectableMethods(withParameterCount(0).and(IntrospectMethod::isConstructor))
                 .reflectableFields(field -> INSTANCE.test(field) && !TRANSIENT.test(field));
         }
-        // These classes read their fields through the JsonSerializable interface.
+        // These classes read their fields through JsonSerializable or Arc Json collection instantiation (GameStats/Rules).
         for (String type : new String[] {
             "mindustry.game.Rules$TeamRules",
             "mindustry.game.MapObjectives$TextureHolder",
             "mindustry.game.SpawnGroup",
             "mindustry.type.MapLocales",
             "mindustry.world.blocks.Attributes",
-            "arc.struct.IntMap"
+            "arc.struct.IntMap",
+            "arc.struct.IntSet",
+            "arc.struct.ObjectIntMap",
+            "arc.struct.ObjectMap",
+            "arc.struct.ObjectSet",
+            "arc.struct.StringMap"
         }) {
             selectClass(type).reflectableMethods(withParameterCount(0).and(IntrospectMethod::isConstructor));
         }

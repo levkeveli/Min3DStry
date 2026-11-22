@@ -74,6 +74,8 @@ def main() -> None:
     parser.add_argument("--java", default="java")
     parser.add_argument("--tex3ds", default="tex3ds")
     parser.add_argument("--multiplayer", action="store_true", help="pack Glacier and upstream multiplayer unit sprites")
+    parser.add_argument("--singleplayer", action="store_true",
+                        help="pack offline single-player Ground Zero map, sprites.aatls, and multiplayer assets")
     args = parser.parse_args()
 
     output = args.output_dir.resolve()
@@ -81,7 +83,8 @@ def main() -> None:
         parser.error(f"output already exists: {output}")
     output.parent.mkdir(parents=True, exist_ok=True)
     regions = REGIONS
-    if args.multiplayer:
+    pack_multi = args.multiplayer or args.singleplayer
+    if pack_multi:
         surveyed = (name for name in GLACIER_INVENTORY.read_text(encoding="ascii").splitlines()
                     if not name.startswith("core-nucleus"))
         conveyors = (f"conveyor-{variant}-{frame}" for variant in range(5) for frame in range(4))
@@ -93,7 +96,7 @@ def main() -> None:
                         "--server", str(args.server), "--output-dir", str(staged),
                         "--java", args.java, "--tex3ds", args.tex3ds, *regions], check=True)
         write_layout(staged, regions)
-        if args.multiplayer:
+        if pack_multi:
             pack_menu_icons(args, staged, Path(tmp) / "menu")
             pack_world_atlas(args, staged, Path(tmp) / "world")
             bundles = staged / "bundles"
@@ -104,6 +107,15 @@ def main() -> None:
                 for member in archive.namelist():
                     if re.fullmatch(r"assets/bundles/bundle(?:_[A-Za-z_]+)?\.properties", member):
                         (bundles / Path(member).name).write_bytes(archive.read(member))
+                if args.singleplayer:
+                    maps_dir = staged / "maps"
+                    maps_dir.mkdir(parents=True, exist_ok=True)
+                    gz_bytes = archive.read("assets/maps/serpulo/groundZero.msav")
+                    aatls_bytes = archive.read("assets/sprites/sprites.aatls")
+                    if not gz_bytes or not aatls_bytes:
+                        raise ValueError("Missing groundZero.msav or sprites.aatls in official archive")
+                    (maps_dir / "groundZero.msav").write_bytes(gz_bytes)
+                    (staged / "sprites.aatls").write_bytes(aatls_bytes)
             if not (bundles / "bundle.properties").is_file():
                 raise ValueError("The official archive is missing its root translation bundle")
         staged.rename(output)
