@@ -80,9 +80,9 @@ Both profiles matched the JVM and host TeaVM C traces exactly.
 
 The standalone host probe exits after printing the trace without firing
 `ResetEvent`; dispatching that reset into TeaVM's monitor/event queue after
-the trace can deadlock the host C build. It also disposes registered
-application listeners before returning, so Arc's `Timer` fiber cannot resume
-during TeaVM shutdown. The emitted trace is unchanged.
+the trace can deadlock the host C build. It also calls the opt-in
+`disposeListeners()` helper before returning, so Arc listener fibers cannot
+resume during TeaVM shutdown. The emitted trace is unchanged.
 
 ## Remaining Scope for Issue #30
 

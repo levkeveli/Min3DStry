@@ -346,8 +346,8 @@ public final class UpstreamWorldLoadProbe {
             }
         }
 
-        /** Stop listener fibers (notably Arc's Timer thread) before the one-shot host process exits. */
-        @Override public void dispose() {
+        /** Stop registered listener fibers before a one-shot host process exits. */
+        void disposeListeners() {
             for (ApplicationListener listener : getListeners().copy()) {
                 try {
                     listener.dispose();
