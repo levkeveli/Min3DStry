@@ -1053,8 +1053,8 @@ public final class UpstreamSinglePlayerApp {
         orders.draw(viewport);
         var schematics = buildingControls.schematics();
         schematics.draw(viewport);
-        drawObjectives(drawStatusHud());
         drawCoreItems();
+        drawObjectives(drawStatusHud());
         if (pauseOpen) drawPauseMenu();
         var block = buildingControls.block();
         var catalog = buildingControls.catalog();
@@ -1144,8 +1144,17 @@ public final class UpstreamSinglePlayerApp {
             lastStatus = rows;
         }
         float y = 4f;
-        for (int i = 0; i < rows.size() && y < 240f; i++) {
-            y = target.drawObjective(statusLabels[i], statusCharacters[i], rows.get(i).icon(), y);
+        int start = 0;
+        if (!rows.isEmpty() && UpstreamNotification.current() != null) {
+            y = target.drawObjective(statusLabels[0], statusCharacters[0], rows.get(0).icon(), y);
+            start = 1;
+        }
+        if (rows.size() > start) {
+            float panelHeight = (rows.size() - start) * 35f + 4f;
+            target.hudPanel(2f, y - 1f, 164f, panelHeight, 0xE0201B18);
+        }
+        for (int i = start; i < rows.size() && y < 240f; i++) {
+            y = target.drawObjectivePlain(statusLabels[i], statusCharacters[i], rows.get(i).icon(), y);
         }
         return y;
     }
@@ -1198,7 +1207,17 @@ public final class UpstreamSinglePlayerApp {
     }
 
     private void drawPauseMenu() {
-        drawPauseRow(Core.bundle.get("paused"), 116f, 40f, false);
+        drawPauseRow(Core.bundle.get("paused"), 170f, 24f, false);
+        var sector = Vars.state.rules.sector;
+        if (sector != null) {
+            drawPauseRow(sector.planet.localizedName + " / " + sector.name(), 160f, 48f, false);
+        }
+        if (sector != null) {
+            var objectives = UpstreamObjectiveHud.collect(Vars.state.rules);
+            if (!objectives.isEmpty()) {
+                drawPauseRow(objectives.get(0).text(), 100f, 72f, false);
+            }
+        }
         String[] options;
         if (pauseMenu.options() == 4) {
             options = new String[]{Core.bundle.get("back"), Core.bundle.get("research"),
@@ -1207,11 +1226,11 @@ public final class UpstreamSinglePlayerApp {
             options = new String[]{Core.bundle.get("back"), Core.bundle.get("savegame"),
                 Core.bundle.get("quit")};
         }
-        float y = 86f;
+        float y = 100f;
         for (int i = 0; i < options.length; i++) {
             boolean selected = i == pauseMenu.selected();
-            drawPauseRow((selected ? "> " : "  ") + options[i], 128f, y, selected);
-            y += 36f;
+            drawPauseRow((selected ? "> " : "  ") + options[i], 170f, y, selected);
+            y += 30f;
         }
         if (pauseMenu.confirmingQuit()) {
             drawPauseRow(Core.bundle.get("quit.confirm"), 40f, 210f, false);
@@ -1220,7 +1239,7 @@ public final class UpstreamSinglePlayerApp {
 
     private void drawPauseRow(String text, float x, float y, boolean selected) {
         String markup = (selected ? "[accent]" : "[lightgray]") + text;
-        byte[] label = (text + "\0").getBytes(StandardCharsets.UTF_8);
+        byte[] label = (arc.util.Strings.stripColors(text) + "\0").getBytes(StandardCharsets.UTF_8);
         int[] characters = encodeLabel(UpstreamLabelText.parse(UI.formatIcons(markup)));
         target.drawObjectiveAt(label, characters, null, x, y);
     }
