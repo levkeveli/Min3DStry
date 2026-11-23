@@ -96,6 +96,9 @@ public final class UpstreamSinglePlayerApp {
     private List<UpstreamObjectiveHud.Row> lastStatus;
     private int lastCoreItemCount = -1;
     private int lastCoreItemDrawn = -1;
+    private final UpstreamPauseMenu pauseMenu = new UpstreamPauseMenu();
+    private boolean pauseOpen;
+    private int pauseAxis;
     private byte[][] statusLabels = new byte[0][];
     private int[][] statusCharacters = new int[0][];
     private List<UpstreamObjectiveHud.Row> lastObjectives;
@@ -803,45 +806,69 @@ public final class UpstreamSinglePlayerApp {
                 continue;
             }
 
-            moveInput.set((byte)input / 127f, (byte)(input >>> 8) / 127f);
-            if (moveInput.len2() < DEAD_ZONE * DEAD_ZONE) {
+            int axis = (byte)(input >> 8);
+            int direction = axis > 60 && pauseAxis <= 20 ? -1 : axis < -60 && pauseAxis >= -20 ? 1 : 0;
+            pauseAxis = axis;
+            if (pauseOpen) {
+                if (direction != 0) pauseMenu.move(direction);
+                if ((input & UpstreamSinglePlayerInput.A_PRESSED) != 0) {
+                    var action = pauseMenu.activate();
+                    if (action == UpstreamPauseMenu.Action.RESUME) {
+                        closePauseMenu();
+                    } else if (action == UpstreamPauseMenu.Action.SAVE) {
+                        session.save(saveFile);
+                        System.out.println("UPSTREAM_PAUSE_MENU save=true");
+                    } else if (action == UpstreamPauseMenu.Action.QUIT) {
+                        pauseOpen = false;
+                        session.save(saveFile);
+                        System.out.println("UPSTREAM_PAUSE_MENU quit=true");
+                        return false;
+                    }
+                } else if ((input & (UpstreamSinglePlayerInput.B_PRESSED
+                        | UpstreamSinglePlayerInput.X_PRESSED)) != 0) {
+                    if (pauseMenu.cancel() == UpstreamPauseMenu.Action.RESUME) closePauseMenu();
+                }
                 moveInput.setZero();
             } else {
-                moveInput.limit(1f);
-            }
-            boolean aimHeld = (input & UpstreamSinglePlayerInput.X_HELD) != 0;
-            boolean fireHeld = (input & UpstreamSinglePlayerInput.L_HELD) != 0;
-            if (weaponInput.releasePauses((input & UpstreamSinglePlayerInput.X_PRESSED) != 0,
-                    aimHeld, !moveInput.isZero(), fireHeld, now)) {
-                boolean paused = session.togglePause();
-                System.out.println("UPSTREAM_SP_PAUSE paused=" + paused + " updateId=" + Vars.state.updateId);
-            }
-            if ((input & UpstreamSinglePlayerInput.WAVE_PRESSED) != 0) {
-                int wave = session.triggerWave();
-                int enemies = Groups.unit.count(u -> u.team == Vars.state.rules.waveTeam && !u.dead);
-                System.out.println("UPSTREAM_SP_WAVE wave=" + wave + " enemies=" + enemies);
-            }
-            if ((input & UpstreamSinglePlayerInput.SAVE_PRESSED) != 0) {
-                session.save(saveFile);
-                if (unit != null) {
-                    int shots = UpstreamOfflineWeaponInput.totalShots(unit);
-                    if (shots > 0) System.out.println("UPSTREAM_SP_WEAPON_SAVED shots=" + shots);
+                moveInput.set((byte)input / 127f, (byte)(input >>> 8) / 127f);
+                if (moveInput.len2() < DEAD_ZONE * DEAD_ZONE) {
+                    moveInput.setZero();
+                } else {
+                    moveInput.limit(1f);
                 }
-            }
+                boolean aimHeld = (input & UpstreamSinglePlayerInput.X_HELD) != 0;
+                boolean fireHeld = (input & UpstreamSinglePlayerInput.L_HELD) != 0;
+                if (weaponInput.releasePauses((input & UpstreamSinglePlayerInput.X_PRESSED) != 0,
+                        aimHeld, !moveInput.isZero(), fireHeld, now)) {
+                    openPauseMenu();
+                }
+                if ((input & UpstreamSinglePlayerInput.WAVE_PRESSED) != 0) {
+                    int wave = session.triggerWave();
+                    int enemies = Groups.unit.count(u -> u.team == Vars.state.rules.waveTeam && !u.dead);
+                    System.out.println("UPSTREAM_SP_WAVE wave=" + wave + " enemies=" + enemies);
+                }
+                if ((input & UpstreamSinglePlayerInput.SAVE_PRESSED) != 0) {
+                    session.save(saveFile);
+                    if (unit != null) {
+                        int shots = UpstreamOfflineWeaponInput.totalShots(unit);
+                        if (shots > 0) System.out.println("UPSTREAM_SP_WEAPON_SAVED shots=" + shots);
+                    }
+                }
 
-            unit = session.ensurePlayerSpawn();
-            if (unit != null) {
-                buildingControls.update(unit, input, touch);
                 unit = session.ensurePlayerSpawn();
+                if (unit != null) {
+                    buildingControls.update(unit, input, touch);
+                    unit = session.ensurePlayerSpawn();
+                }
+                if (unit != null) {
+                    boolean anchored = unit instanceof BlockUnitc;
+                    boolean overlay = buildingControls.blocksWeaponInput();
+                    weaponInput.update(unit, moveInput, (anchored || weaponInput.aimMode()) && !moveInput.isZero(),
+                        fireHeld && !overlay && !Vars.state.isPaused());
+                    if (anchored) moveInput.setZero();
+                }
+                if (weaponInput.aimMode()) moveInput.setZero();
             }
-            if (unit != null) {
-                boolean anchored = unit instanceof BlockUnitc;
-                boolean overlay = buildingControls.blocksWeaponInput();
-                weaponInput.update(unit, moveInput, (anchored || weaponInput.aimMode()) && !moveInput.isZero(),
-                    fireHeld && !overlay && !Vars.state.isPaused());
-                if (anchored) moveInput.setZero();
-            }
-            if (weaponInput.aimMode()) moveInput.setZero();
             long elapsed = Math.min(Math.max(0L, now - previousTime), FRAME_NS * 4L);
             previousTime = now;
             accumulator += elapsed;
@@ -1014,6 +1041,7 @@ public final class UpstreamSinglePlayerApp {
         schematics.draw(viewport);
         drawObjectives(drawStatusHud());
         drawCoreItems();
+        if (pauseOpen) drawPauseMenu();
         var block = buildingControls.block();
         var catalog = buildingControls.catalog();
         var config = buildingControls.buildingConfig();
@@ -1138,6 +1166,40 @@ public final class UpstreamSinglePlayerApp {
             System.out.println("UPSTREAM_ITEM_ROWS items=" + items.size()
                 + " drawn=" + drawn + " columns=" + columns);
         }
+    }
+
+    private void openPauseMenu() {
+        pauseMenu.open();
+        pauseOpen = true;
+        if (!Vars.state.isPaused()) session.togglePause();
+        System.out.println("UPSTREAM_PAUSE_MENU open=true selected=0");
+    }
+
+    private void closePauseMenu() {
+        pauseOpen = false;
+        if (Vars.state.isPaused()) session.togglePause();
+        System.out.println("UPSTREAM_PAUSE_MENU open=false");
+    }
+
+    private void drawPauseMenu() {
+        drawPauseRow(Core.bundle.get("paused"), 116f, 40f, false);
+        String[] options = {Core.bundle.get("back"), Core.bundle.get("savegame"), Core.bundle.get("quit")};
+        float y = 86f;
+        for (int i = 0; i < options.length; i++) {
+            boolean selected = i == pauseMenu.selected();
+            drawPauseRow((selected ? "> " : "  ") + options[i], 128f, y, selected);
+            y += 36f;
+        }
+        if (pauseMenu.confirmingQuit()) {
+            drawPauseRow(Core.bundle.get("quit.confirm"), 40f, 210f, false);
+        }
+    }
+
+    private void drawPauseRow(String text, float x, float y, boolean selected) {
+        String markup = (selected ? "[accent]" : "[lightgray]") + text;
+        byte[] label = (text + "\0").getBytes(StandardCharsets.UTF_8);
+        int[] characters = encodeLabel(UpstreamLabelText.parse(UI.formatIcons(markup)));
+        target.drawObjectiveAt(label, characters, null, x, y);
     }
 
     private void drawObjectives(float y) {

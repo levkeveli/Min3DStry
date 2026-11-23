@@ -100,6 +100,34 @@ public final class UpstreamStatusRowsProbe {
             throw new IllegalStateException("Core item row collection mismatch");
         }
         System.out.println("UPSTREAM_CORE_ITEMS rows=2 ok");
+
+        var pause = new UpstreamPauseMenu();
+        pause.open();
+        if (pause.selected() != 0 || pause.confirmingQuit()) {
+            throw new IllegalStateException("Pause menu initial state mismatch");
+        }
+        pause.move(-1);
+        if (pause.selected() != 2) throw new IllegalStateException("Pause menu wrap mismatch");
+        pause.move(1);
+        if (pause.activate() != UpstreamPauseMenu.Action.RESUME) {
+            throw new IllegalStateException("Pause menu resume action mismatch");
+        }
+        pause.move(1);
+        if (pause.activate() != UpstreamPauseMenu.Action.SAVE) {
+            throw new IllegalStateException("Pause menu save action mismatch");
+        }
+        pause.move(1);
+        if (pause.activate() != UpstreamPauseMenu.Action.NONE || !pause.confirmingQuit()) {
+            throw new IllegalStateException("Pause menu quit confirmation missing");
+        }
+        if (pause.cancel() != UpstreamPauseMenu.Action.NONE || pause.confirmingQuit()) {
+            throw new IllegalStateException("Pause menu quit cancel mismatch");
+        }
+        if (pause.activate() != UpstreamPauseMenu.Action.NONE
+                || pause.activate() != UpstreamPauseMenu.Action.QUIT) {
+            throw new IllegalStateException("Pause menu quit action mismatch");
+        }
+        System.out.println("UPSTREAM_PAUSE_MENU cases=6 ok");
         System.out.println("UPSTREAM_STATUS_ROWS cases=10 ok");
         System.out.println("UPSTREAM_GUARDIAN_WARNING cases=2 ok");
         System.out.println("UPSTREAM_UNIT_ROWS cases=3 ok");

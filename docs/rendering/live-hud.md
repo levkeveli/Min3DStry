@@ -21,6 +21,9 @@ off and a campaign sector is active;
 - the original copper item glyph and the local core's copper count;
 - the local core's non-zero item list as stock item icons with counts, wrapped
   into up to three columns clear of the minimap;
+- a stock-style pause overlay with `paused`, Resume (`back`), Save Game and
+  Quit rows, including the stock quit confirmation; tapping X opens/closes it
+  and freezes simulation;
 - a live minimap rendered from a 64x64 sample at 56 px in the top-right
   corner, using the stock `MinimapRenderer` color path (`Block.minimapColor`,
   floor/overlay fallback through `MapIO.colorFor`, darkness and liquid/shadow
@@ -96,6 +99,7 @@ status-hud host probe:
 
 ```text
 UPSTREAM_CORE_ITEMS rows=2 ok
+UPSTREAM_PAUSE_MENU cases=6 ok
 ```
 
 The Azahar verifier can seed a deterministic core inventory through
@@ -116,6 +120,16 @@ phase-fabric=12,surge-alloy=9,spore-pod=25,pyratite=50
 The Original 3DS profile passed the same path with three seeded items
 (`items=3 drawn=3 columns=1`). The fixture is removed after the run.
 
+The pause overlay's selection, wrap, save, quit-confirmation and cancel
+transitions are host-covered. The following graphical checks are queued for
+the next emulator batch and are **not verified** yet:
+
+- Tap X: `UPSTREAM_PAUSE_MENU open=true`, simulation freezes.
+- D-pad up/down wraps the three rows; A on Resume closes and resumes.
+- A on Save Game emits `UPSTREAM_PAUSE_MENU save=true`.
+- A on Quit, then A on the stock confirmation, exits with `quit=true`.
+- B or X cancels the menu, and the HUD/minimap remain readable behind it.
+
 The live fixture exercises the countdown/waiting path with `enemies=0`. The
 singular/plural enemy rows, the `wave.waveInProgress` branch, and the `m:ss`
 timer path are copied from v160.8 `HudFragment.makeStatusTable()` but are not
@@ -133,5 +147,7 @@ exactly.
 - The item list is icon-and-count only, like the stock core display, but not
   its complete panel/theme layout. More than 18 rows fall back to the overflow
   log rather than a scrollable table.
+- The pause overlay covers Resume/Save Game/Quit only; stock Settings, planet
+  map, research, load and multiplayer buttons are not ported yet.
 - Additional notifications and the full stock layout remain open under #40.
 - Physical Old/New 3DS verification remains open with #43.
