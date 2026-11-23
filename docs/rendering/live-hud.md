@@ -31,8 +31,8 @@ off and a campaign sector is active;
   corner, using the stock `MinimapRenderer` color path (`Block.minimapColor`,
   floor/overlay fallback through `MapIO.colorFor`, darkness and liquid/shadow
   edge tints), with the local player marked at the nearest sampled cell and
-  living non-fogged units drawn as their team-colored blips; refreshed every
-  60 frames.
+  living non-fogged units drawn as their team-colored blips; a dark inset frame
+  surrounds the map, refreshed every 60 frames.
 
 The status rows use the v160.8 font and inline item glyph pipeline shared with
 the objective HUD. They are rebuilt only when the rendered status text changes,
@@ -152,9 +152,9 @@ exactly.
 
 - This is the wave/timer/copper/minimap slice of the stock HUD, not the
   complete HUD.
-- The minimap is the always-on 56 px slice drawn from a 64x64 sample:
-  fullscreen/zoom, unit blips beyond the local player, and the full stock
-  minimap panel layout remain open under #40.
+- The minimap is the always-on 56 px slice drawn from a 64x64 sample with a
+  dark inset frame. Fullscreen/zoom, unit icons beyond the local player, and the
+  full stock minimap panel layout remain open under #40.
 - The item list is icon-and-count only, like the stock core display, but not
   its complete panel/theme layout. More than 18 rows fall back to the overflow
   log rather than a scrollable table.
