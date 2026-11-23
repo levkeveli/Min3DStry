@@ -20,7 +20,7 @@ public final class UpstreamUnifiedApp {
         if (args.length == 0) {
             int input = UpstreamSinglePlayerInput.poll();
             if (input < 0) return;
-            if ((input & UpstreamSinglePlayerInput.JOIN_HELD) == 0) {
+            if ((input & UpstreamSinglePlayerInput.X_HELD) == 0) {
                 offline(args);
             } else {
                 join(args);
