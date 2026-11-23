@@ -13,7 +13,9 @@ from verify_upstream_live_net import stop, wait_for
 
 KEY_DRIGHT = 1 << 4
 KEY_L = 1 << 9
-BUTTONS = {33: KEY_DRIGHT, 34: sp.KEY_X | KEY_DRIGHT, 42: sp.KEY_X, 50: sp.KEY_X | KEY_DRIGHT,
+# Give the offline loop time to observe movement before pulsing X. The pulse is
+# aligned to the ARM11 input poll on Azahar 2126.2 and stays below the aim threshold.
+BUTTONS = {32: KEY_DRIGHT, 33.7: sp.KEY_X | KEY_DRIGHT, 42: sp.KEY_X, 50: sp.KEY_X | KEY_DRIGHT,
            60: KEY_L, 72: sp.KEY_SELECT, 82: sp.KEY_START}
 SETUP = (
     'const rules=Vars.state.rules; rules.waves=false; '
@@ -63,7 +65,7 @@ def replay(args, model, fixture):
     save.parent.mkdir(parents=True)
     shutil.copyfile(fixture, save)
     movie = output / "weapons.ctm"
-    write_movie(movie, model, taps={}, buttons=BUTTONS, seconds=90, button_durations={33: 1, 34: 0.12})
+    write_movie(movie, model, taps={}, buttons=BUTTONS, seconds=90, button_durations={32: 1.7, 33.7: 0.23})
     isolated = {"Data Storage": {"use_custom_storage": "true", "sdmc_directory": sd.as_posix() + "/"}}
     try:
         config.parent.mkdir(parents=True, exist_ok=True)
