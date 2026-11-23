@@ -39,7 +39,6 @@ import mindustry.world.Block;
 import mindustry.type.Category;
 import mindustry.world.blocks.defense.turrets.BaseTurret;
 import mindustry.world.blocks.liquid.Conduit.ConduitBuild;
-import mindustry.world.blocks.payloads.BuildPayload;
 import mindustry.world.blocks.payloads.PayloadConveyor.PayloadConveyorBuild;
 import mindustry.world.blocks.payloads.UnitPayload;
 import mindustry.world.blocks.distribution.Conveyor.ConveyorBuild;
@@ -474,15 +473,7 @@ public final class UpstreamRenderedNetworkProbe {
             || UpstreamBuildingLayers.supportsExtractorDraw(block)
             || block == Blocks.overdriveProjector
             || block == Blocks.overdriveDome || block == Blocks.shockwaveTower
-            || build instanceof PayloadConveyorBuild conveyor && (conveyor.item == null || supportsCargo(conveyor));
-    }
-
-    private static boolean supportsCargo(PayloadConveyorBuild conveyor) {
-        if (conveyor.item instanceof UnitPayload payload) return loadUnitGraphics(payload.unit);
-        return conveyor.item instanceof BuildPayload payload
-            && (payload.block() == Blocks.copperWall || payload.block() == Blocks.copperWallLarge
-                || payload.block() == Blocks.mechanicalDrill || payload.build instanceof ConveyorBuild
-                || payload.build instanceof PayloadConveyorBuild);
+            || build instanceof PayloadConveyorBuild conveyor && UpstreamBuildingLayers.supportsPayloadConveyorDraw(conveyor);
     }
 
     private void drawMenu(byte[] labels, int[] icons, int selected,

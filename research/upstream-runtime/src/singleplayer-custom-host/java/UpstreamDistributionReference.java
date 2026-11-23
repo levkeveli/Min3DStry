@@ -11,6 +11,10 @@ import mindustry.world.blocks.distribution.Conveyor.ConveyorBuild;
 import mindustry.world.blocks.distribution.DirectionBridge.DirectionBridgeBuild;
 import mindustry.world.blocks.distribution.ItemBridge.ItemBridgeBuild;
 import mindustry.world.blocks.distribution.StackConveyor.StackConveyorBuild;
+import mindustry.world.blocks.payloads.BuildPayload;
+import mindustry.world.blocks.payloads.Constructor;
+import mindustry.world.blocks.payloads.PayloadConveyor;
+import mindustry.world.blocks.payloads.PayloadConveyor.PayloadConveyorBuild;
 import mindustry.world.blocks.units.UnitCargoLoader;
 import mindustry.world.blocks.units.UnitCargoLoader.UnitTransportSourceBuild;
 import mindustry.world.meta.BuildVisibility;
@@ -24,6 +28,8 @@ final class UpstreamDistributionReference implements UpstreamTerrainDrawProbe.Te
     private int copperSprites;
     private boolean bridgeSpan;
     private float constructionProgress;
+    private AtlasRegion cargoRegion;
+    private boolean cargoDrawn;
 
     static void verify() {
         var target = new UpstreamDistributionReference();
@@ -52,6 +58,32 @@ final class UpstreamDistributionReference implements UpstreamTerrainDrawProbe.Te
         }
         if (tested == 0) throw new AssertionError("The stock distribution registry was empty");
         System.out.println("UPSTREAM_STOCK_DISTRIBUTION_DRAW tested=" + tested);
+        target.verifyErekirCargo();
+    }
+
+    private void verifyErekirCargo() {
+        var tile = Vars.world.tile(32, 40);
+        tile.setBlock(Blocks.reinforcedPayloadConveyor, Team.sharded, 0);
+        try {
+            var belt = (PayloadConveyorBuild)tile.build;
+            var conveyor = (PayloadConveyor)belt.block;
+            var recipes = ((Constructor)Blocks.constructor).filter;
+            for (var block : recipes) {
+                belt.progress = conveyor.moveTime * 0.5f;
+                belt.handlePayload(belt, new BuildPayload(block, belt.team));
+                if (!UpstreamSinglePlayerApp.supportsBuildingDraw(belt)) {
+                    throw new AssertionError("The offline draw pass excludes Constructor cargo " + block.name);
+                }
+                cargoRegion = (AtlasRegion)block.region;
+                cargoDrawn = false;
+                drawBuilding(belt);
+                if (!cargoDrawn) throw new AssertionError("Missing stock Constructor cargo " + block.name);
+            }
+            System.out.println("UPSTREAM_OFFLINE_EREKIR_CARGO recipes=" + recipes.size);
+        } finally {
+            cargoRegion = null;
+            tile.setBlock(Blocks.air);
+        }
     }
 
     private void verifyActive(Building build) {
@@ -110,6 +142,10 @@ final class UpstreamDistributionReference implements UpstreamTerrainDrawProbe.Te
         sprites++;
         if (page == UpstreamTerrainDrawProbe.pageIndex(copper) && left == copper.getX() && top == copper.getY()) {
             copperSprites++;
+        }
+        if (cargoRegion != null && page == UpstreamTerrainDrawProbe.pageIndex(cargoRegion)
+                && left == cargoRegion.getX() && top == cargoRegion.getY()) {
+            cargoDrawn = true;
         }
         if (Math.abs(drawWidth) >= 15 && Math.abs(drawHeight) <= 8) bridgeSpan = true;
     }

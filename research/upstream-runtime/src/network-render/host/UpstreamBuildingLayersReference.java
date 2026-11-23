@@ -83,6 +83,7 @@ import mindustry.world.blocks.logic.LogicDisplay.LogicDisplayBuild;
 import mindustry.world.blocks.logic.LogicDisplay;
 import mindustry.world.blocks.logic.TileableLogicDisplay.TileableLogicDisplayBuild;
 import mindustry.world.blocks.payloads.BuildPayload;
+import mindustry.world.blocks.payloads.Constructor;
 import mindustry.world.blocks.payloads.Payload;
 import mindustry.world.blocks.payloads.UnitPayload;
 import mindustry.world.blocks.payloads.PayloadConveyor;
@@ -188,6 +189,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         target.verifyBuildingEffects(layers, viewport, viewer);
         target.verifyPayloadMix(layers, viewport, viewer);
         target.verifyCarriedBuildings(layers, viewport, viewer);
+        target.verifyErekirConveyorCargo(layers, viewport, viewer);
         target.verifyUnits(viewer);
         target.verifyCarriedUnits(layers, viewport, viewer);
         target.verifyNavalWake(viewer);
@@ -996,6 +998,33 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
             unit.remove();
         }
         System.out.println("UPSTREAM_TANK_TREADS types=" + types.size() + " movingFrame=5 idleDistance=0");
+    }
+
+    private void verifyErekirConveyorCargo(UpstreamBuildingLayers layers,
+                                         UpstreamTerrainDrawProbe.Viewport viewport, Team viewer) {
+        var tile = Vars.world.tile(32, 40);
+        tile.setBlock(Blocks.reinforcedPayloadConveyor, viewer, 0);
+        var belt = (PayloadConveyorBuild)tile.build;
+        var conveyor = (PayloadConveyor)belt.block;
+        var recipes = ((Constructor)Blocks.constructor).filter;
+        var shadow = Core.atlas.find("square-shadow");
+        int shade = Color.floatToIntColor(new Color(0f, 0f, 0f, 0.4f).toFloatBits());
+        int white = Color.floatToIntColor(Color.whiteFloatBits);
+        for (var block : recipes) {
+            belt.progress = conveyor.moveTime * 0.5f;
+            var payload = new BuildPayload(block, viewer);
+            belt.handlePayload(belt, payload);
+            sprites.clear();
+            layers.render(viewport, viewer, candidate -> candidate == belt
+                && UpstreamRenderedNetworkProbe.supportsBuildingDraw(candidate));
+            if (findPayloadSprite(shadow, payload, shade) < 0
+                    || findPayloadSprite(block.region, payload, white) < 0
+                    || payload.x() != belt.x || payload.y() != belt.y) {
+                throw new AssertionError("Missing original conveyor cargo layers for " + block.name);
+            }
+        }
+        if (recipes.size != 7) throw new AssertionError("Stock Constructor recipes changed");
+        System.out.println("UPSTREAM_EREKIR_CONVEYOR_CARGO recipes=7 sprites=original shadow=ok");
     }
 
     private void verifyCarriedBuildings(UpstreamBuildingLayers layers, UpstreamTerrainDrawProbe.Viewport viewport,

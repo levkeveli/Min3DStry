@@ -956,3 +956,11 @@ averaged about 233 ms per renderer frame, of which 213 ms was spent importing
 atlas fragments. A window panning from `117,49` to `109,49` imported 125
 fragments across 16 frames and averaged 159 ms per renderer frame. These are
 guest timings from the emulator with the same stock Ground Zero save.
+
+### Erekir Constructor cargo on conveyors
+
+Both session modes use the stock Payload Conveyor draw pass for the seven
+original Constructor recipes. The host recording checks the packaged source
+atlas for each block, including the reinforced containers and Beam Node.
+The live draw reference checks the cargo center and square shadow, and the
+offline reference verifies that the same cargo reaches the draw pass.
