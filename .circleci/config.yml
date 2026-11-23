@@ -1,0 +1,64 @@
+version: 2.1
+
+parameters:
+  build_playable_arm11:
+    type: boolean
+    default: false
+
+jobs:
+  playable-arm11:
+    docker:
+      - image: devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5
+    resource_class: large
+    environment:
+      RUNNER_TEMP: /tmp/min3ds-upstream
+    steps:
+      - checkout
+      - run:
+          name: Install host build dependencies
+          command: |
+            apt-get update
+            apt-get install -y --no-install-recommends openjdk-17-jdk-headless python3-pil
+      - run:
+          name: Fetch and verify pinned Mindustry and Arc inputs
+          command: |
+            mkdir -p "$RUNNER_TEMP"
+            bash .github/scripts/fetch_upstream_v160.sh --mindustry --server-jar --arc
+            curl --fail --silent --show-error --location \
+              https://github.com/Anuken/Mindustry/releases/download/v160.8/assets.jar \
+              --output "$RUNNER_TEMP/assets.jar"
+            printf '%s  %s\n' 2728b63d309c27a405744c8b5440d90a65387a41e2c4339b630a239f79f6bd17 \
+              "$RUNNER_TEMP/assets.jar" | sha256sum --check
+      - run:
+          name: Generate standalone TeaVM C and pack original maps and sprites
+          command: |
+            source /opt/devkitpro/3dsvars.sh
+            bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime \
+              --no-daemon --console=plain -Dorg.gradle.jvmargs=-Xmx3g \
+              "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" \
+              "-PreferenceJar=$RUNNER_TEMP/server-release.jar" \
+              "-ParcCheckout=$RUNNER_TEMP/Arc" -Pprobe=singleplayer generateC
+            python3 research/upstream-runtime/arm11/prepare_terrain_assets.py \
+              --assets "$RUNNER_TEMP/assets.jar" --server "$RUNNER_TEMP/server-release.jar" \
+              --output-dir build/circleci-terrain --singleplayer
+      - run:
+          name: Compile the playable offline ARM11 app
+          command: |
+            source /opt/devkitpro/3dsvars.sh
+            bash research/upstream-runtime/arm11/build.sh \
+              research/upstream-runtime/build/generated/teavm/c build/circleci-arm11 \
+              --singleplayer build/circleci-terrain
+            mkdir -p build/circleci-artifact
+            cp build/circleci-arm11/upstream-probe.3dsx build/circleci-artifact/min3dstry-offline.3dsx
+            cp LICENSE build/circleci-artifact/
+            git rev-parse HEAD > build/circleci-artifact/commit.txt
+            (cd build/circleci-artifact && sha256sum min3dstry-offline.3dsx > SHA256SUMS)
+      - store_artifacts:
+          path: build/circleci-artifact
+          destination: playable-arm11
+
+workflows:
+  playable-arm11:
+    when: << pipeline.parameters.build_playable_arm11 >>
+    jobs:
+      - playable-arm11
