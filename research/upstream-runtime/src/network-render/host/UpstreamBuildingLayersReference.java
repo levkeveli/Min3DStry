@@ -47,7 +47,12 @@ import mindustry.world.Block;
 import mindustry.world.blocks.defense.OverdriveProjector.OverdriveBuild;
 import mindustry.world.blocks.defense.ShockwaveTower.ShockwaveTowerBuild;
 import mindustry.world.blocks.defense.turrets.BaseTurret;
+import mindustry.world.blocks.production.BeamDrill;
+import mindustry.world.blocks.production.BeamDrill.BeamDrillBuild;
+import mindustry.world.blocks.production.BurstDrill.BurstDrillBuild;
+import mindustry.world.blocks.production.Drill.DrillBuild;
 import mindustry.world.blocks.production.GenericCrafter.GenericCrafterBuild;
+import mindustry.world.blocks.production.WallCrafter.WallCrafterBuild;
 import mindustry.world.blocks.payloads.BuildPayload;
 import mindustry.world.blocks.payloads.Payload;
 import mindustry.world.blocks.payloads.UnitPayload;
@@ -126,8 +131,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         target.verifyTankTreads(viewer);
         target.verifyCoreVariants(layers, viewport, viewer);
         target.verifyErekirStarterBlocks(layers, viewport, viewer);
-        target.verifyLiveBuildingRegistry(layers, viewport, viewer, UpstreamBuildingLayers::supportsExtractorDraw,
-            "EXTRACTOR");
+        target.verifyExtractorDraws(layers, viewport, viewer);
         target.verifyLiveBuildingRegistry(layers, viewport, viewer, block -> block instanceof BaseTurret, "TURRET");
         target.verifyLiveBuildingRegistry(layers, viewport, viewer, UpstreamBuildingLayers::supportsDistributionDraw,
             "DISTRIBUTION");
@@ -252,6 +256,59 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
                               float x, float y, float drawWidth, float drawHeight, float rotation,
                               float progress, Color tint, float alpha, float phase, int vertexColor) {
         unitBuilds.add(new UnitBuild(page, left, top, width, height, x, y, rotation, progress, alpha, phase));
+    }
+
+    private void verifyExtractorDraws(UpstreamBuildingLayers layers, UpstreamTerrainDrawProbe.Viewport viewport,
+                                      Team viewer) {
+        viewport.moveTo(24, 30);
+        var tile = Vars.world.tile(31, 36);
+        int tested = 0;
+        for (var block : Vars.content.blocks()) {
+            if (!UpstreamBuildingLayers.supportsExtractorDraw(block)) continue;
+            var wall = Vars.world.tile(tile.x + block.size / 2 + 1, tile.y);
+            boolean beamDrill = block instanceof BeamDrill;
+            var oldWall = wall.block();
+            var oldOre = tile.overlay();
+            tile.setOverlay(Blocks.oreCopper);
+            wall.setBlock(beamDrill ? Blocks.graphiticWall : Blocks.beryllicStoneWall);
+            tile.setBlock(block, viewer, 0);
+            try {
+                var build = tile.build;
+                build.onProximityUpdate();
+                sprites.clear();
+                layers.render(viewport, viewer, candidate -> candidate == build
+                    && UpstreamRenderedNetworkProbe.supportsBuildingDraw(candidate));
+                requireRegion(block.region);
+                var idle = List.copyOf(sprites);
+                if (build instanceof BurstDrillBuild burst) {
+                    if (burst.dominantItem != Items.copper) throw new AssertionError("Burst drill ore missing");
+                    burst.smoothProgress = 1f;
+                } else if (build instanceof DrillBuild drill) {
+                    if (drill.dominantItem != Items.copper) throw new AssertionError("Floor drill ore missing");
+                    drill.timeDrilled = 19f;
+                    drill.warmup = 1f;
+                } else if (build instanceof BeamDrillBuild beam) {
+                    if (beam.facingAmount == 0) throw new AssertionError("Beam drill wall ore missing");
+                    beam.warmup = 1f;
+                } else if (build instanceof WallCrafterBuild crusher) {
+                    if (!block.canPlaceOn(tile, viewer, 0)) throw new AssertionError("Crusher wall target missing");
+                    crusher.totalTime = 19f;
+                }
+                sprites.clear();
+                layers.render(viewport, viewer, candidate -> candidate == build
+                    && UpstreamSinglePlayerApp.supportsBuildingDraw(candidate));
+                requireRegion(block.region);
+                if (sprites.equals(idle)) throw new AssertionError("Stock extractor draw state unchanged: " + block.name);
+                if (block instanceof BeamDrill beam) requireRegion(beam.laserCenter);
+                tested++;
+            } finally {
+                tile.setBlock(Blocks.air);
+                tile.setOverlay(oldOre);
+                wall.setBlock(oldWall);
+            }
+        }
+        if (tested != 10) throw new AssertionError("Expected ten stock extractors, got " + tested);
+        System.out.printf("UPSTREAM_STOCK_EXTRACTOR_DRAW tested=%d active=%d%n", tested, tested);
     }
 
     private void verifyLiveBuildingRegistry(UpstreamBuildingLayers layers, UpstreamTerrainDrawProbe.Viewport viewport,
