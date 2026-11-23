@@ -1077,6 +1077,22 @@ The renderer still selects blocks that use the supported sprite operations.
 Textured raw vertices, additional payload types and other rendering services
 are tracked in [#139](https://github.com/levkeveli/Min3DStry/issues/139).
 
+### Stage stock unit production replay
+
+`tools/verify_stock_assembly.py` prepares an in-progress Additive Reconstructor
+or Tank Assembler save with the stock v160.8 Java server. Pass
+`--reconstructor` or `--assembler` with the intermediate save from its JVM
+production test, plus `--server` and `--output`. The stock server moves the
+starter unit so the original production sprite appears in the initial
+viewport. It then reopens the staged save to verify the location and
+production progress.
+
+The default prepares the saves headlessly. Supplying `--rom` enables the
+separate Azahar replay for Original and New 3DS profiles using isolated
+virtual SD directories. The replay records screenshots and shader logs for
+inspection. The headless staging has passed with both stock production
+fixtures. The graphical replay remains pending.
+
 ### Verify Erekir construction
 
 The touchscreen starter shortcuts use the planet from the streamed rules.
