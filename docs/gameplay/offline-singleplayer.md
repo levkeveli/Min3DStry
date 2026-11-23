@@ -662,6 +662,13 @@ Both profiles executed Boot 1 (load `groundZero.msav`, select Mine + copper ore 
 - **`new3ds` (`is_new_3ds=true`):** `UPSTREAM_MEMORY appHeap=108834816 linearHeap=4194304 stack=262144`, `saved=wave:2,copper:29,bytes:18700`, `reloaded=wave:2,copper:29`, `game_fps=4.72` (unoptimized headless emulator baseline).
 - **`old3ds` (`is_new_3ds=false`):** `UPSTREAM_MEMORY appHeap=79474688 linearHeap=4194304 stack=262144` (~`75.8 MiB` emulator-reported `envGetHeapSize()` region, not the physical retail Original 3DS `64 MiB` `APPMEMTYPE 0` limit against which the `44.44 MiB` static subtotal is budgeted), `saved=wave:2,copper:29,bytes:18685`, `reloaded=wave:2,copper:29`, `game_fps=3.48` (unoptimized headless emulator baseline).
 
+The verifier distinguishes the two stock pause rules. A pause-enabled world
+must log `UPSTREAM_SP_PAUSE paused=true` and `paused=false`. A world with
+`rules.pauseDisabled` must log `UPSTREAM_SP_PAUSE disabled=true`; the pause
+menu still opens and closes, but the simulation keeps running. Menu traffic
+alone no longer satisfies the pause milestone, so a broken pause path cannot
+pass just by drawing the overlay.
+
 ## Original floor and wall extractors
 
 The offline and live building passes use the v160.8 renderers for all six

@@ -58,15 +58,25 @@ class VerifyUpstreamSingleplayerTests(unittest.TestCase):
 
     def test_pause_disabled_menu_milestone(self) -> None:
         parsed = vsp.parse_singleplayer_log("\n".join([
+            "UPSTREAM_SP_PAUSE disabled=true",
             "UPSTREAM_PAUSE_MENU open=true selected=0 options=3",
             "UPSTREAM_PAUSE_MENU open=false",
             "UPSTREAM_SP_MINED item=copper copper=15",
         ]))
+        self.assertTrue(parsed["pause_disabled"])
         self.assertTrue(parsed["pause_menu_open"])
         self.assertTrue(parsed["pause_menu_close"])
         self.assertFalse(parsed["pause_true"])
         self.assertFalse(parsed["pause_false"])
         self.assertTrue(vsp.pause_milestone_reached(parsed))
+
+    def test_pause_menu_without_disabled_rule_is_rejected(self) -> None:
+        parsed = vsp.parse_singleplayer_log("\n".join([
+            "UPSTREAM_PAUSE_MENU open=true selected=0 options=3",
+            "UPSTREAM_PAUSE_MENU open=false",
+        ]))
+        self.assertFalse(parsed["pause_disabled"])
+        self.assertFalse(vsp.pause_milestone_reached(parsed))
 
     def test_missing_pause_milestone_is_rejected(self) -> None:
         parsed = vsp.parse_singleplayer_log("UPSTREAM_SP_MOVING unit=12 input=circle")

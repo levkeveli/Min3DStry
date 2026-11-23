@@ -162,6 +162,7 @@ def parse_singleplayer_log(log_text: str) -> dict[str, Any]:
         "built": built,
         "pause_true": "UPSTREAM_SP_PAUSE paused=true" in log_text,
         "pause_false": "UPSTREAM_SP_PAUSE paused=false" in log_text,
+        "pause_disabled": "UPSTREAM_SP_PAUSE disabled=true" in log_text,
         "pause_menu_open": "UPSTREAM_PAUSE_MENU open=true" in log_text,
         "pause_menu_close": "UPSTREAM_PAUSE_MENU open=false" in log_text,
         "moving": "UPSTREAM_SP_MOVING " in log_text,
@@ -173,15 +174,15 @@ def parse_singleplayer_log(log_text: str) -> dict[str, Any]:
 
 
 def pause_milestone_reached(parsed: dict[str, Any]) -> bool:
-    """Accept either a real pause toggle or the stock pause-disabled menu path.
+    """Require the behavior that matches the loaded stock pause rule.
 
-    Campaign worlds can set ``rules.pauseDisabled``. The client then opens and
-    closes the pause menu without freezing the simulation, so no
-    ``UPSTREAM_SP_PAUSE`` line is emitted.
+    A pause-enabled world must report a real ``paused=true``/``paused=false``
+    toggle. A world with ``rules.pauseDisabled`` must report ``disabled=true``
+    and still open/close the pause menu. Menu traffic alone is never enough.
     """
-    return (parsed["pause_true"] and parsed["pause_false"]) or (
-        parsed["pause_menu_open"] and parsed["pause_menu_close"]
-    )
+    if parsed["pause_disabled"]:
+        return parsed["pause_menu_open"] and parsed["pause_menu_close"]
+    return parsed["pause_true"] and parsed["pause_false"]
 
 
 def _launch_azahar(
