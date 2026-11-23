@@ -60,8 +60,8 @@ enum { menu_label_glyphs = 64 };
 static char palette_utf8[palette_label_count][4 * menu_label_glyphs + 1];
 #endif
 static C2D_TextBuf catalog_buffer;
-enum { item_catalog, block_catalog, unit_catalog, command_catalog, stance_catalog, catalog_count };
-static const char *const catalog_names[] = { "item", "block", "unit", "command", "stance" };
+enum { item_catalog, block_catalog, unit_catalog, command_catalog, stance_catalog, schematic_catalog, catalog_count };
+static const char *const catalog_names[] = { "item", "block", "unit", "command", "stance", "schematic" };
 static struct {
     C2D_SpriteSheet sheet;
     int32_t id, catalog;
@@ -892,7 +892,13 @@ int32_t m3ds_terrain_build_catalog(const char *labels, const int32_t *icons, int
         stock_labels &= catalog_label("<", 35, 15, 0.55f, 50, text);
         stock_labels &= catalog_label(">", 285, 15, 0.55f, 50, text);
     }
-    stock_labels &= catalog_label(labels, 160, 15, 0.52f, categories ? 190 : 300, text);
+    const bool schematics = catalog == schematic_catalog;
+    if (schematics) {
+        C2D_DrawRectSolid(224, 4, 0.5f, 88, 34, panel);
+        stock_labels &= catalog_label("Capture", 268, 15, 0.52f, 82, text);
+    }
+    stock_labels &= catalog_label(labels, schematics ? 112 : 160, 15, 0.52f,
+                                  categories ? 190 : schematics ? 212 : 300, text);
     int32_t visible_icons = 0;
     for (int row = 0; row < 6; row++) {
         labels += strlen(labels) + 1;

@@ -107,6 +107,7 @@ public final class UpstreamBuildControlsReference {
         verifyFactoryConfiguration(controls, unit);
         verifyStockLinks(unit);
         verifySchematicPlacement(unit);
+        verifySchematicCapture(unit);
         System.out.println("UPSTREAM_TOUCH_REFERENCE conveyor=85,26,1 wall=86,26 break=86,26");
     }
 
@@ -580,6 +581,73 @@ public final class UpstreamBuildControlsReference {
             rules.enemyCoreBuildRadius = buildRadius;
             Files.deleteIfExists(factory);
             Files.deleteIfExists(broken);
+            Files.deleteIfExists(folder);
+        }
+    }
+
+    private static void verifySchematicCapture(Unit unit) throws Exception {
+        var folder = Files.createTempDirectory("min3dstry-schematic-capture");
+        var existing = folder.resolve("Schematic-1.msch");
+        var exported = folder.resolve("Schematic-2.msch");
+        var controls = new UpstreamLiveBuildControls(new Fi(folder.toString()));
+        controls.viewport(73, 20);
+        try {
+            Files.writeString(existing, "keep");
+            for (int y = 30; y <= 31; y++) {
+                for (int x = 87; x <= 88; x++) Vars.world.tile(x, y).setBlock(Blocks.air);
+            }
+            controls.update(unit, 0, touch(15, 155));
+            controls.update(unit, 0, touch(268, 20));
+            tapGridCell(controls, unit, 87, 30);
+            tapGridCell(controls, unit, 88, 31);
+            controls.update(unit, 1 << 17, -1);
+            if (!controls.schematics().isOpen() || Files.exists(exported)) {
+                throw new AssertionError("An empty selection must return without creating a file");
+            }
+
+            var source = Vars.world.tile(84, 23);
+            var sorter = Vars.world.tile(84, 24);
+            var receiver = Vars.world.tile(84, 25);
+            var hid = Vars.world.tile(85, 24);
+            source.setBlock(Blocks.itemBridge, unit.team(), 0);
+            sorter.setBlock(Blocks.sorter, unit.team(), 0);
+            receiver.setBlock(Blocks.itemBridge, unit.team(), 0);
+            hid.setBlock(Blocks.copperWall, unit.team(), 0);
+            source.build.wasVisible = sorter.build.wasVisible = receiver.build.wasVisible = true;
+            hid.build.wasVisible = false;
+            source.build.configureAny(new Point2(0, 2));
+            sorter.build.configureAny(Items.lead);
+
+            controls.update(unit, 0, touch(268, 20));
+            tapGridCell(controls, unit, 84, 23);
+            tapGridCell(controls, unit, 85, 25);
+            controls.update(unit, 1 << 19, -1);
+            if (controls.schematics().active() || Files.exists(exported)) {
+                throw new AssertionError("Cancelling the capture must leave the directory unchanged");
+            }
+
+            controls.update(unit, 0, touch(15, 155));
+            controls.update(unit, 0, touch(268, 20));
+            tapGridCell(controls, unit, 85, 25);
+            tapGridCell(controls, unit, 84, 23);
+            controls.update(unit, 1 << 17, -1);
+            if (!controls.schematics().isOpen() || !Files.readString(existing).equals("keep")) {
+                throw new AssertionError("Capture should return to the picker and preserve existing files");
+            }
+            var schematic = Schematics.read(new Fi(exported.toString()));
+            var first = schematic.tiles.find(tile -> tile.y == 0);
+            var middle = schematic.tiles.find(tile -> tile.y == 1);
+            var last = schematic.tiles.find(tile -> tile.y == 2);
+            if (!schematic.name().equals("Schematic-2") || schematic.width != 1 || schematic.height != 3
+                    || schematic.tiles.size != 3 || first == null || middle == null || last == null
+                    || first.block != Blocks.itemBridge || middle.block != Blocks.sorter || last.block != Blocks.itemBridge
+                    || middle.config != Items.lead || !(first.config instanceof Point2 link) || link.x != 0 || link.y != 2) {
+                throw new AssertionError("Upstream reader did not recover captured footprint and configuration");
+            }
+            System.out.println("UPSTREAM_STOCK_SCHEMATIC_CAPTURE crop=1x3 blocks=3 link=0,2 item=lead");
+        } finally {
+            Files.deleteIfExists(exported);
+            Files.deleteIfExists(existing);
             Files.deleteIfExists(folder);
         }
     }

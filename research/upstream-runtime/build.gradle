@@ -149,6 +149,7 @@ def arcPixmapFile = sourceDir.map { it.file('arc/graphics/Pixmap.java') }
 def arcJsonFile = sourceDir.map { it.file('arc/util/serialization/Json.java') }
 def networkIoFile = sourceDir.map { it.file('mindustry/net/NetworkIO.java') }
 def netClientFile = sourceDir.map { it.file('mindustry/core/NetClient.java') }
+def schematicsFile = sourceDir.map { it.file('mindustry/game/Schematics.java') }
 def placementFile = sourceDir.map { it.file('UpstreamPlacementCatalog.java') }
 def itemChoicesFile = sourceDir.map { it.file('UpstreamItemChoices.java') }
 def planetGridFile = sourceDir.map { it.file('mindustry/graphics/g3d/PlanetGrid.java') }
@@ -208,6 +209,9 @@ if (usesArcSources || usesExecutor) {
     }
     if (usesWorldStream) {
         stagedClasses.add('mindustry/net/NetworkIO.class')
+    }
+    if (usesBuildControls) {
+        stagedClasses.addAll(['mindustry/game/Schematics.class', 'mindustry/game/Schematics$*.class'])
     }
     if (usesLiveNetwork) {
         stagedClasses.addAll(['mindustry/core/NetClient.class', 'mindustry/core/NetClient$*.class',
@@ -450,7 +454,7 @@ tasks.register('prepareUpstreamProbe') {
         outputs.file(networkIoFile)
     }
     if (usesBuildControls) {
-        outputs.files(placementFile, itemChoicesFile)
+        outputs.files(placementFile, itemChoicesFile, schematicsFile)
     }
     if (usesLiveNetwork) {
         outputs.files(netClientFile, pathfinderFile)
@@ -743,6 +747,19 @@ final class GlacierFixture {
         this(new ReusableByteInStream());'''), 'UTF-8')
         }
         if (usesBuildControls) {
+            def schematics = new String(readUpstream('core/src/mindustry/game/Schematics.java'), 'UTF-8')
+            def viewer = 'Team team = headless ? null : Vars.player.team();'
+            if (schematics.count(viewer) != 1) {
+                throw new GradleException('Pinned schematic capture viewer selection changed')
+            }
+            // The handheld draws the stock world without Arc's graphical client.
+            // Give the same capture routine its viewer explicitly.
+            def schematicsOutput = schematicsFile.get().asFile
+            schematicsOutput.parentFile.mkdirs()
+            schematicsOutput.setText(schematics.replace(viewer, '''return create(x, y, x2, y2, headless ? null : Vars.player.team());
+    }
+
+    public Schematic create(int x, int y, int x2, int y2, Team team){'''), 'UTF-8')
             def placement = new String(readUpstream(placementSource), 'UTF-8')
             def selection = placement =~ /(?m)^    Seq<Block> getUnlockedByCategory\(Category cat\)\{[\s\S]*?^    \}/
             def unlocked = placement =~ /(?m)^    boolean unlocked\(Block block\)\{[\s\S]*?^    \}/
