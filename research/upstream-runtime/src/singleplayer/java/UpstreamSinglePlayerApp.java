@@ -3,6 +3,7 @@ import port.render.UpstreamFluidAtlas;
 import port.render.UpstreamLabelText;
 import port.render.UpstreamWorldLabel;
 import arc.Core;
+import arc.Settings;
 import arc.Events;
 import arc.files.Fi;
 import arc.graphics.Color;
@@ -102,8 +103,10 @@ public final class UpstreamSinglePlayerApp {
         Fi mapFile = args.length >= 1 ? new Fi(args[0]) : firstExisting("/romfs/maps/groundZero.msav", "/3ds/min3dstry/groundZero.msav");
         Fi saveFile = args.length >= 2 ? new Fi(args[1]) : new Fi("/3ds/min3dstry/singleplayer-save.msav");
         Fi atlas = firstExisting("/romfs/sprites.aatls", "/3ds/min3dstry/sprites.aatls");
+        Fi mapDir = saveFile.parent() != null ? saveFile.parent() : new Fi("/3ds/min3dstry");
+        var settings = UpstreamSinglePlayerSession.loadSettings(mapDir);
         Fi preference = new Fi("/3ds/min3dstry/locale.txt");
-        String requested = preference.exists() && preference.length() <= 16 ? preference.readString("UTF-8").trim() : "";
+        String requested = requestedLocale(preference, settings);
 
         Core.bundle = UpstreamInterfaceLocale.loadForStockClient(new Fi("/romfs/bundles/bundle"), language, requested);
         var locale = Core.bundle.getLocale();
@@ -111,8 +114,7 @@ public final class UpstreamSinglePlayerApp {
         System.out.println("UPSTREAM_INTERFACE_LOCALE system=" + language + " bundle=" + bundleTag
             + " router=" + Core.bundle.get("block.router.name") + " copper=" + Core.bundle.get("item.copper.name"));
 
-        Fi mapDir = saveFile.parent() != null ? saveFile.parent() : new Fi("/3ds/min3dstry");
-        session = UpstreamSinglePlayerSession.create(mapDir, bundleTag, new Fi("/romfs/planets"));
+        session = UpstreamSinglePlayerSession.create(mapDir, bundleTag, new Fi("/romfs/planets"), settings);
         UpstreamSectorCapture.install();
         Events.on(WaveEvent.class, event -> {
             String warning = UpstreamGuardianWarning.find(Vars.state.rules, Vars.state.wave);
@@ -185,6 +187,14 @@ public final class UpstreamSinglePlayerApp {
             session.shutdown();
             System.out.println("UPSTREAM_SP_EXIT");
         }
+    }
+
+    static String requestedLocale(Fi preference, Settings settings) {
+        if (preference.exists() && !preference.isDirectory() && preference.length() <= 16) {
+            String override = preference.readString("UTF-8").trim();
+            if (!override.isEmpty()) return override;
+        }
+        return settings.get("locale", "") instanceof String locale ? locale : "";
     }
 
     private static Fi firstExisting(String primary, String fallback) {
@@ -306,9 +316,9 @@ public final class UpstreamSinglePlayerApp {
 
     private UpstreamSinglePlayerSession.SectorSlot chooseSector(
             List<UpstreamSinglePlayerSession.SectorSlot> slots, Fi automatic) {
-        int selected = 0;
+        int selected = UpstreamSinglePlayerSession.lastSectorRow(slots);
         int lastAxis = 0;
-        System.out.println("UPSTREAM_CAMPAIGN_MENU slots=" + slots.size());
+        System.out.println("UPSTREAM_CAMPAIGN_MENU slots=" + slots.size() + " selected=" + slots.get(selected).file.name());
         if (automatic.exists() && !automatic.isDirectory() && automatic.length() <= 16) {
             try {
                 int index = Integer.parseInt(automatic.readString("UTF-8").trim());
