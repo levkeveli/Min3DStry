@@ -175,14 +175,16 @@ public final class UpstreamLiveNetworkProbe {
             throws IOException, InterruptedException {
         if (mode == Mode.CONTROLS) {
             try {
-                connect(host, port, app, 1);
+                try {
+                    connect(host, port, app, 1);
+                } finally {
+                    Native.close();
+                }
             } catch (ServerKick kick) {
                 System.out.println("UPSTREAM_LIVE_CONTROLS_KICK kind=" + kick.kind + " reason=" + kick.getMessage());
                 Vars.net = new Net(null);
                 Vars.logic.reset();
                 app.runPosted();
-            } finally {
-                Native.close();
             }
             System.out.println("UPSTREAM_LIVE_CONTROLS_LEFT");
             return;
