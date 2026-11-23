@@ -36,6 +36,7 @@ final class UpstreamCampaignResearch {
         for (Planet planet : planets) {
             for (Sector sector : planet.sectors) {
                 if (!sector.hasBase() || sector.isFrozen()) continue;
+                // Sector.items() makes a new sequence for both the active core and saved bases.
                 ItemSeq items = sector.items();
                 inventory.put(sector, items);
                 items.each((item, amount) -> total.add(item, Math.max(amount, 0)));
@@ -118,6 +119,7 @@ final class UpstreamCampaignResearch {
             if (available <= 0) continue;
 
             int used = Math.min(remaining, Math.min((int) Math.ceil(percentage * available), available));
+            // Match ResearchDialog: debit stock storage and update its independent display snapshot.
             entry.key.removeItem(item, used);
             entry.value.remove(item, used);
             remaining -= used;

@@ -86,23 +86,43 @@ public final class UpstreamCampaignResearchReference {
             }
             System.out.println("UPSTREAM_CAMPAIGN_RESEARCH_REFERENCE blocked=frozenForest partial=3/"
                 + requirement + " liveCopper=" + expectedCore + " unlocks=1");
+            verifySurplusResearch(session, remote, research);
             verifyPresetAutoUnlock(session, current, frozenForest, world);
         } finally {
             session.shutdown();
         }
     }
 
+    private static void verifySurplusResearch(UpstreamSinglePlayerSession session, Sector remote,
+                                              UpstreamCampaignResearch previous) {
+        if (previous.available(Items.copper) != session.core().items.get(Items.copper)) {
+            throw new AssertionError("The same research menu retained pre-contribution totals");
+        }
+
+        var junction = Blocks.junction.techNode;
+        int cost = junction.requirements[0].amount;
+        int before = cost * 3;
+        remote.info.items.set(Items.copper, before);
+        int liveCopper = session.core().items.get(Items.copper);
+        var research = new UpstreamCampaignResearch(Planets.serpulo.techTree);
+        if (!research.spend(junction) || !junction.content.unlockedHost()
+                || remote.info.items.get(Items.copper) != before - cost
+                || session.core().items.get(Items.copper) != liveCopper
+                || research.available(Items.copper) != before - cost + liveCopper) {
+            throw new AssertionError("Stock research did not debit a surplus remote base exactly once");
+        }
+        System.out.println("UPSTREAM_RESEARCH_SURPLUS remoteBefore=" + before + " spent=" + cost
+            + " remoteAfter=" + (before - cost) + " liveUnchanged=" + liveCopper);
+    }
+
     private static void verifyPresetAutoUnlock(UpstreamSinglePlayerSession session, Sector current,
                                                TechNode frozenForest, Fi world) throws Exception {
-        for (TechNode node : new TechNode[]{Blocks.junction.techNode, Blocks.router.techNode}) {
-            for (var required : node.requirements) {
-                var core = session.core();
-                core.handleItem(core, required.item);
-                core.items.set(required.item, required.amount);
-            }
-            if (!new UpstreamCampaignResearch(Planets.serpulo.techTree).spend(node) || !node.content.unlockedHost()) {
-                throw new AssertionError("Could not research " + node.content.name);
-            }
+        var router = Blocks.router.techNode;
+        for (var required : router.requirements) {
+            session.core().items.set(required.item, required.amount);
+        }
+        if (!new UpstreamCampaignResearch(Planets.serpulo.techTree).spend(router) || !router.content.unlockedHost()) {
+            throw new AssertionError("Could not research " + router.content.name);
         }
         if (frozenForest.content.unlockedHost() || current.info.wasCaptured || Vars.state.rules.winWave <= 0) {
             throw new AssertionError("Frozen Forest unlocked before the stock sector-complete objective");

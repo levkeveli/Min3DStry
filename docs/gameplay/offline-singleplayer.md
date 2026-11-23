@@ -164,7 +164,10 @@ and resources available for each requirement. Use **A** to contribute and
 
 Research follows the original v160.8 objective and unlock rules. It consumes
 resources from other active bases on the same planet before spending from
-the live core. Partial research and unlocks use the original Arc settings
+the live core. The JVM reference checks that a remote base with 300 copper
+pays exactly 100 copper for Junction, leaves the active core untouched, and
+updates the current menu's available total. Partial research and unlocks
+use the original Arc settings
 keys, and the offline app saves the active sector after a contribution.
 
 The JVM reference opens stock Ground Zero and Onset saves. It checks the

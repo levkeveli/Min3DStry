@@ -604,11 +604,11 @@ public final class UpstreamSinglePlayerApp {
             if (input == -1) return false;
 
             TechNode node = nodes.get(selected);
-            if ((input & (1 << 19)) != 0) {
+            if ((input & UpstreamSinglePlayerInput.B_PRESSED) != 0) {
                 if (!detail) return true;
                 detail = false;
                 rows = null;
-            } else if ((input & (1 << 17)) != 0) {
+            } else if ((input & UpstreamSinglePlayerInput.A_PRESSED) != 0) {
                 if (!detail) {
                     detail = true;
                     page = 0;
