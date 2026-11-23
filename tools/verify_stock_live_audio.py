@@ -75,6 +75,8 @@ def verify_log(path, model, weather=False):
     if resident > 640 * 1024 or "UPSTREAM_LIVE_MUSIC_ERROR" in text:
         raise AssertionError(f"{model}: audio cache or decoder state was invalid")
     if weather:
+        if "Error reading entity snapshot" in text:
+            raise AssertionError(f"{model}: weather interrupted stock entity synchronization")
         for name, sound_id, frames, max_gain in (
             ("rain", 105, 195235, 0.25),
             ("sandstorm", 199, None, 0.8),
