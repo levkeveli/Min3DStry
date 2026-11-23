@@ -175,7 +175,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         int materials = target.verifyLiveBuildingRegistry(layers, viewport, viewer,
             block -> UpstreamBuildingLayers.supportsMaterialDraw(block) && !(block instanceof CoreBlock),
             "MATERIAL");
-        if (materials != 49) throw new AssertionError("Expected 49 stock material buildings, got " + materials);
+        if (materials != 52) throw new AssertionError("Expected 52 stock material buildings, got " + materials);
         target.verifyCanvas(viewer);
         if (args.length >= 4) verifyObjectiveHud();
         if (args.length >= 5) verifyClientProcessor(new Fi(args[4]), viewer);
