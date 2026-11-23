@@ -127,10 +127,12 @@ public final class UpstreamSinglePlayerApp {
         int bootInput = UpstreamSinglePlayerInput.poll();
         boolean customRequested = args.length == 0 && bootInput >= 0
             && (bootInput & UpstreamSinglePlayerInput.L_HELD) != 0;
+        boolean editorRequested = customRequested && (bootInput & UpstreamSinglePlayerInput.CAMPAIGN_HELD) != 0;
+        editorRequested |= args.length > 0 && args[0].equals("--editor");
         boolean campaignRequested = args.length == 0 && bootInput >= 0
             && (bootInput & UpstreamSinglePlayerInput.CAMPAIGN_HELD) != 0 && !customRequested;
-        Fi mapFile = args.length >= 1 ? new Fi(args[0]) : firstExisting("/romfs/maps/groundZero.msav", "/3ds/min3dstry/groundZero.msav");
-        Fi saveFile = args.length >= 2 ? new Fi(args[1]) : new Fi("/3ds/min3dstry/singleplayer-save.msav");
+        Fi mapFile = !editorRequested && args.length >= 1 ? new Fi(args[0]) : firstExisting("/romfs/maps/groundZero.msav", "/3ds/min3dstry/groundZero.msav");
+        Fi saveFile = !editorRequested && args.length >= 2 ? new Fi(args[1]) : new Fi("/3ds/min3dstry/singleplayer-save.msav");
         Fi atlas = firstExisting("/romfs/sprites.aatls", "/3ds/min3dstry/sprites.aatls");
         Fi mapDir = saveFile.parent() != null ? saveFile.parent() : new Fi("/3ds/min3dstry");
         var settings = UpstreamSinglePlayerSession.loadSettings(mapDir);
@@ -153,6 +155,15 @@ public final class UpstreamSinglePlayerApp {
             if (warning != null) UpstreamNotification.show(warning, 5f);
         });
         try {
+            if (editorRequested) {
+                var source = args.length >= 2 ? new Fi(args[1]) : mapDir.child("editor-map.msav");
+                var output = args.length >= 3 ? new Fi(args[2]) : null;
+                var editor = new UpstreamMapEditorApp(target, source, output, mapDir.child("maps"));
+                editor.open();
+                loadInterfaceGraphics(atlas);
+                editor.run(viewport);
+                return;
+            }
             CustomGame custom = null;
             Fi customSave = mapDir.child("custom-game-save.msav");
             if (customRequested) {
@@ -394,7 +405,7 @@ public final class UpstreamSinglePlayerApp {
         return new MenuRows(labels, characters);
     }
 
-    private static int[] encodePlainMenuLabel(String caption) {
+    static int[] encodePlainMenuLabel(String caption) {
         int[] glyphs = new int[caption.codePointCount(0, caption.length()) * 7];
         int slot = 0;
         for (int offset = 0; offset < caption.length();) {
