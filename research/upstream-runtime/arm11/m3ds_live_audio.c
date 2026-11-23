@@ -43,6 +43,9 @@ static LiveSoundStream streams[LIVE_STREAM_LANES];
 static bool reported_stream[M3DS_STOCK_SOUND_COUNT];
 static uint32_t stream_voice_serial;
 static ResidentSound resident[M3DS_AUDIO_MAX_CLIPS];
+// Stock sound ID to resident slot plus one. Zero is a cache miss.
+_Static_assert(M3DS_AUDIO_MAX_CLIPS <= UINT8_MAX, "Audio cache slots must fit in a byte");
+static uint8_t resident_slot[M3DS_STOCK_SOUND_COUNT];
 static size_t resident_bytes;
 static uint64_t sequence;
 static unsigned cache_hits;
@@ -137,6 +140,7 @@ static bool sound_in_use(const ResidentSound *sound) {
 }
 
 static void release_sound(ResidentSound *sound) {
+    resident_slot[sound->entry - m3ds_audio_index] = 0;
     m3ds_audio_mixer_unregister_clip(&mixer, sound->clip);
     free(sound->samples);
     resident_bytes -= sound->bytes;
@@ -161,15 +165,15 @@ static ResidentSound *find_room(size_t bytes) {
     return oldest;
 }
 
-static int load_sound(const M3dsAudioIndexEntry *entry) {
-    for (size_t i = 0; i < M3DS_AUDIO_MAX_CLIPS; i++) {
-        ResidentSound *sound = &resident[i];
-        if (sound->entry == entry) {
-            sound->last_used = ++sequence;
-            cache_hits++;
-            return sound->clip;
-        }
+static int load_sound(int32_t id) {
+    uint8_t cached = resident_slot[id];
+    if (cached != 0) {
+        ResidentSound *sound = &resident[cached - 1];
+        sound->last_used = ++sequence;
+        cache_hits++;
+        return sound->clip;
     }
+    const M3dsAudioIndexEntry *entry = &m3ds_audio_index[id];
     if (entry->frames == 0 || entry->frames > M3DS_AUDIO_MAX_CLIP_SAMPLES ||
             (entry->channels != 1 && entry->channels != 2)) return M3DS_AUDIO_INVALID_CLIP;
     size_t bytes = entry->frames * entry->channels * sizeof(int16_t);
@@ -195,6 +199,7 @@ static int load_sound(const M3dsAudioIndexEntry *entry) {
         return clip;
     }
     *slot = (ResidentSound){entry, samples, clip, bytes, ++sequence};
+    resident_slot[id] = (uint8_t)(slot - resident + 1);
     resident_bytes += bytes;
     cache_loads++;
     return clip;
@@ -286,7 +291,7 @@ int32_t m3ds_live_audio_play(int32_t id, float volume, float pitch, float pan, i
         return play_stream(id, entry, volume, pitch, pan, loop != 0);
     }
     unsigned loads_before = cache_loads;
-    int clip = load_sound(entry);
+    int clip = load_sound(id);
     if (clip == M3DS_AUDIO_INVALID_CLIP) return 0;
     M3dsAudioPlayParams params = m3ds_audio_default_play_params(M3DS_AUDIO_BUS_SFX);
     params.volume = volume;
@@ -319,12 +324,12 @@ void m3ds_live_audio_stop(int32_t voice) {
 
 void m3ds_live_audio_stop_source(int32_t id) {
     if ((uint32_t)id >= M3DS_STOCK_SOUND_COUNT) return;
-    const M3dsAudioIndexEntry *entry = &m3ds_audio_index[id];
-    for (size_t i = 0; i < M3DS_AUDIO_MAX_CLIPS; i++) {
-        if (resident[i].entry != entry) continue;
+    uint8_t cached = resident_slot[id];
+    if (cached != 0) {
+        int clip = resident[cached - 1].clip;
         for (size_t j = 0; j < M3DS_AUDIO_MAX_VOICES; j++) {
             const M3dsAudioVoiceSlot *voice = &mixer.voices[j];
-            if (voice->active && voice->clip_id == resident[i].clip) {
+            if (voice->active && voice->clip_id == clip) {
                 m3ds_audio_mixer_stop(&mixer, voice->handle);
             }
         }

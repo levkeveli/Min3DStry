@@ -479,7 +479,9 @@ stager with `--singleplayer` for a combined build or `--multiplayer` for
 a standalone live renderer. The stager verifies the pinned desktop JAR,
 keeps all 205 original effects and 16 original music files, and indexes
 22.05 kHz PCM effects by their stock IDs. The 194 short effects use a
-bounded cache of 16 clips and 640 KiB. The 11 long effects use four
+bounded cache of 16 clips and 640 KiB. A 205-byte stock-ID index reduces
+resident cache lookups from up to 16 slot comparisons to one indexed access.
+The eviction policy, PCM budget and stream lanes stay the same. The 11 long effects use four
 double-buffered streams. The original Vorbis soundtrack uses its own
 NDSP channel and the pinned SoundControl rules.
 
@@ -495,7 +497,7 @@ to exercise the PCM cache and stream decoder controls with the host
 mixer mock. The JVM reference verifies the original registry, music
 rules, and ambience. The live Glacier replay loads an active Mechanical
 Drill, requests the stock UI, positional and streamed sound packets, and
-applies the original `game1` soundtrack rule.
+applies the original `game1` soundtrack rule. The verifier accepts stock server output with or without terminal colors.
 
 ```bash
 python3 tools/verify_stock_live_audio.py \
