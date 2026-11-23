@@ -546,6 +546,15 @@ tasks.register('prepareUpstreamProbe') {
                 'state.isGame() && Core.scene.hasDialog()': 'state.isGame() && Core.scene != null && Core.scene.hasDialog()',
                 'if(ui.planet.isShown())': 'if(ui != null && ui.planet.isShown())',
                 'else if(ui.editor.isShown())': 'else if(ui != null && ui.editor.isShown())',
+                '''    public void loop(Sound sound, float volume){
+        if(Vars.headless) return;''': '''    protected boolean acceptsWorldLoops(){
+        return !Vars.headless;
+    }
+
+    public void loop(Sound sound, float volume){
+        if(!acceptsWorldLoops()) return;''',
+                'if(Vars.headless || sound == Sounds.none || volume <= 0.00001f) return;':
+                    'if(!acceptsWorldLoops() || sound == Sounds.none || volume <= 0.00001f) return;',
                 'LinkedBlockingQueue<AmbientSource> inputSources = new LinkedBlockingQueue<>();':
                     'final java.util.ArrayDeque<AmbientSource> inputSources = new java.util.ArrayDeque<>();',
                 'ambientThread.inputSources.add(source);':
@@ -632,6 +641,24 @@ tasks.register('prepareUpstreamProbe') {
             def drawOver = '    public void drawOver(WeatherState state){'
             if (weather.count(minScale) != 6 || weather.count(drawOver) != 1) {
                 throw new GradleException('Pinned weather viewport changed')
+            }
+            if (usesLiveAudio) {
+                def imports = 'import mindustry.annotations.Annotations.*;'
+                def guard = '        if(!headless && sound != Sounds.none){'
+                def loop = '            control.sound.loop(sound, Math.max((soundVol + noise) * state.opacity, soundVolMin));'
+                if (weather.count(imports) != 1 || weather.count(guard) != 1 || weather.count(loop) != 1) {
+                    throw new GradleException('Pinned weather audio changed')
+                }
+                weather = weather.replace(imports, '''import mindustry.annotations.Annotations.*;
+import mindustry.audio.SoundControl;
+import port.audio.Arm11Audio;''')
+                    .replace(guard, '''        var audio = headless ? Arm11Audio.musicControl() : control.sound;
+        updateSound(state, audio);
+    }
+
+    public void updateSound(WeatherState state, SoundControl audio){
+        if(audio != null && sound != Sounds.none){''')
+                    .replace(loop, loop.replace('control.sound', 'audio'))
             }
             def adaptedWeather = sourceDir.get().file('mindustry/type/Weather.java').asFile
             adaptedWeather.parentFile.mkdirs()

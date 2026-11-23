@@ -512,6 +512,14 @@ cleanly on disconnect. Each run reported 491,744 bytes of cached PCM.
 Azahar used its missing-DSP fallback. Audible NDSP playback still
 requires a physical console.
 
+Add `--weather` to the unified audio verifier to have the stock Java server
+send rain, snow and sandstorm while the client is playing. The ARM11 client
+dispatches the original weather packet, advances the original weather
+entities, and routes their sound through stock `SoundControl` fades. The
+replay checks the original sound IDs, centered playback and the active DSP
+mode. The JVM reference also checks the shared sporestorm sound and fade
+after expiry.
+
 Run the same verifier with `--controls --model old3ds` and then
 `--controls --model new3ds`. Follow its prompts to move right with the
 D-pad, move up with the Circle Pad, and leave after the next wave.

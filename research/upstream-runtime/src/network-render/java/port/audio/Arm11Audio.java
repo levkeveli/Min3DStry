@@ -125,6 +125,11 @@ public final class Arm11Audio extends Audio {
             reload();
         }
 
+        @Override
+        protected boolean acceptsWorldLoops() {
+            return true;
+        }
+
         void enterWorld() {
             stop();
             resetLiveBuildingAmbience();
