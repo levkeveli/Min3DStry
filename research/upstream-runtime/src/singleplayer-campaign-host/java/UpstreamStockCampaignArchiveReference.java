@@ -42,14 +42,28 @@ public final class UpstreamStockCampaignArchiveReference {
                 }
             }
             int bound = 0;
+            long decodedTiles = 0;
             for (var preset : Vars.content.sectors()) {
                 if (preset.sector == null) continue;
                 if (preset.generator.map == null || !preset.generator.map.file.exists()) {
                     throw new AssertionError("Active preset has no original map: " + preset.name);
                 }
+                Vars.logic.reset();
+                Vars.world.loadSector(preset.sector);
+                session.application().runPosted();
+                var original = preset.generator.map;
+                if (Vars.state.rules.sector != preset.sector || Vars.world.width() != original.width
+                        || Vars.world.height() != original.height) {
+                    throw new AssertionError("Could not decode the original world for " + preset.name);
+                }
+                decodedTiles += (long)Vars.world.width() * Vars.world.height();
+                System.out.println("UPSTREAM_STOCK_CAMPAIGN_WORLD planet=" + preset.sector.planet.name
+                    + " sector=" + preset.sector.id + " map=" + preset.name
+                    + " width=" + Vars.world.width() + " height=" + Vars.world.height());
                 bound++;
             }
             if (total != 95 || bound != 95 || hidden != 46) throw new AssertionError("Expected all original campaign maps");
+            System.out.println("UPSTREAM_STOCK_CAMPAIGN_DECODE presets=" + bound + " tiles=" + decodedTiles);
             verifyPatchedWorld(session, SectorPresets.littoralShipyard.sector, 2);
             verifyPatchedWorld(session, Planets.serpulo.sectors.get(242), 1);
             System.out.println("UPSTREAM_STOCK_CAMPAIGN_ARCHIVE maps=" + total + " presets=" + bound
