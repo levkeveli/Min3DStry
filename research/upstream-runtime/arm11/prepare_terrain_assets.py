@@ -5,6 +5,7 @@ import argparse
 import csv
 import hashlib
 import json
+import struct
 from pathlib import Path
 import subprocess
 import sys
@@ -84,6 +85,19 @@ def pack_custom_game_maps(archive: zipfile.ZipFile, maps_dir: Path) -> None:
         (builtin / filename).write_bytes(archive.read(f"assets/maps/default/{filename}"))
 
 
+def pack_campaign_maps(archive: zipfile.ZipFile, maps_dir: Path) -> None:
+    for member in archive.namelist():
+        match = re.fullmatch(r"assets/maps/(serpulo|erekir)/((?:hidden/)?[A-Za-z0-9_-]+\.msav)", member)
+        if match:
+            planet, filename = match.groups()
+            output = maps_dir / planet / filename
+            output.parent.mkdir(parents=True, exist_ok=True)
+            output.write_bytes(archive.read(member))
+    for starter in ("serpulo/groundZero.msav", "erekir/onset.msav"):
+        if not (maps_dir / starter).is_file():
+            raise ValueError(f"Missing original campaign starter map: {starter}")
+
+
 def pack_planet_data(archive: zipfile.ZipFile, output: Path) -> None:
     output.mkdir(parents=True, exist_ok=True)
     for member in archive.namelist():
@@ -154,6 +168,18 @@ def pack_live_audio(args, staged: Path, scratch: Path) -> None:
     (staged / "sound-index.h").write_text("\n".join(lines), encoding="ascii")
 
 
+def pack_weather_noise(archive: zipfile.ZipFile, output: Path, scratch: Path, tex3ds: str) -> None:
+    output.mkdir()
+    for name, size in (("noiseAlpha", 128), ("fog", 256)):
+        asset = archive.read(f"assets/sprites/{name}.png")
+        if asset[:8] != b"\x89PNG\r\n\x1a\n" or struct.unpack(">II", asset[16:24]) != (size, size):
+            raise ValueError(f"Unexpected original dimensions for {name}.png")
+        source = scratch / f"{name}.png"
+        source.write_bytes(asset)
+        subprocess.run([tex3ds, "--atlas", "--format", "rgba8", "--border", "none",
+                        "--compress", "auto", "--output", str(output / f"{name}.t3x"), str(source)], check=True)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--assets", type=Path, required=True)
@@ -164,7 +190,7 @@ def main() -> None:
     parser.add_argument("--tex3ds", default="tex3ds")
     parser.add_argument("--multiplayer", action="store_true", help="pack Glacier and upstream multiplayer unit sprites")
     parser.add_argument("--singleplayer", action="store_true",
-                        help="pack offline single-player Ground Zero map, sprites.aatls, and multiplayer assets")
+                        help="pack original offline campaign and Custom Game maps, sprites.aatls, and multiplayer assets")
     parser.add_argument("--live-audio", action="store_true", help="also pack pinned stock effects for the live mixer")
     parser.add_argument("--ffmpeg", default="ffmpeg")
     args = parser.parse_args()
@@ -210,6 +236,7 @@ def main() -> None:
                     if re.fullmatch(r"assets/bundles/bundle(?:_[A-Za-z_]+)?\.properties", member):
                         (bundles / Path(member).name).write_bytes(archive.read(member))
                 if args.singleplayer:
+                    pack_weather_noise(archive, staged / "weather", Path(tmp), args.tex3ds)
                     pack_planet_data(archive, staged / "planets")
                     maps_dir = staged / "maps"
                     maps_dir.mkdir(parents=True, exist_ok=True)
@@ -219,6 +246,7 @@ def main() -> None:
                         raise ValueError("Missing groundZero.msav or sprites.aatls in official archive")
                     (maps_dir / "groundZero.msav").write_bytes(gz_bytes)
                     pack_custom_game_maps(archive, maps_dir)
+                    pack_campaign_maps(archive, maps_dir)
                     (staged / "sprites.aatls").write_bytes(aatls_bytes)
             subprocess.run([args.java, "-Dfile.encoding=UTF-8", "-cp", str(args.desktop.resolve()),
                             str(CONVERTER.with_name("PackUpstreamLogicFont.java")), str(logic_font),

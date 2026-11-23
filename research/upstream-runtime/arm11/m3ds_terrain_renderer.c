@@ -62,6 +62,7 @@ static bool gpu_ready;
 static bool renderer_ready;
 static bool frame_open;
 static C2D_SpriteSheet sheet;
+static C2D_SpriteSheet weather_noise[2];
 static C3D_RenderTarget *target;
 static C3D_RenderTarget *palette;
 static C2D_TextBuf palette_buffer;
@@ -639,6 +640,51 @@ int32_t m3ds_terrain_draw_solid_quad(const float *vertices, int32_t offset, int3
     return 1;
 }
 
+int32_t m3ds_terrain_draw_weather_noise(int32_t index, float x, float y, float width, float height,
+                                       float u, float v, float u2, float v2,
+                                       int32_t tint, int32_t mix, int32_t blend_mode) {
+    static const char *const paths[] = {"romfs:/weather/noiseAlpha.t3x", "romfs:/weather/fog.t3x"};
+    static const unsigned sizes[] = {128, 256};
+    if (!frame_open || (uint32_t)index >= sizeof(weather_noise) / sizeof(weather_noise[0])) return 0;
+    if (!weather_noise[index]) {
+        C2D_SpriteSheet loaded = C2D_SpriteSheetLoad(paths[index]);
+        if (!loaded) return 0;
+        C3D_Tex *texture = C2D_SpriteSheetGetImage(loaded, 0).tex;
+        if (!texture || texture->width != sizes[index] || texture->height != sizes[index]) {
+            C2D_SpriteSheetFree(loaded);
+            return 0;
+        }
+        C3D_TexSetWrap(texture, GPU_REPEAT, GPU_REPEAT);
+        C3D_TexSetFilter(texture, GPU_LINEAR, GPU_LINEAR);
+        weather_noise[index] = loaded;
+        static const char *const names[] = {
+            "UPSTREAM_WEATHER_TEXTURE name=noiseAlpha\n",
+            "UPSTREAM_WEATHER_TEXTURE name=fog\n",
+        };
+        svcOutputDebugString(names[index], strlen(names[index]));
+    }
+    C2D_Image image = C2D_SpriteSheetGetImage(weather_noise[index], 0);
+    const Tex3DS_SubTexture region = {
+        .width = sizes[index], .height = sizes[index],
+        .left = u, .right = u2, .top = 1.0f - v, .bottom = 1.0f - v2,
+    };
+    // Citro2D flips the UVs when the original Arc quad has negative height.
+    C2D_DrawParams params = {
+        .pos = {screen_left + (fminf(x, x + width) - world_left) * scale,
+                screen_bottom - (fmaxf(y, y + height) - world_bottom) * scale,
+                width * scale, height * scale},
+        .depth = 0.5f,
+    };
+    image.subtex = &region;
+    set_world_blend(blend_mode);
+    set_world_mix((u32)tint, (u32)mix);
+    C2D_ImageTint colors;
+    C2D_PlainImageTint(&colors, tint, 1.0f);
+    if (!C2D_DrawImage(image, &params, &colors)) return 0;
+    draws++;
+    return 1;
+}
+
 #ifdef M3DS_WORLD_ATLAS
 static bool initialize_quad_shader(void) {
     if (quad_shader) return true;
@@ -700,9 +746,12 @@ static int32_t skip_unsupported_quad(void) {
     return 1;
 }
 
+// Convert Arc's normalized UVs to source texels for atlas clipping and Canvas sampling.
 // Return zero for unsupported mix attributes and minus one for non-finite geometry.
-static int read_quad_vertices(const float *vertices, int width, int height,
+static int read_quad_vertices(const float *vertices, int source_width, int source_height,
                               M3DS_QuadVertex *corners, uint32_t *packed_mix, bool clamp_uv) {
+    float max_u = nextafterf(source_width, 0);
+    float max_v = nextafterf(source_height, 0);
     uint32_t mix;
     memcpy(&mix, vertices + 5, sizeof(mix));
     for (int i = 0; i < 4; i++) {
@@ -712,12 +761,12 @@ static int read_quad_vertices(const float *vertices, int width, int height,
         memcpy(&corner_mix, v + 5, sizeof(corner_mix));
         if (mix != corner_mix) return 0;
         if (!isfinite(v[0]) || !isfinite(v[1]) || !isfinite(v[3]) || !isfinite(v[4])) return -1;
-        float u = v[3] * width, t = v[4] * height;
+        float u = v[3] * source_width, t = v[4] * source_height;
         corners[i] = (M3DS_QuadVertex){
             .x = screen_left + (v[0] - world_left) * scale,
             .y = screen_bottom - (v[1] - world_bottom) * scale,
-            .u = clamp_uv ? fminf(fmaxf(u, 0), nextafterf(width, 0)) : u,
-            .v = clamp_uv ? fminf(fmaxf(t, 0), nextafterf(height, 0)) : t,
+            .u = clamp_uv ? fminf(fmaxf(u, 0), max_u) : u,
+            .v = clamp_uv ? fminf(fmaxf(t, 0), max_v) : t,
             .color = {(color & 255) / 255.0f, ((color >> 8) & 255) / 255.0f,
                       ((color >> 16) & 255) / 255.0f, m3ds_quad_alpha(color) / 254.0f},
         };
@@ -797,6 +846,7 @@ int32_t m3ds_terrain_draw_canvas_quad(int32_t id, int32_t revision, int32_t widt
     set_world_mix(0, 0);
     C3D_Mtx projection;
     Mtx_OrthoTilt(&projection, 0, target->frameBuf.height, target->frameBuf.width, 0, 1, -1, true);
+    // Submit the source texels against the padded Citro3D texture dimensions.
     draw_quad_piece(tex, corners, 4, 0, 0, mix, &projection);
     static bool reported;
     if (!reported) {
@@ -1273,6 +1323,9 @@ void m3ds_terrain_fini(void) {
     if (catalog_buffer) C2D_TextBufDelete(catalog_buffer);
     if (palette) C3D_RenderTargetDelete(palette);
     if (sheet) C2D_SpriteSheetFree(sheet);
+    for (size_t i = 0; i < sizeof(weather_noise) / sizeof(weather_noise[0]); i++) {
+        if (weather_noise[i]) C2D_SpriteSheetFree(weather_noise[i]);
+    }
     if (target) C3D_RenderTargetDelete(target);
     if (renderer_ready) C2D_Fini();
     if (gpu_ready) C3D_Fini();
