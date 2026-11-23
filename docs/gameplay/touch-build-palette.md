@@ -38,7 +38,7 @@ Press **R** to rotate the preview, **A** to queue valid plans, or
 **B** to cancel. The original game reads the
 schematic, rotates relative configurations, applies unlock and world
 rules, and builds through the normal queue. Maps and servers can
-disable schematics. File creation and editing remain separate work.
+disable schematic placement.
 [Pinned schematic implementation](https://github.com/Anuken/Mindustry/blob/19a0f40d44514f4802a8b79770456e7e32e34da0/core/src/mindustry/game/Schematics.java)
 
 The stock JVM test covers a three-block schematic with two linked
@@ -60,6 +60,34 @@ release verified the built blocks, rotated bridge link, Lead filter,
 and spent construction materials. It also reopened both ARM11 saves
 and verified the same results.
 [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45103432419)
+
+To create a file, tap **Schem**, choose **Capture**, and tap two
+opposite corners on the build grid. The top screen marks the
+selection. Press **A** to save or **B** to cancel. The original
+capture routine crops the selection and preserves visible buildings,
+rotations, and configuration. Capture returns to the picker with
+the next free `Schematic-N.msch` filename. That file can be imported
+into the unmodified Java game.
+
+The capture check selects two linked Bridge Conveyors and a Lead
+Sorter. It also checks that a cancelled or empty selection creates no
+file, that capture follows the viewer's discovery state, and that an existing
+file keeps its contents.
+
+```bash
+python3 tools/verify_stock_schematic_capture.py \
+  --rom /path/to/unified/upstream-probe.3dsx \
+  --server /path/to/server-release.jar \
+  --output build/stock-schematic-capture --live
+```
+
+
+Both Original and New 3DS profiles in Azahar 2126.2 exported the
+selection offline and while connected to the original Java server.
+The unmodified v160.8 reader verified the exact three buildings, the
+Lead selection, and the bridge link. The preexisting file was unchanged
+in all four runs.
+[ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45106252940)
 
 ## Stock item selectors
 

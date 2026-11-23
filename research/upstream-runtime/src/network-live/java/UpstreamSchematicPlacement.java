@@ -1,8 +1,11 @@
 import arc.Core;
 import arc.files.Fi;
+import arc.graphics.g2d.Draw;
+import arc.graphics.g2d.Lines;
 import arc.math.geom.QuadTree;
 import arc.math.geom.Rect;
 import arc.struct.Seq;
+import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
@@ -11,9 +14,11 @@ import mindustry.Vars;
 import mindustry.entities.units.BuildPlan;
 import mindustry.game.Schematic;
 import mindustry.game.Schematics;
+import mindustry.game.Team;
 import mindustry.gen.Unit;
 import mindustry.graphics.Drawf;
 import mindustry.graphics.Pal;
+import mindustry.input.Placement;
 import mindustry.world.Build;
 
 /** Uses the pinned schematic reader, transforms, and construction plans behind the touch picker. */
@@ -29,6 +34,8 @@ final class UpstreamSchematicPlacement {
     private Schematic selected;
     private Seq<BuildPlan> preview = new Seq<>();
     private int turns, anchorX = -1, anchorY = -1;
+    private boolean capturing;
+    private int cornerX = -1, cornerY = -1;
 
     UpstreamSchematicPlacement(Fi directory) {
         this.directory = directory;
@@ -45,7 +52,11 @@ final class UpstreamSchematicPlacement {
     }
 
     void tap(int x, int y) {
-        if (y >= UpstreamBuildMenu.FOOTER_TOP) {
+        if (x >= 224 && x < 312 && y >= 4 && y < 38) {
+            open = false;
+            files = null;
+            capturing = true;
+        } else if (y >= UpstreamBuildMenu.FOOTER_TOP) {
             if (x < 100 && previousPage()) {
                 page--;
                 refreshLabels(null);
@@ -69,7 +80,6 @@ final class UpstreamSchematicPlacement {
             refreshLabels(file.name());
             return;
         }
-        if (stock == null) stock = new Schematics();
         open = false;
         files = null;
         System.out.println("UPSTREAM_SCHEMATIC_SELECTED blocks=" + selected.tiles.size
@@ -77,14 +87,20 @@ final class UpstreamSchematicPlacement {
     }
 
     private void refreshLabels(String invalidFile) {
+        refreshLabels(invalidFile, null);
+    }
+
+    private void refreshLabels(String invalidFile, String notice) {
         String title = Core.bundle.get("schematics", "Schematics");
-        var text = new StringBuilder(title);
-        if (!Vars.state.rules.schematicsAllowed) {
-            text.append(" (disabled)");
-        } else if (files.length == 0) {
-            text.append(" (no .msch files)");
-        } else {
-            text.append("  ").append(page + 1).append('/').append(1 + (files.length - 1) / UpstreamBuildMenu.ROWS);
+        var text = new StringBuilder(notice == null ? title : notice);
+        if (notice == null) {
+            if (!Vars.state.rules.schematicsAllowed) {
+                text.append(" (disabled)");
+            } else if (files.length == 0) {
+                text.append(" (no .msch files)");
+            } else {
+                text.append("  ").append(page + 1).append('/').append(1 + (files.length - 1) / UpstreamBuildMenu.ROWS);
+            }
         }
         text.append('\0');
         for (int row = 0; row < UpstreamBuildMenu.ROWS; row++) {
@@ -102,7 +118,7 @@ final class UpstreamSchematicPlacement {
     void position(Unit unit, int x, int y) {
         anchorX = x;
         anchorY = y;
-        preview = stock.toPlans(Schematics.rotate(selected, turns), x, y);
+        preview = stock().toPlans(Schematics.rotate(selected, turns), x, y);
         var existing = new QuadTree<BuildPlan>(new Rect(-Vars.tilesize, -Vars.tilesize,
             (Vars.world.width() + 2) * Vars.tilesize, (Vars.world.height() + 2) * Vars.tilesize));
         for (BuildPlan placed : unit.plans()) {
@@ -141,7 +157,76 @@ final class UpstreamSchematicPlacement {
         if (count > 0) cancel();
     }
 
+    private Schematics stock() {
+        if (stock == null) stock = new Schematics();
+        return stock;
+    }
+
+    void captureCorner(int x, int y) {
+        if (anchorX < 0) {
+            anchorX = x;
+            anchorY = y;
+        } else {
+            cornerX = x;
+            cornerY = y;
+            System.out.println("UPSTREAM_SCHEMATIC_CAPTURE_AREA x=" + anchorX + " y=" + anchorY
+                + " x2=" + cornerX + " y2=" + cornerY);
+        }
+    }
+
+    void saveCapture(Team team) {
+        if (cornerX < 0) return;
+        var schematic = stock().create(anchorX, anchorY, cornerX, cornerY, team);
+        String notice;
+        if (schematic.tiles.isEmpty()) {
+            notice = "No buildings in selection";
+        } else {
+            try {
+                var file = writeCapture(schematic);
+                notice = "Saved " + file.nameWithoutExtension();
+                System.out.println("UPSTREAM_SCHEMATIC_SAVED file=" + file.name()
+                    + " blocks=" + schematic.tiles.size + " width=" + schematic.width + " height=" + schematic.height);
+            } catch (IOException | RuntimeException error) {
+                notice = "Could not save schematic";
+                System.out.println("UPSTREAM_SCHEMATIC_SAVE_ERROR " + error.getMessage());
+            }
+        }
+        cancel();
+        open();
+        refreshLabels(null, notice);
+    }
+
+    private Fi writeCapture(Schematic schematic) throws IOException {
+        directory.mkdirs();
+        int index = 1;
+        Fi destination;
+        do {
+            destination = directory.child("Schematic-" + index++ + "." + Vars.schematicExtension);
+        } while (destination.exists());
+
+        schematic.tags.put("name", destination.nameWithoutExtension());
+        File temporary = File.createTempFile("schematic-", ".tmp", directory.file());
+        try {
+            Schematics.write(schematic, new Fi(temporary));
+            if (destination.exists() || !temporary.renameTo(destination.file())) {
+                throw new IOException("Unable to publish " + destination.name());
+            }
+            return destination;
+        } finally {
+            temporary.delete();
+        }
+    }
+
     void draw(UpstreamTerrainDrawProbe.Viewport viewport) {
+        if (capturing && anchorX >= 0) {
+            var area = Placement.normalizeArea(anchorX, anchorY, cornerX < 0 ? anchorX : cornerX,
+                cornerY < 0 ? anchorY : cornerY, 0, false, Vars.maxSchematicSize);
+            int size = Vars.tilesize;
+            Lines.stroke(1f, Pal.accent);
+            Lines.rect(area.x * size - size / 2f, area.y * size - size / 2f,
+                (area.x2 - area.x + 1) * size, (area.y2 - area.y + 1) * size);
+            Draw.reset();
+        }
         for (BuildPlan plan : preview) {
             if (!viewport.contains(plan.x, plan.y)) continue;
             Drawf.square(plan.drawx(), plan.drawy(), plan.block.size * Vars.tilesize / 2f - 0.5f,
@@ -155,12 +240,14 @@ final class UpstreamSchematicPlacement {
         selected = null;
         preview.clear();
         turns = 0;
-        anchorX = anchorY = -1;
+        anchorX = anchorY = cornerX = cornerY = -1;
+        capturing = false;
     }
 
     boolean isOpen() { return open; }
     boolean positioning() { return selected != null; }
-    boolean active() { return isOpen() || positioning(); }
+    boolean capturing() { return capturing; }
+    boolean active() { return isOpen() || positioning() || capturing; }
     boolean previousPage() { return page > 0; }
     boolean nextPage() { return (page + 1) * UpstreamBuildMenu.ROWS < files.length; }
     byte[] labels() { return labels; }

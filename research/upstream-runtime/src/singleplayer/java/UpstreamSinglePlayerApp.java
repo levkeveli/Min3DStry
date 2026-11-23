@@ -628,10 +628,10 @@ public final class UpstreamSinglePlayerApp {
             shortcut, buildingControls.rotation(), buildingControls.removing(), block.rotate,
             catalog.isOpen() || config.isOpen() || inventory.isOpen() || commandMenu.isOpen() || schematics.isOpen(),
             buildingControls.configuring(), buildingControls.selectingMine(), buildingControls.inventoryAction(),
-            orders.mode(), buildingControls.selectingControl(), schematics.positioning());
+            orders.mode(), buildingControls.selectingControl(), schematics.active());
         if (schematics.isOpen()) {
             drawMenu(schematics.labels(), schematics.icons(), -1, schematics.previousPage(), schematics.nextPage(),
-                UpstreamTerrainRenderProbe.BLOCK_CATALOG);
+                UpstreamTerrainRenderProbe.SCHEMATIC_CATALOG);
         } else if (commandMenu.isOpen()) {
             target.buildCatalogRows(commandMenu.labels(), commandMenu.icons(), orders.activeMenuRows(),
                 commandMenu.previous(), commandMenu.next(),
