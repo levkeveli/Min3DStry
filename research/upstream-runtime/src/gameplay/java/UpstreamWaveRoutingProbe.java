@@ -16,6 +16,7 @@ import mindustry.gen.Groups;
 import mindustry.gen.Unit;
 import mindustry.world.blocks.defense.turrets.ItemTurret.ItemTurretBuild;
 import org.teavm.interop.Import;
+import org.teavm.interop.PlatformMarker;
 import org.teavm.interop.c.Include;
 
 /**
@@ -160,9 +161,14 @@ public final class UpstreamWaveRoutingProbe {
         // build after the trace. Flush the trace and terminate the C process;
         // the JVM run must return normally.
         System.out.flush();
-        if ("TeaVM".equals(System.getProperty("os.name"))) {
+        if (isTeaVmC()) {
             Exit.exit(0);
         }
+    }
+
+    @PlatformMarker("c")
+    private static boolean isTeaVmC() {
+        return false;
     }
 
     @Include(value = "stdlib.h", isSystem = true)
