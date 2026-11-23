@@ -50,6 +50,9 @@ import mindustry.gen.Groups;
 import mindustry.gen.KickCallPacket;
 import mindustry.gen.KickCallPacket2;
 import mindustry.gen.Mechc;
+import mindustry.gen.PayloadDroppedCallPacket;
+import mindustry.gen.PickedBuildPayloadCallPacket;
+import mindustry.gen.PickedUnitPayloadCallPacket;
 import mindustry.gen.Player;
 import mindustry.gen.RemoveMarkerCallPacket;
 import mindustry.gen.RemoveQueueBlockCallPacket;
@@ -74,6 +77,7 @@ import mindustry.gen.UnitClearCallPacket;
 import mindustry.gen.UnitControlCallPacket;
 import mindustry.gen.UnitDespawnCallPacket;
 import mindustry.gen.UnitDestroyCallPacket;
+import mindustry.gen.UnitEnteredPayloadCallPacket;
 import mindustry.gen.UnitSpawnCallPacket;
 import mindustry.gen.UpdateMarkerCallPacket;
 import mindustry.gen.UpdateMarkerTextCallPacket;
@@ -619,6 +623,14 @@ public final class UpstreamLiveNetworkProbe {
             + " nextKind=" + nextKind + " flags=" + rules.objectiveFlags.size);
     }
 
+    static Packet payloadPacket(int id) {
+        if (id == unsignedId(PickedUnitPayloadCallPacket.class)) return new PickedUnitPayloadCallPacket();
+        if (id == unsignedId(PickedBuildPayloadCallPacket.class)) return new PickedBuildPayloadCallPacket();
+        if (id == unsignedId(PayloadDroppedCallPacket.class)) return new PayloadDroppedCallPacket();
+        if (id == unsignedId(UnitEnteredPayloadCallPacket.class)) return new UnitEnteredPayloadCallPacket();
+        return null;
+    }
+
     private void applyBuildingUpdate(int id, int received) {
         if (id == unsignedId(BeginPlaceCallPacket.class)) {
             decode(new BeginPlaceCallPacket(), received).handleClient();
@@ -670,6 +682,9 @@ public final class UpstreamLiveNetworkProbe {
                 System.out.println("UPSTREAM_CONFIG_REMOTE x=" + sorter.tileX() + " y=" + sorter.tileY()
                     + " item=" + (item == null ? "none" : item.name));
             }
+        } else {
+            var payload = payloadPacket(id);
+            if (payload != null) decode(payload, received).handleClient();
         }
     }
 
