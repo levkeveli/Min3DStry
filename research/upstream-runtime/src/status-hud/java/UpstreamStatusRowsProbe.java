@@ -27,6 +27,7 @@ public final class UpstreamStatusRowsProbe {
         Vars.headless = true;
         Core.settings = new Settings();
         Core.settings.setAutosave(false);
+        mindustry.core.UI.loadColors();
         Vars.state = new GameState();
         Vars.mods = new Mods();
         Vars.content = new ContentLoader();
@@ -99,6 +100,20 @@ public final class UpstreamStatusRowsProbe {
                 || coreItems.get(1).item() != Items.lead || coreItems.get(1).amount() != 7) {
             throw new IllegalStateException("Core item row collection mismatch");
         }
+        var formatEntry = new UpstreamCoreItems.Entry(Items.copper, 12345);
+        String formatted = formatEntry.formatted();
+        if (!"12k".equals(formatted)
+                || !"1.2k".equals(UpstreamCoreItems.formatAmount(1234))
+                || !"999".equals(UpstreamCoreItems.formatAmount(999))
+                || !"0".equals(UpstreamCoreItems.formatAmount(0))
+                || !"10k".equals(UpstreamCoreItems.formatAmount(10_000))
+                || !"1.5mil".equals(UpstreamCoreItems.formatAmount(1_500_000))
+                || !"1.0mil".equals(UpstreamCoreItems.formatAmount(1_000_000))
+                || !"1.5b".equals(UpstreamCoreItems.formatAmount(1_500_000_000))
+                || !"1.0b".equals(UpstreamCoreItems.formatAmount(1_000_000_000))) {
+            throw new IllegalStateException("Core item amount formatting mismatch: " + formatted);
+        }
+        System.out.println("UPSTREAM_CORE_ITEM_FORMAT text=" + formatted + " cases=9 ok");
         System.out.println("UPSTREAM_CORE_ITEMS rows=2 ok");
         var tracker = new UpstreamCoreItems.Tracker();
         var tracked = tracker.collect(Seq.with(Items.copper, Items.lead, Items.silicon).list(),
@@ -159,7 +174,26 @@ public final class UpstreamStatusRowsProbe {
                 || pause.activate() != UpstreamPauseMenu.Action.QUIT) {
             throw new IllegalStateException("Pause menu quit-with-research action mismatch");
         }
-        System.out.println("UPSTREAM_PAUSE_MENU cases=9 ok");
+        pause.open(5);
+        if (pause.options() != 5) throw new IllegalStateException("Pause menu load options mismatch");
+        pause.move(1);
+        if (pause.activate() != UpstreamPauseMenu.Action.RESEARCH) {
+            throw new IllegalStateException("Pause menu five-row research action mismatch");
+        }
+        pause.move(1);
+        if (pause.activate() != UpstreamPauseMenu.Action.LOAD) {
+            throw new IllegalStateException("Pause menu load action mismatch");
+        }
+        pause.move(1);
+        if (pause.activate() != UpstreamPauseMenu.Action.SAVE) {
+            throw new IllegalStateException("Pause menu load-save action mismatch");
+        }
+        pause.move(1);
+        if (pause.activate() != UpstreamPauseMenu.Action.NONE
+                || pause.activate() != UpstreamPauseMenu.Action.QUIT) {
+            throw new IllegalStateException("Pause menu load-quit action mismatch");
+        }
+        System.out.println("UPSTREAM_PAUSE_MENU cases=13 ok");
         System.out.println("UPSTREAM_STATUS_ROWS cases=10 ok");
         System.out.println("UPSTREAM_GUARDIAN_WARNING cases=2 ok");
         System.out.println("UPSTREAM_UNIT_ROWS cases=3 ok");
