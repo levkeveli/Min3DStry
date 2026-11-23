@@ -159,7 +159,8 @@ int32_t m3ds_live_net_input(void) {
     return (int32_t)pack_axis(pad.dx) | ((int32_t)pack_axis(pad.dy) << 8) |
            ((int32_t)dpad << 16) | ((int32_t)((pressed & KEY_A) != 0) << 17) |
            ((int32_t)((pressed & KEY_R) != 0) << 18) | ((int32_t)((pressed & KEY_B) != 0) << 19) |
-           ((int32_t)((keys & KEY_X) != 0) << 20) | ((int32_t)((keys & KEY_L) != 0) << 21);
+           ((int32_t)((keys & KEY_X) != 0) << 20) | ((int32_t)((keys & KEY_L) != 0) << 21) |
+           ((int32_t)((pressed & KEY_Y) != 0) << 22);
 }
 
 int32_t m3ds_live_net_touch(void) {

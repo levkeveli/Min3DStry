@@ -13,7 +13,7 @@ int32_t m3ds_live_net_send(const void *payload, int32_t length, int32_t packet_i
 int32_t m3ds_live_net_keep_alive(int32_t reliable);
 int32_t m3ds_live_net_begin_keep_alive(int32_t rendering);
 void m3ds_live_net_end_keep_alive(void);
-/* Signed X/Y, then D-pad/A/R/B in bits 16–19, or -1 when leaving. */
+/* Signed X/Y, then D-pad/A/R/B/X/L/Y in bits 16–22, or -1 when leaving. */
 int32_t m3ds_live_net_input(void);
 /* X and Y in the low and high halves on a fresh touch, or -1. */
 int32_t m3ds_live_net_touch(void);

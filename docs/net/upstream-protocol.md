@@ -88,6 +88,7 @@ DECODE_PKT_OK id=141 compression=1 wire_len=140 payload_len=182
 ```
 
 - **Version mismatch:** Build `159` received `KickCallPacket2` with `KickReason.clientOutdated`.
+
 - **Two bidirectional gameplay sessions (build, disconnect/rejoin persistence, and deconstruct):**
   - **Session 1 (`run=1`):** Completed `ConnectPacket` -> `WorldStream` (`150x250` `Glacier`, `2` core origins, `copper=200`) -> `ConnectConfirmCallPacket`, applied incoming `StateSnapshotCallPacket` + `EntitySnapshotCallPacket` on the main thread until the server-spawned player unit was synced, transmitted outbound UDP `ClientSnapshotCallPacket` build plans for a `Conveyor` at `(85, 26)` rotation `1` and a `Copper Wall` at `(86, 26)`, applied server `ConstructFinishCallPacket` confirmations, and verified authoritative core copper sync (`200 -> 193`, `buildings=2->4`).
   - **Session 2 (`run=2`):** Reset client state (`Vars.logic.reset()`), reconnected with the same UUID, confirmed the server's fresh rejoin `WorldStream` persisted all `4` buildings and `copper=193`, sent an outbound `ClientSnapshotCallPacket` deconstruction `BuildPlan(86, 26)`, applied `DeconstructFinishCallPacket`, and verified authoritative core copper refund sync (`193 -> 196`, `buildings=4->3`).
@@ -99,6 +100,31 @@ DECODE_PKT_OK id=141 compression=1 wire_len=140 payload_len=182
 - **Not yet tested:** Physical Original/New 3DS console Wi-Fi handshake and play sessions (`#31`, `#44`, `#43`); this host/wire document stays at `host-tested` while separate TeaVM ARM11 emulator runs are recorded under [`research/upstream-runtime/`](../../research/upstream-runtime/README.md).
 
 ---
+
+## Stock multiplayer chat
+
+Press **Y** to open the 3DS touch keyboard during a live game. Use **A** to
+send or **B** to cancel. The first keyboard layout covers Latin letters,
+digits, punctuation, and stock server commands such as `/help`. The client
+sends the original reliable `SendChatMessageCallPacket`, so the unmodified
+server handles player formatting and commands. Player and server messages
+use the original receive packets and stock text renderer on the top screen.
+World snapshots and the TCP heartbeat continue while the keyboard is open.
+Additional text entry languages remain open work.
+
+Use `tools/verify_upstream_live_net.py --controls --verify-chat --terrain-atlas
+/path/to/sprites.aatls` with the matching ROM and stock v160.8 server. The
+replay sends both stock receive packet variants, types a reply on the touch
+keyboard, and waits for authoritative world snapshots during and after entry.
+
+The [devkitARM build](https://github.com/levkeveli/Min3DStry/actions/runs/45197857282)
+passed the chat round trip on Original and New 3DS in Azahar 2126.2. The
+ROM SHA-256 was `0e016fb9726e62703f8690fa2cdc1fdfd49dac3f827166dbd2d2d9e66586cc93`.
+The stock Java server sent a notification and a formatted player line. The
+client drew the newest line, accepted a touch-entered reply, and drew the
+server's formatted echo. The following wave snapshot reached the client
+with the composer open and another arrived after submission. A stock PC
+client displayed the ARM11-origin text in the shared local session.
 
 ## License Audit
 
