@@ -18,8 +18,11 @@ def main():
     parser.add_argument("--java", default="java")
     parser.add_argument("--server", type=Path, required=True)
     parser.add_argument("--directory", type=Path, required=True)
+    parser.add_argument("--stock-bundle", type=Path, help="Original English bundle.properties for the fixture")
     parser.add_argument("--readback", action="store_true")
     args = parser.parse_args()
+    if not args.readback and args.stock_bundle is None:
+        parser.error("--stock-bundle is required when generating the fixture")
     args.directory.mkdir(parents=True, exist_ok=True)
 
     with tempfile.TemporaryDirectory(prefix="m3ds-embedded-map-") as temporary:
@@ -43,13 +46,18 @@ def main():
             with zipfile.ZipFile(args.server) as archive:
                 (root / "glacier.msav").write_bytes(archive.read("maps/default/glacier.msav"))
                 (root / "expected.png").write_bytes(archive.read("icons/icon.png"))
+            shutil.copyfile(args.stock_bundle, root / "stock.properties")
+            (root / "map.properties").write_text(
+                "stats.wave=Embedded Glacier wave\nfixture.map=Glacier\n", encoding="ascii")
             script = """
                 const Fi = Packages.arc.files.Fi, SaveIO = Packages.mindustry.io.SaveIO;
                 Vars.world.loadMap(Packages.mindustry.io.MapIO.createMap(Fi.get('glacier.msav'), false));
                 Vars.logic.play();
                 const image = new Packages.mindustry.mod.data.ImageAsset();
                 image.readOverride('fixture.png', Fi.get('expected.png'));
-                Vars.state.data.load(Packages.arc.struct.Seq.with(image));
+                const bundle = new Packages.mindustry.mod.data.BundleAsset();
+                bundle.readOverride('bundle.properties', Fi.get('map.properties'));
+                Vars.state.data.load(Packages.arc.struct.Seq.with(image, bundle));
                 const options = new Packages.mindustry.io.SaveOptions();
                 options.embedAssets = true;
                 options.extraTags = Vars.state.map.tags;
@@ -57,7 +65,7 @@ def main():
             """
         stock_console(args.java, args.server, root, " ".join(script.splitlines()) + f" return '{MARKER}';", MARKER)
         if not args.readback:
-            for name in ("embedded.msav", "expected.png"):
+            for name in ("embedded.msav", "expected.png", "stock.properties", "glacier.msav"):
                 shutil.copyfile(root / name, args.directory / name)
     print(f"{MARKER} {'stock-readback' if args.readback else 'stock-source'}=ok")
 

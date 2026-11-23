@@ -53,8 +53,12 @@ normal subsequent save preserves the stock hash reference and a new
 session can verify and reopen the cached bytes.
 
 `tools/stock_embedded_map_assets.py` writes a Glacier fixture through the
-unmodified v160.8 Java server. `runStockEmbeddedAssetJvm` with
+unmodified v160.8 Java server. Supply the original English properties file
+as `--stock-bundle` when generating the fixture. `runStockEmbeddedAssetJvm` with
 `-Pprobe=singleplayer` loads the fixture, saves it and checks a new cache
 instance against the original image. Run the fixture tool again with
 `--readback` to verify that stock Java reopens the port save and resolves
-the same image. Rendering imported images requires separate verification.
+the same image. The JVM check also applies the map's translated wave label
+on import and resume, then restores the original language strings when
+switching to a plain map or leaving offline play. Rendering imported images
+requires separate verification.

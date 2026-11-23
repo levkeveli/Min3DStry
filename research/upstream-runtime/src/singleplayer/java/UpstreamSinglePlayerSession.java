@@ -4,6 +4,7 @@ import arc.Settings;
 import arc.assets.AssetManager;
 import arc.audio.Audio;
 import arc.files.Fi;
+import arc.func.Cons;
 import arc.math.Mathf;
 import arc.math.geom.Vec2;
 import arc.mock.MockAudio;
@@ -33,6 +34,7 @@ import mindustry.game.EventType.RulesLoadEvent;
 import mindustry.game.EventType.SectorLaunchEvent;
 import mindustry.game.EventType.SectorLaunchLoadoutEvent;
 import mindustry.game.EventType.Trigger;
+import mindustry.game.EventType.WorldLoadEvent;
 import mindustry.game.FogControl;
 import mindustry.game.Gamemode;
 import mindustry.game.Saves;
@@ -52,6 +54,7 @@ import mindustry.maps.Map;
 import mindustry.type.Planet;
 import mindustry.type.Sector;
 import mindustry.logic.GlobalVars;
+import mindustry.mod.DataBundleLoader;
 import mindustry.mod.Mods;
 import mindustry.world.Tile;
 import mindustry.world.WorldParams;
@@ -66,11 +69,20 @@ public final class UpstreamSinglePlayerSession {
     private static final float FIXED_STEP_SECONDS = 1f / 60f;
     private final UpstreamWorldLoadProbe.ProbeApplication app;
     private final Vec2 tmpMove = new Vec2();
+    private final DataBundleLoader worldBundles = new DataBundleLoader();
+    private final Cons<WorldLoadEvent> applyWorldBundles = event -> {
+        // The stock data manager skips desktop locale setup when Vars.headless is true.
+        worldBundles.unload();
+        if (Core.bundle != null) worldBundles.load(Vars.state.data.getBundles());
+    };
+    private final Cons<ResetEvent> resetWorldBundles = event -> worldBundles.unload();
     private Saves campaignSaves;
     private float deltaSeconds = FIXED_STEP_SECONDS;
 
     private UpstreamSinglePlayerSession(UpstreamWorldLoadProbe.ProbeApplication app) {
         this.app = app;
+        Events.on(WorldLoadEvent.class, applyWorldBundles);
+        Events.on(ResetEvent.class, resetWorldBundles);
     }
 
     static UpstreamSinglePlayerSession create(Fi mapDirectory, String locale) {
@@ -626,8 +638,14 @@ public final class UpstreamSinglePlayerSession {
     }
 
     void shutdown() {
-        Events.fire(new ResetEvent());
-        app.runPosted();
+        try {
+            Events.fire(new ResetEvent());
+            app.runPosted();
+        } finally {
+            Events.remove(WorldLoadEvent.class, applyWorldBundles);
+            Events.remove(ResetEvent.class, resetWorldBundles);
+            worldBundles.unload();
+        }
     }
 
     private static long waitForGroundField(UpstreamWorldLoadProbe.ProbeApplication app, Team enemy)
