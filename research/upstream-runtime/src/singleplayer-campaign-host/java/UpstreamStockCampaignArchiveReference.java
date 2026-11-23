@@ -5,8 +5,11 @@ import java.util.Locale;
 import mindustry.Vars;
 import mindustry.content.Planets;
 import mindustry.content.SectorPresets;
+import mindustry.gen.Fire;
+import mindustry.gen.Puddle;
 import mindustry.io.MapIO;
 import mindustry.type.Sector;
+import mindustry.world.Tiles;
 
 public final class UpstreamStockCampaignArchiveReference {
     public static void main(String[] args) throws Exception {
@@ -20,6 +23,7 @@ public final class UpstreamStockCampaignArchiveReference {
         var session = UpstreamSinglePlayerSession.create(output, "en", assets.child("planets"),
             UpstreamSinglePlayerSession.loadSettings(output), maps);
         try {
+            verifyTileEffects();
             int total = 0;
             int hidden = 0;
             for (String directory : new String[]{"serpulo", "serpulo/hidden", "erekir"}) {
@@ -71,6 +75,37 @@ public final class UpstreamStockCampaignArchiveReference {
         } finally {
             session.shutdown();
         }
+    }
+
+    private static void verifyTileEffects() {
+        var tiles = new Tiles(2, 2);
+        var other = new Tiles(2, 2);
+        var first = Fire.create();
+        var second = Fire.create();
+        var puddle = Puddle.create();
+        tiles.setFire(0, first);
+        tiles.setPuddle(0, puddle);
+        tiles.setFire(3, second);
+        if (tiles.getFire(0) != first || tiles.getPuddle(0) != puddle || tiles.getFire(3) != second
+                || tiles.getPuddle(3) != null || other.getFire(0) != null || other.getPuddle(0) != null) {
+            throw new AssertionError("Stock tile effect lookups must be independent across tiles and worlds");
+        }
+        tiles.setFire(0, second);
+        tiles.setPuddle(0, null);
+        if (tiles.getFire(0) != second || tiles.getPuddle(0) != null) {
+            throw new AssertionError("Stock tile effects must support replacement and removal");
+        }
+        tiles.setFire(0, null);
+        if (tiles.getFire(0) != null || tiles.getFire(3) != second) {
+            throw new AssertionError("Removing one fire changed the other tile");
+        }
+        try {
+            tiles.getFire(-1);
+            throw new AssertionError("Tile effect lookup accepted an out-of-range index");
+        } catch (ArrayIndexOutOfBoundsException expected) {
+            // Preserve the original bounds check.
+        }
+        System.out.println("UPSTREAM_TILE_EFFECT_STORAGE lookup=ok replace=ok clear=ok worlds=ok bounds=ok");
     }
 
     private static int verifyPatchedWorld(UpstreamSinglePlayerSession session, Sector sector, int expectedId, int count)

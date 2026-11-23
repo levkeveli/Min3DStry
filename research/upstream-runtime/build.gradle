@@ -11,6 +11,7 @@ def revision = '19a0f40d44514f4802a8b79770456e7e32e34da0'
 def upstreamFile = 'core/src/mindustry/logic/LogicOp.java'
 def blockSource = 'core/src/mindustry/world/Block.java'
 def tileSource = 'core/src/mindustry/world/Tile.java'
+def tilesSource = 'core/src/mindustry/world/Tiles.java'
 def pathfinderSource = 'core/src/mindustry/ai/Pathfinder.java'
 def annotationsSource = 'annotations/src/main/java/mindustry/annotations/Annotations.java'
 def arcRevision = '7445105cd2683daf5b9ac7033ebb07265d3e814d'
@@ -145,6 +146,7 @@ def sourceFile = sourceDir.map { it.file('mindustry/logic/LogicOp.java') }
 def mapFile = sourceDir.map { it.file('mindustry/maps/GlacierFixture.java') }
 def blockFile = sourceDir.map { it.file('mindustry/world/Block.java') }
 def tileFile = sourceDir.map { it.file('mindustry/world/Tile.java') }
+def tilesFile = sourceDir.map { it.file('mindustry/world/Tiles.java') }
 def pathfinderFile = sourceDir.map { it.file('mindustry/ai/Pathfinder.java') }
 def annotationsFile = sourceDir.map { it.file('mindustry/annotations/Annotations.java') }
 def arcFile = sourceDir.map { it.file('arc/files/Fi.java') }
@@ -206,7 +208,8 @@ if (usesArcSources || usesExecutor) {
         stagedClasses.add('mindustry/world/Block.class')
     }
     if (usesWorldSources) {
-        stagedClasses.addAll(['mindustry/world/Tile.class', 'mindustry/world/Tile$*.class'])
+        stagedClasses.addAll(['mindustry/world/Tile.class', 'mindustry/world/Tile$*.class',
+                              'mindustry/world/Tiles.class', 'mindustry/world/Tiles$*.class'])
     }
     if (usesArcSources) {
         stagedClasses.addAll(['arc/files/Fi.class', 'arc/files/Fi$*.class'])
@@ -514,7 +517,7 @@ tasks.register('prepareUpstreamProbe') {
         outputs.files(blockFile, annotationsFile)
     }
     if (usesWorldSources) {
-        outputs.file(tileFile)
+        outputs.files(tileFile, tilesFile)
     }
     if (usesArcSources || usesExecutor) {
         inputs.property('arcRevision', arcRevision)
@@ -917,6 +920,36 @@ final class GlacierFixture {
                 tileFile.get().asFile.parentFile.mkdirs()
                 tileFile.get().asFile.setText(tile.replace('wall::newBuilding', 'wall.buildingProvider')
                     .replace('type::newBuilding', 'type.buildingProvider'), 'UTF-8')
+
+                // The original effect entities and their lifecycle keep using these tile-index methods.
+                def tiles = new String(readUpstream(tilesSource), 'UTF-8')
+                def tileEffects = [
+                    'import arc.math.geom.*;': 'import arc.math.geom.*;\nimport arc.struct.IntMap;',
+                    'final Puddle[] puddles;': 'private final IntMap<Puddle> puddles = new IntMap<>();',
+                    'final Fire[] fires;': 'private final IntMap<Fire> fires = new IntMap<>();',
+                    '        this.puddles = new Puddle[width * height];\n': '',
+                    '        this.fires = new Fire[width * height];\n': '',
+                    '    public Puddle getPuddle(int pos){': '''    private void checkEffectPosition(int pos){
+        if(pos < 0 || pos >= array.length) throw new ArrayIndexOutOfBoundsException(pos);
+    }
+
+    public Puddle getPuddle(int pos){''',
+                    'return puddles[pos];': 'checkEffectPosition(pos);\n        return puddles.get(pos);',
+                    'puddles[pos] = p;': '''checkEffectPosition(pos);
+        if(p == null) puddles.remove(pos);
+        else puddles.put(pos, p);''',
+                    'return fires[pos];': 'checkEffectPosition(pos);\n        return fires.get(pos);',
+                    'fires[pos] = f;': '''checkEffectPosition(pos);
+        if(f == null) fires.remove(pos);
+        else fires.put(pos, f);'''
+                ]
+                tileEffects.each { before, after ->
+                    if (tiles.count(before) != 1) {
+                        throw new GradleException("Pinned tile effect storage hook changed: ${before}")
+                    }
+                    tiles = tiles.replace(before, after)
+                }
+                tilesFile.get().asFile.setText(tiles, 'UTF-8')
             }
             def adaptedBlock = blockFile.get().asFile
             adaptedBlock.parentFile.mkdirs()
