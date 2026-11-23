@@ -61,29 +61,25 @@ def verify(model: str, planet: str, rom: Path, azahar: str, config: Path, log: P
            reference: Path, output: Path) -> Path:
     _, name, _ = CASES[planet]
     sector_id = Path(name).stem.rsplit("-", 1)[1]
-    root = sp.resolve_sd_save_path(log).parent
+    result = output / f"{model}-{planet}"
+    sd = (result / "virtual-sd").resolve()
+    root = sd / "3ds/min3dstry"
     saves = root / "saves"
     slot = saves / name
     settings = root / "settings.bin"
-    backup = root / "settings_backup.bin"
-    backups = root / "settings_backups"
-    override = root / "campaign-select.txt"
-    if any(root.glob("sector-*.msav")) or any(saves.glob("sector-*.msav")) or any(
-            path.exists() for path in (settings, backup, backups, override)):
-        raise RuntimeError("Use an Azahar SD directory without campaign saves, settings, or selection overrides")
-
     initial_config = config.read_bytes() if config.is_file() else None
-    had_saves = saves.is_dir()
-    result = output / f"{model}-{planet}"
-    result.mkdir(parents=True, exist_ok=True)
+    saves.mkdir(parents=True)
     movie = result / "controls.ctm"
     write_input_replay(movie, model, [(88, 90, 1), (108, 110, 1), (220, 222, sp.KEY_START)], 220,
                        b"Min3DStry Campaign Defeat")
     threatened = reference / "threatened" / planet
     try:
-        saves.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(threatened / name, slot)
         shutil.copyfile(threatened / "settings.bin", settings)
+        storage = {"Data Storage": {"use_custom_storage": "true", "sdmc_directory": sd.as_posix() + "/"}}
+        config.parent.mkdir(parents=True, exist_ok=True)
+        config.write_text(sp.az.patch_qt_config_text((initial_config or b"").decode("utf-8"), storage),
+                          encoding="utf-8")
         proc, rpc = sp._launch_azahar(model, rom, azahar, config, log, movie)
         try:
             sp._wait_for_log(log, proc, r"UPSTREAM_SP_LOADED source=campaign\b", 120)
@@ -110,12 +106,6 @@ def verify(model: str, planet: str, rom: Path, azahar: str, config: Path, log: P
             sp._stop_proc(proc, azahar)
             (result / "azahar.log").write_bytes(log.read_bytes())
     finally:
-        for path in (slot, saves / f"{name}-backup.msav", settings, backup):
-            path.unlink(missing_ok=True)
-        if backups.is_dir() and backups.resolve().parent == root.resolve():
-            shutil.rmtree(backups)
-        if not had_saves and saves.is_dir() and not any(saves.iterdir()):
-            saves.rmdir()
         if initial_config is None:
             config.unlink(missing_ok=True)
         else:
