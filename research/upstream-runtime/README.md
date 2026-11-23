@@ -495,7 +495,13 @@ python3 tools/verify_stock_live_audio.py \
   --output build/stock-live-audio
 ```
 
-Audible NDSP playback is a physical console test.
+The [unified ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45121495805)
+passed the stock-server replay on both Azahar 2126.2 profiles. Each route
+resolved the original UI, wave, wind, drill and Gamma sounds. The music
+decoder read 4,096 stereo frames of the original game1 track and closed
+cleanly on disconnect. Each run reported 491,744 bytes of cached PCM.
+Azahar used its missing-DSP fallback. Audible NDSP playback still
+requires a physical console.
 
 Run the same verifier with `--controls --model old3ds` and then
 `--controls --model new3ds`. Follow its prompts to move right with the
