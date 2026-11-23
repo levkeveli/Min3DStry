@@ -89,7 +89,7 @@ public final class UpstreamCustomGameReference {
         var slots = UpstreamCustomGameSaves.discover(directory, quickSave);
         var chosen = slots.stream().filter(slot -> slot.file().equals(first)).findFirst().orElseThrow();
         if (slots.size() != 3 || !slots.get(0).file().equals(quickSave) || !chosen.title().equals("Glacier Test")
-                || slots.stream().noneMatch(slot -> slot.file().equals(second) && slot.title().equals("Caldera Test"))) {
+                || !slots.get(1).file().equals(second) || !slots.get(1).title().equals("Caldera Test")) {
             throw new AssertionError("Named saves, quick save, backups or maps were classified incorrectly");
         }
         session.start(null, chosen.file(), "customgame-save");

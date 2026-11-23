@@ -1,8 +1,8 @@
 import arc.Core;
 import arc.files.Fi;
+import arc.struct.Seq;
 import arc.util.ArcRuntimeException;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import mindustry.io.SaveIO;
 
@@ -13,7 +13,7 @@ final class UpstreamCustomGameSaves {
     private UpstreamCustomGameSaves() {}
 
     static List<Slot> discover(Fi directory, Fi quickSave) {
-        var saves = new ArrayList<Slot>();
+        var saves = new Seq<Slot>();
         if (directory.isDirectory()) {
             directory.walk(file -> {
                 if (file.extension().equalsIgnoreCase("msav") && !file.name().contains("backup")) {
@@ -22,10 +22,16 @@ final class UpstreamCustomGameSaves {
                 }
             });
         }
-        saves.sort(Comparator.comparingLong(Slot::timestamp).reversed().thenComparing(slot -> slot.file.path()));
+        // Match the stock LoadDialog's Arc sort and newest-first order.
+        saves.sort((left, right) -> {
+            int latestFirst = Long.compare(right.timestamp(), left.timestamp());
+            return latestFirst == 0 ? left.file().path().compareTo(right.file().path()) : latestFirst;
+        });
+        var slots = new ArrayList<Slot>(saves.size + 1);
         var quick = read(quickSave, Core.bundle.get("loadgame"));
-        if (quick != null) saves.add(0, quick);
-        return saves;
+        if (quick != null) slots.add(quick);
+        for (Slot save : saves) slots.add(save);
+        return slots;
     }
 
     private static Slot read(Fi file, String fallbackName) {
