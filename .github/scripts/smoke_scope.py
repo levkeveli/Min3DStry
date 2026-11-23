@@ -238,6 +238,9 @@ def classify_smoke_scope(changed_files: list[str], event_name: str) -> dict[str,
         if kind == "full":
             return _full_scope()
 
+    if not probes and not any(flags.values()) and not all(path.endswith(".md") for path in changed_files):
+        return _full_scope()
+
     ordered_probes = [probe for probe in ALL_PROBES if probe in probes]
     return {
         "run_all": False,

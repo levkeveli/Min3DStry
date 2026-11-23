@@ -62,12 +62,15 @@ main pushes. Live audio changes select audio and network checks. Live graphics
 and live client changes select network and offline single-player checks.
 Runtime Markdown updates do not trigger the heavy build workflows by
 themselves. Shared TeaVM inputs, unknown runtime paths, CI workflow edits,
-and unavailable change lists still select the full suite. Use
+and unavailable change lists still select the full suite. A run with no
+classified paths only skips the full suite if every changed file is Markdown. Use
 `workflow_dispatch` to run the full suite on demand.
 
 CircleCI and Daytona can run independent builds and emulator replays on their
 own compute. Keep required GitHub status contexts and record the exact source
-commit for any artifact or evidence produced on another service.
+commit for any artifact or evidence produced on another service. The scope
+classifier and host suite passed in a disposable Daytona sandbox on the
+initial scope PR revision `75160c6`.
 
 ## CircleCI playable offline builds
 

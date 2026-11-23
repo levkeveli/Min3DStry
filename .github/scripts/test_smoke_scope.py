@@ -145,6 +145,10 @@ class SmokeScopeTests(unittest.TestCase):
         )
         self.assertFalse(any(value for key, value in scope.items() if key.startswith("run_")))
 
+    def test_unclassified_non_doc_trigger_runs_full_suite(self) -> None:
+        scope = smoke_scope.classify_smoke_scope(["tools/new_runtime_input.py"], "push")
+        self.assertTrue(scope["run_all"])
+
     def test_push_files_use_exact_commit_pair_and_keep_both_rename_paths(self) -> None:
         before, after = "a" * 40, "b" * 40
         with patch.object(smoke_scope.subprocess, "run") as run:
