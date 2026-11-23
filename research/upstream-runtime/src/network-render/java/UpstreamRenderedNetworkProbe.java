@@ -25,6 +25,7 @@ import mindustry.core.World;
 import mindustry.core.UI;
 import mindustry.game.EventType.WorldLoadEvent;
 import mindustry.gen.Building;
+import mindustry.game.Team;
 import mindustry.gen.Groups;
 import mindustry.gen.Payloadc;
 import mindustry.gen.Sounds;
@@ -75,6 +76,7 @@ public final class UpstreamRenderedNetworkProbe {
     private final ObjectSet<String> reportedStockWorldLabels = new ObjectSet<>();
     private final Seq<ChatLine> chatLines = new Seq<>();
     private float chatFade;
+    private Team winner;
     private UpstreamLabelText.Label encodedLabel;
     private int[] encodedCharacters;
     private byte[] lastMenu;
@@ -114,7 +116,7 @@ public final class UpstreamRenderedNetworkProbe {
         try {
             Arm11Audio.open();
             UpstreamLiveNetworkProbe.run(directory, address, view::prepareClient, view::loadGraphics,
-                view::render, view.buildingControls, view::receiveChat, view.chatInput);
+                view::render, view.buildingControls, view::receiveChat, view.chatInput, winner -> view.winner = winner);
         } finally {
             Arm11Audio.close();
         }
@@ -413,7 +415,7 @@ public final class UpstreamRenderedNetworkProbe {
     }
 
     private float drawStatusHud() {
-        var rows = UpstreamStatusHud.collect();
+        var rows = UpstreamStatusHud.collect(winner);
         boolean changed = !rows.equals(lastStatus);
         if (changed) {
             statusLabels = new byte[rows.size()][];
