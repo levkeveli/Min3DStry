@@ -67,6 +67,9 @@ final class UpstreamLiveBuildControls {
             int x = touch & 0xffff, y = touch >>> 16;
             if (schematics.isOpen()) {
                 if (touch >= 0) schematics.tap(x, y);
+            } else if (schematics.capturing()) {
+                if (touch >= 0 && selectGridCell(x, y)) schematics.captureCorner(tileX, tileY);
+                if ((buttons & PLACE_PRESSED) != 0) schematics.saveCapture(unit.team());
             } else {
                 if (touch >= 0 && selectGridCell(x, y)) schematics.position(unit, tileX, tileY);
                 if ((buttons & ROTATE_PRESSED) != 0) schematics.rotate(unit);
