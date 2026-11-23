@@ -407,7 +407,8 @@ if (usesSinglePlayer) {
     } else if (!usesLiveNetwork) {
         sourceSets.main.java.srcDir('src/network-live/java')
         sourceSets.main.java.srcDir('src/network-render/java')
-        sourceSets.main.java.exclude('UpstreamLiveNetworkProbe.java', 'UpstreamRenderedNetworkProbe.java', 'port/audio/**')
+        sourceSets.main.java.exclude('UpstreamLiveNetworkProbe.java', 'UpstreamPlayerIdentity.java',
+            'UpstreamRenderedNetworkProbe.java', 'port/audio/**')
         sourceSets.main.java.srcDir('src/singleplayer/host')
         tasks.register('runOfflineWeatherJvm', JavaExec) {
             dependsOn 'classes'
