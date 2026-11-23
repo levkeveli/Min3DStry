@@ -67,6 +67,11 @@ if [[ $# -gt 0 ]]; then
         echo "Prepare singleplayer terrain assets with --singleplayer to include the original Custom Game maps" >&2
         exit 2
     fi
+    if [[ ${#native_input[@]} -gt 0 &&
+          ( ! -s "$1/maps/serpulo/groundZero.msav" || ! -s "$1/maps/erekir/onset.msav" ) ]]; then
+        echo "Prepare singleplayer terrain assets with --singleplayer to include the original campaign maps" >&2
+        exit 2
+    fi
     if [[ ${#native_input[@]} -gt 0 && ! -s "$1/planets/serpulo.json" ]]; then
         echo "Prepare singleplayer terrain assets with --singleplayer to include the original planet data" >&2
         exit 2

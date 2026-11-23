@@ -22,12 +22,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from verify_azahar import parse_azahar_log  # noqa: E402
 import hw_evidence  # noqa: E402
 
-MANAGED_HEAP_BUDGET_BYTES = 24 * 1024 * 1024
+LEGACY_MANAGED_HEAP_BYTES = 24 * 1024 * 1024
 
 UPSTREAM_MEMORY_RE = re.compile(
     r"UPSTREAM_MEMORY\s+appHeap=(?P<app_heap>\d+)\s+"
     r"linearHeap=(?P<linear_heap>\d+)\s+stack=(?P<stack>\d+)"
 )
+UPSTREAM_MANAGED_LIMIT_RE = re.compile(r"UPSTREAM_MEMORY\s+managedLimit=(?P<limit>\d+)")
 BENCH_LINE_RE = re.compile(r"\[MIN3DSTRY\] BENCH\s+(?P<body>.+)$")
 APPMEM_HW_RE = re.compile(r"AppMem:(?P<mib>\d+)\s*MiB")
 
@@ -195,6 +196,10 @@ def parse_device_log(log_text: str) -> dict[str, Any]:
                 "stack_bytes": int(um_match.group("stack")),
             }
             continue
+        managed_match = UPSTREAM_MANAGED_LIMIT_RE.search(line)
+        if managed_match and upstream_memory is not None:
+            upstream_memory["managed_limit_bytes"] = int(managed_match.group("limit"))
+            continue
         bench_match = BENCH_LINE_RE.search(line)
         if bench_match:
             parsed_bench = _parse_bench_line(bench_match.group("body"))
@@ -358,25 +363,31 @@ def evaluate_hardware_budget(
         linear_heap = int(um["linear_heap_bytes"]) if isinstance(um, dict) else 0
         stack = int(um["stack_bytes"]) if isinstance(um, dict) else 0
         reserved = (load_bytes or 0) + linear_heap + stack
+        actual_managed_limit = um.get("managed_limit_bytes") if isinstance(um, dict) else None
+        managed_limit = actual_managed_limit if actual_managed_limit is not None else LEGACY_MANAGED_HEAP_BYTES
+        app_heap_ok = app_heap is None or app_heap > 0
+        if actual_managed_limit is not None:
+            app_heap_ok = 0 < actual_managed_limit <= app_heap
         if load_bytes is not None:
-            footprint_ok = (
-                (app_heap is None or app_heap > 0)
-                and (reserved + MANAGED_HEAP_BUDGET_BYTES <= limit_bytes)
-            )
+            total = reserved + managed_limit
+            footprint_ok = app_heap_ok and total <= limit_bytes
+            managed_source = "reported" if actual_managed_limit is not None else "legacy estimate"
             detail = (
-                f"reserved_with_24MiB_heap={(reserved + MANAGED_HEAP_BUDGET_BYTES) / (1024 * 1024):.2f} MiB "
-                f"<= {limit_mib} MiB (available_app_heap={app_heap})"
+                f"reserved_with_managed_heap={total / (1024 * 1024):.2f} MiB "
+                f"vs {limit_mib} MiB (managed={managed_limit} bytes, {managed_source}, available_app_heap={app_heap})"
             )
         else:
-            footprint_ok = (app_heap is not None and app_heap > 0) and (reserved < limit_bytes)
+            subtotal = reserved + (actual_managed_limit or 0)
+            footprint_ok = app_heap is not None and app_heap_ok and subtotal < limit_bytes
             detail = (
-                f"reserved={reserved / (1024 * 1024):.2f} MiB < {limit_mib} MiB, "
+                f"known_reserved={subtotal / (1024 * 1024):.2f} MiB vs {limit_mib} MiB, "
                 f"available_app_heap={app_heap}"
             )
         checks["upstream_memory_footprint"] = {
             "status": "pass" if footprint_ok else "fail",
             "available_heap_bytes": app_heap,
             "reserved_bytes": reserved,
+            "managed_limit_bytes": actual_managed_limit,
             "limit_bytes": limit_bytes,
             "detail": detail,
         }

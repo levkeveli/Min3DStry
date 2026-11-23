@@ -138,7 +138,7 @@ def _wait_for_log(log_path: Path, proc: subprocess.Popen[bytes], pattern: str, t
                 return text
             if "UPSTREAM_MEMORY managed-heap-exhausted" in text or "UPSTREAM_GC " in text:
                 raise RuntimeError(f"ARM11 memory failure waiting for {pattern}:\n{text[-2500:]}")
-            if re.search(r"Core::LogException", text):
+            if "UPSTREAM_SP_ERROR " in text or re.search(r"Core::LogException", text):
                 raise RuntimeError(f"Emulated exception waiting for {pattern}:\n{text[-2500:]}")
         if proc.poll() is not None:
             text = log_path.read_text(encoding="utf-8", errors="replace") if log_path.exists() else text
