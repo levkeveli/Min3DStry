@@ -536,10 +536,11 @@ The verifier checks both repeating textures and compares the world and
 touch screens. The JVM reference exercises all six stock weather types and
 checks the original water splash sprites.
 
-Both Azahar profiles passed the visual check with the same ARM11 build.
-The stock effects changed the sampled world pixels while the sampled
-touch grid stayed unchanged. Neither session reported an entity snapshot
-decode error.
+Both Azahar 2126.2 profiles passed the visual check with the same
+[ARM11 network build](https://github.com/levkeveli/Min3DStry/actions/runs/45181589111).
+With deferred graphics enabled, stock weather changed 1,316 sampled
+world pixels on the Original 3DS profile and 266 on the New 3DS profile.
+The sampled touch grid stayed unchanged on both.
 
 Run the same verifier with `--controls --model old3ds` and then
 `--controls --model new3ds`. Follow its prompts to move right with the
