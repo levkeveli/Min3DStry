@@ -117,6 +117,15 @@ Use `tools/verify_upstream_live_net.py --controls --verify-chat --terrain-atlas
 replay sends both stock receive packet variants, types a reply on the touch
 keyboard, and waits for authoritative world snapshots during and after entry.
 
+The [devkitARM build](https://github.com/levkeveli/Min3DStry/actions/runs/45197857282)
+passed the chat round trip on Original and New 3DS in Azahar 2126.2. The
+ROM SHA-256 was `0e016fb9726e62703f8690fa2cdc1fdfd49dac3f827166dbd2d2d9e66586cc93`.
+The stock Java server sent a notification and a formatted player line. The
+client drew the newest line, accepted a touch-entered reply, and drew the
+server's formatted echo. The following wave snapshot reached the client
+with the composer open and another arrived after submission. A stock PC
+client displayed the ARM11-origin text in the shared local session.
+
 ## License Audit
 
 All C wire/framing code in `src/net/mindustry_net.c` and `src/platform/3ds/net_3ds.c` was written cleanly for Min3DStry from the wire specification documented in pinned upstream Mindustry (`GPLv3`) and Arc (`Apache-2.0` / `BSD-style` ArcNet heritage), with zero proprietary Nintendo code and zero undistributable third-party binaries.
