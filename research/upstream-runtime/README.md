@@ -227,11 +227,15 @@ With `glacier-v13.msav` on the SD card, Azahar reports:
 The flat/tile/save hashes match the native reader; `building` omits raw entity
 payload bytes.
 
-The C build recompiles two compiler classes from the hash-checked TeaVM
+The C build recompiles three compiler classes from the hash-checked TeaVM
 0.16.0 source archive. The patches retain the original entry block's
 liveness during coroutine splitting and use the primitive array opcode to
-infer the value type of each element. For offline generation, pass an
-already downloaded source archive with
+infer the value type of each element. The compiler retains object reference
+typing when an array reaches an element read through a generic coroutine
+spill. The C emitter stores local array references as `void*` because
+coroutine lowering can reuse their registers for other Java objects.
+The generated array access macros cast to the array header at access time.
+For offline generation, pass an already downloaded source archive with
 `-PteavmCompilerSources=/path/to/teavm-core-0.16.0-sources.jar`.
 
 Generate the ARM11 probe with the build command above and install the same
