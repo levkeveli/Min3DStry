@@ -161,6 +161,8 @@ and waves, touch palette/rotation, HUD/menus/minimap.
   white dot, and follows the player as they move.
 - The core item list shows one icon-and-count row per stocked item and wraps
   into columns without covering the minimap.
+- X opens the pause overlay; D-pad + A resume/save/quit, and the quit
+  confirmation path saves and exits without corrupting the sector slot.
 
 **Evidence:** raw log, screenshots of HUD/palette/minimap, frame timings and a
 short note on any glitches.
