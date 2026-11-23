@@ -33,7 +33,6 @@ import mindustry.world.blocks.payloads.BuildPayload;
 import mindustry.world.blocks.payloads.PayloadConveyor.PayloadConveyorBuild;
 import mindustry.world.blocks.payloads.UnitPayload;
 import mindustry.world.blocks.distribution.Conveyor.ConveyorBuild;
-import mindustry.world.blocks.storage.StorageBlock;
 
 /** Presents the received multiplayer world through the ARM11 terrain renderer. */
 public final class UpstreamRenderedNetworkProbe {
@@ -374,10 +373,10 @@ public final class UpstreamRenderedNetworkProbe {
         // These blocks use the sprite operations available in the live backend.
         return UpstreamBuildingLayers.supportsPowerDraw(block) || UpstreamBuildingLayers.supportsDistributionDraw(block)
             || block.category == Category.liquid || block instanceof UnitFactory || block instanceof BaseTurret
-            || block instanceof StorageBlock || block == Blocks.copperWall
+            || UpstreamBuildingLayers.supportsMaterialDraw(block) || block == Blocks.copperWall
             || block == Blocks.berylliumWall || block == Blocks.copperWallLarge
             || block == Blocks.mechanicalDrill
-            || block == Blocks.phaseWeaver || block == Blocks.overdriveProjector
+            || block == Blocks.overdriveProjector
             || block == Blocks.overdriveDome || block == Blocks.shockwaveTower
             || build instanceof PayloadConveyorBuild conveyor && (conveyor.item == null || supportsCargo(conveyor));
     }
