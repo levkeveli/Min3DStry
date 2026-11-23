@@ -21,7 +21,9 @@ public final class UpstreamClientLogic {
     }
 
     public static Fi logicIds() {
-        return ids == null ? Core.files.internal("logicids.dat") : ids;
+        if (ids != null) return ids;
+        var bundled = new Fi("/romfs/logicids.dat");
+        return bundled.exists() ? bundled : Core.files.internal("logicids.dat");
     }
 
     public static void update(float elapsedTicks) {
