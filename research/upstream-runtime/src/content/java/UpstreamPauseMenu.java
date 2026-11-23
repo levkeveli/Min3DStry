@@ -1,7 +1,7 @@
 /** Stock offline pause-menu selection and quit confirmation state. */
 public final class UpstreamPauseMenu {
     public enum Action {
-        NONE, RESUME, RESEARCH, SAVE, QUIT
+        NONE, RESUME, RESEARCH, LOAD, SAVE, QUIT
     }
 
     private int options = 3;
@@ -13,7 +13,7 @@ public final class UpstreamPauseMenu {
     }
 
     public void open(int optionCount) {
-        options = Math.max(1, Math.min(4, optionCount));
+        options = Math.max(1, Math.min(5, optionCount));
         selected = 0;
         confirmingQuit = false;
     }
@@ -41,9 +41,14 @@ public final class UpstreamPauseMenu {
             return Action.QUIT;
         }
         if (selected == 0) return Action.RESUME;
-        if (options == 4 && selected == 1) return Action.RESEARCH;
-        int saveIndex = options == 4 ? 2 : 1;
-        if (selected == saveIndex) return Action.SAVE;
+        int index = 1;
+        if (options >= 4) {
+            if (selected == index++) return Action.RESEARCH;
+        }
+        if (options == 5) {
+            if (selected == index++) return Action.LOAD;
+        }
+        if (selected == index) return Action.SAVE;
         confirmingQuit = true;
         return Action.NONE;
     }
