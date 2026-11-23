@@ -178,6 +178,10 @@ def _classify_path(path: str, flags: dict[str, bool], probes: set[str]) -> str:
         flags["run_progression"] = True
         return "scoped"
 
+    if norm == RUNTIME + "src/gameplay/java/ProbeListenerShutdown.java":
+        probes.add("wave-routing")
+        return "scoped"
+
     if norm in COMBAT_EXACT or norm.startswith("research/upstream-runtime/host/UpstreamCombat"):
         flags["run_combat"] = True
         probes.add("wave-routing")
@@ -191,7 +195,12 @@ def _classify_path(path: str, flags: dict[str, bool], probes: set[str]) -> str:
         flags["run_factory"] = True
         return "scoped"
 
-    if norm in SINGLEPLAYER_EXACT or norm.startswith("research/upstream-runtime/src/singleplayer/"):
+    if norm in SINGLEPLAYER_EXACT or norm.startswith((
+        RUNTIME + "src/singleplayer/",
+        RUNTIME + "src/singleplayer-campaign-host/",
+        RUNTIME + "src/singleplayer-custom-host/",
+        RUNTIME + "src/singleplayer-research-host/",
+    )):
         flags["run_singleplayer"] = True
         return "scoped"
 

@@ -2,6 +2,7 @@ import arc.Core;
 import arc.Events;
 import arc.Settings;
 import arc.assets.AssetManager;
+import arc.audio.Audio;
 import arc.files.Fi;
 import arc.math.Mathf;
 import arc.math.geom.Vec2;
@@ -53,6 +54,7 @@ import mindustry.type.Sector;
 import mindustry.logic.GlobalVars;
 import mindustry.mod.Mods;
 import mindustry.world.Tile;
+import mindustry.world.WorldParams;
 import mindustry.world.blocks.storage.CoreBlock;
 import mindustry.world.blocks.storage.CoreBlock.CoreBuild;
 
@@ -93,6 +95,11 @@ public final class UpstreamSinglePlayerSession {
 
     static UpstreamSinglePlayerSession create(Fi mapDirectory, String locale, Fi planetData, Settings settings,
                                              Fi campaignMaps) {
+        return create(mapDirectory, locale, planetData, settings, campaignMaps, new MockAudio());
+    }
+
+    static UpstreamSinglePlayerSession create(Fi mapDirectory, String locale, Fi planetData, Settings settings,
+                                             Fi campaignMaps, Audio audio) {
         if (planetData != null && planetData.isDirectory()) {
             for (Fi file : planetData.list()) {
                 if (!file.isDirectory() && file.extension().equals("json")) {
@@ -115,7 +122,7 @@ public final class UpstreamSinglePlayerSession {
         CacheLayer.init();
         settings.defaults("locale", locale == null || locale.isEmpty() ? "en" : locale);
         var app = UpstreamWorldLoadProbe.initialize(mapDirectory, settings, campaignMaps != null);
-        Core.audio = new MockAudio();
+        Core.audio = audio;
         Core.files = new MockFiles();
         final UpstreamSinglePlayerSession[] holder = new UpstreamSinglePlayerSession[1];
         Core.graphics = new MockGraphics() {
@@ -209,11 +216,39 @@ public final class UpstreamSinglePlayerSession {
     }
 
     void launchNewSector(Sector origin, Sector sector, Fi saveFile, UpstreamCampaignLoadout loadout) throws IOException {
-        if (loadout != null && !origin.items().has(loadout.cost())) {
-            throw new IOException("Insufficient launch resources in " + origin.name());
-        }
         if (saveFile.exists()) {
             throw new IOException("Campaign slot already exists: " + saveFile.path());
+        }
+        launchSector(origin, sector, saveFile, loadout, new WorldParams(), null);
+    }
+
+    void retryCampaignSector(SectorSlot slot, UpstreamCampaignLoadout loadout) throws IOException {
+        Sector sector = slot.sector;
+        if (!needsCampaignRetry(slot) || slot.origin == null || !slot.file.equals(sector.save.file)) {
+            throw new IOException("Campaign slot is not eligible for retry: " + slot.file.name());
+        }
+        var params = new WorldParams();
+        UpstreamCampaignRecovery recovery = null;
+        if (!sector.planet.clearSectorOnLose && !sector.planet.campaignRules.clearSectorOnLose) {
+            Vars.logic.reset();
+            try {
+                SaveIO.load(slot.file, Vars.world.makeSectorContext(sector));
+                app.runPosted();
+                recovery = UpstreamCampaignRecovery.prepare(sector, params);
+            } finally {
+                // Logic's SaveLoadEvent provisionally marks the base active. Restore the
+                // recorded loss until the replacement world is successfully saved.
+                sector.info.hasCore = false;
+                sector.saveInfo();
+            }
+        }
+        launchSector(slot.origin, sector, slot.file, loadout, params, recovery);
+    }
+
+    private void launchSector(Sector origin, Sector sector, Fi saveFile, UpstreamCampaignLoadout loadout,
+                              WorldParams params, UpstreamCampaignRecovery recovery) throws IOException {
+        if (loadout != null && !origin.items().has(loadout.cost())) {
+            throw new IOException("Insufficient launch resources in " + origin.name());
         }
         // Offline portion of v160.8 Control.playSector and Control.playNewSector.
         if (origin == sector) Vars.universe.clearLoadoutInfo();
@@ -223,7 +258,7 @@ public final class UpstreamSinglePlayerSession {
             Vars.universe.updateLoadout(loadout.core(), loadout.schematic());
             Vars.universe.updateLaunchResources(loadout.resources());
         }
-        Vars.world.loadSector(sector);
+        Vars.world.loadSector(sector, params);
         if (loadout != null) {
             origin.removeItems(loadout.cost());
             Events.fire(new SectorLaunchLoadoutEvent(sector, origin, loadout.schematic()));
@@ -234,6 +269,7 @@ public final class UpstreamSinglePlayerSession {
         sector.info.attempts++;
         if (sector.preset != null) sector.preset.quietUnlock();
         sector.planet.setLastSector(sector);
+        if (recovery != null) recovery.run();
 
         app.runPosted();
         Events.fire(new RulesLoadEvent(Vars.state.rules));
@@ -334,7 +370,15 @@ public final class UpstreamSinglePlayerSession {
     }
 
     List<SectorSlot> campaignSlots(List<SectorSlot> saves, Sector selectedOrigin) {
-        var slots = new ArrayList<>(saves);
+        var slots = new ArrayList<SectorSlot>(saves.size());
+        for (SectorSlot slot : saves) {
+            if (!needsCampaignRetry(slot)) {
+                slots.add(slot);
+            } else {
+                Sector origin = landingOrigin(slot.sector, selectedOrigin);
+                if (origin != null) slots.add(new SectorSlot(slot.file, slot.sector, slot.timestamp, origin));
+            }
+        }
         for (var planet : new Planet[]{Planets.serpulo, Planets.erekir}) {
             addLaunchSlot(slots, planet.getStartSector(), selectedOrigin);
         }
@@ -346,24 +390,39 @@ public final class UpstreamSinglePlayerSession {
         return slots;
     }
 
+    static boolean needsCampaignRetry(SectorSlot slot) {
+        var sector = slot.sector;
+        // Imported .msav files can lack their original settings. Keep the normal resume path
+        // unless the campaign metadata actually records a lost base.
+        return sector.save != null && !sector.info.hasCore
+            && Core.settings.has(sector.planet.name + "-s-" + sector.id + "-info");
+    }
+
     private void addLaunchSlot(List<SectorSlot> slots, Sector sector, Sector selectedOrigin) {
-        if (sector.save != null || sector.isShielded()) return;
-        // Normal campaign view eligibility from v160.8 PlanetDialog, followed by its launch-candidate check.
+        if (sector.save != null) return;
+        Sector origin = landingOrigin(sector, selectedOrigin);
+        if (origin == null) return;
+
+        var file = sectorFile(sector);
+        if (!file.exists()) slots.add(new SectorSlot(file, sector, -1, origin));
+    }
+
+    private Sector landingOrigin(Sector sector, Sector selectedOrigin) {
+        if (sector.isShielded()) return null;
+        // Normal campaign view eligibility and launch-candidate check from v160.8 PlanetDialog.
         boolean starter = sector == sector.planet.getStartSector();
         var generator = sector.planet.generator;
-        if (generator == null) return;
+        if (generator == null) return null;
         var preset = sector.preset;
         if (preset != null && (preset.generator.map == null
-                || preset.requireUnlock && preset.locked() && preset.techNode != null)) return;
-        if (!starter && (preset == null || !preset.requireUnlock) && !generator.allowLanding(sector)) return;
+                || preset.requireUnlock && preset.locked() && preset.techNode != null)) return null;
+        if (!starter && (preset == null || !preset.requireUnlock) && !generator.allowLanding(sector)) return null;
         Sector adjacentOrigin = selectedOrigin != null && selectedOrigin.planet == sector.planet ? selectedOrigin : null;
         Sector origin = generator.findLaunchCandidate(sector, adjacentOrigin);
         if (origin == null && adjacentOrigin != null && adjacentOrigin.hasBase() && !adjacentOrigin.isAttacked()) {
             origin = adjacentOrigin;
         }
-        if (origin == null && !starter) return;
-        var file = sectorFile(sector);
-        if (!file.exists()) slots.add(new SectorSlot(file, sector, -1, origin == null ? sector : origin));
+        return origin == null && starter ? sector : origin;
     }
 
     static int lastSectorRow(List<SectorSlot> slots) {
@@ -522,6 +581,17 @@ public final class UpstreamSinglePlayerSession {
         Vars.logic.runWave();
         app.runPosted();
         return Vars.state.wave;
+    }
+
+    boolean saveCampaignDefeat(Fi slot) throws IOException {
+        var sector = Vars.state.rules.sector;
+        if (sector == null || !Vars.state.gameOver || Vars.net.client()) return false;
+
+        // Offline portion of v160.8 Control's GameOverEvent handlers.
+        Vars.state.stats.wavesLasted = Vars.state.wave;
+        save(slot);
+        System.out.println("UPSTREAM_CAMPAIGN_DEFEAT sector=" + sector.id + " wave=" + Vars.state.wave);
+        return true;
     }
 
     long save(Fi saveFile) throws IOException {

@@ -57,6 +57,16 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
         }
     }
 
+    float drawChatLine(byte[] text, int[] characters, float bottom) {
+        return NativeTerrain.drawChatLine(Address.ofData(text), Address.ofData(characters), characters.length / 7, bottom);
+    }
+
+    void drawChatKeyboard(byte[] labels) {
+        if (NativeTerrain.drawChatKeyboard(Address.ofData(labels)) == 0) {
+            throw new IllegalStateException("Unable to draw the live chat keyboard");
+        }
+    }
+
     // Keep the catalog kinds in the same order as the native renderer.
     static final int ITEM_CATALOG = 0, BLOCK_CATALOG = 1, UNIT_CATALOG = 2, COMMAND_CATALOG = 3, STANCE_CATALOG = 4, SCHEMATIC_CATALOG = 5;
 
@@ -96,6 +106,11 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
         if (result != 1) {
             throw new IllegalStateException("Unable to start Citro2D terrain frame: " + result);
         }
+    }
+
+    @Override
+    public void finishTerrain() {
+        NativeTerrain.finishTerrain();
     }
 
     @Override
@@ -246,6 +261,9 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
         static native int drawLogicDisplay(int id, int revision, int width, int height, Address pixels,
                                            Address vertices, int offset, int blendMode);
 
+        @Import(name = "m3ds_terrain_finish_terrain")
+        static native void finishTerrain();
+
         @Import(name = "m3ds_terrain_end")
         static native int end();
 
@@ -253,6 +271,12 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
         static native int buildOverlay(int column, int row, int block, int rotation, int removing, int tileSize,
                                        int rotatable, int catalogOpen, int configuring, int selectingMine,
                                        int inventoryAction, int commandMode, int selectingControl, int placingSchematic);
+
+        @Import(name = "m3ds_terrain_draw_chat_line")
+        static native float drawChatLine(Address text, Address characters, int count, float bottom);
+
+        @Import(name = "m3ds_terrain_draw_chat_keyboard")
+        static native int drawChatKeyboard(Address labels);
 
         @Import(name = "m3ds_terrain_build_catalog")
         static native int buildCatalog(Address labels, Address icons, int activeRows,

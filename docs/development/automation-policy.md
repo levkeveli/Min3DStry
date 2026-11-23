@@ -55,17 +55,47 @@ If CI fails or `AI review` flags critical/major findings, return the task to the
 - **Self-hosted Linux CI runners (`wings02`):** Same-repo PRs, `main` pushes, and `workflow_dispatch` runs route Linux jobs across 7 persistent self-hosted runners (`[self-hosted, linux, x64, min3dstry]`) on `wings02` using an asymmetric NUMA split (4 runners pinned to Node 0 with 4 memory channels and local PCIe SSD/NIC affinity; 3 runners pinned to Node 1 with 3 memory channels). Each runner maintains an isolated `GRADLE_USER_HOME` and passes `M3DS_DOCKER_CPUSET_CPUS`/`M3DS_DOCKER_CPUSET_MEMS` into pinned `devkitpro/devkitarm` Docker builds. External fork PRs automatically fall back to GitHub-hosted `ubuntu-latest` and never execute on persistent self-hosted runners or access secrets; `Windows host tests` remains on `windows-latest` and `Pages` stays on `ubuntu-latest`. Workflow-level `concurrency:` cancels superseded PR runs, and ARM11 smoke jobs are scoped as described below.
 - **Self-service task claiming:** Agents do not wait for human assignment. To claim a `status:ready` issue from [Min3DStry Roadmap](https://github.com/orgs/levkeveli/projects/1), check that no open PR or recent claim comment exists, comment on the issue with the agent handle and dedicated branch name, swap `status:ready` -> `status:in-progress` (and `status:in-review` once the PR is open), reference `Closes #N` in the PR body, and let CI + `AI review` auto-merge.
 
-## Priority Bootstrap runner
+## Workstation CI runners
 
 When repository variable `M3DS_PRIORITY_BOOTSTRAP` is `true`, same-repository
-Bootstrap checks route to `min3dstry-priority` on `levyathan`. This
-dedicated runner uses the workstation’s eight performance cores and runs under
-an isolated service account. Heavy compiler jobs retain the `wings02` pool,
-and fork PRs retain GitHub-hosted Bootstrap checks.
+Bootstrap checks route to `levyathan-priority` via `min3dstry-priority`. That
+runner uses CPU 0 (one performance core) and CPUs 8–19 (12 efficiency cores).
+Unset the variable before taking it offline to route new Bootstrap jobs to
+`min3dstry-fast` on `wings02`.
 
-Unset the variable before taking the workstation runner offline. New
-Bootstrap jobs will then use `min3dstry-fast` on `wings02`. GitHub queues
-jobs until a runner with the requested label is available.
+`levyathan-arm11` adds one slot to the shared `min3dstry` pool used by ARM11
+builds and probes. It uses the seven other performance cores (CPUs 1–7).
+The runner uses a dedicated Linux account and runs the pinned build images
+with rootless Podman. Build containers inherit the runner's CPU affinity.
+GitHub assigns these jobs to any available runner with the shared label.
+Fork PRs continue to use GitHub-hosted runners.
+
+The full ARM11 build and smoke workflows use the same pinned-input fetcher.
+On runners with `M3DS_UPSTREAM_CACHE` configured, it stages the local pinned
+Mindustry and Arc checkouts and the checksum-verified server JAR on each job.
+Missing or mismatched inputs use the normal upstream downloads.
+
+## Live runner status
+
+The Pages dashboard reads the [runner status record](https://github.com/levkeveli/Min3DStry/issues/424)
+every 150 seconds. It shows GitHub Actions self-hosted runners, their
+GitHub-reported availability, and links to matching active jobs. Unavailable job
+details are shown separately from runner availability.
+
+On `wings01`, `min3ds-runner-status.timer` runs
+`tools/publish_runner_status.py` about once a minute. The publisher uses the
+server's authenticated GitHub CLI and updates that record in place when status
+changes or after five minutes without an update. It publishes runner names and
+public Actions job metadata. The dashboard flags a snapshot older than ten
+minutes. Check the timer and `journalctl -u min3ds-runner-status.service` if the
+feed is stale. Run `python3 tools/publish_runner_status.py --print` to inspect a
+snapshot using an authenticated GitHub CLI without publishing it.
+
+The full embedded-loader build excludes edits confined to standalone terrain,
+live network, and single-player source sets that the save-rows target does
+not compile. Shared world, content, Gradle and ARM11 tooling changes still
+trigger the full build, as do default C app changes. The smoke workflow
+continues to select its own checks for the standalone runtime.
 
 ## ARM11 smoke scope
 

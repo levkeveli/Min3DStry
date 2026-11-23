@@ -93,7 +93,7 @@ def build_snapshot(sha: str, token: str | None) -> dict[str, Any]:
 
     try:
         issues_raw = api_get_paginated("issues?state=all", token)
-        issues = [normalize_issue(i) for i in issues_raw if "pull_request" not in i]
+        issues = [normalize_issue(i) for i in issues_raw if "pull_request" not in i and i["number"] != 424]
     except api_errors as exc:
         issues = []
         warnings.append(f"issues unavailable: {exc}")

@@ -6,12 +6,15 @@ import java.util.function.Predicate;
 import mindustry.Vars;
 import mindustry.game.Team;
 import mindustry.gen.Building;
+import mindustry.gen.Groups;
+import mindustry.gen.Puddle;
 import mindustry.graphics.BuildingCacheLayer;
 import mindustry.graphics.CacheLayer;
 import mindustry.graphics.Layer;
 import mindustry.type.Category;
 import mindustry.type.UnitType;
 import mindustry.world.Block;
+import mindustry.world.blocks.heat.HeatConductor;
 import mindustry.world.meta.BuildVisibility;
 import mindustry.world.blocks.liquid.LiquidRouter;
 import mindustry.world.blocks.payloads.PayloadConveyor.PayloadConveyorBuild;
@@ -45,8 +48,8 @@ final class UpstreamBuildingLayers {
     }
 
     static boolean supportsMaterialDraw(Block block) {
-        return block instanceof GenericCrafter || block instanceof Separator || block instanceof Pump
-            || block instanceof LiquidRouter || block instanceof StorageBlock;
+        return block instanceof GenericCrafter || block instanceof HeatConductor || block instanceof Separator
+            || block instanceof Pump || block instanceof LiquidRouter || block instanceof StorageBlock;
     }
 
     static boolean supportsExtractorDraw(Block block) {
@@ -84,6 +87,7 @@ final class UpstreamBuildingLayers {
         visited.clear();
         Draw.sort(true);
         try {
+            drawPuddles(viewport);
             for (var layer : BuildingCacheLayer.all) {
                 Draw.draw(layer.layer, () -> drawCached(layer, viewer));
             }
@@ -110,6 +114,22 @@ final class UpstreamBuildingLayers {
             } finally {
                 visible.clear();
             }
+        }
+    }
+
+    private static void drawPuddles(UpstreamTerrainDrawProbe.Viewport viewport) {
+        float left = (viewport.left - 0.5f) * Vars.tilesize;
+        float bottom = (viewport.bottom - 0.5f) * Vars.tilesize;
+        float right = left + UpstreamTerrainDrawProbe.VIEW_WIDTH * Vars.tilesize;
+        float top = bottom + UpstreamTerrainDrawProbe.VIEW_HEIGHT * Vars.tilesize;
+        for (var entity : Groups.draw) {
+            if (!(entity instanceof Puddle puddle) || puddle.tile == null || puddle.liquid == null) continue;
+            float radius = puddle.clipSize() / 2f;
+            if (puddle.x + radius < left || puddle.x - radius > right
+                    || puddle.y + radius < bottom || puddle.y - radius > top) continue;
+            // Stock cell liquid places some of its geometry above the host building.
+            puddle.draw();
+            Draw.reset();
         }
     }
 

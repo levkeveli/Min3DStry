@@ -38,6 +38,7 @@ public final class UpstreamTerrainDrawProbe {
 
     interface TerrainTarget {
         void begin(int left, int bottom, int width, int height);
+        default void finishTerrain() {}
         void draw(int page, int left, int top, int width, int height,
                   float x, float y, float originX, float originY, float drawWidth, float drawHeight,
                   float rotation, int color, int mixColor, Blending blending);
@@ -196,6 +197,7 @@ public final class UpstreamTerrainDrawProbe {
                     }
                 }
             }
+            if (batch.target != null) batch.target.finishTerrain();
             buildings.run();
             if (batch.target != null) {
                 batch.target.overlay();

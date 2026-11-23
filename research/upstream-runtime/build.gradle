@@ -56,6 +56,7 @@ def entryPoints = [
     'singleplayer-sim': 'UpstreamSinglePlayerSession',
     'singleplayer': 'UpstreamSinglePlayerApp',
     'unified': 'UpstreamUnifiedApp',
+    'campaign-background': 'UpstreamBackgroundCampaignTurnReference',
     'terrain-draw': 'UpstreamTerrainDrawProbe',
     'terrain-render': 'UpstreamTerrainRenderProbe',
     'file-metadata': 'port.UpstreamFileMetadataProbe',
@@ -79,7 +80,7 @@ if (!entryPoints.containsKey(probe)) {
 }
 def entryPoint = entryPoints[probe]
 def usesMapSources = probe in ['map', 'map-sd']
-def usesSinglePlayerApp = probe in ['singleplayer', 'unified']
+def usesSinglePlayerApp = probe in ['singleplayer', 'unified', 'campaign-background']
 def usesSinglePlayer = usesSinglePlayerApp || probe == 'singleplayer-sim'
 def usesLiveNetwork = probe in ['network-live', 'network-render', 'unified']
 def usesLiveAudio = probe in ['network-render', 'unified']
@@ -321,6 +322,11 @@ if (probe == 'world-stream') {
 }
 if (usesLiveNetwork) {
     sourceSets.main.java.srcDirs('src/network-live/java', 'src/network-live/host')
+    tasks.register('runStockPlayerIdentityJvm', JavaExec) {
+        dependsOn 'classes'
+        classpath = sourceSets.main.runtimeClasspath
+        mainClass = 'UpstreamPlayerIdentityReference'
+    }
 }
 if (probe in ['network-render', 'unified']) {
     sourceSets.main.java.srcDirs('src/network-render/java', 'src/network-render/host')
@@ -338,6 +344,10 @@ if (probe in ['network-render', 'unified']) {
 if (usesSinglePlayer) {
     sourceSets.main.java.srcDir('src/singleplayer/java')
     if (usesSinglePlayerApp) {
+        tasks.register('runStockMapEditorJvm', JavaExec) {
+            classpath = sourceSets.main.runtimeClasspath
+            mainClass = 'UpstreamStockMapEditorReference'
+        }
         sourceSets.main.java.srcDirs('src/singleplayer-custom-host/java', 'src/singleplayer-campaign-host/java')
         sourceSets.main.java.srcDir('src/singleplayer-research-host/java')
         tasks.register('runGraphicalCampaignResearchJvm', JavaExec) {
@@ -353,6 +363,15 @@ if (usesSinglePlayer) {
             mainClass = 'UpstreamOfflineMaterialsReference'
             workingDir = temporaryDir
         }
+        tasks.register('runStockAssemblerJvm', JavaExec) {
+            classpath = sourceSets.main.runtimeClasspath
+            mainClass = 'UpstreamStockAssemblerReference'
+        }
+        tasks.register('runErekirHeatJvm', JavaExec) {
+            classpath = sourceSets.main.runtimeClasspath
+            mainClass = 'UpstreamErekirHeatReference'
+            workingDir = temporaryDir
+        }
         tasks.register('runOfflineWeaponsJvm', JavaExec) {
             classpath = sourceSets.main.runtimeClasspath
             mainClass = 'UpstreamOfflineWeaponsReference'
@@ -364,6 +383,14 @@ if (usesSinglePlayer) {
         tasks.register('runGraphicalCampaignSettingsJvm', JavaExec) {
             classpath = sourceSets.main.runtimeClasspath
             mainClass = 'UpstreamGraphicalCampaignSettingsReference'
+        }
+        tasks.register('runGraphicalCampaignDefeatJvm', JavaExec) {
+            classpath = sourceSets.main.runtimeClasspath
+            mainClass = 'UpstreamCampaignDefeatReference'
+        }
+        tasks.register('runBackgroundCampaignTurnJvm', JavaExec) {
+            classpath = sourceSets.main.runtimeClasspath
+            mainClass = 'UpstreamBackgroundCampaignTurnReference'
         }
         tasks.register('runGraphicalCampaignPresetMapsJvm', JavaExec) {
             classpath = sourceSets.main.runtimeClasspath
@@ -384,7 +411,8 @@ if (usesSinglePlayer) {
     } else if (!usesLiveNetwork) {
         sourceSets.main.java.srcDir('src/network-live/java')
         sourceSets.main.java.srcDir('src/network-render/java')
-        sourceSets.main.java.exclude('UpstreamLiveNetworkProbe.java', 'UpstreamRenderedNetworkProbe.java', 'port/audio/**')
+        sourceSets.main.java.exclude('UpstreamLiveNetworkProbe.java', 'UpstreamPlayerIdentity.java',
+            'UpstreamRenderedNetworkProbe.java', 'port/audio/**')
         sourceSets.main.java.srcDir('src/singleplayer/host')
         tasks.register('runOfflineWeatherJvm', JavaExec) {
             dependsOn 'classes'
@@ -494,6 +522,12 @@ tasks.register('prepareUpstreamProbe') {
         inputs.file(pixmapPatch)
         outputs.file(arcPixmapFile)
     }
+    if (usesSinglePlayerApp) {
+        outputs.files(sourceDir.map { dir ->
+            ['mindustry/editor/MapEditor.java', 'mindustry/editor/EditorTile.java']
+                .collect { dir.file(it) }
+        })
+    }
     if (usesWorldStream) {
         outputs.file(networkIoFile)
     }
@@ -535,6 +569,20 @@ tasks.register('prepareUpstreamProbe') {
         outputs.file(globalVarsFile)
     }
     doLast {
+        if (usesSinglePlayerApp) {
+            def directory = sourceDir.get().dir('mindustry/editor').asFile
+            directory.mkdirs()
+            new File(directory, 'MapEditor.java').setText(
+                new String(readUpstream('core/src/mindustry/editor/MapEditor.java'), 'UTF-8'), 'UTF-8')
+            def editorTile = new String(readUpstream('core/src/mindustry/editor/EditorTile.java'), 'UTF-8')
+            def shadowUpdate = 'renderer.blocks.updateShadowTile(this);'
+            if (editorTile.count(shadowUpdate) != 1) {
+                throw new GradleException('Pinned editor shadow update changed')
+            }
+            new File(directory, 'EditorTile.java').setText(
+                editorTile.replace(shadowUpdate, 'if(renderer != null) renderer.blocks.updateShadowTile(this);'),
+                'UTF-8')
+        }
         if (usesLiveAudio) {
             def sound = new String(providers.exec {
                 commandLine 'git', '-C', arc.get(), 'show', "${arcRevision}:${soundSource}"
@@ -566,6 +614,15 @@ tasks.register('prepareUpstreamProbe') {
                 'state.isGame() && Core.scene.hasDialog()': 'state.isGame() && Core.scene != null && Core.scene.hasDialog()',
                 'if(ui.planet.isShown())': 'if(ui != null && ui.planet.isShown())',
                 'else if(ui.editor.isShown())': 'else if(ui != null && ui.editor.isShown())',
+                '''    public void loop(Sound sound, float volume){
+        if(Vars.headless) return;''': '''    protected boolean acceptsWorldLoops(){
+        return !Vars.headless;
+    }
+
+    public void loop(Sound sound, float volume){
+        if(!acceptsWorldLoops()) return;''',
+                'if(Vars.headless || sound == Sounds.none || volume <= 0.00001f) return;':
+                    'if(!acceptsWorldLoops() || sound == Sounds.none || volume <= 0.00001f) return;',
                 'LinkedBlockingQueue<AmbientSource> inputSources = new LinkedBlockingQueue<>();':
                     'final java.util.ArrayDeque<AmbientSource> inputSources = new java.util.ArrayDeque<>();',
                 'ambientThread.inputSources.add(source);':
@@ -680,6 +737,24 @@ tasks.register('prepareUpstreamProbe') {
             def drawOver = '    public void drawOver(WeatherState state){'
             if (weather.count(minScale) != 6 || weather.count(drawOver) != 1) {
                 throw new GradleException('Pinned weather viewport changed')
+            }
+            if (usesLiveAudio) {
+                def imports = 'import mindustry.annotations.Annotations.*;'
+                def guard = '        if(!headless && sound != Sounds.none){'
+                def loop = '            control.sound.loop(sound, Math.max((soundVol + noise) * state.opacity, soundVolMin));'
+                if (weather.count(imports) != 1 || weather.count(guard) != 1 || weather.count(loop) != 1) {
+                    throw new GradleException('Pinned weather audio changed')
+                }
+                weather = weather.replace(imports, '''import mindustry.annotations.Annotations.*;
+import mindustry.audio.SoundControl;
+import port.audio.Arm11Audio;''')
+                    .replace(guard, '''        var audio = headless ? Arm11Audio.musicControl() : control.sound;
+        updateSound(state, audio);
+    }
+
+    public void updateSound(WeatherState state, SoundControl audio){
+        if(audio != null && sound != Sounds.none){''')
+                    .replace(loop, loop.replace('control.sound', 'audio'))
             }
             def adaptedWeather = sourceDir.get().file('mindustry/type/Weather.java').asFile
             adaptedWeather.parentFile.mkdirs()
@@ -958,12 +1033,13 @@ final class GlacierFixture {
     private DataInputStream dataStream = new DataInputStream(byteStream);
     private Reads dataStreamReads = new Reads(dataStream);'''
             def constructor = 'public NetClient(){'
-            if (source.count(buffer) != 1 || source.count(constructor) != 1) {
+            def usid = 'String getUsid(String ip){'
+            if (source.count(buffer) != 1 || source.count(constructor) != 1 || source.count(usid) != 1) {
                 throw new GradleException('Pinned NetClient snapshot reader changed')
             }
             def outputClient = netClientFile.get().asFile
             outputClient.parentFile.mkdirs()
-            outputClient.setText(source.replace(buffer, '''private final ReusableByteInStream byteStream;
+            outputClient.setText(source.replace(usid, 'public ' + usid).replace(buffer, '''private final ReusableByteInStream byteStream;
     private final DataInputStream dataStream;
     private final Reads dataStreamReads;''').replace(constructor, '''private NetClient(ReusableByteInStream snapshotInput){
         byteStream = snapshotInput;

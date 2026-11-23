@@ -13,6 +13,16 @@ on:
       - "tools/build_teavm_loader.sh"
       - "tests/platform/embed_loader_smoke.c"
       - ".github/workflows/full-build.yml"
+      - ".github/scripts/fetch_upstream_v160.sh"
+      # The embedded save-rows loader compiles the shared world and content
+      # sources. These standalone source sets never enter that target.
+      - "!research/upstream-runtime/src/network-live/**"
+      - "!research/upstream-runtime/src/network-render/**"
+      - "!research/upstream-runtime/src/singleplayer/**"
+      - "!research/upstream-runtime/src/singleplayer-campaign-host/**"
+      - "!research/upstream-runtime/src/singleplayer-custom-host/**"
+      - "!research/upstream-runtime/src/singleplayer-research-host/**"
+      - "!research/upstream-runtime/src/terrain/**"
       - "!research/upstream-runtime/**/*.md"
   push:
     branches: [main]
@@ -26,6 +36,16 @@ on:
       - "tools/build_teavm_loader.sh"
       - "tests/platform/embed_loader_smoke.c"
       - ".github/workflows/full-build.yml"
+      - ".github/scripts/fetch_upstream_v160.sh"
+      # The embedded save-rows loader compiles the shared world and content
+      # sources. These standalone source sets never enter that target.
+      - "!research/upstream-runtime/src/network-live/**"
+      - "!research/upstream-runtime/src/network-render/**"
+      - "!research/upstream-runtime/src/singleplayer/**"
+      - "!research/upstream-runtime/src/singleplayer-campaign-host/**"
+      - "!research/upstream-runtime/src/singleplayer-custom-host/**"
+      - "!research/upstream-runtime/src/singleplayer-research-host/**"
+      - "!research/upstream-runtime/src/terrain/**"
       - "!research/upstream-runtime/**/*.md"
   workflow_dispatch:
 
@@ -52,29 +72,7 @@ jobs:
           java-version: "17"
 
       - name: Fetch pinned upstream source, server JAR and Arc
-        run: |
-          git clone --depth 1 --branch v160.8 \
-            https://github.com/Anuken/Mindustry.git "$RUNNER_TEMP/Mindustry"
-          test "$(git -C "$RUNNER_TEMP/Mindustry" rev-parse HEAD)" = \
-            "19a0f40d44514f4802a8b79770456e7e32e34da0"
-          curl --fail --silent --show-error --location \
-            https://github.com/Anuken/Mindustry/releases/download/v160.8/server-release.jar \
-            -o "$RUNNER_TEMP/server-release.jar"
-          # Official v160.8 server-release.jar (19,353,710 bytes) checksum.
-          echo 'faeaf247a8b622de940181a96cb21cb20692d3c3da4e8ac3f79cb4af5059aa6c  '"$RUNNER_TEMP"'/server-release.jar' \
-            | sha256sum --check --strict
-          # The Arc revision lives in research/upstream-runtime/build.gradle;
-          # read it from there so the workflow cannot drift from the pinned build.
-          arc_revision="$(
-            sed -n "s/^def arcRevision = '\([0-9a-f]\{40\}\)'.*/\1/p" \
-              research/upstream-runtime/build.gradle
-          )"
-          test -n "$arc_revision"
-          git clone --filter=blob:none --no-checkout \
-            https://github.com/Anuken/Arc.git "$RUNNER_TEMP/Arc"
-          git -C "$RUNNER_TEMP/Arc" fetch --depth 1 origin "$arc_revision"
-          git -C "$RUNNER_TEMP/Arc" checkout --detach FETCH_HEAD
-          test "$(git -C "$RUNNER_TEMP/Arc" rev-parse HEAD)" = "$arc_revision"
+        run: bash .github/scripts/fetch_upstream_v160.sh --mindustry --server-jar --arc
 
       - name: Generate TeaVM loader C
         run: |

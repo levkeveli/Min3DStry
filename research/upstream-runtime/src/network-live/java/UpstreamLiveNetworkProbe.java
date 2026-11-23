@@ -41,6 +41,7 @@ import mindustry.gen.CommandBuildingCallPacket;
 import mindustry.gen.CommandUnitsCallPacket;
 import mindustry.gen.ConnectConfirmCallPacket;
 import mindustry.gen.CreateMarkerCallPacket;
+import mindustry.gen.CreateWeatherCallPacket;
 import mindustry.gen.CreateBulletCallPacket;
 import mindustry.gen.ConstructFinishCallPacket;
 import mindustry.gen.DeconstructFinishCallPacket;
@@ -52,6 +53,9 @@ import mindustry.gen.Mechc;
 import mindustry.gen.Player;
 import mindustry.gen.RemoveMarkerCallPacket;
 import mindustry.gen.RemoveQueueBlockCallPacket;
+import mindustry.gen.SendChatMessageCallPacket;
+import mindustry.gen.SendMessageCallPacket;
+import mindustry.gen.SendMessageCallPacket2;
 import mindustry.gen.SetObjectivesCallPacket;
 import mindustry.gen.SetPositionCallPacket;
 import mindustry.gen.SetRuleCallPacket;
@@ -92,35 +96,41 @@ public final class UpstreamLiveNetworkProbe {
     // Match Arc's pinned TcpConnection and UdpConnection default intervals.
     private static final long TCP_KEEP_ALIVE_NS = 8_000_000_000L;
     private static final long UDP_KEEP_ALIVE_NS = 19_000_000_000L;
-    private static final String PLAYER_NAME = "Min3DStry ARM11";
     private enum Mode { SNAPSHOTS, MOVEMENT, CONTROLS }
     private final byte[] packet = new byte[32_768];
     private final Mode mode;
+    private final UpstreamPlayerIdentity identity;
     private final Consumer<Unit> frame;
     private final UpstreamLiveBuildControls building;
+    private final Consumer<String> chat;
+    private final UpstreamChatInput chatInput;
+    private Runnable deferredGraphics;
     private int nextLiveTransport = 1;
 
-    private UpstreamLiveNetworkProbe(Mode mode, Consumer<Unit> frame, UpstreamLiveBuildControls building) {
+    private UpstreamLiveNetworkProbe(Mode mode, Runnable deferredGraphics, Consumer<Unit> frame,
+                                     UpstreamLiveBuildControls building, Consumer<String> chat,
+                                     UpstreamChatInput chatInput, UpstreamPlayerIdentity identity) {
         this.mode = mode;
+        this.deferredGraphics = deferredGraphics;
         this.frame = frame;
         this.building = building;
+        this.chat = chat;
+        this.chatInput = chatInput;
+        this.identity = identity;
     }
 
     public static void main(String[] args) throws IOException, InterruptedException {
-        run(endpointFile(args), null, null, null);
+        var endpoint = endpointFile(args);
+        run(endpoint.parent(), endpoint.readString(), null, null, null, null, null, null);
     }
 
     static Fi endpointFile(String[] args) {
         return new Fi(args.length == 0 ? "/3ds/min3dstry/server-endpoint.txt" : args[0]);
     }
 
-    static void run(Fi config, Runnable beforeConnect, Consumer<Unit> frame, UpstreamLiveBuildControls building)
-            throws IOException, InterruptedException {
-        run(config.parent(), config.readString(), beforeConnect, frame, building);
-    }
-
-    static void run(Fi directory, String address, Runnable beforeConnect, Consumer<Unit> frame,
-                    UpstreamLiveBuildControls building) throws IOException, InterruptedException {
+    static void run(Fi directory, String address, Runnable beforeConnect, Runnable deferredGraphics,
+                    Consumer<Unit> frame, UpstreamLiveBuildControls building, Consumer<String> chat, UpstreamChatInput chatInput)
+                    throws IOException, InterruptedException {
         String[] endpoint = address.trim().split("\\s+");
         if (endpoint.length < 2 || endpoint.length > 3) {
             throw new IllegalArgumentException("Expected a server host and port with optional movement or controls mode");
@@ -144,10 +154,13 @@ public final class UpstreamLiveNetworkProbe {
                 Vars.pathfinder = new Pathfinder();
                 Vars.fogControl = new FogControl();
             }
-            stage = "graphics";
+            stage = "client setup";
             if (beforeConnect != null) beforeConnect.run();
+            stage = "profile";
+            var identity = UpstreamPlayerIdentity.load(directory, endpoint[0]);
             stage = "session";
-            new UpstreamLiveNetworkProbe(mode, frame, building).run(host, port, app);
+            new UpstreamLiveNetworkProbe(mode, deferredGraphics, frame, building, chat, chatInput, identity)
+                .run(host, port, app);
         } catch (IOException | RuntimeException | LinkageError error) {
             Throwable cause = error;
             while (cause.getCause() != null) cause = cause.getCause();
@@ -213,13 +226,29 @@ public final class UpstreamLiveNetworkProbe {
         try {
             NetworkIO.loadWorld(new InflaterInputStream(stream));
             app.runPosted();
+            if (stream.remaining != 0 || Groups.player.size() != 1 || Vars.player.name == null || Vars.player.name.isEmpty()
+                    || Vars.world.width() <= 0 || Vars.world.height() <= 0) {
+                throw new IOException("Server world or assigned player did not load");
+            }
+            if (deferredGraphics != null) {
+                System.out.println("UPSTREAM_WORLD_DECODED beforeGraphics=true");
+                deferredGraphics.run();
+                deferredGraphics = null;
+            }
+            reportReceivedWorld(join, total);
+            Vars.state.set(State.playing);
+            send(new ConnectConfirmCallPacket(), true);
         } finally {
             Native.endKeepAlive();
         }
-        if (stream.remaining != 0 || Groups.player.size() != 1 || !PLAYER_NAME.equals(Vars.player.name)
-                || Vars.world.width() <= 0 || Vars.world.height() <= 0) {
-            throw new IOException("Server world or assigned player did not load");
+        if (mode == Mode.CONTROLS) {
+            driveLiveClient(app);
+        } else {
+            waitForWave(join, app);
         }
+    }
+
+    private void reportReceivedWorld(int join, int total) {
         String fingerprint = UpstreamWorldLoadProbe.reportTerrain(false);
         System.out.println("UPSTREAM_LIVE_NET_WORLD join=" + join + " map=" + Vars.state.map.name()
             + " bytes=" + total + " team=" + Vars.player.team().id + " fingerprint=" + fingerprint);
@@ -235,13 +264,6 @@ public final class UpstreamLiveNetworkProbe {
             if (objectives.get(0) instanceof ItemObjective first) {
                 System.out.println("UPSTREAM_WORLD_ITEM_OBJECTIVE item=" + first.item.name + " amount=" + first.amount);
             }
-        }
-        Vars.state.set(State.playing);
-        send(new ConnectConfirmCallPacket(), true);
-        if (mode == Mode.CONTROLS) {
-            driveLiveClient(app);
-        } else {
-            waitForWave(join, app);
         }
     }
 
@@ -422,10 +444,17 @@ public final class UpstreamLiveNetworkProbe {
         System.out.println("UPSTREAM_LIVE_PACKET_IDS spawn=" + unitSpawnId
             + " despawn=" + unitDespawnId + " destroy=" + unitDestroyId);
         System.out.println(frame == null ? "Circle Pad or D-pad moves. START leaves."
-            : "Tap the build grid to place. R rotates. B toggles removal. START leaves.");
+            : "Tap the build grid to place. R rotates. B toggles removal. Y opens chat. START leaves.");
         while (true) {
             int input = Native.input();
             if (input < 0) return;
+            int touch = Native.touch();
+            if (chatInput != null && (chatInput.open() || UpstreamChatInput.requested(input))) {
+                var message = chatInput.update(input, touch);
+                if (message != null) sendChat(message);
+                input = 0;
+                touch = -1;
+            }
             long now = System.nanoTime();
             if (frame == null && now - lastTcpSend >= TCP_KEEP_ALIVE_NS) {
                 keepAlive(1);
@@ -445,7 +474,7 @@ public final class UpstreamLiveNetworkProbe {
             lastWave = receiveLiveUpdates(stateId, entityId, unitSpawnId, unitDespawnId, unitDestroyId, lastWave);
             app.runPosted();
             now = System.nanoTime();
-            controls.update(input, now);
+            controls.update(input, touch, now);
             if (frame != null && now - lastFrame >= 33_333_333L) {
                 var unit = controlledUnit();
                 if (unit != null || lastFrame != 0) {
@@ -510,10 +539,23 @@ public final class UpstreamLiveNetworkProbe {
                 decode(new SetRulesCallPacket(), received).handleClient();
             } else if (id == unsignedId(SetRuleCallPacket.class)) {
                 decode(new SetRuleCallPacket(), received).handleClient();
+            } else if (chat != null && id == unsignedId(SendMessageCallPacket.class)) {
+                var message = decode(new SendMessageCallPacket(), received);
+                message.handleClient();
+                receiveChat(message.message, "server");
+            } else if (chat != null && id == unsignedId(SendMessageCallPacket2.class)) {
+                var message = decode(new SendMessageCallPacket2(), received);
+                message.handleClient();
+                receiveChat(message.message, "player");
             } else if (frame != null && id == unsignedId(SoundCallPacket.class)) {
                 decode(new SoundCallPacket(), received).handleClient();
             } else if (frame != null && id == unsignedId(SoundAtCallPacket.class)) {
                 decode(new SoundAtCallPacket(), received).handleClient();
+            } else if (frame != null && id == unsignedId(CreateWeatherCallPacket.class)) {
+                var weather = decode(new CreateWeatherCallPacket(), received);
+                // Stock WeatherState is in Groups.sync. The server's snapshot supplies its ID
+                // and state. Creating a second entity here can claim an ID used by a stock unit.
+                System.out.println("UPSTREAM_LIVE_WEATHER name=" + weather.weather.name);
             } else {
                 var marker = markerPacket(id);
                 if (marker != null) {
@@ -533,6 +575,19 @@ public final class UpstreamLiveNetworkProbe {
             }
         }
         return lastWave;
+    }
+
+    private void receiveChat(String message, String source) {
+        if (message == null) return;
+        chat.accept(message);
+        System.out.println("UPSTREAM_LIVE_CHAT_RECEIVED source=" + source + " chars=" + message.length());
+    }
+
+    private static void sendChat(String message) throws IOException {
+        var packet = new SendChatMessageCallPacket();
+        packet.message = message;
+        send(packet, true);
+        System.out.println("UPSTREAM_LIVE_CHAT_SENT chars=" + message.length());
     }
 
     static Packet markerPacket(int id) {
@@ -680,7 +735,7 @@ public final class UpstreamLiveNetworkProbe {
             this.buildingControls = buildingControls;
         }
 
-        void update(int input, long now) throws IOException {
+        void update(int input, int touch, long now) throws IOException {
             var unit = controlledUnit();
             if (unit == null) {
                 previousUnit = null;
@@ -698,7 +753,7 @@ public final class UpstreamLiveNetworkProbe {
             }
             // Mirror PlayerComp.update before stock input rules consult the player's position.
             Vars.player.set(unit);
-            if (buildingControls != null) buildingControls.update(unit, input, Native.touch());
+            if (buildingControls != null) buildingControls.update(unit, input, touch);
             if (Vars.player.unit() != unit) return;
             direction.set((byte)input / 127f, (byte)(input >>> 8) / 127f).limit(1f);
             if (direction.len2() < DEAD_ZONE * DEAD_ZONE) direction.setZero();
@@ -828,9 +883,11 @@ public final class UpstreamLiveNetworkProbe {
         return Net.getPacketClassId(type) & 0xff;
     }
 
-    private static int open(byte[] host, int port, int version) {
+    private int open(byte[] host, int port, int version) {
         return Native.open(Address.ofData(host), host.length, port, version,
-            unsignedId(KickCallPacket.class), unsignedId(KickCallPacket2.class));
+            unsignedId(KickCallPacket.class), unsignedId(KickCallPacket2.class),
+            Address.ofData(identity.name()), Address.ofData(identity.locale()), Address.ofData(identity.usid()),
+            Address.ofData(identity.uuid()), identity.color());
     }
 
     /** Supplies original StreamChunk data without buffering a second copy of the entire world. */
@@ -894,7 +951,8 @@ public final class UpstreamLiveNetworkProbe {
     private static final class Native {
         @Import(name = "m3ds_live_net_open")
         static native int open(Address host, int length, int port, int version,
-                               int kickTextId, int kickReasonId);
+                               int kickTextId, int kickReasonId, Address name, Address locale, Address usid,
+                               Address uuid, int color);
         @Import(name = "m3ds_live_net_stream_id")
         static native int streamId();
         @Import(name = "m3ds_live_net_stream_total")

@@ -30,6 +30,7 @@ int32_t m3ds_terrain_draw_logic_display(int32_t id, int32_t revision, int32_t wi
 int32_t m3ds_terrain_draw_weather_noise(int32_t index, float x, float y, float width, float height,
                                        float u, float v, float u2, float v2,
                                        int32_t tint, int32_t mix, int32_t blend_mode);
+void m3ds_terrain_finish_terrain(void);
 int32_t m3ds_terrain_end(void);
 void m3ds_terrain_minimap_upload(const uint8_t *pixels, int32_t width, int32_t height);
 void m3ds_terrain_minimap_draw(float x, float y, float size);
@@ -37,6 +38,8 @@ int32_t m3ds_terrain_build_overlay(int32_t column, int32_t row, int32_t block, i
                                   int32_t removing, int32_t tile_size, int32_t rotatable, int32_t catalog_open,
                                   int32_t configuring, int32_t selecting_mine, int32_t inventory_action,
                                   int32_t command_mode, int32_t selecting_control, int32_t placing_schematic);
+float m3ds_terrain_draw_chat_line(const char *label, const int32_t *characters, int32_t count, float bottom);
+int32_t m3ds_terrain_draw_chat_keyboard(const char *labels);
 int32_t m3ds_terrain_build_catalog(const char *labels, const int32_t *icons, int32_t active_rows,
                                     int32_t previous, int32_t next, int32_t catalog);
 float m3ds_terrain_draw_objective(const char *label, const int32_t *characters, int32_t count,
