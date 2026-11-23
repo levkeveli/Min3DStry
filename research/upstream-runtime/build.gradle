@@ -643,7 +643,7 @@ tasks.register('prepareUpstreamProbe') {
                     ? Arm11Audio.musicControl() : control.sound;
                 if(musicControl == null) return;
 
-            //null music = stop''').replace(musicDispatch, 'musicControl.playMusic(music, interrupt.bool());'
+            //null music = stop''').replace(musicDispatch, 'musicControl.playMusic(music, interrupt.bool());')
             }
             def headless = 'Vars.headless || exec.graphicsBuffer.size >= maxGraphicsBuffer'
             if (executor.count(headless) != 1) throw new GradleException('Pinned graphics instruction guard changed')
