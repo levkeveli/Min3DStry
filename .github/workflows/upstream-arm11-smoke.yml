@@ -1181,6 +1181,24 @@ jobs:
           grep -Fx 'UPSTREAM_BACKGROUND_TURN live=37 import=30 remote=100 lead=0 frozen=11' "$check_dir/probe.log"
           python3 tools/campaign_background_fixture.py --server "$RUNNER_TEMP/server-release.jar" --check "$check_dir/save"
 
+      - name: Verify stock Erekir assembler production and PC save readback
+        run: |
+          set -o pipefail
+          fixture=$(mktemp -d "$RUNNER_TEMP/stock-assembler.XXXXXX")
+          unzip -p "$RUNNER_TEMP/server-release.jar" maps/erekir/caldera-erekir.msav > "$fixture/caldera-erekir.msav"
+          git -C "$RUNNER_TEMP/Mindustry" show HEAD:core/assets/bundles/bundle.properties > "$fixture/bundle.properties"
+          bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime \
+            --no-daemon --console=plain \
+            "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" \
+            "-PreferenceJar=$RUNNER_TEMP/server-release.jar" \
+            "-ParcCheckout=$RUNNER_TEMP/Arc" \
+            -Pprobe=singleplayer runStockAssemblerJvm \
+            "--args='$fixture/caldera-erekir.msav' '$fixture/halfway.msav' '$fixture/completed.msav' '$fixture/bundle'" \
+            | tee "$fixture/probe.log"
+          grep -E '^UPSTREAM_STOCK_ASSEMBLER .* drones=4 output=vanquish$' "$fixture/probe.log"
+          python3 tools/verify_stock_assembler.py --server "$RUNNER_TEMP/server-release.jar" \
+            --halfway "$fixture/halfway.msav" --completed "$fixture/completed.msav"
+
       - name: Check unified multiplayer server address parsing on the JVM
         run: |
           bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime \
