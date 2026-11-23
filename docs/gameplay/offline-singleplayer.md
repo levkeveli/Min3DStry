@@ -307,6 +307,29 @@ python3 tools/verify_offline_material_buildings.py \
   --output build/offline-material-buildings
 ```
 
+### Original material buildings in Java multiplayer
+
+The live client uses the same material-building classification and upstream
+draw calls. The building state comes from the stock v160.8 server. The JVM
+live draw reference checks the 49 stock material buildings outside the
+already supported cores.
+
+The live replay loads the same two Glacier saves on an unmodified v160.8
+server. It joins each save through the unified client, holds the same
+viewport on both runs, and compares the captured pixels at the seven
+stock buildings. The logs and images are retained for each console profile.
+Both Original and New 3DS profiles changed all 25 sample pixels at each
+placement with the [ARM11 replay build](https://github.com/levkeveli/Min3DStry/actions/runs/45113545813).
+The previous build left all 25 pixels unchanged at the smelter, compressor,
+electrolyzer and separator on the Original 3DS profile.
+
+```bash
+python3 tools/verify_live_material_buildings.py \
+  --rom /path/to/upstream-probe.3dsx \
+  --server /path/to/server-release.jar \
+  --output build/live-material-buildings
+```
+
 ## Original power buildings
 
 The offline and multiplayer world draw passes use the pinned power blocks'

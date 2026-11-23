@@ -53,6 +53,7 @@ import mindustry.world.blocks.production.BurstDrill.BurstDrillBuild;
 import mindustry.world.blocks.production.Drill.DrillBuild;
 import mindustry.world.blocks.production.GenericCrafter.GenericCrafterBuild;
 import mindustry.world.blocks.production.WallCrafter.WallCrafterBuild;
+import mindustry.world.blocks.storage.CoreBlock;
 import mindustry.world.blocks.payloads.BuildPayload;
 import mindustry.world.blocks.payloads.Payload;
 import mindustry.world.blocks.payloads.UnitPayload;
@@ -137,6 +138,10 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
             "DISTRIBUTION");
         target.verifyLiveBuildingRegistry(layers, viewport, viewer, block -> block.category == Category.liquid,
             "LIQUID");
+        int materials = target.verifyLiveBuildingRegistry(layers, viewport, viewer,
+            block -> UpstreamBuildingLayers.supportsMaterialDraw(block) && !(block instanceof CoreBlock),
+            "MATERIAL");
+        if (materials != 49) throw new AssertionError("Expected 49 stock material buildings, got " + materials);
         if (args.length == 4) verifyObjectiveHud();
         target.verifyUnitProjectiles(viewport, viewer);
     }
@@ -311,7 +316,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         System.out.printf("UPSTREAM_STOCK_EXTRACTOR_DRAW tested=%d active=%d%n", tested, tested);
     }
 
-    private void verifyLiveBuildingRegistry(UpstreamBuildingLayers layers, UpstreamTerrainDrawProbe.Viewport viewport,
+    private int verifyLiveBuildingRegistry(UpstreamBuildingLayers layers, UpstreamTerrainDrawProbe.Viewport viewport,
                                             Team viewer, Predicate<Block> included, String category) {
         viewport.moveTo(24, 30);
         var tile = Vars.world.tile(31, 36);
@@ -331,6 +336,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
             }
         }
         System.out.printf("UPSTREAM_STOCK_LIVE_%s_DRAW tested=%d%n", category, tested);
+        return tested;
     }
 
     private static void verifyObjectiveHud() {

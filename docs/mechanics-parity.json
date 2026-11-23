@@ -129,7 +129,7 @@
         "research/upstream-runtime/src/gameplay/java/UpstreamProductionTickProbe.java",
         "research/upstream-runtime/src/network-render/java/UpstreamRenderedNetworkProbe.java"
       ],
-      "notes": "The ARM11 production-ticks probe verifies upstream recipes. The offline draw pass uses the full GenericCrafter and Separator families, with representative stock saves verified on both Azahar profiles. Full multiplayer rendering and effects coverage remains open."
+      "notes": "The ARM11 production-ticks probe verifies upstream recipes. The offline and live draw passes use the full GenericCrafter and Separator families. Both Azahar profiles drew representative stock buildings offline and in the initial Java-server world. Active multiplayer production visuals remain open."
     },
     {
       "id": "power-grid-generators",
