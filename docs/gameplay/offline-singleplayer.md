@@ -856,3 +856,11 @@ covers opening and importing the asset. These intervals can overlap with
 terrain time. Frame time spans renderer begin to submission and excludes game
 simulation before renderer begin. Azahar guest timings help locate the cost.
 Physical console frame rates require a separate capture.
+
+On the unified ARM11 build from `cd37f9ed`, both Azahar profiles repeatedly
+imported 12 atlas fragments and recycled the render pass once per frame after
+the Ground Zero viewport settled at `121,49`. A representative 16-frame window
+averaged about 233 ms per renderer frame, of which 213 ms was spent importing
+atlas fragments. A window panning from `117,49` to `109,49` imported 125
+fragments across 16 frames and averaged 159 ms per renderer frame. These are
+guest timings from the emulator with the same stock Ground Zero save.
