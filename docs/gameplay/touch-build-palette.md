@@ -84,6 +84,30 @@ Container contents and Duo ammunition. In both live sessions it also
 verified that the player still carried 55 copper after loading the Duo.
 Hold-to-withdraw a single item remains open in #27.
 
+## Tactical orders
+
+Tap **Command** on the right edge of the grid. Tap friendly units to
+select or deselect them. The top screen outlines selected units using
+the original selection shape. Tap open ground for a move order or an
+enemy for an attack order. The pinned game handles pathfinding, field
+formations, target capabilities, and AI.
+
+Press **R** in Command mode to toggle queued orders. The Command label
+turns red while queuing. A tap on a commandable building switches the
+selection to buildings. Tap a location to set the stock rally point.
+Tap **Command** again or press **B** to leave the mode.
+
+The JVM checks use the stock Dagger controller for formation, queued
+moves, and an attack order. A stock Glacier fixture verifies unit
+movement and the original Ground Factory rally point across a save.
+
+```bash
+python3 tools/verify_stock_command_orders.py \
+  --rom /path/to/unified/upstream-probe.3dsx \
+  --server /path/to/server-release.jar \
+  --output build/stock-command-orders --live
+```
+
 ## Factory world graphics
 
 The graphical client calls the pinned `UnitFactoryBuild.draw` for the

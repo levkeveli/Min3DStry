@@ -133,6 +133,13 @@ public final class UpstreamBuildControlsReference {
                     || firstCommand.commandQueue.any()) {
                 throw new AssertionError("Stock attack order must target the enemy and replace the queued move");
             }
+            var wall = Vars.world.tile(86, 24);
+            wall.setBlock(Blocks.copperWall, rules.waveTeam, 0);
+            tapOrderCell(controls, player, 86, 24);
+            if (firstCommand.attackTarget != wall.build || secondCommand.attackTarget != wall.build) {
+                throw new AssertionError("Stock attack order must also target an opposing building");
+            }
+            wall.setBlock(Blocks.air);
             var factory = Vars.world.tile(78, 22);
             factory.setBlock(Blocks.groundFactory, player.team(), 0);
             tapOrderCell(controls, player, 78, 22);
@@ -143,7 +150,7 @@ public final class UpstreamBuildControlsReference {
             }
             controls.update(player, 1 << 19, -1);
             if (controls.orders().active()) throw new AssertionError("B should leave Command mode");
-            System.out.println("UPSTREAM_STOCK_COMMAND_REFERENCE formation=2 queued=ok attack=dagger rally=ok");
+            System.out.println("UPSTREAM_STOCK_COMMAND_REFERENCE formation=2 queued=ok attack=unit,building rally=ok");
         } finally {
             rules.fog = fog;
             first.remove();

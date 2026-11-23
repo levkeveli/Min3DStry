@@ -323,6 +323,10 @@ if (usesSinglePlayer) {
             classpath = sourceSets.main.runtimeClasspath
             mainClass = 'UpstreamCampaignResumeReference'
         }
+        tasks.register('runStockOrdersJvm', JavaExec) {
+            classpath = sourceSets.main.runtimeClasspath
+            mainClass = 'UpstreamStockOrdersReference'
+        }
     }
     if (!usesSinglePlayerApp) {
         sourceSets.main.java.exclude('UpstreamSinglePlayerApp.java', 'UpstreamSinglePlayerInput.java')
