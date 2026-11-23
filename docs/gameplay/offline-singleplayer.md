@@ -400,6 +400,10 @@ The [ARM11 build with the collector fix](https://github.com/levkeveli/Min3DStry/
 passed defeat, retry, and stock Java readback for Ground Zero and The Onset
 on both Azahar profiles. The same verifier reopens the defeated save
 before checking the recovered save and its campaign settings.
+The [integrated build](https://github.com/levkeveli/Min3DStry/actions/runs/45177492172)
+also passed Ground Zero on the New 3DS profile and The Onset on the
+Original 3DS profile with the current campaign research and offline
+audio code. Stock Java reopened all four resulting checkpoints.
 
 ## Custom Game
 
