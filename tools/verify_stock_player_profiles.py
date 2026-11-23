@@ -4,6 +4,7 @@
 import argparse
 from contextlib import ExitStack, contextmanager
 from pathlib import Path
+import shutil
 import subprocess
 
 from verify_upstream_live_net import stop, wait_for
@@ -11,7 +12,7 @@ from verify_azahar import patch_qt_config_text
 
 
 @contextmanager
-def profile(model, emulator, work, name, port):
+def profile(model, emulator, work, name, port, atlas):
     # Each installed test instance has its own portable data folder.
     user = emulator.parent / "user"
     if not user.is_dir():
@@ -24,6 +25,7 @@ def profile(model, emulator, work, name, port):
     directory.mkdir(parents=True)
     (directory / "player-name.txt").write_text(name + "\n", encoding="utf-8")
     (directory / "server-endpoint.txt").write_text(f"127.0.0.1 {port} controls\n", encoding="ascii")
+    shutil.copyfile(atlas, directory / "sprites.aatls")
     config.parent.mkdir(parents=True, exist_ok=True)
     log.parent.mkdir(parents=True, exist_ok=True)
     config.write_text(patch_qt_config_text((previous[config] or b"").decode("utf-8"), {
@@ -57,7 +59,7 @@ def server_marker(server, log, code, marker):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    for name in ("rom", "server", "original-azahar", "new-azahar", "output"):
+    for name in ("rom", "server", "terrain-atlas", "original-azahar", "new-azahar", "output"):
         parser.add_argument("--" + name, type=lambda value: Path(value).resolve(), required=True)
     parser.add_argument("--java", default="java")
     parser.add_argument("--port", type=int, default=16691)
@@ -74,10 +76,10 @@ def main():
         server.stdin.flush()
         wait_for(server_log, server, rf"Opened a server on port {args.port}\.", 30)
         original_log, original_profile = stack.enter_context(
-            profile("old3ds", args.original_azahar, args.output / "original", "Original ARM11", args.port)
+            profile("old3ds", args.original_azahar, args.output / "original", "Original ARM11", args.port, args.terrain_atlas)
         )
         new_log, _ = stack.enter_context(
-            profile("new3ds", args.new_azahar, args.output / "new", "New ARM11", args.port)
+            profile("new3ds", args.new_azahar, args.output / "new", "New ARM11", args.port, args.terrain_atlas)
         )
         original = run_emulator(args.original_azahar, args.rom, original_log)
         stack.callback(stop, original, str(args.original_azahar))
