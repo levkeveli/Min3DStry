@@ -208,3 +208,8 @@ Capture a rotation to the original Erekir Caldera with
 captured WorldStreams to `runStockPlanetPatchJvm`. The unmodified server
 applies the Erekir-only duct speed change. The headless port detects that
 change after joining Caldera and recovers the original speed on Glacier.
+
+For the handheld replay, pass `--planet-patch` to
+`tools/verify_stock_live_rotation.py`. It selects the original Erekir
+Caldera, lets the stock server apply its duct patch, and checks the same
+connection and player continue receiving waves after the rotation.
