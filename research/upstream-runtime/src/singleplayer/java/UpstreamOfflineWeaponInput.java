@@ -1,6 +1,7 @@
 import arc.math.geom.Vec2;
 import mindustry.Vars;
 import mindustry.gen.Mechc;
+import mindustry.gen.BlockUnitc;
 import mindustry.gen.Unit;
 
 /** Adapts the 3DS aim modifier and trigger to the original unit weapon controls. */
@@ -42,12 +43,12 @@ final class UpstreamOfflineWeaponInput {
             aimed = true;
         }
         if (!aimed) heading.trns(unit.rotation(), 1f);
-        float distance = Math.max(unit.type().range, unit.type().aimDst);
+        float distance = UpstreamPlayerControl.aimDistance(unit);
         unit.aim(unit.x() + heading.x * distance, unit.y() + heading.y * distance, true);
         var player = Vars.player;
         player.mouseX = unit.aimX();
         player.mouseY = unit.aimY();
-        boolean shooting = trigger && unit.type().hasWeapons() && !unit.activelyBuilding()
+        boolean shooting = trigger && (unit.type().hasWeapons() || unit instanceof BlockUnitc) && !unit.activelyBuilding()
             && !unit.mining() && !(unit instanceof Mechc && unit.isFlying());
         if (shooting != player.shooting) {
             System.out.println("UPSTREAM_SP_FIRE shooting=" + shooting
