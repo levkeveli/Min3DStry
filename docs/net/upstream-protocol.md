@@ -162,3 +162,10 @@ while clearing the previous entities and result state. The separate
 `tools/build_stock_rotation_stream.py` helper writes a second fixture
 directly if only the decoding path needs verification. Live ARM11 replay
 and external asset-transfer streams remain open.
+
+Use `tools/verify_stock_live_rotation.py` with the unified ROM, the pinned
+server and atlas, and portable Azahar instances for both models. It stages
+the original Ancient Caldera map from the server release and checks that
+the server sees the same player, connection and continuing input snapshots
+after rotation. The ARM11 log must report the new map on the original
+player ID and then receive its second wave.

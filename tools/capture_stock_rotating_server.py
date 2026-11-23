@@ -12,6 +12,11 @@ from verify_upstream_live_net import stop, wait_for
 
 
 CLIENT = Path(__file__).resolve().parents[1] / "research/upstream-runtime/host/UpstreamStockRotationCapture.java"
+ROTATE = (
+    "js Packages.mindustry.server.ServerControl.instance.play(false, () => "
+    "Vars.world.loadMap(Packages.mindustry.io.MapIO.createMap("
+    "Packages.arc.files.Fi.get('next.msav'), false)))\n"
+)
 
 
 def main():
@@ -47,9 +52,7 @@ def main():
                     try:
                         wait_for(client_log, client, r"STOCK_ROTATION_CAPTURE world=1 ", 20)
                         wait_for(server_log, server, r"Rotation Fixture.*has connected", 10)
-                        server.stdin.write("js Packages.mindustry.server.ServerControl.instance.play(false, () => "
-                                           "Vars.world.loadMap(Packages.mindustry.io.MapIO.createMap("
-                                           "Packages.arc.files.Fi.get('next.msav'), false)))\n")
+                        server.stdin.write(ROTATE)
                         server.stdin.flush()
                         if client.wait(timeout=30) != 0:
                             raise RuntimeError(client_log.read_text(encoding="utf8"))
