@@ -57,7 +57,26 @@ UPSTREAM_AUDIO_COMBAT shots=17 firstShot=49 deathTick=382 destroyed=382 ammo=23 
 - **Note on frame-rate deduplication:** Upstream `arc.audio.Sound.play` checks wall-clock `Time.timeSinceMillis(lastTimePlayed) <= minInterval` (`16 ms`), which would depend on host execution speed in an unthrottled headless loop. `RecordingSound` records events keyed by deterministic simulation tick so JVM, TeaVM C `-O0`, and TeaVM C `-O2` remain comparable bit-for-bit.
 - **ARM11 build (`arm11/build.sh` with pinned `devkitpro/devkitarm` `-O2`, point-in-time local measurement; CI validates non-empty `.3dsx`/`.elf` outputs):** Built `upstream-probe.3dsx` (`22,277,392` bytes) and `upstream-probe.elf` (`116,275,184` bytes; `38,936,576` bytes / `37.13 MiB` page-rounded ELF LOAD segments; `65.38 MiB` subtotal including `24 MiB` managed heap, `4 MiB` linear heap, and `256 KiB` native stack before GC metadata and runtime allocations).
 
-## Remaining Scope for Issue #29
+## Unified offline audio
 
-- Extend the live Arc audio adapter to offline gameplay.
+The unified offline game opens the Arc adapter after mounting the assets
+and before constructing stock content, so buildings and units bind their
+original sounds. It prepares the stock SoundControl after world services
+exist, resets audio on world load, and updates the mixer and ambient
+sampling from the active camera. Build the unified ROM with the official
+desktop JAR and `prepare_terrain_assets.py --singleplayer --live-audio`
+to include the original effects and soundtrack.
+
+Use `tools/verify_offline_stock_audio.py --rom /path/to/upstream-probe.3dsx
+--server /path/to/server-release.jar --output build/offline-audio` to check
+ground-level drill ambience and the original game1 track in the same
+Ground Zero save on both Azahar profiles. The verifier checks the backend
+log and closes the game through START. On both Azahar 2126.2 profiles the
+[unified ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45174715056)
+opened all 205 sounds, decoded the original stereo game1 track, and routed
+the stock drill loop with sound ID 67. START closed the decoder cleanly.
+Azahar used the no-DSP fallback. Physical playback needs a console with
+DSP firmware.
+
+## Remaining Scope for Issue #29
 - Verify live NDSP playback (`state=ready rc=0x00000000`) and stereo `ndspWaveBuf.nsamples` timing on physical Original and New 3DS hardware with `sdmc:/3ds/dspfirm.cdc`.
