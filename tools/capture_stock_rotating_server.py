@@ -19,6 +19,14 @@ LOAD_NEXT = (
 )
 PLAY = "js Packages.mindustry.server.ServerControl.instance.play(false, () => { "
 ROTATE = PLAY + LOAD_NEXT + " })\n"
+ROTATE_WITH_PLANET_PATCH = (
+    PLAY + LOAD_NEXT
+    + " Vars.state.rules.planet = Packages.mindustry.content.Planets.erekir; "
+    + "const patch = new Packages.mindustry.mod.data.PatchAsset("
+    + """'{"name":"Erekir duct fixture","requiredPlanets":["erekir"],"block":{"duct":{"speed":7.5}}}'); """
+    + "Vars.state.data.load(Packages.arc.struct.Seq.with(patch)); "
+    + "if (Blocks.duct.speed !== 7.5) throw 'Stock Erekir patch did not apply'; })\n"
+)
 
 
 def stage_assets(root):
@@ -46,8 +54,9 @@ def main():
     parser.add_argument("--server", type=Path, required=True)
     parser.add_argument("--next-map", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--asset-cache", type=Path,
-                        help="Serve two bundle assets and keep a disk cache between runs")
+    fixture = parser.add_mutually_exclusive_group()
+    fixture.add_argument("--asset-cache", type=Path, help="Serve two bundles and keep a disk cache between runs")
+    fixture.add_argument("--planet-patch", action="store_true", help="Apply a stock Erekir duct patch on rotation")
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
     output = args.output.resolve()
@@ -74,7 +83,7 @@ def main():
                 server.stdin.write(f"config port {port}\nhost Glacier survival\n")
                 server.stdin.flush()
                 wait_for(server_log, server, r"Opened a server on port", 20)
-                rotate = ROTATE
+                rotate = ROTATE_WITH_PLANET_PATCH if args.planet_patch else ROTATE
                 if args.asset_cache:
                     setup, rotate = stage_assets(root)
                     server.stdin.write(setup)

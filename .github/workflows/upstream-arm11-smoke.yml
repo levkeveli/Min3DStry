@@ -1199,6 +1199,21 @@ jobs:
           grep -Fx 'UPSTREAM_BACKGROUND_TURN live=37 import=30 remote=100 lead=0 frozen=11' "$check_dir/probe.log"
           python3 tools/campaign_background_fixture.py --server "$RUNNER_TEMP/server-release.jar" --check "$check_dir/save"
 
+      - name: Apply a stock Erekir gameplay patch after server rotation
+        run: |
+          set -o pipefail
+          fixture=$(mktemp -d "$RUNNER_TEMP/stock-planet-patch.XXXXXX")
+          unzip -p "$RUNNER_TEMP/server-release.jar" maps/erekir/caldera-erekir.msav > "$fixture/caldera.msav"
+          python3 tools/capture_stock_rotating_server.py --server "$RUNNER_TEMP/server-release.jar" \
+            --next-map "$fixture/caldera.msav" --output "$fixture/capture" --planet-patch
+          bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime \
+            --no-daemon --console=plain \
+            "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" \
+            "-PParcCheckout=$RUNNER_TEMP/Arc" \
+            "-PreferenceJar=$RUNNER_TEMP/server-release.jar" -Pprobe=unified runStockPlanetPatchJvm \
+            "--args='$fixture/capture/world-1.bin' '$fixture/capture/world-2.bin'" | tee "$fixture/probe.log"
+          grep -Fx 'UPSTREAM_STOCK_PLANET_PATCH Glacier=stock Caldera=7.5 GlacierAgain=restored' "$fixture/probe.log"
+
       - name: Check unified multiplayer server address parsing on the JVM
         run: |
           bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime \

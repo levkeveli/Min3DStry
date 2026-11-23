@@ -195,3 +195,16 @@ applying the replacement map's strings and when the client exits. Pass the
 two captures, the populated cache and the stock English bundle stem to
 `runStockServerBundlesJvm` to check the localized wave label on both maps and
 its restoration on exit.
+
+### Planet-targeted gameplay patches
+
+The handheld applies the stock player-side patch rules. The
+`requiredPlanets` filter runs on the dedicated server, while the client
+uses the patches delivered in the replacement WorldStream. A map change
+restores the old world's patched fields before applying the new world.
+
+Capture a rotation to the original Erekir Caldera with
+`tools/capture_stock_rotating_server.py --planet-patch`, then pass both
+captured WorldStreams to `runStockPlanetPatchJvm`. The unmodified server
+applies the Erekir-only duct speed change. The headless port detects that
+change after joining Caldera and recovers the original speed on Glacier.
