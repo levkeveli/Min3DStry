@@ -463,7 +463,7 @@ public final class UpstreamSinglePlayerApp {
             if (unit != null) {
                 buildingControls.update(unit, input, touch);
                 boolean overlay = buildingControls.catalog().isOpen() || buildingControls.buildingConfig().isOpen()
-                    || buildingControls.inventory().isOpen();
+                    || buildingControls.inventory().isOpen() || buildingControls.orders().active();
                 weaponInput.update(unit, moveInput, weaponInput.aimMode() && !moveInput.isZero(),
                     fireHeld && !overlay && !Vars.state.isPaused());
             }
@@ -523,7 +523,7 @@ public final class UpstreamSinglePlayerApp {
         var labels = String.join("\0", primary.localizedName, secondary.localizedName,
             Core.bundle.get("keybind.rotate.name"), Core.bundle.get("waves.remove"),
             "List", "Config", Core.bundle.get("back"), Core.bundle.get("command.mine"),
-            Core.bundle.get("category.items"), "Give") + "\0";
+            Core.bundle.get("category.items"), "Give", Core.bundle.get("command")) + "\0";
         target.buildLabels(labels.getBytes(StandardCharsets.UTF_8));
         lastPrimaryShortcut = primary;
         System.out.println("UPSTREAM_BUILD_SHORTCUTS primary=" + primary.name + " secondary=" + secondary.name);
@@ -602,6 +602,8 @@ public final class UpstreamSinglePlayerApp {
         }
         UpstreamObjectiveMarkers.draw(Vars.state.rules, 240f / (UpstreamTerrainDrawProbe.VIEW_HEIGHT * Vars.tilesize),
             worldLabel);
+        var orders = buildingControls.orders();
+        orders.draw(viewport);
         drawObjectives(drawStatusHud());
         var block = buildingControls.block();
         var catalog = buildingControls.catalog();
@@ -611,7 +613,7 @@ public final class UpstreamSinglePlayerApp {
         target.buildOverlay(buildingControls.cursorX() - viewport.left, buildingControls.cursorY() - viewport.bottom,
             shortcut, buildingControls.rotation(), buildingControls.removing(), block.rotate,
             catalog.isOpen() || config.isOpen() || inventory.isOpen(), buildingControls.configuring(),
-            buildingControls.selectingMine(), buildingControls.inventoryAction());
+            buildingControls.selectingMine(), buildingControls.inventoryAction(), orders.mode());
         if (catalog.isOpen()) {
             drawMenu(catalog.labels(), catalog.iconIds(), catalog.selectedRow(block),
                 catalog.previousPage(), catalog.nextPage(), UpstreamTerrainRenderProbe.BLOCK_CATALOG);

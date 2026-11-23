@@ -89,8 +89,78 @@ public final class UpstreamBuildControlsReference {
         verifyMining(unit);
         Vars.player.unit(unit);
         verifyInventory(unit);
+        verifyStockOrders(unit);
         verifyFactoryConfiguration(controls, unit);
         System.out.println("UPSTREAM_TOUCH_REFERENCE conveyor=85,26,1 wall=86,26 break=86,26");
+    }
+
+    private static void verifyStockOrders(Unit player) {
+        var rules = Vars.state.rules;
+        boolean fog = rules.fog;
+        var first = UnitTypes.dagger.create(player.team());
+        var second = UnitTypes.dagger.create(player.team());
+        var enemy = UnitTypes.dagger.create(rules.waveTeam);
+        first.set(600f, 216f);
+        second.set(616f, 216f);
+        enemy.set(696f, 208f);
+        first.add();
+        second.add();
+        enemy.add();
+        rules.fog = false;
+        try {
+            var controls = new UpstreamLiveBuildControls();
+            controls.viewport(73, 20);
+            controls.update(player, 0, touch(305, 128));
+            tapOrderCell(controls, player, 75, 27);
+            tapOrderCell(controls, player, 77, 27);
+            tapOrderCell(controls, player, 86, 24);
+            var firstCommand = first.command();
+            var secondCommand = second.command();
+            if (firstCommand.targetPos == null || firstCommand.targetPos.x != 688f || firstCommand.targetPos.y != 192f
+                    || secondCommand.targetPos == null || firstCommand.group == null
+                    || firstCommand.group != secondCommand.group) {
+                throw new AssertionError("Stock move order must create a shared unit formation");
+            }
+            controls.update(player, 1 << 18, -1);
+            tapOrderCell(controls, player, 85, 25);
+            if (firstCommand.commandQueue.size != 1 || firstCommand.commandQueue.first().getX() != 680f
+                    || secondCommand.commandQueue.size != 1) {
+                throw new AssertionError("Stock queued order must preserve the first destination");
+            }
+            controls.update(player, 1 << 18, -1);
+            tapOrderCell(controls, player, 87, 26);
+            if (firstCommand.attackTarget != enemy || secondCommand.attackTarget != enemy
+                    || firstCommand.commandQueue.any()) {
+                throw new AssertionError("Stock attack order must target the enemy and replace the queued move");
+            }
+            var wall = Vars.world.tile(86, 24);
+            wall.setBlock(Blocks.copperWall, rules.waveTeam, 0);
+            tapOrderCell(controls, player, 86, 24);
+            if (firstCommand.attackTarget != wall.build || secondCommand.attackTarget != wall.build) {
+                throw new AssertionError("Stock attack order must also target an opposing building");
+            }
+            wall.setBlock(Blocks.air);
+            var factory = Vars.world.tile(78, 22);
+            factory.setBlock(Blocks.groundFactory, player.team(), 0);
+            tapOrderCell(controls, player, 78, 22);
+            tapOrderCell(controls, player, 86, 24);
+            var rally = ((UnitFactory.UnitFactoryBuild)factory.build).commandPos;
+            if (rally == null || rally.x != 688f || rally.y != 192f || !player.plans().isEmpty()) {
+                throw new AssertionError("Original factory rally point must be commanded without placing a block");
+            }
+            controls.update(player, 1 << 19, -1);
+            if (controls.orders().active()) throw new AssertionError("B should leave Command mode");
+            System.out.println("UPSTREAM_STOCK_COMMAND_REFERENCE formation=2 queued=ok attack=unit,building rally=ok");
+        } finally {
+            rules.fog = fog;
+            first.remove();
+            second.remove();
+            enemy.remove();
+        }
+    }
+
+    private static void tapOrderCell(UpstreamLiveBuildControls controls, Unit player, int x, int y) {
+        controls.update(player, 0, touch(32 + (x - 73) * 16 + 8, 48 + (31 - y) * 16 + 8));
     }
 
     private static void verifyInventory(Unit unit) {

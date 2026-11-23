@@ -30,6 +30,7 @@ final class UpstreamLiveBuildControls {
     private final UpstreamBuildMenu catalog = new UpstreamBuildMenu();
     private final UpstreamBuildingConfig buildingConfig = new UpstreamBuildingConfig();
     private final UpstreamInventoryMenu inventory = new UpstreamInventoryMenu();
+    private final UpstreamCommandOrders orders = new UpstreamCommandOrders();
     private InventoryAction inventoryAction = InventoryAction.none;
     private boolean configuring;
     private boolean selectingMine;
@@ -65,11 +66,24 @@ final class UpstreamLiveBuildControls {
             }
             return;
         }
+        int touchX = touch & 0xffff, touchY = touch >>> 16;
+        if (touch >= 0 && touchX >= 292 && touchX < 318 && touchY >= 112 && touchY < 143) {
+            orders.toggle();
+            configuring = selectingMine = removing = false;
+            inventoryAction = InventoryAction.none;
+            return;
+        }
+        if (orders.active()) {
+            if ((buttons & REMOVE_PRESSED) != 0) orders.toggle();
+            else if ((buttons & ROTATE_PRESSED) != 0) orders.toggleQueue();
+            if (orders.active() && touch >= 0 && selectGridCell(touchX, touchY)) orders.tap(tileX, tileY);
+            return;
+        }
         if ((buttons & ROTATE_PRESSED) != 0) rotate();
         if ((buttons & REMOVE_PRESSED) != 0) toggleRemoval();
         boolean submit = !selectingMine && inventoryAction == InventoryAction.none && (buttons & PLACE_PRESSED) != 0;
         if (touch >= 0) {
-            int x = touch & 0xffff, y = touch >>> 16;
+            int x = touchX, y = touchY;
             if (x >= 288 && y >= GRID_Y && y < 80) {
                 inventoryAction = InventoryAction.none;
                 selectingMine = false;
@@ -100,10 +114,7 @@ final class UpstreamLiveBuildControls {
                     case 2 -> rotate();
                     case 3 -> toggleRemoval();
                 }
-            } else if (viewportReady && x >= GRID_X && x < GRID_X + WIDTH * CELL
-                    && y >= GRID_Y && y < GRID_Y + HEIGHT * CELL) {
-                tileX = left + (x - GRID_X) / CELL;
-                tileY = bottom + HEIGHT - 1 - (y - GRID_Y) / CELL;
+            } else if (selectGridCell(x, y)) {
                 if (inventoryAction != InventoryAction.none) {
                     var build = Vars.world.build(tileX, tileY);
                     if (inventoryAction == InventoryAction.withdraw) inventory.open(build);
@@ -124,6 +135,14 @@ final class UpstreamLiveBuildControls {
             }
         }
         if (submit && !configuring && Vars.player.isBuilder()) queue(unit);
+    }
+
+    private boolean selectGridCell(int x, int y) {
+        if (!viewportReady || x < GRID_X || x >= GRID_X + WIDTH * CELL
+                || y < GRID_Y || y >= GRID_Y + HEIGHT * CELL) return false;
+        tileX = left + (x - GRID_X) / CELL;
+        tileY = bottom + HEIGHT - 1 - (y - GRID_Y) / CELL;
+        return true;
     }
 
     private void select(Block block) {
@@ -201,6 +220,7 @@ final class UpstreamLiveBuildControls {
     UpstreamBuildMenu catalog() { return catalog; }
     UpstreamBuildingConfig buildingConfig() { return buildingConfig; }
     UpstreamInventoryMenu inventory() { return inventory; }
+    UpstreamCommandOrders orders() { return orders; }
     int inventoryAction() { return inventoryAction.ordinal(); }
     boolean configuring() { return configuring; }
     boolean selectingMine() { return selectingMine; }
