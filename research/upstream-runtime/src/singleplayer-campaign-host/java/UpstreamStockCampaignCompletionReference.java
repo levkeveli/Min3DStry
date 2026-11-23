@@ -17,20 +17,35 @@ public final class UpstreamStockCampaignCompletionReference {
         var session = UpstreamSinglePlayerSession.create(scratch, "en", assets.child("planets"),
             UpstreamSinglePlayerSession.loadSettings(scratch), assets.child("maps"));
         try {
-            checkCapture(session, SectorPresets.groundZero.sector, false);
-            checkCapture(session, SectorPresets.planetaryTerminal.sector, true);
-            checkCapture(session, SectorPresets.origin.sector, true);
+            checkCapture(session, SectorPresets.groundZero.sector, false, scratch);
+            checkCapture(session, SectorPresets.planetaryTerminal.sector, true, scratch);
+            checkCapture(session, SectorPresets.origin.sector, true, scratch);
         } finally {
             session.shutdown();
         }
     }
 
-    private static void checkCapture(UpstreamSinglePlayerSession session, Sector sector, boolean last) throws Exception {
+    private static void checkCapture(UpstreamSinglePlayerSession session, Sector sector, boolean last, Fi scratch)
+            throws Exception {
         var slot = session.sectorFile(sector);
         session.launchNewSector(sector, sector, slot);
         if (sector.info.wasCaptured || Vars.state.rules.sector != sector) throw new AssertionError("Expected a fresh stock sector");
-        Time.updateGlobal();
-        Logic.sectorCapture();
+        if (last) {
+            if (!Vars.state.rules.attackMode) throw new AssertionError("The stock final sector must use its attack rules");
+            var opposingCores = Vars.state.rules.waveTeam.cores().copy();
+            if (opposingCores.isEmpty()) throw new AssertionError("Missing original enemy bases");
+            opposingCores.each(core -> core.tile.remove());
+            session.save(slot);
+            var replay = scratch.child("replay").child(sector.planet.name);
+            replay.child("saves").mkdirs();
+            slot.copyTo(replay.child("saves").child(slot.name()));
+            Core.settings.getSettingsFile().copyTo(replay.child("settings.bin"));
+            session.stepSimulation(0f, 0f);
+            if (!sector.info.wasCaptured) throw new AssertionError("Stock Logic did not recognize the final capture");
+        } else {
+            Time.updateGlobal();
+            Logic.sectorCapture();
+        }
         advance(119);
         if (session.takeCampaignCompletion() != null) throw new AssertionError("The final-sector dialog opened early");
         advance(1);

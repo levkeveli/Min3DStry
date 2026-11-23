@@ -968,4 +968,6 @@ saved.
 `runStockCampaignCompletionJvm` with `-Pprobe=singleplayer` takes the staged
 stock campaign assets and a scratch save directory. It checks the delay,
 original text, saved playtime and first-capture gating on the original
-Serpulo and Erekir worlds. Controller and rendering checks are separate.
+Serpulo and Erekir worlds. The probe also writes pre-capture profiles under
+`replay/serpulo` and `replay/erekir`. The next simulation tick recognizes
+each original attack victory. Controller and rendering checks are separate.
