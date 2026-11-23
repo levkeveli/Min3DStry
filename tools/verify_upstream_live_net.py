@@ -91,7 +91,7 @@ BUILDING_CRACK_PIXELS = {
 
 def write_controls_replay(path, first_move=22, building=False, touch_build=False, touch_config=False,
                           erekir_build=False, mining=None, model="old3ds", stock_menu_font=False,
-                          unified_boot=False):
+                          unified_boot=False, stationary=False):
     """Write the Azahar 2126.2 CTM input for this probe's pad/touch polling."""
     # The pinned Azahar movie header and HID sample definitions use packed little-endian fields.
     revision = bytes.fromhex("219d743a1e698101fe1ab8bef43e6563126c3c27")
@@ -147,7 +147,7 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
             seconds = frame // samples_per_second
             if erekir_build:
                 buttons = (1 << 8) if 66 <= seconds < 72 else 0  # R, the 3DS rotate shortcut.
-            elif mining:
+            elif mining or stationary:
                 buttons = 0
             else:
                 buttons = (1 << 4) if seconds == first_move else (1 << 3) if seconds == leave_at else 0
@@ -156,7 +156,7 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
             if unified_boot and seconds < 6:
                 buttons |= 1 << 10  # X, sampled once before the game starts.
             circle_x = 65 if mining == "wall" and 54 <= seconds < pan_end else 0
-            circle_y = 106 if seconds == circle_at and not (erekir_build or mining) else 0
+            circle_y = 106 if seconds == circle_at and not (erekir_build or mining or stationary) else 0
             if mining == "floor" and 88 <= seconds < 94:
                 circle_y = 65
             point = next((point for start, point in taps if start <= seconds < start + 2), None)
@@ -1257,18 +1257,24 @@ def verify_logic_markers(log, emulator, server_log, server, rpc, output, model, 
 
 def capture_marker_pixels(rpc, output, model, phase, points, timeout, expected=None, tolerance=1):
     deadline = time.monotonic() + timeout
-    while True:
-        png = rpc.screenshot(res_scale=1)
+    png, samples = None, None
+    while time.monotonic() < deadline:
+        try:
+            captured = rpc.screenshot(res_scale=1)
+        except TimeoutError:
+            time.sleep(0.2)
+            continue
+        png = captured
         pixels = az.inspect_png(png, points)["samples"]
         samples = tuple(pixels[point] for point in points)
         if expected is None or all(abs(a - b) <= tolerance for actual, exact in zip(samples, expected)
                                    for a, b in zip(actual, exact)):
             (output / f"{model}-{phase}.png").write_bytes(png)
             return samples
-        if time.monotonic() >= deadline:
-            (output / f"{model}-{phase}-unexpected.png").write_bytes(png)
-            raise RuntimeError(f"{phase} pixels: expected {expected}, got {samples}")
-        time.sleep(0.1)
+        time.sleep(0.2)
+    if png is not None:
+        (output / f"{model}-{phase}-unexpected.png").write_bytes(png)
+    raise RuntimeError(f"{phase} pixels: expected {expected}, got {samples}")
 
 
 def verify_texture_markers(server_log, server, rpc, output, model, position, timeout):
@@ -1304,9 +1310,11 @@ def verify_texture_markers(server_log, server, rpc, output, model, position, tim
 def verify_quad_markers(log, emulator, server_log, server, rpc, output, model, position, timeout):
     _, _, x, y = position
     x, y = (math.floor(float(value) / 8 + 0.5) * 8 for value in (x, y))
+    # Keep all samples below the stock health, ammo, enemy-core and item HUD.
+    y -= 32
     # Opaque samples in the original Core Nucleus span three 128 × 128 atlas
     # tiles. The first sample includes the stock interpolated red tint.
-    points = ((94, 52), (109, 86), (133, 68), (153, 45))
+    points = ((94, 132), (109, 166), (133, 148), (153, 125))
     initial = ((101, 185, 192), (152, 154, 164), (176, 185, 192))
     moved = ((86, 154, 164), (110, 112, 128), (152, 154, 164), (152, 154, 164))
     router = ((62, 112, 128), (110, 112, 128), (152, 154, 164), (147, 149, 160))
@@ -1478,7 +1486,7 @@ def run_model(args, model, config, original_config, log, output):
                 server.stdin.flush()
                 wait_for(server_log, server, r"UPSTREAM_COMBAT_PREP", 10)
             command = [str(args.azahar)]
-            if args.controls_replay:
+            if args.controls_replay or args.unified_boot:
                 replay = Path(work) / "controls.ctm"
                 first_move = 42 if args.terrain_atlas else 22
                 if args.building and args.desktop_name:
@@ -1490,7 +1498,8 @@ def run_model(args, model, config, original_config, log, output):
                 write_controls_replay(replay, first_move=first_move, building=args.building,
                                       touch_build=args.touch_build, touch_config=args.touch_config,
                                       erekir_build=args.erekir_build, mining=args.mining, model=model,
-                                      stock_menu_font=args.verify_stock_menu_font, unified_boot=args.unified_boot)
+                                      stock_menu_font=args.verify_stock_menu_font, unified_boot=args.unified_boot,
+                                      stationary=not args.controls_replay)
                 command += ["-p", str(replay)]
             command.append(str(args.rom))
             emulator = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -1850,7 +1859,7 @@ def main():
     campaign_mode.add_argument("--mining", choices=("wall", "floor"),
                                help="Verify touch mining and core delivery on The Onset or Ground Zero")
     parser.add_argument("--expanded-unit-roster", action="store_true",
-                        help="Verify live Elude and Anthicus missile rendering after the standard unit-roster checks")
+                        help="Verify live Elude, Anthicus missile and carried Horizon art after the standard unit-roster checks")
     parser.add_argument("--verify-objectives", action="store_true",
                         help="Compare the original first Onset objective transition between client and server")
     parser.add_argument("--verify-objective-hud", action="store_true",
@@ -1882,8 +1891,8 @@ def main():
         parser.error("The PC client needs a distinct player name")
     if args.controls_replay and not args.controls:
         parser.error("--controls-replay needs --controls")
-    if args.unified_boot and not args.controls_replay:
-        parser.error("--unified-boot needs --controls-replay")
+    if args.unified_boot and not args.controls:
+        parser.error("--unified-boot needs --controls")
     if args.combat and (not args.controls or not args.terrain_atlas):
         parser.error("--combat needs --controls and --terrain-atlas")
     if args.combat and (args.controls_replay or args.building or args.touch_build or args.touch_config

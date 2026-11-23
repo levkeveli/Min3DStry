@@ -875,12 +875,18 @@ sprites. The registry also has two internal `BlockUnit` types that upstream
 keeps attached to buildings. This check also covers team tint, weapon layers,
 payloads, naval wakes, tank treads, and the Quasar shield. Add
 `--expanded-unit-roster` to `--controls --unit-roster --terrain-atlas` to test
-two previously unsupported sprites. The stock Glacier server sends an Elude
-and Anthicus missile, and the verifier compares their screen regions before
-and after the additions. The [ARM11 test build](https://github.com/levkeveli/Min3DStry/actions/runs/45063728314)
-rendered both additions on both Azahar profiles and passed the existing
+the expanded roster. The stock Glacier server sends an Elude, an Anthicus
+missile, and a Mega carrying a Horizon. The verifier checks when their
+atlas art loads and compares the regions before and after the additions.
+The original [ARM11 test build](https://github.com/levkeveli/Min3DStry/actions/runs/45063728314)
+rendered the Elude and missile on both Azahar profiles and passed the existing
 team-cell and Quasar shield checks.
 The same build also passed the live wall and Dagger handoff on both profiles.
+The [combined ARM11 replay](https://github.com/levkeveli/Min3DStry/actions/runs/45116142229)
+passed all three framebuffer comparisons on both Azahar profiles and
+loaded the carried Horizon art through the live draw path. Use
+`--unified-boot` with the combined ROM to select Join and keep the
+camera still.
 
 For naval wakes, the build exposes the original `WaterMoveComp` wake
 update from the pinned generated `UnitWaterMove` class. The client

@@ -231,6 +231,12 @@ the v160.8 content registry. It loads each visible unit's art from the
 original atlas, including a unit drawn as a payload, and loads each visible
 projectile before invoking its upstream draw routine.
 
+The combined [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45116142229)
+drew Elude, Stell, Scepter, Mega and its carried Flare when both emulator
+profiles reopened the stock Java Glacier save. The same ROM passed the
+live roster replay with Elude, the Anthicus missile and Mega carrying
+Horizon on both profiles.
+
 The [ARM11 test build](https://github.com/levkeveli/Min3DStry/actions/runs/45066925380)
 includes the stock textured-quad renderer from #219. On both Azahar 2126.2
 profiles it drew Elude, Mega carrying Flare, and hostile Stell and Scepter
