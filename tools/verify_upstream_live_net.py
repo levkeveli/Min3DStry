@@ -91,7 +91,7 @@ BUILDING_CRACK_PIXELS = {
 
 def write_controls_replay(path, first_move=22, building=False, touch_build=False, touch_config=False,
                           erekir_build=False, mining=None, model="old3ds", stock_menu_font=False,
-                          unified_boot=False):
+                          unified_boot=False, stationary=False):
     """Write the Azahar 2126.2 CTM input for this probe's pad/touch polling."""
     # The pinned Azahar movie header and HID sample definitions use packed little-endian fields.
     revision = bytes.fromhex("219d743a1e698101fe1ab8bef43e6563126c3c27")
@@ -147,7 +147,7 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
             seconds = frame // samples_per_second
             if erekir_build:
                 buttons = (1 << 8) if 66 <= seconds < 72 else 0  # R, the 3DS rotate shortcut.
-            elif mining:
+            elif mining or stationary:
                 buttons = 0
             else:
                 buttons = (1 << 4) if seconds == first_move else (1 << 3) if seconds == leave_at else 0
@@ -156,7 +156,7 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
             if unified_boot and seconds < 6:
                 buttons |= 1 << 10  # X, sampled once before the game starts.
             circle_x = 65 if mining == "wall" and 54 <= seconds < pan_end else 0
-            circle_y = 106 if seconds == circle_at and not (erekir_build or mining) else 0
+            circle_y = 106 if seconds == circle_at and not (erekir_build or mining or stationary) else 0
             if mining == "floor" and 88 <= seconds < 94:
                 circle_y = 65
             point = next((point for start, point in taps if start <= seconds < start + 2), None)
@@ -1213,6 +1213,28 @@ def verify_logic_markers(log, emulator, server_log, server, rpc, output, model, 
     print(f"{model}: original logic marker drawing, visibility, position, text and removal passed.", flush=True)
 
 
+def capture_marker_pixels(rpc, output, model, phase, points, timeout, expected=None, tolerance=1):
+    deadline = time.monotonic() + timeout
+    png, samples = None, None
+    while time.monotonic() < deadline:
+        try:
+            captured = rpc.screenshot(res_scale=1)
+        except TimeoutError:
+            time.sleep(0.2)
+            continue
+        png = captured
+        pixels = az.inspect_png(png, points)["samples"]
+        samples = tuple(pixels[point] for point in points)
+        if expected is None or all(abs(a - b) <= tolerance for actual, exact in zip(samples, expected)
+                                   for a, b in zip(actual, exact)):
+            (output / f"{model}-{phase}.png").write_bytes(png)
+            return samples
+        time.sleep(0.2)
+    if png is not None:
+        (output / f"{model}-{phase}-unexpected.png").write_bytes(png)
+    raise RuntimeError(f"{phase} pixels: expected {expected}, got {samples}")
+
+
 def verify_texture_markers(server_log, server, rpc, output, model, position, timeout):
     _, _, x, y = position
     x, y = (math.floor(float(value) / 8 + 0.5) * 8 for value in (x, y))
@@ -1225,19 +1247,7 @@ def verify_texture_markers(server_log, server, rpc, output, model, position, tim
     error = ((255, 255, 255),) * 3
 
     def capture(phase, expected=None):
-        deadline = time.monotonic() + timeout
-        while True:
-            png = rpc.screenshot(res_scale=1)
-            pixels = az.inspect_png(png, points)["samples"]
-            samples = tuple(pixels[point] for point in points)
-            if expected is None or all(abs(a - b) <= 1 for actual, exact in zip(samples, expected)
-                                       for a, b in zip(actual, exact)):
-                (output / f"{model}-texture-marker-{phase}.png").write_bytes(png)
-                return samples
-            if time.monotonic() >= deadline:
-                (output / f"{model}-texture-marker-{phase}-unexpected.png").write_bytes(png)
-                raise RuntimeError(f"Texture marker {phase}: expected {expected}, got {samples}")
-            time.sleep(0.1)
+        return capture_marker_pixels(rpc, output, model, f"texture-marker-{phase}", points, timeout, expected)
 
     baseline = capture("baseline")
     send_marker_phase(server_log, server, "texture-created",
@@ -1255,12 +1265,49 @@ def verify_texture_markers(server_log, server, rpc, output, model, position, tim
     print(f"{model}: original texture marker creation, rotation, content, fallback and removal passed.", flush=True)
 
 
+def verify_quad_markers(log, emulator, server_log, server, rpc, output, model, position, timeout):
+    _, _, x, y = position
+    x, y = (math.floor(float(value) / 8 + 0.5) * 8 for value in (x, y))
+    # Keep all samples below the stock health, ammo, enemy-core and item HUD.
+    y -= 32
+    # Opaque samples in the original Core Nucleus span three 128 × 128 atlas
+    # tiles. The first sample includes the stock interpolated red tint.
+    points = ((94, 132), (109, 166), (133, 148), (153, 125))
+    initial = ((101, 185, 192), (152, 154, 164), (176, 185, 192))
+    moved = ((86, 154, 164), (110, 112, 128), (152, 154, 164), (152, 154, 164))
+    router = ((62, 112, 128), (110, 112, 128), (152, 154, 164), (147, 149, 160))
+
+    def capture(phase, expected=None):
+        return capture_marker_pixels(rpc, output, model, f"quad-marker-{phase}",
+                                     points, timeout, expected, tolerance=4)
+
+    baseline = capture("baseline")
+    corners = ((-52, 0, 0, 0), (-48, 24, 0, 1), (-24, 28, 1, 1), (-20, 4, 1, 0))
+    assignments = " ".join(
+        f"v[{i * 6}]={x + dx}; v[{i * 6 + 1}]={y + dy}; v[{i * 6 + 3}]={u}; v[{i * 6 + 4}]={t};"
+        for i, (dx, dy, u, t) in enumerate(corners))
+    send_marker_phase(server_log, server, "quad-created",
+        'const q=new MapObjectives.QuadMarker(); q.texture.value="core-nucleus"; const v=q.vertices; '
+        + assignments + ' v[8]=Color.valueOf("80ffffff").toFloatBits(); Call.createMarker(752, q);')
+    wait_for(log, emulator, "UPSTREAM_TEXTURED_QUAD source=arc gpu=citro3d", timeout)
+    capture("created", (*initial, baseline[3]))
+    send_marker_phase(server_log, server, "quad-moved",
+        "Call.updateMarker(752, Packages.mindustry.logic.LMarkerControl.posi, "
+        f"2, {(x - 16) / 8}, {(y + 32) / 8});")
+    capture("moved", moved)
+    send_marker_phase(server_log, server, "quad-retargeted", 'Call.updateMarkerTexture(752, "block-router-ui");')
+    capture("retargeted", router)
+    send_marker_phase(server_log, server, "quad-removed", "Call.removeMarker(752);")
+    capture("removed", baseline)
+    print(f"{model}: stock quad tint, atlas clipping, corner update and retargeting passed.", flush=True)
+
+
 def run_model(args, model, config, original_config, log, output):
     stationary = (args.world_atlas_recycle or args.building_layers or args.liquids
                   or args.building_effects or args.payload_mix or args.carried_buildings
                   or args.payload_handoff or args.unit_layers or args.unit_roster or args.naval_wake
                   or args.tank_treads or args.map_spawn or args.combat
-                  or args.verify_logic_markers or args.verify_texture_markers)
+                  or args.verify_logic_markers or args.verify_texture_markers or args.verify_quad_markers)
     map_name = args.map_spawn or "Glacier"
     overrides = {
         "Miscellaneous": {"log_filter": "*:Info Debug.Emulated:Debug Service.SOC:Debug",
@@ -1397,7 +1444,7 @@ def run_model(args, model, config, original_config, log, output):
                 server.stdin.flush()
                 wait_for(server_log, server, r"UPSTREAM_COMBAT_PREP", 10)
             command = [str(args.azahar)]
-            if args.controls_replay:
+            if args.controls_replay or args.unified_boot:
                 replay = Path(work) / "controls.ctm"
                 first_move = 42 if args.terrain_atlas else 22
                 if args.building and args.desktop_name:
@@ -1409,7 +1456,8 @@ def run_model(args, model, config, original_config, log, output):
                 write_controls_replay(replay, first_move=first_move, building=args.building,
                                       touch_build=args.touch_build, touch_config=args.touch_config,
                                       erekir_build=args.erekir_build, mining=args.mining, model=model,
-                                      stock_menu_font=args.verify_stock_menu_font, unified_boot=args.unified_boot)
+                                      stock_menu_font=args.verify_stock_menu_font, unified_boot=args.unified_boot,
+                                      stationary=not args.controls_replay)
                 command += ["-p", str(replay)]
             command.append(str(args.rom))
             emulator = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -1561,6 +1609,8 @@ def run_model(args, model, config, original_config, log, output):
                             verify_logic_markers(log, emulator, server_log, server, rpc, output, model, spawn, args.timeout)
                         if args.verify_texture_markers:
                             verify_texture_markers(server_log, server, rpc, output, model, spawn, args.timeout)
+                        if args.verify_quad_markers:
+                            verify_quad_markers(log, emulator, server_log, server, rpc, output, model, spawn, args.timeout)
                         if args.verify_stock_font:
                             wait_for(log, emulator, r"UPSTREAM_RENDER_KEEPALIVE transport=tcp\b", 5)
                         if args.erekir_build:
@@ -1772,6 +1822,8 @@ def main():
                         help="Verify stock logic marker packets and visible state on Glacier")
     parser.add_argument("--verify-texture-markers", action="store_true",
                         help="Verify original atlas-backed texture markers on Glacier")
+    parser.add_argument("--verify-quad-markers", action="store_true",
+                        help="Verify clipped stock textured quads and live corner updates on Glacier")
     parser.add_argument("--verify-stock-font", action="store_true",
                         help="Require original font rendering for the Onset world markers")
     parser.add_argument("--verify-styled-markers", action="store_true",
@@ -1791,8 +1843,8 @@ def main():
         parser.error("The PC client needs a distinct player name")
     if args.controls_replay and not args.controls:
         parser.error("--controls-replay needs --controls")
-    if args.unified_boot and not args.controls_replay:
-        parser.error("--unified-boot needs --controls-replay")
+    if args.unified_boot and not args.controls:
+        parser.error("--unified-boot needs --controls")
     if args.combat and (not args.controls or not args.terrain_atlas):
         parser.error("--combat needs --controls and --terrain-atlas")
     if args.combat and (args.controls_replay or args.building or args.touch_build or args.touch_config
@@ -1858,6 +1910,8 @@ def main():
         parser.error("--verify-logic-markers needs stationary --controls and --terrain-atlas on Glacier")
     if args.verify_texture_markers and (not args.controls or not args.terrain_atlas or args.controls_replay or args.map_spawn):
         parser.error("--verify-texture-markers needs stationary --controls and --terrain-atlas on Glacier")
+    if args.verify_quad_markers and (not args.controls or not args.terrain_atlas or args.controls_replay or args.map_spawn):
+        parser.error("--verify-quad-markers needs stationary --controls and --terrain-atlas on Glacier")
     if args.verify_objective_markers and (
         args.map_spawn != "The Onset" or args.erekir_sector != "onset" or args.locale not in ONSET_MARKER_TEXT
         or args.mining or args.erekir_build or args.controls_replay
