@@ -1,9 +1,12 @@
+import arc.Events;
 import arc.files.Fi;
 import arc.graphics.Blending;
 import mindustry.Vars;
 import mindustry.content.Blocks;
 import mindustry.content.Items;
 import mindustry.content.Liquids;
+import mindustry.entities.Puddles;
+import mindustry.game.EventType.GeneratorPressureExplodeEvent;
 import mindustry.world.blocks.heat.HeatConductor.HeatConductorBuild;
 import mindustry.world.blocks.power.HeaterGenerator.HeaterGeneratorBuild;
 import mindustry.world.blocks.production.HeatCrafter.HeatCrafterBuild;
@@ -24,6 +27,7 @@ public final class UpstreamErekirHeatReference implements UpstreamTerrainDrawPro
             Vars.content.loadColors(new Fi(args[2]));
             new UpstreamErekirHeatReference().verify(session);
             session.save(new Fi(args[3]));
+            verifyBlockedOutlet(session);
         } finally {
             session.shutdown();
         }
@@ -92,6 +96,30 @@ public final class UpstreamErekirHeatReference implements UpstreamTerrainDrawPro
 
     private static void step(UpstreamSinglePlayerSession session, int ticks) {
         for (int i = 0; i < ticks; i++) session.stepSimulation(0f, 0f);
+    }
+
+    private static void verifyBlockedOutlet(UpstreamSinglePlayerSession session) {
+        var reactor = Vars.world.build(REACTOR_X, Y);
+        var outlet = Vars.world.build(REACTOR_X, Y + 4);
+        var pressureEvents = new int[1];
+        Events.on(GeneratorPressureExplodeEvent.class, event -> {
+            if (event.build == reactor) pressureEvents[0]++;
+        });
+        Vars.state.rules.reactorExplosions = true;
+        outlet.liquids.set(Liquids.neoplasm, outlet.block.liquidCapacity);
+        reactor.liquids.set(Liquids.neoplasm, reactor.block.liquidCapacity);
+        step(session, 2);
+        int deposits = 0;
+        for (int y = Y - 7; y <= Y + 7; y++) {
+            for (int x = REACTOR_X - 7; x <= REACTOR_X + 7; x++) {
+                var puddle = Puddles.get(Vars.world.tile(x, y));
+                if (puddle != null && puddle.liquid == Liquids.neoplasm) deposits++;
+            }
+        }
+        if (Vars.world.build(REACTOR_X, Y) == reactor || pressureEvents[0] != 1 || deposits == 0) {
+            throw new AssertionError("Blocked neoplasm outlet did not trigger stock pressure destruction");
+        }
+        System.out.println("UPSTREAM_EREKIR_NEOPLASM_OVERFLOW pressure=1 puddles=" + deposits);
     }
 
     @Override
