@@ -986,7 +986,7 @@ int main(int argc, char *argv[]) {
         printf("\x1b[13;1HX:Mute B:Light Zoom:%.2f\x1b[K",
                (double)m3ds_scene_zoom(&scene));
         printf("\x1b[14;1H%s\x1b[K", hw_summary);
-        printf("\x1b[19;1HTouch: pad / zoom / menu\x1b[K");
+        printf("\x1b[28;1HTouch: labelled zones\x1b[K");
         if (save_slot.present && save_slot.valid) {
             printf("\x1b[20;1HSave: v%u %uB\x1b[K",
                    (unsigned)save_slot.version, (unsigned)save_slot.bytes);
@@ -1032,6 +1032,18 @@ int main(int argc, char *argv[]) {
         } else {
             for (unsigned line = 15u; line <= 18u; ++line) {
                 printf("\x1b[%u;1H\x1b[K", line);
+            }
+        }
+
+        if (!main_menu.open) {
+            size_t touch_label_count = 0u;
+            const M3dsTouchLabel *touch_labels =
+                m3ds_touch_labels(&touch_label_count);
+            for (size_t i = 0u; i < touch_label_count; ++i) {
+                printf("\x1b[%u;%uH%s",
+                       (unsigned)touch_labels[i].row,
+                       (unsigned)touch_labels[i].col,
+                       touch_labels[i].text);
             }
         }
 
