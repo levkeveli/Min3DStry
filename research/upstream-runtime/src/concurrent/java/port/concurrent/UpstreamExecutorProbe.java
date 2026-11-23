@@ -4,9 +4,12 @@ import arc.util.OS;
 import arc.util.Threads;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 public final class UpstreamExecutorProbe {
+    private static volatile byte[] liveAllocation;
+
     public static void main(String[] args) throws Exception {
         java.util.concurrent.ExecutorService executor = Threads.executor("ARM11 probe");
         try {
@@ -30,6 +33,39 @@ public final class UpstreamExecutorProbe {
         checkPool(Threads.boundedExecutor("probe-bounded", 1), true);
         checkPool(Threads.unboundedExecutor("probe-unbounded", 0), false);
         System.out.println("UPSTREAM_EXECUTOR_POOLS bounded=ok unbounded=ok");
+        checkMonitorAcrossGc(new Object());
+        checkMonitorAcrossGc(new int[1]);
+        System.out.println("UPSTREAM_EXECUTOR_MONITOR_GC object=ok array=ok");
+    }
+
+    private static void checkMonitorAcrossGc(Object monitor) throws Exception {
+        int identity = System.identityHashCode(monitor);
+        var pool = Executors.newSingleThreadExecutor();
+        try {
+            synchronized (monitor) {
+                // Exceed the generated probe's initial heap via ordinary safepoints.
+                for (int i = 0; i < 1024; i++) {
+                    liveAllocation = new byte[16 * 1024];
+                }
+                if (System.identityHashCode(monitor) != identity) {
+                    throw new IllegalStateException("Monitor identity changed during collection");
+                }
+            }
+            var handoff = pool.submit(() -> {
+                synchronized (monitor) {
+                    return System.identityHashCode(monitor);
+                }
+            });
+            if (handoff.get(2, TimeUnit.SECONDS) != identity) {
+                throw new IllegalStateException("Monitor identity changed at handoff");
+            }
+        } finally {
+            liveAllocation = null;
+            pool.shutdownNow();
+        }
+        if (!pool.awaitTermination(2, TimeUnit.SECONDS)) {
+            throw new IllegalStateException("Monitor handoff executor did not shut down");
+        }
     }
 
     private static void checkPool(java.util.concurrent.ExecutorService pool, boolean bounded) throws Exception {

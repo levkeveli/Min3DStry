@@ -31,7 +31,7 @@ the original sector name.
 The app loads the sector through `SaveIO.load(file, world.makeSectorContext(sector))`.
 The **SELECT** save button and **START** exit write to the selected file with
 `SaveIO.save`, which keeps the previous save at the original backup path.
-Selection alone performs no writes.
+Selecting a row does not write a sector save.
 
 For verification, create sector fixtures with the stock v160.8 server in a
 temporary directory. Run the following as one server-console command, first
@@ -59,6 +59,171 @@ building, pause, and save/reload replay also passed on both profiles with
 no sector files staged. After integration with the merged Custom Game port,
 the campaign resume JVM reference and the repository host suite passed
 against the combined tree. Physical console verification remains open.
+
+## Campaign settings
+
+Copy the PC `settings.bin` into `/3ds/min3dstry/` alongside the `saves/`
+directory to carry over campaign research, unlocks, sector information, and
+the last-sector selection. The graphical app loads the file through Arc
+`Settings` before initializing Mindustry content. In the sector menu, the
+stock last save display name or planet sector preference determines the
+initial row when it matches an available save. The original Saves class
+stores the display name under `last-sector-save`, including renamed saves.
+[Pinned stock implementation](https://github.com/Anuken/Mindustry/blob/19a0f40d44514f4802a8b79770456e7e32e34da0/core/src/mindustry/game/Saves.java#L259-L264)
+
+Saving the sector updates the original
+Mindustry settings keys through `SaveIO` and flushes `Settings` to the same
+SD directory. The offline interface uses the saved PC language preference
+when available. A nonempty SD `locale.txt` overrides the displayed language
+for that launch and preserves the PC setting. Arc manages the settings backup.
+The graphical 3DS binaries with offline support reserve a 512 KiB native
+stack for campaign saves with nested objective markers. This adds 256 KiB to
+the static budget of builds that used the earlier 256 KiB stack.
+
+The [ARM11 build from `c42a78b`](https://github.com/levkeveli/Min3DStry/actions/runs/45042352829)
+opened Ground Zero, highlighted the stock last save in the two-sector menu,
+and saved back to the selected slot on both Azahar 2126.2 profiles. The
+stock v160.8 server reopened all four save and settings pairs. It found the
+original partial research value, content unlock, custom sector name, origin,
+and unrelated copied preferences, with the correct last sector for each run.
+
+The [unified ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45118296332)
+repeated both scenarios on the Original and New 3DS Azahar profiles.
+The two-sector menu highlighted Frozen Forest from the copied PC setting,
+and the app used the saved German language. Stock Java reopened the four
+written save and settings pairs with the expected sector, core, research
+and preferences. The replay verified both the original save and settings
+backups.
+
+Use the stock v160.8 server to add `settings.bin` to the sector fixture directory.
+
+```sh
+python3 tools/campaign_settings_fixture.py --server server-release.jar --create-in /path/to/fixtures
+```
+
+Run Gradle with the pinned runtime properties and
+`-Pprobe=singleplayer runGraphicalCampaignSettingsJvm --args="/path/to/fixtures /path/to/new-scratch-dir"`.
+It checks unlocks and partial research at content startup, the stock sector
+metadata, renamed-slot selection, language selection, the settings backup, and the research update
+after saving.
+Passing the same fixtures to `tools/verify_upstream_campaign_resume.py`
+checks the initial menu selection and saves a copy of the native settings for
+each run. The replay uses a separate virtual SD for every model and scenario. The stock reader can reopen the paired files with
+`python3 tools/campaign_settings_fixture.py --server server-release.jar --check /path/to/new3ds-single-settings.bin --save /path/to/new3ds-sector-serpulo-170.msav --sector 170 --after-play`
+and `--sector 64` without `--after-play` for the two-slot run. The replay
+allows the active sector’s stock production average to decay while idle.
+
+## New campaign
+
+Hold **R** while launching the standalone graphical .3dsx to open the
+campaign selector. The selector includes a new Ground Zero or Onset
+campaign when that planet does not already have a starter save. Use D-pad
+up/down to select and **A** to start. **B** or **START** exits the selector.
+New games use the original sector generator and write the original
+campaign .msav and Arc settings files in the same locations as resumed games.
+The renderer loads each visible unit’s original atlas regions and weapon art
+when it first encounters that unit type.
+
+The [ARM11 build from `2c8f6e7`](https://github.com/levkeveli/Min3DStry/actions/runs/45043634996)
+showed the controlled unit and saved successfully in Ground Zero and Onset
+on both Azahar profiles. The stock v160.8 server reopened all four saves
+and settings pairs.
+
+## Campaign map assets
+
+The offline package stages the 78 Serpulo maps and 17 Erekir maps from the
+pinned v160.8 assets archive. It preserves their paths under
+`maps/serpulo/` and `maps/erekir/`, including the original Serpulo hidden
+map directory. The graphical app mounts these paths before Mindustry creates
+its `FileMapGenerator` instances. The existing `maps/groundZero.msav`
+path remains available for the standalone Ground Zero mode.
+
+The host task `runGraphicalCampaignPresetMapsJvm` takes a staged assets
+directory with `maps/`, `planets/` and `bundle.properties`, and a new
+scratch directory. It loads the Ground Zero and Onset starters through
+the original world generator, then checks the sector IDs, starter cores,
+launch event, and the saved worlds. The stock v160.8 server reopened both
+JVM-generated saves with the same world size, core, and rules as saves
+from a fresh stock launch. The JVM reference also checks the stock numbered
+landing rule. The test seeds the last wave with no enemies and lets the
+upstream game loop capture Ground Zero. It then upgrades to a Core Foundation,
+checks the original default launch schematic and the maximum cargo preference,
+and verifies that the origin pays for the schematic and the loaded cargo.
+The new Serpulo sector opens with 23 copper and Ground Zero resumes with the
+remaining inventory. The stock server reopens the new sector and the still
+captured origin, and confirms that the cargo was deducted from the old base.
+
+The campaign selector includes open launch destinations when a stock landing
+candidate exists. Choose a destination to review the selected schematic, its
+origin, and the total items that will be debited. Copy stock Java `.msch`
+files to `/3ds/min3dstry/schematics/` to use valid custom launch schematics.
+Use D-pad left/right to choose a schematic and up/down to review additional
+items. **X** switches between maximum cargo and a manually selected loadout.
+With maximum cargo off, **Y** opens the cargo editor. Use D-pad up/down to
+select an item and left/right to change its quantity. Hold **R** to adjust
+one item at a time. **A** or **B** returns to the summary. There, **A**
+confirms an affordable launch and **B** cancels. The saved cargo changes
+when the launch is confirmed.
+
+During an active campaign, hold **R** and press **SELECT** to save the
+current sector and open the campaign selector. **B** returns to the current
+sector. Selecting another sector resumes its save or starts its launch
+sequence in the same app. Regular **SELECT** saves, and **START** exits play.
+
+Use `python3 tools/verify_upstream_campaign_launch.py --rom upstream-probe.3dsx`
+to replay the fresh campaign menu on both Azahar profiles. The verifier
+captures the menu and starting worlds, then collects the resulting saves and
+settings from an empty test SD directory. Pass `--server server-release.jar`
+to compare those outputs with a fresh stock Java launch.
+Pass `--departure /path/to/reference-output/departure` to replay the funded
+numbered-sector launch fixture produced by the JVM task. With `--server` it
+also verifies the saved cargo and origin with stock Java and compares the
+generated floor, overlay, and block IDs with a fresh stock launch. Add `--manual-cargo`
+to exercise the editor and transfer 8 copper while leaving 15 in Ground Zero.
+Use `--in-game` to start at Ground Zero, open and cancel the selector,
+then reopen it and depart without restarting the app.
+The in-game replay checks the selected destination against the original
+generator's eligible-sector catalog in the JVM fixture.
+The game shows the destination and the upstream loading label while terrain
+generation runs. Numbered-sector movies allow extra time for the original
+procedural generator before sending the exit input.
+
+The [ARM11 build from `24338a2`](https://github.com/levkeveli/Min3DStry/actions/runs/45048947159)
+rendered the numbered-sector launch dialog in the New 3DS profile and
+accepted the 8-copper edit. With the longer controller movie, the stock
+432×432 sector 15 generator exhausted its 32 MiB TeaVM heap before the world
+opened. GDB stopped at a 7,784,656-byte `PQueue` allocation in the upstream
+Serpulo generator's A* path search. Arc's visited-tile bitset uses Java's
+masked shift counts, while the generated C lookup did not mask the index.
+ARM11 staging restores those masks so positions above 63 can be found
+without repeatedly adding the same tiles. The JVM reference completed the
+original launch and the stock PC server reopened both saves and matched the
+destination terrain.
+
+The [ARM11 build from `5aecd95`](https://github.com/levkeveli/Min3DStry/actions/runs/45053996180)
+generated 432×432 sector 15 at the original 32 MiB managed limit on both
+Azahar profiles. The controller edited the loadout to 8 copper. The
+unmodified v160.8 server reopened both initial saves and matched the CRC
+across floor, overlay, and block IDs for all tiles against a fresh stock
+launch using the same schematic. It confirmed the selected schematic,
+destination cargo, and 15 copper remaining on the origin. Both profiles
+completed the exit save and PC readback. In separate in-game replays on both
+Azahar profiles, the controller opened, canceled, and reopened the selector
+from captured Ground Zero and launched eligible sector 63 at 430×430. The
+stock v160.8 server reopened both exit saves and confirmed the original
+terrain, 8 copper at the destination, and 15 remaining in the captured origin.
+
+The [current unified ARM11 replay](https://github.com/levkeveli/Min3DStry/actions/runs/45119739751)
+launched Ground Zero and The Onset from fresh data directories and reopened
+all four save/settings pairs in stock Java v160.8. The same ROM generated
+and saved 432×432 Serpulo sector 15 with 23 copper on both Azahar profiles.
+Stock Java reopened both exit saves and matched the original terrain,
+departure origin and cargo.
+
+The build's ELF LOAD segments plus the logged managed limit, linear heap,
+and stack total 64.58 MiB. This exceeds the 64 MiB Original 3DS application
+budget even before other runtime allocations. Physical memory and frame-rate
+verification remain open.
 
 ## Custom Game
 
@@ -100,7 +265,9 @@ reported the same map size, planet, infinite resources, waves, and wave-timer
 settings as its own Ancient Caldera Sandbox session.
 
 The graphical app reserves a 32 MiB TeaVM heap for the decoded world,
-pathfinder grids, and sprite atlas. In the preceding 24 MiB build, the Old 3DS
+pathfinder grids, and sprite atlas. The startup log reports the managed
+limit so device budget reports can account for it. In the preceding 24 MiB
+build, the Old 3DS
 debugger caught Archipelago's 1,000,016-byte pathfinder allocation after
 collection left only 40 bytes free. The
 [ARM11 build from `fc3881c`](https://github.com/levkeveli/Min3DStry/actions/runs/45032641678)
