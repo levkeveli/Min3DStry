@@ -101,6 +101,7 @@ public final class UpstreamSinglePlayerApp {
     private final UpstreamPauseMenu pauseMenu = new UpstreamPauseMenu();
     private boolean pauseOpen;
     private int pauseAxis;
+    private Fi sourceMap;
     private byte[][] statusLabels = new byte[0][];
     private int[][] statusCharacters = new int[0][];
     private List<UpstreamObjectiveHud.Row> lastObjectives;
@@ -141,6 +142,7 @@ public final class UpstreamSinglePlayerApp {
         boolean campaignRequested = args.length == 0 && bootInput >= 0
             && (bootInput & UpstreamSinglePlayerInput.CAMPAIGN_HELD) != 0 && !customRequested;
         Fi mapFile = !editorRequested && args.length >= 1 ? new Fi(args[0]) : firstExisting("/romfs/maps/groundZero.msav", "/3ds/min3dstry/groundZero.msav");
+        sourceMap = mapFile;
         Fi saveFile = !editorRequested && args.length >= 2 ? new Fi(args[1]) : new Fi("/3ds/min3dstry/singleplayer-save.msav");
         Fi atlas = firstExisting("/romfs/sprites.aatls", "/3ds/min3dstry/sprites.aatls");
         Fi mapDir = saveFile.parent() != null ? saveFile.parent() : new Fi("/3ds/min3dstry");
@@ -821,6 +823,19 @@ public final class UpstreamSinglePlayerApp {
                     var action = pauseMenu.activate();
                     if (action == UpstreamPauseMenu.Action.RESUME) {
                         closePauseMenu();
+                    } else if (action == UpstreamPauseMenu.Action.LOAD) {
+                        closePauseMenu();
+                        var loadSector = Vars.state.rules.sector;
+                        session.start(sourceMap, saveFile, campaignSlot == null ? null : "campaign", loadSector);
+                        lastStatus = null;
+                        lastObjectives = null;
+                        lastCoreItemCount = -1;
+                        lastCoreItemDrawn = -1;
+                        uploadMinimap();
+                        previousTime = System.nanoTime();
+                        accumulator = 0L;
+                        System.out.println("UPSTREAM_PAUSE_MENU load=true");
+                        continue;
                     } else if (action == UpstreamPauseMenu.Action.RESEARCH) {
                         closePauseMenu();
                         var researchSector = Vars.state.rules.sector;
@@ -1195,7 +1210,7 @@ public final class UpstreamSinglePlayerApp {
     private void openPauseMenu() {
         var sector = Vars.state.rules.sector;
         boolean research = sector != null && sector.planet != null && sector.planet.techTree != null;
-        pauseMenu.open(research ? 4 : 3);
+        pauseMenu.open(research ? 5 : 3);
         pauseOpen = true;
         if (!Vars.state.isPaused()) session.togglePause();
         System.out.println("UPSTREAM_PAUSE_MENU open=true selected=0 options=" + pauseMenu.options());
@@ -1220,14 +1235,17 @@ public final class UpstreamSinglePlayerApp {
             }
         }
         String[] options;
-        if (pauseMenu.options() == 4) {
+        if (pauseMenu.options() == 5) {
+            options = new String[]{Core.bundle.get("back"), Core.bundle.get("research"),
+                Core.bundle.get("loadgame"), Core.bundle.get("savegame"), Core.bundle.get("quit")};
+        } else if (pauseMenu.options() == 4) {
             options = new String[]{Core.bundle.get("back"), Core.bundle.get("research"),
                 Core.bundle.get("savegame"), Core.bundle.get("quit")};
         } else {
             options = new String[]{Core.bundle.get("back"), Core.bundle.get("savegame"),
                 Core.bundle.get("quit")};
         }
-        float y = 100f;
+        float y = 88f;
         for (int i = 0; i < options.length; i++) {
             boolean selected = i == pauseMenu.selected();
             drawPauseRow((selected ? "> " : "  ") + options[i], 170f, y, selected);
