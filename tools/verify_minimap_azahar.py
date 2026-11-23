@@ -39,6 +39,11 @@ def main() -> int:
     parser.add_argument("--rom", type=Path, default=DEFAULT_ROM)
     parser.add_argument("--model", choices=("new3ds", "old3ds"), default="new3ds")
     parser.add_argument("--slot", type=int, default=0)
+    parser.add_argument(
+        "--items",
+        default=None,
+        help="Comma-separated item=amount entries to seed into the local core, e.g. copper=200,lead=75",
+    )
     parser.add_argument("--out", type=Path, default=None)
     parser.add_argument("--timeout", type=float, default=240.0)
     parser.add_argument("--azahar", default=None)
@@ -82,6 +87,19 @@ def main() -> int:
     select.parent.mkdir(parents=True, exist_ok=True)
     previous_selection = select.read_bytes() if select.exists() else None
     select.write_text(f"{args.slot}\n", encoding="utf-8")
+    item_fixture = sd_min3dstry / "hud-items.txt"
+    previous_items = item_fixture.read_bytes() if item_fixture.exists() else None
+    expected_items = 0
+    if args.items:
+        lines = []
+        for entry in args.items.split(","):
+            if "=" not in entry:
+                raise SystemExit(f"invalid --items entry: {entry}")
+            item, amount = entry.split("=", 1)
+            if int(amount) > 0:
+                expected_items += 1
+            lines.append(f"{item.strip()}={int(amount)}\n")
+        item_fixture.write_text("".join(lines), encoding="utf-8")
 
     proc = subprocess.Popen(
         [azahar_bin, str(rom)],
@@ -109,9 +127,21 @@ def main() -> int:
             raise RuntimeError("Minimap upload trace did not appear")
         match = re.search(r"UPSTREAM_MINIMAP size=64 hash=[0-9a-f]+(?: cell=(\d+),(\d+))?", text)
         cell = (int(match.group(1)), int(match.group(2))) if match and match.group(1) else None
-
         # Let the game render several frames after the upload.
         time.sleep(5.0)
+        text = log_path.read_text(encoding="utf-8", errors="replace")
+        item_match = re.search(
+            r"UPSTREAM_ITEM_ROWS items=(\d+) drawn=(\d+) columns=(\d+)", text
+        )
+        if args.items:
+            if not item_match:
+                raise RuntimeError("Core item row trace did not appear")
+            logged_items, drawn, columns = map(int, item_match.groups())
+            if logged_items != expected_items or drawn != expected_items:
+                raise AssertionError(
+                    f"Core item rows incomplete: expected={expected_items} "
+                    f"items={logged_items} drawn={drawn} columns={columns}"
+                )
         png = b""
         last_error: Exception | None = None
         for _ in range(3):
@@ -153,10 +183,13 @@ def main() -> int:
                 )
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_bytes(png)
+        item_summary = ""
+        if args.items:
+            item_summary = f" items={logged_items} drawn={drawn} columns={columns}"
         print(
             f"[PASS] minimap model={args.model} distinct={len(colors)} "
-            f"cell={cell} marker={'white' if cell is not None else 'unreported'} "
-            f"size={info['width']}x{info['height']} PNG={out}"
+            f"cell={cell} marker={'white' if cell is not None else 'unreported'}"
+            f"{item_summary} size={info['width']}x{info['height']} PNG={out}"
         )
         return 0
     finally:
@@ -185,6 +218,10 @@ def main() -> int:
             select.write_bytes(previous_selection)
         else:
             select.unlink(missing_ok=True)
+        if previous_items is not None:
+            item_fixture.write_bytes(previous_items)
+        else:
+            item_fixture.unlink(missing_ok=True)
         if had_config:
             config_path.write_text(original_config, encoding="utf-8")
         elif config_path.exists():

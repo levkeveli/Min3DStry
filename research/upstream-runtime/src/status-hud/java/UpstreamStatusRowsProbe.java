@@ -1,12 +1,14 @@
 import arc.Core;
 import arc.Settings;
 import arc.files.Fi;
+import arc.struct.Seq;
 import arc.util.I18NBundle;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import mindustry.Vars;
+import mindustry.content.Items;
 import mindustry.content.StatusEffects;
 import mindustry.content.UnitTypes;
 import mindustry.core.ContentLoader;
@@ -89,6 +91,15 @@ public final class UpstreamStatusRowsProbe {
                 UpstreamGuardianWarning.find(laterRules, 8))) {
             throw new IllegalStateException("guardian five-wave warning mismatch");
         }
+        var coreItems = UpstreamCoreItems.collect(
+            Seq.with(Items.copper, Items.lead, Items.silicon).list(),
+            item -> item == Items.copper ? 16 : item == Items.lead ? 7 : 0);
+        if (coreItems.size() != 2
+                || coreItems.get(0).item() != Items.copper || coreItems.get(0).amount() != 16
+                || coreItems.get(1).item() != Items.lead || coreItems.get(1).amount() != 7) {
+            throw new IllegalStateException("Core item row collection mismatch");
+        }
+        System.out.println("UPSTREAM_CORE_ITEMS rows=2 ok");
         System.out.println("UPSTREAM_STATUS_ROWS cases=10 ok");
         System.out.println("UPSTREAM_GUARDIAN_WARNING cases=2 ok");
         System.out.println("UPSTREAM_UNIT_ROWS cases=3 ok");

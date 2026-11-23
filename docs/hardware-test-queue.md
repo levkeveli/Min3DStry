@@ -159,6 +159,8 @@ and waves, touch palette/rotation, HUD/menus/minimap.
   `wave.guardianwarn` text.
 - The top-right minimap shows the sector terrain, marks the local player with a
   white dot, and follows the player as they move.
+- The core item list shows one icon-and-count row per stocked item and wraps
+  into columns without covering the minimap.
 
 **Evidence:** raw log, screenshots of HUD/palette/minimap, frame timings and a
 short note on any glitches.
