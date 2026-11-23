@@ -103,6 +103,33 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
     private final List<RasterTexture> displayDraws = new ArrayList<>();
     private final List<Integer> displayFirstPixels = new ArrayList<>();
 
+    private static void verifyLiveChatInput() {
+        var input = new UpstreamChatInput();
+        int open = 1 << 22, send = 1 << 17, cancel = 1 << 19;
+        if (input.update(send, -1) != null || input.open()) throw new AssertionError("Closed chat");
+        input.update(open, -1);
+        if (!input.open()) throw new AssertionError("Open chat");
+        // Shift, H, ordinary i, space, 3, Backspace, and i again.
+        input.update(0, 32 | 214 << 16);
+        input.update(0, 176 | 132 << 16);
+        input.update(0, 32 | 214 << 16);
+        input.update(0, 240 | 93 << 16);
+        input.update(0, 192 | 214 << 16);
+        input.update(0, 80 | 53 << 16);
+        input.update(0, 290 | 214 << 16);
+        input.update(0, 240 | 93 << 16);
+        if (!"Hi i".equals(input.update(send, -1)) || input.open()) {
+            throw new AssertionError("Chat touch editing and submit");
+        }
+        input.update(open, -1);
+        input.update(0, 240 | 93 << 16);
+        if (input.update(cancel, -1) != null || input.open()) throw new AssertionError("Cancel chat");
+        input.update(open, -1);
+        for (int i = 0; i < Vars.maxTextLength + 5; i++) input.update(0, 240 | 93 << 16);
+        if (input.update(send, -1).length() != Vars.maxTextLength) throw new AssertionError("Stock chat length");
+        System.out.println("UPSTREAM_CHAT_TOUCH_REFERENCE submit=ok cancel=ok stockLimit=" + Vars.maxTextLength);
+    }
+
     public static void main(String[] args) throws Exception {
         if (args.length < 3 || args.length == 6 || args.length > 7) {
             throw new IllegalArgumentException("Expected Glacier, sprites.aatls, block_colors.png, optional bundle base, logicids.dat, then paired world atlas tiles and logic font");
@@ -116,6 +143,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
 
         var target = new UpstreamBuildingLayersReference();
         var viewport = UpstreamTerrainDrawProbe.liveViewport(target);
+        verifyLiveChatInput();
         target.verifyArcOrder();
         target.verifyTexturedLine();
         target.verifyFactory(viewport);
