@@ -31,7 +31,7 @@ if [[ $mode == --network || $mode == --unified ]]; then
     title="Min3DStry"
     repo="$root/../../.."
     native_network=(-I"$root" -I"$repo/include" -I"$repo/src/platform/3ds"
-        "$root/m3ds_net_bridge.c" "$repo/src/net/mindustry_net.c" "$repo/src/platform/3ds/net_3ds.c")
+        "$root/m3ds_net_bridge.c" "$root/m3ds_live_audio.c" "$repo/src/net/mindustry_net.c" "$repo/src/platform/3ds/net_3ds.c")
 fi
 if [[ $mode == --singleplayer || $mode == --unified ]]; then
     title="Min3DStry"
@@ -88,6 +88,20 @@ if [[ $# -gt 0 ]]; then
     terrain_sources=("$root/m3ds_terrain_renderer.c")
     terrain_libraries=(-lcitro2d -lcitro3d)
     mkdir "$output/romfs"
+    if [[ ${#native_network[@]} -gt 0 && -f "$1/sound-index.h" && -d "$1/audio" ]]; then
+        terrain_flags+=(-DM3DS_LIVE_AUDIO)
+        terrain_sources+=("$repo/src/audio/audio_mixer.c" "$repo/src/audio/audio_registry.c"
+            "$repo/src/audio/audio_stream.c" "$repo/src/platform/3ds/ndsp_backend.c"
+            "$repo/src/platform/3ds/ndsp_stream_backend.c")
+        if [[ -f "$1/audio/music-manifest.json" ]]; then
+            portlibs="$DEVKITPRO/portlibs/3ds"
+            terrain_flags+=(-DM3DS_LIVE_MUSIC -I"$portlibs/include" -L"$portlibs/lib")
+            terrain_sources+=("$repo/src/audio/audio_vorbis_stream.c"
+                "$repo/src/platform/3ds/tremor_stream_source.c")
+            terrain_libraries+=(-lvorbisidec -logg)
+        fi
+        cp -R "$1/audio" "$output/romfs/audio"
+    fi
     cp "$1/sprites.t3x" "$output/romfs/terrain.t3x"
     if [[ -f "$1/sprites.aatls" ]]; then
         cp "$1/sprites.aatls" "$output/romfs/sprites.aatls"
