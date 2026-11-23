@@ -23,10 +23,10 @@ off and a campaign sector is active;
 - the local core's non-zero item list as stock item icons with counts, wrapped
   into up to three columns clear of the minimap;
 - a stock-style pause overlay with `paused`, the campaign planet/sector and
-  first objective when available, Resume (`back`), Save Game and
-  Quit rows, plus a Research row when the sector has a tech tree; the stock
-  quit confirmation is included, and tapping X opens/closes it and freezes
-  simulation;
+  first objective when available, Resume (`back`), Research, Load Game,
+  Save Game and Quit rows; Load reloads the active save and resets the HUD
+  caches, and the stock quit confirmation is included; tapping X opens/closes
+  it and freezes simulation;
 - a live minimap rendered from a 64x64 sample at 56 px in the top-right
   corner, using the stock `MinimapRenderer` color path (`Block.minimapColor`,
   floor/overlay fallback through `MapIO.colorFor`, darkness and liquid/shadow
@@ -103,7 +103,7 @@ status-hud host probe:
 
 ```text
 UPSTREAM_CORE_ITEMS rows=2 ok
-UPSTREAM_PAUSE_MENU cases=9 ok
+UPSTREAM_PAUSE_MENU cases=13 ok
 UPSTREAM_CORE_ATTACK text="< Core is under attack! >" ok
 ```
 
@@ -133,6 +133,8 @@ the next emulator batch and are **not verified** yet:
 - D-pad up/down wraps the rows; A on Resume closes and resumes.
 - In a campaign sector, A on Research opens the existing research screen and
   returns to play.
+- A on Load Game reloads the active save, restores the saved world and
+  re-uploads the minimap. **Not verified** graphically yet.
 - In a campaign sector, the overlay shows the planet/sector and first objective
   above the options. **Not verified** graphically yet.
 - A on Save Game emits `UPSTREAM_PAUSE_MENU save=true`.
