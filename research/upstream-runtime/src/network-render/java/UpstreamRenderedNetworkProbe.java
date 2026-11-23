@@ -1,8 +1,10 @@
 import port.render.UpstreamCrackAtlas;
 import port.render.UpstreamFluidAtlas;
 import port.render.UpstreamWorldLabel;
+import port.audio.Arm11Audio;
 import port.render.UpstreamLabelText;
 import arc.Core;
+import arc.Events;
 import arc.files.Fi;
 import arc.graphics.g2d.Draw;
 import arc.mock.MockGraphics;
@@ -17,8 +19,10 @@ import mindustry.content.Blocks;
 import mindustry.content.UnitTypes;
 import mindustry.core.World;
 import mindustry.core.UI;
+import mindustry.game.EventType.WorldLoadEvent;
 import mindustry.gen.Building;
 import mindustry.gen.Groups;
+import mindustry.gen.Payloadc;
 import mindustry.gen.Tankc;
 import mindustry.gen.Unit;
 import mindustry.gen.UnitWaterMove;
@@ -91,10 +95,17 @@ public final class UpstreamRenderedNetworkProbe {
             + (locale.getLanguage().isEmpty() ? "en" : locale) + " router=" + Core.bundle.get("block.router.name")
             + " copper=" + Core.bundle.get("item.copper.name"));
         CacheLayer.init();
-        UpstreamLiveNetworkProbe.run(directory, address, view::loadGraphics, view::render, view.buildingControls);
+        try {
+            Arm11Audio.open();
+            UpstreamLiveNetworkProbe.run(directory, address, view::loadGraphics, view::render, view.buildingControls);
+        } finally {
+            Arm11Audio.close();
+        }
     }
 
     private void loadGraphics() {
+        Arm11Audio.prepareMusicControl();
+        Events.on(WorldLoadEvent.class, event -> Arm11Audio.reset());
         Core.graphics = new MockGraphics() {
             @Override public int getWidth() { return 400; }
             @Override public int getHeight() { return 240; }
@@ -107,7 +118,7 @@ public final class UpstreamRenderedNetworkProbe {
         UpstreamTerrainDrawProbe.loadAtlas(atlas, UpstreamFluidAtlas::load);
         Vars.content.loadColors(new Fi("/romfs/block_colors.png"));
         UpstreamCrackAtlas.load();
-        loadUnitGraphics();
+        drawableUnits.clear();
         UpstreamClientProjectiles.load();
         viewport = UpstreamTerrainDrawProbe.liveViewport(target);
         target.initialize();
@@ -131,25 +142,24 @@ public final class UpstreamRenderedNetworkProbe {
         System.out.println("UPSTREAM_BUILD_SHORTCUTS primary=" + primary.name + " secondary=" + secondary.name);
     }
 
-    static UnitType[] loadUnitGraphics() {
-        var types = new UnitType[]{
-            UnitTypes.alpha, UnitTypes.beta, UnitTypes.gamma,
-            UnitTypes.evoke, UnitTypes.incite, UnitTypes.emanate,
-            UnitTypes.dagger, UnitTypes.mace, UnitTypes.fortress, UnitTypes.scepter, UnitTypes.reign, UnitTypes.crawler,
-            UnitTypes.nova, UnitTypes.pulsar, UnitTypes.quasar, UnitTypes.vela,
-            UnitTypes.flare, UnitTypes.horizon, UnitTypes.zenith, UnitTypes.antumbra, UnitTypes.eclipse,
-            UnitTypes.mono, UnitTypes.poly,
-            UnitTypes.risso, UnitTypes.minke, UnitTypes.bryde, UnitTypes.sei, UnitTypes.omura,
-            UnitTypes.retusa, UnitTypes.oxynoe, UnitTypes.cyerce, UnitTypes.aegires, UnitTypes.navanax,
-            UnitTypes.stell, UnitTypes.locus, UnitTypes.precept, UnitTypes.vanquish, UnitTypes.conquer
-        };
-        drawableUnits.clear();
-        for (var type : types) {
+    static boolean loadUnitGraphics(UnitType type) {
+        if (type == null) return false;
+        if (!drawableUnits.contains(type)) {
             type.loadIcon();
             type.load();
             drawableUnits.add(type);
+            System.out.println("UPSTREAM_NETWORK_UNIT_ART type=" + type.name);
         }
-        return types;
+        return true;
+    }
+
+    static boolean loadUnitGraphics(Unit unit) {
+        if (!loadUnitGraphics(unit.type())) return false;
+        if (unit instanceof Payloadc carrier && carrier.hasPayload()
+                && carrier.payloads().first() instanceof UnitPayload payload) {
+            loadUnitGraphics(payload.unit);
+        }
+        return true;
     }
 
     private void render(Unit unit) {
@@ -159,6 +169,10 @@ public final class UpstreamRenderedNetworkProbe {
         float y = unit == null ? Vars.player.y() : unit.y();
         viewport.moveTo(World.toTile(x) - UpstreamTerrainDrawProbe.VIEW_WIDTH / 2,
                         World.toTile(y) - UpstreamTerrainDrawProbe.VIEW_HEIGHT / 2);
+        float width = UpstreamTerrainDrawProbe.VIEW_WIDTH * Vars.tilesize;
+        float height = UpstreamTerrainDrawProbe.VIEW_HEIGHT * Vars.tilesize;
+        Arm11Audio.updateCamera((viewport.left - 0.5f) * Vars.tilesize + width / 2f,
+            (viewport.bottom - 0.5f) * Vars.tilesize + height / 2f, width, height);
         advanceVisualState();
         draws = 0;
         viewport.draw(drawEntities);
@@ -179,12 +193,11 @@ public final class UpstreamRenderedNetworkProbe {
         float oldDelta = Time.delta;
         Time.updateGlobal();
         Time.delta = oldDelta;
-        if (Vars.state.isPaused()) return;
-
         // Advance the original animation clock and conduit smoothing without replaying liquid transfers.
         float delta = Math.min(frameSeconds * 60f, Vars.maxDeltaClient);
         Time.delta = delta;
         try {
+            Arm11Audio.updateClientAudio(now);
             Time.update();
             for (var build : Groups.build) {
                 if (build instanceof ConduitBuild conduit) conduit.advanceLiquidDraw();
@@ -217,10 +230,10 @@ public final class UpstreamRenderedNetworkProbe {
         Draw.sort(true);
         try {
             for (var unit : Groups.unit) {
-                if (!supportsUnit(unit.type())) continue;
                 int x = World.toTile(unit.x()), y = World.toTile(unit.y());
                 if (x < viewport.left || x >= viewport.left + UpstreamTerrainDrawProbe.VIEW_WIDTH
                         || y < viewport.bottom || y >= viewport.bottom + UpstreamTerrainDrawProbe.VIEW_HEIGHT) continue;
+                if (!loadUnitGraphics(unit)) continue;
                 unit.draw();
                 if (unit == controlled) draws++;
                 if (unit.type() == UnitTypes.dagger && unit.team == Vars.state.rules.waveTeam
@@ -232,8 +245,9 @@ public final class UpstreamRenderedNetworkProbe {
             int bullets = UpstreamClientProjectiles.draw(viewport);
             boolean active = !Groups.bullet.isEmpty();
             if (projectilesActive != active || projectilesVisible != (bullets > 0)) {
+                boolean trail = Groups.bullet.find(bullet -> bullet.trail != null) != null;
                 System.out.println("UPSTREAM_NETWORK_PROJECTILES visible=" + bullets
-                    + " active=" + Groups.bullet.size());
+                    + " active=" + Groups.bullet.size() + " trail=" + trail);
             }
             projectilesVisible = bullets > 0;
             projectilesActive = active;
@@ -382,15 +396,11 @@ public final class UpstreamRenderedNetworkProbe {
     }
 
     private static boolean supportsCargo(PayloadConveyorBuild conveyor) {
-        if (conveyor.item instanceof UnitPayload payload) return supportsUnit(payload.unit.type());
+        if (conveyor.item instanceof UnitPayload payload) return loadUnitGraphics(payload.unit);
         return conveyor.item instanceof BuildPayload payload
             && (payload.block() == Blocks.copperWall || payload.block() == Blocks.copperWallLarge
                 || payload.block() == Blocks.mechanicalDrill || payload.build instanceof ConveyorBuild
                 || payload.build instanceof PayloadConveyorBuild);
-    }
-
-    private static boolean supportsUnit(UnitType type) {
-        return type != null && drawableUnits.contains(type);
     }
 
     private void drawMenu(byte[] labels, int[] icons, int selected,
