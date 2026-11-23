@@ -1286,11 +1286,11 @@ public final class UpstreamSinglePlayerApp {
             options = new String[]{Core.bundle.get("back"), Core.bundle.get("savegame"),
                 Core.bundle.get("quit")};
         }
-        float y = 88f;
+        float y = 80f;
         for (int i = 0; i < options.length; i++) {
             boolean selected = i == pauseMenu.selected();
             drawPauseRow((selected ? "> " : "  ") + options[i], 170f, y, selected);
-            y += 30f;
+            y += 24f;
         }
         if (pauseMenu.confirmingQuit()) {
             drawPauseRow(Core.bundle.get("quit.confirm"), 40f, 210f, false);
