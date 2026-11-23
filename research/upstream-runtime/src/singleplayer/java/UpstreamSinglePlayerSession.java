@@ -2,6 +2,7 @@ import arc.Core;
 import arc.Events;
 import arc.Settings;
 import arc.assets.AssetManager;
+import arc.audio.Audio;
 import arc.files.Fi;
 import arc.math.Mathf;
 import arc.math.geom.Vec2;
@@ -94,6 +95,11 @@ public final class UpstreamSinglePlayerSession {
 
     static UpstreamSinglePlayerSession create(Fi mapDirectory, String locale, Fi planetData, Settings settings,
                                              Fi campaignMaps) {
+        return create(mapDirectory, locale, planetData, settings, campaignMaps, new MockAudio());
+    }
+
+    static UpstreamSinglePlayerSession create(Fi mapDirectory, String locale, Fi planetData, Settings settings,
+                                             Fi campaignMaps, Audio audio) {
         if (planetData != null && planetData.isDirectory()) {
             for (Fi file : planetData.list()) {
                 if (!file.isDirectory() && file.extension().equals("json")) {
@@ -116,7 +122,7 @@ public final class UpstreamSinglePlayerSession {
         CacheLayer.init();
         settings.defaults("locale", locale == null || locale.isEmpty() ? "en" : locale);
         var app = UpstreamWorldLoadProbe.initialize(mapDirectory, settings, campaignMaps != null);
-        Core.audio = new MockAudio();
+        Core.audio = audio;
         Core.files = new MockFiles();
         final UpstreamSinglePlayerSession[] holder = new UpstreamSinglePlayerSession[1];
         Core.graphics = new MockGraphics() {
