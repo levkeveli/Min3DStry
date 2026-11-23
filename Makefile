@@ -114,7 +114,9 @@ endif
 $(OUTPUT).elf: $(OFILES)
 
 ifneq ($(strip $(UPSTREAM_MINDUSTRY)),)
+ifneq ($(NO_AUDIO_ROMFS),1)
 all: audio-romfs
+endif
 else
 all: romfs-audio-clean
 endif
