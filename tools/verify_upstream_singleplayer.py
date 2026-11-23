@@ -304,18 +304,19 @@ def run_weather_model(
     timeout: float,
     fixtures: Path,
 ) -> None:
-    sd_save = resolve_sd_save_path(log_path)
-    if any(sd_save.parent.glob("sector-*.msav")):
-        raise RuntimeError("The weather test requires an Azahar SD directory without campaign slots")
+    sd = (out_dir / "virtual-sd" / model).resolve()
+    sd_save = sd / "3ds/min3dstry/singleplayer-save.msav"
     snapshots = {name: (fixtures / f"{name}.msav").read_bytes() for name in ("clear", "weather")}
-    original_save = sd_save.read_bytes() if sd_save.exists() else None
     original_config = config_path.read_bytes() if config_path.exists() else None
-    sd_save.parent.mkdir(parents=True, exist_ok=True)
-    out_dir.mkdir(parents=True, exist_ok=True)
+    sd_save.parent.mkdir(parents=True)
     world = tuple((x, y) for y in range(40, 210, 20) for x in range(30, 380, 25))
     touch = tuple((x, y) for y in (350, 385, 415, 445) for x in range(80, 330, 25))
     samples = {}
     try:
+        storage = {"Data Storage": {"use_custom_storage": "true", "sdmc_directory": sd.as_posix() + "/"}}
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        config_path.write_text(az.patch_qt_config_text((original_config or b"").decode("utf-8"), storage),
+                               encoding="utf-8")
         for name, save in snapshots.items():
             sd_save.write_bytes(save)
             proc, rpc = _launch_azahar(model, rom_path, azahar_bin, config_path, log_path)
@@ -347,11 +348,10 @@ def run_weather_model(
             raise AssertionError(f"{model}: compared {world_changes} changed world and {touch_changes} changed touch samples")
         print(f"[PASS] {model}: weather=rain,sandstorm,fog textures=2 world={world_changes}/{len(world)} touch=unchanged")
     finally:
-        for path, original in ((sd_save, original_save), (config_path, original_config)):
-            if original is None:
-                path.unlink(missing_ok=True)
-            else:
-                path.write_bytes(original)
+        if original_config is None:
+            config_path.unlink(missing_ok=True)
+        else:
+            config_path.write_bytes(original_config)
 
 
 def main() -> int:
