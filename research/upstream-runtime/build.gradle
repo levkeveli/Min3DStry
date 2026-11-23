@@ -227,7 +227,9 @@ if (usesArcSources || usesExecutor) {
     }
     if (usesLiveNetwork) {
         stagedClasses.addAll(['mindustry/core/NetClient.class', 'mindustry/core/NetClient$*.class',
-                              'mindustry/ai/Pathfinder.class', 'mindustry/ai/Pathfinder$*.class'])
+                              'mindustry/ai/Pathfinder.class', 'mindustry/ai/Pathfinder$*.class',
+                              'mindustry/world/blocks/units/UnitAssembler.class',
+                              'mindustry/world/blocks/units/UnitAssembler$*.class'])
     }
     if (usesSinglePlayer || usesLiveAudio) {
         stagedClasses.addAll(['mindustry/logic/GlobalVars.class', 'mindustry/logic/GlobalVars$*.class'])
