@@ -4,6 +4,7 @@ import arc.Settings;
 import arc.assets.AssetManager;
 import arc.audio.Audio;
 import arc.files.Fi;
+import arc.func.Cons;
 import arc.math.Mathf;
 import arc.math.geom.Vec2;
 import arc.mock.MockAudio;
@@ -31,6 +32,7 @@ import mindustry.entities.EntityCollisions;
 import mindustry.entities.units.BuildPlan;
 import mindustry.game.EventType.ResetEvent;
 import mindustry.game.EventType.RulesLoadEvent;
+import mindustry.game.EventType.SectorCaptureEvent;
 import mindustry.game.EventType.SectorLaunchEvent;
 import mindustry.game.EventType.SectorLaunchLoadoutEvent;
 import mindustry.game.EventType.Trigger;
@@ -71,9 +73,22 @@ public final class UpstreamSinglePlayerSession {
     private Saves campaignSaves;
     private float deltaSeconds = FIXED_STEP_SECONDS;
     private long playtimeMillis, playtimeRemainderNanos, playtimeFrameNanos;
+    private Planet campaignCompletion;
+    private final Cons<ResetEvent> resetCampaignCompletion = event -> campaignCompletion = null;
+    private final Cons<SectorCaptureEvent> queueCampaignCompletion = event -> {
+        var sector = event.sector;
+        if (!Vars.net.client() && sector != null && sector.preset != null && sector.preset.isLastSector && event.initialCapture) {
+            var worldState = Vars.state;
+            Time.run(60f * 2f, () -> {
+                if (Vars.state == worldState && Vars.state.rules.sector == sector) campaignCompletion = sector.planet;
+            });
+        }
+    };
 
     private UpstreamSinglePlayerSession(UpstreamWorldLoadProbe.ProbeApplication app) {
         this.app = app;
+        Events.on(ResetEvent.class, resetCampaignCompletion);
+        Events.on(SectorCaptureEvent.class, queueCampaignCompletion);
     }
 
     static UpstreamSinglePlayerSession create(Fi mapDirectory, String locale) {
@@ -584,6 +599,12 @@ public final class UpstreamSinglePlayerSession {
         return paused;
     }
 
+    Planet takeCampaignCompletion() {
+        var completed = campaignCompletion;
+        campaignCompletion = null;
+        return completed;
+    }
+
     int triggerWave() {
         Vars.logic.runWave();
         app.runPosted();
@@ -651,6 +672,9 @@ public final class UpstreamSinglePlayerSession {
     }
 
     void shutdown() {
+        Events.remove(ResetEvent.class, resetCampaignCompletion);
+        Events.remove(SectorCaptureEvent.class, queueCampaignCompletion);
+        campaignCompletion = null;
         Events.fire(new ResetEvent());
         app.runPosted();
     }

@@ -405,6 +405,10 @@ if (usesSinglePlayer) {
             classpath = sourceSets.main.runtimeClasspath
             mainClass = 'UpstreamCampaignLaunchReference'
         }
+        tasks.register('runStockCampaignCompletionJvm', JavaExec) {
+            classpath = sourceSets.main.runtimeClasspath
+            mainClass = 'UpstreamStockCampaignCompletionReference'
+        }
         tasks.register('runStockOrdersJvm', JavaExec) {
             classpath = sourceSets.main.runtimeClasspath
             mainClass = 'UpstreamStockOrdersReference'

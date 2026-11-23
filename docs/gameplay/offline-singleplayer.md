@@ -956,3 +956,16 @@ averaged about 233 ms per renderer frame, of which 213 ms was spent importing
 atlas fragments. A window panning from `117,49` to `109,49` imported 125
 fragments across 16 frames and averaged 159 ms per renderer frame. These are
 guest timings from the emulator with the same stock Ground Zero save.
+## Final campaign sector
+
+The first capture of Planetary Launch Terminal or Origin schedules the
+original campaign completion prompt after 120 simulation ticks. The
+prompt uses the stock localized title and sector playtime accumulated
+from the planet's saved sectors. Press **A** to continue on the completed
+map or **B** to return to the campaign selector with the current sector
+saved.
+
+`runStockCampaignCompletionJvm` with `-Pprobe=singleplayer` takes the staged
+stock campaign assets and a scratch save directory. It checks the delay,
+original text, saved playtime and first-capture gating on the original
+Serpulo and Erekir worlds. Controller and rendering checks are separate.

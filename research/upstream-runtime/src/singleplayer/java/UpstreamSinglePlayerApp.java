@@ -670,6 +670,30 @@ public final class UpstreamSinglePlayerApp {
         }
     }
 
+    static String[] campaignCompletionCaptions(Planet planet) {
+        var rows = new java.util.ArrayList<String>();
+        for (String line : Strings.stripColors(Core.bundle.format("campaign.complete", planet.localizedName)).split("\n")) {
+            rows.add(line);
+        }
+        float playtime = planet.sectors.sumf(sector -> sector.hasSave() ? sector.save.meta.timePlayed : 0) / 1000f;
+        rows.add(Strings.stripColors(Core.bundle.format("campaign.playtime", mindustry.core.UI.formatTime(playtime))));
+        rows.add("A " + Core.bundle.get("continue") + "    B " + Core.bundle.get("menu"));
+        return rows.toArray(String[]::new);
+    }
+
+    private boolean showCampaignCompletion(Planet planet) {
+        var rows = encodeMenuRows(campaignCompletionCaptions(planet));
+        System.out.println("UPSTREAM_CAMPAIGN_COMPLETION planet=" + planet.name);
+        while (true) {
+            long nextFrame = System.nanoTime() + FRAME_NS;
+            int input = pollCampaignInput();
+            if (input == -1 || (input & UpstreamSinglePlayerInput.B_PRESSED) != 0) return false;
+            if ((input & UpstreamSinglePlayerInput.A_PRESSED) != 0) return true;
+            drawMenuRows(rows);
+            while (System.nanoTime() < nextFrame) Thread.yield();
+        }
+    }
+
     private boolean openResearch(TechNode root, Fi saveFile) throws IOException {
         var research = new UpstreamCampaignResearch(root);
         Seq<TechNode> nodes = new Seq<>();
@@ -790,6 +814,17 @@ public final class UpstreamSinglePlayerApp {
             if (campaignSlot != null && (input & UpstreamSinglePlayerInput.CAMPAIGN_HELD) != 0
                     && (input & UpstreamSinglePlayerInput.SAVE_PRESSED) != 0) return true;
             int touch = UpstreamSinglePlayerInput.touch();
+
+            var completion = session.takeCampaignCompletion();
+            if (completion != null) {
+                if (saveFile != null) session.save(saveFile);
+                if (!showCampaignCompletion(completion)) return campaignSlot != null && !campaignExitRequested;
+                lastPrimaryShortcut = null;
+                previousTime = System.nanoTime();
+                session.beginPlaytimeInterval(previousTime);
+                accumulator = 0L;
+                continue;
+            }
 
             var sector = Vars.state.rules.sector;
             int researchKeys = UpstreamSinglePlayerInput.L_HELD | UpstreamSinglePlayerInput.SAVE_PRESSED;
