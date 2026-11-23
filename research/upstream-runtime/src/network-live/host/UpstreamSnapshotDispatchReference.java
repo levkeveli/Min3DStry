@@ -1,12 +1,15 @@
+import arc.Core;
 import arc.files.Fi;
 import arc.math.geom.Point2;
 import arc.math.geom.Vec2;
+import arc.mock.MockAudio;
 import arc.util.io.Reads;
 import arc.util.io.Writes;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
+import java.io.IOException;
 import java.util.HexFormat;
 import java.util.zip.InflaterInputStream;
 import mindustry.Vars;
@@ -24,6 +27,8 @@ import mindustry.game.MapObjectives.ResearchObjective;
 import mindustry.game.MapObjectives.TextMarker;
 import mindustry.game.MapObjectives.TextureMarker;
 import mindustry.game.Universe;
+import mindustry.gen.AssemblerDroneSpawnedCallPacket;
+import mindustry.gen.AssemblerUnitSpawnedCallPacket;
 import mindustry.gen.BlockSnapshotCallPacket;
 import mindustry.gen.BlockUnitc;
 import mindustry.gen.ClientSnapshotCallPacket;
@@ -53,6 +58,8 @@ import mindustry.world.blocks.distribution.ItemBridge.ItemBridgeBuild;
 import mindustry.world.blocks.payloads.BuildPayload;
 import mindustry.world.blocks.ControlBlock;
 import mindustry.world.blocks.payloads.PayloadConveyor.PayloadConveyorBuild;
+import mindustry.world.blocks.units.UnitAssembler;
+import mindustry.world.blocks.units.UnitAssembler.UnitAssemblerBuild;
 import mindustry.world.modules.ItemModule;
 
 public final class UpstreamSnapshotDispatchReference {
@@ -60,6 +67,7 @@ public final class UpstreamSnapshotDispatchReference {
         if (args.length != 1) throw new IllegalArgumentException("Expected a captured v160.8 WorldStream");
         var fixture = new Fi(args[0]);
         var app = UpstreamWorldLoadProbe.initialize(fixture.parent());
+        Core.audio = new MockAudio();
         Vars.mods = new Mods();
         Vars.universe = new Universe();
         Vars.indexer = new BlockIndexer();
@@ -127,6 +135,7 @@ public final class UpstreamSnapshotDispatchReference {
         System.out.println("UPSTREAM_SNAPSHOT_REFERENCE wave=" + state.wave
             + " seconds=42 copper=947 dagger=" + dagger.id);
         verifyPayloadHandoff();
+        verifyAssemblerEvents();
         verifyObjectivePackets();
         verifyMarkerPackets();
         verifyPossessionPackets(decodedMono);
@@ -287,6 +296,11 @@ public final class UpstreamSnapshotDispatchReference {
     }
 
     private static void applyPacket(Packet sent, Packet received, Player forwardedBy) {
+        readPacket(sent, received, forwardedBy);
+        received.handleClient();
+    }
+
+    private static void readPacket(Packet sent, Packet received, Player forwardedBy) {
         var bytes = new ByteArrayOutputStream();
         var writes = new Writes(new DataOutputStream(bytes));
         // Stock forwardable packets include the actor in the server-to-client envelope.
@@ -295,7 +309,6 @@ public final class UpstreamSnapshotDispatchReference {
         byte[] payload = bytes.toByteArray();
         received.read(new Reads(new DataInputStream(new ByteArrayInputStream(payload))), payload.length);
         received.handled();
-        received.handleClient();
     }
 
     private static void verifyMarkerPackets() {
@@ -365,6 +378,70 @@ public final class UpstreamSnapshotDispatchReference {
             throw new AssertionError("Missing stock live marker packet " + sent.getClass().getSimpleName());
         }
         applyPacket(sent, received);
+    }
+
+    private static void verifyAssemblerEvents() throws IOException {
+        var tile = Vars.world.tile(100, 100);
+        var team = Vars.player.team();
+        tile.setBlock(Blocks.tankAssembler, team, 0);
+        var build = (UnitAssemblerBuild) tile.build;
+        var type = (UnitAssembler) Blocks.tankAssembler;
+        var dispatcher = new UpstreamAssemblerEvents();
+        var drone = new AssemblerDroneSpawnedCallPacket();
+        drone.tile = tile;
+        drone.id = 22345;
+        build.droneProgress = 1f;
+        applyAssemblerEvent(dispatcher, drone);
+        dispatcher.syncDrones();
+        if (build.droneProgress != 0f || !build.units.isEmpty() || Groups.unit.getByID(drone.id) != null) {
+            throw new AssertionError("The stock drone event should reset progress and wait for the entity snapshot");
+        }
+
+        var source = type.droneType.create(team);
+        source.id(drone.id);
+        source.set(build.x, build.y);
+        var bytes = new ByteArrayOutputStream();
+        var out = new DataOutputStream(bytes);
+        out.writeInt(source.id);
+        out.writeByte(source.classId());
+        source.writeSync(new Writes(out));
+        var snapshot = new EntitySnapshotCallPacket();
+        snapshot.amount = 1;
+        snapshot.data = bytes.toByteArray();
+        applyPacket(snapshot, new EntitySnapshotCallPacket());
+        dispatcher.syncDrones();
+        var replicated = Groups.unit.getByID(drone.id);
+        if (replicated == null || replicated.type != type.droneType || build.units.size != 1
+                || build.units.first() != replicated) {
+            throw new AssertionError("The assembler should track the newly synchronized authoritative drone");
+        }
+        applyAssemblerEvent(dispatcher, drone);
+        dispatcher.syncDrones();
+        if (build.units.size != 1 || build.units.first() != replicated) {
+            throw new AssertionError("A repeated drone event should preserve the authoritative drone");
+        }
+
+        if (build.plan().unit != UnitTypes.vanquish) throw new AssertionError("Missing stock Vanquish plan");
+        build.blocks.add(UnitTypes.stell, 4);
+        build.blocks.add(Blocks.tungstenWallLarge, 10);
+        build.progress = 1f;
+        var complete = new AssemblerUnitSpawnedCallPacket();
+        complete.tile = tile;
+        int before = Groups.unit.size();
+        applyAssemblerEvent(dispatcher, complete);
+        if (build.progress != 0f || !build.blocks.isEmpty() || Groups.unit.size() != before) {
+            throw new AssertionError("Stock Vanquish completion should clear inputs without spawning a client-owned unit");
+        }
+        System.out.println("UPSTREAM_ASSEMBLER_EVENTS block=tank-assembler plan=vanquish drone=" + drone.id);
+    }
+
+    private static void applyAssemblerEvent(UpstreamAssemblerEvents dispatcher, Packet sent) {
+        var received = UpstreamAssemblerEvents.packet(Net.getPacketClassId(sent.getClass()) & 0xff);
+        if (received == null || received.getClass() != sent.getClass()) {
+            throw new AssertionError("Missing stock assembler packet " + sent.getClass().getSimpleName());
+        }
+        readPacket(sent, received, null);
+        dispatcher.apply(received);
     }
 
     private static void verifyPayloadHandoff() {
