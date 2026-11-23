@@ -271,6 +271,36 @@ Both profiles executed Boot 1 (load `groundZero.msav`, select Mine + copper ore 
 - **`new3ds` (`is_new_3ds=true`):** `UPSTREAM_MEMORY appHeap=108834816 linearHeap=4194304 stack=262144`, `saved=wave:2,copper:29,bytes:18700`, `reloaded=wave:2,copper:29`, `game_fps=4.72` (unoptimized headless emulator baseline).
 - **`old3ds` (`is_new_3ds=false`):** `UPSTREAM_MEMORY appHeap=79474688 linearHeap=4194304 stack=262144` (~`75.8 MiB` emulator-reported `envGetHeapSize()` region, not the physical retail Original 3DS `64 MiB` `APPMEMTYPE 0` limit against which the `44.44 MiB` static subtotal is budgeted), `saved=wave:2,copper:29,bytes:18685`, `reloaded=wave:2,copper:29`, `game_fps=3.48` (unoptimized headless emulator baseline).
 
+## Original floor and wall extractors
+
+The offline and live building passes use the v160.8 renderers for all six
+rotary and burst drills, both plasma bores, and both cliff crushers. The
+original draw code uses the stock atlas and the ore, rotation, and wall
+targets supplied by the world.
+
+The JVM reference covers all ten definitions. It checks the original base,
+the floor ore or wall target, changes in the working draw state, and the
+stock beam texture for both plasma bores.
+
+The stock server writes and reopens two Glacier saves with the same ore
+and walls. The populated save adds a Laser Drill, Impact Drill, Plasma
+Bore, and Cliff Crusher without moving the original core. The replay
+compares those four sprites offline and after joining the unmodified
+v160.8 server.
+
+On the Original and New 3DS Azahar profiles, all 25 samples changed at
+each extractor in the offline and live views from the
+[ARM11 test build](https://github.com/levkeveli/Min3DStry/actions/runs/45114638541).
+The previous Original 3DS build changed zero samples at those placements.
+The working-state draw checks ran on the JVM.
+
+```bash
+python3 tools/verify_stock_extractors.py \
+  --rom /path/to/upstream-probe.3dsx \
+  --server /path/to/server-release.jar \
+  --output build/stock-extractors
+```
+
 ## Original material buildings
 
 The offline renderer draws stock crafters, separators, pumps, liquid

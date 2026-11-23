@@ -1271,6 +1271,9 @@ passed the replay on both 3DS emulator profiles connected to the
 unmodified v160.8 Java server. Both runs checked the interpolated red
 tint and original pixels in three atlas tiles before a corner was moved,
 then captured the updated geometry, Router texture and marker removal.
+The [combined ARM11 replay](https://github.com/levkeveli/Min3DStry/actions/runs/45116142229)
+passed the same checks on both profiles. The fixture places the quad
+below the in-game HUD. Add `--unified-boot` when using the combined ROM.
 
 ### Verify the Arc executor pools
 
