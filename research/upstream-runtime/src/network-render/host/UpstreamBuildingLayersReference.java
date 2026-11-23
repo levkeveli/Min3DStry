@@ -662,21 +662,26 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         Vars.state.markers.add(614, quad);
         int before = texture.revision;
         canvas.setPixel(0, 6);
-        quad.control(LMarkerControl.uvi, 2, 0.75, 0.25);
+        float requestedU = 0.75f, requestedV = 0.25f;
+        quad.control(LMarkerControl.uvi, 2, requestedU, requestedV);
         quad.control(LMarkerControl.posi, 2, 13, 16);
         UpstreamObjectiveMarkers.draw(Vars.state.rules, 2.5f, (text, x, y, flags, size, align, lines) -> {});
         if (canvasQuadTexture != texture || texture.revision <= before
                 || texture.pixels[0] != ((CanvasBlock)Blocks.largeCanvas).palette[6]
                 || !Arrays.equals(canvasQuadVertices, quad.vertices)
                 || canvasQuadVertices[12] != 104f || canvasQuadVertices[13] != 128f
-                || canvasQuadVertices[15] != 0.75f || canvasQuadVertices[16] != 0.75f
                 || canvasQuadVertices[8] != Color.sky.toFloatBits()) {
-            throw new AssertionError("Linked Canvas quad did not preserve original pixels, vertices, UV or tint");
+            throw new AssertionError("Linked Canvas quad did not preserve original pixels, vertices or tint");
+        }
+        // Mindustry v160.8 QuadMarker.setUv inverts local V before submitting the vertex.
+        float vertexV = 1f - requestedV;
+        if (canvasQuadVertices[15] != requestedU || canvasQuadVertices[16] != vertexV) {
+            throw new AssertionError("Linked Canvas quad did not submit the stock UV orientation");
         }
         quad.setTexture("block-router-ui");
         var router = Core.atlas.find("block-router-ui");
-        float u = router.u + (router.u2 - router.u) * 0.75f;
-        float v = router.v + (router.v2 - router.v) * 0.75f;
+        float u = router.u + (router.u2 - router.u) * requestedU;
+        float v = router.v + (router.v2 - router.v) * vertexV;
         if (Math.abs(quad.vertices[15] - u) > 0.00001f || Math.abs(quad.vertices[16] - v) > 0.00001f) {
             throw new AssertionError("Retargeting a Canvas quad changed its local UV");
         }

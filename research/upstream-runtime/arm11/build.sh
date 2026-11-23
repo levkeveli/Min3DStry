@@ -89,6 +89,10 @@ if [[ $# -gt 0 ]]; then
         echo "Prepare singleplayer terrain assets with --singleplayer to include sprites.aatls and maps/groundZero.msav" >&2
         exit 2
     fi
+    if [[ ${#native_input[@]} -gt 0 && ( ! -s "$1/weather/noiseAlpha.t3x" || ! -s "$1/weather/fog.t3x" ) ]]; then
+        echo "Prepare singleplayer terrain assets with --singleplayer to include both original weather textures" >&2
+        exit 2
+    fi
     terrain_flags=(-DM3DS_TERRAIN_RENDERER -I"$root" -I"$1")
     terrain_sources=("$root/m3ds_terrain_renderer.c")
     terrain_libraries=(-lcitro2d -lcitro3d)
@@ -146,6 +150,9 @@ if [[ $# -gt 0 ]]; then
             "$output/m3ds_quad.shbin" > "$output/m3ds_quad_shader.s"
         terrain_sources+=("$output/m3ds_quad_shader.s")
         cp -R "$1/world-atlas" "$output/romfs/world-atlas"
+    fi
+    if [[ -d "$1/weather" ]]; then
+        cp -R "$1/weather" "$output/romfs/weather"
     fi
     "$DEVKITPRO/tools/bin/smdhtool" --create "$title" "$subtitle" \
         "Min3DStry Contributors" "$DEVKITPRO/libctru/default_icon.png" "$output/upstream-probe.smdh"

@@ -5,6 +5,7 @@ import argparse
 import csv
 import hashlib
 import json
+import struct
 from pathlib import Path
 import subprocess
 import sys
@@ -167,6 +168,18 @@ def pack_live_audio(args, staged: Path, scratch: Path) -> None:
     (staged / "sound-index.h").write_text("\n".join(lines), encoding="ascii")
 
 
+def pack_weather_noise(archive: zipfile.ZipFile, output: Path, scratch: Path, tex3ds: str) -> None:
+    output.mkdir()
+    for name, size in (("noiseAlpha", 128), ("fog", 256)):
+        asset = archive.read(f"assets/sprites/{name}.png")
+        if asset[:8] != b"\x89PNG\r\n\x1a\n" or struct.unpack(">II", asset[16:24]) != (size, size):
+            raise ValueError(f"Unexpected original dimensions for {name}.png")
+        source = scratch / f"{name}.png"
+        source.write_bytes(asset)
+        subprocess.run([tex3ds, "--atlas", "--format", "rgba8", "--border", "none",
+                        "--compress", "auto", "--output", str(output / f"{name}.t3x"), str(source)], check=True)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--assets", type=Path, required=True)
@@ -223,6 +236,7 @@ def main() -> None:
                     if re.fullmatch(r"assets/bundles/bundle(?:_[A-Za-z_]+)?\.properties", member):
                         (bundles / Path(member).name).write_bytes(archive.read(member))
                 if args.singleplayer:
+                    pack_weather_noise(archive, staged / "weather", Path(tmp), args.tex3ds)
                     pack_planet_data(archive, staged / "planets")
                     maps_dir = staged / "maps"
                     maps_dir.mkdir(parents=True, exist_ok=True)
