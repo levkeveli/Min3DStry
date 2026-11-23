@@ -2,16 +2,39 @@ import arc.files.Fi;
 import arc.struct.ObjectSet;
 import arc.struct.Seq;
 import arc.struct.ShortSeq;
+import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.util.zip.InflaterInputStream;
 import mindustry.mod.DataAssetCache;
 
 /** Disk-backed cache for the original v160.8 pre-world asset exchange. */
 final class UpstreamServerAssets {
-    final DataAssetCache cache = new DataAssetCache();
+    final DataAssetCache cache = new DataAssetCache() {
+        @Override
+        public synchronized byte[] add(byte[] data) {
+            // Stock save readers also cache embedded assets. Reuse the ARM11 digest for that path.
+            var digest = new UpstreamAssetSha256();
+            digest.update(data, data.length);
+            byte[] hash = digest.finish();
+            String key = DataAssetCache.encodeHash(hash);
+            try {
+                var existing = directory.child(key);
+                if (validFile(existing, key)) {
+                    addOverride(key, existing);
+                } else {
+                    directory.mkdirs();
+                    writeAsset(new DataInputStream(new ByteArrayInputStream(data)), new byte[8192], data.length, key);
+                }
+            } catch (IOException error) {
+                throw new UncheckedIOException(error);
+            }
+            return hash;
+        }
+    };
     private final Fi directory;
     private final Seq<String> missing = new Seq<>();
 
