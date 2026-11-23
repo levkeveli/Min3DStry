@@ -91,6 +91,12 @@ minutes. Check the timer and `journalctl -u min3ds-runner-status.service` if the
 feed is stale. Run `python3 tools/publish_runner_status.py --print` to inspect a
 snapshot using an authenticated GitHub CLI without publishing it.
 
+The full embedded-loader build excludes edits confined to standalone terrain,
+live network, and single-player source sets that the save-rows target does
+not compile. Shared world, content, Gradle and ARM11 tooling changes still
+trigger the full build, as do default C app changes. The smoke workflow
+continues to select its own checks for the standalone runtime.
+
 ## ARM11 smoke scope
 
 The lightweight scope job selects baselines from the changed paths on PRs and
