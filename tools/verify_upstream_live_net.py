@@ -14,6 +14,7 @@ import time
 import zipfile
 
 import verify_azahar as az
+from stock_puddle_fixture import DEPOSIT as PUDDLE_DEPOSIT, SETUP as PUDDLE_SETUP, changed_colors
 
 
 SERVER_SHA256 = "faeaf247a8b622de940181a96cb21cb20692d3c3da4e8ac3f79cb4af5059aa6c"
@@ -1459,6 +1460,22 @@ def verify_client_processor(server_log, server, rpc, output, model, timeout):
     print(f"{model}: stock processor config, link and client-local Canvas writes passed.", flush=True)
 
 
+def verify_stock_puddles(server_log, server, rpc, output, model, timeout):
+    before = rpc.screenshot()
+    send_marker_phase(server_log, server, "puddles-deposited", PUDDLE_DEPOSIT)
+    deadline = time.monotonic() + min(timeout, 30)
+    while time.monotonic() < deadline:
+        after = rpc.screenshot()
+        water, neoplasm = changed_colors(before, after)
+        if min(water, neoplasm) >= 12:
+            (output / f"{model}-puddles-before.png").write_bytes(before)
+            (output / f"{model}-puddles-after.png").write_bytes(after)
+            print(f"{model}: stock puddle snapshots matched water/neoplasm samples {water}/{neoplasm}.", flush=True)
+            return
+        time.sleep(0.15)
+    raise RuntimeError(f"{model}: original liquid colors did not appear after the stock entity snapshot")
+
+
 def verify_logic_displays(server_log, server, rpc, output, model, timeout):
     # The normal display sits below the live HUD in the unified ROM.
     points = ((123, 130), (150, 170), (141, 163), (300, 50), (120, 190))
@@ -1546,7 +1563,7 @@ def run_model(args, model, config, original_config, log, output):
                   or args.tank_treads or args.map_spawn or args.combat
                   or args.verify_logic_markers or args.verify_texture_markers or args.verify_quad_markers or args.verify_canvas
                   or args.verify_canvas_quads or args.verify_client_processor or args.verify_logic_displays
-                  or args.verify_display_markers)
+                  or args.verify_display_markers or args.verify_puddles)
     map_name = args.map_spawn or "Glacier"
     overrides = {
         "Miscellaneous": {"log_filter": "*:Info Debug.Emulated:Debug Service.SOC:Debug",
@@ -1593,6 +1610,8 @@ def run_model(args, model, config, original_config, log, output):
                     "const rules=Vars.state.rules; rules.worldProcessorPlayerLink=true; "
                     "rules.allowEditWorldProcessors=true; "
                     f"Vars.world.tile({PROCESSOR_CANVAS_COLUMN},32).setBlock(Blocks.worldProcessor,rules.defaultTeam);")
+            if args.verify_puddles:
+                send_marker_phase(server_log, server, "puddles-clear", PUDDLE_SETUP)
             if args.verify_logic_displays:
                 send_marker_phase(server_log, server, "display-fixture",
                     "const rules=Vars.state.rules; rules.worldProcessorPlayerLink=true; "
@@ -1882,6 +1901,8 @@ def run_model(args, model, config, original_config, log, output):
                             verify_canvas_quads(log, emulator, server_log, server, rpc, output, model, spawn, args.timeout)
                         if args.verify_client_processor:
                             verify_client_processor(server_log, server, rpc, output, model, args.timeout)
+                        if args.verify_puddles:
+                            verify_stock_puddles(server_log, server, rpc, output, model, args.timeout)
                         if args.verify_logic_displays:
                             verify_logic_displays(server_log, server, rpc, output, model, args.timeout)
                         if args.verify_display_markers:
@@ -2121,6 +2142,8 @@ def main():
                         help="Verify stock quads backed by an offscreen Canvas on Glacier")
     parser.add_argument("--verify-client-processor", action="store_true",
                         help="Verify a stock processor writes to its linked Canvas on the client")
+    parser.add_argument("--verify-puddles", action="store_true",
+                        help="Verify water and neoplasm in stock Glacier entity snapshots")
     parser.add_argument("--verify-logic-displays", action="store_true",
                         help="Verify normal, large, and tileable Logic Displays on Glacier")
     parser.add_argument("--verify-display-markers", action="store_true",
@@ -2230,6 +2253,8 @@ def main():
     if args.verify_client_processor and (not args.controls or not args.terrain_atlas or args.controls_replay
                                         or args.map_spawn or args.verify_canvas):
         parser.error("--verify-client-processor needs stationary --controls and --terrain-atlas on Glacier")
+    if args.verify_puddles and (not args.controls or not args.terrain_atlas or args.controls_replay or args.map_spawn):
+        parser.error("--verify-puddles needs stationary --controls and --terrain-atlas on Glacier")
     if args.verify_logic_displays and (not args.controls or not args.terrain_atlas or args.controls_replay
                                        or args.map_spawn or args.verify_canvas or args.verify_canvas_quads
                                        or args.verify_client_processor):
