@@ -17,6 +17,18 @@ def compare_stock(args, exported, x, y, original, replacement):
         directory = Path(temp)
         shutil.copyfile(args.map, directory / "original.msav")
         shutil.copyfile(exported, directory / "edited.msav")
+        brush = getattr(args, "brush", False)
+        controls = """
+            const fixed = String(Vars.world.tile(77,125).floor().name);
+        """ if brush else ""
+        footprint = """
+            for (let dy=-1; dy<=1; dy++) for (let dx=-1; dx<=1; dx++) {
+                if (String(Vars.world.tile(75+dx,125+dy).floor().name) !== 'crater-stone')
+                    throw 'Unexpected stock brush footprint';
+            }
+            if (String(Vars.world.tile(77,125).floor().name) !== fixed)
+                throw 'The brush affected a tile outside its stock radius';
+        """ if brush else ""
         script = f"""
             const Fi = Packages.arc.files.Fi, MapIO = Packages.mindustry.io.MapIO,
                   SaveIO = Packages.mindustry.io.SaveIO;
@@ -29,12 +41,14 @@ def compare_stock(args, exported, x, y, original, replacement):
             const original = load('original.msav');
             if (String(Vars.world.tile({x},{y}).floor().name) !== '{original}')
                 throw 'Unexpected original floor';
+            {controls}
             const edited = load('edited.msav');
             if (edited.width !== original.width || edited.height !== original.height ||
                 String(edited.name()) !== String(original.name()) ||
                 String(edited.tags.get("genfilters", "")) !== String(original.tags.get("genfilters", "")) ||
                 String(Vars.world.tile({x},{y}).floor().name) !== '{replacement}')
                 throw 'Unexpected exported map';
+            {footprint}
             return 'STOCK_EDITOR_EXPORT_REOPENED';
         """
         stock_console(args.java, args.server, directory, " ".join(script.splitlines()), "STOCK_EDITOR_EXPORT_REOPENED")
@@ -48,15 +62,20 @@ def replay(args, model, azahar, config, log):
     source = root / "editor-map.msav"
     shutil.copyfile(args.map, source)
     movie = output / "editor.ctm"
-    write_input_replay(movie, model, [
+    windows = [
         (0, 24, (1 << 8) | (1 << 9)),
-        (44, 46, 1 << 8),
         (53, 55, 1),
         (69, 71, 1 << 10),
         (83, 85, 1 << 11),
         (95, 97, sp.KEY_SELECT),
         (105, 107, sp.KEY_START),
-    ], 109, b"Min3DStry Map Editor")
+    ]
+    # Craters is row 2 on the first displayed palette page. Brush radius 2
+    # also occupies row 2 in the stock brush menu.
+    touches = ((34, 170, 106), (41, 160, 216), (47, 170, 106)) if args.brush else ()
+    if not args.brush:
+        windows.append((44, 46, 1 << 8))
+    write_input_replay(movie, model, windows, 109, b"Min3DStry Map Editor", touches=touches)
     originals = {path: path.read_bytes() if path.is_file() else None for path in (config, log)}
     try:
         config.parent.mkdir(parents=True, exist_ok=True)
@@ -68,6 +87,10 @@ def replay(args, model, azahar, config, log):
             sp._wait_for_log(log, emulator, r"UPSTREAM_EDITOR_OPEN source=editor-map\.msav width=150 height=250", 150)
             sp._wait_for_log(log, emulator, r"UPSTREAM_INTERFACE_GRAPHICS ready", 150)
             (output / "before.png").write_bytes(rpc.screenshot())
+            if args.brush:
+                sp._wait_for_log(log, emulator, r"UPSTREAM_EDITOR_BLOCK block=crater-stone\b", 120)
+                sp._wait_for_log(log, emulator, r"UPSTREAM_EDITOR_BRUSH radius=2(?:\.0)?\b", 120)
+                (output / "brush.png").write_bytes(rpc.screenshot())
             undo = sp._wait_for_log(log, emulator,
                                    r"UPSTREAM_EDITOR_STROKE action=undo x=75 y=125 floor=([\w-]+)", 190)
             redo = sp._wait_for_log(log, emulator,
@@ -102,6 +125,7 @@ def main():
     parser.add_argument("--server", type=Path, required=True)
     parser.add_argument("--java", default="java")
     parser.add_argument("--azahar")
+    parser.add_argument("--brush", action="store_true", help="select a stock block and brush size by touch")
     parser.add_argument("--model", action="append", choices=("old3ds", "new3ds"))
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()

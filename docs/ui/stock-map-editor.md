@@ -14,6 +14,7 @@ the stock stone floor. Emulator or command-line launches can use
 | Control | Action |
 | --- | --- |
 | D-pad or Circle Pad | Move the tile cursor |
+| Touchscreen list | Select a stock block, page through the catalog, or open Brush |
 | R or L+R | Select the next or previous block in the stock editor palette |
 | A / B | Stock pencil / stock eraser |
 | X / Y | Undo / redo |
@@ -43,6 +44,12 @@ raw map tiles through the original import path.
 Run `tools/verify_stock_map_editor.py` with the matching ROM, original Glacier
 map, stock server JAR and Azahar to reproduce the result.
 
+Tap **Brush** to pick one of the original v160.8 brush sizes. A stroke uses
+the selected stock radius for both pencil and eraser. Undo and redo apply
+to the entire stroke. The JVM reference confirms that radius 2 paints
+exactly nine tiles and a single undo restores all nine. Use the editor
+emulator verifier with `--brush` to exercise block and size selection by touch.
+
 Map selection and naming dialogs, map-info fields, tools beyond pencil and
-eraser, brush size and drag input, team and rotation controls, and playtesting
+eraser, drag input, team and rotation controls, and playtesting
 from the editor are subsequent pieces of the stock editor port.
