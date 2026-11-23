@@ -69,6 +69,8 @@ The JVM reference covers graph joins and disconnects, enemy and
 out-of-range endpoints, and all seven configurable item, liquid,
 and payload blocks with manual links. It checks stock bridge reversal
 and confirms that link taps leave the construction queue untouched.
+The packet reference also round-trips the original packed positions
+and relative power link arrays.
 
 ```bash
 python3 tools/verify_stock_building_links.py \
@@ -76,6 +78,13 @@ python3 tools/verify_stock_building_links.py \
   --server /path/to/server-release.jar \
   --output build/stock-building-links --live
 ```
+
+Both Original and New 3DS profiles in Azahar 2126.2 passed the replay
+offline and in a live v160.8 Java server session. The selected conduit
+was highlighted on the touch grid. The stock server verified a joined
+power graph, item bridge disconnection, and conduit connection in each
+live session and in both offline saves.
+[ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45100722586)
 
 ## Inventory transfers
 

@@ -2,6 +2,7 @@
 
 import argparse
 from pathlib import Path
+import time
 
 import verify_upstream_singleplayer as sp
 from verify_stock_command_orders import replay
@@ -40,6 +41,8 @@ TAPS = {
     34: (305, 64), 38: (56, 88), 42: (120, 88), 46: (305, 64),
     50: (305, 64), 54: (56, 168), 58: (120, 168), 62: (305, 64),
     66: (305, 64), 70: (216, 88), 74: (280, 88), 78: (305, 64),
+    # Reopen the same source after the endpoint tap so the live result waits for both.
+    82: (305, 64), 87: (216, 88),
 }
 
 
@@ -56,8 +59,21 @@ def create_fixture(args, output):
 def verify_touch(log, proc, rpc, output):
     sp._wait_for_log(log, proc, r"UPSTREAM_LINK_CONFIG x=74 y=29 block=power-node\b", 90)
     sp._wait_for_log(log, proc, r"UPSTREAM_LINK_CONFIG x=74 y=24 block=bridge-conveyor\b", 35)
-    sp._wait_for_log(log, proc, r"UPSTREAM_LINK_CONFIG x=84 y=29 block=bridge-conduit\b", 35)
-    (output / "selected-conduit.png").write_bytes(rpc.screenshot())
+    conduit = r"UPSTREAM_LINK_CONFIG x=84 y=29 block=bridge-conduit\b"
+    sp._wait_for_log(log, proc, conduit, 35)
+    # The 3DS log may arrive before Azahar has presented the selected source.
+    point = (256, 328)  # Bottom-screen center of the source conduit cell.
+    deadline = time.monotonic() + 6
+    while time.monotonic() < deadline:
+        screenshot = rpc.screenshot()
+        red, green, blue = sp.az.inspect_png(screenshot, (point,))["samples"][point]
+        if red > 230 and green > 190 and blue < 130:
+            (output / "selected-conduit.png").write_bytes(screenshot)
+            break
+        time.sleep(0.2)
+    else:
+        raise AssertionError("The active source conduit was not highlighted on the touch grid")
+    sp._wait_for_log(log, proc, conduit + r"[\s\S]*" + conduit, 35)
 
 
 def read_stock_links(server, log):

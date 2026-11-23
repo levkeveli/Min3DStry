@@ -1,4 +1,5 @@
 import arc.files.Fi;
+import arc.math.geom.Point2;
 import arc.util.io.Reads;
 import arc.util.io.Writes;
 import java.io.ByteArrayInputStream;
@@ -35,6 +36,7 @@ import mindustry.gen.SetObjectivesCallPacket;
 import mindustry.gen.SetUnitCommandCallPacket;
 import mindustry.gen.SetUnitStanceCallPacket;
 import mindustry.gen.StateSnapshotCallPacket;
+import mindustry.gen.TileConfigCallPacket;
 import mindustry.gen.Unit;
 import mindustry.gen.UnitControlCallPacket;
 import mindustry.gen.UpdateMarkerCallPacket;
@@ -45,6 +47,7 @@ import mindustry.mod.Mods;
 import mindustry.net.Net;
 import mindustry.net.NetworkIO;
 import mindustry.net.Packet;
+import mindustry.world.blocks.distribution.ItemBridge.ItemBridgeBuild;
 import mindustry.world.blocks.payloads.BuildPayload;
 import mindustry.world.blocks.ControlBlock;
 import mindustry.world.blocks.payloads.PayloadConveyor.PayloadConveyorBuild;
@@ -125,6 +128,38 @@ public final class UpstreamSnapshotDispatchReference {
         verifyObjectivePackets();
         verifyMarkerPackets();
         verifyPossessionPackets(decodedMono);
+        verifyStockLinkPackets();
+    }
+
+    private static void verifyStockLinkPackets() {
+        var actor = Vars.player;
+        var source = Vars.world.tile(74, 29);
+        var target = Vars.world.tile(78, 29);
+        source.setBlock(Blocks.powerNode, actor.team(), 0);
+        target.setBlock(Blocks.battery, actor.team(), 0);
+
+        var packet = new TileConfigCallPacket();
+        packet.player = actor;
+        packet.build = source.build;
+        packet.value = new Point2[]{new Point2(target.x - source.x, target.y - source.y)};
+        applyPacket(packet, new TileConfigCallPacket(), actor);
+        if (source.build.power.graph != target.build.power.graph || !source.build.power.links.contains(target.pos())) {
+            throw new AssertionError("The stock Point2 array did not join the power graph");
+        }
+        packet.value = target.pos();
+        applyPacket(packet, new TileConfigCallPacket(), actor);
+        if (source.build.power.links.contains(target.pos()) || target.build.power.links.contains(source.pos())) {
+            throw new AssertionError("The stock packed position did not disconnect both power endpoints");
+        }
+
+        source.setBlock(Blocks.bridgeConduit, actor.team(), 0);
+        target.setBlock(Blocks.bridgeConduit, actor.team(), 0);
+        packet.build = source.build;
+        applyPacket(packet, new TileConfigCallPacket(), actor);
+        if (!(source.build instanceof ItemBridgeBuild bridge) || bridge.link != target.pos()) {
+            throw new AssertionError("The stock packed position did not configure the liquid bridge");
+        }
+        System.out.println("UPSTREAM_STOCK_LINK_PACKETS point-array=ok packed-position=ok");
     }
 
     private static void verifyPossessionPackets(Unit allied) {
