@@ -291,7 +291,12 @@ Both construction replays logged the original shader adapter. This replay
 used offline saves. Pass `--live` to join an unmodified Java server hosting
 each of the same four stock saves. The construction fixture keeps progress
 at its halfway point so the verifier can check the shader and scan line
-after the handheld joins. Physical hardware verification remains open in #43.
+after the handheld joins. The [live ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45156108781)
+passed all four states on both Azahar profiles against unmodified Java.
+Each profile recorded 729 changed pixels from terrain to idle, 116 from
+idle to construction, and 99 from idle to payload. Both live
+construction captures logged the stock shader. Physical hardware
+verification remains open in #43.
 
 ```bash
 python3 tools/verify_upstream_factory_graphics.py \
