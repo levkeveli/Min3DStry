@@ -65,10 +65,28 @@ static void test_outside_and_ids(void) {
     assert(!m3ds_touch_action_is_pan(M3DS_TOUCH_ACTION_NONE));
 }
 
+static void test_labels_inside_hit_zones(void) {
+    size_t count = 0u;
+    const M3dsTouchLabel *labels = m3ds_touch_labels(&count);
+    assert(labels != NULL);
+    assert(count == 7u);
+    for (size_t i = 0u; i < count; ++i) {
+        assert(labels[i].text != NULL);
+        assert(labels[i].text[0] != '\0');
+        float x = ((float)labels[i].col - 1.0f) * M3DS_TOUCH_TEXT_CELL
+                + M3DS_TOUCH_TEXT_CELL / 2.0f;
+        float y = ((float)labels[i].row - 1.0f) * M3DS_TOUCH_TEXT_CELL
+                + M3DS_TOUCH_TEXT_CELL / 2.0f;
+        assert(m3ds_touch_action_at(x, y) == labels[i].action);
+    }
+    assert(m3ds_touch_labels(NULL) == labels);
+}
+
 int main(void) {
     test_centers();
     test_region_boundaries();
     test_menu_rows();
     test_outside_and_ids();
+    test_labels_inside_hit_zones();
     return 0;
 }

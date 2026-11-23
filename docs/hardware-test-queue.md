@@ -13,9 +13,9 @@ resolved to `clip=-1 voice=0` with only 2 registered clips), live build-UI
 gameplay, cross-play, and the Old 3DS sector-loader/FPS run. The operator has
 **only the New 3DS**; HWT-06's Old 3DS requirement and
 `physical-hardware-parity` are blocked on Original 3DS hardware. The operator
-also found that the visible touch legend is outside the hit zones; the
-coordinates themselves are correct (`TOUCH action=menu x=288 y=47`), but the
-labels need to be drawn inside the zones (issue #364).
+also found that the visible touch legend was outside the hit zones; the
+coordinates themselves are correct (`TOUCH action=menu x=288 y=47`). The labels
+are now drawn inside the zones by the #364 fix; physical retest is pending.
 
 Latest evidenced builds: New `a328c70` (2026-11-22, FPS PASS), New `de3e249`
 (2026-11-22), and Old `a4a9a96` (2026-11-22). Record the exact commit and ROM
@@ -134,9 +134,9 @@ and waves, touch palette/rotation, HUD/menus/minimap.
 
 > `a328c70` exercised the scripted factory, waves, pause menu and main menu,
 > and the operator confirmed the HUD and minimap. It did not provide user block
-> placement, palette/rotation or config. The visible touch legend is outside
-> the hit zones; issue #364 tracks the UI-label fix. HWT-02 remains open for
-> the live build-UI/palette flow.
+> placement, palette/rotation or config. The visible labels are now drawn
+> inside their hit zones with a host invariant test; physical retest is tracked
+> by #364. HWT-02 remains open for the live build-UI/palette flow.
 
 **Steps**
 
