@@ -134,6 +134,11 @@ public final class UpstreamTerrainDrawProbe {
             bottom = Mathf.clamp(y, 0, Math.max(0, Vars.world.height() - VIEW_HEIGHT));
         }
 
+        boolean contains(int tileX, int tileY) {
+            return tileX >= left && tileX < left + VIEW_WIDTH
+                && tileY >= bottom && tileY < bottom + VIEW_HEIGHT;
+        }
+
         boolean contains(Building building) {
             var tile = building.tile;
             int low = (building.block.size - 1) / 2;
