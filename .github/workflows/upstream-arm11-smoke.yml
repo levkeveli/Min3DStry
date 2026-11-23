@@ -6,6 +6,12 @@ on:
     paths:
       - "research/upstream-runtime/**"
       - "audio/**"
+      - "src/audio/**"
+      - "include/audio/**"
+      - "tests/audio/**"
+      - "tools/stage_sound_catalog.py"
+      - "tools/verify_live_stock_audio.py"
+      - "tools/verify_stock_live_audio.py"
       - "tools/build_audio_assets.py"
       - "tools/stage_music_assets.py"
       - "tools/verify_upstream_net.py"
@@ -18,11 +24,18 @@ on:
       - ".github/scripts/fetch_upstream_v160.sh"
       - ".github/scripts/smoke_scope.py"
       - ".github/workflows/upstream-arm11-smoke.yml"
+      - "!research/upstream-runtime/**/*.md"
   push:
     branches: [main]
     paths:
       - "research/upstream-runtime/**"
       - "audio/**"
+      - "src/audio/**"
+      - "include/audio/**"
+      - "tests/audio/**"
+      - "tools/stage_sound_catalog.py"
+      - "tools/verify_live_stock_audio.py"
+      - "tools/verify_stock_live_audio.py"
       - "tools/build_audio_assets.py"
       - "tools/stage_music_assets.py"
       - "tools/verify_upstream_net.py"
@@ -35,6 +48,7 @@ on:
       - ".github/scripts/fetch_upstream_v160.sh"
       - ".github/scripts/smoke_scope.py"
       - ".github/workflows/upstream-arm11-smoke.yml"
+      - "!research/upstream-runtime/**/*.md"
   workflow_dispatch:
 
 concurrency:
@@ -68,6 +82,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          fetch-depth: ${{ github.event_name == 'push' && '0' || '1' }}
       - id: scope
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
