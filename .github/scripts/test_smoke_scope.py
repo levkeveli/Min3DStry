@@ -21,6 +21,22 @@ class SmokeScopeTests(unittest.TestCase):
             self.assertTrue(scope["run_audio"])
             self.assertTrue(scope["run_factory"])
 
+    def test_shared_smoke_support_selects_both_replays(self) -> None:
+        for path in (
+            ".github/scripts/build_unified_arm11_smoke.sh",
+            ".github/scripts/setup_smoke_azahar.sh",
+            "tools/verify_azahar.py",
+            "tools/UpstreamSpriteAtlas.java",
+        ):
+            with self.subTest(path=path):
+                scope = smoke_scope.classify_smoke_scope(
+                    ["tools/verify_offline_stock_audio.py", path], "pull_request"
+                )
+                self.assertTrue(scope["run_all"])
+                self.assertTrue(scope["run_singleplayer"])
+                self.assertTrue(scope["run_net"])
+                self.assertTrue(scope["run_audio"])
+
     def test_empty_changed_files_fails_open_to_full_suite(self) -> None:
         scope = smoke_scope.classify_smoke_scope([], "pull_request")
         self.assertTrue(scope["run_all"])

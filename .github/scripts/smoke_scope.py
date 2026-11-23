@@ -47,6 +47,7 @@ NARROW_CAMPAIGN_PROBES = {
 
 AUDIO_EXACT = {
     "tools/build_audio_assets.py",
+    "tools/verify_offline_stock_audio.py",
     "tools/stage_music_assets.py",
     "tests/tools/test_audio_assets.py",
     "tests/tools/test_stage_music_assets.py",
@@ -88,6 +89,10 @@ SINGLEPLAYER_EXACT = {
 }
 
 FULL_SUITE_EXACT = {
+    ".github/scripts/build_unified_arm11_smoke.sh",
+    ".github/scripts/setup_smoke_azahar.sh",
+    "tools/verify_azahar.py",
+    "tools/UpstreamSpriteAtlas.java",
     ".github/workflows/upstream-arm11-smoke.yml",
     ".github/scripts/fetch_upstream_v160.sh",
     ".github/scripts/smoke_scope.py",
