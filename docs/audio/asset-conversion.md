@@ -163,6 +163,35 @@ still pending.
   conveyor/drill loop and block place/break clips, proving the events reached
   the registry even when DSP firmware is absent.
 
+## Full-build integration
+
+The `3DS full build` workflow now builds this audio RomFS on the host with
+`ffmpeg`, copies the generated `audio-index.h` into the Docker build, and
+builds the `.3dsx` with `UPSTREAM_MINDUSTRY` pointing at the pinned upstream
+checkout. The workflow runs `tools/validate_audio_romfs.py build/romfs` before
+and after packaging, asserts every manifest entry exists at the recorded size,
+requires at least 9 clips, logs the final `.3dsx` byte count, and rejects an
+artifact at or above 12 MiB. The audio files are still build outputs and are
+not committed.
+
+Local reproduction (from the repo root, with ffmpeg and Python 3):
+
+```bash
+python3 tools/build_audio_assets.py \
+  --upstream /path/to/Mindustry \
+  --map audio/upstream-audio-map.json \
+  --triggers audio/upstream-audio-triggers.json \
+  --out build/audio-romfs --romfs-out build/romfs
+python3 tools/validate_audio_romfs.py build/romfs
+mkdir -p build/3ds
+cp build/romfs/audio-index.h build/3ds/audio-index.h
+make PYTHON=python3 UPSTREAM_MINDUSTRY=/path/to/Mindustry build/min3dstry.3dsx
+```
+
+Audible DSP playback and music quality remain **unverified** until a physical
+listening run is recorded; the CI only proves packaging and manifest
+integrity.
+
 ## Licensing and limitations
 
 - Upstream audio is GPLv3. The conversion output is not committed; distribution
