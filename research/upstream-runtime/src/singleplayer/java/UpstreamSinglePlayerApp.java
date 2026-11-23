@@ -457,7 +457,7 @@ public final class UpstreamSinglePlayerApp {
             if (horizontal > 60 && lastHorizontal <= 20 && schematic + 1 < choices.options().size) schematic++;
             if (horizontal < -60 && lastHorizontal >= -20 && schematic > 0) schematic--;
             lastHorizontal = horizontal;
-            boolean toggleCargo = selected.sector.allowLaunchLoadout() && (input & UpstreamSinglePlayerInput.PAUSE_PRESSED) != 0;
+            boolean toggleCargo = selected.sector.allowLaunchLoadout() && (input & UpstreamSinglePlayerInput.X_PRESSED) != 0;
             if (toggleCargo) maximumCargo = !maximumCargo;
             boolean edit = selected.sector.allowLaunchLoadout() && !maximumCargo
                 && (input & UpstreamSinglePlayerInput.WAVE_PRESSED) != 0;
