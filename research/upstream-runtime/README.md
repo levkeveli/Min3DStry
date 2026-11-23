@@ -514,6 +514,34 @@ cleanly on disconnect. Each run reported 491,744 bytes of cached PCM.
 Azahar used its missing-DSP fallback. Audible NDSP playback still
 requires a physical console.
 
+Add `--weather` to the unified audio verifier to have the stock Java server
+send rain, snow and sandstorm while the client is playing. The ARM11 client
+decodes the original weather packet and uses the server's stock entity
+snapshot to create each `WeatherState` with its server-assigned ID. It
+advances those entities and routes their sound through stock `SoundControl` fades. The
+replay checks the original sound IDs, centered playback and the active DSP
+mode. The JVM reference also checks the shared sporestorm sound and fade
+after expiry.
+
+The [unified ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45138219018)
+replayed all three loops on both Azahar profiles during stock-server play.
+The replay also checked the connected unit's movement and weapons and
+rejected entity snapshot decode errors. Azahar used the no-DSP fallback.
+
+The live client draws the original weather underlay and overlay through the
+same viewport and noise textures as offline play. Add
+`--controls --verify-weather-layers --terrain-atlas /path/to/sprites.aatls`
+to the Glacier replay. The stock server sends rain, snow, sandstorm and fog.
+The verifier checks both repeating textures and compares the world and
+touch screens. The JVM reference exercises all six stock weather types and
+checks the original water splash sprites.
+
+Both Azahar 2126.2 profiles passed the visual check with the same
+[ARM11 network build](https://github.com/levkeveli/Min3DStry/actions/runs/45181589111).
+With deferred graphics enabled, stock weather changed 1,316 sampled
+world pixels on the Original 3DS profile and 266 on the New 3DS profile.
+The sampled touch grid stayed unchanged on both.
+
 Run the same verifier with `--controls --model old3ds` and then
 `--controls --model new3ds`. Follow its prompts to move right with the
 D-pad, move up with the Circle Pad, and leave after the next wave.
@@ -1081,6 +1109,24 @@ profiles passed the placement and sprite checks while the official desktop
 JAR stayed connected. With the New 3DS profile, the desktop view showed the
 ARM11 Evoke and the newly placed Duct pointing north as the displayed
 beryllium balance went from 16 to 15.
+
+### Stock Erekir assembler production
+
+The JVM check `runStockAssemblerJvm` runs a v160.8 Tank Assembler on the
+original Erekir Caldera map. It supplies cyanogen and power through stock
+blocks and delivers four Stell units and ten large Tungsten Walls. It checks
+that all four builder drones reach position, that assembly stops without
+cyanogen and that the stock save resumes with the same inputs, progress,
+drones and rally point. The normal offline simulation finishes the Vanquish
+and consumes the payloads after reload.
+
+The check takes the original Erekir `caldera-erekir.msav`, output paths for the
+in-progress and completed saves, and the stock English bundle stem.
+`tools/verify_stock_assembler.py` reopens both files with the unmodified
+v160.8 Java server and checks the saved materials, drone count, production
+progress, completed unit and rally point. This evidence covers host simulation
+and save interoperability. Handheld interaction and rendering require separate
+verification.
 
 ### Player mining input
 

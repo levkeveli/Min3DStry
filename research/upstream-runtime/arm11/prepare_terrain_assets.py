@@ -228,6 +228,7 @@ def main() -> None:
             bundles.mkdir()
             with zipfile.ZipFile(args.assets) as archive:
                 pack_stock_text_assets(archive, staged)
+                pack_weather_noise(archive, staged / "weather", Path(tmp), args.tex3ds)
                 (staged / "block_colors.png").write_bytes(archive.read("assets/sprites/block_colors.png"))
                 (staged / "logicids.dat").write_bytes(archive.read("assets/logicids.dat"))
                 logic_font = Path(tmp) / "logic.ttf"
@@ -236,7 +237,6 @@ def main() -> None:
                     if re.fullmatch(r"assets/bundles/bundle(?:_[A-Za-z_]+)?\.properties", member):
                         (bundles / Path(member).name).write_bytes(archive.read(member))
                 if args.singleplayer:
-                    pack_weather_noise(archive, staged / "weather", Path(tmp), args.tex3ds)
                     pack_planet_data(archive, staged / "planets")
                     maps_dir = staged / "maps"
                     maps_dir.mkdir(parents=True, exist_ok=True)

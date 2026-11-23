@@ -81,10 +81,10 @@ public final class Arm11Audio extends Audio {
     }
 
     public static void updateCamera(float x, float y, float width, float height) {
+        Core.camera.position.set(x, y);
+        Core.camera.width = width;
+        Core.camera.height = height;
         if (Core.audio instanceof Arm11Audio audio) {
-            Core.camera.position.set(x, y);
-            Core.camera.width = width;
-            Core.camera.height = height;
             audio.sfxVolume = Mathf.clamp(Core.settings.getInt("sfxvol", 100) / 100f);
             updateMixer();
         }
@@ -123,6 +123,11 @@ public final class Arm11Audio extends Audio {
     private static final class LiveSoundControl extends SoundControl {
         LiveSoundControl() {
             reload();
+        }
+
+        @Override
+        protected boolean acceptsWorldLoops() {
+            return true;
         }
 
         void enterWorld() {

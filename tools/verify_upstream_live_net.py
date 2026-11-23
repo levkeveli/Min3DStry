@@ -14,6 +14,7 @@ import time
 import zipfile
 
 import verify_azahar as az
+from stock_puddle_fixture import DEPOSIT as PUDDLE_DEPOSIT, SETUP as PUDDLE_SETUP, changed_colors
 
 
 SERVER_SHA256 = "faeaf247a8b622de940181a96cb21cb20692d3c3da4e8ac3f79cb4af5059aa6c"
@@ -91,7 +92,7 @@ BUILDING_CRACK_PIXELS = {
 
 def write_controls_replay(path, first_move=22, building=False, touch_build=False, touch_config=False,
                           erekir_build=False, mining=None, model="old3ds", stock_menu_font=False,
-                          unified_boot=False, stationary=False):
+                          unified_boot=False, stationary=False, chat=False):
     """Write the Azahar 2126.2 CTM input for this probe's pad/touch polling."""
     # The pinned Azahar movie header and HID sample definitions use packed little-endian fields.
     revision = bytes.fromhex("219d743a1e698101fe1ab8bef43e6563126c3c27")
@@ -104,7 +105,7 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
         # Let each input settle and confirm idle snapshots at the combined ROM's slower frame cadence.
         circle_at = first_move + 28
         leave_at = circle_at + 28
-    frames = (128 if erekir_build or mining else leave_at + 7) * samples_per_second
+    frames = (128 if erekir_build or mining or chat else leave_at + 7) * samples_per_second
     header = struct.pack("<4sQ20sQQ32sIQq156x", b"CTM\x1b", 0, revision, 1780000000,
                          0x4D334453, b"Min3DStry input verification", 0, frames, 0)
     touch_idle = struct.pack("<B6x", 1)
@@ -140,12 +141,18 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
         )
     elif mining == "floor":
         taps = ((58, (305, 96)), (62, (305, 96)), (67, (168, 232)))
+    if chat:
+        # Type "hi 3ds" across a long-running chat overlay using only bottom-screen HID samples.
+        taps = ((39, (176, 132)), (43, (240, 93)), (47, (192, 214)),
+                (51, (80, 53)), (55, (80, 132)), (59, (48, 132)))
     pan_end = 61 if model == "new3ds" else 60
     with path.open("wb") as movie:
         movie.write(header)
         for frame in range(frames):
             seconds = frame // samples_per_second
-            if erekir_build:
+            if chat:
+                buttons = (1 << 11) if 32 <= seconds < 34 else 1 if 66 <= seconds < 68 else 0
+            elif erekir_build:
                 buttons = (1 << 8) if 66 <= seconds < 72 else 0  # R, the 3DS rotate shortcut.
             elif mining or stationary:
                 buttons = 0
@@ -1400,6 +1407,99 @@ def verify_canvas(server_log, server, rpc, output, model, timeout):
     print(f"{model}: stock Canvas snapshot pixels, live configuration and linked marker passed.", flush=True)
 
 
+def verify_stock_weather_layers(log, emulator, server_log, server, rpc, output, model, timeout):
+    wait_for(log, emulator, r"UPSTREAM_NETWORK_FRAME unit=\d+", timeout)
+    world = [(x, y) for y in range(12, 231, 6) for x in range(52, 349, 6)
+             if not (165 < x < 235 and 82 < y < 151)]
+    # Sample the touch grid after the button labels, which can switch fonts on startup.
+    touch = [(x, y) for y in (350, 385, 415, 445) for x in range(54, 347, 8)]
+    before = rpc.screenshot(res_scale=1)
+    (output / f"{model}-weather-clear.png").write_bytes(before)
+    baseline = az.inspect_png(before, world + touch)["samples"]
+    server.stdin.write(
+        'js (() => { Call.createWeather(Weathers.rain, 1, 900, 0, 0); '
+        'Call.createWeather(Weathers.snow, 1, 900, 0, 0); '
+        'Call.createWeather(Weathers.sandstorm, 1, 900, 0, 0); '
+        'Call.createWeather(Weathers.fog, 1, 900, 0, 0); '
+        'return "UPSTREAM_STOCK_WEATHER_VISUALS ready"; })()\n'
+    )
+    server.stdin.flush()
+    wait_for(server_log, server, r"UPSTREAM_STOCK_WEATHER_VISUALS ready\b", 5)
+    for name in ("rain", "snowing", "sandstorm", "fog"):
+        wait_for(log, emulator, rf"UPSTREAM_LIVE_WEATHER name={name}\b", timeout)
+    for name in ("noiseAlpha", "fog"):
+        wait_for(log, emulator, rf"UPSTREAM_WEATHER_TEXTURE name={name}\b", timeout)
+    deadline = time.monotonic() + min(timeout, 45)
+    frame = before
+    while time.monotonic() < deadline:
+        frame = rpc.screenshot(res_scale=1)
+        pixels = az.inspect_png(frame, world + touch)["samples"]
+        changed = sum(max(abs(a - b) for a, b in zip(pixels[p], baseline[p])) >= 12 for p in world)
+        if changed >= 96 and all(pixels[p] == baseline[p] for p in touch):
+            (output / f"{model}-weather-active.png").write_bytes(frame)
+            print(f"{model}: the stock weather changed {changed} sampled world pixels with an unchanged touch grid.", flush=True)
+            return log.read_text(encoding="utf-8", errors="replace")
+        time.sleep(0.2)
+    (output / f"{model}-weather-unexpected.png").write_bytes(frame)
+    raise RuntimeError(f"{model} did not composite the original weather inside the world viewport")
+
+
+def verify_stock_chat(log, emulator, server_log, server, rpc, output, model, timeout):
+    wait_for(log, emulator, r"UPSTREAM_NETWORK_FRAME unit=\d+", timeout)
+    points = [(x, y) for y in range(180, 226, 3) for x in range(48, 228, 3)]
+    before = az.inspect_png(rpc.screenshot(res_scale=1), points)["samples"]
+    server.stdin.write(
+        'js (() => { const p=Groups.player.find(boolf(v=>String(v.name)==="Min3DStry ARM11")); '
+        'Call.sendMessage("[accent]Stock notice"); '
+        'Packages.mindustry.core.NetClient.sendChatMessage(p,"Stock player chat"); '
+        'return "UPSTREAM_STOCK_CHAT_SENT"; })()\n'
+    )
+    server.stdin.flush()
+    wait_for(server_log, server, r"UPSTREAM_STOCK_CHAT_SENT\b", 10)
+    for sender in ("server", "player"):
+        wait_for(log, emulator, rf"UPSTREAM_LIVE_CHAT_RECEIVED source={sender} chars=[1-9]\d*\b", timeout)
+    wait_for(log, emulator, r"UPSTREAM_LIVE_CHAT_DRAW line=(?:[3-9]|\d{2,})\b", timeout)
+    deadline = time.monotonic() + min(timeout, 10)
+    while time.monotonic() < deadline:
+        frame = rpc.screenshot(res_scale=1)
+        after = az.inspect_png(frame, points)["samples"]
+        changed = sum(max(abs(a - b) for a, b in zip(before[p], after[p])) >= 16 for p in points)
+        if changed >= 40:
+            (output / f"{model}-stock-chat.png").write_bytes(frame)
+            break
+        time.sleep(0.1)
+    else:
+        raise RuntimeError(f"{model}: stock chat reached ARM11 without a visible chat panel")
+    bottom = [(x, y) for y in range(258, 458, 8) for x in range(48, 354, 8)]
+    play_grid = az.inspect_png(frame, bottom)["samples"]
+    wait_for(log, emulator, r"UPSTREAM_LIVE_CHAT_INPUT state=open\b", timeout)
+    deadline = time.monotonic() + 8
+    while time.monotonic() < deadline:
+        keyboard = rpc.screenshot(res_scale=1)
+        keys = az.inspect_png(keyboard, bottom)["samples"]
+        if sum(max(abs(a - b) for a, b in zip(play_grid[p], keys[p])) >= 16 for p in bottom) >= 60:
+            (output / f"{model}-chat-keyboard.png").write_bytes(keyboard)
+            break
+        time.sleep(0.1)
+    else:
+        raise RuntimeError(f"{model}: the bottom screen did not present the touch keyboard")
+    server.stdin.write("runwave\n")
+    server.stdin.flush()
+    during_chat = wait_for(log, emulator, r"UPSTREAM_LIVE_CONTROLS_STATE wave=2\b", timeout)
+    if "UPSTREAM_LIVE_CHAT_INPUT state=closed" in during_chat:
+        raise RuntimeError("The wave snapshot must reach ARM11 while chat is open")
+    wait_for(log, emulator, r"UPSTREAM_LIVE_CHAT_SENT chars=6\b", timeout)
+    wait_for(server_log, server, rf"{PLAYER}: hi 3ds\b", timeout)
+    wait_for(log, emulator, r"UPSTREAM_LIVE_CHAT_SENT chars=6[^\r\n]*[\s\S]+"
+                            r"UPSTREAM_LIVE_CHAT_RECEIVED source=player", timeout)
+    wait_for(log, emulator, r"UPSTREAM_LIVE_CHAT_SENT chars=6[^\r\n]*[\s\S]+"
+                            r"UPSTREAM_LIVE_CHAT_DRAW line=(?:[4-9]|\d{2,})\b", timeout)
+    server.stdin.write("runwave\n")
+    server.stdin.flush()
+    wait_for(log, emulator, r"UPSTREAM_LIVE_CONTROLS_STATE wave=3\b", timeout)
+    print(f"{model}: original chat round trip passed and snapshots continued during text entry.", flush=True)
+
+
 def verify_canvas_quads(log, emulator, server_log, server, rpc, output, model, position, timeout):
     _, _, x, y = position
     x, y = (math.floor(float(value) / 8 + 0.5) * 8 for value in (x, y))
@@ -1457,6 +1557,22 @@ def verify_client_processor(server_log, server, rpc, output, model, timeout):
         f"const c=Vars.world.build({PROCESSOR_CANVAS_COLUMN},29); "
         'if(c.getPixel(0)!==1 || c.getPixel(143)!==6) throw "Server Canvas changed";')
     print(f"{model}: stock processor config, link and client-local Canvas writes passed.", flush=True)
+
+
+def verify_stock_puddles(server_log, server, rpc, output, model, timeout):
+    before = rpc.screenshot()
+    send_marker_phase(server_log, server, "puddles-deposited", PUDDLE_DEPOSIT)
+    deadline = time.monotonic() + min(timeout, 30)
+    while time.monotonic() < deadline:
+        after = rpc.screenshot()
+        water, neoplasm = changed_colors(before, after)
+        if min(water, neoplasm) >= 12:
+            (output / f"{model}-puddles-before.png").write_bytes(before)
+            (output / f"{model}-puddles-after.png").write_bytes(after)
+            print(f"{model}: stock puddle snapshots matched water/neoplasm samples {water}/{neoplasm}.", flush=True)
+            return
+        time.sleep(0.15)
+    raise RuntimeError(f"{model}: original liquid colors did not appear after the stock entity snapshot")
 
 
 def verify_logic_displays(server_log, server, rpc, output, model, timeout):
@@ -1546,7 +1662,8 @@ def run_model(args, model, config, original_config, log, output):
                   or args.tank_treads or args.map_spawn or args.combat
                   or args.verify_logic_markers or args.verify_texture_markers or args.verify_quad_markers or args.verify_canvas
                   or args.verify_canvas_quads or args.verify_client_processor or args.verify_logic_displays
-                  or args.verify_display_markers)
+                  or args.verify_display_markers or args.verify_puddles or args.verify_weather_layers
+                  or args.verify_chat)
     map_name = args.map_spawn or "Glacier"
     overrides = {
         "Miscellaneous": {"log_filter": "*:Info Debug.Emulated:Debug Service.SOC:Debug",
@@ -1593,6 +1710,8 @@ def run_model(args, model, config, original_config, log, output):
                     "const rules=Vars.state.rules; rules.worldProcessorPlayerLink=true; "
                     "rules.allowEditWorldProcessors=true; "
                     f"Vars.world.tile({PROCESSOR_CANVAS_COLUMN},32).setBlock(Blocks.worldProcessor,rules.defaultTeam);")
+            if args.verify_puddles:
+                send_marker_phase(server_log, server, "puddles-clear", PUDDLE_SETUP)
             if args.verify_logic_displays:
                 send_marker_phase(server_log, server, "display-fixture",
                     "const rules=Vars.state.rules; rules.worldProcessorPlayerLink=true; "
@@ -1707,7 +1826,7 @@ def run_model(args, model, config, original_config, log, output):
                 server.stdin.flush()
                 wait_for(server_log, server, r"UPSTREAM_COMBAT_PREP", 10)
             command = [str(args.azahar)]
-            if args.controls_replay or args.unified_boot:
+            if args.controls_replay or args.unified_boot or args.verify_chat:
                 replay = Path(work) / "controls.ctm"
                 first_move = 42 if args.terrain_atlas else 22
                 if args.building and args.desktop_name:
@@ -1720,7 +1839,7 @@ def run_model(args, model, config, original_config, log, output):
                                       touch_build=args.touch_build, touch_config=args.touch_config,
                                       erekir_build=args.erekir_build, mining=args.mining, model=model,
                                       stock_menu_font=args.verify_stock_menu_font, unified_boot=args.unified_boot,
-                                      stationary=not args.controls_replay)
+                                      stationary=not args.controls_replay, chat=args.verify_chat)
                 command += ["-p", str(replay)]
             command.append(str(args.rom))
             emulator = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -1878,10 +1997,17 @@ def run_model(args, model, config, original_config, log, output):
                             wait_for(log, emulator, r"UPSTREAM_RENDER_KEEPALIVE transport=tcp\b", 5)
                         if args.verify_canvas:
                             verify_canvas(server_log, server, rpc, output, model, args.timeout)
+                        if args.verify_weather_layers:
+                            verify_stock_weather_layers(log, emulator, server_log, server, rpc, output,
+                                                        model, args.timeout)
+                        if args.verify_chat:
+                            verify_stock_chat(log, emulator, server_log, server, rpc, output, model, args.timeout)
                         if args.verify_canvas_quads:
                             verify_canvas_quads(log, emulator, server_log, server, rpc, output, model, spawn, args.timeout)
                         if args.verify_client_processor:
                             verify_client_processor(server_log, server, rpc, output, model, args.timeout)
+                        if args.verify_puddles:
+                            verify_stock_puddles(server_log, server, rpc, output, model, args.timeout)
                         if args.verify_logic_displays:
                             verify_logic_displays(server_log, server, rpc, output, model, args.timeout)
                         if args.verify_display_markers:
@@ -2117,10 +2243,16 @@ def main():
                         help="Require the original font on the campaign objective HUD")
     parser.add_argument("--verify-canvas", action="store_true",
                         help="Verify original Canvas pixels in Glacier snapshots, configuration and linked markers")
+    parser.add_argument("--verify-weather-layers", action="store_true",
+                        help="Capture the stock weather over the stationary Glacier viewport")
+    parser.add_argument("--verify-chat", action="store_true",
+                        help="Verify original server and player chat over the stationary Glacier viewport")
     parser.add_argument("--verify-canvas-quads", action="store_true",
                         help="Verify stock quads backed by an offscreen Canvas on Glacier")
     parser.add_argument("--verify-client-processor", action="store_true",
                         help="Verify a stock processor writes to its linked Canvas on the client")
+    parser.add_argument("--verify-puddles", action="store_true",
+                        help="Verify water and neoplasm in stock Glacier entity snapshots")
     parser.add_argument("--verify-logic-displays", action="store_true",
                         help="Verify normal, large, and tileable Logic Displays on Glacier")
     parser.add_argument("--verify-display-markers", action="store_true",
@@ -2225,11 +2357,18 @@ def main():
         parser.error("--verify-stock-hud needs --verify-objective-hud or --verify-objective-markers")
     if args.verify_canvas and (not args.controls or not args.terrain_atlas or args.controls_replay or args.map_spawn):
         parser.error("--verify-canvas needs stationary --controls and --terrain-atlas on Glacier")
+    if args.verify_weather_layers and (not args.controls or not args.terrain_atlas
+                                       or args.controls_replay or args.map_spawn):
+        parser.error("--verify-weather-layers needs stationary --controls and --terrain-atlas on Glacier")
+    if args.verify_chat and (not args.controls or not args.terrain_atlas or args.controls_replay or args.map_spawn):
+        parser.error("--verify-chat needs stationary --controls and --terrain-atlas on Glacier")
     if args.verify_canvas_quads and (not args.controls or not args.terrain_atlas or args.controls_replay or args.map_spawn):
         parser.error("--verify-canvas-quads needs stationary --controls and --terrain-atlas on Glacier")
     if args.verify_client_processor and (not args.controls or not args.terrain_atlas or args.controls_replay
                                         or args.map_spawn or args.verify_canvas):
         parser.error("--verify-client-processor needs stationary --controls and --terrain-atlas on Glacier")
+    if args.verify_puddles and (not args.controls or not args.terrain_atlas or args.controls_replay or args.map_spawn):
+        parser.error("--verify-puddles needs stationary --controls and --terrain-atlas on Glacier")
     if args.verify_logic_displays and (not args.controls or not args.terrain_atlas or args.controls_replay
                                        or args.map_spawn or args.verify_canvas or args.verify_canvas_quads
                                        or args.verify_client_processor):

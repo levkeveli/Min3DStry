@@ -236,7 +236,11 @@ ordinary simulation ticks. Stock Java reopens the resulting save and
 settings and verifies the turn, active core, remote inventories, and
 legacy launch pad setting. The generated TeaVM C reference produced the same
 result on the host and stock Java reopened its output. The Linux smoke job
-runs that same reference and stock readback.
+runs that same reference and stock readback. The graphical replay checks
+the same turn from the campaign menu. It saves at intervals and waits
+for the first checkpoint with the imported copper so render speed
+does not determine when the check runs. The two remote sector map
+files must stay byte-identical.
 
 ```sh
 python3 tools/campaign_background_fixture.py --server server-release.jar --create /path/to/fixture
@@ -244,6 +248,33 @@ python3 tools/campaign_background_fixture.py --server server-release.jar --creat
 gradle -Pprobe=unified runBackgroundCampaignTurnJvm --args="/path/to/fixture /path/to/assets /path/to/assets/bundle /path/to/new-output"
 python3 tools/campaign_background_fixture.py --server server-release.jar --check /path/to/new-output
 ```
+
+`tools/verify_upstream_campaign_background.py` accepts the unified ARM11
+ROM and the unmodified v160.8 server JAR. It creates a separate virtual
+SD per emulator profile and reopens each resulting save with stock Java.
+
+The dedicated ARM11 `campaign-background` probe runs the same original
+simulation ticks independently of graphical frame pacing. Generate it
+with `-Pprobe=campaign-background generateC` and compile the output with
+`arm11/build.sh <generated-c> <output> --campaign-background`, which uses
+the same native stack size as the graphical game. Run
+`tools/verify_arm11_background_turn.py --rom upstream-probe.3dsx --server server-release.jar --assets /path/to/prepared-assets --output /path/to/new-output`.
+Use maps, planets, and the base bundle staged from the pinned original
+assets. Both emulated console profiles produce a result directory for
+stock Java readback.
+
+The [dedicated ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45181223120)
+passed one complete stock turn on both Azahar 2126.2 profiles. Stock Java
+reopened the resulting settings and save with 37 copper in the active
+core, 100 copper and zero lead at the producer, and 11 copper at the
+attacked sector. Both remote map files remained byte-identical.
+
+The [unified graphical build](https://github.com/levkeveli/Min3DStry/actions/runs/45177492172)
+passed the same stock Java readback on both Azahar profiles after opening
+Ground Zero from the campaign menu. The verifier captured the rendered
+world, saved the completed turn through SELECT, and checked both
+unchanged remote world files. The build also includes the campaign retry
+collector fix from #340.
 
 ## New campaign
 
@@ -357,6 +388,54 @@ and stack total 64.58 MiB. This exceeds the 64 MiB Original 3DS application
 budget even before other runtime allocations. Physical memory and frame-rate
 verification remain open.
 
+## Campaign defeat and retry
+
+If your last core is destroyed, the game saves the defeated sector and
+shows its original localized loss message. Press **A** to continue to the
+campaign selector or **START** to exit. A defeated starter sector can be
+retried from its original deployment. Other sectors use the same landing
+and cargo rules as a new launch.
+
+Retry follows Mindustry v160.8's clear-sector rules. Under the default
+campaign configuration, Ground Zero retains the original spawn, surviving
+derelict buildings and rebuild plans. The Onset regenerates without carrying
+those buildings over. The retry writes to the same original sector slot.
+
+With the prepared campaign assets and pinned runtime Gradle properties, use
+`-Pprobe=singleplayer runGraphicalCampaignDefeatJvm --args="/path/to/assets /path/to/new-scratch-dir"`
+to generate and reload starter saves with hostile units attacking a weakened core. The
+reference lets the original simulation cause the loss, then retries both sectors. Run
+`python3 tools/verify_upstream_campaign_defeat.py --server server-release.jar --reference /path/to/new-scratch-dir`
+to reopen the defeated and recovered saves and settings in the unmodified PC
+server. The server checks the core, retry attempt, and surviving derelict
+state. Add `--rom upstream-probe.3dsx` to replay the loss and retry with
+controller input on both Azahar profiles before running the same PC
+readback. The [ARM11 build from `3de099b`](https://github.com/levkeveli/Min3DStry/actions/runs/45055970330)
+passed in Original and New 3DS profiles in Azahar 2126.2. Hostile units
+destroyed the last core in Ground Zero and The Onset. The controller retried
+each sector and saved the original 256×256 and 512×512 worlds, respectively.
+Stock v160.8 reopened the defeated and recovered saves for all four replays
+and verified the persisted sector state.
+
+The later unified build exposed a collection bug when a retry rebuilt the
+upstream Pathfinder cache. TeaVM C's multi-dimensional allocator kept its
+partially built arrays only in C locals. ARM11 staging now registers each
+parent with the collector and applies the write barrier as it adds children.
+The campaign replay exercises this path without altering the upstream
+pathfinding or save format.
+The logic smoke job runs `arm11/check_multi_array_roots.py` on its
+generated TeaVM C to force collection between child allocations and
+verify that all child arrays survive the next collection.
+
+The [ARM11 build with the collector fix](https://github.com/levkeveli/Min3DStry/actions/runs/45173897060)
+passed defeat, retry, and stock Java readback for Ground Zero and The Onset
+on both Azahar profiles. The same verifier reopens the defeated save
+before checking the recovered save and its campaign settings.
+The [integrated build](https://github.com/levkeveli/Min3DStry/actions/runs/45177492172)
+also passed Ground Zero on the New 3DS profile and The Onset on the
+Original 3DS profile with the current campaign research and offline
+audio code. Stock Java reopened all four resulting checkpoints.
+
 ## Custom Game
 
 Hold **L** while launching the standalone graphical `.3dsx` to open the
@@ -370,10 +449,23 @@ and loads the world sprite atlas after the map. If a mode is unavailable on a
 map, startup uses the first valid mode
 in the upstream mode order.
 
-`SELECT` saves the current Custom Game to
-`/3ds/min3dstry/custom-game-save.msav` using upstream `SaveIO`. The separate
-file preserves the ordinary single-player and campaign slots.
+`SELECT` saves a new Custom Game to
+`/3ds/min3dstry/custom-game-save.msav` using upstream `SaveIO`.
 Select **Load Game** at the top of the Custom Game list to resume that save.
+Copy non-campaign PC saves into `/3ds/min3dstry/saves/` to select them by
+name from the same menu. The menu uses the stock save name from settings
+when present and the filename otherwise. `SELECT` writes the active save
+back to its own slot and retains the upstream backup. Map exports still
+belong under `/3ds/min3dstry/maps/`.
+
+`tools/verify_stock_custom_save_slots.py` creates Glacier and Ancient
+Caldera saves with unmodified Java v160.8. It selects each on ARM11, saves
+Glacier, checks the original backup and the untouched Caldera file, then
+reopens the resulting Glacier save in stock Java.
+The [unified ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45185562919)
+passed this replay on both Azahar 2126.2 profiles. The stock Arc sort put
+the newer Caldera save first. The replay then saved Glacier and verified
+that both the Caldera and the campaign files stayed byte-identical.
 
 The JVM regression uses an assets directory staged with
 `prepare_terrain_assets.py --singleplayer`. Pass its `maps/default` directory,
@@ -775,6 +867,24 @@ showed the active heat layers on both Azahar console profiles. Stock
 Mindustry v160.8 reopened the two ARM11 saves and read back the original
 reactor heat, carbide, and neoplasm.
 
+## Original liquid puddles
+
+The world renderer submits upstream puddle drawing with the original
+atlas. The stock layer order keeps water below buildings and draws the
+neoplasm cell overlay above a solid block. The shared pass works with
+offline saves and entity snapshots from a stock Java server.
+
+Run `tools/verify_offline_stock_puddles.py` with the original server JAR
+and a unified ARM11 ROM to compare clear and active Glacier saves.
+Run `tools/verify_upstream_live_net.py` with
+`--controls --verify-puddles --terrain-atlas /path/to/sprites.aatls`
+to check the same water and neoplasm colors over a stock network session.
+
+The [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45140847819)
+passed offline saves and live entity snapshots on both Azahar profiles.
+Both profiles showed 81 changed water pixels. The neoplasm samples
+included the area around the solid wall and passed in both modes.
+
 ## Original turret graphics
 
 The offline and live world passes use the original v160.8 turret drawers
@@ -821,3 +931,28 @@ The [combined ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/4
 passed this replay on the Original and New 3DS profiles in Azahar. Stock
 Mindustry v160.8 reopened both saves and verified the updated Canvas pixel,
 three processor links and the display-linked marker.
+
+### Renderer timing
+
+Create an empty `sd:/3ds/min3dstry/frame-perf.txt` before launching the playable
+ROM. The renderer emits `UPSTREAM_FRAME_PERF` once per 16 displayed frames.
+Each record gives the first and last viewport origins, sums of elapsed guest
+microseconds, texture cache misses and loads, and the encoded bytes consumed
+by atlas imports. Remove the flag to disable measurements.
+
+Compare a stationary window after the cache warms up with a panning window.
+Divide each time by `frames` for the window mean. Terrain and bottom-screen
+times cover CPU submission and any waits inside those sections. Initial frame
+begin and mid-frame recycle times measure blocking calls, while atlas loading
+covers opening and importing the asset. These intervals can overlap with
+terrain time. Frame time spans renderer begin to submission and excludes game
+simulation before renderer begin. Azahar guest timings help locate the cost.
+Physical console frame rates require a separate capture.
+
+On the unified ARM11 build from `cd37f9ed`, both Azahar profiles repeatedly
+imported 12 atlas fragments and recycled the render pass once per frame after
+the Ground Zero viewport settled at `121,49`. A representative 16-frame window
+averaged about 233 ms per renderer frame, of which 213 ms was spent importing
+atlas fragments. A window panning from `117,49` to `109,49` imported 125
+fragments across 16 frames and averaged 159 ms per renderer frame. These are
+guest timings from the emulator with the same stock Ground Zero save.
