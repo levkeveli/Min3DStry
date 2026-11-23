@@ -84,6 +84,21 @@ jobs:
             "-ParcCheckout=$RUNNER_TEMP/Arc" \
             -Pprobe=save-rows generateC
 
+      - name: Build upstream audio RomFS
+        run: |
+          if ! command -v ffmpeg >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y ffmpeg
+          fi
+          python3 tools/build_audio_assets.py \
+            --upstream "$RUNNER_TEMP/Mindustry" \
+            --map audio/upstream-audio-map.json \
+            --triggers audio/upstream-audio-triggers.json \
+            --out build/audio-romfs \
+            --romfs-out build/romfs
+          mkdir -p build/3ds
+          cp build/romfs/audio-index.h build/3ds/audio-index.h
+
       - name: Build with embedded loader
         run: |
           image=devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5
@@ -94,13 +109,16 @@ jobs:
           if [ -n "${M3DS_DOCKER_CPUSET_MEMS:-}" ]; then
             docker_numa_args+=(--cpuset-mems "$M3DS_DOCKER_CPUSET_MEMS")
           fi
-          docker run --rm "${docker_numa_args[@]}" -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/work" -w /work "$image" bash -lc '
+          docker run --rm "${docker_numa_args[@]}" -u "$(id -u):$(id -g)" -e HOME=/tmp \
+            -v "$PWD:/work" -v "$RUNNER_TEMP/Mindustry:/upstream/Mindustry:ro" \
+            -w /work "$image" bash -lc '
             source /opt/devkitpro/3dsvars.sh
             python3 --version
             tex3ds --version
             bash tools/build_teavm_loader.sh \
               research/upstream-runtime/build/generated/teavm/c build/teavm-loader
-            make PYTHON=python3 TEAVM_LOADER_DIR=/work/build/teavm-loader
+            make PYTHON=python3 TEAVM_LOADER_DIR=/work/build/teavm-loader \
+              UPSTREAM_MINDUSTRY=/upstream/Mindustry build/min3dstry.3dsx
             test -s build/min3dstry.3dsx
             test -s build/min3dstry.smdh
             # The strong embedded-loader symbol must win over the weak stub,
