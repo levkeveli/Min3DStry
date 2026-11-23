@@ -105,6 +105,12 @@ class HwEvidenceTests(unittest.TestCase):
         self.assertTrue(hardware_check.ok)
         self.assertEqual(hardware["tag"], "O3DS")
 
+    def test_hardware_summary_reports_cpu_clock(self) -> None:
+        records = hw_evidence.parse_records(sample_log())
+        hardware = hw_evidence.hardware_summary(hw_evidence.first(records, "HW"))
+        self.assertEqual(hardware["mhz"], "804 MHz")
+        self.assertEqual(hardware["model"], "New 3DS XL")
+
     def test_profile_mismatch_fails(self) -> None:
         records = hw_evidence.parse_records(sample_log(tag="N3DS", app_mem=124))
         hardware = hw_evidence.hardware_summary(hw_evidence.first(records, "HW"))

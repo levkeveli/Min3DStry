@@ -1,6 +1,6 @@
 # NDSP Audio Mixer Prototype
 
-Status: **Experimental** (`emulator-tested` for the RomFS registry, event routing, mixer state and missing-DSP fallback on both Azahar models; audible NDSP playback still requires physical hardware).
+Status: **Experimental** (`emulator-tested` for the RomFS registry, event routing, mixer state and missing-DSP fallback on both Azahar models; NDSP initializes with `state=ready` on physical Original/New 3DS and the New 3DS operator heard the UI tone, but upstream effect clips/music still need an audio-enabled build and listening test).
 
 ## Architecture
 
@@ -48,4 +48,4 @@ Status: **Experimental** (`emulator-tested` for the RomFS registry, event routin
   - Parity remained `0x53a483c7`, and inspected top/bottom PNG screenshots confirmed textured rendering alongside bottom-screen `Audio: fallback_no_dsp`.
   - Full transcript excerpt: [azahar-evidence.md](azahar-evidence.md).
 - **Capability stage (`emulator-tested`):** Azahar runs load nine packed clips, resolve every wired event to a clip, exercise fallback startup/teardown, and preserve parity on both models. This stage does not claim audible output; that remains gated on physical hardware with DSP firmware.
-- **Physical 3DS Hardware Audio (`dspfirm.cdc` present):** **Not yet tested**; live NDSP PCM playback requires deploying onto physical Original and New 3DS consoles with dumped `sdmc:/3ds/dspfirm.cdc`, confirming `state=ready rc=0x00000000`, and verifying stereo PCM16 `ndspWaveBuf.nsamples` per-channel frame duration on hardware.
+- **Physical 3DS Hardware Audio (`dspfirm.cdc` present):** **Partially verified.** The New 3DS XL (`de3e249`) and Original 3DS XL (`a4a9a96`) runs logged `AUDIO backend=ndsp state=ready rc=0x00000000 rate=22050`; the earlier runs loaded 9-10 clips, while the full-build `a328c70` run loaded only 2 and all seven `AUDIO_EVENT`s resolved to `clip=-1`. The operator heard the UI tone on `a328c70`, so the NDSP output path is audible, but upstream effects/music, mute and crackling remain unverified. `ndsp-sfx-music` stays `emulator-tested` ([New combined](../hardware/evidence/new3ds-xl-a328c70.md), [Old](../hardware/evidence/old3ds-xl-a4a9a96.md)).

@@ -34,6 +34,7 @@ def create_settings(java: str, server: Path, fixtures: Path) -> None:
             const presets = Packages.mindustry.content.SectorPresets;
             const items = Packages.mindustry.content.Items;
             const zero = presets.groundZero.sector, forest = presets.frozenForest.sector;
+            settings.put("locale", "de");
             settings.put("conveyor-unlocked", Packages.java.lang.Boolean.TRUE);
             settings.put("req-conveyor-copper", new Packages.java.lang.Integer(7));
             settings.put("campaign-fixture-text", "preserved");
@@ -60,7 +61,7 @@ def create_settings(java: str, server: Path, fixtures: Path) -> None:
 
 
 def check_settings(java: str, server: Path, settings: Path, sector_id: int, research: int,
-                   after_play: bool) -> None:
+                   after_play: bool, save: Path | None = None) -> None:
     expected_name = "Stock Ground Zero" if sector_id == 170 else "sector-serpulo-64"
     # The stock moving average decays in an idle sector during the replay.
     production_ok = "production.mean >= 0 && production.mean <= 2.5" if after_play else "production.mean === 2.5"
@@ -69,6 +70,18 @@ def check_settings(java: str, server: Path, settings: Path, sector_id: int, rese
         target = root / "config/settings.bin"
         target.parent.mkdir()
         shutil.copyfile(settings, target)
+        if save is not None:
+            shutil.copyfile(save, root / "config/roundtrip.msav")
+        check_world = f"""
+            const file = new Packages.arc.files.Fi("config/roundtrip.msav");
+            if (!SaveIO.isSaveValid(file)) throw new Error("PC rejected the sector save");
+            SaveIO.load(file);
+            const rules = Vars.state.rules;
+            if (rules.sector == null || rules.sector.id !== {sector_id} ||
+                rules.defaultTeam.core() == null) {{
+                throw new Error("PC reopened the wrong sector or lost its core");
+            }}
+        """ if save is not None else ""
         script = f"""
             const settings = Packages.arc.Core.settings;
             const presets = Packages.mindustry.content.SectorPresets;
@@ -78,6 +91,7 @@ def check_settings(java: str, server: Path, settings: Path, sector_id: int, rese
             const info = zero.info, production = info.rawProduction.get(items.copper);
             if (settings.getInt("req-conveyor-copper", -1) !== {research} ||
                 !settings.getBool("conveyor-unlocked") ||
+                String(settings.getString("locale", "")) !== "de" ||
                 settings.getInt("serpulo-last-sector", -1) !== {sector_id} ||
                 String(settings.getString("last-sector-save", "")) !== "{expected_name}" ||
                 String(settings.getString("campaign-fixture-text", "")) !== "preserved" ||
@@ -88,10 +102,13 @@ def check_settings(java: str, server: Path, settings: Path, sector_id: int, rese
                 info.importCooldownTimers.get(items.lead, -1) !== 3.5) {{
                 throw new Error("PC could not restore campaign settings");
             }}
+            {check_world}
             return "UPSTREAM_PC_SETTINGS_REOPENED";
         """
         stock_console(java, server, root, " ".join(script.splitlines()), r"UPSTREAM_PC_SETTINGS_REOPENED")
-    print(f"[PASS] stock v160.8 reopened {settings.name}, last sector {sector_id}, research {research}", flush=True)
+    world = f" and {save.name}" if save is not None else ""
+    print(f"[PASS] stock v160.8 reopened {settings.name}{world}, last sector {sector_id}, research {research}",
+          flush=True)
 
 
 def main() -> int:
@@ -101,14 +118,17 @@ def main() -> int:
     operation = parser.add_mutually_exclusive_group(required=True)
     operation.add_argument("--create-in", type=Path, help="Existing directory with stock sector fixtures")
     operation.add_argument("--check", type=Path, help="Check a settings.bin saved by the port")
+    parser.add_argument("--save", type=Path, help="Also reopen the paired sector .msav in stock Java")
     parser.add_argument("--sector", type=int, choices=(64, 170), default=170)
     parser.add_argument("--research", type=int, default=7)
     parser.add_argument("--after-play", action="store_true", help="The fixture sector ran its stock production averages")
     args = parser.parse_args()
+    if args.save and not args.check:
+        parser.error("--save needs --check")
     if args.create_in:
         create_settings(args.java, args.server, args.create_in)
     else:
-        check_settings(args.java, args.server, args.check, args.sector, args.research, args.after_play)
+        check_settings(args.java, args.server, args.check, args.sector, args.research, args.after_play, args.save)
     return 0
 
 

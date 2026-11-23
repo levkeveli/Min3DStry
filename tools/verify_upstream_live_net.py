@@ -90,7 +90,8 @@ BUILDING_CRACK_PIXELS = {
 
 
 def write_controls_replay(path, first_move=22, building=False, touch_build=False, touch_config=False,
-                          erekir_build=False, mining=None, model="old3ds", stock_menu_font=False):
+                          erekir_build=False, mining=None, model="old3ds", stock_menu_font=False,
+                          unified_boot=False, stationary=False):
     """Write the Azahar 2126.2 CTM input for this probe's pad/touch polling."""
     # The pinned Azahar movie header and HID sample definitions use packed little-endian fields.
     revision = bytes.fromhex("219d743a1e698101fe1ab8bef43e6563126c3c27")
@@ -99,6 +100,10 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
     needs_settling_time = building or touch_build or touch_config
     circle_at = first_move + (18 if needs_settling_time else 6)
     leave_at = first_move + (44 if needs_settling_time else 16)
+    if unified_boot:
+        # Let each input settle and confirm idle snapshots at the combined ROM's slower frame cadence.
+        circle_at = first_move + 28
+        leave_at = circle_at + 28
     frames = (128 if erekir_build or mining else leave_at + 7) * samples_per_second
     header = struct.pack("<4sQ20sQQ32sIQq156x", b"CTM\x1b", 0, revision, 1780000000,
                          0x4D334453, b"Min3DStry input verification", 0, frames, 0)
@@ -142,14 +147,16 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
             seconds = frame // samples_per_second
             if erekir_build:
                 buttons = (1 << 8) if 66 <= seconds < 72 else 0  # R, the 3DS rotate shortcut.
-            elif mining:
+            elif mining or stationary:
                 buttons = 0
             else:
                 buttons = (1 << 4) if seconds == first_move else (1 << 3) if seconds == leave_at else 0
             if building and seconds in (35, 37, 39):
                 buttons = 1  # A, with releases so a late HID poll can observe another press.
+            if unified_boot and seconds < 6:
+                buttons |= 1 << 10  # X, sampled once before the game starts.
             circle_x = 65 if mining == "wall" and 54 <= seconds < pan_end else 0
-            circle_y = 106 if seconds == circle_at and not (erekir_build or mining) else 0
+            circle_y = 106 if seconds == circle_at and not (erekir_build or mining or stationary) else 0
             if mining == "floor" and 88 <= seconds < 94:
                 circle_y = 65
             point = next((point for start, point in taps if start <= seconds < start + 2), None)
@@ -159,11 +166,11 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
                 # Keep the touch held for the whole burst regardless of the poll phase.
                 touch = struct.pack("<BHHBx", 1, *point, 1)
                 movie.write(touch * 2)
-            elif taps and (buttons or circle_x or circle_y):
+            elif (taps or unified_boot) and (buttons or circle_x or circle_y):
                 movie.write(pad * 2)
             else:
                 movie.write(pad + touch_idle)
-            if taps and model == "new3ds" and frame % 7 in (0, 2, 4):
+            if (taps or unified_boot) and model == "new3ds" and frame % 7 in (0, 2, 4):
                 movie.write(touch if point else pad)
 
 
@@ -880,6 +887,48 @@ def verify_unit_roster(screenshot):
         raise RuntimeError(f"Original unit cells differ {mismatch}, Quasar shield pixels {shield_pixels}")
 
 
+def spawn_expanded_unit_roster(server_log, server):
+    server.stdin.write(
+        'js (() => { const enemy = Vars.state.rules.waveTeam; '
+        'const missile = UnitTypes.anthicus.weapons.first().bullet.spawnUnit; '
+        'const elude = UnitTypes.elude.spawn(enemy,632,228,90); '
+        'const shot = missile.spawn(enemy,628,191,90); '
+        'const team = Vars.state.rules.defaultTeam; '
+        'const carrier = UnitTypes.mega.spawn(team,704,220,90); '
+        'const cargo = UnitTypes.horizon.create(team); '
+        'carrier.addPayload(new Packages.mindustry.world.blocks.payloads.UnitPayload(cargo)); '
+        'const units = Packages.mindustry.entities.Units; '
+        'units.notifyUnitSpawn(elude); units.notifyUnitSpawn(shot); units.notifyUnitSpawn(carrier); '
+        'return "UPSTREAM_EXPANDED_ROSTER_FIXTURE " + [elude.type.name,shot.type.name,'
+        'carrier.type.name,carrier.payloads.first().unit.type.name].join(","); })()\n')
+    server.stdin.flush()
+    wait_for(server_log, server, r"UPSTREAM_EXPANDED_ROSTER_FIXTURE elude,anthicus-missile,mega,horizon\b", 5)
+
+
+def verify_expanded_unit_roster(log, emulator, server_log, server, rpc, before, destination, timeout):
+    spawn_expanded_unit_roster(server_log, server)
+    for name in ("elude", "anthicus-missile", "mega", "horizon"):
+        wait_for(log, emulator, rf"UPSTREAM_NETWORK_UNIT_ART type={name}\b", timeout)
+
+    # The server and camera stay stationary. Check only the newly occupied sprite regions.
+    regions = [tuple((x, y) for x in range(cx - 7, cx + 8) for y in range(cy - 7, cy + 8))
+               for cx, cy in ((169, 63), (159, 156), (339, 89))]
+    points = tuple(point for region in regions for point in region)
+    original = az.inspect_png(before, points)["samples"]
+    deadline = time.monotonic() + 15
+    changed = []
+    while time.monotonic() < deadline:
+        after = rpc.screenshot()
+        current = az.inspect_png(after, points)["samples"]
+        changed = [sum(current[point] != original[point] for point in region) for region in regions]
+        if min(changed) >= 8:
+            destination.write_bytes(after)
+            print(f"Stock Elude, Anthicus missile and Mega with Horizon changed {changed} pixels in their regions.", flush=True)
+            return
+        time.sleep(0.25)
+    raise RuntimeError(f"Expanded unit sprites did not appear in the stationary viewport: {changed}")
+
+
 def load_naval_wake_fixture(server_log, server):
     server.stdin.write(
         'pause on\n'
@@ -1206,6 +1255,28 @@ def verify_logic_markers(log, emulator, server_log, server, rpc, output, model, 
     print(f"{model}: original logic marker drawing, visibility, position, text and removal passed.", flush=True)
 
 
+def capture_marker_pixels(rpc, output, model, phase, points, timeout, expected=None, tolerance=1):
+    deadline = time.monotonic() + timeout
+    png, samples = None, None
+    while time.monotonic() < deadline:
+        try:
+            captured = rpc.screenshot(res_scale=1)
+        except TimeoutError:
+            time.sleep(0.2)
+            continue
+        png = captured
+        pixels = az.inspect_png(png, points)["samples"]
+        samples = tuple(pixels[point] for point in points)
+        if expected is None or all(abs(a - b) <= tolerance for actual, exact in zip(samples, expected)
+                                   for a, b in zip(actual, exact)):
+            (output / f"{model}-{phase}.png").write_bytes(png)
+            return samples
+        time.sleep(0.2)
+    if png is not None:
+        (output / f"{model}-{phase}-unexpected.png").write_bytes(png)
+    raise RuntimeError(f"{phase} pixels: expected {expected}, got {samples}")
+
+
 def verify_texture_markers(server_log, server, rpc, output, model, position, timeout):
     _, _, x, y = position
     x, y = (math.floor(float(value) / 8 + 0.5) * 8 for value in (x, y))
@@ -1218,19 +1289,7 @@ def verify_texture_markers(server_log, server, rpc, output, model, position, tim
     error = ((255, 255, 255),) * 3
 
     def capture(phase, expected=None):
-        deadline = time.monotonic() + timeout
-        while True:
-            png = rpc.screenshot(res_scale=1)
-            pixels = az.inspect_png(png, points)["samples"]
-            samples = tuple(pixels[point] for point in points)
-            if expected is None or all(abs(a - b) <= 1 for actual, exact in zip(samples, expected)
-                                       for a, b in zip(actual, exact)):
-                (output / f"{model}-texture-marker-{phase}.png").write_bytes(png)
-                return samples
-            if time.monotonic() >= deadline:
-                (output / f"{model}-texture-marker-{phase}-unexpected.png").write_bytes(png)
-                raise RuntimeError(f"Texture marker {phase}: expected {expected}, got {samples}")
-            time.sleep(0.1)
+        return capture_marker_pixels(rpc, output, model, f"texture-marker-{phase}", points, timeout, expected)
 
     baseline = capture("baseline")
     send_marker_phase(server_log, server, "texture-created",
@@ -1248,12 +1307,49 @@ def verify_texture_markers(server_log, server, rpc, output, model, position, tim
     print(f"{model}: original texture marker creation, rotation, content, fallback and removal passed.", flush=True)
 
 
+def verify_quad_markers(log, emulator, server_log, server, rpc, output, model, position, timeout):
+    _, _, x, y = position
+    x, y = (math.floor(float(value) / 8 + 0.5) * 8 for value in (x, y))
+    # Keep all samples below the stock health, ammo, enemy-core and item HUD.
+    y -= 32
+    # Opaque samples in the original Core Nucleus span three 128 × 128 atlas
+    # tiles. The first sample includes the stock interpolated red tint.
+    points = ((94, 132), (109, 166), (133, 148), (153, 125))
+    initial = ((101, 185, 192), (152, 154, 164), (176, 185, 192))
+    moved = ((86, 154, 164), (110, 112, 128), (152, 154, 164), (152, 154, 164))
+    router = ((62, 112, 128), (110, 112, 128), (152, 154, 164), (147, 149, 160))
+
+    def capture(phase, expected=None):
+        return capture_marker_pixels(rpc, output, model, f"quad-marker-{phase}",
+                                     points, timeout, expected, tolerance=4)
+
+    baseline = capture("baseline")
+    corners = ((-52, 0, 0, 0), (-48, 24, 0, 1), (-24, 28, 1, 1), (-20, 4, 1, 0))
+    assignments = " ".join(
+        f"v[{i * 6}]={x + dx}; v[{i * 6 + 1}]={y + dy}; v[{i * 6 + 3}]={u}; v[{i * 6 + 4}]={t};"
+        for i, (dx, dy, u, t) in enumerate(corners))
+    send_marker_phase(server_log, server, "quad-created",
+        'const q=new MapObjectives.QuadMarker(); q.texture.value="core-nucleus"; const v=q.vertices; '
+        + assignments + ' v[8]=Color.valueOf("80ffffff").toFloatBits(); Call.createMarker(752, q);')
+    wait_for(log, emulator, "UPSTREAM_TEXTURED_QUAD source=arc gpu=citro3d", timeout)
+    capture("created", (*initial, baseline[3]))
+    send_marker_phase(server_log, server, "quad-moved",
+        "Call.updateMarker(752, Packages.mindustry.logic.LMarkerControl.posi, "
+        f"2, {(x - 16) / 8}, {(y + 32) / 8});")
+    capture("moved", moved)
+    send_marker_phase(server_log, server, "quad-retargeted", 'Call.updateMarkerTexture(752, "block-router-ui");')
+    capture("retargeted", router)
+    send_marker_phase(server_log, server, "quad-removed", "Call.removeMarker(752);")
+    capture("removed", baseline)
+    print(f"{model}: stock quad tint, atlas clipping, corner update and retargeting passed.", flush=True)
+
+
 def run_model(args, model, config, original_config, log, output):
     stationary = (args.world_atlas_recycle or args.building_layers or args.liquids
                   or args.building_effects or args.payload_mix or args.carried_buildings
                   or args.payload_handoff or args.unit_layers or args.unit_roster or args.naval_wake
                   or args.tank_treads or args.map_spawn or args.combat
-                  or args.verify_logic_markers or args.verify_texture_markers)
+                  or args.verify_logic_markers or args.verify_texture_markers or args.verify_quad_markers)
     map_name = args.map_spawn or "Glacier"
     overrides = {
         "Miscellaneous": {"log_filter": "*:Info Debug.Emulated:Debug Service.SOC:Debug",
@@ -1264,7 +1360,7 @@ def run_model(args, model, config, original_config, log, output):
         "Renderer": {"graphics_api": "2"},
         "Data Storage": {"use_virtual_sd": "true"},
     }
-    if args.touch_build or args.touch_config or args.erekir_build or args.mining:
+    if args.touch_build or args.touch_config or args.erekir_build or args.mining or args.unified_boot:
         # The synthetic bursts intentionally offer one sample type to all devices.
         overrides["Miscellaneous"]["log_filter"] += " Movie:Critical"
     if args.terrain_atlas:
@@ -1390,7 +1486,7 @@ def run_model(args, model, config, original_config, log, output):
                 server.stdin.flush()
                 wait_for(server_log, server, r"UPSTREAM_COMBAT_PREP", 10)
             command = [str(args.azahar)]
-            if args.controls_replay:
+            if args.controls_replay or args.unified_boot:
                 replay = Path(work) / "controls.ctm"
                 first_move = 42 if args.terrain_atlas else 22
                 if args.building and args.desktop_name:
@@ -1402,12 +1498,15 @@ def run_model(args, model, config, original_config, log, output):
                 write_controls_replay(replay, first_move=first_move, building=args.building,
                                       touch_build=args.touch_build, touch_config=args.touch_config,
                                       erekir_build=args.erekir_build, mining=args.mining, model=model,
-                                      stock_menu_font=args.verify_stock_menu_font)
+                                      stock_menu_font=args.verify_stock_menu_font, unified_boot=args.unified_boot,
+                                      stationary=not args.controls_replay)
                 command += ["-p", str(replay)]
             command.append(str(args.rom))
             emulator = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             rpc = az.AzaharRpcClient(timeout=2, retries=2)
             try:
+                if args.unified_boot:
+                    wait_for(log, emulator, r"UPSTREAM_BOOT mode=join\b", args.timeout)
                 if args.locale:
                     names = {"en": ("Router", "Copper"), "de": ("Verteiler", "Kupfer")}
                     labels = names.get(args.locale)
@@ -1433,8 +1532,8 @@ def run_model(args, model, config, original_config, log, output):
                     if args.combat:
                         wait_for(log, emulator, r"UPSTREAM_LIVE_CONTROLS_READY unit=\d+", args.timeout)
                         status = wait_for(log, emulator,
-                                          r"UPSTREAM_STATUS_HUD wave=\d+ enemies=\d+ copper=\d+ rows=3", args.timeout)
-                        print(re.search(r"UPSTREAM_STATUS_HUD wave=\d+ enemies=\d+ copper=\d+ rows=3", status).group(0),
+                                          r"UPSTREAM_STATUS_HUD wave=\d+ enemies=\d+ copper=\d+ rows=5", args.timeout)
+                        print(re.search(r"UPSTREAM_STATUS_HUD wave=\d+ enemies=\d+ copper=\d+ rows=5", status).group(0),
                               flush=True)
                         fixture = (
                             '(() => { for (var i = 0; i < Groups.player.size; i++) { var p = Groups.player.get(i); if (p.unit() != null) p.unit().health = 100000; } for (var x = 75; x <= 80; x++) for (var y = 24; y <= 28; y++) { '
@@ -1552,6 +1651,8 @@ def run_model(args, model, config, original_config, log, output):
                             verify_logic_markers(log, emulator, server_log, server, rpc, output, model, spawn, args.timeout)
                         if args.verify_texture_markers:
                             verify_texture_markers(server_log, server, rpc, output, model, spawn, args.timeout)
+                        if args.verify_quad_markers:
+                            verify_quad_markers(log, emulator, server_log, server, rpc, output, model, spawn, args.timeout)
                         if args.verify_stock_font:
                             wait_for(log, emulator, r"UPSTREAM_RENDER_KEEPALIVE transport=tcp\b", 5)
                         if args.erekir_build:
@@ -1590,7 +1691,11 @@ def run_model(args, model, config, original_config, log, output):
                         if args.unit_layers:
                             verify_unit_layers((output / f"{model}-{phase}.png").read_bytes())
                         if args.unit_roster:
-                            verify_unit_roster((output / f"{model}-{phase}.png").read_bytes())
+                            roster = (output / f"{model}-{phase}.png").read_bytes()
+                            verify_unit_roster(roster)
+                            if args.expanded_unit_roster:
+                                verify_expanded_unit_roster(log, emulator, server_log, server, rpc, roster,
+                                                            output / f"{model}-expanded-unit-roster.png", args.timeout)
                         if args.naval_wake:
                             verify_naval_wake(server_log, server, rpc, output, model,
                                               output / f"{model}-{phase}.png", naval_fixture)
@@ -1702,6 +1807,8 @@ def main():
     mode.add_argument("--controls", action="store_true", help="Verify D-pad and Circle Pad input and START disconnect")
     parser.add_argument("--controls-replay", action="store_true",
                         help="Replay the controls test input in Azahar 2126.2")
+    parser.add_argument("--unified-boot", action="store_true",
+                        help="Hold X at startup to join from the unified offline and multiplayer ROM")
     parser.add_argument("--terrain-atlas", type=Path,
                         help="Stage the official v160.8 sprites.aatls and verify the rendered viewport")
     parser.add_argument("--locale", help="Stage a stock locale code and verify the graphical probe loads it")
@@ -1751,6 +1858,8 @@ def main():
                                help="Verify Duct and Beryllium Wall touch construction on The Onset")
     campaign_mode.add_argument("--mining", choices=("wall", "floor"),
                                help="Verify touch mining and core delivery on The Onset or Ground Zero")
+    parser.add_argument("--expanded-unit-roster", action="store_true",
+                        help="Verify live Elude, Anthicus missile and carried Horizon art after the standard unit-roster checks")
     parser.add_argument("--verify-objectives", action="store_true",
                         help="Compare the original first Onset objective transition between client and server")
     parser.add_argument("--verify-objective-hud", action="store_true",
@@ -1761,6 +1870,8 @@ def main():
                         help="Verify stock logic marker packets and visible state on Glacier")
     parser.add_argument("--verify-texture-markers", action="store_true",
                         help="Verify original atlas-backed texture markers on Glacier")
+    parser.add_argument("--verify-quad-markers", action="store_true",
+                        help="Verify clipped stock textured quads and live corner updates on Glacier")
     parser.add_argument("--verify-stock-font", action="store_true",
                         help="Require original font rendering for the Onset world markers")
     parser.add_argument("--verify-styled-markers", action="store_true",
@@ -1780,6 +1891,8 @@ def main():
         parser.error("The PC client needs a distinct player name")
     if args.controls_replay and not args.controls:
         parser.error("--controls-replay needs --controls")
+    if args.unified_boot and not args.controls:
+        parser.error("--unified-boot needs --controls")
     if args.combat and (not args.controls or not args.terrain_atlas):
         parser.error("--combat needs --controls and --terrain-atlas")
     if args.combat and (args.controls_replay or args.building or args.touch_build or args.touch_config
@@ -1815,6 +1928,8 @@ def main():
         parser.error("--unit-layers needs --controls and --terrain-atlas for a stationary capture")
     if args.unit_roster and (not args.terrain_atlas or not args.controls or args.controls_replay):
         parser.error("--unit-roster needs --controls and --terrain-atlas for a stationary capture")
+    if args.expanded_unit_roster and not args.unit_roster:
+        parser.error("--expanded-unit-roster needs --unit-roster")
     if args.naval_wake and (not args.terrain_atlas or not args.controls or args.controls_replay):
         parser.error("--naval-wake needs --controls and --terrain-atlas for a fixed camera")
     if args.tank_treads and (not args.terrain_atlas or not args.controls or args.controls_replay):
@@ -1845,6 +1960,8 @@ def main():
         parser.error("--verify-logic-markers needs stationary --controls and --terrain-atlas on Glacier")
     if args.verify_texture_markers and (not args.controls or not args.terrain_atlas or args.controls_replay or args.map_spawn):
         parser.error("--verify-texture-markers needs stationary --controls and --terrain-atlas on Glacier")
+    if args.verify_quad_markers and (not args.controls or not args.terrain_atlas or args.controls_replay or args.map_spawn):
+        parser.error("--verify-quad-markers needs stationary --controls and --terrain-atlas on Glacier")
     if args.verify_objective_markers and (
         args.map_spawn != "The Onset" or args.erekir_sector != "onset" or args.locale not in ONSET_MARKER_TEXT
         or args.mining or args.erekir_build or args.controls_replay

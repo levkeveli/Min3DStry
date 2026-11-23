@@ -64,31 +64,28 @@ def write_input_replay(path: Path, model: str, windows: list[tuple[int, int, int
 
 
 def verify(model: str, planet: str, rom: Path, azahar: str, config: Path, log: Path, output: Path,
-           departure: Path | None = None, manual_cargo: bool = False, in_game: bool = False) -> None:
+           departure: Path | None = None, manual_cargo: bool = False,
+           in_game: bool = False) -> tuple[int, int] | None:
     if departure:
         sector_id, size = (int(value) for value in (departure / "destination.txt").read_text().split())
         name, world = f"sector-serpulo-{sector_id}.msav", f"Serpulo;_Sector_{sector_id}"
+        if in_game:
+            destinations = {int(row[0]): int(row[1]) for row in
+                            (line.split() for line in (departure / "destinations.txt").read_text().splitlines())}
     else:
         name, world, size = STARTERS[planet]
-    root = sp.resolve_sd_save_path(log).parent
+    prefix = f"{model}-{planet}"
+    sd = (output / "virtual-sd" / prefix).resolve()
+    root = sd / "3ds/min3dstry"
+    root.mkdir(parents=True)
     saves = root / "saves"
     settings = root / "settings.bin"
-    backup = root / "settings_backup.bin"
-    settings_backups = root / "settings_backups"
     override = root / "campaign-select.txt"
-    if any(root.glob("sector-*.msav")) or any(saves.glob("sector-*.msav")) or any(
-            path.exists() for path in (settings, backup, settings_backups, override)):
-        raise RuntimeError("Use an Azahar SD directory without campaign saves, settings, or selection overrides")
     custom_name = "campaign-test.msch"
     staged_schematic = root / "schematics" / custom_name
     custom_source = departure / "schematics" / custom_name if departure else None
     has_custom = custom_source is not None and custom_source.is_file()
-    had_schematics = staged_schematic.parent.is_dir()
-    if has_custom and staged_schematic.exists():
-        raise RuntimeError("The test schematic already exists on the virtual SD")
-    initial_config = config.read_bytes() if config.is_file() else None
-    had_saves = saves.is_dir()
-    prefix = f"{model}-{planet}"
+    originals = {path: path.read_bytes() if path.is_file() else None for path in (config, log)}
     replay = output / f"{prefix}.ctm"
     row = int((departure / "campaign-select.txt").read_text()) if in_game else None
     write_replay(replay, model, planet, manual_cargo, row)
@@ -106,6 +103,10 @@ def verify(model: str, planet: str, rom: Path, azahar: str, config: Path, log: P
             if has_custom:
                 staged_schematic.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(custom_source, staged_schematic)
+        config.parent.mkdir(parents=True, exist_ok=True)
+        storage = {"Data Storage": {"use_custom_storage": "true", "sdmc_directory": sd.as_posix() + "/"}}
+        config.write_text(sp.az.patch_qt_config_text((originals[config] or b"").decode("utf-8"), storage),
+                          encoding="utf-8")
         proc, rpc = sp._launch_azahar(model, rom, azahar, config, log, replay)
         try:
             menu_marker = (rf"UPSTREAM_CAMPAIGN_LOADOUT sector={sector_id} origin=170 affordable=true\b"
@@ -113,7 +114,18 @@ def verify(model: str, planet: str, rom: Path, azahar: str, config: Path, log: P
             if in_game:
                 menu = r"UPSTREAM_CAMPAIGN_WORLD_MENU sector=170\b"
                 sp._wait_for_log(log, proc, rf"{menu}(?s:.*?)UPSTREAM_CAMPAIGN_CANCEL(?s:.*?){menu}", 170)
-            sp._wait_for_log(log, proc, menu_marker, 120)
+            if in_game:
+                launch = r"UPSTREAM_CAMPAIGN_LOADOUT sector=(\d+) origin=170 affordable=true\b"
+                text = sp._wait_for_log(log, proc, launch, 120)
+                selected = re.search(launch, text)
+                assert selected is not None
+                sector_id = int(selected.group(1))
+                name, world = f"sector-serpulo-{sector_id}.msav", f"Serpulo;_Sector_{sector_id}"
+                if sector_id not in destinations:
+                    raise AssertionError(f"{prefix}: sector {sector_id} was not an eligible stock destination")
+                size = destinations[sector_id]
+            else:
+                sp._wait_for_log(log, proc, menu_marker, 120)
             time.sleep(2)
             menu = rpc.screenshot()
             if sp.az.inspect_png(menu)["top_distinct_colors"] < 8:
@@ -139,29 +151,17 @@ def verify(model: str, planet: str, rom: Path, azahar: str, config: Path, log: P
                                  for slot in staged_saves if not in_game or slot != origin_slot):
                 raise AssertionError(f"{prefix}: departure overwrote a preexisting world save")
             print(f"[PASS] {prefix}: {world} rendered and saved at {size}x{size}", flush=True)
+            return (sector_id, size) if departure else None
         finally:
             rpc.close()
             sp._stop_proc(proc, azahar)
             (output / f"{prefix}.log").write_bytes(log.read_bytes())
     finally:
-        if has_custom:
-            staged_schematic.unlink(missing_ok=True)
-            if not had_schematics and staged_schematic.parent.is_dir() and not any(staged_schematic.parent.iterdir()):
-                staged_schematic.parent.rmdir()
-        test_slots = {name, *(starter for starter, _, _ in STARTERS.values())}
-        for slot in test_slots:
-            (saves / slot).unlink(missing_ok=True)
-            (saves / f"{slot}-backup.msav").unlink(missing_ok=True)
-        for path in (settings, backup, override):
-            path.unlink(missing_ok=True)
-        if settings_backups.is_dir():
-            shutil.rmtree(settings_backups)
-        if not had_saves and saves.is_dir() and not any(saves.iterdir()):
-            saves.rmdir()
-        if initial_config is None:
-            config.unlink(missing_ok=True)
-        else:
-            config.write_bytes(initial_config)
+        for path, original in originals.items():
+            if original is None:
+                path.unlink(missing_ok=True)
+            else:
+                path.write_bytes(original)
 
 
 def check_stock(java: str, server: Path, save: Path, settings: Path, planet: str) -> None:
@@ -209,9 +209,10 @@ def check_stock(java: str, server: Path, save: Path, settings: Path, planet: str
 
 
 def check_numbered_stock(java: str, server: Path, output: Path, model: str, departure: Path,
-                         manual_cargo: bool = False, in_game: bool = False) -> None:
+                         manual_cargo: bool = False, in_game: bool = False,
+                         destination: tuple[int, int] | None = None) -> None:
     cargo, remaining = (8, 15) if manual_cargo else (23, 0)
-    sector_id, size = (int(value) for value in (departure / "destination.txt").read_text().split())
+    sector_id, size = destination or tuple(int(value) for value in (departure / "destination.txt").read_text().split())
     with tempfile.TemporaryDirectory(prefix="m3ds-stock-numbered-readback-") as temp:
         root = Path(temp)
         (root / "config").mkdir()
@@ -304,11 +305,11 @@ def main() -> int:
     args.output_dir.mkdir(parents=True, exist_ok=True)
     for model in (args.model,) if args.model else ("new3ds", "old3ds"):
         if args.departure:
-            verify(model, "numbered", args.rom, azahar, config, log, args.output_dir,
-                   args.departure, args.manual_cargo, args.in_game)
+            destination = verify(model, "numbered", args.rom, azahar, config, log, args.output_dir,
+                                 args.departure, args.manual_cargo, args.in_game)
             if args.server:
                 check_numbered_stock(args.java, args.server, args.output_dir, model,
-                                     args.departure, args.manual_cargo, args.in_game)
+                                     args.departure, args.manual_cargo, args.in_game, destination)
             continue
         for planet in (args.planet,) if args.planet else STARTERS:
             verify(model, planet, args.rom, azahar, config, log, args.output_dir)
