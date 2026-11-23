@@ -69,6 +69,7 @@ import mindustry.gen.SendChatMessageCallPacket;
 import mindustry.gen.SendMessageCallPacket;
 import mindustry.gen.SendMessageCallPacket2;
 import mindustry.gen.SetFloorCallPacket;
+import mindustry.gen.SetMapAreaCallPacket;
 import mindustry.gen.SetObjectivesCallPacket;
 import mindustry.gen.SetOverlayCallPacket;
 import mindustry.gen.SetPositionCallPacket;
@@ -766,6 +767,7 @@ public final class UpstreamLiveNetworkProbe {
     }
 
     static Packet tileMutationPacket(int id) {
+        if (id == unsignedId(SetMapAreaCallPacket.class)) return new SetMapAreaCallPacket();
         if (id == unsignedId(SetTileCallPacket.class)) return new SetTileCallPacket();
         if (id == unsignedId(SetTileBlocksCallPacket.class)) return new SetTileBlocksCallPacket();
         if (id == unsignedId(FillTileBlocksCallPacket.class)) return new FillTileBlocksCallPacket();

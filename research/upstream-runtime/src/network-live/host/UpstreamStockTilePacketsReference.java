@@ -10,6 +10,7 @@ import mindustry.gen.FillTileFloorsCallPacket;
 import mindustry.gen.FillTileOverlaysCallPacket;
 import mindustry.gen.RemoveTileCallPacket;
 import mindustry.gen.SetFloorCallPacket;
+import mindustry.gen.SetMapAreaCallPacket;
 import mindustry.gen.SetOverlayCallPacket;
 import mindustry.gen.SetTeamCallPacket;
 import mindustry.gen.SetTeamsCallPacket;
@@ -25,6 +26,7 @@ final class UpstreamStockTilePacketsReference {
         verifySurfaces();
         verifyBuildings();
         verifyPowerTeams();
+        verifyMapArea();
         System.out.println("UPSTREAM_WORLD_TILE_PACKETS floor=3 overlay=3 block=3 health=ok destroy=ok team=2 power=reflowed");
     }
 
@@ -147,6 +149,45 @@ final class UpstreamStockTilePacketsReference {
                 || !source.build.power.links.contains(receiver.pos()) || !receiver.build.power.links.contains(source.pos())) {
             throw new AssertionError("Stock bulk ownership change did not reflow power or keep inventory");
         }
+    }
+
+    private static void verifyMapArea() {
+        var rules = Vars.state.rules;
+        boolean previousDisable = rules.disableOutsideArea;
+        boolean previousDarkness = rules.borderDarkness;
+        rules.disableOutsideArea = true;
+        rules.borderDarkness = true;
+        var inside = Vars.world.tile(70, 70);
+        var outside = Vars.world.tile(85, 70);
+        try {
+            inside.setBlock(Blocks.mechanicalDrill, Team.sharded);
+            outside.setBlock(Blocks.mechanicalDrill, Team.sharded);
+            Vars.state.teams.updateTeamStats();
+            float originalDarkness = Vars.world.getDarkness(outside.x, outside.y);
+            var bounds = new SetMapAreaCallPacket();
+            bounds.x = 65;
+            bounds.y = 65;
+            bounds.w = 12;
+            bounds.h = 12;
+            apply(bounds);
+            if (!rules.limitMapArea || !Vars.world.isInMapArea(inside.x, inside.y) || !inside.build.enabled
+                    || Vars.world.isInMapArea(outside.x, outside.y) || outside.build.enabled
+                    || Vars.world.getDarkness(outside.x, outside.y) <= originalDarkness) {
+                throw new AssertionError("Stock map area must restrict terrain and suspend buildings outside the bounds");
+            }
+            bounds.x = bounds.y = 0;
+            bounds.w = Vars.world.width();
+            bounds.h = Vars.world.height();
+            apply(bounds);
+            if (rules.limitMapArea || !Vars.world.isInMapArea(outside.x, outside.y) || !outside.build.enabled
+                    || Vars.world.getDarkness(outside.x, outside.y) != originalDarkness) {
+                throw new AssertionError("Restoring the stock map area must reactivate the building and clear the border");
+            }
+        } finally {
+            rules.disableOutsideArea = previousDisable;
+            rules.borderDarkness = previousDarkness;
+        }
+        System.out.println("UPSTREAM_STOCK_MAP_AREA contracted=disabled reopened=enabled border=stock");
     }
 
     private static void apply(Packet packet) {

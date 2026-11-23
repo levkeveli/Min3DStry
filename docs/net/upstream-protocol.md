@@ -246,3 +246,11 @@ stock Cargo Loader client update to resolve its Manifold. The loader
 keeps the pending server ID until the matching unit snapshot arrives.
 The replay checks production reset and draw-state advancement without a
 locally spawned duplicate.
+
+### Scripted map bounds
+
+The client forwards the original SetMapArea packet to the stock map
+area handler. The JVM replay contracts the playable area, confirms the
+inside drill remains enabled and the outside drill is suspended, then
+reopens the whole world and verifies restored operation and border
+darkness values.
