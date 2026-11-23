@@ -18,11 +18,12 @@ def compare_stock(args, exported, x, y, original, replacement):
         shutil.copyfile(args.map, directory / "original.msav")
         shutil.copyfile(exported, directory / "edited.msav")
         script = f"""
-            const Fi = Packages.arc.files.Fi, MapIO = Packages.mindustry.io.MapIO;
+            const Fi = Packages.arc.files.Fi, MapIO = Packages.mindustry.io.MapIO,
+                  SaveIO = Packages.mindustry.io.SaveIO;
             const load = name => {{
                 Vars.logic.reset();
                 const map = MapIO.createMap(Fi.get(name), true);
-                Vars.world.loadMap(map, map.applyRules(Packages.mindustry.game.Gamemode.sandbox));
+                SaveIO.load(map.file);
                 return map;
             }};
             const original = load('original.msav');
@@ -31,6 +32,7 @@ def compare_stock(args, exported, x, y, original, replacement):
             const edited = load('edited.msav');
             if (edited.width !== original.width || edited.height !== original.height ||
                 String(edited.name()) !== String(original.name()) ||
+                String(edited.tags.get("genfilters", "")) !== String(original.tags.get("genfilters", "")) ||
                 String(Vars.world.tile({x},{y}).floor().name) !== '{replacement}')
                 throw 'Unexpected exported map';
             return 'STOCK_EDITOR_EXPORT_REOPENED';
