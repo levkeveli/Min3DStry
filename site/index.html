@@ -529,6 +529,19 @@
     .input { min-width: 100%; }
     .board { grid-template-columns: repeat(6, minmax(250px, 84vw)); }
   }
+  .runner-status-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+    gap: 12px;
+    padding: 0;
+    list-style: none;
+  }
+  .runner-status-list li {
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow-wrap: anywhere;
+  }
 </style>
 </head>
 <body>
@@ -556,6 +569,12 @@
     <span id="dataSourceText">Source: loading...</span>
     <span>Scale: <code>Planned</code> → <code>Experimental</code> → <code>Host-tested</code> → <code>Emulator-tested</code> → <code>Hardware-verified</code> → <code>Complete / Released</code></span>
   </div>
+
+  <details class="overview-box" id="runner-status" open>
+    <summary><strong>GitHub Actions runners</strong></summary>
+    <p id="runner-status-summary" class="overview-text" role="status">Loading runner status…</p>
+    <ul id="runner-status-list" class="runner-status-list"></ul>
+  </details>
 
   <section class="overview-box" aria-label="What Min3DStry currently is">
     <div class="overview-head">
@@ -1262,7 +1281,7 @@
         generated_at: new Date().toISOString(),
         port_progress: state.data.port_progress || null,
         mechanics_parity: state.data.mechanics_parity || null,
-        issues: issuesRaw.filter((i) => !i.pull_request).map(normalizeIssue),
+        issues: issuesRaw.filter((i) => !i.pull_request && i.number !== 424).map(normalizeIssue),
         pulls: pullsRaw.map((p) => ({
           number: p.number,
           title: p.title,
@@ -1336,5 +1355,6 @@
   loadSnapshot();
 })();
 </script>
+<script src="./runner-status.js" defer></script>
 </body>
 </html>

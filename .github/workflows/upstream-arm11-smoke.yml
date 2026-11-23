@@ -1143,6 +1143,40 @@ jobs:
           grep -F 'UPSTREAM_CAMPAIGN_RESUME_REFERENCE slots=2 groundZero=170 frozenForest=64 backup=ok' \
             "$RUNNER_TEMP/campaign-resume-jvm.log"
 
+      - name: Run a stock Serpulo background turn through TeaVM C
+        shell: bash
+        run: |
+          set -o pipefail
+          check_dir=$(mktemp -d "$RUNNER_TEMP/campaign-background.XXXXXX")
+          assets="$check_dir/assets"
+          python3 tools/campaign_background_fixture.py --server "$RUNNER_TEMP/server-release.jar" --create "$check_dir/fixture"
+          mkdir -p "$assets/planets"
+          unzip -q "$RUNNER_TEMP/server-release.jar" 'maps/serpulo/*' 'maps/erekir/*' -d "$assets"
+          git -C "$RUNNER_TEMP/Mindustry" show HEAD:core/assets/bundles/bundle.properties > "$assets/bundle.properties"
+          git -C "$RUNNER_TEMP/Mindustry" show HEAD:core/assets/planets/serpulo.json > "$assets/planets/serpulo.json"
+          bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime \
+            --no-daemon --console=plain \
+            "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" \
+            "-PreferenceJar=$RUNNER_TEMP/server-release.jar" \
+            "-ParcCheckout=$RUNNER_TEMP/Arc" \
+            -Pprobe=campaign-background generateC
+          cp -R research/upstream-runtime/build/generated/teavm/c "$check_dir/c"
+          python3 - "$check_dir/c" <<'PY'
+          import sys
+          from pathlib import Path
+          sys.path.insert(0, "research/upstream-runtime/arm11")
+          from fix_reflection_lifetime import fix_constructor_roots, fix_reflection_lifetime
+          root = Path(sys.argv[1])
+          fix_reflection_lifetime(root)
+          fix_constructor_roots(root)
+          PY
+          python3 research/upstream-runtime/arm11/fix_gc_monitors.py "$check_dir/c"
+          cc -std=gnu11 -O0 -fwrapv -ffp-contract=off "$check_dir/c/all.c" -lm -lpthread -o "$check_dir/probe"
+          "$check_dir/probe" "$check_dir/fixture" "$assets" "$assets/bundle" "$check_dir/save" \
+            | tee "$check_dir/probe.log"
+          grep -Fx 'UPSTREAM_BACKGROUND_TURN live=37 import=30 remote=100 lead=0 frozen=11' "$check_dir/probe.log"
+          python3 tools/campaign_background_fixture.py --server "$RUNNER_TEMP/server-release.jar" --check "$check_dir/save"
+
       - name: Check unified multiplayer server address parsing on the JVM
         run: |
           bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime \
