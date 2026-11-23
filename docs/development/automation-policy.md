@@ -67,6 +67,24 @@ Unset the variable before taking the workstation runner offline. New
 Bootstrap jobs will then use `min3dstry-fast` on `wings02`. GitHub queues
 jobs until a runner with the requested label is available.
 
+## Live runner status
+
+The Pages dashboard reads the public `runner-status:runners.json` feed once a
+minute. It shows GitHub Actions self-hosted runners, their GitHub-reported
+availability, and links to matching active jobs. If GitHub reports a runner
+busy before exposing the job assignment, the page shows the busy state with
+job details unavailable.
+
+On `wings01`, `min3ds-runner-status.timer` runs
+`tools/publish_runner_status.py` once a minute. The publisher uses the server's
+authenticated GitHub CLI and publishes runner names and public Actions job
+metadata only. It writes when status changes or after five minutes without an
+update. The dashboard flags a snapshot older than seven minutes. Check the
+timer and `journalctl -u min3ds-runner-status.service` if the feed is stale.
+To inspect a snapshot without publishing, run
+`python3 tools/publish_runner_status.py --print` with an authenticated GitHub
+CLI that can read the repository runner inventory.
+
 ## ARM11 smoke scope
 
 The lightweight scope job selects baselines from the changed paths on PRs and
