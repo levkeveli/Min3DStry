@@ -47,9 +47,9 @@ public final class UpstreamStockCompressedChunksReference {
         var bytes = new ByteArrayOutputStream();
         try (var compressed = new DataOutputStream(new DeflaterOutputStream(bytes))) {
             compressed.writeInt(declaredSize);
-            compressed.write(chunk);
+            if (chunk.length != 0) compressed.write(chunk);
             compressed.writeShort(declaredSize);
-            compressed.write(chunk);
+            if (chunk.length != 0) compressed.write(chunk);
             compressed.writeInt(marker);
         }
         return new DataInputStream(new InflaterInputStream(new ByteArrayInputStream(bytes.toByteArray())));
