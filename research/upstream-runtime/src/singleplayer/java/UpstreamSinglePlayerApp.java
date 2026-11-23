@@ -839,11 +839,20 @@ public final class UpstreamSinglePlayerApp {
                         if (settingsMenu.backSelected()) {
                             settingsOpen = false;
                         } else {
-                            boolean enabled = settingsMenu.toggleCoreItems();
-                            Core.settings.put("coreitems", enabled);
-                            lastCoreItemCount = -1;
-                            lastCoreItemDrawn = -1;
-                            System.out.println("UPSTREAM_SETTINGS coreitems=" + enabled);
+                            int index = settingsMenu.selected();
+                            boolean enabled = settingsMenu.toggleSelected();
+                            if (index == 0) {
+                                Core.settings.put("coreitems", enabled);
+                                lastCoreItemCount = -1;
+                                lastCoreItemDrawn = -1;
+                            } else if (index == 1) {
+                                Core.settings.put("minimap", enabled);
+                            } else if (index == 2) {
+                                Core.settings.put("showweather", enabled);
+                            } else if (index == 3) {
+                                Core.settings.put("showperformance", enabled);
+                            }
+                            System.out.println("UPSTREAM_SETTINGS index=" + index + " value=" + enabled);
                         }
                     } else if ((input & (UpstreamSinglePlayerInput.B_PRESSED
                             | UpstreamSinglePlayerInput.X_PRESSED)) != 0) {
@@ -879,7 +888,10 @@ public final class UpstreamSinglePlayerApp {
                         continue;
                     } else if (action == UpstreamPauseMenu.Action.SETTINGS) {
                         settingsOpen = true;
-                        settingsMenu.open(Core.settings.getBool("coreitems", true));
+                        settingsMenu.open(Core.settings.getBool("coreitems", true),
+                            Core.settings.getBool("minimap", true),
+                            Core.settings.getBool("showweather", true),
+                            Core.settings.getBool("showperformance", false));
                         System.out.println("UPSTREAM_PAUSE_MENU settings=true");
                     } else if (action == UpstreamPauseMenu.Action.SAVE) {
                         session.save(saveFile);
@@ -1101,12 +1113,13 @@ public final class UpstreamSinglePlayerApp {
         }
         UpstreamObjectiveMarkers.draw(Vars.state.rules, 240f / (UpstreamTerrainDrawProbe.VIEW_HEIGHT * Vars.tilesize),
             worldLabel);
-        weatherLayers.drawOver();
+        if (Core.settings.getBool("showweather", true)) weatherLayers.drawOver();
         var orders = buildingControls.orders();
         orders.draw(viewport);
         var schematics = buildingControls.schematics();
         schematics.draw(viewport);
         drawCoreItems();
+<<<<<<< HEAD
         drawObjectives(buildingPowerHud.draw(target, buildingControls, Vars.player.team(), drawStatusHud()));
         if (pauseOpen) drawPauseMenu();
         var block = buildingControls.block();
@@ -1233,7 +1246,10 @@ public final class UpstreamSinglePlayerApp {
         var sector = Vars.state.rules.sector;
         boolean research = sector != null && sector.planet != null && sector.planet.techTree != null;
         pauseMenu.open(research ? 6 : 3);
-        settingsMenu.open(Core.settings.getBool("coreitems", true));
+        settingsMenu.open(Core.settings.getBool("coreitems", true),
+            Core.settings.getBool("minimap", true),
+            Core.settings.getBool("showweather", true),
+            Core.settings.getBool("showperformance", false));
         settingsOpen = false;
         pauseOpen = true;
         if (!Vars.state.isPaused()) session.togglePause();
@@ -1260,12 +1276,20 @@ public final class UpstreamSinglePlayerApp {
         }
         if (settingsOpen) {
             drawPauseRow(Core.bundle.get("settings"), 170f, 100f, false);
-            drawPauseRow((settingsMenu.selected() == 0 ? "> " : "  ")
-                + Core.bundle.get("setting.coreitems.name") + ": "
-                + Core.bundle.get(settingsMenu.coreItems() ? "on" : "off"),
-                110f, 130f, settingsMenu.selected() == 0);
-            drawPauseRow((settingsMenu.selected() == 1 ? "> " : "  ") + Core.bundle.get("back"),
-                170f, 160f, settingsMenu.selected() == 1);
+            String[][] rows = {
+                {Core.bundle.get("setting.coreitems.name"), settingsMenu.coreItems() ? "on" : "off"},
+                {Core.bundle.get("setting.minimap.name"), settingsMenu.minimap() ? "on" : "off"},
+                {Core.bundle.get("setting.showweather.name"), settingsMenu.weather() ? "on" : "off"},
+                {Core.bundle.get("setting.showperformance.name"), settingsMenu.performance() ? "on" : "off"},
+                {Core.bundle.get("back"), null}
+            };
+            float y = 126f;
+            for (int i = 0; i < rows.length; i++) {
+                boolean selected = settingsMenu.selected() == i;
+                String text = rows[i][0] + (rows[i][1] == null ? "" : ": " + Core.bundle.get(rows[i][1]));
+                drawPauseRow((selected ? "> " : "  ") + text, 92f, y, selected);
+                y += 24f;
+            }
             return;
         }
         String[] options;
@@ -1292,6 +1316,12 @@ public final class UpstreamSinglePlayerApp {
         if (pauseMenu.confirmingQuit()) {
             drawPauseRow(Core.bundle.get("quit.confirm"), 40f, 210f, false);
         }
+    }
+
+    private void drawPlainRow(String text, float x, float y) {
+        byte[] label = (text + "\0").getBytes(StandardCharsets.UTF_8);
+        int[] characters = encodeLabel(UpstreamLabelText.parse(text));
+        target.drawObjectiveAt(label, characters, null, x, y);
     }
 
     private void drawPauseRow(String text, float x, float y, boolean selected) {
