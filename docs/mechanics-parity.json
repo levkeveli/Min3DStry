@@ -377,7 +377,7 @@
         "research/upstream-runtime/src/network-render/java/UpstreamRenderedNetworkProbe.java",
         "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerApp.java"
       ],
-      "notes": "14 unit types draw in offline singleplayer and 37 (incl. naval wakes and tank treads) in network-render; full Serpulo/Erekir unit abilities and manual player weapon aim/fire are in progress."
+      "notes": "14 unit types draw in offline singleplayer and 37 (incl. naval wakes and tank treads) in network-render; the unified client drives stock player aim and fire both offline and on the original Java server. Full unit ability coverage and live projectile rendering remain open."
     },
     {
       "id": "lighting-weather-fx-zoom",

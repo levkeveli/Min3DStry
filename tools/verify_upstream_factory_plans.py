@@ -69,7 +69,7 @@ def stock_server(args, output, result=None):
         stop(server)
 
 
-def write_movie(path, model, live=False, *, taps=None, buttons=None, seconds=90, button_durations=None):
+def write_movie(path, model, live=False, *, taps=None, buttons=None, seconds=90, button_durations=None, circle=None):
     samples = sp.CTM_SAMPLES_PER_SECOND
     frames = seconds * samples
     if taps is None:
@@ -78,6 +78,7 @@ def write_movie(path, model, live=False, *, taps=None, buttons=None, seconds=90,
     if buttons is None:
         buttons = {0: sp.KEY_X, 80: sp.KEY_START} if live else {75: sp.KEY_SELECT, 82: sp.KEY_START}
     button_durations = button_durations or {}
+    circle = circle or {}
     windows = [(round(start * samples),
                 round((start + button_durations.get(start, 6 if live and start == 0 else 2)) * samples), mask)
                for start, mask in buttons.items()]
@@ -89,11 +90,12 @@ def write_movie(path, model, live=False, *, taps=None, buttons=None, seconds=90,
             sec = frame // samples
             point = next((touch for start, touch in taps.items() if start <= sec < start + 2), None)
             mask = next((mask for start, end, mask in windows if start <= frame < end), 0)
-            pad = struct.pack("<BHhh", 0, mask, 0, 0)
+            dx, dy = circle.get(sec, (0, 0))
+            pad = struct.pack("<BHhh", 0, mask, dx, dy)
             touch = struct.pack("<BHHBx", 1, *point, 1) if point else idle_touch
             if point:
                 movie.write(touch * 2)
-            elif mask:
+            elif mask or dx or dy:
                 movie.write(pad * 2)
             else:
                 movie.write(pad + idle_touch)
