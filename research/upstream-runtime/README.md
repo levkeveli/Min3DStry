@@ -1110,6 +1110,24 @@ JAR stayed connected. With the New 3DS profile, the desktop view showed the
 ARM11 Evoke and the newly placed Duct pointing north as the displayed
 beryllium balance went from 16 to 15.
 
+### Stock Erekir assembler production
+
+The JVM check `runStockAssemblerJvm` runs a v160.8 Tank Assembler on the
+original Erekir Caldera map. It supplies cyanogen and power through stock
+blocks and delivers four Stell units and ten large Tungsten Walls. It checks
+that all four builder drones reach position, that assembly stops without
+cyanogen and that the stock save resumes with the same inputs, progress,
+drones and rally point. The normal offline simulation finishes the Vanquish
+and consumes the payloads after reload.
+
+The check takes the original Erekir `caldera-erekir.msav`, output paths for the
+in-progress and completed saves, and the stock English bundle stem.
+`tools/verify_stock_assembler.py` reopens both files with the unmodified
+v160.8 Java server and checks the saved materials, drone count, production
+progress, completed unit and rally point. This evidence covers host simulation
+and save interoperability. Handheld interaction and rendering require separate
+verification.
+
 ### Player mining input
 
 Tap Mine beside the touchscreen grid and select a deposit. Tap that target

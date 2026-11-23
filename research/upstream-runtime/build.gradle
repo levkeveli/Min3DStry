@@ -363,6 +363,10 @@ if (usesSinglePlayer) {
             mainClass = 'UpstreamOfflineMaterialsReference'
             workingDir = temporaryDir
         }
+        tasks.register('runStockAssemblerJvm', JavaExec) {
+            classpath = sourceSets.main.runtimeClasspath
+            mainClass = 'UpstreamStockAssemblerReference'
+        }
         tasks.register('runErekirHeatJvm', JavaExec) {
             classpath = sourceSets.main.runtimeClasspath
             mainClass = 'UpstreamErekirHeatReference'
