@@ -18,6 +18,7 @@ def fileSource = 'arc-core/src/arc/files/Fi.java'
 def soundSource = 'arc-core/src/arc/audio/Sound.java'
 def osSource = 'arc-core/src/arc/util/OS.java'
 def networkIoSource = 'core/src/mindustry/net/NetworkIO.java'
+def saveFileReaderSource = 'core/src/mindustry/io/SaveFileReader.java'
 def dataPatcherSource = 'core/src/mindustry/mod/DataPatcher.java'
 def liveLogicSource = 'core/src/mindustry/core/Logic.java'
 def netClientSource = 'core/src/mindustry/core/NetClient.java'
@@ -154,6 +155,7 @@ def arcOsFile = sourceDir.map { it.file('arc/util/OS.java') }
 def arcPixmapFile = sourceDir.map { it.file('arc/graphics/Pixmap.java') }
 def arcJsonFile = sourceDir.map { it.file('arc/util/serialization/Json.java') }
 def networkIoFile = sourceDir.map { it.file('mindustry/net/NetworkIO.java') }
+def saveFileReaderFile = sourceDir.map { it.file('mindustry/io/SaveFileReader.java') }
 def dataPatcherFile = sourceDir.map { it.file('mindustry/mod/DataPatcher.java') }
 def liveLogicFile = sourceDir.map { it.file('mindustry/core/Logic.java') }
 def netClientFile = sourceDir.map { it.file('mindustry/core/NetClient.java') }
@@ -210,7 +212,8 @@ if (usesArcSources || usesExecutor) {
         stagedClasses.add('mindustry/world/Block.class')
     }
     if (usesWorldSources) {
-        stagedClasses.addAll(['mindustry/world/Tile.class', 'mindustry/world/Tile$*.class'])
+        stagedClasses.addAll(['mindustry/world/Tile.class', 'mindustry/world/Tile$*.class',
+                              'mindustry/io/SaveFileReader.class', 'mindustry/io/SaveFileReader$*.class'])
     }
     if (usesArcSources) {
         stagedClasses.addAll(['arc/files/Fi.class', 'arc/files/Fi$*.class'])
@@ -514,7 +517,7 @@ tasks.register('prepareUpstreamProbe') {
         outputs.files(blockFile, annotationsFile)
     }
     if (usesWorldSources) {
-        outputs.file(tileFile)
+        outputs.files(tileFile, saveFileReaderFile)
     }
     if (usesArcSources || usesExecutor) {
         inputs.property('arcRevision', arcRevision)
@@ -990,6 +993,29 @@ final class GlacierFixture {
             adapted.parentFile.mkdirs()
             adapted.setText(source, 'UTF-8')
         }
+        if (usesWorldSources) {
+            def source = new String(readUpstream(saveFileReaderSource), 'UTF-8')
+            def skip = '''        int skipped = input.skipBytes(length);
+        if(length != skipped){
+            throw new IOException("Could not skip bytes. Expected length: " + length + "; Actual length: " + skipped);
+        }'''
+            def discard = '''        if(length < 0) throw new IOException("Invalid chunk length: " + length);
+        if(length == 0) return;
+
+        // TeaVM 0.16.0 InflaterInputStream.skip aliases its compressed input buffer.
+        byte[] discard = new byte[Math.min(length, 512)];
+        while(length > 0){
+            int count = Math.min(length, discard.length);
+            input.readFully(discard, 0, count);
+            length -= count;
+        }'''
+            if (source.count(skip) != 2) {
+                throw new GradleException('Pinned SaveFileReader chunk skip methods changed')
+            }
+            def staged = saveFileReaderFile.get().asFile
+            staged.parentFile.mkdirs()
+            staged.setText(source.replace(skip, discard), 'UTF-8')
+        }
         if (usesSinglePlayer || usesLiveNetwork) {
             def source = new String(readUpstream(dataPatcherSource), 'UTF-8')
             def filter = '''if(Vars.headless){
@@ -1220,6 +1246,10 @@ if (usesLiveNetwork) {
     tasks.register('runStockServerBundlesJvm', JavaExec) {
         classpath = sourceSets.main.runtimeClasspath
         mainClass = 'UpstreamStockServerBundlesReference'
+    }
+    tasks.register('runStockCompressedChunksJvm', JavaExec) {
+        classpath = sourceSets.main.runtimeClasspath
+        mainClass = 'UpstreamStockCompressedChunksReference'
     }
     tasks.register('runStockPlanetPatchJvm', JavaExec) {
         classpath = sourceSets.main.runtimeClasspath

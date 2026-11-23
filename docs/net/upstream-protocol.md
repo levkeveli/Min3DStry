@@ -208,3 +208,12 @@ Capture a rotation to the original Erekir Caldera with
 captured WorldStreams to `runStockPlanetPatchJvm`. The unmodified server
 applies the Erekir-only duct speed change. The headless port detects that
 change after joining Caldera and recovers the original speed on Glacier.
+
+### Unsupported compressed save chunks
+
+The staged stock SaveFileReader skips unknown current and legacy chunks
+with a bounded scratch buffer. This avoids a TeaVM 0.16 inflater bug
+where decompression overwrites unread compressed input during skip.
+Supported chunks still use the original parser. The JVM reference
+checks the marker following both chunk types and rejects negative and
+truncated lengths.
