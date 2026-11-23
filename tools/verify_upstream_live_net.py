@@ -1956,6 +1956,12 @@ def run_model(args, model, config, original_config, log, output):
                 rpc.close()
                 stop(emulator)
                 (output / f"{model}-emulator.log").write_bytes(log.read_bytes())
+            if args.require_deferred_graphics:
+                trace = log.read_text(encoding="utf-8", errors="replace")
+                decoded = trace.find("UPSTREAM_WORLD_DECODED beforeGraphics=true")
+                graphics = trace.find("UPSTREAM_INTERFACE_GRAPHICS atlas")
+                if not 0 <= decoded < graphics:
+                    raise RuntimeError("Expected WorldStream decode to finish before graphics allocation")
             if not args.controls:
                 validate(emu_log)
             disconnected = rf"{PLAYER} has disconnected"
@@ -2111,6 +2117,8 @@ def main():
                         help="Verify normal, large, and tileable Logic Displays on Glacier")
     parser.add_argument("--verify-display-markers", action="store_true",
                         help="Verify stock markers sampling an offscreen Logic Display on Glacier")
+    parser.add_argument("--require-deferred-graphics", action="store_true",
+                        help="Require WorldStream decode to finish before loading the renderer atlas")
     parser.add_argument("--require-relocation-spill", action="store_true",
                         help="Require the ARM11 collector to grow its relocation table during the spawn check")
     args = parser.parse_args()
@@ -2227,6 +2235,8 @@ def main():
         with zipfile.ZipFile(args.server) as release:
             if f"maps/erekir/{args.erekir_sector}.msav" not in release.namelist():
                 parser.error(f"No Erekir sector {args.erekir_sector!r} in the official server jar")
+    if args.require_deferred_graphics and not args.terrain_atlas:
+        parser.error("--require-deferred-graphics needs --terrain-atlas")
     if args.require_relocation_spill and not args.map_spawn:
         parser.error("--require-relocation-spill needs --map-spawn")
     if args.building_effects and (not args.terrain_atlas or not args.controls or args.controls_replay):

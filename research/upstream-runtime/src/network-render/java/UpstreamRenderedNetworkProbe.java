@@ -102,13 +102,14 @@ public final class UpstreamRenderedNetworkProbe {
         CacheLayer.init();
         try {
             Arm11Audio.open();
-            UpstreamLiveNetworkProbe.run(directory, address, view::loadGraphics, view::render, view.buildingControls);
+            UpstreamLiveNetworkProbe.run(directory, address, view::prepareClient, view::loadGraphics,
+                view::render, view.buildingControls);
         } finally {
             Arm11Audio.close();
         }
     }
 
-    private void loadGraphics() {
+    private void prepareClient() {
         Arm11Audio.prepareMusicControl();
         Events.on(WorldLoadEvent.class, event -> Arm11Audio.reset());
         UpstreamClientLogic.initialize(new Fi("/romfs/logicids.dat"));
@@ -121,6 +122,10 @@ public final class UpstreamRenderedNetworkProbe {
         };
         var locale = Core.bundle.getLocale();
         Core.settings.put("locale", locale.getLanguage().isEmpty() ? "en" : locale.toString());
+    }
+
+    private void loadGraphics() {
+        var locale = Core.bundle.getLocale();
         System.out.println("UPSTREAM_INTERFACE_GRAPHICS atlas");
         UpstreamTerrainDrawProbe.loadAtlas(atlas, UpstreamFluidAtlas::load);
         UpstreamLogicGraphics.load(new Fi("/romfs"));
