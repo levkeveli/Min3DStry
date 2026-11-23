@@ -6,12 +6,14 @@ import arc.Core;
 import arc.Settings;
 import arc.Events;
 import arc.files.Fi;
+import arc.graphics.Camera;
 import arc.graphics.Color;
 import arc.graphics.g2d.Draw;
 import arc.math.Mathf;
 import arc.math.geom.Vec2;
 import arc.struct.IntSet;
 import arc.struct.ObjectSet;
+import arc.struct.Seq;
 import arc.util.Time;
 import arc.util.Strings;
 import java.io.IOException;
@@ -20,6 +22,7 @@ import java.util.List;
 import mindustry.Vars;
 import mindustry.content.Blocks;
 import mindustry.content.Items;
+import mindustry.content.TechTree.TechNode;
 import mindustry.core.UI;
 import mindustry.core.World;
 import mindustry.entities.bullet.BulletType;
@@ -46,6 +49,8 @@ import mindustry.world.Block;
 import mindustry.world.blocks.ConstructBlock.ConstructBuild;
 import mindustry.world.blocks.defense.Wall;
 import mindustry.world.blocks.defense.turrets.BaseTurret;
+import mindustry.world.blocks.logic.CanvasBlock.CanvasBuild;
+import mindustry.world.blocks.logic.LogicDisplay.LogicDisplayBuild;
 import mindustry.world.blocks.payloads.UnitPayload;
 import mindustry.world.blocks.units.UnitFactory;
 
@@ -57,6 +62,8 @@ public final class UpstreamSinglePlayerApp {
     private final UpstreamTerrainRenderProbe target = new UpstreamTerrainRenderProbe(false);
     private final UpstreamBuildingLayers buildingLayers = new UpstreamBuildingLayers();
     private UpstreamLiveBuildControls buildingControls = new UpstreamLiveBuildControls();
+    private final UpstreamWeatherLayers weatherLayers = new UpstreamWeatherLayers();
+    private final Runnable drawWeatherUnder = weatherLayers::drawUnder;
     private final Runnable drawEntities = this::drawEntities;
     private final UpstreamWorldLabel.Target worldLabel = this::drawWorldLabel;
     private final Vec2 moveInput = new Vec2();
@@ -122,6 +129,7 @@ public final class UpstreamSinglePlayerApp {
 
         session = UpstreamSinglePlayerSession.create(mapDir, bundleTag, new Fi("/romfs/planets"), settings,
             new Fi("/romfs/maps"));
+        Core.camera = new Camera();
         UpstreamSectorCapture.install();
         Events.on(WaveEvent.class, event -> {
             String warning = UpstreamGuardianWarning.find(Vars.state.rules, Vars.state.wave);
@@ -141,6 +149,7 @@ public final class UpstreamSinglePlayerApp {
             }
             List<UpstreamSinglePlayerSession.SectorSlot> sectorSaves =
                 args.length < 2 && custom == null ? session.sectorSaves() : List.of();
+            UpstreamCampaignResearch.installAutoUnlocks();
             boolean showCampaign = campaignRequested
                 || sectorSaves.stream().anyMatch(UpstreamSinglePlayerSession::needsCampaignRetry);
             if (showCampaign) sectorSaves = session.campaignSlots(sectorSaves);
@@ -171,6 +180,8 @@ public final class UpstreamSinglePlayerApp {
                 }
             }
             loadInterfaceGraphics(atlas);
+            weatherLayers.load();
+            reportWeather();
             Events.on(BlockBuildEndEvent.class, event -> {
                 if (event.tile == null) return;
                 if (!event.breaking && event.tile.build != null) {
@@ -203,6 +214,8 @@ public final class UpstreamSinglePlayerApp {
                 if (next == null || !defeated && next.slot().sector == origin) continue;
                 saveFile = openCampaign(next);
                 resetWorldInput();
+                weatherLayers.reset();
+                reportWeather();
             }
         } finally {
             if (campaignSlot != null && !Vars.state.gameOver) {
@@ -287,6 +300,12 @@ public final class UpstreamSinglePlayerApp {
         reportedEnemies.clear();
         loadedUnitGraphics.clear();
         loadedBulletGraphics.clear();
+    }
+
+    private void reportWeather() {
+        for (var state : Groups.weather) {
+            System.out.println("UPSTREAM_SP_WEATHER name=" + state.weather().name);
+        }
     }
 
     private record MenuRows(byte[][] labels, int[][] characters) {}
@@ -383,6 +402,7 @@ public final class UpstreamSinglePlayerApp {
     private void loadInterfaceGraphics(Fi atlas) {
         System.out.println("UPSTREAM_INTERFACE_GRAPHICS atlas");
         UpstreamTerrainDrawProbe.loadAtlas(atlas, UpstreamFluidAtlas::load);
+        UpstreamLogicGraphics.load(new Fi("/romfs"));
         Vars.content.loadColors(new Fi("/romfs/block_colors.png"));
         UpstreamCrackAtlas.load();
         viewport = UpstreamTerrainDrawProbe.liveViewport(target);
@@ -609,10 +629,109 @@ public final class UpstreamSinglePlayerApp {
             long nextFrame = System.nanoTime() + FRAME_NS;
             int input = pollCampaignInput();
             if (input == -1) return false;
-            if ((input & (1 << 17)) != 0) return true;
+            if ((input & UpstreamSinglePlayerInput.A_PRESSED) != 0) return true;
             drawMenuRows(rows);
             while (System.nanoTime() < nextFrame) Thread.yield();
         }
+    }
+
+    private boolean openResearch(TechNode root, Fi saveFile) throws IOException {
+        var research = new UpstreamCampaignResearch(root);
+        Seq<TechNode> nodes = new Seq<>();
+        listResearch(root, nodes);
+        int selected = 0, page = 0, lastAxis = 0;
+        boolean detail = false;
+        MenuRows rows = null;
+        System.out.println("UPSTREAM_CAMPAIGN_RESEARCH_OPEN tree=" + root.name + " visible=" + nodes.size);
+        while (true) {
+            long nextFrame = System.nanoTime() + FRAME_NS;
+            int input = UpstreamSinglePlayerInput.poll();
+            if (input == -1) return false;
+
+            TechNode node = nodes.get(selected);
+            if ((input & UpstreamSinglePlayerInput.B_PRESSED) != 0) {
+                if (!detail) return true;
+                detail = false;
+                rows = null;
+            } else if ((input & UpstreamSinglePlayerInput.A_PRESSED) != 0) {
+                if (!detail) {
+                    detail = true;
+                    page = 0;
+                    rows = null;
+                    System.out.println("UPSTREAM_CAMPAIGN_RESEARCH_SELECTED node=" + node.content.name
+                        + " selectable=" + research.selectable(node));
+                } else if (research.spend(node)) {
+                    session.save(saveFile);
+                    nodes.clear();
+                    listResearch(root, nodes);
+                    selected = nodes.indexOf(node, true);
+                    rows = null;
+                    System.out.println("UPSTREAM_CAMPAIGN_RESEARCH_CHANGED node=" + node.content.name
+                        + " unlocked=" + node.content.unlockedHost());
+                }
+            }
+
+            int axis = (byte)(input >> 8);
+            int direction = axis > 60 && lastAxis <= 20 ? -1 : axis < -60 && lastAxis >= -20 ? 1 : 0;
+            lastAxis = axis;
+            if (direction != 0) {
+                if (detail) {
+                    int lastPage = Math.max(0, (node.requirements.length + node.objectives.size - 1) / 4);
+                    page = Mathf.clamp(page + direction, 0, lastPage);
+                } else {
+                    selected = Mathf.clamp(selected + direction, 0, nodes.size - 1);
+                }
+                rows = null;
+            }
+            if (rows == null) {
+                rows = encodeMenuRows(detail ? researchDetail(node, research, page) : researchList(nodes, selected));
+            }
+            drawMenuRows(rows);
+            while (System.nanoTime() < nextFrame) Thread.yield();
+        }
+    }
+
+    private static void listResearch(TechNode node, Seq<TechNode> nodes) {
+        nodes.add(node);
+        if (node.content.unlockedHost()) {
+            for (TechNode child : node.children) listResearch(child, nodes);
+        }
+    }
+
+    private static String[] researchList(Seq<TechNode> nodes, int selected) {
+        int first = (selected / 5) * 5, end = Math.min(first + 5, nodes.size);
+        String[] captions = new String[2 + end - first];
+        captions[0] = Core.bundle.get("research") + "  " + (selected + 1) + " / " + nodes.size;
+        for (int i = first; i < end; i++) {
+            var content = nodes.get(i).content;
+            captions[i - first + 1] = (i == selected ? "> " : "  ") + content.localizedName
+                + (content.unlockedHost() ? "  [x]" : "");
+        }
+        captions[captions.length - 1] = "B " + Core.bundle.get("back");
+        return captions;
+    }
+
+    private static String[] researchDetail(TechNode node, UpstreamCampaignResearch research, int page) {
+        int first = page * 4, end = Math.min(first + 4, node.requirements.length + node.objectives.size);
+        String[] captions = new String[2 + end - first];
+        captions[0] = node.content.localizedName;
+        for (int i = first; i < end; i++) {
+            if (i < node.objectives.size) {
+                var objective = node.objectives.get(i);
+                captions[i - first + 1] = (objective.complete() ? "[x] " : "[ ] ")
+                    + Strings.stripColors(objective.display()).replace('\n', ' ');
+            } else {
+                int index = i - node.objectives.size;
+                var requirement = node.requirements[index];
+                captions[i - first + 1] = requirement.item.localizedName + "  "
+                    + node.finishedRequirements[index].amount + " / " + requirement.amount
+                    + "  (+" + research.available(requirement.item) + ")";
+            }
+        }
+        String status = node.content.unlockedHost() ? Strings.stripColors(Core.bundle.format("researched", node.content.localizedName))
+            : research.selectable(node) ? "A " + Core.bundle.get("research") : Core.bundle.get("locked");
+        captions[captions.length - 1] = status + "   B " + Core.bundle.get("back");
+        return captions;
     }
 
     private boolean runMainLoop(Fi saveFile) throws IOException {
@@ -634,6 +753,15 @@ public final class UpstreamSinglePlayerApp {
                     && (input & UpstreamSinglePlayerInput.SAVE_PRESSED) != 0) return true;
             int touch = UpstreamSinglePlayerInput.touch();
             long now = System.nanoTime();
+
+            var sector = Vars.state.rules.sector;
+            int researchKeys = UpstreamSinglePlayerInput.L_HELD | UpstreamSinglePlayerInput.SAVE_PRESSED;
+            if (sector != null && sector.planet.techTree != null && (input & researchKeys) == researchKeys) {
+                if (!openResearch(sector.planet.techTree, saveFile)) return false;
+                previousTime = System.nanoTime();
+                accumulator = 0L;
+                continue;
+            }
 
             moveInput.set((byte)input / 127f, (byte)(input >>> 8) / 127f);
             if (moveInput.len2() < DEAD_ZONE * DEAD_ZONE) {
@@ -742,15 +870,20 @@ public final class UpstreamSinglePlayerApp {
     }
 
     private void render(Unit unit) {
+        session.advanceRenderFrame();
         updateBuildLabels();
         controlled = unit;
         float x = unit == null ? Vars.player.x() : unit.x();
         float y = unit == null ? Vars.player.y() : unit.y();
         viewport.moveTo(World.toTile(x) - UpstreamTerrainDrawProbe.VIEW_WIDTH / 2,
                         World.toTile(y) - UpstreamTerrainDrawProbe.VIEW_HEIGHT / 2);
+        Core.camera.width = UpstreamTerrainDrawProbe.VIEW_WIDTH * Vars.tilesize;
+        Core.camera.height = UpstreamTerrainDrawProbe.VIEW_HEIGHT * Vars.tilesize;
+        Core.camera.position.set((viewport.left - 0.5f) * Vars.tilesize + Core.camera.width / 2f,
+            (viewport.bottom - 0.5f) * Vars.tilesize + Core.camera.height / 2f);
         advanceVisualState();
         draws = 0;
-        viewport.draw(drawEntities);
+        viewport.draw(drawWeatherUnder, drawEntities);
         buildingControls.viewport(viewport.left, viewport.bottom);
         if (unit != null && (lastLeft != viewport.left || lastBottom != viewport.bottom)) {
             lastLeft = viewport.left;
@@ -768,12 +901,12 @@ public final class UpstreamSinglePlayerApp {
         float oldDelta = Time.delta;
         Time.updateGlobal();
         Time.delta = oldDelta;
-        if (Vars.state.isPaused()) return;
-
         float delta = Math.min(frameSeconds * 60f, Vars.maxDeltaClient);
         Time.delta = delta;
-        Time.setInternalTime(Time.getInternalTime() + delta);
         try {
+            weatherLayers.advance();
+            if (Vars.state.isPaused()) return;
+            Time.setInternalTime(Time.getInternalTime() + delta);
             for (var unit : Groups.unit) {
                 if (unit instanceof UnitWaterMove boat) boat.advanceWake();
                 if (unit instanceof Tankc tank) {
@@ -816,6 +949,7 @@ public final class UpstreamSinglePlayerApp {
         }
         UpstreamObjectiveMarkers.draw(Vars.state.rules, 240f / (UpstreamTerrainDrawProbe.VIEW_HEIGHT * Vars.tilesize),
             worldLabel);
+        weatherLayers.drawOver();
         var orders = buildingControls.orders();
         orders.draw(viewport);
         var schematics = buildingControls.schematics();
@@ -934,7 +1068,8 @@ public final class UpstreamSinglePlayerApp {
 
     static boolean supportsBuildingDraw(Building build) {
         var block = build.block;
-        return UpstreamBuildingLayers.supportsPowerDraw(block) || UpstreamBuildingLayers.supportsDistributionDraw(block)
+        return build instanceof CanvasBuild || build instanceof LogicDisplayBuild
+            || UpstreamBuildingLayers.supportsPowerDraw(block) || UpstreamBuildingLayers.supportsDistributionDraw(block)
             || block.category == Category.liquid || block instanceof UnitFactory
             || UpstreamBuildingLayers.supportsMaterialDraw(block) || block instanceof Wall
             || UpstreamBuildingLayers.supportsExtractorDraw(block)

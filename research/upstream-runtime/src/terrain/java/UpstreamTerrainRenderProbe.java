@@ -8,6 +8,9 @@ import mindustry.Vars;
 import org.teavm.interop.Import;
 import org.teavm.interop.Address;
 import org.teavm.interop.c.Include;
+import port.render.UpstreamCanvasTexture;
+import port.render.UpstreamLogicFramebuffer.RasterTexture;
+import port.render.WeatherNoiseTexture;
 
 public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProbe.TerrainTarget {
     static final int PALETTE_LABEL_COUNT = 15;
@@ -124,10 +127,45 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
     }
 
     @Override
+    public void drawWeatherNoise(WeatherNoiseTexture texture, float x, float y, float width, float height,
+                                 float u, float v, float u2, float v2, int tint, int mix, Blending blending) {
+        if (NativeTerrain.drawWeatherNoise(texture.index, x, y, width, height, u, v, u2, v2,
+                tint, mix, blendMode(blending)) == 0) {
+            throw new IllegalStateException("Citro2D could not draw the stock weather noise texture");
+        }
+    }
+
+    @Override
     public void drawTexturedQuad(int page, int pageWidth, int pageHeight, float[] vertices, int offset, Blending blending) {
         if (NativeTerrain.drawTexturedQuad(page, pageWidth, pageHeight, Address.ofData(vertices), offset,
                 blendMode(blending)) == 0) {
             throw new IllegalStateException("Citro3D could not draw a stock Arc textured quad");
+        }
+    }
+
+    @Override
+    public void drawCanvas(UpstreamCanvasTexture texture, float x, float y, float originX, float originY,
+                           float width, float height, float rotation, int color, int mixColor, Blending blending) {
+        if (NativeTerrain.drawCanvas(texture.id, texture.revision, texture.width, texture.height,
+                Address.ofData(texture.pixels), x, y, originX, originY, width, height, rotation, color, mixColor,
+                blendMode(blending)) == 0) {
+            throw new IllegalStateException("Citro2D could not draw the stock Canvas texture");
+        }
+    }
+
+    @Override
+    public void drawCanvasQuad(UpstreamCanvasTexture texture, float[] vertices, int offset, Blending blending) {
+        if (NativeTerrain.drawCanvasQuad(texture.id, texture.revision, texture.width, texture.height,
+                Address.ofData(texture.pixels), Address.ofData(vertices), offset, blendMode(blending)) == 0) {
+            throw new IllegalStateException("Citro3D could not draw the stock Canvas quad");
+        }
+    }
+
+    @Override
+    public void drawLogicDisplay(RasterTexture texture, float[] vertices, int offset, Blending blending) {
+        if (NativeTerrain.drawLogicDisplay(texture.id, texture.revision, texture.width, texture.height,
+                Address.ofData(texture.pixels), Address.ofData(vertices), offset, blendMode(blending)) == 0) {
+            throw new IllegalStateException("Citro3D could not draw a stock Logic Display");
         }
     }
 
@@ -181,6 +219,22 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
 
         @Import(name = "m3ds_terrain_draw_textured_quad")
         static native int drawTexturedQuad(int page, int pageWidth, int pageHeight, Address vertices, int offset, int blendMode);
+
+        @Import(name = "m3ds_terrain_draw_canvas")
+        static native int drawCanvas(int id, int revision, int width, int height, Address pixels,
+                                     float x, float y, float originX, float originY, float drawWidth, float drawHeight,
+                                     float rotation, int color, int mixColor, int blendMode);
+        @Import(name = "m3ds_terrain_draw_weather_noise")
+        static native int drawWeatherNoise(int texture, float x, float y, float width, float height,
+                                           float u, float v, float u2, float v2, int tint, int mix, int blendMode);
+
+        @Import(name = "m3ds_terrain_draw_canvas_quad")
+        static native int drawCanvasQuad(int id, int revision, int width, int height, Address pixels,
+                                         Address vertices, int offset, int blendMode);
+
+        @Import(name = "m3ds_terrain_draw_logic_display")
+        static native int drawLogicDisplay(int id, int revision, int width, int height, Address pixels,
+                                           Address vertices, int offset, int blendMode);
 
         @Import(name = "m3ds_terrain_end")
         static native int end();

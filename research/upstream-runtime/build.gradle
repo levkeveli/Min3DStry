@@ -21,6 +21,7 @@ def networkIoSource = 'core/src/mindustry/net/NetworkIO.java'
 def netClientSource = 'core/src/mindustry/core/NetClient.java'
 def placementSource = 'core/src/mindustry/ui/fragments/PlacementFragment.java'
 def itemSelectionSource = 'core/src/mindustry/world/blocks/ItemSelection.java'
+def logicExecutorSource = 'mindustry/logic/LExecutor.java'
 def planetGridSource = 'core/src/mindustry/graphics/g3d/PlanetGrid.java'
 def globalVarsSource = 'core/src/mindustry/logic/GlobalVars.java'
 def unitTypeSource = 'core/src/mindustry/type/UnitType.java'
@@ -55,6 +56,7 @@ def entryPoints = [
     'singleplayer-sim': 'UpstreamSinglePlayerSession',
     'singleplayer': 'UpstreamSinglePlayerApp',
     'unified': 'UpstreamUnifiedApp',
+    'campaign-background': 'UpstreamBackgroundCampaignTurnReference',
     'terrain-draw': 'UpstreamTerrainDrawProbe',
     'terrain-render': 'UpstreamTerrainRenderProbe',
     'file-metadata': 'port.UpstreamFileMetadataProbe',
@@ -78,7 +80,7 @@ if (!entryPoints.containsKey(probe)) {
 }
 def entryPoint = entryPoints[probe]
 def usesMapSources = probe in ['map', 'map-sd']
-def usesSinglePlayerApp = probe in ['singleplayer', 'unified']
+def usesSinglePlayerApp = probe in ['singleplayer', 'unified', 'campaign-background']
 def usesSinglePlayer = usesSinglePlayerApp || probe == 'singleplayer-sim'
 def usesLiveNetwork = probe in ['network-live', 'network-render', 'unified']
 def usesLiveAudio = probe in ['network-render', 'unified']
@@ -161,6 +163,10 @@ def bulletTypePath = 'mindustry/entities/bullet/BulletType.java'
 def bulletTypeFile = sourceDir.map { it.file(bulletTypePath) }
 def unitTypeFile = sourceDir.map { it.file('mindustry/type/UnitType.java') }
 def factoryResourcesFile = sourceDir.map { it.file('port/FactoryResources.java') }
+def logicDisplaySources = [
+    'mindustry/world/blocks/logic/LogicDisplay.java',
+    'mindustry/world/blocks/logic/TileableLogicDisplay.java'
+]
 def shieldModeSources = [
     'mindustry/graphics/Drawf.java': 'renderer',
     'mindustry/entities/abilities/ForceFieldAbility.java': 'Vars.renderer'
@@ -180,7 +186,7 @@ if (usesRenderedClient) {
     def asm = configurations.detachedConfiguration(dependencies.create('org.ow2.asm:asm-tree:9.9'))
     def adapter = tasks.register('compileBuildingCrackAdapter', JavaCompile) {
         source files('tools/StageBuildingCrackAdapter.java', 'tools/StageNavalWakeAdapter.java',
-                     'tools/StageObjectiveLabelAdapter.java')
+                     'tools/StageObjectiveLabelAdapter.java', 'tools/StageCanvasAdapter.java')
         classpath = asm
         destinationDirectory = layout.buildDirectory.dir('building-renderer-tool')
     }
@@ -227,6 +233,8 @@ if (usesArcSources || usesExecutor) {
     if (usesRenderedClient) {
         stagedClasses.addAll(['mindustry/type/UnitType.class', 'mindustry/type/UnitType$*.class',
                               'mindustry/entities/bullet/BulletType.class', 'mindustry/entities/bullet/BulletType$*.class'])
+        stagedClasses.addAll(['mindustry/type/Weather.class', 'mindustry/type/Weather$*.class',
+                              'mindustry/type/weather/ParticleWeather.class'])
     }
     if (usesLiveAudio) {
         stagedClasses.addAll(['arc/audio/Sound.class', 'arc/audio/Sound$*.class',
@@ -243,6 +251,8 @@ if (usesArcSources || usesExecutor) {
                               'mindustry/game/MapObjectives$TextMarker.class',
                               'mindustry/game/MapObjectives$TextureMarker.class',
                               'mindustry/game/MapObjectives$QuadMarker.class',
+                              'mindustry/world/blocks/logic/CanvasBlock$CanvasBuild.class',
+                              'mindustry/logic/GlobalVars.class', 'mindustry/logic/GlobalVars$*.class',
                               'mindustry/core/ContentLoader.class'])
         shieldModeSources.keySet().each { path ->
             stagedClasses.add(path.replace('.java', '.class'))
@@ -251,6 +261,11 @@ if (usesArcSources || usesExecutor) {
             def type = path.substring(0, path.length() - '.java'.length())
             stagedClasses.addAll([type + '.class', type + '$*.class'])
         }
+        logicDisplaySources.each { path ->
+            def type = path.substring(0, path.length() - '.java'.length())
+            stagedClasses.addAll([type + '.class', type + '$*.class'])
+        }
+        stagedClasses.addAll(['mindustry/logic/LExecutor.class', 'mindustry/logic/LExecutor$*.class'])
     }
     if (usesCampaignJsonCompat) {
         stagedClasses.addAll(['arc/util/serialization/Json.class', 'arc/util/serialization/Json$*.class'])
@@ -325,6 +340,11 @@ if (usesSinglePlayer) {
     sourceSets.main.java.srcDir('src/singleplayer/java')
     if (usesSinglePlayerApp) {
         sourceSets.main.java.srcDirs('src/singleplayer-custom-host/java', 'src/singleplayer-campaign-host/java')
+        sourceSets.main.java.srcDir('src/singleplayer-research-host/java')
+        tasks.register('runGraphicalCampaignResearchJvm', JavaExec) {
+            classpath = sourceSets.main.runtimeClasspath
+            mainClass = 'UpstreamCampaignResearchReference'
+        }
         tasks.register('runCustomGameJvm', JavaExec) {
             classpath = sourceSets.main.runtimeClasspath
             mainClass = 'UpstreamCustomGameReference'
@@ -332,6 +352,11 @@ if (usesSinglePlayer) {
         tasks.register('runOfflineMaterialsJvm', JavaExec) {
             classpath = sourceSets.main.runtimeClasspath
             mainClass = 'UpstreamOfflineMaterialsReference'
+            workingDir = temporaryDir
+        }
+        tasks.register('runErekirHeatJvm', JavaExec) {
+            classpath = sourceSets.main.runtimeClasspath
+            mainClass = 'UpstreamErekirHeatReference'
             workingDir = temporaryDir
         }
         tasks.register('runOfflineWeaponsJvm', JavaExec) {
@@ -349,6 +374,10 @@ if (usesSinglePlayer) {
         tasks.register('runGraphicalCampaignDefeatJvm', JavaExec) {
             classpath = sourceSets.main.runtimeClasspath
             mainClass = 'UpstreamCampaignDefeatReference'
+        }
+        tasks.register('runBackgroundCampaignTurnJvm', JavaExec) {
+            classpath = sourceSets.main.runtimeClasspath
+            mainClass = 'UpstreamBackgroundCampaignTurnReference'
         }
         tasks.register('runGraphicalCampaignPresetMapsJvm', JavaExec) {
             classpath = sourceSets.main.runtimeClasspath
@@ -370,6 +399,12 @@ if (usesSinglePlayer) {
         sourceSets.main.java.srcDir('src/network-live/java')
         sourceSets.main.java.srcDir('src/network-render/java')
         sourceSets.main.java.exclude('UpstreamLiveNetworkProbe.java', 'UpstreamRenderedNetworkProbe.java', 'port/audio/**')
+        sourceSets.main.java.srcDir('src/singleplayer/host')
+        tasks.register('runOfflineWeatherJvm', JavaExec) {
+            dependsOn 'classes'
+            classpath = sourceSets.main.runtimeClasspath
+            mainClass = 'UpstreamOfflineWeatherReference'
+        }
     }
 }
 if (probe == 'unified') {
@@ -484,11 +519,10 @@ tasks.register('prepareUpstreamProbe') {
     }
     if (usesLiveAudio) {
         outputs.files(sourceDir.map { dir ->
-            ['arc/audio/Sound.java', 'mindustry/audio/SoundControl.java', 'mindustry/logic/LExecutor.java']
+            ['arc/audio/Sound.java', 'mindustry/audio/SoundControl.java']
                 .collect { dir.file(it) }
         })
     }
-    if (usesSinglePlayer || usesLiveAudio) outputs.file(globalVarsFile)
     if (usesSinglePlayer) {
         inputs.file('src/gameplay/java/port/FactoryResources.java')
         outputs.file(factoryResourcesFile)
@@ -499,6 +533,10 @@ tasks.register('prepareUpstreamProbe') {
     }
     if (usesRenderedClient) {
         outputs.files(contentColorsFile, unitTypeFile, bulletTypeFile)
+        outputs.file(sourceDir.map { it.file(logicExecutorSource) })
+        logicDisplaySources.each { outputs.file(sourceDir.map { dir -> dir.file(it) }) }
+        outputs.file(sourceDir.map { it.file('mindustry/type/Weather.java') })
+        outputs.file(sourceDir.map { it.file('mindustry/type/weather/ParticleWeather.java') })
         shieldModeSources.keySet().each { outputs.file(sourceDir.map { dir -> dir.file(it) }) }
     }
     if (usesCampaignJsonCompat) {
@@ -506,6 +544,9 @@ tasks.register('prepareUpstreamProbe') {
     }
     if (usesCampaignSectorInfo) {
         outputs.file(reflectionPolicyFile)
+    }
+    if (usesSinglePlayer || (usesRenderedClient && usesLiveNetwork)) {
+        outputs.file(globalVarsFile)
     }
     doLast {
         if (usesLiveAudio) {
@@ -591,23 +632,7 @@ tasks.register('prepareUpstreamProbe') {
             def adaptedMusicControl = sourceDir.get().file('mindustry/audio/SoundControl.java').asFile
             adaptedMusicControl.parentFile.mkdirs()
             adaptedMusicControl.setText(musicControl, 'UTF-8')
-            def executorPath = 'mindustry/logic/LExecutor.java'
-            def executor = new String(readUpstream("core/src/${executorPath}"), 'UTF-8')
-            def musicGuard = '''if(headless) return;
 
-            //null music = stop'''
-            def musicDispatch = 'control.sound.playMusic(music, interrupt.bool());'
-            if (executor.count(musicGuard) != 1 || executor.count(musicDispatch) != 1) {
-                throw new GradleException('Pinned music instruction dispatch changed')
-            }
-            def outputExecutor = sourceDir.get().file(executorPath).asFile
-            outputExecutor.parentFile.mkdirs()
-            outputExecutor.setText(executor.replace('package mindustry.logic;', 'package mindustry.logic;\n\nimport port.audio.Arm11Audio;')
-                .replace(musicGuard, '''var musicControl = control == null
-                ? Arm11Audio.musicControl() : control.sound;
-            if(musicControl == null) return;
-
-            //null music = stop''').replace(musicDispatch, 'musicControl.playMusic(music, interrupt.bool());'), 'UTF-8')
         }
         if (usesRenderedClient) {
             def bulletType = new String(readUpstream("core/src/$bulletTypePath"), 'UTF-8')
@@ -619,6 +644,77 @@ tasks.register('prepareUpstreamProbe') {
             adaptedBulletType.parentFile.mkdirs()
             adaptedBulletType.setText(bulletType.replace(trailGuard,
                 'if((!headless || Core.batch != null) && trailLength > 0){'), 'UTF-8')
+            logicDisplaySources.each { path ->
+                def source = new String(readUpstream("core/src/${path}"), 'UTF-8')
+                def desktopRenderer = '!Vars.renderer.drawDisplays'
+                if (!source.contains('new FrameBuffer(') || source.count(desktopRenderer) != 1) {
+                    throw new GradleException("Pinned Logic Display framebuffer changed in ${path}")
+                }
+                source = source.replace('import arc.graphics.gl.*;', 'import port.render.UpstreamLogicFramebuffer;')
+                    .replaceAll(/\bFrameBuffer\b/, 'UpstreamLogicFramebuffer')
+                    .replace(desktopRenderer, 'Vars.renderer != null && !Vars.renderer.drawDisplays')
+                if (path.endsWith('/LogicDisplay.java')) {
+                    def clear = 'Core.graphics.clear('
+                    def icon = 'var icon = u.fullIcon;'
+                    if (source.count(clear) != 1 || source.count(icon) != 1) {
+                        throw new GradleException('Pinned Logic Display draw dispatch changed')
+                    }
+                    source = source.replace(clear, 'buffer.clear(')
+                        .replace(icon, 'if(u.fullIcon == null) u.loadIcon();\n                                    ' + icon)
+                }
+                def output = sourceDir.get().file(path).asFile
+                output.parentFile.mkdirs()
+                output.setText(source, 'UTF-8')
+            }
+            def executor = new String(readUpstream("core/src/${logicExecutorSource}"), 'UTF-8')
+            if (usesLiveAudio) {
+                def musicGuard = '''if(headless) return;
+
+            //null music = stop'''
+                def musicDispatch = 'control.sound.playMusic(music, interrupt.bool());'
+                if (executor.count(musicGuard) != 1 || executor.count(musicDispatch) != 1) {
+                    throw new GradleException('Pinned music instruction dispatch changed')
+                }
+                executor = executor.replace('package mindustry.logic;', 'package mindustry.logic;\n\nimport port.audio.Arm11Audio;')
+                    .replace(musicGuard, '''var musicControl = control == null
+                    ? Arm11Audio.musicControl() : control.sound;
+                if(musicControl == null) return;
+
+            //null music = stop''').replace(musicDispatch, 'musicControl.playMusic(music, interrupt.bool());')
+            }
+            def headless = 'Vars.headless || exec.graphicsBuffer.size >= maxGraphicsBuffer'
+            if (executor.count(headless) != 1) throw new GradleException('Pinned graphics instruction guard changed')
+            def adaptedExecutor = sourceDir.get().file(logicExecutorSource).asFile
+            adaptedExecutor.parentFile.mkdirs()
+            adaptedExecutor.setText(executor.replace(headless,
+                '(Vars.headless && Fonts.logic == null) || exec.graphicsBuffer.size >= maxGraphicsBuffer'), 'UTF-8')
+
+            def weather = new String(readUpstream('core/src/mindustry/type/Weather.java'), 'UTF-8')
+            def minScale = 'renderer.minScale()'
+            def drawOver = '    public void drawOver(WeatherState state){'
+            if (weather.count(minScale) != 6 || weather.count(drawOver) != 1) {
+                throw new GradleException('Pinned weather viewport changed')
+            }
+            def adaptedWeather = sourceDir.get().file('mindustry/type/Weather.java').asFile
+            adaptedWeather.parentFile.mkdirs()
+            adaptedWeather.setText(weather.replace(minScale, 'weatherMinScale()')
+                .replace(drawOver, '''    private static float weatherMinScale(){
+        if(renderer != null) return renderer.minScale();
+        // The stock in-game minimum zoom is 1.5 scaled by the configured multiplier.
+        return arc.scene.ui.layout.Scl.scl(1.5f / Core.settings.getFloat("minzoomingamemultiplier", 1f));
+    }
+
+    public void drawOver(WeatherState state){'''), 'UTF-8')
+            def particle = new String(readUpstream('core/src/mindustry/type/weather/ParticleWeather.java'), 'UTF-8')
+            def noiseLoad = 'if(drawNoise && Core.assets != null){'
+            if (particle.count(noiseLoad) != 1) throw new GradleException('Pinned particle weather texture loading changed')
+            def adaptedParticle = sourceDir.get().file('mindustry/type/weather/ParticleWeather.java').asFile
+            adaptedParticle.parentFile.mkdirs()
+            adaptedParticle.setText(particle
+                .replace('import mindustry.type.*;', 'import mindustry.type.*;\nimport port.render.WeatherNoiseTexture;')
+                .replace(noiseLoad, '''if(drawNoise && mindustry.Vars.renderer == null){
+            noise = WeatherNoiseTexture.load(noisePath);
+        }else if(drawNoise && Core.assets != null){'''), 'UTF-8')
             def loader = new String(readUpstream('core/src/mindustry/core/ContentLoader.java'), 'UTF-8')
             def loadColors = '''public void loadColors(){
         Pixmap pixmap = new Pixmap(files.internal("sprites/block_colors.png"));'''
@@ -948,13 +1044,21 @@ final class UpstreamItemChoices {
 }
 """, 'UTF-8')
         }
-        if (usesSinglePlayer || usesLiveAudio) {
+        if (usesSinglePlayer || (usesRenderedClient && usesLiveNetwork)) {
             def globalVars = new String(readUpstream(globalVarsSource), 'UTF-8')
             def soundCheck = '''varClientMusicPlaying.numval = control.sound.isPlaying() ? 1 : 0;
 
             var music = control.sound.getCurrent();'''
             if (globalVars.count(soundCheck) != 1) {
                 throw new GradleException('Pinned GlobalVars control.sound check changed')
+            }
+            if (usesRenderedClient) {
+                def stockIds = 'Core.files.internal("logicids.dat")'
+                if (globalVars.count(stockIds) != 1) {
+                    throw new GradleException('Pinned GlobalVars logic ID lookup changed')
+                }
+                globalVars = globalVars.replace('import arc.*;', 'import port.logic.UpstreamClientLogic;\n\nimport arc.*;')
+                    .replace(stockIds, 'UpstreamClientLogic.logicIds()')
             }
             def adaptedGlobalVars = globalVarsFile.get().asFile
             adaptedGlobalVars.parentFile.mkdirs()

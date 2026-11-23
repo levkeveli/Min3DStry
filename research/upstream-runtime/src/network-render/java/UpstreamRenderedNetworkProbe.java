@@ -3,11 +3,13 @@ import port.render.UpstreamFluidAtlas;
 import port.render.UpstreamWorldLabel;
 import port.audio.Arm11Audio;
 import port.render.UpstreamLabelText;
+import port.logic.UpstreamClientLogic;
 import arc.Core;
 import arc.Events;
 import arc.files.Fi;
 import arc.graphics.g2d.Draw;
 import arc.mock.MockGraphics;
+import arc.math.Mathf;
 import arc.struct.IntSet;
 import arc.struct.ObjectSet;
 import arc.util.Time;
@@ -29,6 +31,7 @@ import mindustry.gen.UnitWaterMove;
 import mindustry.graphics.CacheLayer;
 import mindustry.type.UnitType;
 import mindustry.world.blocks.units.UnitFactory;
+import mindustry.world.blocks.units.UnitFactory.UnitFactoryBuild;
 import mindustry.world.Block;
 import mindustry.type.Category;
 import mindustry.world.blocks.defense.turrets.BaseTurret;
@@ -37,6 +40,9 @@ import mindustry.world.blocks.payloads.BuildPayload;
 import mindustry.world.blocks.payloads.PayloadConveyor.PayloadConveyorBuild;
 import mindustry.world.blocks.payloads.UnitPayload;
 import mindustry.world.blocks.distribution.Conveyor.ConveyorBuild;
+import mindustry.world.blocks.logic.CanvasBlock.CanvasBuild;
+import mindustry.world.blocks.logic.LogicDisplay.LogicDisplayBuild;
+import mindustry.world.blocks.logic.TileableLogicDisplay.TileableLogicDisplayBuild;
 
 /** Presents the received multiplayer world through the ARM11 terrain renderer. */
 public final class UpstreamRenderedNetworkProbe {
@@ -54,6 +60,7 @@ public final class UpstreamRenderedNetworkProbe {
     private int draws;
     private boolean projectilesVisible, projectilesActive;
     private long previousVisualFrame;
+    private long frameId;
     private float frameSeconds;
     private int lastLeft = -1, lastBottom = -1;
     private final UpstreamWorldLabel.Target worldLabel = this::drawWorldLabel;
@@ -97,25 +104,33 @@ public final class UpstreamRenderedNetworkProbe {
         CacheLayer.init();
         try {
             Arm11Audio.open();
-            UpstreamLiveNetworkProbe.run(directory, address, view::loadGraphics, view::render, view.buildingControls);
+            UpstreamLiveNetworkProbe.run(directory, address, view::prepareClient, view::loadGraphics,
+                view::render, view.buildingControls);
         } finally {
             Arm11Audio.close();
         }
     }
 
-    private void loadGraphics() {
+    private void prepareClient() {
         Arm11Audio.prepareMusicControl();
         Events.on(WorldLoadEvent.class, event -> Arm11Audio.reset());
+        UpstreamClientLogic.initialize(new Fi("/romfs/logicids.dat"));
         Core.graphics = new MockGraphics() {
             @Override public int getWidth() { return 400; }
             @Override public int getHeight() { return 240; }
             @Override public float getDensity() { return 1f; }
             @Override public float getDeltaTime() { return frameSeconds; }
+            @Override public long getFrameId() { return frameId; }
         };
         var locale = Core.bundle.getLocale();
         Core.settings.put("locale", locale.getLanguage().isEmpty() ? "en" : locale.toString());
+    }
+
+    private void loadGraphics() {
+        var locale = Core.bundle.getLocale();
         System.out.println("UPSTREAM_INTERFACE_GRAPHICS atlas");
         UpstreamTerrainDrawProbe.loadAtlas(atlas, UpstreamFluidAtlas::load);
+        UpstreamLogicGraphics.load(new Fi("/romfs"));
         Vars.content.loadColors(new Fi("/romfs/block_colors.png"));
         UpstreamCrackAtlas.load();
         drawableUnits.clear();
@@ -163,6 +178,7 @@ public final class UpstreamRenderedNetworkProbe {
     }
 
     private void render(Unit unit) {
+        frameId++;
         updateBuildLabels();
         controlled = unit;
         float x = unit == null ? Vars.player.x() : unit.x();
@@ -199,8 +215,11 @@ public final class UpstreamRenderedNetworkProbe {
         try {
             Arm11Audio.updateClientAudio(now);
             Time.update();
+            UpstreamClientLogic.update(delta);
             for (var build : Groups.build) {
+                if (build instanceof TileableLogicDisplayBuild display) display.updateTile();
                 if (build instanceof ConduitBuild conduit) conduit.advanceLiquidDraw();
+                if (build instanceof UnitFactoryBuild factory) advanceFactoryDraw(factory);
             }
             for (var unit : Groups.unit) {
                 if (unit instanceof UnitWaterMove boat) boat.advanceWake();
@@ -210,6 +229,16 @@ public final class UpstreamRenderedNetworkProbe {
         } finally {
             Time.delta = oldDelta;
         }
+    }
+
+    static void advanceFactoryDraw(UnitFactoryBuild factory) {
+        // UnitFactoryBuild.updateTile also advances production and emits units.
+        // Reproduce its draw-only state from the stock plan and received efficiency.
+        boolean active = factory.efficiency > 0f && factory.currentPlan != -1;
+        if (active) {
+            factory.time += factory.edelta() * factory.speedScl * Vars.state.rules.unitBuildSpeed(factory.team);
+        }
+        factory.speedScl = Mathf.lerpDelta(factory.speedScl, active ? 1f : 0f, 0.05f);
     }
 
     static void advanceTankTreads(Tankc tank) {
@@ -385,7 +414,8 @@ public final class UpstreamRenderedNetworkProbe {
     static boolean supportsBuildingDraw(Building build) {
         var block = build.block;
         // These blocks use the sprite operations available in the live backend.
-        return UpstreamBuildingLayers.supportsPowerDraw(block) || UpstreamBuildingLayers.supportsDistributionDraw(block)
+        return build instanceof CanvasBuild || build instanceof LogicDisplayBuild
+            || UpstreamBuildingLayers.supportsPowerDraw(block) || UpstreamBuildingLayers.supportsDistributionDraw(block)
             || block.category == Category.liquid || block instanceof UnitFactory || block instanceof BaseTurret
             || UpstreamBuildingLayers.supportsMaterialDraw(block) || block == Blocks.copperWall
             || block == Blocks.berylliumWall || block == Blocks.copperWallLarge

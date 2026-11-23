@@ -72,13 +72,13 @@ The probe provides libctru event waits, clocks, debug output, and a fully backed
 
 The experimental `unified` target compiles the offline app and the graphical
 v160.8 network client into the same TeaVM program. Build it with the pinned
-Mindustry and Arc checkouts, server JAR, and official v160.8 `assets.jar`.
+Mindustry and Arc checkouts, server JAR, official v160.8 `assets.jar`, and desktop `Mindustry.jar` for its original Logic Display font.
 
 ```sh
 gradle -PupstreamCheckout=/path/to/Mindustry -PreferenceJar=/path/to/server-release.jar \
     -ParcCheckout=/path/to/Arc -Pprobe=unified generateC
 python3 arm11/prepare_terrain_assets.py --assets /path/to/assets.jar \
-    --server /path/to/server-release.jar --singleplayer --output-dir build/terrain-assets
+    --server /path/to/server-release.jar --desktop /path/to/Mindustry.jar --singleplayer --output-dir build/terrain-assets
 bash arm11/build.sh build/generated/teavm/c build/unified-3ds --unified build/terrain-assets
 ```
 
@@ -479,7 +479,9 @@ stager with `--singleplayer` for a combined build or `--multiplayer` for
 a standalone live renderer. The stager verifies the pinned desktop JAR,
 keeps all 205 original effects and 16 original music files, and indexes
 22.05 kHz PCM effects by their stock IDs. The 194 short effects use a
-bounded cache of 16 clips and 640 KiB. The 11 long effects use four
+bounded cache of 16 clips and 640 KiB. A 205-byte stock-ID index reduces
+resident cache lookups from up to 16 slot comparisons to one indexed access.
+The eviction policy, PCM budget and stream lanes stay the same. The 11 long effects use four
 double-buffered streams. The original Vorbis soundtrack uses its own
 NDSP channel and the pinned SoundControl rules.
 
@@ -495,7 +497,7 @@ to exercise the PCM cache and stream decoder controls with the host
 mixer mock. The JVM reference verifies the original registry, music
 rules, and ambience. The live Glacier replay loads an active Mechanical
 Drill, requests the stock UI, positional and streamed sound packets, and
-applies the original `game1` soundtrack rule.
+applies the original `game1` soundtrack rule. The verifier accepts stock server output with or without terminal colors.
 
 ```bash
 python3 tools/verify_stock_live_audio.py \
@@ -537,7 +539,8 @@ emulation timing.
 
 Use `-Pprobe=network-render` to generate the graphical ARM11 client.
 Prepare the pinned Glacier atlas with
-`arm11/prepare_terrain_assets.py --multiplayer`, then pass both
+`arm11/prepare_terrain_assets.py --multiplayer --desktop /path/to/Mindustry.jar`
+using the official v160.8 desktop JAR, then pass both
 `--network` and the resulting terrain assets directory to `arm11/build.sh`.
 Put the official `sprites.aatls` beside `server-endpoint.txt` on the SD
 card. The existing address and port connect directly to the Glacier
@@ -994,8 +997,13 @@ serialized fields to Arc JSON. The test checks the streamed objectives,
 dependency and marker counts, and the first objective's 60 beryllium target.
 The earlier 16 MiB live probe exhausted its managed heap while allocating
 The Onset's tiles. The live probes use a 24 MiB managed heap and keep the
-TCP session alive while decoding the world. The load worker stops before
-the client confirms its join. The
+TCP session alive while decoding the world. The graphical client initializes
+logic globals before the decode, then loads the atlas, graphics, and fonts
+after the decoded world and posted tasks are ready. The TCP keepalive covers
+world decoding, graphics initialization, and the world fingerprint through
+the client’s join confirmation. To check the
+ordering during a rendered join, pass `--require-deferred-graphics` to
+`tools/verify_upstream_live_net.py`. The
 [24 MiB build](https://github.com/levkeveli/Min3DStry/actions/runs/44879228986)
 passed the Fortress spawn and emitted the TCP keepalive on both Azahar
 profiles. The larger Onset map still triggered invalid pointer accesses in
@@ -1272,8 +1280,7 @@ and interpolated tint. Constant mix alpha interpolates RGB before tinting
 while preserving texture alpha, as in the pinned Arc sprite shader. Quads
 with varying mix colors or mismatched atlas dimensions are skipped with a
 one-time debug message. Lighting, minimap display, standalone textures,
-dynamic Canvas and Logic Display textures, and varying legacy mix colors
-require further renderer support.
+and varying legacy mix colors require further renderer support.
 
 The `runProbeJvm` snapshot reference round-trips the original create,
 control, text, texture, and remove packet classes against the client
@@ -1322,6 +1329,122 @@ then captured the updated geometry, Router texture and marker removal.
 The [combined ARM11 replay](https://github.com/levkeveli/Min3DStry/actions/runs/45116142229)
 passed the same checks on both profiles. The fixture places the quad
 below the in-game HUD. Add `--unified-boot` when using the combined ROM.
+
+### Stock Canvas blocks
+
+The renderer uses v160.8 CanvasBlock's packed palette data, pixmap
+decoder, invalidation contract and border draw. Its 12×12 and 24×24
+images upload to a bounded pool of 32×32 native textures. A TextureMarker
+linked to a Canvas on the map uses the same pixel buffer and refreshes
+it when the Canvas changes, including when its tile is offscreen.
+
+`runBuildingLayersJvm` checks both palettes, neighbor blending, the
+original Canvas save payload, image refresh and disposal. Add
+`--verify-canvas` to the stationary Glacier replay to check Canvas
+pixels decoded from the original WorldStream, then compare the building
+and linked marker after an original configuration packet. The Canvas
+editor remains open.
+
+The [ARM11 Canvas build](https://github.com/levkeveli/Min3DStry/actions/runs/44930023192)
+passed on both 3DS emulator profiles against the unmodified Java v160.8
+Glacier server. The replay matched the original palette pixels on both
+Canvas sizes at join, then matched the updated pixels in the small
+Canvas and its linked marker after the stock configuration message.
+The original logic, sprite and quad marker replays also passed.
+
+The [unified ARM11 Canvas build](https://github.com/levkeveli/Min3DStry/actions/runs/45123257077)
+repeated the snapshot, configuration packet and linked marker checks
+against the unmodified Java server on both Azahar profiles. The JVM
+also passed the Canvas checks alongside the full stock unit roster.
+
+The same pixel buffer can feed a stock QuadMarker, with original corner
+positions, local UV, interpolated tint and texture retargeting.
+`runBuildingLayersJvm` checks that a linked quad refreshes without drawing
+the source building. Add `--verify-canvas-quads` to the stationary Glacier
+replay for an offscreen Canvas, live reconfiguration, a moved corner, and
+retargeting from that Canvas to an original atlas sprite.
+
+Stock QuadMarker inverts the requested local V in `setUv`. Arc submits
+normalized texture UVs, which the ARM11 batch converts to source texels
+before atlas clipping or Canvas sampling. Citro3D then normalizes against
+the allocated texture, including padding around a Canvas.
+The [ARM11 Canvas quad build](https://github.com/levkeveli/Min3DStry/actions/runs/44931099000)
+passed on both 3DS emulator profiles against the unmodified Java v160.8
+server. The viewport stayed at tile column 73 while the source Canvas
+stayed at column 45. Both profiles showed the configured palette, moved
+corner, and original Router texture without changing the camera position.
+
+The [unified ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45124554676)
+passed the same offscreen Canvas replay on both Azahar profiles, along
+with the atlas-backed quad replay. Both fixtures ran below the live HUD.
+
+### Live stock logic processors
+
+The graphical client stages the original `logicids.dat` from the pinned
+assets and initializes Mindustry's actual logic globals before the
+multiplayer world stream is decoded. It advances those globals and the
+upstream LogicBuild instruction scheduler with the client clock.
+
+Pass the original `logicids.dat` as the fifth argument to
+`runBuildingLayersJvm` to verify a compressed processor configuration,
+its Canvas link and a stock logic pixel write. The stationary Glacier
+replay with `--verify-client-processor` updates a linked Canvas using
+the stock world processor and `@client`. The verifier checks that
+the ARM11 Canvas changes while the dedicated server keeps its original
+pixels. The replay passed on both Azahar hardware profiles with the
+[verified ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44932567269).
+The [unified ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45124973794)
+repeated the original Canvas write and stock server readback on both
+Azahar profiles. The updated JVM checks also passed with live audio.
+
+
+### Stock Logic Displays
+
+The graphical client stages the original display blocks and executor. The
+display queue, command dispatch, linked-display updates, tile grouping and
+transform serialization stay in upstream code. The port replaces the Arc
+framebuffer with an RGBA8 raster batch and uploads its pixels through the
+3DS texture cache. Content icon draws sample the same packed atlas tiles
+used by the world renderer. Multiplayer asset preparation runs the pinned
+desktop Arc FreeType backend on the original `logic.ttf` and packs its
+glyph metrics and pixels for the 3DS client.
+
+Pass the packed `world-atlas` directory and `logic-font.dat` as arguments
+six and seven to `runBuildingLayersJvm`. The stock processor replay checks
+clear, alpha, transform, linked display sampling, the original Copper icon,
+the logic font and the grouped tile texture. Run the live verifier on stationary Glacier with
+`--controls --verify-logic-displays --terrain-atlas /path/to/sprites.aatls`.
+The unmodified Java server supplies the stock processor configuration.
+The [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44934523666)
+passed on both Old and New 3DS Azahar profiles. Its replay checked framebuffer
+pixels before and after configuration for the 80 px display, 176 px large
+display and a joined 52 by 20 px tiled display. It also checked the visible
+font and pixels sampled from the linked large display.
+
+The [unified ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45125615703)
+passed the normal, large and joined tiled display replays on both
+Azahar profiles with the unmodified Java v160.8 server. The normal
+display fixture sits below the unified HUD. The combined JVM run also
+exercised the original audio path alongside the display commands.
+
+The stock TextureMarker and QuadMarker can sample the current framebuffer
+of a display outside the viewport. Their preparation runs the original
+queued display commands before sampling and rebinds the marker when a tiled
+display replaces its framebuffer. The JVM reference checks the texture
+orientation, draw order and framebuffer replacement.
+
+Run `--controls --verify-display-markers --terrain-atlas /path/to/sprites.aatls`
+on Glacier to check the original create, update and remove packets against
+the unmodified v160.8 Java server. The server configures a processor linked
+to an offscreen display, and the replay checks both color bands at each
+marker before and after a configuration update and atlas retarget.
+The [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44935934977)
+passed this replay on both Azahar hardware profiles, including marker
+removal and restoration of the original terrain pixels.
+The [combined offline and multiplayer ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45129961401)
+also passed the same replay on both profiles with the updated TeaVM runtime.
+The port logged the original white color and transparent mix bits received
+in the stock quad creation packet.
 
 ### Verify the Arc executor pools
 

@@ -43,6 +43,12 @@ typedef struct {
 } UnitBuildTextures;
 static UnitBuildTextures unit_build_textures[4];
 static uint32_t world_pass;
+enum { canvas_texture_size = 32, display_texture_limit = 512, canvas_texture_slots = 16 };
+static struct {
+    C3D_Tex tex;
+    int32_t id, revision;
+    uint32_t pass;
+} canvas_textures[canvas_texture_slots];
 static bool reported_split;
 static bool reported_recycle;
 static DVLB_s *quad_shader;
@@ -56,6 +62,7 @@ static bool gpu_ready;
 static bool renderer_ready;
 static bool frame_open;
 static C2D_SpriteSheet sheet;
+static C2D_SpriteSheet weather_noise[2];
 static C3D_RenderTarget *target;
 static C3D_RenderTarget *palette;
 static C2D_TextBuf palette_buffer;
@@ -457,13 +464,9 @@ int32_t m3ds_terrain_draw_unit_build(int32_t page, int32_t left, int32_t top, in
 #endif
 }
 
-int32_t m3ds_terrain_draw(int32_t page, int32_t left, int32_t top, int32_t width, int32_t height,
-                          float x, float y, float origin_x, float origin_y, float draw_width,
-                          float draw_height, float rotation, int32_t color, int32_t mix_color, int32_t blend_mode) {
-    if (!frame_open || width <= 0 || height <= 0) return 0;
-    set_world_blend(blend_mode);
-    set_world_mix((u32)color, (u32)mix_color);
-    C2D_DrawParams params = {
+static C2D_DrawParams sprite_params(float x, float y, float origin_x, float origin_y,
+                                    float draw_width, float draw_height, float rotation) {
+    return (C2D_DrawParams){
         .pos = { screen_left + (x + origin_x - world_left) * scale,
                  screen_bottom - (y + origin_y - world_bottom) * scale,
                  draw_width * scale, draw_height * scale },
@@ -472,6 +475,15 @@ int32_t m3ds_terrain_draw(int32_t page, int32_t left, int32_t top, int32_t width
         .depth = 0.5f,
         .angle = rotation * (-3.14159265358979323846f / 180.0f),
     };
+}
+
+int32_t m3ds_terrain_draw(int32_t page, int32_t left, int32_t top, int32_t width, int32_t height,
+                          float x, float y, float origin_x, float origin_y, float draw_width,
+                          float draw_height, float rotation, int32_t color, int32_t mix_color, int32_t blend_mode) {
+    if (!frame_open || width <= 0 || height <= 0) return 0;
+    set_world_blend(blend_mode);
+    set_world_mix((u32)color, (u32)mix_color);
+    C2D_DrawParams params = sprite_params(x, y, origin_x, origin_y, draw_width, draw_height, rotation);
     C2D_ImageTint tint;
     C2D_PlainImageTint(&tint, (u32)color, 1.0f);
     size_t count = sizeof(terrain_regions) / sizeof(terrain_regions[0]);
@@ -516,6 +528,95 @@ int32_t m3ds_terrain_draw(int32_t page, int32_t left, int32_t top, int32_t width
 #endif
 }
 
+#ifdef M3DS_WORLD_ATLAS
+static unsigned raster_texel(unsigned x, unsigned y, unsigned row_width) {
+    unsigned morton = 0;
+    for (unsigned bit = 0; bit < 3; bit++) {
+        morton |= ((x >> bit) & 1) << (2 * bit);
+        morton |= ((y >> bit) & 1) << (2 * bit + 1);
+    }
+    return ((y / 8) * (row_width / 8) + x / 8) * 64 + morton;
+}
+
+static int texture_dimension(int size) {
+    int dimension = 8;
+    while (dimension < size) dimension *= 2;
+    return dimension;
+}
+
+static C3D_Tex *upload_raster(int32_t id, int32_t revision, int width, int height, const uint32_t *pixels) {
+    int victim = -1;
+    for (int i = 0; i < canvas_texture_slots; i++) {
+        if (canvas_textures[i].id == id && canvas_textures[i].revision == revision) {
+            canvas_textures[i].pass = world_pass;
+            return &canvas_textures[i].tex;
+        }
+        if (canvas_textures[i].pass != world_pass
+                && (victim < 0 || canvas_textures[i].pass < canvas_textures[victim].pass)) victim = i;
+    }
+    if (victim < 0) {
+        // Wait before writing pixels that a queued draw can still sample.
+        if (!recycle_world_pass()) return NULL;
+        victim = 0;
+    }
+    C3D_Tex *tex = &canvas_textures[victim].tex;
+    int tex_width = id > 0 ? canvas_texture_size : texture_dimension(width);
+    int tex_height = id > 0 ? canvas_texture_size : texture_dimension(height);
+    if (tex->data && (tex->width != tex_width || tex->height != tex_height)) {
+        C3D_TexDelete(tex);
+        memset(tex, 0, sizeof(*tex));
+        canvas_textures[victim].id = 0;
+    }
+    if (!tex->data) {
+        if (!C3D_TexInitVRAM(tex, tex_width, tex_height, GPU_RGBA8)
+                && !C3D_TexInit(tex, tex_width, tex_height, GPU_RGBA8)) return NULL;
+        C3D_TexSetFilter(tex, GPU_NEAREST, GPU_NEAREST);
+        C3D_TexSetWrap(tex, GPU_CLAMP_TO_EDGE, GPU_CLAMP_TO_EDGE);
+    }
+    uint32_t *tiled = tex->data;
+    for (int y = 0; y < tex_height; y++) {
+        const uint32_t *row = pixels + (y < height ? y : height - 1) * width;
+        for (int x = 0; x < tex_width; x++) {
+            tiled[raster_texel(x, y, tex_width)] = row[x < width ? x : width - 1];
+        }
+    }
+    C3D_TexFlush(tex);
+    canvas_textures[victim].id = id;
+    canvas_textures[victim].revision = revision;
+    canvas_textures[victim].pass = world_pass;
+    return tex;
+}
+#endif
+
+int32_t m3ds_terrain_draw_canvas(int32_t id, int32_t revision, int32_t width, int32_t height,
+                                const uint32_t *pixels, float x, float y, float origin_x, float origin_y,
+                                float draw_width, float draw_height, float rotation,
+                                int32_t color, int32_t mix_color, int32_t blend_mode) {
+#ifdef M3DS_WORLD_ATLAS
+    if (!frame_open || id == 0 || width < 1 || width > canvas_texture_size
+            || height < 1 || height > canvas_texture_size) return 0;
+    C3D_Tex *tex = upload_raster(id, revision, width, height, pixels);
+    if (!tex) return 0;
+    set_world_blend(blend_mode);
+    set_world_mix((u32)color, (u32)mix_color);
+    Tex3DS_SubTexture region = {
+        .width = width, .height = height, .left = 0, .top = 1,
+        .right = (float)width / canvas_texture_size, .bottom = 1 - (float)height / canvas_texture_size,
+    };
+    C2D_DrawParams params = sprite_params(x, y, origin_x, origin_y, draw_width, draw_height, rotation);
+    C2D_ImageTint tint;
+    C2D_PlainImageTint(&tint, (u32)color, 1.0f);
+    if (!C2D_DrawImage((C2D_Image){tex, &region}, &params, &tint)) return 0;
+    draws++;
+    return 1;
+#else
+    (void)id; (void)revision; (void)width; (void)height; (void)pixels; (void)x; (void)y;
+    (void)origin_x; (void)origin_y; (void)draw_width; (void)draw_height; (void)rotation;
+    (void)color; (void)mix_color; (void)blend_mode;
+    return 0;
+#endif
+}
+
 int32_t m3ds_terrain_draw_solid_quad(const float *vertices, int32_t offset, int32_t blend_mode) {
     if (!frame_open) return 0;
     set_world_blend(blend_mode);
@@ -535,6 +636,51 @@ int32_t m3ds_terrain_draw_solid_quad(const float *vertices, int32_t offset, int3
             || !C2D_DrawTriangle(x[2], y[2], color[2], x[3], y[3], color[3], x[0], y[0], color[0], 0.5f)) {
         return 0;
     }
+    draws++;
+    return 1;
+}
+
+int32_t m3ds_terrain_draw_weather_noise(int32_t index, float x, float y, float width, float height,
+                                       float u, float v, float u2, float v2,
+                                       int32_t tint, int32_t mix, int32_t blend_mode) {
+    static const char *const paths[] = {"romfs:/weather/noiseAlpha.t3x", "romfs:/weather/fog.t3x"};
+    static const unsigned sizes[] = {128, 256};
+    if (!frame_open || (uint32_t)index >= sizeof(weather_noise) / sizeof(weather_noise[0])) return 0;
+    if (!weather_noise[index]) {
+        C2D_SpriteSheet loaded = C2D_SpriteSheetLoad(paths[index]);
+        if (!loaded) return 0;
+        C3D_Tex *texture = C2D_SpriteSheetGetImage(loaded, 0).tex;
+        if (!texture || texture->width != sizes[index] || texture->height != sizes[index]) {
+            C2D_SpriteSheetFree(loaded);
+            return 0;
+        }
+        C3D_TexSetWrap(texture, GPU_REPEAT, GPU_REPEAT);
+        C3D_TexSetFilter(texture, GPU_LINEAR, GPU_LINEAR);
+        weather_noise[index] = loaded;
+        static const char *const names[] = {
+            "UPSTREAM_WEATHER_TEXTURE name=noiseAlpha\n",
+            "UPSTREAM_WEATHER_TEXTURE name=fog\n",
+        };
+        svcOutputDebugString(names[index], strlen(names[index]));
+    }
+    C2D_Image image = C2D_SpriteSheetGetImage(weather_noise[index], 0);
+    const Tex3DS_SubTexture region = {
+        .width = sizes[index], .height = sizes[index],
+        .left = u, .right = u2, .top = 1.0f - v, .bottom = 1.0f - v2,
+    };
+    // Citro2D flips the UVs when the original Arc quad has negative height.
+    C2D_DrawParams params = {
+        .pos = {screen_left + (fminf(x, x + width) - world_left) * scale,
+                screen_bottom - (fmaxf(y, y + height) - world_bottom) * scale,
+                width * scale, height * scale},
+        .depth = 0.5f,
+    };
+    image.subtex = &region;
+    set_world_blend(blend_mode);
+    set_world_mix((u32)tint, (u32)mix);
+    C2D_ImageTint colors;
+    C2D_PlainImageTint(&colors, tint, 1.0f);
+    if (!C2D_DrawImage(image, &params, &colors)) return 0;
     draws++;
     return 1;
 }
@@ -581,7 +727,7 @@ static void draw_quad_piece(C3D_Tex *texture, const M3DS_QuadVertex *polygon, in
         for (int corner = 0; corner < 3; corner++) {
             M3DS_QuadVertex v = polygon[indices[corner]];
             C3D_ImmSendAttrib(v.x, v.y, 0.5f, 1.0f);
-            C3D_ImmSendAttrib((v.u - x) / WORLD_ATLAS_TILE, 1.0f - (v.v - y) / WORLD_ATLAS_TILE, 0, 0);
+            C3D_ImmSendAttrib((v.u - x) / texture->width, 1.0f - (v.v - y) / texture->height, 0, 0);
             C3D_ImmSendAttrib(v.color[0], v.color[1], v.color[2], v.color[3]);
         }
     }
@@ -599,6 +745,35 @@ static int32_t skip_unsupported_quad(void) {
     }
     return 1;
 }
+
+// Convert Arc's normalized UVs to source texels for atlas clipping and Canvas sampling.
+// Return zero for unsupported mix attributes and minus one for non-finite geometry.
+static int read_quad_vertices(const float *vertices, int source_width, int source_height,
+                              M3DS_QuadVertex *corners, uint32_t *packed_mix, bool clamp_uv) {
+    float max_u = nextafterf(source_width, 0);
+    float max_v = nextafterf(source_height, 0);
+    uint32_t mix;
+    memcpy(&mix, vertices + 5, sizeof(mix));
+    for (int i = 0; i < 4; i++) {
+        const float *v = vertices + i * 6;
+        uint32_t color, corner_mix;
+        memcpy(&color, v + 2, sizeof(color));
+        memcpy(&corner_mix, v + 5, sizeof(corner_mix));
+        if (mix != corner_mix) return 0;
+        if (!isfinite(v[0]) || !isfinite(v[1]) || !isfinite(v[3]) || !isfinite(v[4])) return -1;
+        float u = v[3] * source_width, t = v[4] * source_height;
+        corners[i] = (M3DS_QuadVertex){
+            .x = screen_left + (v[0] - world_left) * scale,
+            .y = screen_bottom - (v[1] - world_bottom) * scale,
+            .u = clamp_uv ? fminf(fmaxf(u, 0), max_u) : u,
+            .v = clamp_uv ? fminf(fmaxf(t, 0), max_v) : t,
+            .color = {(color & 255) / 255.0f, ((color >> 8) & 255) / 255.0f,
+                      ((color >> 16) & 255) / 255.0f, m3ds_quad_alpha(color) / 254.0f},
+        };
+    }
+    *packed_mix = m3ds_quad_expand_alpha(mix);
+    return 1;
+}
 #endif
 
 int32_t m3ds_terrain_draw_textured_quad(int32_t page, int32_t width, int32_t height,
@@ -611,28 +786,13 @@ int32_t m3ds_terrain_draw_textured_quad(int32_t page, int32_t width, int32_t hei
     }
     M3DS_QuadVertex corners[4];
     uint32_t mix;
-    memcpy(&mix, vertices + offset + 5, sizeof(mix));
-    for (int i = 0; i < 4; i++) {
-        const float *v = vertices + offset + i * 6;
-        uint32_t color, corner_mix;
-        memcpy(&color, v + 2, sizeof(color));
-        memcpy(&corner_mix, v + 5, sizeof(corner_mix));
-        if (mix != corner_mix) return skip_unsupported_quad();
-        if (!isfinite(v[0]) || !isfinite(v[1]) || !isfinite(v[3]) || !isfinite(v[4])) return 1;
-        corners[i] = (M3DS_QuadVertex){
-            .x = screen_left + (v[0] - world_left) * scale,
-            .y = screen_bottom - (v[1] - world_bottom) * scale,
-            .u = fminf(fmaxf(v[3] * width, 0), nextafterf(width, 0)),
-            .v = fminf(fmaxf(v[4] * height, 0), nextafterf(height, 0)),
-            .color = {(color & 255) / 255.0f, ((color >> 8) & 255) / 255.0f,
-                      ((color >> 16) & 255) / 255.0f, m3ds_quad_alpha(color) / 254.0f},
-        };
-    }
+    int status = read_quad_vertices(vertices + offset, width, height, corners, &mix, true);
+    if (status < 0) return 1;
+    if (status == 0) return skip_unsupported_quad();
     if (!initialize_quad_shader()) return 0;
     // The top-screen framebuffer stores the screen axes in reverse order.
     C3D_Mtx projection;
     Mtx_OrthoTilt(&projection, 0, target->frameBuf.height, target->frameBuf.width, 0, 1, -1, true);
-    mix = m3ds_quad_expand_alpha(mix);
     set_world_blend(blend_mode);
     set_world_mix(0, 0);
     static const int triangles[2][3] = {{0, 1, 2}, {2, 3, 0}};
@@ -666,6 +826,65 @@ int32_t m3ds_terrain_draw_textured_quad(int32_t page, int32_t width, int32_t hei
     return 1;
 #else
     (void)page; (void)width; (void)height; (void)vertices; (void)offset; (void)blend_mode;
+    return 0;
+#endif
+}
+
+int32_t m3ds_terrain_draw_canvas_quad(int32_t id, int32_t revision, int32_t width, int32_t height,
+                                     const uint32_t *pixels, const float *vertices, int32_t offset, int32_t blend_mode) {
+#ifdef M3DS_WORLD_ATLAS
+    if (!frame_open || id == 0 || width < 1 || width > canvas_texture_size
+            || height < 1 || height > canvas_texture_size || !initialize_quad_shader()) return 0;
+    M3DS_QuadVertex corners[4];
+    uint32_t mix;
+    int status = read_quad_vertices(vertices + offset, width, height, corners, &mix, true);
+    if (status < 0) return 1;
+    if (status == 0) return skip_unsupported_quad();
+    C3D_Tex *tex = upload_raster(id, revision, width, height, pixels);
+    if (!tex) return 0;
+    set_world_blend(blend_mode);
+    set_world_mix(0, 0);
+    C3D_Mtx projection;
+    Mtx_OrthoTilt(&projection, 0, target->frameBuf.height, target->frameBuf.width, 0, 1, -1, true);
+    // Submit the source texels against the padded Citro3D texture dimensions.
+    draw_quad_piece(tex, corners, 4, 0, 0, mix, &projection);
+    static bool reported;
+    if (!reported) {
+        static const char message[] = "UPSTREAM_CANVAS_QUAD source=arc gpu=citro3d\n";
+        svcOutputDebugString(message, sizeof(message) - 1);
+        reported = true;
+    }
+    draws++;
+    return 1;
+#else
+    (void)id; (void)revision; (void)width; (void)height; (void)pixels;
+    (void)vertices; (void)offset; (void)blend_mode;
+    return 0;
+#endif
+}
+
+int32_t m3ds_terrain_draw_logic_display(int32_t id, int32_t revision, int32_t width, int32_t height,
+                                       const uint32_t *pixels, const float *vertices, int32_t offset, int32_t blend_mode) {
+#ifdef M3DS_WORLD_ATLAS
+    if (!frame_open || id >= 0 || width < 1 || width > display_texture_limit
+            || height < 1 || height > display_texture_limit || !initialize_quad_shader()) return 0;
+    M3DS_QuadVertex corners[4];
+    uint32_t mix;
+    int status = read_quad_vertices(vertices + offset, width, height, corners, &mix, false);
+    if (status < 0) return 1;
+    if (status == 0) return skip_unsupported_quad();
+    C3D_Tex *tex = upload_raster(id, revision, width, height, pixels);
+    if (!tex) return 0;
+    set_world_blend(blend_mode);
+    set_world_mix(0, 0);
+    C3D_Mtx projection;
+    Mtx_OrthoTilt(&projection, 0, target->frameBuf.height, target->frameBuf.width, 0, 1, -1, true);
+    draw_quad_piece(tex, corners, 4, 0, 0, mix, &projection);
+    draws++;
+    return 1;
+#else
+    (void)id; (void)revision; (void)width; (void)height; (void)pixels;
+    (void)vertices; (void)offset; (void)blend_mode;
     return 0;
 #endif
 }
@@ -1084,6 +1303,9 @@ void m3ds_terrain_fini(void) {
         DVLB_Free(quad_shader);
         quad_shader = NULL;
     }
+    for (int i = 0; i < canvas_texture_slots; i++) {
+        if (canvas_textures[i].tex.data) C3D_TexDelete(&canvas_textures[i].tex);
+    }
     for (size_t i = 0; i < sizeof(world_textures) / sizeof(world_textures[0]); i++) {
         if (world_textures[i].sheet) C2D_SpriteSheetFree(world_textures[i].sheet);
     }
@@ -1101,6 +1323,9 @@ void m3ds_terrain_fini(void) {
     if (catalog_buffer) C2D_TextBufDelete(catalog_buffer);
     if (palette) C3D_RenderTargetDelete(palette);
     if (sheet) C2D_SpriteSheetFree(sheet);
+    for (size_t i = 0; i < sizeof(weather_noise) / sizeof(weather_noise[0]); i++) {
+        if (weather_noise[i]) C2D_SpriteSheetFree(weather_noise[i]);
+    }
     if (target) C3D_RenderTargetDelete(target);
     if (renderer_ready) C2D_Fini();
     if (gpu_ready) C3D_Fini();

@@ -60,7 +60,7 @@ def verify_commands(log, proc, rpc, output):
 
 def replay(args, model, fixture, live, *, taps=TAPS, buttons=None,
            verify_input=verify_commands, read_stock=read_stock_orders, prepare_server=None,
-           button_durations=None, circle=None):
+           button_durations=None, circle=None, offline_ready=r"UPSTREAM_SP_READY .*x=648\.0 y=208\.0"):
     azahar = sp.az.resolve_azahar_bin(args.azahar)
     config, log = sp.az.resolve_azahar_paths(azahar)
     originals = {path: path.read_bytes() if path.is_file() else None for path in (config, log)}
@@ -92,7 +92,7 @@ def replay(args, model, fixture, live, *, taps=TAPS, buttons=None,
                 sp._wait_for_log(log, proc, r"UPSTREAM_NETWORK_FRAME .*left=73 bottom=20 sprites=1", 130)
                 wait_for(server_log, server, r"Min3DStry ARM11 has connected", 20)
             else:
-                sp._wait_for_log(log, proc, r"UPSTREAM_SP_READY .*x=648\.0 y=208\.0", 120)
+                sp._wait_for_log(log, proc, offline_ready, 120)
             verify_input(log, proc, rpc, output)
             if live:
                 time.sleep(3)

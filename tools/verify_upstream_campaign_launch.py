@@ -46,7 +46,6 @@ def write_replay(path: Path, model: str, planet: str, manual_cargo: bool = False
         windows.extend([(30, 32, 1 << 10), (35, 37, 1 << 11), (40, 42, (1 << 8) | (1 << 4)), (45, 47, 1 << 1)])
     write_input_replay(path, model, windows, end, b"Min3DStry Campaign Launch")
 
-
 def write_input_replay(path: Path, model: str, windows: list[tuple[int, int, int]],
                        end: int, title: bytes) -> None:
     frames = sp.CTM_SAMPLES_PER_SECOND * (end + 10)

@@ -5,6 +5,7 @@ import argparse
 import csv
 import hashlib
 import json
+import struct
 from pathlib import Path
 import subprocess
 import sys
@@ -19,8 +20,8 @@ REGIONS = (
     "ore-copper1", "ore-copper2", "ore-copper3", "stone1", "stone2", "stone3",
 )
 CONVERTER = Path(__file__).resolve().parents[3] / "tools" / "build_upstream_sprite_atlas.py"
-DESKTOP_SHA256 = "6dd6da921d5021a84823456e05b477ee8de8511990d40de850b37dd0905152f2"
 GLACIER_INVENTORY = Path(__file__).with_name("glacier-terrain.txt")
+DESKTOP_SHA256 = "6dd6da921d5021a84823456e05b477ee8de8511990d40de850b37dd0905152f2"
 STOCK_TEXT_ASSETS = (
     "fonts/font.woff", "fonts/font_jp.woff", "fonts/icon.ttf", "icons/icons.properties",
 )
@@ -167,11 +168,23 @@ def pack_live_audio(args, staged: Path, scratch: Path) -> None:
     (staged / "sound-index.h").write_text("\n".join(lines), encoding="ascii")
 
 
+def pack_weather_noise(archive: zipfile.ZipFile, output: Path, scratch: Path, tex3ds: str) -> None:
+    output.mkdir()
+    for name, size in (("noiseAlpha", 128), ("fog", 256)):
+        asset = archive.read(f"assets/sprites/{name}.png")
+        if asset[:8] != b"\x89PNG\r\n\x1a\n" or struct.unpack(">II", asset[16:24]) != (size, size):
+            raise ValueError(f"Unexpected original dimensions for {name}.png")
+        source = scratch / f"{name}.png"
+        source.write_bytes(asset)
+        subprocess.run([tex3ds, "--atlas", "--format", "rgba8", "--border", "none",
+                        "--compress", "auto", "--output", str(output / f"{name}.t3x"), str(source)], check=True)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--assets", type=Path, required=True)
     parser.add_argument("--server", type=Path, required=True)
-    parser.add_argument("--desktop", type=Path, help="official pinned desktop JAR for --live-audio")
+    parser.add_argument("--desktop", type=Path, help="official pinned desktop JAR for the original font and audio")
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--java", default="java")
     parser.add_argument("--tex3ds", default="tex3ds")
@@ -183,9 +196,9 @@ def main() -> None:
     args = parser.parse_args()
     if args.live_audio and not (args.multiplayer or args.singleplayer):
         parser.error("--live-audio requires --multiplayer or --singleplayer")
-    if args.live_audio:
+    if args.multiplayer or args.singleplayer:
         if args.desktop is None or not args.desktop.is_file():
-            parser.error("--live-audio requires the pinned desktop JAR via --desktop")
+            parser.error("--multiplayer and --singleplayer require the pinned desktop JAR via --desktop")
         with args.desktop.open("rb") as archive:
             if hashlib.file_digest(archive, "sha256").hexdigest() != DESKTOP_SHA256:
                 parser.error("expected the official v160.8 Mindustry.jar via --desktop")
@@ -216,10 +229,14 @@ def main() -> None:
             with zipfile.ZipFile(args.assets) as archive:
                 pack_stock_text_assets(archive, staged)
                 (staged / "block_colors.png").write_bytes(archive.read("assets/sprites/block_colors.png"))
+                (staged / "logicids.dat").write_bytes(archive.read("assets/logicids.dat"))
+                logic_font = Path(tmp) / "logic.ttf"
+                logic_font.write_bytes(archive.read("assets/fonts/logic.ttf"))
                 for member in archive.namelist():
                     if re.fullmatch(r"assets/bundles/bundle(?:_[A-Za-z_]+)?\.properties", member):
                         (bundles / Path(member).name).write_bytes(archive.read(member))
                 if args.singleplayer:
+                    pack_weather_noise(archive, staged / "weather", Path(tmp), args.tex3ds)
                     pack_planet_data(archive, staged / "planets")
                     maps_dir = staged / "maps"
                     maps_dir.mkdir(parents=True, exist_ok=True)
@@ -231,6 +248,9 @@ def main() -> None:
                     pack_custom_game_maps(archive, maps_dir)
                     pack_campaign_maps(archive, maps_dir)
                     (staged / "sprites.aatls").write_bytes(aatls_bytes)
+            subprocess.run([args.java, "-Dfile.encoding=UTF-8", "-cp", str(args.desktop.resolve()),
+                            str(CONVERTER.with_name("PackUpstreamLogicFont.java")), str(logic_font),
+                            str(staged / "logic-font.dat")], check=True)
             if not (bundles / "bundle.properties").is_file():
                 raise ValueError("The official archive is missing its root translation bundle")
             if args.live_audio:
