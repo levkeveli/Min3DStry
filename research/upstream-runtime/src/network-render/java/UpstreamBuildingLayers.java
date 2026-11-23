@@ -17,6 +17,7 @@ import mindustry.world.Block;
 import mindustry.world.blocks.heat.HeatConductor;
 import mindustry.world.meta.BuildVisibility;
 import mindustry.world.blocks.liquid.LiquidRouter;
+import mindustry.world.blocks.payloads.BlockProducer;
 import mindustry.world.blocks.payloads.PayloadConveyor.PayloadConveyorBuild;
 import mindustry.world.blocks.payloads.UnitPayload;
 import mindustry.world.blocks.power.BeamNode.BeamNodeBuild;
@@ -42,6 +43,10 @@ final class UpstreamBuildingLayers {
     private final Seq<Building> visible = new Seq<>();
     private final IntSet visited = new IntSet();
     private final ObjectSet<UnitType> factoryGraphics = new ObjectSet<>();
+
+    static boolean supportsBlockProducerDraw(Block block) {
+        return block instanceof BlockProducer;
+    }
 
     static boolean supportsAssemblerDraw(Block block) {
         return block instanceof UnitAssembler || block instanceof UnitAssemblerModule;

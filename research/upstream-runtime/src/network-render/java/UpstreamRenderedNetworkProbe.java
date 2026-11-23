@@ -34,6 +34,7 @@ import mindustry.gen.UnitWaterMove;
 import mindustry.graphics.CacheLayer;
 import mindustry.type.UnitType;
 import mindustry.world.blocks.units.Reconstructor;
+import mindustry.world.blocks.payloads.BlockProducer.BlockProducerBuild;
 import mindustry.world.blocks.units.Reconstructor.ReconstructorBuild;
 import mindustry.world.blocks.units.UnitFactory;
 import mindustry.world.blocks.units.UnitFactory.UnitFactoryBuild;
@@ -239,6 +240,7 @@ public final class UpstreamRenderedNetworkProbe {
                 if (build instanceof ConduitBuild conduit) conduit.advanceLiquidDraw();
                 if (build instanceof UnitFactoryBuild factory) advanceFactoryDraw(factory);
                 if (build instanceof ReconstructorBuild reconstructor) advanceReconstructorDraw(reconstructor);
+                if (build instanceof BlockProducerBuild producer) advanceBlockProducerDraw(producer);
             }
             for (var unit : Groups.unit) {
                 if (unit instanceof UnitWaterMove boat) boat.advanceWake();
@@ -248,6 +250,13 @@ public final class UpstreamRenderedNetworkProbe {
         } finally {
             Time.delta = oldDelta;
         }
+    }
+
+    static void advanceBlockProducerDraw(BlockProducerBuild producer) {
+        // The stock update also consumes materials and creates a payload.
+        boolean producing = producer.recipe() != null && producer.efficiency > 0f && producer.getPayload() == null;
+        producer.heat = Mathf.lerpDelta(producer.heat, Mathf.num(producing), 0.15f);
+        producer.time += producer.heat * producer.delta();
     }
 
     static void advanceFactoryDraw(UnitFactoryBuild factory) {
@@ -479,7 +488,7 @@ public final class UpstreamRenderedNetworkProbe {
         return build instanceof CanvasBuild || build instanceof LogicDisplayBuild
             || UpstreamBuildingLayers.supportsPowerDraw(block) || UpstreamBuildingLayers.supportsDistributionDraw(block)
             || block.category == Category.liquid || block instanceof UnitFactory || block instanceof Reconstructor || block instanceof BaseTurret
-            || UpstreamBuildingLayers.supportsAssemblerDraw(block)
+            || UpstreamBuildingLayers.supportsAssemblerDraw(block) || UpstreamBuildingLayers.supportsBlockProducerDraw(block)
             || UpstreamBuildingLayers.supportsMaterialDraw(block) || block == Blocks.copperWall
             || block == Blocks.berylliumWall || block == Blocks.copperWallLarge
             || UpstreamBuildingLayers.supportsExtractorDraw(block)
