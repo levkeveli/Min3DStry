@@ -11,6 +11,7 @@ import mindustry.content.Planets;
 import mindustry.content.UnitTypes;
 import mindustry.core.NetClient;
 import mindustry.game.Universe;
+import mindustry.gen.Building;
 import mindustry.gen.Player;
 import mindustry.gen.Unit;
 import mindustry.graphics.g3d.PlanetGrid;
@@ -18,6 +19,7 @@ import mindustry.mod.Mods;
 import mindustry.net.NetworkIO;
 import mindustry.net.Net;
 import mindustry.type.Category;
+import mindustry.type.Item;
 import mindustry.io.SaveIO;
 import mindustry.world.blocks.distribution.Sorter;
 import mindustry.world.blocks.defense.turrets.ItemTurret;
@@ -82,6 +84,7 @@ public final class UpstreamBuildControlsReference {
         }
         verifyCatalog(controls, unit);
         verifyConfiguration(controls, unit);
+        verifyStockItemSelectors(controls, unit);
         verifyPlanetShortcuts(unit);
         verifyMining(unit);
         Vars.player.unit(unit);
@@ -388,6 +391,78 @@ public final class UpstreamBuildControlsReference {
         }
         System.out.println("UPSTREAM_CONFIG_REFERENCE sorterPage=" + (sorterIndex / UpstreamBuildMenu.ROWS + 1)
             + " sorterRow=" + sorterIndex % UpstreamBuildMenu.ROWS + " copperRow=" + copperIndex);
+    }
+
+    private static void verifyStockItemSelectors(UpstreamLiveBuildControls controls, Unit unit) {
+        var expected = Vars.content.blocks().select(block -> block.configurations.containsKey(Item.class));
+        if (expected.size != 9 || !expected.contains(Blocks.ductRouter) || !expected.contains(Blocks.landingPad)) {
+            throw new AssertionError("Unexpected pinned item selector registry: " + expected);
+        }
+        var tile = Vars.world.tile(87, 26);
+        var rules = Vars.state.rules;
+        var planet = rules.planet;
+        var sector = rules.sector;
+        boolean infinite = rules.infiniteResources;
+        boolean editing = rules.allowEditWorldProcessors;
+        boolean editor = rules.editor;
+        try {
+            rules.sector = null;
+            rules.planet = Planets.serpulo;
+            rules.infiniteResources = false;
+            rules.allowEditWorldProcessors = false;
+            rules.editor = false;
+            tile.setBlock(Blocks.landingPad, unit.team(), 0);
+            controls.buildingConfig().open(tile.build);
+            if (controls.buildingConfig().isOpen()) {
+                throw new AssertionError("Stock landing pad access restricted in this game mode");
+            }
+            rules.infiniteResources = true;
+            for (var block : expected) {
+                tile.setBlock(block, unit.team(), 0);
+                selectStockItem(controls, unit, tile.build, Items.copper);
+            }
+            rules.planet = Planets.erekir;
+            tile.setBlock(Blocks.ductRouter, unit.team(), 0);
+            selectStockItem(controls, unit, tile.build, Items.beryllium);
+        } finally {
+            rules.planet = planet;
+            rules.sector = sector;
+            rules.infiniteResources = infinite;
+            rules.allowEditWorldProcessors = editing;
+            rules.editor = editor;
+            tile.setBlock(Blocks.air);
+        }
+        System.out.println("UPSTREAM_STOCK_ITEM_SELECTORS blocks=" + expected.size + " planet=erekir clear=ok");
+    }
+
+    private static void selectStockItem(UpstreamLiveBuildControls controls, Unit unit, Building build, Item item) {
+        var available = Vars.content.items().select(UpstreamItemChoices::accepts);
+        int itemIndex = available.indexOf(item, true);
+        if (itemIndex < 0 || item == Items.beryllium && available.contains(Items.copper)) {
+            throw new AssertionError("Unexpected stock item eligibility for " + item.name + " in " + available);
+        }
+        int itemPage = itemIndex / UpstreamBuildMenu.ROWS, itemRow = itemIndex % UpstreamBuildMenu.ROWS;
+        for (int attempt = 0; attempt < 2; attempt++) {
+            controls.update(unit, 0, touch(305, 64));
+            controls.update(unit, 0, touch(264, 136));
+            var config = controls.buildingConfig();
+            if (!config.isOpen() || config.unitPlans()) {
+                throw new AssertionError("Stock item menu did not open for " + build.block.name);
+            }
+            if (attempt == 0) {
+                for (int page = 0; page < itemPage; page++) {
+                    controls.update(unit, 0, touch(276, UpstreamBuildMenu.FOOTER_TOP + 8));
+                }
+            }
+            if (config.iconIds()[itemRow] != item.id
+                    || (attempt == 0 ? config.selectedRow() >= 0 : config.selectedRow() != itemRow)) {
+                throw new AssertionError("Stock item or selection missing for " + build.block.name);
+            }
+            controls.update(unit, 0, touch(160, UpstreamBuildMenu.ROW_TOP + itemRow * UpstreamBuildMenu.ROW_HEIGHT));
+            if (build.config() != (attempt == 0 ? item : null)) {
+                throw new AssertionError("Stock item configuration failed for " + build.block.name);
+            }
+        }
     }
 
     private static void verifyCatalog(UpstreamLiveBuildControls controls, Unit unit) {

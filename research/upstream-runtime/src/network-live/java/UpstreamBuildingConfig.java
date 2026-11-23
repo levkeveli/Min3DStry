@@ -5,12 +5,12 @@ import mindustry.Vars;
 import mindustry.ctype.UnlockableContent;
 import mindustry.entities.Units;
 import mindustry.gen.Building;
+import mindustry.type.Item;
 import mindustry.type.UnitType;
-import mindustry.world.blocks.distribution.Sorter;
 import mindustry.world.blocks.units.UnitFactory;
 import static mindustry.Vars.player;
 
-/** Touch equivalent of the upstream sorter item and factory plan tables. */
+/** Touch equivalent of the upstream item selector and factory plan tables. */
 final class UpstreamBuildingConfig {
     private record Choice(UnlockableContent content, Object value) {}
 
@@ -21,11 +21,12 @@ final class UpstreamBuildingConfig {
     private final int[] iconIds = new int[UpstreamBuildMenu.ROWS];
 
     void open(Building build) {
-        if (!(build instanceof Sorter.SorterBuild || build instanceof UnitFactory.UnitFactoryBuild)
-                || !build.isValid() || !build.block.configurable || !Units.canInteract(player, build)
-                || !build.configTapped()) return;
+        if (build == null || !build.isValid() || !build.block.configurable || !Units.canInteract(player, build)
+                || !build.shouldShowConfigure(player)) return;
+        boolean itemSelector = build.block.configurations.containsKey(Item.class);
+        if ((!itemSelector && !(build instanceof UnitFactory.UnitFactoryBuild)) || !build.configTapped()) return;
         choices.clear();
-        if (build instanceof Sorter.SorterBuild) {
+        if (itemSelector) {
             for (var item : Vars.content.items()) {
                 if (UpstreamItemChoices.accepts(item)) choices.add(new Choice(item, item));
             }
@@ -34,8 +35,8 @@ final class UpstreamBuildingConfig {
                 var unit = factory.plans.get(index).unit;
                 if (unit.unlockedNow() && !unit.isBanned()) choices.add(new Choice(unit, index));
             }
-            if (choices.isEmpty()) return;
         }
+        if (choices.isEmpty()) return;
         target = build;
         page = Math.max(0, selectedIndex()) / UpstreamBuildMenu.ROWS;
         refreshLabels();
