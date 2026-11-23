@@ -10,8 +10,14 @@ objective panel:
 - the pinned wave row: `wave.cap` (`[accent]Wave {0}/{1}`) when a win wave is
   pending, otherwise the `wave` string (`[accent]Wave {0}`);
 - the pinned `wave.enemy`/`wave.enemies` string only when enemies remain;
+- the stock `wave.enemycore`/`wave.enemycores` row when waves are off and
+  attack mode is active;
 - the pinned `wave.waiting`/`wave.waveInProgress`/`waiting` string when wave
   rules are active, using the stock `HudFragment` timer formatting;
+- the pinned `sector.curcapture` row (`Sector Captured`) when wave rules are
+off and a campaign sector is active;
+- timed stock `sector.capture.current` and `wave.guardianwarn` notification rows;
+- the local unit's stock `stat.health`/`stat.ammo` values;
 - the original copper item glyph and the local core's copper count.
 
 The status rows use the v160.8 font and inline item glyph pipeline shared with
@@ -24,11 +30,26 @@ then submitted through `drawObjective` before the objective rows.
 waits for the renderer marker after the client joins. Both profiles report:
 
 ```text
-UPSTREAM_STATUS_HUD wave=1 enemies=0 copper=200 rows=3
+UPSTREAM_STATUS_HUD wave=1 enemies=0 copper=200 rows=5
 ```
 
 The same runs complete the stock-server combat check and report the packet
 and destroy markers documented in [live-combat.md](../gameplay/live-combat.md).
+
+Host row-text coverage (all ten branches, including capture and enemy cores):
+
+```sh
+gradle -Pprobe=status-hud runProbeJvm \
+  --args=/path/to/romfs/bundles/bundle
+```
+
+```text
+UPSTREAM_STATUS_ROWS cases=10 ok
+UPSTREAM_UNIT_ROWS cases=3 ok
+UPSTREAM_NOTIFICATION cases=2 ok
+UPSTREAM_GUARDIAN_WARNING cases=2 ok
+```
+
 While the wave timer is counting down, the status text changes once per second,
 so `UPSTREAM_STATUS_HUD` is also emitted once per second in timer-on runs.
 
@@ -42,6 +63,6 @@ exactly.
 ## Limitations
 
 - This is the wave/timer/copper slice of the stock HUD, not the complete HUD.
-- Health, ammo, full item list, minimap, notifications and the full stock
-  layout remain open under #40.
+- Full item list, minimap, additional notifications and the full stock layout
+  remain open under #40.
 - Physical Old/New 3DS verification remains open with #43.

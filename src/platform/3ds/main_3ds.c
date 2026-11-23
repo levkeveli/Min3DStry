@@ -27,6 +27,7 @@
 #include "citro2d_backend.h"
 #include "ndsp_backend.h"
 #include "platform/hardware_profile.h"
+#include "platform/frame_stats.h"
 #include "platform/memory_budget.h"
 #include "platform/msav_world.h"
 #include "platform/save_slot.h"
@@ -499,6 +500,10 @@ int main(int argc, char *argv[]) {
 
     M3dsDrawStats stats = {0};
     bool emitted_frame_diag = false;
+    /* Keep this off main's stack: the embedded TeaVM loader runs from this
+     * frame, and a 1 KiB local exhausts its stack budget on hardware. */
+    static M3dsFrameStats frame_stats;
+    m3ds_frame_stats_reset(&frame_stats);
     uint32_t prev_delivered = factory.items_delivered;
     uint32_t prev_enemies_spawned = factory.enemies_spawned;
     uint32_t prev_shots_fired = factory.shots_fired;
@@ -931,6 +936,27 @@ int main(int argc, char *argv[]) {
         (void)m3ds_pause_overlay_render(
             &backend, &scene.viewport, scene.paused, &overlay_stats);
         C3D_FrameEnd(0);
+
+        m3ds_frame_stats_sample(&frame_stats, svcGetSystemTick());
+        if (m3ds_frame_stats_ready(&frame_stats)) {
+            M3dsFrameStatsSummary frame_summary;
+            if (m3ds_frame_stats_summarize(&frame_stats, SYSCLOCK_ARM11,
+                                           &frame_summary)) {
+                snprintf(
+                    dbg_line, sizeof(dbg_line),
+                    "[MIN3DSTRY] BENCH fps=%lu.%02lu avg_ms=%lu.%02lu "
+                    "p95_ms=%lu.%02lu frames=%lu scenario=factory_demo\n",
+                    (unsigned long)(frame_summary.fps_x100 / 100u),
+                    (unsigned long)(frame_summary.fps_x100 % 100u),
+                    (unsigned long)(frame_summary.avg_ms_x100 / 100u),
+                    (unsigned long)(frame_summary.avg_ms_x100 % 100u),
+                    (unsigned long)(frame_summary.p95_ms_x100 / 100u),
+                    (unsigned long)(frame_summary.p95_ms_x100 % 100u),
+                    (unsigned long)frame_summary.frames);
+                m3ds_emit_debug_line(log_socket, dbg_line);
+            }
+            m3ds_frame_stats_reset(&frame_stats);
+        }
 
         printf("\x1b[1;1HMin3DStry - Factory Prototype\x1b[K");
         printf("\x1b[2;1HTick: %lu (%s)\x1b[K",

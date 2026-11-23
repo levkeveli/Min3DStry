@@ -5,6 +5,7 @@ import arc.files.Fi;
 import mindustry.Vars;
 import mindustry.ai.BlockIndexer;
 import mindustry.ai.WaveSpawner;
+import mindustry.content.Items;
 import mindustry.content.SectorPresets;
 import mindustry.core.GameState;
 import mindustry.core.Logic;
@@ -26,6 +27,7 @@ public final class UpstreamCampaignCaptureProbe {
         settings.setAutosave(false);
         settings.setJson(JsonIO.json);
         Core.settings = settings;
+        UpstreamSectorCapture.install();
 
         Sector sector = SectorPresets.groundZero.sector;
         if(sector == null || sector.id != 15 || sector.preset != SectorPresets.groundZero){
@@ -47,12 +49,24 @@ public final class UpstreamCampaignCaptureProbe {
         Vars.state.gameOver = false;
         Vars.state.set(GameState.State.playing);
 
+        var core = Vars.state.rules.defaultTeam.core();
+        if(core == null){
+            throw new IllegalStateException("Capture probe requires a player core");
+        }
+        core.items.set(Items.copper, 250);
+        core.items.set(Items.lead, 75);
+
         if(sector.isCaptured()){
             throw new IllegalStateException("Sector was captured before the capture call");
         }
 
         Logic.sectorCapture();
         app.runPosted();
+        if(UpstreamNotification.current() == null){
+            throw new IllegalStateException("Capture notification was not raised");
+        }
+        System.out.println("UPSTREAM_CAMPAIGN_NOTIFICATION text="
+            + UpstreamNotification.current());
 
         if(!eventCaptured[0]){
             throw new IllegalStateException("SectorCaptureEvent was not dispatched");
@@ -66,15 +80,25 @@ public final class UpstreamCampaignCaptureProbe {
         if(!sector.isCaptured()){
             throw new IllegalStateException("Captured sector did not report isCaptured");
         }
+        if(sector.info.items.get(Items.copper) != 250 || sector.info.items.get(Items.lead) != 75){
+            throw new IllegalStateException("Capture rewards did not retain core items");
+        }
+        if(!sector.info.hasCore || sector.info.bestCoreType == null || sector.info.storageCapacity <= 0){
+            throw new IllegalStateException("Capture rewards did not retain core metadata");
+        }
 
         sector.info.prepare(sector);
-        sector.saveInfo();
         String key = sector.planet.name + "-s-" + sector.id + "-info";
         var persisted = Core.settings.getJson(key, mindustry.game.SectorInfo.class,
             mindustry.game.SectorInfo::new);
         if(!persisted.wasCaptured || persisted.waves || persisted.attack){
             throw new IllegalStateException("Sector capture did not persist through SectorInfo JSON");
         }
+        if(persisted.items.get(Items.copper) != 250 || persisted.items.get(Items.lead) != 75){
+            throw new IllegalStateException("Capture rewards did not persist through SectorInfo JSON");
+        }
+        System.out.println("UPSTREAM_CAMPAIGN_CAPTURE_REWARDS copper=250 lead=75"
+            + " core=" + sector.info.bestCoreType.name + " storage=" + sector.info.storageCapacity);
 
         System.out.println("UPSTREAM_CAMPAIGN_CAPTURE sector=15 captured=ok"
             + " waves=off attack=off event=ok persisted=ok");

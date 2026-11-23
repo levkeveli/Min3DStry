@@ -103,6 +103,7 @@ typedef struct M3dsAudioStreamBackend {
     void (*set_mix)(void *ctx, float gain_left, float gain_right);
     void (*set_paused)(void *ctx, bool paused);
     void (*stop)(void *ctx);
+    void (*set_rate)(void *ctx, float sample_rate);
 } M3dsAudioStreamBackend;
 
 typedef struct M3dsAudioStreamStats {
@@ -130,6 +131,8 @@ typedef struct M3dsAudioStream {
     bool looping;
     bool eof;
     float volume;
+    float pan;
+    float pitch;
     float master_volume;
     bool slot_in_flight[M3DS_AUDIO_STREAM_BUFFER_COUNT];
     uint32_t slot_frames[M3DS_AUDIO_STREAM_BUFFER_COUNT];
@@ -157,6 +160,8 @@ void m3ds_audio_stream_update(M3dsAudioStream *stream);
 
 void m3ds_audio_stream_set_volume(M3dsAudioStream *stream, float volume);
 float m3ds_audio_stream_volume(const M3dsAudioStream *stream);
+void m3ds_audio_stream_set_mix(M3dsAudioStream *stream, float volume, float pan);
+void m3ds_audio_stream_set_pitch(M3dsAudioStream *stream, float pitch);
 void m3ds_audio_stream_set_master_volume(M3dsAudioStream *stream, float volume);
 float m3ds_audio_stream_master_volume(const M3dsAudioStream *stream);
 
