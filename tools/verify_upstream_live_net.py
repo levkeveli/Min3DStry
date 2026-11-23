@@ -1344,12 +1344,51 @@ def verify_quad_markers(log, emulator, server_log, server, rpc, output, model, p
     print(f"{model}: stock quad tint, atlas clipping, corner update and retargeting passed.", flush=True)
 
 
+def load_canvas_fixture(server_log, server):
+    send_marker_phase(server_log, server, "canvas-fixture",
+        "const t=Vars.state.rules.defaultTeam; "
+        "Vars.world.tile(75,29).setBlock(Blocks.canvas,t); "
+        "Vars.world.tile(77,29).setBlock(Blocks.canvas,t); "
+        "Vars.world.tile(77,23).setBlock(Blocks.largeCanvas,t); "
+        "const small=Vars.world.build(77,29), large=Vars.world.build(77,23); "
+        "for (let y=0; y<12; y++) for (let x=0; x<12; x++) "
+        "small.setPixel(y*12+x, y<6 ? (x<6 ? 1 : 2) : (x<6 ? 4 : 6)); "
+        "for (let y=0; y<24; y++) for (let x=0; x<24; x++) "
+        "large.setPixel(y*24+x, x<12 ? 3 : 8);")
+
+
+def verify_canvas(server_log, server, rpc, output, model, timeout):
+    # The original Glacier camera starts centered at world (648, 208).
+    # Sample inside the original 12×12 and 24×24 pictures, away from their borders.
+    small_points = ((130, 30), (150, 30), (130, 50), (150, 50))
+    large_points = ((115, 155), (145, 185))
+    marker_points = ((261, 51), (279, 51), (261, 69), (279, 69))
+    small = ((196, 93, 159), (227, 154, 172), (100, 97, 194), (147, 212, 181))
+    large = ((250, 191, 97), (120, 194, 214))
+    changed = ((240, 218, 177), (43, 169, 180), (240, 218, 177), (43, 169, 180))
+
+    capture_marker_pixels(rpc, output, model, "canvas-loaded", small_points + large_points, timeout, small + large)
+    send_marker_phase(server_log, server, "canvas-marker",
+        "const c=Vars.world.build(77,29); "
+        "Call.createMarker(753,new MapObjectives.TextureMarker(c,672,228,16,16));")
+    points = small_points + large_points + marker_points
+    capture_marker_pixels(rpc, output, model, "canvas-marker", points, timeout, small + large + small)
+
+    send_marker_phase(server_log, server, "canvas-configured",
+        "const staging=Vars.world.build(75,29), canvas=Vars.world.build(77,29); "
+        "for(let i=0; i<144; i++) staging.setPixel(i, i%12<6 ? 3 : 5); "
+        "canvas.configureAny(staging.data); "
+        'if(canvas.getPixel(0)!==3 || canvas.getPixel(11)!==5) throw "Canvas config mismatch";')
+    capture_marker_pixels(rpc, output, model, "canvas-updated", points, timeout, changed + large + changed)
+    print(f"{model}: stock Canvas snapshot pixels, live configuration and linked marker passed.", flush=True)
+
+
 def run_model(args, model, config, original_config, log, output):
     stationary = (args.world_atlas_recycle or args.building_layers or args.liquids
                   or args.building_effects or args.payload_mix or args.carried_buildings
                   or args.payload_handoff or args.unit_layers or args.unit_roster or args.naval_wake
                   or args.tank_treads or args.map_spawn or args.combat
-                  or args.verify_logic_markers or args.verify_texture_markers or args.verify_quad_markers)
+                  or args.verify_logic_markers or args.verify_texture_markers or args.verify_quad_markers or args.verify_canvas)
     map_name = args.map_spawn or "Glacier"
     overrides = {
         "Miscellaneous": {"log_filter": "*:Info Debug.Emulated:Debug Service.SOC:Debug",
@@ -1388,6 +1427,8 @@ def run_model(args, model, config, original_config, log, output):
             server.stdin.flush()
             wait_for(server_log, server, f"Opened a server on port {args.port}\\.", 25)
             world_size = (150, 250)
+            if args.verify_canvas:
+                load_canvas_fixture(server_log, server)
             if args.erekir_build:
                 server.stdin.write(
                     'js (() => { const core = Vars.state.rules.defaultTeam.core(); '
@@ -1655,6 +1696,8 @@ def run_model(args, model, config, original_config, log, output):
                             verify_quad_markers(log, emulator, server_log, server, rpc, output, model, spawn, args.timeout)
                         if args.verify_stock_font:
                             wait_for(log, emulator, r"UPSTREAM_RENDER_KEEPALIVE transport=tcp\b", 5)
+                        if args.verify_canvas:
+                            verify_canvas(server_log, server, rpc, output, model, args.timeout)
                         if args.erekir_build:
                             verify_erekir_construction(log, emulator, server_log, server, args.timeout, capture, spawn)
                         if args.mining:
@@ -1878,6 +1921,8 @@ def main():
                         help="Require the original inline item and block art in the Onset markers")
     parser.add_argument("--verify-stock-hud", action="store_true",
                         help="Require the original font on the campaign objective HUD")
+    parser.add_argument("--verify-canvas", action="store_true",
+                        help="Verify original Canvas pixels in Glacier snapshots, configuration and linked markers")
     parser.add_argument("--require-relocation-spill", action="store_true",
                         help="Require the ARM11 collector to grow its relocation table during the spawn check")
     args = parser.parse_args()
@@ -1974,6 +2019,8 @@ def main():
         parser.error("--verify-styled-markers needs --verify-stock-font")
     if args.verify_stock_hud and not (args.verify_objective_hud or args.verify_objective_markers):
         parser.error("--verify-stock-hud needs --verify-objective-hud or --verify-objective-markers")
+    if args.verify_canvas and (not args.controls or not args.terrain_atlas or args.controls_replay or args.map_spawn):
+        parser.error("--verify-canvas needs stationary --controls and --terrain-atlas on Glacier")
     if args.erekir_sector is not None:
         if not args.map_spawn or not re.fullmatch(r"[a-z][a-z-]*", args.erekir_sector):
             parser.error("--erekir-sector needs --map-spawn and a sector slug such as onset")

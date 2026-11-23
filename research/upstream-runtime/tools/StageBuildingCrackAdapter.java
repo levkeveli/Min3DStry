@@ -51,5 +51,6 @@ public final class StageBuildingCrackAdapter {
         Files.write(output, writer.toByteArray());
         StageNavalWakeAdapter.stage(Path.of(args[0]), Path.of(args[1]));
         StageObjectiveLabelAdapter.stage(Path.of(args[0]), Path.of(args[1]));
+        StageCanvasAdapter.stage(Path.of(args[0]), Path.of(args[1]));
     }
 }

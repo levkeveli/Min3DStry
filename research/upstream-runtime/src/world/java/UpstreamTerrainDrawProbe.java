@@ -23,6 +23,7 @@ import mindustry.world.Tile;
 import mindustry.world.blocks.environment.Floor;
 import mindustry.world.blocks.units.UnitCargoLoader;
 import port.render.UpstreamUnitBuildTarget;
+import port.render.UpstreamCanvasTexture;
 
 /** Captures the upstream terrain draw calls before they reach a GPU. */
 public final class UpstreamTerrainDrawProbe {
@@ -46,6 +47,10 @@ public final class UpstreamTerrainDrawProbe {
                                    float x, float y, float drawWidth, float drawHeight, float rotation,
                                    float progress, Color tint, float alpha, float phase, int vertexColor) {
             throw new UnsupportedOperationException("This terrain target does not draw stock unit construction");
+        }
+        default void drawCanvas(UpstreamCanvasTexture texture, float x, float y, float originX, float originY,
+                                float width, float height, float rotation, int color, int mixColor, Blending blending) {
+            throw new IllegalStateException("Unsupported Arc Canvas texture");
         }
         void end();
     }
@@ -341,6 +346,13 @@ public final class UpstreamTerrainDrawProbe {
                             float width, float height, float rotation) {
             // OpenGL discards degenerate quads, including an empty payload crop.
             if (region.width == 0 || region.height == 0 || width == 0f || height == 0f) return;
+            if (region.texture instanceof UpstreamCanvasTexture canvas) {
+                if (target != null && !canvas.isDisposed()) {
+                    int color = Color.floatToIntColor(colorPacked), mixColor = Color.floatToIntColor(mixColorPacked);
+                    draw(() -> target.drawCanvas(canvas, x, y, originX, originY, width, height, rotation, color, mixColor, blending));
+                }
+                return;
+            }
             if (region == Core.atlas.find("error")) throw new IllegalStateException("Missing terrain sprite");
             var page = (AtlasPageTexture) region.texture;
             if (edgeSources != null) collect(region, page, x, y, originX, originY, width, height, rotation);

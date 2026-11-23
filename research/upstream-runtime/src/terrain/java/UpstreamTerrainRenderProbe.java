@@ -8,6 +8,7 @@ import mindustry.Vars;
 import org.teavm.interop.Import;
 import org.teavm.interop.Address;
 import org.teavm.interop.c.Include;
+import port.render.UpstreamCanvasTexture;
 
 public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProbe.TerrainTarget {
     static final int PALETTE_LABEL_COUNT = 15;
@@ -131,6 +132,16 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
         }
     }
 
+    @Override
+    public void drawCanvas(UpstreamCanvasTexture texture, float x, float y, float originX, float originY,
+                           float width, float height, float rotation, int color, int mixColor, Blending blending) {
+        if (NativeTerrain.drawCanvas(texture.id, texture.revision, texture.width, texture.height,
+                Address.ofData(texture.pixels), x, y, originX, originY, width, height, rotation, color, mixColor,
+                blendMode(blending)) == 0) {
+            throw new IllegalStateException("Citro2D could not draw the stock Canvas texture");
+        }
+    }
+
     private static int blendMode(Blending blending) {
         if (blending == Blending.normal) return 0;
         if (blending == Blending.additive) return 1;
@@ -181,6 +192,11 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
 
         @Import(name = "m3ds_terrain_draw_textured_quad")
         static native int drawTexturedQuad(int page, int pageWidth, int pageHeight, Address vertices, int offset, int blendMode);
+
+        @Import(name = "m3ds_terrain_draw_canvas")
+        static native int drawCanvas(int id, int revision, int width, int height, Address pixels,
+                                     float x, float y, float originX, float originY, float drawWidth, float drawHeight,
+                                     float rotation, int color, int mixColor, int blendMode);
 
         @Import(name = "m3ds_terrain_end")
         static native int end();
