@@ -13,7 +13,7 @@ import port.render.UpstreamLogicFramebuffer.RasterTexture;
 import port.render.WeatherNoiseTexture;
 
 public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProbe.TerrainTarget {
-    static final int PALETTE_LABEL_COUNT = 15;
+    static final int PALETTE_LABEL_COUNT = 18;
 
     private final boolean reportFrame;
     private final int[] stockObjectiveFont = new int[1];
@@ -49,10 +49,10 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
     void buildOverlay(int column, int row, int block, int rotation,
                       boolean removing, boolean rotatable, boolean catalogOpen, boolean configuring,
                       boolean selectingMine, int inventoryAction, int commandMode, boolean selectingControl,
-                      boolean placingSchematic) {
+                      boolean placingSchematic, int payloadActions) {
         if (NativeTerrain.buildOverlay(column, row, block, rotation, removing ? 1 : 0, Vars.tilesize,
                 rotatable ? 1 : 0, catalogOpen ? 1 : 0, configuring ? 1 : 0, selectingMine ? 1 : 0,
-                inventoryAction, commandMode, selectingControl ? 1 : 0, placingSchematic ? 1 : 0) == 0) {
+                inventoryAction, commandMode, selectingControl ? 1 : 0, placingSchematic ? 1 : 0, payloadActions) == 0) {
             throw new IllegalStateException("Unable to draw the Citro2D build palette");
         }
     }
@@ -260,7 +260,7 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
         @Import(name = "m3ds_terrain_build_overlay")
         static native int buildOverlay(int column, int row, int block, int rotation, int removing, int tileSize,
                                        int rotatable, int catalogOpen, int configuring, int selectingMine,
-                                       int inventoryAction, int commandMode, int selectingControl, int placingSchematic);
+                                       int inventoryAction, int commandMode, int selectingControl, int placingSchematic, int payloadActions);
 
         @Import(name = "m3ds_terrain_draw_chat_line")
         static native float drawChatLine(Address text, Address characters, int count, float bottom);

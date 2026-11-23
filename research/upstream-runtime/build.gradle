@@ -19,6 +19,7 @@ def soundSource = 'arc-core/src/arc/audio/Sound.java'
 def osSource = 'arc-core/src/arc/util/OS.java'
 def networkIoSource = 'core/src/mindustry/net/NetworkIO.java'
 def netClientSource = 'core/src/mindustry/core/NetClient.java'
+def inputHandlerSource = 'core/src/mindustry/input/InputHandler.java'
 def placementSource = 'core/src/mindustry/ui/fragments/PlacementFragment.java'
 def itemSelectionSource = 'core/src/mindustry/world/blocks/ItemSelection.java'
 def logicExecutorSource = 'mindustry/logic/LExecutor.java'
@@ -154,6 +155,7 @@ def arcJsonFile = sourceDir.map { it.file('arc/util/serialization/Json.java') }
 def networkIoFile = sourceDir.map { it.file('mindustry/net/NetworkIO.java') }
 def netClientFile = sourceDir.map { it.file('mindustry/core/NetClient.java') }
 def schematicsFile = sourceDir.map { it.file('mindustry/game/Schematics.java') }
+def payloadInputFile = sourceDir.map { it.file('UpstreamPayloadInput.java') }
 def placementFile = sourceDir.map { it.file('UpstreamPlacementCatalog.java') }
 def itemChoicesFile = sourceDir.map { it.file('UpstreamItemChoices.java') }
 def planetGridFile = sourceDir.map { it.file('mindustry/graphics/g3d/PlanetGrid.java') }
@@ -528,7 +530,7 @@ tasks.register('prepareUpstreamProbe') {
         outputs.file(networkIoFile)
     }
     if (usesBuildControls) {
-        outputs.files(placementFile, itemChoicesFile, schematicsFile)
+        outputs.files(placementFile, itemChoicesFile, schematicsFile, payloadInputFile)
     }
     if (usesLiveNetwork) {
         outputs.files(netClientFile, pathfinderFile)
@@ -1052,6 +1054,28 @@ final class GlacierFixture {
         this(new ReusableByteInStream());'''), 'UTF-8')
         }
         if (usesBuildControls) {
+            def input = new String(readUpstream(inputHandlerSource), 'UTF-8')
+            def pickup = input =~ /(?m)^    public void tryPickupPayload\(\)\{[\s\S]*?^    \}/
+            def drop = input =~ /(?m)^    public void tryDropPayload\(\)\{[\s\S]*?^    \}/
+            if (pickup.count != 1 || drop.count != 1) {
+                throw new GradleException('Pinned InputHandler stock payload actions changed')
+            }
+            payloadInputFile.get().asFile.setText("""// Payload actions from pinned upstream InputHandler.java (GPL-3.0).
+import mindustry.entities.Units;
+import mindustry.gen.Building;
+import mindustry.gen.Call;
+import mindustry.gen.Payloadc;
+import mindustry.gen.Unit;
+import mindustry.world.blocks.payloads.Payload;
+import mindustry.world.meta.BuildVisibility;
+import static mindustry.Vars.*;
+
+final class UpstreamPayloadInput {
+${pickup[0].replace('public void', 'static void')}
+
+${drop[0].replace('public void', 'static void')}
+}
+""", 'UTF-8')
             def schematics = new String(readUpstream('core/src/mindustry/game/Schematics.java'), 'UTF-8')
             def viewer = 'Team team = headless ? null : Vars.player.team();'
             if (schematics.count(viewer) != 1) {
