@@ -236,7 +236,11 @@ ordinary simulation ticks. Stock Java reopens the resulting save and
 settings and verifies the turn, active core, remote inventories, and
 legacy launch pad setting. The generated TeaVM C reference produced the same
 result on the host and stock Java reopened its output. The Linux smoke job
-runs that same reference and stock readback.
+runs that same reference and stock readback. The graphical replay checks
+the same turn from the campaign menu. It saves at intervals and waits
+for the first checkpoint with the imported copper so render speed
+does not determine when the check runs. The two remote sector map
+files must stay byte-identical.
 
 ```sh
 python3 tools/campaign_background_fixture.py --server server-release.jar --create /path/to/fixture
@@ -244,6 +248,33 @@ python3 tools/campaign_background_fixture.py --server server-release.jar --creat
 gradle -Pprobe=unified runBackgroundCampaignTurnJvm --args="/path/to/fixture /path/to/assets /path/to/assets/bundle /path/to/new-output"
 python3 tools/campaign_background_fixture.py --server server-release.jar --check /path/to/new-output
 ```
+
+`tools/verify_upstream_campaign_background.py` accepts the unified ARM11
+ROM and the unmodified v160.8 server JAR. It creates a separate virtual
+SD per emulator profile and reopens each resulting save with stock Java.
+
+The dedicated ARM11 `campaign-background` probe runs the same original
+simulation ticks independently of graphical frame pacing. Generate it
+with `-Pprobe=campaign-background generateC` and compile the output with
+`arm11/build.sh <generated-c> <output> --campaign-background`, which uses
+the same native stack size as the graphical game. Run
+`tools/verify_arm11_background_turn.py --rom upstream-probe.3dsx --server server-release.jar --assets /path/to/prepared-assets --output /path/to/new-output`.
+Use maps, planets, and the base bundle staged from the pinned original
+assets. Both emulated console profiles produce a result directory for
+stock Java readback.
+
+The [dedicated ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45181223120)
+passed one complete stock turn on both Azahar 2126.2 profiles. Stock Java
+reopened the resulting settings and save with 37 copper in the active
+core, 100 copper and zero lead at the producer, and 11 copper at the
+attacked sector. Both remote map files remained byte-identical.
+
+The [unified graphical build](https://github.com/levkeveli/Min3DStry/actions/runs/45177492172)
+passed the same stock Java readback on both Azahar profiles after opening
+Ground Zero from the campaign menu. The verifier captured the rendered
+world, saved the completed turn through SELECT, and checked both
+unchanged remote world files. The build also includes the campaign retry
+collector fix from #340.
 
 ## New campaign
 
