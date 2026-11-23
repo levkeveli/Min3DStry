@@ -101,6 +101,11 @@ The JVM checks use the stock Dagger controller for formation, queued
 moves, and an attack order. A stock Glacier fixture verifies unit
 movement and the original Ground Factory rally point across a save.
 
+The [ARM11 command build](https://github.com/levkeveli/Min3DStry/actions/runs/45090780591)
+passed on Azahar 2126.2 Original and New 3DS profiles. Stock Java
+verified that both Daggers moved and that the Ground Factory had the
+chosen rally point in both offline saves and both live sessions.
+
 ```bash
 python3 tools/verify_stock_command_orders.py \
   --rom /path/to/unified/upstream-probe.3dsx \

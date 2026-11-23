@@ -463,7 +463,7 @@ public final class UpstreamSinglePlayerApp {
             if (unit != null) {
                 buildingControls.update(unit, input, touch);
                 boolean overlay = buildingControls.catalog().isOpen() || buildingControls.buildingConfig().isOpen()
-                    || buildingControls.inventory().isOpen();
+                    || buildingControls.inventory().isOpen() || buildingControls.orders().active();
                 weaponInput.update(unit, moveInput, weaponInput.aimMode() && !moveInput.isZero(),
                     fireHeld && !overlay && !Vars.state.isPaused());
             }
