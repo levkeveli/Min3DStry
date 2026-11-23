@@ -899,7 +899,27 @@ outline of an active Quasar shield. The
 [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44872900057)
 passed on both Old and New 3DS Azahar profiles with Alpha, Beta, Flare,
 Fortress, Pulsar, Vela and Quasar in the same Glacier viewport.
+
+The live draw path loads stock unit art when the unit or its payload first
+appears in the viewport. It reads each type from the upstream content registry.
+The JVM reference drew all 68 v160.8 world unit types with the official atlas,
+including the Anthicus missile's textured quad and the segmented crawler
+sprites. The registry also has two internal `BlockUnit` types that upstream
+keeps attached to buildings. This check also covers team tint, weapon layers,
+payloads, naval wakes, tank treads, and the Quasar shield. Add
+`--expanded-unit-roster` to `--controls --unit-roster --terrain-atlas` to test
+the expanded roster. The stock Glacier server sends an Elude, an Anthicus
+missile, and a Mega carrying a Horizon. The verifier checks when their
+atlas art loads and compares the regions before and after the additions.
+The original [ARM11 test build](https://github.com/levkeveli/Min3DStry/actions/runs/45063728314)
+rendered the Elude and missile on both Azahar profiles and passed the existing
+team-cell and Quasar shield checks.
 The same build also passed the live wall and Dagger handoff on both profiles.
+The [combined ARM11 replay](https://github.com/levkeveli/Min3DStry/actions/runs/45116142229)
+passed all three framebuffer comparisons on both Azahar profiles and
+loaded the carried Horizon art through the live draw path. Use
+`--unified-boot` with the combined ROM to select Join and keep the
+camera still.
 
 For naval wakes, the build exposes the original `WaterMoveComp` wake
 update from the pinned generated `UnitWaterMove` class. The client

@@ -22,6 +22,7 @@ import mindustry.core.UI;
 import mindustry.game.EventType.WorldLoadEvent;
 import mindustry.gen.Building;
 import mindustry.gen.Groups;
+import mindustry.gen.Payloadc;
 import mindustry.gen.Tankc;
 import mindustry.gen.Unit;
 import mindustry.gen.UnitWaterMove;
@@ -117,7 +118,7 @@ public final class UpstreamRenderedNetworkProbe {
         UpstreamTerrainDrawProbe.loadAtlas(atlas, UpstreamFluidAtlas::load);
         Vars.content.loadColors(new Fi("/romfs/block_colors.png"));
         UpstreamCrackAtlas.load();
-        loadUnitGraphics();
+        drawableUnits.clear();
         UpstreamClientProjectiles.load();
         viewport = UpstreamTerrainDrawProbe.liveViewport(target);
         target.initialize();
@@ -141,25 +142,24 @@ public final class UpstreamRenderedNetworkProbe {
         System.out.println("UPSTREAM_BUILD_SHORTCUTS primary=" + primary.name + " secondary=" + secondary.name);
     }
 
-    static UnitType[] loadUnitGraphics() {
-        var types = new UnitType[]{
-            UnitTypes.alpha, UnitTypes.beta, UnitTypes.gamma,
-            UnitTypes.evoke, UnitTypes.incite, UnitTypes.emanate,
-            UnitTypes.dagger, UnitTypes.mace, UnitTypes.fortress, UnitTypes.scepter, UnitTypes.reign, UnitTypes.crawler,
-            UnitTypes.nova, UnitTypes.pulsar, UnitTypes.quasar, UnitTypes.vela,
-            UnitTypes.flare, UnitTypes.horizon, UnitTypes.zenith, UnitTypes.antumbra, UnitTypes.eclipse,
-            UnitTypes.mono, UnitTypes.poly,
-            UnitTypes.risso, UnitTypes.minke, UnitTypes.bryde, UnitTypes.sei, UnitTypes.omura,
-            UnitTypes.retusa, UnitTypes.oxynoe, UnitTypes.cyerce, UnitTypes.aegires, UnitTypes.navanax,
-            UnitTypes.stell, UnitTypes.locus, UnitTypes.precept, UnitTypes.vanquish, UnitTypes.conquer
-        };
-        drawableUnits.clear();
-        for (var type : types) {
+    static boolean loadUnitGraphics(UnitType type) {
+        if (type == null) return false;
+        if (!drawableUnits.contains(type)) {
             type.loadIcon();
             type.load();
             drawableUnits.add(type);
+            System.out.println("UPSTREAM_NETWORK_UNIT_ART type=" + type.name);
         }
-        return types;
+        return true;
+    }
+
+    static boolean loadUnitGraphics(Unit unit) {
+        if (!loadUnitGraphics(unit.type())) return false;
+        if (unit instanceof Payloadc carrier && carrier.hasPayload()
+                && carrier.payloads().first() instanceof UnitPayload payload) {
+            loadUnitGraphics(payload.unit);
+        }
+        return true;
     }
 
     private void render(Unit unit) {
@@ -230,10 +230,10 @@ public final class UpstreamRenderedNetworkProbe {
         Draw.sort(true);
         try {
             for (var unit : Groups.unit) {
-                if (!supportsUnit(unit.type())) continue;
                 int x = World.toTile(unit.x()), y = World.toTile(unit.y());
                 if (x < viewport.left || x >= viewport.left + UpstreamTerrainDrawProbe.VIEW_WIDTH
                         || y < viewport.bottom || y >= viewport.bottom + UpstreamTerrainDrawProbe.VIEW_HEIGHT) continue;
+                if (!loadUnitGraphics(unit)) continue;
                 unit.draw();
                 if (unit == controlled) draws++;
                 if (unit.type() == UnitTypes.dagger && unit.team == Vars.state.rules.waveTeam
@@ -396,15 +396,11 @@ public final class UpstreamRenderedNetworkProbe {
     }
 
     private static boolean supportsCargo(PayloadConveyorBuild conveyor) {
-        if (conveyor.item instanceof UnitPayload payload) return supportsUnit(payload.unit.type());
+        if (conveyor.item instanceof UnitPayload payload) return loadUnitGraphics(payload.unit);
         return conveyor.item instanceof BuildPayload payload
             && (payload.block() == Blocks.copperWall || payload.block() == Blocks.copperWallLarge
                 || payload.block() == Blocks.mechanicalDrill || payload.build instanceof ConveyorBuild
                 || payload.build instanceof PayloadConveyorBuild);
-    }
-
-    private static boolean supportsUnit(UnitType type) {
-        return type != null && drawableUnits.contains(type);
     }
 
     private void drawMenu(byte[] labels, int[] icons, int selected,
