@@ -5,6 +5,7 @@ import mindustry.Vars;
 import mindustry.content.Blocks;
 import mindustry.io.MapIO;
 import mindustry.world.Block;
+import mindustry.world.blocks.storage.CoreBlock.CoreBuild;
 import mindustry.world.Tile;
 
 /** Samples the live world into an RGBA8 minimap grid using the stock color path. */
@@ -32,22 +33,33 @@ public final class UpstreamMinimap {
                 pixels[index + 3] = (byte) 255;
             }
         }
+        var localTeam = Vars.player == null ? null : Vars.player.team();
+        if (localTeam != null) {
+            for (CoreBuild core : localTeam.cores()) {
+                int index = cellIndex(size, worldWidth, worldHeight, core.tileX(), core.tileY());
+                if (index < 0) continue;
+                int x = index % size;
+                int y = index / size;
+                for (int dy = 0; dy < 2; dy++) {
+                    for (int dx = 0; dx < 2; dx++) {
+                        putBlip(pixels, size, x + dx, y + dy, localTeam.color.r, localTeam.color.g, localTeam.color.b);
+                    }
+                }
+            }
+        }
         int player = playerIndex(size);
-        if (player >= 0) {
+        var playerModel = Vars.player == null ? null : Vars.player.unit();
+        if (player >= 0 && playerModel != null) {
             int px = player % size;
             int py = player / size;
             for (int dy = 0; dy < 2; dy++) {
                 for (int dx = 0; dx < 2; dx++) {
-                    int x = px + dx;
-                    int y = py + dy;
-                    if (x >= size || y >= size) continue;
-                    int index = (y * size + x) * 4;
-                    pixels[index] = (byte) 255;
-                    pixels[index + 1] = (byte) 255;
-                    pixels[index + 2] = (byte) 255;
-                    pixels[index + 3] = (byte) 255;
+                    putBlip(pixels, size, px + dx, py + dy, 1f, 1f, 1f);
                 }
             }
+            int tipX = px + Math.round(arc.math.Mathf.cosDeg(playerModel.rotation()) * 2f);
+            int tipY = py + Math.round(arc.math.Mathf.sinDeg(playerModel.rotation()) * 2f);
+            putBlip(pixels, size, tipX, tipY, 1f, 1f, 1f);
         }
         return pixels;
     }
@@ -91,6 +103,19 @@ public final class UpstreamMinimap {
     private static Block realBlock(Tile tile) {
         if (tile.build == null) return tile.block();
         return Vars.state.rules.fog && !tile.build.wasVisible ? Blocks.air : tile.block();
+    }
+
+    private static void putBlip(byte[] pixels, int size, int x, int y, float r, float g, float b) {
+        if (x < 0 || y < 0 || x >= size || y >= size) return;
+        int index = (y * size + x) * 4;
+        pixels[index] = (byte) channel(r);
+        pixels[index + 1] = (byte) channel(g);
+        pixels[index + 2] = (byte) channel(b);
+        pixels[index + 3] = (byte) 255;
+    }
+
+    private static int channel(float value) {
+        return Math.max(0, Math.min(255, Math.round(value * 255f)));
     }
 
     public static long hash(byte[] pixels) {
