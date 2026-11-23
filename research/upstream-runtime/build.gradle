@@ -155,6 +155,8 @@ def itemChoicesFile = sourceDir.map { it.file('UpstreamItemChoices.java') }
 def planetGridFile = sourceDir.map { it.file('mindustry/graphics/g3d/PlanetGrid.java') }
 def contentColorsFile = sourceDir.map { it.file('mindustry/core/ContentLoader.java') }
 def globalVarsFile = sourceDir.map { it.file('mindustry/logic/GlobalVars.java') }
+def bulletTypePath = 'mindustry/entities/bullet/BulletType.java'
+def bulletTypeFile = sourceDir.map { it.file(bulletTypePath) }
 def unitTypeFile = sourceDir.map { it.file('mindustry/type/UnitType.java') }
 def factoryResourcesFile = sourceDir.map { it.file('port/FactoryResources.java') }
 def shieldModeSources = [
@@ -221,7 +223,8 @@ if (usesArcSources || usesExecutor) {
         stagedClasses.addAll(['mindustry/logic/GlobalVars.class', 'mindustry/logic/GlobalVars$*.class'])
     }
     if (usesRenderedClient) {
-        stagedClasses.addAll(['mindustry/type/UnitType.class', 'mindustry/type/UnitType$*.class'])
+        stagedClasses.addAll(['mindustry/type/UnitType.class', 'mindustry/type/UnitType$*.class',
+                              'mindustry/entities/bullet/BulletType.class', 'mindustry/entities/bullet/BulletType$*.class'])
     }
     if (patchesPlanetGrid) {
         stagedClasses.addAll(['mindustry/graphics/g3d/PlanetGrid.class', 'mindustry/graphics/g3d/PlanetGrid$*.class'])
@@ -468,7 +471,7 @@ tasks.register('prepareUpstreamProbe') {
         fluidSources.keySet().each { outputs.file(sourceDir.map { dir -> dir.file(it) }) }
     }
     if (usesRenderedClient) {
-        outputs.files(contentColorsFile, unitTypeFile)
+        outputs.files(contentColorsFile, unitTypeFile, bulletTypeFile)
         shieldModeSources.keySet().each { outputs.file(sourceDir.map { dir -> dir.file(it) }) }
     }
     if (usesCampaignJsonCompat) {
@@ -479,6 +482,15 @@ tasks.register('prepareUpstreamProbe') {
     }
     doLast {
         if (usesRenderedClient) {
+            def bulletType = new String(readUpstream("core/src/$bulletTypePath"), 'UTF-8')
+            def trailGuard = 'if(!headless && trailLength > 0){'
+            if (bulletType.count(trailGuard) != 1) {
+                throw new GradleException('Pinned projectile trail update changed')
+            }
+            def adaptedBulletType = bulletTypeFile.get().asFile
+            adaptedBulletType.parentFile.mkdirs()
+            adaptedBulletType.setText(bulletType.replace(trailGuard,
+                'if((!headless || Core.batch != null) && trailLength > 0){'), 'UTF-8')
             def loader = new String(readUpstream('core/src/mindustry/core/ContentLoader.java'), 'UTF-8')
             def loadColors = '''public void loadColors(){
         Pixmap pixmap = new Pixmap(files.internal("sprites/block_colors.png"));'''

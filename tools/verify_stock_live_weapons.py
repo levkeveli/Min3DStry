@@ -2,6 +2,8 @@
 
 import argparse
 from pathlib import Path
+import re
+import time
 
 import verify_upstream_singleplayer as sp
 from verify_stock_command_orders import replay
@@ -44,6 +46,31 @@ OBSERVER = (
 )
 
 
+REMOTE_PROJECTILES = (
+    '(() => { const team=Vars.state.rules.defaultTeam; '
+    'const tile=Vars.world.tile(74,30); tile.setBlock(Blocks.microProcessor,team,0); '
+    'for(let x=82; x<=89; x++){const cell=Vars.world.tile(x,29); '
+    'cell.setBlock(Blocks.air); cell.setFloor(Blocks.stone); } '
+    'const unit=UnitTypes.dagger.create(team); unit.set(656,232); unit.rotation=0; unit.add(); '
+    'const ai=new Packages.mindustry.ai.types.LogicAI(); ai.controller=tile.build; '
+    'ai.aimControl=Packages.mindustry.logic.LUnitControl.target; ai.posTarget.set(760,232); '
+    'ai.posTarget.team=team; unit.controller(ai); '
+    'let start=0, fired=false; '
+    'Events.run(Packages.mindustry.game.EventType.Trigger.update, () => { '
+    'ai.controlTimer=600; '
+    'const p=Groups.player.find(boolf(v=>String(v.name)==="Min3DStry ARM11")); '
+    'if(p==null || p.con.lastReceivedClientSnapshot<=0) return; '
+    'const now=Packages.arc.util.Time.millis(); if(start===0) start=now; '
+    'ai.shoot=now-start>=6500 && now-start<10800; '
+    'if(!fired && ai.shoot && Groups.bullet.contains(boolf(b=>b.owner!=null '
+    '&& b.owner.id==unit.id && b.type.id==unit.mounts[0].weapon.bullet.id && b.vel.x>0))){ '
+    'fired=true; print("UPSTREAM_REMOTE_PROJECTILE unit="+unit.id+" type=dagger"); } '
+    '}); return "UPSTREAM_REMOTE_PROJECTILE_READY"; })()'
+)
+VISIBLE = r"UPSTREAM_NETWORK_PROJECTILES visible=[1-9]\d* active=[1-9]\d*\b"
+CLEARED = r"UPSTREAM_NETWORK_PROJECTILES visible=0 active=0\b"
+
+
 def create_fixture(args, output):
     server, log = stock_session(args, output)
     try:
@@ -57,6 +84,52 @@ def create_fixture(args, output):
 
 def prepare_server(server, log):
     stock_command(server, log, "js " + OBSERVER, "UPSTREAM_WEAPON_OBSERVER_READY")
+
+
+def prepare_projectiles(server, log):
+    prepare_server(server, log)
+    stock_command(server, log, "js " + REMOTE_PROJECTILES, "UPSTREAM_REMOTE_PROJECTILE_READY")
+
+
+def capture_bolt(rpc, output, name, background, points, color):
+    png = None
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline:
+        png = rpc.screenshot(res_scale=1)
+        samples = sp.az.inspect_png(png, points)["samples"]
+        matches = sum(any(abs(a - b) >= 16 for a, b in zip(pixel, background[point]))
+                      and all(abs(a - b) <= 5 for a, b in zip(pixel, color))
+                      for point, pixel in samples.items())
+        if matches >= 2:
+            (output / f"{name}.png").write_bytes(png)
+            return
+    if png is not None:
+        (output / f"{name}-unexpected.png").write_bytes(png)
+    raise AssertionError(f"The original {name} colors did not appear in the viewport")
+
+
+def verify_projectiles(log, proc, rpc, output):
+    # The fixed Glacier viewport places the Dagger north of the player's Gamma.
+    # These are the original Pal.bulletYellow and Pal.yellowBoltFront colors.
+    dagger_points = tuple((x, y) for x in range(248, 353, 2) for y in range(33, 68, 2))
+    gamma_points = tuple((x, y) for x in range(264, 388, 2) for y in range(94, 126, 2))
+    baseline = rpc.screenshot(res_scale=1)
+    (output / "idle-projectiles.png").write_bytes(baseline)
+    background = sp.az.inspect_png(baseline, dagger_points + gamma_points)["samples"]
+    sp._wait_for_log(log, proc, VISIBLE, 30)
+    capture_bolt(rpc, output, "remote-dagger-projectile", background, dagger_points, (255, 248, 232))
+    gap = r"[\s\S]*?"
+    sp._wait_for_log(log, proc, VISIBLE + gap + CLEARED + gap + VISIBLE, 45)
+    capture_bolt(rpc, output, "gamma-projectile", background, gamma_points, (255, 210, 126))
+    verify_controls(log, proc, rpc, output)
+    states = re.findall(r"UPSTREAM_NETWORK_PROJECTILES visible=(\d+) active=(\d+)", log.read_text(encoding="utf-8", errors="replace"))
+    if not states or states[-1] != ("0", "0"):
+        raise AssertionError("The live projectile group did not clear before movement resumed")
+
+
+def read_stock_projectiles(server, log):
+    read_stock_weapons(server, log)
+    wait_for(log, server, r"UPSTREAM_REMOTE_PROJECTILE unit=\d+ type=dagger\b", 8)
 
 
 def verify_controls(log, proc, rpc, output):
@@ -81,12 +154,18 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--model", choices=("new3ds", "old3ds"), action="append")
     parser.add_argument("--port", type=int, default=16664)
+    parser.add_argument("--projectiles", action="store_true", help="Require original projectile drawing and cleanup")
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
     fixture = args.fixture or create_fixture(args, args.output / "stock-fixture")
+    prepare = prepare_projectiles if args.projectiles else prepare_server
+    verify = verify_projectiles if args.projectiles else verify_controls
+    read_stock = read_stock_projectiles if args.projectiles else read_stock_weapons
     for model in args.model or ("old3ds", "new3ds"):
         replay(args, model, fixture, True, taps={}, buttons=BUTTONS, button_durations=DURATIONS, circle=CIRCLE,
-               prepare_server=prepare_server, verify_input=verify_controls, read_stock=read_stock_weapons)
+               prepare_server=prepare, verify_input=verify, read_stock=read_stock)
+        if args.projectiles:
+            print(f"UPSTREAM_STOCK_PROJECTILES model={model} gamma=ok remote=dagger cleared=ok", flush=True)
         print(f"UPSTREAM_STOCK_LIVE_WEAPONS model={model} east=ok north=ok releases=ok move=ok", flush=True)
 
 

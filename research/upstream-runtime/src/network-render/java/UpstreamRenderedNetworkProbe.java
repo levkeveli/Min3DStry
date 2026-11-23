@@ -49,6 +49,7 @@ public final class UpstreamRenderedNetworkProbe {
     private UpstreamTerrainDrawProbe.Viewport viewport;
     private Unit controlled;
     private int draws;
+    private boolean projectilesVisible, projectilesActive;
     private long previousVisualFrame;
     private float frameSeconds;
     private int lastLeft = -1, lastBottom = -1;
@@ -108,6 +109,7 @@ public final class UpstreamRenderedNetworkProbe {
         Vars.content.loadColors(new Fi("/romfs/block_colors.png"));
         UpstreamCrackAtlas.load();
         loadUnitGraphics();
+        UpstreamClientProjectiles.load();
         viewport = UpstreamTerrainDrawProbe.liveViewport(target);
         target.initialize();
         boolean stock = target.loadStockFont(locale.getLanguage().equals("ja"));
@@ -183,8 +185,8 @@ public final class UpstreamRenderedNetworkProbe {
         // Advance the original animation clock and conduit smoothing without replaying liquid transfers.
         float delta = Math.min(frameSeconds * 60f, Vars.maxDeltaClient);
         Time.delta = delta;
-        Time.setInternalTime(Time.getInternalTime() + delta);
         try {
+            Time.update();
             for (var build : Groups.build) {
                 if (build instanceof ConduitBuild conduit) conduit.advanceLiquidDraw();
             }
@@ -192,6 +194,7 @@ public final class UpstreamRenderedNetworkProbe {
                 if (unit instanceof UnitWaterMove boat) boat.advanceWake();
                 if (unit instanceof Tankc tank) advanceTankTreads(tank);
             }
+            UpstreamClientProjectiles.update();
         } finally {
             Time.delta = oldDelta;
         }
@@ -227,6 +230,14 @@ public final class UpstreamRenderedNetworkProbe {
                         + " x=" + unit.x() + " y=" + unit.y());
                 }
             }
+            int bullets = UpstreamClientProjectiles.draw(viewport);
+            boolean active = !Groups.bullet.isEmpty();
+            if (projectilesActive != active || projectilesVisible != (bullets > 0)) {
+                System.out.println("UPSTREAM_NETWORK_PROJECTILES visible=" + bullets
+                    + " active=" + Groups.bullet.size());
+            }
+            projectilesVisible = bullets > 0;
+            projectilesActive = active;
         } finally {
             Draw.sort(false);
         }

@@ -1,9 +1,10 @@
 # Live stock-server combat slice (Issue #30)
 
 Status: **Emulator-tested** on Azahar `2126.2` New and Original 3DS profiles.
-The ARM11 client receives the upstream combat entities and the stock v160.8
-server applies turret damage; the port does not yet run its own combat
-simulation or synchronize bullets inside the live app.
+The ARM11 client receives the upstream combat entities. The stock v160.8
+server applies damage, and the handheld advances the original weapon
+mounts and draws their projectiles from local input and synchronized
+unit state.
 
 ## Aim and fire in the unified client
 
@@ -29,6 +30,32 @@ a newer snapshot clearing each trigger release, and eastward movement
 after firing. The same ROM passed the offline weapon replay on both
 profiles and the Original 3DS offline and live turret-possession replay.
 [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45108952293)
+
+## Live projectile drawing
+
+The live viewport advances the original weapon mounts, delayed shots,
+bullet positions, collisions, trails and lifetimes. Projectile
+textures and colors come from the stock atlas and `BulletType` draw
+methods. Scripted bullet creation goes through the stock RPC handler.
+
+The JVM reference checks the Gamma burst, atlas submissions, a remote
+Dagger's shot, and cleanup after firing stops. The emulator replay adds
+a server-driven Dagger to the same Glacier session as the handheld
+Gamma. It captures each projectile outside its owner and compares
+the original colors against the idle frame.
+
+The projectile replay passed on both Original and New 3DS profiles in
+Azahar 2126.2. The captured Dagger and Gamma shots matched their stock
+colors outside the unit and core sprites. The original v160.8 server
+confirmed that the Dagger and the player fired. The handheld projectile
+group emptied after the trigger release. [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45111459522)
+
+```bash
+python3 tools/verify_stock_live_weapons.py --projectiles \
+  --rom /path/to/unified/upstream-probe.3dsx \
+  --server /path/to/server-release.jar \
+  --output build/stock-live-projectiles
+```
 
 ## Check
 
@@ -83,9 +110,8 @@ Dagger id, and the Duo spent exactly one copper.
 
 ## Limitations
 
-- Mindustry's stock network protocol does not synchronize bullets; clients
-  simulate them. No bullet rendering/telemetry is claimed here, and only the
-  combatants and server damage are verified.
+- The verification covers the Gamma and Dagger weapon sets. Other weapon
+  effects, turret projectile presentation and physical play remain open.
 - The port's own turret/wave/pathfinding simulation is verified separately by
   the ARM11 `combat-ticks` and `wave-routing` probes, not inside
   `min3dstry.3dsx`.
