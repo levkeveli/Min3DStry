@@ -1,6 +1,6 @@
 # Combat, Turrets, Enemy Waves & Flowfield Pathfinding Baseline (Issue #30)
 
-**Verification status:** Host-verified across pinned upstream Mindustry `v160.8` JVM (`UpstreamCombatBaseline.java`, `UpstreamCombatSimulationBaseline.java`, `-Pprobe=combat-ticks`, and `-Pprobe=wave-routing`) and TeaVM C `-O0` / `-O2` (`cc -std=gnu11 -fwrapv -ffp-contract=off`), with ARM11 `.3dsx`/`.elf` compiled and both gameplay probes executed on Azahar `2126.2` New and Old profiles. `combat-waves-ai` in [port-capabilities.json](../port-capabilities.json) is **Emulator-tested** under [#30](https://github.com/levkeveli/Min3DStry/issues/30); the separate stock-server live slice is tracked in [live-combat.md](../gameplay/live-combat.md), while full in-app combat simulation, Old 3DS memory budget optimization, and physical hardware verification remain open.
+**Verification status:** Host-verified across pinned upstream Mindustry `v160.8` JVM (`UpstreamCombatBaseline.java`, `UpstreamCombatSimulationBaseline.java`, `-Pprobe=combat-ticks`, and `-Pprobe=wave-routing`) and TeaVM C `-O0` / `-O2` (clang, with `-std=gnu11 -fwrapv -ffp-contract=off`) for `combat-ticks`; the `wave-routing` host-C run is pending on the current probe-lifecycle change. ARM11 `.3dsx`/`.elf` are compiled and both gameplay probes executed on Azahar `2126.2` New and Old profiles. `combat-waves-ai` in [port-capabilities.json](../port-capabilities.json) is **Emulator-tested** under [#30](https://github.com/levkeveli/Min3DStry/issues/30); the separate stock-server live slice is tracked in [live-combat.md](../gameplay/live-combat.md), while full in-app combat simulation, Old 3DS memory budget optimization, and physical hardware verification remain open.
 
 ## 1:1 Upstream Mandate
 
@@ -39,7 +39,7 @@ UPSTREAM_COMBAT_ORDER runs=2 ticks=940 trace_hash=0x30f5f9a444d020c3
 
 ## TeaVM C `-O0` vs `-O2` & ARM11 Probes
 
-Both gameplay probes under [research/upstream-runtime/src/gameplay/java/](../../research/upstream-runtime/src/gameplay/java/) run the unmodified Glacier scenario (`UPSTREAM_WORLD_FINGERPRINT 2e7b9f883994de6c`) and emit identical traces across pinned `v160.8` JVM and Linux host TeaVM C compiled with `cc -std=gnu11 -fwrapv -ffp-contract=off` at both `-O0` and `-O2` (after `arm11/fix_reflection_lifetime.py`):
+Both gameplay probes under [research/upstream-runtime/src/gameplay/java/](../../research/upstream-runtime/src/gameplay/java/) run the unmodified Glacier scenario (`UPSTREAM_WORLD_FINGERPRINT 2e7b9f883994de6c`). `combat-ticks` emits identical traces across pinned `v160.8` JVM and Linux host TeaVM C compiled with `clang` using `-std=gnu11 -fwrapv -ffp-contract=off` at both `-O0` and `-O2` (after `arm11/fix_reflection_lifetime.py`). `wave-routing` matches on JVM and ARM11/Azahar; its host TeaVM C run is pending on the current probe-lifecycle change:
 
 1. **`-Pprobe=combat-ticks` ([UpstreamCombatTickProbe.java](../../research/upstream-runtime/src/gameplay/java/UpstreamCombatTickProbe.java)):**
    ```text
@@ -76,11 +76,25 @@ UPSTREAM_WAVE wave=3 spawned=dagger=2 groundSpawned=2 first=79,219->80,173 dista
 UPSTREAM_WAVE wave=4 spawned=dagger=2 groundSpawned=2 first=79,219->80,173 distance=1546->1177 min=1177 alive=2/2 ammo=29 nextWave=5
 ```
 
-Both profiles matched the JVM and host TeaVM C traces exactly.
+Both Azahar profiles matched the JVM trace exactly. Those captures verify the
+trace. The host-C step checks the six trace lines and process exit status at
+`-O0` and `-O2` using the pinned upstream Glacier map. It also fails on a
+listener-disposal error. The standalone combat-ticks clang replay was a manual
+check.
 
 The standalone host probe exits after printing the trace without firing
 `ResetEvent`; dispatching that reset into TeaVM's monitor/event queue after
-the trace can deadlock the host C build. The emitted trace is unchanged.
+the trace can deadlock the host C build. It also disposes and removes
+registered application listeners through the probe-local
+`ProbeListenerShutdown` helper before returning, so Arc listener fibers cannot
+resume during TeaVM shutdown. The host C replay passes `--host-exit` to terminate
+after flushing the trace. The default ARM11 invocation preserves the console
+return path, and the JVM returns normally. Host-C checks go
+through `.github/scripts/cc_host.sh`, which prefers `clang`, otherwise uses
+GCC with `-fno-tree-coalesce-vars` when the compiler accepts it, and fails
+with a clear diagnostic if neither compiler exists. The flag avoids a GCC 13
+`rewrite_out_of_ssa` internal compiler error in `TypeIO.c` that the larger
+generated translation unit can trigger.
 
 ## Remaining Scope for Issue #30
 
