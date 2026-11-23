@@ -154,6 +154,72 @@ each run. The replay uses a separate virtual SD for every model and scenario. Th
 and `--sector 64` without `--after-play` for the two-slot run. The replay
 allows the active sector’s stock production average to decay while idle.
 
+## Campaign research
+
+Press **L + SELECT** in a campaign sector to open its research tree. Use
+D-pad up/down to browse the original tech nodes and **A** to view a node.
+The detail screen shows upstream objectives, the amount already contributed,
+and resources available for each requirement. Use **A** to contribute and
+**B** to return to the list or close the screen.
+
+Research follows the original v160.8 objective and unlock rules. It consumes
+resources from other active bases on the same planet before spending from
+the live core. The JVM reference checks that a remote base with 300 copper
+pays exactly 100 copper for Junction, leaves the active core untouched, and
+updates the current menu's available total. Partial research and unlocks
+use the original Arc settings
+keys, and the offline app saves the active sector after a contribution.
+
+The JVM reference opens stock Ground Zero and Onset saves. It checks the
+Frozen Forest objective, persists a 3-of-5 copper contribution to Conveyor,
+and tests completion across live and remote inventories. On Erekir it checks
+the original planet objective and the effective four-beryllium Duct cost. The
+unmodified v160.8 server reopened the resulting Serpulo and Erekir saves and
+settings. The integrated JVM progression test researches Junction and Router,
+captures Ground Zero through the stock Logic event, and automatically
+unlocks and launches the original Frozen Forest. The stock Java server
+reopened both saved sectors with the same capture and unlock settings.
+
+The [ARM11 build from `428ae40`](https://github.com/levkeveli/Min3DStry/actions/runs/45050806782)
+opened the research screen on both Old and New 3DS profiles in Azahar. The
+controller replay partially researched Conveyor in Ground Zero and unlocked
+Duct in Onset on each profile. The unmodified v160.8 server reopened all
+four sector saves and settings pairs and confirmed the inventories and
+research progress. This build predates the merged live capture integration.
+
+The [current ARM11 campaign build](https://github.com/levkeveli/Min3DStry/actions/runs/45130577809)
+repeated the four controller cases on the merged launch runtime. Stock
+v160.8 reopened each result and read back the expected research and core
+inventory. Both profiles also replayed Ground Zero capture, Router research,
+and Frozen Forest launch and save. Stock v160.8 reopened both sectors from
+each replay. The verifiers keep their virtual SDs under the output directory.
+
+The [integrated ARM11 build from `522c8ca`](https://github.com/levkeveli/Min3DStry/actions/runs/45058012737)
+passed a continuous progression replay on both Azahar profiles. A stock
+final-wave Ground Zero save reached capture through the upstream simulation.
+The replay researched Router with controller input, unlocked Frozen Forest,
+selected it for launch, rendered the original 200×200 world, and saved.
+The stock server reopened both saves and confirmed the capture, research,
+unlock, and launch origin on each profile.
+
+Reproduce that replay with the integrated campaign ROM and a stock checkpoint.
+
+```sh
+python3 tools/campaign_research_fixture.py --server server-release.jar --create-progression-in /path/to/checkpoint
+python3 tools/verify_upstream_campaign_progression.py --rom upstream-probe.3dsx --fixture /path/to/checkpoint --server server-release.jar
+```
+
+Generate fixtures with the stock server and copy the original
+`bundle.properties`, `planets/serpulo.json`, and staged campaign `maps/`
+directory into the fixture directory for the JVM reference. Use the regular pinned runtime Gradle properties.
+
+```sh
+python3 tools/campaign_research_fixture.py --server server-release.jar --create-in /path/to/fixtures
+gradle -Pprobe=singleplayer runGraphicalCampaignResearchJvm --args="/path/to/fixtures /path/to/new-scratch-dir"
+python3 tools/campaign_research_fixture.py --server server-release.jar --check-progression /path/to/new-scratch-dir/serpulo
+python3 tools/verify_upstream_campaign_research.py --rom upstream-probe.3dsx --fixtures /path/to/fixtures --server server-release.jar
+```
+
 ## New campaign
 
 Hold **R** while launching the standalone graphical .3dsx to open the
@@ -656,6 +722,34 @@ water and nitrogen in the tanks, the configured source, and both bridge
 spans when loading the save offline and after joining the unmodified
 Java v160.8 server.
 
+## Erekir heat and neoplasm
+
+The same world pass now draws the original heat conductors. Their stock
+rotation, heat-input layer, and additive heat-output layer use the pinned
+Mindustry atlas. The upstream simulation supplies the heat and consumption
+state.
+
+`tools/verify_erekir_heat_fixture.py --create` takes the original
+`maps/erekir/onset.msav` from v160.8. It creates cold and powered saves in
+stock Java using the neoplasia reactor, beam nodes, heat redirector, carbide
+crucible, and reinforced liquid tank. The reactor produces 60 heat, of which
+the three-tile contact transfers 36. Stock Java and `runErekirHeatJvm`
+verify production, the effect of rotating the redirector, recovery after
+water starvation, and the original pressure event when the outlet fills.
+The port JVM also checks that the destroyed reactor deposits neoplasm
+puddles. Use
+`--check` to reopen the port-written save in stock Java. With a unified
+ARM11 build, use `--fixture heat-warm.msav --rom upstream-probe.3dsx`.
+The warm checkpoint starts with an active reactor and empty output
+buffers. The replay checks the cold and active redirector pixels and
+requires that the port has produced carbide and neoplasm by the time
+it saves. Stock Java checks the save immediately on load.
+
+The [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45137803532)
+showed the active heat layers on both Azahar console profiles. Stock
+Mindustry v160.8 reopened the two ARM11 saves and read back the original
+reactor heat, carbide, and neoplasm.
+
 ## Original liquid puddles
 
 The world renderer submits upstream puddle drawing with the original
@@ -700,3 +794,23 @@ python3 tools/verify_offline_turret_buildings.py \
   --server /path/to/server-release.jar \
   --output build/offline-turret-buildings
 ```
+
+## Original Canvas and Logic Displays
+
+Offline games draw the v160.8 Canvas and Logic Display blocks in the original
+world pass. The app uses the original logic ID table and Logic Display font
+from RomFS. The original offline simulation runs the saved processors, and
+world markers can sample the same framebuffer as a visible or offscreen
+display.
+
+Run `tools/verify_stock_offline_logic.py` with a unified ARM11 ROM and the
+stock v160.8 server JAR. The verifier creates an original Glacier save with
+a Canvas, a processor, normal and tiled displays, and a linked texture marker.
+It checks that the program resolves the original Copper ID, draws the
+displays and marker, and changes a Canvas pixel. The stock server reopens
+the handheld save and checks the processor links, marker and Canvas data.
+
+The [combined ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45129961401)
+passed this replay on the Original and New 3DS profiles in Azahar. Stock
+Mindustry v160.8 reopened both saves and verified the updated Canvas pixel,
+three processor links and the display-linked marker.
