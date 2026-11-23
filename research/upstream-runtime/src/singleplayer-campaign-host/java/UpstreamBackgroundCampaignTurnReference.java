@@ -9,6 +9,11 @@ import mindustry.content.SectorPresets;
 /** Checks a complete upstream campaign turn through the ordinary offline update loop. */
 public final class UpstreamBackgroundCampaignTurnReference {
     public static void main(String[] args) throws Exception {
+        if (args.length == 0) {
+            String root = "/3ds/min3dstry/background-turn";
+            args = new String[]{root + "/fixture", root + "/assets",
+                root + "/assets/bundles/bundle", root + "/result"};
+        }
         if (args.length != 4) throw new IllegalArgumentException("Expected fixtures, assets, bundle base and output");
         Fi input = new Fi(args[0]), assets = new Fi(args[1]), root = new Fi(args[3]);
         if (root.exists()) throw new IllegalArgumentException("Use a new output directory");

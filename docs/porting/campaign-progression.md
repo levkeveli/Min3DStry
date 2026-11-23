@@ -1,6 +1,10 @@
 # Campaign Progression & Tech-Tree Persistence Baseline (Issue #41)
 
-**Emulator-tested.** ARM11 probes exercise stock Arc settings, sector metadata, research, and progression. The graphical offline app also resumes and saves original PC sector files on both Azahar profiles. New sector launch, the broader campaign interface, and integrated progression remain open under [#41](https://github.com/levkeveli/Min3DStry/issues/41).
+**Emulator-tested.** The graphical offline app resumes original PC sector
+saves, starts the Serpulo and Erekir campaigns, and persists stock research
+and capture progress. The [graphical gameplay verification](../gameplay/offline-singleplayer.md)
+records the individual scenarios. The broader campaign interface and
+progression matrix remain under [#41](https://github.com/levkeveli/Min3DStry/issues/41).
 
 ## 1:1 Upstream Mandate
 
@@ -466,11 +470,13 @@ asserts the generic saves are not treated as sector remaps. It then launches the
 sector, wave and `150x250` world are restored. The graphical startup uses the
 same stock sector world context when resuming actual PC campaign saves.
 
-## Remaining Scope for Issue #41 (3DS Hardware / ARM11 Runtime)
+## Remaining campaign verification
 
-
-The capability is marked `emulator-tested` because the probes in [campaign-verification.md](campaign-verification.md) verify upstream settings, sector `.msav` slots, `SectorInfo` JSON, tech-tree requirements, planet last-sector routing, sector play/capture transitions, and sector-save launch on ARM11/Azahar. The host-verified path contract is recorded in [sd-storage-paths.md](sd-storage-paths.md). The live runtime still needs to consume these paths end-to-end:
-
-1. Load and persist the graphical campaign's Arc settings, sector information, and unlocks through the verified PC file formats.
-2. Build new sector launch, campaign navigation, and capture rewards on top of the stock simulation and persistence APIs.
-3. Advance beyond `emulator-tested` only after those live flows and physical Old/New 3DS verification.
+The [ARM11 probes](campaign-verification.md) cover upstream settings,
+`SectorInfo`, research requirements, and sector saves. Verify the full
+campaign progression matrix and longer transitions between sectors.
+The [graphical background turn](../gameplay/offline-singleplayer.md#serpulo-background-production-and-exports)
+has a repeatable three-sector replay. Use [the SD path contract](sd-storage-paths.md)
+when comparing the saves and settings with the unmodified Java release.
+The [physical hardware milestones](../hardware-test-queue.md) track
+the runs on Original and New 3DS/2DS.
