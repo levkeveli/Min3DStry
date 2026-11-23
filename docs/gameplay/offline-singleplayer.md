@@ -254,6 +254,13 @@ each sector and saved the original 256×256 and 512×512 worlds, respectively.
 Stock v160.8 reopened the defeated and recovered saves for all four replays
 and verified the persisted sector state.
 
+The later unified build exposed a collection bug when a retry rebuilt the
+upstream Pathfinder cache. TeaVM C's multi-dimensional allocator kept its
+partially built arrays only in C locals. ARM11 staging now registers each
+parent with the collector and applies the write barrier as it adds children.
+The campaign replay exercises this path without altering the upstream
+pathfinding or save format.
+
 ## Custom Game
 
 Hold **L** while launching the standalone graphical `.3dsx` to open the
