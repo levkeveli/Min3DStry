@@ -1215,18 +1215,24 @@ def verify_logic_markers(log, emulator, server_log, server, rpc, output, model, 
 
 def capture_marker_pixels(rpc, output, model, phase, points, timeout, expected=None, tolerance=1):
     deadline = time.monotonic() + timeout
-    while True:
-        png = rpc.screenshot(res_scale=1)
+    png, samples = None, None
+    while time.monotonic() < deadline:
+        try:
+            captured = rpc.screenshot(res_scale=1)
+        except TimeoutError:
+            time.sleep(0.2)
+            continue
+        png = captured
         pixels = az.inspect_png(png, points)["samples"]
         samples = tuple(pixels[point] for point in points)
         if expected is None or all(abs(a - b) <= tolerance for actual, exact in zip(samples, expected)
                                    for a, b in zip(actual, exact)):
             (output / f"{model}-{phase}.png").write_bytes(png)
             return samples
-        if time.monotonic() >= deadline:
-            (output / f"{model}-{phase}-unexpected.png").write_bytes(png)
-            raise RuntimeError(f"{phase} pixels: expected {expected}, got {samples}")
-        time.sleep(0.1)
+        time.sleep(0.2)
+    if png is not None:
+        (output / f"{model}-{phase}-unexpected.png").write_bytes(png)
+    raise RuntimeError(f"{phase} pixels: expected {expected}, got {samples}")
 
 
 def verify_texture_markers(server_log, server, rpc, output, model, position, timeout):
@@ -1262,9 +1268,11 @@ def verify_texture_markers(server_log, server, rpc, output, model, position, tim
 def verify_quad_markers(log, emulator, server_log, server, rpc, output, model, position, timeout):
     _, _, x, y = position
     x, y = (math.floor(float(value) / 8 + 0.5) * 8 for value in (x, y))
+    # Keep all samples below the stock health, ammo, enemy-core and item HUD.
+    y -= 32
     # Opaque samples in the original Core Nucleus span three 128 × 128 atlas
     # tiles. The first sample includes the stock interpolated red tint.
-    points = ((94, 52), (109, 86), (133, 68), (153, 45))
+    points = ((94, 132), (109, 166), (133, 148), (153, 125))
     initial = ((101, 185, 192), (152, 154, 164), (176, 185, 192))
     moved = ((86, 154, 164), (110, 112, 128), (152, 154, 164), (152, 154, 164))
     router = ((62, 112, 128), (110, 112, 128), (152, 154, 164), (147, 149, 160))
