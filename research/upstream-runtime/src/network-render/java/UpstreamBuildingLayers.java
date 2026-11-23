@@ -9,14 +9,21 @@ import mindustry.gen.Building;
 import mindustry.graphics.BuildingCacheLayer;
 import mindustry.graphics.CacheLayer;
 import mindustry.graphics.Layer;
+import mindustry.type.Category;
 import mindustry.type.UnitType;
 import mindustry.world.Block;
+import mindustry.world.meta.BuildVisibility;
+import mindustry.world.blocks.liquid.LiquidRouter;
 import mindustry.world.blocks.payloads.PayloadConveyor.PayloadConveyorBuild;
 import mindustry.world.blocks.payloads.UnitPayload;
 import mindustry.world.blocks.power.BeamNode.BeamNodeBuild;
 import mindustry.world.blocks.power.LightBlock;
 import mindustry.world.blocks.power.PowerBlock;
 import mindustry.world.blocks.power.PowerDiode;
+import mindustry.world.blocks.production.GenericCrafter;
+import mindustry.world.blocks.production.Pump;
+import mindustry.world.blocks.production.Separator;
+import mindustry.world.blocks.storage.StorageBlock;
 import mindustry.world.blocks.units.UnitFactory.UnitFactoryBuild;
 
 /** Arc draw commands for the cached and dynamic passes in upstream BlockRenderer. */
@@ -27,6 +34,16 @@ final class UpstreamBuildingLayers {
 
     static boolean supportsPowerDraw(Block block) {
         return block instanceof PowerBlock || block instanceof PowerDiode || block instanceof LightBlock;
+    }
+
+    static boolean supportsDistributionDraw(Block block) {
+        // Uncatalogued blocks also default to the distribution category.
+        return block.category == Category.distribution && block.buildVisibility != BuildVisibility.hidden;
+    }
+
+    static boolean supportsMaterialDraw(Block block) {
+        return block instanceof GenericCrafter || block instanceof Separator || block instanceof Pump
+            || block instanceof LiquidRouter || block instanceof StorageBlock;
     }
 
     void render(UpstreamTerrainDrawProbe.Viewport viewport, Team viewer, Predicate<Building> supported) {

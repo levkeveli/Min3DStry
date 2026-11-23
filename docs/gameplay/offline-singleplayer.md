@@ -8,7 +8,7 @@ This vertical slice boots and runs unmodified upstream Mindustry `v160.8` **Grou
 
 - [`UpstreamSinglePlayerSession.java`](../../research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerSession.java) (`-Pprobe=singleplayer-sim`): Pure-Java session lifecycle initializing `Vars`, `Pathfinder`, `ControlPathfinder`, `AvoidanceProcess`, `FogControl`, `GlobalVars` (adapted to guard `control.sound` when headless), `BlockIndexer`, `WaveSpawner`, and `BaseRegistry` without `AsyncCore`, plus a deterministic headless Ground Zero parity self-test (load map -> move -> mine copper -> build conveyor & wall -> deconstruct -> pause/resume -> flowfield & Wave 1 -> `.msav` save & reload -> terrain fingerprint).
 - [`UpstreamSinglePlayerApp.java`](../../research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerApp.java) (`-Pprobe=singleplayer`): Graphical 3DS runtime entry point. Loads RomFS/SD localization and Ground Zero save/map before initializing sprite atlases, unit/bullet drawables, and stock bitmap/TTF fonts (`UpstreamTerrainRenderProbe`) to bound peak TeaVM heap usage, then runs a 60 Hz fixed-step loop with `Thread.yield()` so TeaVM's cooperative scheduler services `Pathfinder`.
-- [`UpstreamSinglePlayerInput.java`](../../research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerInput.java), [`m3ds_input.h`](../../research/upstream-runtime/arm11/m3ds_input.h), and [`m3ds_input.c`](../../research/upstream-runtime/arm11/m3ds_input.c): Standalone `libctru` HID bridge (`m3ds_input_poll()` / `m3ds_input_touch()`). Bits `0..19` match `m3ds_live_net_input` (`Circle Pad`, `D-Pad`, `A`, `R`, `B`), with bit `20` = `KEY_X` (Pause/Resume), bit `21` = `KEY_Y` (Trigger wave), bit `22` = `KEY_SELECT` (Save `.msav`), and `-1` on `!aptMainLoop()` or `KEY_START` exit.
+- [`UpstreamSinglePlayerInput.java`](../../research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerInput.java), [`m3ds_input.h`](../../research/upstream-runtime/arm11/m3ds_input.h), and [`m3ds_input.c`](../../research/upstream-runtime/arm11/m3ds_input.c) provide the standalone `libctru` HID bridge. Bits `0..19` match `m3ds_live_net_input` for Circle Pad, D-Pad, A, R, and B. Bits `20..22` report X, Y, and SELECT presses. Bits `23` and `25` report held L and X. The poll returns `-1` on exit.
 - [`WorldReflectionPolicy.java`](../../research/upstream-runtime/src/world/java/port/WorldReflectionPolicy.java): Registers 0-argument constructors for `arc.struct.{IntMap,IntSet,ObjectIntMap,ObjectMap,ObjectSet,StringMap}` so Arc `Json` restores populated `GameStats` (`placedBlockCount`, etc.) and `Rules` fields when reloading `.msav` saves.
 - [`prepare_terrain_assets.py`](../../research/upstream-runtime/arm11/prepare_terrain_assets.py) (`--singleplayer`) & [`build.sh`](../../research/upstream-runtime/arm11/build.sh) (`--singleplayer`): Stages `maps/groundZero.msav` and `sprites.aatls` alongside bundles, `world-atlas`, `block_colors.png`, menu icons, and stock fonts, then links the ARM11 `.elf`/`.3dsx` (default `-Os`).
 
@@ -121,10 +121,55 @@ profiles. Physical console memory use and frame-rate targets remain open.
 | Touch `Mine` (`x >= 288, 80 <= y < 112`) | Toggle ore mining target selection |
 | Touch `List` / `Config` / Bottom bar | Open block catalog (`UpstreamBuildMenu`), block config (`UpstreamBuildingConfig`), shortcuts, `Rotate`, or `Remove` |
 | `A` / `R` / `B` | Place at cursor / rotate block / toggle remove mode |
-| `X` | Toggle simulation Pause / Resume (`UPSTREAM_SP_PAUSE`) |
+| Tap `X` | Toggle simulation pause or resume on release |
+| Hold `X` and use Circle Pad / D-Pad | Set the aim direction without moving |
+| Hold `L` | Fire the current unit's original weapons |
 | `Y` | Trigger next enemy wave (`UPSTREAM_SP_WAVE`) |
 | `SELECT` | Save `.msav` snapshot to `/3ds/min3dstry/singleplayer-save.msav` (`UPSTREAM_SP_SAVED`) |
 | `START` | Exit application cleanly |
+
+## Stock player combat
+
+The offline app sets aim and the trigger through the original
+`Unit.aim` and `Unit.controlWeapons` methods. The pinned simulation
+handles reload, recoil, delayed shots, projectiles, and damage.
+The chosen aim direction stays active when the aim button is released,
+so players can move while firing. A quick X tap pauses even with the
+movement control held. Hold X and a direction for a quarter second
+to switch to aiming.
+
+The stock Glacier replay uses Gamma to damage an opposing Fortress.
+The fixture applies the original disarmed and unmoving statuses to keep
+the target in place. The unmodified Java server checks the saved unit
+health after the controller replay.
+
+The replay checks that the Fortress takes damage and that the stock
+weapon mounts schedule no further shots after L is released.
+The precise damage depends on the number of simulation ticks that
+occur during the replay.
+
+On the [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45091376386),
+both Azahar 2126.2 profiles paused during D-pad movement and
+resumed at the same simulation tick. The two shots recorded at trigger
+release were still the only shots at save time. Stock Java reopened
+both saves and read the Fortress at 896 of 900 health.
+
+```bash
+python3 tools/verify_offline_stock_weapons.py \
+  --rom /path/to/unified/upstream-probe.3dsx \
+  --server /path/to/server-release.jar \
+  --output build/offline-stock-weapons
+```
+
+Run the JVM reference with a stock Glacier fixture from the verifier
+and a scratch save path.
+
+```bash
+bash /path/to/Mindustry/gradlew -p research/upstream-runtime \
+  -PupstreamCheckout=/path/to/Mindustry -ParcCheckout=/path/to/Arc \
+  -PreferenceJar=/path/to/server-release.jar -Pprobe=unified \
+  runOfflineWeaponsJvm "--args=/path/to/stock-fixture/config/saves/weapons.msav /tmp/weapons-jvm.msav"
+```
 
 ## Build & Verification Commands
 
@@ -238,6 +283,29 @@ python3 tools/verify_offline_material_buildings.py \
   --output build/offline-material-buildings
 ```
 
+### Original material buildings in Java multiplayer
+
+The live client uses the same material-building classification and upstream
+draw calls. The building state comes from the stock v160.8 server. The JVM
+live draw reference checks the 49 stock material buildings outside the
+already supported cores.
+
+The live replay loads the same two Glacier saves on an unmodified v160.8
+server. It joins each save through the unified client, holds the same
+viewport on both runs, and compares the captured pixels at the seven
+stock buildings. The logs and images are retained for each console profile.
+Both Original and New 3DS profiles changed all 25 sample pixels at each
+placement with the [ARM11 replay build](https://github.com/levkeveli/Min3DStry/actions/runs/45113545813).
+The previous build left all 25 pixels unchanged at the smelter, compressor,
+electrolyzer and separator on the Original 3DS profile.
+
+```bash
+python3 tools/verify_live_material_buildings.py \
+  --rom /path/to/upstream-probe.3dsx \
+  --server /path/to/server-release.jar \
+  --output build/live-material-buildings
+```
+
 ## Original power buildings
 
 The offline and multiplayer world draw passes use the pinned power blocks'
@@ -269,6 +337,59 @@ change rules, since the server snapshot does not carry cached beam endpoints.
 Both Azahar profiles joined and drew the beam with 15 of 25 sample pixels
 changed in the [live ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45078491985).
 The world lighting pass is tracked in #38.
+
+## Original item distribution graphics
+
+The offline and live renderers use the stock v160.8 distribution drawers.
+The original world atlas supplies carried item sprites. Item bridges and
+duct bridges draw their stock spans from the original link state. Cargo
+loaders use the same construction shader adapter as original unit factories.
+
+The offline and live JVM tests exercise all 28 distribution buildings,
+including the sandbox item source and void. The offline reference also
+checks carried copper, the bridge spans, and the Manifold construction
+overlay. The ARM11 verifier
+uses stock Glacier saves with seven representative distribution buildings,
+a loaded Plastanium Conveyor, and linked Item and Duct Bridges.
+
+```bash
+python3 tools/verify_offline_distribution.py \
+  --rom /path/to/unified/upstream-probe.3dsx \
+  --server /path/to/server-release.jar \
+  --output build/offline-distribution --live
+```
+
+Both Azahar profiles drew all seven buildings, the carried stack, and the
+two bridge spans in the [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45081828980).
+The same checks passed after each profile joined the unmodified Java v160.8
+server using the active save.
+
+## Original liquid buildings
+
+The offline and live renderers draw the original v160.8 liquid catalog
+through the stock building drawers. Pumps, conduits, junctions, tanks,
+routers, and bridges use their upstream sprite layers. The drawers read
+liquid type, fill, and link state from the original simulation and saves.
+The network renderer keeps stock conduit fill interpolation.
+
+The JVM references exercise all 21 stock liquid buildings. The offline
+reference also checks filled water and nitrogen states and linked bridge
+spans. The ARM11 verifier replays an original Glacier save with eight
+representative Serpulo and Erekir placements, filled tanks, a configured
+sandbox source, and both kinds of bridge link.
+
+```bash
+python3 tools/verify_offline_liquid_buildings.py \
+  --rom /path/to/unified/upstream-probe.3dsx \
+  --server /path/to/server-release.jar \
+  --output build/offline-liquid-buildings --live
+```
+
+The [ARM11 replay](https://github.com/levkeveli/Min3DStry/actions/runs/45083291894)
+drew all eight buildings on both Azahar profiles. Each profile showed
+water and nitrogen in the tanks, the configured source, and both bridge
+spans when loading the save offline and after joining the unmodified
+Java v160.8 server.
 
 ## Original turret graphics
 

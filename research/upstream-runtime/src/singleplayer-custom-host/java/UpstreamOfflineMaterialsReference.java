@@ -58,7 +58,9 @@ public final class UpstreamOfflineMaterialsReference implements UpstreamTerrainD
             Vars.content.loadColors(new Fi(args[2]));
             UpstreamCrackAtlas.load();
             verifyRegistry();
+            UpstreamDistributionReference.verify();
             verifyTurretRegistry();
+            UpstreamLiquidReference.verify();
         } finally {
             session.shutdown();
         }

@@ -129,7 +129,7 @@
         "research/upstream-runtime/src/gameplay/java/UpstreamProductionTickProbe.java",
         "research/upstream-runtime/src/network-render/java/UpstreamRenderedNetworkProbe.java"
       ],
-      "notes": "The ARM11 production-ticks probe verifies upstream recipes. The offline draw pass uses the full GenericCrafter and Separator families, with representative stock saves verified on both Azahar profiles. Full multiplayer rendering and effects coverage remains open."
+      "notes": "The ARM11 production-ticks probe verifies upstream recipes. The offline and live draw passes use the full GenericCrafter and Separator families. Both Azahar profiles drew representative stock buildings offline and in the initial Java-server world. Active multiplayer production visuals remain open."
     },
     {
       "id": "power-grid-generators",
@@ -274,11 +274,16 @@
       "domain": "Controls & Dual-Screen UI",
       "name": "Schematic Import/Export & RTS Unit Command",
       "weight": 1,
-      "status": "missing",
-      "modes": [],
+      "status": "partial-arm11",
+      "modes": ["offline", "multiplayer"],
       "issue": 40,
-      "evidence": [],
-      "notes": "Read-only list of the 210 pinned base-part .msch files plus user .msch files from sd:/3ds/min3dstry/schematics (dimensions, block count, block summary); import into the game, export and RTS selection/command are not implemented."
+      "evidence": [
+        "docs/gameplay/touch-build-palette.md",
+        "tools/verify_stock_schematics.py",
+        "tools/verify_stock_schematic_capture.py",
+        "tools/verify_stock_command_orders.py"
+      ],
+      "notes": "The unified client places and exports stock .msch files. The touch grid selects allied units and sends original orders and stances. Drag selection, schematic naming and metadata editing, and clipboard sharing remain open."
     },
     {
       "id": "content-database-page",
@@ -310,7 +315,7 @@
         "src/ui/main_menu.c",
         "tests/ui/test_main_menu.c"
       ],
-      "notes": "Navigation shell with upstream v160.8 MenuFragment keys/labels; Play->Campaign, Settings mute/lighting/camera, and Database->About are wired. The upstream Scene2D fragment, schematic UI and RTS remain unimplemented."
+      "notes": "Navigation shell with upstream v160.8 MenuFragment keys/labels; Play->Campaign, Settings mute/lighting/camera, and Database->About are wired. The upstream Scene2D title fragment remains open. In-game schematics and RTS are tracked separately."
     },
     {
       "id": "player-unit-flight-camera",
@@ -372,7 +377,7 @@
         "research/upstream-runtime/src/network-render/java/UpstreamRenderedNetworkProbe.java",
         "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerApp.java"
       ],
-      "notes": "14 unit types draw in offline singleplayer and 37 (incl. naval wakes and tank treads) in network-render; full Serpulo/Erekir unit abilities and manual player weapon aim/fire are in progress."
+      "notes": "14 unit types draw in offline singleplayer and 37 (incl. naval wakes and tank treads) in network-render; the unified client drives stock player aim and fire both offline and on the original Java server. The stock Gamma and a remote Dagger draw live projectiles and clear them on release. Full unit abilities and turret projectile effects remain open."
     },
     {
       "id": "lighting-weather-fx-zoom",
