@@ -16,8 +16,8 @@ Run `./dev.sh doctor` for environment diagnostics, `./dev.sh test` for host unit
 - [Roadmap and tasks](https://github.com/levkeveli/Min3DStry/issues)
 - [Offline campaign and Custom Game](docs/gameplay/offline-singleplayer.md) (Emulator-tested on Old & New 3DS in Azahar `2126.2`; physical hardware pending `#43`)
 - [Embedded TeaVM save loader](docs/porting/embed-loader.md) (Default `min3dstry.3dsx` startup path linked with `libm3dsloader.a`)
-- [Unified offline and multiplayer build](research/upstream-runtime/README.md) (stock v160.8 server joins and live soundtrack in the Join path)
-- [Hardware deployment & benchmark-report](docs/hardware/deployment-and-logs.md) (Wi-Fi deployment and log capture verified on Original and New 3DS XL)
+- [Unified offline and multiplayer build](research/upstream-runtime/README.md) (stock v160.8 server joins and Azahar soundtrack decoding and routing)
+- [Hardware deployment & benchmark-report](docs/hardware/deployment-and-logs.md) (Wi-Fi deployment and log capture verified on Original and New 3DS XL. [Original 3DS XL evidence](docs/hardware/evidence/old3ds-xl-a4a9a96.md))
 - [Citro2D platform test harness](docs/rendering/citro2d-prototype.md) (Host-tested, `.3dsx` built, and Azahar emulator-tested; physical hardware pending)
 
 ## Current development status
