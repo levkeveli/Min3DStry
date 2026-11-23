@@ -2,6 +2,8 @@
 
 #include <string.h>
 
+#define NDSP_CHANNEL_COUNT 24u
+
 static void m3ds_ndsp_stream_set_mix_raw(
     int channel,
     float gain_left,
@@ -34,9 +36,15 @@ static M3dsAudioBackendState m3ds_ndsp_stream_init_cb(
     }
 
     const M3dsNdspContext *ndsp_ctx = ctx->ndsp_ctx;
+    uint32_t channel = ctx->channel;
     memset(ctx, 0, sizeof(*ctx));
     ctx->ndsp_ctx = ndsp_ctx;
-    ctx->channel = M3DS_AUDIO_STREAM_NDSP_CHANNEL;
+    ctx->channel = channel;
+
+    if (channel < M3DS_AUDIO_MAX_VOICES || channel >= NDSP_CHANNEL_COUNT) {
+        if (out_status_code) *out_status_code = 0u;
+        return M3DS_AUDIO_STATE_DISABLED;
+    }
 
     if (!ndsp_ctx || !ndsp_ctx->ndsp_ready) {
         if (out_status_code) {
@@ -166,6 +174,13 @@ static void m3ds_ndsp_stream_set_paused_cb(void *raw_ctx, bool paused) {
     ndspChnSetPaused((int)ctx->channel, paused);
 }
 
+static void m3ds_ndsp_stream_set_rate_cb(void *raw_ctx, float sample_rate) {
+    const M3dsNdspStreamContext *ctx = raw_ctx;
+    if (ctx && ctx->ready && ctx->ndsp_ctx->ndsp_ready) {
+        ndspChnSetRate((int)ctx->channel, sample_rate);
+    }
+}
+
 static void m3ds_ndsp_stream_stop_cb(void *raw_ctx) {
     M3dsNdspStreamContext *ctx = (M3dsNdspStreamContext *)raw_ctx;
     if (!ctx || !ctx->ready || !ctx->ndsp_ctx || !ctx->ndsp_ctx->ndsp_ready) {
@@ -182,6 +197,14 @@ void m3ds_ndsp_stream_backend_init(
     M3dsAudioStreamBackend *backend,
     M3dsNdspStreamContext *ctx,
     const M3dsNdspContext *ndsp_ctx) {
+    m3ds_ndsp_stream_backend_init_on_channel(backend, ctx, ndsp_ctx, M3DS_AUDIO_STREAM_NDSP_CHANNEL);
+}
+
+void m3ds_ndsp_stream_backend_init_on_channel(
+    M3dsAudioStreamBackend *backend,
+    M3dsNdspStreamContext *ctx,
+    const M3dsNdspContext *ndsp_ctx,
+    uint32_t channel) {
     if (!backend) {
         return;
     }
@@ -189,7 +212,7 @@ void m3ds_ndsp_stream_backend_init(
     if (ctx) {
         memset(ctx, 0, sizeof(*ctx));
         ctx->ndsp_ctx = ndsp_ctx;
-        ctx->channel = M3DS_AUDIO_STREAM_NDSP_CHANNEL;
+        ctx->channel = channel;
     }
     backend->ctx = ctx;
     backend->name = "ndsp-stream";
@@ -201,4 +224,5 @@ void m3ds_ndsp_stream_backend_init(
     backend->set_mix = m3ds_ndsp_stream_set_mix_cb;
     backend->set_paused = m3ds_ndsp_stream_set_paused_cb;
     backend->stop = m3ds_ndsp_stream_stop_cb;
+    backend->set_rate = m3ds_ndsp_stream_set_rate_cb;
 }
