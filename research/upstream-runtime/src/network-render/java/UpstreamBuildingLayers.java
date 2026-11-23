@@ -12,6 +12,7 @@ import mindustry.graphics.Layer;
 import mindustry.type.Category;
 import mindustry.type.UnitType;
 import mindustry.world.Block;
+import mindustry.world.blocks.heat.HeatConductor;
 import mindustry.world.meta.BuildVisibility;
 import mindustry.world.blocks.liquid.LiquidRouter;
 import mindustry.world.blocks.payloads.PayloadConveyor.PayloadConveyorBuild;
@@ -45,7 +46,7 @@ final class UpstreamBuildingLayers {
     }
 
     static boolean supportsMaterialDraw(Block block) {
-        return block instanceof GenericCrafter || block instanceof Separator || block instanceof Pump
+        return block instanceof GenericCrafter || block instanceof HeatConductor || block instanceof Separator || block instanceof Pump
             || block instanceof LiquidRouter || block instanceof StorageBlock;
     }
 

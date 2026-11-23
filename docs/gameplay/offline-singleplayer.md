@@ -615,6 +615,24 @@ water and nitrogen in the tanks, the configured source, and both bridge
 spans when loading the save offline and after joining the unmodified
 Java v160.8 server.
 
+## Erekir heat and neoplasm
+
+The same world pass now draws the original heat conductors. Their stock
+rotation, heat-input layer, and additive heat-output layer use the pinned
+Mindustry atlas. The upstream simulation supplies the heat and consumption
+state.
+
+`tools/verify_erekir_heat_fixture.py --create` takes the original
+`maps/erekir/onset.msav` from v160.8. It creates cold and powered saves in
+stock Java using the neoplasia reactor, beam nodes, heat redirector, carbide
+crucible, and reinforced liquid tank. The reactor produces 60 heat, of which
+the three-tile contact transfers 36. Stock Java and `runErekirHeatJvm`
+verify production and the effect of rotating the redirector. Use
+`--check` to reopen the port-written save in stock Java. With a unified
+ARM11 build, use `--fixture heat-onset.msav --rom upstream-probe.3dsx`
+to compare cold and active redirector pixels and verify the saved
+production outputs on both Azahar profiles.
+
 ## Original turret graphics
 
 The offline and live world passes use the original v160.8 turret drawers
