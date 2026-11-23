@@ -7,6 +7,7 @@ import mindustry.content.Liquids;
 import mindustry.world.blocks.heat.HeatConductor.HeatConductorBuild;
 import mindustry.world.blocks.power.HeaterGenerator.HeaterGeneratorBuild;
 import mindustry.world.blocks.production.HeatCrafter.HeatCrafterBuild;
+import mindustry.world.blocks.sandbox.LiquidSource.LiquidSourceBuild;
 import port.render.UpstreamFluidAtlas;
 
 /** Runs the original Erekir production chain inside the port's offline tick loop. */
@@ -70,6 +71,23 @@ public final class UpstreamErekirHeatReference implements UpstreamTerrainDrawPro
         step(session, 4);
         if (Math.abs(crucible.heat - 36f) > 0.01f) throw new AssertionError("Heat route did not recover");
         System.out.println("UPSTREAM_EREKIR_HEAT_ROTATION isolated=ok restored=ok");
+
+        var water = (LiquidSourceBuild)Vars.world.build(REACTOR_X, Y - 3);
+        float neoplasmBefore = reactor.liquids.get(Liquids.neoplasm) + outlet.liquids.get(Liquids.neoplasm);
+        water.source = null;
+        reactor.liquids.set(Liquids.water, 0f);
+        step(session, 12);
+        float neoplasmStarved = reactor.liquids.get(Liquids.neoplasm) + outlet.liquids.get(Liquids.neoplasm);
+        if (reactor.productionEfficiency != 0f || reactor.heat >= 60f || neoplasmStarved > neoplasmBefore + 0.01f) {
+            throw new AssertionError("The reactor kept producing without water");
+        }
+        water.source = Liquids.water;
+        step(session, 32);
+        if (reactor.heat < 59.99f || reactor.productionEfficiency < 0.99f
+                || reactor.liquids.get(Liquids.neoplasm) + outlet.liquids.get(Liquids.neoplasm) <= neoplasmStarved) {
+            throw new AssertionError("The reactor did not resume production after restoring water");
+        }
+        System.out.println("UPSTREAM_EREKIR_HEAT_WATER starved=ok recovered=ok");
     }
 
     private static void step(UpstreamSinglePlayerSession session, int ticks) {

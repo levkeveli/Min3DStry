@@ -49,21 +49,28 @@ def create(args, base, output):
             "SaveIO.save(Fi.get('config/saves/heat-cold.msav')); "
             "Vars.world.build(268,103).source=Liquids.arkycite; Vars.world.build(271,100).source=Liquids.water; "
             "SaveIO.save(Fi.get('config/saves/heat-onset.msav')); "
-            "let stage=0; Events.run(Packages.mindustry.game.EventType.Trigger.update, () => { "
+            "const water=Vars.world.build(271,100); let stage=0; "
+            "Events.run(Packages.mindustry.game.EventType.Trigger.update, () => { "
             "if(stage===0 && Math.abs(c.heat-36)<0.01 && r.heat===60 && "
             "c.items.get(Items.carbide)>0 && o.liquids.get(Liquids.neoplasm)>0) { "
             "stage=1; h.rotation=1; print('STOCK_HEAT_ACTIVE 60/36/36'); "
             "} else if(stage===1 && c.heat===0) { stage=2; h.rotation=0; print('STOCK_HEAT_ISOLATED'); "
             "} else if(stage===2 && Math.abs(c.heat-36)<0.01) { "
-            "stage=3; print('STOCK_HEAT_RESTORED'); } }); return 'STOCK_HEAT_FIXTURE_SAVED';"
+            "stage=3; water.source=null; r.liquids.set(Liquids.water,0); print('STOCK_HEAT_RESTORED'); "
+            "} else if(stage===3 && r.productionEfficiency===0 && r.heat<60) { "
+            "stage=4; water.source=Liquids.water; print('STOCK_HEAT_WATER_STARVED'); "
+            "} else if(stage===4 && r.productionEfficiency>0.99 && r.heat===60) { "
+            "stage=5; print('STOCK_HEAT_WATER_RECOVERED'); } }); return 'STOCK_HEAT_FIXTURE_SAVED';"
         )
         stock_command(server, log, "js (() => { " + setup + " })()", "STOCK_HEAT_FIXTURE_SAVED")
         wait_for(log, server, r"STOCK_HEAT_ACTIVE 60/36/36", 35)
         wait_for(log, server, r"STOCK_HEAT_ISOLATED", 10)
         wait_for(log, server, r"STOCK_HEAT_RESTORED", 10)
+        wait_for(log, server, r"STOCK_HEAT_WATER_STARVED", 10)
+        wait_for(log, server, r"STOCK_HEAT_WATER_RECOVERED", 10)
     finally:
         stop(server)
-    print("Stock Java v160.8 produced carbide and neoplasm, then isolated and restored heat.")
+    print("Stock Java v160.8 verified production, redirector rotation, and recovery after water starvation.")
     return output / "config/saves/heat-onset.msav"
 
 

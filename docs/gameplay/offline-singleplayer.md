@@ -627,7 +627,8 @@ state.
 stock Java using the neoplasia reactor, beam nodes, heat redirector, carbide
 crucible, and reinforced liquid tank. The reactor produces 60 heat, of which
 the three-tile contact transfers 36. Stock Java and `runErekirHeatJvm`
-verify production and the effect of rotating the redirector. Use
+verify production, the effect of rotating the redirector, and recovery
+after water starvation. Use
 `--check` to reopen the port-written save in stock Java. With a unified
 ARM11 build, use `--fixture heat-onset.msav --rom upstream-probe.3dsx`
 to compare cold and active redirector pixels and verify the saved

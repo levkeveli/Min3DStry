@@ -46,8 +46,8 @@ final class UpstreamBuildingLayers {
     }
 
     static boolean supportsMaterialDraw(Block block) {
-        return block instanceof GenericCrafter || block instanceof HeatConductor || block instanceof Separator || block instanceof Pump
-            || block instanceof LiquidRouter || block instanceof StorageBlock;
+        return block instanceof GenericCrafter || block instanceof HeatConductor || block instanceof Separator
+            || block instanceof Pump || block instanceof LiquidRouter || block instanceof StorageBlock;
     }
 
     static boolean supportsExtractorDraw(Block block) {
