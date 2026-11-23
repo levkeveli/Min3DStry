@@ -19,6 +19,8 @@ off and a campaign sector is active;
 - timed stock `sector.capture.current` and `wave.guardianwarn` notification rows;
 - the local unit's stock `stat.health`/`stat.ammo` values;
 - the original copper item glyph and the local core's copper count;
+- the local core's non-zero item list as stock item icons with counts, wrapped
+  into up to three columns clear of the minimap;
 - a live minimap rendered from a 64x64 sample at 56 px in the top-right
   corner, using the stock `MinimapRenderer` color path (`Block.minimapColor`,
   floor/overlay fallback through `MapIO.colorFor`, darkness and liquid/shadow
@@ -88,6 +90,32 @@ top-screen position, which catches a wrong texture origin or byte order. It
 still does not prove per-tile color agreement; the captured terrain pattern
 should be inspected as well.
 
+The core item list uses the pinned `CoreItemsDisplay` filter (items with a
+positive core count, in content order). `UpstreamCoreItems` is covered by the
+status-hud host probe:
+
+```text
+UPSTREAM_CORE_ITEMS rows=2 ok
+```
+
+The Azahar verifier can seed a deterministic core inventory through
+`/3ds/min3dstry/hud-items.txt` and assert that every requested row was drawn:
+
+```sh
+python tools/verify_minimap_azahar.py --model new3ds \
+  --rom research/upstream-runtime/build/singleplayer-items/upstream-probe.3dsx \
+  --items copper=200,lead=75,metaglass=64,graphite=120,sand=300,coal=90,\
+titanium=150,thorium=40,scrap=220,silicon=30,plastanium=18,\
+phase-fabric=12,surge-alloy=9,spore-pod=25,pyratite=50
+```
+
+```text
+[PASS] minimap model=new3ds distinct=20 cell=(34, 6) marker=white items=15 drawn=15 columns=3
+```
+
+The Original 3DS profile passed the same path with three seeded items
+(`items=3 drawn=3 columns=1`). The fixture is removed after the run.
+
 The live fixture exercises the countdown/waiting path with `enemies=0`. The
 singular/plural enemy rows, the `wave.waveInProgress` branch, and the `m:ss`
 timer path are copied from v160.8 `HudFragment.makeStatusTable()` but are not
@@ -102,6 +130,8 @@ exactly.
 - The minimap is the always-on 56 px slice drawn from a 64x64 sample:
   fullscreen/zoom, unit blips beyond the local player, and the full stock
   minimap panel layout remain open under #40.
-- Full item list, additional notifications and the full stock layout remain
-  open under #40.
+- The item list is icon-and-count only, like the stock core display, but not
+  its complete panel/theme layout. More than 18 rows fall back to the overflow
+  log rather than a scrollable table.
+- Additional notifications and the full stock layout remain open under #40.
 - Physical Old/New 3DS verification remains open with #43.

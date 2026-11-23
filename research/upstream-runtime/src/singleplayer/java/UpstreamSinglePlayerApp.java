@@ -94,6 +94,8 @@ public final class UpstreamSinglePlayerApp {
     private byte[] lastMenu;
     private Block lastPrimaryShortcut;
     private List<UpstreamObjectiveHud.Row> lastStatus;
+    private int lastCoreItemCount = -1;
+    private int lastCoreItemDrawn = -1;
     private byte[][] statusLabels = new byte[0][];
     private int[][] statusCharacters = new int[0][];
     private List<UpstreamObjectiveHud.Row> lastObjectives;
@@ -329,6 +331,8 @@ public final class UpstreamSinglePlayerApp {
         lastMenu = null;
         lastStatus = null;
         lastObjectives = null;
+        lastCoreItemCount = -1;
+        lastCoreItemDrawn = -1;
         reportedEnemies.clear();
         loadedUnitGraphics.clear();
         loadedBulletGraphics.clear();
@@ -772,6 +776,7 @@ public final class UpstreamSinglePlayerApp {
     private boolean runMainLoop(Fi saveFile) throws IOException {
         var unit = session.ensurePlayerSpawn();
         var core = session.core();
+        UpstreamHudFixture.apply();
         lastCopper = core == null ? 0 : core.items.get(Items.copper);
         if (unit != null) {
             System.out.println("UPSTREAM_SP_READY unit=" + unit.id() + " x=" + unit.x() + " y=" + unit.y()
@@ -1008,6 +1013,7 @@ public final class UpstreamSinglePlayerApp {
         var schematics = buildingControls.schematics();
         schematics.draw(viewport);
         drawObjectives(drawStatusHud());
+        drawCoreItems();
         var block = buildingControls.block();
         var catalog = buildingControls.catalog();
         var config = buildingControls.buildingConfig();
@@ -1100,6 +1106,38 @@ public final class UpstreamSinglePlayerApp {
             y = target.drawObjective(statusLabels[i], statusCharacters[i], rows.get(i).icon(), y);
         }
         return y;
+    }
+
+    private void drawCoreItems() {
+        var items = UpstreamCoreItems.live();
+        float x = 168f;
+        float y = 4f;
+        int drawn = 0;
+        for (var entry : items) {
+            var item = entry.item();
+            if (item.uiIcon == null) item.loadIcon();
+            var icon = item.uiIcon != null && item.uiIcon.found() ? item.uiIcon : null;
+            String value = Integer.toString(entry.amount());
+            byte[] label = (value + "\0").getBytes(StandardCharsets.UTF_8);
+            int[] characters = encodeLabel(UpstreamLabelText.parse(value));
+            float next = target.drawObjectiveAt(label, characters, icon, x, y);
+            if (next >= 240f) {
+                x += 56f;
+                if (x > 280f) break;
+                y = 4f;
+                next = target.drawObjectiveAt(label, characters, icon, x, y);
+            }
+            if (next >= 240f) break;
+            y = next;
+            drawn++;
+        }
+        int columns = items.isEmpty() ? 0 : (int) ((x - 168f) / 56f) + 1;
+        if (items.size() != lastCoreItemCount || drawn != lastCoreItemDrawn) {
+            lastCoreItemCount = items.size();
+            lastCoreItemDrawn = drawn;
+            System.out.println("UPSTREAM_ITEM_ROWS items=" + items.size()
+                + " drawn=" + drawn + " columns=" + columns);
+        }
     }
 
     private void drawObjectives(float y) {

@@ -87,6 +87,14 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
             icon == null ? 0 : icon.width, icon == null ? 0 : icon.height, y, Address.ofData(stockObjectiveFont));
     }
 
+    float drawObjectiveAt(byte[] label, int[] characters, TextureRegion icon, float x, float y) {
+        int page = icon == null ? -1 : UpstreamTerrainDrawProbe.pageIndex(icon);
+        return NativeTerrain.drawObjectiveAt(Address.ofData(label), Address.ofData(characters), characters.length / 7, page,
+            icon == null ? 0 : icon.getX(), icon == null ? 0 : icon.getY(),
+            icon == null ? 0 : icon.width, icon == null ? 0 : icon.height, x, y,
+            Address.ofData(stockObjectiveFont));
+    }
+
     boolean drewStockObjectiveFont() {
         return stockObjectiveFont[0] != 0;
     }
@@ -285,6 +293,11 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
         @Import(name = "m3ds_terrain_draw_objective")
         static native float drawObjective(Address label, Address characters, int count,
                                           int page, int x, int y, int width, int height, float top, Address stockFont);
+
+        @Import(name = "m3ds_terrain_draw_objective_at")
+        static native float drawObjectiveAt(Address label, Address characters, int count,
+                                            int page, int x, int y, int width, int height,
+                                            float left, float top, Address stockFont);
 
         @Import(name = "m3ds_terrain_draw_world_label")
         static native int drawWorldLabel(Address label, Address characters, int count, float x, float y, int flags, float size,
