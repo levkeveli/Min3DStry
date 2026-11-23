@@ -218,19 +218,17 @@ items/core metadata and persistence.
 
 ## HWT-04 — NDSP audio and DSP firmware
 
-Covers `ndsp-sfx-music`. **Setup:** audio build with upstream assets and
-`sd:/3ds/dspfirm.cdc` present.
+Covers `ndsp-sfx-music`. **Setup:** Use the
+[audio-enabled unified ARM11 build](../research/upstream-runtime/README.md#stock-sound-effects-and-soundtrack)
+with `sd:/3ds/dspfirm.cdc` present and a stock v160.8 server.
 
-```bash
-UPSTREAM_MINDUSTRY=/path/to/Mindustry ./dev.sh build
-```
+**Steps:** Use Join to connect to the stock server. Listen for the UI and
+positional effects, an active drill's ambience, and the stock soundtrack.
+Run for two minutes and disconnect.
 
-**Steps:** launch, play a UI click, place/break a block, fire a turret, start
-music, toggle mute (X), run for 2 minutes.
-
-**Expected:** `AUDIO backend=ndsp state=ready`, audible effects/music with no
-crackling or hangs. If `dspfirm.cdc` is absent, record
-`fallback_no_dsp`; that is an environment finding, not a code pass.
+**Expected:** `UPSTREAM_LIVE_AUDIO_OPEN` reports `state=ready`, the soundtrack
+starts with `mode=ndsp`, and playback is audible without crackling or hangs.
+Record `fallback_no_dsp` separately if the DSP firmware is unavailable.
 
 **Evidence:** log, dspfirm presence note, model/firmware, audio build SHA, and
 a short listening report. Physical audio cannot be proven from Azahar.

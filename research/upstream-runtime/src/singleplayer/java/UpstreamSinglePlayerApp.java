@@ -13,6 +13,7 @@ import arc.math.Mathf;
 import arc.math.geom.Vec2;
 import arc.struct.IntSet;
 import arc.struct.ObjectSet;
+import arc.struct.Seq;
 import arc.util.Time;
 import arc.util.Strings;
 import java.io.IOException;
@@ -21,6 +22,7 @@ import java.util.List;
 import mindustry.Vars;
 import mindustry.content.Blocks;
 import mindustry.content.Items;
+import mindustry.content.TechTree.TechNode;
 import mindustry.core.UI;
 import mindustry.core.World;
 import mindustry.entities.bullet.BulletType;
@@ -147,6 +149,7 @@ public final class UpstreamSinglePlayerApp {
             }
             List<UpstreamSinglePlayerSession.SectorSlot> sectorSaves =
                 args.length < 2 && custom == null ? session.sectorSaves() : List.of();
+            UpstreamCampaignResearch.installAutoUnlocks();
             if (campaignRequested) sectorSaves = session.campaignSlots(sectorSaves);
             CampaignGame campaign = null;
             if (sectorSaves.size() == 1 && !campaignRequested) {
@@ -593,6 +596,105 @@ public final class UpstreamSinglePlayerApp {
         }
     }
 
+    private boolean openResearch(TechNode root, Fi saveFile) throws IOException {
+        var research = new UpstreamCampaignResearch(root);
+        Seq<TechNode> nodes = new Seq<>();
+        listResearch(root, nodes);
+        int selected = 0, page = 0, lastAxis = 0;
+        boolean detail = false;
+        MenuRows rows = null;
+        System.out.println("UPSTREAM_CAMPAIGN_RESEARCH_OPEN tree=" + root.name + " visible=" + nodes.size);
+        while (true) {
+            long nextFrame = System.nanoTime() + FRAME_NS;
+            int input = UpstreamSinglePlayerInput.poll();
+            if (input == -1) return false;
+
+            TechNode node = nodes.get(selected);
+            if ((input & UpstreamSinglePlayerInput.B_PRESSED) != 0) {
+                if (!detail) return true;
+                detail = false;
+                rows = null;
+            } else if ((input & UpstreamSinglePlayerInput.A_PRESSED) != 0) {
+                if (!detail) {
+                    detail = true;
+                    page = 0;
+                    rows = null;
+                    System.out.println("UPSTREAM_CAMPAIGN_RESEARCH_SELECTED node=" + node.content.name
+                        + " selectable=" + research.selectable(node));
+                } else if (research.spend(node)) {
+                    session.save(saveFile);
+                    nodes.clear();
+                    listResearch(root, nodes);
+                    selected = nodes.indexOf(node, true);
+                    rows = null;
+                    System.out.println("UPSTREAM_CAMPAIGN_RESEARCH_CHANGED node=" + node.content.name
+                        + " unlocked=" + node.content.unlockedHost());
+                }
+            }
+
+            int axis = (byte)(input >> 8);
+            int direction = axis > 60 && lastAxis <= 20 ? -1 : axis < -60 && lastAxis >= -20 ? 1 : 0;
+            lastAxis = axis;
+            if (direction != 0) {
+                if (detail) {
+                    int lastPage = Math.max(0, (node.requirements.length + node.objectives.size - 1) / 4);
+                    page = Mathf.clamp(page + direction, 0, lastPage);
+                } else {
+                    selected = Mathf.clamp(selected + direction, 0, nodes.size - 1);
+                }
+                rows = null;
+            }
+            if (rows == null) {
+                rows = encodeMenuRows(detail ? researchDetail(node, research, page) : researchList(nodes, selected));
+            }
+            drawMenuRows(rows);
+            while (System.nanoTime() < nextFrame) Thread.yield();
+        }
+    }
+
+    private static void listResearch(TechNode node, Seq<TechNode> nodes) {
+        nodes.add(node);
+        if (node.content.unlockedHost()) {
+            for (TechNode child : node.children) listResearch(child, nodes);
+        }
+    }
+
+    private static String[] researchList(Seq<TechNode> nodes, int selected) {
+        int first = (selected / 5) * 5, end = Math.min(first + 5, nodes.size);
+        String[] captions = new String[2 + end - first];
+        captions[0] = Core.bundle.get("research") + "  " + (selected + 1) + " / " + nodes.size;
+        for (int i = first; i < end; i++) {
+            var content = nodes.get(i).content;
+            captions[i - first + 1] = (i == selected ? "> " : "  ") + content.localizedName
+                + (content.unlockedHost() ? "  [x]" : "");
+        }
+        captions[captions.length - 1] = "B " + Core.bundle.get("back");
+        return captions;
+    }
+
+    private static String[] researchDetail(TechNode node, UpstreamCampaignResearch research, int page) {
+        int first = page * 4, end = Math.min(first + 4, node.requirements.length + node.objectives.size);
+        String[] captions = new String[2 + end - first];
+        captions[0] = node.content.localizedName;
+        for (int i = first; i < end; i++) {
+            if (i < node.objectives.size) {
+                var objective = node.objectives.get(i);
+                captions[i - first + 1] = (objective.complete() ? "[x] " : "[ ] ")
+                    + Strings.stripColors(objective.display()).replace('\n', ' ');
+            } else {
+                int index = i - node.objectives.size;
+                var requirement = node.requirements[index];
+                captions[i - first + 1] = requirement.item.localizedName + "  "
+                    + node.finishedRequirements[index].amount + " / " + requirement.amount
+                    + "  (+" + research.available(requirement.item) + ")";
+            }
+        }
+        String status = node.content.unlockedHost() ? Strings.stripColors(Core.bundle.format("researched", node.content.localizedName))
+            : research.selectable(node) ? "A " + Core.bundle.get("research") : Core.bundle.get("locked");
+        captions[captions.length - 1] = status + "   B " + Core.bundle.get("back");
+        return captions;
+    }
+
     private boolean runMainLoop(Fi saveFile) throws IOException {
         var unit = session.ensurePlayerSpawn();
         var core = session.core();
@@ -612,6 +714,15 @@ public final class UpstreamSinglePlayerApp {
                     && (input & UpstreamSinglePlayerInput.SAVE_PRESSED) != 0) return true;
             int touch = UpstreamSinglePlayerInput.touch();
             long now = System.nanoTime();
+
+            var sector = Vars.state.rules.sector;
+            int researchKeys = UpstreamSinglePlayerInput.L_HELD | UpstreamSinglePlayerInput.SAVE_PRESSED;
+            if (sector != null && sector.planet.techTree != null && (input & researchKeys) == researchKeys) {
+                if (!openResearch(sector.planet.techTree, saveFile)) return false;
+                previousTime = System.nanoTime();
+                accumulator = 0L;
+                continue;
+            }
 
             moveInput.set((byte)input / 127f, (byte)(input >>> 8) / 127f);
             if (moveInput.len2() < DEAD_ZONE * DEAD_ZONE) {
