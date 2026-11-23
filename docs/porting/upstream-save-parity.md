@@ -44,3 +44,17 @@ Build the ARM11 probe with `-Pprobe=world-save generateC` and
 
 The native reader remains verification-only; the next step is to make the
 upstream loader own the live world instead of comparing two decoders.
+## Embedded map assets
+
+The offline session uses the stock SHA-256 asset keys under the
+`assetCache` directory alongside saves and settings. When an imported map
+embeds a data asset, the original save reader stores it in this cache. A
+normal subsequent save preserves the stock hash reference and a new
+session can verify and reopen the cached bytes.
+
+`tools/stock_embedded_map_assets.py` writes a Glacier fixture through the
+unmodified v160.8 Java server. `runStockEmbeddedAssetJvm` with
+`-Pprobe=singleplayer` loads the fixture, saves it and checks a new cache
+instance against the original image. Run the fixture tool again with
+`--readback` to verify that stock Java reopens the port save and resolves
+the same image. Rendering imported images requires separate verification.

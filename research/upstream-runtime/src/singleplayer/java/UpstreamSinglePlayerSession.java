@@ -118,6 +118,8 @@ public final class UpstreamSinglePlayerSession {
         }
         Vars.saveDirectory = mapDirectory.child("saves");
         Vars.schematicDirectory = mapDirectory.child("schematics");
+        Vars.assetCacheDirectory = mapDirectory.child("assetCache");
+        Vars.assetCache = new UpstreamAssetCache(Vars.assetCacheDirectory);
         // Blocks capture their default cache layer while the content registry is created.
         CacheLayer.init();
         settings.defaults("locale", locale == null || locale.isEmpty() ? "en" : locale);

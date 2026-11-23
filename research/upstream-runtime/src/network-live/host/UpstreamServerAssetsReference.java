@@ -66,7 +66,10 @@ final class UpstreamServerAssetsReference {
                 client.receiveAssets(new ByteArrayInputStream(corrupt), corrupt.length);
                 throw new AssertionError("A changed asset must fail SHA-256 validation");
             } catch (IOException expected) {
-                if (directory.list().length != 1 || client.cache.has(large.stringHash)) throw expected;
+                if (directory.list().length != 2 || client.cache.has(large.stringHash)
+                        || !Arrays.equals(directory.child(large.stringHash).readBytes(), new byte[]{42})) {
+                    throw expected;
+                }
             }
             for (int size : new int[]{0, 1, 55, 56, 63, 64, 65}) {
                 byte[] sample = Arrays.copyOf(bytes, size);

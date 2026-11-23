@@ -13,7 +13,7 @@ from verify_upstream_live_net import stop, wait_for
 
 
 CLIENT = Path(__file__).resolve().parents[1] / "research/upstream-runtime/host/UpstreamStockRotationCapture.java"
-ASSETS = CLIENT.parents[1] / "src/network-live/java"
+SOURCE = CLIENT.parents[1] / "src"
 LOAD_NEXT = (
     "Vars.world.loadMap(Packages.mindustry.io.MapIO.createMap(Packages.arc.files.Fi.get('next.msav'), false));"
 )
@@ -60,7 +60,9 @@ def main():
         classes = root / "classes"
         jar = args.server.resolve()
         subprocess.run([args.javac, "-cp", str(jar), "-d", str(classes), str(CLIENT),
-                        str(ASSETS / "UpstreamServerAssets.java"), str(ASSETS / "UpstreamAssetSha256.java")],
+                        str(SOURCE / "network-live/java/UpstreamServerAssets.java"),
+                        str(SOURCE / "content/java/UpstreamAssetCache.java"),
+                        str(SOURCE / "content/java/UpstreamAssetSha256.java")],
                        cwd=root, check=True)
         server_log = root / "server.log"
         with server_log.open("w", encoding="utf8") as log:
