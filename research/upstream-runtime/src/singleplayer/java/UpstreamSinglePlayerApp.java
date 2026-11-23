@@ -785,17 +785,6 @@ public final class UpstreamSinglePlayerApp {
         var unit = session.ensurePlayerSpawn();
         var core = session.core();
         UpstreamHudFixture.apply();
-        Fi hudBatch = new Fi("/3ds/min3dstry/hud-batch.txt");
-        if (hudBatch.exists()) {
-            String script = hudBatch.readString("UTF-8");
-            if (script.contains("move=1")) {
-                for (int i = 0; i < 120; i++) session.stepSimulation(0f, -1f);
-            }
-            if (script.contains("wave=1")) session.triggerWave();
-            if (script.contains("core=1")) UpstreamNotification.show(Core.bundle.get("coreattack"), 10f);
-            if (script.contains("pause=1")) openPauseMenu();
-            System.out.println("UPSTREAM_HUD_BATCH applied=" + script.replace('\n', ','));
-        }
         lastCopper = core == null ? 0 : core.items.get(Items.copper);
         if (unit != null) {
             System.out.println("UPSTREAM_SP_READY unit=" + unit.id() + " x=" + unit.x() + " y=" + unit.y()
@@ -1214,9 +1203,11 @@ public final class UpstreamSinglePlayerApp {
         if (sector != null) {
             drawPauseRow(sector.planet.localizedName + " / " + sector.name(), 160f, 48f, false);
         }
-        var objectives = UpstreamObjectiveHud.collect(Vars.state.rules);
-        if (!objectives.isEmpty()) {
-            drawPauseRow(objectives.get(0).text(), 100f, 72f, false);
+        if (sector != null) {
+            var objectives = UpstreamObjectiveHud.collect(Vars.state.rules);
+            if (!objectives.isEmpty()) {
+                drawPauseRow(objectives.get(0).text(), 100f, 72f, false);
+            }
         }
         String[] options;
         if (pauseMenu.options() == 4) {
