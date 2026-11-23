@@ -1012,9 +1012,79 @@ final class GlacierFixture {
             if (source.count(skip) != 2) {
                 throw new GradleException('Pinned SaveFileReader chunk skip methods changed')
             }
+            def streams = 'protected static final ReusableByteOutStream byteOutput = new ReusableByteOutStream(), byteOutput2 = new ReusableByteOutStream();'
+            def selectStream = 'ReusableByteOutStream dout = wasNested ? byteOutput2 : byteOutput;'
+            def writeData = 'output.write(dout.getBytes(), 0, length);'
+            def resetNesting = '            chunkNested = wasNested;'
+            if ([streams, selectStream, writeData, resetNesting].any { source.count(it) != 1 }) {
+                throw new GradleException('Pinned SaveFileReader write buffering changed')
+            }
+            def segmented = '''protected static final ChunkBuffer byteOutput = new ChunkBuffer(), byteOutput2 = new ChunkBuffer();
+
+    // Preserve the stock length prefix without requiring one map-sized allocation.
+    protected static final class ChunkBuffer extends OutputStream{
+        private static final int capacity = 4096;
+        private final Chunk first = new Chunk();
+        private Chunk tail = first;
+        private int size;
+
+        private static final class Chunk{
+            final byte[] bytes = new byte[capacity];
+            int count;
+            Chunk next;
+        }
+
+        private void ensureSpace(){
+            if(tail.count == capacity){
+                tail.next = new Chunk();
+                tail = tail.next;
+            }
+        }
+
+        @Override
+        public void write(int value){
+            ensureSpace();
+            tail.bytes[tail.count++] = (byte)value;
+            size++;
+        }
+
+        @Override
+        public void write(byte[] bytes, int offset, int length){
+            while(length > 0){
+                ensureSpace();
+                int count = Math.min(length, capacity - tail.count);
+                System.arraycopy(bytes, offset, tail.bytes, tail.count, count);
+                tail.count += count;
+                offset += count;
+                length -= count;
+                size += count;
+            }
+        }
+
+        int size(){
+            return size;
+        }
+
+        void writeTo(DataOutput output) throws IOException{
+            for(Chunk chunk = first; chunk != null; chunk = chunk.next){
+                if(chunk.count != 0) output.write(chunk.bytes, 0, chunk.count);
+            }
+        }
+
+        void reset(){
+            first.count = 0;
+            first.next = null;
+            tail = first;
+            size = 0;
+        }
+    }'''
             def staged = saveFileReaderFile.get().asFile
             staged.parentFile.mkdirs()
-            staged.setText(source.replace(skip, discard), 'UTF-8')
+            staged.setText(source.replace(skip, discard)
+                .replace(streams, segmented)
+                .replace(selectStream, 'ChunkBuffer dout = wasNested ? byteOutput2 : byteOutput;')
+                .replace(writeData, 'dout.writeTo(output);')
+                .replace(resetNesting, '            dout.reset();\n' + resetNesting), 'UTF-8')
         }
         if (usesSinglePlayer || usesLiveNetwork) {
             def source = new String(readUpstream(dataPatcherSource), 'UTF-8')
