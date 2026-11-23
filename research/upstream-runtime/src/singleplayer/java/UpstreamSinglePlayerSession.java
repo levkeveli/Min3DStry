@@ -705,6 +705,41 @@ public final class UpstreamSinglePlayerSession {
             System.out.println("UPSTREAM_MINIMAP sample=32 hash="
                 + Long.toUnsignedString(UpstreamMinimap.hash(minimap), 16)
                 + " cell=" + (marker % 32) + "," + (marker / 32));
+            int px = marker % 32;
+            int py = marker / 32;
+            int tipX = (int)Math.round(px + 0.5 + Math.cos(Math.toRadians(unit.rotation())) * 2.5);
+            int tipY = (int)Math.round(py + 0.5 + Math.sin(Math.toRadians(unit.rotation())) * 2.5);
+            boolean arrowChecked = false;
+            if (tipX < 0 || tipY < 0 || tipX >= 32 || tipY >= 32) {
+                throw new IllegalStateException("Minimap direction tip falls outside the grid");
+            }
+            arrowChecked = true;
+            if (tipX == px && tipY == py) {
+                throw new IllegalStateException("Minimap direction tip overlaps the base");
+            }
+            int tipOffset = (tipY * 32 + tipX) * 4;
+            if ((minimap[tipOffset] & 0xff) != 255
+                    || (minimap[tipOffset + 1] & 0xff) != 255
+                    || (minimap[tipOffset + 2] & 0xff) != 255) {
+                throw new IllegalStateException("Minimap player direction tip is not white");
+            }
+            var localCore = Vars.player.team().core();
+            int coreChecked = 0;
+            if (localCore != null) {
+                byte[] coreMap = UpstreamMinimap.sample(64, false);
+                int coreCell = UpstreamMinimap.cellIndex(64, Vars.world.width(), Vars.world.height(),
+                    localCore.tileX(), localCore.tileY());
+                int playerCell64 = UpstreamMinimap.playerIndex(64);
+                int coreOffset = coreCell * 4;
+                var teamColor = localCore.team.color;
+                if ((coreMap[coreOffset] & 0xff) != Math.round(teamColor.r * 255f)
+                        || (coreMap[coreOffset + 1] & 0xff) != Math.round(teamColor.g * 255f)
+                        || (coreMap[coreOffset + 2] & 0xff) != Math.round(teamColor.b * 255f)) {
+                    throw new IllegalStateException("Minimap core marker color mismatch");
+                }
+                coreChecked = 1;
+            }
+            System.out.println("UPSTREAM_MINIMAP_MARKERS arrow=" + (arrowChecked ? 1 : 0) + " core=" + coreChecked + " ok");
 
             // 1. Movement check along Y-axis.
             float startY = unit.y();

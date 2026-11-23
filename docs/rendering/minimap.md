@@ -33,3 +33,12 @@ HUD/minimap layout and not a gameplay input surface.
 - Enemy blips are prototype rects; HP/copper bars are fixed-scale.
 - Rect colors are prototype constants, not upstream atlas sprites.
 - HUD/menu parity and the rest of issue #40 remain open.
+
+## Live HUD minimap
+
+The live singleplayer HUD samples the world through `UpstreamMinimap` and
+draws a 64x64 texture at 56 px with a dark inset frame. It uses the stock
+`Block.minimapColor`/`MapIO.colorFor` color path, team-colored unit blips and
+local-core markers, and a white player marker whose 3-cell tip follows the
+unit facing. Uploads use the PICA200 ABGR/Morton layout described in
+[live-hud.md](live-hud.md). Emulator marker checks remain pending.
