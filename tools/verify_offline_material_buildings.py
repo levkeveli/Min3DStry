@@ -76,7 +76,8 @@ def create_fixtures(output, java, server_jar, port):
     return fixtures / "material-empty.msav", fixtures / "material-stock.msav"
 
 
-def capture(output, model, save, rom, azahar, reference=None, buildings=BUILDINGS, min_changed=12):
+def capture(output, model, save, rom, azahar, reference=None, buildings=BUILDINGS, min_changed=12,
+            frame_pattern=r"UPSTREAM_SP_FRAME .*left=73 bottom=20 sprites=1 wave=1"):
     sd = (output / "sdmc").resolve()
     sd_save = sd / "3ds/min3dstry/singleplayer-save.msav"
     sd_save.parent.mkdir(parents=True)
@@ -91,7 +92,7 @@ def capture(output, model, save, rom, azahar, reference=None, buildings=BUILDING
         config.write_text(singleplayer.az.patch_qt_config_text(initial, isolated), encoding="utf-8")
         proc, rpc = singleplayer._launch_azahar(model, rom, azahar, config, log)
         try:
-            singleplayer._wait_for_log(log, proc, r"UPSTREAM_SP_FRAME .*left=73 bottom=20 sprites=1 wave=1", 120)
+            singleplayer._wait_for_log(log, proc, frame_pattern, 120)
             deadline = time.monotonic() + 20
             image = None
             while time.monotonic() < deadline:

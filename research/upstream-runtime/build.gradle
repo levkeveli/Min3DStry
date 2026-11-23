@@ -340,6 +340,11 @@ if (usesSinglePlayer) {
     sourceSets.main.java.srcDir('src/singleplayer/java')
     if (usesSinglePlayerApp) {
         sourceSets.main.java.srcDirs('src/singleplayer-custom-host/java', 'src/singleplayer-campaign-host/java')
+        sourceSets.main.java.srcDir('src/singleplayer-research-host/java')
+        tasks.register('runGraphicalCampaignResearchJvm', JavaExec) {
+            classpath = sourceSets.main.runtimeClasspath
+            mainClass = 'UpstreamCampaignResearchReference'
+        }
         tasks.register('runCustomGameJvm', JavaExec) {
             classpath = sourceSets.main.runtimeClasspath
             mainClass = 'UpstreamCustomGameReference'
@@ -347,6 +352,11 @@ if (usesSinglePlayer) {
         tasks.register('runOfflineMaterialsJvm', JavaExec) {
             classpath = sourceSets.main.runtimeClasspath
             mainClass = 'UpstreamOfflineMaterialsReference'
+            workingDir = temporaryDir
+        }
+        tasks.register('runErekirHeatJvm', JavaExec) {
+            classpath = sourceSets.main.runtimeClasspath
+            mainClass = 'UpstreamErekirHeatReference'
             workingDir = temporaryDir
         }
         tasks.register('runOfflineWeaponsJvm', JavaExec) {
