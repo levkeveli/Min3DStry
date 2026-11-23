@@ -1467,13 +1467,94 @@ def verify_stock_puddles(server_log, server, rpc, output, model, timeout):
     raise RuntimeError(f"{model}: original liquid colors did not appear after the stock entity snapshot")
 
 
+def verify_logic_displays(server_log, server, rpc, output, model, timeout):
+    # The normal display sits below the live HUD in the unified ROM.
+    points = ((123, 130), (150, 170), (141, 163), (300, 50), (120, 190))
+    capture_marker_pixels(rpc, output, model, "display-background", points, timeout, ((86, 86, 102),) * len(points))
+    code = """getlink primary 0
+getlink source 1
+getlink tiled 2
+draw clear 160 210 75 0 0 0
+drawflush tiled
+draw clear 30 200 240 0 0 0
+drawflush source
+draw clear 16 32 64 0 0 0
+draw color 232 54 80 255 0 0
+draw rect 20 60 24 20 0 0
+draw color 255 255 255 255 0 0
+draw image 56 20 source 20 0 0
+print "ARM11"
+draw print 17 36 @bottomLeft 0 0 0
+drawflush primary
+end
+"""
+    send_marker_phase(server_log, server, "display-configured",
+        "const p=Vars.world.build(77,26), links=new Seq(); "
+        "const Link=Packages.mindustry.world.blocks.logic.LogicBlock.LogicLink; "
+        "links.add(new Link(0,-2,'display1',true)); links.add(new Link(9,3,'display2',true)); "
+        "links.add(new Link(-1,-4,'display3',true)); "
+        f"p.configureAny(Packages.mindustry.world.blocks.logic.LogicBlock.compress({json.dumps(code)},links)); "
+        'if(p.executor.instructions.length!==16 || p.executor.links.length!==3) throw "Invalid display config";')
+    capture_marker_pixels(rpc, output, model, "display-program", points, timeout,
+                          ((232, 54, 80), (16, 32, 64), (30, 200, 240), (30, 200, 240), (160, 210, 75)))
+    text_area = tuple((x, y) for x in range(115, 137) for y in range(145, 155))
+    screenshot = (output / f"{model}-display-program.png").read_bytes()
+    text_pixels = az.inspect_png(screenshot, text_area)["samples"]
+    if sum(min(color) >= 160 for color in text_pixels.values()) < 8:
+        raise RuntimeError("Original logic font was missing from the display framebuffer")
+    send_marker_phase(server_log, server, "display-server-headless",
+        'if(Vars.world.build(77,24).buffer!=null || Vars.world.build(86,29).buffer!=null) '
+        'throw "Dedicated server unexpectedly rendered displays";')
+    print(f"{model}: normal, large and tiled Logic Displays rendered the stock processor program.", flush=True)
+
+
+def verify_display_markers(server_log, server, rpc, output, model, timeout):
+    # Sample both markers below the stock status HUD.
+    points = ((105, 155), (105, 185), (275, 155), (275, 185))
+
+    def capture(phase, colors=None):
+        return capture_marker_pixels(rpc, output, model, f"display-markers-{phase}",
+                                     points, timeout, colors)
+
+    baseline = capture("baseline")
+    send_marker_phase(server_log, server, "display-markers-created",
+        "const source=Vars.world.build(45,27); "
+        "const t=new MapObjectives.TextureMarker(source,608,184,24,24); "
+        "const q=new MapObjectives.QuadMarker(); q.texture.value=source; const v=q.vertices; "
+        "const points=[[664,172,0,0],[664,196,0,1],[688,196,1,1],[688,172,1,0]]; "
+        "for(let i=0;i<4;i++){v[i*6]=points[i][0]; v[i*6+1]=points[i][1]; "
+        "v[i*6+3]=points[i][2]; v[i*6+4]=points[i][3];} "
+        "Call.createMarker(755,t); Call.createMarker(756,q);")
+    capture("created", ((86, 86, 102),) * len(points))
+    for phase, top, bottom in (("painted", (30, 200, 240), (232, 54, 80)),
+                               ("updated", (230, 210, 75), (58, 200, 99))):
+        code = (f"getlink source 0\ndraw clear {' '.join(map(str, top))} 0 0 0\n"
+                f"draw color {' '.join(map(str, bottom))} 255 0 0\n"
+                "draw rect 0 0 80 40 0 0\ndrawflush source\nend\n")
+        send_marker_phase(server_log, server, f"display-markers-{phase}",
+            "const p=Vars.world.build(46,23), links=new Seq(); "
+            "const Link=Packages.mindustry.world.blocks.logic.LogicBlock.LogicLink; "
+            "links.add(new Link(-1,4,'display1',true)); "
+            f"p.configureAny(Packages.mindustry.world.blocks.logic.LogicBlock.compress({json.dumps(code)},links)); "
+            'if(p.executor.instructions.length!==6 || p.executor.links.length!==1) throw "Invalid marker source program";')
+        capture(phase, (top, bottom) * 2)
+    send_marker_phase(server_log, server, "display-markers-retargeted",
+        'Call.updateMarkerTexture(755,"white"); Call.updateMarkerTexture(756,"white");')
+    capture("retargeted", ((255, 255, 255),) * len(points))
+    send_marker_phase(server_log, server, "display-markers-removed",
+        'Call.removeMarker(755); Call.removeMarker(756);')
+    capture("removed", baseline)
+    print(f"{model}: stock display-backed texture and quad passed orientation, offscreen updates and retargeting.", flush=True)
+
+
 def run_model(args, model, config, original_config, log, output):
     stationary = (args.world_atlas_recycle or args.building_layers or args.liquids
                   or args.building_effects or args.payload_mix or args.carried_buildings
                   or args.payload_handoff or args.unit_layers or args.unit_roster or args.naval_wake
                   or args.tank_treads or args.map_spawn or args.combat
                   or args.verify_logic_markers or args.verify_texture_markers or args.verify_quad_markers or args.verify_canvas
-                  or args.verify_canvas_quads or args.verify_client_processor or args.verify_puddles)
+                  or args.verify_canvas_quads or args.verify_client_processor or args.verify_logic_displays
+                  or args.verify_display_markers or args.verify_puddles)
     map_name = args.map_spawn or "Glacier"
     overrides = {
         "Miscellaneous": {"log_filter": "*:Info Debug.Emulated:Debug Service.SOC:Debug",
@@ -1522,6 +1603,22 @@ def run_model(args, model, config, original_config, log, output):
                     f"Vars.world.tile({PROCESSOR_CANVAS_COLUMN},32).setBlock(Blocks.worldProcessor,rules.defaultTeam);")
             if args.verify_puddles:
                 send_marker_phase(server_log, server, "puddles-clear", PUDDLE_SETUP)
+            if args.verify_logic_displays:
+                send_marker_phase(server_log, server, "display-fixture",
+                    "const rules=Vars.state.rules; rules.worldProcessorPlayerLink=true; "
+                    "rules.allowEditWorldProcessors=true; const team=rules.defaultTeam; "
+                    "Vars.world.tile(77,26).setBlock(Blocks.worldProcessor,team); "
+                    "Vars.world.tile(77,24).setBlock(Blocks.logicDisplay,team); "
+                    "Vars.world.tile(86,29).setBlock(Blocks.largeLogicDisplay,team); "
+                    "Vars.world.tile(76,22).setBlock(Blocks.tileLogicDisplay,team); "
+                    "Vars.world.tile(77,22).setBlock(Blocks.tileLogicDisplay,team); "
+                    'if(Vars.world.tile(81,26).block()!==Blocks.coreNucleus) throw "Display fixture touched the core";')
+            if args.verify_display_markers:
+                send_marker_phase(server_log, server, "display-marker-fixture",
+                    "const rules=Vars.state.rules; rules.worldProcessorPlayerLink=true; "
+                    "rules.allowEditWorldProcessors=true; const team=rules.defaultTeam; "
+                    "Vars.world.tile(46,23).setBlock(Blocks.worldProcessor,team); "
+                    "Vars.world.tile(45,27).setBlock(Blocks.logicDisplay,team);")
             if args.erekir_build:
                 server.stdin.write(
                     'js (() => { const core = Vars.state.rules.defaultTeam.core(); '
@@ -1797,6 +1894,10 @@ def run_model(args, model, config, original_config, log, output):
                             verify_client_processor(server_log, server, rpc, output, model, args.timeout)
                         if args.verify_puddles:
                             verify_stock_puddles(server_log, server, rpc, output, model, args.timeout)
+                        if args.verify_logic_displays:
+                            verify_logic_displays(server_log, server, rpc, output, model, args.timeout)
+                        if args.verify_display_markers:
+                            verify_display_markers(server_log, server, rpc, output, model, args.timeout)
                         if args.erekir_build:
                             verify_erekir_construction(log, emulator, server_log, server, args.timeout, capture, spawn)
                         if args.mining:
@@ -2028,6 +2129,10 @@ def main():
                         help="Verify a stock processor writes to its linked Canvas on the client")
     parser.add_argument("--verify-puddles", action="store_true",
                         help="Verify water and neoplasm in stock Glacier entity snapshots")
+    parser.add_argument("--verify-logic-displays", action="store_true",
+                        help="Verify normal, large, and tileable Logic Displays on Glacier")
+    parser.add_argument("--verify-display-markers", action="store_true",
+                        help="Verify stock markers sampling an offscreen Logic Display on Glacier")
     parser.add_argument("--require-relocation-spill", action="store_true",
                         help="Require the ARM11 collector to grow its relocation table during the spawn check")
     args = parser.parse_args()
@@ -2133,6 +2238,13 @@ def main():
         parser.error("--verify-client-processor needs stationary --controls and --terrain-atlas on Glacier")
     if args.verify_puddles and (not args.controls or not args.terrain_atlas or args.controls_replay or args.map_spawn):
         parser.error("--verify-puddles needs stationary --controls and --terrain-atlas on Glacier")
+    if args.verify_logic_displays and (not args.controls or not args.terrain_atlas or args.controls_replay
+                                       or args.map_spawn or args.verify_canvas or args.verify_canvas_quads
+                                       or args.verify_client_processor):
+        parser.error("--verify-logic-displays needs a separate stationary --controls and --terrain-atlas run on Glacier")
+    if args.verify_display_markers and (not args.controls or not args.terrain_atlas or args.controls_replay
+                                        or args.map_spawn or args.verify_canvas_quads):
+        parser.error("--verify-display-markers needs stationary --controls and --terrain-atlas on Glacier")
     if args.erekir_sector is not None:
         if not args.map_spawn or not re.fullmatch(r"[a-z][a-z-]*", args.erekir_sector):
             parser.error("--erekir-sector needs --map-spawn and a sector slug such as onset")
