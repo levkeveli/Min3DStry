@@ -1,4 +1,5 @@
 import arc.Core;
+import arc.files.Fi;
 import mindustry.Vars;
 import mindustry.content.Blocks;
 import mindustry.content.Planets;
@@ -36,6 +37,15 @@ final class UpstreamLiveBuildControls {
     private boolean configuring;
     private boolean selectingMine;
     private boolean selectingControl;
+    private final UpstreamSchematicPlacement schematics;
+
+    UpstreamLiveBuildControls() {
+        this(new Fi("/3ds/min3dstry/schematics"));
+    }
+
+    UpstreamLiveBuildControls(Fi schematicDirectory) {
+        schematics = new UpstreamSchematicPlacement(schematicDirectory);
+    }
 
     void viewport(int left, int bottom) {
         this.left = left;
@@ -48,6 +58,22 @@ final class UpstreamLiveBuildControls {
     }
 
     void update(Unit unit, int buttons, int touch) {
+        if (schematics.active()) {
+            if ((buttons & REMOVE_PRESSED) != 0) {
+                schematics.cancel();
+                return;
+            }
+
+            int x = touch & 0xffff, y = touch >>> 16;
+            if (schematics.isOpen()) {
+                if (touch >= 0) schematics.tap(x, y);
+            } else {
+                if (touch >= 0 && selectGridCell(x, y)) schematics.position(unit, tileX, tileY);
+                if ((buttons & ROTATE_PRESSED) != 0) schematics.rotate(unit);
+                if ((buttons & PLACE_PRESSED) != 0) schematics.submit(unit);
+            }
+            return;
+        }
         if (inventory.isOpen()) {
             if (touch >= 0) inventory.tap(touch & 0xffff, touch >>> 16);
             else inventory.refresh();
@@ -148,6 +174,11 @@ final class UpstreamLiveBuildControls {
                 removing = false;
                 selectingMine = false;
                 configuring = false;
+                return;
+            } else if (x >= 2 && x < 28 && y >= 144 && y < 175) {
+                inventoryAction = InventoryAction.none;
+                configuring = selectingMine = removing = false;
+                schematics.open();
                 return;
             } else if (y < GRID_Y && x < 320) {
                 switch (x / 80) {
@@ -264,6 +295,7 @@ final class UpstreamLiveBuildControls {
     }
     int rotation() { return rotation; }
     boolean removing() { return removing; }
+    UpstreamSchematicPlacement schematics() { return schematics; }
     UpstreamBuildMenu catalog() { return catalog; }
     UpstreamBuildingConfig buildingConfig() { return buildingConfig; }
     UpstreamInventoryMenu inventory() { return inventory; }

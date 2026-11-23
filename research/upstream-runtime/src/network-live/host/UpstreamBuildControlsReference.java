@@ -2,6 +2,8 @@ import arc.Core;
 import arc.files.Fi;
 import arc.math.geom.Point2;
 import arc.mock.MockAudio;
+import arc.struct.Seq;
+import arc.struct.StringMap;
 import java.nio.file.Files;
 import java.util.zip.InflaterInputStream;
 import mindustry.Vars;
@@ -14,6 +16,8 @@ import mindustry.content.Items;
 import mindustry.content.Planets;
 import mindustry.content.UnitTypes;
 import mindustry.core.NetClient;
+import mindustry.game.Schematic;
+import mindustry.game.Schematics;
 import mindustry.game.Universe;
 import mindustry.gen.Building;
 import mindustry.gen.Player;
@@ -29,6 +33,7 @@ import mindustry.world.Block;
 import mindustry.world.blocks.distribution.ItemBridge;
 import mindustry.world.blocks.distribution.MassDriver;
 import mindustry.world.blocks.distribution.Sorter;
+import mindustry.world.blocks.environment.Floor;
 import mindustry.world.blocks.defense.turrets.ItemTurret;
 import mindustry.world.blocks.payloads.PayloadMassDriver;
 import mindustry.world.blocks.payloads.UnitPayload;
@@ -101,6 +106,7 @@ public final class UpstreamBuildControlsReference {
         verifyStockCommandMenu(unit);
         verifyFactoryConfiguration(controls, unit);
         verifyStockLinks(unit);
+        verifySchematicPlacement(unit);
         System.out.println("UPSTREAM_TOUCH_REFERENCE conveyor=85,26,1 wall=86,26 break=86,26");
     }
 
@@ -504,6 +510,78 @@ public final class UpstreamBuildControlsReference {
         Core.bundle = UpstreamInterfaceLocale.load(path, 1, "de");
         System.out.println("UPSTREAM_INTERFACE_REFERENCE systemLanguages=" + locales.length
             + " additionalBundles=" + selectable + " selected=de");
+    }
+
+    private static void verifySchematicPlacement(Unit unit) throws Exception {
+        var folder = Files.createTempDirectory("min3dstry-stock-schematic");
+        var broken = folder.resolve("00-broken.msch");
+        var factory = folder.resolve("factory.msch");
+        var rules = Vars.state.rules;
+        boolean allowed = rules.schematicsAllowed, polygonProtection = rules.polygonCoreProtection;
+        float buildRadius = rules.enemyCoreBuildRadius;
+        try {
+            rules.polygonCoreProtection = false;
+            rules.enemyCoreBuildRadius = 0f;
+            Files.writeString(broken, "broken header");
+            var parts = Seq.with(
+                new Schematic.Stile(Blocks.itemBridge, 0, 0, new Point2(2, 0), (byte)0),
+                new Schematic.Stile(Blocks.sorter, 1, 0, Items.lead, (byte)0),
+                new Schematic.Stile(Blocks.itemBridge, 2, 0, null, (byte)0)
+            );
+            Schematics.write(new Schematic(parts, new StringMap(), 3, 1), new Fi(factory.toString()));
+            var controls = new UpstreamLiveBuildControls(new Fi(folder.toString()));
+            controls.viewport(73, 20);
+
+            Vars.state.rules.schematicsAllowed = false;
+            controls.update(unit, 0, touch(15, 155));
+            controls.update(unit, 0, touch(150, 79));
+            if (!controls.schematics().isOpen()) throw new AssertionError("Schematic permission was bypassed");
+            controls.update(unit, 1 << 19, -1);
+
+            Vars.state.rules.schematicsAllowed = true;
+            controls.update(unit, 0, touch(15, 155));
+            controls.update(unit, 0, touch(150, 54));
+            if (!controls.schematics().isOpen()) throw new AssertionError("Malformed schematic closed the picker");
+            controls.update(unit, 0, touch(150, 79));
+            tapGridCell(controls, unit, 83, 25);
+            controls.update(unit, 1 << 19, -1);
+            if (controls.schematics().active() || !unit.plans().isEmpty()) {
+                throw new AssertionError("Cancelled preview must leave the build queue untouched");
+            }
+
+            for (int y = 23; y <= 25; y++) {
+                var tile = Vars.world.tile(84, y);
+                tile.setBlock(Blocks.air);
+                tile.setFloor((Floor)Blocks.stone);
+            }
+            controls.update(unit, 0, touch(15, 155));
+            controls.update(unit, 0, touch(150, 79));
+            tapGridCell(controls, unit, 83, 25);
+            controls.update(unit, 1 << 18, -1);
+            controls.update(unit, 1 << 17, -1);
+            var bridge = unit.plans().find(plan -> plan.y == 23);
+            var sorter = unit.plans().find(plan -> plan.y == 24);
+            var receiver = unit.plans().find(plan -> plan.y == 25);
+            if (unit.plans().size != 3 || bridge == null || sorter == null || receiver == null
+                    || bridge.x != 84 || sorter.x != 84 || receiver.x != 84
+                    || bridge.block != Blocks.itemBridge || receiver.block != Blocks.itemBridge
+                    || sorter.block != Blocks.sorter || sorter.config != Items.lead
+                    || !(bridge.config instanceof Point2 link) || link.x != 0 || link.y != 2) {
+                for (var plan : unit.plans()) {
+                    System.err.println("plan " + plan.block.name + " " + plan.x + "," + plan.y + " cfg " + plan.config);
+                }
+                throw new AssertionError("Stock schematic rotation, placement, or configuration differed");
+            }
+            unit.clearBuilding();
+            System.out.println("UPSTREAM_STOCK_SCHEMATIC plans=3 rotation=ok item=lead link=0,2");
+        } finally {
+            rules.schematicsAllowed = allowed;
+            rules.polygonCoreProtection = polygonProtection;
+            rules.enemyCoreBuildRadius = buildRadius;
+            Files.deleteIfExists(factory);
+            Files.deleteIfExists(broken);
+            Files.deleteIfExists(folder);
+        }
     }
 
     private static void verifyStockLinks(Unit unit) {

@@ -26,6 +26,41 @@ full upstream catalog/layout parity remains open.
 - The ARM11 client drew the constructed sprites after each stock-server
   acknowledgement.
 
+## Stock schematics
+
+Copy Mindustry v160.8 `.msch` files into
+`sd:/3ds/min3dstry/schematics/`. Tap **Schem** on the left edge of the
+build grid and choose a file. Tap a grid cell to position it. The top
+screen marks every planned block and shows which placements
+the game's build rules would reject.
+
+Press **R** to rotate the preview, **A** to queue valid plans, or
+**B** to cancel. The original game reads the
+schematic, rotates relative configurations, applies unlock and world
+rules, and builds through the normal queue. Maps and servers can
+disable schematics. File creation and editing remain separate work.
+[Pinned schematic implementation](https://github.com/Anuken/Mindustry/blob/19a0f40d44514f4802a8b79770456e7e32e34da0/core/src/mindustry/game/Schematics.java)
+
+The stock JVM test covers a three-block schematic with two linked
+Bridge Conveyors and a Sorter configured for Lead. It checks invalid
+files, disabled schematics, cancellation, and the relative link and
+item configuration after rotation.
+
+```bash
+python3 tools/verify_stock_schematics.py \
+  --rom /path/to/unified/upstream-probe.3dsx \
+  --server /path/to/server-release.jar \
+  --output build/stock-schematics --live
+```
+
+
+The replay passed offline and in stock v160.8 Java multiplayer on
+both Original and New 3DS profiles in Azahar 2126.2. The original
+release verified the built blocks, rotated bridge link, Lead filter,
+and spent construction materials. It also reopened both ARM11 saves
+and verified the same results.
+[ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45103432419)
+
 ## Stock item selectors
 
 Tap **Config**, then a building with a stock item choice. The palette
