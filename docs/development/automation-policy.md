@@ -99,14 +99,21 @@ continues to select its own checks for the standalone runtime.
 
 ## ARM11 smoke scope
 
-The lightweight scope job selects baselines from the changed paths on PRs and
-main pushes. Live audio changes select audio and network checks. Live graphics
-and live client changes select network and offline single-player checks.
-Runtime Markdown updates do not trigger the heavy build workflows by
-themselves. Shared TeaVM inputs, unknown runtime paths, CI workflow edits,
-and unavailable change lists still select the full suite. A run with no
-classified paths only skips the full suite if every changed file is Markdown. Use
-`workflow_dispatch` to run the full suite on demand.
+The scope job selects checks from the changed paths on PRs and main pushes.
+Shared runtime changes run three smoke jobs. The unified build stages pinned
+v160.8 inputs, verifies packaged stock audio, and publishes one ROM with the
+matching server JAR and atlas metadata. The offline job replays Ground Zero
+and saves and reloads it. The multiplayer and audio job checks a stock-server
+session and replays stock campaign audio. Both replay jobs download the same
+ROM and use checksum-pinned Azahar 2126.2 on separate GitHub-hosted runners.
+
+Live audio changes select the multiplayer and audio job. Live graphics and
+client changes select both replay jobs. Narrow changes to standalone probes
+still select their corresponding checks. Runtime Markdown updates alone
+skip the workflow's heavy jobs. Shared inputs, workflow edits, and unavailable
+change lists select both unified replay jobs. Use `workflow_dispatch` to
+also run the full standalone matrix, including the independent JVM and
+generated-C reference comparisons.
 
 CircleCI and Daytona can run independent builds and emulator replays on their
 own compute. Keep required GitHub status contexts and record the exact source

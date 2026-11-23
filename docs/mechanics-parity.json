@@ -253,21 +253,34 @@
       "notes": "X pause/resume, Y wave trigger, and SELECT quick-save work in offline single-player; interactive pause menu overlay not yet wired to upstream runtime."
     },
     {
+      "id": "live-minimap",
+      "domain": "Controls & Dual-Screen UI",
+      "name": "Upstream Minimap",
+      "weight": 1,
+      "status": "partial-arm11",
+      "modes": ["offline"],
+      "issue": 40,
+      "evidence": [
+        "docs/rendering/live-hud.md",
+        "research/upstream-runtime/src/content/java/UpstreamMinimap.java",
+        "tools/verify_minimap_azahar.py"
+      ],
+      "notes": "Both Azahar profiles verified a nonblank offline minimap and the local player marker. Fullscreen, zoom, other unit blips, and the full stock panel remain open."
+    },
+    {
       "id": "minimap-pause-overlay",
       "domain": "Controls & Dual-Screen UI",
-      "name": "Upstream Minimap & Interactive Pause Menu Overlay",
-      "weight": 2,
+      "name": "Interactive Pause Menu Overlay",
+      "weight": 1,
       "status": "harness-only",
       "modes": ["harness"],
       "issue": 40,
       "evidence": [
-        "docs/rendering/minimap.md",
         "docs/ui/pause-menu.md",
-        "src/render/minimap.c",
         "src/ui/pause_menu.c",
         "src/ui/pause_overlay.c"
       ],
-      "notes": "Verified in the C platform harness (min3dstry.3dsx) only; not yet bound to upstream Mindustry world state or runtime menu controls."
+      "notes": "The interactive overlay is verified in the C platform harness only. Offline simulation pause is tracked under Session Controls."
     },
     {
       "id": "menus-schematics-rts",
