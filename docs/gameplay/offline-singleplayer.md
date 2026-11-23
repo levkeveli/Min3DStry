@@ -213,6 +213,13 @@ from captured Ground Zero and launched eligible sector 63 at 430×430. The
 stock v160.8 server reopened both exit saves and confirmed the original
 terrain, 8 copper at the destination, and 15 remaining in the captured origin.
 
+The [current unified ARM11 replay](https://github.com/levkeveli/Min3DStry/actions/runs/45119739751)
+launched Ground Zero and The Onset from fresh data directories and reopened
+all four save/settings pairs in stock Java v160.8. The same ROM generated
+and saved 432×432 Serpulo sector 15 with 23 copper on both Azahar profiles.
+Stock Java reopened both exit saves and matched the original terrain,
+departure origin and cargo.
+
 The build's ELF LOAD segments plus the logged managed limit, linear heap,
 and stack total 64.58 MiB. This exceeds the 64 MiB Original 3DS application
 budget even before other runtime allocations. Physical memory and frame-rate
