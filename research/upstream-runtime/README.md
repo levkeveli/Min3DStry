@@ -1077,6 +1077,19 @@ The renderer still selects blocks that use the supported sprite operations.
 Textured raw vertices, additional payload types and other rendering services
 are tracked in [#139](https://github.com/levkeveli/Min3DStry/issues/139).
 
+### Stock block construction and dismantling
+
+The live and offline building layers draw the pinned v160.8
+`ConstructBlock` throughout placement, replacement and dismantling. The
+original unfinished regions go through the shared construction outline,
+with progress, tint and per-region rotations from the stock drawer.
+The block being replaced remains visible as the original underlay.
+
+The JVM atlas reference restores stock serialized partial progress on a
+Titanium Conveyor and a Ground Factory. It checks the previous Conveyor,
+the region-specific rotations, and the dismantling tint at the same
+progress. Handheld visual replay is pending.
+
 ### Stock Erekir assembler graphics
 
 The stock Tank, Ship and Mech Assembler drawers use their original base,
