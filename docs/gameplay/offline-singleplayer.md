@@ -884,3 +884,14 @@ both replays. Its page-rounded ELF load segments, 32 MiB managed limit,
 linear heap, and stack total 70.45 MiB. The control totaled 68.45 MiB.
 Azahar provided a 96 MiB app region to both profiles. The physical
 Original 3DS budget is 64 MiB.
+
+The direct atlas slot index and packed sprite coordinate reuse were compared
+with the `bcb1b521` unified ROM under Azahar 2126.2. On both profiles, the
+median terrain submission time at the settled post-pan viewport `82,49`
+went from 11.76 ms to 11.39 ms per frame. At `121,49`, it stayed near
+6.15 ms. Overall stationary renderer time stayed near 15.88 ms. The
+slowest moving 16-frame window without atlas imports averaged 25.94 ms
+on Original 3DS and 27.80 ms on New 3DS in the control, and about 17.96 ms
+on both profiles in the candidate. Windows with imports still reached
+about 27.5 ms on both profiles. Moving windows covered different viewport
+positions. The 8,970 sampled terrain pixels matched on each profile.

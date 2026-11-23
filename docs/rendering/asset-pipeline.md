@@ -44,6 +44,11 @@ the final submission presents the completed frame. The compact sheet
 continues to supply the other frequently used Glacier regions. The
 complete raw atlas in RomFS uses 128 MiB plus tile headers.
 
+A 4 KiB index maps world page and tile coordinates directly to resident
+cache slots. Cache misses still use the bounded eviction scan and GPU
+fence. The renderer uses packed texture coordinates for complete compact
+sprites and computes subregion coordinates only for cropped sprites.
+
 Generate and independently decode just the world atlas from the
 official artifacts with the following commands.
 
