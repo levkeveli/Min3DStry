@@ -86,6 +86,25 @@ class SmokeScopeTests(unittest.TestCase):
         self.assertTrue(scope["run_singleplayer"])
         self.assertFalse(scope["run_factory"])
 
+    def test_host_campaign_reference_uses_singleplayer_baseline(self) -> None:
+        for directory in ("singleplayer-campaign-host", "singleplayer-custom-host",
+                          "singleplayer-research-host"):
+            scope = smoke_scope.classify_smoke_scope(
+                [f"research/upstream-runtime/src/{directory}/java/Reference.java"], "pull_request"
+            )
+            self.assertFalse(scope["run_all"])
+            self.assertTrue(scope["run_singleplayer"])
+            self.assertFalse(scope["run_probes"])
+
+    def test_wave_only_shutdown_change_uses_wave_probe(self) -> None:
+        scope = smoke_scope.classify_smoke_scope(
+            ["research/upstream-runtime/src/gameplay/java/ProbeListenerShutdown.java"],
+            "pull_request",
+        )
+        self.assertFalse(scope["run_all"])
+        self.assertEqual(scope["probes"], ["wave-routing"])
+        self.assertFalse(scope["run_combat"])
+
     def test_multi_scope_and_unrelated_docs(self) -> None:
         scope = smoke_scope.classify_smoke_scope(
             [
