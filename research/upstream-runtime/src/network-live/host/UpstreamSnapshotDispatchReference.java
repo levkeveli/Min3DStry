@@ -139,6 +139,7 @@ public final class UpstreamSnapshotDispatchReference {
         verifyStockLinkPackets();
         verifyWeaponInput();
         verifyRoundResults();
+        UpstreamServerAssetsReference.verify();
         if (args.length == 2) verifyWorldRotation(app, new Fi(args[1]));
     }
 
@@ -160,9 +161,9 @@ public final class UpstreamSnapshotDispatchReference {
         var bytes = new ByteArrayOutputStream();
         begin.write(new Writes(new DataOutputStream(bytes)));
         byte[] header = bytes.toByteArray();
-        var decoded = UpstreamLiveNetworkProbe.readWorldBegin(
+        var decoded = UpstreamLiveNetworkProbe.readStreamBegin(
             new Reads(new DataInputStream(new ByteArrayInputStream(header))), header.length);
-        if (decoded.id != begin.id || decoded.total != next.length()) {
+        if (decoded.id != begin.id || decoded.total != next.length() || (decoded.type & 0xff) != Net.packetIdWorldStream) {
             throw new AssertionError("The rotation should use the stock stream declaration");
         }
         UpstreamLiveNetworkProbe.loadSessionWorld(app, next.read());

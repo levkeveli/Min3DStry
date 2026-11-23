@@ -161,7 +161,7 @@ Glacier with Ancient Caldera, preserving the server-assigned player ID
 while clearing the previous entities and result state. The separate
 `tools/build_stock_rotation_stream.py` helper writes a second fixture
 directly if only the decoding path needs verification. Live ARM11 replay
-and external asset-transfer streams remain open.
+remains open.
 
 Use `tools/verify_stock_live_rotation.py` with the unified ROM, the pinned
 server and atlas, and portable Azahar instances for both models. It stages
@@ -169,3 +169,17 @@ the original Ancient Caldera map from the server release and checks that
 the server sees the same player, connection and continuing input snapshots
 after rotation. The ARM11 log must report the new map on the original
 player ID and then receive its second wave.
+
+### Stock server asset streams
+
+Joining or rotating to a world with external data can start with
+`AssetRequirementStream`. The client requests missing indices using the
+stock `RequestAssets` packet. It streams the returned `AssetStream` to
+temporary files, checks their SHA-256 hashes against the declared keys,
+and publishes verified files to the original cache format. With a warm
+cache the empty asset request lets the server send the world immediately.
+After a download the client sends the stock `RequestWorld` packet.
+
+The JVM probe exercises the pinned server's writer with cold, warm and
+damaged cache entries. Applying and rendering each transferred asset type
+requires separate verification.
