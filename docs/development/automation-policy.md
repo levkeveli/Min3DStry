@@ -69,21 +69,19 @@ jobs until a runner with the requested label is available.
 
 ## Live runner status
 
-The Pages dashboard reads the public `runner-status:runners.json` feed every 75
-seconds, with a public CDN fallback. It shows GitHub Actions self-hosted runners, their GitHub-reported
-availability, and links to matching active jobs. If GitHub reports a runner
-busy before exposing the job assignment, the page shows the busy state with
-job details unavailable.
+The Pages dashboard reads the [runner status record](https://github.com/levkeveli/Min3DStry/issues/424)
+every 150 seconds. It shows GitHub Actions self-hosted runners, their
+GitHub-reported availability, and links to matching active jobs. Unavailable job
+details are shown separately from runner availability.
 
 On `wings01`, `min3ds-runner-status.timer` runs
-`tools/publish_runner_status.py` once a minute. The publisher uses the server's
-authenticated GitHub CLI and publishes runner names and public Actions job
-metadata only. It writes when status changes or after five minutes without an
-update. The dashboard flags a snapshot older than seven minutes. Check the
-timer and `journalctl -u min3ds-runner-status.service` if the feed is stale.
-To inspect a snapshot without publishing, run
-`python3 tools/publish_runner_status.py --print` with an authenticated GitHub
-CLI that can read the repository runner inventory.
+`tools/publish_runner_status.py` about once a minute. The publisher uses the
+server's authenticated GitHub CLI and updates that record in place when status
+changes or after five minutes without an update. It publishes runner names and
+public Actions job metadata. The dashboard flags a snapshot older than ten
+minutes. Check the timer and `journalctl -u min3ds-runner-status.service` if the
+feed is stale. Run `python3 tools/publish_runner_status.py --print` to inspect a
+snapshot using an authenticated GitHub CLI without publishing it.
 
 ## ARM11 smoke scope
 

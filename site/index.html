@@ -1281,7 +1281,7 @@
         generated_at: new Date().toISOString(),
         port_progress: state.data.port_progress || null,
         mechanics_parity: state.data.mechanics_parity || null,
-        issues: issuesRaw.filter((i) => !i.pull_request).map(normalizeIssue),
+        issues: issuesRaw.filter((i) => !i.pull_request && i.number !== 424).map(normalizeIssue),
         pulls: pullsRaw.map((p) => ({
           number: p.number,
           title: p.title,

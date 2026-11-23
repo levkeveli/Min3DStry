@@ -2,7 +2,6 @@
 """Publish only public runner and job fields to the Pages status feed."""
 from __future__ import annotations
 
-import base64
 import json
 import subprocess
 import sys
@@ -10,8 +9,12 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 
 REPO = "levkeveli/Min3DStry"
-BRANCH = "runner-status"
-PATH = "runners.json"
+STATUS_ISSUE = "issues/424"
+BODY_HEADER = "Machine-managed runner status for the Min3DStry Pages dashboard."
+
+
+class ApiError(RuntimeError):
+    pass
 
 
 def api(path, payload=None, paginate=False):
@@ -20,31 +23,39 @@ def api(path, payload=None, paginate=False):
         args.append("--paginate")
     encoded = None
     if payload is not None:
-        args.extend(("--method", "PUT", "--input", "-"))
+        args.extend(("--method", "PATCH", "--input", "-"))
         encoded = json.dumps(payload)
-    result = subprocess.run(
-        [*args, f"repos/{REPO}/{path}"], input=encoded, text=True,
-        capture_output=True, check=False, timeout=20,
-    )
-    if result.returncode:
-        raise RuntimeError(f"GitHub API failed for {path}: {result.stderr.strip()}")
-    if not paginate:
-        return json.loads(result.stdout)
-    decoder = json.JSONDecoder()
-    pages = []
-    remainder = result.stdout.lstrip()
-    while remainder:
-        page, offset = decoder.raw_decode(remainder)
-        pages.append(page)
-        remainder = remainder[offset:].lstrip()
-    return pages
+    try:
+        result = subprocess.run(
+            [*args, f"repos/{REPO}/{path}"], input=encoded, text=True,
+            capture_output=True, check=False, timeout=20,
+        )
+        if result.returncode:
+            raise ApiError(f"{path}: {result.stderr.strip()}")
+        if not paginate:
+            return json.loads(result.stdout)
+        decoder = json.JSONDecoder()
+        pages = []
+        remainder = result.stdout.lstrip()
+        while remainder:
+            page, offset = decoder.raw_decode(remainder)
+            pages.append(page)
+            remainder = remainder[offset:].lstrip()
+        return pages
+    except (OSError, subprocess.TimeoutExpired, json.JSONDecodeError) as exc:
+        raise ApiError(f"{path}: {exc}") from exc
 
 
 def jobs_for(run):
-    jobs = [job for page in api(
-        f"actions/runs/{run['id']}/attempts/{run['run_attempt']}/jobs?per_page=100",
-        paginate=True,
-    ) for job in page["jobs"]]
+    try:
+        pages = api(
+            f"actions/runs/{run['id']}/attempts/{run['run_attempt']}/jobs?per_page=100",
+            paginate=True,
+        )
+    except ApiError as exc:
+        print(f"Runner job details unavailable: {exc}", file=sys.stderr)
+        return []
+    jobs = [job for page in pages for job in page["jobs"]]
     return [
         {
             "name": job["name"],
@@ -84,26 +95,33 @@ def collect():
     }
 
 
+def needs_update(body, runners, now):
+    try:
+        old = json.loads(body.split("```json\n", 1)[1].split("\n```", 1)[0])
+        return (old["runners"] != runners
+                or now - datetime.fromisoformat(old["updated_at"]) >= timedelta(minutes=5))
+    except (IndexError, KeyError, TypeError, ValueError):
+        return True
+
+
 def main():
-    snapshot = collect()
-    if "--print" in sys.argv:
-        print(json.dumps({"updated_at": datetime.now(timezone.utc).isoformat(), **snapshot}))
-        return
-    previous = api(f"contents/{PATH}?ref={BRANCH}")
-    old = json.loads(base64.b64decode(previous["content"]))
-    now = datetime.now(timezone.utc)
-    if (old.get("runners") == snapshot["runners"] and old.get("updated_at")
-            and now - datetime.fromisoformat(old["updated_at"]) < timedelta(minutes=5)):
-        return
-    snapshot["updated_at"] = now.isoformat()
-    api(f"contents/{PATH}", {
-        "branch": BRANCH,
-        "message": "Update runner status",
-        "sha": previous["sha"],
-        "content": base64.b64encode(json.dumps(snapshot, separators=(",", ":")).encode()).decode(),
-    })
-    print(f"Published status for {len(snapshot['runners'])} runners")
+    try:
+        snapshot = collect()
+        now = datetime.now(timezone.utc)
+        if "--print" in sys.argv:
+            print(json.dumps({"updated_at": now.isoformat(), **snapshot}))
+            return 0
+        previous = api(STATUS_ISSUE)
+        if needs_update(previous.get("body") or "", snapshot["runners"], now):
+            snapshot["updated_at"] = now.isoformat()
+            data = json.dumps(snapshot, separators=(",", ":")).replace("`", "\\u0060")
+            api(STATUS_ISSUE, {"body": f"{BODY_HEADER}\n\n```json\n{data}\n```"})
+            print(f"Published status for {len(snapshot['runners'])} runners")
+        return 0
+    except ApiError as exc:
+        print(f"Runner status was not published: {exc}", file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

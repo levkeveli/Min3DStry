@@ -1,8 +1,5 @@
 (() => {
-  const feeds = [
-    "https://api.github.com/repos/levkeveli/Min3DStry/contents/runners.json?ref=runner-status",
-    "https://raw.githubusercontent.com/levkeveli/Min3DStry/refs/heads/runner-status/runners.json",
-  ];
+  const feed = "https://api.github.com/repos/levkeveli/Min3DStry/issues/424";
   const summary = document.getElementById("runner-status-summary");
   const list = document.getElementById("runner-status-list");
   let snapshot;
@@ -14,7 +11,7 @@
     }
 
     const age = Math.max(0, Math.floor((Date.now() - Date.parse(snapshot.updated_at)) / 1000));
-    const stale = age >= 7 * 60;
+    const stale = age >= 10 * 60;
     const count = state => snapshot.runners.filter(runner => runner.state === state).length;
     summary.textContent = `${stale ? "Stale · " : ""}${count("busy")} busy · ${count("idle")} idle · ${count("offline")} offline · updated ${Math.floor(age / 60)} min ago`;
     list.replaceChildren(...snapshot.runners.map(runner => {
@@ -40,23 +37,20 @@
   }
 
   async function refresh() {
-    for (const feed of feeds) {
-      try {
-        const response = await fetch(feed, {
-          headers: { Accept: "application/vnd.github.raw+json" },
-          signal: AbortSignal.timeout(8000),
-        });
-        if (!response.ok) continue;
-        const result = await response.json();
-        if (!Number.isFinite(Date.parse(result.updated_at)) || !Array.isArray(result.runners)) continue;
-        if (!snapshot || Date.parse(result.updated_at) >= Date.parse(snapshot.updated_at)) snapshot = result;
-        break;
-      } catch {
-        // Try the public CDN if the API is unreachable or rate-limited.
+    try {
+      const response = await fetch(feed, { signal: AbortSignal.timeout(8000) });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const issue = await response.json();
+      const result = JSON.parse(issue.body.split("```json\n")[1].split("\n```")[0]);
+      if (Number.isFinite(Date.parse(result.updated_at)) && Array.isArray(result.runners)
+          && (!snapshot || Date.parse(result.updated_at) >= Date.parse(snapshot.updated_at))) {
+        snapshot = result;
       }
+    } catch {
+      // Keep the last snapshot visible and show its age when the feed is unavailable.
     }
     render();
-    setTimeout(refresh, 75000);
+    setTimeout(refresh, 150000);
   }
 
   refresh();
