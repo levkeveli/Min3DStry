@@ -3,9 +3,7 @@ import mindustry.Vars;
 import mindustry.game.MapObjectives.ObjectiveMarker;
 import mindustry.game.MapObjectives.PosMarker;
 import mindustry.game.MapObjectives.QuadMarker;
-import mindustry.game.MapObjectives.TextureMarker;
 import mindustry.game.Rules;
-import port.render.UpstreamMarkerTexture;
 import port.render.UpstreamWorldLabel;
 
 final class UpstreamObjectiveMarkers {
@@ -32,9 +30,8 @@ final class UpstreamObjectiveMarkers {
 
     private static void drawOne(ObjectiveMarker marker, float displayScale) {
         if (marker instanceof QuadMarker quad) {
-            if (UpstreamMarkerTexture.prepareForDraw(quad.texture.value)) quad.draw(1f);
-        } else if (marker instanceof PosMarker
-                && (!(marker instanceof TextureMarker sprite) || UpstreamMarkerTexture.prepareForDraw(sprite.texture.value))) {
+            quad.draw(1f);
+        } else if (marker instanceof PosMarker) {
             marker.draw(marker.autoscale ? 4f / displayScale : 1f);
         }
     }
