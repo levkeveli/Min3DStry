@@ -36,6 +36,9 @@ jobs:
               --output "$RUNNER_TEMP/assets.jar"
             printf '%s  %s\n' 2728b63d309c27a405744c8b5440d90a65387a41e2c4339b630a239f79f6bd17 \
               "$RUNNER_TEMP/assets.jar" | sha256sum --check
+            curl --fail --silent --show-error --location \
+              https://github.com/Anuken/Mindustry/releases/download/v160.8/Mindustry.jar \
+              --output "$RUNNER_TEMP/Mindustry.jar"
       - run:
           name: Generate standalone TeaVM C and pack original maps and sprites
           command: |
@@ -47,7 +50,7 @@ jobs:
               "-ParcCheckout=$RUNNER_TEMP/Arc" -Pprobe=singleplayer generateC
             python3 research/upstream-runtime/arm11/prepare_terrain_assets.py \
               --assets "$RUNNER_TEMP/assets.jar" --server "$RUNNER_TEMP/server-release.jar" \
-              --output-dir build/circleci-terrain --singleplayer
+              --desktop "$RUNNER_TEMP/Mindustry.jar" --output-dir build/circleci-terrain --singleplayer
       - run:
           name: Compile the playable offline ARM11 app
           command: |
