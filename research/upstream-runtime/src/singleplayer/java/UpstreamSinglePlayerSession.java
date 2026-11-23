@@ -709,16 +709,17 @@ public final class UpstreamSinglePlayerSession {
             int py = marker / 32;
             int tipX = px + (int)Math.round(Math.cos(Math.toRadians(unit.rotation())) * 3.0);
             int tipY = py + (int)Math.round(Math.sin(Math.toRadians(unit.rotation())) * 3.0);
-            if (tipX >= 0 && tipY >= 0 && tipX < 32 && tipY < 32) {
-                if (tipX == px && tipY == py) {
-                    throw new IllegalStateException("Minimap direction tip overlaps the base");
-                }
-                int tipOffset = (tipY * 32 + tipX) * 4;
-                if ((minimap[tipOffset] & 0xff) != 255
-                        || (minimap[tipOffset + 1] & 0xff) != 255
-                        || (minimap[tipOffset + 2] & 0xff) != 255) {
-                    throw new IllegalStateException("Minimap player direction tip is not white");
-                }
+            if (tipX < 0 || tipY < 0 || tipX >= 32 || tipY >= 32) {
+                throw new IllegalStateException("Minimap direction tip falls outside the grid");
+            }
+            if (tipX == px && tipY == py) {
+                throw new IllegalStateException("Minimap direction tip overlaps the base");
+            }
+            int tipOffset = (tipY * 32 + tipX) * 4;
+            if ((minimap[tipOffset] & 0xff) != 255
+                    || (minimap[tipOffset + 1] & 0xff) != 255
+                    || (minimap[tipOffset + 2] & 0xff) != 255) {
+                throw new IllegalStateException("Minimap player direction tip is not white");
             }
             var localCore = Vars.player.team().core();
             int coreChecked = 0;
