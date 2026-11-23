@@ -1054,8 +1054,8 @@ public final class UpstreamSinglePlayerApp {
         orders.draw(viewport);
         var schematics = buildingControls.schematics();
         schematics.draw(viewport);
-        drawObjectives(drawStatusHud());
         drawCoreItems();
+        drawObjectives(drawStatusHud());
         if (pauseOpen) drawPauseMenu();
         var block = buildingControls.block();
         var catalog = buildingControls.catalog();
