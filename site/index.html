@@ -529,6 +529,19 @@
     .input { min-width: 100%; }
     .board { grid-template-columns: repeat(6, minmax(250px, 84vw)); }
   }
+  .runner-status-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+    gap: 12px;
+    padding: 0;
+    list-style: none;
+  }
+  .runner-status-list li {
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow-wrap: anywhere;
+  }
 </style>
 </head>
 <body>
@@ -557,6 +570,12 @@
     <span>Scale: <code>Planned</code> → <code>Experimental</code> → <code>Host-tested</code> → <code>Emulator-tested</code> → <code>Hardware-verified</code> → <code>Complete / Released</code></span>
   </div>
 
+  <details class="overview-box" id="runner-status" open>
+    <summary><strong>GitHub Actions runners</strong></summary>
+    <p id="runner-status-summary" class="overview-text" role="status">Loading runner status…</p>
+    <ul id="runner-status-list" class="runner-status-list"></ul>
+  </details>
+
   <section class="overview-box" aria-label="What Min3DStry currently is">
     <div class="overview-head">
       <h1>What Min3DStry Currently Is</h1>
@@ -568,15 +587,15 @@
     <div class="overview-grid">
       <div class="overview-item">
         <h2>Upstream v160.8 on ARM11</h2>
-        <p>TeaVM C (<code>-Os</code> default with dead-string pruning) links against <code>libctru</code> and matches JVM &amp; host C in Azahar <code>2126.2</code> (Old &amp; New 3DS): offline single-player Ground Zero (<code>44.44</code> MiB Old 3DS static subtotal, <code>.msav</code> save/reload), live PC <code>v160.8</code> multiplayer (<code>network-render</code>, full atlas, touch build/catalog/config, stock HUD), embedded TeaVM <code>SaveIO</code> loader as default <code>min3dstry.3dsx</code> startup path, plus factory, production, combat/wave, and campaign <code>Saves.load</code> probes.</p>
+        <p>The unified ARM11 build runs offline Ground Zero and joins unmodified Java v160.8 servers. Both Azahar profiles verified fresh Ground Zero and Onset starts and stock saves. The audio-enabled Join path exercises original effects, building ambience and the Vorbis soundtrack.</p>
       </div>
       <div class="overview-item">
         <h2>3DS Platform &amp; Tooling</h2>
         <p>Citro2D world/atlas renderer, <code>libctru</code> HID &amp; touch palette, NDSP mixer + OGG Vorbis music streaming (<code>libvorbisidec</code>), Old/New 3DS probe, bounded allocator, New 3DS XL-verified parity harness (<code>0x53a483c7</code>) &amp; <code>3dslink</code>/SD deploy with <code>benchmark-report</code>, Flatpak/native Azahar harness (<code>./dev.sh emu-test</code>), and self-hosted NUMA CI runners.</p>
       </div>
       <div class="overview-item">
-        <h2>What's Still Missing (43.7 pts)</h2>
-        <p>Physical Original (64 MiB) &amp; New 3DS hardware verification (<code>#43</code>, <code>+29.45</code> pts across <code>#43</code> and 17 emulator-tested capabilities), optimization to <code>&ge; 24 FPS</code> on both hardware generations (unoptimized Azahar offline baseline is <code>4.72</code> / <code>3.48 FPS</code>), and unifying single-player, multiplayer, campaign/tech-tree UI, full stock audio (<code>#29</code>), logic/weapons, and full block/unit/lighting/minimap/pause-menu coverage into one <code>.3dsx</code> (<code>+14.25</code> pts).</p>
+        <h2>What’s Still Missing</h2>
+        <p>Offline audio, full campaign and logic interfaces, and remaining gameplay parity are still in development. The live audio replay verifies decoding and routing in Azahar. Physical listening and sustained <code>&ge; 24 FPS</code> gameplay on both 3DS generations remain open.</p>
       </div>
     </div>
   </section>
@@ -1262,7 +1281,7 @@
         generated_at: new Date().toISOString(),
         port_progress: state.data.port_progress || null,
         mechanics_parity: state.data.mechanics_parity || null,
-        issues: issuesRaw.filter((i) => !i.pull_request).map(normalizeIssue),
+        issues: issuesRaw.filter((i) => !i.pull_request && i.number !== 424).map(normalizeIssue),
         pulls: pullsRaw.map((p) => ({
           number: p.number,
           title: p.title,
@@ -1336,5 +1355,6 @@
   loadSnapshot();
 })();
 </script>
+<script src="./runner-status.js" defer></script>
 </body>
 </html>

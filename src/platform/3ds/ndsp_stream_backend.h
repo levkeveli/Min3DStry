@@ -27,4 +27,11 @@ void m3ds_ndsp_stream_backend_init(
     M3dsNdspStreamContext *ctx,
     const M3dsNdspContext *ndsp_ctx);
 
+/* The caller owns a distinct NDSP channel outside the regular clip mixer. */
+void m3ds_ndsp_stream_backend_init_on_channel(
+    M3dsAudioStreamBackend *backend,
+    M3dsNdspStreamContext *ctx,
+    const M3dsNdspContext *ndsp_ctx,
+    uint32_t channel);
+
 #endif /* MIN3DSTRY_PLATFORM_3DS_NDSP_STREAM_BACKEND_H */

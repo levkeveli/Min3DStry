@@ -6,6 +6,12 @@ on:
     paths:
       - "research/upstream-runtime/**"
       - "audio/**"
+      - "src/audio/**"
+      - "include/audio/**"
+      - "tests/audio/**"
+      - "tools/stage_sound_catalog.py"
+      - "tools/verify_live_stock_audio.py"
+      - "tools/verify_stock_live_audio.py"
       - "tools/build_audio_assets.py"
       - "tools/stage_music_assets.py"
       - "tools/verify_upstream_net.py"
@@ -18,11 +24,18 @@ on:
       - ".github/scripts/fetch_upstream_v160.sh"
       - ".github/scripts/smoke_scope.py"
       - ".github/workflows/upstream-arm11-smoke.yml"
+      - "!research/upstream-runtime/**/*.md"
   push:
     branches: [main]
     paths:
       - "research/upstream-runtime/**"
       - "audio/**"
+      - "src/audio/**"
+      - "include/audio/**"
+      - "tests/audio/**"
+      - "tools/stage_sound_catalog.py"
+      - "tools/verify_live_stock_audio.py"
+      - "tools/verify_stock_live_audio.py"
       - "tools/build_audio_assets.py"
       - "tools/stage_music_assets.py"
       - "tools/verify_upstream_net.py"
@@ -35,6 +48,7 @@ on:
       - ".github/scripts/fetch_upstream_v160.sh"
       - ".github/scripts/smoke_scope.py"
       - ".github/workflows/upstream-arm11-smoke.yml"
+      - "!research/upstream-runtime/**/*.md"
   workflow_dispatch:
 
 concurrency:
@@ -68,6 +82,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          fetch-depth: ${{ github.event_name == 'push' && '0' || '1' }}
       - id: scope
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -145,6 +160,7 @@ jobs:
           fi
           if [ "${{ matrix.probe }}" = "executor" ]; then
             grep -Fx 'UPSTREAM_EXECUTOR_POOLS bounded=ok unbounded=ok' "$RUNNER_TEMP/probe.log"
+            grep -Fx 'UPSTREAM_EXECUTOR_MONITOR_GC object=ok array=ok' "$RUNNER_TEMP/probe.log"
           fi
           if [ "${{ matrix.probe }}" = "campaign-settings" ]; then
             grep -F 'campaign=unlocked:conveyor,research:50 reload=ok' "$RUNNER_TEMP/probe.log"
@@ -196,6 +212,18 @@ jobs:
               "$RUNNER_TEMP/probe.log"
           fi
 
+      - name: Verify executor monitor handoffs across garbage collection
+        if: matrix.probe == 'executor'
+        shell: bash
+        run: |
+          set -o pipefail
+          cp -R research/upstream-runtime/build/generated/teavm/c "$RUNNER_TEMP/teavm-c-executor"
+          python3 research/upstream-runtime/arm11/fix_gc_monitors.py "$RUNNER_TEMP/teavm-c-executor"
+          cc -std=gnu11 -O2 -fwrapv "$RUNNER_TEMP/teavm-c-executor/all.c" -lm -lpthread \
+            -o "$RUNNER_TEMP/teavm-c-executor/probe"
+          timeout 30s "$RUNNER_TEMP/teavm-c-executor/probe" | tee "$RUNNER_TEMP/executor-c.log"
+          grep -Fx 'UPSTREAM_EXECUTOR_MONITOR_GC object=ok array=ok' "$RUNNER_TEMP/executor-c.log"
+
       - name: Verify wave-routing TeaVM C at -O0 and -O2 against JVM trace
         if: matrix.probe == 'wave-routing'
         shell: bash
@@ -204,8 +232,10 @@ jobs:
           rm -rf "$RUNNER_TEMP/teavm-c-wave"
           cp -R research/upstream-runtime/build/generated/teavm/c "$RUNNER_TEMP/teavm-c-wave"
           python3 research/upstream-runtime/arm11/fix_reflection_lifetime.py "$RUNNER_TEMP/teavm-c-wave"
+          python3 research/upstream-runtime/arm11/fix_gc_monitors.py "$RUNNER_TEMP/teavm-c-wave"
           cc -std=gnu11 -O0 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-wave/all.c" -lm -lpthread \
             -o "$RUNNER_TEMP/teavm-c-wave/probe_o0"
+          python3 research/upstream-runtime/arm11/fix_wave_controller_local.py "$RUNNER_TEMP/teavm-c-wave"
           cc -std=gnu11 -O2 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-wave/all.c" -lm -lpthread \
             -o "$RUNNER_TEMP/teavm-c-wave/probe_o2"
           "$RUNNER_TEMP/teavm-c-wave/probe_o0" "$RUNNER_TEMP/glacier.msav" | tee "$RUNNER_TEMP/wave-o0.log"
@@ -569,6 +599,7 @@ jobs:
           rm -rf "$RUNNER_TEMP/teavm-c-audio"
           cp -R research/upstream-runtime/build/generated/teavm/c "$RUNNER_TEMP/teavm-c-audio"
           python3 research/upstream-runtime/arm11/fix_reflection_lifetime.py "$RUNNER_TEMP/teavm-c-audio"
+          python3 research/upstream-runtime/arm11/fix_gc_monitors.py "$RUNNER_TEMP/teavm-c-audio"
           cc -std=gnu11 -O0 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-audio/all.c" -lm -lpthread \
             -o "$RUNNER_TEMP/teavm-c-audio/probe_o0"
           cc -std=gnu11 -O2 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-audio/all.c" -lm -lpthread \
@@ -699,6 +730,7 @@ jobs:
           rm -rf "$RUNNER_TEMP/teavm-c-combat"
           cp -R research/upstream-runtime/build/generated/teavm/c "$RUNNER_TEMP/teavm-c-combat"
           python3 research/upstream-runtime/arm11/fix_reflection_lifetime.py "$RUNNER_TEMP/teavm-c-combat"
+          python3 research/upstream-runtime/arm11/fix_gc_monitors.py "$RUNNER_TEMP/teavm-c-combat"
           cc -std=gnu11 -O0 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-combat/all.c" -lm -lpthread \
             -o "$RUNNER_TEMP/teavm-c-combat/probe_o0"
           cc -std=gnu11 -O2 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-combat/all.c" -lm -lpthread \
@@ -877,6 +909,7 @@ jobs:
           rm -rf "$RUNNER_TEMP/teavm-c-host"
           cp -R research/upstream-runtime/build/generated/teavm/c "$RUNNER_TEMP/teavm-c-host"
           python3 research/upstream-runtime/arm11/fix_reflection_lifetime.py "$RUNNER_TEMP/teavm-c-host"
+          python3 research/upstream-runtime/arm11/fix_gc_monitors.py "$RUNNER_TEMP/teavm-c-host"
           cc -std=gnu11 -O0 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-host/all.c" -lm -lpthread \
             -o "$RUNNER_TEMP/teavm-c-host/probe_o0"
           cc -std=gnu11 -O2 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-host/all.c" -lm -lpthread \
@@ -965,6 +998,7 @@ jobs:
           rm -rf "$RUNNER_TEMP/teavm-c-factory"
           cp -R research/upstream-runtime/build/generated/teavm/c "$RUNNER_TEMP/teavm-c-factory"
           python3 research/upstream-runtime/arm11/fix_reflection_lifetime.py "$RUNNER_TEMP/teavm-c-factory"
+          python3 research/upstream-runtime/arm11/fix_gc_monitors.py "$RUNNER_TEMP/teavm-c-factory"
           cc -std=gnu11 -O0 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-factory/all.c" -lm -lpthread \
             -o "$RUNNER_TEMP/teavm-c-factory/probe_o0"
           cc -std=gnu11 -O2 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-factory/all.c" -lm -lpthread \
@@ -1086,3 +1120,66 @@ jobs:
               research/upstream-runtime/build/probe-3ds-singleplayer'
           test -s research/upstream-runtime/build/probe-3ds-singleplayer/upstream-probe.3dsx
           test -s research/upstream-runtime/build/probe-3ds-singleplayer/upstream-probe.elf
+
+      - name: Resume and save stock PC campaign slots on the JVM
+        shell: bash
+        run: |
+          set -o pipefail
+          check_dir=$(mktemp -d "$RUNNER_TEMP/campaign-resume.XXXXXX")
+          fixtures="$check_dir/fixtures"
+          python3 tools/campaign_resume_fixtures.py --server "$RUNNER_TEMP/server-release.jar" --output "$fixtures"
+          mkdir -p "$fixtures/planets"
+          git -C "$RUNNER_TEMP/Mindustry" show HEAD:core/assets/bundles/bundle.properties > "$fixtures/bundle.properties"
+          git -C "$RUNNER_TEMP/Mindustry" show HEAD:core/assets/planets/serpulo.json > "$fixtures/planets/serpulo.json"
+          bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime \
+            --no-daemon --console=plain \
+            "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" \
+            "-PreferenceJar=$RUNNER_TEMP/server-release.jar" \
+            "-ParcCheckout=$RUNNER_TEMP/Arc" \
+            -Pprobe=singleplayer runCampaignResumeJvm "--args=$fixtures $check_dir/save" \
+            | tee "$RUNNER_TEMP/campaign-resume-jvm.log"
+          grep -F 'UPSTREAM_CAMPAIGN_RESUME_REFERENCE slots=2 groundZero=170 frozenForest=64 backup=ok' \
+            "$RUNNER_TEMP/campaign-resume-jvm.log"
+
+      - name: Run a stock Serpulo background turn through TeaVM C
+        shell: bash
+        run: |
+          set -o pipefail
+          check_dir=$(mktemp -d "$RUNNER_TEMP/campaign-background.XXXXXX")
+          assets="$check_dir/assets"
+          python3 tools/campaign_background_fixture.py --server "$RUNNER_TEMP/server-release.jar" --create "$check_dir/fixture"
+          mkdir -p "$assets/planets"
+          unzip -q "$RUNNER_TEMP/server-release.jar" 'maps/serpulo/*' 'maps/erekir/*' -d "$assets"
+          git -C "$RUNNER_TEMP/Mindustry" show HEAD:core/assets/bundles/bundle.properties > "$assets/bundle.properties"
+          git -C "$RUNNER_TEMP/Mindustry" show HEAD:core/assets/planets/serpulo.json > "$assets/planets/serpulo.json"
+          bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime \
+            --no-daemon --console=plain \
+            "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" \
+            "-PreferenceJar=$RUNNER_TEMP/server-release.jar" \
+            "-ParcCheckout=$RUNNER_TEMP/Arc" \
+            -Pprobe=campaign-background generateC
+          cp -R research/upstream-runtime/build/generated/teavm/c "$check_dir/c"
+          python3 - "$check_dir/c" <<'PY'
+          import sys
+          from pathlib import Path
+          sys.path.insert(0, "research/upstream-runtime/arm11")
+          from fix_reflection_lifetime import fix_constructor_roots, fix_reflection_lifetime
+          root = Path(sys.argv[1])
+          fix_reflection_lifetime(root)
+          fix_constructor_roots(root)
+          PY
+          python3 research/upstream-runtime/arm11/fix_gc_monitors.py "$check_dir/c"
+          cc -std=gnu11 -O0 -fwrapv -ffp-contract=off "$check_dir/c/all.c" -lm -lpthread -o "$check_dir/probe"
+          "$check_dir/probe" "$check_dir/fixture" "$assets" "$assets/bundle" "$check_dir/save" \
+            | tee "$check_dir/probe.log"
+          grep -Fx 'UPSTREAM_BACKGROUND_TURN live=37 import=30 remote=100 lead=0 frozen=11' "$check_dir/probe.log"
+          python3 tools/campaign_background_fixture.py --server "$RUNNER_TEMP/server-release.jar" --check "$check_dir/save"
+
+      - name: Check unified multiplayer server address parsing on the JVM
+        run: |
+          bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime \
+            --no-daemon --console=plain \
+            "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" \
+            "-PreferenceJar=$RUNNER_TEMP/server-release.jar" \
+            "-ParcCheckout=$RUNNER_TEMP/Arc" \
+            -Pprobe=unified runServerAddressJvm

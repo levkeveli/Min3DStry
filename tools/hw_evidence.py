@@ -116,9 +116,14 @@ def hardware_summary(record: dict[str, Any] | None) -> dict[str, Any]:
             continue
         key, _, value = part.partition(":")
         fields[key.strip().lower()] = value.strip()
+    mhz = fields.get("mhz", "")
+    if not mhz:
+        clock = re.search(r"(\d+)\s*MHz", match.group("rest"))
+        if clock:
+            mhz = f"{clock.group(1)} MHz"
     return {
         "tag": match.group("tag"),
-        "mhz": fields.get("mhz", ""),
+        "mhz": mhz,
         "l2": fields.get("l2", ""),
         "app_mem_mib": parse_int(fields.get("appmem", "").split()[0] if fields.get("appmem") else None),
         "firm": fields.get("firm", ""),

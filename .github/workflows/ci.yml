@@ -12,7 +12,14 @@ permissions:
 jobs:
   bootstrap:
     name: Bootstrap checks
-    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.head.repo.fork)) && '["self-hosted", "linux", "x64", "min3dstry-fast"]' || '"ubuntu-latest"') }}
+    runs-on: >-
+      ${{ fromJSON(
+        (github.event_name != 'pull_request' ||
+          (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.head.repo.fork))
+        && (vars.M3DS_PRIORITY_BOOTSTRAP == 'true'
+          && '["self-hosted", "linux", "x64", "min3dstry-priority"]'
+          || '["self-hosted", "linux", "x64", "min3dstry-fast"]')
+        || '"ubuntu-latest"') }}
     steps:
       - uses: actions/checkout@v4
         with:

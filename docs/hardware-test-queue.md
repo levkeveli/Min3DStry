@@ -1,11 +1,25 @@
 # Hardware test queue
 
-Status: **HARDWARE_TEST_PENDING**. No physical Old/New 3DS result is claimed
-here. This is the handoff queue for the hardware-testing owner; emulator and
-host results stay in the capability docs and ledger.
+Status: **Partially verified.** Physical records exist for both models:
+[Original 3DS XL](hardware/evidence/old3ds-xl-a4a9a96.md) (smoke) and
+[New 3DS XL](hardware/evidence/new3ds-xl-de3e249.md) (sector-170, 12/12 strict).
+A newer New 3DS run (`a328c70`) passed 12/12 and ran for ~10 minutes
+(132 `BENCH` windows, `fps_min=29.92`, `fps_max=59.84`, `p95_max=33.50 ms`),
+covering the five-minute soak plus pan/zoom, lighting, pause/resume and menu
+input. The operator confirmed the scene, controls, minimap and HUD worked. Still
+not claimed: full upstream campaign gameplay performance, upstream sound
+effects/music (the operator heard the UI "ding", but all seven `AUDIO_EVENT`s
+resolved to `clip=-1 voice=0` with only 2 registered clips), live build-UI
+gameplay, cross-play, and the Old 3DS sector-loader/FPS run. The operator has
+**only the New 3DS**; HWT-06's Old 3DS requirement and
+`physical-hardware-parity` are blocked on Original 3DS hardware. The operator
+also found that the visible touch legend is outside the hit zones; the
+coordinates themselves are correct (`TOUCH action=menu x=288 y=47`), but the
+labels need to be drawn inside the zones (issue #364).
 
-Baseline commit for queued tests: `1d27718` (update this line when a newer
-merged `main` is used). Record the exact commit and ROM SHA-256 with every run.
+Latest evidenced builds: New `a328c70` (2026-11-22, FPS PASS), New `de3e249`
+(2026-11-22), and Old `a4a9a96` (2026-11-22). Record the exact commit and ROM
+SHA-256 with every run.
 The procedure and evidence schema are in
 [verification-runbook.md](hardware/verification-runbook.md) and
 [deployment-and-logs.md](hardware/deployment-and-logs.md).
@@ -26,20 +40,33 @@ The procedure and evidence schema are in
 6. If a run fails, attach the log and file a defect; do not change the ledger
    stage.
 
-Capabilities currently marked `HARDWARE_TEST_PENDING`:
+Capabilities still marked `HARDWARE_TEST_PENDING`:
 
 | Card | Capabilities |
 | --- | --- |
-| HWT-01 | `arm11-toolchain-build`, `memory-budget-runtime`, `threading-scheduling`, `citro2d-scene-prototype`, `sprite-atlas-pipeline`, `world-sprite-renderer`, `lighting-effects-camera`, `msav-map-save-compat` |
-| HWT-02 | `world-blocks-logistics`, `production-power-liquids`, `combat-waves-ai`, `touch-build-palette`, `hud-menus-minimap` |
+| HWT-01 | _none for New 3DS — the render capabilities are cleared by `a328c70`; Old 3DS render rerun remains part of HWT-06_ |
+| HWT-02 | `world-blocks-logistics`, `production-power-liquids`, `combat-waves-ai`, `touch-build-palette` |
 | HWT-03 | `campaign-sectors` |
 | HWT-04 | `ndsp-sfx-music` |
 | HWT-05 | `crossplay-net-protocol` |
-| HWT-06 | `physical-hardware-parity` and the `>= 24 FPS` target |
+| HWT-06 | `physical-hardware-parity`; New 3DS harness FPS + 10-minute soak are verified, **blocked on Original 3DS hardware** for the Old 3DS half |
 
-`old-new-3ds-probe` was promoted to **hardware-verified** by #322 (Original
-3DS XL); its evidence is `docs/hardware/evidence/old3ds-xl-a4a9a96.md` with the
-raw log beside it. Preserve that evidence and do not re-queue that capability.
+Cleared by the `de3e249` New 3DS record: `arm11-toolchain-build`,
+`memory-budget-runtime`, `threading-scheduling` and `msav-map-save-compat`.
+The `a4a9a96` Original 3DS record also backs the first three. The `a328c70`
+New 3DS run passed 12/12 over ~10 minutes (132 `BENCH` windows,
+`fps_min=29.92`, `fps_max=59.84`, `p95_max=33.50`) and clears the HWT-01 render
+capabilities `citro2d-scene-prototype`, `sprite-atlas-pipeline`,
+`world-sprite-renderer` and `lighting-effects-camera`, plus `hud-menus-minimap`
+(HUD/menus/minimap were visually confirmed) and the New 3DS harness FPS +
+input-soak half of HWT-06. HWT-06 remains **blocked on Original 3DS hardware**
+(the operator has only the New 3DS) and on full campaign gameplay. Audio
+upstream clips/music, live build-UI gameplay and cross-play remain open.
+Preserve those evidence files and do not re-queue cleared capabilities unless
+the evidence is invalidated.
+
+`old-new-3ds-probe` remains **hardware-verified** with both
+`old3ds-xl-a4a9a96.md` and `new3ds-xl-de3e249.md`.
 
 ## HWT-01 — Boot, storage, parity, memory and render baseline
 
@@ -105,6 +132,12 @@ and waves, touch palette/rotation, HUD/menus/minimap.
 
 **Build/setup:** same ROM as HWT-01, plus a Ground Zero map/save.
 
+> `a328c70` exercised the scripted factory, waves, pause menu and main menu,
+> and the operator confirmed the HUD and minimap. It did not provide user block
+> placement, palette/rotation or config. The visible touch legend is outside
+> the hit zones; issue #364 tracks the UI-label fix. HWT-02 remains open for
+> the live build-UI/palette flow.
+
 **Steps**
 
 1. Start a world, mine copper, place a conveyor, router, drill and turret.
@@ -122,6 +155,8 @@ and waves, touch palette/rotation, HUD/menus/minimap.
 - No crash/hang; `FRAME ... drop=0`; touch and D-pad input remain responsive.
 - With a captured sector loaded, the status HUD shows the stock
   `Sector Captured` row.
+- On a boss wave, the guardian-warning notification appears with the stock
+  `wave.guardianwarn` text.
 
 **Evidence:** raw log, screenshots of HUD/palette/minimap, frame timings and a
 short note on any glitches.
@@ -167,6 +202,7 @@ UPSTREAM_SP_LOADED source=campaign map=Editor_Playtesting size=150x250 wave=1 co
 UPSTREAM_CAMPAIGN_SAVED slot=sector-serpulo-15.msav
 UPSTREAM_SP_EXIT
 UPSTREAM_CAMPAIGN_CAPTURED sector=15
+UPSTREAM_CAMPAIGN_NOTIFICATION text=Sector Captured
 UPSTREAM_CAMPAIGN_CAPTURE_REWARDS copper=250 lead=75 core=core-nucleus storage=13000
 UPSTREAM_CAMPAIGN_CAPTURE sector=15 captured=ok waves=off attack=off event=ok persisted=ok
 ```
@@ -180,22 +216,25 @@ items/core metadata and persistence.
 
 ## HWT-04 — NDSP audio and DSP firmware
 
-Covers `ndsp-sfx-music`. **Setup:** audio build with upstream assets and
-`sd:/3ds/dspfirm.cdc` present.
+Covers `ndsp-sfx-music`. **Setup:** Use the
+[audio-enabled unified ARM11 build](../research/upstream-runtime/README.md#stock-sound-effects-and-soundtrack)
+with `sd:/3ds/dspfirm.cdc` present and a stock v160.8 server.
 
-```bash
-UPSTREAM_MINDUSTRY=/path/to/Mindustry ./dev.sh build
-```
+**Steps:** Use Join to connect to the stock server. Listen for the UI and
+positional effects, an active drill's ambience, and the stock soundtrack.
+Run for two minutes and disconnect.
 
-**Steps:** launch, play a UI click, place/break a block, fire a turret, start
-music, toggle mute (X), run for 2 minutes.
-
-**Expected:** `AUDIO backend=ndsp state=ready`, audible effects/music with no
-crackling or hangs. If `dspfirm.cdc` is absent, record
-`fallback_no_dsp`; that is an environment finding, not a code pass.
+**Expected:** `UPSTREAM_LIVE_AUDIO_OPEN` reports `state=ready`, the soundtrack
+starts with `mode=ndsp`, and playback is audible without crackling or hangs.
+Record `fallback_no_dsp` separately if the DSP firmware is unavailable.
 
 **Evidence:** log, dspfirm presence note, model/firmware, audio build SHA, and
 a short listening report. Physical audio cannot be proven from Azahar.
+
+> `a328c70` logged `AUDIO backend=ndsp state=ready` with only 2 registered
+> clips; the operator heard the UI "ding", but all seven `AUDIO_EVENT`s resolved
+> to `clip=-1 voice=0`. NDSP output is audible, but upstream effects and music
+> are **NOT VERIFIED**, so `ndsp-sfx-music` remains `emulator-tested`.
 
 ## HWT-05 — Cross-play networking
 
@@ -225,9 +264,19 @@ AppMem, and the benchmark reports `>= 24 FPS`. **Evidence:** strict
 `hw_evidence.py` JSON/Markdown for both models, benchmark log lines, and
 thermal/SD notes. Only this card can clear `physical-hardware-parity`.
 
+> New 3DS `a328c70` satisfies the harness FPS and soak half: strict 12/12 over
+> ~10 minutes, 132 `BENCH` windows, `fps_min=29.92`, `fps_max=59.84`,
+> `p95_max=33.50`, with the sector loader and parity intact. The Old 3DS half
+> is **BLOCKED**: the operator has only the New 3DS, so
+> `physical-hardware-parity` cannot be completed until an Original 3DS is
+> available. Full campaign gameplay remains open on both models.
+
 ## Current exclusions
 
-- No physical hardware is attached to this workspace; do not wait for it.
+- Physical runs need the owner to open Homebrew Launcher -> **Y** (NetLoader)
+  and confirm the console IP. Never use a connect-and-close TCP check against
+  port 17491; hbmenu expects the 3dslink protocol and reports `namelen`. Use
+  the real deploy path (`tools/hw_capture.py` or `./dev.sh device deploy`).
 - Capture rewards UI and the unified 1:1 release build remain implementation
   work, not hardware queue items.
 - Azahar results never satisfy these cards.

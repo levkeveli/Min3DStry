@@ -97,7 +97,7 @@
         "research/upstream-runtime/src/gameplay/java/UpstreamFactoryTickProbe.java",
         "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerApp.java"
       ],
-      "notes": "Drill resource extraction ticks, rotary/top sprite layers, and item output into conveyors and cores run live on ARM11."
+      "notes": "Original mechanical and pneumatic drill extraction and item output run on ARM11. The full floor and wall extractor roster passes stock JVM draw checks, with four representative stock buildings verified offline and live on both Azahar profiles."
     },
     {
       "id": "conveyors-sorting-storage",
@@ -110,7 +110,7 @@
       "evidence": [
         "docs/porting/factory-logistics.md",
         "research/upstream-runtime/src/gameplay/java/UpstreamFactoryTickProbe.java",
-        "research/upstream-runtime/src/network-live/java/UpstreamItemConfig.java",
+        "research/upstream-runtime/src/network-live/java/UpstreamBuildingConfig.java",
         "research/upstream-runtime/src/network-render/java/UpstreamRenderedNetworkProbe.java"
       ],
       "notes": "Belt transport, routers, junctions, overflow/underflow gates, configurable sorters, and core item storage run live on ARM11."
@@ -121,14 +121,15 @@
       "name": "Generic Crafters & Multi-Item Production Chains",
       "weight": 3,
       "status": "partial-arm11",
-      "modes": ["probe", "multiplayer"],
+      "modes": ["probe", "offline", "multiplayer"],
       "issue": 39,
       "evidence": [
         "docs/porting/production-power-liquids.md",
+        "docs/gameplay/offline-singleplayer.md",
         "research/upstream-runtime/src/gameplay/java/UpstreamProductionTickProbe.java",
         "research/upstream-runtime/src/network-render/java/UpstreamRenderedNetworkProbe.java"
       ],
-      "notes": "Full upstream crafter ticks verified in ARM11 production-ticks probe; live draw covers select blocks (Graphite Press, Phase Weaver, Overdrive), full crafter set and FX pending."
+      "notes": "The ARM11 production-ticks probe verifies upstream recipes. The offline and live draw passes use the full GenericCrafter and Separator families. Both Azahar profiles drew representative stock buildings offline and in the initial Java-server world. Active multiplayer production visuals remain open."
     },
     {
       "id": "power-grid-generators",
@@ -151,14 +152,15 @@
       "name": "Liquid Pumps, Conduits, Routers & Bridges",
       "weight": 2,
       "status": "partial-arm11",
-      "modes": ["probe", "multiplayer"],
+      "modes": ["probe", "offline", "multiplayer"],
       "issue": 39,
       "evidence": [
         "docs/porting/production-power-liquids.md",
+        "docs/gameplay/offline-singleplayer.md",
         "research/upstream-runtime/src/gameplay/java/UpstreamProductionTickProbe.java",
         "research/upstream-runtime/src/network-render/java/UpstreamRenderedNetworkProbe.java"
       ],
-      "notes": "LiquidModule and Conduit simulation verified in ARM11 probe; live draw covers Conduit tiling; full pump, tank, bridge, and liquid HUD coverage pending."
+      "notes": "The ARM11 probe verifies LiquidModule and Conduit simulation. The offline renderer draws original pumps and liquid routers, including the tested Mechanical Pump and Liquid Tank. Live conduit tiling is verified. Liquid bridges and full liquid HUD coverage remain open."
     },
     {
       "id": "payloads-unit-factories",
@@ -199,7 +201,7 @@
       "issue": 27,
       "evidence": [
         "research/upstream-runtime/src/network-live/java/UpstreamBuildMenu.java",
-        "research/upstream-runtime/src/network-live/java/UpstreamItemConfig.java",
+        "research/upstream-runtime/src/network-live/java/UpstreamBuildingConfig.java",
         "docs/gameplay/touch-build-palette.md"
       ],
       "notes": "Full unlocked block catalog with 425/447 icons and bottom-screen Sorter item configuration work live on ARM11; other block config UIs (bridges/factories/processors) pending."
@@ -272,11 +274,16 @@
       "domain": "Controls & Dual-Screen UI",
       "name": "Schematic Import/Export & RTS Unit Command",
       "weight": 1,
-      "status": "missing",
-      "modes": [],
+      "status": "partial-arm11",
+      "modes": ["offline", "multiplayer"],
       "issue": 40,
-      "evidence": [],
-      "notes": "Read-only list of the 210 pinned base-part .msch files plus user .msch files from sd:/3ds/min3dstry/schematics (dimensions, block count, block summary); import into the game, export and RTS selection/command are not implemented."
+      "evidence": [
+        "docs/gameplay/touch-build-palette.md",
+        "tools/verify_stock_schematics.py",
+        "tools/verify_stock_schematic_capture.py",
+        "tools/verify_stock_command_orders.py"
+      ],
+      "notes": "The unified client places and exports stock .msch files. The touch grid selects allied units and sends original orders and stances. Drag selection, schematic naming and metadata editing, and clipboard sharing remain open."
     },
     {
       "id": "content-database-page",
@@ -308,7 +315,7 @@
         "src/ui/main_menu.c",
         "tests/ui/test_main_menu.c"
       ],
-      "notes": "Navigation shell with upstream v160.8 MenuFragment keys/labels; Play->Campaign, Settings mute/lighting/camera, and Database->About are wired. The upstream Scene2D fragment, schematic UI and RTS remain unimplemented."
+      "notes": "Navigation shell with upstream v160.8 MenuFragment keys/labels; Play->Campaign, Settings mute/lighting/camera, and Database->About are wired. The upstream Scene2D title fragment remains open. In-game schematics and RTS are tracked separately."
     },
     {
       "id": "player-unit-flight-camera",
@@ -370,7 +377,7 @@
         "research/upstream-runtime/src/network-render/java/UpstreamRenderedNetworkProbe.java",
         "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerApp.java"
       ],
-      "notes": "14 unit types draw in offline singleplayer and 37 (incl. naval wakes and tank treads) in network-render; full Serpulo/Erekir unit abilities and manual player weapon aim/fire are in progress."
+      "notes": "The JVM draws all 68 world-spawnable v160.8 units. Both Azahar profiles drew representative enemies, vehicles, missiles and carried units offline or with the stock Java server. The unified client drives stock player aim and fire in both modes. The stock Gamma and a remote Dagger draw live projectiles and clear them on release. Full unit abilities and turret projectile effects remain open."
     },
     {
       "id": "lighting-weather-fx-zoom",
@@ -417,63 +424,72 @@
       "domain": "Campaign & Planets",
       "name": "Campaign Sector State, Tech-Tree Data, Planet Grid & Saves.load",
       "weight": 4,
-      "status": "probe-arm11",
-      "modes": ["probe"],
+      "status": "live-arm11",
+      "modes": ["probe", "offline"],
       "issue": 41,
       "evidence": [
         "docs/porting/campaign-progression.md",
         "docs/porting/campaign-verification.md",
         "research/upstream-runtime/src/campaign-saves-load/java/UpstreamCampaignSavesLoadProbe.java",
         "research/upstream-runtime/src/campaign-research/java/UpstreamCampaignResearchStateProbe.java",
-        "research/upstream-runtime/src/campaign-planet/java/UpstreamCampaignPlanetStateProbe.java"
+        "research/upstream-runtime/src/campaign-planet/java/UpstreamCampaignPlanetStateProbe.java",
+        "docs/gameplay/offline-singleplayer.md"
       ],
-      "notes": "All 12 campaign probes (sector info, planet state, research unlock state, slot discovery, and Saves.load) pass on ARM11 in Azahar; headless probes only."
+      "notes": "Live campaign starts, capture persistence, PC settings and SaveIO sector resume use the upstream save paths. Research interaction and defeated-sector retry are still in development."
     },
     {
       "id": "planet-map-techtree-ui",
       "domain": "Campaign & Planets",
       "name": "Interactive Planet Map, Sector Launch & Tech-Tree Unlock UI",
       "weight": 4,
-      "status": "missing",
-      "modes": [],
+      "status": "partial-arm11",
+      "modes": ["offline"],
       "issue": 41,
-      "evidence": [],
-      "notes": "Planet sector picker, launch loadout UI, interactive tech-tree graph, and background sector attack/export simulation are not yet merged on main."
+      "evidence": [
+        "docs/gameplay/offline-singleplayer.md",
+        "tools/verify_upstream_campaign_launch.py"
+      ],
+      "notes": "The sector selector starts Ground Zero or Onset and offers available launch destinations, launch schematic selection and cargo editing. The full planet map and interactive tech tree remain open."
     },
     {
       "id": "erekir-planet-mechanics",
       "domain": "Campaign & Planets",
       "name": "Erekir Content & Mechanics (Ducts, Heat, Neoplasm, Sectors)",
       "weight": 2,
-      "status": "missing",
-      "modes": [],
+      "status": "partial-arm11",
+      "modes": ["offline", "multiplayer"],
       "issue": 41,
-      "evidence": [],
-      "notes": "Basic duct and beryllium wall draw shortcuts exist in network-render, but Erekir heat, neoplasm, duct logistics simulation, units, and campaign sectors are not yet implemented."
+      "evidence": [
+        "docs/gameplay/offline-singleplayer.md",
+        "research/upstream-runtime/README.md"
+      ],
+      "notes": "The original Onset campaign starts and saves offline; the live client joins stock Erekir maps and supports original build controls. Complete heat, neoplasm and Erekir campaign coverage remain open."
     },
     {
       "id": "audio-trigger-catalog",
       "domain": "Audio & Soundtrack",
       "name": "Upstream Sounds / Musics Trigger & Catalog Parity",
       "weight": 2,
-      "status": "probe-arm11",
-      "modes": ["probe"],
+      "status": "live-arm11",
+      "modes": ["probe", "multiplayer"],
       "issue": 29,
       "evidence": [
         "docs/porting/audio-runtime-bindings.md",
         "research/upstream-runtime/src/gameplay/java/UpstreamAudioTickProbe.java",
         "audio/upstream-audio-map.json",
-        "audio/upstream-audio-triggers.json"
+        "audio/upstream-audio-triggers.json",
+        "research/upstream-runtime/src/network-render/java/port/audio/Arm11Audio.java",
+        "research/upstream-runtime/README.md"
       ],
-      "notes": "Real upstream gameplay audio triggers (place, drill, shoot, hit, explosion) match JVM in ARM11 audio-ticks probe; not yet wired to NDSP playback in interactive app."
+      "notes": "The live client binds stock Sounds and Musics IDs. The JVM reference checks registry, rule and ambience behavior, and the stock-server replay exercised representative original effects on both Azahar profiles."
     },
     {
       "id": "ndsp-mixer-ogg-streamer",
       "domain": "Audio & Soundtrack",
       "name": "NDSP Hardware Mixer & Tremor OGG Music Streamer Backend",
       "weight": 3,
-      "status": "harness-only",
-      "modes": ["harness"],
+      "status": "live-arm11",
+      "modes": ["harness", "multiplayer"],
       "issue": 29,
       "evidence": [
         "docs/audio/ndsp-mixer.md",
@@ -481,20 +497,28 @@
         "docs/audio/music-assets.md",
         "src/platform/3ds/ndsp_backend.c",
         "src/platform/3ds/ndsp_stream_backend.c",
-        "src/platform/3ds/tremor_stream_source.c"
+        "src/platform/3ds/tremor_stream_source.c",
+        "research/upstream-runtime/arm11/m3ds_live_audio.c",
+        "tools/verify_live_stock_audio.py",
+        "research/upstream-runtime/README.md"
       ],
-      "notes": "24-channel NDSP mixer, 16 staged OGG music tracks, and double-buffered Tremor decoder are verified in C harness and Azahar; awaiting bridge into upstream TeaVM runtime."
+      "notes": "The live adapter uses the bounded PCM cache, four long-effect streams and the dedicated Tremor music stream. Both Azahar profiles exercised the decode and fallback paths. Audible output from the live mixer remains unverified."
     },
     {
       "id": "live-ingame-sfx-music",
       "domain": "Audio & Soundtrack",
       "name": "Live In-Game Upstream SFX, Ambience & Dynamic Soundtrack",
       "weight": 3,
-      "status": "missing",
-      "modes": [],
+      "status": "live-arm11",
+      "modes": ["multiplayer"],
       "issue": 29,
-      "evidence": [],
-      "notes": "Live upstream Sound.at / Music.play playback (turrets, drills, explosions, UI clicks, ambient hum, dynamic tracks) is not yet merged into the interactive ARM11 app."
+      "evidence": [
+        "research/upstream-runtime/src/network-render/java/port/audio/Arm11Audio.java",
+        "research/upstream-runtime/src/network-render/java/port/audio/Arm11Music.java",
+        "tools/verify_stock_live_audio.py",
+        "research/upstream-runtime/README.md"
+      ],
+      "notes": "The audio-enabled Join path resolves stock UI, wave, wind, drill and Gamma effects and decodes game1 on both Azahar profiles against the stock server. Offline audio and physical listening remain open."
     },
     {
       "id": "mp-crossplay-client",
@@ -518,22 +542,27 @@
       "domain": "Multiplayer & Hardware",
       "name": "3DS Multiplayer Host/LAN Server & In-App Server Browser",
       "weight": 2,
-      "status": "missing",
-      "modes": [],
+      "status": "partial-arm11",
+      "modes": ["multiplayer"],
       "issue": 31,
-      "evidence": [],
-      "notes": "Hosting a game from 3DS, LAN discovery/broadcast, direct IP entry UI, and server list browser are not yet implemented."
+      "evidence": [
+        "research/upstream-runtime/README.md"
+      ],
+      "notes": "The combined ROM accepts and validates a stock server address before joining. Local hosting, discovery and a browsable server list remain open."
     },
     {
       "id": "unified-single-3dsx",
       "domain": "Multiplayer & Hardware",
       "name": "Unified Playable .3dsx (Offline + Campaign + MP + Audio + UI)",
       "weight": 3,
-      "status": "missing",
-      "modes": [],
+      "status": "live-arm11",
+      "modes": ["offline", "multiplayer"],
       "issue": 43,
-      "evidence": [],
-      "notes": "Offline singleplayer, live multiplayer (network-render), embedded save loader, campaign probes, and NDSP audio currently live in separate targets rather than one unified .3dsx."
+      "evidence": [
+        "research/upstream-runtime/README.md",
+        "docs/gameplay/offline-singleplayer.md"
+      ],
+      "notes": "One ARM11 ROM runs offline Ground Zero and joins stock Java servers on both Azahar profiles. The audio-enabled Join path plays the stock audio lifecycle. Integrated menu navigation and offline audio remain open."
     },
     {
       "id": "physical-3ds-24fps",

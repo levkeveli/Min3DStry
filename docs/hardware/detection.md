@@ -20,4 +20,4 @@ Min3DStry exposes a platform-independent hardware profile in [include/platform/h
   - `is_new_3ds=false`: `Original 3DS XL (O3DS, 268 MHz, L2:off, AppMem:96 MiB, FIRM:2.58.0)`
   - Note: Azahar HLE logs `ConfigureNew3DSCPU` (`ptm:sysm`) as unimplemented and reports `AppMem:96 MiB` under both emulated profiles.
 - **Physical Original 3DS XL:** The hardware smoke run reported O3DS, 268 MHz, L2 disabled, 64 MiB application memory, and FIRM 2.58.0. [Original 3DS XL evidence](evidence/old3ds-xl-a4a9a96.md)
-- **Physical New 3DS XL:** The Wi-Fi deployment run reported N3DS, 804 MHz, L2 enabled, 124 MiB application memory, and FIRM 2.58.0. [New 3DS XL deployment evidence](deployment-and-logs.md#verification-status)
+- **Physical New 3DS XL:** The Wi-Fi deployment run reported N3DS, 804 MHz, L2 enabled, 124 MiB application memory, and FIRM 2.58.0 from `CFGU_GetSystemModel` model 4. [New 3DS XL evidence](evidence/new3ds-xl-de3e249.md)

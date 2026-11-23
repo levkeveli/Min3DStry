@@ -1,6 +1,10 @@
 # Double-Buffered NDSP Music Streaming
 
-Status: **Experimental** (`host-tested` double-buffered streamer + Vorbis pull-decoder adapter + `16`-track pinned `Musics` catalog + ARM11 `libctru`/`libvorbisidec` compilation; full RomFS packaging, upstream `SoundControl` runtime bridge, and audible DSP playback remain open on [#29](https://github.com/levkeveli/Min3DStry/issues/29)).
+Status: **Emulator-tested in the live Join path.** The unified ARM11 build
+packages all 16 stock Vorbis tracks. The stock-server replay on both
+Azahar profiles decoded and closed `game1` through the missing-DSP path.
+Physical listening and offline soundtrack integration remain open.
+[Live replay](../../research/upstream-runtime/README.md#stock-sound-effects-and-soundtrack)
 
 ## Architecture
 
@@ -28,6 +32,5 @@ Status: **Experimental** (`host-tested` double-buffered streamer + Vorbis pull-d
   - `tests/audio/test_audio_vorbis_stream.c` verifies all `16` `"romfs:/audio/music/<name>.ogg"` paths, invalid initialization leaving caller structs untouched, fragmented odd-byte PCM reassembly across full `10,000`-frame `M3dsAudioStream` playback + `rewind()` loop + EOF drain, mid-stream bitstream switching, negative decoder errors, truncated mid-frame EOFs, and overrun/non-seekable edge cases.
 - **ARM11 Build (`./dev.sh build`):** Compiles `src/audio/audio_stream.c`, `src/audio/audio_vorbis_stream.c`, `src/platform/3ds/ndsp_stream_backend.c`, and `src/platform/3ds/tremor_stream_source.c` with pinned `devkitpro/devkitarm` (`-Wall -Wextra -Werror`) and links `-lvorbisidec -logg` into `build/min3dstry.3dsx`.
 - **Remaining under [#29](https://github.com/levkeveli/Min3DStry/issues/29):**
-  - Wire RomFS music staging (`tools/stage_music_assets.py`) into the 3DS build and validate live `libvorbisidec` streaming decode of real `v160.8` `.ogg` files on ARM11/Azahar.
-  - Connect upstream `mindustry.audio.SoundControl` / TeaVM native audio callbacks to `M3dsAudioStream` + `M3dsAudioMixer`.
+  - Wire the live audio adapter into offline gameplay and verify its stock soundtrack transitions.
   - Verify live audible NDSP playback on physical Original and New 3DS hardware with `sdmc:/3ds/dspfirm.cdc`.

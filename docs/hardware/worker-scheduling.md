@@ -1,7 +1,6 @@
 # Deterministic worker scheduling
 
-Status: **Experimental** (`host-tested`; Azahar Old/New 3DS `emulator-tested`
-for checksum determinism; physical Old/New 3DS timing pending).
+Status: **Hardware-verified** for checksum determinism with 2 and 4 workers on physical Original 3DS XL and New 3DS XL ([Old 3DS evidence](evidence/old3ds-xl-a4a9a96.md), [New 3DS evidence](evidence/new3ds-xl-de3e249.md)). Both runs reported `match=1 checksum=0x4bb2b98d`. The recorded timings do not show parallel speedup (`parallel_us` exceeded `serial_us`), so this page claims determinism, not speedup.
 
 Issue: [#37](https://github.com/levkeveli/Min3DStry/issues/37)  
 Capability: `threading-scheduling`.

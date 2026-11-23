@@ -4,6 +4,7 @@
 import json
 import sys
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -11,8 +12,8 @@ import smoke_scope  # noqa: E402
 
 
 class SmokeScopeTests(unittest.TestCase):
-    def test_non_pr_events_run_full_suite(self) -> None:
-        for event in ("push", "workflow_dispatch", ""):
+    def test_manual_and_unknown_events_run_full_suite(self) -> None:
+        for event in ("workflow_dispatch", ""):
             scope = smoke_scope.classify_smoke_scope(["audio/upstream-audio-map.json"], event)
             self.assertTrue(scope["run_all"])
             self.assertTrue(scope["run_probes"])
@@ -85,6 +86,25 @@ class SmokeScopeTests(unittest.TestCase):
         self.assertTrue(scope["run_singleplayer"])
         self.assertFalse(scope["run_factory"])
 
+    def test_host_campaign_reference_uses_singleplayer_baseline(self) -> None:
+        for directory in ("singleplayer-campaign-host", "singleplayer-custom-host",
+                          "singleplayer-research-host"):
+            scope = smoke_scope.classify_smoke_scope(
+                [f"research/upstream-runtime/src/{directory}/java/Reference.java"], "pull_request"
+            )
+            self.assertFalse(scope["run_all"])
+            self.assertTrue(scope["run_singleplayer"])
+            self.assertFalse(scope["run_probes"])
+
+    def test_wave_only_shutdown_change_uses_wave_probe(self) -> None:
+        scope = smoke_scope.classify_smoke_scope(
+            ["research/upstream-runtime/src/gameplay/java/ProbeListenerShutdown.java"],
+            "pull_request",
+        )
+        self.assertFalse(scope["run_all"])
+        self.assertEqual(scope["probes"], ["wave-routing"])
+        self.assertFalse(scope["run_combat"])
+
     def test_multi_scope_and_unrelated_docs(self) -> None:
         scope = smoke_scope.classify_smoke_scope(
             [
@@ -110,12 +130,53 @@ class SmokeScopeTests(unittest.TestCase):
             ".github/workflows/upstream-arm11-smoke.yml",
             ".github/scripts/smoke_scope.py",
             ".github/scripts/fetch_upstream_v160.sh",
-            "README.md",
         ]
         for path in full_triggers:
             scope = smoke_scope.classify_smoke_scope([path], "pull_request")
             self.assertTrue(scope["run_all"], msg=f"expected full suite for {path}")
             self.assertEqual(scope["probes"], smoke_scope.ALL_PROBES)
+
+    def test_live_audio_pr_matches_real_cache_change(self) -> None:
+        scope = smoke_scope.classify_smoke_scope(
+            ["research/upstream-runtime/arm11/m3ds_live_audio.c",
+             "research/upstream-runtime/README.md", "tools/verify_upstream_live_net.py"],
+            "pull_request",
+        )
+        self.assertFalse(scope["run_all"])
+        self.assertTrue(scope["run_audio"])
+        self.assertTrue(scope["run_net"])
+        self.assertFalse(scope["run_combat"])
+        self.assertFalse(scope["run_probes"])
+
+    def test_live_graphics_checks_both_session_types(self) -> None:
+        scope = smoke_scope.classify_smoke_scope(
+            ["research/upstream-runtime/arm11/m3ds_terrain_renderer.c"], "push"
+        )
+        self.assertFalse(scope["run_all"])
+        self.assertTrue(scope["run_net"])
+        self.assertTrue(scope["run_singleplayer"])
+        self.assertFalse(scope["run_audio"])
+        self.assertFalse(scope["run_probes"])
+
+    def test_docs_only_changes_do_not_schedule_probes(self) -> None:
+        scope = smoke_scope.classify_smoke_scope(
+            ["research/upstream-runtime/README.md", "README.md"], "pull_request"
+        )
+        self.assertFalse(any(value for key, value in scope.items() if key.startswith("run_")))
+
+    def test_unclassified_non_doc_trigger_runs_full_suite(self) -> None:
+        scope = smoke_scope.classify_smoke_scope(["tools/new_runtime_input.py"], "push")
+        self.assertTrue(scope["run_all"])
+
+    def test_push_files_use_exact_commit_pair_and_keep_both_rename_paths(self) -> None:
+        before, after = "a" * 40, "b" * 40
+        with patch.object(smoke_scope.subprocess, "run") as run:
+            run.return_value.stdout = "audio/old.json\0docs/new.json\0"
+            self.assertEqual(smoke_scope.push_changed_files(before, after),
+                             ["audio/old.json", "docs/new.json"])
+            self.assertEqual(run.call_args.args[0],
+                             ["git", "diff", "--no-renames", "--name-only", "-z", before, after, "--"])
+            self.assertEqual(smoke_scope.push_changed_files("--bad", after), [])
 
     def test_format_outputs_json_valid(self) -> None:
         scope = smoke_scope.classify_smoke_scope(
