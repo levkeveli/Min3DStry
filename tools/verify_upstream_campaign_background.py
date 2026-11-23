@@ -20,10 +20,13 @@ def verify(args, model, azahar, config, log, fixture):
     shutil.copytree(fixture / "saves", campaign / "saves")
     shutil.copyfile(fixture / "settings.bin", campaign / "settings.bin")
     movie = output / "background-turn.ctm"
-    # The stock turn is 7,200 simulation ticks. Leave room for loading and
-    # frame pacing, but exit before a second turn can complete.
-    write_input_replay(movie, model, [(40, 42, 1), (224, 226, sp.KEY_START)],
-                       224, b"Min3DStry Campaign Background")
+    # Frame pacing can make wall-clock time diverge from stock campaign time.
+    # Save periodically and keep the first checkpoint with the imported copper.
+    first_save = 780 if model == "old3ds" else 170
+    deadline = 1800
+    windows = [(40, 42, 1)]
+    windows.extend((second, second + 2, sp.KEY_SELECT) for second in range(first_save, deadline, 90))
+    write_input_replay(movie, model, windows, deadline, b"Min3DStry Campaign Background")
     original_config = config.read_bytes() if config.is_file() else None
     original_log = log.read_bytes() if log.is_file() else None
     try:
@@ -40,8 +43,7 @@ def verify(args, model, azahar, config, log, fixture):
             if sp.az.inspect_png(image)["top_distinct_colors"] < 8:
                 raise AssertionError(f"{model}: expected a rendered Ground Zero world")
             (output / "ground-zero.png").write_bytes(image)
-            sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_SAVED slot=sector-serpulo-170\.msav\b", 320)
-            sp._wait_for_log(log, proc, r"UPSTREAM_SP_EXIT\b", 30)
+            sp._wait_for_log(log, proc, rf"UPSTREAM_SP_SAVED .*{SLOT} .*\bcopper=37\b", deadline + 60)
             for path in (fixture / "saves").glob("*.msav"):
                 if path.name != SLOT and path.read_bytes() != (campaign / "saves" / path.name).read_bytes():
                     raise AssertionError(f"{model}: background turn rewrote remote world {path.name}")

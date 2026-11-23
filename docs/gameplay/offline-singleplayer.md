@@ -237,8 +237,10 @@ settings and verifies the turn, active core, remote inventories, and
 legacy launch pad setting. The generated TeaVM C reference produced the same
 result on the host and stock Java reopened its output. The Linux smoke job
 runs that same reference and stock readback. The graphical replay checks
-the same turn from the campaign menu through save on exit. It also
-checks that the two remote sector map files stay byte-identical.
+the same turn from the campaign menu. It saves at intervals and waits
+for the first checkpoint with the imported copper so render speed
+does not determine when the check runs. The two remote sector map
+files must stay byte-identical.
 
 ```sh
 python3 tools/campaign_background_fixture.py --server server-release.jar --create /path/to/fixture
