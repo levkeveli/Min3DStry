@@ -1128,6 +1128,21 @@ progress, completed unit and rally point. This evidence covers host simulation
 and save interoperability. Handheld interaction and rendering require separate
 verification.
 
+### Stock Erekir payload production and recycling
+
+`runStockPayloadLoopJvm` runs an original Constructor, Reinforced Payload
+Conveyor and Small Deconstructor on Erekir Caldera. The stock blocks wait for
+power, consume both original materials and pass the original Reinforced
+Container through the production line. The check saves during recycling,
+reopens the active payload and its fractional material buffer, and resumes
+until all 45 tungsten and 60 graphite have been returned. The fixture uses a
+1.5 build-cost multiplier and a 0.25 manual demolition refund multiplier to
+check that payload recycling uses the original build-cost rule.
+
+Use the assembler check's argument order. The separate
+`tools/verify_stock_payload_loop.py` reopens both saves with the unmodified
+v160.8 Java server. This checks offline simulation and save interoperability.
+
 ### Player mining input
 
 Tap Mine beside the touchscreen grid and select a deposit. Tap that target
