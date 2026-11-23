@@ -6,6 +6,7 @@ import arc.Core;
 import arc.Settings;
 import arc.Events;
 import arc.files.Fi;
+import arc.graphics.Camera;
 import arc.graphics.Color;
 import arc.graphics.g2d.Draw;
 import arc.math.Mathf;
@@ -58,6 +59,8 @@ public final class UpstreamSinglePlayerApp {
     private final UpstreamTerrainRenderProbe target = new UpstreamTerrainRenderProbe(false);
     private final UpstreamBuildingLayers buildingLayers = new UpstreamBuildingLayers();
     private UpstreamLiveBuildControls buildingControls = new UpstreamLiveBuildControls();
+    private final UpstreamWeatherLayers weatherLayers = new UpstreamWeatherLayers();
+    private final Runnable drawWeatherUnder = weatherLayers::drawUnder;
     private final Runnable drawEntities = this::drawEntities;
     private final UpstreamWorldLabel.Target worldLabel = this::drawWorldLabel;
     private final Vec2 moveInput = new Vec2();
@@ -122,6 +125,7 @@ public final class UpstreamSinglePlayerApp {
 
         session = UpstreamSinglePlayerSession.create(mapDir, bundleTag, new Fi("/romfs/planets"), settings,
             new Fi("/romfs/maps"));
+        Core.camera = new Camera();
         UpstreamSectorCapture.install();
         Events.on(WaveEvent.class, event -> {
             String warning = UpstreamGuardianWarning.find(Vars.state.rules, Vars.state.wave);
@@ -169,6 +173,8 @@ public final class UpstreamSinglePlayerApp {
                 }
             }
             loadInterfaceGraphics(atlas);
+            weatherLayers.load();
+            reportWeather();
             Events.on(BlockBuildEndEvent.class, event -> {
                 if (event.tile == null) return;
                 if (!event.breaking && event.tile.build != null) {
@@ -190,6 +196,8 @@ public final class UpstreamSinglePlayerApp {
                 if (next == null || next.slot().sector == origin) continue;
                 saveFile = openCampaign(next);
                 resetWorldInput();
+                weatherLayers.reset();
+                reportWeather();
             }
         } finally {
             if (campaignSlot != null) {
@@ -269,6 +277,12 @@ public final class UpstreamSinglePlayerApp {
         reportedEnemies.clear();
         loadedUnitGraphics.clear();
         loadedBulletGraphics.clear();
+    }
+
+    private void reportWeather() {
+        for (var state : Groups.weather) {
+            System.out.println("UPSTREAM_SP_WEATHER name=" + state.weather().name);
+        }
     }
 
     private record MenuRows(byte[][] labels, int[][] characters) {}
@@ -709,9 +723,13 @@ public final class UpstreamSinglePlayerApp {
         float y = unit == null ? Vars.player.y() : unit.y();
         viewport.moveTo(World.toTile(x) - UpstreamTerrainDrawProbe.VIEW_WIDTH / 2,
                         World.toTile(y) - UpstreamTerrainDrawProbe.VIEW_HEIGHT / 2);
+        Core.camera.width = UpstreamTerrainDrawProbe.VIEW_WIDTH * Vars.tilesize;
+        Core.camera.height = UpstreamTerrainDrawProbe.VIEW_HEIGHT * Vars.tilesize;
+        Core.camera.position.set((viewport.left - 0.5f) * Vars.tilesize + Core.camera.width / 2f,
+            (viewport.bottom - 0.5f) * Vars.tilesize + Core.camera.height / 2f);
         advanceVisualState();
         draws = 0;
-        viewport.draw(drawEntities);
+        viewport.draw(drawWeatherUnder, drawEntities);
         buildingControls.viewport(viewport.left, viewport.bottom);
         if (unit != null && (lastLeft != viewport.left || lastBottom != viewport.bottom)) {
             lastLeft = viewport.left;
@@ -729,12 +747,12 @@ public final class UpstreamSinglePlayerApp {
         float oldDelta = Time.delta;
         Time.updateGlobal();
         Time.delta = oldDelta;
-        if (Vars.state.isPaused()) return;
-
         float delta = Math.min(frameSeconds * 60f, Vars.maxDeltaClient);
         Time.delta = delta;
-        Time.setInternalTime(Time.getInternalTime() + delta);
         try {
+            weatherLayers.advance();
+            if (Vars.state.isPaused()) return;
+            Time.setInternalTime(Time.getInternalTime() + delta);
             for (var unit : Groups.unit) {
                 if (unit instanceof UnitWaterMove boat) boat.advanceWake();
                 if (unit instanceof Tankc tank) {
@@ -777,6 +795,7 @@ public final class UpstreamSinglePlayerApp {
         }
         UpstreamObjectiveMarkers.draw(Vars.state.rules, 240f / (UpstreamTerrainDrawProbe.VIEW_HEIGHT * Vars.tilesize),
             worldLabel);
+        weatherLayers.drawOver();
         var orders = buildingControls.orders();
         orders.draw(viewport);
         var schematics = buildingControls.schematics();

@@ -12,6 +12,47 @@ This vertical slice boots and runs unmodified upstream Mindustry `v160.8` **Grou
 - [`WorldReflectionPolicy.java`](../../research/upstream-runtime/src/world/java/port/WorldReflectionPolicy.java): Registers 0-argument constructors for `arc.struct.{IntMap,IntSet,ObjectIntMap,ObjectMap,ObjectSet,StringMap}` so Arc `Json` restores populated `GameStats` (`placedBlockCount`, etc.) and `Rules` fields when reloading `.msav` saves.
 - [`prepare_terrain_assets.py`](../../research/upstream-runtime/arm11/prepare_terrain_assets.py) (`--singleplayer`) & [`build.sh`](../../research/upstream-runtime/arm11/build.sh) (`--singleplayer`): Stages `maps/groundZero.msav` and `sprites.aatls` alongside bundles, `world-atlas`, `block_colors.png`, menu icons, and stock fonts, then links the ARM11 `.elf`/`.3dsx` (default `-Os`).
 
+## Weather in the graphical campaign
+
+The graphical campaign uses the v160.8 weather entities, particle and debris
+draw routines, and original fog and sandstorm noise textures. `SaveIO` restores
+active weather from a stock `.msav` and saves it again through the existing
+offline session. The simulation advances weather on its fixed step. The weather
+overlay follows the original renderer's alpha fade while the game is paused.
+Regenerate the RomFS assets with `prepare_terrain_assets.py --singleplayer` to
+include both weather textures.
+
+Run the JVM regression with the usual pinned runtime Gradle properties and
+`-Pprobe=singleplayer runOfflineWeatherJvm --args="clear.msav weather.msav sprites.aatls roundtrip.msav"`.
+Use two stock v160.8 Ground Zero saves with no weather in the first and exactly
+rain, sandstorm, and fog at opacity 0.75 in the second. The regression checks one
+simulation tick, the save round trip, particles, and both repeating textures.
+
+To create those fixtures, copy `assets/maps/serpulo/groundZero.msav` from the
+v160.8 asset archive into `config/maps/groundZero.msav` in an isolated stock
+server directory. Start the v160.8 `server-release.jar`, enter
+`host Ground_Zero survival`, and run the following as one server-console command.
+
+```text
+js (() => { const save = Packages.mindustry.io.SaveIO; const Fi = Packages.arc.files.Fi; save.write(Fi.get("clear.msav")); const kinds = [Weathers.rain, Weathers.sandstorm, Weathers.fog]; for (let i = 0; i < kinds.length; i++) { const state = kinds[i].create(1, 3600); state.opacity = 0.75; state.windVector.setZero(); } save.write(Fi.get("weather.msav")); })()
+```
+
+For graphical verification, pass that directory to
+`python3 tools/verify_upstream_singleplayer.py --rom upstream-probe.3dsx --weather-fixtures /path/to/fixtures`.
+The verifier boots both saves on each Azahar profile, checks that both stock
+textures load with active weather, and compares world and touch-screen samples.
+
+The [ARM11 build from source commit `8e91f20`](https://github.com/levkeveli/Min3DStry/actions/runs/45024372522)
+passed on Azahar 2126.2 in the Old and New 3DS profiles. In both profiles the
+weather changed 110 of 126 sampled world pixels and zero of 40 sampled touch
+pixels. Physical console testing remains pending.
+
+The [current unified ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45133245996)
+repeated the clear and active-weather replays on both profiles. Both loaded
+the original noise textures and changed 111 of 126 world samples and zero
+of 40 touch samples. The unmodified Java v160.8 server reopened the JVM
+round-trip save and confirmed all three original weather states were active.
+
 ## Campaign sector selection
 
 Copy original `sector-*.msav` files into `/3ds/min3dstry/saves/`, following
