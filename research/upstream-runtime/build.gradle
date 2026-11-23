@@ -310,6 +310,8 @@ if (usesExecutor) {
 }
 if (usesContentSources) {
     sourceSets.main.java.srcDirs('host', 'src/content/java')
+    // The stock rotation tool is compiled separately against the unmodified server jar.
+    sourceSets.main.java.exclude('UpstreamStockRotationCapture.java')
 }
 if (usesWorldSources) {
     sourceSets.main.java.srcDir('src/world/java')
