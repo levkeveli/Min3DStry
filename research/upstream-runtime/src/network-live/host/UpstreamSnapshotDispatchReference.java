@@ -23,6 +23,7 @@ import mindustry.game.MapObjectives.ItemObjective;
 import mindustry.game.MapObjectives.ResearchObjective;
 import mindustry.game.MapObjectives.TextMarker;
 import mindustry.game.MapObjectives.TextureMarker;
+import mindustry.game.Team;
 import mindustry.game.Universe;
 import mindustry.gen.BlockSnapshotCallPacket;
 import mindustry.gen.BlockUnitc;
@@ -34,6 +35,7 @@ import mindustry.gen.EntitySnapshotCallPacket;
 import mindustry.gen.GameOverCallPacket;
 import mindustry.gen.Groups;
 import mindustry.gen.Player;
+import mindustry.gen.PingLocationCallPacket;
 import mindustry.gen.RemoveMarkerCallPacket;
 import mindustry.gen.SetObjectivesCallPacket;
 import mindustry.gen.SetUnitCommandCallPacket;
@@ -138,10 +140,38 @@ public final class UpstreamSnapshotDispatchReference {
         verifyMarkerPackets();
         verifyPossessionPackets(decodedMono);
         verifyStockLinkPackets();
+        verifyTeamPing();
         verifyWeaponInput();
         verifyRoundResults();
         UpstreamServerAssetsReference.verify();
         if (args.length == 2) verifyWorldRotation(app, new Fi(args[1]));
+    }
+
+    private static void verifyTeamPing() {
+        var teammate = Player.create();
+        teammate.team(Vars.player.team());
+        teammate.add();
+        try {
+            var packet = new PingLocationCallPacket();
+            packet.x = 512f;
+            packet.y = 540f;
+            packet.text = "a".repeat(Vars.maxPingTextLength + 3);
+            applyPacket(packet, new PingLocationCallPacket(), teammate);
+            if (teammate.pingTime != 1f || teammate.pingX != 512f || teammate.pingY != 540f
+                    || !("a".repeat(Vars.maxPingTextLength) + "...").equals(teammate.pingText)) {
+                throw new AssertionError("The stock teammate ping location or text limit differs");
+            }
+            packet.text = "";
+            applyPacket(packet, new PingLocationCallPacket(), teammate);
+            if (teammate.pingText != null) throw new AssertionError("The stock empty ping must show only the player name");
+            teammate.pingTime = 0f;
+            teammate.team(Vars.player.team() == Team.crux ? Team.sharded : Team.crux);
+            applyPacket(packet, new PingLocationCallPacket(), teammate);
+            if (teammate.isPinging()) throw new AssertionError("An opposing team's location ping was applied");
+        } finally {
+            teammate.remove();
+        }
+        System.out.println("UPSTREAM_TEAM_PING teammate=ok location=exact text=40 empty=ok enemy=ignored");
     }
 
     private static void verifyWorldRotation(UpstreamWorldLoadProbe.ProbeApplication app, Fi next) throws Exception {

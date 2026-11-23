@@ -208,3 +208,15 @@ Capture a rotation to the original Erekir Caldera with
 captured WorldStreams to `runStockPlanetPatchJvm`. The unmodified server
 applies the Erekir-only duct speed change. The headless port detects that
 change after joining Caldera and recovers the original speed on Glacier.
+
+### Map pings
+
+The live client decodes the original forwarded `PingLocationCallPacket`.
+The upstream handler keeps the teammate rule and the 40-character text
+limit. The handheld world view uses the stock diamond, arrow, labels,
+fade and 20-second countdown.
+
+The snapshot reference replays both teams and checks text truncation.
+The building-layer reference records the stock shapes and both labels,
+then advances the ping to expiry. A graphical cross-platform check is
+tracked separately.

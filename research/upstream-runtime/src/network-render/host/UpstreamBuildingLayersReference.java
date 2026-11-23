@@ -166,6 +166,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         if (args.length >= 4) verifyRoundTitles();
         target.verifyArcOrder();
         target.verifyTexturedLine();
+        target.verifyTeamPingDrawing();
         target.verifyFactory(viewport);
 
         // The visible two-tile wall starts one tile west of the viewport.
@@ -233,6 +234,42 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         Arm11AudioReference.verifyStockRegistry();
         UpstreamPuddleReference.verify();
         UpstreamWeatherLayersReference.verify();
+    }
+
+    private void verifyTeamPingDrawing() {
+        var previous = Vars.player;
+        Vars.player = Player.create();
+        Vars.player.team(Team.sharded);
+        var teammate = Player.create();
+        teammate.team(Team.sharded);
+        teammate.name = "Teammate";
+        teammate.color.set(Color.cyan);
+        teammate.pingX = 240f;
+        teammate.pingY = 264f;
+        teammate.pingTime = 0.8f;
+        teammate.pingText = "Build here";
+        teammate.add();
+        int before = solidQuads.size();
+        var labels = new ArrayList<String>();
+        try {
+            var pings = new UpstreamWorldPings();
+            pings.draw(60f, 2.5f, (text, x, y, flags, size, align, lineAlign) -> {
+                if (x != teammate.pingX || y <= teammate.pingY) {
+                    throw new AssertionError("The stock label must remain above the ping location");
+                }
+                labels.add(text.plain());
+            });
+            if (solidQuads.size() <= before || !labels.equals(List.of("Teammate", "Build here"))
+                    || Math.abs(teammate.pingTime - 0.75f) > 0.0001f) {
+                throw new AssertionError("Missing stock ping geometry, names or countdown");
+            }
+            pings.draw(1200f, 2.5f, (text, x, y, flags, size, align, lineAlign) -> {});
+            if (teammate.isPinging()) throw new AssertionError("The original ping should expire");
+            System.out.println("UPSTREAM_TEAM_PING_DRAW geometry=ok labels=2 expiry=ok");
+        } finally {
+            teammate.remove();
+            Vars.player = previous;
+        }
     }
 
     private static void verifyPositionalAudioDispatch() {
