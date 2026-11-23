@@ -24,10 +24,10 @@ public final class UpstreamStatusRowsProbe {
         String path = args.length > 0 ? args[0] : "/3ds/min3dstry/bundles/bundle";
         I18NBundle bundle = I18NBundle.createBundle(new Fi(path), Locale.ROOT);
         Core.bundle = bundle;
-        mindustry.core.UI.loadColors();
         Vars.headless = true;
         Core.settings = new Settings();
         Core.settings.setAutosave(false);
+        mindustry.core.UI.loadColors();
         Vars.state = new GameState();
         Vars.mods = new Mods();
         Vars.content = new ContentLoader();
@@ -106,11 +106,14 @@ public final class UpstreamStatusRowsProbe {
                 || !"1.2k".equals(UpstreamCoreItems.formatAmount(1234))
                 || !"999".equals(UpstreamCoreItems.formatAmount(999))
                 || !"0".equals(UpstreamCoreItems.formatAmount(0))
+                || !"10k".equals(UpstreamCoreItems.formatAmount(10_000))
                 || !"1.5mil".equals(UpstreamCoreItems.formatAmount(1_500_000))
-                || !"1.5b".equals(UpstreamCoreItems.formatAmount(1_500_000_000))) {
+                || !"1.0mil".equals(UpstreamCoreItems.formatAmount(1_000_000))
+                || !"1.5b".equals(UpstreamCoreItems.formatAmount(1_500_000_000))
+                || !"1.0b".equals(UpstreamCoreItems.formatAmount(1_000_000_000))) {
             throw new IllegalStateException("Core item amount formatting mismatch: " + formatted);
         }
-        System.out.println("UPSTREAM_CORE_ITEM_FORMAT text=" + formatted + " cases=6 ok");
+        System.out.println("UPSTREAM_CORE_ITEM_FORMAT text=" + formatted + " cases=9 ok");
         System.out.println("UPSTREAM_CORE_ITEMS rows=2 ok");
         var tracker = new UpstreamCoreItems.Tracker();
         var tracked = tracker.collect(Seq.with(Items.copper, Items.lead, Items.silicon).list(),
