@@ -165,10 +165,15 @@ pointer_flags=()
 if [[ "${M3DS_RELAX_POINTER_TYPES:-0}" == "1" ]]; then
     pointer_flags=(-Wno-error=incompatible-pointer-types)
 fi
+gcc_gc_flags=()
+if [[ ${M3DS_ARM11_LOW_MEMORY:-0} == 1 ]]; then
+    # Collect GCC's internal IR more often on memory-constrained builders.
+    gcc_gc_flags=(--param=ggc-min-expand=5 --param=ggc-min-heapsize=32768)
+fi
 "$DEVKITARM/bin/arm-none-eabi-gcc" -std=gnu11 -g "$arm11_opt" -fwrapv -D__3DS__ -mword-relocations \
     -march=armv6k -mtune=mpcore -mfpu=vfp -mfloat-abi=hard -mtp=soft \
     -I"$output/nativeinclude" -I"$DEVKITPRO/libctru/include" -L"$DEVKITPRO/libctru/lib" \
-    "${terrain_flags[@]}" "${save_rows_flags[@]}" "${pointer_flags[@]}" \
+    "${terrain_flags[@]}" "${save_rows_flags[@]}" "${pointer_flags[@]}" "${gcc_gc_flags[@]}" \
     -specs=3dsx.specs "$output/all.c" "${native_network[@]}" "${native_input[@]}" \
     "${terrain_sources[@]}" "${save_rows_sources[@]}" \
     "${terrain_libraries[@]}" -lctru -lm -o "$output/upstream-probe.elf"

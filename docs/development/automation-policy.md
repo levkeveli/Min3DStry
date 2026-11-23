@@ -62,7 +62,9 @@ has an experimental workflow for the standalone offline ARM11 game with
 pinned upstream sources, maps, and assets. It fetches the exact pipeline
 commit from the public repository over HTTPS. Trigger a pipeline on the desired branch with the boolean
 parameter `build_playable_arm11` set to `true`. Routine pushes leave the workflow
-off. The job requests a single 16 GB Linux Docker executor for the ARM11 compiler and uploads the playable
+off. The job uses an 8 GB Docker executor and enables `M3DS_ARM11_LOW_MEMORY=1`
+so GCC collects its intermediate data more often during ARM11 compilation.
+It uploads the playable
 `min3dstry-offline.3dsx`, commit SHA, and ROM checksum under **Artifacts →
 playable-arm11**. Source and port instructions are in the
 [offline gameplay guide](../gameplay/offline-singleplayer.md).
