@@ -269,6 +269,13 @@ reopened the resulting settings and save with 37 copper in the active
 core, 100 copper and zero lead at the producer, and 11 copper at the
 attacked sector. Both remote map files remained byte-identical.
 
+The [unified graphical build](https://github.com/levkeveli/Min3DStry/actions/runs/45177492172)
+passed the same stock Java readback on the New 3DS Azahar profile after
+opening Ground Zero from the campaign menu. The verifier captured the
+rendered world, saved the completed turn through SELECT, and checked
+both unchanged remote world files. The Original 3DS graphical replay
+is tracked under #417.
+
 ## New campaign
 
 Hold **R** while launching the standalone graphical .3dsx to open the
