@@ -36,7 +36,7 @@ fi
 if [[ $mode == --singleplayer || $mode == --unified ]]; then
     title="Min3DStry"
     subtitle="Mindustry v160.8 Ground Zero"
-    native_input=(-I"$root" "$root/m3ds_input.c")
+    native_input=(-DM3DS_SINGLEPLAYER -I"$root" "$root/m3ds_input.c")
 fi
 if [[ $mode == --unified ]]; then
     subtitle="Mindustry v160.8"
@@ -65,6 +65,11 @@ if [[ $# -gt 0 ]]; then
     fi
     if [[ ${#native_input[@]} -gt 0 && ! -d "$1/maps/default" ]]; then
         echo "Prepare singleplayer terrain assets with --singleplayer to include the original Custom Game maps" >&2
+        exit 2
+    fi
+    if [[ ${#native_input[@]} -gt 0 &&
+          ( ! -s "$1/maps/serpulo/groundZero.msav" || ! -s "$1/maps/erekir/onset.msav" ) ]]; then
+        echo "Prepare singleplayer terrain assets with --singleplayer to include the original campaign maps" >&2
         exit 2
     fi
     if [[ ${#native_input[@]} -gt 0 && ! -s "$1/planets/serpulo.json" ]]; then

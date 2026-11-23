@@ -53,11 +53,21 @@ public final class UpstreamWorldLoadProbe {
     }
 
     static ProbeApplication initialize(Fi mapDirectory) {
+        return initialize(mapDirectory, new Settings());
+    }
+
+    static ProbeApplication initialize(Fi mapDirectory, Settings settings) {
+        return initialize(mapDirectory, settings, false);
+    }
+
+    static ProbeApplication initialize(Fi mapDirectory, Settings settings, boolean loadPresetMaps) {
         var app = new ProbeApplication();
         Core.app = app;
-        Core.settings = new Settings();
+        Core.settings = settings;
         Vars.headless = true;
         Vars.state = new GameState();
+        // SectorPreset creates its FileMapGenerator while loading base content.
+        Vars.maps = loadPresetMaps ? new Maps() : null;
         Vars.content = new ContentLoader();
         Vars.content.createBaseContent();
         Vars.content.init();
@@ -69,7 +79,7 @@ public final class UpstreamWorldLoadProbe {
         Vars.logic = new Logic();
 
         Vars.customMapDirectory = mapDirectory;
-        Vars.maps = new Maps();
+        if (!loadPresetMaps) Vars.maps = new Maps();
         return app;
     }
 

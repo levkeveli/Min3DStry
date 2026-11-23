@@ -227,11 +227,19 @@ With `glacier-v13.msav` on the SD card, Azahar reports:
 The flat/tile/save hashes match the native reader; `building` omits raw entity
 payload bytes.
 
-The C build recompiles two compiler classes from the hash-checked TeaVM
+The C build recompiles three compiler classes from the hash-checked TeaVM
 0.16.0 source archive. The patches retain the original entry block's
 liveness during coroutine splitting and use the primitive array opcode to
-infer the value type of each element. For offline generation, pass an
-already downloaded source archive with
+infer the value type of each element. The compiler retains object reference
+typing when an array reaches an element read through a generic coroutine
+spill. The C emitter stores local array references as `void*` because
+coroutine lowering can reuse their registers for other Java objects.
+The generated array access macros cast to the array header at access time.
+The 3DS staging script also uses generic pointers for string pool references.
+The graphical campaign build uses the original Arc field-access checks
+for its retained settings fields. The dedicated sector metadata probes
+retain the existing TeaVM field-accessibility workaround.
+For offline generation, pass an already downloaded source archive with
 `-PteavmCompilerSources=/path/to/teavm-core-0.16.0-sources.jar`.
 
 Generate the ARM11 probe with the build command above and install the same
@@ -479,7 +487,8 @@ The graphical live path uses Arc's gain, pan, pitch and position,
 including original server sound and soundtrack rule packets. Its
 building ambience sampler runs at the original 20 Hz interval. World
 loads reset the voice and track state. In the combined binary, the live
-mixer starts in the Join path.
+mixer starts in the Join path. The standalone singleplayer target uses the
+shared world renderer without compiling the live audio adapter.
 
 Run `python3 tools/verify_live_stock_audio.py /path/to/terrain-assets`
 to exercise the PCM cache and stream decoder controls with the host
@@ -1362,16 +1371,31 @@ with the atlas-backed quad replay. Both fixtures ran below the live HUD.
 Use `-Pprobe=executor` with the JVM and ARM11 build commands. The JVM uses the
 unmodified Arc class. The TeaVM build substitutes Arc's named bounded and
 unbounded pool factories and exercises queued work, immediate worker
-handoff, cancellation, and shutdown. It should report:
+handoff, cancellation, shutdown, and monitor handoffs across
+allocation-triggered garbage collection. It should report:
 
 ```text
 UPSTREAM_EXECUTOR workers=1 result=37 exception=ok cancel=ok timeout=ok shutdown=ok
 UPSTREAM_EXECUTOR_POOLS bounded=ok unbounded=ok
+UPSTREAM_EXECUTOR_MONITOR_GC object=ok array=ok
 ```
 
-The JVM and generated Windows x64 program emitted both lines. The
+The JVM and generated Windows x64 program emitted the first two lines. The
 [devkitARM build](https://github.com/levkeveli/Min3DStry/actions/runs/44781211433)
 emitted both in Azahar 2126.2 Original and New 3DS modes.
+
+TeaVM 0.16.0 stores a monitor reference in the object header's hash word.
+Native ARM11 staging and host C verification trace that reference during
+collection and update it during compaction, including when the lock object
+itself moves. The executor probe checks collection while a lock is held
+and then verifies handoff and identity for an ordinary object and an array.
+The wave-routing probe still compares the four Glacier wave records with the
+stock JVM while running the upstream pathfinders and AsyncCore processes.
+The Windows C executor probe reproduced the failure before applying the
+collector fix and passed afterward. With the fix, the earlier
+`fff7a8e` wave probe matched the stock trace 30 times at `-O0` and
+30 times at `-O2`.
+
 ### Check the upstream content registry and building factories
 
 The [JVM content and factory probes](host/README.md) compare the pinned release
