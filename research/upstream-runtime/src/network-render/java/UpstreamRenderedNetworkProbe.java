@@ -56,6 +56,7 @@ public final class UpstreamRenderedNetworkProbe {
     private final UpstreamTerrainRenderProbe target = new UpstreamTerrainRenderProbe(false);
     private final UpstreamBuildingLayers buildingLayers = new UpstreamBuildingLayers();
     private final UpstreamWeatherLayers weatherLayers = new UpstreamWeatherLayers();
+    private final UpstreamWorldPings worldPings = new UpstreamWorldPings();
     private final Runnable drawWeatherUnder = weatherLayers::drawUnder;
     private final UpstreamLiveBuildControls buildingControls = new UpstreamLiveBuildControls();
     private final UpstreamChatInput chatInput = new UpstreamChatInput();
@@ -316,8 +317,9 @@ public final class UpstreamRenderedNetworkProbe {
                 System.out.println("UPSTREAM_LIVE_ENEMY_GONE id=" + id);
             }
         }
-        UpstreamObjectiveMarkers.draw(Vars.state.rules, 240f / (UpstreamTerrainDrawProbe.VIEW_HEIGHT * Vars.tilesize),
-            worldLabel);
+        float displayScale = 240f / (UpstreamTerrainDrawProbe.VIEW_HEIGHT * Vars.tilesize);
+        UpstreamObjectiveMarkers.draw(Vars.state.rules, displayScale, worldLabel);
+        worldPings.draw(Math.min(frameSeconds * 60f, Vars.maxDeltaClient), displayScale, worldLabel);
         var orders = buildingControls.orders();
         orders.draw(viewport);
         var schematics = buildingControls.schematics();

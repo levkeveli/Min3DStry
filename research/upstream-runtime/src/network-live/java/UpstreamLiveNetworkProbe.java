@@ -51,6 +51,7 @@ import mindustry.gen.Groups;
 import mindustry.gen.KickCallPacket;
 import mindustry.gen.KickCallPacket2;
 import mindustry.gen.Mechc;
+import mindustry.gen.PingLocationCallPacket;
 import mindustry.gen.Player;
 import mindustry.gen.RemoveMarkerCallPacket;
 import mindustry.gen.RemoveQueueBlockCallPacket;
@@ -660,6 +661,12 @@ public final class UpstreamLiveNetworkProbe {
                 handleRoundResult(decode(new GameOverCallPacket(), received));
             } else if (id == unsignedId(UpdateGameOverCallPacket.class)) {
                 handleRoundResult(decode(new UpdateGameOverCallPacket(), received));
+            } else if (id == unsignedId(PingLocationCallPacket.class)) {
+                var ping = decode(new PingLocationCallPacket(), received);
+                ping.handleClient();
+                if (ping.player != null && Vars.player != null && ping.player.team() == Vars.player.team()) {
+                    System.out.println("UPSTREAM_LIVE_TEAM_PING x=" + ping.x + " y=" + ping.y);
+                }
             } else if (chat != null && id == unsignedId(SendMessageCallPacket.class)) {
                 var message = decode(new SendMessageCallPacket(), received);
                 message.handleClient();
