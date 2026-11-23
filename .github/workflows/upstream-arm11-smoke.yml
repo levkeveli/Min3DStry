@@ -1230,6 +1230,24 @@ jobs:
           python3 tools/verify_stock_assembler.py --server "$RUNNER_TEMP/server-release.jar" \
             --halfway "$fixture/halfway.msav" --completed "$fixture/completed.msav"
 
+      - name: Verify stock Erekir payload production, recycling, and PC save readback
+        run: |
+          set -o pipefail
+          fixture=$(mktemp -d "$RUNNER_TEMP/stock-payload-loop.XXXXXX")
+          unzip -p "$RUNNER_TEMP/server-release.jar" maps/erekir/caldera-erekir.msav > "$fixture/caldera-erekir.msav"
+          git -C "$RUNNER_TEMP/Mindustry" show HEAD:core/assets/bundles/bundle.properties > "$fixture/bundle.properties"
+          bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime \
+            --no-daemon --console=plain \
+            "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" \
+            "-PreferenceJar=$RUNNER_TEMP/server-release.jar" \
+            "-ParcCheckout=$RUNNER_TEMP/Arc" \
+            -Pprobe=singleplayer runStockPayloadLoopJvm \
+            "--args='$fixture/caldera-erekir.msav' '$fixture/halfway.msav' '$fixture/completed.msav' '$fixture/bundle'" \
+            | tee "$fixture/probe.log"
+          grep -E '^UPSTREAM_STOCK_PAYLOAD_LOOP .* tungsten=45 graphite=60$' "$fixture/probe.log"
+          python3 tools/verify_stock_payload_loop.py --server "$RUNNER_TEMP/server-release.jar" \
+            --halfway "$fixture/halfway.msav" --completed "$fixture/completed.msav"
+
       - name: Check unified multiplayer server address parsing on the JVM
         run: |
           bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime \

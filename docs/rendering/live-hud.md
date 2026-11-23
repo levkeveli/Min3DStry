@@ -23,13 +23,15 @@ off and a campaign sector is active;
 - the local core's non-zero item list as stock item icons with counts, wrapped
   into up to three columns clear of the minimap;
 - a stock-style pause overlay with `paused`, Resume (`back`), Save Game and
-  Quit rows, including the stock quit confirmation; tapping X opens/closes it
-  and freezes simulation;
+  Quit rows, plus a Research row when the sector has a tech tree; the stock
+  quit confirmation is included, and tapping X opens/closes it and freezes
+  simulation;
 - a live minimap rendered from a 64x64 sample at 56 px in the top-right
   corner, using the stock `MinimapRenderer` color path (`Block.minimapColor`,
   floor/overlay fallback through `MapIO.colorFor`, darkness and liquid/shadow
   edge tints), with the local player marked at the nearest sampled cell and
-  refreshed every 60 frames.
+  living non-fogged units drawn as their team-colored blips; refreshed every
+  60 frames.
 
 The status rows use the v160.8 font and inline item glyph pipeline shared with
 the objective HUD. They are rebuilt only when the rendered status text changes,
@@ -100,7 +102,7 @@ status-hud host probe:
 
 ```text
 UPSTREAM_CORE_ITEMS rows=2 ok
-UPSTREAM_PAUSE_MENU cases=6 ok
+UPSTREAM_PAUSE_MENU cases=9 ok
 UPSTREAM_CORE_ATTACK text="< Core is under attack! >" ok
 ```
 
@@ -127,7 +129,9 @@ transitions are host-covered. The following graphical checks are queued for
 the next emulator batch and are **not verified** yet:
 
 - Tap X: `UPSTREAM_PAUSE_MENU open=true`, simulation freezes.
-- D-pad up/down wraps the three rows; A on Resume closes and resumes.
+- D-pad up/down wraps the rows; A on Resume closes and resumes.
+- In a campaign sector, A on Research opens the existing research screen and
+  returns to play.
 - A on Save Game emits `UPSTREAM_PAUSE_MENU save=true`.
 - A on Quit, then A on the stock confirmation, exits with `quit=true`.
 - B or X cancels the menu, and the HUD/minimap remain readable behind it.
@@ -151,7 +155,8 @@ exactly.
 - The item list is icon-and-count only, like the stock core display, but not
   its complete panel/theme layout. More than 18 rows fall back to the overflow
   log rather than a scrollable table.
-- The pause overlay covers Resume/Save Game/Quit only; stock Settings, planet
-  map, research, load and multiplayer buttons are not ported yet.
+- The pause overlay covers Resume/Save Game/Quit, plus the campaign Research
+  entry. Stock Settings, planet map, load and multiplayer buttons are not
+  ported yet.
 - Additional notifications and the full stock layout remain open under #40.
 - Physical Old/New 3DS verification remains open with #43.

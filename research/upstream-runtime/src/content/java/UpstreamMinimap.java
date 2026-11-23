@@ -3,6 +3,8 @@ import arc.math.Mathf;
 import arc.util.Tmp;
 import mindustry.Vars;
 import mindustry.content.Blocks;
+import mindustry.gen.Groups;
+import mindustry.gen.Unit;
 import mindustry.io.MapIO;
 import mindustry.world.Block;
 import mindustry.world.blocks.storage.CoreBlock.CoreBuild;
@@ -34,15 +36,25 @@ public final class UpstreamMinimap {
             }
         }
         var localTeam = Vars.player == null ? null : Vars.player.team();
+        var playerUnit = Vars.player == null ? null : Vars.player.unit();
+        for (Unit unit : Groups.unit) {
+            if (unit == playerUnit || unit.dead || !unit.isAdded() || !unit.type.drawMinimap) continue;
+            if (localTeam != null && unit.inFogTo(localTeam)) continue;
+            int unitCell = cellIndex(size, worldWidth, worldHeight, unit.tileX(), unit.tileY());
+            if (unitCell < 0) continue;
+            var color = unit.team.color;
+            putBlip(pixels, size, unitCell % size, unitCell / size, color.r, color.g, color.b);
+        }
         if (localTeam != null) {
             for (CoreBuild core : localTeam.cores()) {
-                int index = cellIndex(size, worldWidth, worldHeight, core.tileX(), core.tileY());
-                if (index < 0) continue;
-                int x = index % size;
-                int y = index / size;
+                int coreCell = cellIndex(size, worldWidth, worldHeight, core.tileX(), core.tileY());
+                if (coreCell < 0) continue;
+                int x = coreCell % size;
+                int y = coreCell / size;
                 for (int dy = 0; dy < 2; dy++) {
                     for (int dx = 0; dx < 2; dx++) {
-                        putBlip(pixels, size, x + dx, y + dy, localTeam.color.r, localTeam.color.g, localTeam.color.b);
+                        putBlip(pixels, size, x + dx, y + dy,
+                            localTeam.color.r, localTeam.color.g, localTeam.color.b);
                     }
                 }
             }
