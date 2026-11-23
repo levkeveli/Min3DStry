@@ -839,3 +839,20 @@ The [combined ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/4
 passed this replay on the Original and New 3DS profiles in Azahar. Stock
 Mindustry v160.8 reopened both saves and verified the updated Canvas pixel,
 three processor links and the display-linked marker.
+
+### Renderer timing
+
+Create an empty `sd:/3ds/min3dstry/frame-perf.txt` before launching the playable
+ROM. The renderer emits `UPSTREAM_FRAME_PERF` once per 16 displayed frames.
+Each record gives the first and last viewport origins, sums of elapsed guest
+microseconds, texture cache misses and loads, and the encoded bytes consumed
+by atlas imports. Remove the flag to disable measurements.
+
+Compare a stationary window after the cache warms up with a panning window.
+Divide each time by `frames` for the window mean. Terrain and bottom-screen
+times cover CPU submission and any waits inside those sections. Initial frame
+begin and mid-frame recycle times measure blocking calls, while atlas loading
+covers opening and importing the asset. These intervals can overlap with
+terrain time. Frame time spans renderer begin to submission and excludes game
+simulation before renderer begin. Azahar guest timings help locate the cost.
+Physical console frame rates require a separate capture.
