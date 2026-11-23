@@ -339,6 +339,11 @@ if (usesSinglePlayer) {
     sourceSets.main.java.srcDir('src/singleplayer/java')
     if (usesSinglePlayerApp) {
         sourceSets.main.java.srcDirs('src/singleplayer-custom-host/java', 'src/singleplayer-campaign-host/java')
+        sourceSets.main.java.srcDir('src/singleplayer-research-host/java')
+        tasks.register('runGraphicalCampaignResearchJvm', JavaExec) {
+            classpath = sourceSets.main.runtimeClasspath
+            mainClass = 'UpstreamCampaignResearchReference'
+        }
         tasks.register('runCustomGameJvm', JavaExec) {
             classpath = sourceSets.main.runtimeClasspath
             mainClass = 'UpstreamCustomGameReference'
@@ -1033,7 +1038,7 @@ final class UpstreamItemChoices {
             if (globalVars.count(soundCheck) != 1) {
                 throw new GradleException('Pinned GlobalVars control.sound check changed')
             }
-            if (usesRenderedClient && usesLiveNetwork) {
+            if (usesRenderedClient) {
                 def stockIds = 'Core.files.internal("logicids.dat")'
                 if (globalVars.count(stockIds) != 1) {
                     throw new GradleException('Pinned GlobalVars logic ID lookup changed')

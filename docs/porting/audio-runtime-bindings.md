@@ -1,6 +1,6 @@
 # Upstream Audio Registry, Content Bindings & Positional Playback Baseline (Issue #29)
 
-**Verification status:** Host-verified across pinned upstream Mindustry `v160.8` JVM (`UpstreamAudioBaseline.java` and `-Pprobe=audio-ticks`) and TeaVM C `-O0` / `-O2` (`cc -std=gnu11 -fwrapv -ffp-contract=off`), with ARM11 `.3dsx`/`.elf` compiled; `ndsp-sfx-music` in [port-capabilities.json](../port-capabilities.json) remains **Emulator-tested** under [#29](https://github.com/levkeveli/Min3DStry/issues/29) pending live upstream-to-NDSP bridge routing and physical 3DS DSP (`dspfirm.cdc`) hardware playback verification.
+**Verification status:** Host-verified across pinned upstream Mindustry `v160.8` JVM (`UpstreamAudioBaseline.java` and `-Pprobe=audio-ticks`) and TeaVM C `-O0` / `-O2` (`cc -std=gnu11 -fwrapv -ffp-contract=off`), with ARM11 `.3dsx`/`.elf` compiled; `ndsp-sfx-music` in [port-capabilities.json](../port-capabilities.json) remains **Emulator-tested** under [#29](https://github.com/levkeveli/Min3DStry/issues/29) pending physical 3DS DSP playback verification. The merged Join path has [separate live Azahar evidence](../../research/upstream-runtime/README.md#stock-sound-effects-and-soundtrack).
 
 ## 1:1 Upstream Mandate
 
@@ -59,5 +59,5 @@ UPSTREAM_AUDIO_COMBAT shots=17 firstShot=49 deathTick=382 destroyed=382 ammo=23 
 
 ## Remaining Scope for Issue #29
 
-- Wire an Arc `Audio`/`Sound`/`Music` native bridge from the TeaVM runtime into [m3ds_audio_mixer](../audio/ndsp-mixer.md) (`libctru` NDSP channels and linear RAM buffers) with streaming support for music tracks and remaining `.ogg` assets beyond the initial `9` clips.
+- Extend the live Arc audio adapter to offline gameplay.
 - Verify live NDSP playback (`state=ready rc=0x00000000`) and stereo `ndspWaveBuf.nsamples` timing on physical Original and New 3DS hardware with `sdmc:/3ds/dspfirm.cdc`.

@@ -122,6 +122,9 @@ public final class UpstreamSinglePlayerSession {
             @Override public int getWidth() { return 400; }
             @Override public int getHeight() { return 240; }
             @Override public float getDensity() { return 1f; }
+            @Override public long getFrameId() {
+                return holder[0] == null ? 0 : holder[0].renderFrame;
+            }
             @Override public float getDeltaTime() {
                 return holder[0] == null ? FIXED_STEP_SECONDS : holder[0].deltaSeconds;
             }
@@ -154,6 +157,12 @@ public final class UpstreamSinglePlayerSession {
 
     UpstreamWorldLoadProbe.ProbeApplication application() {
         return app;
+    }
+
+    private long renderFrame;
+
+    void advanceRenderFrame() {
+        renderFrame++;
     }
 
     void setDeltaSeconds(float seconds) {

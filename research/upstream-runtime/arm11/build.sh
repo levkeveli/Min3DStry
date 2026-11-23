@@ -81,8 +81,9 @@ if [[ $# -gt 0 ]]; then
         echo "Prepare multiplayer or singleplayer terrain assets to include the original bundles, atlas and block palette" >&2
         exit 2
     fi
-    if [[ ${#native_network[@]} -gt 0 && ( ! -s "$1/logicids.dat" || ! -s "$1/logic-font.dat" ) ]]; then
-        echo "Prepare multiplayer terrain assets to include the original logic IDs and font" >&2
+    if [[ ( ${#native_network[@]} -gt 0 || ${#native_input[@]} -gt 0 ) &&
+          ( ! -s "$1/logicids.dat" || ! -s "$1/logic-font.dat" ) ]]; then
+        echo "Prepare multiplayer or singleplayer terrain assets to include the original logic IDs and font" >&2
         exit 2
     fi
     if [[ ${#native_input[@]} -gt 0 && ( ! -f "$1/sprites.aatls" || ! -f "$1/maps/groundZero.msav" ) ]]; then

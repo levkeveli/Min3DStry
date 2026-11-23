@@ -479,7 +479,9 @@ stager with `--singleplayer` for a combined build or `--multiplayer` for
 a standalone live renderer. The stager verifies the pinned desktop JAR,
 keeps all 205 original effects and 16 original music files, and indexes
 22.05 kHz PCM effects by their stock IDs. The 194 short effects use a
-bounded cache of 16 clips and 640 KiB. The 11 long effects use four
+bounded cache of 16 clips and 640 KiB. A 205-byte stock-ID index reduces
+resident cache lookups from up to 16 slot comparisons to one indexed access.
+The eviction policy, PCM budget and stream lanes stay the same. The 11 long effects use four
 double-buffered streams. The original Vorbis soundtrack uses its own
 NDSP channel and the pinned SoundControl rules.
 
@@ -495,7 +497,7 @@ to exercise the PCM cache and stream decoder controls with the host
 mixer mock. The JVM reference verifies the original registry, music
 rules, and ambience. The live Glacier replay loads an active Mechanical
 Drill, requests the stock UI, positional and streamed sound packets, and
-applies the original `game1` soundtrack rule.
+applies the original `game1` soundtrack rule. The verifier accepts stock server output with or without terminal colors.
 
 ```bash
 python3 tools/verify_stock_live_audio.py \
@@ -1273,8 +1275,7 @@ and interpolated tint. Constant mix alpha interpolates RGB before tinting
 while preserving texture alpha, as in the pinned Arc sprite shader. Quads
 with varying mix colors or mismatched atlas dimensions are skipped with a
 one-time debug message. Lighting, minimap display, standalone textures,
-Logic Display textures and varying legacy mix colors
-require further renderer support.
+and varying legacy mix colors require further renderer support.
 
 The `runProbeJvm` snapshot reference round-trips the original create,
 control, text, texture, and remove packet classes against the client
@@ -1420,6 +1421,25 @@ passed the normal, large and joined tiled display replays on both
 Azahar profiles with the unmodified Java v160.8 server. The normal
 display fixture sits below the unified HUD. The combined JVM run also
 exercised the original audio path alongside the display commands.
+
+The stock TextureMarker and QuadMarker can sample the current framebuffer
+of a display outside the viewport. Their preparation runs the original
+queued display commands before sampling and rebinds the marker when a tiled
+display replaces its framebuffer. The JVM reference checks the texture
+orientation, draw order and framebuffer replacement.
+
+Run `--controls --verify-display-markers --terrain-atlas /path/to/sprites.aatls`
+on Glacier to check the original create, update and remove packets against
+the unmodified v160.8 Java server. The server configures a processor linked
+to an offscreen display, and the replay checks both color bands at each
+marker before and after a configuration update and atlas retarget.
+The [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44935934977)
+passed this replay on both Azahar hardware profiles, including marker
+removal and restoration of the original terrain pixels.
+The [combined offline and multiplayer ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45129961401)
+also passed the same replay on both profiles with the updated TeaVM runtime.
+The port logged the original white color and transparent mix bits received
+in the stock quad creation packet.
 
 ### Verify the Arc executor pools
 
