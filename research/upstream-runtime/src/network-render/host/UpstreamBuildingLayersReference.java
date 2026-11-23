@@ -294,6 +294,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
             }
             factory.currentPlan = 1;
             factory.progress = ((UnitFactory)factory.block).plans.get(1).time / 2f;
+            verifyLiveFactoryClock(factory);
             factory.speedScl = 0.75f;
             factory.time = 40;
             solidQuads.clear();
@@ -315,6 +316,32 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
             sprites.clear();
             solidQuads.clear();
             unitBuilds.clear();
+        }
+    }
+
+    private static void verifyLiveFactoryClock(UnitFactory.UnitFactoryBuild factory) {
+        float delta = Time.delta;
+        float progress = factory.progress;
+        try {
+            Time.delta = 1f;
+            factory.efficiency = 1f;
+            factory.speedScl = 0f;
+            factory.time = 0f;
+            UpstreamRenderedNetworkProbe.advanceFactoryDraw(factory);
+            UpstreamRenderedNetworkProbe.advanceFactoryDraw(factory);
+            if (factory.speedScl <= 0f || factory.time <= 0f || factory.progress != progress
+                    || factory.payload != null || factory.currentPlan != 1) {
+                throw new AssertionError("The live factory did not animate independently of production");
+            }
+            float speed = factory.speedScl;
+            float clock = factory.time;
+            factory.efficiency = 0f;
+            UpstreamRenderedNetworkProbe.advanceFactoryDraw(factory);
+            if (factory.speedScl >= speed || factory.time != clock || factory.progress != progress) {
+                throw new AssertionError("The live factory did not fade out after production stopped");
+            }
+        } finally {
+            Time.delta = delta;
         }
     }
 
