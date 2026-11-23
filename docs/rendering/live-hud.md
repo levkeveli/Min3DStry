@@ -23,10 +23,11 @@ off and a campaign sector is active;
 - the local core's non-zero item list as stock item icons with counts, wrapped
   into up to three columns clear of the minimap;
 - a stock-style pause overlay with `paused`, the campaign planet/sector and
-  first objective when available, Resume (`back`), Save Game and
-  Quit rows, plus a Research row when the sector has a tech tree; the stock
-  quit confirmation is included, and tapping X opens/closes it and freezes
-  simulation;
+  first objective when available. A sector with a tech tree gets Resume
+  (`back`), Research, Load Game, Save Game and Quit; otherwise the menu is
+  Resume/Save/Quit. Load reloads the active slot only (there is no save picker)
+  and resets HUD caches; this path is **not verified** yet. The stock quit
+  confirmation is included, and tapping X opens/closes and freezes simulation;
 - a live minimap rendered from a 64x64 sample at 56 px in the top-right
   corner, using the stock `MinimapRenderer` color path (`Block.minimapColor`,
   floor/overlay fallback through `MapIO.colorFor`, darkness and liquid/shadow
@@ -35,8 +36,10 @@ off and a campaign sector is active;
   surrounds the map, refreshed every 60 frames.
 
 The status rows use the v160.8 font and inline item glyph pipeline shared with
-the objective HUD. They are rebuilt only when the rendered status text changes,
-then submitted through `drawObjective` before the objective rows.
+the objective HUD. Static rows share one stock-style dark panel and are drawn
+without per-row backgrounds; a temporary notification keeps its own panel.
+Rows are rebuilt only when the rendered status text changes, then submitted
+through `drawObjectivePlain`/`drawObjective` before the objective rows.
 
 The minimap is a native citro2d texture. TeaVM samples the live world into an
 RGBA8 grid using the stock minimap color path. The ARM11 renderer reverses the
@@ -103,7 +106,7 @@ status-hud host probe:
 
 ```text
 UPSTREAM_CORE_ITEMS rows=2 ok
-UPSTREAM_PAUSE_MENU cases=9 ok
+UPSTREAM_PAUSE_MENU cases=13 ok
 UPSTREAM_CORE_ATTACK text="< Core is under attack! >" ok
 ```
 
@@ -126,13 +129,19 @@ The Original 3DS profile passed the same path with three seeded items
 (`items=3 drawn=3 columns=1`). The fixture is removed after the run.
 
 The pause overlay's selection, wrap, save, quit-confirmation and cancel
-transitions are host-covered. The following graphical checks are queued for
+transitions are host-covered. Offline worlds with the stock `pauseDisabled`
+rule keep simulating while the menu is open. The overlay uses the localized
+Menu title in that case. The Ground Zero host probe checks both the normal
+pause and resume behavior and continued simulation with this rule enabled.
+The following graphical checks are queued for
 the next emulator batch and are **not verified** yet:
 
 - Tap X: `UPSTREAM_PAUSE_MENU open=true`, simulation freezes.
 - D-pad up/down wraps the rows; A on Resume closes and resumes.
 - In a campaign sector, A on Research opens the existing research screen and
   returns to play.
+- A on Load Game reloads the active save, restores the saved world and
+  re-uploads the minimap. **Not verified** graphically yet.
 - In a campaign sector, the overlay shows the planet/sector and first objective
   above the options. **Not verified** graphically yet.
 - A on Save Game emits `UPSTREAM_PAUSE_MENU save=true`.
@@ -158,9 +167,9 @@ exactly.
 - The item list is icon-and-count only, like the stock core display, but not
   its complete panel/theme layout. More than 18 rows fall back to the overflow
   log rather than a scrollable table.
-- The pause overlay covers Resume/Save Game/Quit, plus the campaign Research
-  entry. Stock Settings, planet map, load and multiplayer buttons are not
-  ported yet.
+- The pause overlay covers Resume/Save Game/Quit, plus campaign Research and
+  active-slot Load. Stock Settings, planet map, save-picker load and multiplayer
+  buttons are not ported yet.
 - Additional notifications and the full stock layout remain open under #40.
 - Physical Old/New 3DS verification remains open with #43.
 
