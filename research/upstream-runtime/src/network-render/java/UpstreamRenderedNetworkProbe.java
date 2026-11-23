@@ -13,6 +13,7 @@ import arc.mock.MockGraphics;
 import arc.math.Mathf;
 import arc.struct.IntSet;
 import arc.struct.ObjectSet;
+import arc.struct.Seq;
 import arc.util.Time;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -26,6 +27,7 @@ import mindustry.game.EventType.WorldLoadEvent;
 import mindustry.gen.Building;
 import mindustry.gen.Groups;
 import mindustry.gen.Payloadc;
+import mindustry.gen.Sounds;
 import mindustry.gen.Tankc;
 import mindustry.gen.Unit;
 import mindustry.gen.UnitWaterMove;
@@ -47,6 +49,7 @@ import mindustry.world.blocks.logic.TileableLogicDisplay.TileableLogicDisplayBui
 
 /** Presents the received multiplayer world through the ARM11 terrain renderer. */
 public final class UpstreamRenderedNetworkProbe {
+    private static final int VISIBLE_CHAT_MESSAGES = 10;
     private static final ObjectSet<UnitType> drawableUnits = new ObjectSet<>();
     private final Fi atlas;
     private final UpstreamTerrainRenderProbe target = new UpstreamTerrainRenderProbe(false);
@@ -69,6 +72,8 @@ public final class UpstreamRenderedNetworkProbe {
     private final UpstreamWorldLabel.Target worldLabel = this::drawWorldLabel;
     private final ObjectSet<String> reportedWorldLabels = new ObjectSet<>();
     private final ObjectSet<String> reportedStockWorldLabels = new ObjectSet<>();
+    private final Seq<ChatLine> chatLines = new Seq<>();
+    private float chatFade;
     private UpstreamLabelText.Label encodedLabel;
     private int[] encodedCharacters;
     private byte[] lastMenu;
@@ -108,7 +113,7 @@ public final class UpstreamRenderedNetworkProbe {
         try {
             Arm11Audio.open();
             UpstreamLiveNetworkProbe.run(directory, address, view::prepareClient, view::loadGraphics,
-                view::render, view.buildingControls);
+                view::render, view.buildingControls, view::receiveChat);
         } finally {
             Arm11Audio.close();
         }
@@ -308,6 +313,7 @@ public final class UpstreamRenderedNetworkProbe {
         schematics.draw(viewport);
         weatherLayers.drawOver();
         drawObjectives(drawStatusHud());
+        drawChat();
         var block = buildingControls.block();
         var catalog = buildingControls.catalog();
         var config = buildingControls.buildingConfig();
@@ -339,6 +345,28 @@ public final class UpstreamRenderedNetworkProbe {
         } else {
             lastMenu = null;
         }
+    }
+
+    private record ChatLine(byte[] text, int[] characters) {}
+
+    private void receiveChat(String message) {
+        byte[] text = (message + "\0").getBytes(StandardCharsets.UTF_8);
+        int[] characters = encodeLabel(UpstreamLabelText.parse(UI.formatIcons(message)));
+        chatLines.insert(0, new ChatLine(text, characters));
+        chatLines.truncate(VISIBLE_CHAT_MESSAGES);
+        chatFade = Math.min(chatFade + 1f, VISIBLE_CHAT_MESSAGES) + 1f;
+        Sounds.uiChat.play();
+    }
+
+    private void drawChat() {
+        // ChatFragment displays the newest lines first and expires one line per 180 game frames.
+        int rows = Math.min(chatLines.size, Mathf.ceil(chatFade));
+        float y = Math.max(55f, 220f - 19f * rows);
+        for (int i = rows - 1; i >= 0; i--) {
+            var line = chatLines.get(i);
+            y = target.drawObjective(line.text(), line.characters(), null, y);
+        }
+        chatFade = Math.max(0f, chatFade - Math.min(frameSeconds * 60f, Vars.maxDeltaClient) / 180f);
     }
 
     private void drawWorldLabel(UpstreamLabelText.Label text, float x, float y, int flags, float size, int align, int lineAlign) {

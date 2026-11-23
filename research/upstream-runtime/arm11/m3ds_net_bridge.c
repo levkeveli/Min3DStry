@@ -159,7 +159,19 @@ int32_t m3ds_live_net_input(void) {
     return (int32_t)pack_axis(pad.dx) | ((int32_t)pack_axis(pad.dy) << 8) |
            ((int32_t)dpad << 16) | ((int32_t)((pressed & KEY_A) != 0) << 17) |
            ((int32_t)((pressed & KEY_R) != 0) << 18) | ((int32_t)((pressed & KEY_B) != 0) << 19) |
-           ((int32_t)((keys & KEY_X) != 0) << 20) | ((int32_t)((keys & KEY_L) != 0) << 21);
+           ((int32_t)((keys & KEY_X) != 0) << 20) | ((int32_t)((keys & KEY_L) != 0) << 21) |
+           ((int32_t)((pressed & KEY_Y) != 0) << 22);
+}
+
+int32_t m3ds_live_net_read_chat(char *text, int32_t capacity, int32_t max_length, const char *hint) {
+    if (!aptMainLoop() || capacity <= 1) return 0;
+    SwkbdState keyboard;
+    swkbdInit(&keyboard, SWKBD_TYPE_NORMAL, 2, max_length);
+    swkbdSetFeatures(&keyboard, SWKBD_DEFAULT_QWERTY | SWKBD_DARKEN_TOP_SCREEN);
+    swkbdSetValidation(&keyboard, SWKBD_NOTEMPTY_NOTBLANK, 0, 0);
+    swkbdSetHintText(&keyboard, hint);
+    if (swkbdInputText(&keyboard, text, (size_t)capacity) != SWKBD_BUTTON_CONFIRM) return 0;
+    return (int32_t)strnlen(text, (size_t)capacity);
 }
 
 int32_t m3ds_live_net_touch(void) {

@@ -1438,6 +1438,37 @@ def verify_stock_weather_layers(log, emulator, server_log, server, rpc, output, 
     raise RuntimeError(f"{model} did not composite the original weather inside the world viewport")
 
 
+def verify_stock_chat(log, emulator, server_log, server, rpc, output, model, timeout):
+    wait_for(log, emulator, r"UPSTREAM_NETWORK_FRAME unit=\d+", timeout)
+    points = [(x, y) for y in range(180, 226, 3) for x in range(48, 228, 3)]
+    before = az.inspect_png(rpc.screenshot(res_scale=1), points)["samples"]
+    server.stdin.write(
+        'js (() => { const p=Groups.player.find(boolf(v=>String(v.name)==="Min3DStry ARM11")); '
+        'Call.sendMessage("[accent]Stock notice"); '
+        'Packages.mindustry.core.NetClient.sendChatMessage(p,"Stock player chat"); '
+        'return "UPSTREAM_STOCK_CHAT_SENT"; })()\n'
+    )
+    server.stdin.flush()
+    wait_for(server_log, server, r"UPSTREAM_STOCK_CHAT_SENT\b", 10)
+    for sender in ("server", "player"):
+        wait_for(log, emulator, rf"UPSTREAM_LIVE_CHAT_RECEIVED source={sender} chars=[1-9]\d*\b", timeout)
+    deadline = time.monotonic() + min(timeout, 10)
+    while time.monotonic() < deadline:
+        frame = rpc.screenshot(res_scale=1)
+        after = az.inspect_png(frame, points)["samples"]
+        changed = sum(max(abs(a - b) for a, b in zip(before[p], after[p])) >= 16 for p in points)
+        if changed >= 40:
+            (output / f"{model}-stock-chat.png").write_bytes(frame)
+            break
+        time.sleep(0.1)
+    else:
+        raise RuntimeError(f"{model}: stock chat reached ARM11 without a visible chat panel")
+    server.stdin.write("runwave\n")
+    server.stdin.flush()
+    wait_for(log, emulator, r"UPSTREAM_LIVE_CONTROLS_STATE wave=2\b", timeout)
+    print(f"{model}: stock server and player chat rendered and world snapshots continued.", flush=True)
+
+
 def verify_canvas_quads(log, emulator, server_log, server, rpc, output, model, position, timeout):
     _, _, x, y = position
     x, y = (math.floor(float(value) / 8 + 0.5) * 8 for value in (x, y))
@@ -1600,7 +1631,8 @@ def run_model(args, model, config, original_config, log, output):
                   or args.tank_treads or args.map_spawn or args.combat
                   or args.verify_logic_markers or args.verify_texture_markers or args.verify_quad_markers or args.verify_canvas
                   or args.verify_canvas_quads or args.verify_client_processor or args.verify_logic_displays
-                  or args.verify_display_markers or args.verify_puddles or args.verify_weather_layers)
+                  or args.verify_display_markers or args.verify_puddles or args.verify_weather_layers
+                  or args.verify_chat)
     map_name = args.map_spawn or "Glacier"
     overrides = {
         "Miscellaneous": {"log_filter": "*:Info Debug.Emulated:Debug Service.SOC:Debug",
@@ -1937,6 +1969,8 @@ def run_model(args, model, config, original_config, log, output):
                         if args.verify_weather_layers:
                             verify_stock_weather_layers(log, emulator, server_log, server, rpc, output,
                                                         model, args.timeout)
+                        if args.verify_chat:
+                            verify_stock_chat(log, emulator, server_log, server, rpc, output, model, args.timeout)
                         if args.verify_canvas_quads:
                             verify_canvas_quads(log, emulator, server_log, server, rpc, output, model, spawn, args.timeout)
                         if args.verify_client_processor:
@@ -2180,6 +2214,8 @@ def main():
                         help="Verify original Canvas pixels in Glacier snapshots, configuration and linked markers")
     parser.add_argument("--verify-weather-layers", action="store_true",
                         help="Capture the stock weather over the stationary Glacier viewport")
+    parser.add_argument("--verify-chat", action="store_true",
+                        help="Verify original server and player chat over the stationary Glacier viewport")
     parser.add_argument("--verify-canvas-quads", action="store_true",
                         help="Verify stock quads backed by an offscreen Canvas on Glacier")
     parser.add_argument("--verify-client-processor", action="store_true",
@@ -2293,6 +2329,8 @@ def main():
     if args.verify_weather_layers and (not args.controls or not args.terrain_atlas
                                        or args.controls_replay or args.map_spawn):
         parser.error("--verify-weather-layers needs stationary --controls and --terrain-atlas on Glacier")
+    if args.verify_chat and (not args.controls or not args.terrain_atlas or args.controls_replay or args.map_spawn):
+        parser.error("--verify-chat needs stationary --controls and --terrain-atlas on Glacier")
     if args.verify_canvas_quads and (not args.controls or not args.terrain_atlas or args.controls_replay or args.map_spawn):
         parser.error("--verify-canvas-quads needs stationary --controls and --terrain-atlas on Glacier")
     if args.verify_client_processor and (not args.controls or not args.terrain_atlas or args.controls_replay

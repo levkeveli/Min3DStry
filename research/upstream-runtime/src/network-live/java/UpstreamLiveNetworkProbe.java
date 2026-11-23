@@ -53,6 +53,9 @@ import mindustry.gen.Mechc;
 import mindustry.gen.Player;
 import mindustry.gen.RemoveMarkerCallPacket;
 import mindustry.gen.RemoveQueueBlockCallPacket;
+import mindustry.gen.SendChatMessageCallPacket;
+import mindustry.gen.SendMessageCallPacket;
+import mindustry.gen.SendMessageCallPacket2;
 import mindustry.gen.SetObjectivesCallPacket;
 import mindustry.gen.SetPositionCallPacket;
 import mindustry.gen.SetRuleCallPacket;
@@ -90,6 +93,7 @@ import org.teavm.interop.c.Include;
 public final class UpstreamLiveNetworkProbe {
     private static final int ACCEPTED = 0, REJECTED = 1, TIMEOUT = -2;
     private static final int BUILD = 160;
+    private static final int CHAT_PRESSED = 1 << 22;
     // Match Arc's pinned TcpConnection and UdpConnection default intervals.
     private static final long TCP_KEEP_ALIVE_NS = 8_000_000_000L;
     private static final long UDP_KEEP_ALIVE_NS = 19_000_000_000L;
@@ -99,20 +103,22 @@ public final class UpstreamLiveNetworkProbe {
     private final Mode mode;
     private final Consumer<Unit> frame;
     private final UpstreamLiveBuildControls building;
+    private final Consumer<String> chat;
     private Runnable deferredGraphics;
     private int nextLiveTransport = 1;
 
     private UpstreamLiveNetworkProbe(Mode mode, Runnable deferredGraphics, Consumer<Unit> frame,
-                                     UpstreamLiveBuildControls building) {
+                                     UpstreamLiveBuildControls building, Consumer<String> chat) {
         this.mode = mode;
         this.deferredGraphics = deferredGraphics;
         this.frame = frame;
         this.building = building;
+        this.chat = chat;
     }
 
     public static void main(String[] args) throws IOException, InterruptedException {
         var endpoint = endpointFile(args);
-        run(endpoint.parent(), endpoint.readString(), null, null, null, null);
+        run(endpoint.parent(), endpoint.readString(), null, null, null, null, null);
     }
 
     static Fi endpointFile(String[] args) {
@@ -120,7 +126,8 @@ public final class UpstreamLiveNetworkProbe {
     }
 
     static void run(Fi directory, String address, Runnable beforeConnect, Runnable deferredGraphics,
-                    Consumer<Unit> frame, UpstreamLiveBuildControls building) throws IOException, InterruptedException {
+                    Consumer<Unit> frame, UpstreamLiveBuildControls building, Consumer<String> chat)
+                    throws IOException, InterruptedException {
         String[] endpoint = address.trim().split("\\s+");
         if (endpoint.length < 2 || endpoint.length > 3) {
             throw new IllegalArgumentException("Expected a server host and port with optional movement or controls mode");
@@ -147,7 +154,7 @@ public final class UpstreamLiveNetworkProbe {
             stage = "client setup";
             if (beforeConnect != null) beforeConnect.run();
             stage = "session";
-            new UpstreamLiveNetworkProbe(mode, deferredGraphics, frame, building).run(host, port, app);
+            new UpstreamLiveNetworkProbe(mode, deferredGraphics, frame, building, chat).run(host, port, app);
         } catch (IOException | RuntimeException | LinkageError error) {
             Throwable cause = error;
             while (cause.getCause() != null) cause = cause.getCause();
@@ -431,10 +438,14 @@ public final class UpstreamLiveNetworkProbe {
         System.out.println("UPSTREAM_LIVE_PACKET_IDS spawn=" + unitSpawnId
             + " despawn=" + unitDespawnId + " destroy=" + unitDestroyId);
         System.out.println(frame == null ? "Circle Pad or D-pad moves. START leaves."
-            : "Tap the build grid to place. R rotates. B toggles removal. START leaves.");
+            : "Tap the build grid to place. R rotates. B toggles removal. Y opens chat. START leaves.");
         while (true) {
             int input = Native.input();
             if (input < 0) return;
+            if (chat != null && (input & CHAT_PRESSED) != 0) {
+                sendChat();
+                continue;
+            }
             long now = System.nanoTime();
             if (frame == null && now - lastTcpSend >= TCP_KEEP_ALIVE_NS) {
                 keepAlive(1);
@@ -519,6 +530,14 @@ public final class UpstreamLiveNetworkProbe {
                 decode(new SetRulesCallPacket(), received).handleClient();
             } else if (id == unsignedId(SetRuleCallPacket.class)) {
                 decode(new SetRuleCallPacket(), received).handleClient();
+            } else if (chat != null && id == unsignedId(SendMessageCallPacket.class)) {
+                var message = decode(new SendMessageCallPacket(), received);
+                message.handleClient();
+                receiveChat(message.message, "server");
+            } else if (chat != null && id == unsignedId(SendMessageCallPacket2.class)) {
+                var message = decode(new SendMessageCallPacket2(), received);
+                message.handleClient();
+                receiveChat(message.message, "player");
             } else if (frame != null && id == unsignedId(SoundCallPacket.class)) {
                 decode(new SoundCallPacket(), received).handleClient();
             } else if (frame != null && id == unsignedId(SoundAtCallPacket.class)) {
@@ -547,6 +566,25 @@ public final class UpstreamLiveNetworkProbe {
             }
         }
         return lastWave;
+    }
+
+    private void receiveChat(String message, String source) {
+        if (message == null) return;
+        chat.accept(message);
+        System.out.println("UPSTREAM_LIVE_CHAT_RECEIVED source=" + source + " chars=" + message.length());
+    }
+
+    private static void sendChat() throws IOException {
+        byte[] text = new byte[4 * Vars.maxTextLength + 1];
+        byte[] hint = (Core.bundle.get("keybind.chat.name") + "\0").getBytes(StandardCharsets.UTF_8);
+        int length = Native.readChat(Address.ofData(text), text.length, Vars.maxTextLength, Address.ofData(hint));
+        if (length <= 0 || length >= text.length) return;
+        var message = new String(text, 0, length, StandardCharsets.UTF_8).trim();
+        if (message.isEmpty() || message.length() > Vars.maxTextLength) return;
+        var packet = new SendChatMessageCallPacket();
+        packet.message = message;
+        send(packet, true);
+        System.out.println("UPSTREAM_LIVE_CHAT_SENT chars=" + message.length());
     }
 
     static Packet markerPacket(int id) {
@@ -929,6 +967,9 @@ public final class UpstreamLiveNetworkProbe {
         static native void endKeepAlive();
         @Import(name = "m3ds_live_net_input")
         static native int input();
+
+        @Import(name = "m3ds_live_net_read_chat")
+        static native int readChat(Address text, int capacity, int maxLength, Address hint);
 
         @Import(name = "m3ds_live_net_touch")
         static native int touch();
