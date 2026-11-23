@@ -99,6 +99,11 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
     }
 
     @Override
+    public void finishTerrain() {
+        NativeTerrain.finishTerrain();
+    }
+
+    @Override
     public void draw(int page, int left, int top, int width, int height,
                      float x, float y, float originX, float originY, float drawWidth, float drawHeight,
                      float rotation, int color, int mixColor, Blending blending) {
@@ -235,6 +240,9 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
         @Import(name = "m3ds_terrain_draw_logic_display")
         static native int drawLogicDisplay(int id, int revision, int width, int height, Address pixels,
                                            Address vertices, int offset, int blendMode);
+
+        @Import(name = "m3ds_terrain_finish_terrain")
+        static native void finishTerrain();
 
         @Import(name = "m3ds_terrain_end")
         static native int end();
