@@ -1348,14 +1348,17 @@ def verify_quad_markers(log, emulator, server_log, server, rpc, output, model, p
     print(f"{model}: stock quad tint, atlas clipping, corner update and retargeting passed.", flush=True)
 
 
-def load_canvas_fixture(server_log, server, offscreen=False):
+PROCESSOR_CANVAS_COLUMN = 82
+
+
+def load_canvas_fixture(server_log, server, offscreen=False, small_column=77):
     extra = ("Vars.world.tile(45,27).setBlock(Blocks.canvas,t); paint(Vars.world.build(45,27)); " if offscreen else "")
     send_marker_phase(server_log, server, "canvas-fixture",
         "const t=Vars.state.rules.defaultTeam; "
         "Vars.world.tile(75,29).setBlock(Blocks.canvas,t); "
-        "Vars.world.tile(77,29).setBlock(Blocks.canvas,t); "
+        f"Vars.world.tile({small_column},29).setBlock(Blocks.canvas,t); "
         "Vars.world.tile(77,23).setBlock(Blocks.largeCanvas,t); "
-        "const small=Vars.world.build(77,29), large=Vars.world.build(77,23); "
+        f"const small=Vars.world.build({small_column},29), large=Vars.world.build(77,23); "
         "const paint=c=>{for (let y=0; y<12; y++) for (let x=0; x<12; x++) "
         "c.setPixel(y*12+x, y<6 ? (x<6 ? 1 : 2) : (x<6 ? 4 : 6));}; paint(small); "
         "for (let y=0; y<24; y++) for (let x=0; x<24; x++) "
@@ -1427,7 +1430,8 @@ def verify_canvas_quads(log, emulator, server_log, server, rpc, output, model, p
 
 
 def verify_client_processor(server_log, server, rpc, output, model, timeout):
-    points = ((130, 30), (150, 30), (130, 50), (150, 50))
+    # The Canvas is on the right side of the spawn, clear of the live HUD.
+    points = ((230, 30), (250, 30), (230, 50), (250, 50))
     original = ((196, 93, 159), (227, 154, 172), (100, 97, 194), (147, 212, 181))
     capture_marker_pixels(rpc, output, model, "processor-before", points, timeout, original)
     # Stock world processors expose @client. The dedicated server skips the
@@ -1435,13 +1439,13 @@ def verify_client_processor(server_log, server, rpc, output, model, timeout):
     code = ("jump 6 notEqual @client 1\ngetlink canvas 0\nset i 0\n"
             "write 7 canvas i\nop add i i 1\njump 3 lessThan i 144\nend")
     send_marker_phase(server_log, server, "processor-configured",
-        "const p=Vars.world.build(77,26), links=new Seq(); "
-        "links.add(new Packages.mindustry.world.blocks.logic.LogicBlock.LogicLink(0,3,'canvas1',true)); "
+        f"const p=Vars.world.build({PROCESSOR_CANVAS_COLUMN},32), links=new Seq(); "
+        "links.add(new Packages.mindustry.world.blocks.logic.LogicBlock.LogicLink(0,-3,'canvas1',true)); "
         f"p.configureAny(Packages.mindustry.world.blocks.logic.LogicBlock.compress({json.dumps(code)},links)); "
         'if(p.executor.instructions.length!==7 || p.executor.links.length!==1) throw "Invalid processor config";')
     capture_marker_pixels(rpc, output, model, "processor-client-write", points, timeout, ((240, 246, 232),) * 4)
     send_marker_phase(server_log, server, "processor-server-unchanged",
-        "const c=Vars.world.build(77,29); "
+        f"const c=Vars.world.build({PROCESSOR_CANVAS_COLUMN},29); "
         'if(c.getPixel(0)!==1 || c.getPixel(143)!==6) throw "Server Canvas changed";')
     print(f"{model}: stock processor config, link and client-local Canvas writes passed.", flush=True)
 
@@ -1492,12 +1496,13 @@ def run_model(args, model, config, original_config, log, output):
             wait_for(server_log, server, f"Opened a server on port {args.port}\\.", 25)
             world_size = (150, 250)
             if args.verify_canvas or args.verify_canvas_quads or args.verify_client_processor:
-                load_canvas_fixture(server_log, server, offscreen=args.verify_canvas_quads)
+                small_column = PROCESSOR_CANVAS_COLUMN if args.verify_client_processor else 77
+                load_canvas_fixture(server_log, server, offscreen=args.verify_canvas_quads, small_column=small_column)
             if args.verify_client_processor:
                 send_marker_phase(server_log, server, "processor-fixture",
                     "const rules=Vars.state.rules; rules.worldProcessorPlayerLink=true; "
                     "rules.allowEditWorldProcessors=true; "
-                    "Vars.world.tile(77,26).setBlock(Blocks.worldProcessor,rules.defaultTeam);")
+                    f"Vars.world.tile({PROCESSOR_CANVAS_COLUMN},32).setBlock(Blocks.worldProcessor,rules.defaultTeam);")
             if args.erekir_build:
                 server.stdin.write(
                     'js (() => { const core = Vars.state.rules.defaultTeam.core(); '
