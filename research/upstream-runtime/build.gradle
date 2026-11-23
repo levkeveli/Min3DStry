@@ -167,6 +167,7 @@ def logicDisplaySources = [
     'mindustry/world/blocks/logic/LogicDisplay.java',
     'mindustry/world/blocks/logic/TileableLogicDisplay.java'
 ]
+def deconstructorDrawSource = 'mindustry/world/blocks/payloads/PayloadDeconstructor.java'
 def shieldModeSources = [
     'mindustry/graphics/Drawf.java': 'renderer',
     'mindustry/entities/abilities/ForceFieldAbility.java': 'Vars.renderer'
@@ -254,6 +255,8 @@ if (usesArcSources || usesExecutor) {
                               'mindustry/world/blocks/logic/CanvasBlock$CanvasBuild.class',
                               'mindustry/logic/GlobalVars.class', 'mindustry/logic/GlobalVars$*.class',
                               'mindustry/core/ContentLoader.class'])
+        stagedClasses.addAll(['mindustry/world/blocks/payloads/PayloadDeconstructor.class',
+                              'mindustry/world/blocks/payloads/PayloadDeconstructor$*.class'])
         shieldModeSources.keySet().each { path ->
             stagedClasses.add(path.replace('.java', '.class'))
         }
@@ -322,6 +325,11 @@ if (probe == 'world-stream') {
 }
 if (usesLiveNetwork) {
     sourceSets.main.java.srcDirs('src/network-live/java', 'src/network-live/host')
+    tasks.register('runStockPlayerIdentityJvm', JavaExec) {
+        dependsOn 'classes'
+        classpath = sourceSets.main.runtimeClasspath
+        mainClass = 'UpstreamPlayerIdentityReference'
+    }
 }
 if (probe in ['network-render', 'unified']) {
     sourceSets.main.java.srcDirs('src/network-render/java', 'src/network-render/host')
@@ -406,7 +414,8 @@ if (usesSinglePlayer) {
     } else if (!usesLiveNetwork) {
         sourceSets.main.java.srcDir('src/network-live/java')
         sourceSets.main.java.srcDir('src/network-render/java')
-        sourceSets.main.java.exclude('UpstreamLiveNetworkProbe.java', 'UpstreamRenderedNetworkProbe.java', 'port/audio/**')
+        sourceSets.main.java.exclude('UpstreamLiveNetworkProbe.java', 'UpstreamPlayerIdentity.java',
+            'UpstreamRenderedNetworkProbe.java', 'port/audio/**')
         sourceSets.main.java.srcDir('src/singleplayer/host')
         tasks.register('runOfflineWeatherJvm', JavaExec) {
             dependsOn 'classes'
@@ -551,6 +560,7 @@ tasks.register('prepareUpstreamProbe') {
         logicDisplaySources.each { outputs.file(sourceDir.map { dir -> dir.file(it) }) }
         outputs.file(sourceDir.map { it.file('mindustry/type/Weather.java') })
         outputs.file(sourceDir.map { it.file('mindustry/type/weather/ParticleWeather.java') })
+        outputs.file(sourceDir.map { dir -> dir.file(deconstructorDrawSource) })
         shieldModeSources.keySet().each { outputs.file(sourceDir.map { dir -> dir.file(it) }) }
     }
     if (usesCampaignJsonCompat) {
@@ -792,6 +802,19 @@ import port.audio.Arm11Audio;''')
             def adaptedUnitType = unitTypeFile.get().asFile
             adaptedUnitType.parentFile.mkdirs()
             adaptedUnitType.setText(unitType.replace(localItems, 'if(renderer != null && Fonts.outline != null && unit.isLocal() && !renderer.pixelate){'), 'UTF-8')
+            def deconstructor = new String(readUpstream("core/src/${deconstructorDrawSource}"), 'UTF-8')
+            def warningRegion = '                var region = Icon.warning.getRegion();'
+            def renderWarning = '                Draw.rect(region, this.x, this.y, size, size);'
+            if (deconstructor.count(warningRegion) != 1 || deconstructor.count(renderWarning) != 1) {
+                throw new GradleException('Pinned deconstructor warning draw changed')
+            }
+            def deconstructorOutput = sourceDir.get().file(deconstructorDrawSource).asFile
+            deconstructorOutput.parentFile.mkdirs()
+            deconstructorOutput.setText(deconstructor.replace(warningRegion + '\n', '').replace(renderWarning, '''                if(arc.Core.batch instanceof port.render.UpstreamWorldIconTarget platform){
+                    platform.drawWarningIcon(this.x, this.y, size);
+                }else{
+                    Draw.rect(Icon.warning.getRegion(), this.x, this.y, size, size);
+                }'''), 'UTF-8')
             shieldModeSources.each { path, renderer ->
                 def source = new String(readUpstream("core/src/${path}"), 'UTF-8')
                 def animated = "if(${renderer}.animateShields){"
@@ -1027,12 +1050,13 @@ final class GlacierFixture {
     private DataInputStream dataStream = new DataInputStream(byteStream);
     private Reads dataStreamReads = new Reads(dataStream);'''
             def constructor = 'public NetClient(){'
-            if (source.count(buffer) != 1 || source.count(constructor) != 1) {
+            def usid = 'String getUsid(String ip){'
+            if (source.count(buffer) != 1 || source.count(constructor) != 1 || source.count(usid) != 1) {
                 throw new GradleException('Pinned NetClient snapshot reader changed')
             }
             def outputClient = netClientFile.get().asFile
             outputClient.parentFile.mkdirs()
-            outputClient.setText(source.replace(buffer, '''private final ReusableByteInStream byteStream;
+            outputClient.setText(source.replace(usid, 'public ' + usid).replace(buffer, '''private final ReusableByteInStream byteStream;
     private final DataInputStream dataStream;
     private final Reads dataStreamReads;''').replace(constructor, '''private NetClient(ReusableByteInStream snapshotInput){
         byteStream = snapshotInput;

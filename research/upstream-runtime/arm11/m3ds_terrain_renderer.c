@@ -91,6 +91,7 @@ static bool renderer_ready;
 static bool frame_open;
 static C2D_SpriteSheet sheet;
 static C2D_SpriteSheet weather_noise[2];
+static C2D_SpriteSheet world_warning;
 static C3D_RenderTarget *target;
 static C3D_RenderTarget *palette;
 static C2D_TextBuf palette_buffer;
@@ -553,6 +554,24 @@ static C2D_DrawParams sprite_params(float x, float y, float origin_x, float orig
         .depth = 0.5f,
         .angle = rotation * (-3.14159265358979323846f / 180.0f),
     };
+}
+
+int32_t m3ds_terrain_draw_warning_icon(float x, float y, float size, int32_t color) {
+    if (!frame_open || size <= 0.0f) return 0;
+    if (!world_warning) {
+        world_warning = C2D_SpriteSheetLoad("romfs:/catalog/world-warning.t3x");
+        if (!world_warning) return 0;
+        C3D_TexSetFilter(C2D_SpriteSheetGetImage(world_warning, 0).tex, GPU_LINEAR, GPU_LINEAR);
+    }
+    set_world_blend(0);
+    set_world_mix(0, 0);
+    const float half = size / 2.0f;
+    const C2D_DrawParams params = sprite_params(x - half, y - half, half, half, size, size, 0.0f);
+    C2D_ImageTint tint;
+    C2D_PlainImageTint(&tint, (u32)color, 1.0f);
+    if (!C2D_DrawImage(C2D_SpriteSheetGetImage(world_warning, 0), &params, &tint)) return 0;
+    draws++;
+    return 1;
 }
 
 int32_t m3ds_terrain_draw(int32_t page, int32_t left, int32_t top, int32_t width, int32_t height,
@@ -1458,6 +1477,8 @@ void m3ds_terrain_fini(void) {
     if (catalog_buffer) C2D_TextBufDelete(catalog_buffer);
     if (palette) C3D_RenderTargetDelete(palette);
     if (sheet) C2D_SpriteSheetFree(sheet);
+    if (world_warning) C2D_SpriteSheetFree(world_warning);
+    world_warning = NULL;
     for (size_t i = 0; i < sizeof(weather_noise) / sizeof(weather_noise[0]); i++) {
         if (weather_noise[i]) C2D_SpriteSheetFree(weather_noise[i]);
     }

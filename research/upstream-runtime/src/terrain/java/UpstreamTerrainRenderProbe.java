@@ -125,6 +125,13 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
     }
 
     @Override
+    public void drawWarningIcon(float x, float y, float size, int color) {
+        if (NativeTerrain.drawWarningIcon(x, y, size, color) == 0) {
+            throw new IllegalStateException("Citro2D could not draw the stock world warning glyph");
+        }
+    }
+
+    @Override
     public void drawUnitBuild(int page, int left, int top, int width, int height,
                               float x, float y, float drawWidth, float drawHeight, float rotation,
                               float progress, Color tint, float alpha, float phase, int vertexColor) {
@@ -217,6 +224,9 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
 
         @Import(name = "m3ds_terrain_begin")
         static native int begin(int left, int bottom, int width, int height, int tileSize);
+
+        @Import(name = "m3ds_terrain_draw_warning_icon")
+        static native int drawWarningIcon(float x, float y, float size, int color);
 
         @Import(name = "m3ds_terrain_draw_unit_build")
         static native int drawUnitBuild(int page, int left, int top, int width, int height,

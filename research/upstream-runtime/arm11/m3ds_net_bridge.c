@@ -66,9 +66,10 @@ void m3ds_live_net_close(void) {
 }
 
 int32_t m3ds_live_net_open(const void *address, int32_t length, int32_t port, int32_t version,
-    int32_t kick_text_id, int32_t kick_reason_id) {
+    int32_t kick_text_id, int32_t kick_reason_id, const char *name, const char *locale,
+    const char *usid, const uint8_t *uuid, uint32_t color) {
     char host[256];
-    if (!address || length <= 0 || length >= (int32_t)sizeof(host) ||
+    if (!name || !locale || !usid || !uuid || !address || length <= 0 || length >= (int32_t)sizeof(host) ||
             port <= 0 || port > UINT16_MAX || memchr(address, '\0', (size_t)length) ||
             kick_text_id < 0 || kick_text_id > UINT8_MAX || kick_reason_id < 0 || kick_reason_id > UINT8_MAX) {
         return M3DS_HANDSHAKE_INVALID_ARG;
@@ -79,15 +80,15 @@ int32_t m3ds_live_net_open(const void *address, int32_t length, int32_t port, in
     if (!m3ds_net_3ds_init(&transport, &context)) {
         return M3DS_HANDSHAKE_TRANSPORT_ERROR;
     }
-    const M3dsNetConnectPacket packet = {
+    M3dsNetConnectPacket packet = {
         .version = version,
         .version_type = M3DS_NET_UPSTREAM_VERSION_TYPE,
-        .name = "Min3DStry ARM11",
-        .locale = "en",
-        .usid = "arm11-live-probe",
-        .uuid_raw = {77, 51, 68, 83, 84, 82, 89, 2},
-        .color = UINT32_MAX
+        .name = name,
+        .locale = locale,
+        .usid = usid,
+        .color = color
     };
+    memcpy(packet.uuid_raw, uuid, sizeof(packet.uuid_raw));
     client = m3ds_net_client_open(&transport, host, (uint16_t)port, 5000, &packet,
         (uint8_t)kick_text_id, (uint8_t)kick_reason_id, &handshake);
     if (!client) m3ds_net_3ds_exit(&context);

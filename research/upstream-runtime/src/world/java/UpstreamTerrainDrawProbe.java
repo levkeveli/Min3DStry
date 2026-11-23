@@ -23,6 +23,7 @@ import mindustry.world.Tile;
 import mindustry.world.blocks.environment.Floor;
 import mindustry.world.blocks.units.UnitCargoLoader;
 import port.render.UpstreamUnitBuildTarget;
+import port.render.UpstreamWorldIconTarget;
 import port.render.UpstreamCanvasTexture;
 import port.render.UpstreamLogicFramebuffer.RasterTexture;
 import port.render.WeatherNoiseTexture;
@@ -50,6 +51,9 @@ public final class UpstreamTerrainDrawProbe {
                                    float x, float y, float drawWidth, float drawHeight, float rotation,
                                    float progress, Color tint, float alpha, float phase, int vertexColor) {
             throw new UnsupportedOperationException("This terrain target does not draw stock unit construction");
+        }
+        default void drawWarningIcon(float x, float y, float size, int color) {
+            throw new UnsupportedOperationException("This terrain target does not draw stock warning icons");
         }
         default void drawCanvas(UpstreamCanvasTexture texture, float x, float y, float originX, float originY,
                                 float width, float height, float rotation, int color, int mixColor, Blending blending) {
@@ -247,7 +251,7 @@ public final class UpstreamTerrainDrawProbe {
         return ((AtlasPageTexture) texture).index;
     }
 
-    private static final class TerrainBatch extends Batch implements UpstreamUnitBuildTarget {
+    private static final class TerrainBatch extends Batch implements UpstreamUnitBuildTarget, UpstreamWorldIconTarget {
         // Arc SpriteBatch queues draw requests while sorting. A deferred callback can
         // draw immediately during the flush, and equal depths retain submission order.
         private record DrawRequest(float depth, Blending blending, Runnable draw) {}
@@ -361,6 +365,16 @@ public final class UpstreamTerrainDrawProbe {
             target.draw(page.index, left, top, right - left, bottom - top, x, y, 0f, 0f, width, height,
                 rotation, Color.floatToIntColor(tint), Color.floatToIntColor(mixTint), blending);
             return true;
+        }
+
+        @Override
+        public void drawWarningIcon(float x, float y, float size) {
+            int color = Color.floatToIntColor(colorPacked);
+            if (sort && !flushing) {
+                draw(() -> target.drawWarningIcon(x, y, size, color));
+            } else {
+                target.drawWarningIcon(x, y, size, color);
+            }
         }
 
         @Override
