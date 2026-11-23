@@ -1,5 +1,8 @@
 import port.render.UpstreamCrackAtlas;
 import port.render.UpstreamFluidAtlas;
+import port.render.UpstreamLogicAtlas;
+import port.render.UpstreamLogicFont;
+import port.render.UpstreamLogicFramebuffer;
 import port.render.UpstreamWorldLabel;
 import port.audio.Arm11Audio;
 import port.render.UpstreamLabelText;
@@ -39,6 +42,8 @@ import mindustry.world.blocks.payloads.PayloadConveyor.PayloadConveyorBuild;
 import mindustry.world.blocks.payloads.UnitPayload;
 import mindustry.world.blocks.distribution.Conveyor.ConveyorBuild;
 import mindustry.world.blocks.logic.CanvasBlock.CanvasBuild;
+import mindustry.world.blocks.logic.LogicDisplay.LogicDisplayBuild;
+import mindustry.world.blocks.logic.TileableLogicDisplay.TileableLogicDisplayBuild;
 
 /** Presents the received multiplayer world through the ARM11 terrain renderer. */
 public final class UpstreamRenderedNetworkProbe {
@@ -56,6 +61,7 @@ public final class UpstreamRenderedNetworkProbe {
     private int draws;
     private boolean projectilesVisible, projectilesActive;
     private long previousVisualFrame;
+    private long frameId;
     private float frameSeconds;
     private int lastLeft = -1, lastBottom = -1;
     private final UpstreamWorldLabel.Target worldLabel = this::drawWorldLabel;
@@ -109,16 +115,24 @@ public final class UpstreamRenderedNetworkProbe {
         Arm11Audio.prepareMusicControl();
         Events.on(WorldLoadEvent.class, event -> Arm11Audio.reset());
         UpstreamClientLogic.initialize(new Fi("/romfs/logicids.dat"));
+        UpstreamLogicFont.load(new Fi("/romfs/logic-font.dat"));
         Core.graphics = new MockGraphics() {
             @Override public int getWidth() { return 400; }
             @Override public int getHeight() { return 240; }
             @Override public float getDensity() { return 1f; }
             @Override public float getDeltaTime() { return frameSeconds; }
+            @Override public long getFrameId() { return frameId; }
         };
         var locale = Core.bundle.getLocale();
         Core.settings.put("locale", locale.getLanguage().isEmpty() ? "en" : locale.toString());
         System.out.println("UPSTREAM_INTERFACE_GRAPHICS atlas");
         UpstreamTerrainDrawProbe.loadAtlas(atlas, UpstreamFluidAtlas::load);
+        var displayAtlas = new UpstreamLogicAtlas(new Fi("/romfs/world-atlas"));
+        UpstreamLogicFramebuffer.atlasPixels((texture, x, y) ->
+            displayAtlas.sample(UpstreamTerrainDrawProbe.pageIndex(texture), x, y));
+        Blocks.logicDisplay.load();
+        Blocks.largeLogicDisplay.load();
+        Blocks.tileLogicDisplay.load();
         Vars.content.loadColors(new Fi("/romfs/block_colors.png"));
         UpstreamCrackAtlas.load();
         drawableUnits.clear();
@@ -166,6 +180,7 @@ public final class UpstreamRenderedNetworkProbe {
     }
 
     private void render(Unit unit) {
+        frameId++;
         updateBuildLabels();
         controlled = unit;
         float x = unit == null ? Vars.player.x() : unit.x();
@@ -205,6 +220,7 @@ public final class UpstreamRenderedNetworkProbe {
             Arm11Audio.updateClientAudio(now);
             UpstreamClientLogic.update(delta);
             for (var build : Groups.build) {
+                if (build instanceof TileableLogicDisplayBuild display) display.updateTile();
                 if (build instanceof ConduitBuild conduit) conduit.advanceLiquidDraw();
             }
             for (var unit : Groups.unit) {
@@ -390,7 +406,8 @@ public final class UpstreamRenderedNetworkProbe {
     static boolean supportsBuildingDraw(Building build) {
         var block = build.block;
         // These blocks use the sprite operations available in the live backend.
-        return build instanceof CanvasBuild || UpstreamBuildingLayers.supportsPowerDraw(block) || UpstreamBuildingLayers.supportsDistributionDraw(block)
+        return build instanceof CanvasBuild || build instanceof LogicDisplayBuild
+            || UpstreamBuildingLayers.supportsPowerDraw(block) || UpstreamBuildingLayers.supportsDistributionDraw(block)
             || block.category == Category.liquid || block instanceof UnitFactory || block instanceof BaseTurret
             || UpstreamBuildingLayers.supportsMaterialDraw(block) || block == Blocks.copperWall
             || block == Blocks.berylliumWall || block == Blocks.copperWallLarge

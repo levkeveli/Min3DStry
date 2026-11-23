@@ -21,6 +21,7 @@ def networkIoSource = 'core/src/mindustry/net/NetworkIO.java'
 def netClientSource = 'core/src/mindustry/core/NetClient.java'
 def placementSource = 'core/src/mindustry/ui/fragments/PlacementFragment.java'
 def itemSelectionSource = 'core/src/mindustry/world/blocks/ItemSelection.java'
+def logicExecutorSource = 'mindustry/logic/LExecutor.java'
 def planetGridSource = 'core/src/mindustry/graphics/g3d/PlanetGrid.java'
 def globalVarsSource = 'core/src/mindustry/logic/GlobalVars.java'
 def unitTypeSource = 'core/src/mindustry/type/UnitType.java'
@@ -161,6 +162,10 @@ def bulletTypePath = 'mindustry/entities/bullet/BulletType.java'
 def bulletTypeFile = sourceDir.map { it.file(bulletTypePath) }
 def unitTypeFile = sourceDir.map { it.file('mindustry/type/UnitType.java') }
 def factoryResourcesFile = sourceDir.map { it.file('port/FactoryResources.java') }
+def logicDisplaySources = [
+    'mindustry/world/blocks/logic/LogicDisplay.java',
+    'mindustry/world/blocks/logic/TileableLogicDisplay.java'
+]
 def shieldModeSources = [
     'mindustry/graphics/Drawf.java': 'renderer',
     'mindustry/entities/abilities/ForceFieldAbility.java': 'Vars.renderer'
@@ -255,6 +260,11 @@ if (usesArcSources || usesExecutor) {
             def type = path.substring(0, path.length() - '.java'.length())
             stagedClasses.addAll([type + '.class', type + '$*.class'])
         }
+        logicDisplaySources.each { path ->
+            def type = path.substring(0, path.length() - '.java'.length())
+            stagedClasses.addAll([type + '.class', type + '$*.class'])
+        }
+        stagedClasses.addAll(['mindustry/logic/LExecutor.class', 'mindustry/logic/LExecutor$*.class'])
     }
     if (usesCampaignJsonCompat) {
         stagedClasses.addAll(['arc/util/serialization/Json.class', 'arc/util/serialization/Json$*.class'])
@@ -490,11 +500,10 @@ tasks.register('prepareUpstreamProbe') {
     }
     if (usesLiveAudio) {
         outputs.files(sourceDir.map { dir ->
-            ['arc/audio/Sound.java', 'mindustry/audio/SoundControl.java', 'mindustry/logic/LExecutor.java']
+            ['arc/audio/Sound.java', 'mindustry/audio/SoundControl.java']
                 .collect { dir.file(it) }
         })
     }
-    if (usesSinglePlayer || usesLiveAudio) outputs.file(globalVarsFile)
     if (usesSinglePlayer) {
         inputs.file('src/gameplay/java/port/FactoryResources.java')
         outputs.file(factoryResourcesFile)
@@ -505,6 +514,8 @@ tasks.register('prepareUpstreamProbe') {
     }
     if (usesRenderedClient) {
         outputs.files(contentColorsFile, unitTypeFile, bulletTypeFile)
+        outputs.file(sourceDir.map { it.file(logicExecutorSource) })
+        logicDisplaySources.each { outputs.file(sourceDir.map { dir -> dir.file(it) }) }
         outputs.file(sourceDir.map { it.file('mindustry/type/Weather.java') })
         outputs.file(sourceDir.map { it.file('mindustry/type/weather/ParticleWeather.java') })
         shieldModeSources.keySet().each { outputs.file(sourceDir.map { dir -> dir.file(it) }) }
@@ -611,23 +622,7 @@ tasks.register('prepareUpstreamProbe') {
             def adaptedMusicControl = sourceDir.get().file('mindustry/audio/SoundControl.java').asFile
             adaptedMusicControl.parentFile.mkdirs()
             adaptedMusicControl.setText(musicControl, 'UTF-8')
-            def executorPath = 'mindustry/logic/LExecutor.java'
-            def executor = new String(readUpstream("core/src/${executorPath}"), 'UTF-8')
-            def musicGuard = '''if(headless) return;
 
-            //null music = stop'''
-            def musicDispatch = 'control.sound.playMusic(music, interrupt.bool());'
-            if (executor.count(musicGuard) != 1 || executor.count(musicDispatch) != 1) {
-                throw new GradleException('Pinned music instruction dispatch changed')
-            }
-            def outputExecutor = sourceDir.get().file(executorPath).asFile
-            outputExecutor.parentFile.mkdirs()
-            outputExecutor.setText(executor.replace('package mindustry.logic;', 'package mindustry.logic;\n\nimport port.audio.Arm11Audio;')
-                .replace(musicGuard, '''var musicControl = control == null
-                ? Arm11Audio.musicControl() : control.sound;
-            if(musicControl == null) return;
-
-            //null music = stop''').replace(musicDispatch, 'musicControl.playMusic(music, interrupt.bool());'), 'UTF-8')
         }
         if (usesRenderedClient) {
             def bulletType = new String(readUpstream("core/src/$bulletTypePath"), 'UTF-8')
@@ -639,6 +634,50 @@ tasks.register('prepareUpstreamProbe') {
             adaptedBulletType.parentFile.mkdirs()
             adaptedBulletType.setText(bulletType.replace(trailGuard,
                 'if((!headless || Core.batch != null) && trailLength > 0){'), 'UTF-8')
+            logicDisplaySources.each { path ->
+                def source = new String(readUpstream("core/src/${path}"), 'UTF-8')
+                def desktopRenderer = '!Vars.renderer.drawDisplays'
+                if (!source.contains('new FrameBuffer(') || source.count(desktopRenderer) != 1) {
+                    throw new GradleException("Pinned Logic Display framebuffer changed in ${path}")
+                }
+                source = source.replace('import arc.graphics.gl.*;', 'import port.render.UpstreamLogicFramebuffer;')
+                    .replaceAll(/\bFrameBuffer\b/, 'UpstreamLogicFramebuffer')
+                    .replace(desktopRenderer, 'Vars.renderer != null && !Vars.renderer.drawDisplays')
+                if (path.endsWith('/LogicDisplay.java')) {
+                    def clear = 'Core.graphics.clear('
+                    def icon = 'var icon = u.fullIcon;'
+                    if (source.count(clear) != 1 || source.count(icon) != 1) {
+                        throw new GradleException('Pinned Logic Display draw dispatch changed')
+                    }
+                    source = source.replace(clear, 'buffer.clear(')
+                        .replace(icon, 'if(u.fullIcon == null) u.loadIcon();\n                                    ' + icon)
+                }
+                def output = sourceDir.get().file(path).asFile
+                output.parentFile.mkdirs()
+                output.setText(source, 'UTF-8')
+            }
+            def executor = new String(readUpstream("core/src/${logicExecutorSource}"), 'UTF-8')
+            if (usesLiveAudio) {
+                def musicGuard = '''if(headless) return;
+
+            //null music = stop'''
+                def musicDispatch = 'control.sound.playMusic(music, interrupt.bool());'
+                if (executor.count(musicGuard) != 1 || executor.count(musicDispatch) != 1) {
+                    throw new GradleException('Pinned music instruction dispatch changed')
+                }
+                executor = executor.replace('package mindustry.logic;', 'package mindustry.logic;\n\nimport port.audio.Arm11Audio;')
+                    .replace(musicGuard, '''var musicControl = control == null
+                    ? Arm11Audio.musicControl() : control.sound;
+                if(musicControl == null) return;
+
+            //null music = stop''').replace(musicDispatch, 'musicControl.playMusic(music, interrupt.bool());')
+            }
+            def headless = 'Vars.headless || exec.graphicsBuffer.size >= maxGraphicsBuffer'
+            if (executor.count(headless) != 1) throw new GradleException('Pinned graphics instruction guard changed')
+            def adaptedExecutor = sourceDir.get().file(logicExecutorSource).asFile
+            adaptedExecutor.parentFile.mkdirs()
+            adaptedExecutor.setText(executor.replace(headless,
+                '(Vars.headless && Fonts.logic == null) || exec.graphicsBuffer.size >= maxGraphicsBuffer'), 'UTF-8')
 
             def weather = new String(readUpstream('core/src/mindustry/type/Weather.java'), 'UTF-8')
             def minScale = 'renderer.minScale()'
