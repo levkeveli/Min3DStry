@@ -238,3 +238,11 @@ packets. Hidden units leave the current synchronized group and return
 when the server sends a visible entity update. The stock disconnect
 handler removes the player and rejects stale snapshots for the departed
 ID. The JVM reference checks both lifecycles and the local player ID.
+
+### Erekir cargo loader tether
+
+The handheld uses the original UnitTetherBlockSpawned packet and the
+stock Cargo Loader client update to resolve its Manifold. The loader
+keeps the pending server ID until the matching unit snapshot arrives.
+The replay checks production reset and draw-state advancement without a
+locally spawned duplicate.
