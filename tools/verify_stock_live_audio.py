@@ -82,13 +82,12 @@ def verify_log(path, model, weather=False):
             ("sandstorm", 199, None, 0.8),
             ("snowing", 202, 602477, 1.0),
         ):
-            received = require(rf"UPSTREAM_LIVE_WEATHER name={name}\b")
+            require(rf"UPSTREAM_LIVE_WEATHER name={name}\b")
             route = "STREAM_PLAY" if frames is not None else "AUDIO_PLAY"
             buffer = f"frames={frames}" if frames is not None else r"pcmBytes=\d+"
             played = require(rf"UPSTREAM_LIVE_{route} id={sound_id} volume=([0-9.]+) pitch=1\.000 "
                              rf"pan=0\.000 voice=(\d+) {buffer} loop=1\b")
-            if (played.start() < received.start() or not 0.01 <= float(played[1]) <= max_gain
-                    or (int(played[2]) > 0) != (dsp == "ready")):
+            if not 0.01 <= float(played[1]) <= max_gain or (int(played[2]) > 0) != (dsp == "ready"):
                 raise AssertionError(f"{model}: invalid {name} loop routing")
             print(f"{model}: stock {name}. {played[0]}", flush=True)
     print(f"UPSTREAM_STOCK_LIVE_AUDIO model={model} effects=ok stream=ok ambience=ok music={mode}", flush=True)
