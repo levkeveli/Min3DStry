@@ -696,7 +696,7 @@ public final class UpstreamSinglePlayerApp {
             long now = System.nanoTime();
 
             var sector = Vars.state.rules.sector;
-            int researchKeys = UpstreamSinglePlayerInput.CUSTOM_GAME_HELD | UpstreamSinglePlayerInput.SAVE_PRESSED;
+            int researchKeys = UpstreamSinglePlayerInput.L_HELD | UpstreamSinglePlayerInput.SAVE_PRESSED;
             if (sector != null && sector.planet.techTree != null && (input & researchKeys) == researchKeys) {
                 if (!openResearch(sector.planet.techTree, saveFile)) return false;
                 previousTime = System.nanoTime();
