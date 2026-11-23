@@ -220,3 +220,13 @@ The snapshot reference replays both teams and checks text truncation.
 The building-layer reference records the stock shapes and both labels,
 then advances the ping to expiry. A graphical cross-platform check is
 tracked separately.
+
+### Scripted tile and building updates
+
+The client applies the original v160.8 packets for single, batched and
+rectangular block, floor and overlay changes. It also dispatches stock
+building damage, destruction, ownership transfers and tile removal through
+the upstream handlers. The JVM snapshot reference round-trips the packet
+bytes and verifies the resulting terrain, rotated block, damage, removal,
+team, inventory and linked power graph. Live graphical verification remains
+tracked separately.
