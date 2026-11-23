@@ -153,6 +153,7 @@ public final class UpstreamSinglePlayerApp {
         String requested = requestedLocale(preference, settings);
 
         Core.bundle = UpstreamInterfaceLocale.loadForStockClient(new Fi("/romfs/bundles/bundle"), language, requested);
+        UI.loadColors();
         var locale = Core.bundle.getLocale();
         String bundleTag = locale.getLanguage().isEmpty() ? "en" : locale.toString();
         System.out.println("UPSTREAM_INTERFACE_LOCALE system=" + language + " bundle=" + bundleTag
@@ -1209,7 +1210,7 @@ public final class UpstreamSinglePlayerApp {
             var item = entry.item();
             if (item.uiIcon == null) item.loadIcon();
             var icon = item.uiIcon != null && item.uiIcon.found() ? item.uiIcon : null;
-            String value = Integer.toString(entry.amount());
+            String value = entry.formatted();
             byte[] label = (value + "\0").getBytes(StandardCharsets.UTF_8);
             int[] characters = encodeLabel(UpstreamLabelText.parse(value));
             float next = target.drawObjectiveAt(label, characters, icon, x, y);

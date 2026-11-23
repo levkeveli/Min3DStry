@@ -102,10 +102,12 @@ still does not prove per-tile color agreement; the captured terrain pattern
 should be inspected as well.
 
 The core item list uses the pinned `CoreItemsDisplay` filter (items with a
-positive core count, in content order). `UpstreamCoreItems` is covered by the
+positive core count, in content order) and the stock `UI.formatAmount`
+suffixes (`k`/`mil`/`b`). `UpstreamCoreItems` is covered by the
 status-hud host probe:
 
 ```text
+UPSTREAM_CORE_ITEM_FORMAT text=12k cases=9 ok
 UPSTREAM_CORE_ITEMS rows=2 ok
 UPSTREAM_PAUSE_MENU cases=18 ok
 UPSTREAM_CORE_ATTACK text="< Core is under attack! >" ok
