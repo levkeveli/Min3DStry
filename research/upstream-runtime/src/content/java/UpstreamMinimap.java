@@ -3,6 +3,8 @@ import arc.math.Mathf;
 import arc.util.Tmp;
 import mindustry.Vars;
 import mindustry.content.Blocks;
+import mindustry.gen.Groups;
+import mindustry.gen.Unit;
 import mindustry.io.MapIO;
 import mindustry.world.Block;
 import mindustry.world.Tile;
@@ -31,6 +33,20 @@ public final class UpstreamMinimap {
                 pixels[index + 2] = (byte) (packed >>> 8);
                 pixels[index + 3] = (byte) 255;
             }
+        }
+        var localTeam = Vars.player == null ? null : Vars.player.team();
+        var playerUnit = Vars.player == null ? null : Vars.player.unit();
+        for (Unit unit : Groups.unit) {
+            if (unit == playerUnit || unit.dead || !unit.isAdded() || !unit.type.drawMinimap) continue;
+            if (localTeam != null && unit.inFogTo(localTeam)) continue;
+            int index = cellIndex(size, worldWidth, worldHeight, unit.tileX(), unit.tileY());
+            if (index < 0) continue;
+            var color = unit.team.color;
+            int offset = index * 4;
+            pixels[offset] = (byte) channel(color.r);
+            pixels[offset + 1] = (byte) channel(color.g);
+            pixels[offset + 2] = (byte) channel(color.b);
+            pixels[offset + 3] = (byte) 255;
         }
         int player = playerIndex(size);
         if (player >= 0) {
@@ -91,6 +107,10 @@ public final class UpstreamMinimap {
     private static Block realBlock(Tile tile) {
         if (tile.build == null) return tile.block();
         return Vars.state.rules.fog && !tile.build.wasVisible ? Blocks.air : tile.block();
+    }
+
+    private static int channel(float value) {
+        return Math.max(0, Math.min(255, Math.round(value * 255f)));
     }
 
     public static long hash(byte[] pixels) {

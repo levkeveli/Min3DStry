@@ -201,7 +201,7 @@ int main(int argc, char *argv[]) {
     }
     m3ds_emit_debug_line(log_socket, dbg_line);
 
-    M3dsSaveSlotInfo save_slot = {0};
+    static M3dsSaveSlotInfo save_slot;
     char save_slot_path[96];
     if (m3ds_sd_sector_save_path(
             "sdmc:/3ds/min3dstry", "serpulo", 170u, save_slot_path, sizeof(save_slot_path))) {
@@ -223,7 +223,7 @@ int main(int argc, char *argv[]) {
         m3ds_emit_debug_line(log_socket, dbg_line);
     }
 
-    M3dsSectorSlot sectors[M3DS_SECTOR_CATALOG_MAX];
+    static M3dsSectorSlot sectors[M3DS_SECTOR_CATALOG_MAX];
     size_t sector_count = m3ds_sector_catalog_scan(
         "sdmc:/3ds/min3dstry", sectors, M3DS_SECTOR_CATALOG_MAX);
     snprintf(dbg_line, sizeof(dbg_line),
@@ -254,7 +254,7 @@ int main(int argc, char *argv[]) {
         bool have_path = m3ds_sd_sector_save_path(
             "/3ds/min3dstry", sectors[0].planet, sectors[0].id,
             save_path, sizeof(save_path));
-        M3dsWorldTiles upstream = {0};
+        static M3dsWorldTiles upstream;
         bool loader_ok = have_path
             && m3ds_teavm_world_load(save_path, &upstream);
         snprintf(dbg_line, sizeof(dbg_line),
@@ -402,8 +402,10 @@ int main(int argc, char *argv[]) {
        below applies its own inputs and does not feed that trace hash. */
     C3D_RenderTarget *top = C2D_CreateScreenTarget(GFX_TOP, GFX_LEFT);
 
-    M3dsBoundedScene scene;
-    M3dsParityState factory;
+    /* Keep large single-threaded state off main's stack: the embedded TeaVM
+     * loader runs from this frame and the main-thread stack is tight. */
+    static M3dsBoundedScene scene;
+    static M3dsParityState factory;
     m3ds_factory_demo_init(&scene, &factory);
     m3ds_factory_demo_add_turret(&scene, &factory);
     factory.core_copper = M3DS_DEMO_START_COPPER;
@@ -411,8 +413,8 @@ int main(int argc, char *argv[]) {
              (double)m3ds_scene_zoom(&scene), m3ds_scene_lighting(&scene) ? 1 : 0);
     m3ds_emit_debug_line(log_socket, dbg_line);
 
-    M3dsCitro2dContext c2d_ctx;
-    M3dsRenderBackend backend;
+    static M3dsCitro2dContext c2d_ctx;
+    static M3dsRenderBackend backend;
     bool romfs_ready = R_SUCCEEDED(romfsInit());
     C2D_SpriteSheet sprites = romfs_ready ? C2D_SpriteSheetLoad("romfs:/sprites.t3x") : NULL;
     if (sprites) {
@@ -421,9 +423,9 @@ int main(int argc, char *argv[]) {
     m3ds_emit_debug_line(log_socket, sprites ? "[MIN3DSTRY] ATLAS loaded\n" : "[MIN3DSTRY] ATLAS unavailable\n");
     m3ds_citro2d_backend_init(&backend, &c2d_ctx, top, sprites);
 
-    M3dsNdspContext ndsp_ctx;
-    M3dsAudioBackend audio_backend;
-    M3dsAudioMixer audio_mixer;
+    static M3dsNdspContext ndsp_ctx;
+    static M3dsAudioBackend audio_backend;
+    static M3dsAudioMixer audio_mixer;
     m3ds_ndsp_backend_init(&audio_backend, &ndsp_ctx);
     m3ds_audio_mixer_init(&audio_mixer, &audio_backend);
 
@@ -431,7 +433,7 @@ int main(int argc, char *argv[]) {
     M3dsAudioRegistry *audio_events = NULL;
 #if M3DS_AUDIO_ROMFS
     static int16_t romfs_audio_pcm[M3DS_AUDIO_TOTAL_BYTES / 2];
-    M3dsAudioRegistry audio_registry;
+    static M3dsAudioRegistry audio_registry;
     M3dsAudioRegistryStatus audio_status = m3ds_audio_registry_load(
         &audio_registry,
         &audio_mixer,
@@ -514,9 +516,9 @@ int main(int argc, char *argv[]) {
     bool paused_before_menu = false;
     bool quit_requested = false;
     M3dsTouchAction touch_held = M3DS_TOUCH_ACTION_NONE;
-    M3dsPauseMenu pause_menu;
+    static M3dsPauseMenu pause_menu;
     m3ds_pause_menu_init(&pause_menu);
-    M3dsMainMenu main_menu;
+    static M3dsMainMenu main_menu;
     m3ds_main_menu_init(&main_menu);
     main_menu.muted = m3ds_audio_mixer_is_muted(&audio_mixer);
     main_menu.lighting = m3ds_scene_lighting(&scene);
