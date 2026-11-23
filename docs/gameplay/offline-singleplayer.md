@@ -148,6 +148,12 @@ weapon mounts schedule no further shots after L is released.
 The precise damage depends on the number of simulation ticks that
 occur during the replay.
 
+On the [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45091376386),
+both Azahar 2126.2 profiles paused during D-pad movement and
+resumed at the same simulation tick. The two shots recorded at trigger
+release were still the only shots at save time. Stock Java reopened
+both saves and read the Fortress at 896 of 900 health.
+
 ```bash
 python3 tools/verify_offline_stock_weapons.py \
   --rom /path/to/unified/upstream-probe.3dsx \
