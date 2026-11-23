@@ -22,7 +22,8 @@ off and a campaign sector is active;
 - the original copper item glyph and the local core's copper count;
 - the local core's non-zero item list as stock item icons with counts, wrapped
   into up to three columns clear of the minimap;
-- a stock-style pause overlay with `paused`, Resume (`back`), Save Game and
+- a stock-style pause overlay with `paused`, the campaign planet/sector and
+  first objective when available, Resume (`back`), Save Game and
   Quit rows, plus a Research row when the sector has a tech tree; the stock
   quit confirmation is included, and tapping X opens/closes it and freezes
   simulation;
@@ -132,6 +133,8 @@ the next emulator batch and are **not verified** yet:
 - D-pad up/down wraps the rows; A on Resume closes and resumes.
 - In a campaign sector, A on Research opens the existing research screen and
   returns to play.
+- In a campaign sector, the overlay shows the planet/sector and first objective
+  above the options. **Not verified** graphically yet.
 - A on Save Game emits `UPSTREAM_PAUSE_MENU save=true`.
 - A on Quit, then A on the stock confirmation, exits with `quit=true`.
 - B or X cancels the menu, and the HUD/minimap remain readable behind it.
