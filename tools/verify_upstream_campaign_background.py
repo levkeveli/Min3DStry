@@ -6,12 +6,9 @@ from pathlib import Path
 import re
 import shutil
 
-from campaign_background_fixture import check, create
+from campaign_background_fixture import LANDING_SLOT, check, check_remote_saves, create
 from verify_upstream_campaign_launch import write_input_replay
 import verify_upstream_singleplayer as sp
-
-
-SLOT = "sector-serpulo-170.msav"
 
 
 def verify(args, model, azahar, config, log, fixture):
@@ -44,13 +41,11 @@ def verify(args, model, azahar, config, log, fixture):
             if sp.az.inspect_png(image)["top_distinct_colors"] < 8:
                 raise AssertionError(f"{model}: expected a rendered Ground Zero world")
             (output / "ground-zero.png").write_bytes(image)
-            saved_turn = rf"UPSTREAM_SP_SAVED .*{re.escape(SLOT)} .*\bcopper=37\b"
+            saved_turn = rf"UPSTREAM_SP_SAVED .*{re.escape(LANDING_SLOT)} .*\bcopper=37\b"
             text = sp._wait_for_log(log, proc, rf"{saved_turn}|UPSTREAM_SP_EXIT\b", deadline + 60)
             if not re.search(saved_turn, text):
                 raise AssertionError(f"{model}: the game exited before saving the campaign turn:\n{text[-2500:]}")
-            for path in (fixture / "saves").glob("*.msav"):
-                if path.name != SLOT and path.read_bytes() != (campaign / "saves" / path.name).read_bytes():
-                    raise AssertionError(f"{model}: background turn rewrote remote world {path.name}")
+            check_remote_saves(fixture, campaign)
             check(args.java, args.server, campaign)
             print(f"[PASS] {model}: stock Java read back the graphical ARM11 campaign turn", flush=True)
         finally:

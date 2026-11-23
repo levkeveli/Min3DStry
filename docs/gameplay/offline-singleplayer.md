@@ -253,6 +253,15 @@ python3 tools/campaign_background_fixture.py --server server-release.jar --check
 ROM and the unmodified v160.8 server JAR. It creates a separate virtual
 SD per emulator profile and reopens each resulting save with stock Java.
 
+The dedicated ARM11 `campaign-background` probe runs the same original
+simulation ticks independently of graphical frame pacing. Generate it
+with `-Pprobe=campaign-background generateC` and compile the output with
+`arm11/build.sh` without a graphical mode. Run
+`tools/verify_arm11_background_turn.py --rom upstream-probe.3dsx --server server-release.jar --assets /path/to/prepared-assets --output /path/to/new-output`.
+Use maps, planets, and the base bundle staged from the pinned original
+assets. Both emulated console profiles produce a result directory for
+stock Java readback.
+
 ## New campaign
 
 Hold **R** while launching the standalone graphical .3dsx to open the
