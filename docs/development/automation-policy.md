@@ -69,8 +69,8 @@ jobs until a runner with the requested label is available.
 
 ## Live runner status
 
-The Pages dashboard reads the public `runner-status:runners.json` feed once a
-minute. It shows GitHub Actions self-hosted runners, their GitHub-reported
+The Pages dashboard reads the public `runner-status:runners.json` feed every 75
+seconds, with a public CDN fallback. It shows GitHub Actions self-hosted runners, their GitHub-reported
 availability, and links to matching active jobs. If GitHub reports a runner
 busy before exposing the job assignment, the page shows the busy state with
 job details unavailable.

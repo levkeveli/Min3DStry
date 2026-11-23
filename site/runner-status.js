@@ -1,5 +1,8 @@
 (() => {
-  const feed = "https://raw.githubusercontent.com/levkeveli/Min3DStry/runner-status/runners.json";
+  const feeds = [
+    "https://api.github.com/repos/levkeveli/Min3DStry/contents/runners.json?ref=runner-status",
+    "https://raw.githubusercontent.com/levkeveli/Min3DStry/refs/heads/runner-status/runners.json",
+  ];
   const summary = document.getElementById("runner-status-summary");
   const list = document.getElementById("runner-status-list");
   let snapshot;
@@ -37,19 +40,23 @@
   }
 
   async function refresh() {
-    try {
-      const response = await fetch(`${feed}?minute=${Math.floor(Date.now() / 60000)}`, { cache: "no-cache" });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const result = await response.json();
-      if (!Number.isFinite(Date.parse(result.updated_at)) || !Array.isArray(result.runners)) {
-        throw new Error("Invalid runner status snapshot");
+    for (const feed of feeds) {
+      try {
+        const response = await fetch(feed, {
+          headers: { Accept: "application/vnd.github.raw+json" },
+          signal: AbortSignal.timeout(8000),
+        });
+        if (!response.ok) continue;
+        const result = await response.json();
+        if (!Number.isFinite(Date.parse(result.updated_at)) || !Array.isArray(result.runners)) continue;
+        if (!snapshot || Date.parse(result.updated_at) >= Date.parse(snapshot.updated_at)) snapshot = result;
+        break;
+      } catch {
+        // Try the public CDN if the API is unreachable or rate-limited.
       }
-      snapshot = result;
-    } catch {
-      // Preserve the last snapshot and let its age show when the feed is stale.
     }
     render();
-    setTimeout(refresh, 60000);
+    setTimeout(refresh, 75000);
   }
 
   refresh();
