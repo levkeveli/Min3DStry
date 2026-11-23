@@ -648,6 +648,8 @@ public final class UpstreamLiveNetworkProbe {
                 System.out.println("UPSTREAM_LIVE_CONTROLS_READY unit=" + unit.id()
                     + " x=" + unit.x() + " y=" + unit.y());
             }
+            // Mirror PlayerComp.update before stock input rules consult the player's position.
+            Vars.player.set(unit);
             if (buildingControls != null) buildingControls.update(unit, input, Native.touch());
             if (now - lastStep >= FRAME_NS) {
                 direction.set((byte)input / 127f, (byte)(input >>> 8) / 127f).limit(1f);
