@@ -205,7 +205,7 @@ public final class UpstreamSinglePlayerApp {
         int count = firstMap + maps.size();
         int selected = 0, mode = 0, lastX = 0, lastY = 0, renderedRow = -1, renderedMode = -1;
         MenuRows rows = null;
-        target.buildLabels(new byte[8]);
+        target.buildLabels(new byte[UpstreamTerrainRenderProbe.PALETTE_LABEL_COUNT]);
         System.out.println("UPSTREAM_CUSTOM_GAME_MENU maps=" + maps.size());
         // Consume the launcher's button edges before accepting menu input.
         UpstreamSinglePlayerInput.poll();
@@ -331,7 +331,7 @@ public final class UpstreamSinglePlayerApp {
         }
         int renderedRow = -1;
         MenuRows rows = null;
-        target.buildLabels(new byte[8]);
+        target.buildLabels(new byte[UpstreamTerrainRenderProbe.PALETTE_LABEL_COUNT]);
         UpstreamSinglePlayerInput.poll();
         while (true) {
             long nextFrame = System.nanoTime() + FRAME_NS;
@@ -518,7 +518,8 @@ public final class UpstreamSinglePlayerApp {
         System.out.println("UPSTREAM_INTERFACE_GRAPHICS labels");
         var labels = String.join("\0", primary.localizedName, secondary.localizedName,
             Core.bundle.get("keybind.rotate.name"), Core.bundle.get("waves.remove"),
-            "List", "Config", Core.bundle.get("back"), Core.bundle.get("command.mine")) + "\0";
+            "List", "Config", Core.bundle.get("back"), Core.bundle.get("command.mine"),
+            Core.bundle.get("category.items"), "Give") + "\0";
         target.buildLabels(labels.getBytes(StandardCharsets.UTF_8));
         lastPrimaryShortcut = primary;
         System.out.println("UPSTREAM_BUILD_SHORTCUTS primary=" + primary.name + " secondary=" + secondary.name);
@@ -601,10 +602,12 @@ public final class UpstreamSinglePlayerApp {
         var block = buildingControls.block();
         var catalog = buildingControls.catalog();
         var config = buildingControls.buildingConfig();
+        var inventory = buildingControls.inventory();
         int shortcut = block == buildingControls.shortcut(0) ? 0 : block == buildingControls.shortcut(1) ? 1 : -1;
         target.buildOverlay(buildingControls.cursorX() - viewport.left, buildingControls.cursorY() - viewport.bottom,
             shortcut, buildingControls.rotation(), buildingControls.removing(), block.rotate,
-            catalog.isOpen() || config.isOpen(), buildingControls.configuring(), buildingControls.selectingMine());
+            catalog.isOpen() || config.isOpen() || inventory.isOpen(), buildingControls.configuring(),
+            buildingControls.selectingMine(), buildingControls.inventoryAction());
         if (catalog.isOpen()) {
             drawMenu(catalog.labels(), catalog.iconIds(), catalog.selectedRow(block),
                 catalog.previousPage(), catalog.nextPage(), UpstreamTerrainRenderProbe.BLOCK_CATALOG);
@@ -612,6 +615,9 @@ public final class UpstreamSinglePlayerApp {
             drawMenu(config.labels(), config.iconIds(), config.selectedRow(),
                 config.previousPage(), config.nextPage(),
                 config.unitPlans() ? UpstreamTerrainRenderProbe.UNIT_CATALOG : UpstreamTerrainRenderProbe.ITEM_CATALOG);
+        } else if (inventory.isOpen()) {
+            drawMenu(inventory.labels(), inventory.iconIds(), -1, inventory.previousPage(), inventory.nextPage(),
+                UpstreamTerrainRenderProbe.ITEM_CATALOG);
         } else {
             lastMenu = null;
         }

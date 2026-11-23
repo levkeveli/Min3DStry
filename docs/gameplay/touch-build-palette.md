@@ -54,6 +54,36 @@ and selects Tungsten on a Duct Unloader. The unmodified v160.8 Java
 server verified those final selections in both ARM11 saves and during
 live sessions on each profile.
 
+## Inventory transfers
+
+Tap **Items** and then a storage building to see its item quantities.
+Tap an item row to take what the current unit can carry. The list uses
+the original item icons, names, and inventory order. In multiplayer the
+client requests the building's stock inventory snapshot when it opens.
+
+Tap **Give** and then a building to deposit from the carried stack.
+The stock building decides how much it can accept, including ammunition
+capacity. Team rules, transfer range, and deposit cooldown apply in
+both offline play and Java multiplayer.
+
+The JVM reference withdraws 70 copper into a Gamma and loads the 15
+copper a Duo can accept. It also checks incompatible carried items,
+hostile and distant storage, and the stock deposit rules.
+
+```bash
+python3 tools/verify_stock_inventory_transfer.py \
+  --rom /path/to/unified/upstream-probe.3dsx \
+  --server /path/to/server-release.jar \
+  --output build/stock-inventory-transfer --live
+```
+
+The [ARM11 replay](https://github.com/levkeveli/Min3DStry/actions/runs/45087989910)
+passed on Original and New 3DS profiles in Azahar 2126.2. The stock
+v160.8 Java server reopened both offline saves and verified the same
+Container contents and Duo ammunition. In both live sessions it also
+verified that the player still carried 55 copper after loading the Duo.
+Hold-to-withdraw a single item remains open in #27.
+
 ## Factory world graphics
 
 The graphical client calls the pinned `UnitFactoryBuild.draw` for the
