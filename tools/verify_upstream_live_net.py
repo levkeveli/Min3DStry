@@ -174,7 +174,15 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
                 movie.write(touch if point else pad)
 
 
-def stop(proc):
+def stop(proc, azahar_bin=None):
+    if az._is_flatpak_azahar(azahar_bin):
+        result = subprocess.run(["flatpak", "ps", "--columns=instance,pid"],
+                                capture_output=True, text=True, check=False)
+        for row in result.stdout.splitlines():
+            fields = row.split()
+            if len(fields) == 2 and fields[1] == str(proc.pid):
+                subprocess.run(["flatpak", "kill", fields[0]], check=False)
+                break
     if proc.poll() is None:
         proc.terminate()
         try:
@@ -1954,7 +1962,7 @@ def run_model(args, model, config, original_config, log, output):
                     (output / f"{model}.png").write_bytes(rpc.screenshot())
             finally:
                 rpc.close()
-                stop(emulator)
+                stop(emulator, str(args.azahar))
                 (output / f"{model}-emulator.log").write_bytes(log.read_bytes())
             if args.require_deferred_graphics:
                 trace = log.read_text(encoding="utf-8", errors="replace")
@@ -2255,8 +2263,8 @@ def main():
         atlas_bytes = args.terrain_atlas.read_bytes()
         if hashlib.sha256(atlas_bytes).hexdigest() != ATLAS_SHA256:
             parser.error("Expected the official v160.8 sprites.aatls")
-    config, log = az.resolve_azahar_paths()
-    endpoint = config.parent.parent / "sdmc/3ds/min3dstry/server-endpoint.txt"
+    config, log = az.resolve_azahar_paths(str(args.azahar))
+    endpoint = log.parent.parent / "sdmc/3ds/min3dstry/server-endpoint.txt"
     originals = {path: path.read_bytes() if path.exists() else None for path in (config, log, endpoint)}
     atlas_path = endpoint.with_name("sprites.aatls")
     locale_path = endpoint.with_name("locale.txt")
