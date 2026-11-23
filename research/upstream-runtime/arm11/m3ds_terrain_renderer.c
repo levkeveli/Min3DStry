@@ -53,7 +53,7 @@ static C2D_SpriteSheet sheet;
 static C3D_RenderTarget *target;
 static C3D_RenderTarget *palette;
 static C2D_TextBuf palette_buffer;
-enum { palette_label_count = 10 };
+enum { palette_label_count = 11 };
 static C2D_Text palette_labels[palette_label_count];
 #ifdef M3DS_STOCK_FONT
 enum { menu_label_glyphs = 64 };
@@ -616,7 +616,8 @@ int32_t m3ds_terrain_build_labels(const char *labels) {
 
 int32_t m3ds_terrain_build_overlay(int32_t column, int32_t row, int32_t block, int32_t rotation,
                                   int32_t removing, int32_t tile_size, int32_t rotatable, int32_t catalog_open,
-                                  int32_t configuring, int32_t selecting_mine, int32_t inventory_action) {
+                                  int32_t configuring, int32_t selecting_mine, int32_t inventory_action,
+                                  int32_t command_mode) {
     if (!frame_open || !palette) return 0;
     set_world_blend(0);
     set_world_mix(0, 0);
@@ -630,7 +631,7 @@ int32_t m3ds_terrain_build_overlay(int32_t column, int32_t row, int32_t block, i
         C2D_DrawRectSolid(x, y + size - 2, 0.5f, size, 2, accent);
         C2D_DrawRectSolid(x, y, 0.5f, 2, size, accent);
         C2D_DrawRectSolid(x + size - 2, y, 0.5f, 2, size, accent);
-        if (rotatable && !removing && !selecting_mine && inventory_action == 0) {
+        if (rotatable && !removing && !selecting_mine && inventory_action == 0 && command_mode == 0) {
             static const int dx[] = {1, 0, -1, 0}, dy[] = {0, -1, 0, 1};
             float cx = x + size / 2, cy = y + size / 2;
             C2D_DrawLine(cx, cy, accent, cx + dx[rotation] * 6, cy + dy[rotation] * 6, accent, 2, 0.5f);
@@ -655,8 +656,14 @@ int32_t m3ds_terrain_build_overlay(int32_t column, int32_t row, int32_t block, i
     C2D_DrawRectSolid(2, 112, 0.5f, 26, 31, C2D_Color32(45, 52, 64, 255));
     draw_palette_label(9, 15, 121, 0.30f, 24,
         inventory_action == 2 ? accent : C2D_Color32(239, 241, 247, 255));
+    C2D_DrawRectSolid(292, 112, 0.5f, 26, 31, C2D_Color32(45, 52, 64, 255));
+    u32 command_color = C2D_Color32(239, 241, 247, 255);
+    if (command_mode == 1) command_color = accent;
+    if (command_mode == 2) command_color = C2D_Color32(241, 117, 97, 255);
+    draw_palette_label(10, 305, 121, 0.30f, 24, command_color);
     for (int i = 0; i < 4; i++) {
-        bool active = !selecting_mine && inventory_action == 0 && (removing ? i == 3 : i == block);
+        bool active = !selecting_mine && inventory_action == 0 && command_mode == 0
+            && (removing ? i == 3 : i == block);
         C2D_DrawRectSolid(i * 80 + 2, 4, 0.5f, 76, 39,
             active ? C2D_Color32(85, 71, 52, 255) : C2D_Color32(45, 52, 64, 255));
         draw_palette_label(i, i * 80 + 40, 16, 0.42f, 72,
