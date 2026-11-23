@@ -396,6 +396,11 @@ The logic smoke job runs `arm11/check_multi_array_roots.py` on its
 generated TeaVM C to force collection between child allocations and
 verify that all child arrays survive the next collection.
 
+The [ARM11 build with the collector fix](https://github.com/levkeveli/Min3DStry/actions/runs/45173897060)
+passed defeat, retry, and stock Java readback for Ground Zero and The Onset
+on both Azahar profiles. The same verifier reopens the defeated save
+before checking the recovered save and its campaign settings.
+
 ## Custom Game
 
 Hold **L** while launching the standalone graphical `.3dsx` to open the
