@@ -100,6 +100,10 @@ def verify_live(args, model, azahar, fixture, terrain, output, samples=SAMPLES, 
                 try:
                     frame = rpc.screenshot()
                     (output / "world.png").write_bytes(frame)
+                    if terrain is None:
+                        if az.inspect_png(frame)["top_distinct_colors"] >= 8:
+                            return frame
+                        continue
                     counts = changed_pixels(terrain, frame, samples)
                     if min(counts.values()) >= min_changed:
                         return counts

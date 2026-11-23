@@ -43,10 +43,6 @@ import mindustry.world.blocks.ConstructBlock.ConstructBuild;
 import mindustry.world.blocks.defense.Wall;
 import mindustry.world.blocks.defense.turrets.BaseTurret;
 import mindustry.world.blocks.defense.turrets.ItemTurret;
-import mindustry.world.blocks.production.GenericCrafter;
-import mindustry.world.blocks.production.Pump;
-import mindustry.world.blocks.production.Separator;
-import mindustry.world.blocks.storage.StorageBlock;
 import mindustry.world.blocks.units.UnitFactory;
 
 /** Graphical offline single-player Mindustry v160.8 ARM11 entry point on Ground Zero. */
@@ -733,10 +729,9 @@ public final class UpstreamSinglePlayerApp {
         var block = build.block;
         return UpstreamBuildingLayers.supportsPowerDraw(block) || UpstreamBuildingLayers.supportsDistributionDraw(block)
             || block.category == Category.liquid || block instanceof UnitFactory
-            || block instanceof StorageBlock || block instanceof Wall
+            || UpstreamBuildingLayers.supportsMaterialDraw(block) || block instanceof Wall
             || block == Blocks.mechanicalDrill || block == Blocks.pneumaticDrill
             || block instanceof BaseTurret
-            || block instanceof GenericCrafter || block instanceof Separator || block instanceof Pump
             || block == Blocks.overdriveProjector
             || block == Blocks.overdriveDome || block == Blocks.shockwaveTower;
     }
