@@ -420,7 +420,6 @@ public final class UpstreamSinglePlayerApp {
         int renderedRow = -1;
         MenuRows rows = null;
         target.buildLabels(new byte[UpstreamTerrainRenderProbe.PALETTE_LABEL_COUNT]);
-        UpstreamSinglePlayerInput.poll();
         if (pollCampaignInput() == -1) return null;
         while (true) {
             long nextFrame = System.nanoTime() + FRAME_NS;
