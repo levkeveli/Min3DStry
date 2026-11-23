@@ -31,9 +31,11 @@ final class UpstreamLiveBuildControls {
     private final UpstreamBuildingConfig buildingConfig = new UpstreamBuildingConfig();
     private final UpstreamInventoryMenu inventory = new UpstreamInventoryMenu();
     private final UpstreamCommandOrders orders = new UpstreamCommandOrders();
+    private final UpstreamPlayerControl playerControl = new UpstreamPlayerControl();
     private InventoryAction inventoryAction = InventoryAction.none;
     private boolean configuring;
     private boolean selectingMine;
+    private boolean selectingControl;
 
     void viewport(int left, int bottom) {
         this.left = left;
@@ -67,6 +69,25 @@ final class UpstreamLiveBuildControls {
             return;
         }
         int touchX = touch & 0xffff, touchY = touch >>> 16;
+        boolean rightRail = touch >= 0 && touchX >= 292 && touchX < 318;
+        if (rightRail && touchY >= 144 && touchY < 175) {
+            if (orders.active()) orders.toggle();
+            selectingControl = !selectingControl;
+            configuring = selectingMine = removing = false;
+            inventoryAction = InventoryAction.none;
+            return;
+        }
+        if (selectingControl) {
+            if ((buttons & REMOVE_PRESSED) != 0) {
+                selectingControl = false;
+            } else if ((buttons & PLACE_PRESSED) != 0 || rightRail && touchY >= 176 && touchY < 207) {
+                playerControl.release();
+                selectingControl = false;
+            } else if (touch >= 0 && selectGridCell(touchX, touchY) && playerControl.take(tileX, tileY)) {
+                selectingControl = false;
+            }
+            return;
+        }
         if (touch >= 0 && touchX >= 292 && touchX < 318 && touchY >= 112 && touchY < 143) {
             orders.toggle();
             configuring = selectingMine = removing = false;
@@ -235,4 +256,5 @@ final class UpstreamLiveBuildControls {
     int inventoryAction() { return inventoryAction.ordinal(); }
     boolean configuring() { return configuring; }
     boolean selectingMine() { return selectingMine; }
+    boolean selectingControl() { return selectingControl; }
 }

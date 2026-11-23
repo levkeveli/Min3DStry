@@ -32,6 +32,7 @@ import mindustry.io.SaveIO;
 import mindustry.maps.Map;
 import mindustry.gen.Building;
 import mindustry.gen.Groups;
+import mindustry.gen.BlockUnitc;
 import mindustry.gen.Tankc;
 import mindustry.gen.Unit;
 import mindustry.gen.UnitWaterMove;
@@ -62,6 +63,7 @@ public final class UpstreamSinglePlayerApp {
     private final UpstreamWorldLabel.Target worldLabel = this::drawWorldLabel;
     private final Vec2 moveInput = new Vec2();
     private final UpstreamOfflineWeaponInput weaponInput = new UpstreamOfflineWeaponInput();
+    private Unit reportedControl;
 
     private UpstreamSinglePlayerSession session;
     private UpstreamTerrainDrawProbe.Viewport viewport;
@@ -462,10 +464,16 @@ public final class UpstreamSinglePlayerApp {
             unit = session.ensurePlayerSpawn();
             if (unit != null) {
                 buildingControls.update(unit, input, touch);
+                unit = session.ensurePlayerSpawn();
+            }
+            if (unit != null) {
+                boolean anchored = unit instanceof BlockUnitc;
                 boolean overlay = buildingControls.catalog().isOpen() || buildingControls.buildingConfig().isOpen()
-                    || buildingControls.inventory().isOpen() || buildingControls.orders().active();
-                weaponInput.update(unit, moveInput, weaponInput.aimMode() && !moveInput.isZero(),
+                    || buildingControls.inventory().isOpen() || buildingControls.orders().active()
+                    || buildingControls.selectingControl();
+                weaponInput.update(unit, moveInput, (anchored || weaponInput.aimMode()) && !moveInput.isZero(),
                     fireHeld && !overlay && !Vars.state.isPaused());
+                if (anchored) moveInput.setZero();
             }
             if (weaponInput.aimMode()) moveInput.setZero();
             long elapsed = Math.min(Math.max(0L, now - previousTime), FRAME_NS * 4L);
@@ -495,6 +503,10 @@ public final class UpstreamSinglePlayerApp {
 
     private void updateTelemetry(Unit unit, int input) {
         if (unit != null) {
+            if (reportedControl != unit) {
+                reportedControl = unit;
+                System.out.println("UPSTREAM_CONTROL_FOCUS target=" + UpstreamPlayerControl.name(unit));
+            }
             if (!moveInput.isZero() && !moving) {
                 moving = true;
                 inputDevice = (input & UpstreamSinglePlayerInput.DPAD_ACTIVE) != 0 ? "dpad" : "circle";
@@ -523,7 +535,8 @@ public final class UpstreamSinglePlayerApp {
         var labels = String.join("\0", primary.localizedName, secondary.localizedName,
             Core.bundle.get("keybind.rotate.name"), Core.bundle.get("waves.remove"),
             "List", "Config", Core.bundle.get("back"), Core.bundle.get("command.mine"),
-            Core.bundle.get("category.items"), "Give", Core.bundle.get("command"), "Type", "Stance") + "\0";
+            Core.bundle.get("category.items"), "Give", Core.bundle.get("command"), "Type", "Stance",
+            "Ctrl", Core.bundle.get("back")) + "\0";
         target.buildLabels(labels.getBytes(StandardCharsets.UTF_8));
         lastPrimaryShortcut = primary;
         System.out.println("UPSTREAM_BUILD_SHORTCUTS primary=" + primary.name + " secondary=" + secondary.name);
@@ -614,8 +627,8 @@ public final class UpstreamSinglePlayerApp {
         target.buildOverlay(buildingControls.cursorX() - viewport.left, buildingControls.cursorY() - viewport.bottom,
             shortcut, buildingControls.rotation(), buildingControls.removing(), block.rotate,
             catalog.isOpen() || config.isOpen() || inventory.isOpen() || commandMenu.isOpen(),
-            buildingControls.configuring(),
-            buildingControls.selectingMine(), buildingControls.inventoryAction(), orders.mode());
+            buildingControls.configuring(), buildingControls.selectingMine(), buildingControls.inventoryAction(),
+            orders.mode(), buildingControls.selectingControl());
         if (commandMenu.isOpen()) {
             target.buildCatalogRows(commandMenu.labels(), commandMenu.icons(), orders.activeMenuRows(),
                 commandMenu.previous(), commandMenu.next(),
