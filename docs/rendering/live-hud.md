@@ -35,8 +35,10 @@ off and a campaign sector is active;
   surrounds the map, refreshed every 60 frames.
 
 The status rows use the v160.8 font and inline item glyph pipeline shared with
-the objective HUD. They are rebuilt only when the rendered status text changes,
-then submitted through `drawObjective` before the objective rows.
+the objective HUD. Static rows share one stock-style dark panel and are drawn
+without per-row backgrounds; a temporary notification keeps its own panel.
+Rows are rebuilt only when the rendered status text changes, then submitted
+through `drawObjectivePlain`/`drawObjective` before the objective rows.
 
 The minimap is a native citro2d texture. TeaVM samples the live world into an
 RGBA8 grid using the stock minimap color path. The ARM11 renderer reverses the

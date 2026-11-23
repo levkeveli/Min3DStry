@@ -1144,8 +1144,17 @@ public final class UpstreamSinglePlayerApp {
             lastStatus = rows;
         }
         float y = 4f;
-        for (int i = 0; i < rows.size() && y < 240f; i++) {
-            y = target.drawObjective(statusLabels[i], statusCharacters[i], rows.get(i).icon(), y);
+        int start = 0;
+        if (!rows.isEmpty() && UpstreamNotification.current() != null) {
+            y = target.drawObjective(statusLabels[0], statusCharacters[0], rows.get(0).icon(), y);
+            start = 1;
+        }
+        if (rows.size() > start) {
+            float panelHeight = (rows.size() - start) * 35f + 4f;
+            target.hudPanel(2f, y - 1f, 164f, panelHeight, 0xE0201B18);
+        }
+        for (int i = start; i < rows.size() && y < 240f; i++) {
+            y = target.drawObjectivePlain(statusLabels[i], statusCharacters[i], rows.get(i).icon(), y);
         }
         return y;
     }
