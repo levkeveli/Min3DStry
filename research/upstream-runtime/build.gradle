@@ -246,6 +246,7 @@ if (usesArcSources || usesExecutor) {
                               'mindustry/game/MapObjectives$TextureMarker.class',
                               'mindustry/game/MapObjectives$QuadMarker.class',
                               'mindustry/world/blocks/logic/CanvasBlock$CanvasBuild.class',
+                              'mindustry/logic/GlobalVars.class', 'mindustry/logic/GlobalVars$*.class',
                               'mindustry/core/ContentLoader.class'])
         shieldModeSources.keySet().each { path ->
             stagedClasses.add(path.replace('.java', '.class'))
@@ -518,6 +519,9 @@ tasks.register('prepareUpstreamProbe') {
     }
     if (usesCampaignSectorInfo) {
         outputs.file(reflectionPolicyFile)
+    }
+    if (usesSinglePlayer || (usesRenderedClient && usesLiveNetwork)) {
+        outputs.file(globalVarsFile)
     }
     doLast {
         if (usesLiveAudio) {
@@ -987,13 +991,21 @@ final class UpstreamItemChoices {
 }
 """, 'UTF-8')
         }
-        if (usesSinglePlayer || usesLiveAudio) {
+        if (usesSinglePlayer || (usesRenderedClient && usesLiveNetwork)) {
             def globalVars = new String(readUpstream(globalVarsSource), 'UTF-8')
             def soundCheck = '''varClientMusicPlaying.numval = control.sound.isPlaying() ? 1 : 0;
 
             var music = control.sound.getCurrent();'''
             if (globalVars.count(soundCheck) != 1) {
                 throw new GradleException('Pinned GlobalVars control.sound check changed')
+            }
+            if (usesRenderedClient && usesLiveNetwork) {
+                def stockIds = 'Core.files.internal("logicids.dat")'
+                if (globalVars.count(stockIds) != 1) {
+                    throw new GradleException('Pinned GlobalVars logic ID lookup changed')
+                }
+                globalVars = globalVars.replace('import arc.*;', 'import port.logic.UpstreamClientLogic;\n\nimport arc.*;')
+                    .replace(stockIds, 'UpstreamClientLogic.logicIds()')
             }
             def adaptedGlobalVars = globalVarsFile.get().asFile
             adaptedGlobalVars.parentFile.mkdirs()
