@@ -184,8 +184,15 @@ The full-build artifact now embeds the 9 validated upstream clips: **647,008
 bytes** of PCM16 plus the manifest. The registry uses a static PCM buffer
 outside the 1 MiB dynamic arena, covered by the 16 MiB code/static reserve.
 A local pinned-upstream build measured **17,199,844 bytes** (16.4 MiB) for the
-complete `.3dsx` including the audio RomFS. CI asserts the final `.3dsx` is
-below **24 MiB** and prints its byte count; the RomFS audio itself is not part
+complete `.3dsx` including the audio RomFS. The official GitHub-hosted build on
+`main` at `8ece435bc9ac4dadee293a31f2c3ba7ca5685522`
+([run 45261030312](https://github.com/levkeveli/Min3DStry/actions/runs/45261030312))
+produced **17,207,256 bytes**, SHA-256
+`82334a9f3f40b2bc94731958c29ea6cea36eff95a9fc5e5a6586ab992432a1cd`, with
+`main_stack: bytes=2400 limit=4096` and `audio_romfs: OK entries=9 bytes=647008`.
+That artifact booted on both Azahar 2126.2 profiles with parity `0x53a483c7`,
+nine clips, the `wave.spawn` clip and `Sectors=1`. CI asserts the final `.3dsx`
+is below **24 MiB** and prints its byte count; the RomFS audio itself is not part
 of the ELF `LOAD` segments. Physical Original 3DS DSP playback and the resulting
 peak-memory measurement remain pending; do not treat the package-size check as
 an Old 3DS RAM pass.
@@ -199,3 +206,25 @@ now disassembles the linked ELF and rejects a `main()` prologue frame above
 **4,096 bytes**. The fixed frame is **2,400 bytes** (9 integer pushes, 4 double
 pushes, `2320 + 12` bytes of `sub sp`). `tools/check_main_stack.py` has host
 parser tests; keep new large single-threaded state static or heap-backed.
+
+### Original fire and puddle tile indexes
+
+The pinned `Tiles` implementation gives every map two effect arrays with one
+reference per tile. The 3DS adapter uses an Arc map keyed by the original tile
+index for each effect type. Fire and puddle entities continue to use the
+upstream creation, lookup, update, removal and save paths. Empty tiles have no
+entries. The headless campaign reference checks separate worlds, tile zero,
+replacement, removal and index bounds. The original 32 MiB managed heap cap
+still applies. The [JVM campaign check](https://github.com/levkeveli/Min3DStry/actions/runs/45262443426)
+decoded all 95 stock maps and reopened the two test saves in stock Java.
+In the [32-bit diagnostic](https://github.com/levkeveli/Min3DStry/actions/runs/45261579652),
+Littoral Shipyard progressed through building creation to its darkness-buffer
+allocation. At that point its heap had 3,174,412 bytes free with a largest
+block of 288,188 bytes, short of the 360,012-byte allocation. Origin and
+Serpulo 242 still exhausted the heap during building decode. Large-map
+hardware verification is tracked in [#538](https://github.com/levkeveli/Min3DStry/issues/538).
+
+The original block index keeps a list for every team and block flag. The
+3DS adapter starts those lists at zero capacity and lets Arc grow each list
+when a matching building enters the index. The campaign archive check
+compares core building identities and order after each stock sector load.

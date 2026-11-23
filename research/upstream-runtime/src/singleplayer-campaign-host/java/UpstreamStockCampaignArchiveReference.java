@@ -1,12 +1,23 @@
 import arc.Core;
 import arc.files.Fi;
+import arc.struct.Seq;
 import arc.util.I18NBundle;
+import java.io.ByteArrayInputStream;
+import java.io.DataInputStream;
+import java.io.IOException;
 import java.util.Locale;
+import java.util.zip.InflaterInputStream;
 import mindustry.Vars;
 import mindustry.content.Planets;
 import mindustry.content.SectorPresets;
+import mindustry.game.Team;
+import mindustry.gen.Fire;
+import mindustry.gen.Puddle;
 import mindustry.io.MapIO;
 import mindustry.type.Sector;
+import mindustry.world.Tiles;
+import mindustry.world.blocks.logic.LogicBlock;
+import mindustry.world.meta.BlockFlag;
 
 public final class UpstreamStockCampaignArchiveReference {
     public static void main(String[] args) throws Exception {
@@ -20,6 +31,8 @@ public final class UpstreamStockCampaignArchiveReference {
         var session = UpstreamSinglePlayerSession.create(output, "en", assets.child("planets"),
             UpstreamSinglePlayerSession.loadSettings(output), maps);
         try {
+            verifyTileEffects();
+            verifyEmptyLogicProgram();
             int total = 0;
             int hidden = 0;
             for (String directory : new String[]{"serpulo", "serpulo/hidden", "erekir"}) {
@@ -51,6 +64,7 @@ public final class UpstreamStockCampaignArchiveReference {
                 Vars.logic.reset();
                 Vars.world.loadSector(preset.sector);
                 session.application().runPosted();
+                verifyCoreFlagOrder();
                 var original = preset.generator.map;
                 if (Vars.state.rules.sector != preset.sector || Vars.world.width() != original.width
                         || Vars.world.height() != original.height) {
@@ -71,6 +85,65 @@ public final class UpstreamStockCampaignArchiveReference {
         } finally {
             session.shutdown();
         }
+    }
+
+    private static void verifyEmptyLogicProgram() throws IOException {
+        var links = Seq.with(new LogicBlock.LogicLink(-2, 7, "switch1", true));
+        var bytes = LogicBlock.compress(new byte[0], links);
+        try (var decoded = new DataInputStream(new InflaterInputStream(new ByteArrayInputStream(bytes)))) {
+            if (decoded.readUnsignedByte() != 1 || decoded.readInt() != 0
+                    || decoded.readInt() != 1 || !decoded.readUTF().equals("switch1")
+                    || decoded.readShort() != -2 || decoded.readShort() != 7 || decoded.read() != -1) {
+                throw new AssertionError("An empty logic program changed the stock configuration format");
+            }
+        }
+    }
+
+    private static void verifyCoreFlagOrder() {
+        int[] expected = new int[Team.all.length];
+        for (var tile : Vars.world.tiles) {
+            if (!tile.isCenter() || tile.build == null || !tile.block().flags.contains(BlockFlag.core)) continue;
+            var team = tile.team();
+            if (Vars.indexer.getFlagged(team, BlockFlag.core).get(expected[team.id]++) != tile.build) {
+                throw new AssertionError("The stock core index lost its world order");
+            }
+        }
+        for (var team : Team.all) {
+            if (Vars.indexer.getFlagged(team, BlockFlag.core).size != expected[team.id]) {
+                throw new AssertionError("The stock core index retained entries from another sector");
+            }
+        }
+    }
+
+    private static void verifyTileEffects() {
+        var tiles = new Tiles(2, 2);
+        var other = new Tiles(2, 2);
+        var first = Fire.create();
+        var second = Fire.create();
+        var puddle = Puddle.create();
+        tiles.setFire(0, first);
+        tiles.setPuddle(0, puddle);
+        tiles.setFire(3, second);
+        if (tiles.getFire(0) != first || tiles.getPuddle(0) != puddle || tiles.getFire(3) != second
+                || tiles.getPuddle(3) != null || other.getFire(0) != null || other.getPuddle(0) != null) {
+            throw new AssertionError("Stock tile effect lookups must be independent across tiles and worlds");
+        }
+        tiles.setFire(0, second);
+        tiles.setPuddle(0, null);
+        if (tiles.getFire(0) != second || tiles.getPuddle(0) != null) {
+            throw new AssertionError("Stock tile effects must support replacement and removal");
+        }
+        tiles.setFire(0, null);
+        if (tiles.getFire(0) != null || tiles.getFire(3) != second) {
+            throw new AssertionError("Removing one fire changed the other tile");
+        }
+        try {
+            tiles.getFire(-1);
+            throw new AssertionError("Tile effect lookup accepted an out-of-range index");
+        } catch (ArrayIndexOutOfBoundsException expected) {
+            // Preserve the original bounds check.
+        }
+        System.out.println("UPSTREAM_TILE_EFFECT_STORAGE lookup=ok replace=ok clear=ok worlds=ok bounds=ok");
     }
 
     private static int verifyPatchedWorld(UpstreamSinglePlayerSession session, Sector sector, int expectedId, int count)
