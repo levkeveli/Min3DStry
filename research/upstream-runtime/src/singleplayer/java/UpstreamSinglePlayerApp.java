@@ -58,6 +58,7 @@ public final class UpstreamSinglePlayerApp {
     private static final long FRAME_NS = 16_666_667L;
     private static final float DEAD_ZONE = 20f / 127f;
     private static final float STOP_SPEED = 0.03f;
+    private final AudioHooks audio;
     private final UpstreamTerrainRenderProbe target = new UpstreamTerrainRenderProbe(false);
     private final UpstreamBuildingLayers buildingLayers = new UpstreamBuildingLayers();
     private UpstreamLiveBuildControls buildingControls = new UpstreamLiveBuildControls();
@@ -95,9 +96,23 @@ public final class UpstreamSinglePlayerApp {
     private int[][] objectiveCharacters = new int[0][];
     private final IntSet reportedEnemies = new IntSet();
 
+    interface AudioHooks {
+        default void open() {}
+        default void prepareWorld() {}
+        default void update(long now) {}
+    }
+
+    private UpstreamSinglePlayerApp(AudioHooks audio) {
+        this.audio = audio;
+    }
+
     public static void main(String[] args) throws IOException {
+        run(args, new AudioHooks() {});
+    }
+
+    static void run(String[] args, AudioHooks audio) throws IOException {
         try {
-            new UpstreamSinglePlayerApp().run(args);
+            new UpstreamSinglePlayerApp(audio).run(args);
         } catch (IOException | RuntimeException failure) {
             System.out.println("UPSTREAM_SP_ERROR " + failure.getClass().getName() + ": " + failure.getMessage());
             throw failure;
@@ -125,9 +140,11 @@ public final class UpstreamSinglePlayerApp {
         System.out.println("UPSTREAM_INTERFACE_LOCALE system=" + language + " bundle=" + bundleTag
             + " router=" + Core.bundle.get("block.router.name") + " copper=" + Core.bundle.get("item.copper.name"));
 
+        audio.open();
         session = UpstreamSinglePlayerSession.create(mapDir, bundleTag, new Fi("/romfs/planets"), settings,
             new Fi("/romfs/maps"));
         Core.camera = new Camera();
+        audio.prepareWorld();
         UpstreamSectorCapture.install();
         Events.on(WaveEvent.class, event -> {
             String warning = UpstreamGuardianWarning.find(Vars.state.rules, Vars.state.wave);
@@ -861,6 +878,7 @@ public final class UpstreamSinglePlayerApp {
         float delta = Math.min(frameSeconds * 60f, Vars.maxDeltaClient);
         Time.delta = delta;
         try {
+            audio.update(now);
             weatherLayers.advance();
             if (Vars.state.isPaused()) return;
             Time.setInternalTime(Time.getInternalTime() + delta);

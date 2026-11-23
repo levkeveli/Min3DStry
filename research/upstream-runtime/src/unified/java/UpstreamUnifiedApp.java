@@ -1,9 +1,13 @@
+import arc.Core;
+import arc.Events;
 import arc.files.Fi;
 import java.io.IOException;
 import java.util.Arrays;
+import mindustry.game.EventType.WorldLoadEvent;
 import org.teavm.interop.Address;
 import org.teavm.interop.Import;
 import org.teavm.interop.c.Include;
+import port.audio.Arm11Audio;
 
 /** Select one upstream game session before initializing its content and platform services. */
 public final class UpstreamUnifiedApp {
@@ -76,6 +80,28 @@ public final class UpstreamUnifiedApp {
 
     private static void offline(String[] args) throws IOException, InterruptedException {
         System.out.println("UPSTREAM_BOOT mode=offline");
-        UpstreamSinglePlayerApp.main(args);
+        try {
+            UpstreamSinglePlayerApp.run(args, new UpstreamSinglePlayerApp.AudioHooks() {
+                @Override
+                public void open() {
+                    Arm11Audio.open();
+                }
+
+                @Override
+                public void prepareWorld() {
+                    Arm11Audio.prepareMusicControl();
+                    Events.on(WorldLoadEvent.class, event -> Arm11Audio.reset());
+                }
+
+                @Override
+                public void update(long now) {
+                    var camera = Core.camera;
+                    Arm11Audio.updateCamera(camera.position.x, camera.position.y, camera.width, camera.height);
+                    Arm11Audio.updateClientAudio(now);
+                }
+            });
+        } finally {
+            Arm11Audio.close();
+        }
     }
 }
