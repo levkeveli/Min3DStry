@@ -43,6 +43,7 @@ worlds through the upstream sector loader. The replay checks each sector
 and its world dimensions across 17,662,472 tiles. It also resaves the
 600 by 600 Littoral Shipyard and Serpulo 242 worlds. The stock patch paths
 and contents survive a save and reload on the JVM. The unmodified v160.8 Java
-server reopened both saves and read the original sector IDs, dimensions,
-and patch counts. Handheld loading and frame rate for these large maps
+server also reopens both saves through `verify_stock_campaign_archive.py
+--check-saves <profile> --server <server-release.jar>` and checks the sector
+IDs, dimensions and patch counts. Handheld loading and frame rate for these large maps
 require separate measurements.

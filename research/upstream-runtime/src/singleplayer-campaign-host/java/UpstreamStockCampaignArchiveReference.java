@@ -64,16 +64,16 @@ public final class UpstreamStockCampaignArchiveReference {
             }
             if (total != 95 || bound != 95 || hidden != 46) throw new AssertionError("Expected all original campaign maps");
             System.out.println("UPSTREAM_STOCK_CAMPAIGN_DECODE presets=" + bound + " tiles=" + decodedTiles);
-            verifyPatchedWorld(session, SectorPresets.littoralShipyard.sector, 2);
-            verifyPatchedWorld(session, Planets.serpulo.sectors.get(242), 1);
+            int patches = verifyPatchedWorld(session, SectorPresets.littoralShipyard.sector, 2)
+                + verifyPatchedWorld(session, Planets.serpulo.sectors.get(242), 1);
             System.out.println("UPSTREAM_STOCK_CAMPAIGN_ARCHIVE maps=" + total + " presets=" + bound
-                + " hidden=" + hidden + " patches=3");
+                + " hidden=" + hidden + " patches=" + patches);
         } finally {
             session.shutdown();
         }
     }
 
-    private static void verifyPatchedWorld(UpstreamSinglePlayerSession session, Sector sector, int count)
+    private static int verifyPatchedWorld(UpstreamSinglePlayerSession session, Sector sector, int count)
             throws Exception {
         Vars.logic.reset();
         Vars.world.loadSector(sector);
@@ -84,13 +84,28 @@ public final class UpstreamStockCampaignArchiveReference {
                 || Vars.state.data.getPatches().size != count) {
             throw new AssertionError("Stock world or embedded data patches differ for " + sector.id);
         }
-        var patches = Vars.state.data.getPatches().map(asset -> asset.path + "\0" + asset.patch);
+        var patches = Vars.state.data.getPatches();
+        var paths = new String[count];
+        var sources = new String[count];
+        for (int i = 0; i < count; i++) {
+            paths[i] = patches.get(i).path;
+            sources[i] = patches.get(i).patch;
+        }
         var slot = session.sectorFile(sector);
         session.save(slot);
         if (!session.start(null, slot, "stock-campaign-archive", sector)
-                || !Vars.state.data.getPatches().map(asset -> asset.path + "\0" + asset.patch).equals(patches)) {
-            throw new AssertionError("Stock embedded patches did not survive a save for " + sector.id);
+                || Vars.state.rules.sector != sector || Vars.world.width() != original.width
+                || Vars.world.height() != original.height || Vars.state.data.getPatches().size != count) {
+            throw new AssertionError("Stock sector or embedded patch count changed after reload for " + sector.id);
+        }
+        var restored = Vars.state.data.getPatches();
+        for (int i = 0; i < count; i++) {
+            var patch = restored.get(i);
+            if (!paths[i].equals(patch.path) || !sources[i].equals(patch.patch)) {
+                throw new AssertionError("Stock embedded patch changed after reload for " + sector.id);
+            }
         }
         System.out.println("UPSTREAM_STOCK_CAMPAIGN_PATCH sector=" + sector.id + " patches=" + count);
+        return restored.size;
     }
 }

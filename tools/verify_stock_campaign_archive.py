@@ -3,9 +3,14 @@
 
 import argparse
 import hashlib
+import shutil
 from pathlib import Path
 import sys
+import tempfile
 import zipfile
+
+from campaign_settings_fixture import stock_console
+from verify_upstream_live_net import SERVER_SHA256
 
 
 ARM11 = Path(__file__).resolve().parents[1] / "research/upstream-runtime/arm11"
@@ -17,11 +22,57 @@ ASSETS_SHA256 = "2728b63d309c27a405744c8b5440d90a65387a41e2c4339b630a239f79f6bd1
 PREFIX = "assets/maps/"
 
 
+def check_saves(java, server, saves):
+    with server.open("rb") as source:
+        if hashlib.file_digest(source, "sha256").hexdigest() != SERVER_SHA256:
+            raise ValueError("Expected the official v160.8 server-release.jar")
+    with tempfile.TemporaryDirectory(prefix="m3ds-stock-campaign-readback-") as temporary:
+        root = Path(temporary)
+        (root / "config").mkdir()
+        shutil.copyfile(saves / "settings.bin", root / "config/settings.bin")
+        for sector in (204, 242):
+            name = f"sector-serpulo-{sector}.msav"
+            shutil.copyfile(saves / "saves" / name, root / name)
+        script = '''
+            const Fi = Packages.arc.files.Fi, SaveIO = Packages.mindustry.io.SaveIO;
+            const serpulo = Packages.mindustry.content.Planets.serpulo;
+            serpulo.loadRules();
+            function check(id, patches) {
+                const sector = serpulo.sectors.get(id);
+                const file = Fi.get('sector-serpulo-' + id + '.msav');
+                sector.loadInfo();
+                if (SaveIO.getMeta(file).rules.sector.id !== id) throw 'Incorrect saved sector ID';
+                SaveIO.load(file, Vars.world.makeSectorContext(sector));
+                if (Vars.state.rules.sector.id !== id || Vars.world.width() !== 600 ||
+                    Vars.world.height() !== 600 || Vars.state.data.getPatches().size !== patches)
+                    throw 'Stock Java read an incorrect sector, size or patch count for ' + id;
+            }
+            check(204, 2);
+            check(242, 1);
+            return 'STOCK_CAMPAIGN_ARCHIVE_READBACK sectors=204,242 dimensions=600x600 patches=3';
+        '''
+        result = "STOCK_CAMPAIGN_ARCHIVE_READBACK sectors=204,242 dimensions=600x600 patches=3"
+        stock_console(java, server, root, " ".join(script.splitlines()), result)
+    print(result)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--assets", type=Path, required=True)
-    parser.add_argument("--stage", type=Path, required=True, help="A new scratch directory for the packer output")
+    parser.add_argument("--assets", type=Path)
+    parser.add_argument("--stage", type=Path, help="A new scratch directory for the packer output")
+    parser.add_argument("--server", type=Path, help="Original v160.8 server jar for the save readback")
+    parser.add_argument("--check-saves", type=Path, help="Scratch profile written by the JVM campaign reference")
+    parser.add_argument("--java", default="java")
     args = parser.parse_args()
+    if args.check_saves is not None:
+        if args.server is None or args.assets is not None or args.stage is not None:
+            parser.error("--check-saves requires --server and runs separately from archive staging")
+        check_saves(args.java, args.server, args.check_saves)
+        return
+    if args.assets is None or args.stage is None:
+        parser.error("Archive staging requires --assets and --stage")
+    if args.stage.exists():
+        parser.error(f"Choose a new staging directory: {args.stage}")
     with args.assets.open("rb") as source:
         if hashlib.file_digest(source, "sha256").hexdigest() != ASSETS_SHA256:
             parser.error("Expected the official v160.8 assets.jar")

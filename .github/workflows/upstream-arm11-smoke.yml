@@ -1204,7 +1204,7 @@ jobs:
         run: |
           set -o pipefail
           fixture=$(mktemp -d "$RUNNER_TEMP/stock-campaign-archive.XXXXXX")
-          curl --fail --silent --show-error --location \
+          curl --fail --silent --show-error --location --retry 3 \
             https://github.com/Anuken/Mindustry/releases/download/v160.8/assets.jar -o "$fixture/assets.jar"
           python3 tools/verify_stock_campaign_archive.py --assets "$fixture/assets.jar" --stage "$fixture/staged" \
             | tee "$fixture/archive.log"
@@ -1218,6 +1218,8 @@ jobs:
             | tee "$fixture/probe.log"
           grep -Fx 'UPSTREAM_STOCK_CAMPAIGN_DECODE presets=95 tiles=17662472' "$fixture/probe.log"
           grep -Fx 'UPSTREAM_STOCK_CAMPAIGN_ARCHIVE maps=95 presets=95 hidden=46 patches=3' "$fixture/probe.log"
+          python3 tools/verify_stock_campaign_archive.py --server "$RUNNER_TEMP/server-release.jar" \
+            --check-saves "$fixture/saves"
 
       - name: Verify stock Erekir assembler production and PC save readback
         run: |
