@@ -1,5 +1,10 @@
-// libctru's 32 KiB default stack is too small for the generated save serializer.
+// libctru's 32 KiB default stack is too small for generated save serialization.
+#ifdef M3DS_SINGLEPLAYER
+// Serializing objective markers in a stock campaign save can exceed 256 KiB.
+u32 __stacksize__ = 512 * 1024;
+#else
 u32 __stacksize__ = 256 * 1024;
+#endif
 
 #ifdef M3DS_TERRAIN_RENDERER
 #include "m3ds_terrain_renderer.h"

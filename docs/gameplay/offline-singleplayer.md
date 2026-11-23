@@ -31,7 +31,7 @@ the original sector name.
 The app loads the sector through `SaveIO.load(file, world.makeSectorContext(sector))`.
 The **SELECT** save button and **START** exit write to the selected file with
 `SaveIO.save`, which keeps the previous save at the original backup path.
-Selection alone performs no writes.
+Selecting a row does not write a sector save.
 
 For verification, create sector fixtures with the stock v160.8 server in a
 temporary directory. Run the following as one server-console command, first
@@ -59,6 +59,59 @@ building, pause, and save/reload replay also passed on both profiles with
 no sector files staged. After integration with the merged Custom Game port,
 the campaign resume JVM reference and the repository host suite passed
 against the combined tree. Physical console verification remains open.
+
+## Campaign settings
+
+Copy the PC `settings.bin` into `/3ds/min3dstry/` alongside the `saves/`
+directory to carry over campaign research, unlocks, sector information, and
+the last-sector selection. The graphical app loads the file through Arc
+`Settings` before initializing Mindustry content. In the sector menu, the
+stock last save display name or planet sector preference determines the
+initial row when it matches an available save. The original Saves class
+stores the display name under `last-sector-save`, including renamed saves.
+[Pinned stock implementation](https://github.com/Anuken/Mindustry/blob/19a0f40d44514f4802a8b79770456e7e32e34da0/core/src/mindustry/game/Saves.java#L259-L264)
+
+Saving the sector updates the original
+Mindustry settings keys through `SaveIO` and flushes `Settings` to the same
+SD directory. The offline interface uses the saved PC language preference
+when available. A nonempty SD `locale.txt` overrides the displayed language
+for that launch and preserves the PC setting. Arc manages the settings backup.
+The graphical 3DS binaries with offline support reserve a 512 KiB native
+stack for campaign saves with nested objective markers. This adds 256 KiB to
+the static budget of builds that used the earlier 256 KiB stack.
+
+The [ARM11 build from `c42a78b`](https://github.com/levkeveli/Min3DStry/actions/runs/45042352829)
+opened Ground Zero, highlighted the stock last save in the two-sector menu,
+and saved back to the selected slot on both Azahar 2126.2 profiles. The
+stock v160.8 server reopened all four save and settings pairs. It found the
+original partial research value, content unlock, custom sector name, origin,
+and unrelated copied preferences, with the correct last sector for each run.
+
+The [unified ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45118296332)
+repeated both scenarios on the Original and New 3DS Azahar profiles.
+The two-sector menu highlighted Frozen Forest from the copied PC setting,
+and the app used the saved German language. Stock Java reopened the four
+written save and settings pairs with the expected sector, core, research
+and preferences. The replay verified both the original save and settings
+backups.
+
+Use the stock v160.8 server to add `settings.bin` to the sector fixture directory.
+
+```sh
+python3 tools/campaign_settings_fixture.py --server server-release.jar --create-in /path/to/fixtures
+```
+
+Run Gradle with the pinned runtime properties and
+`-Pprobe=singleplayer runGraphicalCampaignSettingsJvm --args="/path/to/fixtures /path/to/new-scratch-dir"`.
+It checks unlocks and partial research at content startup, the stock sector
+metadata, renamed-slot selection, language selection, the settings backup, and the research update
+after saving.
+Passing the same fixtures to `tools/verify_upstream_campaign_resume.py`
+checks the initial menu selection and saves a copy of the native settings for
+each run. The replay uses a separate virtual SD for every model and scenario. The stock reader can reopen the paired files with
+`python3 tools/campaign_settings_fixture.py --server server-release.jar --check /path/to/new3ds-single-settings.bin --save /path/to/new3ds-sector-serpulo-170.msav --sector 170 --after-play`
+and `--sector 64` without `--after-play` for the two-slot run. The replay
+allows the active sector’s stock production average to decay while idle.
 
 ## Custom Game
 

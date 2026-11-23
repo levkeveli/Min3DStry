@@ -1,5 +1,6 @@
 import arc.Core;
 import arc.Events;
+import arc.Settings;
 import arc.files.Fi;
 import arc.math.Mathf;
 import arc.math.geom.Vec2;
@@ -37,6 +38,7 @@ import mindustry.gen.BlockUnitc;
 import mindustry.gen.Player;
 import mindustry.gen.Unit;
 import mindustry.graphics.CacheLayer;
+import mindustry.io.JsonIO;
 import mindustry.io.MapIO;
 import mindustry.io.SaveIO;
 import mindustry.io.SaveMeta;
@@ -68,6 +70,18 @@ public final class UpstreamSinglePlayerSession {
     }
 
     static UpstreamSinglePlayerSession create(Fi mapDirectory, String locale, Fi planetData) {
+        return create(mapDirectory, locale, planetData, new Settings());
+    }
+
+    static Settings loadSettings(Fi directory) {
+        var settings = new Settings();
+        settings.setDataDirectory(directory);
+        settings.setJson(JsonIO.json);
+        settings.load();
+        return settings;
+    }
+
+    static UpstreamSinglePlayerSession create(Fi mapDirectory, String locale, Fi planetData, Settings settings) {
         if (planetData != null && planetData.isDirectory()) {
             for (Fi file : planetData.list()) {
                 if (!file.isDirectory() && file.extension().equals("json")) {
@@ -77,8 +91,8 @@ public final class UpstreamSinglePlayerSession {
         }
         // Blocks capture their default cache layer while the content registry is created.
         CacheLayer.init();
-        var app = UpstreamWorldLoadProbe.initialize(mapDirectory);
-        Core.settings.put("locale", locale == null || locale.isEmpty() ? "en" : locale);
+        settings.defaults("locale", locale == null || locale.isEmpty() ? "en" : locale);
+        var app = UpstreamWorldLoadProbe.initialize(mapDirectory, settings);
         Core.audio = new MockAudio();
         Core.files = new MockFiles();
         final UpstreamSinglePlayerSession[] holder = new UpstreamSinglePlayerSession[1];
@@ -149,6 +163,7 @@ public final class UpstreamSinglePlayerSession {
             app.runPosted();
             Vars.avoidance.init();
             Vars.state.set(State.playing);
+            if (sector != null) sector.planet.setLastSector(sector);
             source = sourceTagOverride != null ? sourceTagOverride : "save";
         } else {
             if (mapFile == null || !mapFile.exists()) {
@@ -241,6 +256,24 @@ public final class UpstreamSinglePlayerSession {
         var slots = new ArrayList<SectorSlot>(result.size);
         for (SectorSlot slot : result) slots.add(slot);
         return slots;
+    }
+
+    static int lastSectorRow(List<SectorSlot> slots) {
+        int planetMatch = 0;
+        String lastSave = Core.settings.getString("last-sector-save", "");
+        for (int i = 0; i < slots.size(); i++) {
+            var slot = slots.get(i);
+            String name = Core.settings.getString(slotNameKey(slot.file), slot.file.nameWithoutExtension());
+            if (lastSave.equals(name)) return i;
+            if (Core.settings.getInt(slot.sector.planet.name + "-last-sector", -1) == slot.sector.id) {
+                planetMatch = i;
+            }
+        }
+        return planetMatch;
+    }
+
+    private static String slotNameKey(Fi file) {
+        return "save-" + file.nameWithoutExtension() + "-name";
     }
 
     private void readSectorSaves(Fi directory, Seq<SectorSlot> result, ObjectSet<Sector> found) {
@@ -371,6 +404,13 @@ public final class UpstreamSinglePlayerSession {
                 throw new IOException("Written offline save failed validation: " + saveFile.path());
             }
         }
+        if (Vars.state.rules.sector != null) {
+            String index = saveFile.nameWithoutExtension();
+            String key = slotNameKey(saveFile);
+            if (!Core.settings.has(key)) Core.settings.put(key, index);
+            Core.settings.put("last-sector-save", Core.settings.getString(key));
+        }
+        Core.settings.autosave();
         long bytes = saveFile.length();
         var core = core();
         int copper = core == null ? 0 : core.items.get(Items.copper);
