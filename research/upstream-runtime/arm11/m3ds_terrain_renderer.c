@@ -26,11 +26,11 @@ static void perf_report(void) {
     int length = snprintf(record, sizeof(record),
         "UPSTREAM_FRAME_PERF frames=%u from=%d,%d to=%d,%d frame_us=%llu terrain_us=%llu "
         "bottom_us=%llu begin_wait_us=%llu recycle_wait_us=%llu atlas_load_us=%llu misses=%u loads=%u "
-        "asset_bytes=%llu recycles=%u\n",
+        "asset_bytes=%llu recycles=%u linear_free=%lu\n",
         perf.frames, perf.first_left, perf.first_bottom, perf.left, perf.bottom_tile,
         perf_us(perf.frame), perf_us(perf.terrain), perf_us(perf.bottom),
         perf_us(perf.begin_wait), perf_us(perf.recycle_wait), perf_us(perf.atlas_load), perf.misses, perf.loads,
-        perf.bytes, perf.recycles);
+        perf.bytes, perf.recycles, (unsigned long)linearSpaceFree());
     if (length > 0 && length < (int)sizeof(record)) svcOutputDebugString(record, length);
     memset(&perf, 0, sizeof(perf));
 }
@@ -55,14 +55,19 @@ static M3DS_StockText stock_text;
 #include "m3ds_unit_build.h"
 #include "world_atlas_layout.h"
 
-// Retain at most 1.5 MiB of RGBA8 atlas backing in the default build.
+// Retain at most 3 MiB of RGBA8 atlas backing in the default build.
 #ifndef M3DS_WORLD_ATLAS_SLOTS
-#define M3DS_WORLD_ATLAS_SLOTS 24
+#define M3DS_WORLD_ATLAS_SLOTS 48
 #endif
 _Static_assert(M3DS_WORLD_ATLAS_SLOTS > 0, "The world atlas cache needs at least one slot");
+_Static_assert(M3DS_WORLD_ATLAS_SLOTS <= UINT8_MAX, "Atlas slot index must fit in one byte");
+// Stock pages are at most 4096 pixels across. Zero marks a nonresident tile.
+enum { world_tile_axis = 4096 / WORLD_ATLAS_TILE };
+static uint8_t world_slot[sizeof(world_atlas_sizes) / sizeof(world_atlas_sizes[0])]
+                         [world_tile_axis][world_tile_axis];
 static struct {
     C2D_SpriteSheet sheet;
-    int page, x, y;
+    uint8_t *slot_index;
     uint32_t frame;
 } world_textures[M3DS_WORLD_ATLAS_SLOTS];
 typedef struct {
@@ -138,6 +143,12 @@ int32_t m3ds_terrain_load_stock_font(int32_t japanese) {
 
 int32_t m3ds_terrain_initialize(void) {
     if (sheet) return 1;
+#ifdef M3DS_WORLD_ATLAS
+    for (size_t page = 0; page < sizeof(world_atlas_sizes) / sizeof(world_atlas_sizes[0]); page++) {
+        if (world_atlas_sizes[page][0] > world_tile_axis * WORLD_ATLAS_TILE
+                || world_atlas_sizes[page][1] > world_tile_axis * WORLD_ATLAS_TILE) return -7;
+    }
+#endif
     m3ds_terrain_mount_assets();
     if (!romfs_ready) return -1;
     gpu_ready = C3D_Init(C3D_DEFAULT_CMDBUF_SIZE);
@@ -259,16 +270,19 @@ static void report_atlas_failure(const char *stage, int page, int x, int y, int 
 }
 
 static C2D_SpriteSheet get_world_texture(int page, int x, int y) {
+    uint8_t *slot_index = &world_slot[page][y][x];
+    if (*slot_index) {
+        unsigned slot = *slot_index - 1;
+        world_textures[slot].frame = world_pass;
+        return world_textures[slot].sheet;
+    }
+
     int vacant = -1;
     int victim = -1;
     for (size_t i = 0; i < sizeof(world_textures) / sizeof(world_textures[0]); i++) {
         if (!world_textures[i].sheet) {
             if (vacant < 0) vacant = (int)i;
             continue;
-        }
-        if (world_textures[i].page == page && world_textures[i].x == x && world_textures[i].y == y) {
-            world_textures[i].frame = world_pass;
-            return world_textures[i].sheet;
         }
         if (world_textures[i].frame != world_pass
                 && (victim < 0 || world_textures[i].frame < world_textures[victim].frame)) {
@@ -293,7 +307,10 @@ static C2D_SpriteSheet get_world_texture(int page, int x, int y) {
         }
         victim = 0;
     }
-    if (world_textures[victim].sheet) C2D_SpriteSheetFree(world_textures[victim].sheet);
+    if (world_textures[victim].sheet) {
+        *world_textures[victim].slot_index = 0;
+        C2D_SpriteSheetFree(world_textures[victim].sheet);
+    }
     char path[48];
     snprintf(path, sizeof(path), "romfs:/world-atlas/%d-%d-%d.t3x", page, x, y);
     world_textures[victim].sheet = NULL;
@@ -317,9 +334,8 @@ static C2D_SpriteSheet get_world_texture(int page, int x, int y) {
         return NULL;
     }
     world_textures[victim].sheet = sheet;
-    world_textures[victim].page = page;
-    world_textures[victim].x = x;
-    world_textures[victim].y = y;
+    world_textures[victim].slot_index = slot_index;
+    *slot_index = victim + 1;
     world_textures[victim].frame = world_pass;
     C3D_Tex *texture = C2D_SpriteSheetGetImage(sheet, 0).tex;
     C3D_TexSetFilter(texture, GPU_NEAREST, GPU_NEAREST);
@@ -559,27 +575,30 @@ int32_t m3ds_terrain_draw(int32_t page, int32_t left, int32_t top, int32_t width
             continue;
         }
         C2D_Image image = C2D_SpriteSheetGetImage(sheet, region->index);
-        const Tex3DS_SubTexture *parent = image.subtex;
-        Tex3DS_SubTexture subtexture = {.width = width, .height = height};
-        if (Tex3DS_SubTextureRotated(parent)) {
-            // tex3ds rotates the packed rectangle counter-clockwise. In this
-            // representation source X advances V and source Y advances U.
-            float dv = (parent->right - parent->left) / region->width;
-            float du = (parent->bottom - parent->top) / region->height;
-            subtexture.left = parent->left + offset_x * dv;
-            subtexture.right = parent->left + (offset_x + width) * dv;
-            subtexture.top = parent->top + offset_y * du;
-            subtexture.bottom = parent->top + (offset_y + height) * du;
-        } else {
-            // Arc counts rows down from the top. GPU V increases from the bottom.
-            float du = (parent->right - parent->left) / region->width;
-            float dv = (parent->bottom - parent->top) / region->height;
-            subtexture.left = parent->left + offset_x * du;
-            subtexture.right = parent->left + (offset_x + width) * du;
-            subtexture.top = parent->top + offset_y * dv;
-            subtexture.bottom = parent->top + (offset_y + height) * dv;
+        Tex3DS_SubTexture subtexture;
+        if (offset_x != 0 || offset_y != 0 || width != region->width || height != region->height) {
+            const Tex3DS_SubTexture *parent = image.subtex;
+            subtexture = (Tex3DS_SubTexture){.width = width, .height = height};
+            if (Tex3DS_SubTextureRotated(parent)) {
+                // tex3ds rotates the packed rectangle counter-clockwise. In this
+                // representation source X advances V and source Y advances U.
+                float dv = (parent->right - parent->left) / region->width;
+                float du = (parent->bottom - parent->top) / region->height;
+                subtexture.left = parent->left + offset_x * dv;
+                subtexture.right = parent->left + (offset_x + width) * dv;
+                subtexture.top = parent->top + offset_y * du;
+                subtexture.bottom = parent->top + (offset_y + height) * du;
+            } else {
+                // Arc counts rows down from the top. GPU V increases from the bottom.
+                float du = (parent->right - parent->left) / region->width;
+                float dv = (parent->bottom - parent->top) / region->height;
+                subtexture.left = parent->left + offset_x * du;
+                subtexture.right = parent->left + (offset_x + width) * du;
+                subtexture.top = parent->top + offset_y * dv;
+                subtexture.bottom = parent->top + (offset_y + height) * dv;
+            }
+            image.subtex = &subtexture;
         }
-        image.subtex = &subtexture;
         if (!C2D_DrawImage(image, &params, &tint)) return 0;
         draws++;
         return 1;
@@ -1429,6 +1448,8 @@ void m3ds_terrain_fini(void) {
     for (size_t i = 0; i < sizeof(world_textures) / sizeof(world_textures[0]); i++) {
         if (world_textures[i].sheet) C2D_SpriteSheetFree(world_textures[i].sheet);
     }
+    memset(world_slot, 0, sizeof(world_slot));
+    memset(world_textures, 0, sizeof(world_textures));
     for (size_t i = 0; i < sizeof(unit_build_textures) / sizeof(unit_build_textures[0]); ++i) {
         for (int stripe = 0; stripe < 2; ++stripe) {
             C3D_Tex *texture = &unit_build_textures[i].textures[stripe];

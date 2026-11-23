@@ -11,7 +11,12 @@ u32 __stacksize__ = 256 * 1024;
 #endif
 
 // Reserve linear memory for the console framebuffers and Citro2D.
+#ifdef M3DS_WORLD_ATLAS
+// Leave room for the larger stock atlas cache without using the menu icon reserve.
+u32 __ctru_linear_heap_size = 6 * 1024 * 1024;
+#else
 u32 __ctru_linear_heap_size = 4 * 1024 * 1024;
+#endif
 
 static void m3ds_init_heap(int64_t minimum, int64_t maximum) {
     char message[80];

@@ -34,14 +34,20 @@ can draw a rectangle that crosses backing tiles with the original
 pivot, signed scale, rotation, tint and layer order. The Core Nucleus and
 team overlay use this path in the live Glacier probe.
 
-The world cache holds at most 24 backing textures, or 1.5 MiB of texels.
-The runtime allocates both screen outputs first and retains room in the
-linear heap for six menu icons. When pending draws occupy every
-available slot, the renderer submits them to the
+The world cache holds up to 48 backing textures, or 3 MiB of texels. Standalone
+ARM11 builds using the world atlas reserve 6 MiB of linear memory. The runtime
+allocates both screen outputs first and checks available linear space before
+filling a vacant slot, keeping room for six menu icons. When pending draws
+occupy every available slot, the renderer submits them to the
 same framebuffer and waits for the GPU before reusing a texture. Only
 the final submission presents the completed frame. The compact sheet
 continues to supply the other frequently used Glacier regions. The
 complete raw atlas in RomFS uses 128 MiB plus tile headers.
+
+A 4 KiB index maps world page and tile coordinates directly to resident
+cache slots. Cache misses still use the bounded eviction scan and GPU
+fence. The renderer uses packed texture coordinates for complete compact
+sprites and computes subregion coordinates only for cropped sprites.
 
 Generate and independently decode just the world atlas from the
 official artifacts with the following commands.
@@ -66,10 +72,9 @@ With the cache reduced to three slots at compile time
 (`-DM3DS_WORLD_ATLAS_SLOTS=3`), the [stress build](https://github.com/levkeveli/Min3DStry/actions/runs/44860006787)
 also passed on both profiles. Run the live verifier with `--world-atlas`
 and `--world-atlas-recycle` to require the GPU submission and recycling
-event at spawn and check the original seam pixels. The default
-executable allows up to 24 slots. On each profile, all 8,328 pixels in
-the Core Nucleus crop outside the player unit area matched the earlier
-build.
+event at spawn and check the original seam pixels. On each profile, all
+8,328 pixels in the Core Nucleus crop outside the player unit area matched the
+earlier build.
 
 Citro2D uses positive screen-space extents and flips the texture coordinates
 for negative sizes. A mirrored atlas fragment is placed by its distance from

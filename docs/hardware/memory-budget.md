@@ -177,3 +177,46 @@ Measured with pinned `devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd
 - **`network-render -Os`:** `T:meth_*` totals `10,352,756` bytes (`9.87 MiB`) and `T:other` totals `1,064,712` bytes (`1.02 MiB`); `R:all` totals `155,386` bytes (including `ft_adobe_glyph_list` at `55,997` B); `D:all` totals `3,759,577` bytes (`*_Cls` `2,365,116` B / `2.26 MiB`, `__compound_literal.*` `996,476` B / `0.95 MiB`, `callsites/m3ds_*` `308,544` B including `exceptionHandlers_teavm_callSites` `159,720` B and `m3ds_sparse_callsites` `148,824` B, `teavm_*` `75,372` B including `teavm_stringPool` `52,292` B, other `D` `14,069` B); `B:all` totals `146,432` bytes. Largest single methods: `meth_mc_Blocks_load` (`75,100` B), `meth_mg_ContentRegions_loadRegions` (`44,448` B), `meth_mg_Call_registerPackets` (`43,372` B), `meth_mm_DataPatcher_assign` (`37,724` B), plus >20 generated entity `meth_mg_*Unit*_read` deserializers at `~28–41 KiB` each (`meth_mg_PayloadUnitLegacyQuad_read` `40,732` B, `meth_mg_PayloadUnitLegacyOct_read` `39,712` B, `meth_mg_PayloadUnit_read` `39,604` B, `meth_mg_MechUnit_read` `37,080` B, `meth_mg_UnitWaterMove_read` `37,076` B, `meth_mg_LegsUnit_read` `37,076` B, `meth_mg_BlockUnitUnit_read` `37,076` B, `meth_mg_UnitEntity_read` `37,072` B, `meth_mg_BuildingTetherPayloadUnit_read` `36,040` B).
 
 Verification: `-Os` Linux host execution on `audio-ticks` (`UPSTREAM_WORLD_FINGERPRINT 2e7b9f883994de6c`, `UPSTREAM_AUDIO_REGISTRY sounds=205 musics=16 duo=136 death=192 convLoop=63 drillLoop=67`, `UPSTREAM_AUDIO_AMBIENT convTicks=399 drillTicks=420 loops=1,1 duoFirstPanMilli=-335 deathPanMilli=-520`, `UPSTREAM_AUDIO_COMBAT shots=17 firstShot=49 deathTick=382 destroyed=382 ammo=23 events=20 trace=8dd46207043810fc`), Azahar New 3DS and Original 3DS `-Os` boot on `audio-ticks` (`UPSTREAM_MEMORY appHeap=111915008` on `new3ds`, `UPSTREAM_MEMORY appHeap=82554880` on `old3ds`, `linearHeap=4194304`, `stack=262144` with Mindustry presets initialized cleanly), and `./dev.sh test` pass; `network-render -Os` Azahar boot and physical Original/New 3DS hardware `-Os` vs. `-O2` frame-time and memory measurements remain separate pending checks (`#43`).
+
+## Unified ARM11 code-size experiment
+
+The atlas-resident ROM built from the `6acf24cf` changes and pinned
+devkitARM GCC 16.1.0 uses 33,501,184 bytes across page-rounded ELF load
+segments. A second build with `-Oz -fno-inline` used 33,566,720 bytes.
+Both ROMs used the same generated C, assets, 32 MiB managed heap, 6 MiB
+linear heap, and 512 KiB stack. The resulting static subtotals were
+70.45 MiB and 70.51 MiB. Both builds reached approximately 60 FPS in the
+stationary Ground Zero replay under Azahar 2126.2 on both profiles.
+
+The performance branch keeps `-Os`. Generated C contains coroutine
+resume switches in the upstream entity readers and Arc `Reads`
+methods. These states are present in the TeaVM output before native
+compilation. The 64 MiB Original 3DS memory target remains open.
+
+### Reuse the empty exception call site
+
+When staging with location tables disabled, TeaVM call sites without an
+exception handler already resolve to the same empty table entry. The ARM11
+staging step now uses one existing, nonnegative empty ID for those generated
+assignments. This gives GCC a reusable constant for code that previously
+loaded a distinct ID at each call. Handler-bearing IDs, handler chains, and
+the unwind implementation keep their original values. Set
+`M3DS_KEEP_CALLSITE_LOCATIONS=1` to keep the original per-site IDs and source
+locations for debugging.
+
+The unified candidate rewrote 542,501 assignments and preserved all 17,413
+handler-bearing IDs. Its generated sparse handler table was byte-identical
+to the atlas-resident control.
+
+With the same `-Os` compiler, generated C input, and ROMFS assets, the
+page-rounded ELF load footprint fell from 33,501,184 to 29,003,776 bytes,
+a reduction of 4.29 MiB. The static subtotal fell from 70.45 to 66.16 MiB.
+This subtotal covers ELF load segments, the managed heap limit, the
+linear heap, and the stack. It still exceeds the 64 MiB target before
+garbage collector work buffers and other native allocations.
+
+On both Azahar 2126.2 profiles, the unified ROM averaged about 59 FPS
+during the stationary Ground Zero RPC sample after warm-up and recorded
+zero steady-state atlas imports. The sampled terrain matched the control's
+8,970 pixels on each profile. In a separate isolated SD replay, both profiles
+rejected a malformed imported save and opened the 18-map Custom Game menu.
