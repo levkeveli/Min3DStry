@@ -9,6 +9,7 @@ from pathlib import Path
 import re
 import struct
 import subprocess
+import sys
 import tempfile
 import time
 import zipfile
@@ -1842,11 +1843,17 @@ def run_model(args, model, config, original_config, log, output):
                                       stationary=not args.controls_replay, chat=args.verify_chat)
                 command += ["-p", str(replay)]
             command.append(str(args.rom))
-            emulator = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            process_log = output / f"{model}-azahar-process.log"
+            with process_log.open("wb") as terminal:
+                emulator = subprocess.Popen(command, stdout=terminal, stderr=subprocess.STDOUT)
             rpc = az.AzaharRpcClient(timeout=2, retries=2)
             try:
                 if args.unified_boot:
-                    wait_for(log, emulator, r"UPSTREAM_BOOT mode=join\b", args.timeout)
+                    try:
+                        wait_for(log, emulator, r"UPSTREAM_BOOT mode=join\b", args.timeout)
+                    except RuntimeError:
+                        print(process_log.read_text(encoding="utf-8", errors="replace")[-2500:], file=sys.stderr)
+                        raise
                 if args.locale:
                     names = {"en": ("Router", "Copper"), "de": ("Verteiler", "Kupfer")}
                     labels = names.get(args.locale)
