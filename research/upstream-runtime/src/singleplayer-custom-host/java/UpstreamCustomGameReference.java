@@ -1,6 +1,7 @@
 import arc.Core;
 import arc.files.Fi;
 import arc.util.I18NBundle;
+import arc.util.Strings;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -66,9 +67,46 @@ public final class UpstreamCustomGameReference {
             System.out.println("UPSTREAM_CUSTOM_GAME_REFERENCE bundled=" + actual.size()
                 + " user=1 map=" + map.name() + " mode=" + mode.name() + " save=ok");
             verifyNamedSaves(session, map, stockMaps.get(0), save);
+            verifyOfflineResults(session, stockMaps.get(0), map, save);
         } finally {
             session.shutdown();
         }
+    }
+
+    private static void verifyOfflineResults(UpstreamSinglePlayerSession session, mindustry.maps.Map caldera,
+                                             mindustry.maps.Map glacier, Fi save) throws Exception {
+        byte[] existing = save.readBytes();
+        if (session.startCustomGame(caldera, Gamemode.survival) != Gamemode.survival) {
+            throw new AssertionError("Expected an original Survival match");
+        }
+        Vars.state.wave = 9;
+        var waveTeam = Vars.state.rules.waveTeam;
+        session.core().kill();
+        session.stepSimulation(0f, 0f);
+        String[] lost = UpstreamSinglePlayerApp.offlineResultCaptions(session.offlineWinner());
+        if (!Vars.state.gameOver || Vars.state.won || session.offlineWinner() != waveTeam
+                || Vars.state.stats.wavesLasted != 9 || !lost[0].equals(Core.bundle.get("gameover"))
+                || !lost[1].equals(Core.bundle.get("stats.wave") + " 9")
+                || !lost[lost.length - 1].equals("A " + Core.bundle.get("menu"))) {
+            throw new AssertionError("Stock Survival defeat should expose the final wave and menu action");
+        }
+
+        if (session.startCustomGame(glacier, Gamemode.pvp) != Gamemode.pvp || session.offlineWinner() != null) {
+            throw new AssertionError("An original new match should clear the previous result");
+        }
+        var winner = Vars.state.rules.defaultTeam;
+        var opposing = Vars.state.teams.active.copy();
+        for (var team : opposing) {
+            if (team.team != winner) team.cores.copy().each(core -> core.kill());
+        }
+        session.stepSimulation(0f, 0f);
+        String[] won = UpstreamSinglePlayerApp.offlineResultCaptions(session.offlineWinner());
+        var expected = Strings.stripColors(Core.bundle.format("gameover.pvp", winner.coloredName()));
+        if (!Vars.state.gameOver || !Vars.state.won || session.offlineWinner() != winner
+                || !won[0].equals(expected) || !Arrays.equals(existing, save.readBytes())) {
+            throw new AssertionError("Stock PvP victory should retain the winner and the existing save");
+        }
+        System.out.println("UPSTREAM_OFFLINE_RESULT_REFERENCE survival=loss wave=9 pvp=win reset=ok save=preserved");
     }
 
     private static void verifyNamedSaves(UpstreamSinglePlayerSession session, mindustry.maps.Map glacier,

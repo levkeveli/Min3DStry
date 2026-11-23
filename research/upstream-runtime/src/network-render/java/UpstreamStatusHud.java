@@ -61,7 +61,7 @@ final class UpstreamStatusHud {
     }
 
     static String roundTitle(Team winner) {
-        if (Vars.state.rules.pvp) return Core.bundle.format("gameover.pvp", winner.coloredName());
+        if (Vars.state.rules.pvp && winner != null) return Core.bundle.format("gameover.pvp", winner.coloredName());
         if (Vars.state.isCampaign()) return Core.bundle.format("sector.lost", Vars.state.getSector().name());
         return Core.bundle.get("gameover");
     }

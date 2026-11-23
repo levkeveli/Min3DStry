@@ -956,3 +956,17 @@ averaged about 233 ms per renderer frame, of which 213 ms was spent importing
 atlas fragments. A window panning from `117,49` to `109,49` imported 125
 fragments across 16 frames and averaged 159 ms per renderer frame. These are
 guest timings from the emulator with the same stock Ground Zero save.
+
+
+## Offline match results
+
+A completed non-campaign match shows the original v160.8 result title and
+tracked statistics. Survival includes the final wave, and PvP names the
+winning team. Press **A** on **Menu** to return to the existing Custom Game
+catalog. The result screen opens without an automatic write to the existing
+save. Campaign defeat uses the sector screen.
+
+The stock JVM Custom Game reference ends an Ancient Caldera Survival match
+after the original core is lost. It then ends a Glacier PvP match with the
+opposing core gone, checking both results, the reset on the new map, and the
+unchanged earlier save. Handheld replay is pending.

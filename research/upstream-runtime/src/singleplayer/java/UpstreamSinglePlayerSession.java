@@ -4,6 +4,7 @@ import arc.Settings;
 import arc.assets.AssetManager;
 import arc.audio.Audio;
 import arc.files.Fi;
+import arc.func.Cons;
 import arc.math.Mathf;
 import arc.math.geom.Vec2;
 import arc.mock.MockAudio;
@@ -28,6 +29,7 @@ import mindustry.content.UnitTypes;
 import mindustry.core.GameState.State;
 import mindustry.entities.EntityCollisions;
 import mindustry.entities.units.BuildPlan;
+import mindustry.game.EventType.GameOverEvent;
 import mindustry.game.EventType.ResetEvent;
 import mindustry.game.EventType.RulesLoadEvent;
 import mindustry.game.EventType.SectorLaunchEvent;
@@ -67,10 +69,21 @@ public final class UpstreamSinglePlayerSession {
     private final UpstreamWorldLoadProbe.ProbeApplication app;
     private final Vec2 tmpMove = new Vec2();
     private Saves campaignSaves;
+    private Team offlineWinner;
+    private final Cons<ResetEvent> clearOfflineResult = event -> offlineWinner = null;
+    private final Cons<GameOverEvent> recordOfflineResult = event -> {
+        if (!Vars.state.isCampaign()) {
+            offlineWinner = event.winner;
+            Vars.state.stats.wavesLasted = Vars.state.wave;
+            Vars.state.won = Vars.player != null && Vars.player.team() == event.winner;
+        }
+    };
     private float deltaSeconds = FIXED_STEP_SECONDS;
 
     private UpstreamSinglePlayerSession(UpstreamWorldLoadProbe.ProbeApplication app) {
         this.app = app;
+        Events.on(ResetEvent.class, clearOfflineResult);
+        Events.on(GameOverEvent.class, recordOfflineResult);
     }
 
     static UpstreamSinglePlayerSession create(Fi mapDirectory, String locale) {
@@ -623,7 +636,11 @@ public final class UpstreamSinglePlayerSession {
         return bytes;
     }
 
+    Team offlineWinner() { return offlineWinner; }
+
     void shutdown() {
+        Events.remove(ResetEvent.class, clearOfflineResult);
+        Events.remove(GameOverEvent.class, recordOfflineResult);
         Events.fire(new ResetEvent());
         app.runPosted();
     }
