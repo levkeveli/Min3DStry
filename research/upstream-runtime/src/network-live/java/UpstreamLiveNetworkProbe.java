@@ -176,6 +176,11 @@ public final class UpstreamLiveNetworkProbe {
         if (mode == Mode.CONTROLS) {
             try {
                 connect(host, port, app, 1);
+            } catch (ServerKick kick) {
+                System.out.println("UPSTREAM_LIVE_CONTROLS_KICK kind=" + kick.kind + " reason=" + kick.getMessage());
+                Vars.net = new Net(null);
+                Vars.logic.reset();
+                app.runPosted();
             } finally {
                 Native.close();
             }
@@ -499,7 +504,12 @@ public final class UpstreamLiveNetworkProbe {
             if (received == TIMEOUT && i == 0) received = receive(0, 8);
             if (received == TIMEOUT) break;
             int id = received >>> 16;
-            if (id == stateId) {
+            if (id == unsignedId(KickCallPacket.class)) {
+                throw new ServerKick("text", decode(new KickCallPacket(), received).reason);
+            } else if (id == unsignedId(KickCallPacket2.class)) {
+                var reason = decode(new KickCallPacket2(), received).reason;
+                throw new ServerKick("enum", reason.name());
+            } else if (id == stateId) {
                 var unit = controlledUnit();
                 var ore = unit == null || unit.mineTile == null ? null : unit.getMineResult(unit.mineTile);
                 var core = ore == null ? null : Vars.player.team().core();
@@ -575,6 +585,15 @@ public final class UpstreamLiveNetworkProbe {
             }
         }
         return lastWave;
+    }
+
+    private static final class ServerKick extends IOException {
+        private final String kind;
+
+        private ServerKick(String kind, String reason) {
+            super(reason);
+            this.kind = kind;
+        }
     }
 
     private void receiveChat(String message, String source) {
