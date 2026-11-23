@@ -474,19 +474,9 @@ int32_t m3ds_terrain_draw_unit_build(int32_t page, int32_t left, int32_t top, in
                                      int32_t vertex_color) {
 #ifdef M3DS_WORLD_ATLAS
     if (!frame_open || width <= 0 || height <= 0
-            || width > M3DS_UNIT_BUILD_TEXTURE_LIMIT || height > M3DS_UNIT_BUILD_TEXTURE_LIMIT
             || page < 0 || (size_t)page >= sizeof(world_atlas_sizes) / sizeof(world_atlas_sizes[0])
             || left < 0 || top < 0 || width > world_atlas_sizes[page][0] - left
             || height > world_atlas_sizes[page][1] - top) return 0;
-    unsigned texture_width = 8, texture_height = 8;
-    while (texture_width < (unsigned)width) texture_width *= 2;
-    while (texture_height < (unsigned)height) texture_height *= 2;
-    UnitBuildTextures *textures = unit_build_texture(texture_width, texture_height);
-    const float accent[] = { alpha, b, g, r };
-    if (!textures || !shade_unit_build_textures(textures, page, left, top, width, height, progress, accent)) {
-        return 0;
-    }
-    textures->pass = world_pass;
     const C2D_DrawParams whole = {
         .pos = { screen_left + (x - world_left) * scale, screen_bottom - (y - world_bottom) * scale,
                  draw_width * scale, draw_height * scale },
@@ -496,24 +486,49 @@ int32_t m3ds_terrain_draw_unit_build(int32_t page, int32_t left, int32_t top, in
     };
     C2D_ImageTint tint;
     C2D_PlainImageTint(&tint, (u32)vertex_color, 1.0f);
-    set_world_blend(0);
-    set_world_mix(0, 0);
     float edges[6];
     int count = m3ds_unit_build_edges(phase, edges);
-    for (int i = 0; i + 1 < count; ++i) {
-        const float from = edges[i], to = edges[i + 1];
-        const int stripe = fabsf(sinf(from + to + phase)) <= 0.9f;
-        const Tex3DS_SubTexture region = {
-            .width = width, .height = height,
-            .left = from * width / texture_width, .right = to * width / texture_width,
-            .top = 1.0f, .bottom = 1.0f - (float)height / texture_height
-        };
-        const M3dsUnitBuildSlice slice = m3ds_unit_build_slice(whole.center.x, whole.pos.w, from, to);
-        C2D_DrawParams part = whole;
-        part.center.x = slice.pivot_x;
-        part.pos.w = slice.width;
-        if (!C2D_DrawImage((C2D_Image){ &textures->textures[stripe], &region }, &part, &tint)) return 0;
-        draws++;
+    const float accent[] = { alpha, b, g, r };
+    // Keep large stock icons in the existing scratch budget. Each patch has
+    // the same full-icon transform, stripe phase, and original RGBA texels.
+    for (int row = 0; row < height; row += M3DS_UNIT_BUILD_TEXTURE_LIMIT) {
+        const int patch_height = height - row < M3DS_UNIT_BUILD_TEXTURE_LIMIT
+            ? height - row : M3DS_UNIT_BUILD_TEXTURE_LIMIT;
+        const M3dsUnitBuildSlice vertical = m3ds_unit_build_slice(whole.center.y, whole.pos.h,
+            (float)row / height, (float)(row + patch_height) / height);
+        for (int column = 0; column < width; column += M3DS_UNIT_BUILD_TEXTURE_LIMIT) {
+            const int patch_width = width - column < M3DS_UNIT_BUILD_TEXTURE_LIMIT
+                ? width - column : M3DS_UNIT_BUILD_TEXTURE_LIMIT;
+            unsigned texture_width = 8, texture_height = 8;
+            while (texture_width < (unsigned)patch_width) texture_width *= 2;
+            while (texture_height < (unsigned)patch_height) texture_height *= 2;
+            UnitBuildTextures *textures = unit_build_texture(texture_width, texture_height);
+            if (!textures || !shade_unit_build_textures(textures, page, left + column, top + row,
+                    patch_width, patch_height, progress, accent)) return 0;
+            textures->pass = world_pass;
+            set_world_blend(0);
+            set_world_mix(0, 0);
+            for (int i = 0; i + 1 < count; ++i) {
+                const float from = edges[i], to = edges[i + 1];
+                const M3dsUnitBuildRange pixels = m3ds_unit_build_clip(from, to, width, column, patch_width);
+                if (pixels.first >= pixels.end) continue;
+                const int stripe = fabsf(sinf(from + to + phase)) <= 0.9f;
+                const Tex3DS_SubTexture region = {
+                    .width = patch_width, .height = patch_height,
+                    .left = (pixels.first - column) / texture_width, .right = (pixels.end - column) / texture_width,
+                    .top = 1.0f, .bottom = 1.0f - (float)patch_height / texture_height
+                };
+                const M3dsUnitBuildSlice horizontal = m3ds_unit_build_slice(whole.center.x, whole.pos.w,
+                    pixels.first / width, pixels.end / width);
+                C2D_DrawParams part = whole;
+                part.center.x = horizontal.pivot_x;
+                part.center.y = vertical.pivot_x;
+                part.pos.w = horizontal.width;
+                part.pos.h = vertical.width;
+                if (!C2D_DrawImage((C2D_Image){ &textures->textures[stripe], &region }, &part, &tint)) return 0;
+                draws++;
+            }
+        }
     }
     static bool reported;
     if (!reported && progress > 0.0f && alpha > 0.0f) {

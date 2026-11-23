@@ -16,6 +16,16 @@ static inline M3dsUnitBuildSlice m3ds_unit_build_slice(float pivot_x, float widt
     return (M3dsUnitBuildSlice){ pivot_x - width * from, width * (to - from) };
 }
 
+typedef struct {
+    float first;
+    float end;
+} M3dsUnitBuildRange;
+
+/* Intersect a stripe in full-icon coordinates with one scratch texture. */
+static inline M3dsUnitBuildRange m3ds_unit_build_clip(float from, float to, int width, int start, int size) {
+    return (M3dsUnitBuildRange){ fmaxf(from * width, (float)start), fminf(to * width, (float)(start + size)) };
+}
+
 /* GLSL math from pinned Mindustry core/assets/shaders/unitbuild.frag.
  * Tex3DS stores the RGBA8 channels in ABGR byte order. */
 static inline uint8_t m3ds_unit_build_byte(float value) {

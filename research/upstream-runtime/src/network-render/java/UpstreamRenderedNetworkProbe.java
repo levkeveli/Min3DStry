@@ -33,6 +33,8 @@ import mindustry.gen.Unit;
 import mindustry.gen.UnitWaterMove;
 import mindustry.graphics.CacheLayer;
 import mindustry.type.UnitType;
+import mindustry.world.blocks.units.Reconstructor;
+import mindustry.world.blocks.units.Reconstructor.ReconstructorBuild;
 import mindustry.world.blocks.units.UnitFactory;
 import mindustry.world.blocks.units.UnitFactory.UnitFactoryBuild;
 import mindustry.world.Block;
@@ -236,6 +238,7 @@ public final class UpstreamRenderedNetworkProbe {
                 if (build instanceof TileableLogicDisplayBuild display) display.updateTile();
                 if (build instanceof ConduitBuild conduit) conduit.advanceLiquidDraw();
                 if (build instanceof UnitFactoryBuild factory) advanceFactoryDraw(factory);
+                if (build instanceof ReconstructorBuild reconstructor) advanceReconstructorDraw(reconstructor);
             }
             for (var unit : Groups.unit) {
                 if (unit instanceof UnitWaterMove boat) boat.advanceWake();
@@ -255,6 +258,13 @@ public final class UpstreamRenderedNetworkProbe {
             factory.time += factory.edelta() * factory.speedScl * Vars.state.rules.unitBuildSpeed(factory.team);
         }
         factory.speedScl = Mathf.lerpDelta(factory.speedScl, active ? 1f : 0f, 0.05f);
+    }
+
+    static void advanceReconstructorDraw(ReconstructorBuild build) {
+        // The authoritative snapshot owns progress and which unit is inside the payload.
+        boolean active = build.efficiency > 0f && build.constructing() && build.hasArrived();
+        build.speedScl = Mathf.lerpDelta(build.speedScl, Mathf.num(active), 0.05f);
+        build.time += build.edelta() * build.speedScl * Vars.state.rules.unitBuildSpeed(build.team);
     }
 
     static void advanceTankTreads(Tankc tank) {
@@ -468,7 +478,7 @@ public final class UpstreamRenderedNetworkProbe {
         // These blocks use the sprite operations available in the live backend.
         return build instanceof CanvasBuild || build instanceof LogicDisplayBuild
             || UpstreamBuildingLayers.supportsPowerDraw(block) || UpstreamBuildingLayers.supportsDistributionDraw(block)
-            || block.category == Category.liquid || block instanceof UnitFactory || block instanceof BaseTurret
+            || block.category == Category.liquid || block instanceof UnitFactory || block instanceof Reconstructor || block instanceof BaseTurret
             || UpstreamBuildingLayers.supportsMaterialDraw(block) || block == Blocks.copperWall
             || block == Blocks.berylliumWall || block == Blocks.copperWallLarge
             || UpstreamBuildingLayers.supportsExtractorDraw(block)

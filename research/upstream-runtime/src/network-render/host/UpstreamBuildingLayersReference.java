@@ -87,6 +87,8 @@ import mindustry.world.blocks.payloads.Payload;
 import mindustry.world.blocks.payloads.UnitPayload;
 import mindustry.world.blocks.payloads.PayloadConveyor;
 import mindustry.world.blocks.payloads.PayloadConveyor.PayloadConveyorBuild;
+import mindustry.world.blocks.units.Reconstructor;
+import mindustry.world.blocks.units.Reconstructor.ReconstructorBuild;
 import mindustry.world.blocks.units.UnitFactory;
 
 public final class UpstreamBuildingLayersReference implements UpstreamTerrainDrawProbe.TerrainTarget {
@@ -147,6 +149,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         target.verifyArcOrder();
         target.verifyTexturedLine();
         target.verifyFactory(viewport);
+        target.verifyReconstructor(viewport);
 
         // The visible two-tile wall starts one tile west of the viewport.
         viewport.moveTo(24, 30);
@@ -345,6 +348,62 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
             tile.setBlock(Blocks.air);
             sprites.clear();
             solidQuads.clear();
+            unitBuilds.clear();
+        }
+    }
+
+    private void verifyReconstructor(UpstreamTerrainDrawProbe.Viewport viewport) {
+        int count = 0, maxWidth = 0, maxHeight = 0;
+        for (var block : Vars.content.blocks()) {
+            if (!(block instanceof Reconstructor reconstructor)) continue;
+            for (var upgrade : reconstructor.upgrades) {
+                upgrade[1].loadIcon();
+                var icon = upgrade[1].fullIcon;
+                if (!icon.found()) throw new AssertionError("Missing original upgrade sprite " + upgrade[1].name);
+                maxWidth = Math.max(maxWidth, icon.width);
+                maxHeight = Math.max(maxHeight, icon.height);
+                count++;
+            }
+        }
+        viewport.moveTo(24, 30);
+        var viewer = Team.sharded;
+        var tile = Vars.world.tile(31, 35);
+        tile.setBlock(Blocks.additiveReconstructor, viewer, 1);
+        var reconstructor = (ReconstructorBuild)tile.build;
+        var stock = (Reconstructor)reconstructor.block;
+        var layers = new UpstreamBuildingLayers();
+        var previousPlayer = Vars.player;
+        float delta = Time.delta;
+        Vars.player = Player.create();
+        Vars.player.team(viewer);
+        try {
+            var dagger = UnitTypes.dagger.create(viewer);
+            dagger.set(reconstructor.x, reconstructor.y);
+            reconstructor.handlePayload(reconstructor, new UnitPayload(dagger));
+            reconstructor.progress = stock.constructTime / 2f;
+            reconstructor.efficiency = 1f;
+            Time.delta = 1f;
+            UpstreamRenderedNetworkProbe.advanceReconstructorDraw(reconstructor);
+            if (reconstructor.progress != stock.constructTime / 2f || reconstructor.payload.unit != dagger
+                    || reconstructor.speedScl <= 0f || reconstructor.time <= 0f) {
+                throw new AssertionError("Live reconstructor changed server production while animating");
+            }
+            unitBuilds.clear();
+            sprites.clear();
+            layers.render(viewport, viewer, build -> build == reconstructor);
+            var icon = UnitTypes.mace.fullIcon;
+            if (unitBuilds.size() != 1 || unitBuilds.get(0).page() != UpstreamTerrainDrawProbe.pageIndex(icon)
+                    || unitBuilds.get(0).width() != icon.width || unitBuilds.get(0).height() != icon.height
+                    || unitBuilds.get(0).progress() != 0.5f || sprites.size() < 5) {
+                throw new AssertionError("Original reconstructor input, construction and cover layers");
+            }
+            System.out.println("UPSTREAM_RECONSTRUCTOR_GRAPHICS stockUpgrades=" + count
+                + " maxIcon=" + maxWidth + "x" + maxHeight + " phase=0.5 liveClock=ok");
+        } finally {
+            Time.delta = delta;
+            Vars.player = previousPlayer;
+            tile.setBlock(Blocks.air);
+            sprites.clear();
             unitBuilds.clear();
         }
     }

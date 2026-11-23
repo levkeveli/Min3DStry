@@ -358,6 +358,10 @@ if (usesSinglePlayer) {
             classpath = sourceSets.main.runtimeClasspath
             mainClass = 'UpstreamCustomGameReference'
         }
+        tasks.register('runStockReconstructorJvm', JavaExec) {
+            classpath = sourceSets.main.runtimeClasspath
+            mainClass = 'UpstreamStockReconstructorReference'
+        }
         tasks.register('runOfflineMaterialsJvm', JavaExec) {
             classpath = sourceSets.main.runtimeClasspath
             mainClass = 'UpstreamOfflineMaterialsReference'
