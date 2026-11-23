@@ -122,8 +122,8 @@ jobs:
             tex3ds --version
             bash tools/build_teavm_loader.sh \
               research/upstream-runtime/build/generated/teavm/c build/teavm-loader
-            make PYTHON=python3 TEAVM_LOADER_DIR=/work/build/teavm-loader \
-              UPSTREAM_MINDUSTRY=/upstream/Mindustry build/min3dstry.3dsx
+            make NO_AUDIO_ROMFS=1 PYTHON=python3 TEAVM_LOADER_DIR=/work/build/teavm-loader \
+              UPSTREAM_MINDUSTRY=/upstream/Mindustry all
             test -s build/min3dstry.3dsx
             test -s build/min3dstry.smdh
             python3 tools/check_main_stack.py --max-bytes 4096 build/min3dstry.elf
