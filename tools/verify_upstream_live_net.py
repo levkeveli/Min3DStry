@@ -1891,6 +1891,11 @@ def run_model(args, model, config, original_config, log, output):
                                  rf"UPSTREAM_LIVE_CONTROLS_KICK kind={args.server_kick} reason={re.escape(reason)}",
                                  args.timeout)
                         emu_log = wait_for(log, emulator, "UPSTREAM_LIVE_CONTROLS_LEFT", args.timeout)
+                        if args.verify_kick_notice:
+                            message = reason if args.server_kick == "text" else "You have been kicked from the server!"
+                            emu_log = wait_for(log, emulator, re.escape(
+                                f"UPSTREAM_LIVE_KICK_NOTICE title=Disconnected. detail={message}"), args.timeout)
+                            (output / f"{model}-kick-notice.png").write_bytes(rpc.screenshot())
                     elif args.combat:
                         wait_for(log, emulator, r"UPSTREAM_LIVE_CONTROLS_READY unit=\d+", args.timeout)
                         status = wait_for(log, emulator,
@@ -2192,6 +2197,8 @@ def main():
     mode.add_argument("--controls", action="store_true", help="Verify D-pad and Circle Pad input and START disconnect")
     parser.add_argument("--server-kick", choices=("text", "enum"),
                         help="Verify a stock server kick after entering live play")
+    parser.add_argument("--verify-kick-notice", action="store_true",
+                        help="Check and capture the English stock disconnect notice")
     parser.add_argument("--controls-replay", action="store_true",
                         help="Replay the controls test input in Azahar 2126.2")
     parser.add_argument("--unified-boot", action="store_true",
@@ -2298,6 +2305,8 @@ def main():
         parser.error("--controls-replay needs --controls")
     if args.server_kick and (not args.controls or args.controls_replay):
         parser.error("--server-kick needs stationary --controls")
+    if args.verify_kick_notice and (not args.server_kick or args.locale != "en"):
+        parser.error("--verify-kick-notice needs --server-kick and --locale en")
     if args.unified_boot and not args.controls:
         parser.error("--unified-boot needs --controls")
     if args.combat and (not args.controls or not args.terrain_atlas):

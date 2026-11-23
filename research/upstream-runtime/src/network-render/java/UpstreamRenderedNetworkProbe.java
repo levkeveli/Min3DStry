@@ -135,7 +135,8 @@ public final class UpstreamRenderedNetworkProbe {
         } finally {
             target.end();
         }
-        System.out.println("UPSTREAM_LIVE_KICK_NOTICE title=" + title);
+        System.out.println("UPSTREAM_LIVE_KICK_NOTICE title=" + title
+            + " detail=" + (detail == null ? "" : detail.replace('\n', ' ').replace('\r', ' ')));
         while (!UpstreamLiveNetworkProbe.kickNoticeDismissed()) Thread.sleep(16);
     }
 
