@@ -1197,9 +1197,15 @@ The live client applies the original v160.8 marker packets to
 and draw routines for text, points, shapes, lines, and atlas-backed texture
 markers. The ARM11 visual clock feeds Arc's global time for the original
 point animation. The texture marker adapter resolves names and content
-icons through the original atlas, including the stock error sprite. Lighting,
-minimap display, arbitrary textured quads, and dynamic Canvas and Logic
-Display textures require further renderer support.
+icons through the original atlas, including the stock error sprite. For
+atlas-backed QuadMarker draws, the batch submits the two original triangles
+to Citro3D and clips them at atlas tile edges while preserving position, UV
+and interpolated tint. Constant mix alpha interpolates RGB before tinting
+while preserving texture alpha, as in the pinned Arc sprite shader. Quads
+with varying mix colors or mismatched atlas dimensions are skipped with a
+one-time debug message. Lighting, minimap display, standalone textures,
+dynamic Canvas and Logic Display textures, and varying legacy mix colors
+require further renderer support.
 
 The `runProbeJvm` snapshot reference round-trips the original create,
 control, text, texture, and remove packet classes against the client
@@ -1232,6 +1238,22 @@ orientations, the original Copper icon, the error sprite and the restored
 terrain against sampled pixels.
 The [integrated renderer build](https://github.com/levkeveli/Min3DStry/actions/runs/44937074108)
 also passed those checks on both profiles with the stock font path enabled.
+
+`./dev.sh test` covers textured triangle clipping, winding, area and tint
+interpolation. Packed quad colors treat both alpha bytes 254 and 255 as fully
+opaque, including for the constant mix color. `runObjectiveMarkersJvm` checks the original QuadMarker
+vertices after stock packets set a UV before the first draw, move a corner,
+and change the source texture. Add `--verify-quad-markers` to the Glacier
+replay to compare stock Core Nucleus pixels that span atlas tiles, capture
+a moved corner, and verify retargeting to the original Router sprite.
+The [ARM11 quad build](https://github.com/levkeveli/Min3DStry/actions/runs/44928596265)
+passed the replay on both 3DS emulator profiles connected to the
+unmodified v160.8 Java server. Both runs checked the interpolated red
+tint and original pixels in three atlas tiles before a corner was moved,
+then captured the updated geometry, Router texture and marker removal.
+The [combined ARM11 replay](https://github.com/levkeveli/Min3DStry/actions/runs/45116142229)
+passed the same checks on both profiles. The fixture places the quad
+below the in-game HUD. Add `--unified-boot` when using the combined ROM.
 
 ### Verify the Arc executor pools
 

@@ -39,6 +39,9 @@ public final class UpstreamTerrainDrawProbe {
                   float x, float y, float originX, float originY, float drawWidth, float drawHeight,
                   float rotation, int color, int mixColor, Blending blending);
         void drawSolidQuad(float[] vertices, int offset, Blending blending);
+        default void drawTexturedQuad(int page, int pageWidth, int pageHeight, float[] vertices, int offset, Blending blending) {
+            throw new IllegalStateException("Unsupported Arc textured geometry");
+        }
         default void drawUnitBuild(int page, int left, int top, int width, int height,
                                    float x, float y, float drawWidth, float drawHeight, float rotation,
                                    float progress, Color tint, float alpha, float phase, int vertexColor) {
@@ -261,8 +264,8 @@ public final class UpstreamTerrainDrawProbe {
                 }
                 if (solid) {
                     if (target != null) target.drawSolidQuad(vertices, i, blending);
-                } else {
-                    emitTexturedRectangle(page, vertices, i);
+                } else if (target != null && !emitTexturedRectangle(page, vertices, i)) {
+                    target.drawTexturedQuad(page.index, page.width, page.height, vertices, i, blending);
                 }
             }
         }
@@ -270,14 +273,14 @@ public final class UpstreamTerrainDrawProbe {
         // Arc Lines submits a rectangle through Fill.quad, with the top-left UV
         // first. Recover the sprite transform from the UV corners instead of
         // assuming the same vertex order as SpriteBatch's region draw.
-        private void emitTexturedRectangle(AtlasPageTexture page, float[] v, int a) {
+        private boolean emitTexturedRectangle(AtlasPageTexture page, float[] v, int a) {
             int b = a + SpriteBatch.VERTEX_SIZE, c = b + SpriteBatch.VERTEX_SIZE, d = c + SpriteBatch.VERTEX_SIZE;
             float u0 = v[a + 3], u1 = v[d + 3], t0 = v[a + 4], t1 = v[b + 4];
             float tint = v[a + 2], mixTint = v[a + 5];
             if (v[b + 3] != u0 || v[c + 3] != u1 || v[c + 4] != t1 || v[d + 4] != t0
                     || v[b + 2] != tint || v[c + 2] != tint || v[d + 2] != tint
                     || v[b + 5] != mixTint || v[c + 5] != mixTint || v[d + 5] != mixTint) {
-                throw new IllegalStateException("Arc textured quad needs per-vertex GPU attributes");
+                return false;
             }
             int leftFirst = u0 <= u1 ? a : d, leftSecond = u0 <= u1 ? b : c;
             int bottomLeft = t0 <= t1 ? leftSecond : leftFirst;
@@ -287,23 +290,31 @@ public final class UpstreamTerrainDrawProbe {
             float dx = v[bottomRight] - x, dy = v[bottomRight + 1] - y;
             float ux = v[topLeft] - x, uy = v[topLeft + 1] - y;
             float width = Mathf.len(dx, dy);
-            if (width == 0f) return;
+            if (width == 0f) {
+                // Both edges must collapse. A quad with only one collapsed edge can still be visible.
+                return v[topRight] == v[topLeft] && v[topRight + 1] == v[topLeft + 1];
+            }
             float height = (dx * uy - dy * ux) / width;
             float error = 0.005f; // Leave room for rounding at the far edge of a large map.
             if (Math.abs((dx * ux + dy * uy) / width) > error
                     || Math.abs(v[topRight] - x - dx - ux) > error
                     || Math.abs(v[topRight + 1] - y - dy - uy) > error) {
-                throw new IllegalStateException("Arc textured quad is not a rectangle");
+                return false;
             }
             int left = Math.round(Math.min(u0, u1) * page.width);
             int right = Math.round(Math.max(u0, u1) * page.width);
             int top = Math.round(Math.min(t0, t1) * page.height);
             int bottom = Math.round(Math.max(t0, t1) * page.height);
-            if (target != null && height != 0f && right > left && bottom > top) {
-                float rotation = (float)Math.toDegrees(Math.atan2(dy, dx));
-                target.draw(page.index, left, top, right - left, bottom - top, x, y, 0f, 0f, width, height,
-                    rotation, Color.floatToIntColor(tint), Color.floatToIntColor(mixTint), blending);
+            if (height == 0f) {
+                return v[topLeft] == x && v[topLeft + 1] == y
+                    && v[topRight] == v[bottomRight] && v[topRight + 1] == v[bottomRight + 1];
             }
+            // Rounded-empty UV bounds can still sample a texel on a visible quad.
+            if (right <= left || bottom <= top) return false;
+            float rotation = (float)Math.toDegrees(Math.atan2(dy, dx));
+            target.draw(page.index, left, top, right - left, bottom - top, x, y, 0f, 0f, width, height,
+                rotation, Color.floatToIntColor(tint), Color.floatToIntColor(mixTint), blending);
+            return true;
         }
 
         @Override

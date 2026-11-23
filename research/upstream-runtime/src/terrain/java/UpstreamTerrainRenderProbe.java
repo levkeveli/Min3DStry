@@ -123,6 +123,14 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
         }
     }
 
+    @Override
+    public void drawTexturedQuad(int page, int pageWidth, int pageHeight, float[] vertices, int offset, Blending blending) {
+        if (NativeTerrain.drawTexturedQuad(page, pageWidth, pageHeight, Address.ofData(vertices), offset,
+                blendMode(blending)) == 0) {
+            throw new IllegalStateException("Citro3D could not draw a stock Arc textured quad");
+        }
+    }
+
     private static int blendMode(Blending blending) {
         if (blending == Blending.normal) return 0;
         if (blending == Blending.additive) return 1;
@@ -170,6 +178,9 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
 
         @Import(name = "m3ds_terrain_draw_solid_quad")
         static native int drawSolidQuad(Address vertices, int offset, int blendMode);
+
+        @Import(name = "m3ds_terrain_draw_textured_quad")
+        static native int drawTexturedQuad(int page, int pageWidth, int pageHeight, Address vertices, int offset, int blendMode);
 
         @Import(name = "m3ds_terrain_end")
         static native int end();
