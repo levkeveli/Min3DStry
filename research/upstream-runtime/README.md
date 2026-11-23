@@ -1077,6 +1077,19 @@ The renderer still selects blocks that use the supported sprite operations.
 Textured raw vertices, additional payload types and other rendering services
 are tracked in [#139](https://github.com/levkeveli/Min3DStry/issues/139).
 
+### Stock Erekir payload deconstruction graphics
+
+The Small Deconstructor and Deconstructor use the pinned v160.8 drawers
+for intake cargo, shadows, dismantling progress, the scan line and the
+temporary warning. The renderer reuses the original construction shader
+adapter. The warning texture comes from the stock `icon.ttf` glyph
+U+26A0, cropped to its visible bounds and tinted by the original drawer.
+
+The unified building-layer reference checked a Tungsten Wall Large and
+a Dagger, the stock progress and scan pass, and the warning glyph position,
+size and decay for both machine sizes. The native renderer syntax and
+original font export also passed. Handheld visual evidence is pending.
+
 ### Verify Erekir construction
 
 The touchscreen starter shortcuts use the planet from the streamed rules.

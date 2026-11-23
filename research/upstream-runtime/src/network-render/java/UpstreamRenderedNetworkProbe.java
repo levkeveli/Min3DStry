@@ -33,6 +33,7 @@ import mindustry.gen.Unit;
 import mindustry.gen.UnitWaterMove;
 import mindustry.graphics.CacheLayer;
 import mindustry.type.UnitType;
+import mindustry.world.blocks.payloads.PayloadDeconstructor;
 import mindustry.world.blocks.units.Reconstructor;
 import mindustry.world.blocks.units.Reconstructor.ReconstructorBuild;
 import mindustry.world.blocks.units.UnitFactory;
@@ -479,6 +480,7 @@ public final class UpstreamRenderedNetworkProbe {
         return build instanceof CanvasBuild || build instanceof LogicDisplayBuild
             || UpstreamBuildingLayers.supportsPowerDraw(block) || UpstreamBuildingLayers.supportsDistributionDraw(block)
             || block.category == Category.liquid || block instanceof UnitFactory || block instanceof Reconstructor || block instanceof BaseTurret
+            || block instanceof PayloadDeconstructor
             || UpstreamBuildingLayers.supportsMaterialDraw(block) || block == Blocks.copperWall
             || block == Blocks.berylliumWall || block == Blocks.copperWallLarge
             || UpstreamBuildingLayers.supportsExtractorDraw(block)

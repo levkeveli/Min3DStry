@@ -158,14 +158,15 @@ class UpstreamSpriteAtlas {
             } catch (FontFormatException error) {
                 throw new IOException("Invalid upstream icon font", error);
             }
+            writeMenuGlyph(font, "warning", "world-warning", catalog, manifest, true);
             for (var command : Vars.content.unitCommands()) {
-                writeMenuGlyph(font, command.icon, "command-" + command.id, catalog, manifest);
+                writeMenuGlyph(font, command.icon, "command-" + command.id, catalog, manifest, false);
             }
             for (var stance : Vars.content.unitStances()) {
                 if (stance instanceof ItemUnitStance item) {
                     addMenuIcon(item.item, "stance", stance.id, true, regions, icons, manifest);
                 } else {
-                    writeMenuGlyph(font, stance.icon, "stance-" + stance.id, catalog, manifest);
+                    writeMenuGlyph(font, stance.icon, "stance-" + stance.id, catalog, manifest, false);
                 }
             }
         }
@@ -185,7 +186,7 @@ class UpstreamSpriteAtlas {
     }
 
     private static void writeMenuGlyph(Font font, String name, String file, Path catalog,
-            java.io.Writer manifest) throws IOException {
+            java.io.Writer manifest, boolean tightBounds) throws IOException {
         int code = Iconc.codes.get(name, -1);
         if (code < 0 || !font.canDisplay(code)) throw new IOException("Missing stock UI icon: " + name);
         var image = new BufferedImage(40, 40, BufferedImage.TYPE_INT_ARGB);
@@ -201,8 +202,23 @@ class UpstreamSpriteAtlas {
         } finally {
             graphics.dispose();
         }
+        if (tightBounds) {
+            int x0 = image.getWidth(), y0 = image.getHeight(), x1 = 0, y1 = 0;
+            for (int y = 0; y < image.getHeight(); y++) {
+                for (int x = 0; x < image.getWidth(); x++) {
+                    if ((image.getRGB(x, y) >>> 24) == 0) continue;
+                    x0 = Math.min(x0, x);
+                    y0 = Math.min(y0, y);
+                    x1 = Math.max(x1, x + 1);
+                    y1 = Math.max(y1, y + 1);
+                }
+            }
+            if (x0 >= x1 || y0 >= y1) throw new IOException("Blank original UI icon: " + name);
+            image = image.getSubimage(x0, y0, x1 - x0, y1 - y0);
+        }
         writeTexture(image, catalog.resolve(file + ".t3x"));
-        manifest.write(file + "\t" + name + "\ticon.ttf:" + code + "\t40\t40\n");
+        manifest.write(file + "\t" + name + "\ticon.ttf:" + code + "\t"
+            + image.getWidth() + "\t" + image.getHeight() + "\n");
     }
 
     /** Tex3DS single-region, uncompressed RGBA8 sheet. Pixels are tiled in Morton order. */

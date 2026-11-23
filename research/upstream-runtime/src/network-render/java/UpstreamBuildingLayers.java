@@ -18,6 +18,7 @@ import mindustry.world.blocks.heat.HeatConductor;
 import mindustry.world.meta.BuildVisibility;
 import mindustry.world.blocks.liquid.LiquidRouter;
 import mindustry.world.blocks.payloads.PayloadConveyor.PayloadConveyorBuild;
+import mindustry.world.blocks.payloads.PayloadDeconstructor.PayloadDeconstructorBuild;
 import mindustry.world.blocks.payloads.UnitPayload;
 import mindustry.world.blocks.power.BeamNode.BeamNodeBuild;
 import mindustry.world.blocks.power.LightBlock;
@@ -86,6 +87,14 @@ final class UpstreamBuildingLayers {
                             && reconstructor.getPayload() instanceof UnitPayload payload) {
                         loadFactoryGraphics(payload.unit.type());
                         loadFactoryGraphics(reconstructor.upgrade(payload.unit.type()));
+                    }
+                    if (build instanceof PayloadDeconstructorBuild deconstructor) {
+                        if (deconstructor.getPayload() instanceof UnitPayload payload) {
+                            loadFactoryGraphics(payload.unit.type());
+                        }
+                        if (deconstructor.deconstructing instanceof UnitPayload payload) {
+                            loadFactoryGraphics(payload.unit.type());
+                        }
                     }
                 }
             }

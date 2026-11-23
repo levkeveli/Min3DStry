@@ -87,6 +87,7 @@ import mindustry.world.blocks.payloads.Payload;
 import mindustry.world.blocks.payloads.UnitPayload;
 import mindustry.world.blocks.payloads.PayloadConveyor;
 import mindustry.world.blocks.payloads.PayloadConveyor.PayloadConveyorBuild;
+import mindustry.world.blocks.payloads.PayloadDeconstructor.PayloadDeconstructorBuild;
 import mindustry.world.blocks.units.Reconstructor;
 import mindustry.world.blocks.units.Reconstructor.ReconstructorBuild;
 import mindustry.world.blocks.units.UnitFactory;
@@ -98,6 +99,8 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
     private record UnitBuild(int page, int left, int top, int width, int height, float x, float y,
                              float rotation, float progress, float alpha, float phase) {}
     private final List<UnitBuild> unitBuilds = new ArrayList<>();
+    private record Warning(float x, float y, float size, int color) {}
+    private Warning warning;
     private final List<UpstreamCanvasTexture> canvasDraws = new ArrayList<>();
     private int texturedQuads;
     private UpstreamCanvasTexture canvasQuadTexture;
@@ -150,6 +153,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         target.verifyTexturedLine();
         target.verifyFactory(viewport);
         target.verifyReconstructor(viewport);
+        target.verifyDeconstructors(viewport);
 
         // The visible two-tile wall starts one tile west of the viewport.
         viewport.moveTo(24, 30);
@@ -406,6 +410,66 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
             sprites.clear();
             unitBuilds.clear();
         }
+    }
+
+    private void verifyDeconstructors(UpstreamTerrainDrawProbe.Viewport viewport) {
+        viewport.moveTo(24, 30);
+        var viewer = Team.sharded;
+        var tile = Vars.world.tile(29, 35);
+        var layers = new UpstreamBuildingLayers();
+        var previousPlayer = Vars.player;
+        float delta = Time.delta;
+        Vars.player = Player.create();
+        Vars.player.team(viewer);
+        try {
+            Time.delta = 1f;
+            for (var type : new Block[] {Blocks.smallDeconstructor, Blocks.deconstructor}) {
+                tile.setBlock(type, viewer, 0);
+                var build = (PayloadDeconstructorBuild) tile.build;
+                build.deconstructing = type == Blocks.smallDeconstructor
+                    ? new BuildPayload(Blocks.tungstenWallLarge, viewer) : new UnitPayload(UnitTypes.dagger.create(viewer));
+                build.progress = 0.25f;
+                build.time = 40f;
+                build.payRotation = 70f;
+                unitBuilds.clear();
+                sprites.clear();
+                solidQuads.clear();
+                warning = null;
+                layers.render(viewport, viewer, b -> b == build);
+                var region = build.deconstructing.icon();
+                var draw = unitBuilds.size() == 1 ? unitBuilds.get(0) : null;
+                if (draw == null || draw.page() != UpstreamTerrainDrawProbe.pageIndex(region)
+                        || draw.left() != region.getX() || draw.top() != region.getY()
+                        || draw.width() != region.width || draw.height() != region.height
+                        || draw.x() != build.x || draw.y() != build.y
+                        || draw.progress() != 0.75f || draw.alpha() != 0.75f || draw.phase() != -2f
+                        || draw.rotation() != (build.deconstructing instanceof BuildPayload ? 0f : -20f)
+                        || solidQuads.isEmpty() || sprites.size() < 2 || warning != null) {
+                    throw new AssertionError("Missing original deconstruction outline, scan or payload region for " + type.name);
+                }
+                build.deconstructing = null;
+                build.overlayTime = 1f;
+                layers.render(viewport, viewer, b -> b == build);
+                if (warning == null || warning.x() != build.x || warning.y() != build.y
+                        || warning.size() != 8f || warning.color() == 0 || build.overlayTime >= 1f) {
+                    throw new AssertionError("The stock warning glyph and decay must use original draw state");
+                }
+            }
+            System.out.println("UPSTREAM_DECONSTRUCTOR_GRAPHICS stock=2 block=ok unit=ok scan=ok warning=ok");
+        } finally {
+            Time.delta = delta;
+            Vars.player = previousPlayer;
+            tile.setBlock(Blocks.air);
+            unitBuilds.clear();
+            sprites.clear();
+            solidQuads.clear();
+            warning = null;
+        }
+    }
+
+    @Override
+    public void drawWarningIcon(float x, float y, float size, int color) {
+        warning = new Warning(x, y, size, color);
     }
 
     private static void verifyLiveFactoryClock(UnitFactory.UnitFactoryBuild factory) {
