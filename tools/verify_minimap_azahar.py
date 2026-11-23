@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 import subprocess
 import sys
 import time
@@ -22,8 +23,10 @@ from verify_azahar import (  # noqa: E402
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_ROM = ROOT / "research/upstream-runtime/build/singleplayer-minimap/upstream-probe.3dsx"
 MINIMAP_LOG = "UPSTREAM_MINIMAP size=64"
-# The app draws the minimap at (336, 8) with a 56 px edge on the top screen.
+# The app samples 64x64 and draws it at (336, 8) with a 56 px edge on the top screen.
 MINIMAP_BOX = (336, 8, 56, 56)
+MINIMAP_SIZE = 64
+MINIMAP_DRAW = 56
 MINIMAP_SAMPLES = tuple(
     (x, y)
     for y in range(10, 64, 2)
@@ -101,8 +104,11 @@ def main() -> int:
             time.sleep(0.5)
         if not loaded:
             raise RuntimeError("Singleplayer session did not load")
-        if MINIMAP_LOG not in log_path.read_text(encoding="utf-8", errors="replace"):
+        text = log_path.read_text(encoding="utf-8", errors="replace")
+        if MINIMAP_LOG not in text:
             raise RuntimeError("Minimap upload trace did not appear")
+        match = re.search(r"UPSTREAM_MINIMAP size=64 hash=[0-9a-f]+(?: cell=(\d+),(\d+))?", text)
+        cell = (int(match.group(1)), int(match.group(2))) if match and match.group(1) else None
 
         # Let the game render several frames after the upload.
         time.sleep(5.0)
@@ -118,17 +124,38 @@ def main() -> int:
         if not png:
             raise RuntimeError(f"Azahar screenshot failed: {last_error}")
 
-        info = inspect_png(png, MINIMAP_SAMPLES)
+        samples = list(MINIMAP_SAMPLES)
+        marker_points: list[tuple[int, int]] = []
+        if cell is not None:
+            # The native upload reverses Y, so sampler row 0 is the image bottom.
+            cx = MINIMAP_BOX[0] + (cell[0] + 0.5) * MINIMAP_DRAW / MINIMAP_SIZE
+            cy = MINIMAP_BOX[1] + (MINIMAP_SIZE - 1 - cell[1] + 0.5) * MINIMAP_DRAW / MINIMAP_SIZE
+            for dx in range(-2, 3):
+                for dy in range(-2, 3):
+                    point = (round(cx + dx), round(cy + dy))
+                    samples.append(point)
+                    marker_points.append(point)
+        info = inspect_png(png, tuple(samples))
         colors = set(info.get("samples", {}).values())
         if len(colors) < 4:
             raise AssertionError(
                 f"Minimap region is flat: {len(colors)} distinct sample colors "
                 f"(expected >= 4) at {MINIMAP_BOX}"
             )
+        if cell is not None:
+            white = [
+                point for point in marker_points
+                if all(channel >= 250 for channel in info["samples"][point])
+            ]
+            if not white:
+                raise AssertionError(
+                    f"Minimap player marker missing at sampled cell {cell}"
+                )
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_bytes(png)
         print(
             f"[PASS] minimap model={args.model} distinct={len(colors)} "
+            f"cell={cell} marker={'white' if cell is not None else 'unreported'} "
             f"size={info['width']}x{info['height']} PNG={out}"
         )
         return 0

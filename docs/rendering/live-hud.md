@@ -19,8 +19,10 @@ off and a campaign sector is active;
 - timed stock `sector.capture.current` and `wave.guardianwarn` notification rows;
 - the local unit's stock `stat.health`/`stat.ammo` values;
 - the original copper item glyph and the local core's copper count;
-- a 64x64 live minimap in the top-right corner, sampled from stock
-  `Block.getColor()` values with the local player drawn as a white dot and
+- a live minimap rendered from a 64x64 sample at 56 px in the top-right
+  corner, using the stock `MinimapRenderer` color path (`Block.minimapColor`,
+  floor/overlay fallback through `MapIO.colorFor`, darkness and liquid/shadow
+  edge tints), with the local player marked at the nearest sampled cell and
   refreshed every 60 frames.
 
 The status rows use the v160.8 font and inline item glyph pipeline shared with
@@ -28,11 +30,13 @@ the objective HUD. They are rebuilt only when the rendered status text changes,
 then submitted through `drawObjective` before the objective rows.
 
 The minimap is a native citro2d texture. TeaVM samples the live world into an
-RGBA8 grid. The ARM11 renderer reverses the world Y axis as the stock minimap
-does and converts the pixels to the PICA200's ABGR byte order and 8-by-8
-Morton layout before uploading them through an aligned buffer. Uploads happen once at
-startup and every 60 rendered frames. The texture draw rebinds the top screen
-because the build palette leaves the bottom screen selected.
+RGBA8 grid using the stock minimap color path. The ARM11 renderer reverses the
+world Y axis as the stock minimap does and converts the pixels to the PICA200's
+ABGR byte order and 8-by-8 Morton layout before uploading them through an
+aligned buffer. Uploads happen once at startup and every 60 rendered frames. The
+texture draw rebinds the top screen because the build palette leaves the bottom
+screen selected. The minimap translation unit also compiles without
+`M3DS_WORLD_ATLAS`; its static upload buffer is 64 KiB.
 
 ## Verification
 
@@ -71,16 +75,18 @@ python tools/verify_minimap_azahar.py --model old3ds
 ```
 
 ```text
-UPSTREAM_MINIMAP size=64 hash=1bb8ba2afa313b20
-[PASS] minimap model=new3ds distinct=11 size=400x480 PNG=build/emu-verify/minimap-new3ds.png
-[PASS] minimap model=old3ds distinct=11 size=400x480 PNG=build/emu-verify/minimap-old3ds.png
+UPSTREAM_MINIMAP size=64 hash=103bf4ec4480ebb4 cell=34,6
+[PASS] minimap model=new3ds distinct=20 cell=(34, 6) marker=white size=400x480 PNG=build/emu-verify/minimap-new3ds.png
+[PASS] minimap model=old3ds distinct=20 cell=(34, 6) marker=white size=400x480 PNG=build/emu-verify/minimap-old3ds.png
 ```
 
 The verifier selects a sector through `campaign-select.txt`, waits for the
 singleplayer load and minimap upload markers, captures the frame, and rejects a
-flat minimap region (fewer than four distinct sampled colors). Inspect the
-captured terrain pattern as well, since the color count cannot detect scrambled
-texture tiles.
+flat minimap region (fewer than four distinct sampled colors). It also parses
+the reported player cell and requires a white marker pixel at the corresponding
+top-screen position, which catches a wrong texture origin or byte order. It
+still does not prove per-tile color agreement; the captured terrain pattern
+should be inspected as well.
 
 The live fixture exercises the countdown/waiting path with `enemies=0`. The
 singular/plural enemy rows, the `wave.waveInProgress` branch, and the `m:ss`
@@ -93,9 +99,9 @@ exactly.
 
 - This is the wave/timer/copper/minimap slice of the stock HUD, not the
   complete HUD.
-- The minimap is the always-on 56 px slice: fullscreen/zoom, unit blips beyond
-  the local player, fog of war and the full stock minimap panel layout remain
-  open under #40.
+- The minimap is the always-on 56 px slice drawn from a 64x64 sample:
+  fullscreen/zoom, unit blips beyond the local player, and the full stock
+  minimap panel layout remain open under #40.
 - Full item list, additional notifications and the full stock layout remain
   open under #40.
 - Physical Old/New 3DS verification remains open with #43.

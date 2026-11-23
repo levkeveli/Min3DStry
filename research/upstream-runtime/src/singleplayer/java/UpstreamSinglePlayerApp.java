@@ -820,8 +820,10 @@ public final class UpstreamSinglePlayerApp {
         target.minimapUpload(pixels, 64, 64);
         if (!reportedMinimap) {
             reportedMinimap = true;
+            int marker = UpstreamMinimap.playerIndex(64);
             System.out.println("UPSTREAM_MINIMAP size=64 hash="
-                + Long.toUnsignedString(UpstreamMinimap.hash(pixels), 16));
+                + Long.toUnsignedString(UpstreamMinimap.hash(pixels), 16)
+                + (marker < 0 ? "" : " cell=" + (marker % 64) + "," + (marker / 64)));
         }
     }
 
