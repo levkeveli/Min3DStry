@@ -97,6 +97,7 @@ public final class UpstreamSinglePlayerApp {
     private List<UpstreamObjectiveHud.Row> lastStatus;
     private int lastCoreItemCount = -1;
     private int lastCoreItemDrawn = -1;
+    private final UpstreamCoreItems.Tracker coreItemTracker = new UpstreamCoreItems.Tracker();
     private final UpstreamPauseMenu pauseMenu = new UpstreamPauseMenu();
     private boolean pauseOpen;
     private int pauseAxis;
@@ -340,6 +341,7 @@ public final class UpstreamSinglePlayerApp {
         lastObjectives = null;
         lastCoreItemCount = -1;
         lastCoreItemDrawn = -1;
+        coreItemTracker.reset();
         reportedEnemies.clear();
         loadedUnitGraphics.clear();
         loadedBulletGraphics.clear();
@@ -1150,7 +1152,7 @@ public final class UpstreamSinglePlayerApp {
     }
 
     private void drawCoreItems() {
-        var items = UpstreamCoreItems.live();
+        var items = coreItemTracker.live();
         float x = 168f;
         float y = 4f;
         int drawn = 0;
