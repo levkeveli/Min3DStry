@@ -54,6 +54,29 @@ and selects Tungsten on a Duct Unloader. The unmodified v160.8 Java
 server verified those final selections in both ARM11 saves and during
 live sessions on each profile.
 
+## Power and transport links
+
+Tap **Config**, then tap a power node, item or liquid bridge, mass
+driver, or payload mass driver. The grid stays open and highlights
+the source. Tap an endpoint to connect or disconnect it using the
+original block's team, range, and alignment rules. Tap a power node
+again to use its original automatic link or clear action. When a
+bridge is linked in one direction, configure the receiving bridge
+and tap the sender to reverse it. Tap **Config** or press **B** to
+exit link configuration.
+
+The JVM reference covers graph joins and disconnects, enemy and
+out-of-range endpoints, and all seven configurable item, liquid,
+and payload blocks with manual links. It checks stock bridge reversal
+and confirms that link taps leave the construction queue untouched.
+
+```bash
+python3 tools/verify_stock_building_links.py \
+  --rom /path/to/unified/upstream-probe.3dsx \
+  --server /path/to/server-release.jar \
+  --output build/stock-building-links --live
+```
+
 ## Inventory transfers
 
 Tap **Items** and then a storage building to see its item quantities.

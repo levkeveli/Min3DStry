@@ -512,9 +512,11 @@ public final class UpstreamBuildControlsReference {
         var source = Vars.world.tile(74, 29);
         var receiver = Vars.world.tile(78, 29);
         var enemy = Vars.world.tile(74, 24);
+        var distant = Vars.world.tile(87, 29);
         source.setBlock(Blocks.powerNode, unit.team(), 0);
         receiver.setBlock(Blocks.battery, unit.team(), 0);
         enemy.setBlock(Blocks.battery, Vars.state.rules.waveTeam, 0);
+        distant.setBlock(Blocks.battery, unit.team(), 0);
         source.build.configure(new Point2[0]);
 
         controls.update(unit, 0, touch(305, 64));
@@ -524,6 +526,12 @@ public final class UpstreamBuildControlsReference {
         }
         tapGridCell(controls, unit, enemy.x, enemy.y);
         if (source.build.power.links.contains(enemy.pos())) throw new AssertionError("Linked an enemy battery");
+        tapGridCell(controls, unit, distant.x, distant.y);
+        if (source.build.power.links.contains(distant.pos()) || controls.configuring()) {
+            throw new AssertionError("An out-of-range power target must leave the source unlinked");
+        }
+        controls.update(unit, 0, touch(305, 64));
+        tapGridCell(controls, unit, source.x, source.y);
         tapGridCell(controls, unit, receiver.x, receiver.y);
         if (!source.build.power.links.contains(receiver.pos()) || !receiver.build.power.links.contains(source.pos())
                 || source.build.power.graph != receiver.build.power.graph) {
@@ -537,6 +545,7 @@ public final class UpstreamBuildControlsReference {
         source.setBlock(Blocks.air);
         receiver.setBlock(Blocks.air);
         enemy.setBlock(Blocks.air);
+        distant.setBlock(Blocks.air);
 
         Block[] transports = {Blocks.itemBridge, Blocks.phaseConveyor, Blocks.bridgeConduit, Blocks.phaseConduit,
             Blocks.massDriver, Blocks.payloadMassDriver, Blocks.largePayloadMassDriver};
@@ -550,9 +559,20 @@ public final class UpstreamBuildControlsReference {
             if (linkPosition(source.build) != receiver.pos() || controls.cursorX() != source.x) {
                 throw new AssertionError("Stock " + block.name + " did not link to the tapped receiver");
             }
-            tapGridCell(controls, unit, receiver.x, receiver.y);
-            if (linkPosition(source.build) != -1) throw new AssertionError("Stock " + block.name + " did not unlink");
-            if (controls.configuring()) controls.update(unit, 0, touch(305, 64));
+            if (block instanceof ItemBridge) {
+                controls.update(unit, 0, touch(305, 64));
+                controls.update(unit, 0, touch(305, 64));
+                tapGridCell(controls, unit, receiver.x, receiver.y);
+                tapGridCell(controls, unit, source.x, source.y);
+                if (linkPosition(source.build) != -1 || linkPosition(receiver.build) != source.pos()) {
+                    throw new AssertionError("Stock " + block.name + " did not reverse an incoming bridge");
+                }
+            } else {
+                tapGridCell(controls, unit, receiver.x, receiver.y);
+                if (linkPosition(source.build) != -1) throw new AssertionError("Stock " + block.name + " did not unlink");
+            }
+            if (controls.configuring()) controls.update(unit, 1 << 19, -1);
+            if (controls.configuring()) throw new AssertionError("B must cancel link configuration");
             source.setBlock(Blocks.air);
             receiver.setBlock(Blocks.air);
         }
