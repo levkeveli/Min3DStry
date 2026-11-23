@@ -301,7 +301,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
                 }
                 sprites.clear();
                 layers.render(viewport, viewer, candidate -> candidate == build
-                    && UpstreamSinglePlayerApp.supportsBuildingDraw(candidate));
+                    && UpstreamRenderedNetworkProbe.supportsBuildingDraw(candidate));
                 requireRegion(block.region);
                 if (sprites.equals(idle)) throw new AssertionError("Stock extractor draw state unchanged: " + block.name);
                 if (block instanceof BeamDrill beam) requireRegion(beam.laserCenter);
