@@ -28,3 +28,19 @@ sorted `SECTOR_SLOT` lines, and the matching bottom-HUD `Sectors:`/`Sector`
 lines. Upstream `Saves.load()` now runs on the live path. Live campaign
 UI/launch dialogs, capture rewards, and physical Old/New 3DS verification
 remain open.
+
+## Stock campaign map archive
+
+`tools/verify_stock_campaign_archive.py --assets ASSETS_JAR --stage STAGING_DIR`
+runs the ARM11 campaign map packer and compares every output map byte with
+the official v160.8 archive. It checks 78 Serpulo maps, including 46
+numbered sectors, and 17 Erekir maps.
+
+Pass the staging directory and a new save directory to
+`runStockCampaignArchiveJvm` with `-Pprobe=singleplayer`. The test reads
+all 95 map headers, checks their preset associations, and loads the original
+600×600 Littoral Shipyard and Serpulo 242 worlds. The stock patch paths and
+contents survive a save and reload on the JVM. The unmodified v160.8 Java
+server reopened both saves and read the original sector IDs, dimensions,
+and patch counts. Handheld loading and frame rate for these large maps
+require separate measurements.
