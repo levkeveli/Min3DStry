@@ -1198,7 +1198,15 @@ public final class UpstreamSinglePlayerApp {
     }
 
     private void drawPauseMenu() {
-        drawPauseRow(Core.bundle.get("paused"), 116f, 40f, false);
+        drawPauseRow(Core.bundle.get("paused"), 116f, 32f, false);
+        var sector = Vars.state.rules.sector;
+        if (sector != null) {
+            drawPauseRow(sector.planet.localizedName + " / " + sector.name(), 92f, 58f, false);
+        }
+        var objectives = UpstreamObjectiveHud.collect(Vars.state.rules);
+        if (!objectives.isEmpty()) {
+            drawPauseRow(objectives.get(0).text(), 56f, 82f, false);
+        }
         String[] options;
         if (pauseMenu.options() == 4) {
             options = new String[]{Core.bundle.get("back"), Core.bundle.get("research"),
@@ -1207,11 +1215,11 @@ public final class UpstreamSinglePlayerApp {
             options = new String[]{Core.bundle.get("back"), Core.bundle.get("savegame"),
                 Core.bundle.get("quit")};
         }
-        float y = 86f;
+        float y = 112f;
         for (int i = 0; i < options.length; i++) {
             boolean selected = i == pauseMenu.selected();
             drawPauseRow((selected ? "> " : "  ") + options[i], 128f, y, selected);
-            y += 36f;
+            y += 28f;
         }
         if (pauseMenu.confirmingQuit()) {
             drawPauseRow(Core.bundle.get("quit.confirm"), 40f, 210f, false);
