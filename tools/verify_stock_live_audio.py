@@ -40,10 +40,12 @@ AUDIO_PACKETS = (
     '.map(s=>Sounds.getSoundId(s)).join(","); })()'
 )
 WEATHER_PACKETS = (
-    '(() => { Call.createWeather(Weathers.rain, 1, 600, 0, 0); '
-    'Call.createWeather(Weathers.snow, 1, 600, 0, 0); '
-    'Call.createWeather(Weathers.sandstorm, 1, 600, 0, 0); '
-    'return "UPSTREAM_STOCK_WEATHER_SENT"; })()'
+    '(() => { const names=["rain","snowing","sandstorm"]; '
+    'for (let i=0;i<names.length;i++) { const name=names[i]; '
+    'const weather=Vars.content.weather(name); '
+    'if (weather==null || String(weather.name)!==name) throw "Missing stock weather "+name; '
+    'Call.createWeather(weather, 1, 600, 0, 0); '
+    '} return "UPSTREAM_STOCK_WEATHER_SENT "+names.join(","); })()'
 )
 
 
@@ -104,7 +106,8 @@ def verify_model(args, model, fixture):
     def verify_input(log, proc, rpc, output):
         stock_command(*stock, "js " + AUDIO_PACKETS, r"UPSTREAM_AUDIO_PACKETS 185,198,200\b")
         if args.weather:
-            stock_command(*stock, "js " + WEATHER_PACKETS, r"UPSTREAM_STOCK_WEATHER_SENT\b")
+            stock_command(*stock, "js " + WEATHER_PACKETS,
+                          r"UPSTREAM_STOCK_WEATHER_SENT rain,snowing,sandstorm\b")
         verify_controls(log, proc, rpc, output)
 
     stock = None

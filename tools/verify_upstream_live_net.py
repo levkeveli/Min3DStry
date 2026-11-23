@@ -14,6 +14,7 @@ import time
 import zipfile
 
 import verify_azahar as az
+from stock_puddle_fixture import DEPOSIT as PUDDLE_DEPOSIT, SETUP as PUDDLE_SETUP, changed_colors
 
 
 SERVER_SHA256 = "faeaf247a8b622de940181a96cb21cb20692d3c3da4e8ac3f79cb4af5059aa6c"
@@ -174,7 +175,15 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
                 movie.write(touch if point else pad)
 
 
-def stop(proc):
+def stop(proc, azahar_bin=None):
+    if az._is_flatpak_azahar(azahar_bin):
+        result = subprocess.run(["flatpak", "ps", "--columns=instance,pid"],
+                                capture_output=True, text=True, check=False)
+        for row in result.stdout.splitlines():
+            fields = row.split()
+            if len(fields) == 2 and fields[1] == str(proc.pid):
+                subprocess.run(["flatpak", "kill", fields[0]], check=False)
+                break
     if proc.poll() is None:
         proc.terminate()
         try:
@@ -1488,6 +1497,22 @@ def verify_client_processor(server_log, server, rpc, output, model, timeout):
     print(f"{model}: stock processor config, link and client-local Canvas writes passed.", flush=True)
 
 
+def verify_stock_puddles(server_log, server, rpc, output, model, timeout):
+    before = rpc.screenshot()
+    send_marker_phase(server_log, server, "puddles-deposited", PUDDLE_DEPOSIT)
+    deadline = time.monotonic() + min(timeout, 30)
+    while time.monotonic() < deadline:
+        after = rpc.screenshot()
+        water, neoplasm = changed_colors(before, after)
+        if min(water, neoplasm) >= 12:
+            (output / f"{model}-puddles-before.png").write_bytes(before)
+            (output / f"{model}-puddles-after.png").write_bytes(after)
+            print(f"{model}: stock puddle snapshots matched water/neoplasm samples {water}/{neoplasm}.", flush=True)
+            return
+        time.sleep(0.15)
+    raise RuntimeError(f"{model}: original liquid colors did not appear after the stock entity snapshot")
+
+
 def verify_logic_displays(server_log, server, rpc, output, model, timeout):
     # The normal display sits below the live HUD in the unified ROM.
     points = ((123, 130), (150, 170), (141, 163), (300, 50), (120, 190))
@@ -1575,7 +1600,7 @@ def run_model(args, model, config, original_config, log, output):
                   or args.tank_treads or args.map_spawn or args.combat
                   or args.verify_logic_markers or args.verify_texture_markers or args.verify_quad_markers or args.verify_canvas
                   or args.verify_canvas_quads or args.verify_client_processor or args.verify_logic_displays
-                  or args.verify_display_markers or args.verify_weather_layers)
+                  or args.verify_display_markers or args.verify_puddles or args.verify_weather_layers)
     map_name = args.map_spawn or "Glacier"
     overrides = {
         "Miscellaneous": {"log_filter": "*:Info Debug.Emulated:Debug Service.SOC:Debug",
@@ -1622,6 +1647,8 @@ def run_model(args, model, config, original_config, log, output):
                     "const rules=Vars.state.rules; rules.worldProcessorPlayerLink=true; "
                     "rules.allowEditWorldProcessors=true; "
                     f"Vars.world.tile({PROCESSOR_CANVAS_COLUMN},32).setBlock(Blocks.worldProcessor,rules.defaultTeam);")
+            if args.verify_puddles:
+                send_marker_phase(server_log, server, "puddles-clear", PUDDLE_SETUP)
             if args.verify_logic_displays:
                 send_marker_phase(server_log, server, "display-fixture",
                     "const rules=Vars.state.rules; rules.worldProcessorPlayerLink=true; "
@@ -1914,6 +1941,8 @@ def run_model(args, model, config, original_config, log, output):
                             verify_canvas_quads(log, emulator, server_log, server, rpc, output, model, spawn, args.timeout)
                         if args.verify_client_processor:
                             verify_client_processor(server_log, server, rpc, output, model, args.timeout)
+                        if args.verify_puddles:
+                            verify_stock_puddles(server_log, server, rpc, output, model, args.timeout)
                         if args.verify_logic_displays:
                             verify_logic_displays(server_log, server, rpc, output, model, args.timeout)
                         if args.verify_display_markers:
@@ -1994,8 +2023,14 @@ def run_model(args, model, config, original_config, log, output):
                     (output / f"{model}.png").write_bytes(rpc.screenshot())
             finally:
                 rpc.close()
-                stop(emulator)
+                stop(emulator, str(args.azahar))
                 (output / f"{model}-emulator.log").write_bytes(log.read_bytes())
+            if args.require_deferred_graphics:
+                trace = log.read_text(encoding="utf-8", errors="replace")
+                decoded = trace.find("UPSTREAM_WORLD_DECODED beforeGraphics=true")
+                graphics = trace.find("UPSTREAM_INTERFACE_GRAPHICS atlas")
+                if not 0 <= decoded < graphics:
+                    raise RuntimeError("Expected WorldStream decode to finish before graphics allocation")
             if not args.controls:
                 validate(emu_log)
             disconnected = rf"{PLAYER} has disconnected"
@@ -2011,7 +2046,7 @@ def run_model(args, model, config, original_config, log, output):
             server.stdin.write("exit\n")
             server.stdin.flush()
             server.wait(timeout=10)
-            upstream = server_log.read_text(encoding="utf-8", errors="replace")
+            upstream = re.sub(r"\x1b\[[0-9;]*m", "", server_log.read_text(encoding="utf-8", errors="replace"))
             departures = [line for line in upstream.splitlines() if f"{PLAYER} has disconnected" in line]
             # NetServer.sync can observe the closed transport before the disconnect event runs.
             # The stationary render check ends by terminating the emulator process.
@@ -2149,10 +2184,14 @@ def main():
                         help="Verify stock quads backed by an offscreen Canvas on Glacier")
     parser.add_argument("--verify-client-processor", action="store_true",
                         help="Verify a stock processor writes to its linked Canvas on the client")
+    parser.add_argument("--verify-puddles", action="store_true",
+                        help="Verify water and neoplasm in stock Glacier entity snapshots")
     parser.add_argument("--verify-logic-displays", action="store_true",
                         help="Verify normal, large, and tileable Logic Displays on Glacier")
     parser.add_argument("--verify-display-markers", action="store_true",
                         help="Verify stock markers sampling an offscreen Logic Display on Glacier")
+    parser.add_argument("--require-deferred-graphics", action="store_true",
+                        help="Require WorldStream decode to finish before loading the renderer atlas")
     parser.add_argument("--require-relocation-spill", action="store_true",
                         help="Require the ARM11 collector to grow its relocation table during the spawn check")
     args = parser.parse_args()
@@ -2259,6 +2298,8 @@ def main():
     if args.verify_client_processor and (not args.controls or not args.terrain_atlas or args.controls_replay
                                         or args.map_spawn or args.verify_canvas):
         parser.error("--verify-client-processor needs stationary --controls and --terrain-atlas on Glacier")
+    if args.verify_puddles and (not args.controls or not args.terrain_atlas or args.controls_replay or args.map_spawn):
+        parser.error("--verify-puddles needs stationary --controls and --terrain-atlas on Glacier")
     if args.verify_logic_displays and (not args.controls or not args.terrain_atlas or args.controls_replay
                                        or args.map_spawn or args.verify_canvas or args.verify_canvas_quads
                                        or args.verify_client_processor):
@@ -2272,6 +2313,8 @@ def main():
         with zipfile.ZipFile(args.server) as release:
             if f"maps/erekir/{args.erekir_sector}.msav" not in release.namelist():
                 parser.error(f"No Erekir sector {args.erekir_sector!r} in the official server jar")
+    if args.require_deferred_graphics and not args.terrain_atlas:
+        parser.error("--require-deferred-graphics needs --terrain-atlas")
     if args.require_relocation_spill and not args.map_spawn:
         parser.error("--require-relocation-spill needs --map-spawn")
     if args.building_effects and (not args.terrain_atlas or not args.controls or args.controls_replay):
@@ -2290,8 +2333,8 @@ def main():
         atlas_bytes = args.terrain_atlas.read_bytes()
         if hashlib.sha256(atlas_bytes).hexdigest() != ATLAS_SHA256:
             parser.error("Expected the official v160.8 sprites.aatls")
-    config, log = az.resolve_azahar_paths()
-    endpoint = config.parent.parent / "sdmc/3ds/min3dstry/server-endpoint.txt"
+    config, log = az.resolve_azahar_paths(str(args.azahar))
+    endpoint = log.parent.parent / "sdmc/3ds/min3dstry/server-endpoint.txt"
     originals = {path: path.read_bytes() if path.exists() else None for path in (config, log, endpoint)}
     atlas_path = endpoint.with_name("sprites.aatls")
     locale_path = endpoint.with_name("locale.txt")
