@@ -1041,7 +1041,9 @@ final class GlacierFixture {
                 source = source.replace(soundGuard,
                     'if(sound == null || (headless && !(Core.audio instanceof port.audio.Arm11Audio))) return;')
             }
-            def loading = '''        ui.loadfrag.show("@connecting.establish");
+            def loading = '''        net.setClientLoaded(false);
+
+        ui.loadfrag.show("@connecting.establish");
 
         ui.loadfrag.setButton(() -> {
             ui.loadfrag.hide();
@@ -1052,13 +1054,11 @@ final class GlacierFixture {
             if (source.count(loading) != 1 || source.count(finish) != 1) {
                 throw new GradleException('Pinned NetClient world transition changed')
             }
-            source = source.replace(loading, '''        if(ui != null){
-''' + loading.readLines().collect { it.isEmpty() ? it : '    ' + it }.join('\n') + '''
-        }''').replace(finish, '''    /** Completes the upstream state transition when the platform owns connection UI. */
+            // Native Arc dispatch owns the stream queue and loading screen on 3DS.
+            source = source.replace(loading, '').replace(finish, '''    /** Completes the upstream state transition when the platform owns packet dispatch. */
     public void finishSnapshotWorld(){
         state.set(State.playing);
         connecting = false;
-        net.setClientLoaded(true);
         lastSnapshotTimestamp = Time.millis();
     }
 
