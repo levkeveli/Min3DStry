@@ -1,0 +1,232 @@
+#!/usr/bin/env python3
+"""Verify the live singleplayer HUD minimap on Azahar and capture its frame."""
+
+from __future__ import annotations
+
+import argparse
+import re
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from verify_azahar import (  # noqa: E402
+    AzaharRpcClient,
+    _is_flatpak_azahar,
+    inspect_png,
+    patch_qt_config_text,
+    resolve_azahar_bin,
+    resolve_azahar_paths,
+)
+
+ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_ROM = ROOT / "research/upstream-runtime/build/singleplayer-minimap/upstream-probe.3dsx"
+MINIMAP_LOG = "UPSTREAM_MINIMAP size=64"
+# The app samples 64x64 and draws it at (336, 8) with a 56 px edge on the top screen.
+MINIMAP_BOX = (336, 8, 56, 56)
+MINIMAP_SIZE = 64
+MINIMAP_DRAW = 56
+MINIMAP_SAMPLES = tuple(
+    (x, y)
+    for y in range(10, 64, 2)
+    for x in range(338, 392, 2)
+)
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--rom", type=Path, default=DEFAULT_ROM)
+    parser.add_argument("--model", choices=("new3ds", "old3ds"), default="new3ds")
+    parser.add_argument("--slot", type=int, default=0)
+    parser.add_argument(
+        "--items",
+        default=None,
+        help="Comma-separated item=amount entries to seed into the local core, e.g. copper=200,lead=75",
+    )
+    parser.add_argument("--out", type=Path, default=None)
+    parser.add_argument("--timeout", type=float, default=240.0)
+    parser.add_argument("--azahar", default=None)
+    args = parser.parse_args()
+
+    rom = args.rom if args.rom.is_absolute() else (Path.cwd() / args.rom)
+    if not rom.is_file():
+        print(f"verify_minimap_azahar: ROM not found: {rom}", file=sys.stderr)
+        return 2
+    out = args.out or (ROOT / f"build/emu-verify/minimap-{args.model}.png")
+
+    azahar_bin = resolve_azahar_bin(args.azahar)
+    config_path, log_path = resolve_azahar_paths(azahar_bin)
+    had_config = config_path.exists()
+    original_config = config_path.read_text(encoding="utf-8") if had_config else ""
+    overrides = {
+        "Miscellaneous": {
+            "log_filter": "*:Info Debug.Emulated:Debug",
+            "check_for_update_on_start": "false",
+        },
+        "Debugging": {
+            "enable_rpc_server": "true",
+            "instant_debug_log": "true",
+        },
+        "UI": {
+            "firstStart": "false",
+            "confirmClose": "false",
+        },
+        "System": {
+            "is_new_3ds": "true" if args.model == "new3ds" else "false",
+        },
+    }
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    config_path.write_text(patch_qt_config_text(original_config, overrides), encoding="utf-8")
+    if log_path.exists():
+        log_path.write_text("", encoding="utf-8")
+
+    sdmc = log_path.parent.parent / "sdmc"
+    sd_min3dstry = sdmc / "3ds/min3dstry"
+    select = sd_min3dstry / "campaign-select.txt"
+    select.parent.mkdir(parents=True, exist_ok=True)
+    previous_selection = select.read_bytes() if select.exists() else None
+    select.write_text(f"{args.slot}\n", encoding="utf-8")
+    item_fixture = sd_min3dstry / "hud-items.txt"
+    previous_items = item_fixture.read_bytes() if item_fixture.exists() else None
+    expected_items = 0
+    if args.items:
+        lines = []
+        for entry in args.items.split(","):
+            if "=" not in entry:
+                raise SystemExit(f"invalid --items entry: {entry}")
+            item, amount = entry.split("=", 1)
+            if int(amount) > 0:
+                expected_items += 1
+            lines.append(f"{item.strip()}={int(amount)}\n")
+        item_fixture.write_text("".join(lines), encoding="utf-8")
+
+    proc = subprocess.Popen(
+        [azahar_bin, str(rom)],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    rpc = AzaharRpcClient(timeout=2.0, retries=3)
+    try:
+        deadline = time.monotonic() + args.timeout
+        loaded = False
+        while time.monotonic() < deadline:
+            if proc.poll() is not None:
+                raise RuntimeError(f"Azahar exited early with status {proc.returncode}")
+            text = log_path.read_text(encoding="utf-8", errors="replace") if log_path.exists() else ""
+            if "UPSTREAM_SP_LOADED" in text:
+                loaded = True
+            if MINIMAP_LOG in text:
+                print(next(line for line in text.splitlines() if MINIMAP_LOG in line))
+                break
+            time.sleep(0.5)
+        if not loaded:
+            raise RuntimeError("Singleplayer session did not load")
+        text = log_path.read_text(encoding="utf-8", errors="replace")
+        if MINIMAP_LOG not in text:
+            raise RuntimeError("Minimap upload trace did not appear")
+        match = re.search(r"UPSTREAM_MINIMAP size=64 hash=[0-9a-f]+(?: cell=(\d+),(\d+))?", text)
+        cell = (int(match.group(1)), int(match.group(2))) if match and match.group(1) else None
+        # Let the game render several frames after the upload.
+        time.sleep(5.0)
+        text = log_path.read_text(encoding="utf-8", errors="replace")
+        item_match = re.search(
+            r"UPSTREAM_ITEM_ROWS items=(\d+) drawn=(\d+) columns=(\d+)", text
+        )
+        if args.items:
+            if not item_match:
+                raise RuntimeError("Core item row trace did not appear")
+            logged_items, drawn, columns = map(int, item_match.groups())
+            if logged_items != expected_items or drawn != expected_items:
+                raise AssertionError(
+                    f"Core item rows incomplete: expected={expected_items} "
+                    f"items={logged_items} drawn={drawn} columns={columns}"
+                )
+        png = b""
+        last_error: Exception | None = None
+        for _ in range(3):
+            try:
+                png = rpc.screenshot()
+                break
+            except Exception as failure:  # noqa: BLE001 - retry transient emulator timeouts
+                last_error = failure
+                time.sleep(2.0)
+        if not png:
+            raise RuntimeError(f"Azahar screenshot failed: {last_error}")
+
+        samples = list(MINIMAP_SAMPLES)
+        marker_points: list[tuple[int, int]] = []
+        if cell is not None:
+            # The native upload reverses Y, so sampler row 0 is the image bottom.
+            cx = MINIMAP_BOX[0] + (cell[0] + 0.5) * MINIMAP_DRAW / MINIMAP_SIZE
+            cy = MINIMAP_BOX[1] + (MINIMAP_SIZE - 1 - cell[1] + 0.5) * MINIMAP_DRAW / MINIMAP_SIZE
+            for dx in range(-2, 3):
+                for dy in range(-2, 3):
+                    point = (round(cx + dx), round(cy + dy))
+                    samples.append(point)
+                    marker_points.append(point)
+        info = inspect_png(png, tuple(samples))
+        colors = set(info.get("samples", {}).values())
+        if len(colors) < 4:
+            raise AssertionError(
+                f"Minimap region is flat: {len(colors)} distinct sample colors "
+                f"(expected >= 4) at {MINIMAP_BOX}"
+            )
+        if cell is not None:
+            white = [
+                point for point in marker_points
+                if all(channel >= 250 for channel in info["samples"][point])
+            ]
+            if not white:
+                raise AssertionError(
+                    f"Minimap player marker missing at sampled cell {cell}"
+                )
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_bytes(png)
+        item_summary = ""
+        if args.items:
+            item_summary = f" items={logged_items} drawn={drawn} columns={columns}"
+        print(
+            f"[PASS] minimap model={args.model} distinct={len(colors)} "
+            f"cell={cell} marker={'white' if cell is not None else 'unreported'}"
+            f"{item_summary} size={info['width']}x{info['height']} PNG={out}"
+        )
+        return 0
+    finally:
+        rpc.close()
+        if _is_flatpak_azahar(azahar_bin):
+            # Target only this sandbox. The launcher can exit before Azahar does.
+            running = subprocess.run(
+                ["flatpak", "ps", "--columns=instance,pid"],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            for line in running.stdout.splitlines():
+                fields = line.split()
+                if len(fields) == 2 and fields[1] == str(proc.pid):
+                    subprocess.run(["flatpak", "kill", fields[0]], check=True)
+                    break
+        if proc.poll() is None:
+            proc.terminate()
+            try:
+                proc.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait(timeout=5)
+        if previous_selection is not None:
+            select.write_bytes(previous_selection)
+        else:
+            select.unlink(missing_ok=True)
+        if previous_items is not None:
+            item_fixture.write_bytes(previous_items)
+        else:
+            item_fixture.unlink(missing_ok=True)
+        if had_config:
+            config_path.write_text(original_config, encoding="utf-8")
+        elif config_path.exists():
+            config_path.unlink()
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

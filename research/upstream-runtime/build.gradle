@@ -367,6 +367,10 @@ if (usesSinglePlayer) {
             classpath = sourceSets.main.runtimeClasspath
             mainClass = 'UpstreamStockAssemblerReference'
         }
+        tasks.register('runStockPayloadLoopJvm', JavaExec) {
+            classpath = sourceSets.main.runtimeClasspath
+            mainClass = 'UpstreamStockPayloadLoopReference'
+        }
         tasks.register('runErekirHeatJvm', JavaExec) {
             classpath = sourceSets.main.runtimeClasspath
             mainClass = 'UpstreamErekirHeatReference'
@@ -411,7 +415,7 @@ if (usesSinglePlayer) {
     }
     if (!usesSinglePlayerApp) {
         sourceSets.main.java.exclude('UpstreamSinglePlayerApp.java', 'UpstreamSinglePlayerInput.java',
-            'UpstreamOfflineWeaponInput.java')
+            'UpstreamOfflineWeaponInput.java', 'UpstreamMapEditorApp.java')
     } else if (!usesLiveNetwork) {
         sourceSets.main.java.srcDir('src/network-live/java')
         sourceSets.main.java.srcDir('src/network-render/java')
