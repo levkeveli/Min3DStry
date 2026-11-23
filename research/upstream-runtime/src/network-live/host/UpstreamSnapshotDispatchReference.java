@@ -36,6 +36,7 @@ import mindustry.gen.CompleteObjectiveCallPacket;
 import mindustry.gen.CreateMarkerCallPacket;
 import mindustry.gen.EntitySnapshotCallPacket;
 import mindustry.gen.GameOverCallPacket;
+import mindustry.gen.BuildingTetherc;
 import mindustry.gen.Groups;
 import mindustry.gen.HiddenSnapshotCallPacket;
 import mindustry.gen.Player;
@@ -49,6 +50,7 @@ import mindustry.gen.StateSnapshotCallPacket;
 import mindustry.gen.Syncc;
 import mindustry.gen.TileConfigCallPacket;
 import mindustry.gen.Unit;
+import mindustry.gen.UnitTetherBlockSpawnedCallPacket;
 import mindustry.gen.UnitControlCallPacket;
 import mindustry.gen.UpdateGameOverCallPacket;
 import mindustry.gen.UpdateMarkerCallPacket;
@@ -66,6 +68,7 @@ import mindustry.world.blocks.distribution.ItemBridge.ItemBridgeBuild;
 import mindustry.world.blocks.payloads.BuildPayload;
 import mindustry.world.blocks.ControlBlock;
 import mindustry.world.blocks.payloads.PayloadConveyor.PayloadConveyorBuild;
+import mindustry.world.blocks.units.UnitCargoLoader.UnitTransportSourceBuild;
 import mindustry.world.modules.ItemModule;
 
 public final class UpstreamSnapshotDispatchReference {
@@ -143,6 +146,7 @@ public final class UpstreamSnapshotDispatchReference {
         System.out.println("UPSTREAM_SNAPSHOT_REFERENCE wave=" + state.wave
             + " seconds=42 copper=947 dagger=" + dagger.id);
         verifyEntityLifecycle(dagger);
+        verifyCargoTether(core.team);
         verifyPayloadHandoff();
         verifyObjectivePackets();
         verifyMarkerPackets();
@@ -186,6 +190,43 @@ public final class UpstreamSnapshotDispatchReference {
             throw new AssertionError("The disconnected player must stay removed after a late snapshot");
         }
         System.out.println("UPSTREAM_ENTITY_LIFECYCLE fog=hidden visible=restored disconnect=removed lateSnapshot=ignored");
+    }
+
+    private static void verifyCargoTether(mindustry.game.Team team) throws IOException {
+        var tile = Vars.world.tile(56, 66);
+        tile.setBlock(Blocks.unitCargoLoader, team);
+        var loader = (UnitTransportSourceBuild)tile.build;
+        loader.efficiency = 1f;
+        loader.buildProgress = 1f;
+        int units = Groups.unit.size();
+        loader.updateTile();
+        if (loader.unit != null || Groups.unit.size() != units) {
+            throw new AssertionError("Stock client must leave Manifold creation to the server");
+        }
+
+        var manifold = UnitTypes.manifold.create(team);
+        manifold.id(32102);
+        manifold.set(loader.x, loader.y);
+        ((BuildingTetherc)manifold).building(loader);
+        var spawned = new UnitTetherBlockSpawnedCallPacket();
+        spawned.tile = tile;
+        spawned.id = manifold.id;
+        applyPacket(spawned, UpstreamLiveNetworkProbe.entityLifecyclePacket(Net.getPacketId(spawned) & 0xff));
+        if (loader.readUnitId != manifold.id || loader.buildProgress != 0f) {
+            throw new AssertionError("Stock cargo spawn should reset construction and defer lookup");
+        }
+        loader.updateTile();
+        if (loader.unit != null || loader.readUnitId != manifold.id) {
+            throw new AssertionError("Loader lost the server ID before the unit snapshot arrived");
+        }
+        applyEntitySnapshot(manifold);
+        loader.updateTile();
+        if (loader.unit == null || loader.unit.id != manifold.id || loader.unit.type != UnitTypes.manifold
+                || ((BuildingTetherc)loader.unit).building() != loader || loader.readUnitId != -1
+                || loader.readyness <= 0f || Groups.unit.size() != units + 1) {
+            throw new AssertionError("Stock loader did not resolve the original Manifold and advance its draw state");
+        }
+        System.out.println("UPSTREAM_CARGO_TETHER deferred=kept unit=manifold building=linked server=authoritative");
     }
 
     private static void applyEntitySnapshot(Syncc entity) throws IOException {

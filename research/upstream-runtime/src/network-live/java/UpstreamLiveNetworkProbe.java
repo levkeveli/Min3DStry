@@ -95,6 +95,7 @@ import mindustry.gen.UnitControlCallPacket;
 import mindustry.gen.UnitDespawnCallPacket;
 import mindustry.gen.UnitDestroyCallPacket;
 import mindustry.gen.UnitSpawnCallPacket;
+import mindustry.gen.UnitTetherBlockSpawnedCallPacket;
 import mindustry.gen.UpdateGameOverCallPacket;
 import mindustry.gen.UpdateMarkerCallPacket;
 import mindustry.gen.UpdateMarkerTextCallPacket;
@@ -751,6 +752,7 @@ public final class UpstreamLiveNetworkProbe {
     static Packet entityLifecyclePacket(int id) {
         if (id == unsignedId(HiddenSnapshotCallPacket.class)) return new HiddenSnapshotCallPacket();
         if (id == unsignedId(PlayerDisconnectCallPacket.class)) return new PlayerDisconnectCallPacket();
+        if (id == unsignedId(UnitTetherBlockSpawnedCallPacket.class)) return new UnitTetherBlockSpawnedCallPacket();
         return null;
     }
 

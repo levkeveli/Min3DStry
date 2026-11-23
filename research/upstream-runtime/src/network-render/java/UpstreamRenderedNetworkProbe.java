@@ -35,6 +35,7 @@ import mindustry.gen.UnitWaterMove;
 import mindustry.graphics.CacheLayer;
 import mindustry.type.UnitType;
 import mindustry.world.blocks.units.UnitFactory;
+import mindustry.world.blocks.units.UnitCargoLoader.UnitTransportSourceBuild;
 import mindustry.world.blocks.units.UnitFactory.UnitFactoryBuild;
 import mindustry.world.Block;
 import mindustry.type.Category;
@@ -247,6 +248,8 @@ public final class UpstreamRenderedNetworkProbe {
                 if (build instanceof TileableLogicDisplayBuild display) display.updateTile();
                 if (build instanceof ConduitBuild conduit) conduit.advanceLiquidDraw();
                 if (build instanceof UnitFactoryBuild factory) advanceFactoryDraw(factory);
+                // The upstream loader resolves its tether and advances animation on clients without spawning units.
+                if (build instanceof UnitTransportSourceBuild loader) loader.updateTile();
             }
             for (var unit : Groups.unit) {
                 if (unit instanceof UnitWaterMove boat) boat.advanceWake();
