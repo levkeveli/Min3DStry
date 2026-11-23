@@ -91,8 +91,18 @@ static bool minimap_ready;
 static int minimap_width, minimap_height;
 static uint8_t minimap_pixels[128 * 128 * 4] __attribute__((aligned(8)));
 
+static unsigned raster_texel(unsigned x, unsigned y, unsigned row_width) {
+    unsigned morton = 0;
+    for (unsigned bit = 0; bit < 3; bit++) {
+        morton |= ((x >> bit) & 1) << (2 * bit);
+        morton |= ((y >> bit) & 1) << (2 * bit + 1);
+    }
+    return ((y / 8) * (row_width / 8) + x / 8) * 64 + morton;
+}
+
 void m3ds_terrain_minimap_upload(const uint8_t *pixels, int32_t width, int32_t height) {
-    if (!pixels || width <= 0 || height <= 0 || width > 128 || height > 128) return;
+    if (!pixels || width < 8 || height < 8 || width > 128 || height > 128
+            || (width & (width - 1)) || (height & (height - 1))) return;
     if (!minimap_ready || width != minimap_width || height != minimap_height) {
         if (minimap_ready) C3D_TexDelete(&minimap_texture);
         minimap_ready = false;
@@ -109,15 +119,17 @@ void m3ds_terrain_minimap_upload(const uint8_t *pixels, int32_t width, int32_t h
         minimap_height = height;
         minimap_ready = true;
     }
-    // PICA200 GPU_RGBA8 stores texels as ABGR in memory, and
-    // C3D_TexLoadImage needs an 8-byte-aligned source. A Java byte[]
-    // pointer is not guaranteed aligned, so convert into the static buffer.
-    size_t count = (size_t)width * (size_t)height;
-    for (size_t i = 0; i < count; i++) {
-        minimap_pixels[i * 4 + 0] = pixels[i * 4 + 3];
-        minimap_pixels[i * 4 + 1] = pixels[i * 4 + 2];
-        minimap_pixels[i * 4 + 2] = pixels[i * 4 + 1];
-        minimap_pixels[i * 4 + 3] = pixels[i * 4 + 0];
+    // PICA200 stores ABGR texels in Morton order within each 8-by-8 tile.
+    // The source starts at world Y=0, which belongs at the bottom of the map.
+    for (int y = 0; y < height; y++) {
+        for (int x = 0; x < width; x++) {
+            const uint8_t *rgba = pixels + ((height - 1 - y) * width + x) * 4;
+            uint8_t *abgr = minimap_pixels + raster_texel(x, y, width) * 4;
+            abgr[0] = rgba[3];
+            abgr[1] = rgba[2];
+            abgr[2] = rgba[1];
+            abgr[3] = rgba[0];
+        }
     }
     C3D_TexUpload(&minimap_texture, minimap_pixels);
 }
@@ -580,15 +592,6 @@ int32_t m3ds_terrain_draw(int32_t page, int32_t left, int32_t top, int32_t width
 }
 
 #ifdef M3DS_WORLD_ATLAS
-static unsigned raster_texel(unsigned x, unsigned y, unsigned row_width) {
-    unsigned morton = 0;
-    for (unsigned bit = 0; bit < 3; bit++) {
-        morton |= ((x >> bit) & 1) << (2 * bit);
-        morton |= ((y >> bit) & 1) << (2 * bit + 1);
-    }
-    return ((y / 8) * (row_width / 8) + x / 8) * 64 + morton;
-}
-
 static int texture_dimension(int size) {
     int dimension = 8;
     while (dimension < size) dimension *= 2;

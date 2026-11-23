@@ -28,8 +28,9 @@ the objective HUD. They are rebuilt only when the rendered status text changes,
 then submitted through `drawObjective` before the objective rows.
 
 The minimap is a native citro2d texture. TeaVM samples the live world into an
-RGBA8 grid; the ARM11 renderer converts it to the PICA200's in-memory ABGR
-order and uploads it through an aligned static buffer. Uploads happen once at
+RGBA8 grid. The ARM11 renderer reverses the world Y axis as the stock minimap
+does and converts the pixels to the PICA200's ABGR byte order and 8-by-8
+Morton layout before uploading them through an aligned buffer. Uploads happen once at
 startup and every 60 rendered frames. The texture draw rebinds the top screen
 because the build palette leaves the bottom screen selected.
 
@@ -70,14 +71,16 @@ python tools/verify_minimap_azahar.py --model old3ds
 ```
 
 ```text
-UPSTREAM_MINIMAP size=64 hash=e32ce219f3b55675
-[PASS] minimap model=new3ds distinct=7 size=400x480 PNG=build/emu-verify/minimap-new3ds.png
-[PASS] minimap model=old3ds distinct=7 size=400x480 PNG=build/emu-verify/minimap-old3ds.png
+UPSTREAM_MINIMAP size=64 hash=1bb8ba2afa313b20
+[PASS] minimap model=new3ds distinct=11 size=400x480 PNG=build/emu-verify/minimap-new3ds.png
+[PASS] minimap model=old3ds distinct=11 size=400x480 PNG=build/emu-verify/minimap-old3ds.png
 ```
 
 The verifier selects a sector through `campaign-select.txt`, waits for the
 singleplayer load and minimap upload markers, captures the frame, and rejects a
-flat minimap region (fewer than four distinct sampled colors).
+flat minimap region (fewer than four distinct sampled colors). Inspect the
+captured terrain pattern as well, since the color count cannot detect scrambled
+texture tiles.
 
 The live fixture exercises the countdown/waiting path with `enemies=0`. The
 singular/plural enemy rows, the `wave.waveInProgress` branch, and the `m:ss`

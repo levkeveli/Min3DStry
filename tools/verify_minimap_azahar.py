@@ -12,6 +12,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from verify_azahar import (  # noqa: E402
     AzaharRpcClient,
+    _is_flatpak_azahar,
     inspect_png,
     patch_qt_config_text,
     resolve_azahar_bin,
@@ -79,9 +80,13 @@ def main() -> int:
     previous_selection = select.read_bytes() if select.exists() else None
     select.write_text(f"{args.slot}\n", encoding="utf-8")
 
-    proc = subprocess.Popen([azahar_bin, str(rom)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    proc = subprocess.Popen(
+        [azahar_bin, str(rom)],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    rpc = AzaharRpcClient(timeout=2.0, retries=3)
     try:
-        rpc = AzaharRpcClient(timeout=2.0, retries=3)
         deadline = time.monotonic() + args.timeout
         loaded = False
         while time.monotonic() < deadline:
@@ -128,11 +133,27 @@ def main() -> int:
         )
         return 0
     finally:
-        proc.terminate()
-        try:
-            proc.wait(timeout=10)
-        except subprocess.TimeoutExpired:
-            proc.kill()
+        rpc.close()
+        if _is_flatpak_azahar(azahar_bin):
+            # Target only this sandbox. The launcher can exit before Azahar does.
+            running = subprocess.run(
+                ["flatpak", "ps", "--columns=instance,pid"],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            for line in running.stdout.splitlines():
+                fields = line.split()
+                if len(fields) == 2 and fields[1] == str(proc.pid):
+                    subprocess.run(["flatpak", "kill", fields[0]], check=True)
+                    break
+        if proc.poll() is None:
+            proc.terminate()
+            try:
+                proc.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait(timeout=5)
         if previous_selection is not None:
             select.write_bytes(previous_selection)
         else:
