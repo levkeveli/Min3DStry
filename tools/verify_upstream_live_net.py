@@ -1876,9 +1876,10 @@ def run_model(args, model, config, original_config, log, output):
                                        else "Packages.mindustry.net.Packets.KickReason.kick")
                         server.stdin.write(
                             f'js (() => {{ const player = Groups.player.find(boolf(p => String(p.name) === {json.dumps(PLAYER)})); '
-                            f'Call.kick(player.con, {wire_reason}); }})()\n'
+                            f'player.con.kick({wire_reason}, 0); }})()\n'
                         )
                         server.stdin.flush()
+                        wait_for(server_log, server, rf"Kicking connection .*Reason: {re.escape(reason)}", args.timeout)
                         wait_for(log, emulator,
                                  rf"UPSTREAM_LIVE_CONTROLS_KICK kind={args.server_kick} reason={re.escape(reason)}",
                                  args.timeout)
