@@ -76,8 +76,8 @@ Mindustry settings keys through `SaveIO` and flushes `Settings` to the same
 SD directory. The offline interface uses the saved PC language preference
 when available. A nonempty SD `locale.txt` overrides the displayed language
 for that launch and preserves the PC setting. Arc manages the settings backup.
-The standalone and unified offline modes reserve a 512 KiB native stack
-for campaign saves with nested objective markers. This adds 256 KiB to
+The graphical 3DS binaries with offline support reserve a 512 KiB native
+stack for campaign saves with nested objective markers. This adds 256 KiB to
 the static budget of builds that used the earlier 256 KiB stack.
 
 The [ARM11 build from `c42a78b`](https://github.com/levkeveli/Min3DStry/actions/runs/45042352829)
@@ -100,8 +100,8 @@ metadata, renamed-slot selection, language selection, the settings backup, and t
 after saving.
 Passing the same fixtures to `tools/verify_upstream_campaign_resume.py`
 checks the initial menu selection and saves a copy of the native settings for
-each run. The stock reader can check those files with
-`python3 tools/campaign_settings_fixture.py --server server-release.jar --check /path/to/new3ds-single-settings.bin --sector 170 --after-play`
+each run. The replay uses a separate virtual SD for every model and scenario. The stock reader can reopen the paired files with
+`python3 tools/campaign_settings_fixture.py --server server-release.jar --check /path/to/new3ds-single-settings.bin --save /path/to/new3ds-sector-serpulo-170.msav --sector 170 --after-play`
 and `--sector 64` without `--after-play` for the two-slot run. The replay
 allows the active sector’s stock production average to decay while idle.
 

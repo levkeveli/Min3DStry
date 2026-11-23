@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import shutil
 import struct
 import time
 from pathlib import Path
@@ -12,11 +11,12 @@ from pathlib import Path
 import verify_upstream_singleplayer as sp
 
 
-def write_replay(path: Path, model: str, multiple: bool) -> None:
+def write_replay(path: Path, model: str, multiple: bool, move_down: bool) -> None:
     windows = [(76, 78, sp.KEY_START)]
     if multiple:
-        # The stock fixture saves Ground Zero last, leaving Frozen Forest one row down.
-        windows += [(43, 45, 1 << 7), (48, 50, 1)]
+        windows += [(48, 50, 1)]
+        if move_down:
+            windows += [(43, 45, 1 << 7)]
     frames = sp.CTM_SAMPLES_PER_SECOND * 86
     header = struct.pack("<4sQ20sQQ32sIQq156x", b"CTM\x1b", 0, sp.CTM_REVISION, 1780000000,
                          0x4D334453, b"Min3DStry Campaign", 0, frames, 0)
@@ -34,37 +34,36 @@ def write_replay(path: Path, model: str, multiple: bool) -> None:
 
 def verify(model: str, rom: Path, azahar: str, config: Path, log: Path,
            output: Path, fixtures: Path) -> None:
-    sd_root = sp.resolve_sd_save_path(log).parent
-    saves = sd_root / "saves"
-    if any(sd_root.glob("sector-*.msav")) or any(saves.glob("sector-*.msav")):
-        raise RuntimeError("Use an Azahar virtual SD without existing campaign saves")
-    if (sd_root / "campaign-select.txt").exists():
-        raise RuntimeError("Use an Azahar virtual SD without a campaign selection override")
-    settings = sd_root / "settings.bin"
-    settings_backup = sd_root / "settings_backup.bin"
-    settings_backups = sd_root / "settings_backups"
-    if any(path.exists() for path in (settings, settings_backup, settings_backups)):
-        raise RuntimeError("Use an Azahar virtual SD without existing settings data")
-    fixture_settings = fixtures / settings.name
+    fixture_settings = fixtures / "settings.bin"
     source_settings = fixture_settings.read_bytes() if fixture_settings.exists() else None
-    initial_config = config.read_bytes() if config.is_file() else None
-    had_saves = saves.exists()
-    saves.mkdir(parents=True, exist_ok=True)
-    zero = saves / "sector-serpulo-170.msav"
-    forest = sd_root / "sector-serpulo-64.msav"
-    source_zero = (fixtures / zero.name).read_bytes()
-    source_forest = (fixtures / forest.name).read_bytes()
-    backups = {slot: slot.with_name(f"{slot.name}-backup.msav") for slot in (zero, forest)}
+    originals = {path: path.read_bytes() if path.is_file() else None for path in (config, log)}
+    source_zero = (fixtures / "sector-serpulo-170.msav").read_bytes()
+    source_forest = (fixtures / "sector-serpulo-64.msav").read_bytes()
     try:
-        for multiple, selected, map_name in ((False, zero, "groundZero"), (True, forest, "frozenForest")):
+        for multiple, map_name in ((False, "groundZero"), (True, "frozenForest")):
             stage = "multiple" if multiple else "single"
+            sd = (output / "virtual-sd" / model / stage).resolve()
+            sd_root = sd / "3ds/min3dstry"
+            saves = sd_root / "saves"
+            saves.mkdir(parents=True)
+            zero = saves / "sector-serpulo-170.msav"
+            forest = sd_root / "sector-serpulo-64.msav"
+            selected = forest if multiple else zero
+            settings = sd_root / "settings.bin"
+            settings_backup = sd_root / "settings_backup.bin"
+            backup = selected.with_name(f"{selected.name}-backup.msav")
             zero.write_bytes(source_zero)
             if multiple:
                 forest.write_bytes(source_forest)
             if source_settings is not None:
                 settings.write_bytes(source_settings)
+
+            config.parent.mkdir(parents=True, exist_ok=True)
+            storage = {"Data Storage": {"use_custom_storage": "true", "sdmc_directory": sd.as_posix() + "/"}}
+            config.write_text(sp.az.patch_qt_config_text((originals[config] or b"").decode("utf-8"), storage),
+                              encoding="utf-8")
             replay = output / f"{model}-{stage}.ctm"
-            write_replay(replay, model, multiple)
+            write_replay(replay, model, multiple, move_down=source_settings is None)
             proc, rpc = sp._launch_azahar(model, rom, azahar, config, log, replay)
             try:
                 if multiple:
@@ -87,7 +86,7 @@ def verify(model: str, rom: Path, azahar: str, config: Path, log: Path,
                 sp._wait_for_log(log, proc, rf"UPSTREAM_CAMPAIGN_SAVED slot={selection}\.msav\b", 100)
                 sp._wait_for_log(log, proc, r"UPSTREAM_SP_EXIT\b", 20)
                 expected = source_forest if multiple else source_zero
-                if backups[selected].read_bytes() != expected:
+                if backup.read_bytes() != expected:
                     raise AssertionError(f"{model}: original PC save is missing from the stock backup path")
                 if multiple and zero.read_bytes() != source_zero:
                     raise AssertionError(f"{model}: selecting Frozen Forest modified the Ground Zero save")
@@ -103,16 +102,11 @@ def verify(model: str, rom: Path, azahar: str, config: Path, log: Path,
                 sp._stop_proc(proc, azahar)
                 (output / f"{model}-{stage}.log").write_bytes(log.read_bytes())
     finally:
-        for path in (zero, forest, *backups.values(), settings, settings_backup):
-            path.unlink(missing_ok=True)
-        if settings_backups.is_dir():
-            shutil.rmtree(settings_backups)
-        if not had_saves and not any(saves.iterdir()):
-            saves.rmdir()
-        if initial_config is None:
-            config.unlink(missing_ok=True)
-        else:
-            config.write_bytes(initial_config)
+        for path, original in originals.items():
+            if original is None:
+                path.unlink(missing_ok=True)
+            else:
+                path.write_bytes(original)
 
 
 def main() -> int:
