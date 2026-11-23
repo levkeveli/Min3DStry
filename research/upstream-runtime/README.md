@@ -1429,6 +1429,10 @@ marker before and after a configuration update and atlas retarget.
 The [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44935934977)
 passed this replay on both Azahar hardware profiles, including marker
 removal and restoration of the original terrain pixels.
+The [combined offline and multiplayer ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45129961401)
+also passed the same replay on both profiles with the updated TeaVM runtime.
+The port logged the original white color and transparent mix bits received
+in the stock quad creation packet.
 
 ### Verify the Arc executor pools
 
