@@ -88,10 +88,12 @@ public final class UpstreamStockCampaignArchiveReference {
     }
 
     private static void verifyEmptyLogicProgram() throws IOException {
-        var bytes = LogicBlock.compress(new byte[0], new Seq<>());
+        var links = Seq.with(new LogicBlock.LogicLink(-2, 7, "switch1", true));
+        var bytes = LogicBlock.compress(new byte[0], links);
         try (var decoded = new DataInputStream(new InflaterInputStream(new ByteArrayInputStream(bytes)))) {
             if (decoded.readUnsignedByte() != 1 || decoded.readInt() != 0
-                    || decoded.readInt() != 0 || decoded.read() != -1) {
+                    || decoded.readInt() != 1 || !decoded.readUTF().equals("switch1")
+                    || decoded.readShort() != -2 || decoded.readShort() != 7 || decoded.read() != -1) {
                 throw new AssertionError("An empty logic program changed the stock configuration format");
             }
         }
