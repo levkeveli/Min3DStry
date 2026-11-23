@@ -1212,6 +1212,27 @@ jobs:
           grep -Fx 'UPSTREAM_BACKGROUND_TURN live=37 import=30 remote=100 lead=0 frozen=11' "$check_dir/probe.log"
           python3 tools/campaign_background_fixture.py --server "$RUNNER_TEMP/server-release.jar" --check "$check_dir/save"
 
+      - name: Verify the stock campaign map archive and embedded patches
+        run: |
+          set -o pipefail
+          fixture=$(mktemp -d "$RUNNER_TEMP/stock-campaign-archive.XXXXXX")
+          curl --fail --silent --show-error --location --retry 3 \
+            https://github.com/Anuken/Mindustry/releases/download/v160.8/assets.jar -o "$fixture/assets.jar"
+          python3 tools/verify_stock_campaign_archive.py --assets "$fixture/assets.jar" --stage "$fixture/staged" \
+            | tee "$fixture/archive.log"
+          grep -Fx 'STOCK_CAMPAIGN_ARCHIVE total=95 serpulo=78 hidden=46 erekir=17' "$fixture/archive.log"
+          bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime \
+            --no-daemon --console=plain \
+            "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" \
+            "-PreferenceJar=$RUNNER_TEMP/server-release.jar" \
+            "-ParcCheckout=$RUNNER_TEMP/Arc" \
+            -Pprobe=singleplayer runStockCampaignArchiveJvm "--args='$fixture/staged' '$fixture/saves'" \
+            | tee "$fixture/probe.log"
+          grep -Fx 'UPSTREAM_STOCK_CAMPAIGN_DECODE presets=95 tiles=17662472' "$fixture/probe.log"
+          grep -Fx 'UPSTREAM_STOCK_CAMPAIGN_ARCHIVE maps=95 presets=95 hidden=46 patches=3' "$fixture/probe.log"
+          python3 tools/verify_stock_campaign_archive.py --server "$RUNNER_TEMP/server-release.jar" \
+            --check-saves "$fixture/saves"
+
       - name: Verify stock Erekir assembler production and PC save readback
         run: |
           set -o pipefail
