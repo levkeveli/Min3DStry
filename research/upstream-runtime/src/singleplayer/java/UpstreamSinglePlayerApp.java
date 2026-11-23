@@ -3,6 +3,7 @@ import port.render.UpstreamFluidAtlas;
 import port.render.UpstreamLabelText;
 import port.render.UpstreamWorldLabel;
 import arc.Core;
+import arc.Settings;
 import arc.Events;
 import arc.files.Fi;
 import arc.graphics.Color;
@@ -23,13 +24,16 @@ import mindustry.core.UI;
 import mindustry.core.World;
 import mindustry.entities.bullet.BulletType;
 import mindustry.game.EventType.BlockBuildEndEvent;
+import mindustry.game.EventType.WaveEvent;
 import mindustry.game.Gamemode;
 import mindustry.graphics.Layer;
 import mindustry.graphics.Pal;
 import mindustry.io.SaveIO;
 import mindustry.maps.Map;
+import mindustry.gen.BlockUnitc;
 import mindustry.gen.Building;
 import mindustry.gen.Groups;
+import mindustry.gen.Payloadc;
 import mindustry.gen.Tankc;
 import mindustry.gen.Unit;
 import mindustry.gen.UnitWaterMove;
@@ -37,29 +41,29 @@ import mindustry.type.ItemSeq;
 import mindustry.type.Planet;
 import mindustry.type.Sector;
 import mindustry.type.UnitType;
+import mindustry.type.Category;
 import mindustry.world.Block;
 import mindustry.world.blocks.ConstructBlock.ConstructBuild;
 import mindustry.world.blocks.defense.Wall;
-import mindustry.world.blocks.defense.turrets.ItemTurret;
-import mindustry.world.blocks.distribution.Conveyor;
-import mindustry.world.blocks.distribution.Sorter;
-import mindustry.world.blocks.liquid.Conduit;
-import mindustry.world.blocks.power.PowerNode;
-import mindustry.world.blocks.storage.CoreBlock;
+import mindustry.world.blocks.defense.turrets.BaseTurret;
+import mindustry.world.blocks.payloads.UnitPayload;
+import mindustry.world.blocks.units.UnitFactory;
 
 /** Graphical offline single-player Mindustry v160.8 ARM11 entry point on Ground Zero. */
 public final class UpstreamSinglePlayerApp {
     private static final long FRAME_NS = 16_666_667L;
     private static final float DEAD_ZONE = 20f / 127f;
     private static final float STOP_SPEED = 0.03f;
-    private static final ObjectSet<UnitType> drawableUnits = new ObjectSet<>();
-
     private final UpstreamTerrainRenderProbe target = new UpstreamTerrainRenderProbe(false);
     private final UpstreamBuildingLayers buildingLayers = new UpstreamBuildingLayers();
     private UpstreamLiveBuildControls buildingControls = new UpstreamLiveBuildControls();
     private final Runnable drawEntities = this::drawEntities;
     private final UpstreamWorldLabel.Target worldLabel = this::drawWorldLabel;
     private final Vec2 moveInput = new Vec2();
+    private final UpstreamOfflineWeaponInput weaponInput = new UpstreamOfflineWeaponInput();
+    private Unit reportedControl;
+    private final ObjectSet<UnitType> loadedUnitGraphics = new ObjectSet<>();
+    private final ObjectSet<BulletType> loadedBulletGraphics = new ObjectSet<>();
 
     private UpstreamSinglePlayerSession session;
     private UpstreamTerrainDrawProbe.Viewport viewport;
@@ -99,14 +103,16 @@ public final class UpstreamSinglePlayerApp {
         int language = target.mountAssets();
         int bootInput = UpstreamSinglePlayerInput.poll();
         boolean customRequested = args.length == 0 && bootInput >= 0
-            && (bootInput & UpstreamSinglePlayerInput.CUSTOM_GAME_HELD) != 0;
+            && (bootInput & UpstreamSinglePlayerInput.L_HELD) != 0;
         boolean campaignRequested = args.length == 0 && bootInput >= 0
             && (bootInput & UpstreamSinglePlayerInput.CAMPAIGN_HELD) != 0 && !customRequested;
         Fi mapFile = args.length >= 1 ? new Fi(args[0]) : firstExisting("/romfs/maps/groundZero.msav", "/3ds/min3dstry/groundZero.msav");
         Fi saveFile = args.length >= 2 ? new Fi(args[1]) : new Fi("/3ds/min3dstry/singleplayer-save.msav");
         Fi atlas = firstExisting("/romfs/sprites.aatls", "/3ds/min3dstry/sprites.aatls");
+        Fi mapDir = saveFile.parent() != null ? saveFile.parent() : new Fi("/3ds/min3dstry");
+        var settings = UpstreamSinglePlayerSession.loadSettings(mapDir);
         Fi preference = new Fi("/3ds/min3dstry/locale.txt");
-        String requested = preference.exists() && preference.length() <= 16 ? preference.readString("UTF-8").trim() : "";
+        String requested = requestedLocale(preference, settings);
 
         Core.bundle = UpstreamInterfaceLocale.loadForStockClient(new Fi("/romfs/bundles/bundle"), language, requested);
         var locale = Core.bundle.getLocale();
@@ -114,11 +120,13 @@ public final class UpstreamSinglePlayerApp {
         System.out.println("UPSTREAM_INTERFACE_LOCALE system=" + language + " bundle=" + bundleTag
             + " router=" + Core.bundle.get("block.router.name") + " copper=" + Core.bundle.get("item.copper.name"));
 
-        Fi mapDir = saveFile.parent() != null ? saveFile.parent() : new Fi("/3ds/min3dstry");
-        var settings = UpstreamSinglePlayerSession.loadSettings(mapDir);
         session = UpstreamSinglePlayerSession.create(mapDir, bundleTag, new Fi("/romfs/planets"), settings,
             new Fi("/romfs/maps"));
         UpstreamSectorCapture.install();
+        Events.on(WaveEvent.class, event -> {
+            String warning = UpstreamGuardianWarning.find(Vars.state.rules, Vars.state.wave);
+            if (warning != null) UpstreamNotification.show(warning, 5f);
+        });
         try {
             CustomGame custom = null;
             Fi customSave = mapDir.child("custom-game-save.msav");
@@ -163,7 +171,6 @@ public final class UpstreamSinglePlayerApp {
                 }
             }
             loadInterfaceGraphics(atlas);
-            loadWorldGraphics();
             Events.on(BlockBuildEndEvent.class, event -> {
                 if (event.tile == null) return;
                 if (!event.breaking && event.tile.build != null) {
@@ -210,6 +217,14 @@ public final class UpstreamSinglePlayerApp {
             session.shutdown();
             System.out.println("UPSTREAM_SP_EXIT");
         }
+    }
+
+    static String requestedLocale(Fi preference, Settings settings) {
+        if (preference.exists() && !preference.isDirectory() && preference.length() <= 16) {
+            String override = preference.readString("UTF-8").trim();
+            if (!override.isEmpty()) return override;
+        }
+        return settings.get("locale", "") instanceof String locale ? locale : "";
     }
 
     private static Fi firstExisting(String primary, String fallback) {
@@ -270,7 +285,8 @@ public final class UpstreamSinglePlayerApp {
         lastStatus = null;
         lastObjectives = null;
         reportedEnemies.clear();
-        loadWorldGraphics();
+        loadedUnitGraphics.clear();
+        loadedBulletGraphics.clear();
     }
 
     private record MenuRows(byte[][] labels, int[][] characters) {}
@@ -281,6 +297,7 @@ public final class UpstreamSinglePlayerApp {
         int count = firstMap + maps.size();
         int selected = 0, mode = 0, lastX = 0, lastY = 0, renderedRow = -1, renderedMode = -1;
         MenuRows rows = null;
+        target.buildLabels(new byte[UpstreamTerrainRenderProbe.PALETTE_LABEL_COUNT]);
         System.out.println("UPSTREAM_CUSTOM_GAME_MENU maps=" + maps.size());
         // Consume the launcher's button edges before accepting menu input.
         UpstreamSinglePlayerInput.poll();
@@ -383,11 +400,6 @@ public final class UpstreamSinglePlayerApp {
         System.out.println("UPSTREAM_INTERFACE_FONT source=" + (stock ? "v160.8" : "system"));
     }
 
-    private void loadWorldGraphics() {
-        drawableUnits.clear();
-        loadBulletGraphics();
-    }
-
     private UpstreamSinglePlayerSession.SectorSlot chooseSector(
             List<UpstreamSinglePlayerSession.SectorSlot> slots, Fi automatic) {
         int selected = UpstreamSinglePlayerSession.lastSectorRow(slots);
@@ -407,6 +419,8 @@ public final class UpstreamSinglePlayerApp {
         }
         int renderedRow = -1;
         MenuRows rows = null;
+        target.buildLabels(new byte[UpstreamTerrainRenderProbe.PALETTE_LABEL_COUNT]);
+        UpstreamSinglePlayerInput.poll();
         if (pollCampaignInput() == -1) return null;
         while (true) {
             long nextFrame = System.nanoTime() + FRAME_NS;
@@ -460,7 +474,7 @@ public final class UpstreamSinglePlayerApp {
             if (horizontal > 60 && lastHorizontal <= 20 && schematic + 1 < choices.options().size) schematic++;
             if (horizontal < -60 && lastHorizontal >= -20 && schematic > 0) schematic--;
             lastHorizontal = horizontal;
-            boolean toggleCargo = selected.sector.allowLaunchLoadout() && (input & UpstreamSinglePlayerInput.PAUSE_PRESSED) != 0;
+            boolean toggleCargo = selected.sector.allowLaunchLoadout() && (input & UpstreamSinglePlayerInput.X_PRESSED) != 0;
             if (toggleCargo) maximumCargo = !maximumCargo;
             boolean edit = selected.sector.allowLaunchLoadout() && !maximumCargo
                 && (input & UpstreamSinglePlayerInput.WAVE_PRESSED) != 0;
@@ -556,39 +570,28 @@ public final class UpstreamSinglePlayerApp {
         return captions;
     }
 
-    private static void loadUnitGraphics(UnitType type) {
-        if (drawableUnits.contains(type)) return;
-        type.loadIcon();
-        type.load();
-        boolean wasHeadless = Vars.headless;
-        Vars.headless = false;
-        try {
-            for (var weapon : type.weapons) {
-                if (weapon.bullet != null) weapon.bullet.load();
-            }
-        } finally {
-            Vars.headless = wasHeadless;
+    private void loadUnitGraphics(Unit unit) {
+        UnitType type = unit.type();
+        if (loadedUnitGraphics.add(type)) {
+            type.loadIcon();
+            type.load();
+            System.out.println("UPSTREAM_SP_UNIT_ART type=" + type.name);
         }
-        drawableUnits.add(type);
-    }
-
-    private static void loadBulletGraphics() {
-        boolean wasHeadless = Vars.headless;
-        Vars.headless = false;
-        try {
-            loadTurretBullets(Blocks.duo);
-            loadTurretBullets(Blocks.scatter);
-        } finally {
-            Vars.headless = wasHeadless;
+        // Upstream UnitType.drawPayload draws only the first carried payload.
+        if (unit instanceof Payloadc carrier && carrier.hasPayload()
+                && carrier.payloads().first() instanceof UnitPayload payload) {
+            loadUnitGraphics(payload.unit);
         }
     }
 
-    private static void loadTurretBullets(Block block) {
-        if (block instanceof ItemTurret turret) {
-            for (var entry : turret.ammoTypes) {
-                BulletType bullet = entry.value;
-                if (bullet != null) bullet.load();
-            }
+    private void loadBulletGraphics(BulletType type) {
+        if (!loadedBulletGraphics.add(type)) return;
+        boolean wasHeadless = Vars.headless;
+        Vars.headless = false;
+        try {
+            type.load();
+        } finally {
+            Vars.headless = wasHeadless;
         }
     }
 
@@ -625,13 +628,24 @@ public final class UpstreamSinglePlayerApp {
         long previousTime = System.nanoTime();
         long accumulator = 0L;
         while (true) {
+            UpstreamNotification.update(1f / 60f);
             int input = UpstreamSinglePlayerInput.poll();
             if (input == -1) return false;
             if (campaignSlot != null && (input & UpstreamSinglePlayerInput.CAMPAIGN_HELD) != 0
                     && (input & UpstreamSinglePlayerInput.SAVE_PRESSED) != 0) return true;
             int touch = UpstreamSinglePlayerInput.touch();
+            long now = System.nanoTime();
 
-            if ((input & UpstreamSinglePlayerInput.PAUSE_PRESSED) != 0) {
+            moveInput.set((byte)input / 127f, (byte)(input >>> 8) / 127f);
+            if (moveInput.len2() < DEAD_ZONE * DEAD_ZONE) {
+                moveInput.setZero();
+            } else {
+                moveInput.limit(1f);
+            }
+            boolean aimHeld = (input & UpstreamSinglePlayerInput.X_HELD) != 0;
+            boolean fireHeld = (input & UpstreamSinglePlayerInput.L_HELD) != 0;
+            if (weaponInput.releasePauses((input & UpstreamSinglePlayerInput.X_PRESSED) != 0,
+                    aimHeld, !moveInput.isZero(), fireHeld, now)) {
                 boolean paused = session.togglePause();
                 System.out.println("UPSTREAM_SP_PAUSE paused=" + paused + " updateId=" + Vars.state.updateId);
             }
@@ -642,21 +656,25 @@ public final class UpstreamSinglePlayerApp {
             }
             if ((input & UpstreamSinglePlayerInput.SAVE_PRESSED) != 0) {
                 session.save(saveFile);
+                if (unit != null) {
+                    int shots = UpstreamOfflineWeaponInput.totalShots(unit);
+                    if (shots > 0) System.out.println("UPSTREAM_SP_WEAPON_SAVED shots=" + shots);
+                }
             }
 
             unit = session.ensurePlayerSpawn();
             if (unit != null) {
                 buildingControls.update(unit, input, touch);
+                unit = session.ensurePlayerSpawn();
             }
-
-            moveInput.set((byte)input / 127f, (byte)(input >>> 8) / 127f);
-            if (moveInput.len2() < DEAD_ZONE * DEAD_ZONE) {
-                moveInput.setZero();
-            } else {
-                moveInput.limit(1f);
+            if (unit != null) {
+                boolean anchored = unit instanceof BlockUnitc;
+                boolean overlay = buildingControls.blocksWeaponInput();
+                weaponInput.update(unit, moveInput, (anchored || weaponInput.aimMode()) && !moveInput.isZero(),
+                    fireHeld && !overlay && !Vars.state.isPaused());
+                if (anchored) moveInput.setZero();
             }
-
-            long now = System.nanoTime();
+            if (weaponInput.aimMode()) moveInput.setZero();
             long elapsed = Math.min(Math.max(0L, now - previousTime), FRAME_NS * 4L);
             previousTime = now;
             accumulator += elapsed;
@@ -685,6 +703,10 @@ public final class UpstreamSinglePlayerApp {
 
     private void updateTelemetry(Unit unit, int input) {
         if (unit != null) {
+            if (reportedControl != unit) {
+                reportedControl = unit;
+                System.out.println("UPSTREAM_CONTROL_FOCUS target=" + UpstreamPlayerControl.name(unit));
+            }
             if (!moveInput.isZero() && !moving) {
                 moving = true;
                 inputDevice = (input & UpstreamSinglePlayerInput.DPAD_ACTIVE) != 0 ? "dpad" : "circle";
@@ -712,7 +734,9 @@ public final class UpstreamSinglePlayerApp {
         System.out.println("UPSTREAM_INTERFACE_GRAPHICS labels");
         var labels = String.join("\0", primary.localizedName, secondary.localizedName,
             Core.bundle.get("keybind.rotate.name"), Core.bundle.get("waves.remove"),
-            "List", "Config", Core.bundle.get("back"), Core.bundle.get("command.mine")) + "\0";
+            "List", "Config", Core.bundle.get("back"), Core.bundle.get("command.mine"),
+            Core.bundle.get("category.items"), "Give", Core.bundle.get("command"), "Type", "Stance",
+            "Ctrl", Core.bundle.get("back"), "Schem") + "\0";
         target.buildLabels(labels.getBytes(StandardCharsets.UTF_8));
         lastPrimaryShortcut = primary;
         System.out.println("UPSTREAM_BUILD_SHORTCUTS primary=" + primary.name + " secondary=" + secondary.name);
@@ -769,10 +793,11 @@ public final class UpstreamSinglePlayerApp {
         Draw.sort(true);
         try {
             for (var unit : Groups.unit) {
+                if (unit instanceof BlockUnitc) continue;
                 int x = World.toTile(unit.x()), y = World.toTile(unit.y());
                 if (x < viewport.left || x >= viewport.left + UpstreamTerrainDrawProbe.VIEW_WIDTH
                         || y < viewport.bottom || y >= viewport.bottom + UpstreamTerrainDrawProbe.VIEW_HEIGHT) continue;
-                loadUnitGraphics(unit.type());
+                loadUnitGraphics(unit);
                 unit.draw();
                 if (unit == controlled) draws++;
                 if (unit.team == Vars.state.rules.waveTeam && reportedEnemies.add(unit.id)) {
@@ -784,6 +809,7 @@ public final class UpstreamSinglePlayerApp {
                 int x = World.toTile(bullet.x()), y = World.toTile(bullet.y());
                 if (x < viewport.left || x >= viewport.left + UpstreamTerrainDrawProbe.VIEW_WIDTH
                         || y < viewport.bottom || y >= viewport.bottom + UpstreamTerrainDrawProbe.VIEW_HEIGHT) continue;
+                loadBulletGraphics(bullet.type());
                 bullet.draw();
             }
         } finally {
@@ -791,20 +817,39 @@ public final class UpstreamSinglePlayerApp {
         }
         UpstreamObjectiveMarkers.draw(Vars.state.rules, 240f / (UpstreamTerrainDrawProbe.VIEW_HEIGHT * Vars.tilesize),
             worldLabel);
+        var orders = buildingControls.orders();
+        orders.draw(viewport);
+        var schematics = buildingControls.schematics();
+        schematics.draw(viewport);
         drawObjectives(drawStatusHud());
         var block = buildingControls.block();
         var catalog = buildingControls.catalog();
-        var config = buildingControls.itemConfig();
+        var config = buildingControls.buildingConfig();
+        var inventory = buildingControls.inventory();
+        var commandMenu = orders.menu();
         int shortcut = block == buildingControls.shortcut(0) ? 0 : block == buildingControls.shortcut(1) ? 1 : -1;
         target.buildOverlay(buildingControls.cursorX() - viewport.left, buildingControls.cursorY() - viewport.bottom,
             shortcut, buildingControls.rotation(), buildingControls.removing(), block.rotate,
-            catalog.isOpen() || config.isOpen(), buildingControls.configuring(), buildingControls.selectingMine());
-        if (catalog.isOpen()) {
+            catalog.isOpen() || config.isOpen() || inventory.isOpen() || commandMenu.isOpen() || schematics.isOpen(),
+            buildingControls.configuring(), buildingControls.selectingMine(), buildingControls.inventoryAction(),
+            orders.mode(), buildingControls.selectingControl(), schematics.active());
+        if (schematics.isOpen()) {
+            drawMenu(schematics.labels(), schematics.icons(), -1, schematics.previousPage(), schematics.nextPage(),
+                UpstreamTerrainRenderProbe.SCHEMATIC_CATALOG);
+        } else if (commandMenu.isOpen()) {
+            target.buildCatalogRows(commandMenu.labels(), commandMenu.icons(), orders.activeMenuRows(),
+                commandMenu.previous(), commandMenu.next(),
+                commandMenu.stances() ? UpstreamTerrainRenderProbe.STANCE_CATALOG : UpstreamTerrainRenderProbe.COMMAND_CATALOG);
+        } else if (catalog.isOpen()) {
             drawMenu(catalog.labels(), catalog.iconIds(), catalog.selectedRow(block),
-                catalog.previousPage(), catalog.nextPage(), true);
+                catalog.previousPage(), catalog.nextPage(), UpstreamTerrainRenderProbe.BLOCK_CATALOG);
         } else if (config.isOpen()) {
             drawMenu(config.labels(), config.iconIds(), config.selectedRow(),
-                config.previousPage(), config.nextPage(), false);
+                config.previousPage(), config.nextPage(),
+                config.unitPlans() ? UpstreamTerrainRenderProbe.UNIT_CATALOG : UpstreamTerrainRenderProbe.ITEM_CATALOG);
+        } else if (inventory.isOpen()) {
+            drawMenu(inventory.labels(), inventory.iconIds(), -1, inventory.previousPage(), inventory.nextPage(),
+                UpstreamTerrainRenderProbe.ITEM_CATALOG);
         } else {
             lastMenu = null;
         }
@@ -890,20 +935,18 @@ public final class UpstreamSinglePlayerApp {
 
     static boolean supportsBuildingDraw(Building build) {
         var block = build.block;
-        return block instanceof CoreBlock || block instanceof Conveyor || block instanceof Wall
-            || block == Blocks.router || block == Blocks.distributor || block == Blocks.junction
-            || block == Blocks.overflowGate || block == Blocks.underflowGate
-            || block instanceof Sorter || block == Blocks.mechanicalDrill || block == Blocks.pneumaticDrill
-            || block == Blocks.duo || block == Blocks.scatter || block instanceof Conduit
-            || block == Blocks.graphitePress || block == Blocks.combustionGenerator
-            || block instanceof PowerNode || block == Blocks.duct || block == Blocks.berylliumWall
-            || block == Blocks.phaseWeaver || block == Blocks.overdriveProjector
+        return UpstreamBuildingLayers.supportsPowerDraw(block) || UpstreamBuildingLayers.supportsDistributionDraw(block)
+            || block.category == Category.liquid || block instanceof UnitFactory
+            || UpstreamBuildingLayers.supportsMaterialDraw(block) || block instanceof Wall
+            || UpstreamBuildingLayers.supportsExtractorDraw(block)
+            || block instanceof BaseTurret
+            || block == Blocks.overdriveProjector
             || block == Blocks.overdriveDome || block == Blocks.shockwaveTower;
     }
 
     private void drawMenu(byte[] labels, int[] icons, int selected,
-                          boolean previous, boolean next, boolean categories) {
-        target.buildCatalog(labels, icons, selected, previous, next, categories);
+                            boolean previous, boolean next, int catalog) {
+        target.buildCatalog(labels, icons, selected, previous, next, catalog);
         lastMenu = labels;
     }
 }

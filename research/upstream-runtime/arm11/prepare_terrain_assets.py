@@ -3,11 +3,14 @@
 
 import argparse
 import csv
+import hashlib
+import json
 from pathlib import Path
 import subprocess
 import sys
 import tempfile
 import re
+import shutil
 import zipfile
 
 
@@ -16,6 +19,7 @@ REGIONS = (
     "ore-copper1", "ore-copper2", "ore-copper3", "stone1", "stone2", "stone3",
 )
 CONVERTER = Path(__file__).resolve().parents[3] / "tools" / "build_upstream_sprite_atlas.py"
+DESKTOP_SHA256 = "6dd6da921d5021a84823456e05b477ee8de8511990d40de850b37dd0905152f2"
 GLACIER_INVENTORY = Path(__file__).with_name("glacier-terrain.txt")
 STOCK_TEXT_ASSETS = (
     "fonts/font.woff", "fonts/font_jp.woff", "fonts/icon.ttf", "icons/icons.properties",
@@ -26,6 +30,13 @@ BUILTIN_CUSTOM_GAME_MAPS = (
     "maze", "fortress", "labyrinth", "islands", "tendrils", "caldera", "wasteland", "shattered", "fork",
     "triad", "mudFlats", "moltenLake", "archipelago", "debrisField", "domain", "veins", "glacier", "passage",
 )
+sys.path.insert(0, str(CONVERTER.parent))
+from build_audio_assets import DEFAULT_RATE, convert_map
+from stage_music_assets import load_map, parse_ogg_vorbis_ident
+from stage_sound_catalog import UPSTREAM_COMMIT, ogg_frames, stage_sound_catalog
+
+LIVE_AUDIO_MAX_FRAMES = DEFAULT_RATE * 6
+MUSIC_MAP = CONVERTER.parents[1] / "audio/upstream-music-map.json"
 
 
 def write_layout(staged: Path, regions: tuple[str, ...]) -> None:
@@ -102,17 +113,82 @@ def pack_stock_text_assets(archive: zipfile.ZipFile, staged: Path) -> None:
         destination.write_bytes(archive.read("assets/" + name))
 
 
+def pack_stock_music(desktop: Path, staged: Path) -> None:
+    # The caller verifies the desktop release hash before extracting either audio catalog.
+    mapping = load_map(MUSIC_MAP)
+    if mapping["upstream_commit"] != UPSTREAM_COMMIT or len(mapping["entries"]) != 16:
+        raise ValueError("Unexpected pinned music map")
+    music_dir = staged / "audio/music"
+    music_dir.mkdir(parents=True)
+    tracks = []
+    with zipfile.ZipFile(desktop) as archive:
+        for index, entry in enumerate(mapping["entries"]):
+            name = entry["id"]
+            if (entry["index"] != index or not re.fullmatch(r"[a-z0-9]+", name)
+                    or entry["source"] != f"core/assets/music/{name}.ogg"):
+                raise ValueError("Invalid stock music index entry")
+            member = f"music/{name}.ogg"
+            original = archive.read(member)
+            destination = music_dir / f"{name}.ogg"
+            destination.write_bytes(original)
+            ident = parse_ogg_vorbis_ident(destination)
+            tracks.append({"index": index, "source": entry["source"], "romfs": f"romfs:/audio/{member}",
+                           "sha256": hashlib.sha256(original).hexdigest(), "bytes": len(original),
+                           "channels": ident["channels"], "sample_rate": ident["sample_rate"],
+                           "frames": ogg_frames(original, member)})
+    manifest = {"format": 1, "upstream_commit": UPSTREAM_COMMIT, "desktop_sha256": DESKTOP_SHA256,
+                "tracks": tracks}
+    (staged / "audio/music-manifest.json").write_text(
+        json.dumps(manifest, indent=2) + "\n", encoding="utf-8", newline="\n")
+
+
+def pack_live_audio(args, staged: Path, scratch: Path) -> None:
+    catalog = scratch / "catalog"
+    sounds = stage_sound_catalog(args.java, args.server, args.desktop, catalog)
+    (catalog / "audio").rename(staged / "audio")
+    pack_stock_music(args.desktop, staged)
+    upstream = scratch / "upstream"
+    shutil.copytree(staged / "audio/sounds", upstream / "core/assets/sounds")
+    entries = [
+        {"id": f"sfx.{sound['id']:03}", "source": sound["source"], "channels": sound["channels"]}
+        for sound in sounds
+    ]
+    audio_map = scratch / "sound-map.json"
+    audio_map.write_text(json.dumps({"format": 1, "upstream_commit": UPSTREAM_COMMIT,
+                                     "rate": DEFAULT_RATE, "entries": entries}), encoding="ascii")
+    pcm = convert_map(upstream, audio_map, scratch / "pcm", args.ffmpeg, romfs_out=staged)
+    converted = pcm["entries"]
+    if [entry["id"] for entry in converted] != [entry["id"] for entry in entries]:
+        raise ValueError("PCM index does not follow the original stock sound IDs")
+    short_count = sum(entry["frames"] <= LIVE_AUDIO_MAX_FRAMES for entry in converted)
+    lines = ['#include "audio-index.h"', '',
+             '#define M3DS_STOCK_SOUND_COUNT M3DS_AUDIO_CLIP_COUNT',
+             f'#define M3DS_STOCK_SHORT_COUNT {short_count}U', '']
+    (staged / "sound-index.h").write_text("\n".join(lines), encoding="ascii")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--assets", type=Path, required=True)
     parser.add_argument("--server", type=Path, required=True)
+    parser.add_argument("--desktop", type=Path, help="official pinned desktop JAR for --live-audio")
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--java", default="java")
     parser.add_argument("--tex3ds", default="tex3ds")
     parser.add_argument("--multiplayer", action="store_true", help="pack Glacier and upstream multiplayer unit sprites")
     parser.add_argument("--singleplayer", action="store_true",
                         help="pack original offline campaign and Custom Game maps, sprites.aatls, and multiplayer assets")
+    parser.add_argument("--live-audio", action="store_true", help="also pack pinned stock effects for the live mixer")
+    parser.add_argument("--ffmpeg", default="ffmpeg")
     args = parser.parse_args()
+    if args.live_audio and not (args.multiplayer or args.singleplayer):
+        parser.error("--live-audio requires --multiplayer or --singleplayer")
+    if args.live_audio:
+        if args.desktop is None or not args.desktop.is_file():
+            parser.error("--live-audio requires the pinned desktop JAR via --desktop")
+        with args.desktop.open("rb") as archive:
+            if hashlib.file_digest(archive, "sha256").hexdigest() != DESKTOP_SHA256:
+                parser.error("expected the official v160.8 Mindustry.jar via --desktop")
 
     output = args.output_dir.resolve()
     if output.exists():
@@ -157,6 +233,8 @@ def main() -> None:
                     (staged / "sprites.aatls").write_bytes(aatls_bytes)
             if not (bundles / "bundle.properties").is_file():
                 raise ValueError("The official archive is missing its root translation bundle")
+            if args.live_audio:
+                pack_live_audio(args, staged, Path(tmp) / "live-audio")
         staged.rename(output)
 
 

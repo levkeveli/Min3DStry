@@ -5,9 +5,11 @@ import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.ClassNode;
+import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.InsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
+import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
 /** Keep upstream marker scheduling and drawing, adapting text and texture lookup to the target. */
@@ -15,7 +17,8 @@ final class StageObjectiveLabelAdapter {
     static void stage(Path jar, Path output) throws Exception {
         try (var archive = new ZipFile(jar.toFile())) {
             stageTouchText(archive, output);
-            stageTextureLookup(archive, output);
+            stageTextureLookup(archive, output, "TextureMarker", false);
+            stageTextureLookup(archive, output, "QuadMarker", true);
             for (String name : new String[]{"ShapeTextMarker", "TextMarker"}) {
                 var path = "mindustry/game/MapObjectives$" + name + ".class";
                 var type = new ClassNode();
@@ -40,8 +43,11 @@ final class StageObjectiveLabelAdapter {
         }
     }
 
-    private static void stageTextureLookup(ZipFile archive, Path output) throws Exception {
-        var path = "mindustry/game/MapObjectives$TextureMarker.class";
+    private static final String markerTextureAdapter = "port/render/UpstreamMarkerTexture";
+    private static final String textureHolder = "mindustry/game/MapObjectives$TextureHolder";
+
+    private static void stageTextureLookup(ZipFile archive, Path output, String name, boolean quad) throws Exception {
+        var path = "mindustry/game/MapObjectives$" + name + ".class";
         var type = new ClassNode();
         try (var bytes = archive.getInputStream(archive.getEntry(path))) {
             new ClassReader(bytes).accept(type, 0);
@@ -50,24 +56,61 @@ final class StageObjectiveLabelAdapter {
             .filter(method -> method.name.equals("setTexture") && method.desc.equals("(Ljava/lang/Object;)V"))
             .findFirst().orElseThrow();
         int guards = 0, lookups = 0;
-        String adapter = "port/render/UpstreamMarkerTexture";
         for (var instruction : setTexture.instructions.toArray()) {
-            if (instruction instanceof FieldInsnNode flag && flag.getOpcode() == Opcodes.GETSTATIC
-                    && flag.owner.equals("mindustry/Vars") && flag.name.equals("headless") && flag.desc.equals("Z")) {
-                setTexture.instructions.insertBefore(flag, new VarInsnNode(Opcodes.ALOAD, 1));
-                setTexture.instructions.set(flag, new MethodInsnNode(Opcodes.INVOKESTATIC, adapter,
-                    "deferLookup", "(Ljava/lang/Object;)Z", false));
+            if (readsHeadless(instruction)) {
+                setTexture.instructions.insertBefore(instruction, new VarInsnNode(Opcodes.ALOAD, 1));
+                replaceHeadless(setTexture, instruction);
                 guards++;
             } else if (instruction instanceof MethodInsnNode lookup && lookup.getOpcode() == Opcodes.INVOKESTATIC
                     && lookup.owner.equals("mindustry/game/MapObjectives") && lookup.name.equals("lookupRegion")
                     && lookup.desc.equals("(Ljava/lang/Object;Larc/graphics/g2d/TextureRegion;)V")) {
-                lookup.owner = adapter;
+                lookup.owner = markerTextureAdapter;
                 lookup.name = "lookup";
                 lookups++;
             }
         }
-        if (guards != 1 || lookups != 1) throw new IllegalStateException("Unexpected stock texture marker lookup");
+        if (guards != 1 || lookups != 1) throw new IllegalStateException("Unexpected stock texture lookup in " + path);
+        if (quad) stageQuadUv(type);
         write(type, output.resolve(path));
+    }
+
+    private static void stageQuadUv(ClassNode type) {
+        var setUv = type.methods.stream()
+            .filter(method -> method.name.equals("setUv") && method.desc.equals("(IDD)V"))
+            .findFirst().orElseThrow();
+        int guards = 0, loads = 0;
+        for (var instruction : setUv.instructions.toArray()) {
+            if (readsHeadless(instruction)) {
+                setUv.instructions.insertBefore(instruction, new VarInsnNode(Opcodes.ALOAD, 0));
+                setUv.instructions.insertBefore(instruction, new FieldInsnNode(Opcodes.GETFIELD, type.name,
+                    "texture", "L" + textureHolder + ";"));
+                setUv.instructions.insertBefore(instruction, readTextureValue());
+                replaceHeadless(setUv, instruction);
+                guards++;
+            } else if (instruction instanceof FieldInsnNode holder && holder.getOpcode() == Opcodes.GETFIELD
+                    && holder.owner.equals(type.name) && holder.name.equals("texture")
+                    && holder.desc.equals("L" + textureHolder + ";")) {
+                // UV can arrive before the first frame. Initialize from the original
+                // texture value instead of replacing it with its own Java holder.
+                setUv.instructions.insert(holder, readTextureValue());
+                loads++;
+            }
+        }
+        if (guards != 1 || loads != 1) throw new IllegalStateException("Unexpected stock quad UV lookup");
+    }
+
+    private static FieldInsnNode readTextureValue() {
+        return new FieldInsnNode(Opcodes.GETFIELD, textureHolder, "value", "Ljava/lang/Object;");
+    }
+
+    private static boolean readsHeadless(AbstractInsnNode instruction) {
+        return instruction instanceof FieldInsnNode flag && flag.getOpcode() == Opcodes.GETSTATIC
+            && flag.owner.equals("mindustry/Vars") && flag.name.equals("headless") && flag.desc.equals("Z");
+    }
+
+    private static void replaceHeadless(MethodNode method, AbstractInsnNode flag) {
+        method.instructions.set(flag, new MethodInsnNode(Opcodes.INVOKESTATIC, markerTextureAdapter,
+            "deferLookup", "(Ljava/lang/Object;)Z", false));
     }
 
     private static void stageTouchText(ZipFile archive, Path output) throws Exception {

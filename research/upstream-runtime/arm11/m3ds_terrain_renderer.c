@@ -21,7 +21,10 @@ typedef struct {
 static M3DS_StockText stock_text;
 #endif
 #ifdef M3DS_WORLD_ATLAS
+#include "m3ds_quad_clip.h"
+#include "m3ds_quad_shbin.h"
 #include "m3ds_world_fragment.h"
+#include "m3ds_unit_build.h"
 #include "world_atlas_layout.h"
 
 // Retain at most 1.5 MiB of RGBA8 atlas backing in the default build.
@@ -34,9 +37,18 @@ static struct {
     int page, x, y;
     uint32_t frame;
 } world_textures[M3DS_WORLD_ATLAS_SLOTS];
+typedef struct {
+    C3D_Tex textures[2];
+    uint32_t pass;
+} UnitBuildTextures;
+static UnitBuildTextures unit_build_textures[4];
 static uint32_t world_pass;
 static bool reported_split;
 static bool reported_recycle;
+static DVLB_s *quad_shader;
+static shaderProgram_s quad_program;
+static C3D_AttrInfo quad_attributes;
+static int quad_projection_uniform;
 #endif
 
 static bool romfs_ready;
@@ -47,16 +59,19 @@ static C2D_SpriteSheet sheet;
 static C3D_RenderTarget *target;
 static C3D_RenderTarget *palette;
 static C2D_TextBuf palette_buffer;
-static C2D_Text palette_labels[8];
+enum { palette_label_count = 16 };
+static C2D_Text palette_labels[palette_label_count];
 #ifdef M3DS_STOCK_FONT
 enum { menu_label_glyphs = 64 };
-static char palette_utf8[8][4 * menu_label_glyphs + 1];
+static char palette_utf8[palette_label_count][4 * menu_label_glyphs + 1];
 #endif
 static C2D_TextBuf catalog_buffer;
+enum { item_catalog, block_catalog, unit_catalog, command_catalog, stance_catalog, schematic_catalog, catalog_count };
+static const char *const catalog_names[] = { "item", "block", "unit", "command", "stance", "schematic" };
 static struct {
     C2D_SpriteSheet sheet;
-    int32_t id;
-    bool categories, requested;
+    int32_t id, catalog;
+    bool requested;
 } menu_icons[6];
 static float world_left, world_bottom, scale, screen_left, screen_bottom;
 static int32_t draws;
@@ -324,6 +339,124 @@ static void set_world_mix(u32 tint, u32 mix_color) {
     world_fade = fade;
 }
 
+#ifdef M3DS_WORLD_ATLAS
+static UnitBuildTextures *unit_build_texture(unsigned width, unsigned height) {
+    size_t slot = 0;
+    for (; slot < sizeof(unit_build_textures) / sizeof(unit_build_textures[0]); ++slot) {
+        if (unit_build_textures[slot].pass != world_pass) break;
+    }
+    if (slot == sizeof(unit_build_textures) / sizeof(unit_build_textures[0])) {
+        // Submit queued sprite vertices and wait for their textures to become free.
+        C2D_Flush();
+        if (!recycle_world_pass()) return NULL;
+        slot = 0;
+    }
+    UnitBuildTextures *result = &unit_build_textures[slot];
+    for (int stripe = 0; stripe < 2; ++stripe) {
+        C3D_Tex *texture = &result->textures[stripe];
+        if (texture->data && (texture->width != width || texture->height != height)) {
+            C3D_TexDelete(texture);
+            memset(texture, 0, sizeof(*texture));
+        }
+        if (!texture->data && !C3D_TexInit(texture, width, height, GPU_RGBA8)) return NULL;
+        C3D_TexSetFilter(texture, GPU_NEAREST, GPU_NEAREST);
+        C3D_TexSetWrap(texture, GPU_CLAMP_TO_EDGE, GPU_CLAMP_TO_EDGE);
+    }
+    return result;
+}
+
+static bool shade_unit_build_textures(UnitBuildTextures *result, int page, int left, int top, int width,
+                                      int height, float progress, const float accent[4]) {
+    const int right = left + width, bottom = top + height;
+    const int tile = WORLD_ATLAS_TILE;
+    for (int y = top; y < bottom;) {
+        const int tile_y = y / tile;
+        const int row_end = (tile_y + 1) * tile < bottom ? (tile_y + 1) * tile : bottom;
+        for (int x = left; x < right;) {
+            const int tile_x = x / tile;
+            const int column_end = (tile_x + 1) * tile < right ? (tile_x + 1) * tile : right;
+            C2D_SpriteSheet atlas = get_world_texture(page, tile_x, tile_y);
+            if (!atlas) return false;
+            const uint8_t *input = C2D_SpriteSheetGetImage(atlas, 0).tex->data;
+            for (int src_x = x; src_x < column_end; ++src_x) {
+                for (int src_y = y; src_y < row_end; ++src_y) {
+                    const unsigned offset_in = m3ds_unit_build_texel_offset(src_x % tile, src_y % tile, tile);
+                    const unsigned offset_out = m3ds_unit_build_texel_offset(src_x - left, src_y - top,
+                        result->textures[0].width);
+                    for (int stripe = 0; stripe < 2; ++stripe) {
+                        m3ds_shade_unit_build_pixel((uint8_t *)result->textures[stripe].data + offset_out,
+                            input + offset_in, progress, accent, stripe);
+                    }
+                }
+            }
+            x = column_end;
+        }
+        y = row_end;
+    }
+    for (int stripe = 0; stripe < 2; ++stripe) C3D_TexFlush(&result->textures[stripe]);
+    return true;
+}
+#endif
+
+int32_t m3ds_terrain_draw_unit_build(int32_t page, int32_t left, int32_t top, int32_t width, int32_t height,
+                                     float x, float y, float draw_width, float draw_height, float rotation,
+                                     float progress, float r, float g, float b, float alpha, float phase,
+                                     int32_t vertex_color) {
+#ifdef M3DS_WORLD_ATLAS
+    if (!frame_open || width <= 0 || height <= 0
+            || width > M3DS_UNIT_BUILD_TEXTURE_LIMIT || height > M3DS_UNIT_BUILD_TEXTURE_LIMIT
+            || page < 0 || (size_t)page >= sizeof(world_atlas_sizes) / sizeof(world_atlas_sizes[0])
+            || left < 0 || top < 0 || width > world_atlas_sizes[page][0] - left
+            || height > world_atlas_sizes[page][1] - top) return 0;
+    unsigned texture_width = 8, texture_height = 8;
+    while (texture_width < (unsigned)width) texture_width *= 2;
+    while (texture_height < (unsigned)height) texture_height *= 2;
+    UnitBuildTextures *textures = unit_build_texture(texture_width, texture_height);
+    const float accent[] = { alpha, b, g, r };
+    if (!textures || !shade_unit_build_textures(textures, page, left, top, width, height, progress, accent)) {
+        return 0;
+    }
+    textures->pass = world_pass;
+    const C2D_DrawParams whole = {
+        .pos = { screen_left + (x - world_left) * scale, screen_bottom - (y - world_bottom) * scale,
+                 draw_width * scale, draw_height * scale },
+        .center = { draw_width * scale / 2.0f, draw_height * scale / 2.0f },
+        .depth = 0.5f,
+        .angle = rotation * (-3.14159265358979323846f / 180.0f),
+    };
+    C2D_ImageTint tint;
+    C2D_PlainImageTint(&tint, (u32)vertex_color, 1.0f);
+    set_world_blend(0);
+    set_world_mix(0, 0);
+    float edges[6];
+    int count = m3ds_unit_build_edges(phase, edges);
+    for (int i = 0; i + 1 < count; ++i) {
+        const float from = edges[i], to = edges[i + 1];
+        const int stripe = fabsf(sinf(from + to + phase)) <= 0.9f;
+        const Tex3DS_SubTexture region = {
+            .width = width, .height = height,
+            .left = from * width / texture_width, .right = to * width / texture_width,
+            .top = 1.0f, .bottom = 1.0f - (float)height / texture_height
+        };
+        const M3dsUnitBuildSlice slice = m3ds_unit_build_slice(whole.center.x, whole.pos.w, from, to);
+        C2D_DrawParams part = whole;
+        part.center.x = slice.pivot_x;
+        part.pos.w = slice.width;
+        if (!C2D_DrawImage((C2D_Image){ &textures->textures[stripe], &region }, &part, &tint)) return 0;
+        draws++;
+    }
+    static bool reported;
+    if (!reported && progress > 0.0f && alpha > 0.0f) {
+        static const char record[] = "UPSTREAM_UNIT_BUILD_SHADER source=unitbuild.frag\n";
+        svcOutputDebugString(record, sizeof(record) - 1);
+        reported = true;
+    }
+    return 1;
+#else
+    return 0;
+#endif
+}
+
 int32_t m3ds_terrain_draw(int32_t page, int32_t left, int32_t top, int32_t width, int32_t height,
                           float x, float y, float origin_x, float origin_y, float draw_width,
                           float draw_height, float rotation, int32_t color, int32_t mix_color, int32_t blend_mode) {
@@ -404,6 +537,137 @@ int32_t m3ds_terrain_draw_solid_quad(const float *vertices, int32_t offset, int3
     }
     draws++;
     return 1;
+}
+
+#ifdef M3DS_WORLD_ATLAS
+static bool initialize_quad_shader(void) {
+    if (quad_shader) return true;
+    quad_shader = DVLB_ParseFile((u32 *)m3ds_quad_shbin, m3ds_quad_shbin_size);
+    if (!quad_shader) return false;
+    shaderProgramInit(&quad_program);
+    shaderProgramSetVsh(&quad_program, &quad_shader->DVLE[0]);
+    quad_projection_uniform = shaderInstanceGetUniformLocation(quad_program.vertexShader, "projection");
+    AttrInfo_Init(&quad_attributes);
+    AttrInfo_AddLoader(&quad_attributes, 0, GPU_FLOAT, 4);
+    AttrInfo_AddLoader(&quad_attributes, 1, GPU_FLOAT, 2);
+    AttrInfo_AddLoader(&quad_attributes, 2, GPU_FLOAT, 4);
+    return true;
+}
+
+static void draw_quad_piece(C3D_Tex *texture, const M3DS_QuadVertex *polygon, int count,
+                            int x, int y, uint32_t mix, const C3D_Mtx *projection) {
+    C2D_Flush();
+    C3D_BindProgram(&quad_program);
+    C3D_SetAttrInfo(&quad_attributes);
+    C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, quad_projection_uniform, projection);
+    C3D_TexBind(0, texture);
+
+    // Pinned Arc mixes RGB by mix alpha and keeps the sampled texture alpha.
+    for (int i = 0; i < 6; i++) C3D_TexEnvInit(C3D_GetTexEnv(i));
+    C3D_TexEnv *env = C3D_GetTexEnv(0);
+    C3D_TexEnvSrc(env, C3D_Both, GPU_TEXTURE0, GPU_CONSTANT, GPU_CONSTANT);
+    C3D_TexEnvOpRgb(env, GPU_TEVOP_RGB_SRC_COLOR, GPU_TEVOP_RGB_SRC_COLOR, GPU_TEVOP_RGB_ONE_MINUS_SRC_ALPHA);
+    C3D_TexEnvOpAlpha(env, GPU_TEVOP_A_SRC_ALPHA, GPU_TEVOP_A_SRC_ALPHA, GPU_TEVOP_A_SRC_ALPHA);
+    C3D_TexEnvFunc(env, C3D_RGB, GPU_INTERPOLATE);
+    C3D_TexEnvFunc(env, C3D_Alpha, GPU_REPLACE);
+    C3D_TexEnvColor(env, mix);
+    env = C3D_GetTexEnv(1);
+    C3D_TexEnvSrc(env, C3D_Both, GPU_PREVIOUS, GPU_PRIMARY_COLOR, GPU_PRIMARY_COLOR);
+    C3D_TexEnvFunc(env, C3D_Both, GPU_MODULATE);
+
+    C3D_ImmDrawBegin(GPU_TRIANGLES);
+    for (int i = 1; i + 1 < count; i++) {
+        const int indices[] = {0, i, i + 1};
+        for (int corner = 0; corner < 3; corner++) {
+            M3DS_QuadVertex v = polygon[indices[corner]];
+            C3D_ImmSendAttrib(v.x, v.y, 0.5f, 1.0f);
+            C3D_ImmSendAttrib((v.u - x) / WORLD_ATLAS_TILE, 1.0f - (v.v - y) / WORLD_ATLAS_TILE, 0, 0);
+            C3D_ImmSendAttrib(v.color[0], v.color[1], v.color[2], v.color[3]);
+        }
+    }
+    C3D_ImmDrawEnd();
+    C2D_Prepare();
+    begin_world_scene();
+}
+
+static int32_t skip_unsupported_quad(void) {
+    static bool reported;
+    if (!reported) {
+        static const char message[] = "UPSTREAM_TEXTURED_QUAD skipped=unsupported_atlas_or_mix\n";
+        svcOutputDebugString(message, sizeof(message) - 1);
+        reported = true;
+    }
+    return 1;
+}
+#endif
+
+int32_t m3ds_terrain_draw_textured_quad(int32_t page, int32_t width, int32_t height,
+                                      const float *vertices, int32_t offset, int32_t blend_mode) {
+#ifdef M3DS_WORLD_ATLAS
+    if (!frame_open) return 0;
+    if (page < 0 || (size_t)page >= sizeof(world_atlas_sizes) / sizeof(world_atlas_sizes[0])
+            || width != world_atlas_sizes[page][0] || height != world_atlas_sizes[page][1]) {
+        return skip_unsupported_quad();
+    }
+    M3DS_QuadVertex corners[4];
+    uint32_t mix;
+    memcpy(&mix, vertices + offset + 5, sizeof(mix));
+    for (int i = 0; i < 4; i++) {
+        const float *v = vertices + offset + i * 6;
+        uint32_t color, corner_mix;
+        memcpy(&color, v + 2, sizeof(color));
+        memcpy(&corner_mix, v + 5, sizeof(corner_mix));
+        if (mix != corner_mix) return skip_unsupported_quad();
+        if (!isfinite(v[0]) || !isfinite(v[1]) || !isfinite(v[3]) || !isfinite(v[4])) return 1;
+        corners[i] = (M3DS_QuadVertex){
+            .x = screen_left + (v[0] - world_left) * scale,
+            .y = screen_bottom - (v[1] - world_bottom) * scale,
+            .u = fminf(fmaxf(v[3] * width, 0), nextafterf(width, 0)),
+            .v = fminf(fmaxf(v[4] * height, 0), nextafterf(height, 0)),
+            .color = {(color & 255) / 255.0f, ((color >> 8) & 255) / 255.0f,
+                      ((color >> 16) & 255) / 255.0f, m3ds_quad_alpha(color) / 254.0f},
+        };
+    }
+    if (!initialize_quad_shader()) return 0;
+    // The top-screen framebuffer stores the screen axes in reverse order.
+    C3D_Mtx projection;
+    Mtx_OrthoTilt(&projection, 0, target->frameBuf.height, target->frameBuf.width, 0, 1, -1, true);
+    mix = m3ds_quad_expand_alpha(mix);
+    set_world_blend(blend_mode);
+    set_world_mix(0, 0);
+    static const int triangles[2][3] = {{0, 1, 2}, {2, 3, 0}};
+    int pieces = 0;
+    for (int i = 0; i < 2; i++) {
+        M3DS_QuadVertex tri[3] = {corners[triangles[i][0]], corners[triangles[i][1]], corners[triangles[i][2]]};
+        int left = (int)fminf(tri[0].u, fminf(tri[1].u, tri[2].u)) / WORLD_ATLAS_TILE;
+        int top = (int)fminf(tri[0].v, fminf(tri[1].v, tri[2].v)) / WORLD_ATLAS_TILE;
+        int right = (int)fmaxf(tri[0].u, fmaxf(tri[1].u, tri[2].u)) / WORLD_ATLAS_TILE;
+        int bottom = (int)fmaxf(tri[0].v, fmaxf(tri[1].v, tri[2].v)) / WORLD_ATLAS_TILE;
+        for (int tile_y = top; tile_y <= bottom; tile_y++) {
+            for (int tile_x = left; tile_x <= right; tile_x++) {
+                int x = tile_x * WORLD_ATLAS_TILE, y = tile_y * WORLD_ATLAS_TILE;
+                M3DS_QuadVertex polygon[M3DS_QUAD_MAX_VERTICES];
+                int count = m3ds_quad_clip_triangle(tri, polygon, x, y, x + WORLD_ATLAS_TILE, y + WORLD_ATLAS_TILE);
+                if (count < 3) continue;
+                C2D_SpriteSheet atlas = get_world_texture(page, tile_x, tile_y);
+                if (!atlas) return 0;
+                draw_quad_piece(C2D_SpriteSheetGetImage(atlas, 0).tex, polygon, count, x, y, mix, &projection);
+                pieces++;
+            }
+        }
+    }
+    static bool reported;
+    if (pieces && !reported) {
+        static const char message[] = "UPSTREAM_TEXTURED_QUAD source=arc gpu=citro3d\n";
+        svcOutputDebugString(message, sizeof(message) - 1);
+        reported = true;
+    }
+    draws += pieces;
+    return 1;
+#else
+    (void)page; (void)width; (void)height; (void)vertices; (void)offset; (void)blend_mode;
+    return 0;
+#endif
 }
 
 int32_t m3ds_terrain_end(void) {
@@ -489,7 +753,8 @@ int32_t m3ds_terrain_build_labels(const char *labels) {
 
 int32_t m3ds_terrain_build_overlay(int32_t column, int32_t row, int32_t block, int32_t rotation,
                                   int32_t removing, int32_t tile_size, int32_t rotatable, int32_t catalog_open,
-                                  int32_t configuring, int32_t selecting_mine) {
+                                  int32_t configuring, int32_t selecting_mine, int32_t inventory_action,
+                                  int32_t command_mode, int32_t selecting_control, int32_t placing_schematic) {
     if (!frame_open || !palette) return 0;
     set_world_blend(0);
     set_world_mix(0, 0);
@@ -503,7 +768,8 @@ int32_t m3ds_terrain_build_overlay(int32_t column, int32_t row, int32_t block, i
         C2D_DrawRectSolid(x, y + size - 2, 0.5f, size, 2, accent);
         C2D_DrawRectSolid(x, y, 0.5f, 2, size, accent);
         C2D_DrawRectSolid(x + size - 2, y, 0.5f, 2, size, accent);
-        if (rotatable && !removing && !selecting_mine) {
+        if (rotatable && !removing && !selecting_mine && inventory_action == 0 && command_mode == 0
+                && !selecting_control && !placing_schematic) {
             static const int dx[] = {1, 0, -1, 0}, dy[] = {0, -1, 0, 1};
             float cx = x + size / 2, cy = y + size / 2;
             C2D_DrawLine(cx, cy, accent, cx + dx[rotation] * 6, cy + dy[rotation] * 6, accent, 2, 0.5f);
@@ -514,7 +780,7 @@ int32_t m3ds_terrain_build_overlay(int32_t column, int32_t row, int32_t block, i
     C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_COLOR);
     if (catalog_open) return 1;
     C2D_DrawRectSolid(2, 48, 0.5f, 26, 31, C2D_Color32(45, 52, 64, 255));
-    draw_palette_label(4, 15, 57, 0.34f, 24,
+    draw_palette_label(command_mode == 0 ? 4 : 11, 15, 57, 0.34f, 24,
         block < 0 && !removing ? accent : C2D_Color32(239, 241, 247, 255));
     C2D_DrawRectSolid(292, 48, 0.5f, 26, 31, C2D_Color32(45, 52, 64, 255));
     draw_palette_label(5, 305, 57, 0.30f, 24,
@@ -522,8 +788,32 @@ int32_t m3ds_terrain_build_overlay(int32_t column, int32_t row, int32_t block, i
     C2D_DrawRectSolid(292, 80, 0.5f, 26, 31, C2D_Color32(45, 52, 64, 255));
     draw_palette_label(7, 305, 89, 0.30f, 24,
         selecting_mine ? accent : C2D_Color32(239, 241, 247, 255));
+    C2D_DrawRectSolid(2, 80, 0.5f, 26, 31, C2D_Color32(45, 52, 64, 255));
+    draw_palette_label(command_mode == 0 ? 8 : 12, 15, 89, 0.30f, 24,
+        inventory_action == 1 ? accent : C2D_Color32(239, 241, 247, 255));
+    C2D_DrawRectSolid(2, 112, 0.5f, 26, 31, C2D_Color32(45, 52, 64, 255));
+    draw_palette_label(9, 15, 121, 0.30f, 24,
+        inventory_action == 2 ? accent : C2D_Color32(239, 241, 247, 255));
+    C2D_DrawRectSolid(292, 112, 0.5f, 26, 31, C2D_Color32(45, 52, 64, 255));
+    u32 command_color = C2D_Color32(239, 241, 247, 255);
+    if (command_mode == 1) command_color = accent;
+    if (command_mode == 2) command_color = C2D_Color32(241, 117, 97, 255);
+    draw_palette_label(10, 305, 121, 0.30f, 24, command_color);
+    C2D_DrawRectSolid(292, 144, 0.5f, 26, 31, C2D_Color32(45, 52, 64, 255));
+    draw_palette_label(13, 305, 153, 0.30f, 24,
+        selecting_control ? accent : C2D_Color32(239, 241, 247, 255));
+    if (selecting_control) {
+        C2D_DrawRectSolid(292, 176, 0.5f, 26, 31, C2D_Color32(45, 52, 64, 255));
+        draw_palette_label(14, 305, 185, 0.30f, 24, C2D_Color32(239, 241, 247, 255));
+    }
+    if (command_mode == 0 && !selecting_control) {
+        C2D_DrawRectSolid(2, 144, 0.5f, 26, 31, C2D_Color32(45, 52, 64, 255));
+        draw_palette_label(15, 15, 153, 0.30f, 24,
+            placing_schematic ? accent : C2D_Color32(239, 241, 247, 255));
+    }
     for (int i = 0; i < 4; i++) {
-        bool active = !selecting_mine && (removing ? i == 3 : i == block);
+        bool active = !selecting_mine && inventory_action == 0 && command_mode == 0 && !selecting_control && !placing_schematic
+            && (removing ? i == 3 : i == block);
         C2D_DrawRectSolid(i * 80 + 2, 4, 0.5f, 76, 39,
             active ? C2D_Color32(85, 71, 52, 255) : C2D_Color32(45, 52, 64, 255));
         draw_palette_label(i, i * 80 + 40, 16, 0.42f, 72,
@@ -702,16 +992,16 @@ static bool catalog_label(const char *text, float x, float y, float scale, float
     return false;
 }
 
-static bool draw_menu_icon(int row, int32_t id, bool categories, float y) {
+static bool draw_menu_icon(int row, int32_t id, int32_t catalog, float y) {
     if (id < 0) return false;
-    if (!menu_icons[row].requested || menu_icons[row].id != id || menu_icons[row].categories != categories) {
+    if (!menu_icons[row].requested || menu_icons[row].id != id || menu_icons[row].catalog != catalog) {
         // FrameBegin completed the previous frame before any row texture can be replaced.
         if (menu_icons[row].sheet) C2D_SpriteSheetFree(menu_icons[row].sheet);
         menu_icons[row].id = id;
-        menu_icons[row].categories = categories;
+        menu_icons[row].catalog = catalog;
         menu_icons[row].requested = true;
         char path[48];
-        snprintf(path, sizeof(path), "romfs:/catalog/%s-%ld.t3x", categories ? "block" : "item", (long)id);
+        snprintf(path, sizeof(path), "romfs:/catalog/%s-%ld.t3x", catalog_names[catalog], (long)id);
         menu_icons[row].sheet = C2D_SpriteSheetLoad(path);
     }
     if (!menu_icons[row].sheet) return false;
@@ -722,8 +1012,10 @@ static bool draw_menu_icon(int row, int32_t id, bool categories, float y) {
         y + (23 - image.subtex->height * icon_scale) / 2, 0.5f, NULL, icon_scale, icon_scale);
 }
 
-int32_t m3ds_terrain_build_catalog(const char *labels, const int32_t *icons, int32_t selected,
-                                    int32_t previous, int32_t next, int32_t categories) {
+int32_t m3ds_terrain_build_catalog(const char *labels, const int32_t *icons, int32_t active_rows,
+                                    int32_t previous, int32_t next, int32_t catalog) {
+    if (catalog < 0 || catalog >= catalog_count) return 0;
+    const bool categories = catalog == block_catalog;
     const u32 panel = C2D_Color32(45, 52, 64, 255), text = C2D_Color32(239, 241, 247, 255);
     const u32 selected_panel = C2D_Color32(85, 71, 52, 255), accent = C2D_Color32(250, 213, 107, 255);
     C2D_TextBufClear(catalog_buffer);
@@ -737,15 +1029,22 @@ int32_t m3ds_terrain_build_catalog(const char *labels, const int32_t *icons, int
         stock_labels &= catalog_label("<", 35, 15, 0.55f, 50, text);
         stock_labels &= catalog_label(">", 285, 15, 0.55f, 50, text);
     }
-    stock_labels &= catalog_label(labels, 160, 15, 0.52f, categories ? 190 : 300, text);
+    const bool schematics = catalog == schematic_catalog;
+    if (schematics) {
+        C2D_DrawRectSolid(224, 4, 0.5f, 88, 34, panel);
+        stock_labels &= catalog_label("Capture", 268, 15, 0.52f, 82, text);
+    }
+    stock_labels &= catalog_label(labels, schematics ? 112 : 160, 15, 0.52f,
+                                  categories ? 190 : schematics ? 212 : 300, text);
     int32_t visible_icons = 0;
     for (int row = 0; row < 6; row++) {
         labels += strlen(labels) + 1;
         if (!*labels) continue;
         float y = 44 + row * 25;
-        C2D_DrawRectSolid(8, y, 0.5f, 304, 23, row == selected ? selected_panel : panel);
-        if (draw_menu_icon(row, icons[row], categories != 0, y)) visible_icons++;
-        stock_labels &= catalog_label(labels, 177, y + 4, 0.50f, 254, row == selected ? accent : text);
+        bool active = (active_rows & (1 << row)) != 0;
+        C2D_DrawRectSolid(8, y, 0.5f, 304, 23, active ? selected_panel : panel);
+        if (draw_menu_icon(row, icons[row], catalog, y)) visible_icons++;
+        stock_labels &= catalog_label(labels, 177, y + 4, 0.50f, 254, active ? accent : text);
     }
     if (previous) {
         C2D_DrawRectSolid(8, 201, 0.5f, 88, 34, panel);
@@ -758,14 +1057,14 @@ int32_t m3ds_terrain_build_catalog(const char *labels, const int32_t *icons, int
         stock_labels &= catalog_label("Next page", 268, 212, 0.45f, 84, text);
     }
 #ifdef M3DS_STOCK_FONT
-    static char reported[2][4 * menu_label_glyphs + 1];
-    int menu = categories != 0;
-    if (stock_labels && strcmp(reported[menu], first_row) != 0) {
+    static char reported[catalog_count][4 * menu_label_glyphs + 1];
+    if (stock_labels && strcmp(reported[catalog], first_row) != 0) {
         // A stock-rendered row fits the UTF-8 capacity of the logged page identity.
-        memcpy(reported[menu], first_row, strlen(first_row) + 1);
-        static const char blocks[] = "UPSTREAM_MENU_FONT source=v160.8 catalog=block\n";
-        static const char items[] = "UPSTREAM_MENU_FONT source=v160.8 catalog=item\n";
-        svcOutputDebugString(menu ? blocks : items, menu ? sizeof(blocks) - 1 : sizeof(items) - 1);
+        memcpy(reported[catalog], first_row, strlen(first_row) + 1);
+        char record[64];
+        int length = snprintf(record, sizeof(record), "UPSTREAM_MENU_FONT source=v160.8 catalog=%s\n",
+            catalog_names[catalog]);
+        svcOutputDebugString(record, length);
     }
 #else
     (void)stock_labels;
@@ -780,8 +1079,19 @@ void m3ds_terrain_fini(void) {
     m3ds_stock_text_close();
 #endif
 #ifdef M3DS_WORLD_ATLAS
+    if (quad_shader) {
+        shaderProgramFree(&quad_program);
+        DVLB_Free(quad_shader);
+        quad_shader = NULL;
+    }
     for (size_t i = 0; i < sizeof(world_textures) / sizeof(world_textures[0]); i++) {
         if (world_textures[i].sheet) C2D_SpriteSheetFree(world_textures[i].sheet);
+    }
+    for (size_t i = 0; i < sizeof(unit_build_textures) / sizeof(unit_build_textures[0]); ++i) {
+        for (int stripe = 0; stripe < 2; ++stripe) {
+            C3D_Tex *texture = &unit_build_textures[i].textures[stripe];
+            if (texture->data) C3D_TexDelete(texture);
+        }
     }
 #endif
     for (size_t row = 0; row < sizeof(menu_icons) / sizeof(menu_icons[0]); row++) {

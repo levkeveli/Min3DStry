@@ -22,13 +22,14 @@ class VerifyUpstreamMenuIcons {
 
     private static void verify(Path root, Path reference, String tex3ds) throws Exception {
         var manifest = Files.readAllLines(root.resolve("menu-icons.tsv"));
-        int blocks = 0, items = 0;
+        int blocks = 0, items = 0, units = 0;
         long pixels = 0, referencePixels = 0;
         for (String line : manifest.subList(1, manifest.size())) {
             String[] fields = line.split("\t");
             String name = fields[0];
             if (name.startsWith("block-")) blocks++;
             else if (name.startsWith("item-")) items++;
+            else if (name.startsWith("unit-")) units++;
             else throw new AssertionError("Unknown content kind: " + name);
             Path png = root.resolve("png/" + name + ".png");
             var image = ImageIO.read(png.toFile());
@@ -58,10 +59,11 @@ class VerifyUpstreamMenuIcons {
             pixels += (long) sw * sh;
             referencePixels += verifyTex3ds(tex3ds, png, reference, bytes);
         }
-        if (blocks != 425 || items != 22) throw new AssertionError("Unexpected v160.8 icon inventory");
-        System.out.printf("Verified %d block and %d item icons, %,d original texels%n", blocks, items, pixels);
+        if (blocks != 425 || items != 22 || units != 7) throw new AssertionError("Unexpected v160.8 icon inventory");
+        System.out.printf("Verified %d block, %d item and %d factory unit icons, %,d original texels%n",
+            blocks, items, units, pixels);
         System.out.printf("Matched tex3ds headers and alpha for %d icons, %,d visible RGBA texels%n",
-            blocks + items, referencePixels);
+            blocks + items + units, referencePixels);
     }
 
     private static int verifyTex3ds(String tex3ds, Path png, Path output, byte[] actual) throws Exception {

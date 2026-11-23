@@ -2,6 +2,7 @@ import arc.graphics.g2d.Draw;
 import mindustry.Vars;
 import mindustry.game.MapObjectives.ObjectiveMarker;
 import mindustry.game.MapObjectives.PosMarker;
+import mindustry.game.MapObjectives.QuadMarker;
 import mindustry.game.MapObjectives.TextureMarker;
 import mindustry.game.Rules;
 import port.render.UpstreamMarkerTexture;
@@ -30,7 +31,9 @@ final class UpstreamObjectiveMarkers {
     }
 
     private static void drawOne(ObjectiveMarker marker, float displayScale) {
-        if (marker instanceof PosMarker
+        if (marker instanceof QuadMarker quad) {
+            if (!UpstreamMarkerTexture.deferLookup(quad.texture.value)) quad.draw(1f);
+        } else if (marker instanceof PosMarker
                 && (!(marker instanceof TextureMarker sprite) || !UpstreamMarkerTexture.deferLookup(sprite.texture.value))) {
             marker.draw(marker.autoscale ? 4f / displayScale : 1f);
         }

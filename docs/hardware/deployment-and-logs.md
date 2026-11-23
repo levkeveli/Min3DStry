@@ -20,6 +20,18 @@ Issue #6 provides a repeatable deployment and telemetry capture workflow in [`to
    Streaming uses `3dslink -s` and TCP port 17491 on the PC. The app keeps rendering the bottom-screen console and also emits the records to the debugger for Azahar. `deploy` mirrors the output line by line into `--log-out` (flushed as it arrives), and `--stream-seconds N` stops the server automatically (exit 0 for a deliberate bounded stop, even with continuous output). Pressing START closes the app, but `3dslink -s` keeps listening, so use the bounded option (or Ctrl+C) to finish the log.
    The deploy command passes `m3ds-stream-logs` after the ROM path. Homebrew Launcher documents that trailing arguments are forwarded to the launched app, and `3dslink` 0.6.3 serializes them after the app path. [Homebrew Launcher Netloader](https://github.com/devkitPro/3ds-hbmenu#netloader) · [3dslink 0.6.3 argument handling](https://github.com/devkitPro/3dslink/blob/c2df7362a156282bc2fb55370740ad670ca5a8a5/host/src/main.c#L599-L606)
 
+### Direct log capture without `3dslink -s`
+
+For long sessions use [`tools/hw_capture.py`](../../tools/hw_capture.py): it binds TCP 17491, runs
+`3dslink` **without** `-s` (upload only) with the `m3ds-stream-logs` argument, and writes the app's raw
+stream to disk as it arrives. This avoids `3dslink`'s stdout buffering and never probes NetLoader with a
+bare TCP connect — hbmenu expects the 3dslink protocol and reports `[namelen:...]` on a connect-and-close.
+
+```bash
+python3 tools/hw_capture.py --rom build/min3dstry.3dsx --ip 192.168.1.122 \
+  --seconds 330 --log-out build/device-logs/hw-<commit>-<timestamp>.log
+```
+
 `3dslink` is resolved from `--3dslink`, `THREEDSLINK_BIN`/`THREESLINK_BIN`, `PATH`, then a local devkitPro
 install (`DEVKITPRO`, `~/devkitPro`, `C:/devkitPro`). Pass `--3dslink` or set the env var if the tool lives
 elsewhere.
@@ -48,7 +60,14 @@ Validate streamed Original or New 3DS logs against the target hardware model (`O
   --commit "$(git rev-parse --short HEAD)" --target "Original 3DS" \
   --profile old3ds --min-fps 24 --expected-hash 0x53a483c7 --strict
 ```
-Use `--format json` for structured metrics or `--load-bytes <elf_load_bytes>` to check `LOAD + linearHeap + stack + managedLimit` against `64 MiB` / `124 MiB`. For older logs, the check uses the previous 24 MiB heap estimate.
+
+The platform test harness emits
+`[MIN3DSTRY] BENCH fps=... avg_ms=... p95_ms=... frames=... scenario=factory_demo`
+after every 256 rendered frames. A missing `BENCH` record fails the
+`frame_rate` check. Use `--format json` for structured metrics or
+`--load-bytes <elf_load_bytes>` to check
+`LOAD + linearHeap + stack + managedLimit` against `64 MiB` / `124 MiB`.
+For older logs, the check uses a 24 MiB managed-heap estimate.
 
 ### 5. Checked Hardware Evidence (`./dev.sh device evidence`)
 
@@ -75,5 +94,7 @@ evidence; `./dev.sh emu-test` stays the pre-flight.
 - **Host unit tests (`tests/tools/test_device_deploy.py`):** **Host-tested** via `./dev.sh test` (`3dslink` command builder, SD staging + SHA-256 manifest, loopback TCP log capture, and provenance Markdown formatter).
 - **Hardware evidence ingest (`tests/tools/test_hw_evidence.py`):** **Host-tested** for valid New/Old profiles, corrupt-save failure, wrong hashes, frame drops, missing records, strict exit codes, and the `device evidence` wrapper.
 - **Build provenance (`tests/tools/test_git_head_sha.py`):** the app logs `BUILD commit=<sha> dirty=<0|1>`; `dev.sh build` exports the short SHA and the Makefile falls back to `tools/git_head_sha.sh` when a container has no git binary. Host-tested for loose refs, packed refs, detached HEAD, and linked worktrees.
-- **Physical New 3DS XL:** On 2026-11-20, [build `07e94ed`](https://github.com/levkeveli/Min3DStry/actions/runs/44739543994) was sent via `3dslink` 0.6.3 over Wi-Fi. The PC received the hardware profile (804 MHz, L2 enabled, 124 MiB application memory, FIRM 2.58.0), the canonical 240-tick scenario hash (`0x53a483c7`, matching the host fixture), and the frame-30 sample (2.63% CPU, 8.10% GPU, 0.26% command buffer, zero budget drops).
+- **Physical New 3DS XL:** On 2026-11-22, clean build `de3e249` was sent via `3dslink` 0.6.3 over Wi-Fi. The run logged the hardware profile (804 MHz, L2 enabled, 124 MiB application memory, FIRM 2.58.0), the canonical 240-tick scenario hash (`0x53a483c7`), the sector loader hashes, and 2/4-worker checksums. The raw log and strict evidence report are committed beside this page. [New 3DS XL evidence](evidence/new3ds-xl-de3e249.md)
+- **Physical New 3DS XL combined run:** On 2026-11-22, clean main build `a328c70` passed all 12 strict checks over ~10 minutes and emitted 132 `BENCH` windows. The conservative range is `fps_min=29.92`, `fps_max=59.84`, `p95_max=33.50` against the 24 FPS target; the operator confirmed the factory scene, pan/zoom, lighting, pause/resume, HUD and minimap. The operator heard the UI tone, but upstream audio clips/music remain unverified (`AUDIO_EVENT clip=-1`), and the visible touch legend sits outside the hit zones. The sampler runs the `factory_demo` harness, not full campaign gameplay. [Combined evidence](evidence/new3ds-xl-a328c70.md) and [benchmark report](evidence/new3ds-xl-a328c70-benchmark.md).
+- **Earlier New 3DS run:** build `07e94ed` (2026-11-20) also reported the N3DS profile and parity hash, but no raw log was retained, so it is historical context rather than ingestible evidence.
 - **Physical Original 3DS XL:** On 2026-11-22, clean main build `a4a9a96` booted after a Wi-Fi transfer and streamed telemetry that passed all seven smoke checks. The operator confirmed START, camera panning, and audible sound. The run covered the default hardware harness. [Original 3DS XL evidence](evidence/old3ds-xl-a4a9a96.md)

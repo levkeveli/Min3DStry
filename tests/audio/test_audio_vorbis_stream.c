@@ -106,16 +106,16 @@ static void mock_complete_next(MockBackendCtx *ctx, uint32_t *completed_index) {
 
 static M3dsAudioStreamBackend make_mock_backend(MockBackendCtx *ctx) {
     M3dsAudioStreamBackend backend = {
-        ctx,
-        "mock-vorbis-stream",
-        mock_init,
-        mock_shutdown,
-        mock_configure,
-        mock_buffer_is_free,
-        mock_buffer_submit,
-        mock_set_mix,
-        mock_set_paused,
-        mock_stop,
+        .ctx = ctx,
+        .name = "mock-vorbis-stream",
+        .init = mock_init,
+        .shutdown = mock_shutdown,
+        .configure = mock_configure,
+        .buffer_is_free = mock_buffer_is_free,
+        .buffer_submit = mock_buffer_submit,
+        .set_mix = mock_set_mix,
+        .set_paused = mock_set_paused,
+        .stop = mock_stop,
     };
     return backend;
 }
