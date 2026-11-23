@@ -497,7 +497,7 @@ to exercise the PCM cache and stream decoder controls with the host
 mixer mock. The JVM reference verifies the original registry, music
 rules, and ambience. The live Glacier replay loads an active Mechanical
 Drill, requests the stock UI, positional and streamed sound packets, and
-applies the original `game1` soundtrack rule.
+applies the original `game1` soundtrack rule. The verifier accepts stock server output with or without terminal colors.
 
 ```bash
 python3 tools/verify_stock_live_audio.py \
