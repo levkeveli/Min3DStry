@@ -5,6 +5,31 @@ The ARM11 client receives the upstream combat entities and the stock v160.8
 server applies turret damage; the port does not yet run its own combat
 simulation or synchronize bullets inside the live app.
 
+## Aim and fire in the unified client
+
+Hold **X** and use the D-pad or Circle Pad to aim a mobile unit.
+Release **X** to move again. **L** fires in the last aim direction.
+A controlled turret aims directly with either pad. The original
+player snapshot carries the aim point and trigger state to the
+unmodified v160.8 server, which runs the stock weapon simulation.
+
+```bash
+python3 tools/verify_stock_live_weapons.py \
+  --rom /path/to/unified/upstream-probe.3dsx \
+  --server /path/to/server-release.jar \
+  --output build/stock-live-weapons
+```
+
+
+Both Original and New 3DS profiles in Azahar 2126.2 passed the live
+replay. The stock server saw the same Gamma stand still while aiming
+east with the D-pad and north with the Circle Pad. Each shot happened
+after releasing X. The server recorded the correct projectile direction,
+a newer snapshot clearing each trigger release, and eastward movement
+after firing. The same ROM passed the offline weapon replay on both
+profiles and the Original 3DS offline and live turret-possession replay.
+[ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45108952293)
+
 ## Check
 
 `tools/verify_upstream_live_net.py --combat --controls --terrain-atlas ...`

@@ -59,7 +59,8 @@ def verify_commands(log, proc, rpc, output):
 
 
 def replay(args, model, fixture, live, *, taps=TAPS, buttons=None,
-           verify_input=verify_commands, read_stock=read_stock_orders):
+           verify_input=verify_commands, read_stock=read_stock_orders, prepare_server=None,
+           button_durations=None, circle=None):
     azahar = sp.az.resolve_azahar_bin(args.azahar)
     config, log = sp.az.resolve_azahar_paths(azahar)
     originals = {path: path.read_bytes() if path.is_file() else None for path in (config, log)}
@@ -71,7 +72,8 @@ def replay(args, model, fixture, live, *, taps=TAPS, buttons=None,
     movie = output / "commands.ctm"
     if buttons is None:
         buttons = {0: sp.KEY_X, 94: sp.KEY_START} if live else {84: sp.KEY_SELECT, 94: sp.KEY_START}
-    write_movie(movie, model, live=live, taps=taps, buttons=buttons, seconds=102)
+    write_movie(movie, model, live=live, taps=taps, buttons=buttons, seconds=102,
+                button_durations=button_durations, circle=circle)
     if live:
         (save.parent / "server-endpoint.txt").write_text(f"127.0.0.1 {args.port}\n", encoding="ascii")
     isolated = {"Data Storage": {"use_custom_storage": "true", "sdmc_directory": sd.as_posix() + "/"}}
@@ -82,6 +84,8 @@ def replay(args, model, fixture, live, *, taps=TAPS, buttons=None,
         config.write_text(sp.az.patch_qt_config_text(initial, isolated), encoding="utf-8")
         if live:
             server, server_log = stock_session(args, output / "live-server", fixture)
+            if prepare_server is not None:
+                prepare_server(server, server_log)
         proc, rpc = sp._launch_azahar(model, args.rom, azahar, config, log, movie)
         try:
             if live:

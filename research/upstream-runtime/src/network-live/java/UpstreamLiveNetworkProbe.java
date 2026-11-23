@@ -616,6 +616,10 @@ public final class UpstreamLiveNetworkProbe {
 
     // Match the player snapshot fields for movement and the upstream build queue in NetClient.sync.
     private static void sendPosition(Unit unit, int sequence, boolean building) throws IOException {
+        send(playerSnapshot(unit, sequence, building), false);
+    }
+
+    static ClientSnapshotCallPacket playerSnapshot(Unit unit, int sequence, boolean building) {
         var player = Vars.player;
         var snapshot = new ClientSnapshotCallPacket();
         snapshot.snapshotID = sequence;
@@ -638,11 +642,11 @@ public final class UpstreamLiveNetworkProbe {
         snapshot.viewY = unit.y();
         snapshot.viewWidth = 400f;
         snapshot.viewHeight = 240f;
-        send(snapshot, false);
+        return snapshot;
     }
 
     private static final class LiveControls {
-        private static final int FIRE_HELD = 1 << 21;
+        private static final int AIM_HELD = 1 << 20, FIRE_HELD = 1 << 21;
         private static final long FRAME_NS = 16_666_667L;
         // The player snapshot cadence in pinned NetClient.
         private static final long SNAPSHOT_NS = 66_000_000L;
@@ -650,6 +654,7 @@ public final class UpstreamLiveNetworkProbe {
         private static final float STOP_SPEED = 0.03f;
         private final UpstreamLiveBuildControls buildingControls;
         private final Vec2 direction = new Vec2();
+        private final UpstreamWeaponControl weapons = new UpstreamWeaponControl();
         private long lastStep, lastSnapshot;
         private int sequence;
         private Unit previousUnit;
@@ -664,6 +669,7 @@ public final class UpstreamLiveNetworkProbe {
             var unit = controlledUnit();
             if (unit == null) {
                 previousUnit = null;
+                Vars.player.shooting = false;
                 return;
             }
             if (previousUnit != unit) {
@@ -679,17 +685,19 @@ public final class UpstreamLiveNetworkProbe {
             Vars.player.set(unit);
             if (buildingControls != null) buildingControls.update(unit, input, Native.touch());
             if (Vars.player.unit() != unit) return;
+            direction.set((byte)input / 127f, (byte)(input >>> 8) / 127f).limit(1f);
+            if (direction.len2() < DEAD_ZONE * DEAD_ZONE) direction.setZero();
+            boolean anchored = unit instanceof BlockUnitc;
+            boolean overlay = buildingControls != null && buildingControls.blocksWeaponInput();
+            boolean aiming = (input & AIM_HELD) != 0;
+            weapons.update(unit, direction, !overlay && (anchored || aiming) && !direction.isZero(),
+                !overlay && (input & FIRE_HELD) != 0);
+            if (anchored || aiming) direction.setZero();
+
             if (now - lastStep >= FRAME_NS) {
-                direction.set((byte)input / 127f, (byte)(input >>> 8) / 127f).limit(1f);
-                if (direction.len2() < DEAD_ZONE * DEAD_ZONE) direction.setZero();
                 float delta = Math.min(3f, (now - lastStep) / (float)FRAME_NS);
                 lastStep = now;
-                if (unit instanceof BlockUnitc) {
-                    aimBuilding(unit, direction, input);
-                    direction.setZero();
-                } else {
-                    stepUnit(unit, direction, delta);
-                }
+                if (!anchored) stepUnit(unit, direction, delta);
                 if (!direction.isZero() && !moving) {
                     moving = true;
                     inputDevice = (input & 0x10000) != 0 ? "dpad" : "circle";
@@ -710,28 +718,15 @@ public final class UpstreamLiveNetworkProbe {
             }
         }
 
-        private void aimBuilding(Unit unit, Vec2 direction, int input) {
-            boolean overlay = buildingControls != null && (buildingControls.catalog().isOpen()
-                || buildingControls.buildingConfig().isOpen() || buildingControls.inventory().isOpen()
-                || buildingControls.orders().active() || buildingControls.selectingControl()
-                || buildingControls.schematics().active());
-            if (!direction.isZero()) {
-                direction.setLength(UpstreamPlayerControl.aimDistance(unit));
-                unit.aim(unit.x() + direction.x, unit.y() + direction.y, true);
-                // PlayerComp.afterSync restores the local pointer on every player snapshot.
-                Vars.player.mouseX = unit.aimX();
-                Vars.player.mouseY = unit.aimY();
-            }
-            boolean shooting = !overlay && (input & FIRE_HELD) != 0;
-            Vars.player.shooting = shooting;
-            unit.controlWeapons(true, shooting);
-        }
-
         private static void stepUnit(Unit unit, Vec2 input, float delta) {
             float previousDelta = Time.delta;
             Time.delta = delta;
             try {
-                unit.lookAt(unit.prefRotation());
+                if (Vars.player.shooting && unit.type().omniMovement && unit.type().faceTarget) {
+                    unit.lookAt(unit.angleTo(unit.aimX(), unit.aimY()));
+                } else {
+                    unit.lookAt(unit.prefRotation());
+                }
                 unit.movePref(input.scl(unit.speed()));
                 // Match the local position and drag update in upstream VelComp.
                 float x = unit.x(), y = unit.y();
