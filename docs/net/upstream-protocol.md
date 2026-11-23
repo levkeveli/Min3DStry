@@ -142,4 +142,20 @@ and shows the final wave in wave modes.
 The unified JVM reference round-tripped both generated result packets and
 verified a dedicated-server loss and a desktop-hosted win. The stock-bundle
 draw reference checked the survival and PvP result text. Live handheld
-replay and next-map stream transitions are pending.
+replay is pending.
+
+
+### Stock server map rotation
+
+The active client accepts v160.8 `WorldDataBegin` and the following
+`WorldStream` on its existing Arc session. It clears map-specific selections,
+applies the original world reset, and streams the replacement map in chunks.
+The stock `ConnectConfirm` follows the successful load. World and match
+result HUD state come from the new map.
+
+Use `tools/build_stock_rotation_stream.py` to write a second fixture from an
+original map with the pinned Java server. Pass its output as the second
+argument to `runProbeJvm` alongside the first captured WorldStream. The JVM
+replay replaced Glacier with Ancient Caldera in one client session and
+verified the assigned player, cleared entities, and new match state.
+The live ARM11 replay and external asset-transfer stream remain open.

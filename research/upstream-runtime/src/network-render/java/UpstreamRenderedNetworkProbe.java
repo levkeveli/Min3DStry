@@ -128,6 +128,14 @@ public final class UpstreamRenderedNetworkProbe {
         Events.on(WorldLoadEvent.class, event -> {
             Arm11Audio.reset();
             weatherLayers.reset();
+            winner = null;
+            previousVisualFrame = 0;
+            lastLeft = lastBottom = Integer.MIN_VALUE;
+            reportedConveyors.clear();
+            reportedEnemies.clear();
+            goneEnemies.clear();
+            reportedWorldLabels.clear();
+            reportedStockWorldLabels.clear();
         });
         UpstreamClientLogic.initialize(new Fi("/romfs/logicids.dat"));
         Core.graphics = new MockGraphics() {

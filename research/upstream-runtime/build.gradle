@@ -1041,6 +1041,28 @@ final class GlacierFixture {
                 source = source.replace(soundGuard,
                     'if(sound == null || (headless && !(Core.audio instanceof port.audio.Arm11Audio))) return;')
             }
+            def loading = '''        ui.loadfrag.show("@connecting.establish");
+
+        ui.loadfrag.setButton(() -> {
+            ui.loadfrag.hide();
+
+            netClient.disconnectQuietly();
+        });'''
+            def finish = '    private void finishConnecting(){'
+            if (source.count(loading) != 1 || source.count(finish) != 1) {
+                throw new GradleException('Pinned NetClient world transition changed')
+            }
+            source = source.replace(loading, '''        if(ui != null){
+''' + loading.readLines().collect { it.isEmpty() ? it : '    ' + it }.join('\n') + '''
+        }''').replace(finish, '''    /** Completes the upstream state transition when the platform owns connection UI. */
+    public void finishSnapshotWorld(){
+        state.set(State.playing);
+        connecting = false;
+        net.setClientLoaded(true);
+        lastSnapshotTimestamp = Time.millis();
+    }
+
+''' + finish)
             def buffer = '''private ReusableByteInStream byteStream = new ReusableByteInStream();
     private DataInputStream dataStream = new DataInputStream(byteStream);
     private Reads dataStreamReads = new Reads(dataStream);'''

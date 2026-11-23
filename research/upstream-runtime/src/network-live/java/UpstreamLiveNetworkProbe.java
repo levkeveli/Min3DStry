@@ -25,7 +25,6 @@ import mindustry.ai.BlockIndexer;
 import mindustry.ai.Pathfinder;
 import mindustry.content.Blocks;
 import mindustry.content.UnitTypes;
-import mindustry.core.GameState.State;
 import mindustry.core.NetClient;
 import mindustry.game.FogControl;
 import mindustry.game.MapObjectives.ItemObjective;
@@ -81,12 +80,14 @@ import mindustry.gen.UpdateGameOverCallPacket;
 import mindustry.gen.UpdateMarkerCallPacket;
 import mindustry.gen.UpdateMarkerTextCallPacket;
 import mindustry.gen.UpdateMarkerTextureCallPacket;
+import mindustry.gen.WorldDataBeginCallPacket;
 import mindustry.mod.Mods;
 import mindustry.net.Host;
 import mindustry.net.Net;
 import mindustry.net.NetConnection;
 import mindustry.net.NetworkIO;
 import mindustry.net.Packet;
+import mindustry.net.Packets.StreamBegin;
 import mindustry.net.Packets.StreamChunk;
 import mindustry.world.blocks.distribution.Sorter;
 import org.teavm.interop.Address;
@@ -110,6 +111,8 @@ public final class UpstreamLiveNetworkProbe {
     private final Consumer<Team> roundResult;
     private Runnable deferredGraphics;
     private int nextLiveTransport = 1;
+    private boolean awaitingWorld;
+    private long worldRequestTime;
 
     private UpstreamLiveNetworkProbe(Mode mode, Runnable deferredGraphics, Consumer<Unit> frame,
                                      UpstreamLiveBuildControls building, Consumer<String> chat,
@@ -230,20 +233,15 @@ public final class UpstreamLiveNetworkProbe {
         Vars.player = Player.create();
         if (Native.beginKeepAlive(0) == 0) throw new IOException("Unable to keep the connection open during world loading");
         try {
-            NetworkIO.loadWorld(new InflaterInputStream(stream));
-            app.runPosted();
-            if (stream.remaining != 0 || Groups.player.size() != 1 || Vars.player.name == null || Vars.player.name.isEmpty()
-                    || Vars.world.width() <= 0 || Vars.world.height() <= 0) {
-                throw new IOException("Server world or assigned player did not load");
-            }
+            loadSessionWorld(app, stream);
+            if (stream.remaining != 0) throw new IOException("Incomplete initial stock world stream");
             if (deferredGraphics != null) {
                 System.out.println("UPSTREAM_WORLD_DECODED beforeGraphics=true");
                 deferredGraphics.run();
                 deferredGraphics = null;
             }
             reportReceivedWorld(join, total);
-            Vars.state.set(State.playing);
-            send(new ConnectConfirmCallPacket(), true);
+            confirmSessionWorld();
         } finally {
             Native.endKeepAlive();
         }
@@ -252,6 +250,30 @@ public final class UpstreamLiveNetworkProbe {
         } else {
             waitForWave(join, app);
         }
+    }
+
+    static void loadSessionWorld(UpstreamWorldLoadProbe.ProbeApplication app, InputStream stream) throws IOException {
+        NetworkIO.loadWorld(new InflaterInputStream(stream));
+        app.runPosted();
+        if (Groups.player.size() != 1 || Vars.player.name == null || Vars.player.name.isEmpty()
+                || Vars.world.width() <= 0 || Vars.world.height() <= 0) {
+            throw new IOException("Server world or assigned player did not load");
+        }
+    }
+
+    private static void confirmSessionWorld() throws IOException {
+        Vars.netClient.finishSnapshotWorld();
+        send(new ConnectConfirmCallPacket(), true);
+    }
+
+    static StreamBegin readWorldBegin(Reads reader, int length) throws IOException {
+        if (length != 2 * Integer.BYTES + Byte.BYTES) throw new IOException("Unexpected stock stream header length");
+        var begin = new StreamBegin();
+        begin.read(reader);
+        if ((begin.type & 0xff) != Net.packetIdWorldStream || begin.total <= 0) {
+            throw new IOException("Expected a stock WorldStream for the active server map");
+        }
+        return begin;
     }
 
     private void reportReceivedWorld(int join, int total) {
@@ -477,9 +499,13 @@ public final class UpstreamLiveNetworkProbe {
                     if (!unit.isLocal()) unit.interpolate();
                 }
             }
-            lastWave = receiveLiveUpdates(stateId, entityId, unitSpawnId, unitDespawnId, unitDestroyId, lastWave);
+            lastWave = receiveLiveUpdates(app, stateId, entityId, unitSpawnId, unitDespawnId, unitDestroyId, lastWave);
             app.runPosted();
             now = System.nanoTime();
+            if (awaitingWorld) {
+                if (now - worldRequestTime > 30_000_000_000L) throw new IOException("Timed out waiting for a stock map rotation");
+                continue;
+            }
             controls.update(input, touch, now);
             if (frame != null && now - lastFrame >= 33_333_333L) {
                 var unit = controlledUnit();
@@ -491,7 +517,8 @@ public final class UpstreamLiveNetworkProbe {
         }
     }
 
-    private int receiveLiveUpdates(int stateId, int entityId, int unitSpawnId, int unitDespawnId,
+    private int receiveLiveUpdates(UpstreamWorldLoadProbe.ProbeApplication app,
+                                   int stateId, int entityId, int unitSpawnId, int unitDespawnId,
                                    int unitDestroyId, int lastWave) throws IOException {
         // Bound each drain by packet count. The graphical loop needs a larger budget so
         // reliable control packets are not stuck behind stock block snapshots.
@@ -505,7 +532,26 @@ public final class UpstreamLiveNetworkProbe {
             if (received == TIMEOUT && i == 0) received = receive(0, 8);
             if (received == TIMEOUT) break;
             int id = received >>> 16;
-            if (id == stateId) {
+            if (id == unsignedId(WorldDataBeginCallPacket.class)) {
+                if (building != null) building.resetWorld();
+                decode(new WorldDataBeginCallPacket(), received).handleClient();
+                awaitingWorld = true;
+                worldRequestTime = System.nanoTime();
+            } else if (awaitingWorld) {
+                if (id == unsignedId(StreamBegin.class)) {
+                    var begin = readWorldBegin(reader(received), received & 0xffff);
+                    var stream = new WorldStreamInput(begin.id, begin.total);
+                    loadSessionWorld(app, stream);
+                    if (stream.remaining != 0) throw new IOException("Incomplete stock map rotation stream");
+                    confirmSessionWorld();
+                    awaitingWorld = false;
+                    lastWave = Vars.state.wave;
+                    System.out.println("UPSTREAM_LIVE_WORLD_RELOAD map=" + Vars.state.map.name()
+                        + " player=" + Vars.player.id + " bytes=" + begin.total + " wave=" + lastWave);
+                } else if (id == unsignedId(KickCallPacket.class) || id == unsignedId(KickCallPacket2.class)) {
+                    throw new IOException("Server closed the connection during stock map rotation");
+                }
+            } else if (id == stateId) {
                 var unit = controlledUnit();
                 var ore = unit == null || unit.mineTile == null ? null : unit.getMineResult(unit.mineTile);
                 var core = ore == null ? null : Vars.player.team().core();
