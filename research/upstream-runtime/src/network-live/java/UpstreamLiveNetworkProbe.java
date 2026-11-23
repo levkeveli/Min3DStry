@@ -717,6 +717,9 @@ public final class UpstreamLiveNetworkProbe {
             if (!direction.isZero()) {
                 direction.setLength(UpstreamPlayerControl.aimDistance(unit));
                 unit.aim(unit.x() + direction.x, unit.y() + direction.y, true);
+                // PlayerComp.afterSync restores the local pointer on every player snapshot.
+                Vars.player.mouseX = unit.aimX();
+                Vars.player.mouseY = unit.aimY();
             }
             boolean shooting = !overlay && (input & FIRE_HELD) != 0;
             Vars.player.shooting = shooting;

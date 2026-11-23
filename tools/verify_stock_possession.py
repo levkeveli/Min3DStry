@@ -16,12 +16,15 @@ SETUP = (
     'const dagger=UnitTypes.dagger.create(team); dagger.set(600,216); dagger.add(); '
     'const tile=Vars.world.tile(78,22); tile.setBlock(Blocks.duo,team,0); '
     'tile.build.handleStack(Items.copper,15,dagger); '
+    'tile.build.rotation = 0; '
     'return "POSSESSION_FIXTURE_READY";'
 )
 RESULT = (
     'const team=Vars.state.rules.defaultTeam, turret=Vars.world.build(78,22); '
     'if (turret === null || turret.block !== Blocks.duo || turret.controlled() || '
     'turret.totalAmmo >= 30 || turret.totalAmmo <= 0) throw "Expected released Duo with ammo consumed by manual fire"; '
+    'const angle=turret.sense(Packages.mindustry.logic.LAccess.rotation); '
+    'if (Math.abs(angle - 90) > 5) throw "The released Duo lost its northward aim"; '
     'const dagger=Groups.unit.find(u=>u.type===UnitTypes.dagger && u.team===team); '
     'if(dagger===null || dagger.isPlayer()) throw "Expected released allied Dagger"; '
 )
@@ -34,7 +37,8 @@ TAPS = {
     35: (305, 156), 41: (72, 120), 49: (305, 156), 55: (216, 216),
     73: (305, 156), 78: (305, 192),
 }
-FIRE_EAST = (1 << 9) | (1 << 4)
+AIM_NORTH = 1 << 6
+FIRE = 1 << 9
 
 
 def create_fixture(args, output):
@@ -76,8 +80,8 @@ def main():
     fixture = args.fixture or create_fixture(args, args.output / "stock-fixture")
     for model in args.model or ("old3ds", "new3ds"):
         for live in (False, True) if args.live else (False,):
-            buttons = ({0: sp.KEY_X, 63: FIRE_EAST, 94: sp.KEY_START} if live
-                       else {63: FIRE_EAST, 87: sp.KEY_SELECT, 94: sp.KEY_START})
+            buttons = ({0: sp.KEY_X, 61: AIM_NORTH, 67: FIRE, 94: sp.KEY_START} if live
+                       else {61: AIM_NORTH, 67: FIRE, 87: sp.KEY_SELECT, 94: sp.KEY_START})
             replay(args, model, fixture, live, taps=TAPS, buttons=buttons, verify_input=verify_controls,
                    read_stock=lambda server, log: read_stock_result(server, log, live))
             print(f"UPSTREAM_STOCK_POSSESSION model={model} live={live} dagger=ok duo=fired release=ok", flush=True)
