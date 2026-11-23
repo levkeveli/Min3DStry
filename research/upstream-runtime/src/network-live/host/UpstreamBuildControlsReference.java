@@ -5,6 +5,9 @@ import java.nio.file.Files;
 import java.util.zip.InflaterInputStream;
 import mindustry.Vars;
 import mindustry.ai.BlockIndexer;
+import mindustry.ai.ItemUnitStance;
+import mindustry.ai.UnitCommand;
+import mindustry.ai.UnitStance;
 import mindustry.content.Blocks;
 import mindustry.content.Items;
 import mindustry.content.Planets;
@@ -90,8 +93,72 @@ public final class UpstreamBuildControlsReference {
         Vars.player.unit(unit);
         verifyInventory(unit);
         verifyStockOrders(unit);
+        verifyStockCommandMenu(unit);
         verifyFactoryConfiguration(controls, unit);
         System.out.println("UPSTREAM_TOUCH_REFERENCE conveyor=85,26,1 wall=86,26 break=86,26");
+    }
+
+    private static void verifyStockCommandMenu(Unit player) {
+        var dagger = UnitTypes.dagger.create(player.team());
+        var mono = UnitTypes.mono.create(player.team());
+        dagger.set(600f, 216f);
+        mono.set(616f, 216f);
+        dagger.add();
+        mono.add();
+        try {
+            mono.command().command(UnitCommand.moveCommand);
+            var controls = new UpstreamLiveBuildControls();
+            controls.viewport(73, 20);
+            controls.update(player, 0, touch(305, 128));
+            tapOrderCell(controls, player, 75, 27);
+            tapOrderCell(controls, player, 77, 27);
+            selectOrderOption(controls, player, false, UnitCommand.mineCommand.id);
+            if (mono.command().currentCommand() != UnitCommand.mineCommand
+                    || dagger.command().currentCommand() != UnitCommand.moveCommand) {
+                throw new AssertionError("A mixed selection must apply Mine only to eligible units");
+            }
+            selectOrderOption(controls, player, true, UnitStance.holdFire.id);
+            if (!dagger.command().hasStance(UnitStance.holdFire) || mono.command().hasStance(UnitStance.holdFire)) {
+                throw new AssertionError("Hold Fire must apply only to the compatible selected unit");
+            }
+            int highlighted = selectOrderOption(controls, player, true, UnitStance.holdFire.id);
+            if (highlighted == 0 || dagger.command().hasStance(UnitStance.holdFire)) {
+                throw new AssertionError("An active stance must be highlighted and can be toggled off");
+            }
+            var copper = ItemUnitStance.getByItem(Items.copper);
+            selectOrderOption(controls, player, true, copper.id);
+            if (!mono.command().hasStance(copper) || dagger.command().hasStance(copper)) {
+                throw new AssertionError("An ore stance must use the stock ore eligibility rules");
+            }
+            tapOrderCell(controls, player, 86, 24);
+            if (dagger.command().targetPos == null) throw new AssertionError("Expected a move order before cancel");
+            selectOrderOption(controls, player, true, UnitStance.stop.id);
+            if (dagger.command().targetPos != null || dagger.command().commandQueue.any()) {
+                throw new AssertionError("Cancel Orders must clear the stock order state");
+            }
+            System.out.println("UPSTREAM_STOCK_COMMAND_MENU mixed=ok mine=copper holdfire=toggle cancel=ok");
+        } finally {
+            dagger.remove();
+            mono.remove();
+        }
+    }
+
+    private static int selectOrderOption(UpstreamLiveBuildControls controls, Unit player, boolean stances, int id) {
+        controls.update(player, 0, touch(14, stances ? 96 : 64));
+        var menu = controls.orders().menu();
+        if (!menu.isOpen()) throw new AssertionError("Expected the original unit options menu");
+        while (true) {
+            int[] ids = menu.icons();
+            for (int row = 0; row < ids.length; row++) {
+                if (ids[row] == id) {
+                    int active = controls.orders().activeMenuRows() & (1 << row);
+                    controls.update(player, 0, touch(160, UpstreamBuildMenu.ROW_TOP + row * UpstreamBuildMenu.ROW_HEIGHT));
+                    return active;
+                }
+            }
+            if (!menu.next()) throw new AssertionError("Missing stock option " + id);
+            controls.update(player, 0, touch(270, 215));
+        }
     }
 
     private static void verifyStockOrders(Unit player) {

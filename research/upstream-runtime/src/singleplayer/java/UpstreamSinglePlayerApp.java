@@ -523,7 +523,7 @@ public final class UpstreamSinglePlayerApp {
         var labels = String.join("\0", primary.localizedName, secondary.localizedName,
             Core.bundle.get("keybind.rotate.name"), Core.bundle.get("waves.remove"),
             "List", "Config", Core.bundle.get("back"), Core.bundle.get("command.mine"),
-            Core.bundle.get("category.items"), "Give", Core.bundle.get("command")) + "\0";
+            Core.bundle.get("category.items"), "Give", Core.bundle.get("command"), "Type", "Stance") + "\0";
         target.buildLabels(labels.getBytes(StandardCharsets.UTF_8));
         lastPrimaryShortcut = primary;
         System.out.println("UPSTREAM_BUILD_SHORTCUTS primary=" + primary.name + " secondary=" + secondary.name);
@@ -609,12 +609,18 @@ public final class UpstreamSinglePlayerApp {
         var catalog = buildingControls.catalog();
         var config = buildingControls.buildingConfig();
         var inventory = buildingControls.inventory();
+        var commandMenu = orders.menu();
         int shortcut = block == buildingControls.shortcut(0) ? 0 : block == buildingControls.shortcut(1) ? 1 : -1;
         target.buildOverlay(buildingControls.cursorX() - viewport.left, buildingControls.cursorY() - viewport.bottom,
             shortcut, buildingControls.rotation(), buildingControls.removing(), block.rotate,
-            catalog.isOpen() || config.isOpen() || inventory.isOpen(), buildingControls.configuring(),
+            catalog.isOpen() || config.isOpen() || inventory.isOpen() || commandMenu.isOpen(),
+            buildingControls.configuring(),
             buildingControls.selectingMine(), buildingControls.inventoryAction(), orders.mode());
-        if (catalog.isOpen()) {
+        if (commandMenu.isOpen()) {
+            target.buildCatalogRows(commandMenu.labels(), commandMenu.icons(), orders.activeMenuRows(),
+                commandMenu.previous(), commandMenu.next(),
+                commandMenu.stances() ? UpstreamTerrainRenderProbe.STANCE_CATALOG : UpstreamTerrainRenderProbe.COMMAND_CATALOG);
+        } else if (catalog.isOpen()) {
             drawMenu(catalog.labels(), catalog.iconIds(), catalog.selectedRow(block),
                 catalog.previousPage(), catalog.nextPage(), UpstreamTerrainRenderProbe.BLOCK_CATALOG);
         } else if (config.isOpen()) {

@@ -8,6 +8,10 @@ import arc.graphics.g2d.TextureAtlas.TextureAtlasData.AtlasPage;
 import arc.graphics.g2d.TextureAtlas.TextureAtlasData.Region;
 import arc.mock.MockApplication;
 
+import java.awt.Color;
+import java.awt.Font;
+import java.awt.FontFormatException;
+import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.InputStream;
@@ -23,9 +27,11 @@ import java.util.Map;
 import java.util.zip.ZipFile;
 import javax.imageio.ImageIO;
 import mindustry.Vars;
+import mindustry.ai.ItemUnitStance;
 import mindustry.core.ContentLoader;
 import mindustry.core.GameState;
 import mindustry.ctype.UnlockableContent;
+import mindustry.gen.Iconc;
 import mindustry.type.UnitType;
 import mindustry.world.blocks.units.UnitFactory;
 import mindustry.world.meta.BuildVisibility;
@@ -129,6 +135,7 @@ class UpstreamSpriteAtlas {
         Map<String, Region> icons = new LinkedHashMap<>();
         var factoryUnits = new LinkedHashSet<UnitType>();
         Path catalog = Files.createDirectory(output.resolve("catalog"));
+        int blockIcons;
         try (var manifest = Files.newBufferedWriter(output.resolve("menu-icons.tsv"))) {
             manifest.write("file\tcontent\tregion\twidth\theight\n");
             for (var block : Vars.content.blocks()) {
@@ -138,11 +145,28 @@ class UpstreamSpriteAtlas {
                     for (var plan : factory.plans) factoryUnits.add(plan.unit);
                 }
             }
+            blockIcons = icons.size();
             for (var item : Vars.content.items()) {
                 addMenuIcon(item, "item", true, regions, icons, manifest);
             }
             for (var unit : factoryUnits) {
                 addMenuIcon(unit, "unit", true, regions, icons, manifest);
+            }
+            Font font;
+            try (var data = open(archive, "assets/fonts/icon.ttf")) {
+                font = Font.createFont(Font.TRUETYPE_FONT, data).deriveFont(32f);
+            } catch (FontFormatException error) {
+                throw new IOException("Invalid upstream icon font", error);
+            }
+            for (var command : Vars.content.unitCommands()) {
+                writeMenuGlyph(font, command.icon, "command-" + command.id, catalog, manifest);
+            }
+            for (var stance : Vars.content.unitStances()) {
+                if (stance instanceof ItemUnitStance item) {
+                    addMenuIcon(item.item, "stance", stance.id, true, regions, icons, manifest);
+                } else {
+                    writeMenuGlyph(font, stance.icon, "stance-" + stance.id, catalog, manifest);
+                }
             }
         }
         for (AtlasPage page : atlas.getPages()) {
@@ -156,8 +180,29 @@ class UpstreamSpriteAtlas {
             }
         }
         System.out.printf("Original menu icons: %d of %d blocks, %d items, %d factory units%n",
-            icons.size() - Vars.content.items().size - factoryUnits.size(), Vars.content.blocks().size,
+            blockIcons, Vars.content.blocks().size,
             Vars.content.items().size, factoryUnits.size());
+    }
+
+    private static void writeMenuGlyph(Font font, String name, String file, Path catalog,
+            java.io.Writer manifest) throws IOException {
+        int code = Iconc.codes.get(name, -1);
+        if (code < 0 || !font.canDisplay(code)) throw new IOException("Missing stock UI icon: " + name);
+        var image = new BufferedImage(40, 40, BufferedImage.TYPE_INT_ARGB);
+        var graphics = image.createGraphics();
+        try {
+            graphics.setColor(Color.WHITE);
+            graphics.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+            var glyph = font.createGlyphVector(graphics.getFontRenderContext(), new String(Character.toChars(code)));
+            var bounds = glyph.getVisualBounds();
+            float x = (float)((image.getWidth() - bounds.getWidth()) / 2 - bounds.getX());
+            float y = (float)((image.getHeight() - bounds.getHeight()) / 2 - bounds.getY());
+            graphics.drawGlyphVector(glyph, x, y);
+        } finally {
+            graphics.dispose();
+        }
+        writeTexture(image, catalog.resolve(file + ".t3x"));
+        manifest.write(file + "\t" + name + "\ticon.ttf:" + code + "\t40\t40\n");
     }
 
     /** Tex3DS single-region, uncompressed RGBA8 sheet. Pixels are tiled in Morton order. */
@@ -191,6 +236,11 @@ class UpstreamSpriteAtlas {
 
     private static void addMenuIcon(UnlockableContent content, String kind, boolean required,
             Map<String, Region> regions, Map<String, Region> icons, java.io.Writer manifest) throws IOException {
+        addMenuIcon(content, kind, content.id, required, regions, icons, manifest);
+    }
+
+    private static void addMenuIcon(UnlockableContent content, String kind, int id, boolean required,
+            Map<String, Region> regions, Map<String, Region> icons, java.io.Writer manifest) throws IOException {
         content.loadIcon();
         var icon = content.uiIcon;
         if (!(icon instanceof TextureAtlas.AtlasRegion named) || !icon.found()) {
@@ -198,7 +248,7 @@ class UpstreamSpriteAtlas {
             return;
         }
         var region = regions.get(named.name);
-        String file = kind + "-" + content.id;
+        String file = kind + "-" + id;
         icons.put(file, region);
         manifest.write(String.join("\t", file, content.name, region.name, Integer.toString(region.width),
             Integer.toString(region.height)) + "\n");
