@@ -189,3 +189,13 @@ below **24 MiB** and prints its byte count; the RomFS audio itself is not part
 of the ELF `LOAD` segments. Physical Original 3DS DSP playback and the resulting
 peak-memory measurement remain pending; do not treat the package-size check as
 an Old 3DS RAM pass.
+
+### main() stack guard
+
+The embedded TeaVM loader runs from `main()`'s frame, and the main-thread stack
+is tight. Two full-build regressions were caused by large `main()` locals (the
+frame-stats window, then scene/factory/audio contexts). The full-build workflow
+now disassembles the linked ELF and rejects a `main()` prologue frame above
+**4,096 bytes**. The fixed frame is **2,400 bytes** (9 integer pushes, 4 double
+pushes, `2320 + 12` bytes of `sub sp`). `tools/check_main_stack.py` has host
+parser tests; keep new large single-threaded state static or heap-backed.
