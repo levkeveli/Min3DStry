@@ -6,13 +6,16 @@ Status: **Partially verified.** Physical records exist for both models:
 A newer New 3DS run (`a328c70`) passed 12/12 and ran for ~10 minutes
 (132 `BENCH` windows, `fps_min=29.92`, `fps_max=59.84`, `p95_max=33.50 ms`),
 covering the five-minute soak plus pan/zoom, lighting, pause/resume and menu
-input. The operator confirmed the scene and controls worked. Still not claimed:
-full upstream campaign gameplay performance, audible audio (all seven
-`AUDIO_EVENT`s resolved to `clip=-1 voice=0`), live build-UI gameplay,
-cross-play, and the Old 3DS sector-loader/FPS run. The operator also found that
-the visible touch legend is outside the hit zones; the coordinates themselves
-are correct (`TOUCH action=menu x=288 y=47`), but the labels need to be drawn
-inside the zones.
+input. The operator confirmed the scene, controls, minimap and HUD worked. Still
+not claimed: full upstream campaign gameplay performance, upstream sound
+effects/music (the operator heard the UI "ding", but all seven `AUDIO_EVENT`s
+resolved to `clip=-1 voice=0` with only 2 registered clips), live build-UI
+gameplay, cross-play, and the Old 3DS sector-loader/FPS run. The operator has
+**only the New 3DS**; HWT-06's Old 3DS requirement and
+`physical-hardware-parity` are blocked on Original 3DS hardware. The operator
+also found that the visible touch legend is outside the hit zones; the
+coordinates themselves are correct (`TOUCH action=menu x=288 y=47`), but the
+labels need to be drawn inside the zones (issue #364).
 
 Latest evidenced builds: New `a328c70` (2026-11-22, FPS PASS), New `de3e249`
 (2026-11-22), and Old `a4a9a96` (2026-11-22). Record the exact commit and ROM
@@ -42,11 +45,11 @@ Capabilities still marked `HARDWARE_TEST_PENDING`:
 | Card | Capabilities |
 | --- | --- |
 | HWT-01 | _none for New 3DS — the render capabilities are cleared by `a328c70`; Old 3DS render rerun remains part of HWT-06_ |
-| HWT-02 | `world-blocks-logistics`, `production-power-liquids`, `combat-waves-ai`, `touch-build-palette`, `hud-menus-minimap` |
+| HWT-02 | `world-blocks-logistics`, `production-power-liquids`, `combat-waves-ai`, `touch-build-palette` |
 | HWT-03 | `campaign-sectors` |
 | HWT-04 | `ndsp-sfx-music` |
 | HWT-05 | `crossplay-net-protocol` |
-| HWT-06 | `physical-hardware-parity`; New 3DS harness FPS + 10-minute input soak are verified, Old 3DS and full campaign gameplay remain |
+| HWT-06 | `physical-hardware-parity`; New 3DS harness FPS + 10-minute soak are verified, **blocked on Original 3DS hardware** for the Old 3DS half |
 
 Cleared by the `de3e249` New 3DS record: `arm11-toolchain-build`,
 `memory-budget-runtime`, `threading-scheduling` and `msav-map-save-compat`.
@@ -54,11 +57,13 @@ The `a4a9a96` Original 3DS record also backs the first three. The `a328c70`
 New 3DS run passed 12/12 over ~10 minutes (132 `BENCH` windows,
 `fps_min=29.92`, `fps_max=59.84`, `p95_max=33.50`) and clears the HWT-01 render
 capabilities `citro2d-scene-prototype`, `sprite-atlas-pipeline`,
-`world-sprite-renderer` and `lighting-effects-camera`, plus the New 3DS harness
-FPS + input-soak half of HWT-06. HWT-06 remains open for the Old 3DS run and
-full campaign gameplay; audio, live build-UI gameplay and cross-play remain
-open. Preserve those evidence files and do not re-queue cleared capabilities
-unless the evidence is invalidated.
+`world-sprite-renderer` and `lighting-effects-camera`, plus `hud-menus-minimap`
+(HUD/menus/minimap were visually confirmed) and the New 3DS harness FPS +
+input-soak half of HWT-06. HWT-06 remains **blocked on Original 3DS hardware**
+(the operator has only the New 3DS) and on full campaign gameplay. Audio
+upstream clips/music, live build-UI gameplay and cross-play remain open.
+Preserve those evidence files and do not re-queue cleared capabilities unless
+the evidence is invalidated.
 
 `old-new-3ds-probe` remains **hardware-verified** with both
 `old3ds-xl-a4a9a96.md` and `new3ds-xl-de3e249.md`.
@@ -128,10 +133,10 @@ and waves, touch palette/rotation, HUD/menus/minimap.
 **Build/setup:** same ROM as HWT-01, plus a Ground Zero map/save.
 
 > `a328c70` exercised the scripted factory, waves, pause menu and main menu,
-> and the touch zones responded, but it did not provide user block placement,
-> palette/rotation, config or a verified minimap. The visible touch legend is
-> outside the hit zones; that UI-label defect is tracked separately. HWT-02
-> remains open.
+> and the operator confirmed the HUD and minimap. It did not provide user block
+> placement, palette/rotation or config. The visible touch legend is outside
+> the hit zones; issue #364 tracks the UI-label fix. HWT-02 remains open for
+> the live build-UI/palette flow.
 
 **Steps**
 
@@ -229,9 +234,9 @@ crackling or hangs. If `dspfirm.cdc` is absent, record
 a short listening report. Physical audio cannot be proven from Azahar.
 
 > `a328c70` logged `AUDIO backend=ndsp state=ready` with only 2 registered
-> clips; all seven `AUDIO_EVENT`s resolved to `clip=-1 voice=0`. Audible
-> effects and music are **NOT VERIFIED**, so `ndsp-sfx-music` remains
-> `emulator-tested`.
+> clips; the operator heard the UI "ding", but all seven `AUDIO_EVENT`s resolved
+> to `clip=-1 voice=0`. NDSP output is audible, but upstream effects and music
+> are **NOT VERIFIED**, so `ndsp-sfx-music` remains `emulator-tested`.
 
 ## HWT-05 — Cross-play networking
 
@@ -263,9 +268,10 @@ thermal/SD notes. Only this card can clear `physical-hardware-parity`.
 
 > New 3DS `a328c70` satisfies the harness FPS and soak half: strict 12/12 over
 > ~10 minutes, 132 `BENCH` windows, `fps_min=29.92`, `fps_max=59.84`,
-> `p95_max=33.50`, with the sector loader and parity intact. Remaining: the Old
-> 3DS HWT-01/02/FPS run and full campaign gameplay performance. Audio remains
-> unverified (`AUDIO_EVENT clip=-1`).
+> `p95_max=33.50`, with the sector loader and parity intact. The Old 3DS half
+> is **BLOCKED**: the operator has only the New 3DS, so
+> `physical-hardware-parity` cannot be completed until an Original 3DS is
+> available. Full campaign gameplay remains open on both models.
 
 ## Current exclusions
 

@@ -29,15 +29,18 @@
 
 The operator tested the combined HWT-01/HWT-06 checklist and reported that the
 factory scene, pan/zoom, lighting toggle, pause/resume and menus all worked.
+The minimap was visible in the top-right and the HUD rows were correct.
 Touch zones responded (15 `TOUCH` actions in the log), but the visible
 `Touch: pad / zoom / menu` legend is not drawn inside the hit zones; pressing
 the legend does nothing while pressing the top-right zone does open the menu.
 That is a UI-label defect, tracked separately; the coordinate mapping itself
 is correct.
 
-Audio is **not** verified by this run: the audio backend was `ready`, but every
-`AUDIO_EVENT` resolved to `clip=-1 voice=0`, and the log shows only 2 registered
-clips. No audible-output claim is made.
+Audio is only **partially** verified: the operator heard the UI "ding" tone,
+so the NDSP output path is audible. However, every `AUDIO_EVENT` resolved to
+`clip=-1 voice=0`, and the log shows only 2 registered clips. Upstream sound
+effects and music are **not verified**, so `ndsp-sfx-music` remains
+`emulator-tested`.
 
 ## FPS interpretation
 
