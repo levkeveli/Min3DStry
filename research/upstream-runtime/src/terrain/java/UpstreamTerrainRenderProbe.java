@@ -87,6 +87,14 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
             icon == null ? 0 : icon.width, icon == null ? 0 : icon.height, y, Address.ofData(stockObjectiveFont));
     }
 
+    float drawObjectiveAt(byte[] label, int[] characters, TextureRegion icon, float x, float y) {
+        int page = icon == null ? -1 : UpstreamTerrainDrawProbe.pageIndex(icon);
+        return NativeTerrain.drawObjectiveAt(Address.ofData(label), Address.ofData(characters), characters.length / 7, page,
+            icon == null ? 0 : icon.getX(), icon == null ? 0 : icon.getY(),
+            icon == null ? 0 : icon.width, icon == null ? 0 : icon.height, x, y,
+            Address.ofData(stockObjectiveFont));
+    }
+
     boolean drewStockObjectiveFont() {
         return stockObjectiveFont[0] != 0;
     }
@@ -184,6 +192,16 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
         }
     }
 
+    @Override
+    public void overlay() {
+        NativeTerrain.minimapDraw(336f, 8f, 56f);
+    }
+
+    void minimapUpload(byte[] pixels, int width, int height) {
+        NativeTerrain.minimapUpload(Address.ofData(pixels), width, height);
+    }
+
+
     private static int blendMode(Blending blending) {
         if (blending == Blending.normal) return 0;
         if (blending == Blending.additive) return 1;
@@ -276,8 +294,19 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
         static native float drawObjective(Address label, Address characters, int count,
                                           int page, int x, int y, int width, int height, float top, Address stockFont);
 
+        @Import(name = "m3ds_terrain_draw_objective_at")
+        static native float drawObjectiveAt(Address label, Address characters, int count,
+                                            int page, int x, int y, int width, int height,
+                                            float left, float top, Address stockFont);
+
         @Import(name = "m3ds_terrain_draw_world_label")
         static native int drawWorldLabel(Address label, Address characters, int count, float x, float y, int flags, float size,
                                          int horizontal, int vertical, int lines);
+
+        @Import(name = "m3ds_terrain_minimap_upload")
+        static native void minimapUpload(Address pixels, int width, int height);
+
+        @Import(name = "m3ds_terrain_minimap_draw")
+        static native void minimapDraw(float x, float y, float size);
     }
 }
