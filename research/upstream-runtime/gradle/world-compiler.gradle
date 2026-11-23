@@ -7,6 +7,7 @@ compilerSources.transitive = false
 def compilerArchive = providers.gradleProperty('teavmCompilerSources').map { file(it) }
     .orElse(providers.provider { compilerSources.singleFile })
 def patches = [
+    'org/teavm/backend/c/generate/CodeWriter.java': file('patches/teavm-c-local-references.patch'),
     'org/teavm/backend/lowlevel/transform/CoroutineTransformation.java': file('patches/teavm-c-coroutine-entry.patch'),
     'org/teavm/model/util/TypeInferer.java': file('patches/teavm-primitive-array-inference.patch')
 ]

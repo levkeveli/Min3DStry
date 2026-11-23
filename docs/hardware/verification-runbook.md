@@ -1,8 +1,21 @@
 # Physical verification runbook
 
-Status: **procedure**. This page defines how a physical Old/New 3DS run becomes checked evidence.
+Status: **procedure**. Queued handoff cards: [hardware-test-queue.md](../hardware-test-queue.md). This page defines how a physical Old/New 3DS run becomes checked evidence.
 It does not claim any hardware result by itself; the capability ledger only moves when a captured log
 passes [`tools/hw_evidence.py`](../../tools/hw_evidence.py) and is attached to a PR.
+
+Captured so far: [Original 3DS XL smoke](evidence/old3ds-xl-a4a9a96.md),
+[New 3DS XL sector run](evidence/new3ds-xl-de3e249.md), and
+[New 3DS XL combined run](evidence/new3ds-xl-a328c70.md). The `a328c70` run
+passed 12/12 over ~10 minutes (132 `BENCH` windows, `fps_min=29.92`,
+`fps_max=59.84`, `p95_max=33.50`) and the operator confirmed the scene,
+pan/zoom, lighting, pause/resume, HUD and minimap. The five-minute soak and the
+New 3DS `factory_demo` FPS target are verified. Still **not verified**: full
+campaign gameplay FPS, the Old 3DS run (the operator has only the New 3DS, so
+HWT-06 is blocked on Original 3DS hardware), upstream audio clips/music (the
+operator heard the UI tone, but all seven `AUDIO_EVENT`s were `clip=-1`), and
+the touch-label layout (the zones respond, but the visible legend is outside
+them; issue #364).
 
 ## What a run can prove
 
@@ -14,8 +27,9 @@ passes [`tools/hw_evidence.py`](../../tools/hw_evidence.py) and is attached to a
 | `SECTOR_LOADER`/`SECTOR_ALLOC`/`SECTOR_TILE_STATE`/`SECTOR_PARITY` | embedded upstream `SaveIO` loader, `world-rows-bridge` |
 | `PARITY ... hash=0x53a483c7` | `parity-test-harness` |
 | `WORKERS ... match=1` | `threading-scheduling` |
-| `FRAME ... drop=0` | `world-sprite-renderer`, `lighting-effects-camera`, frame budget |
-| `AUDIO backend=ndsp state=ready` | `ndsp-sfx-music` (with an audio build) |
+| `FRAME ... drop=0` | draw/cull telemetry only; visual correctness and FPS need screenshots and a `BENCH` record |
+| `BENCH fps=... p95_ms=...` | `>= 24 FPS` target (`physical-hardware-parity`) |
+| `AUDIO backend=ndsp state=ready` | NDSP init and asset load only; audible output needs the HWT-04 listening report |
 | Pad/touch interactions you perform | `touch-build-palette`, `hud-menus-minimap` |
 
 Emulator output is **not** hardware evidence. `./dev.sh emu-test` stays the fast pre-flight.

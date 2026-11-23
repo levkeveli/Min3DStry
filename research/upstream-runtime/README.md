@@ -68,6 +68,58 @@ Boot the probe in Azahar with the desired console model. The top screen and the 
 
 The probe provides libctru event waits, clocks, debug output, and a fully backed scratch heap. It aligns dynamic class entries on ARM so TeaVM's compressed references can represent them. It uses TeaVM's small existing character-conversion fallback and a libctru SD adapter for Arc file streams. Full game runtime services, Unicode coverage, physical hardware, gameplay and multiplayer are unverified. See [the port plan](../../docs/upstream-port.md).
 
+## Combined offline and stock-server build
+
+The experimental `unified` target compiles the offline app and the graphical
+v160.8 network client into the same TeaVM program. Build it with the pinned
+Mindustry and Arc checkouts, server JAR, and official v160.8 `assets.jar`.
+
+```sh
+gradle -PupstreamCheckout=/path/to/Mindustry -PreferenceJar=/path/to/server-release.jar \
+    -ParcCheckout=/path/to/Arc -Pprobe=unified generateC
+python3 arm11/prepare_terrain_assets.py --assets /path/to/assets.jar \
+    --server /path/to/server-release.jar --singleplayer --output-dir build/terrain-assets
+bash arm11/build.sh build/generated/teavm/c build/unified-3ds --unified build/terrain-assets
+```
+
+The resulting `build/unified-3ds/upstream-probe.3dsx` starts offline play by
+default. Hold **X** while launching to open Join. Enter an IPv4 address or
+hostname and an optional port, such as `game.example.org:6567`.
+Direct entry uses the IPv4 transport and accepts ASCII hostnames.
+Omitting the port uses the upstream default, 6567. The keyboard reopens
+with a validation prompt after an invalid address. Cancel leaves the app
+without opening a network connection. Address input stays in memory.
+For scripted launches, put the host and port on one line in
+`sd:/3ds/min3dstry/server-endpoint.txt` to skip the keyboard.
+Argument-capable launchers can also pass `--join [endpoint-file]`.
+The [unified launch test build](https://github.com/levkeveli/Min3DStry/actions/runs/45071161323)
+booted and rendered Ground Zero on both Azahar 2126.2 profiles with fresh
+virtual SD cards and no input. With **X** held at launch, the same ROM
+rejected port 0 and joined an unmodified v160.8 Glacier server after the
+address was corrected, without writing an endpoint file.
+The unified client uses its packaged v160.8 atlas in both modes. Restart the
+ROM to switch modes. Menu and browser integration are tracked in
+[#40](https://github.com/levkeveli/Min3DStry/issues/40) and
+[#44](https://github.com/levkeveli/Min3DStry/issues/44).
+From the repository root, replay the stock-server join and input with
+`python3 tools/verify_upstream_live_net.py --rom /path/to/upstream-probe.3dsx
+--server /path/to/server-release.jar --controls --controls-replay --unified-boot`.
+The controls verifier runs `runwave` on the stock server and requires
+`UPSTREAM_LIVE_CONTROLS_STATE wave=2` in the client log before checking exit.
+
+The [combined devkitARM test build](https://github.com/levkeveli/Min3DStry/actions/runs/45060811199)
+also includes the campaign launch, research, and defeat/retry branches.
+Both Azahar 2126.2 profiles ran the same ROM to capture Ground Zero,
+research Router, launch Frozen Forest, and save both sectors. In separate
+boots, both profiles joined unmodified v160.8 Glacier, synchronized both
+movement inputs and the next wave, and exited with **START**. The server
+logged a departure in each session. The build's offline executable and
+configured memory subtotal is 66.49 MiB, above the Original 3DS 64 MiB
+application budget before remaining runtime allocations. Physical cross-play
+and the separate Old/New hardware budgets remain open in
+[#43](https://github.com/levkeveli/Min3DStry/issues/43) and
+[#44](https://github.com/levkeveli/Min3DStry/issues/44).
+
 ## Upstream map metadata probe
 
 Add `-Pprobe=map` to the Gradle command to extract the original Glacier map from the pinned Git revision at build time. The fixture adapter supplies those exact bytes to upstream `MapIO.createMap` through a buffered stream. This keeps Arc's file initialization and executor dependencies outside the metadata test. Run the ARM11 build command with a new output directory after switching probes.
@@ -175,11 +227,19 @@ With `glacier-v13.msav` on the SD card, Azahar reports:
 The flat/tile/save hashes match the native reader; `building` omits raw entity
 payload bytes.
 
-The C build recompiles two compiler classes from the hash-checked TeaVM
+The C build recompiles three compiler classes from the hash-checked TeaVM
 0.16.0 source archive. The patches retain the original entry block's
 liveness during coroutine splitting and use the primitive array opcode to
-infer the value type of each element. For offline generation, pass an
-already downloaded source archive with
+infer the value type of each element. The compiler retains object reference
+typing when an array reaches an element read through a generic coroutine
+spill. The C emitter stores local array references as `void*` because
+coroutine lowering can reuse their registers for other Java objects.
+The generated array access macros cast to the array header at access time.
+The 3DS staging script also uses generic pointers for string pool references.
+The graphical campaign build uses the original Arc field-access checks
+for its retained settings fields. The dedicated sector metadata probes
+retain the existing TeaVM field-accessibility workaround.
+For offline generation, pass an already downloaded source archive with
 `-PteavmCompilerSources=/path/to/teavm-core-0.16.0-sources.jar`.
 
 Generate the ARM11 probe with the build command above and install the same
@@ -412,6 +472,46 @@ and waits for the server to assign a unit. The Circle Pad and D-pad move
 the unit, releasing the input lets it decelerate, and START disconnects.
 The top screen shows the session log.
 
+### Stock sound effects and soundtrack
+
+Add `--live-audio --desktop /path/to/Mindustry.jar` to the original atlas
+stager with `--singleplayer` for a combined build or `--multiplayer` for
+a standalone live renderer. The stager verifies the pinned desktop JAR,
+keeps all 205 original effects and 16 original music files, and indexes
+22.05 kHz PCM effects by their stock IDs. The 194 short effects use a
+bounded cache of 16 clips and 640 KiB. The 11 long effects use four
+double-buffered streams. The original Vorbis soundtrack uses its own
+NDSP channel and the pinned SoundControl rules.
+
+The graphical live path uses Arc's gain, pan, pitch and position,
+including original server sound and soundtrack rule packets. Its
+building ambience sampler runs at the original 20 Hz interval. World
+loads reset the voice and track state. In the combined binary, the live
+mixer starts in the Join path. The standalone singleplayer target uses the
+shared world renderer without compiling the live audio adapter.
+
+Run `python3 tools/verify_live_stock_audio.py /path/to/terrain-assets`
+to exercise the PCM cache and stream decoder controls with the host
+mixer mock. The JVM reference verifies the original registry, music
+rules, and ambience. The live Glacier replay loads an active Mechanical
+Drill, requests the stock UI, positional and streamed sound packets, and
+applies the original `game1` soundtrack rule.
+
+```bash
+python3 tools/verify_stock_live_audio.py \
+  --rom /path/to/upstream-probe.3dsx \
+  --server /path/to/server-release.jar \
+  --output build/stock-live-audio
+```
+
+The [unified ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45121495805)
+passed the stock-server replay on both Azahar 2126.2 profiles. Each route
+resolved the original UI, wave, wind, drill and Gamma sounds. The music
+decoder read 4,096 stereo frames of the original game1 track and closed
+cleanly on disconnect. Each run reported 491,744 bytes of cached PCM.
+Azahar used its missing-DSP fallback. Audible NDSP playback still
+requires a physical console.
+
 Run the same verifier with `--controls --model old3ds` and then
 `--controls --model new3ds`. Follow its prompts to move right with the
 D-pad, move up with the Circle Pad, and leave after the next wave.
@@ -520,7 +620,8 @@ use English labels.
 The touchscreen block catalog and Sorter item menu draw their original
 icons. Multiplayer asset preparation uses the stock v160.8 registry and
 `UnlockableContent.loadIcon` to select each texture by the upstream ID.
-It exports 425 block icons and all 22 item icons. The renderer keeps up
+It exports 425 block icons, all 22 item icons, and seven original unit
+icons for the stock configurable factory plans. The renderer keeps up
 to six icon textures resident, with a combined texel budget of at most
 384 KiB. It replaces each row's old texture after the preceding GPU
 frame completes.
@@ -813,7 +914,27 @@ outline of an active Quasar shield. The
 [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44872900057)
 passed on both Old and New 3DS Azahar profiles with Alpha, Beta, Flare,
 Fortress, Pulsar, Vela and Quasar in the same Glacier viewport.
+
+The live draw path loads stock unit art when the unit or its payload first
+appears in the viewport. It reads each type from the upstream content registry.
+The JVM reference drew all 68 v160.8 world unit types with the official atlas,
+including the Anthicus missile's textured quad and the segmented crawler
+sprites. The registry also has two internal `BlockUnit` types that upstream
+keeps attached to buildings. This check also covers team tint, weapon layers,
+payloads, naval wakes, tank treads, and the Quasar shield. Add
+`--expanded-unit-roster` to `--controls --unit-roster --terrain-atlas` to test
+the expanded roster. The stock Glacier server sends an Elude, an Anthicus
+missile, and a Mega carrying a Horizon. The verifier checks when their
+atlas art loads and compares the regions before and after the additions.
+The original [ARM11 test build](https://github.com/levkeveli/Min3DStry/actions/runs/45063728314)
+rendered the Elude and missile on both Azahar profiles and passed the existing
+team-cell and Quasar shield checks.
 The same build also passed the live wall and Dagger handoff on both profiles.
+The [combined ARM11 replay](https://github.com/levkeveli/Min3DStry/actions/runs/45116142229)
+passed all three framebuffer comparisons on both Azahar profiles and
+loaded the carried Horizon art through the live draw path. Use
+`--unified-boot` with the combined ROM to select Join and keep the
+camera still.
 
 For naval wakes, the build exposes the original `WaterMoveComp` wake
 update from the pinned generated `UnitWaterMove` class. The client
@@ -1144,9 +1265,15 @@ The live client applies the original v160.8 marker packets to
 and draw routines for text, points, shapes, lines, and atlas-backed texture
 markers. The ARM11 visual clock feeds Arc's global time for the original
 point animation. The texture marker adapter resolves names and content
-icons through the original atlas, including the stock error sprite. Lighting,
-minimap display, arbitrary textured quads, and dynamic Canvas and Logic
-Display textures require further renderer support.
+icons through the original atlas, including the stock error sprite. For
+atlas-backed QuadMarker draws, the batch submits the two original triangles
+to Citro3D and clips them at atlas tile edges while preserving position, UV
+and interpolated tint. Constant mix alpha interpolates RGB before tinting
+while preserving texture alpha, as in the pinned Arc sprite shader. Quads
+with varying mix colors or mismatched atlas dimensions are skipped with a
+one-time debug message. Lighting, minimap display, standalone textures,
+Canvas-backed quads and Logic Display textures, and varying legacy mix colors
+require further renderer support.
 
 The `runProbeJvm` snapshot reference round-trips the original create,
 control, text, texture, and remove packet classes against the client
@@ -1180,21 +1307,79 @@ terrain against sampled pixels.
 The [integrated renderer build](https://github.com/levkeveli/Min3DStry/actions/runs/44937074108)
 also passed those checks on both profiles with the stock font path enabled.
 
+`./dev.sh test` covers textured triangle clipping, winding, area and tint
+interpolation. Packed quad colors treat both alpha bytes 254 and 255 as fully
+opaque, including for the constant mix color. `runObjectiveMarkersJvm` checks the original QuadMarker
+vertices after stock packets set a UV before the first draw, move a corner,
+and change the source texture. Add `--verify-quad-markers` to the Glacier
+replay to compare stock Core Nucleus pixels that span atlas tiles, capture
+a moved corner, and verify retargeting to the original Router sprite.
+The [ARM11 quad build](https://github.com/levkeveli/Min3DStry/actions/runs/44928596265)
+passed the replay on both 3DS emulator profiles connected to the
+unmodified v160.8 Java server. Both runs checked the interpolated red
+tint and original pixels in three atlas tiles before a corner was moved,
+then captured the updated geometry, Router texture and marker removal.
+The [combined ARM11 replay](https://github.com/levkeveli/Min3DStry/actions/runs/45116142229)
+passed the same checks on both profiles. The fixture places the quad
+below the in-game HUD. Add `--unified-boot` when using the combined ROM.
+
+### Stock Canvas blocks
+
+The renderer uses v160.8 CanvasBlock's packed palette data, pixmap
+decoder, invalidation contract and border draw. Its 12×12 and 24×24
+images upload to a bounded pool of 32×32 native textures. A TextureMarker
+linked to a Canvas on the map uses the same pixel buffer and refreshes
+it when the Canvas changes, including when its tile is offscreen.
+
+`runBuildingLayersJvm` checks both palettes, neighbor blending, the
+original Canvas save payload, image refresh and disposal. Add
+`--verify-canvas` to the stationary Glacier replay to check Canvas
+pixels decoded from the original WorldStream, then compare the building
+and linked marker after an original configuration packet. The Canvas
+editor remains open.
+
+The [ARM11 Canvas build](https://github.com/levkeveli/Min3DStry/actions/runs/44930023192)
+passed on both 3DS emulator profiles against the unmodified Java v160.8
+Glacier server. The replay matched the original palette pixels on both
+Canvas sizes at join, then matched the updated pixels in the small
+Canvas and its linked marker after the stock configuration message.
+The original logic, sprite and quad marker replays also passed.
+
+The [unified ARM11 Canvas build](https://github.com/levkeveli/Min3DStry/actions/runs/45123257077)
+repeated the snapshot, configuration packet and linked marker checks
+against the unmodified Java server on both Azahar profiles. The JVM
+also passed the Canvas checks alongside the full stock unit roster.
+
 ### Verify the Arc executor pools
 
 Use `-Pprobe=executor` with the JVM and ARM11 build commands. The JVM uses the
 unmodified Arc class. The TeaVM build substitutes Arc's named bounded and
 unbounded pool factories and exercises queued work, immediate worker
-handoff, cancellation, and shutdown. It should report:
+handoff, cancellation, shutdown, and monitor handoffs across
+allocation-triggered garbage collection. It should report:
 
 ```text
 UPSTREAM_EXECUTOR workers=1 result=37 exception=ok cancel=ok timeout=ok shutdown=ok
 UPSTREAM_EXECUTOR_POOLS bounded=ok unbounded=ok
+UPSTREAM_EXECUTOR_MONITOR_GC object=ok array=ok
 ```
 
-The JVM and generated Windows x64 program emitted both lines. The
+The JVM and generated Windows x64 program emitted the first two lines. The
 [devkitARM build](https://github.com/levkeveli/Min3DStry/actions/runs/44781211433)
 emitted both in Azahar 2126.2 Original and New 3DS modes.
+
+TeaVM 0.16.0 stores a monitor reference in the object header's hash word.
+Native ARM11 staging and host C verification trace that reference during
+collection and update it during compaction, including when the lock object
+itself moves. The executor probe checks collection while a lock is held
+and then verifies handoff and identity for an ordinary object and an array.
+The wave-routing probe still compares the four Glacier wave records with the
+stock JVM while running the upstream pathfinders and AsyncCore processes.
+The Windows C executor probe reproduced the failure before applying the
+collector fix and passed afterward. With the fix, the earlier
+`fff7a8e` wave probe matched the stock trace 30 times at `-O0` and
+30 times at `-O2`.
+
 ### Check the upstream content registry and building factories
 
 The [JVM content and factory probes](host/README.md) compare the pinned release
@@ -1387,6 +1572,13 @@ pinned Gradle properties as the combat probe. For a standalone JVM
 reference, compile `UpstreamWorldLoadProbe.java`, `UpstreamSimulationWorld.java`
 and `UpstreamWaveRoutingProbe.java` against the unchanged server JAR, then
 run `UpstreamWaveRoutingProbe /path/to/glacier.msav`.
+
+The Linux host check compares `-O0` and `-O2` C traces against the pinned
+JVM. Before the optimized compile, `fix_wave_controller_local.py` marks
+the generated `TypeIO.readController` pointer local volatile around
+TeaVM's `setjmp` exception handling. GCC 13 otherwise can abort during SSA
+coalescing. Both levels matched all four waves on the pinned main and
+quad integration revisions in the [hosted comparison](https://github.com/levkeveli/Min3DStry/actions/runs/45119365097).
 
 A local `-O0` devkitARM build matched all four records in both Azahar
 `2126.2` profiles. The probe reported `appHeap=84,910,080` on New 3DS and

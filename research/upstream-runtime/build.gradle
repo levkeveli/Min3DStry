@@ -15,6 +15,7 @@ def pathfinderSource = 'core/src/mindustry/ai/Pathfinder.java'
 def annotationsSource = 'annotations/src/main/java/mindustry/annotations/Annotations.java'
 def arcRevision = '7445105cd2683daf5b9ac7033ebb07265d3e814d'
 def fileSource = 'arc-core/src/arc/files/Fi.java'
+def soundSource = 'arc-core/src/arc/audio/Sound.java'
 def osSource = 'arc-core/src/arc/util/OS.java'
 def networkIoSource = 'core/src/mindustry/net/NetworkIO.java'
 def netClientSource = 'core/src/mindustry/core/NetClient.java'
@@ -53,6 +54,7 @@ def entryPoints = [
     'network-render': 'UpstreamRenderedNetworkProbe',
     'singleplayer-sim': 'UpstreamSinglePlayerSession',
     'singleplayer': 'UpstreamSinglePlayerApp',
+    'unified': 'UpstreamUnifiedApp',
     'terrain-draw': 'UpstreamTerrainDrawProbe',
     'terrain-render': 'UpstreamTerrainRenderProbe',
     'file-metadata': 'port.UpstreamFileMetadataProbe',
@@ -65,6 +67,8 @@ def entryPoints = [
     'campaign-planet': 'UpstreamCampaignPlanetStateProbe',
     'campaign-sector-state': 'UpstreamCampaignSectorStateProbe',
     'campaign-launch': 'UpstreamCampaignLaunchProbe',
+    'campaign-capture': 'UpstreamCampaignCaptureProbe',
+    'status-hud': 'UpstreamStatusRowsProbe',
     'campaign-saves': 'UpstreamCampaignSavesProbe',
     'campaign-saves-load': 'UpstreamCampaignSavesLoadProbe',
     'campaign-slot-discovery': 'UpstreamCampaignSlotDiscoveryProbe'
@@ -74,12 +78,13 @@ if (!entryPoints.containsKey(probe)) {
 }
 def entryPoint = entryPoints[probe]
 def usesMapSources = probe in ['map', 'map-sd']
-def usesSinglePlayerApp = probe == 'singleplayer'
-def usesSinglePlayer = probe in ['singleplayer-sim', 'singleplayer']
-def usesLiveNetwork = probe in ['network-live', 'network-render']
-def usesRenderedClient = probe in ['network-render', 'singleplayer']
-def usesBuildControls = probe in ['network-live', 'network-render', 'singleplayer']
-def usesTerrainRenderer = probe in ['terrain-render', 'network-render', 'singleplayer']
+def usesSinglePlayerApp = probe in ['singleplayer', 'unified']
+def usesSinglePlayer = usesSinglePlayerApp || probe == 'singleplayer-sim'
+def usesLiveNetwork = probe in ['network-live', 'network-render', 'unified']
+def usesLiveAudio = probe in ['network-render', 'unified']
+def usesRenderedClient = usesSinglePlayerApp || probe == 'network-render'
+def usesBuildControls = usesSinglePlayerApp || usesLiveNetwork
+def usesTerrainRenderer = usesRenderedClient || probe == 'terrain-render'
 def patchesPlanetGrid = usesRenderedClient
 def conduitSmoothing = 'smoothLiquid = Mathf.lerpDelta(smoothLiquid, liquids.currentAmount() / liquidCapacity, 0.05f);'
 def conduitUpdate = '@Override\n        public void updateTile(){'
@@ -106,18 +111,20 @@ def usesCampaignSector = probe == 'campaign-sector'
 def usesCampaignContent = probe == 'campaign-content'
 def usesCampaignResearch = probe == 'campaign-research'
 def usesCampaignSlotMeta = probe == 'campaign-slot-meta'
-def usesCampaignSectorInfo = probe == 'campaign-sector-info'
+def usesCampaignSectorInfo = probe in ['campaign-sector-info', 'campaign-capture']
 def usesCampaignPlanet = probe == 'campaign-planet'
 def usesCampaignSectorState = probe == 'campaign-sector-state'
 def usesCampaignLaunch = probe == 'campaign-launch'
+def usesCampaignCapture = probe == 'campaign-capture'
+def usesStatusHud = probe == 'status-hud'
 def usesCampaignSaves = probe == 'campaign-saves'
 def usesCampaignSavesLoad = probe == 'campaign-saves-load'
 def usesCampaignSlotDiscovery = probe == 'campaign-slot-discovery'
-def usesCampaignJsonCompat = usesCampaignSectorInfo || usesCampaignSlotDiscovery
+def usesCampaignJsonCompat = usesCampaignSectorInfo || usesCampaignSlotDiscovery || usesSinglePlayerApp
 def usesWorldSources = probe in ['world', 'world-save', 'world-roundtrip', 'world-stream',
-                                 'terrain-draw', 'save-decode', 'save-rows'] || usesCampaignSector || usesCampaignSlotMeta || usesCampaignLaunch || usesCampaignSavesLoad || usesCampaignSlotDiscovery || usesLiveNetwork || usesTerrainRenderer || usesSimulation || usesSinglePlayer
-def initializesContent = probe == 'content-init' || usesWorldSources || usesCampaignContent || usesCampaignResearch || usesCampaignSectorInfo || usesCampaignPlanet || usesCampaignSectorState || usesCampaignLaunch || usesCampaignSaves
-def usesContentSources = probe == 'content' || initializesContent
+                                 'terrain-draw', 'save-decode', 'save-rows'] || usesCampaignSector || usesCampaignSlotMeta || usesCampaignLaunch || usesCampaignCapture || usesCampaignSavesLoad || usesCampaignSlotDiscovery || usesLiveNetwork || usesTerrainRenderer || usesSimulation || usesSinglePlayer
+def initializesContent = probe == 'content-init' || usesWorldSources || usesCampaignContent || usesCampaignResearch || usesCampaignSectorInfo || usesCampaignPlanet || usesCampaignSectorState || usesCampaignLaunch || usesCampaignCapture || usesCampaignSaves
+def usesContentSources = probe == 'content' || initializesContent || usesStatusHud
 def usesExecutor = usesContentSources || probe == 'executor' || usesCampaignSettings
 def usesArcSources = usesContentSources || probe == 'resource' || usesCampaignSettings
 def usesWorldStream = probe == 'world-stream' || usesLiveNetwork
@@ -144,11 +151,14 @@ def arcPixmapFile = sourceDir.map { it.file('arc/graphics/Pixmap.java') }
 def arcJsonFile = sourceDir.map { it.file('arc/util/serialization/Json.java') }
 def networkIoFile = sourceDir.map { it.file('mindustry/net/NetworkIO.java') }
 def netClientFile = sourceDir.map { it.file('mindustry/core/NetClient.java') }
+def schematicsFile = sourceDir.map { it.file('mindustry/game/Schematics.java') }
 def placementFile = sourceDir.map { it.file('UpstreamPlacementCatalog.java') }
 def itemChoicesFile = sourceDir.map { it.file('UpstreamItemChoices.java') }
 def planetGridFile = sourceDir.map { it.file('mindustry/graphics/g3d/PlanetGrid.java') }
 def contentColorsFile = sourceDir.map { it.file('mindustry/core/ContentLoader.java') }
 def globalVarsFile = sourceDir.map { it.file('mindustry/logic/GlobalVars.java') }
+def bulletTypePath = 'mindustry/entities/bullet/BulletType.java'
+def bulletTypeFile = sourceDir.map { it.file(bulletTypePath) }
 def unitTypeFile = sourceDir.map { it.file('mindustry/type/UnitType.java') }
 def factoryResourcesFile = sourceDir.map { it.file('port/FactoryResources.java') }
 def shieldModeSources = [
@@ -170,7 +180,7 @@ if (usesRenderedClient) {
     def asm = configurations.detachedConfiguration(dependencies.create('org.ow2.asm:asm-tree:9.9'))
     def adapter = tasks.register('compileBuildingCrackAdapter', JavaCompile) {
         source files('tools/StageBuildingCrackAdapter.java', 'tools/StageNavalWakeAdapter.java',
-                     'tools/StageObjectiveLabelAdapter.java')
+                     'tools/StageObjectiveLabelAdapter.java', 'tools/StageCanvasAdapter.java')
         classpath = asm
         destinationDirectory = layout.buildDirectory.dir('building-renderer-tool')
     }
@@ -204,17 +214,26 @@ if (usesArcSources || usesExecutor) {
     if (usesWorldStream) {
         stagedClasses.add('mindustry/net/NetworkIO.class')
     }
+    if (usesBuildControls) {
+        stagedClasses.addAll(['mindustry/game/Schematics.class', 'mindustry/game/Schematics$*.class'])
+    }
     if (usesLiveNetwork) {
         stagedClasses.addAll(['mindustry/core/NetClient.class', 'mindustry/core/NetClient$*.class',
                               'mindustry/ai/Pathfinder.class', 'mindustry/ai/Pathfinder$*.class'])
     }
-    if (usesSinglePlayer) {
+    if (usesSinglePlayer || usesLiveAudio) {
         stagedClasses.addAll(['mindustry/logic/GlobalVars.class', 'mindustry/logic/GlobalVars$*.class'])
     }
     if (usesRenderedClient) {
-        stagedClasses.addAll(['mindustry/type/UnitType.class', 'mindustry/type/UnitType$*.class'])
+        stagedClasses.addAll(['mindustry/type/UnitType.class', 'mindustry/type/UnitType$*.class',
+                              'mindustry/entities/bullet/BulletType.class', 'mindustry/entities/bullet/BulletType$*.class'])
         stagedClasses.addAll(['mindustry/type/Weather.class', 'mindustry/type/Weather$*.class',
                               'mindustry/type/weather/ParticleWeather.class'])
+    }
+    if (usesLiveAudio) {
+        stagedClasses.addAll(['arc/audio/Sound.class', 'arc/audio/Sound$*.class',
+                              'mindustry/audio/SoundControl.class', 'mindustry/audio/SoundControl$*.class',
+                              'mindustry/logic/LExecutor.class', 'mindustry/logic/LExecutor$*.class'])
     }
     if (patchesPlanetGrid) {
         stagedClasses.addAll(['mindustry/graphics/g3d/PlanetGrid.class', 'mindustry/graphics/g3d/PlanetGrid$*.class'])
@@ -225,6 +244,8 @@ if (usesArcSources || usesExecutor) {
                               'mindustry/game/MapObjectives$ShapeTextMarker.class',
                               'mindustry/game/MapObjectives$TextMarker.class',
                               'mindustry/game/MapObjectives$TextureMarker.class',
+                              'mindustry/game/MapObjectives$QuadMarker.class',
+                              'mindustry/world/blocks/logic/CanvasBlock$CanvasBuild.class',
                               'mindustry/core/ContentLoader.class'])
         shieldModeSources.keySet().each { path ->
             stagedClasses.add(path.replace('.java', '.class'))
@@ -290,7 +311,7 @@ if (probe == 'world-stream') {
 if (usesLiveNetwork) {
     sourceSets.main.java.srcDirs('src/network-live/java', 'src/network-live/host')
 }
-if (probe == 'network-render') {
+if (probe in ['network-render', 'unified']) {
     sourceSets.main.java.srcDirs('src/network-render/java', 'src/network-render/host')
     tasks.register('runBuildingLayersJvm', JavaExec) {
         dependsOn 'classes'
@@ -305,18 +326,67 @@ if (probe == 'network-render') {
 }
 if (usesSinglePlayer) {
     sourceSets.main.java.srcDir('src/singleplayer/java')
+    if (usesSinglePlayerApp) {
+        sourceSets.main.java.srcDirs('src/singleplayer-custom-host/java', 'src/singleplayer-campaign-host/java')
+        tasks.register('runCustomGameJvm', JavaExec) {
+            classpath = sourceSets.main.runtimeClasspath
+            mainClass = 'UpstreamCustomGameReference'
+        }
+        tasks.register('runOfflineMaterialsJvm', JavaExec) {
+            classpath = sourceSets.main.runtimeClasspath
+            mainClass = 'UpstreamOfflineMaterialsReference'
+            workingDir = temporaryDir
+        }
+        tasks.register('runOfflineWeaponsJvm', JavaExec) {
+            classpath = sourceSets.main.runtimeClasspath
+            mainClass = 'UpstreamOfflineWeaponsReference'
+        }
+        tasks.register('runCampaignResumeJvm', JavaExec) {
+            classpath = sourceSets.main.runtimeClasspath
+            mainClass = 'UpstreamCampaignResumeReference'
+        }
+        tasks.register('runGraphicalCampaignSettingsJvm', JavaExec) {
+            classpath = sourceSets.main.runtimeClasspath
+            mainClass = 'UpstreamGraphicalCampaignSettingsReference'
+        }
+        tasks.register('runGraphicalCampaignPresetMapsJvm', JavaExec) {
+            classpath = sourceSets.main.runtimeClasspath
+            mainClass = 'UpstreamCampaignLaunchReference'
+        }
+        tasks.register('runStockOrdersJvm', JavaExec) {
+            classpath = sourceSets.main.runtimeClasspath
+            mainClass = 'UpstreamStockOrdersReference'
+        }
+        tasks.register('runStockPossessionJvm', JavaExec) {
+            classpath = sourceSets.main.runtimeClasspath
+            mainClass = 'UpstreamStockPossessionReference'
+        }
+    }
     if (!usesSinglePlayerApp) {
-        sourceSets.main.java.exclude('UpstreamSinglePlayerApp.java', 'UpstreamSinglePlayerInput.java')
-    } else {
+        sourceSets.main.java.exclude('UpstreamSinglePlayerApp.java', 'UpstreamSinglePlayerInput.java',
+            'UpstreamOfflineWeaponInput.java')
+    } else if (!usesLiveNetwork) {
         sourceSets.main.java.srcDir('src/network-live/java')
         sourceSets.main.java.srcDir('src/network-render/java')
+        sourceSets.main.java.exclude('UpstreamLiveNetworkProbe.java', 'UpstreamRenderedNetworkProbe.java', 'port/audio/**')
         sourceSets.main.java.srcDir('src/singleplayer/host')
-        sourceSets.main.java.exclude('UpstreamLiveNetworkProbe.java', 'UpstreamRenderedNetworkProbe.java')
         tasks.register('runOfflineWeatherJvm', JavaExec) {
             dependsOn 'classes'
             classpath = sourceSets.main.runtimeClasspath
             mainClass = 'UpstreamOfflineWeatherReference'
         }
+    }
+}
+if (probe == 'unified') {
+    sourceSets.main.java.srcDir('src/unified/java')
+    def addressReference = sourceSets.create('serverAddressReference') {
+        java.srcDir('src/unified/host')
+        compileClasspath += sourceSets.main.runtimeClasspath
+        runtimeClasspath += sourceSets.main.runtimeClasspath
+    }
+    tasks.register('runServerAddressJvm', JavaExec) {
+        classpath = addressReference.runtimeClasspath
+        mainClass = 'UpstreamServerAddressReference'
     }
 }
 if (probe == 'file-metadata') {
@@ -351,6 +421,12 @@ if (usesCampaignSectorState) {
 }
 if (usesCampaignLaunch) {
     sourceSets.main.java.srcDir('src/campaign-launch/java')
+}
+if (usesCampaignCapture) {
+    sourceSets.main.java.srcDir('src/campaign-capture/java')
+}
+if (usesStatusHud) {
+    sourceSets.main.java.srcDir('src/status-hud/java')
 }
 if (usesCampaignSaves) {
     sourceSets.main.java.srcDir('src/campaign-saves/java')
@@ -406,21 +482,28 @@ tasks.register('prepareUpstreamProbe') {
         outputs.file(networkIoFile)
     }
     if (usesBuildControls) {
-        outputs.files(placementFile, itemChoicesFile)
+        outputs.files(placementFile, itemChoicesFile, schematicsFile)
     }
     if (usesLiveNetwork) {
         outputs.files(netClientFile, pathfinderFile)
     }
+    if (usesLiveAudio) {
+        outputs.files(sourceDir.map { dir ->
+            ['arc/audio/Sound.java', 'mindustry/audio/SoundControl.java', 'mindustry/logic/LExecutor.java']
+                .collect { dir.file(it) }
+        })
+    }
+    if (usesSinglePlayer || usesLiveAudio) outputs.file(globalVarsFile)
     if (usesSinglePlayer) {
         inputs.file('src/gameplay/java/port/FactoryResources.java')
-        outputs.files(globalVarsFile, factoryResourcesFile)
+        outputs.file(factoryResourcesFile)
     }
     if (patchesPlanetGrid) {
         outputs.file(planetGridFile)
         fluidSources.keySet().each { outputs.file(sourceDir.map { dir -> dir.file(it) }) }
     }
     if (usesRenderedClient) {
-        outputs.files(contentColorsFile, unitTypeFile)
+        outputs.files(contentColorsFile, unitTypeFile, bulletTypeFile)
         outputs.file(sourceDir.map { it.file('mindustry/type/Weather.java') })
         outputs.file(sourceDir.map { it.file('mindustry/type/weather/ParticleWeather.java') })
         shieldModeSources.keySet().each { outputs.file(sourceDir.map { dir -> dir.file(it) }) }
@@ -432,7 +515,118 @@ tasks.register('prepareUpstreamProbe') {
         outputs.file(reflectionPolicyFile)
     }
     doLast {
+        if (usesLiveAudio) {
+            def sound = new String(providers.exec {
+                commandLine 'git', '-C', arc.get(), 'show', "${arcRevision}:${soundSource}"
+            }.standardOutput.asBytes.get(), 'UTF-8')
+            def audioChanges = [
+                '!Core.audio.initialized || currentlyLoading': '!Core.audio.initialized() || currentlyLoading',
+                'if(handle == 0 || bus == null) return -1;': 'if(!valid() || bus == null) return -1;',
+                'return lastVoice = sourcePlayBus(handle, bus.handle,': 'return lastVoice = playSource(bus,',
+                '    public int play(float volume, float pitch, float pan, boolean loop, boolean checkFrame){':
+                    '''    protected int playSource(AudioBus bus, float volume, float pitch, float pan, boolean loop){
+        return sourcePlayBus(handle, bus.handle, volume, pitch, pan, loop);
+    }
+
+    public int play(float volume, float pitch, float pan, boolean loop, boolean checkFrame){'''
+            ]
+            audioChanges.each { original, replacement ->
+                if (sound.count(original) != 1) throw new GradleException('Pinned Arc audio dispatch changed')
+                sound = sound.replace(original, replacement)
+            }
+            def headlessAudio = 'if(Core.app.isHeadless())'
+            if (sound.count(headlessAudio) != 2) throw new GradleException('Pinned Arc positional audio changed')
+            def adaptedSound = sourceDir.get().file('arc/audio/Sound.java').asFile
+            adaptedSound.parentFile.mkdirs()
+            adaptedSound.setText(sound.replace(headlessAudio, 'if(Core.app.isHeadless() && Core.camera == null)'), 'UTF-8')
+            def musicControl = new String(readUpstream('core/src/mindustry/audio/SoundControl.java'), 'UTF-8')
+            // The live renderer has an audio backend and game state before it has the Arc desktop scene.
+            def musicCompatibility = [
+                'protected AudioFilter filter = new BiquadFilter()': 'protected AudioFilter filter = headless ? null : new BiquadFilter()',
+                'state.isGame() && Core.scene.hasDialog()': 'state.isGame() && Core.scene != null && Core.scene.hasDialog()',
+                'if(ui.planet.isShown())': 'if(ui != null && ui.planet.isShown())',
+                'else if(ui.editor.isShown())': 'else if(ui != null && ui.editor.isShown())',
+                'LinkedBlockingQueue<AmbientSource> inputSources = new LinkedBlockingQueue<>();':
+                    'final java.util.ArrayDeque<AmbientSource> inputSources = new java.util.ArrayDeque<>();',
+                'ambientThread.inputSources.add(source);':
+                    '''synchronized(ambientThread.inputSources){
+                ambientThread.inputSources.add(source);
+            }''',
+                '''            while((source = inputSources.poll()) != null){
+                sources.add(source);
+            }''':
+                    '''            synchronized(inputSources){
+                while((source = inputSources.poll()) != null){
+                    sources.add(source);
+                }
+            }'''
+            ]
+            musicCompatibility.each { original, replacement ->
+                if (musicControl.count(original) != 1) throw new GradleException('Pinned soundtrack control changed')
+                musicControl = musicControl.replace(original, replacement)
+            }
+            def loopMixer = '    protected void updateLoops(){'
+            if (musicControl.count(loopMixer) != 1) throw new GradleException('Pinned ambient loop mixer changed')
+            musicControl = musicControl.replace(loopMixer, '''    private long nextLiveBuildingSample;
+
+    /** Use the stock 20 Hz sampler on the live ARM11 world thread. */
+    public void sampleLiveBuildingAmbience(Iterable<? extends AmbientSource> buildings, long now){
+        if(!state.isPlaying()) return;
+        if(ambientThread == null){
+            ambientThread = new AudioThread();
+            nextLiveBuildingSample = now;
+        }
+        long overdue = now - nextLiveBuildingSample;
+        if(overdue < 0L) return;
+        // Keep the stock cadence between render frames and skip missed samples.
+        nextLiveBuildingSample = now + AudioThread.targetNanos - overdue % AudioThread.targetNanos;
+        ambientThread.sources.clear();
+        for(var building : buildings){
+            if(building.getAmbientSound() != Sounds.none) ambientThread.sources.add(building);
+        }
+        ambientThread.doLoop();
+    }
+
+    protected void resetLiveBuildingAmbience(){
+        ambientThread = null;
+        localData.clear();
+        sounds.clear();
+        nextLiveBuildingSample = 0L;
+    }
+
+    protected void updateLoops(){''')
+            def adaptedMusicControl = sourceDir.get().file('mindustry/audio/SoundControl.java').asFile
+            adaptedMusicControl.parentFile.mkdirs()
+            adaptedMusicControl.setText(musicControl, 'UTF-8')
+            def executorPath = 'mindustry/logic/LExecutor.java'
+            def executor = new String(readUpstream("core/src/${executorPath}"), 'UTF-8')
+            def musicGuard = '''if(headless) return;
+
+            //null music = stop'''
+            def musicDispatch = 'control.sound.playMusic(music, interrupt.bool());'
+            if (executor.count(musicGuard) != 1 || executor.count(musicDispatch) != 1) {
+                throw new GradleException('Pinned music instruction dispatch changed')
+            }
+            def outputExecutor = sourceDir.get().file(executorPath).asFile
+            outputExecutor.parentFile.mkdirs()
+            outputExecutor.setText(executor.replace('package mindustry.logic;', 'package mindustry.logic;\n\nimport port.audio.Arm11Audio;')
+                .replace(musicGuard, '''var musicControl = control == null
+                ? Arm11Audio.musicControl() : control.sound;
+            if(musicControl == null) return;
+
+            //null music = stop''').replace(musicDispatch, 'musicControl.playMusic(music, interrupt.bool());'), 'UTF-8')
+        }
         if (usesRenderedClient) {
+            def bulletType = new String(readUpstream("core/src/$bulletTypePath"), 'UTF-8')
+            def trailGuard = 'if(!headless && trailLength > 0){'
+            if (bulletType.count(trailGuard) != 1) {
+                throw new GradleException('Pinned projectile trail update changed')
+            }
+            def adaptedBulletType = bulletTypeFile.get().asFile
+            adaptedBulletType.parentFile.mkdirs()
+            adaptedBulletType.setText(bulletType.replace(trailGuard,
+                'if((!headless || Core.batch != null) && trailLength > 0){'), 'UTF-8')
+
             def weather = new String(readUpstream('core/src/mindustry/type/Weather.java'), 'UTF-8')
             def minScale = 'renderer.minScale()'
             def drawOver = '    public void drawOver(WeatherState state){'
@@ -490,7 +684,41 @@ tasks.register('prepareUpstreamProbe') {
                 def output = sourceDir.get().file(path).asFile
                 output.parentFile.mkdirs()
                 // Use the existing unshaded geometry when the desktop renderer is absent.
-                output.setText(source.replace(animated, "if(${renderer} != null && ${renderer}.animateShields){"), 'UTF-8')
+                source = source.replace(animated, "if(${renderer} != null && ${renderer}.animateShields){")
+                if (path == 'mindustry/graphics/Drawf.java') {
+                    def stockUniforms = '''        Shaders.build.region = region;
+        Shaders.build.progress = progress;
+        Shaders.build.color.set(color);
+        Shaders.build.color.a = alpha;
+        Shaders.build.time = -time / 20f;
+
+        Draw.shader(Shaders.build);
+'''
+                    def constructAtPosition = stockUniforms + '''        Draw.rect(region, x, y, rotation);
+        Draw.shader();'''
+                    def constructAtBuilding = stockUniforms + '''        Draw.rect(region, t.x, t.y, rotation);
+        Draw.shader();'''
+                    def entry = '    public static void construct(Building t, UnlockableContent content,'
+                    if (source.count(constructAtPosition) != 1 || source.count(constructAtBuilding) != 1
+                            || source.count(entry) != 1) {
+                        throw new GradleException('Pinned unit construction shader entry points changed')
+                    }
+                    source = source.replace(constructAtPosition,
+                        '        constructRegion(region, x, y, color, rotation, progress, alpha, time);')
+                    source = source.replace(constructAtBuilding,
+                        '        constructRegion(region, t.x, t.y, color, rotation, progress, alpha, time);')
+                    source = source.replace(entry, '''    private static void constructRegion(TextureRegion region,
+            float x, float y, Color color, float rotation, float progress, float alpha, float time){
+        if(Core.batch instanceof port.render.UpstreamUnitBuildTarget platform){
+            platform.drawUnitBuild(region, x, y, rotation, progress, color, alpha, -time / 20f);
+            return;
+        }
+''' + constructAtPosition + '''
+    }
+
+''' + entry)
+                }
+                output.setText(source, 'UTF-8')
             }
             fluidSources.each { path, substitutions ->
                 def source = new String(readUpstream("core/src/${path}"), 'UTF-8')
@@ -618,9 +846,12 @@ final class GlacierFixture {
             if (source.count(reflective) != 1 || source.count(accessibility) != 1) {
                 throw new GradleException('Pinned Arc Json reflection hooks changed')
             }
-            // TeaVM instantiates retained classes directly and reports public fields inaccessible.
+            // TeaVM instantiates retained classes directly.
             source = source.replace(reflective, 'return type.newInstance();')
-            source = source.replace(accessibility, 'if(false){')
+            if (!usesSinglePlayerApp) {
+                // Preserve the existing field accessibility workaround in the standalone probes.
+                source = source.replace(accessibility, 'if(false){')
+            }
             def adapted = arcJsonFile.get().asFile
             adapted.parentFile.mkdirs()
             adapted.setText(source, 'UTF-8')
@@ -667,6 +898,14 @@ final class GlacierFixture {
                 .replace(allocateGrid, 'tiles = new int[net.client() ? 0 : world.width() * world.height()];')
                 .replace(getTile, '        return net.client() ? packTile(world.tile(x, y)) : tiles[x + y * wwidth];'), 'UTF-8')
             def source = new String(readUpstream(netClientSource), 'UTF-8')
+            if (usesLiveAudio) {
+                def soundGuard = 'if(sound == null || headless) return;'
+                if (source.count(soundGuard) != 2) {
+                    throw new GradleException('Pinned NetClient sound handlers changed')
+                }
+                source = source.replace(soundGuard,
+                    'if(sound == null || (headless && !(Core.audio instanceof port.audio.Arm11Audio))) return;')
+            }
             def buffer = '''private ReusableByteInStream byteStream = new ReusableByteInStream();
     private DataInputStream dataStream = new DataInputStream(byteStream);
     private Reads dataStreamReads = new Reads(dataStream);'''
@@ -693,6 +932,19 @@ final class GlacierFixture {
         this(new ReusableByteInStream());'''), 'UTF-8')
         }
         if (usesBuildControls) {
+            def schematics = new String(readUpstream('core/src/mindustry/game/Schematics.java'), 'UTF-8')
+            def viewer = 'Team team = headless ? null : Vars.player.team();'
+            if (schematics.count(viewer) != 1) {
+                throw new GradleException('Pinned schematic capture viewer selection changed')
+            }
+            // The handheld draws the stock world without Arc's graphical client.
+            // Give the same capture routine its viewer explicitly.
+            def schematicsOutput = schematicsFile.get().asFile
+            schematicsOutput.parentFile.mkdirs()
+            schematicsOutput.setText(schematics.replace(viewer, '''return create(x, y, x2, y2, headless ? null : Vars.player.team());
+    }
+
+    public Schematic create(int x, int y, int x2, int y2, Team team){'''), 'UTF-8')
             def placement = new String(readUpstream(placementSource), 'UTF-8')
             def selection = placement =~ /(?m)^    Seq<Block> getUnlockedByCategory\(Category cat\)\{[\s\S]*?^    \}/
             def unlocked = placement =~ /(?m)^    boolean unlocked\(Block block\)\{[\s\S]*?^    \}/
@@ -730,7 +982,7 @@ final class UpstreamItemChoices {
 }
 """, 'UTF-8')
         }
-        if (usesSinglePlayer) {
+        if (usesSinglePlayer || usesLiveAudio) {
             def globalVars = new String(readUpstream(globalVarsSource), 'UTF-8')
             def soundCheck = '''varClientMusicPlaying.numval = control.sound.isPlaying() ? 1 : 0;
 
@@ -740,9 +992,16 @@ final class UpstreamItemChoices {
             }
             def adaptedGlobalVars = globalVarsFile.get().asFile
             adaptedGlobalVars.parentFile.mkdirs()
-            adaptedGlobalVars.setText(globalVars.replace(soundCheck, '''varClientMusicPlaying.numval = control != null && control.sound != null && control.sound.isPlaying() ? 1 : 0;
+            def musicController = usesLiveAudio ? 'Arm11Audio.musicControl()' : 'null'
+            if (usesLiveAudio) {
+                globalVars = globalVars.replace('package mindustry.logic;', 'package mindustry.logic;\n\nimport port.audio.Arm11Audio;')
+            }
+            adaptedGlobalVars.setText(globalVars.replace(soundCheck, """var musicController = control != null ? control.sound : ${musicController};
+            varClientMusicPlaying.numval = musicController != null && musicController.isPlaying() ? 1 : 0;
 
-            var music = control != null && control.sound != null ? control.sound.getCurrent() : null;'''), 'UTF-8')
+            var music = musicController != null ? musicController.getCurrent() : null;"""), 'UTF-8')
+        }
+        if (usesSinglePlayer) {
             def copiedFactoryResources = factoryResourcesFile.get().asFile
             copiedFactoryResources.parentFile.mkdirs()
             copiedFactoryResources.setText(file('src/gameplay/java/port/FactoryResources.java').getText('UTF-8'), 'UTF-8')
@@ -757,7 +1016,8 @@ tasks.register('runProbeJvm', JavaExec) {
     classpath = sourceSets.main.runtimeClasspath
     mainClass = ['map-sd': entryPoints.map, 'terrain-render': entryPoints['terrain-draw'],
                  'network-live': 'UpstreamSnapshotDispatchReference',
-                 'network-render': 'UpstreamSnapshotDispatchReference']
+                   'network-render': 'UpstreamSnapshotDispatchReference',
+                   'unified': 'UpstreamSnapshotDispatchReference']
         .getOrDefault(probe, entryPoint)
     def probeArgs = providers.gradleProperty('probeArgs')
     if (probeArgs.isPresent()) {
@@ -788,7 +1048,11 @@ teavm {
     if (usesExecutor) {
         c { obfuscated = false }
     }
-    if (usesSimulation || usesLiveNetwork || usesSinglePlayer) {
+    if (usesSinglePlayerApp) {
+        // Large offline maps allocate the original Pathfinder grid while the
+        // decoded world is live, then still need to load the world atlas.
+        c { maxHeapSize = 32 }
+    } else if (usesSimulation || usesLiveNetwork || usesSinglePlayer) {
         c { maxHeapSize = 24 }
     }
 }

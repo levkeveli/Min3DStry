@@ -105,10 +105,10 @@ jobs:
       - name: Fetch pinned upstream v160.8 source, server JAR, and Arc
         run: |
           args=(--mindustry --server-jar)
-          if [ "${{ matrix.probe }}" = "resource" ] || [ "${{ matrix.probe }}" = "executor" ] || [ "${{ matrix.probe }}" = "campaign-settings" ] || [ "${{ matrix.probe }}" = "campaign-content" ] || [ "${{ matrix.probe }}" = "campaign-research" ] || [ "${{ matrix.probe }}" = "campaign-slot-meta" ] || [ "${{ matrix.probe }}" = "campaign-sector-info" ] || [ "${{ matrix.probe }}" = "campaign-planet" ] || [ "${{ matrix.probe }}" = "campaign-sector-state" ] || [ "${{ matrix.probe }}" = "campaign-launch" ] || [ "${{ matrix.probe }}" = "campaign-saves" ] || [ "${{ matrix.probe }}" = "campaign-slot-discovery" ] || [ "${{ matrix.probe }}" = "wave-routing" ]; then
+          if [ "${{ matrix.probe }}" = "resource" ] || [ "${{ matrix.probe }}" = "executor" ] || [ "${{ matrix.probe }}" = "campaign-settings" ] || [ "${{ matrix.probe }}" = "campaign-content" ] || [ "${{ matrix.probe }}" = "campaign-research" ] || [ "${{ matrix.probe }}" = "campaign-slot-meta" ] || [ "${{ matrix.probe }}" = "campaign-sector-info" ] || [ "${{ matrix.probe }}" = "campaign-planet" ] || [ "${{ matrix.probe }}" = "campaign-sector-state" ] || [ "${{ matrix.probe }}" = "campaign-launch" ] || [ "${{ matrix.probe }}" = "campaign-capture" ] || [ "${{ matrix.probe }}" = "campaign-saves" ] || [ "${{ matrix.probe }}" = "campaign-slot-discovery" ] || [ "${{ matrix.probe }}" = "wave-routing" ]; then
             args+=(--arc)
           fi
-          if [ "${{ matrix.probe }}" = "wave-routing" ] || [ "${{ matrix.probe }}" = "campaign-slot-meta" ] || [ "${{ matrix.probe }}" = "campaign-launch" ] || [ "${{ matrix.probe }}" = "campaign-slot-discovery" ]; then
+          if [ "${{ matrix.probe }}" = "wave-routing" ] || [ "${{ matrix.probe }}" = "campaign-slot-meta" ] || [ "${{ matrix.probe }}" = "campaign-launch" ] || [ "${{ matrix.probe }}" = "campaign-capture" ] || [ "${{ matrix.probe }}" = "campaign-slot-discovery" ]; then
             args+=(--glacier)
           fi
           bash .github/scripts/fetch_upstream_v160.sh "${args[@]}"
@@ -118,7 +118,7 @@ jobs:
         run: |
           set -o pipefail
           extra=()
-          if [ "${{ matrix.probe }}" = "resource" ] || [ "${{ matrix.probe }}" = "executor" ] || [ "${{ matrix.probe }}" = "campaign-settings" ] || [ "${{ matrix.probe }}" = "campaign-content" ] || [ "${{ matrix.probe }}" = "campaign-research" ] || [ "${{ matrix.probe }}" = "campaign-slot-meta" ] || [ "${{ matrix.probe }}" = "campaign-sector-info" ] || [ "${{ matrix.probe }}" = "campaign-planet" ] || [ "${{ matrix.probe }}" = "campaign-sector-state" ] || [ "${{ matrix.probe }}" = "campaign-launch" ] || [ "${{ matrix.probe }}" = "campaign-saves" ] || [ "${{ matrix.probe }}" = "campaign-slot-discovery" ] || [ "${{ matrix.probe }}" = "wave-routing" ]; then
+          if [ "${{ matrix.probe }}" = "resource" ] || [ "${{ matrix.probe }}" = "executor" ] || [ "${{ matrix.probe }}" = "campaign-settings" ] || [ "${{ matrix.probe }}" = "campaign-content" ] || [ "${{ matrix.probe }}" = "campaign-research" ] || [ "${{ matrix.probe }}" = "campaign-slot-meta" ] || [ "${{ matrix.probe }}" = "campaign-sector-info" ] || [ "${{ matrix.probe }}" = "campaign-planet" ] || [ "${{ matrix.probe }}" = "campaign-sector-state" ] || [ "${{ matrix.probe }}" = "campaign-launch" ] || [ "${{ matrix.probe }}" = "campaign-capture" ] || [ "${{ matrix.probe }}" = "campaign-saves" ] || [ "${{ matrix.probe }}" = "campaign-slot-discovery" ] || [ "${{ matrix.probe }}" = "wave-routing" ]; then
             extra=("-ParcCheckout=$RUNNER_TEMP/Arc")
           fi
           probe_args=()
@@ -126,6 +126,8 @@ jobs:
             probe_args=("-PprobeArgs=$RUNNER_TEMP/glacier.msav")
           elif [ "${{ matrix.probe }}" = "campaign-slot-meta" ] || [ "${{ matrix.probe }}" = "campaign-launch" ]; then
             probe_args=("-PprobeArgs=$RUNNER_TEMP/glacier.msav $RUNNER_TEMP/sector-serpulo-15.msav")
+          elif [ "${{ matrix.probe }}" = "campaign-capture" ]; then
+            probe_args=("-PprobeArgs=$RUNNER_TEMP/glacier.msav")
           elif [ "${{ matrix.probe }}" = "campaign-slot-discovery" ]; then
             probe_args=("-PprobeArgs=$RUNNER_TEMP/slot-discovery-base $RUNNER_TEMP/glacier.msav")
           fi
@@ -143,6 +145,7 @@ jobs:
           fi
           if [ "${{ matrix.probe }}" = "executor" ]; then
             grep -Fx 'UPSTREAM_EXECUTOR_POOLS bounded=ok unbounded=ok' "$RUNNER_TEMP/probe.log"
+            grep -Fx 'UPSTREAM_EXECUTOR_MONITOR_GC object=ok array=ok' "$RUNNER_TEMP/probe.log"
           fi
           if [ "${{ matrix.probe }}" = "campaign-settings" ]; then
             grep -F 'campaign=unlocked:conveyor,research:50 reload=ok' "$RUNNER_TEMP/probe.log"
@@ -170,6 +173,9 @@ jobs:
             grep -F 'UPSTREAM_CAMPAIGN_LAUNCH slot=sector-serpulo-15.msav' "$RUNNER_TEMP/probe.log"
             grep -F 'version=13 sector=15 wave=5 world=150x250 launch=ok' "$RUNNER_TEMP/probe.log"
           fi
+          if [ "${{ matrix.probe }}" = "campaign-capture" ]; then
+            grep -F 'UPSTREAM_CAMPAIGN_CAPTURE sector=15 captured=ok waves=off attack=off event=ok persisted=ok' "$RUNNER_TEMP/probe.log"
+          fi
           if [ "${{ matrix.probe }}" = "campaign-saves" ]; then
             grep -F 'UPSTREAM_CAMPAIGN_SAVES path=tmp sector=sector-serpulo-15.msav' "$RUNNER_TEMP/probe.log"
             grep -F 'extension=msav saves=ok' "$RUNNER_TEMP/probe.log"
@@ -191,6 +197,18 @@ jobs:
               "$RUNNER_TEMP/probe.log"
           fi
 
+      - name: Verify executor monitor handoffs across garbage collection
+        if: matrix.probe == 'executor'
+        shell: bash
+        run: |
+          set -o pipefail
+          cp -R research/upstream-runtime/build/generated/teavm/c "$RUNNER_TEMP/teavm-c-executor"
+          python3 research/upstream-runtime/arm11/fix_gc_monitors.py "$RUNNER_TEMP/teavm-c-executor"
+          cc -std=gnu11 -O2 -fwrapv "$RUNNER_TEMP/teavm-c-executor/all.c" -lm -lpthread \
+            -o "$RUNNER_TEMP/teavm-c-executor/probe"
+          timeout 30s "$RUNNER_TEMP/teavm-c-executor/probe" | tee "$RUNNER_TEMP/executor-c.log"
+          grep -Fx 'UPSTREAM_EXECUTOR_MONITOR_GC object=ok array=ok' "$RUNNER_TEMP/executor-c.log"
+
       - name: Verify wave-routing TeaVM C at -O0 and -O2 against JVM trace
         if: matrix.probe == 'wave-routing'
         shell: bash
@@ -199,8 +217,10 @@ jobs:
           rm -rf "$RUNNER_TEMP/teavm-c-wave"
           cp -R research/upstream-runtime/build/generated/teavm/c "$RUNNER_TEMP/teavm-c-wave"
           python3 research/upstream-runtime/arm11/fix_reflection_lifetime.py "$RUNNER_TEMP/teavm-c-wave"
+          python3 research/upstream-runtime/arm11/fix_gc_monitors.py "$RUNNER_TEMP/teavm-c-wave"
           cc -std=gnu11 -O0 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-wave/all.c" -lm -lpthread \
             -o "$RUNNER_TEMP/teavm-c-wave/probe_o0"
+          python3 research/upstream-runtime/arm11/fix_wave_controller_local.py "$RUNNER_TEMP/teavm-c-wave"
           cc -std=gnu11 -O2 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-wave/all.c" -lm -lpthread \
             -o "$RUNNER_TEMP/teavm-c-wave/probe_o2"
           "$RUNNER_TEMP/teavm-c-wave/probe_o0" "$RUNNER_TEMP/glacier.msav" | tee "$RUNNER_TEMP/wave-o0.log"
@@ -216,7 +236,7 @@ jobs:
 
       - name: Build ARM11 probe with pinned devkitARM image
         env:
-          M3DS_RELAX_POINTER_TYPES: ${{ matrix.probe == 'campaign-slot-discovery' && '1' || '0' }}
+          M3DS_RELAX_POINTER_TYPES: ${{ (matrix.probe == 'campaign-slot-discovery' || matrix.probe == 'campaign-capture') && '1' || '0' }}
         run: |
           image=devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5
           docker_numa_args=()
@@ -564,6 +584,7 @@ jobs:
           rm -rf "$RUNNER_TEMP/teavm-c-audio"
           cp -R research/upstream-runtime/build/generated/teavm/c "$RUNNER_TEMP/teavm-c-audio"
           python3 research/upstream-runtime/arm11/fix_reflection_lifetime.py "$RUNNER_TEMP/teavm-c-audio"
+          python3 research/upstream-runtime/arm11/fix_gc_monitors.py "$RUNNER_TEMP/teavm-c-audio"
           cc -std=gnu11 -O0 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-audio/all.c" -lm -lpthread \
             -o "$RUNNER_TEMP/teavm-c-audio/probe_o0"
           cc -std=gnu11 -O2 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-audio/all.c" -lm -lpthread \
@@ -694,6 +715,7 @@ jobs:
           rm -rf "$RUNNER_TEMP/teavm-c-combat"
           cp -R research/upstream-runtime/build/generated/teavm/c "$RUNNER_TEMP/teavm-c-combat"
           python3 research/upstream-runtime/arm11/fix_reflection_lifetime.py "$RUNNER_TEMP/teavm-c-combat"
+          python3 research/upstream-runtime/arm11/fix_gc_monitors.py "$RUNNER_TEMP/teavm-c-combat"
           cc -std=gnu11 -O0 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-combat/all.c" -lm -lpthread \
             -o "$RUNNER_TEMP/teavm-c-combat/probe_o0"
           cc -std=gnu11 -O2 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-combat/all.c" -lm -lpthread \
@@ -872,6 +894,7 @@ jobs:
           rm -rf "$RUNNER_TEMP/teavm-c-host"
           cp -R research/upstream-runtime/build/generated/teavm/c "$RUNNER_TEMP/teavm-c-host"
           python3 research/upstream-runtime/arm11/fix_reflection_lifetime.py "$RUNNER_TEMP/teavm-c-host"
+          python3 research/upstream-runtime/arm11/fix_gc_monitors.py "$RUNNER_TEMP/teavm-c-host"
           cc -std=gnu11 -O0 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-host/all.c" -lm -lpthread \
             -o "$RUNNER_TEMP/teavm-c-host/probe_o0"
           cc -std=gnu11 -O2 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-host/all.c" -lm -lpthread \
@@ -960,6 +983,7 @@ jobs:
           rm -rf "$RUNNER_TEMP/teavm-c-factory"
           cp -R research/upstream-runtime/build/generated/teavm/c "$RUNNER_TEMP/teavm-c-factory"
           python3 research/upstream-runtime/arm11/fix_reflection_lifetime.py "$RUNNER_TEMP/teavm-c-factory"
+          python3 research/upstream-runtime/arm11/fix_gc_monitors.py "$RUNNER_TEMP/teavm-c-factory"
           cc -std=gnu11 -O0 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-factory/all.c" -lm -lpthread \
             -o "$RUNNER_TEMP/teavm-c-factory/probe_o0"
           cc -std=gnu11 -O2 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-factory/all.c" -lm -lpthread \
@@ -1081,3 +1105,32 @@ jobs:
               research/upstream-runtime/build/probe-3ds-singleplayer'
           test -s research/upstream-runtime/build/probe-3ds-singleplayer/upstream-probe.3dsx
           test -s research/upstream-runtime/build/probe-3ds-singleplayer/upstream-probe.elf
+
+      - name: Resume and save stock PC campaign slots on the JVM
+        shell: bash
+        run: |
+          set -o pipefail
+          check_dir=$(mktemp -d "$RUNNER_TEMP/campaign-resume.XXXXXX")
+          fixtures="$check_dir/fixtures"
+          python3 tools/campaign_resume_fixtures.py --server "$RUNNER_TEMP/server-release.jar" --output "$fixtures"
+          mkdir -p "$fixtures/planets"
+          git -C "$RUNNER_TEMP/Mindustry" show HEAD:core/assets/bundles/bundle.properties > "$fixtures/bundle.properties"
+          git -C "$RUNNER_TEMP/Mindustry" show HEAD:core/assets/planets/serpulo.json > "$fixtures/planets/serpulo.json"
+          bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime \
+            --no-daemon --console=plain \
+            "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" \
+            "-PreferenceJar=$RUNNER_TEMP/server-release.jar" \
+            "-ParcCheckout=$RUNNER_TEMP/Arc" \
+            -Pprobe=singleplayer runCampaignResumeJvm "--args=$fixtures $check_dir/save" \
+            | tee "$RUNNER_TEMP/campaign-resume-jvm.log"
+          grep -F 'UPSTREAM_CAMPAIGN_RESUME_REFERENCE slots=2 groundZero=170 frozenForest=64 backup=ok' \
+            "$RUNNER_TEMP/campaign-resume-jvm.log"
+
+      - name: Check unified multiplayer server address parsing on the JVM
+        run: |
+          bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime \
+            --no-daemon --console=plain \
+            "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" \
+            "-PreferenceJar=$RUNNER_TEMP/server-release.jar" \
+            "-ParcCheckout=$RUNNER_TEMP/Arc" \
+            -Pprobe=unified runServerAddressJvm
