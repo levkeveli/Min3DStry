@@ -29,6 +29,20 @@ redo, then opens the original Glacier, edits a tile and reopens the export.
 Use the usual pinned upstream runtime options with
 `runStockMapEditorJvm --args='<stock-map.msav> <new-export.msav>'`.
 
+The [devkitARM build](https://github.com/levkeveli/Min3DStry/actions/runs/45191797017)
+passed the graphical replay on both Azahar 2126.2 hardware profiles. The ROM
+SHA-256 was `273c20472d6798db8267f605412b214a1d3e374be0d4429a6440099c15256631`.
+The original Glacier map opened at 150 by 250 tiles. The editor changed
+tile (75, 125) from Ice to Craters. Undo restored Ice and redo restored
+Craters. SELECT wrote `maps/Edited-1.msav` without modifying the input.
+The original Java v160.8 reader reopened both exports with the changed
+floor, original map name and original generator metadata. The stock game
+applies generation filters on launch, so the editor comparison reads the
+raw map tiles through the original import path.
+
+Run `tools/verify_stock_map_editor.py` with the matching ROM, original Glacier
+map, stock server JAR and Azahar to reproduce the result.
+
 Map selection and naming dialogs, map-info fields, tools beyond pencil and
 eraser, brush size and drag input, team and rotation controls, and playtesting
 from the editor are subsequent pieces of the stock editor port.
