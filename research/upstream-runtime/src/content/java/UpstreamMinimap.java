@@ -1,8 +1,4 @@
-import arc.graphics.Color;
 import mindustry.Vars;
-import mindustry.content.Blocks;
-import mindustry.world.Tile;
-import mindustry.world.blocks.storage.CoreBlock.CoreBuild;
 
 /** Samples the live world into an RGBA8 minimap grid using stock block colors. */
 public final class UpstreamMinimap {
@@ -21,44 +17,16 @@ public final class UpstreamMinimap {
             for (int x = 0; x < size; x++) {
                 int tx = Math.min(worldWidth - 1, x * worldWidth / size);
                 int ty = Math.min(worldHeight - 1, y * worldHeight / size);
-                Tile tile = Vars.world.tile(tx, ty);
-                int r = 32, g = 36, b = 40;
-                if (tile != null) {
-                    var block = tile.block();
-                    // Block.minimapColor only covers blocks with custom minimap
-                    // colors; getColor falls back to the loaded mapColor for
-                    // floors and ordinary walls.
-                    Color color = block != Blocks.air
-                        ? block.getColor(tile)
-                        : tile.floor().getColor(tile);
-                    if (color != null) {
-                        r = channel(color.r);
-                        g = channel(color.g);
-                        b = channel(color.b);
-                    }
-                    if (tile.build instanceof CoreBuild) {
-                        r = 70;
-                        g = 220;
-                        b = 220;
-                    }
-                    if (player != null && player.tileX() == tile.x && player.tileY() == tile.y) {
-                        r = 255;
-                        g = 255;
-                        b = 255;
-                    }
-                }
+                int color = player != null && player.tileX() == tx && player.tileY() == ty
+                    ? 0xffffffff : UpstreamMinimapColors.colorFor(Vars.world.tile(tx, ty));
                 int index = (y * size + x) * 4;
-                pixels[index] = (byte) r;
-                pixels[index + 1] = (byte) g;
-                pixels[index + 2] = (byte) b;
-                pixels[index + 3] = (byte) 255;
+                pixels[index] = (byte) (color >>> 24);
+                pixels[index + 1] = (byte) (color >>> 16);
+                pixels[index + 2] = (byte) (color >>> 8);
+                pixels[index + 3] = (byte) color;
             }
         }
         return pixels;
-    }
-
-    private static int channel(float value) {
-        return Math.max(0, Math.min(255, Math.round(value * 255f)));
     }
 
     public static long hash(byte[] pixels) {

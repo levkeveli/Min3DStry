@@ -21,6 +21,7 @@ def networkIoSource = 'core/src/mindustry/net/NetworkIO.java'
 def netClientSource = 'core/src/mindustry/core/NetClient.java'
 def placementSource = 'core/src/mindustry/ui/fragments/PlacementFragment.java'
 def itemSelectionSource = 'core/src/mindustry/world/blocks/ItemSelection.java'
+def minimapSource = 'core/src/mindustry/graphics/MinimapRenderer.java'
 def logicExecutorSource = 'mindustry/logic/LExecutor.java'
 def planetGridSource = 'core/src/mindustry/graphics/g3d/PlanetGrid.java'
 def globalVarsSource = 'core/src/mindustry/logic/GlobalVars.java'
@@ -155,6 +156,7 @@ def netClientFile = sourceDir.map { it.file('mindustry/core/NetClient.java') }
 def schematicsFile = sourceDir.map { it.file('mindustry/game/Schematics.java') }
 def placementFile = sourceDir.map { it.file('UpstreamPlacementCatalog.java') }
 def itemChoicesFile = sourceDir.map { it.file('UpstreamItemChoices.java') }
+def minimapColorsFile = sourceDir.map { it.file('UpstreamMinimapColors.java') }
 def planetGridFile = sourceDir.map { it.file('mindustry/graphics/g3d/PlanetGrid.java') }
 def contentColorsFile = sourceDir.map { it.file('mindustry/core/ContentLoader.java') }
 def globalVarsFile = sourceDir.map { it.file('mindustry/logic/GlobalVars.java') }
@@ -353,6 +355,10 @@ if (usesSinglePlayer) {
             mainClass = 'UpstreamOfflineMaterialsReference'
             workingDir = temporaryDir
         }
+        tasks.register('runStockMinimapJvm', JavaExec) {
+            classpath = sourceSets.main.runtimeClasspath
+            mainClass = 'UpstreamStockMinimapReference'
+        }
         tasks.register('runOfflineWeaponsJvm', JavaExec) {
             classpath = sourceSets.main.runtimeClasspath
             mainClass = 'UpstreamOfflineWeaponsReference'
@@ -475,7 +481,7 @@ tasks.register('prepareUpstreamProbe') {
         outputs.file(mapFile)
     }
     if (usesContentSources) {
-        outputs.files(blockFile, annotationsFile)
+        outputs.files(blockFile, annotationsFile, minimapColorsFile)
     }
     if (usesWorldSources) {
         outputs.file(tileFile)
@@ -816,6 +822,28 @@ final class GlacierFixture {
 """, 'UTF-8')
         }
         if (usesContentSources) {
+            def minimap = new String(readUpstream(minimapSource), 'UTF-8')
+            def realBlock = minimap =~ /(?m)^    private Block realBlock\(Tile tile\)\{[\s\S]*?^    \}/
+            def colorFor = minimap =~ /(?m)^    private int colorFor\(Tile tile\)\{[\s\S]*?^    \}/
+            if (realBlock.count != 1 || colorFor.count != 1) {
+                throw new GradleException('Pinned MinimapRenderer tile-color methods changed')
+            }
+            minimapColorsFile.get().asFile.setText("""// Tile color methods from pinned Mindustry MinimapRenderer.java (GPL-3.0).
+import arc.graphics.Color;
+import arc.math.Mathf;
+import arc.util.Tmp;
+import mindustry.content.Blocks;
+import mindustry.io.MapIO;
+import mindustry.world.Block;
+import mindustry.world.Tile;
+import static mindustry.Vars.*;
+
+final class UpstreamMinimapColors {
+${realBlock[0].replace('private Block', 'private static Block')}
+
+${colorFor[0].replace('private int', 'static int')}
+}
+""", 'UTF-8')
             def block = new String(readUpstream(blockSource), 'UTF-8')
             def anonymousCheck = 'current.isAnonymousClass()'
             if (block.count(anonymousCheck) != 1) {

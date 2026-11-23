@@ -19,9 +19,9 @@ off and a campaign sector is active;
 - timed stock `sector.capture.current` and `wave.guardianwarn` notification rows;
 - the local unit's stock `stat.health`/`stat.ammo` values;
 - the original copper item glyph and the local core's copper count;
-- a 64x64 live minimap in the top-right corner, sampled from stock
-  `Block.getColor()` values with the local player drawn as a white dot and
-  refreshed every 60 frames.
+- a 64x64 live minimap in the top-right corner, sampled using the stock
+  `MinimapRenderer` tile colors with a local player marker and refreshed
+  every 60 frames.
 
 The status rows use the v160.8 font and inline item glyph pipeline shared with
 the objective HUD. They are rebuilt only when the rendered status text changes,
@@ -82,6 +82,13 @@ flat minimap region (fewer than four distinct sampled colors). Inspect the
 captured terrain pattern as well, since the color count cannot detect scrambled
 texture tiles.
 
+The separate `runStockMinimapJvm` task takes the original Glacier map and
+`block_colors.png`. It checks the 64x64 ARM11 sample against the v160.8
+desktop minimap renderer. Controlled tiles cover ore overlays, liquid
+edges, floor shadows, darkness and team colors. Both visibility states
+are checked for a building subject to fog. The emulator evidence above is
+for the initial minimap integration.
+
 The live fixture exercises the countdown/waiting path with `enemies=0`. The
 singular/plural enemy rows, the `wave.waveInProgress` branch, and the `m:ss`
 timer path are copied from v160.8 `HudFragment.makeStatusTable()` but are not
@@ -93,9 +100,8 @@ exactly.
 
 - This is the wave/timer/copper/minimap slice of the stock HUD, not the
   complete HUD.
-- The minimap is the always-on 56 px slice: fullscreen/zoom, unit blips beyond
-  the local player, fog of war and the full stock minimap panel layout remain
-  open under #40.
+- The minimap is the always-on 56 px slice. Fullscreen and zoom, other units,
+  the fog overlay and the complete minimap panel remain open under #40.
 - Full item list, additional notifications and the full stock layout remain
   open under #40.
 - Physical Old/New 3DS verification remains open with #43.
