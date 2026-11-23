@@ -92,7 +92,7 @@ def main():
     parser.add_argument("--model", choices=("old3ds", "new3ds"), action="append")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
-    args.output.mkdir(parents=True)
+    args.output.mkdir(parents=True, exist_ok=True)
     fixture = args.output / SLOT
     create_fixture(args.java, args.server, fixture)
     azahar = sp.az.resolve_azahar_bin(args.azahar)
