@@ -1,5 +1,6 @@
 import arc.Core;
 import arc.Events;
+import arc.audio.Audio;
 import arc.files.Fi;
 import java.io.IOException;
 import java.util.Arrays;
@@ -83,8 +84,9 @@ public final class UpstreamUnifiedApp {
         try {
             UpstreamSinglePlayerApp.run(args, new UpstreamSinglePlayerApp.AudioHooks() {
                 @Override
-                public void open() {
+                public Audio open() {
                     Arm11Audio.open();
+                    return Core.audio instanceof Arm11Audio audio ? audio : UpstreamSinglePlayerApp.AudioHooks.super.open();
                 }
 
                 @Override

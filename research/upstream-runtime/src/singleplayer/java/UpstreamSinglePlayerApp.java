@@ -3,14 +3,16 @@ import port.render.UpstreamFluidAtlas;
 import port.render.UpstreamLabelText;
 import port.render.UpstreamWorldLabel;
 import arc.Core;
-import arc.Settings;
 import arc.Events;
+import arc.Settings;
+import arc.audio.Audio;
 import arc.files.Fi;
 import arc.graphics.Camera;
 import arc.graphics.Color;
 import arc.graphics.g2d.Draw;
 import arc.math.Mathf;
 import arc.math.geom.Vec2;
+import arc.mock.MockAudio;
 import arc.struct.IntSet;
 import arc.struct.ObjectSet;
 import arc.struct.Seq;
@@ -97,7 +99,7 @@ public final class UpstreamSinglePlayerApp {
     private final IntSet reportedEnemies = new IntSet();
 
     interface AudioHooks {
-        default void open() {}
+        default Audio open() { return new MockAudio(); }
         default void prepareWorld() {}
         default void update(long now) {}
     }
@@ -140,9 +142,8 @@ public final class UpstreamSinglePlayerApp {
         System.out.println("UPSTREAM_INTERFACE_LOCALE system=" + language + " bundle=" + bundleTag
             + " router=" + Core.bundle.get("block.router.name") + " copper=" + Core.bundle.get("item.copper.name"));
 
-        audio.open();
         session = UpstreamSinglePlayerSession.create(mapDir, bundleTag, new Fi("/romfs/planets"), settings,
-            new Fi("/romfs/maps"));
+            new Fi("/romfs/maps"), audio.open());
         Core.camera = new Camera();
         audio.prepareWorld();
         UpstreamSectorCapture.install();
