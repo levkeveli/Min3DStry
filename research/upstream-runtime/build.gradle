@@ -18,6 +18,7 @@ def fileSource = 'arc-core/src/arc/files/Fi.java'
 def soundSource = 'arc-core/src/arc/audio/Sound.java'
 def osSource = 'arc-core/src/arc/util/OS.java'
 def networkIoSource = 'core/src/mindustry/net/NetworkIO.java'
+def dataPatcherSource = 'core/src/mindustry/mod/DataPatcher.java'
 def liveLogicSource = 'core/src/mindustry/core/Logic.java'
 def netClientSource = 'core/src/mindustry/core/NetClient.java'
 def placementSource = 'core/src/mindustry/ui/fragments/PlacementFragment.java'
@@ -153,6 +154,7 @@ def arcOsFile = sourceDir.map { it.file('arc/util/OS.java') }
 def arcPixmapFile = sourceDir.map { it.file('arc/graphics/Pixmap.java') }
 def arcJsonFile = sourceDir.map { it.file('arc/util/serialization/Json.java') }
 def networkIoFile = sourceDir.map { it.file('mindustry/net/NetworkIO.java') }
+def dataPatcherFile = sourceDir.map { it.file('mindustry/mod/DataPatcher.java') }
 def liveLogicFile = sourceDir.map { it.file('mindustry/core/Logic.java') }
 def netClientFile = sourceDir.map { it.file('mindustry/core/NetClient.java') }
 def schematicsFile = sourceDir.map { it.file('mindustry/game/Schematics.java') }
@@ -221,6 +223,9 @@ if (usesArcSources || usesExecutor) {
     }
     if (usesWorldStream) {
         stagedClasses.add('mindustry/net/NetworkIO.class')
+    }
+    if (usesSinglePlayer || usesLiveNetwork) {
+        stagedClasses.addAll(['mindustry/mod/DataPatcher.class', 'mindustry/mod/DataPatcher$*.class'])
     }
     if (usesBuildControls) {
         stagedClasses.addAll(['mindustry/game/Schematics.class', 'mindustry/game/Schematics$*.class'])
@@ -533,6 +538,9 @@ tasks.register('prepareUpstreamProbe') {
     }
     if (usesWorldStream) {
         outputs.file(networkIoFile)
+    }
+    if (usesSinglePlayer || usesLiveNetwork) {
+        outputs.file(dataPatcherFile)
     }
     if (usesBuildControls) {
         outputs.files(placementFile, itemChoicesFile, schematicsFile)
@@ -982,6 +990,19 @@ final class GlacierFixture {
             adapted.parentFile.mkdirs()
             adapted.setText(source, 'UTF-8')
         }
+        if (usesSinglePlayer || usesLiveNetwork) {
+            def source = new String(readUpstream(dataPatcherSource), 'UTF-8')
+            def filter = '''if(Vars.headless){
+                        String[] planets ='''
+            if (source.count(filter) != 1) {
+                throw new GradleException('Pinned DataPatcher requiredPlanets filter changed')
+            }
+            def staged = dataPatcherFile.get().asFile
+            staged.parentFile.mkdirs()
+            // The handheld frontend sets headless to bypass desktop graphics and still uses client patch rules.
+            staged.setText(source.replace(filter, filter.replace('Vars.headless', 'Vars.headless && Vars.net.server()')),
+                'UTF-8')
+        }
         if (usesWorldStream) {
             def source = new String(readUpstream(networkIoSource), 'UTF-8')
             def signature = 'public static void loadWorld(InputStream is){'
@@ -1199,6 +1220,10 @@ if (usesLiveNetwork) {
     tasks.register('runStockServerBundlesJvm', JavaExec) {
         classpath = sourceSets.main.runtimeClasspath
         mainClass = 'UpstreamStockServerBundlesReference'
+    }
+    tasks.register('runStockPlanetPatchJvm', JavaExec) {
+        classpath = sourceSets.main.runtimeClasspath
+        mainClass = 'UpstreamStockPlanetPatchReference'
     }
     tasks.register('runBuildControlsJvm', JavaExec) {
         dependsOn 'classes'

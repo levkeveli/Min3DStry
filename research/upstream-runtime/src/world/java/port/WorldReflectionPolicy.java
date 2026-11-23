@@ -42,6 +42,8 @@ public final class WorldReflectionPolicy extends SimpleReflectionPolicy {
         }) {
             selectClass(type).reflectableMethods(withParameterCount(0).and(IntrospectMethod::isConstructor));
         }
+        // The stock DataPatcher resolves the speed field on the original Erekir duct by name.
+        selectClass("mindustry.world.blocks.distribution.Duct").reflectableFields(named("speed"));
         // Older maps name filters by their fully qualified upstream class name.
         selectClasses(inPackage("mindustry.maps.filters").and(extending("mindustry.maps.filters.GenerateFilter")))
             .foundByName()
