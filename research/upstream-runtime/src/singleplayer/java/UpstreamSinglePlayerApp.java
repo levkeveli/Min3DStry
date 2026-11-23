@@ -734,7 +734,7 @@ public final class UpstreamSinglePlayerApp {
         return UpstreamBuildingLayers.supportsPowerDraw(block) || UpstreamBuildingLayers.supportsDistributionDraw(block)
             || block.category == Category.liquid || block instanceof UnitFactory
             || block instanceof StorageBlock || block instanceof Wall
-            || block == Blocks.mechanicalDrill || block == Blocks.pneumaticDrill
+            || UpstreamBuildingLayers.supportsExtractorDraw(block)
             || block instanceof BaseTurret
             || block instanceof GenericCrafter || block instanceof Separator || block instanceof Pump
             || block == Blocks.overdriveProjector

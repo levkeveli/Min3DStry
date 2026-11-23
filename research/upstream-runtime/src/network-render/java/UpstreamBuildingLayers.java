@@ -19,6 +19,9 @@ import mindustry.world.blocks.power.BeamNode.BeamNodeBuild;
 import mindustry.world.blocks.power.LightBlock;
 import mindustry.world.blocks.power.PowerBlock;
 import mindustry.world.blocks.power.PowerDiode;
+import mindustry.world.blocks.production.BeamDrill;
+import mindustry.world.blocks.production.Drill;
+import mindustry.world.blocks.production.WallCrafter;
 import mindustry.world.blocks.units.UnitFactory.UnitFactoryBuild;
 
 /** Arc draw commands for the cached and dynamic passes in upstream BlockRenderer. */
@@ -34,6 +37,10 @@ final class UpstreamBuildingLayers {
     static boolean supportsDistributionDraw(Block block) {
         // Uncatalogued blocks also default to the distribution category.
         return block.category == Category.distribution && block.buildVisibility != BuildVisibility.hidden;
+    }
+
+    static boolean supportsExtractorDraw(Block block) {
+        return block instanceof Drill || block instanceof BeamDrill || block instanceof WallCrafter;
     }
 
     void render(UpstreamTerrainDrawProbe.Viewport viewport, Team viewer, Predicate<Building> supported) {

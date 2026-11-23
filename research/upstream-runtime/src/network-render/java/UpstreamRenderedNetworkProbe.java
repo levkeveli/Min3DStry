@@ -376,7 +376,7 @@ public final class UpstreamRenderedNetworkProbe {
             || block.category == Category.liquid || block instanceof UnitFactory || block instanceof BaseTurret
             || block instanceof StorageBlock || block == Blocks.copperWall
             || block == Blocks.berylliumWall || block == Blocks.copperWallLarge
-            || block == Blocks.mechanicalDrill
+            || UpstreamBuildingLayers.supportsExtractorDraw(block)
             || block == Blocks.phaseWeaver || block == Blocks.overdriveProjector
             || block == Blocks.overdriveDome || block == Blocks.shockwaveTower
             || build instanceof PayloadConveyorBuild conveyor && (conveyor.item == null || supportsCargo(conveyor));
