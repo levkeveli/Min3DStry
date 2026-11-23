@@ -20,6 +20,7 @@ import arc.util.Time;
 import arc.util.Strings;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 import mindustry.Vars;
 import mindustry.content.Blocks;
@@ -31,6 +32,7 @@ import mindustry.entities.bullet.BulletType;
 import mindustry.game.EventType.BlockBuildEndEvent;
 import mindustry.game.EventType.WaveEvent;
 import mindustry.game.Gamemode;
+import mindustry.game.Team;
 import mindustry.graphics.Layer;
 import mindustry.graphics.Pal;
 import mindustry.maps.Map;
@@ -196,17 +198,7 @@ public final class UpstreamSinglePlayerApp {
             } else if (custom == null) {
                 session.start(mapFile, saveFile, null);
             } else {
-                if (custom.map == null) {
-                    saveFile = custom.save;
-                    System.out.println("UPSTREAM_CUSTOM_GAME_SELECTED source=save file=" + saveFile.name());
-                    session.start(null, saveFile, "customgame-save");
-                } else {
-                    saveFile = customSave;
-                    System.out.println("UPSTREAM_CUSTOM_GAME_SELECTED map=" + custom.map.file.name()
-                        + " mode=" + custom.mode.name());
-                    Gamemode mode = session.startCustomGame(custom.map, custom.mode);
-                    System.out.println("UPSTREAM_CUSTOM_GAME_STARTED map=" + custom.map.file.name() + " mode=" + mode.name());
-                }
+                saveFile = openCustomGame(custom, customSave);
             }
             loadInterfaceGraphics(atlas);
             weatherLayers.load();
@@ -223,6 +215,20 @@ public final class UpstreamSinglePlayerApp {
             });
             campaignLoop:
             while (runMainLoop(saveFile)) {
+                if (campaignSlot == null) {
+                    if (!showOfflineResult()) break;
+                    var maps = UpstreamCustomGameMaps.discover(new Fi("/romfs/maps/default"), mapDir.child("maps"));
+                    var saves = UpstreamCustomGameSaves.discover(Vars.saveDirectory, customSave);
+                    var next = maps.isEmpty() && saves.isEmpty() ? null : chooseCustomGame(maps, saves);
+                    if (next == null) break;
+                    saveFile = openCustomGame(next, customSave);
+                    lastPrimaryShortcut = null;
+                    previousVisualFrame = 0;
+                    resetWorldInput();
+                    weatherLayers.reset();
+                    reportWeather();
+                    continue;
+                }
                 var origin = Vars.state.rules.sector;
                 boolean defeated = Vars.state.gameOver;
                 if (defeated) {
@@ -329,6 +335,19 @@ public final class UpstreamSinglePlayerApp {
         reportedEnemies.clear();
         loadedUnitGraphics.clear();
         loadedBulletGraphics.clear();
+    }
+
+    private Fi openCustomGame(CustomGame selection, Fi newSave) throws IOException {
+        if (selection.map == null) {
+            System.out.println("UPSTREAM_CUSTOM_GAME_SELECTED source=save file=" + selection.save.name());
+            session.start(null, selection.save, "customgame-save");
+            return selection.save;
+        }
+        System.out.println("UPSTREAM_CUSTOM_GAME_SELECTED map=" + selection.map.file.name()
+            + " mode=" + selection.mode.name());
+        Gamemode mode = session.startCustomGame(selection.map, selection.mode);
+        System.out.println("UPSTREAM_CUSTOM_GAME_STARTED map=" + selection.map.file.name() + " mode=" + mode.name());
+        return newSave;
     }
 
     private void reportWeather() {
@@ -652,6 +671,36 @@ public final class UpstreamSinglePlayerApp {
         return input;
     }
 
+    static String[] offlineResultCaptions(Team winner) {
+        var state = Vars.state;
+        var stats = state.stats;
+        var rows = new ArrayList<String>();
+        rows.add(Strings.stripColors(UpstreamStatusHud.roundTitle(winner)));
+        if (state.rules.waves) rows.add(Core.bundle.get("stats.wave") + " " + stats.wavesLasted);
+        rows.add(Core.bundle.get("stats.unitsCreated") + " " + stats.unitsCreated);
+        rows.add(Core.bundle.get("stats.enemiesDestroyed") + " " + stats.enemyUnitsDestroyed);
+        rows.add(Core.bundle.get("stats.built") + " " + stats.buildingsBuilt);
+        rows.add(Core.bundle.get("stats.destroyed") + " " + stats.buildingsDestroyed);
+        rows.add(Core.bundle.get("stats.deconstructed") + " " + stats.buildingsDeconstructed);
+        rows.add("A " + Core.bundle.get("menu"));
+        return rows.toArray(String[]::new);
+    }
+
+    private boolean showOfflineResult() {
+        var winner = session.offlineWinner();
+        System.out.println("UPSTREAM_OFFLINE_RESULT winner=" + (winner == null ? "none" : winner.id)
+            + " won=" + Vars.state.won + " wave=" + Vars.state.stats.wavesLasted);
+        var rows = encodeMenuRows(offlineResultCaptions(winner));
+        while (true) {
+            long nextFrame = System.nanoTime() + FRAME_NS;
+            int input = UpstreamSinglePlayerInput.poll();
+            if (input == -1) return false;
+            if ((input & UpstreamSinglePlayerInput.A_PRESSED) != 0) return true;
+            drawMenuRows(rows);
+            while (System.nanoTime() < nextFrame) Thread.yield();
+        }
+    }
+
     private boolean showCampaignDefeat(Sector sector) {
         MenuRows rows = encodeMenuRows(new String[]{
             Strings.stripColors(Core.bundle.format("sector.lost", sector.name())),
@@ -844,7 +893,7 @@ public final class UpstreamSinglePlayerApp {
                 int steps = 0;
                 while (accumulator >= FRAME_NS && steps < 2) {
                     session.stepSimulation(moveInput.x, moveInput.y);
-                    if (campaignSlot != null && Vars.state.gameOver) return true;
+                    if (Vars.state.gameOver) return true;
                     accumulator -= FRAME_NS;
                     steps++;
                 }
