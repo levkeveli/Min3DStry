@@ -846,7 +846,8 @@ Create an empty `sd:/3ds/min3dstry/frame-perf.txt` before launching the playable
 ROM. The renderer emits `UPSTREAM_FRAME_PERF` once per 16 displayed frames.
 Each record gives the first and last viewport origins, sums of elapsed guest
 microseconds, texture cache misses and loads, and the encoded bytes consumed
-by atlas imports. Remove the flag to disable measurements.
+by atlas imports. The record also reports free linear memory in bytes at the
+end of the window. Remove the flag to disable measurements.
 
 Compare a stationary window after the cache warms up with a panning window.
 Divide each time by `frames` for the window mean. Terrain and bottom-screen
@@ -864,3 +865,22 @@ averaged about 233 ms per renderer frame, of which 213 ms was spent importing
 atlas fragments. A window panning from `117,49` to `109,49` imported 125
 fragments across 16 frames and averaged 159 ms per renderer frame. These are
 guest timings from the emulator with the same stock Ground Zero save.
+
+An A/B replay on Azahar 2126.2 compared the cache change with the unified
+ROM from `1345f483`. Both ROMs used the same stock Ground Zero save,
+generated TeaVM C, and ROMFS assets. With the 48-slot atlas and
+6 MiB linear heap, both profiles went from 12 imports and one recycle per
+stationary frame to zero after warm-up. The median stationary window fell
+from 232.5 ms to 15.8 ms per renderer frame on both profiles. The visible
+ice and ore matched pixel for pixel in a stationary screenshot crop.
+The moving windows took a median of 18.4 ms on Original 3DS and 15.9 ms on
+New 3DS, compared with 196.0 ms and 194.9 ms on the control. The same Circle
+Pad replay traversed more terrain in the faster build, so the moving windows
+cover different viewport positions.
+
+The larger cache raises the linear heap reservation by 2 MiB. The optimized
+ROM still reported at least 1,180,672 bytes free in the linear heap across
+both replays. Its page-rounded ELF load segments, 32 MiB managed limit,
+linear heap, and stack total 70.45 MiB. The control totaled 68.45 MiB.
+Azahar provided a 96 MiB app region to both profiles. The physical
+Original 3DS budget is 64 MiB.

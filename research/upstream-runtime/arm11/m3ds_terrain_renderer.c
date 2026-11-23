@@ -26,11 +26,11 @@ static void perf_report(void) {
     int length = snprintf(record, sizeof(record),
         "UPSTREAM_FRAME_PERF frames=%u from=%d,%d to=%d,%d frame_us=%llu terrain_us=%llu "
         "bottom_us=%llu begin_wait_us=%llu recycle_wait_us=%llu atlas_load_us=%llu misses=%u loads=%u "
-        "asset_bytes=%llu recycles=%u\n",
+        "asset_bytes=%llu recycles=%u linear_free=%lu\n",
         perf.frames, perf.first_left, perf.first_bottom, perf.left, perf.bottom_tile,
         perf_us(perf.frame), perf_us(perf.terrain), perf_us(perf.bottom),
         perf_us(perf.begin_wait), perf_us(perf.recycle_wait), perf_us(perf.atlas_load), perf.misses, perf.loads,
-        perf.bytes, perf.recycles);
+        perf.bytes, perf.recycles, (unsigned long)linearSpaceFree());
     if (length > 0 && length < (int)sizeof(record)) svcOutputDebugString(record, length);
     memset(&perf, 0, sizeof(perf));
 }
@@ -55,9 +55,9 @@ static M3DS_StockText stock_text;
 #include "m3ds_unit_build.h"
 #include "world_atlas_layout.h"
 
-// Retain at most 1.5 MiB of RGBA8 atlas backing in the default build.
+// Retain at most 3 MiB of RGBA8 atlas backing in the default build.
 #ifndef M3DS_WORLD_ATLAS_SLOTS
-#define M3DS_WORLD_ATLAS_SLOTS 24
+#define M3DS_WORLD_ATLAS_SLOTS 48
 #endif
 _Static_assert(M3DS_WORLD_ATLAS_SLOTS > 0, "The world atlas cache needs at least one slot");
 static struct {
