@@ -1,6 +1,11 @@
 import port.render.UpstreamCrackAtlas;
 import port.render.UpstreamFluidAtlas;
 import port.render.UpstreamCanvasTexture;
+import port.render.UpstreamLogicAtlas;
+import port.render.UpstreamLogicFont;
+import port.render.UpstreamLogicFramebuffer;
+import port.render.UpstreamLogicFramebuffer.RasterTexture;
+import port.logic.UpstreamClientLogic;
 import port.audio.Arm11AudioReference;
 import arc.Core;
 import arc.audio.AudioBus;
@@ -15,6 +20,8 @@ import arc.graphics.g2d.Lines;
 import arc.graphics.g2d.SpriteBatch;
 import arc.graphics.g2d.TextureRegion;
 import arc.mock.MockAudio;
+import arc.mock.MockGraphics;
+import arc.struct.Seq;
 import arc.util.Time;
 import arc.util.io.Reads;
 import arc.util.io.Writes;
@@ -32,12 +39,14 @@ import mindustry.content.Blocks;
 import mindustry.content.Items;
 import mindustry.content.Liquids;
 import mindustry.content.UnitTypes;
+import mindustry.ctype.ContentType;
 import mindustry.entities.units.BuildPlan;
 import mindustry.gen.Builderc;
 import mindustry.gen.Groups;
 import mindustry.gen.Payloadc;
 import mindustry.gen.BlockUnitc;
 import mindustry.gen.Crawlc;
+import mindustry.gen.DisplayCmd;
 import mindustry.gen.Player;
 import mindustry.gen.Tankc;
 import mindustry.gen.UnitWaterMove;
@@ -47,10 +56,12 @@ import mindustry.game.Team;
 import mindustry.game.MapObjectives;
 import mindustry.game.MapObjectives.BuildCountObjective;
 import mindustry.game.MapObjectives.ItemObjective;
+import mindustry.game.MapObjectives.QuadMarker;
 import mindustry.game.MapObjectives.TextureMarker;
 import mindustry.graphics.CacheLayer;
 import mindustry.graphics.Layer;
 import mindustry.graphics.Pal;
+import mindustry.logic.LMarkerControl;
 import mindustry.type.Category;
 import mindustry.world.Block;
 import mindustry.world.blocks.defense.OverdriveProjector.OverdriveBuild;
@@ -65,6 +76,12 @@ import mindustry.world.blocks.production.WallCrafter.WallCrafterBuild;
 import mindustry.world.blocks.storage.CoreBlock;
 import mindustry.world.blocks.logic.CanvasBlock;
 import mindustry.world.blocks.logic.CanvasBlock.CanvasBuild;
+import mindustry.world.blocks.logic.LogicBlock;
+import mindustry.world.blocks.logic.LogicBlock.LogicBuild;
+import mindustry.world.blocks.logic.LogicBlock.LogicLink;
+import mindustry.world.blocks.logic.LogicDisplay.LogicDisplayBuild;
+import mindustry.world.blocks.logic.LogicDisplay;
+import mindustry.world.blocks.logic.TileableLogicDisplay.TileableLogicDisplayBuild;
 import mindustry.world.blocks.payloads.BuildPayload;
 import mindustry.world.blocks.payloads.Payload;
 import mindustry.world.blocks.payloads.UnitPayload;
@@ -81,12 +98,16 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
     private final List<UnitBuild> unitBuilds = new ArrayList<>();
     private final List<UpstreamCanvasTexture> canvasDraws = new ArrayList<>();
     private int texturedQuads;
+    private UpstreamCanvasTexture canvasQuadTexture;
+    private float[] canvasQuadVertices;
+    private final List<RasterTexture> displayDraws = new ArrayList<>();
+    private final List<Integer> displayFirstPixels = new ArrayList<>();
 
     public static void main(String[] args) throws Exception {
-        if (args.length < 3 || args.length > 4) {
-            throw new IllegalArgumentException("Expected Glacier, sprites.aatls, block_colors.png and optional bundle base");
+        if (args.length < 3 || args.length == 6 || args.length > 7) {
+            throw new IllegalArgumentException("Expected Glacier, sprites.aatls, block_colors.png, optional bundle base, logicids.dat, then paired world atlas tiles and logic font");
         }
-        if (args.length == 4) Core.bundle = UpstreamInterfaceLocale.load(new Fi(args[3]), 1, "en");
+        if (args.length >= 4) Core.bundle = UpstreamInterfaceLocale.load(new Fi(args[3]), 1, "en");
         CacheLayer.init();
         UpstreamWorldLoadProbe.load(new String[]{args[0]}, () -> Vars.indexer = new BlockIndexer());
         UpstreamTerrainDrawProbe.loadAtlas(new Fi(args[1]), UpstreamFluidAtlas::load);
@@ -156,7 +177,9 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
             "MATERIAL");
         if (materials != 49) throw new AssertionError("Expected 49 stock material buildings, got " + materials);
         target.verifyCanvas(viewer);
-        if (args.length == 4) verifyObjectiveHud();
+        if (args.length >= 4) verifyObjectiveHud();
+        if (args.length >= 5) verifyClientProcessor(new Fi(args[4]), viewer);
+        if (args.length == 7) target.verifyLogicDisplay(new Fi(args[5]), new Fi(args[6]), viewer);
         target.verifyUnitProjectiles(viewport, viewer);
         verifyPositionalAudioDispatch();
         Arm11AudioReference.verifyStockRegistry();
@@ -378,6 +401,196 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         return tested;
     }
 
+    private static void verifyClientProcessor(Fi ids, Team team) {
+        UpstreamClientLogic.initialize(ids);
+        int copper = Vars.logicVars.lookupLogicId(Items.copper);
+        if (copper < 0 || Vars.logicVars.lookupContent(ContentType.item, copper) != Items.copper) {
+            throw new AssertionError("Original logic ID table did not resolve Copper");
+        }
+        var processorTile = Vars.world.tile(70, 15);
+        var canvasTile = Vars.world.tile(72, 15);
+        canvasTile.setBlock(Blocks.canvas, team);
+        processorTile.setBlock(Blocks.microProcessor, team);
+        var processor = (LogicBuild)processorTile.build;
+        var canvas = (CanvasBuild)canvasTile.build;
+        Vars.net.setClientConnected();
+        byte[] config = LogicBlock.compress("getlink canvas 0\nop add color 3 2\nwrite color canvas 0\nend",
+            Seq.with(new LogicLink(2, 0, "canvas1", true)));
+        processor.configured(null, config);
+        float oldDelta = Time.delta;
+        Time.delta = 1f;
+        try {
+            for (int i = 0; i < 8; i++) UpstreamClientLogic.update(1f);
+        } finally {
+            Time.delta = oldDelta;
+        }
+        if (processor.executor.links.length != 1 || processor.executor.links[0] != canvas || canvas.getPixel(0) != 5) {
+            throw new AssertionError("Stock client processor did not execute the configured Canvas write");
+        }
+        System.out.println("UPSTREAM_CLIENT_PROCESSOR_REFERENCE ids=ok compressed=ok link=ok canvas=5");
+    }
+
+    private void verifyLogicDisplay(Fi tiles, Fi font, Team team) {
+        var atlas = new UpstreamLogicAtlas(tiles);
+        UpstreamLogicFramebuffer.atlasPixels((texture, x, y) ->
+            atlas.sample(UpstreamTerrainDrawProbe.pageIndex(texture), x, y));
+        UpstreamLogicFont.load(font);
+        var processor = (LogicBuild)Vars.world.tile(70, 15).build;
+        var displayTile = Vars.world.tile(70, 20);
+        var sourceTile = Vars.world.tile(76, 15);
+        displayTile.setBlock(Blocks.logicDisplay, team);
+        sourceTile.setBlock(Blocks.logicDisplay, team);
+        var display = (LogicDisplayBuild)displayTile.build;
+        var source = (LogicDisplayBuild)sourceTile.build;
+        display.ensureBuffer();
+        source.ensureBuffer();
+        var links = Seq.with(new LogicLink(0, 5, "display1", true), new LogicLink(6, 0, "display2", true));
+        processor.configured(null, LogicBlock.compress("""
+            getlink target 0
+            getlink source 1
+            draw clear 32 160 224 0 0 0
+            drawflush source
+            draw clear 16 32 64 0 0 0
+            draw col %ff000080 0 0 0 0 0
+            draw rect 10 10 8 8 0 0
+            draw color 255 255 255 255 0 0
+            draw translate 20 10 0 0 0 0
+            draw rect 5 5 6 6 0 0
+            draw reset 0 0 0 0 0 0
+            draw image 48 30 source 8 0 0
+            draw image 60 60 @copper 12 0 0
+            print "A"
+            draw print 30 60 @bottomLeft 0 0 0
+            drawflush target
+            end
+            """, links));
+        float oldDelta = Time.delta;
+        Time.delta = 1f;
+        try {
+            for (int i = 0; i < 20; i++) UpstreamClientLogic.update(1f);
+        } finally {
+            Time.delta = oldDelta;
+        }
+        if (display.commands.isEmpty() || source.commands.isEmpty()) {
+            throw new AssertionError("Stock drawflush did not queue both displays");
+        }
+        display.processCommands();
+        if (!source.commands.isEmpty() || !display.commands.isEmpty()) {
+            throw new AssertionError("Stock processCommands did not update the offscreen source first");
+        }
+        assertDisplayPixel(display, 0, 0, 0x102040ff);
+        assertDisplayPixel(display, 10, 10, 0x881020ff);
+        assertDisplayPixel(display, 25, 15, 0xffffffff);
+        assertDisplayPixel(display, 48, 30, 0x20a0e0ff);
+        if (displayPixels(display, 54, 54, 66, 66) == 0 || displayPixels(display, 30, 60, 46, 80) == 0
+                || processor.executor.links[0] != display) {
+            throw new AssertionError("Original copper icon, logic font or display link missing");
+        }
+        displayDraws.clear();
+        display.draw();
+        if (displayDraws.size() != 1 || displayDraws.get(0) != display.buffer.getTexture()) {
+            throw new AssertionError("Original display did not submit its framebuffer texture");
+        }
+        var buffer = display.buffer;
+        displayTile.setBlock(Blocks.air);
+        if (!buffer.isDisposed()) {
+            throw new AssertionError("Removed display did not dispose its framebuffer");
+        }
+        verifyDisplayMarkers(source);
+        verifyTiledDisplay(team);
+        System.out.println("UPSTREAM_LOGIC_DISPLAY_REFERENCE flush=ok clear=ok alpha=ok transform=ok offscreen=ok copper=ok font=ok tiles=ok dispose=ok");
+    }
+
+    private void verifyDisplayMarkers(LogicDisplayBuild source) {
+        var marker = new TextureMarker(source, 605, 240, 16, 16);
+        var quad = new QuadMarker();
+        quad.texture.value = source;
+        for (int i = 0; i < 4; i++) {
+            quad.control(LMarkerControl.posi, i, i >= 2 ? 75 : 71, i == 1 || i == 2 ? 29 : 25);
+            quad.control(LMarkerControl.uvi, i, i >= 2 ? 1 : 0, i == 1 || i == 2 ? 1 : 0);
+        }
+        if (quad.vertices[4] != 0f || quad.vertices[10] != 1f) {
+            throw new AssertionError("Stock quad did not preserve framebuffer orientation");
+        }
+        Vars.state.markers.add(616, marker);
+        Vars.state.markers.add(617, quad);
+        source.commands.addLast(DisplayCmd.get(LogicDisplay.commandClear, 250, 86, 37, 0, 0, 0));
+        displayDraws.clear();
+        displayFirstPixels.clear();
+        UpstreamObjectiveMarkers.draw(Vars.state.rules, 2.5f, (text, x, y, flags, size, align, lines) -> {});
+        if (!displayDraws.equals(List.of(source.buffer.getTexture(), source.buffer.getTexture()))
+                || !displayFirstPixels.equals(List.of(0xfa5625ff, 0xfa5625ff)) || !source.commands.isEmpty()) {
+            throw new AssertionError("Offscreen display commands must finish before either marker samples its texture");
+        }
+        var old = source.buffer;
+        source.buffer = null;
+        old.dispose();
+        displayDraws.clear();
+        UpstreamObjectiveMarkers.draw(Vars.state.rules, 2.5f, (text, x, y, flags, size, align, lines) -> {});
+        if (source.buffer == null || !displayDraws.equals(List.of(source.buffer.getTexture(), source.buffer.getTexture()))) {
+            throw new AssertionError("Markers did not bind the replacement framebuffer");
+        }
+        Vars.state.markers.remove(616);
+        Vars.state.markers.remove(617);
+        System.out.println("UPSTREAM_DISPLAY_MARKERS_REFERENCE sprite=ok quad=ok deferred=ok replacement=ok");
+    }
+
+    private void verifyTiledDisplay(Team team) {
+        var left = Vars.world.tile(73, 19);
+        var right = Vars.world.tile(74, 19);
+        left.setBlock(Blocks.tileLogicDisplay, team);
+        right.setBlock(Blocks.tileLogicDisplay, team);
+        var a = (TileableLogicDisplayBuild)left.build;
+        var b = (TileableLogicDisplayBuild)right.build;
+        a.updateTile();
+        b.updateTile();
+        if (a.rootDisplay != b.rootDisplay || !a.rectangular || a.tilesWidth != 2 || a.tilesHeight != 1) {
+            throw new AssertionError("Original tileable displays did not form a two-tile framebuffer");
+        }
+        Core.graphics = new MockGraphics() {
+            @Override public long getFrameId() { return 1; }
+        };
+        displayDraws.clear();
+        Draw.sort(true);
+        try {
+            Draw.z(Layer.block);
+            a.draw();
+            Draw.z(Layer.block);
+            b.draw();
+        } finally {
+            Draw.sort(false);
+        }
+        var buffer = a.rootDisplay.buffer;
+        if (buffer == null || buffer.getWidth() != 52 || buffer.getHeight() != 20
+                || displayDraws.size() != 2 || displayDraws.stream().anyMatch(texture -> texture != buffer.getTexture())) {
+            throw new AssertionError("Original tileable texture crops used the wrong framebuffer: " +
+                (buffer == null ? "none" : buffer.getWidth() + "x" + buffer.getHeight()) + ", draws=" + displayDraws.size());
+        }
+    }
+
+    @Override
+    public void drawLogicDisplay(RasterTexture texture, float[] vertices, int offset, Blending blending) {
+        displayDraws.add(texture);
+        displayFirstPixels.add(texture.pixels[0]);
+    }
+
+    private static int displayPixels(LogicDisplayBuild display, int left, int bottom, int right, int top) {
+        int changed = 0;
+        int[] pixels = display.buffer.getTexture().pixels;
+        int width = display.buffer.getWidth();
+        for (int y = bottom; y < top; y++) {
+            for (int x = left; x < right; x++) {
+                if (pixels[y * width + x] != 0x102040ff) changed++;
+            }
+        }
+        return changed;
+    }
+
+    private static void assertDisplayPixel(LogicDisplayBuild display, int x, int y, int expected) {
+        int rgba = display.buffer.getTexture().pixels[y * display.buffer.getWidth() + x];
+        if (rgba != expected) throw new AssertionError(String.format("Logic Display pixel %d,%d: %08x != %08x", x, y, rgba, expected));
+    }
+
     private void verifyCanvas(Team team) {
         var tile = Vars.world.tile(73, 25);
         var neighbor = Vars.world.tile(75, 25);
@@ -434,6 +647,46 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         tile.remove();
         if (!smallTexture.isDisposed()) throw new AssertionError("Canvas removal kept its texture active");
         System.out.println("UPSTREAM_CANVAS_REFERENCE small=ok large=ok palettes=ok borders=ok save=ok config=ok marker=ok disposed=ok");
+        verifyCanvasQuad(large, largeTexture);
+    }
+
+    private void verifyCanvasQuad(CanvasBuild canvas, UpstreamCanvasTexture texture) {
+        var quad = new QuadMarker();
+        quad.texture.value = canvas;
+        quad.vertices = new float[]{
+            40f, 64f, Color.whiteFloatBits, 0f, 0f, Color.clearFloatBits,
+            44f, 112f, Color.sky.toFloatBits(), 0f, 1f, Color.clearFloatBits,
+            92f, 118f, Color.whiteFloatBits, 1f, 1f, Color.clearFloatBits,
+            105f, 72f, Color.whiteFloatBits, 1f, 0f, Color.clearFloatBits
+        };
+        Vars.state.markers.add(614, quad);
+        int before = texture.revision;
+        canvas.setPixel(0, 6);
+        float requestedU = 0.75f, requestedV = 0.25f;
+        quad.control(LMarkerControl.uvi, 2, requestedU, requestedV);
+        quad.control(LMarkerControl.posi, 2, 13, 16);
+        UpstreamObjectiveMarkers.draw(Vars.state.rules, 2.5f, (text, x, y, flags, size, align, lines) -> {});
+        if (canvasQuadTexture != texture || texture.revision <= before
+                || texture.pixels[0] != ((CanvasBlock)Blocks.largeCanvas).palette[6]
+                || !Arrays.equals(canvasQuadVertices, quad.vertices)
+                || canvasQuadVertices[12] != 104f || canvasQuadVertices[13] != 128f
+                || canvasQuadVertices[8] != Color.sky.toFloatBits()) {
+            throw new AssertionError("Linked Canvas quad did not preserve original pixels, vertices or tint");
+        }
+        // Mindustry v160.8 QuadMarker.setUv inverts local V before submitting the vertex.
+        float vertexV = 1f - requestedV;
+        if (canvasQuadVertices[15] != requestedU || canvasQuadVertices[16] != vertexV) {
+            throw new AssertionError("Linked Canvas quad did not submit the stock UV orientation");
+        }
+        quad.setTexture("block-router-ui");
+        var router = Core.atlas.find("block-router-ui");
+        float u = router.u + (router.u2 - router.u) * requestedU;
+        float v = router.v + (router.v2 - router.v) * vertexV;
+        if (Math.abs(quad.vertices[15] - u) > 0.00001f || Math.abs(quad.vertices[16] - v) > 0.00001f) {
+            throw new AssertionError("Retargeting a Canvas quad changed its local UV");
+        }
+        Vars.state.markers.remove(614);
+        System.out.println("UPSTREAM_CANVAS_QUAD_REFERENCE refresh=ok vertices=ok uv=ok tint=ok retarget=ok");
     }
 
     private static void verifyObjectiveHud() {
@@ -994,6 +1247,12 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
     @Override
     public void drawTexturedQuad(int page, int pageWidth, int pageHeight, float[] vertices, int offset, Blending blending) {
         texturedQuads++;
+    }
+
+    @Override
+    public void drawCanvasQuad(UpstreamCanvasTexture texture, float[] vertices, int offset, Blending blending) {
+        canvasQuadTexture = texture;
+        canvasQuadVertices = Arrays.copyOfRange(vertices, offset, offset + 24);
     }
 
     @Override public void begin(int left, int bottom, int width, int height) {}

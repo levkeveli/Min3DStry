@@ -294,6 +294,66 @@ def run_singleplayer_model(
             config_path.unlink()
 
 
+def run_weather_model(
+    model: str,
+    rom_path: Path,
+    azahar_bin: str,
+    config_path: Path,
+    log_path: Path,
+    out_dir: Path,
+    timeout: float,
+    fixtures: Path,
+) -> None:
+    sd = (out_dir / "virtual-sd" / model).resolve()
+    sd_save = sd / "3ds/min3dstry/singleplayer-save.msav"
+    snapshots = {name: (fixtures / f"{name}.msav").read_bytes() for name in ("clear", "weather")}
+    original_config = config_path.read_bytes() if config_path.exists() else None
+    sd_save.parent.mkdir(parents=True)
+    world = tuple((x, y) for y in range(40, 210, 20) for x in range(30, 380, 25))
+    touch = tuple((x, y) for y in (350, 385, 415, 445) for x in range(80, 330, 25))
+    samples = {}
+    try:
+        storage = {"Data Storage": {"use_custom_storage": "true", "sdmc_directory": sd.as_posix() + "/"}}
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        config_path.write_text(az.patch_qt_config_text((original_config or b"").decode("utf-8"), storage),
+                               encoding="utf-8")
+        for name, save in snapshots.items():
+            sd_save.write_bytes(save)
+            proc, rpc = _launch_azahar(model, rom_path, azahar_bin, config_path, log_path)
+            try:
+                _wait_for_log(log_path, proc, r"UPSTREAM_SP_LOADED source=save map=Ground_Zero\b", timeout)
+                _wait_for_log(log_path, proc, r"UPSTREAM_SP_FRAME ", timeout)
+                if name == "weather":
+                    for texture in ("noiseAlpha", "fog"):
+                        _wait_for_log(log_path, proc, rf"UPSTREAM_WEATHER_TEXTURE name={texture}\b", timeout)
+                time.sleep(3)
+                shot = rpc.screenshot()
+                (out_dir / f"{model}-{name}.png").write_bytes(shot)
+                info = az.inspect_png(shot, world + touch)
+                if (info["width"], info["height"]) != (400, 480):
+                    raise AssertionError(f"Unexpected screenshot layout: {info['width']}x{info['height']}")
+                samples[name] = info["samples"]
+                log = log_path.read_text(encoding="utf-8", errors="replace")
+                (out_dir / f"{model}-{name}.log").write_text(log, encoding="utf-8")
+                events = set(re.findall(r"UPSTREAM_SP_WEATHER name=([\w-]+)", log))
+                expected = {"rain", "sandstorm", "fog"} if name == "weather" else set()
+                if events != expected:
+                    raise AssertionError(f"{model} {name}: expected events {expected}, got {events}")
+            finally:
+                rpc.close()
+                _stop_proc(proc, azahar_bin)
+        world_changes = sum(samples["clear"][p] != samples["weather"][p] for p in world)
+        touch_changes = sum(samples["clear"][p] != samples["weather"][p] for p in touch)
+        if world_changes < len(world) // 2 or touch_changes:
+            raise AssertionError(f"{model}: compared {world_changes} changed world and {touch_changes} changed touch samples")
+        print(f"[PASS] {model}: weather=rain,sandstorm,fog textures=2 world={world_changes}/{len(world)} touch=unchanged")
+    finally:
+        if original_config is None:
+            config_path.unlink(missing_ok=True)
+        else:
+            config_path.write_bytes(original_config)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--rom", required=True, type=Path)
@@ -301,6 +361,7 @@ def main() -> int:
     parser.add_argument("--model", choices=("new3ds", "old3ds"), default=None)
     parser.add_argument("--output-dir", type=Path, default=Path("build/singleplayer-emu"))
     parser.add_argument("--timeout", type=float, default=120.0)
+    parser.add_argument("--weather-fixtures", type=Path, help="directory with stock clear.msav and weather.msav")
     args = parser.parse_args()
 
     azahar_bin = az.resolve_azahar_bin(args.azahar)
@@ -308,6 +369,10 @@ def main() -> int:
     models = (args.model,) if args.model else ("new3ds", "old3ds")
 
     for model in models:
+        if args.weather_fixtures:
+            run_weather_model(model, args.rom, azahar_bin, config_path, log_path,
+                              args.output_dir, args.timeout, args.weather_fixtures)
+            continue
         result = run_singleplayer_model(model, args.rom, azahar_bin, config_path, log_path, args.output_dir, args.timeout)
         fps = result["perf"].get("game_fps", 0.0)
         b1 = result["boot1"]

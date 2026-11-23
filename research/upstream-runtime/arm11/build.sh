@@ -81,8 +81,16 @@ if [[ $# -gt 0 ]]; then
         echo "Prepare multiplayer or singleplayer terrain assets to include the original bundles, atlas and block palette" >&2
         exit 2
     fi
+    if [[ ${#native_network[@]} -gt 0 && ( ! -s "$1/logicids.dat" || ! -s "$1/logic-font.dat" ) ]]; then
+        echo "Prepare multiplayer terrain assets to include the original logic IDs and font" >&2
+        exit 2
+    fi
     if [[ ${#native_input[@]} -gt 0 && ( ! -f "$1/sprites.aatls" || ! -f "$1/maps/groundZero.msav" ) ]]; then
         echo "Prepare singleplayer terrain assets with --singleplayer to include sprites.aatls and maps/groundZero.msav" >&2
+        exit 2
+    fi
+    if [[ ${#native_input[@]} -gt 0 && ( ! -s "$1/weather/noiseAlpha.t3x" || ! -s "$1/weather/fog.t3x" ) ]]; then
+        echo "Prepare singleplayer terrain assets with --singleplayer to include both original weather textures" >&2
         exit 2
     fi
     terrain_flags=(-DM3DS_TERRAIN_RENDERER -I"$root" -I"$1")
@@ -119,6 +127,12 @@ if [[ $# -gt 0 ]]; then
     if [[ -f "$1/block_colors.png" ]]; then
         cp "$1/block_colors.png" "$output/romfs/block_colors.png"
     fi
+    if [[ -f "$1/logicids.dat" ]]; then
+        cp "$1/logicids.dat" "$output/romfs/logicids.dat"
+    fi
+    if [[ -f "$1/logic-font.dat" ]]; then
+        cp "$1/logic-font.dat" "$output/romfs/logic-font.dat"
+    fi
     if [[ -d "$1/catalog" ]]; then
         cp -R "$1/catalog" "$output/romfs/catalog"
     fi
@@ -136,6 +150,9 @@ if [[ $# -gt 0 ]]; then
             "$output/m3ds_quad.shbin" > "$output/m3ds_quad_shader.s"
         terrain_sources+=("$output/m3ds_quad_shader.s")
         cp -R "$1/world-atlas" "$output/romfs/world-atlas"
+    fi
+    if [[ -d "$1/weather" ]]; then
+        cp -R "$1/weather" "$output/romfs/weather"
     fi
     "$DEVKITPRO/tools/bin/smdhtool" --create "$title" "$subtitle" \
         "Min3DStry Contributors" "$DEVKITPRO/libctru/default_icon.png" "$output/upstream-probe.smdh"
