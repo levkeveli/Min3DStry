@@ -1469,8 +1469,19 @@ def verify_stock_chat(log, emulator, server_log, server, rpc, output, model, tim
         time.sleep(0.1)
     else:
         raise RuntimeError(f"{model}: stock chat reached ARM11 without a visible chat panel")
+    bottom = [(x, y) for y in range(258, 458, 8) for x in range(48, 354, 8)]
+    play_grid = az.inspect_png(frame, bottom)["samples"]
     wait_for(log, emulator, r"UPSTREAM_LIVE_CHAT_INPUT state=open\b", timeout)
-    (output / f"{model}-chat-keyboard.png").write_bytes(rpc.screenshot(res_scale=1))
+    deadline = time.monotonic() + 8
+    while time.monotonic() < deadline:
+        keyboard = rpc.screenshot(res_scale=1)
+        keys = az.inspect_png(keyboard, bottom)["samples"]
+        if sum(max(abs(a - b) for a, b in zip(play_grid[p], keys[p])) >= 16 for p in bottom) >= 60:
+            (output / f"{model}-chat-keyboard.png").write_bytes(keyboard)
+            break
+        time.sleep(0.1)
+    else:
+        raise RuntimeError(f"{model}: the bottom screen did not present the touch keyboard")
     server.stdin.write("runwave\n")
     server.stdin.flush()
     during_chat = wait_for(log, emulator, r"UPSTREAM_LIVE_CONTROLS_STATE wave=2\b", timeout)
