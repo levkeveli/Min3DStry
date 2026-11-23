@@ -376,6 +376,10 @@ if (usesSinglePlayer) {
             classpath = sourceSets.main.runtimeClasspath
             mainClass = 'UpstreamStockPlaytimeReference'
         }
+        tasks.register('runStockSavedPlayerJvm', JavaExec) {
+            classpath = sourceSets.main.runtimeClasspath
+            mainClass = 'UpstreamStockSavedPlayerReference'
+        }
         tasks.register('runErekirHeatJvm', JavaExec) {
             classpath = sourceSets.main.runtimeClasspath
             mainClass = 'UpstreamErekirHeatReference'
@@ -416,7 +420,7 @@ if (usesSinglePlayer) {
     }
     if (!usesSinglePlayerApp) {
         sourceSets.main.java.exclude('UpstreamSinglePlayerApp.java', 'UpstreamSinglePlayerInput.java',
-            'UpstreamOfflineWeaponInput.java')
+            'UpstreamOfflineWeaponInput.java', 'UpstreamMapEditorApp.java')
     } else if (!usesLiveNetwork) {
         sourceSets.main.java.srcDir('src/network-live/java')
         sourceSets.main.java.srcDir('src/network-render/java')
@@ -1145,13 +1149,17 @@ final class UpstreamItemChoices {
         if (usesSinglePlayer) {
             def writer = new String(readUpstream(saveVersionSource), 'UTF-8')
             def playtime = '"playtime", headless ? 0 : control.saves.getTotalPlaytime(),'
-            if (writer.count(playtime) != 1) {
-                throw new GradleException('Pinned SaveVersion playtime field changed')
+            def groups = '"controlGroups", headless || control == null ? "null" : JsonIO.write(control.input.controlGroups),'
+            def controlled = '"controlledType", headless || control.input.controlledType == null ? "null" : control.input.controlledType.name,'
+            if (writer.count(playtime) != 1 || writer.count(groups) != 1 || writer.count(controlled) != 1) {
+                throw new GradleException('Pinned SaveVersion player metadata fields changed')
             }
             def stagedWriter = saveVersionFile.get().asFile
             stagedWriter.parentFile.mkdirs()
             stagedWriter.setText(writer.replace(playtime,
-                '"playtime", headless ? (tags == null ? 0L : tags.getLong("playtime", 0L)) : control.saves.getTotalPlaytime(),'),
+                '"playtime", headless ? (tags == null ? 0L : tags.getLong("playtime", 0L)) : control.saves.getTotalPlaytime(),')
+                .replace(groups, '"controlGroups", headless || control == null ? (tags == null ? "null" : tags.get("controlGroups", "null")) : JsonIO.write(control.input.controlGroups),')
+                .replace(controlled, '"controlledType", headless ? (tags == null ? "null" : tags.get("controlledType", "null")) : (control.input.controlledType == null ? "null" : control.input.controlledType.name),'),
                 'UTF-8')
             def copiedFactoryResources = factoryResourcesFile.get().asFile
             copiedFactoryResources.parentFile.mkdirs()
