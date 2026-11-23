@@ -59,8 +59,8 @@ If CI fails or `AI review` flags critical/major findings, return the task to the
 
 Min3DStry's optional [CircleCI project](https://app.circleci.com/pipelines/github/levkeveli/Min3DStry)
 has an experimental workflow for the standalone offline ARM11 game with
-pinned upstream sources, maps, and assets. The first CircleCI build is
-pending repository checkout authorization. Trigger a pipeline on the desired branch with the boolean
+pinned upstream sources, maps, and assets. It fetches the exact pipeline
+commit from the public repository over HTTPS. Trigger a pipeline on the desired branch with the boolean
 parameter `build_playable_arm11` set to `true`. Routine pushes leave the workflow
 off. The job uses a single Linux Docker executor and uploads the playable
 `min3dstry-offline.3dsx`, commit SHA, and ROM checksum under **Artifacts →

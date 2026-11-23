@@ -13,7 +13,14 @@ jobs:
     environment:
       RUNNER_TEMP: /tmp/min3ds-upstream
     steps:
-      - checkout
+      - run:
+          name: Fetch the exact pipeline commit over HTTPS
+          command: |
+            git init .
+            git remote add origin https://github.com/levkeveli/Min3DStry.git
+            git fetch --depth 1 origin "$CIRCLE_SHA1"
+            git checkout --detach FETCH_HEAD
+            test "$(git rev-parse HEAD)" = "$CIRCLE_SHA1"
       - run:
           name: Install host build dependencies
           command: |
