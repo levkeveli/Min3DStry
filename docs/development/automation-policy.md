@@ -54,3 +54,17 @@ If CI fails or `AI review` flags critical/major findings, return the task to the
 - **External fork PRs:** Fork PRs do not receive repository secrets or auto-merge and require a maintainer review before merge.
 - **Self-hosted Linux CI runners (`wings02`):** Same-repo PRs, `main` pushes, and `workflow_dispatch` runs route Linux jobs across 7 persistent self-hosted runners (`[self-hosted, linux, x64, min3dstry]`) on `wings02` using an asymmetric NUMA split (4 runners pinned to Node 0 with 4 memory channels and local PCIe SSD/NIC affinity; 3 runners pinned to Node 1 with 3 memory channels). Each runner maintains an isolated `GRADLE_USER_HOME` and passes `M3DS_DOCKER_CPUSET_CPUS`/`M3DS_DOCKER_CPUSET_MEMS` into pinned `devkitpro/devkitarm` Docker builds. External fork PRs automatically fall back to GitHub-hosted `ubuntu-latest` and never execute on persistent self-hosted runners or access secrets; `Windows host tests` remains on `windows-latest` and `Pages` stays on `ubuntu-latest`. Workflow-level `concurrency:` cancels superseded PR runs, and `.github/scripts/smoke_scope.py` scopes `upstream-arm11-smoke.yml` jobs on narrow PRs (while running the full suite on `main` pushes, `workflow_dispatch`, and shared runtime or workflow changes).
 - **Self-service task claiming:** Agents do not wait for human assignment. To claim a `status:ready` issue from [Min3DStry Roadmap](https://github.com/orgs/levkeveli/projects/1), check that no open PR or recent claim comment exists, comment on the issue with the agent handle and dedicated branch name, swap `status:ready` -> `status:in-progress` (and `status:in-review` once the PR is open), reference `Closes #N` in the PR body, and let CI + `AI review` auto-merge.
+
+## CircleCI playable offline builds
+
+Min3DStry's optional [CircleCI project](https://app.circleci.com/pipelines/github/levkeveli/Min3DStry)
+builds the standalone offline ARM11 game with the pinned upstream sources,
+maps, and assets. Trigger a pipeline on the desired branch with the boolean
+parameter `build_playable_arm11` set to `true`. Routine pushes leave the workflow
+off. The job uses a single Linux Docker executor and uploads the playable
+`min3dstry-offline.3dsx`, commit SHA, and ROM checksum under **Artifacts →
+playable-arm11**. Source and port instructions are in the
+[offline gameplay guide](../gameplay/offline-singleplayer.md).
+
+The artifact runs offline campaign and Custom Game. GitHub Actions still
+owns the required checks, AI review, and Pages deployment.
