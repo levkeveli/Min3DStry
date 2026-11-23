@@ -96,10 +96,10 @@ public final class UpstreamLiveNetworkProbe {
     // Match Arc's pinned TcpConnection and UdpConnection default intervals.
     private static final long TCP_KEEP_ALIVE_NS = 8_000_000_000L;
     private static final long UDP_KEEP_ALIVE_NS = 19_000_000_000L;
-    private static final String PLAYER_NAME = "Min3DStry ARM11";
     private enum Mode { SNAPSHOTS, MOVEMENT, CONTROLS }
     private final byte[] packet = new byte[32_768];
     private final Mode mode;
+    private final UpstreamPlayerIdentity identity;
     private final Consumer<Unit> frame;
     private final UpstreamLiveBuildControls building;
     private final Consumer<String> chat;
@@ -108,13 +108,15 @@ public final class UpstreamLiveNetworkProbe {
     private int nextLiveTransport = 1;
 
     private UpstreamLiveNetworkProbe(Mode mode, Runnable deferredGraphics, Consumer<Unit> frame,
-                                     UpstreamLiveBuildControls building, Consumer<String> chat, UpstreamChatInput chatInput) {
+                                     UpstreamLiveBuildControls building, Consumer<String> chat,
+                                     UpstreamChatInput chatInput, UpstreamPlayerIdentity identity) {
         this.mode = mode;
         this.deferredGraphics = deferredGraphics;
         this.frame = frame;
         this.building = building;
         this.chat = chat;
         this.chatInput = chatInput;
+        this.identity = identity;
     }
 
     public static void main(String[] args) throws IOException, InterruptedException {
@@ -154,8 +156,11 @@ public final class UpstreamLiveNetworkProbe {
             }
             stage = "client setup";
             if (beforeConnect != null) beforeConnect.run();
+            stage = "profile";
+            var identity = UpstreamPlayerIdentity.load(directory, endpoint[0]);
             stage = "session";
-            new UpstreamLiveNetworkProbe(mode, deferredGraphics, frame, building, chat, chatInput).run(host, port, app);
+            new UpstreamLiveNetworkProbe(mode, deferredGraphics, frame, building, chat, chatInput, identity)
+                .run(host, port, app);
         } catch (IOException | RuntimeException | LinkageError error) {
             Throwable cause = error;
             while (cause.getCause() != null) cause = cause.getCause();
@@ -221,7 +226,7 @@ public final class UpstreamLiveNetworkProbe {
         try {
             NetworkIO.loadWorld(new InflaterInputStream(stream));
             app.runPosted();
-            if (stream.remaining != 0 || Groups.player.size() != 1 || !PLAYER_NAME.equals(Vars.player.name)
+            if (stream.remaining != 0 || Groups.player.size() != 1 || Vars.player.name == null || Vars.player.name.isEmpty()
                     || Vars.world.width() <= 0 || Vars.world.height() <= 0) {
                 throw new IOException("Server world or assigned player did not load");
             }
@@ -878,9 +883,11 @@ public final class UpstreamLiveNetworkProbe {
         return Net.getPacketClassId(type) & 0xff;
     }
 
-    private static int open(byte[] host, int port, int version) {
+    private int open(byte[] host, int port, int version) {
         return Native.open(Address.ofData(host), host.length, port, version,
-            unsignedId(KickCallPacket.class), unsignedId(KickCallPacket2.class));
+            unsignedId(KickCallPacket.class), unsignedId(KickCallPacket2.class),
+            Address.ofData(identity.name()), Address.ofData(identity.locale()), Address.ofData(identity.usid()),
+            Address.ofData(identity.uuid()), identity.color());
     }
 
     /** Supplies original StreamChunk data without buffering a second copy of the entire world. */
@@ -944,7 +951,8 @@ public final class UpstreamLiveNetworkProbe {
     private static final class Native {
         @Import(name = "m3ds_live_net_open")
         static native int open(Address host, int length, int port, int version,
-                               int kickTextId, int kickReasonId);
+                               int kickTextId, int kickReasonId, Address name, Address locale, Address usid,
+                               Address uuid, int color);
         @Import(name = "m3ds_live_net_stream_id")
         static native int streamId();
         @Import(name = "m3ds_live_net_stream_total")

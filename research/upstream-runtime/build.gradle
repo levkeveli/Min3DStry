@@ -322,6 +322,11 @@ if (probe == 'world-stream') {
 }
 if (usesLiveNetwork) {
     sourceSets.main.java.srcDirs('src/network-live/java', 'src/network-live/host')
+    tasks.register('runStockPlayerIdentityJvm', JavaExec) {
+        dependsOn 'classes'
+        classpath = sourceSets.main.runtimeClasspath
+        mainClass = 'UpstreamPlayerIdentityReference'
+    }
 }
 if (probe in ['network-render', 'unified']) {
     sourceSets.main.java.srcDirs('src/network-render/java', 'src/network-render/host')
@@ -1023,12 +1028,13 @@ final class GlacierFixture {
     private DataInputStream dataStream = new DataInputStream(byteStream);
     private Reads dataStreamReads = new Reads(dataStream);'''
             def constructor = 'public NetClient(){'
-            if (source.count(buffer) != 1 || source.count(constructor) != 1) {
+            def usid = 'String getUsid(String ip){'
+            if (source.count(buffer) != 1 || source.count(constructor) != 1 || source.count(usid) != 1) {
                 throw new GradleException('Pinned NetClient snapshot reader changed')
             }
             def outputClient = netClientFile.get().asFile
             outputClient.parentFile.mkdirs()
-            outputClient.setText(source.replace(buffer, '''private final ReusableByteInStream byteStream;
+            outputClient.setText(source.replace(usid, 'public ' + usid).replace(buffer, '''private final ReusableByteInStream byteStream;
     private final DataInputStream dataStream;
     private final Reads dataStreamReads;''').replace(constructor, '''private NetClient(ReusableByteInStream snapshotInput){
         byteStream = snapshotInput;
