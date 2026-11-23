@@ -104,10 +104,13 @@ public final class UpstreamStatusRowsProbe {
         String formatted = formatEntry.formatted();
         if (!"12k".equals(formatted)
                 || !"1.2k".equals(UpstreamCoreItems.formatAmount(1234))
-                || !"1.5mil".equals(UpstreamCoreItems.formatAmount(1_500_000))) {
+                || !"999".equals(UpstreamCoreItems.formatAmount(999))
+                || !"0".equals(UpstreamCoreItems.formatAmount(0))
+                || !"1.5mil".equals(UpstreamCoreItems.formatAmount(1_500_000))
+                || !"1.5b".equals(UpstreamCoreItems.formatAmount(1_500_000_000))) {
             throw new IllegalStateException("Core item amount formatting mismatch: " + formatted);
         }
-        System.out.println("UPSTREAM_CORE_ITEM_FORMAT text=" + formatted + " cases=3 ok");
+        System.out.println("UPSTREAM_CORE_ITEM_FORMAT text=" + formatted + " cases=6 ok");
         System.out.println("UPSTREAM_CORE_ITEMS rows=2 ok");
         var tracker = new UpstreamCoreItems.Tracker();
         var tracked = tracker.collect(Seq.with(Items.copper, Items.lead, Items.silicon).list(),
