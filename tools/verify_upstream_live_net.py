@@ -1985,7 +1985,7 @@ def run_model(args, model, config, original_config, log, output):
             server.stdin.write("exit\n")
             server.stdin.flush()
             server.wait(timeout=10)
-            upstream = server_log.read_text(encoding="utf-8", errors="replace")
+            upstream = re.sub(r"\x1b\[[0-9;]*m", "", server_log.read_text(encoding="utf-8", errors="replace"))
             departures = [line for line in upstream.splitlines() if f"{PLAYER} has disconnected" in line]
             # NetServer.sync can observe the closed transport before the disconnect event runs.
             # The stationary render check ends by terminating the emulator process.

@@ -221,9 +221,20 @@ public final class UpstreamLiveNetworkProbe {
                 deferredGraphics.run();
                 deferredGraphics = null;
             }
+            reportReceivedWorld(join, total);
+            Vars.state.set(State.playing);
+            send(new ConnectConfirmCallPacket(), true);
         } finally {
             Native.endKeepAlive();
         }
+        if (mode == Mode.CONTROLS) {
+            driveLiveClient(app);
+        } else {
+            waitForWave(join, app);
+        }
+    }
+
+    private void reportReceivedWorld(int join, int total) {
         String fingerprint = UpstreamWorldLoadProbe.reportTerrain(false);
         System.out.println("UPSTREAM_LIVE_NET_WORLD join=" + join + " map=" + Vars.state.map.name()
             + " bytes=" + total + " team=" + Vars.player.team().id + " fingerprint=" + fingerprint);
@@ -239,13 +250,6 @@ public final class UpstreamLiveNetworkProbe {
             if (objectives.get(0) instanceof ItemObjective first) {
                 System.out.println("UPSTREAM_WORLD_ITEM_OBJECTIVE item=" + first.item.name + " amount=" + first.amount);
             }
-        }
-        Vars.state.set(State.playing);
-        send(new ConnectConfirmCallPacket(), true);
-        if (mode == Mode.CONTROLS) {
-            driveLiveClient(app);
-        } else {
-            waitForWave(join, app);
         }
     }
 
