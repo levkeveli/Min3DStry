@@ -58,13 +58,14 @@ If CI fails or `AI review` flags critical/major findings, return the task to the
 ## CircleCI playable offline builds
 
 Min3DStry's optional [CircleCI project](https://app.circleci.com/pipelines/github/levkeveli/Min3DStry)
-builds the standalone offline ARM11 game with the pinned upstream sources,
-maps, and assets. Trigger a pipeline on the desired branch with the boolean
+has an experimental workflow for the standalone offline ARM11 game with
+pinned upstream sources, maps, and assets. The first CircleCI build is
+pending repository checkout authorization. Trigger a pipeline on the desired branch with the boolean
 parameter `build_playable_arm11` set to `true`. Routine pushes leave the workflow
 off. The job uses a single Linux Docker executor and uploads the playable
 `min3dstry-offline.3dsx`, commit SHA, and ROM checksum under **Artifacts →
 playable-arm11**. Source and port instructions are in the
 [offline gameplay guide](../gameplay/offline-singleplayer.md).
 
-The artifact runs offline campaign and Custom Game. GitHub Actions still
+The job packages the offline campaign and Custom Game target. GitHub Actions still
 owns the required checks, AI review, and Pages deployment.
