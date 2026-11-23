@@ -487,7 +487,8 @@ The graphical live path uses Arc's gain, pan, pitch and position,
 including original server sound and soundtrack rule packets. Its
 building ambience sampler runs at the original 20 Hz interval. World
 loads reset the voice and track state. In the combined binary, the live
-mixer starts in the Join path.
+mixer starts in the Join path. The standalone singleplayer target uses the
+shared world renderer without compiling the live audio adapter.
 
 Run `python3 tools/verify_live_stock_audio.py /path/to/terrain-assets`
 to exercise the PCM cache and stream decoder controls with the host
