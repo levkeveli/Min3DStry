@@ -5,6 +5,7 @@ import mindustry.game.MapObjectives.PosMarker;
 import mindustry.game.MapObjectives.QuadMarker;
 import mindustry.game.MapObjectives.TextureMarker;
 import mindustry.game.Rules;
+import mindustry.world.blocks.logic.CanvasBlock.CanvasBuild;
 import port.render.UpstreamMarkerTexture;
 import port.render.UpstreamWorldLabel;
 
@@ -32,9 +33,16 @@ final class UpstreamObjectiveMarkers {
 
     private static void drawOne(ObjectiveMarker marker, float displayScale) {
         if (marker instanceof QuadMarker quad) {
-            if (!UpstreamMarkerTexture.deferLookup(quad.texture.value)) quad.draw(1f);
-        } else if (marker instanceof PosMarker
-                && (!(marker instanceof TextureMarker sprite) || !UpstreamMarkerTexture.deferLookup(sprite.texture.value))) {
+            if (!(quad.texture.value instanceof CanvasBuild) && !UpstreamMarkerTexture.deferLookup(quad.texture.value)) {
+                quad.draw(1f);
+            }
+        } else if (marker instanceof PosMarker) {
+            if (marker instanceof TextureMarker sprite) {
+                if (UpstreamMarkerTexture.deferLookup(sprite.texture.value)) return;
+                // Stationary canvases can be present on a tile without joining
+                // Groups.build. Refresh them even when the tile is offscreen.
+                if (sprite.texture.value instanceof CanvasBuild canvas && canvas.isValid()) canvas.updateTexture();
+            }
             marker.draw(marker.autoscale ? 4f / displayScale : 1f);
         }
     }
