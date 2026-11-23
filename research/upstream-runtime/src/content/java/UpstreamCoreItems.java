@@ -1,5 +1,6 @@
 import java.util.ArrayList;
 import java.util.List;
+import arc.struct.ObjectSet;
 import java.util.function.Function;
 import mindustry.Vars;
 import mindustry.type.Item;
@@ -22,9 +23,28 @@ public final class UpstreamCoreItems {
         return rows;
     }
 
-    public static List<Entry> live() {
-        var core = core();
-        return core == null ? List.of() : collect(Vars.content.items().list(), item -> core.items.get(item));
+    /** Stock used-items behavior: once seen, a depleted item stays visible at zero. */
+    public static final class Tracker {
+        private final ObjectSet<Item> used = new ObjectSet<>();
+
+        public List<Entry> collect(List<Item> items, Function<Item, Integer> amount) {
+            var rows = new ArrayList<Entry>();
+            for (Item item : items) {
+                int count = amount.apply(item);
+                if (count > 0) used.add(item);
+                if (used.contains(item)) rows.add(new Entry(item, count));
+            }
+            return rows;
+        }
+
+        public List<Entry> live() {
+            var core = core();
+            return core == null ? List.of() : collect(Vars.content.items().list(), item -> core.items.get(item));
+        }
+
+        public void reset() {
+            used.clear();
+        }
     }
 
     private static CoreBuild core() {
