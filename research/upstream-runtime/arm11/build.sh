@@ -3,7 +3,7 @@ set -euo pipefail
 : "${DEVKITARM:?Set DEVKITARM with devkitPro's 3dsvars.sh}"
 : "${DEVKITPRO:?Set DEVKITPRO with devkitPro's 3dsvars.sh}"
 if [[ $# -lt 2 || $# -gt 4 ]]; then
-    echo "Usage: $0 <TeaVM generated C directory> <new output directory> [--network|--singleplayer|--unified|--save-rows] [terrain assets directory]" >&2
+    echo "Usage: $0 <TeaVM generated C directory> <new output directory> [--network|--singleplayer|--unified|--save-rows|--campaign-background] [terrain assets directory]" >&2
     exit 2
 fi
 arm11_opt="${M3DS_ARM11_OPT:--Os}"
@@ -24,6 +24,7 @@ python3 "$root/prepare.py" "$1" "$output"
 shift 2
 native_network=()
 native_input=()
+stack_flags=()
 title="Min3DStry Terrain"
 subtitle="Mindustry v160.8 Glacier"
 mode=${1:-}
@@ -43,6 +44,10 @@ if [[ $mode == --unified ]]; then
     native_input+=("$root/m3ds_server_address.c")
 fi
 if [[ $mode == --network || $mode == --singleplayer || $mode == --unified ]]; then
+    shift
+elif [[ $mode == --campaign-background ]]; then
+    # The simulation probe serializes the same stock campaign as the graphical game.
+    stack_flags=(-DM3DS_SINGLEPLAYER)
     shift
 fi
 save_rows_flags=()
@@ -169,7 +174,7 @@ fi
 "$DEVKITARM/bin/arm-none-eabi-gcc" -std=gnu11 -g "$arm11_opt" -fwrapv -D__3DS__ -mword-relocations \
     -march=armv6k -mtune=mpcore -mfpu=vfp -mfloat-abi=hard -mtp=soft \
     -I"$output/nativeinclude" -I"$DEVKITPRO/libctru/include" -L"$DEVKITPRO/libctru/lib" \
-    "${terrain_flags[@]}" "${save_rows_flags[@]}" "${pointer_flags[@]}" \
+    "${terrain_flags[@]}" "${save_rows_flags[@]}" "${pointer_flags[@]}" "${stack_flags[@]}" \
     -specs=3dsx.specs "$output/all.c" "${native_network[@]}" "${native_input[@]}" \
     "${terrain_sources[@]}" "${save_rows_sources[@]}" \
     "${terrain_libraries[@]}" -lctru -lm -o "$output/upstream-probe.elf"

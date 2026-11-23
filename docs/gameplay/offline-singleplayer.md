@@ -256,7 +256,8 @@ SD per emulator profile and reopens each resulting save with stock Java.
 The dedicated ARM11 `campaign-background` probe runs the same original
 simulation ticks independently of graphical frame pacing. Generate it
 with `-Pprobe=campaign-background generateC` and compile the output with
-`arm11/build.sh` without a graphical mode. Run
+`arm11/build.sh <generated-c> <output> --campaign-background`, which uses
+the same native stack size as the graphical game. Run
 `tools/verify_arm11_background_turn.py --rom upstream-probe.3dsx --server server-release.jar --assets /path/to/prepared-assets --output /path/to/new-output`.
 Use maps, planets, and the base bundle staged from the pinned original
 assets. Both emulated console profiles produce a result directory for
