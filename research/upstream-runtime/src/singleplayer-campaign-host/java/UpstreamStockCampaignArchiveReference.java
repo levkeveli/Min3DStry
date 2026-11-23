@@ -5,11 +5,13 @@ import java.util.Locale;
 import mindustry.Vars;
 import mindustry.content.Planets;
 import mindustry.content.SectorPresets;
+import mindustry.game.Team;
 import mindustry.gen.Fire;
 import mindustry.gen.Puddle;
 import mindustry.io.MapIO;
 import mindustry.type.Sector;
 import mindustry.world.Tiles;
+import mindustry.world.meta.BlockFlag;
 
 public final class UpstreamStockCampaignArchiveReference {
     public static void main(String[] args) throws Exception {
@@ -55,6 +57,7 @@ public final class UpstreamStockCampaignArchiveReference {
                 Vars.logic.reset();
                 Vars.world.loadSector(preset.sector);
                 session.application().runPosted();
+                verifyCoreFlagOrder();
                 var original = preset.generator.map;
                 if (Vars.state.rules.sector != preset.sector || Vars.world.width() != original.width
                         || Vars.world.height() != original.height) {
@@ -74,6 +77,22 @@ public final class UpstreamStockCampaignArchiveReference {
                 + " hidden=" + hidden + " patches=" + patches);
         } finally {
             session.shutdown();
+        }
+    }
+
+    private static void verifyCoreFlagOrder() {
+        int[] expected = new int[Team.all.length];
+        for (var tile : Vars.world.tiles) {
+            if (!tile.isCenter() || tile.build == null || !tile.block().flags.contains(BlockFlag.core)) continue;
+            var team = tile.team();
+            if (Vars.indexer.getFlagged(team, BlockFlag.core).get(expected[team.id]++) != tile.build) {
+                throw new AssertionError("The stock core index lost its world order");
+            }
+        }
+        for (var team : Team.all) {
+            if (Vars.indexer.getFlagged(team, BlockFlag.core).size != expected[team.id]) {
+                throw new AssertionError("The stock core index retained entries from another sector");
+            }
         }
     }
 
