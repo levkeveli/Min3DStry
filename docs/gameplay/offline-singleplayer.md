@@ -143,6 +143,11 @@ Duct in Onset on each profile. The unmodified v160.8 server reopened all
 four sector saves and settings pairs and confirmed the inventories and
 research progress. This build predates the merged live capture integration.
 
+The [current ARM11 campaign build](https://github.com/levkeveli/Min3DStry/actions/runs/45130577809)
+repeated the four controller cases on the merged launch runtime. Stock
+v160.8 reopened each result and read back the expected research and core
+inventory. The replay keeps its virtual SD under the output directory.
+
 The [integrated ARM11 build from `522c8ca`](https://github.com/levkeveli/Min3DStry/actions/runs/45058012737)
 passed a continuous progression replay on both Azahar profiles. A stock
 final-wave Ground Zero save reached capture through the upstream simulation.
