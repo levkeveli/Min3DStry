@@ -61,6 +61,7 @@ public final class UpstreamSinglePlayerApp {
     private final Runnable drawEntities = this::drawEntities;
     private final UpstreamWorldLabel.Target worldLabel = this::drawWorldLabel;
     private final Vec2 moveInput = new Vec2();
+    private final UpstreamOfflineWeaponInput weaponInput = new UpstreamOfflineWeaponInput();
 
     private UpstreamSinglePlayerSession session;
     private UpstreamTerrainDrawProbe.Viewport viewport;
@@ -99,7 +100,7 @@ public final class UpstreamSinglePlayerApp {
         int language = target.mountAssets();
         int bootInput = UpstreamSinglePlayerInput.poll();
         boolean customRequested = args.length == 0 && bootInput >= 0
-            && (bootInput & UpstreamSinglePlayerInput.CUSTOM_GAME_HELD) != 0;
+            && (bootInput & UpstreamSinglePlayerInput.L_HELD) != 0;
         Fi mapFile = args.length >= 1 ? new Fi(args[0]) : firstExisting("/romfs/maps/groundZero.msav", "/3ds/min3dstry/groundZero.msav");
         Fi saveFile = args.length >= 2 ? new Fi(args[1]) : new Fi("/3ds/min3dstry/singleplayer-save.msav");
         Fi atlas = firstExisting("/romfs/sprites.aatls", "/3ds/min3dstry/sprites.aatls");
@@ -430,8 +431,18 @@ public final class UpstreamSinglePlayerApp {
             int input = UpstreamSinglePlayerInput.poll();
             if (input == -1) break;
             int touch = UpstreamSinglePlayerInput.touch();
+            long now = System.nanoTime();
 
-            if ((input & UpstreamSinglePlayerInput.PAUSE_PRESSED) != 0) {
+            moveInput.set((byte)input / 127f, (byte)(input >>> 8) / 127f);
+            if (moveInput.len2() < DEAD_ZONE * DEAD_ZONE) {
+                moveInput.setZero();
+            } else {
+                moveInput.limit(1f);
+            }
+            boolean aimHeld = (input & UpstreamSinglePlayerInput.X_HELD) != 0;
+            boolean fireHeld = (input & UpstreamSinglePlayerInput.L_HELD) != 0;
+            if (weaponInput.releasePauses((input & UpstreamSinglePlayerInput.X_PRESSED) != 0,
+                    aimHeld, !moveInput.isZero(), fireHeld, now)) {
                 boolean paused = session.togglePause();
                 System.out.println("UPSTREAM_SP_PAUSE paused=" + paused + " updateId=" + Vars.state.updateId);
             }
@@ -442,21 +453,21 @@ public final class UpstreamSinglePlayerApp {
             }
             if ((input & UpstreamSinglePlayerInput.SAVE_PRESSED) != 0) {
                 session.save(saveFile);
+                if (unit != null) {
+                    int shots = UpstreamOfflineWeaponInput.totalShots(unit);
+                    if (shots > 0) System.out.println("UPSTREAM_SP_WEAPON_SAVED shots=" + shots);
+                }
             }
 
             unit = session.ensurePlayerSpawn();
             if (unit != null) {
                 buildingControls.update(unit, input, touch);
+                boolean overlay = buildingControls.catalog().isOpen() || buildingControls.buildingConfig().isOpen()
+                    || buildingControls.inventory().isOpen();
+                weaponInput.update(unit, moveInput, weaponInput.aimMode() && !moveInput.isZero(),
+                    fireHeld && !overlay && !Vars.state.isPaused());
             }
-
-            moveInput.set((byte)input / 127f, (byte)(input >>> 8) / 127f);
-            if (moveInput.len2() < DEAD_ZONE * DEAD_ZONE) {
-                moveInput.setZero();
-            } else {
-                moveInput.limit(1f);
-            }
-
-            long now = System.nanoTime();
+            if (weaponInput.aimMode()) moveInput.setZero();
             long elapsed = Math.min(Math.max(0L, now - previousTime), FRAME_NS * 4L);
             previousTime = now;
             accumulator += elapsed;

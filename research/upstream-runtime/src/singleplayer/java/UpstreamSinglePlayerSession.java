@@ -321,7 +321,8 @@ public final class UpstreamSinglePlayerSession {
             var unit = ensurePlayerSpawn();
             if (unit != null) {
                 tmpMove.set(moveX, moveY).limit(1f).scl(unit.speed());
-                unit.lookAt(unit.prefRotation());
+                boolean faceAim = Vars.player.shooting && unit.type().omniMovement && unit.type().faceTarget;
+                unit.lookAt(faceAim ? unit.angleTo(unit.aimX(), unit.aimY()) : unit.prefRotation());
                 unit.movePref(tmpMove);
                 if (unit.mineTile != null && !unit.validMine(unit.mineTile)) {
                     unit.mineTile = null;
