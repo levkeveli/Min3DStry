@@ -20,9 +20,12 @@ import mindustry.world.blocks.power.BeamNode.BeamNodeBuild;
 import mindustry.world.blocks.power.LightBlock;
 import mindustry.world.blocks.power.PowerBlock;
 import mindustry.world.blocks.power.PowerDiode;
+import mindustry.world.blocks.production.BeamDrill;
+import mindustry.world.blocks.production.Drill;
 import mindustry.world.blocks.production.GenericCrafter;
 import mindustry.world.blocks.production.Pump;
 import mindustry.world.blocks.production.Separator;
+import mindustry.world.blocks.production.WallCrafter;
 import mindustry.world.blocks.storage.StorageBlock;
 import mindustry.world.blocks.units.UnitFactory.UnitFactoryBuild;
 
@@ -44,6 +47,10 @@ final class UpstreamBuildingLayers {
     static boolean supportsMaterialDraw(Block block) {
         return block instanceof GenericCrafter || block instanceof Separator || block instanceof Pump
             || block instanceof LiquidRouter || block instanceof StorageBlock;
+    }
+
+    static boolean supportsExtractorDraw(Block block) {
+        return block instanceof Drill || block instanceof BeamDrill || block instanceof WallCrafter;
     }
 
     void render(UpstreamTerrainDrawProbe.Viewport viewport, Team viewer, Predicate<Building> supported) {
