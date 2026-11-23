@@ -479,7 +479,9 @@ stager with `--singleplayer` for a combined build or `--multiplayer` for
 a standalone live renderer. The stager verifies the pinned desktop JAR,
 keeps all 205 original effects and 16 original music files, and indexes
 22.05 kHz PCM effects by their stock IDs. The 194 short effects use a
-bounded cache of 16 clips and 640 KiB. The 11 long effects use four
+bounded cache of 16 clips and 640 KiB. A 205-byte stock-ID index reduces
+resident cache lookups from up to 16 slot comparisons to one indexed access.
+The eviction policy, PCM budget and stream lanes stay the same. The 11 long effects use four
 double-buffered streams. The original Vorbis soundtrack uses its own
 NDSP channel and the pinned SoundControl rules.
 
