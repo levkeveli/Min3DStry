@@ -1297,6 +1297,11 @@ Canvas sizes at join, then matched the updated pixels in the small
 Canvas and its linked marker after the stock configuration message.
 The original logic, sprite and quad marker replays also passed.
 
+The [unified ARM11 Canvas build](https://github.com/levkeveli/Min3DStry/actions/runs/45123257077)
+repeated the snapshot, configuration packet and linked marker checks
+against the unmodified Java server on both Azahar profiles. The JVM
+also passed the Canvas checks alongside the full stock unit roster.
+
 ### Verify the Arc executor pools
 
 Use `-Pprobe=executor` with the JVM and ARM11 build commands. The JVM uses the
