@@ -449,10 +449,23 @@ and loads the world sprite atlas after the map. If a mode is unavailable on a
 map, startup uses the first valid mode
 in the upstream mode order.
 
-`SELECT` saves the current Custom Game to
-`/3ds/min3dstry/custom-game-save.msav` using upstream `SaveIO`. The separate
-file preserves the ordinary single-player and campaign slots.
+`SELECT` saves a new Custom Game to
+`/3ds/min3dstry/custom-game-save.msav` using upstream `SaveIO`.
 Select **Load Game** at the top of the Custom Game list to resume that save.
+Copy non-campaign PC saves into `/3ds/min3dstry/saves/` to select them by
+name from the same menu. The menu uses the stock save name from settings
+when present and the filename otherwise. `SELECT` writes the active save
+back to its own slot and retains the upstream backup. Map exports still
+belong under `/3ds/min3dstry/maps/`.
+
+`tools/verify_stock_custom_save_slots.py` creates Glacier and Ancient
+Caldera saves with unmodified Java v160.8. It selects each on ARM11, saves
+Glacier, checks the original backup and the untouched Caldera file, then
+reopens the resulting Glacier save in stock Java.
+The [unified ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45185562919)
+passed this replay on both Azahar 2126.2 profiles. The stock Arc sort put
+the newer Caldera save first. The replay then saved Glacier and verified
+that both the Caldera and the campaign files stayed byte-identical.
 
 The JVM regression uses an assets directory staged with
 `prepare_terrain_assets.py --singleplayer`. Pass its `maps/default` directory,

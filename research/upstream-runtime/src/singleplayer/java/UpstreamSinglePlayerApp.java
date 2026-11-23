@@ -33,7 +33,6 @@ import mindustry.game.EventType.WaveEvent;
 import mindustry.game.Gamemode;
 import mindustry.graphics.Layer;
 import mindustry.graphics.Pal;
-import mindustry.io.SaveIO;
 import mindustry.maps.Map;
 import mindustry.gen.BlockUnitc;
 import mindustry.gen.Building;
@@ -158,10 +157,10 @@ public final class UpstreamSinglePlayerApp {
             Fi customSave = mapDir.child("custom-game-save.msav");
             if (customRequested) {
                 var maps = UpstreamCustomGameMaps.discover(new Fi("/romfs/maps/default"), mapDir.child("maps"));
-                boolean canResume = customSave.exists() && SaveIO.isSaveValid(customSave);
-                if (!maps.isEmpty() || canResume) {
+                var saves = UpstreamCustomGameSaves.discover(Vars.saveDirectory, customSave);
+                if (!maps.isEmpty() || !saves.isEmpty()) {
                     loadInterfaceRenderer();
-                    custom = chooseCustomGame(maps, canResume);
+                    custom = chooseCustomGame(maps, saves);
                     if (custom == null) return;
                 }
             }
@@ -186,11 +185,12 @@ public final class UpstreamSinglePlayerApp {
             } else if (custom == null) {
                 session.start(mapFile, saveFile, null);
             } else {
-                saveFile = customSave;
                 if (custom.map == null) {
-                    System.out.println("UPSTREAM_CUSTOM_GAME_SELECTED source=save");
+                    saveFile = custom.save;
+                    System.out.println("UPSTREAM_CUSTOM_GAME_SELECTED source=save file=" + saveFile.name());
                     session.start(null, saveFile, "customgame-save");
                 } else {
+                    saveFile = customSave;
                     System.out.println("UPSTREAM_CUSTOM_GAME_SELECTED map=" + custom.map.file.name()
                         + " mode=" + custom.mode.name());
                     Gamemode mode = session.startCustomGame(custom.map, custom.mode);
@@ -263,7 +263,7 @@ public final class UpstreamSinglePlayerApp {
         return first.exists() ? first : new Fi(fallback);
     }
 
-    private record CustomGame(Map map, Gamemode mode) {}
+    private record CustomGame(Map map, Gamemode mode, Fi save) {}
 
     private record CampaignGame(UpstreamSinglePlayerSession.SectorSlot slot, UpstreamCampaignLoadout loadout) {}
 
@@ -328,14 +328,14 @@ public final class UpstreamSinglePlayerApp {
 
     private record MenuRows(byte[][] labels, int[][] characters) {}
 
-    private CustomGame chooseCustomGame(List<Map> maps, boolean canResume) {
+    private CustomGame chooseCustomGame(List<Map> maps, List<UpstreamCustomGameSaves.Slot> saves) {
         Gamemode[] modes = {Gamemode.survival, Gamemode.sandbox, Gamemode.attack, Gamemode.pvp};
-        int firstMap = canResume ? 1 : 0;
+        int firstMap = saves.size();
         int count = firstMap + maps.size();
         int selected = 0, mode = 0, lastX = 0, lastY = 0, renderedRow = -1, renderedMode = -1;
         MenuRows rows = null;
         target.buildLabels(new byte[UpstreamTerrainRenderProbe.PALETTE_LABEL_COUNT]);
-        System.out.println("UPSTREAM_CUSTOM_GAME_MENU maps=" + maps.size());
+        System.out.println("UPSTREAM_CUSTOM_GAME_MENU maps=" + maps.size() + " saves=" + firstMap);
         // Consume the launcher's button edges before accepting menu input.
         UpstreamSinglePlayerInput.poll();
         while (true) {
@@ -354,10 +354,11 @@ public final class UpstreamSinglePlayerApp {
             lastX = x;
             lastY = y;
             if ((input & (1 << 17)) != 0) {
-                return new CustomGame(selected < firstMap ? null : maps.get(selected - firstMap), modes[mode]);
+                return selected < firstMap ? new CustomGame(null, modes[mode], saves.get(selected).file())
+                    : new CustomGame(maps.get(selected - firstMap), modes[mode], null);
             }
             if (selected != renderedRow || mode != renderedMode) {
-                rows = encodeMenuRows(customGameCaptions(maps, firstMap, selected, modes[mode]));
+                rows = encodeMenuRows(customGameCaptions(maps, saves, selected, modes[mode]));
                 renderedRow = selected;
                 renderedMode = mode;
             }
@@ -366,15 +367,17 @@ public final class UpstreamSinglePlayerApp {
         }
     }
 
-    static String[] customGameCaptions(List<Map> maps, int firstMap, int selected, Gamemode mode) {
+    static String[] customGameCaptions(List<Map> maps, List<UpstreamCustomGameSaves.Slot> saves,
+                                      int selected, Gamemode mode) {
+        int firstMap = saves.size();
         int first = (selected / 6) * 6;
         int end = Math.min(first + 6, firstMap + maps.size());
         String[] captions = new String[1 + end - first];
         String title = Core.bundle.get("customgame");
         captions[0] = selected < firstMap ? title : title + " / " + mode;
         for (int i = first; i < end; i++) {
-            String label = i < firstMap ? Core.bundle.get("loadgame")
-                : Strings.stripColors(maps.get(i - firstMap).name());
+            String label = i < firstMap ? saves.get(i).title() : maps.get(i - firstMap).name();
+            label = Strings.stripColors(label);
             captions[1 + i - first] = (i == selected ? "> " : "  ") + label;
         }
         return captions;
