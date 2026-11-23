@@ -41,6 +41,7 @@ import mindustry.gen.CommandBuildingCallPacket;
 import mindustry.gen.CommandUnitsCallPacket;
 import mindustry.gen.ConnectConfirmCallPacket;
 import mindustry.gen.CreateMarkerCallPacket;
+import mindustry.gen.CreateBulletCallPacket;
 import mindustry.gen.ConstructFinishCallPacket;
 import mindustry.gen.DeconstructFinishCallPacket;
 import mindustry.gen.EntitySnapshotCallPacket;
@@ -489,6 +490,8 @@ public final class UpstreamLiveNetworkProbe {
                 handleUnitDespawn(received);
             } else if (id == unitDestroyId) {
                 handleUnitDestroy(received);
+            } else if (frame != null && id == unsignedId(CreateBulletCallPacket.class)) {
+                decode(new CreateBulletCallPacket(), received).handleClient();
             } else if (id == unsignedId(CompleteObjectiveCallPacket.class)) {
                 var completion = decode(new CompleteObjectiveCallPacket(), received);
                 completion.handleClient();
