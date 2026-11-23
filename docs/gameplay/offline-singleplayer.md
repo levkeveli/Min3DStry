@@ -656,3 +656,8 @@ a Canvas, a processor, normal and tiled displays, and a linked texture marker.
 It checks that the program resolves the original Copper ID, draws the
 displays and marker, and changes a Canvas pixel. The stock server reopens
 the handheld save and checks the processor links, marker and Canvas data.
+
+The [combined ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45129961401)
+passed this replay on the Original and New 3DS profiles in Azahar. Stock
+Mindustry v160.8 reopened both saves and verified the updated Canvas pixel,
+three processor links and the display-linked marker.
