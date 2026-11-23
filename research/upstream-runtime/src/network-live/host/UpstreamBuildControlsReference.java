@@ -4,6 +4,7 @@ import arc.math.geom.Point2;
 import arc.mock.MockAudio;
 import arc.struct.Seq;
 import arc.struct.StringMap;
+import java.lang.reflect.Proxy;
 import java.nio.file.Files;
 import java.util.zip.InflaterInputStream;
 import mindustry.Vars;
@@ -21,14 +22,19 @@ import mindustry.game.Schematic;
 import mindustry.game.Schematics;
 import mindustry.game.Universe;
 import mindustry.gen.Building;
+import mindustry.gen.Payloadc;
 import mindustry.gen.Player;
+import mindustry.gen.RequestBuildPayloadCallPacket;
+import mindustry.gen.RequestDropPayloadCallPacket;
 import mindustry.gen.Unit;
 import mindustry.graphics.g3d.PlanetGrid;
 import mindustry.mod.Mods;
 import mindustry.net.NetworkIO;
 import mindustry.net.Net;
+import mindustry.net.Net.NetProvider;
 import mindustry.type.Category;
 import mindustry.type.Item;
+import mindustry.input.InputHandler;
 import mindustry.io.SaveIO;
 import mindustry.world.Block;
 import mindustry.world.blocks.distribution.ItemBridge;
@@ -36,6 +42,8 @@ import mindustry.world.blocks.distribution.MassDriver;
 import mindustry.world.blocks.distribution.Sorter;
 import mindustry.world.blocks.environment.Floor;
 import mindustry.world.blocks.defense.turrets.ItemTurret;
+import mindustry.world.blocks.payloads.BuildPayload;
+import mindustry.world.blocks.payloads.PayloadConveyor.PayloadConveyorBuild;
 import mindustry.world.blocks.payloads.PayloadMassDriver;
 import mindustry.world.blocks.payloads.UnitPayload;
 import mindustry.world.blocks.units.UnitFactory;
@@ -109,7 +117,81 @@ public final class UpstreamBuildControlsReference {
         verifyStockLinks(unit);
         verifySchematicPlacement(unit);
         verifySchematicCapture(unit);
+        verifyPayloadControls(unit);
         System.out.println("UPSTREAM_TOUCH_REFERENCE conveyor=85,26,1 wall=86,26 break=86,26");
+    }
+
+    private static void verifyPayloadControls(Unit playerUnit) {
+        var controls = new UpstreamLiveBuildControls();
+        var previousNet = Vars.net;
+        var previousAudio = Core.audio;
+        var tile = Vars.world.tile(84, 23);
+        var previousFloor = tile.floor();
+        var intake = Vars.world.tile(88, 23);
+        var carrier = UnitTypes.mega.create(playerUnit.team());
+        var cargo = (Payloadc) carrier;
+        Core.audio = new MockAudio();
+        Vars.net = new Net(null);
+        try {
+            tile.setFloor(Blocks.stone.asFloor());
+            tile.setBlock(Blocks.copperWall, carrier.team, 0);
+            var wall = tile.build;
+            Vars.player.unit(carrier);
+            carrier.set(tile.worldx(), tile.worldy());
+            carrier.spawnedByCore = true;
+            carrier.add();
+            Vars.player.set(carrier.x, carrier.y);
+            if (controls.payloadActions(playerUnit) != 0 || controls.payloadActions(carrier) != 1) {
+                throw new AssertionError("Cargo actions require the current payload-capable unit");
+            }
+            controls.update(carrier, 0, touch(15, 190));
+            if (tile.block() != Blocks.air || cargo.payloads().size != 1
+                    || !(cargo.payloads().first() instanceof BuildPayload carried) || carried.build != wall
+                    || controls.payloadActions(carrier) != 3) {
+                throw new AssertionError("Payload touch pickup must run the original targeted building action");
+            }
+            intake.setBlock(Blocks.payloadConveyor, carrier.team, 0);
+            var conveyor = (PayloadConveyorBuild) intake.build;
+            carrier.set(conveyor);
+            Vars.player.set(carrier.x, carrier.y);
+            controls.update(carrier, 0, touch(15, 222));
+            if (conveyor.item != carried || cargo.hasPayload() || controls.payloadActions(carrier) != 1) {
+                throw new AssertionError("Payload touch drop must deliver the original building to the conveyor");
+            }
+
+            var requests = new Seq<Object>();
+            var provider = (NetProvider) Proxy.newProxyInstance(NetProvider.class.getClassLoader(),
+                new Class<?>[] {NetProvider.class}, (proxy, method, args) -> {
+                    if (!method.getName().equals("sendClient") || !Boolean.TRUE.equals(args[1])) {
+                        throw new AssertionError("Expected a reliable stock payload request");
+                    }
+                    requests.add(args[0]);
+                    return null;
+                });
+            Vars.net = new Net(provider);
+            Vars.net.setClientConnected();
+            controls.update(carrier, 0, touch(15, 222));
+            controls.update(carrier, 0, touch(15, 190));
+            if (requests.size != 1 || !(requests.first() instanceof RequestBuildPayloadCallPacket pickup)
+                    || pickup.build != conveyor || conveyor.item != carried || cargo.hasPayload()) {
+                throw new AssertionError("Multiplayer pickup must wait for the server's original reply");
+            }
+            InputHandler.pickedBuildPayload(carrier, conveyor, false);
+            controls.update(carrier, 0, touch(15, 222));
+            if (requests.size != 2 || !(requests.get(1) instanceof RequestDropPayloadCallPacket drop)
+                    || drop.x != carrier.x || drop.y != carrier.y || !cargo.hasPayload()) {
+                throw new AssertionError("Multiplayer drop must defer cargo changes to the server");
+            }
+            System.out.println("UPSTREAM_PAYLOAD_CONTROLS stockPickup=ok stockDrop=ok serverRequests=2");
+        } finally {
+            Vars.net = previousNet;
+            Core.audio = previousAudio;
+            Vars.player.unit(playerUnit);
+            carrier.remove();
+            intake.setBlock(Blocks.air);
+            tile.setBlock(Blocks.air);
+            tile.setFloor(previousFloor);
+        }
     }
 
     private static void verifyStockCommandMenu(Unit player) {

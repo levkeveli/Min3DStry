@@ -445,7 +445,7 @@ public final class UpstreamSinglePlayerApp {
     private void loadInterfaceRenderer() {
         if (rendererReady) return;
         target.initialize();
-        target.buildLabels(new byte[8]);
+        target.buildLabels(new byte[UpstreamTerrainRenderProbe.PALETTE_LABEL_COUNT]);
         var locale = Core.bundle.getLocale();
         boolean stock = target.loadStockFont(locale.getLanguage().equals("ja"));
         rendererReady = true;
@@ -895,7 +895,8 @@ public final class UpstreamSinglePlayerApp {
             Core.bundle.get("keybind.rotate.name"), Core.bundle.get("waves.remove"),
             "List", "Config", Core.bundle.get("back"), Core.bundle.get("command.mine"),
             Core.bundle.get("category.items"), "Give", Core.bundle.get("command"), "Type", "Stance",
-            "Ctrl", Core.bundle.get("back"), "Schem") + "\0";
+            "Ctrl", Core.bundle.get("back"), "Schem",
+            Core.bundle.get("keybind.pickupCargo.name"), Core.bundle.get("keybind.dropCargo.name")) + "\0";
         target.buildLabels(labels.getBytes(StandardCharsets.UTF_8));
         lastPrimaryShortcut = primary;
         System.out.println("UPSTREAM_BUILD_SHORTCUTS primary=" + primary.name + " secondary=" + secondary.name);
@@ -998,7 +999,8 @@ public final class UpstreamSinglePlayerApp {
             shortcut, buildingControls.rotation(), buildingControls.removing(), block.rotate,
             catalog.isOpen() || config.isOpen() || inventory.isOpen() || commandMenu.isOpen() || schematics.isOpen(),
             buildingControls.configuring(), buildingControls.selectingMine(), buildingControls.inventoryAction(),
-            orders.mode(), buildingControls.selectingControl(), schematics.active());
+            orders.mode(), buildingControls.selectingControl(), schematics.active(),
+            buildingControls.payloadActions(Vars.player.unit()));
         if (schematics.isOpen()) {
             drawMenu(schematics.labels(), schematics.icons(), -1, schematics.previousPage(), schematics.nextPage(),
                 UpstreamTerrainRenderProbe.SCHEMATIC_CATALOG);

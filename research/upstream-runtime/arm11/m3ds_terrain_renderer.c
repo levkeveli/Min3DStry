@@ -94,7 +94,7 @@ static C2D_SpriteSheet weather_noise[2];
 static C3D_RenderTarget *target;
 static C3D_RenderTarget *palette;
 static C2D_TextBuf palette_buffer;
-enum { palette_label_count = 16 };
+enum { palette_label_count = 18 };
 static C2D_Text palette_labels[palette_label_count];
 #ifdef M3DS_STOCK_FONT
 enum { menu_label_glyphs = 64 };
@@ -1041,7 +1041,8 @@ int32_t m3ds_terrain_build_labels(const char *labels) {
 int32_t m3ds_terrain_build_overlay(int32_t column, int32_t row, int32_t block, int32_t rotation,
                                   int32_t removing, int32_t tile_size, int32_t rotatable, int32_t catalog_open,
                                   int32_t configuring, int32_t selecting_mine, int32_t inventory_action,
-                                  int32_t command_mode, int32_t selecting_control, int32_t placing_schematic) {
+                                  int32_t command_mode, int32_t selecting_control, int32_t placing_schematic,
+                                  int32_t payload_actions) {
     if (!frame_open || !palette) return 0;
     set_world_blend(0);
     set_world_mix(0, 0);
@@ -1098,6 +1099,13 @@ int32_t m3ds_terrain_build_overlay(int32_t column, int32_t row, int32_t block, i
         C2D_DrawRectSolid(2, 144, 0.5f, 26, 31, C2D_Color32(45, 52, 64, 255));
         draw_palette_label(15, 15, 153, 0.30f, 24,
             placing_schematic ? accent : C2D_Color32(239, 241, 247, 255));
+        if (!placing_schematic && payload_actions != 0) {
+            C2D_DrawRectSolid(2, 176, 0.5f, 26, 31, C2D_Color32(45, 52, 64, 255));
+            draw_palette_label(16, 15, 185, 0.34f, 24, C2D_Color32(239, 241, 247, 255));
+            C2D_DrawRectSolid(2, 208, 0.5f, 26, 31, C2D_Color32(45, 52, 64, 255));
+            draw_palette_label(17, 15, 217, 0.34f, 24, (payload_actions & 2) != 0
+                ? C2D_Color32(239, 241, 247, 255) : C2D_Color32(135, 142, 154, 255));
+        }
     }
     for (int i = 0; i < 4; i++) {
         bool active = !selecting_mine && inventory_action == 0 && command_mode == 0 && !selecting_control && !placing_schematic

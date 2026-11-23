@@ -4,6 +4,7 @@ import mindustry.Vars;
 import mindustry.content.Blocks;
 import mindustry.content.Planets;
 import mindustry.entities.units.BuildPlan;
+import mindustry.gen.Payloadc;
 import mindustry.gen.Unit;
 import mindustry.world.Block;
 import mindustry.world.Build;
@@ -19,6 +20,8 @@ final class UpstreamLiveBuildControls {
     private static final int PLACE_PRESSED = 1 << 17;
     private static final int ROTATE_PRESSED = 1 << 18;
     private static final int REMOVE_PRESSED = 1 << 19;
+    private static final int PAYLOAD_PICKUP = 1;
+    private static final int PAYLOAD_DROP = 2;
 
     private enum InventoryAction { none, withdraw, deposit }
 
@@ -148,6 +151,14 @@ final class UpstreamLiveBuildControls {
                 }
             }
             return;
+        }
+        if (touch >= 0 && touchX >= 2 && touchX < 28 && touchY >= 176 && touchY < 240) {
+            int actions = payloadActions(unit);
+            if (actions != 0) {
+                if (touchY < 208) UpstreamPayloadInput.tryPickupPayload();
+                else if ((actions & PAYLOAD_DROP) != 0) UpstreamPayloadInput.tryDropPayload();
+                return;
+            }
         }
         if ((buttons & ROTATE_PRESSED) != 0) rotate();
         if ((buttons & REMOVE_PRESSED) != 0) toggleRemoval();
@@ -298,6 +309,12 @@ final class UpstreamLiveBuildControls {
     }
     int rotation() { return rotation; }
     boolean removing() { return removing; }
+    int payloadActions(Unit unit) {
+        if (buildingConfig.isLinking() || !(unit instanceof Payloadc carrier) || unit.type.payloadCapacity <= 0f
+                || unit.dead || Vars.player == null || Vars.player.unit() != unit) return 0;
+        return PAYLOAD_PICKUP | (carrier.hasPayload() ? PAYLOAD_DROP : 0);
+    }
+
     boolean blocksWeaponInput() {
         return catalog.isOpen() || buildingConfig.isOpen() || inventory.isOpen() || orders.active()
             || selectingControl || schematics.active();

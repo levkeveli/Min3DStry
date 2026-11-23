@@ -351,3 +351,19 @@ python3 tools/verify_upstream_factory_plans.py \
 - The palette is a bounded prototype, not the final upstream layout; not every
   catalog page or configurable block has an automated replay.
 - Physical touch hardware and the full catalog remain open with #27/#43.
+
+
+## Payload cargo
+
+When you control a carrier, the two lower buttons on the left rail offer
+**Pickup Cargo** and **Drop Cargo**. Move directly over a building or near a
+grounded allied unit before picking it up. Move to a clear location or a
+compatible allied payload receiver before dropping. These buttons call the
+pinned v160.8 input methods, which apply the same reach and capacity checks
+as the Java game. Drop Cargo is dimmed when the carrier has no payload.
+
+`runBuildControlsJvm` drives both touch buttons over a stock Glacier
+WorldStream. A Mega picks up a Copper Wall and drops it into a stock payload
+conveyor offline. In client mode the same buttons send the original reliable
+requests and wait for server replication. Original and New 3DS screen
+verification is pending.
