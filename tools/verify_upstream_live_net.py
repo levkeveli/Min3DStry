@@ -887,6 +887,48 @@ def verify_unit_roster(screenshot):
         raise RuntimeError(f"Original unit cells differ {mismatch}, Quasar shield pixels {shield_pixels}")
 
 
+def spawn_expanded_unit_roster(server_log, server):
+    server.stdin.write(
+        'js (() => { const enemy = Vars.state.rules.waveTeam; '
+        'const missile = UnitTypes.anthicus.weapons.first().bullet.spawnUnit; '
+        'const elude = UnitTypes.elude.spawn(enemy,632,228,90); '
+        'const shot = missile.spawn(enemy,628,191,90); '
+        'const team = Vars.state.rules.defaultTeam; '
+        'const carrier = UnitTypes.mega.spawn(team,704,220,90); '
+        'const cargo = UnitTypes.horizon.create(team); '
+        'carrier.addPayload(new Packages.mindustry.world.blocks.payloads.UnitPayload(cargo)); '
+        'const units = Packages.mindustry.entities.Units; '
+        'units.notifyUnitSpawn(elude); units.notifyUnitSpawn(shot); units.notifyUnitSpawn(carrier); '
+        'return "UPSTREAM_EXPANDED_ROSTER_FIXTURE " + [elude.type.name,shot.type.name,'
+        'carrier.type.name,carrier.payloads.first().unit.type.name].join(","); })()\n')
+    server.stdin.flush()
+    wait_for(server_log, server, r"UPSTREAM_EXPANDED_ROSTER_FIXTURE elude,anthicus-missile,mega,horizon\b", 5)
+
+
+def verify_expanded_unit_roster(log, emulator, server_log, server, rpc, before, destination, timeout):
+    spawn_expanded_unit_roster(server_log, server)
+    for name in ("elude", "anthicus-missile", "mega", "horizon"):
+        wait_for(log, emulator, rf"UPSTREAM_NETWORK_UNIT_ART type={name}\b", timeout)
+
+    # The server and camera stay stationary. Check only the newly occupied sprite regions.
+    regions = [tuple((x, y) for x in range(cx - 7, cx + 8) for y in range(cy - 7, cy + 8))
+               for cx, cy in ((169, 63), (159, 156), (339, 89))]
+    points = tuple(point for region in regions for point in region)
+    original = az.inspect_png(before, points)["samples"]
+    deadline = time.monotonic() + 15
+    changed = []
+    while time.monotonic() < deadline:
+        after = rpc.screenshot()
+        current = az.inspect_png(after, points)["samples"]
+        changed = [sum(current[point] != original[point] for point in region) for region in regions]
+        if min(changed) >= 8:
+            destination.write_bytes(after)
+            print(f"Stock Elude, Anthicus missile and Mega with Horizon changed {changed} pixels in their regions.", flush=True)
+            return
+        time.sleep(0.25)
+    raise RuntimeError(f"Expanded unit sprites did not appear in the stationary viewport: {changed}")
+
+
 def load_naval_wake_fixture(server_log, server):
     server.stdin.write(
         'pause on\n'
@@ -1692,7 +1734,11 @@ def run_model(args, model, config, original_config, log, output):
                         if args.unit_layers:
                             verify_unit_layers((output / f"{model}-{phase}.png").read_bytes())
                         if args.unit_roster:
-                            verify_unit_roster((output / f"{model}-{phase}.png").read_bytes())
+                            roster = (output / f"{model}-{phase}.png").read_bytes()
+                            verify_unit_roster(roster)
+                            if args.expanded_unit_roster:
+                                verify_expanded_unit_roster(log, emulator, server_log, server, rpc, roster,
+                                                            output / f"{model}-expanded-unit-roster.png", args.timeout)
                         if args.naval_wake:
                             verify_naval_wake(server_log, server, rpc, output, model,
                                               output / f"{model}-{phase}.png", naval_fixture)
@@ -1855,6 +1901,8 @@ def main():
                                help="Verify Duct and Beryllium Wall touch construction on The Onset")
     campaign_mode.add_argument("--mining", choices=("wall", "floor"),
                                help="Verify touch mining and core delivery on The Onset or Ground Zero")
+    parser.add_argument("--expanded-unit-roster", action="store_true",
+                        help="Verify live Elude, Anthicus missile and carried Horizon art after the standard unit-roster checks")
     parser.add_argument("--verify-objectives", action="store_true",
                         help="Compare the original first Onset objective transition between client and server")
     parser.add_argument("--verify-objective-hud", action="store_true",
@@ -1925,6 +1973,8 @@ def main():
         parser.error("--unit-layers needs --controls and --terrain-atlas for a stationary capture")
     if args.unit_roster and (not args.terrain_atlas or not args.controls or args.controls_replay):
         parser.error("--unit-roster needs --controls and --terrain-atlas for a stationary capture")
+    if args.expanded_unit_roster and not args.unit_roster:
+        parser.error("--expanded-unit-roster needs --unit-roster")
     if args.naval_wake and (not args.terrain_atlas or not args.controls or args.controls_replay):
         parser.error("--naval-wake needs --controls and --terrain-atlas for a fixed camera")
     if args.tank_treads and (not args.terrain_atlas or not args.controls or args.controls_replay):
