@@ -146,6 +146,8 @@ public final class UpstreamSnapshotDispatchReference {
         var player = Vars.player;
         var net = Vars.net;
         var previousMap = Vars.state.map.name();
+        var previousName = player.name;
+        int previousPlayerId = player.id;
         applyPacket(new WorldDataBeginCallPacket(), new WorldDataBeginCallPacket());
         if (!Vars.state.isMenu() || Vars.world.width() != 0 || !Groups.unit.isEmpty() || !Vars.net.client()) {
             throw new AssertionError("Stock WorldDataBegin must clear the previous session world");
@@ -166,7 +168,8 @@ public final class UpstreamSnapshotDispatchReference {
         UpstreamLiveNetworkProbe.loadSessionWorld(app, next.read());
         Vars.netClient.finishSnapshotWorld();
         if (Vars.state.map.name().equals(previousMap) || Vars.net != net || Vars.player != player
-                || player.id != 137 || !"Rotation Fixture".equals(player.name) || Vars.state.gameOver
+                || Groups.player.getByID(player.id) != player || !"Rotation Fixture".equals(player.name)
+                || (player.name.equals(previousName) && player.id != previousPlayerId) || Vars.state.gameOver
                 || !Vars.state.isPlaying() || Groups.sync.getByID(12345) != null) {
             throw new AssertionError("The second WorldStream must replace the map without replacing the connected client");
         }

@@ -153,9 +153,12 @@ applies the original world reset, and streams the replacement map in chunks.
 The stock `ConnectConfirm` follows the successful load. World and match
 result HUD state come from the new map.
 
-Use `tools/build_stock_rotation_stream.py` to write a second fixture from an
-original map with the pinned Java server. Pass its output as the second
-argument to `runProbeJvm` alongside the first captured WorldStream. The JVM
-replay replaced Glacier with Ancient Caldera in one client session and
-verified the assigned player, cleared entities, and new match state.
-The live ARM11 replay and external asset-transfer stream remain open.
+`tools/capture_stock_rotating_server.py` captures both WorldStreams from
+one localhost connection to the original v160.8 server. The server uses
+its stock WorldReloader to move from Glacier to the supplied original map.
+Pass the two capture files to `runProbeJvm`. The JVM replay replaced
+Glacier with Ancient Caldera, preserving the server-assigned player ID
+while clearing the previous entities and result state. The separate
+`tools/build_stock_rotation_stream.py` helper writes a second fixture
+directly if only the decoding path needs verification. Live ARM11 replay
+and external asset-transfer streams remain open.
