@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""Determine which upstream-arm11-smoke jobs need to run for a PR."""
+"""Determine which upstream-arm11-smoke jobs need to run for a PR or main push."""
 
 from __future__ import annotations
 
 import json
 import os
+import re
+import subprocess
 import sys
 import urllib.error
 import urllib.request
@@ -108,11 +110,45 @@ def _full_scope() -> dict[str, Any]:
     }
 
 
+RUNTIME = "research/upstream-runtime/"
+LIVE_AUDIO_PREFIXES = (
+    RUNTIME + "arm11/m3ds_live_audio.",
+    RUNTIME + "src/network-render/java/port/audio/",
+    RUNTIME + "src/network-render/host/port/audio/",
+    "src/audio/",
+    "include/audio/",
+    "tests/audio/",
+)
+LIVE_AUDIO_TOOLS = {
+    "tools/stage_sound_catalog.py",
+    "tools/verify_live_stock_audio.py",
+    "tools/verify_stock_live_audio.py",
+}
+LIVE_GRAPHICS_PREFIXES = (
+    RUNTIME + "src/terrain/",
+    RUNTIME + "src/status-hud/",
+    RUNTIME + "src/network-render/",
+    RUNTIME + "arm11/m3ds_terrain_renderer.",
+    RUNTIME + "arm11/m3ds_quad",
+    RUNTIME + "arm11/m3ds_stock_font.",
+    RUNTIME + "arm11/m3ds_stock_text.",
+    RUNTIME + "arm11/m3ds_world_fragment.",
+)
+
+
 def _classify_path(path: str, flags: dict[str, bool], probes: set[str]) -> str:
     norm = path.lstrip("/")
 
     if norm in FULL_SUITE_EXACT:
         return "full"
+
+    if norm.startswith(RUNTIME) and norm.endswith(".md"):
+        return "unrelated"
+
+    if norm.startswith(LIVE_AUDIO_PREFIXES) or norm in LIVE_AUDIO_TOOLS:
+        flags["run_audio"] = True
+        flags["run_net"] = True
+        return "scoped"
 
     if norm.startswith("audio/") or norm in AUDIO_EXACT or norm.startswith(
         "research/upstream-runtime/host/UpstreamAudio"
@@ -159,6 +195,16 @@ def _classify_path(path: str, flags: dict[str, bool], probes: set[str]) -> str:
         flags["run_singleplayer"] = True
         return "scoped"
 
+    if norm.startswith(LIVE_GRAPHICS_PREFIXES):
+        flags["run_singleplayer"] = True
+        flags["run_net"] = True
+        return "scoped"
+
+    if norm.startswith((RUNTIME + "src/network-live/", RUNTIME + "arm11/m3ds_net_bridge.")):
+        flags["run_net"] = True
+        flags["run_singleplayer"] = True
+        return "scoped"
+
     if norm.startswith("research/upstream-runtime/src/"):
         parts = norm.split("/")
         if len(parts) >= 4 and parts[3] in NARROW_CAMPAIGN_PROBES:
@@ -173,7 +219,7 @@ def _classify_path(path: str, flags: dict[str, bool], probes: set[str]) -> str:
 
 def classify_smoke_scope(changed_files: list[str], event_name: str) -> dict[str, Any]:
     """Return a conservative job/probe execution plan for upstream-arm11-smoke.yml."""
-    if event_name != "pull_request" or not changed_files:
+    if event_name not in ("pull_request", "push") or not changed_files:
         return _full_scope()
 
     flags = {
@@ -187,17 +233,10 @@ def classify_smoke_scope(changed_files: list[str], event_name: str) -> dict[str,
         "run_singleplayer": False,
     }
     probes: set[str] = set()
-    saw_scoped = False
-
     for raw_path in changed_files:
         kind = _classify_path(raw_path, flags, probes)
         if kind == "full":
             return _full_scope()
-        if kind == "scoped":
-            saw_scoped = True
-
-    if not saw_scoped:
-        return _full_scope()
 
     ordered_probes = [probe for probe in ALL_PROBES if probe in probes]
     return {
@@ -240,11 +279,31 @@ def fetch_pr_files(repo: str, pr_number: int, token: str) -> list[str]:
             raise RuntimeError(f"GitHub API GET {url} failed ({exc.code}): {body}") from exc
         if not batch:
             break
-        files.extend(item["filename"] for item in batch)
+        for item in batch:
+            files.append(item["filename"])
+            if previous := item.get("previous_filename"):
+                files.append(previous)
         if len(batch) < 100:
             break
+        if page == 30:
+            # The PR files endpoint stops at 3,000 entries.
+            return []
         page += 1
     return files
+
+
+def push_changed_files(before: str, after: str) -> list[str]:
+    # A missing base (including branch creation) falls back to the full suite.
+    if any(not re.fullmatch(r"[0-9a-f]{40}", sha) for sha in (before, after)):
+        return []
+    try:
+        result = subprocess.run(
+            ["git", "diff", "--no-renames", "--name-only", "-z", before, after, "--"],
+            check=True, capture_output=True, text=True,
+        )
+    except subprocess.CalledProcessError:
+        return []
+    return [path for path in result.stdout.split("\0") if path]
 
 
 def format_outputs(scope: dict[str, Any]) -> dict[str, str]:
@@ -278,15 +337,23 @@ def main() -> int:
     event_name = os.environ.get("GITHUB_EVENT_NAME", "").strip()
     changed_files: list[str] = []
 
+    event_path = os.environ.get("GITHUB_EVENT_PATH", "").strip()
     if event_name == "pull_request":
-        event_path = os.environ.get("GITHUB_EVENT_PATH", "").strip()
         repo = os.environ.get("GITHUB_REPOSITORY", "").strip()
         token = os.environ.get("GITHUB_TOKEN", "").strip()
         if event_path and repo and token:
             with open(event_path, encoding="utf-8") as fh:
                 event = json.load(fh)
             pr_number = int((event.get("pull_request") or {})["number"])
-            changed_files = fetch_pr_files(repo, pr_number, token)
+            try:
+                changed_files = fetch_pr_files(repo, pr_number, token)
+            except (RuntimeError, OSError, ValueError) as exc:
+                print(f"Unable to read PR changed files; running full suite: {type(exc).__name__}",
+                      file=sys.stderr)
+    elif event_name == "push" and event_path:
+        with open(event_path, encoding="utf-8") as fh:
+            event = json.load(fh)
+        changed_files = push_changed_files(event.get("before", ""), event.get("after", ""))
 
     scope = classify_smoke_scope(changed_files, event_name)
     outputs = format_outputs(scope)
