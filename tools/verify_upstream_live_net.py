@@ -91,7 +91,7 @@ BUILDING_CRACK_PIXELS = {
 
 def write_controls_replay(path, first_move=22, building=False, touch_build=False, touch_config=False,
                           erekir_build=False, mining=None, model="old3ds", stock_menu_font=False,
-                          unified_boot=False):
+                          unified_boot=False, stationary=False):
     """Write the Azahar 2126.2 CTM input for this probe's pad/touch polling."""
     # The pinned Azahar movie header and HID sample definitions use packed little-endian fields.
     revision = bytes.fromhex("219d743a1e698101fe1ab8bef43e6563126c3c27")
@@ -147,7 +147,7 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
             seconds = frame // samples_per_second
             if erekir_build:
                 buttons = (1 << 8) if 66 <= seconds < 72 else 0  # R, the 3DS rotate shortcut.
-            elif mining:
+            elif mining or stationary:
                 buttons = 0
             else:
                 buttons = (1 << 4) if seconds == first_move else (1 << 3) if seconds == leave_at else 0
@@ -156,7 +156,7 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
             if unified_boot and seconds < 6:
                 buttons |= 1 << 10  # X, sampled once before the game starts.
             circle_x = 65 if mining == "wall" and 54 <= seconds < pan_end else 0
-            circle_y = 106 if seconds == circle_at and not (erekir_build or mining) else 0
+            circle_y = 106 if seconds == circle_at and not (erekir_build or mining or stationary) else 0
             if mining == "floor" and 88 <= seconds < 94:
                 circle_y = 65
             point = next((point for start, point in taps if start <= seconds < start + 2), None)
@@ -1436,7 +1436,7 @@ def run_model(args, model, config, original_config, log, output):
                 server.stdin.flush()
                 wait_for(server_log, server, r"UPSTREAM_COMBAT_PREP", 10)
             command = [str(args.azahar)]
-            if args.controls_replay:
+            if args.controls_replay or args.unified_boot:
                 replay = Path(work) / "controls.ctm"
                 first_move = 42 if args.terrain_atlas else 22
                 if args.building and args.desktop_name:
@@ -1448,7 +1448,8 @@ def run_model(args, model, config, original_config, log, output):
                 write_controls_replay(replay, first_move=first_move, building=args.building,
                                       touch_build=args.touch_build, touch_config=args.touch_config,
                                       erekir_build=args.erekir_build, mining=args.mining, model=model,
-                                      stock_menu_font=args.verify_stock_menu_font, unified_boot=args.unified_boot)
+                                      stock_menu_font=args.verify_stock_menu_font, unified_boot=args.unified_boot,
+                                      stationary=not args.controls_replay)
                 command += ["-p", str(replay)]
             command.append(str(args.rom))
             emulator = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -1834,8 +1835,8 @@ def main():
         parser.error("The PC client needs a distinct player name")
     if args.controls_replay and not args.controls:
         parser.error("--controls-replay needs --controls")
-    if args.unified_boot and not args.controls_replay:
-        parser.error("--unified-boot needs --controls-replay")
+    if args.unified_boot and not args.controls:
+        parser.error("--unified-boot needs --controls")
     if args.combat and (not args.controls or not args.terrain_atlas):
         parser.error("--combat needs --controls and --terrain-atlas")
     if args.combat and (args.controls_replay or args.building or args.touch_build or args.touch_config
