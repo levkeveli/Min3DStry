@@ -439,7 +439,8 @@
         "research/upstream-runtime/README.md",
         "research/upstream-runtime/src/network-render/java/port/audio/Arm11Audio.java",
         "research/upstream-runtime/arm11/m3ds_live_audio.c",
-        "tools/verify_stock_live_audio.py"
+        "tools/verify_stock_live_audio.py",
+        "tests/audio/live-stock/test_live_stock_audio.c"
       ],
       "hardware_test": "HARDWARE_TEST_PENDING"
     },
