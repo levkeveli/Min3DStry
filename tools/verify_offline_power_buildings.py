@@ -96,6 +96,7 @@ def verify_live(args, model, azahar, fixture, terrain, output, samples=SAMPLES, 
             singleplayer._wait_for_log(log, proc, r"UPSTREAM_NETWORK_FRAME .*left=73 bottom=20 sprites=1", 120)
             wait_for(server_log, server, r"Min3DStry ARM11 has connected", 20)
             deadline = time.monotonic() + 25
+            counts = {}
             while time.monotonic() < deadline:
                 try:
                     frame = rpc.screenshot()
@@ -103,15 +104,15 @@ def verify_live(args, model, azahar, fixture, terrain, output, samples=SAMPLES, 
                     if terrain is None:
                         if az.inspect_png(frame)["top_distinct_colors"] >= 8:
                             return frame
-                        continue
-                    counts = changed_pixels(terrain, frame, samples)
-                    if min(counts.values()) >= min_changed:
-                        return counts
+                    else:
+                        counts = changed_pixels(terrain, frame, samples)
+                        if min(counts.values()) >= min_changed:
+                            return counts
                 except (RuntimeError, TimeoutError):
                     if proc.poll() is not None:
                         raise
                 time.sleep(0.25)
-            raise AssertionError(f"{model}: missing expected world sprites from the original Java server")
+            raise AssertionError(f"{model}: missing expected world sprites from the original Java server ({counts})")
         finally:
             rpc.close()
             singleplayer._stop_proc(proc, azahar)
