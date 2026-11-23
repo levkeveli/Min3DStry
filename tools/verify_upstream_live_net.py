@@ -1307,6 +1307,16 @@ def verify_texture_markers(server_log, server, rpc, output, model, position, tim
     print(f"{model}: original texture marker creation, rotation, content, fallback and removal passed.", flush=True)
 
 
+def create_fixture_quad(server_log, server, phase, marker_id, texture, x, y):
+    corners = ((-52, 0, 0, 0), (-48, 24, 0, 1), (-24, 28, 1, 1), (-20, 4, 1, 0))
+    assignments = " ".join(
+        f"v[{i * 6}]={x + dx}; v[{i * 6 + 1}]={y + dy}; v[{i * 6 + 3}]={u}; v[{i * 6 + 4}]={t};"
+        for i, (dx, dy, u, t) in enumerate(corners))
+    send_marker_phase(server_log, server, phase,
+        f"const q=new MapObjectives.QuadMarker(); q.texture.value={texture}; const v=q.vertices; "
+        + assignments + f' v[8]=Color.valueOf("80ffffff").toFloatBits(); Call.createMarker({marker_id}, q);')
+
+
 def verify_quad_markers(log, emulator, server_log, server, rpc, output, model, position, timeout):
     _, _, x, y = position
     x, y = (math.floor(float(value) / 8 + 0.5) * 8 for value in (x, y))
@@ -1324,13 +1334,7 @@ def verify_quad_markers(log, emulator, server_log, server, rpc, output, model, p
                                      points, timeout, expected, tolerance=4)
 
     baseline = capture("baseline")
-    corners = ((-52, 0, 0, 0), (-48, 24, 0, 1), (-24, 28, 1, 1), (-20, 4, 1, 0))
-    assignments = " ".join(
-        f"v[{i * 6}]={x + dx}; v[{i * 6 + 1}]={y + dy}; v[{i * 6 + 3}]={u}; v[{i * 6 + 4}]={t};"
-        for i, (dx, dy, u, t) in enumerate(corners))
-    send_marker_phase(server_log, server, "quad-created",
-        'const q=new MapObjectives.QuadMarker(); q.texture.value="core-nucleus"; const v=q.vertices; '
-        + assignments + ' v[8]=Color.valueOf("80ffffff").toFloatBits(); Call.createMarker(752, q);')
+    create_fixture_quad(server_log, server, "quad-created", 752, '"core-nucleus"', x, y)
     wait_for(log, emulator, "UPSTREAM_TEXTURED_QUAD source=arc gpu=citro3d", timeout)
     capture("created", (*initial, baseline[3]))
     send_marker_phase(server_log, server, "quad-moved",
@@ -1344,17 +1348,18 @@ def verify_quad_markers(log, emulator, server_log, server, rpc, output, model, p
     print(f"{model}: stock quad tint, atlas clipping, corner update and retargeting passed.", flush=True)
 
 
-def load_canvas_fixture(server_log, server):
+def load_canvas_fixture(server_log, server, offscreen=False):
+    extra = ("Vars.world.tile(45,27).setBlock(Blocks.canvas,t); paint(Vars.world.build(45,27)); " if offscreen else "")
     send_marker_phase(server_log, server, "canvas-fixture",
         "const t=Vars.state.rules.defaultTeam; "
         "Vars.world.tile(75,29).setBlock(Blocks.canvas,t); "
         "Vars.world.tile(77,29).setBlock(Blocks.canvas,t); "
         "Vars.world.tile(77,23).setBlock(Blocks.largeCanvas,t); "
         "const small=Vars.world.build(77,29), large=Vars.world.build(77,23); "
-        "for (let y=0; y<12; y++) for (let x=0; x<12; x++) "
-        "small.setPixel(y*12+x, y<6 ? (x<6 ? 1 : 2) : (x<6 ? 4 : 6)); "
+        "const paint=c=>{for (let y=0; y<12; y++) for (let x=0; x<12; x++) "
+        "c.setPixel(y*12+x, y<6 ? (x<6 ? 1 : 2) : (x<6 ? 4 : 6));}; paint(small); "
         "for (let y=0; y<24; y++) for (let x=0; x<24; x++) "
-        "large.setPixel(y*24+x, x<12 ? 3 : 8);")
+        "large.setPixel(y*24+x, x<12 ? 3 : 8); " + extra)
 
 
 def verify_canvas(server_log, server, rpc, output, model, timeout):
@@ -1383,12 +1388,51 @@ def verify_canvas(server_log, server, rpc, output, model, timeout):
     print(f"{model}: stock Canvas snapshot pixels, live configuration and linked marker passed.", flush=True)
 
 
+def verify_canvas_quads(log, emulator, server_log, server, rpc, output, model, position, timeout):
+    _, _, x, y = position
+    x, y = (math.floor(float(value) / 8 + 0.5) * 8 for value in (x, y))
+    if 45 >= x // 8 - 8:
+        raise RuntimeError("The Canvas quad fixture must keep its source tile offscreen")
+    # Place the quad beneath the live HUD in the unified ROM.
+    y -= 32
+    points = ((94, 132), (109, 166), (133, 148), (153, 125))
+    original = ((112, 93, 159), (100, 97, 194), (227, 154, 172))
+    configured = ((137, 218, 177), (240, 218, 177), (43, 169, 180))
+    moved = ((136, 218, 177), (240, 218, 177), (43, 169, 180), (43, 169, 180))
+    router = ((62, 112, 128), (110, 112, 128), (152, 154, 164), (147, 149, 160))
+
+    def capture(phase, expected=None):
+        return capture_marker_pixels(rpc, output, model, f"canvas-quad-{phase}",
+                                     points, timeout, expected, tolerance=4)
+
+    baseline = capture("baseline")
+    create_fixture_quad(server_log, server, "canvas-quad-created", 754, "Vars.world.build(45,27)", x, y)
+    wait_for(log, emulator, "UPSTREAM_CANVAS_QUAD source=arc gpu=citro3d", timeout)
+    capture("created", (*original, baseline[3]))
+    send_marker_phase(server_log, server, "canvas-quad-configured",
+        "const staging=Vars.world.build(75,29), canvas=Vars.world.build(45,27); "
+        "for(let i=0; i<144; i++) staging.setPixel(i, i%12<6 ? 3 : 5); "
+        "canvas.configureAny(staging.data); "
+        'if(canvas.getPixel(0)!==3 || canvas.getPixel(11)!==5) throw "Offscreen Canvas config mismatch";')
+    capture("configured", (*configured, baseline[3]))
+    send_marker_phase(server_log, server, "canvas-quad-moved",
+        "Call.updateMarker(754, Packages.mindustry.logic.LMarkerControl.posi, "
+        f"2, {(x - 16) / 8}, {(y + 32) / 8});")
+    capture("moved", moved)
+    send_marker_phase(server_log, server, "canvas-quad-retargeted", 'Call.updateMarkerTexture(754, "block-router-ui");')
+    capture("retargeted", router)
+    send_marker_phase(server_log, server, "canvas-quad-removed", "Call.removeMarker(754);")
+    capture("removed", baseline)
+    print(f"{model}: offscreen Canvas quad pixels, configuration, tint, corner and retargeting passed.", flush=True)
+
+
 def run_model(args, model, config, original_config, log, output):
     stationary = (args.world_atlas_recycle or args.building_layers or args.liquids
                   or args.building_effects or args.payload_mix or args.carried_buildings
                   or args.payload_handoff or args.unit_layers or args.unit_roster or args.naval_wake
                   or args.tank_treads or args.map_spawn or args.combat
-                  or args.verify_logic_markers or args.verify_texture_markers or args.verify_quad_markers or args.verify_canvas)
+                  or args.verify_logic_markers or args.verify_texture_markers or args.verify_quad_markers or args.verify_canvas
+                  or args.verify_canvas_quads)
     map_name = args.map_spawn or "Glacier"
     overrides = {
         "Miscellaneous": {"log_filter": "*:Info Debug.Emulated:Debug Service.SOC:Debug",
@@ -1427,8 +1471,8 @@ def run_model(args, model, config, original_config, log, output):
             server.stdin.flush()
             wait_for(server_log, server, f"Opened a server on port {args.port}\\.", 25)
             world_size = (150, 250)
-            if args.verify_canvas:
-                load_canvas_fixture(server_log, server)
+            if args.verify_canvas or args.verify_canvas_quads:
+                load_canvas_fixture(server_log, server, offscreen=args.verify_canvas_quads)
             if args.erekir_build:
                 server.stdin.write(
                     'js (() => { const core = Vars.state.rules.defaultTeam.core(); '
@@ -1698,6 +1742,8 @@ def run_model(args, model, config, original_config, log, output):
                             wait_for(log, emulator, r"UPSTREAM_RENDER_KEEPALIVE transport=tcp\b", 5)
                         if args.verify_canvas:
                             verify_canvas(server_log, server, rpc, output, model, args.timeout)
+                        if args.verify_canvas_quads:
+                            verify_canvas_quads(log, emulator, server_log, server, rpc, output, model, spawn, args.timeout)
                         if args.erekir_build:
                             verify_erekir_construction(log, emulator, server_log, server, args.timeout, capture, spawn)
                         if args.mining:
@@ -1923,6 +1969,8 @@ def main():
                         help="Require the original font on the campaign objective HUD")
     parser.add_argument("--verify-canvas", action="store_true",
                         help="Verify original Canvas pixels in Glacier snapshots, configuration and linked markers")
+    parser.add_argument("--verify-canvas-quads", action="store_true",
+                        help="Verify stock quads backed by an offscreen Canvas on Glacier")
     parser.add_argument("--require-relocation-spill", action="store_true",
                         help="Require the ARM11 collector to grow its relocation table during the spawn check")
     args = parser.parse_args()
@@ -2021,6 +2069,8 @@ def main():
         parser.error("--verify-stock-hud needs --verify-objective-hud or --verify-objective-markers")
     if args.verify_canvas and (not args.controls or not args.terrain_atlas or args.controls_replay or args.map_spawn):
         parser.error("--verify-canvas needs stationary --controls and --terrain-atlas on Glacier")
+    if args.verify_canvas_quads and (not args.controls or not args.terrain_atlas or args.controls_replay or args.map_spawn):
+        parser.error("--verify-canvas-quads needs stationary --controls and --terrain-atlas on Glacier")
     if args.erekir_sector is not None:
         if not args.map_spawn or not re.fullmatch(r"[a-z][a-z-]*", args.erekir_sector):
             parser.error("--erekir-sector needs --map-spawn and a sector slug such as onset")
