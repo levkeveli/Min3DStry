@@ -19,9 +19,8 @@ off and a campaign sector is active;
 - timed stock `sector.capture.current` and `wave.guardianwarn` notification rows;
 - the local unit's stock `stat.health`/`stat.ammo` values;
 - the original copper item glyph and the local core's copper count;
-- a 64x64 live minimap in the top-right corner, sampled using the stock
-  `MinimapRenderer` tile colors with a local player marker and refreshed
-  every 60 frames.
+- a 64x64 live minimap in the top-right corner in both offline and online
+  play, using the stock camera-relative region and tile colors.
 
 The status rows use the v160.8 font and inline item glyph pipeline shared with
 the objective HUD. They are rebuilt only when the rendered status text changes,
@@ -30,9 +29,10 @@ then submitted through `drawObjective` before the objective rows.
 The minimap is a native citro2d texture. TeaVM samples the live world into an
 RGBA8 grid. The ARM11 renderer reverses the world Y axis as the stock minimap
 does and converts the pixels to the PICA200's ABGR byte order and 8-by-8
-Morton layout before uploading them through an aligned buffer. Uploads happen once at
-startup and every 60 rendered frames. The texture draw rebinds the top screen
-because the build palette leaves the bottom screen selected.
+Morton layout before uploading them through an aligned buffer. Uploads happen
+on the first frame of each world and then every two rendered frames. The
+texture draw rebinds the top screen because the build palette leaves the
+bottom screen selected.
 
 ## Verification
 
@@ -88,6 +88,10 @@ desktop minimap renderer. Controlled tiles cover ore overlays, liquid
 edges, floor shadows, darkness and team colors. Both visibility states
 are checked for a building subject to fog. The emulator evidence above is
 for the initial minimap integration.
+
+The same JVM task checks the camera-relative sample against the original
+renderer and compares the projected bounds at both edges and while panning.
+It covers portrait, landscape, and maps smaller than the stock minimum zoom.
 
 The live fixture exercises the countdown/waiting path with `enemies=0`. The
 singular/plural enemy rows, the `wave.waveInProgress` branch, and the `m:ss`
