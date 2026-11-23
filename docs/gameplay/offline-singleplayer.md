@@ -141,6 +141,11 @@ The fixture applies the original disarmed and unmoving statuses to keep
 the target in place. The unmodified Java server checks the saved unit
 health after the controller replay.
 
+On the [ARM11 combat build](https://github.com/levkeveli/Min3DStry/actions/runs/45089071635),
+Azahar 2126.2 passed pause, aim, firing, release, and save on both
+Original and New 3DS profiles. Stock Java read the Fortress at
+896 of 900 health from each save.
+
 ```bash
 python3 tools/verify_offline_stock_weapons.py \
   --rom /path/to/unified/upstream-probe.3dsx \

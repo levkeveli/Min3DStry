@@ -71,6 +71,7 @@ def replay(args, model, fixture):
         proc, rpc = sp._launch_azahar(model, args.rom, azahar, config, log, movie)
         try:
             sp._wait_for_log(log, proc, r"UPSTREAM_SP_READY .*x=648\.0 y=208\.0", 120)
+            sp._wait_for_log(log, proc, r"UPSTREAM_SP_ENEMY type=fortress\b", 30)
             sp._wait_for_log(log, proc, r"UPSTREAM_SP_PAUSE paused=true\b", 80)
             sp._wait_for_log(log, proc, r"UPSTREAM_SP_PAUSE paused=false\b", 35)
             fire = r"UPSTREAM_SP_FIRE shooting=true unit=gamma x=([0-9.]+) y=([0-9.]+)"

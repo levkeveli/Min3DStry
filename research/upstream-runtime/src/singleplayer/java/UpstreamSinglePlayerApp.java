@@ -458,7 +458,8 @@ public final class UpstreamSinglePlayerApp {
             unit = session.ensurePlayerSpawn();
             if (unit != null) {
                 buildingControls.update(unit, input, touch);
-                boolean overlay = buildingControls.catalog().isOpen() || buildingControls.buildingConfig().isOpen();
+                boolean overlay = buildingControls.catalog().isOpen() || buildingControls.buildingConfig().isOpen()
+                    || buildingControls.inventory().isOpen();
                 weaponInput.update(unit, moveInput, aiming, fireHeld && !overlay && !Vars.state.isPaused());
             }
             if (aimHeld) moveInput.setZero();
