@@ -87,6 +87,14 @@ stock v160.8 server reopened all four save and settings pairs. It found the
 original partial research value, content unlock, custom sector name, origin,
 and unrelated copied preferences, with the correct last sector for each run.
 
+The [unified ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45118296332)
+repeated both scenarios on the Original and New 3DS Azahar profiles.
+The two-sector menu highlighted Frozen Forest from the copied PC setting,
+and the app used the saved German language. Stock Java reopened the four
+written save and settings pairs with the expected sector, core, research
+and preferences. The replay verified both the original save and settings
+backups.
+
 Use the stock v160.8 server to add `settings.bin` to the sector fixture directory.
 
 ```sh
