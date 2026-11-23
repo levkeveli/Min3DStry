@@ -82,12 +82,14 @@ def main():
     for model in ("old3ds", "new3ds"):
         output = args.output / model
         before = capture(output / "terrain", model, fixture / "terrain.msav", args.rom, azahar)
-        after = capture(output / "stock", model, fixture / "extractors.msav", args.rom, azahar, before, EXTRACTORS)
+        after = capture(output / "stock", model, fixture / "extractors.msav",
+                        args.rom, azahar, before, EXTRACTORS, min_changed=25)
         offline = changed_pixels(before, after, EXTRACTORS)
-        if min(offline.values()) < 12:
+        if min(offline.values()) != 25:
             raise AssertionError(f"{model}: missing offline extractors ({offline})")
         print(f"UPSTREAM_OFFLINE_EXTRACTOR_PIXELS model={model} blocks={offline}", flush=True)
-        live = verify_live(args, model, azahar, fixture / "extractors.msav", before, output / "live", EXTRACTORS)
+        live = verify_live(args, model, azahar, fixture / "extractors.msav", before,
+                           output / "live", EXTRACTORS, min_changed=25)
         print(f"UPSTREAM_LIVE_EXTRACTOR_PIXELS model={model} blocks={live}", flush=True)
 
 

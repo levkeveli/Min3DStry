@@ -288,16 +288,16 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
                 if (build instanceof BurstDrillBuild burst) {
                     if (burst.dominantItem != Items.copper) throw new AssertionError("Burst drill ore missing");
                     burst.smoothProgress = 1f;
-                } else if (build instanceof DrillBuild drill) {
-                    if (drill.dominantItem != Items.copper) throw new AssertionError("Floor drill ore missing");
-                    drill.timeDrilled = 19f;
-                    drill.warmup = 1f;
                 } else if (build instanceof BeamDrillBuild beam) {
                     if (beam.facingAmount == 0) throw new AssertionError("Beam drill wall ore missing");
                     beam.warmup = 1f;
                 } else if (build instanceof WallCrafterBuild crusher) {
                     if (!block.canPlaceOn(tile, viewer, 0)) throw new AssertionError("Crusher wall target missing");
                     crusher.totalTime = 19f;
+                } else if (build instanceof DrillBuild drill) {
+                    if (drill.dominantItem != Items.copper) throw new AssertionError("Floor drill ore missing");
+                    drill.timeDrilled = 19f;
+                    drill.warmup = 1f;
                 }
                 sprites.clear();
                 layers.render(viewport, viewer, candidate -> candidate == build
