@@ -520,6 +520,14 @@ replay checks the original sound IDs, centered playback and the active DSP
 mode. The JVM reference also checks the shared sporestorm sound and fade
 after expiry.
 
+The live client draws the original weather underlay and overlay through the
+same viewport and noise textures as offline play. Add
+`--controls --verify-weather-layers --terrain-atlas /path/to/sprites.aatls`
+to the Glacier replay. The stock server sends rain, snow, sandstorm and fog.
+The verifier checks both repeating textures and compares the world and
+touch screens. The JVM reference exercises all six stock weather types and
+checks the original water splash sprites.
+
 Run the same verifier with `--controls --model old3ds` and then
 `--controls --model new3ds`. Follow its prompts to move right with the
 D-pad, move up with the Circle Pad, and leave after the next wave.

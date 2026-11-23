@@ -6,6 +6,7 @@ import port.render.UpstreamLabelText;
 import arc.Core;
 import arc.Events;
 import arc.files.Fi;
+import arc.graphics.Camera;
 import arc.graphics.g2d.Draw;
 import arc.mock.MockGraphics;
 import arc.struct.IntSet;
@@ -45,6 +46,8 @@ public final class UpstreamRenderedNetworkProbe {
     private final Fi atlas;
     private final UpstreamTerrainRenderProbe target = new UpstreamTerrainRenderProbe(false);
     private final UpstreamBuildingLayers buildingLayers = new UpstreamBuildingLayers();
+    private final UpstreamWeatherLayers weatherLayers = new UpstreamWeatherLayers();
+    private final Runnable drawWeatherUnder = weatherLayers::drawUnder;
     private final UpstreamLiveBuildControls buildingControls = new UpstreamLiveBuildControls();
     private final Runnable drawEntities = this::drawEntities;
     private final IntSet reportedConveyors = new IntSet();
@@ -105,8 +108,12 @@ public final class UpstreamRenderedNetworkProbe {
     }
 
     private void loadGraphics() {
+        if (Core.camera == null) Core.camera = new Camera();
         Arm11Audio.prepareMusicControl();
-        Events.on(WorldLoadEvent.class, event -> Arm11Audio.reset());
+        Events.on(WorldLoadEvent.class, event -> {
+            Arm11Audio.reset();
+            weatherLayers.reset();
+        });
         Core.graphics = new MockGraphics() {
             @Override public int getWidth() { return 400; }
             @Override public int getHeight() { return 240; }
@@ -117,6 +124,7 @@ public final class UpstreamRenderedNetworkProbe {
         Core.settings.put("locale", locale.getLanguage().isEmpty() ? "en" : locale.toString());
         System.out.println("UPSTREAM_INTERFACE_GRAPHICS atlas");
         UpstreamTerrainDrawProbe.loadAtlas(atlas, UpstreamFluidAtlas::load);
+        weatherLayers.load();
         Vars.content.loadColors(new Fi("/romfs/block_colors.png"));
         UpstreamCrackAtlas.load();
         drawableUnits.clear();
@@ -176,7 +184,7 @@ public final class UpstreamRenderedNetworkProbe {
             (viewport.bottom - 0.5f) * Vars.tilesize + height / 2f, width, height);
         advanceVisualState();
         draws = 0;
-        viewport.draw(drawEntities);
+        viewport.draw(drawWeatherUnder, drawEntities);
         buildingControls.viewport(viewport.left, viewport.bottom);
         if (unit != null && (lastLeft != viewport.left || lastBottom != viewport.bottom)) {
             lastLeft = viewport.left;
@@ -200,6 +208,7 @@ public final class UpstreamRenderedNetworkProbe {
         try {
             Time.update();
             if (!Vars.state.isPaused()) Groups.weather.update();
+            weatherLayers.advance();
             Arm11Audio.updateClientAudio(now);
             for (var build : Groups.build) {
                 if (build instanceof ConduitBuild conduit) conduit.advanceLiquidDraw();
@@ -269,6 +278,7 @@ public final class UpstreamRenderedNetworkProbe {
         orders.draw(viewport);
         var schematics = buildingControls.schematics();
         schematics.draw(viewport);
+        weatherLayers.drawOver();
         drawObjectives(drawStatusHud());
         var block = buildingControls.block();
         var catalog = buildingControls.catalog();

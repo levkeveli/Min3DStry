@@ -1383,12 +1383,50 @@ def verify_canvas(server_log, server, rpc, output, model, timeout):
     print(f"{model}: stock Canvas snapshot pixels, live configuration and linked marker passed.", flush=True)
 
 
+def verify_stock_weather_layers(log, emulator, server_log, server, rpc, output, model, timeout):
+    wait_for(log, emulator, r"UPSTREAM_NETWORK_FRAME unit=\d+", timeout)
+    world = [(x, y) for y in range(12, 231, 6) for x in range(52, 349, 6)
+             if not (165 < x < 235 and 82 < y < 151)]
+    # Sample the touch grid after the button labels, which can switch fonts on startup.
+    touch = [(x, y) for y in (350, 385, 415, 445) for x in range(54, 347, 8)]
+    before = rpc.screenshot(res_scale=1)
+    (output / f"{model}-weather-clear.png").write_bytes(before)
+    baseline = az.inspect_png(before, world + touch)["samples"]
+    server.stdin.write(
+        'js (() => { Call.createWeather(Weathers.rain, 1, 900, 0, 0); '
+        'Call.createWeather(Weathers.snow, 1, 900, 0, 0); '
+        'Call.createWeather(Weathers.sandstorm, 1, 900, 0, 0); '
+        'Call.createWeather(Weathers.fog, 1, 900, 0, 0); '
+        'return "UPSTREAM_STOCK_WEATHER_VISUALS ready"; })()\n'
+    )
+    server.stdin.flush()
+    wait_for(server_log, server, r"UPSTREAM_STOCK_WEATHER_VISUALS ready\b", 5)
+    for name in ("rain", "snowing", "sandstorm", "fog"):
+        wait_for(log, emulator, rf"UPSTREAM_LIVE_WEATHER name={name}\b", timeout)
+    for name in ("noiseAlpha", "fog"):
+        wait_for(log, emulator, rf"UPSTREAM_WEATHER_TEXTURE name={name}\b", timeout)
+    deadline = time.monotonic() + min(timeout, 45)
+    frame = before
+    while time.monotonic() < deadline:
+        frame = rpc.screenshot(res_scale=1)
+        pixels = az.inspect_png(frame, world + touch)["samples"]
+        changed = sum(max(abs(a - b) for a, b in zip(pixels[p], baseline[p])) >= 12 for p in world)
+        if changed >= 96 and all(pixels[p] == baseline[p] for p in touch):
+            (output / f"{model}-weather-active.png").write_bytes(frame)
+            print(f"{model}: the stock weather changed {changed} sampled world pixels with an unchanged touch grid.", flush=True)
+            return log.read_text(encoding="utf-8", errors="replace")
+        time.sleep(0.2)
+    (output / f"{model}-weather-unexpected.png").write_bytes(frame)
+    raise RuntimeError(f"{model} did not composite the original weather inside the world viewport")
+
+
 def run_model(args, model, config, original_config, log, output):
     stationary = (args.world_atlas_recycle or args.building_layers or args.liquids
                   or args.building_effects or args.payload_mix or args.carried_buildings
                   or args.payload_handoff or args.unit_layers or args.unit_roster or args.naval_wake
                   or args.tank_treads or args.map_spawn or args.combat
-                  or args.verify_logic_markers or args.verify_texture_markers or args.verify_quad_markers or args.verify_canvas)
+                  or args.verify_logic_markers or args.verify_texture_markers or args.verify_quad_markers
+                  or args.verify_canvas or args.verify_weather_layers)
     map_name = args.map_spawn or "Glacier"
     overrides = {
         "Miscellaneous": {"log_filter": "*:Info Debug.Emulated:Debug Service.SOC:Debug",
@@ -1698,6 +1736,9 @@ def run_model(args, model, config, original_config, log, output):
                             wait_for(log, emulator, r"UPSTREAM_RENDER_KEEPALIVE transport=tcp\b", 5)
                         if args.verify_canvas:
                             verify_canvas(server_log, server, rpc, output, model, args.timeout)
+                        if args.verify_weather_layers:
+                            verify_stock_weather_layers(log, emulator, server_log, server, rpc, output,
+                                                        model, args.timeout)
                         if args.erekir_build:
                             verify_erekir_construction(log, emulator, server_log, server, args.timeout, capture, spawn)
                         if args.mining:
@@ -1923,6 +1964,8 @@ def main():
                         help="Require the original font on the campaign objective HUD")
     parser.add_argument("--verify-canvas", action="store_true",
                         help="Verify original Canvas pixels in Glacier snapshots, configuration and linked markers")
+    parser.add_argument("--verify-weather-layers", action="store_true",
+                        help="Capture the stock weather over the stationary Glacier viewport")
     parser.add_argument("--require-relocation-spill", action="store_true",
                         help="Require the ARM11 collector to grow its relocation table during the spawn check")
     args = parser.parse_args()
@@ -2021,6 +2064,9 @@ def main():
         parser.error("--verify-stock-hud needs --verify-objective-hud or --verify-objective-markers")
     if args.verify_canvas and (not args.controls or not args.terrain_atlas or args.controls_replay or args.map_spawn):
         parser.error("--verify-canvas needs stationary --controls and --terrain-atlas on Glacier")
+    if args.verify_weather_layers and (not args.controls or not args.terrain_atlas
+                                       or args.controls_replay or args.map_spawn):
+        parser.error("--verify-weather-layers needs stationary --controls and --terrain-atlas on Glacier")
     if args.erekir_sector is not None:
         if not args.map_spawn or not re.fullmatch(r"[a-z][a-z-]*", args.erekir_sector):
             parser.error("--erekir-sector needs --map-spawn and a sector slug such as onset")

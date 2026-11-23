@@ -85,8 +85,9 @@ if [[ $# -gt 0 ]]; then
         echo "Prepare singleplayer terrain assets with --singleplayer to include sprites.aatls and maps/groundZero.msav" >&2
         exit 2
     fi
-    if [[ ${#native_input[@]} -gt 0 && ( ! -s "$1/weather/noiseAlpha.t3x" || ! -s "$1/weather/fog.t3x" ) ]]; then
-        echo "Prepare singleplayer terrain assets with --singleplayer to include both original weather textures" >&2
+    if [[ ( ${#native_input[@]} -gt 0 || ${#native_network[@]} -gt 0 ) && \
+          ( ! -s "$1/weather/noiseAlpha.t3x" || ! -s "$1/weather/fog.t3x" ) ]]; then
+        echo "Prepare multiplayer or singleplayer terrain assets to include both original weather textures" >&2
         exit 2
     fi
     terrain_flags=(-DM3DS_TERRAIN_RENDERER -I"$root" -I"$1")
