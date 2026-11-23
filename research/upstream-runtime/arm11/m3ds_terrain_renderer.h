@@ -23,6 +23,8 @@ int32_t m3ds_terrain_draw_canvas(int32_t id, int32_t revision, int32_t width, in
                                 const uint32_t *pixels, float x, float y, float origin_x, float origin_y,
                                 float draw_width, float draw_height, float rotation,
                                 int32_t color, int32_t mix_color, int32_t blend_mode);
+int32_t m3ds_terrain_draw_canvas_quad(int32_t id, int32_t revision, int32_t width, int32_t height,
+                                     const uint32_t *pixels, const float *vertices, int32_t offset, int32_t blend_mode);
 int32_t m3ds_terrain_draw_weather_noise(int32_t index, float x, float y, float width, float height,
                                        float u, float v, float u2, float v2,
                                        int32_t tint, int32_t mix, int32_t blend_mode);

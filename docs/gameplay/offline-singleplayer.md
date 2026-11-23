@@ -47,6 +47,12 @@ passed on Azahar 2126.2 in the Old and New 3DS profiles. In both profiles the
 weather changed 110 of 126 sampled world pixels and zero of 40 sampled touch
 pixels. Physical console testing remains pending.
 
+The [current unified ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45133245996)
+repeated the clear and active-weather replays on both profiles. Both loaded
+the original noise textures and changed 111 of 126 world samples and zero
+of 40 touch samples. The unmodified Java v160.8 server reopened the JVM
+round-trip save and confirmed all three original weather states were active.
+
 ## Campaign sector selection
 
 Copy original `sector-*.msav` files into `/3ds/min3dstry/saves/`, following
