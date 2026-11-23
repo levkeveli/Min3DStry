@@ -31,6 +31,10 @@ import mindustry.world.blocks.production.Separator;
 import mindustry.world.blocks.production.WallCrafter;
 import mindustry.world.blocks.storage.StorageBlock;
 import mindustry.world.blocks.units.Reconstructor.ReconstructorBuild;
+import mindustry.world.blocks.units.UnitAssembler;
+import mindustry.world.blocks.units.UnitAssembler.UnitAssemblerBuild;
+import mindustry.world.blocks.units.UnitAssemblerModule;
+import mindustry.world.blocks.units.UnitAssemblerModule.UnitAssemblerModuleBuild;
 import mindustry.world.blocks.units.UnitFactory.UnitFactoryBuild;
 
 /** Arc draw commands for the cached and dynamic passes in upstream BlockRenderer. */
@@ -38,6 +42,10 @@ final class UpstreamBuildingLayers {
     private final Seq<Building> visible = new Seq<>();
     private final IntSet visited = new IntSet();
     private final ObjectSet<UnitType> factoryGraphics = new ObjectSet<>();
+
+    static boolean supportsAssemblerDraw(Block block) {
+        return block instanceof UnitAssembler || block instanceof UnitAssemblerModule;
+    }
 
     static boolean supportsPowerDraw(Block block) {
         return block instanceof PowerBlock || block instanceof PowerDiode || block instanceof LightBlock;
@@ -86,6 +94,16 @@ final class UpstreamBuildingLayers {
                             && reconstructor.getPayload() instanceof UnitPayload payload) {
                         loadFactoryGraphics(payload.unit.type());
                         loadFactoryGraphics(reconstructor.upgrade(payload.unit.type()));
+                    }
+                    if (build instanceof UnitAssemblerBuild assembler) {
+                        loadFactoryGraphics(assembler.plan().unit);
+                        loadFactoryGraphics(((UnitAssembler) assembler.block).droneType);
+                        if (assembler.getPayload() instanceof UnitPayload payload) {
+                            loadFactoryGraphics(payload.unit.type());
+                        }
+                    }
+                    if (build instanceof UnitAssemblerModuleBuild module && module.getPayload() instanceof UnitPayload payload) {
+                        loadFactoryGraphics(payload.unit.type());
                     }
                 }
             }

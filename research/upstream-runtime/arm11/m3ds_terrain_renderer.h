@@ -19,6 +19,9 @@ int32_t m3ds_terrain_draw_unit_build(int32_t page, int32_t left, int32_t top, in
                                      float x, float y, float draw_width, float draw_height, float rotation,
                                      float progress, float r, float g, float b, float alpha, float phase,
                                      int32_t vertex_color);
+int32_t m3ds_terrain_draw_block_build(int32_t page, int32_t left, int32_t top, int32_t width, int32_t height,
+                                      float x, float y, float draw_width, float draw_height, float rotation,
+                                      float progress, float alpha, float time, int32_t vertex_color);
 int32_t m3ds_terrain_draw_canvas(int32_t id, int32_t revision, int32_t width, int32_t height,
                                 const uint32_t *pixels, float x, float y, float origin_x, float origin_y,
                                 float draw_width, float draw_height, float rotation,

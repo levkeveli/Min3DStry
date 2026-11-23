@@ -89,6 +89,9 @@ import mindustry.world.blocks.payloads.PayloadConveyor;
 import mindustry.world.blocks.payloads.PayloadConveyor.PayloadConveyorBuild;
 import mindustry.world.blocks.units.Reconstructor;
 import mindustry.world.blocks.units.Reconstructor.ReconstructorBuild;
+import mindustry.world.blocks.units.UnitAssembler;
+import mindustry.world.blocks.units.UnitAssembler.UnitAssemblerBuild;
+import mindustry.world.blocks.units.UnitAssemblerModule.UnitAssemblerModuleBuild;
 import mindustry.world.blocks.units.UnitFactory;
 
 public final class UpstreamBuildingLayersReference implements UpstreamTerrainDrawProbe.TerrainTarget {
@@ -98,6 +101,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
     private record UnitBuild(int page, int left, int top, int width, int height, float x, float y,
                              float rotation, float progress, float alpha, float phase) {}
     private final List<UnitBuild> unitBuilds = new ArrayList<>();
+    private final List<UnitBuild> blockBuilds = new ArrayList<>();
     private final List<UpstreamCanvasTexture> canvasDraws = new ArrayList<>();
     private int texturedQuads;
     private UpstreamCanvasTexture canvasQuadTexture;
@@ -150,6 +154,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         target.verifyTexturedLine();
         target.verifyFactory(viewport);
         target.verifyReconstructor(viewport);
+        target.verifyAssemblers(viewport);
 
         // The visible two-tile wall starts one tile west of the viewport.
         viewport.moveTo(24, 30);
@@ -406,6 +411,91 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
             sprites.clear();
             unitBuilds.clear();
         }
+    }
+
+    private void verifyAssemblers(UpstreamTerrainDrawProbe.Viewport viewport) {
+        viewport.moveTo(24, 30);
+        var viewer = Team.sharded;
+        var tile = Vars.world.tile(28, 36);
+        var moduleTile = Vars.world.tile(35, 36);
+        var layers = new UpstreamBuildingLayers();
+        int plans = 0;
+        int largest = 0;
+        moduleTile.setBlock(Blocks.basicAssemblerModule, viewer, 1);
+        var previousPlayer = Vars.player;
+        Vars.player = Player.create();
+        Vars.player.team(viewer);
+        try {
+            for (var block : Vars.content.blocks()) {
+                if (!(block instanceof UnitAssembler stock)) continue;
+                tile.setBlock(stock, viewer, 0);
+                var assembler = (UnitAssemblerBuild) tile.build;
+                var module = (UnitAssemblerModuleBuild) moduleTile.build;
+                if (!UpstreamBuildingLayers.supportsAssemblerDraw(assembler.block)
+                        || !UpstreamBuildingLayers.supportsAssemblerDraw(module.block)) {
+                    throw new AssertionError("Stock assembler and module draw routing");
+                }
+                assembler.progress = 0.4f;
+                assembler.warmup = 0.6f;
+                assembler.powerWarmup = 1f;
+                assembler.sameTypeWarmup = 1f;
+                assembler.droneWarmup = 0.7f;
+                assembler.droneProgress = 0.3f;
+                assembler.totalDroneProgress = 72f;
+                var spawn = assembler.getUnitSpawn().cpy();
+                var drone = stock.droneType.create(viewer);
+                drone.set(spawn.x - 16f, spawn.y - 12f);
+                var control = (mindustry.ai.types.AssemblerAI) drone.controller();
+                control.targetPos.set(drone);
+                control.targetAngle = drone.rotation;
+                assembler.units.add(drone);
+                var cargo = new UnitPayload(UnitTypes.stell.create(viewer));
+                module.handlePayload(module, cargo);
+
+                for (int tier = 0; tier < stock.plans.size; tier++) {
+                    assembler.currentTier = tier;
+                    unitBuilds.clear();
+                    blockBuilds.clear();
+                    sprites.clear();
+                    solidQuads.clear();
+                    layers.render(viewport, viewer, build -> build == assembler || build == module);
+                    var plan = assembler.plan();
+                    var icon = plan.unit.fullIcon;
+                    var drawn = blockBuilds.size() == 1 ? blockBuilds.get(0) : null;
+                    var droneIcon = stock.droneType.fullIcon;
+                    if (drawn == null || drawn.page() != UpstreamTerrainDrawProbe.pageIndex(icon)
+                            || drawn.left() != icon.getX() || drawn.top() != icon.getY()
+                            || drawn.width() != icon.width || drawn.height() != icon.height
+                            || drawn.x() != spawn.x || drawn.y() != spawn.y || drawn.rotation() != -90f
+                            || Math.abs(drawn.progress() - 0.45f) > 0.00001f || drawn.alpha() != 0.6f
+                            || unitBuilds.size() != 1 || unitBuilds.get(0).width() != droneIcon.width
+                            || unitBuilds.get(0).height() != droneIcon.height || unitBuilds.get(0).progress() != 0.3f
+                            || sprites.size() < 8 || solidQuads.isEmpty()) {
+                        throw new AssertionError("Missing stock assembler graphics for " + plan.unit.name);
+                    }
+                    plans++;
+                    largest = Math.max(largest, Math.max(icon.width, icon.height));
+                }
+            }
+            if (plans != 6 || largest <= 128) throw new AssertionError("Stock assembler plans or large textures");
+            System.out.println("UPSTREAM_ASSEMBLER_GRAPHICS plans=" + plans + " maxIcon=" + largest
+                + " drone=ok module=ok outline=ok");
+        } finally {
+            tile.setBlock(Blocks.air);
+            moduleTile.setBlock(Blocks.air);
+            Vars.player = previousPlayer;
+            unitBuilds.clear();
+            blockBuilds.clear();
+            sprites.clear();
+            solidQuads.clear();
+        }
+    }
+
+    @Override
+    public void drawBlockBuild(int page, int left, int top, int width, int height,
+                               float x, float y, float drawWidth, float drawHeight, float rotation,
+                               float progress, float alpha, float time, int vertexColor) {
+        blockBuilds.add(new UnitBuild(page, left, top, width, height, x, y, rotation, progress, alpha, time));
     }
 
     private static void verifyLiveFactoryClock(UnitFactory.UnitFactoryBuild factory) {

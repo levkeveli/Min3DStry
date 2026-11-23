@@ -479,6 +479,7 @@ public final class UpstreamRenderedNetworkProbe {
         return build instanceof CanvasBuild || build instanceof LogicDisplayBuild
             || UpstreamBuildingLayers.supportsPowerDraw(block) || UpstreamBuildingLayers.supportsDistributionDraw(block)
             || block.category == Category.liquid || block instanceof UnitFactory || block instanceof Reconstructor || block instanceof BaseTurret
+            || UpstreamBuildingLayers.supportsAssemblerDraw(block)
             || UpstreamBuildingLayers.supportsMaterialDraw(block) || block == Blocks.copperWall
             || block == Blocks.berylliumWall || block == Blocks.copperWallLarge
             || UpstreamBuildingLayers.supportsExtractorDraw(block)

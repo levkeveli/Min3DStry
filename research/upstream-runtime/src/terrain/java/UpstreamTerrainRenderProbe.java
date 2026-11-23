@@ -135,6 +135,16 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
     }
 
     @Override
+    public void drawBlockBuild(int page, int left, int top, int width, int height,
+                               float x, float y, float drawWidth, float drawHeight, float rotation,
+                               float progress, float alpha, float time, int vertexColor) {
+        if (NativeTerrain.drawBlockBuild(page, left, top, width, height, x, y, drawWidth, drawHeight,
+                rotation, progress, alpha, time, vertexColor) == 0) {
+            throw new IllegalStateException("Citro2D could not draw stock block construction");
+        }
+    }
+
+    @Override
     public void drawSolidQuad(float[] vertices, int offset, Blending blending) {
         if (NativeTerrain.drawSolidQuad(Address.ofData(vertices), offset, blendMode(blending)) == 0) {
             throw new IllegalStateException("Citro2D could not draw a stock Arc solid quad");
@@ -223,6 +233,11 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
                                         float x, float y, float drawWidth, float drawHeight, float rotation,
                                         float progress, float r, float g, float b, float alpha, float phase,
                                         int vertexColor);
+
+        @Import(name = "m3ds_terrain_draw_block_build")
+        static native int drawBlockBuild(int page, int left, int top, int width, int height,
+                                         float x, float y, float drawWidth, float drawHeight, float rotation,
+                                         float progress, float alpha, float time, int vertexColor);
 
         @Import(name = "m3ds_terrain_draw")
         static native int draw(int page, int left, int top, int width, int height,

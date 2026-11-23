@@ -1077,6 +1077,25 @@ The renderer still selects blocks that use the supported sprite operations.
 Textured raw vertices, additional payload types and other rendering services
 are tracked in [#139](https://github.com/levkeveli/Min3DStry/issues/139).
 
+### Stock Erekir assembler graphics
+
+The stock Tank, Ship and Mech Assembler drawers use their original base,
+side and cover regions, payloads, construction-area geometry and drone beams.
+The Basic Assembler Module uses its original payload drawer. The pinned
+`unitbuild.frag` effect draws the builder drone, and `blockbuild.frag` draws
+the output plan at its stock spawn offset. Citro2D uses the same bounded
+scratch slots for both effects. The construction outline samples the original
+atlas at texel centers and keeps its phase, progress and contour tests in
+full-icon coordinates across scratch patches.
+
+The unified `runBuildingLayersJvm` reference checks all six stock assembler
+plans, including a 270-texel source dimension. It also checks the original
+unit and drone sprite coordinates, build-area geometry and module cargo.
+`tests/render/test_unit_build.c` covers the construction outline, alpha
+thresholds and animation phase. The stock live snapshot provides the
+authoritative unit and payload state, while full offline animation uses the
+original simulation fields. Handheld visual replay is pending.
+
 ### Verify Erekir construction
 
 The touchscreen starter shortcuts use the planet from the streamed rules.

@@ -51,6 +51,11 @@ public final class UpstreamTerrainDrawProbe {
                                    float progress, Color tint, float alpha, float phase, int vertexColor) {
             throw new UnsupportedOperationException("This terrain target does not draw stock unit construction");
         }
+        default void drawBlockBuild(int page, int left, int top, int width, int height,
+                                    float x, float y, float drawWidth, float drawHeight, float rotation,
+                                    float progress, float alpha, float time, int vertexColor) {
+            throw new UnsupportedOperationException("This terrain target does not draw stock block construction");
+        }
         default void drawCanvas(UpstreamCanvasTexture texture, float x, float y, float originX, float originY,
                                 float width, float height, float rotation, int color, int mixColor, Blending blending) {
             throw new IllegalStateException("Unsupported Arc Canvas texture");
@@ -379,6 +384,24 @@ public final class UpstreamTerrainDrawProbe {
             } else {
                 target.drawUnitBuild(page.index, left, top, width, height, x, y, drawWidth,
                     drawHeight, rotation, progress, tint, alpha, phase, vertexColor);
+            }
+        }
+
+        @Override
+        public void drawBlockBuild(TextureRegion region, float x, float y, float rotation, float progress,
+                                   float alpha, float time) {
+            if (region == Core.atlas.find("error")) throw new IllegalStateException("Missing block construction sprite");
+            var page = (AtlasPageTexture) region.texture;
+            int left = region.getX(), top = region.getY(), width = region.width, height = region.height;
+            float drawWidth = width * region.scl() * Draw.xscl;
+            float drawHeight = height * region.scl() * Draw.yscl;
+            int color = Color.floatToIntColor(colorPacked);
+            if (sort && !flushing) {
+                draw(() -> target.drawBlockBuild(page.index, left, top, width, height, x, y, drawWidth,
+                    drawHeight, rotation, progress, alpha, time, color));
+            } else {
+                target.drawBlockBuild(page.index, left, top, width, height, x, y, drawWidth,
+                    drawHeight, rotation, progress, alpha, time, color);
             }
         }
 
