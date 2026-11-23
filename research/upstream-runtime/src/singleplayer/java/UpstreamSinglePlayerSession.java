@@ -1,6 +1,7 @@
 import arc.Core;
 import arc.Events;
 import arc.Settings;
+import arc.assets.AssetManager;
 import arc.files.Fi;
 import arc.math.Mathf;
 import arc.math.geom.Vec2;
@@ -21,15 +22,19 @@ import mindustry.ai.Pathfinder;
 import mindustry.async.AvoidanceProcess;
 import mindustry.content.Blocks;
 import mindustry.content.Items;
+import mindustry.content.Planets;
 import mindustry.content.UnitTypes;
 import mindustry.core.GameState.State;
 import mindustry.entities.EntityCollisions;
 import mindustry.entities.units.BuildPlan;
 import mindustry.game.EventType.ResetEvent;
 import mindustry.game.EventType.RulesLoadEvent;
+import mindustry.game.EventType.SectorLaunchEvent;
+import mindustry.game.EventType.SectorLaunchLoadoutEvent;
 import mindustry.game.EventType.Trigger;
 import mindustry.game.FogControl;
 import mindustry.game.Gamemode;
+import mindustry.game.Saves;
 import mindustry.game.Team;
 import mindustry.game.Universe;
 import mindustry.game.Waves;
@@ -59,6 +64,7 @@ public final class UpstreamSinglePlayerSession {
     private static final float FIXED_STEP_SECONDS = 1f / 60f;
     private final UpstreamWorldLoadProbe.ProbeApplication app;
     private final Vec2 tmpMove = new Vec2();
+    private Saves campaignSaves;
     private float deltaSeconds = FIXED_STEP_SECONDS;
 
     private UpstreamSinglePlayerSession(UpstreamWorldLoadProbe.ProbeApplication app) {
@@ -82,6 +88,11 @@ public final class UpstreamSinglePlayerSession {
     }
 
     static UpstreamSinglePlayerSession create(Fi mapDirectory, String locale, Fi planetData, Settings settings) {
+        return create(mapDirectory, locale, planetData, settings, null);
+    }
+
+    static UpstreamSinglePlayerSession create(Fi mapDirectory, String locale, Fi planetData, Settings settings,
+                                             Fi campaignMaps) {
         if (planetData != null && planetData.isDirectory()) {
             for (Fi file : planetData.list()) {
                 if (!file.isDirectory() && file.extension().equals("json")) {
@@ -89,10 +100,21 @@ public final class UpstreamSinglePlayerSession {
                 }
             }
         }
+        if (campaignMaps != null) {
+            for (String directory : new String[]{"serpulo", "serpulo/hidden", "erekir"}) {
+                for (Fi file : campaignMaps.child(directory).list()) {
+                    if (!file.isDirectory() && file.extension().equals(Vars.mapExtension)) {
+                        Vars.tree.addFile("maps/" + directory + "/" + file.name(), file);
+                    }
+                }
+            }
+        }
+        Vars.saveDirectory = mapDirectory.child("saves");
+        Vars.schematicDirectory = mapDirectory.child("schematics");
         // Blocks capture their default cache layer while the content registry is created.
         CacheLayer.init();
         settings.defaults("locale", locale == null || locale.isEmpty() ? "en" : locale);
-        var app = UpstreamWorldLoadProbe.initialize(mapDirectory, settings);
+        var app = UpstreamWorldLoadProbe.initialize(mapDirectory, settings, campaignMaps != null);
         Core.audio = new MockAudio();
         Core.files = new MockFiles();
         final UpstreamSinglePlayerSession[] holder = new UpstreamSinglePlayerSession[1];
@@ -173,6 +195,49 @@ public final class UpstreamSinglePlayerSession {
         return loadedFromSave;
     }
 
+    void launchNewSector(Sector origin, Sector sector, Fi saveFile) throws IOException {
+        launchNewSector(origin, sector, saveFile, null);
+    }
+
+    void launchNewSector(Sector origin, Sector sector, Fi saveFile, UpstreamCampaignLoadout loadout) throws IOException {
+        if (loadout != null && !origin.items().has(loadout.cost())) {
+            throw new IOException("Insufficient launch resources in " + origin.name());
+        }
+        if (saveFile.exists()) {
+            throw new IOException("Campaign slot already exists: " + saveFile.path());
+        }
+        // Offline portion of v160.8 Control.playSector and Control.playNewSector.
+        if (origin == sector) Vars.universe.clearLoadoutInfo();
+        Vars.logic.reset(); // WorldReloader.begin() when neither a server nor a multiplayer client.
+        if (loadout != null) {
+            if (sector.allowLaunchLoadout()) Core.settings.put("maxresources", loadout.maximumCargo());
+            Vars.universe.updateLoadout(loadout.core(), loadout.schematic());
+            Vars.universe.updateLaunchResources(loadout.resources());
+        }
+        Vars.world.loadSector(sector);
+        if (loadout != null) {
+            origin.removeItems(loadout.cost());
+            Events.fire(new SectorLaunchLoadoutEvent(sector, origin, loadout.schematic()));
+        }
+        Vars.state.rules.sector = sector;
+        sector.info.origin = origin;
+        sector.info.destination = origin;
+        sector.info.attempts++;
+        if (sector.preset != null) sector.preset.quietUnlock();
+        sector.planet.setLastSector(sector);
+
+        app.runPosted();
+        Events.fire(new RulesLoadEvent(Vars.state.rules));
+        Vars.avoidance.init();
+        Vars.logic.play();
+        save(saveFile);
+        Events.fire(new SectorLaunchEvent(sector));
+        Events.fire(Trigger.newGame);
+        Vars.state.set(State.playing);
+        app.runPosted();
+        reportLoadedWorld("campaign-new");
+    }
+
     Gamemode startCustomGame(Map map, Gamemode requested) throws IOException {
         // Control.playMap wraps these operations in the stock desktop loading UI.
         var rules = map.applyRules(requested);
@@ -226,11 +291,17 @@ public final class UpstreamSinglePlayerSession {
         final Fi file;
         final Sector sector;
         final long timestamp;
+        final Sector origin;
 
         SectorSlot(Fi file, Sector sector, long timestamp) {
+            this(file, sector, timestamp, null);
+        }
+
+        SectorSlot(Fi file, Sector sector, long timestamp, Sector origin) {
             this.file = file;
             this.sector = sector;
             this.timestamp = timestamp;
+            this.origin = origin;
         }
     }
 
@@ -247,6 +318,43 @@ public final class UpstreamSinglePlayerSession {
         var slots = new ArrayList<SectorSlot>(result.size);
         for (SectorSlot slot : result) slots.add(slot);
         return slots;
+    }
+
+    List<SectorSlot> campaignSlots(List<SectorSlot> saves) {
+        return campaignSlots(saves, null);
+    }
+
+    List<SectorSlot> campaignSlots(List<SectorSlot> saves, Sector selectedOrigin) {
+        var slots = new ArrayList<>(saves);
+        for (var planet : new Planet[]{Planets.serpulo, Planets.erekir}) {
+            addLaunchSlot(slots, planet.getStartSector(), selectedOrigin);
+        }
+        for (var planet : new Planet[]{Planets.serpulo, Planets.erekir}) {
+            for (var sector : planet.sectors) {
+                if (sector != planet.getStartSector()) addLaunchSlot(slots, sector, selectedOrigin);
+            }
+        }
+        return slots;
+    }
+
+    private void addLaunchSlot(List<SectorSlot> slots, Sector sector, Sector selectedOrigin) {
+        if (sector.save != null || sector.isShielded()) return;
+        // Normal campaign view eligibility from v160.8 PlanetDialog, followed by its launch-candidate check.
+        boolean starter = sector == sector.planet.getStartSector();
+        var generator = sector.planet.generator;
+        if (generator == null) return;
+        var preset = sector.preset;
+        if (preset != null && (preset.generator.map == null
+                || preset.requireUnlock && preset.locked() && preset.techNode != null)) return;
+        if (!starter && (preset == null || !preset.requireUnlock) && !generator.allowLanding(sector)) return;
+        Sector adjacentOrigin = selectedOrigin != null && selectedOrigin.planet == sector.planet ? selectedOrigin : null;
+        Sector origin = generator.findLaunchCandidate(sector, adjacentOrigin);
+        if (origin == null && adjacentOrigin != null && adjacentOrigin.hasBase() && !adjacentOrigin.isAttacked()) {
+            origin = adjacentOrigin;
+        }
+        if (origin == null && !starter) return;
+        var file = sectorFile(sector);
+        if (!file.exists()) slots.add(new SectorSlot(file, sector, -1, origin == null ? sector : origin));
     }
 
     static int lastSectorRow(List<SectorSlot> slots) {
@@ -284,8 +392,33 @@ public final class UpstreamSinglePlayerSession {
             if (sector == null) sector = sectorFor(file);
             var preset = Vars.content.sector(meta.tags.get("sectorPreset", ""));
             if (preset != null && preset.requireUnlock) sector = preset.sector;
-            if (sector != null && found.add(sector)) result.add(new SectorSlot(file, sector, meta.timestamp));
+            if (sector != null && found.add(sector)) {
+                bindSectorSave(sector, file, meta);
+                result.add(new SectorSlot(file, sector, meta.timestamp));
+            }
         }
+    }
+
+    private Saves campaignSaves() {
+        if (campaignSaves == null) {
+            if (Core.assets == null) Core.assets = new AssetManager(Fi::new, false);
+            campaignSaves = new Saves();
+        }
+        return campaignSaves;
+    }
+
+    Fi sectorFile(Sector sector) {
+        return campaignSaves().getSectorFile(sector);
+    }
+
+    private void bindSectorSave(Sector sector, Fi file, SaveMeta meta) {
+        if (sector.save == null || !sector.save.file.equals(file)) {
+            var saves = campaignSaves();
+            if (sector.save != null) saves.getSaveSlots().remove(sector.save);
+            sector.save = saves.new SaveSlot(file);
+            saves.getSaveSlots().add(sector.save);
+        }
+        sector.save.meta = meta;
     }
 
     /** Fallback for saves without a decoded sector: match planet and id from sector-&lt;planet&gt;-&lt;id&gt;.msav. */
@@ -396,6 +529,7 @@ public final class UpstreamSinglePlayerSession {
             }
         }
         if (Vars.state.rules.sector != null) {
+            bindSectorSave(Vars.state.rules.sector, saveFile, SaveIO.getMeta(saveFile));
             String index = saveFile.nameWithoutExtension();
             String key = slotNameKey(saveFile);
             if (!Core.settings.has(key)) Core.settings.put(key, index);

@@ -84,6 +84,19 @@ def pack_custom_game_maps(archive: zipfile.ZipFile, maps_dir: Path) -> None:
         (builtin / filename).write_bytes(archive.read(f"assets/maps/default/{filename}"))
 
 
+def pack_campaign_maps(archive: zipfile.ZipFile, maps_dir: Path) -> None:
+    for member in archive.namelist():
+        match = re.fullmatch(r"assets/maps/(serpulo|erekir)/((?:hidden/)?[A-Za-z0-9_-]+\.msav)", member)
+        if match:
+            planet, filename = match.groups()
+            output = maps_dir / planet / filename
+            output.parent.mkdir(parents=True, exist_ok=True)
+            output.write_bytes(archive.read(member))
+    for starter in ("serpulo/groundZero.msav", "erekir/onset.msav"):
+        if not (maps_dir / starter).is_file():
+            raise ValueError(f"Missing original campaign starter map: {starter}")
+
+
 def pack_planet_data(archive: zipfile.ZipFile, output: Path) -> None:
     output.mkdir(parents=True, exist_ok=True)
     for member in archive.namelist():
@@ -164,7 +177,7 @@ def main() -> None:
     parser.add_argument("--tex3ds", default="tex3ds")
     parser.add_argument("--multiplayer", action="store_true", help="pack Glacier and upstream multiplayer unit sprites")
     parser.add_argument("--singleplayer", action="store_true",
-                        help="pack offline single-player Ground Zero map, sprites.aatls, and multiplayer assets")
+                        help="pack original offline campaign and Custom Game maps, sprites.aatls, and multiplayer assets")
     parser.add_argument("--live-audio", action="store_true", help="also pack pinned stock effects for the live mixer")
     parser.add_argument("--ffmpeg", default="ffmpeg")
     args = parser.parse_args()
@@ -216,6 +229,7 @@ def main() -> None:
                         raise ValueError("Missing groundZero.msav or sprites.aatls in official archive")
                     (maps_dir / "groundZero.msav").write_bytes(gz_bytes)
                     pack_custom_game_maps(archive, maps_dir)
+                    pack_campaign_maps(archive, maps_dir)
                     (staged / "sprites.aatls").write_bytes(aatls_bytes)
             if not (bundles / "bundle.properties").is_file():
                 raise ValueError("The official archive is missing its root translation bundle")
