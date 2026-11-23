@@ -64,6 +64,8 @@ import mindustry.graphics.Pal;
 import mindustry.logic.LMarkerControl;
 import mindustry.type.Category;
 import mindustry.world.Block;
+import mindustry.world.blocks.ConstructBlock;
+import mindustry.world.blocks.ConstructBlock.ConstructBuild;
 import mindustry.world.blocks.defense.OverdriveProjector.OverdriveBuild;
 import mindustry.world.blocks.defense.ShockwaveTower.ShockwaveTowerBuild;
 import mindustry.world.blocks.defense.turrets.BaseTurret;
@@ -102,6 +104,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
                              float rotation, float progress, float alpha, float phase) {}
     private final List<UnitBuild> unitBuilds = new ArrayList<>();
     private final List<UnitBuild> blockBuilds = new ArrayList<>();
+    private int lastBlockBuildVertexColor;
     private final List<UpstreamCanvasTexture> canvasDraws = new ArrayList<>();
     private int texturedQuads;
     private UpstreamCanvasTexture canvasQuadTexture;
@@ -155,6 +158,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         target.verifyFactory(viewport);
         target.verifyReconstructor(viewport);
         target.verifyAssemblers(viewport);
+        target.verifyBlockConstruction(viewport);
 
         // The visible two-tile wall starts one tile west of the viewport.
         viewport.moveTo(24, 30);
@@ -495,7 +499,72 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
     public void drawBlockBuild(int page, int left, int top, int width, int height,
                                float x, float y, float drawWidth, float drawHeight, float rotation,
                                float progress, float alpha, float time, int vertexColor) {
+        lastBlockBuildVertexColor = vertexColor;
         blockBuilds.add(new UnitBuild(page, left, top, width, height, x, y, rotation, progress, alpha, time));
+    }
+
+    private void verifyBlockConstruction(UpstreamTerrainDrawProbe.Viewport viewport) {
+        viewport.moveTo(24, 30);
+        var viewer = Team.sharded;
+        var tile = Vars.world.tile(30, 35);
+        var layers = new UpstreamBuildingLayers();
+        try {
+            for (var block : new Block[] {Blocks.titaniumConveyor, Blocks.groundFactory}) {
+                var placeholder = ConstructBlock.get(block.size);
+                tile.setBlock(placeholder, viewer, 1);
+                var original = (ConstructBuild) tile.build;
+                original.current = block;
+                original.previous = block == Blocks.titaniumConveyor ? Blocks.conveyor : Blocks.air;
+                original.progress = 0.42f;
+                var bytes = new ByteArrayOutputStream();
+                original.write(new Writes(new DataOutputStream(bytes)));
+
+                tile.setBlock(Blocks.air);
+                tile.setBlock(placeholder, viewer, 1);
+                var restored = (ConstructBuild) tile.build;
+                restored.read(new Reads(new DataInputStream(new ByteArrayInputStream(bytes.toByteArray()))),
+                    original.version());
+                blockBuilds.clear();
+                sprites.clear();
+                layers.render(viewport, viewer, build -> build == restored);
+                var parts = block.getGeneratedIcons();
+                if (blockBuilds.size() != parts.length || restored.progress != 0.42f) {
+                    throw new AssertionError("Stock construction save lost the original progress layers");
+                }
+                boolean rotateAll = block.regionRotated1 == -1 && block.regionRotated2 == -1;
+                for (int i = 0; i < parts.length; i++) {
+                    var icon = parts[i];
+                    var drawn = blockBuilds.get(i);
+                    float angle = block.rotate && (rotateAll || i == block.regionRotated1 || i == block.regionRotated2)
+                        ? 90f + block.visualRotationOffset : 0f;
+                    if (drawn.page() != UpstreamTerrainDrawProbe.pageIndex(icon) || drawn.left() != icon.getX()
+                            || drawn.top() != icon.getY() || drawn.rotation() != angle
+                            || drawn.progress() != restored.progress || drawn.alpha() != 1f) {
+                        throw new AssertionError("Stock region or rotation changed in " + block.name);
+                    }
+                }
+                if (restored.previous != Blocks.air && sprites.stream().noneMatch(sprite ->
+                        sprite.page() == UpstreamTerrainDrawProbe.pageIndex(restored.previous.fullIcon)
+                            && sprite.left() == restored.previous.fullIcon.getX()
+                            && sprite.top() == restored.previous.fullIcon.getY())) {
+                    throw new AssertionError("The stock previous block should remain visible during replacement");
+                }
+
+                int buildingColor = lastBlockBuildVertexColor;
+                restored.constructColor = 1f;
+                blockBuilds.clear();
+                layers.render(viewport, viewer, build -> build == restored);
+                int removingColor = lastBlockBuildVertexColor;
+                if (buildingColor == removingColor || restored.progress != 0.42f) {
+                    throw new AssertionError("Dismantling should change only the stock outline tint");
+                }
+            }
+            System.out.println("UPSTREAM_CONSTRUCT_BLOCK_GRAPHICS stock=2 previous=ok rotation=ok dismantle=ok save=ok");
+        } finally {
+            tile.setBlock(Blocks.air);
+            blockBuilds.clear();
+            sprites.clear();
+        }
     }
 
     private static void verifyLiveFactoryClock(UnitFactory.UnitFactoryBuild factory) {

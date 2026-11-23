@@ -167,6 +167,7 @@ def logicDisplaySources = [
     'mindustry/world/blocks/logic/LogicDisplay.java',
     'mindustry/world/blocks/logic/TileableLogicDisplay.java'
 ]
+def constructBlockDrawSource = 'mindustry/world/blocks/ConstructBlock.java'
 def assemblerDrawSource = 'mindustry/world/blocks/units/UnitAssembler.java'
 def shieldModeSources = [
     'mindustry/graphics/Drawf.java': 'renderer',
@@ -256,7 +257,9 @@ if (usesArcSources || usesExecutor) {
                               'mindustry/logic/GlobalVars.class', 'mindustry/logic/GlobalVars$*.class',
                               'mindustry/core/ContentLoader.class'])
         stagedClasses.addAll(['mindustry/world/blocks/units/UnitAssembler.class',
-                              'mindustry/world/blocks/units/UnitAssembler$*.class'])
+                              'mindustry/world/blocks/units/UnitAssembler$*.class',
+                              'mindustry/world/blocks/ConstructBlock.class',
+                              'mindustry/world/blocks/ConstructBlock$*.class'])
         shieldModeSources.keySet().each { path ->
             stagedClasses.add(path.replace('.java', '.class'))
         }
@@ -554,7 +557,7 @@ tasks.register('prepareUpstreamProbe') {
         logicDisplaySources.each { outputs.file(sourceDir.map { dir -> dir.file(it) }) }
         outputs.file(sourceDir.map { it.file('mindustry/type/Weather.java') })
         outputs.file(sourceDir.map { it.file('mindustry/type/weather/ParticleWeather.java') })
-        outputs.file(sourceDir.map { dir -> dir.file(assemblerDrawSource) })
+        outputs.files(sourceDir.map { dir -> [dir.file(assemblerDrawSource), dir.file(constructBlockDrawSource)] })
         shieldModeSources.keySet().each { outputs.file(sourceDir.map { dir -> dir.file(it) }) }
     }
     if (usesCampaignJsonCompat) {
@@ -810,6 +813,23 @@ import port.audio.Arm11Audio;''')
                     return;
                 }
 ''' + blockBuildUniforms), 'UTF-8')
+            def construct = new String(readUpstream("core/src/${constructBlockDrawSource}"), 'UTF-8')
+            def uniforms = '                    Shaders.blockbuild.region = region;'
+            def drawRegion = '''                    Draw.rect(region, x, y, current.rotate && (noOverrides || current.regionRotated2 == i || current.regionRotated1 == i) ? rotdeg() + current.visualRotationOffset : 0);'''
+            if (construct.count(uniforms) != 1 || construct.count(drawRegion) != 1) {
+                throw new GradleException('Pinned ConstructBlock outline changed')
+            }
+            def constructOutput = sourceDir.get().file(constructBlockDrawSource).asFile
+            constructOutput.parentFile.mkdirs()
+            constructOutput.setText(construct.replace(drawRegion, '                    Draw.rect(region, x, y, angle);')
+                .replace(uniforms, '''                    float angle = current.rotate && (noOverrides || current.regionRotated2 == i || current.regionRotated1 == i)
+                        ? rotdeg() + current.visualRotationOffset : 0;
+                    if(Core.batch instanceof port.render.UpstreamUnitBuildTarget platform){
+                        platform.drawBlockBuild(region, x, y, angle, progress, 1f, Time.time);
+                        i++;
+                        continue;
+                    }
+''' + uniforms), 'UTF-8')
             shieldModeSources.each { path, renderer ->
                 def source = new String(readUpstream("core/src/${path}"), 'UTF-8')
                 def animated = "if(${renderer}.animateShields){"
