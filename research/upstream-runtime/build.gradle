@@ -56,6 +56,7 @@ def entryPoints = [
     'singleplayer-sim': 'UpstreamSinglePlayerSession',
     'singleplayer': 'UpstreamSinglePlayerApp',
     'unified': 'UpstreamUnifiedApp',
+    'campaign-background': 'UpstreamBackgroundCampaignTurnReference',
     'terrain-draw': 'UpstreamTerrainDrawProbe',
     'terrain-render': 'UpstreamTerrainRenderProbe',
     'file-metadata': 'port.UpstreamFileMetadataProbe',
@@ -79,7 +80,7 @@ if (!entryPoints.containsKey(probe)) {
 }
 def entryPoint = entryPoints[probe]
 def usesMapSources = probe in ['map', 'map-sd']
-def usesSinglePlayerApp = probe in ['singleplayer', 'unified']
+def usesSinglePlayerApp = probe in ['singleplayer', 'unified', 'campaign-background']
 def usesSinglePlayer = usesSinglePlayerApp || probe == 'singleplayer-sim'
 def usesLiveNetwork = probe in ['network-live', 'network-render', 'unified']
 def usesLiveAudio = probe in ['network-render', 'unified']
@@ -369,6 +370,10 @@ if (usesSinglePlayer) {
         tasks.register('runGraphicalCampaignSettingsJvm', JavaExec) {
             classpath = sourceSets.main.runtimeClasspath
             mainClass = 'UpstreamGraphicalCampaignSettingsReference'
+        }
+        tasks.register('runBackgroundCampaignTurnJvm', JavaExec) {
+            classpath = sourceSets.main.runtimeClasspath
+            mainClass = 'UpstreamBackgroundCampaignTurnReference'
         }
         tasks.register('runGraphicalCampaignPresetMapsJvm', JavaExec) {
             classpath = sourceSets.main.runtimeClasspath
