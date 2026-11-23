@@ -1463,6 +1463,13 @@ reference, compile `UpstreamWorldLoadProbe.java`, `UpstreamSimulationWorld.java`
 and `UpstreamWaveRoutingProbe.java` against the unchanged server JAR, then
 run `UpstreamWaveRoutingProbe /path/to/glacier.msav`.
 
+The Linux host check compares `-O0` and `-O2` C traces against the pinned
+JVM. Before the optimized compile, `fix_wave_controller_local.py` marks
+the generated `TypeIO.readController` pointer local volatile around
+TeaVM's `setjmp` exception handling. GCC 13 otherwise can abort during SSA
+coalescing. Both levels matched all four waves on the pinned main and
+quad integration revisions in the [hosted comparison](https://github.com/levkeveli/Min3DStry/actions/runs/45119365097).
+
 A local `-O0` devkitARM build matched all four records in both Azahar
 `2126.2` profiles. The probe reported `appHeap=84,910,080` on New 3DS and
 `appHeap=55,549,952` on Original 3DS, with the same
