@@ -815,6 +815,15 @@ public final class UpstreamSinglePlayerApp {
                     var action = pauseMenu.activate();
                     if (action == UpstreamPauseMenu.Action.RESUME) {
                         closePauseMenu();
+                    } else if (action == UpstreamPauseMenu.Action.RESEARCH) {
+                        closePauseMenu();
+                        var researchSector = Vars.state.rules.sector;
+                        if (researchSector == null || researchSector.planet == null
+                                || researchSector.planet.techTree == null
+                                || !openResearch(researchSector.planet.techTree, saveFile)) return false;
+                        previousTime = System.nanoTime();
+                        accumulator = 0L;
+                        continue;
                     } else if (action == UpstreamPauseMenu.Action.SAVE) {
                         session.save(saveFile);
                         System.out.println("UPSTREAM_PAUSE_MENU save=true");
@@ -1169,10 +1178,12 @@ public final class UpstreamSinglePlayerApp {
     }
 
     private void openPauseMenu() {
-        pauseMenu.open();
+        var sector = Vars.state.rules.sector;
+        boolean research = sector != null && sector.planet != null && sector.planet.techTree != null;
+        pauseMenu.open(research ? 4 : 3);
         pauseOpen = true;
         if (!Vars.state.isPaused()) session.togglePause();
-        System.out.println("UPSTREAM_PAUSE_MENU open=true selected=0");
+        System.out.println("UPSTREAM_PAUSE_MENU open=true selected=0 options=" + pauseMenu.options());
     }
 
     private void closePauseMenu() {
@@ -1183,7 +1194,14 @@ public final class UpstreamSinglePlayerApp {
 
     private void drawPauseMenu() {
         drawPauseRow(Core.bundle.get("paused"), 116f, 40f, false);
-        String[] options = {Core.bundle.get("back"), Core.bundle.get("savegame"), Core.bundle.get("quit")};
+        String[] options;
+        if (pauseMenu.options() == 4) {
+            options = new String[]{Core.bundle.get("back"), Core.bundle.get("research"),
+                Core.bundle.get("savegame"), Core.bundle.get("quit")};
+        } else {
+            options = new String[]{Core.bundle.get("back"), Core.bundle.get("savegame"),
+                Core.bundle.get("quit")};
+        }
         float y = 86f;
         for (int i = 0; i < options.length; i++) {
             boolean selected = i == pauseMenu.selected();
