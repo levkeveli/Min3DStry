@@ -1127,6 +1127,25 @@ jobs:
           test -s research/upstream-runtime/build/probe-3ds-singleplayer/upstream-probe.3dsx
           test -s research/upstream-runtime/build/probe-3ds-singleplayer/upstream-probe.elf
 
+      - name: Import stock PC Custom Game rules and reopen the resulting save
+        shell: bash
+        run: |
+          set -o pipefail
+          rules_dir=$(mktemp -d "$RUNNER_TEMP/custom-game-rules.XXXXXX")
+          git -C "$RUNNER_TEMP/Mindustry" show HEAD:core/assets/maps/default/glacier.msav > "$rules_dir/glacier.msav"
+          git -C "$RUNNER_TEMP/Mindustry" show HEAD:core/assets/bundles/bundle.properties > "$rules_dir/bundle.properties"
+          python3 tools/verify_stock_custom_rules.py --server "$RUNNER_TEMP/server-release.jar" \
+            --map "$rules_dir/glacier.msav" --rules-dir "$rules_dir/imports"
+          bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime --no-daemon --console=plain \
+            "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" \
+            "-PreferenceJar=$RUNNER_TEMP/server-release.jar" \
+            "-ParcCheckout=$RUNNER_TEMP/Arc" -Pprobe=singleplayer runStockCustomRulesJvm \
+            "--args=$rules_dir/glacier.msav $rules_dir/imports $rules_dir/session.msav $rules_dir/bundle" \
+            | tee "$rules_dir/reference.log"
+          grep -F 'UPSTREAM_STOCK_CUSTOM_RULES_REFERENCE spawns=27 weather=0 wave=2' "$rules_dir/reference.log"
+          python3 tools/verify_stock_custom_rules.py --server "$RUNNER_TEMP/server-release.jar" \
+            --reopen "$rules_dir/session.msav"
+
       - name: Resume and save stock PC campaign slots on the JVM
         shell: bash
         run: |

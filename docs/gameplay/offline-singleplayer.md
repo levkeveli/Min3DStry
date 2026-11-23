@@ -467,6 +467,24 @@ passed this replay on both Azahar 2126.2 profiles. The stock Arc sort put
 the newer Caldera save first. The replay then saved Glacier and verified
 that both the Caldera and the campaign files stayed byte-identical.
 
+### Rules exports from stock Java
+
+Copy the rules from the v160.8 Custom Game customization dialog to a UTF-8
+file on the SD card. For Glacier in Sandbox, use
+`/3ds/min3dstry/rules/glacier.sandbox.json`. Name the file after the original
+map filename stem and the selected mode, using `survival`, `sandbox`,
+`attack`, or `pvp`. When starting that map and mode, the port reads the
+same JSON that the stock clipboard importer reads. The map keeps its wave
+groups, objectives, weather, and content from data patches. A saved session
+stores its effective rules through the stock save writer.
+
+The host replay uses stock Java to export the rules, then plays Glacier with
+an eight-tick first wave, 420-tick wave spacing, half build cost and a unit
+cap of 30. The original wave scheduler advances to wave 2. The same Java
+release reopens the resulting save and reads the imported rules. The replay
+also checks stock defaults and rejects invalid JSON before resetting the
+active game. The in-game rule editor remains a separate interface change.
+
 The JVM regression uses an assets directory staged with
 `prepare_terrain_assets.py --singleplayer`. Pass its `maps/default` directory,
 a fixture directory with one valid exported Ground Zero map, a new output file,
