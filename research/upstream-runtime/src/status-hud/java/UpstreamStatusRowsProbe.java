@@ -24,6 +24,7 @@ public final class UpstreamStatusRowsProbe {
         String path = args.length > 0 ? args[0] : "/3ds/min3dstry/bundles/bundle";
         I18NBundle bundle = I18NBundle.createBundle(new Fi(path), Locale.ROOT);
         Core.bundle = bundle;
+        mindustry.core.UI.loadColors();
         Vars.headless = true;
         Core.settings = new Settings();
         Core.settings.setAutosave(false);
@@ -99,6 +100,14 @@ public final class UpstreamStatusRowsProbe {
                 || coreItems.get(1).item() != Items.lead || coreItems.get(1).amount() != 7) {
             throw new IllegalStateException("Core item row collection mismatch");
         }
+        var formatEntry = new UpstreamCoreItems.Entry(Items.copper, 12345);
+        String formatted = formatEntry.formatted();
+        if (!"12k".equals(formatted)
+                || !"1.2k".equals(UpstreamCoreItems.formatAmount(1234))
+                || !"1.5mil".equals(UpstreamCoreItems.formatAmount(1_500_000))) {
+            throw new IllegalStateException("Core item amount formatting mismatch: " + formatted);
+        }
+        System.out.println("UPSTREAM_CORE_ITEM_FORMAT text=" + formatted + " cases=3 ok");
         System.out.println("UPSTREAM_CORE_ITEMS rows=2 ok");
 
         var pause = new UpstreamPauseMenu();

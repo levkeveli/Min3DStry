@@ -94,7 +94,8 @@ still does not prove per-tile color agreement; the captured terrain pattern
 should be inspected as well.
 
 The core item list uses the pinned `CoreItemsDisplay` filter (items with a
-positive core count, in content order). `UpstreamCoreItems` is covered by the
+positive core count, in content order) and the stock `UI.formatAmount`
+suffixes (`k`/`mil`/`b`). `UpstreamCoreItems` is covered by the
 status-hud host probe:
 
 ```text
