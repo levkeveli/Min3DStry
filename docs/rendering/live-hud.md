@@ -16,7 +16,8 @@ objective panel:
   rules are active, using the stock `HudFragment` timer formatting;
 - the pinned `sector.curcapture` row (`Sector Captured`) when wave rules are
 off and a campaign sector is active;
-- timed stock `sector.capture.current` and `wave.guardianwarn` notification rows;
+- timed stock `sector.capture.current`, `wave.guardianwarn` and `coreattack`
+  notification rows;
 - the local unit's stock `stat.health`/`stat.ammo` values;
 - the original copper item glyph and the local core's copper count;
 - the local core's non-zero item list as stock item icons with counts, wrapped
@@ -101,6 +102,7 @@ status-hud host probe:
 ```text
 UPSTREAM_CORE_ITEMS rows=2 ok
 UPSTREAM_PAUSE_MENU cases=6 ok
+UPSTREAM_CORE_ATTACK text="< Core is under attack! >" ok
 ```
 
 The Azahar verifier can seed a deterministic core inventory through
@@ -130,6 +132,8 @@ the next emulator batch and are **not verified** yet:
 - A on Save Game emits `UPSTREAM_PAUSE_MENU save=true`.
 - A on Quit, then A on the stock confirmation, exits with `quit=true`.
 - B or X cancels the menu, and the HUD/minimap remain readable behind it.
+- A damaged friendly core raises the stock `coreattack` row. This path is
+  wired to `Trigger.teamCoreDamage` but is **not verified** graphically yet.
 
 The live fixture exercises the countdown/waiting path with `enemies=0`. The
 singular/plural enemy rows, the `wave.waveInProgress` branch, and the `m:ss`

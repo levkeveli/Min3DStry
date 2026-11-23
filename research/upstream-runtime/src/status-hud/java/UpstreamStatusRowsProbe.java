@@ -140,6 +140,15 @@ public final class UpstreamStatusRowsProbe {
         System.out.println("UPSTREAM_STATUS_ROWS cases=10 ok");
         System.out.println("UPSTREAM_GUARDIAN_WARNING cases=2 ok");
         System.out.println("UPSTREAM_UNIT_ROWS cases=3 ok");
+        String coreAttack = Core.bundle.get("coreattack");
+        if (!"< Core is under attack! >".equals(coreAttack)) {
+            throw new IllegalStateException("coreattack bundle text mismatch: " + coreAttack);
+        }
+        UpstreamNotification.show(coreAttack, 4f);
+        if (!coreAttack.equals(UpstreamNotification.current())) {
+            throw new IllegalStateException("coreattack notification was not retained");
+        }
+        System.out.println("UPSTREAM_CORE_ATTACK text=\"" + coreAttack + "\" ok");
         System.out.println("UPSTREAM_NOTIFICATION cases=2 ok");
     }
 

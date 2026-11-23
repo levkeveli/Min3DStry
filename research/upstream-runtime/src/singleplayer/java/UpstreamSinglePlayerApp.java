@@ -29,6 +29,7 @@ import mindustry.core.UI;
 import mindustry.core.World;
 import mindustry.entities.bullet.BulletType;
 import mindustry.game.EventType.BlockBuildEndEvent;
+import mindustry.game.EventType.Trigger;
 import mindustry.game.EventType.WaveEvent;
 import mindustry.game.Gamemode;
 import mindustry.graphics.Layer;
@@ -162,6 +163,8 @@ public final class UpstreamSinglePlayerApp {
             String warning = UpstreamGuardianWarning.find(Vars.state.rules, Vars.state.wave);
             if (warning != null) UpstreamNotification.show(warning, 5f);
         });
+        Events.run(Trigger.teamCoreDamage, () ->
+            UpstreamNotification.show(Core.bundle.get("coreattack"), 4f));
         try {
             if (editorRequested) {
                 var source = args.length >= 2 ? new Fi(args[1]) : mapDir.child("editor-map.msav");
