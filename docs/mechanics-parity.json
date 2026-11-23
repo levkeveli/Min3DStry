@@ -412,25 +412,34 @@
       "domain": "Logic & Processors",
       "name": "Mindustry Logic VM (LogicOp / LExecutor) Parity",
       "weight": 3,
-      "status": "probe-arm11",
-      "modes": ["probe"],
-      "issue": 30,
+      "status": "live-arm11",
+      "modes": ["offline", "multiplayer", "probe"],
+      "issue": 225,
       "evidence": [
         "research/upstream-runtime/src/main/java/mindustry/logic/UpstreamLogicProbe.java",
-        "research/upstream-runtime/README.md"
+        "research/upstream-runtime/src/network-render/java/port/logic/UpstreamClientLogic.java",
+        "tools/verify_stock_offline_logic.py",
+        "tools/verify_upstream_live_net.py",
+        "docs/gameplay/offline-singleplayer.md"
       ],
-      "notes": "Upstream LogicOp/LExecutor instruction parity verified on ARM11 in standalone logic probe; not yet enabled in live interactive runtime."
+      "notes": "The pinned upstream LogicOp/LExecutor implementation now runs inside the live offline and multiplayer ARM11 clients. Saved processor programs, three links, original logic IDs and client-only Canvas writes were verified in Azahar on both profiles and through Java-server save readback. Exhaustive instruction coverage and the handheld logic editor remain open."
     },
     {
       "id": "logic-processors-displays",
       "domain": "Logic & Processors",
       "name": "In-World Processors, Logic Displays & Editor UI",
       "weight": 3,
-      "status": "missing",
-      "modes": [],
-      "issue": 40,
-      "evidence": [],
-      "notes": "Live processor building execution, logic display rendering, world-processor markers/messages, and bottom-screen logic editor UI are not yet merged on main."
+      "status": "partial-arm11",
+      "modes": ["offline", "multiplayer"],
+      "issue": 405,
+      "evidence": [
+        "docs/gameplay/offline-singleplayer.md",
+        "tools/verify_stock_offline_logic.py",
+        "tools/verify_upstream_live_net.py",
+        "research/upstream-runtime/src/network-render/java/port/logic/UpstreamClientLogic.java",
+        "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerApp.java"
+      ],
+      "notes": "Offline and live ARM11 clients execute stock processors and draw Canvas, normal, large and tiled Logic Displays plus display-backed markers with the original logic font. Both Azahar profiles passed the offline replay and the live client-local write check; the unmodified v160.8 server reopened the saves. Bottom-screen logic editor UI and full world-processor messages remain open."
     },
     {
       "id": "campaign-backend-saves",

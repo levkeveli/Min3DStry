@@ -37,6 +37,32 @@ Both `new3ds` and `old3ds` modes passed:
 - `voice=0` is expected in Azahar because DSP firmware is unavailable; it means
   no mixer voice was started, not that the event failed to resolve a clip.
 
+## Official GitHub-hosted full-build artifact
+
+The hosted `3DS full build` on `main` at
+`8ece435bc9ac4dadee293a31f2c3ba7ca5685522`
+([run 45261030312](https://github.com/levkeveli/Min3DStry/actions/runs/45261030312))
+produced the official audio-enabled artifact:
+
+```text
+artifact_bytes=17207256
+sha256=82334a9f3f40b2bc94731958c29ea6cea36eff95a9fc5e5a6586ab992432a1cd
+main_stack: bytes=2400 limit=4096
+audio_romfs: OK entries=9 bytes=647008
+```
+
+`tools/verify_azahar.py --models new3ds,old3ds` ran against that exact file:
+
+```text
+[PASS] new3ds: New 3DS XL | Parity=0x53a483c7 | Audio=fallback_no_dsp | FPS=60.58 | Sectors=1
+[PASS] old3ds: Original 3DS XL | Parity=0x53a483c7 | Audio=fallback_no_dsp | FPS=56.59 | Sectors=1
+```
+
+Both profiles reported `audio_romfs status=ok clips=9 bytes=647008`, the
+`wave.spawn` event resolving to clip `8`, and `Sectors=1`. This verifies the
+published CI package, audio RomFS, event routing, and loader stack budget. It
+does not verify audible DSP output.
+
 ## Interpretation
 
 - The nine packed clips load from RomFS.

@@ -108,8 +108,15 @@ endif
 
 .PHONY: all clean audio-romfs romfs-audio-clean force-config
 
+# CI builds the .3dsx target directly to avoid rerunning the ffmpeg-dependent
+# audio target inside the devkitARM container. The stock 3ds_rules %.elf rule
+# has no prerequisites, so make must be told to compile the objects first.
+$(OUTPUT).elf: $(OFILES)
+
 ifneq ($(strip $(UPSTREAM_MINDUSTRY)),)
+ifneq ($(NO_AUDIO_ROMFS),1)
 all: audio-romfs
+endif
 else
 all: romfs-audio-clean
 endif

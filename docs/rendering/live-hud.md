@@ -35,8 +35,10 @@ off and a campaign sector is active;
   surrounds the map, refreshed every 60 frames.
 
 The status rows use the v160.8 font and inline item glyph pipeline shared with
-the objective HUD. They are rebuilt only when the rendered status text changes,
-then submitted through `drawObjective` before the objective rows.
+the objective HUD. Static rows share one stock-style dark panel and are drawn
+without per-row backgrounds; a temporary notification keeps its own panel.
+Rows are rebuilt only when the rendered status text changes, then submitted
+through `drawObjectivePlain`/`drawObjective` before the objective rows.
 
 The minimap is a native citro2d texture. TeaVM samples the live world into an
 RGBA8 grid using the stock minimap color path. The ARM11 renderer reverses the
@@ -127,7 +129,11 @@ The Original 3DS profile passed the same path with three seeded items
 (`items=3 drawn=3 columns=1`). The fixture is removed after the run.
 
 The pause overlay's selection, wrap, save, quit-confirmation and cancel
-transitions are host-covered. The following graphical checks are queued for
+transitions are host-covered. Offline worlds with the stock `pauseDisabled`
+rule keep simulating while the menu is open. The overlay uses the localized
+Menu title in that case. The Ground Zero host probe checks both the normal
+pause and resume behavior and continued simulation with this rule enabled.
+The following graphical checks are queued for
 the next emulator batch and are **not verified** yet:
 
 - Tap X: `UPSTREAM_PAUSE_MENU open=true`, simulation freezes.

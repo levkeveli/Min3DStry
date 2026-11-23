@@ -39,6 +39,11 @@ int32_t m3ds_terrain_build_overlay(int32_t column, int32_t row, int32_t block, i
                                   int32_t configuring, int32_t selecting_mine, int32_t inventory_action,
                                   int32_t command_mode, int32_t selecting_control, int32_t placing_schematic);
 float m3ds_terrain_draw_chat_line(const char *label, const int32_t *characters, int32_t count, float bottom);
+float m3ds_terrain_draw_objective_plain(const char *label, const int32_t *characters, int32_t count,
+                                        int32_t page, int32_t left, int32_t top,
+                                        int32_t width, int32_t height, float y,
+                                        int32_t *stock_font);
+int32_t m3ds_terrain_draw_hud_panel(float x, float y, float width, float height, int32_t color);
 float m3ds_terrain_draw_objective_at(const char *label, const int32_t *characters, int32_t count,
                                      int32_t page, int32_t left, int32_t top,
                                      int32_t width, int32_t height, float x, float y,
