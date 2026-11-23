@@ -74,8 +74,8 @@ final class UpstreamSchematicPlacement {
     }
 
     private void select(Fi file) {
-        try (var input = file.read(1024)) {
-            selected = Schematics.read(input);
+        try {
+            selected = readSchematic(file);
         } catch (IOException | RuntimeException error) {
             refreshLabels(file.name());
             return;
@@ -107,12 +107,26 @@ final class UpstreamSchematicPlacement {
             int index = page * UpstreamBuildMenu.ROWS + row;
             if (index < files.length) {
                 var file = files[index];
-                text.append(file.nameWithoutExtension().replace('\n', ' ').replace('\r', ' '));
+                text.append(displayName(file).replace('\n', ' ').replace('\r', ' ').replace('\0', ' '));
                 if (file.name().equals(invalidFile)) text.append(" (invalid .msch)");
             }
             text.append('\0');
         }
         labels = text.toString().getBytes(StandardCharsets.UTF_8);
+    }
+
+    private static Schematic readSchematic(Fi file) throws IOException {
+        try (var input = file.read(1024)) {
+            return Schematics.read(input);
+        }
+    }
+
+    private static String displayName(Fi file) {
+        try {
+            return readSchematic(file).tags.get("name", file.nameWithoutExtension());
+        } catch (IOException | RuntimeException ignored) {
+            return file.nameWithoutExtension();
+        }
     }
 
     void position(Unit unit, int x, int y) {
@@ -205,6 +219,7 @@ final class UpstreamSchematicPlacement {
         } while (destination.exists());
 
         schematic.tags.put("name", destination.nameWithoutExtension());
+        schematic.tags.put("description", "");
         File temporary = File.createTempFile("schematic-", ".tmp", directory.file());
         try {
             Schematics.write(schematic, new Fi(temporary));

@@ -642,11 +642,19 @@ public final class UpstreamBuildControlsReference {
             var first = schematic.tiles.find(tile -> tile.y == 0);
             var middle = schematic.tiles.find(tile -> tile.y == 1);
             var last = schematic.tiles.find(tile -> tile.y == 2);
-            if (!schematic.name().equals("Schematic-2") || schematic.width != 1 || schematic.height != 3
+            if (!schematic.name().equals("Schematic-2") || !"".equals(schematic.tags.get("description"))
+                    || schematic.width != 1 || schematic.height != 3
                     || schematic.tiles.size != 3 || first == null || middle == null || last == null
                     || first.block != Blocks.itemBridge || middle.block != Blocks.sorter || last.block != Blocks.itemBridge
                     || middle.config != Items.lead || !(first.config instanceof Point2 link) || link.x != 0 || link.y != 2) {
                 throw new AssertionError("Upstream reader did not recover captured footprint and configuration");
+            }
+            schematic.tags.put("name", "Bridge layout");
+            Schematics.write(schematic, new Fi(exported.toString()));
+            controls.schematics().open();
+            var rows = new String(controls.schematics().labels(), java.nio.charset.StandardCharsets.UTF_8);
+            if (!rows.contains("\0Bridge layout\0") || !rows.contains("\0Schematic-1\0")) {
+                throw new AssertionError("Picker did not show the stock name and legacy filename fallback");
             }
             Vars.fogControl = new FogControl();
             Vars.state.rules.fog = Vars.state.rules.staticFog = true;
