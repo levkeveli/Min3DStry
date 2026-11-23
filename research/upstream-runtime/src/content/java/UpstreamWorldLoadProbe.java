@@ -13,6 +13,7 @@ import mindustry.core.ContentLoader;
 import mindustry.core.GameState;
 import mindustry.core.Logic;
 import mindustry.core.World;
+import mindustry.entities.EntityCollisions;
 import mindustry.game.MapObjectives.PointMarker;
 import mindustry.gen.Groups;
 import mindustry.io.MapIO;
@@ -63,6 +64,7 @@ public final class UpstreamWorldLoadProbe {
         Vars.emptyTile = new Tile(Short.MAX_VALUE - 20, Short.MAX_VALUE - 20);
         Groups.init();
         Vars.world = new World();
+        Vars.collisions = new EntityCollisions();
         Vars.net = new Net(null);
         Vars.logic = new Logic();
 
