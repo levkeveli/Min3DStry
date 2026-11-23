@@ -464,6 +464,28 @@ and waits for the server to assign a unit. The Circle Pad and D-pad move
 the unit, releasing the input lets it decelerate, and START disconnects.
 The top screen shows the session log.
 
+### Stock sound effects and soundtrack
+
+Add `--live-audio --desktop /path/to/Mindustry.jar` to the original atlas
+stager with `--singleplayer` for a combined build or `--multiplayer` for
+a standalone live renderer. The stager verifies the pinned desktop JAR,
+keeps all 205 original effects and 16 original music files, and indexes
+22.05 kHz PCM effects by their stock IDs. The 194 short effects use a
+bounded cache of 16 clips and 640 KiB. The 11 long effects use four
+double-buffered streams. The original Vorbis soundtrack uses its own
+NDSP channel and the pinned SoundControl rules.
+
+The graphical live path uses Arc's gain, pan, pitch and position,
+including original server sound and soundtrack rule packets. Its
+building ambience sampler runs at the original 20 Hz interval. World
+loads reset the voice and track state. In the combined binary, the live
+mixer starts in the Join path.
+
+Run `python3 tools/verify_live_stock_audio.py /path/to/terrain-assets`
+to exercise the PCM cache and stream decoder controls with the host
+mixer mock. The JVM reference verifies the original registry, music
+rules, and ambience. Audible NDSP playback is a physical console test.
+
 Run the same verifier with `--controls --model old3ds` and then
 `--controls --model new3ds`. Follow its prompts to move right with the
 D-pad, move up with the Circle Pad, and leave after the next wave.
