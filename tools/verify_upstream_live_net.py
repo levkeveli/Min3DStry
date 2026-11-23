@@ -1492,7 +1492,8 @@ end
 
 
 def verify_display_markers(server_log, server, rpc, output, model, timeout):
-    points = ((105, 35), (105, 65), (275, 35), (275, 65))
+    # Sample both markers below the stock status HUD.
+    points = ((105, 155), (105, 185), (275, 155), (275, 185))
 
     def capture(phase, colors=None):
         return capture_marker_pixels(rpc, output, model, f"display-markers-{phase}",
@@ -1501,9 +1502,9 @@ def verify_display_markers(server_log, server, rpc, output, model, timeout):
     baseline = capture("baseline")
     send_marker_phase(server_log, server, "display-markers-created",
         "const source=Vars.world.build(45,27); "
-        "const t=new MapObjectives.TextureMarker(source,608,232,24,24); "
+        "const t=new MapObjectives.TextureMarker(source,608,184,24,24); "
         "const q=new MapObjectives.QuadMarker(); q.texture.value=source; const v=q.vertices; "
-        "const points=[[664,220,0,0],[664,244,0,1],[688,244,1,1],[688,220,1,0]]; "
+        "const points=[[664,172,0,0],[664,196,0,1],[688,196,1,1],[688,172,1,0]]; "
         "for(let i=0;i<4;i++){v[i*6]=points[i][0]; v[i*6+1]=points[i][1]; "
         "v[i*6+3]=points[i][2]; v[i*6+4]=points[i][3];} "
         "Call.createMarker(755,t); Call.createMarker(756,q);")
