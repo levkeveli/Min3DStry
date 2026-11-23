@@ -59,8 +59,12 @@ permissions:
 jobs:
   build:
     name: Build default 3DS app
-    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.head.repo.fork)) && '["self-hosted", "linux", "x64", "min3dstry"]' || '"ubuntu-latest"') }}
-    timeout-minutes: 20
+    # The project self-hosted min3dstry runner is currently offline. Use the
+    # GitHub-hosted Ubuntu runner as a temporary fallback so full builds and
+    # artifacts are not blocked; restore the self-hosted expression when it is
+    # back online.
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
