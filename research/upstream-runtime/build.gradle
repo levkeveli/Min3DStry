@@ -828,7 +828,8 @@ final class UpstreamItemChoices {
                 if (globalVars.count(stockIds) != 1) {
                     throw new GradleException('Pinned GlobalVars logic ID lookup changed')
                 }
-                globalVars = globalVars.replace(stockIds, 'port.logic.UpstreamClientLogic.logicIds()')
+                globalVars = globalVars.replace('import arc.*;', 'import port.logic.UpstreamClientLogic;\n\nimport arc.*;')
+                    .replace(stockIds, 'UpstreamClientLogic.logicIds()')
             }
             def adaptedGlobalVars = globalVarsFile.get().asFile
             adaptedGlobalVars.parentFile.mkdirs()
