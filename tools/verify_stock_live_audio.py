@@ -39,9 +39,17 @@ AUDIO_PACKETS = (
     'return "UPSTREAM_AUDIO_PACKETS " + [Sounds.uiButton,Sounds.waveSpawn,Sounds.wind2]'
     '.map(s=>Sounds.getSoundId(s)).join(","); })()'
 )
+WEATHER_PACKETS = (
+    '(() => { const names=["rain","snowing","sandstorm"]; '
+    'for (let i=0;i<names.length;i++) { const name=names[i]; '
+    'const weather=Vars.content.weather(name); '
+    'if (weather==null || String(weather.name)!==name) throw "Missing stock weather "+name; '
+    'Call.createWeather(weather, 1, 600, 0, 0); '
+    '} return "UPSTREAM_STOCK_WEATHER_SENT "+names.join(","); })()'
+)
 
 
-def verify_log(path, model):
+def verify_log(path, model, weather=False):
     text = path.read_text(encoding="utf-8", errors="replace")
 
     def require(pattern):
@@ -68,6 +76,22 @@ def verify_log(path, model):
     resident = int(require(r"UPSTREAM_LIVE_AUDIO_CACHE .*pcmBytes=([1-9]\d*)")[1])
     if resident > 640 * 1024 or "UPSTREAM_LIVE_MUSIC_ERROR" in text:
         raise AssertionError(f"{model}: audio cache or decoder state was invalid")
+    if weather:
+        if "Error reading entity snapshot" in text:
+            raise AssertionError(f"{model}: weather interrupted stock entity synchronization")
+        for name, sound_id, frames, max_gain in (
+            ("rain", 105, 195235, 0.25),
+            ("sandstorm", 199, None, 0.8),
+            ("snowing", 202, 602477, 1.0),
+        ):
+            require(rf"UPSTREAM_LIVE_WEATHER name={name}\b")
+            route = "STREAM_PLAY" if frames is not None else "AUDIO_PLAY"
+            buffer = f"frames={frames}" if frames is not None else r"pcmBytes=\d+"
+            played = require(rf"UPSTREAM_LIVE_{route} id={sound_id} volume=([0-9.]+) pitch=1\.000 "
+                             rf"pan=0\.000 voice=(\d+) {buffer} loop=1\b")
+            if not 0.01 <= float(played[1]) <= max_gain or (int(played[2]) > 0) != (dsp == "ready"):
+                raise AssertionError(f"{model}: invalid {name} loop routing")
+            print(f"{model}: stock {name}. {played[0]}", flush=True)
     print(f"UPSTREAM_STOCK_LIVE_AUDIO model={model} effects=ok stream=ok ambience=ok music={mode}", flush=True)
 
 
@@ -81,12 +105,15 @@ def verify_model(args, model, fixture):
 
     def verify_input(log, proc, rpc, output):
         stock_command(*stock, "js " + AUDIO_PACKETS, r"UPSTREAM_AUDIO_PACKETS 185,198,200\b")
+        if args.weather:
+            stock_command(*stock, "js " + WEATHER_PACKETS,
+                          r"UPSTREAM_STOCK_WEATHER_SENT rain,snowing,sandstorm\b")
         verify_controls(log, proc, rpc, output)
 
     stock = None
     replay(args, model, fixture, True, taps={}, buttons=BUTTONS, button_durations=DURATIONS, circle=CIRCLE,
            prepare_server=prepare, verify_input=verify_input, read_stock=read_stock_weapons)
-    verify_log(args.output / model / "live/azahar.log", model)
+    verify_log(args.output / model / "live/azahar.log", model, args.weather)
 
 
 def main():
@@ -98,6 +125,7 @@ def main():
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--model", choices=("old3ds", "new3ds"), action="append")
     parser.add_argument("--port", type=int, default=16674)
+    parser.add_argument("--weather", action="store_true", help="Check original rain, snow and sandstorm loops")
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
     fixture = create_fixture(args, args.output / "stock-fixture")
