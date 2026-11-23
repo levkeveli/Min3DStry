@@ -4,6 +4,8 @@ import arc.net.DcReason;
 import arc.net.NetListener;
 import arc.struct.Seq;
 import arc.util.serialization.Base64Coder;
+import arc.files.Fi;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -13,6 +15,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import mindustry.Vars;
 import mindustry.core.Version;
 import mindustry.gen.ConnectConfirmCallPacket;
+import mindustry.gen.RequestAssetsCallPacket;
+import mindustry.gen.RequestWorldCallPacket;
 import mindustry.gen.WorldDataBeginCallPacket;
 import mindustry.net.ArcNetProvider;
 import mindustry.net.Net;
@@ -21,6 +25,7 @@ import mindustry.net.Packets;
 /** Captures the original stream bytes before and after rotation on one Arc connection. */
 public final class UpstreamStockRotationCapture implements NetListener {
     private final Path directory;
+    private final UpstreamServerAssets assets;
     private final CountDownLatch done = new CountDownLatch(1);
     private final AtomicReference<Throwable> error = new AtomicReference<>();
     private Packets.StreamBegin begin;
@@ -28,8 +33,9 @@ public final class UpstreamStockRotationCapture implements NetListener {
     private int worlds;
     private boolean rotating;
 
-    private UpstreamStockRotationCapture(Path directory) {
+    private UpstreamStockRotationCapture(Path directory, UpstreamServerAssets assets) {
         this.directory = directory;
+        this.assets = assets;
     }
 
     @Override
@@ -53,7 +59,10 @@ public final class UpstreamStockRotationCapture implements NetListener {
             if (packet instanceof WorldDataBeginCallPacket && worlds == 1) {
                 rotating = true;
             } else if (packet instanceof Packets.StreamBegin header) {
-                if ((header.type & 0xff) != Net.packetIdWorldStream || header.total <= 0
+                int type = header.type & 0xff;
+                boolean assetStream = assets != null && (type == Net.packetIdAssetStream
+                    || type == (Net.getPacketId(new Packets.AssetRequirementStream()) & 0xff));
+                if ((!assetStream && type != Net.packetIdWorldStream) || header.total <= 0
                         || worlds > 1 || (worlds == 1 && !rotating)) {
                     throw new IllegalStateException("Unexpected stock map rotation stream");
                 }
@@ -65,17 +74,33 @@ public final class UpstreamStockRotationCapture implements NetListener {
                 }
                 file.write(chunk.data);
                 if (file.size() == begin.total) {
-                    worlds++;
-                    Files.write(directory.resolve("world-" + worlds + ".bin"), file.toByteArray());
-                    connection.sendTCP(new ConnectConfirmCallPacket());
-                    System.out.println("STOCK_ROTATION_CAPTURE world=" + worlds + " id=" + begin.id + " bytes=" + begin.total);
-                    if (worlds == 2) done.countDown();
+                    finish(connection);
                     begin = null;
                 }
             }
         } catch (Exception failure) {
             error.set(failure);
             done.countDown();
+        }
+    }
+
+    private void finish(Connection connection) throws Exception {
+        int type = begin.type & 0xff;
+        byte[] bytes = file.toByteArray();
+        if (type == Net.packetIdWorldStream) {
+            worlds++;
+            Files.write(directory.resolve("world-" + worlds + ".bin"), bytes);
+            connection.sendTCP(new ConnectConfirmCallPacket());
+            System.out.println("STOCK_ROTATION_CAPTURE world=" + worlds + " id=" + begin.id + " bytes=" + begin.total);
+            if (worlds == 2) done.countDown();
+        } else if (type == Net.packetIdAssetStream) {
+            assets.receiveAssets(new ByteArrayInputStream(bytes), bytes.length);
+            connection.sendTCP(new RequestWorldCallPacket());
+        } else {
+            var request = new RequestAssetsCallPacket();
+            request.ids = assets.readRequirements(new ByteArrayInputStream(bytes));
+            System.out.println("STOCK_ASSET_REQUEST world=" + (worlds + 1) + " missing=" + request.ids.length);
+            connection.sendTCP(request);
         }
     }
 
@@ -90,7 +115,8 @@ public final class UpstreamStockRotationCapture implements NetListener {
     public static void main(String[] args) throws Exception {
         Version.build = 160;
         Vars.net = new Net(null);
-        var listener = new UpstreamStockRotationCapture(Path.of(args[1]));
+        var assets = args.length == 3 ? new UpstreamServerAssets(new Fi(args[2])) : null;
+        var listener = new UpstreamStockRotationCapture(Path.of(args[1]), assets);
         int port = Integer.parseInt(args[0]);
         var client = new Client(16_384, ArcNetProvider.clientReadBufferSize, new ArcNetProvider.PacketSerializer());
         client.addListener(listener);

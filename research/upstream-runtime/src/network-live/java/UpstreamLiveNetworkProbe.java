@@ -54,6 +54,8 @@ import mindustry.gen.Mechc;
 import mindustry.gen.Player;
 import mindustry.gen.RemoveMarkerCallPacket;
 import mindustry.gen.RemoveQueueBlockCallPacket;
+import mindustry.gen.RequestAssetsCallPacket;
+import mindustry.gen.RequestWorldCallPacket;
 import mindustry.gen.SendChatMessageCallPacket;
 import mindustry.gen.SendMessageCallPacket;
 import mindustry.gen.SendMessageCallPacket2;
@@ -87,6 +89,7 @@ import mindustry.net.Net;
 import mindustry.net.NetConnection;
 import mindustry.net.NetworkIO;
 import mindustry.net.Packet;
+import mindustry.net.Packets.AssetRequirementStream;
 import mindustry.net.Packets.StreamBegin;
 import mindustry.net.Packets.StreamChunk;
 import mindustry.world.blocks.distribution.Sorter;
@@ -109,6 +112,7 @@ public final class UpstreamLiveNetworkProbe {
     private final Consumer<String> chat;
     private final UpstreamChatInput chatInput;
     private final Consumer<Team> roundResult;
+    private final UpstreamServerAssets assets;
     private Runnable deferredGraphics;
     private int nextLiveTransport = 1;
     private boolean awaitingWorld;
@@ -116,7 +120,8 @@ public final class UpstreamLiveNetworkProbe {
 
     private UpstreamLiveNetworkProbe(Mode mode, Runnable deferredGraphics, Consumer<Unit> frame,
                                      UpstreamLiveBuildControls building, Consumer<String> chat,
-                                     UpstreamChatInput chatInput, UpstreamPlayerIdentity identity, Consumer<Team> roundResult) {
+                                     UpstreamChatInput chatInput, UpstreamPlayerIdentity identity, Consumer<Team> roundResult,
+                                     UpstreamServerAssets assets) {
         this.mode = mode;
         this.deferredGraphics = deferredGraphics;
         this.frame = frame;
@@ -125,6 +130,7 @@ public final class UpstreamLiveNetworkProbe {
         this.chatInput = chatInput;
         this.identity = identity;
         this.roundResult = roundResult;
+        this.assets = assets;
     }
 
     public static void main(String[] args) throws IOException, InterruptedException {
@@ -157,6 +163,9 @@ public final class UpstreamLiveNetworkProbe {
             stage = "services";
             Vars.mods = new Mods();
             Vars.universe = new Universe();
+            Vars.assetCacheDirectory = directory.child("assetCache");
+            var assets = new UpstreamServerAssets(Vars.assetCacheDirectory);
+            Vars.assetCache = assets.cache;
             if (frame != null) {
                 if (Core.audio == null) Core.audio = new MockAudio();
                 Vars.indexer = new BlockIndexer();
@@ -168,7 +177,7 @@ public final class UpstreamLiveNetworkProbe {
             stage = "profile";
             var identity = UpstreamPlayerIdentity.load(directory, endpoint[0]);
             stage = "session";
-            new UpstreamLiveNetworkProbe(mode, deferredGraphics, frame, building, chat, chatInput, identity, roundResult)
+            new UpstreamLiveNetworkProbe(mode, deferredGraphics, frame, building, chat, chatInput, identity, roundResult, assets)
                 .run(host, port, app);
         } catch (IOException | RuntimeException | LinkageError error) {
             Throwable cause = error;
@@ -221,18 +230,22 @@ public final class UpstreamLiveNetworkProbe {
     private void connect(byte[] host, int port, UpstreamWorldLoadProbe.ProbeApplication app, int join)
             throws IOException {
         int result = open(host, port, BUILD);
-        if (result != ACCEPTED || Native.streamType() != Net.packetIdWorldStream || Native.streamTotal() <= 0) {
-            throw new IOException("Expected a live multiplayer WorldStream, status=" + result
+        if (result != ACCEPTED || Native.streamTotal() <= 0) {
+            throw new IOException("Expected a live multiplayer stream, status=" + result
                 + " packet=" + Native.rejectedPacket() + " streamType=" + Native.streamType());
         }
         if (frame != null) Vars.net = new Net(new LiveClientProvider());
         Vars.net.setClientConnected();
         Vars.netClient = NetClient.forSnapshotDispatch();
-        int total = Native.streamTotal();
-        var stream = new WorldStreamInput(Native.streamId(), total);
+        var begin = new StreamBegin();
+        begin.id = Native.streamId();
+        begin.total = Native.streamTotal();
+        begin.type = (byte) Native.streamType();
         Vars.player = Player.create();
         if (Native.beginKeepAlive(0) == 0) throw new IOException("Unable to keep the connection open during world loading");
         try {
+            var stream = prepareWorldStream(begin);
+            int total = stream.remaining;
             loadSessionWorld(app, stream);
             if (stream.remaining != 0) throw new IOException("Incomplete initial stock world stream");
             if (deferredGraphics != null) {
@@ -266,14 +279,51 @@ public final class UpstreamLiveNetworkProbe {
         send(new ConnectConfirmCallPacket(), true);
     }
 
-    static StreamBegin readWorldBegin(Reads reader, int length) throws IOException {
+    static StreamBegin readStreamBegin(Reads reader, int length) throws IOException {
         if (length != 2 * Integer.BYTES + Byte.BYTES) throw new IOException("Unexpected stock stream header length");
         var begin = new StreamBegin();
         begin.read(reader);
-        if ((begin.type & 0xff) != Net.packetIdWorldStream || begin.total <= 0) {
+        if (begin.total <= 0) throw new IOException("Invalid stock stream length");
+        return begin;
+    }
+
+    private ArcStreamInput prepareWorldStream(StreamBegin begin) throws IOException {
+        if ((begin.type & 0xff) == unsignedId(AssetRequirementStream.class)) {
+            var requirements = new ArcStreamInput(begin);
+            var request = new RequestAssetsCallPacket();
+            request.ids = assets.readRequirements(requirements);
+            if (requirements.read() != -1) throw new IOException("Incomplete stock asset requirements");
+            send(request, true);
+            if (request.ids.length != 0) {
+                var data = waitForStream(Net.packetIdAssetStream);
+                assets.receiveAssets(new ArcStreamInput(data), data.total);
+                send(new RequestWorldCallPacket(), true);
+            }
+            System.out.println("UPSTREAM_LIVE_ASSET_REQUEST downloaded=" + request.ids.length);
+            begin = waitForStream(Net.packetIdWorldStream);
+        }
+        if ((begin.type & 0xff) != Net.packetIdWorldStream) {
             throw new IOException("Expected a stock WorldStream for the active server map");
         }
-        return begin;
+        return new ArcStreamInput(begin);
+    }
+
+    private StreamBegin waitForStream(int expectedType) throws IOException {
+        long deadline = System.nanoTime() + 30_000_000_000L;
+        while (System.nanoTime() < deadline) {
+            int received = receive(1, 1000);
+            if (received == TIMEOUT) continue;
+            int type = received >>> 16;
+            if (type == unsignedId(KickCallPacket.class) || type == unsignedId(KickCallPacket2.class)) {
+                throw new IOException("Server kicked the client during the asset exchange");
+            }
+            if (type == unsignedId(StreamBegin.class)) {
+                var begin = readStreamBegin(reader(received), received & 0xffff);
+                if ((begin.type & 0xff) != expectedType) throw new IOException("Unexpected stream during the asset exchange");
+                return begin;
+            }
+        }
+        throw new IOException("Timed out waiting for the stock asset exchange");
     }
 
     private void reportReceivedWorld(int join, int total) {
@@ -539,15 +589,22 @@ public final class UpstreamLiveNetworkProbe {
                 worldRequestTime = System.nanoTime();
             } else if (awaitingWorld) {
                 if (id == unsignedId(StreamBegin.class)) {
-                    var begin = readWorldBegin(reader(received), received & 0xffff);
-                    var stream = new WorldStreamInput(begin.id, begin.total);
-                    loadSessionWorld(app, stream);
-                    if (stream.remaining != 0) throw new IOException("Incomplete stock map rotation stream");
-                    confirmSessionWorld();
+                    var begin = readStreamBegin(reader(received), received & 0xffff);
+                    int worldBytes;
+                    if (Native.beginKeepAlive(0) == 0) throw new IOException("Unable to keep the connection open during rotation");
+                    try {
+                        var stream = prepareWorldStream(begin);
+                        worldBytes = stream.remaining;
+                        loadSessionWorld(app, stream);
+                        if (stream.remaining != 0) throw new IOException("Incomplete stock map rotation stream");
+                        confirmSessionWorld();
+                    } finally {
+                        Native.endKeepAlive();
+                    }
                     awaitingWorld = false;
                     lastWave = Vars.state.wave;
                     System.out.println("UPSTREAM_LIVE_WORLD_RELOAD map=" + Vars.state.map.name()
-                        + " player=" + Vars.player.id + " bytes=" + begin.total + " wave=" + lastWave);
+                        + " player=" + Vars.player.id + " bytes=" + worldBytes + " wave=" + lastWave);
                 } else if (id == unsignedId(KickCallPacket.class) || id == unsignedId(KickCallPacket2.class)) {
                     throw new IOException("Server closed the connection during stock map rotation");
                 }
@@ -959,15 +1016,15 @@ public final class UpstreamLiveNetworkProbe {
     }
 
     /** Supplies original StreamChunk data without buffering a second copy of the entire world. */
-    private final class WorldStreamInput extends InputStream {
+    private final class ArcStreamInput extends InputStream {
         private final int streamId;
         private int remaining;
         private byte[] chunk = new byte[0];
         private int offset;
 
-        WorldStreamInput(int streamId, int total) {
-            this.streamId = streamId;
-            remaining = total;
+        ArcStreamInput(StreamBegin begin) {
+            streamId = begin.id;
+            remaining = begin.total;
         }
 
         @Override
@@ -992,21 +1049,21 @@ public final class UpstreamLiveNetworkProbe {
             int received = TIMEOUT;
             for (int skipped = 0; skipped < 16; skipped++) {
                 received = receive(1, 5000);
-                if (received == TIMEOUT) throw new IOException("Timed out waiting for an upstream world chunk");
+                if (received == TIMEOUT) throw new IOException("Timed out waiting for an upstream stream chunk");
                 int id = received >>> 16;
                 if (id == unsignedId(StreamChunk.class)) break;
                 if (id == unsignedId(KickCallPacket.class) || id == unsignedId(KickCallPacket2.class)) {
-                    throw new IOException("Server kicked the client during the world transfer");
+                    throw new IOException("Server kicked the client during the stream transfer");
                 }
             }
             if (received >>> 16 != unsignedId(StreamChunk.class)) {
-                throw new IOException("Expected an upstream world chunk");
+                throw new IOException("Expected an upstream stream chunk");
             }
             var next = new StreamChunk();
             next.read(reader(received));
             if (next.id != streamId || next.data.length == 0 || next.data.length > remaining
                     || next.data.length + 6 != (received & 0xffff)) {
-                throw new IOException("World chunk differs from the declared stream");
+                throw new IOException("Received chunk differs from the declared stream");
             }
             chunk = next.data;
             offset = 0;
