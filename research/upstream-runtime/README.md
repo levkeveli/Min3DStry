@@ -484,7 +484,18 @@ mixer starts in the Join path.
 Run `python3 tools/verify_live_stock_audio.py /path/to/terrain-assets`
 to exercise the PCM cache and stream decoder controls with the host
 mixer mock. The JVM reference verifies the original registry, music
-rules, and ambience. Audible NDSP playback is a physical console test.
+rules, and ambience. The live Glacier replay loads an active Mechanical
+Drill, requests the stock UI, positional and streamed sound packets, and
+applies the original `game1` soundtrack rule.
+
+```bash
+python3 tools/verify_stock_live_audio.py \
+  --rom /path/to/upstream-probe.3dsx \
+  --server /path/to/server-release.jar \
+  --output build/stock-live-audio
+```
+
+Audible NDSP playback is a physical console test.
 
 Run the same verifier with `--controls --model old3ds` and then
 `--controls --model new3ds`. Follow its prompts to move right with the
