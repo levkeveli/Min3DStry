@@ -70,25 +70,18 @@ def verify(model: str, planet: str, rom: Path, azahar: str, config: Path, log: P
                             (line.split() for line in (departure / "destinations.txt").read_text().splitlines())}
     else:
         name, world, size = STARTERS[planet]
-    root = sp.resolve_sd_save_path(log).parent
+    prefix = f"{model}-{planet}"
+    sd = (output / "virtual-sd" / prefix).resolve()
+    root = sd / "3ds/min3dstry"
+    root.mkdir(parents=True)
     saves = root / "saves"
     settings = root / "settings.bin"
-    backup = root / "settings_backup.bin"
-    settings_backups = root / "settings_backups"
     override = root / "campaign-select.txt"
-    if any(root.glob("sector-*.msav")) or any(saves.glob("sector-*.msav")) or any(
-            path.exists() for path in (settings, backup, settings_backups, override)):
-        raise RuntimeError("Use an Azahar SD directory without campaign saves, settings, or selection overrides")
     custom_name = "campaign-test.msch"
     staged_schematic = root / "schematics" / custom_name
     custom_source = departure / "schematics" / custom_name if departure else None
     has_custom = custom_source is not None and custom_source.is_file()
-    had_schematics = staged_schematic.parent.is_dir()
-    if has_custom and staged_schematic.exists():
-        raise RuntimeError("The test schematic already exists on the virtual SD")
-    initial_config = config.read_bytes() if config.is_file() else None
-    had_saves = saves.is_dir()
-    prefix = f"{model}-{planet}"
+    originals = {path: path.read_bytes() if path.is_file() else None for path in (config, log)}
     replay = output / f"{prefix}.ctm"
     row = int((departure / "campaign-select.txt").read_text()) if in_game else None
     write_replay(replay, model, planet, manual_cargo, row)
@@ -106,6 +99,10 @@ def verify(model: str, planet: str, rom: Path, azahar: str, config: Path, log: P
             if has_custom:
                 staged_schematic.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(custom_source, staged_schematic)
+        config.parent.mkdir(parents=True, exist_ok=True)
+        storage = {"Data Storage": {"use_custom_storage": "true", "sdmc_directory": sd.as_posix() + "/"}}
+        config.write_text(sp.az.patch_qt_config_text((originals[config] or b"").decode("utf-8"), storage),
+                          encoding="utf-8")
         proc, rpc = sp._launch_azahar(model, rom, azahar, config, log, replay)
         try:
             menu_marker = (rf"UPSTREAM_CAMPAIGN_LOADOUT sector={sector_id} origin=170 affordable=true\b"
@@ -156,24 +153,11 @@ def verify(model: str, planet: str, rom: Path, azahar: str, config: Path, log: P
             sp._stop_proc(proc, azahar)
             (output / f"{prefix}.log").write_bytes(log.read_bytes())
     finally:
-        if has_custom:
-            staged_schematic.unlink(missing_ok=True)
-            if not had_schematics and staged_schematic.parent.is_dir() and not any(staged_schematic.parent.iterdir()):
-                staged_schematic.parent.rmdir()
-        test_slots = {name, *(starter for starter, _, _ in STARTERS.values())}
-        for slot in test_slots:
-            (saves / slot).unlink(missing_ok=True)
-            (saves / f"{slot}-backup.msav").unlink(missing_ok=True)
-        for path in (settings, backup, override):
-            path.unlink(missing_ok=True)
-        if settings_backups.is_dir():
-            shutil.rmtree(settings_backups)
-        if not had_saves and saves.is_dir() and not any(saves.iterdir()):
-            saves.rmdir()
-        if initial_config is None:
-            config.unlink(missing_ok=True)
-        else:
-            config.write_bytes(initial_config)
+        for path, original in originals.items():
+            if original is None:
+                path.unlink(missing_ok=True)
+            else:
+                path.write_bytes(original)
 
 
 def check_stock(java: str, server: Path, save: Path, settings: Path, planet: str) -> None:
