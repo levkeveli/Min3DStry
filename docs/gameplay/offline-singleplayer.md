@@ -146,7 +146,9 @@ research progress. This build predates the merged live capture integration.
 The [current ARM11 campaign build](https://github.com/levkeveli/Min3DStry/actions/runs/45130577809)
 repeated the four controller cases on the merged launch runtime. Stock
 v160.8 reopened each result and read back the expected research and core
-inventory. The replay keeps its virtual SD under the output directory.
+inventory. Both profiles also replayed Ground Zero capture, Router research,
+and Frozen Forest launch and save. Stock v160.8 reopened both sectors from
+each replay. The verifiers keep their virtual SDs under the output directory.
 
 The [integrated ARM11 build from `522c8ca`](https://github.com/levkeveli/Min3DStry/actions/runs/45058012737)
 passed a continuous progression replay on both Azahar profiles. A stock
