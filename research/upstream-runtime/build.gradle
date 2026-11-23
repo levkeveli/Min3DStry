@@ -376,6 +376,10 @@ if (usesSinglePlayer) {
             classpath = sourceSets.main.runtimeClasspath
             mainClass = 'UpstreamGraphicalCampaignSettingsReference'
         }
+        tasks.register('runGraphicalCampaignDefeatJvm', JavaExec) {
+            classpath = sourceSets.main.runtimeClasspath
+            mainClass = 'UpstreamCampaignDefeatReference'
+        }
         tasks.register('runBackgroundCampaignTurnJvm', JavaExec) {
             classpath = sourceSets.main.runtimeClasspath
             mainClass = 'UpstreamBackgroundCampaignTurnReference'

@@ -388,6 +388,54 @@ and stack total 64.58 MiB. This exceeds the 64 MiB Original 3DS application
 budget even before other runtime allocations. Physical memory and frame-rate
 verification remain open.
 
+## Campaign defeat and retry
+
+If your last core is destroyed, the game saves the defeated sector and
+shows its original localized loss message. Press **A** to continue to the
+campaign selector or **START** to exit. A defeated starter sector can be
+retried from its original deployment. Other sectors use the same landing
+and cargo rules as a new launch.
+
+Retry follows Mindustry v160.8's clear-sector rules. Under the default
+campaign configuration, Ground Zero retains the original spawn, surviving
+derelict buildings and rebuild plans. The Onset regenerates without carrying
+those buildings over. The retry writes to the same original sector slot.
+
+With the prepared campaign assets and pinned runtime Gradle properties, use
+`-Pprobe=singleplayer runGraphicalCampaignDefeatJvm --args="/path/to/assets /path/to/new-scratch-dir"`
+to generate and reload starter saves with hostile units attacking a weakened core. The
+reference lets the original simulation cause the loss, then retries both sectors. Run
+`python3 tools/verify_upstream_campaign_defeat.py --server server-release.jar --reference /path/to/new-scratch-dir`
+to reopen the defeated and recovered saves and settings in the unmodified PC
+server. The server checks the core, retry attempt, and surviving derelict
+state. Add `--rom upstream-probe.3dsx` to replay the loss and retry with
+controller input on both Azahar profiles before running the same PC
+readback. The [ARM11 build from `3de099b`](https://github.com/levkeveli/Min3DStry/actions/runs/45055970330)
+passed in Original and New 3DS profiles in Azahar 2126.2. Hostile units
+destroyed the last core in Ground Zero and The Onset. The controller retried
+each sector and saved the original 256×256 and 512×512 worlds, respectively.
+Stock v160.8 reopened the defeated and recovered saves for all four replays
+and verified the persisted sector state.
+
+The later unified build exposed a collection bug when a retry rebuilt the
+upstream Pathfinder cache. TeaVM C's multi-dimensional allocator kept its
+partially built arrays only in C locals. ARM11 staging now registers each
+parent with the collector and applies the write barrier as it adds children.
+The campaign replay exercises this path without altering the upstream
+pathfinding or save format.
+The logic smoke job runs `arm11/check_multi_array_roots.py` on its
+generated TeaVM C to force collection between child allocations and
+verify that all child arrays survive the next collection.
+
+The [ARM11 build with the collector fix](https://github.com/levkeveli/Min3DStry/actions/runs/45173897060)
+passed defeat, retry, and stock Java readback for Ground Zero and The Onset
+on both Azahar profiles. The same verifier reopens the defeated save
+before checking the recovered save and its campaign settings.
+The [integrated build](https://github.com/levkeveli/Min3DStry/actions/runs/45177492172)
+also passed Ground Zero on the New 3DS profile and The Onset on the
+Original 3DS profile with the current campaign research and offline
+audio code. Stock Java reopened all four resulting checkpoints.
+
 ## Custom Game
 
 Hold **L** while launching the standalone graphical `.3dsx` to open the
