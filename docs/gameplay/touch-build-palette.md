@@ -97,6 +97,19 @@ turns red while queuing. A tap on a commandable building switches the
 selection to buildings. Tap a location to set the stock rally point.
 Tap **Command** again or press **B** to leave the mode.
 
+With units selected, **Type** lists the original unit commands and
+**Stance** lists the stances currently available to those units.
+The command highlights reflect all selected units. The stance
+highlights follow the last selected unit, as in the original menu.
+Choices only affect compatible units. For example, choosing **Mine** for a
+mixed Dagger and Mono selection switches the Mono's controller
+and makes its mining stances available. **Cancel Orders** calls
+the original clear handler.
+
+The ARM11 package uses the pinned v160.8 icon font for the stock
+command and stance symbols. Ore stances use their original item
+atlas regions. The menu uses the stock localized row names.
+
 The JVM checks use the stock Dagger controller for formation, queued
 moves, and an attack order. A stock Glacier fixture verifies unit
 movement and the original Ground Factory rally point across a save.
@@ -111,6 +124,13 @@ python3 tools/verify_stock_command_orders.py \
   --rom /path/to/unified/upstream-probe.3dsx \
   --server /path/to/server-release.jar \
   --output build/stock-command-orders --live
+```
+
+```bash
+python3 tools/verify_stock_unit_stances.py \
+  --rom /path/to/unified/upstream-probe.3dsx \
+  --server /path/to/server-release.jar \
+  --output build/stock-unit-stances --live
 ```
 
 ## Factory world graphics

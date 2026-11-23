@@ -121,10 +121,16 @@ public final class UpstreamBuildControlsReference {
             if (!dagger.command().hasStance(UnitStance.holdFire) || mono.command().hasStance(UnitStance.holdFire)) {
                 throw new AssertionError("Hold Fire must apply only to the compatible selected unit");
             }
+            int mixedHighlight = selectOrderOption(controls, player, true, UnitStance.holdFire.id);
+            if (mixedHighlight != 0 || !dagger.command().hasStance(UnitStance.holdFire)) {
+                throw new AssertionError("A mixed selection must use the last controller's stock stance bits");
+            }
+            tapOrderCell(controls, player, 77, 27);
             int highlighted = selectOrderOption(controls, player, true, UnitStance.holdFire.id);
             if (highlighted == 0 || dagger.command().hasStance(UnitStance.holdFire)) {
                 throw new AssertionError("An active stance must be highlighted and can be toggled off");
             }
+            tapOrderCell(controls, player, 77, 27);
             var copper = ItemUnitStance.getByItem(Items.copper);
             selectOrderOption(controls, player, true, copper.id);
             if (!mono.command().hasStance(copper) || dagger.command().hasStance(copper)) {
@@ -147,17 +153,20 @@ public final class UpstreamBuildControlsReference {
         controls.update(player, 0, touch(14, stances ? 96 : 64));
         var menu = controls.orders().menu();
         if (!menu.isOpen()) throw new AssertionError("Expected the original unit options menu");
+        int page = 1;
         while (true) {
             int[] ids = menu.icons();
             for (int row = 0; row < ids.length; row++) {
                 if (ids[row] == id) {
                     int active = controls.orders().activeMenuRows() & (1 << row);
+                    System.out.println("UPSTREAM_STOCK_COMMAND_OPTION id=" + id + " page=" + page + " row=" + row);
                     controls.update(player, 0, touch(160, UpstreamBuildMenu.ROW_TOP + row * UpstreamBuildMenu.ROW_HEIGHT));
                     return active;
                 }
             }
             if (!menu.next()) throw new AssertionError("Missing stock option " + id);
             controls.update(player, 0, touch(270, 215));
+            page++;
         }
     }
 

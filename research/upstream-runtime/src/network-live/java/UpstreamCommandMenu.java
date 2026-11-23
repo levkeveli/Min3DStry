@@ -106,11 +106,18 @@ final class UpstreamCommandMenu {
     }
 
     private static boolean active(Seq<Unit> units, MappableContent entry) {
+        if (entry instanceof UnitStance stance) {
+            if (stance == UnitStance.stop) return false;
+            // PlacementFragment copies each controller's stance bits over the previous unit's bits.
+            for (int i = units.size - 1; i >= 0; i--) {
+                var unit = units.get(i);
+                if (unit.isCommandable()) return unit.command().hasStance(stance);
+            }
+            return false;
+        }
         for (Unit unit : units) {
             if (!unit.isCommandable()) continue;
-            var ai = unit.command();
-            if (entry instanceof UnitCommand command && ai.currentCommand() == command) return true;
-            if (entry instanceof UnitStance stance && stance != UnitStance.stop && ai.hasStance(stance)) return true;
+            if (unit.command().currentCommand() == entry) return true;
         }
         return false;
     }
