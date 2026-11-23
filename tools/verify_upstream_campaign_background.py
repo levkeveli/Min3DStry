@@ -3,6 +3,7 @@
 
 import argparse
 from pathlib import Path
+import re
 import shutil
 
 from campaign_background_fixture import check, create
@@ -43,7 +44,10 @@ def verify(args, model, azahar, config, log, fixture):
             if sp.az.inspect_png(image)["top_distinct_colors"] < 8:
                 raise AssertionError(f"{model}: expected a rendered Ground Zero world")
             (output / "ground-zero.png").write_bytes(image)
-            sp._wait_for_log(log, proc, rf"UPSTREAM_SP_SAVED .*{SLOT} .*\bcopper=37\b", deadline + 60)
+            saved_turn = rf"UPSTREAM_SP_SAVED .*{re.escape(SLOT)} .*\bcopper=37\b"
+            text = sp._wait_for_log(log, proc, rf"{saved_turn}|UPSTREAM_SP_EXIT\b", deadline + 60)
+            if not re.search(saved_turn, text):
+                raise AssertionError(f"{model}: the game exited before saving the campaign turn:\n{text[-2500:]}")
             for path in (fixture / "saves").glob("*.msav"):
                 if path.name != SLOT and path.read_bytes() != (campaign / "saves" / path.name).read_bytes():
                     raise AssertionError(f"{model}: background turn rewrote remote world {path.name}")
