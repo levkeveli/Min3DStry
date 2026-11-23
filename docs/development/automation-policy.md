@@ -70,6 +70,11 @@ with rootless Podman. Build containers inherit the runner's CPU affinity.
 GitHub assigns these jobs to any available runner with the shared label.
 Fork PRs continue to use GitHub-hosted runners.
 
+The full ARM11 build and smoke workflows use the same pinned-input fetcher.
+On runners with `M3DS_UPSTREAM_CACHE` configured, it stages the local pinned
+Mindustry and Arc checkouts and the checksum-verified server JAR on each job.
+Missing or mismatched inputs use the normal upstream downloads.
+
 ## Live runner status
 
 The Pages dashboard reads the [runner status record](https://github.com/levkeveli/Min3DStry/issues/424)
