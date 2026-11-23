@@ -78,7 +78,10 @@ UPSTREAM_WAVE wave=4 spawned=dagger=2 groundSpawned=2 first=79,219->80,173 dista
 
 Both Azahar profiles matched the JVM trace exactly. The host TeaVM C trace is
 pending on the current head; the workflow asserts the same six lines at `-O0`
-and `-O2`.
+and `-O2` using the existing ARM11 smoke workflow. Its host-only generated C
+copy uses a fixed 128 MiB heap so Glacier can initialize the block index before
+the wave simulation runs. The ARM11 build still uses the original 24 MiB
+heap limit.
 
 The standalone host probe exits after printing the trace without firing
 `ResetEvent`; dispatching that reset into TeaVM's monitor/event queue after
