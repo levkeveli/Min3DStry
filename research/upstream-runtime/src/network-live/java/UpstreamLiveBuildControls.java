@@ -69,6 +69,15 @@ final class UpstreamLiveBuildControls {
             return;
         }
         int touchX = touch & 0xffff, touchY = touch >>> 16;
+        if (buildingConfig.isLinking()) {
+            if ((buttons & REMOVE_PRESSED) != 0
+                    || touch >= 0 && touchX >= 288 && touchY >= GRID_Y && touchY < 80) {
+                buildingConfig.close();
+            } else if (touch >= 0 && selectGridCell(touchX, touchY)) {
+                buildingConfig.tapLink(Vars.world.build(tileX, tileY));
+            }
+            return;
+        }
         boolean rightRail = touch >= 0 && touchX >= 292 && touchX < 318;
         if (rightRail && touchY >= 144 && touchY < 175) {
             if (orders.active()) orders.toggle();
@@ -245,8 +254,14 @@ final class UpstreamLiveBuildControls {
     }
 
     Block block() { return selected == null ? shortcut(0) : selected; }
-    int cursorX() { return tileX; }
-    int cursorY() { return tileY; }
+    int cursorX() {
+        var source = buildingConfig.linkSource();
+        return source == null ? tileX : source.tileX();
+    }
+    int cursorY() {
+        var source = buildingConfig.linkSource();
+        return source == null ? tileY : source.tileY();
+    }
     int rotation() { return rotation; }
     boolean removing() { return removing; }
     UpstreamBuildMenu catalog() { return catalog; }
@@ -254,7 +269,7 @@ final class UpstreamLiveBuildControls {
     UpstreamInventoryMenu inventory() { return inventory; }
     UpstreamCommandOrders orders() { return orders; }
     int inventoryAction() { return inventoryAction.ordinal(); }
-    boolean configuring() { return configuring; }
+    boolean configuring() { return configuring || buildingConfig.isLinking(); }
     boolean selectingMine() { return selectingMine; }
     boolean selectingControl() { return selectingControl; }
 }
