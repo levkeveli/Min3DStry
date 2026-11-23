@@ -124,7 +124,7 @@ public final class UpstreamRenderedNetworkProbe {
             Core.bundle.get("keybind.rotate.name"), Core.bundle.get("waves.remove"),
             "List", "Config", Core.bundle.get("back"), Core.bundle.get("command.mine"),
             Core.bundle.get("category.items"), "Give", Core.bundle.get("command"), "Type", "Stance",
-            "Ctrl", Core.bundle.get("back")) + "\0";
+            "Ctrl", Core.bundle.get("back"), "Schem") + "\0";
         target.buildLabels(labels.getBytes(StandardCharsets.UTF_8));
         lastPrimaryShortcut = primary;
         System.out.println("UPSTREAM_BUILD_SHORTCUTS primary=" + primary.name + " secondary=" + secondary.name);
@@ -241,6 +241,8 @@ public final class UpstreamRenderedNetworkProbe {
             worldLabel);
         var orders = buildingControls.orders();
         orders.draw(viewport);
+        var schematics = buildingControls.schematics();
+        schematics.draw(viewport);
         drawObjectives(drawStatusHud());
         var block = buildingControls.block();
         var catalog = buildingControls.catalog();
@@ -250,10 +252,13 @@ public final class UpstreamRenderedNetworkProbe {
         int shortcut = block == buildingControls.shortcut(0) ? 0 : block == buildingControls.shortcut(1) ? 1 : -1;
         target.buildOverlay(buildingControls.cursorX() - viewport.left, buildingControls.cursorY() - viewport.bottom,
             shortcut, buildingControls.rotation(), buildingControls.removing(), block.rotate,
-            catalog.isOpen() || config.isOpen() || inventory.isOpen() || commandMenu.isOpen(),
+            catalog.isOpen() || config.isOpen() || inventory.isOpen() || commandMenu.isOpen() || schematics.isOpen(),
             buildingControls.configuring(), buildingControls.selectingMine(), buildingControls.inventoryAction(),
-            orders.mode(), buildingControls.selectingControl());
-        if (commandMenu.isOpen()) {
+            orders.mode(), buildingControls.selectingControl(), schematics.positioning());
+        if (schematics.isOpen()) {
+            drawMenu(schematics.labels(), schematics.icons(), -1, schematics.previousPage(), schematics.nextPage(),
+                UpstreamTerrainRenderProbe.BLOCK_CATALOG);
+        } else if (commandMenu.isOpen()) {
             target.buildCatalogRows(commandMenu.labels(), commandMenu.icons(), orders.activeMenuRows(),
                 commandMenu.previous(), commandMenu.next(),
                 commandMenu.stances() ? UpstreamTerrainRenderProbe.STANCE_CATALOG : UpstreamTerrainRenderProbe.COMMAND_CATALOG);

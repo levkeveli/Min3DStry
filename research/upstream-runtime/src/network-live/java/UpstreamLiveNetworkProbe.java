@@ -713,7 +713,8 @@ public final class UpstreamLiveNetworkProbe {
         private void aimBuilding(Unit unit, Vec2 direction, int input) {
             boolean overlay = buildingControls != null && (buildingControls.catalog().isOpen()
                 || buildingControls.buildingConfig().isOpen() || buildingControls.inventory().isOpen()
-                || buildingControls.orders().active() || buildingControls.selectingControl());
+                || buildingControls.orders().active() || buildingControls.selectingControl()
+                || buildingControls.schematics().active());
             if (!direction.isZero()) {
                 direction.setLength(UpstreamPlayerControl.aimDistance(unit));
                 unit.aim(unit.x() + direction.x, unit.y() + direction.y, true);
