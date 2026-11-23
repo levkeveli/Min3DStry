@@ -4,9 +4,11 @@ import port.render.UpstreamLogicAtlas;
 import port.render.UpstreamLogicFont;
 import port.render.UpstreamLogicFramebuffer;
 import port.render.UpstreamWorldLabel;
+import port.audio.Arm11Audio;
 import port.render.UpstreamLabelText;
 import port.logic.UpstreamClientLogic;
 import arc.Core;
+import arc.Events;
 import arc.files.Fi;
 import arc.graphics.g2d.Draw;
 import arc.mock.MockGraphics;
@@ -21,6 +23,7 @@ import mindustry.content.Blocks;
 import mindustry.content.UnitTypes;
 import mindustry.core.World;
 import mindustry.core.UI;
+import mindustry.game.EventType.WorldLoadEvent;
 import mindustry.gen.Building;
 import mindustry.gen.Groups;
 import mindustry.gen.Payloadc;
@@ -100,10 +103,17 @@ public final class UpstreamRenderedNetworkProbe {
             + (locale.getLanguage().isEmpty() ? "en" : locale) + " router=" + Core.bundle.get("block.router.name")
             + " copper=" + Core.bundle.get("item.copper.name"));
         CacheLayer.init();
-        UpstreamLiveNetworkProbe.run(directory, address, view::loadGraphics, view::render, view.buildingControls);
+        try {
+            Arm11Audio.open();
+            UpstreamLiveNetworkProbe.run(directory, address, view::loadGraphics, view::render, view.buildingControls);
+        } finally {
+            Arm11Audio.close();
+        }
     }
 
     private void loadGraphics() {
+        Arm11Audio.prepareMusicControl();
+        Events.on(WorldLoadEvent.class, event -> Arm11Audio.reset());
         UpstreamClientLogic.initialize(new Fi("/romfs/logicids.dat"));
         UpstreamLogicFont.load(new Fi("/romfs/logic-font.dat"));
         Core.graphics = new MockGraphics() {
@@ -177,6 +187,10 @@ public final class UpstreamRenderedNetworkProbe {
         float y = unit == null ? Vars.player.y() : unit.y();
         viewport.moveTo(World.toTile(x) - UpstreamTerrainDrawProbe.VIEW_WIDTH / 2,
                         World.toTile(y) - UpstreamTerrainDrawProbe.VIEW_HEIGHT / 2);
+        float width = UpstreamTerrainDrawProbe.VIEW_WIDTH * Vars.tilesize;
+        float height = UpstreamTerrainDrawProbe.VIEW_HEIGHT * Vars.tilesize;
+        Arm11Audio.updateCamera((viewport.left - 0.5f) * Vars.tilesize + width / 2f,
+            (viewport.bottom - 0.5f) * Vars.tilesize + height / 2f, width, height);
         advanceVisualState();
         draws = 0;
         viewport.draw(drawEntities);
@@ -197,12 +211,11 @@ public final class UpstreamRenderedNetworkProbe {
         float oldDelta = Time.delta;
         Time.updateGlobal();
         Time.delta = oldDelta;
-        if (Vars.state.isPaused()) return;
-
         // Advance the original animation clock and conduit smoothing without replaying liquid transfers.
         float delta = Math.min(frameSeconds * 60f, Vars.maxDeltaClient);
         Time.delta = delta;
         try {
+            Arm11Audio.updateClientAudio(now);
             Time.update();
             UpstreamClientLogic.update(delta);
             for (var build : Groups.build) {
@@ -252,8 +265,9 @@ public final class UpstreamRenderedNetworkProbe {
             int bullets = UpstreamClientProjectiles.draw(viewport);
             boolean active = !Groups.bullet.isEmpty();
             if (projectilesActive != active || projectilesVisible != (bullets > 0)) {
+                boolean trail = Groups.bullet.find(bullet -> bullet.trail != null) != null;
                 System.out.println("UPSTREAM_NETWORK_PROJECTILES visible=" + bullets
-                    + " active=" + Groups.bullet.size());
+                    + " active=" + Groups.bullet.size() + " trail=" + trail);
             }
             projectilesVisible = bullets > 0;
             projectilesActive = active;

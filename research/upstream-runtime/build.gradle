@@ -15,6 +15,7 @@ def pathfinderSource = 'core/src/mindustry/ai/Pathfinder.java'
 def annotationsSource = 'annotations/src/main/java/mindustry/annotations/Annotations.java'
 def arcRevision = '7445105cd2683daf5b9ac7033ebb07265d3e814d'
 def fileSource = 'arc-core/src/arc/files/Fi.java'
+def soundSource = 'arc-core/src/arc/audio/Sound.java'
 def osSource = 'arc-core/src/arc/util/OS.java'
 def networkIoSource = 'core/src/mindustry/net/NetworkIO.java'
 def netClientSource = 'core/src/mindustry/core/NetClient.java'
@@ -81,6 +82,7 @@ def usesMapSources = probe in ['map', 'map-sd']
 def usesSinglePlayerApp = probe in ['singleplayer', 'unified']
 def usesSinglePlayer = usesSinglePlayerApp || probe == 'singleplayer-sim'
 def usesLiveNetwork = probe in ['network-live', 'network-render', 'unified']
+def usesLiveAudio = probe in ['network-render', 'unified']
 def usesRenderedClient = usesSinglePlayerApp || probe == 'network-render'
 def usesBuildControls = usesSinglePlayerApp || usesLiveNetwork
 def usesTerrainRenderer = usesRenderedClient || probe == 'terrain-render'
@@ -224,12 +226,17 @@ if (usesArcSources || usesExecutor) {
         stagedClasses.addAll(['mindustry/core/NetClient.class', 'mindustry/core/NetClient$*.class',
                               'mindustry/ai/Pathfinder.class', 'mindustry/ai/Pathfinder$*.class'])
     }
-    if (usesSinglePlayer) {
+    if (usesSinglePlayer || usesLiveAudio) {
         stagedClasses.addAll(['mindustry/logic/GlobalVars.class', 'mindustry/logic/GlobalVars$*.class'])
     }
     if (usesRenderedClient) {
         stagedClasses.addAll(['mindustry/type/UnitType.class', 'mindustry/type/UnitType$*.class',
                               'mindustry/entities/bullet/BulletType.class', 'mindustry/entities/bullet/BulletType$*.class'])
+    }
+    if (usesLiveAudio) {
+        stagedClasses.addAll(['arc/audio/Sound.class', 'arc/audio/Sound$*.class',
+                              'mindustry/audio/SoundControl.class', 'mindustry/audio/SoundControl$*.class',
+                              'mindustry/logic/LExecutor.class', 'mindustry/logic/LExecutor$*.class'])
     }
     if (patchesPlanetGrid) {
         stagedClasses.addAll(['mindustry/graphics/g3d/PlanetGrid.class', 'mindustry/graphics/g3d/PlanetGrid$*.class'])
@@ -475,6 +482,12 @@ tasks.register('prepareUpstreamProbe') {
     if (usesLiveNetwork) {
         outputs.files(netClientFile, pathfinderFile)
     }
+    if (usesLiveAudio) {
+        outputs.files(sourceDir.map { dir ->
+            ['arc/audio/Sound.java', 'mindustry/audio/SoundControl.java']
+                .collect { dir.file(it) }
+        })
+    }
     if (usesSinglePlayer) {
         inputs.file('src/gameplay/java/port/FactoryResources.java')
         outputs.file(factoryResourcesFile)
@@ -499,6 +512,91 @@ tasks.register('prepareUpstreamProbe') {
         outputs.file(globalVarsFile)
     }
     doLast {
+        if (usesLiveAudio) {
+            def sound = new String(providers.exec {
+                commandLine 'git', '-C', arc.get(), 'show', "${arcRevision}:${soundSource}"
+            }.standardOutput.asBytes.get(), 'UTF-8')
+            def audioChanges = [
+                '!Core.audio.initialized || currentlyLoading': '!Core.audio.initialized() || currentlyLoading',
+                'if(handle == 0 || bus == null) return -1;': 'if(!valid() || bus == null) return -1;',
+                'return lastVoice = sourcePlayBus(handle, bus.handle,': 'return lastVoice = playSource(bus,',
+                '    public int play(float volume, float pitch, float pan, boolean loop, boolean checkFrame){':
+                    '''    protected int playSource(AudioBus bus, float volume, float pitch, float pan, boolean loop){
+        return sourcePlayBus(handle, bus.handle, volume, pitch, pan, loop);
+    }
+
+    public int play(float volume, float pitch, float pan, boolean loop, boolean checkFrame){'''
+            ]
+            audioChanges.each { original, replacement ->
+                if (sound.count(original) != 1) throw new GradleException('Pinned Arc audio dispatch changed')
+                sound = sound.replace(original, replacement)
+            }
+            def headlessAudio = 'if(Core.app.isHeadless())'
+            if (sound.count(headlessAudio) != 2) throw new GradleException('Pinned Arc positional audio changed')
+            def adaptedSound = sourceDir.get().file('arc/audio/Sound.java').asFile
+            adaptedSound.parentFile.mkdirs()
+            adaptedSound.setText(sound.replace(headlessAudio, 'if(Core.app.isHeadless() && Core.camera == null)'), 'UTF-8')
+            def musicControl = new String(readUpstream('core/src/mindustry/audio/SoundControl.java'), 'UTF-8')
+            // The live renderer has an audio backend and game state before it has the Arc desktop scene.
+            def musicCompatibility = [
+                'protected AudioFilter filter = new BiquadFilter()': 'protected AudioFilter filter = headless ? null : new BiquadFilter()',
+                'state.isGame() && Core.scene.hasDialog()': 'state.isGame() && Core.scene != null && Core.scene.hasDialog()',
+                'if(ui.planet.isShown())': 'if(ui != null && ui.planet.isShown())',
+                'else if(ui.editor.isShown())': 'else if(ui != null && ui.editor.isShown())',
+                'LinkedBlockingQueue<AmbientSource> inputSources = new LinkedBlockingQueue<>();':
+                    'final java.util.ArrayDeque<AmbientSource> inputSources = new java.util.ArrayDeque<>();',
+                'ambientThread.inputSources.add(source);':
+                    '''synchronized(ambientThread.inputSources){
+                ambientThread.inputSources.add(source);
+            }''',
+                '''            while((source = inputSources.poll()) != null){
+                sources.add(source);
+            }''':
+                    '''            synchronized(inputSources){
+                while((source = inputSources.poll()) != null){
+                    sources.add(source);
+                }
+            }'''
+            ]
+            musicCompatibility.each { original, replacement ->
+                if (musicControl.count(original) != 1) throw new GradleException('Pinned soundtrack control changed')
+                musicControl = musicControl.replace(original, replacement)
+            }
+            def loopMixer = '    protected void updateLoops(){'
+            if (musicControl.count(loopMixer) != 1) throw new GradleException('Pinned ambient loop mixer changed')
+            musicControl = musicControl.replace(loopMixer, '''    private long nextLiveBuildingSample;
+
+    /** Use the stock 20 Hz sampler on the live ARM11 world thread. */
+    public void sampleLiveBuildingAmbience(Iterable<? extends AmbientSource> buildings, long now){
+        if(!state.isPlaying()) return;
+        if(ambientThread == null){
+            ambientThread = new AudioThread();
+            nextLiveBuildingSample = now;
+        }
+        long overdue = now - nextLiveBuildingSample;
+        if(overdue < 0L) return;
+        // Keep the stock cadence between render frames and skip missed samples.
+        nextLiveBuildingSample = now + AudioThread.targetNanos - overdue % AudioThread.targetNanos;
+        ambientThread.sources.clear();
+        for(var building : buildings){
+            if(building.getAmbientSound() != Sounds.none) ambientThread.sources.add(building);
+        }
+        ambientThread.doLoop();
+    }
+
+    protected void resetLiveBuildingAmbience(){
+        ambientThread = null;
+        localData.clear();
+        sounds.clear();
+        nextLiveBuildingSample = 0L;
+    }
+
+    protected void updateLoops(){''')
+            def adaptedMusicControl = sourceDir.get().file('mindustry/audio/SoundControl.java').asFile
+            adaptedMusicControl.parentFile.mkdirs()
+            adaptedMusicControl.setText(musicControl, 'UTF-8')
+
+        }
         if (usesRenderedClient) {
             def bulletType = new String(readUpstream("core/src/$bulletTypePath"), 'UTF-8')
             def trailGuard = 'if(!headless && trailLength > 0){'
@@ -532,9 +630,25 @@ tasks.register('prepareUpstreamProbe') {
                 output.setText(source, 'UTF-8')
             }
             def executor = new String(readUpstream("core/src/${logicExecutorSource}"), 'UTF-8')
+            if (usesLiveAudio) {
+                def musicGuard = '''if(headless) return;
+
+            //null music = stop'''
+                def musicDispatch = 'control.sound.playMusic(music, interrupt.bool());'
+                if (executor.count(musicGuard) != 1 || executor.count(musicDispatch) != 1) {
+                    throw new GradleException('Pinned music instruction dispatch changed')
+                }
+                executor = executor.replace('package mindustry.logic;', 'package mindustry.logic;\n\nimport port.audio.Arm11Audio;')
+                    .replace(musicGuard, '''var musicControl = control == null
+                    ? Arm11Audio.musicControl() : control.sound;
+                if(musicControl == null) return;
+
+            //null music = stop''').replace(musicDispatch, 'musicControl.playMusic(music, interrupt.bool());'
+            }
             def headless = 'Vars.headless || exec.graphicsBuffer.size >= maxGraphicsBuffer'
             if (executor.count(headless) != 1) throw new GradleException('Pinned graphics instruction guard changed')
             def adaptedExecutor = sourceDir.get().file(logicExecutorSource).asFile
+            adaptedExecutor.parentFile.mkdirs()
             adaptedExecutor.setText(executor.replace(headless,
                 '(Vars.headless && Fonts.logic == null) || exec.graphicsBuffer.size >= maxGraphicsBuffer'), 'UTF-8')
             def loader = new String(readUpstream('core/src/mindustry/core/ContentLoader.java'), 'UTF-8')
@@ -779,6 +893,14 @@ final class GlacierFixture {
                 .replace(allocateGrid, 'tiles = new int[net.client() ? 0 : world.width() * world.height()];')
                 .replace(getTile, '        return net.client() ? packTile(world.tile(x, y)) : tiles[x + y * wwidth];'), 'UTF-8')
             def source = new String(readUpstream(netClientSource), 'UTF-8')
+            if (usesLiveAudio) {
+                def soundGuard = 'if(sound == null || headless) return;'
+                if (source.count(soundGuard) != 2) {
+                    throw new GradleException('Pinned NetClient sound handlers changed')
+                }
+                source = source.replace(soundGuard,
+                    'if(sound == null || (headless && !(Core.audio instanceof port.audio.Arm11Audio))) return;')
+            }
             def buffer = '''private ReusableByteInStream byteStream = new ReusableByteInStream();
     private DataInputStream dataStream = new DataInputStream(byteStream);
     private Reads dataStreamReads = new Reads(dataStream);'''
@@ -873,9 +995,14 @@ final class UpstreamItemChoices {
             }
             def adaptedGlobalVars = globalVarsFile.get().asFile
             adaptedGlobalVars.parentFile.mkdirs()
-            adaptedGlobalVars.setText(globalVars.replace(soundCheck, '''varClientMusicPlaying.numval = control != null && control.sound != null && control.sound.isPlaying() ? 1 : 0;
+            def musicController = usesLiveAudio ? 'Arm11Audio.musicControl()' : 'null'
+            if (usesLiveAudio) {
+                globalVars = globalVars.replace('package mindustry.logic;', 'package mindustry.logic;\n\nimport port.audio.Arm11Audio;')
+            }
+            adaptedGlobalVars.setText(globalVars.replace(soundCheck, """var musicController = control != null ? control.sound : ${musicController};
+            varClientMusicPlaying.numval = musicController != null && musicController.isPlaying() ? 1 : 0;
 
-            var music = control != null && control.sound != null ? control.sound.getCurrent() : null;'''), 'UTF-8')
+            var music = musicController != null ? musicController.getCurrent() : null;"""), 'UTF-8')
         }
         if (usesSinglePlayer) {
             def copiedFactoryResources = factoryResourcesFile.get().asFile

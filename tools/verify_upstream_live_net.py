@@ -1393,7 +1393,9 @@ def verify_canvas_quads(log, emulator, server_log, server, rpc, output, model, p
     x, y = (math.floor(float(value) / 8 + 0.5) * 8 for value in (x, y))
     if 45 >= x // 8 - 8:
         raise RuntimeError("The Canvas quad fixture must keep its source tile offscreen")
-    points = ((94, 52), (109, 86), (133, 68), (153, 45))
+    # Place the quad beneath the live HUD in the unified ROM.
+    y -= 32
+    points = ((94, 132), (109, 166), (133, 148), (153, 125))
     original = ((112, 93, 159), (100, 97, 194), (227, 154, 172))
     configured = ((137, 218, 177), (240, 218, 177), (43, 169, 180))
     moved = ((136, 218, 177), (240, 218, 177), (43, 169, 180), (43, 169, 180))
