@@ -59,9 +59,13 @@ jobs:
             M3DS_ARM11_LOW_MEMORY=1 timeout 25m bash research/upstream-runtime/arm11/build.sh \
               research/upstream-runtime/build/generated/teavm/c build/circleci-arm11 \
               --singleplayer build/circleci-terrain
+      - run:
+          name: Package the ROM and upstream notices
+          command: |
             mkdir -p build/circleci-artifact
             cp build/circleci-arm11/upstream-probe.3dsx build/circleci-artifact/min3dstry-offline.3dsx
-            cp LICENSE build/circleci-artifact/
+            cp "$RUNNER_TEMP/Mindustry/LICENSE" build/circleci-artifact/Mindustry-LICENSE
+            cp "$RUNNER_TEMP/Arc/LICENSE" build/circleci-artifact/Arc-LICENSE
             git rev-parse HEAD > build/circleci-artifact/commit.txt
             (cd build/circleci-artifact && sha256sum min3dstry-offline.3dsx > SHA256SUMS)
       - store_artifacts:

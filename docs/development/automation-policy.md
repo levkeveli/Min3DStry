@@ -94,7 +94,8 @@ parameter `build_playable_arm11` set to `true`. Routine pushes leave the workflo
 off. The job uses an 8 GB Docker executor and enables `M3DS_ARM11_LOW_MEMORY=1`
 so GCC collects its intermediate data more often during ARM11 compilation.
 It uploads the playable
-`min3dstry-offline.3dsx`, commit SHA, and ROM checksum under **Artifacts →
+`min3dstry-offline.3dsx`, commit SHA, ROM checksum, and the pinned Mindustry
+and Arc license notices under **Artifacts →
 playable-arm11**. Source and port instructions are in the
 [offline gameplay guide](../gameplay/offline-singleplayer.md).
 
