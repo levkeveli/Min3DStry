@@ -261,6 +261,12 @@ Bore, and Cliff Crusher without moving the original core. The replay
 compares those four sprites offline and after joining the unmodified
 v160.8 server.
 
+On the Original and New 3DS Azahar profiles, all 25 samples changed at
+each extractor in the offline and live views from the
+[ARM11 test build](https://github.com/levkeveli/Min3DStry/actions/runs/45114638541).
+The previous Original 3DS build changed zero samples at those placements.
+The working-state draw checks ran on the JVM.
+
 ```bash
 python3 tools/verify_stock_extractors.py \
   --rom /path/to/upstream-probe.3dsx \

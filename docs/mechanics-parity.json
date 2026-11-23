@@ -97,7 +97,7 @@
         "research/upstream-runtime/src/gameplay/java/UpstreamFactoryTickProbe.java",
         "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerApp.java"
       ],
-      "notes": "Drill resource extraction ticks, rotary/top sprite layers, and item output into conveyors and cores run live on ARM11."
+      "notes": "Original mechanical and pneumatic drill extraction and item output run on ARM11. The full floor and wall extractor roster passes stock JVM draw checks, with four representative stock buildings verified offline and live on both Azahar profiles."
     },
     {
       "id": "conveyors-sorting-storage",
