@@ -74,9 +74,20 @@ final class UpstreamLiveBuildControls {
             return;
         }
         if (orders.active()) {
+            if (orders.menu().isOpen()) {
+                if ((buttons & REMOVE_PRESSED) != 0) orders.menu().close();
+                else if (touch >= 0) orders.tapMenu(touchX, touchY);
+                return;
+            }
             if ((buttons & REMOVE_PRESSED) != 0) orders.toggle();
             else if ((buttons & ROTATE_PRESSED) != 0) orders.toggleQueue();
-            if (orders.active() && touch >= 0 && selectGridCell(touchX, touchY)) orders.tap(tileX, tileY);
+            if (orders.active() && touch >= 0) {
+                if (touchX >= 2 && touchX < 28 && touchY >= 48 && touchY < 111) {
+                    orders.openMenu(touchY >= 80);
+                } else if (selectGridCell(touchX, touchY)) {
+                    orders.tap(tileX, tileY);
+                }
+            }
             return;
         }
         if ((buttons & ROTATE_PRESSED) != 0) rotate();

@@ -51,7 +51,14 @@ def read_stock_orders(server, log):
     stock_command(server, log, "js (() => { " + RESULT + " })()", "STOCK_COMMAND_RESULT daggers=2 rally=688,192")
 
 
-def replay(args, model, fixture, live):
+def verify_commands(log, proc, rpc, output):
+    sp._wait_for_log(log, proc, r"UPSTREAM_COMMAND_SELECTION units=2 buildings=0", 100)
+    (output / "selected-daggers.png").write_bytes(rpc.screenshot())
+    sp._wait_for_log(log, proc, r"UPSTREAM_COMMAND_ORDER kind=move units=2 queued=false x=608\.0 y=232\.0", 45)
+    sp._wait_for_log(log, proc, r"UPSTREAM_COMMAND_RALLY buildings=1 x=688\.0 y=192\.0", 55)
+
+
+def replay(args, model, fixture, live, *, taps=TAPS, verify_input=verify_commands, read_stock=read_stock_orders):
     azahar = sp.az.resolve_azahar_bin(args.azahar)
     config, log = sp.az.resolve_azahar_paths(azahar)
     originals = {path: path.read_bytes() if path.is_file() else None for path in (config, log)}
@@ -62,7 +69,7 @@ def replay(args, model, fixture, live):
     shutil.copyfile(fixture, save)
     movie = output / "commands.ctm"
     buttons = {0: sp.KEY_X, 94: sp.KEY_START} if live else {84: sp.KEY_SELECT, 94: sp.KEY_START}
-    write_movie(movie, model, live=live, taps=TAPS, buttons=buttons, seconds=102)
+    write_movie(movie, model, live=live, taps=taps, buttons=buttons, seconds=102)
     if live:
         (save.parent / "server-endpoint.txt").write_text(f"127.0.0.1 {args.port}\n", encoding="ascii")
     isolated = {"Data Storage": {"use_custom_storage": "true", "sdmc_directory": sd.as_posix() + "/"}}
@@ -80,13 +87,10 @@ def replay(args, model, fixture, live):
                 wait_for(server_log, server, r"Min3DStry ARM11 has connected", 20)
             else:
                 sp._wait_for_log(log, proc, r"UPSTREAM_SP_READY .*x=648\.0 y=208\.0", 120)
-            sp._wait_for_log(log, proc, r"UPSTREAM_COMMAND_SELECTION units=2 buildings=0", 100)
-            (output / "selected-daggers.png").write_bytes(rpc.screenshot())
-            sp._wait_for_log(log, proc, r"UPSTREAM_COMMAND_ORDER kind=move units=2 queued=false x=608\.0 y=232\.0", 45)
-            sp._wait_for_log(log, proc, r"UPSTREAM_COMMAND_RALLY buildings=1 x=688\.0 y=192\.0", 55)
+            verify_input(log, proc, rpc, output)
             if live:
                 time.sleep(3)
-                read_stock_orders(server, server_log)
+                read_stock(server, server_log)
                 sp._wait_for_log(log, proc, r"UPSTREAM_LIVE_CONTROLS_LEFT\b", 60)
             else:
                 sp._wait_for_log(log, proc, r"UPSTREAM_SP_SAVED ", 65)
@@ -108,10 +112,9 @@ def replay(args, model, fixture, live):
     if not live:
         stock, stock_log = stock_session(args, output / "stock-result", save)
         try:
-            read_stock_orders(stock, stock_log)
+            read_stock(stock, stock_log)
         finally:
             stop(stock)
-    print(f"UPSTREAM_STOCK_COMMANDS model={model} live={live} daggers=2 rally=ok", flush=True)
 
 
 def main():
@@ -130,8 +133,10 @@ def main():
     fixture = args.fixture or create_fixture(args, args.output / "stock-fixture")
     for model in args.model or ("old3ds", "new3ds"):
         replay(args, model, fixture, False)
+        print(f"UPSTREAM_STOCK_COMMANDS model={model} live=False daggers=2 rally=ok", flush=True)
         if args.live:
             replay(args, model, fixture, True)
+            print(f"UPSTREAM_STOCK_COMMANDS model={model} live=True daggers=2 rally=ok", flush=True)
 
 
 if __name__ == "__main__":

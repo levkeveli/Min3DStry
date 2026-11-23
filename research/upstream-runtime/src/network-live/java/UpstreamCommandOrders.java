@@ -20,11 +20,13 @@ final class UpstreamCommandOrders {
     private final Seq<Building> buildings = new Seq<>();
     private final Rect hitBox = new Rect();
     private final Rect touchBox = new Rect();
+    private final UpstreamCommandMenu menu = new UpstreamCommandMenu();
     private boolean active, queued;
 
     void toggle() {
         active = !active;
         queued = false;
+        menu.close();
         units.clear();
         buildings.clear();
         Events.fire(Trigger.unitCommandChange);
@@ -36,6 +38,20 @@ final class UpstreamCommandOrders {
 
     boolean active() { return active; }
     int mode() { return !active ? 0 : queued ? 2 : 1; }
+
+    void openMenu(boolean stances) {
+        prune();
+        menu.open(units, stances);
+    }
+
+    void tapMenu(int x, int y) {
+        prune();
+        if (units.isEmpty()) menu.close();
+        else menu.tap(units, x, y);
+    }
+
+    UpstreamCommandMenu menu() { return menu; }
+    int activeMenuRows() { return menu.activeRows(units); }
 
     void tap(int tileX, int tileY) {
         var tile = Vars.world.tile(tileX, tileY);

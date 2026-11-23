@@ -8,6 +8,9 @@ import java.io.DataOutputStream;
 import java.util.HexFormat;
 import java.util.zip.InflaterInputStream;
 import mindustry.Vars;
+import mindustry.ai.BlockIndexer;
+import mindustry.ai.ItemUnitStance;
+import mindustry.ai.UnitCommand;
 import mindustry.content.Blocks;
 import mindustry.content.Items;
 import mindustry.content.UnitTypes;
@@ -28,6 +31,8 @@ import mindustry.gen.Groups;
 import mindustry.gen.Player;
 import mindustry.gen.RemoveMarkerCallPacket;
 import mindustry.gen.SetObjectivesCallPacket;
+import mindustry.gen.SetUnitCommandCallPacket;
+import mindustry.gen.SetUnitStanceCallPacket;
 import mindustry.gen.StateSnapshotCallPacket;
 import mindustry.gen.Unit;
 import mindustry.gen.UpdateMarkerCallPacket;
@@ -49,6 +54,7 @@ public final class UpstreamSnapshotDispatchReference {
         var app = UpstreamWorldLoadProbe.initialize(fixture.parent());
         Vars.mods = new Mods();
         Vars.universe = new Universe();
+        Vars.indexer = new BlockIndexer();
         Vars.netClient = NetClient.forSnapshotDispatch();
         Vars.player = Player.create();
         Vars.net.setClientConnected();
@@ -87,19 +93,54 @@ public final class UpstreamSnapshotDispatchReference {
         out.writeInt(dagger.id);
         out.writeByte(dagger.classId());
         dagger.writeSync(new Writes(out));
+        var mono = UnitTypes.mono.create(core.team);
+        mono.id(12346);
+        mono.set(616f, 216f);
+        mono.command().command(UnitCommand.moveCommand);
+        out.writeInt(mono.id);
+        out.writeByte(mono.classId());
+        mono.writeSync(new Writes(out));
         var packet = new EntitySnapshotCallPacket();
-        packet.amount = 1;
+        packet.amount = 2;
         packet.data = bytes.toByteArray();
         packet.handleClient();
         if (!(Groups.sync.getByID(dagger.id) instanceof Unit replicated)
                 || replicated.type != UnitTypes.dagger || replicated.x != 80f || replicated.y != 152f) {
             throw new IllegalStateException("Enemy unit did not synchronize");
         }
+        if (!(Groups.sync.getByID(mono.id) instanceof Unit decodedMono) || decodedMono.type != UnitTypes.mono
+                || decodedMono.x != 616f || decodedMono.y != 216f || !decodedMono.isCommandable()) {
+            throw new IllegalStateException("Stock Mono position or controller did not synchronize");
+        }
+        verifyUnitCommandPackets(decodedMono);
         System.out.println("UPSTREAM_SNAPSHOT_REFERENCE wave=" + state.wave
             + " seconds=42 copper=947 dagger=" + dagger.id);
         verifyPayloadHandoff();
         verifyObjectivePackets();
         verifyMarkerPackets();
+    }
+
+    private static void verifyUnitCommandPackets(Unit unit) {
+        if (!Vars.player.isAdded()) Vars.player.add();
+        var command = new SetUnitCommandCallPacket();
+        command.player = Vars.player;
+        command.unitIds = new int[]{unit.id};
+        command.command = UnitCommand.mineCommand;
+        applyPacket(command, new SetUnitCommandCallPacket(), Vars.player);
+        if (unit.command().currentCommand() != UnitCommand.mineCommand) {
+            throw new AssertionError("The original command packet did not switch the Mono to Mine");
+        }
+
+        var stance = new SetUnitStanceCallPacket();
+        stance.player = Vars.player;
+        stance.unitIds = new int[]{unit.id};
+        stance.stance = ItemUnitStance.getByItem(Items.copper);
+        stance.enable = true;
+        applyPacket(stance, new SetUnitStanceCallPacket(), Vars.player);
+        if (!unit.command().hasStance(stance.stance)) {
+            throw new AssertionError("The original stance packet did not select copper");
+        }
+        System.out.println("UPSTREAM_STANCE_PACKET_REFERENCE mono=mine-copper");
     }
 
     private static void verifyObjectivePackets() {
@@ -135,8 +176,15 @@ public final class UpstreamSnapshotDispatchReference {
     }
 
     private static void applyPacket(Packet sent, Packet received) {
+        applyPacket(sent, received, null);
+    }
+
+    private static void applyPacket(Packet sent, Packet received, Player forwardedBy) {
         var bytes = new ByteArrayOutputStream();
-        sent.write(new Writes(new DataOutputStream(bytes)));
+        var writes = new Writes(new DataOutputStream(bytes));
+        // Stock forwardable packets include the actor in the server-to-client envelope.
+        if (forwardedBy != null) mindustry.io.TypeIO.writeEntity(writes, forwardedBy);
+        sent.write(writes);
         byte[] payload = bytes.toByteArray();
         received.read(new Reads(new DataInputStream(new ByteArrayInputStream(payload))), payload.length);
         received.handled();
