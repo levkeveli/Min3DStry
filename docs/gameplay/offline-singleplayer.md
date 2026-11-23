@@ -8,7 +8,7 @@ This vertical slice boots and runs unmodified upstream Mindustry `v160.8` **Grou
 
 - [`UpstreamSinglePlayerSession.java`](../../research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerSession.java) (`-Pprobe=singleplayer-sim`): Pure-Java session lifecycle initializing `Vars`, `Pathfinder`, `ControlPathfinder`, `AvoidanceProcess`, `FogControl`, `GlobalVars` (adapted to guard `control.sound` when headless), `BlockIndexer`, `WaveSpawner`, and `BaseRegistry` without `AsyncCore`, plus a deterministic headless Ground Zero parity self-test (load map -> move -> mine copper -> build conveyor & wall -> deconstruct -> pause/resume -> flowfield & Wave 1 -> `.msav` save & reload -> terrain fingerprint).
 - [`UpstreamSinglePlayerApp.java`](../../research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerApp.java) (`-Pprobe=singleplayer`): Graphical 3DS runtime entry point. Loads RomFS/SD localization and Ground Zero save/map before initializing sprite atlases, unit/bullet drawables, and stock bitmap/TTF fonts (`UpstreamTerrainRenderProbe`) to bound peak TeaVM heap usage, then runs a 60 Hz fixed-step loop with `Thread.yield()` so TeaVM's cooperative scheduler services `Pathfinder`.
-- [`UpstreamSinglePlayerInput.java`](../../research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerInput.java), [`m3ds_input.h`](../../research/upstream-runtime/arm11/m3ds_input.h), and [`m3ds_input.c`](../../research/upstream-runtime/arm11/m3ds_input.c): Standalone `libctru` HID bridge (`m3ds_input_poll()` / `m3ds_input_touch()`). Bits `0..19` match `m3ds_live_net_input` (`Circle Pad`, `D-Pad`, `A`, `R`, `B`), with bit `20` = `KEY_X` (Pause/Resume), bit `21` = `KEY_Y` (Trigger wave), bit `22` = `KEY_SELECT` (Save `.msav`), and `-1` on `!aptMainLoop()` or `KEY_START` exit.
+- [`UpstreamSinglePlayerInput.java`](../../research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerInput.java), [`m3ds_input.h`](../../research/upstream-runtime/arm11/m3ds_input.h), and [`m3ds_input.c`](../../research/upstream-runtime/arm11/m3ds_input.c) provide the standalone `libctru` HID bridge. Bits `0..19` match `m3ds_live_net_input` for Circle Pad, D-Pad, A, R, and B. Bits `20..22` report X, Y, and SELECT presses. Bits `23` and `25` report held L and X. The poll returns `-1` on exit.
 - [`WorldReflectionPolicy.java`](../../research/upstream-runtime/src/world/java/port/WorldReflectionPolicy.java): Registers 0-argument constructors for `arc.struct.{IntMap,IntSet,ObjectIntMap,ObjectMap,ObjectSet,StringMap}` so Arc `Json` restores populated `GameStats` (`placedBlockCount`, etc.) and `Rules` fields when reloading `.msav` saves.
 - [`prepare_terrain_assets.py`](../../research/upstream-runtime/arm11/prepare_terrain_assets.py) (`--singleplayer`) & [`build.sh`](../../research/upstream-runtime/arm11/build.sh) (`--singleplayer`): Stages `maps/groundZero.msav` and `sprites.aatls` alongside bundles, `world-atlas`, `block_colors.png`, menu icons, and stock fonts, then links the ARM11 `.elf`/`.3dsx` (default `-Os`).
 
@@ -121,10 +121,49 @@ profiles. Physical console memory use and frame-rate targets remain open.
 | Touch `Mine` (`x >= 288, 80 <= y < 112`) | Toggle ore mining target selection |
 | Touch `List` / `Config` / Bottom bar | Open block catalog (`UpstreamBuildMenu`), block config (`UpstreamBuildingConfig`), shortcuts, `Rotate`, or `Remove` |
 | `A` / `R` / `B` | Place at cursor / rotate block / toggle remove mode |
-| `X` | Toggle simulation Pause / Resume (`UPSTREAM_SP_PAUSE`) |
+| Tap `X` | Toggle simulation pause or resume on release |
+| Hold `X` and use Circle Pad / D-Pad | Set the aim direction without moving |
+| Hold `L` | Fire the current unit's original weapons |
 | `Y` | Trigger next enemy wave (`UPSTREAM_SP_WAVE`) |
 | `SELECT` | Save `.msav` snapshot to `/3ds/min3dstry/singleplayer-save.msav` (`UPSTREAM_SP_SAVED`) |
 | `START` | Exit application cleanly |
+
+## Stock player combat
+
+The offline app sets aim and the trigger through the original
+`Unit.aim` and `Unit.controlWeapons` methods. The pinned simulation
+handles reload, recoil, delayed shots, projectiles, and damage.
+The chosen aim direction stays active when the aim button is released,
+so players can move while firing. A quick X tap pauses even with the
+movement control held. Hold X and a direction for a quarter second
+to switch to aiming.
+
+The stock Glacier replay uses Gamma to damage an opposing Fortress.
+The fixture applies the original disarmed and unmoving statuses to keep
+the target in place. The unmodified Java server checks the saved unit
+health after the controller replay.
+
+The replay checks that the Fortress takes damage and that the stock
+weapon mounts schedule no further shots after L is released.
+The precise damage depends on the number of simulation ticks that
+occur during the replay.
+
+```bash
+python3 tools/verify_offline_stock_weapons.py \
+  --rom /path/to/unified/upstream-probe.3dsx \
+  --server /path/to/server-release.jar \
+  --output build/offline-stock-weapons
+```
+
+Run the JVM reference with a stock Glacier fixture from the verifier
+and a scratch save path.
+
+```bash
+bash /path/to/Mindustry/gradlew -p research/upstream-runtime \
+  -PupstreamCheckout=/path/to/Mindustry -ParcCheckout=/path/to/Arc \
+  -PreferenceJar=/path/to/server-release.jar -Pprobe=unified \
+  runOfflineWeaponsJvm "--args=/path/to/stock-fixture/config/saves/weapons.msav /tmp/weapons-jvm.msav"
+```
 
 ## Build & Verification Commands
 
