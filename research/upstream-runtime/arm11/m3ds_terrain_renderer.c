@@ -170,6 +170,10 @@ void m3ds_terrain_minimap_draw(float x, float y, float size) {
     C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_COLOR);
     C3D_SetScissor(GPU_SCISSOR_DISABLE, 0, 0, 0, 0);
     C2D_SetTintMode(C2D_TintMult);
+    C2D_DrawRectSolid(x - 2.0f, y - 2.0f, 0.25f, size + 4.0f, size + 4.0f,
+        C2D_Color32(24, 27, 32, 235));
+    C2D_DrawRectSolid(x - 1.0f, y - 1.0f, 0.27f, size + 2.0f, size + 2.0f,
+        C2D_Color32(95, 105, 122, 255));
     C2D_ImageTint tint;
     C2D_PlainImageTint(&tint, C2D_Color32(255, 255, 255, 255), 1.0f);
     C2D_DrawImageAt(minimap_image, x, y, 0.3f, &tint,
