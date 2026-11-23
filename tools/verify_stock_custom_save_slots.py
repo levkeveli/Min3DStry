@@ -41,6 +41,10 @@ def create(args, directory):
         const first=save('glacier.msav','0.msav',mode.sandbox,17);
         const second=save('caldera.msav','Caldera Test.msav',mode.survival,41);
         if(second<=first) throw 'Unexpected stock slot sort order';
+        Vars.logic.reset();
+        Vars.world.loadSector(Packages.mindustry.content.SectorPresets.groundZero.sector);
+        Vars.logic.play();
+        SaveIO.write(Fi.get('saves/sector-serpulo-170.msav'));
         settings.put('save-0-name','Glacier Test');
         settings.forceSave();
         return 'STOCK_CUSTOM_SLOTS_WRITTEN';
@@ -98,9 +102,13 @@ def replay(args, model, fixture, azahar, config, log):
                 rpc.close()
                 sp._stop_proc(proc, azahar)
                 (output / (map_name + ".log")).write_bytes(log.read_bytes())
-        if (saves / "Caldera Test.msav").read_bytes() != (fixture / "saves/Caldera Test.msav").read_bytes():
-            raise AssertionError("Saving Glacier changed the unrelated stock Caldera save")
-        if (saves / "0.msav-backup.msav").read_bytes() != (fixture / "saves/0.msav").read_bytes():
+        for other in ("Caldera Test.msav", "sector-serpulo-170.msav"):
+            if (saves / other).read_bytes() != (fixture / "saves" / other).read_bytes():
+                raise AssertionError(f"Saving Glacier changed the unrelated stock save {other}")
+        original_glacier = (fixture / "saves/0.msav").read_bytes()
+        if (saves / "0.msav").read_bytes() == original_glacier:
+            raise AssertionError("The selected stock Glacier save was not rewritten")
+        if (saves / "0.msav-backup.msav").read_bytes() != original_glacier:
             raise AssertionError("The selected slot did not retain its original backup bytes")
         readback(args, saves / "0.msav")
         print(f"[PASS] {model}: both PC saves opened and stock Java reopened the selected write", flush=True)
