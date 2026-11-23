@@ -46,11 +46,13 @@ import mindustry.gen.UpdateGameOverCallPacket;
 import mindustry.gen.UpdateMarkerCallPacket;
 import mindustry.gen.UpdateMarkerTextCallPacket;
 import mindustry.gen.UpdateMarkerTextureCallPacket;
+import mindustry.gen.WorldDataBeginCallPacket;
 import mindustry.logic.LMarkerControl;
 import mindustry.mod.Mods;
 import mindustry.net.Net;
 import mindustry.net.NetworkIO;
 import mindustry.net.Packet;
+import mindustry.net.Packets.StreamBegin;
 import mindustry.world.blocks.distribution.ItemBridge.ItemBridgeBuild;
 import mindustry.world.blocks.payloads.BuildPayload;
 import mindustry.world.blocks.ControlBlock;
@@ -59,7 +61,9 @@ import mindustry.world.modules.ItemModule;
 
 public final class UpstreamSnapshotDispatchReference {
     public static void main(String[] args) throws Exception {
-        if (args.length != 1) throw new IllegalArgumentException("Expected a captured v160.8 WorldStream");
+        if (args.length < 1 || args.length > 2) {
+            throw new IllegalArgumentException("Expected a captured v160.8 WorldStream and optional rotation WorldStream");
+        }
         var fixture = new Fi(args[0]);
         var app = UpstreamWorldLoadProbe.initialize(fixture.parent());
         Vars.mods = new Mods();
@@ -135,6 +139,42 @@ public final class UpstreamSnapshotDispatchReference {
         verifyStockLinkPackets();
         verifyWeaponInput();
         verifyRoundResults();
+        if (args.length == 2) verifyWorldRotation(app, new Fi(args[1]));
+    }
+
+    private static void verifyWorldRotation(UpstreamWorldLoadProbe.ProbeApplication app, Fi next) throws Exception {
+        var player = Vars.player;
+        var net = Vars.net;
+        var previousMap = Vars.state.map.name();
+        var previousName = player.name;
+        int previousPlayerId = player.id;
+        applyPacket(new WorldDataBeginCallPacket(), new WorldDataBeginCallPacket());
+        if (!Vars.state.isMenu() || Vars.world.width() != 0 || !Groups.unit.isEmpty() || !Vars.net.client()) {
+            throw new AssertionError("Stock WorldDataBegin must clear the previous session world");
+        }
+
+        var begin = new StreamBegin();
+        begin.id = 196;
+        begin.total = Math.toIntExact(next.length());
+        begin.type = (byte) Net.packetIdWorldStream;
+        var bytes = new ByteArrayOutputStream();
+        begin.write(new Writes(new DataOutputStream(bytes)));
+        byte[] header = bytes.toByteArray();
+        var decoded = UpstreamLiveNetworkProbe.readWorldBegin(
+            new Reads(new DataInputStream(new ByteArrayInputStream(header))), header.length);
+        if (decoded.id != begin.id || decoded.total != next.length()) {
+            throw new AssertionError("The rotation should use the stock stream declaration");
+        }
+        UpstreamLiveNetworkProbe.loadSessionWorld(app, next.read());
+        Vars.netClient.finishSnapshotWorld();
+        if (Vars.state.map.name().equals(previousMap) || Vars.net != net || Vars.player != player
+                || Groups.player.getByID(player.id) != player || !"Rotation Fixture".equals(player.name)
+                || (player.name.equals(previousName) && player.id != previousPlayerId) || Vars.state.gameOver
+                || !Vars.state.isPlaying() || Groups.sync.getByID(12345) != null) {
+            throw new AssertionError("The second WorldStream must replace the map without replacing the connected client");
+        }
+        System.out.println("UPSTREAM_WORLD_ROTATION from=" + previousMap + " to=" + Vars.state.map.name()
+            + " player=" + player.id + " oldEntities=cleared");
     }
 
     private static void verifyRoundResults() {

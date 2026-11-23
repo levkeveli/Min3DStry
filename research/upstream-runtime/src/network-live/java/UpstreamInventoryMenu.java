@@ -120,6 +120,7 @@ final class UpstreamInventoryMenu {
         return index < entries.size ? entries.get(index) : null;
     }
 
+    void close() { target = null; }
     boolean isOpen() { return target != null; }
     byte[] labels() { return labels; }
     int[] iconIds() { return iconIds; }

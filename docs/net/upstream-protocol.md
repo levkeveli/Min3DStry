@@ -142,4 +142,30 @@ and shows the final wave in wave modes.
 The unified JVM reference round-tripped both generated result packets and
 verified a dedicated-server loss and a desktop-hosted win. The stock-bundle
 draw reference checked the survival and PvP result text. Live handheld
-replay and next-map stream transitions are pending.
+replay is pending.
+
+
+### Stock server map rotation
+
+The active client accepts v160.8 `WorldDataBegin` and the following
+`WorldStream` on its existing Arc session. It clears map-specific selections,
+applies the original world reset, and streams the replacement map in chunks.
+The stock `ConnectConfirm` follows the successful load. World and match
+result HUD state come from the new map.
+
+`tools/capture_stock_rotating_server.py` captures both WorldStreams from
+one localhost connection to the original v160.8 server. The server uses
+its stock WorldReloader to move from Glacier to the supplied original map.
+Pass the two capture files to `runProbeJvm`. The JVM replay replaced
+Glacier with Ancient Caldera, preserving the server-assigned player ID
+while clearing the previous entities and result state. The separate
+`tools/build_stock_rotation_stream.py` helper writes a second fixture
+directly if only the decoding path needs verification. Live ARM11 replay
+and external asset-transfer streams remain open.
+
+Use `tools/verify_stock_live_rotation.py` with the unified ROM, the pinned
+server and atlas, and portable Azahar instances for both models. It stages
+the original Ancient Caldera map from the server release and checks that
+the server sees the same player, connection and continuing input snapshots
+after rotation. The ARM11 log must report the new map on the original
+player ID and then receive its second wave.

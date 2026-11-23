@@ -47,6 +47,18 @@ final class UpstreamLiveBuildControls {
         schematics = new UpstreamSchematicPlacement(schematicDirectory);
     }
 
+    void resetWorld() {
+        viewportReady = false;
+        tileX = tileY = -1;
+        removing = configuring = selectingMine = selectingControl = false;
+        inventoryAction = InventoryAction.none;
+        catalog.close();
+        inventory.close();
+        if (buildingConfig.isOpen() || buildingConfig.isLinking()) buildingConfig.close();
+        if (orders.active()) orders.toggle();
+        if (schematics.active()) schematics.cancel();
+    }
+
     void viewport(int left, int bottom) {
         this.left = left;
         this.bottom = bottom;
