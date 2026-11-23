@@ -798,6 +798,21 @@ public final class UpstreamSinglePlayerSession {
                 throw new IllegalStateException("Enemy wave unit did not advance: wave=" + Vars.state.wave
                     + " y=" + enemyStartY + "->" + enemy.y());
             }
+            byte[] unitMap = UpstreamMinimap.sample(64);
+            int enemyCell = UpstreamMinimap.cellIndex(64, Vars.world.width(), Vars.world.height(),
+                enemy.tileX(), enemy.tileY());
+            int playerCell = UpstreamMinimap.playerIndex(64);
+            if (enemyCell < 0 || enemyCell == playerCell) {
+                throw new IllegalStateException("Enemy minimap cell is invalid");
+            }
+            var enemyColor = enemy.team.color;
+            int enemyOffset = enemyCell * 4;
+            if ((unitMap[enemyOffset] & 0xff) != Math.round(enemyColor.r * 255f)
+                    || (unitMap[enemyOffset + 1] & 0xff) != Math.round(enemyColor.g * 255f)
+                    || (unitMap[enemyOffset + 2] & 0xff) != Math.round(enemyColor.b * 255f)) {
+                throw new IllegalStateException("Enemy minimap blip color mismatch");
+            }
+            System.out.println("UPSTREAM_MINIMAP_UNITS enemy=1 ok");
 
             // 7. Save .msav, reset world, reload, and verify exact restored state.
             int preReloadCopper = session.core().items.get(Items.copper);

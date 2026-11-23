@@ -25,7 +25,8 @@ off and a campaign sector is active;
   corner, using the stock `MinimapRenderer` color path (`Block.minimapColor`,
   floor/overlay fallback through `MapIO.colorFor`, darkness and liquid/shadow
   edge tints), with the local player marked at the nearest sampled cell and
-  refreshed every 60 frames.
+  living non-fogged units drawn as their team-colored blips; refreshed every
+  60 frames.
 
 The status rows use the v160.8 font and inline item glyph pipeline shared with
 the objective HUD. They are rebuilt only when the rendered status text changes,
