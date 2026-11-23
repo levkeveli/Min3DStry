@@ -1131,7 +1131,9 @@ jobs:
         run: |
           set -o pipefail
           fixture=$(mktemp -d "$RUNNER_TEMP/stock-embedded-map.XXXXXX")
-          python3 tools/stock_embedded_map_assets.py --server "$RUNNER_TEMP/server-release.jar" --directory "$fixture"
+          git -C "$RUNNER_TEMP/Mindustry" show HEAD:core/assets/bundles/bundle.properties > "$fixture/bundle.properties"
+          python3 tools/stock_embedded_map_assets.py --server "$RUNNER_TEMP/server-release.jar" --directory "$fixture" \
+            --stock-bundle "$fixture/bundle.properties"
           bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime \
             --no-daemon --console=plain \
             "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" \
@@ -1139,6 +1141,7 @@ jobs:
             "-ParcCheckout=$RUNNER_TEMP/Arc" \
             -Pprobe=singleplayer runStockEmbeddedAssetJvm "--args='$fixture'" | tee "$fixture/probe.log"
           grep -E '^UPSTREAM_EMBEDDED_MAP_ASSET bytes=[0-9]+ stock=embedded disk=verified reload=ok$' "$fixture/probe.log"
+          grep -Fx 'UPSTREAM_OFFLINE_MAP_LOCALE imported=ok resumed=ok switched=restored exit=restored' "$fixture/probe.log"
           python3 tools/stock_embedded_map_assets.py --server "$RUNNER_TEMP/server-release.jar" \
             --directory "$fixture" --readback
 
