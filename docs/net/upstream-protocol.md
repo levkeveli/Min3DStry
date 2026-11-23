@@ -230,3 +230,11 @@ the upstream handlers. The JVM snapshot reference round-trips the packet
 bytes and verifies the resulting terrain, rotated block, damage, removal,
 team, inventory and linked power graph. Live graphical verification remains
 tracked separately.
+
+### Entity visibility and disconnects
+
+The session redispatches the original HiddenSnapshot and PlayerDisconnect
+packets. Hidden units leave the current synchronized group and return
+when the server sends a visible entity update. The stock disconnect
+handler removes the player and rejects stale snapshots for the departed
+ID. The JVM reference checks both lifecycles and the local player ID.

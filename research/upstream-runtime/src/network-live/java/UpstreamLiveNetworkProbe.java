@@ -53,11 +53,13 @@ import mindustry.gen.FillTileFloorsCallPacket;
 import mindustry.gen.FillTileOverlaysCallPacket;
 import mindustry.gen.GameOverCallPacket;
 import mindustry.gen.Groups;
+import mindustry.gen.HiddenSnapshotCallPacket;
 import mindustry.gen.KickCallPacket;
 import mindustry.gen.KickCallPacket2;
 import mindustry.gen.Mechc;
 import mindustry.gen.PingLocationCallPacket;
 import mindustry.gen.Player;
+import mindustry.gen.PlayerDisconnectCallPacket;
 import mindustry.gen.RemoveMarkerCallPacket;
 import mindustry.gen.RemoveQueueBlockCallPacket;
 import mindustry.gen.RemoveTileCallPacket;
@@ -701,6 +703,7 @@ public final class UpstreamLiveNetworkProbe {
             } else {
                 var update = tileMutationPacket(id);
                 if (update == null) update = markerPacket(id);
+                if (update == null) update = entityLifecyclePacket(id);
                 if (update != null) {
                     decode(update, received).handleClient();
                 } else if (frame != null) {
@@ -743,6 +746,12 @@ public final class UpstreamLiveNetworkProbe {
         packet.message = message;
         send(packet, true);
         System.out.println("UPSTREAM_LIVE_CHAT_SENT chars=" + message.length());
+    }
+
+    static Packet entityLifecyclePacket(int id) {
+        if (id == unsignedId(HiddenSnapshotCallPacket.class)) return new HiddenSnapshotCallPacket();
+        if (id == unsignedId(PlayerDisconnectCallPacket.class)) return new PlayerDisconnectCallPacket();
+        return null;
     }
 
     static Packet markerPacket(int id) {
