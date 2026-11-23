@@ -474,8 +474,9 @@ same stock sector world context when resuming actual PC campaign saves.
 
 The [ARM11 probes](campaign-verification.md) cover upstream settings,
 `SectorInfo`, research requirements, and sector saves. Verify the full
-campaign progression matrix, including the graphical background turn and
-transitions between sectors. Use [the SD path contract](sd-storage-paths.md)
+campaign progression matrix and longer transitions between sectors.
+The [graphical background turn](../gameplay/offline-singleplayer.md#background-campaign-turns)
+has a repeatable three-sector replay. Use [the SD path contract](sd-storage-paths.md)
 when comparing the saves and settings with the unmodified Java release.
 The [physical hardware milestones](../hardware-test-queue.md) track
 the runs on Original and New 3DS/2DS.
