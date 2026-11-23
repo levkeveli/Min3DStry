@@ -199,3 +199,13 @@ now disassembles the linked ELF and rejects a `main()` prologue frame above
 **4,096 bytes**. The fixed frame is **2,400 bytes** (9 integer pushes, 4 double
 pushes, `2320 + 12` bytes of `sub sp`). `tools/check_main_stack.py` has host
 parser tests; keep new large single-threaded state static or heap-backed.
+
+### Original fire and puddle tile indexes
+
+The pinned `Tiles` implementation gives every map two effect arrays with one
+reference per tile. The 3DS adapter uses an Arc map keyed by the original tile
+index for each effect type. Fire and puddle entities continue to use the
+upstream creation, lookup, update, removal and save paths. Empty tiles have no
+entries. The headless campaign reference checks separate worlds, tile zero,
+replacement, removal and index bounds. The original 32 MiB managed heap cap
+still applies. Large-map hardware verification is tracked in [#538](https://github.com/levkeveli/Min3DStry/issues/538).
