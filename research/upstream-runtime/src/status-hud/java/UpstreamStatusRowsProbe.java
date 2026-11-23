@@ -136,7 +136,22 @@ public final class UpstreamStatusRowsProbe {
                 || pause.activate() != UpstreamPauseMenu.Action.QUIT) {
             throw new IllegalStateException("Pause menu quit action mismatch");
         }
-        System.out.println("UPSTREAM_PAUSE_MENU cases=6 ok");
+        pause.open(4);
+        if (pause.options() != 4) throw new IllegalStateException("Pause menu research options mismatch");
+        pause.move(1);
+        if (pause.activate() != UpstreamPauseMenu.Action.RESEARCH) {
+            throw new IllegalStateException("Pause menu research action mismatch");
+        }
+        pause.move(1);
+        if (pause.activate() != UpstreamPauseMenu.Action.SAVE) {
+            throw new IllegalStateException("Pause menu save-with-research action mismatch");
+        }
+        pause.move(1);
+        if (pause.activate() != UpstreamPauseMenu.Action.NONE
+                || pause.activate() != UpstreamPauseMenu.Action.QUIT) {
+            throw new IllegalStateException("Pause menu quit-with-research action mismatch");
+        }
+        System.out.println("UPSTREAM_PAUSE_MENU cases=9 ok");
         System.out.println("UPSTREAM_STATUS_ROWS cases=10 ok");
         System.out.println("UPSTREAM_GUARDIAN_WARNING cases=2 ok");
         System.out.println("UPSTREAM_UNIT_ROWS cases=3 ok");
