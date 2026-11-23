@@ -46,7 +46,7 @@ import mindustry.world.blocks.logic.TileableLogicDisplay.TileableLogicDisplayBui
 public final class UpstreamRenderedNetworkProbe {
     private static final ObjectSet<UnitType> drawableUnits = new ObjectSet<>();
     private final Fi atlas;
-    private final UpstreamTerrainRenderProbe target = new UpstreamTerrainRenderProbe(false);
+    private final UpstreamTerrainRenderProbe target = new UpstreamTerrainRenderProbe(false, true);
     private final UpstreamBuildingLayers buildingLayers = new UpstreamBuildingLayers();
     private final UpstreamLiveBuildControls buildingControls = new UpstreamLiveBuildControls();
     private final Runnable drawEntities = this::drawEntities;

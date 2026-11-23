@@ -5,6 +5,8 @@ import arc.util.Align;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import mindustry.Vars;
+import mindustry.maps.Map;
+import mindustry.world.Tiles;
 import org.teavm.interop.Import;
 import org.teavm.interop.Address;
 import org.teavm.interop.c.Include;
@@ -17,9 +19,20 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
 
     private final boolean reportFrame;
     private final int[] stockObjectiveFont = new int[1];
+    private static final int MINIMAP_SIZE = 64;
+    private final byte[] minimapPixels;
+    private Map minimapMap;
+    private Tiles minimapTiles;
+    private int minimapFrames;
+    private float cameraTileX, cameraTileY;
 
     UpstreamTerrainRenderProbe(boolean reportFrame) {
+        this(reportFrame, false);
+    }
+
+    UpstreamTerrainRenderProbe(boolean reportFrame, boolean showMinimap) {
         this.reportFrame = reportFrame;
+        minimapPixels = showMinimap ? new byte[MINIMAP_SIZE * MINIMAP_SIZE * 4] : null;
     }
 
     public static void main(String[] args) throws IOException {
@@ -92,6 +105,8 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
 
     @Override
     public void begin(int left, int bottom, int width, int height) {
+        cameraTileX = left + (width - 1) / 2f;
+        cameraTileY = bottom + (height - 1) / 2f;
         int result = NativeTerrain.begin(left, bottom, width, height, Vars.tilesize);
         if (result != 1) {
             throw new IllegalStateException("Unable to start Citro2D terrain frame: " + result);
@@ -171,11 +186,22 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
 
     @Override
     public void overlay() {
+        if (minimapPixels == null || Vars.world.width() <= 0 || Vars.world.height() <= 0) return;
+        boolean changed = minimapMap != Vars.state.map || minimapTiles != Vars.world.tiles;
+        if (changed || ++minimapFrames >= 2) {
+            minimapFrames = 0;
+            var region = UpstreamMinimap.region(Vars.world.width(), Vars.world.height(), cameraTileX, cameraTileY);
+            UpstreamMinimap.sampleRegion(minimapPixels, MINIMAP_SIZE, region);
+            NativeTerrain.minimapUpload(Address.ofData(minimapPixels), MINIMAP_SIZE, MINIMAP_SIZE);
+            if (changed) {
+                minimapMap = Vars.state.map;
+                minimapTiles = Vars.world.tiles;
+                System.out.println("UPSTREAM_MINIMAP size=" + MINIMAP_SIZE + " hash="
+                    + Long.toUnsignedString(UpstreamMinimap.hash(minimapPixels), 16)
+                    + " map=" + (minimapMap == null ? "unknown" : minimapMap.name()));
+            }
+        }
         NativeTerrain.minimapDraw(336f, 8f, 56f);
-    }
-
-    void minimapUpload(byte[] pixels, int width, int height) {
-        NativeTerrain.minimapUpload(Address.ofData(pixels), width, height);
     }
 
 
