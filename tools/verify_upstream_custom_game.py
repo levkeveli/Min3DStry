@@ -21,7 +21,7 @@ def write_replay(path: Path, model: str, resume: bool, map_file: str) -> None:
     select_at = 48 if large_map else 33
     save_at = 112 if large_map else 61
     if resume:
-        windows.append((select_at, select_at + 2, 1))  # A on Load Game.
+        windows.append((select_at, select_at + 2, 1))  # A on the newly created save slot.
     else:
         if large_map:
             windows.append((select_at - 8, select_at - 6, 1 << 7))  # D-pad down from Ancient Caldera.
@@ -44,15 +44,17 @@ def write_replay(path: Path, model: str, resume: bool, map_file: str) -> None:
 
 def verify(model: str, rom: Path, azahar: str, config: Path, log: Path, output: Path,
            timeout: float, map_file: str) -> None:
-    save = sp.resolve_sd_save_path(log).with_name("custom-game-save.msav")
-    if any(save.with_name("maps").glob("*.msav")):
-        raise RuntimeError("Use an Azahar SD directory without user maps for the stock catalog test")
+    sd = (output / f"{model}-sd").resolve()
+    root = sd / "3ds/min3dstry"
+    root.mkdir(parents=True)
+    save = root / "saves/0.msav"
     backup = save.with_name(f"{save.name}-backup.msav")
-    backups = {p: p.read_bytes() if p.is_file() else None for p in (config, save, backup)}
-    save.parent.mkdir(parents=True, exist_ok=True)
-    save.unlink(missing_ok=True)
-    backup.unlink(missing_ok=True)
+    backups = {p: p.read_bytes() if p.is_file() else None for p in (config, log)}
     try:
+        config.parent.mkdir(parents=True, exist_ok=True)
+        storage = {"Data Storage": {"use_custom_storage": "true", "sdmc_directory": sd.as_posix() + "/"}}
+        config.write_text(sp.az.patch_qt_config_text((backups[config] or b"").decode("utf-8"), storage),
+                          encoding="utf-8")
         game_fps = {}
         for resume in (False, True):
             stage = "resume" if resume else "play"
@@ -82,7 +84,11 @@ def verify(model: str, rom: Path, azahar: str, config: Path, log: Path, output: 
                     raise AssertionError(f"{model} {stage}: expected nonblank world and touch HUD")
                 (output / f"{model}-{stage}.png").write_bytes(shot)
                 if not resume:
-                    sp._wait_for_log(log, proc, r"UPSTREAM_SP_SAVED path=\S*custom-game-save\.msav\b", timeout)
+                    sp._wait_for_log(log, proc, r"UPSTREAM_CUSTOM_GAME_SLOT file=0\.msav\b", timeout)
+                    sp._wait_for_log(log, proc, r"UPSTREAM_SP_SAVED path=.*?/saves/0\.msav\b[\s\S]+"
+                                               r"UPSTREAM_SP_SAVED path=.*?/saves/0\.msav\b", timeout)
+                    if not backup.is_file():
+                        raise AssertionError(f"{model}: SELECT did not update the initial slot with a stock backup")
                     if not save.is_file() or not save.stat().st_size:
                         raise AssertionError(f"{model}: the Custom Game save was not written")
                     (output / f"{model}-sandbox.msav").write_bytes(save.read_bytes())

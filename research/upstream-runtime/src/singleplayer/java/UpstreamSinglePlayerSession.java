@@ -14,6 +14,9 @@ import arc.struct.Seq;
 import arc.util.ArcRuntimeException;
 import arc.util.Time;
 import java.io.IOException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
 import java.util.ArrayList;
 import java.util.List;
 import mindustry.Vars;
@@ -66,7 +69,7 @@ public final class UpstreamSinglePlayerSession {
     private static final float FIXED_STEP_SECONDS = 1f / 60f;
     private final UpstreamWorldLoadProbe.ProbeApplication app;
     private final Vec2 tmpMove = new Vec2();
-    private Saves campaignSaves;
+    private Saves saveSlots;
     private float deltaSeconds = FIXED_STEP_SECONDS;
 
     private UpstreamSinglePlayerSession(UpstreamWorldLoadProbe.ProbeApplication app) {
@@ -283,7 +286,17 @@ public final class UpstreamSinglePlayerSession {
         reportLoadedWorld("campaign-new");
     }
 
+    record CustomGameLaunch(Gamemode mode, Fi save) {}
+
     Gamemode startCustomGame(Map map, Gamemode requested) throws IOException {
+        return startCustomGame(map, requested, false).mode();
+    }
+
+    CustomGameLaunch startCustomGameWithSave(Map map, Gamemode requested) throws IOException {
+        return startCustomGame(map, requested, true);
+    }
+
+    private CustomGameLaunch startCustomGame(Map map, Gamemode requested, boolean createSlot) throws IOException {
         // Control.playMap wraps these operations in the stock desktop loading UI.
         var rules = map.applyRules(requested);
         Vars.logic.reset();
@@ -315,10 +328,23 @@ public final class UpstreamSinglePlayerSession {
         Events.fire(new RulesLoadEvent(rules));
         Vars.avoidance.init();
         Vars.logic.play();
+        Fi slot = createSlot && Core.settings.getBool("savecreate", true) ? createCustomGameSave() : null;
         Events.fire(Trigger.newGame);
         app.runPosted();
         reportLoadedWorld("customgame");
-        return mode;
+        return new CustomGameLaunch(mode, slot);
+    }
+
+    Fi createCustomGameSave() throws IOException {
+        // Reuse the original numeric slot selection and Settings metadata.
+        // The stock desktop's SaveSlot.save also requests a GL minimap preview.
+        var slots = saveSlots();
+        var slot = slots.new SaveSlot(slots.getNextSlotFile());
+        var suffix = new SimpleDateFormat("MMM dd h:mm", Locale.getDefault()).format(new Date());
+        slot.setName(Vars.state.map.name() + " " + suffix);
+        save(slot.file);
+        System.out.println("UPSTREAM_CUSTOM_GAME_SLOT file=" + slot.file.name());
+        return slot.file;
     }
 
     private void reportLoadedWorld(String source) {
@@ -467,21 +493,21 @@ public final class UpstreamSinglePlayerSession {
         }
     }
 
-    private Saves campaignSaves() {
-        if (campaignSaves == null) {
+    private Saves saveSlots() {
+        if (saveSlots == null) {
             if (Core.assets == null) Core.assets = new AssetManager(Fi::new, false);
-            campaignSaves = new Saves();
+            saveSlots = new Saves();
         }
-        return campaignSaves;
+        return saveSlots;
     }
 
     Fi sectorFile(Sector sector) {
-        return campaignSaves().getSectorFile(sector);
+        return saveSlots().getSectorFile(sector);
     }
 
     private void bindSectorSave(Sector sector, Fi file, SaveMeta meta) {
         if (sector.save == null || !sector.save.file.equals(file)) {
-            var saves = campaignSaves();
+            var saves = saveSlots();
             if (sector.save != null) saves.getSaveSlots().remove(sector.save);
             sector.save = saves.new SaveSlot(file);
             saves.getSaveSlots().add(sector.save);
