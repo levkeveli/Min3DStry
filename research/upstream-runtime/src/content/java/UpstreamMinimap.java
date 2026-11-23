@@ -41,14 +41,6 @@ public final class UpstreamMinimap {
         }
         var localTeam = Vars.player == null ? null : Vars.player.team();
         var playerUnit = Vars.player == null ? null : Vars.player.unit();
-        for (Unit unit : Groups.unit) {
-            if (unit == playerUnit || unit.dead || !unit.isAdded() || !unit.type.drawMinimap) continue;
-            if (localTeam != null && unit.inFogTo(localTeam)) continue;
-            int unitCell = cellIndex(size, worldWidth, worldHeight, unit.tileX(), unit.tileY());
-            if (unitCell < 0) continue;
-            var color = unit.team.color;
-            putBlip(pixels, size, unitCell % size, unitCell / size, color.r, color.g, color.b);
-        }
         if (localTeam != null) {
             for (CoreBuild core : localTeam.cores()) {
                 int coreCell = cellIndex(size, worldWidth, worldHeight, core.tileX(), core.tileY());
@@ -62,6 +54,14 @@ public final class UpstreamMinimap {
                     }
                 }
             }
+        }
+        for (Unit unit : Groups.unit) {
+            if (unit == playerUnit || unit.dead || !unit.isAdded() || !unit.type.drawMinimap) continue;
+            if (localTeam != null && unit.inFogTo(localTeam)) continue;
+            int unitCell = cellIndex(size, worldWidth, worldHeight, unit.tileX(), unit.tileY());
+            if (unitCell < 0) continue;
+            var color = unit.team.color;
+            putBlip(pixels, size, unitCell % size, unitCell / size, color.r, color.g, color.b);
         }
         int player = playerMarker ? playerIndex(size) : -1;
         var playerModel = Vars.player == null ? null : Vars.player.unit();
