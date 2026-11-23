@@ -44,3 +44,14 @@ Build the ARM11 probe with `-Pprobe=world-save generateC` and
 
 The native reader remains verification-only; the next step is to make the
 upstream loader own the live world instead of comparing two decoders.
+## Save playtime
+
+Offline play resumes the original `playtime` field in milliseconds. It
+adds elapsed time between gameplay frames, preserves fractional milliseconds
+across modal menus, and starts fresh when opening a new world. The stock
+`SaveVersion` writes the value into the original save metadata.
+
+`runStockPlaytimeJvm` with `-Pprobe=singleplayer` takes Glacier and a
+scratch save directory. It writes 376 ms, resumes and saves at 626 ms,
+then creates a fresh world at 0 ms. `tools/verify_stock_playtime.py`
+checks those values with the unmodified v160.8 Java release.

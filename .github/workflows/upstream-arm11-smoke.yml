@@ -1200,6 +1200,21 @@ jobs:
           grep -Fx 'UPSTREAM_BACKGROUND_TURN live=37 import=30 remote=100 lead=0 frozen=11' "$check_dir/probe.log"
           python3 tools/campaign_background_fixture.py --server "$RUNNER_TEMP/server-release.jar" --check "$check_dir/save"
 
+      - name: Verify stock save playtime and PC metadata readback
+        run: |
+          set -o pipefail
+          fixture=$(mktemp -d "$RUNNER_TEMP/stock-playtime.XXXXXX")
+          unzip -p "$RUNNER_TEMP/server-release.jar" maps/default/glacier.msav > "$fixture/glacier.msav"
+          bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime \
+            --no-daemon --console=plain \
+            "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" \
+            "-PreferenceJar=$RUNNER_TEMP/server-release.jar" \
+            "-ParcCheckout=$RUNNER_TEMP/Arc" \
+            -Pprobe=singleplayer runStockPlaytimeJvm "--args='$fixture/glacier.msav' '$fixture'" \
+            | tee "$fixture/probe.log"
+          grep -Fx 'UPSTREAM_STOCK_PLAYTIME first=376 resumed=626 new=0 modal=excluded' "$fixture/probe.log"
+          python3 tools/verify_stock_playtime.py --server "$RUNNER_TEMP/server-release.jar" --saves "$fixture"
+
       - name: Verify stock Erekir assembler production and PC save readback
         run: |
           set -o pipefail

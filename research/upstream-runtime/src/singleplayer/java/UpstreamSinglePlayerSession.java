@@ -11,6 +11,7 @@ import arc.mock.MockFiles;
 import arc.mock.MockGraphics;
 import arc.struct.ObjectSet;
 import arc.struct.Seq;
+import arc.struct.StringMap;
 import arc.util.ArcRuntimeException;
 import arc.util.Time;
 import java.io.IOException;
@@ -48,6 +49,7 @@ import mindustry.io.JsonIO;
 import mindustry.io.MapIO;
 import mindustry.io.SaveIO;
 import mindustry.io.SaveMeta;
+import mindustry.io.SaveOptions;
 import mindustry.maps.Map;
 import mindustry.type.Planet;
 import mindustry.type.Sector;
@@ -68,6 +70,7 @@ public final class UpstreamSinglePlayerSession {
     private final Vec2 tmpMove = new Vec2();
     private Saves campaignSaves;
     private float deltaSeconds = FIXED_STEP_SECONDS;
+    private long playtimeMillis, playtimeRemainderNanos, playtimeFrameNanos;
 
     private UpstreamSinglePlayerSession(UpstreamWorldLoadProbe.ProbeApplication app) {
         this.app = app;
@@ -189,6 +192,7 @@ public final class UpstreamSinglePlayerSession {
             } else {
                 SaveIO.load(saveFile);
             }
+            resetPlaytime(SaveIO.getMeta(saveFile).timePlayed);
             app.runPosted();
             Vars.avoidance.init();
             Vars.state.set(State.playing);
@@ -201,6 +205,7 @@ public final class UpstreamSinglePlayerSession {
             var map = MapIO.createMap(mapFile, false);
             Mathf.rand.setSeed(160_008L);
             Vars.world.loadMap(map);
+            resetPlaytime(0);
             app.runPosted();
             Vars.avoidance.init();
             Vars.logic.play();
@@ -259,6 +264,7 @@ public final class UpstreamSinglePlayerSession {
             Vars.universe.updateLaunchResources(loadout.resources());
         }
         Vars.world.loadSector(sector, params);
+        resetPlaytime(0);
         if (loadout != null) {
             origin.removeItems(loadout.cost());
             Events.fire(new SectorLaunchLoadoutEvent(sector, origin, loadout.schematic()));
@@ -291,6 +297,7 @@ public final class UpstreamSinglePlayerSession {
         if (Vars.state.map != map || Vars.world.isInvalidMap()) {
             throw new IOException("Could not load map " + map.file.name());
         }
+        resetPlaytime(0);
         app.runPosted();
         map.spawns = Vars.spawner.countSpawns();
         map.teams.clear();
@@ -594,6 +601,24 @@ public final class UpstreamSinglePlayerSession {
         return true;
     }
 
+    private void resetPlaytime(long savedMillis) {
+        playtimeMillis = Math.max(0, savedMillis);
+        playtimeRemainderNanos = 0;
+    }
+
+    void beginPlaytimeInterval(long now) {
+        playtimeFrameNanos = now;
+    }
+
+    void updatePlaytime(long now) {
+        long elapsed = Math.max(0, now - playtimeFrameNanos);
+        playtimeFrameNanos = now;
+        long partial = playtimeRemainderNanos + elapsed % 1_000_000L;
+        long millis = elapsed / 1_000_000L + partial / 1_000_000L;
+        playtimeRemainderNanos = partial % 1_000_000L;
+        playtimeMillis = Math.min(playtimeMillis, Long.MAX_VALUE - millis) + millis;
+    }
+
     long save(Fi saveFile) throws IOException {
         if (saveFile.parent() != null) {
             saveFile.parent().mkdirs();
@@ -601,7 +626,9 @@ public final class UpstreamSinglePlayerSession {
         if (Vars.state.rules.sector != null) {
             UpstreamSectorCapture.persist(Vars.state.rules.sector);
         }
-        SaveIO.save(saveFile);
+        var options = new SaveOptions();
+        options.extraTags = StringMap.of("playtime", playtimeMillis);
+        SaveIO.save(saveFile, options);
         try (var input = SaveIO.getStream(saveFile)) {
             if (!SaveIO.isSaveValid(input)) {
                 throw new IOException("Written offline save failed validation: " + saveFile.path());

@@ -779,21 +779,24 @@ public final class UpstreamSinglePlayerApp {
         }
 
         long previousTime = System.nanoTime();
+        session.beginPlaytimeInterval(previousTime);
         long accumulator = 0L;
         while (true) {
             UpstreamNotification.update(1f / 60f);
             int input = UpstreamSinglePlayerInput.poll();
+            long now = System.nanoTime();
+            session.updatePlaytime(now);
             if (input == -1) return false;
             if (campaignSlot != null && (input & UpstreamSinglePlayerInput.CAMPAIGN_HELD) != 0
                     && (input & UpstreamSinglePlayerInput.SAVE_PRESSED) != 0) return true;
             int touch = UpstreamSinglePlayerInput.touch();
-            long now = System.nanoTime();
 
             var sector = Vars.state.rules.sector;
             int researchKeys = UpstreamSinglePlayerInput.L_HELD | UpstreamSinglePlayerInput.SAVE_PRESSED;
             if (sector != null && sector.planet.techTree != null && (input & researchKeys) == researchKeys) {
                 if (!openResearch(sector.planet.techTree, saveFile)) return false;
                 previousTime = System.nanoTime();
+                session.beginPlaytimeInterval(previousTime);
                 accumulator = 0L;
                 continue;
             }
