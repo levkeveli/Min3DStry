@@ -1,4 +1,6 @@
 import arc.files.Fi;
+import arc.math.geom.Point2;
+import arc.math.geom.Vec2;
 import arc.util.io.Reads;
 import arc.util.io.Writes;
 import java.io.ByteArrayInputStream;
@@ -8,6 +10,9 @@ import java.io.DataOutputStream;
 import java.util.HexFormat;
 import java.util.zip.InflaterInputStream;
 import mindustry.Vars;
+import mindustry.ai.BlockIndexer;
+import mindustry.ai.ItemUnitStance;
+import mindustry.ai.UnitCommand;
 import mindustry.content.Blocks;
 import mindustry.content.Items;
 import mindustry.content.UnitTypes;
@@ -20,6 +25,8 @@ import mindustry.game.MapObjectives.TextMarker;
 import mindustry.game.MapObjectives.TextureMarker;
 import mindustry.game.Universe;
 import mindustry.gen.BlockSnapshotCallPacket;
+import mindustry.gen.BlockUnitc;
+import mindustry.gen.ClientSnapshotCallPacket;
 import mindustry.gen.ClearObjectivesCallPacket;
 import mindustry.gen.CompleteObjectiveCallPacket;
 import mindustry.gen.CreateMarkerCallPacket;
@@ -28,8 +35,12 @@ import mindustry.gen.Groups;
 import mindustry.gen.Player;
 import mindustry.gen.RemoveMarkerCallPacket;
 import mindustry.gen.SetObjectivesCallPacket;
+import mindustry.gen.SetUnitCommandCallPacket;
+import mindustry.gen.SetUnitStanceCallPacket;
 import mindustry.gen.StateSnapshotCallPacket;
+import mindustry.gen.TileConfigCallPacket;
 import mindustry.gen.Unit;
+import mindustry.gen.UnitControlCallPacket;
 import mindustry.gen.UpdateMarkerCallPacket;
 import mindustry.gen.UpdateMarkerTextCallPacket;
 import mindustry.gen.UpdateMarkerTextureCallPacket;
@@ -38,7 +49,9 @@ import mindustry.mod.Mods;
 import mindustry.net.Net;
 import mindustry.net.NetworkIO;
 import mindustry.net.Packet;
+import mindustry.world.blocks.distribution.ItemBridge.ItemBridgeBuild;
 import mindustry.world.blocks.payloads.BuildPayload;
+import mindustry.world.blocks.ControlBlock;
 import mindustry.world.blocks.payloads.PayloadConveyor.PayloadConveyorBuild;
 import mindustry.world.modules.ItemModule;
 
@@ -49,6 +62,7 @@ public final class UpstreamSnapshotDispatchReference {
         var app = UpstreamWorldLoadProbe.initialize(fixture.parent());
         Vars.mods = new Mods();
         Vars.universe = new Universe();
+        Vars.indexer = new BlockIndexer();
         Vars.netClient = NetClient.forSnapshotDispatch();
         Vars.player = Player.create();
         Vars.net.setClientConnected();
@@ -87,19 +101,153 @@ public final class UpstreamSnapshotDispatchReference {
         out.writeInt(dagger.id);
         out.writeByte(dagger.classId());
         dagger.writeSync(new Writes(out));
+        var mono = UnitTypes.mono.create(core.team);
+        mono.id(12346);
+        mono.set(616f, 216f);
+        mono.command().command(UnitCommand.moveCommand);
+        out.writeInt(mono.id);
+        out.writeByte(mono.classId());
+        mono.writeSync(new Writes(out));
         var packet = new EntitySnapshotCallPacket();
-        packet.amount = 1;
+        packet.amount = 2;
         packet.data = bytes.toByteArray();
         packet.handleClient();
         if (!(Groups.sync.getByID(dagger.id) instanceof Unit replicated)
                 || replicated.type != UnitTypes.dagger || replicated.x != 80f || replicated.y != 152f) {
             throw new IllegalStateException("Enemy unit did not synchronize");
         }
+        if (!(Groups.sync.getByID(mono.id) instanceof Unit decodedMono) || decodedMono.type != UnitTypes.mono
+                || decodedMono.x != 616f || decodedMono.y != 216f || !decodedMono.isCommandable()) {
+            throw new IllegalStateException("Stock Mono position or controller did not synchronize");
+        }
+        // A player taking over a grounded unit enters VelComp's stock tile collision path.
+        // Exercise it on a freshly decoded Dagger, before any offline services are installed.
+        replicated.move(0.25f, 0f);
+        verifyUnitCommandPackets(decodedMono);
         System.out.println("UPSTREAM_SNAPSHOT_REFERENCE wave=" + state.wave
             + " seconds=42 copper=947 dagger=" + dagger.id);
         verifyPayloadHandoff();
         verifyObjectivePackets();
         verifyMarkerPackets();
+        verifyPossessionPackets(decodedMono);
+        verifyStockLinkPackets();
+        verifyWeaponInput();
+    }
+
+    private static void verifyWeaponInput() {
+        var input = new UpstreamWeaponControl();
+        var unit = UnitTypes.gamma.create(Vars.player.team());
+        unit.set(648f, 208f);
+        unit.rotation(0f);
+        var neutral = new Vec2();
+        input.update(unit, neutral, false, false);
+        verifyWeaponSnapshot(unit, false, true);
+
+        input.update(unit, new Vec2(0f, 1f), true, false);
+        verifyWeaponSnapshot(unit, false, false);
+        input.update(unit, neutral, false, true);
+        verifyWeaponSnapshot(unit, true, false);
+        input.update(unit, neutral, false, false);
+        verifyWeaponSnapshot(unit, false, false);
+
+        var replacement = UnitTypes.gamma.create(unit.team());
+        replacement.set(unit);
+        replacement.rotation(0f);
+        input.update(replacement, neutral, false, false);
+        verifyWeaponSnapshot(replacement, false, true);
+        System.out.println("UPSTREAM_WEAPON_REFERENCE facing=ok aim=ok hold=ok release=ok handoff=ok");
+    }
+
+    private static void verifyWeaponSnapshot(Unit unit, boolean shooting, boolean east) {
+        var sent = UpstreamLiveNetworkProbe.playerSnapshot(unit, 19, false);
+        var bytes = new ByteArrayOutputStream();
+        sent.write(new Writes(new DataOutputStream(bytes)));
+        byte[] payload = bytes.toByteArray();
+        var received = new ClientSnapshotCallPacket();
+        received.read(new Reads(new DataInputStream(new ByteArrayInputStream(payload))), payload.length);
+        received.handled();
+        boolean direction = east ? received.pointerX > unit.x() && Math.abs(received.pointerY - unit.y()) < 0.01f
+            : received.pointerY > unit.y() && Math.abs(received.pointerX - unit.x()) < 0.01f;
+        if (received.snapshotID != 19 || received.unitID != unit.id() || received.shooting != shooting
+                || received.pointerX != Vars.player.mouseX || received.pointerY != Vars.player.mouseY
+                || received.pointerX != unit.aimX() || received.pointerY != unit.aimY()
+                || !direction || unit.isShooting() != shooting) {
+            throw new AssertionError("The stock weapon snapshot did not preserve aim and fire input");
+        }
+    }
+
+    private static void verifyStockLinkPackets() {
+        var actor = Vars.player;
+        var source = Vars.world.tile(74, 29);
+        var target = Vars.world.tile(78, 29);
+        source.setBlock(Blocks.powerNode, actor.team(), 0);
+        target.setBlock(Blocks.battery, actor.team(), 0);
+
+        var packet = new TileConfigCallPacket();
+        packet.player = actor;
+        packet.build = source.build;
+        packet.value = new Point2[]{new Point2(target.x - source.x, target.y - source.y)};
+        applyPacket(packet, new TileConfigCallPacket(), actor);
+        if (source.build.power.graph != target.build.power.graph || !source.build.power.links.contains(target.pos())) {
+            throw new AssertionError("The stock Point2 array did not join the power graph");
+        }
+        packet.value = target.pos();
+        applyPacket(packet, new TileConfigCallPacket(), actor);
+        if (source.build.power.links.contains(target.pos()) || target.build.power.links.contains(source.pos())) {
+            throw new AssertionError("The stock packed position did not disconnect both power endpoints");
+        }
+
+        source.setBlock(Blocks.bridgeConduit, actor.team(), 0);
+        target.setBlock(Blocks.bridgeConduit, actor.team(), 0);
+        packet.build = source.build;
+        applyPacket(packet, new TileConfigCallPacket(), actor);
+        if (!(source.build instanceof ItemBridgeBuild bridge) || bridge.link != target.pos()) {
+            throw new AssertionError("The stock packed position did not configure the liquid bridge");
+        }
+        System.out.println("UPSTREAM_STOCK_LINK_PACKETS point-array=ok packed-position=ok");
+    }
+
+    private static void verifyPossessionPackets(Unit allied) {
+        var actor = Vars.player;
+        var packet = new UnitControlCallPacket();
+        packet.player = actor;
+        packet.unit = allied;
+        applyPacket(packet, new UnitControlCallPacket(), actor);
+        if (actor.unit() != allied) throw new AssertionError("Stock possession packet did not assign the allied unit");
+
+        var tile = Vars.world.tile(78, 22);
+        tile.setBlock(Blocks.duo, actor.team(), 0);
+        var proxy = ((ControlBlock)tile.build).unit();
+        packet.unit = proxy;
+        applyPacket(packet, new UnitControlCallPacket(), actor);
+        if (actor.unit() != proxy || !(proxy instanceof BlockUnitc block) || block.tile() != tile.build
+                || Groups.sync.getByID(proxy.id()) == proxy) {
+            throw new AssertionError("Stock possession must decode the turret proxy by its tile");
+        }
+        System.out.println("UPSTREAM_POSSESSION_PACKET_REFERENCE movable=mono turret=duo");
+    }
+
+    private static void verifyUnitCommandPackets(Unit unit) {
+        if (!Vars.player.isAdded()) Vars.player.add();
+        var command = new SetUnitCommandCallPacket();
+        command.player = Vars.player;
+        command.unitIds = new int[]{unit.id};
+        command.command = UnitCommand.mineCommand;
+        applyPacket(command, new SetUnitCommandCallPacket(), Vars.player);
+        if (unit.command().currentCommand() != UnitCommand.mineCommand) {
+            throw new AssertionError("The original command packet did not switch the Mono to Mine");
+        }
+
+        var stance = new SetUnitStanceCallPacket();
+        stance.player = Vars.player;
+        stance.unitIds = new int[]{unit.id};
+        stance.stance = ItemUnitStance.getByItem(Items.copper);
+        stance.enable = true;
+        applyPacket(stance, new SetUnitStanceCallPacket(), Vars.player);
+        if (!unit.command().hasStance(stance.stance)) {
+            throw new AssertionError("The original stance packet did not select copper");
+        }
+        System.out.println("UPSTREAM_STANCE_PACKET_REFERENCE mono=mine-copper");
     }
 
     private static void verifyObjectivePackets() {
@@ -135,8 +283,15 @@ public final class UpstreamSnapshotDispatchReference {
     }
 
     private static void applyPacket(Packet sent, Packet received) {
+        applyPacket(sent, received, null);
+    }
+
+    private static void applyPacket(Packet sent, Packet received, Player forwardedBy) {
         var bytes = new ByteArrayOutputStream();
-        sent.write(new Writes(new DataOutputStream(bytes)));
+        var writes = new Writes(new DataOutputStream(bytes));
+        // Stock forwardable packets include the actor in the server-to-client envelope.
+        if (forwardedBy != null) mindustry.io.TypeIO.writeEntity(writes, forwardedBy);
+        sent.write(writes);
         byte[] payload = bytes.toByteArray();
         received.read(new Reads(new DataInputStream(new ByteArrayInputStream(payload))), payload.length);
         received.handled();

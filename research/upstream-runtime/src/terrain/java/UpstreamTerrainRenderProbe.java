@@ -10,6 +10,8 @@ import org.teavm.interop.Address;
 import org.teavm.interop.c.Include;
 
 public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProbe.TerrainTarget {
+    static final int PALETTE_LABEL_COUNT = 15;
+
     private final boolean reportFrame;
     private final int[] stockObjectiveFont = new int[1];
 
@@ -43,18 +45,25 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
 
     void buildOverlay(int column, int row, int block, int rotation,
                       boolean removing, boolean rotatable, boolean catalogOpen, boolean configuring,
-                      boolean selectingMine) {
+                      boolean selectingMine, int inventoryAction, int commandMode, boolean selectingControl,
+                      boolean placingSchematic) {
         if (NativeTerrain.buildOverlay(column, row, block, rotation, removing ? 1 : 0, Vars.tilesize,
-                rotatable ? 1 : 0, catalogOpen ? 1 : 0, configuring ? 1 : 0, selectingMine ? 1 : 0) == 0) {
+                rotatable ? 1 : 0, catalogOpen ? 1 : 0, configuring ? 1 : 0, selectingMine ? 1 : 0,
+                inventoryAction, commandMode, selectingControl ? 1 : 0, placingSchematic ? 1 : 0) == 0) {
             throw new IllegalStateException("Unable to draw the Citro2D build palette");
         }
     }
 
     // Keep the catalog kinds in the same order as the native renderer.
-    static final int ITEM_CATALOG = 0, BLOCK_CATALOG = 1, UNIT_CATALOG = 2;
+    static final int ITEM_CATALOG = 0, BLOCK_CATALOG = 1, UNIT_CATALOG = 2, COMMAND_CATALOG = 3, STANCE_CATALOG = 4, SCHEMATIC_CATALOG = 5;
 
     int buildCatalog(byte[] labels, int[] icons, int selected, boolean previous, boolean next, int catalog) {
-        return NativeTerrain.buildCatalog(Address.ofData(labels), Address.ofData(icons), selected,
+        int activeRows = selected >= 0 && selected < Integer.SIZE ? 1 << selected : 0;
+        return buildCatalogRows(labels, icons, activeRows, previous, next, catalog);
+    }
+
+    int buildCatalogRows(byte[] labels, int[] icons, int activeRows, boolean previous, boolean next, int catalog) {
+        return NativeTerrain.buildCatalog(Address.ofData(labels), Address.ofData(icons), activeRows,
             previous ? 1 : 0, next ? 1 : 0, catalog);
     }
 
@@ -167,10 +176,11 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
 
         @Import(name = "m3ds_terrain_build_overlay")
         static native int buildOverlay(int column, int row, int block, int rotation, int removing, int tileSize,
-                                       int rotatable, int catalogOpen, int configuring, int selectingMine);
+                                       int rotatable, int catalogOpen, int configuring, int selectingMine,
+                                       int inventoryAction, int commandMode, int selectingControl, int placingSchematic);
 
         @Import(name = "m3ds_terrain_build_catalog")
-        static native int buildCatalog(Address labels, Address icons, int selected,
+        static native int buildCatalog(Address labels, Address icons, int activeRows,
                                        int previous, int next, int catalog);
 
         @Import(name = "m3ds_terrain_draw_objective")

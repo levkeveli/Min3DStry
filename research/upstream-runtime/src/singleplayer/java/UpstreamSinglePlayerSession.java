@@ -34,6 +34,7 @@ import mindustry.game.Team;
 import mindustry.game.Universe;
 import mindustry.game.Waves;
 import mindustry.gen.Groups;
+import mindustry.gen.BlockUnitc;
 import mindustry.gen.Player;
 import mindustry.gen.Unit;
 import mindustry.graphics.CacheLayer;
@@ -352,9 +353,10 @@ public final class UpstreamSinglePlayerSession {
         deltaSeconds = FIXED_STEP_SECONDS;
         try {
             var unit = ensurePlayerSpawn();
-            if (unit != null) {
+                if (unit != null && !(unit instanceof BlockUnitc)) {
                 tmpMove.set(moveX, moveY).limit(1f).scl(unit.speed());
-                unit.lookAt(unit.prefRotation());
+                boolean faceAim = Vars.player.shooting && unit.type().omniMovement && unit.type().faceTarget;
+                unit.lookAt(faceAim ? unit.angleTo(unit.aimX(), unit.aimY()) : unit.prefRotation());
                 unit.movePref(tmpMove);
                 if (unit.mineTile != null && !unit.validMine(unit.mineTile)) {
                     unit.mineTile = null;

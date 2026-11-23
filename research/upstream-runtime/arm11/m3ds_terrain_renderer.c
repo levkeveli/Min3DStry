@@ -53,14 +53,15 @@ static C2D_SpriteSheet sheet;
 static C3D_RenderTarget *target;
 static C3D_RenderTarget *palette;
 static C2D_TextBuf palette_buffer;
-static C2D_Text palette_labels[8];
+enum { palette_label_count = 16 };
+static C2D_Text palette_labels[palette_label_count];
 #ifdef M3DS_STOCK_FONT
 enum { menu_label_glyphs = 64 };
-static char palette_utf8[8][4 * menu_label_glyphs + 1];
+static char palette_utf8[palette_label_count][4 * menu_label_glyphs + 1];
 #endif
 static C2D_TextBuf catalog_buffer;
-enum { item_catalog, block_catalog, unit_catalog, catalog_count };
-static const char *const catalog_names[] = { "item", "block", "unit" };
+enum { item_catalog, block_catalog, unit_catalog, command_catalog, stance_catalog, schematic_catalog, catalog_count };
+static const char *const catalog_names[] = { "item", "block", "unit", "command", "stance", "schematic" };
 static struct {
     C2D_SpriteSheet sheet;
     int32_t id, catalog;
@@ -615,7 +616,8 @@ int32_t m3ds_terrain_build_labels(const char *labels) {
 
 int32_t m3ds_terrain_build_overlay(int32_t column, int32_t row, int32_t block, int32_t rotation,
                                   int32_t removing, int32_t tile_size, int32_t rotatable, int32_t catalog_open,
-                                  int32_t configuring, int32_t selecting_mine) {
+                                  int32_t configuring, int32_t selecting_mine, int32_t inventory_action,
+                                  int32_t command_mode, int32_t selecting_control, int32_t placing_schematic) {
     if (!frame_open || !palette) return 0;
     set_world_blend(0);
     set_world_mix(0, 0);
@@ -629,7 +631,8 @@ int32_t m3ds_terrain_build_overlay(int32_t column, int32_t row, int32_t block, i
         C2D_DrawRectSolid(x, y + size - 2, 0.5f, size, 2, accent);
         C2D_DrawRectSolid(x, y, 0.5f, 2, size, accent);
         C2D_DrawRectSolid(x + size - 2, y, 0.5f, 2, size, accent);
-        if (rotatable && !removing && !selecting_mine) {
+        if (rotatable && !removing && !selecting_mine && inventory_action == 0 && command_mode == 0
+                && !selecting_control && !placing_schematic) {
             static const int dx[] = {1, 0, -1, 0}, dy[] = {0, -1, 0, 1};
             float cx = x + size / 2, cy = y + size / 2;
             C2D_DrawLine(cx, cy, accent, cx + dx[rotation] * 6, cy + dy[rotation] * 6, accent, 2, 0.5f);
@@ -640,7 +643,7 @@ int32_t m3ds_terrain_build_overlay(int32_t column, int32_t row, int32_t block, i
     C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_COLOR);
     if (catalog_open) return 1;
     C2D_DrawRectSolid(2, 48, 0.5f, 26, 31, C2D_Color32(45, 52, 64, 255));
-    draw_palette_label(4, 15, 57, 0.34f, 24,
+    draw_palette_label(command_mode == 0 ? 4 : 11, 15, 57, 0.34f, 24,
         block < 0 && !removing ? accent : C2D_Color32(239, 241, 247, 255));
     C2D_DrawRectSolid(292, 48, 0.5f, 26, 31, C2D_Color32(45, 52, 64, 255));
     draw_palette_label(5, 305, 57, 0.30f, 24,
@@ -648,8 +651,32 @@ int32_t m3ds_terrain_build_overlay(int32_t column, int32_t row, int32_t block, i
     C2D_DrawRectSolid(292, 80, 0.5f, 26, 31, C2D_Color32(45, 52, 64, 255));
     draw_palette_label(7, 305, 89, 0.30f, 24,
         selecting_mine ? accent : C2D_Color32(239, 241, 247, 255));
+    C2D_DrawRectSolid(2, 80, 0.5f, 26, 31, C2D_Color32(45, 52, 64, 255));
+    draw_palette_label(command_mode == 0 ? 8 : 12, 15, 89, 0.30f, 24,
+        inventory_action == 1 ? accent : C2D_Color32(239, 241, 247, 255));
+    C2D_DrawRectSolid(2, 112, 0.5f, 26, 31, C2D_Color32(45, 52, 64, 255));
+    draw_palette_label(9, 15, 121, 0.30f, 24,
+        inventory_action == 2 ? accent : C2D_Color32(239, 241, 247, 255));
+    C2D_DrawRectSolid(292, 112, 0.5f, 26, 31, C2D_Color32(45, 52, 64, 255));
+    u32 command_color = C2D_Color32(239, 241, 247, 255);
+    if (command_mode == 1) command_color = accent;
+    if (command_mode == 2) command_color = C2D_Color32(241, 117, 97, 255);
+    draw_palette_label(10, 305, 121, 0.30f, 24, command_color);
+    C2D_DrawRectSolid(292, 144, 0.5f, 26, 31, C2D_Color32(45, 52, 64, 255));
+    draw_palette_label(13, 305, 153, 0.30f, 24,
+        selecting_control ? accent : C2D_Color32(239, 241, 247, 255));
+    if (selecting_control) {
+        C2D_DrawRectSolid(292, 176, 0.5f, 26, 31, C2D_Color32(45, 52, 64, 255));
+        draw_palette_label(14, 305, 185, 0.30f, 24, C2D_Color32(239, 241, 247, 255));
+    }
+    if (command_mode == 0 && !selecting_control) {
+        C2D_DrawRectSolid(2, 144, 0.5f, 26, 31, C2D_Color32(45, 52, 64, 255));
+        draw_palette_label(15, 15, 153, 0.30f, 24,
+            placing_schematic ? accent : C2D_Color32(239, 241, 247, 255));
+    }
     for (int i = 0; i < 4; i++) {
-        bool active = !selecting_mine && (removing ? i == 3 : i == block);
+        bool active = !selecting_mine && inventory_action == 0 && command_mode == 0 && !selecting_control && !placing_schematic
+            && (removing ? i == 3 : i == block);
         C2D_DrawRectSolid(i * 80 + 2, 4, 0.5f, 76, 39,
             active ? C2D_Color32(85, 71, 52, 255) : C2D_Color32(45, 52, 64, 255));
         draw_palette_label(i, i * 80 + 40, 16, 0.42f, 72,
@@ -848,7 +875,7 @@ static bool draw_menu_icon(int row, int32_t id, int32_t catalog, float y) {
         y + (23 - image.subtex->height * icon_scale) / 2, 0.5f, NULL, icon_scale, icon_scale);
 }
 
-int32_t m3ds_terrain_build_catalog(const char *labels, const int32_t *icons, int32_t selected,
+int32_t m3ds_terrain_build_catalog(const char *labels, const int32_t *icons, int32_t active_rows,
                                     int32_t previous, int32_t next, int32_t catalog) {
     if (catalog < 0 || catalog >= catalog_count) return 0;
     const bool categories = catalog == block_catalog;
@@ -865,15 +892,22 @@ int32_t m3ds_terrain_build_catalog(const char *labels, const int32_t *icons, int
         stock_labels &= catalog_label("<", 35, 15, 0.55f, 50, text);
         stock_labels &= catalog_label(">", 285, 15, 0.55f, 50, text);
     }
-    stock_labels &= catalog_label(labels, 160, 15, 0.52f, categories ? 190 : 300, text);
+    const bool schematics = catalog == schematic_catalog;
+    if (schematics) {
+        C2D_DrawRectSolid(224, 4, 0.5f, 88, 34, panel);
+        stock_labels &= catalog_label("Capture", 268, 15, 0.52f, 82, text);
+    }
+    stock_labels &= catalog_label(labels, schematics ? 112 : 160, 15, 0.52f,
+                                  categories ? 190 : schematics ? 212 : 300, text);
     int32_t visible_icons = 0;
     for (int row = 0; row < 6; row++) {
         labels += strlen(labels) + 1;
         if (!*labels) continue;
         float y = 44 + row * 25;
-        C2D_DrawRectSolid(8, y, 0.5f, 304, 23, row == selected ? selected_panel : panel);
+        bool active = (active_rows & (1 << row)) != 0;
+        C2D_DrawRectSolid(8, y, 0.5f, 304, 23, active ? selected_panel : panel);
         if (draw_menu_icon(row, icons[row], catalog, y)) visible_icons++;
-        stock_labels &= catalog_label(labels, 177, y + 4, 0.50f, 254, row == selected ? accent : text);
+        stock_labels &= catalog_label(labels, 177, y + 4, 0.50f, 254, active ? accent : text);
     }
     if (previous) {
         C2D_DrawRectSolid(8, 201, 0.5f, 88, 34, panel);

@@ -33,11 +33,15 @@ import mindustry.game.Universe;
 import mindustry.gen.BeginBreakCallPacket;
 import mindustry.gen.BeginPlaceCallPacket;
 import mindustry.gen.BlockSnapshotCallPacket;
+import mindustry.gen.BlockUnitc;
 import mindustry.gen.ClientSnapshotCallPacket;
 import mindustry.gen.ClearObjectivesCallPacket;
 import mindustry.gen.CompleteObjectiveCallPacket;
+import mindustry.gen.CommandBuildingCallPacket;
+import mindustry.gen.CommandUnitsCallPacket;
 import mindustry.gen.ConnectConfirmCallPacket;
 import mindustry.gen.CreateMarkerCallPacket;
+import mindustry.gen.CreateBulletCallPacket;
 import mindustry.gen.ConstructFinishCallPacket;
 import mindustry.gen.DeconstructFinishCallPacket;
 import mindustry.gen.EntitySnapshotCallPacket;
@@ -50,9 +54,16 @@ import mindustry.gen.RemoveMarkerCallPacket;
 import mindustry.gen.RemoveQueueBlockCallPacket;
 import mindustry.gen.SetObjectivesCallPacket;
 import mindustry.gen.SetPositionCallPacket;
+import mindustry.gen.SetUnitCommandCallPacket;
+import mindustry.gen.SetUnitStanceCallPacket;
 import mindustry.gen.StateSnapshotCallPacket;
+import mindustry.gen.TakeItemsCallPacket;
 import mindustry.gen.TileConfigCallPacket;
+import mindustry.gen.TransferItemToCallPacket;
 import mindustry.gen.Unit;
+import mindustry.gen.UnitBuildingControlSelectCallPacket;
+import mindustry.gen.UnitClearCallPacket;
+import mindustry.gen.UnitControlCallPacket;
 import mindustry.gen.UnitDespawnCallPacket;
 import mindustry.gen.UnitDestroyCallPacket;
 import mindustry.gen.UnitSpawnCallPacket;
@@ -479,6 +490,8 @@ public final class UpstreamLiveNetworkProbe {
                 handleUnitDespawn(received);
             } else if (id == unitDestroyId) {
                 handleUnitDestroy(received);
+            } else if (frame != null && id == unsignedId(CreateBulletCallPacket.class)) {
+                decode(new CreateBulletCallPacket(), received).handleClient();
             } else if (id == unsignedId(CompleteObjectiveCallPacket.class)) {
                 var completion = decode(new CompleteObjectiveCallPacket(), received);
                 completion.handleClient();
@@ -560,6 +573,24 @@ public final class UpstreamLiveNetworkProbe {
             }
         } else if (id == unsignedId(RemoveQueueBlockCallPacket.class)) {
             decode(new RemoveQueueBlockCallPacket(), received).handleClient();
+        } else if (id == unsignedId(TakeItemsCallPacket.class)) {
+            decode(new TakeItemsCallPacket(), received).handleClient();
+        } else if (id == unsignedId(CommandUnitsCallPacket.class)) {
+            decode(new CommandUnitsCallPacket(), received).handleClient();
+        } else if (id == unsignedId(CommandBuildingCallPacket.class)) {
+            decode(new CommandBuildingCallPacket(), received).handleClient();
+        } else if (id == unsignedId(UnitControlCallPacket.class)) {
+            decode(new UnitControlCallPacket(), received).handleClient();
+        } else if (id == unsignedId(UnitClearCallPacket.class)) {
+            decode(new UnitClearCallPacket(), received).handleClient();
+        } else if (id == unsignedId(UnitBuildingControlSelectCallPacket.class)) {
+            decode(new UnitBuildingControlSelectCallPacket(), received).handleClient();
+        } else if (id == unsignedId(SetUnitCommandCallPacket.class)) {
+            decode(new SetUnitCommandCallPacket(), received).handleClient();
+        } else if (id == unsignedId(SetUnitStanceCallPacket.class)) {
+            decode(new SetUnitStanceCallPacket(), received).handleClient();
+        } else if (id == unsignedId(TransferItemToCallPacket.class)) {
+            decode(new TransferItemToCallPacket(), received).handleClient();
         } else if (id == unsignedId(BlockSnapshotCallPacket.class)) {
             var snapshot = decode(new BlockSnapshotCallPacket(), received);
             snapshot.handleClient();
@@ -578,7 +609,8 @@ public final class UpstreamLiveNetworkProbe {
     private static Unit controlledUnit() {
         var player = Vars.player;
         var unit = player.unit();
-        return unit == null || player.dead() || Groups.sync.getByID(unit.id()) != unit ? null : unit;
+        return unit == null || player.dead() || !(unit instanceof BlockUnitc) && Groups.sync.getByID(unit.id()) != unit
+            ? null : unit;
     }
 
     private static void sendPosition(Unit unit, int sequence) throws IOException {
@@ -587,6 +619,10 @@ public final class UpstreamLiveNetworkProbe {
 
     // Match the player snapshot fields for movement and the upstream build queue in NetClient.sync.
     private static void sendPosition(Unit unit, int sequence, boolean building) throws IOException {
+        send(playerSnapshot(unit, sequence, building), false);
+    }
+
+    static ClientSnapshotCallPacket playerSnapshot(Unit unit, int sequence, boolean building) {
         var player = Vars.player;
         var snapshot = new ClientSnapshotCallPacket();
         snapshot.snapshotID = sequence;
@@ -595,6 +631,7 @@ public final class UpstreamLiveNetworkProbe {
         snapshot.y = unit.y();
         snapshot.pointerX = unit.aimX();
         snapshot.pointerY = unit.aimY();
+        snapshot.shooting = player.shooting;
         snapshot.rotation = unit.rotation();
         snapshot.baseRotation = unit instanceof Mechc mech ? mech.baseRotation() : 0f;
         snapshot.xVelocity = unit.vel.x;
@@ -608,10 +645,11 @@ public final class UpstreamLiveNetworkProbe {
         snapshot.viewY = unit.y();
         snapshot.viewWidth = 400f;
         snapshot.viewHeight = 240f;
-        send(snapshot, false);
+        return snapshot;
     }
 
     private static final class LiveControls {
+        private static final int AIM_HELD = 1 << 20, FIRE_HELD = 1 << 21;
         private static final long FRAME_NS = 16_666_667L;
         // The player snapshot cadence in pinned NetClient.
         private static final long SNAPSHOT_NS = 66_000_000L;
@@ -619,6 +657,7 @@ public final class UpstreamLiveNetworkProbe {
         private static final float STOP_SPEED = 0.03f;
         private final UpstreamLiveBuildControls buildingControls;
         private final Vec2 direction = new Vec2();
+        private final UpstreamWeaponControl weapons = new UpstreamWeaponControl();
         private long lastStep, lastSnapshot;
         private int sequence;
         private Unit previousUnit;
@@ -633,22 +672,35 @@ public final class UpstreamLiveNetworkProbe {
             var unit = controlledUnit();
             if (unit == null) {
                 previousUnit = null;
+                Vars.player.shooting = false;
                 return;
             }
             if (previousUnit != unit) {
                 previousUnit = unit;
+                Vars.player.shooting = false;
                 lastStep = now;
                 moving = false;
                 System.out.println("UPSTREAM_LIVE_CONTROLS_READY unit=" + unit.id()
                     + " x=" + unit.x() + " y=" + unit.y());
+                System.out.println("UPSTREAM_CONTROL_FOCUS target=" + UpstreamPlayerControl.name(unit));
             }
+            // Mirror PlayerComp.update before stock input rules consult the player's position.
+            Vars.player.set(unit);
             if (buildingControls != null) buildingControls.update(unit, input, Native.touch());
+            if (Vars.player.unit() != unit) return;
+            direction.set((byte)input / 127f, (byte)(input >>> 8) / 127f).limit(1f);
+            if (direction.len2() < DEAD_ZONE * DEAD_ZONE) direction.setZero();
+            boolean anchored = unit instanceof BlockUnitc;
+            boolean overlay = buildingControls != null && buildingControls.blocksWeaponInput();
+            boolean aiming = (input & AIM_HELD) != 0;
+            weapons.update(unit, direction, !overlay && (anchored || aiming) && !direction.isZero(),
+                !overlay && (input & FIRE_HELD) != 0);
+            if (anchored || aiming) direction.setZero();
+
             if (now - lastStep >= FRAME_NS) {
-                direction.set((byte)input / 127f, (byte)(input >>> 8) / 127f).limit(1f);
-                if (direction.len2() < DEAD_ZONE * DEAD_ZONE) direction.setZero();
                 float delta = Math.min(3f, (now - lastStep) / (float)FRAME_NS);
                 lastStep = now;
-                stepUnit(unit, direction, delta);
+                if (!anchored) stepUnit(unit, direction, delta);
                 if (!direction.isZero() && !moving) {
                     moving = true;
                     inputDevice = (input & 0x10000) != 0 ? "dpad" : "circle";
@@ -673,7 +725,11 @@ public final class UpstreamLiveNetworkProbe {
             float previousDelta = Time.delta;
             Time.delta = delta;
             try {
-                unit.lookAt(unit.prefRotation());
+                if (Vars.player.shooting && unit.type().omniMovement && unit.type().faceTarget) {
+                    unit.lookAt(unit.angleTo(unit.aimX(), unit.aimY()));
+                } else {
+                    unit.lookAt(unit.prefRotation());
+                }
                 unit.movePref(input.scl(unit.speed()));
                 // Match the local position and drag update in upstream VelComp.
                 float x = unit.x(), y = unit.y();

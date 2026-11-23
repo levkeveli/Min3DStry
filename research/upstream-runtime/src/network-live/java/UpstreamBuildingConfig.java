@@ -5,27 +5,42 @@ import mindustry.Vars;
 import mindustry.ctype.UnlockableContent;
 import mindustry.entities.Units;
 import mindustry.gen.Building;
+import mindustry.type.Item;
 import mindustry.type.UnitType;
-import mindustry.world.blocks.distribution.Sorter;
+import mindustry.world.blocks.distribution.ItemBridge;
+import mindustry.world.blocks.distribution.MassDriver;
+import mindustry.world.blocks.payloads.PayloadMassDriver;
+import mindustry.world.blocks.power.PowerNode;
 import mindustry.world.blocks.units.UnitFactory;
 import static mindustry.Vars.player;
 
-/** Touch equivalent of the upstream sorter item and factory plan tables. */
+/** Touch access to upstream configuration tables and building links. */
 final class UpstreamBuildingConfig {
     private record Choice(UnlockableContent content, Object value) {}
 
     private final Seq<Choice> choices = new Seq<>();
     private Building target;
+    private boolean linking;
     private int page;
     private byte[] labels;
     private final int[] iconIds = new int[UpstreamBuildMenu.ROWS];
 
     void open(Building build) {
-        if (!(build instanceof Sorter.SorterBuild || build instanceof UnitFactory.UnitFactoryBuild)
-                || !build.isValid() || !build.block.configurable || !Units.canInteract(player, build)
-                || !build.configTapped()) return;
+        if (build == null || !build.isValid() || !build.block.configurable || !Units.canInteract(player, build)
+                || !build.shouldShowConfigure(player)) return;
+        if (build instanceof PowerNode.PowerNodeBuild || build instanceof ItemBridge.ItemBridgeBuild
+                || build instanceof MassDriver.MassDriverBuild || build instanceof PayloadMassDriver.PayloadDriverBuild) {
+            if (!build.configTapped()) return;
+            target = build;
+            linking = true;
+            System.out.println("UPSTREAM_LINK_CONFIG x=" + build.tileX() + " y=" + build.tileY()
+                + " block=" + build.block.name);
+            return;
+        }
+        boolean itemSelector = build.block.configurations.containsKey(Item.class);
+        if ((!itemSelector && !(build instanceof UnitFactory.UnitFactoryBuild)) || !build.configTapped()) return;
         choices.clear();
-        if (build instanceof Sorter.SorterBuild) {
+        if (itemSelector) {
             for (var item : Vars.content.items()) {
                 if (UpstreamItemChoices.accepts(item)) choices.add(new Choice(item, item));
             }
@@ -34,12 +49,25 @@ final class UpstreamBuildingConfig {
                 var unit = factory.plans.get(index).unit;
                 if (unit.unlockedNow() && !unit.isBanned()) choices.add(new Choice(unit, index));
             }
-            if (choices.isEmpty()) return;
         }
+        if (choices.isEmpty()) return;
         target = build;
         page = Math.max(0, selectedIndex()) / UpstreamBuildMenu.ROWS;
         refreshLabels();
         System.out.println("UPSTREAM_CONFIG_OPEN x=" + build.tileX() + " y=" + build.tileY());
+    }
+
+    void tapLink(Building other) {
+        if (other == null) {
+            close();
+        } else if (Units.canInteract(player, other)) {
+            if (target.onConfigureBuildTapped(other)) {
+                close();
+                open(other);
+            } else if (other == target && target instanceof PowerNode.PowerNodeBuild) {
+                close();
+            }
+        }
     }
 
     void tap(int x, int y) {
@@ -78,13 +106,14 @@ final class UpstreamBuildingConfig {
     }
 
     void validate() {
-        if (isOpen() && (!target.isValid() || !Units.canInteract(player, target)
+        if (target != null && (!target.isValid() || !Units.canInteract(player, target)
                 || target.shouldHideConfigure(player))) close();
     }
 
-    private void close() {
+    void close() {
         target.onConfigureClosed();
         target = null;
+        linking = false;
     }
 
     private void refreshLabels() {
@@ -105,7 +134,9 @@ final class UpstreamBuildingConfig {
         labels = result.toString().getBytes(StandardCharsets.UTF_8);
     }
 
-    boolean isOpen() { return target != null; }
+    boolean isOpen() { return target != null && !linking; }
+    boolean isLinking() { return linking; }
+    Building linkSource() { return linking ? target : null; }
     byte[] labels() { return labels; }
     int[] iconIds() { return iconIds; }
     boolean previousPage() { return page > 0; }
