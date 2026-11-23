@@ -126,6 +126,10 @@ if [[ $# -gt 0 ]]; then
     fi
     if [[ -d "$1/world-atlas" ]]; then
         terrain_flags+=(-DM3DS_WORLD_ATLAS)
+        "$DEVKITPRO/tools/bin/picasso" -o "$output/m3ds_quad.shbin" "$root/m3ds_quad.v.pica"
+        "$DEVKITPRO/tools/bin/bin2s" -a 4 -H "$output/nativeinclude/m3ds_quad_shbin.h" \
+            "$output/m3ds_quad.shbin" > "$output/m3ds_quad_shader.s"
+        terrain_sources+=("$output/m3ds_quad_shader.s")
         cp -R "$1/world-atlas" "$output/romfs/world-atlas"
     fi
     "$DEVKITPRO/tools/bin/smdhtool" --create "$title" "$subtitle" \

@@ -287,7 +287,7 @@
       "category": "Controls & Dual-Screen UI",
       "name": "Top/Bottom HUD, Menus & Minimap",
       "weight": 6,
-      "stage": "emulator-tested",
+      "stage": "hardware-verified",
       "issue": 40,
       "evidence": [
         "include/render/minimap.h",
@@ -310,9 +310,9 @@
         "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerApp.java",
         "docs/gameplay/offline-singleplayer.md",
         "research/upstream-runtime/src/content/java/UpstreamStatusRows.java",
-        "research/upstream-runtime/src/status-hud/java/UpstreamStatusRowsProbe.java"
-      ],
-      "hardware_test": "HARDWARE_TEST_PENDING"
+        "research/upstream-runtime/src/status-hud/java/UpstreamStatusRowsProbe.java",
+        "docs/hardware/evidence/new3ds-xl-a328c70.md"
+      ]
     },
     {
       "id": "msav-map-save-compat",
