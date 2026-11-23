@@ -30,16 +30,39 @@ int main(int argc, char** argv) {
 #else
     consoleInit(GFX_TOP, NULL);
 #endif
+    const size_t socket_buffer_size = 0x100000;
+    void *socket_buffer = NULL;
+    bool socket_ready = false;
+    if (argc > 1 && strcmp(argv[1], "m3ds-stream-logs") == 0) {
+        // Keep the native option out of the Java positional map/save arguments.
+        argv[1] = argv[0];
+        ++argv;
+        --argc;
+        socket_buffer = memalign(0x1000, socket_buffer_size);
+        if (socket_buffer && R_SUCCEEDED(socInit(socket_buffer, socket_buffer_size))) {
+            socket_ready = true;
+            for (int attempt = 0; attempt < 3 && m3ds_log_socket < 0; ++attempt) {
+                svcSleepThread(100000000);
+                m3ds_log_socket = link3dsConnectToHost(false, false);
+            }
+        }
+    }
     char memory[120];
     int memory_length = snprintf(memory, sizeof(memory),
         "UPSTREAM_MEMORY appHeap=%lu linearHeap=%lu stack=%lu\n",
         (unsigned long)envGetHeapSize(), (unsigned long)envGetLinearHeapSize(),
         (unsigned long)__stacksize__);
     if (memory_length > 0 && memory_length < (int)sizeof(memory)) {
-        svcOutputDebugString(memory, memory_length);
+        m3ds_debug_write(memory, (size_t)memory_length);
     }
     int result = m3ds_teavm_main(argc, argv);
     m3ds_flush_log();
+    if (m3ds_log_socket >= 0) {
+        close(m3ds_log_socket);
+        m3ds_log_socket = -1;
+    }
+    if (socket_ready) socExit();
+    free(socket_buffer);
 #ifdef M3DS_TERRAIN_RENDERER
     if (!m3ds_terrain_palette_active())
 #endif

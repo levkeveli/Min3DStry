@@ -419,6 +419,7 @@ profiles. Physical console memory use and frame-rate targets remain open.
 | Touch grid (`16x12`) | Place / break / configure / select mine ore at tile |
 | Touch `Mine` (`x >= 288, 80 <= y < 112`) | Toggle ore mining target selection |
 | Touch `List` / `Config` / Bottom bar | Open block catalog (`UpstreamBuildMenu`), block config (`UpstreamBuildingConfig`), shortcuts, `Rotate`, or `Remove` |
+| Touch `Pause` / `Resume` below `Mine` | Pause or resume construction while retaining plans. Mining and waves continue. |
 | `A` / `R` / `B` | Place at cursor / rotate block / toggle remove mode |
 | Tap `X` | Toggle simulation pause or resume on release |
 | Hold `X` and use Circle Pad / D-Pad | Set the aim direction without moving |
@@ -426,6 +427,21 @@ profiles. Physical console memory use and frame-rate targets remain open.
 | `Y` | Trigger next enemy wave (`UPSTREAM_SP_WAVE`) |
 | `SELECT` | Save `.msav` snapshot to `/3ds/min3dstry/singleplayer-save.msav` (`UPSTREAM_SP_SAVED`) |
 | `START` | Exit application cleanly |
+
+## Capture gameplay logs on a physical 3DS
+
+Open NetLoader in Homebrew Launcher and deploy the standalone game with
+`./dev.sh device deploy --rom /path/to/upstream-probe.3dsx --ip <3DS_IP>
+--stream-logs --log-out build/device-logs/ground-zero.log`.
+The native launcher consumes the log-stream option before interpreting any
+map or save arguments. Debugger output is still available without NetLoader.
+
+For touch mining, look for `UPSTREAM_BUILD_TOUCH` (touch coordinates and
+viewport origin), `UPSTREAM_MINE_MODE`, then `UPSTREAM_MINE_TARGET` or
+`UPSTREAM_MINE_REJECT` (world tile and rejection reason). The game reports
+`UPSTREAM_SP_MINED` when mining increases the core's copper count.
+`UPSTREAM_SP_MINING` and `UPSTREAM_SP_MINING_INVENTORY` distinguish a
+selected target from simulation progress, carried inventory, and core range.
 
 ## Stock player combat
 
@@ -516,6 +532,10 @@ bash research/upstream-runtime/arm11/build.sh \
 python3 tools/verify_upstream_singleplayer.py \
   --rom research/upstream-runtime/build/probe-3ds-singleplayer/upstream-probe.3dsx
 ```
+
+The replay pauses construction, queues a conveyor, and verifies that copper
+reaches the core while that plan remains queued. It then resumes construction
+and checks that the conveyor completes at the tile selected by the touch grid.
 
 Unit tests covering `verify_upstream_singleplayer.py` CTM generation, SD save path resolution, and telemetry parsing run via:
 

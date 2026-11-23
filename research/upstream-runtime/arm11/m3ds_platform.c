@@ -6,13 +6,23 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/socket.h>
 #include <sys/time.h>
+#include <unistd.h>
 #include <m3ds_map_file.h>
 
 static LightEvent m3ds_event;
 static u64 m3ds_initial_tick;
 static char m3ds_log_line[192];
 static size_t m3ds_log_size;
+static int m3ds_log_socket = -1;
+
+static void m3ds_debug_write(const char *line, size_t length) {
+    svcOutputDebugString(line, (s32)length);
+    if (m3ds_log_socket >= 0) {
+        (void)send(m3ds_log_socket, line, length, MSG_DONTWAIT);
+    }
+}
 
 void* m3ds_map_open(void) {
     return fopen("sdmc:/3ds/min3dstry/glacier.msav", "rb");
@@ -119,7 +129,7 @@ static void m3ds_flush_log(void) {
     if (!m3ds_terrain_palette_active())
 #endif
         fwrite(m3ds_log_line, 1, m3ds_log_size, stdout);
-    svcOutputDebugString(m3ds_log_line, (s32)m3ds_log_size);
+    m3ds_debug_write(m3ds_log_line, m3ds_log_size);
     m3ds_log_size = 0;
 }
 

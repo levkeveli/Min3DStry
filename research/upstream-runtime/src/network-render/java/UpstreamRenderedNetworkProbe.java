@@ -308,7 +308,7 @@ public final class UpstreamRenderedNetworkProbe {
             shortcut, buildingControls.rotation(), buildingControls.removing(), block.rotate,
             catalog.isOpen() || config.isOpen() || inventory.isOpen() || commandMenu.isOpen() || schematics.isOpen(),
             buildingControls.configuring(), buildingControls.selectingMine(), buildingControls.inventoryAction(),
-            orders.mode(), buildingControls.selectingControl(), schematics.active());
+            orders.mode(), buildingControls.selectingControl(), schematics.active(), -1);
         if (schematics.isOpen()) {
             drawMenu(schematics.labels(), schematics.icons(), -1, schematics.previousPage(), schematics.nextPage(),
                 UpstreamTerrainRenderProbe.SCHEMATIC_CATALOG);

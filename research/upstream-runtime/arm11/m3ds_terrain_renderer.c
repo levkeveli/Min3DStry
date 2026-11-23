@@ -1041,7 +1041,8 @@ int32_t m3ds_terrain_build_labels(const char *labels) {
 int32_t m3ds_terrain_build_overlay(int32_t column, int32_t row, int32_t block, int32_t rotation,
                                   int32_t removing, int32_t tile_size, int32_t rotatable, int32_t catalog_open,
                                   int32_t configuring, int32_t selecting_mine, int32_t inventory_action,
-                                  int32_t command_mode, int32_t selecting_control, int32_t placing_schematic) {
+                                  int32_t command_mode, int32_t selecting_control, int32_t placing_schematic,
+                                  int32_t building_paused) {
     if (!frame_open || !palette) return 0;
     set_world_blend(0);
     set_world_mix(0, 0);
@@ -1076,6 +1077,11 @@ int32_t m3ds_terrain_build_overlay(int32_t column, int32_t row, int32_t block, i
     C2D_DrawRectSolid(292, 80, 0.5f, 26, 31, C2D_Color32(45, 52, 64, 255));
     draw_palette_label(7, 305, 89, 0.30f, 24,
         selecting_mine ? accent : C2D_Color32(239, 241, 247, 255));
+    if (building_paused >= 0) {
+    C2D_DrawRectSolid(292, 112, 0.5f, 26, 31, C2D_Color32(45, 52, 64, 255));
+    draw_palette_label(building_paused ? 9 : 8, 305, 121, 0.30f, 24,
+        building_paused ? accent : C2D_Color32(239, 241, 247, 255));
+    } else {
     C2D_DrawRectSolid(2, 80, 0.5f, 26, 31, C2D_Color32(45, 52, 64, 255));
     draw_palette_label(command_mode == 0 ? 8 : 12, 15, 89, 0.30f, 24,
         inventory_action == 1 ? accent : C2D_Color32(239, 241, 247, 255));
@@ -1098,6 +1104,7 @@ int32_t m3ds_terrain_build_overlay(int32_t column, int32_t row, int32_t block, i
         C2D_DrawRectSolid(2, 144, 0.5f, 26, 31, C2D_Color32(45, 52, 64, 255));
         draw_palette_label(15, 15, 153, 0.30f, 24,
             placing_schematic ? accent : C2D_Color32(239, 241, 247, 255));
+    }
     }
     for (int i = 0; i < 4; i++) {
         bool active = !selecting_mine && inventory_action == 0 && command_mode == 0 && !selecting_control && !placing_schematic

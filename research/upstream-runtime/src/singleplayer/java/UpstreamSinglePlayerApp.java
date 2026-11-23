@@ -60,7 +60,12 @@ public final class UpstreamSinglePlayerApp {
     private static final long FRAME_NS = 16_666_667L;
     private static final float DEAD_ZONE = 20f / 127f;
     private static final float STOP_SPEED = 0.03f;
+<<<<<<< HEAD
+    private static final int BUILD_TOGGLE_Y = 112;
+    private static final ObjectSet<UnitType> drawableUnits = new ObjectSet<>();
+=======
     private final AudioHooks audio;
+>>>>>>> origin/main
     private final UpstreamTerrainRenderProbe target = new UpstreamTerrainRenderProbe(false);
     private final UpstreamBuildingLayers buildingLayers = new UpstreamBuildingLayers();
     private UpstreamLiveBuildControls buildingControls = new UpstreamLiveBuildControls();
@@ -77,6 +82,7 @@ public final class UpstreamSinglePlayerApp {
     private UpstreamSinglePlayerSession session;
     private UpstreamTerrainDrawProbe.Viewport viewport;
     private boolean rendererReady;
+    private boolean buildingPaused;
     private Unit controlled;
     private Fi campaignSlot;
     private int draws;
@@ -84,6 +90,8 @@ public final class UpstreamSinglePlayerApp {
     private float frameSeconds = 1f / 60f;
     private int lastLeft = -1, lastBottom = -1;
     private int lastCopper = -1;
+    private int lastMiningTile = -1;
+    private long lastMiningReport;
     private boolean moving;
     private String inputDevice;
     private UpstreamLabelText.Label encodedLabel;
@@ -767,6 +775,15 @@ public final class UpstreamSinglePlayerApp {
 
             unit = session.ensurePlayerSpawn();
             if (unit != null) {
+                if (touch >= 0 && (touch & 0xffff) >= 288
+                        && (touch >>> 16) >= BUILD_TOGGLE_Y && (touch >>> 16) < BUILD_TOGGLE_Y + 32
+                        && !buildingControls.catalog().isOpen() && !buildingControls.itemConfig().isOpen()) {
+                    buildingPaused = !buildingPaused;
+                    touch = -1;
+                    System.out.println("UPSTREAM_SP_BUILDING paused=" + buildingPaused
+                        + " queued=" + unit.plans().size);
+                }
+                unit.updateBuilding(!buildingPaused);
                 buildingControls.update(unit, input, touch);
                 unit = session.ensurePlayerSpawn();
             }
@@ -797,13 +814,13 @@ public final class UpstreamSinglePlayerApp {
             }
 
             unit = session.ensurePlayerSpawn();
-            updateTelemetry(unit, input);
+            updateTelemetry(unit, input, now);
             render(unit);
             Thread.yield();
         }
     }
 
-    private void updateTelemetry(Unit unit, int input) {
+    private void updateTelemetry(Unit unit, int input, long now) {
         if (unit != null) {
             if (reportedControl != unit) {
                 reportedControl = unit;
@@ -821,6 +838,23 @@ public final class UpstreamSinglePlayerApp {
         }
         var core = session.core();
         int copper = core == null ? 0 : core.items.get(Items.copper);
+        if (unit != null && unit.mineTile != null) {
+            int tile = unit.mineTile.pos();
+            if (tile != lastMiningTile || now - lastMiningReport >= 5_000_000_000L) {
+                var miningCore = unit.closestCore();
+                System.out.println("UPSTREAM_SP_MINING tile=" + unit.mineTile.x + "," + unit.mineTile.y
+                    + " tick=" + Vars.state.updateId + " progress=" + unit.mineTimer()
+                    + " building=" + unit.activelyBuilding() + " player=" + unit.isPlayer());
+                System.out.println("UPSTREAM_SP_MINING_INVENTORY held=" + unit.stack.item.name + ":" + unit.stack.amount
+                    + " core=" + (miningCore == null ? "none" : "present")
+                    + " inRange=" + (miningCore != null && unit.within(miningCore, Vars.mineTransferRange))
+                    + " copper=" + copper);
+                lastMiningTile = tile;
+                lastMiningReport = now;
+            }
+        } else {
+            lastMiningTile = -1;
+        }
         if (copper != lastCopper) {
             if (copper > lastCopper) {
                 System.out.println("UPSTREAM_SP_MINED item=copper copper=" + copper);
@@ -839,6 +873,8 @@ public final class UpstreamSinglePlayerApp {
             "List", "Config", Core.bundle.get("back"), Core.bundle.get("command.mine"),
             Core.bundle.get("category.items"), "Give", Core.bundle.get("command"), "Type", "Stance",
             "Ctrl", Core.bundle.get("back"), "Schem") + "\0";
+            Core.bundle.get("keybind.pause.name"), Core.bundle.get("sectors.resume"),
+            Core.bundle.get("command"), "Type", "Stance", "Ctrl", Core.bundle.get("back"), "Schem") + "\0";
         target.buildLabels(labels.getBytes(StandardCharsets.UTF_8));
         lastPrimaryShortcut = primary;
         System.out.println("UPSTREAM_BUILD_SHORTCUTS primary=" + primary.name + " secondary=" + secondary.name);
@@ -941,7 +977,7 @@ public final class UpstreamSinglePlayerApp {
             shortcut, buildingControls.rotation(), buildingControls.removing(), block.rotate,
             catalog.isOpen() || config.isOpen() || inventory.isOpen() || commandMenu.isOpen() || schematics.isOpen(),
             buildingControls.configuring(), buildingControls.selectingMine(), buildingControls.inventoryAction(),
-            orders.mode(), buildingControls.selectingControl(), schematics.active());
+            orders.mode(), buildingControls.selectingControl(), schematics.active(), buildingPaused ? 1 : 0);
         if (schematics.isOpen()) {
             drawMenu(schematics.labels(), schematics.icons(), -1, schematics.previousPage(), schematics.nextPage(),
                 UpstreamTerrainRenderProbe.SCHEMATIC_CATALOG);
