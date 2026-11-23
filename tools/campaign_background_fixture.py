@@ -71,6 +71,7 @@ def create(java, server, output):
             frozen.info.destination=landing;
             frozen.info.export.put(Items.copper,stat(0.25));
             for (let i=0;i<sectors.length;i++) sectors[i].saveInfo();
+            Settings.put('last-sector-save','sector-serpulo-170');
             Settings.forceSave();
             Fi.get('config/settings.bin').copyTo(Fi.get('before.bin'));
             const turn=Vars.universe.turn();

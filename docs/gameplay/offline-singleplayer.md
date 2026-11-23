@@ -236,7 +236,9 @@ ordinary simulation ticks. Stock Java reopens the resulting save and
 settings and verifies the turn, active core, remote inventories, and
 legacy launch pad setting. The generated TeaVM C reference produced the same
 result on the host and stock Java reopened its output. The Linux smoke job
-runs that same reference and stock readback.
+runs that same reference and stock readback. The graphical replay checks
+the same turn from the campaign menu through save on exit. It also
+checks that the two remote sector map files stay byte-identical.
 
 ```sh
 python3 tools/campaign_background_fixture.py --server server-release.jar --create /path/to/fixture
@@ -244,6 +246,10 @@ python3 tools/campaign_background_fixture.py --server server-release.jar --creat
 gradle -Pprobe=unified runBackgroundCampaignTurnJvm --args="/path/to/fixture /path/to/assets /path/to/assets/bundle /path/to/new-output"
 python3 tools/campaign_background_fixture.py --server server-release.jar --check /path/to/new-output
 ```
+
+`tools/verify_upstream_campaign_background.py` accepts the unified ARM11
+ROM and the unmodified v160.8 server JAR. It creates a separate virtual
+SD per emulator profile and reopens each resulting save with stock Java.
 
 ## New campaign
 
