@@ -29,6 +29,7 @@ import mindustry.core.GameState.State;
 import mindustry.core.NetClient;
 import mindustry.game.FogControl;
 import mindustry.game.MapObjectives.ItemObjective;
+import mindustry.game.Team;
 import mindustry.game.Universe;
 import mindustry.gen.BeginBreakCallPacket;
 import mindustry.gen.BeginPlaceCallPacket;
@@ -46,6 +47,7 @@ import mindustry.gen.CreateBulletCallPacket;
 import mindustry.gen.ConstructFinishCallPacket;
 import mindustry.gen.DeconstructFinishCallPacket;
 import mindustry.gen.EntitySnapshotCallPacket;
+import mindustry.gen.GameOverCallPacket;
 import mindustry.gen.Groups;
 import mindustry.gen.KickCallPacket;
 import mindustry.gen.KickCallPacket2;
@@ -75,6 +77,7 @@ import mindustry.gen.UnitControlCallPacket;
 import mindustry.gen.UnitDespawnCallPacket;
 import mindustry.gen.UnitDestroyCallPacket;
 import mindustry.gen.UnitSpawnCallPacket;
+import mindustry.gen.UpdateGameOverCallPacket;
 import mindustry.gen.UpdateMarkerCallPacket;
 import mindustry.gen.UpdateMarkerTextCallPacket;
 import mindustry.gen.UpdateMarkerTextureCallPacket;
@@ -104,12 +107,13 @@ public final class UpstreamLiveNetworkProbe {
     private final UpstreamLiveBuildControls building;
     private final Consumer<String> chat;
     private final UpstreamChatInput chatInput;
+    private final Consumer<Team> roundResult;
     private Runnable deferredGraphics;
     private int nextLiveTransport = 1;
 
     private UpstreamLiveNetworkProbe(Mode mode, Runnable deferredGraphics, Consumer<Unit> frame,
                                      UpstreamLiveBuildControls building, Consumer<String> chat,
-                                     UpstreamChatInput chatInput, UpstreamPlayerIdentity identity) {
+                                     UpstreamChatInput chatInput, UpstreamPlayerIdentity identity, Consumer<Team> roundResult) {
         this.mode = mode;
         this.deferredGraphics = deferredGraphics;
         this.frame = frame;
@@ -117,11 +121,12 @@ public final class UpstreamLiveNetworkProbe {
         this.chat = chat;
         this.chatInput = chatInput;
         this.identity = identity;
+        this.roundResult = roundResult;
     }
 
     public static void main(String[] args) throws IOException, InterruptedException {
         var endpoint = endpointFile(args);
-        run(endpoint.parent(), endpoint.readString(), null, null, null, null, null, null);
+        run(endpoint.parent(), endpoint.readString(), null, null, null, null, null, null, null);
     }
 
     static Fi endpointFile(String[] args) {
@@ -129,7 +134,8 @@ public final class UpstreamLiveNetworkProbe {
     }
 
     static void run(Fi directory, String address, Runnable beforeConnect, Runnable deferredGraphics,
-                    Consumer<Unit> frame, UpstreamLiveBuildControls building, Consumer<String> chat, UpstreamChatInput chatInput)
+                    Consumer<Unit> frame, UpstreamLiveBuildControls building, Consumer<String> chat, UpstreamChatInput chatInput,
+                    Consumer<Team> roundResult)
                     throws IOException, InterruptedException {
         String[] endpoint = address.trim().split("\\s+");
         if (endpoint.length < 2 || endpoint.length > 3) {
@@ -159,7 +165,7 @@ public final class UpstreamLiveNetworkProbe {
             stage = "profile";
             var identity = UpstreamPlayerIdentity.load(directory, endpoint[0]);
             stage = "session";
-            new UpstreamLiveNetworkProbe(mode, deferredGraphics, frame, building, chat, chatInput, identity)
+            new UpstreamLiveNetworkProbe(mode, deferredGraphics, frame, building, chat, chatInput, identity, roundResult)
                 .run(host, port, app);
         } catch (IOException | RuntimeException | LinkageError error) {
             Throwable cause = error;
@@ -539,6 +545,10 @@ public final class UpstreamLiveNetworkProbe {
                 decode(new SetRulesCallPacket(), received).handleClient();
             } else if (id == unsignedId(SetRuleCallPacket.class)) {
                 decode(new SetRuleCallPacket(), received).handleClient();
+            } else if (id == unsignedId(GameOverCallPacket.class)) {
+                handleRoundResult(decode(new GameOverCallPacket(), received));
+            } else if (id == unsignedId(UpdateGameOverCallPacket.class)) {
+                handleRoundResult(decode(new UpdateGameOverCallPacket(), received));
             } else if (chat != null && id == unsignedId(SendMessageCallPacket.class)) {
                 var message = decode(new SendMessageCallPacket(), received);
                 message.handleClient();
@@ -575,6 +585,18 @@ public final class UpstreamLiveNetworkProbe {
             }
         }
         return lastWave;
+    }
+
+    private void handleRoundResult(Packet result) {
+        var winner = applyRoundResult(result);
+        System.out.println("UPSTREAM_LIVE_ROUND winner=" + winner.id + " won=" + Vars.state.won
+            + " wave=" + Vars.state.wave);
+        if (roundResult != null) roundResult.accept(winner);
+    }
+
+    static Team applyRoundResult(Packet result) {
+        result.handleClient();
+        return result instanceof GameOverCallPacket desktop ? desktop.winner : ((UpdateGameOverCallPacket) result).winner;
     }
 
     private void receiveChat(String message, String source) {

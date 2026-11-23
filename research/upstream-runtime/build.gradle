@@ -18,6 +18,7 @@ def fileSource = 'arc-core/src/arc/files/Fi.java'
 def soundSource = 'arc-core/src/arc/audio/Sound.java'
 def osSource = 'arc-core/src/arc/util/OS.java'
 def networkIoSource = 'core/src/mindustry/net/NetworkIO.java'
+def liveLogicSource = 'core/src/mindustry/core/Logic.java'
 def netClientSource = 'core/src/mindustry/core/NetClient.java'
 def placementSource = 'core/src/mindustry/ui/fragments/PlacementFragment.java'
 def itemSelectionSource = 'core/src/mindustry/world/blocks/ItemSelection.java'
@@ -152,6 +153,7 @@ def arcOsFile = sourceDir.map { it.file('arc/util/OS.java') }
 def arcPixmapFile = sourceDir.map { it.file('arc/graphics/Pixmap.java') }
 def arcJsonFile = sourceDir.map { it.file('arc/util/serialization/Json.java') }
 def networkIoFile = sourceDir.map { it.file('mindustry/net/NetworkIO.java') }
+def liveLogicFile = sourceDir.map { it.file('mindustry/core/Logic.java') }
 def netClientFile = sourceDir.map { it.file('mindustry/core/NetClient.java') }
 def schematicsFile = sourceDir.map { it.file('mindustry/game/Schematics.java') }
 def placementFile = sourceDir.map { it.file('UpstreamPlacementCatalog.java') }
@@ -225,6 +227,7 @@ if (usesArcSources || usesExecutor) {
     }
     if (usesLiveNetwork) {
         stagedClasses.addAll(['mindustry/core/NetClient.class', 'mindustry/core/NetClient$*.class',
+                              'mindustry/core/Logic.class', 'mindustry/core/Logic$*.class',
                               'mindustry/ai/Pathfinder.class', 'mindustry/ai/Pathfinder$*.class'])
     }
     if (usesSinglePlayer || usesLiveAudio) {
@@ -531,7 +534,7 @@ tasks.register('prepareUpstreamProbe') {
         outputs.files(placementFile, itemChoicesFile, schematicsFile)
     }
     if (usesLiveNetwork) {
-        outputs.files(netClientFile, pathfinderFile)
+        outputs.files(netClientFile, pathfinderFile, liveLogicFile)
     }
     if (usesLiveAudio) {
         outputs.files(sourceDir.map { dir ->
@@ -1016,6 +1019,19 @@ final class GlacierFixture {
             adaptedPathfinder.setText(pathfinder
                 .replace(allocateGrid, 'tiles = new int[net.client() ? 0 : world.width() * world.height()];')
                 .replace(getTile, '        return net.client() ? packTile(world.tile(x, y)) : tiles[x + y * wwidth];'), 'UTF-8')
+            def logic = new String(readUpstream(liveLogicSource), 'UTF-8')
+            def headlessWinner = '''if(!headless){
+            state.won = player.team() == winner;
+        }'''
+            def restartDialog = 'Time.run(60f * 3f, () -> ui.restart.show(winner));'
+            if (logic.count(headlessWinner) != 1 || logic.count(restartDialog) != 1) {
+                throw new GradleException('Pinned multiplayer GameOver dispatch changed')
+            }
+            def adaptedLogic = liveLogicFile.get().asFile
+            adaptedLogic.parentFile.mkdirs()
+            // The rendered 3DS client has a player without the desktop scene.
+            adaptedLogic.setText(logic.replace(headlessWinner, headlessWinner.replace('!headless', 'player != null'))
+                .replace(restartDialog, 'if(ui != null) ' + restartDialog), 'UTF-8')
             def source = new String(readUpstream(netClientSource), 'UTF-8')
             if (usesLiveAudio) {
                 def soundGuard = 'if(sound == null || headless) return;'

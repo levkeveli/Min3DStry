@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import mindustry.Vars;
 import mindustry.content.Items;
+import mindustry.game.Team;
 import mindustry.world.blocks.storage.CoreBlock.CoreBuild;
 
 /** Stock wave and core-copper rows for the live ARM11 status HUD. */
@@ -12,8 +13,18 @@ final class UpstreamStatusHud {
     }
 
     static List<UpstreamObjectiveHud.Row> collect() {
+        return collect(null);
+    }
+
+    static List<UpstreamObjectiveHud.Row> collect(Team winner) {
         var rows = new ArrayList<UpstreamObjectiveHud.Row>();
         var state = Vars.state;
+        if (winner != null) {
+            add(rows, roundTitle(winner));
+            if (state.rules.waves) {
+                add(rows, Core.bundle.get("stats.wave") + " " + state.wave);
+            }
+        }
         String notification = UpstreamNotification.current();
         if (notification != null) add(rows, notification);
         var rules = state.rules;
@@ -47,6 +58,12 @@ final class UpstreamStatusHud {
             item.name,
             item.uiIcon != null && item.uiIcon.found() ? item.uiIcon : null));
         return rows;
+    }
+
+    static String roundTitle(Team winner) {
+        if (Vars.state.rules.pvp) return Core.bundle.format("gameover.pvp", winner.coloredName());
+        if (Vars.state.isCampaign()) return Core.bundle.format("sector.lost", Vars.state.getSector().name());
+        return Core.bundle.get("gameover");
     }
 
     private static void add(List<UpstreamObjectiveHud.Row> rows, String text) {

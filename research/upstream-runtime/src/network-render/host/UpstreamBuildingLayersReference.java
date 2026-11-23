@@ -103,6 +103,25 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
     private final List<RasterTexture> displayDraws = new ArrayList<>();
     private final List<Integer> displayFirstPixels = new ArrayList<>();
 
+    private static void verifyRoundTitles() {
+        var rules = Vars.state.rules;
+        boolean pvp = rules.pvp;
+        try {
+            rules.pvp = false;
+            if (!Core.bundle.get("gameover").equals(UpstreamStatusHud.roundTitle(Team.crux))) {
+                throw new AssertionError("Expected the original localized survival result");
+            }
+            rules.pvp = true;
+            var expected = Core.bundle.format("gameover.pvp", Team.crux.coloredName());
+            if (!expected.equals(UpstreamStatusHud.roundTitle(Team.crux)) || expected.equals("gameover.pvp")) {
+                throw new AssertionError("Expected the original localized PvP team result");
+            }
+            System.out.println("UPSTREAM_ROUND_HUD survival=stock pvp=stock");
+        } finally {
+            rules.pvp = pvp;
+        }
+    }
+
     private static void verifyLiveChatInput() {
         var input = new UpstreamChatInput();
         int open = 1 << 22, send = 1 << 17, cancel = 1 << 19;
@@ -144,6 +163,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         var target = new UpstreamBuildingLayersReference();
         var viewport = UpstreamTerrainDrawProbe.liveViewport(target);
         verifyLiveChatInput();
+        if (args.length >= 4) verifyRoundTitles();
         target.verifyArcOrder();
         target.verifyTexturedLine();
         target.verifyFactory(viewport);

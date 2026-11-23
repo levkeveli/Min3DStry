@@ -31,6 +31,7 @@ import mindustry.gen.ClearObjectivesCallPacket;
 import mindustry.gen.CompleteObjectiveCallPacket;
 import mindustry.gen.CreateMarkerCallPacket;
 import mindustry.gen.EntitySnapshotCallPacket;
+import mindustry.gen.GameOverCallPacket;
 import mindustry.gen.Groups;
 import mindustry.gen.Player;
 import mindustry.gen.RemoveMarkerCallPacket;
@@ -41,6 +42,7 @@ import mindustry.gen.StateSnapshotCallPacket;
 import mindustry.gen.TileConfigCallPacket;
 import mindustry.gen.Unit;
 import mindustry.gen.UnitControlCallPacket;
+import mindustry.gen.UpdateGameOverCallPacket;
 import mindustry.gen.UpdateMarkerCallPacket;
 import mindustry.gen.UpdateMarkerTextCallPacket;
 import mindustry.gen.UpdateMarkerTextureCallPacket;
@@ -132,6 +134,31 @@ public final class UpstreamSnapshotDispatchReference {
         verifyPossessionPackets(decodedMono);
         verifyStockLinkPackets();
         verifyWeaponInput();
+        verifyRoundResults();
+    }
+
+    private static void verifyRoundResults() {
+        var state = Vars.state;
+        var yourTeam = Vars.player.team();
+        var otherTeam = state.rules.waveTeam;
+        if (yourTeam == otherTeam) throw new AssertionError("Expected two different stock teams");
+        var update = new UpdateGameOverCallPacket();
+        update.winner = otherTeam;
+        var receivedUpdate = new UpdateGameOverCallPacket();
+        readPacket(update, receivedUpdate, null);
+        if (UpstreamLiveNetworkProbe.applyRoundResult(receivedUpdate) != otherTeam || !state.gameOver || state.won) {
+            throw new AssertionError("The dedicated server result should set the authoritative losing state");
+        }
+
+        var desktop = new GameOverCallPacket();
+        desktop.winner = yourTeam;
+        var receivedDesktop = new GameOverCallPacket();
+        readPacket(desktop, receivedDesktop, null);
+        if (UpstreamLiveNetworkProbe.applyRoundResult(receivedDesktop) != yourTeam || !state.won
+                || state.stats.wavesLasted != state.wave) {
+            throw new AssertionError("The stock desktop result should retain the winner and final wave");
+        }
+        System.out.println("UPSTREAM_ROUND_RESULTS dedicated=loss desktop=win wave=" + state.wave);
     }
 
     private static void verifyWeaponInput() {
@@ -287,6 +314,11 @@ public final class UpstreamSnapshotDispatchReference {
     }
 
     private static void applyPacket(Packet sent, Packet received, Player forwardedBy) {
+        readPacket(sent, received, forwardedBy);
+        received.handleClient();
+    }
+
+    private static void readPacket(Packet sent, Packet received, Player forwardedBy) {
         var bytes = new ByteArrayOutputStream();
         var writes = new Writes(new DataOutputStream(bytes));
         // Stock forwardable packets include the actor in the server-to-client envelope.
@@ -295,7 +327,6 @@ public final class UpstreamSnapshotDispatchReference {
         byte[] payload = bytes.toByteArray();
         received.read(new Reads(new DataInputStream(new ByteArrayInputStream(payload))), payload.length);
         received.handled();
-        received.handleClient();
     }
 
     private static void verifyMarkerPackets() {

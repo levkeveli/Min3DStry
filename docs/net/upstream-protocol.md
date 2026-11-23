@@ -129,3 +129,17 @@ client displayed the ARM11-origin text in the shared local session.
 ## License Audit
 
 All C wire/framing code in `src/net/mindustry_net.c` and `src/platform/3ds/net_3ds.c` was written cleanly for Min3DStry from the wire specification documented in pinned upstream Mindustry (`GPLv3`) and Arc (`Apache-2.0` / `BSD-style` ArcNet heritage), with zero proprietary Nintendo code and zero undistributable third-party binaries.
+
+
+### Multiplayer match results
+
+The live client handles the original v160.8 `UpdateGameOverCallPacket`
+from a dedicated server and `GameOverCallPacket` from a desktop host. The
+pinned Logic handlers keep the authoritative winning team and match state.
+The handheld HUD uses the original localized game-over or PvP winner text
+and shows the final wave in wave modes.
+
+The unified JVM reference round-tripped both generated result packets and
+verified a dedicated-server loss and a desktop-hosted win. The stock-bundle
+draw reference checked the survival and PvP result text. Live handheld
+replay and next-map stream transitions are pending.
