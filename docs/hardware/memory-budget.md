@@ -192,3 +192,31 @@ The performance branch keeps `-Os`. Generated C contains coroutine
 resume switches in the upstream entity readers and Arc `Reads`
 methods. These states are present in the TeaVM output before native
 compilation. The 64 MiB Original 3DS memory target remains open.
+
+### Reuse the empty exception call site
+
+When staging with location tables disabled, TeaVM call sites without an
+exception handler already resolve to the same empty table entry. The ARM11
+staging step now uses one existing, nonnegative empty ID for those generated
+assignments. This gives GCC a reusable constant for code that previously
+loaded a distinct ID at each call. Handler-bearing IDs, handler chains, and
+the unwind implementation keep their original values. Set
+`M3DS_KEEP_CALLSITE_LOCATIONS=1` to keep the original per-site IDs and source
+locations for debugging.
+
+The unified candidate rewrote 542,501 assignments and preserved all 17,413
+handler-bearing IDs. Its generated sparse handler table was byte-identical
+to the atlas-resident control.
+
+With the same `-Os` compiler, generated C input, and ROMFS assets, the
+page-rounded ELF load footprint fell from 33,501,184 to 29,003,776 bytes,
+a reduction of 4.29 MiB. The static subtotal fell from 70.45 to 66.16 MiB.
+This subtotal covers ELF load segments, the managed heap limit, the
+linear heap, and the stack. It still exceeds the 64 MiB target before
+garbage collector work buffers and other native allocations.
+
+On both Azahar 2126.2 profiles, the unified ROM averaged about 59 FPS
+during the stationary Ground Zero RPC sample after warm-up and recorded
+zero steady-state atlas imports. The sampled terrain matched the control's
+8,970 pixels on each profile. In a separate isolated SD replay, both profiles
+rejected a malformed imported save and opened the 18-map Custom Game menu.

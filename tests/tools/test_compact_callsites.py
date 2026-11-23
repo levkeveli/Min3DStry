@@ -50,6 +50,31 @@ TeaVM_CallSite teavm_callSites[5] = {
         self.assertIn("{ 4, { .firstHandler = exceptionHandlers_teavm_callSites + 1, .location = NULL } }", result)
         self.assertIn("const size_t m3ds_sparse_callsite_count = 2u;", result)
 
+    def test_only_empty_generated_callsite_ids_are_collapsed(self) -> None:
+        source = (
+            "TEAVM_WITH_CALL_SITE_ID(0, may_throw());\n"
+            "TEAVM_WITH_CALL_SITE_ID(2, unhandled());\n"
+            "TEAVM_CALL_SITE(3);\n"
+            "TEAVM_CALL_SITE(4);\n"
+            "TEAVM_CALL_SITE(id);\n"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            generated = directory / "c"
+            generated.mkdir()
+            method = generated / "Method.c"
+            method.write_text(source, encoding="utf-8")
+            native = directory / "m3ds_platform.c"
+            native.write_text(source, encoding="utf-8")
+
+            compact_callsites.collapse_empty_callsites(directory, {0, 3}, 4)
+
+            self.assertEqual(
+                method.read_text(encoding="utf-8"),
+                source.replace("ID(2, unhandled", "ID(1, unhandled"),
+            )
+            self.assertEqual(native.read_text(encoding="utf-8"), source)
+
     def test_compacts_obfuscated_callsites_without_location_tables(self) -> None:
         sample = """#include "stack.h"
 #include "c/j/l/Throwable.h"

@@ -25,6 +25,7 @@ _CALLSITE_ENTRY_RE = re.compile(
     r"(?:\s*,\s*\.location\s*=\s*(?:NULL|callSiteLocations_teavm_callSites\s*\+\s*\d+))?"
     r"\s*\}\s*,?\s*$"
 )
+_CALLSITE_USE_RE = re.compile(r"(\bTEAVM_(?:WITH_CALL_SITE_ID|CALL_SITE)\(\s*)([0-9]+)(?=\s*[,)])")
 _STRING_REF_RE = re.compile(r"\bTEAVM_GET_STRING(?:_ADDRESS)?\s*\(\s*(\d+)\s*\)")
 _STRING_RAW_RE = re.compile(r"\b(?:teavm_stringPool|TEAVM_GET_STRING(?:_ADDRESS)?)\b")
 _STRING_POOL_OPEN_RE = re.compile(
@@ -58,7 +59,9 @@ def _consume_block(
     raise ValueError(f"Unterminated array initializer starting at line {start_idx + 1}")
 
 
-def compact_callsites_text(text: str) -> tuple[str, dict[str, int]]:
+def compact_callsites_text(
+    text: str, *, handler_ids: set[int] | None = None
+) -> tuple[str, dict[str, int]]:
     """Compact TeaVM callsites.c text to keep only exception handlers in a sparse table."""
     lines = text.splitlines()
     includes: list[str] = []
@@ -174,6 +177,8 @@ def compact_callsites_text(text: str) -> tuple[str, dict[str, int]]:
         out_lines.append("};")
         out_lines.append("const size_t m3ds_sparse_callsite_count = 0u;")
 
+    if handler_ids is not None:
+        handler_ids.update(site_id for site_id, _ in sparse_entries)
     stats = {"total": total_count, "handlers": len(sparse_entries)}
     return "\n".join(out_lines) + "\n", stats
 
@@ -181,9 +186,33 @@ def compact_callsites_text(text: str) -> tuple[str, dict[str, int]]:
 def compact_callsites(output_dir: Path) -> dict[str, int]:
     """Read, compact, and overwrite output_dir/callsites.c cleanly."""
     callsites_path = output_dir / "callsites.c"
-    compacted, stats = compact_callsites_text(callsites_path.read_text(encoding="utf-8"))
+    handler_ids: set[int] = set()
+    compacted, stats = compact_callsites_text(
+        callsites_path.read_text(encoding="utf-8"), handler_ids=handler_ids
+    )
+    collapse_empty_callsites(output_dir, handler_ids, stats["total"])
     callsites_path.write_text(compacted, encoding="utf-8", newline="\n")
     return stats
+
+
+def collapse_empty_callsites(output_dir: Path, handler_ids: set[int], total: int) -> None:
+    """Use one call-site ID for all entries without handlers or locations."""
+    # Reuse a nonnegative ID so TeaVM keeps the same stack-frame accounting.
+    empty_id = next((i for i in range(total) if i not in handler_ids), None)
+    if empty_id is None:
+        return
+
+    def replace_id(match: re.Match[str]) -> str:
+        site_id = int(match[2])
+        if site_id < total and site_id not in handler_ids:
+            return match[1] + str(empty_id)
+        return match[0]
+
+    for path in (output_dir / "c").rglob("*.c"):
+        text = path.read_text(encoding="utf-8")
+        collapsed = _CALLSITE_USE_RE.sub(replace_id, text)
+        if collapsed != text:
+            path.write_text(collapsed, encoding="utf-8", newline="\n")
 
 
 def collect_live_string_refs(output_dir: Path) -> tuple[set[int], list[str]]:
