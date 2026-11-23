@@ -468,9 +468,7 @@ public final class UpstreamSinglePlayerApp {
             }
             if (unit != null) {
                 boolean anchored = unit instanceof BlockUnitc;
-                boolean overlay = buildingControls.catalog().isOpen() || buildingControls.buildingConfig().isOpen()
-                    || buildingControls.inventory().isOpen() || buildingControls.orders().active()
-                    || buildingControls.selectingControl() || buildingControls.schematics().active();
+                boolean overlay = buildingControls.blocksWeaponInput();
                 weaponInput.update(unit, moveInput, (anchored || weaponInput.aimMode()) && !moveInput.isZero(),
                     fireHeld && !overlay && !Vars.state.isPaused());
                 if (anchored) moveInput.setZero();

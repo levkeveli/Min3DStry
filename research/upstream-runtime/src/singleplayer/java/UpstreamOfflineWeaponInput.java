@@ -1,15 +1,11 @@
 import arc.math.geom.Vec2;
 import mindustry.Vars;
-import mindustry.gen.Mechc;
-import mindustry.gen.BlockUnitc;
 import mindustry.gen.Unit;
 
 /** Adapts the 3DS aim modifier and trigger to the original unit weapon controls. */
 final class UpstreamOfflineWeaponInput {
     private static final long AIM_HOLD_NS = 250_000_000L;
-    private final Vec2 heading = new Vec2();
-    private Unit currentUnit;
-    private boolean aimed;
+    private final UpstreamWeaponControl weapons = new UpstreamWeaponControl();
     private boolean pendingTap, aimMode;
     private long pressedAt;
 
@@ -34,29 +30,14 @@ final class UpstreamOfflineWeaponInput {
     boolean aimMode() { return aimMode; }
 
     void update(Unit unit, Vec2 direction, boolean aiming, boolean trigger) {
-        if (currentUnit != unit) {
-            currentUnit = unit;
-            aimed = false;
-        }
-        if (aiming) {
-            heading.set(direction).nor();
-            aimed = true;
-        }
-        if (!aimed) heading.trns(unit.rotation(), 1f);
-        float distance = UpstreamPlayerControl.aimDistance(unit);
-        unit.aim(unit.x() + heading.x * distance, unit.y() + heading.y * distance, true);
-        var player = Vars.player;
-        player.mouseX = unit.aimX();
-        player.mouseY = unit.aimY();
-        boolean shooting = trigger && (unit.type().hasWeapons() || unit instanceof BlockUnitc) && !unit.activelyBuilding()
-            && !unit.mining() && !(unit instanceof Mechc && unit.isFlying());
-        if (shooting != player.shooting) {
+        boolean previous = Vars.player.shooting;
+        weapons.update(unit, direction, aiming, trigger);
+        boolean shooting = Vars.player.shooting;
+        if (shooting != previous) {
             System.out.println("UPSTREAM_SP_FIRE shooting=" + shooting
                 + " unit=" + unit.type().name + " x=" + unit.aimX() + " y=" + unit.aimY()
                 + " shots=" + totalShots(unit));
         }
-        player.shooting = shooting;
-        unit.controlWeapons(true, shooting);
     }
 
     static int totalShots(Unit unit) {

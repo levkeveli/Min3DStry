@@ -295,6 +295,11 @@ final class UpstreamLiveBuildControls {
     }
     int rotation() { return rotation; }
     boolean removing() { return removing; }
+    boolean blocksWeaponInput() {
+        return catalog.isOpen() || buildingConfig.isOpen() || inventory.isOpen() || orders.active()
+            || selectingControl || schematics.active();
+    }
+
     UpstreamSchematicPlacement schematics() { return schematics; }
     UpstreamBuildMenu catalog() { return catalog; }
     UpstreamBuildingConfig buildingConfig() { return buildingConfig; }
