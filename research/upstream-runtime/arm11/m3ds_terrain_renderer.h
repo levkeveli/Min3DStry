@@ -20,7 +20,7 @@ int32_t m3ds_terrain_draw_unit_build(int32_t page, int32_t left, int32_t top, in
 int32_t m3ds_terrain_end(void);
 int32_t m3ds_terrain_build_overlay(int32_t column, int32_t row, int32_t block, int32_t rotation,
                                   int32_t removing, int32_t tile_size, int32_t rotatable, int32_t catalog_open,
-                                  int32_t configuring, int32_t selecting_mine);
+                                  int32_t configuring, int32_t selecting_mine, int32_t inventory_action);
 int32_t m3ds_terrain_build_catalog(const char *labels, const int32_t *icons, int32_t selected,
                                     int32_t previous, int32_t next, int32_t catalog);
 float m3ds_terrain_draw_objective(const char *label, const int32_t *characters, int32_t count,

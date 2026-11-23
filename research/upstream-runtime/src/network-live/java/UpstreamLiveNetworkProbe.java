@@ -51,7 +51,9 @@ import mindustry.gen.RemoveQueueBlockCallPacket;
 import mindustry.gen.SetObjectivesCallPacket;
 import mindustry.gen.SetPositionCallPacket;
 import mindustry.gen.StateSnapshotCallPacket;
+import mindustry.gen.TakeItemsCallPacket;
 import mindustry.gen.TileConfigCallPacket;
+import mindustry.gen.TransferItemToCallPacket;
 import mindustry.gen.Unit;
 import mindustry.gen.UnitDespawnCallPacket;
 import mindustry.gen.UnitDestroyCallPacket;
@@ -560,6 +562,10 @@ public final class UpstreamLiveNetworkProbe {
             }
         } else if (id == unsignedId(RemoveQueueBlockCallPacket.class)) {
             decode(new RemoveQueueBlockCallPacket(), received).handleClient();
+        } else if (id == unsignedId(TakeItemsCallPacket.class)) {
+            decode(new TakeItemsCallPacket(), received).handleClient();
+        } else if (id == unsignedId(TransferItemToCallPacket.class)) {
+            decode(new TransferItemToCallPacket(), received).handleClient();
         } else if (id == unsignedId(BlockSnapshotCallPacket.class)) {
             var snapshot = decode(new BlockSnapshotCallPacket(), received);
             snapshot.handleClient();
@@ -642,6 +648,8 @@ public final class UpstreamLiveNetworkProbe {
                 System.out.println("UPSTREAM_LIVE_CONTROLS_READY unit=" + unit.id()
                     + " x=" + unit.x() + " y=" + unit.y());
             }
+            // Mirror PlayerComp.update before stock input rules consult the player's position.
+            Vars.player.set(unit);
             if (buildingControls != null) buildingControls.update(unit, input, Native.touch());
             if (now - lastStep >= FRAME_NS) {
                 direction.set((byte)input / 127f, (byte)(input >>> 8) / 127f).limit(1f);

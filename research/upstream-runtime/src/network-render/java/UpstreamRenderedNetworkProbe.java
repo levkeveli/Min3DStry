@@ -33,7 +33,7 @@ import mindustry.world.blocks.payloads.BuildPayload;
 import mindustry.world.blocks.payloads.PayloadConveyor.PayloadConveyorBuild;
 import mindustry.world.blocks.payloads.UnitPayload;
 import mindustry.world.blocks.distribution.Conveyor.ConveyorBuild;
-import mindustry.world.blocks.storage.CoreBlock;
+import mindustry.world.blocks.storage.StorageBlock;
 
 /** Presents the received multiplayer world through the ARM11 terrain renderer. */
 public final class UpstreamRenderedNetworkProbe {
@@ -122,7 +122,8 @@ public final class UpstreamRenderedNetworkProbe {
         System.out.println("UPSTREAM_INTERFACE_GRAPHICS labels");
         var labels = String.join("\0", primary.localizedName, secondary.localizedName,
             Core.bundle.get("keybind.rotate.name"), Core.bundle.get("waves.remove"),
-            "List", "Config", Core.bundle.get("back"), Core.bundle.get("command.mine")) + "\0";
+            "List", "Config", Core.bundle.get("back"), Core.bundle.get("command.mine"),
+            Core.bundle.get("category.items"), "Give") + "\0";
         target.buildLabels(labels.getBytes(StandardCharsets.UTF_8));
         lastPrimaryShortcut = primary;
         System.out.println("UPSTREAM_BUILD_SHORTCUTS primary=" + primary.name + " secondary=" + secondary.name);
@@ -241,10 +242,12 @@ public final class UpstreamRenderedNetworkProbe {
         var block = buildingControls.block();
         var catalog = buildingControls.catalog();
         var config = buildingControls.buildingConfig();
+        var inventory = buildingControls.inventory();
         int shortcut = block == buildingControls.shortcut(0) ? 0 : block == buildingControls.shortcut(1) ? 1 : -1;
         target.buildOverlay(buildingControls.cursorX() - viewport.left, buildingControls.cursorY() - viewport.bottom,
             shortcut, buildingControls.rotation(), buildingControls.removing(), block.rotate,
-            catalog.isOpen() || config.isOpen(), buildingControls.configuring(), buildingControls.selectingMine());
+            catalog.isOpen() || config.isOpen() || inventory.isOpen(), buildingControls.configuring(),
+            buildingControls.selectingMine(), buildingControls.inventoryAction());
         if (catalog.isOpen()) {
             drawMenu(catalog.labels(), catalog.iconIds(), catalog.selectedRow(block),
                 catalog.previousPage(), catalog.nextPage(), UpstreamTerrainRenderProbe.BLOCK_CATALOG);
@@ -252,6 +255,9 @@ public final class UpstreamRenderedNetworkProbe {
             drawMenu(config.labels(), config.iconIds(), config.selectedRow(),
                 config.previousPage(), config.nextPage(),
                 config.unitPlans() ? UpstreamTerrainRenderProbe.UNIT_CATALOG : UpstreamTerrainRenderProbe.ITEM_CATALOG);
+        } else if (inventory.isOpen()) {
+            drawMenu(inventory.labels(), inventory.iconIds(), -1, inventory.previousPage(), inventory.nextPage(),
+                UpstreamTerrainRenderProbe.ITEM_CATALOG);
         } else {
             lastMenu = null;
         }
@@ -343,7 +349,7 @@ public final class UpstreamRenderedNetworkProbe {
         // These blocks use the sprite operations available in the live backend.
         return UpstreamBuildingLayers.supportsPowerDraw(block) || UpstreamBuildingLayers.supportsDistributionDraw(block)
             || block.category == Category.liquid || block instanceof UnitFactory || block instanceof BaseTurret
-            || block instanceof CoreBlock || block == Blocks.copperWall
+            || block instanceof StorageBlock || block == Blocks.copperWall
             || block == Blocks.berylliumWall || block == Blocks.copperWallLarge
             || block == Blocks.mechanicalDrill
             || block == Blocks.phaseWeaver || block == Blocks.overdriveProjector
