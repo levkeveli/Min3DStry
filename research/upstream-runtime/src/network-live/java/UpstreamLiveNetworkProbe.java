@@ -273,12 +273,38 @@ public final class UpstreamLiveNetworkProbe {
                                  DataBundleLoader worldBundles) throws IOException {
         // The ARM11 renderer runs with Vars.headless, which skips the stock bundle loader in DataManager.
         worldBundles.unload();
-        NetworkIO.loadWorld(new InflaterInputStream(stream));
+        try (var inflated = new WorldStreamInflater(stream)) {
+            NetworkIO.loadWorld(inflated);
+        }
         if (Core.bundle != null) worldBundles.load(Vars.state.data.getBundles());
         app.runPosted();
         if (Groups.player.size() != 1 || Vars.player.name == null || Vars.player.name.isEmpty()
                 || Vars.world.width() <= 0 || Vars.world.height() <= 0) {
             throw new IOException("Server world or assigned player did not load");
+        }
+    }
+
+    private static final class WorldStreamInflater extends InflaterInputStream {
+        private byte[] discard;
+
+        WorldStreamInflater(InputStream stream) {
+            super(stream);
+        }
+
+        @Override
+        public long skip(long length) throws IOException {
+            if (length < 0) throw new IllegalArgumentException("Negative world stream skip");
+            if (length == 0) return 0;
+
+            // TeaVM 0.16 inflates into its compressed input buffer when skipping.
+            if (discard == null) discard = new byte[512];
+            long skipped = 0;
+            while (skipped < length) {
+                int count = read(discard, 0, (int)Math.min(discard.length, length - skipped));
+                if (count < 0) break;
+                skipped += count;
+            }
+            return skipped;
         }
     }
 
