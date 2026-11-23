@@ -1458,6 +1458,7 @@ def verify_stock_chat(log, emulator, server_log, server, rpc, output, model, tim
     wait_for(server_log, server, r"UPSTREAM_STOCK_CHAT_SENT\b", 10)
     for sender in ("server", "player"):
         wait_for(log, emulator, rf"UPSTREAM_LIVE_CHAT_RECEIVED source={sender} chars=[1-9]\d*\b", timeout)
+    wait_for(log, emulator, r"UPSTREAM_LIVE_CHAT_DRAW line=(?:[3-9]|\d{2,})\b", timeout)
     deadline = time.monotonic() + min(timeout, 10)
     while time.monotonic() < deadline:
         frame = rpc.screenshot(res_scale=1)
@@ -1491,6 +1492,8 @@ def verify_stock_chat(log, emulator, server_log, server, rpc, output, model, tim
     wait_for(server_log, server, rf"{PLAYER}: hi 3ds\b", timeout)
     wait_for(log, emulator, r"UPSTREAM_LIVE_CHAT_SENT chars=6[^\r\n]*[\s\S]+"
                             r"UPSTREAM_LIVE_CHAT_RECEIVED source=player", timeout)
+    wait_for(log, emulator, r"UPSTREAM_LIVE_CHAT_SENT chars=6[^\r\n]*[\s\S]+"
+                            r"UPSTREAM_LIVE_CHAT_DRAW line=(?:[4-9]|\d{2,})\b", timeout)
     server.stdin.write("runwave\n")
     server.stdin.flush()
     wait_for(log, emulator, r"UPSTREAM_LIVE_CONTROLS_STATE wave=3\b", timeout)

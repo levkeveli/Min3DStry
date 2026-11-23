@@ -352,12 +352,15 @@ public final class UpstreamRenderedNetworkProbe {
         }
     }
 
-    private record ChatLine(byte[] text, int[] characters) {}
+    private record ChatLine(int sequence, byte[] text, int[] characters) {}
+
+    private int chatSequence;
+    private int latestDrawnChat;
 
     private void receiveChat(String message) {
         byte[] text = (message + "\0").getBytes(StandardCharsets.UTF_8);
         int[] characters = encodeLabel(UpstreamLabelText.parse(UI.formatIcons(message)));
-        chatLines.insert(0, new ChatLine(text, characters));
+        chatLines.insert(0, new ChatLine(++chatSequence, text, characters));
         chatLines.truncate(VISIBLE_CHAT_MESSAGES);
         chatFade = Math.min(chatFade + 1f, VISIBLE_CHAT_MESSAGES) + 1f;
         Sounds.uiChat.play();
@@ -366,10 +369,15 @@ public final class UpstreamRenderedNetworkProbe {
     private void drawChat() {
         // ChatFragment displays the newest lines first and expires one line per 180 game frames.
         int rows = chatInput.open() ? chatLines.size : Math.min(chatLines.size, Mathf.ceil(chatFade));
-        float y = Math.max(55f, 220f - 19f * rows);
-        for (int i = rows - 1; i >= 0; i--) {
+        float bottom = 234f;
+        for (int i = 0; i < rows; i++) {
             var line = chatLines.get(i);
-            y = target.drawObjective(line.text(), line.characters(), null, y);
+            bottom = target.drawChatLine(line.text(), line.characters(), bottom);
+            if (bottom < 0f) break;
+            if (line.sequence() > latestDrawnChat) {
+                latestDrawnChat = line.sequence();
+                System.out.println("UPSTREAM_LIVE_CHAT_DRAW line=" + latestDrawnChat);
+            }
         }
         chatFade = Math.max(0f, chatFade - Math.min(frameSeconds * 60f, Vars.maxDeltaClient) / 180f);
     }

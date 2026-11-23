@@ -57,6 +57,10 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
         }
     }
 
+    float drawChatLine(byte[] text, int[] characters, float bottom) {
+        return NativeTerrain.drawChatLine(Address.ofData(text), Address.ofData(characters), characters.length / 7, bottom);
+    }
+
     void drawChatKeyboard(byte[] labels) {
         if (NativeTerrain.drawChatKeyboard(Address.ofData(labels)) == 0) {
             throw new IllegalStateException("Unable to draw the live chat keyboard");
@@ -257,6 +261,9 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
         static native int buildOverlay(int column, int row, int block, int rotation, int removing, int tileSize,
                                        int rotatable, int catalogOpen, int configuring, int selectingMine,
                                        int inventoryAction, int commandMode, int selectingControl, int placingSchematic);
+
+        @Import(name = "m3ds_terrain_draw_chat_line")
+        static native float drawChatLine(Address text, Address characters, int count, float bottom);
 
         @Import(name = "m3ds_terrain_draw_chat_keyboard")
         static native int drawChatKeyboard(Address labels);
