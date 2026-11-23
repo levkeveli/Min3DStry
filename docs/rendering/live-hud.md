@@ -128,7 +128,11 @@ The Original 3DS profile passed the same path with three seeded items
 (`items=3 drawn=3 columns=1`). The fixture is removed after the run.
 
 The pause overlay's selection, wrap, save, quit-confirmation and cancel
-transitions are host-covered. The following graphical checks are queued for
+transitions are host-covered. Offline worlds with the stock `pauseDisabled`
+rule keep simulating while the menu is open. The overlay uses the localized
+Menu title in that case. The Ground Zero host probe checks both the normal
+pause and resume behavior and continued simulation with this rule enabled.
+The following graphical checks are queued for
 the next emulator batch and are **not verified** yet:
 
 - Tap X: `UPSTREAM_PAUSE_MENU open=true`, simulation freezes.
