@@ -673,9 +673,16 @@ water starvation, and the original pressure event when the outlet fills.
 The port JVM also checks that the destroyed reactor deposits neoplasm
 puddles. Use
 `--check` to reopen the port-written save in stock Java. With a unified
-ARM11 build, use `--fixture heat-onset.msav --rom upstream-probe.3dsx`
-to compare cold and active redirector pixels and verify the saved
-production outputs on both Azahar profiles.
+ARM11 build, use `--fixture heat-warm.msav --rom upstream-probe.3dsx`.
+The warm checkpoint starts with an active reactor and empty output
+buffers. The replay checks the cold and active redirector pixels and
+requires that the port has produced carbide and neoplasm by the time
+it saves. Stock Java checks the save immediately on load.
+
+The [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45137803532)
+showed the active heat layers on both Azahar console profiles. Stock
+Mindustry v160.8 reopened the two ARM11 saves and read back the original
+reactor heat, carbide, and neoplasm.
 
 ## Original turret graphics
 

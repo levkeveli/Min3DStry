@@ -55,6 +55,8 @@ def create(args, base, output):
             "Events.run(Packages.mindustry.game.EventType.Trigger.update, () => { "
             "if(stage===0 && Math.abs(c.heat-36)<0.01 && r.heat===60 && "
             "c.items.get(Items.carbide)>0 && o.liquids.get(Liquids.neoplasm)>0) { "
+            "c.items.set(Items.carbide,0); c.progress=0.98; o.liquids.set(Liquids.neoplasm,0); "
+            "SaveIO.save(Fi.get('config/saves/heat-warm.msav')); "
             "stage=1; h.rotation=1; print('STOCK_HEAT_ACTIVE 60/36/36'); "
             "} else if(stage===1 && c.heat===0) { stage=2; h.rotation=0; print('STOCK_HEAT_ISOLATED'); "
             "} else if(stage===2 && Math.abs(c.heat-36)<0.01) { "
@@ -93,7 +95,8 @@ def check(args, save, output):
 
 def check_loaded(server, log):
     checks = (
-        REFERENCES
+        "Packages.mindustry.io.SaveIO.load(Packages.arc.files.Fi.get('config/saves/inventory.msav')); "
+        + REFERENCES
         + "if (r.block!==Blocks.neoplasiaReactor || h.block!==Blocks.heatRedirector || h.rotation!==0 "
         "|| c.block!==Blocks.carbideCrucible || c.items.get(Items.carbide)<=0 "
         "|| o.block!==Blocks.reinforcedLiquidTank || o.liquids.get(Liquids.neoplasm)<=0 "
@@ -139,7 +142,7 @@ def main():
     operation = parser.add_mutually_exclusive_group(required=True)
     operation.add_argument("--create", type=Path, help="Original Onset .msav")
     operation.add_argument("--check", type=Path, help="Port-written .msav to reopen in stock Java")
-    operation.add_argument("--fixture", type=Path, help="Stock heat-onset.msav and sibling heat-cold.msav")
+    operation.add_argument("--fixture", type=Path, help="Stock heat-warm.msav and sibling heat-cold.msav")
     parser.add_argument("--rom", type=Path)
     parser.add_argument("--azahar")
     parser.add_argument("--model", choices=("old3ds", "new3ds"), action="append")
