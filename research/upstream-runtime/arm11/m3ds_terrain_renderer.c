@@ -7,6 +7,34 @@
 #include <stdio.h>
 #include <string.h>
 
+// Enable with sdmc:/3ds/min3dstry/frame-perf.txt. Log in windows to limit overhead.
+static bool perf_enabled;
+static bool perf_checked;
+static struct {
+    unsigned frames, misses, loads, recycles;
+    unsigned long long bytes, frame, terrain, bottom, begin_wait, recycle_wait, atlas_load;
+    u64 start, terrain_start, bottom_start;
+    int left, bottom_tile, first_left, first_bottom;
+} perf;
+
+static unsigned long long perf_us(unsigned long long ticks) {
+    return ticks * 1000000ULL / SYSCLOCK_ARM11;
+}
+
+static void perf_report(void) {
+    char record[320];
+    int length = snprintf(record, sizeof(record),
+        "UPSTREAM_FRAME_PERF frames=%u from=%d,%d to=%d,%d frame_us=%llu terrain_us=%llu "
+        "bottom_us=%llu begin_wait_us=%llu recycle_wait_us=%llu atlas_load_us=%llu misses=%u loads=%u "
+        "asset_bytes=%llu recycles=%u\n",
+        perf.frames, perf.first_left, perf.first_bottom, perf.left, perf.bottom_tile,
+        perf_us(perf.frame), perf_us(perf.terrain), perf_us(perf.bottom),
+        perf_us(perf.begin_wait), perf_us(perf.recycle_wait), perf_us(perf.atlas_load), perf.misses, perf.loads,
+        perf.bytes, perf.recycles);
+    if (length > 0 && length < (int)sizeof(record)) svcOutputDebugString(record, length);
+    memset(&perf, 0, sizeof(perf));
+}
+
 typedef struct {
     int page;
     int left, top, width, height;
@@ -159,8 +187,25 @@ int32_t m3ds_terrain_begin(int32_t left, int32_t bottom, int32_t width, int32_t 
     screen_left = 0.5f * (400.0f - world_width * scale);
     screen_bottom = 0.5f * (240.0f + world_height * scale);
     draws = 0;
+    if (!perf_checked) {
+        FILE *flag = fopen("sdmc:/3ds/min3dstry/frame-perf.txt", "rb");
+        perf_enabled = flag != NULL;
+        if (flag) fclose(flag);
+        perf_checked = true;
+    }
+    if (perf_enabled) perf.start = svcGetSystemTick();
     frame_open = C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
     if (!frame_open) return -7;
+    if (perf_enabled) {
+        perf.begin_wait += svcGetSystemTick() - perf.start;
+        perf.left = left;
+        perf.bottom_tile = bottom;
+        if (!perf.frames) {
+            perf.first_left = left;
+            perf.first_bottom = bottom;
+        }
+        perf.bottom_start = 0;
+    }
 #ifdef M3DS_STOCK_FONT
     m3ds_stock_text_begin();
 #endif
@@ -169,17 +214,27 @@ int32_t m3ds_terrain_begin(int32_t left, int32_t bottom, int32_t width, int32_t 
 #endif
     C2D_TargetClear(target, C2D_Color32(24, 27, 32, 255));
     begin_world_scene();
+    if (perf_enabled) perf.terrain_start = svcGetSystemTick();
     return 1;
+}
+
+void m3ds_terrain_finish_terrain(void) {
+    if (perf_enabled && frame_open) perf.terrain += svcGetSystemTick() - perf.terrain_start;
 }
 
 #ifdef M3DS_WORLD_ATLAS
 static bool recycle_world_pass(void) {
+    u64 start = perf_enabled ? svcGetSystemTick() : 0;
     // Submit finished draws to the same render target without displaying a partial frame.
     const u32 transfer_flags = target->transferFlags;
     C3D_RenderTargetDetachOutput(target);
     C3D_FrameEnd(0);
     frame_open = C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
     C3D_RenderTargetSetOutput(target, GFX_TOP, GFX_LEFT, transfer_flags);
+    if (perf_enabled) {
+        perf.recycles++;
+        perf.recycle_wait += svcGetSystemTick() - start;
+    }
     if (!frame_open) return false;
 
     // FrameBegin waited for the previous command queue. Clear Citro2D's saved texture
@@ -220,6 +275,7 @@ static C2D_SpriteSheet get_world_texture(int page, int x, int y) {
             victim = (int)i;
         }
     }
+    if (perf_enabled) perf.misses++;
     // Each catalog row can load one 128×128 RGBA8 icon while the world cache stays resident.
     const size_t texture_bytes = WORLD_ATLAS_TILE * WORLD_ATLAS_TILE * 4;
     const size_t menu_rows = sizeof(menu_icons) / sizeof(menu_icons[0]);
@@ -241,6 +297,7 @@ static C2D_SpriteSheet get_world_texture(int page, int x, int y) {
     char path[48];
     snprintf(path, sizeof(path), "romfs:/world-atlas/%d-%d-%d.t3x", page, x, y);
     world_textures[victim].sheet = NULL;
+    u64 load_started = perf_enabled ? svcGetSystemTick() : 0;
     FILE *file = fopen(path, "rb");
     if (!file) {
         report_atlas_failure("open", page, x, y, errno);
@@ -248,7 +305,13 @@ static C2D_SpriteSheet get_world_texture(int page, int x, int y) {
     }
     setvbuf(file, NULL, _IOFBF, 64 * 1024);
     C2D_SpriteSheet sheet = C2D_SpriteSheetLoadFromHandle(file);
+    if (perf_enabled && sheet) {
+        perf.loads++;
+        long consumed = ftell(file);
+        if (consumed > 0) perf.bytes += (unsigned long)consumed;
+    }
     fclose(file);
+    if (perf_enabled) perf.atlas_load += svcGetSystemTick() - load_started;
     if (!sheet) {
         report_atlas_failure("import", page, x, y, 0);
         return NULL;
@@ -891,8 +954,13 @@ int32_t m3ds_terrain_draw_logic_display(int32_t id, int32_t revision, int32_t wi
 
 int32_t m3ds_terrain_end(void) {
     if (!frame_open) return 0;
+    if (perf_enabled && perf.bottom_start) perf.bottom += svcGetSystemTick() - perf.bottom_start;
     C3D_FrameEnd(0);
     frame_open = false;
+    if (perf_enabled) {
+        perf.frame += svcGetSystemTick() - perf.start;
+        if (++perf.frames == 16) perf_report();
+    }
     return draws;
 }
 
@@ -994,6 +1062,7 @@ int32_t m3ds_terrain_build_overlay(int32_t column, int32_t row, int32_t block, i
             C2D_DrawLine(cx, cy, accent, cx + dx[rotation] * 6, cy + dy[rotation] * 6, accent, 2, 0.5f);
         }
     }
+    if (perf_enabled) perf.bottom_start = svcGetSystemTick();
     C2D_TargetClear(palette, C2D_Color32(24, 27, 32, 255));
     C2D_SceneBegin(palette);
     C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_COLOR);
