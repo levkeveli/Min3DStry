@@ -168,7 +168,9 @@ turn delivers 30 copper to the active core, caps the producing sector at
 sector at 11 copper. The port JVM runs the same scenario through 7,200
 ordinary simulation ticks. Stock Java reopens the resulting save and
 settings and verifies the turn, active core, remote inventories, and
-legacy launch pad setting.
+legacy launch pad setting. The generated TeaVM C reference produced the same
+result on the host and stock Java reopened its output. The Linux smoke job
+runs that same reference and stock readback.
 
 ```sh
 python3 tools/campaign_background_fixture.py --server server-release.jar --create /path/to/fixture
