@@ -73,8 +73,8 @@ public final class UpstreamMinimap {
                     putBlip(pixels, size, px + dx, py + dy, 1f, 1f, 1f);
                 }
             }
-            int tipX = px + Math.round(arc.math.Mathf.cosDeg(playerModel.rotation()) * 3f);
-            int tipY = py + Math.round(arc.math.Mathf.sinDeg(playerModel.rotation()) * 3f);
+            int tipX = Math.round(px + 0.5f + arc.math.Mathf.cosDeg(playerModel.rotation()) * 2.5f);
+            int tipY = Math.round(py + 0.5f + arc.math.Mathf.sinDeg(playerModel.rotation()) * 2.5f);
             putBlip(pixels, size, tipX, tipY, 1f, 1f, 1f);
         }
         return pixels;

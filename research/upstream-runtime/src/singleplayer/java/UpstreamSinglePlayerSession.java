@@ -707,11 +707,13 @@ public final class UpstreamSinglePlayerSession {
                 + " cell=" + (marker % 32) + "," + (marker / 32));
             int px = marker % 32;
             int py = marker / 32;
-            int tipX = px + (int)Math.round(Math.cos(Math.toRadians(unit.rotation())) * 3.0);
-            int tipY = py + (int)Math.round(Math.sin(Math.toRadians(unit.rotation())) * 3.0);
+            int tipX = (int)Math.round(px + 0.5 + Math.cos(Math.toRadians(unit.rotation())) * 2.5);
+            int tipY = (int)Math.round(py + 0.5 + Math.sin(Math.toRadians(unit.rotation())) * 2.5);
+            boolean arrowChecked = false;
             if (tipX < 0 || tipY < 0 || tipX >= 32 || tipY >= 32) {
                 throw new IllegalStateException("Minimap direction tip falls outside the grid");
             }
+            arrowChecked = true;
             if (tipX == px && tipY == py) {
                 throw new IllegalStateException("Minimap direction tip overlaps the base");
             }
@@ -737,7 +739,7 @@ public final class UpstreamSinglePlayerSession {
                 }
                 coreChecked = 1;
             }
-            System.out.println("UPSTREAM_MINIMAP_MARKERS arrow=1 core=" + coreChecked + " ok");
+            System.out.println("UPSTREAM_MINIMAP_MARKERS arrow=" + (arrowChecked ? 1 : 0) + " core=" + coreChecked + " ok");
 
             // 1. Movement check along Y-axis.
             float startY = unit.y();
