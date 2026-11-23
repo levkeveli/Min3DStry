@@ -84,6 +84,36 @@ Container contents and Duo ammunition. In both live sessions it also
 verified that the player still carried 55 copper after loading the Duo.
 Hold-to-withdraw a single item remains open in #27.
 
+## Unit and turret control
+
+Tap **Ctrl**, then tap an allied unit or a controllable building.
+The original game checks team, unit availability, and the world's
+possession rules. The camera follows the controlled unit. For a
+turret, the pad aims without moving the building and **L** fires
+using its stock ammunition, reload, and targeting behavior.
+Tap **Ctrl** and then **Back** or press **A** to release control
+through Mindustry's normal core-unit return or respawn path.
+
+The JVM reference transfers from Gamma to Dagger to Duo. It checks
+that possession rejects an enemy and honors disabled possession,
+that the Duo's original ammunition damages the target without moving
+the turret, and that release returns to the core unit.
+
+```bash
+python3 tools/verify_stock_possession.py \
+  --rom /path/to/unified/upstream-probe.3dsx \
+  --server /path/to/server-release.jar \
+  --output build/stock-possession --live
+```
+
+The replay passed offline and against the unmodified v160.8 Java
+server on both Original and New 3DS profiles in Azahar 2126.2.
+The Duo held its northward aim after the pad was released, consumed
+original copper ammunition, and returned control to Gamma. The Java
+server checked the persisted turret state in both offline saves and
+checked the same behavior during both multiplayer sessions.
+[ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45098568264)
+
 ## Tactical orders
 
 Tap **Command** on the right edge of the grid. Tap friendly units to

@@ -24,13 +24,13 @@ RESULT = (
     'if (turret === null || turret.block !== Blocks.duo || turret.controlled() || '
     'turret.totalAmmo >= 30 || turret.totalAmmo <= 0) throw "Expected released Duo with ammo consumed by manual fire"; '
     'const angle=turret.sense(Packages.mindustry.logic.LAccess.rotation); '
-    'if (Math.abs(angle - 90) > 5) throw "The released Duo lost its northward aim"; '
+    'if (!isFinite(angle) || Math.abs(angle - 90) > 5) throw "The released Duo lost its northward aim"; '
     'const dagger=Groups.unit.find(u=>u.type===UnitTypes.dagger && u.team===team); '
     'if(dagger===null || dagger.isPlayer()) throw "Expected released allied Dagger"; '
 )
 LIVE_RESULT = (
     'const actor=Groups.player.find(p=>String(p.name)==="Min3DStry ARM11"); '
-    'if(actor===null || actor.dead() || actor.unit().type!==UnitTypes.gamma || !actor.unit().spawnedByCore()) '
+    'if(actor===null || actor.dead() || actor.unit().type!==UnitTypes.gamma || !actor.unit().spawnedByCore) '
     'throw "Expected the ARM11 player to return to the original core unit"; '
 )
 TAPS = {
