@@ -893,21 +893,26 @@ def spawn_expanded_unit_roster(server_log, server):
         'const missile = UnitTypes.anthicus.weapons.first().bullet.spawnUnit; '
         'const elude = UnitTypes.elude.spawn(enemy,632,228,90); '
         'const shot = missile.spawn(enemy,628,191,90); '
+        'const team = Vars.state.rules.defaultTeam; '
+        'const carrier = UnitTypes.mega.spawn(team,704,220,90); '
+        'const cargo = UnitTypes.horizon.create(team); '
+        'carrier.addPayload(new Packages.mindustry.world.blocks.payloads.UnitPayload(cargo)); '
         'const units = Packages.mindustry.entities.Units; '
-        'units.notifyUnitSpawn(elude); units.notifyUnitSpawn(shot); '
-        'return "UPSTREAM_EXPANDED_ROSTER_FIXTURE " + elude.type.name + "," + shot.type.name; })()\n')
+        'units.notifyUnitSpawn(elude); units.notifyUnitSpawn(shot); units.notifyUnitSpawn(carrier); '
+        'return "UPSTREAM_EXPANDED_ROSTER_FIXTURE " + [elude.type.name,shot.type.name,'
+        'carrier.type.name,carrier.payloads.first().unit.type.name].join(","); })()\n')
     server.stdin.flush()
-    wait_for(server_log, server, r"UPSTREAM_EXPANDED_ROSTER_FIXTURE elude,anthicus-missile\b", 5)
+    wait_for(server_log, server, r"UPSTREAM_EXPANDED_ROSTER_FIXTURE elude,anthicus-missile,mega,horizon\b", 5)
 
 
 def verify_expanded_unit_roster(log, emulator, server_log, server, rpc, before, destination, timeout):
     spawn_expanded_unit_roster(server_log, server)
-    for name in ("elude", "anthicus-missile"):
+    for name in ("elude", "anthicus-missile", "mega", "horizon"):
         wait_for(log, emulator, rf"UPSTREAM_NETWORK_UNIT_ART type={name}\b", timeout)
 
-    # The server and camera stay stationary. Check only the two newly occupied sprite regions.
+    # The server and camera stay stationary. Check only the newly occupied sprite regions.
     regions = [tuple((x, y) for x in range(cx - 7, cx + 8) for y in range(cy - 7, cy + 8))
-               for cx, cy in ((169, 63), (159, 156))]
+               for cx, cy in ((169, 63), (159, 156), (339, 89))]
     points = tuple(point for region in regions for point in region)
     original = az.inspect_png(before, points)["samples"]
     deadline = time.monotonic() + 15
@@ -918,7 +923,7 @@ def verify_expanded_unit_roster(log, emulator, server_log, server, rpc, before, 
         changed = [sum(current[point] != original[point] for point in region) for region in regions]
         if min(changed) >= 8:
             destination.write_bytes(after)
-            print(f"Stock Elude and Anthicus missile changed {changed} pixels in their regions.", flush=True)
+            print(f"Stock Elude, Anthicus missile and Mega with Horizon changed {changed} pixels in their regions.", flush=True)
             return
         time.sleep(0.25)
     raise RuntimeError(f"Expanded unit sprites did not appear in the stationary viewport: {changed}")
