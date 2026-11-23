@@ -985,7 +985,7 @@ final class UpstreamItemChoices {
             if (globalVars.count(soundCheck) != 1) {
                 throw new GradleException('Pinned GlobalVars control.sound check changed')
             }
-            if (usesRenderedClient && usesLiveNetwork) {
+            if (usesRenderedClient) {
                 def stockIds = 'Core.files.internal("logicids.dat")'
                 if (globalVars.count(stockIds) != 1) {
                     throw new GradleException('Pinned GlobalVars logic ID lookup changed')

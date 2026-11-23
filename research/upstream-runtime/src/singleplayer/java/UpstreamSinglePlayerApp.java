@@ -42,6 +42,8 @@ import mindustry.world.Block;
 import mindustry.world.blocks.ConstructBlock.ConstructBuild;
 import mindustry.world.blocks.defense.Wall;
 import mindustry.world.blocks.defense.turrets.BaseTurret;
+import mindustry.world.blocks.logic.CanvasBlock.CanvasBuild;
+import mindustry.world.blocks.logic.LogicDisplay.LogicDisplayBuild;
 import mindustry.world.blocks.payloads.UnitPayload;
 import mindustry.world.blocks.units.UnitFactory;
 
@@ -288,6 +290,7 @@ public final class UpstreamSinglePlayerApp {
     private void loadInterfaceGraphics(Fi atlas) {
         System.out.println("UPSTREAM_INTERFACE_GRAPHICS atlas");
         UpstreamTerrainDrawProbe.loadAtlas(atlas, UpstreamFluidAtlas::load);
+        UpstreamLogicGraphics.load(new Fi("/romfs"));
         Vars.content.loadColors(new Fi("/romfs/block_colors.png"));
         UpstreamCrackAtlas.load();
         viewport = UpstreamTerrainDrawProbe.liveViewport(target);
@@ -515,6 +518,7 @@ public final class UpstreamSinglePlayerApp {
     }
 
     private void render(Unit unit) {
+        session.advanceRenderFrame();
         updateBuildLabels();
         controlled = unit;
         float x = unit == null ? Vars.player.x() : unit.x();
@@ -707,7 +711,8 @@ public final class UpstreamSinglePlayerApp {
 
     static boolean supportsBuildingDraw(Building build) {
         var block = build.block;
-        return UpstreamBuildingLayers.supportsPowerDraw(block) || UpstreamBuildingLayers.supportsDistributionDraw(block)
+        return build instanceof CanvasBuild || build instanceof LogicDisplayBuild
+            || UpstreamBuildingLayers.supportsPowerDraw(block) || UpstreamBuildingLayers.supportsDistributionDraw(block)
             || block.category == Category.liquid || block instanceof UnitFactory
             || UpstreamBuildingLayers.supportsMaterialDraw(block) || block instanceof Wall
             || UpstreamBuildingLayers.supportsExtractorDraw(block)

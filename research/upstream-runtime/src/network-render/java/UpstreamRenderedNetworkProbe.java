@@ -1,8 +1,5 @@
 import port.render.UpstreamCrackAtlas;
 import port.render.UpstreamFluidAtlas;
-import port.render.UpstreamLogicAtlas;
-import port.render.UpstreamLogicFont;
-import port.render.UpstreamLogicFramebuffer;
 import port.render.UpstreamWorldLabel;
 import port.audio.Arm11Audio;
 import port.render.UpstreamLabelText;
@@ -115,7 +112,6 @@ public final class UpstreamRenderedNetworkProbe {
         Arm11Audio.prepareMusicControl();
         Events.on(WorldLoadEvent.class, event -> Arm11Audio.reset());
         UpstreamClientLogic.initialize(new Fi("/romfs/logicids.dat"));
-        UpstreamLogicFont.load(new Fi("/romfs/logic-font.dat"));
         Core.graphics = new MockGraphics() {
             @Override public int getWidth() { return 400; }
             @Override public int getHeight() { return 240; }
@@ -127,12 +123,7 @@ public final class UpstreamRenderedNetworkProbe {
         Core.settings.put("locale", locale.getLanguage().isEmpty() ? "en" : locale.toString());
         System.out.println("UPSTREAM_INTERFACE_GRAPHICS atlas");
         UpstreamTerrainDrawProbe.loadAtlas(atlas, UpstreamFluidAtlas::load);
-        var displayAtlas = new UpstreamLogicAtlas(new Fi("/romfs/world-atlas"));
-        UpstreamLogicFramebuffer.atlasPixels((texture, x, y) ->
-            displayAtlas.sample(UpstreamTerrainDrawProbe.pageIndex(texture), x, y));
-        Blocks.logicDisplay.load();
-        Blocks.largeLogicDisplay.load();
-        Blocks.tileLogicDisplay.load();
+        UpstreamLogicGraphics.load(new Fi("/romfs"));
         Vars.content.loadColors(new Fi("/romfs/block_colors.png"));
         UpstreamCrackAtlas.load();
         drawableUnits.clear();
