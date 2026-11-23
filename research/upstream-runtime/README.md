@@ -514,8 +514,9 @@ requires a physical console.
 
 Add `--weather` to the unified audio verifier to have the stock Java server
 send rain, snow and sandstorm while the client is playing. The ARM11 client
-dispatches the original weather packet, advances the original weather
-entities, and routes their sound through stock `SoundControl` fades. The
+decodes the original weather packet and uses the server's stock entity
+snapshot to create each `WeatherState` with its server-assigned ID. It
+advances those entities and routes their sound through stock `SoundControl` fades. The
 replay checks the original sound IDs, centered playback and the active DSP
 mode. The JVM reference also checks the shared sporestorm sound and fade
 after expiry.

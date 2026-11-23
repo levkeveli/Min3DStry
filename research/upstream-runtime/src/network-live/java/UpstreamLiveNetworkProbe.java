@@ -517,7 +517,8 @@ public final class UpstreamLiveNetworkProbe {
                 decode(new SoundAtCallPacket(), received).handleClient();
             } else if (frame != null && id == unsignedId(CreateWeatherCallPacket.class)) {
                 var weather = decode(new CreateWeatherCallPacket(), received);
-                weather.handleClient();
+                // Stock WeatherState is in Groups.sync. The server's snapshot supplies its ID
+                // and state. Creating a second entity here can claim an ID used by a stock unit.
                 System.out.println("UPSTREAM_LIVE_WEATHER name=" + weather.weather.name);
             } else {
                 var marker = markerPacket(id);
