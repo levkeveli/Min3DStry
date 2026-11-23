@@ -122,6 +122,7 @@ jobs:
               UPSTREAM_MINDUSTRY=/upstream/Mindustry build/min3dstry.3dsx
             test -s build/min3dstry.3dsx
             test -s build/min3dstry.smdh
+            python3 tools/check_main_stack.py --max-bytes 4096 build/min3dstry.elf
             python3 tools/validate_audio_romfs.py build/romfs
             artifact_bytes=$(stat -c %s build/min3dstry.3dsx)
             echo "artifact_bytes=${artifact_bytes}"
