@@ -19,6 +19,8 @@ final class UpstreamLiveBuildControls {
     private static final int ROTATE_PRESSED = 1 << 18;
     private static final int REMOVE_PRESSED = 1 << 19;
 
+    private enum InventoryAction { none, withdraw, deposit }
+
     private int left, bottom;
     private boolean viewportReady;
     private int tileX = -1, tileY = -1;
@@ -27,6 +29,8 @@ final class UpstreamLiveBuildControls {
     private boolean removing;
     private final UpstreamBuildMenu catalog = new UpstreamBuildMenu();
     private final UpstreamBuildingConfig buildingConfig = new UpstreamBuildingConfig();
+    private final UpstreamInventoryMenu inventory = new UpstreamInventoryMenu();
+    private InventoryAction inventoryAction = InventoryAction.none;
     private boolean configuring;
     private boolean selectingMine;
 
@@ -41,6 +45,11 @@ final class UpstreamLiveBuildControls {
     }
 
     void update(Unit unit, int buttons, int touch) {
+        if (inventory.isOpen()) {
+            if (touch >= 0) inventory.tap(touch & 0xffff, touch >>> 16);
+            else inventory.refresh();
+            return;
+        }
         buildingConfig.validate();
         if (buildingConfig.isOpen()) {
             if (touch >= 0) buildingConfig.tap(touch & 0xffff, touch >>> 16);
@@ -58,22 +67,32 @@ final class UpstreamLiveBuildControls {
         }
         if ((buttons & ROTATE_PRESSED) != 0) rotate();
         if ((buttons & REMOVE_PRESSED) != 0) toggleRemoval();
-        boolean submit = !selectingMine && (buttons & PLACE_PRESSED) != 0;
+        boolean submit = !selectingMine && inventoryAction == InventoryAction.none && (buttons & PLACE_PRESSED) != 0;
         if (touch >= 0) {
             int x = touch & 0xffff, y = touch >>> 16;
             if (x >= 288 && y >= GRID_Y && y < 80) {
+                inventoryAction = InventoryAction.none;
                 selectingMine = false;
                 configuring = !configuring;
                 return;
             } else if (x >= 288 && y >= 80 && y < 112) {
+                inventoryAction = InventoryAction.none;
                 selectingMine = true;
                 configuring = false;
                 removing = false;
                 return;
             } else if (x < 32 && y >= GRID_Y && y < 80) {
+                inventoryAction = InventoryAction.none;
                 configuring = false;
                 selectingMine = false;
                 catalog.open(block());
+                return;
+            } else if (x < 32 && y >= 80 && y < 144) {
+                var action = y < 112 ? InventoryAction.withdraw : InventoryAction.deposit;
+                inventoryAction = inventoryAction == action ? InventoryAction.none : action;
+                removing = false;
+                selectingMine = false;
+                configuring = false;
                 return;
             } else if (y < GRID_Y && x < 320) {
                 switch (x / 80) {
@@ -85,6 +104,13 @@ final class UpstreamLiveBuildControls {
                     && y >= GRID_Y && y < GRID_Y + HEIGHT * CELL) {
                 tileX = left + (x - GRID_X) / CELL;
                 tileY = bottom + HEIGHT - 1 - (y - GRID_Y) / CELL;
+                if (inventoryAction != InventoryAction.none) {
+                    var build = Vars.world.build(tileX, tileY);
+                    if (inventoryAction == InventoryAction.withdraw) inventory.open(build);
+                    else inventory.deposit(build, System.nanoTime());
+                    inventoryAction = InventoryAction.none;
+                    return;
+                }
                 if (selectingMine) {
                     selectMine(unit, Vars.world.tile(tileX, tileY));
                     return;
@@ -105,11 +131,13 @@ final class UpstreamLiveBuildControls {
         removing = false;
         configuring = false;
         selectingMine = false;
+        inventoryAction = InventoryAction.none;
         rotation = block.planRotation(rotation);
     }
 
     private void toggleRemoval() {
         selectingMine = false;
+        inventoryAction = InventoryAction.none;
         removing = !removing;
     }
 
@@ -172,6 +200,8 @@ final class UpstreamLiveBuildControls {
     boolean removing() { return removing; }
     UpstreamBuildMenu catalog() { return catalog; }
     UpstreamBuildingConfig buildingConfig() { return buildingConfig; }
+    UpstreamInventoryMenu inventory() { return inventory; }
+    int inventoryAction() { return inventoryAction.ordinal(); }
     boolean configuring() { return configuring; }
     boolean selectingMine() { return selectingMine; }
 }

@@ -20,6 +20,7 @@ import mindustry.net.Net;
 import mindustry.type.Category;
 import mindustry.io.SaveIO;
 import mindustry.world.blocks.distribution.Sorter;
+import mindustry.world.blocks.defense.turrets.ItemTurret;
 import mindustry.world.blocks.payloads.UnitPayload;
 import mindustry.world.blocks.units.UnitFactory;
 
@@ -84,8 +85,85 @@ public final class UpstreamBuildControlsReference {
         verifyPlanetShortcuts(unit);
         verifyMining(unit);
         Vars.player.unit(unit);
+        verifyInventory(unit);
         verifyFactoryConfiguration(controls, unit);
         System.out.println("UPSTREAM_TOUCH_REFERENCE conveyor=85,26,1 wall=86,26 break=86,26");
+    }
+
+    private static void verifyInventory(Unit unit) {
+        var controls = new UpstreamLiveBuildControls();
+        controls.viewport(73, 20);
+        Vars.player.set(unit.x, unit.y);
+        var storage = Vars.world.tile(78, 22);
+        storage.setBlock(Blocks.container, unit.team(), 0);
+        var turretTile = Vars.world.tile(86, 26);
+        turretTile.setBlock(Blocks.duo, unit.team(), 0);
+        var turret = (ItemTurret.ItemTurretBuild)turretTile.build;
+        storage.build.items.set(Items.copper, 200);
+        storage.build.items.set(Items.lead, 10);
+        unit.clearItem();
+        int capacity = unit.maxAccepted(Items.copper);
+        controls.update(unit, 0, touch(15, 96));
+        controls.update(unit, 0, touch(120, 200));
+        if (!controls.inventory().isOpen() || controls.inventory().iconIds()[0] != Items.copper.id) {
+            throw new AssertionError("Stock storage did not expose its first item in the touch inventory");
+        }
+        controls.update(unit, 0, touch(160, 46));
+        controls.update(unit, 0, touch(160, 71));
+        if (unit.item() != Items.copper || unit.stack().amount != capacity
+                || storage.build.items.get(Items.copper) != 200 - capacity
+                || storage.build.items.get(Items.lead) != 10) {
+            throw new AssertionError("Withdrawal changed stock transfer capacity or mixed the carried stack");
+        }
+        controls.update(unit, 0, touch(160, 218));
+
+        int expectedItems = turret.acceptStack(Items.copper, capacity, unit);
+        if (expectedItems <= 0 || expectedItems >= capacity) {
+            throw new AssertionError("Expected the Duo to accept part of the carried stack");
+        }
+        float multiplier = ((ItemTurret)turret.block).ammoTypes.get(Items.copper).ammoMultiplier;
+        controls.update(unit, 0, touch(15, 128));
+        controls.update(unit, 0, touch(248, 136));
+        if (unit.stack().amount != capacity - expectedItems || turret.totalAmmo != expectedItems * multiplier) {
+            throw new AssertionError("Hand-loading did not use the stock Duo acceptance and ammo multiplier");
+        }
+        if (!unit.plans().isEmpty()) throw new AssertionError("Inventory actions must leave the build queue alone");
+
+        var transfer = new UpstreamInventoryMenu();
+        var sink = Vars.world.tile(87, 30);
+        sink.setBlock(Blocks.container, unit.team(), 0);
+        long now = 1_000_000_000L;
+        var rules = Vars.state.rules;
+        boolean onlyCore = rules.onlyDepositCore;
+        try {
+            rules.onlyDepositCore = true;
+            transfer.deposit(sink.build, now);
+            if (unit.stack().amount != capacity - expectedItems) {
+                throw new AssertionError("The stock core-only deposit rule must prevent this deposit");
+            }
+            rules.onlyDepositCore = false;
+            var distant = Vars.world.tile(78, 90);
+            distant.setBlock(Blocks.container, unit.team(), 0);
+            transfer.deposit(distant.build, now);
+            var hostile = Vars.world.tile(75, 24);
+            hostile.setBlock(Blocks.container, rules.waveTeam, 0);
+            transfer.deposit(hostile.build, now);
+            transfer.open(hostile.build);
+            if (transfer.isOpen() || unit.stack().amount != capacity - expectedItems) {
+                throw new AssertionError("Distant or hostile storage must reject item transfer");
+            }
+            transfer.deposit(sink.build, now);
+            if (unit.stack().amount != 0) throw new AssertionError("Storage should accept the remaining stock items");
+            unit.addItem(Items.copper, 5);
+            transfer.deposit(sink.build, now + 1);
+            if (unit.stack().amount != 5) throw new AssertionError("A second deposit must respect the stock cooldown");
+            transfer.deposit(sink.build, now + 5_000_000_000L);
+            if (unit.stack().amount != 0) throw new AssertionError("Depositing must resume after the stock cooldown");
+        } finally {
+            rules.onlyDepositCore = onlyCore;
+        }
+        System.out.println("UPSTREAM_INVENTORY_REFERENCE withdraw=" + capacity + " duo=" + expectedItems
+            + " team=ok range=ok cooldown=ok");
     }
 
     private static void verifyFactoryConfiguration(UpstreamLiveBuildControls controls, Unit unit) throws Exception {
