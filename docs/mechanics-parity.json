@@ -274,11 +274,16 @@
       "domain": "Controls & Dual-Screen UI",
       "name": "Schematic Import/Export & RTS Unit Command",
       "weight": 1,
-      "status": "missing",
-      "modes": [],
+      "status": "partial-arm11",
+      "modes": ["offline", "multiplayer"],
       "issue": 40,
-      "evidence": [],
-      "notes": "Read-only list of the 210 pinned base-part .msch files plus user .msch files from sd:/3ds/min3dstry/schematics (dimensions, block count, block summary); import into the game, export and RTS selection/command are not implemented."
+      "evidence": [
+        "docs/gameplay/touch-build-palette.md",
+        "tools/verify_stock_schematics.py",
+        "tools/verify_stock_schematic_capture.py",
+        "tools/verify_stock_command_orders.py"
+      ],
+      "notes": "The unified client places and exports stock .msch files. The touch grid selects allied units and sends original orders and stances. Drag selection, schematic naming and metadata editing, and clipboard sharing remain open."
     },
     {
       "id": "content-database-page",
@@ -310,7 +315,7 @@
         "src/ui/main_menu.c",
         "tests/ui/test_main_menu.c"
       ],
-      "notes": "Navigation shell with upstream v160.8 MenuFragment keys/labels; Play->Campaign, Settings mute/lighting/camera, and Database->About are wired. The upstream Scene2D fragment, schematic UI and RTS remain unimplemented."
+      "notes": "Navigation shell with upstream v160.8 MenuFragment keys/labels; Play->Campaign, Settings mute/lighting/camera, and Database->About are wired. The upstream Scene2D title fragment remains open. In-game schematics and RTS are tracked separately."
     },
     {
       "id": "player-unit-flight-camera",

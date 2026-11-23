@@ -16,6 +16,7 @@ import mindustry.content.Items;
 import mindustry.content.Planets;
 import mindustry.content.UnitTypes;
 import mindustry.core.NetClient;
+import mindustry.game.FogControl;
 import mindustry.game.Schematic;
 import mindustry.game.Schematics;
 import mindustry.game.Universe;
@@ -589,6 +590,9 @@ public final class UpstreamBuildControlsReference {
         var folder = Files.createTempDirectory("min3dstry-schematic-capture");
         var existing = folder.resolve("Schematic-1.msch");
         var exported = folder.resolve("Schematic-2.msch");
+        var undiscovered = folder.resolve("Schematic-3.msch");
+        var fog = Vars.fogControl;
+        boolean oldFog = Vars.state.rules.fog, oldStaticFog = Vars.state.rules.staticFog;
         var controls = new UpstreamLiveBuildControls(new Fi(folder.toString()));
         controls.viewport(73, 20);
         try {
@@ -644,8 +648,21 @@ public final class UpstreamBuildControlsReference {
                     || middle.config != Items.lead || !(first.config instanceof Point2 link) || link.x != 0 || link.y != 2) {
                 throw new AssertionError("Upstream reader did not recover captured footprint and configuration");
             }
-            System.out.println("UPSTREAM_STOCK_SCHEMATIC_CAPTURE crop=1x3 blocks=3 link=0,2 item=lead");
+            Vars.fogControl = new FogControl();
+            Vars.state.rules.fog = Vars.state.rules.staticFog = true;
+            controls.update(unit, 0, touch(268, 20));
+            tapGridCell(controls, unit, 84, 23);
+            tapGridCell(controls, unit, 84, 25);
+            controls.update(unit, 1 << 17, -1);
+            if (Files.exists(undiscovered)) {
+                throw new AssertionError("The graphical ARM11 adapter exported an undiscovered selection");
+            }
+            System.out.println("UPSTREAM_STOCK_SCHEMATIC_CAPTURE crop=1x3 blocks=3 link=0,2 item=lead fog=ok");
         } finally {
+            Vars.fogControl = fog;
+            Vars.state.rules.fog = oldFog;
+            Vars.state.rules.staticFog = oldStaticFog;
+            Files.deleteIfExists(undiscovered);
             Files.deleteIfExists(exported);
             Files.deleteIfExists(existing);
             Files.deleteIfExists(folder);
