@@ -11,8 +11,8 @@ import mindustry.type.Sector;
 public final class UpstreamStockCampaignArchiveReference {
     public static void main(String[] args) throws Exception {
         if (args.length != 2) throw new IllegalArgumentException("Expected staged assets and a new save directory");
-        var assets = new Fi(args[0]);
-        var output = new Fi(args[1]);
+        var assets = Fi.get(args[0]);
+        var output = Fi.get(args[1]);
         if (output.exists()) throw new IllegalArgumentException("Use a new scratch campaign directory");
         output.mkdirs();
         Core.bundle = I18NBundle.createBundle(assets.child("bundle"), Locale.ENGLISH);
@@ -64,8 +64,8 @@ public final class UpstreamStockCampaignArchiveReference {
             }
             if (total != 95 || bound != 95 || hidden != 46) throw new AssertionError("Expected all original campaign maps");
             System.out.println("UPSTREAM_STOCK_CAMPAIGN_DECODE presets=" + bound + " tiles=" + decodedTiles);
-            int patches = verifyPatchedWorld(session, SectorPresets.littoralShipyard.sector, 2)
-                + verifyPatchedWorld(session, Planets.serpulo.sectors.get(242), 1);
+            int patches = verifyPatchedWorld(session, SectorPresets.littoralShipyard.sector, 204, 2)
+                + verifyPatchedWorld(session, Planets.serpulo.sectors.get(242), 242, 1);
             System.out.println("UPSTREAM_STOCK_CAMPAIGN_ARCHIVE maps=" + total + " presets=" + bound
                 + " hidden=" + hidden + " patches=" + patches);
         } finally {
@@ -73,12 +73,16 @@ public final class UpstreamStockCampaignArchiveReference {
         }
     }
 
-    private static int verifyPatchedWorld(UpstreamSinglePlayerSession session, Sector sector, int count)
+    private static int verifyPatchedWorld(UpstreamSinglePlayerSession session, Sector sector, int expectedId, int count)
             throws Exception {
+        var original = sector.preset.generator.map;
+        if (sector.planet != Planets.serpulo || sector.id != expectedId
+                || original.width != 600 || original.height != 600) {
+            throw new AssertionError("The stock Java readback expects a 600x600 Serpulo sector " + expectedId);
+        }
         Vars.logic.reset();
         Vars.world.loadSector(sector);
         session.application().runPosted();
-        var original = sector.preset.generator.map;
         if (Vars.state.rules.sector != sector || Vars.state.rules.defaultTeam.core() == null
                 || Vars.world.width() != original.width || Vars.world.height() != original.height
                 || Vars.state.data.getPatches().size != count) {
