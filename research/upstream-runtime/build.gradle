@@ -18,6 +18,7 @@ def fileSource = 'arc-core/src/arc/files/Fi.java'
 def soundSource = 'arc-core/src/arc/audio/Sound.java'
 def osSource = 'arc-core/src/arc/util/OS.java'
 def networkIoSource = 'core/src/mindustry/net/NetworkIO.java'
+def unitAssemblerSource = 'core/src/mindustry/world/blocks/units/UnitAssembler.java'
 def netClientSource = 'core/src/mindustry/core/NetClient.java'
 def placementSource = 'core/src/mindustry/ui/fragments/PlacementFragment.java'
 def itemSelectionSource = 'core/src/mindustry/world/blocks/ItemSelection.java'
@@ -152,6 +153,7 @@ def arcOsFile = sourceDir.map { it.file('arc/util/OS.java') }
 def arcPixmapFile = sourceDir.map { it.file('arc/graphics/Pixmap.java') }
 def arcJsonFile = sourceDir.map { it.file('arc/util/serialization/Json.java') }
 def networkIoFile = sourceDir.map { it.file('mindustry/net/NetworkIO.java') }
+def unitAssemblerFile = sourceDir.map { it.file('mindustry/world/blocks/units/UnitAssembler.java') }
 def netClientFile = sourceDir.map { it.file('mindustry/core/NetClient.java') }
 def schematicsFile = sourceDir.map { it.file('mindustry/game/Schematics.java') }
 def placementFile = sourceDir.map { it.file('UpstreamPlacementCatalog.java') }
@@ -225,7 +227,9 @@ if (usesArcSources || usesExecutor) {
     }
     if (usesLiveNetwork) {
         stagedClasses.addAll(['mindustry/core/NetClient.class', 'mindustry/core/NetClient$*.class',
-                              'mindustry/ai/Pathfinder.class', 'mindustry/ai/Pathfinder$*.class'])
+                              'mindustry/ai/Pathfinder.class', 'mindustry/ai/Pathfinder$*.class',
+                              'mindustry/world/blocks/units/UnitAssembler.class',
+                              'mindustry/world/blocks/units/UnitAssembler$*.class'])
     }
     if (usesSinglePlayer || usesLiveAudio) {
         stagedClasses.addAll(['mindustry/logic/GlobalVars.class', 'mindustry/logic/GlobalVars$*.class'])
@@ -531,7 +535,7 @@ tasks.register('prepareUpstreamProbe') {
         outputs.files(placementFile, itemChoicesFile, schematicsFile)
     }
     if (usesLiveNetwork) {
-        outputs.files(netClientFile, pathfinderFile)
+        outputs.files(netClientFile, pathfinderFile, unitAssemblerFile)
     }
     if (usesLiveAudio) {
         outputs.files(sourceDir.map { dir ->
@@ -1016,6 +1020,28 @@ final class GlacierFixture {
             adaptedPathfinder.setText(pathfinder
                 .replace(allocateGrid, 'tiles = new int[net.client() ? 0 : world.width() * world.height()];')
                 .replace(getTile, '        return net.client() ? packTile(world.tile(x, y)) : tiles[x + y * wwidth];'), 'UTF-8')
+            def assembler = new String(readUpstream(unitAssemblerSource), 'UTF-8')
+            def spawn = '        public void droneSpawned(int id){'
+            if (assembler.count(spawn) != 1) {
+                throw new GradleException('Pinned UnitAssembler drone completion changed')
+            }
+            def adaptedAssembler = unitAssemblerFile.get().asFile
+            adaptedAssembler.parentFile.mkdirs()
+            adaptedAssembler.setText(assembler.replace(spawn, '''        // Resolve stock queued IDs on a snapshot-driven client between simulation steps.
+        public boolean syncLiveDrones(){
+            units.removeAll(u -> !u.isAdded() || u.dead || !(u.controller() instanceof AssemblerAI));
+            for(int i = whenSyncedUnits.size - 1; i >= 0; i--){
+                var unit = Groups.unit.getByID(whenSyncedUnits.get(i));
+                if(unit == null) continue;
+                if(units.size < dronesCreated && unit.isAdded() && !unit.dead && unit.controller() instanceof AssemblerAI){
+                    units.addUnique(unit);
+                }
+                whenSyncedUnits.removeIndex(i);
+            }
+            return !whenSyncedUnits.isEmpty();
+        }
+
+        public void droneSpawned(int id){'''), 'UTF-8')
             def source = new String(readUpstream(netClientSource), 'UTF-8')
             if (usesLiveAudio) {
                 def soundGuard = 'if(sound == null || headless) return;'

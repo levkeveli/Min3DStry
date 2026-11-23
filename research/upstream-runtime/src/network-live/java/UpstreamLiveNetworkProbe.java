@@ -104,6 +104,7 @@ public final class UpstreamLiveNetworkProbe {
     private final UpstreamLiveBuildControls building;
     private final Consumer<String> chat;
     private final UpstreamChatInput chatInput;
+    private final UpstreamAssemblerEvents assemblers = new UpstreamAssemblerEvents();
     private Runnable deferredGraphics;
     private int nextLiveTransport = 1;
 
@@ -517,6 +518,7 @@ public final class UpstreamLiveNetworkProbe {
                 }
             } else if (id == entityId) {
                 decode(new EntitySnapshotCallPacket(), received).handleClient();
+                assemblers.syncDrones();
             } else if (id == unitSpawnId) {
                 handleUnitSpawn(received);
             } else if (id == unitDespawnId) {
@@ -561,7 +563,12 @@ public final class UpstreamLiveNetworkProbe {
                 if (marker != null) {
                     decode(marker, received).handleClient();
                 } else if (frame != null) {
-                    applyBuildingUpdate(id, received);
+                    var assembler = UpstreamAssemblerEvents.packet(id);
+                    if (assembler != null) {
+                        assemblers.apply(decode(assembler, received));
+                    } else {
+                        applyBuildingUpdate(id, received);
+                    }
                 }
             }
         }

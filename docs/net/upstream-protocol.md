@@ -129,3 +129,17 @@ client displayed the ARM11-origin text in the shared local session.
 ## License Audit
 
 All C wire/framing code in `src/net/mindustry_net.c` and `src/platform/3ds/net_3ds.c` was written cleanly for Min3DStry from the wire specification documented in pinned upstream Mindustry (`GPLv3`) and Arc (`Apache-2.0` / `BSD-style` ArcNet heritage), with zero proprietary Nintendo code and zero undistributable third-party binaries.
+
+### Erekir assembler completion
+
+The graphical ARM11 client dispatches the pinned `AssemblerUnitSpawnedCallPacket`
+and `AssemblerDroneSpawnedCallPacket` handlers. The stock completion consumes
+the assembler inputs and clears progress. The next entity snapshot can resolve
+a builder drone whose completion arrived first. The client keeps the server
+entity ID and does not add a second completed unit to the world.
+
+The unified `runProbeJvm` check loads a v160.8 Glacier WorldStream and replays
+generated stock packet bytes against a Tank Assembler. It checks delayed drone
+association, repeated delivery, and Vanquish completion from four Stell units and
+ten large Tungsten Walls. ARM11 session replay and the assembler construction
+visuals have separate verification work remaining.
