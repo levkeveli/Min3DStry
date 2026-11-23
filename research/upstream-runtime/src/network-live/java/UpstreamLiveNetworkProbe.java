@@ -230,6 +230,7 @@ public final class UpstreamLiveNetworkProbe {
 
     private boolean waitForRestart(byte[] host, int port) throws InterruptedException {
         if (reconnecting != null) reconnecting.run();
+        System.out.println("UPSTREAM_LIVE_RECONNECT_WAIT");
         long nextPing = System.nanoTime() + 1_000_000_000L;
         while (true) {
             int input = Native.input();

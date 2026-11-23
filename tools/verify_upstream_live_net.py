@@ -1878,9 +1878,11 @@ def run_model(args, model, config, original_config, log, output):
 
                     if args.server_kick:
                         wait_for(log, emulator, r"UPSTREAM_LIVE_CONTROLS_READY unit=\d+", args.timeout)
-                        reason = "Hosted stock kick" if args.server_kick == "text" else "kick"
+                        restart = args.server_kick == "restart"
+                        reason = "Hosted stock kick" if args.server_kick == "text" else "serverRestarting" if restart else "kick"
+                        kind = "enum" if restart else args.server_kick
                         wire_reason = (json.dumps(reason) if args.server_kick == "text"
-                                       else "Packages.mindustry.net.Packets.KickReason.kick")
+                                       else f"Packages.mindustry.net.Packets.KickReason.{reason}")
                         server.stdin.write(
                             f'js (() => {{ const player = Groups.player.find(boolf(p => String(p.name) === {json.dumps(PLAYER)})); '
                             f'player.con.kick({wire_reason}, 0); }})()\n'
@@ -1888,9 +1890,28 @@ def run_model(args, model, config, original_config, log, output):
                         server.stdin.flush()
                         wait_for(server_log, server, rf"Kicking connection .*Reason: {re.escape(reason)}", args.timeout)
                         wait_for(log, emulator,
-                                 rf"UPSTREAM_LIVE_CONTROLS_KICK kind={args.server_kick} reason={re.escape(reason)}",
+                                 rf"UPSTREAM_LIVE_CONTROLS_KICK kind={kind} reason={re.escape(reason)}",
                                  args.timeout)
                         emu_log = wait_for(log, emulator, "UPSTREAM_LIVE_CONTROLS_LEFT", args.timeout)
+                        if restart:
+                            wait_for(log, emulator, "UPSTREAM_LIVE_RECONNECT_WAIT", args.timeout)
+                            server.stdin.write("stop\n")
+                            server.stdin.flush()
+                            wait_for(server_log, server, "Stopped server.", 10)
+                            time.sleep(2)
+                            server.stdin.write("host Glacier survival\n")
+                            server.stdin.flush()
+                            wait_for(log, emulator, r"UPSTREAM_LIVE_NET_WORLD join=2\b", args.timeout)
+                            wait_for(server_log, server,
+                                     rf"{PLAYER} has connected[\s\S]*{PLAYER} has connected", args.timeout)
+                            server.stdin.write(
+                                f'js (() => {{ const player = Groups.player.find(boolf(p => String(p.name) === {json.dumps(PLAYER)})); '
+                                'player.con.kick("Hosted stop after reconnect", 0); })()\n'
+                            )
+                            server.stdin.flush()
+                            emu_log = wait_for(log, emulator,
+                                r"UPSTREAM_LIVE_CONTROLS_KICK kind=text reason=Hosted stop after reconnect"
+                                r"[\s\S]*UPSTREAM_LIVE_CONTROLS_LEFT", args.timeout)
                         if args.verify_kick_notice:
                             message = reason if args.server_kick == "text" else "You have been kicked from the server!"
                             emu_log = wait_for(log, emulator, re.escape(
@@ -2126,7 +2147,7 @@ def run_model(args, model, config, original_config, log, output):
             if not args.controls:
                 validate(emu_log)
             disconnected = rf"{PLAYER} has disconnected"
-            if not args.controls:
+            if not args.controls or args.server_kick == "restart":
                 disconnected += rf"[\s\S]*{PLAYER} has disconnected"
             before_shutdown = wait_for(server_log, server, disconnected, 5)
             if args.desktop_name:
@@ -2147,7 +2168,7 @@ def run_model(args, model, config, original_config, log, output):
             if stationary and any("(error)" in line for line in departures):
                 print(f"{model}: stationary verification ended by emulator kill; "
                       "accepted the server's (error) departure", flush=True)
-            expected_joins = 1 if args.controls else 2
+            expected_joins = 1 if args.controls and args.server_kick != "restart" else 2
             if ((not args.controls and "clientOutdated" not in upstream)
                     or upstream.count(f"{PLAYER} has connected") != expected_joins
                     or len(departures) != expected_joins or not expected_departures):
@@ -2195,7 +2216,7 @@ def main():
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--movement", action="store_true", help="Verify the stock server applies scripted ARM11 movement")
     mode.add_argument("--controls", action="store_true", help="Verify D-pad and Circle Pad input and START disconnect")
-    parser.add_argument("--server-kick", choices=("text", "enum"),
+    parser.add_argument("--server-kick", choices=("text", "enum", "restart"),
                         help="Verify a stock server kick after entering live play")
     parser.add_argument("--verify-kick-notice", action="store_true",
                         help="Check and capture the English stock disconnect notice")
@@ -2305,7 +2326,7 @@ def main():
         parser.error("--controls-replay needs --controls")
     if args.server_kick and (not args.controls or args.controls_replay):
         parser.error("--server-kick needs stationary --controls")
-    if args.verify_kick_notice and (not args.server_kick or args.locale != "en"):
+    if args.verify_kick_notice and (args.server_kick not in ("text", "enum") or args.locale != "en"):
         parser.error("--verify-kick-notice needs --server-kick and --locale en")
     if args.unified_boot and not args.controls:
         parser.error("--unified-boot needs --controls")
