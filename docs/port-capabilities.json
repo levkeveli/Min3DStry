@@ -294,6 +294,7 @@
         "src/render/minimap.c",
         "tests/render/test_minimap.c",
         "docs/rendering/minimap.md",
+        "docs/rendering/live-hud.md",
         "include/ui/pause_menu.h",
         "src/ui/pause_menu.c",
         "tests/ui/test_pause_menu.c",
