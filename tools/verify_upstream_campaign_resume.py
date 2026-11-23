@@ -14,8 +14,8 @@ import verify_upstream_singleplayer as sp
 def write_replay(path: Path, model: str, multiple: bool, move_down: bool) -> None:
     windows = [(104, 106, sp.KEY_START)] if multiple else [(76, 78, sp.KEY_START)]
     if multiple:
-        # From Resume, two positive vertical pulses select Load.
-        windows += [(48, 50, 1), (76, 77, sp.KEY_X), (82, 84, 1 << 6), (88, 90, 1 << 6), (94, 96, 1)]
+        # From Resume, move down past Research to Load.
+        windows += [(48, 50, 1), (76, 77, sp.KEY_X), (82, 84, 1 << 7), (88, 90, 1 << 7), (94, 96, 1)]
         if move_down:
             windows += [(43, 45, 1 << 7)]
     frames = sp.CTM_SAMPLES_PER_SECOND * (114 if multiple else 86)
