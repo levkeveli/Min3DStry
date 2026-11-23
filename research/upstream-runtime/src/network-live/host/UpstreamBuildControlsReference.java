@@ -665,6 +665,28 @@ public final class UpstreamBuildControlsReference {
             if (Files.exists(undiscovered)) {
                 throw new AssertionError("The graphical ARM11 adapter exported an undiscovered selection");
             }
+            Vars.fogControl = fog;
+            Vars.state.rules.fog = oldFog;
+            Vars.state.rules.staticFog = oldStaticFog;
+            schematic.tags.put("description", "Keep this metadata");
+            Schematics.write(schematic, new Fi(exported.toString()));
+            var original = Files.readAllBytes(exported);
+            controls.update(unit, 0, touch(268, 20));
+            tapGridCell(controls, unit, 84, 24);
+            tapGridCell(controls, unit, 84, 24);
+            controls.schematics().saveCapture(unit.team(), () -> "Bridge layout", name -> false);
+            if (!java.util.Arrays.equals(original, Files.readAllBytes(exported))) {
+                throw new AssertionError("Declining replacement changed the original schematic");
+            }
+            controls.update(unit, 0, touch(268, 20));
+            tapGridCell(controls, unit, 84, 24);
+            tapGridCell(controls, unit, 84, 24);
+            controls.schematics().saveCapture(unit.team(), () -> "Bridge layout", name -> true);
+            var updated = Schematics.read(new Fi(exported.toString()));
+            if (!updated.name().equals("Bridge layout") || !"Keep this metadata".equals(updated.tags.get("description"))
+                    || updated.tiles.size != 1 || updated.tiles.first().block != Blocks.sorter || Files.exists(undiscovered)) {
+                throw new AssertionError("Replacement did not replace the selected layout and preserve its metadata");
+            }
             System.out.println("UPSTREAM_STOCK_SCHEMATIC_CAPTURE crop=1x3 blocks=3 link=0,2 item=lead fog=ok");
         } finally {
             Vars.fogControl = fog;

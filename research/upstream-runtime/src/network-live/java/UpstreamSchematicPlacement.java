@@ -10,6 +10,8 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
 import mindustry.Vars;
 import mindustry.entities.units.BuildPlan;
 import mindustry.game.Schematic;
@@ -189,6 +191,10 @@ final class UpstreamSchematicPlacement {
     }
 
     void saveCapture(Team team) {
+        saveCapture(team, null, name -> false);
+    }
+
+    void saveCapture(Team team, Supplier<String> nameInput, Predicate<String> confirmReplacement) {
         if (cornerX < 0) return;
         var schematic = stock().create(anchorX, anchorY, cornerX, cornerY, team);
         String notice;
@@ -196,10 +202,17 @@ final class UpstreamSchematicPlacement {
             notice = "No buildings in selection";
         } else {
             try {
-                var file = writeCapture(schematic);
-                notice = "Saved " + file.nameWithoutExtension();
-                System.out.println("UPSTREAM_SCHEMATIC_SAVED file=" + file.name()
-                    + " blocks=" + schematic.tiles.size + " width=" + schematic.width + " height=" + schematic.height);
+                String name = nameInput == null ? availableCaptureFile().nameWithoutExtension() : nameInput.get();
+                if (name == null || name.isBlank()) {
+                    notice = null;
+                } else {
+                    var file = writeCapture(schematic, name, confirmReplacement);
+                    notice = file == null ? null : "Saved " + schematic.name();
+                    if (file != null) {
+                        System.out.println("UPSTREAM_SCHEMATIC_SAVED file=" + file.name()
+                            + " blocks=" + schematic.tiles.size + " width=" + schematic.width + " height=" + schematic.height);
+                    }
+                }
             } catch (IOException | RuntimeException error) {
                 notice = "Could not save schematic";
                 System.out.println("UPSTREAM_SCHEMATIC_SAVE_ERROR " + error.getMessage());
@@ -210,25 +223,66 @@ final class UpstreamSchematicPlacement {
         refreshLabels(null, notice);
     }
 
-    private Fi writeCapture(Schematic schematic) throws IOException {
-        directory.mkdirs();
+    private Fi availableCaptureFile() {
         int index = 1;
         Fi destination;
         do {
             destination = directory.child("Schematic-" + index++ + "." + Vars.schematicExtension);
         } while (destination.exists());
+        return destination;
+    }
 
-        schematic.tags.put("name", destination.nameWithoutExtension());
+    private Fi writeCapture(Schematic schematic, String name, Predicate<String> confirmReplacement) throws IOException {
+        directory.mkdirs();
+        Fi destination = availableCaptureFile();
+        Schematic previous = null;
+        for (var file : directory.list()) {
+            if (file.isDirectory() || !file.extEquals(Vars.schematicExtension)) continue;
+            Schematic candidate;
+            try {
+                candidate = readSchematic(file);
+            } catch (IOException | RuntimeException ignored) {
+                continue;
+            }
+            if (!name.equals(candidate.tags.get("name"))) continue;
+            if (!confirmReplacement.test(name)) return null;
+            destination = file;
+            previous = candidate;
+            break;
+        }
+        schematic.tags.put("name", name);
         schematic.tags.put("description", "");
+        if (previous != null) {
+            schematic.tags.putAll(previous.tags);
+            schematic.labels = previous.labels;
+        }
         File temporary = File.createTempFile("schematic-", ".tmp", directory.file());
         try {
             Schematics.write(schematic, new Fi(temporary));
-            if (destination.exists() || !temporary.renameTo(destination.file())) {
-                throw new IOException("Unable to publish " + destination.name());
+            if (previous == null) {
+                if (destination.exists() || !temporary.renameTo(destination.file())) {
+                    throw new IOException("Unable to publish " + destination.name());
+                }
+            } else if (!temporary.renameTo(destination.file())) {
+                replaceOnFat(temporary, destination.file());
             }
             return destination;
         } finally {
             temporary.delete();
+        }
+    }
+
+    private static void replaceOnFat(File temporary, File destination) throws IOException {
+        File backup = File.createTempFile("schematic-backup-", ".tmp", destination.getParentFile());
+        if (!backup.delete() || !destination.renameTo(backup)) {
+            throw new IOException("Unable to back up " + destination.getName());
+        }
+        if (temporary.renameTo(destination)) {
+            backup.delete();
+        } else if (backup.renameTo(destination)) {
+            throw new IOException("Unable to replace " + destination.getName());
+        } else {
+            throw new IOException("Unable to restore " + destination.getName() + " from " + backup.getName());
         }
     }
 
