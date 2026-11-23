@@ -230,7 +230,7 @@ payload bytes.
 The C build recompiles three compiler classes from the hash-checked TeaVM
 0.16.0 source archive. The patches retain the original entry block's
 liveness during coroutine splitting and use the primitive array opcode to
-infer the value type of each element. The compiler also retains object reference
+infer the value type of each element. The compiler retains object reference
 typing when an array reaches an element read through a generic coroutine
 spill. The C emitter stores local array references as `void*` because
 coroutine lowering can reuse their registers for other Java objects.
@@ -238,8 +238,7 @@ The generated array access macros cast to the array header at access time.
 The graphical campaign build uses the original Arc field-access checks
 for its retained settings fields. The dedicated sector metadata probes
 retain the existing TeaVM field-accessibility workaround.
-For offline generation, pass an
-already downloaded source archive with
+For offline generation, pass an already downloaded source archive with
 `-PteavmCompilerSources=/path/to/teavm-core-0.16.0-sources.jar`.
 
 Generate the ARM11 probe with the build command above and install the same
@@ -471,6 +470,45 @@ For interactive input, append `controls` after the address and port in
 and waits for the server to assign a unit. The Circle Pad and D-pad move
 the unit, releasing the input lets it decelerate, and START disconnects.
 The top screen shows the session log.
+
+### Stock sound effects and soundtrack
+
+Add `--live-audio --desktop /path/to/Mindustry.jar` to the original atlas
+stager with `--singleplayer` for a combined build or `--multiplayer` for
+a standalone live renderer. The stager verifies the pinned desktop JAR,
+keeps all 205 original effects and 16 original music files, and indexes
+22.05 kHz PCM effects by their stock IDs. The 194 short effects use a
+bounded cache of 16 clips and 640 KiB. The 11 long effects use four
+double-buffered streams. The original Vorbis soundtrack uses its own
+NDSP channel and the pinned SoundControl rules.
+
+The graphical live path uses Arc's gain, pan, pitch and position,
+including original server sound and soundtrack rule packets. Its
+building ambience sampler runs at the original 20 Hz interval. World
+loads reset the voice and track state. In the combined binary, the live
+mixer starts in the Join path.
+
+Run `python3 tools/verify_live_stock_audio.py /path/to/terrain-assets`
+to exercise the PCM cache and stream decoder controls with the host
+mixer mock. The JVM reference verifies the original registry, music
+rules, and ambience. The live Glacier replay loads an active Mechanical
+Drill, requests the stock UI, positional and streamed sound packets, and
+applies the original `game1` soundtrack rule.
+
+```bash
+python3 tools/verify_stock_live_audio.py \
+  --rom /path/to/upstream-probe.3dsx \
+  --server /path/to/server-release.jar \
+  --output build/stock-live-audio
+```
+
+The [unified ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45121495805)
+passed the stock-server replay on both Azahar 2126.2 profiles. Each route
+resolved the original UI, wave, wind, drill and Gamma sounds. The music
+decoder read 4,096 stereo frames of the original game1 track and closed
+cleanly on disconnect. Each run reported 491,744 bytes of cached PCM.
+Azahar used its missing-DSP fallback. Audible NDSP playback still
+requires a physical console.
 
 Run the same verifier with `--controls --model old3ds` and then
 `--controls --model new3ds`. Follow its prompts to move right with the
@@ -874,7 +912,27 @@ outline of an active Quasar shield. The
 [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44872900057)
 passed on both Old and New 3DS Azahar profiles with Alpha, Beta, Flare,
 Fortress, Pulsar, Vela and Quasar in the same Glacier viewport.
+
+The live draw path loads stock unit art when the unit or its payload first
+appears in the viewport. It reads each type from the upstream content registry.
+The JVM reference drew all 68 v160.8 world unit types with the official atlas,
+including the Anthicus missile's textured quad and the segmented crawler
+sprites. The registry also has two internal `BlockUnit` types that upstream
+keeps attached to buildings. This check also covers team tint, weapon layers,
+payloads, naval wakes, tank treads, and the Quasar shield. Add
+`--expanded-unit-roster` to `--controls --unit-roster --terrain-atlas` to test
+the expanded roster. The stock Glacier server sends an Elude, an Anthicus
+missile, and a Mega carrying a Horizon. The verifier checks when their
+atlas art loads and compares the regions before and after the additions.
+The original [ARM11 test build](https://github.com/levkeveli/Min3DStry/actions/runs/45063728314)
+rendered the Elude and missile on both Azahar profiles and passed the existing
+team-cell and Quasar shield checks.
 The same build also passed the live wall and Dagger handoff on both profiles.
+The [combined ARM11 replay](https://github.com/levkeveli/Min3DStry/actions/runs/45116142229)
+passed all three framebuffer comparisons on both Azahar profiles and
+loaded the carried Horizon art through the live draw path. Use
+`--unified-boot` with the combined ROM to select Join and keep the
+camera still.
 
 For naval wakes, the build exposes the original `WaterMoveComp` wake
 update from the pinned generated `UnitWaterMove` class. The client

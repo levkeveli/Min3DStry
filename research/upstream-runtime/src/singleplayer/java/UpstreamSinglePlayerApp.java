@@ -20,7 +20,6 @@ import java.util.List;
 import mindustry.Vars;
 import mindustry.content.Blocks;
 import mindustry.content.Items;
-import mindustry.content.UnitTypes;
 import mindustry.core.UI;
 import mindustry.core.World;
 import mindustry.entities.bullet.BulletType;
@@ -31,9 +30,10 @@ import mindustry.graphics.Layer;
 import mindustry.graphics.Pal;
 import mindustry.io.SaveIO;
 import mindustry.maps.Map;
+import mindustry.gen.BlockUnitc;
 import mindustry.gen.Building;
 import mindustry.gen.Groups;
-import mindustry.gen.BlockUnitc;
+import mindustry.gen.Payloadc;
 import mindustry.gen.Tankc;
 import mindustry.gen.Unit;
 import mindustry.gen.UnitWaterMove;
@@ -43,7 +43,7 @@ import mindustry.world.Block;
 import mindustry.world.blocks.ConstructBlock.ConstructBuild;
 import mindustry.world.blocks.defense.Wall;
 import mindustry.world.blocks.defense.turrets.BaseTurret;
-import mindustry.world.blocks.defense.turrets.ItemTurret;
+import mindustry.world.blocks.payloads.UnitPayload;
 import mindustry.world.blocks.units.UnitFactory;
 
 /** Graphical offline single-player Mindustry v160.8 ARM11 entry point on Ground Zero. */
@@ -51,8 +51,6 @@ public final class UpstreamSinglePlayerApp {
     private static final long FRAME_NS = 16_666_667L;
     private static final float DEAD_ZONE = 20f / 127f;
     private static final float STOP_SPEED = 0.03f;
-    private static final ObjectSet<UnitType> drawableUnits = new ObjectSet<>();
-
     private final UpstreamTerrainRenderProbe target = new UpstreamTerrainRenderProbe(false);
     private final UpstreamBuildingLayers buildingLayers = new UpstreamBuildingLayers();
     private final UpstreamLiveBuildControls buildingControls = new UpstreamLiveBuildControls();
@@ -61,6 +59,8 @@ public final class UpstreamSinglePlayerApp {
     private final Vec2 moveInput = new Vec2();
     private final UpstreamOfflineWeaponInput weaponInput = new UpstreamOfflineWeaponInput();
     private Unit reportedControl;
+    private final ObjectSet<UnitType> loadedUnitGraphics = new ObjectSet<>();
+    private final ObjectSet<BulletType> loadedBulletGraphics = new ObjectSet<>();
 
     private UpstreamSinglePlayerSession session;
     private UpstreamTerrainDrawProbe.Viewport viewport;
@@ -163,7 +163,6 @@ public final class UpstreamSinglePlayerApp {
                 }
             }
             loadInterfaceGraphics(atlas);
-            loadWorldGraphics();
             Events.on(BlockBuildEndEvent.class, event -> {
                 if (event.tile == null) return;
                 if (!event.breaking && event.tile.build != null) {
@@ -315,11 +314,6 @@ public final class UpstreamSinglePlayerApp {
         System.out.println("UPSTREAM_INTERFACE_FONT source=" + (stock ? "v160.8" : "system"));
     }
 
-    private void loadWorldGraphics() {
-        loadUnitGraphics();
-        loadBulletGraphics();
-    }
-
     private UpstreamSinglePlayerSession.SectorSlot chooseSector(
             List<UpstreamSinglePlayerSession.SectorSlot> slots, Fi automatic) {
         int selected = UpstreamSinglePlayerSession.lastSectorRow(slots);
@@ -382,44 +376,28 @@ public final class UpstreamSinglePlayerApp {
         return captions;
     }
 
-    private static void loadUnitGraphics() {
-        var types = new UnitType[]{
-            UnitTypes.alpha, UnitTypes.beta, UnitTypes.gamma,
-            UnitTypes.dagger, UnitTypes.mace, UnitTypes.fortress, UnitTypes.crawler,
-            UnitTypes.flare, UnitTypes.horizon, UnitTypes.zenith,
-            UnitTypes.mono, UnitTypes.poly,
-            UnitTypes.nova, UnitTypes.pulsar
-        };
-        drawableUnits.clear();
-        for (var type : types) {
+    private void loadUnitGraphics(Unit unit) {
+        UnitType type = unit.type();
+        if (loadedUnitGraphics.add(type)) {
             type.loadIcon();
             type.load();
-            drawableUnits.add(type);
+            System.out.println("UPSTREAM_SP_UNIT_ART type=" + type.name);
+        }
+        // Upstream UnitType.drawPayload draws only the first carried payload.
+        if (unit instanceof Payloadc carrier && carrier.hasPayload()
+                && carrier.payloads().first() instanceof UnitPayload payload) {
+            loadUnitGraphics(payload.unit);
         }
     }
 
-    private static void loadBulletGraphics() {
+    private void loadBulletGraphics(BulletType type) {
+        if (!loadedBulletGraphics.add(type)) return;
         boolean wasHeadless = Vars.headless;
         Vars.headless = false;
         try {
-            loadTurretBullets(Blocks.duo);
-            loadTurretBullets(Blocks.scatter);
-            for (var type : drawableUnits) {
-                for (var weapon : type.weapons) {
-                    if (weapon.bullet != null) weapon.bullet.load();
-                }
-            }
+            type.load();
         } finally {
             Vars.headless = wasHeadless;
-        }
-    }
-
-    private static void loadTurretBullets(Block block) {
-        if (block instanceof ItemTurret turret) {
-            for (var entry : turret.ammoTypes) {
-                BulletType bullet = entry.value;
-                if (bullet != null) bullet.load();
-            }
         }
     }
 
@@ -597,10 +575,11 @@ public final class UpstreamSinglePlayerApp {
         Draw.sort(true);
         try {
             for (var unit : Groups.unit) {
-                if (!drawableUnits.contains(unit.type())) continue;
+                if (unit instanceof BlockUnitc) continue;
                 int x = World.toTile(unit.x()), y = World.toTile(unit.y());
                 if (x < viewport.left || x >= viewport.left + UpstreamTerrainDrawProbe.VIEW_WIDTH
                         || y < viewport.bottom || y >= viewport.bottom + UpstreamTerrainDrawProbe.VIEW_HEIGHT) continue;
+                loadUnitGraphics(unit);
                 unit.draw();
                 if (unit == controlled) draws++;
                 if (unit.team == Vars.state.rules.waveTeam && reportedEnemies.add(unit.id)) {
@@ -612,6 +591,7 @@ public final class UpstreamSinglePlayerApp {
                 int x = World.toTile(bullet.x()), y = World.toTile(bullet.y());
                 if (x < viewport.left || x >= viewport.left + UpstreamTerrainDrawProbe.VIEW_WIDTH
                         || y < viewport.bottom || y >= viewport.bottom + UpstreamTerrainDrawProbe.VIEW_HEIGHT) continue;
+                loadBulletGraphics(bullet.type());
                 bullet.draw();
             }
         } finally {

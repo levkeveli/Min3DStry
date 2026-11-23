@@ -36,7 +36,9 @@ def sha256_file(path: Path) -> str:
 
 
 def upstream_head(upstream: Path) -> str | None:
-    """Return the checkout HEAD when git is available, else None."""
+    """Return the checkout HEAD, without resolving an enclosing repository."""
+    if not (upstream / ".git").exists():
+        return None
     try:
         proc = subprocess.run(
             ["git", "-C", str(upstream), "rev-parse", "HEAD"],

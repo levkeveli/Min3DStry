@@ -1,8 +1,12 @@
 import port.render.UpstreamCrackAtlas;
 import port.render.UpstreamFluidAtlas;
+import port.audio.Arm11AudioReference;
 import arc.Core;
+import arc.audio.AudioBus;
+import arc.audio.Sound;
 import arc.files.Fi;
 import arc.graphics.Blending;
+import arc.graphics.Camera;
 import arc.graphics.Color;
 import arc.graphics.g2d.Draw;
 import arc.graphics.g2d.Fill;
@@ -30,6 +34,9 @@ import mindustry.content.UnitTypes;
 import mindustry.entities.units.BuildPlan;
 import mindustry.gen.Builderc;
 import mindustry.gen.Groups;
+import mindustry.gen.Payloadc;
+import mindustry.gen.BlockUnitc;
+import mindustry.gen.Crawlc;
 import mindustry.gen.Player;
 import mindustry.gen.Tankc;
 import mindustry.gen.UnitWaterMove;
@@ -68,6 +75,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
     private record UnitBuild(int page, int left, int top, int width, int height, float x, float y,
                              float rotation, float progress, float alpha, float phase) {}
     private final List<UnitBuild> unitBuilds = new ArrayList<>();
+    private int texturedQuads;
 
     public static void main(String[] args) throws Exception {
         if (args.length < 3 || args.length > 4) {
@@ -144,6 +152,31 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         if (materials != 49) throw new AssertionError("Expected 49 stock material buildings, got " + materials);
         if (args.length == 4) verifyObjectiveHud();
         target.verifyUnitProjectiles(viewport, viewer);
+        verifyPositionalAudioDispatch();
+        Arm11AudioReference.verifyStockRegistry();
+    }
+
+    private static void verifyPositionalAudioDispatch() {
+        Core.audio = new MockAudio() {
+            @Override public boolean initialized() { return true; }
+        };
+        Core.audio.sfxVolume = 0.8f;
+        Core.camera = new Camera();
+        Core.camera.width = 128f;
+        var sample = new Sound() {
+            @Override public boolean valid() { return true; }
+
+            @Override
+            protected int playSource(AudioBus bus, float volume, float pitch, float pan, boolean loop) {
+                if (bus != Core.audio.soundBus || Math.abs(volume - 0.4f) > 0.001f || pitch != 1.2f
+                        || pan != 0.5f || loop) {
+                    throw new AssertionError("Arc did not preserve the original positional audio parameters");
+                }
+                return 23;
+            }
+        };
+        if (sample.at(32f, 0f, 1.2f, 0.5f) != 23) throw new AssertionError("Arc did not return the backend voice");
+        System.out.println("UPSTREAM_LIVE_AUDIO_REFERENCE volume=0.4 pitch=1.2 pan=0.5 voice=23");
     }
 
     private void verifyUnitProjectiles(UpstreamTerrainDrawProbe.Viewport viewport, Team viewer) {
@@ -427,18 +460,44 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
     private void verifyUnits(Team viewer) {
         Vars.player = Player.create();
         Vars.player.team(viewer);
-        var types = UpstreamRenderedNetworkProbe.loadUnitGraphics();
+        var carrier = UnitTypes.mega.create(viewer);
+        carrier.set(248f, 290f);
+        ((Payloadc)carrier).payloads().add(new UnitPayload(UnitTypes.flare.create(viewer)));
+        if (!UpstreamRenderedNetworkProbe.loadUnitGraphics(carrier)) {
+            throw new AssertionError("Could not load the stock carrier");
+        }
+        sprites.clear();
+        carrier.draw();
+        requireRegion(UnitTypes.mega.region);
+        requireRegion(UnitTypes.flare.region);
+        System.out.println("UPSTREAM_LIVE_CARRIED_UNIT carrier=mega cargo=flare atlas=ok");
+        var types = Vars.content.units();
+        int drawn = 0;
         for (var type : types) {
+            // Stock BlockUnit proxies belong to buildings and cannot be added to Groups.unit.
+            if (type.sample instanceof BlockUnitc) continue;
+            if (!UpstreamRenderedNetworkProbe.loadUnitGraphics(type)) {
+                throw new AssertionError("Could not load stock unit " + type.name);
+            }
             var unit = type.spawn(Team.crux, 300f, 288f, 90f);
             for (var mount : unit.mounts) mount.heat = 1f;
             if (type == UnitTypes.quasar) unit.shield = 100f;
             sprites.clear();
             solidQuads.clear();
+            texturedQuads = 0;
             Draw.sort(true);
-            unit.draw();
-            Draw.sort(false);
-            requireRegion(type.region);
-            if (type.drawCell) requireRegion(type.cellRegion);
+            try {
+                unit.draw();
+                Draw.sort(false);
+            } catch (IllegalStateException failure) {
+                throw new AssertionError("Stock unit draw failed for " + type.name, failure);
+            }
+            if (type.drawBody) requireRegion(type.region);
+            if (unit instanceof Crawlc) {
+                for (var segment : type.segmentRegions) requireRegion(segment);
+            } else if (type.drawCell) {
+                requireRegion(type.cellRegion);
+            }
             for (var mount : unit.mounts) {
                 if (mount.weapon.region.found()) requireRegion(mount.weapon.region);
                 if (mount.weapon.heatRegion.found()) requireRegion(mount.weapon.heatRegion);
@@ -446,9 +505,14 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
             if (type == UnitTypes.quasar && solidQuads.isEmpty()) {
                 throw new AssertionError("Missing stock unshaded Quasar shield");
             }
+            if (type.name.equals("anthicus-missile") && texturedQuads == 0) {
+                throw new AssertionError("Missing original Anthicus missile quad");
+            }
             unit.remove();
+            drawn++;
         }
-        System.out.println("UPSTREAM_UNIT_ROSTER types=" + types.length + " quasarShield=ok");
+        System.out.println("UPSTREAM_UNIT_ROSTER types=" + types.size + " drawn=" + drawn
+            + " quasarShield=ok anthicusQuad=ok");
         var gamma = UnitTypes.gamma.spawn(viewer, 240f, 288f, 90f);
         var dagger = UnitTypes.dagger.spawn(Team.crux, 256f, 288f, 90f);
 
@@ -855,6 +919,11 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
     @Override
     public void drawSolidQuad(float[] vertices, int offset, Blending blending) {
         solidQuads.add(Arrays.copyOfRange(vertices, offset, offset + SpriteBatch.SPRITE_SIZE));
+    }
+
+    @Override
+    public void drawTexturedQuad(int page, int pageWidth, int pageHeight, float[] vertices, int offset, Blending blending) {
+        texturedQuads++;
     }
 
     @Override public void begin(int left, int bottom, int width, int height) {}
