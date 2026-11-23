@@ -19,6 +19,7 @@ import mindustry.core.World;
 import mindustry.core.UI;
 import mindustry.gen.Building;
 import mindustry.gen.Groups;
+import mindustry.gen.Payloadc;
 import mindustry.gen.Tankc;
 import mindustry.gen.Unit;
 import mindustry.gen.UnitWaterMove;
@@ -142,6 +143,15 @@ public final class UpstreamRenderedNetworkProbe {
         return true;
     }
 
+    static boolean loadUnitGraphics(Unit unit) {
+        if (!loadUnitGraphics(unit.type())) return false;
+        if (unit instanceof Payloadc carrier && carrier.hasPayload()
+                && carrier.payloads().first() instanceof UnitPayload payload) {
+            loadUnitGraphics(payload.unit);
+        }
+        return true;
+    }
+
     private void render(Unit unit) {
         updateBuildLabels();
         controlled = unit;
@@ -210,7 +220,7 @@ public final class UpstreamRenderedNetworkProbe {
                 int x = World.toTile(unit.x()), y = World.toTile(unit.y());
                 if (x < viewport.left || x >= viewport.left + UpstreamTerrainDrawProbe.VIEW_WIDTH
                         || y < viewport.bottom || y >= viewport.bottom + UpstreamTerrainDrawProbe.VIEW_HEIGHT) continue;
-                if (!loadUnitGraphics(unit.type())) continue;
+                if (!loadUnitGraphics(unit)) continue;
                 unit.draw();
                 if (unit == controlled) draws++;
                 if (unit.type() == UnitTypes.dagger && unit.team == Vars.state.rules.waveTeam
@@ -372,7 +382,7 @@ public final class UpstreamRenderedNetworkProbe {
     }
 
     private static boolean supportsCargo(PayloadConveyorBuild conveyor) {
-        if (conveyor.item instanceof UnitPayload payload) return loadUnitGraphics(payload.unit.type());
+        if (conveyor.item instanceof UnitPayload payload) return loadUnitGraphics(payload.unit);
         return conveyor.item instanceof BuildPayload payload
             && (payload.block() == Blocks.copperWall || payload.block() == Blocks.copperWallLarge
                 || payload.block() == Blocks.mechanicalDrill || payload.build instanceof ConveyorBuild

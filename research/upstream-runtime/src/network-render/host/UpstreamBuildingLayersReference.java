@@ -30,6 +30,7 @@ import mindustry.content.UnitTypes;
 import mindustry.entities.units.BuildPlan;
 import mindustry.gen.Builderc;
 import mindustry.gen.Groups;
+import mindustry.gen.Payloadc;
 import mindustry.gen.BlockUnitc;
 import mindustry.gen.Crawlc;
 import mindustry.gen.Player;
@@ -371,6 +372,17 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
     private void verifyUnits(Team viewer) {
         Vars.player = Player.create();
         Vars.player.team(viewer);
+        var carrier = UnitTypes.mega.create(viewer);
+        carrier.set(248f, 290f);
+        ((Payloadc)carrier).payloads().add(new UnitPayload(UnitTypes.flare.create(viewer)));
+        if (!UpstreamRenderedNetworkProbe.loadUnitGraphics(carrier)) {
+            throw new AssertionError("Could not load the stock carrier");
+        }
+        sprites.clear();
+        carrier.draw();
+        requireRegion(UnitTypes.mega.region);
+        requireRegion(UnitTypes.flare.region);
+        System.out.println("UPSTREAM_LIVE_CARRIED_UNIT carrier=mega cargo=flare atlas=ok");
         var types = Vars.content.units();
         int drawn = 0;
         for (var type : types) {
