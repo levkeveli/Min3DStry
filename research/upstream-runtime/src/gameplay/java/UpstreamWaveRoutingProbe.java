@@ -3,6 +3,7 @@ import arc.math.Mathf;
 import arc.mock.MockAudio;
 import arc.struct.Seq;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 import mindustry.Vars;
@@ -32,8 +33,10 @@ public final class UpstreamWaveRoutingProbe {
     private static final int TICKS_PER_WAVE = 900;
 
     public static void main(String[] args) throws IOException, InterruptedException {
+        boolean hostExit = args.length > 0 && "--host-exit".equals(args[args.length - 1]);
+        var worldArgs = hostExit ? Arrays.copyOf(args, args.length - 1) : args;
         try {
-            var app = UpstreamSimulationWorld.play(args, () -> {
+            var app = UpstreamSimulationWorld.play(worldArgs, () -> {
                 Vars.pathfinder = new Pathfinder();
                 Vars.controlPath = new ControlPathfinder();
                 Vars.asyncCore = new AsyncCore();
@@ -161,7 +164,7 @@ public final class UpstreamWaveRoutingProbe {
         // build after the trace. Flush the trace and terminate the C process;
         // the JVM run must return normally.
         System.out.flush();
-        if (isTeaVmC()) {
+        if (hostExit && isTeaVmC()) {
             Exit.exit(0);
         }
     }

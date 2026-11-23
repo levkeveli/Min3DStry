@@ -87,8 +87,9 @@ The standalone host probe exits after printing the trace without firing
 the trace can deadlock the host C build. It also disposes and removes
 registered application listeners through the probe-local
 `ProbeListenerShutdown` helper before returning, so Arc listener fibers cannot
-resume during TeaVM shutdown. The TeaVM C build flushes the trace and exits
-explicitly. The JVM returns normally. Host-C checks go
+resume during TeaVM shutdown. The host C replay passes `--host-exit` to terminate
+after flushing the trace. The default ARM11 invocation preserves the console
+return path, and the JVM returns normally. Host-C checks go
 through `.github/scripts/cc_host.sh`, which prefers `clang`, otherwise uses
 GCC with `-fno-tree-coalesce-vars` when the compiler accepts it, and fails
 with a clear diagnostic if neither compiler exists. The flag avoids a GCC 13

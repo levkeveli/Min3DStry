@@ -238,7 +238,7 @@ jobs:
           bash .github/scripts/cc_host.sh -std=gnu11 -O0 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-wave/all.c" -lm -lpthread \
             -o "$RUNNER_TEMP/teavm-c-wave/probe_o0"
           probe_log="$RUNNER_TEMP/wave-o0.log"
-          if timeout 60s "$RUNNER_TEMP/teavm-c-wave/probe_o0" "$RUNNER_TEMP/glacier.msav" > "$probe_log" 2>&1; then
+          if timeout 60s "$RUNNER_TEMP/teavm-c-wave/probe_o0" "$RUNNER_TEMP/glacier.msav" --host-exit > "$probe_log" 2>&1; then
             cat "$probe_log"
           else
             status=$?
@@ -249,7 +249,7 @@ jobs:
           bash .github/scripts/cc_host.sh -std=gnu11 -O2 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-wave/all.c" -lm -lpthread \
             -o "$RUNNER_TEMP/teavm-c-wave/probe_o2"
           probe_log="$RUNNER_TEMP/wave-o2.log"
-          if timeout 60s "$RUNNER_TEMP/teavm-c-wave/probe_o2" "$RUNNER_TEMP/glacier.msav" > "$probe_log" 2>&1; then
+          if timeout 60s "$RUNNER_TEMP/teavm-c-wave/probe_o2" "$RUNNER_TEMP/glacier.msav" --host-exit > "$probe_log" 2>&1; then
             cat "$probe_log"
           else
             status=$?
