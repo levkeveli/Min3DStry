@@ -163,25 +163,28 @@ exactly.
 
 ## Emulator batch 1 (2026-11-23)
 
-Build: integration of #529, #532, #533, #534, #535 plus merged #526/#527.
+Build: integration branch `test/hud-batch-1` at `870907b` (includes #529,
+#532, #533, #534, #535 and the #542 draw-order fix; #526/#527 merged).
 Device: Azahar 2126.2 New 3DS, sector-serpulo-15, seed `copper=12345,
 lead=1234, silicon=30`, batch fixture `move=1, wave=1, core=1`, and a separate
-`pause=1` run.
+`pause=1` run. Retained artifacts: [gameplay](evidence/hud-batch-1-gameplay-new3ds.png),
+[pause](evidence/hud-batch-1-pause-new3ds.png) and
+[UPSTREAM log](evidence/hud-batch-1-new3ds.log).
 
 | Task | Result | Evidence |
 | --- | --- | --- |
-| Pause overlay rendering/context | **PASS** | `< Paused >`, `Serpulo / Ground Zero`, Back/Research/Save Game/Quit visible; no HUD text overlap |
+| Pause overlay rendering/context | **PASS** | [pause screenshot](evidence/hud-batch-1-pause-new3ds.png): `< Paused >`, `Serpulo / Ground Zero`, Back/Research/Save Game/Quit; no HUD overlap |
 | Pause X/A/B/D-pad transitions | **NOT VERIFIED** | Host state tests only; no button injection in the batch |
 | Pause Research screen | **NOT VERIFIED** | Not opened in the batch |
-| Core-attack notification | **PASS** | Full `< Core is under attack! >` row after the row-order fix |
-| Core item amount suffixes | **PASS** | `12k`, `1.2k`, `30` |
+| Core-attack notification | **PASS** | [gameplay screenshot](evidence/hud-batch-1-gameplay-new3ds.png): full `< Core is under attack! >` row |
+| Core item amount suffixes | **PASS** | [gameplay screenshot](evidence/hud-batch-1-gameplay-new3ds.png): `12k`, `1.2k`, `30` |
 | Depleted used-item retention | **NOT VERIFIED** | Host tracker cases only |
-| Minimap unit blips | **PASS** | Red enemy pixel in the captured minimap crop; host color assertion |
-| Minimap player marker | **PASS** | White marker at `cell=(34, 6)` |
+| Minimap unit blips | **PASS** | [gameplay screenshot](evidence/hud-batch-1-gameplay-new3ds.png) red enemy pixel; host `UPSTREAM_MINIMAP_UNITS` |
+| Minimap player marker | **PASS** | `UPSTREAM_MINIMAP ... cell=(34, 6)` in [log](evidence/hud-batch-1-new3ds.log); white marker in gameplay screenshot |
 | Minimap core marker | **NOT VERIFIED** | Player spawn overlaps the core in the fixture; host check skipped |
-| Singleplayer-sim build guard | **PASS** | `BUILD SUCCESSFUL` |
-| Item-list/notification draw order | **PASS** | Batch fix; full notification row visible |
-| Pause overlay spacing/labels | **PASS** | Batch fix; no literal color tags or status-row overlap |
+| Singleplayer-sim build guard | **PASS** | `-Pprobe=singleplayer-sim compileJava` `BUILD SUCCESSFUL` |
+| Item-list/notification draw order | **PASS** | [gameplay screenshot](evidence/hud-batch-1-gameplay-new3ds.png): full notification above items |
+| Pause overlay spacing/labels | **PASS** | [pause screenshot](evidence/hud-batch-1-pause-new3ds.png): no literal tags or status-row overlap |
 
 Fixes from the batch: pause-overlay placement/label stripping (#535) and
 notification-above-item-list draw order (#542).
