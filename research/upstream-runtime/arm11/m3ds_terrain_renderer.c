@@ -53,15 +53,15 @@ static C2D_SpriteSheet sheet;
 static C3D_RenderTarget *target;
 static C3D_RenderTarget *palette;
 static C2D_TextBuf palette_buffer;
-enum { palette_label_count = 13 };
+enum { palette_label_count = 15 };
 static C2D_Text palette_labels[palette_label_count];
 #ifdef M3DS_STOCK_FONT
 enum { menu_label_glyphs = 64 };
 static char palette_utf8[palette_label_count][4 * menu_label_glyphs + 1];
 #endif
 static C2D_TextBuf catalog_buffer;
-enum { item_catalog, block_catalog, unit_catalog, catalog_count };
-static const char *const catalog_names[] = { "item", "block", "unit" };
+enum { item_catalog, block_catalog, unit_catalog, command_catalog, stance_catalog, catalog_count };
+static const char *const catalog_names[] = { "item", "block", "unit", "command", "stance" };
 static struct {
     C2D_SpriteSheet sheet;
     int32_t id, catalog;
@@ -643,7 +643,7 @@ int32_t m3ds_terrain_build_overlay(int32_t column, int32_t row, int32_t block, i
     C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_COLOR);
     if (catalog_open) return 1;
     C2D_DrawRectSolid(2, 48, 0.5f, 26, 31, C2D_Color32(45, 52, 64, 255));
-    draw_palette_label(4, 15, 57, 0.34f, 24,
+    draw_palette_label(command_mode == 0 ? 4 : 11, 15, 57, 0.34f, 24,
         block < 0 && !removing ? accent : C2D_Color32(239, 241, 247, 255));
     C2D_DrawRectSolid(292, 48, 0.5f, 26, 31, C2D_Color32(45, 52, 64, 255));
     draw_palette_label(5, 305, 57, 0.30f, 24,
@@ -652,7 +652,7 @@ int32_t m3ds_terrain_build_overlay(int32_t column, int32_t row, int32_t block, i
     draw_palette_label(7, 305, 89, 0.30f, 24,
         selecting_mine ? accent : C2D_Color32(239, 241, 247, 255));
     C2D_DrawRectSolid(2, 80, 0.5f, 26, 31, C2D_Color32(45, 52, 64, 255));
-    draw_palette_label(8, 15, 89, 0.30f, 24,
+    draw_palette_label(command_mode == 0 ? 8 : 12, 15, 89, 0.30f, 24,
         inventory_action == 1 ? accent : C2D_Color32(239, 241, 247, 255));
     C2D_DrawRectSolid(2, 112, 0.5f, 26, 31, C2D_Color32(45, 52, 64, 255));
     draw_palette_label(9, 15, 121, 0.30f, 24,
@@ -663,11 +663,11 @@ int32_t m3ds_terrain_build_overlay(int32_t column, int32_t row, int32_t block, i
     if (command_mode == 2) command_color = C2D_Color32(241, 117, 97, 255);
     draw_palette_label(10, 305, 121, 0.30f, 24, command_color);
     C2D_DrawRectSolid(292, 144, 0.5f, 26, 31, C2D_Color32(45, 52, 64, 255));
-    draw_palette_label(11, 305, 153, 0.30f, 24,
+    draw_palette_label(13, 305, 153, 0.30f, 24,
         selecting_control ? accent : C2D_Color32(239, 241, 247, 255));
     if (selecting_control) {
         C2D_DrawRectSolid(292, 176, 0.5f, 26, 31, C2D_Color32(45, 52, 64, 255));
-        draw_palette_label(12, 305, 185, 0.30f, 24, C2D_Color32(239, 241, 247, 255));
+        draw_palette_label(14, 305, 185, 0.30f, 24, C2D_Color32(239, 241, 247, 255));
     }
     for (int i = 0; i < 4; i++) {
         bool active = !selecting_mine && inventory_action == 0 && command_mode == 0 && !selecting_control
@@ -870,7 +870,7 @@ static bool draw_menu_icon(int row, int32_t id, int32_t catalog, float y) {
         y + (23 - image.subtex->height * icon_scale) / 2, 0.5f, NULL, icon_scale, icon_scale);
 }
 
-int32_t m3ds_terrain_build_catalog(const char *labels, const int32_t *icons, int32_t selected,
+int32_t m3ds_terrain_build_catalog(const char *labels, const int32_t *icons, int32_t active_rows,
                                     int32_t previous, int32_t next, int32_t catalog) {
     if (catalog < 0 || catalog >= catalog_count) return 0;
     const bool categories = catalog == block_catalog;
@@ -893,9 +893,10 @@ int32_t m3ds_terrain_build_catalog(const char *labels, const int32_t *icons, int
         labels += strlen(labels) + 1;
         if (!*labels) continue;
         float y = 44 + row * 25;
-        C2D_DrawRectSolid(8, y, 0.5f, 304, 23, row == selected ? selected_panel : panel);
+        bool active = (active_rows & (1 << row)) != 0;
+        C2D_DrawRectSolid(8, y, 0.5f, 304, 23, active ? selected_panel : panel);
         if (draw_menu_icon(row, icons[row], catalog, y)) visible_icons++;
-        stock_labels &= catalog_label(labels, 177, y + 4, 0.50f, 254, row == selected ? accent : text);
+        stock_labels &= catalog_label(labels, 177, y + 4, 0.50f, 254, active ? accent : text);
     }
     if (previous) {
         C2D_DrawRectSolid(8, 201, 0.5f, 88, 34, panel);
