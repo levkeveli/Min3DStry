@@ -184,6 +184,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         verifyPositionalAudioDispatch();
         Arm11AudioReference.verifyStockRegistry();
         UpstreamPuddleReference.verify();
+        UpstreamWeatherLayersReference.verify();
     }
 
     private static void verifyPositionalAudioDispatch() {

@@ -8,6 +8,9 @@ import tempfile
 from campaign_settings_fixture import stock_console
 
 
+LANDING_SLOT = "sector-serpulo-170.msav"
+
+
 CAMPAIGN = """
 const preset=Packages.mindustry.content.SectorPresets;
 const landing=preset.groundZero.sector, producer=preset.frozenForest.sector,
@@ -71,6 +74,7 @@ def create(java, server, output):
             frozen.info.destination=landing;
             frozen.info.export.put(Items.copper,stat(0.25));
             for (let i=0;i<sectors.length;i++) sectors[i].saveInfo();
+            Settings.put('last-sector-save','sector-serpulo-170');
             Settings.forceSave();
             Fi.get('config/settings.bin').copyTo(Fi.get('before.bin'));
             const turn=Vars.universe.turn();
@@ -104,6 +108,12 @@ def check(java, server, output):
         """
         stock_console(java, server, root, " ".join(script.splitlines()), r"STOCK_BACKGROUND_REOPENED")
     print("Stock Java reopened the turn, inventories, exports and freeze from the port.")
+
+
+def check_remote_saves(fixture, result):
+    for before in (fixture / "saves").glob("*.msav"):
+        if before.name != LANDING_SLOT and before.read_bytes() != (result / "saves" / before.name).read_bytes():
+            raise AssertionError(f"Background turn rewrote remote world {before.name}")
 
 
 def main():
