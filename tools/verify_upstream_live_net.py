@@ -1869,7 +1869,21 @@ def run_model(args, model, config, original_config, log, output):
                                                 spawn_pixels=(MAP_SPAWN_PIXELS.get(args.map_spawn) if phase == "spawn"
                                                               else EREKIR_BUILD_PIXELS.get(phase)))
 
-                    if args.combat:
+                    if args.server_kick:
+                        wait_for(log, emulator, r"UPSTREAM_LIVE_CONTROLS_READY unit=\d+", args.timeout)
+                        reason = "Hosted stock kick" if args.server_kick == "text" else "kick"
+                        wire_reason = (json.dumps(reason) if args.server_kick == "text"
+                                       else "Packages.mindustry.net.Packets.KickReason.kick")
+                        server.stdin.write(
+                            f'js (() => {{ const player = Groups.player.find(boolf(p => String(p.name) === {json.dumps(PLAYER)})); '
+                            f'Call.kick(player.con, {wire_reason}); }})()\n'
+                        )
+                        server.stdin.flush()
+                        wait_for(log, emulator,
+                                 rf"UPSTREAM_LIVE_CONTROLS_KICK kind={args.server_kick} reason={re.escape(reason)}",
+                                 args.timeout)
+                        emu_log = wait_for(log, emulator, "UPSTREAM_LIVE_CONTROLS_LEFT", args.timeout)
+                    elif args.combat:
                         wait_for(log, emulator, r"UPSTREAM_LIVE_CONTROLS_READY unit=\d+", args.timeout)
                         status = wait_for(log, emulator,
                                           r"UPSTREAM_STATUS_HUD wave=\d+ enemies=\d+ copper=\d+ rows=5", args.timeout)
@@ -2168,6 +2182,8 @@ def main():
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--movement", action="store_true", help="Verify the stock server applies scripted ARM11 movement")
     mode.add_argument("--controls", action="store_true", help="Verify D-pad and Circle Pad input and START disconnect")
+    parser.add_argument("--server-kick", choices=("text", "enum"),
+                        help="Verify a stock server kick after entering live play")
     parser.add_argument("--controls-replay", action="store_true",
                         help="Replay the controls test input in Azahar 2126.2")
     parser.add_argument("--unified-boot", action="store_true",
@@ -2272,6 +2288,8 @@ def main():
         parser.error("The PC client needs a distinct player name")
     if args.controls_replay and not args.controls:
         parser.error("--controls-replay needs --controls")
+    if args.server_kick and (not args.controls or args.controls_replay):
+        parser.error("--server-kick needs stationary --controls")
     if args.unified_boot and not args.controls:
         parser.error("--unified-boot needs --controls")
     if args.combat and (not args.controls or not args.terrain_atlas):
