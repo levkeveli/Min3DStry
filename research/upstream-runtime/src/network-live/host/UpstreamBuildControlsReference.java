@@ -1,5 +1,6 @@
 import arc.Core;
 import arc.files.Fi;
+import arc.math.geom.Point2;
 import arc.mock.MockAudio;
 import java.nio.file.Files;
 import java.util.zip.InflaterInputStream;
@@ -24,8 +25,12 @@ import mindustry.net.Net;
 import mindustry.type.Category;
 import mindustry.type.Item;
 import mindustry.io.SaveIO;
+import mindustry.world.Block;
+import mindustry.world.blocks.distribution.ItemBridge;
+import mindustry.world.blocks.distribution.MassDriver;
 import mindustry.world.blocks.distribution.Sorter;
 import mindustry.world.blocks.defense.turrets.ItemTurret;
+import mindustry.world.blocks.payloads.PayloadMassDriver;
 import mindustry.world.blocks.payloads.UnitPayload;
 import mindustry.world.blocks.units.UnitFactory;
 
@@ -95,6 +100,7 @@ public final class UpstreamBuildControlsReference {
         verifyStockOrders(unit);
         verifyStockCommandMenu(unit);
         verifyFactoryConfiguration(controls, unit);
+        verifyStockLinks(unit);
         System.out.println("UPSTREAM_TOUCH_REFERENCE conveyor=85,26,1 wall=86,26 break=86,26");
     }
 
@@ -110,8 +116,8 @@ public final class UpstreamBuildControlsReference {
             var controls = new UpstreamLiveBuildControls();
             controls.viewport(73, 20);
             controls.update(player, 0, touch(305, 128));
-            tapOrderCell(controls, player, 75, 27);
-            tapOrderCell(controls, player, 77, 27);
+            tapGridCell(controls, player, 75, 27);
+            tapGridCell(controls, player, 77, 27);
             selectOrderOption(controls, player, false, UnitCommand.mineCommand.id);
             if (mono.command().currentCommand() != UnitCommand.mineCommand
                     || dagger.command().currentCommand() != UnitCommand.moveCommand) {
@@ -125,18 +131,18 @@ public final class UpstreamBuildControlsReference {
             if (mixedHighlight != 0 || !dagger.command().hasStance(UnitStance.holdFire)) {
                 throw new AssertionError("A mixed selection must use the last controller's stock stance bits");
             }
-            tapOrderCell(controls, player, 77, 27);
+            tapGridCell(controls, player, 77, 27);
             int highlighted = selectOrderOption(controls, player, true, UnitStance.holdFire.id);
             if (highlighted == 0 || dagger.command().hasStance(UnitStance.holdFire)) {
                 throw new AssertionError("An active stance must be highlighted and can be toggled off");
             }
-            tapOrderCell(controls, player, 77, 27);
+            tapGridCell(controls, player, 77, 27);
             var copper = ItemUnitStance.getByItem(Items.copper);
             selectOrderOption(controls, player, true, copper.id);
             if (!mono.command().hasStance(copper) || dagger.command().hasStance(copper)) {
                 throw new AssertionError("An ore stance must use the stock ore eligibility rules");
             }
-            tapOrderCell(controls, player, 86, 24);
+            tapGridCell(controls, player, 86, 24);
             if (dagger.command().targetPos == null) throw new AssertionError("Expected a move order before cancel");
             selectOrderOption(controls, player, true, UnitStance.stop.id);
             if (dagger.command().targetPos != null || dagger.command().commandQueue.any()) {
@@ -187,9 +193,9 @@ public final class UpstreamBuildControlsReference {
             var controls = new UpstreamLiveBuildControls();
             controls.viewport(73, 20);
             controls.update(player, 0, touch(305, 128));
-            tapOrderCell(controls, player, 75, 27);
-            tapOrderCell(controls, player, 77, 27);
-            tapOrderCell(controls, player, 86, 24);
+            tapGridCell(controls, player, 75, 27);
+            tapGridCell(controls, player, 77, 27);
+            tapGridCell(controls, player, 86, 24);
             var firstCommand = first.command();
             var secondCommand = second.command();
             if (firstCommand.targetPos == null || firstCommand.targetPos.x != 688f || firstCommand.targetPos.y != 192f
@@ -198,28 +204,28 @@ public final class UpstreamBuildControlsReference {
                 throw new AssertionError("Stock move order must create a shared unit formation");
             }
             controls.update(player, 1 << 18, -1);
-            tapOrderCell(controls, player, 85, 25);
+            tapGridCell(controls, player, 85, 25);
             if (firstCommand.commandQueue.size != 1 || firstCommand.commandQueue.first().getX() != 680f
                     || secondCommand.commandQueue.size != 1) {
                 throw new AssertionError("Stock queued order must preserve the first destination");
             }
             controls.update(player, 1 << 18, -1);
-            tapOrderCell(controls, player, 87, 26);
+            tapGridCell(controls, player, 87, 26);
             if (firstCommand.attackTarget != enemy || secondCommand.attackTarget != enemy
                     || firstCommand.commandQueue.any()) {
                 throw new AssertionError("Stock attack order must target the enemy and replace the queued move");
             }
             var wall = Vars.world.tile(86, 24);
             wall.setBlock(Blocks.copperWall, rules.waveTeam, 0);
-            tapOrderCell(controls, player, 86, 24);
+            tapGridCell(controls, player, 86, 24);
             if (firstCommand.attackTarget != wall.build || secondCommand.attackTarget != wall.build) {
                 throw new AssertionError("Stock attack order must also target an opposing building");
             }
             wall.setBlock(Blocks.air);
             var factory = Vars.world.tile(78, 22);
             factory.setBlock(Blocks.groundFactory, player.team(), 0);
-            tapOrderCell(controls, player, 78, 22);
-            tapOrderCell(controls, player, 86, 24);
+            tapGridCell(controls, player, 78, 22);
+            tapGridCell(controls, player, 86, 24);
             var rally = ((UnitFactory.UnitFactoryBuild)factory.build).commandPos;
             if (rally == null || rally.x != 688f || rally.y != 192f || !player.plans().isEmpty()) {
                 throw new AssertionError("Original factory rally point must be commanded without placing a block");
@@ -235,7 +241,7 @@ public final class UpstreamBuildControlsReference {
         }
     }
 
-    private static void tapOrderCell(UpstreamLiveBuildControls controls, Unit player, int x, int y) {
+    private static void tapGridCell(UpstreamLiveBuildControls controls, Unit player, int x, int y) {
         controls.update(player, 0, touch(32 + (x - 73) * 16 + 8, 48 + (31 - y) * 16 + 8));
     }
 
@@ -498,6 +504,66 @@ public final class UpstreamBuildControlsReference {
         Core.bundle = UpstreamInterfaceLocale.load(path, 1, "de");
         System.out.println("UPSTREAM_INTERFACE_REFERENCE systemLanguages=" + locales.length
             + " additionalBundles=" + selectable + " selected=de");
+    }
+
+    private static void verifyStockLinks(Unit unit) {
+        var controls = new UpstreamLiveBuildControls();
+        controls.viewport(73, 20);
+        var source = Vars.world.tile(74, 29);
+        var receiver = Vars.world.tile(78, 29);
+        var enemy = Vars.world.tile(74, 24);
+        source.setBlock(Blocks.powerNode, unit.team(), 0);
+        receiver.setBlock(Blocks.battery, unit.team(), 0);
+        enemy.setBlock(Blocks.battery, Vars.state.rules.waveTeam, 0);
+        source.build.configure(new Point2[0]);
+
+        controls.update(unit, 0, touch(305, 64));
+        tapGridCell(controls, unit, source.x, source.y);
+        if (!controls.configuring() || controls.buildingConfig().isOpen()) {
+            throw new AssertionError("Link configuration must leave the world grid visible");
+        }
+        tapGridCell(controls, unit, enemy.x, enemy.y);
+        if (source.build.power.links.contains(enemy.pos())) throw new AssertionError("Linked an enemy battery");
+        tapGridCell(controls, unit, receiver.x, receiver.y);
+        if (!source.build.power.links.contains(receiver.pos()) || !receiver.build.power.links.contains(source.pos())
+                || source.build.power.graph != receiver.build.power.graph) {
+            throw new AssertionError("The stock power node did not join the two grids");
+        }
+        tapGridCell(controls, unit, receiver.x, receiver.y);
+        if (source.build.power.links.contains(receiver.pos()) || receiver.build.power.links.contains(source.pos())) {
+            throw new AssertionError("Tapping a linked power block must disconnect it");
+        }
+        controls.update(unit, 0, touch(305, 64));
+        source.setBlock(Blocks.air);
+        receiver.setBlock(Blocks.air);
+        enemy.setBlock(Blocks.air);
+
+        Block[] transports = {Blocks.itemBridge, Blocks.phaseConveyor, Blocks.bridgeConduit, Blocks.phaseConduit,
+            Blocks.massDriver, Blocks.payloadMassDriver, Blocks.largePayloadMassDriver};
+        for (Block block : transports) {
+            receiver = Vars.world.tile(source.x + Math.max(4, block.size + 1), source.y);
+            source.setBlock(block, unit.team(), 0);
+            receiver.setBlock(block, unit.team(), 0);
+            controls.update(unit, 0, touch(305, 64));
+            tapGridCell(controls, unit, source.x, source.y);
+            tapGridCell(controls, unit, receiver.x, receiver.y);
+            if (linkPosition(source.build) != receiver.pos() || controls.cursorX() != source.x) {
+                throw new AssertionError("Stock " + block.name + " did not link to the tapped receiver");
+            }
+            tapGridCell(controls, unit, receiver.x, receiver.y);
+            if (linkPosition(source.build) != -1) throw new AssertionError("Stock " + block.name + " did not unlink");
+            if (controls.configuring()) controls.update(unit, 0, touch(305, 64));
+            source.setBlock(Blocks.air);
+            receiver.setBlock(Blocks.air);
+        }
+        if (!unit.plans().isEmpty()) throw new AssertionError("Link taps must never queue builds");
+        System.out.println("UPSTREAM_STOCK_BUILDING_LINKS power=ok transports=" + transports.length);
+    }
+
+    private static int linkPosition(Building building) {
+        if (building instanceof ItemBridge.ItemBridgeBuild bridge) return bridge.link;
+        if (building instanceof MassDriver.MassDriverBuild driver) return driver.link;
+        return ((PayloadMassDriver.PayloadDriverBuild)building).link;
     }
 
     private static void verifyConfiguration(UpstreamLiveBuildControls controls, Unit unit) {
