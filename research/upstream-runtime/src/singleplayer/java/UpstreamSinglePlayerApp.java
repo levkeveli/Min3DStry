@@ -86,6 +86,8 @@ public final class UpstreamSinglePlayerApp {
     private int lastLeft = -1, lastBottom = -1;
     private int lastCopper = -1;
     private boolean moving;
+    private boolean reportedMinimap;
+    private int minimapFrame;
     private String inputDevice;
     private UpstreamLabelText.Label encodedLabel;
     private int[] encodedCharacters;
@@ -211,6 +213,7 @@ public final class UpstreamSinglePlayerApp {
             loadInterfaceGraphics(atlas);
             weatherLayers.load();
             reportWeather();
+            uploadMinimap();
             Events.on(BlockBuildEndEvent.class, event -> {
                 if (event.tile == null) return;
                 if (!event.breaking && event.tile.build != null) {
@@ -886,6 +889,19 @@ public final class UpstreamSinglePlayerApp {
         }
     }
 
+    private void uploadMinimap() {
+        byte[] pixels = UpstreamMinimap.sample(64);
+        if (pixels == null) return;
+        target.minimapUpload(pixels, 64, 64);
+        if (!reportedMinimap) {
+            reportedMinimap = true;
+            int marker = UpstreamMinimap.playerIndex(64);
+            System.out.println("UPSTREAM_MINIMAP size=64 hash="
+                + Long.toUnsignedString(UpstreamMinimap.hash(pixels), 16)
+                + (marker < 0 ? "" : " cell=" + (marker % 64) + "," + (marker / 64)));
+        }
+    }
+
     private void updateBuildLabels() {
         var primary = buildingControls.shortcut(0);
         if (primary == lastPrimaryShortcut) return;
@@ -904,6 +920,10 @@ public final class UpstreamSinglePlayerApp {
     private void render(Unit unit) {
         session.advanceRenderFrame();
         updateBuildLabels();
+        if (++minimapFrame >= 60) {
+            minimapFrame = 0;
+            uploadMinimap();
+        }
         controlled = unit;
         float x = unit == null ? Vars.player.x() : unit.x();
         float y = unit == null ? Vars.player.y() : unit.y();

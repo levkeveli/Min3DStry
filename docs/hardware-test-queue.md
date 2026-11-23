@@ -157,6 +157,8 @@ and waves, touch palette/rotation, HUD/menus/minimap.
   `Sector Captured` row.
 - On a boss wave, the guardian-warning notification appears with the stock
   `wave.guardianwarn` text.
+- The top-right minimap shows the sector terrain, marks the local player with a
+  white dot, and follows the player as they move.
 
 **Evidence:** raw log, screenshots of HUD/palette/minimap, frame timings and a
 short note on any glitches.

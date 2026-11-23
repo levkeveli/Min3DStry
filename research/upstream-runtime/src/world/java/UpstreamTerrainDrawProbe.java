@@ -65,6 +65,10 @@ public final class UpstreamTerrainDrawProbe {
                                       float u, float v, float u2, float v2, int tint, int mix, Blending blending) {
             throw new IllegalStateException("Unsupported Arc weather noise texture");
         }
+
+        default void overlay() {
+        }
+
         void end();
     }
 
@@ -195,7 +199,10 @@ public final class UpstreamTerrainDrawProbe {
             }
             if (batch.target != null) batch.target.finishTerrain();
             buildings.run();
-            if (batch.target != null) batch.target.end();
+            if (batch.target != null) {
+                batch.target.overlay();
+                batch.target.end();
+            }
         }
     }
 

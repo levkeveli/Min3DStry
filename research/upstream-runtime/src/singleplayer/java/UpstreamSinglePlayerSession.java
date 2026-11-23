@@ -687,6 +687,24 @@ public final class UpstreamSinglePlayerSession {
                 throw new IllegalStateException("Alpha player unit did not spawn");
             }
 
+            byte[] minimap = UpstreamMinimap.sample(32);
+            if (minimap == null || minimap.length != 32 * 32 * 4) {
+                throw new IllegalStateException("Minimap sampler returned an invalid grid");
+            }
+            int marker = UpstreamMinimap.playerIndex(32);
+            if (marker < 0) {
+                throw new IllegalStateException("Minimap sampler has no player marker");
+            }
+            int markerOffset = marker * 4;
+            if ((minimap[markerOffset] & 0xff) != 255
+                    || (minimap[markerOffset + 1] & 0xff) != 255
+                    || (minimap[markerOffset + 2] & 0xff) != 255) {
+                throw new IllegalStateException("Minimap player marker is not white");
+            }
+            System.out.println("UPSTREAM_MINIMAP sample=32 hash="
+                + Long.toUnsignedString(UpstreamMinimap.hash(minimap), 16)
+                + " cell=" + (marker % 32) + "," + (marker / 32));
+
             // 1. Movement check along Y-axis.
             float startY = unit.y();
             for (int tick = 1; tick <= 30; tick++) {

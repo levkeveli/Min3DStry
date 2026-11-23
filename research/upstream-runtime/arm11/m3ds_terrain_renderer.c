@@ -112,6 +112,69 @@ static float world_left, world_bottom, scale, screen_left, screen_bottom;
 static int32_t draws;
 static int32_t world_blend = -1;
 static u32 world_fade;
+static C3D_Tex minimap_texture;
+static C2D_Image minimap_image;
+static Tex3DS_SubTexture minimap_subtexture;
+static bool minimap_ready;
+static int minimap_width, minimap_height;
+static uint8_t minimap_pixels[128 * 128 * 4] __attribute__((aligned(8)));
+
+static unsigned raster_texel(unsigned x, unsigned y, unsigned row_width) {
+    unsigned morton = 0;
+    for (unsigned bit = 0; bit < 3; bit++) {
+        morton |= ((x >> bit) & 1) << (2 * bit);
+        morton |= ((y >> bit) & 1) << (2 * bit + 1);
+    }
+    return ((y / 8) * (row_width / 8) + x / 8) * 64 + morton;
+}
+
+void m3ds_terrain_minimap_upload(const uint8_t *pixels, int32_t width, int32_t height) {
+    if (!pixels || width < 8 || height < 8 || width > 128 || height > 128
+            || (width & (width - 1)) || (height & (height - 1))) return;
+    if (!minimap_ready || width != minimap_width || height != minimap_height) {
+        if (minimap_ready) C3D_TexDelete(&minimap_texture);
+        minimap_ready = false;
+        if (!C3D_TexInit(&minimap_texture, (u16)width, (u16)height, GPU_RGBA8)) return;
+        C3D_TexSetFilter(&minimap_texture, GPU_NEAREST, GPU_NEAREST);
+        C3D_TexSetWrap(&minimap_texture, GPU_CLAMP_TO_EDGE, GPU_CLAMP_TO_EDGE);
+        minimap_subtexture = (Tex3DS_SubTexture){
+            .width = (u16)width, .height = (u16)height,
+            .left = 0.0f, .top = 1.0f, .right = 1.0f, .bottom = 0.0f
+        };
+        minimap_image.tex = &minimap_texture;
+        minimap_image.subtex = &minimap_subtexture;
+        minimap_width = width;
+        minimap_height = height;
+        minimap_ready = true;
+    }
+    // PICA200 stores ABGR texels in Morton order within each 8-by-8 tile.
+    // The source starts at world Y=0, which belongs at the bottom of the map.
+    for (int y = 0; y < height; y++) {
+        for (int x = 0; x < width; x++) {
+            const uint8_t *rgba = pixels + ((height - 1 - y) * width + x) * 4;
+            uint8_t *abgr = minimap_pixels + raster_texel(x, y, width) * 4;
+            abgr[0] = rgba[3];
+            abgr[1] = rgba[2];
+            abgr[2] = rgba[1];
+            abgr[3] = rgba[0];
+        }
+    }
+    C3D_TexUpload(&minimap_texture, minimap_pixels);
+}
+
+void m3ds_terrain_minimap_draw(float x, float y, float size) {
+    if (!minimap_ready || !target || size <= 0.0f) return;
+    // The build palette rebinds the bottom screen inside drawEntities().
+    // Rebind the world target before drawing the HUD minimap.
+    C2D_SceneBegin(target);
+    C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_COLOR);
+    C3D_SetScissor(GPU_SCISSOR_DISABLE, 0, 0, 0, 0);
+    C2D_SetTintMode(C2D_TintMult);
+    C2D_ImageTint tint;
+    C2D_PlainImageTint(&tint, C2D_Color32(255, 255, 255, 255), 1.0f);
+    C2D_DrawImageAt(minimap_image, x, y, 0.3f, &tint,
+        size / (float)minimap_width, size / (float)minimap_height);
+}
 
 int32_t m3ds_terrain_mount_assets(void) {
     if (!romfs_ready) romfs_ready = R_SUCCEEDED(romfsInit());
@@ -592,15 +655,6 @@ int32_t m3ds_terrain_draw(int32_t page, int32_t left, int32_t top, int32_t width
 }
 
 #ifdef M3DS_WORLD_ATLAS
-static unsigned raster_texel(unsigned x, unsigned y, unsigned row_width) {
-    unsigned morton = 0;
-    for (unsigned bit = 0; bit < 3; bit++) {
-        morton |= ((x >> bit) & 1) << (2 * bit);
-        morton |= ((y >> bit) & 1) << (2 * bit + 1);
-    }
-    return ((y / 8) * (row_width / 8) + x / 8) * 64 + morton;
-}
-
 static int texture_dimension(int size) {
     int dimension = 8;
     while (dimension < size) dimension *= 2;
@@ -1414,6 +1468,10 @@ int32_t m3ds_terrain_build_catalog(const char *labels, const int32_t *icons, int
 void m3ds_terrain_fini(void) {
     if (frame_open) m3ds_terrain_end();
     if (gpu_ready && C3D_FrameBegin(0)) C3D_FrameEnd(0);
+    if (minimap_ready) {
+        C3D_TexDelete(&minimap_texture);
+        minimap_ready = false;
+    }
 #ifdef M3DS_STOCK_FONT
     m3ds_stock_text_close();
 #endif
