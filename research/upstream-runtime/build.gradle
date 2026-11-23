@@ -339,6 +339,10 @@ if (probe in ['network-render', 'unified']) {
 if (usesSinglePlayer) {
     sourceSets.main.java.srcDir('src/singleplayer/java')
     if (usesSinglePlayerApp) {
+        tasks.register('runStockMapEditorJvm', JavaExec) {
+            classpath = sourceSets.main.runtimeClasspath
+            mainClass = 'UpstreamStockMapEditorReference'
+        }
         sourceSets.main.java.srcDirs('src/singleplayer-custom-host/java', 'src/singleplayer-campaign-host/java')
         sourceSets.main.java.srcDir('src/singleplayer-research-host/java')
         tasks.register('runGraphicalCampaignResearchJvm', JavaExec) {
@@ -370,6 +374,10 @@ if (usesSinglePlayer) {
         tasks.register('runGraphicalCampaignSettingsJvm', JavaExec) {
             classpath = sourceSets.main.runtimeClasspath
             mainClass = 'UpstreamGraphicalCampaignSettingsReference'
+        }
+        tasks.register('runGraphicalCampaignDefeatJvm', JavaExec) {
+            classpath = sourceSets.main.runtimeClasspath
+            mainClass = 'UpstreamCampaignDefeatReference'
         }
         tasks.register('runBackgroundCampaignTurnJvm', JavaExec) {
             classpath = sourceSets.main.runtimeClasspath
@@ -504,6 +512,12 @@ tasks.register('prepareUpstreamProbe') {
         inputs.file(pixmapPatch)
         outputs.file(arcPixmapFile)
     }
+    if (usesSinglePlayerApp) {
+        outputs.files(sourceDir.map { dir ->
+            ['mindustry/editor/MapEditor.java', 'mindustry/editor/EditorTile.java']
+                .collect { dir.file(it) }
+        })
+    }
     if (usesWorldStream) {
         outputs.file(networkIoFile)
     }
@@ -545,6 +559,20 @@ tasks.register('prepareUpstreamProbe') {
         outputs.file(globalVarsFile)
     }
     doLast {
+        if (usesSinglePlayerApp) {
+            def directory = sourceDir.get().dir('mindustry/editor').asFile
+            directory.mkdirs()
+            new File(directory, 'MapEditor.java').setText(
+                new String(readUpstream('core/src/mindustry/editor/MapEditor.java'), 'UTF-8'), 'UTF-8')
+            def editorTile = new String(readUpstream('core/src/mindustry/editor/EditorTile.java'), 'UTF-8')
+            def shadowUpdate = 'renderer.blocks.updateShadowTile(this);'
+            if (editorTile.count(shadowUpdate) != 1) {
+                throw new GradleException('Pinned editor shadow update changed')
+            }
+            new File(directory, 'EditorTile.java').setText(
+                editorTile.replace(shadowUpdate, 'if(renderer != null) renderer.blocks.updateShadowTile(this);'),
+                'UTF-8')
+        }
         if (usesLiveAudio) {
             def sound = new String(providers.exec {
                 commandLine 'git', '-C', arc.get(), 'show', "${arcRevision}:${soundSource}"
