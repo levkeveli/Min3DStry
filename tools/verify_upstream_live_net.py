@@ -90,7 +90,8 @@ BUILDING_CRACK_PIXELS = {
 
 
 def write_controls_replay(path, first_move=22, building=False, touch_build=False, touch_config=False,
-                          erekir_build=False, mining=None, model="old3ds", stock_menu_font=False):
+                          erekir_build=False, mining=None, model="old3ds", stock_menu_font=False,
+                          unified_boot=False, stationary=False):
     """Write the Azahar 2126.2 CTM input for this probe's pad/touch polling."""
     # The pinned Azahar movie header and HID sample definitions use packed little-endian fields.
     revision = bytes.fromhex("219d743a1e698101fe1ab8bef43e6563126c3c27")
@@ -99,6 +100,10 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
     needs_settling_time = building or touch_build or touch_config
     circle_at = first_move + (18 if needs_settling_time else 6)
     leave_at = first_move + (44 if needs_settling_time else 16)
+    if unified_boot:
+        # Let each input settle and confirm idle snapshots at the combined ROM's slower frame cadence.
+        circle_at = first_move + 28
+        leave_at = circle_at + 28
     frames = (128 if erekir_build or mining else leave_at + 7) * samples_per_second
     header = struct.pack("<4sQ20sQQ32sIQq156x", b"CTM\x1b", 0, revision, 1780000000,
                          0x4D334453, b"Min3DStry input verification", 0, frames, 0)
@@ -142,14 +147,16 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
             seconds = frame // samples_per_second
             if erekir_build:
                 buttons = (1 << 8) if 66 <= seconds < 72 else 0  # R, the 3DS rotate shortcut.
-            elif mining:
+            elif mining or stationary:
                 buttons = 0
             else:
                 buttons = (1 << 4) if seconds == first_move else (1 << 3) if seconds == leave_at else 0
             if building and seconds in (35, 37, 39):
                 buttons = 1  # A, with releases so a late HID poll can observe another press.
+            if unified_boot and seconds < 6:
+                buttons |= 1 << 10  # X, sampled once before the game starts.
             circle_x = 65 if mining == "wall" and 54 <= seconds < pan_end else 0
-            circle_y = 106 if seconds == circle_at and not (erekir_build or mining) else 0
+            circle_y = 106 if seconds == circle_at and not (erekir_build or mining or stationary) else 0
             if mining == "floor" and 88 <= seconds < 94:
                 circle_y = 65
             point = next((point for start, point in taps if start <= seconds < start + 2), None)
@@ -159,11 +166,11 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
                 # Keep the touch held for the whole burst regardless of the poll phase.
                 touch = struct.pack("<BHHBx", 1, *point, 1)
                 movie.write(touch * 2)
-            elif taps and (buttons or circle_x or circle_y):
+            elif (taps or unified_boot) and (buttons or circle_x or circle_y):
                 movie.write(pad * 2)
             else:
                 movie.write(pad + touch_idle)
-            if taps and model == "new3ds" and frame % 7 in (0, 2, 4):
+            if (taps or unified_boot) and model == "new3ds" and frame % 7 in (0, 2, 4):
                 movie.write(touch if point else pad)
 
 
@@ -880,6 +887,48 @@ def verify_unit_roster(screenshot):
         raise RuntimeError(f"Original unit cells differ {mismatch}, Quasar shield pixels {shield_pixels}")
 
 
+def spawn_expanded_unit_roster(server_log, server):
+    server.stdin.write(
+        'js (() => { const enemy = Vars.state.rules.waveTeam; '
+        'const missile = UnitTypes.anthicus.weapons.first().bullet.spawnUnit; '
+        'const elude = UnitTypes.elude.spawn(enemy,632,228,90); '
+        'const shot = missile.spawn(enemy,628,191,90); '
+        'const team = Vars.state.rules.defaultTeam; '
+        'const carrier = UnitTypes.mega.spawn(team,704,220,90); '
+        'const cargo = UnitTypes.horizon.create(team); '
+        'carrier.addPayload(new Packages.mindustry.world.blocks.payloads.UnitPayload(cargo)); '
+        'const units = Packages.mindustry.entities.Units; '
+        'units.notifyUnitSpawn(elude); units.notifyUnitSpawn(shot); units.notifyUnitSpawn(carrier); '
+        'return "UPSTREAM_EXPANDED_ROSTER_FIXTURE " + [elude.type.name,shot.type.name,'
+        'carrier.type.name,carrier.payloads.first().unit.type.name].join(","); })()\n')
+    server.stdin.flush()
+    wait_for(server_log, server, r"UPSTREAM_EXPANDED_ROSTER_FIXTURE elude,anthicus-missile,mega,horizon\b", 5)
+
+
+def verify_expanded_unit_roster(log, emulator, server_log, server, rpc, before, destination, timeout):
+    spawn_expanded_unit_roster(server_log, server)
+    for name in ("elude", "anthicus-missile", "mega", "horizon"):
+        wait_for(log, emulator, rf"UPSTREAM_NETWORK_UNIT_ART type={name}\b", timeout)
+
+    # The server and camera stay stationary. Check only the newly occupied sprite regions.
+    regions = [tuple((x, y) for x in range(cx - 7, cx + 8) for y in range(cy - 7, cy + 8))
+               for cx, cy in ((169, 63), (159, 156), (339, 89))]
+    points = tuple(point for region in regions for point in region)
+    original = az.inspect_png(before, points)["samples"]
+    deadline = time.monotonic() + 15
+    changed = []
+    while time.monotonic() < deadline:
+        after = rpc.screenshot()
+        current = az.inspect_png(after, points)["samples"]
+        changed = [sum(current[point] != original[point] for point in region) for region in regions]
+        if min(changed) >= 8:
+            destination.write_bytes(after)
+            print(f"Stock Elude, Anthicus missile and Mega with Horizon changed {changed} pixels in their regions.", flush=True)
+            return
+        time.sleep(0.25)
+    raise RuntimeError(f"Expanded unit sprites did not appear in the stationary viewport: {changed}")
+
+
 def load_naval_wake_fixture(server_log, server):
     server.stdin.write(
         'pause on\n'
@@ -1206,6 +1255,28 @@ def verify_logic_markers(log, emulator, server_log, server, rpc, output, model, 
     print(f"{model}: original logic marker drawing, visibility, position, text and removal passed.", flush=True)
 
 
+def capture_marker_pixels(rpc, output, model, phase, points, timeout, expected=None, tolerance=1):
+    deadline = time.monotonic() + timeout
+    png, samples = None, None
+    while time.monotonic() < deadline:
+        try:
+            captured = rpc.screenshot(res_scale=1)
+        except TimeoutError:
+            time.sleep(0.2)
+            continue
+        png = captured
+        pixels = az.inspect_png(png, points)["samples"]
+        samples = tuple(pixels[point] for point in points)
+        if expected is None or all(abs(a - b) <= tolerance for actual, exact in zip(samples, expected)
+                                   for a, b in zip(actual, exact)):
+            (output / f"{model}-{phase}.png").write_bytes(png)
+            return samples
+        time.sleep(0.2)
+    if png is not None:
+        (output / f"{model}-{phase}-unexpected.png").write_bytes(png)
+    raise RuntimeError(f"{phase} pixels: expected {expected}, got {samples}")
+
+
 def verify_texture_markers(server_log, server, rpc, output, model, position, timeout):
     _, _, x, y = position
     x, y = (math.floor(float(value) / 8 + 0.5) * 8 for value in (x, y))
@@ -1218,19 +1289,7 @@ def verify_texture_markers(server_log, server, rpc, output, model, position, tim
     error = ((255, 255, 255),) * 3
 
     def capture(phase, expected=None):
-        deadline = time.monotonic() + timeout
-        while True:
-            png = rpc.screenshot(res_scale=1)
-            pixels = az.inspect_png(png, points)["samples"]
-            samples = tuple(pixels[point] for point in points)
-            if expected is None or all(abs(a - b) <= 1 for actual, exact in zip(samples, expected)
-                                       for a, b in zip(actual, exact)):
-                (output / f"{model}-texture-marker-{phase}.png").write_bytes(png)
-                return samples
-            if time.monotonic() >= deadline:
-                (output / f"{model}-texture-marker-{phase}-unexpected.png").write_bytes(png)
-                raise RuntimeError(f"Texture marker {phase}: expected {expected}, got {samples}")
-            time.sleep(0.1)
+        return capture_marker_pixels(rpc, output, model, f"texture-marker-{phase}", points, timeout, expected)
 
     baseline = capture("baseline")
     send_marker_phase(server_log, server, "texture-created",
@@ -1248,12 +1307,237 @@ def verify_texture_markers(server_log, server, rpc, output, model, position, tim
     print(f"{model}: original texture marker creation, rotation, content, fallback and removal passed.", flush=True)
 
 
+def create_fixture_quad(server_log, server, phase, marker_id, texture, x, y):
+    corners = ((-52, 0, 0, 0), (-48, 24, 0, 1), (-24, 28, 1, 1), (-20, 4, 1, 0))
+    assignments = " ".join(
+        f"v[{i * 6}]={x + dx}; v[{i * 6 + 1}]={y + dy}; v[{i * 6 + 3}]={u}; v[{i * 6 + 4}]={t};"
+        for i, (dx, dy, u, t) in enumerate(corners))
+    send_marker_phase(server_log, server, phase,
+        f"const q=new MapObjectives.QuadMarker(); q.texture.value={texture}; const v=q.vertices; "
+        + assignments + f' v[8]=Color.valueOf("80ffffff").toFloatBits(); Call.createMarker({marker_id}, q);')
+
+
+def verify_quad_markers(log, emulator, server_log, server, rpc, output, model, position, timeout):
+    _, _, x, y = position
+    x, y = (math.floor(float(value) / 8 + 0.5) * 8 for value in (x, y))
+    # Keep all samples below the stock health, ammo, enemy-core and item HUD.
+    y -= 32
+    # Opaque samples in the original Core Nucleus span three 128 × 128 atlas
+    # tiles. The first sample includes the stock interpolated red tint.
+    points = ((94, 132), (109, 166), (133, 148), (153, 125))
+    initial = ((101, 185, 192), (152, 154, 164), (176, 185, 192))
+    moved = ((86, 154, 164), (110, 112, 128), (152, 154, 164), (152, 154, 164))
+    router = ((62, 112, 128), (110, 112, 128), (152, 154, 164), (147, 149, 160))
+
+    def capture(phase, expected=None):
+        return capture_marker_pixels(rpc, output, model, f"quad-marker-{phase}",
+                                     points, timeout, expected, tolerance=4)
+
+    baseline = capture("baseline")
+    create_fixture_quad(server_log, server, "quad-created", 752, '"core-nucleus"', x, y)
+    wait_for(log, emulator, "UPSTREAM_TEXTURED_QUAD source=arc gpu=citro3d", timeout)
+    capture("created", (*initial, baseline[3]))
+    send_marker_phase(server_log, server, "quad-moved",
+        "Call.updateMarker(752, Packages.mindustry.logic.LMarkerControl.posi, "
+        f"2, {(x - 16) / 8}, {(y + 32) / 8});")
+    capture("moved", moved)
+    send_marker_phase(server_log, server, "quad-retargeted", 'Call.updateMarkerTexture(752, "block-router-ui");')
+    capture("retargeted", router)
+    send_marker_phase(server_log, server, "quad-removed", "Call.removeMarker(752);")
+    capture("removed", baseline)
+    print(f"{model}: stock quad tint, atlas clipping, corner update and retargeting passed.", flush=True)
+
+
+PROCESSOR_CANVAS_COLUMN = 82
+
+
+def load_canvas_fixture(server_log, server, offscreen=False, small_column=77):
+    extra = ("Vars.world.tile(45,27).setBlock(Blocks.canvas,t); paint(Vars.world.build(45,27)); " if offscreen else "")
+    send_marker_phase(server_log, server, "canvas-fixture",
+        "const t=Vars.state.rules.defaultTeam; "
+        "Vars.world.tile(75,29).setBlock(Blocks.canvas,t); "
+        f"Vars.world.tile({small_column},29).setBlock(Blocks.canvas,t); "
+        "Vars.world.tile(77,23).setBlock(Blocks.largeCanvas,t); "
+        f"const small=Vars.world.build({small_column},29), large=Vars.world.build(77,23); "
+        "const paint=c=>{for (let y=0; y<12; y++) for (let x=0; x<12; x++) "
+        "c.setPixel(y*12+x, y<6 ? (x<6 ? 1 : 2) : (x<6 ? 4 : 6));}; paint(small); "
+        "for (let y=0; y<24; y++) for (let x=0; x<24; x++) "
+        "large.setPixel(y*24+x, x<12 ? 3 : 8); " + extra)
+
+
+def verify_canvas(server_log, server, rpc, output, model, timeout):
+    # The original Glacier camera starts centered at world (648, 208).
+    # Sample inside the original 12×12 and 24×24 pictures, away from their borders.
+    small_points = ((130, 30), (150, 30), (130, 50), (150, 50))
+    large_points = ((115, 155), (145, 185))
+    marker_points = ((261, 51), (279, 51), (261, 69), (279, 69))
+    small = ((196, 93, 159), (227, 154, 172), (100, 97, 194), (147, 212, 181))
+    large = ((250, 191, 97), (120, 194, 214))
+    changed = ((240, 218, 177), (43, 169, 180), (240, 218, 177), (43, 169, 180))
+
+    capture_marker_pixels(rpc, output, model, "canvas-loaded", small_points + large_points, timeout, small + large)
+    send_marker_phase(server_log, server, "canvas-marker",
+        "const c=Vars.world.build(77,29); "
+        "Call.createMarker(753,new MapObjectives.TextureMarker(c,672,228,16,16));")
+    points = small_points + large_points + marker_points
+    capture_marker_pixels(rpc, output, model, "canvas-marker", points, timeout, small + large + small)
+
+    send_marker_phase(server_log, server, "canvas-configured",
+        "const staging=Vars.world.build(75,29), canvas=Vars.world.build(77,29); "
+        "for(let i=0; i<144; i++) staging.setPixel(i, i%12<6 ? 3 : 5); "
+        "canvas.configureAny(staging.data); "
+        'if(canvas.getPixel(0)!==3 || canvas.getPixel(11)!==5) throw "Canvas config mismatch";')
+    capture_marker_pixels(rpc, output, model, "canvas-updated", points, timeout, changed + large + changed)
+    print(f"{model}: stock Canvas snapshot pixels, live configuration and linked marker passed.", flush=True)
+
+
+def verify_canvas_quads(log, emulator, server_log, server, rpc, output, model, position, timeout):
+    _, _, x, y = position
+    x, y = (math.floor(float(value) / 8 + 0.5) * 8 for value in (x, y))
+    if 45 >= x // 8 - 8:
+        raise RuntimeError("The Canvas quad fixture must keep its source tile offscreen")
+    # Place the quad beneath the live HUD in the unified ROM.
+    y -= 32
+    points = ((94, 132), (109, 166), (133, 148), (153, 125))
+    original = ((112, 93, 159), (100, 97, 194), (227, 154, 172))
+    configured = ((137, 218, 177), (240, 218, 177), (43, 169, 180))
+    moved = ((136, 218, 177), (240, 218, 177), (43, 169, 180), (43, 169, 180))
+    router = ((62, 112, 128), (110, 112, 128), (152, 154, 164), (147, 149, 160))
+
+    def capture(phase, expected=None):
+        return capture_marker_pixels(rpc, output, model, f"canvas-quad-{phase}",
+                                     points, timeout, expected, tolerance=4)
+
+    baseline = capture("baseline")
+    create_fixture_quad(server_log, server, "canvas-quad-created", 754, "Vars.world.build(45,27)", x, y)
+    wait_for(log, emulator, "UPSTREAM_CANVAS_QUAD source=arc gpu=citro3d", timeout)
+    capture("created", (*original, baseline[3]))
+    send_marker_phase(server_log, server, "canvas-quad-configured",
+        "const staging=Vars.world.build(75,29), canvas=Vars.world.build(45,27); "
+        "for(let i=0; i<144; i++) staging.setPixel(i, i%12<6 ? 3 : 5); "
+        "canvas.configureAny(staging.data); "
+        'if(canvas.getPixel(0)!==3 || canvas.getPixel(11)!==5) throw "Offscreen Canvas config mismatch";')
+    capture("configured", (*configured, baseline[3]))
+    send_marker_phase(server_log, server, "canvas-quad-moved",
+        "Call.updateMarker(754, Packages.mindustry.logic.LMarkerControl.posi, "
+        f"2, {(x - 16) / 8}, {(y + 32) / 8});")
+    capture("moved", moved)
+    send_marker_phase(server_log, server, "canvas-quad-retargeted", 'Call.updateMarkerTexture(754, "block-router-ui");')
+    capture("retargeted", router)
+    send_marker_phase(server_log, server, "canvas-quad-removed", "Call.removeMarker(754);")
+    capture("removed", baseline)
+    print(f"{model}: offscreen Canvas quad pixels, configuration, tint, corner and retargeting passed.", flush=True)
+
+
+def verify_client_processor(server_log, server, rpc, output, model, timeout):
+    # The Canvas is on the right side of the spawn, clear of the live HUD.
+    points = ((230, 30), (250, 30), (230, 50), (250, 50))
+    original = ((196, 93, 159), (227, 154, 172), (100, 97, 194), (147, 212, 181))
+    capture_marker_pixels(rpc, output, model, "processor-before", points, timeout, original)
+    # Stock world processors expose @client. The dedicated server skips the
+    # write, and it never sends a Canvas configuration packet in this replay.
+    code = ("jump 6 notEqual @client 1\ngetlink canvas 0\nset i 0\n"
+            "write 7 canvas i\nop add i i 1\njump 3 lessThan i 144\nend")
+    send_marker_phase(server_log, server, "processor-configured",
+        f"const p=Vars.world.build({PROCESSOR_CANVAS_COLUMN},32), links=new Seq(); "
+        "links.add(new Packages.mindustry.world.blocks.logic.LogicBlock.LogicLink(0,-3,'canvas1',true)); "
+        f"p.configureAny(Packages.mindustry.world.blocks.logic.LogicBlock.compress({json.dumps(code)},links)); "
+        'if(p.executor.instructions.length!==7 || p.executor.links.length!==1) throw "Invalid processor config";')
+    capture_marker_pixels(rpc, output, model, "processor-client-write", points, timeout, ((240, 246, 232),) * 4)
+    send_marker_phase(server_log, server, "processor-server-unchanged",
+        f"const c=Vars.world.build({PROCESSOR_CANVAS_COLUMN},29); "
+        'if(c.getPixel(0)!==1 || c.getPixel(143)!==6) throw "Server Canvas changed";')
+    print(f"{model}: stock processor config, link and client-local Canvas writes passed.", flush=True)
+
+
+def verify_logic_displays(server_log, server, rpc, output, model, timeout):
+    # The normal display sits below the live HUD in the unified ROM.
+    points = ((123, 130), (150, 170), (141, 163), (300, 50), (120, 190))
+    capture_marker_pixels(rpc, output, model, "display-background", points, timeout, ((86, 86, 102),) * len(points))
+    code = """getlink primary 0
+getlink source 1
+getlink tiled 2
+draw clear 160 210 75 0 0 0
+drawflush tiled
+draw clear 30 200 240 0 0 0
+drawflush source
+draw clear 16 32 64 0 0 0
+draw color 232 54 80 255 0 0
+draw rect 20 60 24 20 0 0
+draw color 255 255 255 255 0 0
+draw image 56 20 source 20 0 0
+print "ARM11"
+draw print 17 36 @bottomLeft 0 0 0
+drawflush primary
+end
+"""
+    send_marker_phase(server_log, server, "display-configured",
+        "const p=Vars.world.build(77,26), links=new Seq(); "
+        "const Link=Packages.mindustry.world.blocks.logic.LogicBlock.LogicLink; "
+        "links.add(new Link(0,-2,'display1',true)); links.add(new Link(9,3,'display2',true)); "
+        "links.add(new Link(-1,-4,'display3',true)); "
+        f"p.configureAny(Packages.mindustry.world.blocks.logic.LogicBlock.compress({json.dumps(code)},links)); "
+        'if(p.executor.instructions.length!==16 || p.executor.links.length!==3) throw "Invalid display config";')
+    capture_marker_pixels(rpc, output, model, "display-program", points, timeout,
+                          ((232, 54, 80), (16, 32, 64), (30, 200, 240), (30, 200, 240), (160, 210, 75)))
+    text_area = tuple((x, y) for x in range(115, 137) for y in range(145, 155))
+    screenshot = (output / f"{model}-display-program.png").read_bytes()
+    text_pixels = az.inspect_png(screenshot, text_area)["samples"]
+    if sum(min(color) >= 160 for color in text_pixels.values()) < 8:
+        raise RuntimeError("Original logic font was missing from the display framebuffer")
+    send_marker_phase(server_log, server, "display-server-headless",
+        'if(Vars.world.build(77,24).buffer!=null || Vars.world.build(86,29).buffer!=null) '
+        'throw "Dedicated server unexpectedly rendered displays";')
+    print(f"{model}: normal, large and tiled Logic Displays rendered the stock processor program.", flush=True)
+
+
+def verify_display_markers(server_log, server, rpc, output, model, timeout):
+    # Sample both markers below the stock status HUD.
+    points = ((105, 155), (105, 185), (275, 155), (275, 185))
+
+    def capture(phase, colors=None):
+        return capture_marker_pixels(rpc, output, model, f"display-markers-{phase}",
+                                     points, timeout, colors)
+
+    baseline = capture("baseline")
+    send_marker_phase(server_log, server, "display-markers-created",
+        "const source=Vars.world.build(45,27); "
+        "const t=new MapObjectives.TextureMarker(source,608,184,24,24); "
+        "const q=new MapObjectives.QuadMarker(); q.texture.value=source; const v=q.vertices; "
+        "const points=[[664,172,0,0],[664,196,0,1],[688,196,1,1],[688,172,1,0]]; "
+        "for(let i=0;i<4;i++){v[i*6]=points[i][0]; v[i*6+1]=points[i][1]; "
+        "v[i*6+3]=points[i][2]; v[i*6+4]=points[i][3];} "
+        "Call.createMarker(755,t); Call.createMarker(756,q);")
+    capture("created", ((86, 86, 102),) * len(points))
+    for phase, top, bottom in (("painted", (30, 200, 240), (232, 54, 80)),
+                               ("updated", (230, 210, 75), (58, 200, 99))):
+        code = (f"getlink source 0\ndraw clear {' '.join(map(str, top))} 0 0 0\n"
+                f"draw color {' '.join(map(str, bottom))} 255 0 0\n"
+                "draw rect 0 0 80 40 0 0\ndrawflush source\nend\n")
+        send_marker_phase(server_log, server, f"display-markers-{phase}",
+            "const p=Vars.world.build(46,23), links=new Seq(); "
+            "const Link=Packages.mindustry.world.blocks.logic.LogicBlock.LogicLink; "
+            "links.add(new Link(-1,4,'display1',true)); "
+            f"p.configureAny(Packages.mindustry.world.blocks.logic.LogicBlock.compress({json.dumps(code)},links)); "
+            'if(p.executor.instructions.length!==6 || p.executor.links.length!==1) throw "Invalid marker source program";')
+        capture(phase, (top, bottom) * 2)
+    send_marker_phase(server_log, server, "display-markers-retargeted",
+        'Call.updateMarkerTexture(755,"white"); Call.updateMarkerTexture(756,"white");')
+    capture("retargeted", ((255, 255, 255),) * len(points))
+    send_marker_phase(server_log, server, "display-markers-removed",
+        'Call.removeMarker(755); Call.removeMarker(756);')
+    capture("removed", baseline)
+    print(f"{model}: stock display-backed texture and quad passed orientation, offscreen updates and retargeting.", flush=True)
+
+
 def run_model(args, model, config, original_config, log, output):
     stationary = (args.world_atlas_recycle or args.building_layers or args.liquids
                   or args.building_effects or args.payload_mix or args.carried_buildings
                   or args.payload_handoff or args.unit_layers or args.unit_roster or args.naval_wake
                   or args.tank_treads or args.map_spawn or args.combat
-                  or args.verify_logic_markers or args.verify_texture_markers)
+                  or args.verify_logic_markers or args.verify_texture_markers or args.verify_quad_markers or args.verify_canvas
+                  or args.verify_canvas_quads or args.verify_client_processor or args.verify_logic_displays
+                  or args.verify_display_markers)
     map_name = args.map_spawn or "Glacier"
     overrides = {
         "Miscellaneous": {"log_filter": "*:Info Debug.Emulated:Debug Service.SOC:Debug",
@@ -1264,7 +1548,7 @@ def run_model(args, model, config, original_config, log, output):
         "Renderer": {"graphics_api": "2"},
         "Data Storage": {"use_virtual_sd": "true"},
     }
-    if args.touch_build or args.touch_config or args.erekir_build or args.mining:
+    if args.touch_build or args.touch_config or args.erekir_build or args.mining or args.unified_boot:
         # The synthetic bursts intentionally offer one sample type to all devices.
         overrides["Miscellaneous"]["log_filter"] += " Movie:Critical"
     if args.terrain_atlas:
@@ -1292,6 +1576,30 @@ def run_model(args, model, config, original_config, log, output):
             server.stdin.flush()
             wait_for(server_log, server, f"Opened a server on port {args.port}\\.", 25)
             world_size = (150, 250)
+            if args.verify_canvas or args.verify_canvas_quads or args.verify_client_processor:
+                small_column = PROCESSOR_CANVAS_COLUMN if args.verify_client_processor else 77
+                load_canvas_fixture(server_log, server, offscreen=args.verify_canvas_quads, small_column=small_column)
+            if args.verify_client_processor:
+                send_marker_phase(server_log, server, "processor-fixture",
+                    "const rules=Vars.state.rules; rules.worldProcessorPlayerLink=true; "
+                    "rules.allowEditWorldProcessors=true; "
+                    f"Vars.world.tile({PROCESSOR_CANVAS_COLUMN},32).setBlock(Blocks.worldProcessor,rules.defaultTeam);")
+            if args.verify_logic_displays:
+                send_marker_phase(server_log, server, "display-fixture",
+                    "const rules=Vars.state.rules; rules.worldProcessorPlayerLink=true; "
+                    "rules.allowEditWorldProcessors=true; const team=rules.defaultTeam; "
+                    "Vars.world.tile(77,26).setBlock(Blocks.worldProcessor,team); "
+                    "Vars.world.tile(77,24).setBlock(Blocks.logicDisplay,team); "
+                    "Vars.world.tile(86,29).setBlock(Blocks.largeLogicDisplay,team); "
+                    "Vars.world.tile(76,22).setBlock(Blocks.tileLogicDisplay,team); "
+                    "Vars.world.tile(77,22).setBlock(Blocks.tileLogicDisplay,team); "
+                    'if(Vars.world.tile(81,26).block()!==Blocks.coreNucleus) throw "Display fixture touched the core";')
+            if args.verify_display_markers:
+                send_marker_phase(server_log, server, "display-marker-fixture",
+                    "const rules=Vars.state.rules; rules.worldProcessorPlayerLink=true; "
+                    "rules.allowEditWorldProcessors=true; const team=rules.defaultTeam; "
+                    "Vars.world.tile(46,23).setBlock(Blocks.worldProcessor,team); "
+                    "Vars.world.tile(45,27).setBlock(Blocks.logicDisplay,team);")
             if args.erekir_build:
                 server.stdin.write(
                     'js (() => { const core = Vars.state.rules.defaultTeam.core(); '
@@ -1390,7 +1698,7 @@ def run_model(args, model, config, original_config, log, output):
                 server.stdin.flush()
                 wait_for(server_log, server, r"UPSTREAM_COMBAT_PREP", 10)
             command = [str(args.azahar)]
-            if args.controls_replay:
+            if args.controls_replay or args.unified_boot:
                 replay = Path(work) / "controls.ctm"
                 first_move = 42 if args.terrain_atlas else 22
                 if args.building and args.desktop_name:
@@ -1402,12 +1710,15 @@ def run_model(args, model, config, original_config, log, output):
                 write_controls_replay(replay, first_move=first_move, building=args.building,
                                       touch_build=args.touch_build, touch_config=args.touch_config,
                                       erekir_build=args.erekir_build, mining=args.mining, model=model,
-                                      stock_menu_font=args.verify_stock_menu_font)
+                                      stock_menu_font=args.verify_stock_menu_font, unified_boot=args.unified_boot,
+                                      stationary=not args.controls_replay)
                 command += ["-p", str(replay)]
             command.append(str(args.rom))
             emulator = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             rpc = az.AzaharRpcClient(timeout=2, retries=2)
             try:
+                if args.unified_boot:
+                    wait_for(log, emulator, r"UPSTREAM_BOOT mode=join\b", args.timeout)
                 if args.locale:
                     names = {"en": ("Router", "Copper"), "de": ("Verteiler", "Kupfer")}
                     labels = names.get(args.locale)
@@ -1552,8 +1863,20 @@ def run_model(args, model, config, original_config, log, output):
                             verify_logic_markers(log, emulator, server_log, server, rpc, output, model, spawn, args.timeout)
                         if args.verify_texture_markers:
                             verify_texture_markers(server_log, server, rpc, output, model, spawn, args.timeout)
+                        if args.verify_quad_markers:
+                            verify_quad_markers(log, emulator, server_log, server, rpc, output, model, spawn, args.timeout)
                         if args.verify_stock_font:
                             wait_for(log, emulator, r"UPSTREAM_RENDER_KEEPALIVE transport=tcp\b", 5)
+                        if args.verify_canvas:
+                            verify_canvas(server_log, server, rpc, output, model, args.timeout)
+                        if args.verify_canvas_quads:
+                            verify_canvas_quads(log, emulator, server_log, server, rpc, output, model, spawn, args.timeout)
+                        if args.verify_client_processor:
+                            verify_client_processor(server_log, server, rpc, output, model, args.timeout)
+                        if args.verify_logic_displays:
+                            verify_logic_displays(server_log, server, rpc, output, model, args.timeout)
+                        if args.verify_display_markers:
+                            verify_display_markers(server_log, server, rpc, output, model, args.timeout)
                         if args.erekir_build:
                             verify_erekir_construction(log, emulator, server_log, server, args.timeout, capture, spawn)
                         if args.mining:
@@ -1590,7 +1913,11 @@ def run_model(args, model, config, original_config, log, output):
                         if args.unit_layers:
                             verify_unit_layers((output / f"{model}-{phase}.png").read_bytes())
                         if args.unit_roster:
-                            verify_unit_roster((output / f"{model}-{phase}.png").read_bytes())
+                            roster = (output / f"{model}-{phase}.png").read_bytes()
+                            verify_unit_roster(roster)
+                            if args.expanded_unit_roster:
+                                verify_expanded_unit_roster(log, emulator, server_log, server, rpc, roster,
+                                                            output / f"{model}-expanded-unit-roster.png", args.timeout)
                         if args.naval_wake:
                             verify_naval_wake(server_log, server, rpc, output, model,
                                               output / f"{model}-{phase}.png", naval_fixture)
@@ -1702,6 +2029,8 @@ def main():
     mode.add_argument("--controls", action="store_true", help="Verify D-pad and Circle Pad input and START disconnect")
     parser.add_argument("--controls-replay", action="store_true",
                         help="Replay the controls test input in Azahar 2126.2")
+    parser.add_argument("--unified-boot", action="store_true",
+                        help="Hold X at startup to join from the unified offline and multiplayer ROM")
     parser.add_argument("--terrain-atlas", type=Path,
                         help="Stage the official v160.8 sprites.aatls and verify the rendered viewport")
     parser.add_argument("--locale", help="Stage a stock locale code and verify the graphical probe loads it")
@@ -1751,6 +2080,8 @@ def main():
                                help="Verify Duct and Beryllium Wall touch construction on The Onset")
     campaign_mode.add_argument("--mining", choices=("wall", "floor"),
                                help="Verify touch mining and core delivery on The Onset or Ground Zero")
+    parser.add_argument("--expanded-unit-roster", action="store_true",
+                        help="Verify live Elude, Anthicus missile and carried Horizon art after the standard unit-roster checks")
     parser.add_argument("--verify-objectives", action="store_true",
                         help="Compare the original first Onset objective transition between client and server")
     parser.add_argument("--verify-objective-hud", action="store_true",
@@ -1761,12 +2092,24 @@ def main():
                         help="Verify stock logic marker packets and visible state on Glacier")
     parser.add_argument("--verify-texture-markers", action="store_true",
                         help="Verify original atlas-backed texture markers on Glacier")
+    parser.add_argument("--verify-quad-markers", action="store_true",
+                        help="Verify clipped stock textured quads and live corner updates on Glacier")
     parser.add_argument("--verify-stock-font", action="store_true",
                         help="Require original font rendering for the Onset world markers")
     parser.add_argument("--verify-styled-markers", action="store_true",
                         help="Require the original inline item and block art in the Onset markers")
     parser.add_argument("--verify-stock-hud", action="store_true",
                         help="Require the original font on the campaign objective HUD")
+    parser.add_argument("--verify-canvas", action="store_true",
+                        help="Verify original Canvas pixels in Glacier snapshots, configuration and linked markers")
+    parser.add_argument("--verify-canvas-quads", action="store_true",
+                        help="Verify stock quads backed by an offscreen Canvas on Glacier")
+    parser.add_argument("--verify-client-processor", action="store_true",
+                        help="Verify a stock processor writes to its linked Canvas on the client")
+    parser.add_argument("--verify-logic-displays", action="store_true",
+                        help="Verify normal, large, and tileable Logic Displays on Glacier")
+    parser.add_argument("--verify-display-markers", action="store_true",
+                        help="Verify stock markers sampling an offscreen Logic Display on Glacier")
     parser.add_argument("--require-relocation-spill", action="store_true",
                         help="Require the ARM11 collector to grow its relocation table during the spawn check")
     args = parser.parse_args()
@@ -1780,6 +2123,8 @@ def main():
         parser.error("The PC client needs a distinct player name")
     if args.controls_replay and not args.controls:
         parser.error("--controls-replay needs --controls")
+    if args.unified_boot and not args.controls:
+        parser.error("--unified-boot needs --controls")
     if args.combat and (not args.controls or not args.terrain_atlas):
         parser.error("--combat needs --controls and --terrain-atlas")
     if args.combat and (args.controls_replay or args.building or args.touch_build or args.touch_config
@@ -1815,6 +2160,8 @@ def main():
         parser.error("--unit-layers needs --controls and --terrain-atlas for a stationary capture")
     if args.unit_roster and (not args.terrain_atlas or not args.controls or args.controls_replay):
         parser.error("--unit-roster needs --controls and --terrain-atlas for a stationary capture")
+    if args.expanded_unit_roster and not args.unit_roster:
+        parser.error("--expanded-unit-roster needs --unit-roster")
     if args.naval_wake and (not args.terrain_atlas or not args.controls or args.controls_replay):
         parser.error("--naval-wake needs --controls and --terrain-atlas for a fixed camera")
     if args.tank_treads and (not args.terrain_atlas or not args.controls or args.controls_replay):
@@ -1845,6 +2192,8 @@ def main():
         parser.error("--verify-logic-markers needs stationary --controls and --terrain-atlas on Glacier")
     if args.verify_texture_markers and (not args.controls or not args.terrain_atlas or args.controls_replay or args.map_spawn):
         parser.error("--verify-texture-markers needs stationary --controls and --terrain-atlas on Glacier")
+    if args.verify_quad_markers and (not args.controls or not args.terrain_atlas or args.controls_replay or args.map_spawn):
+        parser.error("--verify-quad-markers needs stationary --controls and --terrain-atlas on Glacier")
     if args.verify_objective_markers and (
         args.map_spawn != "The Onset" or args.erekir_sector != "onset" or args.locale not in ONSET_MARKER_TEXT
         or args.mining or args.erekir_build or args.controls_replay
@@ -1857,6 +2206,20 @@ def main():
         parser.error("--verify-styled-markers needs --verify-stock-font")
     if args.verify_stock_hud and not (args.verify_objective_hud or args.verify_objective_markers):
         parser.error("--verify-stock-hud needs --verify-objective-hud or --verify-objective-markers")
+    if args.verify_canvas and (not args.controls or not args.terrain_atlas or args.controls_replay or args.map_spawn):
+        parser.error("--verify-canvas needs stationary --controls and --terrain-atlas on Glacier")
+    if args.verify_canvas_quads and (not args.controls or not args.terrain_atlas or args.controls_replay or args.map_spawn):
+        parser.error("--verify-canvas-quads needs stationary --controls and --terrain-atlas on Glacier")
+    if args.verify_client_processor and (not args.controls or not args.terrain_atlas or args.controls_replay
+                                        or args.map_spawn or args.verify_canvas):
+        parser.error("--verify-client-processor needs stationary --controls and --terrain-atlas on Glacier")
+    if args.verify_logic_displays and (not args.controls or not args.terrain_atlas or args.controls_replay
+                                       or args.map_spawn or args.verify_canvas or args.verify_canvas_quads
+                                       or args.verify_client_processor):
+        parser.error("--verify-logic-displays needs a separate stationary --controls and --terrain-atlas run on Glacier")
+    if args.verify_display_markers and (not args.controls or not args.terrain_atlas or args.controls_replay
+                                        or args.map_spawn or args.verify_canvas_quads):
+        parser.error("--verify-display-markers needs stationary --controls and --terrain-atlas on Glacier")
     if args.erekir_sector is not None:
         if not args.map_spawn or not re.fullmatch(r"[a-z][a-z-]*", args.erekir_sector):
             parser.error("--erekir-sector needs --map-spawn and a sector slug such as onset")

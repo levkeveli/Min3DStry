@@ -9,7 +9,18 @@
                  stack.push(types[i].kind.ordinal());
                  stack.push(types[i].degree);
                  stack.push(i);
-@@ -244,7 +244,13 @@
+@@ -86,7 +86,9 @@
+             for (int successor : arrayElemGraph.outgoingEdges(node)) {
+                 if (types[successor] == null) {
+                     stack.push(kind.ordinal());
+-                    stack.push(degree - 1);
++                    // An array can arrive through an Object-typed coroutine spill.
++                    // Its element is still an object reference, never a negative-rank array.
++                    stack.push(Math.max(0, degree - 1));
+                     stack.push(successor);
+                 }
+             }
+@@ -244,7 +246,13 @@
          @Override
          public void getElement(VariableReader receiver, VariableReader array, VariableReader index,
                  ArrayElementType type) {

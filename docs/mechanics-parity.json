@@ -97,7 +97,7 @@
         "research/upstream-runtime/src/gameplay/java/UpstreamFactoryTickProbe.java",
         "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerApp.java"
       ],
-      "notes": "Drill resource extraction ticks, rotary/top sprite layers, and item output into conveyors and cores run live on ARM11."
+      "notes": "Original mechanical and pneumatic drill extraction and item output run on ARM11. The full floor and wall extractor roster passes stock JVM draw checks, with four representative stock buildings verified offline and live on both Azahar profiles."
     },
     {
       "id": "conveyors-sorting-storage",
@@ -110,7 +110,7 @@
       "evidence": [
         "docs/porting/factory-logistics.md",
         "research/upstream-runtime/src/gameplay/java/UpstreamFactoryTickProbe.java",
-        "research/upstream-runtime/src/network-live/java/UpstreamItemConfig.java",
+        "research/upstream-runtime/src/network-live/java/UpstreamBuildingConfig.java",
         "research/upstream-runtime/src/network-render/java/UpstreamRenderedNetworkProbe.java"
       ],
       "notes": "Belt transport, routers, junctions, overflow/underflow gates, configurable sorters, and core item storage run live on ARM11."
@@ -121,14 +121,15 @@
       "name": "Generic Crafters & Multi-Item Production Chains",
       "weight": 3,
       "status": "partial-arm11",
-      "modes": ["probe", "multiplayer"],
+      "modes": ["probe", "offline", "multiplayer"],
       "issue": 39,
       "evidence": [
         "docs/porting/production-power-liquids.md",
+        "docs/gameplay/offline-singleplayer.md",
         "research/upstream-runtime/src/gameplay/java/UpstreamProductionTickProbe.java",
         "research/upstream-runtime/src/network-render/java/UpstreamRenderedNetworkProbe.java"
       ],
-      "notes": "Full upstream crafter ticks verified in ARM11 production-ticks probe; live draw covers select blocks (Graphite Press, Phase Weaver, Overdrive), full crafter set and FX pending."
+      "notes": "The ARM11 production-ticks probe verifies upstream recipes. The offline and live draw passes use the full GenericCrafter and Separator families. Both Azahar profiles drew representative stock buildings offline and in the initial Java-server world. Active multiplayer production visuals remain open."
     },
     {
       "id": "power-grid-generators",
@@ -151,14 +152,15 @@
       "name": "Liquid Pumps, Conduits, Routers & Bridges",
       "weight": 2,
       "status": "partial-arm11",
-      "modes": ["probe", "multiplayer"],
+      "modes": ["probe", "offline", "multiplayer"],
       "issue": 39,
       "evidence": [
         "docs/porting/production-power-liquids.md",
+        "docs/gameplay/offline-singleplayer.md",
         "research/upstream-runtime/src/gameplay/java/UpstreamProductionTickProbe.java",
         "research/upstream-runtime/src/network-render/java/UpstreamRenderedNetworkProbe.java"
       ],
-      "notes": "LiquidModule and Conduit simulation verified in ARM11 probe; live draw covers Conduit tiling; full pump, tank, bridge, and liquid HUD coverage pending."
+      "notes": "The ARM11 probe verifies LiquidModule and Conduit simulation. The offline renderer draws original pumps and liquid routers, including the tested Mechanical Pump and Liquid Tank. Live conduit tiling is verified. Liquid bridges and full liquid HUD coverage remain open."
     },
     {
       "id": "payloads-unit-factories",
@@ -199,7 +201,7 @@
       "issue": 27,
       "evidence": [
         "research/upstream-runtime/src/network-live/java/UpstreamBuildMenu.java",
-        "research/upstream-runtime/src/network-live/java/UpstreamItemConfig.java",
+        "research/upstream-runtime/src/network-live/java/UpstreamBuildingConfig.java",
         "docs/gameplay/touch-build-palette.md"
       ],
       "notes": "Full unlocked block catalog with 425/447 icons and bottom-screen Sorter item configuration work live on ARM11; other block config UIs (bridges/factories/processors) pending."
@@ -272,11 +274,16 @@
       "domain": "Controls & Dual-Screen UI",
       "name": "Schematic Import/Export & RTS Unit Command",
       "weight": 1,
-      "status": "missing",
-      "modes": [],
+      "status": "partial-arm11",
+      "modes": ["offline", "multiplayer"],
       "issue": 40,
-      "evidence": [],
-      "notes": "Read-only list of the 210 pinned base-part .msch files plus user .msch files from sd:/3ds/min3dstry/schematics (dimensions, block count, block summary); import into the game, export and RTS selection/command are not implemented."
+      "evidence": [
+        "docs/gameplay/touch-build-palette.md",
+        "tools/verify_stock_schematics.py",
+        "tools/verify_stock_schematic_capture.py",
+        "tools/verify_stock_command_orders.py"
+      ],
+      "notes": "The unified client places and exports stock .msch files. The touch grid selects allied units and sends original orders and stances. Drag selection, schematic naming and metadata editing, and clipboard sharing remain open."
     },
     {
       "id": "content-database-page",
@@ -308,7 +315,7 @@
         "src/ui/main_menu.c",
         "tests/ui/test_main_menu.c"
       ],
-      "notes": "Navigation shell with upstream v160.8 MenuFragment keys/labels; Play->Campaign, Settings mute/lighting/camera, and Database->About are wired. The upstream Scene2D fragment, schematic UI and RTS remain unimplemented."
+      "notes": "Navigation shell with upstream v160.8 MenuFragment keys/labels; Play->Campaign, Settings mute/lighting/camera, and Database->About are wired. The upstream Scene2D title fragment remains open. In-game schematics and RTS are tracked separately."
     },
     {
       "id": "player-unit-flight-camera",
@@ -370,7 +377,7 @@
         "research/upstream-runtime/src/network-render/java/UpstreamRenderedNetworkProbe.java",
         "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerApp.java"
       ],
-      "notes": "14 unit types draw in offline singleplayer and 37 (incl. naval wakes and tank treads) in network-render; full Serpulo/Erekir unit abilities and manual player weapon aim/fire are in progress."
+      "notes": "The JVM draws all 68 world-spawnable v160.8 units. Both Azahar profiles drew representative enemies, vehicles, missiles and carried units offline or with the stock Java server. The unified client drives stock player aim and fire in both modes. The stock Gamma and a remote Dagger draw live projectiles and clear them on release. Full unit abilities and turret projectile effects remain open."
     },
     {
       "id": "lighting-weather-fx-zoom",

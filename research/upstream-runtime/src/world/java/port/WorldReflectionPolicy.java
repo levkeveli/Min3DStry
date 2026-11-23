@@ -13,6 +13,9 @@ public final class WorldReflectionPolicy extends SimpleReflectionPolicy {
             "mindustry.game.GameStats",
             "mindustry.game.Rules",
             "mindustry.game.Rules$TeamRule",
+            "mindustry.game.SectorInfo",
+            "mindustry.game.SectorInfo$ExportStat",
+            "mindustry.type.Planet$PlanetData",
             "mindustry.type.Weather$WeatherEntry",
             "arc.math.geom.Point2",
             "arc.math.geom.Vec2"
@@ -26,10 +29,12 @@ public final class WorldReflectionPolicy extends SimpleReflectionPolicy {
             "mindustry.game.MapObjectives$TextureHolder",
             "mindustry.game.SpawnGroup",
             "mindustry.type.MapLocales",
+            "mindustry.type.ItemSeq",
             "mindustry.world.blocks.Attributes",
             "arc.struct.IntMap",
             "arc.struct.IntSet",
             "arc.struct.ObjectIntMap",
+            "arc.struct.ObjectFloatMap",
             "arc.struct.ObjectMap",
             "arc.struct.ObjectSet",
             "arc.struct.StringMap"

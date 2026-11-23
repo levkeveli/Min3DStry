@@ -1,4 +1,5 @@
 import arc.graphics.Blending;
+import arc.graphics.Color;
 import arc.graphics.g2d.TextureRegion;
 import arc.util.Align;
 import java.io.IOException;
@@ -7,8 +8,13 @@ import mindustry.Vars;
 import org.teavm.interop.Import;
 import org.teavm.interop.Address;
 import org.teavm.interop.c.Include;
+import port.render.UpstreamCanvasTexture;
+import port.render.UpstreamLogicFramebuffer.RasterTexture;
+import port.render.WeatherNoiseTexture;
 
 public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProbe.TerrainTarget {
+    static final int PALETTE_LABEL_COUNT = 15;
+
     private final boolean reportFrame;
     private final int[] stockObjectiveFont = new int[1];
 
@@ -42,16 +48,26 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
 
     void buildOverlay(int column, int row, int block, int rotation,
                       boolean removing, boolean rotatable, boolean catalogOpen, boolean configuring,
-                      boolean selectingMine) {
+                      boolean selectingMine, int inventoryAction, int commandMode, boolean selectingControl,
+                      boolean placingSchematic) {
         if (NativeTerrain.buildOverlay(column, row, block, rotation, removing ? 1 : 0, Vars.tilesize,
-                rotatable ? 1 : 0, catalogOpen ? 1 : 0, configuring ? 1 : 0, selectingMine ? 1 : 0) == 0) {
+                rotatable ? 1 : 0, catalogOpen ? 1 : 0, configuring ? 1 : 0, selectingMine ? 1 : 0,
+                inventoryAction, commandMode, selectingControl ? 1 : 0, placingSchematic ? 1 : 0) == 0) {
             throw new IllegalStateException("Unable to draw the Citro2D build palette");
         }
     }
 
-    int buildCatalog(byte[] labels, int[] icons, int selected, boolean previous, boolean next, boolean categories) {
-        return NativeTerrain.buildCatalog(Address.ofData(labels), Address.ofData(icons), selected,
-            previous ? 1 : 0, next ? 1 : 0, categories ? 1 : 0);
+    // Keep the catalog kinds in the same order as the native renderer.
+    static final int ITEM_CATALOG = 0, BLOCK_CATALOG = 1, UNIT_CATALOG = 2, COMMAND_CATALOG = 3, STANCE_CATALOG = 4, SCHEMATIC_CATALOG = 5;
+
+    int buildCatalog(byte[] labels, int[] icons, int selected, boolean previous, boolean next, int catalog) {
+        int activeRows = selected >= 0 && selected < Integer.SIZE ? 1 << selected : 0;
+        return buildCatalogRows(labels, icons, activeRows, previous, next, catalog);
+    }
+
+    int buildCatalogRows(byte[] labels, int[] icons, int activeRows, boolean previous, boolean next, int catalog) {
+        return NativeTerrain.buildCatalog(Address.ofData(labels), Address.ofData(icons), activeRows,
+            previous ? 1 : 0, next ? 1 : 0, catalog);
     }
 
     float drawObjective(byte[] label, int[] characters, TextureRegion icon, float y) {
@@ -94,9 +110,62 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
     }
 
     @Override
+    public void drawUnitBuild(int page, int left, int top, int width, int height,
+                              float x, float y, float drawWidth, float drawHeight, float rotation,
+                              float progress, Color tint, float alpha, float phase, int vertexColor) {
+        if (NativeTerrain.drawUnitBuild(page, left, top, width, height, x, y, drawWidth, drawHeight,
+                rotation, progress, tint.r, tint.g, tint.b, alpha, phase, vertexColor) == 0) {
+            throw new IllegalStateException("Citro2D could not draw stock unit construction");
+        }
+    }
+
+    @Override
     public void drawSolidQuad(float[] vertices, int offset, Blending blending) {
         if (NativeTerrain.drawSolidQuad(Address.ofData(vertices), offset, blendMode(blending)) == 0) {
             throw new IllegalStateException("Citro2D could not draw a stock Arc solid quad");
+        }
+    }
+
+    @Override
+    public void drawWeatherNoise(WeatherNoiseTexture texture, float x, float y, float width, float height,
+                                 float u, float v, float u2, float v2, int tint, int mix, Blending blending) {
+        if (NativeTerrain.drawWeatherNoise(texture.index, x, y, width, height, u, v, u2, v2,
+                tint, mix, blendMode(blending)) == 0) {
+            throw new IllegalStateException("Citro2D could not draw the stock weather noise texture");
+        }
+    }
+
+    @Override
+    public void drawTexturedQuad(int page, int pageWidth, int pageHeight, float[] vertices, int offset, Blending blending) {
+        if (NativeTerrain.drawTexturedQuad(page, pageWidth, pageHeight, Address.ofData(vertices), offset,
+                blendMode(blending)) == 0) {
+            throw new IllegalStateException("Citro3D could not draw a stock Arc textured quad");
+        }
+    }
+
+    @Override
+    public void drawCanvas(UpstreamCanvasTexture texture, float x, float y, float originX, float originY,
+                           float width, float height, float rotation, int color, int mixColor, Blending blending) {
+        if (NativeTerrain.drawCanvas(texture.id, texture.revision, texture.width, texture.height,
+                Address.ofData(texture.pixels), x, y, originX, originY, width, height, rotation, color, mixColor,
+                blendMode(blending)) == 0) {
+            throw new IllegalStateException("Citro2D could not draw the stock Canvas texture");
+        }
+    }
+
+    @Override
+    public void drawCanvasQuad(UpstreamCanvasTexture texture, float[] vertices, int offset, Blending blending) {
+        if (NativeTerrain.drawCanvasQuad(texture.id, texture.revision, texture.width, texture.height,
+                Address.ofData(texture.pixels), Address.ofData(vertices), offset, blendMode(blending)) == 0) {
+            throw new IllegalStateException("Citro3D could not draw the stock Canvas quad");
+        }
+    }
+
+    @Override
+    public void drawLogicDisplay(RasterTexture texture, float[] vertices, int offset, Blending blending) {
+        if (NativeTerrain.drawLogicDisplay(texture.id, texture.revision, texture.width, texture.height,
+                Address.ofData(texture.pixels), Address.ofData(vertices), offset, blendMode(blending)) == 0) {
+            throw new IllegalStateException("Citro3D could not draw a stock Logic Display");
         }
     }
 
@@ -108,6 +177,7 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
     void minimapUpload(byte[] pixels, int width, int height) {
         NativeTerrain.minimapUpload(Address.ofData(pixels), width, height);
     }
+
 
     private static int blendMode(Blending blending) {
         if (blending == Blending.normal) return 0;
@@ -143,6 +213,12 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
         @Import(name = "m3ds_terrain_begin")
         static native int begin(int left, int bottom, int width, int height, int tileSize);
 
+        @Import(name = "m3ds_terrain_draw_unit_build")
+        static native int drawUnitBuild(int page, int left, int top, int width, int height,
+                                        float x, float y, float drawWidth, float drawHeight, float rotation,
+                                        float progress, float r, float g, float b, float alpha, float phase,
+                                        int vertexColor);
+
         @Import(name = "m3ds_terrain_draw")
         static native int draw(int page, int left, int top, int width, int height,
                                float x, float y, float originX, float originY, float drawWidth,
@@ -151,16 +227,36 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
         @Import(name = "m3ds_terrain_draw_solid_quad")
         static native int drawSolidQuad(Address vertices, int offset, int blendMode);
 
+        @Import(name = "m3ds_terrain_draw_textured_quad")
+        static native int drawTexturedQuad(int page, int pageWidth, int pageHeight, Address vertices, int offset, int blendMode);
+
+        @Import(name = "m3ds_terrain_draw_canvas")
+        static native int drawCanvas(int id, int revision, int width, int height, Address pixels,
+                                     float x, float y, float originX, float originY, float drawWidth, float drawHeight,
+                                     float rotation, int color, int mixColor, int blendMode);
+        @Import(name = "m3ds_terrain_draw_weather_noise")
+        static native int drawWeatherNoise(int texture, float x, float y, float width, float height,
+                                           float u, float v, float u2, float v2, int tint, int mix, int blendMode);
+
+        @Import(name = "m3ds_terrain_draw_canvas_quad")
+        static native int drawCanvasQuad(int id, int revision, int width, int height, Address pixels,
+                                         Address vertices, int offset, int blendMode);
+
+        @Import(name = "m3ds_terrain_draw_logic_display")
+        static native int drawLogicDisplay(int id, int revision, int width, int height, Address pixels,
+                                           Address vertices, int offset, int blendMode);
+
         @Import(name = "m3ds_terrain_end")
         static native int end();
 
         @Import(name = "m3ds_terrain_build_overlay")
         static native int buildOverlay(int column, int row, int block, int rotation, int removing, int tileSize,
-                                       int rotatable, int catalogOpen, int configuring, int selectingMine);
+                                       int rotatable, int catalogOpen, int configuring, int selectingMine,
+                                       int inventoryAction, int commandMode, int selectingControl, int placingSchematic);
 
         @Import(name = "m3ds_terrain_build_catalog")
-        static native int buildCatalog(Address labels, Address icons, int selected,
-                                       int previous, int next, int categories);
+        static native int buildCatalog(Address labels, Address icons, int activeRows,
+                                       int previous, int next, int catalog);
 
         @Import(name = "m3ds_terrain_draw_objective")
         static native float drawObjective(Address label, Address characters, int count,

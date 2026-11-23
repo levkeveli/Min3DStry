@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import os
 import subprocess
 import sys
 import time
@@ -73,10 +72,11 @@ def main() -> int:
     if log_path.exists():
         log_path.write_text("", encoding="utf-8")
 
-    sdmc = Path(os.environ["APPDATA"]) / "Azahar/sdmc"
+    sdmc = log_path.parent.parent / "sdmc"
     sd_min3dstry = sdmc / "3ds/min3dstry"
     select = sd_min3dstry / "campaign-select.txt"
     select.parent.mkdir(parents=True, exist_ok=True)
+    previous_selection = select.read_bytes() if select.exists() else None
     select.write_text(f"{args.slot}\n", encoding="utf-8")
 
     proc = subprocess.Popen([azahar_bin, str(rom)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -133,8 +133,10 @@ def main() -> int:
             proc.wait(timeout=10)
         except subprocess.TimeoutExpired:
             proc.kill()
-        if select.exists():
-            select.unlink()
+        if previous_selection is not None:
+            select.write_bytes(previous_selection)
+        else:
+            select.unlink(missing_ok=True)
         if had_config:
             config_path.write_text(original_config, encoding="utf-8")
         elif config_path.exists():
