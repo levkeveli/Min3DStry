@@ -1105,6 +1105,7 @@ public final class UpstreamSinglePlayerApp {
         return build instanceof CanvasBuild || build instanceof LogicDisplayBuild
             || UpstreamBuildingLayers.supportsPowerDraw(block) || UpstreamBuildingLayers.supportsDistributionDraw(block)
             || block.category == Category.liquid || block instanceof UnitFactory || block instanceof Reconstructor
+            || UpstreamBuildingLayers.supportsAssemblerDraw(block)
             || UpstreamBuildingLayers.supportsMaterialDraw(block) || block instanceof Wall
             || UpstreamBuildingLayers.supportsExtractorDraw(block)
             || block instanceof BaseTurret

@@ -167,6 +167,7 @@ def logicDisplaySources = [
     'mindustry/world/blocks/logic/LogicDisplay.java',
     'mindustry/world/blocks/logic/TileableLogicDisplay.java'
 ]
+def assemblerDrawSource = 'mindustry/world/blocks/units/UnitAssembler.java'
 def shieldModeSources = [
     'mindustry/graphics/Drawf.java': 'renderer',
     'mindustry/entities/abilities/ForceFieldAbility.java': 'Vars.renderer'
@@ -254,6 +255,8 @@ if (usesArcSources || usesExecutor) {
                               'mindustry/world/blocks/logic/CanvasBlock$CanvasBuild.class',
                               'mindustry/logic/GlobalVars.class', 'mindustry/logic/GlobalVars$*.class',
                               'mindustry/core/ContentLoader.class'])
+        stagedClasses.addAll(['mindustry/world/blocks/units/UnitAssembler.class',
+                              'mindustry/world/blocks/units/UnitAssembler$*.class'])
         shieldModeSources.keySet().each { path ->
             stagedClasses.add(path.replace('.java', '.class'))
         }
@@ -551,6 +554,7 @@ tasks.register('prepareUpstreamProbe') {
         logicDisplaySources.each { outputs.file(sourceDir.map { dir -> dir.file(it) }) }
         outputs.file(sourceDir.map { it.file('mindustry/type/Weather.java') })
         outputs.file(sourceDir.map { it.file('mindustry/type/weather/ParticleWeather.java') })
+        outputs.file(sourceDir.map { dir -> dir.file(assemblerDrawSource) })
         shieldModeSources.keySet().each { outputs.file(sourceDir.map { dir -> dir.file(it) }) }
     }
     if (usesCampaignJsonCompat) {
@@ -792,6 +796,20 @@ import port.audio.Arm11Audio;''')
             def adaptedUnitType = unitTypeFile.get().asFile
             adaptedUnitType.parentFile.mkdirs()
             adaptedUnitType.setText(unitType.replace(localItems, 'if(renderer != null && Fonts.outline != null && unit.isLocal() && !renderer.pixelate){'), 'UTF-8')
+            def assembler = new String(readUpstream("core/src/${assemblerDrawSource}"), 'UTF-8')
+            def blockBuildUniforms = '                Shaders.blockbuild.region = plan.unit.fullIcon;'
+            if (assembler.count(blockBuildUniforms) != 1) {
+                throw new GradleException('Pinned UnitAssembler outline changed')
+            }
+            def assemblerOutput = sourceDir.get().file(assemblerDrawSource).asFile
+            assemblerOutput.parentFile.mkdirs()
+            assemblerOutput.setText(assembler.replace(blockBuildUniforms, '''                if(Core.batch instanceof port.render.UpstreamUnitBuildTarget platform){
+                    platform.drawBlockBuild(plan.unit.fullIcon, sx, sy, rotdeg() - 90f,
+                        Mathf.clamp(progress + 0.05f), warmup, Time.time);
+                    Draw.color();
+                    return;
+                }
+''' + blockBuildUniforms), 'UTF-8')
             shieldModeSources.each { path, renderer ->
                 def source = new String(readUpstream("core/src/${path}"), 'UTF-8')
                 def animated = "if(${renderer}.animateShields){"

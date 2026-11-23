@@ -1,8 +1,41 @@
 #include <assert.h>
 #include <stdio.h>
-#include "m3ds_unit_build.h"
+#include "m3ds_block_build.h"
+
+static void verify_block_build(void) {
+    const uint8_t stock[] = {255, 0, 128, 255};
+    const float tint[] = {0.5f, 1.0f, 0.0f, 1.0f};
+    uint8_t out[4];
+    enum { stride = 12 };
+    uint8_t mask[stride * stride];
+    for (unsigned i = 0; i < sizeof(mask); ++i) mask[i] = 255;
+    uint8_t *center = &mask[5 * stride + 5];
+
+    // Full center cutout, two-texel progress edge, and untouched revealed color.
+    m3ds_shade_block_build_pixel(out, stock, center, stride, 9.5f, 9.5f, 20, 20, 0, 0, 0.5f, tint);
+    assert(out[0] == 0 && out[1] == 0 && out[2] == 0 && out[3] == 0);
+    m3ds_shade_block_build_pixel(out, stock, center, stride, 9.5f, 9.5f, 20, 20, 0.85f, 0, 0.5f, tint);
+    assert(out[0] == 96 && out[1] == 128 && out[2] == 64 && out[3] == 255);
+    m3ds_shade_block_build_pixel(out, stock, center, stride, 9.5f, 9.5f, 20, 20, 1, 0, 0.5f, tint);
+    assert(out[0] == 128 && out[1] == 0 && out[2] == 128 && out[3] == 255);
+
+    center[4 * stride - 3] = 25;
+    assert(m3ds_block_build_contour(center, stride));
+    // Same contour is visible at phase 1 and clipped at phase 19.
+    m3ds_shade_block_build_pixel(out, stock, center, stride, 9.5f, 9.5f, 20, 20, 0, 3, 0.5f, tint);
+    assert(out[0] == 96 && out[1] == 128);
+    m3ds_shade_block_build_pixel(out, stock, center, stride, 9.5f, 9.5f, 20, 20, 0, 0, 0.5f, tint);
+    assert(out[0] == 0);
+    center[4 * stride - 3] = 26;
+    assert(!m3ds_block_build_contour(center, stride));
+
+    const uint8_t edge[] = {25, 255, 128, 0};
+    m3ds_shade_block_build_pixel(out, edge, center, stride, 9.5f, 9.5f, 20, 20, 0.85f, 0, 0.5f, tint);
+    assert(out[0] == 0 && out[1] == 0);
+}
 
 int main(void) {
+    verify_block_build();
     const float accent[] = {0.5f, 1.0f, 0.0f, 1.0f};
     const uint8_t opaque[] = {255, 64, 128, 192};
     const uint8_t transparent[] = {0, 64, 128, 192};
@@ -74,6 +107,6 @@ int main(void) {
     assert(m3ds_unit_build_texel_offset(7, 7, 16) == 252);
     assert(m3ds_unit_build_texel_offset(8, 0, 16) == 256);
     assert(m3ds_unit_build_texel_offset(0, 8, 16) == 512);
-    puts("Stock unit construction shader checks passed.");
+    puts("Stock unit and block construction shader checks passed.");
     return 0;
 }

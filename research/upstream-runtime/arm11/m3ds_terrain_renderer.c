@@ -52,7 +52,7 @@ static M3DS_StockText stock_text;
 #include "m3ds_quad_clip.h"
 #include "m3ds_quad_shbin.h"
 #include "m3ds_world_fragment.h"
-#include "m3ds_unit_build.h"
+#include "m3ds_block_build.h"
 #include "world_atlas_layout.h"
 
 // Retain at most 1.5 MiB of RGBA8 atlas backing in the default build.
@@ -409,8 +409,15 @@ static void set_world_mix(u32 tint, u32 mix_color) {
     world_fade = fade;
 }
 
+typedef struct {
+    bool block;
+    float progress, time, alpha;
+    float color[4]; // ABGR
+    uint32_t vertex_color;
+} ConstructionEffect;
+
 #ifdef M3DS_WORLD_ATLAS
-static UnitBuildTextures *unit_build_texture(unsigned width, unsigned height) {
+static UnitBuildTextures *unit_build_texture(unsigned width, unsigned height, int count) {
     size_t slot = 0;
     for (; slot < sizeof(unit_build_textures) / sizeof(unit_build_textures[0]); ++slot) {
         if (unit_build_textures[slot].pass != world_pass) break;
@@ -422,7 +429,7 @@ static UnitBuildTextures *unit_build_texture(unsigned width, unsigned height) {
         slot = 0;
     }
     UnitBuildTextures *result = &unit_build_textures[slot];
-    for (int stripe = 0; stripe < 2; ++stripe) {
+    for (int stripe = 0; stripe < count; ++stripe) {
         C3D_Tex *texture = &result->textures[stripe];
         if (texture->data && (texture->width != width || texture->height != height)) {
             C3D_TexDelete(texture);
@@ -435,8 +442,46 @@ static UnitBuildTextures *unit_build_texture(unsigned width, unsigned height) {
     return result;
 }
 
-static bool shade_unit_build_textures(UnitBuildTextures *result, int page, int left, int top, int width,
-                                      int height, float progress, const float accent[4]) {
+enum { construction_mask_stride = M3DS_UNIT_BUILD_TEXTURE_LIMIT + 2 * M3DS_BLOCK_BUILD_BORDER };
+
+static uint8_t construction_mask[construction_mask_stride * construction_mask_stride];
+
+static bool load_construction_mask(int page, int left, int top, int width, int height,
+                                   int column, int row, int icon_width, int icon_height) {
+    const int border = M3DS_BLOCK_BUILD_BORDER;
+    const int x_start = left + (column < border ? -column : -border);
+    const int y_start = top + (row < border ? -row : -border);
+    const int x_end = left + (icon_width - column - width < border ? icon_width - column : width + border);
+    const int y_end = top + (icon_height - row - height < border ? icon_height - row : height + border);
+    const int tile = WORLD_ATLAS_TILE;
+    memset(construction_mask, 0, sizeof(construction_mask));
+    for (int y = y_start; y < y_end;) {
+        const int tile_y = y / tile;
+        const int row_end = (tile_y + 1) * tile < y_end ? (tile_y + 1) * tile : y_end;
+        for (int x = x_start; x < x_end;) {
+            const int tile_x = x / tile;
+            const int column_end = (tile_x + 1) * tile < x_end ? (tile_x + 1) * tile : x_end;
+            C2D_SpriteSheet atlas = get_world_texture(page, tile_x, tile_y);
+            if (!atlas) return false;
+            const uint8_t *input = C2D_SpriteSheetGetImage(atlas, 0).tex->data;
+            for (int src_y = y; src_y < row_end; ++src_y) {
+                uint8_t *dst = construction_mask + (src_y - top + border) * construction_mask_stride;
+                for (int src_x = x; src_x < column_end; ++src_x) {
+                    dst[src_x - left + border] = input[m3ds_unit_build_texel_offset(src_x % tile, src_y % tile, tile)];
+                }
+            }
+            x = column_end;
+        }
+        y = row_end;
+    }
+    return true;
+}
+
+static bool shade_construction_textures(UnitBuildTextures *result, int page, int left, int top,
+                                        int width, int height, int column, int row,
+                                        int icon_width, int icon_height, const ConstructionEffect *effect) {
+    if (effect->block && !load_construction_mask(page, left, top, width, height,
+                                                column, row, icon_width, icon_height)) return false;
     const int right = left + width, bottom = top + height;
     const int tile = WORLD_ATLAS_TILE;
     for (int y = top; y < bottom;) {
@@ -453,9 +498,19 @@ static bool shade_unit_build_textures(UnitBuildTextures *result, int page, int l
                     const unsigned offset_in = m3ds_unit_build_texel_offset(src_x % tile, src_y % tile, tile);
                     const unsigned offset_out = m3ds_unit_build_texel_offset(src_x - left, src_y - top,
                         result->textures[0].width);
-                    for (int stripe = 0; stripe < 2; ++stripe) {
-                        m3ds_shade_unit_build_pixel((uint8_t *)result->textures[stripe].data + offset_out,
-                            input + offset_in, progress, accent, stripe);
+                    if (effect->block) {
+                        const uint8_t *alpha = construction_mask
+                            + (src_y - top + M3DS_BLOCK_BUILD_BORDER) * construction_mask_stride
+                            + src_x - left + M3DS_BLOCK_BUILD_BORDER;
+                        m3ds_shade_block_build_pixel((uint8_t *)result->textures[0].data + offset_out, input + offset_in,
+                            alpha, construction_mask_stride, column + src_x - left + 0.5f,
+                            row + src_y - top + 0.5f, icon_width, icon_height,
+                            effect->progress, effect->time, effect->alpha, effect->color);
+                    } else {
+                        for (int stripe = 0; stripe < 2; ++stripe) {
+                            m3ds_shade_unit_build_pixel((uint8_t *)result->textures[stripe].data + offset_out,
+                                input + offset_in, effect->progress, effect->color, stripe);
+                        }
                     }
                 }
             }
@@ -463,15 +518,15 @@ static bool shade_unit_build_textures(UnitBuildTextures *result, int page, int l
         }
         y = row_end;
     }
-    for (int stripe = 0; stripe < 2; ++stripe) C3D_TexFlush(&result->textures[stripe]);
+    C3D_TexFlush(&result->textures[0]);
+    if (!effect->block) C3D_TexFlush(&result->textures[1]);
     return true;
 }
 #endif
 
-int32_t m3ds_terrain_draw_unit_build(int32_t page, int32_t left, int32_t top, int32_t width, int32_t height,
-                                     float x, float y, float draw_width, float draw_height, float rotation,
-                                     float progress, float r, float g, float b, float alpha, float phase,
-                                     int32_t vertex_color) {
+static int32_t draw_construction(int32_t page, int32_t left, int32_t top, int32_t width, int32_t height,
+                                 float x, float y, float draw_width, float draw_height, float rotation,
+                                 const ConstructionEffect *effect) {
 #ifdef M3DS_WORLD_ATLAS
     if (!frame_open || width <= 0 || height <= 0
             || page < 0 || (size_t)page >= sizeof(world_atlas_sizes) / sizeof(world_atlas_sizes[0])
@@ -484,11 +539,11 @@ int32_t m3ds_terrain_draw_unit_build(int32_t page, int32_t left, int32_t top, in
         .depth = 0.5f,
         .angle = rotation * (-3.14159265358979323846f / 180.0f),
     };
+    if (effect->block && effect->alpha <= 0.0f) return 1;
     C2D_ImageTint tint;
-    C2D_PlainImageTint(&tint, (u32)vertex_color, 1.0f);
-    float edges[6];
-    int count = m3ds_unit_build_edges(phase, edges);
-    const float accent[] = { alpha, b, g, r };
+    C2D_PlainImageTint(&tint, effect->block ? UINT32_MAX : effect->vertex_color, 1.0f);
+    float edges[6] = {0.0f, 1.0f};
+    int count = effect->block ? 2 : m3ds_unit_build_edges(effect->time, edges);
     // Keep large stock icons in the existing scratch budget. Each patch has
     // the same full-icon transform, stripe phase, and original RGBA texels.
     for (int row = 0; row < height; row += M3DS_UNIT_BUILD_TEXTURE_LIMIT) {
@@ -502,9 +557,9 @@ int32_t m3ds_terrain_draw_unit_build(int32_t page, int32_t left, int32_t top, in
             unsigned texture_width = 8, texture_height = 8;
             while (texture_width < (unsigned)patch_width) texture_width *= 2;
             while (texture_height < (unsigned)patch_height) texture_height *= 2;
-            UnitBuildTextures *textures = unit_build_texture(texture_width, texture_height);
-            if (!textures || !shade_unit_build_textures(textures, page, left + column, top + row,
-                    patch_width, patch_height, progress, accent)) return 0;
+            UnitBuildTextures *textures = unit_build_texture(texture_width, texture_height, effect->block ? 1 : 2);
+            if (!textures || !shade_construction_textures(textures, page, left + column, top + row,
+                    patch_width, patch_height, column, row, width, height, effect)) return 0;
             textures->pass = world_pass;
             set_world_blend(0);
             set_world_mix(0, 0);
@@ -512,7 +567,7 @@ int32_t m3ds_terrain_draw_unit_build(int32_t page, int32_t left, int32_t top, in
                 const float from = edges[i], to = edges[i + 1];
                 const M3dsUnitBuildRange pixels = m3ds_unit_build_clip(from, to, width, column, patch_width);
                 if (pixels.first >= pixels.end) continue;
-                const int stripe = fabsf(sinf(from + to + phase)) <= 0.9f;
+                const int stripe = !effect->block && fabsf(sinf(from + to + effect->time)) <= 0.9f;
                 const Tex3DS_SubTexture region = {
                     .width = patch_width, .height = patch_height,
                     .left = (pixels.first - column) / texture_width, .right = (pixels.end - column) / texture_width,
@@ -530,16 +585,37 @@ int32_t m3ds_terrain_draw_unit_build(int32_t page, int32_t left, int32_t top, in
             }
         }
     }
-    static bool reported;
-    if (!reported && progress > 0.0f && alpha > 0.0f) {
-        static const char record[] = "UPSTREAM_UNIT_BUILD_SHADER source=unitbuild.frag\n";
-        svcOutputDebugString(record, sizeof(record) - 1);
-        reported = true;
+    static bool reported[2];
+    if (!reported[effect->block] && effect->progress > 0.0f && effect->alpha > 0.0f) {
+        static const char unit[] = "UPSTREAM_UNIT_BUILD_SHADER source=unitbuild.frag\n";
+        static const char block[] = "UPSTREAM_BLOCK_BUILD_SHADER source=blockbuild.frag\n";
+        svcOutputDebugString(effect->block ? block : unit, effect->block ? sizeof(block) - 1 : sizeof(unit) - 1);
+        reported[effect->block] = true;
     }
     return 1;
 #else
     return 0;
 #endif
+}
+
+int32_t m3ds_terrain_draw_unit_build(int32_t page, int32_t left, int32_t top, int32_t width, int32_t height,
+                                     float x, float y, float draw_width, float draw_height, float rotation,
+                                     float progress, float r, float g, float b, float alpha, float phase,
+                                     int32_t vertex_color) {
+    const ConstructionEffect effect = {false, progress, phase, alpha, {alpha, b, g, r}, (uint32_t)vertex_color};
+    return draw_construction(page, left, top, width, height, x, y, draw_width, draw_height, rotation, &effect);
+}
+
+int32_t m3ds_terrain_draw_block_build(int32_t page, int32_t left, int32_t top, int32_t width, int32_t height,
+                                      float x, float y, float draw_width, float draw_height, float rotation,
+                                      float progress, float alpha, float time, int32_t vertex_color) {
+    const uint32_t packed = (uint32_t)vertex_color;
+    const ConstructionEffect effect = {
+        true, progress, time, alpha,
+        {(packed >> 24) / 255.0f, ((packed >> 16) & 255) / 255.0f,
+         ((packed >> 8) & 255) / 255.0f, (packed & 255) / 255.0f}, 0
+    };
+    return draw_construction(page, left, top, width, height, x, y, draw_width, draw_height, rotation, &effect);
 }
 
 static C2D_DrawParams sprite_params(float x, float y, float origin_x, float origin_y,
