@@ -1281,7 +1281,7 @@ and interpolated tint. Constant mix alpha interpolates RGB before tinting
 while preserving texture alpha, as in the pinned Arc sprite shader. Quads
 with varying mix colors or mismatched atlas dimensions are skipped with a
 one-time debug message. Lighting, minimap display, standalone textures,
-Canvas-backed quads and Logic Display textures, and varying legacy mix colors
+Logic Display textures and varying legacy mix colors
 require further renderer support.
 
 The `runProbeJvm` snapshot reference round-trips the original create,
@@ -1358,6 +1358,27 @@ The [unified ARM11 Canvas build](https://github.com/levkeveli/Min3DStry/actions/
 repeated the snapshot, configuration packet and linked marker checks
 against the unmodified Java server on both Azahar profiles. The JVM
 also passed the Canvas checks alongside the full stock unit roster.
+
+The same pixel buffer can feed a stock QuadMarker, with original corner
+positions, local UV, interpolated tint and texture retargeting.
+`runBuildingLayersJvm` checks that a linked quad refreshes without drawing
+the source building. Add `--verify-canvas-quads` to the stationary Glacier
+replay for an offscreen Canvas, live reconfiguration, a moved corner, and
+retargeting from that Canvas to an original atlas sprite.
+
+Stock QuadMarker inverts the requested local V in `setUv`. Arc submits
+normalized texture UVs, which the ARM11 batch converts to source texels
+before atlas clipping or Canvas sampling. Citro3D then normalizes against
+the allocated texture, including padding around a Canvas.
+The [ARM11 Canvas quad build](https://github.com/levkeveli/Min3DStry/actions/runs/44931099000)
+passed on both 3DS emulator profiles against the unmodified Java v160.8
+server. The viewport stayed at tile column 73 while the source Canvas
+stayed at column 45. Both profiles showed the configured palette, moved
+corner, and original Router texture without changing the camera position.
+
+The [unified ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45124554676)
+passed the same offscreen Canvas replay on both Azahar profiles, along
+with the atlas-backed quad replay. Both fixtures ran below the live HUD.
 
 ### Verify the Arc executor pools
 
