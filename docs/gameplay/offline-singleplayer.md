@@ -294,6 +294,10 @@ The live replay loads the same two Glacier saves on an unmodified v160.8
 server. It joins each save through the unified client, holds the same
 viewport on both runs, and compares the captured pixels at the seven
 stock buildings. The logs and images are retained for each console profile.
+Both Original and New 3DS profiles changed all 25 sample pixels at each
+placement with the [ARM11 replay build](https://github.com/levkeveli/Min3DStry/actions/runs/45113545813).
+The previous build left all 25 pixels unchanged at the smelter, compressor,
+electrolyzer and separator on the Original 3DS profile.
 
 ```bash
 python3 tools/verify_live_material_buildings.py \
