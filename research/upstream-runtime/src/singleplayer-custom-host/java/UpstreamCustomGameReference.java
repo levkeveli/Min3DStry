@@ -66,9 +66,36 @@ public final class UpstreamCustomGameReference {
             System.out.println("UPSTREAM_CUSTOM_GAME_REFERENCE bundled=" + actual.size()
                 + " user=1 map=" + map.name() + " mode=" + mode.name() + " save=ok");
             verifyNamedSaves(session, map, stockMaps.get(0), save);
+            verifyNestedMaps(session, map, save.parent());
         } finally {
             session.shutdown();
         }
+    }
+
+    private static void verifyNestedMaps(UpstreamSinglePlayerSession session, mindustry.maps.Map original, Fi root)
+            throws Exception {
+        var imported = root.child("imported-maps");
+        var first = imported.child("alpha/stock/Glacier.MSAV");
+        var second = imported.child("beta/Glacier.MSAV");
+        first.parent().mkdirs();
+        second.parent().mkdirs();
+        original.file.copyTo(first);
+        original.file.copyTo(second);
+        first.sibling("broken.msav").writeString("invalid map");
+        second.sibling("ignore.txt").writeString("not a map");
+
+        var maps = UpstreamCustomGameMaps.discover(root.child("absent-bundled-maps"), imported);
+        if (maps.size() != 2 || !maps.get(0).file.equals(first) || !maps.get(1).file.equals(second)) {
+            throw new AssertionError("Stock nested maps should appear in stable order with their full paths");
+        }
+        var selected = maps.get(0);
+        if (!selected.custom || !selected.name().equals(original.name()) || !selected.author().equals(original.author())
+                || selected.width != original.width || selected.height != original.height
+                || session.startCustomGame(selected, Gamemode.sandbox) != Gamemode.sandbox
+                || Vars.state.map != selected || session.core() == null) {
+            throw new AssertionError("The selected nested map should use its stock metadata and world");
+        }
+        System.out.println("UPSTREAM_NESTED_MAP_REFERENCE nested=2 duplicateNames=stable corrupt=isolated launch=ok");
     }
 
     private static void verifyNamedSaves(UpstreamSinglePlayerSession session, mindustry.maps.Map glacier,

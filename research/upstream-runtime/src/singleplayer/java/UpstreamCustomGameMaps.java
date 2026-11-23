@@ -16,7 +16,7 @@ final class UpstreamCustomGameMaps {
         readMaps(bundled, false, maps);
         maps.sort((a, b) -> {
             int order = a.compareTo(b);
-            return order == 0 ? a.file.name().compareTo(b.file.name()) : order;
+            return order == 0 ? a.file.path().compareTo(b.file.path()) : order;
         });
         var sorted = new ArrayList<Map>(maps.size);
         for (Map map : maps) sorted.add(map);
@@ -25,14 +25,14 @@ final class UpstreamCustomGameMaps {
 
     private static void readMaps(Fi directory, boolean custom, Seq<Map> maps) {
         if (!directory.isDirectory()) return;
-        for (Fi file : directory.list()) {
-            if (file.isDirectory() || !file.extension().equalsIgnoreCase("msav")) continue;
+        directory.walk(file -> {
+            if (!file.extension().equalsIgnoreCase("msav")) return;
             try {
                 Map map = MapIO.createMap(file, custom);
                 if (map.width > 0 && map.height > 0 && map.name() != null) maps.add(map);
             } catch (IOException | RuntimeException invalidMap) {
                 System.out.println("UPSTREAM_CUSTOM_GAME_REJECTED file=" + file.name());
             }
-        }
+        });
     }
 }

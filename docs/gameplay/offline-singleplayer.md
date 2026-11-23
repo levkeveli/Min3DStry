@@ -442,8 +442,8 @@ Hold **L** while launching the standalone graphical `.3dsx` to open the
 Custom Game map list. Use D-pad up/down to select a map, left/right to select
 an upstream mode, and **A** to start. **B** or **START** exits the selector.
 The roster includes all 18 maps listed by the pinned v160.8 Custom Game menu.
-Place compatible `.msav` map exports in `/3ds/min3dstry/maps/` to list them
-alongside the bundled maps. The selector uses the names from each map's stock
+Place compatible `.msav` map exports in `/3ds/min3dstry/maps/` or its
+subfolders to list them alongside the bundled maps. The selector uses the names from each map's stock
 metadata and the stock map ordering. It initializes the text renderer first
 and loads the world sprite atlas after the map. If a mode is unavailable on a
 map, startup uses the first valid mode
