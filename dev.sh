@@ -210,6 +210,12 @@ case "${1:-}" in
     "$host_cc" -std=c11 -Wall -Wextra -Werror -Iresearch/upstream-runtime/arm11 \
       tests/render/test_world_fragment.c -lm -o build/host/test_world_fragment
     ./build/host/test_world_fragment
+    "$host_cc" -std=c11 -Wall -Wextra -Werror -Iresearch/upstream-runtime/arm11 \
+      tests/render/test_quad_clip.c -lm -o build/host/test_quad_clip
+    ./build/host/test_quad_clip
+    "$host_cc" -std=c11 -Wall -Wextra -Werror -Iresearch/upstream-runtime/arm11 \
+      tests/render/test_unit_build.c -lm -o build/host/test_unit_build
+    ./build/host/test_unit_build
 
     "$host_cc" -std=c11 -Wall -Wextra -Werror -Iinclude \
       src/ui/pause_menu.c tests/ui/test_pause_menu.c -o build/host/test_pause_menu

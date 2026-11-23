@@ -50,14 +50,27 @@ static float m3ds_stream_effective_gain(const M3dsAudioStream *stream) {
     return stream->master_volume * stream->volume;
 }
 
+static void m3ds_stream_gains(const M3dsAudioStream *stream, float *left, float *right) {
+    float gain = m3ds_stream_effective_gain(stream);
+    *left = gain * (stream->pan > 0.f ? 1.f - stream->pan : 1.f);
+    *right = gain * (stream->pan < 0.f ? 1.f + stream->pan : 1.f);
+}
+
 static void m3ds_stream_apply_mix(M3dsAudioStream *stream) {
     if (!stream || !stream->playing ||
         stream->state != M3DS_AUDIO_STATE_READY ||
         !stream->backend.set_mix) {
         return;
     }
-    float gain = m3ds_stream_effective_gain(stream);
-    stream->backend.set_mix(stream->backend.ctx, gain, gain);
+    float left, right;
+    m3ds_stream_gains(stream, &left, &right);
+    stream->backend.set_mix(stream->backend.ctx, left, right);
+}
+
+static void m3ds_stream_apply_pitch(M3dsAudioStream *stream) {
+    if (stream->playing && stream->backend.set_rate) {
+        stream->backend.set_rate(stream->backend.ctx, stream->format.sample_rate * stream->pitch);
+    }
 }
 
 static void m3ds_stream_close_source(M3dsAudioStreamSource *source) {
@@ -244,6 +257,7 @@ bool m3ds_audio_stream_init(
     }
     memset(stream, 0, sizeof(*stream));
     stream->volume = 0.7f;
+    stream->pitch = 1.f;
     stream->master_volume = 1.0f;
 
     if (!backend) {
@@ -314,7 +328,8 @@ bool m3ds_audio_stream_start(
         return false;
     }
 
-    float gain = m3ds_stream_effective_gain(stream);
+    float left, right;
+    m3ds_stream_gains(stream, &left, &right);
     if (!stream->backend.configure ||
         !stream->backend.buffer_is_free ||
         !stream->backend.buffer_submit ||
@@ -322,8 +337,8 @@ bool m3ds_audio_stream_start(
             stream->backend.ctx,
             format->sample_rate,
             format->channels,
-            gain,
-            gain)) {
+            left,
+            right)) {
         M3dsAudioStreamSource tmp = *source;
         m3ds_stream_close_source(&tmp);
         stream->stats.dropped_starts += 1u;
@@ -337,6 +352,7 @@ bool m3ds_audio_stream_start(
     stream->eof = false;
     stream->next_slot = 0u;
     stream->track_frames_completed = 0u;
+    if (stream->pitch != 1.f) m3ds_stream_apply_pitch(stream);
     for (uint32_t i = 0u; i < M3DS_AUDIO_STREAM_BUFFER_COUNT; ++i) {
         stream->slot_in_flight[i] = false;
         stream->slot_frames[i] = 0u;
@@ -437,6 +453,24 @@ void m3ds_audio_stream_set_volume(M3dsAudioStream *stream, float volume) {
 
 float m3ds_audio_stream_volume(const M3dsAudioStream *stream) {
     return stream ? stream->volume : 0.0f;
+}
+
+void m3ds_audio_stream_set_mix(M3dsAudioStream *stream, float volume, float pan) {
+    if (!stream) return;
+    if (!m3ds_stream_is_finite(pan)) pan = 0.f;
+    if (pan < -1.f) pan = -1.f;
+    if (pan > 1.f) pan = 1.f;
+    stream->pan = pan;
+    m3ds_audio_stream_set_volume(stream, volume);
+}
+
+void m3ds_audio_stream_set_pitch(M3dsAudioStream *stream, float pitch) {
+    if (!stream) return;
+    if (!m3ds_stream_is_finite(pitch) || pitch <= 0.f) pitch = 1.f;
+    if (pitch < M3DS_AUDIO_MIN_PITCH) pitch = M3DS_AUDIO_MIN_PITCH;
+    if (pitch > M3DS_AUDIO_MAX_PITCH) pitch = M3DS_AUDIO_MAX_PITCH;
+    stream->pitch = pitch;
+    m3ds_stream_apply_pitch(stream);
 }
 
 void m3ds_audio_stream_set_master_volume(M3dsAudioStream *stream, float volume) {

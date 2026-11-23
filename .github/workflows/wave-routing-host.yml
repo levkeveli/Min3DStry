@@ -37,6 +37,7 @@ jobs:
 
       - name: Generate TeaVM C
         run: |
+          set -o pipefail
           bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime \
             --no-daemon --console=plain \
             "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" \
@@ -56,8 +57,10 @@ jobs:
           rm -rf "$RUNNER_TEMP/teavm-c-wave"
           cp -R research/upstream-runtime/build/generated/teavm/c "$RUNNER_TEMP/teavm-c-wave"
           python3 research/upstream-runtime/arm11/fix_reflection_lifetime.py "$RUNNER_TEMP/teavm-c-wave"
+          python3 research/upstream-runtime/arm11/fix_gc_monitors.py "$RUNNER_TEMP/teavm-c-wave"
           bash .github/scripts/cc_host.sh -std=gnu11 -O0 -fwrapv -ffp-contract=off \
             "$RUNNER_TEMP/teavm-c-wave/all.c" -lm -lpthread -o "$RUNNER_TEMP/teavm-c-wave/probe_o0"
+          python3 research/upstream-runtime/arm11/fix_wave_controller_local.py "$RUNNER_TEMP/teavm-c-wave"
           bash .github/scripts/cc_host.sh -std=gnu11 -O2 -fwrapv -ffp-contract=off \
             "$RUNNER_TEMP/teavm-c-wave/all.c" -lm -lpthread -o "$RUNNER_TEMP/teavm-c-wave/probe_o2"
           stdbuf -oL -eL "$RUNNER_TEMP/teavm-c-wave/probe_o0" "$RUNNER_TEMP/glacier.msav" | tee "$RUNNER_TEMP/wave-o0.log"

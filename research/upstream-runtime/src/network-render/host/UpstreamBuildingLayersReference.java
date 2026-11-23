@@ -1,14 +1,27 @@
 import port.render.UpstreamCrackAtlas;
 import port.render.UpstreamFluidAtlas;
+import port.render.UpstreamCanvasTexture;
+import port.render.UpstreamLogicAtlas;
+import port.render.UpstreamLogicFont;
+import port.render.UpstreamLogicFramebuffer;
+import port.render.UpstreamLogicFramebuffer.RasterTexture;
+import port.logic.UpstreamClientLogic;
+import port.audio.Arm11AudioReference;
 import arc.Core;
+import arc.audio.AudioBus;
+import arc.audio.Sound;
 import arc.files.Fi;
 import arc.graphics.Blending;
+import arc.graphics.Camera;
 import arc.graphics.Color;
 import arc.graphics.g2d.Draw;
 import arc.graphics.g2d.Fill;
 import arc.graphics.g2d.Lines;
 import arc.graphics.g2d.SpriteBatch;
 import arc.graphics.g2d.TextureRegion;
+import arc.mock.MockAudio;
+import arc.mock.MockGraphics;
+import arc.struct.Seq;
 import arc.util.Time;
 import arc.util.io.Reads;
 import arc.util.io.Writes;
@@ -19,13 +32,21 @@ import java.io.DataOutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Predicate;
 import mindustry.Vars;
+import mindustry.ai.BlockIndexer;
 import mindustry.content.Blocks;
 import mindustry.content.Items;
 import mindustry.content.Liquids;
 import mindustry.content.UnitTypes;
+import mindustry.ctype.ContentType;
 import mindustry.entities.units.BuildPlan;
 import mindustry.gen.Builderc;
+import mindustry.gen.Groups;
+import mindustry.gen.Payloadc;
+import mindustry.gen.BlockUnitc;
+import mindustry.gen.Crawlc;
+import mindustry.gen.DisplayCmd;
 import mindustry.gen.Player;
 import mindustry.gen.Tankc;
 import mindustry.gen.UnitWaterMove;
@@ -35,30 +56,60 @@ import mindustry.game.Team;
 import mindustry.game.MapObjectives;
 import mindustry.game.MapObjectives.BuildCountObjective;
 import mindustry.game.MapObjectives.ItemObjective;
+import mindustry.game.MapObjectives.QuadMarker;
+import mindustry.game.MapObjectives.TextureMarker;
 import mindustry.graphics.CacheLayer;
 import mindustry.graphics.Layer;
 import mindustry.graphics.Pal;
+import mindustry.logic.LMarkerControl;
+import mindustry.type.Category;
+import mindustry.world.Block;
 import mindustry.world.blocks.defense.OverdriveProjector.OverdriveBuild;
 import mindustry.world.blocks.defense.ShockwaveTower.ShockwaveTowerBuild;
+import mindustry.world.blocks.defense.turrets.BaseTurret;
+import mindustry.world.blocks.production.BeamDrill;
+import mindustry.world.blocks.production.BeamDrill.BeamDrillBuild;
+import mindustry.world.blocks.production.BurstDrill.BurstDrillBuild;
+import mindustry.world.blocks.production.Drill.DrillBuild;
 import mindustry.world.blocks.production.GenericCrafter.GenericCrafterBuild;
+import mindustry.world.blocks.production.WallCrafter.WallCrafterBuild;
+import mindustry.world.blocks.storage.CoreBlock;
+import mindustry.world.blocks.logic.CanvasBlock;
+import mindustry.world.blocks.logic.CanvasBlock.CanvasBuild;
+import mindustry.world.blocks.logic.LogicBlock;
+import mindustry.world.blocks.logic.LogicBlock.LogicBuild;
+import mindustry.world.blocks.logic.LogicBlock.LogicLink;
+import mindustry.world.blocks.logic.LogicDisplay.LogicDisplayBuild;
+import mindustry.world.blocks.logic.LogicDisplay;
+import mindustry.world.blocks.logic.TileableLogicDisplay.TileableLogicDisplayBuild;
 import mindustry.world.blocks.payloads.BuildPayload;
 import mindustry.world.blocks.payloads.Payload;
 import mindustry.world.blocks.payloads.UnitPayload;
 import mindustry.world.blocks.payloads.PayloadConveyor;
 import mindustry.world.blocks.payloads.PayloadConveyor.PayloadConveyorBuild;
+import mindustry.world.blocks.units.UnitFactory;
 
 public final class UpstreamBuildingLayersReference implements UpstreamTerrainDrawProbe.TerrainTarget {
     private record Sprite(float x, float y, int page, int left, int top, int width, int height, float rotation, int color, int mixColor, Blending blending) {}
     private final List<Sprite> sprites = new ArrayList<>();
     private final List<float[]> solidQuads = new ArrayList<>();
+    private record UnitBuild(int page, int left, int top, int width, int height, float x, float y,
+                             float rotation, float progress, float alpha, float phase) {}
+    private final List<UnitBuild> unitBuilds = new ArrayList<>();
+    private final List<UpstreamCanvasTexture> canvasDraws = new ArrayList<>();
+    private int texturedQuads;
+    private UpstreamCanvasTexture canvasQuadTexture;
+    private float[] canvasQuadVertices;
+    private final List<RasterTexture> displayDraws = new ArrayList<>();
+    private final List<Integer> displayFirstPixels = new ArrayList<>();
 
     public static void main(String[] args) throws Exception {
-        if (args.length < 3 || args.length > 4) {
-            throw new IllegalArgumentException("Expected Glacier, sprites.aatls, block_colors.png and optional bundle base");
+        if (args.length < 3 || args.length == 6 || args.length > 7) {
+            throw new IllegalArgumentException("Expected Glacier, sprites.aatls, block_colors.png, optional bundle base, logicids.dat, then paired world atlas tiles and logic font");
         }
-        if (args.length == 4) Core.bundle = UpstreamInterfaceLocale.load(new Fi(args[3]), 1, "en");
+        if (args.length >= 4) Core.bundle = UpstreamInterfaceLocale.load(new Fi(args[3]), 1, "en");
         CacheLayer.init();
-        UpstreamWorldLoadProbe.load(new String[]{args[0]});
+        UpstreamWorldLoadProbe.load(new String[]{args[0]}, () -> Vars.indexer = new BlockIndexer());
         UpstreamTerrainDrawProbe.loadAtlas(new Fi(args[1]), UpstreamFluidAtlas::load);
         Vars.content.loadColors(new Fi(args[2]));
         UpstreamCrackAtlas.load();
@@ -67,6 +118,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         var viewport = UpstreamTerrainDrawProbe.liveViewport(target);
         target.verifyArcOrder();
         target.verifyTexturedLine();
+        target.verifyFactory(viewport);
 
         // The visible two-tile wall starts one tile west of the viewport.
         viewport.moveTo(24, 30);
@@ -114,7 +166,527 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         target.verifyTankTreads(viewer);
         target.verifyCoreVariants(layers, viewport, viewer);
         target.verifyErekirStarterBlocks(layers, viewport, viewer);
-        if (args.length == 4) verifyObjectiveHud();
+        target.verifyExtractorDraws(layers, viewport, viewer);
+        target.verifyLiveBuildingRegistry(layers, viewport, viewer, block -> block instanceof BaseTurret, "TURRET");
+        target.verifyLiveBuildingRegistry(layers, viewport, viewer, UpstreamBuildingLayers::supportsDistributionDraw,
+            "DISTRIBUTION");
+        target.verifyLiveBuildingRegistry(layers, viewport, viewer, block -> block.category == Category.liquid,
+            "LIQUID");
+        int materials = target.verifyLiveBuildingRegistry(layers, viewport, viewer,
+            block -> UpstreamBuildingLayers.supportsMaterialDraw(block) && !(block instanceof CoreBlock),
+            "MATERIAL");
+        if (materials != 49) throw new AssertionError("Expected 49 stock material buildings, got " + materials);
+        target.verifyCanvas(viewer);
+        if (args.length >= 4) verifyObjectiveHud();
+        if (args.length >= 5) verifyClientProcessor(new Fi(args[4]), viewer);
+        if (args.length == 7) target.verifyLogicDisplay(new Fi(args[5]), new Fi(args[6]), viewer);
+        target.verifyUnitProjectiles(viewport, viewer);
+        verifyPositionalAudioDispatch();
+        Arm11AudioReference.verifyStockRegistry();
+    }
+
+    private static void verifyPositionalAudioDispatch() {
+        Core.audio = new MockAudio() {
+            @Override public boolean initialized() { return true; }
+        };
+        Core.audio.sfxVolume = 0.8f;
+        Core.camera = new Camera();
+        Core.camera.width = 128f;
+        var sample = new Sound() {
+            @Override public boolean valid() { return true; }
+
+            @Override
+            protected int playSource(AudioBus bus, float volume, float pitch, float pan, boolean loop) {
+                if (bus != Core.audio.soundBus || Math.abs(volume - 0.4f) > 0.001f || pitch != 1.2f
+                        || pan != 0.5f || loop) {
+                    throw new AssertionError("Arc did not preserve the original positional audio parameters");
+                }
+                return 23;
+            }
+        };
+        if (sample.at(32f, 0f, 1.2f, 0.5f) != 23) throw new AssertionError("Arc did not return the backend voice");
+        System.out.println("UPSTREAM_LIVE_AUDIO_REFERENCE volume=0.4 pitch=1.2 pan=0.5 voice=23");
+    }
+
+    private void verifyUnitProjectiles(UpstreamTerrainDrawProbe.Viewport viewport, Team viewer) {
+        Vars.net.setClientConnected();
+        Core.audio = new MockAudio();
+        var gamma = UnitTypes.gamma.spawn(viewer, 648f, 208f, 0f);
+        var dagger = UnitTypes.dagger.spawn(viewer, 648f, 224f, 0f);
+        Vars.player.unit(gamma);
+        var peer = Player.create();
+        peer.team(viewer);
+        peer.unit(dagger);
+        if (!gamma.isLocal() || !dagger.isRemote()) throw new AssertionError("Expected local and remote units");
+        UpstreamClientProjectiles.load();
+        gamma.aim(730f, 208f, true);
+        dagger.aim(730f, 224f, true);
+        gamma.controlWeapons(true, true);
+        dagger.controlWeapons(true, true);
+        float oldDelta = Time.delta;
+        Time.delta = 1f;
+        try {
+            for (int i = 0; i < 7; i++) {
+                Time.update();
+                UpstreamClientProjectiles.update();
+            }
+            if (Groups.bullet.count(bullet -> bullet.owner == gamma) != 2
+                    || !Groups.bullet.contains(bullet -> bullet.owner == gamma && bullet.trail != null)
+                    || !Groups.bullet.contains(bullet -> bullet.owner == dagger && bullet.vel.x > 0f)) {
+                throw new AssertionError("The pinned Gamma burst, its trail or the remote Dagger did not advance");
+            }
+            sprites.clear();
+            solidQuads.clear();
+            viewport.moveTo(73, 20);
+            int count = UpstreamClientProjectiles.draw(viewport);
+            if (count < 3 || solidQuads.isEmpty()) throw new AssertionError("Stock projectiles did not draw");
+            requireRegion(Core.atlas.find("bullet"));
+
+            gamma.controlWeapons(true, false);
+            dagger.controlWeapons(true, false);
+            int shots = Arrays.stream(gamma.mounts).mapToInt(mount -> mount.totalShots).sum()
+                + Arrays.stream(dagger.mounts).mapToInt(mount -> mount.totalShots).sum();
+            for (int i = 0; i < 90; i++) {
+                Time.update();
+                UpstreamClientProjectiles.update();
+            }
+            int after = Arrays.stream(gamma.mounts).mapToInt(mount -> mount.totalShots).sum()
+                + Arrays.stream(dagger.mounts).mapToInt(mount -> mount.totalShots).sum();
+            if (!Groups.bullet.isEmpty() || shots != after) {
+                throw new AssertionError("Stock projectiles did not clear after releasing both units");
+            }
+        } finally {
+            Time.delta = oldDelta;
+        }
+        System.out.println("UPSTREAM_ORIGINAL_PROJECTILES gamma=burst dagger=remote atlas=ok trail=ok release=ok");
+    }
+
+
+    private void verifyFactory(UpstreamTerrainDrawProbe.Viewport viewport) {
+        for (var block : Vars.content.blocks()) {
+            if (!(block instanceof UnitFactory factory)) continue;
+            for (var plan : factory.plans) {
+                plan.unit.loadIcon();
+                var icon = plan.unit.fullIcon;
+                if (icon.width > 128 || icon.height > 128 || !icon.found()) {
+                    throw new AssertionError("The original factory icon does not fit the ARM11 scratch atlas: "
+                        + plan.unit.name + " " + icon.width + "x" + icon.height);
+                }
+            }
+        }
+        viewport.moveTo(24, 30);
+        var viewer = Team.sharded;
+        var tile = Vars.world.tile(31, 35);
+        tile.setBlock(Blocks.groundFactory, viewer, 1);
+        var factory = (UnitFactory.UnitFactoryBuild)tile.build;
+        var layers = new UpstreamBuildingLayers();
+        var oldPlayer = Vars.player;
+        Vars.player = Player.create();
+        Vars.player.team(viewer);
+        try {
+            factory.currentPlan = -1;
+            sprites.clear();
+            unitBuilds.clear();
+            layers.render(viewport, viewer, build -> build == factory);
+            int idleSprites = sprites.size();
+            if (idleSprites != 3 || !unitBuilds.isEmpty()) {
+                throw new AssertionError("Expected the original factory base, output and top layers at rest");
+            }
+            factory.currentPlan = 1;
+            factory.progress = ((UnitFactory)factory.block).plans.get(1).time / 2f;
+            factory.speedScl = 0.75f;
+            factory.time = 40;
+            solidQuads.clear();
+            layers.render(viewport, viewer, build -> build == factory);
+            var icon = UnitTypes.crawler.fullIcon;
+            var expected = new UnitBuild(UpstreamTerrainDrawProbe.pageIndex(icon), icon.getX(), icon.getY(),
+                icon.width, icon.height, factory.x, factory.y, factory.rotdeg() - 90f, 0.5f, 0.75f, -2f);
+            if (!unitBuilds.equals(List.of(expected)) || solidQuads.isEmpty()) {
+                throw new AssertionError("The pinned construction sprite or scan line was altered: " + unitBuilds);
+            }
+            factory.payload = new UnitPayload(UnitTypes.crawler.create(viewer));
+            sprites.clear();
+            layers.render(viewport, viewer, build -> build == factory);
+            if (sprites.size() <= idleSprites) throw new AssertionError("Factory did not draw its stock output payload");
+            System.out.println("UPSTREAM_FACTORY_GRAPHICS idle=3 construction=crawler progress=0.5 payload=ok");
+        } finally {
+            Vars.player = oldPlayer;
+            tile.setBlock(Blocks.air);
+            sprites.clear();
+            solidQuads.clear();
+            unitBuilds.clear();
+        }
+    }
+
+    @Override
+    public void drawUnitBuild(int page, int left, int top, int width, int height,
+                              float x, float y, float drawWidth, float drawHeight, float rotation,
+                              float progress, Color tint, float alpha, float phase, int vertexColor) {
+        unitBuilds.add(new UnitBuild(page, left, top, width, height, x, y, rotation, progress, alpha, phase));
+    }
+
+    private void verifyExtractorDraws(UpstreamBuildingLayers layers, UpstreamTerrainDrawProbe.Viewport viewport,
+                                      Team viewer) {
+        viewport.moveTo(24, 30);
+        var tile = Vars.world.tile(31, 36);
+        int tested = 0;
+        for (var block : Vars.content.blocks()) {
+            if (!UpstreamBuildingLayers.supportsExtractorDraw(block)) continue;
+            var wall = Vars.world.tile(tile.x + block.size / 2 + 1, tile.y);
+            boolean beamDrill = block instanceof BeamDrill;
+            var oldWall = wall.block();
+            var oldOre = tile.overlay();
+            tile.setOverlay(Blocks.oreCopper);
+            wall.setBlock(beamDrill ? Blocks.graphiticWall : Blocks.beryllicStoneWall);
+            tile.setBlock(block, viewer, 0);
+            try {
+                var build = tile.build;
+                build.onProximityUpdate();
+                sprites.clear();
+                layers.render(viewport, viewer, candidate -> candidate == build
+                    && UpstreamRenderedNetworkProbe.supportsBuildingDraw(candidate));
+                requireRegion(block.region);
+                var idle = List.copyOf(sprites);
+                if (build instanceof BurstDrillBuild burst) {
+                    if (burst.dominantItem != Items.copper) throw new AssertionError("Burst drill ore missing");
+                    burst.smoothProgress = 1f;
+                } else if (build instanceof BeamDrillBuild beam) {
+                    if (beam.facingAmount == 0) throw new AssertionError("Beam drill wall ore missing");
+                    beam.warmup = 1f;
+                } else if (build instanceof WallCrafterBuild crusher) {
+                    if (!block.canPlaceOn(tile, viewer, 0)) throw new AssertionError("Crusher wall target missing");
+                    crusher.totalTime = 19f;
+                } else if (build instanceof DrillBuild drill) {
+                    if (drill.dominantItem != Items.copper) throw new AssertionError("Floor drill ore missing");
+                    drill.timeDrilled = 19f;
+                    drill.warmup = 1f;
+                }
+                sprites.clear();
+                layers.render(viewport, viewer, candidate -> candidate == build
+                    && UpstreamRenderedNetworkProbe.supportsBuildingDraw(candidate));
+                requireRegion(block.region);
+                if (sprites.equals(idle)) throw new AssertionError("Stock extractor draw state unchanged: " + block.name);
+                if (block instanceof BeamDrill beam) requireRegion(beam.laserCenter);
+                tested++;
+            } finally {
+                tile.setBlock(Blocks.air);
+                tile.setOverlay(oldOre);
+                wall.setBlock(oldWall);
+            }
+        }
+        if (tested != 10) throw new AssertionError("Expected ten stock extractors, got " + tested);
+        System.out.printf("UPSTREAM_STOCK_EXTRACTOR_DRAW tested=%d active=%d%n", tested, tested);
+    }
+
+    private int verifyLiveBuildingRegistry(UpstreamBuildingLayers layers, UpstreamTerrainDrawProbe.Viewport viewport,
+                                            Team viewer, Predicate<Block> included, String category) {
+        viewport.moveTo(24, 30);
+        var tile = Vars.world.tile(31, 36);
+        int tested = 0;
+        for (var block : Vars.content.blocks()) {
+            if (!block.hasBuilding() || !included.test(block)) continue;
+            tile.setBlock(block, viewer, 0);
+            try {
+                var building = tile.build;
+                sprites.clear();
+                layers.render(viewport, viewer, build -> build == building
+                    && UpstreamRenderedNetworkProbe.supportsBuildingDraw(build));
+                if (sprites.isEmpty()) throw new AssertionError("The live draw pass excludes " + block.name);
+                tested++;
+            } finally {
+                tile.setBlock(Blocks.air);
+            }
+        }
+        System.out.printf("UPSTREAM_STOCK_LIVE_%s_DRAW tested=%d%n", category, tested);
+        return tested;
+    }
+
+    private static void verifyClientProcessor(Fi ids, Team team) {
+        UpstreamClientLogic.initialize(ids);
+        int copper = Vars.logicVars.lookupLogicId(Items.copper);
+        if (copper < 0 || Vars.logicVars.lookupContent(ContentType.item, copper) != Items.copper) {
+            throw new AssertionError("Original logic ID table did not resolve Copper");
+        }
+        var processorTile = Vars.world.tile(70, 15);
+        var canvasTile = Vars.world.tile(72, 15);
+        canvasTile.setBlock(Blocks.canvas, team);
+        processorTile.setBlock(Blocks.microProcessor, team);
+        var processor = (LogicBuild)processorTile.build;
+        var canvas = (CanvasBuild)canvasTile.build;
+        Vars.net.setClientConnected();
+        byte[] config = LogicBlock.compress("getlink canvas 0\nop add color 3 2\nwrite color canvas 0\nend",
+            Seq.with(new LogicLink(2, 0, "canvas1", true)));
+        processor.configured(null, config);
+        float oldDelta = Time.delta;
+        Time.delta = 1f;
+        try {
+            for (int i = 0; i < 8; i++) UpstreamClientLogic.update(1f);
+        } finally {
+            Time.delta = oldDelta;
+        }
+        if (processor.executor.links.length != 1 || processor.executor.links[0] != canvas || canvas.getPixel(0) != 5) {
+            throw new AssertionError("Stock client processor did not execute the configured Canvas write");
+        }
+        System.out.println("UPSTREAM_CLIENT_PROCESSOR_REFERENCE ids=ok compressed=ok link=ok canvas=5");
+    }
+
+    private void verifyLogicDisplay(Fi tiles, Fi font, Team team) {
+        var atlas = new UpstreamLogicAtlas(tiles);
+        UpstreamLogicFramebuffer.atlasPixels((texture, x, y) ->
+            atlas.sample(UpstreamTerrainDrawProbe.pageIndex(texture), x, y));
+        UpstreamLogicFont.load(font);
+        var processor = (LogicBuild)Vars.world.tile(70, 15).build;
+        var displayTile = Vars.world.tile(70, 20);
+        var sourceTile = Vars.world.tile(76, 15);
+        displayTile.setBlock(Blocks.logicDisplay, team);
+        sourceTile.setBlock(Blocks.logicDisplay, team);
+        var display = (LogicDisplayBuild)displayTile.build;
+        var source = (LogicDisplayBuild)sourceTile.build;
+        display.ensureBuffer();
+        source.ensureBuffer();
+        var links = Seq.with(new LogicLink(0, 5, "display1", true), new LogicLink(6, 0, "display2", true));
+        processor.configured(null, LogicBlock.compress("""
+            getlink target 0
+            getlink source 1
+            draw clear 32 160 224 0 0 0
+            drawflush source
+            draw clear 16 32 64 0 0 0
+            draw col %ff000080 0 0 0 0 0
+            draw rect 10 10 8 8 0 0
+            draw color 255 255 255 255 0 0
+            draw translate 20 10 0 0 0 0
+            draw rect 5 5 6 6 0 0
+            draw reset 0 0 0 0 0 0
+            draw image 48 30 source 8 0 0
+            draw image 60 60 @copper 12 0 0
+            print "A"
+            draw print 30 60 @bottomLeft 0 0 0
+            drawflush target
+            end
+            """, links));
+        float oldDelta = Time.delta;
+        Time.delta = 1f;
+        try {
+            for (int i = 0; i < 20; i++) UpstreamClientLogic.update(1f);
+        } finally {
+            Time.delta = oldDelta;
+        }
+        if (display.commands.isEmpty() || source.commands.isEmpty()) {
+            throw new AssertionError("Stock drawflush did not queue both displays");
+        }
+        display.processCommands();
+        if (!source.commands.isEmpty() || !display.commands.isEmpty()) {
+            throw new AssertionError("Stock processCommands did not update the offscreen source first");
+        }
+        assertDisplayPixel(display, 0, 0, 0x102040ff);
+        assertDisplayPixel(display, 10, 10, 0x881020ff);
+        assertDisplayPixel(display, 25, 15, 0xffffffff);
+        assertDisplayPixel(display, 48, 30, 0x20a0e0ff);
+        if (displayPixels(display, 54, 54, 66, 66) == 0 || displayPixels(display, 30, 60, 46, 80) == 0
+                || processor.executor.links[0] != display) {
+            throw new AssertionError("Original copper icon, logic font or display link missing");
+        }
+        displayDraws.clear();
+        display.draw();
+        if (displayDraws.size() != 1 || displayDraws.get(0) != display.buffer.getTexture()) {
+            throw new AssertionError("Original display did not submit its framebuffer texture");
+        }
+        var buffer = display.buffer;
+        displayTile.setBlock(Blocks.air);
+        if (!buffer.isDisposed()) {
+            throw new AssertionError("Removed display did not dispose its framebuffer");
+        }
+        verifyDisplayMarkers(source);
+        verifyTiledDisplay(team);
+        System.out.println("UPSTREAM_LOGIC_DISPLAY_REFERENCE flush=ok clear=ok alpha=ok transform=ok offscreen=ok copper=ok font=ok tiles=ok dispose=ok");
+    }
+
+    private void verifyDisplayMarkers(LogicDisplayBuild source) {
+        var marker = new TextureMarker(source, 605, 240, 16, 16);
+        var quad = new QuadMarker();
+        quad.texture.value = source;
+        for (int i = 0; i < 4; i++) {
+            quad.control(LMarkerControl.posi, i, i >= 2 ? 75 : 71, i == 1 || i == 2 ? 29 : 25);
+            quad.control(LMarkerControl.uvi, i, i >= 2 ? 1 : 0, i == 1 || i == 2 ? 1 : 0);
+        }
+        if (quad.vertices[4] != 0f || quad.vertices[10] != 1f) {
+            throw new AssertionError("Stock quad did not preserve framebuffer orientation");
+        }
+        Vars.state.markers.add(616, marker);
+        Vars.state.markers.add(617, quad);
+        source.commands.addLast(DisplayCmd.get(LogicDisplay.commandClear, 250, 86, 37, 0, 0, 0));
+        displayDraws.clear();
+        displayFirstPixels.clear();
+        UpstreamObjectiveMarkers.draw(Vars.state.rules, 2.5f, (text, x, y, flags, size, align, lines) -> {});
+        if (!displayDraws.equals(List.of(source.buffer.getTexture(), source.buffer.getTexture()))
+                || !displayFirstPixels.equals(List.of(0xfa5625ff, 0xfa5625ff)) || !source.commands.isEmpty()) {
+            throw new AssertionError("Offscreen display commands must finish before either marker samples its texture");
+        }
+        var old = source.buffer;
+        source.buffer = null;
+        old.dispose();
+        displayDraws.clear();
+        UpstreamObjectiveMarkers.draw(Vars.state.rules, 2.5f, (text, x, y, flags, size, align, lines) -> {});
+        if (source.buffer == null || !displayDraws.equals(List.of(source.buffer.getTexture(), source.buffer.getTexture()))) {
+            throw new AssertionError("Markers did not bind the replacement framebuffer");
+        }
+        Vars.state.markers.remove(616);
+        Vars.state.markers.remove(617);
+        System.out.println("UPSTREAM_DISPLAY_MARKERS_REFERENCE sprite=ok quad=ok deferred=ok replacement=ok");
+    }
+
+    private void verifyTiledDisplay(Team team) {
+        var left = Vars.world.tile(73, 19);
+        var right = Vars.world.tile(74, 19);
+        left.setBlock(Blocks.tileLogicDisplay, team);
+        right.setBlock(Blocks.tileLogicDisplay, team);
+        var a = (TileableLogicDisplayBuild)left.build;
+        var b = (TileableLogicDisplayBuild)right.build;
+        a.updateTile();
+        b.updateTile();
+        if (a.rootDisplay != b.rootDisplay || !a.rectangular || a.tilesWidth != 2 || a.tilesHeight != 1) {
+            throw new AssertionError("Original tileable displays did not form a two-tile framebuffer");
+        }
+        Core.graphics = new MockGraphics() {
+            @Override public long getFrameId() { return 1; }
+        };
+        displayDraws.clear();
+        Draw.sort(true);
+        try {
+            Draw.z(Layer.block);
+            a.draw();
+            Draw.z(Layer.block);
+            b.draw();
+        } finally {
+            Draw.sort(false);
+        }
+        var buffer = a.rootDisplay.buffer;
+        if (buffer == null || buffer.getWidth() != 52 || buffer.getHeight() != 20
+                || displayDraws.size() != 2 || displayDraws.stream().anyMatch(texture -> texture != buffer.getTexture())) {
+            throw new AssertionError("Original tileable texture crops used the wrong framebuffer: " +
+                (buffer == null ? "none" : buffer.getWidth() + "x" + buffer.getHeight()) + ", draws=" + displayDraws.size());
+        }
+    }
+
+    @Override
+    public void drawLogicDisplay(RasterTexture texture, float[] vertices, int offset, Blending blending) {
+        displayDraws.add(texture);
+        displayFirstPixels.add(texture.pixels[0]);
+    }
+
+    private static int displayPixels(LogicDisplayBuild display, int left, int bottom, int right, int top) {
+        int changed = 0;
+        int[] pixels = display.buffer.getTexture().pixels;
+        int width = display.buffer.getWidth();
+        for (int y = bottom; y < top; y++) {
+            for (int x = left; x < right; x++) {
+                if (pixels[y * width + x] != 0x102040ff) changed++;
+            }
+        }
+        return changed;
+    }
+
+    private static void assertDisplayPixel(LogicDisplayBuild display, int x, int y, int expected) {
+        int rgba = display.buffer.getTexture().pixels[y * display.buffer.getWidth() + x];
+        if (rgba != expected) throw new AssertionError(String.format("Logic Display pixel %d,%d: %08x != %08x", x, y, rgba, expected));
+    }
+
+    private void verifyCanvas(Team team) {
+        var tile = Vars.world.tile(73, 25);
+        var neighbor = Vars.world.tile(75, 25);
+        var largeTile = Vars.world.tile(81, 29);
+        tile.setBlock(Blocks.canvas, team);
+        neighbor.setBlock(Blocks.canvas, team);
+        largeTile.setBlock(Blocks.largeCanvas, team);
+        var canvas = (CanvasBuild)tile.build;
+        var large = (CanvasBuild)largeTile.build;
+        canvas.onProximityUpdate();
+        canvas.setPixel(0, 1);
+        canvas.setPixel(1, 6);
+        large.setPixel(23 * 24 + 23, 3);
+        canvasDraws.clear();
+        sprites.clear();
+        canvas.draw();
+        large.draw();
+        if (canvas.blending == 0 || canvasDraws.size() != 2 || sprites.isEmpty()) {
+            throw new AssertionError("Canvas neighborhood, stock borders or draw missing");
+        }
+        var smallTexture = canvasDraws.get(0);
+        var largeTexture = canvasDraws.get(1);
+        if (smallTexture.width != 12 || smallTexture.pixels[0] != ((CanvasBlock)Blocks.canvas).palette[1]
+                || smallTexture.pixels[1] != ((CanvasBlock)Blocks.canvas).palette[6]
+                || largeTexture.width != 24 || largeTexture.pixels[575] != ((CanvasBlock)Blocks.largeCanvas).palette[3]) {
+            throw new AssertionError("Stock Canvas palette or row order changed");
+        }
+        var bytes = new ByteArrayOutputStream();
+        large.write(new Writes(new DataOutputStream(bytes)));
+        var restored = (CanvasBuild)Blocks.largeCanvas.newBuilding();
+        restored.read(new Reads(new DataInputStream(new ByteArrayInputStream(bytes.toByteArray()))), large.version());
+        if (!Arrays.equals(restored.data, large.data) || restored.getPixel(575) != 3) {
+            throw new AssertionError("Stock Canvas save payload did not round-trip");
+        }
+
+        var marker = new TextureMarker(canvas, 586f, 242f, 16f, 16f);
+        Vars.state.markers.add(613, marker);
+        canvasDraws.clear();
+        UpstreamObjectiveMarkers.draw(Vars.state.rules, 2.5f, (text, x, y, flags, size, align, lines) -> {});
+        if (!canvasDraws.equals(List.of(smallTexture))) throw new AssertionError("Missing stock Canvas texture marker");
+        var replacement = ((CanvasBuild)neighbor.build);
+        replacement.setPixel(0, 3);
+        int before = smallTexture.revision;
+        canvas.configured(null, replacement.data.clone());
+        canvasDraws.clear();
+        UpstreamObjectiveMarkers.draw(Vars.state.rules, 2.5f, (text, x, y, flags, size, align, lines) -> {});
+        if (!canvasDraws.equals(List.of(smallTexture)) || smallTexture.revision <= before
+                || smallTexture.pixels[0] != ((CanvasBlock)Blocks.canvas).palette[3]) {
+            throw new AssertionError("Stock Canvas configuration did not update the linked marker texture"
+                + " draws=" + canvasDraws.size() + " rev=" + smallTexture.revision + " before=" + before
+                + " pixel=" + Integer.toHexString(smallTexture.pixels[0]));
+        }
+        Vars.state.markers.remove(613);
+        tile.remove();
+        if (!smallTexture.isDisposed()) throw new AssertionError("Canvas removal kept its texture active");
+        System.out.println("UPSTREAM_CANVAS_REFERENCE small=ok large=ok palettes=ok borders=ok save=ok config=ok marker=ok disposed=ok");
+        verifyCanvasQuad(large, largeTexture);
+    }
+
+    private void verifyCanvasQuad(CanvasBuild canvas, UpstreamCanvasTexture texture) {
+        var quad = new QuadMarker();
+        quad.texture.value = canvas;
+        quad.vertices = new float[]{
+            40f, 64f, Color.whiteFloatBits, 0f, 0f, Color.clearFloatBits,
+            44f, 112f, Color.sky.toFloatBits(), 0f, 1f, Color.clearFloatBits,
+            92f, 118f, Color.whiteFloatBits, 1f, 1f, Color.clearFloatBits,
+            105f, 72f, Color.whiteFloatBits, 1f, 0f, Color.clearFloatBits
+        };
+        Vars.state.markers.add(614, quad);
+        int before = texture.revision;
+        canvas.setPixel(0, 6);
+        float requestedU = 0.75f, requestedV = 0.25f;
+        quad.control(LMarkerControl.uvi, 2, requestedU, requestedV);
+        quad.control(LMarkerControl.posi, 2, 13, 16);
+        UpstreamObjectiveMarkers.draw(Vars.state.rules, 2.5f, (text, x, y, flags, size, align, lines) -> {});
+        if (canvasQuadTexture != texture || texture.revision <= before
+                || texture.pixels[0] != ((CanvasBlock)Blocks.largeCanvas).palette[6]
+                || !Arrays.equals(canvasQuadVertices, quad.vertices)
+                || canvasQuadVertices[12] != 104f || canvasQuadVertices[13] != 128f
+                || canvasQuadVertices[8] != Color.sky.toFloatBits()) {
+            throw new AssertionError("Linked Canvas quad did not preserve original pixels, vertices or tint");
+        }
+        // Mindustry v160.8 QuadMarker.setUv inverts local V before submitting the vertex.
+        float vertexV = 1f - requestedV;
+        if (canvasQuadVertices[15] != requestedU || canvasQuadVertices[16] != vertexV) {
+            throw new AssertionError("Linked Canvas quad did not submit the stock UV orientation");
+        }
+        quad.setTexture("block-router-ui");
+        var router = Core.atlas.find("block-router-ui");
+        float u = router.u + (router.u2 - router.u) * requestedU;
+        float v = router.v + (router.v2 - router.v) * vertexV;
+        if (Math.abs(quad.vertices[15] - u) > 0.00001f || Math.abs(quad.vertices[16] - v) > 0.00001f) {
+            throw new AssertionError("Retargeting a Canvas quad changed its local UV");
+        }
+        Vars.state.markers.remove(614);
+        System.out.println("UPSTREAM_CANVAS_QUAD_REFERENCE refresh=ok vertices=ok uv=ok tint=ok retarget=ok");
     }
 
     private static void verifyObjectiveHud() {
@@ -205,18 +777,44 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
     private void verifyUnits(Team viewer) {
         Vars.player = Player.create();
         Vars.player.team(viewer);
-        var types = UpstreamRenderedNetworkProbe.loadUnitGraphics();
+        var carrier = UnitTypes.mega.create(viewer);
+        carrier.set(248f, 290f);
+        ((Payloadc)carrier).payloads().add(new UnitPayload(UnitTypes.flare.create(viewer)));
+        if (!UpstreamRenderedNetworkProbe.loadUnitGraphics(carrier)) {
+            throw new AssertionError("Could not load the stock carrier");
+        }
+        sprites.clear();
+        carrier.draw();
+        requireRegion(UnitTypes.mega.region);
+        requireRegion(UnitTypes.flare.region);
+        System.out.println("UPSTREAM_LIVE_CARRIED_UNIT carrier=mega cargo=flare atlas=ok");
+        var types = Vars.content.units();
+        int drawn = 0;
         for (var type : types) {
+            // Stock BlockUnit proxies belong to buildings and cannot be added to Groups.unit.
+            if (type.sample instanceof BlockUnitc) continue;
+            if (!UpstreamRenderedNetworkProbe.loadUnitGraphics(type)) {
+                throw new AssertionError("Could not load stock unit " + type.name);
+            }
             var unit = type.spawn(Team.crux, 300f, 288f, 90f);
             for (var mount : unit.mounts) mount.heat = 1f;
             if (type == UnitTypes.quasar) unit.shield = 100f;
             sprites.clear();
             solidQuads.clear();
+            texturedQuads = 0;
             Draw.sort(true);
-            unit.draw();
-            Draw.sort(false);
-            requireRegion(type.region);
-            if (type.drawCell) requireRegion(type.cellRegion);
+            try {
+                unit.draw();
+                Draw.sort(false);
+            } catch (IllegalStateException failure) {
+                throw new AssertionError("Stock unit draw failed for " + type.name, failure);
+            }
+            if (type.drawBody) requireRegion(type.region);
+            if (unit instanceof Crawlc) {
+                for (var segment : type.segmentRegions) requireRegion(segment);
+            } else if (type.drawCell) {
+                requireRegion(type.cellRegion);
+            }
             for (var mount : unit.mounts) {
                 if (mount.weapon.region.found()) requireRegion(mount.weapon.region);
                 if (mount.weapon.heatRegion.found()) requireRegion(mount.weapon.heatRegion);
@@ -224,9 +822,14 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
             if (type == UnitTypes.quasar && solidQuads.isEmpty()) {
                 throw new AssertionError("Missing stock unshaded Quasar shield");
             }
+            if (type.name.equals("anthicus-missile") && texturedQuads == 0) {
+                throw new AssertionError("Missing original Anthicus missile quad");
+            }
             unit.remove();
+            drawn++;
         }
-        System.out.println("UPSTREAM_UNIT_ROSTER types=" + types.length + " quasarShield=ok");
+        System.out.println("UPSTREAM_UNIT_ROSTER types=" + types.size + " drawn=" + drawn
+            + " quasarShield=ok anthicusQuad=ok");
         var gamma = UnitTypes.gamma.spawn(viewer, 240f, 288f, 90f);
         var dagger = UnitTypes.dagger.spawn(Team.crux, 256f, 288f, 90f);
 
@@ -633,6 +1236,23 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
     @Override
     public void drawSolidQuad(float[] vertices, int offset, Blending blending) {
         solidQuads.add(Arrays.copyOfRange(vertices, offset, offset + SpriteBatch.SPRITE_SIZE));
+    }
+
+    @Override
+    public void drawCanvas(UpstreamCanvasTexture texture, float x, float y, float originX, float originY,
+                           float width, float height, float rotation, int color, int mixColor, Blending blending) {
+        canvasDraws.add(texture);
+    }
+
+    @Override
+    public void drawTexturedQuad(int page, int pageWidth, int pageHeight, float[] vertices, int offset, Blending blending) {
+        texturedQuads++;
+    }
+
+    @Override
+    public void drawCanvasQuad(UpstreamCanvasTexture texture, float[] vertices, int offset, Blending blending) {
+        canvasQuadTexture = texture;
+        canvasQuadVertices = Arrays.copyOfRange(vertices, offset, offset + 24);
     }
 
     @Override public void begin(int left, int bottom, int width, int height) {}
