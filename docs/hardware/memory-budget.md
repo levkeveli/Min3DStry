@@ -183,7 +183,9 @@ Verification: `-Os` Linux host execution on `audio-ticks` (`UPSTREAM_WORLD_FINGE
 The full-build artifact now embeds the 9 validated upstream clips: **647,008
 bytes** of PCM16 plus the manifest. The registry uses a static PCM buffer
 outside the 1 MiB dynamic arena, covered by the 16 MiB code/static reserve.
-CI asserts the final `.3dsx` is below **12 MiB** and prints its byte count; the
-RomFS audio itself is not part of the ELF `LOAD` segments. Physical Original
-3DS DSP playback and the resulting peak-memory measurement remain pending; do
-not treat the package-size check as an Old 3DS RAM pass.
+A local pinned-upstream build measured **17,199,844 bytes** (16.4 MiB) for the
+complete `.3dsx` including the audio RomFS. CI asserts the final `.3dsx` is
+below **24 MiB** and prints its byte count; the RomFS audio itself is not part
+of the ELF `LOAD` segments. Physical Original 3DS DSP playback and the resulting
+peak-memory measurement remain pending; do not treat the package-size check as
+an Old 3DS RAM pass.

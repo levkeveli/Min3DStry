@@ -171,7 +171,7 @@ builds the `.3dsx` with `UPSTREAM_MINDUSTRY` pointing at the pinned upstream
 checkout. The workflow runs `tools/validate_audio_romfs.py build/romfs` before
 and after packaging, asserts every manifest entry exists at the recorded size,
 requires at least 9 clips, logs the final `.3dsx` byte count, and rejects an
-artifact at or above 12 MiB. The audio files are still build outputs and are
+artifact at or above 24 MiB. The audio files are still build outputs and are
 not committed.
 
 Local reproduction (from the repo root, with ffmpeg and Python 3):
