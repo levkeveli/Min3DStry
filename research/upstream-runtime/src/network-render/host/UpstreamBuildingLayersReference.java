@@ -9,6 +9,7 @@ import arc.graphics.g2d.Fill;
 import arc.graphics.g2d.Lines;
 import arc.graphics.g2d.SpriteBatch;
 import arc.graphics.g2d.TextureRegion;
+import arc.mock.MockAudio;
 import arc.util.Time;
 import arc.util.io.Reads;
 import arc.util.io.Writes;
@@ -19,13 +20,16 @@ import java.io.DataOutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Predicate;
 import mindustry.Vars;
+import mindustry.ai.BlockIndexer;
 import mindustry.content.Blocks;
 import mindustry.content.Items;
 import mindustry.content.Liquids;
 import mindustry.content.UnitTypes;
 import mindustry.entities.units.BuildPlan;
 import mindustry.gen.Builderc;
+import mindustry.gen.Groups;
 import mindustry.gen.Player;
 import mindustry.gen.Tankc;
 import mindustry.gen.UnitWaterMove;
@@ -38,19 +42,32 @@ import mindustry.game.MapObjectives.ItemObjective;
 import mindustry.graphics.CacheLayer;
 import mindustry.graphics.Layer;
 import mindustry.graphics.Pal;
+import mindustry.type.Category;
+import mindustry.world.Block;
 import mindustry.world.blocks.defense.OverdriveProjector.OverdriveBuild;
 import mindustry.world.blocks.defense.ShockwaveTower.ShockwaveTowerBuild;
+import mindustry.world.blocks.defense.turrets.BaseTurret;
+import mindustry.world.blocks.production.BeamDrill;
+import mindustry.world.blocks.production.BeamDrill.BeamDrillBuild;
+import mindustry.world.blocks.production.BurstDrill.BurstDrillBuild;
+import mindustry.world.blocks.production.Drill.DrillBuild;
 import mindustry.world.blocks.production.GenericCrafter.GenericCrafterBuild;
+import mindustry.world.blocks.production.WallCrafter.WallCrafterBuild;
+import mindustry.world.blocks.storage.CoreBlock;
 import mindustry.world.blocks.payloads.BuildPayload;
 import mindustry.world.blocks.payloads.Payload;
 import mindustry.world.blocks.payloads.UnitPayload;
 import mindustry.world.blocks.payloads.PayloadConveyor;
 import mindustry.world.blocks.payloads.PayloadConveyor.PayloadConveyorBuild;
+import mindustry.world.blocks.units.UnitFactory;
 
 public final class UpstreamBuildingLayersReference implements UpstreamTerrainDrawProbe.TerrainTarget {
     private record Sprite(float x, float y, int page, int left, int top, int width, int height, float rotation, int color, int mixColor, Blending blending) {}
     private final List<Sprite> sprites = new ArrayList<>();
     private final List<float[]> solidQuads = new ArrayList<>();
+    private record UnitBuild(int page, int left, int top, int width, int height, float x, float y,
+                             float rotation, float progress, float alpha, float phase) {}
+    private final List<UnitBuild> unitBuilds = new ArrayList<>();
 
     public static void main(String[] args) throws Exception {
         if (args.length < 3 || args.length > 4) {
@@ -58,7 +75,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         }
         if (args.length == 4) Core.bundle = UpstreamInterfaceLocale.load(new Fi(args[3]), 1, "en");
         CacheLayer.init();
-        UpstreamWorldLoadProbe.load(new String[]{args[0]});
+        UpstreamWorldLoadProbe.load(new String[]{args[0]}, () -> Vars.indexer = new BlockIndexer());
         UpstreamTerrainDrawProbe.loadAtlas(new Fi(args[1]), UpstreamFluidAtlas::load);
         Vars.content.loadColors(new Fi(args[2]));
         UpstreamCrackAtlas.load();
@@ -67,6 +84,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         var viewport = UpstreamTerrainDrawProbe.liveViewport(target);
         target.verifyArcOrder();
         target.verifyTexturedLine();
+        target.verifyFactory(viewport);
 
         // The visible two-tile wall starts one tile west of the viewport.
         viewport.moveTo(24, 30);
@@ -114,7 +132,211 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         target.verifyTankTreads(viewer);
         target.verifyCoreVariants(layers, viewport, viewer);
         target.verifyErekirStarterBlocks(layers, viewport, viewer);
+        target.verifyExtractorDraws(layers, viewport, viewer);
+        target.verifyLiveBuildingRegistry(layers, viewport, viewer, block -> block instanceof BaseTurret, "TURRET");
+        target.verifyLiveBuildingRegistry(layers, viewport, viewer, UpstreamBuildingLayers::supportsDistributionDraw,
+            "DISTRIBUTION");
+        target.verifyLiveBuildingRegistry(layers, viewport, viewer, block -> block.category == Category.liquid,
+            "LIQUID");
+        int materials = target.verifyLiveBuildingRegistry(layers, viewport, viewer,
+            block -> UpstreamBuildingLayers.supportsMaterialDraw(block) && !(block instanceof CoreBlock),
+            "MATERIAL");
+        if (materials != 49) throw new AssertionError("Expected 49 stock material buildings, got " + materials);
         if (args.length == 4) verifyObjectiveHud();
+        target.verifyUnitProjectiles(viewport, viewer);
+    }
+
+    private void verifyUnitProjectiles(UpstreamTerrainDrawProbe.Viewport viewport, Team viewer) {
+        Vars.net.setClientConnected();
+        Core.audio = new MockAudio();
+        var gamma = UnitTypes.gamma.spawn(viewer, 648f, 208f, 0f);
+        var dagger = UnitTypes.dagger.spawn(viewer, 648f, 224f, 0f);
+        Vars.player.unit(gamma);
+        var peer = Player.create();
+        peer.team(viewer);
+        peer.unit(dagger);
+        if (!gamma.isLocal() || !dagger.isRemote()) throw new AssertionError("Expected local and remote units");
+        UpstreamClientProjectiles.load();
+        gamma.aim(730f, 208f, true);
+        dagger.aim(730f, 224f, true);
+        gamma.controlWeapons(true, true);
+        dagger.controlWeapons(true, true);
+        float oldDelta = Time.delta;
+        Time.delta = 1f;
+        try {
+            for (int i = 0; i < 7; i++) {
+                Time.update();
+                UpstreamClientProjectiles.update();
+            }
+            if (Groups.bullet.count(bullet -> bullet.owner == gamma) != 2
+                    || !Groups.bullet.contains(bullet -> bullet.owner == gamma && bullet.trail != null)
+                    || !Groups.bullet.contains(bullet -> bullet.owner == dagger && bullet.vel.x > 0f)) {
+                throw new AssertionError("The pinned Gamma burst, its trail or the remote Dagger did not advance");
+            }
+            sprites.clear();
+            solidQuads.clear();
+            viewport.moveTo(73, 20);
+            int count = UpstreamClientProjectiles.draw(viewport);
+            if (count < 3 || solidQuads.isEmpty()) throw new AssertionError("Stock projectiles did not draw");
+            requireRegion(Core.atlas.find("bullet"));
+
+            gamma.controlWeapons(true, false);
+            dagger.controlWeapons(true, false);
+            int shots = Arrays.stream(gamma.mounts).mapToInt(mount -> mount.totalShots).sum()
+                + Arrays.stream(dagger.mounts).mapToInt(mount -> mount.totalShots).sum();
+            for (int i = 0; i < 90; i++) {
+                Time.update();
+                UpstreamClientProjectiles.update();
+            }
+            int after = Arrays.stream(gamma.mounts).mapToInt(mount -> mount.totalShots).sum()
+                + Arrays.stream(dagger.mounts).mapToInt(mount -> mount.totalShots).sum();
+            if (!Groups.bullet.isEmpty() || shots != after) {
+                throw new AssertionError("Stock projectiles did not clear after releasing both units");
+            }
+        } finally {
+            Time.delta = oldDelta;
+        }
+        System.out.println("UPSTREAM_ORIGINAL_PROJECTILES gamma=burst dagger=remote atlas=ok trail=ok release=ok");
+    }
+
+
+    private void verifyFactory(UpstreamTerrainDrawProbe.Viewport viewport) {
+        for (var block : Vars.content.blocks()) {
+            if (!(block instanceof UnitFactory factory)) continue;
+            for (var plan : factory.plans) {
+                plan.unit.loadIcon();
+                var icon = plan.unit.fullIcon;
+                if (icon.width > 128 || icon.height > 128 || !icon.found()) {
+                    throw new AssertionError("The original factory icon does not fit the ARM11 scratch atlas: "
+                        + plan.unit.name + " " + icon.width + "x" + icon.height);
+                }
+            }
+        }
+        viewport.moveTo(24, 30);
+        var viewer = Team.sharded;
+        var tile = Vars.world.tile(31, 35);
+        tile.setBlock(Blocks.groundFactory, viewer, 1);
+        var factory = (UnitFactory.UnitFactoryBuild)tile.build;
+        var layers = new UpstreamBuildingLayers();
+        var oldPlayer = Vars.player;
+        Vars.player = Player.create();
+        Vars.player.team(viewer);
+        try {
+            factory.currentPlan = -1;
+            sprites.clear();
+            unitBuilds.clear();
+            layers.render(viewport, viewer, build -> build == factory);
+            int idleSprites = sprites.size();
+            if (idleSprites != 3 || !unitBuilds.isEmpty()) {
+                throw new AssertionError("Expected the original factory base, output and top layers at rest");
+            }
+            factory.currentPlan = 1;
+            factory.progress = ((UnitFactory)factory.block).plans.get(1).time / 2f;
+            factory.speedScl = 0.75f;
+            factory.time = 40;
+            solidQuads.clear();
+            layers.render(viewport, viewer, build -> build == factory);
+            var icon = UnitTypes.crawler.fullIcon;
+            var expected = new UnitBuild(UpstreamTerrainDrawProbe.pageIndex(icon), icon.getX(), icon.getY(),
+                icon.width, icon.height, factory.x, factory.y, factory.rotdeg() - 90f, 0.5f, 0.75f, -2f);
+            if (!unitBuilds.equals(List.of(expected)) || solidQuads.isEmpty()) {
+                throw new AssertionError("The pinned construction sprite or scan line was altered: " + unitBuilds);
+            }
+            factory.payload = new UnitPayload(UnitTypes.crawler.create(viewer));
+            sprites.clear();
+            layers.render(viewport, viewer, build -> build == factory);
+            if (sprites.size() <= idleSprites) throw new AssertionError("Factory did not draw its stock output payload");
+            System.out.println("UPSTREAM_FACTORY_GRAPHICS idle=3 construction=crawler progress=0.5 payload=ok");
+        } finally {
+            Vars.player = oldPlayer;
+            tile.setBlock(Blocks.air);
+            sprites.clear();
+            solidQuads.clear();
+            unitBuilds.clear();
+        }
+    }
+
+    @Override
+    public void drawUnitBuild(int page, int left, int top, int width, int height,
+                              float x, float y, float drawWidth, float drawHeight, float rotation,
+                              float progress, Color tint, float alpha, float phase, int vertexColor) {
+        unitBuilds.add(new UnitBuild(page, left, top, width, height, x, y, rotation, progress, alpha, phase));
+    }
+
+    private void verifyExtractorDraws(UpstreamBuildingLayers layers, UpstreamTerrainDrawProbe.Viewport viewport,
+                                      Team viewer) {
+        viewport.moveTo(24, 30);
+        var tile = Vars.world.tile(31, 36);
+        int tested = 0;
+        for (var block : Vars.content.blocks()) {
+            if (!UpstreamBuildingLayers.supportsExtractorDraw(block)) continue;
+            var wall = Vars.world.tile(tile.x + block.size / 2 + 1, tile.y);
+            boolean beamDrill = block instanceof BeamDrill;
+            var oldWall = wall.block();
+            var oldOre = tile.overlay();
+            tile.setOverlay(Blocks.oreCopper);
+            wall.setBlock(beamDrill ? Blocks.graphiticWall : Blocks.beryllicStoneWall);
+            tile.setBlock(block, viewer, 0);
+            try {
+                var build = tile.build;
+                build.onProximityUpdate();
+                sprites.clear();
+                layers.render(viewport, viewer, candidate -> candidate == build
+                    && UpstreamRenderedNetworkProbe.supportsBuildingDraw(candidate));
+                requireRegion(block.region);
+                var idle = List.copyOf(sprites);
+                if (build instanceof BurstDrillBuild burst) {
+                    if (burst.dominantItem != Items.copper) throw new AssertionError("Burst drill ore missing");
+                    burst.smoothProgress = 1f;
+                } else if (build instanceof BeamDrillBuild beam) {
+                    if (beam.facingAmount == 0) throw new AssertionError("Beam drill wall ore missing");
+                    beam.warmup = 1f;
+                } else if (build instanceof WallCrafterBuild crusher) {
+                    if (!block.canPlaceOn(tile, viewer, 0)) throw new AssertionError("Crusher wall target missing");
+                    crusher.totalTime = 19f;
+                } else if (build instanceof DrillBuild drill) {
+                    if (drill.dominantItem != Items.copper) throw new AssertionError("Floor drill ore missing");
+                    drill.timeDrilled = 19f;
+                    drill.warmup = 1f;
+                }
+                sprites.clear();
+                layers.render(viewport, viewer, candidate -> candidate == build
+                    && UpstreamRenderedNetworkProbe.supportsBuildingDraw(candidate));
+                requireRegion(block.region);
+                if (sprites.equals(idle)) throw new AssertionError("Stock extractor draw state unchanged: " + block.name);
+                if (block instanceof BeamDrill beam) requireRegion(beam.laserCenter);
+                tested++;
+            } finally {
+                tile.setBlock(Blocks.air);
+                tile.setOverlay(oldOre);
+                wall.setBlock(oldWall);
+            }
+        }
+        if (tested != 10) throw new AssertionError("Expected ten stock extractors, got " + tested);
+        System.out.printf("UPSTREAM_STOCK_EXTRACTOR_DRAW tested=%d active=%d%n", tested, tested);
+    }
+
+    private int verifyLiveBuildingRegistry(UpstreamBuildingLayers layers, UpstreamTerrainDrawProbe.Viewport viewport,
+                                            Team viewer, Predicate<Block> included, String category) {
+        viewport.moveTo(24, 30);
+        var tile = Vars.world.tile(31, 36);
+        int tested = 0;
+        for (var block : Vars.content.blocks()) {
+            if (!block.hasBuilding() || !included.test(block)) continue;
+            tile.setBlock(block, viewer, 0);
+            try {
+                var building = tile.build;
+                sprites.clear();
+                layers.render(viewport, viewer, build -> build == building
+                    && UpstreamRenderedNetworkProbe.supportsBuildingDraw(build));
+                if (sprites.isEmpty()) throw new AssertionError("The live draw pass excludes " + block.name);
+                tested++;
+            } finally {
+                tile.setBlock(Blocks.air);
+            }
+        }
+        System.out.printf("UPSTREAM_STOCK_LIVE_%s_DRAW tested=%d%n", category, tested);
+        return tested;
     }
 
     private static void verifyObjectiveHud() {

@@ -1,5 +1,6 @@
 import arc.graphics.g2d.Draw;
 import arc.struct.IntSet;
+import arc.struct.ObjectSet;
 import arc.struct.Seq;
 import java.util.function.Predicate;
 import mindustry.Vars;
@@ -8,22 +9,75 @@ import mindustry.gen.Building;
 import mindustry.graphics.BuildingCacheLayer;
 import mindustry.graphics.CacheLayer;
 import mindustry.graphics.Layer;
+import mindustry.type.Category;
+import mindustry.type.UnitType;
+import mindustry.world.Block;
+import mindustry.world.meta.BuildVisibility;
+import mindustry.world.blocks.liquid.LiquidRouter;
 import mindustry.world.blocks.payloads.PayloadConveyor.PayloadConveyorBuild;
+import mindustry.world.blocks.payloads.UnitPayload;
+import mindustry.world.blocks.power.BeamNode.BeamNodeBuild;
+import mindustry.world.blocks.power.LightBlock;
+import mindustry.world.blocks.power.PowerBlock;
+import mindustry.world.blocks.power.PowerDiode;
+import mindustry.world.blocks.production.BeamDrill;
+import mindustry.world.blocks.production.Drill;
+import mindustry.world.blocks.production.GenericCrafter;
+import mindustry.world.blocks.production.Pump;
+import mindustry.world.blocks.production.Separator;
+import mindustry.world.blocks.production.WallCrafter;
+import mindustry.world.blocks.storage.StorageBlock;
+import mindustry.world.blocks.units.UnitFactory.UnitFactoryBuild;
 
 /** Arc draw commands for the cached and dynamic passes in upstream BlockRenderer. */
 final class UpstreamBuildingLayers {
     private final Seq<Building> visible = new Seq<>();
     private final IntSet visited = new IntSet();
+    private final ObjectSet<UnitType> factoryGraphics = new ObjectSet<>();
+
+    static boolean supportsPowerDraw(Block block) {
+        return block instanceof PowerBlock || block instanceof PowerDiode || block instanceof LightBlock;
+    }
+
+    static boolean supportsDistributionDraw(Block block) {
+        // Uncatalogued blocks also default to the distribution category.
+        return block.category == Category.distribution && block.buildVisibility != BuildVisibility.hidden;
+    }
+
+    static boolean supportsMaterialDraw(Block block) {
+        return block instanceof GenericCrafter || block instanceof Separator || block instanceof Pump
+            || block instanceof LiquidRouter || block instanceof StorageBlock;
+    }
+
+    static boolean supportsExtractorDraw(Block block) {
+        return block instanceof Drill || block instanceof BeamDrill || block instanceof WallCrafter;
+    }
 
     void render(UpstreamTerrainDrawProbe.Viewport viewport, Team viewer, Predicate<Building> supported) {
         int right = Math.min(viewport.left + UpstreamTerrainDrawProbe.VIEW_WIDTH, Vars.world.width());
         int top = Math.min(viewport.bottom + UpstreamTerrainDrawProbe.VIEW_HEIGHT, Vars.world.height());
+        boolean live = Vars.net != null && Vars.net.client();
         for (int y = viewport.bottom; y < top; y++) {
             for (int x = viewport.left; x < right; x++) {
                 var build = Vars.world.tile(x, y).build;
-                if (build != null && visited.add(build.pos()) && supported.test(build)
-                        && (!build.inFogTo(viewer) || build.wasVisible)) {
+                if (build == null || !visited.add(build.pos())) continue;
+                if (!build.inFogTo(viewer)) {
+                    // The stock draw pass records revealed buildings. Beam nodes consult
+                    // this state on the destination building before drawing a connection.
+                    build.visibleFlags |= 1L << viewer.id;
+                    build.wasVisible = true;
+                }
+                if (build.wasVisible && supported.test(build)) {
                     visible.add(build);
+                    // The live snapshot does not carry BeamNode's cached endpoints.
+                    // Refresh them using the stock tile-change and link rules.
+                    if (live && build instanceof BeamNodeBuild beam) beam.updateTile();
+                    if (build instanceof UnitFactoryBuild factory) {
+                        loadFactoryGraphics(factory.unit());
+                        if (factory.getPayload() instanceof UnitPayload payload) {
+                            loadFactoryGraphics(payload.unit.type());
+                        }
+                    }
                 }
             }
         }
@@ -57,6 +111,13 @@ final class UpstreamBuildingLayers {
                 visible.clear();
             }
         }
+    }
+
+    private void loadFactoryGraphics(UnitType type) {
+        if (type == null || !factoryGraphics.add(type)) return;
+        // Resolve regions in the loaded stock atlas before submitting building draws.
+        type.loadIcon();
+        type.load();
     }
 
     private static void drawCracks(Building build) {

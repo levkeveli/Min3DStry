@@ -24,14 +24,15 @@ import mindustry.gen.Unit;
 import mindustry.gen.UnitWaterMove;
 import mindustry.graphics.CacheLayer;
 import mindustry.type.UnitType;
+import mindustry.world.blocks.units.UnitFactory;
 import mindustry.world.Block;
+import mindustry.type.Category;
+import mindustry.world.blocks.defense.turrets.BaseTurret;
+import mindustry.world.blocks.liquid.Conduit.ConduitBuild;
 import mindustry.world.blocks.payloads.BuildPayload;
 import mindustry.world.blocks.payloads.PayloadConveyor.PayloadConveyorBuild;
 import mindustry.world.blocks.payloads.UnitPayload;
-import mindustry.world.blocks.liquid.Conduit;
 import mindustry.world.blocks.distribution.Conveyor.ConveyorBuild;
-import mindustry.world.blocks.distribution.Sorter;
-import mindustry.world.blocks.storage.CoreBlock;
 
 /** Presents the received multiplayer world through the ARM11 terrain renderer. */
 public final class UpstreamRenderedNetworkProbe {
@@ -47,6 +48,7 @@ public final class UpstreamRenderedNetworkProbe {
     private UpstreamTerrainDrawProbe.Viewport viewport;
     private Unit controlled;
     private int draws;
+    private boolean projectilesVisible, projectilesActive;
     private long previousVisualFrame;
     private float frameSeconds;
     private int lastLeft = -1, lastBottom = -1;
@@ -71,9 +73,17 @@ public final class UpstreamRenderedNetworkProbe {
 
     public static void main(String[] args) throws IOException, InterruptedException {
         var endpoint = UpstreamLiveNetworkProbe.endpointFile(args);
-        var view = new UpstreamRenderedNetworkProbe(endpoint.sibling("sprites.aatls"));
+        run(endpoint, endpoint.sibling("sprites.aatls"));
+    }
+
+    static void run(Fi endpoint, Fi atlas) throws IOException, InterruptedException {
+        run(endpoint.parent(), endpoint.readString(), atlas);
+    }
+
+    static void run(Fi directory, String address, Fi atlas) throws IOException, InterruptedException {
+        var view = new UpstreamRenderedNetworkProbe(atlas);
         int language = view.target.mountAssets();
-        var preference = endpoint.sibling("locale.txt");
+        var preference = directory.child("locale.txt");
         String requested = preference.exists() && preference.length() <= 16 ? preference.readString("UTF-8").trim() : "";
         Core.bundle = UpstreamInterfaceLocale.loadForStockClient(new Fi("/romfs/bundles/bundle"), language, requested);
         var locale = Core.bundle.getLocale();
@@ -81,7 +91,7 @@ public final class UpstreamRenderedNetworkProbe {
             + (locale.getLanguage().isEmpty() ? "en" : locale) + " router=" + Core.bundle.get("block.router.name")
             + " copper=" + Core.bundle.get("item.copper.name"));
         CacheLayer.init();
-        UpstreamLiveNetworkProbe.run(endpoint, view::loadGraphics, view::render, view.buildingControls);
+        UpstreamLiveNetworkProbe.run(directory, address, view::loadGraphics, view::render, view.buildingControls);
     }
 
     private void loadGraphics() {
@@ -98,6 +108,7 @@ public final class UpstreamRenderedNetworkProbe {
         Vars.content.loadColors(new Fi("/romfs/block_colors.png"));
         UpstreamCrackAtlas.load();
         loadUnitGraphics();
+        UpstreamClientProjectiles.load();
         viewport = UpstreamTerrainDrawProbe.liveViewport(target);
         target.initialize();
         boolean stock = target.loadStockFont(locale.getLanguage().equals("ja"));
@@ -112,7 +123,9 @@ public final class UpstreamRenderedNetworkProbe {
         System.out.println("UPSTREAM_INTERFACE_GRAPHICS labels");
         var labels = String.join("\0", primary.localizedName, secondary.localizedName,
             Core.bundle.get("keybind.rotate.name"), Core.bundle.get("waves.remove"),
-            "List", "Config", Core.bundle.get("back"), Core.bundle.get("command.mine")) + "\0";
+            "List", "Config", Core.bundle.get("back"), Core.bundle.get("command.mine"),
+            Core.bundle.get("category.items"), "Give", Core.bundle.get("command"), "Type", "Stance",
+            "Ctrl", Core.bundle.get("back"), "Schem") + "\0";
         target.buildLabels(labels.getBytes(StandardCharsets.UTF_8));
         lastPrimaryShortcut = primary;
         System.out.println("UPSTREAM_BUILD_SHORTCUTS primary=" + primary.name + " secondary=" + secondary.name);
@@ -171,15 +184,16 @@ public final class UpstreamRenderedNetworkProbe {
         // Advance the original animation clock and conduit smoothing without replaying liquid transfers.
         float delta = Math.min(frameSeconds * 60f, Vars.maxDeltaClient);
         Time.delta = delta;
-        Time.setInternalTime(Time.getInternalTime() + delta);
         try {
+            Time.update();
             for (var build : Groups.build) {
-                if (build instanceof Conduit.ConduitBuild conduit) conduit.advanceLiquidDraw();
+                if (build instanceof ConduitBuild conduit) conduit.advanceLiquidDraw();
             }
             for (var unit : Groups.unit) {
                 if (unit instanceof UnitWaterMove boat) boat.advanceWake();
                 if (unit instanceof Tankc tank) advanceTankTreads(tank);
             }
+            UpstreamClientProjectiles.update();
         } finally {
             Time.delta = oldDelta;
         }
@@ -215,6 +229,14 @@ public final class UpstreamRenderedNetworkProbe {
                         + " x=" + unit.x() + " y=" + unit.y());
                 }
             }
+            int bullets = UpstreamClientProjectiles.draw(viewport);
+            boolean active = !Groups.bullet.isEmpty();
+            if (projectilesActive != active || projectilesVisible != (bullets > 0)) {
+                System.out.println("UPSTREAM_NETWORK_PROJECTILES visible=" + bullets
+                    + " active=" + Groups.bullet.size());
+            }
+            projectilesVisible = bullets > 0;
+            projectilesActive = active;
         } finally {
             Draw.sort(false);
         }
@@ -227,20 +249,39 @@ public final class UpstreamRenderedNetworkProbe {
         }
         UpstreamObjectiveMarkers.draw(Vars.state.rules, 240f / (UpstreamTerrainDrawProbe.VIEW_HEIGHT * Vars.tilesize),
             worldLabel);
+        var orders = buildingControls.orders();
+        orders.draw(viewport);
+        var schematics = buildingControls.schematics();
+        schematics.draw(viewport);
         drawObjectives(drawStatusHud());
         var block = buildingControls.block();
         var catalog = buildingControls.catalog();
-        var config = buildingControls.itemConfig();
+        var config = buildingControls.buildingConfig();
+        var inventory = buildingControls.inventory();
+        var commandMenu = orders.menu();
         int shortcut = block == buildingControls.shortcut(0) ? 0 : block == buildingControls.shortcut(1) ? 1 : -1;
         target.buildOverlay(buildingControls.cursorX() - viewport.left, buildingControls.cursorY() - viewport.bottom,
             shortcut, buildingControls.rotation(), buildingControls.removing(), block.rotate,
-            catalog.isOpen() || config.isOpen(), buildingControls.configuring(), buildingControls.selectingMine());
-        if (catalog.isOpen()) {
+            catalog.isOpen() || config.isOpen() || inventory.isOpen() || commandMenu.isOpen() || schematics.isOpen(),
+            buildingControls.configuring(), buildingControls.selectingMine(), buildingControls.inventoryAction(),
+            orders.mode(), buildingControls.selectingControl(), schematics.active());
+        if (schematics.isOpen()) {
+            drawMenu(schematics.labels(), schematics.icons(), -1, schematics.previousPage(), schematics.nextPage(),
+                UpstreamTerrainRenderProbe.SCHEMATIC_CATALOG);
+        } else if (commandMenu.isOpen()) {
+            target.buildCatalogRows(commandMenu.labels(), commandMenu.icons(), orders.activeMenuRows(),
+                commandMenu.previous(), commandMenu.next(),
+                commandMenu.stances() ? UpstreamTerrainRenderProbe.STANCE_CATALOG : UpstreamTerrainRenderProbe.COMMAND_CATALOG);
+        } else if (catalog.isOpen()) {
             drawMenu(catalog.labels(), catalog.iconIds(), catalog.selectedRow(block),
-                catalog.previousPage(), catalog.nextPage(), true);
+                catalog.previousPage(), catalog.nextPage(), UpstreamTerrainRenderProbe.BLOCK_CATALOG);
         } else if (config.isOpen()) {
             drawMenu(config.labels(), config.iconIds(), config.selectedRow(),
-                config.previousPage(), config.nextPage(), false);
+                config.previousPage(), config.nextPage(),
+                config.unitPlans() ? UpstreamTerrainRenderProbe.UNIT_CATALOG : UpstreamTerrainRenderProbe.ITEM_CATALOG);
+        } else if (inventory.isOpen()) {
+            drawMenu(inventory.labels(), inventory.iconIds(), -1, inventory.previousPage(), inventory.nextPage(),
+                UpstreamTerrainRenderProbe.ITEM_CATALOG);
         } else {
             lastMenu = null;
         }
@@ -330,11 +371,12 @@ public final class UpstreamRenderedNetworkProbe {
     static boolean supportsBuildingDraw(Building build) {
         var block = build.block;
         // These blocks use the sprite operations available in the live backend.
-        return block instanceof CoreBlock || block == Blocks.conveyor || block == Blocks.copperWall
-            || block == Blocks.duct || block == Blocks.berylliumWall
-            || block == Blocks.copperWallLarge || block == Blocks.router || block instanceof Sorter
-            || block == Blocks.mechanicalDrill || block instanceof Conduit
-            || block == Blocks.phaseWeaver || block == Blocks.overdriveProjector
+        return UpstreamBuildingLayers.supportsPowerDraw(block) || UpstreamBuildingLayers.supportsDistributionDraw(block)
+            || block.category == Category.liquid || block instanceof UnitFactory || block instanceof BaseTurret
+            || UpstreamBuildingLayers.supportsMaterialDraw(block) || block == Blocks.copperWall
+            || block == Blocks.berylliumWall || block == Blocks.copperWallLarge
+            || UpstreamBuildingLayers.supportsExtractorDraw(block)
+            || block == Blocks.overdriveProjector
             || block == Blocks.overdriveDome || block == Blocks.shockwaveTower
             || build instanceof PayloadConveyorBuild conveyor && (conveyor.item == null || supportsCargo(conveyor));
     }
@@ -352,10 +394,15 @@ public final class UpstreamRenderedNetworkProbe {
     }
 
     private void drawMenu(byte[] labels, int[] icons, int selected,
-                          boolean previous, boolean next, boolean categories) {
-        int drawn = target.buildCatalog(labels, icons, selected, previous, next, categories);
+                            boolean previous, boolean next, int catalog) {
+        int drawn = target.buildCatalog(labels, icons, selected, previous, next, catalog);
         if (lastMenu != labels) {
-            System.out.println("UPSTREAM_MENU_ICONS type=" + (categories ? "block" : "item") + " drawn=" + drawn);
+            String type = switch (catalog) {
+                case UpstreamTerrainRenderProbe.BLOCK_CATALOG -> "block";
+                case UpstreamTerrainRenderProbe.UNIT_CATALOG -> "unit";
+                default -> "item";
+            };
+            System.out.println("UPSTREAM_MENU_ICONS type=" + type + " drawn=" + drawn);
             lastMenu = labels;
         }
     }

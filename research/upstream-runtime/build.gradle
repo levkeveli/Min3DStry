@@ -53,6 +53,7 @@ def entryPoints = [
     'network-render': 'UpstreamRenderedNetworkProbe',
     'singleplayer-sim': 'UpstreamSinglePlayerSession',
     'singleplayer': 'UpstreamSinglePlayerApp',
+    'unified': 'UpstreamUnifiedApp',
     'terrain-draw': 'UpstreamTerrainDrawProbe',
     'terrain-render': 'UpstreamTerrainRenderProbe',
     'file-metadata': 'port.UpstreamFileMetadataProbe',
@@ -76,12 +77,12 @@ if (!entryPoints.containsKey(probe)) {
 }
 def entryPoint = entryPoints[probe]
 def usesMapSources = probe in ['map', 'map-sd']
-def usesSinglePlayerApp = probe == 'singleplayer'
-def usesSinglePlayer = probe in ['singleplayer-sim', 'singleplayer']
-def usesLiveNetwork = probe in ['network-live', 'network-render']
-def usesRenderedClient = probe in ['network-render', 'singleplayer']
-def usesBuildControls = probe in ['network-live', 'network-render', 'singleplayer']
-def usesTerrainRenderer = probe in ['terrain-render', 'network-render', 'singleplayer']
+def usesSinglePlayerApp = probe in ['singleplayer', 'unified']
+def usesSinglePlayer = usesSinglePlayerApp || probe == 'singleplayer-sim'
+def usesLiveNetwork = probe in ['network-live', 'network-render', 'unified']
+def usesRenderedClient = usesSinglePlayerApp || probe == 'network-render'
+def usesBuildControls = usesSinglePlayerApp || usesLiveNetwork
+def usesTerrainRenderer = usesRenderedClient || probe == 'terrain-render'
 def patchesPlanetGrid = usesRenderedClient
 def conduitSmoothing = 'smoothLiquid = Mathf.lerpDelta(smoothLiquid, liquids.currentAmount() / liquidCapacity, 0.05f);'
 def conduitUpdate = '@Override\n        public void updateTile(){'
@@ -148,11 +149,14 @@ def arcPixmapFile = sourceDir.map { it.file('arc/graphics/Pixmap.java') }
 def arcJsonFile = sourceDir.map { it.file('arc/util/serialization/Json.java') }
 def networkIoFile = sourceDir.map { it.file('mindustry/net/NetworkIO.java') }
 def netClientFile = sourceDir.map { it.file('mindustry/core/NetClient.java') }
+def schematicsFile = sourceDir.map { it.file('mindustry/game/Schematics.java') }
 def placementFile = sourceDir.map { it.file('UpstreamPlacementCatalog.java') }
 def itemChoicesFile = sourceDir.map { it.file('UpstreamItemChoices.java') }
 def planetGridFile = sourceDir.map { it.file('mindustry/graphics/g3d/PlanetGrid.java') }
 def contentColorsFile = sourceDir.map { it.file('mindustry/core/ContentLoader.java') }
 def globalVarsFile = sourceDir.map { it.file('mindustry/logic/GlobalVars.java') }
+def bulletTypePath = 'mindustry/entities/bullet/BulletType.java'
+def bulletTypeFile = sourceDir.map { it.file(bulletTypePath) }
 def unitTypeFile = sourceDir.map { it.file('mindustry/type/UnitType.java') }
 def factoryResourcesFile = sourceDir.map { it.file('port/FactoryResources.java') }
 def shieldModeSources = [
@@ -208,6 +212,9 @@ if (usesArcSources || usesExecutor) {
     if (usesWorldStream) {
         stagedClasses.add('mindustry/net/NetworkIO.class')
     }
+    if (usesBuildControls) {
+        stagedClasses.addAll(['mindustry/game/Schematics.class', 'mindustry/game/Schematics$*.class'])
+    }
     if (usesLiveNetwork) {
         stagedClasses.addAll(['mindustry/core/NetClient.class', 'mindustry/core/NetClient$*.class',
                               'mindustry/ai/Pathfinder.class', 'mindustry/ai/Pathfinder$*.class'])
@@ -216,7 +223,8 @@ if (usesArcSources || usesExecutor) {
         stagedClasses.addAll(['mindustry/logic/GlobalVars.class', 'mindustry/logic/GlobalVars$*.class'])
     }
     if (usesRenderedClient) {
-        stagedClasses.addAll(['mindustry/type/UnitType.class', 'mindustry/type/UnitType$*.class'])
+        stagedClasses.addAll(['mindustry/type/UnitType.class', 'mindustry/type/UnitType$*.class',
+                              'mindustry/entities/bullet/BulletType.class', 'mindustry/entities/bullet/BulletType$*.class'])
     }
     if (patchesPlanetGrid) {
         stagedClasses.addAll(['mindustry/graphics/g3d/PlanetGrid.class', 'mindustry/graphics/g3d/PlanetGrid$*.class'])
@@ -292,7 +300,7 @@ if (probe == 'world-stream') {
 if (usesLiveNetwork) {
     sourceSets.main.java.srcDirs('src/network-live/java', 'src/network-live/host')
 }
-if (probe == 'network-render') {
+if (probe in ['network-render', 'unified']) {
     sourceSets.main.java.srcDirs('src/network-render/java', 'src/network-render/host')
     tasks.register('runBuildingLayersJvm', JavaExec) {
         dependsOn 'classes'
@@ -307,11 +315,20 @@ if (probe == 'network-render') {
 }
 if (usesSinglePlayer) {
     sourceSets.main.java.srcDir('src/singleplayer/java')
-    if (probe == 'singleplayer') {
+    if (usesSinglePlayerApp) {
         sourceSets.main.java.srcDirs('src/singleplayer-custom-host/java', 'src/singleplayer-campaign-host/java')
         tasks.register('runCustomGameJvm', JavaExec) {
             classpath = sourceSets.main.runtimeClasspath
             mainClass = 'UpstreamCustomGameReference'
+        }
+        tasks.register('runOfflineMaterialsJvm', JavaExec) {
+            classpath = sourceSets.main.runtimeClasspath
+            mainClass = 'UpstreamOfflineMaterialsReference'
+            workingDir = temporaryDir
+        }
+        tasks.register('runOfflineWeaponsJvm', JavaExec) {
+            classpath = sourceSets.main.runtimeClasspath
+            mainClass = 'UpstreamOfflineWeaponsReference'
         }
         tasks.register('runCampaignResumeJvm', JavaExec) {
             classpath = sourceSets.main.runtimeClasspath
@@ -325,13 +342,34 @@ if (usesSinglePlayer) {
             classpath = sourceSets.main.runtimeClasspath
             mainClass = 'UpstreamCampaignLaunchReference'
         }
+        tasks.register('runStockOrdersJvm', JavaExec) {
+            classpath = sourceSets.main.runtimeClasspath
+            mainClass = 'UpstreamStockOrdersReference'
+        }
+        tasks.register('runStockPossessionJvm', JavaExec) {
+            classpath = sourceSets.main.runtimeClasspath
+            mainClass = 'UpstreamStockPossessionReference'
+        }
     }
     if (!usesSinglePlayerApp) {
-        sourceSets.main.java.exclude('UpstreamSinglePlayerApp.java', 'UpstreamSinglePlayerInput.java')
-    } else {
+        sourceSets.main.java.exclude('UpstreamSinglePlayerApp.java', 'UpstreamSinglePlayerInput.java',
+            'UpstreamOfflineWeaponInput.java')
+    } else if (!usesLiveNetwork) {
         sourceSets.main.java.srcDir('src/network-live/java')
         sourceSets.main.java.srcDir('src/network-render/java')
         sourceSets.main.java.exclude('UpstreamLiveNetworkProbe.java', 'UpstreamRenderedNetworkProbe.java')
+    }
+}
+if (probe == 'unified') {
+    sourceSets.main.java.srcDir('src/unified/java')
+    def addressReference = sourceSets.create('serverAddressReference') {
+        java.srcDir('src/unified/host')
+        compileClasspath += sourceSets.main.runtimeClasspath
+        runtimeClasspath += sourceSets.main.runtimeClasspath
+    }
+    tasks.register('runServerAddressJvm', JavaExec) {
+        classpath = addressReference.runtimeClasspath
+        mainClass = 'UpstreamServerAddressReference'
     }
 }
 if (probe == 'file-metadata') {
@@ -427,7 +465,7 @@ tasks.register('prepareUpstreamProbe') {
         outputs.file(networkIoFile)
     }
     if (usesBuildControls) {
-        outputs.files(placementFile, itemChoicesFile)
+        outputs.files(placementFile, itemChoicesFile, schematicsFile)
     }
     if (usesLiveNetwork) {
         outputs.files(netClientFile, pathfinderFile)
@@ -441,7 +479,7 @@ tasks.register('prepareUpstreamProbe') {
         fluidSources.keySet().each { outputs.file(sourceDir.map { dir -> dir.file(it) }) }
     }
     if (usesRenderedClient) {
-        outputs.files(contentColorsFile, unitTypeFile)
+        outputs.files(contentColorsFile, unitTypeFile, bulletTypeFile)
         shieldModeSources.keySet().each { outputs.file(sourceDir.map { dir -> dir.file(it) }) }
     }
     if (usesCampaignJsonCompat) {
@@ -452,6 +490,15 @@ tasks.register('prepareUpstreamProbe') {
     }
     doLast {
         if (usesRenderedClient) {
+            def bulletType = new String(readUpstream("core/src/$bulletTypePath"), 'UTF-8')
+            def trailGuard = 'if(!headless && trailLength > 0){'
+            if (bulletType.count(trailGuard) != 1) {
+                throw new GradleException('Pinned projectile trail update changed')
+            }
+            def adaptedBulletType = bulletTypeFile.get().asFile
+            adaptedBulletType.parentFile.mkdirs()
+            adaptedBulletType.setText(bulletType.replace(trailGuard,
+                'if((!headless || Core.batch != null) && trailLength > 0){'), 'UTF-8')
             def loader = new String(readUpstream('core/src/mindustry/core/ContentLoader.java'), 'UTF-8')
             def loadColors = '''public void loadColors(){
         Pixmap pixmap = new Pixmap(files.internal("sprites/block_colors.png"));'''
@@ -483,7 +530,41 @@ tasks.register('prepareUpstreamProbe') {
                 def output = sourceDir.get().file(path).asFile
                 output.parentFile.mkdirs()
                 // Use the existing unshaded geometry when the desktop renderer is absent.
-                output.setText(source.replace(animated, "if(${renderer} != null && ${renderer}.animateShields){"), 'UTF-8')
+                source = source.replace(animated, "if(${renderer} != null && ${renderer}.animateShields){")
+                if (path == 'mindustry/graphics/Drawf.java') {
+                    def stockUniforms = '''        Shaders.build.region = region;
+        Shaders.build.progress = progress;
+        Shaders.build.color.set(color);
+        Shaders.build.color.a = alpha;
+        Shaders.build.time = -time / 20f;
+
+        Draw.shader(Shaders.build);
+'''
+                    def constructAtPosition = stockUniforms + '''        Draw.rect(region, x, y, rotation);
+        Draw.shader();'''
+                    def constructAtBuilding = stockUniforms + '''        Draw.rect(region, t.x, t.y, rotation);
+        Draw.shader();'''
+                    def entry = '    public static void construct(Building t, UnlockableContent content,'
+                    if (source.count(constructAtPosition) != 1 || source.count(constructAtBuilding) != 1
+                            || source.count(entry) != 1) {
+                        throw new GradleException('Pinned unit construction shader entry points changed')
+                    }
+                    source = source.replace(constructAtPosition,
+                        '        constructRegion(region, x, y, color, rotation, progress, alpha, time);')
+                    source = source.replace(constructAtBuilding,
+                        '        constructRegion(region, t.x, t.y, color, rotation, progress, alpha, time);')
+                    source = source.replace(entry, '''    private static void constructRegion(TextureRegion region,
+            float x, float y, Color color, float rotation, float progress, float alpha, float time){
+        if(Core.batch instanceof port.render.UpstreamUnitBuildTarget platform){
+            platform.drawUnitBuild(region, x, y, rotation, progress, color, alpha, -time / 20f);
+            return;
+        }
+''' + constructAtPosition + '''
+    }
+
+''' + entry)
+                }
+                output.setText(source, 'UTF-8')
             }
             fluidSources.each { path, substitutions ->
                 def source = new String(readUpstream("core/src/${path}"), 'UTF-8')
@@ -607,11 +688,16 @@ final class GlacierFixture {
                 commandLine 'git', '-C', arc.get(), 'show', "${arcRevision}:${jsonSource}"
             }.standardOutput.asBytes.get(), 'UTF-8')
             def reflective = 'return type.getDeclaredConstructor().newInstance();'
-            if (source.count(reflective) != 1) {
+            def accessibility = 'if(!field.isAccessible()){'
+            if (source.count(reflective) != 1 || source.count(accessibility) != 1) {
                 throw new GradleException('Pinned Arc Json reflection hooks changed')
             }
             // TeaVM instantiates retained classes directly.
             source = source.replace(reflective, 'return type.newInstance();')
+            if (!usesSinglePlayerApp) {
+                // Preserve the existing field accessibility workaround in the standalone probes.
+                source = source.replace(accessibility, 'if(false){')
+            }
             def adapted = arcJsonFile.get().asFile
             adapted.parentFile.mkdirs()
             adapted.setText(source, 'UTF-8')
@@ -684,6 +770,19 @@ final class GlacierFixture {
         this(new ReusableByteInStream());'''), 'UTF-8')
         }
         if (usesBuildControls) {
+            def schematics = new String(readUpstream('core/src/mindustry/game/Schematics.java'), 'UTF-8')
+            def viewer = 'Team team = headless ? null : Vars.player.team();'
+            if (schematics.count(viewer) != 1) {
+                throw new GradleException('Pinned schematic capture viewer selection changed')
+            }
+            // The handheld draws the stock world without Arc's graphical client.
+            // Give the same capture routine its viewer explicitly.
+            def schematicsOutput = schematicsFile.get().asFile
+            schematicsOutput.parentFile.mkdirs()
+            schematicsOutput.setText(schematics.replace(viewer, '''return create(x, y, x2, y2, headless ? null : Vars.player.team());
+    }
+
+    public Schematic create(int x, int y, int x2, int y2, Team team){'''), 'UTF-8')
             def placement = new String(readUpstream(placementSource), 'UTF-8')
             def selection = placement =~ /(?m)^    Seq<Block> getUnlockedByCategory\(Category cat\)\{[\s\S]*?^    \}/
             def unlocked = placement =~ /(?m)^    boolean unlocked\(Block block\)\{[\s\S]*?^    \}/
@@ -748,7 +847,8 @@ tasks.register('runProbeJvm', JavaExec) {
     classpath = sourceSets.main.runtimeClasspath
     mainClass = ['map-sd': entryPoints.map, 'terrain-render': entryPoints['terrain-draw'],
                  'network-live': 'UpstreamSnapshotDispatchReference',
-                 'network-render': 'UpstreamSnapshotDispatchReference']
+                   'network-render': 'UpstreamSnapshotDispatchReference',
+                   'unified': 'UpstreamSnapshotDispatchReference']
         .getOrDefault(probe, entryPoint)
     def probeArgs = providers.gradleProperty('probeArgs')
     if (probeArgs.isPresent()) {
@@ -779,7 +879,7 @@ teavm {
     if (usesExecutor) {
         c { obfuscated = false }
     }
-    if (probe == 'singleplayer') {
+    if (usesSinglePlayerApp) {
         // Large offline maps allocate the original Pathfinder grid while the
         // decoded world is live, then still need to load the world atlas.
         c { maxHeapSize = 32 }

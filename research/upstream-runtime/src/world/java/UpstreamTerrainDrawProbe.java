@@ -21,6 +21,8 @@ import mindustry.gen.Building;
 import mindustry.graphics.CacheLayer;
 import mindustry.world.Tile;
 import mindustry.world.blocks.environment.Floor;
+import mindustry.world.blocks.units.UnitCargoLoader;
+import port.render.UpstreamUnitBuildTarget;
 
 /** Captures the upstream terrain draw calls before they reach a GPU. */
 public final class UpstreamTerrainDrawProbe {
@@ -37,6 +39,11 @@ public final class UpstreamTerrainDrawProbe {
                   float x, float y, float originX, float originY, float drawWidth, float drawHeight,
                   float rotation, int color, int mixColor, Blending blending);
         void drawSolidQuad(float[] vertices, int offset, Blending blending);
+        default void drawUnitBuild(int page, int left, int top, int width, int height,
+                                   float x, float y, float drawWidth, float drawHeight, float rotation,
+                                   float progress, Color tint, float alpha, float phase, int vertexColor) {
+            throw new UnsupportedOperationException("This terrain target does not draw stock unit construction");
+        }
         void end();
     }
 
@@ -67,12 +74,19 @@ public final class UpstreamTerrainDrawProbe {
         boolean wasHeadless = Vars.headless;
         Vars.headless = false;
         try {
+            if (prepareLiveAtlas != null) {
+                // Conveyors and stack conveyors draw the original Item.fullIcon.
+                for (var item : Vars.content.items()) item.loadIcon();
+            }
             for (var block : Vars.content.blocks()) {
                 if (block == Blocks.air) continue;
                 if (block instanceof Floor || prepareLiveAtlas != null) {
                     block.load();
                 }
-                if (prepareLiveAtlas != null) block.loadIcon();
+                if (prepareLiveAtlas != null) {
+                    block.loadIcon();
+                    if (block instanceof UnitCargoLoader loader) loader.unitType.loadIcon();
+                }
             }
         } finally {
             Vars.headless = wasHeadless;
@@ -118,6 +132,11 @@ public final class UpstreamTerrainDrawProbe {
         void moveTo(int x, int y) {
             left = Mathf.clamp(x, 0, Math.max(0, Vars.world.width() - VIEW_WIDTH));
             bottom = Mathf.clamp(y, 0, Math.max(0, Vars.world.height() - VIEW_HEIGHT));
+        }
+
+        boolean contains(int tileX, int tileY) {
+            return tileX >= left && tileX < left + VIEW_WIDTH
+                && tileY >= bottom && tileY < bottom + VIEW_HEIGHT;
         }
 
         boolean contains(Building building) {
@@ -197,7 +216,7 @@ public final class UpstreamTerrainDrawProbe {
         return ((AtlasPageTexture) region.texture).index;
     }
 
-    private static final class TerrainBatch extends Batch {
+    private static final class TerrainBatch extends Batch implements UpstreamUnitBuildTarget {
         // Arc SpriteBatch queues draw requests while sorting. A deferred callback can
         // draw immediately during the flush, and equal depths retain submission order.
         private record DrawRequest(float depth, Blending blending, Runnable draw) {}
@@ -284,6 +303,25 @@ public final class UpstreamTerrainDrawProbe {
                 float rotation = (float)Math.toDegrees(Math.atan2(dy, dx));
                 target.draw(page.index, left, top, right - left, bottom - top, x, y, 0f, 0f, width, height,
                     rotation, Color.floatToIntColor(tint), Color.floatToIntColor(mixTint), blending);
+            }
+        }
+
+        @Override
+        public void drawUnitBuild(TextureRegion region, float x, float y, float rotation, float progress,
+                                  Color tint, float alpha, float phase) {
+            if (region == Core.atlas.find("error")) throw new IllegalStateException("Missing unit construction sprite");
+            var page = (AtlasPageTexture)region.texture;
+            int left = region.getX(), top = region.getY(), width = region.width, height = region.height;
+            float drawWidth = width * region.scl() * Draw.xscl;
+            float drawHeight = height * region.scl() * Draw.yscl;
+            int vertexColor = Color.floatToIntColor(colorPacked);
+            if (sort && !flushing) {
+                Color savedTint = tint.cpy();
+                draw(() -> target.drawUnitBuild(page.index, left, top, width, height, x, y, drawWidth,
+                    drawHeight, rotation, progress, savedTint, alpha, phase, vertexColor));
+            } else {
+                target.drawUnitBuild(page.index, left, top, width, height, x, y, drawWidth,
+                    drawHeight, rotation, progress, tint, alpha, phase, vertexColor);
             }
         }
 

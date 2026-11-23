@@ -1124,3 +1124,12 @@ jobs:
             | tee "$RUNNER_TEMP/campaign-resume-jvm.log"
           grep -F 'UPSTREAM_CAMPAIGN_RESUME_REFERENCE slots=2 groundZero=170 frozenForest=64 backup=ok' \
             "$RUNNER_TEMP/campaign-resume-jvm.log"
+
+      - name: Check unified multiplayer server address parsing on the JVM
+        run: |
+          bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime \
+            --no-daemon --console=plain \
+            "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" \
+            "-PreferenceJar=$RUNNER_TEMP/server-release.jar" \
+            "-ParcCheckout=$RUNNER_TEMP/Arc" \
+            -Pprobe=unified runServerAddressJvm
