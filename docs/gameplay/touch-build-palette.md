@@ -273,8 +273,11 @@ keeps the progress, accent color, phase, and scan line from the original
 splits the rotating quad at the shader's stripe boundaries.
 
 The JVM rendering reference checks the idle layers, construction
-parameters, scan line, and output payload with Crawler. The host C
-reference covers the shader equations and texture layout.
+parameters, scan line, and output payload with Crawler. It also checks that
+the live client's animation warms up and fades using the factory efficiency
+from the stock snapshot. The factory's progress, plan, and payload stay
+server-authoritative. The host C reference covers the shader equations and
+texture layout.
 
 The emulator verifier creates four Glacier saves with the unmodified
 v160.8 server. It compares the empty footprint, idle factory,
@@ -285,7 +288,15 @@ drew all four states on both the Original and New 3DS profiles. Each
 profile recorded 729 changed pixels from terrain to idle in the factory
 footprint, 105 from idle to construction, and 99 from idle to payload.
 Both construction replays logged the original shader adapter. This replay
-used offline saves. Physical hardware verification remains open in #43.
+used offline saves. Pass `--live` to join an unmodified Java server hosting
+each of the same four stock saves. The construction fixture keeps progress
+at its halfway point so the verifier can check the shader and scan line
+after the handheld joins. The [live ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45156108781)
+passed all four states on both Azahar profiles against unmodified Java.
+Each profile recorded 729 changed pixels from terrain to idle, 116 from
+idle to construction, and 99 from idle to payload. Both live
+construction captures logged the stock shader. Physical hardware
+verification remains open in #43.
 
 ```bash
 python3 tools/verify_upstream_factory_graphics.py \
