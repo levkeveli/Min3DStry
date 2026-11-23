@@ -19,6 +19,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.zip.InflaterInputStream;
 import mindustry.Vars;
 import mindustry.ai.BlockIndexer;
@@ -102,15 +103,16 @@ public final class UpstreamLiveNetworkProbe {
     private final Mode mode;
     private final UpstreamPlayerIdentity identity;
     private final Consumer<Unit> frame;
-    private final UpstreamLiveBuildControls building;
+    private final Supplier<UpstreamLiveBuildControls> building;
+    private final Runnable reconnecting;
     private final Consumer<String> chat;
     private final UpstreamChatInput chatInput;
     private Runnable deferredGraphics;
     private int nextLiveTransport = 1;
 
     private UpstreamLiveNetworkProbe(Mode mode, Runnable deferredGraphics, Consumer<Unit> frame,
-                                     UpstreamLiveBuildControls building, Consumer<String> chat,
-                                     UpstreamChatInput chatInput, UpstreamPlayerIdentity identity) {
+                                     Supplier<UpstreamLiveBuildControls> building, Consumer<String> chat,
+                                     UpstreamChatInput chatInput, UpstreamPlayerIdentity identity, Runnable reconnecting) {
         this.mode = mode;
         this.deferredGraphics = deferredGraphics;
         this.frame = frame;
@@ -118,11 +120,12 @@ public final class UpstreamLiveNetworkProbe {
         this.chat = chat;
         this.chatInput = chatInput;
         this.identity = identity;
+        this.reconnecting = reconnecting;
     }
 
     public static void main(String[] args) throws IOException, InterruptedException {
         var endpoint = endpointFile(args);
-        run(endpoint.parent(), endpoint.readString(), null, null, null, null, null, null);
+        run(endpoint.parent(), endpoint.readString(), null, null, null, null, null, null, null);
     }
 
     static Fi endpointFile(String[] args) {
@@ -130,7 +133,8 @@ public final class UpstreamLiveNetworkProbe {
     }
 
     static ServerKick run(Fi directory, String address, Runnable beforeConnect, Runnable deferredGraphics,
-                    Consumer<Unit> frame, UpstreamLiveBuildControls building, Consumer<String> chat, UpstreamChatInput chatInput)
+                    Consumer<Unit> frame, Supplier<UpstreamLiveBuildControls> building, Consumer<String> chat,
+                    UpstreamChatInput chatInput, Runnable reconnecting)
                     throws IOException, InterruptedException {
         String[] endpoint = address.trim().split("\\s+");
         if (endpoint.length < 2 || endpoint.length > 3) {
@@ -160,7 +164,7 @@ public final class UpstreamLiveNetworkProbe {
             stage = "profile";
             var identity = UpstreamPlayerIdentity.load(directory, endpoint[0]);
             stage = "session";
-            return new UpstreamLiveNetworkProbe(mode, deferredGraphics, frame, building, chat, chatInput, identity)
+            return new UpstreamLiveNetworkProbe(mode, deferredGraphics, frame, building, chat, chatInput, identity, reconnecting)
                 .run(host, port, app);
         } catch (IOException | RuntimeException | LinkageError error) {
             Throwable cause = error;
@@ -175,22 +179,26 @@ public final class UpstreamLiveNetworkProbe {
     private ServerKick run(byte[] host, int port, UpstreamWorldLoadProbe.ProbeApplication app)
             throws IOException, InterruptedException {
         if (mode == Mode.CONTROLS) {
-            ServerKick departure = null;
-            try {
+            for (int join = 1; ; join++) {
                 try {
-                    connect(host, port, app, 1);
-                } finally {
-                    Native.close();
+                    try {
+                        nextLiveTransport = 1;
+                        connect(host, port, app, join);
+                    } finally {
+                        Native.close();
+                    }
+                    System.out.println("UPSTREAM_LIVE_CONTROLS_LEFT");
+                    return null;
+                } catch (ServerKick kick) {
+                    System.out.println("UPSTREAM_LIVE_CONTROLS_KICK kind=" + kick.kind + " reason=" + kick.getMessage());
+                    Vars.net = new Net(null);
+                    Vars.logic.reset();
+                    app.runPosted();
+                    System.out.println("UPSTREAM_LIVE_CONTROLS_LEFT");
+                    if (kick.stockReason != KickReason.serverRestarting) return kick;
+                    if (!waitForRestart(host, port)) return null;
                 }
-            } catch (ServerKick kick) {
-                System.out.println("UPSTREAM_LIVE_CONTROLS_KICK kind=" + kick.kind + " reason=" + kick.getMessage());
-                Vars.net = new Net(null);
-                Vars.logic.reset();
-                app.runPosted();
-                departure = kick;
             }
-            System.out.println("UPSTREAM_LIVE_CONTROLS_LEFT");
-            return departure;
         }
         try {
             int result = open(host, port, BUILD - 1);
@@ -218,6 +226,21 @@ public final class UpstreamLiveNetworkProbe {
         }
         System.out.println("UPSTREAM_LIVE_NET_PASS");
         return null;
+    }
+
+    private boolean waitForRestart(byte[] host, int port) throws InterruptedException {
+        if (reconnecting != null) reconnecting.run();
+        long nextPing = System.nanoTime() + 1_000_000_000L;
+        while (true) {
+            int input = Native.input();
+            if (input < 0 || (input & (1 << 19)) != 0) return false;
+            long now = System.nanoTime();
+            if (now >= nextPing) {
+                if (Native.ping(Address.ofData(host), host.length, port) != 0) return true;
+                nextPing = now + 1_000_000_000L;
+            }
+            Thread.sleep(16);
+        }
     }
 
     private void connect(byte[] host, int port, UpstreamWorldLoadProbe.ProbeApplication app, int join)
@@ -437,7 +460,7 @@ public final class UpstreamLiveNetworkProbe {
     }
 
     private void driveLiveClient(UpstreamWorldLoadProbe.ProbeApplication app) throws IOException {
-        var controls = new LiveControls(building);
+        var controls = new LiveControls(building == null ? null : building.get());
         int lastWave = -1;
         // A slow first presentation must not postpone the stock TCP heartbeat.
         if (frame != null && Native.beginKeepAlive(1) == 0) {
@@ -1005,6 +1028,9 @@ public final class UpstreamLiveNetworkProbe {
         static native void endKeepAlive();
         @Import(name = "m3ds_live_net_input")
         static native int input();
+
+        @Import(name = "m3ds_live_net_ping")
+        static native int ping(Address host, int length, int port);
 
         @Import(name = "m3ds_live_net_touch")
         static native int touch();
