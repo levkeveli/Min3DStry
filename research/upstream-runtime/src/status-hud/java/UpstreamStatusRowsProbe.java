@@ -100,6 +100,23 @@ public final class UpstreamStatusRowsProbe {
             throw new IllegalStateException("Core item row collection mismatch");
         }
         System.out.println("UPSTREAM_CORE_ITEMS rows=2 ok");
+        var tracker = new UpstreamCoreItems.Tracker();
+        var tracked = tracker.collect(Seq.with(Items.copper, Items.lead, Items.silicon).list(),
+            item -> item == Items.copper ? 16 : 0);
+        if (tracked.size() != 1 || tracked.get(0).item() != Items.copper) {
+            throw new IllegalStateException("Used-item initial row mismatch");
+        }
+        tracked = tracker.collect(Seq.with(Items.copper, Items.lead, Items.silicon).list(),
+            item -> item == Items.lead ? 7 : 0);
+        if (tracked.size() != 2 || tracked.get(0).item() != Items.copper
+                || tracked.get(0).amount() != 0 || tracked.get(1).item() != Items.lead) {
+            throw new IllegalStateException("Used-item depletion mismatch");
+        }
+        tracker.reset();
+        if (!tracker.collect(Seq.with(Items.copper).list(), item -> 0).isEmpty()) {
+            throw new IllegalStateException("Used-item reset mismatch");
+        }
+        System.out.println("UPSTREAM_CORE_USED_ITEMS cases=3 ok");
 
         var pause = new UpstreamPauseMenu();
         pause.open();
