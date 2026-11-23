@@ -235,11 +235,6 @@ jobs:
           cp -R research/upstream-runtime/build/generated/teavm/c "$RUNNER_TEMP/teavm-c-wave"
           python3 research/upstream-runtime/arm11/fix_reflection_lifetime.py "$RUNNER_TEMP/teavm-c-wave"
           python3 research/upstream-runtime/arm11/fix_gc_monitors.py "$RUNNER_TEMP/teavm-c-wave"
-          # Give the Linux parity probe enough heap for Glacier's map initialization.
-          # The ARM11 build below still consumes the original generated directory.
-          wave_main="$RUNNER_TEMP/teavm-c-wave/main.c"
-          sed -i 's/teavm_initHeap(1048576, 25165824);/teavm_initHeap(134217728, 134217728);/' "$wave_main"
-          grep -Fxq '    teavm_initHeap(134217728, 134217728);' "$wave_main"
           bash .github/scripts/cc_host.sh -std=gnu11 -O0 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-wave/all.c" -lm -lpthread \
             -o "$RUNNER_TEMP/teavm-c-wave/probe_o0"
           timeout 60s "$RUNNER_TEMP/teavm-c-wave/probe_o0" "$RUNNER_TEMP/glacier.msav" | tee "$RUNNER_TEMP/wave-o0.log"
