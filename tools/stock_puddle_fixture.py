@@ -20,7 +20,8 @@ DEPOSIT = (
 def changed_colors(before, after):
     # Stock Glacier starts with viewport (73, 20) at twenty pixels per tile.
     water = tuple((x, y) for x in range(82, 99, 2) for y in range(142, 159, 2))
-    neoplasm = tuple((x, y) for x in range(282, 299, 2) for y in range(142, 159, 2))
+    # The solid wall covers the center. Sample around its edges as well as its face.
+    neoplasm = tuple((x, y) for x in range(270, 311, 2) for y in range(130, 173, 2))
     points = water + neoplasm
     cold = az.inspect_png(before, points)["samples"]
     active = az.inspect_png(after, points)["samples"]
