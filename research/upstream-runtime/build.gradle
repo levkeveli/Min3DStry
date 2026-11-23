@@ -331,9 +331,14 @@ if (usesSinglePlayer) {
             classpath = sourceSets.main.runtimeClasspath
             mainClass = 'UpstreamStockOrdersReference'
         }
+        tasks.register('runStockPossessionJvm', JavaExec) {
+            classpath = sourceSets.main.runtimeClasspath
+            mainClass = 'UpstreamStockPossessionReference'
+        }
     }
     if (!usesSinglePlayerApp) {
-        sourceSets.main.java.exclude('UpstreamSinglePlayerApp.java', 'UpstreamSinglePlayerInput.java')
+        sourceSets.main.java.exclude('UpstreamSinglePlayerApp.java', 'UpstreamSinglePlayerInput.java',
+            'UpstreamOfflineWeaponInput.java')
     } else if (!usesLiveNetwork) {
         sourceSets.main.java.srcDir('src/network-live/java')
         sourceSets.main.java.srcDir('src/network-render/java')

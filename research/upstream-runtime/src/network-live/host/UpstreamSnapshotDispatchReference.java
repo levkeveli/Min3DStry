@@ -23,6 +23,7 @@ import mindustry.game.MapObjectives.TextMarker;
 import mindustry.game.MapObjectives.TextureMarker;
 import mindustry.game.Universe;
 import mindustry.gen.BlockSnapshotCallPacket;
+import mindustry.gen.BlockUnitc;
 import mindustry.gen.ClearObjectivesCallPacket;
 import mindustry.gen.CompleteObjectiveCallPacket;
 import mindustry.gen.CreateMarkerCallPacket;
@@ -35,6 +36,7 @@ import mindustry.gen.SetUnitCommandCallPacket;
 import mindustry.gen.SetUnitStanceCallPacket;
 import mindustry.gen.StateSnapshotCallPacket;
 import mindustry.gen.Unit;
+import mindustry.gen.UnitControlCallPacket;
 import mindustry.gen.UpdateMarkerCallPacket;
 import mindustry.gen.UpdateMarkerTextCallPacket;
 import mindustry.gen.UpdateMarkerTextureCallPacket;
@@ -44,6 +46,7 @@ import mindustry.net.Net;
 import mindustry.net.NetworkIO;
 import mindustry.net.Packet;
 import mindustry.world.blocks.payloads.BuildPayload;
+import mindustry.world.blocks.ControlBlock;
 import mindustry.world.blocks.payloads.PayloadConveyor.PayloadConveyorBuild;
 import mindustry.world.modules.ItemModule;
 
@@ -112,12 +115,36 @@ public final class UpstreamSnapshotDispatchReference {
                 || decodedMono.x != 616f || decodedMono.y != 216f || !decodedMono.isCommandable()) {
             throw new IllegalStateException("Stock Mono position or controller did not synchronize");
         }
+        // A player taking over a grounded unit enters VelComp's stock tile collision path.
+        // Exercise it on a freshly decoded Dagger, before any offline services are installed.
+        replicated.move(0.25f, 0f);
         verifyUnitCommandPackets(decodedMono);
         System.out.println("UPSTREAM_SNAPSHOT_REFERENCE wave=" + state.wave
             + " seconds=42 copper=947 dagger=" + dagger.id);
         verifyPayloadHandoff();
         verifyObjectivePackets();
         verifyMarkerPackets();
+        verifyPossessionPackets(decodedMono);
+    }
+
+    private static void verifyPossessionPackets(Unit allied) {
+        var actor = Vars.player;
+        var packet = new UnitControlCallPacket();
+        packet.player = actor;
+        packet.unit = allied;
+        applyPacket(packet, new UnitControlCallPacket(), actor);
+        if (actor.unit() != allied) throw new AssertionError("Stock possession packet did not assign the allied unit");
+
+        var tile = Vars.world.tile(78, 22);
+        tile.setBlock(Blocks.duo, actor.team(), 0);
+        var proxy = ((ControlBlock)tile.build).unit();
+        packet.unit = proxy;
+        applyPacket(packet, new UnitControlCallPacket(), actor);
+        if (actor.unit() != proxy || !(proxy instanceof BlockUnitc block) || block.tile() != tile.build
+                || Groups.sync.getByID(proxy.id()) == proxy) {
+            throw new AssertionError("Stock possession must decode the turret proxy by its tile");
+        }
+        System.out.println("UPSTREAM_POSSESSION_PACKET_REFERENCE movable=mono turret=duo");
     }
 
     private static void verifyUnitCommandPackets(Unit unit) {
