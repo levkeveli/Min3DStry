@@ -1119,7 +1119,6 @@ public final class UpstreamSinglePlayerApp {
         var schematics = buildingControls.schematics();
         schematics.draw(viewport);
         drawCoreItems();
-<<<<<<< HEAD
         drawObjectives(buildingPowerHud.draw(target, buildingControls, Vars.player.team(), drawStatusHud()));
         if (pauseOpen) drawPauseMenu();
         var block = buildingControls.block();
@@ -1183,7 +1182,11 @@ public final class UpstreamSinglePlayerApp {
     }
 
     private float drawStatusHud() {
-        var rows = UpstreamStatusHud.collect();
+        var rows = new java.util.ArrayList<>(UpstreamStatusHud.collect());
+        if (Core.settings.getBool("showperformance", false)) {
+            int fps = frameSeconds > 0f ? Math.round(1f / frameSeconds) : 0;
+            rows.add(new UpstreamObjectiveHud.Row("FPS " + fps, "FPS " + fps, "none", null));
+        }
         if (!rows.equals(lastStatus)) {
             statusLabels = new byte[rows.size()][];
             statusCharacters = new int[rows.size()][];
@@ -1283,12 +1286,12 @@ public final class UpstreamSinglePlayerApp {
                 {Core.bundle.get("setting.showperformance.name"), settingsMenu.performance() ? "on" : "off"},
                 {Core.bundle.get("back"), null}
             };
-            float y = 126f;
+            float y = 118f;
             for (int i = 0; i < rows.length; i++) {
                 boolean selected = settingsMenu.selected() == i;
                 String text = rows[i][0] + (rows[i][1] == null ? "" : ": " + Core.bundle.get(rows[i][1]));
                 drawPauseRow((selected ? "> " : "  ") + text, 92f, y, selected);
-                y += 24f;
+                y += 22f;
             }
             return;
         }
@@ -1316,12 +1319,6 @@ public final class UpstreamSinglePlayerApp {
         if (pauseMenu.confirmingQuit()) {
             drawPauseRow(Core.bundle.get("quit.confirm"), 40f, 210f, false);
         }
-    }
-
-    private void drawPlainRow(String text, float x, float y) {
-        byte[] label = (text + "\0").getBytes(StandardCharsets.UTF_8);
-        int[] characters = encodeLabel(UpstreamLabelText.parse(text));
-        target.drawObjectiveAt(label, characters, null, x, y);
     }
 
     private void drawPauseRow(String text, float x, float y, boolean selected) {
