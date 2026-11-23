@@ -76,6 +76,10 @@ final class UpstreamServerAssetsReference {
                     throw new AssertionError("Digest differs from Java at length " + size);
                 }
             }
+            if (!Arrays.equals(client.cache.add(bytes), large.byteHash)
+                    || !Arrays.equals(client.cache.get(large.stringHash).readBytes(), bytes)) {
+                throw new AssertionError("The embedded stock asset path must use the same cache key and bytes");
+            }
             System.out.println("UPSTREAM_SERVER_ASSETS cold=2 cached=0 damaged=1 hash=verified");
         } finally {
             Vars.assetCache = previousCache;
