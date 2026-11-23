@@ -55,6 +55,9 @@ def verify_stance_input(log, proc, rpc, output):
     sp._wait_for_log(log, proc, r"UPSTREAM_MENU_FONT source=v160.8 catalog=stance\b", 25)
     (output / "stock-stance-icons.png").write_bytes(capture_factory_menu(rpc))
     sp._wait_for_log(log, proc, r"UPSTREAM_UNIT_STANCE stance=holdfire enabled=true units=1\b", 30)
+    menu_font = r"UPSTREAM_MENU_FONT source=v160.8 catalog=stance\b"
+    sp._wait_for_log(log, proc, menu_font + r"[\s\S]*" + menu_font, 25)
+    (output / "stock-ore-icons.png").write_bytes(capture_factory_menu(rpc))
     sp._wait_for_log(log, proc, r"UPSTREAM_UNIT_STANCE stance=item-copper enabled=true units=1\b", 35)
 
 

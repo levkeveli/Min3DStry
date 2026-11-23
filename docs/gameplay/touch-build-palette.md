@@ -104,11 +104,16 @@ highlights follow the last selected unit, as in the original menu.
 Choices only affect compatible units. For example, choosing **Mine** for a
 mixed Dagger and Mono selection switches the Mono's controller
 and makes its mining stances available. **Cancel Orders** calls
-the original clear handler.
+the original clear handler. Press **B** to dismiss an open menu.
 
 The ARM11 package uses the pinned v160.8 icon font for the stock
 command and stance symbols. Ore stances use their original item
 atlas regions. The menu uses the stock localized row names.
+
+The [ARM11 stance build](https://github.com/levkeveli/Min3DStry/actions/runs/45094098264)
+passed on both Azahar 2126.2 profiles. The stock Java server confirmed
+the Mono's copper mining stance and the Dagger's Hold Fire stance in
+both offline saves and both live multiplayer sessions.
 
 The JVM checks use the stock Dagger controller for formation, queued
 moves, and an attack order. A stock Glacier fixture verifies unit
