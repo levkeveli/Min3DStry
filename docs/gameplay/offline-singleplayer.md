@@ -134,23 +134,35 @@ The offline app sets aim and the trigger through the original
 `Unit.aim` and `Unit.controlWeapons` methods. The pinned simulation
 handles reload, recoil, delayed shots, projectiles, and damage.
 The chosen aim direction stays active when the aim button is released,
-so players can move while firing. A plain X press and release still pauses.
+so players can move while firing. A quick X tap pauses even with the
+movement control held. Hold X and a direction for a quarter second
+to switch to aiming.
 
 The stock Glacier replay uses Gamma to damage an opposing Fortress.
 The fixture applies the original disarmed and unmoving statuses to keep
 the target in place. The unmodified Java server checks the saved unit
 health after the controller replay.
 
-On the [ARM11 combat build](https://github.com/levkeveli/Min3DStry/actions/runs/45089071635),
-Azahar 2126.2 passed pause, aim, firing, release, and save on both
-Original and New 3DS profiles. Stock Java read the Fortress at
-896 of 900 health from each save.
+The replay checks that the Fortress takes damage and that the stock
+weapon mounts schedule no further shots after L is released.
+The precise damage depends on the number of simulation ticks that
+occur during the replay.
 
 ```bash
 python3 tools/verify_offline_stock_weapons.py \
   --rom /path/to/unified/upstream-probe.3dsx \
   --server /path/to/server-release.jar \
   --output build/offline-stock-weapons
+```
+
+Run the JVM reference with a stock Glacier fixture from the verifier
+and a scratch save path.
+
+```bash
+bash /path/to/Mindustry/gradlew -p research/upstream-runtime \
+  -PupstreamCheckout=/path/to/Mindustry -ParcCheckout=/path/to/Arc \
+  -PreferenceJar=/path/to/server-release.jar -Pprobe=unified \
+  runOfflineWeaponsJvm "--args=/path/to/stock-fixture/config/saves/weapons.msav /tmp/weapons-jvm.msav"
 ```
 
 ## Build & Verification Commands

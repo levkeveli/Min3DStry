@@ -5,21 +5,32 @@ import mindustry.gen.Unit;
 
 /** Adapts the 3DS aim modifier and trigger to the original unit weapon controls. */
 final class UpstreamOfflineWeaponInput {
+    private static final long AIM_HOLD_NS = 250_000_000L;
     private final Vec2 heading = new Vec2();
     private Unit currentUnit;
     private boolean aimed;
-    private boolean pauseCandidate;
+    private boolean pendingTap, aimMode;
+    private long pressedAt;
 
-    boolean releasePauses(boolean pressed, boolean held, boolean aimOrFire) {
-        if (pressed) pauseCandidate = true;
+    boolean releasePauses(boolean pressed, boolean held, boolean direction, boolean trigger, long now) {
+        if (pressed) {
+            pendingTap = true;
+            pressedAt = now;
+        }
         if (held) {
-            if (aimOrFire) pauseCandidate = false;
+            if (pendingTap && (direction || trigger) && now - pressedAt >= AIM_HOLD_NS) {
+                pendingTap = false;
+                aimMode = true;
+            }
             return false;
         }
-        boolean pause = pauseCandidate;
-        pauseCandidate = false;
+        boolean pause = pendingTap;
+        pendingTap = false;
+        aimMode = false;
         return pause;
     }
+
+    boolean aimMode() { return aimMode; }
 
     void update(Unit unit, Vec2 direction, boolean aiming, boolean trigger) {
         if (currentUnit != unit) {
@@ -40,9 +51,16 @@ final class UpstreamOfflineWeaponInput {
             && !unit.mining() && !(unit instanceof Mechc && unit.isFlying());
         if (shooting != player.shooting) {
             System.out.println("UPSTREAM_SP_FIRE shooting=" + shooting
-                + " unit=" + unit.type().name + " x=" + unit.aimX() + " y=" + unit.aimY());
+                + " unit=" + unit.type().name + " x=" + unit.aimX() + " y=" + unit.aimY()
+                + " shots=" + totalShots(unit));
         }
         player.shooting = shooting;
         unit.controlWeapons(true, shooting);
+    }
+
+    static int totalShots(Unit unit) {
+        int total = 0;
+        for (var mount : unit.mounts) total += mount.totalShots;
+        return total;
     }
 }

@@ -4,6 +4,7 @@ import argparse
 from pathlib import Path
 import re
 import shutil
+import tempfile
 
 import verify_upstream_singleplayer as sp
 from verify_upstream_factory_plans import start_server, stock_command, write_movie
@@ -12,7 +13,7 @@ from verify_upstream_live_net import stop, wait_for
 
 KEY_DRIGHT = 1 << 4
 KEY_L = 1 << 9
-BUTTONS = {34: sp.KEY_X, 42: sp.KEY_X, 50: sp.KEY_X | KEY_DRIGHT,
+BUTTONS = {33: KEY_DRIGHT, 34: sp.KEY_X | KEY_DRIGHT, 42: sp.KEY_X, 50: sp.KEY_X | KEY_DRIGHT,
            60: KEY_L, 72: sp.KEY_SELECT, 82: sp.KEY_START}
 SETUP = (
     'const rules=Vars.state.rules; rules.waves=false; '
@@ -62,7 +63,7 @@ def replay(args, model, fixture):
     save.parent.mkdir(parents=True)
     shutil.copyfile(fixture, save)
     movie = output / "weapons.ctm"
-    write_movie(movie, model, taps={}, buttons=BUTTONS, seconds=90)
+    write_movie(movie, model, taps={}, buttons=BUTTONS, seconds=90, button_durations={33: 1, 34: 0.12})
     isolated = {"Data Storage": {"use_custom_storage": "true", "sdmc_directory": sd.as_posix() + "/"}}
     try:
         config.parent.mkdir(parents=True, exist_ok=True)
@@ -72,6 +73,7 @@ def replay(args, model, fixture):
         try:
             sp._wait_for_log(log, proc, r"UPSTREAM_SP_READY .*x=648\.0 y=208\.0", 120)
             sp._wait_for_log(log, proc, r"UPSTREAM_SP_ENEMY type=fortress\b", 30)
+            sp._wait_for_log(log, proc, r"UPSTREAM_SP_MOVING .*input=dpad\b", 70)
             sp._wait_for_log(log, proc, r"UPSTREAM_SP_PAUSE paused=true\b", 80)
             sp._wait_for_log(log, proc, r"UPSTREAM_SP_PAUSE paused=false\b", 35)
             fire = r"UPSTREAM_SP_FIRE shooting=true unit=gamma x=([0-9.]+) y=([0-9.]+)"
@@ -79,11 +81,13 @@ def replay(args, model, fixture):
             aim_x, aim_y = map(float, re.search(fire, fire_log).groups())
             if aim_x < 750 or abs(aim_y - 208) >= 3:
                 raise AssertionError(f"Expected eastward aim, got ({aim_x}, {aim_y})")
-            sp._wait_for_log(log, proc, r"UPSTREAM_SP_FIRE shooting=false unit=gamma\b", 30)
-            sp._wait_for_log(log, proc, r"UPSTREAM_SP_SAVED ", 50)
+            release = r"UPSTREAM_SP_FIRE shooting=false unit=gamma .* shots=([1-9][0-9]*)"
+            release_log = sp._wait_for_log(log, proc, release, 30)
+            shots = int(re.search(release, release_log).group(1))
+            sp._wait_for_log(log, proc, rf"UPSTREAM_SP_WEAPON_SAVED shots={shots}\b", 50)
             (output / "after-fire.png").write_bytes(rpc.screenshot())
             sp._wait_for_log(log, proc, r"UPSTREAM_SP_EXIT\b", 40)
-            if "UPSTREAM_SP_MOVING" in log.read_text(encoding="utf-8", errors="replace"):
+            if "UPSTREAM_SP_MOVING" in fire_log.split("UPSTREAM_SP_PAUSE paused=false", 1)[1]:
                 raise AssertionError("Aim input should leave movement idle")
         finally:
             rpc.close()
@@ -107,11 +111,14 @@ def main():
     parser.add_argument("--rom", type=Path, required=True)
     parser.add_argument("--azahar")
     parser.add_argument("--fixture", type=Path)
-    parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--output", type=Path, required=True, help="Evidence directory; reruns create a child directory")
     parser.add_argument("--model", choices=("new3ds", "old3ds"), action="append")
     parser.add_argument("--port", type=int, default=16618)
     args = parser.parse_args()
-    args.output.mkdir(parents=True)
+    args.output.mkdir(parents=True, exist_ok=True)
+    if any(args.output.iterdir()):
+        args.output = Path(tempfile.mkdtemp(prefix="replay-", dir=args.output))
+        print(f"Writing new evidence to {args.output}", flush=True)
     fixture = args.fixture or verify_stock(args, args.output / "stock-fixture")
     for model in args.model or ("old3ds", "new3ds"):
         replay(args, model, fixture)

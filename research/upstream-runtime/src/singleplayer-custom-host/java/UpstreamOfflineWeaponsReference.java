@@ -17,9 +17,15 @@ public final class UpstreamOfflineWeaponsReference {
             var target = enemy();
             if (target == null) throw new AssertionError("Expected an opposing Fortress");
             var weapons = new UpstreamOfflineWeaponInput();
-            if (weapons.releasePauses(true, true, false) || !weapons.releasePauses(false, false, false)
-                    || weapons.releasePauses(true, true, true) || weapons.releasePauses(false, false, false)) {
-                throw new AssertionError("The pause tap and aim hold must be distinct");
+            if (weapons.releasePauses(true, true, true, false, 0L) || weapons.aimMode()
+                    || weapons.releasePauses(false, true, true, false, 100_000_000L) || weapons.aimMode()
+                    || !weapons.releasePauses(false, false, true, false, 120_000_000L)) {
+                throw new AssertionError("A quick X tap while moving must pause without entering aim mode");
+            }
+            if (weapons.releasePauses(true, true, true, false, 1_000_000_000L)
+                    || weapons.releasePauses(false, true, true, false, 1_300_000_000L) || !weapons.aimMode()
+                    || weapons.releasePauses(false, false, false, false, 1_400_000_000L)) {
+                throw new AssertionError("A held direction must aim without also pausing on release");
             }
             var east = new Vec2(1f, 0f);
             weapons.update(unit, east, true, false);
@@ -40,8 +46,10 @@ public final class UpstreamOfflineWeaponsReference {
                 throw new AssertionError("Stock weapons did not damage the Fortress: health=" + target.health);
             }
             weapons.update(unit, neutral, false, false);
-            session.stepSimulation(0f, 0f);
-            if (Vars.player.shooting || unit.mounts[0].shoot) {
+            int releasedShots = UpstreamOfflineWeaponInput.totalShots(unit);
+            for (int tick = 0; tick < 40; tick++) session.stepSimulation(0f, 0f);
+            if (Vars.player.shooting || unit.mounts[0].shoot || releasedShots <= 0
+                    || UpstreamOfflineWeaponInput.totalShots(unit) != releasedShots) {
                 throw new AssertionError("Releasing the trigger must stop the stock weapon");
             }
             float damaged = target.health;

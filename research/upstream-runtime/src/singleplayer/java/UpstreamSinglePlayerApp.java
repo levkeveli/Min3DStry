@@ -431,6 +431,7 @@ public final class UpstreamSinglePlayerApp {
             int input = UpstreamSinglePlayerInput.poll();
             if (input == -1) break;
             int touch = UpstreamSinglePlayerInput.touch();
+            long now = System.nanoTime();
 
             moveInput.set((byte)input / 127f, (byte)(input >>> 8) / 127f);
             if (moveInput.len2() < DEAD_ZONE * DEAD_ZONE) {
@@ -440,9 +441,8 @@ public final class UpstreamSinglePlayerApp {
             }
             boolean aimHeld = (input & UpstreamSinglePlayerInput.X_HELD) != 0;
             boolean fireHeld = (input & UpstreamSinglePlayerInput.L_HELD) != 0;
-            boolean aiming = aimHeld && !moveInput.isZero();
             if (weaponInput.releasePauses((input & UpstreamSinglePlayerInput.X_PRESSED) != 0,
-                    aimHeld, aiming || fireHeld)) {
+                    aimHeld, !moveInput.isZero(), fireHeld, now)) {
                 boolean paused = session.togglePause();
                 System.out.println("UPSTREAM_SP_PAUSE paused=" + paused + " updateId=" + Vars.state.updateId);
             }
@@ -453,6 +453,10 @@ public final class UpstreamSinglePlayerApp {
             }
             if ((input & UpstreamSinglePlayerInput.SAVE_PRESSED) != 0) {
                 session.save(saveFile);
+                if (unit != null) {
+                    int shots = UpstreamOfflineWeaponInput.totalShots(unit);
+                    if (shots > 0) System.out.println("UPSTREAM_SP_WEAPON_SAVED shots=" + shots);
+                }
             }
 
             unit = session.ensurePlayerSpawn();
@@ -460,11 +464,10 @@ public final class UpstreamSinglePlayerApp {
                 buildingControls.update(unit, input, touch);
                 boolean overlay = buildingControls.catalog().isOpen() || buildingControls.buildingConfig().isOpen()
                     || buildingControls.inventory().isOpen();
-                weaponInput.update(unit, moveInput, aiming, fireHeld && !overlay && !Vars.state.isPaused());
+                weaponInput.update(unit, moveInput, weaponInput.aimMode() && !moveInput.isZero(),
+                    fireHeld && !overlay && !Vars.state.isPaused());
             }
-            if (aimHeld) moveInput.setZero();
-
-            long now = System.nanoTime();
+            if (weaponInput.aimMode()) moveInput.setZero();
             long elapsed = Math.min(Math.max(0L, now - previousTime), FRAME_NS * 4L);
             previousTime = now;
             accumulator += elapsed;
