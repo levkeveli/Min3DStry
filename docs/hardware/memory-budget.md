@@ -223,3 +223,8 @@ allocation. At that point its heap had 3,174,412 bytes free with a largest
 block of 288,188 bytes, short of the 360,012-byte allocation. Origin and
 Serpulo 242 still exhausted the heap during building decode. Large-map
 hardware verification is tracked in [#538](https://github.com/levkeveli/Min3DStry/issues/538).
+
+The original block index keeps a list for every team and block flag. The
+3DS adapter starts those lists at zero capacity and lets Arc grow each list
+when a matching building enters the index. The campaign archive check
+compares core building identities and order after each stock sector load.

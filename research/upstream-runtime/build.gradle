@@ -209,6 +209,7 @@ if (usesArcSources || usesExecutor) {
     }
     if (usesWorldSources) {
         stagedClasses.addAll(['mindustry/world/Tile.class', 'mindustry/world/Tile$*.class',
+                              'mindustry/ai/BlockIndexer.class', 'mindustry/ai/BlockIndexer$*.class',
                               'mindustry/world/Tiles.class', 'mindustry/world/Tiles$*.class'])
     }
     if (usesArcSources) {
@@ -518,6 +519,7 @@ tasks.register('prepareUpstreamProbe') {
     }
     if (usesWorldSources) {
         outputs.files(tileFile, tilesFile)
+        outputs.file(sourceDir.map { it.file('mindustry/ai/BlockIndexer.java') })
     }
     if (usesArcSources || usesExecutor) {
         inputs.property('arcRevision', arcRevision)
@@ -950,6 +952,14 @@ final class GlacierFixture {
                     tiles = tiles.replace(before, after)
                 }
                 tilesFile.get().asFile.setText(tiles, 'UTF-8')
+
+                def indexerPath = 'mindustry/ai/BlockIndexer.java'
+                def indexer = new String(readUpstream('core/src/' + indexerPath), 'UTF-8')
+                def unusedCapacity = 'flagMap[i][j] = new Seq();'
+                if (indexer.count(unusedCapacity) != 1) throw new GradleException('Pinned block flag storage changed')
+                def stagedIndexer = sourceDir.get().file(indexerPath).asFile
+                stagedIndexer.parentFile.mkdirs()
+                stagedIndexer.setText(indexer.replace(unusedCapacity, 'flagMap[i][j] = new Seq<>(0);'), 'UTF-8')
             }
             def adaptedBlock = blockFile.get().asFile
             adaptedBlock.parentFile.mkdirs()
