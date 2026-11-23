@@ -87,6 +87,19 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
             icon == null ? 0 : icon.width, icon == null ? 0 : icon.height, y, Address.ofData(stockObjectiveFont));
     }
 
+    float drawObjectivePlain(byte[] label, int[] characters, TextureRegion icon, float y) {
+        int page = icon == null ? -1 : UpstreamTerrainDrawProbe.pageIndex(icon);
+        return NativeTerrain.drawObjectivePlain(Address.ofData(label), Address.ofData(characters),
+            characters.length / 7, page,
+            icon == null ? 0 : icon.getX(), icon == null ? 0 : icon.getY(),
+            icon == null ? 0 : icon.width, icon == null ? 0 : icon.height,
+            y, Address.ofData(stockObjectiveFont));
+    }
+
+    int hudPanel(float x, float y, float width, float height, int color) {
+        return NativeTerrain.hudPanel(x, y, width, height, color);
+    }
+
     float drawObjectiveAt(byte[] label, int[] characters, TextureRegion icon, float x, float y) {
         int page = icon == null ? -1 : UpstreamTerrainDrawProbe.pageIndex(icon);
         return NativeTerrain.drawObjectiveAt(Address.ofData(label), Address.ofData(characters), characters.length / 7, page,
@@ -293,6 +306,14 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
         @Import(name = "m3ds_terrain_draw_objective")
         static native float drawObjective(Address label, Address characters, int count,
                                           int page, int x, int y, int width, int height, float top, Address stockFont);
+
+        @Import(name = "m3ds_terrain_draw_objective_plain")
+        static native float drawObjectivePlain(Address label, Address characters, int count,
+                                               int page, int x, int y, int width, int height,
+                                               float top, Address stockFont);
+
+        @Import(name = "m3ds_terrain_draw_hud_panel")
+        static native int hudPanel(float x, float y, float width, float height, int color);
 
         @Import(name = "m3ds_terrain_draw_objective_at")
         static native float drawObjectiveAt(Address label, Address characters, int count,
