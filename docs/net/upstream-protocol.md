@@ -181,5 +181,11 @@ cache the empty asset request lets the server send the world immediately.
 After a download the client sends the stock `RequestWorld` packet.
 
 The JVM probe exercises the pinned server's writer with cold, warm and
-damaged cache entries. Applying and rendering each transferred asset type
-requires separate verification.
+damaged cache entries. To test the exchange over localhost, run
+`tools/capture_stock_rotating_server.py` twice with the same
+`--asset-cache` directory and the original Ancient Caldera map from
+`maps/default/caldera.msav` in the server jar. The unmodified server
+requires one bundle on Glacier and adds another when it rotates. A fresh
+cache requests one asset on each world. A fresh process with the warm
+cache must request zero assets and receive both worlds. Applying and
+rendering each transferred asset type requires separate verification.
