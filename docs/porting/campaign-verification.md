@@ -38,9 +38,11 @@ numbered sectors, and 17 Erekir maps.
 
 Pass the staging directory and a new save directory to
 `runStockCampaignArchiveJvm` with `-Pprobe=singleplayer`. The test reads
-all 95 map headers, checks their preset associations, and loads the original
-600×600 Littoral Shipyard and Serpulo 242 worlds. The stock patch paths and
-contents survive a save and reload on the JVM. The unmodified v160.8 Java
+all 95 map headers, checks their preset associations, and decodes all 95
+worlds through the upstream sector loader. The replay checks each sector
+and its world dimensions across 17,662,472 tiles. It also resaves the
+600 by 600 Littoral Shipyard and Serpulo 242 worlds. The stock patch paths
+and contents survive a save and reload on the JVM. The unmodified v160.8 Java
 server reopened both saves and read the original sector IDs, dimensions,
 and patch counts. Handheld loading and frame rate for these large maps
 require separate measurements.
