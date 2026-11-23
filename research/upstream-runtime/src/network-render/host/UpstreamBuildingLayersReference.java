@@ -164,6 +164,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         target.verifyUnitProjectiles(viewport, viewer);
         verifyPositionalAudioDispatch();
         Arm11AudioReference.verifyStockRegistry();
+        UpstreamPuddleReference.verify();
     }
 
     private static void verifyPositionalAudioDispatch() {

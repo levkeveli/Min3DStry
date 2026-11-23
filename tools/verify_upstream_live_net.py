@@ -14,6 +14,7 @@ import time
 import zipfile
 
 import verify_azahar as az
+from stock_puddle_fixture import DEPOSIT as PUDDLE_DEPOSIT, SETUP as PUDDLE_SETUP, changed_colors
 
 
 SERVER_SHA256 = "faeaf247a8b622de940181a96cb21cb20692d3c3da4e8ac3f79cb4af5059aa6c"
@@ -1426,13 +1427,29 @@ def verify_canvas_quads(log, emulator, server_log, server, rpc, output, model, p
     print(f"{model}: offscreen Canvas quad pixels, configuration, tint, corner and retargeting passed.", flush=True)
 
 
+def verify_stock_puddles(server_log, server, rpc, output, model, timeout):
+    before = rpc.screenshot()
+    send_marker_phase(server_log, server, "puddles-deposited", PUDDLE_DEPOSIT)
+    deadline = time.monotonic() + min(timeout, 30)
+    while time.monotonic() < deadline:
+        after = rpc.screenshot()
+        water, neoplasm = changed_colors(before, after)
+        if min(water, neoplasm) >= 12:
+            (output / f"{model}-puddles-before.png").write_bytes(before)
+            (output / f"{model}-puddles-after.png").write_bytes(after)
+            print(f"{model}: stock puddle snapshots matched water/neoplasm samples {water}/{neoplasm}.", flush=True)
+            return
+        time.sleep(0.15)
+    raise RuntimeError(f"{model}: original liquid colors did not appear after the stock entity snapshot")
+
+
 def run_model(args, model, config, original_config, log, output):
     stationary = (args.world_atlas_recycle or args.building_layers or args.liquids
                   or args.building_effects or args.payload_mix or args.carried_buildings
                   or args.payload_handoff or args.unit_layers or args.unit_roster or args.naval_wake
                   or args.tank_treads or args.map_spawn or args.combat
                   or args.verify_logic_markers or args.verify_texture_markers or args.verify_quad_markers or args.verify_canvas
-                  or args.verify_canvas_quads)
+                  or args.verify_canvas_quads or args.verify_puddles)
     map_name = args.map_spawn or "Glacier"
     overrides = {
         "Miscellaneous": {"log_filter": "*:Info Debug.Emulated:Debug Service.SOC:Debug",
@@ -1473,6 +1490,8 @@ def run_model(args, model, config, original_config, log, output):
             world_size = (150, 250)
             if args.verify_canvas or args.verify_canvas_quads:
                 load_canvas_fixture(server_log, server, offscreen=args.verify_canvas_quads)
+            if args.verify_puddles:
+                send_marker_phase(server_log, server, "puddles-clear", PUDDLE_SETUP)
             if args.erekir_build:
                 server.stdin.write(
                     'js (() => { const core = Vars.state.rules.defaultTeam.core(); '
@@ -1744,6 +1763,8 @@ def run_model(args, model, config, original_config, log, output):
                             verify_canvas(server_log, server, rpc, output, model, args.timeout)
                         if args.verify_canvas_quads:
                             verify_canvas_quads(log, emulator, server_log, server, rpc, output, model, spawn, args.timeout)
+                        if args.verify_puddles:
+                            verify_stock_puddles(server_log, server, rpc, output, model, args.timeout)
                         if args.erekir_build:
                             verify_erekir_construction(log, emulator, server_log, server, args.timeout, capture, spawn)
                         if args.mining:
@@ -1971,6 +1992,8 @@ def main():
                         help="Verify original Canvas pixels in Glacier snapshots, configuration and linked markers")
     parser.add_argument("--verify-canvas-quads", action="store_true",
                         help="Verify stock quads backed by an offscreen Canvas on Glacier")
+    parser.add_argument("--verify-puddles", action="store_true",
+                        help="Verify water and neoplasm in stock Glacier entity snapshots")
     parser.add_argument("--require-relocation-spill", action="store_true",
                         help="Require the ARM11 collector to grow its relocation table during the spawn check")
     args = parser.parse_args()
@@ -2071,6 +2094,8 @@ def main():
         parser.error("--verify-canvas needs stationary --controls and --terrain-atlas on Glacier")
     if args.verify_canvas_quads and (not args.controls or not args.terrain_atlas or args.controls_replay or args.map_spawn):
         parser.error("--verify-canvas-quads needs stationary --controls and --terrain-atlas on Glacier")
+    if args.verify_puddles and (not args.controls or not args.terrain_atlas or args.controls_replay or args.map_spawn):
+        parser.error("--verify-puddles needs stationary --controls and --terrain-atlas on Glacier")
     if args.erekir_sector is not None:
         if not args.map_spawn or not re.fullmatch(r"[a-z][a-z-]*", args.erekir_sector):
             parser.error("--erekir-sector needs --map-spawn and a sector slug such as onset")
