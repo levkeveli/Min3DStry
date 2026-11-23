@@ -36,7 +36,7 @@ fi
 if [[ $mode == --singleplayer || $mode == --unified ]]; then
     title="Min3DStry"
     subtitle="Mindustry v160.8 Ground Zero"
-    native_input=(-I"$root" "$root/m3ds_input.c")
+    native_input=(-DM3DS_SINGLEPLAYER -I"$root" "$root/m3ds_input.c")
 fi
 if [[ $mode == --unified ]]; then
     subtitle="Mindustry v160.8"
