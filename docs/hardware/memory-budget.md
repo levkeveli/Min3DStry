@@ -208,4 +208,11 @@ index for each effect type. Fire and puddle entities continue to use the
 upstream creation, lookup, update, removal and save paths. Empty tiles have no
 entries. The headless campaign reference checks separate worlds, tile zero,
 replacement, removal and index bounds. The original 32 MiB managed heap cap
-still applies. Large-map hardware verification is tracked in [#538](https://github.com/levkeveli/Min3DStry/issues/538).
+still applies. The [JVM campaign check](https://github.com/levkeveli/Min3DStry/actions/runs/45262443426)
+decoded all 95 stock maps and reopened the two test saves in stock Java.
+In the [32-bit diagnostic](https://github.com/levkeveli/Min3DStry/actions/runs/45261579652),
+Littoral Shipyard progressed through building creation to its darkness-buffer
+allocation. At that point its heap had 3,174,412 bytes free with a largest
+block of 288,188 bytes, short of the 360,012-byte allocation. Origin and
+Serpulo 242 still exhausted the heap during building decode. Large-map
+hardware verification is tracked in [#538](https://github.com/levkeveli/Min3DStry/issues/538).
