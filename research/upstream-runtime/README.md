@@ -997,8 +997,13 @@ serialized fields to Arc JSON. The test checks the streamed objectives,
 dependency and marker counts, and the first objective's 60 beryllium target.
 The earlier 16 MiB live probe exhausted its managed heap while allocating
 The Onset's tiles. The live probes use a 24 MiB managed heap and keep the
-TCP session alive while decoding the world. The load worker stops before
-the client confirms its join. The
+TCP session alive while decoding the world. The graphical client initializes
+logic globals before the decode, then loads the atlas, graphics, and fonts
+after the decoded world and posted tasks are ready. The TCP keepalive covers
+world decoding, graphics initialization, and the world fingerprint through
+the client’s join confirmation. To check the
+ordering during a rendered join, pass `--require-deferred-graphics` to
+`tools/verify_upstream_live_net.py`. The
 [24 MiB build](https://github.com/levkeveli/Min3DStry/actions/runs/44879228986)
 passed the Fortress spawn and emitted the TCP keepalive on both Azahar
 profiles. The larger Onset map still triggered invalid pointer accesses in
