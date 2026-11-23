@@ -22,7 +22,8 @@ off and a campaign sector is active;
 - the original copper item glyph and the local core's copper count;
 - the local core's non-zero item list as stock item icons with counts, wrapped
   into up to three columns clear of the minimap;
-- a stock-style pause overlay with `paused`, Resume (`back`), Save Game and
+- a stock-style pause overlay with `paused`, the campaign planet/sector and
+  first objective when available, Resume (`back`), Save Game and
   Quit rows, plus a Research row when the sector has a tech tree; the stock
   quit confirmation is included, and tapping X opens/closes it and freezes
   simulation;
@@ -30,8 +31,8 @@ off and a campaign sector is active;
   corner, using the stock `MinimapRenderer` color path (`Block.minimapColor`,
   floor/overlay fallback through `MapIO.colorFor`, darkness and liquid/shadow
   edge tints), with the local player marked at the nearest sampled cell and
-  living non-fogged units drawn as their team-colored blips; refreshed every
-  60 frames.
+  living non-fogged units drawn as their team-colored blips; a dark inset frame
+  surrounds the map, refreshed every 60 frames.
 
 The status rows use the v160.8 font and inline item glyph pipeline shared with
 the objective HUD. They are rebuilt only when the rendered status text changes,
@@ -133,6 +134,8 @@ the next emulator batch and are **not verified** yet:
 - D-pad up/down wraps the rows; A on Resume closes and resumes.
 - In a campaign sector, A on Research opens the existing research screen and
   returns to play.
+- In a campaign sector, the overlay shows the planet/sector and first objective
+  above the options. **Not verified** graphically yet.
 - A on Save Game emits `UPSTREAM_PAUSE_MENU save=true`.
 - A on Quit, then A on the stock confirmation, exits with `quit=true`.
 - B or X cancels the menu, and the HUD/minimap remain readable behind it.
@@ -150,9 +153,9 @@ exactly.
 
 - This is the wave/timer/copper/minimap slice of the stock HUD, not the
   complete HUD.
-- The minimap is the always-on 56 px slice drawn from a 64x64 sample:
-  fullscreen/zoom, unit blips beyond the local player, and the full stock
-  minimap panel layout remain open under #40.
+- The minimap is the always-on 56 px slice drawn from a 64x64 sample with a
+  dark inset frame. Fullscreen/zoom, unit icons beyond the local player, and the
+  full stock minimap panel layout remain open under #40.
 - The item list is icon-and-count only, like the stock core display, but not
   its complete panel/theme layout. More than 18 rows fall back to the overflow
   log rather than a scrollable table.
@@ -161,3 +164,31 @@ exactly.
   ported yet.
 - Additional notifications and the full stock layout remain open under #40.
 - Physical Old/New 3DS verification remains open with #43.
+
+## Emulator batch 1 (2026-11-23)
+
+Build: integration branch `test/hud-batch-1` at `870907b` (includes #529,
+#532, #533, #534, #535 and the #542 draw-order fix; #526/#527 merged).
+Device: Azahar 2126.2 New 3DS, sector-serpulo-15, seed `copper=12345,
+lead=1234, silicon=30`, batch fixture `move=1, wave=1, core=1`, and a separate
+`pause=1` run. Retained artifacts: [gameplay](evidence/hud-batch-1-gameplay-new3ds.png),
+[pause](evidence/hud-batch-1-pause-new3ds.png) and
+[UPSTREAM log](evidence/hud-batch-1-new3ds.log).
+
+| Task | Result | Evidence |
+| --- | --- | --- |
+| Pause overlay rendering/context | **PASS** | [pause screenshot](evidence/hud-batch-1-pause-new3ds.png): `< Paused >`, `Serpulo / Ground Zero`, Back/Research/Save Game/Quit; no HUD overlap |
+| Pause X/A/B/D-pad transitions | **NOT VERIFIED** | Host state tests only; no button injection in the batch |
+| Pause Research screen | **NOT VERIFIED** | Not opened in the batch |
+| Core-attack notification | **PASS** | [gameplay screenshot](evidence/hud-batch-1-gameplay-new3ds.png): full `< Core is under attack! >` row |
+| Core item amount suffixes | **PASS** | [gameplay screenshot](evidence/hud-batch-1-gameplay-new3ds.png): `12k`, `1.2k`, `30` |
+| Depleted used-item retention | **NOT VERIFIED** | Host tracker cases only |
+| Minimap unit blips | **PASS** | [gameplay screenshot](evidence/hud-batch-1-gameplay-new3ds.png) red enemy pixel; host `UPSTREAM_MINIMAP_UNITS` |
+| Minimap player marker | **PASS** | `UPSTREAM_MINIMAP ... cell=(34, 6)` in [log](evidence/hud-batch-1-new3ds.log); white marker in gameplay screenshot |
+| Minimap core marker | **NOT VERIFIED** | Player spawn overlaps the core in the fixture; host check skipped |
+| Singleplayer-sim build guard | **PASS** | `-Pprobe=singleplayer-sim compileJava` `BUILD SUCCESSFUL` |
+| Item-list/notification draw order | **PASS** | [gameplay screenshot](evidence/hud-batch-1-gameplay-new3ds.png): full notification above items |
+| Pause overlay spacing/labels | **PASS** | [pause screenshot](evidence/hud-batch-1-pause-new3ds.png): no literal tags or status-row overlap |
+
+Fixes from the batch: pause-overlay placement/label stripping (#535) and
+notification-above-item-list draw order (#542).
