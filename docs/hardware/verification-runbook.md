@@ -9,11 +9,13 @@ Captured so far: [Original 3DS XL smoke](evidence/old3ds-xl-a4a9a96.md),
 [New 3DS XL combined run](evidence/new3ds-xl-a328c70.md). The `a328c70` run
 passed 12/12 over ~10 minutes (132 `BENCH` windows, `fps_min=29.92`,
 `fps_max=59.84`, `p95_max=33.50`) and the operator confirmed the scene,
-pan/zoom, lighting, pause/resume and menus worked. The five-minute soak and the
+pan/zoom, lighting, pause/resume, HUD and minimap. The five-minute soak and the
 New 3DS `factory_demo` FPS target are verified. Still **not verified**: full
-campaign gameplay FPS, the Old 3DS FPS/loader run, audible audio (all seven
-`AUDIO_EVENT`s were `clip=-1`), and the touch-label layout (the zones respond,
-but the visible legend is outside them).
+campaign gameplay FPS, the Old 3DS run (the operator has only the New 3DS, so
+HWT-06 is blocked on Original 3DS hardware), upstream audio clips/music (the
+operator heard the UI tone, but all seven `AUDIO_EVENT`s were `clip=-1`), and
+the touch-label layout (the zones respond, but the visible legend is outside
+them; issue #364).
 
 ## What a run can prove
 
