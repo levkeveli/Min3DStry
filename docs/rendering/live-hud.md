@@ -160,3 +160,28 @@ exactly.
   ported yet.
 - Additional notifications and the full stock layout remain open under #40.
 - Physical Old/New 3DS verification remains open with #43.
+
+## Emulator batch 1 (2026-11-23)
+
+Build: integration of #529, #532, #533, #534, #535 plus merged #526/#527.
+Device: Azahar 2126.2 New 3DS, sector-serpulo-15, seed `copper=12345,
+lead=1234, silicon=30`, batch fixture `move=1, wave=1, core=1`, and a separate
+`pause=1` run.
+
+| Task | Result | Evidence |
+| --- | --- | --- |
+| Pause overlay rendering/context | **PASS** | `< Paused >`, `Serpulo / Ground Zero`, Back/Research/Save Game/Quit visible; no HUD text overlap |
+| Pause X/A/B/D-pad transitions | **NOT VERIFIED** | Host state tests only; no button injection in the batch |
+| Pause Research screen | **NOT VERIFIED** | Not opened in the batch |
+| Core-attack notification | **PASS** | Full `< Core is under attack! >` row after the row-order fix |
+| Core item amount suffixes | **PASS** | `12k`, `1.2k`, `30` |
+| Depleted used-item retention | **NOT VERIFIED** | Host tracker cases only |
+| Minimap unit blips | **PASS** | Red enemy pixel in the captured minimap crop; host color assertion |
+| Minimap player marker | **PASS** | White marker at `cell=(34, 6)` |
+| Minimap core marker | **NOT VERIFIED** | Player spawn overlaps the core in the fixture; host check skipped |
+| Singleplayer-sim build guard | **PASS** | `BUILD SUCCESSFUL` |
+| Item-list/notification draw order | **PASS** | Batch fix; full notification row visible |
+| Pause overlay spacing/labels | **PASS** | Batch fix; no literal color tags or status-row overlap |
+
+Fixes from the batch: pause-overlay placement/label stripping (#535) and
+notification-above-item-list draw order (#542).
