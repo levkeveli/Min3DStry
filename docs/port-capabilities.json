@@ -435,7 +435,11 @@
         "docs/porting/audio-runtime-bindings.md",
         "docs/audio/music-assets.md",
         "docs/audio/music-streaming.md",
-        "tools/stage_music_assets.py"
+        "tools/stage_music_assets.py",
+        "research/upstream-runtime/README.md",
+        "research/upstream-runtime/src/network-render/java/port/audio/Arm11Audio.java",
+        "research/upstream-runtime/arm11/m3ds_live_audio.c",
+        "tools/verify_stock_live_audio.py"
       ],
       "hardware_test": "HARDWARE_TEST_PENDING"
     },
