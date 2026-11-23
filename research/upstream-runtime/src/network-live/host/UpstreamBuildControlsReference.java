@@ -36,6 +36,9 @@ import mindustry.world.blocks.distribution.MassDriver;
 import mindustry.world.blocks.distribution.Sorter;
 import mindustry.world.blocks.environment.Floor;
 import mindustry.world.blocks.defense.turrets.ItemTurret;
+import mindustry.world.blocks.payloads.BuildPayload;
+import mindustry.world.blocks.payloads.Constructor;
+import mindustry.world.blocks.payloads.Constructor.ConstructorBuild;
 import mindustry.world.blocks.payloads.PayloadMassDriver;
 import mindustry.world.blocks.payloads.UnitPayload;
 import mindustry.world.blocks.units.UnitFactory;
@@ -106,6 +109,7 @@ public final class UpstreamBuildControlsReference {
         verifyStockOrders(unit);
         verifyStockCommandMenu(unit);
         verifyFactoryConfiguration(controls, unit);
+        verifyConstructorRecipes(unit);
         verifyStockLinks(unit);
         verifySchematicPlacement(unit);
         verifySchematicCapture(unit);
@@ -377,6 +381,103 @@ public final class UpstreamBuildControlsReference {
             Vars.state.rules.bannedUnits.remove(banned);
             tile.setBlock(Blocks.air);
         }
+    }
+
+    private static void verifyConstructorRecipes(Unit player) throws Exception {
+        var rules = Vars.state.rules;
+        var planet = rules.planet;
+        int env = rules.env;
+        float multiplier = rules.buildCostMultiplier;
+        var previousAudio = Core.audio;
+        Core.audio = new MockAudio();
+        rules.planet = Planets.erekir;
+        rules.env = Planets.erekir.defaultEnv;
+        rules.buildCostMultiplier = 1f;
+        var tile = Vars.world.tile(77, 22);
+        var largeTile = Vars.world.tile(92, 32);
+        var small = (Constructor) Blocks.constructor;
+        var large = (Constructor) Blocks.largeConstructor;
+        tile.setBlock(small, player.team(), 0);
+        largeTile.setBlock(large, player.team(), 0);
+        var constructor = (ConstructorBuild) tile.build;
+        var controls = new UpstreamLiveBuildControls();
+        controls.viewport(73, 20);
+        var config = controls.buildingConfig();
+        var output = Blocks.tungstenWallLarge;
+        try {
+            controls.update(player, 0, touch(305, 64));
+            tapGridCell(controls, player, tile.x, tile.y);
+            var expected = small.filter.select(UpstreamItemChoices::accepts);
+            verifyRecipePages(config, expected);
+            config.open(constructor);
+            int row = expected.indexOf(output, true);
+            if (row < 0) throw new AssertionError("Stock Construction list lost Tungsten Wall Large");
+            int y = UpstreamBuildMenu.ROW_TOP + row * UpstreamBuildMenu.ROW_HEIGHT + 2;
+            constructor.progress = 3f;
+            controls.update(player, 0, touch(160, y));
+            if (constructor.recipe != output || constructor.progress != 0f) {
+                throw new AssertionError("Touch recipe must store the stock block ID and reset progress");
+            }
+
+            for (var item : output.requirements) constructor.items.add(item.item, item.amount);
+            constructor.efficiency = 1f;
+            constructor.progress = output.buildTime;
+            constructor.updateTile();
+            if (!(constructor.getPayload() instanceof BuildPayload payload) || payload.block() != output
+                    || constructor.items.total() != 0) {
+                throw new AssertionError("Stock Constructor must consume the exact recipe and produce its original payload");
+            }
+
+            config.open(largeTile.build);
+            var expectedLarge = Vars.content.blocks().select(recipe -> large.canProduce(recipe) && UpstreamItemChoices.accepts(recipe));
+            if (expectedLarge.isEmpty()) throw new AssertionError("Expected a stock Large Constructor recipe catalog");
+            verifyRecipePages(config, expectedLarge);
+
+            var file = Files.createTempFile("min3dstry-constructor-recipe-", ".msav");
+            try {
+                Files.delete(file);
+                var save = new Fi(file.toFile());
+                SaveIO.save(save);
+                SaveIO.load(save);
+                if (!(Vars.world.build(tile.x, tile.y) instanceof ConstructorBuild restored)
+                        || restored.recipe != output || !(restored.getPayload() instanceof BuildPayload saved)
+                        || saved.block() != output) {
+                    throw new AssertionError("Stock save lost the configured recipe or finished payload");
+                }
+                config.open(restored);
+                config.tap(160, y);
+                if (restored.recipe != null) throw new AssertionError("Tapping the selected recipe should clear it");
+            } finally {
+                Files.deleteIfExists(file);
+            }
+            System.out.println("UPSTREAM_CONSTRUCTOR_REFERENCE small=" + expected.size + " large=" + expectedLarge.size
+                + " output=" + output.name + " originalCost=ok reload=ok");
+        } finally {
+            Core.audio = previousAudio;
+            Vars.state.rules.planet = planet;
+            Vars.state.rules.env = env;
+            Vars.state.rules.buildCostMultiplier = multiplier;
+            Vars.world.tile(tile.x, tile.y).setBlock(Blocks.air);
+            Vars.world.tile(largeTile.x, largeTile.y).setBlock(Blocks.air);
+        }
+    }
+
+    private static void verifyRecipePages(UpstreamBuildingConfig config, Seq<Block> expected) {
+        if (!config.isOpen() || !config.blockRecipes()) throw new AssertionError("Expected the original block recipe menu");
+        int count = 0;
+        while (true) {
+            for (int id : config.iconIds()) {
+                if (id < 0) continue;
+                if (count >= expected.size || id != expected.get(count).id) {
+                    throw new AssertionError("The constructor menu changed stock recipe order or IDs");
+                }
+                count++;
+            }
+            if (!config.nextPage()) break;
+            config.tap(270, UpstreamBuildMenu.FOOTER_TOP);
+        }
+        if (count != expected.size) throw new AssertionError("The constructor menu omitted stock recipes");
+        config.close();
     }
 
     private static void verifyFactorySave(UnitFactory.UnitFactoryBuild factory, UnitFactory.UnitPlan selected)

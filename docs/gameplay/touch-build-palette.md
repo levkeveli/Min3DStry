@@ -351,3 +351,17 @@ python3 tools/verify_upstream_factory_plans.py \
 - The palette is a bounded prototype, not the final upstream layout; not every
   catalog page or configurable block has an automated replay.
 - Physical touch hardware and the full catalog remain open with #27/#43.
+
+
+## Constructor recipe selection
+
+Tap **Config** and an Erekir Constructor or Large Constructor. The menu
+uses the original recipe order, block icons, planet and research filters.
+Select a recipe to send its stock block ID through building configuration.
+Selecting the current recipe clears it. Stock production uses the original
+ingredients and rules, and the recipe remains in the stock save.
+
+The pinned JVM touch check used the Erekir catalog to select Tungsten Wall
+Large, consumed the stock ingredients and restored the configured recipe
+and finished payload from a save. It also checked every page of both
+Constructor catalogs. Handheld replay is pending.

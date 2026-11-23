@@ -101,8 +101,8 @@ enum { menu_label_glyphs = 64 };
 static char palette_utf8[palette_label_count][4 * menu_label_glyphs + 1];
 #endif
 static C2D_TextBuf catalog_buffer;
-enum { item_catalog, block_catalog, unit_catalog, command_catalog, stance_catalog, schematic_catalog, catalog_count };
-static const char *const catalog_names[] = { "item", "block", "unit", "command", "stance", "schematic" };
+enum { item_catalog, block_catalog, unit_catalog, command_catalog, stance_catalog, schematic_catalog, block_recipe_catalog, catalog_count };
+static const char *const catalog_names[] = { "item", "block", "unit", "command", "stance", "schematic", "block" };
 static struct {
     C2D_SpriteSheet sheet;
     int32_t id, catalog;

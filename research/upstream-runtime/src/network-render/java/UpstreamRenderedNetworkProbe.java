@@ -343,7 +343,8 @@ public final class UpstreamRenderedNetworkProbe {
         } else if (config.isOpen()) {
             drawMenu(config.labels(), config.iconIds(), config.selectedRow(),
                 config.previousPage(), config.nextPage(),
-                config.unitPlans() ? UpstreamTerrainRenderProbe.UNIT_CATALOG : UpstreamTerrainRenderProbe.ITEM_CATALOG);
+                config.blockRecipes() ? UpstreamTerrainRenderProbe.BLOCK_RECIPE_CATALOG
+                    : config.unitPlans() ? UpstreamTerrainRenderProbe.UNIT_CATALOG : UpstreamTerrainRenderProbe.ITEM_CATALOG);
         } else if (inventory.isOpen()) {
             drawMenu(inventory.labels(), inventory.iconIds(), -1, inventory.previousPage(), inventory.nextPage(),
                 UpstreamTerrainRenderProbe.ITEM_CATALOG);
@@ -490,7 +491,7 @@ public final class UpstreamRenderedNetworkProbe {
         int drawn = target.buildCatalog(labels, icons, selected, previous, next, catalog);
         if (lastMenu != labels) {
             String type = switch (catalog) {
-                case UpstreamTerrainRenderProbe.BLOCK_CATALOG -> "block";
+                case UpstreamTerrainRenderProbe.BLOCK_CATALOG, UpstreamTerrainRenderProbe.BLOCK_RECIPE_CATALOG -> "block";
                 case UpstreamTerrainRenderProbe.UNIT_CATALOG -> "unit";
                 default -> "item";
             };
