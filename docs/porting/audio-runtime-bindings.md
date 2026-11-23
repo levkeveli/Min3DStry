@@ -71,8 +71,12 @@ Use `tools/verify_offline_stock_audio.py --rom /path/to/upstream-probe.3dsx
 --server /path/to/server-release.jar --output build/offline-audio` to check
 ground-level drill ambience and the original game1 track in the same
 Ground Zero save on both Azahar profiles. The verifier checks the backend
-log and closes the game through START. Physical playback needs a console
-with DSP firmware.
+log and closes the game through START. On both Azahar 2126.2 profiles the
+[unified ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45174715056)
+opened all 205 sounds, decoded the original stereo game1 track, and routed
+the stock drill loop with sound ID 67. START closed the decoder cleanly.
+Azahar used the no-DSP fallback. Physical playback needs a console with
+DSP firmware.
 
 ## Remaining Scope for Issue #29
 - Verify live NDSP playback (`state=ready rc=0x00000000`) and stereo `ndspWaveBuf.nsamples` timing on physical Original and New 3DS hardware with `sdmc:/3ds/dspfirm.cdc`.
