@@ -84,8 +84,8 @@ final class UpstreamCampaignResearch {
         for (int i = 0; i < node.requirements.length; i++) {
             var request = node.requirements[i];
             var finished = node.finishedRequirements[i];
-            int used = Math.max(Math.min(request.amount - finished.amount, total.get(request.item)), 0);
-            remove(request.item, used);
+            int needed = Math.max(Math.min(request.amount - finished.amount, total.get(request.item)), 0);
+            int used = remove(request.item, needed);
             finished.amount += used;
             spent |= used > 0;
             complete &= finished.amount >= request.amount;
@@ -101,8 +101,8 @@ final class UpstreamCampaignResearch {
         return spent || complete;
     }
 
-    private void remove(Item item, int amount) {
-        if (amount == 0) return;
+    private int remove(Item item, int amount) {
+        if (amount == 0) return 0;
 
         Sector current = Vars.state.isCampaign() ? Vars.state.rules.sector : null;
         ItemSeq currentItems = current == null ? null : inventory.get(current);
@@ -118,15 +118,26 @@ final class UpstreamCampaignResearch {
             if (available <= 0) continue;
 
             int used = Math.min(remaining, Math.min((int) Math.ceil(percentage * available), available));
-            entry.key.removeItem(item, used);
-            entry.value.remove(item, used);
-            remaining -= used;
+            remaining -= removeFromSector(entry.key, entry.value, item, used);
         }
         if (remaining > 0 && currentItems != null) {
             int used = Math.min(currentItems.get(item), remaining);
-            current.removeItem(item, used);
-            currentItems.remove(item, used);
+            remaining -= removeFromSector(current, currentItems, item, used);
         }
-        total.remove(item, amount);
+        int removed = amount - remaining;
+        total.remove(item, removed);
+        return removed;
+    }
+
+    private static int removeFromSector(Sector sector, ItemSeq snapshot, Item item, int amount) {
+        int before = sector.items().get(item);
+        int requested = Math.min(amount, Math.max(0, before));
+        if (requested == 0) return 0;
+        sector.removeItem(item, requested);
+        int after = sector.items().get(item);
+        // Sector.items() is a fresh snapshot in v160.8. Only Sector.removeItem
+        // mutates the actual sector inventory.
+        snapshot.set(item, after);
+        return Math.max(0, before - after);
     }
 }

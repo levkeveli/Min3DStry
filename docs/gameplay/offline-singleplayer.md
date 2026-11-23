@@ -217,6 +217,10 @@ python3 tools/campaign_research_fixture.py --server server-release.jar --check-p
 python3 tools/verify_upstream_campaign_research.py --rom upstream-probe.3dsx --fixtures /path/to/fixtures --server server-release.jar
 ```
 
+The JVM reference checks both exhausted and surplus remote inventories.
+Research credits the contribution confirmed by the upstream sector inventory
+and uses the active core last.
+
 ## New campaign
 
 Hold **R** while launching the standalone graphical .3dsx to open the

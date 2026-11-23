@@ -86,22 +86,29 @@ public final class UpstreamCampaignResearchReference {
             }
             System.out.println("UPSTREAM_CAMPAIGN_RESEARCH_REFERENCE blocked=frozenForest partial=3/"
                 + requirement + " liveCopper=" + expectedCore + " unlocks=1");
-            verifyPresetAutoUnlock(session, current, frozenForest, world);
+            verifyPresetAutoUnlock(session, current, remote, frozenForest, world);
         } finally {
             session.shutdown();
         }
     }
 
-    private static void verifyPresetAutoUnlock(UpstreamSinglePlayerSession session, Sector current,
+    private static void verifyPresetAutoUnlock(UpstreamSinglePlayerSession session, Sector current, Sector remote,
                                                TechNode frozenForest, Fi world) throws Exception {
         for (TechNode node : new TechNode[]{Blocks.junction.techNode, Blocks.router.techNode}) {
             for (var required : node.requirements) {
                 var core = session.core();
                 core.handleItem(core, required.item);
                 core.items.set(required.item, required.amount);
+                remote.info.items.set(required.item, required.amount + 20);
             }
             if (!new UpstreamCampaignResearch(Planets.serpulo.techTree).spend(node) || !node.content.unlockedHost()) {
                 throw new AssertionError("Could not research " + node.content.name);
+            }
+            for (var required : node.requirements) {
+                if (remote.info.items.get(required.item) != 20
+                        || session.core().items.get(required.item) != required.amount) {
+                    throw new AssertionError("Research must deduct only the stock cost from remote surplus");
+                }
             }
         }
         if (frozenForest.content.unlockedHost() || current.info.wasCaptured || Vars.state.rules.winWave <= 0) {
