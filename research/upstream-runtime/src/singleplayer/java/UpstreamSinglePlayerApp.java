@@ -1207,7 +1207,7 @@ public final class UpstreamSinglePlayerApp {
     }
 
     private void drawPauseMenu() {
-        drawPauseRow(Core.bundle.get("paused"), 170f, 24f, false);
+        drawPauseRow(Core.bundle.get(Vars.state.isPaused() ? "paused" : "menu"), 170f, 24f, false);
         var sector = Vars.state.rules.sector;
         if (sector != null) {
             drawPauseRow(sector.planet.localizedName + " / " + sector.name(), 160f, 48f, false);
