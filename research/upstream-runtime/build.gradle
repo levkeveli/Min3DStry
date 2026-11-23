@@ -353,6 +353,11 @@ if (usesSinglePlayer) {
             mainClass = 'UpstreamOfflineMaterialsReference'
             workingDir = temporaryDir
         }
+        tasks.register('runErekirHeatJvm', JavaExec) {
+            classpath = sourceSets.main.runtimeClasspath
+            mainClass = 'UpstreamErekirHeatReference'
+            workingDir = temporaryDir
+        }
         tasks.register('runOfflineWeaponsJvm', JavaExec) {
             classpath = sourceSets.main.runtimeClasspath
             mainClass = 'UpstreamOfflineWeaponsReference'
