@@ -260,6 +260,9 @@ partially built arrays only in C locals. ARM11 staging now registers each
 parent with the collector and applies the write barrier as it adds children.
 The campaign replay exercises this path without altering the upstream
 pathfinding or save format.
+The logic smoke job runs `arm11/check_multi_array_roots.py` on its
+generated TeaVM C to force collection between child allocations and
+verify that all child arrays survive the next collection.
 
 ## Custom Game
 

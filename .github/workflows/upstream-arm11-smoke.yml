@@ -197,6 +197,12 @@ jobs:
               "$RUNNER_TEMP/probe.log"
           fi
 
+      - name: Verify multi-dimensional arrays survive garbage collection during allocation
+        if: matrix.probe == 'logic'
+        run: |
+          python3 research/upstream-runtime/arm11/check_multi_array_roots.py \
+            research/upstream-runtime/build/generated/teavm/c
+
       - name: Verify executor monitor handoffs across garbage collection
         if: matrix.probe == 'executor'
         shell: bash
