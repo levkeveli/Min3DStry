@@ -3,6 +3,7 @@ import port.render.UpstreamFluidAtlas;
 import port.render.UpstreamWorldLabel;
 import port.audio.Arm11Audio;
 import port.render.UpstreamLabelText;
+import port.logic.UpstreamClientLogic;
 import arc.Core;
 import arc.Events;
 import arc.files.Fi;
@@ -107,6 +108,7 @@ public final class UpstreamRenderedNetworkProbe {
     private void loadGraphics() {
         Arm11Audio.prepareMusicControl();
         Events.on(WorldLoadEvent.class, event -> Arm11Audio.reset());
+        UpstreamClientLogic.initialize(new Fi("/romfs/logicids.dat"));
         Core.graphics = new MockGraphics() {
             @Override public int getWidth() { return 400; }
             @Override public int getHeight() { return 240; }
@@ -200,6 +202,7 @@ public final class UpstreamRenderedNetworkProbe {
         try {
             Arm11Audio.updateClientAudio(now);
             Time.update();
+            UpstreamClientLogic.update(delta);
             for (var build : Groups.build) {
                 if (build instanceof ConduitBuild conduit) conduit.advanceLiquidDraw();
             }
