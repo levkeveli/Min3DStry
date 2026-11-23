@@ -706,9 +706,12 @@ public final class UpstreamSinglePlayerSession {
                 + " cell=" + (marker % 32) + "," + (marker / 32));
             int px = marker % 32;
             int py = marker / 32;
-            int tipX = px + (int)Math.round(Math.cos(Math.toRadians(unit.rotation())) * 2.0);
-            int tipY = py + (int)Math.round(Math.sin(Math.toRadians(unit.rotation())) * 2.0);
+            int tipX = px + (int)Math.round(Math.cos(Math.toRadians(unit.rotation())) * 3.0);
+            int tipY = py + (int)Math.round(Math.sin(Math.toRadians(unit.rotation())) * 3.0);
             if (tipX >= 0 && tipY >= 0 && tipX < 32 && tipY < 32) {
+                if (tipX == px && tipY == py) {
+                    throw new IllegalStateException("Minimap direction tip overlaps the base");
+                }
                 int tipOffset = (tipY * 32 + tipX) * 4;
                 if ((minimap[tipOffset] & 0xff) != 255
                         || (minimap[tipOffset + 1] & 0xff) != 255
@@ -719,20 +722,18 @@ public final class UpstreamSinglePlayerSession {
             var localCore = Vars.player.team().core();
             int coreChecked = 0;
             if (localCore != null) {
-                byte[] coreMap = UpstreamMinimap.sample(64);
+                byte[] coreMap = UpstreamMinimap.sample(64, false);
                 int coreCell = UpstreamMinimap.cellIndex(64, Vars.world.width(), Vars.world.height(),
                     localCore.tileX(), localCore.tileY());
                 int playerCell64 = UpstreamMinimap.playerIndex(64);
-                if (coreCell != playerCell64) {
-                    int coreOffset = coreCell * 4;
-                    var teamColor = localCore.team.color;
-                    if ((coreMap[coreOffset] & 0xff) != Math.round(teamColor.r * 255f)
-                            || (coreMap[coreOffset + 1] & 0xff) != Math.round(teamColor.g * 255f)
-                            || (coreMap[coreOffset + 2] & 0xff) != Math.round(teamColor.b * 255f)) {
-                        throw new IllegalStateException("Minimap core marker color mismatch");
-                    }
-                    coreChecked = 1;
+                int coreOffset = coreCell * 4;
+                var teamColor = localCore.team.color;
+                if ((coreMap[coreOffset] & 0xff) != Math.round(teamColor.r * 255f)
+                        || (coreMap[coreOffset + 1] & 0xff) != Math.round(teamColor.g * 255f)
+                        || (coreMap[coreOffset + 2] & 0xff) != Math.round(teamColor.b * 255f)) {
+                    throw new IllegalStateException("Minimap core marker color mismatch");
                 }
+                coreChecked = 1;
             }
             System.out.println("UPSTREAM_MINIMAP_MARKERS arrow=1 core=" + coreChecked + " ok");
 

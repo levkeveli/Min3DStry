@@ -16,6 +16,10 @@ public final class UpstreamMinimap {
     }
 
     public static byte[] sample(int size) {
+        return sample(size, true);
+    }
+
+    public static byte[] sample(int size, boolean playerMarker) {
         if (size <= 0 || Vars.world == null || Vars.world.width() <= 0 || Vars.world.height() <= 0) {
             return null;
         }
@@ -59,7 +63,7 @@ public final class UpstreamMinimap {
                 }
             }
         }
-        int player = playerIndex(size);
+        int player = playerMarker ? playerIndex(size) : -1;
         var playerModel = Vars.player == null ? null : Vars.player.unit();
         if (player >= 0 && playerModel != null) {
             int px = player % size;
@@ -69,8 +73,8 @@ public final class UpstreamMinimap {
                     putBlip(pixels, size, px + dx, py + dy, 1f, 1f, 1f);
                 }
             }
-            int tipX = px + Math.round(arc.math.Mathf.cosDeg(playerModel.rotation()) * 2f);
-            int tipY = py + Math.round(arc.math.Mathf.sinDeg(playerModel.rotation()) * 2f);
+            int tipX = px + Math.round(arc.math.Mathf.cosDeg(playerModel.rotation()) * 3f);
+            int tipY = py + Math.round(arc.math.Mathf.sinDeg(playerModel.rotation()) * 3f);
             putBlip(pixels, size, tipX, tipY, 1f, 1f, 1f);
         }
         return pixels;
