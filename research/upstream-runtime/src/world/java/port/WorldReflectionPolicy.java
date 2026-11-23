@@ -11,6 +11,7 @@ public final class WorldReflectionPolicy extends SimpleReflectionPolicy {
         // SaveVersion reads these metadata types through upstream Arc Json.
         for (String type : new String[] {
             "mindustry.game.GameStats",
+            "mindustry.game.CampaignRules",
             "mindustry.game.Rules",
             "mindustry.game.Rules$TeamRule",
             "mindustry.game.SectorInfo",

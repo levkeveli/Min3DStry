@@ -220,6 +220,31 @@ python3 tools/campaign_research_fixture.py --server server-release.jar --check-p
 python3 tools/verify_upstream_campaign_research.py --rom upstream-probe.3dsx --fixtures /path/to/fixtures --server server-release.jar
 ```
 
+## Serpulo background production and exports
+
+The offline session advances the original universe through
+`Logic.update()`. The TeaVM reflection policy includes `CampaignRules`
+so Arc can restore persistent planet options, including legacy launch pads,
+from the stock settings file.
+
+The stock v160.8 fixture opens Ground Zero, produces copper in Frozen
+Forest, and keeps Cratered Battleground frozen under attack. One campaign
+turn delivers 30 copper to the active core, caps the producing sector at
+100 copper, floors its consumed lead at zero, and leaves the frozen
+sector at 11 copper. The port JVM runs the same scenario through 7,200
+ordinary simulation ticks. Stock Java reopens the resulting save and
+settings and verifies the turn, active core, remote inventories, and
+legacy launch pad setting. The generated TeaVM C reference produced the same
+result on the host and stock Java reopened its output. The Linux smoke job
+runs that same reference and stock readback.
+
+```sh
+python3 tools/campaign_background_fixture.py --server server-release.jar --create /path/to/fixture
+# In research/upstream-runtime, with the pinned Mindustry and Arc Gradle properties:
+gradle -Pprobe=unified runBackgroundCampaignTurnJvm --args="/path/to/fixture /path/to/assets /path/to/assets/bundle /path/to/new-output"
+python3 tools/campaign_background_fixture.py --server server-release.jar --check /path/to/new-output
+```
+
 ## New campaign
 
 Hold **R** while launching the standalone graphical .3dsx to open the
