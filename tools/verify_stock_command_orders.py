@@ -66,7 +66,7 @@ def replay(args, model, fixture, live, *, taps=TAPS, buttons=None,
     output = args.output / model / ("live" if live else "offline")
     sd = (output / "sdmc").resolve()
     save = sd / "3ds/min3dstry/singleplayer-save.msav"
-    save.parent.mkdir(parents=True)
+    save.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(fixture, save)
     movie = output / "commands.ctm"
     if buttons is None:
