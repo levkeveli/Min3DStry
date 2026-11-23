@@ -22,11 +22,13 @@ ROTATE = PLAY + LOAD_NEXT + " })\n"
 
 
 def stage_assets(root):
-    (root / "base.properties").write_text("fixture.base=Before rotation\n", encoding="ascii")
-    (root / "rotated.properties").write_text("fixture.rotation=After rotation\n", encoding="ascii")
+    (root / "base.properties").write_text(
+        "fixture.base=Before rotation\nstats.wave=Glacier wave\n", encoding="ascii")
+    (root / "rotated.properties").write_text(
+        "fixture.rotation=After rotation\nstats.wave=Caldera wave\n", encoding="ascii")
     factory = (
         "js var assetFixture = name => { const a = new Packages.mindustry.mod.data.BundleAsset(); "
-        "a.readOverride(name, Packages.arc.files.Fi.get(name)); return a; }; "
+        "a.readOverride('bundle.properties', Packages.arc.files.Fi.get(name)); return a; }; "
         "Vars.state.data.load(Packages.arc.struct.Seq.with(assetFixture('base.properties'))); "
         "'STOCK_ASSETS_STAGED';\n"
     )

@@ -1192,6 +1192,10 @@ tasks.register('runProbeJvm', JavaExec) {
 }
 
 if (usesLiveNetwork) {
+    tasks.register('runStockServerBundlesJvm', JavaExec) {
+        classpath = sourceSets.main.runtimeClasspath
+        mainClass = 'UpstreamStockServerBundlesReference'
+    }
     tasks.register('runBuildControlsJvm', JavaExec) {
         dependsOn 'classes'
         classpath = sourceSets.main.runtimeClasspath
