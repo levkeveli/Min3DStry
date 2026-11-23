@@ -687,9 +687,12 @@ static int32_t skip_unsupported_quad(void) {
     return 1;
 }
 
+// Convert Arc's normalized UVs to source texels for atlas clipping and Canvas sampling.
 // Return zero for unsupported mix attributes and minus one for non-finite geometry.
-static int read_quad_vertices(const float *vertices, int width, int height,
+static int read_quad_vertices(const float *vertices, int source_width, int source_height,
                               M3DS_QuadVertex *corners, uint32_t *packed_mix) {
+    float max_u = nextafterf(source_width, 0);
+    float max_v = nextafterf(source_height, 0);
     uint32_t mix;
     memcpy(&mix, vertices + 5, sizeof(mix));
     for (int i = 0; i < 4; i++) {
@@ -702,8 +705,8 @@ static int read_quad_vertices(const float *vertices, int width, int height,
         corners[i] = (M3DS_QuadVertex){
             .x = screen_left + (v[0] - world_left) * scale,
             .y = screen_bottom - (v[1] - world_bottom) * scale,
-            .u = fminf(fmaxf(v[3] * width, 0), nextafterf(width, 0)),
-            .v = fminf(fmaxf(v[4] * height, 0), nextafterf(height, 0)),
+            .u = fminf(fmaxf(v[3] * source_width, 0), max_u),
+            .v = fminf(fmaxf(v[4] * source_height, 0), max_v),
             .color = {(color & 255) / 255.0f, ((color >> 8) & 255) / 255.0f,
                       ((color >> 16) & 255) / 255.0f, m3ds_quad_alpha(color) / 254.0f},
         };
@@ -783,6 +786,7 @@ int32_t m3ds_terrain_draw_canvas_quad(int32_t id, int32_t revision, int32_t widt
     set_world_mix(0, 0);
     C3D_Mtx projection;
     Mtx_OrthoTilt(&projection, 0, target->frameBuf.height, target->frameBuf.width, 0, 1, -1, true);
+    // Submit the source texels against the padded Citro3D texture dimensions.
     draw_quad_piece(tex, corners, 4, 0, 0, mix, &projection);
     static bool reported;
     if (!reported) {
