@@ -15,6 +15,7 @@ Run `./dev.sh doctor` for environment diagnostics, `./dev.sh test` for host unit
 - [Project dashboard](https://levkeveli.github.io/Min3DStry/)
 - [Roadmap and tasks](https://github.com/levkeveli/Min3DStry/issues)
 - [Offline campaign and Custom Game](docs/gameplay/offline-singleplayer.md) (Emulator-tested on Old & New 3DS in Azahar `2126.2`; physical hardware pending `#43`)
+- [Stock map editor and .msav export](docs/ui/stock-map-editor.md) (Emulator-tested on Original and New 3DS profiles)
 - [Embedded TeaVM save loader](docs/porting/embed-loader.md) (Default `min3dstry.3dsx` startup path linked with `libm3dsloader.a`)
 - [Unified offline and multiplayer build](research/upstream-runtime/README.md) (stock v160.8 server joins and Azahar soundtrack decoding and routing)
 - [Hardware deployment & benchmark-report](docs/hardware/deployment-and-logs.md) (Wi-Fi deployment and log capture verified on Original and New 3DS XL. [Original 3DS XL evidence](docs/hardware/evidence/old3ds-xl-a4a9a96.md))
