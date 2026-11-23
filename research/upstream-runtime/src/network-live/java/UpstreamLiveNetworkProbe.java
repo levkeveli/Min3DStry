@@ -53,6 +53,9 @@ import mindustry.gen.Mechc;
 import mindustry.gen.Player;
 import mindustry.gen.RemoveMarkerCallPacket;
 import mindustry.gen.RemoveQueueBlockCallPacket;
+import mindustry.gen.SendChatMessageCallPacket;
+import mindustry.gen.SendMessageCallPacket;
+import mindustry.gen.SendMessageCallPacket2;
 import mindustry.gen.SetObjectivesCallPacket;
 import mindustry.gen.SetPositionCallPacket;
 import mindustry.gen.SetRuleCallPacket;
@@ -99,21 +102,26 @@ public final class UpstreamLiveNetworkProbe {
     private final UpstreamPlayerIdentity identity;
     private final Consumer<Unit> frame;
     private final UpstreamLiveBuildControls building;
+    private final Consumer<String> chat;
+    private final UpstreamChatInput chatInput;
     private Runnable deferredGraphics;
     private int nextLiveTransport = 1;
 
     private UpstreamLiveNetworkProbe(Mode mode, Runnable deferredGraphics, Consumer<Unit> frame,
-                                     UpstreamLiveBuildControls building, UpstreamPlayerIdentity identity) {
+                                     UpstreamLiveBuildControls building, Consumer<String> chat,
+                                     UpstreamChatInput chatInput, UpstreamPlayerIdentity identity) {
         this.mode = mode;
         this.deferredGraphics = deferredGraphics;
         this.frame = frame;
         this.building = building;
+        this.chat = chat;
+        this.chatInput = chatInput;
         this.identity = identity;
     }
 
     public static void main(String[] args) throws IOException, InterruptedException {
         var endpoint = endpointFile(args);
-        run(endpoint.parent(), endpoint.readString(), null, null, null, null);
+        run(endpoint.parent(), endpoint.readString(), null, null, null, null, null, null);
     }
 
     static Fi endpointFile(String[] args) {
@@ -121,7 +129,8 @@ public final class UpstreamLiveNetworkProbe {
     }
 
     static void run(Fi directory, String address, Runnable beforeConnect, Runnable deferredGraphics,
-                    Consumer<Unit> frame, UpstreamLiveBuildControls building) throws IOException, InterruptedException {
+                    Consumer<Unit> frame, UpstreamLiveBuildControls building, Consumer<String> chat, UpstreamChatInput chatInput)
+                    throws IOException, InterruptedException {
         String[] endpoint = address.trim().split("\\s+");
         if (endpoint.length < 2 || endpoint.length > 3) {
             throw new IllegalArgumentException("Expected a server host and port with optional movement or controls mode");
@@ -150,7 +159,8 @@ public final class UpstreamLiveNetworkProbe {
             stage = "profile";
             var identity = UpstreamPlayerIdentity.load(directory, endpoint[0]);
             stage = "session";
-            new UpstreamLiveNetworkProbe(mode, deferredGraphics, frame, building, identity).run(host, port, app);
+            new UpstreamLiveNetworkProbe(mode, deferredGraphics, frame, building, chat, chatInput, identity)
+                .run(host, port, app);
         } catch (IOException | RuntimeException | LinkageError error) {
             Throwable cause = error;
             while (cause.getCause() != null) cause = cause.getCause();
@@ -434,10 +444,17 @@ public final class UpstreamLiveNetworkProbe {
         System.out.println("UPSTREAM_LIVE_PACKET_IDS spawn=" + unitSpawnId
             + " despawn=" + unitDespawnId + " destroy=" + unitDestroyId);
         System.out.println(frame == null ? "Circle Pad or D-pad moves. START leaves."
-            : "Tap the build grid to place. R rotates. B toggles removal. START leaves.");
+            : "Tap the build grid to place. R rotates. B toggles removal. Y opens chat. START leaves.");
         while (true) {
             int input = Native.input();
             if (input < 0) return;
+            int touch = Native.touch();
+            if (chatInput != null && (chatInput.open() || UpstreamChatInput.requested(input))) {
+                var message = chatInput.update(input, touch);
+                if (message != null) sendChat(message);
+                input = 0;
+                touch = -1;
+            }
             long now = System.nanoTime();
             if (frame == null && now - lastTcpSend >= TCP_KEEP_ALIVE_NS) {
                 keepAlive(1);
@@ -457,7 +474,7 @@ public final class UpstreamLiveNetworkProbe {
             lastWave = receiveLiveUpdates(stateId, entityId, unitSpawnId, unitDespawnId, unitDestroyId, lastWave);
             app.runPosted();
             now = System.nanoTime();
-            controls.update(input, now);
+            controls.update(input, touch, now);
             if (frame != null && now - lastFrame >= 33_333_333L) {
                 var unit = controlledUnit();
                 if (unit != null || lastFrame != 0) {
@@ -522,6 +539,14 @@ public final class UpstreamLiveNetworkProbe {
                 decode(new SetRulesCallPacket(), received).handleClient();
             } else if (id == unsignedId(SetRuleCallPacket.class)) {
                 decode(new SetRuleCallPacket(), received).handleClient();
+            } else if (chat != null && id == unsignedId(SendMessageCallPacket.class)) {
+                var message = decode(new SendMessageCallPacket(), received);
+                message.handleClient();
+                receiveChat(message.message, "server");
+            } else if (chat != null && id == unsignedId(SendMessageCallPacket2.class)) {
+                var message = decode(new SendMessageCallPacket2(), received);
+                message.handleClient();
+                receiveChat(message.message, "player");
             } else if (frame != null && id == unsignedId(SoundCallPacket.class)) {
                 decode(new SoundCallPacket(), received).handleClient();
             } else if (frame != null && id == unsignedId(SoundAtCallPacket.class)) {
@@ -550,6 +575,19 @@ public final class UpstreamLiveNetworkProbe {
             }
         }
         return lastWave;
+    }
+
+    private void receiveChat(String message, String source) {
+        if (message == null) return;
+        chat.accept(message);
+        System.out.println("UPSTREAM_LIVE_CHAT_RECEIVED source=" + source + " chars=" + message.length());
+    }
+
+    private static void sendChat(String message) throws IOException {
+        var packet = new SendChatMessageCallPacket();
+        packet.message = message;
+        send(packet, true);
+        System.out.println("UPSTREAM_LIVE_CHAT_SENT chars=" + message.length());
     }
 
     static Packet markerPacket(int id) {
@@ -697,7 +735,7 @@ public final class UpstreamLiveNetworkProbe {
             this.buildingControls = buildingControls;
         }
 
-        void update(int input, long now) throws IOException {
+        void update(int input, int touch, long now) throws IOException {
             var unit = controlledUnit();
             if (unit == null) {
                 previousUnit = null;
@@ -715,7 +753,7 @@ public final class UpstreamLiveNetworkProbe {
             }
             // Mirror PlayerComp.update before stock input rules consult the player's position.
             Vars.player.set(unit);
-            if (buildingControls != null) buildingControls.update(unit, input, Native.touch());
+            if (buildingControls != null) buildingControls.update(unit, input, touch);
             if (Vars.player.unit() != unit) return;
             direction.set((byte)input / 127f, (byte)(input >>> 8) / 127f).limit(1f);
             if (direction.len2() < DEAD_ZONE * DEAD_ZONE) direction.setZero();
