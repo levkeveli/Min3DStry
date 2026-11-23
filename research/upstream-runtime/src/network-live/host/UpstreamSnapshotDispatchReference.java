@@ -12,6 +12,7 @@ import java.util.zip.InflaterInputStream;
 import mindustry.Vars;
 import mindustry.ai.BlockIndexer;
 import mindustry.ai.ItemUnitStance;
+import mindustry.ai.Pathfinder;
 import mindustry.ai.UnitCommand;
 import mindustry.content.Blocks;
 import mindustry.content.Items;
@@ -72,6 +73,7 @@ public final class UpstreamSnapshotDispatchReference {
         Vars.mods = new Mods();
         Vars.universe = new Universe();
         Vars.indexer = new BlockIndexer();
+        Vars.pathfinder = new Pathfinder();
         Vars.netClient = NetClient.forSnapshotDispatch();
         Vars.player = Player.create();
         Vars.net.setClientConnected();
@@ -141,6 +143,7 @@ public final class UpstreamSnapshotDispatchReference {
         verifyPossessionPackets(decodedMono);
         verifyStockLinkPackets();
         verifyTeamPing();
+        UpstreamStockTilePacketsReference.verify();
         verifyWeaponInput();
         verifyRoundResults();
         UpstreamServerAssetsReference.verify();
@@ -383,7 +386,7 @@ public final class UpstreamSnapshotDispatchReference {
         System.out.println("UPSTREAM_OBJECTIVE_REFERENCE set=ok complete=ok dependency=ok flags=ok clear=ok");
     }
 
-    private static void applyPacket(Packet sent, Packet received) {
+    static void applyPacket(Packet sent, Packet received) {
         applyPacket(sent, received, null);
     }
 

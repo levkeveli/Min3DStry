@@ -34,6 +34,8 @@ import mindustry.gen.BeginBreakCallPacket;
 import mindustry.gen.BeginPlaceCallPacket;
 import mindustry.gen.BlockSnapshotCallPacket;
 import mindustry.gen.BlockUnitc;
+import mindustry.gen.BuildDestroyedCallPacket;
+import mindustry.gen.BuildHealthUpdateCallPacket;
 import mindustry.gen.ClientSnapshotCallPacket;
 import mindustry.gen.ClearObjectivesCallPacket;
 import mindustry.gen.CompleteObjectiveCallPacket;
@@ -46,6 +48,9 @@ import mindustry.gen.CreateBulletCallPacket;
 import mindustry.gen.ConstructFinishCallPacket;
 import mindustry.gen.DeconstructFinishCallPacket;
 import mindustry.gen.EntitySnapshotCallPacket;
+import mindustry.gen.FillTileBlocksCallPacket;
+import mindustry.gen.FillTileFloorsCallPacket;
+import mindustry.gen.FillTileOverlaysCallPacket;
 import mindustry.gen.GameOverCallPacket;
 import mindustry.gen.Groups;
 import mindustry.gen.KickCallPacket;
@@ -55,15 +60,24 @@ import mindustry.gen.PingLocationCallPacket;
 import mindustry.gen.Player;
 import mindustry.gen.RemoveMarkerCallPacket;
 import mindustry.gen.RemoveQueueBlockCallPacket;
+import mindustry.gen.RemoveTileCallPacket;
 import mindustry.gen.RequestAssetsCallPacket;
 import mindustry.gen.RequestWorldCallPacket;
 import mindustry.gen.SendChatMessageCallPacket;
 import mindustry.gen.SendMessageCallPacket;
 import mindustry.gen.SendMessageCallPacket2;
+import mindustry.gen.SetFloorCallPacket;
 import mindustry.gen.SetObjectivesCallPacket;
+import mindustry.gen.SetOverlayCallPacket;
 import mindustry.gen.SetPositionCallPacket;
 import mindustry.gen.SetRuleCallPacket;
 import mindustry.gen.SetRulesCallPacket;
+import mindustry.gen.SetTeamCallPacket;
+import mindustry.gen.SetTeamsCallPacket;
+import mindustry.gen.SetTileBlocksCallPacket;
+import mindustry.gen.SetTileCallPacket;
+import mindustry.gen.SetTileFloorsCallPacket;
+import mindustry.gen.SetTileOverlaysCallPacket;
 import mindustry.gen.SoundAtCallPacket;
 import mindustry.gen.SoundCallPacket;
 import mindustry.gen.SetUnitCommandCallPacket;
@@ -166,13 +180,13 @@ public final class UpstreamLiveNetworkProbe {
             stage = "services";
             Vars.mods = new Mods();
             Vars.universe = new Universe();
+            Vars.pathfinder = new Pathfinder();
             Vars.assetCacheDirectory = directory.child("assetCache");
             var assets = new UpstreamServerAssets(Vars.assetCacheDirectory);
             Vars.assetCache = assets.cache;
             if (frame != null) {
                 if (Core.audio == null) Core.audio = new MockAudio();
                 Vars.indexer = new BlockIndexer();
-                Vars.pathfinder = new Pathfinder();
                 Vars.fogControl = new FogControl();
             }
             stage = "client setup";
@@ -685,9 +699,10 @@ public final class UpstreamLiveNetworkProbe {
                 // and state. Creating a second entity here can claim an ID used by a stock unit.
                 System.out.println("UPSTREAM_LIVE_WEATHER name=" + weather.weather.name);
             } else {
-                var marker = markerPacket(id);
-                if (marker != null) {
-                    decode(marker, received).handleClient();
+                var update = tileMutationPacket(id);
+                if (update == null) update = markerPacket(id);
+                if (update != null) {
+                    decode(update, received).handleClient();
                 } else if (frame != null) {
                     applyBuildingUpdate(id, received);
                 }
@@ -736,6 +751,24 @@ public final class UpstreamLiveNetworkProbe {
         if (id == unsignedId(UpdateMarkerTextCallPacket.class)) return new UpdateMarkerTextCallPacket();
         if (id == unsignedId(UpdateMarkerTextureCallPacket.class)) return new UpdateMarkerTextureCallPacket();
         if (id == unsignedId(RemoveMarkerCallPacket.class)) return new RemoveMarkerCallPacket();
+        return null;
+    }
+
+    static Packet tileMutationPacket(int id) {
+        if (id == unsignedId(SetTileCallPacket.class)) return new SetTileCallPacket();
+        if (id == unsignedId(SetTileBlocksCallPacket.class)) return new SetTileBlocksCallPacket();
+        if (id == unsignedId(FillTileBlocksCallPacket.class)) return new FillTileBlocksCallPacket();
+        if (id == unsignedId(SetFloorCallPacket.class)) return new SetFloorCallPacket();
+        if (id == unsignedId(SetTileFloorsCallPacket.class)) return new SetTileFloorsCallPacket();
+        if (id == unsignedId(FillTileFloorsCallPacket.class)) return new FillTileFloorsCallPacket();
+        if (id == unsignedId(SetOverlayCallPacket.class)) return new SetOverlayCallPacket();
+        if (id == unsignedId(SetTileOverlaysCallPacket.class)) return new SetTileOverlaysCallPacket();
+        if (id == unsignedId(FillTileOverlaysCallPacket.class)) return new FillTileOverlaysCallPacket();
+        if (id == unsignedId(SetTeamCallPacket.class)) return new SetTeamCallPacket();
+        if (id == unsignedId(SetTeamsCallPacket.class)) return new SetTeamsCallPacket();
+        if (id == unsignedId(BuildHealthUpdateCallPacket.class)) return new BuildHealthUpdateCallPacket();
+        if (id == unsignedId(BuildDestroyedCallPacket.class)) return new BuildDestroyedCallPacket();
+        if (id == unsignedId(RemoveTileCallPacket.class)) return new RemoveTileCallPacket();
         return null;
     }
 
