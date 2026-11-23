@@ -1354,6 +1354,10 @@ server. The viewport stayed at tile column 73 while the source Canvas
 stayed at column 45. Both profiles showed the configured palette, moved
 corner, and original Router texture without changing the camera position.
 
+The [unified ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45124554676)
+passed the same offscreen Canvas replay on both Azahar profiles, along
+with the atlas-backed quad replay. Both fixtures ran below the live HUD.
+
 ### Live stock logic processors
 
 The graphical client stages the original `logicids.dat` from the pinned
@@ -1369,6 +1373,10 @@ the stock world processor and `@client`. The verifier checks that
 the ARM11 Canvas changes while the dedicated server keeps its original
 pixels. The replay passed on both Azahar hardware profiles with the
 [verified ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44932567269).
+The [unified ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45124973794)
+repeated the original Canvas write and stock server readback on both
+Azahar profiles. The updated JVM checks also passed with live audio.
+
 
 ### Stock Logic Displays
 
@@ -1392,6 +1400,12 @@ passed on both Old and New 3DS Azahar profiles. Its replay checked framebuffer
 pixels before and after configuration for the 80 px display, 176 px large
 display and a joined 52 by 20 px tiled display. It also checked the visible
 font and pixels sampled from the linked large display.
+
+The [unified ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45125615703)
+passed the normal, large and joined tiled display replays on both
+Azahar profiles with the unmodified Java v160.8 server. The normal
+display fixture sits below the unified HUD. The combined JVM run also
+exercised the original audio path alongside the display commands.
 
 ### Verify the Arc executor pools
 
