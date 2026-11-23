@@ -572,9 +572,10 @@ public final class UpstreamSinglePlayerSession {
     }
 
     boolean togglePause() {
-        boolean paused = !Vars.state.isPaused();
-        Vars.state.set(paused ? State.paused : State.playing);
-        return paused;
+        boolean paused = Vars.state.isPaused();
+        if (Vars.state.rules.pauseDisabled) return paused;
+        Vars.state.set(paused ? State.playing : State.paused);
+        return !paused;
     }
 
     int triggerWave() {
@@ -782,6 +783,16 @@ public final class UpstreamSinglePlayerSession {
             if (session.togglePause()) {
                 throw new IllegalStateException("Failed to resume from pause");
             }
+            Vars.state.rules.pauseDisabled = true;
+            if (session.togglePause() || Vars.state.isPaused()) {
+                throw new IllegalStateException("A world with the stock pause-disabled rule paused");
+            }
+            session.stepSimulation(0f, 0f);
+            if (Vars.state.updateId <= pausedBefore) {
+                throw new IllegalStateException("The simulation froze with the pause-disabled rule");
+            }
+            Vars.state.rules.pauseDisabled = false;
+            System.out.println("UPSTREAM_SP_NO_PAUSE simulation=running");
 
             // 6. Wait for deterministic flowfield, trigger Wave 1, verify Dagger advance.
             waitForGroundField(session.application(), Vars.state.rules.waveTeam);

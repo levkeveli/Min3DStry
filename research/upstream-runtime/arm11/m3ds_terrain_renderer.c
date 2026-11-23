@@ -1184,7 +1184,7 @@ static void draw_label_art(const int32_t *glyph, float x, float y, float width, 
 static float draw_stock_panel(const char *label, const int32_t *characters, int32_t count,
                                  int32_t page, int32_t left, int32_t top,
                                  int32_t width, int32_t height, float x, float y,
-                                 int32_t *stock_font, bool chat) {
+                                 int32_t *stock_font, bool chat, bool panel) {
     *stock_font = 0;
     const float failed = chat ? -1.0f : 240.0f;
     if (!frame_open || !catalog_buffer) return failed;
@@ -1223,7 +1223,8 @@ static float draw_stock_panel(const char *label, const int32_t *characters, int3
 
     set_world_blend(0);
     set_world_mix(0, 0);
-    if (!C2D_DrawRectSolid(x, y, 0.5f, inset + text_width + 6.0f, panel_height, C2D_Color32(24, 27, 32, 224))) {
+    if (panel && !C2D_DrawRectSolid(x, y, 0.5f, inset + text_width + 6.0f, panel_height,
+            C2D_Color32(24, 27, 32, 224))) {
         return failed;
     }
     draws++;
@@ -1254,7 +1255,7 @@ float m3ds_terrain_draw_objective(const char *label, const int32_t *characters, 
                                  int32_t page, int32_t left, int32_t top,
                                  int32_t width, int32_t height, float y, int32_t *stock_font) {
     return draw_stock_panel(label, characters, count, page, left, top, width, height,
-        screen_left + 4.0f, y, stock_font, false);
+        screen_left + 4.0f, y, stock_font, false, true);
 }
 
 float m3ds_terrain_draw_objective_at(const char *label, const int32_t *characters, int32_t count,
@@ -1262,13 +1263,28 @@ float m3ds_terrain_draw_objective_at(const char *label, const int32_t *character
                                     int32_t width, int32_t height, float x, float y,
                                     int32_t *stock_font) {
     return draw_stock_panel(label, characters, count, page, left, top, width, height,
-        x, y, stock_font, false);
+        x, y, stock_font, false, true);
+}
+
+float m3ds_terrain_draw_objective_plain(const char *label, const int32_t *characters, int32_t count,
+                                        int32_t page, int32_t left, int32_t top,
+                                        int32_t width, int32_t height, float y,
+                                        int32_t *stock_font) {
+    return draw_stock_panel(label, characters, count, page, left, top, width, height,
+        screen_left + 4.0f, y, stock_font, false, false);
+}
+
+int32_t m3ds_terrain_draw_hud_panel(float x, float y, float width, float height, int32_t color) {
+    if (!frame_open) return 0;
+    set_world_blend(0);
+    set_world_mix(0, 0);
+    return C2D_DrawRectSolid(x, y, 0.5f, width, height, (u32)color) ? 1 : 0;
 }
 
 float m3ds_terrain_draw_chat_line(const char *label, const int32_t *characters, int32_t count, float bottom) {
     int32_t stock_font;
     return draw_stock_panel(label, characters, count, -1, 0, 0, 0, 0,
-        screen_left + 4.0f, bottom, &stock_font, true);
+        screen_left + 4.0f, bottom, &stock_font, true, true);
 }
 
 #ifdef M3DS_STOCK_FONT
