@@ -1356,6 +1356,11 @@ positions, local UV, interpolated tint and texture retargeting.
 the source building. Add `--verify-canvas-quads` to the stationary Glacier
 replay for an offscreen Canvas, live reconfiguration, a moved corner, and
 retargeting from that Canvas to an original atlas sprite.
+
+Stock QuadMarker inverts the requested local V in `setUv`. Arc submits
+normalized texture UVs, which the ARM11 batch converts to source texels
+before atlas clipping or Canvas sampling. Citro3D then normalizes against
+the allocated texture, including padding around a Canvas.
 The [ARM11 Canvas quad build](https://github.com/levkeveli/Min3DStry/actions/runs/44931099000)
 passed on both 3DS emulator profiles against the unmodified Java v160.8
 server. The viewport stayed at tile column 73 while the source Canvas
