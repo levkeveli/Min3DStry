@@ -242,10 +242,10 @@ jobs:
           grep -Fxq '    teavm_initHeap(134217728, 134217728);' "$wave_main"
           bash .github/scripts/cc_host.sh -std=gnu11 -O0 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-wave/all.c" -lm -lpthread \
             -o "$RUNNER_TEMP/teavm-c-wave/probe_o0"
+          timeout 60s "$RUNNER_TEMP/teavm-c-wave/probe_o0" "$RUNNER_TEMP/glacier.msav" | tee "$RUNNER_TEMP/wave-o0.log"
           python3 research/upstream-runtime/arm11/fix_wave_controller_local.py "$RUNNER_TEMP/teavm-c-wave"
           bash .github/scripts/cc_host.sh -std=gnu11 -O2 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-wave/all.c" -lm -lpthread \
             -o "$RUNNER_TEMP/teavm-c-wave/probe_o2"
-          timeout 60s "$RUNNER_TEMP/teavm-c-wave/probe_o0" "$RUNNER_TEMP/glacier.msav" | tee "$RUNNER_TEMP/wave-o0.log"
           timeout 60s "$RUNNER_TEMP/teavm-c-wave/probe_o2" "$RUNNER_TEMP/glacier.msav" | tee "$RUNNER_TEMP/wave-o2.log"
           for log in "$RUNNER_TEMP/wave-o0.log" "$RUNNER_TEMP/wave-o2.log"; do
             grep -Fx 'UPSTREAM_WORLD_FINGERPRINT 2e7b9f883994de6c' "$log"
