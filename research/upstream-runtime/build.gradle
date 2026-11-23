@@ -367,6 +367,10 @@ if (usesSinglePlayer) {
             classpath = sourceSets.main.runtimeClasspath
             mainClass = 'UpstreamStockAssemblerReference'
         }
+        tasks.register('runStockPayloadLoopJvm', JavaExec) {
+            classpath = sourceSets.main.runtimeClasspath
+            mainClass = 'UpstreamStockPayloadLoopReference'
+        }
         tasks.register('runErekirHeatJvm', JavaExec) {
             classpath = sourceSets.main.runtimeClasspath
             mainClass = 'UpstreamErekirHeatReference'
