@@ -201,10 +201,11 @@ public final class UpstreamSinglePlayerApp {
                     System.out.println("UPSTREAM_CUSTOM_GAME_SELECTED source=save file=" + saveFile.name());
                     session.start(null, saveFile, "customgame-save");
                 } else {
-                    saveFile = customSave;
                     System.out.println("UPSTREAM_CUSTOM_GAME_SELECTED map=" + custom.map.file.name()
                         + " mode=" + custom.mode.name());
-                    Gamemode mode = session.startCustomGame(custom.map, custom.mode);
+                    var launched = session.startCustomGameWithSave(custom.map, custom.mode);
+                    saveFile = launched.save();
+                    Gamemode mode = launched.mode();
                     System.out.println("UPSTREAM_CUSTOM_GAME_STARTED map=" + custom.map.file.name() + " mode=" + mode.name());
                 }
             }
@@ -814,7 +815,8 @@ public final class UpstreamSinglePlayerApp {
                 System.out.println("UPSTREAM_SP_WAVE wave=" + wave + " enemies=" + enemies);
             }
             if ((input & UpstreamSinglePlayerInput.SAVE_PRESSED) != 0) {
-                session.save(saveFile);
+                if (saveFile == null) saveFile = session.createCustomGameSave();
+                else session.save(saveFile);
                 if (unit != null) {
                     int shots = UpstreamOfflineWeaponInput.totalShots(unit);
                     if (shots > 0) System.out.println("UPSTREAM_SP_WEAPON_SAVED shots=" + shots);

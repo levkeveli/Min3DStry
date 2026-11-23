@@ -358,6 +358,10 @@ if (usesSinglePlayer) {
             classpath = sourceSets.main.runtimeClasspath
             mainClass = 'UpstreamCustomGameReference'
         }
+        tasks.register('runStockCustomSaveCreationJvm', JavaExec) {
+            classpath = sourceSets.main.runtimeClasspath
+            mainClass = 'UpstreamStockCustomSaveCreationReference'
+        }
         tasks.register('runOfflineMaterialsJvm', JavaExec) {
             classpath = sourceSets.main.runtimeClasspath
             mainClass = 'UpstreamOfflineMaterialsReference'

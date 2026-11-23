@@ -449,14 +449,26 @@ and loads the world sprite atlas after the map. If a mode is unavailable on a
 map, startup uses the first valid mode
 in the upstream mode order.
 
-`SELECT` saves a new Custom Game to
-`/3ds/min3dstry/custom-game-save.msav` using upstream `SaveIO`.
-Select **Load Game** at the top of the Custom Game list to resume that save.
-Copy non-campaign PC saves into `/3ds/min3dstry/saves/` to select them by
-name from the same menu. The menu uses the stock save name from settings
-when present and the filename otherwise. `SELECT` writes the active save
-back to its own slot and retains the upstream backup. Map exports still
-belong under `/3ds/min3dstry/maps/`.
+New Custom Games follow the stock automatic save creation preference.
+By default, each game gets the first free numeric `.msav` in
+`/3ds/min3dstry/saves/`, with Mindustry's map-and-date name recorded in
+settings. **SELECT** updates that game's own slot and retains the stock
+backup. With the stock `savecreate` preference disabled, the first
+**SELECT** creates the slot.
+
+Copy non-campaign PC saves into `/3ds/min3dstry/saves/` to resume them from
+the same menu. The list uses the stock settings name when available.
+Existing `/3ds/min3dstry/custom-game-save.msav` files remain available as
+**Load Game**. Keep map exports under `/3ds/min3dstry/maps/`.
+
+The host fixture starts Glacier Sandbox and Ancient Caldera Survival
+as separate sessions, then creates a third slot manually with automatic
+creation disabled. Its second write updates Glacier without altering the
+original backup during later launches. The original Java release reopens
+all three slots, including the names written to the port's settings file.
+Use `runStockCustomSaveCreationJvm` with the two original maps, a fresh
+profile directory and the original bundle. Then pass the profile to
+`tools/verify_stock_custom_autosaves.py`.
 
 `tools/verify_stock_custom_save_slots.py` creates Glacier and Ancient
 Caldera saves with unmodified Java v160.8. It selects each on ARM11, saves
@@ -476,7 +488,7 @@ along with the pinned runtime Gradle properties. It checks and launches every
 stock map, launches Glacier in Sandbox, and reloads the resulting `.msav`.
 
 Run `python3 tools/verify_upstream_custom_game.py --rom upstream-probe.3dsx`
-with Azahar 2126.2 and a virtual SD without user maps to replay the selector,
+with Azahar 2126.2 to replay the selector in an isolated virtual SD,
 start Ancient Caldera in Sandbox, and save and resume the game on both console
 profiles. The verifier retains the native test saves alongside screenshots and
 logs so they can also be opened in the stock v160.8 game.
