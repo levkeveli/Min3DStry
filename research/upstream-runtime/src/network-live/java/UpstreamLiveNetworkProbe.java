@@ -93,7 +93,6 @@ import org.teavm.interop.c.Include;
 public final class UpstreamLiveNetworkProbe {
     private static final int ACCEPTED = 0, REJECTED = 1, TIMEOUT = -2;
     private static final int BUILD = 160;
-    private static final int CHAT_PRESSED = 1 << 22;
     // Match Arc's pinned TcpConnection and UdpConnection default intervals.
     private static final long TCP_KEEP_ALIVE_NS = 8_000_000_000L;
     private static final long UDP_KEEP_ALIVE_NS = 19_000_000_000L;
@@ -104,21 +103,23 @@ public final class UpstreamLiveNetworkProbe {
     private final Consumer<Unit> frame;
     private final UpstreamLiveBuildControls building;
     private final Consumer<String> chat;
+    private final UpstreamChatInput chatInput;
     private Runnable deferredGraphics;
     private int nextLiveTransport = 1;
 
     private UpstreamLiveNetworkProbe(Mode mode, Runnable deferredGraphics, Consumer<Unit> frame,
-                                     UpstreamLiveBuildControls building, Consumer<String> chat) {
+                                     UpstreamLiveBuildControls building, Consumer<String> chat, UpstreamChatInput chatInput) {
         this.mode = mode;
         this.deferredGraphics = deferredGraphics;
         this.frame = frame;
         this.building = building;
         this.chat = chat;
+        this.chatInput = chatInput;
     }
 
     public static void main(String[] args) throws IOException, InterruptedException {
         var endpoint = endpointFile(args);
-        run(endpoint.parent(), endpoint.readString(), null, null, null, null, null);
+        run(endpoint.parent(), endpoint.readString(), null, null, null, null, null, null);
     }
 
     static Fi endpointFile(String[] args) {
@@ -126,7 +127,7 @@ public final class UpstreamLiveNetworkProbe {
     }
 
     static void run(Fi directory, String address, Runnable beforeConnect, Runnable deferredGraphics,
-                    Consumer<Unit> frame, UpstreamLiveBuildControls building, Consumer<String> chat)
+                    Consumer<Unit> frame, UpstreamLiveBuildControls building, Consumer<String> chat, UpstreamChatInput chatInput)
                     throws IOException, InterruptedException {
         String[] endpoint = address.trim().split("\\s+");
         if (endpoint.length < 2 || endpoint.length > 3) {
@@ -154,7 +155,7 @@ public final class UpstreamLiveNetworkProbe {
             stage = "client setup";
             if (beforeConnect != null) beforeConnect.run();
             stage = "session";
-            new UpstreamLiveNetworkProbe(mode, deferredGraphics, frame, building, chat).run(host, port, app);
+            new UpstreamLiveNetworkProbe(mode, deferredGraphics, frame, building, chat, chatInput).run(host, port, app);
         } catch (IOException | RuntimeException | LinkageError error) {
             Throwable cause = error;
             while (cause.getCause() != null) cause = cause.getCause();
@@ -442,9 +443,12 @@ public final class UpstreamLiveNetworkProbe {
         while (true) {
             int input = Native.input();
             if (input < 0) return;
-            if (chat != null && (input & CHAT_PRESSED) != 0) {
-                sendChat();
-                continue;
+            int touch = Native.touch();
+            if (chatInput != null && (chatInput.open() || UpstreamChatInput.requested(input))) {
+                var message = chatInput.update(input, touch);
+                if (message != null) sendChat(message);
+                input = 0;
+                touch = -1;
             }
             long now = System.nanoTime();
             if (frame == null && now - lastTcpSend >= TCP_KEEP_ALIVE_NS) {
@@ -465,7 +469,7 @@ public final class UpstreamLiveNetworkProbe {
             lastWave = receiveLiveUpdates(stateId, entityId, unitSpawnId, unitDespawnId, unitDestroyId, lastWave);
             app.runPosted();
             now = System.nanoTime();
-            controls.update(input, now);
+            controls.update(input, touch, now);
             if (frame != null && now - lastFrame >= 33_333_333L) {
                 var unit = controlledUnit();
                 if (unit != null || lastFrame != 0) {
@@ -574,13 +578,7 @@ public final class UpstreamLiveNetworkProbe {
         System.out.println("UPSTREAM_LIVE_CHAT_RECEIVED source=" + source + " chars=" + message.length());
     }
 
-    private static void sendChat() throws IOException {
-        byte[] text = new byte[4 * Vars.maxTextLength + 1];
-        byte[] hint = (Core.bundle.get("keybind.chat.name") + "\0").getBytes(StandardCharsets.UTF_8);
-        int length = Native.readChat(Address.ofData(text), text.length, Vars.maxTextLength, Address.ofData(hint));
-        if (length <= 0 || length >= text.length) return;
-        var message = new String(text, 0, length, StandardCharsets.UTF_8).trim();
-        if (message.isEmpty() || message.length() > Vars.maxTextLength) return;
+    private static void sendChat(String message) throws IOException {
         var packet = new SendChatMessageCallPacket();
         packet.message = message;
         send(packet, true);
@@ -732,7 +730,7 @@ public final class UpstreamLiveNetworkProbe {
             this.buildingControls = buildingControls;
         }
 
-        void update(int input, long now) throws IOException {
+        void update(int input, int touch, long now) throws IOException {
             var unit = controlledUnit();
             if (unit == null) {
                 previousUnit = null;
@@ -750,7 +748,7 @@ public final class UpstreamLiveNetworkProbe {
             }
             // Mirror PlayerComp.update before stock input rules consult the player's position.
             Vars.player.set(unit);
-            if (buildingControls != null) buildingControls.update(unit, input, Native.touch());
+            if (buildingControls != null) buildingControls.update(unit, input, touch);
             if (Vars.player.unit() != unit) return;
             direction.set((byte)input / 127f, (byte)(input >>> 8) / 127f).limit(1f);
             if (direction.len2() < DEAD_ZONE * DEAD_ZONE) direction.setZero();
@@ -967,9 +965,6 @@ public final class UpstreamLiveNetworkProbe {
         static native void endKeepAlive();
         @Import(name = "m3ds_live_net_input")
         static native int input();
-
-        @Import(name = "m3ds_live_net_read_chat")
-        static native int readChat(Address text, int capacity, int maxLength, Address hint);
 
         @Import(name = "m3ds_live_net_touch")
         static native int touch();

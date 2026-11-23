@@ -103,16 +103,19 @@ DECODE_PKT_OK id=141 compression=1 wire_len=140 payload_len=182
 
 ## Stock multiplayer chat
 
-Press **Y** in the graphical client to enter chat with the 3DS keyboard.
-The client sends the original reliable `SendChatMessageCallPacket`, so the
-unmodified server handles player formatting and commands. Player and server
-messages use the original receive packets and stock text renderer on the
-top screen. The existing TCP heartbeat continues while the keyboard is open.
+Press **Y** to open the 3DS touch keyboard during a live game. Use **A** to
+send or **B** to cancel. The first keyboard layout covers Latin letters,
+digits, punctuation, and stock server commands such as `/help`. The client
+sends the original reliable `SendChatMessageCallPacket`, so the unmodified
+server handles player formatting and commands. Player and server messages
+use the original receive packets and stock text renderer on the top screen.
+World snapshots and the TCP heartbeat continue while the keyboard is open.
+Additional text entry languages remain open work.
 
 Use `tools/verify_upstream_live_net.py --controls --verify-chat --terrain-atlas
 /path/to/sprites.aatls` with the matching ROM and stock v160.8 server. The
-replay sends both stock receive packet variants, captures the chat panel
-and waits for a subsequent world snapshot.
+replay sends both stock receive packet variants, types a reply on the touch
+keyboard, and waits for authoritative world snapshots during and after entry.
 
 ## License Audit
 

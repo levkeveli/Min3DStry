@@ -92,7 +92,7 @@ BUILDING_CRACK_PIXELS = {
 
 def write_controls_replay(path, first_move=22, building=False, touch_build=False, touch_config=False,
                           erekir_build=False, mining=None, model="old3ds", stock_menu_font=False,
-                          unified_boot=False, stationary=False):
+                          unified_boot=False, stationary=False, chat=False):
     """Write the Azahar 2126.2 CTM input for this probe's pad/touch polling."""
     # The pinned Azahar movie header and HID sample definitions use packed little-endian fields.
     revision = bytes.fromhex("219d743a1e698101fe1ab8bef43e6563126c3c27")
@@ -105,7 +105,7 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
         # Let each input settle and confirm idle snapshots at the combined ROM's slower frame cadence.
         circle_at = first_move + 28
         leave_at = circle_at + 28
-    frames = (128 if erekir_build or mining else leave_at + 7) * samples_per_second
+    frames = (128 if erekir_build or mining or chat else leave_at + 7) * samples_per_second
     header = struct.pack("<4sQ20sQQ32sIQq156x", b"CTM\x1b", 0, revision, 1780000000,
                          0x4D334453, b"Min3DStry input verification", 0, frames, 0)
     touch_idle = struct.pack("<B6x", 1)
@@ -141,12 +141,18 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
         )
     elif mining == "floor":
         taps = ((58, (305, 96)), (62, (305, 96)), (67, (168, 232)))
+    if chat:
+        # Type "hi 3ds" across a long-running chat overlay using only bottom-screen HID samples.
+        taps = ((39, (176, 132)), (43, (240, 93)), (47, (192, 214)),
+                (51, (80, 53)), (55, (80, 132)), (59, (48, 132)))
     pan_end = 61 if model == "new3ds" else 60
     with path.open("wb") as movie:
         movie.write(header)
         for frame in range(frames):
             seconds = frame // samples_per_second
-            if erekir_build:
+            if chat:
+                buttons = (1 << 11) if 32 <= seconds < 34 else 1 if 66 <= seconds < 68 else 0
+            elif erekir_build:
                 buttons = (1 << 8) if 66 <= seconds < 72 else 0  # R, the 3DS rotate shortcut.
             elif mining or stationary:
                 buttons = 0
@@ -1463,10 +1469,21 @@ def verify_stock_chat(log, emulator, server_log, server, rpc, output, model, tim
         time.sleep(0.1)
     else:
         raise RuntimeError(f"{model}: stock chat reached ARM11 without a visible chat panel")
+    wait_for(log, emulator, r"UPSTREAM_LIVE_CHAT_INPUT state=open\b", timeout)
+    (output / f"{model}-chat-keyboard.png").write_bytes(rpc.screenshot(res_scale=1))
     server.stdin.write("runwave\n")
     server.stdin.flush()
-    wait_for(log, emulator, r"UPSTREAM_LIVE_CONTROLS_STATE wave=2\b", timeout)
-    print(f"{model}: stock server and player chat rendered and world snapshots continued.", flush=True)
+    during_chat = wait_for(log, emulator, r"UPSTREAM_LIVE_CONTROLS_STATE wave=2\b", timeout)
+    if "UPSTREAM_LIVE_CHAT_INPUT state=closed" in during_chat:
+        raise RuntimeError("The wave snapshot must reach ARM11 while chat is open")
+    wait_for(log, emulator, r"UPSTREAM_LIVE_CHAT_SENT chars=6\b", timeout)
+    wait_for(server_log, server, rf"{PLAYER}: hi 3ds\b", timeout)
+    wait_for(log, emulator, r"UPSTREAM_LIVE_CHAT_SENT chars=6[^\r\n]*[\s\S]+"
+                            r"UPSTREAM_LIVE_CHAT_RECEIVED source=player", timeout)
+    server.stdin.write("runwave\n")
+    server.stdin.flush()
+    wait_for(log, emulator, r"UPSTREAM_LIVE_CONTROLS_STATE wave=3\b", timeout)
+    print(f"{model}: original chat round trip passed and snapshots continued during text entry.", flush=True)
 
 
 def verify_canvas_quads(log, emulator, server_log, server, rpc, output, model, position, timeout):
@@ -1795,7 +1812,7 @@ def run_model(args, model, config, original_config, log, output):
                 server.stdin.flush()
                 wait_for(server_log, server, r"UPSTREAM_COMBAT_PREP", 10)
             command = [str(args.azahar)]
-            if args.controls_replay or args.unified_boot:
+            if args.controls_replay or args.unified_boot or args.verify_chat:
                 replay = Path(work) / "controls.ctm"
                 first_move = 42 if args.terrain_atlas else 22
                 if args.building and args.desktop_name:
@@ -1808,7 +1825,7 @@ def run_model(args, model, config, original_config, log, output):
                                       touch_build=args.touch_build, touch_config=args.touch_config,
                                       erekir_build=args.erekir_build, mining=args.mining, model=model,
                                       stock_menu_font=args.verify_stock_menu_font, unified_boot=args.unified_boot,
-                                      stationary=not args.controls_replay)
+                                      stationary=not args.controls_replay, chat=args.verify_chat)
                 command += ["-p", str(replay)]
             command.append(str(args.rom))
             emulator = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

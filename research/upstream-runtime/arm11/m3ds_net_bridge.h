@@ -15,7 +15,6 @@ int32_t m3ds_live_net_begin_keep_alive(int32_t rendering);
 void m3ds_live_net_end_keep_alive(void);
 /* Signed X/Y, then D-pad/A/R/B/X/L/Y in bits 16–22, or -1 when leaving. */
 int32_t m3ds_live_net_input(void);
-int32_t m3ds_live_net_read_chat(char *text, int32_t capacity, int32_t max_length, const char *hint);
 /* X and Y in the low and high halves on a fresh touch, or -1. */
 int32_t m3ds_live_net_touch(void);
 void m3ds_live_net_close(void);

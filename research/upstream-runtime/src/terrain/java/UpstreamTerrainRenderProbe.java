@@ -57,6 +57,12 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
         }
     }
 
+    void drawChatKeyboard(byte[] labels) {
+        if (NativeTerrain.drawChatKeyboard(Address.ofData(labels)) == 0) {
+            throw new IllegalStateException("Unable to draw the live chat keyboard");
+        }
+    }
+
     // Keep the catalog kinds in the same order as the native renderer.
     static final int ITEM_CATALOG = 0, BLOCK_CATALOG = 1, UNIT_CATALOG = 2, COMMAND_CATALOG = 3, STANCE_CATALOG = 4, SCHEMATIC_CATALOG = 5;
 
@@ -251,6 +257,9 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
         static native int buildOverlay(int column, int row, int block, int rotation, int removing, int tileSize,
                                        int rotatable, int catalogOpen, int configuring, int selectingMine,
                                        int inventoryAction, int commandMode, int selectingControl, int placingSchematic);
+
+        @Import(name = "m3ds_terrain_draw_chat_keyboard")
+        static native int drawChatKeyboard(Address labels);
 
         @Import(name = "m3ds_terrain_build_catalog")
         static native int buildCatalog(Address labels, Address icons, int activeRows,

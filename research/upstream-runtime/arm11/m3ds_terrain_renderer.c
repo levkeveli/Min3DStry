@@ -1300,6 +1300,38 @@ static bool draw_menu_icon(int row, int32_t id, int32_t catalog, float y) {
         y + (23 - image.subtex->height * icon_scale) / 2, 0.5f, NULL, icon_scale, icon_scale);
 }
 
+static void draw_chat_key(const char *label, float x, float y, float width, u32 color) {
+    C2D_DrawRectSolid(x + 2, y + 2, 0.5f, width - 4, 35, C2D_Color32(45, 52, 64, 255));
+    catalog_label(label, x + width / 2, y + 10, 0.42f, width - 6, color);
+}
+
+int32_t m3ds_terrain_draw_chat_keyboard(const char *labels) {
+    if (!frame_open || !palette) return 0;
+    if (perf_enabled) perf.bottom_start = svcGetSystemTick();
+    set_world_blend(0);
+    set_world_mix(0, 0);
+    C2D_TargetClear(palette, C2D_Color32(24, 27, 32, 255));
+    C2D_SceneBegin(palette);
+    C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_COLOR);
+    C2D_TextBufClear(catalog_buffer);
+
+    const u32 text = C2D_Color32(239, 241, 247, 255);
+    const u32 accent = C2D_Color32(250, 213, 107, 255);
+    catalog_label(labels, 160, 2, 0.42f, 306, accent);
+    labels += strlen(labels) + 1;
+    catalog_label(labels, 160, 18, 0.42f, 306, text);
+    labels += strlen(labels) + 1;
+    for (int i = 0; i < 40; i++) {
+        if (*labels && *labels != ' ') draw_chat_key(labels, (i % 10) * 32, 36 + (i / 10) * 39, 32, text);
+        labels += strlen(labels) + 1;
+    }
+    draw_chat_key("Shift", 0, 195, 64, accent);
+    draw_chat_key("123 !?", 64, 195, 64, accent);
+    draw_chat_key("Space", 128, 195, 128, text);
+    draw_chat_key("<-", 256, 195, 64, text);
+    return 1;
+}
+
 int32_t m3ds_terrain_build_catalog(const char *labels, const int32_t *icons, int32_t active_rows,
                                     int32_t previous, int32_t next, int32_t catalog) {
     if (catalog < 0 || catalog >= catalog_count) return 0;

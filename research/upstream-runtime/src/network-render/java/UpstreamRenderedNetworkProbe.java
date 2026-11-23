@@ -57,6 +57,7 @@ public final class UpstreamRenderedNetworkProbe {
     private final UpstreamWeatherLayers weatherLayers = new UpstreamWeatherLayers();
     private final Runnable drawWeatherUnder = weatherLayers::drawUnder;
     private final UpstreamLiveBuildControls buildingControls = new UpstreamLiveBuildControls();
+    private final UpstreamChatInput chatInput = new UpstreamChatInput();
     private final Runnable drawEntities = this::drawEntities;
     private final IntSet reportedConveyors = new IntSet();
     private final IntSet reportedEnemies = new IntSet();
@@ -113,7 +114,7 @@ public final class UpstreamRenderedNetworkProbe {
         try {
             Arm11Audio.open();
             UpstreamLiveNetworkProbe.run(directory, address, view::prepareClient, view::loadGraphics,
-                view::render, view.buildingControls, view::receiveChat);
+                view::render, view.buildingControls, view::receiveChat, view.chatInput);
         } finally {
             Arm11Audio.close();
         }
@@ -314,6 +315,10 @@ public final class UpstreamRenderedNetworkProbe {
         weatherLayers.drawOver();
         drawObjectives(drawStatusHud());
         drawChat();
+        if (chatInput.open()) {
+            target.drawChatKeyboard(chatInput.labels());
+            return;
+        }
         var block = buildingControls.block();
         var catalog = buildingControls.catalog();
         var config = buildingControls.buildingConfig();
@@ -360,7 +365,7 @@ public final class UpstreamRenderedNetworkProbe {
 
     private void drawChat() {
         // ChatFragment displays the newest lines first and expires one line per 180 game frames.
-        int rows = Math.min(chatLines.size, Mathf.ceil(chatFade));
+        int rows = chatInput.open() ? chatLines.size : Math.min(chatLines.size, Mathf.ceil(chatFade));
         float y = Math.max(55f, 220f - 19f * rows);
         for (int i = rows - 1; i >= 0; i--) {
             var line = chatLines.get(i);
