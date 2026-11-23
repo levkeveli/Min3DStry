@@ -83,6 +83,7 @@ import mindustry.world.blocks.logic.LogicDisplay.LogicDisplayBuild;
 import mindustry.world.blocks.logic.LogicDisplay;
 import mindustry.world.blocks.logic.TileableLogicDisplay.TileableLogicDisplayBuild;
 import mindustry.world.blocks.payloads.BuildPayload;
+import mindustry.world.blocks.payloads.Constructor.ConstructorBuild;
 import mindustry.world.blocks.payloads.Payload;
 import mindustry.world.blocks.payloads.UnitPayload;
 import mindustry.world.blocks.payloads.PayloadConveyor;
@@ -155,6 +156,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         target.verifyFactory(viewport);
         target.verifyReconstructor(viewport);
         target.verifyAssemblers(viewport);
+        target.verifyBlockProducers(viewport);
 
         // The visible two-tile wall starts one tile west of the viewport.
         viewport.moveTo(24, 30);
@@ -496,6 +498,69 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
                                float x, float y, float drawWidth, float drawHeight, float rotation,
                                float progress, float alpha, float time, int vertexColor) {
         blockBuilds.add(new UnitBuild(page, left, top, width, height, x, y, rotation, progress, alpha, time));
+    }
+
+    private void verifyBlockProducers(UpstreamTerrainDrawProbe.Viewport viewport) {
+        viewport.moveTo(24, 30);
+        var viewer = Team.sharded;
+        var tile = Vars.world.tile(29, 35);
+        var layers = new UpstreamBuildingLayers();
+        var producers = new Block[] {Blocks.constructor, Blocks.largeConstructor};
+        var recipes = new Block[] {Blocks.tungstenWallLarge, Blocks.heatRedirector};
+        float previousDelta = Time.delta;
+        try {
+            Time.delta = 1f;
+            for (int i = 0; i < producers.length; i++) {
+                tile.setBlock(producers[i], viewer, 1);
+                var producer = (ConstructorBuild) tile.build;
+                var recipe = recipes[i];
+                producer.recipe = recipe;
+                producer.progress = recipe.buildTime * 0.5f;
+                producer.efficiency = 1f;
+                UpstreamRenderedNetworkProbe.advanceBlockProducerDraw(producer);
+                if (!UpstreamBuildingLayers.supportsBlockProducerDraw(producer.block)
+                        || producer.fraction() != 0.5f || producer.time <= 0f || producer.heat <= 0f
+                        || producer.getPayload() != null) {
+                    throw new AssertionError("The live stock Constructor animation should leave production unchanged");
+                }
+
+                blockBuilds.clear();
+                sprites.clear();
+                solidQuads.clear();
+                layers.render(viewport, viewer, build -> build == producer);
+                var icons = recipe.getGeneratedIcons();
+                if (blockBuilds.size() != icons.length || solidQuads.isEmpty()) {
+                    throw new AssertionError("Expected every original recipe layer and scan line");
+                }
+                for (int part = 0; part < icons.length; part++) {
+                    var icon = icons[part];
+                    var drawn = blockBuilds.get(part);
+                    if (drawn.page() != UpstreamTerrainDrawProbe.pageIndex(icon)
+                            || drawn.left() != icon.getX() || drawn.top() != icon.getY()
+                            || drawn.width() != icon.width || drawn.height() != icon.height
+                            || drawn.x() != producer.x || drawn.y() != producer.y
+                            || drawn.rotation() != (recipe.rotate ? 90f : 0f)
+                            || drawn.progress() != 0.5f || drawn.alpha() != 1f || drawn.phase() != producer.time) {
+                        throw new AssertionError("The original recipe metadata changed at layer " + part);
+                    }
+                }
+
+                var payload = new BuildPayload(recipe, viewer);
+                producer.payload = payload;
+                sprites.clear();
+                layers.render(viewport, viewer, build -> build == producer);
+                if (producer.getPayload() != payload || sprites.size() < 5) {
+                    throw new AssertionError("Missing stock completed building payload or cover");
+                }
+            }
+            System.out.println("UPSTREAM_CONSTRUCTOR_GRAPHICS stock=2 recipes=2 rotation=ok cargo=ok liveClock=ok");
+        } finally {
+            Time.delta = previousDelta;
+            tile.setBlock(Blocks.air);
+            blockBuilds.clear();
+            sprites.clear();
+            solidQuads.clear();
+        }
     }
 
     private static void verifyLiveFactoryClock(UnitFactory.UnitFactoryBuild factory) {

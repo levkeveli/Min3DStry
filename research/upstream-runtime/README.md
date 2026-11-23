@@ -1077,6 +1077,18 @@ The renderer still selects blocks that use the supported sprite operations.
 Textured raw vertices, additional payload types and other rendering services
 are tracked in [#139](https://github.com/levkeveli/Min3DStry/issues/139).
 
+### Stock Erekir Constructor graphics
+
+Both stock Constructor variants draw the original base, exit, cover, shadow,
+construction outline, scan line and completed payload. The ARM11 renderer
+uses the shared `blockbuild.frag` adapter for every generated recipe region,
+including the recipe's original rotation. The multiplayer render clock
+updates the effect without consuming materials or changing production.
+
+The unified `runBuildingLayersJvm` trace checks the Tungsten Wall Large
+and Heat Redirector visuals, including their distinct rotations, stock icon
+coordinates and completed cargo. Handheld visual replay is pending.
+
 ### Stock Erekir assembler graphics
 
 The stock Tank, Ship and Mech Assembler drawers use their original base,
