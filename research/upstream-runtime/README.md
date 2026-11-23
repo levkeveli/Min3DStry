@@ -1353,6 +1353,10 @@ server. The viewport stayed at tile column 73 while the source Canvas
 stayed at column 45. Both profiles showed the configured palette, moved
 corner, and original Router texture without changing the camera position.
 
+The [unified ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45124554676)
+passed the same offscreen Canvas replay on both Azahar profiles, along
+with the atlas-backed quad replay. Both fixtures ran below the live HUD.
+
 ### Verify the Arc executor pools
 
 Use `-Pprobe=executor` with the JVM and ARM11 build commands. The JVM uses the
