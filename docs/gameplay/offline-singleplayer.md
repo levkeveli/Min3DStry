@@ -383,6 +383,10 @@ belong under `/3ds/min3dstry/maps/`.
 Caldera saves with unmodified Java v160.8. It selects each on ARM11, saves
 Glacier, checks the original backup and the untouched Caldera file, then
 reopens the resulting Glacier save in stock Java.
+The [unified ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45185562919)
+passed this replay on both Azahar 2126.2 profiles. The stock Arc sort put
+the newer Caldera save first. The replay then saved Glacier and verified
+that both the Caldera and the campaign files stayed byte-identical.
 
 The JVM regression uses an assets directory staged with
 `prepare_terrain_assets.py --singleplayer`. Pass its `maps/default` directory,
