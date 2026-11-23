@@ -21,17 +21,12 @@ def save_picture(rpc, destination: Path) -> None:
 
 def verify(model: str, rom: Path, azahar: str, config: Path, log: Path,
            fixture: Path, output: Path) -> None:
-    root = sp.resolve_sd_save_path(log).parent
+    sd = (output / "virtual-sd").resolve()
+    root = sd / "3ds/min3dstry"
     saves = root / "saves"
     origin = saves / "sector-serpulo-170.msav"
     forest = saves / "sector-serpulo-64.msav"
     settings = root / "settings.bin"
-    settings_backup = root / "settings_backup.bin"
-    settings_backups = root / "settings_backups"
-    if any(root.glob("sector-*.msav")) or any(saves.glob("sector-*.msav")) or any(
-            path.exists() for path in (settings, settings_backup, settings_backups, root / "campaign-select.txt")):
-        raise RuntimeError("Campaign replay needs a clean Azahar virtual SD")
-
     (output / "saves").mkdir(parents=True, exist_ok=True)
     movie = output / "progression.ctm"
     router = int((fixture / "router-row.txt").read_text(encoding="ascii"))
@@ -46,12 +41,15 @@ def verify(model: str, rom: Path, azahar: str, config: Path, log: Path,
         (250, 252, sp.KEY_START),
     ])
     write_input_replay(movie, model, windows, 250, b"Min3DStry Campaign Progress")
-    had_saves = saves.is_dir()
     config_snapshot = config.read_bytes() if config.is_file() else None
+    saves.mkdir(parents=True)
     try:
-        saves.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(fixture / "saves" / origin.name, origin)
         shutil.copyfile(fixture / "settings.bin", settings)
+        storage = {"Data Storage": {"use_custom_storage": "true", "sdmc_directory": sd.as_posix() + "/"}}
+        config.parent.mkdir(parents=True, exist_ok=True)
+        config.write_text(sp.az.patch_qt_config_text((config_snapshot or b"").decode("utf-8"), storage),
+                          encoding="utf-8")
         proc, rpc = sp._launch_azahar(model, rom, azahar, config, log, movie)
         try:
             sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_CAPTURED sector=170\b", 135)
@@ -73,13 +71,6 @@ def verify(model: str, rom: Path, azahar: str, config: Path, log: Path,
             sp._stop_proc(proc, azahar)
             (output / "azahar.log").write_bytes(log.read_bytes())
     finally:
-        for path in (origin, forest, settings, settings_backup,
-                     *(saves / f"{slot.name}-backup.msav" for slot in (origin, forest))):
-            path.unlink(missing_ok=True)
-        if settings_backups.is_dir():
-            shutil.rmtree(settings_backups)
-        if not had_saves and saves.is_dir() and not any(saves.iterdir()):
-            saves.rmdir()
         if config_snapshot is None:
             config.unlink(missing_ok=True)
         else:

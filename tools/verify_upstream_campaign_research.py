@@ -15,20 +15,12 @@ from verify_upstream_campaign_launch import write_input_replay
 def verify(model: str, planet: str, rom: Path, azahar: str, config: Path, log: Path,
            fixtures: Path, output: Path) -> tuple[Path, Path]:
     _, name, _, _, block, _, _, unlocked = CASES[planet]
-    root = sp.resolve_sd_save_path(log).parent
+    prefix = f"{model}-{planet}"
+    sd = (output / "virtual-sd" / prefix).resolve()
+    root = sd / "3ds/min3dstry"
     saves = root / "saves"
     slot = saves / name
     settings = root / "settings.bin"
-    settings_backup = root / "settings_backup.bin"
-    settings_backups = root / "settings_backups"
-    override = root / "campaign-select.txt"
-    if any(root.glob("sector-*.msav")) or any(saves.glob("sector-*.msav")) or any(
-            path.exists() for path in (settings, settings_backup, settings_backups, override)):
-        raise RuntimeError("Use an Azahar SD directory without campaign saves, settings, or selection overrides")
-
-    initial_config = config.read_bytes() if config.is_file() else None
-    had_saves = saves.is_dir()
-    prefix = f"{model}-{planet}"
     replay = output / f"{prefix}.ctm"
     window = [
         (65, 67, (1 << 9) | sp.KEY_SELECT),
@@ -41,10 +33,15 @@ def verify(model: str, planet: str, rom: Path, azahar: str, config: Path, log: P
     ]
     write_input_replay(replay, model, window, 129, b"Min3DStry Campaign Research")
 
+    config_snapshot = config.read_bytes() if config.is_file() else None
+    saves.mkdir(parents=True)
     try:
-        saves.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(fixtures / name, slot)
         shutil.copyfile(fixtures / f"{planet}-settings.bin", settings)
+        storage = {"Data Storage": {"use_custom_storage": "true", "sdmc_directory": sd.as_posix() + "/"}}
+        config.parent.mkdir(parents=True, exist_ok=True)
+        config.write_text(sp.az.patch_qt_config_text((config_snapshot or b"").decode("utf-8"), storage),
+                          encoding="utf-8")
         proc, rpc = sp._launch_azahar(model, rom, azahar, config, log, replay)
         try:
             sp._wait_for_log(log, proc, r"UPSTREAM_SP_LOADED source=campaign\b", 120)
@@ -68,16 +65,10 @@ def verify(model: str, planet: str, rom: Path, azahar: str, config: Path, log: P
             sp._stop_proc(proc, azahar)
             (output / f"{prefix}.log").write_bytes(log.read_bytes())
     finally:
-        for path in (slot, saves / f"{name}-backup.msav", settings, settings_backup):
-            path.unlink(missing_ok=True)
-        if settings_backups.is_dir() and settings_backups.resolve().parent == root.resolve():
-            shutil.rmtree(settings_backups)
-        if not had_saves and saves.is_dir() and not any(saves.iterdir()):
-            saves.rmdir()
-        if initial_config is None:
+        if config_snapshot is None:
             config.unlink(missing_ok=True)
         else:
-            config.write_bytes(initial_config)
+            config.write_bytes(config_snapshot)
 
 
 def main() -> None:
