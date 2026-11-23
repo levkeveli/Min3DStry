@@ -263,6 +263,12 @@ Use maps, planets, and the base bundle staged from the pinned original
 assets. Both emulated console profiles produce a result directory for
 stock Java readback.
 
+The [dedicated ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45181223120)
+passed one complete stock turn on both Azahar 2126.2 profiles. Stock Java
+reopened the resulting settings and save with 37 copper in the active
+core, 100 copper and zero lead at the producer, and 11 copper at the
+attacked sector. Both remote map files remained byte-identical.
+
 ## New campaign
 
 Hold **R** while launching the standalone graphical .3dsx to open the
