@@ -5,7 +5,7 @@ import shutil
 import time
 
 import verify_upstream_singleplayer as sp
-from verify_upstream_factory_plans import start_server, stock_command
+from verify_upstream_factory_plans import start_server, stock_command, write_movie
 from verify_upstream_live_net import stop, wait_for
 
 
@@ -68,23 +68,67 @@ def create_stock_saves(args, output):
     return output / "config/saves"
 
 
+def start_live_fixture(args, phase, fixture, output):
+    server_dir = output / "stock"
+    saves = server_dir / "config/saves"
+    saves.mkdir(parents=True)
+    shutil.copyfile(fixture / f"{phase}.msav", saves / "factory.msav")
+    log = output / "server.log"
+    server = start_server(args, server_dir, log)
+    try:
+        wait_for(log, server, r"Server loaded\.", 30)
+        stock_command(server, log, f"config port {args.port}\nload factory",
+                      rf"Opened a server on port {args.port}\.")
+        setup = {
+            "terrain": "if (f && f.block === Blocks.groundFactory) throw 'Unexpected factory';",
+            "idle": "if (f.currentPlan !== -1) throw 'Unexpected idle stock plan';",
+            "construction": (
+                "Vars.state.rules.unitBuildSpeedMultiplier=0; f.progress=300; "
+                "if (f.currentPlan !== 1 || f.getPayload() !== null || f.efficiency <= 0) "
+                "throw 'Expected a powered factory halfway through the Crawler plan';"
+            ),
+            "payload": (
+                "const p=f.getPayload(); if (p === null || p.unit.type !== UnitTypes.crawler) "
+                "throw 'Missing Crawler payload';"
+            ),
+        }[phase]
+        stock_command(server, log, "js (()=>{ const f=Vars.world.tile(78,22).build; " + setup
+                      + ' return "STOCK_FACTORY_PHASE_READY"; })()', "STOCK_FACTORY_PHASE_READY")
+        return server, log
+    except BaseException:
+        stop(server)
+        raise
+
+
 def capture(args, model, phase, fixture, reference, threshold):
     azahar = sp.az.resolve_azahar_bin(args.azahar)
     config, log = sp.az.resolve_azahar_paths(azahar)
     originals = {path: path.read_bytes() if path.is_file() else None for path in (config, log)}
     output = args.output / model / phase
     sd = (output / "sdmc").resolve()
-    save = sd / "3ds/min3dstry/singleplayer-save.msav"
-    save.parent.mkdir(parents=True)
-    shutil.copyfile(fixture / f"{phase}.msav", save)
+    data = sd / "3ds/min3dstry"
+    data.mkdir(parents=True)
+    movie = None
+    if args.live:
+        (data / "server-endpoint.txt").write_text(f"127.0.0.1 {args.port}\n", encoding="ascii")
+        movie = output / "factory.ctm"
+        write_movie(movie, model, live=True, taps={}, buttons={0: sp.KEY_X}, seconds=60)
+    else:
+        shutil.copyfile(fixture / f"{phase}.msav", data / "singleplayer-save.msav")
     overrides = {"Data Storage": {"use_custom_storage": "true", "sdmc_directory": sd.as_posix() + "/"}}
+    server = None
     try:
+        if args.live:
+            server, server_log = start_live_fixture(args, phase, fixture, output)
         config.parent.mkdir(parents=True, exist_ok=True)
         initial = (originals[config] or b"").decode("utf-8")
         config.write_text(sp.az.patch_qt_config_text(initial, overrides), encoding="utf-8")
-        proc, rpc = sp._launch_azahar(model, args.rom, azahar, config, log)
+        proc, rpc = sp._launch_azahar(model, args.rom, azahar, config, log, movie)
         try:
-            sp._wait_for_log(log, proc, r"UPSTREAM_SP_FRAME .*left=73 bottom=20 sprites=1\b", 120)
+            frame = "UPSTREAM_NETWORK_FRAME" if args.live else "UPSTREAM_SP_FRAME"
+            sp._wait_for_log(log, proc, rf"{frame} .*left=73 bottom=20 sprites=1\b", 120)
+            if server is not None:
+                wait_for(server_log, server, r"Min3DStry ARM11 has connected", 20)
             if phase == "construction":
                 sp._wait_for_log(log, proc, r"UPSTREAM_UNIT_BUILD_SHADER source=unitbuild\.frag", 30)
             deadline = time.monotonic() + 18
@@ -112,6 +156,8 @@ def capture(args, model, phase, fixture, reference, threshold):
             if log.is_file():
                 shutil.copyfile(log, output / "azahar.log")
     finally:
+        if server is not None:
+            stop(server)
         for path, data in originals.items():
             if data is None:
                 path.unlink(missing_ok=True)
@@ -125,6 +171,7 @@ def main():
     parser.add_argument("--server", type=Path, required=True, help="Unmodified Mindustry v160.8 server JAR")
     parser.add_argument("--java", default="java")
     parser.add_argument("--azahar")
+    parser.add_argument("--live", action="store_true", help="Join the original Java server with each stock fixture")
     parser.add_argument("--port", type=int, default=16589)
     parser.add_argument("--model", choices=("new3ds", "old3ds"), action="append")
     parser.add_argument("--fixture", type=Path, help="An existing directory of stock fixture saves")

@@ -783,6 +783,24 @@ showed the active heat layers on both Azahar console profiles. Stock
 Mindustry v160.8 reopened the two ARM11 saves and read back the original
 reactor heat, carbide, and neoplasm.
 
+## Original liquid puddles
+
+The world renderer submits upstream puddle drawing with the original
+atlas. The stock layer order keeps water below buildings and draws the
+neoplasm cell overlay above a solid block. The shared pass works with
+offline saves and entity snapshots from a stock Java server.
+
+Run `tools/verify_offline_stock_puddles.py` with the original server JAR
+and a unified ARM11 ROM to compare clear and active Glacier saves.
+Run `tools/verify_upstream_live_net.py` with
+`--controls --verify-puddles --terrain-atlas /path/to/sprites.aatls`
+to check the same water and neoplasm colors over a stock network session.
+
+The [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45140847819)
+passed offline saves and live entity snapshots on both Azahar profiles.
+Both profiles showed 81 changed water pixels. The neoplasm samples
+included the area around the solid wall and passed in both modes.
+
 ## Original turret graphics
 
 The offline and live world passes use the original v160.8 turret drawers

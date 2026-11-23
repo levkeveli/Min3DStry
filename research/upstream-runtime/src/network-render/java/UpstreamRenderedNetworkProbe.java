@@ -9,6 +9,7 @@ import arc.Events;
 import arc.files.Fi;
 import arc.graphics.g2d.Draw;
 import arc.mock.MockGraphics;
+import arc.math.Mathf;
 import arc.struct.IntSet;
 import arc.struct.ObjectSet;
 import arc.util.Time;
@@ -30,6 +31,7 @@ import mindustry.gen.UnitWaterMove;
 import mindustry.graphics.CacheLayer;
 import mindustry.type.UnitType;
 import mindustry.world.blocks.units.UnitFactory;
+import mindustry.world.blocks.units.UnitFactory.UnitFactoryBuild;
 import mindustry.world.Block;
 import mindustry.type.Category;
 import mindustry.world.blocks.defense.turrets.BaseTurret;
@@ -102,13 +104,14 @@ public final class UpstreamRenderedNetworkProbe {
         CacheLayer.init();
         try {
             Arm11Audio.open();
-            UpstreamLiveNetworkProbe.run(directory, address, view::loadGraphics, view::render, view.buildingControls);
+            UpstreamLiveNetworkProbe.run(directory, address, view::prepareClient, view::loadGraphics,
+                view::render, view.buildingControls);
         } finally {
             Arm11Audio.close();
         }
     }
 
-    private void loadGraphics() {
+    private void prepareClient() {
         Arm11Audio.prepareMusicControl();
         Events.on(WorldLoadEvent.class, event -> Arm11Audio.reset());
         UpstreamClientLogic.initialize(new Fi("/romfs/logicids.dat"));
@@ -121,6 +124,10 @@ public final class UpstreamRenderedNetworkProbe {
         };
         var locale = Core.bundle.getLocale();
         Core.settings.put("locale", locale.getLanguage().isEmpty() ? "en" : locale.toString());
+    }
+
+    private void loadGraphics() {
+        var locale = Core.bundle.getLocale();
         System.out.println("UPSTREAM_INTERFACE_GRAPHICS atlas");
         UpstreamTerrainDrawProbe.loadAtlas(atlas, UpstreamFluidAtlas::load);
         UpstreamLogicGraphics.load(new Fi("/romfs"));
@@ -212,6 +219,7 @@ public final class UpstreamRenderedNetworkProbe {
             for (var build : Groups.build) {
                 if (build instanceof TileableLogicDisplayBuild display) display.updateTile();
                 if (build instanceof ConduitBuild conduit) conduit.advanceLiquidDraw();
+                if (build instanceof UnitFactoryBuild factory) advanceFactoryDraw(factory);
             }
             for (var unit : Groups.unit) {
                 if (unit instanceof UnitWaterMove boat) boat.advanceWake();
@@ -221,6 +229,16 @@ public final class UpstreamRenderedNetworkProbe {
         } finally {
             Time.delta = oldDelta;
         }
+    }
+
+    static void advanceFactoryDraw(UnitFactoryBuild factory) {
+        // UnitFactoryBuild.updateTile also advances production and emits units.
+        // Reproduce its draw-only state from the stock plan and received efficiency.
+        boolean active = factory.efficiency > 0f && factory.currentPlan != -1;
+        if (active) {
+            factory.time += factory.edelta() * factory.speedScl * Vars.state.rules.unitBuildSpeed(factory.team);
+        }
+        factory.speedScl = Mathf.lerpDelta(factory.speedScl, active ? 1f : 0f, 0.05f);
     }
 
     static void advanceTankTreads(Tankc tank) {
