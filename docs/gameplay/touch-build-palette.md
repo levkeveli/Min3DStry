@@ -351,3 +351,18 @@ python3 tools/verify_upstream_factory_plans.py \
 - The palette is a bounded prototype, not the final upstream layout; not every
   catalog page or configurable block has an automated replay.
 - Physical touch hardware and the full catalog remain open with #27/#43.
+
+## Reconstructor output commands
+
+Tap **Config**, then a stock Reconstructor whose output can be assigned a
+command. The menu uses the original output unit's commands, in their stock
+order with the original icons and localized names. For reconstructors that
+expose the entire command catalog without an output, the same stock list is
+available. The selected command travels through the original building
+configuration call. The original Reconstructor assigns it to the produced
+unit.
+
+The pinned JVM touch reference opens an Additive Reconstructor holding a
+Mono, verifies the original Poly command rows, and selects Move. The stock
+upgrade then produces a Poly with Move selected. The same suite exercises
+the existing factory plans, item selectors, and building links.
