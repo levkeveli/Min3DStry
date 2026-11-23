@@ -227,6 +227,8 @@ if (usesArcSources || usesExecutor) {
     if (usesRenderedClient) {
         stagedClasses.addAll(['mindustry/type/UnitType.class', 'mindustry/type/UnitType$*.class',
                               'mindustry/entities/bullet/BulletType.class', 'mindustry/entities/bullet/BulletType$*.class'])
+        stagedClasses.addAll(['mindustry/type/Weather.class', 'mindustry/type/Weather$*.class',
+                              'mindustry/type/weather/ParticleWeather.class'])
     }
     if (usesLiveAudio) {
         stagedClasses.addAll(['arc/audio/Sound.class', 'arc/audio/Sound$*.class',
@@ -367,6 +369,12 @@ if (usesSinglePlayer) {
         sourceSets.main.java.srcDir('src/network-live/java')
         sourceSets.main.java.srcDir('src/network-render/java')
         sourceSets.main.java.exclude('UpstreamLiveNetworkProbe.java', 'UpstreamRenderedNetworkProbe.java', 'port/audio/**')
+        sourceSets.main.java.srcDir('src/singleplayer/host')
+        tasks.register('runOfflineWeatherJvm', JavaExec) {
+            dependsOn 'classes'
+            classpath = sourceSets.main.runtimeClasspath
+            mainClass = 'UpstreamOfflineWeatherReference'
+        }
     }
 }
 if (probe == 'unified') {
@@ -496,6 +504,8 @@ tasks.register('prepareUpstreamProbe') {
     }
     if (usesRenderedClient) {
         outputs.files(contentColorsFile, unitTypeFile, bulletTypeFile)
+        outputs.file(sourceDir.map { it.file('mindustry/type/Weather.java') })
+        outputs.file(sourceDir.map { it.file('mindustry/type/weather/ParticleWeather.java') })
         shieldModeSources.keySet().each { outputs.file(sourceDir.map { dir -> dir.file(it) }) }
     }
     if (usesCampaignJsonCompat) {
@@ -616,6 +626,33 @@ tasks.register('prepareUpstreamProbe') {
             adaptedBulletType.parentFile.mkdirs()
             adaptedBulletType.setText(bulletType.replace(trailGuard,
                 'if((!headless || Core.batch != null) && trailLength > 0){'), 'UTF-8')
+
+            def weather = new String(readUpstream('core/src/mindustry/type/Weather.java'), 'UTF-8')
+            def minScale = 'renderer.minScale()'
+            def drawOver = '    public void drawOver(WeatherState state){'
+            if (weather.count(minScale) != 6 || weather.count(drawOver) != 1) {
+                throw new GradleException('Pinned weather viewport changed')
+            }
+            def adaptedWeather = sourceDir.get().file('mindustry/type/Weather.java').asFile
+            adaptedWeather.parentFile.mkdirs()
+            adaptedWeather.setText(weather.replace(minScale, 'weatherMinScale()')
+                .replace(drawOver, '''    private static float weatherMinScale(){
+        if(renderer != null) return renderer.minScale();
+        // The stock in-game minimum zoom is 1.5 scaled by the configured multiplier.
+        return arc.scene.ui.layout.Scl.scl(1.5f / Core.settings.getFloat("minzoomingamemultiplier", 1f));
+    }
+
+    public void drawOver(WeatherState state){'''), 'UTF-8')
+            def particle = new String(readUpstream('core/src/mindustry/type/weather/ParticleWeather.java'), 'UTF-8')
+            def noiseLoad = 'if(drawNoise && Core.assets != null){'
+            if (particle.count(noiseLoad) != 1) throw new GradleException('Pinned particle weather texture loading changed')
+            def adaptedParticle = sourceDir.get().file('mindustry/type/weather/ParticleWeather.java').asFile
+            adaptedParticle.parentFile.mkdirs()
+            adaptedParticle.setText(particle
+                .replace('import mindustry.type.*;', 'import mindustry.type.*;\nimport port.render.WeatherNoiseTexture;')
+                .replace(noiseLoad, '''if(drawNoise && mindustry.Vars.renderer == null){
+            noise = WeatherNoiseTexture.load(noisePath);
+        }else if(drawNoise && Core.assets != null){'''), 'UTF-8')
             def loader = new String(readUpstream('core/src/mindustry/core/ContentLoader.java'), 'UTF-8')
             def loadColors = '''public void loadColors(){
         Pixmap pixmap = new Pixmap(files.internal("sprites/block_colors.png"));'''

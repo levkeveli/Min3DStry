@@ -62,6 +62,7 @@ static bool gpu_ready;
 static bool renderer_ready;
 static bool frame_open;
 static C2D_SpriteSheet sheet;
+static C2D_SpriteSheet weather_noise[2];
 static C3D_RenderTarget *target;
 static C3D_RenderTarget *palette;
 static C2D_TextBuf palette_buffer;
@@ -622,6 +623,51 @@ int32_t m3ds_terrain_draw_solid_quad(const float *vertices, int32_t offset, int3
             || !C2D_DrawTriangle(x[2], y[2], color[2], x[3], y[3], color[3], x[0], y[0], color[0], 0.5f)) {
         return 0;
     }
+    draws++;
+    return 1;
+}
+
+int32_t m3ds_terrain_draw_weather_noise(int32_t index, float x, float y, float width, float height,
+                                       float u, float v, float u2, float v2,
+                                       int32_t tint, int32_t mix, int32_t blend_mode) {
+    static const char *const paths[] = {"romfs:/weather/noiseAlpha.t3x", "romfs:/weather/fog.t3x"};
+    static const unsigned sizes[] = {128, 256};
+    if (!frame_open || (uint32_t)index >= sizeof(weather_noise) / sizeof(weather_noise[0])) return 0;
+    if (!weather_noise[index]) {
+        C2D_SpriteSheet loaded = C2D_SpriteSheetLoad(paths[index]);
+        if (!loaded) return 0;
+        C3D_Tex *texture = C2D_SpriteSheetGetImage(loaded, 0).tex;
+        if (!texture || texture->width != sizes[index] || texture->height != sizes[index]) {
+            C2D_SpriteSheetFree(loaded);
+            return 0;
+        }
+        C3D_TexSetWrap(texture, GPU_REPEAT, GPU_REPEAT);
+        C3D_TexSetFilter(texture, GPU_LINEAR, GPU_LINEAR);
+        weather_noise[index] = loaded;
+        static const char *const names[] = {
+            "UPSTREAM_WEATHER_TEXTURE name=noiseAlpha\n",
+            "UPSTREAM_WEATHER_TEXTURE name=fog\n",
+        };
+        svcOutputDebugString(names[index], strlen(names[index]));
+    }
+    C2D_Image image = C2D_SpriteSheetGetImage(weather_noise[index], 0);
+    const Tex3DS_SubTexture region = {
+        .width = sizes[index], .height = sizes[index],
+        .left = u, .right = u2, .top = 1.0f - v, .bottom = 1.0f - v2,
+    };
+    // Citro2D flips the UVs when the original Arc quad has negative height.
+    C2D_DrawParams params = {
+        .pos = {screen_left + (fminf(x, x + width) - world_left) * scale,
+                screen_bottom - (fmaxf(y, y + height) - world_bottom) * scale,
+                width * scale, height * scale},
+        .depth = 0.5f,
+    };
+    image.subtex = &region;
+    set_world_blend(blend_mode);
+    set_world_mix((u32)tint, (u32)mix);
+    C2D_ImageTint colors;
+    C2D_PlainImageTint(&colors, tint, 1.0f);
+    if (!C2D_DrawImage(image, &params, &colors)) return 0;
     draws++;
     return 1;
 }
@@ -1237,6 +1283,9 @@ void m3ds_terrain_fini(void) {
     if (catalog_buffer) C2D_TextBufDelete(catalog_buffer);
     if (palette) C3D_RenderTargetDelete(palette);
     if (sheet) C2D_SpriteSheetFree(sheet);
+    for (size_t i = 0; i < sizeof(weather_noise) / sizeof(weather_noise[0]); i++) {
+        if (weather_noise[i]) C2D_SpriteSheetFree(weather_noise[i]);
+    }
     if (target) C3D_RenderTargetDelete(target);
     if (renderer_ready) C2D_Fini();
     if (gpu_ready) C3D_Fini();
