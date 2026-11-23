@@ -230,6 +230,7 @@ def main() -> None:
                 pack_stock_text_assets(archive, staged)
                 pack_weather_noise(archive, staged / "weather", Path(tmp), args.tex3ds)
                 (staged / "block_colors.png").write_bytes(archive.read("assets/sprites/block_colors.png"))
+                (staged / "logicids.dat").write_bytes(archive.read("assets/logicids.dat"))
                 for member in archive.namelist():
                     if re.fullmatch(r"assets/bundles/bundle(?:_[A-Za-z_]+)?\.properties", member):
                         (bundles / Path(member).name).write_bytes(archive.read(member))

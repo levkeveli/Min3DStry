@@ -81,6 +81,10 @@ if [[ $# -gt 0 ]]; then
         echo "Prepare multiplayer or singleplayer terrain assets to include the original bundles, atlas and block palette" >&2
         exit 2
     fi
+    if [[ ${#native_network[@]} -gt 0 && ! -s "$1/logicids.dat" ]]; then
+        echo "Prepare multiplayer terrain assets to include the original logic IDs" >&2
+        exit 2
+    fi
     if [[ ${#native_input[@]} -gt 0 && ( ! -f "$1/sprites.aatls" || ! -f "$1/maps/groundZero.msav" ) ]]; then
         echo "Prepare singleplayer terrain assets with --singleplayer to include sprites.aatls and maps/groundZero.msav" >&2
         exit 2
@@ -123,6 +127,9 @@ if [[ $# -gt 0 ]]; then
     fi
     if [[ -f "$1/block_colors.png" ]]; then
         cp "$1/block_colors.png" "$output/romfs/block_colors.png"
+    fi
+    if [[ -f "$1/logicids.dat" ]]; then
+        cp "$1/logicids.dat" "$output/romfs/logicids.dat"
     fi
     if [[ -d "$1/catalog" ]]; then
         cp -R "$1/catalog" "$output/romfs/catalog"

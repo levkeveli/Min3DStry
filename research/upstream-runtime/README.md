@@ -521,6 +521,11 @@ replay checks the original sound IDs, centered playback and the active DSP
 mode. The JVM reference also checks the shared sporestorm sound and fade
 after expiry.
 
+The [unified ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45138219018)
+replayed all three loops on both Azahar profiles during stock-server play.
+The replay also checked the connected unit's movement and weapons and
+rejected entity snapshot decode errors. Azahar used the no-DSP fallback.
+
 The live client draws the original weather underlay and overlay through the
 same viewport and noise textures as offline play. Add
 `--controls --verify-weather-layers --terrain-atlas /path/to/sprites.aatls`
@@ -528,6 +533,11 @@ to the Glacier replay. The stock server sends rain, snow, sandstorm and fog.
 The verifier checks both repeating textures and compares the world and
 touch screens. The JVM reference exercises all six stock weather types and
 checks the original water splash sprites.
+
+Both Azahar profiles passed the visual check with the same ARM11 build.
+The stock effects changed the sampled world pixels while the sampled
+touch grid stayed unchanged. Neither session reported an entity snapshot
+decode error.
 
 Run the same verifier with `--controls --model old3ds` and then
 `--controls --model new3ds`. Follow its prompts to move right with the
@@ -1387,6 +1397,27 @@ corner, and original Router texture without changing the camera position.
 The [unified ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45124554676)
 passed the same offscreen Canvas replay on both Azahar profiles, along
 with the atlas-backed quad replay. Both fixtures ran below the live HUD.
+
+### Live stock logic processors
+
+The graphical client stages the original `logicids.dat` from the pinned
+assets and initializes Mindustry's actual logic globals before the
+multiplayer world stream is decoded. It advances those globals and the
+upstream LogicBuild instruction scheduler with the client clock.
+
+Pass the original `logicids.dat` as the fifth argument to
+`runBuildingLayersJvm` to verify a compressed processor configuration,
+its Canvas link and a stock logic pixel write. The stationary Glacier
+replay with `--verify-client-processor` updates a linked Canvas using
+the stock world processor and `@client`. The verifier checks that
+the ARM11 Canvas changes while the dedicated server keeps its original
+pixels. The replay passed on both Azahar hardware profiles with the
+[verified ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44932567269).
+The [unified ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45124973794)
+repeated the original Canvas write and stock server readback on both
+Azahar profiles. The updated JVM checks also passed with live audio.
+
+Logic Display command rendering remains open.
 
 ### Verify the Arc executor pools
 
