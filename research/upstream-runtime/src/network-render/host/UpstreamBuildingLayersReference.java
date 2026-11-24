@@ -73,6 +73,7 @@ import mindustry.world.Block;
 import mindustry.world.blocks.defense.OverdriveProjector.OverdriveBuild;
 import mindustry.world.blocks.defense.ShockwaveTower.ShockwaveTowerBuild;
 import mindustry.world.blocks.defense.turrets.BaseTurret;
+import mindustry.world.blocks.defense.turrets.ReloadTurret;
 import mindustry.world.blocks.production.BeamDrill;
 import mindustry.world.blocks.production.BeamDrill.BeamDrillBuild;
 import mindustry.world.blocks.production.BurstDrill.BurstDrillBuild;
@@ -542,7 +543,8 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
                 || !battery.block.powerBarLabel(battery).equals("Power: " + UI.formatAmount(stored))) {
             throw new AssertionError("Stock buffered power bar differs");
         }
-        consumer.enabled = false;
+        // Arc draws power while reloading even when disabled.
+        ((ReloadTurret.ReloadTurretBuild)consumer).reloadCounter = ((ReloadTurret)Blocks.arc).reload;
         consumer.power.graph.add(battery);
         if (consumer.block.powerBarFraction(consumer) != 1f) {
             throw new AssertionError("A supplied idle consumer should show a full power bar");
