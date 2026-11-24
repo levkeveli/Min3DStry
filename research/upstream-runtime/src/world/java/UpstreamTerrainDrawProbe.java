@@ -212,7 +212,7 @@ public final class UpstreamTerrainDrawProbe {
         return new Fi(args[1]);
     }
 
-    private static TextureAtlas readAtlas(Fi atlasFile) {
+    static TextureAtlas readAtlas(Fi atlasFile) {
         var atlas = new TextureAtlas();
         try (var read = atlasFile.reads()) {
             for (byte magic : TextureAtlasData.formatHeader) {
