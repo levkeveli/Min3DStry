@@ -93,7 +93,7 @@ BUILDING_CRACK_PIXELS = {
 
 def write_controls_replay(path, first_move=22, building=False, touch_build=False, touch_config=False,
                           erekir_build=False, mining=None, model="old3ds", stock_menu_font=False,
-                          unified_boot=False, stationary=False, chat=False):
+                          unified_boot=False, stationary=False, chat=False, cancel_restart=False):
     """Write the Azahar 2126.2 CTM input for this probe's pad/touch polling."""
     # The pinned Azahar movie header and HID sample definitions use packed little-endian fields.
     revision = bytes.fromhex("219d743a1e698101fe1ab8bef43e6563126c3c27")
@@ -163,6 +163,8 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
                 buttons = 1  # A, with releases so a late HID poll can observe another press.
             if unified_boot and seconds < 6:
                 buttons |= 1 << 10  # X, sampled once before the game starts.
+            if cancel_restart and 64 <= seconds < 67:
+                buttons |= 1 << 1  # B, while the original server is offline.
             circle_x = 65 if mining == "wall" and 54 <= seconds < pan_end else 0
             circle_y = 106 if seconds == circle_at and not (erekir_build or mining or stationary) else 0
             if mining == "floor" and 88 <= seconds < 94:
@@ -1840,7 +1842,8 @@ def run_model(args, model, config, original_config, log, output):
                                       touch_build=args.touch_build, touch_config=args.touch_config,
                                       erekir_build=args.erekir_build, mining=args.mining, model=model,
                                       stock_menu_font=args.verify_stock_menu_font, unified_boot=args.unified_boot,
-                                      stationary=not args.controls_replay, chat=args.verify_chat)
+                                      stationary=not args.controls_replay, chat=args.verify_chat,
+                                      cancel_restart=args.server_kick == "restart-cancel")
                 command += ["-p", str(replay)]
             command.append(str(args.rom))
             process_log = output / f"{model}-azahar-process.log"
@@ -1878,7 +1881,7 @@ def run_model(args, model, config, original_config, log, output):
 
                     if args.server_kick:
                         wait_for(log, emulator, r"UPSTREAM_LIVE_CONTROLS_READY unit=\d+", args.timeout)
-                        restart = args.server_kick == "restart"
+                        restart = args.server_kick in ("restart", "restart-cancel")
                         reason = "Hosted stock kick" if args.server_kick == "text" else "serverRestarting" if restart else "kick"
                         kind = "enum" if restart else args.server_kick
                         wire_reason = (json.dumps(reason) if args.server_kick == "text"
@@ -1898,6 +1901,11 @@ def run_model(args, model, config, original_config, log, output):
                             server.stdin.write("stop\n")
                             server.stdin.flush()
                             wait_for(server_log, server, "Stopped server.", 10)
+                        if args.server_kick == "restart-cancel":
+                            emu_log = wait_for(log, emulator, "UPSTREAM_LIVE_RECONNECT_CANCEL", args.timeout)
+                            if "UPSTREAM_LIVE_NET_WORLD join=2" in emu_log:
+                                raise RuntimeError("Cancelling reconnect unexpectedly opened a second session")
+                        elif restart:
                             time.sleep(2)
                             server.stdin.write("host Glacier survival\n")
                             server.stdin.flush()
@@ -2216,7 +2224,7 @@ def main():
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--movement", action="store_true", help="Verify the stock server applies scripted ARM11 movement")
     mode.add_argument("--controls", action="store_true", help="Verify D-pad and Circle Pad input and START disconnect")
-    parser.add_argument("--server-kick", choices=("text", "enum", "restart"),
+    parser.add_argument("--server-kick", choices=("text", "enum", "restart", "restart-cancel"),
                         help="Verify a stock server kick after entering live play")
     parser.add_argument("--verify-kick-notice", action="store_true",
                         help="Check and capture the English stock disconnect notice")

@@ -234,7 +234,10 @@ public final class UpstreamLiveNetworkProbe {
         long nextPing = System.nanoTime() + 1_000_000_000L;
         while (true) {
             int input = Native.input();
-            if (input < 0 || (input & (1 << 19)) != 0) return false;
+            if (input < 0 || (input & (1 << 19)) != 0) {
+                System.out.println("UPSTREAM_LIVE_RECONNECT_CANCEL");
+                return false;
+            }
             long now = System.nanoTime();
             if (now >= nextPing) {
                 if (Native.ping(Address.ofData(host), host.length, port) != 0) return true;
