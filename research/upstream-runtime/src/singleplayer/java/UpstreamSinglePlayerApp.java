@@ -1527,7 +1527,7 @@ public final class UpstreamSinglePlayerApp {
     private void openPauseMenu() {
         var sector = Vars.state.rules.sector;
         boolean research = sector != null && sector.planet != null && sector.planet.techTree != null;
-        pauseMenu.open(research ? 6 : 3);
+        pauseMenu.openWorld(research);
         openHudSettings(Core.settings);
         settingsOpen = false;
         pauseOpen = true;
@@ -1564,25 +1564,11 @@ public final class UpstreamSinglePlayerApp {
             }
             return;
         }
-        String[] options;
-        if (pauseMenu.options() == 6) {
-            options = new String[]{Core.bundle.get("back"), Core.bundle.get("research"),
-                Core.bundle.get("loadgame"), Core.bundle.get("savegame"),
-                Core.bundle.get("settings"), Core.bundle.get("quit")};
-        } else if (pauseMenu.options() == 5) {
-            options = new String[]{Core.bundle.get("back"), Core.bundle.get("research"),
-                Core.bundle.get("loadgame"), Core.bundle.get("savegame"), Core.bundle.get("quit")};
-        } else if (pauseMenu.options() == 4) {
-            options = new String[]{Core.bundle.get("back"), Core.bundle.get("research"),
-                Core.bundle.get("savegame"), Core.bundle.get("quit")};
-        } else {
-            options = new String[]{Core.bundle.get("back"), Core.bundle.get("savegame"),
-                Core.bundle.get("quit")};
-        }
         float y = 80f;
-        for (int i = 0; i < options.length; i++) {
+        for (int i = 0; i < pauseMenu.options(); i++) {
             boolean selected = i == pauseMenu.selected();
-            drawPauseRow((selected ? "> " : "  ") + options[i], 170f, y, selected);
+            String label = Core.bundle.get(pauseMenu.actionAt(i).labelKey);
+            drawPauseRow((selected ? "> " : "  ") + label, 170f, y, selected);
             y += 24f;
         }
         if (pauseMenu.confirmingQuit()) {
