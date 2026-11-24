@@ -26,12 +26,16 @@ final class UpstreamCoreDatabaseMenu {
         int selected = 0, previousX = 0, previousY = 0;
         int renderedSelection = -1;
         List<DrawRow> visible = List.of();
+        System.out.println("UPSTREAM_DATABASE_OPEN tab=" + tabs.get(tab).name + " rows=" + rows.size());
         UpstreamSinglePlayerInput.poll();
         while (true) {
             long nextFrame = System.nanoTime() + 16_666_667L;
             int input = UpstreamSinglePlayerInput.poll();
             if (input < 0) return false;
-            if ((input & UpstreamSinglePlayerInput.B_PRESSED) != 0) return true;
+            if ((input & UpstreamSinglePlayerInput.B_PRESSED) != 0) {
+                System.out.println("UPSTREAM_DATABASE_CLOSE");
+                return true;
+            }
             int x = (byte)input, y = (byte)(input >> 8);
             int direction = x > 60 && previousX <= 20 ? 1 : x < -60 && previousX >= -20 ? -1 : 0;
             if (direction != 0) {
@@ -39,6 +43,7 @@ final class UpstreamCoreDatabaseMenu {
                 rows = rows(tabs.get(tab), query);
                 selected = 0;
                 renderedSelection = -1;
+                System.out.println("UPSTREAM_DATABASE_TAB tab=" + tabs.get(tab).name + " rows=" + rows.size());
             }
             if ((input & UpstreamSinglePlayerInput.X_PRESSED) != 0) {
                 var answer = UpstreamTerrainRenderProbe.readDatabaseSearch(query);
@@ -95,6 +100,7 @@ final class UpstreamCoreDatabaseMenu {
             wrap(lines, content.unlocked() || !content.hideDetails ? content.details : Core.bundle.get("unlock.incampaign"));
         }
         if (content.credit != null) wrap(lines, Core.bundle.format("content.createdby", content.credit));
+        System.out.println("UPSTREAM_DATABASE_DETAIL content=" + content.name + " rows=" + lines.size());
         var display = new ArrayList<DrawRow>();
         display.add(encode(content.localizedName, icon(row.entry())));
         for (var line : lines) display.add(encode(line, null));
