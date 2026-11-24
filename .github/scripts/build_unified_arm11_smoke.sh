@@ -64,5 +64,7 @@ javac -cp "$stock_jar" -d "$item_check/staged" \
   "$runtime/build/upstream-src/unified/mindustry/world/modules/ItemModule.java"
 java -cp "$item_check/reference:$stock_jar" UpstreamItemInventoryReference > "$item_check/stock.log"
 java -cp "$item_check/reference:$item_check/staged:$stock_jar" UpstreamItemInventoryReference > "$item_check/staged.log"
+test "$(wc -l < "$item_check/stock.log")" -eq 2101
+test "$(wc -l < "$item_check/staged.log")" -eq 2101
 diff -u "$item_check/stock.log" "$item_check/staged.log"
 grep -Fx 'UPSTREAM_STOCK_ITEM_SUBCLASS array=preserved' "$item_check/staged.log"

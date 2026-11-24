@@ -19,6 +19,13 @@ public final class UpstreamItemInventoryReference {
     public static void main(String[] args) throws IOException {
         Vars.content = new ContentLoader();
         var items = new Item[]{new Item("copper"), new Item("lead"), new Item("graphite")};
+        // Pinned Content and MappableContent register each constructor call with Vars.content.
+        if (Vars.content.items().size != items.length) throw new AssertionError("Stock item registration changed");
+        for (int i = 0; i < items.length; i++) {
+            if (items[i].id != i || Vars.content.item(i) != items[i]) {
+                throw new AssertionError("Stock item IDs changed");
+            }
+        }
         var module = new ItemModule();
         var random = new Random(538);
         int[] amounts = {0, 1, -2, 5, 512, -200, 22};
@@ -74,6 +81,17 @@ public final class UpstreamItemInventoryReference {
             throw new AssertionError("Stock item flow sampling did not start and stop");
         }
 
+        var from = new ItemModule();
+        var into = new ItemModule();
+        from.add(items[0], 7);
+        from.add(items[1], 11);
+        into.add(items[1], 2);
+        into.add(items[2], 3);
+        into.set(from);
+        if (into.total() != 18 || into.get(items[0]) != 7 || into.get(items[1]) != 11
+                || into.get(items[2]) != 0 || into.take() != items[0] || into.total() != 17) {
+            throw new AssertionError("Stock multi-entry copy changed inventory, total or take order");
+        }
         var subclass = new ArrayModule();
         subclass.verify(items[0], items[1]);
         System.out.println("UPSTREAM_STOCK_ITEM_SUBCLASS array=preserved");
