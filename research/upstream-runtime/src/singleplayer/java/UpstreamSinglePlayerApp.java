@@ -122,7 +122,7 @@ public final class UpstreamSinglePlayerApp {
     }
 
     interface TitleJoin {
-        boolean open(UpstreamWorldLoadProbe.ProbeApplication app, boolean atlasReady) throws IOException;
+        boolean open(UpstreamWorldLoadProbe.ProbeApplication app, boolean atlasReady, Settings settings) throws IOException;
     }
 
     private UpstreamSinglePlayerApp(AudioHooks audio) {
@@ -529,13 +529,17 @@ public final class UpstreamSinglePlayerApp {
     }
 
     private void drawMenuRows(MenuRows rows, byte[] titleControls) {
+        drawMenuRows(rows, titleControls, 2);
+    }
+
+    private void drawMenuRows(MenuRows rows, byte[] titleControls, int controlRows) {
         target.begin(0, 0, UpstreamTerrainDrawProbe.VIEW_WIDTH, UpstreamTerrainDrawProbe.VIEW_HEIGHT);
         try {
             float rowY = 6f;
             for (int i = 0; i < rows.labels.length; i++) {
                 rowY = target.drawObjective(rows.labels[i], rows.characters[i], null, rowY);
             }
-            if (titleControls != null) target.drawMenuHelp(titleControls, 2);
+            if (titleControls != null) target.drawMenuHelp(titleControls, controlRows);
         } finally {
             target.end();
         }
@@ -555,7 +559,7 @@ public final class UpstreamSinglePlayerApp {
                     int route = chooseTitleRow(Core.bundle.get("play"), playKeys);
                     if (route == 0) return new TitleSelection(TitleAction.campaign, null);
                     if (route == 1 && join != null) {
-                        if (join.open(session == null ? null : session.application(), interfaceGraphicsReady)) return null;
+                        if (join.open(session == null ? null : session.application(), interfaceGraphicsReady, settings)) return null;
                         continue;
                     }
                     if (route > 0 && join != null) route--;
@@ -704,8 +708,12 @@ public final class UpstreamSinglePlayerApp {
             if (row < 0) return row == -1;
             settingsMenu.move(row - settingsMenu.selected());
             if (settingsMenu.backSelected()) return true;
-            toggleHudSetting(settings);
-            settings.manualSave();
+            if (settingsMenu.soundSelected()) {
+                if (!chooseSoundSettings(settings)) return false;
+            } else {
+                toggleHudSetting(settings);
+                settings.manualSave();
+            }
         }
     }
 
@@ -1126,6 +1134,9 @@ public final class UpstreamSinglePlayerApp {
                     if ((input & UpstreamSinglePlayerInput.A_PRESSED) != 0) {
                         if (settingsMenu.backSelected()) {
                             settingsOpen = false;
+                        } else if (settingsMenu.soundSelected()) {
+                            if (!chooseSoundSettings(Core.settings)) return false;
+                            previousTime = System.nanoTime();
                         } else {
                             toggleHudSetting(Core.settings);
                         }
@@ -1605,8 +1616,70 @@ public final class UpstreamSinglePlayerApp {
             hudSettingRow("setting.minimap.name", settingsMenu.minimap()),
             hudSettingRow("setting.showweather.name", settingsMenu.weather()),
             hudSettingRow("setting.showperformance.name", settingsMenu.performance()),
+            Core.bundle.get("settings.sound"),
             Core.bundle.get("back")
         };
+    }
+
+    private boolean chooseSoundSettings(Settings settings) {
+        String[] keys = {"musicvol", "sfxvol", "ambientvol"};
+        int[] volume = new int[keys.length];
+        for (int i = 0; i < keys.length; i++) volume[i] = Mathf.clamp(settings.getInt(keys[i], 100), 0, 100);
+        byte[] help = ("Left   -\0Right   +\0B   " + Core.bundle.get("back") + "\0")
+            .getBytes(StandardCharsets.UTF_8);
+        int selected = 0, lastY = 0, lastDirection = 0;
+        long repeatAt = 0;
+        boolean changed = false;
+        MenuRows rows = null;
+        UpstreamSinglePlayerInput.poll();
+        while (true) {
+            long started = System.nanoTime();
+            int input = UpstreamSinglePlayerInput.poll();
+            int touch = UpstreamTerrainRenderProbe.menuHelpAction(UpstreamSinglePlayerInput.touch(), 3);
+            if (input < 0 || touch == 2 || (input & UpstreamSinglePlayerInput.B_PRESSED) != 0) {
+                if (changed) settings.manualSave();
+                return input >= 0;
+            }
+            int y = (byte)(input >> 8);
+            if (y > 60 && lastY <= 20) {
+                selected = Math.floorMod(selected - 1, keys.length);
+                rows = null;
+            }
+            if (y < -60 && lastY >= -20) {
+                selected = (selected + 1) % keys.length;
+                rows = null;
+            }
+            lastY = y;
+            int x = (byte)input;
+            int direction = x < -60 ? -1 : x > 60 ? 1 : 0;
+            int delta = touch == 0 ? -1 : touch == 1 ? 1 : 0;
+            if (direction != lastDirection) {
+                repeatAt = started + 350_000_000L;
+                if (delta == 0) delta = direction;
+            } else if (direction != 0 && started >= repeatAt && delta == 0) {
+                delta = direction;
+                repeatAt = started + 65_000_000L;
+            }
+            lastDirection = direction;
+            int next = Mathf.clamp(volume[selected] + delta, 0, 100);
+            if (next != volume[selected]) {
+                volume[selected] = next;
+                settings.put(keys[selected], next);
+                changed = true;
+                rows = null;
+            }
+            if (rows == null) {
+                var captions = new String[keys.length + 1];
+                captions[0] = Core.bundle.get("settings.sound");
+                for (int i = 0; i < keys.length; i++) {
+                    captions[i + 1] = (i == selected ? "> " : "  ") + Core.bundle.get("setting." + keys[i] + ".name")
+                        + "  " + volume[i] + "%";
+                }
+                rows = encodeMenuRows(captions);
+            }
+            drawMenuRows(rows, help, 3);
+            while (System.nanoTime() < started + FRAME_NS) Thread.yield();
+        }
     }
 
     private static String hudSettingRow(String label, boolean enabled) {

@@ -6,6 +6,7 @@ import port.render.UpstreamLabelText;
 import port.logic.UpstreamClientLogic;
 import arc.Core;
 import arc.Events;
+import arc.Settings;
 import arc.files.Fi;
 import arc.graphics.Camera;
 import arc.graphics.g2d.Draw;
@@ -113,11 +114,11 @@ public final class UpstreamRenderedNetworkProbe {
     }
 
     static void run(Fi directory, String address, Fi atlas) throws IOException, InterruptedException {
-        run(directory, address, atlas, null, false, null);
+        run(directory, address, atlas, null, false, null, null);
     }
 
     static void run(Fi directory, String address, Fi atlas, UpstreamWorldLoadProbe.ProbeApplication preparedApp,
-                    boolean atlasReady, I18NBundle titleBundle) throws IOException, InterruptedException {
+                    boolean atlasReady, I18NBundle titleBundle, Settings settings) throws IOException, InterruptedException {
         var view = new UpstreamRenderedNetworkProbe(atlas);
         int language = view.target.mountAssets();
         if (preparedApp == null) {
@@ -139,7 +140,7 @@ public final class UpstreamRenderedNetworkProbe {
             if (preparedApp == null) Arm11Audio.open();
             var kick = UpstreamLiveNetworkProbe.run(directory, address, view::prepareClient, () -> view.loadGraphics(atlasReady),
                 view::render, view::newSessionControls, view::receiveChat, view.chatInput,
-                () -> view.drawConnectionNotice(Core.bundle.get("reconnecting"), Core.bundle.get("cancel")), preparedApp);
+                () -> view.drawConnectionNotice(Core.bundle.get("reconnecting"), Core.bundle.get("cancel")), preparedApp, settings);
             if (kick != null) view.showServerKick(kick);
         } finally {
             if (preparedApp == null) Arm11Audio.close();

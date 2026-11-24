@@ -1,4 +1,5 @@
 import arc.Core;
+import arc.Settings;
 import arc.files.Fi;
 import arc.func.Cons;
 import arc.math.Mathf;
@@ -125,7 +126,7 @@ public final class UpstreamLiveNetworkProbe {
 
     public static void main(String[] args) throws IOException, InterruptedException {
         var endpoint = endpointFile(args);
-        run(endpoint.parent(), endpoint.readString(), null, null, null, null, null, null, null, null);
+        run(endpoint.parent(), endpoint.readString(), null, null, null, null, null, null, null, null, null);
     }
 
     static Fi endpointFile(String[] args) {
@@ -134,7 +135,8 @@ public final class UpstreamLiveNetworkProbe {
 
     static ServerKick run(Fi directory, String address, Runnable beforeConnect, Runnable deferredGraphics,
                     Consumer<Unit> frame, Supplier<UpstreamLiveBuildControls> building, Consumer<String> chat,
-                    UpstreamChatInput chatInput, Runnable reconnecting, UpstreamWorldLoadProbe.ProbeApplication preparedApp)
+                    UpstreamChatInput chatInput, Runnable reconnecting, UpstreamWorldLoadProbe.ProbeApplication preparedApp,
+                    Settings settings)
                     throws IOException, InterruptedException {
         String[] endpoint = address.trim().split("\\s+");
         if (endpoint.length < 2 || endpoint.length > 3) {
@@ -151,7 +153,7 @@ public final class UpstreamLiveNetworkProbe {
         try {
             var app = preparedApp;
             if (app == null) {
-                app = UpstreamWorldLoadProbe.initialize(directory);
+                app = UpstreamWorldLoadProbe.initialize(directory, settings == null ? new Settings() : settings);
                 stage = "services";
                 Vars.mods = new Mods();
                 Vars.universe = new Universe();
