@@ -28,9 +28,10 @@ off and a campaign sector is active;
   menu is Resume/Save/Quit. Load reloads the active campaign slot only (there
   is no save picker) and resets HUD caches; saved-state equality is not
   asserted yet. Settings toggles the stock `setting.coreitems`,
-  `setting.minimap`, `setting.showweather` and `setting.showperformance`
-  displays. The stock quit confirmation is included, and tapping X
-  opens/closes and freezes simulation;
+  `setting.minimap`, `setting.showweather`, `setting.showperformance` and
+  `setting.position` displays. With `position` on, the player's tile
+  coordinates are drawn under the minimap. The stock quit confirmation is
+  included, and tapping X opens/closes and freezes simulation;
 - the stock guardian bar (`state.teams.bosses`) above the bottom edge: one
   boss emoji per guardian (six at most, then `+`), the localized `guardian`
   text and a total-health fill, shown only while wave rules are active;
@@ -136,6 +137,7 @@ status-hud host probe:
 UPSTREAM_CORE_ITEM_FORMAT text=12k cases=9 ok
 UPSTREAM_CORE_ITEMS rows=2 ok
 UPSTREAM_MINIMAP_VIEW cases=5 ok
+UPSTREAM_SETTINGS_POSITION ok
 UPSTREAM_PAUSE_MENU cases=22 ok
 UPSTREAM_BOSS_BAR cases=4 ok
 UPSTREAM_CORE_ATTACK text="< Core is under attack! >" ok
