@@ -213,12 +213,13 @@ def is_main_verification_fix(labels: set[str], title: str, body: str) -> bool:
     )
 
 
-def main_verification_status(repo: str, token: str) -> tuple[str, list[str]]:
-    """Return main's HEAD and reasons why its heavy verification is not green."""
+def main_verification_status(repo: str, token: str) -> tuple[str, list[str], list[str]]:
+    """Return main's HEAD, verification blockers, and workflow files without runs."""
     root = f"https://api.github.com/repos/{repo}"
     _, raw = github_request(f"{root}/commits/main", token)
     main_sha = json.loads(raw)["sha"]
     blockers = []
+    missing_workflows = []
     for filename, name in HEAVY_VERIFY_WORKFLOWS.items():
         _, raw = github_request(
             f"{root}/actions/workflows/{filename}/runs"
@@ -235,9 +236,10 @@ def main_verification_status(repo: str, token: str) -> tuple[str, list[str]]:
         )
         if run is None:
             blockers.append(f"{name}: no run on main HEAD")
+            missing_workflows.append(filename)
         elif run.get("conclusion") != "success":
             blockers.append(f"{name}: {run.get('conclusion') or run['status']}")
-    return main_sha, blockers
+    return main_sha, blockers, missing_workflows
 
 
 def cmd_classify(_: argparse.Namespace) -> int:
@@ -279,7 +281,7 @@ def cmd_classify(_: argparse.Namespace) -> int:
         )
     elif base_ref == "main" and not is_fix_pr:
         try:
-            sha, blockers = main_verification_status(repo, token)
+            sha, blockers, _ = main_verification_status(repo, token)
         except (RuntimeError, ValueError, OSError) as exc:
             metadata_errors.append(f"Could not verify main: {exc}")
         else:

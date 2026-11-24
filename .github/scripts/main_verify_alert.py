@@ -46,7 +46,7 @@ def recheck_failed_policy_gates(repo: str, prs: list[dict]) -> None:
 def main() -> None:
     repo = os.environ["GITHUB_REPOSITORY"]
     token = os.environ["GH_TOKEN"]
-    sha, blockers = main_verification_status(repo, token)
+    sha, blockers, missing_workflows = main_verification_status(repo, token)
     for label, description in (
         (MAIN_VERIFY_BLOCKED, "Main post-merge verification hold"),
         (MAIN_VERIFY_FIX, "PR that repairs or reverts a main verification failure"),
@@ -78,7 +78,11 @@ def main() -> None:
             for label in sorted(labels & {MAIN_VERIFY_BLOCKED, MAIN_VERIFY_FIX}):
                 gh(repo, "pr", "edit", number, "--remove-label", label)
 
-    if not blockers:
+    if blockers:
+        # A merge performed with GITHUB_TOKEN can produce no push-triggered runs.
+        for filename in missing_workflows:
+            gh(repo, "workflow", "run", filename, "--ref", "main")
+    else:
         # Label edits made with GITHUB_TOKEN do not enqueue pull_request runs.
         recheck_failed_policy_gates(repo, prs)
         for issue in issues:

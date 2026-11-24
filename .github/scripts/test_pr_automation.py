@@ -46,8 +46,10 @@ class MainVerificationTests(unittest.TestCase):
                     pr_automation, "github_request",
                     side_effect=[(200, json.dumps(response)) for response in responses],
                 ) as request:
+                    missing = ["full-build.yml"] if runs == unrelated else []
                     self.assertEqual(
-                        pr_automation.main_verification_status(repo, "token"), ("current", expected)
+                        pr_automation.main_verification_status(repo, "token"),
+                        ("current", expected, missing),
                     )
                     for call in request.call_args_list[1:]:
                         self.assertIn("branch=main&head_sha=current", call.args[0])
@@ -61,7 +63,7 @@ class MainVerificationTests(unittest.TestCase):
         }
         with (
             mock.patch.dict(os.environ, {"GITHUB_REPOSITORY": repo, "GH_TOKEN": "token"}),
-            mock.patch.object(main_verify_alert, "main_verification_status", return_value=("sha", [])),
+            mock.patch.object(main_verify_alert, "main_verification_status", return_value=("sha", [], [])),
             mock.patch.object(main_verify_alert, "gh") as gh,
         ):
             gh.side_effect = ["", "", json.dumps([pr]), '[{"number": 8}]', "", "", ""]
@@ -69,6 +71,18 @@ class MainVerificationTests(unittest.TestCase):
         removals = [call.args[-1] for call in gh.call_args_list if "--remove-label" in call.args]
         self.assertEqual(removals, ["main-verify-blocked", "main-verify-fix"])
         self.assertEqual(gh.call_args.args[:4], (repo, "issue", "close", "8"))
+
+    def test_alert_dispatches_missing_workflow_on_main(self) -> None:
+        repo = "owner/repo"
+        status = ("sha", ["3DS full build: no run on main HEAD"], ["full-build.yml"])
+        with (
+            mock.patch.dict(os.environ, {"GITHUB_REPOSITORY": repo, "GH_TOKEN": "token"}),
+            mock.patch.object(main_verify_alert, "main_verification_status", return_value=status),
+            mock.patch.object(main_verify_alert, "gh") as gh,
+        ):
+            gh.side_effect = ["", "", "[]", '[{"number": 8}]', ""]
+            main_verify_alert.main()
+        self.assertEqual(gh.call_args.args, (repo, "workflow", "run", "full-build.yml", "--ref", "main"))
 
 
 class PrTriageTests(unittest.TestCase):
