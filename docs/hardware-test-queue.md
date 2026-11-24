@@ -21,12 +21,14 @@ Latest evidenced builds: New `a328c70` (2026-11-22, FPS PASS), New `de3e249`
 (2026-11-22), and Old `a4a9a96` (2026-11-22). Record the exact commit and ROM
 SHA-256 with every run.
 
-Latest emulator-verified build for the next hardware run: `fdc9750a`
-(2026-11-24), ROM SHA-256
-`630efbca79e1977214c7437cc1ee70e68ebe775fee5151c1ccb5cd9af9e3045a`. It
-resolves nine audio clips and `wave.spawn` on both Azahar profiles, but has not
-been run on hardware. See the
-[2026-11-24 emulator batch](hardware/emulator-batch-2026-11-24.md).
+Latest emulator-verified build for the next hardware run: `8f683450`
+(2026-11-24, batch 2), ROM SHA-256
+`6c4d25602a7da31d63b5d5ef7170f69d302f4ff1d10413300d124ae977d8fec9`. It
+resolves nine audio clips and `wave.spawn` on both Azahar profiles, passes
+`AZAHAR_PROVENANCE_OK`, and asserts the stock POWER/DISTRIBUTION/LIQUID/MATERIAL
+draw registry, but has not been run on hardware. See the
+[2026-11-24 emulator batch 2](hardware/emulator-batch-2026-11-24b.md) and the
+[first batch](hardware/emulator-batch-2026-11-24.md).
 The procedure and evidence schema are in
 [verification-runbook.md](hardware/verification-runbook.md) and
 [deployment-and-logs.md](hardware/deployment-and-logs.md).
@@ -247,10 +249,10 @@ a short listening report. Physical audio cannot be proven from Azahar.
 
 > `a328c70` logged `AUDIO backend=ndsp state=ready` with only 2 registered
 > clips; the operator heard the UI "ding", but all seven `AUDIO_EVENT`s resolved
-> to `clip=-1 voice=0`. The 2026-11-24 emulator build (`fdc9750a`, SHA-256
-> `630efbca…`) resolves nine clips and `wave.spawn` on both Azahar profiles, but
-> Azahar still reports `fallback_no_dsp`. Audible upstream effects and music on
-> physical DSP remain **NOT VERIFIED**, so `ndsp-sfx-music` stays
+> to `clip=-1 voice=0`. The 2026-11-24 batch-2 emulator build (`8f683450`,
+> SHA-256 `6c4d2560…`) resolves nine clips and `wave.spawn` on both Azahar
+> profiles, but Azahar still reports `fallback_no_dsp`. Audible upstream effects
+> and music on physical DSP remain **NOT VERIFIED**, so `ndsp-sfx-music` stays
 > `emulator-tested`. Use this build for the retest.
 
 ## HWT-05 — Cross-play networking
@@ -286,9 +288,9 @@ thermal/SD notes. Only this card can clear `physical-hardware-parity`.
 > `p95_max=33.50`, with the sector loader and parity intact. The Old 3DS half
 > is **BLOCKED**: the operator has only the New 3DS, so
 > `physical-hardware-parity` cannot be completed until an Original 3DS is
-> available. The newer `630efbca` build has not been retested on hardware; the
-> `a328c70` FPS numbers still describe the older build. Full campaign gameplay
-> remains open on both models.
+> available. The newer `6c4d2560` build (`8f683450`) has not been retested on
+> hardware; the `a328c70` FPS numbers still describe the older build. Full
+> campaign gameplay remains open on both models.
 
 ## Current exclusions
 
