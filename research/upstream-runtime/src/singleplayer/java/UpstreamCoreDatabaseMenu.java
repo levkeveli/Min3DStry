@@ -90,6 +90,7 @@ final class UpstreamCoreDatabaseMenu {
         var content = row.entry().content();
         var lines = new ArrayList<String>();
         if (content.description != null) wrap(lines, content.displayDescription());
+        addStats(lines, content);
         if (content.details != null) {
             wrap(lines, content.unlocked() || !content.hideDetails ? content.details : Core.bundle.get("unlock.incampaign"));
         }
@@ -111,6 +112,30 @@ final class UpstreamCoreDatabaseMenu {
 
             draw(display, first + 1, 7);
             while (System.nanoTime() < nextFrame) Thread.yield();
+        }
+    }
+
+    private static void addStats(List<String> lines, UnlockableContent content) {
+        var stats = content.computeStats();
+        var categories = stats.toMap();
+        for (var category : categories.keys()) {
+            var entries = categories.get(category);
+            boolean categoryShown = false;
+            for (var stat : entries.keys()) {
+                var text = new StringBuilder();
+                for (var value : entries.get(stat)) {
+                    String label = value.handheldText();
+                    if (label == null) continue;
+                    if (text.length() > 0) text.append("  ");
+                    text.append(label);
+                }
+                if (text.length() == 0) continue;
+                if (stats.useCategories && !categoryShown) {
+                    lines.add(category.localized());
+                    categoryShown = true;
+                }
+                wrap(lines, stat.localized() + ": " + text);
+            }
         }
     }
 

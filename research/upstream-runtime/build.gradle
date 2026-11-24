@@ -88,6 +88,7 @@ def entryPoint = entryPoints[probe]
 def usesMapSources = probe in ['map', 'map-sd']
 def usesSinglePlayerApp = probe in ['singleplayer', 'unified', 'campaign-background']
 def sparseTilePatch = file('patches/sparse-stock-tile-metadata.patch')
+def databaseStatSources = ['mindustry/world/meta/StatValue.java', 'mindustry/world/meta/StatValues.java']
 def sparseTileSources = [
     'mindustry/world/Tile.java',
     'mindustry/world/Build.java',
@@ -230,7 +231,7 @@ if (usesRenderedClient) {
 if (usesArcSources || usesExecutor) {
     def stagedClasses = []
     if (usesSinglePlayerApp) {
-        sparseTileSources.each { path ->
+        (sparseTileSources + databaseStatSources).each { path ->
             def type = path.substring(0, path.length() - '.java'.length())
             stagedClasses.addAll([type + '.class', type + '$*.class'])
         }
@@ -612,7 +613,7 @@ tasks.register('prepareUpstreamProbe') {
     }
     if (usesSinglePlayerApp) {
         inputs.file(sparseTilePatch)
-        outputs.files(sourceDir.map { dir -> sparseTileSources.collect { dir.file(it) } })
+        outputs.files(sourceDir.map { dir -> (sparseTileSources + databaseStatSources).collect { dir.file(it) } })
     }
     if (usesWorldStream) {
         outputs.file(networkIoFile)
@@ -665,6 +666,56 @@ tasks.register('prepareUpstreamProbe') {
     }
     doLast {
         if (usesSinglePlayerApp) {
+            def interfaceFile = sourceDir.get().file(databaseStatSources[0]).asFile
+            interfaceFile.parentFile.mkdirs()
+            def value = new String(readUpstream('core/src/' + databaseStatSources[0]), 'UTF-8')
+            def display = '    void display(Table table);'
+            if (value.count(display) != 1) throw new GradleException('Pinned StatValue changed')
+            interfaceFile.setText(value.replace(display, display + '''
+
+    default String handheldText(){
+        return null;
+    }'''), 'UTF-8')
+
+            def valuesFile = sourceDir.get().file(databaseStatSources[1]).asFile
+            def values = new String(readUpstream('core/src/' + databaseStatSources[1]), 'UTF-8')
+            def hooks = [
+                'public class StatValues{': '''public class StatValues{
+
+    private static StatValue withText(Prov<String> text, StatValue display){
+        return new StatValue(){
+            @Override
+            public void display(Table table){
+                display.display(table);
+            }
+
+            @Override
+            public String handheldText(){
+                return text.get();
+            }
+        };
+    }
+''',
+                'return table -> table.add(result);': 'return withText(() -> result, table -> table.add(result));',
+                'return table ->  table.add(!value ? "@no" : "@yes");':
+                    'return withText(() -> Core.bundle.get(value ? "yes" : "no"), table -> table.add(!value ? "@no" : "@yes"));',
+                '''    public static StatValue number(float value, StatUnit unit, boolean merge){
+        return table -> {''': '''    public static StatValue number(float value, StatUnit unit, boolean merge){
+        return withText(() -> fixValue(value) + (unit.space ? " " : "") + unit.localized(), table -> {''',
+                '''        };
+    }
+
+    public static StatValue number(float value, StatUnit unit){''': '''        });
+    }
+
+    public static StatValue number(float value, StatUnit unit){'''
+            ]
+            hooks.each { before, after ->
+                if (values.count(before) != 1) throw new GradleException('Pinned StatValues hook changed: ' + before)
+                values = values.replace(before, after)
+            }
+            valuesFile.setText(values, 'UTF-8')
+
             sparseTileSources.each { path ->
                 def staged = sourceDir.get().file(path).asFile
                 staged.parentFile.mkdirs()
