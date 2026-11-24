@@ -2,7 +2,9 @@
 
 The unified Java runtime opens its title menu on ordinary startup. It uses the
 live Core Database and the existing Campaign, Join Game, Custom Game, Load
-Game and Editor routes. Hold X to join directly, L for Custom Game, R for
+Game and Editor routes. Settings uses the same saved HUD preferences as the
+pause menu. About shows the upstream links and the complete credits packaged
+from the pinned release. Hold X to join directly, L for Custom Game, R for
 Campaign, or L and R together for the Editor.
 
 To launch the offline session directly, pass `--direct` through the Homebrew

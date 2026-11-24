@@ -61,7 +61,7 @@ def write_singleplayer_ctm(
     # Hosted runners can take ~32s to reach UPSTREAM_SP_READY; start taps at 40s
     # so the mine and ore taps never land during world loading.
     t0 = 40
-    total_seconds = 70 if reopen_title_settings else 158 if database_title else t0 + (115 if verify_database else 62)
+    total_seconds = 133 if reopen_title_settings else 158 if database_title else t0 + (115 if verify_database else 62)
     frames = total_seconds * CTM_SAMPLES_PER_SECOND
     header = struct.pack(
         "<4sQ20sQQ32sIQq156x",
@@ -123,7 +123,11 @@ def write_singleplayer_ctm(
         taps = ()
         button_windows = (
             (25, KEY_DOWN), (32, KEY_DOWN), (39, KEY_DOWN),
-            (47, KEY_A), (55, KEY_B), (62, KEY_B),
+            (47, KEY_A), (55, KEY_B), # Read saved Settings and return to title.
+            (62, KEY_DOWN), (69, KEY_A), # Open the Database category.
+            (76, KEY_DOWN), (83, KEY_A), # Open About.
+            (90, KEY_A), # Open Credits.
+            (101, KEY_B), (111, KEY_B), (122, KEY_B), # Credits, About, then title.
         )
     with path.open("wb") as movie:
         movie.write(header)
@@ -375,6 +379,9 @@ def run_singleplayer_model(
                 proc4, rpc4 = _launch_azahar(model, rom_path, azahar_bin, config_path, log_path, settings_ctm)
                 try:
                     _wait_for_log(log_path, proc4, rf"UPSTREAM_TITLE_SETTINGS coreitems={changed[1]}\b", timeout)
+                    _wait_for_log(log_path, proc4, r"UPSTREAM_TITLE_ABOUT links=12\b", timeout)
+                    _wait_for_log(log_path, proc4, r"UPSTREAM_TITLE_CREDITS contributors=200\b", timeout)
+                    (out_dir / f"{model}-title-credits.png").write_bytes(rpc4.screenshot())
                     settings_log = _wait_for_log(log_path, proc4, r"UPSTREAM_SP_EXIT\b", timeout)
                     (out_dir / f"{model}-title-settings-reopen.log").write_text(settings_log, encoding="utf-8")
                 finally:

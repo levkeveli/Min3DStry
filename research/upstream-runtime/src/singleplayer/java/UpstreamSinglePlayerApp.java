@@ -549,6 +549,7 @@ public final class UpstreamSinglePlayerApp {
 
     private boolean chooseTitleAbout() {
         var links = mindustry.ui.Links.getLinks();
+        System.out.println("UPSTREAM_TITLE_ABOUT links=" + links.length);
         final int pageSize = 7;
         int selected = 0;
         while (true) {
@@ -582,6 +583,7 @@ public final class UpstreamSinglePlayerApp {
 
     private boolean showTitleCredits() {
         var credits = new Fi("/romfs/contributors").readString("UTF-8").split("\n");
+        System.out.println("UPSTREAM_TITLE_CREDITS contributors=" + credits.length);
         final int pageSize = 7;
         for (int start = 0; ; ) {
             int end = Math.min(start + pageSize, credits.length);
