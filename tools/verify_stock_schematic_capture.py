@@ -85,7 +85,7 @@ def verify_touch(log, proc, rpc, output, use_xdotool, replace, edit):
         edit_text(EDITED_NAME)
         sp._wait_for_log(log, proc, r"UPSTREAM_SCHEMATIC_EDIT_PROMPT field=editor.description", 35)
         edit_text(EDITED_DESCRIPTION)
-        sp._wait_for_log(log, proc, r"UPSTREAM_SCHEMATIC_METADATA_EDITED file=Schematic-2\.msch", 35)
+        sp._wait_for_log(log, proc, r"UPSTREAM_SCHEMATIC_METADATA_EDITED file=Schematic-1\.msch", 35)
         (output / "schematic-edited.png").write_bytes(rpc.screenshot())
         return
     sp._wait_for_log(log, proc, r"UPSTREAM_SCHEMATIC_CAPTURE_AREA x=84 y=23 x2=84 y2=25", 105)
@@ -110,11 +110,11 @@ def verify_touch(log, proc, rpc, output, use_xdotool, replace, edit):
 
 
 def read_stock_capture(server, log, directory, replace, edit):
-    existing = directory / "Schematic-1.msch"
-    exported = directory / "Schematic-2.msch"
+    existing = directory / ("Schematic-2.msch" if edit else "Schematic-1.msch")
+    exported = directory / ("Schematic-1.msch" if edit else "Schematic-2.msch")
     if existing.read_bytes() != EXISTING:
         raise AssertionError("ARM11 changed the existing .msch file")
-    if sorted(path.name for path in directory.iterdir()) != [existing.name, exported.name]:
+    if sorted(path.name for path in directory.iterdir()) != sorted([existing.name, exported.name]):
         raise AssertionError("Capture left a missing or unexpected file in the schematic directory")
     filename = json.dumps(exported.resolve().as_posix())
     if replace:
@@ -172,7 +172,7 @@ def main():
             scene = args.output / model / ("live" if live else "offline")
             directory = scene / "sdmc/3ds/min3dstry/schematics"
             directory.mkdir(parents=True)
-            (directory / "Schematic-1.msch").write_bytes(EXISTING)
+            (directory / ("Schematic-2.msch" if args.edit else "Schematic-1.msch")).write_bytes(EXISTING)
             taps = dict(TAPS)
             extended = args.replace or args.edit
             buttons = {62: PLACE, 114 if extended else 94: sp.KEY_START}
@@ -180,8 +180,8 @@ def main():
                 taps.update({76: (268, 20), 82: (216, 168), 88: (216, 168)})
                 buttons[96] = PLACE
             if args.edit:
-                shutil.copyfile(edit_fixture, directory / "Schematic-2.msch")
-                taps = {35: (15, 155), 42: (184, 20), 50: (150, 81)}
+                shutil.copyfile(edit_fixture, directory / "Schematic-1.msch")
+                taps = {35: (15, 155), 42: (184, 20), 50: (150, 60)}
                 del buttons[62]
             if live:
                 buttons[0] = sp.KEY_X
