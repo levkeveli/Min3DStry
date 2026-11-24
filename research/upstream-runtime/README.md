@@ -264,6 +264,11 @@ two generated 600×600 sector saves. The 32 MiB ARM11 campaign check remains
 tracked in [#538](https://github.com/levkeveli/Min3DStry/issues/538).
 [Hosted campaign regression](https://github.com/levkeveli/Min3DStry/actions/runs/45318649486)
 
+The stock ore index stores local coordinates within each 20×20 quadrant.
+It preserves insertion and swap-removal order, including the first candidate
+in each quadrant. The campaign regression compares floor and wall ore
+selection on stock Serpulo sector 111.
+
 Campaign map loading and team-stat updates reuse existing team data and
 create it when teams first enter play. The configured wave team remains
 present while waves are enabled, even without buildings or units. The

@@ -1234,6 +1234,7 @@ jobs:
             -Pprobe=singleplayer runStockCampaignArchiveJvm "--args='$fixture/staged' '$fixture/saves'" \
             | tee "$fixture/probe.log"
           grep -Fx 'UPSTREAM_TEAM_STATS absent=unallocated wave-team=stock' "$fixture/probe.log"
+          grep -Fx 'UPSTREAM_QUADRANT_ORE_INDEX floor=stock wall=stock' "$fixture/probe.log"
           grep -Fx 'UPSTREAM_STOCK_CAMPAIGN_DECODE presets=95 tiles=17662472' "$fixture/probe.log"
           grep -Fx 'UPSTREAM_STOCK_CAMPAIGN_ARCHIVE maps=95 presets=95 hidden=46 patches=3' "$fixture/probe.log"
           python3 tools/verify_stock_campaign_archive.py --server "$RUNNER_TEMP/server-release.jar" \
