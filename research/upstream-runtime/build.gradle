@@ -213,6 +213,7 @@ if (usesArcSources || usesExecutor) {
     if (usesWorldSources) {
         stagedClasses.addAll(['mindustry/world/Tile.class', 'mindustry/world/Tile$*.class',
                               'mindustry/ai/BlockIndexer.class', 'mindustry/ai/BlockIndexer$*.class',
+                              'mindustry/game/Teams.class', 'mindustry/game/Teams$*.class',
                               'mindustry/world/blocks/logic/LogicBlock.class', 'mindustry/world/blocks/logic/LogicBlock$*.class',
                               'mindustry/io/SaveFileReader.class', 'mindustry/io/SaveFileReader$*.class',
                               'mindustry/world/Tiles.class', 'mindustry/world/Tiles$*.class'])
@@ -526,6 +527,7 @@ tasks.register('prepareUpstreamProbe') {
     if (usesWorldSources) {
         outputs.files(tileFile, tilesFile)
         outputs.file(sourceDir.map { it.file('mindustry/ai/BlockIndexer.java') })
+        outputs.file(sourceDir.map { it.file('mindustry/game/Teams.java') })
         outputs.file(sourceDir.map { it.file('mindustry/io/SaveFileReader.java') })
         outputs.file(sourceDir.map { it.file('mindustry/world/blocks/logic/LogicBlock.java') })
     }
@@ -968,7 +970,27 @@ final class GlacierFixture {
                 if (indexer.count(unusedCapacity) != 1) throw new GradleException('Pinned block flag storage changed')
                 def stagedIndexer = sourceDir.get().file(indexerPath).asFile
                 stagedIndexer.parentFile.mkdirs()
-                stagedIndexer.setText(indexer.replace(unusedCapacity, 'flagMap[i][j] = new Seq<>(0);'), 'UTF-8')
+                def worldTeamLookup = 'for(Team team : Team.all){\n                var data = state.teams.get(team);'
+                def prebuild = 'if(team.rules().prebuildAi && data.hasCore())'
+                if (indexer.count(worldTeamLookup) != 2 || indexer.count(prebuild) != 1) {
+                    throw new GradleException('Pinned world-load team index hooks changed')
+                }
+                stagedIndexer.setText(indexer.replace(unusedCapacity, 'flagMap[i][j] = new Seq<>(0);')
+                    .replace(worldTeamLookup, worldTeamLookup.replace('.get(team)', '.getOrNull(team)'))
+                    .replace(prebuild, 'if(team.rules().prebuildAi && data != null && data.hasCore())'), 'UTF-8')
+
+                def teamsPath = 'mindustry/game/Teams.java'
+                def teams = new String(readUpstream('core/src/' + teamsPath), 'UTF-8')
+                def statsLookup = 'for(Team team : Team.all){\n            TeamData data = team.data();'
+                if (teams.count(statsLookup) != 2) throw new GradleException('Pinned team stats loops changed')
+                def stagedTeams = sourceDir.get().file(teamsPath).asFile
+                stagedTeams.parentFile.mkdirs()
+                stagedTeams.setText(teams.replace(statsLookup, '''for(Team team : Team.all){
+            TeamData data = getOrNull(team);
+            if(data == null){
+                if(!state.rules.waves || team != state.rules.waveTeam) continue;
+                data = get(team);
+            }'''), 'UTF-8')
 
                 def logicBlockPath = 'mindustry/world/blocks/logic/LogicBlock.java'
                 def logicBlock = new String(readUpstream('core/src/' + logicBlockPath), 'UTF-8')

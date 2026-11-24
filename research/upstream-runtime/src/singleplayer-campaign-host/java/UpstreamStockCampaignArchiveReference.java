@@ -13,6 +13,7 @@ import mindustry.Vars;
 import mindustry.content.Planets;
 import mindustry.content.SectorPresets;
 import mindustry.game.Team;
+import mindustry.game.Teams;
 import mindustry.gen.Fire;
 import mindustry.gen.Puddle;
 import mindustry.io.MapIO;
@@ -23,6 +24,39 @@ import mindustry.world.blocks.logic.LogicBlock;
 import mindustry.world.meta.BlockFlag;
 
 public final class UpstreamStockCampaignArchiveReference {
+    private static void verifyTeamStats() {
+        var teams = new Teams();
+        var unused = Team.get(254);
+        var waveTeam = Team.get(255);
+        var rules = Vars.state.rules;
+        boolean previousWaves = rules.waves;
+        var previousWaveTeam = rules.waveTeam;
+        try {
+            rules.waveTeam = waveTeam;
+            rules.waves = false;
+            teams.updateTeamStats();
+            if (teams.getOrNull(unused) != null || teams.getOrNull(waveTeam) != null) {
+                throw new AssertionError("Team stats created data for absent teams");
+            }
+            rules.waves = true;
+            teams.updateTeamStats();
+            var activeWaveTeam = teams.getOrNull(waveTeam);
+            if (activeWaveTeam == null || !teams.present.contains(activeWaveTeam, true)
+                    || teams.getOrNull(unused) != null) {
+                throw new AssertionError("Team stats lost the stock empty wave team");
+            }
+            rules.waves = false;
+            teams.updateTeamStats();
+            if (teams.present.contains(activeWaveTeam, true)) {
+                throw new AssertionError("Team stats retained an inactive empty wave team");
+            }
+            System.out.println("UPSTREAM_TEAM_STATS absent=unallocated wave-team=stock");
+        } finally {
+            rules.waves = previousWaves;
+            rules.waveTeam = previousWaveTeam;
+        }
+    }
+
     public static void main(String[] args) throws Exception {
         if (args.length != 2) throw new IllegalArgumentException("Expected staged assets and a new save directory");
         var assets = Fi.get(args[0]);
@@ -34,6 +68,7 @@ public final class UpstreamStockCampaignArchiveReference {
         var session = UpstreamSinglePlayerSession.create(output, "en", assets.child("planets"),
             UpstreamSinglePlayerSession.loadSettings(output), maps);
         try {
+            verifyTeamStats();
             verifyTileEffects();
             verifyEmptyLogicProgram();
             verifySaveBuffer();
