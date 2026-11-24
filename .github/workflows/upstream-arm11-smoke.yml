@@ -1326,7 +1326,7 @@ jobs:
             "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" \
             "-PreferenceJar=$RUNNER_TEMP/server-release.jar" \
             "-ParcCheckout=$RUNNER_TEMP/Arc" -Pprobe=unified runBuildingLayersJvm \
-            --args="$RUNNER_TEMP/Mindustry/core/assets/maps/default/glacier.msav build/smoke-assets/sprites.aatls build/smoke-assets/block_colors.png"
+            --args="$RUNNER_TEMP/Mindustry/core/assets/maps/default/glacier.msav $PWD/build/smoke-assets/sprites.aatls $PWD/build/smoke-assets/block_colors.png"
       - uses: actions/upload-artifact@v4
         with:
           name: unified-arm11-smoke
