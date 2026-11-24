@@ -13,41 +13,65 @@ permissions:
 jobs:
   alert:
     name: Hold or release PRs on main verification result
-    if: github.event.workflow_run.head_branch == 'main'
+    if: >-
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      github.event.workflow_run.head_branch == 'main'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Block PRs on failure, release them on success
+      - name: Block PRs on failure, release only when both heavy workflows are green
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -e
           sha="${{ github.event.workflow_run.head_sha }}"
-          url="${{ github.event.workflow_run.html_url }}"
           name="${{ github.event.workflow_run.name }}"
           conclusion="${{ github.event.workflow_run.conclusion }}"
+          repo="$GITHUB_REPOSITORY"
+          label="main-verify-blocked"
+
+          # Ensure the automation label exists before using it.
+          gh label list --repo "$repo" --json name --jq '.[].name' | grep -qx "$label" \
+            || gh label create "$label" --repo "$repo" --color "d73a4a" \
+                 --description "Automation hold: main post-merge verification is red" || true
+
+          # Release only when BOTH heavy workflows are green at this SHA.
+          both_green() {
+            for wf in "3DS full build" "Upstream ARM11 smoke"; do
+              c=$(gh run list --repo "$repo" --workflow "$wf" --branch main \
+                  --commit "$sha" --limit 1 --json conclusion --jq '.[0].conclusion // "none"')
+              [ "$c" = "success" ] || return 1
+            done
+            return 0
+          }
+
           if [ "$conclusion" = "failure" ]; then
-            title="Main verification failed: $name @ $sha"
-            existing=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open \
+            title="Main verification failed @ $sha"
+            existing=$(gh issue list --repo "$repo" --state open \
               --search "Main verification failed in:title" --json number --jq '.[0].number // empty')
             if [ -z "$existing" ]; then
-              gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" \
-                --label "status:blocked" \
-                --body "Post-merge verification \`$name\` failed on main @ \`$sha\`. Run: $url. Open PRs are labelled \`status:blocked\`; the PR that fixes or reverts this must remove its own label to merge."
+              gh issue create --repo "$repo" --title "$title" \
+                --label "$label" \
+                --body "Post-merge verification failed on main @ \`$sha\` ($name). Open PRs get \`$label\`; the PR that fixes or reverts must remove its own label to merge. A merge onto red main will be reverted."
             fi
-            for pr in $(gh pr list --repo "$GITHUB_REPOSITORY" --state open --json number,labels --jq '.[] | select([.labels[].name] | any(. == "hold" or . == "needs-human" or . == "do-not-merge" or . == "status:blocked" or . == "tier:c") | not) | .number'); do
-              gh pr edit "$pr" --repo "$GITHUB_REPOSITORY" --add-label "status:blocked" || true
+            blocked=0; failed=0
+            for pr in $(gh pr list --repo "$repo" --state open --json number,labels --jq '.[] | select([.labels[].name] | any(. == "hold" or . == "needs-human" or . == "do-not-merge" or . == "status:blocked" or . == "tier:c" or . == "main-verify-blocked") | not) | .number'); do
+              if gh pr edit "$pr" --repo "$repo" --add-label "$label"; then blocked=$((blocked+1)); else failed=$((failed+1)); fi
             done
+            echo "Blocked $blocked PR(s), $failed failure(s)"
+            [ "$failed" -eq 0 ]
           elif [ "$conclusion" = "success" ]; then
-            # Success path: close the blocking issue and release held PRs.
-            issue=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open \
-              --search "Main verification failed in:title" --json number --jq '.[0].number // empty')
-            if [ -n "$issue" ]; then
-              gh issue close "$issue" --repo "$GITHUB_REPOSITORY" \
-                --comment "Main verification green again @ \`$sha\` ($name). Releasing \`status:blocked\` holds."
+            if both_green; then
+              issue=$(gh issue list --repo "$repo" --state open \
+                --search "Main verification failed in:title" --json number --jq '.[0].number // empty')
+              [ -z "$issue" ] || gh issue close "$issue" --repo "$repo" \
+                --comment "Both heavy workflows green at \`$sha\`. Releasing \`$label\` holds."
+              for pr in $(gh pr list --repo "$repo" --state open --json number,labels --jq '.[] | select([.labels[].name] | any(. == "main-verify-blocked")) | .number'); do
+                gh pr edit "$pr" --repo "$repo" --remove-label "$label" || true
+              done
+            else
+              echo "Not releasing: the other heavy workflow is not green at $sha"
             fi
-            for pr in $(gh pr list --repo "$GITHUB_REPOSITORY" --state open --json number,labels --jq '.[] | select([.labels[].name] | any(. == "status:blocked")) | .number'); do
-              gh pr edit "$pr" --repo "$GITHUB_REPOSITORY" --remove-label "status:blocked" || true
-            done
           fi
