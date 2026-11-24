@@ -193,7 +193,42 @@ public final class UpstreamStatusRowsProbe {
                 || pause.activate() != UpstreamPauseMenu.Action.QUIT) {
             throw new IllegalStateException("Pause menu load-quit action mismatch");
         }
-        System.out.println("UPSTREAM_PAUSE_MENU cases=13 ok");
+        pause.open(6);
+        if (pause.options() != 6) throw new IllegalStateException("Pause menu settings options mismatch");
+        pause.move(1);
+        if (pause.activate() != UpstreamPauseMenu.Action.RESEARCH) {
+            throw new IllegalStateException("Pause menu six-row research mismatch");
+        }
+        pause.move(1);
+        if (pause.activate() != UpstreamPauseMenu.Action.LOAD) {
+            throw new IllegalStateException("Pause menu six-row load mismatch");
+        }
+        pause.move(1);
+        if (pause.activate() != UpstreamPauseMenu.Action.SAVE) {
+            throw new IllegalStateException("Pause menu six-row save mismatch");
+        }
+        pause.move(1);
+        if (pause.activate() != UpstreamPauseMenu.Action.SETTINGS) {
+            throw new IllegalStateException("Pause menu settings action mismatch");
+        }
+        pause.move(1);
+        if (pause.activate() != UpstreamPauseMenu.Action.NONE
+                || pause.activate() != UpstreamPauseMenu.Action.QUIT) {
+            throw new IllegalStateException("Pause menu six-row quit mismatch");
+        }
+        var settings = new UpstreamSettingsMenu();
+        settings.open(true);
+        if (!settings.coreItems() || settings.selected() != 0) {
+            throw new IllegalStateException("Settings menu initial state mismatch");
+        }
+        settings.move(1);
+        if (!settings.backSelected()) throw new IllegalStateException("Settings back selection mismatch");
+        if (settings.toggleCoreItems() || settings.coreItems()) {
+            throw new IllegalStateException("Settings core-items toggle mismatch");
+        }
+        settings.move(-1);
+        if (settings.selected() != 0) throw new IllegalStateException("Settings wrap mismatch");
+        System.out.println("UPSTREAM_PAUSE_MENU cases=18 ok");
         System.out.println("UPSTREAM_STATUS_ROWS cases=10 ok");
         System.out.println("UPSTREAM_GUARDIAN_WARNING cases=2 ok");
         System.out.println("UPSTREAM_UNIT_ROWS cases=3 ok");
