@@ -1184,18 +1184,19 @@ static void draw_label_art(const int32_t *glyph, float x, float y, float width, 
 static float draw_stock_panel(const char *label, const int32_t *characters, int32_t count,
                                  int32_t page, int32_t left, int32_t top,
                                  int32_t width, int32_t height, float x, float y,
-                                 int32_t *stock_font, bool chat, bool panel) {
+                                 int32_t *stock_font, bool chat, bool panel, float box_width, float box_height) {
     *stock_font = 0;
     const float failed = chat ? -1.0f : 240.0f;
     if (!frame_open || !catalog_buffer) return failed;
     bool has_icon = page >= 0 && width > 0 && height > 0;
     float inset = has_icon ? 32.0f : 6.0f;
+    float max_width = box_width > 0.0f ? box_width : (chat ? 314.0f : 230.0f);
     float font_scale, text_width, text_height;
     bool using_stock = false;
 #ifdef M3DS_STOCK_FONT
     using_stock = m3ds_stock_text_layout(&stock_text, characters, count, false);
     if (using_stock) {
-        font_scale = fminf(chat ? 0.64f : 0.73f, ((chat ? 314.0f : 230.0f) - inset) / fmaxf(1.0f, stock_text.width));
+        font_scale = fminf(chat ? 0.64f : 0.73f, (max_width - inset) / fmaxf(1.0f, stock_text.width));
         text_width = stock_text.width * font_scale;
         text_height = stock_text.height * font_scale;
     }
@@ -1208,7 +1209,7 @@ static float draw_stock_panel(const char *label, const int32_t *characters, int3
         C2D_TextBufClear(catalog_buffer);
         if (!C2D_TextParse(&text, catalog_buffer, label)) return failed;
         C2D_TextOptimize(&text);
-        font_scale = fminf(chat ? 0.37f : 0.44f, ((chat ? 314.0f : 230.0f) - inset) / fmaxf(1.0f, text.width));
+        font_scale = fminf(chat ? 0.37f : 0.44f, (max_width - inset) / fmaxf(1.0f, text.width));
         C2D_TextGetDimensions(&text, font_scale, font_scale, &text_width, &text_height);
     }
     float padding = chat ? 3.0f : 5.0f;
@@ -1216,7 +1217,7 @@ static float draw_stock_panel(const char *label, const int32_t *characters, int3
     if (chat) {
         y -= panel_height;
         if (y < 72.0f) return failed;
-    } else if (y + panel_height > screen_bottom - 4.0f) {
+    } else if (y + (box_height > 0.0f ? box_height : panel_height) > screen_bottom - 4.0f) {
         return failed;
     }
     const float next = chat ? y - 2.0f : y + panel_height + 3.0f;
@@ -1239,14 +1240,16 @@ static float draw_stock_panel(const char *label, const int32_t *characters, int3
             return failed;
         }
     }
+    float text_x = x + (box_width > 0.0f ? (box_width - text_width) * 0.5f : inset);
+    float text_y = y + (box_height > 0.0f ? (box_height - text_height) * 0.5f : padding);
 #ifdef M3DS_STOCK_FONT
     if (using_stock) {
-        m3ds_stock_text_draw(&stock_text, x + inset, y + padding, font_scale, font_scale, -1, draw_label_art);
+        m3ds_stock_text_draw(&stock_text, text_x, text_y, font_scale, font_scale, -1, draw_label_art);
         *stock_font = 1;
         return next;
     }
 #endif
-    C2D_DrawText(&text, C2D_WithColor, x + inset, y + padding, 0.5f, font_scale, font_scale,
+    C2D_DrawText(&text, C2D_WithColor, text_x, text_y, 0.5f, font_scale, font_scale,
         C2D_Color32(239, 241, 247, 255));
     return next;
 }
@@ -1255,7 +1258,7 @@ float m3ds_terrain_draw_objective(const char *label, const int32_t *characters, 
                                  int32_t page, int32_t left, int32_t top,
                                  int32_t width, int32_t height, float y, int32_t *stock_font) {
     return draw_stock_panel(label, characters, count, page, left, top, width, height,
-        screen_left + 4.0f, y, stock_font, false, true);
+        screen_left + 4.0f, y, stock_font, false, true, 0.0f, 0.0f);
 }
 
 float m3ds_terrain_draw_objective_at(const char *label, const int32_t *characters, int32_t count,
@@ -1263,7 +1266,7 @@ float m3ds_terrain_draw_objective_at(const char *label, const int32_t *character
                                     int32_t width, int32_t height, float x, float y,
                                     int32_t *stock_font) {
     return draw_stock_panel(label, characters, count, page, left, top, width, height,
-        x, y, stock_font, false, true);
+        x, y, stock_font, false, true, 0.0f, 0.0f);
 }
 
 float m3ds_terrain_draw_objective_plain(const char *label, const int32_t *characters, int32_t count,
@@ -1271,7 +1274,22 @@ float m3ds_terrain_draw_objective_plain(const char *label, const int32_t *charac
                                         int32_t width, int32_t height, float y,
                                         int32_t *stock_font) {
     return draw_stock_panel(label, characters, count, page, left, top, width, height,
-        screen_left + 4.0f, y, stock_font, false, false);
+        screen_left + 4.0f, y, stock_font, false, false, 0.0f, 0.0f);
+}
+
+void m3ds_terrain_draw_hud_label(const char *label, const int32_t *characters, int32_t count,
+    float x, float y, float width, float height) {
+    int32_t stock_font;
+    draw_stock_panel(label, characters, count, -1, 0, 0, 0, 0, screen_left + x, y,
+        &stock_font, false, false, width, height);
+}
+
+int32_t m3ds_terrain_draw_hud_sprite(int32_t page, int32_t left, int32_t top,
+        int32_t width, int32_t height, float x, float y, float draw_width, float draw_height, int32_t color) {
+    if (!frame_open || draw_width <= 0.0f || draw_height <= 0.0f) return 0;
+    return m3ds_terrain_draw(page, left, top, width, height,
+        world_left + x / scale, world_bottom + (screen_bottom - y - draw_height) / scale,
+        0.0f, 0.0f, draw_width / scale, draw_height / scale, 0.0f, color, 0, 0);
 }
 
 int32_t m3ds_terrain_draw_hud_panel(float x, float y, float width, float height, int32_t color) {
@@ -1284,7 +1302,7 @@ int32_t m3ds_terrain_draw_hud_panel(float x, float y, float width, float height,
 float m3ds_terrain_draw_chat_line(const char *label, const int32_t *characters, int32_t count, float bottom) {
     int32_t stock_font;
     return draw_stock_panel(label, characters, count, -1, 0, 0, 0, 0,
-        screen_left + 4.0f, bottom, &stock_font, true, true);
+        screen_left + 4.0f, bottom, &stock_font, true, true, 0.0f, 0.0f);
 }
 
 #ifdef M3DS_STOCK_FONT

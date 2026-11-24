@@ -91,6 +91,15 @@ Container and checks Liquid Junction pass-through and dead-end routing
 (`UPSTREAM_LIQUID_ROUTER_REFERENCE`, `UPSTREAM_LIQUID_JUNCTION_REFERENCE`). The
 dedicated liquid HUD remains open.
 
+### Stock building power bar
+
+Select a friendly building with the handheld cursor to see its power
+bar beneath the match HUD in offline play and on a stock server. The
+display uses the upstream Block.setBars callbacks and the original
+bar and bar-top atlas patches. Enemy building power remains hidden.
+The building-layer host reference checks dry, partial, buffered and
+supplied-idle states. ARM11 rendering evidence is pending.
+
 ## Remaining Scope for Issue #39
 
 - Reduce the ARM11 footprint within the Old 3DS XL (`64 MiB` AppMem) budget.
