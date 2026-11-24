@@ -89,9 +89,16 @@ public final class UpstreamRenderedNetworkProbe {
 
     private UpstreamRenderedNetworkProbe(Fi atlas) {
         this.atlas = atlas;
+        configureSchematicPrompts();
+    }
+
+    private void configureSchematicPrompts() {
         buildingControls.schematics().nameCapturesWith(
             () -> UpstreamLiveNetworkProbe.whileKeepingAlive(UpstreamTerrainRenderProbe::readSchematicName),
             name -> UpstreamLiveNetworkProbe.whileKeepingAlive(() -> UpstreamTerrainRenderProbe.confirmSchematicReplacement(name)));
+        buildingControls.schematics().editWith(
+            name -> UpstreamLiveNetworkProbe.whileKeepingAlive(() -> UpstreamTerrainRenderProbe.editSchematicName(name)),
+            description -> UpstreamLiveNetworkProbe.whileKeepingAlive(() -> UpstreamTerrainRenderProbe.editSchematicDescription(description)));
     }
 
     public static void main(String[] args) throws IOException, InterruptedException {
@@ -150,6 +157,7 @@ public final class UpstreamRenderedNetworkProbe {
 
     private UpstreamLiveBuildControls newSessionControls() {
         buildingControls = new UpstreamLiveBuildControls();
+        configureSchematicPrompts();
         controlled = null;
         previousVisualFrame = 0;
         lastLeft = lastBottom = -1;

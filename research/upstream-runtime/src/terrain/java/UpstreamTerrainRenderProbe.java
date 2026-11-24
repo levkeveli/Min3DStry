@@ -84,6 +84,26 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
         return NativeTerrain.schematicPrompt(Address.ofData(text), text.length, Address.ofData(hint), 1) != 0;
     }
 
+    static String editSchematicName(String original) {
+        return editSchematicText("name", original);
+    }
+
+    static String editSchematicDescription(String original) {
+        return editSchematicText("editor.description", original);
+    }
+
+    private static String editSchematicText(String label, String original) {
+        byte[] text = new byte[4001];
+        String initial = original.substring(0, Math.min(original.length(), 1000));
+        byte[] initialBytes = initial.getBytes(StandardCharsets.UTF_8);
+        System.arraycopy(initialBytes, 0, text, 0, initialBytes.length);
+        byte[] hint = (Core.bundle.get("schematic.edit") + " · " + Core.bundle.get(label) + "\0")
+            .getBytes(StandardCharsets.UTF_8);
+        System.out.println("UPSTREAM_SCHEMATIC_EDIT_PROMPT field=" + label);
+        int length = NativeTerrain.schematicPrompt(Address.ofData(text), text.length, Address.ofData(hint), 2);
+        return length >= 0 && length < text.length ? new String(text, 0, length, StandardCharsets.UTF_8) : null;
+    }
+
     // Keep the catalog kinds in the same order as the native renderer.
     static final int ITEM_CATALOG = 0, BLOCK_CATALOG = 1, UNIT_CATALOG = 2, COMMAND_CATALOG = 3, STANCE_CATALOG = 4, SCHEMATIC_CATALOG = 5;
 

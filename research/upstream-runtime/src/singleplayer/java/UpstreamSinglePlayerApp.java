@@ -336,6 +336,8 @@ public final class UpstreamSinglePlayerApp {
         var controls = new UpstreamLiveBuildControls();
         controls.schematics().nameCapturesWith(UpstreamTerrainRenderProbe::readSchematicName,
             UpstreamTerrainRenderProbe::confirmSchematicReplacement);
+        controls.schematics().editWith(UpstreamTerrainRenderProbe::editSchematicName,
+            UpstreamTerrainRenderProbe::editSchematicDescription);
         return controls;
     }
 
