@@ -59,6 +59,23 @@ texture draw rebinds the top screen because the build palette leaves the bottom
 screen selected. The minimap translation unit also compiles without
 `M3DS_WORLD_ATLAS`; its static upload buffer is 64 KiB.
 
+## Selected building bars
+
+The friendly building under the handheld cursor shows its stock bars below the
+status rows in the base `Block.setBars` order (health, power, items, then
+liquids); subclass-specific extra bars remain open:
+
+- health (`stat.health`, `Pal.health`) for every building;
+- power for blocks with `consPower`, using the stock power label/fraction;
+- items (`bar.items`) for configurable item blocks;
+- the dynamic `addLiquidBar` bar, then each keyed consumer/generator liquid bar,
+  using the stock liquid label, fraction and color.
+
+Enemy bars stay hidden. The bars reuse the original `bar`/`bar-top` atlas
+patches and animate their fill. The host building reference checks health,
+power, item, dynamic liquid and keyed liquid states; the **live draw path is
+pending** the next emulator batch.
+
 ## Verification
 
 `tools/verify_upstream_live_net.py --combat --controls --terrain-atlas ...`
