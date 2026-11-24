@@ -25,14 +25,18 @@ off and a campaign sector is active;
 - a stock-style pause overlay with `paused`, the campaign planet/sector and
   first objective when available. A sector with a tech tree gets Resume
   (`back`), Research, Load Game, Save Game, Settings and Quit; otherwise the
-  menu is Resume/Save/Quit. Load reloads the active slot only (there is no save
-  picker) and resets HUD caches; this path is **not verified** yet. Settings
-  and Settings toggles the stock `setting.coreitems`, `setting.minimap`,
-  `setting.showweather` and `setting.showperformance` displays. The stock quit confirmation is
-  included, and tapping X opens/closes and freezes simulation;
+  menu is Resume/Save/Quit. Load reloads the active campaign slot only (there
+  is no save picker) and resets HUD caches; saved-state equality is not
+  asserted yet. Settings toggles the stock `setting.coreitems`,
+  `setting.minimap`, `setting.showweather` and `setting.showperformance`
+  displays. The stock quit confirmation is included, and tapping X
+  opens/closes and freezes simulation;
 - the stock guardian bar (`state.teams.bosses`) above the bottom edge: one
   boss emoji per guardian (six at most, then `+`), the localized `guardian`
   text and a total-health fill, shown only while wave rules are active;
+- a fullscreen minimap view on `R`: the same stock sampled texture over a dark
+  backdrop, scaled from 240 px to 960 px with circle-pad/d-pad panning and
+  X/Y zoom (1x to 4x), closed with `R` or `B`;
 - a live minimap rendered from a 64x64 sample at 56 px in the top-right
   corner, using the stock `MinimapRenderer` color path (`Block.minimapColor`,
   floor/overlay fallback through `MapIO.colorFor`, darkness and liquid/shadow
@@ -113,15 +117,20 @@ status-hud host probe:
 ```text
 UPSTREAM_CORE_ITEM_FORMAT text=12k cases=9 ok
 UPSTREAM_CORE_ITEMS rows=2 ok
+UPSTREAM_MINIMAP_VIEW cases=5 ok
 UPSTREAM_PAUSE_MENU cases=22 ok
 UPSTREAM_BOSS_BAR cases=4 ok
 UPSTREAM_CORE_ATTACK text="< Core is under attack! >" ok
 ```
 
 The boss bar covers the stock `HudFragment` summary: no bar without bosses or
-wave rules, three bosses at `2000/3000` health, and the six-emoji cap with the
+wave rules, three bosses at `2500/3000` health, and the six-emoji cap with the
 `+` marker. Its on-device guardian-wave rendering is **not verified** yet; the
 host probe only checks the collected text and health fraction.
+
+The fullscreen view state covers the open/close flag, the 1x..4x zoom clamps,
+pan clamping and reset. Its on-device rendering, pan and zoom are **not
+verified** yet; the host probe checks the view math only.
 
 The Azahar verifier can seed a deterministic core inventory through
 `/3ds/min3dstry/hud-items.txt` and assert that every requested row was drawn:
@@ -194,9 +203,9 @@ exactly.
 
 - This is the wave/timer/copper/minimap slice of the stock HUD, not the
   complete HUD.
-- The minimap is the always-on 56 px slice drawn from a 64x64 sample with a
-  dark inset frame. Fullscreen/zoom, unit icons beyond the local player, and the
-  full stock minimap panel layout remain open under #40.
+- The minimap is a 64x64 sample with a dark inset frame, drawn at 56 px and
+  expanded by the fullscreen `R` view. Unit icons beyond the local player and
+  the full stock minimap panel layout remain open under #40.
 - The item list is icon-and-count only, like the stock core display, but not
   its complete panel/theme layout. More than 18 rows fall back to the overflow
   log rather than a scrollable table.

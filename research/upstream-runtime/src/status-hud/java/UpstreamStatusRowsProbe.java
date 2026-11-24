@@ -272,6 +272,32 @@ public final class UpstreamStatusRowsProbe {
             throw new IllegalStateException("Boss bar ignored wave rules");
         }
         System.out.println("UPSTREAM_BOSS_BAR cases=4 ok");
+        var minimapView = new UpstreamMinimapView();
+        if (minimapView.open() || minimapView.zoom() != UpstreamMinimapView.minZoom) {
+            throw new IllegalStateException("Minimap view initial state mismatch");
+        }
+        minimapView.toggle();
+        if (!minimapView.open()) throw new IllegalStateException("Minimap view did not open");
+        minimapView.zoomBy(10f);
+        if (minimapView.zoom() != UpstreamMinimapView.maxZoom) {
+            throw new IllegalStateException("Minimap view zoom cap mismatch");
+        }
+        minimapView.move(10_000f, -10_000f);
+        if (Math.abs(minimapView.panX()) > minimapView.panLimit() + 0.001f
+                || Math.abs(minimapView.panY()) > minimapView.panLimit() + 0.001f) {
+            throw new IllegalStateException("Minimap view pan clamp mismatch");
+        }
+        minimapView.zoomBy(-10f);
+        if (minimapView.zoom() != UpstreamMinimapView.minZoom) {
+            throw new IllegalStateException("Minimap view zoom floor mismatch");
+        }
+        minimapView.close();
+        if (minimapView.open()) throw new IllegalStateException("Minimap view did not close");
+        minimapView.reset();
+        if (minimapView.panX() != 0f || minimapView.panY() != 0f) {
+            throw new IllegalStateException("Minimap view reset mismatch");
+        }
+        System.out.println("UPSTREAM_MINIMAP_VIEW cases=5 ok");
         System.out.println("UPSTREAM_PAUSE_MENU cases=22 ok");
         System.out.println("UPSTREAM_STATUS_ROWS cases=10 ok");
         System.out.println("UPSTREAM_GUARDIAN_WARNING cases=2 ok");
