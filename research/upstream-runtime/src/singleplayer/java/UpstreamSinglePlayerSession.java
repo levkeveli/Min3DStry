@@ -626,9 +626,14 @@ public final class UpstreamSinglePlayerSession {
     }
 
     boolean togglePause() {
-        boolean paused = !Vars.state.isPaused();
-        Vars.state.set(paused ? State.paused : State.playing);
-        return paused;
+        boolean paused = Vars.state.isPaused();
+        if (Vars.state.rules.pauseDisabled) {
+            System.out.println("UPSTREAM_SP_PAUSE disabled=true");
+            return paused;
+        }
+        Vars.state.set(paused ? State.playing : State.paused);
+        System.out.println("UPSTREAM_SP_PAUSE paused=" + !paused);
+        return !paused;
     }
 
     int triggerWave() {
@@ -678,13 +683,14 @@ public final class UpstreamSinglePlayerSession {
         options.extraTags = StringMap.of("playtime", playtimeMillis, "controlGroups", savedControlGroups,
             "controlledType", type == null ? "null" : type.name);
         SaveIO.save(saveFile, options);
+        SaveMeta written;
         try (var input = SaveIO.getStream(saveFile)) {
-            if (!SaveIO.isSaveValid(input)) {
-                throw new IOException("Written offline save failed validation: " + saveFile.path());
-            }
+            written = SaveIO.getMeta(input);
+        } catch (RuntimeException failure) {
+            throw new IOException("Written offline save failed validation: " + saveFile.path(), failure);
         }
         if (Vars.state.rules.sector != null) {
-            bindSectorSave(Vars.state.rules.sector, saveFile, SaveIO.getMeta(saveFile));
+            bindSectorSave(Vars.state.rules.sector, saveFile, written);
             String index = saveFile.nameWithoutExtension();
             String key = slotNameKey(saveFile);
             if (!Core.settings.has(key)) Core.settings.put(key, index);
@@ -716,7 +722,9 @@ public final class UpstreamSinglePlayerSession {
         }
         app.runPosted();
         long hash = 0xcbf29ce484222325L;
-        for (int weight : field.completeWeights) {
+        var weights = field.completeWeights;
+        for (int index = 0; index < weights.length; index++) {
+            int weight = weights.get(index);
             hash = (hash ^ Integer.toUnsignedLong(weight)) * 0x100000001b3L;
         }
         return hash;
@@ -730,6 +738,11 @@ public final class UpstreamSinglePlayerSession {
             saveFile.delete();
             session = create(saveFile.parent() != null ? saveFile.parent() : mapFile.parent(), "en");
             session.start(mapFile, null, null);
+            var currentRules = mindustry.io.JsonIO.read(mindustry.game.Rules.class, "{\"modeName\":\"current\"}");
+            var legacyRules = mindustry.io.JsonIO.read(new mindustry.game.Rules(), "{\"modeName\":\"io.anuke.legacy\"}");
+            if (!"current".equals(currentRules.modeName) || !"legacy".equals(legacyRules.modeName)) {
+                throw new IllegalStateException("Stock save rules JSON compatibility changed");
+            }
 
             var serpulo15 = sectorFor(new Fi("sector-serpulo-15.msav"), Vars.content.planets());
             if (serpulo15 == null || serpulo15.id != 15 || !serpulo15.planet.name.equals("serpulo")) {
@@ -780,6 +793,41 @@ public final class UpstreamSinglePlayerSession {
             System.out.println("UPSTREAM_MINIMAP sample=32 hash="
                 + Long.toUnsignedString(UpstreamMinimap.hash(minimap), 16)
                 + " cell=" + (marker % 32) + "," + (marker / 32));
+            int px = marker % 32;
+            int py = marker / 32;
+            int tipX = (int)Math.round(px + 0.5 + Math.cos(Math.toRadians(unit.rotation())) * 2.5);
+            int tipY = (int)Math.round(py + 0.5 + Math.sin(Math.toRadians(unit.rotation())) * 2.5);
+            boolean arrowChecked = false;
+            if (tipX < 0 || tipY < 0 || tipX >= 32 || tipY >= 32) {
+                throw new IllegalStateException("Minimap direction tip falls outside the grid");
+            }
+            arrowChecked = true;
+            if (tipX == px && tipY == py) {
+                throw new IllegalStateException("Minimap direction tip overlaps the base");
+            }
+            int tipOffset = (tipY * 32 + tipX) * 4;
+            if ((minimap[tipOffset] & 0xff) != 255
+                    || (minimap[tipOffset + 1] & 0xff) != 255
+                    || (minimap[tipOffset + 2] & 0xff) != 255) {
+                throw new IllegalStateException("Minimap player direction tip is not white");
+            }
+            var localCore = Vars.player.team().core();
+            int coreChecked = 0;
+            if (localCore != null) {
+                byte[] coreMap = UpstreamMinimap.sample(64, false);
+                int coreCell = UpstreamMinimap.cellIndex(64, Vars.world.width(), Vars.world.height(),
+                    localCore.tileX(), localCore.tileY());
+                int playerCell64 = UpstreamMinimap.playerIndex(64);
+                int coreOffset = coreCell * 4;
+                var teamColor = localCore.team.color;
+                if ((coreMap[coreOffset] & 0xff) != Math.round(teamColor.r * 255f)
+                        || (coreMap[coreOffset + 1] & 0xff) != Math.round(teamColor.g * 255f)
+                        || (coreMap[coreOffset + 2] & 0xff) != Math.round(teamColor.b * 255f)) {
+                    throw new IllegalStateException("Minimap core marker color mismatch");
+                }
+                coreChecked = 1;
+            }
+            System.out.println("UPSTREAM_MINIMAP_MARKERS arrow=" + (arrowChecked ? 1 : 0) + " core=" + coreChecked + " ok");
 
             // 1. Movement check along Y-axis.
             float startY = unit.y();
@@ -858,6 +906,16 @@ public final class UpstreamSinglePlayerSession {
             if (session.togglePause()) {
                 throw new IllegalStateException("Failed to resume from pause");
             }
+            Vars.state.rules.pauseDisabled = true;
+            if (session.togglePause() || Vars.state.isPaused()) {
+                throw new IllegalStateException("A world with the stock pause-disabled rule paused");
+            }
+            session.stepSimulation(0f, 0f);
+            if (Vars.state.updateId <= pausedBefore) {
+                throw new IllegalStateException("The simulation froze with the pause-disabled rule");
+            }
+            Vars.state.rules.pauseDisabled = false;
+            System.out.println("UPSTREAM_SP_NO_PAUSE simulation=running");
 
             // 6. Wait for deterministic flowfield, trigger Wave 1, verify Dagger advance.
             waitForGroundField(session.application(), Vars.state.rules.waveTeam);
@@ -874,6 +932,21 @@ public final class UpstreamSinglePlayerSession {
                 throw new IllegalStateException("Enemy wave unit did not advance: wave=" + Vars.state.wave
                     + " y=" + enemyStartY + "->" + enemy.y());
             }
+            byte[] unitMap = UpstreamMinimap.sample(64);
+            int enemyCell = UpstreamMinimap.cellIndex(64, Vars.world.width(), Vars.world.height(),
+                enemy.tileX(), enemy.tileY());
+            int playerCell = UpstreamMinimap.playerIndex(64);
+            if (enemyCell < 0 || enemyCell == playerCell) {
+                throw new IllegalStateException("Enemy minimap cell is invalid");
+            }
+            var enemyColor = enemy.team.color;
+            int enemyOffset = enemyCell * 4;
+            if ((unitMap[enemyOffset] & 0xff) != Math.round(enemyColor.r * 255f)
+                    || (unitMap[enemyOffset + 1] & 0xff) != Math.round(enemyColor.g * 255f)
+                    || (unitMap[enemyOffset + 2] & 0xff) != Math.round(enemyColor.b * 255f)) {
+                throw new IllegalStateException("Enemy minimap blip color mismatch");
+            }
+            System.out.println("UPSTREAM_MINIMAP_UNITS enemy=1 ok");
 
             // 7. Save .msav, reset world, reload, and verify exact restored state.
             int preReloadCopper = session.core().items.get(Items.copper);

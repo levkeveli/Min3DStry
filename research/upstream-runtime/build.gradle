@@ -11,7 +11,11 @@ def revision = '19a0f40d44514f4802a8b79770456e7e32e34da0'
 def upstreamFile = 'core/src/mindustry/logic/LogicOp.java'
 def blockSource = 'core/src/mindustry/world/Block.java'
 def tileSource = 'core/src/mindustry/world/Tile.java'
+def tilesSource = 'core/src/mindustry/world/Tiles.java'
 def pathfinderSource = 'core/src/mindustry/ai/Pathfinder.java'
+def flowfieldSearchPatch = file('patches/stock-flowfield-search-storage.patch')
+def flowfieldCostPatch = file('patches/stock-flowfield-cost-grid.patch')
+def flowfieldCostSources = ['mindustry/ai/ControlPathfinder.java', 'mindustry/ai/BaseBuilderAI.java']
 def annotationsSource = 'annotations/src/main/java/mindustry/annotations/Annotations.java'
 def arcRevision = '7445105cd2683daf5b9ac7033ebb07265d3e814d'
 def fileSource = 'arc-core/src/arc/files/Fi.java'
@@ -82,6 +86,22 @@ if (!entryPoints.containsKey(probe)) {
 def entryPoint = entryPoints[probe]
 def usesMapSources = probe in ['map', 'map-sd']
 def usesSinglePlayerApp = probe in ['singleplayer', 'unified', 'campaign-background']
+def sparseTilePatch = file('patches/sparse-stock-tile-metadata.patch')
+def sparseTileSources = [
+    'mindustry/world/Tile.java',
+    'mindustry/world/Build.java',
+    'mindustry/world/Edges.java',
+    'mindustry/editor/EditorTile.java',
+    'mindustry/editor/DrawOperation.java',
+    'mindustry/editor/EditorTool.java',
+    'mindustry/editor/MapEditor.java',
+    'mindustry/editor/MapGenerateDialog.java',
+    'mindustry/io/MapIO.java',
+    'mindustry/io/SaveVersion.java',
+    'mindustry/io/versions/ShortChunkSaveVersion.java',
+    'mindustry/world/blocks/environment/ColoredFloor.java',
+    'mindustry/world/blocks/environment/ColoredWall.java'
+]
 def usesSinglePlayer = usesSinglePlayerApp || probe == 'singleplayer-sim'
 def usesLiveNetwork = probe in ['network-live', 'network-render', 'unified']
 def usesLiveAudio = probe in ['network-render', 'unified']
@@ -146,6 +166,7 @@ def sourceFile = sourceDir.map { it.file('mindustry/logic/LogicOp.java') }
 def mapFile = sourceDir.map { it.file('mindustry/maps/GlacierFixture.java') }
 def blockFile = sourceDir.map { it.file('mindustry/world/Block.java') }
 def tileFile = sourceDir.map { it.file('mindustry/world/Tile.java') }
+def tilesFile = sourceDir.map { it.file('mindustry/world/Tiles.java') }
 def pathfinderFile = sourceDir.map { it.file('mindustry/ai/Pathfinder.java') }
 def annotationsFile = sourceDir.map { it.file('mindustry/annotations/Annotations.java') }
 def arcFile = sourceDir.map { it.file('arc/files/Fi.java') }
@@ -184,14 +205,16 @@ def readUpstream = { path ->
 
 def renderedBuilding = layout.buildDirectory.dir('building-renderer-classes')
 def stageRenderedBuilding
+def tileAuditClasspath
 if (usesRenderedClient) {
     def asm = configurations.detachedConfiguration(dependencies.create('org.ow2.asm:asm-tree:9.9'))
     def adapter = tasks.register('compileBuildingCrackAdapter', JavaCompile) {
         source files('tools/StageBuildingCrackAdapter.java', 'tools/StageNavalWakeAdapter.java',
-                     'tools/StageObjectiveLabelAdapter.java', 'tools/StageCanvasAdapter.java')
+                     'tools/StageObjectiveLabelAdapter.java', 'tools/StageCanvasAdapter.java', 'tools/AuditTileFieldReferences.java')
         classpath = asm
         destinationDirectory = layout.buildDirectory.dir('building-renderer-tool')
     }
+    tileAuditClasspath = files(adapter.flatMap { it.destinationDirectory }) + asm
     stageRenderedBuilding = tasks.register('stageRenderedBuilding', JavaExec) {
         dependsOn adapter, 'prepareUpstreamProbe'
         classpath = files(adapter.flatMap { it.destinationDirectory }) + asm
@@ -204,11 +227,31 @@ if (usesRenderedClient) {
 
 if (usesArcSources || usesExecutor) {
     def stagedClasses = []
+    if (usesSinglePlayerApp) {
+        sparseTileSources.each { path ->
+            def type = path.substring(0, path.length() - '.java'.length())
+            stagedClasses.addAll([type + '.class', type + '$*.class'])
+        }
+    }
+    if (usesSinglePlayer) {
+        stagedClasses.add('arc/util/Interval.class')
+        stagedClasses.addAll(['mindustry/ai/Pathfinder.class', 'mindustry/ai/Pathfinder$*.class'])
+        flowfieldCostSources.each { path ->
+            def className = path.substring(0, path.length() - '.java'.length())
+            stagedClasses.addAll([className + '.class', className + '$*.class'])
+        }
+        stagedClasses.addAll(['mindustry/io/SaveIO.class', 'mindustry/io/SaveIO$*.class', 'mindustry/io/JsonIO.class', 'mindustry/io/JsonIO$*.class'])
+    }
     if (usesContentSources) {
         stagedClasses.add('mindustry/world/Block.class')
     }
     if (usesWorldSources) {
-        stagedClasses.addAll(['mindustry/world/Tile.class', 'mindustry/world/Tile$*.class'])
+        stagedClasses.addAll(['mindustry/world/Tile.class', 'mindustry/world/Tile$*.class',
+                              'mindustry/ai/BlockIndexer.class', 'mindustry/ai/BlockIndexer$*.class',
+                              'mindustry/game/Teams.class', 'mindustry/game/Teams$*.class',
+                              'mindustry/world/blocks/logic/LogicBlock.class', 'mindustry/world/blocks/logic/LogicBlock$*.class',
+                              'mindustry/io/SaveFileReader.class', 'mindustry/io/SaveFileReader$*.class',
+                              'mindustry/world/Tiles.class', 'mindustry/world/Tiles$*.class'])
     }
     if (usesArcSources) {
         stagedClasses.addAll(['arc/files/Fi.class', 'arc/files/Fi$*.class'])
@@ -288,6 +331,15 @@ if (usesArcSources || usesExecutor) {
         }
         destinationDirectory = layout.buildDirectory.dir("probe-dependencies/${probe}")
         archiveFileName = 'server-probe-dependencies.jar'
+    }
+    if (usesSinglePlayerApp) {
+        def audit = tasks.register('auditTileFieldReferences', JavaExec) {
+            dependsOn contentDependencies, 'compileBuildingCrackAdapter'
+            classpath = tileAuditClasspath
+            mainClass = 'AuditTileFieldReferences'
+            args contentDependencies.get().archiveFile.get().asFile.absolutePath
+        }
+        tasks.named('compileJava') { dependsOn audit }
     }
     dependencies { implementation files(contentDependencies.flatMap { it.archiveFile }).builtBy(contentDependencies) }
 } else {
@@ -380,6 +432,10 @@ if (usesSinglePlayer) {
             classpath = sourceSets.main.runtimeClasspath
             mainClass = 'UpstreamStockSavedPlayerReference'
         }
+        tasks.register('runStockPayloadLoopJvm', JavaExec) {
+            classpath = sourceSets.main.runtimeClasspath
+            mainClass = 'UpstreamStockPayloadLoopReference'
+        }
         tasks.register('runErekirHeatJvm', JavaExec) {
             classpath = sourceSets.main.runtimeClasspath
             mainClass = 'UpstreamErekirHeatReference'
@@ -408,6 +464,14 @@ if (usesSinglePlayer) {
         tasks.register('runGraphicalCampaignPresetMapsJvm', JavaExec) {
             classpath = sourceSets.main.runtimeClasspath
             mainClass = 'UpstreamCampaignLaunchReference'
+        }
+        tasks.register('runStockAtlasJvm', JavaExec) {
+            classpath = sourceSets.main.runtimeClasspath
+            mainClass = 'UpstreamStockAtlasReference'
+        }
+        tasks.register('runStockCampaignArchiveJvm', JavaExec) {
+            classpath = sourceSets.main.runtimeClasspath
+            mainClass = 'UpstreamStockCampaignArchiveReference'
         }
         tasks.register('runStockOrdersJvm', JavaExec) {
             classpath = sourceSets.main.runtimeClasspath
@@ -492,6 +556,7 @@ if (usesCampaignSavesLoad) {
     sourceSets.main.java.srcDir('src/campaign-saves-load/java')
 }
 dependencies {
+    if (usesSinglePlayer) implementation 'com.jcraft:jzlib:1.1.3'
     if (usesMapSources || usesLiveNetwork || usesTerrainRenderer) {
         implementation 'org.teavm:teavm-interop:0.16.0'
     }
@@ -519,7 +584,11 @@ tasks.register('prepareUpstreamProbe') {
         outputs.files(blockFile, annotationsFile)
     }
     if (usesWorldSources) {
-        outputs.file(tileFile)
+        outputs.files(tileFile, tilesFile)
+        outputs.file(sourceDir.map { it.file('mindustry/ai/BlockIndexer.java') })
+        outputs.file(sourceDir.map { it.file('mindustry/game/Teams.java') })
+        outputs.file(sourceDir.map { it.file('mindustry/io/SaveFileReader.java') })
+        outputs.file(sourceDir.map { it.file('mindustry/world/blocks/logic/LogicBlock.java') })
     }
     if (usesArcSources || usesExecutor) {
         inputs.property('arcRevision', arcRevision)
@@ -536,10 +605,8 @@ tasks.register('prepareUpstreamProbe') {
         outputs.file(arcPixmapFile)
     }
     if (usesSinglePlayerApp) {
-        outputs.files(sourceDir.map { dir ->
-            ['mindustry/editor/MapEditor.java', 'mindustry/editor/EditorTile.java']
-                .collect { dir.file(it) }
-        })
+        inputs.file(sparseTilePatch)
+        outputs.files(sourceDir.map { dir -> sparseTileSources.collect { dir.file(it) } })
     }
     if (usesWorldStream) {
         outputs.file(networkIoFile)
@@ -557,8 +624,16 @@ tasks.register('prepareUpstreamProbe') {
         })
     }
     if (usesSinglePlayer) {
+        outputs.file(sourceDir.map { it.file('arc/util/Interval.java') })
         inputs.file('src/gameplay/java/port/FactoryResources.java')
-        outputs.files(factoryResourcesFile, saveVersionFile)
+        inputs.file(flowfieldSearchPatch)
+        inputs.file(flowfieldCostPatch)
+        flowfieldCostSources.each { path -> outputs.file(sourceDir.map { it.file(path) }) }
+        outputs.file(factoryResourcesFile)
+        outputs.file(pathfinderFile)
+        outputs.file(sourceDir.map { it.file('mindustry/io/SaveIO.java') })
+        outputs.file(sourceDir.map { it.file('mindustry/io/JsonIO.java') })
+        outputs.file(saveVersionFile)
     }
     if (patchesPlanetGrid) {
         outputs.file(planetGridFile)
@@ -583,16 +658,27 @@ tasks.register('prepareUpstreamProbe') {
     }
     doLast {
         if (usesSinglePlayerApp) {
-            def directory = sourceDir.get().dir('mindustry/editor').asFile
-            directory.mkdirs()
-            new File(directory, 'MapEditor.java').setText(
-                new String(readUpstream('core/src/mindustry/editor/MapEditor.java'), 'UTF-8'), 'UTF-8')
-            def editorTile = new String(readUpstream('core/src/mindustry/editor/EditorTile.java'), 'UTF-8')
+            sparseTileSources.each { path ->
+                def staged = sourceDir.get().file(path).asFile
+                staged.parentFile.mkdirs()
+                staged.bytes = readUpstream('core/src/' + path)
+            }
+            def stageRoot = sourceDir.get().asFile
+            providers.exec {
+                // Keep Git from interpreting generated paths relative to the checkout root.
+                environment 'GIT_CEILING_DIRECTORIES', stageRoot.parentFile.absolutePath
+                commandLine 'git', '-C', stageRoot, '-c', 'core.autocrlf=false', 'apply', '--no-index', sparseTilePatch
+            }.result.get()
+            if (!tileFile.get().asFile.getText('UTF-8').contains('public int extraData()')) {
+                throw new GradleException('Compact stock tile patch did not apply to the staged source')
+            }
+            def stagedEditorTile = sourceDir.get().file('mindustry/editor/EditorTile.java').asFile
+            def editorTile = stagedEditorTile.getText('UTF-8')
             def shadowUpdate = 'renderer.blocks.updateShadowTile(this);'
             if (editorTile.count(shadowUpdate) != 1) {
                 throw new GradleException('Pinned editor shadow update changed')
             }
-            new File(directory, 'EditorTile.java').setText(
+            stagedEditorTile.setText(
                 editorTile.replace(shadowUpdate, 'if(renderer != null) renderer.blocks.updateShadowTile(this);'),
                 'UTF-8')
         }
@@ -737,6 +823,23 @@ tasks.register('prepareUpstreamProbe') {
                 if(musicControl == null) return;
 
             //null music = stop''').replace(musicDispatch, 'musicControl.playMusic(music, interrupt.bool());')
+            }
+            if (usesSinglePlayer) {
+                def bindingArray = '''if(exec.binds == null || exec.binds.length != content.units().size){
+                exec.binds = new int[content.units().size];
+            }'''
+                def bindNext = '''if(seq != null && seq.any()){
+                    exec.binds[type.id] %= seq.size;'''
+                if (executor.count(bindingArray) != 1 || executor.count(bindNext) != 1) {
+                    throw new GradleException('Pinned logic unit-binding cursor changed')
+                }
+                executor = executor
+                    .replace(bindingArray, '''if(exec.binds != null && exec.binds.length != content.units().size){
+                exec.binds = null;
+            }''')
+                    .replace(bindNext, '''if(seq != null && seq.any()){
+                    if(exec.binds == null) exec.binds = new int[content.units().size];
+                    exec.binds[type.id] %= seq.size;''')
             }
             def headless = 'Vars.headless || exec.graphicsBuffer.size >= maxGraphicsBuffer'
             if (executor.count(headless) != 1) throw new GradleException('Pinned graphics instruction guard changed')
@@ -911,7 +1014,7 @@ final class GlacierFixture {
             }
             if (usesWorldSources) {
                 def newBuilding = '    public final Building newBuilding(){'
-                def tile = new String(readUpstream(tileSource), 'UTF-8')
+                def tile = usesSinglePlayerApp ? tileFile.get().asFile.getText('UTF-8') : new String(readUpstream(tileSource), 'UTF-8')
                 if (block.count(newBuilding) != 1 || tile.count('wall::newBuilding') != 1
                         || tile.count('type::newBuilding') != 1) {
                     throw new GradleException('Pinned Tile building factory calls changed')
@@ -922,6 +1025,282 @@ final class GlacierFixture {
                 tileFile.get().asFile.parentFile.mkdirs()
                 tileFile.get().asFile.setText(tile.replace('wall::newBuilding', 'wall.buildingProvider')
                     .replace('type::newBuilding', 'type.buildingProvider'), 'UTF-8')
+
+                // The original effect entities and their lifecycle keep using these tile-index methods.
+                def tiles = new String(readUpstream(tilesSource), 'UTF-8')
+                def tileEffects = [
+                    'import arc.math.geom.*;': 'import arc.math.geom.*;\nimport arc.struct.IntMap;',
+                    'final Puddle[] puddles;': 'private final IntMap<Puddle> puddles = new IntMap<>();',
+                    'final Fire[] fires;': 'private final IntMap<Fire> fires = new IntMap<>();',
+                    '        this.puddles = new Puddle[width * height];\n': '',
+                    '        this.fires = new Fire[width * height];\n': '',
+                    '    public Puddle getPuddle(int pos){': '''    private void checkEffectPosition(int pos){
+        if(pos < 0 || pos >= array.length) throw new ArrayIndexOutOfBoundsException(pos);
+    }
+
+    public Puddle getPuddle(int pos){''',
+                    'return puddles[pos];': 'checkEffectPosition(pos);\n        return puddles.get(pos);',
+                    'puddles[pos] = p;': '''checkEffectPosition(pos);
+        if(p == null) puddles.remove(pos);
+        else puddles.put(pos, p);''',
+                    'return fires[pos];': 'checkEffectPosition(pos);\n        return fires.get(pos);',
+                    'fires[pos] = f;': '''checkEffectPosition(pos);
+        if(f == null) fires.remove(pos);
+        else fires.put(pos, f);'''
+                ]
+                tileEffects.each { before, after ->
+                    if (tiles.count(before) != 1) {
+                        throw new GradleException("Pinned tile effect storage hook changed: ${before}")
+                    }
+                    tiles = tiles.replace(before, after)
+                }
+                tilesFile.get().asFile.setText(tiles, 'UTF-8')
+
+                def indexerPath = 'mindustry/ai/BlockIndexer.java'
+                def indexer = new String(readUpstream('core/src/' + indexerPath), 'UTF-8')
+                def oreStorage = 'private IntSeq[][][] ores, wallOres;'
+                def oreRead = 'world.tile(arr.first())'
+                def oreLookup = '''                for(int qy = 0; qy < quadHeight; qy++){
+                    var arr = %s[item.id][qx][qy];
+                    if(arr != null && arr.size > 0){
+                        Tile tile = world.tile(arr.first());'''
+                def tilePosition = '''public int pos(){
+        return Point2.pack(x, y);
+    }'''
+                def tileSourceText = new String(readUpstream(tileSource), 'UTF-8')
+                if (indexer.count(oreLookup.formatted('ores')) != 1 ||
+                    indexer.count(oreLookup.formatted('wallOres')) != 1 ||
+                    tileSourceText.count(tilePosition) != 1) {
+                    throw new GradleException('Pinned ore traversal or tile-position packing changed')
+                }
+                def oreAllocations = [
+                'new IntSeq[content.items().size][][]': 2,
+                'new IntSeq[quadWidth][quadHeight]': 4,
+                'new IntSeq(false, 16)': 4
+            ]
+                if (indexer.count(oreStorage) != 1 || indexer.count(oreRead) != 2 ||
+                    oreAllocations.any { pattern, count -> indexer.count(pattern) != count }) {
+                    throw new GradleException('Pinned ore quadrant index changed')
+            }
+                def compactOreList = '''private OrePositions[][][] ores, wallOres;
+
+    // All entries share a 20 by 20 quadrant. Preserve original append and swap removal order.
+    private static final class OrePositions{
+        private static final int chunkSize = 64;
+
+        private static final class Chunk{
+            short[] offsets;
+            Chunk next;
+
+            Chunk(int capacity){
+                offsets = new short[capacity];
+            }
+        }
+
+        private Chunk first, last;
+        int size;
+
+        private short offset(int pos){
+            return (short)((Point2.y(pos) % quadrantSize) * quadrantSize + Point2.x(pos) % quadrantSize);
+        }
+
+        int first(){
+            return first.offsets[0];
+        }
+
+        void add(int pos){
+            int index = size % chunkSize;
+            if(index == 0){
+                Chunk next = new Chunk(size == 0 ? 8 : chunkSize);
+                if(last == null) first = next;
+                else last.next = next;
+                last = next;
+            }else if(index == last.offsets.length){
+                last.offsets = java.util.Arrays.copyOf(last.offsets, index * 2);
+            }
+            last.offsets[index] = offset(pos);
+            size++;
+        }
+
+        boolean addUnique(int pos){
+            int left = size;
+            short entry = offset(pos);
+            for(Chunk chunk = first; chunk != null; chunk = chunk.next){
+                int count = Math.min(left, chunkSize);
+                for(int index = 0; index < count; index++){
+                    if(chunk.offsets[index] == entry) return false;
+                }
+                left -= count;
+            }
+            add(pos);
+            return true;
+        }
+
+        boolean removeValue(int pos){
+            int left = size;
+            short entry = offset(pos);
+            for(Chunk chunk = first; chunk != null; chunk = chunk.next){
+                int count = Math.min(left, chunkSize);
+                for(int index = 0; index < count; index++){
+                    if(chunk.offsets[index] != entry) continue;
+                    int tail = --size % chunkSize;
+                    chunk.offsets[index] = last.offsets[tail];
+                    if(tail == 0){
+                        if(last == first){
+                            first = last = null;
+                        }else{
+                            Chunk previous = first;
+                            while(previous.next != last) previous = previous.next;
+                            previous.next = null;
+                            last = previous;
+                        }
+                    }
+                    return true;
+                }
+                left -= count;
+            }
+            return false;
+        }
+    }'''
+                indexer = indexer.replace(oreStorage, compactOreList)
+                    .replace(oreRead, 'world.tile(qx * quadrantSize + arr.first() % quadrantSize, qy * quadrantSize + arr.first() / quadrantSize)')
+                    .replace('new IntSeq[content.items().size][][]', 'new OrePositions[content.items().size][][]')
+                    .replace('new IntSeq[quadWidth][quadHeight]', 'new OrePositions[quadWidth][quadHeight]')
+                    .replace('new IntSeq(false, 16)', 'new OrePositions()')
+                def unusedCapacity = 'flagMap[i][j] = new Seq();'
+                if (indexer.count(unusedCapacity) != 1) throw new GradleException('Pinned block flag storage changed')
+                def stagedIndexer = sourceDir.get().file(indexerPath).asFile
+                stagedIndexer.parentFile.mkdirs()
+                def worldTeamLookup = 'for(Team team : Team.all){\n                var data = state.teams.get(team);'
+                def prebuild = 'if(team.rules().prebuildAi && data.hasCore())'
+                if (indexer.count(worldTeamLookup) != 2 || indexer.count(prebuild) != 1) {
+                    throw new GradleException('Pinned world-load team index hooks changed')
+                }
+                stagedIndexer.setText(indexer.replace(unusedCapacity, 'flagMap[i][j] = new Seq<>(0);')
+                    .replace(worldTeamLookup, worldTeamLookup.replace('.get(team)', '.getOrNull(team)'))
+                    .replace(prebuild, 'if(team.rules().prebuildAi && data != null && data.hasCore())'), 'UTF-8')
+
+                def teamsPath = 'mindustry/game/Teams.java'
+                def teams = new String(readUpstream('core/src/' + teamsPath), 'UTF-8')
+                def statsLookup = 'for(Team team : Team.all){\n            TeamData data = team.data();'
+                if (teams.count(statsLookup) != 2) throw new GradleException('Pinned team stats loops changed')
+                def stagedTeams = sourceDir.get().file(teamsPath).asFile
+                stagedTeams.parentFile.mkdirs()
+                stagedTeams.setText(teams.replace(statsLookup, '''for(Team team : Team.all){
+            TeamData data = getOrNull(team);
+            if(data == null){
+                if(!state.rules.waves || team != state.rules.waveTeam) continue;
+                data = get(team);
+            }'''), 'UTF-8')
+
+                def logicBlockPath = 'mindustry/world/blocks/logic/LogicBlock.java'
+                def logicBlock = new String(readUpstream('core/src/' + logicBlockPath), 'UTF-8')
+                def writeProgram = '            stream.write(bytes);'
+                if (logicBlock.count(writeProgram) != 1) throw new GradleException('Pinned logic program write changed')
+                def stagedLogicBlock = sourceDir.get().file(logicBlockPath).asFile
+                stagedLogicBlock.parentFile.mkdirs()
+                // TeaVM's deflater rejects an empty write. The stock payload length still records zero.
+                stagedLogicBlock.setText(logicBlock.replace(writeProgram,
+                    '            if(bytes.length > 0) stream.write(bytes);'), 'UTF-8')
+
+                def saveReaderPath = 'mindustry/io/SaveFileReader.java'
+                def saveReader = new String(readUpstream('core/src/' + saveReaderPath), 'UTF-8')
+                def streams = 'protected static final ReusableByteOutStream byteOutput = new ReusableByteOutStream(), byteOutput2 = new ReusableByteOutStream();'
+                def selectStream = 'ReusableByteOutStream dout = wasNested ? byteOutput2 : byteOutput;'
+                def writeData = 'output.write(dout.getBytes(), 0, length);'
+                def resetNesting = '            chunkNested = wasNested;'
+                if ([streams, selectStream, writeData, resetNesting].any { saveReader.count(it) != 1 }) {
+                    throw new GradleException('Pinned SaveFileReader write buffering changed')
+                }
+                def segmented = '''protected static final ChunkBuffer byteOutput = new ChunkBuffer(), byteOutput2 = new ChunkBuffer();
+
+    // Preserve the stock length prefix without requiring one map-sized allocation.
+    protected static final class ChunkBuffer extends OutputStream{
+        private static final int capacity = 4096;
+        private final Chunk first = new Chunk();
+        private Chunk tail = first;
+        private int size;
+
+        private static final class Chunk{
+            final byte[] bytes = new byte[capacity];
+            int count;
+            Chunk next;
+        }
+
+        private void ensureSpace(){
+            if(tail.count == capacity){
+                tail.next = new Chunk();
+                tail = tail.next;
+            }
+        }
+
+        @Override
+        public void write(int value){
+            ensureSpace();
+            tail.bytes[tail.count++] = (byte)value;
+            size++;
+        }
+
+        @Override
+        public void write(byte[] bytes, int offset, int length){
+            while(length > 0){
+                ensureSpace();
+                int count = Math.min(length, capacity - tail.count);
+                System.arraycopy(bytes, offset, tail.bytes, tail.count, count);
+                tail.count += count;
+                offset += count;
+                length -= count;
+                size += count;
+            }
+        }
+
+        int size(){
+            return size;
+        }
+
+        void writeTo(DataOutput output) throws IOException{
+            for(Chunk chunk = first; chunk != null; chunk = chunk.next){
+                if(chunk.count != 0) output.write(chunk.bytes, 0, chunk.count);
+            }
+        }
+
+        void reset(){
+            first.count = 0;
+            first.next = null;
+            tail = first;
+            size = 0;
+        }
+    }'''
+                def stagedSaveReader = sourceDir.get().file(saveReaderPath).asFile
+                stagedSaveReader.parentFile.mkdirs()
+                stagedSaveReader.setText(saveReader.replace(streams, segmented)
+                    .replace(selectStream, 'ChunkBuffer dout = wasNested ? byteOutput2 : byteOutput;')
+                    .replace(writeData, 'dout.writeTo(output);')
+                    .replace(resetNesting, '            dout.reset();\n' + resetNesting), 'UTF-8')
+            }
+            if (usesRenderedClient) {
+                def tableField = '    public TextureRegion[] teamRegions, variantRegions, variantShadowRegions;'
+                def loadTeamRegions = '''        teamRegions = new TextureRegion[Team.all.length];
+        for(Team team : Team.all){
+            teamRegions[team.id] = teamRegion.found() && team.hasPalette ? Core.atlas.find(name + "-team-" + team.name, teamRegion) : teamRegion;
+        }'''
+                if (block.count(tableField) != 1 || block.count(loadTeamRegions) != 1) {
+                    throw new GradleException('Pinned stock block team atlas table changed')
+                }
+                block = block.replace(tableField, tableField + '\n    private static TextureRegion[] missingTeamRegions;')
+                    .replace(loadTeamRegions, '''        if(!teamRegion.found()){
+            // The stock entries are identical when the atlas has no team sprite.
+            if(missingTeamRegions == null || missingTeamRegions[0] != teamRegion){
+                missingTeamRegions = new TextureRegion[Team.all.length];
+                java.util.Arrays.fill(missingTeamRegions, teamRegion);
+            }
+            teamRegions = missingTeamRegions;
+        }else{
+            teamRegions = new TextureRegion[Team.all.length];
+            for(Team team : Team.all){
+                teamRegions[team.id] = team.hasPalette ? Core.atlas.find(name + "-team-" + team.name, teamRegion) : teamRegion;
+            }
+        }''')
             }
             def adaptedBlock = blockFile.get().asFile
             adaptedBlock.parentFile.mkdirs()
@@ -1021,18 +1400,20 @@ final class GlacierFixture {
             adaptedGrid.setText(grid.replace(create, 'public static PlanetGrid create(int size){'), 'UTF-8')
         }
         if (usesLiveNetwork) {
-            def pathfinder = new String(readUpstream(pathfinderSource), 'UTF-8')
-            def allocateGrid = 'tiles = new int[world.width() * world.height()];'
-            def getTile = '        return tiles[x + y * wwidth];'
-            if (pathfinder.count(allocateGrid) != 1 || pathfinder.count(getTile) != 1) {
-                throw new GradleException('Pinned Pathfinder grid access changed')
+            if (!usesSinglePlayer) {
+                def pathfinder = new String(readUpstream(pathfinderSource), 'UTF-8')
+                def allocateGrid = 'tiles = new int[world.width() * world.height()];'
+                def getTile = '        return tiles[x + y * wwidth];'
+                if (pathfinder.count(allocateGrid) != 1 || pathfinder.count(getTile) != 1) {
+                    throw new GradleException('Pinned Pathfinder grid access changed')
+                }
+                // The remote client never starts the flowfield thread. Keep the same tile-cost packer.
+                def adaptedPathfinder = pathfinderFile.get().asFile
+                adaptedPathfinder.parentFile.mkdirs()
+                adaptedPathfinder.setText(pathfinder
+                    .replace(allocateGrid, 'tiles = new int[net.client() ? 0 : world.width() * world.height()];')
+                    .replace(getTile, '        return net.client() ? packTile(world.tile(x, y)) : tiles[x + y * wwidth];'), 'UTF-8')
             }
-            // The remote client never starts the flowfield thread. Keep the same tile-cost packer.
-            def adaptedPathfinder = pathfinderFile.get().asFile
-            adaptedPathfinder.parentFile.mkdirs()
-            adaptedPathfinder.setText(pathfinder
-                .replace(allocateGrid, 'tiles = new int[net.client() ? 0 : world.width() * world.height()];')
-                .replace(getTile, '        return net.client() ? packTile(world.tile(x, y)) : tiles[x + y * wwidth];'), 'UTF-8')
             def source = new String(readUpstream(netClientSource), 'UTF-8')
             if (usesLiveAudio) {
                 def soundGuard = 'if(sound == null || headless) return;'
@@ -1147,7 +1528,8 @@ final class UpstreamItemChoices {
             var music = musicController != null ? musicController.getCurrent() : null;"""), 'UTF-8')
         }
         if (usesSinglePlayer) {
-            def writer = new String(readUpstream(saveVersionSource), 'UTF-8')
+            def writer = usesSinglePlayerApp ? saveVersionFile.get().asFile.getText('UTF-8') :
+                new String(readUpstream(saveVersionSource), 'UTF-8')
             def playtime = '"playtime", headless ? 0 : control.saves.getTotalPlaytime(),'
             def groups = '"controlGroups", headless || control == null ? "null" : JsonIO.write(control.input.controlGroups),'
             def controlled = '"controlledType", headless || control.input.controlledType == null ? "null" : control.input.controlledType.name,'
@@ -1161,6 +1543,128 @@ final class UpstreamItemChoices {
                 .replace(groups, '"controlGroups", headless || control == null ? (tags == null ? "null" : tags.get("controlGroups", "null")) : JsonIO.write(control.input.controlGroups),')
                 .replace(controlled, '"controlledType", headless ? (tags == null ? "null" : tags.get("controlledType", "null")) : (control.input.controlledType == null ? "null" : control.input.controlledType.name),'),
                 'UTF-8')
+            def stagedPathfinder = pathfinderFile.get().asFile
+            stagedPathfinder.parentFile.mkdirs()
+            stagedPathfinder.bytes = readUpstream(pathfinderSource)
+            def stageRoot = sourceDir.get().asFile
+            providers.exec {
+                environment 'GIT_CEILING_DIRECTORIES', stageRoot.parentFile.absolutePath
+                commandLine 'git', '-C', stageRoot, '-c', 'core.autocrlf=false', 'apply', '--no-index', flowfieldSearchPatch
+            }.result.get()
+            if (!stagedPathfinder.getText('UTF-8').contains('class FlowFrontier')) {
+                throw new GradleException('Stock flowfield search patch did not apply to the staged source')
+            }
+
+            flowfieldCostSources.each { path ->
+                def destination = new File(stageRoot, path)
+                destination.parentFile.mkdirs()
+                destination.bytes = readUpstream('core/src/' + path)
+            }
+            providers.exec {
+                environment 'GIT_CEILING_DIRECTORIES', stageRoot.parentFile.absolutePath
+                commandLine 'git', '-C', stageRoot, '-c', 'core.autocrlf=false', 'apply', '--no-index', flowfieldCostPatch
+            }.result.get()
+            if (!stagedPathfinder.getText('UTF-8').contains('class CostGrid')) {
+                throw new GradleException('Stock flowfield cost patch did not apply to the staged sources')
+            }
+
+            def pathfinder = stagedPathfinder.getText('UTF-8')
+            def cacheField = 'Flowfield[][][] cache;'
+            def cacheInit = 'cache = new Flowfield[256][maxCosts][maxFields];'
+            def cacheLookup = '        if(cache[team.id][costType][fieldType] == null){'
+            def cacheWrite = '            cache[team.id][costType][fieldType] = field;'
+            def cacheReturn = '        return cache[team.id][costType][fieldType];'
+            if ([cacheField, cacheInit, cacheLookup, cacheWrite, cacheReturn].any { pathfinder.count(it) != 1 }) {
+                throw new GradleException('Pinned pathfinder cache changed')
+            }
+            stagedPathfinder.setText(pathfinder
+                .replace(cacheField, 'IntMap<Flowfield> cache;')
+                .replace(cacheInit, 'cache = new IntMap<>(4);')
+                .replace(cacheLookup, '''        if(team.id < 0 || team.id >= 256 || costType < 0 || costType >= maxCosts
+                || fieldType < 0 || fieldType >= maxFields) throw new ArrayIndexOutOfBoundsException();
+        int key = (team.id * maxCosts + costType) * maxFields + fieldType;
+        Flowfield cached = cache.get(key);
+        if(cached == null){''')
+                .replace(cacheWrite, '            cache.put(key, field);\n            cached = field;')
+                .replace(cacheReturn, '        return cached;'), 'UTF-8')
+
+            def intervalPath = 'arc/util/Interval.java'
+            def timer = providers.exec {
+                commandLine 'git', '-C', arc.get(), 'show', "${arcRevision}:arc-core/src/${intervalPath}"
+            }.standardOutput.asText.get()
+            def inlineTimer = [
+                '    float[] times;': '''    float[] times;
+    private float timeZero;''',
+                '        times = new float[capacity];': '        if(capacity != 1) times = new float[capacity];',
+                '        if(id >= times.length) throw': '        int capacity = times == null ? 1 : times.length;\n        if(id >= capacity) throw',
+                '" + times.length + "!");': '" + capacity + "!");',
+                'if(got) times[id] = Time.time;': 'if(got) setTime(id, Time.time);',
+                '        return Time.time - times[id] >= time || Time.time < times[id];': '''        float previous = storedTime(id);
+        return Time.time - previous >= time || Time.time < previous;''',
+                '        times[id] = Time.time - time;': '        setTime(id, Time.time - time);',
+                '        Arrays.fill(times, 0);': '''        if(times == null) timeZero = 0;
+        else Arrays.fill(times, 0);''',
+                '        return Time.time - times[id];': '        return Time.time - storedTime(id);',
+                '        return times;': '''        if(times == null) times = new float[]{timeZero};
+        return times;''',
+                '    public float[] getTimes(){': '''    private float storedTime(int id){
+        if(times != null) return times[id];
+        if(id != 0) throw new ArrayIndexOutOfBoundsException(id);
+        return timeZero;
+    }
+
+    private void setTime(int id, float value){
+        if(times != null){
+            times[id] = value;
+        }else{
+            if(id != 0) throw new ArrayIndexOutOfBoundsException(id);
+            timeZero = value;
+        }
+    }
+
+    public float[] getTimes(){'''
+            ]
+            inlineTimer.each { before, after ->
+                if(timer.count(before) != 1) throw new GradleException("Pinned Interval source changed: ${before}")
+                timer = timer.replace(before, after)
+            }
+            def stagedInterval = sourceDir.get().file(intervalPath).asFile
+            stagedInterval.parentFile.mkdirs()
+            stagedInterval.setText(timer, 'UTF-8')
+            def jsonIoPath = 'mindustry/io/JsonIO.java'
+            def jsonIo = new String(readUpstream('core/src/' + jsonIoPath), 'UTF-8')
+            def legacyNames = 'string.replace("io.anuke.", "")'
+            if (jsonIo.count(legacyNames) != 2) {
+                throw new GradleException('Pinned JSON legacy prefix handling changed')
+            }
+            def stagedJsonIo = sourceDir.get().file(jsonIoPath).asFile
+            stagedJsonIo.parentFile.mkdirs()
+            stagedJsonIo.setText(jsonIo.replace(legacyNames,
+                '(string.indexOf("io.anuke.") < 0 ? string : string.replace("io.anuke.", ""))'), 'UTF-8')
+            def saveIoPath = 'mindustry/io/SaveIO.java'
+            def saveIo = new String(readUpstream('core/src/' + saveIoPath), 'UTF-8')
+            def compress = '''    public static void write(Fi file, SaveOptions options){
+        write(new FastDeflaterOutputStream(file.write(false, bufferSize)), options);
+    }'''
+            if (saveIo.count(compress) != 1) throw new GradleException('Pinned save file writer changed')
+            def boundedCompression = '''    public static void write(Fi file, SaveOptions options){
+        try(var raw = file.write(false, bufferSize)){
+            write(new SaveDeflaterStream(raw), options);
+        }catch(IOException failure){
+            throw new RuntimeException(failure);
+        }
+    }
+
+    // Zlib framing stays stock. A smaller window and hash table fit a fragmented heap.
+    private static final class SaveDeflaterStream extends com.jcraft.jzlib.DeflaterOutputStream{
+        SaveDeflaterStream(OutputStream out) throws IOException{
+            super(out, new com.jcraft.jzlib.Deflater(6, 12, 4), 4096, false);
+            mydeflater = true;
+        }
+    }'''
+            def stagedSaveIo = sourceDir.get().file(saveIoPath).asFile
+            stagedSaveIo.parentFile.mkdirs()
+            stagedSaveIo.setText(saveIo.replace(compress, boundedCompression), 'UTF-8')
             def copiedFactoryResources = factoryResourcesFile.get().asFile
             copiedFactoryResources.parentFile.mkdirs()
             copiedFactoryResources.setText(file('src/gameplay/java/port/FactoryResources.java').getText('UTF-8'), 'UTF-8')

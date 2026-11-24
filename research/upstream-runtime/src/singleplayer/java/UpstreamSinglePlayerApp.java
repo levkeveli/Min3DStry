@@ -29,6 +29,7 @@ import mindustry.core.UI;
 import mindustry.core.World;
 import mindustry.entities.bullet.BulletType;
 import mindustry.game.EventType.BlockBuildEndEvent;
+import mindustry.game.EventType.Trigger;
 import mindustry.game.EventType.WaveEvent;
 import mindustry.game.Gamemode;
 import mindustry.graphics.Layer;
@@ -63,7 +64,7 @@ public final class UpstreamSinglePlayerApp {
     private final AudioHooks audio;
     private final UpstreamTerrainRenderProbe target = new UpstreamTerrainRenderProbe(false);
     private final UpstreamBuildingLayers buildingLayers = new UpstreamBuildingLayers();
-    private UpstreamLiveBuildControls buildingControls = new UpstreamLiveBuildControls();
+    private UpstreamLiveBuildControls buildingControls = createBuildControls();
     private final UpstreamWeatherLayers weatherLayers = new UpstreamWeatherLayers();
     private final Runnable drawWeatherUnder = weatherLayers::drawUnder;
     private final Runnable drawEntities = this::drawEntities;
@@ -94,6 +95,13 @@ public final class UpstreamSinglePlayerApp {
     private byte[] lastMenu;
     private Block lastPrimaryShortcut;
     private List<UpstreamObjectiveHud.Row> lastStatus;
+    private int lastCoreItemCount = -1;
+    private int lastCoreItemDrawn = -1;
+    private final UpstreamCoreItems.Tracker coreItemTracker = new UpstreamCoreItems.Tracker();
+    private final UpstreamPauseMenu pauseMenu = new UpstreamPauseMenu();
+    private boolean pauseOpen;
+    private int pauseAxis;
+    private Fi sourceMap;
     private byte[][] statusLabels = new byte[0][];
     private int[][] statusCharacters = new int[0][];
     private List<UpstreamObjectiveHud.Row> lastObjectives;
@@ -134,6 +142,7 @@ public final class UpstreamSinglePlayerApp {
         boolean campaignRequested = args.length == 0 && bootInput >= 0
             && (bootInput & UpstreamSinglePlayerInput.CAMPAIGN_HELD) != 0 && !customRequested;
         Fi mapFile = !editorRequested && args.length >= 1 ? new Fi(args[0]) : firstExisting("/romfs/maps/groundZero.msav", "/3ds/min3dstry/groundZero.msav");
+        sourceMap = mapFile;
         Fi saveFile = !editorRequested && args.length >= 2 ? new Fi(args[1]) : new Fi("/3ds/min3dstry/singleplayer-save.msav");
         Fi atlas = firstExisting("/romfs/sprites.aatls", "/3ds/min3dstry/sprites.aatls");
         Fi mapDir = saveFile.parent() != null ? saveFile.parent() : new Fi("/3ds/min3dstry");
@@ -142,6 +151,7 @@ public final class UpstreamSinglePlayerApp {
         String requested = requestedLocale(preference, settings);
 
         Core.bundle = UpstreamInterfaceLocale.loadForStockClient(new Fi("/romfs/bundles/bundle"), language, requested);
+        UI.loadColors();
         var locale = Core.bundle.getLocale();
         String bundleTag = locale.getLanguage().isEmpty() ? "en" : locale.toString();
         System.out.println("UPSTREAM_INTERFACE_LOCALE system=" + language + " bundle=" + bundleTag
@@ -156,6 +166,8 @@ public final class UpstreamSinglePlayerApp {
             String warning = UpstreamGuardianWarning.find(Vars.state.rules, Vars.state.wave);
             if (warning != null) UpstreamNotification.show(warning, 5f);
         });
+        Events.run(Trigger.teamCoreDamage, () ->
+            UpstreamNotification.show(Core.bundle.get("coreattack"), 4f));
         try {
             if (editorRequested) {
                 var source = args.length >= 2 ? new Fi(args[1]) : mapDir.child("editor-map.msav");
@@ -320,8 +332,17 @@ public final class UpstreamSinglePlayerApp {
         return campaignSlot;
     }
 
+    private static UpstreamLiveBuildControls createBuildControls() {
+        var controls = new UpstreamLiveBuildControls();
+        controls.schematics().nameCapturesWith(UpstreamTerrainRenderProbe::readSchematicName,
+            UpstreamTerrainRenderProbe::confirmSchematicReplacement);
+        controls.schematics().editWith(UpstreamTerrainRenderProbe::editSchematicName,
+            UpstreamTerrainRenderProbe::editSchematicDescription);
+        return controls;
+    }
+
     private void resetWorldInput() {
-        buildingControls = new UpstreamLiveBuildControls();
+        buildingControls = createBuildControls();
         controlled = null;
         moving = false;
         inputDevice = null;
@@ -329,6 +350,9 @@ public final class UpstreamSinglePlayerApp {
         lastMenu = null;
         lastStatus = null;
         lastObjectives = null;
+        lastCoreItemCount = -1;
+        lastCoreItemDrawn = -1;
+        coreItemTracker.reset();
         reportedEnemies.clear();
         loadedUnitGraphics.clear();
         loadedBulletGraphics.clear();
@@ -772,6 +796,7 @@ public final class UpstreamSinglePlayerApp {
     private boolean runMainLoop(Fi saveFile) throws IOException {
         var unit = session.ensurePlayerSpawn();
         var core = session.core();
+        UpstreamHudFixture.apply();
         lastCopper = core == null ? 0 : core.items.get(Items.copper);
         if (unit != null) {
             System.out.println("UPSTREAM_SP_READY unit=" + unit.id() + " x=" + unit.x() + " y=" + unit.y()
@@ -801,45 +826,90 @@ public final class UpstreamSinglePlayerApp {
                 continue;
             }
 
-            moveInput.set((byte)input / 127f, (byte)(input >>> 8) / 127f);
-            if (moveInput.len2() < DEAD_ZONE * DEAD_ZONE) {
+            int axis = (byte)(input >> 8);
+            int direction = axis > 60 && pauseAxis <= 20 ? -1 : axis < -60 && pauseAxis >= -20 ? 1 : 0;
+            pauseAxis = axis;
+            if (pauseOpen) {
+                if (direction != 0) pauseMenu.move(direction);
+                if ((input & UpstreamSinglePlayerInput.A_PRESSED) != 0) {
+                    var action = pauseMenu.activate();
+                    if (action == UpstreamPauseMenu.Action.RESUME) {
+                        closePauseMenu();
+                    } else if (action == UpstreamPauseMenu.Action.LOAD) {
+                        closePauseMenu();
+                        var loadSector = Vars.state.rules.sector;
+                        session.start(sourceMap, saveFile, campaignSlot == null ? null : "campaign", loadSector);
+                        resetWorldInput();
+                        weatherLayers.reset();
+                        reportWeather();
+                        uploadMinimap();
+                        previousTime = System.nanoTime();
+                        accumulator = 0L;
+                        System.out.println("UPSTREAM_PAUSE_MENU load=true");
+                        continue;
+                    } else if (action == UpstreamPauseMenu.Action.RESEARCH) {
+                        closePauseMenu();
+                        var researchSector = Vars.state.rules.sector;
+                        if (researchSector == null || researchSector.planet == null
+                                || researchSector.planet.techTree == null
+                                || !openResearch(researchSector.planet.techTree, saveFile)) return false;
+                        previousTime = System.nanoTime();
+                        accumulator = 0L;
+                        continue;
+                    } else if (action == UpstreamPauseMenu.Action.SAVE) {
+                        session.save(saveFile);
+                        System.out.println("UPSTREAM_PAUSE_MENU save=true");
+                    } else if (action == UpstreamPauseMenu.Action.QUIT) {
+                        pauseOpen = false;
+                        session.save(saveFile);
+                        System.out.println("UPSTREAM_PAUSE_MENU quit=true");
+                        return false;
+                    }
+                } else if ((input & (UpstreamSinglePlayerInput.B_PRESSED
+                        | UpstreamSinglePlayerInput.X_PRESSED)) != 0) {
+                    if (pauseMenu.cancel() == UpstreamPauseMenu.Action.RESUME) closePauseMenu();
+                }
                 moveInput.setZero();
             } else {
-                moveInput.limit(1f);
-            }
-            boolean aimHeld = (input & UpstreamSinglePlayerInput.X_HELD) != 0;
-            boolean fireHeld = (input & UpstreamSinglePlayerInput.L_HELD) != 0;
-            if (weaponInput.releasePauses((input & UpstreamSinglePlayerInput.X_PRESSED) != 0,
-                    aimHeld, !moveInput.isZero(), fireHeld, now)) {
-                boolean paused = session.togglePause();
-                System.out.println("UPSTREAM_SP_PAUSE paused=" + paused + " updateId=" + Vars.state.updateId);
-            }
-            if ((input & UpstreamSinglePlayerInput.WAVE_PRESSED) != 0) {
-                int wave = session.triggerWave();
-                int enemies = Groups.unit.count(u -> u.team == Vars.state.rules.waveTeam && !u.dead);
-                System.out.println("UPSTREAM_SP_WAVE wave=" + wave + " enemies=" + enemies);
-            }
-            if ((input & UpstreamSinglePlayerInput.SAVE_PRESSED) != 0) {
-                session.save(saveFile);
-                if (unit != null) {
-                    int shots = UpstreamOfflineWeaponInput.totalShots(unit);
-                    if (shots > 0) System.out.println("UPSTREAM_SP_WEAPON_SAVED shots=" + shots);
+                moveInput.set((byte)input / 127f, (byte)(input >>> 8) / 127f);
+                if (moveInput.len2() < DEAD_ZONE * DEAD_ZONE) {
+                    moveInput.setZero();
+                } else {
+                    moveInput.limit(1f);
                 }
-            }
+                boolean aimHeld = (input & UpstreamSinglePlayerInput.X_HELD) != 0;
+                boolean fireHeld = (input & UpstreamSinglePlayerInput.L_HELD) != 0;
+                if (weaponInput.releasePauses((input & UpstreamSinglePlayerInput.X_PRESSED) != 0,
+                        aimHeld, !moveInput.isZero(), fireHeld, now)) {
+                    openPauseMenu();
+                }
+                if ((input & UpstreamSinglePlayerInput.WAVE_PRESSED) != 0) {
+                    int wave = session.triggerWave();
+                    int enemies = Groups.unit.count(u -> u.team == Vars.state.rules.waveTeam && !u.dead);
+                    System.out.println("UPSTREAM_SP_WAVE wave=" + wave + " enemies=" + enemies);
+                }
+                if ((input & UpstreamSinglePlayerInput.SAVE_PRESSED) != 0) {
+                    session.save(saveFile);
+                    if (unit != null) {
+                        int shots = UpstreamOfflineWeaponInput.totalShots(unit);
+                        if (shots > 0) System.out.println("UPSTREAM_SP_WEAPON_SAVED shots=" + shots);
+                    }
+                }
 
-            unit = session.ensurePlayerSpawn();
-            if (unit != null) {
-                buildingControls.update(unit, input, touch);
                 unit = session.ensurePlayerSpawn();
+                if (unit != null) {
+                    buildingControls.update(unit, input, touch);
+                    unit = session.ensurePlayerSpawn();
+                }
+                if (unit != null) {
+                    boolean anchored = unit instanceof BlockUnitc;
+                    boolean overlay = buildingControls.blocksWeaponInput();
+                    weaponInput.update(unit, moveInput, (anchored || weaponInput.aimMode()) && !moveInput.isZero(),
+                        fireHeld && !overlay && !Vars.state.isPaused());
+                    if (anchored) moveInput.setZero();
+                }
+                if (weaponInput.aimMode()) moveInput.setZero();
             }
-            if (unit != null) {
-                boolean anchored = unit instanceof BlockUnitc;
-                boolean overlay = buildingControls.blocksWeaponInput();
-                weaponInput.update(unit, moveInput, (anchored || weaponInput.aimMode()) && !moveInput.isZero(),
-                    fireHeld && !overlay && !Vars.state.isPaused());
-                if (anchored) moveInput.setZero();
-            }
-            if (weaponInput.aimMode()) moveInput.setZero();
             long elapsed = Math.min(Math.max(0L, now - previousTime), FRAME_NS * 4L);
             previousTime = now;
             accumulator += elapsed;
@@ -1010,7 +1080,9 @@ public final class UpstreamSinglePlayerApp {
         orders.draw(viewport);
         var schematics = buildingControls.schematics();
         schematics.draw(viewport);
+        drawCoreItems();
         drawObjectives(drawStatusHud());
+        if (pauseOpen) drawPauseMenu();
         var block = buildingControls.block();
         var catalog = buildingControls.catalog();
         var config = buildingControls.buildingConfig();
@@ -1099,10 +1171,107 @@ public final class UpstreamSinglePlayerApp {
             lastStatus = rows;
         }
         float y = 4f;
-        for (int i = 0; i < rows.size() && y < 240f; i++) {
-            y = target.drawObjective(statusLabels[i], statusCharacters[i], rows.get(i).icon(), y);
+        int start = 0;
+        if (!rows.isEmpty() && UpstreamNotification.current() != null) {
+            y = target.drawObjective(statusLabels[0], statusCharacters[0], rows.get(0).icon(), y);
+            start = 1;
+        }
+        if (rows.size() > start) {
+            float panelHeight = (rows.size() - start) * 35f + 4f;
+            target.hudPanel(2f, y - 1f, 164f, panelHeight, 0xE0201B18);
+        }
+        for (int i = start; i < rows.size() && y < 240f; i++) {
+            y = target.drawObjectivePlain(statusLabels[i], statusCharacters[i], rows.get(i).icon(), y);
         }
         return y;
+    }
+
+    private void drawCoreItems() {
+        var items = coreItemTracker.live();
+        float x = 168f;
+        float y = 4f;
+        int drawn = 0;
+        for (var entry : items) {
+            var item = entry.item();
+            if (item.uiIcon == null) item.loadIcon();
+            var icon = item.uiIcon != null && item.uiIcon.found() ? item.uiIcon : null;
+            String value = entry.formatted();
+            byte[] label = (value + "\0").getBytes(StandardCharsets.UTF_8);
+            int[] characters = encodeLabel(UpstreamLabelText.parse(value));
+            float next = target.drawObjectiveAt(label, characters, icon, x, y);
+            if (next >= 240f) {
+                x += 56f;
+                if (x > 280f) break;
+                y = 4f;
+                next = target.drawObjectiveAt(label, characters, icon, x, y);
+            }
+            if (next >= 240f) break;
+            y = next;
+            drawn++;
+        }
+        int columns = items.isEmpty() ? 0 : (int) ((x - 168f) / 56f) + 1;
+        if (items.size() != lastCoreItemCount || drawn != lastCoreItemDrawn) {
+            lastCoreItemCount = items.size();
+            lastCoreItemDrawn = drawn;
+            System.out.println("UPSTREAM_ITEM_ROWS items=" + items.size()
+                + " drawn=" + drawn + " columns=" + columns);
+        }
+    }
+
+    private void openPauseMenu() {
+        var sector = Vars.state.rules.sector;
+        boolean research = sector != null && sector.planet != null && sector.planet.techTree != null;
+        pauseMenu.open(research ? 5 : 3);
+        pauseOpen = true;
+        if (!Vars.state.isPaused()) session.togglePause();
+        System.out.println("UPSTREAM_PAUSE_MENU open=true selected=0 options=" + pauseMenu.options());
+    }
+
+    private void closePauseMenu() {
+        pauseOpen = false;
+        if (Vars.state.isPaused()) session.togglePause();
+        System.out.println("UPSTREAM_PAUSE_MENU open=false");
+    }
+
+    private void drawPauseMenu() {
+        drawPauseRow(Core.bundle.get(Vars.state.isPaused() ? "paused" : "menu"), 170f, 24f, false);
+        var sector = Vars.state.rules.sector;
+        if (sector != null) {
+            drawPauseRow(sector.planet.localizedName + " / " + sector.name(), 160f, 48f, false);
+        }
+        if (sector != null) {
+            var objectives = UpstreamObjectiveHud.collect(Vars.state.rules);
+            if (!objectives.isEmpty()) {
+                drawPauseRow(objectives.get(0).text(), 100f, 72f, false);
+            }
+        }
+        String[] options;
+        if (pauseMenu.options() == 5) {
+            options = new String[]{Core.bundle.get("back"), Core.bundle.get("research"),
+                Core.bundle.get("loadgame"), Core.bundle.get("savegame"), Core.bundle.get("quit")};
+        } else if (pauseMenu.options() == 4) {
+            options = new String[]{Core.bundle.get("back"), Core.bundle.get("research"),
+                Core.bundle.get("savegame"), Core.bundle.get("quit")};
+        } else {
+            options = new String[]{Core.bundle.get("back"), Core.bundle.get("savegame"),
+                Core.bundle.get("quit")};
+        }
+        float y = 88f;
+        for (int i = 0; i < options.length; i++) {
+            boolean selected = i == pauseMenu.selected();
+            drawPauseRow((selected ? "> " : "  ") + options[i], 170f, y, selected);
+            y += 30f;
+        }
+        if (pauseMenu.confirmingQuit()) {
+            drawPauseRow(Core.bundle.get("quit.confirm"), 40f, 210f, false);
+        }
+    }
+
+    private void drawPauseRow(String text, float x, float y, boolean selected) {
+        String markup = (selected ? "[accent]" : "[lightgray]") + text;
+        byte[] label = (arc.util.Strings.stripColors(text) + "\0").getBytes(StandardCharsets.UTF_8);
+        int[] characters = encodeLabel(UpstreamLabelText.parse(UI.formatIcons(markup)));
+        target.drawObjectiveAt(label, characters, null, x, y);
     }
 
     private void drawObjectives(float y) {

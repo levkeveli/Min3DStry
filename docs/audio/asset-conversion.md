@@ -163,6 +163,45 @@ still pending.
   conveyor/drill loop and block place/break clips, proving the events reached
   the registry even when DSP firmware is absent.
 
+## Full-build integration
+
+The `3DS full build` workflow now builds this audio RomFS on the host with
+`ffmpeg`, copies the generated `audio-index.h` into the Docker build, and
+builds the `.3dsx` with `UPSTREAM_MINDUSTRY` pointing at the pinned upstream
+checkout. The workflow runs `tools/validate_audio_romfs.py build/romfs` before
+and after packaging, asserts every manifest entry exists at the recorded size,
+requires at least 9 clips, logs the final `.3dsx` byte count, and rejects an
+artifact at or above 24 MiB. The audio files are still build outputs and are
+not committed.
+
+The workflow then runs a separate `Verify artifact in Azahar` job on
+GitHub-hosted Ubuntu. It downloads the uploaded `.3dsx`, installs the pinned
+Azahar `2126.2` AppImage, and runs `tools/verify_azahar.py` on the New 3DS and
+Original 3DS profiles. A boot failure, parity mismatch, missing audio RomFS
+clips, or unresolved `wave.spawn` event fails the workflow. The job uploads
+`build/emu-verify/report.json` and both screenshots as `emu-verify-report`
+even when verification fails. The build job also publishes the artifact
+SHA-256; `tools/check_azahar_report.py` compares it with the report and the
+downloaded file, so a stale or swapped artifact cannot pass as verified.
+
+Local reproduction (from the repo root, with ffmpeg and Python 3):
+
+```bash
+python3 tools/build_audio_assets.py \
+  --upstream /path/to/Mindustry \
+  --map audio/upstream-audio-map.json \
+  --triggers audio/upstream-audio-triggers.json \
+  --out build/audio-romfs --romfs-out build/romfs
+python3 tools/validate_audio_romfs.py build/romfs
+mkdir -p build/3ds
+cp build/romfs/audio-index.h build/3ds/audio-index.h
+make PYTHON=python3 UPSTREAM_MINDUSTRY=/path/to/Mindustry build/min3dstry.3dsx
+```
+
+Audible DSP playback and music quality remain **unverified** until a physical
+listening run is recorded; the CI only proves packaging and manifest
+integrity.
+
 ## Licensing and limitations
 
 - Upstream audio is GPLv3. The conversion output is not committed; distribution

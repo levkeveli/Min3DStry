@@ -52,7 +52,10 @@ If CI fails or `AI review` flags critical/major findings, return the task to the
 - **No CODEOWNERS human gate:** `.github/CODEOWNERS` is removed. Same-repo PRs do not wait on human approval; only drafts, external fork PRs, `AI review` critical/major rejections, or explicit hold labels (`hold`, `needs-human`, `do-not-merge`, `status:blocked`, `tier:c`) prevent auto-merge.
 - **Full 3DS build check:** `.github/workflows/full-build.yml` builds the default app in the pinned devkitARM image when sources, headers, the Makefile, sprite fixtures or the atlas tool change.
 - **External fork PRs:** Fork PRs do not receive repository secrets or auto-merge and require a maintainer review before merge.
-- **Self-hosted Linux CI runners (`wings02`):** Same-repo PRs, `main` pushes, and `workflow_dispatch` runs route Linux jobs across 7 persistent self-hosted runners (`[self-hosted, linux, x64, min3dstry]`) on `wings02` using an asymmetric NUMA split (4 runners pinned to Node 0 with 4 memory channels and local PCIe SSD/NIC affinity; 3 runners pinned to Node 1 with 3 memory channels). Each runner maintains an isolated `GRADLE_USER_HOME` and passes `M3DS_DOCKER_CPUSET_CPUS`/`M3DS_DOCKER_CPUSET_MEMS` into pinned `devkitpro/devkitarm` Docker builds. External fork PRs automatically fall back to GitHub-hosted `ubuntu-latest` and never execute on persistent self-hosted runners or access secrets; `Windows host tests` remains on `windows-latest` and `Pages` stays on `ubuntu-latest`. Workflow-level `concurrency:` cancels superseded PR runs, and ARM11 smoke jobs are scoped as described below.
+- **Self-hosted Linux CI runners (`wings02`):** Same-repo PRs, `main` pushes, and `workflow_dispatch` runs route Linux jobs across 7 persistent self-hosted runners (`[self-hosted, linux, x64, min3dstry]`) on `wings02` using an asymmetric NUMA split (4 runners pinned to Node 0 with 4 memory channels and local PCIe SSD/NIC affinity; 3 runners pinned to Node 1 with 3 memory channels). Each runner maintains an isolated `GRADLE_USER_HOME` and passes `M3DS_DOCKER_CPUSET_CPUS`/`M3DS_DOCKER_CPUSET_MEMS` into pinned `devkitpro/devkitarm` Docker builds. External fork PRs automatically fall back to GitHub-hosted `ubuntu-latest` and never execute on persistent self-hosted runners or access secrets; `Windows host tests` remains on `windows-latest` and `Pages` stays on `ubuntu-latest`. ARM11 smoke jobs are scoped as described below. While the `wings02` runners are offline, `full-build.yml` and `upstream-arm11-smoke.yml` temporarily run their Linux jobs on `ubuntu-latest` so `main` pushes and same-repo PRs are not queued indefinitely; restore the self-hosted `runs-on` expressions when the runners return.
+- **Superseded runs:** `full-build.yml` and `upstream-arm11-smoke.yml` cancel an in-progress run for the same pull request or branch when a newer one starts, so a stale commit cannot hold the queue. Manual `workflow_dispatch` runs use a per-run group and are never canceled by a push.
+- **Main failure alerts:** `main-failure-alert.yml` opens or comments on a `[main] <workflow> failed` issue when `Upstream ARM11 smoke` or `3DS full build` fails on a `main` push or dispatch, with the run URL and commit. Pull-request runs and fork repositories are ignored.
+- **Dependency registry retries:** `build_unified_arm11_smoke.sh` retries the Gradle configure/generate step only when the log shows HTTP `429` or `Could not resolve` artifacts, up to three attempts with backoff. Compile errors and other failures fail immediately.
 - **Self-service task claiming:** Agents do not wait for human assignment. To claim a `status:ready` issue from [Min3DStry Roadmap](https://github.com/orgs/levkeveli/projects/1), check that no open PR or recent claim comment exists, comment on the issue with the agent handle and dedicated branch name, swap `status:ready` -> `status:in-progress` (and `status:in-review` once the PR is open), reference `Closes #N` in the PR body, and let CI + `AI review` auto-merge.
 
 ## Workstation CI runners
@@ -99,14 +102,21 @@ continues to select its own checks for the standalone runtime.
 
 ## ARM11 smoke scope
 
-The lightweight scope job selects baselines from the changed paths on PRs and
-main pushes. Live audio changes select audio and network checks. Live graphics
-and live client changes select network and offline single-player checks.
-Runtime Markdown updates do not trigger the heavy build workflows by
-themselves. Shared TeaVM inputs, unknown runtime paths, CI workflow edits,
-and unavailable change lists still select the full suite. A run with no
-classified paths only skips the full suite if every changed file is Markdown. Use
-`workflow_dispatch` to run the full suite on demand.
+The scope job selects checks from the changed paths on PRs and main pushes.
+Shared runtime changes run three smoke jobs. The unified build stages pinned
+v160.8 inputs, verifies packaged stock audio, and publishes one ROM with the
+matching server JAR and atlas metadata. The offline job replays Ground Zero
+and saves and reloads it. The multiplayer and audio job checks a stock-server
+session and replays stock campaign audio. Both replay jobs download the same
+ROM and use checksum-pinned Azahar 2126.2 on separate GitHub-hosted runners.
+
+Live audio changes select the multiplayer and audio job. Live graphics and
+client changes select both replay jobs. Narrow changes to standalone probes
+still select their corresponding checks. Runtime Markdown updates alone
+skip the workflow's heavy jobs. Shared inputs, workflow edits, and unavailable
+change lists select both unified replay jobs. Use `workflow_dispatch` to
+also run the full standalone matrix, including the independent JVM and
+generated-C reference comparisons.
 
 CircleCI and Daytona can run independent builds and emulator replays on their
 own compute. Keep required GitHub status contexts and record the exact source
