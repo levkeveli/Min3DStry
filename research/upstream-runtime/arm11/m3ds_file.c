@@ -128,7 +128,7 @@ TeaVM_StringList* teavm_file_listFiles(char16_t* name, int32_t name_size) {
             continue;
         }
         int32_t length;
-        char16_t* filename = teavm_mbToChar16(entry->d_name, &length);
+        char16_t* filename = teavm_mbToChar16((char *)entry->d_name, &length);
         if (filename == NULL) {
             teavm_disposeStringList(entries);
             entries = NULL;
