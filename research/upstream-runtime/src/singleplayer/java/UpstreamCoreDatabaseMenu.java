@@ -42,7 +42,8 @@ final class UpstreamCoreDatabaseMenu {
             long nextFrame = System.nanoTime() + 16_666_667L;
             int input = UpstreamSinglePlayerInput.poll();
             if (input < 0) return false;
-            if ((input & UpstreamSinglePlayerInput.B_PRESSED) != 0) {
+            int touch = UpstreamTerrainRenderProbe.menuHelpAction(UpstreamSinglePlayerInput.touch(), 3);
+            if ((input & UpstreamSinglePlayerInput.B_PRESSED) != 0 || touch == 2) {
                 System.out.println("UPSTREAM_DATABASE_CLOSE");
                 return true;
             }
@@ -55,7 +56,7 @@ final class UpstreamCoreDatabaseMenu {
                 renderedSelection = -1;
                 System.out.println("UPSTREAM_DATABASE_TAB tab=" + tabs.get(tab).name + " rows=" + rows.size());
             }
-            if ((input & UpstreamSinglePlayerInput.X_PRESSED) != 0) {
+            if ((input & UpstreamSinglePlayerInput.X_PRESSED) != 0 || touch == 1) {
                 var answer = UpstreamTerrainRenderProbe.readDatabaseSearch(query);
                 if (answer != null) {
                     query = answer;
@@ -66,7 +67,7 @@ final class UpstreamCoreDatabaseMenu {
             }
             selected = vertical.move(y, selected, rows.size() - 1);
             previousX = x;
-            if ((input & UpstreamSinglePlayerInput.A_PRESSED) != 0 && !rows.isEmpty()) {
+            if (((input & UpstreamSinglePlayerInput.A_PRESSED) != 0 || touch == 0) && !rows.isEmpty()) {
                 var row = rows.get(selected);
                 if (row.entry() != null && row.entry().unlocked()) {
                     if (!details(row)) return false;
@@ -134,7 +135,8 @@ final class UpstreamCoreDatabaseMenu {
             long nextFrame = System.nanoTime() + 16_666_667L;
             int input = UpstreamSinglePlayerInput.poll();
             if (input < 0) return false;
-            if ((input & UpstreamSinglePlayerInput.B_PRESSED) != 0) return true;
+            if ((input & UpstreamSinglePlayerInput.B_PRESSED) != 0
+                    || UpstreamTerrainRenderProbe.menuHelpAction(UpstreamSinglePlayerInput.touch(), 1) == 0) return true;
             int y = (byte)(input >> 8);
             first = vertical.move(y, first, lines.size() - detailRows);
             draw(display, first + 1, detailRows, help, 1);

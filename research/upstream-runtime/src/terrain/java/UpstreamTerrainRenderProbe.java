@@ -140,6 +140,14 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
         NativeTerrain.drawMenuHelp(Address.ofData(labels), count);
     }
 
+    static int menuHelpAction(int touch, int count) {
+        if (touch < 0) return -1;
+        int x = touch & 0xffff;
+        int offset = (touch >>> 16) - 60;
+        if (x < 20 || x >= 300 || offset < 0 || offset >= count * 30 || offset % 30 >= 26) return -1;
+        return offset / 30;
+    }
+
     void hudLabel(byte[] label, int[] characters, float x, float y, float width, float height) {
         NativeTerrain.hudLabel(Address.ofData(label), Address.ofData(characters), characters.length / 7,
             x, y, width, height);

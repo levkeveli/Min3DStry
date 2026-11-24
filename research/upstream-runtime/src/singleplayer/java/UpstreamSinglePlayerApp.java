@@ -528,12 +528,13 @@ public final class UpstreamSinglePlayerApp {
             long nextFrame = System.nanoTime() + FRAME_NS;
             int input = UpstreamSinglePlayerInput.poll();
             if (input < 0) return -2;
-            if ((input & UpstreamSinglePlayerInput.B_PRESSED) != 0) return -1;
+            int touch = UpstreamTerrainRenderProbe.menuHelpAction(UpstreamSinglePlayerInput.touch(), 2);
+            if ((input & UpstreamSinglePlayerInput.B_PRESSED) != 0 || touch == 1) return -1;
             int y = (byte)(input >> 8);
             if (y > 60 && previousY <= 20) selected = Math.floorMod(selected - 1, optionKeys.length);
             if (y < -60 && previousY >= -20) selected = (selected + 1) % optionKeys.length;
             previousY = y;
-            if ((input & UpstreamSinglePlayerInput.A_PRESSED) != 0) return selected;
+            if ((input & UpstreamSinglePlayerInput.A_PRESSED) != 0 || touch == 0) return selected;
             if (drawn != selected) {
                 var captions = new String[optionKeys.length + 1];
                 captions[0] = title;
