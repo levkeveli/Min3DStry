@@ -37,26 +37,25 @@ def rerun_failed(n, head):
     if not runs:
         return
     comments = json.loads(
-        gh_api(f"repos/{REPO}/issues/{n}/comments?per_page=100", "--jq", ".").stdout
+        gh_api(f"repos/{REPO}/issues/{n}/comments?per_page=100", "--paginate",
+               "--jq", ".").stdout
     )
     if any(RERUN_MARKER + head in (c.get("body") or "") for c in comments):
         return
-    ok = True
     for run in runs:
         rr = subprocess.run(
             ["gh", "run", "rerun", str(run["id"]), "--failed", "--repo", REPO],
             capture_output=True, text=True,
         )
         if rr.returncode != 0:
-            ok = False
             print(f"PR #{n}: auto-rerun of run {run['id']} failed: {rr.stderr.strip()}")
-    if ok:
-        gh_api(
-            f"repos/{REPO}/issues/{n}/comments", "-X", "POST",
-            "-f", f"body={RERUN_MARKER}{head} --> auto-rerun of failed jobs for this head.",
-            check=False,
-        )
-        print(f"PR #{n}: auto-rerun of {len(runs)} failed run(s)")
+    # Mark the attempt regardless of outcome so it happens once per head SHA.
+    gh_api(
+        f"repos/{REPO}/issues/{n}/comments", "-X", "POST",
+        "-f", f"body={RERUN_MARKER}{head} --> auto-rerun attempted for this head.",
+        check=False,
+    )
+    print(f"PR #{n}: auto-rerun attempted for {len(runs)} failed run(s)")
 
 
 def draft_if_idle(n, draft, updated):

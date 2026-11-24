@@ -57,6 +57,6 @@
 
 ## Risk gates
 
-All same-repo PRs are reviewed by `AI review` and auto-merge once required CI checks pass. Human maintainers never need to review PRs unless an explicit maintainer hold label (`hold`, `needs-human`, `do-not-merge`, `status:blocked`, `tier:c`) is attached or an agent explicitly escalates a licensing/IP, security/secrets, or destructive release decision.
+All same-repo PRs are reviewed by `AI review` and auto-merge once required CI checks pass. Human maintainers never need to review PRs unless an explicit maintainer hold label (`hold`, `needs-human`, `do-not-merge`, `status:blocked`, `tier:c`) is attached, the automation label `main-verify-blocked` is present (post-merge verification on main is red; only the fixing/reverting PR may remove it), or an agent explicitly escalates a licensing/IP, security/secrets, or destructive release decision.
 
 Read `docs/development/automation-policy.md` for merge rules and escalation semantics.

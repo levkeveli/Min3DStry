@@ -37,11 +37,12 @@ jobs:
             || gh label create "$label" --repo "$repo" --color "d73a4a" \
                  --description "Automation hold: main post-merge verification is red" || true
 
-          # Release only when BOTH heavy workflows are green at this SHA.
+          # Release when BOTH heavy workflows' latest runs on main are green
+          # (a later fix commit may not retrigger a path-filtered workflow).
           both_green() {
             for wf in "3DS full build" "Upstream ARM11 smoke"; do
               c=$(gh run list --repo "$repo" --workflow "$wf" --branch main \
-                  --commit "$sha" --limit 1 --json conclusion --jq '.[0].conclusion // "none"')
+                  --limit 1 --json conclusion --jq '.[0].conclusion // "none"')
               [ "$c" = "success" ] || return 1
             done
             return 0

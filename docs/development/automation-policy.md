@@ -144,7 +144,7 @@ build` and `Upstream ARM11 smoke` workflows still run on PRs (path-filtered,
 non-required) and on push to `main` — never on a nightly schedule.
 
 If either heavy workflow fails on `main`, `main-verify-alert.yml` opens a
-`status:blocked` issue and labels every open PR with `status:blocked`, so no
+`main-verify-blocked` issue and labels every open PR with `main-verify-blocked`, so no
 PR merges onto a broken main until the failure is fixed or reverted.
 
 A scheduled `pr-triage.yml` job keeps the queue moving: it reruns failed PR

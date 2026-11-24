@@ -21,6 +21,9 @@ TIER_C_LABELS = {
     "status:blocked",
     "hold",
     "do-not-merge",
+    # Automation hold applied by main-verify-alert.yml while post-merge
+    # verification on main is red. Also fails the PR policy gate below.
+    "main-verify-blocked",
 }
 
 TIER_B_PREFIXES = (
@@ -217,6 +220,12 @@ def cmd_classify(_: argparse.Namespace) -> int:
 
     if is_draft:
         metadata_errors.append("PR is still marked as draft.")
+
+    if "main-verify-blocked" in {lbl.strip().lower() for lbl in labels}:
+        metadata_errors.append(
+            "main-verify-blocked: post-merge verification on main is red; "
+            "remove this label only on the PR that fixes or reverts it."
+        )
 
     eligible_ai = same_repo and not is_draft
     eligible_auto_merge = same_repo and not is_draft and tier != "C" and not metadata_errors
