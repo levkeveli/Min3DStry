@@ -19,6 +19,11 @@
       "evidence": [
         ".github/workflows/ci.yml",
         ".github/workflows/ai-pr-review.yml",
+        ".github/workflows/full-build.yml",
+        ".github/workflows/upstream-arm11-smoke.yml",
+        ".github/workflows/main-failure-alert.yml",
+        "tools/check_azahar_report.py",
+        "docs/development/automation-policy.md",
         "dev.sh"
       ]
     },
