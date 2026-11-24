@@ -1049,12 +1049,15 @@ def run_model_check(
 
 
 def artifact_metadata(path: Path) -> dict[str, Any]:
-    """Return the ROM size and SHA-256 so reports identify the exact artifact."""
+    """Return the resolved path, hashed bytes and SHA-256 of one artifact."""
+    resolved = path.resolve()
     hasher = hashlib.sha256()
-    with path.open("rb") as stream:
+    total = 0
+    with resolved.open("rb") as stream:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             hasher.update(chunk)
-    return {"path": str(path), "bytes": path.stat().st_size, "sha256": hasher.hexdigest()}
+            total += len(chunk)
+    return {"path": str(resolved), "bytes": total, "sha256": hasher.hexdigest()}
 
 
 def main() -> int:
