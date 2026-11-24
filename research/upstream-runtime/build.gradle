@@ -173,6 +173,8 @@ def mapFile = sourceDir.map { it.file('mindustry/maps/GlacierFixture.java') }
 def blockFile = sourceDir.map { it.file('mindustry/world/Block.java') }
 def tileFile = sourceDir.map { it.file('mindustry/world/Tile.java') }
 def tilesFile = sourceDir.map { it.file('mindustry/world/Tiles.java') }
+def powerGraphPath = 'mindustry/world/blocks/power/PowerGraph.java'
+def powerGraphFile = sourceDir.map { it.file(powerGraphPath) }
 def liquidModuleFile = sourceDir.map { it.file('mindustry/world/modules/LiquidModule.java') }
 def pathfinderFile = sourceDir.map { it.file('mindustry/ai/Pathfinder.java') }
 def annotationsFile = sourceDir.map { it.file('mindustry/annotations/Annotations.java') }
@@ -261,7 +263,8 @@ if (usesArcSources || usesExecutor) {
                               'mindustry/io/SaveFileReader.class', 'mindustry/io/SaveFileReader$*.class',
                               'mindustry/world/Tiles.class', 'mindustry/world/Tiles$*.class',
                               'mindustry/world/modules/ItemModule.class', 'mindustry/world/modules/ItemModule$*.class',
-                              'mindustry/world/modules/LiquidModule.class', 'mindustry/world/modules/LiquidModule$*.class'])
+                              'mindustry/world/modules/LiquidModule.class', 'mindustry/world/modules/LiquidModule$*.class',
+                              'mindustry/world/blocks/power/PowerGraph.class'])
     }
     if (usesArcSources) {
         stagedClasses.addAll(['arc/files/Fi.class', 'arc/files/Fi$*.class'])
@@ -594,7 +597,7 @@ tasks.register('prepareUpstreamProbe') {
         outputs.files(blockFile, annotationsFile)
     }
     if (usesWorldSources) {
-        outputs.files(tileFile, tilesFile, liquidModuleFile)
+        outputs.files(tileFile, tilesFile, liquidModuleFile, powerGraphFile)
         outputs.file(sourceDir.map { it.file('mindustry/world/modules/ItemModule.java') })
         outputs.file(sourceDir.map { it.file('mindustry/ai/BlockIndexer.java') })
         outputs.file(sourceDir.map { it.file('mindustry/game/Teams.java') })
@@ -1374,6 +1377,27 @@ ${barOracle}""")
             def stagedLiquid = liquidModuleFile.get().asFile
             stagedLiquid.parentFile.mkdirs()
             stagedLiquid.setText(liquid, 'UTF-8')
+
+            def graph = new String(readUpstream('core/src/' + powerGraphPath), 'UTF-8')
+            def history = [
+                'private final WindowedMean powerBalance = new WindowedMean(60);':
+                    'private @Nullable WindowedMean powerBalance;',
+                'return powerBalance.rawMean();':
+                    'return powerBalance == null ? 0f : powerBalance.rawMean();',
+                'return powerBalance.hasEnoughData();':
+                    'return powerBalance != null && powerBalance.hasEnoughData();',
+                '        powerBalance.add(':
+                    '        if(powerBalance == null) powerBalance = new WindowedMean(60);\n        powerBalance.add('
+            ]
+            history.each { before, after ->
+                if (graph.count(before) != 1) {
+                    throw new GradleException('Pinned PowerGraph history hook changed: ' + before)
+                }
+                graph = graph.replace(before, after)
+            }
+            def stagedGraph = powerGraphFile.get().asFile
+            stagedGraph.parentFile.mkdirs()
+            stagedGraph.setText(graph, 'UTF-8')
 
                 def indexerPath = 'mindustry/ai/BlockIndexer.java'
                 def indexer = new String(readUpstream('core/src/' + indexerPath), 'UTF-8')
