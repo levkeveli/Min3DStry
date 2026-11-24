@@ -133,6 +133,12 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
     }
 
     public static void main(String[] args) throws Exception {
+        if (args.length == 2 && args[0].equals("--logic-font")) {
+            var font = new Fi(args[1]);
+            UpstreamLogicFont.load(font);
+            verifyLogicFontPixels(font);
+            return;
+        }
         if (args.length < 3 || args.length == 6 || args.length > 7) {
             throw new IllegalArgumentException("Expected Glacier, sprites.aatls, block_colors.png, optional bundle base, logicids.dat, then paired world atlas tiles and logic font");
         }
@@ -504,6 +510,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
                 }
             }
             if (packed.read() != -1) throw new AssertionError("Stock Logic Display font has extra pixels");
+            System.out.println("UPSTREAM_LOGIC_FONT_REFERENCE pixels=" + texture.width * texture.height);
         } catch (IOException error) {
             throw new AssertionError("Could not verify the packed stock Logic Display font", error);
         }
