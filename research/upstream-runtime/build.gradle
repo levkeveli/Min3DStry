@@ -204,6 +204,9 @@ if (usesRenderedClient) {
 
 if (usesArcSources || usesExecutor) {
     def stagedClasses = []
+    if (usesSinglePlayer) {
+        stagedClasses.addAll(['mindustry/io/SaveIO.class', 'mindustry/io/SaveIO$*.class'])
+    }
     if (usesContentSources) {
         stagedClasses.add('mindustry/world/Block.class')
     }
@@ -493,6 +496,7 @@ if (usesCampaignSavesLoad) {
     sourceSets.main.java.srcDir('src/campaign-saves-load/java')
 }
 dependencies {
+    if (usesSinglePlayer) implementation 'com.jcraft:jzlib:1.1.3'
     if (usesMapSources || usesLiveNetwork || usesTerrainRenderer) {
         implementation 'org.teavm:teavm-interop:0.16.0'
     }
@@ -563,6 +567,7 @@ tasks.register('prepareUpstreamProbe') {
     if (usesSinglePlayer) {
         inputs.file('src/gameplay/java/port/FactoryResources.java')
         outputs.file(factoryResourcesFile)
+        outputs.file(sourceDir.map { it.file('mindustry/io/SaveIO.java') })
     }
     if (patchesPlanetGrid) {
         outputs.file(planetGridFile)
@@ -1274,6 +1279,26 @@ final class UpstreamItemChoices {
             var music = musicController != null ? musicController.getCurrent() : null;"""), 'UTF-8')
         }
         if (usesSinglePlayer) {
+            def saveIoPath = 'mindustry/io/SaveIO.java'
+            def saveIo = new String(readUpstream('core/src/' + saveIoPath), 'UTF-8')
+            def compress = '        write(new FastDeflaterOutputStream(file.write(false, bufferSize)), options);'
+            if (saveIo.count(compress) != 1) throw new GradleException('Pinned save compressor call changed')
+            def boundedCompression = '''        try(var raw = file.write(false, bufferSize)){
+            write(new SaveDeflaterStream(raw), options);
+        }catch(IOException failure){
+            throw new RuntimeException(failure);
+        }
+    }
+
+    // Zlib framing stays stock. A smaller window and hash table fit a fragmented heap.
+    private static final class SaveDeflaterStream extends com.jcraft.jzlib.DeflaterOutputStream{
+        SaveDeflaterStream(OutputStream out) throws IOException{
+            super(out, new com.jcraft.jzlib.Deflater(6, 12, 4), 4096, false);
+            mydeflater = true;
+        }'''
+            def stagedSaveIo = sourceDir.get().file(saveIoPath).asFile
+            stagedSaveIo.parentFile.mkdirs()
+            stagedSaveIo.setText(saveIo.replace(compress, boundedCompression), 'UTF-8')
             def copiedFactoryResources = factoryResourcesFile.get().asFile
             copiedFactoryResources.parentFile.mkdirs()
             copiedFactoryResources.setText(file('src/gameplay/java/port/FactoryResources.java').getText('UTF-8'), 'UTF-8')

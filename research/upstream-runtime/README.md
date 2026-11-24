@@ -264,6 +264,10 @@ two generated 600×600 sector saves. The 32 MiB ARM11 campaign check remains
 tracked in [#538](https://github.com/levkeveli/Min3DStry/issues/538).
 [Hosted campaign regression](https://github.com/levkeveli/Min3DStry/actions/runs/45318649486)
 
+The single-player runtime writes stock zlib-framed saves with a 4 KiB
+compression window. This keeps the compressor's largest working arrays at
+8 KiB and preserves the save payload used by the original Java release.
+
 The world loader computes the original wall-darkness values from nearby tiles
 without allocating two map-sized buffers. The hosted regression compares all
 360,000 tile data bytes in Serpulo 111 against the unmodified Java calculation.
