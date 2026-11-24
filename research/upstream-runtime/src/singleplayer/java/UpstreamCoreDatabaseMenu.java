@@ -3,8 +3,10 @@ import arc.graphics.g2d.TextureRegion;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import mindustry.Vars;
 import mindustry.content.Planets;
 import mindustry.ctype.UnlockableContent;
+import mindustry.world.meta.Stats;
 
 /** Shows the stock database with the same handheld list controls as Custom Game. */
 final class UpstreamCoreDatabaseMenu {
@@ -94,8 +96,17 @@ final class UpstreamCoreDatabaseMenu {
     private boolean details(Row row) {
         var content = row.entry().content();
         var lines = new ArrayList<String>();
-        if (content.description != null) wrap(lines, content.displayDescription());
-        addStats(lines, content);
+        var stats = content.computeStats();
+        boolean hasStats = !stats.toMap().isEmpty();
+        if (Vars.state.isGame() && Vars.state.data.isPatched(content)) {
+            wrap(lines, Core.bundle.get("database.patched"));
+        }
+        if (content.description != null) {
+            if (hasStats) lines.add(Core.bundle.get("category.purpose"));
+            wrap(lines, content.displayDescription());
+            if (hasStats && !stats.useCategories) lines.add(Core.bundle.get("category.general"));
+        }
+        addStats(lines, stats);
         if (content.details != null) {
             wrap(lines, content.unlocked() || !content.hideDetails ? content.details : Core.bundle.get("unlock.incampaign"));
         }
@@ -121,8 +132,7 @@ final class UpstreamCoreDatabaseMenu {
         }
     }
 
-    private static void addStats(List<String> lines, UnlockableContent content) {
-        var stats = content.computeStats();
+    private static void addStats(List<String> lines, Stats stats) {
         var categories = stats.toMap();
         for (var category : categories.keys()) {
             var entries = categories.get(category);
