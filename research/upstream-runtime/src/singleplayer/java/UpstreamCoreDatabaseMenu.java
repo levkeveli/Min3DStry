@@ -13,6 +13,7 @@ final class UpstreamCoreDatabaseMenu {
     private record Row(String label, UpstreamCoreDatabase.Entry entry) {}
     private record DrawRow(byte[] label, int[] characters, TextureRegion icon) {}
     private static final int visibleRows = 5;
+    private static final int detailRows = 7;
     private final UpstreamCoreDatabase database = new UpstreamCoreDatabase();
     private final UpstreamTerrainRenderProbe target;
 
@@ -25,7 +26,8 @@ final class UpstreamCoreDatabaseMenu {
         int tab = tabs.indexOf(database.initialTab(tabs));
         String query = "";
         var rows = rows(tabs.get(tab), query);
-        int selected = 0, previousX = 0, previousY = 0;
+        int selected = 0, previousX = 0;
+        var vertical = new VerticalNavigation();
         int renderedSelection = -1;
         List<DrawRow> visible = List.of();
         System.out.println("UPSTREAM_DATABASE_OPEN tab=" + tabs.get(tab).name + " rows=" + rows.size());
@@ -56,10 +58,8 @@ final class UpstreamCoreDatabaseMenu {
                     renderedSelection = -1;
                 }
             }
-            if (y > 60 && previousY <= 20) selected = Math.max(0, selected - 1);
-            if (y < -60 && previousY >= -20) selected = Math.min(Math.max(0, rows.size() - 1), selected + 1);
+            selected = vertical.move(y, selected, rows.size() - 1);
             previousX = x;
-            previousY = y;
             if ((input & UpstreamSinglePlayerInput.A_PRESSED) != 0 && !rows.isEmpty()) {
                 var row = rows.get(selected);
                 if (row.entry() != null && row.entry().unlocked()) {
@@ -115,7 +115,8 @@ final class UpstreamCoreDatabaseMenu {
         var display = new ArrayList<DrawRow>();
         display.add(encode(content.localizedName, icon(row.entry())));
         for (var line : lines) display.add(encode(line, null));
-        int first = 0, previousY = 0;
+        int first = 0;
+        var vertical = new VerticalNavigation();
         UpstreamSinglePlayerInput.poll();
         while (true) {
             long nextFrame = System.nanoTime() + 16_666_667L;
@@ -123,12 +124,26 @@ final class UpstreamCoreDatabaseMenu {
             if (input < 0) return false;
             if ((input & UpstreamSinglePlayerInput.B_PRESSED) != 0) return true;
             int y = (byte)(input >> 8);
-            if (y > 60 && previousY <= 20) first = Math.max(0, first - 1);
-            if (y < -60 && previousY >= -20) first = Math.min(Math.max(0, lines.size() - 7), first + 1);
-            previousY = y;
-
-            draw(display, first + 1, 7);
+            first = vertical.move(y, first, lines.size() - detailRows);
+            draw(display, first + 1, detailRows);
             while (System.nanoTime() < nextFrame) Thread.yield();
+        }
+    }
+
+    private static final class VerticalNavigation {
+        private int direction;
+        private long nextStep;
+
+        int move(int input, int selected, int last) {
+            int held = input > 60 ? -1 : input < -60 ? 1 : 0;
+            long now = System.nanoTime();
+            if (held == 0 || (held == direction && now < nextStep)) {
+                direction = held;
+                return selected;
+            }
+            nextStep = now + (held == direction ? 85_000_000L : 325_000_000L);
+            direction = held;
+            return Math.max(0, Math.min(last, selected + held));
         }
     }
 
