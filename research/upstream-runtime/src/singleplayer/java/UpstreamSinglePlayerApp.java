@@ -528,7 +528,7 @@ public final class UpstreamSinglePlayerApp {
                     if (route == -2) return null;
                 }
                 case 1 -> {
-                    int route = chooseTitleRow(Core.bundle.get("database.button"), "database", "about.button");
+                    int route = chooseTitleRow(Core.bundle.get("database.button"), "database", "about.button", "schematics");
                     if (route == -2) return null;
                     if (route == 0) {
                         prepare.run();
@@ -536,6 +536,9 @@ public final class UpstreamSinglePlayerApp {
                         if (!new UpstreamCoreDatabaseMenu(target).run()) return null;
                     } else if (route == 1 && !chooseTitleAbout()) {
                         return null;
+                    } else if (route == 2) {
+                        prepare.run();
+                        if (!chooseTitleSchematics(new UpstreamSchematicPlacement(Vars.schematicDirectory))) return null;
                     }
                 }
                 case 2 -> { return TitleAction.editor; }
@@ -547,22 +550,62 @@ public final class UpstreamSinglePlayerApp {
         }
     }
 
+    private boolean chooseTitleSchematics(UpstreamSchematicPlacement library) {
+        Fi[] files = library.libraryFiles();
+        System.out.println("UPSTREAM_TITLE_SCHEMATICS files=" + files.length);
+        return browseTitlePages(Core.bundle.get("schematics"), files.length, index -> {
+            String name = UpstreamSchematicPlacement.readDisplayName(files[index]);
+            return name != null ? name : files[index].nameWithoutExtension();
+        }, index -> showTitleSchematic(library, files[index]));
+    }
+
+    private boolean showTitleSchematic(UpstreamSchematicPlacement library, Fi file) {
+        try {
+            var schematic = UpstreamSchematicPlacement.readSchematic(file);
+            var details = Core.bundle.format("schematic.info", schematic.width, schematic.height, schematic.tiles.size);
+            int action = chooseTitleRow(schematic.name(), 0,
+                new String[]{Core.bundle.get("schematic.edit"), Core.bundle.get("back")},
+                details, schematic.description());
+            if (action == 0) {
+                library.editMetadata(file, UpstreamTerrainRenderProbe::editSchematicName,
+                    UpstreamTerrainRenderProbe::editSchematicDescription);
+            }
+            return action != -2;
+        } catch (IOException | RuntimeException failure) {
+            System.out.println("UPSTREAM_TITLE_SCHEMATIC_ERROR file=" + file.name());
+            return chooseTitleRow(Core.bundle.get("error"), "back") != -2;
+        }
+    }
+
     private boolean chooseTitleAbout() {
         var links = mindustry.ui.Links.getLinks();
         System.out.println("UPSTREAM_TITLE_ABOUT links=" + links.length);
+        return browseTitlePages(Core.bundle.get("about.button"), links.length + 1,
+            index -> index == 0 ? Core.bundle.get("credits") : links[index - 1].title,
+            index -> {
+                if (index == 0) return showTitleCredits();
+                var link = links[index - 1];
+                return chooseTitleRow(link.title, 0, new String[]{Core.bundle.get("back")},
+                    link.description, link.link) != -2;
+            });
+    }
+
+    private boolean browseTitlePages(String title, int count, java.util.function.IntFunction<String> option,
+                                     java.util.function.IntPredicate choose) {
+        if (count == 0) return chooseTitleRow(title, "back") != -2;
         final int pageSize = 7;
         int selected = 0;
         while (true) {
             int first = selected / pageSize * pageSize;
-            int end = Math.min(first + pageSize, links.length + 1);
-            var options = new String[end - first + (first > 0 ? 1 : 0) + (end <= links.length ? 1 : 0)];
+            int end = Math.min(first + pageSize, count);
+            var options = new String[end - first + (first > 0 ? 1 : 0) + (end < count ? 1 : 0)];
             int offset = first > 0 ? 1 : 0;
             if (offset == 1) options[0] = "<";
             for (int index = first; index < end; index++) {
-                options[offset + index - first] = index == 0 ? Core.bundle.get("credits") : links[index - 1].title;
+                options[offset + index - first] = option.apply(index);
             }
-            if (end <= links.length) options[options.length - 1] = ">";
-            int row = chooseTitleRow(Core.bundle.get("about.button"), offset + selected - first, options);
+            if (end < count) options[options.length - 1] = ">";
+            int row = chooseTitleRow(title, offset + selected - first, options);
             if (row < 0) return row == -1;
             if (row < offset) {
                 selected = first - 1;
@@ -570,13 +613,7 @@ public final class UpstreamSinglePlayerApp {
                 selected = end;
             } else {
                 selected = first + row - offset;
-                if (selected == 0) {
-                    if (!showTitleCredits()) return false;
-                } else {
-                    var link = links[selected - 1];
-                    if (chooseTitleRow(link.title, 0, new String[]{Core.bundle.get("back")},
-                        new String[]{link.description, link.link}) == -2) return false;
-                }
+                if (!choose.test(selected)) return false;
             }
         }
     }
