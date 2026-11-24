@@ -54,7 +54,8 @@ public final class UpstreamLiquidInventoryReference {
                 default -> module.handleFlow(liquid, amount);
             }
             System.out.print(module.current().id);
-            for (var value : liquids) System.out.print(" " + Float.floatToRawIntBits(module.get(value)));
+            // HotSpot can choose different NaN payloads for equivalent arithmetic.
+            for (var value : liquids) System.out.print(" " + Float.floatToIntBits(module.get(value)));
             module.each((type, value) -> System.out.print(" " + type.id + "=" + value));
             System.out.println(" " + module.sum((type, value) -> type.id * value)
                 + " " + HexFormat.of().formatHex(save(module)));

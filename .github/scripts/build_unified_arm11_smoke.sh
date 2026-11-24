@@ -25,18 +25,27 @@ for attempt in 1 2 3; do
 done
 
 stock_jar="$RUNNER_TEMP/server-release.jar"
-liquid_check="$RUNNER_TEMP/liquid-inventory-check"
+inventory_check="$RUNNER_TEMP/inventory-check"
 runtime=research/upstream-runtime
-mkdir -p "$liquid_check/reference" "$liquid_check/staged"
-javac -cp "$stock_jar" -d "$liquid_check/reference" "$runtime/host/UpstreamLiquidInventoryReference.java"
-javac -cp "$stock_jar" -d "$liquid_check/staged" \
-  "$runtime/build/upstream-src/unified/mindustry/world/modules/LiquidModule.java"
-java -cp "$liquid_check/reference:$stock_jar" UpstreamLiquidInventoryReference > "$liquid_check/stock.log"
-java -cp "$liquid_check/reference:$liquid_check/staged:$stock_jar" UpstreamLiquidInventoryReference > "$liquid_check/staged.log"
-test "$(wc -l < "$liquid_check/stock.log")" -eq 2100
-test "$(wc -l < "$liquid_check/staged.log")" -eq 2100
-diff -u "$liquid_check/stock.log" "$liquid_check/staged.log"
-printf 'UPSTREAM_STOCK_LIQUID_REFERENCE steps=%s\n' "$(wc -l < "$liquid_check/stock.log")"
+stock_modules="$runtime/build/upstream-src/unified/mindustry/world/modules"
+mkdir -p "$inventory_check/reference" "$inventory_check/staged"
+javac -cp "$stock_jar" -d "$inventory_check/reference" \
+  "$runtime/host/UpstreamItemInventoryReference.java" \
+  "$runtime/host/UpstreamLiquidInventoryReference.java"
+javac -cp "$stock_jar" -d "$inventory_check/staged" \
+  "$stock_modules/ItemModule.java" "$stock_modules/LiquidModule.java"
+for inventory in Item Liquid; do
+  main="Upstream${inventory}InventoryReference"
+  stock_log="$inventory_check/${inventory}-stock.log"
+  staged_log="$inventory_check/${inventory}-staged.log"
+  java -cp "$inventory_check/reference:$stock_jar" "$main" > "$stock_log"
+  java -cp "$inventory_check/reference:$inventory_check/staged:$stock_jar" "$main" > "$staged_log"
+  diff -u "$stock_log" "$staged_log"
+done
+test "$(wc -l < "$inventory_check/Item-stock.log")" -eq 2101
+test "$(wc -l < "$inventory_check/Liquid-stock.log")" -eq 2100
+grep -Fx 'UPSTREAM_STOCK_ITEM_SUBCLASS array=preserved' "$inventory_check/Item-staged.log"
+printf 'UPSTREAM_STOCK_LIQUID_REFERENCE steps=%s\n' "$(wc -l < "$inventory_check/Liquid-staged.log")"
 
 export M3DS_SMOKE_DEVKIT_IMAGE=devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5
 cat > "$RUNNER_TEMP/smoke-tex3ds" <<'WRAPPER'
@@ -77,17 +86,3 @@ docker run --rm "${numa[@]}" -u "$(id -u):$(id -g)" -v "$PWD:/work" -w /work \
     build/smoke-arm11 --unified build/smoke-assets
 cp build/smoke-arm11/upstream-probe.3dsx "$RUNNER_TEMP/server-release.jar" build/unified-smoke/
 unzip -p "$RUNNER_TEMP/assets.jar" assets/sprites/sprites.aatls > build/unified-smoke/sprites.aatls
-
-stock_jar="$RUNNER_TEMP/server-release.jar"
-item_check="$RUNNER_TEMP/item-inventory-check"
-runtime=research/upstream-runtime
-mkdir -p "$item_check/reference" "$item_check/staged"
-javac -cp "$stock_jar" -d "$item_check/reference" "$runtime/host/UpstreamItemInventoryReference.java"
-javac -cp "$stock_jar" -d "$item_check/staged" \
-  "$runtime/build/upstream-src/unified/mindustry/world/modules/ItemModule.java"
-java -cp "$item_check/reference:$stock_jar" UpstreamItemInventoryReference > "$item_check/stock.log"
-java -cp "$item_check/reference:$item_check/staged:$stock_jar" UpstreamItemInventoryReference > "$item_check/staged.log"
-test "$(wc -l < "$item_check/stock.log")" -eq 2101
-test "$(wc -l < "$item_check/staged.log")" -eq 2101
-diff -u "$item_check/stock.log" "$item_check/staged.log"
-grep -Fx 'UPSTREAM_STOCK_ITEM_SUBCLASS array=preserved' "$item_check/staged.log"

@@ -43,6 +43,10 @@ float m3ds_terrain_draw_objective_plain(const char *label, const int32_t *charac
                                         int32_t page, int32_t left, int32_t top,
                                         int32_t width, int32_t height, float y,
                                         int32_t *stock_font);
+void m3ds_terrain_draw_hud_label(const char *label, const int32_t *characters, int32_t count,
+    float x, float y, float width, float height);
+int32_t m3ds_terrain_draw_hud_sprite(int32_t page, int32_t left, int32_t top,
+    int32_t width, int32_t height, float x, float y, float draw_width, float draw_height, int32_t color);
 int32_t m3ds_terrain_draw_hud_panel(float x, float y, float width, float height, int32_t color);
 float m3ds_terrain_draw_objective_at(const char *label, const int32_t *characters, int32_t count,
                                      int32_t page, int32_t left, int32_t top,
