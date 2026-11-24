@@ -78,3 +78,9 @@ through unchanged when it has no legacy `io.anuke.` prefix. The original
 prefix replacement still applies to older saves. The Ground Zero JVM and
 generated-C replay exercises both modern and legacy rules JSON before its
 stock save-and-reload sequence.
+
+The pinned v160.8 files adapted for this path are
+`core/src/mindustry/io/SaveIO.java` (validation and metadata used by the slot)
+and `core/src/mindustry/io/JsonIO.java` (skip the legacy-prefix rewrite when
+the prefix is absent). The build stages both files from the verified upstream
+checkout in `research/upstream-runtime/build.gradle`.
