@@ -50,7 +50,20 @@ public final class UpstreamCoreDatabaseReference {
         if (database.initialTab(tabs) != Planets.erekir || database.groups(Planets.sun, "").stream()
                 .flatMap(group -> group.entries().stream()).anyMatch(entry -> !entry.unlocked())) throw new AssertionError("Stock game mode");
         verifyStatLabels();
-        System.out.printf("Stock database catalog=%d tabs=%d Serpulo copper entries=%d%n", expected, tabs.size(), search.size());
+        int displayableStats = 0;
+        for (var entry : all) {
+            for (var category : entry.content().computeStats().toMap().values()) {
+                for (var values : category.values()) {
+                    for (var value : values) {
+                        String label = value.handheldText();
+                        if (label != null && !label.isEmpty()) displayableStats++;
+                    }
+                }
+            }
+        }
+        if (displayableStats == 0) throw new AssertionError("No stock detail stats");
+        System.out.printf("Stock database catalog=%d tabs=%d Serpulo copper entries=%d displayable stats=%d%n",
+            expected, tabs.size(), search.size(), displayableStats);
     }
 
     private static void verifyStatLabels() {
