@@ -966,6 +966,102 @@ final class GlacierFixture {
 
                 def indexerPath = 'mindustry/ai/BlockIndexer.java'
                 def indexer = new String(readUpstream('core/src/' + indexerPath), 'UTF-8')
+                def oreStorage = 'private IntSeq[][][] ores, wallOres;'
+                def oreRead = 'world.tile(arr.first())'
+                def oreAllocations = [
+                'new IntSeq[content.items().size][][]': 2,
+                'new IntSeq[quadWidth][quadHeight]': 4,
+                'new IntSeq(false, 16)': 4
+            ]
+                if (indexer.count(oreStorage) != 1 || indexer.count(oreRead) != 2 ||
+                    oreAllocations.any { pattern, count -> indexer.count(pattern) != count }) {
+                    throw new GradleException('Pinned ore quadrant index changed')
+            }
+                def compactOreList = '''private OrePositions[][][] ores, wallOres;
+
+    // All entries share a 20 by 20 quadrant. Preserve original append and swap removal order.
+    private static final class OrePositions{
+        private static final int chunkSize = 64;
+
+        private static final class Chunk{
+            short[] offsets;
+            Chunk next;
+
+            Chunk(int capacity){
+                offsets = new short[capacity];
+            }
+        }
+
+        private Chunk first, last;
+        int size;
+
+        private short offset(int pos){
+            return (short)((Point2.y(pos) % quadrantSize) * quadrantSize + Point2.x(pos) % quadrantSize);
+        }
+
+        int first(){
+            return first.offsets[0];
+        }
+
+        void add(int pos){
+            int index = size % chunkSize;
+            if(index == 0){
+                Chunk next = new Chunk(size == 0 ? 8 : chunkSize);
+                if(last == null) first = next;
+                else last.next = next;
+                last = next;
+            }else if(index == last.offsets.length){
+                last.offsets = java.util.Arrays.copyOf(last.offsets, index * 2);
+            }
+            last.offsets[index] = offset(pos);
+            size++;
+        }
+
+        boolean addUnique(int pos){
+            int left = size;
+            short entry = offset(pos);
+            for(Chunk chunk = first; chunk != null; chunk = chunk.next){
+                int count = Math.min(left, chunkSize);
+                for(int index = 0; index < count; index++){
+                    if(chunk.offsets[index] == entry) return false;
+                }
+                left -= count;
+            }
+            add(pos);
+            return true;
+        }
+
+        boolean removeValue(int pos){
+            int left = size;
+            short entry = offset(pos);
+            for(Chunk chunk = first; chunk != null; chunk = chunk.next){
+                int count = Math.min(left, chunkSize);
+                for(int index = 0; index < count; index++){
+                    if(chunk.offsets[index] != entry) continue;
+                    int tail = --size % chunkSize;
+                    chunk.offsets[index] = last.offsets[tail];
+                    if(tail == 0){
+                        if(last == first){
+                            first = last = null;
+                        }else{
+                            Chunk previous = first;
+                            while(previous.next != last) previous = previous.next;
+                            previous.next = null;
+                            last = previous;
+                        }
+                    }
+                    return true;
+                }
+                left -= count;
+            }
+            return false;
+        }
+    }'''
+                indexer = indexer.replace(oreStorage, compactOreList)
+                    .replace(oreRead, 'world.tile(qx * quadrantSize + arr.first() % quadrantSize, qy * quadrantSize + arr.first() / quadrantSize)')
+                    .replace('new IntSeq[content.items().size][][]', 'new OrePositions[content.items().size][][]')
+                    .replace('new IntSeq[quadWidth][quadHeight]', 'new OrePositions[quadWidth][quadHeight]')
+                    .replace('new IntSeq(false, 16)', 'new OrePositions()')
                 def unusedCapacity = 'flagMap[i][j] = new Seq();'
                 if (indexer.count(unusedCapacity) != 1) throw new GradleException('Pinned block flag storage changed')
                 def stagedIndexer = sourceDir.get().file(indexerPath).asFile

@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.zip.InflaterInputStream;
 import mindustry.Vars;
+import mindustry.content.Blocks;
 import mindustry.content.Planets;
 import mindustry.content.SectorPresets;
 import mindustry.game.Team;
@@ -24,6 +25,48 @@ import mindustry.world.blocks.logic.LogicBlock;
 import mindustry.world.meta.BlockFlag;
 
 public final class UpstreamStockCampaignArchiveReference {
+    private static void verifyOreIndex(Tiles tiles) {
+        // The pinned stock lookup tests the first insertion in each 20x20 quadrant.
+        int width = (tiles.width + 19) / 20, height = (tiles.height + 19) / 20;
+        int items = Vars.content.items().size;
+        var floor = new mindustry.world.Tile[items][width][height];
+        var wall = new mindustry.world.Tile[items][width][height];
+        for (var tile : tiles) {
+            boolean open = tile.block() == Blocks.air;
+            var drop = open ? tile.drop() : tile.wallDrop();
+            if (drop == null || drop.id >= items) continue;
+            var first = open ? floor : wall;
+            int qx = tile.x / 20, qy = tile.y / 20;
+            if (first[drop.id][qx][qy] == null) first[drop.id][qx][qy] = tile;
+        }
+        for (var item : Vars.content.items()) {
+            for (int coordinate : new int[]{0, 100, 300, 599}) {
+                float point = coordinate * Vars.tilesize;
+                if (Vars.indexer.findClosestOre(point, point, item) != nearestQuadrantOre(floor[item.id], point)
+                        || Vars.indexer.findClosestWallOre(point, point, item) != nearestQuadrantOre(wall[item.id], point)) {
+                    throw new AssertionError("Stock floor or wall ore selection changed for " + item.name);
+                }
+            }
+        }
+        System.out.println("UPSTREAM_QUADRANT_ORE_INDEX floor=stock wall=stock");
+    }
+
+    private static mindustry.world.Tile nearestQuadrantOre(mindustry.world.Tile[][] quadrants, float point) {
+        mindustry.world.Tile closest = null;
+        float minDistance = Float.POSITIVE_INFINITY;
+        for (var column : quadrants) {
+            for (var tile : column) {
+                if (tile == null) continue;
+                float distance = arc.math.Mathf.dst2(point, point, tile.worldx(), tile.worldy());
+                if (distance < minDistance) {
+                    closest = tile;
+                    minDistance = distance;
+                }
+            }
+        }
+        return closest;
+    }
+
     private static void verifyTeamStats() {
         var teams = new Teams();
         var unused = Team.get(254);
@@ -102,6 +145,9 @@ public final class UpstreamStockCampaignArchiveReference {
                 }
                 Vars.logic.reset();
                 Vars.world.loadSector(preset.sector);
+                if (preset.sector.planet == Planets.serpulo && preset.sector.id == 111) {
+                    verifyOreIndex(Vars.world.tiles);
+                }
                 session.application().runPosted();
                 if (preset.planet == Planets.serpulo && preset.sector.id == 111) verifyStockDarkness();
                 verifyCoreFlagOrder();
