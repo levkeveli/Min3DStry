@@ -1,4 +1,3 @@
-import arc.Core;
 import arc.graphics.Blending;
 import arc.graphics.Color;
 import arc.graphics.g2d.TextureRegion;
@@ -66,22 +65,6 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
         if (NativeTerrain.drawChatKeyboard(Address.ofData(labels)) == 0) {
             throw new IllegalStateException("Unable to draw the live chat keyboard");
         }
-    }
-
-    static String readSchematicName() {
-        byte[] text = new byte[4001];
-        byte[] hint = (Core.bundle.get("schematic.add") + " · " + Core.bundle.get("name") + "\0")
-            .getBytes(StandardCharsets.UTF_8);
-        System.out.println("UPSTREAM_SCHEMATIC_NAME_PROMPT");
-        int length = NativeTerrain.schematicPrompt(Address.ofData(text), text.length, Address.ofData(hint), 0);
-        return length > 0 && length < text.length ? new String(text, 0, length, StandardCharsets.UTF_8) : null;
-    }
-
-    static boolean confirmSchematicReplacement(String name) {
-        byte[] text = new byte[5];
-        byte[] hint = (Core.bundle.get("schematic.replace") + " " + name + "\0").getBytes(StandardCharsets.UTF_8);
-        System.out.println("UPSTREAM_SCHEMATIC_REPLACE_PROMPT");
-        return NativeTerrain.schematicPrompt(Address.ofData(text), text.length, Address.ofData(hint), 1) != 0;
     }
 
     // Keep the catalog kinds in the same order as the native renderer.
@@ -315,9 +298,6 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
 
         @Import(name = "m3ds_terrain_draw_chat_keyboard")
         static native int drawChatKeyboard(Address labels);
-
-        @Import(name = "m3ds_terrain_schematic_prompt")
-        static native int schematicPrompt(Address text, int capacity, Address hint, int confirm);
 
         @Import(name = "m3ds_terrain_build_catalog")
         static native int buildCatalog(Address labels, Address icons, int activeRows,

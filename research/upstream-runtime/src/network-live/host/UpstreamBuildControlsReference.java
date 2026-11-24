@@ -642,19 +642,11 @@ public final class UpstreamBuildControlsReference {
             var first = schematic.tiles.find(tile -> tile.y == 0);
             var middle = schematic.tiles.find(tile -> tile.y == 1);
             var last = schematic.tiles.find(tile -> tile.y == 2);
-            if (!schematic.name().equals("Schematic-2") || !"".equals(schematic.tags.get("description"))
-                    || schematic.width != 1 || schematic.height != 3
+            if (!schematic.name().equals("Schematic-2") || schematic.width != 1 || schematic.height != 3
                     || schematic.tiles.size != 3 || first == null || middle == null || last == null
                     || first.block != Blocks.itemBridge || middle.block != Blocks.sorter || last.block != Blocks.itemBridge
                     || middle.config != Items.lead || !(first.config instanceof Point2 link) || link.x != 0 || link.y != 2) {
                 throw new AssertionError("Upstream reader did not recover captured footprint and configuration");
-            }
-            schematic.tags.put("name", "Bridge layout");
-            Schematics.write(schematic, new Fi(exported.toString()));
-            controls.schematics().open();
-            var rows = new String(controls.schematics().labels(), java.nio.charset.StandardCharsets.UTF_8);
-            if (!rows.contains("\0Bridge layout\0") || !rows.contains("\0Schematic-1\0")) {
-                throw new AssertionError("Picker did not show the stock name and legacy filename fallback");
             }
             Vars.fogControl = new FogControl();
             Vars.state.rules.fog = Vars.state.rules.staticFog = true;
@@ -664,37 +656,6 @@ public final class UpstreamBuildControlsReference {
             controls.update(unit, 1 << 17, -1);
             if (Files.exists(undiscovered)) {
                 throw new AssertionError("The graphical ARM11 adapter exported an undiscovered selection");
-            }
-            Vars.fogControl = fog;
-            Vars.state.rules.fog = oldFog;
-            Vars.state.rules.staticFog = oldStaticFog;
-            schematic.tags.put("description", "Keep this metadata");
-            Schematics.write(schematic, new Fi(exported.toString()));
-            var original = Files.readAllBytes(exported);
-            controls.update(unit, 0, touch(268, 20));
-            tapGridCell(controls, unit, 84, 24);
-            tapGridCell(controls, unit, 84, 24);
-            controls.schematics().saveCapture(unit.team(), () -> null, name -> {
-                throw new AssertionError("Cancelling the name prompt asked for replacement");
-            });
-            if (!java.util.Arrays.equals(original, Files.readAllBytes(exported)) || Files.exists(undiscovered)) {
-                throw new AssertionError("Cancelling the name prompt changed schematic files");
-            }
-            controls.update(unit, 0, touch(268, 20));
-            tapGridCell(controls, unit, 84, 24);
-            tapGridCell(controls, unit, 84, 24);
-            controls.schematics().saveCapture(unit.team(), () -> "Bridge layout", name -> false);
-            if (!java.util.Arrays.equals(original, Files.readAllBytes(exported))) {
-                throw new AssertionError("Declining replacement changed the original schematic");
-            }
-            controls.update(unit, 0, touch(268, 20));
-            tapGridCell(controls, unit, 84, 24);
-            tapGridCell(controls, unit, 84, 24);
-            controls.schematics().saveCapture(unit.team(), () -> "Bridge layout", name -> true);
-            var updated = Schematics.read(new Fi(exported.toString()));
-            if (!updated.name().equals("Bridge layout") || !"Keep this metadata".equals(updated.tags.get("description"))
-                    || updated.tiles.size != 1 || updated.tiles.first().block != Blocks.sorter || Files.exists(undiscovered)) {
-                throw new AssertionError("Replacement did not replace the selected layout and preserve its metadata");
             }
             System.out.println("UPSTREAM_STOCK_SCHEMATIC_CAPTURE crop=1x3 blocks=3 link=0,2 item=lead fog=ok");
         } finally {
