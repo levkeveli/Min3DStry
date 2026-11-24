@@ -94,6 +94,23 @@ def main():
             ("#define TEAVM_GET_STRING(i) teavm_stringPool[i]",
              "#define TEAVM_GET_STRING(i) ((void*)teavm_stringPool[i])"),
         ],
+        "c/o/t/r/Allocator.c": [
+            (
+                'void* meth_otr_Allocator_allocate(void* teavm_local_1) {',
+                'extern TeaVM_Class* m3ds_gc_request_class;\n\n'
+                'void* meth_otr_Allocator_allocate(void* teavm_local_1) {',
+            ),
+            (
+                "    teavm_local_2 = meth_otr_GC_alloc(TEAVM_FIELD(teavm_local_1, TeaVM_Class, size));",
+                "    m3ds_gc_request_class = teavm_local_1;\n"
+                "    teavm_local_2 = meth_otr_GC_alloc(TEAVM_FIELD(teavm_local_1, TeaVM_Class, size));",
+            ),
+            (
+                "    teavm_local_4 = meth_otr_GC_alloc(teavm_local_3);",
+                "    m3ds_gc_request_class = teavm_local_1;\n"
+                "    teavm_local_4 = meth_otr_GC_alloc(teavm_local_3);",
+            ),
+        ],
         "c/o/t/r/GC.c": [
             ('#include "RelocationBlock.h"', '#include "RelocationBlock.h"\n#include "../../../../m3ds_gc_relocations.h"'),
             (

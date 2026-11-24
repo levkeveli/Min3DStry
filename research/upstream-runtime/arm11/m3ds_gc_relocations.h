@@ -13,12 +13,34 @@ static void m3ds_gc_storage_failure(const char *message) {
     abort();
 }
 
+TeaVM_Class* m3ds_gc_request_class;
+
 static void m3ds_gc_log_failed_allocation(int32_t requested, int32_t free_bytes) {
-    char message[128];
+    char name[104] = "<unnamed>";
+    TeaVM_Class *cls = m3ds_gc_request_class;
+    unsigned array_depth = 0;
+    while (cls && cls->itemType) {
+        cls = cls->itemType;
+        ++array_depth;
+    }
+#if TEAVM_CLASS_NAME_USED
+    TeaVM_String *class_name = cls && cls->name ? (TeaVM_String*)*cls->name : NULL;
+    if (class_name && class_name->characters) {
+        TeaVM_Array *chars = class_name->characters;
+        const uint16_t *units = TEAVM_ARRAY_DATA(chars, uint16_t);
+        int i = 0;
+        for (; i < chars->size && i < (int)sizeof(name) - 1; ++i) {
+            name[i] = units[i] < 128 ? (char)units[i] : '?';
+        }
+        name[i] = '\0';
+    }
+#endif
+    char message[256];
     const int length = snprintf(message, sizeof(message),
-        "UPSTREAM_MEMORY allocation-failed requested=%ld free=%ld committed=%lu cap=%lu",
+        "UPSTREAM_MEMORY allocation-failed requested=%ld free=%ld committed=%lu cap=%lu class=%s arrayDepth=%u tag=%ld",
         (long)requested, (long)free_bytes,
-        (unsigned long)teavm_gc_availableBytes, (unsigned long)teavm_gc_maxAvailableBytes);
+        (unsigned long)teavm_gc_availableBytes, (unsigned long)teavm_gc_maxAvailableBytes,
+        name, array_depth, cls ? (long)cls->tag : -1L);
     if (length > 0 && length < (int)sizeof(message)) svcOutputDebugString(message, length);
 }
 
