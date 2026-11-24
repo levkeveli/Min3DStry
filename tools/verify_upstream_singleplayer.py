@@ -61,7 +61,7 @@ def write_singleplayer_ctm(
     # Hosted runners can take ~32s to reach UPSTREAM_SP_READY; start taps at 40s
     # so the mine and ore taps never land during world loading.
     t0 = 40
-    total_seconds = 239 if reopen_title_settings else 158 if database_title else t0 + (115 if verify_database else 62)
+    total_seconds = 340 if reopen_title_settings else 158 if database_title else t0 + (115 if verify_database else 62)
     frames = total_seconds * CTM_SAMPLES_PER_SECOND
     header = struct.pack(
         "<4sQ20sQQ32sIQq156x",
@@ -131,7 +131,11 @@ def write_singleplayer_ctm(
             (122, KEY_DOWN), (129, KEY_A), # Open the Database category again.
             (136, KEY_DOWN), (143, KEY_DOWN), (151, KEY_A), # Open Schematics.
             (198, KEY_A), # Open the staged stock schematic after loading content.
-            (209, KEY_B), (218, KEY_B), (229, KEY_B), # Close detail, library and title.
+            (209, KEY_B), (218, KEY_B), # Close schematic details and return to the title.
+            (229, KEY_A), # Open Play.
+            (237, KEY_DOWN), (245, KEY_DOWN), (253, KEY_DOWN),
+            (261, KEY_A), (271, KEY_A), # Open Load Game and select the Ground Zero save.
+            (329, KEY_START),
         )
     with path.open("wb") as movie:
         movie.write(header)
@@ -392,6 +396,10 @@ def run_singleplayer_model(
                     (out_dir / f"{model}-title-credits.png").write_bytes(rpc4.screenshot())
                     _wait_for_log(log_path, proc4, r"UPSTREAM_TITLE_SCHEMATICS files=[1-9]\d*\b", timeout)
                     _wait_for_log(log_path, proc4, r"UPSTREAM_TITLE_SCHEMATIC file=000-min3dstry-replay\.msch blocks=1\b", timeout)
+                    _wait_for_log(log_path, proc4, r"UPSTREAM_TITLE_LOAD_SELECTED file=singleplayer-save\.msav\b", timeout)
+                    _wait_for_log(log_path, proc4,
+                        rf"UPSTREAM_SP_LOADED source=save .*wave=2 copper={int(loaded2['copper'])}\b", timeout)
+                    _wait_for_log(log_path, proc4, r"UPSTREAM_SP_FRAME\b", timeout)
                     settings_log = _wait_for_log(log_path, proc4, r"UPSTREAM_SP_EXIT\b", timeout)
                     (out_dir / f"{model}-title-settings-reopen.log").write_text(settings_log, encoding="utf-8")
                 finally:

@@ -182,7 +182,10 @@ public final class UpstreamSinglePlayerApp {
                 customRequested = selection.action() == TitleAction.custom;
                 editorRequested = selection.action() == TitleAction.editor;
                 loadRequested = selection.action() == TitleAction.load;
-                if (loadRequested) saveFile = selection.save();
+                if (loadRequested) {
+                    saveFile = selection.save();
+                    System.out.println("UPSTREAM_TITLE_LOAD_SELECTED file=" + saveFile.name());
+                }
             }
             prepareSession(mapDir, bundleTag, settings);
             if (databaseRequested) {
