@@ -27,6 +27,8 @@ TAPS = {35: (15, 155), 42: (268, 20), 48: (216, 184), 55: (216, 152)}
 PLACE = 1 << 0
 EXISTING = b"preserve existing schematic\n"
 CAPTURE_NAME = "Bridge layout"
+EDITED_NAME = "Linked conveyors"
+EDITED_DESCRIPTION = "Lead sorter between two bridges"
 
 
 def create_fixture(args, output):
@@ -48,7 +50,14 @@ def enter_name(use_xdotool):
         print(f"Enter {CAPTURE_NAME!r} in the Azahar software keyboard and confirm.", flush=True)
 
 
-def verify_touch(log, proc, rpc, output, use_xdotool, replace):
+def edit_text(value):
+    time.sleep(1)
+    subprocess.run(["xdotool", "key", "ctrl+a"], check=True, timeout=10)
+    subprocess.run(["xdotool", "type", value], check=True, timeout=10)
+    subprocess.run(["xdotool", "key", "Return"], check=True, timeout=10)
+
+
+def verify_touch(log, proc, rpc, output, use_xdotool, replace, edit):
     sp._wait_for_log(log, proc, r"UPSTREAM_SCHEMATIC_CAPTURE_AREA x=84 y=23 x2=84 y2=25", 105)
     time.sleep(1)
     (output / "capture-area.png").write_bytes(rpc.screenshot())
@@ -66,11 +75,17 @@ def verify_touch(log, proc, rpc, output, use_xdotool, replace):
         else:
             print("Confirm the existing schematic replacement in Azahar.", flush=True)
         sp._wait_for_log(log, proc, r"UPSTREAM_SCHEMATIC_SAVED file=Schematic-2\.msch blocks=1 width=1 height=1", 90)
+    if edit:
+        sp._wait_for_log(log, proc, r"UPSTREAM_SCHEMATIC_EDIT_PROMPT field=name", 90)
+        edit_text(EDITED_NAME)
+        sp._wait_for_log(log, proc, r"UPSTREAM_SCHEMATIC_EDIT_PROMPT field=editor.description", 35)
+        edit_text(EDITED_DESCRIPTION)
+        sp._wait_for_log(log, proc, r"UPSTREAM_SCHEMATIC_METADATA_EDITED file=Schematic-2\.msch", 35)
     time.sleep(1)
     (output / "capture-saved.png").write_bytes(rpc.screenshot())
 
 
-def read_stock_capture(server, log, directory, replace):
+def read_stock_capture(server, log, directory, replace, edit):
     existing = directory / "Schematic-1.msch"
     exported = directory / "Schematic-2.msch"
     if existing.read_bytes() != EXISTING:
@@ -96,7 +111,9 @@ def read_stock_capture(server, log, directory, replace):
         'const source=schematic.tiles.find(t=>t.y===0), sorter=schematic.tiles.find(t=>t.y===1), '
         'receiver=schematic.tiles.find(t=>t.y===2); '
         'if (schematic.width!==1 || schematic.height!==3 || schematic.tiles.size!==3 || '
-        f'String(schematic.name())!=={json.dumps(CAPTURE_NAME)} || source===null || sorter===null || receiver===null || '
+        f'String(schematic.name())!=={json.dumps(EDITED_NAME if edit else CAPTURE_NAME)} || '
+        f'String(schematic.description())!=={json.dumps(EDITED_DESCRIPTION if edit else "")} || '
+        'source===null || sorter===null || receiver===null || '
         'source.block!==Blocks.itemBridge || receiver.block!==Blocks.itemBridge || sorter.block!==Blocks.sorter || '
         'source.config.x!==0 || source.config.y!==2 || sorter.config!==Items.lead || source.rotation!==0) '
         'throw "Stock decode differs from the captured factory"; '
@@ -117,8 +134,12 @@ def main():
     parser.add_argument("--port", type=int, default=16660)
     parser.add_argument("--live", action="store_true")
     parser.add_argument("--xdotool", action="store_true", help="Enter the name in the Azahar Qt keyboard on X11")
-    parser.add_argument("--replace", action="store_true", help="Confirm a second capture using the same stock name")
+    operation = parser.add_mutually_exclusive_group()
+    operation.add_argument("--replace", action="store_true", help="Confirm a second capture using the same stock name")
+    operation.add_argument("--edit", action="store_true", help="Edit the captured schematic's name and description")
     args = parser.parse_args()
+    if args.edit and not args.xdotool:
+        parser.error("--edit requires --xdotool")
     args.output.mkdir(parents=True, exist_ok=True)
     fixture = args.fixture or create_fixture(args, args.output / "stock-fixture")
     for model in args.model or ("old3ds", "new3ds"):
@@ -128,18 +149,22 @@ def main():
             directory.mkdir(parents=True)
             (directory / "Schematic-1.msch").write_bytes(EXISTING)
             taps = dict(TAPS)
-            buttons = {62: PLACE, 114 if args.replace else 94: sp.KEY_START}
+            extended = args.replace or args.edit
+            buttons = {62: PLACE, 114 if extended else 94: sp.KEY_START}
             if args.replace:
                 taps.update({76: (268, 20), 82: (216, 168), 88: (216, 168)})
                 buttons[96] = PLACE
+            if args.edit:
+                taps.update({76: (184, 20), 82: (20, 70)})
             if live:
                 buttons[0] = sp.KEY_X
             else:
-                buttons[106 if args.replace else 84] = sp.KEY_SELECT
-            replay(args, model, fixture, live, taps=taps, buttons=buttons, movie_seconds=122 if args.replace else 102,
-                   verify_input=lambda log, proc, rpc, target: verify_touch(log, proc, rpc, target, args.xdotool, args.replace),
-                   read_stock=lambda server, log: read_stock_capture(server, log, directory, args.replace))
-            result = "replacement=ok" if args.replace else "original=ok link=0,2"
+                buttons[106 if extended else 84] = sp.KEY_SELECT
+            replay(args, model, fixture, live, taps=taps, buttons=buttons, movie_seconds=122 if extended else 102,
+                   verify_input=lambda log, proc, rpc, target: verify_touch(
+                       log, proc, rpc, target, args.xdotool, args.replace, args.edit),
+                   read_stock=lambda server, log: read_stock_capture(server, log, directory, args.replace, args.edit))
+            result = "replacement=ok" if args.replace else "metadata=ok" if args.edit else "original=ok link=0,2"
             print(f"UPSTREAM_STOCK_SCHEMATIC_CAPTURE model={model} live={live} {result}", flush=True)
 
 
