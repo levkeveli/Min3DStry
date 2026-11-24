@@ -58,3 +58,5 @@ A second occupied item ID allocates an array sized to the full stock
 catalog. Subclasses retain the protected item array used by upstream
 methods. The unified CI build compares item operations, active flow
 sampling, and current and legacy save data with the unmodified v160.8 JAR.
+This comparison runs on the JVM host. ARM11 heap measurements and dense
+reload are tracked separately in #538.

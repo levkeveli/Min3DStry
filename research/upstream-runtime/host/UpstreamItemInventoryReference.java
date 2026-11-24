@@ -66,7 +66,6 @@ public final class UpstreamItemInventoryReference {
         int ready = 0;
         for (int step = 1; step <= 100; step++) {
             Time.time = step * 10;
-            if (step == 60) module.checkArrayCapacity(1);
             module.updateFlow();
             module.add(items[0], step % 6);
             if (step % 5 == 0) module.add(items[1], 2);
@@ -79,6 +78,20 @@ public final class UpstreamItemInventoryReference {
         module.stopFlow();
         if (ready == 0 || module.getFlowRate(items[0]) != -1f) {
             throw new AssertionError("Stock item flow sampling did not start and stop");
+        }
+
+        // The pinned checkArrayCapacity resizes in both directions. Verify
+        // capacity changes explicitly outside active flow sampling.
+        module.clear();
+        module.add(items[0], 5);
+        module.add(items[1], 8);
+        module.checkArrayCapacity(1);
+        if (module.length() != 1 || module.get(items[0]) != 5 || module.total() != 13) {
+            throw new AssertionError("Stock item shrink changed the retained slot or total");
+        }
+        module.checkArrayCapacity(3);
+        if (module.length() != 3 || module.get(items[1]) != 0) {
+            throw new AssertionError("Stock item growth did not initialize the reinstated slot");
         }
 
         var from = new ItemModule();

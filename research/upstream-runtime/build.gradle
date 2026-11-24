@@ -1025,6 +1025,7 @@ final class GlacierFixture {
             }
         }''', 1],
                 ['if(items.length != len) items = Arrays.copyOf(items, len);', 'resizeCounts(len);', 1],
+                // Stock checkArrayCapacity explicitly grows or shrinks without changing total.
                 ['if(items.length != size) items = Arrays.copyOf(items, size);', 'resizeCounts(size);', 1],
                 ['Arrays.fill(items, 0);', 'clearCounts();', 2],
                 ['items[index] --;', 'writeCount(index, countAt(index) - 1);', 1],
