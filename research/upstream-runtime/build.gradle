@@ -760,6 +760,7 @@ tasks.register('prepareUpstreamProbe') {
             withLabel('liquids(Boolf<Liquid> filter, float amount, boolean perSecond)', 'filteredLiquidStatText(filter, amount, perSecond)')
             withLabel('items(float timePeriod, Boolf<Item> filter)', 'filteredItemStatText(filter, timePeriod)')
             withLabel('content(UnlockableContent content)', 'content.localizedName')
+            withLabel('abilities(Seq<Ability> abilities)', 'abilityStatText(abilities)')
             withLabel('drillables(float drillTime, float drillMultiplier, float size, ObjectFloatMap<Item> multipliers, Boolf<Block> filter)',
                 'drillableStatText(drillTime, drillMultiplier, size, multipliers, filter)')
             def contentListStart = '''    public static <T extends UnlockableContent> StatValue content(Seq<T> list, Boolf<T> check, String noneText){
@@ -841,6 +842,18 @@ tasks.register('prepareUpstreamProbe') {
 
     private static String drillableRate(Block block, float drillTime, float drillMultiplier, float size, ObjectFloatMap<Item> multipliers){
         return Strings.autoFixed(60f / (Math.max(drillTime + drillMultiplier * block.itemDrop.hardness, drillTime) / multipliers.get(block.itemDrop, 1f)) * size, 2) + StatUnit.perSecond.localized();
+    }
+
+    private static String abilityStatText(Seq<Ability> abilities){
+        StringBuilder label = new StringBuilder();
+        for(var ability : abilities){
+            if(!ability.display) continue;
+            if(label.length() != 0) label.append('\\n');
+            label.append(ability.localized());
+            String description = ability.getBundle() + ".description";
+            if(Core.bundle.has(description)) label.append('\\n').append(Core.bundle.get(description));
+        }
+        return label.toString();
     }
 
     public static String fixValue(float value){'''
