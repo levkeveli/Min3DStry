@@ -39,23 +39,38 @@ def create_fixture(args, output):
     return output / "config/saves/capture.msav"
 
 
-def verify_touch(log, proc, rpc, output, use_xdotool):
-    sp._wait_for_log(log, proc, r"UPSTREAM_SCHEMATIC_CAPTURE_AREA x=84 y=23 x2=84 y2=25", 105)
-    time.sleep(1)
-    (output / "capture-area.png").write_bytes(rpc.screenshot())
-    sp._wait_for_log(log, proc, r"UPSTREAM_SCHEMATIC_NAME_PROMPT", 35)
+def enter_name(use_xdotool):
     if use_xdotool:
         time.sleep(1)
         subprocess.run(["xdotool", "type", CAPTURE_NAME], check=True, timeout=10)
         subprocess.run(["xdotool", "key", "Return"], check=True, timeout=10)
     else:
         print(f"Enter {CAPTURE_NAME!r} in the Azahar software keyboard and confirm.", flush=True)
+
+
+def verify_touch(log, proc, rpc, output, use_xdotool, replace):
+    sp._wait_for_log(log, proc, r"UPSTREAM_SCHEMATIC_CAPTURE_AREA x=84 y=23 x2=84 y2=25", 105)
+    time.sleep(1)
+    (output / "capture-area.png").write_bytes(rpc.screenshot())
+    sp._wait_for_log(log, proc, r"UPSTREAM_SCHEMATIC_NAME_PROMPT", 35)
+    enter_name(use_xdotool)
     sp._wait_for_log(log, proc, r"UPSTREAM_SCHEMATIC_SAVED file=Schematic-2\.msch blocks=3 width=1 height=3", 90)
+    if replace:
+        sp._wait_for_log(log, proc, r"UPSTREAM_SCHEMATIC_SAVED file=Schematic-2\.msch blocks=3 width=1 height=3"
+                         r"[\s\S]*UPSTREAM_SCHEMATIC_NAME_PROMPT", 90)
+        enter_name(use_xdotool)
+        sp._wait_for_log(log, proc, r"UPSTREAM_SCHEMATIC_REPLACE_PROMPT", 35)
+        if use_xdotool:
+            time.sleep(1)
+            subprocess.run(["xdotool", "key", "Return"], check=True, timeout=10)
+        else:
+            print("Confirm the existing schematic replacement in Azahar.", flush=True)
+        sp._wait_for_log(log, proc, r"UPSTREAM_SCHEMATIC_SAVED file=Schematic-2\.msch blocks=1 width=1 height=1", 90)
     time.sleep(1)
     (output / "capture-saved.png").write_bytes(rpc.screenshot())
 
 
-def read_stock_capture(server, log, directory):
+def read_stock_capture(server, log, directory, replace):
     existing = directory / "Schematic-1.msch"
     exported = directory / "Schematic-2.msch"
     if existing.read_bytes() != EXISTING:
@@ -63,6 +78,18 @@ def read_stock_capture(server, log, directory):
     if sorted(path.name for path in directory.iterdir()) != [existing.name, exported.name]:
         raise AssertionError("Capture left a missing or unexpected file in the schematic directory")
     filename = json.dumps(exported.resolve().as_posix())
+    if replace:
+        script = (
+            'const S=Packages.mindustry.game.Schematics; '
+            f'const schematic=S.read(new Packages.arc.files.Fi({filename})); '
+            'const tile=schematic.tiles.first(); '
+            f'if (String(schematic.name())!=={json.dumps(CAPTURE_NAME)} || schematic.width!==1 || '
+            'schematic.height!==1 || schematic.tiles.size!==1 || tile.block!==Blocks.sorter || '
+            'tile.config!==Items.lead) throw "Stock decode differs from the replaced schematic"; '
+            'return "STOCK_CAPTURE_REPLACEMENT blocks=1 item=lead";'
+        )
+        stock_command(server, log, "js (() => { " + script + " })()", "STOCK_CAPTURE_REPLACEMENT blocks=1 item=lead")
+        return
     script = (
         'const S=Packages.mindustry.game.Schematics; '
         f'const schematic=S.read(new Packages.arc.files.Fi({filename})); '
@@ -90,6 +117,7 @@ def main():
     parser.add_argument("--port", type=int, default=16660)
     parser.add_argument("--live", action="store_true")
     parser.add_argument("--xdotool", action="store_true", help="Enter the name in the Azahar Qt keyboard on X11")
+    parser.add_argument("--replace", action="store_true", help="Confirm a second capture using the same stock name")
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
     fixture = args.fixture or create_fixture(args, args.output / "stock-fixture")
@@ -99,15 +127,20 @@ def main():
             directory = scene / "sdmc/3ds/min3dstry/schematics"
             directory.mkdir(parents=True)
             (directory / "Schematic-1.msch").write_bytes(EXISTING)
-            buttons = {62: PLACE, 94: sp.KEY_START}
+            taps = dict(TAPS)
+            buttons = {62: PLACE, 114 if args.replace else 94: sp.KEY_START}
+            if args.replace:
+                taps.update({76: (268, 20), 82: (216, 168), 88: (216, 168)})
+                buttons[96] = PLACE
             if live:
                 buttons[0] = sp.KEY_X
             else:
-                buttons[84] = sp.KEY_SELECT
-            replay(args, model, fixture, live, taps=TAPS, buttons=buttons,
-                   verify_input=lambda log, proc, rpc, target: verify_touch(log, proc, rpc, target, args.xdotool),
-                   read_stock=lambda server, log: read_stock_capture(server, log, directory))
-            print(f"UPSTREAM_STOCK_SCHEMATIC_CAPTURE model={model} live={live} original=ok link=0,2", flush=True)
+                buttons[106 if args.replace else 84] = sp.KEY_SELECT
+            replay(args, model, fixture, live, taps=taps, buttons=buttons, movie_seconds=122 if args.replace else 102,
+                   verify_input=lambda log, proc, rpc, target: verify_touch(log, proc, rpc, target, args.xdotool, args.replace),
+                   read_stock=lambda server, log: read_stock_capture(server, log, directory, args.replace))
+            result = "replacement=ok" if args.replace else "original=ok link=0,2"
+            print(f"UPSTREAM_STOCK_SCHEMATIC_CAPTURE model={model} live={live} {result}", flush=True)
 
 
 if __name__ == "__main__":

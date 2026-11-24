@@ -80,6 +80,7 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
     static boolean confirmSchematicReplacement(String name) {
         byte[] text = new byte[5];
         byte[] hint = (Core.bundle.get("schematic.replace") + " " + name + "\0").getBytes(StandardCharsets.UTF_8);
+        System.out.println("UPSTREAM_SCHEMATIC_REPLACE_PROMPT");
         return NativeTerrain.schematicPrompt(Address.ofData(text), text.length, Address.ofData(hint), 1) != 0;
     }
 
