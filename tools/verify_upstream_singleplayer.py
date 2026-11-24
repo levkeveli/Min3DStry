@@ -53,6 +53,13 @@ def resolve_sd_save_path(log_path: Path) -> Path:
     return log_path.parent.parent / "sdmc" / "3ds" / "min3dstry" / "singleplayer-save.msav"
 
 
+def stage_direct_startup(sd: Path) -> None:
+    """Select direct offline launch in an isolated virtual SD fixture."""
+    startup = sd / "3ds/min3dstry/startup.txt"
+    startup.parent.mkdir(parents=True, exist_ok=True)
+    startup.write_text("direct\n", encoding="ascii")
+
+
 def write_singleplayer_ctm(
     path: Path, model: str, verify_database: bool = False, database_title: bool = False,
     reopen_title_settings: bool = False,

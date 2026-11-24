@@ -14,6 +14,7 @@ import verify_upstream_singleplayer as sp
 def verify(args, model, azahar, config, log, fixture):
     output = args.output / model
     sd = (output / "virtual-sd").resolve()
+    sp.stage_direct_startup(sd)
     campaign = sd / "3ds/min3dstry"
     shutil.copytree(fixture / "saves", campaign / "saves")
     shutil.copyfile(fixture / "settings.bin", campaign / "settings.bin")

@@ -77,6 +77,7 @@ def verify_live(args, model, azahar, fixture, terrain, output, samples=SAMPLES, 
     sd = (output / "sdmc").resolve()
     endpoint = sd / "3ds/min3dstry/server-endpoint.txt"
     endpoint.parent.mkdir(parents=True)
+    singleplayer.stage_direct_startup(sd)
     endpoint.write_text(f"127.0.0.1 {args.port}\n", encoding="ascii")
     movie = output / "join.ctm"
     write_controls_replay(movie, first_move=90, model=model, unified_boot=True)
