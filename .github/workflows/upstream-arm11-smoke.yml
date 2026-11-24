@@ -72,10 +72,13 @@ concurrency:
 permissions:
   contents: read
 
+# Temporary: the self-hosted min3dstry runners are offline. Run smoke jobs
+# on GitHub-hosted Ubuntu so main pushes and same-repo PRs are not queued.
+# Restore the self-hosted runs-on expressions when the runners return.
 jobs:
   changes:
     name: Scope smoke checks
-    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.head.repo.fork)) && '["self-hosted", "linux", "x64", "min3dstry-fast"]' || '"ubuntu-latest"') }}
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
       contents: read
@@ -106,7 +109,7 @@ jobs:
     name: Probe ${{ matrix.probe }}
     needs: [changes]
     if: needs.changes.outputs.run_probes == 'true' && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.run_all != 'true')
-    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.head.repo.fork)) && '["self-hosted", "linux", "x64", "min3dstry"]' || '"ubuntu-latest"') }}
+    runs-on: ubuntu-latest
     timeout-minutes: 60
     strategy:
       fail-fast: false
@@ -318,7 +321,7 @@ jobs:
     name: Save writer baseline
     needs: [changes]
     if: needs.changes.outputs.run_save == 'true' && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.run_all != 'true')
-    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.head.repo.fork)) && '["self-hosted", "linux", "x64", "min3dstry"]' || '"ubuntu-latest"') }}
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -364,7 +367,7 @@ jobs:
     name: World save round trip
     needs: [changes]
     if: needs.changes.outputs.run_save == 'true' && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.run_all != 'true')
-    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.head.repo.fork)) && '["self-hosted", "linux", "x64", "min3dstry"]' || '"ubuntu-latest"') }}
+    runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
@@ -571,7 +574,7 @@ jobs:
     name: Audio asset inventory
     needs: [changes]
     if: github.event_name == 'workflow_dispatch'
-    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.head.repo.fork)) && '["self-hosted", "linux", "x64", "min3dstry"]' || '"ubuntu-latest"') }}
+    runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
@@ -672,7 +675,7 @@ jobs:
     name: Progression baseline
     needs: [changes]
     if: needs.changes.outputs.run_progression == 'true' && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.run_all != 'true')
-    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.head.repo.fork)) && '["self-hosted", "linux", "x64", "min3dstry"]' || '"ubuntu-latest"') }}
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -708,7 +711,7 @@ jobs:
     name: Combat and pathfinding baseline
     needs: [changes]
     if: needs.changes.outputs.run_combat == 'true' && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.run_all != 'true')
-    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.head.repo.fork)) && '["self-hosted", "linux", "x64", "min3dstry"]' || '"ubuntu-latest"') }}
+    runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
@@ -802,7 +805,7 @@ jobs:
     name: Audio conversion
     needs: [changes]
     if: needs.changes.outputs.run_audio == 'true' && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.run_all != 'true')
-    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.head.repo.fork)) && '["self-hosted", "linux", "x64", "min3dstry"]' || '"ubuntu-latest"') }}
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -864,7 +867,7 @@ jobs:
     name: Net session baseline
     needs: [changes]
     if: github.event_name == 'workflow_dispatch'
-    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.head.repo.fork)) && '["self-hosted", "linux", "x64", "min3dstry"]' || '"ubuntu-latest"') }}
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -892,7 +895,7 @@ jobs:
     name: Production, power, and liquid baseline
     needs: [changes]
     if: needs.changes.outputs.run_production == 'true' && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.run_all != 'true')
-    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.head.repo.fork)) && '["self-hosted", "linux", "x64", "min3dstry"]' || '"ubuntu-latest"') }}
+    runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
@@ -982,7 +985,7 @@ jobs:
     name: Factory and logistics baseline
     needs: [changes]
     if: needs.changes.outputs.run_factory == 'true' && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.run_all != 'true')
-    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.head.repo.fork)) && '["self-hosted", "linux", "x64", "min3dstry"]' || '"ubuntu-latest"') }}
+    runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
@@ -1070,7 +1073,7 @@ jobs:
     name: Offline single-player Ground Zero baseline
     needs: [changes]
     if: github.event_name == 'workflow_dispatch'
-    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.head.repo.fork)) && '["self-hosted", "linux", "x64", "min3dstry"]' || '"ubuntu-latest"') }}
+    runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
@@ -1286,7 +1289,7 @@ jobs:
       needs.changes.outputs.run_singleplayer == 'true' ||
       needs.changes.outputs.run_audio == 'true' ||
       needs.changes.outputs.run_net == 'true'
-    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.head.repo.fork)) && '["self-hosted", "linux", "x64", "min3dstry"]' || '"ubuntu-latest"') }}
+    runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4

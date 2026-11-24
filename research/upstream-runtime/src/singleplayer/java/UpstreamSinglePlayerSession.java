@@ -573,8 +573,12 @@ public final class UpstreamSinglePlayerSession {
 
     boolean togglePause() {
         boolean paused = Vars.state.isPaused();
-        if (Vars.state.rules.pauseDisabled) return paused;
+        if (Vars.state.rules.pauseDisabled) {
+            System.out.println("UPSTREAM_SP_PAUSE disabled=true");
+            return paused;
+        }
         Vars.state.set(paused ? State.playing : State.paused);
+        System.out.println("UPSTREAM_SP_PAUSE paused=" + !paused);
         return !paused;
     }
 

@@ -164,3 +164,39 @@ jobs:
           path: |
             build/min3dstry.3dsx
             build/min3dstry.smdh
+
+  verify:
+    name: Verify artifact in Azahar
+    needs: build
+    # A fresh full build is only useful evidence if the packaged audio RomFS
+    # and embedded loader actually boot. Reuse the pinned Azahar setup from the
+    # upstream smoke workflow and check both console profiles.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: min3dstry-embedded-loader
+          path: build/artifact
+
+      - run: bash .github/scripts/setup_smoke_azahar.sh
+
+      - name: Boot New and Original 3DS profiles
+        run: |
+          xvfb-run -a python3 tools/verify_azahar.py \
+            --rom build/artifact/min3dstry.3dsx \
+            --out-dir build/emu-verify \
+            --models new3ds,old3ds \
+            --timeout 180
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: emu-verify-report
+          path: |
+            build/emu-verify/report.json
+            build/emu-verify/*.png
