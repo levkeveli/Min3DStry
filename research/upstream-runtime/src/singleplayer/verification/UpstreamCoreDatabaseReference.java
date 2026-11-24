@@ -1,9 +1,11 @@
 import arc.Core;
 import arc.Settings;
 import arc.files.Fi;
+import arc.struct.ObjectFloatMap;
 import arc.util.I18NBundle;
 import java.util.Locale;
 import mindustry.Vars;
+import mindustry.content.Blocks;
 import mindustry.content.Items;
 import mindustry.content.Liquids;
 import mindustry.content.Planets;
@@ -70,5 +72,10 @@ public final class UpstreamCoreDatabaseReference {
         if (!"Lead".equals(material) || !"Copper".equals(selected) || !Core.bundle.get("none").equals(empty)) {
             throw new AssertionError(material + " | " + selected + " | " + empty);
         }
+        var drillMultipliers = new ObjectFloatMap<mindustry.type.Item>();
+        drillMultipliers.put(Items.copper, 2f);
+        String drills = StatValues.drillables(120f, 30f, 4f, drillMultipliers,
+            block -> block == Blocks.oreCopper).handheldText();
+        if (!"Copper / Copper 3.2/sec".equals(drills)) throw new AssertionError(drills);
     }
 }
