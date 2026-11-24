@@ -139,11 +139,12 @@ public final class UpstreamSinglePlayerApp {
             && (bootInput & UpstreamSinglePlayerInput.L_HELD) != 0;
         boolean editorRequested = customRequested && (bootInput & UpstreamSinglePlayerInput.CAMPAIGN_HELD) != 0;
         editorRequested |= args.length > 0 && args[0].equals("--editor");
+        boolean databaseRequested = args.length > 0 && args[0].equals("--database");
         boolean campaignRequested = args.length == 0 && bootInput >= 0
             && (bootInput & UpstreamSinglePlayerInput.CAMPAIGN_HELD) != 0 && !customRequested;
-        Fi mapFile = !editorRequested && args.length >= 1 ? new Fi(args[0]) : firstExisting("/romfs/maps/groundZero.msav", "/3ds/min3dstry/groundZero.msav");
+        Fi mapFile = !editorRequested && !databaseRequested && args.length >= 1 ? new Fi(args[0]) : firstExisting("/romfs/maps/groundZero.msav", "/3ds/min3dstry/groundZero.msav");
         sourceMap = mapFile;
-        Fi saveFile = !editorRequested && args.length >= 2 ? new Fi(args[1]) : new Fi("/3ds/min3dstry/singleplayer-save.msav");
+        Fi saveFile = !editorRequested && !databaseRequested && args.length >= 2 ? new Fi(args[1]) : new Fi("/3ds/min3dstry/singleplayer-save.msav");
         Fi atlas = firstExisting("/romfs/sprites.aatls", "/3ds/min3dstry/sprites.aatls");
         Fi mapDir = saveFile.parent() != null ? saveFile.parent() : new Fi("/3ds/min3dstry");
         var settings = UpstreamSinglePlayerSession.loadSettings(mapDir);
@@ -169,6 +170,11 @@ public final class UpstreamSinglePlayerApp {
         Events.run(Trigger.teamCoreDamage, () ->
             UpstreamNotification.show(Core.bundle.get("coreattack"), 4f));
         try {
+            if (databaseRequested) {
+                loadInterfaceGraphics(atlas);
+                new UpstreamCoreDatabaseMenu(target).run();
+                return;
+            }
             if (editorRequested) {
                 var source = args.length >= 2 ? new Fi(args[1]) : mapDir.child("editor-map.msav");
                 var output = args.length >= 3 ? new Fi(args[2]) : null;

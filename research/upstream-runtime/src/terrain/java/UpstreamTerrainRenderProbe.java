@@ -85,20 +85,24 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
     }
 
     static String editSchematicName(String original) {
-        return editSchematicText("name", original, 2);
+        System.out.println("UPSTREAM_SCHEMATIC_EDIT_PROMPT field=name");
+        return editText(Core.bundle.get("schematic.edit") + " · " + Core.bundle.get("name"), original, 2);
     }
 
     static String editSchematicDescription(String original) {
-        return editSchematicText("editor.description", original, 3);
+        System.out.println("UPSTREAM_SCHEMATIC_EDIT_PROMPT field=editor.description");
+        return editText(Core.bundle.get("schematic.edit") + " · " + Core.bundle.get("editor.description"), original, 3);
     }
 
-    private static String editSchematicText(String label, String original, int mode) {
+    static String readDatabaseSearch(String original) {
+        return editText(Core.bundle.get("players.search"), original, 2);
+    }
+
+    private static String editText(String caption, String original, int mode) {
         byte[] text = new byte[Math.max(1000, original.length()) * 4 + 1];
         byte[] initialBytes = original.getBytes(StandardCharsets.UTF_8);
         System.arraycopy(initialBytes, 0, text, 0, initialBytes.length);
-        byte[] hint = (Core.bundle.get("schematic.edit") + " · " + Core.bundle.get(label) + "\0")
-            .getBytes(StandardCharsets.UTF_8);
-        System.out.println("UPSTREAM_SCHEMATIC_EDIT_PROMPT field=" + label);
+        byte[] hint = (caption + "\0").getBytes(StandardCharsets.UTF_8);
         int length = NativeTerrain.schematicPrompt(Address.ofData(text), text.length, Address.ofData(hint), mode);
         return length >= 0 && length < text.length ? new String(text, 0, length, StandardCharsets.UTF_8) : null;
     }
