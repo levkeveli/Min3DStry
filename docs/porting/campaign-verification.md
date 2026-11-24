@@ -36,6 +36,15 @@ runs the ARM11 campaign map packer and compares every output map byte with
 the official v160.8 archive. It checks 78 Serpulo maps, including 46
 numbered sectors, and 17 Erekir maps.
 
+The rendered campaign and editor runtime store the tile's common content IDs
+and mutation flag in one word. Tiles keep unusual IDs and nonzero auxiliary
+data in a weakly keyed extension, retaining the original 32-bit values and
+current and legacy save layouts. The campaign archive reference checks the
+stock IDs, independent updates, the missing-value sentinel, wide IDs and
+packed tile metadata. The [ARM11-aligned Linux diagnostic](https://github.com/levkeveli/Min3DStry/actions/runs/45348197484)
+measured 24 bytes per common tile. That measurement applies to the diagnostic
+build with the handheld alignment rule.
+
 Pass the staging directory and a new save directory to
 `runStockCampaignArchiveJvm` with `-Pprobe=singleplayer`. The test reads
 all 95 map headers, checks their preset associations, and decodes all 95
@@ -48,11 +57,11 @@ server also reopens both saves through `verify_stock_campaign_archive.py
 IDs, dimensions and patch counts. Handheld loading and frame rate for these large maps
 require separate measurements.
 
-The rendered campaign and editor runtime store the tile's common content IDs
-and mutation flag in one word. Tiles keep unusual IDs and nonzero auxiliary
-data in a weakly keyed extension, retaining the original 32-bit values and
-current and legacy save layouts. The campaign archive reference checks the
-stock IDs, independent updates, the missing-value sentinel, wide IDs and
-packed tile metadata. The [ARM11-aligned Linux diagnostic](https://github.com/levkeveli/Min3DStry/actions/runs/45348197484)
-measured 24 bytes per common tile. That measurement applies to the diagnostic
-build with the handheld alignment rule.
+The ARM11 single-player heap exposes at least 2 MiB of existing garbage
+collector scratch space from startup. TeaVM counts that scratch separately
+from the managed cap. A 600×600 tile array can fill the stock mark queue
+while the managed heap is still growing. The handheld allocator already
+backs the maximum scratch reservation for the 32 MiB managed heap.
+The [aligned Linux run](https://github.com/levkeveli/Min3DStry/actions/runs/45349275468)
+confirmed first-power updates and 60 ticks in all five dense-sector fixtures
+with that scratch floor. Physical-device measurements are pending.
