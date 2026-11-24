@@ -22,12 +22,12 @@ def write_replay(path: Path, model: str, multiple: bool, move_down: bool, dense:
             windows += [(43, 45, 1 << 7)]
     seconds = 114 if multiple else 86
     if dense and multiple:
-        # Let the first world frame finish before opening pause. The first pause
-        # frame also loads its font, so leave time before sending menu navigation.
+        # Dense ARM11 frames can be many seconds apart. Hold each button long
+        # enough to cross an input poll and leave a neutral window for release.
         windows = [(start, end, key) for start, end, key in windows if start < 60]
-        windows += [(185, 188, sp.KEY_X), (199, 203, 1 << 7), (212, 216, 1 << 7),
-                    (225, 229, 1), (365, 369, sp.KEY_START)]
-        seconds = 380
+        windows += [(175, 207, sp.KEY_X), (250, 282, 1 << 7), (325, 357, 1 << 7),
+                    (400, 432, 1), (650, 682, sp.KEY_START)]
+        seconds = 710
     frames = sp.CTM_SAMPLES_PER_SECOND * seconds
     header = struct.pack("<4sQ20sQQ32sIQq156x", b"CTM\x1b", 0, sp.CTM_REVISION, 1780000000,
                          0x4D334453, b"Min3DStry Campaign", 0, frames, 0)
@@ -91,7 +91,7 @@ def verify(model: str, rom: Path, azahar: str, config: Path, log: Path,
                 source = "" if multiple else " source=single"
                 sp._wait_for_log(log, proc, rf"UPSTREAM_CAMPAIGN_SELECTED slot={selection}{source}\b", 100)
                 loaded = rf"UPSTREAM_SP_LOADED source=campaign map={map_name}\b"
-                load_timeout = 300 if dense and multiple else 100
+                load_timeout = 430 if dense and multiple else 100
                 sp._wait_for_log(log, proc, loaded, load_timeout)
                 sp._wait_for_log(log, proc, r"UPSTREAM_SP_FRAME ", 100)
                 rpc.perf_stats(reset=True)
