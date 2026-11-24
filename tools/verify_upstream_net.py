@@ -67,11 +67,15 @@ def main() -> int:
 
     with tempfile.TemporaryDirectory(prefix="min3dstry-net-") as scratch:
         lz4_dir = Path(scratch) / "lz4"
+        # Drain the server log into a file. A full stdout pipe can stall the
+        # stock server while it streams the initial world to the baseline.
+        server_log_path = Path(scratch) / "server.log"
+        server_log = server_log_path.open("w", encoding="utf-8", errors="replace")
         proc = subprocess.Popen(
             ["java", "-jar", str(server_jar)],
             cwd=scratch,
             stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
+            stdout=server_log,
             stderr=subprocess.STDOUT,
             text=True,
         )
@@ -174,10 +178,10 @@ def main() -> int:
             if proc.poll() is None:
                 proc.kill()
                 proc.wait(timeout=5)
-        if proc.stdout is not None:
-            server_out = proc.stdout.read()
-            print("--- server tail ---")
-            print("\n".join(server_out.splitlines()[-15:]))
+            server_log.close()
+        server_out = server_log_path.read_text(encoding="utf-8", errors="replace")
+        print("--- server tail ---")
+        print("\n".join(server_out.splitlines()[-15:]))
     return 0
 
 
