@@ -58,7 +58,10 @@ public final class UpstreamCoreDatabaseReference {
                     for (var value : category.get(stat)) {
                         String label = value.handheldText();
                         if (label == null) label = UpstreamCoreDatabaseStats.fallback(stat, entry.content());
-                        if (label != null && !label.isEmpty()) displayableStats++;
+                        if (label == null) {
+                            throw new AssertionError("Missing stock stat " + stat.name + " for " + entry.content().name);
+                        }
+                        if (!label.isEmpty()) displayableStats++;
                     }
                 }
             }
