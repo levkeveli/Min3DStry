@@ -175,6 +175,8 @@ def tileFile = sourceDir.map { it.file('mindustry/world/Tile.java') }
 def tilesFile = sourceDir.map { it.file('mindustry/world/Tiles.java') }
 def powerGraphPath = 'mindustry/world/blocks/power/PowerGraph.java'
 def powerGraphFile = sourceDir.map { it.file(powerGraphPath) }
+def powerModulePath = 'mindustry/world/modules/PowerModule.java'
+def powerModuleFile = sourceDir.map { it.file(powerModulePath) }
 def liquidModuleFile = sourceDir.map { it.file('mindustry/world/modules/LiquidModule.java') }
 def pathfinderFile = sourceDir.map { it.file('mindustry/ai/Pathfinder.java') }
 def annotationsFile = sourceDir.map { it.file('mindustry/annotations/Annotations.java') }
@@ -264,7 +266,7 @@ if (usesArcSources || usesExecutor) {
                               'mindustry/world/Tiles.class', 'mindustry/world/Tiles$*.class',
                               'mindustry/world/modules/ItemModule.class', 'mindustry/world/modules/ItemModule$*.class',
                               'mindustry/world/modules/LiquidModule.class', 'mindustry/world/modules/LiquidModule$*.class',
-                              'mindustry/world/blocks/power/PowerGraph.class'])
+                              'mindustry/world/blocks/power/PowerGraph.class', 'mindustry/world/modules/PowerModule.class'])
     }
     if (usesArcSources) {
         stagedClasses.addAll(['arc/files/Fi.class', 'arc/files/Fi$*.class'])
@@ -597,7 +599,7 @@ tasks.register('prepareUpstreamProbe') {
         outputs.files(blockFile, annotationsFile)
     }
     if (usesWorldSources) {
-        outputs.files(tileFile, tilesFile, liquidModuleFile, powerGraphFile)
+        outputs.files(tileFile, tilesFile, liquidModuleFile, powerGraphFile, powerModuleFile)
         outputs.file(sourceDir.map { it.file('mindustry/world/modules/ItemModule.java') })
         outputs.file(sourceDir.map { it.file('mindustry/ai/BlockIndexer.java') })
         outputs.file(sourceDir.map { it.file('mindustry/game/Teams.java') })
@@ -1401,6 +1403,13 @@ ${barOracle}""")
             def stagedGraph = powerGraphFile.get().asFile
             stagedGraph.parentFile.mkdirs()
             stagedGraph.setText(graph, 'UTF-8')
+
+            def stockPower = new String(readUpstream('core/src/' + powerModulePath), 'UTF-8')
+            def linkStorage = 'public IntSeq links = new IntSeq();'
+            if (stockPower.count(linkStorage) != 1) throw new GradleException('Pinned PowerModule link storage changed')
+            def stagedPower = powerModuleFile.get().asFile
+            stagedPower.parentFile.mkdirs()
+            stagedPower.setText(stockPower.replace(linkStorage, 'public IntSeq links = new IntSeq(0);'), 'UTF-8')
 
                 def indexerPath = 'mindustry/ai/BlockIndexer.java'
                 def indexer = new String(readUpstream('core/src/' + indexerPath), 'UTF-8')
