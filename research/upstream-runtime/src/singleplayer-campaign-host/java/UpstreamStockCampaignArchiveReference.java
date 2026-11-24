@@ -160,6 +160,7 @@ public final class UpstreamStockCampaignArchiveReference {
             verifyUnitBinding();
             verifyTileEffects();
             verifyEmptyLogicProgram();
+            mindustry.ai.UpstreamPathfinderSearchReference.verify();
             verifySaveBuffer();
             int total = 0;
             int hidden = 0;

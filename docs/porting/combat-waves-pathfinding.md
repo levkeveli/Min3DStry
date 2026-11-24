@@ -100,3 +100,15 @@ generated translation unit can trigger.
 
 - Integrate the upstream turret, wave spawner, unit AI, and pathfinder loop into the live interactive `min3dstry.3dsx` session (currently standalone probe artifacts).
 - Reduce the ARM11 ELF/heap footprint within the Original 3DS `64 MiB` AppMem budget and benchmark >= 24 FPS execution on physical Old and New 3DS hardware.
+
+## Offline flowfield search storage
+
+The offline runtime tracks which tiles were visited in the current stock
+search with lazily allocated bitset pages. It clears the visit state when
+upstream starts another generation. Frontier entries retain upstream FIFO
+order using small chunks instead of one eagerly sized array.
+
+The campaign archive reference compares the frontier with Arc's original
+queue. It also checks visit state across word, page and directory-group
+boundaries, resets and stock generation rollover. The original terrain costs
+and flowfield update rules continue to drive gameplay.
