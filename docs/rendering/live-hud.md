@@ -154,8 +154,11 @@ Verified on the emulator:
 - In a campaign sector, A on Research opens the stock research screen and B
   returns to play.
 - A on Settings opens Display Core Items / Show Minimap / Show Weather /
-  Display Performance Metrics / Back; the core-items row toggles off and back
-  on (`UPSTREAM_SETTINGS index=0 value=false|true`).
+  Display Performance Metrics / Back; CTM runs toggled all four rows
+  (`UPSTREAM_SETTINGS index=0..3`). The core-items and minimap rows changed the
+  visible HUD, and the performance row added the `FPS` status row.
+- A on Load Game re-loads the campaign save: `load=true`, then a second
+  `UPSTREAM_SP_LOADED source=campaign`.
 - A on Save Game emits `UPSTREAM_PAUSE_MENU save=true`.
 - A on Quit, then A on the confirmation, emits `quit=true` and exits.
 - B or X cancels the menu; the HUD and minimap remain readable behind it.
@@ -163,10 +166,12 @@ Verified on the emulator:
 
 Still **not verified** graphically:
 
-- A on Load Game reloads the active save and re-uploads the minimap.
+- Load Game saved-state equality and the minimap re-upload (the marker is
+  one-shot and the second upload is not logged).
 - The overlay's first objective line above the options (planet/sector is
   visible).
-- The weather toggle with active weather; the batch fixture had no weather.
+- Hiding an active weather overlay: the weather setting toggles
+  (`index=2 value=false`), but the batch fixture had no weather.
 - Depleted used-item retention and the core-marker orientation.
 
 The live fixture exercises the countdown/waiting path with `enemies=0`. The
