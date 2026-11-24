@@ -69,7 +69,7 @@ javac -cp "$stock_jar" -d "$database_check" \
   "$runtime/build/upstream-src/unified/mindustry/world/meta/StatValue.java" \
   "$runtime/build/upstream-src/unified/mindustry/world/meta/StatValues.java" \
   "$runtime/src/content/java/UpstreamCoreDatabase.java" \
-  "$runtime/host/UpstreamCoreDatabaseReference.java"
+  "$runtime/src/singleplayer/verification/UpstreamCoreDatabaseReference.java"
 java -cp "$database_check:$stock_jar" UpstreamCoreDatabaseReference "$PWD/build/smoke-assets/bundles/bundle"
 
 bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime --no-daemon --console=plain \
