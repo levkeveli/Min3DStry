@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+from contextlib import suppress
 import re
 import struct
 import time
@@ -106,6 +107,12 @@ def verify(model: str, rom: Path, azahar: str, config: Path, log: Path,
                     (output / f"{model}-{stage}-settings.bin").write_bytes(settings.read_bytes())
                 print(f"[PASS] {model} {stage}: {selected.name} saved with stock backup, "
                       f"azahar_game_fps={stats.get('game_fps', 0):.2f}", flush=True)
+            except (AssertionError, OSError, RuntimeError):
+                # Preserve the original failure if the emulated app cannot answer RPC.
+                if proc.poll() is None:
+                    with suppress(OSError, RuntimeError, ValueError):
+                        (output / f"{model}-{stage}-failure.png").write_bytes(rpc.screenshot())
+                raise
             finally:
                 rpc.close()
                 sp._stop_proc(proc, azahar)
