@@ -89,7 +89,6 @@ public final class UpstreamRenderedNetworkProbe {
 
     private UpstreamRenderedNetworkProbe(Fi atlas) {
         this.atlas = atlas;
-        configureSchematicPrompts();
     }
 
     private void configureSchematicPrompts() {
