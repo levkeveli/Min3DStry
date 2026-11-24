@@ -1281,9 +1281,12 @@ final class UpstreamItemChoices {
         if (usesSinglePlayer) {
             def saveIoPath = 'mindustry/io/SaveIO.java'
             def saveIo = new String(readUpstream('core/src/' + saveIoPath), 'UTF-8')
-            def compress = '        write(new FastDeflaterOutputStream(file.write(false, bufferSize)), options);'
-            if (saveIo.count(compress) != 1) throw new GradleException('Pinned save compressor call changed')
-            def boundedCompression = '''        try(var raw = file.write(false, bufferSize)){
+            def compress = '''    public static void write(Fi file, SaveOptions options){
+        write(new FastDeflaterOutputStream(file.write(false, bufferSize)), options);
+    }'''
+            if (saveIo.count(compress) != 1) throw new GradleException('Pinned save file writer changed')
+            def boundedCompression = '''    public static void write(Fi file, SaveOptions options){
+        try(var raw = file.write(false, bufferSize)){
             write(new SaveDeflaterStream(raw), options);
         }catch(IOException failure){
             throw new RuntimeException(failure);
@@ -1295,7 +1298,8 @@ final class UpstreamItemChoices {
         SaveDeflaterStream(OutputStream out) throws IOException{
             super(out, new com.jcraft.jzlib.Deflater(6, 12, 4), 4096, false);
             mydeflater = true;
-        }'''
+        }
+    }'''
             def stagedSaveIo = sourceDir.get().file(saveIoPath).asFile
             stagedSaveIo.parentFile.mkdirs()
             stagedSaveIo.setText(saveIo.replace(compress, boundedCompression), 'UTF-8')
