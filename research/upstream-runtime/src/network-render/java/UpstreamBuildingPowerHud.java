@@ -35,8 +35,9 @@ final class UpstreamBuildingPowerHud {
         String name = building.block.powerBarLabel(building);
         if (!name.equals(label)) {
             label = name;
-            encodedLabel = (name + "\0").getBytes(StandardCharsets.UTF_8);
-            encodedGlyphs = UpstreamHudLabels.encodeLabel(UpstreamLabelText.parse(UI.formatIcons(name)));
+            var formatted = UpstreamLabelText.parse(UI.formatIcons(name));
+            encodedLabel = (formatted.plain() + "\0").getBytes(StandardCharsets.UTF_8);
+            encodedGlyphs = UpstreamHudLabels.encodeLabel(formatted);
         }
 
         float value = Mathf.clamp(building.block.powerBarFraction(building));
