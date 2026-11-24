@@ -58,7 +58,9 @@ def create_edit_fixture(args, fixture):
     try:
         script = (
             'const Schematics=Packages.mindustry.game.Schematics; '
+            'for (let y=23;y<=25;y++) Vars.world.build(84,y).wasVisible=true; '
             'const layout=new Schematics().create(84,23,84,25); '
+            'if (layout.tiles.size!==3) throw "Expected three visible stock blocks"; '
             f'layout.tags.put("name", {json.dumps(CAPTURE_NAME)}); '
             'layout.tags.put("description", "Stock fixture description"); '
             f'Schematics.write(layout, new Packages.arc.files.Fi({json.dumps(schematic.as_posix())})); '
