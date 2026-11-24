@@ -97,5 +97,8 @@ public final class UpstreamCoreDatabaseReference {
         if (!ammo.contains(Items.copper.localizedName + "\n" + copperDamage)) {
             throw new AssertionError(ammo);
         }
+        var repair = new mindustry.entities.abilities.RepairFieldAbility(20f, 120f, 80f);
+        String ability = StatValues.abilities(arc.struct.Seq.with(repair)).handheldText();
+        if (!ability.contains(repair.abilityStat("repairspeed", "10"))) throw new AssertionError(ability);
     }
 }

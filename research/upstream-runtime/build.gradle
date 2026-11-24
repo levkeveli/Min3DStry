@@ -89,6 +89,12 @@ def usesMapSources = probe in ['map', 'map-sd']
 def usesSinglePlayerApp = probe in ['singleplayer', 'unified', 'campaign-background']
 def sparseTilePatch = file('patches/sparse-stock-tile-metadata.patch')
 def databaseStatSources = ['mindustry/world/meta/StatValue.java', 'mindustry/world/meta/StatValues.java']
+def databaseAbilitySources = [
+    'Ability', 'ArmorPlateAbility', 'EnergyFieldAbility', 'ForceFieldAbility',
+    'LiquidExplodeAbility', 'LiquidRegenAbility', 'MoveLightningAbility', 'RegenAbility',
+    'RepairFieldAbility', 'ShieldArcAbility', 'ShieldRegenFieldAbility', 'SpawnDeathAbility',
+    'StatusFieldAbility', 'SuppressionFieldAbility', 'UnitSpawnAbility'
+].collect { 'mindustry/entities/abilities/' + it + '.java' }
 def sparseTileSources = [
     'mindustry/world/Tile.java',
     'mindustry/world/Build.java',
@@ -231,7 +237,7 @@ if (usesRenderedClient) {
 if (usesArcSources || usesExecutor) {
     def stagedClasses = []
     if (usesSinglePlayerApp) {
-        (sparseTileSources + databaseStatSources).each { path ->
+        (sparseTileSources + databaseStatSources + databaseAbilitySources).each { path ->
             def type = path.substring(0, path.length() - '.java'.length())
             stagedClasses.addAll([type + '.class', type + '$*.class'])
         }
@@ -613,7 +619,7 @@ tasks.register('prepareUpstreamProbe') {
     }
     if (usesSinglePlayerApp) {
         inputs.file(sparseTilePatch)
-        outputs.files(sourceDir.map { dir -> (sparseTileSources + databaseStatSources).collect { dir.file(it) } })
+        outputs.files(sourceDir.map { dir -> (sparseTileSources + databaseStatSources + databaseAbilitySources).collect { dir.file(it) } })
     }
     if (usesWorldStream) {
         outputs.file(networkIoFile)
@@ -666,6 +672,32 @@ tasks.register('prepareUpstreamProbe') {
     }
     doLast {
         if (usesSinglePlayerApp) {
+            databaseAbilitySources.each { path ->
+                def staged = sourceDir.get().file(path).asFile
+                staged.parentFile.mkdirs()
+                def stock = new String(readUpstream('core/src/' + path), 'UTF-8')
+                def signature = '    public void addStats(Table t){'
+                if (stock.count(signature) != 1) throw new GradleException('Pinned ability stats changed: ' + path)
+                def start = stock.indexOf(signature)
+                def end = stock.indexOf('\n    }', start) + '\n    }'.length()
+                def method = stock.substring(start, end)
+                    .replace(signature, '    public void appendHandheldStats(StringBuilder out){')
+                    .replace('super.addStats(t);', 'super.appendHandheldStats(out);')
+                    .replace('t.add(', 'appendHandheldStat(out, ')
+                    .replace('.wrap().width(descriptionWidth)', '')
+                    .replace('.with(l -> StatValues.withTooltip(l, status))', '')
+                    .replaceAll(/(?m)^ +t\.row\(\);\n/, '')
+                if (method =~ /\bt\./) throw new GradleException('Unconverted ability stats: ' + path)
+                if (path.endsWith('/Ability.java')) {
+                    method += '''
+
+    protected static void appendHandheldStat(StringBuilder out, String line){
+        if(out.length() != 0) out.append('\\n');
+        out.append(line);
+    }'''
+                }
+                staged.setText(stock.substring(0, end) + '\n\n' + method + stock.substring(end), 'UTF-8')
+            }
             def interfaceFile = sourceDir.get().file(databaseStatSources[0]).asFile
             interfaceFile.parentFile.mkdirs()
             def value = new String(readUpstream('core/src/' + databaseStatSources[0]), 'UTF-8')
@@ -873,8 +905,7 @@ tasks.register('prepareUpstreamProbe') {
             if(!ability.display) continue;
             if(label.length() != 0) label.append('\\n');
             label.append(ability.localized());
-            String description = ability.getBundle() + ".description";
-            if(Core.bundle.has(description)) label.append('\\n').append(Core.bundle.get(description));
+            ability.appendHandheldStats(label);
         }
         return label.toString();
     }
