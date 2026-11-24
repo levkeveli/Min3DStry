@@ -126,6 +126,25 @@ server's formatted echo. The following wave snapshot reached the client
 with the composer open and another arrived after submission. A stock PC
 client displayed the ARM11-origin text in the shared local session.
 
+## Stock server kicks and restart
+
+The 3DS client displays the stock kick reason or the message supplied by the
+server. A stock `serverRestarting` reason opens the reconnect screen and
+triggers discovery at the same address. Press **B** on that screen to cancel.
+
+Run `tools/verify_upstream_live_net.py` with the matching ARM11 ROM and the
+stock v160.8 server. Use `--server-kick restart` to stop and reopen the server
+and require a second join. Use `--server-kick restart-cancel` to keep the server
+offline, press **B**, and require cancellation without a second join.
+Use `--verify-kick-notice` with `--server-kick text` or `--server-kick enum`
+to check the rendered reason for a regular disconnect.
+
+The restart replay passed on both Azahar console profiles. The cancellation
+replay passed on the New 3DS profile.
+[New 3DS restart](https://github.com/levkeveli/Min3DStry/actions/runs/45290486799) ·
+[Original 3DS restart](https://github.com/levkeveli/Min3DStry/actions/runs/45293324404) ·
+[New 3DS cancellation](https://github.com/levkeveli/Min3DStry/actions/runs/45296040600)
+
 ## License Audit
 
 All C wire/framing code in `src/net/mindustry_net.c` and `src/platform/3ds/net_3ds.c` was written cleanly for Min3DStry from the wire specification documented in pinned upstream Mindustry (`GPLv3`) and Arc (`Apache-2.0` / `BSD-style` ArcNet heritage), with zero proprietary Nintendo code and zero undistributable third-party binaries.
