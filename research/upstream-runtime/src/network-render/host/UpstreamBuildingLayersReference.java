@@ -38,7 +38,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.function.Predicate;
 import mindustry.Vars;
-import mindustry.core.UI;
 import mindustry.ui.Fonts;
 import mindustry.ai.BlockIndexer;
 import mindustry.content.Blocks;
@@ -154,7 +153,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         if (args.length < 3 || args.length == 6 || args.length > 7) {
             throw new IllegalArgumentException("Expected Glacier, sprites.aatls, block_colors.png, optional bundle base, logicids.dat, then paired world atlas tiles and logic font");
         }
-        if (args.length >= 4) Core.bundle = UpstreamInterfaceLocale.load(new Fi(args[3]), 1, "en");
+        if (args.length >= 4) Core.bundle = UpstreamInterfaceLocale.loadForStockClient(new Fi(args[3]), 1, "en");
         CacheLayer.init();
         UpstreamWorldLoadProbe.load(new String[]{args[0]}, () -> Vars.indexer = new BlockIndexer());
         UpstreamTerrainDrawProbe.loadAtlas(new Fi(args[1]), UpstreamFluidAtlas::load);
@@ -538,9 +537,8 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
             throw new AssertionError("Stock partial power bar differs");
         }
         battery.power.status = 0.25f;
-        int stored = (int)(battery.block.consPower.capacity * battery.power.status);
         if (battery.block.powerBarFraction(battery) != 0.25f
-                || !battery.block.powerBarLabel(battery).equals("Power: " + UI.formatAmount(stored))) {
+                || !battery.block.powerBarLabel(battery).equals("Power: 1.0[gray]k[]")) {
             throw new AssertionError("Stock buffered power bar differs");
         }
         // Arc draws power while reloading even when disabled.
