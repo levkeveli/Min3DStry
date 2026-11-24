@@ -1236,6 +1236,7 @@ jobs:
           grep -Fx 'UPSTREAM_TEAM_STATS absent=unallocated wave-team=stock' "$fixture/probe.log"
           grep -Fx 'UPSTREAM_LOGIC_UNIT_BINDING missing=unallocated rotation=stock reset=stock' "$fixture/probe.log"
           grep -Fx 'UPSTREAM_QUADRANT_ORE_INDEX floor=stock wall=stock' "$fixture/probe.log"
+          grep -Fx 'UPSTREAM_TILE_CONTENT_IDS catalog=stock mutation=isolated missing=ok wide=ok metadata=stock' "$fixture/probe.log"
           grep -Fx 'UPSTREAM_PATH_FRONTIER order=stock clear=stock' "$fixture/probe.log"
           grep -Fx 'UPSTREAM_PATH_VISITS words=stock pages=stock groups=stock reset=stock overflow=stock' "$fixture/probe.log"
           grep -Fx 'UPSTREAM_PATH_SNAPSHOT working-write=ok reset=ok republish=ok' "$fixture/probe.log"

@@ -85,6 +85,22 @@ if (!entryPoints.containsKey(probe)) {
 def entryPoint = entryPoints[probe]
 def usesMapSources = probe in ['map', 'map-sd']
 def usesSinglePlayerApp = probe in ['singleplayer', 'unified', 'campaign-background']
+def sparseTilePatch = file('patches/sparse-stock-tile-metadata.patch')
+def sparseTileSources = [
+    'mindustry/world/Tile.java',
+    'mindustry/world/Build.java',
+    'mindustry/world/Edges.java',
+    'mindustry/editor/EditorTile.java',
+    'mindustry/editor/DrawOperation.java',
+    'mindustry/editor/EditorTool.java',
+    'mindustry/editor/MapEditor.java',
+    'mindustry/editor/MapGenerateDialog.java',
+    'mindustry/io/MapIO.java',
+    'mindustry/io/SaveVersion.java',
+    'mindustry/io/versions/ShortChunkSaveVersion.java',
+    'mindustry/world/blocks/environment/ColoredFloor.java',
+    'mindustry/world/blocks/environment/ColoredWall.java'
+]
 def usesSinglePlayer = usesSinglePlayerApp || probe == 'singleplayer-sim'
 def usesLiveNetwork = probe in ['network-live', 'network-render', 'unified']
 def usesLiveAudio = probe in ['network-render', 'unified']
@@ -187,14 +203,16 @@ def readUpstream = { path ->
 
 def renderedBuilding = layout.buildDirectory.dir('building-renderer-classes')
 def stageRenderedBuilding
+def tileAuditClasspath
 if (usesRenderedClient) {
     def asm = configurations.detachedConfiguration(dependencies.create('org.ow2.asm:asm-tree:9.9'))
     def adapter = tasks.register('compileBuildingCrackAdapter', JavaCompile) {
         source files('tools/StageBuildingCrackAdapter.java', 'tools/StageNavalWakeAdapter.java',
-                     'tools/StageObjectiveLabelAdapter.java', 'tools/StageCanvasAdapter.java')
+                     'tools/StageObjectiveLabelAdapter.java', 'tools/StageCanvasAdapter.java', 'tools/AuditTileFieldReferences.java')
         classpath = asm
         destinationDirectory = layout.buildDirectory.dir('building-renderer-tool')
     }
+    tileAuditClasspath = files(adapter.flatMap { it.destinationDirectory }) + asm
     stageRenderedBuilding = tasks.register('stageRenderedBuilding', JavaExec) {
         dependsOn adapter, 'prepareUpstreamProbe'
         classpath = files(adapter.flatMap { it.destinationDirectory }) + asm
@@ -207,6 +225,12 @@ if (usesRenderedClient) {
 
 if (usesArcSources || usesExecutor) {
     def stagedClasses = []
+    if (usesSinglePlayerApp) {
+        sparseTileSources.each { path ->
+            def type = path.substring(0, path.length() - '.java'.length())
+            stagedClasses.addAll([type + '.class', type + '$*.class'])
+        }
+    }
     if (usesSinglePlayer) {
         stagedClasses.addAll(['mindustry/ai/Pathfinder.class', 'mindustry/ai/Pathfinder$*.class'])
         flowfieldCostSources.each { path ->
@@ -301,6 +325,15 @@ if (usesArcSources || usesExecutor) {
         }
         destinationDirectory = layout.buildDirectory.dir("probe-dependencies/${probe}")
         archiveFileName = 'server-probe-dependencies.jar'
+    }
+    if (usesSinglePlayerApp) {
+        def audit = tasks.register('auditTileFieldReferences', JavaExec) {
+            dependsOn contentDependencies, 'compileBuildingCrackAdapter'
+            classpath = tileAuditClasspath
+            mainClass = 'AuditTileFieldReferences'
+            args contentDependencies.get().archiveFile.get().asFile.absolutePath
+        }
+        tasks.named('compileJava') { dependsOn audit }
     }
     dependencies { implementation files(contentDependencies.flatMap { it.archiveFile }).builtBy(contentDependencies) }
 } else {
@@ -556,10 +589,8 @@ tasks.register('prepareUpstreamProbe') {
         outputs.file(arcPixmapFile)
     }
     if (usesSinglePlayerApp) {
-        outputs.files(sourceDir.map { dir ->
-            ['mindustry/editor/MapEditor.java', 'mindustry/editor/EditorTile.java']
-                .collect { dir.file(it) }
-        })
+        inputs.file(sparseTilePatch)
+        outputs.files(sourceDir.map { dir -> sparseTileSources.collect { dir.file(it) } })
     }
     if (usesWorldStream) {
         outputs.file(networkIoFile)
@@ -608,16 +639,27 @@ tasks.register('prepareUpstreamProbe') {
     }
     doLast {
         if (usesSinglePlayerApp) {
-            def directory = sourceDir.get().dir('mindustry/editor').asFile
-            directory.mkdirs()
-            new File(directory, 'MapEditor.java').setText(
-                new String(readUpstream('core/src/mindustry/editor/MapEditor.java'), 'UTF-8'), 'UTF-8')
-            def editorTile = new String(readUpstream('core/src/mindustry/editor/EditorTile.java'), 'UTF-8')
+            sparseTileSources.each { path ->
+                def staged = sourceDir.get().file(path).asFile
+                staged.parentFile.mkdirs()
+                staged.bytes = readUpstream('core/src/' + path)
+            }
+            def stageRoot = sourceDir.get().asFile
+            providers.exec {
+                // Keep Git from interpreting generated paths relative to the checkout root.
+                environment 'GIT_CEILING_DIRECTORIES', stageRoot.parentFile.absolutePath
+                commandLine 'git', '-C', stageRoot, '-c', 'core.autocrlf=false', 'apply', '--no-index', sparseTilePatch
+            }.result.get()
+            if (!tileFile.get().asFile.getText('UTF-8').contains('public int extraData()')) {
+                throw new GradleException('Compact stock tile patch did not apply to the staged source')
+            }
+            def stagedEditorTile = sourceDir.get().file('mindustry/editor/EditorTile.java').asFile
+            def editorTile = stagedEditorTile.getText('UTF-8')
             def shadowUpdate = 'renderer.blocks.updateShadowTile(this);'
             if (editorTile.count(shadowUpdate) != 1) {
                 throw new GradleException('Pinned editor shadow update changed')
             }
-            new File(directory, 'EditorTile.java').setText(
+            stagedEditorTile.setText(
                 editorTile.replace(shadowUpdate, 'if(renderer != null) renderer.blocks.updateShadowTile(this);'),
                 'UTF-8')
         }
@@ -953,7 +995,7 @@ final class GlacierFixture {
             }
             if (usesWorldSources) {
                 def newBuilding = '    public final Building newBuilding(){'
-                def tile = new String(readUpstream(tileSource), 'UTF-8')
+                def tile = usesSinglePlayerApp ? tileFile.get().asFile.getText('UTF-8') : new String(readUpstream(tileSource), 'UTF-8')
                 if (block.count(newBuilding) != 1 || tile.count('wall::newBuilding') != 1
                         || tile.count('type::newBuilding') != 1) {
                     throw new GradleException('Pinned Tile building factory calls changed')

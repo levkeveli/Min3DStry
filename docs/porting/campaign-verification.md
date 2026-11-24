@@ -36,6 +36,19 @@ runs the ARM11 campaign map packer and compares every output map byte with
 the official v160.8 archive. It checks 78 Serpulo maps, including 46
 numbered sectors, and 17 Erekir maps.
 
+The rendered campaign and editor runtime store the tile's common content IDs
+and mutation flag in one word. Tiles keep unusual IDs and nonzero auxiliary
+data in a weakly keyed extension, retaining the original 32-bit values and
+current and legacy save layouts. The campaign archive reference checks the
+stock IDs, independent updates, the missing-value sentinel, wide IDs and
+packed tile metadata. An ASM audit checks the filtered upstream dependency
+archive for field instructions that would still use the removed tile fields.
+The [production staging JVM run](https://github.com/levkeveli/Min3DStry/actions/runs/45350024201/job/138293855497)
+passed the metadata assertions across the pinned campaign archive.
+The [ARM11-aligned Linux diagnostic](https://github.com/levkeveli/Min3DStry/actions/runs/45350631106)
+measured 24 bytes per common tile. Decorated-tile memory, weak-key
+reclamation, and frame timing on 3DS still need target verification.
+
 Pass the staging directory and a new save directory to
 `runStockCampaignArchiveJvm` with `-Pprobe=singleplayer`. The test reads
 all 95 map headers, checks their preset associations, and decodes all 95
