@@ -1,4 +1,5 @@
 import arc.Core;
+import arc.Events;
 import arc.Settings;
 import arc.files.Fi;
 import arc.struct.ObjectFloatMap;
@@ -12,8 +13,13 @@ import mindustry.content.Planets;
 import mindustry.content.UnitTypes;
 import mindustry.core.ContentLoader;
 import mindustry.core.GameState;
+import mindustry.game.EventType.WorldLoadEvent;
+import mindustry.gen.Groups;
 import mindustry.type.ItemStack;
 import mindustry.type.LiquidStack;
+import mindustry.world.Tile;
+import mindustry.world.Tiles;
+import mindustry.world.meta.Attribute;
 import mindustry.world.meta.StatUnit;
 import mindustry.world.meta.StatValues;
 import mindustry.world.blocks.defense.turrets.ItemTurret;
@@ -26,6 +32,7 @@ public final class UpstreamCoreDatabaseReference {
         Vars.state = new GameState();
         Vars.world = new mindustry.core.World();
         Vars.indexer = new mindustry.ai.BlockIndexer();
+        mindustry.graphics.CacheLayer.init();
         Vars.content = new ContentLoader();
         Vars.content.createBaseContent();
         Vars.content.init();
@@ -118,5 +125,25 @@ public final class UpstreamCoreDatabaseReference {
         if (!factory.contains(UnitTypes.dagger.localizedName) || !upgrades.contains(UnitTypes.mace.localizedName)) {
             throw new AssertionError(factory + " | " + upgrades);
         }
+        verifyTerrainLabels();
+    }
+
+    private static void verifyTerrainLabels() {
+        var map = new Tiles(2, 1);
+        map.set(0, 0, new Tile(0, 0, Blocks.hotrock, Blocks.air, Blocks.air));
+        map.set(1, 0, new Tile(1, 0, Blocks.magmarock, Blocks.air, Blocks.air));
+        Vars.world.tiles = map;
+        Groups.init();
+        Events.fire(new WorldLoadEvent());
+        var affinity = StatValues.blocks(Attribute.heat, false, 1f, false);
+        String label = affinity.handheldText();
+        int hot = label.indexOf(Blocks.hotrock.localizedName);
+        int magma = label.indexOf(Blocks.magmarock.localizedName);
+        if (hot < 0 || magma < hot) throw new AssertionError(label);
+        Vars.state.set(GameState.State.menu);
+        if (!Core.bundle.get("stat.showinmap").equals(affinity.handheldText())) {
+            throw new AssertionError("Menu terrain stats should ask for a map");
+        }
+        Vars.state.set(GameState.State.playing);
     }
 }
