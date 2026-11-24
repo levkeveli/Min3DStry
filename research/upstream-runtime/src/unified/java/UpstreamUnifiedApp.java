@@ -128,6 +128,11 @@ public final class UpstreamUnifiedApp {
                 }
 
                 @Override
+                public void leaveWorld() {
+                    Arm11Audio.reset();
+                }
+
+                @Override
                 public void update(long now) {
                     var camera = Core.camera;
                     Arm11Audio.updateCamera(camera.position.x, camera.position.y, camera.width, camera.height);

@@ -25,6 +25,7 @@ KEY_B = 1 << 1
 KEY_SELECT = 1 << 2
 KEY_START = 1 << 3
 KEY_RIGHT = 1 << 4
+KEY_UP = 1 << 6
 KEY_DOWN = 1 << 7
 KEY_X = 1 << 10
 KEY_Y = 1 << 11
@@ -68,7 +69,7 @@ def write_singleplayer_ctm(
     # Hosted runners can take ~32s to reach UPSTREAM_SP_READY; start taps at 40s
     # so the mine and ore taps never land during world loading.
     t0 = 40
-    total_seconds = 340 if reopen_title_settings else 158 if database_title else t0 + (115 if verify_database else 62)
+    total_seconds = 392 if reopen_title_settings else 158 if database_title else t0 + (115 if verify_database else 62)
     frames = total_seconds * CTM_SAMPLES_PER_SECOND
     header = struct.pack(
         "<4sQ20sQQ32sIQq156x",
@@ -142,7 +143,9 @@ def write_singleplayer_ctm(
             (229, KEY_A), # Open Play.
             (237, KEY_DOWN), (245, KEY_DOWN), (253, KEY_DOWN),
             (261, KEY_A), (271, KEY_A), # Open Load Game and select the Ground Zero save.
-            (329, KEY_START),
+            (329, KEY_X), (338, KEY_UP), # Pause, then wrap to Quit.
+            (347, KEY_A), (356, KEY_A), # Confirm, save and return to title.
+            (381, KEY_B),
         )
     with path.open("wb") as movie:
         movie.write(header)
@@ -407,6 +410,8 @@ def run_singleplayer_model(
                     _wait_for_log(log_path, proc4,
                         rf"UPSTREAM_SP_LOADED source=save .*wave=2 copper={int(loaded2['copper'])}\b", timeout)
                     _wait_for_log(log_path, proc4, r"UPSTREAM_SP_FRAME\b", timeout)
+                    _wait_for_log(log_path, proc4, r"UPSTREAM_PAUSE_MENU quit=true\b", timeout)
+                    _wait_for_log(log_path, proc4, r"UPSTREAM_TITLE_RETURN\b", timeout)
                     settings_log = _wait_for_log(log_path, proc4, r"UPSTREAM_SP_EXIT\b", timeout)
                     (out_dir / f"{model}-title-settings-reopen.log").write_text(settings_log, encoding="utf-8")
                 finally:
