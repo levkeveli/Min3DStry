@@ -74,8 +74,9 @@ liquids); subclass-specific extra bars remain open:
 
 Enemy bars stay hidden. The bars reuse the original `bar`/`bar-top` atlas
 patches and animate their fill. The host building reference checks health,
-power, item, dynamic liquid and keyed liquid states; the **live draw path is
-pending** the next emulator batch.
+power, item, dynamic liquid and keyed liquid states against the pinned
+`Block.setBars` bar keys and order; the **live draw path is pending** the next
+emulator batch.
 
 ## Verification
 

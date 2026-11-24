@@ -642,6 +642,31 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
             throw new AssertionError("Stock item bar differs");
         }
         System.out.println("UPSTREAM_STOCK_BASIC_BARS health=0.5 items=0.5 team=filtered");
+        verifyBarOracle();
+    }
+
+    private static void verifyBarOracle() {
+        if (!Blocks.itemBridge.hasBar("items") || Blocks.container.hasBar("items")) {
+            throw new AssertionError("Stock items bar registration differs from Block.setBars");
+        }
+        var itemBars = Blocks.itemBridge.barNames();
+        if (itemBars.indexOf("health") < 0 || itemBars.indexOf("items") <= itemBars.indexOf("health")) {
+            throw new AssertionError("Stock item bar order differs: " + itemBars);
+        }
+        var conduitBars = Blocks.phaseConduit.barNames();
+        int health = conduitBars.indexOf("health");
+        int power = conduitBars.indexOf("power");
+        int liquid = conduitBars.indexOf("liquid");
+        if (health < 0 || power <= health || liquid <= power) {
+            throw new AssertionError("Stock phase conduit bar order differs: " + conduitBars);
+        }
+        if (Blocks.steamGenerator.hasBar("liquid") || !Blocks.steamGenerator.hasBar("liquid-water")) {
+            throw new AssertionError("Stock keyed liquid bar key differs");
+        }
+        if (!Blocks.conduit.hasBar("liquid")) {
+            throw new AssertionError("Stock dynamic liquid bar key differs");
+        }
+        System.out.println("UPSTREAM_STOCK_BAR_ORACLE itemBridge=health,items phaseConduit=health,power,liquid steam=keyed conduit=dynamic");
     }
 
     private static void verifyBasicBarLabels(Team viewer) {
