@@ -178,10 +178,11 @@ public final class UpstreamSinglePlayerApp {
             if (titleRequested) {
                 var selection = chooseTitleAction(atlas, saveFile, () -> prepareSession(mapDir, bundleTag, settings), join, settings);
                 if (selection == null) return;
-                campaignRequested = selection == TitleAction.campaign;
-                customRequested = selection == TitleAction.custom;
-                editorRequested = selection == TitleAction.editor;
-                loadRequested = selection == TitleAction.load;
+                campaignRequested = selection.action() == TitleAction.campaign;
+                customRequested = selection.action() == TitleAction.custom;
+                editorRequested = selection.action() == TitleAction.editor;
+                loadRequested = selection.action() == TitleAction.load;
+                if (loadRequested) saveFile = selection.save();
             }
             prepareSession(mapDir, bundleTag, settings);
             if (databaseRequested) {
@@ -200,9 +201,8 @@ public final class UpstreamSinglePlayerApp {
             }
             CustomGame custom = null;
             Fi customSave = mapDir.child("custom-game-save.msav");
-            if (customRequested || loadRequested) {
-                var maps = loadRequested ? List.<Map>of()
-                    : UpstreamCustomGameMaps.discover(new Fi("/romfs/maps/default"), mapDir.child("maps"));
+            if (customRequested) {
+                var maps = UpstreamCustomGameMaps.discover(new Fi("/romfs/maps/default"), mapDir.child("maps"));
                 var saves = UpstreamCustomGameSaves.discover(Vars.saveDirectory, customSave);
                 if (!maps.isEmpty() || !saves.isEmpty()) {
                     loadInterfaceRenderer();
@@ -211,7 +211,7 @@ public final class UpstreamSinglePlayerApp {
                 }
             }
             List<UpstreamSinglePlayerSession.SectorSlot> sectorSaves =
-                args.length < 2 && custom == null ? session.sectorSaves() : List.of();
+                args.length < 2 && custom == null && !loadRequested ? session.sectorSaves() : List.of();
             UpstreamCampaignResearch.installAutoUnlocks();
             boolean showCampaign = campaignRequested
                 || sectorSaves.stream().anyMatch(UpstreamSinglePlayerSession::needsCampaignRetry);
@@ -229,7 +229,7 @@ public final class UpstreamSinglePlayerApp {
             if (campaign != null) {
                 saveFile = openCampaign(campaign);
             } else if (custom == null) {
-                session.start(mapFile, saveFile, null);
+                session.start(loadRequested ? null : mapFile, saveFile, null);
             } else {
                 if (custom.map == null) {
                     saveFile = custom.save;
@@ -501,7 +501,9 @@ public final class UpstreamSinglePlayerApp {
 
     private enum TitleAction { campaign, custom, load, editor }
 
-    private TitleAction chooseTitleAction(Fi atlas, Fi defaultSave, Runnable prepare, TitleJoin join, Settings settings) throws IOException {
+    private record TitleSelection(TitleAction action, Fi save) {}
+
+    private TitleSelection chooseTitleAction(Fi atlas, Fi defaultSave, Runnable prepare, TitleJoin join, Settings settings) throws IOException {
         loadInterfaceRenderer();
         while (true) {
             switch (chooseTitleRow("Mindustry", "play", "database.button", "editor", "settings", "quit")) {
@@ -509,21 +511,25 @@ public final class UpstreamSinglePlayerApp {
                     var playKeys = join == null ? new String[]{"campaign", "customgame", "loadgame"}
                         : new String[]{"campaign", "joingame", "customgame", "loadgame"};
                     int route = chooseTitleRow(Core.bundle.get("play"), playKeys);
-                    if (route == 0) return TitleAction.campaign;
+                    if (route == 0) return new TitleSelection(TitleAction.campaign, null);
                     if (route == 1 && join != null) {
                         if (join.open(session == null ? null : session.application(), interfaceGraphicsReady)) return null;
                         continue;
                     }
                     if (route > 0 && join != null) route--;
-                    if (route == 1) return TitleAction.custom;
+                    if (route == 1) return new TitleSelection(TitleAction.custom, null);
                     if (route == 2) {
                         prepare.run();
                         var customSave = defaultSave.parent().child("custom-game-save.msav");
-                        if (defaultSave.exists() || !session.sectorSaves().isEmpty()
-                                || !UpstreamCustomGameSaves.discover(Vars.saveDirectory, customSave).isEmpty()) {
-                            return TitleAction.load;
+                        var saves = UpstreamCustomGameSaves.discoverForTitle(Vars.saveDirectory, defaultSave, customSave);
+                        if (saves.isEmpty()) {
+                            if (chooseTitleRow(Core.bundle.get("save.none"), "back") == -2) return null;
+                        } else {
+                            int selected = chooseTitlePagedRow(Core.bundle.get("loadgame"), saves.size(), 0,
+                                index -> saves.get(index).title());
+                            if (selected == -2) return null;
+                            if (selected >= 0) return new TitleSelection(TitleAction.load, saves.get(selected).file());
                         }
-                        if (chooseTitleRow(Core.bundle.get("save.none"), "back") == -2) return null;
                     }
                     if (route == -2) return null;
                 }
@@ -541,7 +547,7 @@ public final class UpstreamSinglePlayerApp {
                         if (!chooseTitleSchematics(new UpstreamSchematicPlacement(Vars.schematicDirectory))) return null;
                     }
                 }
-                case 2 -> { return TitleAction.editor; }
+                case 2 -> { return new TitleSelection(TitleAction.editor, null); }
                 case 3 -> {
                     if (!chooseTitleSettings(settings)) return null;
                 }
@@ -594,8 +600,16 @@ public final class UpstreamSinglePlayerApp {
     private boolean browseTitlePages(String title, int count, java.util.function.IntFunction<String> option,
                                      java.util.function.IntPredicate choose) {
         if (count == 0) return chooseTitleRow(title, "back") != -2;
-        final int pageSize = 7;
         int selected = 0;
+        while (true) {
+            selected = chooseTitlePagedRow(title, count, selected, option);
+            if (selected < 0) return selected == -1;
+            if (!choose.test(selected)) return false;
+        }
+    }
+
+    private int chooseTitlePagedRow(String title, int count, int selected, java.util.function.IntFunction<String> option) {
+        final int pageSize = 7;
         while (true) {
             int first = selected / pageSize * pageSize;
             int end = Math.min(first + pageSize, count);
@@ -607,14 +621,13 @@ public final class UpstreamSinglePlayerApp {
             }
             if (end < count) options[options.length - 1] = ">";
             int row = chooseTitleRow(title, offset + selected - first, options);
-            if (row < 0) return row == -1;
+            if (row < 0) return row;
             if (row < offset) {
                 selected = first - 1;
             } else if (first + row - offset >= end) {
                 selected = end;
             } else {
-                selected = first + row - offset;
-                if (!choose.test(selected)) return false;
+                return first + row - offset;
             }
         }
     }
