@@ -68,3 +68,17 @@ docker run --rm "${numa[@]}" -u "$(id -u):$(id -g)" -v "$PWD:/work" -w /work \
     build/smoke-arm11 --unified build/smoke-assets
 cp build/smoke-arm11/upstream-probe.3dsx "$RUNNER_TEMP/server-release.jar" build/unified-smoke/
 unzip -p "$RUNNER_TEMP/assets.jar" assets/sprites/sprites.aatls > build/unified-smoke/sprites.aatls
+
+stock_jar="$RUNNER_TEMP/server-release.jar"
+item_check="$RUNNER_TEMP/item-inventory-check"
+runtime=research/upstream-runtime
+mkdir -p "$item_check/reference" "$item_check/staged"
+javac -cp "$stock_jar" -d "$item_check/reference" "$runtime/host/UpstreamItemInventoryReference.java"
+javac -cp "$stock_jar" -d "$item_check/staged" \
+  "$runtime/build/upstream-src/unified/mindustry/world/modules/ItemModule.java"
+java -cp "$item_check/reference:$stock_jar" UpstreamItemInventoryReference > "$item_check/stock.log"
+java -cp "$item_check/reference:$item_check/staged:$stock_jar" UpstreamItemInventoryReference > "$item_check/staged.log"
+test "$(wc -l < "$item_check/stock.log")" -eq 2101
+test "$(wc -l < "$item_check/staged.log")" -eq 2101
+diff -u "$item_check/stock.log" "$item_check/staged.log"
+grep -Fx 'UPSTREAM_STOCK_ITEM_SUBCLASS array=preserved' "$item_check/staged.log"

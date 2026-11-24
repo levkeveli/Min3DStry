@@ -255,6 +255,7 @@ if (usesArcSources || usesExecutor) {
                               'mindustry/world/blocks/logic/LogicBlock.class', 'mindustry/world/blocks/logic/LogicBlock$*.class',
                               'mindustry/io/SaveFileReader.class', 'mindustry/io/SaveFileReader$*.class',
                               'mindustry/world/Tiles.class', 'mindustry/world/Tiles$*.class',
+                              'mindustry/world/modules/ItemModule.class', 'mindustry/world/modules/ItemModule$*.class',
                               'mindustry/world/modules/LiquidModule.class', 'mindustry/world/modules/LiquidModule$*.class'])
     }
     if (usesArcSources) {
@@ -589,6 +590,7 @@ tasks.register('prepareUpstreamProbe') {
     }
     if (usesWorldSources) {
         outputs.files(tileFile, tilesFile, liquidModuleFile)
+        outputs.file(sourceDir.map { it.file('mindustry/world/modules/ItemModule.java') })
         outputs.file(sourceDir.map { it.file('mindustry/ai/BlockIndexer.java') })
         outputs.file(sourceDir.map { it.file('mindustry/game/Teams.java') })
         outputs.file(sourceDir.map { it.file('mindustry/io/SaveFileReader.java') })
@@ -1010,6 +1012,101 @@ final class GlacierFixture {
     static final String BASE64 = "${encoded}";
 }
 """, 'UTF-8')
+        }
+        if (usesWorldSources) {
+            def itemPath = 'mindustry/world/modules/ItemModule.java'
+            def source = new String(readUpstream('core/src/' + itemPath), 'UTF-8')
+            def replacements = [
+                ['System.arraycopy(other.items, 0, items, 0, items.length);', '''if(other != this){
+            if(items != null && other.items != null){
+                System.arraycopy(other.items, 0, items, 0, capacity());
+            }else{
+                int length = capacity();
+                if(length > other.capacity()) throw new ArrayIndexOutOfBoundsException(length);
+                clearCounts();
+                for(int i = 0; i < length; i++) writeCount(i, other.countAt(i));
+            }
+        }''', 1],
+                ['if(items.length != len) items = Arrays.copyOf(items, len);', 'resizeCounts(len);', 1],
+                // Stock checkArrayCapacity explicitly grows or shrinks without changing total.
+                ['if(items.length != size) items = Arrays.copyOf(items, size);', 'resizeCounts(size);', 1],
+                ['Arrays.fill(items, 0);', 'clearCounts();', 2],
+                ['items[index] --;', 'writeCount(index, countAt(index) - 1);', 1],
+                ['items[item.id] = amount;', 'writeCount(item.id, amount);', 1],
+                ['items.items.length', 'items.capacity()', 1],
+                ['items.items[i]', 'items.countAt(i)', 1],
+                ['items[item] += amount;', 'writeCount(item, countAt(item) + amount);', 1],
+                ['items[item.id] -= amount;', 'writeCount(item.id, countAt(item.id) - amount);', 1],
+                ['items[item.id] = itemamount;', 'writeCount(item.id, itemamount);', 1],
+                ['for(int item : items){', 'for(int i = 0; i < capacity(); i++){', 1],
+                ['if(item > 0) amount++;', 'if(countAt(i) > 0) amount++;', 1],
+                ['items.length', 'capacity()', 17],
+                ['items[item.id]', 'countAt(item.id)', 3],
+                ['items[id]', 'countAt(id)', 2],
+                ['items[index]', 'countAt(index)', 1],
+                ['items[i]', 'countAt(i)', 9],
+                ['protected int[] items = new int[content.items().size];', '''private int itemCapacity = content.items().size;
+    private int inlineItemId = -1;
+    private int inlineCount;
+    protected int[] items = getClass() == ItemModule.class ? null : new int[itemCapacity];
+
+    private int capacity(){
+        return items == null ? itemCapacity : items.length;
+    }
+
+    private void resizeCounts(int length){
+        if(capacity() == length) return;
+        if(length < 0) throw new NegativeArraySizeException();
+        if(items != null) items = Arrays.copyOf(items, length);
+        if(inlineItemId >= length){
+            inlineItemId = -1;
+            inlineCount = 0;
+        }
+        itemCapacity = length;
+    }
+
+    private int countAt(int id){
+        if(id < 0 || id >= capacity()) throw new ArrayIndexOutOfBoundsException(id);
+        return items != null ? items[id] : id == inlineItemId ? inlineCount : 0;
+    }
+
+    private void writeCount(int id, int count){
+        if(id < 0 || id >= capacity()) throw new ArrayIndexOutOfBoundsException(id);
+        if(items != null){
+            items[id] = count;
+        }else if(count == 0){
+            if(id == inlineItemId){
+                inlineItemId = -1;
+                inlineCount = 0;
+            }
+        }else if(inlineItemId == -1 || id == inlineItemId){
+            inlineItemId = id;
+            inlineCount = count;
+        }else{
+            items = new int[itemCapacity];
+            items[inlineItemId] = inlineCount;
+            items[id] = count;
+            inlineItemId = -1;
+            inlineCount = 0;
+        }
+    }
+
+    private void clearCounts(){
+        if(getClass() == ItemModule.class) items = null;
+        else Arrays.fill(items, 0);
+        inlineItemId = -1;
+        inlineCount = 0;
+    }''', 1]
+            ]
+            replacements.each { before, after, expected ->
+                if (source.count(before) != expected) {
+                    throw new GradleException("Pinned ItemModule storage hook changed: ${before}")
+                }
+                source = source.replace(before, after)
+            }
+            def stagedItem = sourceDir.get().file(itemPath).asFile
+            stagedItem.parentFile.mkdirs()
+            stagedItem.setText(source, 'UTF-8')
         }
         if (usesContentSources) {
             def block = new String(readUpstream(blockSource), 'UTF-8')
