@@ -55,6 +55,7 @@ public final class UpstreamRenderedNetworkProbe {
     private final UpstreamTerrainRenderProbe target = new UpstreamTerrainRenderProbe(false);
     private final UpstreamBuildingLayers buildingLayers = new UpstreamBuildingLayers();
     private final UpstreamBuildingPowerHud buildingPowerHud = new UpstreamBuildingPowerHud();
+    private final UpstreamBuildingLiquidHud buildingLiquidHud = new UpstreamBuildingLiquidHud();
     private final UpstreamWeatherLayers weatherLayers = new UpstreamWeatherLayers();
     private final Runnable drawWeatherUnder = weatherLayers::drawUnder;
     private UpstreamLiveBuildControls buildingControls;
@@ -368,7 +369,10 @@ public final class UpstreamRenderedNetworkProbe {
         var schematics = buildingControls.schematics();
         schematics.draw(viewport);
         weatherLayers.drawOver();
-        drawObjectives(buildingPowerHud.draw(target, buildingControls, Vars.player.team(), drawStatusHud()));
+        float hudY = drawStatusHud();
+        hudY = buildingPowerHud.draw(target, buildingControls, Vars.player.team(), hudY);
+        hudY = buildingLiquidHud.draw(target, buildingControls, Vars.player.team(), hudY);
+        drawObjectives(hudY);
         drawChat();
         if (chatInput.open()) {
             target.drawChatKeyboard(chatInput.labels());

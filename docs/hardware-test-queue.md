@@ -170,6 +170,9 @@ and waves, touch palette/rotation, HUD/menus/minimap.
   white dot, and follows the player as they move.
 - The core item list shows one icon-and-count row per stocked item and wraps
   into columns without covering the minimap.
+- Selecting a friendly liquid building shows the stock dynamic liquid bar with
+  its liquid name and color below the power bar; keyed multi-liquid bars
+  (crafters, generators and liquid-consuming turrets) remain open.
 - X opens the pause overlay; D-pad + A resume/save/quit, and the quit
   confirmation path saves and exits without corrupting the sector slot.
 - Damaging a friendly core shows the stock `< Core is under attack! >` row.

@@ -1132,6 +1132,32 @@ final class GlacierFixture {
     }
 
 ${barMethod}""")
+            def liquidBarMethod = '    public <T extends Building> void addLiquidBar(Func<T, Liquid> current){'
+            if (block.count(liquidBarMethod) != 1) {
+                throw new GradleException('Pinned dynamic liquid bar method changed')
+            }
+            block = block.replace(liquidBarMethod, """    public Func<Building, Liquid> liquidBarCurrent;
+    public boolean hasDynamicLiquidBar;
+
+    public String liquidBarLabel(Building entity){
+        Liquid liquid = liquidBarCurrent == null ? null : liquidBarCurrent.get(entity);
+        return liquid == null || entity.liquids.get(liquid) <= 0.001f ? Core.bundle.get("bar.liquid") : liquid.localizedName;
+    }
+
+    public float liquidBarFraction(Building entity){
+        Liquid liquid = liquidBarCurrent == null ? null : liquidBarCurrent.get(entity);
+        return liquid == null ? 0f : entity.liquids.get(liquid) / liquidCapacity;
+    }
+
+    public Color liquidBarColor(Building entity){
+        Liquid liquid = liquidBarCurrent == null ? null : liquidBarCurrent.get(entity);
+        return liquid == null ? Color.clear : liquid.barColor();
+    }
+
+    @SuppressWarnings("unchecked")
+    ${liquidBarMethod}
+        liquidBarCurrent = (Func<Building, Liquid>)current;
+        hasDynamicLiquidBar = true;""")
             def anonymousCheck = 'current.isAnonymousClass()'
             if (block.count(anonymousCheck) != 1) {
                 throw new GradleException('Pinned Block.initBuilding anonymous class check changed')

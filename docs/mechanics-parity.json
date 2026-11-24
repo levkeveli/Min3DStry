@@ -164,7 +164,7 @@
         "research/upstream-runtime/src/network-render/java/UpstreamBuildingLayers.java",
         "research/upstream-runtime/src/network-render/host/UpstreamBuildingLayersReference.java"
       ],
-      "notes": "The ARM11 probe verifies LiquidModule and Conduit simulation. The offline renderer draws original pumps and liquid routers, including the tested Mechanical Pump and Liquid Tank. Live conduit tiling is verified. The stock Bridge Conduit and Phase Conduit are liquid-category LiquidBridge blocks, covered by the live Category.liquid draw set; the host LIQUID registry renders every liquid block and asserts both categories. The host reference also verifies one-way Bridge Conduit and Phase Conduit transfer, rejects back-linked pairs, dumps a Liquid Router into an adjacent router sink, and checks Liquid Junction far-side/dead-end routing. Full liquid HUD coverage remains open."
+      "notes": "The ARM11 probe verifies LiquidModule and Conduit simulation. The offline renderer draws original pumps and liquid routers, including the tested Mechanical Pump and Liquid Tank. Live conduit tiling is verified. The stock Bridge Conduit and Phase Conduit are liquid-category LiquidBridge blocks, covered by the live Category.liquid draw set; the host LIQUID registry renders every liquid block and asserts both categories. The host reference also verifies one-way Bridge Conduit and Phase Conduit transfer, rejects back-linked pairs, dumps a Liquid Router into an adjacent router sink, and checks Liquid Junction far-side/dead-end routing. The live selected-building HUD is wired to draw the stock dynamic liquid bar; emulator draw verification is pending, and keyed multi-liquid bars remain open."
     },
     {
       "id": "payloads-unit-factories",
