@@ -264,6 +264,11 @@ two generated 600×600 sector saves. The 32 MiB ARM11 campaign check remains
 tracked in [#538](https://github.com/levkeveli/Min3DStry/issues/538).
 [Hosted campaign regression](https://github.com/levkeveli/Min3DStry/actions/runs/45318649486)
 
+Campaign map loading and team-stat updates reuse existing team data and
+create it when teams first enter play. The configured wave team remains
+present while waves are enabled, even without buildings or units. The
+stock campaign regression checks both cases.
+
 The single-player runtime writes stock zlib-framed saves with a 4 KiB
 compression window and smaller hash tables to reduce contiguous scratch
 allocations. It uses the same BSD-licensed jzlib 1.1.3 dependency as TeaVM
