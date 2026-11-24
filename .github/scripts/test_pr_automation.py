@@ -12,6 +12,7 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import main_verify_alert  # noqa: E402
 import pr_automation  # noqa: E402
+import pr_triage  # noqa: E402
 
 
 class MainVerificationTests(unittest.TestCase):
@@ -68,6 +69,25 @@ class MainVerificationTests(unittest.TestCase):
         removals = [call.args[-1] for call in gh.call_args_list if "--remove-label" in call.args]
         self.assertEqual(removals, ["main-verify-blocked", "main-verify-fix"])
         self.assertEqual(gh.call_args.args[:4], (repo, "issue", "close", "8"))
+
+
+class PrTriageTests(unittest.TestCase):
+    def test_comments_are_flattened_across_pages(self) -> None:
+        comments = [{"body": "First page"}, {"body": "<!-- auto-rerun:sha -->"}]
+        result = mock.Mock(returncode=0, stdout=json.dumps([[comment] for comment in comments]))
+        with mock.patch.object(pr_triage, "gh_api", return_value=result) as api:
+            self.assertEqual(pr_triage.get_comments(7), comments)
+            self.assertEqual(api.call_args.args[1:], ("--paginate", "--slurp"))
+
+    def test_older_gh_uses_json_lines_for_paginated_comments(self) -> None:
+        comments = [{"body": "First page"}, {"body": "<!-- auto-rerun:sha -->"}]
+        results = [
+            mock.Mock(returncode=1, stderr="unknown flag: --slurp"),
+            mock.Mock(returncode=0, stdout="\n".join(map(json.dumps, comments))),
+        ]
+        with mock.patch.object(pr_triage, "gh_api", side_effect=results) as api:
+            self.assertEqual(pr_triage.get_comments(7), comments)
+            self.assertEqual(api.call_args.args[1:], ("--paginate", "--jq", ".[] | @json"))
 
 
 class PrAutomationTests(unittest.TestCase):

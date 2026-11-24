@@ -30,9 +30,9 @@ def gh_api(*args, check=True):
 
 def get_comments(n):
     endpoint = f"repos/{REPO}/issues/{n}/comments?per_page=100"
-    result = gh_api(endpoint, "--paginate", "--slurp", "--jq", "flatten", check=False)
+    result = gh_api(endpoint, "--paginate", "--slurp", check=False)
     if result.returncode == 0:
-        return json.loads(result.stdout)
+        return [comment for page in json.loads(result.stdout) for comment in page]
     if "unknown flag: --slurp" not in result.stderr:
         raise RuntimeError(result.stderr.strip())
     # Older gh versions can emit a JSON object on each line across all pages.
