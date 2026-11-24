@@ -1412,8 +1412,9 @@ int32_t m3ds_terrain_schematic_prompt(char *text, int32_t capacity, const char *
     const bool confirm = mode == 1, edit = mode >= 2;
     if (capacity < 2 || !aptMainLoop()) return edit ? -1 : 0;
     SwkbdState keyboard;
-    swkbdInit(&keyboard, SWKBD_TYPE_NORMAL, 2, confirm ? 1 : 1000);
-    swkbdSetFeatures(&keyboard, SWKBD_DEFAULT_QWERTY | SWKBD_DARKEN_TOP_SCREEN);
+    swkbdInit(&keyboard, SWKBD_TYPE_NORMAL, 2, confirm ? 1 : (capacity - 1) / 4);
+    swkbdSetFeatures(&keyboard, SWKBD_DEFAULT_QWERTY | SWKBD_DARKEN_TOP_SCREEN
+                     | (mode == 3 ? SWKBD_MULTILINE : 0));
     if (mode == 0) swkbdSetValidation(&keyboard, SWKBD_NOTEMPTY_NOTBLANK, 0, 0);
     if (edit) swkbdSetInitialText(&keyboard, text);
     swkbdSetHintText(&keyboard, hint);
