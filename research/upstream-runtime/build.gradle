@@ -1014,15 +1014,16 @@ final class GlacierFixture {
             def itemPath = 'mindustry/world/modules/ItemModule.java'
             def source = new String(readUpstream('core/src/' + itemPath), 'UTF-8')
             def replacements = [
-                ['System.arraycopy(other.items, 0, items, 0, items.length);', '''if(other == this) return;
-        if(items != null && other.items != null){
-            System.arraycopy(other.items, 0, items, 0, capacity());
-            return;
-        }
-        int length = capacity();
-        if(length > other.capacity()) throw new ArrayIndexOutOfBoundsException(length);
-        clearCounts();
-        for(int i = 0; i < length; i++) writeCount(i, other.countAt(i));''', 1],
+                ['System.arraycopy(other.items, 0, items, 0, items.length);', '''if(other != this){
+            if(items != null && other.items != null){
+                System.arraycopy(other.items, 0, items, 0, capacity());
+            }else{
+                int length = capacity();
+                if(length > other.capacity()) throw new ArrayIndexOutOfBoundsException(length);
+                clearCounts();
+                for(int i = 0; i < length; i++) writeCount(i, other.countAt(i));
+            }
+        }''', 1],
                 ['if(items.length != len) items = Arrays.copyOf(items, len);', 'resizeCounts(len);', 1],
                 ['if(items.length != size) items = Arrays.copyOf(items, size);', 'resizeCounts(size);', 1],
                 ['Arrays.fill(items, 0);', 'clearCounts();', 2],

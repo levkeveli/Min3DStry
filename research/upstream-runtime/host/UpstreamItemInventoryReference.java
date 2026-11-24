@@ -131,6 +131,24 @@ public final class UpstreamItemInventoryReference {
             if (length() != 2 || copyIntoEqualCapacity().get(copper) != 3) {
                 throw new AssertionError("Stock subclass array replacement changed");
             }
+            var other = new ArrayModule();
+            other.items = new int[2];
+            var storage = other.items;
+            other.set(this);
+            other.add(this);
+            if (other.items != storage || other.items[copper.id] != 6 || other.total() != 6) {
+                throw new AssertionError("Stock subclass copy and add changed the replacement array");
+            }
+            var saved = save(other);
+            other.clear();
+            UpstreamItemInventoryReference.read(other, saved, false);
+            if (other.items != storage || other.items[copper.id] != 6 || other.total() != 6) {
+                throw new AssertionError("Stock subclass save and read changed the replacement array");
+            }
+            other.checkArrayCapacity(4);
+            if (other.length() != 4 || other.items[copper.id] != 6) {
+                throw new AssertionError("Stock subclass resize lost a populated slot");
+            }
         }
 
         private ItemModule copyIntoEqualCapacity() {
