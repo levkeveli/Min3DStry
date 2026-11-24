@@ -4,28 +4,40 @@ on:
   workflow_run:
     workflows: ["3DS full build", "Upstream ARM11 smoke"]
     types: [completed]
-    branches: [main]
 
 permissions:
   issues: write
+  pull-requests: write
 
 jobs:
   alert:
-    name: Alert on main verification failure
-    if: github.event.workflow_run.conclusion == 'failure'
+    name: Block PRs on main verification failure
+    if: >-
+      github.event.workflow_run.conclusion == 'failure' &&
+      github.event.workflow_run.head_branch == 'main'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Open blocking issue
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Open blocking issue and hold open PRs
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh issue create \
-            --title "Main verification failed: ${{ github.event.workflow_run.name }} @ ${{ github.event.workflow_run.head_sha }}" \
-            --body "Post-merge verification \`${{ github.event.workflow_run.name }}\` failed on main @ \`${{ github.event.workflow_run.head_sha }}\`.
+          sha="${{ github.event.workflow_run.head_sha }}"
+          url="${{ github.event.workflow_run.html_url }}"
+          name="${{ github.event.workflow_run.name }}"
+          gh issue create --repo "$GITHUB_REPOSITORY" \
+            --title "Main verification failed: $name @ $sha" \
+            --body "Post-merge verification \`$name\` failed on main @ \`$sha\`.
 
-Run: ${{ github.event.workflow_run.html_url }}
+Run: $url
 
-No new PRs should merge until this is fixed or reverted." \
-            --label "status:blocked" || true
+All open PRs are labelled \`status:blocked\` until this is fixed or reverted." \
+            --label "status:blocked"
+          # Hold every open PR so nothing merges onto a broken main.
+          for pr in $(gh pr list --repo "$GITHUB_REPOSITORY" --json number --jq '.[].number'); do
+            gh pr edit "$pr" --repo "$GITHUB_REPOSITORY" --add-label "status:blocked" || true
+          done

@@ -135,3 +135,18 @@ playable-arm11**. Source and port instructions are in the
 
 The job packages the offline campaign and Custom Game target. GitHub Actions still
 owns the required checks, AI review, and Pages deployment.
+
+## Two-lane CI gating (fast PR lane, post-merge heavy lane)
+
+Pull requests are gated only on the fast lane: `Bootstrap checks` (host unit
+and bootstrap tests), `PR policy gate`, and `AI review`. The heavy `3DS full
+build` and `Upstream ARM11 smoke` workflows run on push to `main` only — never
+on a nightly schedule.
+
+If either heavy workflow fails on `main`, `main-verify-alert.yml` opens a
+`status:blocked` issue and labels every open PR with `status:blocked`, so no
+PR merges onto a broken main until the failure is fixed or reverted.
+
+A scheduled `pr-triage.yml` job keeps the queue moving: it reruns failed PR
+jobs once per head SHA (tracked via a comment marker) to clear flakes, and
+converts PRs with 7 days of no activity to draft.
