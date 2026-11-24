@@ -48,6 +48,15 @@ server also reopens both saves through `verify_stock_campaign_archive.py
 IDs, dimensions and patch counts. Handheld loading and frame rate for these large maps
 require separate measurements.
 
+The ARM11 single-player heap exposes at least 2 MiB of existing garbage
+collector scratch space from startup. TeaVM counts that scratch separately
+from the managed cap. A 600×600 tile array can fill the stock mark queue
+while the managed heap is still growing. The handheld allocator already
+backs the maximum scratch reservation for the 32 MiB managed heap.
+The [aligned Linux run](https://github.com/levkeveli/Min3DStry/actions/runs/45349275468)
+confirmed first-power updates and 60 ticks in all five dense-sector fixtures
+with that scratch floor. Physical-device measurements are pending.
+
 The unified campaign reference checks that a logic processor with no matching
 units leaves its binding cursor unallocated. It also verifies that successive
 bindings use the stock round-robin order and that a catalog-size change

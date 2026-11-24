@@ -177,6 +177,15 @@ def main():
             ('#include "virtcall.c"', '#include "virtcall.c"\n#include "m3ds_main.c"'),
         ]),
         "memory.c": [
+            (
+                "    return (int32_t) (heapSize / 16);",
+                "#ifdef M3DS_SINGLEPLAYER\n"
+                "    // The platform already backs the full reservation. Expose enough scratch\n"
+                "    // to mark stock 600x600 tile arrays before the managed heap has grown.\n"
+                "    if (heapSize < 32 * 1024 * 1024) return 2 * 1024 * 1024;\n"
+                "#endif\n"
+                "    return (int32_t) (heapSize / 16);",
+            ),
             ("void* teavm_gc_heapAddress", "static int64_t teavm_pageSize(void);\nstatic void* teavm_virtualAlloc(int64_t size);\nstatic void teavm_virtualCommit(void* address, int64_t size);\nstatic void teavm_virtualUncommit(void* address, int64_t size);\n\nvoid* teavm_gc_heapAddress"),
         ],
         "heaptrace.c": [
