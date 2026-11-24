@@ -8,7 +8,6 @@ import mindustry.content.Planets;
 import mindustry.core.UI;
 import mindustry.ctype.UnlockableContent;
 import mindustry.gen.Iconc;
-import mindustry.world.meta.Stat;
 import mindustry.world.meta.Stats;
 import port.render.UpstreamLabelText;
 
@@ -175,7 +174,7 @@ final class UpstreamCoreDatabaseMenu {
                 var text = new StringBuilder();
                 for (var value : entries.get(stat)) {
                     String label = value.handheldText();
-                    if (label == null && stat == Stat.output) label = UpstreamCoreDatabaseProduction.productionOutput(content);
+                    if (label == null) label = UpstreamCoreDatabaseStats.fallback(stat, content);
                     if (label == null || label.isEmpty()) continue;
                     if (text.length() > 0) text.append("  ");
                     text.append(label);

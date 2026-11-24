@@ -57,9 +57,7 @@ public final class UpstreamCoreDatabaseReference {
                 for (var stat : category.keys()) {
                     for (var value : category.get(stat)) {
                         String label = value.handheldText();
-                        if (label == null && stat == mindustry.world.meta.Stat.output) {
-                            label = UpstreamCoreDatabaseProduction.productionOutput(entry.content());
-                        }
+                        if (label == null) label = UpstreamCoreDatabaseStats.fallback(stat, entry.content());
                         if (label != null && !label.isEmpty()) displayableStats++;
                     }
                 }
@@ -112,8 +110,8 @@ public final class UpstreamCoreDatabaseReference {
         if (!itemFuel.contains("Copper 1/sec " + efficiency) || !liquidFuel.contains("Water 2.5/sec " + efficiency)) {
             throw new AssertionError(itemFuel + " | " + liquidFuel);
         }
-        var factory = UpstreamCoreDatabaseProduction.productionOutput(Blocks.groundFactory);
-        var upgrades = UpstreamCoreDatabaseProduction.productionOutput(Blocks.additiveReconstructor);
+        var factory = UpstreamCoreDatabaseStats.productionOutput(Blocks.groundFactory);
+        var upgrades = UpstreamCoreDatabaseStats.productionOutput(Blocks.additiveReconstructor);
         if (!factory.contains(UnitTypes.dagger.localizedName) || !upgrades.contains(UnitTypes.mace.localizedName)) {
             throw new AssertionError(factory + " | " + upgrades);
         }
