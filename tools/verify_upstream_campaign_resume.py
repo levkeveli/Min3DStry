@@ -12,12 +12,13 @@ import verify_upstream_singleplayer as sp
 
 
 def write_replay(path: Path, model: str, multiple: bool, move_down: bool) -> None:
-    windows = [(76, 78, sp.KEY_START)]
+    windows = [(104, 106, sp.KEY_START)] if multiple else [(76, 78, sp.KEY_START)]
     if multiple:
-        windows += [(48, 50, 1)]
+        # From Resume, move down past Research to Load.
+        windows += [(48, 50, 1), (76, 77, sp.KEY_X), (82, 84, 1 << 7), (88, 90, 1 << 7), (94, 96, 1)]
         if move_down:
             windows += [(43, 45, 1 << 7)]
-    frames = sp.CTM_SAMPLES_PER_SECOND * 86
+    frames = sp.CTM_SAMPLES_PER_SECOND * (114 if multiple else 86)
     header = struct.pack("<4sQ20sQQ32sIQq156x", b"CTM\x1b", 0, sp.CTM_REVISION, 1780000000,
                          0x4D334453, b"Min3DStry Campaign", 0, frames, 0)
     idle = struct.pack("<B6x", 1)
@@ -83,6 +84,10 @@ def verify(model: str, rom: Path, azahar: str, config: Path, log: Path,
                 time.sleep(1.5)
                 stats = rpc.perf_stats(reset=True) or {}
                 (output / f"{model}-{stage}.png").write_bytes(rpc.screenshot())
+                if multiple:
+                    reloaded = sp._wait_for_log(log, proc, r"UPSTREAM_PAUSE_MENU load=true\b", 100)
+                    if reloaded.count(f"UPSTREAM_SP_LOADED source=campaign map={map_name} ") != 2:
+                        raise AssertionError(f"{model}: pause-menu Load did not reopen the selected campaign save")
                 sp._wait_for_log(log, proc, rf"UPSTREAM_CAMPAIGN_SAVED slot={selection}\.msav\b", 100)
                 sp._wait_for_log(log, proc, r"UPSTREAM_SP_EXIT\b", 20)
                 expected = source_forest if multiple else source_zero

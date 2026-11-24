@@ -827,10 +827,9 @@ public final class UpstreamSinglePlayerApp {
                         closePauseMenu();
                         var loadSector = Vars.state.rules.sector;
                         session.start(sourceMap, saveFile, campaignSlot == null ? null : "campaign", loadSector);
-                        lastStatus = null;
-                        lastObjectives = null;
-                        lastCoreItemCount = -1;
-                        lastCoreItemDrawn = -1;
+                        resetWorldInput();
+                        weatherLayers.reset();
+                        reportWeather();
                         uploadMinimap();
                         previousTime = System.nanoTime();
                         accumulator = 0L;

@@ -59,6 +59,8 @@ permissions:
 jobs:
   build:
     name: Build default 3DS app
+    outputs:
+      artifact_sha: ${{ steps.artifact.outputs.sha256 }}
     # The project self-hosted min3dstry runner is currently offline. Use the
     # GitHub-hosted Ubuntu runner as a temporary fallback so full builds and
     # artifacts are not blocked; restore the self-hosted expression when it is
@@ -158,6 +160,13 @@ jobs:
             ls -l build/min3dstry.3dsx
           '
 
+      - name: Record artifact SHA-256
+        id: artifact
+        run: |
+          sha256=$(sha256sum build/min3dstry.3dsx | awk '{print $1}')
+          echo "sha256=${sha256}" >> "$GITHUB_OUTPUT"
+          echo "artifact_sha256=${sha256}" >> "$GITHUB_STEP_SUMMARY"
+
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: min3dstry-embedded-loader
@@ -192,6 +201,13 @@ jobs:
             --out-dir build/emu-verify \
             --models new3ds,old3ds \
             --timeout 180
+
+      - name: Check the verified artifact matches the build output
+        run: |
+          python3 tools/check_azahar_report.py \
+            --report build/emu-verify/report.json \
+            --artifact build/artifact/min3dstry.3dsx \
+            --sha256 "${{ needs.build.outputs.artifact_sha }}"
 
       - uses: actions/upload-artifact@v4
         if: always()
