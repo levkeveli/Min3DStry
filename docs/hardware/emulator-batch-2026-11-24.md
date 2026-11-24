@@ -75,6 +75,22 @@ boot check, not only a PR-branch check.
 - #575 stops a stale same-ref run from holding the queue. Manual
   `workflow_dispatch` runs use a per-run group and are not canceled by pushes.
 
+## Post-batch CI gates
+
+These gates landed after the artifact above and apply to the **next** batch:
+
+- The unified smoke runs `runBuildingLayersJvm` with the staged Glacier map,
+  `sprites.aatls` and `block_colors.png`. It fails unless the live draw
+  registry keeps POWER 26, DISTRIBUTION 28, LIQUID 21 and MATERIAL 52 blocks.
+  Bridge Conduit and Phase Conduit are asserted as `Category.liquid`.
+- The offline Ground Zero CTM starts at 40s because hosted
+  `UPSTREAM_SP_READY` now arrives around 32s; the job also retries that replay
+  once before failing.
+- Full builds still require `AZAHAR_PROVENANCE_OK` for the exact uploaded
+  artifact SHA-256.
+
+The counts and timing above are not claimed for the `630efbca` artifact.
+
 ## Not covered
 
 - Physical New or Original 3DS boot, DSP audio, thermal/FPS behavior.

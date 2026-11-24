@@ -25,6 +25,13 @@ Use JDK 17+, Python 3.10+, and tex3ds v2.3.0. The pixel check also uses ImageMag
 
 Renderer integration is tracked in [issue #38](https://github.com/levkeveli/Min3DStry/issues/38). The page has been verified on the host.
 
+## Stock atlas lookup on ARM11
+
+The loader counts records with a sequential ROMFS pass before reserving
+Arc's region sequence and name lookup tables. The unified CI build compares
+all 5,200 records with the original Arc decoder, including page positions,
+trim, split and pad data, duplicate-name lookup order, and error fallback.
+
 ## Complete atlas backing for world draws
 
 Multiplayer asset preparation also imports all four source images into
