@@ -1138,6 +1138,7 @@ ${barMethod}""")
             }
             block = block.replace(liquidBarMethod, """    public Func<Building, Liquid> liquidBarCurrent;
     public boolean hasDynamicLiquidBar;
+    public Seq<Liquid> liquidBarLiquids = new Seq<>();
 
     public String liquidBarLabel(Building entity){
         Liquid liquid = liquidBarCurrent == null ? null : liquidBarCurrent.get(entity);
@@ -1154,10 +1155,43 @@ ${barMethod}""")
         return liquid == null ? Color.clear : liquid.barColor();
     }
 
+    public int liquidBarCount(){
+        return (hasDynamicLiquidBar ? 1 : 0) + liquidBarLiquids.size;
+    }
+
+    public Liquid liquidBarLiquid(Building entity, int index){
+        if(hasDynamicLiquidBar && index == 0){
+            return liquidBarCurrent == null ? null : liquidBarCurrent.get(entity);
+        }
+        int fixed = index - (hasDynamicLiquidBar ? 1 : 0);
+        return fixed >= 0 && fixed < liquidBarLiquids.size ? liquidBarLiquids.get(fixed) : null;
+    }
+
+    public String liquidBarLabel(Building entity, int index){
+        if(hasDynamicLiquidBar && index == 0) return liquidBarLabel(entity);
+        Liquid liquid = liquidBarLiquid(entity, index);
+        return liquid == null ? Core.bundle.get("bar.liquid") : liquid.localizedName;
+    }
+
+    public float liquidBarFraction(Building entity, int index){
+        Liquid liquid = liquidBarLiquid(entity, index);
+        return liquid == null || liquidCapacity <= 0f ? 0f : entity.liquids.get(liquid) / liquidCapacity;
+    }
+
+    public Color liquidBarColor(Building entity, int index){
+        Liquid liquid = liquidBarLiquid(entity, index);
+        return liquid == null ? Color.clear : liquid.barColor();
+    }
+
     @SuppressWarnings("unchecked")
     ${liquidBarMethod}
         liquidBarCurrent = (Func<Building, Liquid>)current;
         hasDynamicLiquidBar = true;""")
+            def fixedLiquidBar = '    public void addLiquidBar(Liquid liq){'
+            if (block.count(fixedLiquidBar) != 1) {
+                throw new GradleException('Pinned fixed liquid bar method changed')
+            }
+            block = block.replace(fixedLiquidBar, fixedLiquidBar + '\n        liquidBarLiquids.add(liq);')
             def anonymousCheck = 'current.isAnonymousClass()'
             if (block.count(anonymousCheck) != 1) {
                 throw new GradleException('Pinned Block.initBuilding anonymous class check changed')
