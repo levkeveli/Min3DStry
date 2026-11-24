@@ -22,11 +22,12 @@ def write_replay(path: Path, model: str, multiple: bool, move_down: bool, dense:
             windows += [(43, 45, 1 << 7)]
     seconds = 114 if multiple else 86
     if dense and multiple:
-        # Leave time for world setup and graphics before pressing pause or quit.
+        # Let the first world frame finish before opening pause. The first pause
+        # frame also loads its font, so leave time before sending menu navigation.
         windows = [(start, end, key) for start, end, key in windows if start < 60]
-        windows += [(160, 161, sp.KEY_X), (166, 168, 1 << 7), (172, 174, 1 << 7),
-                    (178, 180, 1), (290, 292, sp.KEY_START)]
-        seconds = 300
+        windows += [(185, 188, sp.KEY_X), (199, 203, 1 << 7), (212, 216, 1 << 7),
+                    (225, 229, 1), (365, 369, sp.KEY_START)]
+        seconds = 380
     frames = sp.CTM_SAMPLES_PER_SECOND * seconds
     header = struct.pack("<4sQ20sQQ32sIQq156x", b"CTM\x1b", 0, sp.CTM_REVISION, 1780000000,
                          0x4D334453, b"Min3DStry Campaign", 0, frames, 0)
