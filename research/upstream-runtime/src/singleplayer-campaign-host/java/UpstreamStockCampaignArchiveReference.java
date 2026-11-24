@@ -84,11 +84,35 @@ public final class UpstreamStockCampaignArchiveReference {
             System.out.println("UPSTREAM_STOCK_CAMPAIGN_DECODE presets=" + bound + " tiles=" + decodedTiles);
             int patches = verifyPatchedWorld(session, SectorPresets.littoralShipyard.sector, 204, 2)
                 + verifyPatchedWorld(session, Planets.serpulo.sectors.get(242), 242, 1);
+            verifyRetiredScratch();
             System.out.println("UPSTREAM_STOCK_CAMPAIGN_ARCHIVE maps=" + total + " presets=" + bound
                 + " hidden=" + hidden + " patches=" + patches);
         } finally {
             session.shutdown();
         }
+    }
+
+    private static void verifyRetiredScratch() throws ReflectiveOperationException {
+        var build = Vars.state.rules.defaultTeam.core();
+        var buildings = scratch(mindustry.gen.Building.class, "tempBuilds");
+        var tiles = scratch(mindustry.world.Block.class, "tempTiles");
+        buildings.items[0] = build;
+        buildings.size = 0; // A stale backing slot survives an ordinary Seq.clear().
+        tiles.items[0] = build.tile;
+        tiles.size = 1;
+        Vars.logic.reset();
+        if (java.util.Arrays.stream(buildings.items).anyMatch(java.util.Objects::nonNull) || !tiles.isEmpty()
+                || tiles.items[0] != null || Vars.world.width() != 0) {
+            throw new AssertionError("Stock world reset retained building or tile scratch references");
+        }
+        System.out.println("UPSTREAM_CAMPAIGN_RESET_SCRATCH building=cleared tile=cleared");
+    }
+
+    @SuppressWarnings("unchecked")
+    private static arc.struct.Seq<Object> scratch(Class<?> owner, String name) throws ReflectiveOperationException {
+        var field = owner.getDeclaredField(name);
+        field.setAccessible(true);
+        return (arc.struct.Seq<Object>) field.get(null);
     }
 
     private static void verifySaveBuffer() throws IOException {

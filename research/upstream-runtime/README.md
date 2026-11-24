@@ -257,6 +257,13 @@ checks the new file through `SaveIO.isSaveValid` before reloading it. On the
 JVM, pass the map, v13 input, and new output paths as arguments. The
 round-trip check ends with `UPSTREAM_SAVE_ROUNDTRIP version=13 marker=ok`.
 
+The shared runtime releases the stock building and block scratch references
+after a world reset. The hosted campaign regression checks both collections
+after loading the stock archive, and the unmodified Java release reopens the
+two generated 600×600 sector saves. The 32 MiB ARM11 campaign check remains
+tracked in [#538](https://github.com/levkeveli/Min3DStry/issues/538).
+[Hosted campaign regression](https://github.com/levkeveli/Min3DStry/actions/runs/45318649486)
+
 The host-side [save resilience probe](host/README.md#save-resilience-checks)
 uses the same pinned server JAR and Glacier fixture to reject truncated,
 bad-header and unknown-version saves and to exercise the upstream backup path.
