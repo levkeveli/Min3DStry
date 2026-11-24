@@ -776,6 +776,11 @@ def resolve_azahar_paths(azahar_bin: str | None = None) -> tuple[Path, Path]:
     return cfg_root / "qt-config.ini", data_root / "log" / "azahar_log.txt"
 
 
+def is_transient_fps_failure(exc: BaseException) -> bool:
+    """Azahar occasionally launches without frame stats; retry only that race."""
+    return isinstance(exc, AssertionError) and "Non-positive FPS" in str(exc)
+
+
 def run_model_check(
     model: str,
     rom_path: Path,
@@ -1101,10 +1106,21 @@ def main() -> int:
 
     results = []
     for model in models:
-        res = run_model_check(
-            model, rom_path, azahar_bin, config_path, log_path, out_dir, args.timeout,
-            args.expect_sector_catalog,
-        )
+        for attempt in (1, 2):
+            try:
+                res = run_model_check(
+                    model, rom_path, azahar_bin, config_path, log_path, out_dir, args.timeout,
+                    args.expect_sector_catalog,
+                )
+                break
+            except AssertionError as exc:
+                if attempt == 2 or not is_transient_fps_failure(exc):
+                    raise
+                print(
+                    f"verify_azahar: {model} produced no FPS; retrying once (attempt 2/2)",
+                    file=sys.stderr,
+                    flush=True,
+                )
         results.append(res)
         print(
             f"[PASS] {model}: {res['hw_line']} | "
