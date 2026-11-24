@@ -117,6 +117,10 @@ public final class UpstreamSinglePlayerApp {
         default void update(long now) {}
     }
 
+    interface TitleJoin {
+        boolean open(UpstreamWorldLoadProbe.ProbeApplication app, boolean atlasReady) throws IOException;
+    }
+
     private UpstreamSinglePlayerApp(AudioHooks audio) {
         this.audio = audio;
     }
@@ -126,15 +130,19 @@ public final class UpstreamSinglePlayerApp {
     }
 
     static void run(String[] args, AudioHooks audio) throws IOException {
+        run(args, audio, null);
+    }
+
+    static void run(String[] args, AudioHooks audio, TitleJoin join) throws IOException {
         try {
-            new UpstreamSinglePlayerApp(audio).run(args);
+            new UpstreamSinglePlayerApp(audio).run(args, join);
         } catch (IOException | RuntimeException failure) {
             System.out.println("UPSTREAM_SP_ERROR " + failure.getClass().getName() + ": " + failure.getMessage());
             throw failure;
         }
     }
 
-    private void run(String[] args) throws IOException {
+    private void run(String[] args, TitleJoin join) throws IOException {
         int language = target.mountAssets();
         int bootInput = UpstreamSinglePlayerInput.poll();
         boolean customRequested = args.length == 0 && bootInput >= 0
@@ -166,7 +174,7 @@ public final class UpstreamSinglePlayerApp {
 
         try {
             if (titleRequested) {
-                var selection = chooseTitleAction(atlas, saveFile, () -> prepareSession(mapDir, bundleTag, settings));
+                var selection = chooseTitleAction(atlas, saveFile, () -> prepareSession(mapDir, bundleTag, settings), join);
                 if (selection == null) return;
                 campaignRequested = selection == TitleAction.campaign;
                 customRequested = selection == TitleAction.custom;
@@ -491,13 +499,20 @@ public final class UpstreamSinglePlayerApp {
 
     private enum TitleAction { campaign, custom, load, editor }
 
-    private TitleAction chooseTitleAction(Fi atlas, Fi defaultSave, Runnable prepare) {
+    private TitleAction chooseTitleAction(Fi atlas, Fi defaultSave, Runnable prepare, TitleJoin join) throws IOException {
         loadInterfaceRenderer();
         while (true) {
             switch (chooseTitleRow("Mindustry", "play", "database.button", "editor", "quit")) {
                 case 0 -> {
-                    int route = chooseTitleRow(Core.bundle.get("play"), "campaign", "customgame", "loadgame");
+                    var playKeys = join == null ? new String[]{"campaign", "customgame", "loadgame"}
+                        : new String[]{"campaign", "joingame", "customgame", "loadgame"};
+                    int route = chooseTitleRow(Core.bundle.get("play"), playKeys);
                     if (route == 0) return TitleAction.campaign;
+                    if (route == 1 && join != null) {
+                        if (join.open(session == null ? null : session.application(), interfaceGraphicsReady)) return null;
+                        continue;
+                    }
+                    if (route > 0 && join != null) route--;
                     if (route == 1) return TitleAction.custom;
                     if (route == 2) {
                         prepare.run();

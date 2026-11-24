@@ -1,10 +1,9 @@
 # Stock title menu shell
 
 The unified Java runtime opens its title menu on ordinary startup. It uses the
-live Core Database and the existing Campaign, Custom Game, Load Game and Editor
-routes. Join Game remains available by holding X at launch while its title
-handoff is being integrated. Hold L for Custom Game, R for Campaign, or both
-for the Editor.
+live Core Database and the existing Campaign, Join Game, Custom Game, Load
+Game and Editor routes. Hold X to join directly, L for Custom Game, R for
+Campaign, or L and R together for the Editor.
 
 To launch the offline session directly, pass `--direct` through the Homebrew
 Launcher or set `sd:/3ds/min3dstry/startup.txt` to `direct`. Holding Y opens

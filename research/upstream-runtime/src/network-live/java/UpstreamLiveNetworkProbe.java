@@ -125,7 +125,7 @@ public final class UpstreamLiveNetworkProbe {
 
     public static void main(String[] args) throws IOException, InterruptedException {
         var endpoint = endpointFile(args);
-        run(endpoint.parent(), endpoint.readString(), null, null, null, null, null, null, null);
+        run(endpoint.parent(), endpoint.readString(), null, null, null, null, null, null, null, null);
     }
 
     static Fi endpointFile(String[] args) {
@@ -134,7 +134,7 @@ public final class UpstreamLiveNetworkProbe {
 
     static ServerKick run(Fi directory, String address, Runnable beforeConnect, Runnable deferredGraphics,
                     Consumer<Unit> frame, Supplier<UpstreamLiveBuildControls> building, Consumer<String> chat,
-                    UpstreamChatInput chatInput, Runnable reconnecting)
+                    UpstreamChatInput chatInput, Runnable reconnecting, UpstreamWorldLoadProbe.ProbeApplication preparedApp)
                     throws IOException, InterruptedException {
         String[] endpoint = address.trim().split("\\s+");
         if (endpoint.length < 2 || endpoint.length > 3) {
@@ -149,15 +149,18 @@ public final class UpstreamLiveNetworkProbe {
         int port = Integer.parseInt(endpoint[1]);
         String stage = "content";
         try {
-            var app = UpstreamWorldLoadProbe.initialize(directory);
-            stage = "services";
-            Vars.mods = new Mods();
-            Vars.universe = new Universe();
-            if (frame != null) {
-                if (Core.audio == null) Core.audio = new MockAudio();
-                Vars.indexer = new BlockIndexer();
-                Vars.pathfinder = new Pathfinder();
-                Vars.fogControl = new FogControl();
+            var app = preparedApp;
+            if (app == null) {
+                app = UpstreamWorldLoadProbe.initialize(directory);
+                stage = "services";
+                Vars.mods = new Mods();
+                Vars.universe = new Universe();
+                if (frame != null) {
+                    if (Core.audio == null) Core.audio = new MockAudio();
+                    Vars.indexer = new BlockIndexer();
+                    Vars.pathfinder = new Pathfinder();
+                    Vars.fogControl = new FogControl();
+                }
             }
             stage = "client setup";
             if (beforeConnect != null) beforeConnect.run();

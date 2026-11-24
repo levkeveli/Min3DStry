@@ -50,19 +50,38 @@ public final class UpstreamUnifiedApp {
     }
 
     private static void join(String[] endpointArgs) throws IOException, InterruptedException {
+        join(endpointArgs, null, false);
+    }
+
+    private static boolean join(String[] endpointArgs, UpstreamWorldLoadProbe.ProbeApplication preparedApp,
+                                boolean atlasReady) throws IOException, InterruptedException {
         var endpoint = UpstreamLiveNetworkProbe.endpointFile(endpointArgs);
         var atlas = new Fi("/romfs/sprites.aatls");
         if (endpoint.exists() && !endpoint.isDirectory()) {
             System.out.println("UPSTREAM_BOOT mode=join");
-            UpstreamRenderedNetworkProbe.run(endpoint, atlas);
+            UpstreamRenderedNetworkProbe.run(endpoint.parent(), endpoint.readString(), atlas, preparedApp, atlasReady);
+            return true;
         } else if (endpointArgs.length != 0) {
             System.out.println("No server endpoint file at " + endpoint.path());
         } else {
             var address = readServerAddress();
             if (address != null) {
                 System.out.println("UPSTREAM_BOOT mode=join");
-                UpstreamRenderedNetworkProbe.run(endpoint.parent(), address.host() + " " + address.port(), atlas);
+                UpstreamRenderedNetworkProbe.run(endpoint.parent(), address.host() + " " + address.port(), atlas,
+                    preparedApp, atlasReady);
+                return true;
             }
+        }
+        return false;
+    }
+
+    private static boolean joinFromTitle(UpstreamWorldLoadProbe.ProbeApplication preparedApp, boolean atlasReady)
+            throws IOException {
+        try {
+            return join(new String[0], preparedApp, atlasReady);
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            throw new IOException("Interrupted while joining", interrupted);
         }
     }
 
@@ -92,10 +111,11 @@ public final class UpstreamUnifiedApp {
 
     private static void offline(String[] args) throws IOException, InterruptedException {
         System.out.println("UPSTREAM_BOOT mode=" + (args.length > 0 && args[0].equals("--title") ? "title" : "offline"));
-        try {
-            UpstreamSinglePlayerApp.run(args, new UpstreamSinglePlayerApp.AudioHooks() {
+        var hooks = new UpstreamSinglePlayerApp.AudioHooks() {
+                boolean opened;
                 @Override
                 public Audio open() {
+                    opened = true;
                     Arm11Audio.open();
                     return Core.audio instanceof Arm11Audio audio ? audio : UpstreamSinglePlayerApp.AudioHooks.super.open();
                 }
@@ -112,9 +132,11 @@ public final class UpstreamUnifiedApp {
                     Arm11Audio.updateCamera(camera.position.x, camera.position.y, camera.width, camera.height);
                     Arm11Audio.updateClientAudio(now);
                 }
-            });
+        };
+        try {
+            UpstreamSinglePlayerApp.run(args, hooks, UpstreamUnifiedApp::joinFromTitle);
         } finally {
-            Arm11Audio.close();
+            if (hooks.opened) Arm11Audio.close();
         }
     }
 }

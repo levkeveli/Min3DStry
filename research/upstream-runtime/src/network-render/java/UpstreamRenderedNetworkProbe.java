@@ -111,24 +111,31 @@ public final class UpstreamRenderedNetworkProbe {
     }
 
     static void run(Fi directory, String address, Fi atlas) throws IOException, InterruptedException {
+        run(directory, address, atlas, null, false);
+    }
+
+    static void run(Fi directory, String address, Fi atlas, UpstreamWorldLoadProbe.ProbeApplication preparedApp,
+                    boolean atlasReady) throws IOException, InterruptedException {
         var view = new UpstreamRenderedNetworkProbe(atlas);
         int language = view.target.mountAssets();
-        var preference = directory.child("locale.txt");
-        String requested = preference.exists() && preference.length() <= 16 ? preference.readString("UTF-8").trim() : "";
-        Core.bundle = UpstreamInterfaceLocale.loadForStockClient(new Fi("/romfs/bundles/bundle"), language, requested);
+        if (preparedApp == null) {
+            var preference = directory.child("locale.txt");
+            String requested = preference.exists() && preference.length() <= 16 ? preference.readString("UTF-8").trim() : "";
+            Core.bundle = UpstreamInterfaceLocale.loadForStockClient(new Fi("/romfs/bundles/bundle"), language, requested);
+            CacheLayer.init();
+        }
         var locale = Core.bundle.getLocale();
         System.out.println("UPSTREAM_INTERFACE_LOCALE system=" + language + " bundle="
             + (locale.getLanguage().isEmpty() ? "en" : locale) + " router=" + Core.bundle.get("block.router.name")
             + " copper=" + Core.bundle.get("item.copper.name"));
-        CacheLayer.init();
         try {
-            Arm11Audio.open();
-            var kick = UpstreamLiveNetworkProbe.run(directory, address, view::prepareClient, view::loadGraphics,
+            if (preparedApp == null) Arm11Audio.open();
+            var kick = UpstreamLiveNetworkProbe.run(directory, address, view::prepareClient, () -> view.loadGraphics(atlasReady),
                 view::render, view::newSessionControls, view::receiveChat, view.chatInput,
-                () -> view.drawConnectionNotice(Core.bundle.get("reconnecting"), Core.bundle.get("cancel")));
+                () -> view.drawConnectionNotice(Core.bundle.get("reconnecting"), Core.bundle.get("cancel")), preparedApp);
             if (kick != null) view.showServerKick(kick);
         } finally {
-            Arm11Audio.close();
+            if (preparedApp == null) Arm11Audio.close();
         }
     }
 
@@ -194,10 +201,10 @@ public final class UpstreamRenderedNetworkProbe {
         Core.settings.put("locale", locale.getLanguage().isEmpty() ? "en" : locale.toString());
     }
 
-    private void loadGraphics() {
+    private void loadGraphics(boolean atlasReady) {
         var locale = Core.bundle.getLocale();
         System.out.println("UPSTREAM_INTERFACE_GRAPHICS atlas");
-        UpstreamTerrainDrawProbe.loadAtlas(atlas, UpstreamFluidAtlas::load);
+        if (!atlasReady) UpstreamTerrainDrawProbe.loadAtlas(atlas, UpstreamFluidAtlas::load);
         weatherLayers.load();
         UpstreamLogicGraphics.load(new Fi("/romfs"));
         Vars.content.loadColors(new Fi("/romfs/block_colors.png"));
