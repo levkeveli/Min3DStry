@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Triage open PRs: auto-rerun failed checks once per head SHA, draft idle PRs.
+"""Triage open PRs: auto-rerun failed heavy checks once per head SHA, draft idle PRs.
 
 Runs on a schedule (see pr-triage.yml). For every open PR targeting main:
-- Rerun every failed pull_request run for its current head SHA once. The
+- Rerun failed heavy pull_request runs for its current head SHA once. The
   attempted SHA is recorded in a comment marker so each new head gets
   exactly one automatic retry.
 - If the PR has had no activity for 7 days, convert it to draft via the
@@ -13,6 +13,8 @@ import os
 import subprocess
 import sys
 from datetime import datetime, timedelta, timezone
+
+from pr_automation import FAILURE_CONCLUSIONS, HEAVY_VERIFY_WORKFLOWS
 
 REPO = os.environ.get("GITHUB_REPOSITORY", "levkeveli/Min3DStry")
 NOW = datetime.now(timezone.utc)
@@ -26,23 +28,42 @@ def gh_api(*args, check=True):
     )
 
 
+def get_comments(n):
+    endpoint = f"repos/{REPO}/issues/{n}/comments?per_page=100"
+    result = gh_api(endpoint, "--paginate", "--slurp", "--jq", "flatten", check=False)
+    if result.returncode == 0:
+        return json.loads(result.stdout)
+    if "unknown flag: --slurp" not in result.stderr:
+        raise RuntimeError(result.stderr.strip())
+    # Older gh versions can emit a JSON object on each line across all pages.
+    result = gh_api(endpoint, "--paginate", "--jq", ".[] | @json", check=False)
+    if result.returncode != 0:
+        raise RuntimeError(result.stderr.strip())
+    return [json.loads(line) for line in result.stdout.splitlines()]
+
+
 def rerun_failed(n, head) -> bool:
-    """Returns True if an auto-rerun marker was written in this pass."""
-    runs = json.loads(
-        gh_api(
-            f"repos/{REPO}/actions/runs?head_sha={head}&per_page=20",
-            "--jq",
-            "[.workflow_runs[] | select(.event == \"pull_request\" and .conclusion == \"failure\" and .name != \"PR Automation\")]",
-        ).stdout
+    """Returns True if auto-reruns were attempted in this pass."""
+    result = gh_api(
+        f"repos/{REPO}/actions/runs?head_sha={head}&event=pull_request&per_page=100",
+        "--paginate", "--jq", ".workflow_runs[] | @json",
     )
+    runs = [json.loads(line) for line in result.stdout.splitlines()]
+    runs = [
+        run for run in runs
+        if run["conclusion"] in FAILURE_CONCLUSIONS
+        and run["name"] in HEAVY_VERIFY_WORKFLOWS.values()
+    ]
     if not runs:
         return False
-    comments = json.loads(
-        gh_api(f"repos/{REPO}/issues/{n}/comments?per_page=100", "--paginate",
-               "--slurp", "--jq", "flatten").stdout
-    )
+    comments = get_comments(n)
     if any(RERUN_MARKER + head in (c.get("body") or "") for c in comments):
         return False
+    # Reserve the retry before issuing it so a partial failure cannot repeat it.
+    gh_api(
+        f"repos/{REPO}/issues/{n}/comments", "-X", "POST",
+        "-f", f"body={RERUN_MARKER}{head} --> auto-rerun requested for this head.",
+    )
     for run in runs:
         rr = subprocess.run(
             ["gh", "run", "rerun", str(run["id"]), "--failed", "--repo", REPO],
@@ -50,14 +71,6 @@ def rerun_failed(n, head) -> bool:
         )
         if rr.returncode != 0:
             print(f"PR #{n}: auto-rerun of run {run['id']} failed: {rr.stderr.strip()}")
-    # Mark the attempt regardless of outcome so it happens once per head SHA.
-    try:
-        gh_api(
-            f"repos/{REPO}/issues/{n}/comments", "-X", "POST",
-            "-f", f"body={RERUN_MARKER}{head} --> auto-rerun attempted for this head.",
-        )
-    except Exception as e:
-        print(f"PR #{n}: could not record auto-rerun marker: {e}")
     print(f"PR #{n}: auto-rerun attempted for {len(runs)} failed run(s)")
     return True
 
@@ -68,7 +81,7 @@ def draft_if_idle(n, draft, updated):
     node_id = gh_api(f"repos/{REPO}/pulls/{n}", "--jq", ".node_id").stdout.strip()
     mutation = (
         "mutation($id:ID!){convertPullRequestToDraft(input:{pullRequestId:$id})"
-        "{pullRequest{draft}}}"
+        "{pullRequest{isDraft}}}"
     )
     r = subprocess.run(
         ["gh", "api", "graphql", "-f", f"query={mutation}", "-F", f"id={node_id}"],
@@ -88,7 +101,7 @@ def draft_if_idle(n, draft, updated):
 def main():
     prs = json.loads(
         gh_api(
-            f"repos/{REPO}/pulls?state=open&per_page=100",
+            f"repos/{REPO}/pulls?base=main&state=open&per_page=100",
             "--jq",
             "[.[] | {number, draft, updated_at, head: .head.sha}]",
         ).stdout

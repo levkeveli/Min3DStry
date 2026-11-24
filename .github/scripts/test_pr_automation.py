@@ -10,7 +10,64 @@ from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import main_verify_alert  # noqa: E402
 import pr_automation  # noqa: E402
+
+
+class MainVerificationTests(unittest.TestCase):
+    def test_only_current_main_runs_can_clear_the_hold(self) -> None:
+        repo = "owner/repo"
+        success = {
+            "head_sha": "current",
+            "head_repository": {"full_name": repo},
+            "event": "push",
+            "status": "completed",
+            "conclusion": "success",
+        }
+        unrelated = [
+            dict(success, head_sha="older", conclusion="failure"),
+            dict(success, event="pull_request"),
+            dict(success, head_repository={"full_name": "fork/repo"}),
+        ]
+        for runs, expected in (
+            ([success, *unrelated], []),
+            (unrelated, ["3DS full build: no run on main HEAD"]),
+            ([dict(success, conclusion="timed_out"), success], ["3DS full build: timed_out"]),
+            ([dict(success, status="queued", conclusion=None)], ["3DS full build: queued"]),
+        ):
+            with self.subTest(expected=expected):
+                responses = [
+                    {"sha": "current"},
+                    {"workflow_runs": runs},
+                    {"workflow_runs": [dict(success, event="workflow_dispatch")]},
+                ]
+                with mock.patch.object(
+                    pr_automation, "github_request",
+                    side_effect=[(200, json.dumps(response)) for response in responses],
+                ) as request:
+                    self.assertEqual(
+                        pr_automation.main_verification_status(repo, "token"), ("current", expected)
+                    )
+                    for call in request.call_args_list[1:]:
+                        self.assertIn("branch=main&head_sha=current", call.args[0])
+
+    def test_green_main_releases_only_automation_labels(self) -> None:
+        repo = "owner/repo"
+        pr = {
+            "number": 7,
+            "labels": [{"name": name} for name in ("hold", "main-verify-blocked", "main-verify-fix")],
+            "isDraft": False,
+        }
+        with (
+            mock.patch.dict(os.environ, {"GITHUB_REPOSITORY": repo, "GH_TOKEN": "token"}),
+            mock.patch.object(main_verify_alert, "main_verification_status", return_value=("sha", [])),
+            mock.patch.object(main_verify_alert, "gh") as gh,
+        ):
+            gh.side_effect = ["", "", json.dumps([pr]), '[{"number": 8}]', "", "", ""]
+            main_verify_alert.main()
+        removals = [call.args[-1] for call in gh.call_args_list if "--remove-label" in call.args]
+        self.assertEqual(removals, ["main-verify-blocked", "main-verify-fix"])
+        self.assertEqual(gh.call_args.args[:4], (repo, "issue", "close", "8"))
 
 
 class PrAutomationTests(unittest.TestCase):

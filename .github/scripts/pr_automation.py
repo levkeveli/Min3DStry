@@ -197,61 +197,59 @@ def has_bot_approval_for_commit(
     return latest_state == "APPROVED"
 
 
-HEAVY_VERIFY_WORKFLOWS = ("3DS full build", "Upstream ARM11 smoke")
-
-
+HEAVY_VERIFY_WORKFLOWS = {
+    "full-build.yml": "3DS full build",
+    "upstream-arm11-smoke.yml": "Upstream ARM11 smoke",
+}
 FAILURE_CONCLUSIONS = ("failure", "timed_out", "startup_failure")
+MAIN_VERIFY_BLOCKED = "main-verify-blocked"
+MAIN_VERIFY_FIX = "main-verify-fix"
 
 
-def main_verification_red(repo: str, token: str) -> str | None:
-    """Return the failing heavy workflow name if main's current HEAD has a red
-    post-merge verification run, else None. A failure on an older SHA that
-    main has since moved past (fix merged without retriggering a
-    path-filtered workflow) does not count as red. Checked on every PR so PRs
-    opened after a main failure are also blocked. Raises on a missing
-    workflow or API error; the caller treats that as "unknown" and warns
-    rather than blocking."""
-    _, body = github_request(
-        f"https://api.github.com/repos/{repo}/commits/main", token
+def is_main_verification_fix(labels: set[str], title: str, body: str) -> bool:
+    description = f"{title} {body}".lower()
+    return MAIN_VERIFY_FIX in labels and (
+        "revert" in description or "main verification failed" in description
     )
-    main_sha = json.loads(body)["sha"]
-    _, body = github_request(
-        f"https://api.github.com/repos/{repo}/actions/workflows?per_page=100", token
-    )
-    workflows = {w.get("name"): w.get("id") for w in json.loads(body).get("workflows", [])}
-    for wf in HEAVY_VERIFY_WORKFLOWS:
-        wf_id = workflows.get(wf)
-        if wf_id is None:
-            raise RuntimeError(f"heavy workflow not found: {wf}")
-        url = (
-            f"https://api.github.com/repos/{repo}/actions/workflows/{wf_id}/runs"
-            f"?branch=main&per_page=1"
+
+
+def main_verification_status(repo: str, token: str) -> tuple[str, list[str]]:
+    """Return main's HEAD and reasons why its heavy verification is not green."""
+    root = f"https://api.github.com/repos/{repo}"
+    _, raw = github_request(f"{root}/commits/main", token)
+    main_sha = json.loads(raw)["sha"]
+    blockers = []
+    for filename, name in HEAVY_VERIFY_WORKFLOWS.items():
+        _, raw = github_request(
+            f"{root}/actions/workflows/{filename}/runs"
+            f"?branch=main&head_sha={main_sha}&per_page=100", token
         )
-        _, body = github_request(url, token)
-        runs = json.loads(body).get("workflow_runs", [])
-        if not runs or runs[0].get("conclusion") not in FAILURE_CONCLUSIONS:
-            continue
-        if runs[0].get("head_sha") == main_sha:
-            return wf
-        # Main's HEAD has no run for this workflow (fix merged without
-        # retriggering the path-filtered workflow): unverified main is red.
-        _, body = github_request(
-            f"https://api.github.com/repos/{repo}/actions/workflows/{wf_id}/runs"
-            f"?branch=main&per_page=100", token
+        run = next(
+            (
+                run for run in json.loads(raw)["workflow_runs"]
+                if run.get("head_sha") == main_sha
+                and run.get("event") in {"push", "workflow_dispatch"}
+                and (run.get("head_repository") or {}).get("full_name", "").lower() == repo.lower()
+            ),
+            None,
         )
-        if not any(
-            r.get("head_sha") == main_sha
-            for r in json.loads(body).get("workflow_runs", [])
-        ):
-            return wf
-    return None
+        if run is None:
+            blockers.append(f"{name}: no run on main HEAD")
+        elif run.get("conclusion") != "success":
+            blockers.append(f"{name}: {run.get('conclusion') or run['status']}")
+    return main_sha, blockers
 
 
 def cmd_classify(_: argparse.Namespace) -> int:
     token = os.environ["GITHUB_TOKEN"]
-    repo, pr = load_pr_context()
-    pr_number = int(pr["number"])
-    head_sha = pr["head"]["sha"]
+    repo, event_pr = load_pr_context()
+    pr_number = int(event_pr["number"])
+    head_sha = event_pr["head"]["sha"]
+    _, raw = github_request(f"https://api.github.com/repos/{repo}/pulls/{pr_number}", token)
+    pr = json.loads(raw)
+    if pr["head"]["sha"] != head_sha:
+        print("POLICY ERROR: this run is for a previous PR head.", file=sys.stderr)
+        return 1
     base_ref = pr["base"]["ref"]
     is_draft = bool(pr.get("draft", False))
 
@@ -263,43 +261,34 @@ def cmd_classify(_: argparse.Namespace) -> int:
     )
 
     changed_files = fetch_pr_files(repo, pr_number, token)
-    labels = [lbl["name"] for lbl in pr.get("labels", [])]
-    tier, tier_reasons = classify_risk_tier(changed_files, labels)
+    labels = {lbl["name"].strip().lower() for lbl in pr.get("labels", [])}
+    is_fix_pr = is_main_verification_fix(labels, pr.get("title") or "", pr.get("body") or "")
+    if is_fix_pr:
+        labels.discard(MAIN_VERIFY_BLOCKED)
+    tier, tier_reasons = classify_risk_tier(changed_files, sorted(labels))
     metadata_errors = validate_pr_metadata(pr.get("body"))
     metadata_warnings = collect_metadata_warnings(pr.get("body"))
 
     if is_draft:
         metadata_errors.append("PR is still marked as draft.")
 
-    # The PR that fixes or reverts red main carries main-verify-fix and is
-    # exempt, otherwise the hard block would deadlock (no PR could merge to
-    # make main green again).
-    norm_labels = {lbl.strip().lower() for lbl in labels}
-    pr_text = f"{pr.get('title') or ''} {pr.get('body') or ''}".lower()
-    # The escape hatch is only for an actual fix/revert, not arbitrary PRs.
-    is_fix_pr = "main-verify-fix" in norm_labels and (
-        "revert" in pr_text or "main verification failed" in pr_text
-    )
-    if not is_fix_pr and "main-verify-blocked" in norm_labels:
+    if MAIN_VERIFY_BLOCKED in labels:
         metadata_errors.append(
-            "main-verify-blocked: post-merge verification on main is red; "
-            "the fixing/reverting PR carries main-verify-fix instead."
+            f"{MAIN_VERIFY_BLOCKED}: post-merge verification hold. "
+            f"The fixing/reverting PR must carry {MAIN_VERIFY_FIX}."
         )
-
-    if not is_fix_pr:
+    elif base_ref == "main" and not is_fix_pr:
         try:
-            red_wf = main_verification_red(repo, token)
-        except Exception as e:
-            # Unknown (API error / missing workflow) must not hard-block every
-            # PR on a transient failure; warn loudly instead.
-            print(f"NOTICE: could not determine main verification status: {e}")
-            red_wf = None
-        if red_wf:
-            metadata_errors.append(
-                f"post-merge verification on main is red ({red_wf}); "
-                "no PR merges until main is green again. The fixing/reverting "
-                "PR must carry the main-verify-fix label."
-            )
+            sha, blockers = main_verification_status(repo, token)
+        except (RuntimeError, ValueError, OSError) as exc:
+            metadata_errors.append(f"Could not verify main: {exc}")
+        else:
+            if blockers:
+                metadata_errors.append(
+                    f"Post-merge verification on main at {sha} is blocked "
+                    f"({'; '.join(blockers)}). The fixing/reverting PR must "
+                    f"carry {MAIN_VERIFY_FIX}."
+                )
 
     eligible_ai = same_repo and not is_draft
     eligible_auto_merge = same_repo and not is_draft and tier != "C" and not metadata_errors
