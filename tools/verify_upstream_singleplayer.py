@@ -20,8 +20,11 @@ import verify_azahar as az  # noqa: E402
 CTM_REVISION = bytes.fromhex("219d743a1e698101fe1ab8bef43e6563126c3c27")
 CTM_SAMPLES_PER_SECOND = 234
 
+KEY_A = 1 << 0
+KEY_B = 1 << 1
 KEY_SELECT = 1 << 2
 KEY_START = 1 << 3
+KEY_DOWN = 1 << 7
 KEY_X = 1 << 10
 KEY_Y = 1 << 11
 
@@ -49,12 +52,12 @@ def resolve_sd_save_path(log_path: Path) -> Path:
     return log_path.parent.parent / "sdmc" / "3ds" / "min3dstry" / "singleplayer-save.msav"
 
 
-def write_singleplayer_ctm(path: Path, model: str) -> None:
+def write_singleplayer_ctm(path: Path, model: str, verify_database: bool = False) -> None:
     """Write an Azahar 2126.2 CTM input sequence exercising the Ground Zero vertical slice."""
     # Hosted runners can take ~32s to reach UPSTREAM_SP_READY; start taps at 40s
     # so the mine and ore taps never land during world loading.
     t0 = 40
-    total_seconds = t0 + 62
+    total_seconds = t0 + (115 if verify_database else 62)
     frames = total_seconds * CTM_SAMPLES_PER_SECOND
     header = struct.pack(
         "<4sQ20sQQ32sIQq156x",
@@ -85,6 +88,19 @@ def write_singleplayer_ctm(path: Path, model: str) -> None:
         (t0 + 50, KEY_SELECT), # Save .msav to SD
         (t0 + 56, KEY_START),  # Clean exit
     )
+    if verify_database:
+        button_windows = (
+            (t0 + 36, KEY_X),       # Pause
+            (t0 + 45, KEY_Y),       # Open the Core Database
+            (t0 + 53, KEY_DOWN),    # Move from the category heading to the first entry
+            (t0 + 61, KEY_A),       # Open the unlocked content entry
+            (t0 + 69, KEY_B),       # Back to the database
+            (t0 + 77, KEY_B),       # Back to the pause menu
+            (t0 + 85, KEY_X),       # Resume
+            (t0 + 90, KEY_Y),       # Trigger wave 1
+            (t0 + 99, KEY_SELECT),  # Save .msav to SD
+            (t0 + 106, KEY_START),  # Clean exit
+        )
     with path.open("wb") as movie:
         movie.write(header)
         for frame in range(frames):
@@ -229,6 +245,7 @@ def run_singleplayer_model(
     log_path: Path,
     out_dir: Path,
     timeout: float,
+    verify_database: bool = False,
 ) -> dict[str, Any]:
     out_dir.mkdir(parents=True, exist_ok=True)
     had_config = config_path.exists()
@@ -238,7 +255,7 @@ def run_singleplayer_model(
         sd_save.unlink()
 
     ctm_path = out_dir / f"{model}-controls.ctm"
-    write_singleplayer_ctm(ctm_path, model)
+    write_singleplayer_ctm(ctm_path, model, verify_database)
 
     try:
         # Boot 1: full offline Ground Zero vertical slice via CTM replay.
@@ -252,6 +269,12 @@ def run_singleplayer_model(
             perf = rpc.perf_stats(reset=True) or {}
             shot_play = rpc.screenshot()
             (out_dir / f"{model}-play.png").write_bytes(shot_play)
+            if verify_database:
+                _wait_for_log(log_path, proc, r"UPSTREAM_DATABASE_OPEN tab=\S+ rows=[1-9]\d*\b", timeout)
+                (out_dir / f"{model}-database.png").write_bytes(rpc.screenshot())
+                _wait_for_log(log_path, proc, r"UPSTREAM_DATABASE_DETAIL content=\S+ rows=[1-9]\d*\b", timeout)
+                (out_dir / f"{model}-database-detail.png").write_bytes(rpc.screenshot())
+                _wait_for_log(log_path, proc, r"UPSTREAM_DATABASE_CLOSE\b", timeout)
             _wait_for_log(log_path, proc, r"UPSTREAM_SP_SAVED ", timeout)
             shot_end = rpc.screenshot()
             (out_dir / f"{model}-wave.png").write_bytes(shot_end)
@@ -378,6 +401,7 @@ def main() -> int:
     parser.add_argument("--output-dir", type=Path, default=Path("build/singleplayer-emu"))
     parser.add_argument("--timeout", type=float, default=120.0)
     parser.add_argument("--weather-fixtures", type=Path, help="directory with stock clear.msav and weather.msav")
+    parser.add_argument("--verify-database", action="store_true", help="open the live Core Database before saving")
     args = parser.parse_args()
 
     azahar_bin = az.resolve_azahar_bin(args.azahar)
@@ -389,7 +413,9 @@ def main() -> int:
             run_weather_model(model, args.rom, azahar_bin, config_path, log_path,
                               args.output_dir, args.timeout, args.weather_fixtures)
             continue
-        result = run_singleplayer_model(model, args.rom, azahar_bin, config_path, log_path, args.output_dir, args.timeout)
+        result = run_singleplayer_model(
+            model, args.rom, azahar_bin, config_path, log_path, args.output_dir, args.timeout, args.verify_database,
+        )
         fps = result["perf"].get("game_fps", 0.0)
         b1 = result["boot1"]
         b2 = result["boot2"]
