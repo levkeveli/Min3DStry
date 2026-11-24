@@ -86,8 +86,8 @@ drop them. The same reference configures one-way Bridge Conduit and Phase
 Conduit links, fills each source and steps 120 ticks; it asserts water reaches
 each target, rejects a back-linked pair, and prints
 `UPSTREAM_LIQUID_BRIDGE_REFERENCE bridgeMilli=100000 phaseMilli=100000
-backLink=rejected`. It also dumps a filled Liquid Router into a stock Liquid
-Container and checks Liquid Junction pass-through and dead-end routing
+backLink=rejected`. It also dumps a filled Liquid Router into an adjacent 1x1 router sink
+and checks Liquid Junction far-side and dead-end routing
 (`UPSTREAM_LIQUID_ROUTER_REFERENCE`, `UPSTREAM_LIQUID_JUNCTION_REFERENCE`). The
 dedicated liquid HUD remains open.
 

@@ -1301,7 +1301,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         sinkTile.setBlock(Blocks.air);
         sourceTile.setBlock(Blocks.liquidRouter, team, 0);
         junctionTile.setBlock(Blocks.liquidJunction, team, 0);
-        sinkTile.setBlock(Blocks.liquidContainer, team, 0);
+        sinkTile.setBlock(Blocks.liquidRouter, team, 0);
 
         var junction = junctionTile.build;
         if (junction.acceptLiquid(sourceTile.build, Liquids.water)) {
@@ -1320,7 +1320,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
 
         sourceTile.setBlock(Blocks.air);
         junctionTile.setBlock(Blocks.air);
-        System.out.println("UPSTREAM_LIQUID_JUNCTION_REFERENCE through=1 deadEnd=1");
+        System.out.println("UPSTREAM_LIQUID_JUNCTION_REFERENCE route=far deadEnd=self");
     }
 
     private void verifyLiquidRouterTransfer(Team team) {
@@ -1329,7 +1329,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         routerTile.setBlock(Blocks.air);
         sinkTile.setBlock(Blocks.air);
         routerTile.setBlock(Blocks.liquidRouter, team, 0);
-        sinkTile.setBlock(Blocks.liquidContainer, team, 0);
+        sinkTile.setBlock(Blocks.liquidRouter, team, 0);
 
         var router = routerTile.build;
         float initial = router.block.liquidCapacity;
