@@ -794,6 +794,10 @@ tasks.register('prepareUpstreamProbe') {
             withLabel('content(UnlockableContent content)', 'content.localizedName')
             withLabel('abilities(Seq<Ability> abilities)', 'abilityStatText(abilities)')
             withLabel('weapons(UnitType unit, Seq<Weapon> weapons)', 'weaponStatText(unit, weapons)')
+            withLabel('itemEffMultiplier(Floatf<Item> efficiency, float timePeriod, Boolf<Item> filter, @Nullable ObjectFloatMap<Item> itemDurationMultipliers)',
+                'itemEfficiencyText(efficiency, timePeriod, filter, itemDurationMultipliers)')
+            withLabel('liquidEffMultiplier(Floatf<Liquid> efficiency, float amount, Boolf<Liquid> filter)',
+                'liquidEfficiencyText(efficiency, amount, filter)')
             def ammoSignature = '    public static <T extends UnlockableContent> StatValue ammo(ObjectMap<T, BulletType> map, boolean nested, boolean showUnit, @Nullable String blockName){'
             def originalAmmoStart = ammoSignature + '\n        return table -> {'
             hooks[originalAmmoStart] = originalAmmoStart.replace('return table -> {',
@@ -906,6 +910,31 @@ tasks.register('prepareUpstreamProbe') {
             if(label.length() != 0) label.append('\\n');
             label.append(ability.localized());
             ability.appendHandheldStats(label);
+        }
+        return label.toString();
+    }
+
+    private static String itemEfficiencyText(Floatf<Item> efficiency, float period, Boolf<Item> filter, ObjectFloatMap<Item> durations){
+        StringBuilder label = new StringBuilder();
+        for(var item : content.items()){
+            if(!filter.get(item) || !item.unlockedNow() || item.isHidden()) continue;
+            label.append('\\n').append(item.localizedName);
+            if(period > 0){
+                float multiplier = durations == null ? 1f : durations.get(item, 1f);
+                float rate = 1f / (period * multiplier / 60f);
+                label.append(" ").append(Strings.autoFixed(rate, rate < 0.01f ? 4 : 2)).append(StatUnit.perSecond.localized());
+            }
+            label.append(" ").append(Core.bundle.format("stat.efficiency", fixValue(efficiency.get(item) * 100f)));
+        }
+        return label.toString();
+    }
+
+    private static String liquidEfficiencyText(Floatf<Liquid> efficiency, float amount, Boolf<Liquid> filter){
+        StringBuilder label = new StringBuilder();
+        for(var liquid : content.liquids()){
+            if(!filter.get(liquid) || !liquid.unlockedNow() || liquid.isHidden()) continue;
+            label.append('\\n').append(liquidStatText(liquid, amount, true));
+            label.append(" ").append(Core.bundle.format("stat.efficiency", fixValue(efficiency.get(liquid) * 100f)));
         }
         return label.toString();
     }
