@@ -106,6 +106,8 @@ ifeq ($(strip $(NO_SMDH)),)
 export _3DSXFLAGS += --smdh=$(OUTPUT).smdh
 endif
 
+.DEFAULT_GOAL := all
+
 .PHONY: all clean audio-romfs romfs-audio-clean force-config
 
 # CI builds the .3dsx target directly to avoid rerunning the ffmpeg-dependent
