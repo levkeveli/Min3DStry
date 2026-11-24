@@ -1498,6 +1498,9 @@ framebuffer with an RGBA8 raster batch and uploads its pixels through the
 used by the world renderer. Multiplayer asset preparation runs the pinned
 desktop Arc FreeType backend on the original `logic.ttf` and packs its
 glyph metrics and pixels for the 3DS client.
+The client retains the original glyph metrics and samples packed RGBA
+pixels one row at a time from ROMFS. Logic Display framebuffer writes
+still use their own mutable pixel storage.
 
 Pass the packed `world-atlas` directory and `logic-font.dat` as arguments
 six and seven to `runBuildingLayersJvm`. The stock processor replay checks
