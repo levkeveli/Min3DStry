@@ -67,6 +67,15 @@ UPSTREAM_PRODUCTION_FULL filled=2254 held=120 pods=10
 native stack. The top-screen probe console and the corresponding
 `svcOutputDebugString` records were inspected on both profiles.
 
+### Building liquid storage
+
+The staged stock LiquidModule stores zero or one nonzero amount inline
+and allocates a stock-capacity array when a second entry is added. Liquid
+IDs, iteration and flow sampling use the stock order. The production
+probe verifies signed zero, two-entry stock save bytes, readback and clear.
+The unified build also diffs 2,100 inventory and active-flow steps between
+the staged module and the unmodified release JAR.
+
 ### Live building rendering
 
 The live ARM11 draw set includes `Category.liquid`, which covers the original

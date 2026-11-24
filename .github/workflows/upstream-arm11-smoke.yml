@@ -942,6 +942,7 @@ jobs:
             "-ParcCheckout=$RUNNER_TEMP/Arc" \
             -Pprobe=production-ticks \
             runProbeJvm "--args=$RUNNER_TEMP/glacier.msav" generateC | tee "$RUNNER_TEMP/production-probe-jvm.log"
+          grep -Fx 'UPSTREAM_STOCK_LIQUID_STORAGE bytes=14 order=stock signedZero=preserved' "$RUNNER_TEMP/production-probe-jvm.log"
           grep -Fx 'UPSTREAM_PRODUCTION_STARVED ticks=60 waterMilli=4641 pods=0' "$RUNNER_TEMP/production-probe-jvm.log"
           grep -Fx 'UPSTREAM_PRODUCTION_DISCONNECT first=199 paused=60 pods=1' "$RUNNER_TEMP/production-probe-jvm.log"
           grep -Fx 'UPSTREAM_PRODUCTION_FULL filled=2254 held=120 pods=10' "$RUNNER_TEMP/production-probe-jvm.log"
@@ -960,6 +961,7 @@ jobs:
           "$RUNNER_TEMP/teavm-c-host/probe_o2" "$RUNNER_TEMP/glacier.msav" | tee "$RUNNER_TEMP/production-o2.log"
           for log in "$RUNNER_TEMP/production-o0.log" "$RUNNER_TEMP/production-o2.log"; do
             grep -Fx 'UPSTREAM_WORLD_FINGERPRINT 2e7b9f883994de6c' "$log"
+            grep -Fx 'UPSTREAM_STOCK_LIQUID_STORAGE bytes=14 order=stock signedZero=preserved' "$log"
             grep -Fx 'UPSTREAM_PRODUCTION_STARVED ticks=60 waterMilli=4641 pods=0' "$log"
             grep -Fx 'UPSTREAM_PRODUCTION_DISCONNECT first=199 paused=60 pods=1' "$log"
             grep -Fx 'UPSTREAM_PRODUCTION_FULL filled=2254 held=120 pods=10' "$log"
