@@ -60,7 +60,8 @@ def verify_commands(log, proc, rpc, output):
 
 def replay(args, model, fixture, live, *, taps=TAPS, buttons=None,
            verify_input=verify_commands, read_stock=read_stock_orders, prepare_server=None,
-           button_durations=None, circle=None, offline_ready=r"UPSTREAM_SP_READY .*x=648\.0 y=208\.0"):
+           button_durations=None, circle=None, offline_ready=r"UPSTREAM_SP_READY .*x=648\.0 y=208\.0",
+           movie_seconds=102):
     azahar = sp.az.resolve_azahar_bin(args.azahar)
     config, log = sp.az.resolve_azahar_paths(azahar)
     originals = {path: path.read_bytes() if path.is_file() else None for path in (config, log)}
@@ -72,7 +73,7 @@ def replay(args, model, fixture, live, *, taps=TAPS, buttons=None,
     movie = output / "commands.ctm"
     if buttons is None:
         buttons = {0: sp.KEY_X, 94: sp.KEY_START} if live else {84: sp.KEY_SELECT, 94: sp.KEY_START}
-    write_movie(movie, model, live=live, taps=taps, buttons=buttons, seconds=102,
+    write_movie(movie, model, live=live, taps=taps, buttons=buttons, seconds=movie_seconds,
                 button_durations=button_durations, circle=circle)
     if live:
         (save.parent / "server-endpoint.txt").write_text(f"127.0.0.1 {args.port}\n", encoding="ascii")

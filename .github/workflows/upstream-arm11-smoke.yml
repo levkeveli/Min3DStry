@@ -66,8 +66,10 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: upstream-arm11-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: upstream-arm11-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || (github.event_name == 'workflow_dispatch' && format('dispatch-{0}', github.run_id)) || github.ref }}
+  # A newer commit supersedes an older smoke run in the same ref so a stale
+  # main run cannot occupy the queue.
+  cancel-in-progress: true
 
 permissions:
   contents: read

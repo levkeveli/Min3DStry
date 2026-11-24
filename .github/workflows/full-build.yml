@@ -50,8 +50,10 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: full-build-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: full-build-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || (github.event_name == 'workflow_dispatch' && format('dispatch-{0}', github.run_id)) || github.ref }}
+  # A newer commit supersedes an older build in the same ref. Without this,
+  # a stale main run can hold the queue while newer commits wait behind it.
+  cancel-in-progress: true
 
 permissions:
   contents: read
