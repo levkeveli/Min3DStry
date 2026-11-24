@@ -155,3 +155,12 @@ PR merges onto a broken main until the failure is fixed or reverted.
 A scheduled `pr-triage.yml` job keeps the queue moving: it reruns failed PR
 jobs once per head SHA (tracked via a comment marker) to clear flakes, and
 converts PRs with 7 days of no activity to draft.
+
+### The `main-verify-fix` escape hatch
+
+While main's post-merge verification is red, the required `PR policy gate`
+hard-blocks every PR. The PR that fixes or reverts the failure must carry the
+`main-verify-fix` label to be exempt from that block; `main-verify-alert.yml`
+applies `main-verify-blocked` to all other open PRs and releases it once both
+heavy workflows are green for main's current HEAD. A red run on an older SHA
+that main has moved past does not count as red.

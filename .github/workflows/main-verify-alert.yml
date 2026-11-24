@@ -50,13 +50,18 @@ jobs:
             || gh label create "$label" --repo "$repo" --color "d73a4a" \
                  --description "Automation hold: main post-merge verification is red" || true
 
-          # Release when BOTH heavy workflows' latest runs on main are green
-          # (a later fix commit may not retrigger a path-filtered workflow).
+          # Release when BOTH heavy workflows are green for main's current
+          # HEAD: either their latest main run succeeded, or the failing run
+          # belongs to an older SHA that main has since moved past (a fix
+          # merged without retriggering a path-filtered workflow).
+          main_sha=$(gh api repos/"$repo"/commits/main --jq '.sha')
           both_green() {
             for wf in "3DS full build" "Upstream ARM11 smoke"; do
-              c=$(gh run list --repo "$repo" --workflow "$wf" --branch main \
-                  --limit 1 --json conclusion --jq '.[0].conclusion // "none"')
-              [ "$c" = "success" ] || return 1
+              read -r c sha_run < <(gh run list --repo "$repo" --workflow "$wf" --branch main \
+                  --limit 1 --json conclusion,headSha --jq '.[0] | (.conclusion // "none") + " " + (.headSha // "")')
+              if [ "$c" = "success" ]; then continue; fi
+              case "$c" in failure|timed_out|startup_failure) ;; *) return 1;; esac
+              [ "$sha_run" != "$main_sha" ] || return 1
             done
             return 0
           }

@@ -200,10 +200,20 @@ def has_bot_approval_for_commit(
 HEAVY_VERIFY_WORKFLOWS = ("3DS full build", "Upstream ARM11 smoke")
 
 
+FAILURE_CONCLUSIONS = ("failure", "timed_out", "startup_failure")
+
+
 def main_verification_red(repo: str, token: str) -> str | None:
-    """Return the failing heavy workflow name if main's latest post-merge
-    verification is red, else None. Checked on every PR so PRs opened after
-    a main failure are also blocked."""
+    """Return the failing heavy workflow name if main's current HEAD has a red
+    post-merge verification run, else None. A failure on an older SHA that
+    main has since moved past (fix merged without retriggering a
+    path-filtered workflow) does not count as red. Checked on every PR so PRs
+    opened after a main failure are also blocked. Missing workflows fail
+    closed (treated as red)."""
+    _, body = github_request(
+        f"https://api.github.com/repos/{repo}/commits/main", token
+    )
+    main_sha = json.loads(body)["sha"]
     for wf in HEAVY_VERIFY_WORKFLOWS:
         url = (
             f"https://api.github.com/repos/{repo}/actions/workflows?per_page=100"
@@ -215,15 +225,17 @@ def main_verification_red(repo: str, token: str) -> str | None:
                 wf_id = w["id"]
                 break
         if wf_id is None:
-            continue
+            return f"{wf} (workflow not found)"
         url = (
             f"https://api.github.com/repos/{repo}/actions/workflows/{wf_id}/runs"
             f"?branch=main&per_page=1"
         )
         _, body = github_request(url, token)
         runs = json.loads(body).get("workflow_runs", [])
-        if runs and runs[0].get("conclusion") in (
-            "failure", "timed_out", "startup_failure",
+        if (
+            runs
+            and runs[0].get("conclusion") in FAILURE_CONCLUSIONS
+            and runs[0].get("head_sha") == main_sha
         ):
             return wf
     return None
