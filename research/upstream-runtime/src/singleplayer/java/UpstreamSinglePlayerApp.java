@@ -528,12 +528,14 @@ public final class UpstreamSinglePlayerApp {
                     if (route == -2) return null;
                 }
                 case 1 -> {
-                    int route = chooseTitleRow(Core.bundle.get("database.button"), "database");
+                    int route = chooseTitleRow(Core.bundle.get("database.button"), "database", "about.button");
                     if (route == -2) return null;
                     if (route == 0) {
                         prepare.run();
                         loadInterfaceGraphics(atlas);
                         if (!new UpstreamCoreDatabaseMenu(target).run()) return null;
+                    } else if (route == 1 && !chooseTitleAbout()) {
+                        return null;
                     }
                 }
                 case 2 -> { return TitleAction.editor; }
@@ -542,6 +544,60 @@ public final class UpstreamSinglePlayerApp {
                 }
                 default -> { return null; }
             }
+        }
+    }
+
+    private boolean chooseTitleAbout() {
+        var links = mindustry.ui.Links.getLinks();
+        final int pageSize = 7;
+        int selected = 0;
+        while (true) {
+            int first = selected / pageSize * pageSize;
+            int end = Math.min(first + pageSize, links.length + 1);
+            var options = new String[end - first + (first > 0 ? 1 : 0) + (end <= links.length ? 1 : 0)];
+            int offset = first > 0 ? 1 : 0;
+            if (offset == 1) options[0] = "<";
+            for (int index = first; index < end; index++) {
+                options[offset + index - first] = index == 0 ? Core.bundle.get("credits") : links[index - 1].title;
+            }
+            if (end <= links.length) options[options.length - 1] = ">";
+            int row = chooseTitleRow(Core.bundle.get("about.button"), offset + selected - first, options);
+            if (row < 0) return row == -1;
+            if (row < offset) {
+                selected = first - 1;
+            } else if (first + row - offset >= end) {
+                selected = end;
+            } else {
+                selected = first + row - offset;
+                if (selected == 0) {
+                    if (!showTitleCredits()) return false;
+                } else {
+                    var link = links[selected - 1];
+                    if (chooseTitleRow(link.title, 0, new String[]{Core.bundle.get("back")},
+                        new String[]{link.description, link.link}) == -2) return false;
+                }
+            }
+        }
+    }
+
+    private boolean showTitleCredits() {
+        var credits = new Fi("/romfs/contributors").readString("UTF-8").split("\n");
+        final int pageSize = 7;
+        for (int start = 0; ; ) {
+            int end = Math.min(start + pageSize, credits.length);
+            boolean previous = start > 0, next = end < credits.length;
+            var names = new String[2 + end - start];
+            names[0] = Core.bundle.get("credits.text");
+            names[1] = Core.bundle.get("contributors");
+            for (int i = start; i < end; i++) names[2 + i - start] = credits[i].strip();
+            var actions = new String[(previous ? 1 : 0) + (next ? 1 : 0) + 1];
+            int back = actions.length - 1;
+            if (previous) actions[0] = "<";
+            if (next) actions[back - 1] = ">";
+            actions[back] = Core.bundle.get("back");
+            int row = chooseTitleRow(Core.bundle.get("credits"), Math.max(0, back - 1), actions, names);
+            if (row < 0 || row == back) return row != -2;
+            start += previous && row == 0 ? -pageSize : pageSize;
         }
     }
 
@@ -564,7 +620,7 @@ public final class UpstreamSinglePlayerApp {
         return chooseTitleRow(title, 0, captions);
     }
 
-    private int chooseTitleRow(String title, int selected, String[] options) {
+    private int chooseTitleRow(String title, int selected, String[] options, String... headings) {
         int previousY = 0, drawn = -1;
         MenuRows rows = null;
         byte[] controls = ("A  " + Core.bundle.get("ok") + "\0B  " + Core.bundle.get("back") + "\0")
@@ -582,10 +638,11 @@ public final class UpstreamSinglePlayerApp {
             previousY = y;
             if ((input & UpstreamSinglePlayerInput.A_PRESSED) != 0 || touch == 0) return selected;
             if (drawn != selected) {
-                var captions = new String[options.length + 1];
+                var captions = new String[options.length + headings.length + 1];
                 captions[0] = title;
+                System.arraycopy(headings, 0, captions, 1, headings.length);
                 for (int i = 0; i < options.length; i++) {
-                    captions[i + 1] = (selected == i ? "> " : "  ") + options[i];
+                    captions[i + headings.length + 1] = (selected == i ? "> " : "  ") + options[i];
                 }
                 rows = encodeMenuRows(captions);
                 drawn = selected;

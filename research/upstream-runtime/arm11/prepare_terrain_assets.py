@@ -237,6 +237,7 @@ def main() -> None:
                     if re.fullmatch(r"assets/bundles/bundle(?:_[A-Za-z_]+)?\.properties", member):
                         (bundles / Path(member).name).write_bytes(archive.read(member))
                 if args.singleplayer:
+                    (staged / "contributors").write_bytes(archive.read("assets/contributors"))
                     pack_planet_data(archive, staged / "planets")
                     maps_dir = staged / "maps"
                     maps_dir.mkdir(parents=True, exist_ok=True)
