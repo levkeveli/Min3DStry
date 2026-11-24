@@ -119,8 +119,6 @@ def write_singleplayer_ctm(
         for frame in range(frames):
             sec = frame // CTM_SAMPLES_PER_SECOND
             buttons = next((mask for start, mask in button_windows if start <= sec < start + 2), 0)
-            if database_title and sec < 12:
-                buttons |= KEY_Y
             # Tap once before the database's held-direction repeat begins.
             if verify_database and (t0 + 53) * CTM_SAMPLES_PER_SECOND <= frame < (
                 (t0 + 53) * CTM_SAMPLES_PER_SECOND + CTM_SAMPLES_PER_SECOND // 5
@@ -271,6 +269,8 @@ def run_singleplayer_model(
     had_config = config_path.exists()
     original_config = config_path.read_text(encoding="utf-8") if had_config else ""
     sd_save = resolve_sd_save_path(log_path)
+    startup = sd_save.with_name("startup.txt")
+    original_startup = startup.read_bytes() if startup.is_file() else None
     if sd_save.exists():
         sd_save.unlink()
 
@@ -278,6 +278,8 @@ def run_singleplayer_model(
     write_singleplayer_ctm(ctm_path, model, verify_database)
 
     try:
+        startup.parent.mkdir(parents=True, exist_ok=True)
+        startup.write_text("direct\n", encoding="utf-8")
         # Boot 1: full offline Ground Zero vertical slice via CTM replay.
         proc, rpc = _launch_azahar(model, rom_path, azahar_bin, config_path, log_path, ctm_path)
         try:
@@ -336,17 +338,22 @@ def run_singleplayer_model(
         if verify_database:
             title_ctm = out_dir / f"{model}-database-title.ctm"
             write_singleplayer_ctm(title_ctm, model, database_title=True)
-            proc3, rpc3 = _launch_azahar(model, rom_path, azahar_bin, config_path, log_path, title_ctm)
+            startup.unlink()
             try:
-                _wait_for_log(log_path, proc3, r"UPSTREAM_DATABASE_OPEN tab=sun rows=[1-9]\d*\b", timeout)
-                (out_dir / f"{model}-database-title.png").write_bytes(rpc3.screenshot())
-                _wait_for_log(log_path, proc3, r"UPSTREAM_DATABASE_TAB tab=(serpulo|erekir) rows=[1-9]\d*\b", timeout)
-                _wait_for_log(log_path, proc3, r"UPSTREAM_DATABASE_CLOSE\b", timeout)
-                log_title = _wait_for_log(log_path, proc3, r"UPSTREAM_SP_EXIT\b", timeout)
-                (out_dir / f"{model}-database-title.log").write_text(log_title, encoding="utf-8")
+                proc3, rpc3 = _launch_azahar(model, rom_path, azahar_bin, config_path, log_path, title_ctm)
+                try:
+                    _wait_for_log(log_path, proc3, r"UPSTREAM_BOOT mode=title\b", timeout)
+                    _wait_for_log(log_path, proc3, r"UPSTREAM_DATABASE_OPEN tab=sun rows=[1-9]\d*\b", timeout)
+                    (out_dir / f"{model}-database-title.png").write_bytes(rpc3.screenshot())
+                    _wait_for_log(log_path, proc3, r"UPSTREAM_DATABASE_TAB tab=(serpulo|erekir) rows=[1-9]\d*\b", timeout)
+                    _wait_for_log(log_path, proc3, r"UPSTREAM_DATABASE_CLOSE\b", timeout)
+                    log_title = _wait_for_log(log_path, proc3, r"UPSTREAM_SP_EXIT\b", timeout)
+                    (out_dir / f"{model}-database-title.log").write_text(log_title, encoding="utf-8")
+                finally:
+                    rpc3.close()
+                    _stop_proc(proc3, azahar_bin)
             finally:
-                rpc3.close()
-                _stop_proc(proc3, azahar_bin)
+                startup.write_text("direct\n", encoding="utf-8")
         return {
             "model": model,
             "perf": perf,
@@ -359,6 +366,10 @@ def run_singleplayer_model(
             },
         }
     finally:
+        if original_startup is None:
+            startup.unlink(missing_ok=True)
+        else:
+            startup.write_bytes(original_startup)
         if sd_save.exists():
             sd_save.unlink()
         if had_config:

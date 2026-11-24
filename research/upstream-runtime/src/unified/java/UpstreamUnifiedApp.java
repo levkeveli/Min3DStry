@@ -27,17 +27,26 @@ public final class UpstreamUnifiedApp {
             if (input < 0) return;
             if ((input & UpstreamSinglePlayerInput.X_HELD) != 0) {
                 join(args);
-            } else if ((input & UpstreamSinglePlayerInput.Y_HELD) != 0) {
-                offline(new String[]{"--title"});
-            } else {
+            } else if ((input & (UpstreamSinglePlayerInput.L_HELD | UpstreamSinglePlayerInput.CAMPAIGN_HELD)) != 0
+                    || ((input & UpstreamSinglePlayerInput.Y_HELD) == 0 && directStartup())) {
                 offline(args);
+            } else {
+                offline(new String[]{"--title"});
             }
         } else if (args[0].equals("--join")) {
             if (args.length > 2) throw new IllegalArgumentException("Expected --join [endpoint-file]");
             join(Arrays.copyOfRange(args, 1, args.length));
+        } else if (args[0].equals("--direct")) {
+            offline(Arrays.copyOfRange(args, 1, args.length));
         } else {
             offline(args);
         }
+    }
+
+    private static boolean directStartup() {
+        var preference = new Fi("/3ds/min3dstry/startup.txt");
+        return preference.exists() && !preference.isDirectory() && preference.length() <= 16
+            && preference.readString("UTF-8").trim().equals("direct");
     }
 
     private static void join(String[] endpointArgs) throws IOException, InterruptedException {
@@ -82,7 +91,7 @@ public final class UpstreamUnifiedApp {
     }
 
     private static void offline(String[] args) throws IOException, InterruptedException {
-        System.out.println("UPSTREAM_BOOT mode=offline");
+        System.out.println("UPSTREAM_BOOT mode=" + (args.length > 0 && args[0].equals("--title") ? "title" : "offline"));
         try {
             UpstreamSinglePlayerApp.run(args, new UpstreamSinglePlayerApp.AudioHooks() {
                 @Override

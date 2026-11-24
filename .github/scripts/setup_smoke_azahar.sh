@@ -17,6 +17,11 @@ curl --fail --silent --show-error --location --retry 3 \
 printf '%s  %s\n' af037f8b775198f636b14bcfe63fb401b02246ebfefe1025bb905ce042556960 "$asset" | sha256sum --check
 chmod +x "$asset"
 mkdir -p "$RUNNER_TEMP/smoke-config" "$RUNNER_TEMP/smoke-data" "$RUNNER_TEMP/smoke-azahar"
+# Feature replays enter their selected session directly. The title replay
+# removes this optional SD preference before testing normal startup.
+startup="$RUNNER_TEMP/smoke-data/azahar-emu/sdmc/3ds/min3dstry/startup.txt"
+mkdir -p "$(dirname "$startup")"
+printf '%s\n' direct > "$startup"
 # AppRun execs the emulator directly, so stopping a replay releases its RPC
 # socket before the next boot. Extract-and-run leaves a launcher parent.
 (cd "$RUNNER_TEMP/smoke-azahar" && "$asset" --appimage-extract >/dev/null)
