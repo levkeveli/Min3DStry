@@ -229,10 +229,19 @@ def main_verification_red(repo: str, token: str) -> str | None:
         )
         _, body = github_request(url, token)
         runs = json.loads(body).get("workflow_runs", [])
-        if (
-            runs
-            and runs[0].get("conclusion") in FAILURE_CONCLUSIONS
-            and runs[0].get("head_sha") == main_sha
+        if not runs or runs[0].get("conclusion") not in FAILURE_CONCLUSIONS:
+            continue
+        if runs[0].get("head_sha") == main_sha:
+            return wf
+        # Main's HEAD has no run for this workflow (fix merged without
+        # retriggering the path-filtered workflow): unverified main is red.
+        _, body = github_request(
+            f"https://api.github.com/repos/{repo}/actions/workflows/{wf_id}/runs"
+            f"?branch=main&per_page=100", token
+        )
+        if not any(
+            r.get("head_sha") == main_sha
+            for r in json.loads(body).get("workflow_runs", [])
         ):
             return wf
     return None

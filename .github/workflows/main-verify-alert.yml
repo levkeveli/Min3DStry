@@ -43,7 +43,13 @@ jobs:
               read -r c sha_run < <(gh run list --repo "$repo" --workflow "$wf" --branch main \
                   --limit 1 --json conclusion,headSha --jq '.[0] | (.conclusion // "none") + " " + (.headSha // "")')
               case "$c" in failure|timed_out|startup_failure) ;; *) continue;; esac
-              [ "$sha_run" = "$main_sha" ] && return 0
+              # Red if the failing run is on main's HEAD, or if main's HEAD
+              # has no run for this workflow at all (fix merged without
+              # retriggering the path-filtered workflow: unverified main).
+              if [ "$sha_run" = "$main_sha" ]; then return 0; fi
+              n=$(gh run list --repo "$repo" --workflow "$wf" --branch main \
+                  --commit "$main_sha" --limit 1 --json id --jq '. | length')
+              [ "$n" -eq 0 ] && return 0
             done
             return 1
           }
@@ -59,18 +65,21 @@ jobs:
             if main_red; then conclusion="failure"; else conclusion="success"; fi
           fi
 
-          # Ensure the automation label exists before using it.
-          gh label list --repo "$repo" --json name --jq '.[].name' | grep -qx "$label" \
-            || gh label create "$label" --repo "$repo" --color "d73a4a" \
-                 --description "Automation hold: main post-merge verification is red" || true
+          # Ensure the automation labels exist before using them.
+          for lbl in main-verify-blocked main-verify-fix; do
+            gh label list --repo "$repo" --json name --jq '.[].name' | grep -qx "$lbl" \
+              || gh label create "$lbl" --repo "$repo" --color "d73a4a" \
+                   --description "Automation label: main post-merge verification hold" || true
+          done
 
-          if [ "$conclusion" = "failure" ] && { [ "$sha" != "$main_sha" ] || ! main_red; }; then
+          case "$conclusion" in failure|timed_out|startup_failure) ;; *) conclusion="other";; esac
+          if [ "$conclusion" != "other" ] && { [ "$sha" != "$main_sha" ] || ! main_red; }; then
             # Stale failure (run not on main's current HEAD): ignore.
             echo "Ignoring failure of $name @ $sha: not main's current HEAD ($main_sha)"
             exit 0
           fi
 
-          if [ "$conclusion" = "failure" ]; then
+          if [ "$conclusion" != "other" ]; then
             title="Main verification failed @ $sha"
             existing=$(gh issue list --repo "$repo" --state open \
               --search "Main verification failed in:title" --json number --jq '.[0].number // empty')
