@@ -646,7 +646,9 @@ public final class UpstreamSinglePlayerSession {
         }
         app.runPosted();
         long hash = 0xcbf29ce484222325L;
-        for (int weight : field.completeWeights) {
+        var weights = field.completeWeights;
+        for (int index = 0; index < weights.length; index++) {
+            int weight = weights.get(index);
             hash = (hash ^ Integer.toUnsignedLong(weight)) * 0x100000001b3L;
         }
         return hash;

@@ -112,3 +112,10 @@ The campaign archive reference compares the frontier with Arc's original
 queue. It also checks visit state across word, page and directory-group
 boundaries, resets and stock generation rollover. The original terrain costs
 and flowfield update rules continue to drive gameplay.
+
+Packed terrain costs use fixed-size chunks to fit the ARM11 collector's allocation limits.
+Working and completed fields share immutable chunks until the
+pathfinder changes a working chunk. Publishing and resetting a working
+field preserve the completed values visible to units and base generation.
+The pathfinder reference run by the campaign archive checks writes, resets,
+and publication across page boundaries and in the partial trailing chunk.
