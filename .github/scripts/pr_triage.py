@@ -67,8 +67,7 @@ def draft_if_idle(n, draft, updated):
         "{pullRequest{draft}}}"
     )
     r = subprocess.run(
-        ["gh", "api", "graphql", "-f", f"query={mutation}", "-F", f"id={node_id}",
-         "--repo", REPO],
+        ["gh", "api", "graphql", "-f", f"query={mutation}", "-F", f"id={node_id}"],
         capture_output=True, text=True,
     )
     if r.returncode == 0:

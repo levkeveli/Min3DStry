@@ -218,11 +218,13 @@ def main_verification_red(repo: str, token: str) -> str | None:
             continue
         url = (
             f"https://api.github.com/repos/{repo}/actions/workflows/{wf_id}/runs"
-            f"?branch=main&event=push&per_page=1"
+            f"?branch=main&per_page=1"
         )
         _, body = github_request(url, token)
         runs = json.loads(body).get("workflow_runs", [])
-        if runs and runs[0].get("conclusion") == "failure":
+        if runs and runs[0].get("conclusion") in (
+            "failure", "timed_out", "startup_failure",
+        ):
             return wf
     return None
 
@@ -257,15 +259,20 @@ def cmd_classify(_: argparse.Namespace) -> int:
             "remove this label only on the PR that fixes or reverts it."
         )
 
+    # The PR that fixes or reverts red main carries main-verify-fix and is
+    # exempt, otherwise the hard block would deadlock (no PR could merge to
+    # make main green again).
+    is_fix_pr = "main-verify-fix" in {lbl.strip().lower() for lbl in labels}
     try:
         red_wf = main_verification_red(repo, token)
     except Exception as e:
-        print(f"NOTICE: could not query main verification status: {e}")
-        red_wf = None
-    if red_wf:
+        # Fail closed: if we cannot confirm main is green, treat it as red.
+        red_wf = f"unknown ({e})"
+    if red_wf and not is_fix_pr:
         metadata_errors.append(
             f"post-merge verification on main is red ({red_wf}); "
-            "no PR merges until main is green again."
+            "no PR merges until main is green again. The fixing/reverting PR "
+            "must carry the main-verify-fix label."
         )
 
     eligible_ai = same_repo and not is_draft

@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
   issues: write
   pull-requests: write
 
@@ -70,7 +71,7 @@ jobs:
                 --body "Post-merge verification failed on main @ \`$sha\` ($name). Open PRs get \`$label\`; the PR that fixes or reverts must remove its own label to merge. A merge onto red main will be reverted."
             fi
             blocked=0; failed=0
-            for pr in $(gh pr list --repo "$repo" --state open --json number,labels --jq '.[] | select([.labels[].name] | any(. == "hold" or . == "needs-human" or . == "do-not-merge" or . == "status:blocked" or . == "tier:c" or . == "main-verify-blocked") | not) | .number'); do
+            for pr in $(gh pr list --repo "$repo" --state open --limit 100 --json number,labels --jq '.[] | select([.labels[].name] | any(. == "hold" or . == "needs-human" or . == "do-not-merge" or . == "status:blocked" or . == "tier:c" or . == "main-verify-blocked") | not) | .number'); do
               if gh pr edit "$pr" --repo "$repo" --add-label "$label"; then blocked=$((blocked+1)); else failed=$((failed+1)); fi
             done
             echo "Blocked $blocked PR(s), $failed failure(s)"
@@ -81,7 +82,7 @@ jobs:
                 --search "Main verification failed in:title" --json number --jq '.[0].number // empty')
               [ -z "$issue" ] || gh issue close "$issue" --repo "$repo" \
                 --comment "Both heavy workflows green at \`$sha\`. Releasing \`$label\` holds."
-              for pr in $(gh pr list --repo "$repo" --state open --json number,labels --jq '.[] | select([.labels[].name] | any(. == "main-verify-blocked")) | .number'); do
+              for pr in $(gh pr list --repo "$repo" --state open --limit 100 --json number,labels --jq '.[] | select([.labels[].name] | any(. == "main-verify-blocked")) | .number'); do
                 gh pr edit "$pr" --repo "$repo" --remove-label "$label" || true
               done
             else
