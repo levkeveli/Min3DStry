@@ -12,7 +12,8 @@ import verify_upstream_singleplayer as vsp  # noqa: E402
 class VerifyUpstreamSingleplayerTests(unittest.TestCase):
     def test_write_singleplayer_ctm_header_and_size(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            for model, expected_frames in (("new3ds", 88 * 234), ("old3ds", 88 * 234)):
+            # The playback starts at 40s and runs for 62s.
+            for model, expected_frames in (("new3ds", 102 * 234), ("old3ds", 102 * 234)):
                 ctm = Path(tmp) / f"{model}.ctm"
                 vsp.write_singleplayer_ctm(ctm, model)
                 raw = ctm.read_bytes()
