@@ -232,6 +232,7 @@ if (usesArcSources || usesExecutor) {
         }
     }
     if (usesSinglePlayer) {
+        stagedClasses.add('arc/util/Interval.class')
         stagedClasses.addAll(['mindustry/ai/Pathfinder.class', 'mindustry/ai/Pathfinder$*.class'])
         flowfieldCostSources.each { path ->
             def className = path.substring(0, path.length() - '.java'.length())
@@ -610,6 +611,7 @@ tasks.register('prepareUpstreamProbe') {
         })
     }
     if (usesSinglePlayer) {
+        outputs.file(sourceDir.map { it.file('arc/util/Interval.java') })
         inputs.file('src/gameplay/java/port/FactoryResources.java')
         inputs.file(flowfieldSearchPatch)
         inputs.file(flowfieldCostPatch)
@@ -1533,6 +1535,49 @@ final class UpstreamItemChoices {
                 .replace(cacheWrite, '            cache.put(key, field);\n            cached = field;')
                 .replace(cacheReturn, '        return cached;'), 'UTF-8')
 
+            def intervalPath = 'arc/util/Interval.java'
+            def timer = providers.exec {
+                commandLine 'git', '-C', arc.get(), 'show', "${arcRevision}:arc-core/src/${intervalPath}"
+            }.standardOutput.asText.get()
+            def inlineTimer = [
+                '    float[] times;': '''    float[] times;
+    private float timeZero;''',
+                '        times = new float[capacity];': '        if(capacity != 1) times = new float[capacity];',
+                '        if(id >= times.length) throw': '        int capacity = times == null ? 1 : times.length;\n        if(id >= capacity) throw',
+                '" + times.length + "!");': '" + capacity + "!");',
+                'if(got) times[id] = Time.time;': 'if(got) setTime(id, Time.time);',
+                '        return Time.time - times[id] >= time || Time.time < times[id];': '''        float previous = storedTime(id);
+        return Time.time - previous >= time || Time.time < previous;''',
+                '        times[id] = Time.time - time;': '        setTime(id, Time.time - time);',
+                '        Arrays.fill(times, 0);': '''        if(times == null) timeZero = 0;
+        else Arrays.fill(times, 0);''',
+                '        return Time.time - times[id];': '        return Time.time - storedTime(id);',
+                '        return times;': '''        if(times == null) times = new float[]{timeZero};
+        return times;''',
+                '    public float[] getTimes(){': '''    private float storedTime(int id){
+        if(times != null) return times[id];
+        if(id != 0) throw new ArrayIndexOutOfBoundsException(id);
+        return timeZero;
+    }
+
+    private void setTime(int id, float value){
+        if(times != null){
+            times[id] = value;
+        }else{
+            if(id != 0) throw new ArrayIndexOutOfBoundsException(id);
+            timeZero = value;
+        }
+    }
+
+    public float[] getTimes(){'''
+            ]
+            inlineTimer.each { before, after ->
+                if(timer.count(before) != 1) throw new GradleException("Pinned Interval source changed: ${before}")
+                timer = timer.replace(before, after)
+            }
+            def stagedInterval = sourceDir.get().file(intervalPath).asFile
+            stagedInterval.parentFile.mkdirs()
+            stagedInterval.setText(timer, 'UTF-8')
             def jsonIoPath = 'mindustry/io/JsonIO.java'
             def jsonIo = new String(readUpstream('core/src/' + jsonIoPath), 'UTF-8')
             def legacyNames = 'string.replace("io.anuke.", "")'
