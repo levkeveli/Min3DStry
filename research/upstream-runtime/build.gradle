@@ -1264,6 +1264,30 @@ final class GlacierFixture {
                     .replace(writeData, 'dout.writeTo(output);')
                     .replace(resetNesting, '            dout.reset();\n' + resetNesting), 'UTF-8')
             }
+            if (usesRenderedClient) {
+                def tableField = '    public TextureRegion[] teamRegions, variantRegions, variantShadowRegions;'
+                def loadTeamRegions = '''        teamRegions = new TextureRegion[Team.all.length];
+        for(Team team : Team.all){
+            teamRegions[team.id] = teamRegion.found() && team.hasPalette ? Core.atlas.find(name + "-team-" + team.name, teamRegion) : teamRegion;
+        }'''
+                if (block.count(tableField) != 1 || block.count(loadTeamRegions) != 1) {
+                    throw new GradleException('Pinned stock block team atlas table changed')
+                }
+                block = block.replace(tableField, tableField + '\n    private static TextureRegion[] missingTeamRegions;')
+                    .replace(loadTeamRegions, '''        if(!teamRegion.found()){
+            // The stock entries are identical when the atlas has no team sprite.
+            if(missingTeamRegions == null || missingTeamRegions[0] != teamRegion){
+                missingTeamRegions = new TextureRegion[Team.all.length];
+                java.util.Arrays.fill(missingTeamRegions, teamRegion);
+            }
+            teamRegions = missingTeamRegions;
+        }else{
+            teamRegions = new TextureRegion[Team.all.length];
+            for(Team team : Team.all){
+                teamRegions[team.id] = team.hasPalette ? Core.atlas.find(name + "-team-" + team.name, teamRegion) : teamRegion;
+            }
+        }''')
+            }
             def adaptedBlock = blockFile.get().asFile
             adaptedBlock.parentFile.mkdirs()
             adaptedBlock.setText(block.replace(anonymousCheck, 'current.getSimpleName().isEmpty()'), 'UTF-8')
