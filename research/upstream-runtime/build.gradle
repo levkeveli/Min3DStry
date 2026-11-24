@@ -451,6 +451,10 @@ if (usesSinglePlayer) {
             classpath = sourceSets.main.runtimeClasspath
             mainClass = 'UpstreamCampaignLaunchReference'
         }
+        tasks.register('runStockAtlasJvm', JavaExec) {
+            classpath = sourceSets.main.runtimeClasspath
+            mainClass = 'UpstreamStockAtlasReference'
+        }
         tasks.register('runStockCampaignArchiveJvm', JavaExec) {
             classpath = sourceSets.main.runtimeClasspath
             mainClass = 'UpstreamStockCampaignArchiveReference'
