@@ -193,14 +193,11 @@ public final class UpstreamSinglePlayerSession {
         String source;
         boolean loadedFromSave = saveFile != null && saveFile.exists() && SaveIO.isSaveValid(saveFile);
         if (loadedFromSave) {
-            if (sector != null) {
-                SaveIO.load(saveFile, Vars.world.makeSectorContext(sector));
-            } else {
-                SaveIO.load(saveFile);
-            }
-            var metadata = SaveIO.getMeta(saveFile);
-            resetPlaytime(metadata.timePlayed);
-            restorePlayerMetadata(metadata);
+            var playerTags = new StringMap();
+            var context = sector == null ? Vars.world.context : Vars.world.makeSectorContext(sector);
+            SaveIO.load(saveFile, context, playerTags);
+            resetPlaytime(playerTags.getLong("playtime"));
+            restorePlayerMetadata(playerTags);
             app.runPosted();
             Vars.avoidance.init();
             Vars.state.set(State.playing);
@@ -545,14 +542,13 @@ public final class UpstreamSinglePlayerSession {
         }
     }
 
-    private void restorePlayerMetadata(SaveMeta metadata) {
+    private void restorePlayerMetadata(StringMap tags) {
         ensurePlayerObject();
         Vars.player.clearUnit();
         Vars.player.reset();
         savedControlGroups = "null";
         savedControlledType = null;
-        if (metadata == null) return;
-        var tags = metadata.tags;
+        if (tags == null) return;
         var position = new Vec2().tryFromString(tags.get("viewpos", "(0,0)"));
         if (Float.isFinite(position.x) && Float.isFinite(position.y)) Vars.player.set(position);
         Team team = Team.get(tags.getInt("playerteam", Vars.state.rules.defaultTeam.id));
