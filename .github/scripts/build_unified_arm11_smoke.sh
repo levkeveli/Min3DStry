@@ -33,6 +33,8 @@ javac -cp "$stock_jar" -d "$liquid_check/staged" \
   "$runtime/build/upstream-src/unified/mindustry/world/modules/LiquidModule.java"
 java -cp "$liquid_check/reference:$stock_jar" UpstreamLiquidInventoryReference > "$liquid_check/stock.log"
 java -cp "$liquid_check/reference:$liquid_check/staged:$stock_jar" UpstreamLiquidInventoryReference > "$liquid_check/staged.log"
+test "$(wc -l < "$liquid_check/stock.log")" -eq 2100
+test "$(wc -l < "$liquid_check/staged.log")" -eq 2100
 diff -u "$liquid_check/stock.log" "$liquid_check/staged.log"
 printf 'UPSTREAM_STOCK_LIQUID_REFERENCE steps=%s\n' "$(wc -l < "$liquid_check/stock.log")"
 

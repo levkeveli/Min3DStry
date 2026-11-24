@@ -37,11 +37,15 @@ public final class UpstreamLiquidInventoryReference {
                     var bytes = new ByteArrayOutputStream();
                     var out = new DataOutputStream(bytes);
                     out.writeByte(2);
+                    // The legacy reader skips this unknown ID and still reads the next record.
                     out.writeByte(255);
                     out.writeFloat(4f);
                     out.writeByte(liquid.id);
                     out.writeFloat(amount);
                     read(module, bytes.toByteArray(), true);
+                    if (Float.floatToRawIntBits(module.get(liquid)) != Float.floatToRawIntBits(amount)) {
+                        throw new AssertionError("Legacy liquid record did not round-trip");
+                    }
                 }
                 case 7 -> {
                     module.checkArrayCapacity(4);
@@ -60,7 +64,15 @@ public final class UpstreamLiquidInventoryReference {
         int ready = 0;
         for (int step = 1; step <= 100; step++) {
             Time.time = step * 10;
-            if (step == 60) module.checkArrayCapacity(1);
+            if (step == 60) {
+                module.checkArrayCapacity(1);
+                try {
+                    module.get(liquids[2]);
+                    throw new AssertionError("Shrinking must remove the old oil slot");
+                } catch (ArrayIndexOutOfBoundsException expected) {
+                    // updateFlow restores stock catalog capacity at the next sample.
+                }
+            }
             module.updateFlow();
             module.add(liquids[0], step / 4f);
             if (step % 5 == 0) module.add(liquids[2], 9f);
