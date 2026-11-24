@@ -89,7 +89,8 @@ These gates landed after the artifact above and apply to the **next** batch:
 - Full builds still require `AZAHAR_PROVENANCE_OK` for the exact uploaded
   artifact SHA-256.
 
-The counts and timing above are not claimed for the `630efbca` artifact.
+The counts and timing above are not claimed for the `630efbca` artifact. They
+are verified against the merged code in [batch 2](emulator-batch-2026-11-24b.md).
 
 ## Not covered
 
