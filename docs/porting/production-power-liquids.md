@@ -73,6 +73,8 @@ The staged stock LiquidModule stores zero or one nonzero amount inline
 and allocates a stock-capacity array when a second entry is added. Liquid
 IDs, iteration and flow sampling use the stock order. The production
 probe verifies signed zero, two-entry stock save bytes, readback and clear.
+The unified build also diffs 2,100 inventory and active-flow steps between
+the staged module and the unmodified release JAR.
 
 ### Live building rendering
 
