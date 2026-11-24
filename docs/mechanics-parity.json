@@ -250,7 +250,7 @@
         "research/upstream-runtime/arm11/m3ds_input.c",
         "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerApp.java"
       ],
-      "notes": "X pause/resume, Y wave trigger, and SELECT quick-save work in offline single-player; interactive pause menu overlay not yet wired to upstream runtime."
+      "notes": "X pause/resume, Y wave trigger, and SELECT quick-save work in offline single-player. The live pause menu opens on X, freezes the simulation when the stock rules allow pausing, and returns to play on Resume."
     },
     {
       "id": "live-minimap",
@@ -272,15 +272,18 @@
       "domain": "Controls & Dual-Screen UI",
       "name": "Interactive Pause Menu Overlay",
       "weight": 1,
-      "status": "harness-only",
-      "modes": ["harness"],
+      "status": "live-arm11",
+      "modes": ["offline"],
       "issue": 40,
       "evidence": [
+        "docs/rendering/live-hud.md",
+        "docs/gameplay/offline-singleplayer.md",
+        "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerApp.java",
         "docs/ui/pause-menu.md",
         "src/ui/pause_menu.c",
         "src/ui/pause_overlay.c"
       ],
-      "notes": "The interactive overlay is verified in the C platform harness only. Offline simulation pause is tracked under Session Controls."
+      "notes": "The live ARM11 renderer draws the stock pause overlay with Resume, Save Game and Quit, plus Research when the sector has a tech tree. X opens and closes it and freezes simulation unless the stock rules disable pausing. Settings and Load Game rows remain open, so this is not claimed complete."
     },
     {
       "id": "menus-schematics-rts",
