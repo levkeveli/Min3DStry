@@ -110,6 +110,9 @@ public final class UpstreamSinglePlayerApp {
     private List<UpstreamObjectiveHud.Row> lastObjectives;
     private byte[][] objectiveLabels = new byte[0][];
     private int[][] objectiveCharacters = new int[0][];
+    private String lastBossText;
+    private byte[] bossLabel = new byte[0];
+    private int[] bossCharacters = new int[0];
     private final IntSet reportedEnemies = new IntSet();
 
     interface AudioHooks {
@@ -353,6 +356,7 @@ public final class UpstreamSinglePlayerApp {
         lastMenu = null;
         lastStatus = null;
         lastObjectives = null;
+        lastBossText = null;
         lastCoreItemCount = -1;
         lastCoreItemDrawn = -1;
         coreItemTracker.reset();
@@ -1120,6 +1124,7 @@ public final class UpstreamSinglePlayerApp {
         schematics.draw(viewport);
         drawCoreItems();
         drawObjectives(buildingPowerHud.draw(target, buildingControls, Vars.player.team(), drawStatusHud()));
+        drawBossBar();
         if (pauseOpen) drawPauseMenu();
         var block = buildingControls.block();
         var catalog = buildingControls.catalog();
@@ -1326,6 +1331,20 @@ public final class UpstreamSinglePlayerApp {
         byte[] label = (arc.util.Strings.stripColors(text) + "\0").getBytes(StandardCharsets.UTF_8);
         int[] characters = UpstreamHudLabels.encodeLabel(UpstreamLabelText.parse(UI.formatIcons(markup)));
         target.drawObjectiveAt(label, characters, null, x, y);
+    }
+
+    private void drawBossBar() {
+        var boss = UpstreamBossHud.collect();
+        if (boss == null) return;
+        if (!boss.markup().equals(lastBossText)) {
+            bossLabel = (arc.util.Strings.stripColors(boss.markup()) + "\0").getBytes(StandardCharsets.UTF_8);
+            bossCharacters = UpstreamHudLabels.encodeLabel(UpstreamLabelText.parse(UI.formatIcons(boss.markup())));
+            lastBossText = boss.markup();
+        }
+        float next = target.drawObjectiveAt(bossLabel, bossCharacters, null, 40f, 184f);
+        target.hudPanel(40f, next - 2f, 320f, 12f, 0xE0201B18);
+        float fill = 318f * boss.fraction();
+        if (fill > 0f) target.hudPanel(41f, next - 1f, fill, 10f, 0xE0D23C3C);
     }
 
     private void drawObjectives(float y) {

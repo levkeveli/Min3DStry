@@ -30,6 +30,9 @@ off and a campaign sector is active;
   and Settings toggles the stock `setting.coreitems`, `setting.minimap`,
   `setting.showweather` and `setting.showperformance` displays. The stock quit confirmation is
   included, and tapping X opens/closes and freezes simulation;
+- the stock guardian bar (`state.teams.bosses`) above the bottom edge: one
+  boss emoji per guardian (six at most, then `+`), the localized `guardian`
+  text and a total-health fill, shown only while wave rules are active;
 - a live minimap rendered from a 64x64 sample at 56 px in the top-right
   corner, using the stock `MinimapRenderer` color path (`Block.minimapColor`,
   floor/overlay fallback through `MapIO.colorFor`, darkness and liquid/shadow
@@ -111,8 +114,14 @@ status-hud host probe:
 UPSTREAM_CORE_ITEM_FORMAT text=12k cases=9 ok
 UPSTREAM_CORE_ITEMS rows=2 ok
 UPSTREAM_PAUSE_MENU cases=22 ok
+UPSTREAM_BOSS_BAR cases=4 ok
 UPSTREAM_CORE_ATTACK text="< Core is under attack! >" ok
 ```
+
+The boss bar covers the stock `HudFragment` summary: no bar without bosses or
+wave rules, three bosses at `2000/3000` health, and the six-emoji cap with the
+`+` marker. Its on-device guardian-wave rendering is **not verified** yet; the
+host probe only checks the collected text and health fraction.
 
 The Azahar verifier can seed a deterministic core inventory through
 `/3ds/min3dstry/hud-items.txt` and assert that every requested row was drawn:

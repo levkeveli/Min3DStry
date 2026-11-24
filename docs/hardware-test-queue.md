@@ -165,7 +165,8 @@ and waves, touch palette/rotation, HUD/menus/minimap.
 - With a captured sector loaded, the status HUD shows the stock
   `Sector Captured` row.
 - On a boss wave, the guardian-warning notification appears with the stock
-  `wave.guardianwarn` text.
+  `wave.guardianwarn` text, and the boss health bar appears above the bottom
+  edge with the guardian text and a fill that follows the boss health.
 - The top-right minimap shows the sector terrain, marks the local player with a
   white dot, and follows the player as they move.
 - The core item list shows one icon-and-count row per stocked item and wraps
