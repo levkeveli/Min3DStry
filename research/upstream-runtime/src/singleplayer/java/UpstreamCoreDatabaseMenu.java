@@ -33,6 +33,8 @@ final class UpstreamCoreDatabaseMenu {
         var vertical = new VerticalNavigation();
         int renderedSelection = -1;
         List<DrawRow> visible = List.of();
+        byte[] help = ("X  " + Core.bundle.get("players.search") + "\0B  " + Core.bundle.get("back") + "\0")
+            .getBytes(StandardCharsets.UTF_8);
         boolean shown = false;
         UpstreamSinglePlayerInput.poll();
         while (true) {
@@ -76,7 +78,7 @@ final class UpstreamCoreDatabaseMenu {
                 visible = visibleRows(title, query, rows, selected);
                 renderedSelection = selected;
             }
-            draw(visible, 0, visible.size());
+            draw(visible, 0, visible.size(), help, 2);
             if (!shown) {
                 System.out.println("UPSTREAM_DATABASE_OPEN tab=" + tabs.get(tab).name + " rows=" + rows.size());
                 shown = true;
@@ -124,6 +126,7 @@ final class UpstreamCoreDatabaseMenu {
         for (var line : lines) display.add(encode(line, null));
         int first = 0;
         var vertical = new VerticalNavigation();
+        byte[] help = ("B  " + Core.bundle.get("back") + "\0").getBytes(StandardCharsets.UTF_8);
         boolean shown = false;
         UpstreamSinglePlayerInput.poll();
         while (true) {
@@ -133,7 +136,7 @@ final class UpstreamCoreDatabaseMenu {
             if ((input & UpstreamSinglePlayerInput.B_PRESSED) != 0) return true;
             int y = (byte)(input >> 8);
             first = vertical.move(y, first, lines.size() - detailRows);
-            draw(display, first + 1, detailRows);
+            draw(display, first + 1, detailRows, help, 1);
             if (!shown) {
                 System.out.println("UPSTREAM_DATABASE_DETAIL content=" + content.name + " rows=" + lines.size());
                 shown = true;
@@ -224,11 +227,12 @@ final class UpstreamCoreDatabaseMenu {
         return content.uiIcon != null && content.uiIcon.found() ? content.uiIcon : null;
     }
 
-    private void draw(List<DrawRow> rows, int first, int count) {
+    private void draw(List<DrawRow> rows, int first, int count, byte[] help, int helpCount) {
         target.begin(0, 0, UpstreamTerrainDrawProbe.VIEW_WIDTH, UpstreamTerrainDrawProbe.VIEW_HEIGHT);
         try {
             float y = present(rows.get(0), 6f);
             for (int i = Math.max(1, first); i < Math.min(first + count, rows.size()); i++) y = present(rows.get(i), y);
+            target.drawMenuHelp(help, helpCount);
         } finally {
             target.end();
         }

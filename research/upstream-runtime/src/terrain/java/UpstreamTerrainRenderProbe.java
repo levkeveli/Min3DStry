@@ -136,6 +136,10 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
             y, Address.ofData(stockObjectiveFont));
     }
 
+    void drawMenuHelp(byte[] labels, int count) {
+        NativeTerrain.drawMenuHelp(Address.ofData(labels), count);
+    }
+
     void hudLabel(byte[] label, int[] characters, float x, float y, float width, float height) {
         NativeTerrain.hudLabel(Address.ofData(label), Address.ofData(characters), characters.length / 7,
             x, y, width, height);
@@ -360,6 +364,9 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
         @Import(name = "m3ds_terrain_draw_objective")
         static native float drawObjective(Address label, Address characters, int count,
                                           int page, int x, int y, int width, int height, float top, Address stockFont);
+
+        @Import(name = "m3ds_terrain_draw_menu_help")
+        static native void drawMenuHelp(Address labels, int count);
 
         @Import(name = "m3ds_terrain_draw_objective_plain")
         static native float drawObjectivePlain(Address label, Address characters, int count,
