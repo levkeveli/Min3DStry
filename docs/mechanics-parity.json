@@ -265,7 +265,7 @@
         "research/upstream-runtime/src/content/java/UpstreamMinimap.java",
         "tools/verify_minimap_azahar.py"
       ],
-      "notes": "Both Azahar profiles verified a nonblank offline minimap and the local player marker. Fullscreen, zoom, other unit blips, and the full stock panel remain open."
+      "notes": "Both Azahar profiles verified a nonblank offline minimap, the local player marker, living unit blips and directional core markers. The core-marker fixture overlaps the player spawn, so a separate pixel proof remains open; fullscreen, zoom and the full stock panel also remain open."
     },
     {
       "id": "minimap-pause-overlay",
@@ -283,7 +283,7 @@
         "src/ui/pause_menu.c",
         "src/ui/pause_overlay.c"
       ],
-      "notes": "The live ARM11 renderer draws the stock pause overlay with Resume, Save Game and Quit, plus Research when the sector has a tech tree. X opens and closes it and freezes simulation unless the stock rules disable pausing. Settings and Load Game rows remain open, so this is not claimed complete."
+      "notes": "The live ARM11 renderer draws the stock pause overlay with Resume, Research, Load Game, Save Game and Quit. Load Game reopens the active save. X opens and closes it and freezes simulation unless the stock rules disable pausing. Settings, planet map and save-picker load remain open, so this is not claimed complete."
     },
     {
       "id": "menus-schematics-rts",
