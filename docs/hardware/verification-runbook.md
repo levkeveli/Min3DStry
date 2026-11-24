@@ -5,7 +5,8 @@ It does not claim any hardware result by itself; the capability ledger only move
 passes [`tools/hw_evidence.py`](../../tools/hw_evidence.py) and is attached to a PR.
 
 Emulator-only validation batches are recorded separately:
-[2026-11-23 batch](emulator-batch-2026-11-23.md) (ten tasks, both Azahar
+[2026-11-23](emulator-batch-2026-11-23.md) and
+[2026-11-24](emulator-batch-2026-11-24.md) (ten tasks each, both Azahar
 profiles). These records do not prove physical-hardware behavior.
 
 Captured so far: [Original 3DS XL smoke](evidence/old3ds-xl-a4a9a96.md),
