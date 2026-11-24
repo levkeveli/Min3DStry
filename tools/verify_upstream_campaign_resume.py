@@ -50,7 +50,7 @@ def verify(model: str, rom: Path, azahar: str, config: Path, log: Path,
     source_zero = (fixtures / "sector-serpulo-170.msav").read_bytes()
     secondary_slot = f"sector-serpulo-{242 if dense else 64}.msav"
     source_secondary = (fixtures / secondary_slot).read_bytes()
-    secondary_map = r"\S+ size=600x600" if dense else "frozenForest"
+    secondary_map = r"sector-serpulo-242 size=600x600" if dense else "frozenForest"
     try:
         for multiple, map_name in ((False, "groundZero"), (True, secondary_map)):
             stage = "multiple" if multiple else "single"
