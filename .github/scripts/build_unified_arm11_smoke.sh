@@ -44,6 +44,10 @@ bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime --no-daemon -
   "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" "-PreferenceJar=$RUNNER_TEMP/server-release.jar" \
   "-ParcCheckout=$RUNNER_TEMP/Arc" -Pprobe=unified runBuildingLayersJvm \
   --args="--logic-font $PWD/build/smoke-assets/logic-font.dat"
+bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime --no-daemon --console=plain \
+  "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" "-PreferenceJar=$RUNNER_TEMP/server-release.jar" \
+  "-ParcCheckout=$RUNNER_TEMP/Arc" -Pprobe=unified runBuildingLayersJvm \
+  --args="--sprite-atlas $PWD/build/smoke-assets/sprites.aatls"
 
 numa=()
 [[ -z "${M3DS_DOCKER_CPUSET_CPUS:-}" ]] || numa+=(--cpuset-cpus "$M3DS_DOCKER_CPUSET_CPUS")

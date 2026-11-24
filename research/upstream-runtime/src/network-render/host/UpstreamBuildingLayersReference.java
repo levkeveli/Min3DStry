@@ -18,6 +18,8 @@ import arc.graphics.g2d.Draw;
 import arc.graphics.g2d.Fill;
 import arc.graphics.g2d.Lines;
 import arc.graphics.g2d.SpriteBatch;
+import arc.graphics.g2d.TextureAtlas.AtlasRegion;
+import arc.graphics.g2d.TextureAtlas.TextureAtlasData;
 import arc.graphics.g2d.TextureRegion;
 import arc.mock.MockAudio;
 import arc.mock.MockGraphics;
@@ -32,6 +34,7 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.function.Predicate;
 import mindustry.Vars;
@@ -133,6 +136,10 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
     }
 
     public static void main(String[] args) throws Exception {
+        if (args.length == 2 && args[0].equals("--sprite-atlas")) {
+            verifySpriteAtlas(new Fi(args[1]));
+            return;
+        }
         if (args.length == 2 && args[0].equals("--logic-font")) {
             var font = new Fi(args[1]);
             UpstreamLogicFont.load(font);
@@ -501,6 +508,39 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
             throw new AssertionError("Stock client processor did not execute the configured Canvas write");
         }
         System.out.println("UPSTREAM_CLIENT_PROCESSOR_REFERENCE ids=ok compressed=ok link=ok canvas=5");
+    }
+
+    private static void verifySpriteAtlas(Fi file) {
+        var stock = new TextureAtlasData(file, file.parent(), false);
+        var atlas = UpstreamTerrainDrawProbe.readAtlas(file);
+        var regions = atlas.getRegions();
+        if (stock.getRegions().size != 5200 || regions.size != stock.getRegions().size) {
+            throw new AssertionError("Expected 5,200 stock sprite regions");
+        }
+        var lookup = new HashMap<String, AtlasRegion>();
+        for (int i = 0; i < regions.size; i++) {
+            var expected = stock.getRegions().get(i);
+            var actual = regions.get(i);
+            lookup.put(expected.name, actual);
+            if (!expected.name.equals(actual.name)
+                    || UpstreamTerrainDrawProbe.pageIndex(actual) != stock.getPages().indexOf(expected.page, true)
+                    || actual.texture.width != expected.page.width || actual.texture.height != expected.page.height
+                    || actual.getX() != expected.left || actual.getY() != expected.top
+                    || actual.width != expected.width || actual.height != expected.height
+                    || actual.offsetX != expected.offsetX || actual.offsetY != expected.offsetY
+                    || actual.originalWidth != expected.originalWidth || actual.originalHeight != expected.originalHeight
+                    || !Arrays.equals(actual.splits, expected.splits) || !Arrays.equals(actual.pads, expected.pads)) {
+                throw new AssertionError("Stock sprite metadata differs for " + expected.name);
+            }
+        }
+        if (atlas.getRegionMap().size != lookup.size()) throw new AssertionError("Unexpected atlas lookup size");
+        lookup.forEach((name, region) -> {
+            if (atlas.find(name) != region) throw new AssertionError("Stock atlas lookup differs for " + name);
+        });
+        if (atlas.find("missing-port-region") != atlas.find("error")) {
+            throw new AssertionError("Missing sprites should fall back to the stock error region");
+        }
+        System.out.println("UPSTREAM_STOCK_SPRITE_ATLAS pages=" + stock.getPages().size + " regions=" + regions.size);
     }
 
     private static void verifyLogicFontPixels(Fi font) {

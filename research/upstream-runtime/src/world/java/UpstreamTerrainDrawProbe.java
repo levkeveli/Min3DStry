@@ -13,6 +13,7 @@ import arc.graphics.g2d.TextureRegion;
 import arc.math.Mathf;
 import arc.struct.Seq;
 import arc.util.ArcRuntimeException;
+import java.io.DataInputStream;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -214,7 +215,7 @@ public final class UpstreamTerrainDrawProbe {
 
     static TextureAtlas readAtlas(Fi atlasFile) {
         var atlas = new TextureAtlas();
-        try (var read = atlasFile.reads()) {
+        try (var read = openReservedAtlas(atlas, atlasFile)) {
             for (byte magic : TextureAtlasData.formatHeader) {
                 if (read.b() != magic) throw new IOException("Invalid binary atlas header");
             }
@@ -249,6 +250,46 @@ public final class UpstreamTerrainDrawProbe {
         }
         if (!atlas.setErrorRegion("error")) throw new IllegalStateException("Atlas has no error region");
         return atlas;
+    }
+
+    private static arc.util.io.Reads openReservedAtlas(TextureAtlas atlas, Fi atlasFile) throws IOException {
+        int regions = countAtlasRegions(atlasFile);
+        atlas.getRegions().ensureCapacity(regions);
+        atlas.getRegionMap().ensureCapacity(regions);
+        return atlasFile.reads();
+    }
+
+    private static int countAtlasRegions(Fi atlasFile) throws IOException {
+        int total = 0;
+        try (var in = new DataInputStream(atlasFile.read(512))) {
+            for (byte magic : TextureAtlasData.formatHeader) {
+                if (in.readByte() != magic) throw new IOException("Invalid binary atlas header");
+            }
+            if (in.readByte() != TextureAtlasData.formatVersion) {
+                throw new IOException("Unsupported binary atlas version");
+            }
+            // Arc records a byte before each page so the reader can detect EOF.
+            while (in.read() != -1) {
+                skipAtlasBytes(in, in.readUnsignedShort() + 8);
+                int count = in.readInt();
+                if (count < 0 || count > Integer.MAX_VALUE - total) {
+                    throw new IOException("Invalid atlas region count");
+                }
+                total += count;
+                for (int index = 0; index < count; index++) {
+                    skipAtlasBytes(in, in.readUnsignedShort() + 8);
+                    for (int optional = 0; optional < 3; optional++) {
+                        if (in.readBoolean()) skipAtlasBytes(in, 8);
+                    }
+                }
+            }
+        }
+        return total;
+    }
+
+    private static void skipAtlasBytes(DataInputStream in, int remaining) throws IOException {
+        // Keep the ROMFS preflight sequential, as in the stock descriptor reader.
+        for (int index = 0; index < remaining; index++) in.readUnsignedByte();
     }
 
     private static int[] readAtlasInsets(arc.util.io.Reads read) {
