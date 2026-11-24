@@ -1878,7 +1878,12 @@ def run_model(args, model, config, original_config, log, output):
                     labels = names.get(args.locale)
                     words = " router=" + re.escape(labels[0]) + " copper=" + re.escape(labels[1]) if labels else ""
                     pattern = rf"UPSTREAM_INTERFACE_LOCALE system=\d+ bundle={re.escape(args.locale)}\b{words}"
-                    localized = wait_for(log, emulator, pattern, args.timeout)
+                    startup_pattern = (
+                        rf"UPSTREAM_BOOT mode=title\b[\s\S]*?{pattern}[\s\S]*?"
+                        rf"UPSTREAM_BOOT mode=join\b[\s\S]*?{pattern}"
+                        if args.join_from_title else pattern
+                    )
+                    localized = wait_for(log, emulator, startup_pattern, args.timeout)
                     print(re.search(pattern, localized).group(0), flush=True)
                 if args.controls:
                     def capture(phase, position):
@@ -2497,8 +2502,13 @@ def main():
         originals[startup] = startup.read_bytes() if startup.exists() else None
     atlas_path = endpoint.with_name("sprites.aatls")
     locale_path = endpoint.with_name("locale.txt")
+    settings_path = endpoint.with_name("settings.bin")
     if args.locale:
-        originals[locale_path] = locale_path.read_bytes() if locale_path.exists() else None
+        locale_files = [locale_path]
+        if args.join_from_title:
+            locale_files.extend((settings_path, endpoint.with_name("settings_backup.bin")))
+        for path in locale_files:
+            originals[path] = path.read_bytes() if path.exists() else None
     if args.terrain_atlas:
         originals[atlas_path] = atlas_path.read_bytes() if atlas_path.exists() else None
     output = args.rom.parent / "upstream-live-net"
@@ -2512,7 +2522,12 @@ def main():
             startup.unlink(missing_ok=True)
         suffix = " controls" if args.controls else " movement" if args.movement else ""
         endpoint.write_text(f"127.0.0.1 {args.port}{suffix}\n", encoding="ascii")
-        if args.locale:
+        if args.locale and args.join_from_title:
+            locale_path.unlink(missing_ok=True)
+            # Arc Settings stores a big-endian entry count, UTF key, String type and UTF value.
+            locale = args.locale.encode("ascii")
+            settings_path.write_bytes(struct.pack(">IH6sBH", 1, 6, b"locale", 4, len(locale)) + locale)
+        elif args.locale:
             locale_path.write_text(args.locale + "\n", encoding="ascii")
         if args.terrain_atlas:
             atlas_path.write_bytes(atlas_bytes)
