@@ -1878,13 +1878,18 @@ def run_model(args, model, config, original_config, log, output):
                     labels = names.get(args.locale)
                     words = " router=" + re.escape(labels[0]) + " copper=" + re.escape(labels[1]) if labels else ""
                     pattern = rf"UPSTREAM_INTERFACE_LOCALE system=\d+ bundle={re.escape(args.locale)}\b{words}"
-                    startup_pattern = (
-                        rf"UPSTREAM_BOOT mode=title\b[\s\S]*?{pattern}[\s\S]*?"
-                        rf"UPSTREAM_BOOT mode=join\b[\s\S]*?{pattern}"
-                        if args.join_from_title else pattern
-                    )
-                    localized = wait_for(log, emulator, startup_pattern, args.timeout)
-                    print(re.search(pattern, localized).group(0), flush=True)
+                    if args.join_from_title:
+                        join_pattern = rf"UPSTREAM_BOOT mode=join\b[\s\S]*?({pattern})"
+                        join_log = wait_for(log, emulator, join_pattern, args.timeout)
+                        title_log, _, _ = join_log.partition("UPSTREAM_BOOT mode=join")
+                        title_locale = re.search(pattern, title_log)
+                        if title_locale is None:
+                            raise RuntimeError(f"Title did not load saved locale {args.locale}:\n{title_log[-2500:]}")
+                        print("Title locale:", title_locale.group(0), flush=True)
+                        print("Multiplayer locale:", re.search(join_pattern, join_log).group(1), flush=True)
+                    else:
+                        localized = wait_for(log, emulator, pattern, args.timeout)
+                        print(re.search(pattern, localized).group(0), flush=True)
                 if args.controls:
                     def capture(phase, position):
                         if args.world_atlas_recycle and phase == "spawn":
