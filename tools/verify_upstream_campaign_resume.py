@@ -13,14 +13,21 @@ from pathlib import Path
 import verify_upstream_singleplayer as sp
 
 
-def write_replay(path: Path, model: str, multiple: bool, move_down: bool) -> None:
+def write_replay(path: Path, model: str, multiple: bool, move_down: bool, dense: bool = False) -> None:
     windows = [(104, 106, sp.KEY_START)] if multiple else [(76, 78, sp.KEY_START)]
     if multiple:
         # From Resume, move down past Research to Load.
         windows += [(48, 50, 1), (76, 77, sp.KEY_X), (82, 84, 1 << 7), (88, 90, 1 << 7), (94, 96, 1)]
         if move_down:
             windows += [(43, 45, 1 << 7)]
-    frames = sp.CTM_SAMPLES_PER_SECOND * (114 if multiple else 86)
+    seconds = 114 if multiple else 86
+    if dense and multiple:
+        # Leave time for world setup and graphics before pressing pause or quit.
+        windows = [(start, end, key) for start, end, key in windows if start < 60]
+        windows += [(160, 161, sp.KEY_X), (166, 168, 1 << 7), (172, 174, 1 << 7),
+                    (178, 180, 1), (290, 292, sp.KEY_START)]
+        seconds = 300
+    frames = sp.CTM_SAMPLES_PER_SECOND * seconds
     header = struct.pack("<4sQ20sQQ32sIQq156x", b"CTM\x1b", 0, sp.CTM_REVISION, 1780000000,
                          0x4D334453, b"Min3DStry Campaign", 0, frames, 0)
     idle = struct.pack("<B6x", 1)
@@ -68,7 +75,7 @@ def verify(model: str, rom: Path, azahar: str, config: Path, log: Path,
             config.write_text(sp.az.patch_qt_config_text((originals[config] or b"").decode("utf-8"), storage),
                               encoding="utf-8")
             replay = output / f"{model}-{stage}.ctm"
-            write_replay(replay, model, multiple, move_down=source_settings is None)
+            write_replay(replay, model, multiple, move_down=source_settings is None, dense=dense)
             proc, rpc = sp._launch_azahar(model, rom, azahar, config, log, replay)
             try:
                 if multiple:
@@ -83,17 +90,18 @@ def verify(model: str, rom: Path, azahar: str, config: Path, log: Path,
                 source = "" if multiple else " source=single"
                 sp._wait_for_log(log, proc, rf"UPSTREAM_CAMPAIGN_SELECTED slot={selection}{source}\b", 100)
                 loaded = rf"UPSTREAM_SP_LOADED source=campaign map={map_name}\b"
-                sp._wait_for_log(log, proc, loaded, 100)
+                load_timeout = 300 if dense and multiple else 100
+                sp._wait_for_log(log, proc, loaded, load_timeout)
                 sp._wait_for_log(log, proc, r"UPSTREAM_SP_FRAME ", 100)
                 rpc.perf_stats(reset=True)
                 time.sleep(1.5)
                 stats = rpc.perf_stats(reset=True) or {}
                 (output / f"{model}-{stage}.png").write_bytes(rpc.screenshot())
                 if multiple:
-                    reloaded = sp._wait_for_log(log, proc, r"UPSTREAM_PAUSE_MENU load=true\b", 100)
+                    reloaded = sp._wait_for_log(log, proc, r"UPSTREAM_PAUSE_MENU load=true\b", load_timeout)
                     if len(re.findall(loaded, reloaded)) != 2:
                         raise AssertionError(f"{model}: pause-menu Load did not reopen the selected campaign save")
-                sp._wait_for_log(log, proc, rf"UPSTREAM_CAMPAIGN_SAVED slot={selection}\b", 100)
+                sp._wait_for_log(log, proc, rf"UPSTREAM_CAMPAIGN_SAVED slot={selection}\b", load_timeout)
                 sp._wait_for_log(log, proc, r"UPSTREAM_SP_EXIT\b", 20)
                 expected = source_secondary if multiple else source_zero
                 if backup.read_bytes() != expected:
