@@ -211,6 +211,7 @@ if (usesArcSources || usesExecutor) {
         stagedClasses.addAll(['mindustry/world/Tile.class', 'mindustry/world/Tile$*.class',
                               'mindustry/ai/BlockIndexer.class', 'mindustry/ai/BlockIndexer$*.class',
                               'mindustry/world/blocks/logic/LogicBlock.class', 'mindustry/world/blocks/logic/LogicBlock$*.class',
+                              'mindustry/io/SaveFileReader.class', 'mindustry/io/SaveFileReader$*.class',
                               'mindustry/world/Tiles.class', 'mindustry/world/Tiles$*.class'])
     }
     if (usesArcSources) {
@@ -521,6 +522,7 @@ tasks.register('prepareUpstreamProbe') {
     if (usesWorldSources) {
         outputs.files(tileFile, tilesFile)
         outputs.file(sourceDir.map { it.file('mindustry/ai/BlockIndexer.java') })
+        outputs.file(sourceDir.map { it.file('mindustry/io/SaveFileReader.java') })
         outputs.file(sourceDir.map { it.file('mindustry/world/blocks/logic/LogicBlock.java') })
     }
     if (usesArcSources || usesExecutor) {
@@ -972,6 +974,81 @@ final class GlacierFixture {
                 // TeaVM's deflater rejects an empty write. The stock payload length still records zero.
                 stagedLogicBlock.setText(logicBlock.replace(writeProgram,
                     '            if(bytes.length > 0) stream.write(bytes);'), 'UTF-8')
+
+                def saveReaderPath = 'mindustry/io/SaveFileReader.java'
+                def saveReader = new String(readUpstream('core/src/' + saveReaderPath), 'UTF-8')
+                def streams = 'protected static final ReusableByteOutStream byteOutput = new ReusableByteOutStream(), byteOutput2 = new ReusableByteOutStream();'
+                def selectStream = 'ReusableByteOutStream dout = wasNested ? byteOutput2 : byteOutput;'
+                def writeData = 'output.write(dout.getBytes(), 0, length);'
+                def resetNesting = '            chunkNested = wasNested;'
+                if ([streams, selectStream, writeData, resetNesting].any { saveReader.count(it) != 1 }) {
+                    throw new GradleException('Pinned SaveFileReader write buffering changed')
+                }
+                def segmented = '''protected static final ChunkBuffer byteOutput = new ChunkBuffer(), byteOutput2 = new ChunkBuffer();
+
+    // Preserve the stock length prefix without requiring one map-sized allocation.
+    protected static final class ChunkBuffer extends OutputStream{
+        private static final int capacity = 4096;
+        private final Chunk first = new Chunk();
+        private Chunk tail = first;
+        private int size;
+
+        private static final class Chunk{
+            final byte[] bytes = new byte[capacity];
+            int count;
+            Chunk next;
+        }
+
+        private void ensureSpace(){
+            if(tail.count == capacity){
+                tail.next = new Chunk();
+                tail = tail.next;
+            }
+        }
+
+        @Override
+        public void write(int value){
+            ensureSpace();
+            tail.bytes[tail.count++] = (byte)value;
+            size++;
+        }
+
+        @Override
+        public void write(byte[] bytes, int offset, int length){
+            while(length > 0){
+                ensureSpace();
+                int count = Math.min(length, capacity - tail.count);
+                System.arraycopy(bytes, offset, tail.bytes, tail.count, count);
+                tail.count += count;
+                offset += count;
+                length -= count;
+                size += count;
+            }
+        }
+
+        int size(){
+            return size;
+        }
+
+        void writeTo(DataOutput output) throws IOException{
+            for(Chunk chunk = first; chunk != null; chunk = chunk.next){
+                if(chunk.count != 0) output.write(chunk.bytes, 0, chunk.count);
+            }
+        }
+
+        void reset(){
+            first.count = 0;
+            first.next = null;
+            tail = first;
+            size = 0;
+        }
+    }'''
+                def stagedSaveReader = sourceDir.get().file(saveReaderPath).asFile
+                stagedSaveReader.parentFile.mkdirs()
+                stagedSaveReader.setText(saveReader.replace(streams, segmented)
+                    .replace(selectStream, 'ChunkBuffer dout = wasNested ? byteOutput2 : byteOutput;')
+                    .replace(writeData, 'dout.writeTo(output);')
+                    .replace(resetNesting, '            dout.reset();\n' + resetNesting), 'UTF-8')
             }
             def adaptedBlock = blockFile.get().asFile
             adaptedBlock.parentFile.mkdirs()
