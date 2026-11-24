@@ -65,6 +65,7 @@ final class UpstreamSchematicPlacement {
     void tap(int x, int y) {
         if (x >= 152 && x < 216 && y >= 4 && y < 38 && editName != null) {
             editing = !editing;
+            System.out.println("UPSTREAM_SCHEMATIC_EDIT_MODE enabled=" + editing);
             refreshLabels(null);
         } else if (x >= 224 && x < 312 && y >= 4 && y < 38) {
             editing = false;
@@ -98,12 +99,14 @@ final class UpstreamSchematicPlacement {
 
     private void edit(Fi file) {
         editing = false;
+        System.out.println("UPSTREAM_SCHEMATIC_EDIT_SELECTED file=" + file.name());
         try {
             if (editMetadata(file, editName, editDescription)) {
                 System.out.println("UPSTREAM_SCHEMATIC_METADATA_EDITED file=" + file.name());
             }
             refreshLabels(null);
         } catch (IOException | RuntimeException error) {
+            System.out.println("UPSTREAM_SCHEMATIC_EDIT_ERROR " + error.getMessage());
             refreshLabels(null, Core.bundle.get("error", "Error"));
         }
     }
