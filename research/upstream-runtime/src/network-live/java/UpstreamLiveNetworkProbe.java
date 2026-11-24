@@ -86,6 +86,7 @@ import mindustry.net.NetConnection;
 import mindustry.net.NetworkIO;
 import mindustry.net.Packet;
 import mindustry.net.Packets.StreamChunk;
+import mindustry.net.Packets.KickReason;
 import mindustry.world.blocks.distribution.Sorter;
 import org.teavm.interop.Address;
 import org.teavm.interop.Import;
@@ -129,7 +130,7 @@ public final class UpstreamLiveNetworkProbe {
         return new Fi(args.length == 0 ? "/3ds/min3dstry/server-endpoint.txt" : args[0]);
     }
 
-    static void run(Fi directory, String address, Runnable beforeConnect, Runnable deferredGraphics,
+    static ServerKick run(Fi directory, String address, Runnable beforeConnect, Runnable deferredGraphics,
                     Consumer<Unit> frame, UpstreamLiveBuildControls building, Consumer<String> chat, UpstreamChatInput chatInput)
                     throws IOException, InterruptedException {
         String[] endpoint = address.trim().split("\\s+");
@@ -160,7 +161,7 @@ public final class UpstreamLiveNetworkProbe {
             stage = "profile";
             var identity = UpstreamPlayerIdentity.load(directory, endpoint[0]);
             stage = "session";
-            new UpstreamLiveNetworkProbe(mode, deferredGraphics, frame, building, chat, chatInput, identity)
+            return new UpstreamLiveNetworkProbe(mode, deferredGraphics, frame, building, chat, chatInput, identity)
                 .run(host, port, app);
         } catch (IOException | RuntimeException | LinkageError error) {
             Throwable cause = error;
@@ -172,16 +173,25 @@ public final class UpstreamLiveNetworkProbe {
         }
     }
 
-    private void run(byte[] host, int port, UpstreamWorldLoadProbe.ProbeApplication app)
+    private ServerKick run(byte[] host, int port, UpstreamWorldLoadProbe.ProbeApplication app)
             throws IOException, InterruptedException {
         if (mode == Mode.CONTROLS) {
+            ServerKick departure = null;
             try {
-                connect(host, port, app, 1);
-            } finally {
-                Native.close();
+                try {
+                    connect(host, port, app, 1);
+                } finally {
+                    Native.close();
+                }
+            } catch (ServerKick kick) {
+                System.out.println("UPSTREAM_LIVE_CONTROLS_KICK kind=" + kick.kind + " reason=" + kick.getMessage());
+                Vars.net = new Net(null);
+                Vars.logic.reset();
+                app.runPosted();
+                departure = kick;
             }
             System.out.println("UPSTREAM_LIVE_CONTROLS_LEFT");
-            return;
+            return departure;
         }
         try {
             int result = open(host, port, BUILD - 1);
@@ -208,6 +218,7 @@ public final class UpstreamLiveNetworkProbe {
             }
         }
         System.out.println("UPSTREAM_LIVE_NET_PASS");
+        return null;
     }
 
     private void connect(byte[] host, int port, UpstreamWorldLoadProbe.ProbeApplication app, int join)
@@ -509,7 +520,12 @@ public final class UpstreamLiveNetworkProbe {
             if (received == TIMEOUT && i == 0) received = receive(0, 8);
             if (received == TIMEOUT) break;
             int id = received >>> 16;
-            if (id == stateId) {
+            if (id == unsignedId(KickCallPacket.class)) {
+                throw new ServerKick(decode(new KickCallPacket(), received).reason, null);
+            } else if (id == unsignedId(KickCallPacket2.class)) {
+                var reason = decode(new KickCallPacket2(), received).reason;
+                throw new ServerKick(reason.name(), reason);
+            } else if (id == stateId) {
                 var unit = controlledUnit();
                 var ore = unit == null || unit.mineTile == null ? null : unit.getMineResult(unit.mineTile);
                 var core = ore == null ? null : Vars.player.team().core();
@@ -585,6 +601,22 @@ public final class UpstreamLiveNetworkProbe {
             }
         }
         return lastWave;
+    }
+
+    static final class ServerKick extends IOException {
+        private final String kind;
+        final KickReason stockReason;
+
+        private ServerKick(String reason, KickReason stockReason) {
+            super(reason);
+            this.stockReason = stockReason;
+            kind = stockReason == null ? "text" : "enum";
+        }
+    }
+
+    static boolean kickNoticeDismissed() {
+        int input = Native.input();
+        return input < 0 || (input & ((1 << 17) | (1 << 19))) != 0;
     }
 
     private void receiveChat(String message, String source) {
