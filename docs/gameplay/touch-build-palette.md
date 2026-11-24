@@ -63,11 +63,15 @@ and verified the same results.
 
 To create a file, tap **Schem**, choose **Capture**, and tap two
 opposite corners on the build grid. The top screen marks the
-selection. Press **A** to save or **B** to cancel. The original
+selection. Press **A** to open the naming keyboard or **B** to cancel. The original
 capture routine crops the selection and preserves visible buildings,
-rotations, and configuration. Capture returns to the picker with
-the next free `Schematic-N.msch` filename. That file can be imported
-into the unmodified Java game.
+rotations, and configuration. The picker shows the name stored inside the
+schematic. New captures use the next free `Schematic-N.msch` filename and
+can be imported into the unmodified Java game.
+
+Entering an existing schematic name opens a replacement prompt. Press
+**A** to replace the layout or **B** to keep the saved file. Replacement
+preserves the existing description and labels.
 
 The capture check selects two linked Bridge Conveyors and a Lead
 Sorter. It also checks that a cancelled or empty selection creates no
@@ -88,6 +92,10 @@ The unmodified v160.8 reader verified the exact three buildings, the
 Lead selection, and the bridge link. The preexisting file was unchanged
 in all four runs.
 [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45106252940)
+
+The [New 3DS naming replay](https://github.com/levkeveli/Min3DStry/actions/runs/45300000652)
+entered a name through the 3DS keyboard offline and in a live session.
+The stock Java reader reopened both files and verified the bridge and sorter.
 
 ## Stock item selectors
 
