@@ -196,7 +196,10 @@ public final class UpstreamStockCampaignArchiveReference {
                     verifyOreIndex(Vars.world.tiles);
                 }
                 session.application().runPosted();
-                if (preset.planet == Planets.serpulo && preset.sector.id == 111) verifyStockDarkness();
+                if (preset.planet == Planets.serpulo && preset.sector.id == 111) {
+                    verifyPackedPathCosts();
+                    verifyStockDarkness();
+                }
                 verifyCoreFlagOrder();
                 var original = preset.generator.map;
                 if (Vars.state.rules.sector != preset.sector || Vars.world.width() != original.width
@@ -219,6 +222,18 @@ public final class UpstreamStockCampaignArchiveReference {
         } finally {
             session.shutdown();
         }
+    }
+
+    private static void verifyPackedPathCosts() {
+        var tiles = Vars.world.tiles;
+        int area = tiles.width * tiles.height;
+        for (int index = 0; index < area; index++) {
+            var tile = tiles.geti(index);
+            if (Vars.pathfinder.get(tile.x, tile.y) != Vars.pathfinder.packTile(tile)) {
+                throw new AssertionError("Stock packed path cost differs at tile " + index);
+            }
+        }
+        System.out.println("UPSTREAM_PATH_COSTS sector=111 packing=stock");
     }
 
     private static void verifyStockDarkness() {
