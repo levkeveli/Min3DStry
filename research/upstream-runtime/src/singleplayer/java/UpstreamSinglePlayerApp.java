@@ -143,6 +143,7 @@ public final class UpstreamSinglePlayerApp {
         editorRequested |= args.length > 0 && args[0].equals("--editor");
         boolean databaseRequested = args.length > 0 && args[0].equals("--database");
         boolean titleRequested = args.length > 0 && args[0].equals("--title");
+        boolean loadRequested = false;
         boolean campaignRequested = args.length == 0 && bootInput >= 0
             && (bootInput & UpstreamSinglePlayerInput.CAMPAIGN_HELD) != 0 && !customRequested;
         Fi mapFile = !editorRequested && !databaseRequested && !titleRequested && args.length >= 1
@@ -181,11 +182,12 @@ public final class UpstreamSinglePlayerApp {
                 return;
             }
             if (titleRequested) {
-                var selection = chooseTitleAction(atlas);
+                var selection = chooseTitleAction(atlas, saveFile);
                 if (selection == null) return;
                 campaignRequested = selection == TitleAction.campaign;
                 customRequested = selection == TitleAction.custom;
                 editorRequested = selection == TitleAction.editor;
+                loadRequested = selection == TitleAction.load;
             }
             if (editorRequested) {
                 var source = !titleRequested && args.length >= 2 ? new Fi(args[1]) : mapDir.child("editor-map.msav");
@@ -198,8 +200,9 @@ public final class UpstreamSinglePlayerApp {
             }
             CustomGame custom = null;
             Fi customSave = mapDir.child("custom-game-save.msav");
-            if (customRequested) {
-                var maps = UpstreamCustomGameMaps.discover(new Fi("/romfs/maps/default"), mapDir.child("maps"));
+            if (customRequested || loadRequested) {
+                var maps = loadRequested ? List.<Map>of()
+                    : UpstreamCustomGameMaps.discover(new Fi("/romfs/maps/default"), mapDir.child("maps"));
                 var saves = UpstreamCustomGameSaves.discover(Vars.saveDirectory, customSave);
                 if (!maps.isEmpty() || !saves.isEmpty()) {
                     loadInterfaceRenderer();
@@ -476,16 +479,24 @@ public final class UpstreamSinglePlayerApp {
         }
     }
 
-    private enum TitleAction { campaign, custom, editor }
+    private enum TitleAction { campaign, custom, load, editor }
 
-    private TitleAction chooseTitleAction(Fi atlas) {
+    private TitleAction chooseTitleAction(Fi atlas, Fi defaultSave) {
         loadInterfaceRenderer();
         while (true) {
             switch (chooseTitleRow("Mindustry", "play", "database.button", "editor", "quit")) {
                 case 0 -> {
-                    int route = chooseTitleRow(Core.bundle.get("play"), "campaign", "customgame");
+                    int route = chooseTitleRow(Core.bundle.get("play"), "campaign", "customgame", "loadgame");
                     if (route == 0) return TitleAction.campaign;
                     if (route == 1) return TitleAction.custom;
+                    if (route == 2) {
+                        var customSave = defaultSave.parent().child("custom-game-save.msav");
+                        if (defaultSave.exists() || !session.sectorSaves().isEmpty()
+                                || !UpstreamCustomGameSaves.discover(Vars.saveDirectory, customSave).isEmpty()) {
+                            return TitleAction.load;
+                        }
+                        if (chooseTitleRow(Core.bundle.get("save.none"), "back") == -2) return null;
+                    }
                     if (route == -2) return null;
                 }
                 case 1 -> {
