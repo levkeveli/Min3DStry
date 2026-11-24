@@ -61,7 +61,9 @@ audio_romfs: OK entries=9 bytes=647008
 Both profiles reported `audio_romfs status=ok clips=9 bytes=647008`, the
 `wave.spawn` event resolving to clip `8`, and `Sectors=1`. This verifies the
 published CI package, audio RomFS, event routing, and loader stack budget. It
-does not verify audible DSP output.
+does not verify audible DSP output. `build/emu-verify/report.json` now records
+the artifact path, byte size and SHA-256, so each report identifies the exact
+`.3dsx` that was booted.
 
 ## Interpretation
 
