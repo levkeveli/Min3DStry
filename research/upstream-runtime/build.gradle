@@ -762,6 +762,28 @@ tasks.register('prepareUpstreamProbe') {
             withLabel('content(UnlockableContent content)', 'content.localizedName')
             withLabel('abilities(Seq<Ability> abilities)', 'abilityStatText(abilities)')
             withLabel('weapons(UnitType unit, Seq<Weapon> weapons)', 'weaponStatText(unit, weapons)')
+            def ammoSignature = '    public static <T extends UnlockableContent> StatValue ammo(ObjectMap<T, BulletType> map, boolean nested, boolean showUnit, @Nullable String blockName){'
+            def originalAmmoStart = ammoSignature + '\n        return table -> {'
+            hooks[originalAmmoStart] = originalAmmoStart.replace('return table -> {',
+                'return withText(() -> ammoStatText(map, nested, showUnit, blockName), table -> {')
+            def originalAmmoEnd = '''                }).padLeft(5).padTop(5).padBottom(compact ? 0 : 5).growX().margin(compact ? 0 : 10);
+                table.row();
+            }
+        };
+    }'''
+            hooks[originalAmmoEnd] = originalAmmoEnd.replace('        };', '        });')
+            def ammoStart = '                    if(type.damage > 0 && (type.collides || type.splashDamage <= 0)){'
+            def ammoEnd = '                    if(type.intervalBullet != null){'
+            if (values.count(ammoStart) != 1 || values.count(ammoEnd) != 1) {
+                throw new GradleException('Pinned projectile stat rules changed')
+            }
+            def ammoRules = values.substring(values.indexOf(ammoStart), values.indexOf(ammoEnd))
+                .replace('bt.add(', 'appendAmmoLine(label, ')
+                .replace('sep(bt, ', 'appendAmmoLine(label, ')
+                .replace('note(bt, ', 'appendAmmoLine(label, ')
+                .replace(')).left();', '));')
+                .replace('\n                        .with(c -> withTooltip(c, type.status));', ';')
+            if (ammoRules.contains('bt,') || ammoRules.contains('bt.')) throw new GradleException('Unconverted projectile stat cell')
             withLabel('drillables(float drillTime, float drillMultiplier, float size, ObjectFloatMap<Item> multipliers, Boolf<Block> filter)',
                 'drillableStatText(drillTime, drillMultiplier, size, multipliers, filter)')
             def contentListStart = '''    public static <T extends UnlockableContent> StatValue content(Seq<T> list, Boolf<T> check, String noneText){
@@ -872,6 +894,50 @@ tasks.register('prepareUpstreamProbe') {
                 label.append('\\n').append(Stat.reload.localized()).append(": ").append(weapon.mirror ? "2x " : "")
                     .append(Strings.autoFixed(60f / weapon.reload * weapon.shoot.shots, 2))
                     .append(" ").append(StatUnit.perSecond.localized());
+            }
+            label.append(ammoStatText(ObjectMap.of(unit, weapon.bullet), false, false, null));
+        }
+        return label.toString();
+    }
+
+    private static void appendAmmoLine(StringBuilder label, String line){
+        label.append('\\n').append(line.startsWith("@") ? Core.bundle.get(line.substring(1)) : line);
+    }
+
+    private static <T extends UnlockableContent> String ammoStatText(ObjectMap<T, BulletType> map, boolean nested, boolean showUnit, String blockName){
+        StringBuilder label = new StringBuilder();
+        var keys = map.keys().toSeq();
+        keys.sort();
+        for(T t : keys){
+            boolean compact = t instanceof UnitType && !showUnit || nested;
+            BulletType type = map.get(t);
+            if(type.spawnUnit != null && type.spawnUnit.weapons.size > 0){
+                label.append(ammoStatText(ObjectMap.of(t, type.spawnUnit.weapons.first().bullet), nested, false, blockName));
+                continue;
+            }
+            if(!compact && !(t instanceof Turret)){
+                appendAmmoLine(label, t.localizedName);
+                if(type.displayAmmoMultiplier && type.statLiquidConsumed > 0f){
+                    appendAmmoLine(label, fixValue(type.statLiquidConsumed / type.ammoMultiplier * 60f) + " " + StatUnit.perSecond.localized());
+                }
+            }
+            if(blockName != null && t != null){
+                String info = "block." + blockName + "." + t.name + ".info";
+                if(Core.bundle.has(info)) appendAmmoLine(label, Core.bundle.get(info));
+            }
+''' + ammoRules + '''            if(type.intervalBullet != null){
+                appendAmmoLine(label, Core.bundle.format("bullet.interval", Strings.autoFixed(type.intervalBullets / type.bulletInterval * 60, 2)));
+                label.append(ammoStatText(ObjectMap.of(t, type.intervalBullet), true, false, null));
+            }
+            if(type.fragBullet != null){
+                appendAmmoLine(label, Core.bundle.format("bullet.frags", type.fragBullets));
+                label.append(ammoStatText(ObjectMap.of(t, type.fragBullet), true, false, null));
+            }
+            if(type.spawnBullets != null && type.spawnBullets.size > 0){
+                appendAmmoLine(label, Core.bundle.format("bullet.spawnBullets", type.spawnBullets.size));
+                for(BulletType spawn : type.spawnBullets){
+                    if(spawn.showStats) label.append(ammoStatText(ObjectMap.of(t, spawn), true, false, null));
+                }
             }
         }
         return label.toString();
