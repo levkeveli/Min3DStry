@@ -171,6 +171,10 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         viewport.moveTo(24, 30);
         var viewer = Team.sharded;
         if (args.length >= 4) verifyPowerBar(viewer);
+        if (args.length >= 4) verifyLiquidBarLabels(viewer);
+        if (args.length >= 4) verifyLiquidBarFixedLabels(viewer);
+        verifyLiquidBar(viewer);
+        verifyLiquidBarFixed(viewer);
         var conveyor = Vars.world.tile(25, 31);
         var edgeWall = Vars.world.tile(23, 35);
         var offscreenWall = Vars.world.tile(21, 39);
@@ -238,6 +242,8 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         if (liquid != 21) throw new AssertionError("Expected 21 stock liquid buildings, got " + liquid);
         if (materials != 52) throw new AssertionError("Expected 52 stock material buildings, got " + materials);
         target.verifyLiquidBridgeTransfer(viewer);
+        target.verifyLiquidRouterTransfer(viewer);
+        target.verifyLiquidJunctionRouting(viewer);
         target.verifyCanvas(viewer);
         if (args.length >= 4) verifyObjectiveHud();
         if (args.length >= 5) verifyClientProcessor(new Fi(args[4]), viewer);
@@ -549,6 +555,64 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
             throw new AssertionError("A supplied idle consumer should show a full power bar");
         }
         System.out.println("UPSTREAM_STOCK_POWER_BAR states=dry,partial,buffered,supplied-idle team=filtered");
+    }
+
+    private static void verifyLiquidBar(Team viewer) {
+        var conduit = Blocks.conduit.newBuilding().create(Blocks.conduit, viewer);
+        if (!UpstreamBuildingLiquidHud.showsLiquid(conduit, viewer)
+                || UpstreamBuildingLiquidHud.showsLiquid(conduit, Team.crux)) {
+            throw new AssertionError("Stock liquid bars must only show to the owning team");
+        }
+        if (conduit.block.liquidBarFraction(conduit) != 0f) {
+            throw new AssertionError("Stock empty liquid bar differs");
+        }
+        conduit.liquids.add(Liquids.water, conduit.block.liquidCapacity * 0.5f);
+        if (Math.abs(conduit.block.liquidBarFraction(conduit) - 0.5f) > 1e-6f) {
+            throw new AssertionError("Stock partial liquid bar differs");
+        }
+        if (!conduit.block.liquidBarColor(conduit).equals(Liquids.water.barColor())) {
+            throw new AssertionError("Stock liquid bar color differs");
+        }
+        System.out.println("UPSTREAM_STOCK_LIQUID_BAR empty=0 partial=0.5 color=ok team=filtered");
+    }
+
+    private static void verifyLiquidBarLabels(Team viewer) {
+        var conduit = Blocks.conduit.newBuilding().create(Blocks.conduit, viewer);
+        if (!conduit.block.liquidBarLabel(conduit).equals(Core.bundle.get("bar.liquid"))) {
+            throw new AssertionError("Stock empty liquid label differs");
+        }
+        conduit.liquids.add(Liquids.water, conduit.block.liquidCapacity * 0.5f);
+        if (!conduit.block.liquidBarLabel(conduit).equals(Liquids.water.localizedName)) {
+            throw new AssertionError("Stock liquid label differs");
+        }
+        System.out.println("UPSTREAM_STOCK_LIQUID_BAR_LABELS empty=bar partial=water");
+    }
+
+    private static void verifyLiquidBarFixed(Team viewer) {
+        var generator = Blocks.steamGenerator.newBuilding().create(Blocks.steamGenerator, viewer);
+        if (!UpstreamBuildingLiquidHud.showsLiquid(generator, viewer)
+                || UpstreamBuildingLiquidHud.showsLiquid(generator, Team.crux)
+                || generator.block.liquidBarCount() != 1
+                || generator.block.liquidBarLiquid(generator, 0) != Liquids.water) {
+            throw new AssertionError("Stock keyed liquid bar registration differs");
+        }
+        if (generator.block.liquidBarFraction(generator, 0) != 0f) {
+            throw new AssertionError("Stock empty keyed liquid bar differs");
+        }
+        generator.liquids.add(Liquids.water, generator.block.liquidCapacity * 0.5f);
+        if (Math.abs(generator.block.liquidBarFraction(generator, 0) - 0.5f) > 1e-6f
+                || !generator.block.liquidBarColor(generator, 0).equals(Liquids.water.barColor())) {
+            throw new AssertionError("Stock keyed liquid bar differs");
+        }
+        System.out.println("UPSTREAM_STOCK_LIQUID_BAR_KEYED liquid=water empty=0 partial=0.5 color=ok team=filtered");
+    }
+
+    private static void verifyLiquidBarFixedLabels(Team viewer) {
+        var generator = Blocks.steamGenerator.newBuilding().create(Blocks.steamGenerator, viewer);
+        if (!generator.block.liquidBarLabel(generator, 0).equals(Liquids.water.localizedName)) {
+            throw new AssertionError("Stock keyed liquid label differs");
+        }
+        System.out.println("UPSTREAM_STOCK_LIQUID_BAR_KEYED_LABELS liquid=water");
     }
 
     private static void verifySpriteAtlas(Fi file) throws IOException {
@@ -1270,17 +1334,96 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         backSource.configure(new arc.math.geom.Point2(3, 0));
         backTarget.configure(new arc.math.geom.Point2(-3, 0));
         backSource.liquids.add(Liquids.water, backSource.block.liquidCapacity);
-        Time.delta = 1f;
-        for (int tick = 0; tick < 120; tick++) {
-            backSource.update();
-            backTarget.update();
+        float previousDelta = Time.delta;
+        try {
+            Time.delta = 1f;
+            for (int tick = 0; tick < 120; tick++) {
+                backSource.update();
+                backTarget.update();
+            }
+        } finally {
+            Time.delta = previousDelta;
         }
         if (backTarget.liquids.get(Liquids.water) > 0f) {
             throw new AssertionError("Back-linked stock bridge transported water");
         }
+        backSourceTile.setBlock(Blocks.air);
+        backTargetTile.setBlock(Blocks.air);
 
         System.out.println("UPSTREAM_LIQUID_BRIDGE_REFERENCE bridgeMilli=" + Math.round(bridge * 1000f)
             + " phaseMilli=" + Math.round(phase * 1000f) + " backLink=rejected");
+    }
+
+    private void verifyLiquidJunctionRouting(Team team) {
+        var sourceTile = Vars.world.tile(71, 50);
+        var junctionTile = Vars.world.tile(72, 50);
+        var sinkTile = Vars.world.tile(73, 50);
+        sourceTile.setBlock(Blocks.air);
+        junctionTile.setBlock(Blocks.air);
+        sinkTile.setBlock(Blocks.air);
+        sourceTile.setBlock(Blocks.liquidRouter, team, 0);
+        junctionTile.setBlock(Blocks.liquidJunction, team, 0);
+        sinkTile.setBlock(Blocks.liquidRouter, team, 0);
+
+        var junction = junctionTile.build;
+        // v160.8 LiquidJunctionBuild.getLiquidDestination returns Building, not Tile.
+        if (junction.acceptLiquid(sourceTile.build, Liquids.water)) {
+            throw new AssertionError("Stock Liquid Junction stored liquid instead of routing it");
+        }
+        var destination = junction.getLiquidDestination(sourceTile.build, Liquids.water);
+        if (destination != sinkTile.build) {
+            throw new AssertionError("Stock Liquid Junction did not route to the far side");
+        }
+
+        sinkTile.setBlock(Blocks.air);
+        destination = junction.getLiquidDestination(sourceTile.build, Liquids.water);
+        if (destination != junction) {
+            throw new AssertionError("Stock Liquid Junction did not stop at a dead end");
+        }
+
+        sourceTile.setBlock(Blocks.air);
+        junctionTile.setBlock(Blocks.air);
+        System.out.println("UPSTREAM_LIQUID_JUNCTION_REFERENCE route=far deadEnd=self");
+    }
+
+    private void verifyLiquidRouterTransfer(Team team) {
+        var routerTile = Vars.world.tile(68, 50);
+        var sinkTile = Vars.world.tile(69, 50);
+        routerTile.setBlock(Blocks.air);
+        sinkTile.setBlock(Blocks.air);
+        routerTile.setBlock(Blocks.liquidRouter, team, 0);
+        sinkTile.setBlock(Blocks.liquidRouter, team, 0);
+
+        var router = routerTile.build;
+        // Pinned v160.8 Blocks.liquidRouter: liquidCapacity = 120f.
+        float initial = router.block.liquidCapacity;
+        router.liquids.add(Liquids.water, initial);
+        float previousDelta = Time.delta;
+        try {
+            Time.delta = 1f;
+            for (int tick = 0; tick < 60; tick++) {
+                router.update();
+            }
+        } finally {
+            Time.delta = previousDelta;
+        }
+
+        float moved = sinkTile.build.liquids.get(Liquids.water);
+        float remaining = router.liquids.get(Liquids.water);
+        if (moved <= 0f) throw new AssertionError("Stock Liquid Router did not transfer water");
+        if (moved > initial + 0.01f) {
+            throw new AssertionError("Stock Liquid Router moved more than its source held");
+        }
+        if (Math.abs(moved + remaining - initial) > 0.01f) {
+            throw new AssertionError("Stock Liquid Router lost or created liquid: "
+                + moved + "+" + remaining + " != " + initial);
+        }
+        routerTile.setBlock(Blocks.air);
+        sinkTile.setBlock(Blocks.air);
+
+        System.out.println("UPSTREAM_LIQUID_ROUTER_REFERENCE movedMilli=" + Math.round(moved * 1000f)
+            + " initialMilli=" + Math.round(initial * 1000f)
+            + " remainingMilli=" + Math.round(remaining * 1000f));
     }
 
     private float verifyBridgeTransfer(Block block, int x, int y, int dx, Team team) {
@@ -1297,13 +1440,23 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         if (source.block.hasPower && source.power != null) {
             source.power.status = 1f;
         }
-        Time.delta = 1f;
-        for (int tick = 0; tick < 120; tick++) {
-            source.update();
+        float previousDelta = Time.delta;
+        try {
+            Time.delta = 1f;
+            for (int tick = 0; tick < 120; tick++) {
+                source.update();
+            }
+        } finally {
+            Time.delta = previousDelta;
         }
 
         float moved = targetTile.build.liquids.get(Liquids.water);
         if (moved <= 0f) throw new AssertionError("Stock " + block.name + " did not transfer water");
+        if (moved > source.block.liquidCapacity + 0.01f) {
+            throw new AssertionError("Stock " + block.name + " moved more than its source held");
+        }
+        sourceTile.setBlock(Blocks.air);
+        targetTile.setBlock(Blocks.air);
         return moved;
     }
 

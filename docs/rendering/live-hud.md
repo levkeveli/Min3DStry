@@ -24,10 +24,12 @@ off and a campaign sector is active;
   into up to three columns clear of the minimap;
 - a stock-style pause overlay with `paused`, the campaign planet/sector and
   first objective when available. A sector with a tech tree gets Resume
-  (`back`), Research, Load Game, Save Game and Quit; otherwise the menu is
-  Resume/Save/Quit. Load reloads the active slot only (there is no save picker)
-  and resets HUD caches; this path is **not verified** yet. The stock quit
-  confirmation is included, and tapping X opens/closes and freezes simulation;
+  (`back`), Research, Load Game, Save Game, Settings and Quit; otherwise the
+  menu is Resume/Save/Quit. Load reloads the active slot only (there is no save
+  picker) and resets HUD caches; this path is **not verified** yet. Settings
+  and Settings toggles the stock `setting.coreitems`, `setting.minimap`,
+  `setting.showweather` and `setting.showperformance` displays. The stock quit confirmation is
+  included, and tapping X opens/closes and freezes simulation;
 - a live minimap rendered from a 64x64 sample at 56 px in the top-right
   corner, using the stock `MinimapRenderer` color path (`Block.minimapColor`,
   floor/overlay fallback through `MapIO.colorFor`, darkness and liquid/shadow
@@ -108,7 +110,7 @@ status-hud host probe:
 ```text
 UPSTREAM_CORE_ITEM_FORMAT text=12k cases=9 ok
 UPSTREAM_CORE_ITEMS rows=2 ok
-UPSTREAM_PAUSE_MENU cases=13 ok
+UPSTREAM_PAUSE_MENU cases=22 ok
 UPSTREAM_CORE_ATTACK text="< Core is under attack! >" ok
 ```
 
@@ -144,6 +146,9 @@ the next emulator batch and are **not verified** yet:
   returns to play.
 - A on Load Game reloads the active save, restores the saved world and
   re-uploads the minimap. **Not verified** graphically yet.
+- A on Settings opens Display Core Items / Show Minimap / Show Weather /
+  Display Performance Metrics / Back; toggling hides/shows the item list,
+  minimap or weather overlay and adds an FPS row. **Not verified** yet.
 - In a campaign sector, the overlay shows the planet/sector and first objective
   above the options. **Not verified** graphically yet.
 - A on Save Game emits `UPSTREAM_PAUSE_MENU save=true`.

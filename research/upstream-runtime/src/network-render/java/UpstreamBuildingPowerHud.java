@@ -54,7 +54,7 @@ final class UpstreamBuildingPowerHud {
         return y + height + 3f;
     }
 
-    private static void drawPatch(UpstreamTerrainRenderProbe target, AtlasRegion sprite, float y, float fill, int tint) {
+    static void drawPatch(UpstreamTerrainRenderProbe target, AtlasRegion sprite, float y, float fill, int tint) {
         if (!sprite.found() || sprite.splits == null) return;
         int left = sprite.splits[0], right = sprite.splits[1], top = sprite.splits[2], bottom = sprite.splits[3];
         float scale = height / sprite.height;
