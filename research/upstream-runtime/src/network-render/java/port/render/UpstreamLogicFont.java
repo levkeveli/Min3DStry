@@ -11,11 +11,10 @@ import port.render.UpstreamLogicFramebuffer.SampledTexture;
 
 import java.io.DataInputStream;
 import java.io.IOException;
-import java.io.EOFException;
 
 public final class UpstreamLogicFont {
     public static void load(Fi source) {
-        try (var in = new DataInputStream(source.read(8192))) {
+        try (var in = new DataInputStream(source.read(1024))) {
             if (in.readInt() != 0x4d334c31) throw new IOException("Invalid logic font header");
             int width = in.readUnsignedShort(), height = in.readUnsignedShort();
             if (width != 256 || height != 128) throw new IOException("Invalid logic font atlas size");
@@ -38,11 +37,8 @@ public final class UpstreamLogicFont {
                 glyph.xadvance = in.readShort();
                 data.setGlyph(glyph.id, glyph);
             }
-            int pixelOffset = 26 + count * 16;
-            if (source.length() != pixelOffset + width * height * Integer.BYTES) {
-                throw new IOException("Unexpected logic font data");
-            }
-            var texture = new LogicFontTexture(source, width, height, pixelOffset);
+            var texture = new LogicFontTexture(in, width, height);
+            if (in.read() != -1) throw new IOException("Unexpected logic font data");
             Fonts.logic = new Font(data, new TextureRegion(texture), true);
         } catch (IOException error) {
             throw new IllegalStateException("Could not read v160.8 Logic Display glyphs from " + source, error);
@@ -50,39 +46,33 @@ public final class UpstreamLogicFont {
     }
 
     private static final class LogicFontTexture extends Texture implements SampledTexture {
-        private final Fi source;
-        private final int pixelOffset;
-        private int[] row;
-        private int cachedY = -1;
+        private static final int colors = 4;
+        private final int[] palette = new int[colors];
+        private final byte[] indices;
 
-        LogicFontTexture(Fi source, int width, int height, int pixelOffset) {
-            this.source = source;
+        LogicFontTexture(DataInputStream in, int width, int height) throws IOException {
             this.width = width;
             this.height = height;
-            this.pixelOffset = pixelOffset;
+            int pixels = width * height;
+            indices = new byte[(pixels + 3) / 4];
+            int paletteSize = 0;
+            for (int i = 0; i < pixels; i++) {
+                int rgba = in.readInt();
+                int index = 0;
+                while (index < paletteSize && palette[index] != rgba) index++;
+                if (index == paletteSize) {
+                    if (paletteSize == colors) throw new IOException("Unexpected stock logic font color");
+                    palette[paletteSize++] = rgba;
+                }
+                indices[i / 4] |= (byte)(index << ((i % 4) * 2));
+            }
         }
 
         @Override
         public int pixel(int x, int y) {
-            if (y != cachedY) {
-                if (row == null) row = new int[width];
-                try (var in = new DataInputStream(source.read(256))) {
-                    int remaining = pixelOffset + y * width * Integer.BYTES;
-                    while (remaining > 0) {
-                        int skipped = in.skipBytes(remaining);
-                        if (skipped == 0) {
-                            if (in.read() == -1) throw new EOFException();
-                            skipped = 1;
-                        }
-                        remaining -= skipped;
-                    }
-                    for (int index = 0; index < width; index++) row[index] = in.readInt();
-                    cachedY = y;
-                } catch (IOException error) {
-                    throw new IllegalStateException("Could not read stock logic font row " + y, error);
-                }
-            }
-            return row[x];
+            if (x < 0 || x >= width || y < 0 || y >= height) throw new IndexOutOfBoundsException();
+            int i = y * width + x;
+            return palette[(indices[i / 4] >>> ((i % 4) * 2)) & 3];
         }
     }
 }

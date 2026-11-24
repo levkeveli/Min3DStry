@@ -29,11 +29,13 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Predicate;
 import mindustry.Vars;
+import mindustry.ui.Fonts;
 import mindustry.ai.BlockIndexer;
 import mindustry.content.Blocks;
 import mindustry.content.Items;
@@ -487,11 +489,32 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         System.out.println("UPSTREAM_CLIENT_PROCESSOR_REFERENCE ids=ok compressed=ok link=ok canvas=5");
     }
 
+    private static void verifyLogicFontPixels(Fi font) {
+        var texture = Fonts.logic.getRegion().texture;
+        var sampled = (UpstreamLogicFramebuffer.SampledTexture)texture;
+        try (var packed = new DataInputStream(font.read())) {
+            // Skip the magic, size and float metrics before the glyph records.
+            packed.skipNBytes(24);
+            packed.skipNBytes(packed.readUnsignedShort() * 16L);
+            for (int y = 0; y < texture.height; y++) {
+                for (int x = 0; x < texture.width; x++) {
+                    if (sampled.pixel(x, y) != packed.readInt()) {
+                        throw new AssertionError("Stock Logic Display font differs at " + x + "," + y);
+                    }
+                }
+            }
+            if (packed.read() != -1) throw new AssertionError("Stock Logic Display font has extra pixels");
+        } catch (IOException error) {
+            throw new AssertionError("Could not verify the packed stock Logic Display font", error);
+        }
+    }
+
     private void verifyLogicDisplay(Fi tiles, Fi font, Team team) {
         var atlas = new UpstreamLogicAtlas(tiles);
         UpstreamLogicFramebuffer.atlasPixels((texture, x, y) ->
             atlas.sample(UpstreamTerrainDrawProbe.pageIndex(texture), x, y));
         UpstreamLogicFont.load(font);
+        verifyLogicFontPixels(font);
         var processor = (LogicBuild)Vars.world.tile(70, 15).build;
         var displayTile = Vars.world.tile(70, 20);
         var sourceTile = Vars.world.tile(76, 15);
