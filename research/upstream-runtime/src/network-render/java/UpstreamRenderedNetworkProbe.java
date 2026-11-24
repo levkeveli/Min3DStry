@@ -54,6 +54,7 @@ public final class UpstreamRenderedNetworkProbe {
     private final Fi atlas;
     private final UpstreamTerrainRenderProbe target = new UpstreamTerrainRenderProbe(false);
     private final UpstreamBuildingLayers buildingLayers = new UpstreamBuildingLayers();
+    private final UpstreamBuildingPowerHud buildingPowerHud = new UpstreamBuildingPowerHud();
     private final UpstreamWeatherLayers weatherLayers = new UpstreamWeatherLayers();
     private final Runnable drawWeatherUnder = weatherLayers::drawUnder;
     private UpstreamLiveBuildControls buildingControls;
@@ -171,7 +172,7 @@ public final class UpstreamRenderedNetworkProbe {
 
     private float drawKickLabel(String label, float y) {
         var parsed = UpstreamLabelText.parse(UI.formatIcons(label));
-        return target.drawObjective((label + "\0").getBytes(StandardCharsets.UTF_8), encodeLabel(parsed), null, y);
+        return target.drawObjective((label + "\0").getBytes(StandardCharsets.UTF_8), UpstreamHudLabels.encodeLabel(parsed), null, y);
     }
 
     private void prepareClient() {
@@ -367,7 +368,7 @@ public final class UpstreamRenderedNetworkProbe {
         var schematics = buildingControls.schematics();
         schematics.draw(viewport);
         weatherLayers.drawOver();
-        drawObjectives(drawStatusHud());
+        drawObjectives(buildingPowerHud.draw(target, buildingControls, Vars.player.team(), drawStatusHud()));
         drawChat();
         if (chatInput.open()) {
             target.drawChatKeyboard(chatInput.labels());
@@ -413,7 +414,7 @@ public final class UpstreamRenderedNetworkProbe {
 
     private void receiveChat(String message) {
         byte[] text = (message + "\0").getBytes(StandardCharsets.UTF_8);
-        int[] characters = encodeLabel(UpstreamLabelText.parse(UI.formatIcons(message)));
+        int[] characters = UpstreamHudLabels.encodeLabel(UpstreamLabelText.parse(UI.formatIcons(message)));
         chatLines.insert(0, new ChatLine(++chatSequence, text, characters));
         chatLines.truncate(VISIBLE_CHAT_MESSAGES);
         chatFade = Math.min(chatFade + 1f, VISIBLE_CHAT_MESSAGES) + 1f;
@@ -438,7 +439,7 @@ public final class UpstreamRenderedNetworkProbe {
 
     private void drawWorldLabel(UpstreamLabelText.Label text, float x, float y, int flags, float size, int align, int lineAlign) {
         if (encodedLabel != text) {
-            encodedCharacters = encodeLabel(text);
+            encodedCharacters = UpstreamHudLabels.encodeLabel(text);
             encodedLabel = text;
         }
         int font = target.drawWorldLabel(text.plain(), encodedCharacters, x, y, flags, size, align, lineAlign);
@@ -450,22 +451,6 @@ public final class UpstreamRenderedNetworkProbe {
         }
     }
 
-    private static int[] encodeLabel(UpstreamLabelText.Label text) {
-        int[] encoded = new int[text.characters().size() * 7];
-        int offset = 0;
-        for (var glyph : text.characters()) {
-            var art = glyph.art();
-            encoded[offset++] = glyph.codepoint();
-            encoded[offset++] = glyph.color();
-            encoded[offset++] = art == null ? -1 : UpstreamTerrainDrawProbe.pageIndex(art);
-            encoded[offset++] = art == null ? 0 : art.getX();
-            encoded[offset++] = art == null ? 0 : art.getY();
-            encoded[offset++] = art == null ? 0 : art.width;
-            encoded[offset++] = art == null ? 0 : art.height;
-        }
-        return encoded;
-    }
-
     private float drawStatusHud() {
         var rows = UpstreamStatusHud.collect();
         boolean changed = !rows.equals(lastStatus);
@@ -474,7 +459,7 @@ public final class UpstreamRenderedNetworkProbe {
             statusCharacters = new int[rows.size()][];
             for (int i = 0; i < rows.size(); i++) {
                 statusLabels[i] = (rows.get(i).text() + "\0").getBytes(StandardCharsets.UTF_8);
-                statusCharacters[i] = encodeLabel(UpstreamLabelText.parse(UI.formatIcons(rows.get(i).markup())));
+                statusCharacters[i] = UpstreamHudLabels.encodeLabel(UpstreamLabelText.parse(UI.formatIcons(rows.get(i).markup())));
             }
             lastStatus = rows;
             System.out.println("UPSTREAM_STATUS_HUD wave=" + Vars.state.wave
@@ -498,7 +483,7 @@ public final class UpstreamRenderedNetworkProbe {
             reportedStockObjectives = new boolean[rows.size()];
             for (int i = 0; i < rows.size(); i++) {
                 objectiveLabels[i] = (rows.get(i).text() + "\0").getBytes(StandardCharsets.UTF_8);
-                objectiveCharacters[i] = encodeLabel(UpstreamLabelText.parse(UI.formatIcons(rows.get(i).markup())));
+                objectiveCharacters[i] = UpstreamHudLabels.encodeLabel(UpstreamLabelText.parse(UI.formatIcons(rows.get(i).markup())));
             }
             lastObjectives = rows;
         }
