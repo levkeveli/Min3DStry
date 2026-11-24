@@ -63,10 +63,11 @@ numa=()
 [[ -z "${M3DS_DOCKER_CPUSET_CPUS:-}" ]] || numa+=(--cpuset-cpus "$M3DS_DOCKER_CPUSET_CPUS")
 [[ -z "${M3DS_DOCKER_CPUSET_MEMS:-}" ]] || numa+=(--cpuset-mems "$M3DS_DOCKER_CPUSET_MEMS")
 docker run --rm "${numa[@]}" -u "$(id -u):$(id -g)" -v "$PWD:/work" -w /work \
-  -e M3DS_RELAX_POINTER_TYPES=1 "$M3DS_SMOKE_DEVKIT_IMAGE" \
+  -e M3DS_RELAX_POINTER_TYPES=1 -e M3DS_DIAGNOSTIC_SYMBOLS=1 "$M3DS_SMOKE_DEVKIT_IMAGE" \
   bash research/upstream-runtime/arm11/build.sh research/upstream-runtime/build/generated/teavm/c \
     build/smoke-arm11 --unified build/smoke-assets
-cp build/smoke-arm11/upstream-probe.3dsx "$RUNNER_TEMP/server-release.jar" build/unified-smoke/
+cp build/smoke-arm11/upstream-probe.3dsx build/smoke-arm11/upstream-probe.symbols \
+  "$RUNNER_TEMP/server-release.jar" build/unified-smoke/
 unzip -p "$RUNNER_TEMP/assets.jar" assets/sprites/sprites.aatls > build/unified-smoke/sprites.aatls
 
 stock_jar="$RUNNER_TEMP/server-release.jar"

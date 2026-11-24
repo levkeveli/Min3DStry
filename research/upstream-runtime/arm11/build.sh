@@ -179,4 +179,8 @@ fi
     -specs=3dsx.specs "$output/all.c" "${native_network[@]}" "${native_input[@]}" \
     "${terrain_sources[@]}" "${save_rows_sources[@]}" \
     "${terrain_libraries[@]}" -lctru -lm -o "$output/upstream-probe.elf"
+if [[ "${M3DS_DIAGNOSTIC_SYMBOLS:-0}" == 1 ]]; then
+    "$DEVKITARM/bin/arm-none-eabi-nm" -n -S --defined-only "$output/upstream-probe.elf" \
+        > "$output/upstream-probe.symbols"
+fi
 "$DEVKITPRO/tools/bin/3dsxtool" "$output/upstream-probe.elf" "$output/upstream-probe.3dsx" "${package_flags[@]}"
