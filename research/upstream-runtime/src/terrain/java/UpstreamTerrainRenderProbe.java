@@ -254,6 +254,7 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
 
     @Override
     public void overlay() {
+        if (Core.settings != null && !Core.settings.getBool("minimap", true)) return;
         NativeTerrain.minimapDraw(336f, 8f, 56f);
     }
 

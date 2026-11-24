@@ -217,18 +217,28 @@ public final class UpstreamStatusRowsProbe {
             throw new IllegalStateException("Pause menu six-row quit mismatch");
         }
         var settings = new UpstreamSettingsMenu();
-        settings.open(true);
-        if (!settings.coreItems() || settings.selected() != 0) {
+        settings.open(true, true, true, false);
+        if (!settings.coreItems() || !settings.minimap() || !settings.weather()
+                || settings.performance() || settings.selected() != 0) {
             throw new IllegalStateException("Settings menu initial state mismatch");
         }
         settings.move(1);
-        if (!settings.backSelected()) throw new IllegalStateException("Settings back selection mismatch");
-        if (settings.toggleCoreItems() || settings.coreItems()) {
-            throw new IllegalStateException("Settings core-items toggle mismatch");
+        if (settings.backSelected() || settings.toggleSelected() || settings.minimap()) {
+            throw new IllegalStateException("Settings minimap toggle mismatch");
         }
-        settings.move(-1);
+        settings.move(1);
+        if (settings.toggleSelected() || settings.weather()) {
+            throw new IllegalStateException("Settings weather toggle mismatch");
+        }
+        settings.move(1);
+        if (!settings.toggleSelected() || !settings.performance()) {
+            throw new IllegalStateException("Settings performance toggle mismatch");
+        }
+        settings.move(1);
+        if (!settings.backSelected()) throw new IllegalStateException("Settings back selection mismatch");
+        settings.move(1);
         if (settings.selected() != 0) throw new IllegalStateException("Settings wrap mismatch");
-        System.out.println("UPSTREAM_PAUSE_MENU cases=18 ok");
+        System.out.println("UPSTREAM_PAUSE_MENU cases=22 ok");
         System.out.println("UPSTREAM_STATUS_ROWS cases=10 ok");
         System.out.println("UPSTREAM_GUARDIAN_WARNING cases=2 ok");
         System.out.println("UPSTREAM_UNIT_ROWS cases=3 ok");
