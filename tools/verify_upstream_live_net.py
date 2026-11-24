@@ -93,7 +93,7 @@ BUILDING_CRACK_PIXELS = {
 
 def write_controls_replay(path, first_move=22, building=False, touch_build=False, touch_config=False,
                           erekir_build=False, mining=None, model="old3ds", stock_menu_font=False,
-                          unified_boot=False, stationary=False, chat=False, cancel_restart=False):
+                          unified_boot=False, stationary=False, chat=False, cancel_restart=False, join_from_title=False):
     """Write the Azahar 2126.2 CTM input for this probe's pad/touch polling."""
     # The pinned Azahar movie header and HID sample definitions use packed little-endian fields.
     revision = bytes.fromhex("219d743a1e698101fe1ab8bef43e6563126c3c27")
@@ -166,7 +166,12 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
                     else (1 << 3) if seconds == leave_at else 0
             if building and seconds in (35, 37, 39):
                 buttons = 1  # A, with releases so a late HID poll can observe another press.
-            if unified_boot and seconds < 6:
+            if join_from_title:
+                if 24 <= seconds < 27 or 42 <= seconds < 45:
+                    buttons |= 1  # Open Play, then confirm Join Game.
+                if 33 <= seconds < 36:
+                    buttons |= 1 << 7  # Down to Join Game.
+            elif unified_boot and seconds < 6:
                 buttons |= 1 << 10  # X, sampled once before the game starts.
             if cancel_restart and 64 <= seconds < 67:
                 buttons |= 1 << 1  # B, while the original server is offline.
@@ -1844,12 +1849,15 @@ def run_model(args, model, config, original_config, log, output):
                     first_move = 101
                 if args.touch_config:
                     first_move = 154 if args.verify_stock_menu_font else 92
+                if args.join_from_title:
+                    first_move += 55  # Allow time for the title controls before joining.
                 write_controls_replay(replay, first_move=first_move, building=args.building,
                                       touch_build=args.touch_build, touch_config=args.touch_config,
                                       erekir_build=args.erekir_build, mining=args.mining, model=model,
                                       stock_menu_font=args.verify_stock_menu_font, unified_boot=args.unified_boot,
                                       stationary=not args.controls_replay, chat=args.verify_chat,
-                                      cancel_restart=args.server_kick == "restart-cancel")
+                                      cancel_restart=args.server_kick == "restart-cancel",
+                                      join_from_title=args.join_from_title)
                 command += ["-p", str(replay)]
             command.append(str(args.rom))
             process_log = output / f"{model}-azahar-process.log"
@@ -1859,6 +1867,8 @@ def run_model(args, model, config, original_config, log, output):
             try:
                 if args.unified_boot:
                     try:
+                        if args.join_from_title:
+                            wait_for(log, emulator, r"UPSTREAM_BOOT mode=title\b", args.timeout)
                         wait_for(log, emulator, r"UPSTREAM_BOOT mode=join\b", args.timeout)
                     except RuntimeError:
                         print(process_log.read_text(encoding="utf-8", errors="replace")[-2500:], file=sys.stderr)
@@ -2236,6 +2246,8 @@ def main():
                         help="Check and capture the English stock disconnect notice")
     parser.add_argument("--controls-replay", action="store_true",
                         help="Replay the controls test input in Azahar 2126.2")
+    parser.add_argument("--join-from-title", action="store_true",
+                        help="Start at the unified title and join through the Play menu")
     parser.add_argument("--unified-boot", action="store_true",
                         help="Hold X at startup to join from the unified offline and multiplayer ROM")
     parser.add_argument("--terrain-atlas", type=Path,
@@ -2344,6 +2356,11 @@ def main():
         parser.error("--verify-kick-notice needs --server-kick and --locale en")
     if args.unified_boot and not args.controls:
         parser.error("--unified-boot needs --controls")
+    if args.join_from_title and not (args.unified_boot and args.controls_replay):
+        parser.error("--join-from-title needs --unified-boot and --controls-replay")
+    if args.join_from_title and any((args.building, args.touch_build, args.touch_config,
+                                    args.erekir_build, args.mining, args.verify_chat)):
+        parser.error("--join-from-title needs the standard movement replay")
     if args.combat and (not args.controls or not args.terrain_atlas):
         parser.error("--combat needs --controls and --terrain-atlas")
     if args.combat and (args.controls_replay or args.building or args.touch_build or args.touch_config
@@ -2475,6 +2492,9 @@ def main():
     config, log = az.resolve_azahar_paths(str(args.azahar))
     endpoint = log.parent.parent / "sdmc/3ds/min3dstry/server-endpoint.txt"
     originals = {path: path.read_bytes() if path.exists() else None for path in (config, log, endpoint)}
+    startup = endpoint.with_name("startup.txt")
+    if args.join_from_title:
+        originals[startup] = startup.read_bytes() if startup.exists() else None
     atlas_path = endpoint.with_name("sprites.aatls")
     locale_path = endpoint.with_name("locale.txt")
     if args.locale:
@@ -2488,6 +2508,8 @@ def main():
     try:
         for path in originals:
             path.parent.mkdir(parents=True, exist_ok=True)
+        if args.join_from_title:
+            startup.unlink(missing_ok=True)
         suffix = " controls" if args.controls else " movement" if args.movement else ""
         endpoint.write_text(f"127.0.0.1 {args.port}{suffix}\n", encoding="ascii")
         if args.locale:
