@@ -47,3 +47,8 @@ server also reopens both saves through `verify_stock_campaign_archive.py
 --check-saves <profile> --server <server-release.jar>` and checks the sector
 IDs, dimensions and patch counts. Handheld loading and frame rate for these large maps
 require separate measurements.
+
+The unified campaign reference checks that a logic processor with no matching
+units leaves its binding cursor unallocated. It also verifies that successive
+bindings use the stock round-robin order and that a catalog-size change
+resets that cursor.
