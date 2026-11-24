@@ -1442,26 +1442,8 @@ final class UpstreamItemChoices {
         }
         if (usesSinglePlayer) {
             def stagedPathfinder = pathfinderFile.get().asFile
-            def pathfinder = new String(readUpstream(pathfinderSource), 'UTF-8')
-            def cacheField = 'Flowfield[][][] cache;'
-            def cacheInit = 'cache = new Flowfield[256][maxCosts][maxFields];'
-            def cacheLookup = '        if(cache[team.id][costType][fieldType] == null){'
-            def cacheWrite = '            cache[team.id][costType][fieldType] = field;'
-            def cacheReturn = '        return cache[team.id][costType][fieldType];'
-            if ([cacheField, cacheInit, cacheLookup, cacheWrite, cacheReturn].any { pathfinder.count(it) != 1 }) {
-                throw new GradleException('Pinned pathfinder cache changed')
-            }
             stagedPathfinder.parentFile.mkdirs()
-            stagedPathfinder.setText(pathfinder
-                .replace(cacheField, 'IntMap<Flowfield> cache;')
-                .replace(cacheInit, 'cache = new IntMap<>(4);')
-                .replace(cacheLookup, '''        if(team.id < 0 || team.id >= 256 || costType < 0 || costType >= maxCosts
-                || fieldType < 0 || fieldType >= maxFields) throw new ArrayIndexOutOfBoundsException();
-        int key = (team.id * maxCosts + costType) * maxFields + fieldType;
-        Flowfield cached = cache.get(key);
-        if(cached == null){''')
-                .replace(cacheWrite, '            cache.put(key, field);\n            cached = field;')
-                .replace(cacheReturn, '        return cached;'), 'UTF-8')
+            stagedPathfinder.bytes = readUpstream(pathfinderSource)
             def stageRoot = sourceDir.get().asFile
             providers.exec {
                 environment 'GIT_CEILING_DIRECTORIES', stageRoot.parentFile.absolutePath
@@ -1483,6 +1465,26 @@ final class UpstreamItemChoices {
             if (!stagedPathfinder.getText('UTF-8').contains('class CostGrid')) {
                 throw new GradleException('Stock flowfield cost patch did not apply to the staged sources')
             }
+
+            def pathfinder = stagedPathfinder.getText('UTF-8')
+            def cacheField = 'Flowfield[][][] cache;'
+            def cacheInit = 'cache = new Flowfield[256][maxCosts][maxFields];'
+            def cacheLookup = '        if(cache[team.id][costType][fieldType] == null){'
+            def cacheWrite = '            cache[team.id][costType][fieldType] = field;'
+            def cacheReturn = '        return cache[team.id][costType][fieldType];'
+            if ([cacheField, cacheInit, cacheLookup, cacheWrite, cacheReturn].any { pathfinder.count(it) != 1 }) {
+                throw new GradleException('Pinned pathfinder cache changed')
+            }
+            stagedPathfinder.setText(pathfinder
+                .replace(cacheField, 'IntMap<Flowfield> cache;')
+                .replace(cacheInit, 'cache = new IntMap<>(4);')
+                .replace(cacheLookup, '''        if(team.id < 0 || team.id >= 256 || costType < 0 || costType >= maxCosts
+                || fieldType < 0 || fieldType >= maxFields) throw new ArrayIndexOutOfBoundsException();
+        int key = (team.id * maxCosts + costType) * maxFields + fieldType;
+        Flowfield cached = cache.get(key);
+        if(cached == null){''')
+                .replace(cacheWrite, '            cache.put(key, field);\n            cached = field;')
+                .replace(cacheReturn, '        return cached;'), 'UTF-8')
 
             def saveIoPath = 'mindustry/io/SaveIO.java'
             def saveIo = new String(readUpstream('core/src/' + saveIoPath), 'UTF-8')
