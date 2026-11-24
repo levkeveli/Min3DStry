@@ -3,6 +3,7 @@
 import argparse
 import json
 from pathlib import Path
+import subprocess
 import time
 
 import verify_upstream_singleplayer as sp
@@ -25,6 +26,7 @@ SETUP = (
 TAPS = {35: (15, 155), 42: (268, 20), 48: (216, 184), 55: (216, 152)}
 PLACE = 1 << 0
 EXISTING = b"preserve existing schematic\n"
+CAPTURE_NAME = "Bridge layout"
 
 
 def create_fixture(args, output):
@@ -37,11 +39,18 @@ def create_fixture(args, output):
     return output / "config/saves/capture.msav"
 
 
-def verify_touch(log, proc, rpc, output):
+def verify_touch(log, proc, rpc, output, use_xdotool):
     sp._wait_for_log(log, proc, r"UPSTREAM_SCHEMATIC_CAPTURE_AREA x=84 y=23 x2=84 y2=25", 105)
     time.sleep(1)
     (output / "capture-area.png").write_bytes(rpc.screenshot())
-    sp._wait_for_log(log, proc, r"UPSTREAM_SCHEMATIC_SAVED file=Schematic-2\.msch blocks=3 width=1 height=3", 35)
+    sp._wait_for_log(log, proc, r"UPSTREAM_SCHEMATIC_NAME_PROMPT", 35)
+    if use_xdotool:
+        time.sleep(1)
+        subprocess.run(["xdotool", "type", CAPTURE_NAME], check=True, timeout=10)
+        subprocess.run(["xdotool", "key", "Return"], check=True, timeout=10)
+    else:
+        print(f"Enter {CAPTURE_NAME!r} in the Azahar software keyboard and confirm.", flush=True)
+    sp._wait_for_log(log, proc, r"UPSTREAM_SCHEMATIC_SAVED file=Schematic-2\.msch blocks=3 width=1 height=3", 90)
     time.sleep(1)
     (output / "capture-saved.png").write_bytes(rpc.screenshot())
 
@@ -60,7 +69,7 @@ def read_stock_capture(server, log, directory):
         'const source=schematic.tiles.find(t=>t.y===0), sorter=schematic.tiles.find(t=>t.y===1), '
         'receiver=schematic.tiles.find(t=>t.y===2); '
         'if (schematic.width!==1 || schematic.height!==3 || schematic.tiles.size!==3 || '
-        'String(schematic.name())!=="Schematic-2" || source===null || sorter===null || receiver===null || '
+        f'String(schematic.name())!=={json.dumps(CAPTURE_NAME)} || source===null || sorter===null || receiver===null || '
         'source.block!==Blocks.itemBridge || receiver.block!==Blocks.itemBridge || sorter.block!==Blocks.sorter || '
         'source.config.x!==0 || source.config.y!==2 || sorter.config!==Items.lead || source.rotation!==0) '
         'throw "Stock decode differs from the captured factory"; '
@@ -80,6 +89,7 @@ def main():
     parser.add_argument("--model", choices=("new3ds", "old3ds"), action="append")
     parser.add_argument("--port", type=int, default=16660)
     parser.add_argument("--live", action="store_true")
+    parser.add_argument("--xdotool", action="store_true", help="Enter the name in the Azahar Qt keyboard on X11")
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
     fixture = args.fixture or create_fixture(args, args.output / "stock-fixture")
@@ -94,7 +104,8 @@ def main():
                 buttons[0] = sp.KEY_X
             else:
                 buttons[84] = sp.KEY_SELECT
-            replay(args, model, fixture, live, taps=TAPS, buttons=buttons, verify_input=verify_touch,
+            replay(args, model, fixture, live, taps=TAPS, buttons=buttons,
+                   verify_input=lambda log, proc, rpc, target: verify_touch(log, proc, rpc, target, args.xdotool),
                    read_stock=lambda server, log: read_stock_capture(server, log, directory))
             print(f"UPSTREAM_STOCK_SCHEMATIC_CAPTURE model={model} live={live} original=ok link=0,2", flush=True)
 

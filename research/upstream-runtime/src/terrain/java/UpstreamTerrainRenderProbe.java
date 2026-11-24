@@ -72,6 +72,7 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
         byte[] text = new byte[4001];
         byte[] hint = (Core.bundle.get("schematic.add") + " · " + Core.bundle.get("name") + "\0")
             .getBytes(StandardCharsets.UTF_8);
+        System.out.println("UPSTREAM_SCHEMATIC_NAME_PROMPT");
         int length = NativeTerrain.schematicPrompt(Address.ofData(text), text.length, Address.ofData(hint), 0);
         return length > 0 && length < text.length ? new String(text, 0, length, StandardCharsets.UTF_8) : null;
     }
