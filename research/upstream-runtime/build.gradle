@@ -14,6 +14,8 @@ def tileSource = 'core/src/mindustry/world/Tile.java'
 def tilesSource = 'core/src/mindustry/world/Tiles.java'
 def pathfinderSource = 'core/src/mindustry/ai/Pathfinder.java'
 def flowfieldSearchPatch = file('patches/stock-flowfield-search-storage.patch')
+def flowfieldCostPatch = file('patches/stock-flowfield-cost-grid.patch')
+def flowfieldCostSources = ['mindustry/ai/ControlPathfinder.java', 'mindustry/ai/BaseBuilderAI.java']
 def annotationsSource = 'annotations/src/main/java/mindustry/annotations/Annotations.java'
 def arcRevision = '7445105cd2683daf5b9ac7033ebb07265d3e814d'
 def fileSource = 'arc-core/src/arc/files/Fi.java'
@@ -207,6 +209,10 @@ if (usesArcSources || usesExecutor) {
     def stagedClasses = []
     if (usesSinglePlayer) {
         stagedClasses.addAll(['mindustry/ai/Pathfinder.class', 'mindustry/ai/Pathfinder$*.class'])
+        flowfieldCostSources.each { path ->
+            def className = path.substring(0, path.length() - '.java'.length())
+            stagedClasses.addAll([className + '.class', className + '$*.class'])
+        }
         stagedClasses.addAll(['mindustry/io/SaveIO.class', 'mindustry/io/SaveIO$*.class'])
     }
     if (usesContentSources) {
@@ -571,6 +577,8 @@ tasks.register('prepareUpstreamProbe') {
     if (usesSinglePlayer) {
         inputs.file('src/gameplay/java/port/FactoryResources.java')
         inputs.file(flowfieldSearchPatch)
+        inputs.file(flowfieldCostPatch)
+        flowfieldCostSources.each { path -> outputs.file(sourceDir.map { it.file(path) }) }
         outputs.file(factoryResourcesFile)
         outputs.file(pathfinderFile)
         outputs.file(sourceDir.map { it.file('mindustry/io/SaveIO.java') })
@@ -1305,18 +1313,20 @@ final class GlacierFixture {
             adaptedGrid.setText(grid.replace(create, 'public static PlanetGrid create(int size){'), 'UTF-8')
         }
         if (usesLiveNetwork) {
-            def pathfinder = new String(readUpstream(pathfinderSource), 'UTF-8')
-            def allocateGrid = 'tiles = new int[world.width() * world.height()];'
-            def getTile = '        return tiles[x + y * wwidth];'
-            if (pathfinder.count(allocateGrid) != 1 || pathfinder.count(getTile) != 1) {
-                throw new GradleException('Pinned Pathfinder grid access changed')
+            if (!usesSinglePlayer) {
+                def pathfinder = new String(readUpstream(pathfinderSource), 'UTF-8')
+                def allocateGrid = 'tiles = new int[world.width() * world.height()];'
+                def getTile = '        return tiles[x + y * wwidth];'
+                if (pathfinder.count(allocateGrid) != 1 || pathfinder.count(getTile) != 1) {
+                    throw new GradleException('Pinned Pathfinder grid access changed')
+                }
+                // The remote client never starts the flowfield thread. Keep the same tile-cost packer.
+                def adaptedPathfinder = pathfinderFile.get().asFile
+                adaptedPathfinder.parentFile.mkdirs()
+                adaptedPathfinder.setText(pathfinder
+                    .replace(allocateGrid, 'tiles = new int[net.client() ? 0 : world.width() * world.height()];')
+                    .replace(getTile, '        return net.client() ? packTile(world.tile(x, y)) : tiles[x + y * wwidth];'), 'UTF-8')
             }
-            // The remote client never starts the flowfield thread. Keep the same tile-cost packer.
-            def adaptedPathfinder = pathfinderFile.get().asFile
-            adaptedPathfinder.parentFile.mkdirs()
-            adaptedPathfinder.setText(pathfinder
-                .replace(allocateGrid, 'tiles = new int[net.client() ? 0 : world.width() * world.height()];')
-                .replace(getTile, '        return net.client() ? packTile(world.tile(x, y)) : tiles[x + y * wwidth];'), 'UTF-8')
             def source = new String(readUpstream(netClientSource), 'UTF-8')
             if (usesLiveAudio) {
                 def soundGuard = 'if(sound == null || headless) return;'
@@ -1432,8 +1442,7 @@ final class UpstreamItemChoices {
         }
         if (usesSinglePlayer) {
             def stagedPathfinder = pathfinderFile.get().asFile
-            def pathfinder = usesLiveNetwork ? stagedPathfinder.getText('UTF-8') :
-                new String(readUpstream(pathfinderSource), 'UTF-8')
+            def pathfinder = new String(readUpstream(pathfinderSource), 'UTF-8')
             def cacheField = 'Flowfield[][][] cache;'
             def cacheInit = 'cache = new Flowfield[256][maxCosts][maxFields];'
             def cacheLookup = '        if(cache[team.id][costType][fieldType] == null){'
@@ -1460,6 +1469,19 @@ final class UpstreamItemChoices {
             }.result.get()
             if (!stagedPathfinder.getText('UTF-8').contains('class FlowFrontier')) {
                 throw new GradleException('Stock flowfield search patch did not apply to the staged source')
+            }
+
+            flowfieldCostSources.each { path ->
+                def destination = new File(stageRoot, path)
+                destination.parentFile.mkdirs()
+                destination.bytes = readUpstream('core/src/' + path)
+            }
+            providers.exec {
+                environment 'GIT_CEILING_DIRECTORIES', stageRoot.parentFile.absolutePath
+                commandLine 'git', '-C', stageRoot, '-c', 'core.autocrlf=false', 'apply', '--no-index', flowfieldCostPatch
+            }.result.get()
+            if (!stagedPathfinder.getText('UTF-8').contains('class CostGrid')) {
+                throw new GradleException('Stock flowfield cost patch did not apply to the staged sources')
             }
 
             def saveIoPath = 'mindustry/io/SaveIO.java'

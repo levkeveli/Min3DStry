@@ -6,6 +6,7 @@ public final class UpstreamPathfinderSearchReference {
     public static void verify() {
         verifyFrontier();
         verifySearchVisits();
+        verifyCompletedWeights();
     }
 
     private static void verifyFrontier() {
@@ -60,5 +61,30 @@ public final class UpstreamPathfinderSearchReference {
             }
         }
         System.out.println("UPSTREAM_PATH_VISITS words=stock pages=stock groups=stock reset=stock overflow=stock");
+    }
+
+    private static void verifyCompletedWeights() {
+        var working = new Pathfinder.CostGrid(24_579, true);
+        var completed = new Pathfinder.CostGrid(24_579, true);
+        working.fill(-1);
+        working.set(0, 7);
+        working.set(24_578, 21);
+        working.copyTo(completed);
+        working.set(0, 18);
+        working.set(64, 45);
+        if (completed.get(0) != 7 || completed.get(64) != -1 || completed.get(24_578) != 21
+                || working.get(0) != 18 || working.get(64) != 45) {
+            throw new AssertionError("Stock completed path weights changed during a working write");
+        }
+        working.fill(-5);
+        if (completed.get(24_578) != 21 || working.get(24_578) != -5) {
+            throw new AssertionError("Resetting working weights changed the completed path");
+        }
+        working.set(24_576, 12);
+        working.copyTo(completed);
+        if (completed.get(0) != -5 || completed.get(24_576) != 12 || completed.get(24_578) != -5) {
+            throw new AssertionError("Publishing a new field lost its default or boundary weights");
+        }
+        System.out.println("UPSTREAM_PATH_SNAPSHOT working-write=ok reset=ok republish=ok");
     }
 }
