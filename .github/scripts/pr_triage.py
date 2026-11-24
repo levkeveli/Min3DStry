@@ -26,7 +26,8 @@ def gh_api(*args, check=True):
     )
 
 
-def rerun_failed(n, head):
+def rerun_failed(n, head) -> bool:
+    """Returns True if an auto-rerun marker was written in this pass."""
     runs = json.loads(
         gh_api(
             f"repos/{REPO}/actions/runs?head_sha={head}&per_page=20",
@@ -35,13 +36,13 @@ def rerun_failed(n, head):
         ).stdout
     )
     if not runs:
-        return
+        return False
     comments = json.loads(
         gh_api(f"repos/{REPO}/issues/{n}/comments?per_page=100", "--paginate",
                "--slurp", "--jq", "flatten").stdout
     )
     if any(RERUN_MARKER + head in (c.get("body") or "") for c in comments):
-        return
+        return False
     for run in runs:
         rr = subprocess.run(
             ["gh", "run", "rerun", str(run["id"]), "--failed", "--repo", REPO],
@@ -58,6 +59,7 @@ def rerun_failed(n, head):
     except Exception as e:
         print(f"PR #{n}: could not record auto-rerun marker: {e}")
     print(f"PR #{n}: auto-rerun attempted for {len(runs)} failed run(s)")
+    return True
 
 
 def draft_if_idle(n, draft, updated):
@@ -94,8 +96,10 @@ def main():
     for pr in prs:
         try:
             updated = datetime.fromisoformat(pr["updated_at"].replace("Z", "+00:00"))
-            rerun_failed(pr["number"], pr["head"])
-            draft_if_idle(pr["number"], pr["draft"], updated)
+            reran = rerun_failed(pr["number"], pr["head"])
+            # A PR that just got an auto-rerun comment is active; do not draft it.
+            if not reran:
+                draft_if_idle(pr["number"], pr["draft"], updated)
         except Exception as e:
             print(f"PR #{pr['number']}: triage error, continuing: {e}")
     return 0

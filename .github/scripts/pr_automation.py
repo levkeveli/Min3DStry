@@ -265,7 +265,11 @@ def cmd_classify(_: argparse.Namespace) -> int:
     # exempt, otherwise the hard block would deadlock (no PR could merge to
     # make main green again).
     norm_labels = {lbl.strip().lower() for lbl in labels}
-    is_fix_pr = "main-verify-fix" in norm_labels
+    pr_text = f"{pr.get('title') or ''} {pr.get('body') or ''}".lower()
+    # The escape hatch is only for an actual fix/revert, not arbitrary PRs.
+    is_fix_pr = "main-verify-fix" in norm_labels and (
+        "revert" in pr_text or "main verification failed" in pr_text
+    )
     if not is_fix_pr and "main-verify-blocked" in norm_labels:
         metadata_errors.append(
             "main-verify-blocked: post-merge verification on main is red; "

@@ -26,45 +26,43 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Block PRs on failure, release only when both heavy workflows are green
+      - name: Block PRs on red main, release when main is green
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -e
+          repo="$GITHUB_REPOSITORY"
+          label="main-verify-blocked"
+          main_sha=$(gh api repos/"$repo"/commits/main --jq '.sha')
+
+          # Red predicate shared with the PR policy gate: a heavy workflow's
+          # latest main run is failure-like AND belongs to main's current HEAD.
+          main_red() {
+            for wf in "3DS full build" "Upstream ARM11 smoke"; do
+              read -r c sha_run < <(gh run list --repo "$repo" --workflow "$wf" --branch main \
+                  --limit 1 --json conclusion,headSha --jq '.[0] | (.conclusion // "none") + " " + (.headSha // "")')
+              case "$c" in failure|timed_out|startup_failure) ;; *) continue;; esac
+              [ "$sha_run" = "$main_sha" ] && return 0
+            done
+            return 1
+          }
+
           if [ "${{ github.event_name }}" = "workflow_run" ]; then
             sha="${{ github.event.workflow_run.head_sha }}"
             name="${{ github.event.workflow_run.name }}"
             conclusion="${{ github.event.workflow_run.conclusion }}"
           else
-            # Scheduled/dispatch run: release-check only.
-            sha=$(gh api repos/"$GITHUB_REPOSITORY"/commits/main --jq '.sha')
-            name="scheduled release check"
-            conclusion="success"
+            # Scheduled/dispatch run: evaluate main and label or release.
+            sha="$main_sha"
+            name="scheduled check"
+            if main_red; then conclusion="failure"; else conclusion="success"; fi
           fi
-          repo="$GITHUB_REPOSITORY"
-          label="main-verify-blocked"
 
           # Ensure the automation label exists before using it.
           gh label list --repo "$repo" --json name --jq '.[].name' | grep -qx "$label" \
             || gh label create "$label" --repo "$repo" --color "d73a4a" \
                  --description "Automation hold: main post-merge verification is red" || true
-
-          # Release when BOTH heavy workflows are green for main's current
-          # HEAD: either their latest main run succeeded, or the failing run
-          # belongs to an older SHA that main has since moved past (a fix
-          # merged without retriggering a path-filtered workflow).
-          main_sha=$(gh api repos/"$repo"/commits/main --jq '.sha')
-          both_green() {
-            for wf in "3DS full build" "Upstream ARM11 smoke"; do
-              read -r c sha_run < <(gh run list --repo "$repo" --workflow "$wf" --branch main \
-                  --limit 1 --json conclusion,headSha --jq '.[0] | (.conclusion // "none") + " " + (.headSha // "")')
-              if [ "$c" = "success" ]; then continue; fi
-              case "$c" in failure|timed_out|startup_failure) ;; *) return 1;; esac
-              [ "$sha_run" != "$main_sha" ] || return 1
-            done
-            return 0
-          }
 
           if [ "$conclusion" = "failure" ]; then
             title="Main verification failed @ $sha"
@@ -73,7 +71,7 @@ jobs:
             if [ -z "$existing" ]; then
               gh issue create --repo "$repo" --title "$title" \
                 --label "$label" \
-                --body "Post-merge verification failed on main @ \`$sha\` ($name). Open PRs get \`$label\`; the PR that fixes or reverts must remove its own label to merge. A merge onto red main will be reverted."
+                --body "Post-merge verification failed on main @ \`$sha\` ($name). Open PRs get \`$label\`; the fixing/reverting PR must carry \`main-verify-fix\`. A merge onto red main will be reverted."
             fi
             blocked=0; failed=0
             for pr in $(gh pr list --repo "$repo" --state open --limit 100 --json number,labels --jq '.[] | select([.labels[].name] | any(. == "hold" or . == "needs-human" or . == "do-not-merge" or . == "status:blocked" or . == "tier:c" or . == "main-verify-blocked" or . == "main-verify-fix") | not) | .number'); do
@@ -82,15 +80,15 @@ jobs:
             echo "Blocked $blocked PR(s), $failed failure(s)"
             [ "$failed" -eq 0 ]
           elif [ "$conclusion" = "success" ]; then
-            if both_green; then
+            if ! main_red; then
               issue=$(gh issue list --repo "$repo" --state open \
                 --search "Main verification failed in:title" --json number --jq '.[0].number // empty')
               [ -z "$issue" ] || gh issue close "$issue" --repo "$repo" \
-                --comment "Both heavy workflows green at \`$sha\`. Releasing \`$label\` holds."
+                --comment "Main verification green at \`$main_sha\`. Releasing \`$label\` holds."
               for pr in $(gh pr list --repo "$repo" --state open --limit 100 --json number,labels --jq '.[] | select([.labels[].name] | any(. == "main-verify-blocked")) | .number'); do
                 gh pr edit "$pr" --repo "$repo" --remove-label "$label" || true
               done
             else
-              echo "Not releasing: the other heavy workflow is not green at $sha"
+              echo "Not releasing: main is still red at $main_sha"
             fi
           fi
