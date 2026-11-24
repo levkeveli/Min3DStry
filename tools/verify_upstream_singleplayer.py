@@ -51,8 +51,9 @@ def resolve_sd_save_path(log_path: Path) -> Path:
 
 def write_singleplayer_ctm(path: Path, model: str) -> None:
     """Write an Azahar 2126.2 CTM input sequence exercising the Ground Zero vertical slice."""
-    # Both New 3DS and Old 3DS reach UPSTREAM_SP_READY around 19s; start CTM taps at 26s for margin.
-    t0 = 26
+    # Hosted runners can take ~32s to reach UPSTREAM_SP_READY; start taps at 40s
+    # so the mine and ore taps never land during world loading.
+    t0 = 40
     total_seconds = t0 + 62
     frames = total_seconds * CTM_SAMPLES_PER_SECOND
     header = struct.pack(
