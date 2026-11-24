@@ -162,7 +162,7 @@ final class UpstreamSchematicPlacement {
     boolean editMetadata(Fi file, Function<String, String> nameInput,
                          Function<String, String> descriptionInput) throws IOException {
         if (!file.parent().equals(directory) || !file.extEquals(Vars.schematicExtension)
-                || !file.file().isFile() || !file.file().canWrite()) return false;
+                || !file.file().isFile()) return false;
         Schematic schematic = readSchematic(file);
         String name = nameInput.apply(schematic.name());
         if (name == null || name.isEmpty()) return false;
