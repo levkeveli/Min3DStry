@@ -8,7 +8,8 @@ import mindustry.ctype.UnlockableContent;
 
 /** Shows the stock database with the same handheld list controls as Custom Game. */
 final class UpstreamCoreDatabaseMenu {
-    private record Row(String label, TextureRegion icon, UpstreamCoreDatabase.Entry entry) {}
+    private record Row(String label, UpstreamCoreDatabase.Entry entry) {}
+    private record DrawRow(byte[] label, int[] characters, TextureRegion icon) {}
     private static final int visibleRows = 5;
     private final UpstreamCoreDatabase database = new UpstreamCoreDatabase();
     private final UpstreamTerrainRenderProbe target;
@@ -23,6 +24,8 @@ final class UpstreamCoreDatabaseMenu {
         String query = "";
         var rows = rows(tabs.get(tab), query);
         int selected = 0, previousX = 0, previousY = 0;
+        int renderedSelection = -1;
+        List<DrawRow> visible = List.of();
         UpstreamSinglePlayerInput.poll();
         while (true) {
             long nextFrame = System.nanoTime() + 16_666_667L;
@@ -35,6 +38,7 @@ final class UpstreamCoreDatabaseMenu {
                 tab = Math.floorMod(tab + direction, tabs.size());
                 rows = rows(tabs.get(tab), query);
                 selected = 0;
+                renderedSelection = -1;
             }
             if ((input & UpstreamSinglePlayerInput.X_PRESSED) != 0) {
                 var answer = UpstreamTerrainRenderProbe.readDatabaseSearch(query);
@@ -42,6 +46,7 @@ final class UpstreamCoreDatabaseMenu {
                     query = answer;
                     rows = rows(tabs.get(tab), query);
                     selected = 0;
+                    renderedSelection = -1;
                 }
             }
             if (y > 60 && previousY <= 20) selected = Math.max(0, selected - 1);
@@ -55,9 +60,13 @@ final class UpstreamCoreDatabaseMenu {
                     continue;
                 }
             }
-            String title = Core.bundle.get("database") + " / " +
-                (tabs.get(tab) == Planets.sun ? Core.bundle.get("all") : tabs.get(tab).localizedName);
-            draw(title, query, rows, selected);
+            if (selected != renderedSelection) {
+                String title = Core.bundle.get("database") + " / " +
+                    (tabs.get(tab) == Planets.sun ? Core.bundle.get("all") : tabs.get(tab).localizedName);
+                visible = visibleRows(title, query, rows, selected);
+                renderedSelection = selected;
+            }
+            draw(visible, 0, visible.size());
             while (System.nanoTime() < nextFrame) Thread.yield();
         }
     }
@@ -68,20 +77,10 @@ final class UpstreamCoreDatabaseMenu {
             String category = Core.bundle.get("database-category." + group.category(), group.category());
             String heading = group.tag().equals("default") ? category
                 : category + " / " + Core.bundle.get("database-tag." + group.tag(), group.tag());
-            rows.add(new Row(heading, null, null));
+            rows.add(new Row(heading, null));
             for (var entry : group.entries()) {
-                TextureRegion icon = null;
-                String name = Core.bundle.get("unlock.incampaign");
-                if (entry.unlocked()) {
-                    var content = entry.content();
-                    name = content.localizedName;
-                    if (content.uiIcon == null) content.loadIcon();
-                    if (content.uiIcon != null && content.uiIcon.found()) icon = content.uiIcon;
-                } else {
-                    var lock = Core.atlas.find("lock-small");
-                    if (lock.found()) icon = lock;
-                }
-                rows.add(new Row(name, icon, entry));
+                String name = entry.unlocked() ? entry.content().localizedName : Core.bundle.get("unlock.incampaign");
+                rows.add(new Row(name, entry));
             }
         }
         return rows;
@@ -95,6 +94,9 @@ final class UpstreamCoreDatabaseMenu {
             wrap(lines, content.unlocked() || !content.hideDetails ? content.details : Core.bundle.get("unlock.incampaign"));
         }
         if (content.credit != null) wrap(lines, Core.bundle.format("content.createdby", content.credit));
+        var display = new ArrayList<DrawRow>();
+        display.add(encode(content.localizedName, icon(row.entry())));
+        for (var line : lines) display.add(encode(line, null));
         int first = 0, previousY = 0;
         UpstreamSinglePlayerInput.poll();
         while (true) {
@@ -107,15 +109,7 @@ final class UpstreamCoreDatabaseMenu {
             if (y < -60 && previousY >= -20) first = Math.min(Math.max(0, lines.size() - 7), first + 1);
             previousY = y;
 
-            target.begin(0, 0, UpstreamTerrainDrawProbe.VIEW_WIDTH, UpstreamTerrainDrawProbe.VIEW_HEIGHT);
-            try {
-                float top = drawRow(content.localizedName, row.icon(), 6f);
-                for (int i = first; i < Math.min(first + 7, lines.size()); i++) {
-                    top = drawRow(lines.get(i), null, top);
-                }
-            } finally {
-                target.end();
-            }
+            draw(display, first + 1, 7);
             while (System.nanoTime() < nextFrame) Thread.yield();
         }
     }
@@ -135,28 +129,50 @@ final class UpstreamCoreDatabaseMenu {
         }
     }
 
-    private void draw(String title, String search, List<Row> rows, int selected) {
+    private List<DrawRow> visibleRows(String title, String search, List<Row> rows, int selected) {
+        var visible = new ArrayList<DrawRow>();
+        visible.add(encode(title, null));
+        visible.add(encode("X  " + Core.bundle.get("players.search") + (search.isEmpty() ? "" : "  " + search), null));
+        if (rows.isEmpty()) {
+            visible.add(encode(Core.bundle.get("none.found"), null));
+        } else {
+            int start = selected / visibleRows * visibleRows;
+            for (int i = start; i < Math.min(start + visibleRows, rows.size()); i++) {
+                var row = rows.get(i);
+                visible.add(encode((i == selected ? "> " : "  ") + row.label(), icon(row.entry())));
+            }
+        }
+        return visible;
+    }
+
+    private static TextureRegion icon(UpstreamCoreDatabase.Entry entry) {
+        if (entry == null) return null;
+        if (!entry.unlocked()) {
+            var lock = Core.atlas.find("lock-small");
+            return lock.found() ? lock : null;
+        }
+        var content = entry.content();
+        if (content.uiIcon == null) content.loadIcon();
+        return content.uiIcon != null && content.uiIcon.found() ? content.uiIcon : null;
+    }
+
+    private void draw(List<DrawRow> rows, int first, int count) {
         target.begin(0, 0, UpstreamTerrainDrawProbe.VIEW_WIDTH, UpstreamTerrainDrawProbe.VIEW_HEIGHT);
         try {
-            float y = drawRow(title, null, 6f);
-            y = drawRow("X  " + Core.bundle.get("players.search") + (search.isEmpty() ? "" : "  " + search), null, y);
-            if (rows.isEmpty()) {
-                drawRow(Core.bundle.get("none.found"), null, y);
-            } else {
-                int start = selected / visibleRows * visibleRows;
-                for (int i = start; i < Math.min(start + visibleRows, rows.size()); i++) {
-                    var row = rows.get(i);
-                    y = drawRow((selected == i ? "> " : "  ") + row.label(), row.icon(), y);
-                }
-            }
+            float y = present(rows.get(0), 6f);
+            for (int i = Math.max(1, first); i < Math.min(first + count, rows.size()); i++) y = present(rows.get(i), y);
         } finally {
             target.end();
         }
     }
 
-    private float drawRow(String text, TextureRegion icon, float y) {
+    private float present(DrawRow row, float y) {
+        return target.drawObjective(row.label(), row.characters(), row.icon(), y);
+    }
+
+    private static DrawRow encode(String text, TextureRegion icon) {
         String label = arc.util.Strings.stripColors(text);
-        return target.drawObjective((label + "\0").getBytes(StandardCharsets.UTF_8),
-            UpstreamSinglePlayerApp.encodePlainMenuLabel(label), icon, y);
+        return new DrawRow((label + "\0").getBytes(StandardCharsets.UTF_8),
+            UpstreamSinglePlayerApp.encodePlainMenuLabel(label), icon);
     }
 }
