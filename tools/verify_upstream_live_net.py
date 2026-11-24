@@ -100,6 +100,7 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
     samples_per_second = 234
     # Construction and configuration replays can take longer between input polls.
     needs_settling_time = building or touch_build or touch_config
+    move_hold = 3 if unified_boot else 1
     circle_at = first_move + (18 if needs_settling_time else 6)
     leave_at = first_move + (44 if needs_settling_time else 16)
     if unified_boot:
@@ -158,13 +159,18 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
             elif mining or stationary:
                 buttons = 0
             else:
-                buttons = (1 << 4) if seconds == first_move else (1 << 3) if seconds == leave_at else 0
+                # The unified ROM can take more than one emulated second to
+                # service a HID transition on a loaded hosted runner. Hold each
+                # control long enough that a late poll still observes the press.
+                buttons = (1 << 4) if first_move <= seconds < first_move + move_hold \
+                    else (1 << 3) if seconds == leave_at else 0
             if building and seconds in (35, 37, 39):
                 buttons = 1  # A, with releases so a late HID poll can observe another press.
             if unified_boot and seconds < 6:
                 buttons |= 1 << 10  # X, sampled once before the game starts.
             circle_x = 65 if mining == "wall" and 54 <= seconds < pan_end else 0
-            circle_y = 106 if seconds == circle_at and not (erekir_build or mining or stationary) else 0
+            circle_y = 106 if circle_at <= seconds < circle_at + move_hold and not (
+                erekir_build or mining or stationary) else 0
             if mining == "floor" and 88 <= seconds < 94:
                 circle_y = 65
             point = next((point for start, point in taps if start <= seconds < start + 2), None)

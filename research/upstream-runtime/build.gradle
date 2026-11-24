@@ -210,6 +210,7 @@ if (usesArcSources || usesExecutor) {
     if (usesWorldSources) {
         stagedClasses.addAll(['mindustry/world/Tile.class', 'mindustry/world/Tile$*.class',
                               'mindustry/ai/BlockIndexer.class', 'mindustry/ai/BlockIndexer$*.class',
+                              'mindustry/world/blocks/logic/LogicBlock.class', 'mindustry/world/blocks/logic/LogicBlock$*.class',
                               'mindustry/world/Tiles.class', 'mindustry/world/Tiles$*.class'])
     }
     if (usesArcSources) {
@@ -520,6 +521,7 @@ tasks.register('prepareUpstreamProbe') {
     if (usesWorldSources) {
         outputs.files(tileFile, tilesFile)
         outputs.file(sourceDir.map { it.file('mindustry/ai/BlockIndexer.java') })
+        outputs.file(sourceDir.map { it.file('mindustry/world/blocks/logic/LogicBlock.java') })
     }
     if (usesArcSources || usesExecutor) {
         inputs.property('arcRevision', arcRevision)
@@ -960,6 +962,16 @@ final class GlacierFixture {
                 def stagedIndexer = sourceDir.get().file(indexerPath).asFile
                 stagedIndexer.parentFile.mkdirs()
                 stagedIndexer.setText(indexer.replace(unusedCapacity, 'flagMap[i][j] = new Seq<>(0);'), 'UTF-8')
+
+                def logicBlockPath = 'mindustry/world/blocks/logic/LogicBlock.java'
+                def logicBlock = new String(readUpstream('core/src/' + logicBlockPath), 'UTF-8')
+                def writeProgram = '            stream.write(bytes);'
+                if (logicBlock.count(writeProgram) != 1) throw new GradleException('Pinned logic program write changed')
+                def stagedLogicBlock = sourceDir.get().file(logicBlockPath).asFile
+                stagedLogicBlock.parentFile.mkdirs()
+                // TeaVM's deflater rejects an empty write. The stock payload length still records zero.
+                stagedLogicBlock.setText(logicBlock.replace(writeProgram,
+                    '            if(bytes.length > 0) stream.write(bytes);'), 'UTF-8')
             }
             def adaptedBlock = blockFile.get().asFile
             adaptedBlock.parentFile.mkdirs()
