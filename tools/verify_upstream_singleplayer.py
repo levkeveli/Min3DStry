@@ -103,12 +103,13 @@ def write_singleplayer_ctm(
             (t0 + 106, KEY_START),  # Clean exit
         )
     if database_title:
-        taps = ()
+        taps = (
+            (42, (160, 72)),  # Confirm the highlighted Database row.
+            (91, (160, 132)), # Return from the catalog to the title.
+        )
         button_windows = (
             (34, KEY_DOWN),  # Select Database on the title screen.
-            (42, KEY_A),     # Open Database.
             (50, KEY_A),     # Open Core Database.
-            (91, KEY_B),     # Return to the title.
             (101, KEY_B),    # Exit the title cleanly.
         )
     with path.open("wb") as movie:
