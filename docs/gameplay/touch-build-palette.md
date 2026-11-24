@@ -69,9 +69,9 @@ rotations, and configuration. The picker shows the name stored inside the
 schematic. New captures use the next free `Schematic-N.msch` filename and
 can be imported into the unmodified Java game.
 
-Entering an existing schematic name opens a replacement prompt. Press
-**A** to replace the layout or **B** to keep the saved file. Replacement
-preserves the existing description and labels.
+Entering an existing schematic name opens a replacement prompt. Confirm in
+the prompt to replace the layout, or cancel to keep the saved file.
+Replacement preserves the existing description and labels.
 
 The capture check selects two linked Bridge Conveyors and a Lead
 Sorter. It also checks that a cancelled or empty selection creates no
