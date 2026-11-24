@@ -3,6 +3,7 @@
 import argparse
 import json
 from pathlib import Path
+import shutil
 import subprocess
 import time
 
@@ -50,6 +51,25 @@ def enter_name(use_xdotool):
         print(f"Enter {CAPTURE_NAME!r} in the Azahar software keyboard and confirm.", flush=True)
 
 
+def create_edit_fixture(args, fixture):
+    output = args.output / "stock-schematic"
+    schematic = args.output.resolve() / "stock-schematic.msch"
+    server, log = stock_session(args, output, fixture)
+    try:
+        script = (
+            'const Schematics=Packages.mindustry.game.Schematics; '
+            'const layout=new Schematics().create(84,23,84,25,Vars.state.rules.defaultTeam); '
+            f'layout.tags.put("name", {json.dumps(CAPTURE_NAME)}); '
+            'layout.tags.put("description", "Stock fixture description"); '
+            f'Schematics.write(layout, new Packages.arc.files.Fi({json.dumps(schematic.as_posix())})); '
+            'return "STOCK_EDIT_FIXTURE_READY";'
+        )
+        stock_command(server, log, "js (() => { " + script + " })()", "STOCK_EDIT_FIXTURE_READY")
+    finally:
+        stop(server)
+    return schematic
+
+
 def edit_text(value):
     time.sleep(1)
     subprocess.run(["xdotool", "key", "ctrl+a"], check=True, timeout=10)
@@ -58,6 +78,14 @@ def edit_text(value):
 
 
 def verify_touch(log, proc, rpc, output, use_xdotool, replace, edit):
+    if edit:
+        sp._wait_for_log(log, proc, r"UPSTREAM_SCHEMATIC_EDIT_PROMPT field=name", 90)
+        edit_text(EDITED_NAME)
+        sp._wait_for_log(log, proc, r"UPSTREAM_SCHEMATIC_EDIT_PROMPT field=editor.description", 35)
+        edit_text(EDITED_DESCRIPTION)
+        sp._wait_for_log(log, proc, r"UPSTREAM_SCHEMATIC_METADATA_EDITED file=Schematic-2\.msch", 35)
+        (output / "schematic-edited.png").write_bytes(rpc.screenshot())
+        return
     sp._wait_for_log(log, proc, r"UPSTREAM_SCHEMATIC_CAPTURE_AREA x=84 y=23 x2=84 y2=25", 105)
     time.sleep(1)
     (output / "capture-area.png").write_bytes(rpc.screenshot())
@@ -75,12 +103,6 @@ def verify_touch(log, proc, rpc, output, use_xdotool, replace, edit):
         else:
             print("Confirm the existing schematic replacement in Azahar.", flush=True)
         sp._wait_for_log(log, proc, r"UPSTREAM_SCHEMATIC_SAVED file=Schematic-2\.msch blocks=1 width=1 height=1", 90)
-    if edit:
-        sp._wait_for_log(log, proc, r"UPSTREAM_SCHEMATIC_EDIT_PROMPT field=name", 90)
-        edit_text(EDITED_NAME)
-        sp._wait_for_log(log, proc, r"UPSTREAM_SCHEMATIC_EDIT_PROMPT field=editor.description", 35)
-        edit_text(EDITED_DESCRIPTION)
-        sp._wait_for_log(log, proc, r"UPSTREAM_SCHEMATIC_METADATA_EDITED file=Schematic-2\.msch", 35)
     time.sleep(1)
     (output / "capture-saved.png").write_bytes(rpc.screenshot())
 
@@ -142,6 +164,7 @@ def main():
         parser.error("--edit requires --xdotool")
     args.output.mkdir(parents=True, exist_ok=True)
     fixture = args.fixture or create_fixture(args, args.output / "stock-fixture")
+    edit_fixture = create_edit_fixture(args, fixture) if args.edit else None
     for model in args.model or ("old3ds", "new3ds"):
         for live in (False, True) if args.live else (False,):
             scene = args.output / model / ("live" if live else "offline")
@@ -155,7 +178,9 @@ def main():
                 taps.update({76: (268, 20), 82: (216, 168), 88: (216, 168)})
                 buttons[96] = PLACE
             if args.edit:
-                taps.update({80: (184, 20), 90: (150, 81)})
+                shutil.copyfile(edit_fixture, directory / "Schematic-2.msch")
+                taps = {35: (15, 155), 42: (184, 20), 50: (150, 81)}
+                del buttons[62]
             if live:
                 buttons[0] = sp.KEY_X
             else:
