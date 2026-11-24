@@ -1252,6 +1252,7 @@ final class GlacierFixture {
 
             def graph = new String(readUpstream('core/src/' + powerGraphPath), 'UTF-8')
             def history = [
+                'new Seq<>(false, 16, Building.class)': 'new Seq<>(false, 1, Building.class)',
                 'private final WindowedMean powerBalance = new WindowedMean(60);':
                     'private @Nullable WindowedMean powerBalance;',
                 'return powerBalance.rawMean();':
