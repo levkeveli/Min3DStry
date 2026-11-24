@@ -804,6 +804,20 @@ tasks.register('prepareUpstreamProbe') {
                 'speedBoosterText(unit, amount, speed, strength, filter)')
             withLabel('itemBoosters(String unit, float timePeriod, float speedBoost, float rangeBoost, ItemStack[] items)',
                 'itemBoosterText(unit, timePeriod, speedBoost, rangeBoost, items)')
+            withLabel('blocks(Attribute attr, boolean floating, float scaleEff, float scaleAmount, @Nullable Seq<ItemStack> outputs, float timePeriod, boolean startZero, boolean checkFloors)',
+                'terrainOutputText(attr, floating, scaleEff, scaleAmount, outputs, timePeriod, checkFloors)')
+            def terrainStart = '''    public static StatValue blocks(Attribute attr, boolean floating, float scale, boolean startZero, boolean checkFloors){
+        return table -> table.table(c -> {'''
+            hooks[terrainStart] = terrainStart.replace('return table ->',
+                'return withText(() -> terrainEfficiencyText(attr, floating, scale, startZero, checkFloors), table ->')
+            def terrainEnd = '''                    lastMap[0] = current;
+                }
+            });
+        });
+    }
+
+    public static StatValue blocks(Attribute attr, boolean floating, float scaleEff'''
+            hooks[terrainEnd] = terrainEnd.replace('\n        });\n    }', '\n        }));\n    }')
             def ammoSignature = '    public static <T extends UnlockableContent> StatValue ammo(ObjectMap<T, BulletType> map, boolean nested, boolean showUnit, @Nullable String blockName){'
             def originalAmmoStart = ammoSignature + '\n        return table -> {'
             hooks[originalAmmoStart] = originalAmmoStart.replace('return table -> {',
@@ -977,6 +991,48 @@ tasks.register('prepareUpstreamProbe') {
         if(range != 0) label.append(" +").append(Strings.autoFixed(range / tilesize, 2)).append(" ").append(StatUnit.blocks.localized());
         if(speed != 0) label.append(" ").append(unit.replace("{0}", Strings.autoFixed(speed, 2)));
         return label.toString();
+    }
+
+    private static Seq<Block> terrainStatBlocks(Attribute attr, boolean floating, boolean checkFloors){
+        return Vars.content.blocks()
+            .select(block -> (!checkFloors || block instanceof Floor) && indexer.isBlockPresent(block)
+                && block.attributes.get(attr) != 0 && !((block instanceof Floor floor && floor.isDeep()) && !floating))
+            .with(blocks -> blocks.sort(block -> block.attributes.get(attr)));
+    }
+
+    private static String terrainEfficiencyText(Attribute attr, boolean floating, float scale, boolean startZero, boolean checkFloors){
+        if(!state.isGame()) return Core.bundle.get("stat.showinmap");
+        StringBuilder label = new StringBuilder();
+        for(var block : terrainStatBlocks(attr, floating, checkFloors)){
+            float multiplier = block.attributes.get(attr) * scale;
+            label.append('\\n').append(block.localizedName).append(" ");
+            if(multiplier >= 0 && !startZero) label.append("+");
+            label.append((int)(multiplier * 100)).append("%");
+        }
+        return label.length() == 0 ? Core.bundle.get("none.inmap") : label.toString();
+    }
+
+    private static String terrainOutputText(Attribute attr, boolean floating, float scaleEff, float scaleAmount,
+        Seq<ItemStack> outputs, float period, boolean checkFloors){
+        if(!state.isGame()) return Core.bundle.get("stat.showinmap");
+        StringBuilder label = new StringBuilder();
+        for(var block : terrainStatBlocks(attr, floating, checkFloors)){
+            float attribute = block.attributes.get(attr);
+            float efficiency = 1f + attribute * scaleEff;
+            label.append('\\n').append(block.localizedName).append(" ");
+            if(outputs == null || outputs.isEmpty()){
+                label.append(Core.bundle.get("none")).append(" ");
+            }else{
+                for(var output : outputs){
+                    float amount = output.amount * (1f + attribute * scaleAmount);
+                    float rate = amount / ((period / efficiency) / 60f);
+                    label.append(output.item.localizedName).append(" ")
+                        .append(Strings.autoFixed(rate, 3)).append(StatUnit.perSecond.localized()).append(" ");
+                }
+            }
+            label.append(Core.bundle.format("stat.efficiency", fixValue(efficiency * 100f)));
+        }
+        return label.length() == 0 ? Core.bundle.get("none.inmap") : label.toString();
     }
 
     private static String weaponStatText(UnitType unit, Seq<Weapon> weapons){
