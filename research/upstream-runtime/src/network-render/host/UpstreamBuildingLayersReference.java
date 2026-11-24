@@ -238,6 +238,8 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         if (liquid != 21) throw new AssertionError("Expected 21 stock liquid buildings, got " + liquid);
         if (materials != 52) throw new AssertionError("Expected 52 stock material buildings, got " + materials);
         target.verifyLiquidBridgeTransfer(viewer);
+        target.verifyLiquidRouterTransfer(viewer);
+        target.verifyLiquidJunctionRouting(viewer);
         target.verifyCanvas(viewer);
         if (args.length >= 4) verifyObjectiveHud();
         if (args.length >= 5) verifyClientProcessor(new Fi(args[4]), viewer);
@@ -1270,17 +1272,96 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         backSource.configure(new arc.math.geom.Point2(3, 0));
         backTarget.configure(new arc.math.geom.Point2(-3, 0));
         backSource.liquids.add(Liquids.water, backSource.block.liquidCapacity);
-        Time.delta = 1f;
-        for (int tick = 0; tick < 120; tick++) {
-            backSource.update();
-            backTarget.update();
+        float previousDelta = Time.delta;
+        try {
+            Time.delta = 1f;
+            for (int tick = 0; tick < 120; tick++) {
+                backSource.update();
+                backTarget.update();
+            }
+        } finally {
+            Time.delta = previousDelta;
         }
         if (backTarget.liquids.get(Liquids.water) > 0f) {
             throw new AssertionError("Back-linked stock bridge transported water");
         }
+        backSourceTile.setBlock(Blocks.air);
+        backTargetTile.setBlock(Blocks.air);
 
         System.out.println("UPSTREAM_LIQUID_BRIDGE_REFERENCE bridgeMilli=" + Math.round(bridge * 1000f)
             + " phaseMilli=" + Math.round(phase * 1000f) + " backLink=rejected");
+    }
+
+    private void verifyLiquidJunctionRouting(Team team) {
+        var sourceTile = Vars.world.tile(71, 50);
+        var junctionTile = Vars.world.tile(72, 50);
+        var sinkTile = Vars.world.tile(73, 50);
+        sourceTile.setBlock(Blocks.air);
+        junctionTile.setBlock(Blocks.air);
+        sinkTile.setBlock(Blocks.air);
+        sourceTile.setBlock(Blocks.liquidRouter, team, 0);
+        junctionTile.setBlock(Blocks.liquidJunction, team, 0);
+        sinkTile.setBlock(Blocks.liquidRouter, team, 0);
+
+        var junction = junctionTile.build;
+        // v160.8 LiquidJunctionBuild.getLiquidDestination returns Building, not Tile.
+        if (junction.acceptLiquid(sourceTile.build, Liquids.water)) {
+            throw new AssertionError("Stock Liquid Junction stored liquid instead of routing it");
+        }
+        var destination = junction.getLiquidDestination(sourceTile.build, Liquids.water);
+        if (destination != sinkTile.build) {
+            throw new AssertionError("Stock Liquid Junction did not route to the far side");
+        }
+
+        sinkTile.setBlock(Blocks.air);
+        destination = junction.getLiquidDestination(sourceTile.build, Liquids.water);
+        if (destination != junction) {
+            throw new AssertionError("Stock Liquid Junction did not stop at a dead end");
+        }
+
+        sourceTile.setBlock(Blocks.air);
+        junctionTile.setBlock(Blocks.air);
+        System.out.println("UPSTREAM_LIQUID_JUNCTION_REFERENCE route=far deadEnd=self");
+    }
+
+    private void verifyLiquidRouterTransfer(Team team) {
+        var routerTile = Vars.world.tile(68, 50);
+        var sinkTile = Vars.world.tile(69, 50);
+        routerTile.setBlock(Blocks.air);
+        sinkTile.setBlock(Blocks.air);
+        routerTile.setBlock(Blocks.liquidRouter, team, 0);
+        sinkTile.setBlock(Blocks.liquidRouter, team, 0);
+
+        var router = routerTile.build;
+        // Pinned v160.8 Blocks.liquidRouter: liquidCapacity = 120f.
+        float initial = router.block.liquidCapacity;
+        router.liquids.add(Liquids.water, initial);
+        float previousDelta = Time.delta;
+        try {
+            Time.delta = 1f;
+            for (int tick = 0; tick < 60; tick++) {
+                router.update();
+            }
+        } finally {
+            Time.delta = previousDelta;
+        }
+
+        float moved = sinkTile.build.liquids.get(Liquids.water);
+        float remaining = router.liquids.get(Liquids.water);
+        if (moved <= 0f) throw new AssertionError("Stock Liquid Router did not transfer water");
+        if (moved > initial + 0.01f) {
+            throw new AssertionError("Stock Liquid Router moved more than its source held");
+        }
+        if (Math.abs(moved + remaining - initial) > 0.01f) {
+            throw new AssertionError("Stock Liquid Router lost or created liquid: "
+                + moved + "+" + remaining + " != " + initial);
+        }
+        routerTile.setBlock(Blocks.air);
+        sinkTile.setBlock(Blocks.air);
+
+        System.out.println("UPSTREAM_LIQUID_ROUTER_REFERENCE movedMilli=" + Math.round(moved * 1000f)
+            + " initialMilli=" + Math.round(initial * 1000f)
+            + " remainingMilli=" + Math.round(remaining * 1000f));
     }
 
     private float verifyBridgeTransfer(Block block, int x, int y, int dx, Team team) {
@@ -1297,13 +1378,23 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         if (source.block.hasPower && source.power != null) {
             source.power.status = 1f;
         }
-        Time.delta = 1f;
-        for (int tick = 0; tick < 120; tick++) {
-            source.update();
+        float previousDelta = Time.delta;
+        try {
+            Time.delta = 1f;
+            for (int tick = 0; tick < 120; tick++) {
+                source.update();
+            }
+        } finally {
+            Time.delta = previousDelta;
         }
 
         float moved = targetTile.build.liquids.get(Liquids.water);
         if (moved <= 0f) throw new AssertionError("Stock " + block.name + " did not transfer water");
+        if (moved > source.block.liquidCapacity + 0.01f) {
+            throw new AssertionError("Stock " + block.name + " moved more than its source held");
+        }
+        sourceTile.setBlock(Blocks.air);
+        targetTile.setBlock(Blocks.air);
         return moved;
     }
 
