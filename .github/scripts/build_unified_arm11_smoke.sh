@@ -24,6 +24,20 @@ for attempt in 1 2 3; do
   sleep $((attempt * 15))
 done
 
+stock_jar="$RUNNER_TEMP/server-release.jar"
+liquid_check="$RUNNER_TEMP/liquid-inventory-check"
+runtime=research/upstream-runtime
+mkdir -p "$liquid_check/reference" "$liquid_check/staged"
+javac -cp "$stock_jar" -d "$liquid_check/reference" "$runtime/host/UpstreamLiquidInventoryReference.java"
+javac -cp "$stock_jar" -d "$liquid_check/staged" \
+  "$runtime/build/upstream-src/unified/mindustry/world/modules/LiquidModule.java"
+java -cp "$liquid_check/reference:$stock_jar" UpstreamLiquidInventoryReference > "$liquid_check/stock.log"
+java -cp "$liquid_check/reference:$liquid_check/staged:$stock_jar" UpstreamLiquidInventoryReference > "$liquid_check/staged.log"
+test "$(wc -l < "$liquid_check/stock.log")" -eq 2100
+test "$(wc -l < "$liquid_check/staged.log")" -eq 2100
+diff -u "$liquid_check/stock.log" "$liquid_check/staged.log"
+printf 'UPSTREAM_STOCK_LIQUID_REFERENCE steps=%s\n' "$(wc -l < "$liquid_check/stock.log")"
+
 export M3DS_SMOKE_DEVKIT_IMAGE=devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5
 cat > "$RUNNER_TEMP/smoke-tex3ds" <<'WRAPPER'
 #!/usr/bin/env bash
