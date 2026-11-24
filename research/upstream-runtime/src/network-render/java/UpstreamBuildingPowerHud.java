@@ -49,7 +49,7 @@ final class UpstreamBuildingPowerHud {
         }
         drawPatch(target, Core.atlas.find("bar"), y, width, 0xff191919);
         if (fraction > 0f) drawPatch(target, Core.atlas.find("bar-top"), y, width * fraction, Pal.powerBar.abgr());
-        target.drawObjectivePlain(encodedLabel, encodedGlyphs, null, y - 1f);
+        target.hudLabel(encodedLabel, encodedGlyphs, 2f, y, width, height);
         return y + height + 3f;
     }
 
