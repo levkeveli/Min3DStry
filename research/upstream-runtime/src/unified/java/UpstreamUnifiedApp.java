@@ -2,6 +2,7 @@ import arc.Core;
 import arc.Events;
 import arc.audio.Audio;
 import arc.files.Fi;
+import arc.util.I18NBundle;
 import java.io.IOException;
 import java.util.Arrays;
 import mindustry.game.EventType.WorldLoadEvent;
@@ -50,16 +51,16 @@ public final class UpstreamUnifiedApp {
     }
 
     private static void join(String[] endpointArgs) throws IOException, InterruptedException {
-        join(endpointArgs, null, false);
+        join(endpointArgs, null, false, null);
     }
 
     private static boolean join(String[] endpointArgs, UpstreamWorldLoadProbe.ProbeApplication preparedApp,
-                                boolean atlasReady) throws IOException, InterruptedException {
+                                boolean atlasReady, I18NBundle titleBundle) throws IOException, InterruptedException {
         var endpoint = UpstreamLiveNetworkProbe.endpointFile(endpointArgs);
         var atlas = new Fi("/romfs/sprites.aatls");
         if (endpoint.exists() && !endpoint.isDirectory()) {
             System.out.println("UPSTREAM_BOOT mode=join");
-            UpstreamRenderedNetworkProbe.run(endpoint.parent(), endpoint.readString(), atlas, preparedApp, atlasReady);
+            UpstreamRenderedNetworkProbe.run(endpoint.parent(), endpoint.readString(), atlas, preparedApp, atlasReady, titleBundle);
             return true;
         } else if (endpointArgs.length != 0) {
             System.out.println("No server endpoint file at " + endpoint.path());
@@ -68,7 +69,7 @@ public final class UpstreamUnifiedApp {
             if (address != null) {
                 System.out.println("UPSTREAM_BOOT mode=join");
                 UpstreamRenderedNetworkProbe.run(endpoint.parent(), address.host() + " " + address.port(), atlas,
-                    preparedApp, atlasReady);
+                    preparedApp, atlasReady, titleBundle);
                 return true;
             }
         }
@@ -78,7 +79,7 @@ public final class UpstreamUnifiedApp {
     private static boolean joinFromTitle(UpstreamWorldLoadProbe.ProbeApplication preparedApp, boolean atlasReady)
             throws IOException {
         try {
-            return join(new String[0], preparedApp, atlasReady);
+            return join(new String[0], preparedApp, atlasReady, Core.bundle);
         } catch (InterruptedException interrupted) {
             Thread.currentThread().interrupt();
             throw new IOException("Interrupted while joining", interrupted);

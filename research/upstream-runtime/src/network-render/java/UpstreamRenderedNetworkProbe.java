@@ -14,6 +14,7 @@ import arc.math.Mathf;
 import arc.struct.IntSet;
 import arc.struct.ObjectSet;
 import arc.struct.Seq;
+import arc.util.I18NBundle;
 import arc.util.Time;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -111,17 +112,22 @@ public final class UpstreamRenderedNetworkProbe {
     }
 
     static void run(Fi directory, String address, Fi atlas) throws IOException, InterruptedException {
-        run(directory, address, atlas, null, false);
+        run(directory, address, atlas, null, false, null);
     }
 
     static void run(Fi directory, String address, Fi atlas, UpstreamWorldLoadProbe.ProbeApplication preparedApp,
-                    boolean atlasReady) throws IOException, InterruptedException {
+                    boolean atlasReady, I18NBundle titleBundle) throws IOException, InterruptedException {
         var view = new UpstreamRenderedNetworkProbe(atlas);
         int language = view.target.mountAssets();
         if (preparedApp == null) {
-            var preference = directory.child("locale.txt");
-            String requested = preference.exists() && preference.length() <= 16 ? preference.readString("UTF-8").trim() : "";
-            Core.bundle = UpstreamInterfaceLocale.loadForStockClient(new Fi("/romfs/bundles/bundle"), language, requested);
+            if (titleBundle == null) {
+                var preference = directory.child("locale.txt");
+                String requested = preference.exists() && preference.length() <= 16
+                    ? preference.readString("UTF-8").trim() : "";
+                Core.bundle = UpstreamInterfaceLocale.loadForStockClient(new Fi("/romfs/bundles/bundle"), language, requested);
+            } else {
+                Core.bundle = titleBundle;
+            }
             CacheLayer.init();
         }
         var locale = Core.bundle.getLocale();
