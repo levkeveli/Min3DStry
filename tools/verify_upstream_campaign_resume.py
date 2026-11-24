@@ -126,14 +126,22 @@ def main() -> int:
     parser.add_argument("--model", choices=("new3ds", "old3ds"))
     parser.add_argument("--output-dir", type=Path, default=Path("build/campaign-resume-emu"))
     parser.add_argument("--dense", action="store_true", help="Verify the original 600x600 Serpulo 242 sector")
+    parser.add_argument("--server", type=Path, help="Reopen each dense replay save with the original Java server")
+    parser.add_argument("--java", default="java")
     args = parser.parse_args()
     if args.dense and (args.fixtures / "settings.bin").exists():
         parser.error("--dense requires the stock fixtures without a settings override")
+    if args.server is not None and not args.dense:
+        parser.error("--server is used with --dense")
     azahar = sp.az.resolve_azahar_bin(args.azahar)
     config, log = sp.az.resolve_azahar_paths(azahar)
     args.output_dir.mkdir(parents=True, exist_ok=True)
     for model in (args.model,) if args.model else ("new3ds", "old3ds"):
         verify(model, args.rom, azahar, config, log, args.output_dir, args.fixtures, args.dense)
+        if args.server is not None:
+            from verify_stock_campaign_archive import check_saves
+
+            check_saves(args.java, args.server, dense_save=args.output_dir / f"{model}-sector-serpulo-242.msav")
     return 0
 
 

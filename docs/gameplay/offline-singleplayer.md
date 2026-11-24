@@ -107,12 +107,13 @@ server and use the matching emulator verifier flag.
 
 ```sh
 python3 tools/campaign_resume_fixtures.py --dense --server server-release.jar --output build/dense-fixtures
-python3 tools/verify_upstream_campaign_resume.py --dense --rom upstream-probe.3dsx --fixtures build/dense-fixtures
+python3 tools/verify_upstream_campaign_resume.py --dense --rom upstream-probe.3dsx --fixtures build/dense-fixtures --server server-release.jar
 ```
 
 The dense run uses Ground Zero as the first slot and checks that the second
 slot loads and reloads at 600×600, draws a frame, and saves with its original
-backup. Keep the two fixture sets in separate directories.
+backup. The server readback confirms the saved sector ID, dimensions, and
+gameplay patch. Keep the dense and standard fixture sets in separate directories.
 
 The [ARM11 build from `1390790`](https://github.com/levkeveli/Min3DStry/actions/runs/45035851013)
 resumed a lone Ground Zero slot from `saves/` and used the D-pad to select a
