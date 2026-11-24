@@ -164,30 +164,20 @@ public final class UpstreamSinglePlayerApp {
         System.out.println("UPSTREAM_INTERFACE_LOCALE system=" + language + " bundle=" + bundleTag
             + " router=" + Core.bundle.get("block.router.name") + " copper=" + Core.bundle.get("item.copper.name"));
 
-        session = UpstreamSinglePlayerSession.create(mapDir, bundleTag, new Fi("/romfs/planets"), settings,
-            new Fi("/romfs/maps"), audio.open());
-        Core.camera = new Camera();
-        audio.prepareWorld();
-        UpstreamSectorCapture.install();
-        Events.on(WaveEvent.class, event -> {
-            String warning = UpstreamGuardianWarning.find(Vars.state.rules, Vars.state.wave);
-            if (warning != null) UpstreamNotification.show(warning, 5f);
-        });
-        Events.run(Trigger.teamCoreDamage, () ->
-            UpstreamNotification.show(Core.bundle.get("coreattack"), 4f));
         try {
-            if (databaseRequested) {
-                loadInterfaceGraphics(atlas);
-                new UpstreamCoreDatabaseMenu(target).run();
-                return;
-            }
             if (titleRequested) {
-                var selection = chooseTitleAction(atlas, saveFile);
+                var selection = chooseTitleAction(atlas, saveFile, () -> prepareSession(mapDir, bundleTag, settings));
                 if (selection == null) return;
                 campaignRequested = selection == TitleAction.campaign;
                 customRequested = selection == TitleAction.custom;
                 editorRequested = selection == TitleAction.editor;
                 loadRequested = selection == TitleAction.load;
+            }
+            prepareSession(mapDir, bundleTag, settings);
+            if (databaseRequested) {
+                loadInterfaceGraphics(atlas);
+                new UpstreamCoreDatabaseMenu(target).run();
+                return;
             }
             if (editorRequested) {
                 var source = !titleRequested && args.length >= 2 ? new Fi(args[1]) : mapDir.child("editor-map.msav");
@@ -292,9 +282,24 @@ public final class UpstreamSinglePlayerApp {
                         + failure.getClass().getName() + ": " + failure.getMessage());
                 }
             }
-            session.shutdown();
+            if (session != null) session.shutdown();
             System.out.println("UPSTREAM_SP_EXIT");
         }
+    }
+
+    private void prepareSession(Fi mapDir, String bundleTag, Settings settings) {
+        if (session != null) return;
+        session = UpstreamSinglePlayerSession.create(mapDir, bundleTag, new Fi("/romfs/planets"), settings,
+            new Fi("/romfs/maps"), audio.open());
+        Core.camera = new Camera();
+        audio.prepareWorld();
+        UpstreamSectorCapture.install();
+        Events.on(WaveEvent.class, event -> {
+            String warning = UpstreamGuardianWarning.find(Vars.state.rules, Vars.state.wave);
+            if (warning != null) UpstreamNotification.show(warning, 5f);
+        });
+        Events.run(Trigger.teamCoreDamage, () ->
+            UpstreamNotification.show(Core.bundle.get("coreattack"), 4f));
     }
 
     static String requestedLocale(Fi preference, Settings settings) {
@@ -486,7 +491,7 @@ public final class UpstreamSinglePlayerApp {
 
     private enum TitleAction { campaign, custom, load, editor }
 
-    private TitleAction chooseTitleAction(Fi atlas, Fi defaultSave) {
+    private TitleAction chooseTitleAction(Fi atlas, Fi defaultSave, Runnable prepare) {
         loadInterfaceRenderer();
         while (true) {
             switch (chooseTitleRow("Mindustry", "play", "database.button", "editor", "quit")) {
@@ -495,6 +500,7 @@ public final class UpstreamSinglePlayerApp {
                     if (route == 0) return TitleAction.campaign;
                     if (route == 1) return TitleAction.custom;
                     if (route == 2) {
+                        prepare.run();
                         var customSave = defaultSave.parent().child("custom-game-save.msav");
                         if (defaultSave.exists() || !session.sectorSaves().isEmpty()
                                 || !UpstreamCustomGameSaves.discover(Vars.saveDirectory, customSave).isEmpty()) {
@@ -508,6 +514,7 @@ public final class UpstreamSinglePlayerApp {
                     int route = chooseTitleRow(Core.bundle.get("database.button"), "database");
                     if (route == -2) return null;
                     if (route == 0) {
+                        prepare.run();
                         loadInterfaceGraphics(atlas);
                         if (!new UpstreamCoreDatabaseMenu(target).run()) return null;
                     }
