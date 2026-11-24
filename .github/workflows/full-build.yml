@@ -1,29 +1,6 @@
 name: 3DS full build
 
 on:
-  pull_request:
-    branches: [main]
-    paths:
-      - "src/**"
-      - "include/**"
-      - "Makefile"
-      - "tools/build_sprite_atlas.py"
-      - "tests/assets/**"
-      - "research/upstream-runtime/**"
-      - "tools/build_teavm_loader.sh"
-      - "tests/platform/embed_loader_smoke.c"
-      - ".github/workflows/full-build.yml"
-      - ".github/scripts/fetch_upstream_v160.sh"
-      # The embedded save-rows loader compiles the shared world and content
-      # sources. These standalone source sets never enter that target.
-      - "!research/upstream-runtime/src/network-live/**"
-      - "!research/upstream-runtime/src/network-render/**"
-      - "!research/upstream-runtime/src/singleplayer/**"
-      - "!research/upstream-runtime/src/singleplayer-campaign-host/**"
-      - "!research/upstream-runtime/src/singleplayer-custom-host/**"
-      - "!research/upstream-runtime/src/singleplayer-research-host/**"
-      - "!research/upstream-runtime/src/terrain/**"
-      - "!research/upstream-runtime/**/*.md"
   push:
     branches: [main]
     paths:
