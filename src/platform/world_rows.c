@@ -46,7 +46,9 @@ bool m3ds_world_rows_alloc(
     out->overlay_ids = calloc(count, sizeof(uint16_t));
     out->block_ids = calloc(count, sizeof(uint16_t));
     out->flags = calloc(count, sizeof(uint8_t));
-    out->building_index = malloc(count * sizeof(uint32_t));
+    /* Every slot is filled below; zeroing keeps the save-state hash safe if
+       the row loop is ever changed to skip an entry. */
+    out->building_index = calloc(count, sizeof(uint32_t));
     out->tile_states = calloc(count, sizeof(M3dsTileState));
     out->buildings = calloc(building_capacity, sizeof(M3dsBuildingState));
     if (!out->floor_ids || !out->overlay_ids || !out->block_ids
