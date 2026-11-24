@@ -33,7 +33,7 @@ final class UpstreamCoreDatabaseMenu {
         var vertical = new VerticalNavigation();
         int renderedSelection = -1;
         List<DrawRow> visible = List.of();
-        System.out.println("UPSTREAM_DATABASE_OPEN tab=" + tabs.get(tab).name + " rows=" + rows.size());
+        boolean shown = false;
         UpstreamSinglePlayerInput.poll();
         while (true) {
             long nextFrame = System.nanoTime() + 16_666_667L;
@@ -77,6 +77,10 @@ final class UpstreamCoreDatabaseMenu {
                 renderedSelection = selected;
             }
             draw(visible, 0, visible.size());
+            if (!shown) {
+                System.out.println("UPSTREAM_DATABASE_OPEN tab=" + tabs.get(tab).name + " rows=" + rows.size());
+                shown = true;
+            }
             while (System.nanoTime() < nextFrame) Thread.yield();
         }
     }
@@ -115,12 +119,12 @@ final class UpstreamCoreDatabaseMenu {
                 : Iconc.lock + " " + Core.bundle.get("unlock.incampaign"));
         }
         if (content.credit != null) wrap(lines, Core.bundle.format("content.createdby", content.credit));
-        System.out.println("UPSTREAM_DATABASE_DETAIL content=" + content.name + " rows=" + lines.size());
         var display = new ArrayList<DrawRow>();
         display.add(encode(content.localizedName, icon(row.entry())));
         for (var line : lines) display.add(encode(line, null));
         int first = 0;
         var vertical = new VerticalNavigation();
+        boolean shown = false;
         UpstreamSinglePlayerInput.poll();
         while (true) {
             long nextFrame = System.nanoTime() + 16_666_667L;
@@ -130,6 +134,10 @@ final class UpstreamCoreDatabaseMenu {
             int y = (byte)(input >> 8);
             first = vertical.move(y, first, lines.size() - detailRows);
             draw(display, first + 1, detailRows);
+            if (!shown) {
+                System.out.println("UPSTREAM_DATABASE_DETAIL content=" + content.name + " rows=" + lines.size());
+                shown = true;
+            }
             while (System.nanoTime() < nextFrame) Thread.yield();
         }
     }
