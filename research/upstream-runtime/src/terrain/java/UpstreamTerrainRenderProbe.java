@@ -132,6 +132,12 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
             y, Address.ofData(stockObjectiveFont));
     }
 
+    int hudSprite(TextureRegion region, int left, int top, int sourceWidth, int sourceHeight,
+                  float x, float y, float width, float height, int color) {
+        return NativeTerrain.hudSprite(UpstreamTerrainDrawProbe.pageIndex(region), region.getX() + left,
+            region.getY() + top, sourceWidth, sourceHeight, x, y, width, height, color);
+    }
+
     int hudPanel(float x, float y, float width, float height, int color) {
         return NativeTerrain.hudPanel(x, y, width, height, color);
     }
@@ -350,6 +356,10 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
         static native float drawObjectivePlain(Address label, Address characters, int count,
                                                int page, int x, int y, int width, int height,
                                                float top, Address stockFont);
+
+        @Import(name = "m3ds_terrain_draw_hud_sprite")
+        static native int hudSprite(int page, int left, int top, int width, int height,
+            float x, float y, float drawWidth, float drawHeight, int color);
 
         @Import(name = "m3ds_terrain_draw_hud_panel")
         static native int hudPanel(float x, float y, float width, float height, int color);

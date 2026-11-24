@@ -38,6 +38,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.function.Predicate;
 import mindustry.Vars;
+import mindustry.core.UI;
 import mindustry.ui.Fonts;
 import mindustry.ai.BlockIndexer;
 import mindustry.content.Blocks;
@@ -169,6 +170,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         // The visible two-tile wall starts one tile west of the viewport.
         viewport.moveTo(24, 30);
         var viewer = Team.sharded;
+        verifyPowerBar(viewer);
         var conveyor = Vars.world.tile(25, 31);
         var edgeWall = Vars.world.tile(23, 35);
         var offscreenWall = Vars.world.tile(21, 39);
@@ -516,6 +518,36 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
             throw new AssertionError("Stock client processor did not execute the configured Canvas write");
         }
         System.out.println("UPSTREAM_CLIENT_PROCESSOR_REFERENCE ids=ok compressed=ok link=ok canvas=5");
+    }
+
+    private static void verifyPowerBar(Team viewer) {
+        var consumer = Blocks.arc.newBuilding().create(Blocks.arc, viewer);
+        var battery = Blocks.battery.newBuilding().create(Blocks.battery, viewer);
+        if (!UpstreamBuildingPowerHud.showsPower(consumer, viewer)
+                || UpstreamBuildingPowerHud.showsPower(consumer, Team.crux)) {
+            throw new AssertionError("Stock building bars must only show to the owning team");
+        }
+        consumer.power.status = 0f;
+        if (consumer.block.powerBarFraction(consumer) != 0f
+                || !consumer.block.powerBarLabel(consumer).equals(Core.bundle.get("bar.power"))) {
+            throw new AssertionError("Stock unpowered bar differs");
+        }
+        consumer.power.status = 0.4f;
+        if (consumer.block.powerBarFraction(consumer) != 0.4f) {
+            throw new AssertionError("Stock partial power bar differs");
+        }
+        battery.power.status = 0.25f;
+        int stored = (int)(battery.block.consPower.capacity * battery.power.status);
+        if (battery.block.powerBarFraction(battery) != 0.25f
+                || !battery.block.powerBarLabel(battery).equals(Core.bundle.format("bar.poweramount", UI.formatAmount(stored)))) {
+            throw new AssertionError("Stock buffered power bar differs");
+        }
+        consumer.enabled = false;
+        consumer.power.graph.add(battery);
+        if (consumer.block.powerBarFraction(consumer) != 1f) {
+            throw new AssertionError("A supplied idle consumer should show a full power bar");
+        }
+        System.out.println("UPSTREAM_STOCK_POWER_BAR states=dry,partial,buffered,supplied-idle team=filtered");
     }
 
     private static void verifySpriteAtlas(Fi file) throws IOException {
