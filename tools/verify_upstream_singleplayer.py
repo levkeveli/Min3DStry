@@ -61,7 +61,7 @@ def write_singleplayer_ctm(
     # Hosted runners can take ~32s to reach UPSTREAM_SP_READY; start taps at 40s
     # so the mine and ore taps never land during world loading.
     t0 = 40
-    total_seconds = 133 if reopen_title_settings else 158 if database_title else t0 + (115 if verify_database else 62)
+    total_seconds = 239 if reopen_title_settings else 158 if database_title else t0 + (115 if verify_database else 62)
     frames = total_seconds * CTM_SAMPLES_PER_SECOND
     header = struct.pack(
         "<4sQ20sQQ32sIQq156x",
@@ -127,7 +127,11 @@ def write_singleplayer_ctm(
             (62, KEY_DOWN), (69, KEY_A), # Open the Database category.
             (76, KEY_DOWN), (83, KEY_A), # Open About.
             (90, KEY_A), # Open Credits.
-            (101, KEY_B), (111, KEY_B), (122, KEY_B), # Credits, About, then title.
+            (101, KEY_B), (111, KEY_B), # Close Credits and About.
+            (122, KEY_DOWN), (129, KEY_A), # Open the Database category again.
+            (136, KEY_DOWN), (143, KEY_DOWN), (151, KEY_A), # Open Schematics.
+            (198, KEY_A), # Open the staged stock schematic after loading content.
+            (209, KEY_B), (218, KEY_B), (229, KEY_B), # Close detail, library and title.
         )
     with path.open("wb") as movie:
         movie.write(header)
@@ -354,8 +358,9 @@ def run_singleplayer_model(
             title_ctm = out_dir / f"{model}-database-title.ctm"
             write_singleplayer_ctm(title_ctm, model, database_title=True)
             startup.unlink()
-            settings_files = (sd_save.with_name("settings.bin"), sd_save.with_name("settings_backup.bin"))
-            saved_settings = {path: path.read_bytes() if path.is_file() else None for path in settings_files}
+            schematic = sd_save.parent / "schematics" / "000-min3dstry-replay.msch"
+            files = (sd_save.with_name("settings.bin"), sd_save.with_name("settings_backup.bin"), schematic)
+            originals = {path: path.read_bytes() if path.is_file() else None for path in files}
             try:
                 proc3, rpc3 = _launch_azahar(model, rom_path, azahar_bin, config_path, log_path, title_ctm)
                 try:
@@ -374,6 +379,9 @@ def run_singleplayer_model(
                 finally:
                     rpc3.close()
                     _stop_proc(proc3, azahar_bin)
+                schematic_source = Path(__file__).resolve().parents[1] / "tests/fixtures/schematics/a single large power node.msch"
+                schematic.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(schematic_source, schematic)
                 settings_ctm = out_dir / f"{model}-title-settings-reopen.ctm"
                 write_singleplayer_ctm(settings_ctm, model, reopen_title_settings=True)
                 proc4, rpc4 = _launch_azahar(model, rom_path, azahar_bin, config_path, log_path, settings_ctm)
@@ -382,13 +390,15 @@ def run_singleplayer_model(
                     _wait_for_log(log_path, proc4, r"UPSTREAM_TITLE_ABOUT links=12\b", timeout)
                     _wait_for_log(log_path, proc4, r"UPSTREAM_TITLE_CREDITS contributors=200\b", timeout)
                     (out_dir / f"{model}-title-credits.png").write_bytes(rpc4.screenshot())
+                    _wait_for_log(log_path, proc4, r"UPSTREAM_TITLE_SCHEMATICS files=[1-9]\d*\b", timeout)
+                    _wait_for_log(log_path, proc4, r"UPSTREAM_TITLE_SCHEMATIC file=000-min3dstry-replay\.msch blocks=1\b", timeout)
                     settings_log = _wait_for_log(log_path, proc4, r"UPSTREAM_SP_EXIT\b", timeout)
                     (out_dir / f"{model}-title-settings-reopen.log").write_text(settings_log, encoding="utf-8")
                 finally:
                     rpc4.close()
                     _stop_proc(proc4, azahar_bin)
             finally:
-                for path, previous in saved_settings.items():
+                for path, previous in originals.items():
                     if previous is None:
                         path.unlink(missing_ok=True)
                     else:

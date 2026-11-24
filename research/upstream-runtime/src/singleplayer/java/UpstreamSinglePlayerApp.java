@@ -562,6 +562,7 @@ public final class UpstreamSinglePlayerApp {
     private boolean showTitleSchematic(UpstreamSchematicPlacement library, Fi file) {
         try {
             var schematic = UpstreamSchematicPlacement.readSchematic(file);
+            System.out.println("UPSTREAM_TITLE_SCHEMATIC file=" + file.name() + " blocks=" + schematic.tiles.size);
             var details = Core.bundle.format("schematic.info", schematic.width, schematic.height, schematic.tiles.size);
             int action = chooseTitleRow(schematic.name(), 0,
                 new String[]{Core.bundle.get("schematic.edit"), Core.bundle.get("back")},
