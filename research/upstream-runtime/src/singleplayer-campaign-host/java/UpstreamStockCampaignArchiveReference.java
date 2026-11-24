@@ -26,7 +26,8 @@ import mindustry.world.meta.BlockFlag;
 
 public final class UpstreamStockCampaignArchiveReference {
     private static void verifyOreIndex(Tiles tiles) {
-        // The pinned stock lookup tests the first insertion in each 20x20 quadrant.
+        // Pinned findClosestOre/findClosestWallOre loop over all qx, then all qy.
+        // Each nonempty quadrant contributes its first insertion as a distance candidate.
         int width = (tiles.width + 19) / 20, height = (tiles.height + 19) / 20;
         int items = Vars.content.items().size;
         var floor = new mindustry.world.Tile[items][width][height];

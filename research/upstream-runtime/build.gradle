@@ -968,6 +968,19 @@ final class GlacierFixture {
                 def indexer = new String(readUpstream('core/src/' + indexerPath), 'UTF-8')
                 def oreStorage = 'private IntSeq[][][] ores, wallOres;'
                 def oreRead = 'world.tile(arr.first())'
+                def oreLookup = '''                for(int qy = 0; qy < quadHeight; qy++){
+                    var arr = %s[item.id][qx][qy];
+                    if(arr != null && arr.size > 0){
+                        Tile tile = world.tile(arr.first());'''
+                def tilePosition = '''public int pos(){
+        return Point2.pack(x, y);
+    }'''
+                def tileSourceText = new String(readUpstream(tileSource), 'UTF-8')
+                if (indexer.count(oreLookup.formatted('ores')) != 1 ||
+                    indexer.count(oreLookup.formatted('wallOres')) != 1 ||
+                    tileSourceText.count(tilePosition) != 1) {
+                    throw new GradleException('Pinned ore traversal or tile-position packing changed')
+                }
                 def oreAllocations = [
                 'new IntSeq[content.items().size][][]': 2,
                 'new IntSeq[quadWidth][quadHeight]': 4,
