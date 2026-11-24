@@ -64,7 +64,7 @@ public final class UpstreamSinglePlayerApp {
     private final AudioHooks audio;
     private final UpstreamTerrainRenderProbe target = new UpstreamTerrainRenderProbe(false);
     private final UpstreamBuildingLayers buildingLayers = new UpstreamBuildingLayers();
-    private UpstreamLiveBuildControls buildingControls = createBuildControls();
+    private UpstreamLiveBuildControls buildingControls = new UpstreamLiveBuildControls();
     private final UpstreamWeatherLayers weatherLayers = new UpstreamWeatherLayers();
     private final Runnable drawWeatherUnder = weatherLayers::drawUnder;
     private final Runnable drawEntities = this::drawEntities;
@@ -332,15 +332,8 @@ public final class UpstreamSinglePlayerApp {
         return campaignSlot;
     }
 
-    private static UpstreamLiveBuildControls createBuildControls() {
-        var controls = new UpstreamLiveBuildControls();
-        controls.schematics().nameCapturesWith(UpstreamTerrainRenderProbe::readSchematicName,
-            UpstreamTerrainRenderProbe::confirmSchematicReplacement);
-        return controls;
-    }
-
     private void resetWorldInput() {
-        buildingControls = createBuildControls();
+        buildingControls = new UpstreamLiveBuildControls();
         controlled = null;
         moving = false;
         inputDevice = null;

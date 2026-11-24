@@ -1408,18 +1408,6 @@ static void draw_chat_key(const char *label, float x, float y, float width, u32 
     catalog_label(label, x + width / 2, y + 10, 0.42f, width - 6, color);
 }
 
-int32_t m3ds_terrain_schematic_prompt(char *text, int32_t capacity, const char *hint, int32_t confirm) {
-    if (capacity < 2 || !aptMainLoop()) return 0;
-    SwkbdState keyboard;
-    swkbdInit(&keyboard, SWKBD_TYPE_NORMAL, 2, confirm ? 1 : 1000);
-    swkbdSetFeatures(&keyboard, SWKBD_DEFAULT_QWERTY | SWKBD_DARKEN_TOP_SCREEN);
-    if (!confirm) swkbdSetValidation(&keyboard, SWKBD_NOTEMPTY_NOTBLANK, 0, 0);
-    swkbdSetHintText(&keyboard, hint);
-    SwkbdButton button = swkbdInputText(&keyboard, text, (size_t)capacity);
-    if (button != SWKBD_BUTTON_CONFIRM) return 0;
-    return confirm ? 1 : (int32_t)strnlen(text, (size_t)capacity);
-}
-
 int32_t m3ds_terrain_draw_chat_keyboard(const char *labels) {
     if (!frame_open || !palette) return 0;
     if (perf_enabled) perf.bottom_start = svcGetSystemTick();
