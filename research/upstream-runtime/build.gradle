@@ -761,6 +761,7 @@ tasks.register('prepareUpstreamProbe') {
             withLabel('items(float timePeriod, Boolf<Item> filter)', 'filteredItemStatText(filter, timePeriod)')
             withLabel('content(UnlockableContent content)', 'content.localizedName')
             withLabel('abilities(Seq<Ability> abilities)', 'abilityStatText(abilities)')
+            withLabel('weapons(UnitType unit, Seq<Weapon> weapons)', 'weaponStatText(unit, weapons)')
             withLabel('drillables(float drillTime, float drillMultiplier, float size, ObjectFloatMap<Item> multipliers, Boolf<Block> filter)',
                 'drillableStatText(drillTime, drillMultiplier, size, multipliers, filter)')
             def contentListStart = '''    public static <T extends UnlockableContent> StatValue content(Seq<T> list, Boolf<T> check, String noneText){
@@ -852,6 +853,26 @@ tasks.register('prepareUpstreamProbe') {
             label.append(ability.localized());
             String description = ability.getBundle() + ".description";
             if(Core.bundle.has(description)) label.append('\\n').append(Core.bundle.get(description));
+        }
+        return label.toString();
+    }
+
+    private static String weaponStatText(UnitType unit, Seq<Weapon> weapons){
+        StringBuilder label = new StringBuilder();
+        for(int index = 0; index < weapons.size; index++){
+            Weapon weapon = weapons.get(index);
+            if(weapon.flipSprite || !weapon.hasStats(unit)) continue;
+            String info = "unit." + unit.name + ".weapon." + index + ".info";
+            if(Core.bundle.has(info)) label.append('\\n').append(Core.bundle.get(info));
+            if(weapon.inaccuracy > 0){
+                label.append('\\n').append(Stat.inaccuracy.localized()).append(": ")
+                    .append((int)weapon.inaccuracy).append(" ").append(StatUnit.degrees.localized());
+            }
+            if(!weapon.alwaysContinuous && weapon.reload > 0 && !weapon.bullet.killShooter){
+                label.append('\\n').append(Stat.reload.localized()).append(": ").append(weapon.mirror ? "2x " : "")
+                    .append(Strings.autoFixed(60f / weapon.reload * weapon.shoot.shots, 2))
+                    .append(" ").append(StatUnit.perSecond.localized());
+            }
         }
         return label.toString();
     }
