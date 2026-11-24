@@ -547,6 +547,7 @@ public final class UpstreamSinglePlayerApp {
 
     private boolean chooseTitleSettings(Settings settings) {
         openHudSettings(settings);
+        System.out.println("UPSTREAM_TITLE_SETTINGS coreitems=" + settingsMenu.coreItems());
         while (true) {
             int row = chooseTitleRow(Core.bundle.get("settings"), settingsMenu.selected(), hudSettingsRows());
             if (row < 0) return row == -1;

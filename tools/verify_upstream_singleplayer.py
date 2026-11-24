@@ -55,12 +55,13 @@ def resolve_sd_save_path(log_path: Path) -> Path:
 
 def write_singleplayer_ctm(
     path: Path, model: str, verify_database: bool = False, database_title: bool = False,
+    reopen_title_settings: bool = False,
 ) -> None:
     """Write an Azahar 2126.2 CTM input sequence exercising the Ground Zero vertical slice."""
     # Hosted runners can take ~32s to reach UPSTREAM_SP_READY; start taps at 40s
     # so the mine and ore taps never land during world loading.
     t0 = 40
-    total_seconds = 112 if database_title else t0 + (115 if verify_database else 62)
+    total_seconds = 70 if reopen_title_settings else 158 if database_title else t0 + (115 if verify_database else 62)
     frames = total_seconds * CTM_SAMPLES_PER_SECOND
     header = struct.pack(
         "<4sQ20sQQ32sIQq156x",
@@ -112,7 +113,17 @@ def write_singleplayer_ctm(
             (34, KEY_DOWN),  # Select Database on the title screen.
             (50, KEY_A),     # Open Core Database.
             (82, KEY_RIGHT), # Change from All to the next stock planet tab.
-            (101, KEY_B),    # Exit the title cleanly.
+            (101, KEY_DOWN), (108, KEY_DOWN), (115, KEY_DOWN), # Select Settings.
+            (123, KEY_A),    # Open Settings.
+            (131, KEY_A),    # Toggle Show Core Items.
+            (139, KEY_B),    # Return to the title.
+            (147, KEY_B),    # Exit the title cleanly.
+        )
+    if reopen_title_settings:
+        taps = ()
+        button_windows = (
+            (25, KEY_DOWN), (32, KEY_DOWN), (39, KEY_DOWN),
+            (47, KEY_A), (55, KEY_B), (62, KEY_B),
         )
     with path.open("wb") as movie:
         movie.write(header)
@@ -124,7 +135,7 @@ def write_singleplayer_ctm(
                 (t0 + 53) * CTM_SAMPLES_PER_SECOND + CTM_SAMPLES_PER_SECOND // 5
             ):
                 buttons |= KEY_DOWN
-            circle_x = 100 if not database_title and (t0 + 30) <= sec < (t0 + 32) else 0
+            circle_x = 100 if not (database_title or reopen_title_settings) and (t0 + 30) <= sec < (t0 + 32) else 0
             point = next((pt for start, pt in taps if start <= sec < start + 2), None)
             pad = struct.pack("<BHhh", 0, buttons, circle_x, 0)
             if point:
@@ -339,6 +350,8 @@ def run_singleplayer_model(
             title_ctm = out_dir / f"{model}-database-title.ctm"
             write_singleplayer_ctm(title_ctm, model, database_title=True)
             startup.unlink()
+            settings_files = (sd_save.with_name("settings.bin"), sd_save.with_name("settings_backup.bin"))
+            saved_settings = {path: path.read_bytes() if path.is_file() else None for path in settings_files}
             try:
                 proc3, rpc3 = _launch_azahar(model, rom_path, azahar_bin, config_path, log_path, title_ctm)
                 try:
@@ -347,12 +360,32 @@ def run_singleplayer_model(
                     (out_dir / f"{model}-database-title.png").write_bytes(rpc3.screenshot())
                     _wait_for_log(log_path, proc3, r"UPSTREAM_DATABASE_TAB tab=(serpulo|erekir) rows=[1-9]\d*\b", timeout)
                     _wait_for_log(log_path, proc3, r"UPSTREAM_DATABASE_CLOSE\b", timeout)
+                    toggle = _wait_for_log(log_path, proc3, r"UPSTREAM_SETTINGS index=0 value=(true|false)\b", timeout)
+                    initial = re.search(r"UPSTREAM_TITLE_SETTINGS coreitems=(true|false)\b", toggle)
+                    changed = re.search(r"UPSTREAM_SETTINGS index=0 value=(true|false)\b", toggle)
+                    if initial is None or changed is None or initial[1] == changed[1]:
+                        raise AssertionError(f"{model} title HUD setting did not toggle")
                     log_title = _wait_for_log(log_path, proc3, r"UPSTREAM_SP_EXIT\b", timeout)
                     (out_dir / f"{model}-database-title.log").write_text(log_title, encoding="utf-8")
                 finally:
                     rpc3.close()
                     _stop_proc(proc3, azahar_bin)
+                settings_ctm = out_dir / f"{model}-title-settings-reopen.ctm"
+                write_singleplayer_ctm(settings_ctm, model, reopen_title_settings=True)
+                proc4, rpc4 = _launch_azahar(model, rom_path, azahar_bin, config_path, log_path, settings_ctm)
+                try:
+                    _wait_for_log(log_path, proc4, rf"UPSTREAM_TITLE_SETTINGS coreitems={changed[1]}\b", timeout)
+                    settings_log = _wait_for_log(log_path, proc4, r"UPSTREAM_SP_EXIT\b", timeout)
+                    (out_dir / f"{model}-title-settings-reopen.log").write_text(settings_log, encoding="utf-8")
+                finally:
+                    rpc4.close()
+                    _stop_proc(proc4, azahar_bin)
             finally:
+                for path, previous in saved_settings.items():
+                    if previous is None:
+                        path.unlink(missing_ok=True)
+                    else:
+                        path.write_bytes(previous)
                 startup.write_text("direct\n", encoding="utf-8")
         return {
             "model": model,
