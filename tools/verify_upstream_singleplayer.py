@@ -51,8 +51,8 @@ def resolve_sd_save_path(log_path: Path) -> Path:
 
 def write_singleplayer_ctm(path: Path, model: str) -> None:
     """Write an Azahar 2126.2 CTM input sequence exercising the Ground Zero vertical slice."""
-    # A unified build reached its first playable frame at 33.6s in CI.
-    # Give world, graphics and input initialization time before the mining taps.
+    # Hosted runners can take ~32s to reach UPSTREAM_SP_READY; start taps at 40s
+    # so the mine and ore taps never land during world loading.
     t0 = 40
     total_seconds = t0 + 62
     frames = total_seconds * CTM_SAMPLES_PER_SECOND
