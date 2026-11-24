@@ -208,8 +208,9 @@ def main_verification_red(repo: str, token: str) -> str | None:
     post-merge verification run, else None. A failure on an older SHA that
     main has since moved past (fix merged without retriggering a
     path-filtered workflow) does not count as red. Checked on every PR so PRs
-    opened after a main failure are also blocked. Missing workflows fail
-    closed (treated as red)."""
+    opened after a main failure are also blocked. Raises on a missing
+    workflow or API error; the caller treats that as "unknown" and warns
+    rather than blocking."""
     _, body = github_request(
         f"https://api.github.com/repos/{repo}/commits/main", token
     )

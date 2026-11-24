@@ -164,3 +164,8 @@ hard-blocks every PR. The PR that fixes or reverts the failure must carry the
 applies `main-verify-blocked` to all other open PRs and releases it once both
 heavy workflows are green for main's current HEAD. A red run on an older SHA
 that main has moved past does not count as red.
+
+The `main-verify-fix` label is sticky only until main goes green: the release
+path removes both `main-verify-blocked` and `main-verify-fix`. The gate also
+requires the PR title or body to mention "revert" or "Main verification
+failed", so the label alone cannot bypass the hold on an unrelated PR.

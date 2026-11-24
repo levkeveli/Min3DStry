@@ -64,6 +64,12 @@ jobs:
             || gh label create "$label" --repo "$repo" --color "d73a4a" \
                  --description "Automation hold: main post-merge verification is red" || true
 
+          if [ "$conclusion" = "failure" ] && { [ "$sha" != "$main_sha" ] || ! main_red; }; then
+            # Stale failure (run not on main's current HEAD): ignore.
+            echo "Ignoring failure of $name @ $sha: not main's current HEAD ($main_sha)"
+            exit 0
+          fi
+
           if [ "$conclusion" = "failure" ]; then
             title="Main verification failed @ $sha"
             existing=$(gh issue list --repo "$repo" --state open \
@@ -85,8 +91,9 @@ jobs:
                 --search "Main verification failed in:title" --json number --jq '.[0].number // empty')
               [ -z "$issue" ] || gh issue close "$issue" --repo "$repo" \
                 --comment "Main verification green at \`$main_sha\`. Releasing \`$label\` holds."
-              for pr in $(gh pr list --repo "$repo" --state open --limit 100 --json number,labels --jq '.[] | select([.labels[].name] | any(. == "main-verify-blocked")) | .number'); do
+              for pr in $(gh pr list --repo "$repo" --state open --limit 100 --json number,labels --jq '.[] | select([.labels[].name] | any(. == "main-verify-blocked" or . == "main-verify-fix")) | .number'); do
                 gh pr edit "$pr" --repo "$repo" --remove-label "$label" || true
+                gh pr edit "$pr" --repo "$repo" --remove-label "main-verify-fix" || true
               done
             else
               echo "Not releasing: main is still red at $main_sha"
