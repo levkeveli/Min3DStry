@@ -17,6 +17,11 @@ def pathfinderSource = 'core/src/mindustry/ai/Pathfinder.java'
 def flowfieldSearchPatch = file('patches/stock-flowfield-search-storage.patch')
 def flowfieldCostPatch = file('patches/stock-flowfield-cost-grid.patch')
 def flowfieldCostSources = ['mindustry/ai/ControlPathfinder.java', 'mindustry/ai/BaseBuilderAI.java']
+def deferredBaseSources = [
+    'mindustry/ai/BaseRegistry.java',
+    'mindustry/maps/generators/BaseGenerator.java',
+    'mindustry/maps/planet/SerpuloPlanetGenerator.java'
+]
 def annotationsSource = 'annotations/src/main/java/mindustry/annotations/Annotations.java'
 def arcRevision = '7445105cd2683daf5b9ac7033ebb07265d3e814d'
 def fileSource = 'arc-core/src/arc/files/Fi.java'
@@ -232,7 +237,7 @@ if (usesRenderedClient) {
 if (usesArcSources || usesExecutor) {
     def stagedClasses = []
     if (usesSinglePlayerApp) {
-        sparseTileSources.each { path ->
+        (sparseTileSources + deferredBaseSources).each { path ->
             def type = path.substring(0, path.length() - '.java'.length())
             stagedClasses.addAll([type + '.class', type + '$*.class'])
         }
@@ -616,6 +621,7 @@ tasks.register('prepareUpstreamProbe') {
     if (usesSinglePlayerApp) {
         inputs.file(sparseTilePatch)
         outputs.files(sourceDir.map { dir -> sparseTileSources.collect { dir.file(it) } })
+        outputs.files(sourceDir.map { dir -> deferredBaseSources.collect { dir.file(it) } })
     }
     if (usesWorldStream) {
         outputs.file(networkIoFile)
@@ -668,6 +674,31 @@ tasks.register('prepareUpstreamProbe') {
     }
     doLast {
         if (usesSinglePlayerApp) {
+            def deferredBaseHooks = [
+                ['    public void load(){', '''    private boolean loaded;
+
+    public void ensureLoaded(){
+        if(!loaded) load();
+    }
+
+    public void load(){''',
+                 '        reqParts.each((key, arr) -> arr.sort());',
+                 '        reqParts.each((key, arr) -> arr.sort());\n        loaded = true;'],
+                ['        if(bases.cores.isEmpty()) return;',
+                 '        bases.ensureLoaded();\n        if(bases.cores.isEmpty()) return;'],
+                ['        if(ruinCount > 0){',
+                 '        if(ruinCount > 0){\n            bases.ensureLoaded();']
+            ]
+            deferredBaseSources.eachWithIndex { path, index ->
+                def staged = sourceDir.get().file(path).asFile
+                staged.parentFile.mkdirs()
+                def source = new String(readUpstream('core/src/' + path), 'UTF-8')
+                deferredBaseHooks[index].collate(2).each { pair ->
+                    if (source.count(pair[0]) != 1) throw new GradleException('Pinned base loading hook changed: ' + path)
+                    source = source.replace(pair[0], pair[1])
+                }
+                staged.setText(source, 'UTF-8')
+            }
             sparseTileSources.each { path ->
                 def staged = sourceDir.get().file(path).asFile
                 staged.parentFile.mkdirs()
@@ -1794,6 +1825,13 @@ final class UpstreamItemChoices {
             }.result.get()
             if (!stagedPathfinder.getText('UTF-8').contains('class CostGrid')) {
                 throw new GradleException('Stock flowfield cost patch did not apply to the staged sources')
+            }
+            if (usesSinglePlayerApp) {
+                def builderFile = new File(stageRoot, 'mindustry/ai/BaseBuilderAI.java')
+                def builder = builderFile.getText('UTF-8')
+                def picker = '                Seq<BasePart> parts = null;'
+                if (builder.count(picker) != 1) throw new GradleException('Pinned AI base part selection changed')
+                builderFile.setText(builder.replace(picker, '                Vars.bases.ensureLoaded();\n' + picker), 'UTF-8')
             }
 
             def pathfinder = stagedPathfinder.getText('UTF-8')
