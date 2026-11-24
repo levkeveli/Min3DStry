@@ -173,8 +173,10 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         if (args.length >= 4) verifyPowerBar(viewer);
         if (args.length >= 4) verifyLiquidBarLabels(viewer);
         if (args.length >= 4) verifyLiquidBarFixedLabels(viewer);
+        if (args.length >= 4) verifyBasicBarLabels(viewer);
         verifyLiquidBar(viewer);
         verifyLiquidBarFixed(viewer);
+        verifyBasicBars(viewer);
         var conveyor = Vars.world.tile(25, 31);
         var edgeWall = Vars.world.tile(23, 35);
         var offscreenWall = Vars.world.tile(21, 39);
@@ -613,6 +615,42 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
             throw new AssertionError("Stock keyed liquid label differs");
         }
         System.out.println("UPSTREAM_STOCK_LIQUID_BAR_KEYED_LABELS liquid=water");
+    }
+
+    private static void verifyBasicBars(Team viewer) {
+        var container = Blocks.container.newBuilding().create(Blocks.container, viewer);
+        if (!UpstreamBuildingBasicBars.showsHealth(container, viewer)
+                || UpstreamBuildingBasicBars.showsHealth(container, Team.crux)) {
+            throw new AssertionError("Stock health bars must only show to the owning team");
+        }
+        container.health = container.maxHealth * 0.5f;
+        if (Math.abs(UpstreamBuildingBasicBars.healthFraction(container) - 0.5f) > 1e-6f) {
+            throw new AssertionError("Stock partial health bar differs");
+        }
+        var bridge = Blocks.itemBridge.newBuilding().create(Blocks.itemBridge, viewer);
+        int add = Math.max(1, bridge.block.itemCapacity / 2);
+        bridge.items.add(Items.copper, add);
+        if (!UpstreamBuildingBasicBars.showsItems(bridge, viewer)
+                || UpstreamBuildingBasicBars.showsItems(bridge, Team.crux)) {
+            throw new AssertionError("Stock item bars must only show to the owning team");
+        }
+        if (Math.abs(UpstreamBuildingBasicBars.itemFraction(bridge) - add / (float)bridge.block.itemCapacity) > 1e-6f) {
+            throw new AssertionError("Stock item bar differs");
+        }
+        System.out.println("UPSTREAM_STOCK_BASIC_BARS health=0.5 items=0.5 team=filtered");
+    }
+
+    private static void verifyBasicBarLabels(Team viewer) {
+        if (!UpstreamBuildingBasicBars.healthLabel().equals(Core.bundle.get("stat.health"))) {
+            throw new AssertionError("Stock health label differs");
+        }
+        var bridge = Blocks.itemBridge.newBuilding().create(Blocks.itemBridge, viewer);
+        int add = Math.max(1, bridge.block.itemCapacity / 2);
+        bridge.items.add(Items.copper, add);
+        if (!UpstreamBuildingBasicBars.itemLabel(bridge).equals(Core.bundle.format("bar.items", add))) {
+            throw new AssertionError("Stock item label differs");
+        }
+        System.out.println("UPSTREAM_STOCK_BASIC_BAR_LABELS health=stat.health items=bar.items");
     }
 
     private static void verifySpriteAtlas(Fi file) throws IOException {

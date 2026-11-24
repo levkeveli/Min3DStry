@@ -239,7 +239,7 @@
         "research/upstream-runtime/src/network-render/java/UpstreamStatusHud.java",
         "research/upstream-runtime/src/network-render/java/UpstreamObjectiveHud.java"
       ],
-      "notes": "Stock Wave, Enemies Remaining, Core Copper, and Map Objective HUD rows render live on top screen; multi-item core inventory and power HUD pending."
+      "notes": "Stock Wave, Enemies Remaining, Core Copper, and Map Objective HUD rows render live on top screen; the selected-building health, power, item and liquid bars are wired, with live draw verification pending."
     },
     {
       "id": "offline-session-controls",
