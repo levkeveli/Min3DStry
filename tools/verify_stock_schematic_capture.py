@@ -110,7 +110,7 @@ def verify_touch(log, proc, rpc, output, use_xdotool, replace, edit):
 
 
 def read_stock_capture(server, log, directory, replace, edit):
-    existing = directory / ("Schematic-2.msch" if edit else "Schematic-1.msch")
+    existing = directory / ("unrelated.txt" if edit else "Schematic-1.msch")
     exported = directory / ("Schematic-1.msch" if edit else "Schematic-2.msch")
     if existing.read_bytes() != EXISTING:
         raise AssertionError("ARM11 changed the existing .msch file")
@@ -172,7 +172,7 @@ def main():
             scene = args.output / model / ("live" if live else "offline")
             directory = scene / "sdmc/3ds/min3dstry/schematics"
             directory.mkdir(parents=True)
-            (directory / ("Schematic-2.msch" if args.edit else "Schematic-1.msch")).write_bytes(EXISTING)
+            (directory / ("unrelated.txt" if args.edit else "Schematic-1.msch")).write_bytes(EXISTING)
             taps = dict(TAPS)
             extended = args.replace or args.edit
             buttons = {62: PLACE, 114 if extended else 94: sp.KEY_START}
