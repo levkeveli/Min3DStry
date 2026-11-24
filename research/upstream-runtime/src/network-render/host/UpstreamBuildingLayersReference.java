@@ -1304,6 +1304,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         sinkTile.setBlock(Blocks.liquidRouter, team, 0);
 
         var junction = junctionTile.build;
+        // v160.8 LiquidJunctionBuild.getLiquidDestination returns Building, not Tile.
         if (junction.acceptLiquid(sourceTile.build, Liquids.water)) {
             throw new AssertionError("Stock Liquid Junction stored liquid instead of routing it");
         }
@@ -1332,6 +1333,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         sinkTile.setBlock(Blocks.liquidRouter, team, 0);
 
         var router = routerTile.build;
+        // Pinned v160.8 Blocks.liquidRouter: liquidCapacity = 120f.
         float initial = router.block.liquidCapacity;
         router.liquids.add(Liquids.water, initial);
         float previousDelta = Time.delta;
