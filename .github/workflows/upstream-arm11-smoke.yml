@@ -1217,6 +1217,25 @@ jobs:
           grep -Fx 'UPSTREAM_BACKGROUND_TURN live=37 import=30 remote=100 lead=0 frozen=11' "$check_dir/probe.log"
           python3 tools/campaign_background_fixture.py --server "$RUNNER_TEMP/server-release.jar" --check "$check_dir/save"
 
+      - name: Verify stock save playtime, player restoration, and PC readback
+        run: |
+          set -o pipefail
+          fixture=$(mktemp -d "$RUNNER_TEMP/stock-playtime.XXXXXX")
+          unzip -p "$RUNNER_TEMP/server-release.jar" maps/default/glacier.msav > "$fixture/glacier.msav"
+          bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime \
+            --no-daemon --console=plain \
+            "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" \
+            "-PreferenceJar=$RUNNER_TEMP/server-release.jar" \
+            "-ParcCheckout=$RUNNER_TEMP/Arc" \
+            -Pprobe=singleplayer runStockPlaytimeJvm "--args='$fixture/glacier.msav' '$fixture'" \
+            runStockSavedPlayerJvm "--args='$fixture/glacier.msav' '$fixture/player'" \
+            | tee "$fixture/probe.log"
+          grep -Fx 'UPSTREAM_STOCK_PLAYTIME first=376 resumed=626 new=0 modal=excluded' "$fixture/probe.log"
+          grep -Fx 'UPSTREAM_SAVED_PLAYER team=crux position=restored unit=dagger turret=duo fresh=reset' "$fixture/probe.log"
+          grep -Fx 'UPSTREAM_SAVED_PLAYER_BACKUP primary=truncated tags=backup' "$fixture/probe.log"
+          python3 tools/verify_stock_playtime.py --server "$RUNNER_TEMP/server-release.jar" --saves "$fixture"
+          python3 tools/verify_stock_saved_player.py --server "$RUNNER_TEMP/server-release.jar" --saves "$fixture/player"
+
       - name: Verify the stock campaign map archive and embedded patches
         run: |
           set -o pipefail
@@ -1226,16 +1245,25 @@ jobs:
           python3 tools/verify_stock_campaign_archive.py --assets "$fixture/assets.jar" --stage "$fixture/staged" \
             | tee "$fixture/archive.log"
           grep -Fx 'STOCK_CAMPAIGN_ARCHIVE total=95 serpulo=78 hidden=46 erekir=17' "$fixture/archive.log"
+          unzip -p "$fixture/assets.jar" assets/sprites/sprites.aatls > "$fixture/sprites.aatls"
           bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime \
             --no-daemon --console=plain \
             "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" \
             "-PreferenceJar=$RUNNER_TEMP/server-release.jar" \
             "-ParcCheckout=$RUNNER_TEMP/Arc" \
             -Pprobe=singleplayer runStockCampaignArchiveJvm "--args='$fixture/staged' '$fixture/saves'" \
+            runStockAtlasJvm "--args='$fixture/sprites.aatls'" \
             | tee "$fixture/probe.log"
           grep -Fx 'UPSTREAM_TEAM_STATS absent=unallocated wave-team=stock' "$fixture/probe.log"
           grep -Fx 'UPSTREAM_LOGIC_UNIT_BINDING missing=unallocated rotation=stock reset=stock' "$fixture/probe.log"
           grep -Fx 'UPSTREAM_QUADRANT_ORE_INDEX floor=stock wall=stock' "$fixture/probe.log"
+          grep -Fx 'UPSTREAM_TILE_CONTENT_IDS catalog=stock mutation=isolated missing=ok wide=ok metadata=stock' "$fixture/probe.log"
+          grep -Fx 'UPSTREAM_PATH_FRONTIER order=stock clear=stock' "$fixture/probe.log"
+          grep -Fx 'UPSTREAM_PATH_VISITS words=stock pages=stock groups=stock reset=stock overflow=stock' "$fixture/probe.log"
+          grep -Fx 'UPSTREAM_PATH_SNAPSHOT working-write=ok reset=ok republish=ok' "$fixture/probe.log"
+          grep -Fx 'UPSTREAM_PATH_COSTS sector=111 packing=stock' "$fixture/probe.log"
+          grep -Fx 'UPSTREAM_STOCK_ATLAS pages=4 regions=5200' "$fixture/probe.log"
+          grep -Fx 'UPSTREAM_STOCK_TEAM_ATLAS fallback=432 colored=14 teams=256' "$fixture/probe.log"
           grep -Fx 'UPSTREAM_STOCK_CAMPAIGN_DECODE presets=95 tiles=17662472' "$fixture/probe.log"
           grep -Fx 'UPSTREAM_STOCK_CAMPAIGN_ARCHIVE maps=95 presets=95 hidden=46 patches=3' "$fixture/probe.log"
           python3 tools/verify_stock_campaign_archive.py --server "$RUNNER_TEMP/server-release.jar" \

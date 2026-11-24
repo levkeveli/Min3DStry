@@ -159,7 +159,9 @@ public final class UpstreamStockCampaignArchiveReference {
             verifyTeamStats();
             verifyUnitBinding();
             verifyTileEffects();
+            verifyTileContentIds();
             verifyEmptyLogicProgram();
+            mindustry.ai.UpstreamPathfinderSearchReference.verify();
             verifySaveBuffer();
             int total = 0;
             int hidden = 0;
@@ -195,7 +197,10 @@ public final class UpstreamStockCampaignArchiveReference {
                     verifyOreIndex(Vars.world.tiles);
                 }
                 session.application().runPosted();
-                if (preset.planet == Planets.serpulo && preset.sector.id == 111) verifyStockDarkness();
+                if (preset.planet == Planets.serpulo && preset.sector.id == 111) {
+                    verifyPackedPathCosts();
+                    verifyStockDarkness();
+                }
                 verifyCoreFlagOrder();
                 var original = preset.generator.map;
                 if (Vars.state.rules.sector != preset.sector || Vars.world.width() != original.width
@@ -218,6 +223,18 @@ public final class UpstreamStockCampaignArchiveReference {
         } finally {
             session.shutdown();
         }
+    }
+
+    private static void verifyPackedPathCosts() {
+        var tiles = Vars.world.tiles;
+        int area = tiles.width * tiles.height;
+        for (int index = 0; index < area; index++) {
+            var tile = tiles.geti(index);
+            if (Vars.pathfinder.get(tile.x, tile.y) != Vars.pathfinder.packTile(tile)) {
+                throw new AssertionError("Stock packed path cost differs at tile " + index);
+            }
+        }
+        System.out.println("UPSTREAM_PATH_COSTS sector=111 packing=stock");
     }
 
     private static void verifyStockDarkness() {
@@ -307,6 +324,68 @@ public final class UpstreamStockCampaignArchiveReference {
                 throw new AssertionError("The stock core index retained entries from another sector");
             }
         }
+    }
+
+    private static void verifyTileContentIds() {
+        var tile = new mindustry.world.Tile(3, 7, Blocks.stone, Blocks.oreCopper, Blocks.stoneWall);
+        if (tile.floor() != Blocks.stone || tile.floorID() != Blocks.stone.id
+                || tile.overlay() != Blocks.oreCopper || tile.overlayID() != Blocks.oreCopper.id
+                || tile.block() != Blocks.stoneWall || tile.blockID() != Blocks.stoneWall.id) {
+            throw new AssertionError("Tile decoded incorrect stock content IDs");
+        }
+
+        var highest = Vars.content.blocks().peek();
+        tile.updateBlockReference(highest);
+        tile.setOverlayQuiet(Blocks.oreLead);
+        if (tile.block() != highest || tile.blockID() != highest.id
+                || tile.overlay() != Blocks.oreLead || tile.overlayID() != Blocks.oreLead.id
+                || tile.floor() != Blocks.stone || tile.x != 3 || tile.y != 7) {
+            throw new AssertionError("Updating a tile content ID changed another field");
+        }
+
+        tile.updateBlockReference(null);
+        if (tile.block() != null || tile.blockID() != -1 || tile.overlay() != Blocks.oreLead) {
+            throw new AssertionError("Tile lost the missing content ID sentinel");
+        }
+        short wallId = Blocks.stoneWall.id;
+        short overlayId = Blocks.oreCopper.id;
+        try {
+            Blocks.stoneWall.id = Short.MAX_VALUE;
+            Blocks.oreCopper.id = 1023;
+            tile.updateBlockReference(Blocks.stoneWall);
+            tile.setOverlayQuiet(Blocks.oreCopper);
+            if (tile.blockID() != Short.MAX_VALUE || tile.overlayID() != 1023
+                    || tile.floorID() != Blocks.stone.id) {
+                throw new AssertionError("Wide stock type IDs did not round-trip");
+            }
+            tile.updateBlockReference(null);
+            if (tile.blockID() != -1 || tile.overlayID() != 1023) {
+                throw new AssertionError("Clearing a wide ID also cleared its neighbor");
+            }
+        } finally {
+            Blocks.stoneWall.id = wallId;
+            Blocks.oreCopper.id = overlayId;
+        }
+        tile.setOverlayQuiet(Blocks.oreCopper);
+        if (tile.overlayID() != overlayId || tile.blockID() != -1 || tile.floor() != Blocks.stone) {
+            throw new AssertionError("Compact IDs were not restored after wide IDs were removed");
+        }
+        tile.setExtraData(0x89abcdef);
+        tile.data = (byte) 0x98;
+        tile.floorData = 77;
+        tile.overlayData = (byte) 0xfe;
+        var copy = new mindustry.world.Tile(tile.x, tile.y);
+        if (copy.extraData() != 0) throw new AssertionError("Tile metadata leaked to another tile at the same coordinates");
+        copy.setPackedData(tile.getPackedData());
+        if (copy.extraData() != 0x89abcdef || copy.data != (byte) 0x98
+                || copy.floorData != 77 || copy.overlayData != (byte) 0xfe) {
+            throw new AssertionError("Stock packed tile metadata did not round-trip");
+        }
+        tile.setExtraData(0);
+        if (tile.extraData() != 0 || copy.extraData() != 0x89abcdef || tile.floorID() != Blocks.stone.id) {
+            throw new AssertionError("Clearing metadata changed another tile or content ID");
+        }
+        System.out.println("UPSTREAM_TILE_CONTENT_IDS catalog=stock mutation=isolated missing=ok wide=ok metadata=stock");
     }
 
     private static void verifyTileEffects() {

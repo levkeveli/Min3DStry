@@ -479,7 +479,18 @@ public final class UpstreamCombatSimulationBaseline {
         for (int poll = 0; poll < 300; poll++) {
             stepSimulation(app);
             if (field.hasCompleteWeights()) {
-                int[] snapshot = Arrays.copyOf(field.completeWeights, field.completeWeights.length);
+                // This baseline also compiles against the unmodified upstream int[].
+                Object weights = field.completeWeights;
+                int[] snapshot;
+                if (weights instanceof int[] stockWeights) {
+                    snapshot = stockWeights.clone();
+                } else {
+                    var read = (java.util.function.IntUnaryOperator) weights;
+                    snapshot = new int[field.completeWeights.length];
+                    for (int index = 0; index < snapshot.length; index++) {
+                        snapshot[index] = read.applyAsInt(index);
+                    }
+                }
                 boolean changedFromPrevious = previousWeights == null || !Arrays.equals(snapshot, previousWeights);
                 if (changedFromPrevious && ready.test(snapshot)) {
                     if (last != null && Arrays.equals(snapshot, last)) {

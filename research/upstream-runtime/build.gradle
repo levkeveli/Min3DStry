@@ -13,12 +13,16 @@ def blockSource = 'core/src/mindustry/world/Block.java'
 def tileSource = 'core/src/mindustry/world/Tile.java'
 def tilesSource = 'core/src/mindustry/world/Tiles.java'
 def pathfinderSource = 'core/src/mindustry/ai/Pathfinder.java'
+def flowfieldSearchPatch = file('patches/stock-flowfield-search-storage.patch')
+def flowfieldCostPatch = file('patches/stock-flowfield-cost-grid.patch')
+def flowfieldCostSources = ['mindustry/ai/ControlPathfinder.java', 'mindustry/ai/BaseBuilderAI.java']
 def annotationsSource = 'annotations/src/main/java/mindustry/annotations/Annotations.java'
 def arcRevision = '7445105cd2683daf5b9ac7033ebb07265d3e814d'
 def fileSource = 'arc-core/src/arc/files/Fi.java'
 def soundSource = 'arc-core/src/arc/audio/Sound.java'
 def osSource = 'arc-core/src/arc/util/OS.java'
 def networkIoSource = 'core/src/mindustry/net/NetworkIO.java'
+def saveVersionSource = 'core/src/mindustry/io/SaveVersion.java'
 def netClientSource = 'core/src/mindustry/core/NetClient.java'
 def placementSource = 'core/src/mindustry/ui/fragments/PlacementFragment.java'
 def itemSelectionSource = 'core/src/mindustry/world/blocks/ItemSelection.java'
@@ -82,6 +86,22 @@ if (!entryPoints.containsKey(probe)) {
 def entryPoint = entryPoints[probe]
 def usesMapSources = probe in ['map', 'map-sd']
 def usesSinglePlayerApp = probe in ['singleplayer', 'unified', 'campaign-background']
+def sparseTilePatch = file('patches/sparse-stock-tile-metadata.patch')
+def sparseTileSources = [
+    'mindustry/world/Tile.java',
+    'mindustry/world/Build.java',
+    'mindustry/world/Edges.java',
+    'mindustry/editor/EditorTile.java',
+    'mindustry/editor/DrawOperation.java',
+    'mindustry/editor/EditorTool.java',
+    'mindustry/editor/MapEditor.java',
+    'mindustry/editor/MapGenerateDialog.java',
+    'mindustry/io/MapIO.java',
+    'mindustry/io/SaveVersion.java',
+    'mindustry/io/versions/ShortChunkSaveVersion.java',
+    'mindustry/world/blocks/environment/ColoredFloor.java',
+    'mindustry/world/blocks/environment/ColoredWall.java'
+]
 def usesSinglePlayer = usesSinglePlayerApp || probe == 'singleplayer-sim'
 def usesLiveNetwork = probe in ['network-live', 'network-render', 'unified']
 def usesLiveAudio = probe in ['network-render', 'unified']
@@ -154,6 +174,7 @@ def arcOsFile = sourceDir.map { it.file('arc/util/OS.java') }
 def arcPixmapFile = sourceDir.map { it.file('arc/graphics/Pixmap.java') }
 def arcJsonFile = sourceDir.map { it.file('arc/util/serialization/Json.java') }
 def networkIoFile = sourceDir.map { it.file('mindustry/net/NetworkIO.java') }
+def saveVersionFile = sourceDir.map { it.file('mindustry/io/SaveVersion.java') }
 def netClientFile = sourceDir.map { it.file('mindustry/core/NetClient.java') }
 def schematicsFile = sourceDir.map { it.file('mindustry/game/Schematics.java') }
 def placementFile = sourceDir.map { it.file('UpstreamPlacementCatalog.java') }
@@ -184,14 +205,16 @@ def readUpstream = { path ->
 
 def renderedBuilding = layout.buildDirectory.dir('building-renderer-classes')
 def stageRenderedBuilding
+def tileAuditClasspath
 if (usesRenderedClient) {
     def asm = configurations.detachedConfiguration(dependencies.create('org.ow2.asm:asm-tree:9.9'))
     def adapter = tasks.register('compileBuildingCrackAdapter', JavaCompile) {
         source files('tools/StageBuildingCrackAdapter.java', 'tools/StageNavalWakeAdapter.java',
-                     'tools/StageObjectiveLabelAdapter.java', 'tools/StageCanvasAdapter.java')
+                     'tools/StageObjectiveLabelAdapter.java', 'tools/StageCanvasAdapter.java', 'tools/AuditTileFieldReferences.java')
         classpath = asm
         destinationDirectory = layout.buildDirectory.dir('building-renderer-tool')
     }
+    tileAuditClasspath = files(adapter.flatMap { it.destinationDirectory }) + asm
     stageRenderedBuilding = tasks.register('stageRenderedBuilding', JavaExec) {
         dependsOn adapter, 'prepareUpstreamProbe'
         classpath = files(adapter.flatMap { it.destinationDirectory }) + asm
@@ -204,9 +227,21 @@ if (usesRenderedClient) {
 
 if (usesArcSources || usesExecutor) {
     def stagedClasses = []
+    if (usesSinglePlayerApp) {
+        sparseTileSources.each { path ->
+            def type = path.substring(0, path.length() - '.java'.length())
+            stagedClasses.addAll([type + '.class', type + '$*.class'])
+        }
+    }
     if (usesSinglePlayer) {
+        stagedClasses.add('mindustry/io/SaveReadState.class')
+        stagedClasses.add('arc/util/Interval.class')
         stagedClasses.addAll(['mindustry/ai/Pathfinder.class', 'mindustry/ai/Pathfinder$*.class'])
-        stagedClasses.addAll(['mindustry/io/SaveIO.class', 'mindustry/io/SaveIO$*.class'])
+        flowfieldCostSources.each { path ->
+            def className = path.substring(0, path.length() - '.java'.length())
+            stagedClasses.addAll([className + '.class', className + '$*.class'])
+        }
+        stagedClasses.addAll(['mindustry/io/SaveIO.class', 'mindustry/io/SaveIO$*.class', 'mindustry/io/JsonIO.class', 'mindustry/io/JsonIO$*.class'])
     }
     if (usesContentSources) {
         stagedClasses.add('mindustry/world/Block.class')
@@ -255,6 +290,9 @@ if (usesArcSources || usesExecutor) {
     if (patchesPlanetGrid) {
         stagedClasses.addAll(['mindustry/graphics/g3d/PlanetGrid.class', 'mindustry/graphics/g3d/PlanetGrid$*.class'])
     }
+    if (usesSinglePlayer) {
+        stagedClasses.addAll(['mindustry/io/SaveVersion.class', 'mindustry/io/SaveVersion$*.class'])
+    }
     if (stageRenderedBuilding != null) {
         stagedClasses.addAll(['mindustry/gen/Building.class', 'mindustry/gen/UnitWaterMove.class',
                               'mindustry/game/MapObjectives$ObjectiveMarker.class',
@@ -294,6 +332,15 @@ if (usesArcSources || usesExecutor) {
         }
         destinationDirectory = layout.buildDirectory.dir("probe-dependencies/${probe}")
         archiveFileName = 'server-probe-dependencies.jar'
+    }
+    if (usesSinglePlayerApp) {
+        def audit = tasks.register('auditTileFieldReferences', JavaExec) {
+            dependsOn contentDependencies, 'compileBuildingCrackAdapter'
+            classpath = tileAuditClasspath
+            mainClass = 'AuditTileFieldReferences'
+            args contentDependencies.get().archiveFile.get().asFile.absolutePath
+        }
+        tasks.named('compileJava') { dependsOn audit }
     }
     dependencies { implementation files(contentDependencies.flatMap { it.archiveFile }).builtBy(contentDependencies) }
 } else {
@@ -378,6 +425,14 @@ if (usesSinglePlayer) {
             classpath = sourceSets.main.runtimeClasspath
             mainClass = 'UpstreamStockAssemblerReference'
         }
+        tasks.register('runStockPlaytimeJvm', JavaExec) {
+            classpath = sourceSets.main.runtimeClasspath
+            mainClass = 'UpstreamStockPlaytimeReference'
+        }
+        tasks.register('runStockSavedPlayerJvm', JavaExec) {
+            classpath = sourceSets.main.runtimeClasspath
+            mainClass = 'UpstreamStockSavedPlayerReference'
+        }
         tasks.register('runStockPayloadLoopJvm', JavaExec) {
             classpath = sourceSets.main.runtimeClasspath
             mainClass = 'UpstreamStockPayloadLoopReference'
@@ -410,6 +465,10 @@ if (usesSinglePlayer) {
         tasks.register('runGraphicalCampaignPresetMapsJvm', JavaExec) {
             classpath = sourceSets.main.runtimeClasspath
             mainClass = 'UpstreamCampaignLaunchReference'
+        }
+        tasks.register('runStockAtlasJvm', JavaExec) {
+            classpath = sourceSets.main.runtimeClasspath
+            mainClass = 'UpstreamStockAtlasReference'
         }
         tasks.register('runStockCampaignArchiveJvm', JavaExec) {
             classpath = sourceSets.main.runtimeClasspath
@@ -547,10 +606,8 @@ tasks.register('prepareUpstreamProbe') {
         outputs.file(arcPixmapFile)
     }
     if (usesSinglePlayerApp) {
-        outputs.files(sourceDir.map { dir ->
-            ['mindustry/editor/MapEditor.java', 'mindustry/editor/EditorTile.java']
-                .collect { dir.file(it) }
-        })
+        inputs.file(sparseTilePatch)
+        outputs.files(sourceDir.map { dir -> sparseTileSources.collect { dir.file(it) } })
     }
     if (usesWorldStream) {
         outputs.file(networkIoFile)
@@ -568,10 +625,17 @@ tasks.register('prepareUpstreamProbe') {
         })
     }
     if (usesSinglePlayer) {
+        outputs.file(sourceDir.map { it.file('arc/util/Interval.java') })
         inputs.file('src/gameplay/java/port/FactoryResources.java')
+        inputs.file(flowfieldSearchPatch)
+        inputs.file(flowfieldCostPatch)
+        flowfieldCostSources.each { path -> outputs.file(sourceDir.map { it.file(path) }) }
         outputs.file(factoryResourcesFile)
         outputs.file(pathfinderFile)
         outputs.file(sourceDir.map { it.file('mindustry/io/SaveIO.java') })
+        outputs.file(sourceDir.map { it.file('mindustry/io/JsonIO.java') })
+        outputs.file(sourceDir.map { it.file('mindustry/io/SaveReadState.java') })
+        outputs.file(saveVersionFile)
     }
     if (patchesPlanetGrid) {
         outputs.file(planetGridFile)
@@ -596,16 +660,27 @@ tasks.register('prepareUpstreamProbe') {
     }
     doLast {
         if (usesSinglePlayerApp) {
-            def directory = sourceDir.get().dir('mindustry/editor').asFile
-            directory.mkdirs()
-            new File(directory, 'MapEditor.java').setText(
-                new String(readUpstream('core/src/mindustry/editor/MapEditor.java'), 'UTF-8'), 'UTF-8')
-            def editorTile = new String(readUpstream('core/src/mindustry/editor/EditorTile.java'), 'UTF-8')
+            sparseTileSources.each { path ->
+                def staged = sourceDir.get().file(path).asFile
+                staged.parentFile.mkdirs()
+                staged.bytes = readUpstream('core/src/' + path)
+            }
+            def stageRoot = sourceDir.get().asFile
+            providers.exec {
+                // Keep Git from interpreting generated paths relative to the checkout root.
+                environment 'GIT_CEILING_DIRECTORIES', stageRoot.parentFile.absolutePath
+                commandLine 'git', '-C', stageRoot, '-c', 'core.autocrlf=false', 'apply', '--no-index', sparseTilePatch
+            }.result.get()
+            if (!tileFile.get().asFile.getText('UTF-8').contains('public int extraData()')) {
+                throw new GradleException('Compact stock tile patch did not apply to the staged source')
+            }
+            def stagedEditorTile = sourceDir.get().file('mindustry/editor/EditorTile.java').asFile
+            def editorTile = stagedEditorTile.getText('UTF-8')
             def shadowUpdate = 'renderer.blocks.updateShadowTile(this);'
             if (editorTile.count(shadowUpdate) != 1) {
                 throw new GradleException('Pinned editor shadow update changed')
             }
-            new File(directory, 'EditorTile.java').setText(
+            stagedEditorTile.setText(
                 editorTile.replace(shadowUpdate, 'if(renderer != null) renderer.blocks.updateShadowTile(this);'),
                 'UTF-8')
         }
@@ -941,7 +1016,7 @@ final class GlacierFixture {
             }
             if (usesWorldSources) {
                 def newBuilding = '    public final Building newBuilding(){'
-                def tile = new String(readUpstream(tileSource), 'UTF-8')
+                def tile = usesSinglePlayerApp ? tileFile.get().asFile.getText('UTF-8') : new String(readUpstream(tileSource), 'UTF-8')
                 if (block.count(newBuilding) != 1 || tile.count('wall::newBuilding') != 1
                         || tile.count('type::newBuilding') != 1) {
                     throw new GradleException('Pinned Tile building factory calls changed')
@@ -1205,6 +1280,30 @@ final class GlacierFixture {
                     .replace(writeData, 'dout.writeTo(output);')
                     .replace(resetNesting, '            dout.reset();\n' + resetNesting), 'UTF-8')
             }
+            if (usesRenderedClient) {
+                def tableField = '    public TextureRegion[] teamRegions, variantRegions, variantShadowRegions;'
+                def loadTeamRegions = '''        teamRegions = new TextureRegion[Team.all.length];
+        for(Team team : Team.all){
+            teamRegions[team.id] = teamRegion.found() && team.hasPalette ? Core.atlas.find(name + "-team-" + team.name, teamRegion) : teamRegion;
+        }'''
+                if (block.count(tableField) != 1 || block.count(loadTeamRegions) != 1) {
+                    throw new GradleException('Pinned stock block team atlas table changed')
+                }
+                block = block.replace(tableField, tableField + '\n    private static TextureRegion[] missingTeamRegions;')
+                    .replace(loadTeamRegions, '''        if(!teamRegion.found()){
+            // The stock entries are identical when the atlas has no team sprite.
+            if(missingTeamRegions == null || missingTeamRegions[0] != teamRegion){
+                missingTeamRegions = new TextureRegion[Team.all.length];
+                java.util.Arrays.fill(missingTeamRegions, teamRegion);
+            }
+            teamRegions = missingTeamRegions;
+        }else{
+            teamRegions = new TextureRegion[Team.all.length];
+            for(Team team : Team.all){
+                teamRegions[team.id] = team.hasPalette ? Core.atlas.find(name + "-team-" + team.name, teamRegion) : teamRegion;
+            }
+        }''')
+            }
             def adaptedBlock = blockFile.get().asFile
             adaptedBlock.parentFile.mkdirs()
             adaptedBlock.setText(block.replace(anonymousCheck, 'current.getSimpleName().isEmpty()'), 'UTF-8')
@@ -1303,18 +1402,20 @@ final class GlacierFixture {
             adaptedGrid.setText(grid.replace(create, 'public static PlanetGrid create(int size){'), 'UTF-8')
         }
         if (usesLiveNetwork) {
-            def pathfinder = new String(readUpstream(pathfinderSource), 'UTF-8')
-            def allocateGrid = 'tiles = new int[world.width() * world.height()];'
-            def getTile = '        return tiles[x + y * wwidth];'
-            if (pathfinder.count(allocateGrid) != 1 || pathfinder.count(getTile) != 1) {
-                throw new GradleException('Pinned Pathfinder grid access changed')
+            if (!usesSinglePlayer) {
+                def pathfinder = new String(readUpstream(pathfinderSource), 'UTF-8')
+                def allocateGrid = 'tiles = new int[world.width() * world.height()];'
+                def getTile = '        return tiles[x + y * wwidth];'
+                if (pathfinder.count(allocateGrid) != 1 || pathfinder.count(getTile) != 1) {
+                    throw new GradleException('Pinned Pathfinder grid access changed')
+                }
+                // The remote client never starts the flowfield thread. Keep the same tile-cost packer.
+                def adaptedPathfinder = pathfinderFile.get().asFile
+                adaptedPathfinder.parentFile.mkdirs()
+                adaptedPathfinder.setText(pathfinder
+                    .replace(allocateGrid, 'tiles = new int[net.client() ? 0 : world.width() * world.height()];')
+                    .replace(getTile, '        return net.client() ? packTile(world.tile(x, y)) : tiles[x + y * wwidth];'), 'UTF-8')
             }
-            // The remote client never starts the flowfield thread. Keep the same tile-cost packer.
-            def adaptedPathfinder = pathfinderFile.get().asFile
-            adaptedPathfinder.parentFile.mkdirs()
-            adaptedPathfinder.setText(pathfinder
-                .replace(allocateGrid, 'tiles = new int[net.client() ? 0 : world.width() * world.height()];')
-                .replace(getTile, '        return net.client() ? packTile(world.tile(x, y)) : tiles[x + y * wwidth];'), 'UTF-8')
             def source = new String(readUpstream(netClientSource), 'UTF-8')
             if (usesLiveAudio) {
                 def soundGuard = 'if(sound == null || headless) return;'
@@ -1429,9 +1530,57 @@ final class UpstreamItemChoices {
             var music = musicController != null ? musicController.getCurrent() : null;"""), 'UTF-8')
         }
         if (usesSinglePlayer) {
+            def writer = usesSinglePlayerApp ? saveVersionFile.get().asFile.getText('UTF-8') :
+                new String(readUpstream(saveVersionSource), 'UTF-8')
+            def playtime = '"playtime", headless ? 0 : control.saves.getTotalPlaytime(),'
+            def groups = '"controlGroups", headless || control == null ? "null" : JsonIO.write(control.input.controlGroups),'
+            def controlled = '"controlledType", headless || control.input.controlledType == null ? "null" : control.input.controlledType.name,'
+            if (writer.count(playtime) != 1 || writer.count(groups) != 1 || writer.count(controlled) != 1) {
+                throw new GradleException('Pinned SaveVersion player metadata fields changed')
+            }
+            def metaReader = '''    public void readMeta(DataInput stream, SaveReadState saveState) throws IOException{
+        StringMap map = readStringMap(stream);'''
+            if (writer.count(metaReader) != 1) throw new GradleException('Pinned SaveVersion metadata reader changed')
+            writer = writer.replace(metaReader, metaReader + '''
+        if(saveState.playerTags != null){
+            saveState.playerTags.clear();
+            for(String key : new String[]{"playtime", "viewpos", "playerteam", "controlledType", "controlGroups"}){
+                if(map.containsKey(key)) saveState.playerTags.put(key, map.get(key));
+            }
+        }''')
+            def stagedWriter = saveVersionFile.get().asFile
+            stagedWriter.parentFile.mkdirs()
+            stagedWriter.setText(writer.replace(playtime,
+                '"playtime", headless ? (tags == null ? 0L : tags.getLong("playtime", 0L)) : control.saves.getTotalPlaytime(),')
+                .replace(groups, '"controlGroups", headless || control == null ? (tags == null ? "null" : tags.get("controlGroups", "null")) : JsonIO.write(control.input.controlGroups),')
+                .replace(controlled, '"controlledType", headless ? (tags == null ? "null" : tags.get("controlledType", "null")) : (control.input.controlledType == null ? "null" : control.input.controlledType.name),'),
+                'UTF-8')
             def stagedPathfinder = pathfinderFile.get().asFile
-            def pathfinder = usesLiveNetwork ? stagedPathfinder.getText('UTF-8') :
-                new String(readUpstream(pathfinderSource), 'UTF-8')
+            stagedPathfinder.parentFile.mkdirs()
+            stagedPathfinder.bytes = readUpstream(pathfinderSource)
+            def stageRoot = sourceDir.get().asFile
+            providers.exec {
+                environment 'GIT_CEILING_DIRECTORIES', stageRoot.parentFile.absolutePath
+                commandLine 'git', '-C', stageRoot, '-c', 'core.autocrlf=false', 'apply', '--no-index', flowfieldSearchPatch
+            }.result.get()
+            if (!stagedPathfinder.getText('UTF-8').contains('class FlowFrontier')) {
+                throw new GradleException('Stock flowfield search patch did not apply to the staged source')
+            }
+
+            flowfieldCostSources.each { path ->
+                def destination = new File(stageRoot, path)
+                destination.parentFile.mkdirs()
+                destination.bytes = readUpstream('core/src/' + path)
+            }
+            providers.exec {
+                environment 'GIT_CEILING_DIRECTORIES', stageRoot.parentFile.absolutePath
+                commandLine 'git', '-C', stageRoot, '-c', 'core.autocrlf=false', 'apply', '--no-index', flowfieldCostPatch
+            }.result.get()
+            if (!stagedPathfinder.getText('UTF-8').contains('class CostGrid')) {
+                throw new GradleException('Stock flowfield cost patch did not apply to the staged sources')
+            }
+
+            def pathfinder = stagedPathfinder.getText('UTF-8')
             def cacheField = 'Flowfield[][][] cache;'
             def cacheInit = 'cache = new Flowfield[256][maxCosts][maxFields];'
             def cacheLookup = '        if(cache[team.id][costType][fieldType] == null){'
@@ -1440,7 +1589,6 @@ final class UpstreamItemChoices {
             if ([cacheField, cacheInit, cacheLookup, cacheWrite, cacheReturn].any { pathfinder.count(it) != 1 }) {
                 throw new GradleException('Pinned pathfinder cache changed')
             }
-            stagedPathfinder.parentFile.mkdirs()
             stagedPathfinder.setText(pathfinder
                 .replace(cacheField, 'IntMap<Flowfield> cache;')
                 .replace(cacheInit, 'cache = new IntMap<>(4);')
@@ -1452,6 +1600,59 @@ final class UpstreamItemChoices {
                 .replace(cacheWrite, '            cache.put(key, field);\n            cached = field;')
                 .replace(cacheReturn, '        return cached;'), 'UTF-8')
 
+            def intervalPath = 'arc/util/Interval.java'
+            def timer = providers.exec {
+                commandLine 'git', '-C', arc.get(), 'show', "${arcRevision}:arc-core/src/${intervalPath}"
+            }.standardOutput.asText.get()
+            def inlineTimer = [
+                '    float[] times;': '''    float[] times;
+    private float timeZero;''',
+                '        times = new float[capacity];': '        if(capacity != 1) times = new float[capacity];',
+                '        if(id >= times.length) throw': '        int capacity = times == null ? 1 : times.length;\n        if(id >= capacity) throw',
+                '" + times.length + "!");': '" + capacity + "!");',
+                'if(got) times[id] = Time.time;': 'if(got) setTime(id, Time.time);',
+                '        return Time.time - times[id] >= time || Time.time < times[id];': '''        float previous = storedTime(id);
+        return Time.time - previous >= time || Time.time < previous;''',
+                '        times[id] = Time.time - time;': '        setTime(id, Time.time - time);',
+                '        Arrays.fill(times, 0);': '''        if(times == null) timeZero = 0;
+        else Arrays.fill(times, 0);''',
+                '        return Time.time - times[id];': '        return Time.time - storedTime(id);',
+                '        return times;': '''        if(times == null) times = new float[]{timeZero};
+        return times;''',
+                '    public float[] getTimes(){': '''    private float storedTime(int id){
+        if(times != null) return times[id];
+        if(id != 0) throw new ArrayIndexOutOfBoundsException(id);
+        return timeZero;
+    }
+
+    private void setTime(int id, float value){
+        if(times != null){
+            times[id] = value;
+        }else{
+            if(id != 0) throw new ArrayIndexOutOfBoundsException(id);
+            timeZero = value;
+        }
+    }
+
+    public float[] getTimes(){'''
+            ]
+            inlineTimer.each { before, after ->
+                if(timer.count(before) != 1) throw new GradleException("Pinned Interval source changed: ${before}")
+                timer = timer.replace(before, after)
+            }
+            def stagedInterval = sourceDir.get().file(intervalPath).asFile
+            stagedInterval.parentFile.mkdirs()
+            stagedInterval.setText(timer, 'UTF-8')
+            def jsonIoPath = 'mindustry/io/JsonIO.java'
+            def jsonIo = new String(readUpstream('core/src/' + jsonIoPath), 'UTF-8')
+            def legacyNames = 'string.replace("io.anuke.", "")'
+            if (jsonIo.count(legacyNames) != 2) {
+                throw new GradleException('Pinned JSON legacy prefix handling changed')
+            }
+            def stagedJsonIo = sourceDir.get().file(jsonIoPath).asFile
+            stagedJsonIo.parentFile.mkdirs()
+            stagedJsonIo.setText(jsonIo.replace(legacyNames,
+                '(string.indexOf("io.anuke.") < 0 ? string : string.replace("io.anuke.", ""))'), 'UTF-8')
             def saveIoPath = 'mindustry/io/SaveIO.java'
             def saveIo = new String(readUpstream('core/src/' + saveIoPath), 'UTF-8')
             def compress = '''    public static void write(Fi file, SaveOptions options){
@@ -1473,6 +1674,37 @@ final class UpstreamItemChoices {
             mydeflater = true;
         }
     }'''
+            def fileLoad = '    public static void load(Fi file, WorldContext context) throws SaveException{'
+            def streamLoad = '    public static void load(InputStream is, WorldContext context) throws SaveException{'
+            def mainRead = 'load(new InflaterInputStream(file.read(bufferSize)), context);'
+            def backupRead = 'load(new InflaterInputStream(backup.read(bufferSize)), context);'
+            def readState = 'ver.read(stream, counter, new SaveReadState(context));'
+            if ([fileLoad, streamLoad, mainRead, backupRead, readState].any { saveIo.count(it) != 1 }) {
+                throw new GradleException('Pinned SaveIO load hooks changed')
+            }
+            saveIo = saveIo.replace(fileLoad, fileLoad + '''
+        load(file, context, null);
+    }
+
+    public static void load(Fi file, WorldContext context, StringMap playerTags) throws SaveException{''')
+                .replace(streamLoad, streamLoad + '''
+        load(is, context, null);
+    }
+
+    private static void load(InputStream is, WorldContext context, StringMap playerTags) throws SaveException{''')
+                .replace(mainRead, 'load(new InflaterInputStream(file.read(bufferSize)), context, playerTags);')
+                .replace(backupRead, 'load(new InflaterInputStream(backup.read(bufferSize)), context, playerTags);')
+                .replace(readState, '''var readState = new SaveReadState(context);
+            readState.playerTags = playerTags;
+            ver.read(stream, counter, readState);''')
+
+            def readStatePath = 'mindustry/io/SaveReadState.java'
+            def readStateSource = new String(readUpstream('core/src/' + readStatePath), 'UTF-8')
+            def ruleStringField = '    public @Nullable String ruleString;'
+            if (readStateSource.count(ruleStringField) != 1) throw new GradleException('Pinned SaveReadState changed')
+            def stagedReadState = sourceDir.get().file(readStatePath).asFile
+            stagedReadState.setText(readStateSource.replace(ruleStringField,
+                ruleStringField + '\n    public @Nullable arc.struct.StringMap playerTags;'), 'UTF-8')
             def stagedSaveIo = sourceDir.get().file(saveIoPath).asFile
             stagedSaveIo.parentFile.mkdirs()
             stagedSaveIo.setText(saveIo.replace(compress, boundedCompression), 'UTF-8')
