@@ -1142,6 +1142,10 @@ final class GlacierFixture {
                 }
                 liquid = liquid.replace(before, after)
             }
+            def stockLiquidBody = liquid.indexOf('    private Liquid current =')
+            if (stockLiquidBody < 0 || liquid.substring(stockLiquidBody).contains('liquids[')) {
+                throw new GradleException('Pinned LiquidModule uses direct liquid array access outside storage')
+            }
             def stagedLiquid = liquidModuleFile.get().asFile
             stagedLiquid.parentFile.mkdirs()
             stagedLiquid.setText(liquid, 'UTF-8')
