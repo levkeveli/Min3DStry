@@ -836,6 +836,12 @@ public final class UpstreamSinglePlayerApp {
             int direction = axis > 60 && pauseAxis <= 20 ? -1 : axis < -60 && pauseAxis >= -20 ? 1 : 0;
             pauseAxis = axis;
             if (pauseOpen) {
+                if ((input & UpstreamSinglePlayerInput.WAVE_PRESSED) != 0 && !pauseMenu.confirmingQuit()) {
+                    if (!new UpstreamCoreDatabaseMenu(target).run()) return false;
+                    previousTime = System.nanoTime();
+                    accumulator = 0L;
+                    continue;
+                }
                 if (direction != 0) pauseMenu.move(direction);
                 if ((input & UpstreamSinglePlayerInput.A_PRESSED) != 0) {
                     var action = pauseMenu.activate();
@@ -1270,6 +1276,8 @@ public final class UpstreamSinglePlayerApp {
         }
         if (pauseMenu.confirmingQuit()) {
             drawPauseRow(Core.bundle.get("quit.confirm"), 40f, 210f, false);
+        } else {
+            drawPauseRow("Y  " + Core.bundle.get("database"), 44f, 210f, false);
         }
     }
 
