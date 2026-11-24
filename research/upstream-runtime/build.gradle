@@ -13,6 +13,7 @@ def blockSource = 'core/src/mindustry/world/Block.java'
 def tileSource = 'core/src/mindustry/world/Tile.java'
 def tilesSource = 'core/src/mindustry/world/Tiles.java'
 def pathfinderSource = 'core/src/mindustry/ai/Pathfinder.java'
+def flowfieldSearchPatch = file('patches/stock-flowfield-search-storage.patch')
 def annotationsSource = 'annotations/src/main/java/mindustry/annotations/Annotations.java'
 def arcRevision = '7445105cd2683daf5b9ac7033ebb07265d3e814d'
 def fileSource = 'arc-core/src/arc/files/Fi.java'
@@ -600,6 +601,7 @@ tasks.register('prepareUpstreamProbe') {
     }
     if (usesSinglePlayer) {
         inputs.file('src/gameplay/java/port/FactoryResources.java')
+        inputs.file(flowfieldSearchPatch)
         outputs.file(factoryResourcesFile)
         outputs.file(pathfinderFile)
         outputs.file(sourceDir.map { it.file('mindustry/io/SaveIO.java') })
@@ -792,6 +794,23 @@ tasks.register('prepareUpstreamProbe') {
                 if(musicControl == null) return;
 
             //null music = stop''').replace(musicDispatch, 'musicControl.playMusic(music, interrupt.bool());')
+            }
+            if (usesSinglePlayer) {
+                def bindingArray = '''if(exec.binds == null || exec.binds.length != content.units().size){
+                exec.binds = new int[content.units().size];
+            }'''
+                def bindNext = '''if(seq != null && seq.any()){
+                    exec.binds[type.id] %= seq.size;'''
+                if (executor.count(bindingArray) != 1 || executor.count(bindNext) != 1) {
+                    throw new GradleException('Pinned logic unit-binding cursor changed')
+                }
+                executor = executor
+                    .replace(bindingArray, '''if(exec.binds != null && exec.binds.length != content.units().size){
+                exec.binds = null;
+            }''')
+                    .replace(bindNext, '''if(seq != null && seq.any()){
+                    if(exec.binds == null) exec.binds = new int[content.units().size];
+                    exec.binds[type.id] %= seq.size;''')
             }
             def headless = 'Vars.headless || exec.graphicsBuffer.size >= maxGraphicsBuffer'
             if (executor.count(headless) != 1) throw new GradleException('Pinned graphics instruction guard changed')
@@ -1476,6 +1495,14 @@ final class UpstreamItemChoices {
         if(cached == null){''')
                 .replace(cacheWrite, '            cache.put(key, field);\n            cached = field;')
                 .replace(cacheReturn, '        return cached;'), 'UTF-8')
+            def stageRoot = sourceDir.get().asFile
+            providers.exec {
+                environment 'GIT_CEILING_DIRECTORIES', stageRoot.parentFile.absolutePath
+                commandLine 'git', '-C', stageRoot, '-c', 'core.autocrlf=false', 'apply', '--no-index', flowfieldSearchPatch
+            }.result.get()
+            if (!stagedPathfinder.getText('UTF-8').contains('class FlowFrontier')) {
+                throw new GradleException('Stock flowfield search patch did not apply to the staged source')
+            }
 
             def saveIoPath = 'mindustry/io/SaveIO.java'
             def saveIo = new String(readUpstream('core/src/' + saveIoPath), 'UTF-8')
