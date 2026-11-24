@@ -5,8 +5,11 @@ import java.util.ArrayList;
 import java.util.List;
 import mindustry.Vars;
 import mindustry.content.Planets;
+import mindustry.core.UI;
 import mindustry.ctype.UnlockableContent;
+import mindustry.gen.Iconc;
 import mindustry.world.meta.Stats;
+import port.render.UpstreamLabelText;
 
 /** Shows the stock database with the same handheld list controls as Custom Game. */
 final class UpstreamCoreDatabaseMenu {
@@ -103,12 +106,13 @@ final class UpstreamCoreDatabaseMenu {
         }
         if (content.description != null) {
             if (hasStats) lines.add(Core.bundle.get("category.purpose"));
-            wrap(lines, content.displayDescription());
+            wrap(lines, UI.formatIcons(content.displayDescription()));
             if (hasStats && !stats.useCategories) lines.add(Core.bundle.get("category.general"));
         }
         addStats(lines, stats);
         if (content.details != null) {
-            wrap(lines, content.unlocked() || !content.hideDetails ? content.details : Core.bundle.get("unlock.incampaign"));
+            wrap(lines, content.unlocked() || !content.hideDetails ? UI.formatIcons(content.details)
+                : Iconc.lock + " " + Core.bundle.get("unlock.incampaign"));
         }
         if (content.credit != null) wrap(lines, Core.bundle.format("content.createdby", content.credit));
         System.out.println("UPSTREAM_DATABASE_DETAIL content=" + content.name + " rows=" + lines.size());
@@ -227,8 +231,8 @@ final class UpstreamCoreDatabaseMenu {
     }
 
     private static DrawRow encode(String text, TextureRegion icon) {
-        String label = arc.util.Strings.stripColors(text);
-        return new DrawRow((label + "\0").getBytes(StandardCharsets.UTF_8),
-            UpstreamSinglePlayerApp.encodePlainMenuLabel(label), icon);
+        var label = UpstreamLabelText.parse(text);
+        return new DrawRow((label.plain() + "\0").getBytes(StandardCharsets.UTF_8),
+            UpstreamHudLabels.encodeLabel(label), icon);
     }
 }
