@@ -162,6 +162,8 @@ typedef struct MockNetState {
   size_t max_tcp_chunk;
   bool inject_timeout_once;
   size_t timeout_at_rx_pos;
+  bool inject_zero_once;
+  size_t zero_at_rx_pos;
 
   uint8_t tx_tcp[4096];
   size_t tx_tcp_len;
@@ -206,6 +208,10 @@ static int mock_tcp_recv(void *user_data, uint8_t *out_buf, size_t max_len, uint
   if (st->inject_timeout_once && st->rx_pos == st->timeout_at_rx_pos) {
     st->inject_timeout_once = false;
     return M3DS_NET_IO_TIMEOUT;
+  }
+  if (st->inject_zero_once && st->rx_pos == st->zero_at_rx_pos) {
+    st->inject_zero_once = false;
+    return 0;
   }
   if (st->rx_pos >= st->rx_len) {
     return M3DS_NET_IO_EOF;
@@ -580,6 +586,39 @@ static void test_real_upstream_lz4_packet_vector(void) {
   assert(dec.mod_count == 0U);
 }
 
+static void test_zero_read_is_disconnected(void) {
+  MockNetState st;
+  memset(&st, 0, sizeof(st));
+  st.inject_zero_once = true;
+  st.zero_at_rx_pos = 0U;
+
+  M3dsNetTransport tr = {
+      &st,
+      mock_tcp_connect,
+      mock_tcp_send,
+      mock_tcp_recv,
+      mock_tcp_close,
+      mock_udp_open,
+      mock_udp_send,
+      mock_udp_recv,
+      mock_udp_close};
+
+  M3dsNetConnectPacket pkt;
+  memset(&pkt, 0, sizeof(pkt));
+  pkt.version = M3DS_NET_UPSTREAM_BUILD;
+  pkt.version_type = M3DS_NET_UPSTREAM_VERSION_TYPE;
+  pkt.name = "Min3DStry";
+  pkt.locale = "en";
+  pkt.usid = "testusid";
+  pkt.color = 0xFFFFFFFFU;
+
+  M3dsNetHandshakeResult res;
+  assert(!m3ds_net_handshake(
+      &tr, "127.0.0.1", M3DS_NET_DEFAULT_PORT, 1000U, &pkt, &res));
+  assert(res.status == M3DS_HANDSHAKE_DISCONNECTED);
+  assert(st.closed);
+}
+
 int main(void) {
   test_tcp_framing_and_framework();
   test_host_info_decoder();
@@ -590,6 +629,7 @@ int main(void) {
   test_mock_handshake();
   test_segmented_handshake_and_pings();
   test_early_kick_during_udp_reg();
+  test_zero_read_is_disconnected();
   printf("test_mindustry_net: all assertions passed.\n");
   return 0;
 }

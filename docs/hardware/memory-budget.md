@@ -177,3 +177,54 @@ Measured with pinned `devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd
 - **`network-render -Os`:** `T:meth_*` totals `10,352,756` bytes (`9.87 MiB`) and `T:other` totals `1,064,712` bytes (`1.02 MiB`); `R:all` totals `155,386` bytes (including `ft_adobe_glyph_list` at `55,997` B); `D:all` totals `3,759,577` bytes (`*_Cls` `2,365,116` B / `2.26 MiB`, `__compound_literal.*` `996,476` B / `0.95 MiB`, `callsites/m3ds_*` `308,544` B including `exceptionHandlers_teavm_callSites` `159,720` B and `m3ds_sparse_callsites` `148,824` B, `teavm_*` `75,372` B including `teavm_stringPool` `52,292` B, other `D` `14,069` B); `B:all` totals `146,432` bytes. Largest single methods: `meth_mc_Blocks_load` (`75,100` B), `meth_mg_ContentRegions_loadRegions` (`44,448` B), `meth_mg_Call_registerPackets` (`43,372` B), `meth_mm_DataPatcher_assign` (`37,724` B), plus >20 generated entity `meth_mg_*Unit*_read` deserializers at `~28–41 KiB` each (`meth_mg_PayloadUnitLegacyQuad_read` `40,732` B, `meth_mg_PayloadUnitLegacyOct_read` `39,712` B, `meth_mg_PayloadUnit_read` `39,604` B, `meth_mg_MechUnit_read` `37,080` B, `meth_mg_UnitWaterMove_read` `37,076` B, `meth_mg_LegsUnit_read` `37,076` B, `meth_mg_BlockUnitUnit_read` `37,076` B, `meth_mg_UnitEntity_read` `37,072` B, `meth_mg_BuildingTetherPayloadUnit_read` `36,040` B).
 
 Verification: `-Os` Linux host execution on `audio-ticks` (`UPSTREAM_WORLD_FINGERPRINT 2e7b9f883994de6c`, `UPSTREAM_AUDIO_REGISTRY sounds=205 musics=16 duo=136 death=192 convLoop=63 drillLoop=67`, `UPSTREAM_AUDIO_AMBIENT convTicks=399 drillTicks=420 loops=1,1 duoFirstPanMilli=-335 deathPanMilli=-520`, `UPSTREAM_AUDIO_COMBAT shots=17 firstShot=49 deathTick=382 destroyed=382 ammo=23 events=20 trace=8dd46207043810fc`), Azahar New 3DS and Original 3DS `-Os` boot on `audio-ticks` (`UPSTREAM_MEMORY appHeap=111915008` on `new3ds`, `UPSTREAM_MEMORY appHeap=82554880` on `old3ds`, `linearHeap=4194304`, `stack=262144` with Mindustry presets initialized cleanly), and `./dev.sh test` pass; `network-render -Os` Azahar boot and physical Original/New 3DS hardware `-Os` vs. `-O2` frame-time and memory measurements remain separate pending checks (`#43`).
+
+### Full-build upstream audio
+
+The full-build artifact now embeds the 9 validated upstream clips: **647,008
+bytes** of PCM16 plus the manifest. The registry uses a static PCM buffer
+outside the 1 MiB dynamic arena, covered by the 16 MiB code/static reserve.
+A local pinned-upstream build measured **17,199,844 bytes** (16.4 MiB) for the
+complete `.3dsx` including the audio RomFS. The official GitHub-hosted build on
+`main` at `8ece435bc9ac4dadee293a31f2c3ba7ca5685522`
+([run 45261030312](https://github.com/levkeveli/Min3DStry/actions/runs/45261030312))
+produced **17,207,256 bytes**, SHA-256
+`82334a9f3f40b2bc94731958c29ea6cea36eff95a9fc5e5a6586ab992432a1cd`, with
+`main_stack: bytes=2400 limit=4096` and `audio_romfs: OK entries=9 bytes=647008`.
+That artifact booted on both Azahar 2126.2 profiles with parity `0x53a483c7`,
+nine clips, the `wave.spawn` clip and `Sectors=1`. CI asserts the final `.3dsx`
+is below **24 MiB** and prints its byte count; the RomFS audio itself is not part
+of the ELF `LOAD` segments. Physical Original 3DS DSP playback and the resulting
+peak-memory measurement remain pending; do not treat the package-size check as
+an Old 3DS RAM pass.
+
+### main() stack guard
+
+The embedded TeaVM loader runs from `main()`'s frame, and the main-thread stack
+is tight. Two full-build regressions were caused by large `main()` locals (the
+frame-stats window, then scene/factory/audio contexts). The full-build workflow
+now disassembles the linked ELF and rejects a `main()` prologue frame above
+**4,096 bytes**. The fixed frame is **2,400 bytes** (9 integer pushes, 4 double
+pushes, `2320 + 12` bytes of `sub sp`). `tools/check_main_stack.py` has host
+parser tests; keep new large single-threaded state static or heap-backed.
+
+### Original fire and puddle tile indexes
+
+The pinned `Tiles` implementation gives every map two effect arrays with one
+reference per tile. The 3DS adapter uses an Arc map keyed by the original tile
+index for each effect type. Fire and puddle entities continue to use the
+upstream creation, lookup, update, removal and save paths. Empty tiles have no
+entries. The headless campaign reference checks separate worlds, tile zero,
+replacement, removal and index bounds. The original 32 MiB managed heap cap
+still applies. The [JVM campaign check](https://github.com/levkeveli/Min3DStry/actions/runs/45262443426)
+decoded all 95 stock maps and reopened the two test saves in stock Java.
+In the [32-bit diagnostic](https://github.com/levkeveli/Min3DStry/actions/runs/45261579652),
+Littoral Shipyard progressed through building creation to its darkness-buffer
+allocation. At that point its heap had 3,174,412 bytes free with a largest
+block of 288,188 bytes, short of the 360,012-byte allocation. Origin and
+Serpulo 242 still exhausted the heap during building decode. Large-map
+hardware verification is tracked in [#538](https://github.com/levkeveli/Min3DStry/issues/538).
+
+The original block index keeps a list for every team and block flag. The
+3DS adapter starts those lists at zero capacity and lets Arc grow each list
+when a matching building enters the index. The campaign archive check
+compares core building identities and order after each stock sector load.

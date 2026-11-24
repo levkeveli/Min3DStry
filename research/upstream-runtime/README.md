@@ -257,6 +257,35 @@ checks the new file through `SaveIO.isSaveValid` before reloading it. On the
 JVM, pass the map, v13 input, and new output paths as arguments. The
 round-trip check ends with `UPSTREAM_SAVE_ROUNDTRIP version=13 marker=ok`.
 
+The shared runtime releases the stock building and block scratch references
+after a world reset. The hosted campaign regression checks both collections
+after loading the stock archive, and the unmodified Java release reopens the
+two generated 600×600 sector saves. The 32 MiB ARM11 campaign check remains
+tracked in [#538](https://github.com/levkeveli/Min3DStry/issues/538).
+[Hosted campaign regression](https://github.com/levkeveli/Min3DStry/actions/runs/45318649486)
+
+The stock ore index stores local coordinates within each 20×20 quadrant.
+It preserves insertion and swap-removal order, including the first candidate
+in each quadrant. The campaign regression compares floor and wall ore
+selection on stock Serpulo sector 111.
+
+Campaign map loading and team-stat updates reuse existing team data and
+create it when teams first enter play. The configured wave team remains
+present while waves are enabled, even without buildings or units. The
+stock campaign regression checks both cases.
+
+The single-player runtime writes stock zlib-framed saves with a 4 KiB
+compression window and smaller hash tables to reduce contiguous scratch
+allocations. It uses the same BSD-licensed jzlib 1.1.3 dependency as TeaVM
+0.16.0. The original v160.8 Java release reopened a generated 600×600
+Littoral Shipyard save with both embedded patches.
+[Hosted stock save readback](https://github.com/levkeveli/Min3DStry/actions/runs/45329962046)
+
+The world loader computes the original wall-darkness values from nearby tiles
+without allocating two map-sized buffers. The hosted regression compares all
+360,000 tile data bytes in Serpulo 111 against the unmodified Java calculation.
+[Hosted darkness comparison](https://github.com/levkeveli/Min3DStry/actions/runs/45324692356)
+
 The host-side [save resilience probe](host/README.md#save-resilience-checks)
 uses the same pinned server JAR and Glacier fixture to reject truncated,
 bad-header and unknown-version saves and to exercise the upstream backup path.
@@ -1127,6 +1156,21 @@ v160.8 Java server and checks the saved materials, drone count, production
 progress, completed unit and rally point. This evidence covers host simulation
 and save interoperability. Handheld interaction and rendering require separate
 verification.
+
+### Stock Erekir payload production and recycling
+
+`runStockPayloadLoopJvm` runs an original Constructor, Reinforced Payload
+Conveyor and Small Deconstructor on Erekir Caldera. The stock blocks wait for
+power, consume both original materials and pass the original Reinforced
+Container through the production line. The check saves during recycling,
+reopens the active payload and its fractional material buffer, and resumes
+until all 45 tungsten and 60 graphite have been returned. The fixture uses a
+1.5 build-cost multiplier and a 0.25 manual demolition refund multiplier to
+check that payload recycling uses the original build-cost rule.
+
+Use the assembler check's argument order. The separate
+`tools/verify_stock_payload_loop.py` reopens both saves with the unmodified
+v160.8 Java server. This checks offline simulation and save interoperability.
 
 ### Player mining input
 

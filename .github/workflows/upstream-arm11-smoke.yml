@@ -23,6 +23,12 @@ on:
       - "tests/net/**"
       - ".github/scripts/fetch_upstream_v160.sh"
       - ".github/scripts/smoke_scope.py"
+      - ".github/scripts/build_unified_arm11_smoke.sh"
+      - ".github/scripts/setup_smoke_azahar.sh"
+      - "tools/verify_offline_stock_audio.py"
+      - "tools/verify_upstream_singleplayer.py"
+      - "tools/verify_azahar.py"
+      - "tools/UpstreamSpriteAtlas.java"
       - ".github/scripts/cc_host.sh"
       - ".github/workflows/upstream-arm11-smoke.yml"
       - "!research/upstream-runtime/**/*.md"
@@ -48,22 +54,33 @@ on:
       - "tests/net/**"
       - ".github/scripts/fetch_upstream_v160.sh"
       - ".github/scripts/smoke_scope.py"
+      - ".github/scripts/build_unified_arm11_smoke.sh"
+      - ".github/scripts/setup_smoke_azahar.sh"
+      - "tools/verify_offline_stock_audio.py"
+      - "tools/verify_upstream_singleplayer.py"
+      - "tools/verify_azahar.py"
+      - "tools/UpstreamSpriteAtlas.java"
       - ".github/scripts/cc_host.sh"
       - ".github/workflows/upstream-arm11-smoke.yml"
       - "!research/upstream-runtime/**/*.md"
   workflow_dispatch:
 
 concurrency:
-  group: upstream-arm11-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: upstream-arm11-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || (github.event_name == 'workflow_dispatch' && format('dispatch-{0}', github.run_id)) || github.ref }}
+  # A newer commit supersedes an older smoke run in the same ref so a stale
+  # main run cannot occupy the queue.
+  cancel-in-progress: true
 
 permissions:
   contents: read
 
+# Temporary: the self-hosted min3dstry runners are offline. Run smoke jobs
+# on GitHub-hosted Ubuntu so main pushes and same-repo PRs are not queued.
+# Restore the self-hosted runs-on expressions when the runners return.
 jobs:
   changes:
     name: Scope smoke checks
-    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.head.repo.fork)) && '["self-hosted", "linux", "x64", "min3dstry-fast"]' || '"ubuntu-latest"') }}
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
       contents: read
@@ -93,8 +110,8 @@ jobs:
   probe:
     name: Probe ${{ matrix.probe }}
     needs: [changes]
-    if: needs.changes.outputs.run_probes == 'true'
-    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.head.repo.fork)) && '["self-hosted", "linux", "x64", "min3dstry"]' || '"ubuntu-latest"') }}
+    if: needs.changes.outputs.run_probes == 'true' && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.run_all != 'true')
+    runs-on: ubuntu-latest
     timeout-minutes: 60
     strategy:
       fail-fast: false
@@ -305,8 +322,8 @@ jobs:
   save-baseline:
     name: Save writer baseline
     needs: [changes]
-    if: needs.changes.outputs.run_save == 'true'
-    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.head.repo.fork)) && '["self-hosted", "linux", "x64", "min3dstry"]' || '"ubuntu-latest"') }}
+    if: needs.changes.outputs.run_save == 'true' && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.run_all != 'true')
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -351,8 +368,8 @@ jobs:
   world-roundtrip:
     name: World save round trip
     needs: [changes]
-    if: needs.changes.outputs.run_save == 'true'
-    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.head.repo.fork)) && '["self-hosted", "linux", "x64", "min3dstry"]' || '"ubuntu-latest"') }}
+    if: needs.changes.outputs.run_save == 'true' && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.run_all != 'true')
+    runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
@@ -558,8 +575,8 @@ jobs:
   audio-inventory:
     name: Audio asset inventory
     needs: [changes]
-    if: needs.changes.outputs.run_audio == 'true'
-    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.head.repo.fork)) && '["self-hosted", "linux", "x64", "min3dstry"]' || '"ubuntu-latest"') }}
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
@@ -659,8 +676,8 @@ jobs:
   progression-baseline:
     name: Progression baseline
     needs: [changes]
-    if: needs.changes.outputs.run_progression == 'true'
-    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.head.repo.fork)) && '["self-hosted", "linux", "x64", "min3dstry"]' || '"ubuntu-latest"') }}
+    if: needs.changes.outputs.run_progression == 'true' && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.run_all != 'true')
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -695,8 +712,8 @@ jobs:
   combat-baseline:
     name: Combat and pathfinding baseline
     needs: [changes]
-    if: needs.changes.outputs.run_combat == 'true'
-    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.head.repo.fork)) && '["self-hosted", "linux", "x64", "min3dstry"]' || '"ubuntu-latest"') }}
+    if: needs.changes.outputs.run_combat == 'true' && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.run_all != 'true')
+    runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
@@ -789,8 +806,8 @@ jobs:
   audio-conversion:
     name: Audio conversion
     needs: [changes]
-    if: needs.changes.outputs.run_audio == 'true'
-    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.head.repo.fork)) && '["self-hosted", "linux", "x64", "min3dstry"]' || '"ubuntu-latest"') }}
+    if: needs.changes.outputs.run_audio == 'true' && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.run_all != 'true')
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -851,8 +868,8 @@ jobs:
   net-session-baseline:
     name: Net session baseline
     needs: [changes]
-    if: needs.changes.outputs.run_net == 'true'
-    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.head.repo.fork)) && '["self-hosted", "linux", "x64", "min3dstry"]' || '"ubuntu-latest"') }}
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -879,8 +896,8 @@ jobs:
   production-baseline:
     name: Production, power, and liquid baseline
     needs: [changes]
-    if: needs.changes.outputs.run_production == 'true'
-    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.head.repo.fork)) && '["self-hosted", "linux", "x64", "min3dstry"]' || '"ubuntu-latest"') }}
+    if: needs.changes.outputs.run_production == 'true' && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.run_all != 'true')
+    runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
@@ -969,8 +986,8 @@ jobs:
   factory-baseline:
     name: Factory and logistics baseline
     needs: [changes]
-    if: needs.changes.outputs.run_factory == 'true'
-    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.head.repo.fork)) && '["self-hosted", "linux", "x64", "min3dstry"]' || '"ubuntu-latest"') }}
+    if: needs.changes.outputs.run_factory == 'true' && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.run_all != 'true')
+    runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
@@ -1057,8 +1074,8 @@ jobs:
   singleplayer-baseline:
     name: Offline single-player Ground Zero baseline
     needs: [changes]
-    if: needs.changes.outputs.run_singleplayer == 'true'
-    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.head.repo.fork)) && '["self-hosted", "linux", "x64", "min3dstry"]' || '"ubuntu-latest"') }}
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
@@ -1215,6 +1232,39 @@ jobs:
           grep -Fx 'UPSTREAM_STOCK_PLAYTIME first=376 resumed=626 new=0 modal=excluded' "$fixture/probe.log"
           python3 tools/verify_stock_playtime.py --server "$RUNNER_TEMP/server-release.jar" --saves "$fixture"
 
+      - name: Verify the stock campaign map archive and embedded patches
+        run: |
+          set -o pipefail
+          fixture=$(mktemp -d "$RUNNER_TEMP/stock-campaign-archive.XXXXXX")
+          curl --fail --silent --show-error --location --retry 3 \
+            https://github.com/Anuken/Mindustry/releases/download/v160.8/assets.jar -o "$fixture/assets.jar"
+          python3 tools/verify_stock_campaign_archive.py --assets "$fixture/assets.jar" --stage "$fixture/staged" \
+            | tee "$fixture/archive.log"
+          grep -Fx 'STOCK_CAMPAIGN_ARCHIVE total=95 serpulo=78 hidden=46 erekir=17' "$fixture/archive.log"
+          unzip -p "$fixture/assets.jar" assets/sprites/sprites.aatls > "$fixture/sprites.aatls"
+          bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime \
+            --no-daemon --console=plain \
+            "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" \
+            "-PreferenceJar=$RUNNER_TEMP/server-release.jar" \
+            "-ParcCheckout=$RUNNER_TEMP/Arc" \
+            -Pprobe=singleplayer runStockCampaignArchiveJvm "--args='$fixture/staged' '$fixture/saves'" \
+            runStockAtlasJvm "--args='$fixture/sprites.aatls'" \
+            | tee "$fixture/probe.log"
+          grep -Fx 'UPSTREAM_TEAM_STATS absent=unallocated wave-team=stock' "$fixture/probe.log"
+          grep -Fx 'UPSTREAM_LOGIC_UNIT_BINDING missing=unallocated rotation=stock reset=stock' "$fixture/probe.log"
+          grep -Fx 'UPSTREAM_QUADRANT_ORE_INDEX floor=stock wall=stock' "$fixture/probe.log"
+          grep -Fx 'UPSTREAM_TILE_CONTENT_IDS catalog=stock mutation=isolated missing=ok wide=ok metadata=stock' "$fixture/probe.log"
+          grep -Fx 'UPSTREAM_PATH_FRONTIER order=stock clear=stock' "$fixture/probe.log"
+          grep -Fx 'UPSTREAM_PATH_VISITS words=stock pages=stock groups=stock reset=stock overflow=stock' "$fixture/probe.log"
+          grep -Fx 'UPSTREAM_PATH_SNAPSHOT working-write=ok reset=ok republish=ok' "$fixture/probe.log"
+          grep -Fx 'UPSTREAM_PATH_COSTS sector=111 packing=stock' "$fixture/probe.log"
+          grep -Fx 'UPSTREAM_STOCK_ATLAS pages=4 regions=5200' "$fixture/probe.log"
+          grep -Fx 'UPSTREAM_STOCK_TEAM_ATLAS fallback=432 colored=14 teams=256' "$fixture/probe.log"
+          grep -Fx 'UPSTREAM_STOCK_CAMPAIGN_DECODE presets=95 tiles=17662472' "$fixture/probe.log"
+          grep -Fx 'UPSTREAM_STOCK_CAMPAIGN_ARCHIVE maps=95 presets=95 hidden=46 patches=3' "$fixture/probe.log"
+          python3 tools/verify_stock_campaign_archive.py --server "$RUNNER_TEMP/server-release.jar" \
+            --check-saves "$fixture/saves"
+
       - name: Verify stock Erekir assembler production and PC save readback
         run: |
           set -o pipefail
@@ -1233,6 +1283,24 @@ jobs:
           python3 tools/verify_stock_assembler.py --server "$RUNNER_TEMP/server-release.jar" \
             --halfway "$fixture/halfway.msav" --completed "$fixture/completed.msav"
 
+      - name: Verify stock Erekir payload production, recycling, and PC save readback
+        run: |
+          set -o pipefail
+          fixture=$(mktemp -d "$RUNNER_TEMP/stock-payload-loop.XXXXXX")
+          unzip -p "$RUNNER_TEMP/server-release.jar" maps/erekir/caldera-erekir.msav > "$fixture/caldera-erekir.msav"
+          git -C "$RUNNER_TEMP/Mindustry" show HEAD:core/assets/bundles/bundle.properties > "$fixture/bundle.properties"
+          bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime \
+            --no-daemon --console=plain \
+            "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" \
+            "-PreferenceJar=$RUNNER_TEMP/server-release.jar" \
+            "-ParcCheckout=$RUNNER_TEMP/Arc" \
+            -Pprobe=singleplayer runStockPayloadLoopJvm \
+            "--args='$fixture/caldera-erekir.msav' '$fixture/halfway.msav' '$fixture/completed.msav' '$fixture/bundle'" \
+            | tee "$fixture/probe.log"
+          grep -E '^UPSTREAM_STOCK_PAYLOAD_LOOP .* tungsten=45 graphite=60$' "$fixture/probe.log"
+          python3 tools/verify_stock_payload_loop.py --server "$RUNNER_TEMP/server-release.jar" \
+            --halfway "$fixture/halfway.msav" --completed "$fixture/completed.msav"
+
       - name: Check unified multiplayer server address parsing on the JVM
         run: |
           bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime \
@@ -1241,3 +1309,122 @@ jobs:
             "-PreferenceJar=$RUNNER_TEMP/server-release.jar" \
             "-ParcCheckout=$RUNNER_TEMP/Arc" \
             -Pprobe=unified runServerAddressJvm
+
+  unified-build:
+    name: ARM11 smoke - unified build
+    needs: [changes]
+    if: >-
+      needs.changes.outputs.run_save == 'true' ||
+      needs.changes.outputs.run_singleplayer == 'true' ||
+      needs.changes.outputs.run_audio == 'true' ||
+      needs.changes.outputs.run_net == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: actions/cache@v4
+        if: runner.environment == 'github-hosted'
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-v1-${{ hashFiles('research/upstream-runtime/build.gradle', 'research/upstream-runtime/gradle/**') }}
+      - name: Ensure ffmpeg is available
+        run: |
+          if ! command -v ffmpeg >/dev/null; then
+            sudo apt-get update
+            sudo apt-get install -y ffmpeg
+          fi
+      - name: Build stock v160.8 ARM11 ROM and verify packaged audio
+        run: bash .github/scripts/build_unified_arm11_smoke.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: unified-arm11-smoke
+          path: build/unified-smoke/
+          if-no-files-found: error
+          compression-level: 0
+
+  offline-smoke:
+    name: ARM11 smoke - offline and saves
+    needs: [changes, unified-build]
+    if: needs.changes.outputs.run_save == 'true' || needs.changes.outputs.run_singleplayer == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: unified-arm11-smoke
+          path: build/unified-smoke
+      - run: bash .github/scripts/setup_smoke_azahar.sh
+      - name: Ground Zero movement, mining, building and save/reload
+        run: >-
+          xvfb-run -a python3 tools/verify_upstream_singleplayer.py
+          --rom build/unified-smoke/upstream-probe.3dsx
+          --output-dir build/offline-smoke
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: arm11-offline-smoke-evidence
+          path: |
+            build/offline-smoke/
+            ${{ runner.temp }}/smoke-data/azahar-emu/log/
+
+  live-smoke:
+    name: ARM11 smoke - multiplayer and audio
+    needs: [changes, unified-build]
+    if: needs.changes.outputs.run_net == 'true' || needs.changes.outputs.run_audio == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: actions/download-artifact@v4
+        with:
+          name: unified-arm11-smoke
+          path: build/unified-smoke
+      - run: bash .github/scripts/setup_smoke_azahar.sh
+      - name: Stock server handshake, protocol mismatch, sessions and compression
+        if: needs.changes.outputs.run_net == 'true'
+        shell: bash
+        run: |
+          python3 tools/verify_upstream_net.py --server-jar build/unified-smoke/server-release.jar |
+            tee "$RUNNER_TEMP/net-session.log"
+          grep -F 'UPSTREAM_NET_PASS sessions=2 mismatch=clientOutdated' "$RUNNER_TEMP/net-session.log"
+          grep -F 'DECODE_PKT_OK ' "$RUNNER_TEMP/net-session.log"
+          grep -F 'compression=1 ' "$RUNNER_TEMP/net-session.log"
+      - name: Stock v160.8 server join, movement, wave state and leave
+        if: needs.changes.outputs.run_net == 'true'
+        run: |
+          xvfb-run -a python3 tools/verify_upstream_live_net.py \
+            --server build/unified-smoke/server-release.jar --rom build/unified-smoke/upstream-probe.3dsx \
+            --azahar "$AZAHAR_BIN" --terrain-atlas build/unified-smoke/sprites.aatls \
+            --unified-boot --controls --controls-replay --world-atlas
+      - name: Stock offline campaign audio
+        if: needs.changes.outputs.run_audio == 'true'
+        run: >-
+          xvfb-run -a python3 tools/verify_offline_stock_audio.py
+          --server build/unified-smoke/server-release.jar
+          --rom build/unified-smoke/upstream-probe.3dsx
+          --output build/audio-smoke
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: arm11-live-smoke-evidence
+          path: |
+            build/audio-smoke/
+            build/unified-smoke/upstream-live-net/
+            ${{ runner.temp }}/smoke-data/azahar-emu/log/

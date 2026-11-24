@@ -56,7 +56,7 @@ public final class UpstreamRenderedNetworkProbe {
     private final UpstreamBuildingLayers buildingLayers = new UpstreamBuildingLayers();
     private final UpstreamWeatherLayers weatherLayers = new UpstreamWeatherLayers();
     private final Runnable drawWeatherUnder = weatherLayers::drawUnder;
-    private final UpstreamLiveBuildControls buildingControls = new UpstreamLiveBuildControls();
+    private UpstreamLiveBuildControls buildingControls;
     private final UpstreamChatInput chatInput = new UpstreamChatInput();
     private final Runnable drawEntities = this::drawEntities;
     private final IntSet reportedConveyors = new IntSet();
@@ -91,6 +91,15 @@ public final class UpstreamRenderedNetworkProbe {
         this.atlas = atlas;
     }
 
+    private void configureSchematicPrompts() {
+        buildingControls.schematics().nameCapturesWith(
+            () -> UpstreamLiveNetworkProbe.whileKeepingAlive(UpstreamTerrainRenderProbe::readSchematicName),
+            name -> UpstreamLiveNetworkProbe.whileKeepingAlive(() -> UpstreamTerrainRenderProbe.confirmSchematicReplacement(name)));
+        buildingControls.schematics().editWith(
+            name -> UpstreamLiveNetworkProbe.whileKeepingAlive(() -> UpstreamTerrainRenderProbe.editSchematicName(name)),
+            description -> UpstreamLiveNetworkProbe.whileKeepingAlive(() -> UpstreamTerrainRenderProbe.editSchematicDescription(description)));
+    }
+
     public static void main(String[] args) throws IOException, InterruptedException {
         var endpoint = UpstreamLiveNetworkProbe.endpointFile(args);
         run(endpoint, endpoint.sibling("sprites.aatls"));
@@ -113,11 +122,56 @@ public final class UpstreamRenderedNetworkProbe {
         CacheLayer.init();
         try {
             Arm11Audio.open();
-            UpstreamLiveNetworkProbe.run(directory, address, view::prepareClient, view::loadGraphics,
-                view::render, view.buildingControls, view::receiveChat, view.chatInput);
+            var kick = UpstreamLiveNetworkProbe.run(directory, address, view::prepareClient, view::loadGraphics,
+                view::render, view::newSessionControls, view::receiveChat, view.chatInput,
+                () -> view.drawConnectionNotice(Core.bundle.get("reconnecting"), Core.bundle.get("cancel")));
+            if (kick != null) view.showServerKick(kick);
         } finally {
             Arm11Audio.close();
         }
+    }
+
+    private void showServerKick(UpstreamLiveNetworkProbe.ServerKick kick) throws InterruptedException {
+        var reason = kick.stockReason;
+        if (reason != null && reason.quiet) return;
+        String extra = reason == null ? null : reason.extraText();
+        String title = extra == null ? Core.bundle.get("disconnect") : reason.toString();
+        String detail = reason == null ? kick.getMessage() : extra == null ? reason.toString() : extra;
+
+        drawConnectionNotice(title, detail);
+        System.out.println("UPSTREAM_LIVE_KICK_NOTICE title=" + title
+            + " detail=" + (detail == null ? "" : detail.replace('\n', ' ').replace('\r', ' ')));
+        while (!UpstreamLiveNetworkProbe.kickNoticeDismissed()) Thread.sleep(16);
+    }
+
+    private void drawConnectionNotice(String title, String detail) {
+        target.begin(0, 0, UpstreamTerrainDrawProbe.VIEW_WIDTH, UpstreamTerrainDrawProbe.VIEW_HEIGHT);
+        try {
+            float y = drawKickLabel(title, 6f);
+            if (detail != null) drawKickLabel(detail, y);
+        } finally {
+            target.end();
+        }
+    }
+
+    private UpstreamLiveBuildControls newSessionControls() {
+        buildingControls = new UpstreamLiveBuildControls();
+        configureSchematicPrompts();
+        controlled = null;
+        previousVisualFrame = 0;
+        lastLeft = lastBottom = -1;
+        lastPrimaryShortcut = null;
+        lastMenu = null;
+        lastStatus = null;
+        lastObjectives = null;
+        chatLines.clear();
+        chatFade = 0;
+        return buildingControls;
+    }
+
+    private float drawKickLabel(String label, float y) {
+        var parsed = UpstreamLabelText.parse(UI.formatIcons(label));
+        return target.drawObjective((label + "\0").getBytes(StandardCharsets.UTF_8), encodeLabel(parsed), null, y);
     }
 
     private void prepareClient() {

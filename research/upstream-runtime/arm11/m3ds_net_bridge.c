@@ -100,6 +100,19 @@ int32_t m3ds_live_net_stream_total(void) { return handshake.stream_total; }
 int32_t m3ds_live_net_stream_type(void) { return handshake.stream_type; }
 int32_t m3ds_live_net_packet_id(void) { return handshake.first_server_packet_id; }
 
+int32_t m3ds_live_net_ping(const void *address, int32_t length, int32_t port) {
+    char host[256];
+    if (client || context.soc_initialized || !address || length <= 0 || length >= (int32_t)sizeof(host) ||
+        port <= 0 || port > UINT16_MAX || memchr(address, '\0', (size_t)length)) return 0;
+    memcpy(host, address, (size_t)length);
+    host[length] = '\0';
+    if (!m3ds_net_3ds_init(&transport, &context)) return 0;
+    M3dsNetHostInfo info;
+    bool found = m3ds_net_ping_host(&transport, host, (uint16_t)port, 500, &info);
+    m3ds_net_3ds_exit(&context);
+    return found;
+}
+
 int32_t m3ds_live_net_receive(void *payload, int32_t capacity, int32_t reliable, int32_t timeout_ms) {
     if (capacity <= 0 || capacity > M3DS_NET_MAX_PACKET_SIZE || timeout_ms < 0) {
         return M3DS_NET_IO_ERROR;

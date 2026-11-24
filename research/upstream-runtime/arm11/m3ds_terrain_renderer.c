@@ -170,6 +170,10 @@ void m3ds_terrain_minimap_draw(float x, float y, float size) {
     C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_COLOR);
     C3D_SetScissor(GPU_SCISSOR_DISABLE, 0, 0, 0, 0);
     C2D_SetTintMode(C2D_TintMult);
+    C2D_DrawRectSolid(x - 2.0f, y - 2.0f, 0.25f, size + 4.0f, size + 4.0f,
+        C2D_Color32(24, 27, 32, 235));
+    C2D_DrawRectSolid(x - 1.0f, y - 1.0f, 0.27f, size + 2.0f, size + 2.0f,
+        C2D_Color32(95, 105, 122, 255));
     C2D_ImageTint tint;
     C2D_PlainImageTint(&tint, C2D_Color32(255, 255, 255, 255), 1.0f);
     C2D_DrawImageAt(minimap_image, x, y, 0.3f, &tint,
@@ -1179,7 +1183,8 @@ static void draw_label_art(const int32_t *glyph, float x, float y, float width, 
 
 static float draw_stock_panel(const char *label, const int32_t *characters, int32_t count,
                                  int32_t page, int32_t left, int32_t top,
-                                 int32_t width, int32_t height, float y, int32_t *stock_font, bool chat) {
+                                 int32_t width, int32_t height, float x, float y,
+                                 int32_t *stock_font, bool chat, bool panel) {
     *stock_font = 0;
     const float failed = chat ? -1.0f : 240.0f;
     if (!frame_open || !catalog_buffer) return failed;
@@ -1218,8 +1223,8 @@ static float draw_stock_panel(const char *label, const int32_t *characters, int3
 
     set_world_blend(0);
     set_world_mix(0, 0);
-    float x = screen_left + 4.0f;
-    if (!C2D_DrawRectSolid(x, y, 0.5f, inset + text_width + 6.0f, panel_height, C2D_Color32(24, 27, 32, 224))) {
+    if (panel && !C2D_DrawRectSolid(x, y, 0.5f, inset + text_width + 6.0f, panel_height,
+            C2D_Color32(24, 27, 32, 224))) {
         return failed;
     }
     draws++;
@@ -1249,12 +1254,37 @@ static float draw_stock_panel(const char *label, const int32_t *characters, int3
 float m3ds_terrain_draw_objective(const char *label, const int32_t *characters, int32_t count,
                                  int32_t page, int32_t left, int32_t top,
                                  int32_t width, int32_t height, float y, int32_t *stock_font) {
-    return draw_stock_panel(label, characters, count, page, left, top, width, height, y, stock_font, false);
+    return draw_stock_panel(label, characters, count, page, left, top, width, height,
+        screen_left + 4.0f, y, stock_font, false, true);
+}
+
+float m3ds_terrain_draw_objective_at(const char *label, const int32_t *characters, int32_t count,
+                                    int32_t page, int32_t left, int32_t top,
+                                    int32_t width, int32_t height, float x, float y,
+                                    int32_t *stock_font) {
+    return draw_stock_panel(label, characters, count, page, left, top, width, height,
+        x, y, stock_font, false, true);
+}
+
+float m3ds_terrain_draw_objective_plain(const char *label, const int32_t *characters, int32_t count,
+                                        int32_t page, int32_t left, int32_t top,
+                                        int32_t width, int32_t height, float y,
+                                        int32_t *stock_font) {
+    return draw_stock_panel(label, characters, count, page, left, top, width, height,
+        screen_left + 4.0f, y, stock_font, false, false);
+}
+
+int32_t m3ds_terrain_draw_hud_panel(float x, float y, float width, float height, int32_t color) {
+    if (!frame_open) return 0;
+    set_world_blend(0);
+    set_world_mix(0, 0);
+    return C2D_DrawRectSolid(x, y, 0.5f, width, height, (u32)color) ? 1 : 0;
 }
 
 float m3ds_terrain_draw_chat_line(const char *label, const int32_t *characters, int32_t count, float bottom) {
     int32_t stock_font;
-    return draw_stock_panel(label, characters, count, -1, 0, 0, 0, 0, bottom, &stock_font, true);
+    return draw_stock_panel(label, characters, count, -1, 0, 0, 0, 0,
+        screen_left + 4.0f, bottom, &stock_font, true, true);
 }
 
 #ifdef M3DS_STOCK_FONT
@@ -1378,6 +1408,21 @@ static void draw_chat_key(const char *label, float x, float y, float width, u32 
     catalog_label(label, x + width / 2, y + 10, 0.42f, width - 6, color);
 }
 
+int32_t m3ds_terrain_schematic_prompt(char *text, int32_t capacity, const char *hint, int32_t mode) {
+    const bool confirm = mode == 1, edit = mode >= 2;
+    if (capacity < 2 || !aptMainLoop()) return edit ? -1 : 0;
+    SwkbdState keyboard;
+    swkbdInit(&keyboard, SWKBD_TYPE_NORMAL, 2, confirm ? 1 : (capacity - 1) / 4);
+    swkbdSetFeatures(&keyboard, SWKBD_DEFAULT_QWERTY | SWKBD_DARKEN_TOP_SCREEN
+                     | (mode == 3 ? SWKBD_MULTILINE : 0));
+    if (mode == 0) swkbdSetValidation(&keyboard, SWKBD_NOTEMPTY_NOTBLANK, 0, 0);
+    if (edit) swkbdSetInitialText(&keyboard, text);
+    swkbdSetHintText(&keyboard, hint);
+    SwkbdButton button = swkbdInputText(&keyboard, text, (size_t)capacity);
+    if (button != SWKBD_BUTTON_CONFIRM) return edit ? -1 : 0;
+    return confirm ? 1 : (int32_t)strnlen(text, (size_t)capacity);
+}
+
 int32_t m3ds_terrain_draw_chat_keyboard(const char *labels) {
     if (!frame_open || !palette) return 0;
     if (perf_enabled) perf.bottom_start = svcGetSystemTick();
@@ -1424,11 +1469,13 @@ int32_t m3ds_terrain_build_catalog(const char *labels, const int32_t *icons, int
     }
     const bool schematics = catalog == schematic_catalog;
     if (schematics) {
+        C2D_DrawRectSolid(152, 4, 0.5f, 64, 34, panel);
+        stock_labels &= catalog_label("Edit", 184, 15, 0.52f, 58, text);
         C2D_DrawRectSolid(224, 4, 0.5f, 88, 34, panel);
         stock_labels &= catalog_label("Capture", 268, 15, 0.52f, 82, text);
     }
-    stock_labels &= catalog_label(labels, schematics ? 112 : 160, 15, 0.52f,
-                                  categories ? 190 : schematics ? 212 : 300, text);
+    stock_labels &= catalog_label(labels, schematics ? 76 : 160, 15, 0.52f,
+                                  categories ? 190 : schematics ? 144 : 300, text);
     int32_t visible_icons = 0;
     for (int row = 0; row < 6; row++) {
         labels += strlen(labels) + 1;

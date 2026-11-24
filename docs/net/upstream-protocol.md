@@ -91,6 +91,7 @@ DECODE_PKT_OK id=141 compression=1 wire_len=140 payload_len=182
 
 - **Two bidirectional gameplay sessions (build, disconnect/rejoin persistence, and deconstruct):**
   - **Session 1 (`run=1`):** Completed `ConnectPacket` -> `WorldStream` (`150x250` `Glacier`, `2` core origins, `copper=200`) -> `ConnectConfirmCallPacket`, applied incoming `StateSnapshotCallPacket` + `EntitySnapshotCallPacket` on the main thread until the server-spawned player unit was synced, transmitted outbound UDP `ClientSnapshotCallPacket` build plans for a `Conveyor` at `(85, 26)` rotation `1` and a `Copper Wall` at `(86, 26)`, applied server `ConstructFinishCallPacket` confirmations, and verified authoritative core copper sync (`200 -> 193`, `buildings=2->4`).
+    The starting Glacier tiles may be air or replaceable stock decoration, such as snow boulders. Both targets must be unoccupied by buildings.
   - **Session 2 (`run=2`):** Reset client state (`Vars.logic.reset()`), reconnected with the same UUID, confirmed the server's fresh rejoin `WorldStream` persisted all `4` buildings and `copper=193`, sent an outbound `ClientSnapshotCallPacket` deconstruction `BuildPlan(86, 26)`, applied `DeconstructFinishCallPacket`, and verified authoritative core copper refund sync (`193 -> 196`, `buildings=4->3`).
 - **Live LZ4 parity:** The raw `net.jpountz.lz4`-compressed server packet (`id=141`, `compressed_bytes=140`, `payload_len=182`, `compression=1`) decoded byte-for-byte identically via C11 `m3ds_net_decode_packet` (`DECODE_PKT_OK`).
 - **Run-to-run variability:** Because this harness connects to a freshly started live `server-release.jar`, server-assigned `playerId`s, `state_snapshots` / `entity_snapshots` / `lz4_packets` counts, and the captured `UPSTREAM_LZ4_PACKET` SHA-256 vary between runs (for example, `lz4_packets=15` and `16` across consecutive runs); `tools/verify_upstream_net.py` asserts the deterministic `UPSTREAM_NET_DISCOVERY`, `UPSTREAM_NET_MISMATCH`, both `UPSTREAM_NET_ACTION` build/rejoin/deconstruct lines, non-zero `entity_snapshots`, and C11 `DECODE_PKT_OK` invariants rather than fixed snapshot counts or hashes.
@@ -125,6 +126,25 @@ client drew the newest line, accepted a touch-entered reply, and drew the
 server's formatted echo. The following wave snapshot reached the client
 with the composer open and another arrived after submission. A stock PC
 client displayed the ARM11-origin text in the shared local session.
+
+## Stock server kicks and restart
+
+The 3DS client displays the stock kick reason or the message supplied by the
+server. A stock `serverRestarting` reason opens the reconnect screen and
+triggers discovery at the same address. Press **B** on that screen to cancel.
+
+Run `tools/verify_upstream_live_net.py` with the matching ARM11 ROM and the
+stock v160.8 server. Use `--server-kick restart` to stop and reopen the server
+and require a second join. Use `--server-kick restart-cancel` to keep the server
+offline, press **B**, and require cancellation without a second join.
+Use `--verify-kick-notice` with `--server-kick text` or `--server-kick enum`
+to check the rendered reason for a regular disconnect.
+
+The restart replay passed on both Azahar console profiles. The cancellation
+replay passed on the New 3DS profile.
+[New 3DS restart](https://github.com/levkeveli/Min3DStry/actions/runs/45290486799) ·
+[Original 3DS restart](https://github.com/levkeveli/Min3DStry/actions/runs/45293324404) ·
+[New 3DS cancellation](https://github.com/levkeveli/Min3DStry/actions/runs/45296040600)
 
 ## License Audit
 

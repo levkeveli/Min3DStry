@@ -9,6 +9,7 @@ from pathlib import Path
 import re
 import struct
 import subprocess
+import sys
 import tempfile
 import time
 import zipfile
@@ -92,13 +93,14 @@ BUILDING_CRACK_PIXELS = {
 
 def write_controls_replay(path, first_move=22, building=False, touch_build=False, touch_config=False,
                           erekir_build=False, mining=None, model="old3ds", stock_menu_font=False,
-                          unified_boot=False, stationary=False, chat=False):
+                          unified_boot=False, stationary=False, chat=False, cancel_restart=False):
     """Write the Azahar 2126.2 CTM input for this probe's pad/touch polling."""
     # The pinned Azahar movie header and HID sample definitions use packed little-endian fields.
     revision = bytes.fromhex("219d743a1e698101fe1ab8bef43e6563126c3c27")
     samples_per_second = 234
     # Construction and configuration replays can take longer between input polls.
     needs_settling_time = building or touch_build or touch_config
+    move_hold = 3 if unified_boot else 1
     circle_at = first_move + (18 if needs_settling_time else 6)
     leave_at = first_move + (44 if needs_settling_time else 16)
     if unified_boot:
@@ -157,13 +159,20 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
             elif mining or stationary:
                 buttons = 0
             else:
-                buttons = (1 << 4) if seconds == first_move else (1 << 3) if seconds == leave_at else 0
+                # The unified ROM can take more than one emulated second to
+                # service a HID transition on a loaded hosted runner. Hold each
+                # control long enough that a late poll still observes the press.
+                buttons = (1 << 4) if first_move <= seconds < first_move + move_hold \
+                    else (1 << 3) if seconds == leave_at else 0
             if building and seconds in (35, 37, 39):
                 buttons = 1  # A, with releases so a late HID poll can observe another press.
             if unified_boot and seconds < 6:
                 buttons |= 1 << 10  # X, sampled once before the game starts.
+            if cancel_restart and 64 <= seconds < 67:
+                buttons |= 1 << 1  # B, while the original server is offline.
             circle_x = 65 if mining == "wall" and 54 <= seconds < pan_end else 0
-            circle_y = 106 if seconds == circle_at and not (erekir_build or mining or stationary) else 0
+            circle_y = 106 if circle_at <= seconds < circle_at + move_hold and not (
+                erekir_build or mining or stationary) else 0
             if mining == "floor" and 88 <= seconds < 94:
                 circle_y = 65
             point = next((point for start, point in taps if start <= seconds < start + 2), None)
@@ -1839,14 +1848,21 @@ def run_model(args, model, config, original_config, log, output):
                                       touch_build=args.touch_build, touch_config=args.touch_config,
                                       erekir_build=args.erekir_build, mining=args.mining, model=model,
                                       stock_menu_font=args.verify_stock_menu_font, unified_boot=args.unified_boot,
-                                      stationary=not args.controls_replay, chat=args.verify_chat)
+                                      stationary=not args.controls_replay, chat=args.verify_chat,
+                                      cancel_restart=args.server_kick == "restart-cancel")
                 command += ["-p", str(replay)]
             command.append(str(args.rom))
-            emulator = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            process_log = output / f"{model}-azahar-process.log"
+            with process_log.open("wb") as terminal:
+                emulator = subprocess.Popen(command, stdout=terminal, stderr=subprocess.STDOUT)
             rpc = az.AzaharRpcClient(timeout=2, retries=2)
             try:
                 if args.unified_boot:
-                    wait_for(log, emulator, r"UPSTREAM_BOOT mode=join\b", args.timeout)
+                    try:
+                        wait_for(log, emulator, r"UPSTREAM_BOOT mode=join\b", args.timeout)
+                    except RuntimeError:
+                        print(process_log.read_text(encoding="utf-8", errors="replace")[-2500:], file=sys.stderr)
+                        raise
                 if args.locale:
                     names = {"en": ("Router", "Copper"), "de": ("Verteiler", "Kupfer")}
                     labels = names.get(args.locale)
@@ -1869,7 +1885,53 @@ def run_model(args, model, config, original_config, log, output):
                                                 spawn_pixels=(MAP_SPAWN_PIXELS.get(args.map_spawn) if phase == "spawn"
                                                               else EREKIR_BUILD_PIXELS.get(phase)))
 
-                    if args.combat:
+                    if args.server_kick:
+                        wait_for(log, emulator, r"UPSTREAM_LIVE_CONTROLS_READY unit=\d+", args.timeout)
+                        restart = args.server_kick in ("restart", "restart-cancel")
+                        reason = "Hosted stock kick" if args.server_kick == "text" else "serverRestarting" if restart else "kick"
+                        kind = "enum" if restart else args.server_kick
+                        wire_reason = (json.dumps(reason) if args.server_kick == "text"
+                                       else f"Packages.mindustry.net.Packets.KickReason.{reason}")
+                        server.stdin.write(
+                            f'js (() => {{ const player = Groups.player.find(boolf(p => String(p.name) === {json.dumps(PLAYER)})); '
+                            f'player.con.kick({wire_reason}, 0); }})()\n'
+                        )
+                        server.stdin.flush()
+                        wait_for(server_log, server, rf"Kicking connection .*Reason: {re.escape(reason)}", args.timeout)
+                        wait_for(log, emulator,
+                                 rf"UPSTREAM_LIVE_CONTROLS_KICK kind={kind} reason={re.escape(reason)}",
+                                 args.timeout)
+                        emu_log = wait_for(log, emulator, "UPSTREAM_LIVE_CONTROLS_LEFT", args.timeout)
+                        if restart:
+                            wait_for(log, emulator, "UPSTREAM_LIVE_RECONNECT_WAIT", args.timeout)
+                            server.stdin.write("stop\n")
+                            server.stdin.flush()
+                            wait_for(server_log, server, "Stopped server.", 10)
+                        if args.server_kick == "restart-cancel":
+                            emu_log = wait_for(log, emulator, "UPSTREAM_LIVE_RECONNECT_CANCEL", args.timeout)
+                            if "UPSTREAM_LIVE_NET_WORLD join=2" in emu_log:
+                                raise RuntimeError("Cancelling reconnect unexpectedly opened a second session")
+                        elif restart:
+                            time.sleep(2)
+                            server.stdin.write("host Glacier survival\n")
+                            server.stdin.flush()
+                            wait_for(log, emulator, r"UPSTREAM_LIVE_NET_WORLD join=2\b", args.timeout)
+                            wait_for(server_log, server,
+                                     rf"{PLAYER} has connected[\s\S]*{PLAYER} has connected", args.timeout)
+                            server.stdin.write(
+                                f'js (() => {{ const player = Groups.player.find(boolf(p => String(p.name) === {json.dumps(PLAYER)})); '
+                                'player.con.kick("Hosted stop after reconnect", 0); })()\n'
+                            )
+                            server.stdin.flush()
+                            emu_log = wait_for(log, emulator,
+                                r"UPSTREAM_LIVE_CONTROLS_KICK kind=text reason=Hosted stop after reconnect"
+                                r"[\s\S]*UPSTREAM_LIVE_CONTROLS_LEFT", args.timeout)
+                        if args.verify_kick_notice:
+                            message = reason if args.server_kick == "text" else "You have been kicked from the server!"
+                            emu_log = wait_for(log, emulator, re.escape(
+                                f"UPSTREAM_LIVE_KICK_NOTICE title=Disconnected. detail={message}"), args.timeout)
+                            (output / f"{model}-kick-notice.png").write_bytes(rpc.screenshot())
+                    elif args.combat:
                         wait_for(log, emulator, r"UPSTREAM_LIVE_CONTROLS_READY unit=\d+", args.timeout)
                         status = wait_for(log, emulator,
                                           r"UPSTREAM_STATUS_HUD wave=\d+ enemies=\d+ copper=\d+ rows=5", args.timeout)
@@ -2099,7 +2161,7 @@ def run_model(args, model, config, original_config, log, output):
             if not args.controls:
                 validate(emu_log)
             disconnected = rf"{PLAYER} has disconnected"
-            if not args.controls:
+            if not args.controls or args.server_kick == "restart":
                 disconnected += rf"[\s\S]*{PLAYER} has disconnected"
             before_shutdown = wait_for(server_log, server, disconnected, 5)
             if args.desktop_name:
@@ -2120,7 +2182,7 @@ def run_model(args, model, config, original_config, log, output):
             if stationary and any("(error)" in line for line in departures):
                 print(f"{model}: stationary verification ended by emulator kill; "
                       "accepted the server's (error) departure", flush=True)
-            expected_joins = 1 if args.controls else 2
+            expected_joins = 1 if args.controls and args.server_kick != "restart" else 2
             if ((not args.controls and "clientOutdated" not in upstream)
                     or upstream.count(f"{PLAYER} has connected") != expected_joins
                     or len(departures) != expected_joins or not expected_departures):
@@ -2168,6 +2230,10 @@ def main():
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--movement", action="store_true", help="Verify the stock server applies scripted ARM11 movement")
     mode.add_argument("--controls", action="store_true", help="Verify D-pad and Circle Pad input and START disconnect")
+    parser.add_argument("--server-kick", choices=("text", "enum", "restart", "restart-cancel"),
+                        help="Verify a stock server kick after entering live play")
+    parser.add_argument("--verify-kick-notice", action="store_true",
+                        help="Check and capture the English stock disconnect notice")
     parser.add_argument("--controls-replay", action="store_true",
                         help="Replay the controls test input in Azahar 2126.2")
     parser.add_argument("--unified-boot", action="store_true",
@@ -2272,6 +2338,10 @@ def main():
         parser.error("The PC client needs a distinct player name")
     if args.controls_replay and not args.controls:
         parser.error("--controls-replay needs --controls")
+    if args.server_kick and (not args.controls or args.controls_replay):
+        parser.error("--server-kick needs stationary --controls")
+    if args.verify_kick_notice and (args.server_kick not in ("text", "enum") or args.locale != "en"):
+        parser.error("--verify-kick-notice needs --server-kick and --locale en")
     if args.unified_boot and not args.controls:
         parser.error("--unified-boot needs --controls")
     if args.combat and (not args.controls or not args.terrain_atlas):

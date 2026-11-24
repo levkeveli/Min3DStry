@@ -12,7 +12,6 @@ import mindustry.content.UnitTypes;
 import mindustry.core.ContentLoader;
 import mindustry.core.GameState;
 import mindustry.core.Logic;
-import mindustry.core.World;
 import mindustry.entities.EntityCollisions;
 import mindustry.game.MapObjectives.PointMarker;
 import mindustry.gen.Groups;
@@ -73,10 +72,18 @@ public final class UpstreamWorldLoadProbe {
         Vars.content.init();
         Vars.emptyTile = new Tile(Short.MAX_VALUE - 20, Short.MAX_VALUE - 20);
         Groups.init();
-        Vars.world = new World();
+        Vars.world = new UpstreamWorld();
         Vars.collisions = new EntityCollisions();
         Vars.net = new Net(null);
-        Vars.logic = new Logic();
+        Vars.logic = new Logic() {
+            @Override
+            public void reset() {
+                super.reset();
+                // A scratch tile can keep its building and the previous power network alive.
+                mindustry.gen.UpstreamBuildingScratch.clear();
+                mindustry.world.UpstreamBlockScratch.clear();
+            }
+        };
 
         Vars.customMapDirectory = mapDirectory;
         if (!loadPresetMaps) Vars.maps = new Maps();

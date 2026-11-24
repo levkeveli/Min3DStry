@@ -1,12 +1,14 @@
 import arc.Core;
 import arc.Settings;
 import arc.files.Fi;
+import arc.struct.Seq;
 import arc.util.I18NBundle;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import mindustry.Vars;
+import mindustry.content.Items;
 import mindustry.content.StatusEffects;
 import mindustry.content.UnitTypes;
 import mindustry.core.ContentLoader;
@@ -25,6 +27,7 @@ public final class UpstreamStatusRowsProbe {
         Vars.headless = true;
         Core.settings = new Settings();
         Core.settings.setAutosave(false);
+        mindustry.core.UI.loadColors();
         Vars.state = new GameState();
         Vars.mods = new Mods();
         Vars.content = new ContentLoader();
@@ -89,9 +92,120 @@ public final class UpstreamStatusRowsProbe {
                 UpstreamGuardianWarning.find(laterRules, 8))) {
             throw new IllegalStateException("guardian five-wave warning mismatch");
         }
+        var coreItems = UpstreamCoreItems.collect(
+            Seq.with(Items.copper, Items.lead, Items.silicon).list(),
+            item -> item == Items.copper ? 16 : item == Items.lead ? 7 : 0);
+        if (coreItems.size() != 2
+                || coreItems.get(0).item() != Items.copper || coreItems.get(0).amount() != 16
+                || coreItems.get(1).item() != Items.lead || coreItems.get(1).amount() != 7) {
+            throw new IllegalStateException("Core item row collection mismatch");
+        }
+        var formatEntry = new UpstreamCoreItems.Entry(Items.copper, 12345);
+        String formatted = formatEntry.formatted();
+        if (!"12k".equals(formatted)
+                || !"1.2k".equals(UpstreamCoreItems.formatAmount(1234))
+                || !"999".equals(UpstreamCoreItems.formatAmount(999))
+                || !"0".equals(UpstreamCoreItems.formatAmount(0))
+                || !"10k".equals(UpstreamCoreItems.formatAmount(10_000))
+                || !"1.5mil".equals(UpstreamCoreItems.formatAmount(1_500_000))
+                || !"1.0mil".equals(UpstreamCoreItems.formatAmount(1_000_000))
+                || !"1.5b".equals(UpstreamCoreItems.formatAmount(1_500_000_000))
+                || !"1.0b".equals(UpstreamCoreItems.formatAmount(1_000_000_000))) {
+            throw new IllegalStateException("Core item amount formatting mismatch: " + formatted);
+        }
+        System.out.println("UPSTREAM_CORE_ITEM_FORMAT text=" + formatted + " cases=9 ok");
+        System.out.println("UPSTREAM_CORE_ITEMS rows=2 ok");
+        var tracker = new UpstreamCoreItems.Tracker();
+        var tracked = tracker.collect(Seq.with(Items.copper, Items.lead, Items.silicon).list(),
+            item -> item == Items.copper ? 16 : 0);
+        if (tracked.size() != 1 || tracked.get(0).item() != Items.copper) {
+            throw new IllegalStateException("Used-item initial row mismatch");
+        }
+        tracked = tracker.collect(Seq.with(Items.copper, Items.lead, Items.silicon).list(),
+            item -> item == Items.lead ? 7 : 0);
+        if (tracked.size() != 2 || tracked.get(0).item() != Items.copper
+                || tracked.get(0).amount() != 0 || tracked.get(1).item() != Items.lead) {
+            throw new IllegalStateException("Used-item depletion mismatch");
+        }
+        tracker.reset();
+        if (!tracker.collect(Seq.with(Items.copper).list(), item -> 0).isEmpty()) {
+            throw new IllegalStateException("Used-item reset mismatch");
+        }
+        System.out.println("UPSTREAM_CORE_USED_ITEMS cases=3 ok");
+
+        var pause = new UpstreamPauseMenu();
+        pause.open();
+        if (pause.selected() != 0 || pause.confirmingQuit()) {
+            throw new IllegalStateException("Pause menu initial state mismatch");
+        }
+        pause.move(-1);
+        if (pause.selected() != 2) throw new IllegalStateException("Pause menu wrap mismatch");
+        pause.move(1);
+        if (pause.activate() != UpstreamPauseMenu.Action.RESUME) {
+            throw new IllegalStateException("Pause menu resume action mismatch");
+        }
+        pause.move(1);
+        if (pause.activate() != UpstreamPauseMenu.Action.SAVE) {
+            throw new IllegalStateException("Pause menu save action mismatch");
+        }
+        pause.move(1);
+        if (pause.activate() != UpstreamPauseMenu.Action.NONE || !pause.confirmingQuit()) {
+            throw new IllegalStateException("Pause menu quit confirmation missing");
+        }
+        if (pause.cancel() != UpstreamPauseMenu.Action.NONE || pause.confirmingQuit()) {
+            throw new IllegalStateException("Pause menu quit cancel mismatch");
+        }
+        if (pause.activate() != UpstreamPauseMenu.Action.NONE
+                || pause.activate() != UpstreamPauseMenu.Action.QUIT) {
+            throw new IllegalStateException("Pause menu quit action mismatch");
+        }
+        pause.open(4);
+        if (pause.options() != 4) throw new IllegalStateException("Pause menu research options mismatch");
+        pause.move(1);
+        if (pause.activate() != UpstreamPauseMenu.Action.RESEARCH) {
+            throw new IllegalStateException("Pause menu research action mismatch");
+        }
+        pause.move(1);
+        if (pause.activate() != UpstreamPauseMenu.Action.SAVE) {
+            throw new IllegalStateException("Pause menu save-with-research action mismatch");
+        }
+        pause.move(1);
+        if (pause.activate() != UpstreamPauseMenu.Action.NONE
+                || pause.activate() != UpstreamPauseMenu.Action.QUIT) {
+            throw new IllegalStateException("Pause menu quit-with-research action mismatch");
+        }
+        pause.open(5);
+        if (pause.options() != 5) throw new IllegalStateException("Pause menu load options mismatch");
+        pause.move(1);
+        if (pause.activate() != UpstreamPauseMenu.Action.RESEARCH) {
+            throw new IllegalStateException("Pause menu five-row research action mismatch");
+        }
+        pause.move(1);
+        if (pause.activate() != UpstreamPauseMenu.Action.LOAD) {
+            throw new IllegalStateException("Pause menu load action mismatch");
+        }
+        pause.move(1);
+        if (pause.activate() != UpstreamPauseMenu.Action.SAVE) {
+            throw new IllegalStateException("Pause menu load-save action mismatch");
+        }
+        pause.move(1);
+        if (pause.activate() != UpstreamPauseMenu.Action.NONE
+                || pause.activate() != UpstreamPauseMenu.Action.QUIT) {
+            throw new IllegalStateException("Pause menu load-quit action mismatch");
+        }
+        System.out.println("UPSTREAM_PAUSE_MENU cases=13 ok");
         System.out.println("UPSTREAM_STATUS_ROWS cases=10 ok");
         System.out.println("UPSTREAM_GUARDIAN_WARNING cases=2 ok");
         System.out.println("UPSTREAM_UNIT_ROWS cases=3 ok");
+        String coreAttack = Core.bundle.get("coreattack");
+        if (!"< Core is under attack! >".equals(coreAttack)) {
+            throw new IllegalStateException("coreattack bundle text mismatch: " + coreAttack);
+        }
+        UpstreamNotification.show(coreAttack, 4f);
+        if (!coreAttack.equals(UpstreamNotification.current())) {
+            throw new IllegalStateException("coreattack notification was not retained");
+        }
+        System.out.println("UPSTREAM_CORE_ATTACK text=\"" + coreAttack + "\" ok");
         System.out.println("UPSTREAM_NOTIFICATION cases=2 ok");
     }
 
