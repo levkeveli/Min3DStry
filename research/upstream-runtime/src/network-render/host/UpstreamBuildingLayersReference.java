@@ -236,6 +236,8 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         if (liquid != 21) throw new AssertionError("Expected 21 stock liquid buildings, got " + liquid);
         if (materials != 52) throw new AssertionError("Expected 52 stock material buildings, got " + materials);
         target.verifyLiquidBridgeTransfer(viewer);
+        target.verifyLiquidRouterTransfer(viewer);
+        target.verifyLiquidJunctionRouting(viewer);
         target.verifyCanvas(viewer);
         if (args.length >= 4) verifyObjectiveHud();
         if (args.length >= 5) verifyClientProcessor(new Fi(args[4]), viewer);
@@ -1249,6 +1251,52 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
 
         System.out.println("UPSTREAM_LIQUID_BRIDGE_REFERENCE bridgeMilli=" + Math.round(bridge * 1000f)
             + " phaseMilli=" + Math.round(phase * 1000f) + " backLink=rejected");
+    }
+
+    private void verifyLiquidJunctionRouting(Team team) {
+        var sourceTile = Vars.world.tile(71, 50);
+        var junctionTile = Vars.world.tile(72, 50);
+        var sinkTile = Vars.world.tile(73, 50);
+        sourceTile.setBlock(Blocks.air);
+        junctionTile.setBlock(Blocks.air);
+        sinkTile.setBlock(Blocks.air);
+        sourceTile.setBlock(Blocks.liquidRouter, team, 0);
+        junctionTile.setBlock(Blocks.liquidJunction, team, 0);
+        sinkTile.setBlock(Blocks.liquidContainer, team, 0);
+
+        var junction = junctionTile.build;
+        var destination = junction.getLiquidDestination(sourceTile.build, Liquids.water);
+        if (destination != sinkTile.build) {
+            throw new AssertionError("Stock Liquid Junction did not route to the far side");
+        }
+
+        sinkTile.setBlock(Blocks.air);
+        destination = junction.getLiquidDestination(sourceTile.build, Liquids.water);
+        if (destination != junction) {
+            throw new AssertionError("Stock Liquid Junction did not stop at a dead end");
+        }
+
+        System.out.println("UPSTREAM_LIQUID_JUNCTION_REFERENCE through=1 deadEnd=1");
+    }
+
+    private void verifyLiquidRouterTransfer(Team team) {
+        var routerTile = Vars.world.tile(68, 50);
+        var sinkTile = Vars.world.tile(69, 50);
+        routerTile.setBlock(Blocks.air);
+        sinkTile.setBlock(Blocks.air);
+        routerTile.setBlock(Blocks.liquidRouter, team, 0);
+        sinkTile.setBlock(Blocks.liquidContainer, team, 0);
+
+        var router = routerTile.build;
+        router.liquids.add(Liquids.water, router.block.liquidCapacity);
+        Time.delta = 1f;
+        for (int tick = 0; tick < 60; tick++) {
+            router.update();
+        }
+
+        float moved = sinkTile.build.liquids.get(Liquids.water);
+        if (moved <= 0f) throw new AssertionError("Stock Liquid Router did not transfer water");
+        System.out.println("UPSTREAM_LIQUID_ROUTER_REFERENCE movedMilli=" + Math.round(moved * 1000f));
     }
 
     private float verifyBridgeTransfer(Block block, int x, int y, int dx, Team team) {
