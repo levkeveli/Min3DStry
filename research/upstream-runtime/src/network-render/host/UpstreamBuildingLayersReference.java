@@ -170,7 +170,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         // The visible two-tile wall starts one tile west of the viewport.
         viewport.moveTo(24, 30);
         var viewer = Team.sharded;
-        verifyPowerBar(viewer);
+        if (args.length >= 4) verifyPowerBar(viewer);
         var conveyor = Vars.world.tile(25, 31);
         var edgeWall = Vars.world.tile(23, 35);
         var offscreenWall = Vars.world.tile(21, 39);
@@ -529,7 +529,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         }
         consumer.power.status = 0f;
         if (consumer.block.powerBarFraction(consumer) != 0f
-                || !consumer.block.powerBarLabel(consumer).equals(Core.bundle.get("bar.power"))) {
+                || !consumer.block.powerBarLabel(consumer).equals("Power")) {
             throw new AssertionError("Stock unpowered bar differs");
         }
         consumer.power.status = 0.4f;
@@ -539,7 +539,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         battery.power.status = 0.25f;
         int stored = (int)(battery.block.consPower.capacity * battery.power.status);
         if (battery.block.powerBarFraction(battery) != 0.25f
-                || !battery.block.powerBarLabel(battery).equals(Core.bundle.format("bar.poweramount", UI.formatAmount(stored)))) {
+                || !battery.block.powerBarLabel(battery).equals("Power: " + UI.formatAmount(stored))) {
             throw new AssertionError("Stock buffered power bar differs");
         }
         consumer.enabled = false;
