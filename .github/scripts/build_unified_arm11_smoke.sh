@@ -57,6 +57,8 @@ python3 tools/verify_live_stock_audio.py build/smoke-assets
 database_check="$RUNNER_TEMP/core-database-check"
 mkdir -p "$database_check"
 javac -cp "$stock_jar" -d "$database_check" \
+  "$runtime/build/upstream-src/unified/mindustry/world/meta/StatValue.java" \
+  "$runtime/build/upstream-src/unified/mindustry/world/meta/StatValues.java" \
   "$runtime/src/content/java/UpstreamCoreDatabase.java" \
   "$runtime/host/UpstreamCoreDatabaseReference.java"
 java -cp "$database_check:$stock_jar" UpstreamCoreDatabaseReference "$PWD/build/smoke-assets/bundles/bundle"

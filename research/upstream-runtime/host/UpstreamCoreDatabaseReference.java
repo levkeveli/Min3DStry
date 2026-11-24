@@ -4,9 +4,15 @@ import arc.files.Fi;
 import arc.util.I18NBundle;
 import java.util.Locale;
 import mindustry.Vars;
+import mindustry.content.Items;
+import mindustry.content.Liquids;
 import mindustry.content.Planets;
 import mindustry.core.ContentLoader;
 import mindustry.core.GameState;
+import mindustry.type.ItemStack;
+import mindustry.type.LiquidStack;
+import mindustry.world.meta.StatUnit;
+import mindustry.world.meta.StatValues;
 
 public final class UpstreamCoreDatabaseReference {
     public static void main(String[] args) {
@@ -40,6 +46,16 @@ public final class UpstreamCoreDatabaseReference {
         Vars.state.set(GameState.State.playing);
         if (database.initialTab(tabs) != Planets.erekir || database.groups(Planets.sun, "").stream()
                 .flatMap(group -> group.entries().stream()).anyMatch(entry -> !entry.unlocked())) throw new AssertionError("Stock game mode");
+        verifyStatLabels();
         System.out.printf("Stock database catalog=%d tabs=%d Serpulo copper entries=%d%n", expected, tabs.size(), search.size());
+    }
+
+    private static void verifyStatLabels() {
+        String distance = StatValues.number(4.5f, StatUnit.blocks).handheldText();
+        String itemRate = StatValues.items(30f, new ItemStack(Items.copper, 7)).handheldText();
+        String liquidRate = StatValues.liquids(30f, true, new LiquidStack(Liquids.water, 1.25f)).handheldText();
+        if (!"4.5 blocks".equals(distance) || !"Copper 7 (14/sec)".equals(itemRate) || !"Water 2.5/sec".equals(liquidRate)) {
+            throw new AssertionError(distance + " | " + itemRate + " | " + liquidRate);
+        }
     }
 }
