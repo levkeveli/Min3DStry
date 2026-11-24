@@ -92,7 +92,6 @@ def write_singleplayer_ctm(path: Path, model: str, verify_database: bool = False
         button_windows = (
             (t0 + 36, KEY_X),       # Pause
             (t0 + 45, KEY_Y),       # Open the Core Database
-            (t0 + 53, KEY_DOWN),    # Move from the category heading to the first entry
             (t0 + 61, KEY_A),       # Open the unlocked content entry
             (t0 + 69, KEY_B),       # Back to the database
             (t0 + 77, KEY_B),       # Back to the pause menu
@@ -106,6 +105,11 @@ def write_singleplayer_ctm(path: Path, model: str, verify_database: bool = False
         for frame in range(frames):
             sec = frame // CTM_SAMPLES_PER_SECOND
             buttons = next((mask for start, mask in button_windows if start <= sec < start + 2), 0)
+            # Tap once before the database's held-direction repeat begins.
+            if verify_database and (t0 + 53) * CTM_SAMPLES_PER_SECOND <= frame < (
+                (t0 + 53) * CTM_SAMPLES_PER_SECOND + CTM_SAMPLES_PER_SECOND // 5
+            ):
+                buttons |= KEY_DOWN
             circle_x = 100 if (t0 + 30) <= sec < (t0 + 32) else 0
             point = next((pt for start, pt in taps if start <= sec < start + 2), None)
             pad = struct.pack("<BHhh", 0, buttons, circle_x, 0)
