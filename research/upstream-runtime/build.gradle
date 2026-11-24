@@ -1413,7 +1413,7 @@ final class UpstreamItemChoices {
         }
         if (usesSinglePlayer) {
             def stagedPathfinder = pathfinderFile.get().asFile
-            def pathfinder = stagedPathfinder.exists() ? stagedPathfinder.getText('UTF-8') :
+            def pathfinder = usesLiveNetwork ? stagedPathfinder.getText('UTF-8') :
                 new String(readUpstream(pathfinderSource), 'UTF-8')
             def cacheField = 'Flowfield[][][] cache;'
             def cacheInit = 'cache = new Flowfield[256][maxCosts][maxFields];'
