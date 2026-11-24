@@ -19,6 +19,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.zip.InflaterInputStream;
 import mindustry.Vars;
 import mindustry.ai.BlockIndexer;
@@ -423,6 +424,15 @@ public final class UpstreamLiveNetworkProbe {
             throw new IOException("Upstream snapshot did not update client state");
         }
         return snapshot;
+    }
+
+    static <T> T whileKeepingAlive(Supplier<T> action) {
+        boolean started = Native.beginKeepAlive(1) != 0;
+        try {
+            return action.get();
+        } finally {
+            if (started) Native.endKeepAlive();
+        }
     }
 
     private void driveLiveClient(UpstreamWorldLoadProbe.ProbeApplication app) throws IOException {

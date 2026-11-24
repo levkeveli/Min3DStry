@@ -89,6 +89,9 @@ public final class UpstreamRenderedNetworkProbe {
 
     private UpstreamRenderedNetworkProbe(Fi atlas) {
         this.atlas = atlas;
+        buildingControls.schematics().nameCapturesWith(
+            () -> UpstreamLiveNetworkProbe.whileKeepingAlive(UpstreamTerrainRenderProbe::readSchematicName),
+            name -> UpstreamLiveNetworkProbe.whileKeepingAlive(() -> UpstreamTerrainRenderProbe.confirmSchematicReplacement(name)));
     }
 
     public static void main(String[] args) throws IOException, InterruptedException {

@@ -38,6 +38,8 @@ final class UpstreamSchematicPlacement {
     private int turns, anchorX = -1, anchorY = -1;
     private boolean capturing;
     private int cornerX = -1, cornerY = -1;
+    private Supplier<String> nameInput;
+    private Predicate<String> confirmReplacement = name -> false;
 
     UpstreamSchematicPlacement(Fi directory) {
         this.directory = directory;
@@ -190,8 +192,13 @@ final class UpstreamSchematicPlacement {
         }
     }
 
+    void nameCapturesWith(Supplier<String> input, Predicate<String> confirm) {
+        nameInput = input;
+        confirmReplacement = confirm;
+    }
+
     void saveCapture(Team team) {
-        saveCapture(team, null, name -> false);
+        saveCapture(team, nameInput, confirmReplacement);
     }
 
     void saveCapture(Team team, Supplier<String> nameInput, Predicate<String> confirmReplacement) {
