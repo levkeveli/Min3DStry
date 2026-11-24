@@ -91,6 +91,8 @@ def sparseTileSources = [
     'mindustry/editor/DrawOperation.java',
     'mindustry/editor/EditorTool.java',
     'mindustry/editor/MapEditor.java',
+    'mindustry/editor/MapGenerateDialog.java',
+    'mindustry/io/MapIO.java',
     'mindustry/io/SaveVersion.java',
     'mindustry/io/versions/ShortChunkSaveVersion.java',
     'mindustry/world/blocks/environment/ColoredFloor.java',

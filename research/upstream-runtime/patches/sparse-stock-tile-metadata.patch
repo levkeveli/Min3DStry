@@ -916,3 +916,29 @@ index be62cf4..d2f5e19 100644
 +        return tile.extraData() | 0xff;
      }
  }
+diff --git a/mindustry/editor/MapGenerateDialog.java b/mindustry/editor/MapGenerateDialog.java
+index a2f9e4c..1d597a5 100644
+--- a/mindustry/editor/MapGenerateDialog.java
++++ b/mindustry/editor/MapGenerateDialog.java
+@@ -59,7 +59,7 @@ public class MapGenerateDialog extends BaseDialog{
+
+         @Override
+         public void setBlock(Block type, Team team, int rotation, Prov<Building> entityprov){
+-            this.block = type;
++            updateBlockReference(type);
+         }
+     };
+
+diff --git a/mindustry/io/MapIO.java b/mindustry/io/MapIO.java
+index d458cbf..0d3e5d2 100644
+--- a/mindustry/io/MapIO.java
++++ b/mindustry/io/MapIO.java
+@@ -96,7 +96,7 @@ public class MapIO{
+                 @Override
+                 public void setBlock(Block type){
+                     //do not super.setBlock as that affects the current world
+-                    this.block = type;
++                    updateBlockReference(type);
+                     this.build = type.newBuilding().init(this, this.team(), false, 0);
+                     int c = colorFor(type, Blocks.air, Blocks.air, team());
+                     if(c != black){
