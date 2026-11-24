@@ -5,6 +5,7 @@ import arc.graphics.g2d.Lines;
 import arc.math.geom.QuadTree;
 import arc.math.geom.Rect;
 import arc.struct.Seq;
+import java.io.DataInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -12,6 +13,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.zip.InflaterInputStream;
 import mindustry.Vars;
 import mindustry.entities.units.BuildPlan;
 import mindustry.game.Schematic;
@@ -111,7 +113,9 @@ final class UpstreamSchematicPlacement {
             int index = page * UpstreamBuildMenu.ROWS + row;
             if (index < files.length) {
                 var file = files[index];
-                text.append(displayName(file).replace('\n', ' ').replace('\r', ' ').replace('\0', ' '));
+                String name = readDisplayName(file);
+                text.append((name == null ? file.nameWithoutExtension() : name)
+                    .replace('\n', ' ').replace('\r', ' ').replace('\0', ' '));
                 if (file.name().equals(invalidFile)) text.append(" (invalid .msch)");
             }
             text.append('\0');
@@ -125,12 +129,29 @@ final class UpstreamSchematicPlacement {
         }
     }
 
-    private static String displayName(Fi file) {
-        try {
-            return readSchematic(file).tags.get("name", file.nameWithoutExtension());
+    private static String readDisplayName(Fi file) {
+        try (var input = file.read(1024)) {
+            // The pinned Schematics reader starts with msch, a version byte,
+            // then compressed dimensions and tags. Listing needs only those tags.
+            if (input.read() != 'm' || input.read() != 's' || input.read() != 'c' || input.read() != 'h') {
+                return null;
+            }
+            int version = input.read();
+            if (version < 0 || version > 1) return null;
+            try (var metadata = new DataInputStream(new InflaterInputStream(input))) {
+                metadata.readShort();
+                metadata.readShort();
+                int count = metadata.readUnsignedByte();
+                for (int i = 0; i < count; i++) {
+                    String key = metadata.readUTF();
+                    String value = metadata.readUTF();
+                    if (key.equals("name")) return value;
+                }
+            }
         } catch (IOException | RuntimeException ignored) {
-            return file.nameWithoutExtension();
+            // Broken files can still be identified in the picker by their filenames.
         }
+        return null;
     }
 
     void position(Unit unit, int x, int y) {
@@ -244,14 +265,13 @@ final class UpstreamSchematicPlacement {
         Fi destination = availableCaptureFile();
         Schematic previous = null;
         for (var file : directory.list()) {
-            if (file.isDirectory() || !file.extEquals(Vars.schematicExtension)) continue;
+            if (file.isDirectory() || !file.extEquals(Vars.schematicExtension) || !name.equals(readDisplayName(file))) continue;
             Schematic candidate;
             try {
                 candidate = readSchematic(file);
             } catch (IOException | RuntimeException ignored) {
                 continue;
             }
-            if (!name.equals(candidate.tags.get("name"))) continue;
             if (!confirmReplacement.test(name)) return null;
             destination = file;
             previous = candidate;
