@@ -49,6 +49,7 @@ float m3ds_terrain_draw_objective_at(const char *label, const int32_t *character
                                      int32_t width, int32_t height, float x, float y,
                                      int32_t *stock_font);
 int32_t m3ds_terrain_draw_chat_keyboard(const char *labels);
+int32_t m3ds_terrain_schematic_prompt(char *text, int32_t capacity, const char *hint, int32_t confirm);
 int32_t m3ds_terrain_build_catalog(const char *labels, const int32_t *icons, int32_t active_rows,
                                     int32_t previous, int32_t next, int32_t catalog);
 float m3ds_terrain_draw_objective(const char *label, const int32_t *characters, int32_t count,

@@ -91,6 +91,15 @@ public final class UpstreamRenderedNetworkProbe {
         this.atlas = atlas;
     }
 
+    private void configureSchematicPrompts() {
+        buildingControls.schematics().nameCapturesWith(
+            () -> UpstreamLiveNetworkProbe.whileKeepingAlive(UpstreamTerrainRenderProbe::readSchematicName),
+            name -> UpstreamLiveNetworkProbe.whileKeepingAlive(() -> UpstreamTerrainRenderProbe.confirmSchematicReplacement(name)));
+        buildingControls.schematics().editWith(
+            name -> UpstreamLiveNetworkProbe.whileKeepingAlive(() -> UpstreamTerrainRenderProbe.editSchematicName(name)),
+            description -> UpstreamLiveNetworkProbe.whileKeepingAlive(() -> UpstreamTerrainRenderProbe.editSchematicDescription(description)));
+    }
+
     public static void main(String[] args) throws IOException, InterruptedException {
         var endpoint = UpstreamLiveNetworkProbe.endpointFile(args);
         run(endpoint, endpoint.sibling("sprites.aatls"));
@@ -147,6 +156,7 @@ public final class UpstreamRenderedNetworkProbe {
 
     private UpstreamLiveBuildControls newSessionControls() {
         buildingControls = new UpstreamLiveBuildControls();
+        configureSchematicPrompts();
         controlled = null;
         previousVisualFrame = 0;
         lastLeft = lastBottom = -1;
