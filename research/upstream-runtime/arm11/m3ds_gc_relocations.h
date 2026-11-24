@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 static cls_otr_RelocationBlock *m3ds_gc_relocations;
 static size_t m3ds_gc_relocation_capacity;
@@ -15,13 +16,12 @@ static void m3ds_gc_storage_failure(const char *message) {
 
 TeaVM_Class* m3ds_gc_request_class;
 
-static void m3ds_gc_log_failed_allocation(int32_t requested, int32_t free_bytes) {
-    char name[104] = "<unnamed>";
-    TeaVM_Class *cls = m3ds_gc_request_class;
-    unsigned array_depth = 0;
+static TeaVM_Class *m3ds_gc_describe_class(TeaVM_Class *cls, char *name, size_t limit, unsigned *depth) {
+    snprintf(name, limit, "<unnamed>");
+    *depth = 0;
     while (cls && cls->itemType) {
         cls = cls->itemType;
-        ++array_depth;
+        ++*depth;
     }
 #if TEAVM_CLASS_NAME_USED
     TeaVM_String *class_name = cls && cls->name ? (TeaVM_String*)*cls->name : NULL;
@@ -29,12 +29,19 @@ static void m3ds_gc_log_failed_allocation(int32_t requested, int32_t free_bytes)
         TeaVM_Array *chars = class_name->characters;
         const uint16_t *units = TEAVM_ARRAY_DATA(chars, uint16_t);
         int i = 0;
-        for (; i < chars->size && i < (int)sizeof(name) - 1; ++i) {
+        for (; i < chars->size && i < (int)limit - 1; ++i) {
             name[i] = units[i] < 128 ? (char)units[i] : '?';
         }
         name[i] = '\0';
     }
 #endif
+    return cls;
+}
+
+static void m3ds_gc_log_failed_allocation(int32_t requested, int32_t free_bytes) {
+    char name[104];
+    unsigned array_depth;
+    TeaVM_Class *cls = m3ds_gc_describe_class(m3ds_gc_request_class, name, sizeof(name), &array_depth);
     char message[256];
     const int length = snprintf(message, sizeof(message),
         "UPSTREAM_MEMORY allocation-failed requested=%ld free=%ld committed=%lu cap=%lu class=%s arrayDepth=%u tag=%ld",
@@ -42,6 +49,65 @@ static void m3ds_gc_log_failed_allocation(int32_t requested, int32_t free_bytes)
         (unsigned long)teavm_gc_availableBytes, (unsigned long)teavm_gc_maxAvailableBytes,
         name, array_depth, cls ? (long)cls->tag : -1L);
     if (length > 0 && length < (int)sizeof(message)) svcOutputDebugString(message, length);
+}
+
+typedef struct {
+    TeaVM_Class *cls;
+    uint32_t objects, bytes;
+} M3DSHeapBucket;
+
+static void m3ds_gc_log_heap_census(void) {
+    const size_t capacity = 8192;
+    M3DSHeapBucket *buckets = calloc(capacity, sizeof(*buckets));
+    if (!buckets) return;
+
+    teavm_gc_fixHeap();
+    uintptr_t cursor = (uintptr_t)teavm_gc_heapAddress;
+    const uintptr_t end = cursor + teavm_gc_availableBytes;
+    uint32_t live = 0, free_bytes = 0;
+    uint32_t distinct = 0;
+    while (cursor < end) {
+        TeaVM_Object *object = (TeaVM_Object*)cursor;
+        int32_t size = meth_otr_GC_objectSize(object);
+        if (size < (int32_t)sizeof(*object) || (uintptr_t)size > end - cursor) break;
+        if (object->header == 0) {
+            free_bytes += size;
+        } else {
+            TeaVM_Class *cls = TEAVM_CLASS_OF(object);
+            size_t slot = ((uintptr_t)cls >> 3) & (capacity - 1);
+            while (buckets[slot].cls && buckets[slot].cls != cls) {
+                slot = (slot + 1) & (capacity - 1);
+            }
+            if (!buckets[slot].cls) {
+                buckets[slot].cls = cls;
+                if (++distinct == capacity) break;
+            }
+            ++buckets[slot].objects;
+            buckets[slot].bytes += size;
+            live += size;
+        }
+        cursor += size;
+    }
+
+    char line[256];
+    int length = snprintf(line, sizeof(line), "UPSTREAM_HEAP_CENSUS complete=%s live=%lu free=%lu types=%lu",
+        cursor == end ? "true" : "false", (unsigned long)live, (unsigned long)free_bytes, (unsigned long)distinct);
+    if (length > 0 && length < (int)sizeof(line)) svcOutputDebugString(line, length);
+    for (unsigned rank = 0; rank < 20 && rank < distinct; ++rank) {
+        M3DSHeapBucket *largest = &buckets[0];
+        for (size_t index = 1; index < capacity; ++index) {
+            if (buckets[index].bytes > largest->bytes) largest = &buckets[index];
+        }
+        char name[104];
+        unsigned depth;
+        TeaVM_Class *cls = m3ds_gc_describe_class(largest->cls, name, sizeof(name), &depth);
+        length = snprintf(line, sizeof(line),
+            "UPSTREAM_HEAP_CLASS name=%s arrayDepth=%u tag=%ld objects=%lu bytes=%lu",
+            name, depth, cls ? (long)cls->tag : -1L, (unsigned long)largest->objects, (unsigned long)largest->bytes);
+        if (length > 0 && length < (int)sizeof(line)) svcOutputDebugString(line, length);
+        largest->bytes = 0;
+    }
+    free(buckets);
 }
 
 static void m3ds_gc_check_free_chunk(const void *slot) {

@@ -116,6 +116,7 @@ def main():
             (
                 "                teavm_outOfMemory();",
                 "                m3ds_gc_log_failed_allocation(teavm_local_1, sfld_otr_GC_freeMemory);\n"
+                "                m3ds_gc_log_heap_census();\n"
                 "                teavm_outOfMemory();",
             ),
             (
