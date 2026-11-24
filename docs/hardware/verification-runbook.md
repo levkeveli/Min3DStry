@@ -4,6 +4,10 @@ Status: **procedure**. Queued handoff cards: [hardware-test-queue.md](../hardwar
 It does not claim any hardware result by itself; the capability ledger only moves when a captured log
 passes [`tools/hw_evidence.py`](../../tools/hw_evidence.py) and is attached to a PR.
 
+Emulator-only validation batches are recorded separately:
+[2026-11-23 batch](emulator-batch-2026-11-23.md) (ten tasks, both Azahar
+profiles). These records do not prove physical-hardware behavior.
+
 Captured so far: [Original 3DS XL smoke](evidence/old3ds-xl-a4a9a96.md),
 [New 3DS XL sector run](evidence/new3ds-xl-de3e249.md), and
 [New 3DS XL combined run](evidence/new3ds-xl-a328c70.md). The `a328c70` run
