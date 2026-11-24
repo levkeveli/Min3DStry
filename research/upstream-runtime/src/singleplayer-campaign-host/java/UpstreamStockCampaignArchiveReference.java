@@ -101,6 +101,50 @@ public final class UpstreamStockCampaignArchiveReference {
         }
     }
 
+    @SuppressWarnings("unchecked")
+    private static void verifyUnitBinding() {
+        var type = mindustry.content.UnitTypes.dagger;
+        var target = new mindustry.logic.LVar("test-unit-type");
+        target.setconst(type);
+        var instruction = new mindustry.logic.LExecutor.UnitBindI(target);
+        var executor = new mindustry.logic.LExecutor();
+        executor.unit = new mindustry.logic.LVar("test-bound-unit");
+        executor.privileged = true;
+        executor.team = Team.sharded;
+        var team = executor.team.data();
+        var previous = team.unitsByType;
+        try {
+            team.unitsByType = null;
+            instruction.run(executor);
+            if (executor.binds != null || executor.unit.obj() != null) {
+                throw new AssertionError("Missing stock units allocated a binding cursor");
+            }
+
+            var first = type.create(executor.team);
+            var second = type.create(executor.team);
+            team.unitsByType = new Seq[Vars.content.units().size];
+            team.unitsByType[type.id] = Seq.with(first, second);
+            for (var expected : Seq.with(first, second, first)) {
+                instruction.run(executor);
+                if (executor.unit.obj() != expected) throw new AssertionError("Stock unit-binding order changed");
+            }
+
+            team.unitsByType[type.id].clear();
+            executor.binds = new int[1];
+            instruction.run(executor);
+            if (executor.binds != null || executor.unit.obj() != null) {
+                throw new AssertionError("Stale binding cursor survived a catalog-size change");
+            }
+            team.unitsByType[type.id].add(first);
+            team.unitsByType[type.id].add(second);
+            instruction.run(executor);
+            if (executor.unit.obj() != first) throw new AssertionError("Reset binding did not restart from the first unit");
+            System.out.println("UPSTREAM_LOGIC_UNIT_BINDING missing=unallocated rotation=stock reset=stock");
+        } finally {
+            team.unitsByType = previous;
+        }
+    }
+
     public static void main(String[] args) throws Exception {
         if (args.length != 2) throw new IllegalArgumentException("Expected staged assets and a new save directory");
         var assets = Fi.get(args[0]);
@@ -113,6 +157,7 @@ public final class UpstreamStockCampaignArchiveReference {
             UpstreamSinglePlayerSession.loadSettings(output), maps);
         try {
             verifyTeamStats();
+            verifyUnitBinding();
             verifyTileEffects();
             verifyEmptyLogicProgram();
             verifySaveBuffer();

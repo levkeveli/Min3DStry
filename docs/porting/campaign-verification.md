@@ -56,3 +56,8 @@ backs the maximum scratch reservation for the 32 MiB managed heap.
 The [aligned Linux run](https://github.com/levkeveli/Min3DStry/actions/runs/45349275468)
 confirmed first-power updates and 60 ticks in all five dense-sector fixtures
 with that scratch floor. Physical-device measurements are pending.
+
+The unified campaign reference checks that a logic processor with no matching
+units leaves its binding cursor unallocated. It also verifies that successive
+bindings use the stock round-robin order and that a catalog-size change
+resets that cursor.

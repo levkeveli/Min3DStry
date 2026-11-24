@@ -751,6 +751,23 @@ tasks.register('prepareUpstreamProbe') {
 
             //null music = stop''').replace(musicDispatch, 'musicControl.playMusic(music, interrupt.bool());')
             }
+            if (usesSinglePlayer) {
+                def bindingArray = '''if(exec.binds == null || exec.binds.length != content.units().size){
+                exec.binds = new int[content.units().size];
+            }'''
+                def bindNext = '''if(seq != null && seq.any()){
+                    exec.binds[type.id] %= seq.size;'''
+                if (executor.count(bindingArray) != 1 || executor.count(bindNext) != 1) {
+                    throw new GradleException('Pinned logic unit-binding cursor changed')
+                }
+                executor = executor
+                    .replace(bindingArray, '''if(exec.binds != null && exec.binds.length != content.units().size){
+                exec.binds = null;
+            }''')
+                    .replace(bindNext, '''if(seq != null && seq.any()){
+                    if(exec.binds == null) exec.binds = new int[content.units().size];
+                    exec.binds[type.id] %= seq.size;''')
+            }
             def headless = 'Vars.headless || exec.graphicsBuffer.size >= maxGraphicsBuffer'
             if (executor.count(headless) != 1) throw new GradleException('Pinned graphics instruction guard changed')
             def adaptedExecutor = sourceDir.get().file(logicExecutorSource).asFile
