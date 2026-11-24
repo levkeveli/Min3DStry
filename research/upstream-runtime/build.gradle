@@ -198,14 +198,16 @@ def readUpstream = { path ->
 
 def renderedBuilding = layout.buildDirectory.dir('building-renderer-classes')
 def stageRenderedBuilding
+def tileAuditClasspath
 if (usesRenderedClient) {
     def asm = configurations.detachedConfiguration(dependencies.create('org.ow2.asm:asm-tree:9.9'))
     def adapter = tasks.register('compileBuildingCrackAdapter', JavaCompile) {
         source files('tools/StageBuildingCrackAdapter.java', 'tools/StageNavalWakeAdapter.java',
-                     'tools/StageObjectiveLabelAdapter.java', 'tools/StageCanvasAdapter.java')
+                     'tools/StageObjectiveLabelAdapter.java', 'tools/StageCanvasAdapter.java', 'tools/AuditTileFieldReferences.java')
         classpath = asm
         destinationDirectory = layout.buildDirectory.dir('building-renderer-tool')
     }
+    tileAuditClasspath = files(adapter.flatMap { it.destinationDirectory }) + asm
     stageRenderedBuilding = tasks.register('stageRenderedBuilding', JavaExec) {
         dependsOn adapter, 'prepareUpstreamProbe'
         classpath = files(adapter.flatMap { it.destinationDirectory }) + asm
@@ -314,6 +316,15 @@ if (usesArcSources || usesExecutor) {
         }
         destinationDirectory = layout.buildDirectory.dir("probe-dependencies/${probe}")
         archiveFileName = 'server-probe-dependencies.jar'
+    }
+    if (usesSinglePlayerApp) {
+        def audit = tasks.register('auditTileFieldReferences', JavaExec) {
+            dependsOn contentDependencies, 'compileBuildingCrackAdapter'
+            classpath = tileAuditClasspath
+            mainClass = 'AuditTileFieldReferences'
+            args contentDependencies.get().archiveFile.get().asFile.absolutePath
+        }
+        tasks.named('compileJava') { dependsOn audit }
     }
     dependencies { implementation files(contentDependencies.flatMap { it.archiveFile }).builtBy(contentDependencies) }
 } else {

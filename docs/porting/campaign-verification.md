@@ -41,9 +41,13 @@ and mutation flag in one word. Tiles keep unusual IDs and nonzero auxiliary
 data in a weakly keyed extension, retaining the original 32-bit values and
 current and legacy save layouts. The campaign archive reference checks the
 stock IDs, independent updates, the missing-value sentinel, wide IDs and
-packed tile metadata. The [ARM11-aligned Linux diagnostic](https://github.com/levkeveli/Min3DStry/actions/runs/45348197484)
-measured 24 bytes per common tile. That measurement applies to the diagnostic
-build with the handheld alignment rule.
+packed tile metadata. An ASM audit checks the filtered upstream dependency
+archive for field instructions that would still use the removed tile fields.
+The [production staging JVM run](https://github.com/levkeveli/Min3DStry/actions/runs/45350024201/job/138293855497)
+passed the metadata assertions across the pinned campaign archive.
+The [ARM11-aligned Linux diagnostic](https://github.com/levkeveli/Min3DStry/actions/runs/45350631106)
+measured 24 bytes per common tile. Decorated-tile memory, weak-key
+reclamation, and frame timing on 3DS still need target verification.
 
 Pass the staging directory and a new save directory to
 `runStockCampaignArchiveJvm` with `-Pprobe=singleplayer`. The test reads
