@@ -1,7 +1,7 @@
-name: Diagnose dense campaign memory on current ARM11
+name: Diagnose dense campaign working set at 40 MiB
 on:
   push:
-    branches: [test/dense-campaign-current-memory]
+    branches: [test/dense-campaign-current-40m]
 permissions:
   contents: read
 jobs:
@@ -28,7 +28,7 @@ jobs:
             sudo apt-get update
             sudo apt-get install -y ffmpeg
           fi
-      - name: Build the unified ARM11 game with the production 32 MiB cap
+      - name: Build unified ARM11 with the diagnostic 40 MiB cap
         run: bash .github/scripts/build_unified_arm11_smoke.sh
       - name: Compare deferred stock enemy base generation
         run: |
