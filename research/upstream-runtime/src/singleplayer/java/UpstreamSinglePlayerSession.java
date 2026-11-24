@@ -607,13 +607,14 @@ public final class UpstreamSinglePlayerSession {
             UpstreamSectorCapture.persist(Vars.state.rules.sector);
         }
         SaveIO.save(saveFile);
+        SaveMeta written;
         try (var input = SaveIO.getStream(saveFile)) {
-            if (!SaveIO.isSaveValid(input)) {
-                throw new IOException("Written offline save failed validation: " + saveFile.path());
-            }
+            written = SaveIO.getMeta(input);
+        } catch (RuntimeException failure) {
+            throw new IOException("Written offline save failed validation: " + saveFile.path(), failure);
         }
         if (Vars.state.rules.sector != null) {
-            bindSectorSave(Vars.state.rules.sector, saveFile, SaveIO.getMeta(saveFile));
+            bindSectorSave(Vars.state.rules.sector, saveFile, written);
             String index = saveFile.nameWithoutExtension();
             String key = slotNameKey(saveFile);
             if (!Core.settings.has(key)) Core.settings.put(key, index);
@@ -661,6 +662,11 @@ public final class UpstreamSinglePlayerSession {
             saveFile.delete();
             session = create(saveFile.parent() != null ? saveFile.parent() : mapFile.parent(), "en");
             session.start(mapFile, null, null);
+            var currentRules = mindustry.io.JsonIO.read(mindustry.game.Rules.class, "{\"modeName\":\"current\"}");
+            var legacyRules = mindustry.io.JsonIO.read(new mindustry.game.Rules(), "{\"modeName\":\"io.anuke.legacy\"}");
+            if (!"current".equals(currentRules.modeName) || !"legacy".equals(legacyRules.modeName)) {
+                throw new IllegalStateException("Stock save rules JSON compatibility changed");
+            }
 
             var serpulo15 = sectorFor(new Fi("sector-serpulo-15.msav"), Vars.content.planets());
             if (serpulo15 == null || serpulo15.id != 15 || !serpulo15.planet.name.equals("serpulo")) {

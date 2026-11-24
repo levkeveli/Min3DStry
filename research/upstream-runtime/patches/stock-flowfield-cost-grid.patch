@@ -90,7 +90,7 @@ diff --git a/mindustry/ai/Pathfinder.java b/mindustry/ai/Pathfinder.java
 index 35577c5..bec8a14 100644
 --- a/mindustry/ai/Pathfinder.java
 +++ b/mindustry/ai/Pathfinder.java
-@@ -92,7 +92,122 @@ public class Pathfinder implements Runnable{
+@@ -92,7 +92,128 @@ public class Pathfinder implements Runnable{
      );
 
      /** tile data, see PathTileStruct - kept as a separate array for threading reasons */
@@ -101,7 +101,7 @@ index 35577c5..bec8a14 100644
 +        return tiles.get(position);
 +    }
 +
-+    public static final class CostGrid{
++    public static final class CostGrid implements java.util.function.IntUnaryOperator{
 +        private static final int chunkSize = 16;
 +        private static final int chunksPerPage = 28;
 +        public final int length;
@@ -160,6 +160,11 @@ index 35577c5..bec8a14 100644
 +            return values == null ? defaultValue : values[index % chunkSize];
 +        }
 +
++        @Override
++        public int applyAsInt(int index){
++            return get(index);
++        }
++
 +        void set(int index, int value){
 +            int chunk = index / chunkSize;
 +            int pageIndex = chunk / chunksPerPage;
@@ -203,6 +208,7 @@ index 35577c5..bec8a14 100644
 +        }
 +
 +        void copyTo(CostGrid target){
++            if(length != target.length) throw new IllegalArgumentException("Mismatched flowfield lengths");
 +            // Share both directory pages and their chunks until a working write detaches them.
 +            snapshot = target;
 +            target.defaultValue = defaultValue;
@@ -214,7 +220,7 @@ index 35577c5..bec8a14 100644
 
      /** maps team, cost, type to flow field*/
      Flowfield[][][] cache;
-@@ -117,7 +232,7 @@ public class Pathfinder implements Runnable{
+@@ -117,7 +238,7 @@ public class Pathfinder implements Runnable{
              stop();
 
              //reset and update internal tile array
@@ -223,7 +229,7 @@ index 35577c5..bec8a14 100644
              wwidth = world.width();
              wheight = world.height();
              threadList = new Seq<>();
-@@ -126,7 +241,7 @@ public class Pathfinder implements Runnable{
+@@ -126,7 +247,7 @@ public class Pathfinder implements Runnable{
 
              for(int i = 0; i < tiles.length; i++){
                  Tile tile = world.tiles.geti(i);
@@ -232,7 +238,7 @@ index 35577c5..bec8a14 100644
              }
 
              //don't bother setting up paths unless necessary
-@@ -176,7 +291,7 @@ public class Pathfinder implements Runnable{
+@@ -176,7 +297,7 @@ public class Pathfinder implements Runnable{
                              int arr = other.array();
                              //the other tile is no longer near solid, remove the solid bit
                              if(!otherNearSolid && tiles.length > arr){
@@ -241,7 +247,7 @@ index 35577c5..bec8a14 100644
                              }
                          }
                      }
-@@ -240,7 +355,7 @@ public class Pathfinder implements Runnable{
+@@ -240,7 +361,7 @@ public class Pathfinder implements Runnable{
 
                  //other tile is now near solid
                  if(solid && !tile.block().teamPassable && other.array() < tiles.length){
@@ -250,7 +256,7 @@ index 35577c5..bec8a14 100644
                  }
              }
          }
-@@ -277,7 +392,7 @@ public class Pathfinder implements Runnable{
+@@ -277,7 +398,7 @@ public class Pathfinder implements Runnable{
      }
 
      public int get(int x, int y){
@@ -259,7 +265,7 @@ index 35577c5..bec8a14 100644
      }
 
      /** Starts or restarts the pathfinding thread. */
-@@ -309,7 +424,7 @@ public class Pathfinder implements Runnable{
+@@ -309,7 +430,7 @@ public class Pathfinder implements Runnable{
          tile.getLinkedTiles(t -> {
              int pos = t.array();
              if(pos < tiles.length){
@@ -268,7 +274,7 @@ index 35577c5..bec8a14 100644
              }
          });
 
-@@ -404,11 +519,11 @@ public class Pathfinder implements Runnable{
+@@ -404,11 +525,11 @@ public class Pathfinder implements Runnable{
          }
 
          //use complete weights if possible; these contain a complete flow field that is not being updated
@@ -282,7 +288,7 @@ index 35577c5..bec8a14 100644
 
          var points = diagonals ? Geometry.d8 : Geometry.d4;
          int[] avoid = avoidanceId <= 0 ? null : avoidance.getAvoidance();
-@@ -423,7 +538,7 @@ public class Pathfinder implements Runnable{
+@@ -423,7 +544,7 @@ public class Pathfinder implements Runnable{
 
              int packed = dx/res + dy/res * ww;
              int avoidance = avoid == null ? 0 : avoid[packed] > Integer.MAX_VALUE - avoidanceId ? 1 : 0;
@@ -291,7 +297,7 @@ index 35577c5..bec8a14 100644
 
              if(cost < value && avoidance == 0 && (current == null || cost < tl) && path.passable(packed) &&
              !(point.x != 0 && point.y != 0 && (!path.passable(((tile.x + point.x)/res + tile.y/res*ww)) || !path.passable((tile.x/res + (tile.y + point.y)/res*ww))))){ //diagonal corner trap
-@@ -456,7 +571,7 @@ public class Pathfinder implements Runnable{
+@@ -456,7 +577,7 @@ public class Pathfinder implements Runnable{
 
                  if(pos >= path.weights.length) continue;
 
@@ -300,7 +306,7 @@ index 35577c5..bec8a14 100644
                  path.searches.visit(pos);
                  path.frontier.addFirst(pos);
              }
-@@ -484,12 +599,12 @@ public class Pathfinder implements Runnable{
+@@ -484,12 +605,12 @@ public class Pathfinder implements Runnable{
          Core.app.post(() -> mainList.add(path));
 
          //fill with impassables by default
@@ -315,7 +321,7 @@ index 35577c5..bec8a14 100644
              path.frontier.addFirst(pos);
          }
      }
-@@ -505,7 +620,7 @@ public class Pathfinder implements Runnable{
+@@ -505,7 +626,7 @@ public class Pathfinder implements Runnable{
          while(path.frontier.size > 0){
              int tile = path.frontier.removeLast();
              if(path.weights == null) return; //something went horribly wrong, bail
@@ -324,7 +330,7 @@ index 35577c5..bec8a14 100644
 
              //pathfinding overflowed for some reason, time to bail. the next block update will handle this, hopefully
              if(path.frontier.size >= w * h){
-@@ -523,9 +638,9 @@ public class Pathfinder implements Runnable{
+@@ -523,9 +644,9 @@ public class Pathfinder implements Runnable{
                      int newPos = dx + dy * w;
                      int otherCost = path.getCost(tiles, newPos);
 
@@ -336,7 +342,7 @@ index 35577c5..bec8a14 100644
                          path.searches.visit(newPos);
                      }
                  }
-@@ -542,7 +657,7 @@ public class Pathfinder implements Runnable{
+@@ -542,7 +663,7 @@ public class Pathfinder implements Runnable{
 
          //there WERE some things in the frontier, but now they are gone, so the path is done; copy over latest data
          if(hadAny && path.frontier.size == 0){
@@ -345,7 +351,7 @@ index 35577c5..bec8a14 100644
              path.hasComplete = true;
          }
      }
-@@ -707,11 +822,11 @@ public class Pathfinder implements Runnable{
+@@ -707,11 +828,11 @@ public class Pathfinder implements Runnable{
          protected boolean dirty = false;
 
          /** costs of getting to a specific tile */
@@ -359,7 +365,7 @@ index 35577c5..bec8a14 100644
 
          /** Scaling factor. For example, resolution = 2 means tiles are twice as large. */
          public final int resolution;
-@@ -741,12 +856,16 @@ public class Pathfinder implements Runnable{
+@@ -741,12 +862,16 @@ public class Pathfinder implements Runnable{
          void setup(){
              int length = width * height;
 
@@ -378,7 +384,7 @@ index 35577c5..bec8a14 100644
          public int getCost(int[] tiles, int pos){
              return cost.getCost(team.id, tiles[pos]);
          }
-@@ -785,7 +904,7 @@ public class Pathfinder implements Runnable{
+@@ -785,7 +910,7 @@ public class Pathfinder implements Runnable{
          }
 
          protected boolean passable(int pos){

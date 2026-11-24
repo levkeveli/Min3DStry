@@ -117,5 +117,5 @@ Packed terrain costs use fixed-size chunks to fit the ARM11 collector's allocati
 Working and completed fields share immutable chunks until the
 pathfinder changes a working chunk. Publishing and resetting a working
 field preserve the completed values visible to units and base generation.
-The campaign archive reference checks writes, resets, and publication at
-a partial page boundary.
+The pathfinder reference run by the campaign archive checks writes, resets,
+and publication across page boundaries and in the partial trailing chunk.
