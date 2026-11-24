@@ -100,5 +100,13 @@ public final class UpstreamCoreDatabaseReference {
         var repair = new mindustry.entities.abilities.RepairFieldAbility(20f, 120f, 80f);
         String ability = StatValues.abilities(arc.struct.Seq.with(repair)).handheldText();
         if (!ability.contains(repair.abilityStat("repairspeed", "10"))) throw new AssertionError(ability);
+        var duration = new ObjectFloatMap<mindustry.type.Item>();
+        duration.put(Items.copper, 2f);
+        String itemFuel = StatValues.itemEffMultiplier(item -> 1.25f, 30f, item -> item == Items.copper, duration).handheldText();
+        String liquidFuel = StatValues.liquidEffMultiplier(liquid -> 1.25f, 2.5f, liquid -> liquid == Liquids.water).handheldText();
+        String efficiency = Core.bundle.format("stat.efficiency", "125");
+        if (!itemFuel.contains("Copper 1/sec " + efficiency) || !liquidFuel.contains("Water 2.5/sec " + efficiency)) {
+            throw new AssertionError(itemFuel + " | " + liquidFuel);
+        }
     }
 }
