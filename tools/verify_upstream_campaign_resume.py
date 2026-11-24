@@ -98,9 +98,14 @@ def verify(model: str, rom: Path, azahar: str, config: Path, log: Path,
                 stats = rpc.perf_stats(reset=True) or {}
                 (output / f"{model}-{stage}.png").write_bytes(rpc.screenshot())
                 if multiple:
+                    if dense:
+                        sp._wait_for_log(log, proc, r"UPSTREAM_PAUSE_MENU open=true\b", load_timeout)
                     reloaded = sp._wait_for_log(log, proc, r"UPSTREAM_PAUSE_MENU load=true\b", load_timeout)
                     if len(re.findall(loaded, reloaded)) != 2:
                         raise AssertionError(f"{model}: pause-menu Load did not reopen the selected campaign save")
+                    if dense:
+                        sp._wait_for_log(log, proc, r"(?s)UPSTREAM_PAUSE_MENU load=true\b.*?UPSTREAM_SP_FRAME ", 100)
+                        (output / f"{model}-reloaded.png").write_bytes(rpc.screenshot())
                 sp._wait_for_log(log, proc, rf"UPSTREAM_CAMPAIGN_SAVED slot={selection}\b", load_timeout)
                 sp._wait_for_log(log, proc, r"UPSTREAM_SP_EXIT\b", 20)
                 expected = source_secondary if multiple else source_zero
@@ -108,7 +113,10 @@ def verify(model: str, rom: Path, azahar: str, config: Path, log: Path,
                     raise AssertionError(f"{model}: original PC save is missing from the stock backup path")
                 if multiple and zero.read_bytes() != source_zero:
                     raise AssertionError(f"{model}: selecting the second sector modified the Ground Zero save")
-                (output / f"{model}-{selected.name}").write_bytes(selected.read_bytes())
+                saved = selected.read_bytes()
+                if dense and multiple and saved == expected:
+                    raise AssertionError(f"{model}: the dense campaign save was left byte-for-byte unchanged")
+                (output / f"{model}-{selected.name}").write_bytes(saved)
                 if source_settings is not None:
                     if settings_backup.read_bytes() != source_settings:
                         raise AssertionError(f"{model}: the original PC settings backup was lost")
