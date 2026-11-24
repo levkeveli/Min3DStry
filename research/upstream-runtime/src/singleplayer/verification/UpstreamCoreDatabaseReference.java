@@ -54,8 +54,14 @@ public final class UpstreamCoreDatabaseReference {
         String distance = StatValues.number(4.5f, StatUnit.blocks).handheldText();
         String itemRate = StatValues.items(30f, new ItemStack(Items.copper, 7)).handheldText();
         String liquidRate = StatValues.liquids(30f, true, new LiquidStack(Liquids.water, 1.25f)).handheldText();
+        String filteredItem = StatValues.items(30f, item -> item == Items.copper).handheldText();
+        String filteredLiquid = StatValues.liquids(liquid -> liquid == Liquids.water, 2.5f, true).handheldText();
+        String area = StatValues.squared(4.5f, StatUnit.blocks).handheldText();
         if (!"4.5 blocks".equals(distance) || !"Copper 7 (14/sec)".equals(itemRate) || !"Water 2.5/sec".equals(liquidRate)) {
             throw new AssertionError(distance + " | " + itemRate + " | " + liquidRate);
+        }
+        if (!"Copper 1 (2/sec)".equals(filteredItem) || !"Water 2.5/sec".equals(filteredLiquid) || !"4.5x4.5 blocks".equals(area)) {
+            throw new AssertionError(filteredItem + " | " + filteredLiquid + " | " + area);
         }
     }
 }

@@ -131,7 +131,7 @@ final class UpstreamCoreDatabaseMenu {
                 var text = new StringBuilder();
                 for (var value : entries.get(stat)) {
                     String label = value.handheldText();
-                    if (label == null) continue;
+                    if (label == null || label.isEmpty()) continue;
                     if (text.length() > 0) text.append("  ");
                     text.append(label);
                 }

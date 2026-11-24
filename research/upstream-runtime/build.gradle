@@ -742,6 +742,23 @@ tasks.register('prepareUpstreamProbe') {
                 .replace('return table -> {', 'return withText(() -> liquidStatText(timePeriod, perSecond, stacks), table -> {')
                 .replace('        };', '        });')
             hooks[stockSingleLiquid] = 'return withText(() -> liquidStatText(liquid, amount, perSecond), table -> table.add(displayLiquid(liquid, amount, perSecond)).left());'
+            def stockStatValues = values
+            def withLabel = { signature, label ->
+                def start = stockStatValues.indexOf('    public static StatValue ' + signature + '{')
+                if (start < 0) throw new GradleException('Pinned StatValues declaration changed: ' + signature)
+                def end = stockStatValues.indexOf('\n    }', start)
+                def method = stockStatValues.substring(start, end + '\n    }'.length())
+                if (method.count('return table -> {') != 1 || !method.endsWith('        };\n    }')) {
+                    throw new GradleException('Pinned StatValues implementation changed: ' + signature)
+                }
+                hooks[method] = method.replace('return table -> {', 'return withText(() -> ' + label + ', table -> {')
+                    .replace('        };\n    }', '        });\n    }')
+            }
+            withLabel('squared(float value, StatUnit unit)', 'fixValue(value) + "x" + fixValue(value) + (unit.space ? " " : "") + unit.localized()')
+            withLabel('multiplierModifier(float value, StatUnit unit, boolean merge)', 'multStat(value) + (unit.space ? " " : "") + unit.localized()')
+            withLabel('percentModifier(float value, StatUnit unit, boolean merge)', 'ammoStat((value - 1) * 100) + (unit.space ? " " : "") + unit.localized()')
+            withLabel('liquids(Boolf<Liquid> filter, float amount, boolean perSecond)', 'filteredLiquidStatText(filter, amount, perSecond)')
+            withLabel('items(float timePeriod, Boolf<Item> filter)', 'filteredItemStatText(filter, timePeriod)')
             hooks['    public static String fixValue(float value){'] = '''    private static String itemStatText(ItemStack[] stacks, float period, boolean rate){
         StringBuilder label = new StringBuilder();
         for(var stack : stacks){
@@ -762,6 +779,27 @@ tasks.register('prepareUpstreamProbe') {
         for(var stack : stacks){
             if(label.length() != 0) label.append(" / ");
             label.append(liquidStatText(stack.liquid, stack.amount * (60f / period), perSecond));
+        }
+        return label.toString();
+    }
+
+    private static String filteredLiquidStatText(Boolf<Liquid> filter, float amount, boolean perSecond){
+        StringBuilder label = new StringBuilder();
+        for(var liquid : content.liquids()){
+            if(!filter.get(liquid) || !liquid.unlockedNow() || liquid.isHidden()) continue;
+            if(label.length() != 0) label.append(" / ");
+            label.append(liquidStatText(liquid, amount, perSecond));
+        }
+        return label.toString();
+    }
+
+    private static String filteredItemStatText(Boolf<Item> filter, float period){
+        StringBuilder label = new StringBuilder();
+        for(var item : content.items()){
+            if(!filter.get(item) || !item.unlockedNow() || item.isHidden()) continue;
+            if(label.length() != 0) label.append(" / ");
+            label.append(item.localizedName);
+            if(period > 0) label.append(" 1 (").append(fixValue(60f / period)).append(StatUnit.perSecond.localized()).append(")");
         }
         return label.toString();
     }
