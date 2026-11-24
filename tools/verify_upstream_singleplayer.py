@@ -24,6 +24,7 @@ KEY_A = 1 << 0
 KEY_B = 1 << 1
 KEY_SELECT = 1 << 2
 KEY_START = 1 << 3
+KEY_RIGHT = 1 << 4
 KEY_DOWN = 1 << 7
 KEY_X = 1 << 10
 KEY_Y = 1 << 11
@@ -110,6 +111,7 @@ def write_singleplayer_ctm(
         button_windows = (
             (34, KEY_DOWN),  # Select Database on the title screen.
             (50, KEY_A),     # Open Core Database.
+            (82, KEY_RIGHT), # Change from All to the next stock planet tab.
             (101, KEY_B),    # Exit the title cleanly.
         )
     with path.open("wb") as movie:
@@ -338,6 +340,7 @@ def run_singleplayer_model(
             try:
                 _wait_for_log(log_path, proc3, r"UPSTREAM_DATABASE_OPEN tab=sun rows=[1-9]\d*\b", timeout)
                 (out_dir / f"{model}-database-title.png").write_bytes(rpc3.screenshot())
+                _wait_for_log(log_path, proc3, r"UPSTREAM_DATABASE_TAB tab=(serpulo|erekir) rows=[1-9]\d*\b", timeout)
                 _wait_for_log(log_path, proc3, r"UPSTREAM_DATABASE_CLOSE\b", timeout)
                 log_title = _wait_for_log(log_path, proc3, r"UPSTREAM_SP_EXIT\b", timeout)
                 (out_dir / f"{model}-database-title.log").write_text(log_title, encoding="utf-8")
