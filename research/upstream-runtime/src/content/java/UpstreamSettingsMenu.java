@@ -5,13 +5,15 @@ public final class UpstreamSettingsMenu {
     private boolean minimap;
     private boolean weather;
     private boolean performance;
+    private boolean position;
 
-    public void open(boolean coreItems, boolean minimap, boolean weather, boolean performance) {
+    public void open(boolean coreItems, boolean minimap, boolean weather, boolean performance, boolean position) {
         selected = 0;
         this.coreItems = coreItems;
         this.minimap = minimap;
         this.weather = weather;
         this.performance = performance;
+        this.position = position;
     }
 
     public int selected() {
@@ -34,9 +36,13 @@ public final class UpstreamSettingsMenu {
         return performance;
     }
 
+    public boolean position() {
+        return position;
+    }
+
     public void move(int direction) {
         if (direction == 0) return;
-        selected = Math.floorMod(selected + direction, 5);
+        selected = Math.floorMod(selected + direction, 6);
     }
 
     /** Toggles the selected setting and returns its new value; Back returns false. */
@@ -54,12 +60,15 @@ public final class UpstreamSettingsMenu {
             case 3:
                 performance = !performance;
                 return performance;
+            case 4:
+                position = !position;
+                return position;
             default:
                 return false;
         }
     }
 
     public boolean backSelected() {
-        return selected == 4;
+        return selected == 5;
     }
 }
