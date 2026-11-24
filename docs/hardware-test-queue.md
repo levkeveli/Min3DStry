@@ -174,6 +174,9 @@ and waves, touch palette/rotation, HUD/menus/minimap.
   moving the player.
 - The core item list shows one icon-and-count row per stocked item and wraps
   into columns without covering the minimap.
+- With `Show Player Position` enabled, the player's tile coordinates appear
+  under the minimap and change as the player moves; all six settings rows and
+  Back fit on the top screen.
 - Selecting a friendly liquid building shows the stock dynamic and keyed
   consumer/generator liquid bars with their liquid names and colors below the
   power bar; friendly buildings also show the stock health bar, and configurable

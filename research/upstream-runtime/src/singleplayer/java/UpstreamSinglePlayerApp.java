@@ -118,6 +118,9 @@ public final class UpstreamSinglePlayerApp {
     private String lastBossText;
     private byte[] bossLabel = new byte[0];
     private int[] bossCharacters = new int[0];
+    private String lastPositionText;
+    private byte[] positionLabel = new byte[0];
+    private int[] positionCharacters = new int[0];
     private final IntSet reportedEnemies = new IntSet();
 
     interface AudioHooks {
@@ -363,6 +366,7 @@ public final class UpstreamSinglePlayerApp {
         lastStatus = null;
         lastObjectives = null;
         lastBossText = null;
+        lastPositionText = null;
         lastCoreItemCount = -1;
         lastCoreItemDrawn = -1;
         coreItemTracker.reset();
@@ -861,6 +865,8 @@ public final class UpstreamSinglePlayerApp {
                                 Core.settings.put("showweather", enabled);
                             } else if (index == 3) {
                                 Core.settings.put("showperformance", enabled);
+                            } else if (index == 4) {
+                                Core.settings.put("position", enabled);
                             }
                             System.out.println("UPSTREAM_SETTINGS index=" + index + " value=" + enabled);
                         }
@@ -901,7 +907,8 @@ public final class UpstreamSinglePlayerApp {
                         settingsMenu.open(Core.settings.getBool("coreitems", true),
                             Core.settings.getBool("minimap", true),
                             Core.settings.getBool("showweather", true),
-                            Core.settings.getBool("showperformance", false));
+                            Core.settings.getBool("showperformance", false),
+                            Core.settings.getBool("position", false));
                         System.out.println("UPSTREAM_PAUSE_MENU settings=true");
                     } else if (action == UpstreamPauseMenu.Action.SAVE) {
                         session.save(saveFile);
@@ -1151,6 +1158,7 @@ public final class UpstreamSinglePlayerApp {
         var schematics = buildingControls.schematics();
         schematics.draw(viewport);
         drawCoreItems();
+        drawPositionReadout();
         drawObjectives(buildingPowerHud.draw(target, buildingControls, Vars.player.team(), drawStatusHud()));
         drawBossBar();
         if (pauseOpen) drawPauseMenu();
@@ -1262,6 +1270,19 @@ public final class UpstreamSinglePlayerApp {
         target.drawObjectiveAt(minimapViewBack, minimapViewBackCharacters, null, 8f, 196f);
     }
 
+    private void drawPositionReadout() {
+        if (!Core.settings.getBool("position", false)) return;
+        var unit = Vars.player == null ? null : Vars.player.unit();
+        if (unit == null) return;
+        String text = unit.tileX() + "," + unit.tileY();
+        if (!text.equals(lastPositionText)) {
+            positionLabel = (text + "\0").getBytes(StandardCharsets.UTF_8);
+            positionCharacters = UpstreamHudLabels.encodeLabel(UpstreamLabelText.parse(text));
+            lastPositionText = text;
+        }
+        target.drawObjectiveAt(positionLabel, positionCharacters, null, 336f, 68f);
+    }
+
     private void drawCoreItems() {
         if (!Core.settings.getBool("coreitems", true)) return;
         var items = coreItemTracker.live();
@@ -1302,7 +1323,8 @@ public final class UpstreamSinglePlayerApp {
         settingsMenu.open(Core.settings.getBool("coreitems", true),
             Core.settings.getBool("minimap", true),
             Core.settings.getBool("showweather", true),
-            Core.settings.getBool("showperformance", false));
+            Core.settings.getBool("showperformance", false),
+            Core.settings.getBool("position", false));
         settingsOpen = false;
         pauseOpen = true;
         if (!Vars.state.isPaused()) session.togglePause();
@@ -1334,14 +1356,15 @@ public final class UpstreamSinglePlayerApp {
                 {Core.bundle.get("setting.minimap.name"), settingsMenu.minimap() ? "on" : "off"},
                 {Core.bundle.get("setting.showweather.name"), settingsMenu.weather() ? "on" : "off"},
                 {Core.bundle.get("setting.showperformance.name"), settingsMenu.performance() ? "on" : "off"},
+                {Core.bundle.get("setting.position.name"), settingsMenu.position() ? "on" : "off"},
                 {Core.bundle.get("back"), null}
             };
-            float y = 118f;
+            float y = 104f;
             for (int i = 0; i < rows.length; i++) {
                 boolean selected = settingsMenu.selected() == i;
                 String text = rows[i][0] + (rows[i][1] == null ? "" : ": " + Core.bundle.get(rows[i][1]));
                 drawPauseRow((selected ? "> " : "  ") + text, 92f, y, selected);
-                y += 22f;
+                y += 20f;
             }
             return;
         }

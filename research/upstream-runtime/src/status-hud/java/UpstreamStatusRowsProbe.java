@@ -219,9 +219,9 @@ public final class UpstreamStatusRowsProbe {
             throw new IllegalStateException("Pause menu six-row quit mismatch");
         }
         var settings = new UpstreamSettingsMenu();
-        settings.open(true, true, true, false);
+        settings.open(true, true, true, false, false);
         if (!settings.coreItems() || !settings.minimap() || !settings.weather()
-                || settings.performance() || settings.selected() != 0) {
+                || settings.performance() || settings.position() || settings.selected() != 0) {
             throw new IllegalStateException("Settings menu initial state mismatch");
         }
         settings.move(1);
@@ -236,6 +236,11 @@ public final class UpstreamStatusRowsProbe {
         if (!settings.toggleSelected() || !settings.performance()) {
             throw new IllegalStateException("Settings performance toggle mismatch");
         }
+        settings.move(1);
+        if (!settings.toggleSelected() || !settings.position()) {
+            throw new IllegalStateException("Settings position toggle mismatch");
+        }
+        System.out.println("UPSTREAM_SETTINGS_POSITION ok");
         settings.move(1);
         if (!settings.backSelected()) throw new IllegalStateException("Settings back selection mismatch");
         settings.move(1);
