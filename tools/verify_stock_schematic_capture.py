@@ -58,7 +58,7 @@ def create_edit_fixture(args, fixture):
     try:
         script = (
             'const Schematics=Packages.mindustry.game.Schematics; '
-            'const layout=new Schematics().create(84,23,84,25,Vars.state.rules.defaultTeam); '
+            'const layout=new Schematics().create(84,23,84,25); '
             f'layout.tags.put("name", {json.dumps(CAPTURE_NAME)}); '
             'layout.tags.put("description", "Stock fixture description"); '
             f'Schematics.write(layout, new Packages.arc.files.Fi({json.dumps(schematic.as_posix())})); '
