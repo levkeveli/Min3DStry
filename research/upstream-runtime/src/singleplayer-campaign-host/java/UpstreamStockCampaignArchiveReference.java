@@ -68,6 +68,7 @@ public final class UpstreamStockCampaignArchiveReference {
                 Vars.logic.reset();
                 Vars.world.loadSector(preset.sector);
                 session.application().runPosted();
+                if (preset.planet == Planets.serpulo && preset.sector.id == 111) verifyStockDarkness();
                 verifyCoreFlagOrder();
                 var original = preset.generator.map;
                 if (Vars.state.rules.sector != preset.sector || Vars.world.width() != original.width
@@ -90,6 +91,18 @@ public final class UpstreamStockCampaignArchiveReference {
         } finally {
             session.shutdown();
         }
+    }
+
+    private static void verifyStockDarkness() {
+        var tiles = Vars.world.tiles;
+        int area = tiles.width * tiles.height;
+        byte[] handheld = new byte[area];
+        for (int i = 0; i < area; i++) handheld[i] = tiles.geti(i).data;
+        new mindustry.core.World().addDarkness(tiles);
+        for (int i = 0; i < area; i++) {
+            if (tiles.geti(i).data != handheld[i]) throw new AssertionError("Stock darkness differs at tile " + i);
+        }
+        System.out.println("UPSTREAM_CAMPAIGN_DARKNESS_REFERENCE sector=111 tiles=" + area);
     }
 
     private static void verifyRetiredScratch() throws ReflectiveOperationException {
