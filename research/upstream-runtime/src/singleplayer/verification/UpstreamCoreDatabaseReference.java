@@ -15,6 +15,7 @@ import mindustry.type.ItemStack;
 import mindustry.type.LiquidStack;
 import mindustry.world.meta.StatUnit;
 import mindustry.world.meta.StatValues;
+import mindustry.world.blocks.defense.turrets.ItemTurret;
 
 public final class UpstreamCoreDatabaseReference {
     public static void main(String[] args) {
@@ -77,5 +78,11 @@ public final class UpstreamCoreDatabaseReference {
         String drills = StatValues.drillables(120f, 30f, 4f, drillMultipliers,
             block -> block == Blocks.oreCopper).handheldText();
         if (!"Copper / Copper 3.2/sec".equals(drills)) throw new AssertionError(drills);
+        var duo = (ItemTurret) Blocks.duo;
+        String ammo = StatValues.ammo(duo.ammoTypes).handheldText();
+        String copperDamage = Core.bundle.format("bullet.damage", duo.ammoTypes.get(Items.copper).damage);
+        if (!ammo.contains(Items.copper.localizedName + "\n" + copperDamage)) {
+            throw new AssertionError(ammo);
+        }
     }
 }
