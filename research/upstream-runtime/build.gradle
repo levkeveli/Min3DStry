@@ -361,6 +361,8 @@ if (probe in ['network-render', 'unified']) {
 }
 if (usesSinglePlayer) {
     sourceSets.main.java.srcDir('src/singleplayer/java')
+    // This standalone comparator builds against the unmodified stock array layout.
+    sourceSets.main.java.exclude('UpstreamCombatSimulationBaseline.java')
     if (usesSinglePlayerApp) {
         tasks.register('runStockMapEditorJvm', JavaExec) {
             classpath = sourceSets.main.runtimeClasspath
