@@ -176,7 +176,7 @@ public final class UpstreamSinglePlayerApp {
 
         try {
             if (titleRequested) {
-                var selection = chooseTitleAction(atlas, saveFile, () -> prepareSession(mapDir, bundleTag, settings), join);
+                var selection = chooseTitleAction(atlas, saveFile, () -> prepareSession(mapDir, bundleTag, settings), join, settings);
                 if (selection == null) return;
                 campaignRequested = selection == TitleAction.campaign;
                 customRequested = selection == TitleAction.custom;
@@ -501,10 +501,10 @@ public final class UpstreamSinglePlayerApp {
 
     private enum TitleAction { campaign, custom, load, editor }
 
-    private TitleAction chooseTitleAction(Fi atlas, Fi defaultSave, Runnable prepare, TitleJoin join) throws IOException {
+    private TitleAction chooseTitleAction(Fi atlas, Fi defaultSave, Runnable prepare, TitleJoin join, Settings settings) throws IOException {
         loadInterfaceRenderer();
         while (true) {
-            switch (chooseTitleRow("Mindustry", "play", "database.button", "editor", "quit")) {
+            switch (chooseTitleRow("Mindustry", "play", "database.button", "editor", "settings", "quit")) {
                 case 0 -> {
                     var playKeys = join == null ? new String[]{"campaign", "customgame", "loadgame"}
                         : new String[]{"campaign", "joingame", "customgame", "loadgame"};
@@ -537,13 +537,34 @@ public final class UpstreamSinglePlayerApp {
                     }
                 }
                 case 2 -> { return TitleAction.editor; }
+                case 3 -> {
+                    if (!chooseTitleSettings(settings)) return null;
+                }
                 default -> { return null; }
             }
         }
     }
 
+    private boolean chooseTitleSettings(Settings settings) {
+        openHudSettings(settings);
+        while (true) {
+            int row = chooseTitleRow(Core.bundle.get("settings"), settingsMenu.selected(), hudSettingsRows());
+            if (row < 0) return row == -1;
+            settingsMenu.move(row - settingsMenu.selected());
+            if (settingsMenu.backSelected()) return true;
+            toggleHudSetting(settings);
+            settings.manualSave();
+        }
+    }
+
     private int chooseTitleRow(String title, String... optionKeys) {
-        int selected = 0, previousY = 0, drawn = -1;
+        var captions = new String[optionKeys.length];
+        for (int i = 0; i < optionKeys.length; i++) captions[i] = Core.bundle.get(optionKeys[i]);
+        return chooseTitleRow(title, 0, captions);
+    }
+
+    private int chooseTitleRow(String title, int selected, String[] options) {
+        int previousY = 0, drawn = -1;
         MenuRows rows = null;
         byte[] controls = ("A  " + Core.bundle.get("ok") + "\0B  " + Core.bundle.get("back") + "\0")
             .getBytes(StandardCharsets.UTF_8);
@@ -555,15 +576,15 @@ public final class UpstreamSinglePlayerApp {
             int touch = UpstreamTerrainRenderProbe.menuHelpAction(UpstreamSinglePlayerInput.touch(), 2);
             if ((input & UpstreamSinglePlayerInput.B_PRESSED) != 0 || touch == 1) return -1;
             int y = (byte)(input >> 8);
-            if (y > 60 && previousY <= 20) selected = Math.floorMod(selected - 1, optionKeys.length);
-            if (y < -60 && previousY >= -20) selected = (selected + 1) % optionKeys.length;
+            if (y > 60 && previousY <= 20) selected = Math.floorMod(selected - 1, options.length);
+            if (y < -60 && previousY >= -20) selected = (selected + 1) % options.length;
             previousY = y;
             if ((input & UpstreamSinglePlayerInput.A_PRESSED) != 0 || touch == 0) return selected;
             if (drawn != selected) {
-                var captions = new String[optionKeys.length + 1];
+                var captions = new String[options.length + 1];
                 captions[0] = title;
-                for (int i = 0; i < optionKeys.length; i++) {
-                    captions[i + 1] = (selected == i ? "> " : "  ") + Core.bundle.get(optionKeys[i]);
+                for (int i = 0; i < options.length; i++) {
+                    captions[i + 1] = (selected == i ? "> " : "  ") + options[i];
                 }
                 rows = encodeMenuRows(captions);
                 drawn = selected;
@@ -953,20 +974,7 @@ public final class UpstreamSinglePlayerApp {
                         if (settingsMenu.backSelected()) {
                             settingsOpen = false;
                         } else {
-                            int index = settingsMenu.selected();
-                            boolean enabled = settingsMenu.toggleSelected();
-                            if (index == 0) {
-                                Core.settings.put("coreitems", enabled);
-                                lastCoreItemCount = -1;
-                                lastCoreItemDrawn = -1;
-                            } else if (index == 1) {
-                                Core.settings.put("minimap", enabled);
-                            } else if (index == 2) {
-                                Core.settings.put("showweather", enabled);
-                            } else if (index == 3) {
-                                Core.settings.put("showperformance", enabled);
-                            }
-                            System.out.println("UPSTREAM_SETTINGS index=" + index + " value=" + enabled);
+                            toggleHudSetting(Core.settings);
                         }
                     } else if ((input & (UpstreamSinglePlayerInput.B_PRESSED
                             | UpstreamSinglePlayerInput.X_PRESSED)) != 0) {
@@ -1008,10 +1016,7 @@ public final class UpstreamSinglePlayerApp {
                             continue;
                         } else if (action == UpstreamPauseMenu.Action.SETTINGS) {
                             settingsOpen = true;
-                            settingsMenu.open(Core.settings.getBool("coreitems", true),
-                                Core.settings.getBool("minimap", true),
-                                Core.settings.getBool("showweather", true),
-                                Core.settings.getBool("showperformance", false));
+                            openHudSettings(Core.settings);
                             System.out.println("UPSTREAM_PAUSE_MENU settings=true");
                         } else if (action == UpstreamPauseMenu.Action.SAVE) {
                             session.save(saveFile);
@@ -1369,10 +1374,7 @@ public final class UpstreamSinglePlayerApp {
         var sector = Vars.state.rules.sector;
         boolean research = sector != null && sector.planet != null && sector.planet.techTree != null;
         pauseMenu.open(research ? 6 : 3);
-        settingsMenu.open(Core.settings.getBool("coreitems", true),
-            Core.settings.getBool("minimap", true),
-            Core.settings.getBool("showweather", true),
-            Core.settings.getBool("showperformance", false));
+        openHudSettings(Core.settings);
         settingsOpen = false;
         pauseOpen = true;
         if (!Vars.state.isPaused()) session.togglePause();
@@ -1399,18 +1401,11 @@ public final class UpstreamSinglePlayerApp {
         }
         if (settingsOpen) {
             drawPauseRow(Core.bundle.get("settings"), 170f, 100f, false);
-            String[][] rows = {
-                {Core.bundle.get("setting.coreitems.name"), settingsMenu.coreItems() ? "on" : "off"},
-                {Core.bundle.get("setting.minimap.name"), settingsMenu.minimap() ? "on" : "off"},
-                {Core.bundle.get("setting.showweather.name"), settingsMenu.weather() ? "on" : "off"},
-                {Core.bundle.get("setting.showperformance.name"), settingsMenu.performance() ? "on" : "off"},
-                {Core.bundle.get("back"), null}
-            };
+            var rows = hudSettingsRows();
             float y = 118f;
             for (int i = 0; i < rows.length; i++) {
                 boolean selected = settingsMenu.selected() == i;
-                String text = rows[i][0] + (rows[i][1] == null ? "" : ": " + Core.bundle.get(rows[i][1]));
-                drawPauseRow((selected ? "> " : "  ") + text, 92f, y, selected);
+                drawPauseRow((selected ? "> " : "  ") + rows[i], 92f, y, selected);
                 y += 22f;
             }
             return;
@@ -1441,6 +1436,41 @@ public final class UpstreamSinglePlayerApp {
         } else {
             drawPauseRow("Y  " + Core.bundle.get("database"), 44f, 210f, false);
         }
+    }
+
+    private void openHudSettings(Settings settings) {
+        settingsMenu.open(settings.getBool("coreitems", true), settings.getBool("minimap", true),
+            settings.getBool("showweather", true), settings.getBool("showperformance", false));
+    }
+
+    private void toggleHudSetting(Settings settings) {
+        int index = settingsMenu.selected();
+        boolean enabled = settingsMenu.toggleSelected();
+        switch (index) {
+            case 0 -> {
+                settings.put("coreitems", enabled);
+                lastCoreItemCount = -1;
+                lastCoreItemDrawn = -1;
+            }
+            case 1 -> settings.put("minimap", enabled);
+            case 2 -> settings.put("showweather", enabled);
+            case 3 -> settings.put("showperformance", enabled);
+        }
+        System.out.println("UPSTREAM_SETTINGS index=" + index + " value=" + enabled);
+    }
+
+    private String[] hudSettingsRows() {
+        return new String[]{
+            hudSettingRow("setting.coreitems.name", settingsMenu.coreItems()),
+            hudSettingRow("setting.minimap.name", settingsMenu.minimap()),
+            hudSettingRow("setting.showweather.name", settingsMenu.weather()),
+            hudSettingRow("setting.showperformance.name", settingsMenu.performance()),
+            Core.bundle.get("back")
+        };
+    }
+
+    private static String hudSettingRow(String label, boolean enabled) {
+        return Core.bundle.get(label) + ": " + Core.bundle.get(enabled ? "on" : "off");
     }
 
     private void drawPauseRow(String text, float x, float y, boolean selected) {
