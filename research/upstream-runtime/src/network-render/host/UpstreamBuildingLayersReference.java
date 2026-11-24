@@ -171,6 +171,8 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         viewport.moveTo(24, 30);
         var viewer = Team.sharded;
         if (args.length >= 4) verifyPowerBar(viewer);
+        if (args.length >= 4) verifyLiquidBarLabels(viewer);
+        verifyLiquidBar(viewer);
         var conveyor = Vars.world.tile(25, 31);
         var edgeWall = Vars.world.tile(23, 35);
         var offscreenWall = Vars.world.tile(21, 39);
@@ -549,6 +551,37 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
             throw new AssertionError("A supplied idle consumer should show a full power bar");
         }
         System.out.println("UPSTREAM_STOCK_POWER_BAR states=dry,partial,buffered,supplied-idle team=filtered");
+    }
+
+    private static void verifyLiquidBar(Team viewer) {
+        var conduit = Blocks.conduit.newBuilding().create(Blocks.conduit, viewer);
+        if (!UpstreamBuildingLiquidHud.showsLiquid(conduit, viewer)
+                || UpstreamBuildingLiquidHud.showsLiquid(conduit, Team.crux)) {
+            throw new AssertionError("Stock liquid bars must only show to the owning team");
+        }
+        if (conduit.block.liquidBarFraction(conduit) != 0f) {
+            throw new AssertionError("Stock empty liquid bar differs");
+        }
+        conduit.liquids.add(Liquids.water, conduit.block.liquidCapacity * 0.5f);
+        if (Math.abs(conduit.block.liquidBarFraction(conduit) - 0.5f) > 1e-6f) {
+            throw new AssertionError("Stock partial liquid bar differs");
+        }
+        if (!conduit.block.liquidBarColor(conduit).equals(Liquids.water.barColor())) {
+            throw new AssertionError("Stock liquid bar color differs");
+        }
+        System.out.println("UPSTREAM_STOCK_LIQUID_BAR empty=0 partial=0.5 color=ok team=filtered");
+    }
+
+    private static void verifyLiquidBarLabels(Team viewer) {
+        var conduit = Blocks.conduit.newBuilding().create(Blocks.conduit, viewer);
+        if (!conduit.block.liquidBarLabel(conduit).equals(Core.bundle.get("bar.liquid"))) {
+            throw new AssertionError("Stock empty liquid label differs");
+        }
+        conduit.liquids.add(Liquids.water, conduit.block.liquidCapacity * 0.5f);
+        if (!conduit.block.liquidBarLabel(conduit).equals(Liquids.water.localizedName)) {
+            throw new AssertionError("Stock liquid label differs");
+        }
+        System.out.println("UPSTREAM_STOCK_LIQUID_BAR_LABELS empty=bar partial=water");
     }
 
     private static void verifySpriteAtlas(Fi file) throws IOException {

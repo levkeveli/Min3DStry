@@ -86,7 +86,7 @@ drop them. The same reference configures one-way Bridge Conduit and Phase
 Conduit links, fills each source and steps 120 ticks; it asserts water reaches
 each target, rejects a back-linked pair, and prints
 `UPSTREAM_LIQUID_BRIDGE_REFERENCE bridgeMilli=100000 phaseMilli=100000
-backLink=rejected`. The dedicated liquid HUD remains open.
+backLink=rejected`.
 
 ### Stock building power bar
 
@@ -96,6 +96,17 @@ display uses the upstream Block.setBars callbacks and the original
 bar and bar-top atlas patches. Enemy building power remains hidden.
 The building-layer host reference checks dry, partial, buffered and
 supplied-idle states. ARM11 rendering evidence is pending.
+
+### Stock building liquid bar
+
+Select a friendly liquid building with the handheld cursor to see its
+stock dynamic liquid bar below the power bar. The label, fill and liquid
+color come from the same `Block.addLiquidBar` provider used by the stock
+bars, drawn with the original bar and bar-top patches. Enemy liquid bars
+stay hidden. The building-layer host reference checks empty, partial,
+color and label states; the live draw path is pending the next emulator
+batch. Keyed multi-liquid bars (crafters, generators and turrets that
+consume specific liquids) remain open.
 
 ## Remaining Scope for Issue #39
 
