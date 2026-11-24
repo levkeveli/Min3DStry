@@ -142,9 +142,11 @@
       "evidence": [
         "docs/porting/production-power-liquids.md",
         "research/upstream-runtime/src/gameplay/java/UpstreamProductionTickProbe.java",
-        "research/upstream-runtime/src/network-render/java/UpstreamRenderedNetworkProbe.java"
+        "research/upstream-runtime/src/network-render/java/UpstreamRenderedNetworkProbe.java",
+        "research/upstream-runtime/src/network-render/java/UpstreamBuildingLayers.java",
+        "research/upstream-runtime/src/network-render/host/UpstreamBuildingLayersReference.java"
       ],
-      "notes": "PowerGraph and GraphUpdater ticks verified in ARM11 probe; live draw covers Combustion Generator and PowerNode beams; power HUD bar and full reactor/battery coverage pending."
+      "notes": "PowerGraph and GraphUpdater ticks are verified in the ARM11 probe. The live draw set includes the complete stock PowerBlock family (generators, reactors, batteries, diodes and lights), and the host reference now asserts every member explicitly; PowerNode beams remain covered. A stock power HUD bar remains open."
     },
     {
       "id": "liquids-pumps-conduits",
@@ -158,9 +160,11 @@
         "docs/porting/production-power-liquids.md",
         "docs/gameplay/offline-singleplayer.md",
         "research/upstream-runtime/src/gameplay/java/UpstreamProductionTickProbe.java",
-        "research/upstream-runtime/src/network-render/java/UpstreamRenderedNetworkProbe.java"
+        "research/upstream-runtime/src/network-render/java/UpstreamRenderedNetworkProbe.java",
+        "research/upstream-runtime/src/network-render/java/UpstreamBuildingLayers.java",
+        "research/upstream-runtime/src/network-render/host/UpstreamBuildingLayersReference.java"
       ],
-      "notes": "The ARM11 probe verifies LiquidModule and Conduit simulation. The offline renderer draws original pumps and liquid routers, including the tested Mechanical Pump and Liquid Tank. Live conduit tiling is verified. Liquid bridges and full liquid HUD coverage remain open."
+      "notes": "The ARM11 probe verifies LiquidModule and Conduit simulation. The offline renderer draws original pumps and liquid routers, including the tested Mechanical Pump and Liquid Tank. Live conduit tiling is verified. The stock Bridge Conduit and Phase Conduit are liquid-category LiquidBridge blocks, covered by the live Category.liquid draw set; the host LIQUID registry renders every liquid block and asserts both categories. The host reference also verifies one-way Bridge Conduit and Phase Conduit transfer, rejects back-linked pairs, dumps a Liquid Router into an adjacent router sink, and checks Liquid Junction far-side/dead-end routing. The live selected-building HUD is wired to draw the stock dynamic and keyed consumer/generator liquid bars; emulator draw verification is pending."
     },
     {
       "id": "payloads-unit-factories",
@@ -250,7 +254,7 @@
         "research/upstream-runtime/arm11/m3ds_input.c",
         "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerApp.java"
       ],
-      "notes": "X pause/resume, Y wave trigger, and SELECT quick-save work in offline single-player; interactive pause menu overlay not yet wired to upstream runtime."
+      "notes": "X pause/resume, Y wave trigger, and SELECT quick-save work in offline single-player. The live pause menu opens on X, freezes the simulation when the stock rules allow pausing, and returns to play on Resume."
     },
     {
       "id": "live-minimap",
@@ -265,22 +269,25 @@
         "research/upstream-runtime/src/content/java/UpstreamMinimap.java",
         "tools/verify_minimap_azahar.py"
       ],
-      "notes": "Both Azahar profiles verified a nonblank offline minimap and the local player marker. Fullscreen, zoom, other unit blips, and the full stock panel remain open."
+      "notes": "Both Azahar profiles verified a nonblank offline minimap, the local player marker, living unit blips and directional core markers. The core-marker fixture overlaps the player spawn, so a separate pixel proof remains open; fullscreen, zoom and the full stock panel also remain open."
     },
     {
       "id": "minimap-pause-overlay",
       "domain": "Controls & Dual-Screen UI",
       "name": "Interactive Pause Menu Overlay",
       "weight": 1,
-      "status": "harness-only",
-      "modes": ["harness"],
+      "status": "live-arm11",
+      "modes": ["offline"],
       "issue": 40,
       "evidence": [
+        "docs/rendering/live-hud.md",
+        "docs/gameplay/offline-singleplayer.md",
+        "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerApp.java",
         "docs/ui/pause-menu.md",
         "src/ui/pause_menu.c",
         "src/ui/pause_overlay.c"
       ],
-      "notes": "The interactive overlay is verified in the C platform harness only. Offline simulation pause is tracked under Session Controls."
+      "notes": "The live ARM11 renderer draws the stock pause overlay with Resume, Research, Load Game, Save Game and Quit. Load Game reopens the active save. X opens and closes it and freezes simulation unless the stock rules disable pausing. Settings, planet map and save-picker load remain open, so this is not claimed complete."
     },
     {
       "id": "menus-schematics-rts",
@@ -397,15 +404,21 @@
       "domain": "Combat, Units & Visual FX",
       "name": "Dynamic Lighting, Weather, Particle Effects & Camera Zoom",
       "weight": 2,
-      "status": "harness-only",
-      "modes": ["harness"],
+      "status": "partial-arm11",
+      "modes": ["offline", "multiplayer", "harness"],
       "issue": 38,
       "evidence": [
+        "docs/gameplay/offline-singleplayer.md",
+        "docs/audio/ndsp-mixer.md",
+        "research/upstream-runtime/src/network-render/java/UpstreamWeatherLayers.java",
+        "research/upstream-runtime/src/network-render/host/UpstreamWeatherLayersReference.java",
+        "research/upstream-runtime/src/network-render/host/UpstreamPuddleReference.java",
+        "research/upstream-runtime/src/singleplayer/host/UpstreamOfflineWeatherReference.java",
         "docs/rendering/citro2d-prototype.md",
         "src/render/scene_2d.c",
         "src/platform/3ds/citro2d_backend.c"
       ],
-      "notes": "Camera zoom, bloom/glow, and particle prototypes exist in the C Citro2D harness only; upstream world renderer has no dynamic lighting, weather, particle FX, or zoom yet."
+      "notes": "Offline and multiplayer clients advance the stock weather entities, particle/debris layers and puddles; both Azahar profiles sampled active rain/sandstorm/fog and stock puddles. Dynamic world lighting and live camera zoom remain open in the C Citro2D harness."
     },
     {
       "id": "logic-vm-execution",

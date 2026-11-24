@@ -64,7 +64,8 @@ public final class UpstreamSinglePlayerApp {
     private final AudioHooks audio;
     private final UpstreamTerrainRenderProbe target = new UpstreamTerrainRenderProbe(false);
     private final UpstreamBuildingLayers buildingLayers = new UpstreamBuildingLayers();
-    private UpstreamLiveBuildControls buildingControls = new UpstreamLiveBuildControls();
+    private final UpstreamBuildingPowerHud buildingPowerHud = new UpstreamBuildingPowerHud();
+    private UpstreamLiveBuildControls buildingControls = createBuildControls();
     private final UpstreamWeatherLayers weatherLayers = new UpstreamWeatherLayers();
     private final Runnable drawWeatherUnder = weatherLayers::drawUnder;
     private final Runnable drawEntities = this::drawEntities;
@@ -334,8 +335,17 @@ public final class UpstreamSinglePlayerApp {
         return campaignSlot;
     }
 
+    private static UpstreamLiveBuildControls createBuildControls() {
+        var controls = new UpstreamLiveBuildControls();
+        controls.schematics().nameCapturesWith(UpstreamTerrainRenderProbe::readSchematicName,
+            UpstreamTerrainRenderProbe::confirmSchematicReplacement);
+        controls.schematics().editWith(UpstreamTerrainRenderProbe::editSchematicName,
+            UpstreamTerrainRenderProbe::editSchematicDescription);
+        return controls;
+    }
+
     private void resetWorldInput() {
-        buildingControls = new UpstreamLiveBuildControls();
+        buildingControls = createBuildControls();
         controlled = null;
         moving = false;
         inputDevice = null;
@@ -797,21 +807,24 @@ public final class UpstreamSinglePlayerApp {
         }
 
         long previousTime = System.nanoTime();
+        session.beginPlaytimeInterval(previousTime);
         long accumulator = 0L;
         while (true) {
             UpstreamNotification.update(1f / 60f);
             int input = UpstreamSinglePlayerInput.poll();
+            long now = System.nanoTime();
+            session.updatePlaytime(now);
             if (input == -1) return false;
             if (campaignSlot != null && (input & UpstreamSinglePlayerInput.CAMPAIGN_HELD) != 0
                     && (input & UpstreamSinglePlayerInput.SAVE_PRESSED) != 0) return true;
             int touch = UpstreamSinglePlayerInput.touch();
-            long now = System.nanoTime();
 
             var sector = Vars.state.rules.sector;
             int researchKeys = UpstreamSinglePlayerInput.L_HELD | UpstreamSinglePlayerInput.SAVE_PRESSED;
             if (sector != null && sector.planet.techTree != null && (input & researchKeys) == researchKeys) {
                 if (!openResearch(sector.planet.techTree, saveFile)) return false;
                 previousTime = System.nanoTime();
+                session.beginPlaytimeInterval(previousTime);
                 accumulator = 0L;
                 continue;
             }
@@ -847,10 +860,9 @@ public final class UpstreamSinglePlayerApp {
                         closePauseMenu();
                         var loadSector = Vars.state.rules.sector;
                         session.start(sourceMap, saveFile, campaignSlot == null ? null : "campaign", loadSector);
-                        lastStatus = null;
-                        lastObjectives = null;
-                        lastCoreItemCount = -1;
-                        lastCoreItemDrawn = -1;
+                        resetWorldInput();
+                        weatherLayers.reset();
+                        reportWeather();
                         uploadMinimap();
                         previousTime = System.nanoTime();
                         accumulator = 0L;
@@ -1095,7 +1107,7 @@ public final class UpstreamSinglePlayerApp {
         var schematics = buildingControls.schematics();
         schematics.draw(viewport);
         drawCoreItems();
-        drawObjectives(drawStatusHud());
+        drawObjectives(buildingPowerHud.draw(target, buildingControls, Vars.player.team(), drawStatusHud()));
         if (pauseOpen) drawPauseMenu();
         var block = buildingControls.block();
         var catalog = buildingControls.catalog();
@@ -1151,26 +1163,10 @@ public final class UpstreamSinglePlayerApp {
 
     private void drawWorldLabel(UpstreamLabelText.Label text, float x, float y, int flags, float size, int align, int lineAlign) {
         if (encodedLabel != text) {
-            encodedCharacters = encodeLabel(text);
+            encodedCharacters = UpstreamHudLabels.encodeLabel(text);
             encodedLabel = text;
         }
         target.drawWorldLabel(text.plain(), encodedCharacters, x, y, flags, size, align, lineAlign);
-    }
-
-    private static int[] encodeLabel(UpstreamLabelText.Label text) {
-        int[] encoded = new int[text.characters().size() * 7];
-        int offset = 0;
-        for (var glyph : text.characters()) {
-            var art = glyph.art();
-            encoded[offset++] = glyph.codepoint();
-            encoded[offset++] = glyph.color();
-            encoded[offset++] = art == null ? -1 : UpstreamTerrainDrawProbe.pageIndex(art);
-            encoded[offset++] = art == null ? 0 : art.getX();
-            encoded[offset++] = art == null ? 0 : art.getY();
-            encoded[offset++] = art == null ? 0 : art.width;
-            encoded[offset++] = art == null ? 0 : art.height;
-        }
-        return encoded;
     }
 
     private float drawStatusHud() {
@@ -1180,7 +1176,7 @@ public final class UpstreamSinglePlayerApp {
             statusCharacters = new int[rows.size()][];
             for (int i = 0; i < rows.size(); i++) {
                 statusLabels[i] = (rows.get(i).text() + "\0").getBytes(StandardCharsets.UTF_8);
-                statusCharacters[i] = encodeLabel(UpstreamLabelText.parse(UI.formatIcons(rows.get(i).markup())));
+                statusCharacters[i] = UpstreamHudLabels.encodeLabel(UpstreamLabelText.parse(UI.formatIcons(rows.get(i).markup())));
             }
             lastStatus = rows;
         }
@@ -1212,7 +1208,7 @@ public final class UpstreamSinglePlayerApp {
             var icon = item.uiIcon != null && item.uiIcon.found() ? item.uiIcon : null;
             String value = entry.formatted();
             byte[] label = (value + "\0").getBytes(StandardCharsets.UTF_8);
-            int[] characters = encodeLabel(UpstreamLabelText.parse(value));
+            int[] characters = UpstreamHudLabels.encodeLabel(UpstreamLabelText.parse(value));
             float next = target.drawObjectiveAt(label, characters, icon, x, y);
             if (next >= 240f) {
                 x += 56f;
@@ -1301,7 +1297,7 @@ public final class UpstreamSinglePlayerApp {
     private void drawPauseRow(String text, float x, float y, boolean selected) {
         String markup = (selected ? "[accent]" : "[lightgray]") + text;
         byte[] label = (arc.util.Strings.stripColors(text) + "\0").getBytes(StandardCharsets.UTF_8);
-        int[] characters = encodeLabel(UpstreamLabelText.parse(UI.formatIcons(markup)));
+        int[] characters = UpstreamHudLabels.encodeLabel(UpstreamLabelText.parse(UI.formatIcons(markup)));
         target.drawObjectiveAt(label, characters, null, x, y);
     }
 
@@ -1312,7 +1308,7 @@ public final class UpstreamSinglePlayerApp {
             objectiveCharacters = new int[rows.size()][];
             for (int i = 0; i < rows.size(); i++) {
                 objectiveLabels[i] = (rows.get(i).text() + "\0").getBytes(StandardCharsets.UTF_8);
-                objectiveCharacters[i] = encodeLabel(UpstreamLabelText.parse(UI.formatIcons(rows.get(i).markup())));
+                objectiveCharacters[i] = UpstreamHudLabels.encodeLabel(UpstreamLabelText.parse(UI.formatIcons(rows.get(i).markup())));
             }
             lastObjectives = rows;
         }

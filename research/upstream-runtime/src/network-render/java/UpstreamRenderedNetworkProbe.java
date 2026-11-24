@@ -54,9 +54,11 @@ public final class UpstreamRenderedNetworkProbe {
     private final Fi atlas;
     private final UpstreamTerrainRenderProbe target = new UpstreamTerrainRenderProbe(false);
     private final UpstreamBuildingLayers buildingLayers = new UpstreamBuildingLayers();
+    private final UpstreamBuildingPowerHud buildingPowerHud = new UpstreamBuildingPowerHud();
+    private final UpstreamBuildingLiquidHud buildingLiquidHud = new UpstreamBuildingLiquidHud();
     private final UpstreamWeatherLayers weatherLayers = new UpstreamWeatherLayers();
     private final Runnable drawWeatherUnder = weatherLayers::drawUnder;
-    private final UpstreamLiveBuildControls buildingControls = new UpstreamLiveBuildControls();
+    private UpstreamLiveBuildControls buildingControls;
     private final UpstreamChatInput chatInput = new UpstreamChatInput();
     private final Runnable drawEntities = this::drawEntities;
     private final IntSet reportedConveyors = new IntSet();
@@ -91,6 +93,15 @@ public final class UpstreamRenderedNetworkProbe {
         this.atlas = atlas;
     }
 
+    private void configureSchematicPrompts() {
+        buildingControls.schematics().nameCapturesWith(
+            () -> UpstreamLiveNetworkProbe.whileKeepingAlive(UpstreamTerrainRenderProbe::readSchematicName),
+            name -> UpstreamLiveNetworkProbe.whileKeepingAlive(() -> UpstreamTerrainRenderProbe.confirmSchematicReplacement(name)));
+        buildingControls.schematics().editWith(
+            name -> UpstreamLiveNetworkProbe.whileKeepingAlive(() -> UpstreamTerrainRenderProbe.editSchematicName(name)),
+            description -> UpstreamLiveNetworkProbe.whileKeepingAlive(() -> UpstreamTerrainRenderProbe.editSchematicDescription(description)));
+    }
+
     public static void main(String[] args) throws IOException, InterruptedException {
         var endpoint = UpstreamLiveNetworkProbe.endpointFile(args);
         run(endpoint, endpoint.sibling("sprites.aatls"));
@@ -113,11 +124,56 @@ public final class UpstreamRenderedNetworkProbe {
         CacheLayer.init();
         try {
             Arm11Audio.open();
-            UpstreamLiveNetworkProbe.run(directory, address, view::prepareClient, view::loadGraphics,
-                view::render, view.buildingControls, view::receiveChat, view.chatInput);
+            var kick = UpstreamLiveNetworkProbe.run(directory, address, view::prepareClient, view::loadGraphics,
+                view::render, view::newSessionControls, view::receiveChat, view.chatInput,
+                () -> view.drawConnectionNotice(Core.bundle.get("reconnecting"), Core.bundle.get("cancel")));
+            if (kick != null) view.showServerKick(kick);
         } finally {
             Arm11Audio.close();
         }
+    }
+
+    private void showServerKick(UpstreamLiveNetworkProbe.ServerKick kick) throws InterruptedException {
+        var reason = kick.stockReason;
+        if (reason != null && reason.quiet) return;
+        String extra = reason == null ? null : reason.extraText();
+        String title = extra == null ? Core.bundle.get("disconnect") : reason.toString();
+        String detail = reason == null ? kick.getMessage() : extra == null ? reason.toString() : extra;
+
+        drawConnectionNotice(title, detail);
+        System.out.println("UPSTREAM_LIVE_KICK_NOTICE title=" + title
+            + " detail=" + (detail == null ? "" : detail.replace('\n', ' ').replace('\r', ' ')));
+        while (!UpstreamLiveNetworkProbe.kickNoticeDismissed()) Thread.sleep(16);
+    }
+
+    private void drawConnectionNotice(String title, String detail) {
+        target.begin(0, 0, UpstreamTerrainDrawProbe.VIEW_WIDTH, UpstreamTerrainDrawProbe.VIEW_HEIGHT);
+        try {
+            float y = drawKickLabel(title, 6f);
+            if (detail != null) drawKickLabel(detail, y);
+        } finally {
+            target.end();
+        }
+    }
+
+    private UpstreamLiveBuildControls newSessionControls() {
+        buildingControls = new UpstreamLiveBuildControls();
+        configureSchematicPrompts();
+        controlled = null;
+        previousVisualFrame = 0;
+        lastLeft = lastBottom = -1;
+        lastPrimaryShortcut = null;
+        lastMenu = null;
+        lastStatus = null;
+        lastObjectives = null;
+        chatLines.clear();
+        chatFade = 0;
+        return buildingControls;
+    }
+
+    private float drawKickLabel(String label, float y) {
+        var parsed = UpstreamLabelText.parse(UI.formatIcons(label));
+        return target.drawObjective((label + "\0").getBytes(StandardCharsets.UTF_8), UpstreamHudLabels.encodeLabel(parsed), null, y);
     }
 
     private void prepareClient() {
@@ -313,7 +369,10 @@ public final class UpstreamRenderedNetworkProbe {
         var schematics = buildingControls.schematics();
         schematics.draw(viewport);
         weatherLayers.drawOver();
-        drawObjectives(drawStatusHud());
+        float hudY = drawStatusHud();
+        hudY = buildingPowerHud.draw(target, buildingControls, Vars.player.team(), hudY);
+        hudY = buildingLiquidHud.draw(target, buildingControls, Vars.player.team(), hudY);
+        drawObjectives(hudY);
         drawChat();
         if (chatInput.open()) {
             target.drawChatKeyboard(chatInput.labels());
@@ -359,7 +418,7 @@ public final class UpstreamRenderedNetworkProbe {
 
     private void receiveChat(String message) {
         byte[] text = (message + "\0").getBytes(StandardCharsets.UTF_8);
-        int[] characters = encodeLabel(UpstreamLabelText.parse(UI.formatIcons(message)));
+        int[] characters = UpstreamHudLabels.encodeLabel(UpstreamLabelText.parse(UI.formatIcons(message)));
         chatLines.insert(0, new ChatLine(++chatSequence, text, characters));
         chatLines.truncate(VISIBLE_CHAT_MESSAGES);
         chatFade = Math.min(chatFade + 1f, VISIBLE_CHAT_MESSAGES) + 1f;
@@ -384,7 +443,7 @@ public final class UpstreamRenderedNetworkProbe {
 
     private void drawWorldLabel(UpstreamLabelText.Label text, float x, float y, int flags, float size, int align, int lineAlign) {
         if (encodedLabel != text) {
-            encodedCharacters = encodeLabel(text);
+            encodedCharacters = UpstreamHudLabels.encodeLabel(text);
             encodedLabel = text;
         }
         int font = target.drawWorldLabel(text.plain(), encodedCharacters, x, y, flags, size, align, lineAlign);
@@ -396,22 +455,6 @@ public final class UpstreamRenderedNetworkProbe {
         }
     }
 
-    private static int[] encodeLabel(UpstreamLabelText.Label text) {
-        int[] encoded = new int[text.characters().size() * 7];
-        int offset = 0;
-        for (var glyph : text.characters()) {
-            var art = glyph.art();
-            encoded[offset++] = glyph.codepoint();
-            encoded[offset++] = glyph.color();
-            encoded[offset++] = art == null ? -1 : UpstreamTerrainDrawProbe.pageIndex(art);
-            encoded[offset++] = art == null ? 0 : art.getX();
-            encoded[offset++] = art == null ? 0 : art.getY();
-            encoded[offset++] = art == null ? 0 : art.width;
-            encoded[offset++] = art == null ? 0 : art.height;
-        }
-        return encoded;
-    }
-
     private float drawStatusHud() {
         var rows = UpstreamStatusHud.collect();
         boolean changed = !rows.equals(lastStatus);
@@ -420,7 +463,7 @@ public final class UpstreamRenderedNetworkProbe {
             statusCharacters = new int[rows.size()][];
             for (int i = 0; i < rows.size(); i++) {
                 statusLabels[i] = (rows.get(i).text() + "\0").getBytes(StandardCharsets.UTF_8);
-                statusCharacters[i] = encodeLabel(UpstreamLabelText.parse(UI.formatIcons(rows.get(i).markup())));
+                statusCharacters[i] = UpstreamHudLabels.encodeLabel(UpstreamLabelText.parse(UI.formatIcons(rows.get(i).markup())));
             }
             lastStatus = rows;
             System.out.println("UPSTREAM_STATUS_HUD wave=" + Vars.state.wave
@@ -444,7 +487,7 @@ public final class UpstreamRenderedNetworkProbe {
             reportedStockObjectives = new boolean[rows.size()];
             for (int i = 0; i < rows.size(); i++) {
                 objectiveLabels[i] = (rows.get(i).text() + "\0").getBytes(StandardCharsets.UTF_8);
-                objectiveCharacters[i] = encodeLabel(UpstreamLabelText.parse(UI.formatIcons(rows.get(i).markup())));
+                objectiveCharacters[i] = UpstreamHudLabels.encodeLabel(UpstreamLabelText.parse(UI.formatIcons(rows.get(i).markup())));
             }
             lastObjectives = rows;
         }

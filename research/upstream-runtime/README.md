@@ -257,6 +257,35 @@ checks the new file through `SaveIO.isSaveValid` before reloading it. On the
 JVM, pass the map, v13 input, and new output paths as arguments. The
 round-trip check ends with `UPSTREAM_SAVE_ROUNDTRIP version=13 marker=ok`.
 
+The shared runtime releases the stock building and block scratch references
+after a world reset. The hosted campaign regression checks both collections
+after loading the stock archive, and the unmodified Java release reopens the
+two generated 600×600 sector saves. The 32 MiB ARM11 campaign check remains
+tracked in [#538](https://github.com/levkeveli/Min3DStry/issues/538).
+[Hosted campaign regression](https://github.com/levkeveli/Min3DStry/actions/runs/45318649486)
+
+The stock ore index stores local coordinates within each 20×20 quadrant.
+It preserves insertion and swap-removal order, including the first candidate
+in each quadrant. The campaign regression compares floor and wall ore
+selection on stock Serpulo sector 111.
+
+Campaign map loading and team-stat updates reuse existing team data and
+create it when teams first enter play. The configured wave team remains
+present while waves are enabled, even without buildings or units. The
+stock campaign regression checks both cases.
+
+The single-player runtime writes stock zlib-framed saves with a 4 KiB
+compression window and smaller hash tables to reduce contiguous scratch
+allocations. It uses the same BSD-licensed jzlib 1.1.3 dependency as TeaVM
+0.16.0. The original v160.8 Java release reopened a generated 600×600
+Littoral Shipyard save with both embedded patches.
+[Hosted stock save readback](https://github.com/levkeveli/Min3DStry/actions/runs/45329962046)
+
+The world loader computes the original wall-darkness values from nearby tiles
+without allocating two map-sized buffers. The hosted regression compares all
+360,000 tile data bytes in Serpulo 111 against the unmodified Java calculation.
+[Hosted darkness comparison](https://github.com/levkeveli/Min3DStry/actions/runs/45324692356)
+
 The host-side [save resilience probe](host/README.md#save-resilience-checks)
 uses the same pinned server JAR and Glacier fixture to reject truncated,
 bad-header and unknown-version saves and to exercise the upstream backup path.
@@ -1469,6 +1498,13 @@ framebuffer with an RGBA8 raster batch and uploads its pixels through the
 used by the world renderer. Multiplayer asset preparation runs the pinned
 desktop Arc FreeType backend on the original `logic.ttf` and packs its
 glyph metrics and pixels for the 3DS client.
+The client retains the original glyph metrics and stores the exact three
+stock RGBA values in a palette with two bits per pixel (8 KiB of indices).
+Sampling during Logic Display drawing requires no file reads. Display
+framebuffer writes use their own mutable pixel storage.
+The unified ARM11 smoke build checks both the stock sprite catalog and
+every sampled font pixel with `runBuildingLayersJvm --args="--packaged-graphics
+<packed-font-path> <stock-atlas-path>"`.
 
 Pass the packed `world-atlas` directory and `logic-font.dat` as arguments
 six and seven to `runBuildingLayersJvm`. The stock processor replay checks

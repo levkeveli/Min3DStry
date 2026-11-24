@@ -646,6 +646,9 @@ static M3dsNetHandshakeStatus read_next_tcp_frame(
     if (n == M3DS_NET_IO_TIMEOUT) {
       return M3DS_HANDSHAKE_TIMEOUT;
     }
+    if (n == 0) {
+      return M3DS_HANDSHAKE_DISCONNECTED;
+    }
     if (n < 0) {
       return M3DS_HANDSHAKE_TRANSPORT_ERROR;
     }
@@ -668,6 +671,9 @@ static M3dsNetHandshakeStatus read_next_tcp_frame(
     }
     if (n == M3DS_NET_IO_TIMEOUT) {
       return M3DS_HANDSHAKE_TIMEOUT;
+    }
+    if (n == 0) {
+      return M3DS_HANDSHAKE_DISCONNECTED;
     }
     if (n < 0) {
       return M3DS_HANDSHAKE_TRANSPORT_ERROR;

@@ -18,6 +18,8 @@ import arc.graphics.g2d.Draw;
 import arc.graphics.g2d.Fill;
 import arc.graphics.g2d.Lines;
 import arc.graphics.g2d.SpriteBatch;
+import arc.graphics.g2d.TextureAtlas.AtlasRegion;
+import arc.graphics.g2d.TextureAtlas.TextureAtlasData;
 import arc.graphics.g2d.TextureRegion;
 import arc.mock.MockAudio;
 import arc.mock.MockGraphics;
@@ -29,11 +31,14 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.function.Predicate;
 import mindustry.Vars;
+import mindustry.ui.Fonts;
 import mindustry.ai.BlockIndexer;
 import mindustry.content.Blocks;
 import mindustry.content.Items;
@@ -67,6 +72,7 @@ import mindustry.world.Block;
 import mindustry.world.blocks.defense.OverdriveProjector.OverdriveBuild;
 import mindustry.world.blocks.defense.ShockwaveTower.ShockwaveTowerBuild;
 import mindustry.world.blocks.defense.turrets.BaseTurret;
+import mindustry.world.blocks.defense.turrets.ReloadTurret;
 import mindustry.world.blocks.production.BeamDrill;
 import mindustry.world.blocks.production.BeamDrill.BeamDrillBuild;
 import mindustry.world.blocks.production.BurstDrill.BurstDrillBuild;
@@ -131,10 +137,23 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
     }
 
     public static void main(String[] args) throws Exception {
+        if (args.length == 3 && args[0].equals("--packaged-graphics")) {
+            verifySpriteAtlas(new Fi(args[2]));
+            var font = new Fi(args[1]);
+            UpstreamLogicFont.load(font);
+            verifyLogicFontPixels(font);
+            return;
+        }
+        if (args.length == 2 && args[0].equals("--logic-font")) {
+            var font = new Fi(args[1]);
+            UpstreamLogicFont.load(font);
+            verifyLogicFontPixels(font);
+            return;
+        }
         if (args.length < 3 || args.length == 6 || args.length > 7) {
             throw new IllegalArgumentException("Expected Glacier, sprites.aatls, block_colors.png, optional bundle base, logicids.dat, then paired world atlas tiles and logic font");
         }
-        if (args.length >= 4) Core.bundle = UpstreamInterfaceLocale.load(new Fi(args[3]), 1, "en");
+        if (args.length >= 4) Core.bundle = UpstreamInterfaceLocale.loadForStockClient(new Fi(args[3]), 1, "en");
         CacheLayer.init();
         UpstreamWorldLoadProbe.load(new String[]{args[0]}, () -> Vars.indexer = new BlockIndexer());
         UpstreamTerrainDrawProbe.loadAtlas(new Fi(args[1]), UpstreamFluidAtlas::load);
@@ -151,6 +170,11 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         // The visible two-tile wall starts one tile west of the viewport.
         viewport.moveTo(24, 30);
         var viewer = Team.sharded;
+        if (args.length >= 4) verifyPowerBar(viewer);
+        if (args.length >= 4) verifyLiquidBarLabels(viewer);
+        if (args.length >= 4) verifyLiquidBarFixedLabels(viewer);
+        verifyLiquidBar(viewer);
+        verifyLiquidBarFixed(viewer);
         var conveyor = Vars.world.tile(25, 31);
         var edgeWall = Vars.world.tile(23, 35);
         var offscreenWall = Vars.world.tile(21, 39);
@@ -196,14 +220,30 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         target.verifyErekirStarterBlocks(layers, viewport, viewer);
         target.verifyExtractorDraws(layers, viewport, viewer);
         target.verifyLiveBuildingRegistry(layers, viewport, viewer, block -> block instanceof BaseTurret, "TURRET");
-        target.verifyLiveBuildingRegistry(layers, viewport, viewer, UpstreamBuildingLayers::supportsDistributionDraw,
-            "DISTRIBUTION");
-        target.verifyLiveBuildingRegistry(layers, viewport, viewer, block -> block.category == Category.liquid,
-            "LIQUID");
+        // The stock Liquid Bridge is liquid-category, so the live predicate's
+        // Category.liquid branch must keep both bridge blocks drawable.
+        if (Blocks.bridgeConduit.category != Category.liquid
+                || Blocks.phaseConduit.category != Category.liquid) {
+            throw new AssertionError("Stock Liquid Bridge is not in the liquid draw category");
+        }
+        int power = target.verifyLiveBuildingRegistry(
+            layers, viewport, viewer, UpstreamBuildingLayers::supportsPowerDraw, "POWER");
+        int distribution = target.verifyLiveBuildingRegistry(
+            layers, viewport, viewer, UpstreamBuildingLayers::supportsDistributionDraw, "DISTRIBUTION");
+        int liquid = target.verifyLiveBuildingRegistry(
+            layers, viewport, viewer, block -> block.category == Category.liquid, "LIQUID");
         int materials = target.verifyLiveBuildingRegistry(layers, viewport, viewer,
             block -> UpstreamBuildingLayers.supportsMaterialDraw(block) && !(block instanceof CoreBlock),
             "MATERIAL");
+        if (power != 26) throw new AssertionError("Expected 26 stock power buildings, got " + power);
+        if (distribution != 28) {
+            throw new AssertionError("Expected 28 stock distribution buildings, got " + distribution);
+        }
+        if (liquid != 21) throw new AssertionError("Expected 21 stock liquid buildings, got " + liquid);
         if (materials != 52) throw new AssertionError("Expected 52 stock material buildings, got " + materials);
+        target.verifyLiquidBridgeTransfer(viewer);
+        target.verifyLiquidRouterTransfer(viewer);
+        target.verifyLiquidJunctionRouting(viewer);
         target.verifyCanvas(viewer);
         if (args.length >= 4) verifyObjectiveHud();
         if (args.length >= 5) verifyClientProcessor(new Fi(args[4]), viewer);
@@ -487,11 +527,157 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         System.out.println("UPSTREAM_CLIENT_PROCESSOR_REFERENCE ids=ok compressed=ok link=ok canvas=5");
     }
 
+    private static void verifyPowerBar(Team viewer) {
+        var consumer = Blocks.arc.newBuilding().create(Blocks.arc, viewer);
+        var battery = Blocks.battery.newBuilding().create(Blocks.battery, viewer);
+        if (!UpstreamBuildingPowerHud.showsPower(consumer, viewer)
+                || UpstreamBuildingPowerHud.showsPower(consumer, Team.crux)) {
+            throw new AssertionError("Stock building bars must only show to the owning team");
+        }
+        consumer.power.status = 0f;
+        if (consumer.block.powerBarFraction(consumer) != 0f
+                || !consumer.block.powerBarLabel(consumer).equals("Power")) {
+            throw new AssertionError("Stock unpowered bar differs");
+        }
+        consumer.power.status = 0.4f;
+        if (consumer.block.powerBarFraction(consumer) != 0.4f) {
+            throw new AssertionError("Stock partial power bar differs");
+        }
+        battery.power.status = 0.25f;
+        if (battery.block.powerBarFraction(battery) != 0.25f
+                || !battery.block.powerBarLabel(battery).equals("Power: 1.0[gray]k[]")) {
+            throw new AssertionError("Stock buffered power bar differs");
+        }
+        // Arc draws power while reloading even when disabled.
+        ((ReloadTurret.ReloadTurretBuild)consumer).reloadCounter = ((ReloadTurret)Blocks.arc).reload;
+        consumer.power.graph.add(battery);
+        if (consumer.block.powerBarFraction(consumer) != 1f) {
+            throw new AssertionError("A supplied idle consumer should show a full power bar");
+        }
+        System.out.println("UPSTREAM_STOCK_POWER_BAR states=dry,partial,buffered,supplied-idle team=filtered");
+    }
+
+    private static void verifyLiquidBar(Team viewer) {
+        var conduit = Blocks.conduit.newBuilding().create(Blocks.conduit, viewer);
+        if (!UpstreamBuildingLiquidHud.showsLiquid(conduit, viewer)
+                || UpstreamBuildingLiquidHud.showsLiquid(conduit, Team.crux)) {
+            throw new AssertionError("Stock liquid bars must only show to the owning team");
+        }
+        if (conduit.block.liquidBarFraction(conduit) != 0f) {
+            throw new AssertionError("Stock empty liquid bar differs");
+        }
+        conduit.liquids.add(Liquids.water, conduit.block.liquidCapacity * 0.5f);
+        if (Math.abs(conduit.block.liquidBarFraction(conduit) - 0.5f) > 1e-6f) {
+            throw new AssertionError("Stock partial liquid bar differs");
+        }
+        if (!conduit.block.liquidBarColor(conduit).equals(Liquids.water.barColor())) {
+            throw new AssertionError("Stock liquid bar color differs");
+        }
+        System.out.println("UPSTREAM_STOCK_LIQUID_BAR empty=0 partial=0.5 color=ok team=filtered");
+    }
+
+    private static void verifyLiquidBarLabels(Team viewer) {
+        var conduit = Blocks.conduit.newBuilding().create(Blocks.conduit, viewer);
+        if (!conduit.block.liquidBarLabel(conduit).equals(Core.bundle.get("bar.liquid"))) {
+            throw new AssertionError("Stock empty liquid label differs");
+        }
+        conduit.liquids.add(Liquids.water, conduit.block.liquidCapacity * 0.5f);
+        if (!conduit.block.liquidBarLabel(conduit).equals(Liquids.water.localizedName)) {
+            throw new AssertionError("Stock liquid label differs");
+        }
+        System.out.println("UPSTREAM_STOCK_LIQUID_BAR_LABELS empty=bar partial=water");
+    }
+
+    private static void verifyLiquidBarFixed(Team viewer) {
+        var generator = Blocks.steamGenerator.newBuilding().create(Blocks.steamGenerator, viewer);
+        if (!UpstreamBuildingLiquidHud.showsLiquid(generator, viewer)
+                || UpstreamBuildingLiquidHud.showsLiquid(generator, Team.crux)
+                || generator.block.liquidBarCount() != 1
+                || generator.block.liquidBarLiquid(generator, 0) != Liquids.water) {
+            throw new AssertionError("Stock keyed liquid bar registration differs");
+        }
+        if (generator.block.liquidBarFraction(generator, 0) != 0f) {
+            throw new AssertionError("Stock empty keyed liquid bar differs");
+        }
+        generator.liquids.add(Liquids.water, generator.block.liquidCapacity * 0.5f);
+        if (Math.abs(generator.block.liquidBarFraction(generator, 0) - 0.5f) > 1e-6f
+                || !generator.block.liquidBarColor(generator, 0).equals(Liquids.water.barColor())) {
+            throw new AssertionError("Stock keyed liquid bar differs");
+        }
+        System.out.println("UPSTREAM_STOCK_LIQUID_BAR_KEYED liquid=water empty=0 partial=0.5 color=ok team=filtered");
+    }
+
+    private static void verifyLiquidBarFixedLabels(Team viewer) {
+        var generator = Blocks.steamGenerator.newBuilding().create(Blocks.steamGenerator, viewer);
+        if (!generator.block.liquidBarLabel(generator, 0).equals(Liquids.water.localizedName)) {
+            throw new AssertionError("Stock keyed liquid label differs");
+        }
+        System.out.println("UPSTREAM_STOCK_LIQUID_BAR_KEYED_LABELS liquid=water");
+    }
+
+    private static void verifySpriteAtlas(Fi file) throws IOException {
+        var stock = new TextureAtlasData(file, file.parent(), false);
+        if (UpstreamTerrainDrawProbe.countAtlasRegions(file) != stock.getRegions().size) {
+            throw new AssertionError("Stock atlas reservation count differs from the Arc decoder");
+        }
+        var atlas = UpstreamTerrainDrawProbe.readAtlas(file);
+        var regions = atlas.getRegions();
+        if (stock.getRegions().size != 5200 || regions.size != stock.getRegions().size) {
+            throw new AssertionError("Expected 5,200 stock sprite regions");
+        }
+        var lookup = new HashMap<String, AtlasRegion>();
+        for (int i = 0; i < regions.size; i++) {
+            var expected = stock.getRegions().get(i);
+            var actual = regions.get(i);
+            lookup.put(expected.name, actual);
+            if (!expected.name.equals(actual.name)
+                    || UpstreamTerrainDrawProbe.pageIndex(actual) != stock.getPages().indexOf(expected.page, true)
+                    || actual.texture.width != expected.page.width || actual.texture.height != expected.page.height
+                    || actual.getX() != expected.left || actual.getY() != expected.top
+                    || actual.width != expected.width || actual.height != expected.height
+                    || actual.offsetX != expected.offsetX || actual.offsetY != expected.offsetY
+                    || actual.originalWidth != expected.originalWidth || actual.originalHeight != expected.originalHeight
+                    || !Arrays.equals(actual.splits, expected.splits) || !Arrays.equals(actual.pads, expected.pads)) {
+                throw new AssertionError("Stock sprite metadata differs for " + expected.name);
+            }
+        }
+        if (atlas.getRegionMap().size != lookup.size()) throw new AssertionError("Unexpected atlas lookup size");
+        lookup.forEach((name, region) -> {
+            if (atlas.find(name) != region) throw new AssertionError("Stock atlas lookup differs for " + name);
+        });
+        if (atlas.find("missing-port-region") != atlas.find("error")) {
+            throw new AssertionError("Missing sprites should fall back to the stock error region");
+        }
+        System.out.println("UPSTREAM_STOCK_SPRITE_ATLAS pages=" + stock.getPages().size + " regions=" + regions.size);
+    }
+
+    private static void verifyLogicFontPixels(Fi font) {
+        var texture = Fonts.logic.getRegion().texture;
+        var sampled = (UpstreamLogicFramebuffer.SampledTexture)texture;
+        try (var packed = new DataInputStream(font.read())) {
+            // Skip the magic, size and float metrics before the glyph records.
+            packed.skipNBytes(24);
+            packed.skipNBytes(packed.readUnsignedShort() * 16L);
+            for (int y = 0; y < texture.height; y++) {
+                for (int x = 0; x < texture.width; x++) {
+                    if (sampled.pixel(x, y) != packed.readInt()) {
+                        throw new AssertionError("Stock Logic Display font differs at " + x + "," + y);
+                    }
+                }
+            }
+            if (packed.read() != -1) throw new AssertionError("Stock Logic Display font has extra pixels");
+            System.out.println("UPSTREAM_LOGIC_FONT_REFERENCE pixels=" + texture.width * texture.height);
+        } catch (IOException error) {
+            throw new AssertionError("Could not verify the packed stock Logic Display font", error);
+        }
+    }
+
     private void verifyLogicDisplay(Fi tiles, Fi font, Team team) {
         var atlas = new UpstreamLogicAtlas(tiles);
         UpstreamLogicFramebuffer.atlasPixels((texture, x, y) ->
             atlas.sample(UpstreamTerrainDrawProbe.pageIndex(texture), x, y));
         UpstreamLogicFont.load(font);
+        verifyLogicFontPixels(font);
         var processor = (LogicBuild)Vars.world.tile(70, 15).build;
         var displayTile = Vars.world.tile(70, 20);
         var sourceTile = Vars.world.tile(76, 15);
@@ -1129,6 +1315,149 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         if (outline != 4 || solidQuads.isEmpty()) throw new AssertionError("Missing stock building effects");
         System.out.printf("UPSTREAM_SOLID_BUILDING_EFFECTS weave=1 overdrive=%d shockwave=%d%n",
             outline, solidQuads.size());
+    }
+
+    private void verifyLiquidBridgeTransfer(Team team) {
+        float bridge = verifyBridgeTransfer(Blocks.bridgeConduit, 50, 50, 3, team);
+        float phase = verifyBridgeTransfer(Blocks.phaseConduit, 56, 50, 3, team);
+
+        // Stock links are one-way: a back-link makes linkValid() false, so the
+        // pair must not transport over distance.
+        var backSourceTile = Vars.world.tile(62, 50);
+        var backTargetTile = Vars.world.tile(65, 50);
+        backSourceTile.setBlock(Blocks.air);
+        backTargetTile.setBlock(Blocks.air);
+        backSourceTile.setBlock(Blocks.bridgeConduit, team, 0);
+        backTargetTile.setBlock(Blocks.bridgeConduit, team, 0);
+        var backSource = (mindustry.world.blocks.distribution.ItemBridge.ItemBridgeBuild)backSourceTile.build;
+        var backTarget = (mindustry.world.blocks.distribution.ItemBridge.ItemBridgeBuild)backTargetTile.build;
+        backSource.configure(new arc.math.geom.Point2(3, 0));
+        backTarget.configure(new arc.math.geom.Point2(-3, 0));
+        backSource.liquids.add(Liquids.water, backSource.block.liquidCapacity);
+        float previousDelta = Time.delta;
+        try {
+            Time.delta = 1f;
+            for (int tick = 0; tick < 120; tick++) {
+                backSource.update();
+                backTarget.update();
+            }
+        } finally {
+            Time.delta = previousDelta;
+        }
+        if (backTarget.liquids.get(Liquids.water) > 0f) {
+            throw new AssertionError("Back-linked stock bridge transported water");
+        }
+        backSourceTile.setBlock(Blocks.air);
+        backTargetTile.setBlock(Blocks.air);
+
+        System.out.println("UPSTREAM_LIQUID_BRIDGE_REFERENCE bridgeMilli=" + Math.round(bridge * 1000f)
+            + " phaseMilli=" + Math.round(phase * 1000f) + " backLink=rejected");
+    }
+
+    private void verifyLiquidJunctionRouting(Team team) {
+        var sourceTile = Vars.world.tile(71, 50);
+        var junctionTile = Vars.world.tile(72, 50);
+        var sinkTile = Vars.world.tile(73, 50);
+        sourceTile.setBlock(Blocks.air);
+        junctionTile.setBlock(Blocks.air);
+        sinkTile.setBlock(Blocks.air);
+        sourceTile.setBlock(Blocks.liquidRouter, team, 0);
+        junctionTile.setBlock(Blocks.liquidJunction, team, 0);
+        sinkTile.setBlock(Blocks.liquidRouter, team, 0);
+
+        var junction = junctionTile.build;
+        // v160.8 LiquidJunctionBuild.getLiquidDestination returns Building, not Tile.
+        if (junction.acceptLiquid(sourceTile.build, Liquids.water)) {
+            throw new AssertionError("Stock Liquid Junction stored liquid instead of routing it");
+        }
+        var destination = junction.getLiquidDestination(sourceTile.build, Liquids.water);
+        if (destination != sinkTile.build) {
+            throw new AssertionError("Stock Liquid Junction did not route to the far side");
+        }
+
+        sinkTile.setBlock(Blocks.air);
+        destination = junction.getLiquidDestination(sourceTile.build, Liquids.water);
+        if (destination != junction) {
+            throw new AssertionError("Stock Liquid Junction did not stop at a dead end");
+        }
+
+        sourceTile.setBlock(Blocks.air);
+        junctionTile.setBlock(Blocks.air);
+        System.out.println("UPSTREAM_LIQUID_JUNCTION_REFERENCE route=far deadEnd=self");
+    }
+
+    private void verifyLiquidRouterTransfer(Team team) {
+        var routerTile = Vars.world.tile(68, 50);
+        var sinkTile = Vars.world.tile(69, 50);
+        routerTile.setBlock(Blocks.air);
+        sinkTile.setBlock(Blocks.air);
+        routerTile.setBlock(Blocks.liquidRouter, team, 0);
+        sinkTile.setBlock(Blocks.liquidRouter, team, 0);
+
+        var router = routerTile.build;
+        // Pinned v160.8 Blocks.liquidRouter: liquidCapacity = 120f.
+        float initial = router.block.liquidCapacity;
+        router.liquids.add(Liquids.water, initial);
+        float previousDelta = Time.delta;
+        try {
+            Time.delta = 1f;
+            for (int tick = 0; tick < 60; tick++) {
+                router.update();
+            }
+        } finally {
+            Time.delta = previousDelta;
+        }
+
+        float moved = sinkTile.build.liquids.get(Liquids.water);
+        float remaining = router.liquids.get(Liquids.water);
+        if (moved <= 0f) throw new AssertionError("Stock Liquid Router did not transfer water");
+        if (moved > initial + 0.01f) {
+            throw new AssertionError("Stock Liquid Router moved more than its source held");
+        }
+        if (Math.abs(moved + remaining - initial) > 0.01f) {
+            throw new AssertionError("Stock Liquid Router lost or created liquid: "
+                + moved + "+" + remaining + " != " + initial);
+        }
+        routerTile.setBlock(Blocks.air);
+        sinkTile.setBlock(Blocks.air);
+
+        System.out.println("UPSTREAM_LIQUID_ROUTER_REFERENCE movedMilli=" + Math.round(moved * 1000f)
+            + " initialMilli=" + Math.round(initial * 1000f)
+            + " remainingMilli=" + Math.round(remaining * 1000f));
+    }
+
+    private float verifyBridgeTransfer(Block block, int x, int y, int dx, Team team) {
+        var sourceTile = Vars.world.tile(x, y);
+        var targetTile = Vars.world.tile(x + dx, y);
+        sourceTile.setBlock(Blocks.air);
+        targetTile.setBlock(Blocks.air);
+        sourceTile.setBlock(block, team, 0);
+        targetTile.setBlock(block, team, 0);
+
+        var source = (mindustry.world.blocks.distribution.ItemBridge.ItemBridgeBuild)sourceTile.build;
+        source.configure(new arc.math.geom.Point2(dx, 0));
+        source.liquids.add(Liquids.water, source.block.liquidCapacity);
+        if (source.block.hasPower && source.power != null) {
+            source.power.status = 1f;
+        }
+        float previousDelta = Time.delta;
+        try {
+            Time.delta = 1f;
+            for (int tick = 0; tick < 120; tick++) {
+                source.update();
+            }
+        } finally {
+            Time.delta = previousDelta;
+        }
+
+        float moved = targetTile.build.liquids.get(Liquids.water);
+        if (moved <= 0f) throw new AssertionError("Stock " + block.name + " did not transfer water");
+        if (moved > source.block.liquidCapacity + 0.01f) {
+            throw new AssertionError("Stock " + block.name + " moved more than its source held");
+        }
+        sourceTile.setBlock(Blocks.air);
+        targetTile.setBlock(Blocks.air);
+        return moved;
     }
 
     private void verifyFluidDrawing(UpstreamBuildingLayers layers, UpstreamTerrainDrawProbe.Viewport viewport,

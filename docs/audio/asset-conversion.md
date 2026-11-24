@@ -174,6 +174,16 @@ requires at least 9 clips, logs the final `.3dsx` byte count, and rejects an
 artifact at or above 24 MiB. The audio files are still build outputs and are
 not committed.
 
+The workflow then runs a separate `Verify artifact in Azahar` job on
+GitHub-hosted Ubuntu. It downloads the uploaded `.3dsx`, installs the pinned
+Azahar `2126.2` AppImage, and runs `tools/verify_azahar.py` on the New 3DS and
+Original 3DS profiles. A boot failure, parity mismatch, missing audio RomFS
+clips, or unresolved `wave.spawn` event fails the workflow. The job uploads
+`build/emu-verify/report.json` and both screenshots as `emu-verify-report`
+even when verification fails. The build job also publishes the artifact
+SHA-256; `tools/check_azahar_report.py` compares it with the report and the
+downloaded file, so a stale or swapped artifact cannot pass as verified.
+
 Local reproduction (from the repo root, with ffmpeg and Python 3):
 
 ```bash

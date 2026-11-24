@@ -51,8 +51,9 @@ def resolve_sd_save_path(log_path: Path) -> Path:
 
 def write_singleplayer_ctm(path: Path, model: str) -> None:
     """Write an Azahar 2126.2 CTM input sequence exercising the Ground Zero vertical slice."""
-    # Both New 3DS and Old 3DS reach UPSTREAM_SP_READY around 19s; start CTM taps at 26s for margin.
-    t0 = 26
+    # Hosted runners can take ~32s to reach UPSTREAM_SP_READY; start taps at 40s
+    # so the mine and ore taps never land during world loading.
+    t0 = 40
     total_seconds = t0 + 62
     frames = total_seconds * CTM_SAMPLES_PER_SECOND
     header = struct.pack(
@@ -162,12 +163,27 @@ def parse_singleplayer_log(log_text: str) -> dict[str, Any]:
         "built": built,
         "pause_true": "UPSTREAM_SP_PAUSE paused=true" in log_text,
         "pause_false": "UPSTREAM_SP_PAUSE paused=false" in log_text,
+        "pause_disabled": "UPSTREAM_SP_PAUSE disabled=true" in log_text,
+        "pause_menu_open": "UPSTREAM_PAUSE_MENU open=true" in log_text,
+        "pause_menu_close": "UPSTREAM_PAUSE_MENU open=false" in log_text,
         "moving": "UPSTREAM_SP_MOVING " in log_text,
         "wave": "UPSTREAM_SP_WAVE wave=2" in log_text,
         "saved": saved.groupdict() if saved else None,
         "exit": "UPSTREAM_SP_EXIT" in log_text,
         "mem": {k: int(v) for k, v in mem.groupdict().items()} if mem else None,
     }
+
+
+def pause_milestone_reached(parsed: dict[str, Any]) -> bool:
+    """Require the behavior that matches the loaded stock pause rule.
+
+    A pause-enabled world must report a real ``paused=true``/``paused=false``
+    toggle. A world with ``rules.pauseDisabled`` must report ``disabled=true``
+    and still open/close the pause menu. Menu traffic alone is never enough.
+    """
+    if parsed["pause_disabled"]:
+        return parsed["pause_menu_open"] and parsed["pause_menu_close"]
+    return parsed["pause_true"] and parsed["pause_false"]
 
 
 def _launch_azahar(
@@ -248,7 +264,7 @@ def run_singleplayer_model(
         parsed1 = parse_singleplayer_log(log_boot1)
         if not parsed1["loaded"] or parsed1["loaded"]["source"] != "map":
             raise AssertionError(f"{model} Boot 1 did not load map: {parsed1['loaded']}")
-        if not parsed1["moving"] or not parsed1["pause_true"] or not parsed1["pause_false"] or not parsed1["wave"]:
+        if not parsed1["moving"] or not pause_milestone_reached(parsed1) or not parsed1["wave"]:
             raise AssertionError(f"{model} Boot 1 missing gameplay milestone: {parsed1}")
         if not parsed1["saved"] or not sd_save.is_file() or sd_save.stat().st_size == 0:
             raise AssertionError(f"{model} Boot 1 did not write Virtual SD save {sd_save}")

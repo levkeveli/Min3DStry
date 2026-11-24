@@ -12,6 +12,8 @@ import arc.graphics.g2d.TextureAtlas.TextureAtlasData;
 import arc.graphics.g2d.TextureRegion;
 import arc.math.Mathf;
 import arc.struct.Seq;
+import arc.util.ArcRuntimeException;
+import java.io.DataInputStream;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -211,27 +213,87 @@ public final class UpstreamTerrainDrawProbe {
         return new Fi(args[1]);
     }
 
-    private static TextureAtlas readAtlas(Fi atlasFile) {
-        var data = new TextureAtlasData(atlasFile, atlasFile.parent(), false);
+    static TextureAtlas readAtlas(Fi atlasFile) {
         var atlas = new TextureAtlas();
-        for (int index = 0; index < data.getPages().size; index++) {
-            var page = data.getPages().get(index);
-            var texture = new AtlasPageTexture(index, page.textureFile.name(), page.width, page.height);
-            for (var entry : data.getRegions()) {
-                if (entry.page != page) continue;
-                if (entry.rotate) throw new IllegalStateException("Unexpected atlas rotation");
-                AtlasRegion region = atlas.addRegion(entry.name, texture, entry.left, entry.top,
-                    entry.width, entry.height);
-                region.offsetX = entry.offsetX;
-                region.offsetY = entry.offsetY;
-                region.originalWidth = entry.originalWidth;
-                region.originalHeight = entry.originalHeight;
-                region.splits = entry.splits;
-                region.pads = entry.pads;
+        try (var read = openReservedAtlas(atlas, atlasFile)) {
+            for (byte magic : TextureAtlasData.formatHeader) {
+                if (read.b() != magic) throw new IOException("Invalid binary atlas header");
             }
+            if (read.b() != TextureAtlasData.formatVersion) {
+                throw new IOException("Unsupported binary atlas version");
+            }
+            for (int index = 0; read.checkEOF() != -1; index++) {
+                String image = atlasFile.parent().child(read.str()).name();
+                var texture = new AtlasPageTexture(index, image, read.s(), read.s());
+                // The native renderer owns each page's texture filtering and wrapping.
+                read.i();
+                int count = read.i();
+                if (count < 0) throw new IOException("Invalid atlas region count");
+                for (int regionIndex = 0; regionIndex < count; regionIndex++) {
+                    String name = read.str();
+                    var region = atlas.addRegion(name, texture, read.s(), read.s(), read.s(), read.s());
+                    if (read.bool()) {
+                        region.offsetX = read.s();
+                        region.offsetY = read.s();
+                        region.originalWidth = read.s();
+                        region.originalHeight = read.s();
+                    } else {
+                        // Match Arc's descriptor defaults used by the existing handheld loader.
+                        region.originalWidth = region.originalHeight = 0;
+                    }
+                    if (read.bool()) region.splits = readAtlasInsets(read);
+                    if (read.bool()) region.pads = readAtlasInsets(read);
+                }
+            }
+        } catch (Exception failure) {
+            throw new ArcRuntimeException("Error reading pack file: " + atlasFile, failure);
         }
         if (!atlas.setErrorRegion("error")) throw new IllegalStateException("Atlas has no error region");
         return atlas;
+    }
+
+    private static arc.util.io.Reads openReservedAtlas(TextureAtlas atlas, Fi atlasFile) throws IOException {
+        int regions = countAtlasRegions(atlasFile);
+        atlas.getRegions().ensureCapacity(regions);
+        atlas.getRegionMap().ensureCapacity(regions);
+        return atlasFile.reads();
+    }
+
+    static int countAtlasRegions(Fi atlasFile) throws IOException {
+        int total = 0;
+        try (var in = new DataInputStream(atlasFile.read(512))) {
+            for (byte magic : TextureAtlasData.formatHeader) {
+                if (in.readByte() != magic) throw new IOException("Invalid binary atlas header");
+            }
+            if (in.readByte() != TextureAtlasData.formatVersion) {
+                throw new IOException("Unsupported binary atlas version");
+            }
+            // Arc records a byte before each page so the reader can detect EOF.
+            while (in.read() != -1) {
+                skipAtlasBytes(in, in.readUnsignedShort() + 8);
+                int count = in.readInt();
+                if (count < 0 || count > Integer.MAX_VALUE - total) {
+                    throw new IOException("Invalid atlas region count");
+                }
+                total += count;
+                for (int index = 0; index < count; index++) {
+                    skipAtlasBytes(in, in.readUnsignedShort() + 8);
+                    for (int optional = 0; optional < 3; optional++) {
+                        if (in.readBoolean()) skipAtlasBytes(in, 8);
+                    }
+                }
+            }
+        }
+        return total;
+    }
+
+    private static void skipAtlasBytes(DataInputStream in, int remaining) throws IOException {
+        // Keep the ROMFS preflight sequential, as in the stock descriptor reader.
+        for (int index = 0; index < remaining; index++) in.readUnsignedByte();
+    }
+
+    private static int[] readAtlasInsets(arc.util.io.Reads read) {
+        return new int[]{read.s(), read.s(), read.s(), read.s()};
     }
 
     private static final class AtlasPageTexture extends Texture {

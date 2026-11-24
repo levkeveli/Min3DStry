@@ -12,6 +12,18 @@ This vertical slice boots and runs unmodified upstream Mindustry `v160.8` **Grou
 - [`WorldReflectionPolicy.java`](../../research/upstream-runtime/src/world/java/port/WorldReflectionPolicy.java): Registers 0-argument constructors for `arc.struct.{IntMap,IntSet,ObjectIntMap,ObjectMap,ObjectSet,StringMap}` so Arc `Json` restores populated `GameStats` (`placedBlockCount`, etc.) and `Rules` fields when reloading `.msav` saves.
 - [`prepare_terrain_assets.py`](../../research/upstream-runtime/arm11/prepare_terrain_assets.py) (`--singleplayer`) & [`build.sh`](../../research/upstream-runtime/arm11/build.sh) (`--singleplayer`): Stages `maps/groundZero.msav` and `sprites.aatls` alongside bundles, `world-atlas`, `block_colors.png`, menu icons, and stock fonts, then links the ARM11 `.elf`/`.3dsx` (default `-Os`).
 
+## Ground Zero save and reload
+
+The offline runtime caches only the stock flowfields it creates. Cache keys
+retain the original team, cost and field IDs, and the game still uses the
+upstream code for creating and updating flowfields. This removes the nested
+cache access that threw during map decode in the optimized C replay.
+
+The [hosted replay](https://github.com/levkeveli/Min3DStry/actions/runs/45338932257)
+matched JVM and generated C at both `-O0` and `-Os`. It exercised mining,
+building, deconstruction, pause, an enemy wave and save/reload, with the same
+final world fingerprint in all three builds. This run used the host runtime.
+
 ## Weather in the graphical campaign
 
 The graphical campaign uses the v160.8 weather entities, particle and debris
@@ -661,6 +673,13 @@ Both profiles executed Boot 1 (load `groundZero.msav`, select Mine + copper ore 
 
 - **`new3ds` (`is_new_3ds=true`):** `UPSTREAM_MEMORY appHeap=108834816 linearHeap=4194304 stack=262144`, `saved=wave:2,copper:29,bytes:18700`, `reloaded=wave:2,copper:29`, `game_fps=4.72` (unoptimized headless emulator baseline).
 - **`old3ds` (`is_new_3ds=false`):** `UPSTREAM_MEMORY appHeap=79474688 linearHeap=4194304 stack=262144` (~`75.8 MiB` emulator-reported `envGetHeapSize()` region, not the physical retail Original 3DS `64 MiB` `APPMEMTYPE 0` limit against which the `44.44 MiB` static subtotal is budgeted), `saved=wave:2,copper:29,bytes:18685`, `reloaded=wave:2,copper:29`, `game_fps=3.48` (unoptimized headless emulator baseline).
+
+The verifier distinguishes the two stock pause rules. A pause-enabled world
+must log `UPSTREAM_SP_PAUSE paused=true` and `paused=false`. A world with
+`rules.pauseDisabled` must log `UPSTREAM_SP_PAUSE disabled=true`; the pause
+menu still opens and closes, but the simulation keeps running. Menu traffic
+alone no longer satisfies the pause milestone, so a broken pause path cannot
+pass just by drawing the overlay.
 
 ## Original floor and wall extractors
 

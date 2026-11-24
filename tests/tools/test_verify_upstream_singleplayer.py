@@ -12,7 +12,8 @@ import verify_upstream_singleplayer as vsp  # noqa: E402
 class VerifyUpstreamSingleplayerTests(unittest.TestCase):
     def test_write_singleplayer_ctm_header_and_size(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            for model, expected_frames in (("new3ds", 88 * 234), ("old3ds", 88 * 234)):
+            # The playback starts at 40s and runs for 62s.
+            for model, expected_frames in (("new3ds", 102 * 234), ("old3ds", 102 * 234)):
                 ctm = Path(tmp) / f"{model}.ctm"
                 vsp.write_singleplayer_ctm(ctm, model)
                 raw = ctm.read_bytes()
@@ -50,10 +51,37 @@ class VerifyUpstreamSingleplayerTests(unittest.TestCase):
         self.assertTrue(parsed["moving"])
         self.assertTrue(parsed["pause_true"])
         self.assertTrue(parsed["pause_false"])
+        self.assertTrue(vsp.pause_milestone_reached(parsed))
         self.assertTrue(parsed["wave"])
         self.assertEqual(parsed["saved"]["bytes"], "18500")
         self.assertEqual(parsed["mem"]["appHeap"], 111915008)
         self.assertTrue(parsed["exit"])
+
+    def test_pause_disabled_menu_milestone(self) -> None:
+        parsed = vsp.parse_singleplayer_log("\n".join([
+            "UPSTREAM_SP_PAUSE disabled=true",
+            "UPSTREAM_PAUSE_MENU open=true selected=0 options=3",
+            "UPSTREAM_PAUSE_MENU open=false",
+            "UPSTREAM_SP_MINED item=copper copper=15",
+        ]))
+        self.assertTrue(parsed["pause_disabled"])
+        self.assertTrue(parsed["pause_menu_open"])
+        self.assertTrue(parsed["pause_menu_close"])
+        self.assertFalse(parsed["pause_true"])
+        self.assertFalse(parsed["pause_false"])
+        self.assertTrue(vsp.pause_milestone_reached(parsed))
+
+    def test_pause_menu_without_disabled_rule_is_rejected(self) -> None:
+        parsed = vsp.parse_singleplayer_log("\n".join([
+            "UPSTREAM_PAUSE_MENU open=true selected=0 options=3",
+            "UPSTREAM_PAUSE_MENU open=false",
+        ]))
+        self.assertFalse(parsed["pause_disabled"])
+        self.assertFalse(vsp.pause_milestone_reached(parsed))
+
+    def test_missing_pause_milestone_is_rejected(self) -> None:
+        parsed = vsp.parse_singleplayer_log("UPSTREAM_SP_MOVING unit=12 input=circle")
+        self.assertFalse(vsp.pause_milestone_reached(parsed))
 
 
 if __name__ == "__main__":

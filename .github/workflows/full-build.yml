@@ -50,8 +50,10 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: full-build-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: full-build-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || (github.event_name == 'workflow_dispatch' && format('dispatch-{0}', github.run_id)) || github.ref }}
+  # A newer commit supersedes an older build in the same ref. Without this,
+  # a stale main run can hold the queue while newer commits wait behind it.
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -59,6 +61,8 @@ permissions:
 jobs:
   build:
     name: Build default 3DS app
+    outputs:
+      artifact_sha: ${{ steps.artifact.outputs.sha256 }}
     # The project self-hosted min3dstry runner is currently offline. Use the
     # GitHub-hosted Ubuntu runner as a temporary fallback so full builds and
     # artifacts are not blocked; restore the self-hosted expression when it is
@@ -158,9 +162,59 @@ jobs:
             ls -l build/min3dstry.3dsx
           '
 
+      - name: Record artifact SHA-256
+        id: artifact
+        run: |
+          sha256=$(sha256sum build/min3dstry.3dsx | awk '{print $1}')
+          echo "sha256=${sha256}" >> "$GITHUB_OUTPUT"
+          echo "artifact_sha256=${sha256}" >> "$GITHUB_STEP_SUMMARY"
+
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: min3dstry-embedded-loader
           path: |
             build/min3dstry.3dsx
             build/min3dstry.smdh
+
+  verify:
+    name: Verify artifact in Azahar
+    needs: build
+    # A fresh full build is only useful evidence if the packaged audio RomFS
+    # and embedded loader actually boot. Reuse the pinned Azahar setup from the
+    # upstream smoke workflow and check both console profiles.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: min3dstry-embedded-loader
+          path: build/artifact
+
+      - run: bash .github/scripts/setup_smoke_azahar.sh
+
+      - name: Boot New and Original 3DS profiles
+        run: |
+          xvfb-run -a python3 tools/verify_azahar.py \
+            --rom build/artifact/min3dstry.3dsx \
+            --out-dir build/emu-verify \
+            --models new3ds,old3ds \
+            --timeout 180
+
+      - name: Check the verified artifact matches the build output
+        run: |
+          python3 tools/check_azahar_report.py \
+            --report build/emu-verify/report.json \
+            --artifact build/artifact/min3dstry.3dsx \
+            --sha256 "${{ needs.build.outputs.artifact_sha }}"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: emu-verify-report
+          path: |
+            build/emu-verify/report.json
+            build/emu-verify/*.png

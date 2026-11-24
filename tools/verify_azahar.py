@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import random
@@ -1047,6 +1048,18 @@ def run_model_check(
             config_path.unlink()
 
 
+def artifact_metadata(path: Path) -> dict[str, Any]:
+    """Return the resolved path, hashed bytes and SHA-256 of one artifact."""
+    resolved = path.resolve()
+    hasher = hashlib.sha256()
+    total = 0
+    with resolved.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            hasher.update(chunk)
+            total += len(chunk)
+    return {"path": str(resolved), "bytes": total, "sha256": hasher.hexdigest()}
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--rom", default="build/min3dstry.3dsx")
@@ -1070,6 +1083,11 @@ def main() -> int:
     if not rom_path.is_file():
         print(f"verify_azahar: ROM not found: {rom_path}", file=sys.stderr)
         return 2
+    artifact = artifact_metadata(rom_path)
+    print(
+        f"Artifact sha256={artifact['sha256']} bytes={artifact['bytes']} path={artifact['path']}",
+        flush=True,
+    )
 
     azahar_bin = resolve_azahar_bin(args.azahar)
     config_path, log_path = resolve_azahar_paths(azahar_bin)
@@ -1099,7 +1117,10 @@ def main() -> int:
         )
 
     report_path = out_dir / "report.json"
-    report_path.write_text(json.dumps({"rom": str(rom_path), "results": results}, indent=2) + "\n", encoding="utf-8")
+    report_path.write_text(
+        json.dumps({"rom": str(rom_path), "artifact": artifact, "results": results}, indent=2) + "\n",
+        encoding="utf-8",
+    )
     print(f"Wrote verification report to {report_path}")
     return 0
 

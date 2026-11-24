@@ -7,6 +7,7 @@ import mindustry.gen.Groups;
 import mindustry.gen.Unit;
 import mindustry.io.MapIO;
 import mindustry.world.Block;
+import mindustry.world.blocks.storage.CoreBlock.CoreBuild;
 import mindustry.world.Tile;
 
 /** Samples the live world into an RGBA8 minimap grid using the stock color path. */
@@ -15,6 +16,10 @@ public final class UpstreamMinimap {
     }
 
     public static byte[] sample(int size) {
+        return sample(size, true);
+    }
+
+    public static byte[] sample(int size, boolean playerMarker) {
         if (size <= 0 || Vars.world == null || Vars.world.width() <= 0 || Vars.world.height() <= 0) {
             return null;
         }
@@ -36,34 +41,41 @@ public final class UpstreamMinimap {
         }
         var localTeam = Vars.player == null ? null : Vars.player.team();
         var playerUnit = Vars.player == null ? null : Vars.player.unit();
+        if (localTeam != null) {
+            for (CoreBuild core : localTeam.cores()) {
+                int coreCell = cellIndex(size, worldWidth, worldHeight, core.tileX(), core.tileY());
+                if (coreCell < 0) continue;
+                int x = coreCell % size;
+                int y = coreCell / size;
+                for (int dy = 0; dy < 2; dy++) {
+                    for (int dx = 0; dx < 2; dx++) {
+                        putBlip(pixels, size, x + dx, y + dy,
+                            localTeam.color.r, localTeam.color.g, localTeam.color.b);
+                    }
+                }
+            }
+        }
         for (Unit unit : Groups.unit) {
             if (unit == playerUnit || unit.dead || !unit.isAdded() || !unit.type.drawMinimap) continue;
             if (localTeam != null && unit.inFogTo(localTeam)) continue;
-            int index = cellIndex(size, worldWidth, worldHeight, unit.tileX(), unit.tileY());
-            if (index < 0) continue;
+            int unitCell = cellIndex(size, worldWidth, worldHeight, unit.tileX(), unit.tileY());
+            if (unitCell < 0) continue;
             var color = unit.team.color;
-            int offset = index * 4;
-            pixels[offset] = (byte) channel(color.r);
-            pixels[offset + 1] = (byte) channel(color.g);
-            pixels[offset + 2] = (byte) channel(color.b);
-            pixels[offset + 3] = (byte) 255;
+            putBlip(pixels, size, unitCell % size, unitCell / size, color.r, color.g, color.b);
         }
-        int player = playerIndex(size);
-        if (player >= 0) {
+        int player = playerMarker ? playerIndex(size) : -1;
+        var playerModel = Vars.player == null ? null : Vars.player.unit();
+        if (player >= 0 && playerModel != null) {
             int px = player % size;
             int py = player / size;
             for (int dy = 0; dy < 2; dy++) {
                 for (int dx = 0; dx < 2; dx++) {
-                    int x = px + dx;
-                    int y = py + dy;
-                    if (x >= size || y >= size) continue;
-                    int index = (y * size + x) * 4;
-                    pixels[index] = (byte) 255;
-                    pixels[index + 1] = (byte) 255;
-                    pixels[index + 2] = (byte) 255;
-                    pixels[index + 3] = (byte) 255;
+                    putBlip(pixels, size, px + dx, py + dy, 1f, 1f, 1f);
                 }
             }
+            int tipX = Math.round(px + 0.5f + arc.math.Mathf.cosDeg(playerModel.rotation()) * 2.5f);
+            int tipY = Math.round(py + 0.5f + arc.math.Mathf.sinDeg(playerModel.rotation()) * 2.5f);
+            putBlip(pixels, size, tipX, tipY, 1f, 1f, 1f);
         }
         return pixels;
     }
@@ -107,6 +119,15 @@ public final class UpstreamMinimap {
     private static Block realBlock(Tile tile) {
         if (tile.build == null) return tile.block();
         return Vars.state.rules.fog && !tile.build.wasVisible ? Blocks.air : tile.block();
+    }
+
+    private static void putBlip(byte[] pixels, int size, int x, int y, float r, float g, float b) {
+        if (x < 0 || y < 0 || x >= size || y >= size) return;
+        int index = (y * size + x) * 4;
+        pixels[index] = (byte) channel(r);
+        pixels[index + 1] = (byte) channel(g);
+        pixels[index + 2] = (byte) channel(b);
+        pixels[index + 3] = (byte) 255;
     }
 
     private static int channel(float value) {

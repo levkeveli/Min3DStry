@@ -10,9 +10,42 @@ printf '%s  %s\n' \
   6dd6da921d5021a84823456e05b477ee8de8511990d40de850b37dd0905152f2 "$RUNNER_TEMP/desktop.jar" |
   sha256sum --check
 
-bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime --no-daemon --console=plain \
-  "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" "-PreferenceJar=$RUNNER_TEMP/server-release.jar" \
-  "-ParcCheckout=$RUNNER_TEMP/Arc" -Pprobe=unified generateC
+gradle_log="$RUNNER_TEMP/gradle-generate.log"
+for attempt in 1 2 3; do
+  if bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime --no-daemon --console=plain \
+      "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" "-PreferenceJar=$RUNNER_TEMP/server-release.jar" \
+      "-ParcCheckout=$RUNNER_TEMP/Arc" -Pprobe=unified generateC 2>&1 | tee "$gradle_log"; then
+    break
+  fi
+  if [ "$attempt" -eq 3 ] || ! grep -Eq '429|Could not resolve' "$gradle_log"; then
+    exit 1
+  fi
+  echo "Gradle dependency resolution was rate-limited; retrying (attempt $((attempt + 1))/3)" >&2
+  sleep $((attempt * 15))
+done
+
+stock_jar="$RUNNER_TEMP/server-release.jar"
+inventory_check="$RUNNER_TEMP/inventory-check"
+runtime=research/upstream-runtime
+stock_modules="$runtime/build/upstream-src/unified/mindustry/world/modules"
+mkdir -p "$inventory_check/reference" "$inventory_check/staged"
+javac -cp "$stock_jar" -d "$inventory_check/reference" \
+  "$runtime/host/UpstreamItemInventoryReference.java" \
+  "$runtime/host/UpstreamLiquidInventoryReference.java"
+javac -cp "$stock_jar" -d "$inventory_check/staged" \
+  "$stock_modules/ItemModule.java" "$stock_modules/LiquidModule.java"
+for inventory in Item Liquid; do
+  main="Upstream${inventory}InventoryReference"
+  stock_log="$inventory_check/${inventory}-stock.log"
+  staged_log="$inventory_check/${inventory}-staged.log"
+  java -cp "$inventory_check/reference:$stock_jar" "$main" > "$stock_log"
+  java -cp "$inventory_check/reference:$inventory_check/staged:$stock_jar" "$main" > "$staged_log"
+  diff -u "$stock_log" "$staged_log"
+done
+test "$(wc -l < "$inventory_check/Item-stock.log")" -eq 2101
+test "$(wc -l < "$inventory_check/Liquid-stock.log")" -eq 2100
+grep -Fx 'UPSTREAM_STOCK_ITEM_SUBCLASS array=preserved' "$inventory_check/Item-staged.log"
+printf 'UPSTREAM_STOCK_LIQUID_REFERENCE steps=%s\n' "$(wc -l < "$inventory_check/Liquid-staged.log")"
 
 export M3DS_SMOKE_DEVKIT_IMAGE=devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5
 cat > "$RUNNER_TEMP/smoke-tex3ds" <<'WRAPPER'
@@ -30,6 +63,10 @@ python3 research/upstream-runtime/arm11/prepare_terrain_assets.py \
   --desktop "$RUNNER_TEMP/desktop.jar" --output-dir build/smoke-assets \
   --tex3ds "$RUNNER_TEMP/smoke-tex3ds" --singleplayer --live-audio
 python3 tools/verify_live_stock_audio.py build/smoke-assets
+bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime --no-daemon --console=plain \
+  "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" "-PreferenceJar=$RUNNER_TEMP/server-release.jar" \
+  "-ParcCheckout=$RUNNER_TEMP/Arc" -Pprobe=unified runBuildingLayersJvm \
+  --args="--packaged-graphics $PWD/build/smoke-assets/logic-font.dat $PWD/build/smoke-assets/sprites.aatls"
 
 numa=()
 [[ -z "${M3DS_DOCKER_CPUSET_CPUS:-}" ]] || numa+=(--cpuset-cpus "$M3DS_DOCKER_CPUSET_CPUS")
