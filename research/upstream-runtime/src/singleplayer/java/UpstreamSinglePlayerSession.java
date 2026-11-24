@@ -343,6 +343,17 @@ public final class UpstreamSinglePlayerSession {
             + " map=" + (Vars.state.map == null ? "unknown" : Vars.state.map.name().replace(' ', '_'))
             + " size=" + Vars.world.width() + "x" + Vars.world.height()
             + " wave=" + Vars.state.wave + " copper=" + copper);
+        reportDenseWorkingSet("loaded");
+    }
+
+    static void reportDenseWorkingSet(String phase) {
+        if (Vars.world.width() < 600 || Vars.world.height() < 600) return;
+        Runtime runtime = Runtime.getRuntime();
+        long free = runtime.freeMemory();
+        long committed = runtime.totalMemory();
+        System.out.println("UPSTREAM_DENSE_WORKING_SET phase=" + phase
+            + " committed=" + committed + " used=" + (committed - free) + " free=" + free
+            + " buildings=" + Groups.build.size());
     }
 
     /** A discovered campaign slot and the upstream sector context decoded from its metadata. */

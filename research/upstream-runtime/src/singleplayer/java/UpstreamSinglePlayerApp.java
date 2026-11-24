@@ -1011,6 +1011,7 @@ public final class UpstreamSinglePlayerApp {
         viewport.draw(drawWeatherUnder, drawEntities);
         buildingControls.viewport(viewport.left, viewport.bottom);
         if (unit != null && (lastLeft != viewport.left || lastBottom != viewport.bottom)) {
+            if (lastLeft == -1 && lastBottom == -1) UpstreamSinglePlayerSession.reportDenseWorkingSet("rendered");
             lastLeft = viewport.left;
             lastBottom = viewport.bottom;
             System.out.println("UPSTREAM_SP_FRAME unit=" + unit.id() + " left=" + lastLeft
