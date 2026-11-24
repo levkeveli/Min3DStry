@@ -1272,14 +1272,21 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         backSource.configure(new arc.math.geom.Point2(3, 0));
         backTarget.configure(new arc.math.geom.Point2(-3, 0));
         backSource.liquids.add(Liquids.water, backSource.block.liquidCapacity);
-        Time.delta = 1f;
-        for (int tick = 0; tick < 120; tick++) {
-            backSource.update();
-            backTarget.update();
+        float previousDelta = Time.delta;
+        try {
+            Time.delta = 1f;
+            for (int tick = 0; tick < 120; tick++) {
+                backSource.update();
+                backTarget.update();
+            }
+        } finally {
+            Time.delta = previousDelta;
         }
         if (backTarget.liquids.get(Liquids.water) > 0f) {
             throw new AssertionError("Back-linked stock bridge transported water");
         }
+        backSourceTile.setBlock(Blocks.air);
+        backTargetTile.setBlock(Blocks.air);
 
         System.out.println("UPSTREAM_LIQUID_BRIDGE_REFERENCE bridgeMilli=" + Math.round(bridge * 1000f)
             + " phaseMilli=" + Math.round(phase * 1000f) + " backLink=rejected");
@@ -1297,6 +1304,9 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         sinkTile.setBlock(Blocks.liquidContainer, team, 0);
 
         var junction = junctionTile.build;
+        if (junction.acceptLiquid(sourceTile.build, Liquids.water)) {
+            throw new AssertionError("Stock Liquid Junction stored liquid instead of routing it");
+        }
         var destination = junction.getLiquidDestination(sourceTile.build, Liquids.water);
         if (destination != sinkTile.build) {
             throw new AssertionError("Stock Liquid Junction did not route to the far side");
@@ -1308,6 +1318,8 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
             throw new AssertionError("Stock Liquid Junction did not stop at a dead end");
         }
 
+        sourceTile.setBlock(Blocks.air);
+        junctionTile.setBlock(Blocks.air);
         System.out.println("UPSTREAM_LIQUID_JUNCTION_REFERENCE through=1 deadEnd=1");
     }
 
@@ -1320,15 +1332,34 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         sinkTile.setBlock(Blocks.liquidContainer, team, 0);
 
         var router = routerTile.build;
-        router.liquids.add(Liquids.water, router.block.liquidCapacity);
-        Time.delta = 1f;
-        for (int tick = 0; tick < 60; tick++) {
-            router.update();
+        float initial = router.block.liquidCapacity;
+        router.liquids.add(Liquids.water, initial);
+        float previousDelta = Time.delta;
+        try {
+            Time.delta = 1f;
+            for (int tick = 0; tick < 60; tick++) {
+                router.update();
+            }
+        } finally {
+            Time.delta = previousDelta;
         }
 
         float moved = sinkTile.build.liquids.get(Liquids.water);
+        float remaining = router.liquids.get(Liquids.water);
         if (moved <= 0f) throw new AssertionError("Stock Liquid Router did not transfer water");
-        System.out.println("UPSTREAM_LIQUID_ROUTER_REFERENCE movedMilli=" + Math.round(moved * 1000f));
+        if (moved > initial + 0.01f) {
+            throw new AssertionError("Stock Liquid Router moved more than its source held");
+        }
+        if (Math.abs(moved + remaining - initial) > 0.01f) {
+            throw new AssertionError("Stock Liquid Router lost or created liquid: "
+                + moved + "+" + remaining + " != " + initial);
+        }
+        routerTile.setBlock(Blocks.air);
+        sinkTile.setBlock(Blocks.air);
+
+        System.out.println("UPSTREAM_LIQUID_ROUTER_REFERENCE movedMilli=" + Math.round(moved * 1000f)
+            + " initialMilli=" + Math.round(initial * 1000f)
+            + " remainingMilli=" + Math.round(remaining * 1000f));
     }
 
     private float verifyBridgeTransfer(Block block, int x, int y, int dx, Team team) {
@@ -1345,13 +1376,23 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         if (source.block.hasPower && source.power != null) {
             source.power.status = 1f;
         }
-        Time.delta = 1f;
-        for (int tick = 0; tick < 120; tick++) {
-            source.update();
+        float previousDelta = Time.delta;
+        try {
+            Time.delta = 1f;
+            for (int tick = 0; tick < 120; tick++) {
+                source.update();
+            }
+        } finally {
+            Time.delta = previousDelta;
         }
 
         float moved = targetTile.build.liquids.get(Liquids.water);
         if (moved <= 0f) throw new AssertionError("Stock " + block.name + " did not transfer water");
+        if (moved > source.block.liquidCapacity + 0.01f) {
+            throw new AssertionError("Stock " + block.name + " moved more than its source held");
+        }
+        sourceTile.setBlock(Blocks.air);
+        targetTile.setBlock(Blocks.air);
         return moved;
     }
 
