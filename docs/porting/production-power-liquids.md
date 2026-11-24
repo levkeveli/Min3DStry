@@ -82,7 +82,10 @@ The live ARM11 draw set includes `Category.liquid`, which covers the original
 Bridge Conduit and Phase Conduit (`LiquidBridge` blocks). The host LIQUID
 registry renders every liquid-category block, and the reference asserts both
 stock bridge categories explicitly so a future predicate change cannot silently
-drop them. The dedicated liquid HUD remains open.
+drop them. The same reference now configures a stock one-way Bridge Conduit
+link, fills the source and steps 120 ticks; it asserts water reaches the target
+and prints `UPSTREAM_LIQUID_BRIDGE_REFERENCE movedMilli=100000`. The dedicated
+liquid HUD remains open.
 
 ## Remaining Scope for Issue #39
 
