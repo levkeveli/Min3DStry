@@ -463,6 +463,15 @@ public final class UpstreamLiveNetworkProbe {
         return snapshot;
     }
 
+    static <T> T whileKeepingAlive(Supplier<T> action) {
+        boolean started = Native.beginKeepAlive(1) != 0;
+        try {
+            return action.get();
+        } finally {
+            if (started) Native.endKeepAlive();
+        }
+    }
+
     private void driveLiveClient(UpstreamWorldLoadProbe.ProbeApplication app) throws IOException {
         var controls = new LiveControls(building == null ? null : building.get());
         int lastWave = -1;

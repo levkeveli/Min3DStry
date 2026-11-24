@@ -1408,6 +1408,21 @@ static void draw_chat_key(const char *label, float x, float y, float width, u32 
     catalog_label(label, x + width / 2, y + 10, 0.42f, width - 6, color);
 }
 
+int32_t m3ds_terrain_schematic_prompt(char *text, int32_t capacity, const char *hint, int32_t mode) {
+    const bool confirm = mode == 1, edit = mode >= 2;
+    if (capacity < 2 || !aptMainLoop()) return edit ? -1 : 0;
+    SwkbdState keyboard;
+    swkbdInit(&keyboard, SWKBD_TYPE_NORMAL, 2, confirm ? 1 : (capacity - 1) / 4);
+    swkbdSetFeatures(&keyboard, SWKBD_DEFAULT_QWERTY | SWKBD_DARKEN_TOP_SCREEN
+                     | (mode == 3 ? SWKBD_MULTILINE : 0));
+    if (mode == 0) swkbdSetValidation(&keyboard, SWKBD_NOTEMPTY_NOTBLANK, 0, 0);
+    if (edit) swkbdSetInitialText(&keyboard, text);
+    swkbdSetHintText(&keyboard, hint);
+    SwkbdButton button = swkbdInputText(&keyboard, text, (size_t)capacity);
+    if (button != SWKBD_BUTTON_CONFIRM) return edit ? -1 : 0;
+    return confirm ? 1 : (int32_t)strnlen(text, (size_t)capacity);
+}
+
 int32_t m3ds_terrain_draw_chat_keyboard(const char *labels) {
     if (!frame_open || !palette) return 0;
     if (perf_enabled) perf.bottom_start = svcGetSystemTick();
@@ -1454,11 +1469,13 @@ int32_t m3ds_terrain_build_catalog(const char *labels, const int32_t *icons, int
     }
     const bool schematics = catalog == schematic_catalog;
     if (schematics) {
+        C2D_DrawRectSolid(152, 4, 0.5f, 64, 34, panel);
+        stock_labels &= catalog_label("Edit", 184, 15, 0.52f, 58, text);
         C2D_DrawRectSolid(224, 4, 0.5f, 88, 34, panel);
         stock_labels &= catalog_label("Capture", 268, 15, 0.52f, 82, text);
     }
-    stock_labels &= catalog_label(labels, schematics ? 112 : 160, 15, 0.52f,
-                                  categories ? 190 : schematics ? 212 : 300, text);
+    stock_labels &= catalog_label(labels, schematics ? 76 : 160, 15, 0.52f,
+                                  categories ? 190 : schematics ? 144 : 300, text);
     int32_t visible_icons = 0;
     for (int row = 0; row < 6; row++) {
         labels += strlen(labels) + 1;
