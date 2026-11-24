@@ -9,6 +9,7 @@ import mindustry.content.Blocks;
 import mindustry.content.Items;
 import mindustry.content.Liquids;
 import mindustry.content.Planets;
+import mindustry.content.UnitTypes;
 import mindustry.core.ContentLoader;
 import mindustry.core.GameState;
 import mindustry.type.ItemStack;
@@ -53,9 +54,12 @@ public final class UpstreamCoreDatabaseReference {
         int displayableStats = 0;
         for (var entry : all) {
             for (var category : entry.content().computeStats().toMap().values()) {
-                for (var values : category.values()) {
-                    for (var value : values) {
+                for (var stat : category.keys()) {
+                    for (var value : category.get(stat)) {
                         String label = value.handheldText();
+                        if (label == null && stat == mindustry.world.meta.Stat.output) {
+                            label = UpstreamCoreDatabaseProduction.productionOutput(entry.content());
+                        }
                         if (label != null && !label.isEmpty()) displayableStats++;
                     }
                 }
@@ -107,6 +111,11 @@ public final class UpstreamCoreDatabaseReference {
         String efficiency = Core.bundle.format("stat.efficiency", "125");
         if (!itemFuel.contains("Copper 1/sec " + efficiency) || !liquidFuel.contains("Water 2.5/sec " + efficiency)) {
             throw new AssertionError(itemFuel + " | " + liquidFuel);
+        }
+        var factory = UpstreamCoreDatabaseProduction.productionOutput(Blocks.groundFactory);
+        var upgrades = UpstreamCoreDatabaseProduction.productionOutput(Blocks.additiveReconstructor);
+        if (!factory.contains(UnitTypes.dagger.localizedName) || !upgrades.contains(UnitTypes.mace.localizedName)) {
+            throw new AssertionError(factory + " | " + upgrades);
         }
     }
 }

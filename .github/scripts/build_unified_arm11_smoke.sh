@@ -70,6 +70,7 @@ javac -cp "$stock_jar" -d "$database_check" \
   "$runtime/build/upstream-src/unified/mindustry/world/meta/StatValues.java" \
   "$runtime/build/upstream-src/unified/mindustry/entities/abilities/"*.java \
   "$runtime/src/content/java/UpstreamCoreDatabase.java" \
+  "$runtime/src/singleplayer/java/UpstreamCoreDatabaseProduction.java" \
   "$runtime/src/singleplayer/verification/UpstreamCoreDatabaseReference.java"
 java -cp "$database_check:$stock_jar" UpstreamCoreDatabaseReference "$PWD/build/smoke-assets/bundles/bundle"
 
