@@ -47,3 +47,12 @@ server also reopens both saves through `verify_stock_campaign_archive.py
 --check-saves <profile> --server <server-release.jar>` and checks the sector
 IDs, dimensions and patch counts. Handheld loading and frame rate for these large maps
 require separate measurements.
+
+The rendered campaign and editor runtime store the tile's common content IDs
+and mutation flag in one word. Tiles keep unusual IDs and nonzero auxiliary
+data in a weakly keyed extension, retaining the original 32-bit values and
+current and legacy save layouts. The campaign archive reference checks the
+stock IDs, independent updates, the missing-value sentinel, wide IDs and
+packed tile metadata. The [ARM11-aligned Linux diagnostic](https://github.com/levkeveli/Min3DStry/actions/runs/45348197484)
+measured 24 bytes per common tile. That measurement applies to the diagnostic
+build with the handheld alignment rule.
