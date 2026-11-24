@@ -759,6 +759,17 @@ tasks.register('prepareUpstreamProbe') {
             withLabel('percentModifier(float value, StatUnit unit, boolean merge)', 'ammoStat((value - 1) * 100) + (unit.space ? " " : "") + unit.localized()')
             withLabel('liquids(Boolf<Liquid> filter, float amount, boolean perSecond)', 'filteredLiquidStatText(filter, amount, perSecond)')
             withLabel('items(float timePeriod, Boolf<Item> filter)', 'filteredItemStatText(filter, timePeriod)')
+            withLabel('content(UnlockableContent content)', 'content.localizedName')
+            def contentListStart = '''    public static <T extends UnlockableContent> StatValue content(Seq<T> list, Boolf<T> check, String noneText){
+        return table -> table.table(l -> {'''
+            hooks[contentListStart] = contentListStart.replace('return table ->', 'return withText(() -> contentListStatText(list, check, noneText), table ->')
+            def stockContentListEnd = '''                l.add(noneText);
+            }
+        });
+    }
+
+    public static StatValue blocks(Boolf<Block> pred){'''
+            hooks[stockContentListEnd] = stockContentListEnd.replace('        });', '        }));')
             hooks['    public static String fixValue(float value){'] = '''    private static String itemStatText(ItemStack[] stacks, float period, boolean rate){
         StringBuilder label = new StringBuilder();
         for(var stack : stacks){
@@ -802,6 +813,17 @@ tasks.register('prepareUpstreamProbe') {
             if(period > 0) label.append(" 1 (").append(fixValue(60f / period)).append(StatUnit.perSecond.localized()).append(")");
         }
         return label.toString();
+    }
+
+    private static <T extends UnlockableContent> String contentListStatText(Seq<T> list, Boolf<T> check, String noneText){
+        StringBuilder label = new StringBuilder();
+        for(var entry : list){
+            if(!check.get(entry)) continue;
+            if(label.length() != 0) label.append(" / ");
+            label.append(entry.localizedName);
+        }
+        if(label.length() != 0) return label.toString();
+        return noneText.startsWith("@") ? Core.bundle.get(noneText.substring(1)) : noneText;
     }
 
     public static String fixValue(float value){'''
