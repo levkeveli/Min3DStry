@@ -197,6 +197,36 @@ def has_bot_approval_for_commit(
     return latest_state == "APPROVED"
 
 
+HEAVY_VERIFY_WORKFLOWS = ("3DS full build", "Upstream ARM11 smoke")
+
+
+def main_verification_red(repo: str, token: str) -> str | None:
+    """Return the failing heavy workflow name if main's latest post-merge
+    verification is red, else None. Checked on every PR so PRs opened after
+    a main failure are also blocked."""
+    for wf in HEAVY_VERIFY_WORKFLOWS:
+        url = (
+            f"https://api.github.com/repos/{repo}/actions/workflows?per_page=100"
+        )
+        _, body = github_request(url, token)
+        wf_id = None
+        for w in json.loads(body).get("workflows", []):
+            if w.get("name") == wf:
+                wf_id = w["id"]
+                break
+        if wf_id is None:
+            continue
+        url = (
+            f"https://api.github.com/repos/{repo}/actions/workflows/{wf_id}/runs"
+            f"?branch=main&event=push&per_page=1"
+        )
+        _, body = github_request(url, token)
+        runs = json.loads(body).get("workflow_runs", [])
+        if runs and runs[0].get("conclusion") == "failure":
+            return wf
+    return None
+
+
 def cmd_classify(_: argparse.Namespace) -> int:
     token = os.environ["GITHUB_TOKEN"]
     repo, pr = load_pr_context()
@@ -225,6 +255,17 @@ def cmd_classify(_: argparse.Namespace) -> int:
         metadata_errors.append(
             "main-verify-blocked: post-merge verification on main is red; "
             "remove this label only on the PR that fixes or reverts it."
+        )
+
+    try:
+        red_wf = main_verification_red(repo, token)
+    except Exception as e:
+        print(f"NOTICE: could not query main verification status: {e}")
+        red_wf = None
+    if red_wf:
+        metadata_errors.append(
+            f"post-merge verification on main is red ({red_wf}); "
+            "no PR merges until main is green again."
         )
 
     eligible_ai = same_repo and not is_draft

@@ -31,14 +31,14 @@ def rerun_failed(n, head):
         gh_api(
             f"repos/{REPO}/actions/runs?head_sha={head}&per_page=20",
             "--jq",
-            "[.workflow_runs[] | select(.event == \"pull_request\" and .conclusion == \"failure\")]",
+            "[.workflow_runs[] | select(.event == \"pull_request\" and .conclusion == \"failure\" and .name != \"PR Automation\")]",
         ).stdout
     )
     if not runs:
         return
     comments = json.loads(
         gh_api(f"repos/{REPO}/issues/{n}/comments?per_page=100", "--paginate",
-               "--jq", ".").stdout
+               "--slurp", "--jq", "flatten").stdout
     )
     if any(RERUN_MARKER + head in (c.get("body") or "") for c in comments):
         return
