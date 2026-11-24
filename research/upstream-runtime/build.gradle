@@ -760,6 +760,8 @@ tasks.register('prepareUpstreamProbe') {
             withLabel('liquids(Boolf<Liquid> filter, float amount, boolean perSecond)', 'filteredLiquidStatText(filter, amount, perSecond)')
             withLabel('items(float timePeriod, Boolf<Item> filter)', 'filteredItemStatText(filter, timePeriod)')
             withLabel('content(UnlockableContent content)', 'content.localizedName')
+            withLabel('drillables(float drillTime, float drillMultiplier, float size, ObjectFloatMap<Item> multipliers, Boolf<Block> filter)',
+                'drillableStatText(drillTime, drillMultiplier, size, multipliers, filter)')
             def contentListStart = '''    public static <T extends UnlockableContent> StatValue content(Seq<T> list, Boolf<T> check, String noneText){
         return table -> table.table(l -> {'''
             hooks[contentListStart] = contentListStart.replace('return table ->', 'return withText(() -> contentListStatText(list, check, noneText), table ->')
@@ -826,11 +828,30 @@ tasks.register('prepareUpstreamProbe') {
         return noneText.startsWith("@") ? Core.bundle.get(noneText.substring(1)) : noneText;
     }
 
+    private static String drillableStatText(float drillTime, float drillMultiplier, float size, ObjectFloatMap<Item> multipliers, Boolf<Block> filter){
+        StringBuilder label = new StringBuilder();
+        for(var block : content.blocks()){
+            if(!filter.get(block)) continue;
+            if(label.length() != 0) label.append('\\n');
+            label.append(block.localizedName).append(" / ").append(block.itemDrop.localizedName);
+            if(multipliers != null) label.append(" ").append(drillableRate(block, drillTime, drillMultiplier, size, multipliers));
+        }
+        return label.toString();
+    }
+
+    private static String drillableRate(Block block, float drillTime, float drillMultiplier, float size, ObjectFloatMap<Item> multipliers){
+        return Strings.autoFixed(60f / (Math.max(drillTime + drillMultiplier * block.itemDrop.hardness, drillTime) / multipliers.get(block.itemDrop, 1f)) * size, 2) + StatUnit.perSecond.localized();
+    }
+
     public static String fixValue(float value){'''
             hooks.each { before, after ->
                 if (values.count(before) != 1) throw new GradleException('Pinned StatValues hook changed: ' + before)
                 values = values.replace(before, after)
             }
+            def stockDrillRate = 'Strings.autoFixed(60f / (Math.max(drillTime + drillMultiplier * block.itemDrop.hardness, drillTime) / multipliers.get(block.itemDrop, 1f)) * size, 2) + StatUnit.perSecond.localized()'
+            def stockDrillCell = 'b.add(' + stockDrillRate + ')'
+            if (values.count(stockDrillCell) != 1) throw new GradleException('Pinned drill rate display changed')
+            values = values.replace(stockDrillCell, 'b.add(drillableRate(block, drillTime, drillMultiplier, size, multipliers))')
             valuesFile.setText(values, 'UTF-8')
 
             sparseTileSources.each { path ->
