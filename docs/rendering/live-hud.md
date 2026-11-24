@@ -146,25 +146,42 @@ transitions are host-covered. Offline worlds with the stock `pauseDisabled`
 rule keep simulating while the menu is open. The overlay uses the localized
 Menu title in that case. The Ground Zero host probe checks both the normal
 pause and resume behavior and continued simulation with this rule enabled.
-The following graphical checks are queued for
-the next emulator batch and are **not verified** yet:
+The pause transitions were exercised on Azahar 2126.2 New 3DS by replaying a
+CTM button movie against the integration build (real X/A/B/d-pad events, not a
+fixture). The log recorded `open=true options=6`, two `open=false` cancels, the
+research open, both core-items toggles, `save=true`, and `quit=true`. The
+captured frames show `> Research` and `> Settings` selected after d-pad moves
+and the stock research list (`Research 1 / 14`, `B Back`) after A on Research.
+See [HUD batch 2](hud-batch-2.md) and
+[pause log](evidence/hud-batch-2-pause-new3ds.log).
 
-- Tap X: `UPSTREAM_PAUSE_MENU open=true`, simulation freezes.
-- D-pad up/down wraps the rows; A on Resume closes and resumes.
-- In a campaign sector, A on Research opens the existing research screen and
+Verified on the emulator:
+
+- X opens the pause menu (`UPSTREAM_PAUSE_MENU open=true`) and freezes play.
+- D-pad moves the selected row, including wrapping; A on Resume closes and
+  resumes.
+- In a campaign sector, A on Research opens the stock research screen and B
   returns to play.
-- A on Load Game reloads the active save, restores the saved world and
-  re-uploads the minimap. **Not verified** graphically yet.
 - A on Settings opens Display Core Items / Show Minimap / Show Weather /
-  Display Performance Metrics / Back; toggling hides/shows the item list,
-  minimap or weather overlay and adds an FPS row. **Not verified** yet.
-- In a campaign sector, the overlay shows the planet/sector and first objective
-  above the options. **Not verified** graphically yet.
+  Display Performance Metrics / Back; CTM runs toggled all four rows
+  (`UPSTREAM_SETTINGS index=0..3`). The core-items and minimap rows changed the
+  visible HUD, and the performance row added the `FPS` status row.
+- A on Load Game re-loads the campaign save: `load=true`, then a second
+  `UPSTREAM_SP_LOADED source=campaign`.
 - A on Save Game emits `UPSTREAM_PAUSE_MENU save=true`.
-- A on Quit, then A on the stock confirmation, exits with `quit=true`.
-- B or X cancels the menu, and the HUD/minimap remain readable behind it.
-- A damaged friendly core raises the stock `coreattack` row. This path is
-  wired to `Trigger.teamCoreDamage` but is **not verified** graphically yet.
+- A on Quit, then A on the confirmation, emits `quit=true` and exits.
+- B or X cancels the menu; the HUD and minimap remain readable behind it.
+- A damaged friendly core raises the stock `coreattack` row (batch 1).
+
+Still **not verified** graphically:
+
+- Load Game saved-state equality and the minimap re-upload (the marker is
+  one-shot and the second upload is not logged).
+- The overlay's first objective line above the options (planet/sector is
+  visible).
+- Hiding an active weather overlay: the weather setting toggles
+  (`index=2 value=false`), but the batch fixture had no weather.
+- Depleted used-item retention and the core-marker orientation.
 
 The live fixture exercises the countdown/waiting path with `enemies=0`. The
 singular/plural enemy rows, the `wave.waveInProgress` branch, and the `m:ss`
