@@ -175,7 +175,22 @@ class VerifyAzaharTests(unittest.TestCase):
             rom = Path(raw) / "game.3dsx"
             rom.write_bytes(payload)
             metadata = verify_azahar.artifact_metadata(rom)
-        self.assertEqual(metadata["path"], str(rom))
+        self.assertEqual(metadata["path"], str(rom.resolve()))
+        self.assertEqual(metadata["bytes"], len(payload))
+        self.assertEqual(metadata["sha256"], hashlib.sha256(payload).hexdigest())
+
+    def test_artifact_metadata_resolves_relative_path(self) -> None:
+        payload = b"min3dstry-relative"
+        with tempfile.TemporaryDirectory() as raw:
+            rom = Path(raw) / "game.3dsx"
+            rom.write_bytes(payload)
+            previous = os.getcwd()
+            try:
+                os.chdir(raw)
+                metadata = verify_azahar.artifact_metadata(Path("game.3dsx"))
+            finally:
+                os.chdir(previous)
+        self.assertEqual(Path(metadata["path"]), rom.resolve())
         self.assertEqual(metadata["bytes"], len(payload))
         self.assertEqual(metadata["sha256"], hashlib.sha256(payload).hexdigest())
 
