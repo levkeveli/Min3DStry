@@ -1,6 +1,8 @@
+import hashlib
 import os
 import struct
 import sys
+import tempfile
 import unittest
 import zlib
 from pathlib import Path
@@ -166,6 +168,16 @@ class VerifyAzaharTests(unittest.TestCase):
             "[   3.95] Kernel.SVC <Debug> svc.cpp:100: [MIN3DSTRY] ATLAS loaded\n"
         )
         self.assertTrue(loaded["atlas_loaded"])
+
+    def test_artifact_metadata_hashes_exact_bytes(self) -> None:
+        payload = b"min3dstry\x00\xff"
+        with tempfile.TemporaryDirectory() as raw:
+            rom = Path(raw) / "game.3dsx"
+            rom.write_bytes(payload)
+            metadata = verify_azahar.artifact_metadata(rom)
+        self.assertEqual(metadata["path"], str(rom))
+        self.assertEqual(metadata["bytes"], len(payload))
+        self.assertEqual(metadata["sha256"], hashlib.sha256(payload).hexdigest())
 
     def test_inspect_png_distinguishes_blank_and_rendered_frames(self) -> None:
         blank = make_test_png(16, 16, lambda _x, _y: (0, 0, 0))
