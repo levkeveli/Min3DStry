@@ -13,6 +13,15 @@ static void m3ds_gc_storage_failure(const char *message) {
     abort();
 }
 
+static void m3ds_gc_log_failed_allocation(int32_t requested, int32_t free_bytes) {
+    char message[128];
+    const int length = snprintf(message, sizeof(message),
+        "UPSTREAM_MEMORY allocation-failed requested=%ld free=%ld committed=%lu cap=%lu",
+        (long)requested, (long)free_bytes,
+        (unsigned long)teavm_gc_availableBytes, (unsigned long)teavm_gc_maxAvailableBytes);
+    if (length > 0 && length < (int)sizeof(message)) svcOutputDebugString(message, length);
+}
+
 static void m3ds_gc_check_free_chunk(const void *slot) {
     const uintptr_t start = (uintptr_t)teavm_gc_gcStorageAddress;
     const uintptr_t address = (uintptr_t)slot;

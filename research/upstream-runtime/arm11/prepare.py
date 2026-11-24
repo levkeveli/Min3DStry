@@ -97,6 +97,11 @@ def main():
         "c/o/t/r/GC.c": [
             ('#include "RelocationBlock.h"', '#include "RelocationBlock.h"\n#include "../../../../m3ds_gc_relocations.h"'),
             (
+                "                teavm_outOfMemory();",
+                "                m3ds_gc_log_failed_allocation(teavm_local_1, sfld_otr_GC_freeMemory);\n"
+                "                teavm_outOfMemory();",
+            ),
+            (
                 "teavm_local_6 = TEAVM_STRUCTURE_ADD(cls_otr_FreeChunkHolder, sfld_otr_GC_currentChunkPointer, teavm_local_3);",
                 "teavm_local_6 = m3ds_gc_begin_relocations(\n"
                 "        TEAVM_STRUCTURE_ADD(cls_otr_FreeChunkHolder, sfld_otr_GC_currentChunkPointer, teavm_local_3));",
