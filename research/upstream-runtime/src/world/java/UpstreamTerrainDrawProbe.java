@@ -259,7 +259,7 @@ public final class UpstreamTerrainDrawProbe {
         return atlasFile.reads();
     }
 
-    private static int countAtlasRegions(Fi atlasFile) throws IOException {
+    static int countAtlasRegions(Fi atlasFile) throws IOException {
         int total = 0;
         try (var in = new DataInputStream(atlasFile.read(512))) {
             for (byte magic : TextureAtlasData.formatHeader) {

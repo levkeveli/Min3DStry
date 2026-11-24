@@ -136,8 +136,11 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
     }
 
     public static void main(String[] args) throws Exception {
-        if (args.length == 2 && args[0].equals("--sprite-atlas")) {
-            verifySpriteAtlas(new Fi(args[1]));
+        if (args.length == 3 && args[0].equals("--packaged-graphics")) {
+            verifySpriteAtlas(new Fi(args[2]));
+            var font = new Fi(args[1]);
+            UpstreamLogicFont.load(font);
+            verifyLogicFontPixels(font);
             return;
         }
         if (args.length == 2 && args[0].equals("--logic-font")) {
@@ -510,8 +513,11 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         System.out.println("UPSTREAM_CLIENT_PROCESSOR_REFERENCE ids=ok compressed=ok link=ok canvas=5");
     }
 
-    private static void verifySpriteAtlas(Fi file) {
+    private static void verifySpriteAtlas(Fi file) throws IOException {
         var stock = new TextureAtlasData(file, file.parent(), false);
+        if (UpstreamTerrainDrawProbe.countAtlasRegions(file) != stock.getRegions().size) {
+            throw new AssertionError("Stock atlas reservation count differs from the Arc decoder");
+        }
         var atlas = UpstreamTerrainDrawProbe.readAtlas(file);
         var regions = atlas.getRegions();
         if (stock.getRegions().size != 5200 || regions.size != stock.getRegions().size) {
