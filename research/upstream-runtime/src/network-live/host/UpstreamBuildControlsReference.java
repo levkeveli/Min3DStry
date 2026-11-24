@@ -674,6 +674,15 @@ public final class UpstreamBuildControlsReference {
             controls.update(unit, 0, touch(268, 20));
             tapGridCell(controls, unit, 84, 24);
             tapGridCell(controls, unit, 84, 24);
+            controls.schematics().saveCapture(unit.team(), () -> null, name -> {
+                throw new AssertionError("Cancelling the name prompt asked for replacement");
+            });
+            if (!java.util.Arrays.equals(original, Files.readAllBytes(exported)) || Files.exists(undiscovered)) {
+                throw new AssertionError("Cancelling the name prompt changed schematic files");
+            }
+            controls.update(unit, 0, touch(268, 20));
+            tapGridCell(controls, unit, 84, 24);
+            tapGridCell(controls, unit, 84, 24);
             controls.schematics().saveCapture(unit.team(), () -> "Bridge layout", name -> false);
             if (!java.util.Arrays.equals(original, Files.readAllBytes(exported))) {
                 throw new AssertionError("Declining replacement changed the original schematic");
