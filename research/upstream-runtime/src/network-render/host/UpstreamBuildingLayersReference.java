@@ -1222,25 +1222,57 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
     }
 
     private void verifyLiquidBridgeTransfer(Team team) {
-        var sourceTile = Vars.world.tile(50, 50);
-        var targetTile = Vars.world.tile(53, 50);
+        float bridge = verifyBridgeTransfer(Blocks.bridgeConduit, 50, 50, 3, team);
+        float phase = verifyBridgeTransfer(Blocks.phaseConduit, 56, 50, 3, team);
+
+        // Stock links are one-way: a back-link makes linkValid() false, so the
+        // pair must not transport over distance.
+        var backSourceTile = Vars.world.tile(62, 50);
+        var backTargetTile = Vars.world.tile(65, 50);
+        backSourceTile.setBlock(Blocks.air);
+        backTargetTile.setBlock(Blocks.air);
+        backSourceTile.setBlock(Blocks.bridgeConduit, team, 0);
+        backTargetTile.setBlock(Blocks.bridgeConduit, team, 0);
+        var backSource = (mindustry.world.blocks.distribution.ItemBridge.ItemBridgeBuild)backSourceTile.build;
+        var backTarget = (mindustry.world.blocks.distribution.ItemBridge.ItemBridgeBuild)backTargetTile.build;
+        backSource.configure(new arc.math.geom.Point2(3, 0));
+        backTarget.configure(new arc.math.geom.Point2(-3, 0));
+        backSource.liquids.add(Liquids.water, backSource.block.liquidCapacity);
+        Time.delta = 1f;
+        for (int tick = 0; tick < 120; tick++) {
+            backSource.update();
+            backTarget.update();
+        }
+        if (backTarget.liquids.get(Liquids.water) > 0f) {
+            throw new AssertionError("Back-linked stock bridge transported water");
+        }
+
+        System.out.println("UPSTREAM_LIQUID_BRIDGE_REFERENCE bridgeMilli=" + Math.round(bridge * 1000f)
+            + " phaseMilli=" + Math.round(phase * 1000f) + " backLink=rejected");
+    }
+
+    private float verifyBridgeTransfer(Block block, int x, int y, int dx, Team team) {
+        var sourceTile = Vars.world.tile(x, y);
+        var targetTile = Vars.world.tile(x + dx, y);
         sourceTile.setBlock(Blocks.air);
         targetTile.setBlock(Blocks.air);
-        sourceTile.setBlock(Blocks.bridgeConduit, team, 0);
-        targetTile.setBlock(Blocks.bridgeConduit, team, 0);
+        sourceTile.setBlock(block, team, 0);
+        targetTile.setBlock(block, team, 0);
 
         var source = (mindustry.world.blocks.distribution.ItemBridge.ItemBridgeBuild)sourceTile.build;
-        // Stock bridge links are one-way; a second back-link makes linkValid() false.
-        source.configure(new arc.math.geom.Point2(3, 0));
+        source.configure(new arc.math.geom.Point2(dx, 0));
         source.liquids.add(Liquids.water, source.block.liquidCapacity);
+        if (source.block.hasPower && source.power != null) {
+            source.power.status = 1f;
+        }
         Time.delta = 1f;
         for (int tick = 0; tick < 120; tick++) {
             source.update();
         }
 
         float moved = targetTile.build.liquids.get(Liquids.water);
-        if (moved <= 0f) throw new AssertionError("Stock Liquid Bridge did not transfer water");
-        System.out.println("UPSTREAM_LIQUID_BRIDGE_REFERENCE movedMilli=" + Math.round(moved * 1000f));
+        if (moved <= 0f) throw new AssertionError("Stock " + block.name + " did not transfer water");
+        return moved;
     }
 
     private void verifyFluidDrawing(UpstreamBuildingLayers layers, UpstreamTerrainDrawProbe.Viewport viewport,
