@@ -113,11 +113,36 @@ public final class UpstreamRenderedNetworkProbe {
         CacheLayer.init();
         try {
             Arm11Audio.open();
-            UpstreamLiveNetworkProbe.run(directory, address, view::prepareClient, view::loadGraphics,
+            var kick = UpstreamLiveNetworkProbe.run(directory, address, view::prepareClient, view::loadGraphics,
                 view::render, view.buildingControls, view::receiveChat, view.chatInput);
+            if (kick != null) view.showServerKick(kick);
         } finally {
             Arm11Audio.close();
         }
+    }
+
+    private void showServerKick(UpstreamLiveNetworkProbe.ServerKick kick) throws InterruptedException {
+        var reason = kick.stockReason;
+        if (reason != null && (reason.quiet || reason == mindustry.net.Packets.KickReason.serverRestarting)) return;
+        String extra = reason == null ? null : reason.extraText();
+        String title = extra == null ? Core.bundle.get("disconnect") : reason.toString();
+        String detail = reason == null ? kick.getMessage() : extra == null ? reason.toString() : extra;
+
+        target.begin(0, 0, UpstreamTerrainDrawProbe.VIEW_WIDTH, UpstreamTerrainDrawProbe.VIEW_HEIGHT);
+        try {
+            float y = drawKickLabel(title, 6f);
+            if (detail != null) drawKickLabel(detail, y);
+        } finally {
+            target.end();
+        }
+        System.out.println("UPSTREAM_LIVE_KICK_NOTICE title=" + title
+            + " detail=" + (detail == null ? "" : detail.replace('\n', ' ').replace('\r', ' ')));
+        while (!UpstreamLiveNetworkProbe.kickNoticeDismissed()) Thread.sleep(16);
+    }
+
+    private float drawKickLabel(String label, float y) {
+        var parsed = UpstreamLabelText.parse(UI.formatIcons(label));
+        return target.drawObjective((label + "\0").getBytes(StandardCharsets.UTF_8), encodeLabel(parsed), null, y);
     }
 
     private void prepareClient() {
