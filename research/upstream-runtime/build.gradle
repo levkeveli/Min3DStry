@@ -12,6 +12,7 @@ def upstreamFile = 'core/src/mindustry/logic/LogicOp.java'
 def blockSource = 'core/src/mindustry/world/Block.java'
 def tileSource = 'core/src/mindustry/world/Tile.java'
 def tilesSource = 'core/src/mindustry/world/Tiles.java'
+def liquidModuleSource = 'core/src/mindustry/world/modules/LiquidModule.java'
 def pathfinderSource = 'core/src/mindustry/ai/Pathfinder.java'
 def flowfieldSearchPatch = file('patches/stock-flowfield-search-storage.patch')
 def flowfieldCostPatch = file('patches/stock-flowfield-cost-grid.patch')
@@ -167,6 +168,7 @@ def mapFile = sourceDir.map { it.file('mindustry/maps/GlacierFixture.java') }
 def blockFile = sourceDir.map { it.file('mindustry/world/Block.java') }
 def tileFile = sourceDir.map { it.file('mindustry/world/Tile.java') }
 def tilesFile = sourceDir.map { it.file('mindustry/world/Tiles.java') }
+def liquidModuleFile = sourceDir.map { it.file('mindustry/world/modules/LiquidModule.java') }
 def pathfinderFile = sourceDir.map { it.file('mindustry/ai/Pathfinder.java') }
 def annotationsFile = sourceDir.map { it.file('mindustry/annotations/Annotations.java') }
 def arcFile = sourceDir.map { it.file('arc/files/Fi.java') }
@@ -252,7 +254,8 @@ if (usesArcSources || usesExecutor) {
                               'mindustry/game/Teams.class', 'mindustry/game/Teams$*.class',
                               'mindustry/world/blocks/logic/LogicBlock.class', 'mindustry/world/blocks/logic/LogicBlock$*.class',
                               'mindustry/io/SaveFileReader.class', 'mindustry/io/SaveFileReader$*.class',
-                              'mindustry/world/Tiles.class', 'mindustry/world/Tiles$*.class'])
+                              'mindustry/world/Tiles.class', 'mindustry/world/Tiles$*.class',
+                              'mindustry/world/modules/LiquidModule.class', 'mindustry/world/modules/LiquidModule$*.class'])
     }
     if (usesArcSources) {
         stagedClasses.addAll(['arc/files/Fi.class', 'arc/files/Fi$*.class'])
@@ -585,7 +588,7 @@ tasks.register('prepareUpstreamProbe') {
         outputs.files(blockFile, annotationsFile)
     }
     if (usesWorldSources) {
-        outputs.files(tileFile, tilesFile)
+        outputs.files(tileFile, tilesFile, liquidModuleFile)
         outputs.file(sourceDir.map { it.file('mindustry/ai/BlockIndexer.java') })
         outputs.file(sourceDir.map { it.file('mindustry/game/Teams.java') })
         outputs.file(sourceDir.map { it.file('mindustry/io/SaveFileReader.java') })
@@ -1057,6 +1060,91 @@ final class GlacierFixture {
                     tiles = tiles.replace(before, after)
                 }
                 tilesFile.get().asFile.setText(tiles, 'UTF-8')
+
+            def liquid = new String(readUpstream(liquidModuleSource), 'UTF-8')
+            def liquidChanges = [
+                'private float[] liquids = new float[content.liquids().size];': '''private int liquidCapacity = content.liquids().size;
+    private int inlineId = -1;
+    private float inlineAmount;
+    private float[] liquids;
+
+    private void resizeLiquids(int length){
+        if(liquidCapacity == length) return;
+        if(length < 0) throw new NegativeArraySizeException();
+        if(liquids != null) liquids = Arrays.copyOf(liquids, length);
+        if(inlineId >= length){
+            inlineId = -1;
+            inlineAmount = 0f;
+        }
+        liquidCapacity = length;
+    }
+
+    private float amountAt(int id){
+        if(id < 0 || id >= liquidCapacity) throw new ArrayIndexOutOfBoundsException(id);
+        return liquids != null ? liquids[id] : id == inlineId ? inlineAmount : 0f;
+    }
+
+    private void writeAmount(int id, float amount){
+        if(id < 0 || id >= liquidCapacity) throw new ArrayIndexOutOfBoundsException(id);
+        if(liquids != null){
+            liquids[id] = amount;
+        }else if(Float.floatToRawIntBits(amount) == 0){
+            if(id == inlineId){
+                inlineId = -1;
+                inlineAmount = 0f;
+            }
+        }else if(inlineId == -1 || id == inlineId){
+            inlineId = id;
+            inlineAmount = amount;
+        }else{
+            liquids = new float[liquidCapacity];
+            liquids[inlineId] = inlineAmount;
+            liquids[id] = amount;
+            inlineId = -1;
+            inlineAmount = 0f;
+        }
+    }''',
+                'if(liquids.length != len) liquids = Arrays.copyOf(liquids, len);': 'resizeLiquids(len);',
+                'if(liquids.length != size) liquids = Arrays.copyOf(liquids, size);': 'resizeLiquids(size);',
+                'Arrays.fill(liquids, 0f);': 'clearAmounts();',
+                'public void clear(){\n        Arrays.fill(liquids, 0);': '''public void clear(){
+        clearAmounts();
+    }
+
+    private void clearAmounts(){
+        liquids = null;
+        inlineId = -1;
+        inlineAmount = 0f;''',
+                'Arrays.fill(liquids, 0);': 'clearAmounts();',
+                'liquids[liquid.id] = amount;': 'writeAmount(liquid.id, amount);',
+                'liquids[liquid.id] += amount;': 'writeAmount(liquid.id, amountAt(liquid.id) + amount);',
+                'liquids[liquidid] = amount;': 'writeAmount(liquidid, amount);',
+                'liquids[current.id]': 'amountAt(current.id)',
+                'liquids[liquid.id]': 'amountAt(liquid.id)',
+                'liquids.length': 'liquidCapacity',
+                'liquids[i]': 'amountAt(i)',
+                'for(float liquid : liquids){': 'for(int i = 0; i < liquidCapacity; i++){',
+                'if(liquid > 0) amount++;': 'if(amountAt(i) > 0) amount++;'
+            ]
+            // Match counts against the pinned source before applying overlapping substitutions.
+            def pinnedLiquid = liquid
+            def liquidHookCounts = [
+                'Arrays.fill(liquids, 0);': 2,
+                'liquids[liquid.id] = amount;': 2,
+                'liquids[current.id]': 3,
+                'liquids[liquid.id]': 5,
+                'liquids.length': 12,
+                'liquids[i]': 6
+            ]
+            liquidChanges.each { before, after ->
+                if (pinnedLiquid.count(before) != (liquidHookCounts[before] ?: 1)) {
+                    throw new GradleException("Pinned LiquidModule storage hook changed: ${before}")
+                }
+                liquid = liquid.replace(before, after)
+            }
+            def stagedLiquid = liquidModuleFile.get().asFile
+            stagedLiquid.parentFile.mkdirs()
+            stagedLiquid.setText(liquid, 'UTF-8')
 
                 def indexerPath = 'mindustry/ai/BlockIndexer.java'
                 def indexer = new String(readUpstream('core/src/' + indexerPath), 'UTF-8')
