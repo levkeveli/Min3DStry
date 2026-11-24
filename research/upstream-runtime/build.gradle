@@ -710,6 +710,63 @@ tasks.register('prepareUpstreamProbe') {
 
     public static StatValue number(float value, StatUnit unit){'''
             ]
+            def itemAmounts = '''    public static StatValue items(boolean displayName, ItemStack... stacks){
+        return table -> {
+            for(ItemStack stack : stacks){
+                table.add(displayItem(stack.item, stack.amount, displayName)).padRight(5);
+            }
+        };
+    }'''
+            def itemRates = '''    public static StatValue items(float timePeriod, ItemStack... stacks){
+        return table -> {
+            for(ItemStack stack : stacks){
+                table.add(displayItem(stack.item, stack.amount, timePeriod, true)).padRight(5);
+            }
+        };
+    }'''
+            def liquidStackRates = '''    public static StatValue liquids(float timePeriod, boolean perSecond, LiquidStack... stacks){
+        return table -> {
+            for(var stack : stacks){
+                table.add(displayLiquid(stack.liquid, stack.amount * (60f / timePeriod), perSecond)).padRight(5);
+            }
+        };
+    }'''
+            def stockSingleLiquid = 'return table -> table.add(displayLiquid(liquid, amount, perSecond)).left();'
+            hooks[itemAmounts] = itemAmounts
+                .replace('return table -> {', 'return withText(() -> itemStatText(stacks, 0f, false), table -> {')
+                .replace('        };', '        });')
+            hooks[itemRates] = itemRates
+                .replace('return table -> {', 'return withText(() -> itemStatText(stacks, timePeriod, true), table -> {')
+                .replace('        };', '        });')
+            hooks[liquidStackRates] = liquidStackRates
+                .replace('return table -> {', 'return withText(() -> liquidStatText(timePeriod, perSecond, stacks), table -> {')
+                .replace('        };', '        });')
+            hooks[stockSingleLiquid] = 'return withText(() -> liquidStatText(liquid, amount, perSecond), table -> table.add(displayLiquid(liquid, amount, perSecond)).left());'
+            hooks['    public static String fixValue(float value){'] = '''    private static String itemStatText(ItemStack[] stacks, float period, boolean rate){
+        StringBuilder label = new StringBuilder();
+        for(var stack : stacks){
+            if(label.length() != 0) label.append(" / ");
+            label.append(stack.item.localizedName);
+            if(stack.amount != 0) label.append(" ").append(stack.amount);
+            if(rate) label.append(" (").append(fixValue(stack.amount / (period / 60f))).append(StatUnit.perSecond.localized()).append(")");
+        }
+        return label.toString();
+    }
+
+    private static String liquidStatText(Liquid liquid, float amount, boolean perSecond){
+        return liquid.localizedName + (amount == 0 ? "" : " " + fixValue(amount) + (perSecond ? StatUnit.perSecond.localized() : ""));
+    }
+
+    private static String liquidStatText(float period, boolean perSecond, LiquidStack[] stacks){
+        StringBuilder label = new StringBuilder();
+        for(var stack : stacks){
+            if(label.length() != 0) label.append(" / ");
+            label.append(liquidStatText(stack.liquid, stack.amount * (60f / period), perSecond));
+        }
+        return label.toString();
+    }
+
+    public static String fixValue(float value){'''
             hooks.each { before, after ->
                 if (values.count(before) != 1) throw new GradleException('Pinned StatValues hook changed: ' + before)
                 values = values.replace(before, after)
