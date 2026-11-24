@@ -371,6 +371,7 @@ public final class UpstreamRenderedNetworkProbe {
         schematics.draw(viewport);
         weatherLayers.drawOver();
         float hudY = drawStatusHud();
+        // Base Block.setBars order: health, power, items, then liquids.
         hudY = buildingBasicBars.drawHealth(target, buildingControls, Vars.player.team(), hudY);
         hudY = buildingPowerHud.draw(target, buildingControls, Vars.player.team(), hudY);
         hudY = buildingBasicBars.drawItems(target, buildingControls, Vars.player.team(), hudY);

@@ -1,5 +1,7 @@
 import arc.Core;
+import arc.graphics.Color;
 import arc.math.Mathf;
+import arc.util.Tmp;
 import mindustry.Vars;
 import mindustry.game.Team;
 import mindustry.gen.Building;
@@ -20,6 +22,7 @@ final class UpstreamBuildingBasicBars {
     }
 
     static boolean showsItems(Building building, Team viewer) {
+        // Pinned v160.8 Block.setBars: if(hasItems && configurable) addBar("items", ...).
         return building != null && building.team == viewer && building.items != null
             && building.block.hasItems && building.block.configurable && building.block.itemCapacity > 0;
     }
@@ -70,10 +73,15 @@ final class UpstreamBuildingBasicBars {
         if (state.building != building.id()) {
             state.building = building.id();
             state.fraction = value;
+            state.lastValue = value;
+            state.blink = 0f;
         } else {
+            if (isHealth && state.lastValue > value) state.blink = 1f;
+            state.lastValue = value;
             state.fraction = Mathf.lerpDelta(state.fraction, value, 0.15f);
         }
-        int tint = (isHealth ? Pal.health : Pal.items).abgr();
+        state.blink = Mathf.lerpDelta(state.blink, 0f, 0.2f);
+        int tint = isHealth ? Tmp.c1.set(Pal.health).lerp(Color.white, state.blink).abgr() : Pal.items.abgr();
         UpstreamBuildingPowerHud.drawPatch(target, Core.atlas.find("bar"), y, width, 0xff191919);
         if (state.fraction > 0f) {
             UpstreamBuildingPowerHud.drawPatch(
@@ -89,5 +97,7 @@ final class UpstreamBuildingBasicBars {
         private byte[] encodedLabel;
         private int[] encodedGlyphs;
         private float fraction;
+        private float lastValue;
+        private float blink;
     }
 }

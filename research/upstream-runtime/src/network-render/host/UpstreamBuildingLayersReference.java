@@ -627,6 +627,10 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         if (Math.abs(UpstreamBuildingBasicBars.healthFraction(container) - 0.5f) > 1e-6f) {
             throw new AssertionError("Stock partial health bar differs");
         }
+        container.items.add(Items.copper, 1);
+        if (UpstreamBuildingBasicBars.showsItems(container, viewer)) {
+            throw new AssertionError("Non-configurable item blocks must not show the stock items bar");
+        }
         var bridge = Blocks.itemBridge.newBuilding().create(Blocks.itemBridge, viewer);
         int add = Math.max(1, bridge.block.itemCapacity / 2);
         bridge.items.add(Items.copper, add);

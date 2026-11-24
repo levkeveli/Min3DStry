@@ -55,7 +55,8 @@ screen selected. The minimap translation unit also compiles without
 ## Selected building bars
 
 The friendly building under the handheld cursor shows its stock bars below the
-status rows, in `Block.setBars` order:
+status rows in the base `Block.setBars` order (health, power, items, then
+liquids); subclass-specific extra bars remain open:
 
 - health (`stat.health`, `Pal.health`) for every building;
 - power for blocks with `consPower`, using the stock power label/fraction;
