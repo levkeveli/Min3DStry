@@ -11,6 +11,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.zip.InflaterInputStream;
@@ -42,6 +43,9 @@ final class UpstreamSchematicPlacement {
     private int cornerX = -1, cornerY = -1;
     private Supplier<String> nameInput;
     private Predicate<String> confirmReplacement = name -> false;
+    private Function<String, String> editName;
+    private Function<String, String> editDescription;
+    private boolean editing;
 
     UpstreamSchematicPlacement(Fi directory) {
         this.directory = directory;
@@ -54,11 +58,17 @@ final class UpstreamSchematicPlacement {
         Arrays.sort(files, Comparator.comparing(Fi::name, String.CASE_INSENSITIVE_ORDER).thenComparing(Fi::name));
         page = 0;
         open = true;
+        editing = false;
         refreshLabels(null);
     }
 
     void tap(int x, int y) {
-        if (x >= 224 && x < 312 && y >= 4 && y < 38) {
+        if (x >= 152 && x < 216 && y >= 4 && y < 38 && editName != null) {
+            editing = !editing;
+            System.out.println("UPSTREAM_SCHEMATIC_EDIT_MODE enabled=" + editing);
+            refreshLabels(null);
+        } else if (x >= 224 && x < 312 && y >= 4 && y < 38) {
+            editing = false;
             open = false;
             files = null;
             capturing = true;
@@ -75,7 +85,29 @@ final class UpstreamSchematicPlacement {
         } else if (x >= 8 && x < 312 && y >= UpstreamBuildMenu.ROW_TOP
                 && y < UpstreamBuildMenu.ROW_TOP + UpstreamBuildMenu.ROWS * UpstreamBuildMenu.ROW_HEIGHT) {
             int index = page * UpstreamBuildMenu.ROWS + (y - UpstreamBuildMenu.ROW_TOP) / UpstreamBuildMenu.ROW_HEIGHT;
-            if (index < files.length && Vars.state.rules.schematicsAllowed) select(files[index]);
+            if (index < files.length) {
+                if (editing) edit(files[index]);
+                else if (Vars.state.rules.schematicsAllowed) select(files[index]);
+            }
+        }
+    }
+
+    void editWith(Function<String, String> name, Function<String, String> description) {
+        editName = name;
+        editDescription = description;
+    }
+
+    private void edit(Fi file) {
+        editing = false;
+        System.out.println("UPSTREAM_SCHEMATIC_EDIT_SELECTED file=" + file.name());
+        try {
+            if (editMetadata(file, editName, editDescription)) {
+                System.out.println("UPSTREAM_SCHEMATIC_METADATA_EDITED file=" + file.name());
+            }
+            refreshLabels(null);
+        } catch (IOException | RuntimeException error) {
+            System.out.println("UPSTREAM_SCHEMATIC_EDIT_ERROR " + error.getMessage());
+            refreshLabels(null, Core.bundle.get("error", "Error"));
         }
     }
 
@@ -97,7 +129,8 @@ final class UpstreamSchematicPlacement {
     }
 
     private void refreshLabels(String invalidFile, String notice) {
-        String title = Core.bundle.get("schematics", "Schematics");
+        String title = editing ? Core.bundle.get("schematic.edit", "Edit schematic")
+            : Core.bundle.get("schematics", "Schematics");
         var text = new StringBuilder(notice == null ? title : notice);
         if (notice == null) {
             if (!Vars.state.rules.schematicsAllowed) {
@@ -127,6 +160,21 @@ final class UpstreamSchematicPlacement {
         try (var input = file.read(1024)) {
             return Schematics.read(input);
         }
+    }
+
+    boolean editMetadata(Fi file, Function<String, String> nameInput,
+                         Function<String, String> descriptionInput) throws IOException {
+        if (!file.parent().equals(directory) || !file.extEquals(Vars.schematicExtension)
+                || !file.file().isFile()) return false;
+        Schematic schematic = readSchematic(file);
+        String name = nameInput.apply(schematic.name());
+        if (name == null || name.isEmpty()) return false;
+        String description = descriptionInput.apply(schematic.description());
+        if (description == null) return false;
+        schematic.tags.put("name", name);
+        schematic.tags.put("description", description);
+        publish(schematic, file, true);
+        return true;
     }
 
     private static String readDisplayName(Fi file) {
@@ -283,17 +331,21 @@ final class UpstreamSchematicPlacement {
             schematic.tags.putAll(previous.tags);
             schematic.labels = previous.labels;
         }
+        publish(schematic, destination, previous != null);
+        return destination;
+    }
+
+    private void publish(Schematic schematic, Fi destination, boolean replacing) throws IOException {
         File temporary = File.createTempFile("schematic-", ".tmp", directory.file());
         try {
             Schematics.write(schematic, new Fi(temporary));
-            if (previous == null) {
+            if (!replacing) {
                 if (destination.exists() || !temporary.renameTo(destination.file())) {
                     throw new IOException("Unable to publish " + destination.name());
                 }
             } else if (!temporary.renameTo(destination.file())) {
                 replaceOnFat(temporary, destination.file());
             }
-            return destination;
         } finally {
             temporary.delete();
         }

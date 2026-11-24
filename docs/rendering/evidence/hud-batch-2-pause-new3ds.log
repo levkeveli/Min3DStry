@@ -1,0 +1,14 @@
+﻿[  22.383043] Debug.Emulated <Debug> core\hle\kernel\svc.cpp:Kernel::SVC::OutputDebugString:1190: UPSTREAM_SP_READY unit=213 x=648.0 y=208.15765 copper=0 wave=1
+[  46.443792] Debug.Emulated <Debug> core\hle\kernel\svc.cpp:Kernel::SVC::OutputDebugString:1190: UPSTREAM_PAUSE_MENU open=true selected=0 options=6
+[  54.084574] Debug.Emulated <Debug> core\hle\kernel\svc.cpp:Kernel::SVC::OutputDebugString:1190: UPSTREAM_PAUSE_MENU open=false
+[  54.089445] Debug.Emulated <Debug> core\hle\kernel\svc.cpp:Kernel::SVC::OutputDebugString:1190: UPSTREAM_CAMPAIGN_RESEARCH_OPEN tree=serpulo visible=14
+[  66.365938] Debug.Emulated <Debug> core\hle\kernel\svc.cpp:Kernel::SVC::OutputDebugString:1190: UPSTREAM_PAUSE_MENU open=true selected=0 options=6
+[  87.645337] Debug.Emulated <Debug> core\hle\kernel\svc.cpp:Kernel::SVC::OutputDebugString:1190: UPSTREAM_PAUSE_MENU settings=true
+[  90.854154] Debug.Emulated <Debug> core\hle\kernel\svc.cpp:Kernel::SVC::OutputDebugString:1190: UPSTREAM_SETTINGS index=0 value=false
+[  94.463886] Debug.Emulated <Debug> core\hle\kernel\svc.cpp:Kernel::SVC::OutputDebugString:1190: UPSTREAM_SETTINGS index=0 value=true
+[ 100.883021] Debug.Emulated <Debug> core\hle\kernel\svc.cpp:Kernel::SVC::OutputDebugString:1190: UPSTREAM_PAUSE_MENU open=false
+[ 106.514659] Debug.Emulated <Debug> core\hle\kernel\svc.cpp:Kernel::SVC::OutputDebugString:1190: UPSTREAM_PAUSE_MENU open=true selected=0 options=6
+[ 119.368738] Debug.Emulated <Debug> core\hle\kernel\svc.cpp:Kernel::SVC::OutputDebugString:1190: UPSTREAM_PAUSE_MENU save=true
+[ 121.373909] Debug.Emulated <Debug> core\hle\kernel\svc.cpp:Kernel::SVC::OutputDebugString:1190: UPSTREAM_PAUSE_MENU open=false
+[ 127.407718] Debug.Emulated <Debug> core\hle\kernel\svc.cpp:Kernel::SVC::OutputDebugString:1190: UPSTREAM_PAUSE_MENU open=true selected=0 options=6
+[ 149.687725] Debug.Emulated <Debug> core\hle\kernel\svc.cpp:Kernel::SVC::OutputDebugString:1190: UPSTREAM_PAUSE_MENU quit=true

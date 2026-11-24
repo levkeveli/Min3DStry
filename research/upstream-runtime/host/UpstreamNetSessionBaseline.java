@@ -472,8 +472,8 @@ public class UpstreamNetSessionBaseline {
         Tile wallTile = Vars.world.tile(86, 26);
         if (runIndex == 1) {
             if (originBuildings != 2
-                    || conveyorTile.block() != Blocks.air
-                    || wallTile.block() != Blocks.air
+                    || conveyorTile.build != null || !conveyorTile.block().alwaysReplace
+                    || wallTile.build != null || !wallTile.block().alwaysReplace
                     || copper != 200) {
                 throw new IllegalStateException(
                     "Unexpected Session 1 initial state: buildings=" + originBuildings

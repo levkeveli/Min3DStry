@@ -84,6 +84,25 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
         return NativeTerrain.schematicPrompt(Address.ofData(text), text.length, Address.ofData(hint), 1) != 0;
     }
 
+    static String editSchematicName(String original) {
+        return editSchematicText("name", original, 2);
+    }
+
+    static String editSchematicDescription(String original) {
+        return editSchematicText("editor.description", original, 3);
+    }
+
+    private static String editSchematicText(String label, String original, int mode) {
+        byte[] text = new byte[Math.max(1000, original.length()) * 4 + 1];
+        byte[] initialBytes = original.getBytes(StandardCharsets.UTF_8);
+        System.arraycopy(initialBytes, 0, text, 0, initialBytes.length);
+        byte[] hint = (Core.bundle.get("schematic.edit") + " · " + Core.bundle.get(label) + "\0")
+            .getBytes(StandardCharsets.UTF_8);
+        System.out.println("UPSTREAM_SCHEMATIC_EDIT_PROMPT field=" + label);
+        int length = NativeTerrain.schematicPrompt(Address.ofData(text), text.length, Address.ofData(hint), mode);
+        return length >= 0 && length < text.length ? new String(text, 0, length, StandardCharsets.UTF_8) : null;
+    }
+
     // Keep the catalog kinds in the same order as the native renderer.
     static final int ITEM_CATALOG = 0, BLOCK_CATALOG = 1, UNIT_CATALOG = 2, COMMAND_CATALOG = 3, STANCE_CATALOG = 4, SCHEMATIC_CATALOG = 5;
 
@@ -111,6 +130,17 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
             icon == null ? 0 : icon.getX(), icon == null ? 0 : icon.getY(),
             icon == null ? 0 : icon.width, icon == null ? 0 : icon.height,
             y, Address.ofData(stockObjectiveFont));
+    }
+
+    void hudLabel(byte[] label, int[] characters, float x, float y, float width, float height) {
+        NativeTerrain.hudLabel(Address.ofData(label), Address.ofData(characters), characters.length / 7,
+            x, y, width, height);
+    }
+
+    int hudSprite(TextureRegion region, int left, int top, int sourceWidth, int sourceHeight,
+                  float x, float y, float width, float height, int color) {
+        return NativeTerrain.hudSprite(UpstreamTerrainDrawProbe.pageIndex(region), region.getX() + left,
+            region.getY() + top, sourceWidth, sourceHeight, x, y, width, height, color);
     }
 
     int hudPanel(float x, float y, float width, float height, int color) {
@@ -224,11 +254,16 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
 
     @Override
     public void overlay() {
+        if (Core.settings != null && !Core.settings.getBool("minimap", true)) return;
         NativeTerrain.minimapDraw(336f, 8f, 56f);
     }
 
     void minimapUpload(byte[] pixels, int width, int height) {
         NativeTerrain.minimapUpload(Address.ofData(pixels), width, height);
+    }
+
+    void drawMinimapAt(float x, float y, float size) {
+        NativeTerrain.minimapDraw(x, y, size);
     }
 
 
@@ -331,6 +366,14 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
         static native float drawObjectivePlain(Address label, Address characters, int count,
                                                int page, int x, int y, int width, int height,
                                                float top, Address stockFont);
+
+        @Import(name = "m3ds_terrain_draw_hud_label")
+        static native void hudLabel(Address label, Address characters, int count,
+                                    float x, float y, float width, float height);
+
+        @Import(name = "m3ds_terrain_draw_hud_sprite")
+        static native int hudSprite(int page, int left, int top, int width, int height,
+            float x, float y, float drawWidth, float drawHeight, int color);
 
         @Import(name = "m3ds_terrain_draw_hud_panel")
         static native int hudPanel(float x, float y, float width, float height, int color);

@@ -12,6 +12,18 @@ This vertical slice boots and runs unmodified upstream Mindustry `v160.8` **Grou
 - [`WorldReflectionPolicy.java`](../../research/upstream-runtime/src/world/java/port/WorldReflectionPolicy.java): Registers 0-argument constructors for `arc.struct.{IntMap,IntSet,ObjectIntMap,ObjectMap,ObjectSet,StringMap}` so Arc `Json` restores populated `GameStats` (`placedBlockCount`, etc.) and `Rules` fields when reloading `.msav` saves.
 - [`prepare_terrain_assets.py`](../../research/upstream-runtime/arm11/prepare_terrain_assets.py) (`--singleplayer`) & [`build.sh`](../../research/upstream-runtime/arm11/build.sh) (`--singleplayer`): Stages `maps/groundZero.msav` and `sprites.aatls` alongside bundles, `world-atlas`, `block_colors.png`, menu icons, and stock fonts, then links the ARM11 `.elf`/`.3dsx` (default `-Os`).
 
+## Ground Zero save and reload
+
+The offline runtime caches only the stock flowfields it creates. Cache keys
+retain the original team, cost and field IDs, and the game still uses the
+upstream code for creating and updating flowfields. This removes the nested
+cache access that threw during map decode in the optimized C replay.
+
+The [hosted replay](https://github.com/levkeveli/Min3DStry/actions/runs/45338932257)
+matched JVM and generated C at both `-O0` and `-Os`. It exercised mining,
+building, deconstruction, pause, an enemy wave and save/reload, with the same
+final world fingerprint in all three builds. This run used the host runtime.
+
 ## Weather in the graphical campaign
 
 The graphical campaign uses the v160.8 weather entities, particle and debris

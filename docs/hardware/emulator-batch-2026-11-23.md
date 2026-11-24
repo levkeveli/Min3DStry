@@ -54,6 +54,23 @@ All ten PRs merged. `main` now runs the pinned Azahar verification as part of
 every full build, so future artifacts are gated on boot, parity, audio RomFS and
 event routing before they are treated as evidence.
 
+## Post-batch provenance gate
+
+The follow-up full build on `main` at
+`07ba81ee1306ff755151c09419c5b39036078c85`
+([run 45307236593](https://github.com/levkeveli/Min3DStry/actions/runs/45307236593))
+exercised the gate added by #574. The build job published
+`sha256=ee69340625d39d81a06d24a0acc0a485d4715e77dced7bf55ade5f39174083e0`;
+the verify job booted that exact artifact and printed:
+
+```text
+Artifact sha256=ee69340625d39d81a06d24a0acc0a485d4715e77dced7bf55ade5f39174083e0 bytes=17213896
+AZAHAR_PROVENANCE_OK sha256=ee69340625d39d81a06d24a0acc0a485d4715e77dced7bf55ade5f39174083e0
+```
+
+Both Azahar profiles passed. A stale or swapped artifact now fails before the
+evidence is accepted.
+
 ## Not covered
 
 - Physical New or Original 3DS boot, DSP audio, thermal/FPS behavior.

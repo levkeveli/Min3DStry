@@ -7,10 +7,10 @@ A newer New 3DS run (`a328c70`) passed 12/12 and ran for ~10 minutes
 (132 `BENCH` windows, `fps_min=29.92`, `fps_max=59.84`, `p95_max=33.50 ms`),
 covering the five-minute soak plus pan/zoom, lighting, pause/resume and menu
 input. The operator confirmed the scene, controls, minimap and HUD worked. Still
-not claimed: full upstream campaign gameplay performance, upstream sound
-effects/music (the operator heard the UI "ding", but all seven `AUDIO_EVENT`s
-resolved to `clip=-1 voice=0` with only 2 registered clips), live build-UI
-gameplay, cross-play, and the Old 3DS sector-loader/FPS run. The operator has
+not claimed: full upstream campaign gameplay performance, audible upstream
+sound effects/music (the newest emulator build resolves nine clips, but physical
+DSP output is unverified), live build-UI gameplay, cross-play, and the Old 3DS
+sector-loader/FPS run. The operator has
 **only the New 3DS**; HWT-06's Old 3DS requirement and
 `physical-hardware-parity` are blocked on Original 3DS hardware. The operator
 also found that the visible touch legend was outside the hit zones; the
@@ -20,6 +20,15 @@ are now drawn inside the zones by the #364 fix; physical retest is pending.
 Latest evidenced builds: New `a328c70` (2026-11-22, FPS PASS), New `de3e249`
 (2026-11-22), and Old `a4a9a96` (2026-11-22). Record the exact commit and ROM
 SHA-256 with every run.
+
+Latest emulator-verified build for the next hardware run: `8f683450`
+(2026-11-24, batch 2), ROM SHA-256
+`6c4d25602a7da31d63b5d5ef7170f69d302f4ff1d10413300d124ae977d8fec9`. It
+resolves nine audio clips and `wave.spawn` on both Azahar profiles, passes
+`AZAHAR_PROVENANCE_OK`, and asserts the stock POWER/DISTRIBUTION/LIQUID/MATERIAL
+draw registry, but has not been run on hardware. See the
+[2026-11-24 emulator batch 2](hardware/emulator-batch-2026-11-24b.md) and the
+[first batch](hardware/emulator-batch-2026-11-24.md).
 The procedure and evidence schema are in
 [verification-runbook.md](hardware/verification-runbook.md) and
 [deployment-and-logs.md](hardware/deployment-and-logs.md).
@@ -156,11 +165,22 @@ and waves, touch palette/rotation, HUD/menus/minimap.
 - With a captured sector loaded, the status HUD shows the stock
   `Sector Captured` row.
 - On a boss wave, the guardian-warning notification appears with the stock
-  `wave.guardianwarn` text.
+  `wave.guardianwarn` text, and the boss health bar appears above the bottom
+  edge with the guardian text and a fill that follows the boss health.
 - The top-right minimap shows the sector terrain, marks the local player with a
   white dot, and follows the player as they move.
+- `R` opens the fullscreen map over the HUD; the circle pad/d-pad pans it, `X`
+  and `Y` zoom out/in between 1x and 4x, and `B` or `R` closes it without
+  moving the player.
 - The core item list shows one icon-and-count row per stocked item and wraps
   into columns without covering the minimap.
+- With `Show Player Position` enabled, the player's tile coordinates appear
+  under the minimap and change as the player moves; all six settings rows and
+  Back fit on the top screen.
+- Selecting a friendly liquid building shows the stock dynamic and keyed
+  consumer/generator liquid bars with their liquid names and colors below the
+  power bar; friendly buildings also show the stock health bar, and configurable
+  item blocks show the item bar.
 - X opens the pause overlay; D-pad + A resume/save/quit, and the quit
   confirmation path saves and exits without corrupting the sector slot.
 - Damaging a friendly core shows the stock `< Core is under attack! >` row.
@@ -240,8 +260,11 @@ a short listening report. Physical audio cannot be proven from Azahar.
 
 > `a328c70` logged `AUDIO backend=ndsp state=ready` with only 2 registered
 > clips; the operator heard the UI "ding", but all seven `AUDIO_EVENT`s resolved
-> to `clip=-1 voice=0`. NDSP output is audible, but upstream effects and music
-> are **NOT VERIFIED**, so `ndsp-sfx-music` remains `emulator-tested`.
+> to `clip=-1 voice=0`. The 2026-11-24 batch-2 emulator build (`8f683450`,
+> SHA-256 `6c4d2560…`) resolves nine clips and `wave.spawn` on both Azahar
+> profiles, but Azahar still reports `fallback_no_dsp`. Audible upstream effects
+> and music on physical DSP remain **NOT VERIFIED**, so `ndsp-sfx-music` stays
+> `emulator-tested`. Use this build for the retest.
 
 ## HWT-05 — Cross-play networking
 
@@ -276,7 +299,9 @@ thermal/SD notes. Only this card can clear `physical-hardware-parity`.
 > `p95_max=33.50`, with the sector loader and parity intact. The Old 3DS half
 > is **BLOCKED**: the operator has only the New 3DS, so
 > `physical-hardware-parity` cannot be completed until an Original 3DS is
-> available. Full campaign gameplay remains open on both models.
+> available. The newer `6c4d2560` build (`8f683450`) has not been retested on
+> hardware; the `a328c70` FPS numbers still describe the older build. Full
+> campaign gameplay remains open on both models.
 
 ## Current exclusions
 

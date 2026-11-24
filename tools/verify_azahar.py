@@ -776,6 +776,11 @@ def resolve_azahar_paths(azahar_bin: str | None = None) -> tuple[Path, Path]:
     return cfg_root / "qt-config.ini", data_root / "log" / "azahar_log.txt"
 
 
+def is_transient_fps_failure(exc: BaseException) -> bool:
+    """Azahar occasionally launches without frame stats; retry only that race."""
+    return isinstance(exc, AssertionError) and "Non-positive FPS" in str(exc)
+
+
 def run_model_check(
     model: str,
     rom_path: Path,
@@ -1049,12 +1054,15 @@ def run_model_check(
 
 
 def artifact_metadata(path: Path) -> dict[str, Any]:
-    """Return the ROM size and SHA-256 so reports identify the exact artifact."""
+    """Return the resolved path, hashed bytes and SHA-256 of one artifact."""
+    resolved = path.resolve()
     hasher = hashlib.sha256()
-    with path.open("rb") as stream:
+    total = 0
+    with resolved.open("rb") as stream:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             hasher.update(chunk)
-    return {"path": str(path), "bytes": path.stat().st_size, "sha256": hasher.hexdigest()}
+            total += len(chunk)
+    return {"path": str(resolved), "bytes": total, "sha256": hasher.hexdigest()}
 
 
 def main() -> int:
@@ -1098,10 +1106,21 @@ def main() -> int:
 
     results = []
     for model in models:
-        res = run_model_check(
-            model, rom_path, azahar_bin, config_path, log_path, out_dir, args.timeout,
-            args.expect_sector_catalog,
-        )
+        for attempt in (1, 2):
+            try:
+                res = run_model_check(
+                    model, rom_path, azahar_bin, config_path, log_path, out_dir, args.timeout,
+                    args.expect_sector_catalog,
+                )
+                break
+            except AssertionError as exc:
+                if attempt == 2 or not is_transient_fps_failure(exc):
+                    raise
+                print(
+                    f"verify_azahar: {model} produced no FPS; retrying once (attempt 2/2)",
+                    file=sys.stderr,
+                    flush=True,
+                )
         results.append(res)
         print(
             f"[PASS] {model}: {res['hw_line']} | "

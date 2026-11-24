@@ -175,7 +175,22 @@ class VerifyAzaharTests(unittest.TestCase):
             rom = Path(raw) / "game.3dsx"
             rom.write_bytes(payload)
             metadata = verify_azahar.artifact_metadata(rom)
-        self.assertEqual(metadata["path"], str(rom))
+        self.assertEqual(metadata["path"], str(rom.resolve()))
+        self.assertEqual(metadata["bytes"], len(payload))
+        self.assertEqual(metadata["sha256"], hashlib.sha256(payload).hexdigest())
+
+    def test_artifact_metadata_resolves_relative_path(self) -> None:
+        payload = b"min3dstry-relative"
+        with tempfile.TemporaryDirectory() as raw:
+            rom = Path(raw) / "game.3dsx"
+            rom.write_bytes(payload)
+            previous = os.getcwd()
+            try:
+                os.chdir(raw)
+                metadata = verify_azahar.artifact_metadata(Path("game.3dsx"))
+            finally:
+                os.chdir(previous)
+        self.assertEqual(Path(metadata["path"]), rom.resolve())
         self.assertEqual(metadata["bytes"], len(payload))
         self.assertEqual(metadata["sha256"], hashlib.sha256(payload).hexdigest())
 
@@ -317,6 +332,23 @@ class VerifyAzaharTests(unittest.TestCase):
             xdg_cfg, xdg_log = verify_azahar.resolve_azahar_paths("/usr/bin/azahar")
             self.assertEqual(xdg_cfg, fake_home / ".config" / "azahar-emu" / "qt-config.ini")
             self.assertEqual(xdg_log, fake_home / ".local" / "share" / "azahar-emu" / "log" / "azahar_log.txt")
+
+
+class VerifyAzaharRetryTests(unittest.TestCase):
+    def test_retries_only_non_positive_fps(self) -> None:
+        self.assertTrue(
+            verify_azahar.is_transient_fps_failure(
+                AssertionError("Non-positive FPS for new3ds: {'game_fps': 0.0}")
+            )
+        )
+        self.assertFalse(
+            verify_azahar.is_transient_fps_failure(
+                AssertionError("Unexpected frame telemetry for new3ds: {}")
+            )
+        )
+        self.assertFalse(
+            verify_azahar.is_transient_fps_failure(RuntimeError("Non-positive FPS"))
+        )
 
 
 if __name__ == "__main__":

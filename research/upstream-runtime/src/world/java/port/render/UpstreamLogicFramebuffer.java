@@ -21,6 +21,10 @@ public final class UpstreamLogicFramebuffer implements Disposable {
         int sample(Texture texture, int x, int y);
     }
 
+    public interface SampledTexture {
+        int pixel(int x, int y);
+    }
+
     public static final class RasterTexture extends Texture {
         private static int nextId;
         public final int id = --nextId;
@@ -208,6 +212,7 @@ public final class UpstreamLogicFramebuffer implements Disposable {
             if (source instanceof RasterTexture rasterTexture) {
                 return rasterTexture.pixels[ty * source.width + tx];
             }
+            if (source instanceof SampledTexture sampled) return sampled.pixel(tx, ty);
             return atlasPixels.sample(source, tx, ty);
         }
 

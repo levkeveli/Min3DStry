@@ -696,6 +696,32 @@ public final class UpstreamBuildControlsReference {
                     || updated.tiles.size != 1 || updated.tiles.first().block != Blocks.sorter || Files.exists(undiscovered)) {
                 throw new AssertionError("Replacement did not replace the selected layout and preserve its metadata");
             }
+            var file = new Fi(exported.toString());
+            updated.labels.add("logistics");
+            Schematics.write(updated, file);
+            byte[] beforeEdit = Files.readAllBytes(exported);
+            if (controls.schematics().editMetadata(file, name -> "Renamed", description -> null)
+                    || !java.util.Arrays.equals(beforeEdit, Files.readAllBytes(exported))) {
+                throw new AssertionError("Cancelling the description prompt changed the saved file");
+            }
+            controls.schematics().editWith(name -> {
+                if (!name.equals("Bridge layout")) throw new AssertionError("Wrong original schematic name");
+                return "Renamed sorter";
+            }, description -> {
+                if (!description.equals("Keep this metadata")) throw new AssertionError("Wrong original description");
+                return "";
+            });
+            controls.update(unit, 0, touch(184, 20));
+            controls.update(unit, 0, touch(20, UpstreamBuildMenu.ROW_TOP + UpstreamBuildMenu.ROW_HEIGHT + 4));
+            var edited = Schematics.read(file);
+            if (!edited.name().equals("Renamed sorter") || !edited.description().isEmpty()
+                    || !edited.labels.equals(updated.labels) || edited.tiles.size != 1
+                    || edited.tiles.first().block != Blocks.sorter || edited.tiles.first().config != Items.lead
+                    || !new String(controls.schematics().labels(), java.nio.charset.StandardCharsets.UTF_8)
+                        .contains("Renamed sorter") || !Files.readString(existing).equals("keep")) {
+                throw new AssertionError("Schematic metadata edit changed the stock layout or did not refresh the picker");
+            }
+            System.out.println("UPSTREAM_STOCK_SCHEMATIC_METADATA name=ok description=ok labels=ok cancellation=ok");
             System.out.println("UPSTREAM_STOCK_SCHEMATIC_CAPTURE crop=1x3 blocks=3 link=0,2 item=lead fog=ok");
         } finally {
             Vars.fogControl = fog;
