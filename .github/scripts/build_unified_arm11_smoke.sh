@@ -58,6 +58,16 @@ test "$(wc -l < "$history_check/stock.log")" -eq 182
 diff -u "$history_check/stock.log" "$history_check/staged.log"
 echo "UPSTREAM_STOCK_POWER_HISTORY states=182"
 
+link_check="$RUNNER_TEMP/power-link-check"
+mkdir -p "$link_check/reference" "$link_check/staged"
+javac -cp "$stock_jar" -d "$link_check/reference" "$runtime/host/UpstreamPowerLinkReference.java"
+javac -cp "$stock_jar" -d "$link_check/staged" "$runtime/build/upstream-src/unified/mindustry/world/modules/PowerModule.java"
+java -cp "$link_check/reference:$stock_jar" UpstreamPowerLinkReference > "$link_check/stock.log"
+java -cp "$link_check/reference:$link_check/staged:$stock_jar" UpstreamPowerLinkReference > "$link_check/staged.log"
+test "$(wc -l < "$link_check/stock.log")" -eq 45
+diff -u "$link_check/stock.log" "$link_check/staged.log"
+echo "UPSTREAM_STOCK_POWER_LINKS states=45"
+
 export M3DS_SMOKE_DEVKIT_IMAGE=devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5
 cat > "$RUNNER_TEMP/smoke-tex3ds" <<'WRAPPER'
 #!/usr/bin/env bash
