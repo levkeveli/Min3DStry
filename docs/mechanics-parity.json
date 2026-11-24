@@ -404,15 +404,21 @@
       "domain": "Combat, Units & Visual FX",
       "name": "Dynamic Lighting, Weather, Particle Effects & Camera Zoom",
       "weight": 2,
-      "status": "harness-only",
-      "modes": ["harness"],
+      "status": "partial-arm11",
+      "modes": ["offline", "multiplayer", "harness"],
       "issue": 38,
       "evidence": [
+        "docs/gameplay/offline-singleplayer.md",
+        "docs/audio/ndsp-mixer.md",
+        "research/upstream-runtime/src/network-render/java/UpstreamWeatherLayers.java",
+        "research/upstream-runtime/src/network-render/host/UpstreamWeatherLayersReference.java",
+        "research/upstream-runtime/src/network-render/host/UpstreamPuddleReference.java",
+        "research/upstream-runtime/src/singleplayer/host/UpstreamOfflineWeatherReference.java",
         "docs/rendering/citro2d-prototype.md",
         "src/render/scene_2d.c",
         "src/platform/3ds/citro2d_backend.c"
       ],
-      "notes": "Camera zoom, bloom/glow, and particle prototypes exist in the C Citro2D harness only; upstream world renderer has no dynamic lighting, weather, particle FX, or zoom yet."
+      "notes": "Offline and multiplayer clients advance the stock weather entities, particle/debris layers and puddles; both Azahar profiles sampled active rain/sandstorm/fog and stock puddles. Dynamic world lighting and live camera zoom remain open in the C Citro2D harness."
     },
     {
       "id": "logic-vm-execution",
