@@ -619,10 +619,15 @@ tasks.register('prepareUpstreamProbe') {
                 staged.parentFile.mkdirs()
                 staged.bytes = readUpstream('core/src/' + path)
             }
+            def stageRoot = sourceDir.get().asFile
             providers.exec {
-                commandLine 'git', '-C', sourceDir.get().asFile, '-c', 'core.autocrlf=false',
-                    'apply', '--no-index', sparseTilePatch
+                // Keep Git from interpreting generated paths relative to the checkout root.
+                environment 'GIT_CEILING_DIRECTORIES', stageRoot.parentFile.absolutePath
+                commandLine 'git', '-C', stageRoot, '-c', 'core.autocrlf=false', 'apply', '--no-index', sparseTilePatch
             }.result.get()
+            if (!tileFile.get().asFile.getText('UTF-8').contains('public int extraData()')) {
+                throw new GradleException('Compact stock tile patch did not apply to the staged source')
+            }
             def stagedEditorTile = sourceDir.get().file('mindustry/editor/EditorTile.java').asFile
             def editorTile = stagedEditorTile.getText('UTF-8')
             def shadowUpdate = 'renderer.blocks.updateShadowTile(this);'
