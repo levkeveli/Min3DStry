@@ -52,12 +52,14 @@ def resolve_sd_save_path(log_path: Path) -> Path:
     return log_path.parent.parent / "sdmc" / "3ds" / "min3dstry" / "singleplayer-save.msav"
 
 
-def write_singleplayer_ctm(path: Path, model: str, verify_database: bool = False) -> None:
+def write_singleplayer_ctm(
+    path: Path, model: str, verify_database: bool = False, database_title: bool = False,
+) -> None:
     """Write an Azahar 2126.2 CTM input sequence exercising the Ground Zero vertical slice."""
     # Hosted runners can take ~32s to reach UPSTREAM_SP_READY; start taps at 40s
     # so the mine and ore taps never land during world loading.
     t0 = 40
-    total_seconds = t0 + (115 if verify_database else 62)
+    total_seconds = 112 if database_title else t0 + (115 if verify_database else 62)
     frames = total_seconds * CTM_SAMPLES_PER_SECOND
     header = struct.pack(
         "<4sQ20sQQ32sIQq156x",
@@ -100,17 +102,28 @@ def write_singleplayer_ctm(path: Path, model: str, verify_database: bool = False
             (t0 + 99, KEY_SELECT),  # Save .msav to SD
             (t0 + 106, KEY_START),  # Clean exit
         )
+    if database_title:
+        taps = ()
+        button_windows = (
+            (34, KEY_DOWN),  # Select Database on the title screen.
+            (42, KEY_A),     # Open Database.
+            (50, KEY_A),     # Open Core Database.
+            (91, KEY_B),     # Return to the title.
+            (101, KEY_B),    # Exit the title cleanly.
+        )
     with path.open("wb") as movie:
         movie.write(header)
         for frame in range(frames):
             sec = frame // CTM_SAMPLES_PER_SECOND
             buttons = next((mask for start, mask in button_windows if start <= sec < start + 2), 0)
+            if database_title and sec < 12:
+                buttons |= KEY_Y
             # Tap once before the database's held-direction repeat begins.
             if verify_database and (t0 + 53) * CTM_SAMPLES_PER_SECOND <= frame < (
                 (t0 + 53) * CTM_SAMPLES_PER_SECOND + CTM_SAMPLES_PER_SECOND // 5
             ):
                 buttons |= KEY_DOWN
-            circle_x = 100 if (t0 + 30) <= sec < (t0 + 32) else 0
+            circle_x = 100 if not database_title and (t0 + 30) <= sec < (t0 + 32) else 0
             point = next((pt for start, pt in taps if start <= sec < start + 2), None)
             pad = struct.pack("<BHhh", 0, buttons, circle_x, 0)
             if point:
@@ -317,6 +330,19 @@ def run_singleplayer_model(
             raise AssertionError(
                 f"{model} Boot 2 copper mismatch: saved={parsed1['saved']['copper']} vs loaded={loaded2['copper']}"
             )
+        if verify_database:
+            title_ctm = out_dir / f"{model}-database-title.ctm"
+            write_singleplayer_ctm(title_ctm, model, database_title=True)
+            proc3, rpc3 = _launch_azahar(model, rom_path, azahar_bin, config_path, log_path, title_ctm)
+            try:
+                _wait_for_log(log_path, proc3, r"UPSTREAM_DATABASE_OPEN tab=sun rows=[1-9]\d*\b", timeout)
+                (out_dir / f"{model}-database-title.png").write_bytes(rpc3.screenshot())
+                _wait_for_log(log_path, proc3, r"UPSTREAM_DATABASE_CLOSE\b", timeout)
+                log_title = _wait_for_log(log_path, proc3, r"UPSTREAM_SP_EXIT\b", timeout)
+                (out_dir / f"{model}-database-title.log").write_text(log_title, encoding="utf-8")
+            finally:
+                rpc3.close()
+                _stop_proc(proc3, azahar_bin)
         return {
             "model": model,
             "perf": perf,
