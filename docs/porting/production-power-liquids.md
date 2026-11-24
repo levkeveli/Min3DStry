@@ -67,6 +67,14 @@ UPSTREAM_PRODUCTION_FULL filled=2254 held=120 pods=10
 native stack. The top-screen probe console and the corresponding
 `svcOutputDebugString` records were inspected on both profiles.
 
+### Live building rendering
+
+The live ARM11 draw set includes `Category.liquid`, which covers the original
+Bridge Conduit and Phase Conduit (`LiquidBridge` blocks). The host LIQUID
+registry renders every liquid-category block, and the reference asserts both
+stock bridge categories explicitly so a future predicate change cannot silently
+drop them. The dedicated liquid HUD remains open.
+
 ## Remaining Scope for Issue #39
 
 - Reduce the ARM11 footprint within the Old 3DS XL (`64 MiB` AppMem) budget.
