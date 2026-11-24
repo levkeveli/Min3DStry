@@ -155,7 +155,6 @@ public final class UpstreamSinglePlayerSession {
         Vars.logicVars.init();
         Vars.collisions = new EntityCollisions();
         Vars.bases = new mindustry.ai.BaseRegistry();
-        Vars.bases.load();
         Vars.fogControl = new FogControl();
         Vars.avoidance = new AvoidanceProcess();
         Vars.pathfinder = new Pathfinder();
