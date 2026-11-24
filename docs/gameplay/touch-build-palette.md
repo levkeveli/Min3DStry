@@ -78,6 +78,11 @@ The keyboard opens with the current name and then the current description.
 Confirm both fields to save the changes to the same file. Cancel either
 prompt to keep the previous metadata.
 
+The hosted New 3DS replay used `verify_stock_schematic_capture.py --xdotool
+--edit` to change both fields. Unmodified Mindustry v160.8 Java reopened
+the file and verified the original block layout, bridge link, and Lead filter.
+[New 3DS metadata replay](https://github.com/levkeveli/Min3DStry/actions/runs/45309147560)
+
 The capture check selects two linked Bridge Conveyors and a Lead
 Sorter. It also checks that a cancelled or empty selection creates no
 file, that capture follows the viewer's discovery state, and that an existing
