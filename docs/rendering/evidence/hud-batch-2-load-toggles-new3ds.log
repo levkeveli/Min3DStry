@@ -1,0 +1,9 @@
+﻿[  18.959921] Debug.Emulated <Debug> core\hle\kernel\svc.cpp:Kernel::SVC::OutputDebugString:1190: UPSTREAM_SP_LOADED source=campaign map=Editor_Playtesting size=150x250 wave=1 copper=0
+[  55.878316] Debug.Emulated <Debug> core\hle\kernel\svc.cpp:Kernel::SVC::OutputDebugString:1190: UPSTREAM_SP_LOADED source=campaign map=Editor_Playtesting size=150x250 wave=1 copper=0
+[  55.896197] Debug.Emulated <Debug> core\hle\kernel\svc.cpp:Kernel::SVC::OutputDebugString:1190: UPSTREAM_PAUSE_MENU load=true
+--- toggles ---
+[  60.500270] Debug.Emulated <Debug> core\hle\kernel\svc.cpp:Kernel::SVC::OutputDebugString:1190: UPSTREAM_PAUSE_MENU settings=true
+[  66.916207] Debug.Emulated <Debug> core\hle\kernel\svc.cpp:Kernel::SVC::OutputDebugString:1190: UPSTREAM_SETTINGS index=1 value=false
+[  73.753671] Debug.Emulated <Debug> core\hle\kernel\svc.cpp:Kernel::SVC::OutputDebugString:1190: UPSTREAM_SETTINGS index=2 value=false
+[  80.172082] Debug.Emulated <Debug> core\hle\kernel\svc.cpp:Kernel::SVC::OutputDebugString:1190: UPSTREAM_SETTINGS index=3 value=true
+[  86.973098] Debug.Emulated <Debug> core\hle\kernel\svc.cpp:Kernel::SVC::OutputDebugString:1190: UPSTREAM_PAUSE_MENU open=false
