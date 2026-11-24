@@ -44,7 +44,7 @@ def main():
             gh_api(
                 f"repos/{REPO}/actions/runs?head_sha={head}&per_page=5",
                 "--jq",
-                "[.[] | select(.event == \"pull_request\")] | sort_by(.run_started_at) | reverse",
+                "[.workflow_runs[] | select(.event == \"pull_request\")] | sort_by(.run_started_at) | reverse",
             ).stdout
         )
         if runs and runs[0]["conclusion"] == "failure":
@@ -75,7 +75,7 @@ def main():
         # Idle sweep: 7 days without activity -> draft.
         if not pr["draft"] and NOW - updated > timedelta(days=DRAFT_DAYS):
             r = gh_api(
-                f"repos/{REPO}/pulls/{n}", "-X", "PATCH", "-f", "draft=true",
+                f"repos/{REPO}/pulls/{n}", "-X", "PATCH", "-F", "draft=true",
                 check=False,
             )
             if r.returncode == 0:

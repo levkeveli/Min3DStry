@@ -140,8 +140,8 @@ owns the required checks, AI review, and Pages deployment.
 
 Pull requests are gated only on the fast lane: `Bootstrap checks` (host unit
 and bootstrap tests), `PR policy gate`, and `AI review`. The heavy `3DS full
-build` and `Upstream ARM11 smoke` workflows run on push to `main` only — never
-on a nightly schedule.
+build` and `Upstream ARM11 smoke` workflows still run on PRs (path-filtered,
+non-required) and on push to `main` — never on a nightly schedule.
 
 If either heavy workflow fails on `main`, `main-verify-alert.yml` opens a
 `status:blocked` issue and labels every open PR with `status:blocked`, so no
