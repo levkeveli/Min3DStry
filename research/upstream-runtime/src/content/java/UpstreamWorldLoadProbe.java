@@ -76,7 +76,15 @@ public final class UpstreamWorldLoadProbe {
         Vars.world = new World();
         Vars.collisions = new EntityCollisions();
         Vars.net = new Net(null);
-        Vars.logic = new Logic();
+        Vars.logic = new Logic() {
+            @Override
+            public void reset() {
+                super.reset();
+                // A scratch tile can keep its building and the previous power network alive.
+                mindustry.gen.UpstreamBuildingScratch.clear();
+                mindustry.world.UpstreamBlockScratch.clear();
+            }
+        };
 
         Vars.customMapDirectory = mapDirectory;
         if (!loadPresetMaps) Vars.maps = new Maps();
