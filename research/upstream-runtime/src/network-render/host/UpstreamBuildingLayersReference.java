@@ -172,7 +172,9 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         var viewer = Team.sharded;
         if (args.length >= 4) verifyPowerBar(viewer);
         if (args.length >= 4) verifyLiquidBarLabels(viewer);
+        if (args.length >= 4) verifyLiquidBarFixedLabels(viewer);
         verifyLiquidBar(viewer);
+        verifyLiquidBarFixed(viewer);
         var conveyor = Vars.world.tile(25, 31);
         var edgeWall = Vars.world.tile(23, 35);
         var offscreenWall = Vars.world.tile(21, 39);
@@ -584,6 +586,33 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
             throw new AssertionError("Stock liquid label differs");
         }
         System.out.println("UPSTREAM_STOCK_LIQUID_BAR_LABELS empty=bar partial=water");
+    }
+
+    private static void verifyLiquidBarFixed(Team viewer) {
+        var generator = Blocks.steamGenerator.newBuilding().create(Blocks.steamGenerator, viewer);
+        if (!UpstreamBuildingLiquidHud.showsLiquid(generator, viewer)
+                || UpstreamBuildingLiquidHud.showsLiquid(generator, Team.crux)
+                || generator.block.liquidBarCount() != 1
+                || generator.block.liquidBarLiquid(generator, 0) != Liquids.water) {
+            throw new AssertionError("Stock keyed liquid bar registration differs");
+        }
+        if (generator.block.liquidBarFraction(generator, 0) != 0f) {
+            throw new AssertionError("Stock empty keyed liquid bar differs");
+        }
+        generator.liquids.add(Liquids.water, generator.block.liquidCapacity * 0.5f);
+        if (Math.abs(generator.block.liquidBarFraction(generator, 0) - 0.5f) > 1e-6f
+                || !generator.block.liquidBarColor(generator, 0).equals(Liquids.water.barColor())) {
+            throw new AssertionError("Stock keyed liquid bar differs");
+        }
+        System.out.println("UPSTREAM_STOCK_LIQUID_BAR_KEYED liquid=water empty=0 partial=0.5 color=ok team=filtered");
+    }
+
+    private static void verifyLiquidBarFixedLabels(Team viewer) {
+        var generator = Blocks.steamGenerator.newBuilding().create(Blocks.steamGenerator, viewer);
+        if (!generator.block.liquidBarLabel(generator, 0).equals(Liquids.water.localizedName)) {
+            throw new AssertionError("Stock keyed liquid label differs");
+        }
+        System.out.println("UPSTREAM_STOCK_LIQUID_BAR_KEYED_LABELS liquid=water");
     }
 
     private static void verifySpriteAtlas(Fi file) throws IOException {
