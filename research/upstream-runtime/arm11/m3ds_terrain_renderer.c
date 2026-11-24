@@ -1280,7 +1280,7 @@ float m3ds_terrain_draw_objective_plain(const char *label, const int32_t *charac
 void m3ds_terrain_draw_hud_label(const char *label, const int32_t *characters, int32_t count,
     float x, float y, float width, float height) {
     int32_t stock_font;
-    draw_stock_panel(label, characters, count, -1, 0, 0, 0, 0, x, y,
+    draw_stock_panel(label, characters, count, -1, 0, 0, 0, 0, screen_left + x, y,
         &stock_font, false, false, width, height);
 }
 
@@ -1288,7 +1288,7 @@ int32_t m3ds_terrain_draw_hud_sprite(int32_t page, int32_t left, int32_t top,
         int32_t width, int32_t height, float x, float y, float draw_width, float draw_height, int32_t color) {
     if (!frame_open || draw_width <= 0.0f || draw_height <= 0.0f) return 0;
     return m3ds_terrain_draw(page, left, top, width, height,
-        world_left + (x - screen_left) / scale, world_bottom + (screen_bottom - y - draw_height) / scale,
+        world_left + x / scale, world_bottom + (screen_bottom - y - draw_height) / scale,
         0.0f, 0.0f, draw_width / scale, draw_height / scale, 0.0f, color, 0, 0);
 }
 

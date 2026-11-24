@@ -12,7 +12,7 @@ import java.nio.charset.StandardCharsets;
 
 /** Handheld view of the pinned Block.setBars power entry. */
 final class UpstreamBuildingPowerHud {
-    private static final float width = 148f, height = 19f;
+    private static final float inset = 4f, width = 148f, height = 19f;
     private String label;
     private byte[] encodedLabel;
     private int[] encodedGlyphs;
@@ -49,7 +49,7 @@ final class UpstreamBuildingPowerHud {
         }
         drawPatch(target, Core.atlas.find("bar"), y, width, 0xff191919);
         if (fraction > 0f) drawPatch(target, Core.atlas.find("bar-top"), y, width * fraction, Pal.powerBar.abgr());
-        target.hudLabel(encodedLabel, encodedGlyphs, 2f, y, width, height);
+        target.hudLabel(encodedLabel, encodedGlyphs, inset, y, width, height);
         return y + height + 3f;
     }
 
@@ -69,7 +69,7 @@ final class UpstreamBuildingPowerHud {
                 float clipped = Math.min(dw, fill - x);
                 if (clipped <= 0f || sh <= 0 || sw <= 0) continue;
                 int pixels = Math.min(sw, (int)Math.ceil(sw * clipped / dw));
-                target.hudSprite(sprite, sx, sy, pixels, sh, 2f + x, y + sy * scale, clipped, sh * scale, tint);
+                target.hudSprite(sprite, sx, sy, pixels, sh, inset + x, y + sy * scale, clipped, sh * scale, tint);
             }
         }
     }
