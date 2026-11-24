@@ -30,6 +30,27 @@ jobs:
           fi
       - name: Build the unified ARM11 game with the production 32 MiB cap
         run: bash .github/scripts/build_unified_arm11_smoke.sh
+      - name: Compare deferred stock enemy base generation
+        run: |
+          set -euo pipefail
+          jar="$RUNNER_TEMP/server-release.jar"
+          comparison="$RUNNER_TEMP/deferred-base-reference"
+          runtime="$PWD/research/upstream-runtime"
+          source="$runtime/build/upstream-src/unified/mindustry"
+          mkdir -p "$comparison/reference" "$comparison/staged"
+          javac -cp "$jar" -d "$comparison/reference" "$runtime/host/UpstreamDeferredBaseReference.java"
+          javac -cp "$jar" -d "$comparison/staged" \
+            "$source/ai/BaseRegistry.java" "$source/maps/generators/BaseGenerator.java" \
+            "$source/maps/planet/SerpuloPlanetGenerator.java"
+          cd "$comparison"
+          printf '%s\n' 'js Packages.UpstreamDeferredBaseReference.run()' exit |
+            java -cp "reference:$jar" mindustry.server.ServerLauncher > stock.log
+          printf '%s\n' 'js Packages.UpstreamDeferredBaseReference.run()' exit |
+            java -Dm3ds.deferred=true -cp "reference:staged:$jar" mindustry.server.ServerLauncher > deferred.log
+          grep -oE 'BASE_GENERATION sector=[0-9]+ cells=[0-9]+ cores=[0-9]+ parts=[0-9]+ digest=[0-9a-f]+' stock.log > stock-summary.log
+          grep -oE 'BASE_GENERATION sector=[0-9]+ cells=[0-9]+ cores=[0-9]+ parts=[0-9]+ digest=[0-9a-f]+' deferred.log > deferred-summary.log
+          diff -u stock-summary.log deferred-summary.log
+          cat deferred-summary.log
       - uses: actions/upload-artifact@v4
         with:
           name: dense-campaign-unified-arm11
