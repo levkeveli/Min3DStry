@@ -1251,8 +1251,10 @@ final class GlacierFixture {
             stagedLiquid.setText(liquid, 'UTF-8')
 
             def graph = new String(readUpstream('core/src/' + powerGraphPath), 'UTF-8')
+            def memberList = 'new Seq<>(false, 16, Building.class)'
+            if (graph.count(memberList) != 4) throw new GradleException('Pinned PowerGraph member lists changed')
+            graph = graph.replace(memberList, 'new Seq<>(false, 1, Building.class)')
             def history = [
-                'new Seq<>(false, 16, Building.class)': 'new Seq<>(false, 1, Building.class)',
                 'private final WindowedMean powerBalance = new WindowedMean(60);':
                     'private @Nullable WindowedMean powerBalance;',
                 'return powerBalance.rawMean();':
