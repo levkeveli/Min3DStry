@@ -231,7 +231,7 @@ if (usesArcSources || usesExecutor) {
     }
     if (usesSinglePlayer) {
         stagedClasses.addAll(['mindustry/ai/Pathfinder.class', 'mindustry/ai/Pathfinder$*.class'])
-        stagedClasses.addAll(['mindustry/io/SaveIO.class', 'mindustry/io/SaveIO$*.class'])
+        stagedClasses.addAll(['mindustry/io/SaveIO.class', 'mindustry/io/SaveIO$*.class', 'mindustry/io/JsonIO.class', 'mindustry/io/JsonIO$*.class'])
     }
     if (usesContentSources) {
         stagedClasses.add('mindustry/world/Block.class')
@@ -605,6 +605,7 @@ tasks.register('prepareUpstreamProbe') {
         outputs.file(factoryResourcesFile)
         outputs.file(pathfinderFile)
         outputs.file(sourceDir.map { it.file('mindustry/io/SaveIO.java') })
+        outputs.file(sourceDir.map { it.file('mindustry/io/JsonIO.java') })
     }
     if (patchesPlanetGrid) {
         outputs.file(planetGridFile)
@@ -1504,6 +1505,16 @@ final class UpstreamItemChoices {
                 throw new GradleException('Stock flowfield search patch did not apply to the staged source')
             }
 
+            def jsonIoPath = 'mindustry/io/JsonIO.java'
+            def jsonIo = new String(readUpstream('core/src/' + jsonIoPath), 'UTF-8')
+            def legacyNames = 'string.replace("io.anuke.", "")'
+            if (jsonIo.count(legacyNames) != 2) {
+                throw new GradleException('Pinned JSON legacy prefix handling changed')
+            }
+            def stagedJsonIo = sourceDir.get().file(jsonIoPath).asFile
+            stagedJsonIo.parentFile.mkdirs()
+            stagedJsonIo.setText(jsonIo.replace(legacyNames,
+                '(string.indexOf("io.anuke.") < 0 ? string : string.replace("io.anuke.", ""))'), 'UTF-8')
             def saveIoPath = 'mindustry/io/SaveIO.java'
             def saveIo = new String(readUpstream('core/src/' + saveIoPath), 'UTF-8')
             def compress = '''    public static void write(Fi file, SaveOptions options){
