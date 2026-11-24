@@ -155,7 +155,7 @@ def main():
                 taps.update({76: (268, 20), 82: (216, 168), 88: (216, 168)})
                 buttons[96] = PLACE
             if args.edit:
-                taps.update({76: (184, 20), 82: (20, 70)})
+                taps.update({80: (184, 20), 90: (150, 81)})
             if live:
                 buttons[0] = sp.KEY_X
             else:
