@@ -204,21 +204,26 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         target.verifyErekirStarterBlocks(layers, viewport, viewer);
         target.verifyExtractorDraws(layers, viewport, viewer);
         target.verifyLiveBuildingRegistry(layers, viewport, viewer, block -> block instanceof BaseTurret, "TURRET");
-        // The stock Liquid Bridge inherits ItemBridge's distribution category, so
-        // it must stay in the same live draw set as item bridges.
+        // The stock Liquid Bridge is liquid-category, so the live predicate's
+        // Category.liquid branch must keep both bridge blocks drawable.
         if (Blocks.bridgeConduit.category != Category.liquid
                 || Blocks.phaseConduit.category != Category.liquid) {
             throw new AssertionError("Stock Liquid Bridge is not in the liquid draw category");
         }
-        target.verifyLiveBuildingRegistry(layers, viewport, viewer, UpstreamBuildingLayers::supportsPowerDraw,
-            "POWER");
-        target.verifyLiveBuildingRegistry(layers, viewport, viewer, UpstreamBuildingLayers::supportsDistributionDraw,
-            "DISTRIBUTION");
-        target.verifyLiveBuildingRegistry(layers, viewport, viewer, block -> block.category == Category.liquid,
-            "LIQUID");
+        int power = target.verifyLiveBuildingRegistry(
+            layers, viewport, viewer, UpstreamBuildingLayers::supportsPowerDraw, "POWER");
+        int distribution = target.verifyLiveBuildingRegistry(
+            layers, viewport, viewer, UpstreamBuildingLayers::supportsDistributionDraw, "DISTRIBUTION");
+        int liquid = target.verifyLiveBuildingRegistry(
+            layers, viewport, viewer, block -> block.category == Category.liquid, "LIQUID");
         int materials = target.verifyLiveBuildingRegistry(layers, viewport, viewer,
             block -> UpstreamBuildingLayers.supportsMaterialDraw(block) && !(block instanceof CoreBlock),
             "MATERIAL");
+        if (power != 26) throw new AssertionError("Expected 26 stock power buildings, got " + power);
+        if (distribution != 28) {
+            throw new AssertionError("Expected 28 stock distribution buildings, got " + distribution);
+        }
+        if (liquid != 21) throw new AssertionError("Expected 21 stock liquid buildings, got " + liquid);
         if (materials != 52) throw new AssertionError("Expected 52 stock material buildings, got " + materials);
         target.verifyCanvas(viewer);
         if (args.length >= 4) verifyObjectiveHud();
