@@ -82,7 +82,7 @@ public final class UpstreamSinglePlayerApp {
     private boolean interfaceGraphicsReady;
     private Unit controlled;
     private Fi campaignSlot;
-    private boolean campaignExitRequested;
+    private boolean pickerExitRequested;
     private int draws;
     private long previousVisualFrame;
     private float frameSeconds = 1f / 60f;
@@ -175,58 +175,72 @@ public final class UpstreamSinglePlayerApp {
             + " router=" + Core.bundle.get("block.router.name") + " copper=" + Core.bundle.get("item.copper.name"));
 
         try {
-            if (titleRequested) {
-                var selection = chooseTitleAction(atlas, saveFile, () -> prepareSession(mapDir, bundleTag, settings), join, settings);
-                if (selection == null) return;
-                campaignRequested = selection.action() == TitleAction.campaign;
-                customRequested = selection.action() == TitleAction.custom;
-                editorRequested = selection.action() == TitleAction.editor;
-                loadRequested = selection.action() == TitleAction.load;
-                if (loadRequested) {
-                    saveFile = selection.save();
-                    System.out.println("UPSTREAM_TITLE_LOAD_SELECTED file=" + saveFile.name());
-                }
-            }
-            prepareSession(mapDir, bundleTag, settings);
-            if (databaseRequested) {
-                loadInterfaceGraphics(atlas);
-                new UpstreamCoreDatabaseMenu(target).run();
-                return;
-            }
-            if (editorRequested) {
-                var source = !titleRequested && args.length >= 2 ? new Fi(args[1]) : mapDir.child("editor-map.msav");
-                var output = !titleRequested && args.length >= 3 ? new Fi(args[2]) : null;
-                var editor = new UpstreamMapEditorApp(target, source, output, mapDir.child("maps"));
-                editor.open();
-                loadInterfaceGraphics(atlas);
-                editor.run(viewport);
-                return;
-            }
-            CustomGame custom = null;
             Fi customSave = mapDir.child("custom-game-save.msav");
-            if (customRequested) {
-                var maps = UpstreamCustomGameMaps.discover(new Fi("/romfs/maps/default"), mapDir.child("maps"));
-                var saves = UpstreamCustomGameSaves.discover(Vars.saveDirectory, customSave);
-                if (!maps.isEmpty() || !saves.isEmpty()) {
-                    loadInterfaceRenderer();
-                    custom = chooseCustomGame(maps, saves);
-                    if (custom == null) return;
+            CustomGame custom;
+            CampaignGame campaign;
+            while (true) {
+                if (titleRequested) {
+                    var selection = chooseTitleAction(atlas, saveFile, () -> prepareSession(mapDir, bundleTag, settings), join, settings);
+                    if (selection == null) return;
+                    campaignRequested = selection.action() == TitleAction.campaign;
+                    customRequested = selection.action() == TitleAction.custom;
+                    editorRequested = selection.action() == TitleAction.editor;
+                    loadRequested = selection.action() == TitleAction.load;
+                    if (loadRequested) {
+                        saveFile = selection.save();
+                        System.out.println("UPSTREAM_TITLE_LOAD_SELECTED file=" + saveFile.name());
+                    }
                 }
-            }
-            List<UpstreamSinglePlayerSession.SectorSlot> sectorSaves =
-                args.length < 2 && custom == null && !loadRequested ? session.sectorSaves() : List.of();
-            UpstreamCampaignResearch.installAutoUnlocks();
-            boolean showCampaign = campaignRequested
-                || sectorSaves.stream().anyMatch(UpstreamSinglePlayerSession::needsCampaignRetry);
-            if (showCampaign) sectorSaves = session.campaignSlots(sectorSaves);
-            CampaignGame campaign = null;
-            if (sectorSaves.size() == 1 && !showCampaign) {
-                var selected = sectorSaves.get(0);
-                System.out.println("UPSTREAM_CAMPAIGN_SELECTED slot=" + selected.file.name() + " source=single name=" + selected.sector.name());
-                campaign = new CampaignGame(selected, null);
-            } else if (!sectorSaves.isEmpty()) {
-                campaign = chooseCampaign(sectorSaves, mapDir.child("campaign-select.txt"));
-                if (campaign == null) return;
+                prepareSession(mapDir, bundleTag, settings);
+                if (databaseRequested) {
+                    loadInterfaceGraphics(atlas);
+                    new UpstreamCoreDatabaseMenu(target).run();
+                    return;
+                }
+                if (editorRequested) {
+                    var source = !titleRequested && args.length >= 2 ? new Fi(args[1]) : mapDir.child("editor-map.msav");
+                    var output = !titleRequested && args.length >= 3 ? new Fi(args[2]) : null;
+                    var editor = new UpstreamMapEditorApp(target, source, output, mapDir.child("maps"));
+                    editor.open();
+                    loadInterfaceGraphics(atlas);
+                    editor.run(viewport);
+                    return;
+                }
+                custom = null;
+                if (customRequested) {
+                    var maps = UpstreamCustomGameMaps.discover(new Fi("/romfs/maps/default"), mapDir.child("maps"));
+                    var saves = UpstreamCustomGameSaves.discover(Vars.saveDirectory, customSave);
+                    if (!maps.isEmpty() || !saves.isEmpty()) {
+                        loadInterfaceRenderer();
+                        custom = chooseCustomGame(maps, saves);
+                        if (custom == null) {
+                            if (titleRequested && !pickerExitRequested) continue;
+                            return;
+                        }
+                    } else if (titleRequested) {
+                        if (chooseTitleRow(Core.bundle.get("maps.none"), "back") == -2) return;
+                        continue;
+                    }
+                }
+                List<UpstreamSinglePlayerSession.SectorSlot> sectorSaves =
+                    args.length < 2 && custom == null && !loadRequested ? session.sectorSaves() : List.of();
+                UpstreamCampaignResearch.installAutoUnlocks();
+                boolean showCampaign = campaignRequested
+                    || sectorSaves.stream().anyMatch(UpstreamSinglePlayerSession::needsCampaignRetry);
+                if (showCampaign) sectorSaves = session.campaignSlots(sectorSaves);
+                campaign = null;
+                if (sectorSaves.size() == 1 && !showCampaign) {
+                    var selected = sectorSaves.get(0);
+                    System.out.println("UPSTREAM_CAMPAIGN_SELECTED slot=" + selected.file.name() + " source=single name=" + selected.sector.name());
+                    campaign = new CampaignGame(selected, null);
+                } else if (!sectorSaves.isEmpty()) {
+                    campaign = chooseCampaign(sectorSaves, mapDir.child("campaign-select.txt"));
+                    if (campaign == null) {
+                        if (titleRequested && !pickerExitRequested) continue;
+                        return;
+                    }
+                }
+                break;
             }
             // Load the initial world before initializing world sprites to keep peak TeaVM heap bounded.
             if (campaign != null) {
@@ -274,7 +288,7 @@ public final class UpstreamSinglePlayerApp {
                     if (defeated && !showCampaignDefeat(origin)) break campaignLoop;
                     System.out.println("UPSTREAM_CAMPAIGN_WORLD_MENU sector=" + origin.id);
                     next = chooseCampaign(session.campaignSlots(session.sectorSaves(), origin), null);
-                    if (campaignExitRequested) break campaignLoop;
+                    if (pickerExitRequested) break campaignLoop;
                 } while (defeated && next == null);
                 // Opening the selector replaces the bottom-screen labels even if the player returns to this sector.
                 lastPrimaryShortcut = null;
@@ -335,7 +349,7 @@ public final class UpstreamSinglePlayerApp {
     private CampaignGame chooseCampaign(List<UpstreamSinglePlayerSession.SectorSlot> slots, Fi automatic) {
         if (slots.isEmpty()) return null;
         loadInterfaceRenderer();
-        while (!campaignExitRequested) {
+        while (!pickerExitRequested) {
             var selected = chooseSector(slots, automatic);
             if (selected == null) return null;
             if (selected.origin == null || selected.origin == selected.sector) return new CampaignGame(selected, null);
@@ -418,7 +432,8 @@ public final class UpstreamSinglePlayerApp {
         while (true) {
             long nextFrame = System.nanoTime() + FRAME_NS;
             int input = UpstreamSinglePlayerInput.poll();
-            if (input < 0 || (input & (1 << 19)) != 0) {
+            if (input < 0 || (input & UpstreamSinglePlayerInput.B_PRESSED) != 0) {
+                if (input < 0) pickerExitRequested = true;
                 System.out.println("UPSTREAM_CUSTOM_GAME_CANCEL input=" + input);
                 return null;
             }
@@ -927,7 +942,7 @@ public final class UpstreamSinglePlayerApp {
 
     private int pollCampaignInput() {
         int input = UpstreamSinglePlayerInput.poll();
-        if (input == -1) campaignExitRequested = true;
+        if (input == -1) pickerExitRequested = true;
         return input;
     }
 
