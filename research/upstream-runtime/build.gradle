@@ -798,6 +798,12 @@ tasks.register('prepareUpstreamProbe') {
                 'itemEfficiencyText(efficiency, timePeriod, filter, itemDurationMultipliers)')
             withLabel('liquidEffMultiplier(Floatf<Liquid> efficiency, float amount, Boolf<Liquid> filter)',
                 'liquidEfficiencyText(efficiency, amount, filter)')
+            withLabel('boosters(float reload, float maxUsed, float multiplier, boolean baseReload, Boolf<Liquid> filter)',
+                'reloadBoosterText(reload, maxUsed, multiplier, baseReload, filter)')
+            withLabel('speedBoosters(String unit, float amount, float speed, boolean strength, Boolf<Liquid> filter)',
+                'speedBoosterText(unit, amount, speed, strength, filter)')
+            withLabel('itemBoosters(String unit, float timePeriod, float speedBoost, float rangeBoost, ItemStack[] items)',
+                'itemBoosterText(unit, timePeriod, speedBoost, rangeBoost, items)')
             def ammoSignature = '    public static <T extends UnlockableContent> StatValue ammo(ObjectMap<T, BulletType> map, boolean nested, boolean showUnit, @Nullable String blockName){'
             def originalAmmoStart = ammoSignature + '\n        return table -> {'
             hooks[originalAmmoStart] = originalAmmoStart.replace('return table -> {',
@@ -936,6 +942,40 @@ tasks.register('prepareUpstreamProbe') {
             label.append('\\n').append(liquidStatText(liquid, amount, true));
             label.append(" ").append(Core.bundle.format("stat.efficiency", fixValue(efficiency.get(liquid) * 100f)));
         }
+        return label.toString();
+    }
+
+    private static String reloadBoosterText(float reload, float maxUsed, float multiplier, boolean baseReload, Boolf<Liquid> filter){
+        StringBuilder label = new StringBuilder();
+        for(var liquid : content.liquids()){
+            if(!filter.get(liquid)) continue;
+            float rate = (baseReload ? 1f : 0f) + maxUsed * multiplier * liquid.heatCapacity;
+            float standard = baseReload ? reload : reload / (maxUsed * multiplier * 0.4f);
+            label.append('\\n').append(liquid.localizedName).append(" ")
+                .append(Strings.autoFixed(maxUsed * 60f, 2)).append(StatUnit.perSecond.localized()).append(" ")
+                .append(Core.bundle.format("bullet.reload", Strings.autoFixed(standard / (reload / rate) * 100f, 2)));
+        }
+        return label.toString();
+    }
+
+    private static String speedBoosterText(String unit, float amount, float speed, boolean strength, Boolf<Liquid> filter){
+        StringBuilder label = new StringBuilder();
+        for(var liquid : content.liquids()){
+            if(!filter.get(liquid)) continue;
+            label.append('\\n').append(liquid.localizedName).append(" ")
+                .append(Strings.autoFixed(amount * 60f, 2)).append(StatUnit.perSecond.localized());
+            if(speed != Float.MAX_VALUE){
+                float result = speed * (strength ? liquid.heatCapacity : 1f) + (strength ? 1f : 0f);
+                label.append(" ").append(unit.replace("{0}", Strings.autoFixed(result, 2)));
+            }
+        }
+        return label.toString();
+    }
+
+    private static String itemBoosterText(String unit, float period, float speed, float range, ItemStack[] items){
+        StringBuilder label = new StringBuilder(itemStatText(items, period, period >= 0));
+        if(range != 0) label.append(" +").append(Strings.autoFixed(range / tilesize, 2)).append(" ").append(StatUnit.blocks.localized());
+        if(speed != 0) label.append(" ").append(unit.replace("{0}", Strings.autoFixed(speed, 2)));
         return label.toString();
     }
 
