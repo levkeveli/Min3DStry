@@ -1249,7 +1249,7 @@ public final class UpstreamSinglePlayerApp {
     private void drawFullscreenMinimap() {
         if (!minimapView.open()) return;
         target.hudPanel(0f, 0f, UpstreamMinimapView.screenWidth, UpstreamMinimapView.screenHeight, 0xF0080A0C);
-        target.minimapDraw(minimapView.x(), minimapView.y(), minimapView.size());
+        target.drawMinimapAt(minimapView.x(), minimapView.y(), minimapView.size());
         if (minimapViewTitle == null) {
             String title = Core.bundle.get("minimap");
             minimapViewTitle = (title + "\0").getBytes(StandardCharsets.UTF_8);
