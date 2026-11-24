@@ -3,6 +3,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import Mock
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools"))
@@ -21,6 +22,17 @@ class VerifyUpstreamSingleplayerTests(unittest.TestCase):
                 self.assertGreaterEqual(len(raw), header_size + expected_frames * 14)
                 frame_count = struct.unpack_from("<Q", raw, 84)[0]
                 self.assertEqual(frame_count, expected_frames)
+
+    def test_wait_for_log_reports_native_azahar_crash(self) -> None:
+        for marker in ("Core::LogException", "core/arm/exception_handler.cpp:LogException:140:"):
+            with self.subTest(marker=marker), tempfile.TemporaryDirectory() as tmp:
+                log = Path(tmp) / "azahar_log.txt"
+                log.write_text(f"[19.1] Core <Critical> {marker}\nException Type: Undefined Instruction\n",
+                               encoding="utf-8")
+                running = Mock()
+                running.poll.return_value = None
+                with self.assertRaisesRegex(RuntimeError, "Emulated exception waiting for UPSTREAM_SP_FRAME"):
+                    vsp._wait_for_log(log, running, "UPSTREAM_SP_FRAME", 1.0)
 
     def test_resolve_sd_save_path(self) -> None:
         log = Path("/home/user/.var/app/org.azahar_emu.Azahar/data/azahar-emu/log/azahar_log.txt")
