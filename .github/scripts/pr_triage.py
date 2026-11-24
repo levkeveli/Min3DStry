@@ -39,15 +39,15 @@ def main():
         n, head = pr["number"], pr["head"]
         updated = datetime.fromisoformat(pr["updated_at"].replace("Z", "+00:00"))
 
-        # Auto-rerun failed jobs once per head SHA.
+        # Auto-rerun every failed pull_request run for this head SHA, once.
         runs = json.loads(
             gh_api(
-                f"repos/{REPO}/actions/runs?head_sha={head}&per_page=5",
+                f"repos/{REPO}/actions/runs?head_sha={head}&per_page=20",
                 "--jq",
-                "[.workflow_runs[] | select(.event == \"pull_request\")] | sort_by(.run_started_at) | reverse",
+                "[.workflow_runs[] | select(.event == \"pull_request\" and .conclusion == \"failure\")]",
             ).stdout
         )
-        if runs and runs[0]["conclusion"] == "failure":
+        if runs:
             comments = json.loads(
                 gh_api(
                     f"repos/{REPO}/issues/{n}/comments?per_page=100", "--jq", "."
@@ -57,26 +57,38 @@ def main():
                 RERUN_MARKER + head in (c.get("body") or "") for c in comments
             )
             if not already:
-                rr = subprocess.run(
-                    ["gh", "run", "rerun", str(runs[0]["id"]), "--failed",
-                     "--repo", REPO],
-                    capture_output=True, text=True,
-                )
-                if rr.returncode == 0:
+                ok = True
+                for run in runs:
+                    rr = subprocess.run(
+                        ["gh", "run", "rerun", str(run["id"]), "--failed",
+                         "--repo", REPO],
+                        capture_output=True, text=True,
+                    )
+                    if rr.returncode != 0:
+                        ok = False
+                        print(f"PR #{n}: auto-rerun of run {run['id']} failed: {rr.stderr.strip()}")
+                if ok:
                     gh_api(
                         f"repos/{REPO}/issues/{n}/comments", "-X", "POST",
                         "-f", f"body={RERUN_MARKER}{head} --> auto-rerun of failed jobs for this head.",
                         check=False,
                     )
-                    print(f"PR #{n}: auto-rerun of failed run {runs[0]['id']}")
-                else:
-                    print(f"PR #{n}: auto-rerun failed: {rr.stderr.strip()}")
+                    print(f"PR #{n}: auto-rerun of {len(runs)} failed run(s)")
 
-        # Idle sweep: 7 days without activity -> draft.
+        # Idle sweep: 7 days without activity -> draft via GraphQL mutation.
         if not pr["draft"] and NOW - updated > timedelta(days=DRAFT_DAYS):
-            r = gh_api(
-                f"repos/{REPO}/pulls/{n}", "-X", "PATCH", "-F", "draft=true",
-                check=False,
+            pr_id = json.loads(
+                gh_api(
+                    f"repos/{REPO}/pulls/{n}", "--jq", ".id"
+                ).stdout
+            )
+            mutation = (
+                "mutation($id:ID!){convertPullRequestToDraft(input:{pullRequestId:$id}){pullRequest{draft}}}"
+            )
+            r = subprocess.run(
+                ["gh", "api", "graphql", "-f", f"query={mutation}", "-F", f"id={pr_id}",
+                 "--repo", REPO],
+                capture_output=True, text=True,
             )
             if r.returncode == 0:
                 gh_api(

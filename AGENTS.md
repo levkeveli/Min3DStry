@@ -49,7 +49,7 @@
 ## Integration and quality
 
 - `main` is always protected, buildable and the only source for public implemented-state claims.
-- Required CI must cover available meaningful build, test, lint, docs and security checks. Never bypass, disable or fake checks.
+- Required PR CI covers the fast lane (host build/tests, lint, docs, policy gate, AI review); heavy 3DS/ARM11 build and smoke workflows run on PRs as non-required signals and on every push to `main`, where a failure holds all open PRs via `status:blocked` until main is green again. Never bypass, disable or fake checks. See `docs/development/automation-policy.md` for the two-lane model.
 - Maintain identical game simulation rules between Old and New 3DS. Preserve cross-platform network behavior; differences require explicit review and evidence.
 - Do not introduce proprietary Nintendo code/firmware or undistributable third-party assets.
 - Follow upstream Mindustry GPLv3 obligations and audit dependencies.
