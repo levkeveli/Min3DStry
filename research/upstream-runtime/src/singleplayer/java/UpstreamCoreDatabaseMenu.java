@@ -33,7 +33,8 @@ final class UpstreamCoreDatabaseMenu {
         var vertical = new VerticalNavigation();
         int renderedSelection = -1;
         List<DrawRow> visible = List.of();
-        byte[] help = ("X  " + Core.bundle.get("players.search") + "\0B  " + Core.bundle.get("back") + "\0")
+        byte[] help = ("A  " + Core.bundle.get("info.title") + "\0X  " + Core.bundle.get("players.search")
+            + "\0B  " + Core.bundle.get("back") + "\0")
             .getBytes(StandardCharsets.UTF_8);
         boolean shown = false;
         UpstreamSinglePlayerInput.poll();
@@ -78,7 +79,7 @@ final class UpstreamCoreDatabaseMenu {
                 visible = visibleRows(title, query, rows, selected);
                 renderedSelection = selected;
             }
-            draw(visible, 0, visible.size(), help, 2);
+            draw(visible, 0, visible.size(), help, 3);
             if (!shown) {
                 System.out.println("UPSTREAM_DATABASE_OPEN tab=" + tabs.get(tab).name + " rows=" + rows.size());
                 shown = true;
@@ -203,7 +204,7 @@ final class UpstreamCoreDatabaseMenu {
     private List<DrawRow> visibleRows(String title, String search, List<Row> rows, int selected) {
         var visible = new ArrayList<DrawRow>();
         visible.add(encode(title, null));
-        visible.add(encode("X  " + Core.bundle.get("players.search") + (search.isEmpty() ? "" : "  " + search), null));
+        if (!search.isEmpty()) visible.add(encode(Core.bundle.get("players.search") + "  " + search, null));
         if (rows.isEmpty()) {
             visible.add(encode(Core.bundle.get("none.found"), null));
         } else {

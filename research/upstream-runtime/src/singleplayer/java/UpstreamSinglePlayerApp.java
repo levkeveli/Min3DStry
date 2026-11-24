@@ -468,12 +468,17 @@ public final class UpstreamSinglePlayerApp {
     }
 
     private void drawMenuRows(MenuRows rows) {
+        drawMenuRows(rows, null);
+    }
+
+    private void drawMenuRows(MenuRows rows, byte[] titleControls) {
         target.begin(0, 0, UpstreamTerrainDrawProbe.VIEW_WIDTH, UpstreamTerrainDrawProbe.VIEW_HEIGHT);
         try {
             float rowY = 6f;
             for (int i = 0; i < rows.labels.length; i++) {
                 rowY = target.drawObjective(rows.labels[i], rows.characters[i], null, rowY);
             }
+            if (titleControls != null) target.drawMenuHelp(titleControls, 2);
         } finally {
             target.end();
         }
@@ -516,6 +521,8 @@ public final class UpstreamSinglePlayerApp {
     private int chooseTitleRow(String title, String... optionKeys) {
         int selected = 0, previousY = 0, drawn = -1;
         MenuRows rows = null;
+        byte[] controls = ("A  " + Core.bundle.get("ok") + "\0B  " + Core.bundle.get("back") + "\0")
+            .getBytes(StandardCharsets.UTF_8);
         UpstreamSinglePlayerInput.poll();
         while (true) {
             long nextFrame = System.nanoTime() + FRAME_NS;
@@ -536,7 +543,7 @@ public final class UpstreamSinglePlayerApp {
                 rows = encodeMenuRows(captions);
                 drawn = selected;
             }
-            drawMenuRows(rows);
+            drawMenuRows(rows, controls);
             while (System.nanoTime() < nextFrame) Thread.yield();
         }
     }
