@@ -74,3 +74,8 @@ The unified campaign reference checks that a logic processor with no matching
 units leaves its binding cursor unallocated. It also verifies that successive
 bindings use the stock round-robin order and that a catalog-size change
 resets that cursor.
+
+Offline resume restores player position, team, controlled unit and control
+groups from the metadata of the save that actually loaded. If the primary
+save has readable metadata but fails later in the stock loader, the backup
+world receives the backup player metadata.

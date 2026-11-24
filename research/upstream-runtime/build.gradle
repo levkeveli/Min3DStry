@@ -1704,7 +1704,7 @@ final class UpstreamItemChoices {
             if (readStateSource.count(ruleStringField) != 1) throw new GradleException('Pinned SaveReadState changed')
             def stagedReadState = sourceDir.get().file(readStatePath).asFile
             stagedReadState.setText(readStateSource.replace(ruleStringField,
-                ruleStringField + '\n    public @Nullable StringMap playerTags;'), 'UTF-8')
+                ruleStringField + '\n    public @Nullable arc.struct.StringMap playerTags;'), 'UTF-8')
             def stagedSaveIo = sourceDir.get().file(saveIoPath).asFile
             stagedSaveIo.parentFile.mkdirs()
             stagedSaveIo.setText(saveIo.replace(compress, boundedCompression), 'UTF-8')

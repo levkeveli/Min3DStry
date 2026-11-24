@@ -78,11 +78,14 @@ public final class UpstreamStockSavedPlayerReference {
         try (var source = SaveIO.getStream(unit);
                 var target = new DeflaterOutputStream(primary.write(false))) {
             byte[] header = source.readNBytes(SaveIO.header.length + Integer.BYTES);
+            // SaveVersion wraps the StringMap in SaveFileReader.writeRegion("meta", ...).
             int metaLength = source.readInt();
+            byte[] metadata = new byte[metaLength];
+            source.readFully(metadata);
             target.write(header);
             var output = new DataOutputStream(target);
             output.writeInt(metaLength);
-            output.write(source.readNBytes(metaLength));
+            output.write(metadata);
         }
         if (!SaveIO.isSaveValid(primary) || !"dagger".equals(SaveIO.getMeta(primary).tags.get("controlledType"))) {
             throw new AssertionError("Truncated primary does not retain valid player metadata");
