@@ -11,6 +11,7 @@ import arc.mock.MockFiles;
 import arc.mock.MockGraphics;
 import arc.struct.ObjectSet;
 import arc.struct.Seq;
+import arc.struct.StringMap;
 import arc.util.ArcRuntimeException;
 import arc.util.Time;
 import java.io.IOException;
@@ -26,7 +27,9 @@ import mindustry.content.Items;
 import mindustry.content.Planets;
 import mindustry.content.UnitTypes;
 import mindustry.core.GameState.State;
+import mindustry.ctype.ContentType;
 import mindustry.entities.EntityCollisions;
+import mindustry.entities.Units;
 import mindustry.entities.units.BuildPlan;
 import mindustry.game.EventType.ResetEvent;
 import mindustry.game.EventType.RulesLoadEvent;
@@ -48,13 +51,16 @@ import mindustry.io.JsonIO;
 import mindustry.io.MapIO;
 import mindustry.io.SaveIO;
 import mindustry.io.SaveMeta;
+import mindustry.io.SaveOptions;
 import mindustry.maps.Map;
 import mindustry.type.Planet;
 import mindustry.type.Sector;
+import mindustry.type.UnitType;
 import mindustry.logic.GlobalVars;
 import mindustry.mod.Mods;
 import mindustry.world.Tile;
 import mindustry.world.WorldParams;
+import mindustry.world.blocks.ControlBlock;
 import mindustry.world.blocks.storage.CoreBlock;
 import mindustry.world.blocks.storage.CoreBlock.CoreBuild;
 
@@ -68,6 +74,9 @@ public final class UpstreamSinglePlayerSession {
     private final Vec2 tmpMove = new Vec2();
     private Saves campaignSaves;
     private float deltaSeconds = FIXED_STEP_SECONDS;
+    private long playtimeMillis, playtimeRemainderNanos, playtimeFrameNanos;
+    private UnitType savedControlledType;
+    private String savedControlGroups = "null";
 
     private UpstreamSinglePlayerSession(UpstreamWorldLoadProbe.ProbeApplication app) {
         this.app = app;
@@ -184,11 +193,11 @@ public final class UpstreamSinglePlayerSession {
         String source;
         boolean loadedFromSave = saveFile != null && saveFile.exists() && SaveIO.isSaveValid(saveFile);
         if (loadedFromSave) {
-            if (sector != null) {
-                SaveIO.load(saveFile, Vars.world.makeSectorContext(sector));
-            } else {
-                SaveIO.load(saveFile);
-            }
+            var playerTags = new StringMap();
+            var context = sector == null ? Vars.world.context : Vars.world.makeSectorContext(sector);
+            SaveIO.load(saveFile, context, playerTags);
+            resetPlaytime(playerTags.getLong("playtime"));
+            restorePlayerMetadata(playerTags);
             app.runPosted();
             Vars.avoidance.init();
             Vars.state.set(State.playing);
@@ -201,6 +210,8 @@ public final class UpstreamSinglePlayerSession {
             var map = MapIO.createMap(mapFile, false);
             Mathf.rand.setSeed(160_008L);
             Vars.world.loadMap(map);
+            resetPlaytime(0);
+            restorePlayerMetadata(null);
             app.runPosted();
             Vars.avoidance.init();
             Vars.logic.play();
@@ -259,6 +270,8 @@ public final class UpstreamSinglePlayerSession {
             Vars.universe.updateLaunchResources(loadout.resources());
         }
         Vars.world.loadSector(sector, params);
+        resetPlaytime(0);
+        restorePlayerMetadata(null);
         if (loadout != null) {
             origin.removeItems(loadout.cost());
             Events.fire(new SectorLaunchLoadoutEvent(sector, origin, loadout.schematic()));
@@ -291,6 +304,7 @@ public final class UpstreamSinglePlayerSession {
         if (Vars.state.map != map || Vars.world.isInvalidMap()) {
             throw new IOException("Could not load map " + map.file.name());
         }
+        resetPlaytime(0);
         app.runPosted();
         map.spawns = Vars.spawner.countSpawns();
         map.teams.clear();
@@ -311,6 +325,7 @@ public final class UpstreamSinglePlayerSession {
         rules.retainContentFields(Vars.state.rules);
         Vars.state.rules = rules;
         rules.sector = null;
+        restorePlayerMetadata(null);
         rules.editor = false;
         Events.fire(new RulesLoadEvent(rules));
         Vars.avoidance.init();
@@ -516,7 +531,7 @@ public final class UpstreamSinglePlayerSession {
         return null;
     }
 
-    Unit ensurePlayerSpawn() {
+    private void ensurePlayerObject() {
         if (Vars.player == null) {
             Vars.player = Player.create();
             Vars.player.team(Vars.state.rules.defaultTeam);
@@ -525,9 +540,44 @@ public final class UpstreamSinglePlayerSession {
         } else if (!Vars.player.isAdded()) {
             Vars.player.add();
         }
+    }
+
+    private void restorePlayerMetadata(StringMap tags) {
+        ensurePlayerObject();
+        Vars.player.clearUnit();
+        Vars.player.reset();
+        savedControlGroups = "null";
+        savedControlledType = null;
+        if (tags == null) return;
+        var position = new Vec2().tryFromString(tags.get("viewpos", "(0,0)"));
+        if (Float.isFinite(position.x) && Float.isFinite(position.y)) Vars.player.set(position);
+        Team team = Team.get(tags.getInt("playerteam", Vars.state.rules.defaultTeam.id));
+        if (team != Team.derelict) Vars.player.team(team);
+        savedControlledType = Vars.content.getByName(ContentType.unit, tags.get("controlledType", "<none>"));
+        savedControlGroups = tags.get("controlGroups", "null");
+    }
+
+    Unit ensurePlayerSpawn() {
+        ensurePlayerObject();
         var unit = Vars.player.unit();
         if (unit != null && !Vars.player.dead() && unit.isAdded()) {
             return unit;
+        }
+        var type = savedControlledType;
+        savedControlledType = null;
+        if (type != null && type.playerControllable) {
+            // Offline InputHandler.checkUnit() restores the nearest unit of the saved type.
+            var player = Vars.player;
+            var saved = Units.closest(player.team(), player.x, player.y, other -> !other.isPlayer()
+                && other.type == type && !other.dead);
+            if (saved == null && type == UnitTypes.block
+                    && Vars.world.buildWorld(player.x, player.y) instanceof ControlBlock control && control.canControl()) {
+                saved = control.unit();
+            }
+            if (saved != null) {
+                saved.controller(player);
+                return player.unit();
+            }
         }
         for (var existing : Groups.unit) {
             if (existing.team == Vars.player.team() && !existing.dead && existing.isAdded()
@@ -537,7 +587,7 @@ public final class UpstreamSinglePlayerSession {
                 return existing;
             }
         }
-        var core = core();
+        var core = Vars.player.bestCore();
         if (core != null) {
             CoreBlock.playerSpawn(core.tile, Vars.player);
         }
@@ -545,7 +595,7 @@ public final class UpstreamSinglePlayerSession {
     }
 
     CoreBuild core() {
-        return Vars.state.rules.defaultTeam.core();
+        return (Vars.player == null ? Vars.state.rules.defaultTeam : Vars.player.team()).core();
     }
 
     void stepSimulation(float moveX, float moveY) {
@@ -599,6 +649,24 @@ public final class UpstreamSinglePlayerSession {
         return true;
     }
 
+    private void resetPlaytime(long savedMillis) {
+        playtimeMillis = Math.max(0, savedMillis);
+        playtimeRemainderNanos = 0;
+    }
+
+    void beginPlaytimeInterval(long now) {
+        playtimeFrameNanos = now;
+    }
+
+    void updatePlaytime(long now) {
+        long elapsed = Math.max(0, now - playtimeFrameNanos);
+        playtimeFrameNanos = now;
+        long partial = playtimeRemainderNanos + elapsed % 1_000_000L;
+        long millis = elapsed / 1_000_000L + partial / 1_000_000L;
+        playtimeRemainderNanos = partial % 1_000_000L;
+        playtimeMillis = Math.min(playtimeMillis, Long.MAX_VALUE - millis) + millis;
+    }
+
     long save(Fi saveFile) throws IOException {
         if (saveFile.parent() != null) {
             saveFile.parent().mkdirs();
@@ -606,7 +674,11 @@ public final class UpstreamSinglePlayerSession {
         if (Vars.state.rules.sector != null) {
             UpstreamSectorCapture.persist(Vars.state.rules.sector);
         }
-        SaveIO.save(saveFile);
+        var options = new SaveOptions();
+        var type = Vars.player == null || Vars.player.dead() ? savedControlledType : Vars.player.unit().type;
+        options.extraTags = StringMap.of("playtime", playtimeMillis, "controlGroups", savedControlGroups,
+            "controlledType", type == null ? "null" : type.name);
+        SaveIO.save(saveFile, options);
         SaveMeta written;
         try (var input = SaveIO.getStream(saveFile)) {
             written = SaveIO.getMeta(input);

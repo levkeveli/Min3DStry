@@ -204,6 +204,14 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         target.verifyErekirStarterBlocks(layers, viewport, viewer);
         target.verifyExtractorDraws(layers, viewport, viewer);
         target.verifyLiveBuildingRegistry(layers, viewport, viewer, block -> block instanceof BaseTurret, "TURRET");
+        // The stock Liquid Bridge inherits ItemBridge's distribution category, so
+        // it must stay in the same live draw set as item bridges.
+        if (Blocks.bridgeConduit.category != Category.liquid
+                || Blocks.phaseConduit.category != Category.liquid) {
+            throw new AssertionError("Stock Liquid Bridge is not in the liquid draw category");
+        }
+        target.verifyLiveBuildingRegistry(layers, viewport, viewer, UpstreamBuildingLayers::supportsPowerDraw,
+            "POWER");
         target.verifyLiveBuildingRegistry(layers, viewport, viewer, UpstreamBuildingLayers::supportsDistributionDraw,
             "DISTRIBUTION");
         target.verifyLiveBuildingRegistry(layers, viewport, viewer, block -> block.category == Category.liquid,

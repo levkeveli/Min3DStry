@@ -142,9 +142,11 @@
       "evidence": [
         "docs/porting/production-power-liquids.md",
         "research/upstream-runtime/src/gameplay/java/UpstreamProductionTickProbe.java",
-        "research/upstream-runtime/src/network-render/java/UpstreamRenderedNetworkProbe.java"
+        "research/upstream-runtime/src/network-render/java/UpstreamRenderedNetworkProbe.java",
+        "research/upstream-runtime/src/network-render/java/UpstreamBuildingLayers.java",
+        "research/upstream-runtime/src/network-render/host/UpstreamBuildingLayersReference.java"
       ],
-      "notes": "PowerGraph and GraphUpdater ticks verified in ARM11 probe; live draw covers Combustion Generator and PowerNode beams; power HUD bar and full reactor/battery coverage pending."
+      "notes": "PowerGraph and GraphUpdater ticks are verified in the ARM11 probe. The live draw set includes the complete stock PowerBlock family (generators, reactors, batteries, diodes and lights), and the host reference now asserts every member explicitly; PowerNode beams remain covered. A stock power HUD bar remains open."
     },
     {
       "id": "liquids-pumps-conduits",
@@ -158,9 +160,11 @@
         "docs/porting/production-power-liquids.md",
         "docs/gameplay/offline-singleplayer.md",
         "research/upstream-runtime/src/gameplay/java/UpstreamProductionTickProbe.java",
-        "research/upstream-runtime/src/network-render/java/UpstreamRenderedNetworkProbe.java"
+        "research/upstream-runtime/src/network-render/java/UpstreamRenderedNetworkProbe.java",
+        "research/upstream-runtime/src/network-render/java/UpstreamBuildingLayers.java",
+        "research/upstream-runtime/src/network-render/host/UpstreamBuildingLayersReference.java"
       ],
-      "notes": "The ARM11 probe verifies LiquidModule and Conduit simulation. The offline renderer draws original pumps and liquid routers, including the tested Mechanical Pump and Liquid Tank. Live conduit tiling is verified. Liquid bridges and full liquid HUD coverage remain open."
+      "notes": "The ARM11 probe verifies LiquidModule and Conduit simulation. The offline renderer draws original pumps and liquid routers, including the tested Mechanical Pump and Liquid Tank. Live conduit tiling is verified. The stock Bridge Conduit and Phase Conduit are liquid-category LiquidBridge blocks, covered by the live Category.liquid draw set; the host LIQUID registry renders every liquid block and asserts both categories. Full liquid HUD coverage remains open."
     },
     {
       "id": "payloads-unit-factories",
