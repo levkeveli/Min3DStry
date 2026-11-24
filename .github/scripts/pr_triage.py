@@ -50,11 +50,13 @@ def rerun_failed(n, head):
         if rr.returncode != 0:
             print(f"PR #{n}: auto-rerun of run {run['id']} failed: {rr.stderr.strip()}")
     # Mark the attempt regardless of outcome so it happens once per head SHA.
-    gh_api(
-        f"repos/{REPO}/issues/{n}/comments", "-X", "POST",
-        "-f", f"body={RERUN_MARKER}{head} --> auto-rerun attempted for this head.",
-        check=False,
-    )
+    try:
+        gh_api(
+            f"repos/{REPO}/issues/{n}/comments", "-X", "POST",
+            "-f", f"body={RERUN_MARKER}{head} --> auto-rerun attempted for this head.",
+        )
+    except Exception as e:
+        print(f"PR #{n}: could not record auto-rerun marker: {e}")
     print(f"PR #{n}: auto-rerun attempted for {len(runs)} failed run(s)")
 
 

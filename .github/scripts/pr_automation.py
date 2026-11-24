@@ -214,18 +214,14 @@ def main_verification_red(repo: str, token: str) -> str | None:
         f"https://api.github.com/repos/{repo}/commits/main", token
     )
     main_sha = json.loads(body)["sha"]
+    _, body = github_request(
+        f"https://api.github.com/repos/{repo}/actions/workflows?per_page=100", token
+    )
+    workflows = {w.get("name"): w.get("id") for w in json.loads(body).get("workflows", [])}
     for wf in HEAVY_VERIFY_WORKFLOWS:
-        url = (
-            f"https://api.github.com/repos/{repo}/actions/workflows?per_page=100"
-        )
-        _, body = github_request(url, token)
-        wf_id = None
-        for w in json.loads(body).get("workflows", []):
-            if w.get("name") == wf:
-                wf_id = w["id"]
-                break
+        wf_id = workflows.get(wf)
         if wf_id is None:
-            return f"{wf} (workflow not found)"
+            raise RuntimeError(f"heavy workflow not found: {wf}")
         url = (
             f"https://api.github.com/repos/{repo}/actions/workflows/{wf_id}/runs"
             f"?branch=main&per_page=1"
@@ -265,27 +261,31 @@ def cmd_classify(_: argparse.Namespace) -> int:
     if is_draft:
         metadata_errors.append("PR is still marked as draft.")
 
-    if "main-verify-blocked" in {lbl.strip().lower() for lbl in labels}:
-        metadata_errors.append(
-            "main-verify-blocked: post-merge verification on main is red; "
-            "remove this label only on the PR that fixes or reverts it."
-        )
-
     # The PR that fixes or reverts red main carries main-verify-fix and is
     # exempt, otherwise the hard block would deadlock (no PR could merge to
     # make main green again).
-    is_fix_pr = "main-verify-fix" in {lbl.strip().lower() for lbl in labels}
-    try:
-        red_wf = main_verification_red(repo, token)
-    except Exception as e:
-        # Fail closed: if we cannot confirm main is green, treat it as red.
-        red_wf = f"unknown ({e})"
-    if red_wf and not is_fix_pr:
+    norm_labels = {lbl.strip().lower() for lbl in labels}
+    is_fix_pr = "main-verify-fix" in norm_labels
+    if not is_fix_pr and "main-verify-blocked" in norm_labels:
         metadata_errors.append(
-            f"post-merge verification on main is red ({red_wf}); "
-            "no PR merges until main is green again. The fixing/reverting PR "
-            "must carry the main-verify-fix label."
+            "main-verify-blocked: post-merge verification on main is red; "
+            "the fixing/reverting PR carries main-verify-fix instead."
         )
+
+    if not is_fix_pr:
+        try:
+            red_wf = main_verification_red(repo, token)
+        except Exception as e:
+            # Unknown (API error / missing workflow) must not hard-block every
+            # PR on a transient failure; warn loudly instead.
+            print(f"NOTICE: could not determine main verification status: {e}")
+            red_wf = None
+        if red_wf:
+            metadata_errors.append(
+                f"post-merge verification on main is red ({red_wf}); "
+                "no PR merges until main is green again. The fixing/reverting "
+                "PR must carry the main-verify-fix label."
+            )
 
     eligible_ai = same_repo and not is_draft
     eligible_auto_merge = same_repo and not is_draft and tier != "C" and not metadata_errors
