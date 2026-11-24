@@ -1244,6 +1244,7 @@ jobs:
           grep -Fx 'UPSTREAM_PATH_SNAPSHOT working-write=ok reset=ok republish=ok' "$fixture/probe.log"
           grep -Fx 'UPSTREAM_PATH_COSTS sector=111 packing=stock' "$fixture/probe.log"
           grep -Fx 'UPSTREAM_STOCK_ATLAS pages=4 regions=5200' "$fixture/probe.log"
+          grep -Fx 'UPSTREAM_STOCK_TEAM_ATLAS fallback=432 colored=14 teams=256' "$fixture/probe.log"
           grep -Fx 'UPSTREAM_STOCK_CAMPAIGN_DECODE presets=95 tiles=17662472' "$fixture/probe.log"
           grep -Fx 'UPSTREAM_STOCK_CAMPAIGN_ARCHIVE maps=95 presets=95 hidden=46 patches=3' "$fixture/probe.log"
           python3 tools/verify_stock_campaign_archive.py --server "$RUNNER_TEMP/server-release.jar" \

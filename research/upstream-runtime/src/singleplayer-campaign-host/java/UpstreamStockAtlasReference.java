@@ -1,6 +1,10 @@
+import arc.Core;
 import arc.files.Fi;
 import arc.graphics.g2d.TextureAtlas.TextureAtlasData;
 import java.util.Arrays;
+import mindustry.Vars;
+import mindustry.content.Blocks;
+import mindustry.game.Team;
 
 public final class UpstreamStockAtlasReference {
     public static void main(String[] args) {
@@ -28,5 +32,41 @@ public final class UpstreamStockAtlasReference {
             }
         }
         System.out.println("UPSTREAM_STOCK_ATLAS pages=" + pages.size + " regions=" + actual.size);
+        verifyTeamSprites(file);
+    }
+
+    private static void verifyTeamSprites(Fi atlasFile) {
+        var session = UpstreamSinglePlayerSession.create(atlasFile.parent(), "en");
+        try {
+            UpstreamTerrainDrawProbe.loadAtlas(atlasFile, () -> {});
+            Object shared = null;
+            int fallback = 0;
+            int colored = 0;
+            for (var block : Vars.content.blocks()) {
+                if (block == Blocks.air) continue;
+                var base = Core.atlas.find(block.name + "-team");
+                if (block.teamRegion != base || block.teamRegions.length != Team.all.length) {
+                    throw new AssertionError("Stock team sprite metadata differs for " + block.name);
+                }
+                for (Team team : Team.all) {
+                    var expected = base.found() && team.hasPalette
+                        ? Core.atlas.find(block.name + "-team-" + team.name, base) : base;
+                    if (block.teamRegions[team.id] != expected) {
+                        throw new AssertionError("Stock team sprite differs for " + block.name + " team " + team.id);
+                    }
+                }
+                if (base.found()) {
+                    colored++;
+                } else {
+                    if (shared == null) shared = block.teamRegions;
+                    if (block.teamRegions != shared) throw new AssertionError("Fallback table was duplicated");
+                    fallback++;
+                }
+            }
+            System.out.println("UPSTREAM_STOCK_TEAM_ATLAS fallback=" + fallback + " colored=" + colored
+                + " teams=" + Team.all.length);
+        } finally {
+            session.shutdown();
+        }
     }
 }
