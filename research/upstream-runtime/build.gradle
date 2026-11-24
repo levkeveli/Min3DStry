@@ -234,6 +234,7 @@ if (usesArcSources || usesExecutor) {
         }
     }
     if (usesSinglePlayer) {
+        stagedClasses.add('mindustry/io/SaveReadState.class')
         stagedClasses.add('arc/util/Interval.class')
         stagedClasses.addAll(['mindustry/ai/Pathfinder.class', 'mindustry/ai/Pathfinder$*.class'])
         flowfieldCostSources.each { path ->
@@ -633,6 +634,7 @@ tasks.register('prepareUpstreamProbe') {
         outputs.file(pathfinderFile)
         outputs.file(sourceDir.map { it.file('mindustry/io/SaveIO.java') })
         outputs.file(sourceDir.map { it.file('mindustry/io/JsonIO.java') })
+        outputs.file(sourceDir.map { it.file('mindustry/io/SaveReadState.java') })
         outputs.file(saveVersionFile)
     }
     if (patchesPlanetGrid) {
@@ -1536,6 +1538,16 @@ final class UpstreamItemChoices {
             if (writer.count(playtime) != 1 || writer.count(groups) != 1 || writer.count(controlled) != 1) {
                 throw new GradleException('Pinned SaveVersion player metadata fields changed')
             }
+            def metaReader = '''    public void readMeta(DataInput stream, SaveReadState saveState) throws IOException{
+        StringMap map = readStringMap(stream);'''
+            if (writer.count(metaReader) != 1) throw new GradleException('Pinned SaveVersion metadata reader changed')
+            writer = writer.replace(metaReader, metaReader + '''
+        if(saveState.playerTags != null){
+            saveState.playerTags.clear();
+            for(String key : new String[]{"playtime", "viewpos", "playerteam", "controlledType", "controlGroups"}){
+                if(map.containsKey(key)) saveState.playerTags.put(key, map.get(key));
+            }
+        }''')
             def stagedWriter = saveVersionFile.get().asFile
             stagedWriter.parentFile.mkdirs()
             stagedWriter.setText(writer.replace(playtime,
@@ -1662,6 +1674,37 @@ final class UpstreamItemChoices {
             mydeflater = true;
         }
     }'''
+            def fileLoad = '    public static void load(Fi file, WorldContext context) throws SaveException{'
+            def streamLoad = '    public static void load(InputStream is, WorldContext context) throws SaveException{'
+            def mainRead = 'load(new InflaterInputStream(file.read(bufferSize)), context);'
+            def backupRead = 'load(new InflaterInputStream(backup.read(bufferSize)), context);'
+            def readState = 'ver.read(stream, counter, new SaveReadState(context));'
+            if ([fileLoad, streamLoad, mainRead, backupRead, readState].any { saveIo.count(it) != 1 }) {
+                throw new GradleException('Pinned SaveIO load hooks changed')
+            }
+            saveIo = saveIo.replace(fileLoad, fileLoad + '''
+        load(file, context, null);
+    }
+
+    public static void load(Fi file, WorldContext context, StringMap playerTags) throws SaveException{''')
+                .replace(streamLoad, streamLoad + '''
+        load(is, context, null);
+    }
+
+    private static void load(InputStream is, WorldContext context, StringMap playerTags) throws SaveException{''')
+                .replace(mainRead, 'load(new InflaterInputStream(file.read(bufferSize)), context, playerTags);')
+                .replace(backupRead, 'load(new InflaterInputStream(backup.read(bufferSize)), context, playerTags);')
+                .replace(readState, '''var readState = new SaveReadState(context);
+            readState.playerTags = playerTags;
+            ver.read(stream, counter, readState);''')
+
+            def readStatePath = 'mindustry/io/SaveReadState.java'
+            def readStateSource = new String(readUpstream('core/src/' + readStatePath), 'UTF-8')
+            def ruleStringField = '    public @Nullable String ruleString;'
+            if (readStateSource.count(ruleStringField) != 1) throw new GradleException('Pinned SaveReadState changed')
+            def stagedReadState = sourceDir.get().file(readStatePath).asFile
+            stagedReadState.setText(readStateSource.replace(ruleStringField,
+                ruleStringField + '\n    public @Nullable arc.struct.StringMap playerTags;'), 'UTF-8')
             def stagedSaveIo = sourceDir.get().file(saveIoPath).asFile
             stagedSaveIo.parentFile.mkdirs()
             stagedSaveIo.setText(saveIo.replace(compress, boundedCompression), 'UTF-8')

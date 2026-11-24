@@ -1,6 +1,8 @@
 import arc.files.Fi;
 import arc.struct.IntSeq;
 import arc.struct.StringMap;
+import java.io.DataOutputStream;
+import java.util.zip.DeflaterOutputStream;
 import mindustry.Vars;
 import mindustry.content.Blocks;
 import mindustry.content.UnitTypes;
@@ -55,6 +57,7 @@ public final class UpstreamStockSavedPlayerReference {
                 throw new AssertionError("The original controlled turret did not resume");
             }
             session.save(output.child("turret-roundtrip.msav"));
+            verifyBackupTags(session, output.child("recover.msav"), unitSave, blockSave);
 
             session.startCustomGame(MapIO.createMap(map, false), Gamemode.sandbox);
             var fresh = output.child("fresh.msav");
@@ -68,6 +71,36 @@ public final class UpstreamStockSavedPlayerReference {
         } finally {
             session.shutdown();
         }
+    }
+
+    private static void verifyBackupTags(UpstreamSinglePlayerSession session, Fi primary, Fi unit, Fi turret)
+            throws Exception {
+        try (var source = SaveIO.getStream(unit);
+                var target = new DeflaterOutputStream(primary.write(false))) {
+            byte[] header = source.readNBytes(SaveIO.header.length + Integer.BYTES);
+            // SaveVersion wraps the StringMap in SaveFileReader.writeRegion("meta", ...).
+            int metaLength = source.readInt();
+            byte[] metadata = new byte[metaLength];
+            source.readFully(metadata);
+            target.write(header);
+            var output = new DataOutputStream(target);
+            output.writeInt(metaLength);
+            output.write(metadata);
+        }
+        if (!SaveIO.isSaveValid(primary) || !"dagger".equals(SaveIO.getMeta(primary).tags.get("controlledType"))) {
+            throw new AssertionError("Truncated primary does not retain valid player metadata");
+        }
+        turret.copyTo(SaveIO.backupFileFor(primary));
+        if (!session.start(null, primary, "saved-player-backup")) {
+            throw new AssertionError("Stock backup did not load");
+        }
+        var tile = Vars.world.tile(65, 60);
+        if (!(tile.build instanceof ControlBlock restored)
+                || Vars.player.x != tile.worldx() || Vars.player.y != tile.worldy()
+                || session.ensurePlayerSpawn() != restored.unit()) {
+            throw new AssertionError("Recovered world did not use its backup player metadata");
+        }
+        System.out.println("UPSTREAM_SAVED_PLAYER_BACKUP primary=truncated tags=backup");
     }
 
     private static void writeTaggedSave(Fi file, UnitType type, String groups, float x, float y) {
