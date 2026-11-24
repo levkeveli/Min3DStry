@@ -78,10 +78,21 @@ public final class UpstreamWorldLoadProbe {
         Vars.logic = new Logic() {
             @Override
             public void reset() {
+                boolean dense = Vars.world.width() >= 600 && Vars.world.height() >= 600;
+                if (dense) System.out.println("UPSTREAM_DENSE_RESET phase=before scratchTiles="
+                    + mindustry.world.UpstreamBlockScratch.tileReferences());
                 super.reset();
                 // A scratch tile can keep its building and the previous power network alive.
                 mindustry.gen.UpstreamBuildingScratch.clear();
                 mindustry.world.UpstreamBlockScratch.clear();
+                if (dense) {
+                    System.gc();
+                    var runtime = Runtime.getRuntime();
+                    long live = runtime.totalMemory() - runtime.freeMemory();
+                    System.out.println("UPSTREAM_DENSE_RESET phase=after scratchTiles="
+                        + mindustry.world.UpstreamBlockScratch.tileReferences()
+                        + " used=" + live + " world=" + Vars.world.width() + "x" + Vars.world.height());
+                }
             }
         };
 
