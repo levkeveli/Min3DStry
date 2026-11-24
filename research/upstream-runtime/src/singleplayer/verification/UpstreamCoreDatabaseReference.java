@@ -63,5 +63,12 @@ public final class UpstreamCoreDatabaseReference {
         if (!"Copper 1 (2/sec)".equals(filteredItem) || !"Water 2.5/sec".equals(filteredLiquid) || !"4.5x4.5 blocks".equals(area)) {
             throw new AssertionError(filteredItem + " | " + filteredLiquid + " | " + area);
         }
+        var materials = arc.struct.Seq.with(Items.copper, Items.lead);
+        String material = StatValues.content(Items.lead).handheldText();
+        String selected = StatValues.content(materials, item -> item == Items.copper, "@none").handheldText();
+        String empty = StatValues.content(materials, item -> false, "@none").handheldText();
+        if (!"Lead".equals(material) || !"Copper".equals(selected) || !Core.bundle.get("none").equals(empty)) {
+            throw new AssertionError(material + " | " + selected + " | " + empty);
+        }
     }
 }
