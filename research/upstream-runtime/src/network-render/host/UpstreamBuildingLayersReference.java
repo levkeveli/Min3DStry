@@ -235,6 +235,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         }
         if (liquid != 21) throw new AssertionError("Expected 21 stock liquid buildings, got " + liquid);
         if (materials != 52) throw new AssertionError("Expected 52 stock material buildings, got " + materials);
+        target.verifyLiquidBridgeTransfer(viewer);
         target.verifyCanvas(viewer);
         if (args.length >= 4) verifyObjectiveHud();
         if (args.length >= 5) verifyClientProcessor(new Fi(args[4]), viewer);
@@ -1218,6 +1219,28 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         if (outline != 4 || solidQuads.isEmpty()) throw new AssertionError("Missing stock building effects");
         System.out.printf("UPSTREAM_SOLID_BUILDING_EFFECTS weave=1 overdrive=%d shockwave=%d%n",
             outline, solidQuads.size());
+    }
+
+    private void verifyLiquidBridgeTransfer(Team team) {
+        var sourceTile = Vars.world.tile(50, 50);
+        var targetTile = Vars.world.tile(53, 50);
+        sourceTile.setBlock(Blocks.air);
+        targetTile.setBlock(Blocks.air);
+        sourceTile.setBlock(Blocks.bridgeConduit, team, 0);
+        targetTile.setBlock(Blocks.bridgeConduit, team, 0);
+
+        var source = (mindustry.world.blocks.distribution.ItemBridge.ItemBridgeBuild)sourceTile.build;
+        // Stock bridge links are one-way; a second back-link makes linkValid() false.
+        source.configure(new arc.math.geom.Point2(3, 0));
+        source.liquids.add(Liquids.water, source.block.liquidCapacity);
+        Time.delta = 1f;
+        for (int tick = 0; tick < 120; tick++) {
+            source.update();
+        }
+
+        float moved = targetTile.build.liquids.get(Liquids.water);
+        if (moved <= 0f) throw new AssertionError("Stock Liquid Bridge did not transfer water");
+        System.out.println("UPSTREAM_LIQUID_BRIDGE_REFERENCE movedMilli=" + Math.round(moved * 1000f));
     }
 
     private void verifyFluidDrawing(UpstreamBuildingLayers layers, UpstreamTerrainDrawProbe.Viewport viewport,
