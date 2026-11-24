@@ -10,9 +10,19 @@ printf '%s  %s\n' \
   6dd6da921d5021a84823456e05b477ee8de8511990d40de850b37dd0905152f2 "$RUNNER_TEMP/desktop.jar" |
   sha256sum --check
 
-bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime --no-daemon --console=plain \
-  "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" "-PreferenceJar=$RUNNER_TEMP/server-release.jar" \
-  "-ParcCheckout=$RUNNER_TEMP/Arc" -Pprobe=unified generateC
+gradle_log="$RUNNER_TEMP/gradle-generate.log"
+for attempt in 1 2 3; do
+  if bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime --no-daemon --console=plain \
+      "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" "-PreferenceJar=$RUNNER_TEMP/server-release.jar" \
+      "-ParcCheckout=$RUNNER_TEMP/Arc" -Pprobe=unified generateC 2>&1 | tee "$gradle_log"; then
+    break
+  fi
+  if [ "$attempt" -eq 3 ] || ! grep -Eq '429|Could not resolve' "$gradle_log"; then
+    exit 1
+  fi
+  echo "Gradle dependency resolution was rate-limited; retrying (attempt $((attempt + 1))/3)" >&2
+  sleep $((attempt * 15))
+done
 
 export M3DS_SMOKE_DEVKIT_IMAGE=devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5
 cat > "$RUNNER_TEMP/smoke-tex3ds" <<'WRAPPER'
