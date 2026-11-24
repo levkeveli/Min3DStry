@@ -3,7 +3,9 @@ import arc.files.Fi;
 import arc.struct.Seq;
 import arc.util.I18NBundle;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.Locale;
 import java.util.zip.InflaterInputStream;
@@ -14,6 +16,7 @@ import mindustry.game.Team;
 import mindustry.gen.Fire;
 import mindustry.gen.Puddle;
 import mindustry.io.MapIO;
+import mindustry.io.SaveIO;
 import mindustry.type.Sector;
 import mindustry.world.Tiles;
 import mindustry.world.blocks.logic.LogicBlock;
@@ -33,6 +36,7 @@ public final class UpstreamStockCampaignArchiveReference {
         try {
             verifyTileEffects();
             verifyEmptyLogicProgram();
+            verifySaveBuffer();
             int total = 0;
             int hidden = 0;
             for (String directory : new String[]{"serpulo", "serpulo/hidden", "erekir"}) {
@@ -85,6 +89,32 @@ public final class UpstreamStockCampaignArchiveReference {
         } finally {
             session.shutdown();
         }
+    }
+
+    private static void verifySaveBuffer() throws IOException {
+        var writer = SaveIO.getVersion();
+        byte[] payload = new byte[10_001];
+        for (int i = 0; i < payload.length; i++) payload[i] = (byte) (i * 31);
+        var bytes = new ByteArrayOutputStream();
+        var output = new DataOutputStream(bytes);
+        writer.writeChunk(output, outer -> {
+            outer.output.writeByte(127);
+            writer.writeChunk(outer.output, inner -> inner.output.write(payload, 1, payload.length - 1));
+            outer.output.writeByte(-128);
+        });
+        writer.writeChunk(output, empty -> {});
+        var input = new DataInputStream(new ByteArrayInputStream(bytes.toByteArray()));
+        if (input.readInt() != payload.length + 5 || input.readByte() != 127
+                || input.readInt() != payload.length - 1) {
+            throw new AssertionError("Stock save-region length or prefix changed");
+        }
+        for (int i = 1; i < payload.length; i++) {
+            if (input.readByte() != payload[i]) throw new AssertionError("Stock save-region payload changed at " + i);
+        }
+        if (input.readByte() != -128 || input.readInt() != 0 || input.read() != -1) {
+            throw new AssertionError("Stock save-region suffix or empty chunk changed");
+        }
+        System.out.println("UPSTREAM_SAVE_BUFFER length=ok payload=ok nested=ok empty=ok");
     }
 
     private static void verifyEmptyLogicProgram() throws IOException {
