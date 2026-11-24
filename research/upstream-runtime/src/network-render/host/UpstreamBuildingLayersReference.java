@@ -18,6 +18,8 @@ import arc.graphics.g2d.Draw;
 import arc.graphics.g2d.Fill;
 import arc.graphics.g2d.Lines;
 import arc.graphics.g2d.SpriteBatch;
+import arc.graphics.g2d.TextureAtlas.AtlasRegion;
+import arc.graphics.g2d.TextureAtlas.TextureAtlasData;
 import arc.graphics.g2d.TextureRegion;
 import arc.mock.MockAudio;
 import arc.mock.MockGraphics;
@@ -29,11 +31,14 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.function.Predicate;
 import mindustry.Vars;
+import mindustry.ui.Fonts;
 import mindustry.ai.BlockIndexer;
 import mindustry.content.Blocks;
 import mindustry.content.Items;
@@ -131,6 +136,19 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
     }
 
     public static void main(String[] args) throws Exception {
+        if (args.length == 3 && args[0].equals("--packaged-graphics")) {
+            verifySpriteAtlas(new Fi(args[2]));
+            var font = new Fi(args[1]);
+            UpstreamLogicFont.load(font);
+            verifyLogicFontPixels(font);
+            return;
+        }
+        if (args.length == 2 && args[0].equals("--logic-font")) {
+            var font = new Fi(args[1]);
+            UpstreamLogicFont.load(font);
+            verifyLogicFontPixels(font);
+            return;
+        }
         if (args.length < 3 || args.length == 6 || args.length > 7) {
             throw new IllegalArgumentException("Expected Glacier, sprites.aatls, block_colors.png, optional bundle base, logicids.dat, then paired world atlas tiles and logic font");
         }
@@ -196,21 +214,26 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         target.verifyErekirStarterBlocks(layers, viewport, viewer);
         target.verifyExtractorDraws(layers, viewport, viewer);
         target.verifyLiveBuildingRegistry(layers, viewport, viewer, block -> block instanceof BaseTurret, "TURRET");
-        // The stock Liquid Bridge inherits ItemBridge's distribution category, so
-        // it must stay in the same live draw set as item bridges.
+        // The stock Liquid Bridge is liquid-category, so the live predicate's
+        // Category.liquid branch must keep both bridge blocks drawable.
         if (Blocks.bridgeConduit.category != Category.liquid
                 || Blocks.phaseConduit.category != Category.liquid) {
             throw new AssertionError("Stock Liquid Bridge is not in the liquid draw category");
         }
-        target.verifyLiveBuildingRegistry(layers, viewport, viewer, UpstreamBuildingLayers::supportsPowerDraw,
-            "POWER");
-        target.verifyLiveBuildingRegistry(layers, viewport, viewer, UpstreamBuildingLayers::supportsDistributionDraw,
-            "DISTRIBUTION");
-        target.verifyLiveBuildingRegistry(layers, viewport, viewer, block -> block.category == Category.liquid,
-            "LIQUID");
+        int power = target.verifyLiveBuildingRegistry(
+            layers, viewport, viewer, UpstreamBuildingLayers::supportsPowerDraw, "POWER");
+        int distribution = target.verifyLiveBuildingRegistry(
+            layers, viewport, viewer, UpstreamBuildingLayers::supportsDistributionDraw, "DISTRIBUTION");
+        int liquid = target.verifyLiveBuildingRegistry(
+            layers, viewport, viewer, block -> block.category == Category.liquid, "LIQUID");
         int materials = target.verifyLiveBuildingRegistry(layers, viewport, viewer,
             block -> UpstreamBuildingLayers.supportsMaterialDraw(block) && !(block instanceof CoreBlock),
             "MATERIAL");
+        if (power != 26) throw new AssertionError("Expected 26 stock power buildings, got " + power);
+        if (distribution != 28) {
+            throw new AssertionError("Expected 28 stock distribution buildings, got " + distribution);
+        }
+        if (liquid != 21) throw new AssertionError("Expected 21 stock liquid buildings, got " + liquid);
         if (materials != 52) throw new AssertionError("Expected 52 stock material buildings, got " + materials);
         target.verifyCanvas(viewer);
         if (args.length >= 4) verifyObjectiveHud();
@@ -495,11 +518,69 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         System.out.println("UPSTREAM_CLIENT_PROCESSOR_REFERENCE ids=ok compressed=ok link=ok canvas=5");
     }
 
+    private static void verifySpriteAtlas(Fi file) throws IOException {
+        var stock = new TextureAtlasData(file, file.parent(), false);
+        if (UpstreamTerrainDrawProbe.countAtlasRegions(file) != stock.getRegions().size) {
+            throw new AssertionError("Stock atlas reservation count differs from the Arc decoder");
+        }
+        var atlas = UpstreamTerrainDrawProbe.readAtlas(file);
+        var regions = atlas.getRegions();
+        if (stock.getRegions().size != 5200 || regions.size != stock.getRegions().size) {
+            throw new AssertionError("Expected 5,200 stock sprite regions");
+        }
+        var lookup = new HashMap<String, AtlasRegion>();
+        for (int i = 0; i < regions.size; i++) {
+            var expected = stock.getRegions().get(i);
+            var actual = regions.get(i);
+            lookup.put(expected.name, actual);
+            if (!expected.name.equals(actual.name)
+                    || UpstreamTerrainDrawProbe.pageIndex(actual) != stock.getPages().indexOf(expected.page, true)
+                    || actual.texture.width != expected.page.width || actual.texture.height != expected.page.height
+                    || actual.getX() != expected.left || actual.getY() != expected.top
+                    || actual.width != expected.width || actual.height != expected.height
+                    || actual.offsetX != expected.offsetX || actual.offsetY != expected.offsetY
+                    || actual.originalWidth != expected.originalWidth || actual.originalHeight != expected.originalHeight
+                    || !Arrays.equals(actual.splits, expected.splits) || !Arrays.equals(actual.pads, expected.pads)) {
+                throw new AssertionError("Stock sprite metadata differs for " + expected.name);
+            }
+        }
+        if (atlas.getRegionMap().size != lookup.size()) throw new AssertionError("Unexpected atlas lookup size");
+        lookup.forEach((name, region) -> {
+            if (atlas.find(name) != region) throw new AssertionError("Stock atlas lookup differs for " + name);
+        });
+        if (atlas.find("missing-port-region") != atlas.find("error")) {
+            throw new AssertionError("Missing sprites should fall back to the stock error region");
+        }
+        System.out.println("UPSTREAM_STOCK_SPRITE_ATLAS pages=" + stock.getPages().size + " regions=" + regions.size);
+    }
+
+    private static void verifyLogicFontPixels(Fi font) {
+        var texture = Fonts.logic.getRegion().texture;
+        var sampled = (UpstreamLogicFramebuffer.SampledTexture)texture;
+        try (var packed = new DataInputStream(font.read())) {
+            // Skip the magic, size and float metrics before the glyph records.
+            packed.skipNBytes(24);
+            packed.skipNBytes(packed.readUnsignedShort() * 16L);
+            for (int y = 0; y < texture.height; y++) {
+                for (int x = 0; x < texture.width; x++) {
+                    if (sampled.pixel(x, y) != packed.readInt()) {
+                        throw new AssertionError("Stock Logic Display font differs at " + x + "," + y);
+                    }
+                }
+            }
+            if (packed.read() != -1) throw new AssertionError("Stock Logic Display font has extra pixels");
+            System.out.println("UPSTREAM_LOGIC_FONT_REFERENCE pixels=" + texture.width * texture.height);
+        } catch (IOException error) {
+            throw new AssertionError("Could not verify the packed stock Logic Display font", error);
+        }
+    }
+
     private void verifyLogicDisplay(Fi tiles, Fi font, Team team) {
         var atlas = new UpstreamLogicAtlas(tiles);
         UpstreamLogicFramebuffer.atlasPixels((texture, x, y) ->
             atlas.sample(UpstreamTerrainDrawProbe.pageIndex(texture), x, y));
         UpstreamLogicFont.load(font);
+        verifyLogicFontPixels(font);
         var processor = (LogicBuild)Vars.world.tile(70, 15).build;
         var displayTile = Vars.world.tile(70, 20);
         var sourceTile = Vars.world.tile(76, 15);
