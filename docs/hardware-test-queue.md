@@ -165,9 +165,13 @@ and waves, touch palette/rotation, HUD/menus/minimap.
 - With a captured sector loaded, the status HUD shows the stock
   `Sector Captured` row.
 - On a boss wave, the guardian-warning notification appears with the stock
-  `wave.guardianwarn` text.
+  `wave.guardianwarn` text, and the boss health bar appears above the bottom
+  edge with the guardian text and a fill that follows the boss health.
 - The top-right minimap shows the sector terrain, marks the local player with a
   white dot, and follows the player as they move.
+- `R` opens the fullscreen map over the HUD; the circle pad/d-pad pans it, `X`
+  and `Y` zoom out/in between 1x and 4x, and `B` or `R` closes it without
+  moving the player.
 - The core item list shows one icon-and-count row per stocked item and wraps
   into columns without covering the minimap.
 - Selecting a friendly liquid building shows the stock dynamic and keyed

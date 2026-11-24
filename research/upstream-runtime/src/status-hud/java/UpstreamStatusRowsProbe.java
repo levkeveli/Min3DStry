@@ -15,6 +15,8 @@ import mindustry.core.ContentLoader;
 import mindustry.core.GameState;
 import mindustry.game.Rules;
 import mindustry.game.SpawnGroup;
+import mindustry.game.Team;
+import mindustry.game.Teams;
 import mindustry.mod.Mods;
 import mindustry.net.Net;
 
@@ -238,6 +240,64 @@ public final class UpstreamStatusRowsProbe {
         if (!settings.backSelected()) throw new IllegalStateException("Settings back selection mismatch");
         settings.move(1);
         if (settings.selected() != 0) throw new IllegalStateException("Settings wrap mismatch");
+        Vars.state.rules.waves = true;
+        Vars.state.teams = new Teams();
+        if (UpstreamBossHud.collect() != null) {
+            throw new IllegalStateException("Boss bar appeared without bosses");
+        }
+        for (int i = 0; i < 3; i++) {
+            var guardian = UnitTypes.dagger.create(Team.crux);
+            guardian.health = i == 0 ? 500f : 1000f;
+            guardian.maxHealth = 1000f;
+            Vars.state.teams.bosses.add(guardian);
+        }
+        var bossSummary = UpstreamBossHud.collect();
+        if (bossSummary == null || bossSummary.count() != 3
+                || Math.abs(bossSummary.fraction() - (2500f / 3000f)) > 1e-5f
+                || !bossSummary.markup().endsWith(" " + bundle.get("guardian"))) {
+            throw new IllegalStateException("Boss bar summary mismatch: " + bossSummary);
+        }
+        for (int i = 0; i < 5; i++) {
+            var guardian = UnitTypes.dagger.create(Team.crux);
+            guardian.health = 1000f;
+            guardian.maxHealth = 1000f;
+            Vars.state.teams.bosses.add(guardian);
+        }
+        var capped = UpstreamBossHud.collect();
+        if (capped == null || capped.count() != 8 || !capped.markup().contains("[accent]+[]")) {
+            throw new IllegalStateException("Boss bar cap mismatch: " + capped);
+        }
+        Vars.state.rules.waves = false;
+        if (UpstreamBossHud.collect() != null) {
+            throw new IllegalStateException("Boss bar ignored wave rules");
+        }
+        System.out.println("UPSTREAM_BOSS_BAR cases=4 ok");
+        var minimapView = new UpstreamMinimapView();
+        if (minimapView.open() || minimapView.zoom() != UpstreamMinimapView.minZoom) {
+            throw new IllegalStateException("Minimap view initial state mismatch");
+        }
+        minimapView.toggle();
+        if (!minimapView.open()) throw new IllegalStateException("Minimap view did not open");
+        minimapView.zoomBy(10f);
+        if (minimapView.zoom() != UpstreamMinimapView.maxZoom) {
+            throw new IllegalStateException("Minimap view zoom cap mismatch");
+        }
+        minimapView.move(10_000f, -10_000f);
+        if (Math.abs(minimapView.panX()) > minimapView.panLimit() + 0.001f
+                || Math.abs(minimapView.panY()) > minimapView.panLimit() + 0.001f) {
+            throw new IllegalStateException("Minimap view pan clamp mismatch");
+        }
+        minimapView.zoomBy(-10f);
+        if (minimapView.zoom() != UpstreamMinimapView.minZoom) {
+            throw new IllegalStateException("Minimap view zoom floor mismatch");
+        }
+        minimapView.close();
+        if (minimapView.open()) throw new IllegalStateException("Minimap view did not close");
+        minimapView.reset();
+        if (minimapView.panX() != 0f || minimapView.panY() != 0f) {
+            throw new IllegalStateException("Minimap view reset mismatch");
+        }
+        System.out.println("UPSTREAM_MINIMAP_VIEW cases=5 ok");
         System.out.println("UPSTREAM_PAUSE_MENU cases=22 ok");
         System.out.println("UPSTREAM_STATUS_ROWS cases=10 ok");
         System.out.println("UPSTREAM_GUARDIAN_WARNING cases=2 ok");
