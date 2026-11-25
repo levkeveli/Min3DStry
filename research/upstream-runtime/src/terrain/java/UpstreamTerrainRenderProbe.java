@@ -121,9 +121,10 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
     }
 
     boolean drawCampaignPlanet(int planet, float[] matrix, float[] lighting, float[] overlay,
-            int vertices, int sectorVertices, int[] surface) {
+            int vertices, int sectorVertices, int[] surface, int[] ids, float[] planes, float[] markerMatrix, int markers) {
         return NativeTerrain.drawCampaignPlanet(planet, Address.ofData(matrix), Address.ofData(lighting),
-            Address.ofData(overlay), vertices, sectorVertices, Address.ofData(surface), surface.length / 3) != 0;
+            Address.ofData(overlay), vertices, sectorVertices, Address.ofData(surface), surface.length / 3,
+            Address.ofData(ids), Address.ofData(planes), Address.ofData(markerMatrix), markers) != 0;
     }
 
     void releaseCampaignPlanet() {
@@ -377,7 +378,8 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
 
         @Import(name = "m3ds_terrain_draw_campaign_planet")
         static native int drawCampaignPlanet(int planet, Address matrix, Address lighting, Address overlay,
-            int vertices, int sectorVertices, Address surface, int faces);
+            int vertices, int sectorVertices, Address surface, int faces,
+            Address ids, Address planes, Address markerMatrix, int markers);
 
         @Import(name = "m3ds_terrain_release_campaign_planet")
         static native void releaseCampaignPlanet();

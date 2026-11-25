@@ -569,6 +569,7 @@ public final class UpstreamSinglePlayerApp {
         var overlay = new UpstreamCampaignSectorOverlay();
         var grid = new UpstreamCampaignGrid();
         var arcs = new UpstreamCampaignArcs();
+        var markers = new UpstreamCampaignMarkers();
         UpstreamCampaignSurface surface = null;
         boolean checkedSurface = false;
         boolean liveSurface = false;
@@ -680,11 +681,13 @@ public final class UpstreamSinglePlayerApp {
                 int routeCount = arcs.append(globe.planet(), active, sector, selectedSector,
                     ticks, globe.projection, overlay.vertices);
                 int overlayVertices = overlay.vertices.size / UpstreamCampaignSectorOverlay.FLOATS_PER_VERTEX;
+                markers.update(globe, sector, ticks);
                 // The 20x12 framing gives the globe the full 400x240 top screen.
                 target.begin(0, 0, 20, 12);
                 try {
                     if (!target.drawCampaignPlanet(globe.meshIndex(), globe.projection.val, globe.lighting,
-                            overlay.vertices.items, overlayVertices, sectorVertices, surfaceFaces)) {
+                            overlay.vertices.items, overlayVertices, sectorVertices, surfaceFaces,
+                            markers.ids.items, markers.planes.items, globe.camera.combined.val, markers.ids.size / 2)) {
                         System.out.println("UPSTREAM_CAMPAIGN_GLOBE_ERROR planet=" + globe.planet().name);
                         return null;
                     }

@@ -57,10 +57,13 @@ def verify(args):
         config.write_text(sp.az.patch_qt_config_text((originals[config] or b"").decode(), storage), encoding="utf-8")
         proc, rpc = sp._launch_azahar("new3ds", args.rom, emulator, config, log, movie)
         try:
+            sp._wait_for_log(log, proc, r"UPSTREAM_MEMORY appHeap=\d+ linearHeap=8388608\b", 40)
             sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_GLOBE planet=serpulo sector=170 available=true\b", 120)
             sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_SECTOR_OVERLAY planet=serpulo vertices=[1-9]\d* "
                                        r"shadowed=[1-9]\d* outlined=[1-9]\d*", 25)
             sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_SECTOR_GRID planet=serpulo edges=[1-9]\d* vertices=[1-9]\d*", 25)
+            sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_MARKER_ASSET kind=0 id=0\b", 25)
+            sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_MARKERS_DRAW planet=0 markers=[1-9]\d*\b", 25)
             sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_SURFACE_DRAW faces=7292 vertices=43740\b", 95)
             sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_GLOBE_FRAME planet=serpulo sector=170 selection=-1 "
                                        r"surface=true\b", 25)

@@ -165,6 +165,11 @@ if [[ $# -gt 0 ]]; then
             "$output/m3ds_planet.shbin" > "$output/m3ds_planet_shader.s"
         terrain_sources+=("$root/m3ds_planet_mesh.c" "$output/m3ds_planet_shader.s")
         cp -R "$1/planet-meshes" "$output/romfs/planet-meshes"
+        if [[ -d "$1/planet-icons" && -d "$1/world-atlas" ]]; then
+            terrain_flags+=(-DM3DS_CAMPAIGN_PLANET_MARKERS)
+            terrain_sources+=("$root/m3ds_planet_markers.c")
+            cp -R "$1/planet-icons" "$output/romfs/planet-icons"
+        fi
     fi
     if [[ -d "$1/weather" ]]; then
         cp -R "$1/weather" "$output/romfs/weather"

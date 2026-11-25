@@ -26,6 +26,7 @@ def create(java: str, server: Path, output: Path, *, globe_lights: bool = False)
                 settings = """
                     sector.info.hasCore = true;
                     sector.info.lightCoverage = 50000;
+                    sector.info.contentIcon = Packages.mindustry.content.Items.copper;
                     sector.saveInfo();
                     Packages.arc.Core.settings.forceSave();
                 """ if globe_lights else ""

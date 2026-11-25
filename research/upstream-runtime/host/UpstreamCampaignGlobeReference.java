@@ -6,6 +6,7 @@ import arc.graphics.Color;
 import arc.graphics.Gl;
 import arc.graphics.Mesh;
 import arc.graphics.g3d.VertexBatch3D;
+import arc.graphics.g3d.PlaneBatch3D;
 import arc.mock.MockGL20;
 import arc.struct.FloatSeq;
 import arc.util.ArcNativesLoader;
@@ -15,6 +16,7 @@ import arc.math.geom.Vec3;
 import arc.mock.MockApplication;
 import arc.mock.MockFiles;
 import mindustry.Vars;
+import mindustry.content.Items;
 import mindustry.content.Planets;
 import mindustry.core.ContentLoader;
 import mindustry.core.GameState;
@@ -30,6 +32,7 @@ import mindustry.type.Sector;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.IntBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
@@ -41,7 +44,32 @@ public final class UpstreamCampaignGlobeReference {
         Core.files = new MockFiles();
         Core.settings = new Settings();
         ArcNativesLoader.load();
-        Core.gl = Core.gl20 = new MockGL20();
+        Core.gl = Core.gl20 = new MockGL20() {
+            @Override
+            public int glCreateProgram() {
+                return 1;
+            }
+
+            @Override
+            public int glCreateShader(int type) {
+                return type;
+            }
+
+            @Override
+            public String glGetShaderInfoLog(int shader) {
+                return "";
+            }
+
+            @Override
+            public void glGetShaderiv(int shader, int property, IntBuffer value) {
+                value.put(0, property == Gl.compileStatus ? 1 : 0);
+            }
+
+            @Override
+            public void glGetProgramiv(int program, int property, IntBuffer value) {
+                value.put(0, property == Gl.linkStatus ? 1 : 0);
+            }
+        };
         Vars.headless = true;
         Vars.state = new GameState();
         Vars.content = new ContentLoader();
@@ -81,9 +109,56 @@ public final class UpstreamCampaignGlobeReference {
         checkTrade(serpuloStart, serpuloStart.near().first(), Color.gray);
         checkTrade(serpuloStart, numbered, Pal.place);
         System.out.println("UPSTREAM_CAMPAIGN_ARC_REFERENCE launch=true shield=true invasion=true trade=true");
+        checkMarkers();
         if (args.length == 1) checkCampaignSurface(args[0]);
         System.out.println("UPSTREAM_CAMPAIGN_GLOBE_REFERENCE serpulo=" + Planets.serpulo.startSector
             + " rotated=" + numbered.id + " erekir=" + Planets.erekir.startSector + " zoom=true");
+    }
+
+    private static void checkMarkers() {
+        var markers = new UpstreamCampaignMarkers();
+        var starter = Planets.serpulo.getStartSector();
+        var globe = new UpstreamCampaignGlobe(starter);
+        globe.update(200, 120);
+        starter.info.contentIcon = Items.copper;
+        try {
+            markers.update(globe, starter, 42f);
+            if (markers.ids.size < 2 || markers.ids.peek() != Items.copper.id
+                || markers.ids.get(markers.ids.size - 2) != Items.copper.getContentType().ordinal()
+                || markers.planes.size != markers.ids.size / 2 * 13) {
+                throw new AssertionError("The hovered sector did not use the saved stock content icon");
+            }
+        } finally {
+            starter.info.contentIcon = null;
+        }
+
+        var stockOrigin = new Vec3();
+        var stockUp = new Vec3();
+        var stockRight = new Vec3();
+        var stock = new PlaneBatch3D(8) {
+            @Override
+            public void setPlane(Vec3 at, Vec3 vertical, Vec3 horizontal) {
+                stockOrigin.set(at);
+                stockUp.set(vertical);
+                stockRight.set(horizontal);
+            }
+        };
+        try {
+            for (Sector sector : Planets.serpulo.sectors) {
+                markers.plane(sector);
+                sector.planet.setPlane(sector, stock);
+                if (markers.origin.dst(stockOrigin) > 0.00001f || markers.up.dst(stockUp) > 0.00001f
+                    || markers.right.dst(stockRight) > 0.00001f) {
+                    throw new AssertionError("Marker plane differs from original at sector " + sector.id
+                        + " stockOrigin=" + markers.origin.dst(stockOrigin) + " stockUp=" + markers.up.dst(stockUp)
+                        + " stockRight=" + markers.right.dst(stockRight));
+                }
+            }
+        } finally {
+            stock.dispose();
+        }
+        System.out.println("UPSTREAM_CAMPAIGN_MARKER_REFERENCE sector=170 content=copper planes="
+            + Planets.serpulo.sectors.size);
     }
 
     private static void checkCampaignSurface(String path) throws Exception {

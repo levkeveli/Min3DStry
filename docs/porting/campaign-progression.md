@@ -73,7 +73,16 @@ The handheld evaluates the same generator over those samples and updates all
 full stock rebuild after adding a lit base. The New 3DS replay imports a
 lit Ground Zero save and settings written by the unmodified v160.8 server.
 It checks the recolored frame before switching to Erekir and launching
-The Onset. Sector icons and the wider solar-system view remain open.
+The Onset. Sector markers use the original content atlas and glyphs rasterized
+with v160.8's Arc FreeType parameters. The handheld projects them onto the
+stock sector planes with the saved content icon, warning, lock and preset
+rules. The replay exercises a copper marker saved by stock v160.8. The wider
+solar-system view remains open.
+
+The unified globe build reserves an 8 MiB linear heap for stock mesh, overlay,
+and marker vertex buffers alongside Citro2D. The earlier 4 MiB build loaded
+the Serpulo mesh but could not complete the overlay draw. The replay records
+the heap reservation and the submitted overlay and marker batches.
 
 ## 1:1 Upstream Mandate
 

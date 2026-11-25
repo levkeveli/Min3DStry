@@ -255,6 +255,13 @@ def main() -> None:
                 subprocess.run([args.java, "-Dfile.encoding=UTF-8", "-cp", str(args.desktop.resolve()),
                                 str(CONVERTER.with_name("UpstreamCampaignPlanetMeshes.java")),
                                 str(staged / "planet-meshes")], check=True)
+                planet_art = Path(tmp) / "planet-art"
+                planet_art.mkdir()
+                subprocess.run([args.java, "-Djava.awt.headless=true", "-cp", str(args.desktop.resolve()),
+                                str(CONVERTER.with_name("UpstreamSpriteAtlas.java")), str(args.assets.resolve()),
+                                str(planet_art), "--campaign-icons"], check=True)
+                (planet_art / "planet-icons").rename(staged / "planet-icons")
+                (planet_art / "planet-icons.tsv").rename(staged / "planet-icons.tsv")
             if not (bundles / "bundle.properties").is_file():
                 raise ValueError("The official archive is missing its root translation bundle")
             if args.live_audio:

@@ -1,5 +1,8 @@
 #include "m3ds_planet_mesh.h"
 #include "m3ds_planet_shbin.h"
+#ifdef M3DS_CAMPAIGN_PLANET_MARKERS
+#include "m3ds_planet_markers.h"
+#endif
 
 #include <3ds.h>
 #include <citro3d.h>
@@ -19,6 +22,7 @@ typedef struct {
 static struct {
     int planet;
     bool surface_applied;
+    bool reported_markers;
     uint32_t stride, vertices, indices;
     float *stock;
     PlanetVertex *draw;
@@ -40,10 +44,14 @@ static void release_faces(void) {
     mesh.index = NULL;
     mesh.planet = -1;
     mesh.surface_applied = false;
+    mesh.reported_markers = false;
 }
 
 void m3ds_planet_release(void) {
     release_faces();
+#ifdef M3DS_CAMPAIGN_PLANET_MARKERS
+    m3ds_planet_release_markers();
+#endif
     if (mesh.overlay) linearFree(mesh.overlay);
     mesh.overlay = NULL;
     mesh.overlay_capacity = 0;
@@ -181,8 +189,20 @@ static void shade_vertices(const float *light, const float *ambient, const float
     GSPGPU_FlushDataCache(mesh.draw, mesh.vertices * sizeof(PlanetVertex));
 }
 
+static C3D_Mtx screen_projection(const float *matrix) {
+    // Convert Arc's column-major clip matrix to PICA's tilted framebuffer and reversed depth.
+    C3D_Mtx projection;
+    projection.r[0] = FVec4_New(matrix[1], matrix[5], matrix[9], matrix[13]);
+    projection.r[1] = FVec4_New(-matrix[0], -matrix[4], -matrix[8], -matrix[12]);
+    projection.r[2] = FVec4_New(-0.5f * (matrix[2] + matrix[3]), -0.5f * (matrix[6] + matrix[7]),
+        -0.5f * (matrix[10] + matrix[11]), -0.5f * (matrix[14] + matrix[15]));
+    projection.r[3] = FVec4_New(matrix[3], matrix[7], matrix[11], matrix[15]);
+    return projection;
+}
+
 int32_t m3ds_planet_draw(int32_t planet, const float *matrix, const float *lighting,
-    const float *overlay, int32_t vertices, int32_t sector_vertices, const int32_t *surface, int32_t faces) {
+    const float *overlay, int32_t vertices, int32_t sector_vertices, const int32_t *surface, int32_t faces,
+    const int32_t *ids, const float *planes, const float *marker_matrix, int32_t markers) {
     if (planet < 0 || planet >= planet_count || vertices < 0 || vertices > max_overlay_vertices
         || sector_vertices < 0 || sector_vertices > vertices || sector_vertices % 3 != 0
         || vertices % 3 != 0 || !load_faces(planet) || !load_shader() || !update_surface(surface, faces)) return 0;
@@ -191,20 +211,20 @@ int32_t m3ds_planet_draw(int32_t planet, const float *matrix, const float *light
         while (capacity < (size_t)vertices) capacity *= 2;
         if (capacity > max_overlay_vertices) capacity = max_overlay_vertices;
         PlanetVertex *buffer = linearAlloc(capacity * sizeof(PlanetVertex));
-        if (!buffer) return 0;
+        if (!buffer) {
+            char record[104];
+            int size = snprintf(record, sizeof(record), "UPSTREAM_CAMPAIGN_OVERLAY_MEMORY vertices=%ld bytes=%lu free=%lu",
+                (long)vertices, (unsigned long)(capacity * sizeof(PlanetVertex)), (unsigned long)linearSpaceFree());
+            if (size > 0 && size < (int)sizeof(record)) svcOutputDebugString(record, size);
+            return 0;
+        }
         if (mesh.overlay) linearFree(mesh.overlay);
         mesh.overlay = buffer;
         mesh.overlay_capacity = capacity;
     }
     shade_vertices(lighting, lighting + 3, lighting + 6);
 
-    // Convert Arc's column-major clip matrix to PICA's tilted framebuffer and reversed depth.
-    C3D_Mtx projection;
-    projection.r[0] = FVec4_New(matrix[1], matrix[5], matrix[9], matrix[13]);
-    projection.r[1] = FVec4_New(-matrix[0], -matrix[4], -matrix[8], -matrix[12]);
-    projection.r[2] = FVec4_New(-0.5f * (matrix[2] + matrix[3]), -0.5f * (matrix[6] + matrix[7]),
-        -0.5f * (matrix[10] + matrix[11]), -0.5f * (matrix[14] + matrix[15]));
-    projection.r[3] = FVec4_New(matrix[3], matrix[7], matrix[11], matrix[15]);
+    C3D_Mtx projection = screen_projection(matrix);
 
     C3D_BufInfo buffers;
     BufInfo_Init(&buffers);
@@ -236,5 +256,21 @@ int32_t m3ds_planet_draw(int32_t planet, const float *matrix, const float *light
             C3D_DrawArrays(GPU_TRIANGLES, sector_vertices, vertices - sector_vertices);
         }
     }
+#ifdef M3DS_CAMPAIGN_PLANET_MARKERS
+    C3D_Mtx marker_projection = screen_projection(marker_matrix);
+    int32_t submitted = m3ds_planet_draw_markers(&marker_projection, ids, planes, markers);
+    if (submitted > 0 && !mesh.reported_markers) {
+        mesh.reported_markers = true;
+        char record[96];
+        int size = snprintf(record, sizeof(record), "UPSTREAM_CAMPAIGN_MARKERS_DRAW planet=%d markers=%ld",
+            (int)planet, (long)submitted);
+        if (size > 0 && size < (int)sizeof(record)) svcOutputDebugString(record, size);
+    }
+#else
+    (void)ids;
+    (void)planes;
+    (void)marker_matrix;
+    (void)markers;
+#endif
     return 1;
 }

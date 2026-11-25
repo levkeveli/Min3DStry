@@ -72,6 +72,7 @@ javac -cp "$RUNNER_TEMP/desktop.jar" -d "$globe_reference" \
   research/upstream-runtime/src/singleplayer/java/UpstreamCampaignArcs.java \
   research/upstream-runtime/src/singleplayer/java/UpstreamCampaignStroke.java \
   research/upstream-runtime/src/singleplayer/java/UpstreamCampaignSurface.java \
+  research/upstream-runtime/src/singleplayer/java/UpstreamCampaignMarkers.java \
   research/upstream-runtime/host/UpstreamCampaignGlobeReference.java
 surface_samples="$PWD/build/smoke-assets/planet-meshes/serpulo.m3ps"
 (cd "$globe_reference" && java -cp ".:$RUNNER_TEMP/desktop.jar" UpstreamCampaignGlobeReference "$surface_samples")
