@@ -162,7 +162,8 @@ static void m3ds_flush_log(void) {
     svcOutputDebugString(m3ds_log_line, (s32)m3ds_log_size);
 #ifdef M3DS_BENCHMARK_CAPTURE
     if (m3ds_benchmark_log) {
-        bool workload = strncmp(m3ds_log_line, "UPSTREAM_PLAYABLE_LOAD ", sizeof("UPSTREAM_PLAYABLE_LOAD ") - 1) == 0;
+        static const char load_prefix[] = "UPSTREAM_PLAYABLE_LOAD window=";
+        bool workload = strncmp(m3ds_log_line, load_prefix, sizeof(load_prefix) - 1) == 0;
         if (workload ||
             strncmp(m3ds_log_line, "UPSTREAM_PLAYABLE_BENCH ", sizeof("UPSTREAM_PLAYABLE_BENCH ") - 1) == 0 ||
             strncmp(m3ds_log_line, "UPSTREAM_SP_LOADED ", sizeof("UPSTREAM_SP_LOADED ") - 1) == 0) {
@@ -172,7 +173,9 @@ static void m3ds_flush_log(void) {
             s64 used = 0;
             // libctru's application-region accounting includes more than the TeaVM heap.
             if (R_SUCCEEDED(svcGetSystemInfo(&used, 0, MEMREGION_APPLICATION))) {
-                fprintf(m3ds_benchmark_log, "UPSTREAM_PLAYABLE_APP_MEM used=%llu\n", (unsigned long long)used);
+                unsigned long window = strtoul(m3ds_log_line + sizeof(load_prefix) - 1, NULL, 10);
+                fprintf(m3ds_benchmark_log, "UPSTREAM_PLAYABLE_APP_MEM window=%lu used=%llu\n",
+                        window, (unsigned long long)used);
             }
         }
     }

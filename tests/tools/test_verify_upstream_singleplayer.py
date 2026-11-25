@@ -6,6 +6,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools"))
+import report_playable_hardware as hardware  # noqa: E402
 import verify_upstream_singleplayer as vsp  # noqa: E402
 
 
@@ -52,6 +53,32 @@ class VerifyUpstreamSingleplayerTests(unittest.TestCase):
             vsp.verify_playable_sd_capture(sample + sample.rsplit("UPSTREAM_PLAYABLE_CAPTURE end", 1)[0])
         with self.assertRaisesRegex(AssertionError, "missing New 3DS"):
             vsp.verify_playable_sd_capture(sample.replace("new3ds=1", "new3ds=0"))
+
+    def test_hardware_report_splits_at_pauses_and_rejects_emulator_memory(self) -> None:
+        commit = "a" * 40
+        capture = (
+            f"UPSTREAM_PLAYABLE_CAPTURE start commit={commit} dirty=0 new3ds=1 app_mem=130023424 firm=0x022e0000\n"
+            "UPSTREAM_MEMORY appHeap=89235456 linearHeap=4194304 stack=524288\n"
+            "UPSTREAM_MEMORY managedLimit=33554432\n"
+            "UPSTREAM_SP_LOADED source=save map=Ground_Zero size=256x256 wave=1 copper=0\n"
+        )
+        for index, end in enumerate((5, 10, 25), 1):
+            capture += (
+                f"UPSTREAM_PLAYABLE_BENCH window={index} frames=125 elapsed_ns=5000000000 "
+                f"fps=25 p95_ns=40000000 heap_free=100 heap_committed=1000 end_ns={end * 10**9}\n"
+                f"UPSTREAM_PLAYABLE_LOAD window={index} wave=2 enemies=80 shooting_turrets=14 "
+                "turret_projectiles=12 belt_items=48 camera_tile=121,49\n"
+                f"UPSTREAM_PLAYABLE_APP_MEM window={index} used=76000000\n"
+            )
+        capture += "UPSTREAM_PLAYABLE_CAPTURE end\n"
+        result = hardware.report(capture, commit, 10, 50, 8, 40)
+        self.assertTrue(result["pass"])
+        self.assertEqual(result["continuous_span"]["window_ids"], [1, 2])
+        self.assertFalse(hardware.report(capture, commit, 15, 50, 8, 40)["pass"])
+        self.assertFalse(hardware.report(capture, commit, 5, 90, 8, 40)["pass"])
+        emulator = capture.replace("app_mem=130023424", "app_mem=100663296")
+        with self.assertRaisesRegex(AssertionError, "physical New 3DS"):
+            hardware.report(emulator, commit, 10, 50, 8, 40)
 
     def test_resolve_sd_save_path(self) -> None:
         log = Path("/home/user/.var/app/org.azahar_emu.Azahar/data/azahar-emu/log/azahar_log.txt")

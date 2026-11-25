@@ -316,8 +316,24 @@ the SD card file `/3ds/min3dstry/benchmark.log`. Each workload sample can
 include `UPSTREAM_PLAYABLE_APP_MEM` with the kernel's total application-region
 usage in bytes. Each capture appends a start record with the source
 commit, dirty flag, New 3DS model bit, application-memory size and firmware.
-The end record is written when the app exits cleanly. Use a clean build
-with its exact ROM and input save hashes, and remove the flag after the run.
+The end record is written when the app exits cleanly. Use a clean build,
+preserve the exact ROM and a copy of the input save before running, and
+remove the flag after the run. Set the workload and duration thresholds
+before testing and record them in the evidence.
+
+```sh
+python3 tools/report_playable_hardware.py \
+  --input build/device-logs/benchmark.log --rom build/upstream-probe.3dsx \
+  --save build/playable-benchmark/singleplayer-save.msav --commit "$ROM_COMMIT" \
+  --model "New 3DS XL" --min-seconds "$LOAD_SECONDS" --min-enemies "$MIN_ENEMIES" \
+  --min-turrets "$MIN_TURRETS" --min-items "$MIN_BELT_ITEMS" \
+  --output build/device-logs/playable-report.json
+```
+
+The report requires the clean build SHA, paired application-memory records,
+and at least 24 FPS in every window of the uninterrupted high-load span.
+Include the physical console model, screenshot at the recorded camera
+position, and operator notes with the JSON and raw SD log.
 
 To stage the repeatable high-load fixture, use the unmodified v160.8 server:
 

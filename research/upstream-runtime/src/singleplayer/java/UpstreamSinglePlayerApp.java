@@ -1030,7 +1030,8 @@ public final class UpstreamSinglePlayerApp {
             frameBenchmark.reset();
             return;
         }
-        var sample = frameBenchmark.frameCompleted(System.nanoTime());
+        long endNanos = System.nanoTime();
+        var sample = frameBenchmark.frameCompleted(endNanos);
         if (sample == null) return;
 
         int shootingTurrets = 0, beltItems = 0;
@@ -1046,7 +1047,7 @@ public final class UpstreamSinglePlayerApp {
         System.out.println("UPSTREAM_PLAYABLE_BENCH window=" + id + " frames=" + sample.frames()
             + " elapsed_ns=" + sample.durationNanos() + " fps=" + sample.fps()
             + " p95_ns=" + sample.p95Nanos() + " heap_free=" + memory.freeMemory()
-            + " heap_committed=" + committed);
+            + " heap_committed=" + committed + " end_ns=" + endNanos);
         System.out.println("UPSTREAM_PLAYABLE_LOAD window=" + id + " wave=" + Vars.state.wave
             + " enemies=" + enemies + " shooting_turrets=" + shootingTurrets
             + " turret_projectiles=" + turretProjectiles + " belt_items=" + beltItems
