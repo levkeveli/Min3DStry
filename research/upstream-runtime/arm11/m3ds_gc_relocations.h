@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "../../../../stack.h"
 
 static cls_otr_RelocationBlock *m3ds_gc_relocations;
 static size_t m3ds_gc_relocation_capacity;
@@ -49,6 +50,16 @@ static void m3ds_gc_log_failed_allocation(int32_t requested, int32_t free_bytes)
         (unsigned long)teavm_gc_availableBytes, (unsigned long)teavm_gc_maxAvailableBytes,
         name, array_depth, cls ? (long)cls->tag : -1L);
     if (length > 0 && length < (int)sizeof(message)) svcOutputDebugString(message, length);
+
+    // The generated C retains these IDs after ARM11 exception-table compaction.
+    // Resolve them against the source map from this exact diagnostic build.
+    const TeaVM_StackFrame *frame = teavm_stackTop;
+    for (int depth = 0; frame != NULL && depth < 12; depth++, frame = frame->next) {
+        char record[80];
+        const int size = snprintf(record, sizeof(record),
+            "UPSTREAM_HEAP_CALLSITE depth=%d id=%ld", depth, (long)frame->callSiteId);
+        if (size > 0 && size < (int)sizeof(record)) svcOutputDebugString(record, size);
+    }
 }
 
 typedef struct {
