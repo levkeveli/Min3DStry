@@ -1,64 +1,12 @@
-name: Diagnose dense campaign working set at 56 MiB on New 3DS
+name: Resume and save the dense 56 MiB diagnostic on New 3DS
 on:
   push:
     branches: [test/dense-campaign-current-40m]
 permissions:
   contents: read
+  actions: read
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
-      - uses: actions/cache@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: gradle-v1-${{ hashFiles('research/upstream-runtime/build.gradle', 'research/upstream-runtime/gradle/**') }}
-      - name: Install the stock audio converter
-        run: |
-          if ! command -v ffmpeg >/dev/null; then
-            sudo apt-get update
-            sudo apt-get install -y ffmpeg
-          fi
-      - name: Build unified ARM11 with the diagnostic 56 MiB cap
-        run: bash .github/scripts/build_unified_arm11_smoke.sh
-      - name: Compare deferred stock enemy base generation
-        run: |
-          set -euo pipefail
-          jar="$RUNNER_TEMP/server-release.jar"
-          comparison="$RUNNER_TEMP/deferred-base-reference"
-          runtime="$PWD/research/upstream-runtime"
-          source="$runtime/build/upstream-src/unified/mindustry"
-          mkdir -p "$comparison/reference" "$comparison/staged"
-          javac -cp "$jar" -d "$comparison/reference" "$runtime/host/UpstreamDeferredBaseReference.java"
-          javac -cp "$jar" -d "$comparison/staged" \
-            "$source/ai/BaseRegistry.java" "$source/maps/generators/BaseGenerator.java" \
-            "$source/maps/planet/SerpuloPlanetGenerator.java"
-          cd "$comparison"
-          printf '%s\n' 'js Packages.UpstreamDeferredBaseReference.run()' exit |
-            java -cp "reference:$jar" mindustry.server.ServerLauncher > stock.log
-          printf '%s\n' 'js Packages.UpstreamDeferredBaseReference.run()' exit |
-            java -Dm3ds.deferred=true -cp "reference:staged:$jar" mindustry.server.ServerLauncher > deferred.log
-          grep -oE 'BASE_GENERATION sector=[0-9]+ cells=[0-9]+ cores=[0-9]+ parts=[0-9]+ digest=[0-9a-f]+' stock.log > stock-summary.log
-          grep -oE 'BASE_GENERATION sector=[0-9]+ cells=[0-9]+ cores=[0-9]+ parts=[0-9]+ digest=[0-9a-f]+' deferred.log > deferred-summary.log
-          diff -u stock-summary.log deferred-summary.log
-          cat deferred-summary.log
-      - uses: actions/upload-artifact@v4
-        with:
-          name: dense-campaign-unified-arm11
-          path: build/unified-smoke/
-          if-no-files-found: error
-          compression-level: 0
   replay:
-    needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
@@ -73,13 +21,17 @@ jobs:
         with:
           name: dense-campaign-unified-arm11
           path: build/unified-smoke
+          github-token: ${{ github.token }}
+          run-id: 45691243618
       - run: bash .github/scripts/setup_smoke_azahar.sh
       - name: Resume and reload Serpulo 242 on New 3DS
         run: |
           set -o pipefail
           server=build/unified-smoke/server-release.jar
           python3 tools/campaign_resume_fixtures.py --dense --server "$server" --output "$RUNNER_TEMP/dense-fixtures"
-          sha256sum build/unified-smoke/upstream-probe.3dsx "$server"
+          printf '%s  %s\n' \
+            5f047d641363b75ead94b5a8027fa8dbd6b4b3bf27b96764dc425dc5fdc6341e build/unified-smoke/upstream-probe.3dsx \
+            faeaf247a8b622de940181a96cb21cb20692d3c3da4e8ac3f79cb4af5059aa6c "$server" | sha256sum --check
           xvfb-run -a python3 tools/verify_upstream_campaign_resume.py --dense --model new3ds \
             --rom build/unified-smoke/upstream-probe.3dsx --server "$server" \
             --fixtures "$RUNNER_TEMP/dense-fixtures" --output-dir build/dense-campaign-replay

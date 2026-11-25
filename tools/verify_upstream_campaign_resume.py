@@ -27,7 +27,9 @@ def write_replay(path: Path, model: str, multiple: bool, move_down: bool, dense:
         windows = [(start, end, key) for start, end, key in windows if start < 60]
         windows += [(175, 207, sp.KEY_X), (250, 282, 1 << 7), (325, 357, 1 << 7),
                     (400, 432, 1), (650, 682, sp.KEY_START)]
-        seconds = 710
+        # Keep replay running during the exit save. Azahar pauses when the movie
+        # reaches its end, including while the game is compressing the map.
+        seconds = 1290
     frames = sp.CTM_SAMPLES_PER_SECOND * seconds
     header = struct.pack("<4sQ20sQQ32sIQq156x", b"CTM\x1b", 0, sp.CTM_REVISION, 1780000000,
                          0x4D334453, b"Min3DStry Campaign", 0, frames, 0)
@@ -107,7 +109,8 @@ def verify(model: str, rom: Path, azahar: str, config: Path, log: Path,
                     if dense:
                         sp._wait_for_log(log, proc, r"(?s)UPSTREAM_PAUSE_MENU load=true\b.*?UPSTREAM_SP_FRAME ", 100)
                         (output / f"{model}-reloaded.png").write_bytes(rpc.screenshot())
-                sp._wait_for_log(log, proc, rf"UPSTREAM_CAMPAIGN_SAVED slot={selection}\b", load_timeout)
+                save_timeout = 640 if dense and multiple else load_timeout
+                sp._wait_for_log(log, proc, rf"UPSTREAM_CAMPAIGN_SAVED slot={selection}\b", save_timeout)
                 sp._wait_for_log(log, proc, r"UPSTREAM_SP_EXIT\b", 20)
                 expected = source_secondary if multiple else source_zero
                 if backup.read_bytes() != expected:
