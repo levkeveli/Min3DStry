@@ -174,7 +174,9 @@ int32_t m3ds_live_net_input(void) {
            ((int32_t)dpad << 16) | ((int32_t)((pressed & KEY_A) != 0) << 17) |
            ((int32_t)((pressed & KEY_R) != 0) << 18) | ((int32_t)((pressed & KEY_B) != 0) << 19) |
            ((int32_t)((keys & KEY_X) != 0) << 20) | ((int32_t)((keys & KEY_L) != 0) << 21) |
-           ((int32_t)((pressed & KEY_Y) != 0) << 22);
+           ((int32_t)((pressed & KEY_Y) != 0) << 22) |
+           ((int32_t)((pressed & KEY_CSTICK_UP) != 0) << 26) |
+           ((int32_t)((pressed & KEY_CSTICK_DOWN) != 0) << 27);
 }
 
 int32_t m3ds_live_net_touch(void) {
