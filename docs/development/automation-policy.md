@@ -110,7 +110,10 @@ v160.8 inputs, verifies packaged stock audio, and publishes one ROM with the
 matching server JAR and atlas metadata. The offline job replays Ground Zero
 and saves and reloads it. The multiplayer and audio job checks a stock-server
 session and replays stock campaign audio. Both replay jobs download the same
-ROM and use checksum-pinned Azahar 2126.2 on separate GitHub-hosted runners.
+ROM and use checksum-pinned Azahar 2126.2 on GitHub-hosted runners. The unified
+multiplayer replay holds START for five emulated seconds after checking movement
+and idle snapshots. It requires both the client leave marker and the stock server
+disconnect.
 
 Live audio changes select the multiplayer and audio job. Live graphics and
 client changes select both replay jobs. Narrow changes to standalone probes

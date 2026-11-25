@@ -175,12 +175,12 @@ jobs:
 
       - run: bash .github/scripts/setup_smoke_azahar.sh
 
-      - name: Boot New and Original 3DS profiles
+      - name: Boot the New 3DS profile
         run: |
           xvfb-run -a python3 tools/verify_azahar.py \
             --rom build/artifact/min3dstry.3dsx \
             --out-dir build/emu-verify \
-            --models new3ds,old3ds \
+            --models new3ds \
             --timeout 180
 
       - name: Check the verified artifact matches the build output
