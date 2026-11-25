@@ -68,7 +68,11 @@ def inspect_editor(log, proc, rpc, output):
     time.sleep(0.5)
     (output / "processor-config.png").write_bytes(rpc.screenshot())
     sp._wait_for_log(log, proc, r"UPSTREAM_PROCESSOR_EDIT x=74 y=29 bytes=[1-9]\d*", 40)
+    clipboard = output / "sdmc/3ds/min3dstry/logic-clipboard.mlog"
+    clipboard.unlink()
     sp._wait_for_log(log, proc, r"UPSTREAM_PROCESSOR_EXPORT file=logic-clipboard\.mlog", 35)
+    if clipboard.read_bytes() != PROGRAM.encode("utf-8"):
+        raise AssertionError("Exported processor program differs from the imported stock source")
     sp._wait_for_log(log, proc, r"UPSTREAM_PROCESSOR_LINK x=78 y=27\b", 30)
     sp._wait_for_log(log, proc, r"UPSTREAM_PROCESSOR_INSTRUCTIONS count=3\b", 35)
     time.sleep(0.5)
@@ -76,9 +80,6 @@ def inspect_editor(log, proc, rpc, output):
     sp._wait_for_log(log, proc,
                      r"(?s)UPSTREAM_PROCESSOR_INSTRUCTIONS count=3\b.*?UPSTREAM_PROCESSOR_EDIT x=74 y=29 bytes=[1-9]\d*",
                      40)
-    path = output / "sdmc/3ds/min3dstry/logic-clipboard.mlog"
-    if path.read_text(encoding="utf-8") != PROGRAM:
-        raise AssertionError("Exported processor program differs from the imported stock source")
 
 
 def inspect_stock(server, log):
@@ -99,7 +100,8 @@ def main():
     save = fixture(args)
     for live in (False, True):
         buttons = {0: sp.KEY_X, 152: sp.KEY_START} if live else {142: sp.KEY_SELECT, 152: sp.KEY_START}
-        replay(args, "new3ds", save, live, taps=TAPS, buttons=buttons, movie_seconds=162,
+        replay(args, "new3ds", save, live, taps=TAPS, buttons=buttons, button_durations={152: 5},
+               movie_seconds=162,
                prepare_sd=setup_sd, verify_input=inspect_editor, read_stock=inspect_stock)
         print(f"UPSTREAM_PROCESSOR_EDITOR model=new3ds live={live} source=exact links=2 canvas=5", flush=True)
 
