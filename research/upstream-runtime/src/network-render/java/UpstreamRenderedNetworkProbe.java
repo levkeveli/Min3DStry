@@ -34,18 +34,15 @@ import mindustry.gen.UnitWaterMove;
 import mindustry.graphics.CacheLayer;
 import mindustry.type.UnitType;
 import mindustry.world.blocks.units.UnitFactory;
-import mindustry.world.blocks.units.UnitFactory.UnitFactoryBuild;
 import mindustry.world.Block;
 import mindustry.type.Category;
 import mindustry.world.blocks.defense.turrets.BaseTurret;
-import mindustry.world.blocks.liquid.Conduit.ConduitBuild;
 import mindustry.world.blocks.payloads.BuildPayload;
 import mindustry.world.blocks.payloads.PayloadConveyor.PayloadConveyorBuild;
 import mindustry.world.blocks.payloads.UnitPayload;
 import mindustry.world.blocks.distribution.Conveyor.ConveyorBuild;
 import mindustry.world.blocks.logic.CanvasBlock.CanvasBuild;
 import mindustry.world.blocks.logic.LogicDisplay.LogicDisplayBuild;
-import mindustry.world.blocks.logic.TileableLogicDisplay.TileableLogicDisplayBuild;
 
 /** Presents the received multiplayer world through the ARM11 terrain renderer. */
 public final class UpstreamRenderedNetworkProbe {
@@ -288,38 +285,24 @@ public final class UpstreamRenderedNetworkProbe {
         float oldDelta = Time.delta;
         Time.updateGlobal();
         Time.delta = oldDelta;
-        // Advance the original animation clock and conduit smoothing without replaying liquid transfers.
         float delta = Math.min(frameSeconds * 60f, Vars.maxDeltaClient);
         Time.delta = delta;
         try {
-            Time.update();
-            if (!Vars.state.isPaused()) Groups.weather.update();
+            if (!Vars.state.isPaused()) {
+                Time.update();
+                Groups.weather.update();
+                UpstreamClientLogic.update(delta);
+                UpstreamClientProjectiles.update();
+            }
             weatherLayers.advance();
             Arm11Audio.updateClientAudio(now);
-            UpstreamClientLogic.update(delta);
-            for (var build : Groups.build) {
-                if (build instanceof TileableLogicDisplayBuild display) display.updateTile();
-                if (build instanceof ConduitBuild conduit) conduit.advanceLiquidDraw();
-                if (build instanceof UnitFactoryBuild factory) advanceFactoryDraw(factory);
-            }
             for (var unit : Groups.unit) {
                 if (unit instanceof UnitWaterMove boat) boat.advanceWake();
                 if (unit instanceof Tankc tank) advanceTankTreads(tank);
             }
-            UpstreamClientProjectiles.update();
         } finally {
             Time.delta = oldDelta;
         }
-    }
-
-    static void advanceFactoryDraw(UnitFactoryBuild factory) {
-        // UnitFactoryBuild.updateTile also advances production and emits units.
-        // Reproduce its draw-only state from the stock plan and received efficiency.
-        boolean active = factory.efficiency > 0f && factory.currentPlan != -1;
-        if (active) {
-            factory.time += factory.edelta() * factory.speedScl * Vars.state.rules.unitBuildSpeed(factory.team);
-        }
-        factory.speedScl = Mathf.lerpDelta(factory.speedScl, active ? 1f : 0f, 0.05f);
     }
 
     static void advanceTankTreads(Tankc tank) {

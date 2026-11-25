@@ -21,7 +21,6 @@ import mindustry.world.meta.BuildVisibility;
 import mindustry.world.blocks.liquid.LiquidRouter;
 import mindustry.world.blocks.payloads.PayloadConveyor.PayloadConveyorBuild;
 import mindustry.world.blocks.payloads.UnitPayload;
-import mindustry.world.blocks.power.BeamNode.BeamNodeBuild;
 import mindustry.world.blocks.power.LightBlock;
 import mindustry.world.blocks.power.PowerBlock;
 import mindustry.world.blocks.power.PowerDiode;
@@ -62,7 +61,6 @@ final class UpstreamBuildingLayers {
     void render(UpstreamTerrainDrawProbe.Viewport viewport, Team viewer, Predicate<Building> supported) {
         int right = Math.min(viewport.left + viewport.width(), Vars.world.width());
         int top = Math.min(viewport.bottom + viewport.height(), Vars.world.height());
-        boolean live = Vars.net != null && Vars.net.client();
         for (int y = viewport.bottom; y < top; y++) {
             for (int x = viewport.left; x < right; x++) {
                 var build = Vars.world.tile(x, y).build;
@@ -75,9 +73,6 @@ final class UpstreamBuildingLayers {
                 }
                 if (build.wasVisible && supported.test(build)) {
                     visible.add(build);
-                    // The live snapshot does not carry BeamNode's cached endpoints.
-                    // Refresh them using the stock tile-change and link rules.
-                    if (live && build instanceof BeamNodeBuild beam) beam.updateTile();
                     if (build instanceof UnitFactoryBuild factory) {
                         loadFactoryGraphics(factory.unit());
                         if (factory.getPayload() instanceof UnitPayload payload) {

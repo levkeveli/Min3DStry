@@ -11,7 +11,6 @@ final class UpstreamClientProjectiles {
         if (Vars.state.isEditor()) return;
         Groups.updatePooling();
         Groups.bullet.updatePhysics();
-        Vars.state.teams.updateTeamStats();
         for (var unit : Groups.unit) {
             if (unit.dead()) continue;
             for (var mount : unit.mounts()) mount.weapon.update(unit, mount);

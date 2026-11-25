@@ -6,9 +6,8 @@ import mindustry.Vars;
 import mindustry.core.UI;
 import mindustry.gen.Groups;
 import mindustry.logic.GlobalVars;
-import mindustry.world.blocks.logic.LogicBlock.LogicBuild;
 
-/** Connects the pinned logic globals and processor ticks to the live client. */
+/** Runs the stock logic clock, power graphs and building updates on the live client. */
 public final class UpstreamClientLogic {
     private static Fi ids;
 
@@ -27,11 +26,19 @@ public final class UpstreamClientLogic {
     }
 
     public static void update(float elapsedTicks) {
-        Vars.state.tick += elapsedTicks;
-        Vars.state.updateId++;
+        if (Vars.state.isPaused()) return;
+        var state = Vars.state;
+        state.tick += elapsedTicks;
+        state.updateId++;
+        state.teams.updateTeamStats();
         Vars.logicVars.update();
-        for (var build : Groups.build) {
-            if (build instanceof LogicBuild processor) processor.update();
+        state.envAttrs.clear();
+        state.envAttrs.add(state.rules.attributes);
+        Groups.weather.each(weather -> state.envAttrs.add(weather.weather.attrs, weather.opacity));
+        if (!state.isEditor()) {
+            // Logic.updateEntities runs these groups in this order in stock clients.
+            Groups.powerGraph.update();
+            Groups.build.update();
         }
     }
 }
