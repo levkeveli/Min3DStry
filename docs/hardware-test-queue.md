@@ -304,6 +304,12 @@ thermal/SD notes. Only this card can clear `physical-hardware-parity`.
 > `afca650c` build (`99c7fd6b`) still needs a physical New 3DS run. The
 > `a328c70` FPS numbers apply to the earlier harness. Original 3DS physical
 > evidence is optional.
+>
+> At `857041e` the CI artifact `7adb4ee8...aae9` passed both Azahar profiles
+> with `62.79`/`59.76` FPS and parity `0x53a483c7`. This is recorded as
+> emulator evidence and does **not** clear the physical-hardware gauge entries,
+> which still require a physical-console acceptance run. See
+> [the emulator profile record](hardware/emulator-batch-2026-11-25.md).
 
 ## Current exclusions
 
