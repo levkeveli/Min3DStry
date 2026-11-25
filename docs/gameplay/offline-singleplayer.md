@@ -99,8 +99,14 @@ Copy the original `bundle.properties` and `planets/serpulo.json` alongside the
 fixtures to run `-Pprobe=singleplayer runCampaignResumeJvm --args="/path/to/fixtures /path/to/new-scratch-dir"`
 with the normal pinned runtime Gradle properties. Use
 `python3 tools/verify_upstream_campaign_resume.py --rom upstream-probe.3dsx --fixtures /path/to/fixtures`
-to exercise sole-save resume, graphical selection, and save-back on both
-Azahar profiles.
+to exercise sole-save resume, graphical selection, and save-back in Azahar's
+New 3DS profile.
+
+On pause-menu Load, the port drops old player and UI references before the
+stock save decoder runs. The upstream reset also clears the retired building
+and floor indexes and the backing slots of the temporary block lists. The
+live world rebuilds its indexes during the normal WorldLoad event. If decode
+fails, the exit path leaves the selected save and backup available for recovery.
 
 The [ARM11 build from `1390790`](https://github.com/levkeveli/Min3DStry/actions/runs/45035851013)
 resumed a lone Ground Zero slot from `saves/` and used the D-pad to select a
