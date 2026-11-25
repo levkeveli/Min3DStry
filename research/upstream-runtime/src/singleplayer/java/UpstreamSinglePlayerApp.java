@@ -842,7 +842,11 @@ public final class UpstreamSinglePlayerApp {
                         unit = null;
                         resetWorldInput();
                         Vars.player.clearUnit();
-                        session.start(sourceMap, saveFile, campaignSlot == null ? null : "campaign", loadSector);
+                        var slotToReload = campaignSlot;
+                        // A failed decode must not let the exit handler overwrite this save.
+                        campaignSlot = null;
+                        session.start(sourceMap, saveFile, slotToReload == null ? null : "campaign", loadSector);
+                        campaignSlot = slotToReload;
                         weatherLayers.reset();
                         reportWeather();
                         uploadMinimap();

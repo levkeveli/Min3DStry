@@ -7,7 +7,9 @@ public final class UpstreamBlockScratch {
 
     public static int tileReferences() {
         int count = 0;
-        for (Object tile : Block.tempTiles.items) if (tile != null) count++;
+        // Arc's default Seq allocates Object[], even for Seq<Tile>.
+        Object[] items = Block.tempTiles.items;
+        for (Object tile : items) if (tile != null) count++;
         return count;
     }
 
