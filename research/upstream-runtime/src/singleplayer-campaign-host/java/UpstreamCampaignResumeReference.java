@@ -1,4 +1,6 @@
 import arc.Core;
+import arc.Events;
+import arc.func.Cons;
 import arc.files.Fi;
 import arc.util.I18NBundle;
 import java.util.Arrays;
@@ -6,7 +8,9 @@ import java.util.zip.DeflaterOutputStream;
 import java.util.Locale;
 import mindustry.Vars;
 import mindustry.content.SectorPresets;
+import mindustry.game.EventType.SaveWriteEvent;
 import mindustry.io.SaveIO;
+import mindustry.io.SaveOptions;
 
 /** Verify the offline sector catalog with saves written by the unmodified v160.8 server. */
 public final class UpstreamCampaignResumeReference {
@@ -68,7 +72,40 @@ public final class UpstreamCampaignResumeReference {
                     || !Arrays.equals(second.readBytes(), nested.readBytes())) {
                 throw new AssertionError("Saving the selected campaign modified the wrong slot or lost stock metadata");
             }
-            System.out.println("UPSTREAM_CAMPAIGN_RESUME_REFERENCE slots=2 groundZero=170 frozenForest=64 backup=ok");
+
+            Fi backup = SaveIO.backupFileFor(canonical);
+            var priorPrimary = canonical.readBytes();
+            var priorBackup = backup.readBytes();
+            Cons<SaveWriteEvent> interrupt = event -> { throw new IllegalStateException("Test interruption"); };
+            Events.on(SaveWriteEvent.class, interrupt);
+            try {
+                UpstreamCampaignSave.write(canonical, new SaveOptions());
+                throw new AssertionError("Expected the staged write to stop");
+            } catch (RuntimeException expected) {
+                if (!Arrays.equals(priorPrimary, canonical.readBytes())
+                    || !Arrays.equals(priorBackup, backup.readBytes())
+                    || canonical.sibling(canonical.name() + ".pending").exists()) {
+                    throw new AssertionError("A failed staged write changed a live campaign save", expected);
+                }
+            } finally {
+                Events.remove(SaveWriteEvent.class, interrupt);
+            }
+
+            Fi forestBackup = SaveIO.backupFileFor(second);
+            if (!second.file().renameTo(forestBackup.file())) throw new AssertionError("Could not stage backup-only slot");
+            var recovery = session.sectorSaves().stream().filter(entry -> entry.sector == forest)
+                .findFirst().orElseThrow();
+            if (!recovery.file.equals(second) || !session.start(null, recovery.file, "campaign", forest)
+                    || Vars.state.rules.sector != forest) {
+                throw new AssertionError("The stock backup-only campaign slot did not resume");
+            }
+            session.save(recovery.file);
+            if (SaveIO.getMeta(second).rules.sector != forest
+                    || !Arrays.equals(forestBackup.readBytes(), nested.readBytes())) {
+                throw new AssertionError("Saving a recovered slot replaced its last good backup");
+            }
+            System.out.println("UPSTREAM_CAMPAIGN_RESUME_REFERENCE slots=2 groundZero=170 frozenForest=64 backup=ok"
+                + " interrupted-write=preserved backup-only=reopened");
         } finally {
             session.shutdown();
         }

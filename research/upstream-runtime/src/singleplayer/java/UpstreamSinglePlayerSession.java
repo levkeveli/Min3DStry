@@ -191,11 +191,12 @@ public final class UpstreamSinglePlayerSession {
 
     boolean start(Fi mapFile, Fi saveFile, String sourceTagOverride, Sector sector) throws IOException {
         String source;
-        boolean loadedFromSave = saveFile != null && saveFile.exists() && SaveIO.isSaveValid(saveFile);
+        Fi sourceSave = sector != null && saveFile != null ? UpstreamCampaignSave.readableFile(saveFile) : saveFile;
+        boolean loadedFromSave = sourceSave != null && sourceSave.exists() && SaveIO.isSaveValid(sourceSave);
         if (loadedFromSave) {
             var playerTags = new StringMap();
             var context = sector == null ? Vars.world.context : Vars.world.makeSectorContext(sector);
-            SaveIO.load(saveFile, context, playerTags);
+            SaveIO.load(sourceSave, context, playerTags);
             resetPlaytime(playerTags.getLong("playtime"));
             restorePlayerMetadata(playerTags);
             app.runPosted();
@@ -243,7 +244,7 @@ public final class UpstreamSinglePlayerSession {
         if (!sector.planet.clearSectorOnLose && !sector.planet.campaignRules.clearSectorOnLose) {
             Vars.logic.reset();
             try {
-                SaveIO.load(slot.file, Vars.world.makeSectorContext(sector));
+                SaveIO.load(UpstreamCampaignSave.readableFile(slot.file), Vars.world.makeSectorContext(sector));
                 app.runPosted();
                 recovery = UpstreamCampaignRecovery.prepare(sector, params);
             } finally {
@@ -461,13 +462,20 @@ public final class UpstreamSinglePlayerSession {
     private void readSectorSaves(Fi directory, Seq<SectorSlot> result, ObjectSet<Sector> found) {
         if (!directory.isDirectory()) return;
         // Scan only the sector paths accepted by the launcher. Saves.load() also remaps campaign files.
-        for (Fi file : directory.list()) {
-            String name = file.name();
-            if (file.isDirectory() || !name.startsWith("sector-") || !name.endsWith(".msav")
-                    || name.endsWith("-backup.msav") || !SaveIO.isSaveValid(file)) continue;
+        for (Fi entry : directory.list()) {
+            String name = entry.name();
+            if (entry.isDirectory() || !name.startsWith("sector-") || !name.endsWith(".msav")) continue;
+            Fi file = entry;
+            if (name.endsWith("-backup.msav")) {
+                String primary = name.substring(0, name.length() - "-backup.msav".length());
+                if (!primary.endsWith(".msav")) continue;
+                file = entry.sibling(primary);
+                if (file.exists()) continue;
+            }
+            if (!SaveIO.isSaveValid(entry)) continue;
             SaveMeta meta;
             try {
-                meta = SaveIO.getMeta(file);
+                meta = SaveIO.getMeta(entry);
             } catch (ArcRuntimeException ignored) {
                 continue;
             }
@@ -678,12 +686,16 @@ public final class UpstreamSinglePlayerSession {
         var type = Vars.player == null || Vars.player.dead() ? savedControlledType : Vars.player.unit().type;
         options.extraTags = StringMap.of("playtime", playtimeMillis, "controlGroups", savedControlGroups,
             "controlledType", type == null ? "null" : type.name);
-        SaveIO.save(saveFile, options);
         SaveMeta written;
-        try (var input = SaveIO.getStream(saveFile)) {
-            written = SaveIO.getMeta(input);
-        } catch (RuntimeException failure) {
-            throw new IOException("Written offline save failed validation: " + saveFile.path(), failure);
+        if (Vars.state.rules.sector != null) {
+            written = UpstreamCampaignSave.write(saveFile, options);
+        } else {
+            SaveIO.save(saveFile, options);
+            try (var input = SaveIO.getStream(saveFile)) {
+                written = SaveIO.getMeta(input);
+            } catch (RuntimeException failure) {
+                throw new IOException("Written offline save failed validation: " + saveFile.path(), failure);
+            }
         }
         if (Vars.state.rules.sector != null) {
             bindSectorSave(Vars.state.rules.sector, saveFile, written);

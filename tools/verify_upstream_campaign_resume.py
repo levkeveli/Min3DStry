@@ -50,7 +50,8 @@ def write_replay(path: Path, model: str, multiple: bool, move_down: bool, dense:
 
 
 def verify(model: str, rom: Path, azahar: str, config: Path, log: Path,
-           output: Path, fixtures: Path, dense: bool = False, *, resave: bool = False) -> None:
+           output: Path, fixtures: Path, dense: bool = False, *, resave: bool = False,
+           backup_only: bool = False) -> None:
     fixture_settings = fixtures / "settings.bin"
     source_settings = fixture_settings.read_bytes() if fixture_settings.exists() else None
     originals = {path: path.read_bytes() if path.is_file() else None for path in (config, log)}
@@ -73,7 +74,7 @@ def verify(model: str, rom: Path, azahar: str, config: Path, log: Path,
             backup = selected.with_name(f"{selected.name}-backup.msav")
             zero.write_bytes(source_zero)
             if multiple:
-                secondary.write_bytes(source_secondary)
+                (backup if backup_only else secondary).write_bytes(source_secondary)
             if source_settings is not None:
                 settings.write_bytes(source_settings)
 
@@ -110,6 +111,8 @@ def verify(model: str, rom: Path, azahar: str, config: Path, log: Path,
                     reloaded = sp._wait_for_log(log, proc, r"UPSTREAM_PAUSE_MENU load=true\b", load_timeout)
                     if len(re.findall(loaded, reloaded)) != 2:
                         raise AssertionError(f"{model}: pause-menu Load did not reopen the selected campaign save")
+                    if backup_only and selected.exists():
+                        raise AssertionError(f"{model}: opening a backup-only sector wrote a new primary")
                     if dense:
                         sp._wait_for_log(log, proc, r"(?s)UPSTREAM_PAUSE_MENU load=true\b.*?UPSTREAM_SP_FRAME ", 100)
                         (output / f"{model}-reloaded.png").write_bytes(rpc.screenshot())
@@ -169,6 +172,7 @@ def main() -> int:
     parser.add_argument("--output-dir", type=Path, default=Path("build/campaign-resume-emu"))
     parser.add_argument("--dense", action="store_true", help="Verify the original 600x600 Serpulo 242 sector")
     parser.add_argument("--dense-resave", action="store_true", help="Save after reload and again on exit")
+    parser.add_argument("--backup-only", action="store_true", help="Resume the second sector from its stock backup")
     parser.add_argument("--server", type=Path, help="Reopen each dense replay save with the original Java server")
     parser.add_argument("--java", default="java")
     args = parser.parse_args()
@@ -182,7 +186,8 @@ def main() -> int:
     config, log = sp.az.resolve_azahar_paths(azahar)
     args.output_dir.mkdir(parents=True, exist_ok=True)
     for model in (args.model,):
-        verify(model, args.rom, azahar, config, log, args.output_dir, args.fixtures, args.dense, resave=args.dense_resave)
+        verify(model, args.rom, azahar, config, log, args.output_dir, args.fixtures,
+               args.dense, resave=args.dense_resave, backup_only=args.backup_only)
         if args.server is not None:
             from verify_stock_campaign_archive import check_saves
 
