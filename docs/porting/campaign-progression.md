@@ -80,7 +80,10 @@ rules. The replay exercises a copper marker saved by stock v160.8. The wider
 solar-system view remains open.
 
 The unified globe build reserves an 8 MiB linear heap for stock mesh, overlay,
-and marker vertex buffers alongside Citro2D. The earlier 4 MiB build loaded
+and marker vertex buffers alongside Citro2D. The [first 8 MiB replay](https://github.com/levkeveli/Min3DStry/actions/runs/45719661381/artifacts/15071829909)
+submitted Serpulo's stock overlays, grid and updated terrain colors. It also
+drew the lock and warning glyphs. The captured-sector fixture exercises the
+saved copper marker with the stock attack warning inactive. The earlier 4 MiB build loaded
 the Serpulo mesh but could not complete the overlay draw. The replay records
 the heap reservation and the submitted overlay and marker batches.
 
