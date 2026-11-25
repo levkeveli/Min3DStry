@@ -475,7 +475,7 @@
     {
       "id": "physical-hardware-parity",
       "category": "Networking & Hardware Release",
-      "name": "Old & New 3DS Physical Hardware Verification",
+      "name": "New 3DS Physical Hardware Verification",
       "weight": 5,
       "stage": "planned",
       "issue": 43,

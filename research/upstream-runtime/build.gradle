@@ -1638,6 +1638,21 @@ ${barMethod}""")
                 throw new GradleException('Pinned fixed liquid bar method changed')
             }
             block = block.replace(fixedLiquidBar, fixedLiquidBar + '\n        liquidBarLiquids.add(liq);')
+            def barOracle = '    public void setBars(){'
+            if (block.count(barOracle) != 1) {
+                throw new GradleException('Pinned setBars method changed')
+            }
+            block = block.replace(barOracle, """    public boolean hasBar(String name){
+        return barMap.containsKey(name);
+    }
+
+    public Seq<String> barNames(){
+        Seq<String> names = new Seq<>();
+        for(String name : barMap.keys()) names.add(name);
+        return names;
+    }
+
+${barOracle}""")
             def anonymousCheck = 'current.isAnonymousClass()'
             if (block.count(anonymousCheck) != 1) {
                 throw new GradleException('Pinned Block.initBuilding anonymous class check changed')

@@ -21,6 +21,9 @@ TIER_C_LABELS = {
     "status:blocked",
     "hold",
     "do-not-merge",
+    # Automation hold applied by main-verify-alert.yml while post-merge
+    # verification on main is red. Also fails the PR policy gate below.
+    "main-verify-blocked",
 }
 
 TIER_B_PREFIXES = (
@@ -194,11 +197,61 @@ def has_bot_approval_for_commit(
     return latest_state == "APPROVED"
 
 
+HEAVY_VERIFY_WORKFLOWS = {
+    "full-build.yml": "3DS full build",
+    "upstream-arm11-smoke.yml": "Upstream ARM11 smoke",
+}
+FAILURE_CONCLUSIONS = ("failure", "timed_out", "startup_failure")
+MAIN_VERIFY_BLOCKED = "main-verify-blocked"
+MAIN_VERIFY_FIX = "main-verify-fix"
+
+
+def is_main_verification_fix(labels: set[str], title: str, body: str) -> bool:
+    description = f"{title} {body}".lower()
+    return MAIN_VERIFY_FIX in labels and (
+        "revert" in description or "main verification failed" in description
+    )
+
+
+def main_verification_status(repo: str, token: str) -> tuple[str, list[str], list[str]]:
+    """Return main's HEAD, verification blockers, and workflow files without runs."""
+    root = f"https://api.github.com/repos/{repo}"
+    _, raw = github_request(f"{root}/commits/main", token)
+    main_sha = json.loads(raw)["sha"]
+    blockers = []
+    missing_workflows = []
+    for filename, name in HEAVY_VERIFY_WORKFLOWS.items():
+        _, raw = github_request(
+            f"{root}/actions/workflows/{filename}/runs"
+            f"?branch=main&head_sha={main_sha}&per_page=100", token
+        )
+        run = next(
+            (
+                run for run in json.loads(raw)["workflow_runs"]
+                if run.get("head_sha") == main_sha
+                and run.get("event") in {"push", "workflow_dispatch"}
+                and (run.get("head_repository") or {}).get("full_name", "").lower() == repo.lower()
+            ),
+            None,
+        )
+        if run is None:
+            blockers.append(f"{name}: no run on main HEAD")
+            missing_workflows.append(filename)
+        elif run.get("conclusion") != "success":
+            blockers.append(f"{name}: {run.get('conclusion') or run['status']}")
+    return main_sha, blockers, missing_workflows
+
+
 def cmd_classify(_: argparse.Namespace) -> int:
     token = os.environ["GITHUB_TOKEN"]
-    repo, pr = load_pr_context()
-    pr_number = int(pr["number"])
-    head_sha = pr["head"]["sha"]
+    repo, event_pr = load_pr_context()
+    pr_number = int(event_pr["number"])
+    head_sha = event_pr["head"]["sha"]
+    _, raw = github_request(f"https://api.github.com/repos/{repo}/pulls/{pr_number}", token)
+    pr = json.loads(raw)
+    if pr["head"]["sha"] != head_sha:
+        print("POLICY ERROR: this run is for a previous PR head.", file=sys.stderr)
+        return 1
     base_ref = pr["base"]["ref"]
     is_draft = bool(pr.get("draft", False))
 
@@ -210,13 +263,34 @@ def cmd_classify(_: argparse.Namespace) -> int:
     )
 
     changed_files = fetch_pr_files(repo, pr_number, token)
-    labels = [lbl["name"] for lbl in pr.get("labels", [])]
-    tier, tier_reasons = classify_risk_tier(changed_files, labels)
+    labels = {lbl["name"].strip().lower() for lbl in pr.get("labels", [])}
+    is_fix_pr = is_main_verification_fix(labels, pr.get("title") or "", pr.get("body") or "")
+    if is_fix_pr:
+        labels.discard(MAIN_VERIFY_BLOCKED)
+    tier, tier_reasons = classify_risk_tier(changed_files, sorted(labels))
     metadata_errors = validate_pr_metadata(pr.get("body"))
     metadata_warnings = collect_metadata_warnings(pr.get("body"))
 
     if is_draft:
         metadata_errors.append("PR is still marked as draft.")
+
+    if MAIN_VERIFY_BLOCKED in labels:
+        metadata_errors.append(
+            f"{MAIN_VERIFY_BLOCKED}: post-merge verification hold. "
+            f"The fixing/reverting PR must carry {MAIN_VERIFY_FIX}."
+        )
+    elif base_ref == "main" and not is_fix_pr:
+        try:
+            sha, blockers, _ = main_verification_status(repo, token)
+        except (RuntimeError, ValueError, OSError) as exc:
+            metadata_errors.append(f"Could not verify main: {exc}")
+        else:
+            if blockers:
+                metadata_errors.append(
+                    f"Post-merge verification on main at {sha} is blocked "
+                    f"({'; '.join(blockers)}). The fixing/reverting PR must "
+                    f"carry {MAIN_VERIFY_FIX}."
+                )
 
     eligible_ai = same_repo and not is_draft
     eligible_auto_merge = same_repo and not is_draft and tier != "C" and not metadata_errors

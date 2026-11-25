@@ -105,6 +105,7 @@ public final class UpstreamBuildControlsReference {
         verifyInventory(unit);
         verifyStockOrders(unit);
         verifyStockCommandMenu(unit);
+        verifyStockDragSelection(unit);
         verifyFactoryConfiguration(controls, unit);
         verifyStockLinks(unit);
         verifySchematicPlacement(unit);
@@ -160,6 +161,33 @@ public final class UpstreamBuildControlsReference {
         } finally {
             dagger.remove();
             mono.remove();
+        }
+    }
+
+    private static void verifyStockDragSelection(Unit player) {
+        var first = UnitTypes.dagger.create(player.team());
+        var second = UnitTypes.dagger.create(player.team());
+        first.set(600f, 216f);
+        second.set(616f, 216f);
+        first.add();
+        second.add();
+        Vars.player.unit(player);
+        var controls = new UpstreamLiveBuildControls();
+        controls.viewport(73, 20);
+        try {
+            controls.update(player, 0, touch(305, 128));
+            controls.update(player, 0, touch(32 + (75 - 73) * 16 + 8, 48 + (31 - 27) * 16 + 8));
+            controls.update(player, 0, touch(32 + (77 - 73) * 16 + 8, 48 + (31 - 27) * 16 + 8));
+            controls.update(player, 0, -1);
+            tapGridCell(controls, player, 86, 24);
+            if (!controls.orders().active()
+                    || first.command().targetPos == null || second.command().targetPos == null) {
+                throw new AssertionError("Stock drag selection did not select and order both units");
+            }
+            System.out.println("UPSTREAM_STOCK_DRAG_SELECTION units=2 order=move");
+        } finally {
+            first.remove();
+            second.remove();
         }
     }
 
@@ -251,6 +279,7 @@ public final class UpstreamBuildControlsReference {
 
     private static void tapGridCell(UpstreamLiveBuildControls controls, Unit player, int x, int y) {
         controls.update(player, 0, touch(32 + (x - 73) * 16 + 8, 48 + (31 - y) * 16 + 8));
+        controls.update(player, 0, -1);
     }
 
     private static void verifyInventory(Unit unit) {

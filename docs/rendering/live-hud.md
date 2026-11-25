@@ -25,11 +25,19 @@ off and a campaign sector is active;
 - a stock-style pause overlay with `paused`, the campaign planet/sector and
   first objective when available. A sector with a tech tree gets Resume
   (`back`), Research, Load Game, Save Game, Settings and Quit; otherwise the
-  menu is Resume/Save/Quit. Load reloads the active slot only (there is no save
-  picker) and resets HUD caches; this path is **not verified** yet. Settings
-  and Settings toggles the stock `setting.coreitems`, `setting.minimap`,
-  `setting.showweather` and `setting.showperformance` displays. The stock quit confirmation is
+  menu is Resume/Save/Quit. Load reloads the active campaign slot only (there
+  is no save picker) and resets HUD caches; saved-state equality is not
+  asserted yet. Settings toggles the stock `setting.coreitems`,
+  `setting.minimap`, `setting.showweather`, `setting.showperformance` and
+  `setting.position` displays. With `position` on, the player's tile
+  coordinates are drawn under the minimap. The stock quit confirmation is
   included, and tapping X opens/closes and freezes simulation;
+- the stock guardian bar (`state.teams.bosses`) above the bottom edge: one
+  boss emoji per guardian (six at most, then `+`), the localized `guardian`
+  text and a total-health fill, shown only while wave rules are active;
+- a fullscreen minimap view on `R`: the same stock sampled texture over a dark
+  backdrop, scaled from 240 px to 960 px with circle-pad/d-pad panning and
+  X/Y zoom (1x to 4x), closed with `R` or `B`;
 - a live minimap rendered from a 64x64 sample at 56 px in the top-right
   corner, using the stock `MinimapRenderer` color path (`Block.minimapColor`,
   floor/overlay fallback through `MapIO.colorFor`, darkness and liquid/shadow
@@ -51,6 +59,24 @@ aligned buffer. Uploads happen once at startup and every 60 rendered frames. The
 texture draw rebinds the top screen because the build palette leaves the bottom
 screen selected. The minimap translation unit also compiles without
 `M3DS_WORLD_ATLAS`; its static upload buffer is 64 KiB.
+
+## Selected building bars
+
+The friendly building under the handheld cursor shows its stock bars below the
+status rows in the base `Block.setBars` order (health, power, items, then
+liquids); subclass-specific extra bars remain open:
+
+- health (`stat.health`, `Pal.health`) for every building;
+- power for blocks with `consPower`, using the stock power label/fraction;
+- items (`bar.items`) for configurable item blocks;
+- the dynamic `addLiquidBar` bar, then each keyed consumer/generator liquid bar,
+  using the stock liquid label, fraction and color.
+
+Enemy bars stay hidden. The bars reuse the original `bar`/`bar-top` atlas
+patches and animate their fill. The host building reference checks health,
+power, item, dynamic liquid and keyed liquid states against the pinned
+`Block.setBars` bar keys and order; the **live draw path is pending** the next
+emulator batch.
 
 ## Verification
 
@@ -110,9 +136,21 @@ status-hud host probe:
 ```text
 UPSTREAM_CORE_ITEM_FORMAT text=12k cases=9 ok
 UPSTREAM_CORE_ITEMS rows=2 ok
+UPSTREAM_MINIMAP_VIEW cases=5 ok
+UPSTREAM_SETTINGS_POSITION ok
 UPSTREAM_PAUSE_MENU cases=22 ok
+UPSTREAM_BOSS_BAR cases=4 ok
 UPSTREAM_CORE_ATTACK text="< Core is under attack! >" ok
 ```
+
+The boss bar covers the stock `HudFragment` summary: no bar without bosses or
+wave rules, three bosses at `2500/3000` health, and the six-emoji cap with the
+`+` marker. Its on-device guardian-wave rendering is **not verified** yet; the
+host probe only checks the collected text and health fraction.
+
+The fullscreen view state covers the open/close flag, the 1x..4x zoom clamps,
+pan clamping and reset. Its on-device rendering, pan and zoom are **not
+verified** yet; the host probe checks the view math only.
 
 The Azahar verifier can seed a deterministic core inventory through
 `/3ds/min3dstry/hud-items.txt` and assert that every requested row was drawn:
@@ -137,25 +175,42 @@ transitions are host-covered. Offline worlds with the stock `pauseDisabled`
 rule keep simulating while the menu is open. The overlay uses the localized
 Menu title in that case. The Ground Zero host probe checks both the normal
 pause and resume behavior and continued simulation with this rule enabled.
-The following graphical checks are queued for
-the next emulator batch and are **not verified** yet:
+The pause transitions were exercised on Azahar 2126.2 New 3DS by replaying a
+CTM button movie against the integration build (real X/A/B/d-pad events, not a
+fixture). The log recorded `open=true options=6`, two `open=false` cancels, the
+research open, both core-items toggles, `save=true`, and `quit=true`. The
+captured frames show `> Research` and `> Settings` selected after d-pad moves
+and the stock research list (`Research 1 / 14`, `B Back`) after A on Research.
+See [HUD batch 2](hud-batch-2.md) and
+[pause log](evidence/hud-batch-2-pause-new3ds.log).
 
-- Tap X: `UPSTREAM_PAUSE_MENU open=true`, simulation freezes.
-- D-pad up/down wraps the rows; A on Resume closes and resumes.
-- In a campaign sector, A on Research opens the existing research screen and
+Verified on the emulator:
+
+- X opens the pause menu (`UPSTREAM_PAUSE_MENU open=true`) and freezes play.
+- D-pad moves the selected row, including wrapping; A on Resume closes and
+  resumes.
+- In a campaign sector, A on Research opens the stock research screen and B
   returns to play.
-- A on Load Game reloads the active save, restores the saved world and
-  re-uploads the minimap. **Not verified** graphically yet.
 - A on Settings opens Display Core Items / Show Minimap / Show Weather /
-  Display Performance Metrics / Back; toggling hides/shows the item list,
-  minimap or weather overlay and adds an FPS row. **Not verified** yet.
-- In a campaign sector, the overlay shows the planet/sector and first objective
-  above the options. **Not verified** graphically yet.
+  Display Performance Metrics / Back; CTM runs toggled all four rows
+  (`UPSTREAM_SETTINGS index=0..3`). The core-items and minimap rows changed the
+  visible HUD, and the performance row added the `FPS` status row.
+- A on Load Game re-loads the campaign save: `load=true`, then a second
+  `UPSTREAM_SP_LOADED source=campaign`.
 - A on Save Game emits `UPSTREAM_PAUSE_MENU save=true`.
-- A on Quit, then A on the stock confirmation, exits with `quit=true`.
-- B or X cancels the menu, and the HUD/minimap remain readable behind it.
-- A damaged friendly core raises the stock `coreattack` row. This path is
-  wired to `Trigger.teamCoreDamage` but is **not verified** graphically yet.
+- A on Quit, then A on the confirmation, emits `quit=true` and exits.
+- B or X cancels the menu; the HUD and minimap remain readable behind it.
+- A damaged friendly core raises the stock `coreattack` row (batch 1).
+
+Still **not verified** graphically:
+
+- Load Game saved-state equality and the minimap re-upload (the marker is
+  one-shot and the second upload is not logged).
+- The overlay's first objective line above the options (planet/sector is
+  visible).
+- Hiding an active weather overlay: the weather setting toggles
+  (`index=2 value=false`), but the batch fixture had no weather.
+- Depleted used-item retention and the core-marker orientation.
 
 The live fixture exercises the countdown/waiting path with `enemies=0`. The
 singular/plural enemy rows, the `wave.waveInProgress` branch, and the `m:ss`
@@ -168,9 +223,9 @@ exactly.
 
 - This is the wave/timer/copper/minimap slice of the stock HUD, not the
   complete HUD.
-- The minimap is the always-on 56 px slice drawn from a 64x64 sample with a
-  dark inset frame. Fullscreen/zoom, unit icons beyond the local player, and the
-  full stock minimap panel layout remain open under #40.
+- The minimap is a 64x64 sample with a dark inset frame, drawn at 56 px and
+  expanded by the fullscreen `R` view. Unit icons beyond the local player and
+  the full stock minimap panel layout remain open under #40.
 - The item list is icon-and-count only, like the stock core display, but not
   its complete panel/theme layout. More than 18 rows fall back to the overflow
   log rather than a scrollable table.

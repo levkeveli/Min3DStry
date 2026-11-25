@@ -56,6 +56,7 @@ public final class UpstreamRenderedNetworkProbe {
     private final UpstreamBuildingLayers buildingLayers = new UpstreamBuildingLayers();
     private final UpstreamBuildingPowerHud buildingPowerHud = new UpstreamBuildingPowerHud();
     private final UpstreamBuildingLiquidHud buildingLiquidHud = new UpstreamBuildingLiquidHud();
+    private final UpstreamBuildingBasicBars buildingBasicBars = new UpstreamBuildingBasicBars();
     private final UpstreamWeatherLayers weatherLayers = new UpstreamWeatherLayers();
     private final Runnable drawWeatherUnder = weatherLayers::drawUnder;
     private UpstreamLiveBuildControls buildingControls;
@@ -370,7 +371,10 @@ public final class UpstreamRenderedNetworkProbe {
         schematics.draw(viewport);
         weatherLayers.drawOver();
         float hudY = drawStatusHud();
+        // Base Block.setBars order: health, power, items, then liquids.
+        hudY = buildingBasicBars.drawHealth(target, buildingControls, Vars.player.team(), hudY);
         hudY = buildingPowerHud.draw(target, buildingControls, Vars.player.team(), hudY);
+        hudY = buildingBasicBars.drawItems(target, buildingControls, Vars.player.team(), hudY);
         hudY = buildingLiquidHud.draw(target, buildingControls, Vars.player.team(), hudY);
         drawObjectives(hudY);
         drawChat();

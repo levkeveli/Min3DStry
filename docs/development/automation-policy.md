@@ -22,7 +22,7 @@ Enable high-throughput AI-first development **without routine human PR merges**.
 
 1. PR originates from a same-repo branch (not an external fork) and is not a draft; the auto-merge job skips drafts cleanly instead of failing the workflow.
 2. Merge base has no conflicts.
-3. Required checks (`Bootstrap checks`, `PR policy gate`, `AI review`) pass on the head commit.
+3. The PR is up to date with `main` and the required checks (`Bootstrap checks`, `PR policy gate`, `AI review`) pass.
 4. `AI review` approves the exact head commit with no unresolved critical/major bugs, security/secret leaks, license violations, or determinism/networking regressions.
 5. No explicit hold label (`hold`, `needs-human`, `do-not-merge`, `status:blocked`, `tier:c`) is present on the PR.
 6. Auto-merge uses GitHub's normal merge path (`--squash --match-head-commit`) and never force-pushes `main`.
@@ -50,12 +50,13 @@ If CI fails or `AI review` flags critical/major findings, return the task to the
 - **Maintainers:** `@admiraly` (admin), `@Hxgg22` and `@Satixfied` (maintain).
 - **Automated PR review and merge:** `.github/workflows/ai-pr-review.yml` runs `PR policy gate`, `AI review` (using `OPENCODE_GO_API_KEY` / `OPENCODE_API_KEY` with `deepseek-v4.1-flash` by default, or `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `GEMINI_API_KEY` from repository secrets), and native GitHub auto-merge for all eligible same-repo pull requests.
 - **No CODEOWNERS human gate:** `.github/CODEOWNERS` is removed. Same-repo PRs do not wait on human approval; only drafts, external fork PRs, `AI review` critical/major rejections, or explicit hold labels (`hold`, `needs-human`, `do-not-merge`, `status:blocked`, `tier:c`) prevent auto-merge.
-- **Full 3DS build check:** `.github/workflows/full-build.yml` builds the default app in the pinned devkitARM image when sources, headers, the Makefile, sprite fixtures or the atlas tool change.
+- **Full 3DS build check:** `.github/workflows/full-build.yml` builds the default app in the pinned devkitARM image on every push to `main` and on PRs that change its inputs.
 - **External fork PRs:** Fork PRs do not receive repository secrets or auto-merge and require a maintainer review before merge.
 - **Self-hosted Linux CI runners (`wings02`):** Same-repo PRs, `main` pushes, and `workflow_dispatch` runs route Linux jobs across 7 persistent self-hosted runners (`[self-hosted, linux, x64, min3dstry]`) on `wings02` using an asymmetric NUMA split (4 runners pinned to Node 0 with 4 memory channels and local PCIe SSD/NIC affinity; 3 runners pinned to Node 1 with 3 memory channels). Each runner maintains an isolated `GRADLE_USER_HOME` and passes `M3DS_DOCKER_CPUSET_CPUS`/`M3DS_DOCKER_CPUSET_MEMS` into pinned `devkitpro/devkitarm` Docker builds. External fork PRs automatically fall back to GitHub-hosted `ubuntu-latest` and never execute on persistent self-hosted runners or access secrets; `Windows host tests` remains on `windows-latest` and `Pages` stays on `ubuntu-latest`. ARM11 smoke jobs are scoped as described below. While the `wings02` runners are offline, `full-build.yml` and `upstream-arm11-smoke.yml` temporarily run their Linux jobs on `ubuntu-latest` so `main` pushes and same-repo PRs are not queued indefinitely; restore the self-hosted `runs-on` expressions when the runners return.
 - **Superseded runs:** `full-build.yml` and `upstream-arm11-smoke.yml` cancel an in-progress run for the same pull request or branch when a newer one starts, so a stale commit cannot hold the queue. Manual `workflow_dispatch` runs use a per-run group and are never canceled by a push.
 - **Main failure alerts:** `main-failure-alert.yml` opens or comments on a `[main] <workflow> failed` issue when `Upstream ARM11 smoke` or `3DS full build` fails on a `main` push or dispatch, with the run URL and commit. Pull-request runs and fork repositories are ignored.
 - **Live building registry gate:** the unified smoke runs `runBuildingLayersJvm` against the staged Glacier map and atlas and fails if the stock draw set loses any POWER (26), DISTRIBUTION (28), LIQUID (21) or MATERIAL (52) building. The offline CTM starts at 40s, after the hosted `UPSTREAM_SP_READY` window (~32s).
+- **Azahar full-build retry:** `verify_azahar.py` retries a model once only when both FPS counters are zero (`Non-positive FPS`), the observed Azahar startup race. Other telemetry, parity, audio or screenshot failures fail immediately.
 - **Dependency registry retries:** `build_unified_arm11_smoke.sh` retries the Gradle configure/generate step only when the log shows HTTP `429` or `Could not resolve` artifacts, up to three attempts with backoff. Compile errors and other failures fail immediately.
 - **Self-service task claiming:** Agents do not wait for human assignment. To claim a `status:ready` issue from [Min3DStry Roadmap](https://github.com/orgs/levkeveli/projects/1), check that no open PR or recent claim comment exists, comment on the issue with the agent handle and dedicated branch name, swap `status:ready` -> `status:in-progress` (and `status:in-review` once the PR is open), reference `Closes #N` in the PR body, and let CI + `AI review` auto-merge.
 
@@ -139,3 +140,39 @@ playable-arm11**. Source and port instructions are in the
 
 The job packages the offline campaign and Custom Game target. GitHub Actions still
 owns the required checks, AI review, and Pages deployment.
+
+## Two-lane CI gating
+
+The fast lane requires `Bootstrap checks`, `PR policy gate`, and `AI review`.
+`3DS full build` and `Upstream ARM11 smoke` run on relevant PRs as non-required
+checks and on every push to `main`. Strict branch protection requires PR
+branches to be up to date with `main` before merging.
+
+The policy gate and `main-verify-alert.yml` both check the latest same-repo
+push or manual run for each heavy workflow on the current `main` HEAD. The
+gate fails until both runs succeed. A missing, pending, cancelled or failed
+run blocks ordinary PRs, as does an API error in the policy gate. Results from
+older commits are ignored.
+
+The alert checks main after either heavy workflow completes, hourly, and on
+manual dispatch. While verification is blocked, it opens a tracking issue
+and applies `main-verify-blocked` to open PRs targeting `main`, except for the
+repair PR. Once both workflows pass on the current HEAD, it removes the
+automation labels, retries failed policy gates on open non-draft PRs without
+maintainer holds, and closes the tracking issue. If a push produces no run,
+the alert dispatches the missing workflow on `main` to verify the current
+commit. This also covers pushes generated by the workflow token.
+
+### Repairing main
+
+Fix or revert a regression via a PR labeled `main-verify-fix`. The title or
+body must mention “revert” or “Main verification failed”. This exempts the PR
+from the main verification hold, including any existing
+`main-verify-blocked` label. Required checks and maintainer hold labels still
+apply. The alert creates both verification labels and clears them once main
+is green.
+
+Separately, `pr-triage.yml` checks open PRs targeting `main` every six hours.
+It retries failed, timed-out, or startup-failed heavy PR workflows once per
+head SHA, using a comment to record the attempt. It moves PRs with more than
+seven days of inactivity to draft.

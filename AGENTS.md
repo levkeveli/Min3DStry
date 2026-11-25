@@ -2,7 +2,7 @@
 
 ## Mission
 
-**Min3DStry is a 1:1 port of upstream Mindustry to Original and New Nintendo 3DS/2DS — NOT a simplified clone, demake, fan recreation, or custom mini-game.** Adapt and run the pinned upstream Mindustry v8 build `160.8` code and content ([upstream port plan](docs/upstream-port.md)), preserving 1:1 gameplay rules, complete content catalog (blocks, items, liquids, units, bullets, status effects, planets, sectors, tech tree, logic), original sprites/audio assets, `.msav` maps/saves, and cross-platform multiplayer with the unmodified Java PC v160.8 release. Complete functional and content parity before performance optimization, then verify at least 24 FPS on both hardware generations within their memory budgets. Never assert an untested feature works.
+**Min3DStry is a 1:1 port of upstream Mindustry to Original and New Nintendo 3DS/2DS — NOT a simplified clone, demake, fan recreation, or custom mini-game.** Adapt and run the pinned upstream Mindustry v8 build `160.8` code and content ([upstream port plan](docs/upstream-port.md)), preserving 1:1 gameplay rules, complete content catalog (blocks, items, liquids, units, bullets, status effects, planets, sectors, tech tree, logic), original sprites/audio assets, `.msav` maps/saves, and cross-platform multiplayer with the unmodified Java PC v160.8 release. Complete functional and content parity before performance optimization, then verify at least 24 FPS on physical New Nintendo 3DS/2DS within its application-memory budget. The 100% completion score covers physical acceptance on New Nintendo 3DS/2DS only. Original Nintendo 3DS/2DS remains a compatibility target covered by emulator checks. Track its physical fit and performance separately as compatibility work, and claim Original-model hardware parity only with Original-model evidence. Never assert an untested feature works.
 
 ### 1:1 Port Constraints (Mandatory for AI Agents)
 
@@ -48,8 +48,8 @@
 
 ## Integration and quality
 
-- `main` is always protected, buildable and the only source for public implemented-state claims.
-- Required CI must cover available meaningful build, test, lint, docs and security checks. Never bypass, disable or fake checks.
+- `main` is always protected, buildable and the only source for public implemented-state claims. Fix or revert a merge that breaks post-merge verification. Accepted cost of the two-lane model: a PR that breaks the 3DS/ARM11 build can land on main and is caught by post-merge verification (hold until fixed or reverted) rather than blocked pre-merge.
+- Required PR CI covers the fast lane (host build/tests, lint, docs, policy gate, AI review); heavy 3DS/ARM11 build and smoke workflows run on PRs as non-required signals and on every push to `main`, where the PR policy gate holds ordinary PRs until both heavy workflows pass on the current HEAD. The alert manages the `main-verify-blocked` label and retries failed policy gates when verification passes. Never bypass, disable or fake checks. See `docs/development/automation-policy.md` for the two-lane model.
 - Maintain identical game simulation rules between Old and New 3DS. Preserve cross-platform network behavior; differences require explicit review and evidence.
 - Do not introduce proprietary Nintendo code/firmware or undistributable third-party assets.
 - Follow upstream Mindustry GPLv3 obligations and audit dependencies.
@@ -57,6 +57,6 @@
 
 ## Risk gates
 
-All same-repo PRs are reviewed by `AI review` and auto-merge once required CI checks pass. Human maintainers never need to review PRs unless an explicit maintainer hold label (`hold`, `needs-human`, `do-not-merge`, `status:blocked`, `tier:c`) is attached or an agent explicitly escalates a licensing/IP, security/secrets, or destructive release decision.
+All same-repo PRs are reviewed by `AI review` and auto-merge once required CI checks pass. Human maintainers never need to review PRs unless an explicit maintainer hold label (`hold`, `needs-human`, `do-not-merge`, `status:blocked`, `tier:c`) is attached, main verification is blocked (the fixing or reverting PR carries `main-verify-fix` and mentions “revert” or “Main verification failed” in its title or body), or an agent explicitly escalates a licensing/IP, security/secrets, or destructive release decision.
 
 Read `docs/development/automation-policy.md` for merge rules and escalation semantics.
