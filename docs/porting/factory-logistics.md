@@ -49,7 +49,8 @@ UPSTREAM_FACTORY_ORDER runs=2 ticks=720 trace_hash=0x48f18f35f2c8286d
 
 ## Remaining Scope for Issue #26
 
-- Verify the full upstream runtime on physical New 3DS at >= 24 FPS within its application-memory budget. The Original 3DS `64 MiB` limit remains a compatibility target (`65.80 MiB` for the historical `-O2` probe above).
+- Verify the full upstream runtime on physical New 3DS at >= 24 FPS within its application-memory budget.
+- Original 3DS compatibility remains open. Reduce the full runtime to fit the `64 MiB` application-memory budget and measure physical gameplay performance when hardware is available. The historical `-O2` probe above totaled `65.80 MiB`. This compatibility work sits outside the 100% acceptance score.
 
 ## Building item storage
 

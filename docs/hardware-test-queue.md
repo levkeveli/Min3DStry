@@ -11,7 +11,10 @@ not claimed: full upstream campaign gameplay performance, audible upstream
 sound effects/music (the newest emulator build resolves nine clips, but physical
 DSP output is unverified), live build-UI gameplay, cross-play, and the Old 3DS
 sector-loader/FPS run. HWT-01 through HWT-06 require New 3DS evidence for
-release acceptance. Original 3DS physical tests are optional. The operator
+release acceptance. Original 3DS physical tests are optional for release.
+Track Original 3DS fit and sustained gameplay performance as separate
+compatibility work. The documented unified build subtotal of 66.49 MiB
+exceeds its 64 MiB application budget. See [architecture](architecture.md). The operator
 also found that the visible touch legend was outside the hit zones; the
 coordinates themselves are correct (`TOUCH action=menu x=288 y=47`). The labels
 are now drawn inside the zones by the #364 fix; physical retest is pending.
