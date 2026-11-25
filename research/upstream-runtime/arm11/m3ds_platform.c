@@ -11,8 +11,48 @@
 
 static LightEvent m3ds_event;
 static u64 m3ds_initial_tick;
-static char m3ds_log_line[192];
+static char m3ds_log_line[256];
 static size_t m3ds_log_size;
+
+#ifdef M3DS_BENCHMARK_CAPTURE
+static FILE* m3ds_benchmark_log;
+
+static void m3ds_benchmark_open(void) {
+    FILE* flag = fopen("sdmc:/3ds/min3dstry/benchmark.txt", "rb");
+    if (!flag) return;
+    fclose(flag);
+
+    m3ds_benchmark_log = fopen("sdmc:/3ds/min3dstry/benchmark.log", "ab");
+    if (!m3ds_benchmark_log) {
+        static const char error[] = "UPSTREAM_PLAYABLE_CAPTURE error=open";
+        svcOutputDebugString(error, sizeof(error) - 1);
+        return;
+    }
+    bool is_new = false;
+    APT_CheckNew3DS(&is_new);
+    fprintf(m3ds_benchmark_log,
+        "UPSTREAM_PLAYABLE_CAPTURE start commit=%s dirty=%s new3ds=%d app_mem=%lu firm=0x%08lx\n",
+        M3DS_BUILD_COMMIT, M3DS_BUILD_DIRTY, is_new,
+        (unsigned long)osGetMemRegionSize(MEMREGION_APPLICATION), (unsigned long)osGetFirmVersion());
+}
+
+static void m3ds_benchmark_close(void) {
+    if (!m3ds_benchmark_log) return;
+    fputs("UPSTREAM_PLAYABLE_CAPTURE end\n", m3ds_benchmark_log);
+    bool closed = fclose(m3ds_benchmark_log) == 0;
+    m3ds_benchmark_log = NULL;
+    const char* marker = closed ? "UPSTREAM_PLAYABLE_CAPTURE status=closed" :
+        "UPSTREAM_PLAYABLE_CAPTURE error=close";
+    svcOutputDebugString(marker, (s32)strlen(marker));
+}
+#endif
+
+static inline void m3ds_log_memory(const char* line, size_t length) {
+    svcOutputDebugString(line, (s32)length);
+#ifdef M3DS_BENCHMARK_CAPTURE
+    if (m3ds_benchmark_log) fwrite(line, 1, length, m3ds_benchmark_log);
+#endif
+}
 
 void* m3ds_map_open(void) {
     return fopen("sdmc:/3ds/min3dstry/glacier.msav", "rb");
@@ -120,6 +160,26 @@ static void m3ds_flush_log(void) {
 #endif
         fwrite(m3ds_log_line, 1, m3ds_log_size, stdout);
     svcOutputDebugString(m3ds_log_line, (s32)m3ds_log_size);
+#ifdef M3DS_BENCHMARK_CAPTURE
+    if (m3ds_benchmark_log) {
+        static const char load_prefix[] = "UPSTREAM_PLAYABLE_LOAD window=";
+        bool workload = strncmp(m3ds_log_line, load_prefix, sizeof(load_prefix) - 1) == 0;
+        if (workload ||
+            strncmp(m3ds_log_line, "UPSTREAM_PLAYABLE_BENCH ", sizeof("UPSTREAM_PLAYABLE_BENCH ") - 1) == 0 ||
+            strncmp(m3ds_log_line, "UPSTREAM_SP_LOADED ", sizeof("UPSTREAM_SP_LOADED ") - 1) == 0) {
+            fwrite(m3ds_log_line, 1, m3ds_log_size, m3ds_benchmark_log);
+        }
+        if (workload) {
+            s64 used = 0;
+            // libctru's application-region accounting includes more than the TeaVM heap.
+            if (R_SUCCEEDED(svcGetSystemInfo(&used, 0, MEMREGION_APPLICATION))) {
+                unsigned long window = strtoul(m3ds_log_line + sizeof(load_prefix) - 1, NULL, 10);
+                fprintf(m3ds_benchmark_log, "UPSTREAM_PLAYABLE_APP_MEM window=%lu used=%llu\n",
+                        window, (unsigned long long)used);
+            }
+        }
+    }
+#endif
     m3ds_log_size = 0;
 }
 

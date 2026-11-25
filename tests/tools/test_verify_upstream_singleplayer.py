@@ -6,6 +6,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools"))
+import report_playable_hardware as hardware  # noqa: E402
 import verify_upstream_singleplayer as vsp  # noqa: E402
 
 
@@ -22,6 +23,62 @@ class VerifyUpstreamSingleplayerTests(unittest.TestCase):
                 self.assertGreaterEqual(len(raw), header_size + expected_frames * 14)
                 frame_count = struct.unpack_from("<Q", raw, 84)[0]
                 self.assertEqual(frame_count, expected_frames)
+
+    def test_benchmark_accepts_signed_gc_counter_and_checks_timing(self) -> None:
+        sample = (
+            "UPSTREAM_PLAYABLE_BENCH window=1 frames=9 elapsed_ns=5315782950 "
+            "fps=1.693071384714833 p95_ns=635119486 heap_free=-1955132 heap_committed=26447880\n"
+            "UPSTREAM_PLAYABLE_LOAD window=1 wave=1 enemies=0 shooting_turrets=0 "
+            "turret_projectiles=0 belt_items=0 camera_tile=121,49"
+        )
+        vsp.verify_playable_benchmark(sample)
+        with self.assertRaisesRegex(AssertionError, "inconsistent FPS"):
+            vsp.verify_playable_benchmark(sample.replace("fps=1.693071384714833", "fps=24"))
+
+    def test_benchmark_sd_capture_requires_provenance_and_clean_exit(self) -> None:
+        sample = (
+            "UPSTREAM_PLAYABLE_CAPTURE start commit=" + "f" * 40
+            + " dirty=0 new3ds=1 app_mem=100663296 firm=0x022e0000\n"
+            "UPSTREAM_MEMORY appHeap=89235456 linearHeap=4194304 stack=524288\n"
+            "UPSTREAM_MEMORY managedLimit=33554432\n"
+            "UPSTREAM_SP_LOADED source=map map=Ground_Zero size=256x256 wave=1 copper=0\n"
+            "UPSTREAM_PLAYABLE_BENCH window=1 frames=125 elapsed_ns=5000000000 "
+            "fps=25.0 p95_ns=40000000 heap_free=4800000 heap_committed=26447880\n"
+            "UPSTREAM_PLAYABLE_LOAD window=1 wave=2 enemies=80 shooting_turrets=14 "
+            "turret_projectiles=4 belt_items=174 camera_tile=121,49\n"
+            "UPSTREAM_PLAYABLE_CAPTURE end\n"
+        )
+        vsp.verify_playable_sd_capture("UPSTREAM_PLAYABLE_CAPTURE start interrupted\n" + sample)
+        with self.assertRaisesRegex(AssertionError, "did not close"):
+            vsp.verify_playable_sd_capture(sample + sample.rsplit("UPSTREAM_PLAYABLE_CAPTURE end", 1)[0])
+        with self.assertRaisesRegex(AssertionError, "missing New 3DS"):
+            vsp.verify_playable_sd_capture(sample.replace("new3ds=1", "new3ds=0"))
+
+    def test_hardware_report_splits_at_pauses_and_rejects_emulator_memory(self) -> None:
+        commit = "a" * 40
+        capture = (
+            f"UPSTREAM_PLAYABLE_CAPTURE start commit={commit} dirty=0 new3ds=1 app_mem=130023424 firm=0x022e0000\n"
+            "UPSTREAM_MEMORY appHeap=89235456 linearHeap=4194304 stack=524288\n"
+            "UPSTREAM_MEMORY managedLimit=33554432\n"
+            "UPSTREAM_SP_LOADED source=save map=Ground_Zero size=256x256 wave=1 copper=0\n"
+        )
+        for index, end in enumerate((5, 10, 25), 1):
+            capture += (
+                f"UPSTREAM_PLAYABLE_BENCH window={index} frames=125 elapsed_ns=5000000000 "
+                f"fps=25 p95_ns=40000000 heap_free=100 heap_committed=1000 end_ns={end * 10**9}\n"
+                f"UPSTREAM_PLAYABLE_LOAD window={index} wave=2 enemies=80 shooting_turrets=14 "
+                "turret_projectiles=12 belt_items=48 camera_tile=121,49\n"
+                f"UPSTREAM_PLAYABLE_APP_MEM window={index} used=76000000\n"
+            )
+        capture += "UPSTREAM_PLAYABLE_CAPTURE end\n"
+        result = hardware.report(capture, commit, 10, 50, 8, 40)
+        self.assertTrue(result["pass"])
+        self.assertEqual(result["continuous_span"]["window_ids"], [1, 2])
+        self.assertFalse(hardware.report(capture, commit, 15, 50, 8, 40)["pass"])
+        self.assertFalse(hardware.report(capture, commit, 5, 90, 8, 40)["pass"])
+        emulator = capture.replace("app_mem=130023424", "app_mem=100663296")
+        with self.assertRaisesRegex(AssertionError, "physical New 3DS"):
+            hardware.report(emulator, commit, 10, 50, 8, 40)
 
     def test_resolve_sd_save_path(self) -> None:
         log = Path("/home/user/.var/app/org.azahar_emu.Azahar/data/azahar-emu/log/azahar_log.txt")

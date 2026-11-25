@@ -298,18 +298,79 @@ budget, and sustains `>= 24 FPS` on a representative playable workload.
 **Evidence:** strict `hw_evidence.py` JSON/Markdown, benchmark log lines, and
 thermal/SD notes. Only this card can clear `physical-hardware-parity`.
 
+For the unified playable offline build, place an empty
+`sd:/3ds/min3dstry/benchmark.txt` on the SD card before launch. Capture
+`UPSTREAM_PLAYABLE_BENCH` and `UPSTREAM_PLAYABLE_LOAD` from the same log.
+Each window covers five seconds or 330 frame intervals and reports frame
+count, elapsed time, FPS, p95 frame time in nanoseconds, managed heap size,
+and the raw TeaVM free-memory counter. The counter can be negative between
+collections. Use committed heap size and separate application-memory evidence
+for budget checks. Derive used heap only when free is within bounds.
+Match the window IDs to see the wave, live enemies, shooting turrets,
+turret projectiles, belt cargo, and camera tile at the end of the window.
+Use the `UPSTREAM_SP_LOADED` line for map provenance and record the exact ROM
+and save checksums. Confirm cargo is moving during the run and capture the
+active workload. Managed heap data alone does not prove application-memory fit.
+On physical hardware, exit through START and copy
+the SD card file `/3ds/min3dstry/benchmark.log`. Each workload sample can
+include `UPSTREAM_PLAYABLE_APP_MEM` with the kernel's total application-region
+usage in bytes. Each capture appends a start record with the source
+commit, dirty flag, New 3DS model bit, application-memory size and firmware.
+The end record is written when the app exits cleanly. Use a clean build,
+preserve the exact ROM and a copy of the input save before running, and
+remove the flag after the run. Set the workload and duration thresholds
+before testing and record them in the evidence.
+
+```sh
+python3 tools/report_playable_hardware.py \
+  --input build/device-logs/benchmark.log --rom build/upstream-probe.3dsx \
+  --save build/playable-benchmark/singleplayer-save.msav --commit "$ROM_COMMIT" \
+  --model "New 3DS XL" --min-seconds "$LOAD_SECONDS" --min-enemies "$MIN_ENEMIES" \
+  --min-turrets "$MIN_TURRETS" --min-items "$MIN_BELT_ITEMS" \
+  --output build/device-logs/playable-report.json
+```
+
+The report requires the clean build SHA, paired application-memory records,
+and at least 24 FPS in every window of the uninterrupted high-load span.
+Include the physical console model, screenshot at the recorded camera
+position, and operator notes with the JSON and raw SD log.
+
+To stage the repeatable high-load fixture, use the unmodified v160.8 server:
+
+```sh
+python3 tools/prepare_playable_benchmark.py --server /path/to/server-release.jar --output build/playable-benchmark
+```
+
+The original Ground Zero terrain hosts 14 copper-fed Duos, four cargo lines,
+and a repeating 80-Dagger wave configuration. The fixture raises the stock
+building health multiplier so a dense wave can keep the factory under load
+without ending the run immediately. The generator reopens the save
+with the stock server and prints its SHA-256. Stage the generated files in a
+test SD directory and select the save from the title. Pan or zoom to keep
+the turrets, enemies and conveyor lines in view. Capture the screen at the
+measured camera position and confirm the cargo is moving.
+
+The New 3DS Azahar replay on `87cc375` reached a sample with 80 enemies,
+14 shooting turrets, 14 turret projectiles and 48 belt items in wave two.
+The screenshot shows the 80-enemy HUD and loaded conveyor lines. These
+results verify the workload fixture in Azahar.
+[Save, trace and screenshot](https://github.com/levkeveli/Min3DStry/actions/runs/45691124391/artifacts/15059941289)
+
+The New 3DS Azahar Ground Zero script checks the trace format and timing
+arithmetic. The stock workload replay additionally requires at least 20 live
+enemies, firing turrets, turret projectiles, and conveyor cargo at the same
+sample. The offline smoke artifact includes the exact save, log, and screenshot. Physical high-load measurement is required to advance either
+gauge.
+
 > New 3DS `a328c70` satisfies the harness FPS and soak half: strict 12/12 over
 > ~10 minutes, 132 `BENCH` windows, `fps_min=29.92`, `fps_max=59.84`,
 > `p95_max=33.50`, with the sector loader and parity intact. The newer
 > `afca650c` build (`99c7fd6b`) still needs a physical New 3DS run. The
-> `a328c70` FPS numbers apply to the earlier harness. Original 3DS physical
-> evidence is optional.
+> `a328c70` FPS numbers apply to the earlier harness.
 >
-> At `857041e` the CI artifact `7adb4ee8...aae9` passed both Azahar profiles
-> with `62.79`/`59.76` FPS and parity `0x53a483c7`. This is recorded as
-> emulator evidence and does **not** clear the physical-hardware gauge entries,
-> which still require a physical-console acceptance run. See
-> [the emulator profile record](hardware/emulator-batch-2026-11-25.md).
+> At `857041e` the CI artifact `7adb4ee8...aae9` passed the New 3DS Azahar
+> profile at 62.79 FPS with parity `0x53a483c7`. Physical console acceptance
+> remains open. See [the historical emulator record](hardware/emulator-batch-2026-11-25.md).
 
 ## Current exclusions
 

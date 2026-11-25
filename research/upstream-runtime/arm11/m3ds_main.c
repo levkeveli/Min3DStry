@@ -18,7 +18,7 @@ static void m3ds_init_heap(int64_t minimum, int64_t maximum) {
     int length = snprintf(message, sizeof(message), "UPSTREAM_MEMORY managedLimit=%lu\n",
         (unsigned long)maximum);
     if (length > 0 && length < (int)sizeof(message)) {
-        svcOutputDebugString(message, length);
+        m3ds_log_memory(message, (size_t)length);
     }
     teavm_initHeap(minimum, maximum);
 }
@@ -30,16 +30,22 @@ int main(int argc, char** argv) {
 #else
     consoleInit(GFX_TOP, NULL);
 #endif
+#ifdef M3DS_BENCHMARK_CAPTURE
+    m3ds_benchmark_open();
+#endif
     char memory[120];
     int memory_length = snprintf(memory, sizeof(memory),
         "UPSTREAM_MEMORY appHeap=%lu linearHeap=%lu stack=%lu\n",
         (unsigned long)envGetHeapSize(), (unsigned long)envGetLinearHeapSize(),
         (unsigned long)__stacksize__);
     if (memory_length > 0 && memory_length < (int)sizeof(memory)) {
-        svcOutputDebugString(memory, memory_length);
+        m3ds_log_memory(memory, (size_t)memory_length);
     }
     int result = m3ds_teavm_main(argc, argv);
     m3ds_flush_log();
+#ifdef M3DS_BENCHMARK_CAPTURE
+    m3ds_benchmark_close();
+#endif
 #ifdef M3DS_TERRAIN_RENDERER
     if (!m3ds_terrain_palette_active())
 #endif
