@@ -120,6 +120,14 @@ change lists select both unified replay jobs. Use `workflow_dispatch` to
 also run the full standalone matrix, including the independent JVM and
 generated-C reference comparisons.
 
+The unified New 3DS multiplayer replay holds START for five emulated seconds
+after the movement inputs. It requires both the client leave marker and the
+stock server disconnect after the wave and movement checks. The
+[New 3DS replay evidence](https://github.com/levkeveli/Min3DStry/actions/runs/45700048301/artifacts/15063885096)
+records both disconnect events after reusing the ROM from main run
+`45695100973` (SHA-256
+`a4c8c6d843ab3cef6b3d334de080b0ec5aa8c762160b09ba86d6e597f3c11373`).
+
 CircleCI and Daytona can run independent builds and emulator replays on their
 own compute. Keep required GitHub status contexts and record the exact source
 commit for any artifact or evidence produced on another service. The scope
