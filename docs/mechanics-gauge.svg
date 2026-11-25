@@ -1,20 +1,19 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="760" height="314" viewBox="0 0 760 314" role="img" aria-label="Min3DStry Mechanics &amp; Feature Parity 77.3%">
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="314" viewBox="0 0 760 314" role="img" aria-label="Min3DStry Mechanics &amp; Feature Parity 74.3%">
   <defs>
     <clipPath id="mechBarClip"><rect x="24" y="66" width="712" height="14" rx="7"/></clipPath>
   </defs>
   <rect x="0.5" y="0.5" width="759" height="313" rx="8" fill="#0d1117" stroke="#30363d"/>
   <text x="24" y="34" fill="#e6edf3" font-family="Segoe UI, Ubuntu, Arial, sans-serif" font-size="16" font-weight="700">Min3DStry Mechanics &amp; Feature Parity Gauge</text>
-  <text x="736" y="34" text-anchor="end" fill="#58a6ff" font-family="Consolas, Liberation Mono, monospace" font-size="20" font-weight="700">77.3%</text>
-  <text x="24" y="54" fill="#8b949e" font-family="Segoe UI, Ubuntu, Arial, sans-serif" font-size="12">Granular Mindustry v160.8 parity across 38 mechanics (77.30 / 100 pts · verified against docs/mechanics-parity.json)</text>
+  <text x="736" y="34" text-anchor="end" fill="#58a6ff" font-family="Consolas, Liberation Mono, monospace" font-size="20" font-weight="700">74.3%</text>
+  <text x="24" y="54" fill="#8b949e" font-family="Segoe UI, Ubuntu, Arial, sans-serif" font-size="12">Granular Mindustry v160.8 parity across 38 mechanics (74.30 / 100 pts · verified against docs/mechanics-parity.json)</text>
   <rect x="24" y="66" width="712" height="14" rx="7" fill="#161b22" stroke="#30363d"/>
   <g clip-path="url(#mechBarClip)">
-    <rect x="24.0" y="66" width="21.4" height="14" fill="#3fb950"/>
-    <rect x="45.4" y="66" width="411.5" height="14" fill="#f5b841"/>
-    <rect x="456.9" y="66" width="115.3" height="14" fill="#58a6ff"/>
-    <rect x="572.2" y="66" width="2.1" height="14" fill="#bc8cff"/>
+    <rect x="24.0" y="66" width="411.5" height="14" fill="#f5b841"/>
+    <rect x="435.5" y="66" width="115.3" height="14" fill="#58a6ff"/>
+    <rect x="550.8" y="66" width="2.1" height="14" fill="#bc8cff"/>
   </g>
-  <text x="24" y="98" fill="#8b949e" font-family="Consolas, Liberation Mono, monospace" font-size="11">Complete: 1  ·  Live ARM11: 24  ·  Partial: 11  ·  Probe: 0  ·  Harness: 2  ·  Missing: 0</text>
-  <text x="24" y="114" fill="#8b949e" font-family="Consolas, Liberation Mono, monospace" font-size="11">Weight breakdown:  Live/Partial 98/100 pts  ·  Probe/Harness 2/100 pts  ·  Missing 0/100 pts</text>
+  <text x="24" y="98" fill="#8b949e" font-family="Consolas, Liberation Mono, monospace" font-size="11">Complete: 0  ·  Live ARM11: 24  ·  Partial: 11  ·  Probe: 0  ·  Harness: 2  ·  Missing: 1</text>
+  <text x="24" y="114" fill="#8b949e" font-family="Consolas, Liberation Mono, monospace" font-size="11">Weight breakdown:  Live/Partial 95/100 pts  ·  Probe/Harness 2/100 pts  ·  Missing 3/100 pts</text>
   <line x1="24" y1="126" x2="736" y2="126" stroke="#21262d" stroke-width="1"/>
   <text x="24" y="146" fill="#e6edf3" font-family="Segoe UI, Ubuntu, Arial, sans-serif" font-size="12" font-weight="600">World, Content &amp; Saves</text>
   <text x="368" y="146" text-anchor="end" fill="#8b949e" font-family="Consolas, Liberation Mono, monospace" font-size="11">10.20/12 (85.0%)</text>
@@ -45,7 +44,7 @@
   <rect x="24" y="272" width="344" height="8" rx="4" fill="#161b22" stroke="#30363d" stroke-width="0.75"/>
   <rect x="24" y="272" width="292.4" height="8" rx="4" fill="#3fb950"/>
   <text x="392" y="266" fill="#e6edf3" font-family="Segoe UI, Ubuntu, Arial, sans-serif" font-size="12" font-weight="600">Multiplayer &amp; Hardware</text>
-  <text x="736" y="266" text-anchor="end" fill="#8b949e" font-family="Consolas, Liberation Mono, monospace" font-size="11">10.15/12 (84.6%)</text>
+  <text x="736" y="266" text-anchor="end" fill="#8b949e" font-family="Consolas, Liberation Mono, monospace" font-size="11">7.15/12 (59.6%)</text>
   <rect x="392" y="272" width="344" height="8" rx="4" fill="#161b22" stroke="#30363d" stroke-width="0.75"/>
-  <rect x="392" y="272" width="291.0" height="8" rx="4" fill="#3fb950"/>
+  <rect x="392" y="272" width="205.0" height="8" rx="4" fill="#f5b841"/>
 </svg>

@@ -39,7 +39,7 @@ audible DSP output is not claimed by this record.
 
 ## Scope
 
-This record supports the Old/New 3DS **profile** half of the hardware parity
-gates under operator direction. It does not replace a physical-console claim in
-release notes or hardware evidence files, and it does not cover audible DSP
-output, physical SD/SoC timing, or thermal behavior.
+This record keeps the current-main Azahar Old/New profile results alongside the
+physical evidence set. It does not change a capability or mechanic stage, does
+not replace a physical-console claim in release notes, and does not cover
+audible DSP output, physical SD/SoC timing, or thermal behavior.
