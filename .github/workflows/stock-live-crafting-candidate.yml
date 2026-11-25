@@ -1,0 +1,42 @@
+name: Replay active stock crafting on the verified New 3DS ROM
+
+on:
+  push:
+    branches: [codex/stock-live-crafting]
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  replay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: actions/download-artifact@v4
+        with:
+          name: unified-arm11-smoke
+          path: build/unified-smoke
+          github-token: ${{ github.token }}
+          run-id: 45715871498
+      - run: bash .github/scripts/setup_smoke_azahar.sh
+      - name: Check authoritative production and the idle, active and starved frames
+        run: |
+          sha256sum build/unified-smoke/upstream-probe.3dsx
+          xvfb-run -a python3 tools/verify_stock_live_crafting.py \
+            --rom build/unified-smoke/upstream-probe.3dsx \
+            --server build/unified-smoke/server-release.jar --output build/live-crafting
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: stock-live-crafting-new3ds
+          path: |
+            build/live-crafting/
+            ${{ runner.temp }}/smoke-data/azahar-emu/log/
