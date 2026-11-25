@@ -221,6 +221,31 @@ def _launch_azahar(
     return proc, rpc
 
 
+def verify_playable_benchmark(log: str) -> None:
+    pattern = (
+        r"UPSTREAM_PLAYABLE_BENCH window=(\d+) frames=(\d+) elapsed_ns=(\d+)"
+        r" fps=(\S+) p95_ns=(\d+) heap_used=(\d+) heap_committed=(\d+)"
+    )
+    samples = re.findall(pattern, log)
+    loads = re.findall(
+        r"UPSTREAM_PLAYABLE_LOAD window=(\d+) wave=\d+ enemies=\d+ shooting_turrets=\d+"
+        r" turret_projectiles=\d+ belt_items=\d+ camera_tile=-?\d+,-?\d+", log,
+    )
+    if not samples or [int(sample[0]) for sample in samples] != list(range(1, len(samples) + 1)):
+        raise AssertionError("Playable benchmark is missing complete, sequential frame windows")
+    if loads != [sample[0] for sample in samples]:
+        raise AssertionError("Playable benchmark has missing or unpaired workload observations")
+    for index, frames, elapsed, fps, p95, used, committed in samples:
+        frames, elapsed, p95, used, committed = map(int, (frames, elapsed, p95, used, committed))
+        if not (0 < frames <= 330 and 0 < p95 <= elapsed and 0 <= used <= committed):
+            raise AssertionError(f"Playable benchmark window {index} is invalid")
+        if elapsed < 5_000_000_000 and frames != 330:
+            raise AssertionError(f"Playable benchmark window {index} ended early")
+        if not (abs(float(fps) - frames * 1e9 / elapsed) < 0.001):
+            raise AssertionError(f"Playable benchmark window {index} has inconsistent FPS")
+    print(f"UPSTREAM_PLAYABLE_BENCH_CHECK windows={len(samples)}")
+
+
 def run_singleplayer_model(
     model: str,
     rom_path: Path,
@@ -229,11 +254,14 @@ def run_singleplayer_model(
     log_path: Path,
     out_dir: Path,
     timeout: float,
+    verify_benchmark: bool = False,
 ) -> dict[str, Any]:
     out_dir.mkdir(parents=True, exist_ok=True)
     had_config = config_path.exists()
     original_config = config_path.read_text(encoding="utf-8") if had_config else ""
     sd_save = resolve_sd_save_path(log_path)
+    benchmark_flag = sd_save.with_name("benchmark.txt")
+    previous_benchmark = benchmark_flag.read_bytes() if verify_benchmark and benchmark_flag.is_file() else None
     if sd_save.exists():
         sd_save.unlink()
 
@@ -241,6 +269,9 @@ def run_singleplayer_model(
     write_singleplayer_ctm(ctm_path, model)
 
     try:
+        if verify_benchmark:
+            benchmark_flag.parent.mkdir(parents=True, exist_ok=True)
+            benchmark_flag.write_bytes(b"")
         # Boot 1: full offline Ground Zero vertical slice via CTM replay.
         proc, rpc = _launch_azahar(model, rom_path, azahar_bin, config_path, log_path, ctm_path)
         try:
@@ -261,6 +292,8 @@ def run_singleplayer_model(
             _stop_proc(proc, azahar_bin)
         (out_dir / f"{model}-boot1.log").write_text(log_boot1, encoding="utf-8")
 
+        if verify_benchmark:
+            verify_playable_benchmark(log_boot1)
         parsed1 = parse_singleplayer_log(log_boot1)
         if not parsed1["loaded"] or parsed1["loaded"]["source"] != "map":
             raise AssertionError(f"{model} Boot 1 did not load map: {parsed1['loaded']}")
@@ -302,6 +335,11 @@ def run_singleplayer_model(
             },
         }
     finally:
+        if verify_benchmark:
+            if previous_benchmark is None:
+                benchmark_flag.unlink(missing_ok=True)
+            else:
+                benchmark_flag.write_bytes(previous_benchmark)
         if sd_save.exists():
             sd_save.unlink()
         if had_config:
@@ -378,7 +416,11 @@ def main() -> int:
     parser.add_argument("--output-dir", type=Path, default=Path("build/singleplayer-emu"))
     parser.add_argument("--timeout", type=float, default=120.0)
     parser.add_argument("--weather-fixtures", type=Path, help="directory with stock clear.msav and weather.msav")
+    parser.add_argument("--verify-playable-benchmark", action="store_true",
+                        help="Check playable frame and workload logs in the New 3DS replay")
     args = parser.parse_args()
+    if args.verify_playable_benchmark and (args.model != "new3ds" or args.weather_fixtures):
+        parser.error("--verify-playable-benchmark needs --model new3ds and the Ground Zero replay")
 
     azahar_bin = az.resolve_azahar_bin(args.azahar)
     config_path, log_path = az.resolve_azahar_paths(azahar_bin)
@@ -389,7 +431,8 @@ def main() -> int:
             run_weather_model(model, args.rom, azahar_bin, config_path, log_path,
                               args.output_dir, args.timeout, args.weather_fixtures)
             continue
-        result = run_singleplayer_model(model, args.rom, azahar_bin, config_path, log_path, args.output_dir, args.timeout)
+        result = run_singleplayer_model(model, args.rom, azahar_bin, config_path, log_path,
+                                        args.output_dir, args.timeout, args.verify_playable_benchmark)
         fps = result["perf"].get("game_fps", 0.0)
         b1 = result["boot1"]
         b2 = result["boot2"]

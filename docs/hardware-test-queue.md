@@ -297,6 +297,22 @@ budget, and sustains `>= 24 FPS` on a representative playable workload.
 **Evidence:** strict `hw_evidence.py` JSON/Markdown, benchmark log lines, and
 thermal/SD notes. Only this card can clear `physical-hardware-parity`.
 
+For the unified playable offline build, place an empty
+`sd:/3ds/min3dstry/benchmark.txt` on the SD card before launch. Capture
+`UPSTREAM_PLAYABLE_BENCH` and `UPSTREAM_PLAYABLE_LOAD` from the same log.
+Each window covers five seconds or 330 frame intervals and reports frame
+count, elapsed time, FPS, p95 frame time in nanoseconds, and managed heap
+usage. Match the window IDs to see the wave, live enemies, shooting turrets,
+turret projectiles, belt cargo, and camera tile at the end of the window.
+Use the `UPSTREAM_SP_LOADED` line for map provenance and record the exact ROM
+and save checksums. Confirm cargo is moving during the run and capture the
+active workload. Managed heap data alone does not prove application-memory fit.
+Remove the flag after the run.
+
+The New 3DS Azahar Ground Zero script checks the trace format and timing
+arithmetic. Physical high-load measurement is required to advance either
+gauge.
+
 > New 3DS `a328c70` satisfies the harness FPS and soak half: strict 12/12 over
 > ~10 minutes, 132 `BENCH` windows, `fps_min=29.92`, `fps_max=59.84`,
 > `p95_max=33.50`, with the sector loader and parity intact. The newer
