@@ -956,6 +956,13 @@ The stock Java reference checks exact source, preserved links, execution
 against Canvas, and both input size limits. Handheld UI, save round-trip,
 and stock Java server configuration replays still need New 3DS evidence.
 
+In the [New 3DS source and link replay](https://github.com/levkeveli/Min3DStry/actions/runs/45697297402/artifacts/15062513494),
+the unmodified Java server verified the submitted source, both stock links,
+and Canvas pixel 5 in the live session and after reopening the offline save.
+The run used port revision 323d5d2. The instruction-list replay extends that
+test with a stock End instruction duplication and checks the complete edited
+program through both Java paths.
+
 ## Original Canvas and Logic Displays
 
 Offline games draw the v160.8 Canvas and Logic Display blocks in the original

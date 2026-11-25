@@ -63,10 +63,29 @@ def setup_sd(root):
     (root / "logic-clipboard.mlog").write_text(PROGRAM, encoding="utf-8", newline="\n")
 
 
+def capture_editor(rpc, destination, *, instructions=False):
+    # The renderer offsets the bottom screen by (40, 240). These samples sit
+    # inside two populated rows, away from the icons and text.
+    panel = (45, 52, 64)
+    first_row = (52, 290)
+    points = (first_row, (52, 312), (52, 361))
+    deadline = time.monotonic() + 5
+    while True:
+        screenshot = rpc.screenshot(res_scale=1)
+        pixels = sp.az.inspect_png(screenshot, points)["samples"]
+        if (all(pixels.get(point) == panel for point in points[1:])
+                and (pixels.get(first_row) == panel) != instructions):
+            destination.write_bytes(screenshot)
+            return
+        if time.monotonic() >= deadline:
+            destination.write_bytes(screenshot)
+            raise AssertionError(f"Processor menu was not visible in {destination}: {pixels}")
+        time.sleep(0.1)
+
+
 def inspect_editor(log, proc, rpc, output):
     sp._wait_for_log(log, proc, r"UPSTREAM_PROCESSOR_CONFIG_OPEN x=74 y=29\b", 75)
-    time.sleep(0.5)
-    (output / "processor-config.png").write_bytes(rpc.screenshot())
+    capture_editor(rpc, output / "processor-config.png")
     sp._wait_for_log(log, proc, r"UPSTREAM_PROCESSOR_EDIT x=74 y=29 bytes=[1-9]\d*", 40)
     clipboard = output / "sdmc/3ds/min3dstry/logic-clipboard.mlog"
     clipboard.unlink()
@@ -75,8 +94,7 @@ def inspect_editor(log, proc, rpc, output):
         raise AssertionError("Exported processor program differs from the imported stock source")
     sp._wait_for_log(log, proc, r"UPSTREAM_PROCESSOR_LINK x=78 y=27\b", 30)
     sp._wait_for_log(log, proc, r"UPSTREAM_PROCESSOR_INSTRUCTIONS count=3\b", 35)
-    time.sleep(0.5)
-    (output / "processor-instructions.png").write_bytes(rpc.screenshot())
+    capture_editor(rpc, output / "processor-instructions.png", instructions=True)
     sp._wait_for_log(log, proc,
                      r"(?s)UPSTREAM_PROCESSOR_INSTRUCTIONS count=3\b.*?UPSTREAM_PROCESSOR_EDIT x=74 y=29 bytes=[1-9]\d*",
                      40)
