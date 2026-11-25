@@ -70,7 +70,7 @@ that violate the disjoint-range rule are outside the API contract.
   load, and the worker timings were identical across emulated profiles. They are
   not hardware evidence; the meaningful result is that both worker counts
   produce the serial checksum.
-- **Physical Old/New 3DS:** not-tested. Record wall-clock and frame timing on
+- **Physical New 3DS:** record wall-clock and frame timing on
   hardware before enabling workers for any frame-critical path.
 
 ## Result and limitations

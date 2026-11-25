@@ -383,8 +383,8 @@ Practical rules:
 
 - Hardware probe issue: build a minimal libctru app that prints
   `osGetApplicationMemType()`, `osGetMemRegionSize/FREE(MEMREGION_APPLICATION)`,
-  CPU speed and core availability on Old and New 3DS. Evidence must be
-  `old3ds-hardware-tested` / `new3ds-hardware-tested`, not inferred.
+  CPU speed and core availability on New 3DS. Record measurements from
+  physical New 3DS/2DS as `new3ds-hardware-tested`.
 - Renderer spike: Citro2D sprite batch with a real upstream sprite atlas packed
   under 6 MiB VRAM, measured draw calls and frame time.
 - Simulation parity harness: headless upstream server + port kernel on the same

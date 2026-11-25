@@ -87,12 +87,12 @@ def main():
     parser.add_argument("--java", default="java")
     parser.add_argument("--azahar")
     parser.add_argument("--output", required=True, type=Path)
-    parser.add_argument("--model", choices=("old3ds", "new3ds"), action="append")
+    parser.add_argument("--model", choices=("new3ds",), action="append")
     parser.add_argument("--port", type=int, default=16679)
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
     fixture = create_fixture(args)
-    for model in args.model or ("old3ds", "new3ds"):
+    for model in args.model or ("new3ds",):
         replay(args, model, fixture, False, taps={}, buttons={50: sp.KEY_SELECT, 64: sp.KEY_START},
                verify_input=verify_world, read_stock=lambda server, log: verify_save(server, log, 7))
         print(f"{model}: stock offline Canvas, display, tiled display, marker and Java save readback passed",

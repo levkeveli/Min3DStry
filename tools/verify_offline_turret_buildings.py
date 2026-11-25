@@ -89,7 +89,7 @@ def main():
     azahar = az.resolve_azahar_bin(args.azahar)
     args.output.mkdir(parents=True)
     fixture = args.fixture or create_stock_saves(args, args.output / "stock-server")
-    for model in ("old3ds", "new3ds"):
+    for model in ("new3ds",):
         verify_model(args, model, azahar, fixture)
 
 

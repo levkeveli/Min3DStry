@@ -34,7 +34,7 @@ markers they emit on the JVM and/or ARM11/Azahar.
 | Save writer baseline | host `UpstreamSaveBaseline` | Host/JVM | `UPSTREAM_SAVE header=MSAV version=13` |
 
 Rows marked `JVM + Azahar` run in Azahar `2126.2` on both New and Old 3DS
-profiles; host rows run on the JVM only. Physical Old/New 3DS validation remains
+profiles; host rows run on the JVM only. Physical New 3DS validation remains
 part of `physical-hardware-parity`.
 
 ## Native reader scope and replacement plan

@@ -346,7 +346,7 @@ sector. Selecting another sector resumes its save or starts its launch
 sequence in the same app. Regular **SELECT** saves, and **START** exits play.
 
 Use `python3 tools/verify_upstream_campaign_launch.py --rom upstream-probe.3dsx`
-to replay the fresh campaign menu on both Azahar profiles. The verifier
+to replay the fresh campaign menu in Azahar New 3DS mode. The verifier
 captures the menu and starting worlds, then collects the resulting saves and
 settings from an empty test SD directory. Pass `--server server-release.jar`
 to compare those outputs with a fresh stock Java launch.

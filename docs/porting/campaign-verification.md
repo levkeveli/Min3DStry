@@ -26,7 +26,7 @@ with raw `sector-serpulo-170.msav` and zlib `sector-erekir-64.msav` staged in
 `sdmc:/3ds/min3dstry`, both profiles report `SECTOR_CATALOG count=2`, the two
 sorted `SECTOR_SLOT` lines, and the matching bottom-HUD `Sectors:`/`Sector`
 lines. Upstream `Saves.load()` now runs on the live path. Live campaign
-UI/launch dialogs, capture rewards, and physical Old/New 3DS verification
+UI/launch dialogs, capture rewards, and physical New 3DS verification
 remain open.
 
 ## Stock campaign map archive

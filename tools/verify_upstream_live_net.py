@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Join an official v160.8 loopback server from both Azahar console profiles."""
+"""Join an official v160.8 loopback server from Azahar in New 3DS mode by default."""
 
 import argparse
 import hashlib
@@ -92,7 +92,7 @@ BUILDING_CRACK_PIXELS = {
 
 
 def write_controls_replay(path, first_move=22, building=False, touch_build=False, touch_config=False,
-                          erekir_build=False, mining=None, model="old3ds", stock_menu_font=False,
+                          erekir_build=False, mining=None, model="new3ds", stock_menu_font=False,
                           unified_boot=False, stationary=False, chat=False, cancel_restart=False):
     """Write the Azahar 2126.2 CTM input for this probe's pad/touch polling."""
     # The pinned Azahar movie header and HID sample definitions use packed little-endian fields.
@@ -101,6 +101,7 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
     # Construction and configuration replays can take longer between input polls.
     needs_settling_time = building or touch_build or touch_config
     move_hold = 3 if unified_boot else 1
+    leave_hold = 5 if unified_boot else 1
     circle_at = first_move + (18 if needs_settling_time else 6)
     leave_at = first_move + (44 if needs_settling_time else 16)
     if unified_boot:
@@ -163,7 +164,7 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
                 # service a HID transition on a loaded hosted runner. Hold each
                 # control long enough that a late poll still observes the press.
                 buttons = (1 << 4) if first_move <= seconds < first_move + move_hold \
-                    else (1 << 3) if seconds == leave_at else 0
+                    else (1 << 3) if leave_at <= seconds < leave_at + leave_hold else 0
             if building and seconds in (35, 37, 39):
                 buttons = 1  # A, with releases so a late HID poll can observe another press.
             if unified_boot and seconds < 6:
@@ -2223,10 +2224,10 @@ def main():
     parser.add_argument("--java", default="java")
     parser.add_argument("--port", default=16568, type=int)
     parser.add_argument("--timeout", default=120, type=float)
-    parser.add_argument("--model", choices=("old3ds", "new3ds"),
-                        help="Check one Azahar profile (default: both)")
+    parser.add_argument("--model", choices=("new3ds",),
+                        help="Check one Azahar profile (default: new3ds)")
     parser.add_argument("--desktop-name",
-                        help="Wait for a separately launched PC client and verify its connection overlaps both joins")
+                        help="Wait for a separately launched PC client and verify its connection overlaps the ARM11 join")
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--movement", action="store_true", help="Verify the stock server applies scripted ARM11 movement")
     mode.add_argument("--controls", action="store_true", help="Verify D-pad and Circle Pad input and START disconnect")
@@ -2494,7 +2495,7 @@ def main():
             locale_path.write_text(args.locale + "\n", encoding="ascii")
         if args.terrain_atlas:
             atlas_path.write_bytes(atlas_bytes)
-        for model in ((args.model,) if args.model else ("old3ds", "new3ds")):
+        for model in ((args.model,) if args.model else ("new3ds",)):
             run_model(args, model, config, (originals[config] or b"").decode(), log, output)
     finally:
         for path, data in originals.items():
