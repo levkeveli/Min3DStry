@@ -702,7 +702,7 @@ public final class UpstreamSinglePlayerApp {
             int end = Math.min(start + pageSize, credits.length);
             boolean previous = start > 0, next = end < credits.length;
             var names = new String[2 + end - start];
-            names[0] = Core.bundle.get("credits.text");
+            names[0] = Strings.stripColors(Core.bundle.get("credits.text"));
             names[1] = Core.bundle.get("contributors");
             for (int i = start; i < end; i++) names[2 + i - start] = credits[i].strip();
             var actions = new String[(previous ? 1 : 0) + (next ? 1 : 0) + 1];
