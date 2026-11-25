@@ -135,7 +135,8 @@ public final class UpstreamSinglePlayerApp {
     }
 
     interface TitleJoin {
-        boolean open(UpstreamWorldLoadProbe.ProbeApplication app, boolean atlasReady, Settings settings) throws IOException;
+        boolean open(UpstreamWorldLoadProbe.ProbeApplication app, boolean atlasReady, Settings settings,
+                     UpstreamSinglePlayerApp menus) throws IOException;
     }
 
     private UpstreamSinglePlayerApp(AudioHooks audio) {
@@ -575,7 +576,8 @@ public final class UpstreamSinglePlayerApp {
                     int route = chooseTitleRow(Core.bundle.get("play"), playKeys);
                     if (route == 0) return new TitleSelection(TitleAction.campaign, null);
                     if (route == 1 && join != null) {
-                        if (join.open(session == null ? null : session.application(), interfaceGraphicsReady, settings)) return null;
+                        if (join.open(session == null ? null : session.application(), interfaceGraphicsReady, settings, this)
+                                || pickerExitRequested) return null;
                         continue;
                     }
                     if (route > 0 && join != null) route--;
@@ -670,7 +672,7 @@ public final class UpstreamSinglePlayerApp {
         }
     }
 
-    private int chooseTitlePagedRow(String title, int count, int selected, java.util.function.IntFunction<String> option) {
+    int chooseTitlePagedRow(String title, int count, int selected, java.util.function.IntFunction<String> option) {
         final int pageSize = 7;
         while (true) {
             int first = selected / pageSize * pageSize;
@@ -739,7 +741,15 @@ public final class UpstreamSinglePlayerApp {
         return chooseTitleRow(title, 0, captions);
     }
 
-    private int chooseTitleRow(String title, int selected, String[] options, String... headings) {
+    void requestTitleExit() {
+        pickerExitRequested = true;
+    }
+
+    void showTitleStatus(String message) {
+        drawMenuRows(encodeMenuRows(new String[]{Strings.stripColors(message)}));
+    }
+
+    int chooseTitleRow(String title, int selected, String[] options, String... headings) {
         int previousY = 0, drawn = -1;
         MenuRows rows = null;
         byte[] controls = ("A  " + Core.bundle.get("ok") + "\0B  " + Core.bundle.get("back") + "\0")

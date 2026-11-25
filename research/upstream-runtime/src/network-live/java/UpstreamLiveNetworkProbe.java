@@ -95,7 +95,7 @@ import org.teavm.interop.c.Include;
 
 public final class UpstreamLiveNetworkProbe {
     private static final int ACCEPTED = 0, REJECTED = 1, TIMEOUT = -2;
-    private static final int BUILD = 160;
+    static final int BUILD = 160;
     // Match Arc's pinned TcpConnection and UdpConnection default intervals.
     private static final long TCP_KEEP_ALIVE_NS = 8_000_000_000L;
     private static final long UDP_KEEP_ALIVE_NS = 19_000_000_000L;

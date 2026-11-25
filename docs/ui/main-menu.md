@@ -204,3 +204,19 @@ and render `Schematics 2/2`, `Source: SD card`, `battery node`, `5x3, 2 blocks`,
   bundle names only).
 - The About page is a static port page, not the upstream links/credits dialog.
 - Upstream settings dialog (graphics/audio/game/controls tabs) instead of the live-control subset.
+
+## New 3DS local server browser
+
+Open Play, then Join Game. The browser sends the pinned Arc discovery
+datagram to the local IPv4 broadcast on the stock server port and to the
+Mindustry multicast group. During the three-second scan, Back returns to
+Play. The results list keeps one response per address. Select a server to
+view the stock advertisement's map, mode, player count and version, then
+select Join Game. Address opens the manual keyboard and Refresh scans again.
+
+libctru handles the sockets, while the pinned Mindustry NetworkIO reader
+decodes the same bytes as the Java PC client. The loopback host reference
+checks a real stock v160.8 server reply, duplicate suppression, malformed
+packet rejection and unsigned port handling. The New 3DS smoke replay uses
+a stock Glacier session on port 6567 and removes the endpoint file so the
+join must use the discovered server. Physical LAN verification is pending.
