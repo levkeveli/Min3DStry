@@ -260,11 +260,11 @@ round-trip check ends with `UPSTREAM_SAVE_ROUNDTRIP version=13 marker=ok`.
 The shared runtime releases the stock building and block scratch references
 after a world reset. The hosted campaign regression checks both collections
 after loading the stock archive, and the unmodified Java release reopens the
-two generated 600×600 sector saves. The 32 MiB ARM11 campaign check remains
+two generated 600Ã—600 sector saves. The 32 MiB ARM11 campaign check remains
 tracked in [#538](https://github.com/levkeveli/Min3DStry/issues/538).
 [Hosted campaign regression](https://github.com/levkeveli/Min3DStry/actions/runs/45318649486)
 
-The stock ore index stores local coordinates within each 20×20 quadrant.
+The stock ore index stores local coordinates within each 20Ã—20 quadrant.
 It preserves insertion and swap-removal order, including the first candidate
 in each quadrant. The campaign regression compares floor and wall ore
 selection on stock Serpulo sector 111.
@@ -277,7 +277,7 @@ stock campaign regression checks both cases.
 The single-player runtime writes stock zlib-framed saves with a 4 KiB
 compression window and smaller hash tables to reduce contiguous scratch
 allocations. It uses the same BSD-licensed jzlib 1.1.3 dependency as TeaVM
-0.16.0. The original v160.8 Java release reopened a generated 600×600
+0.16.0. The original v160.8 Java release reopened a generated 600Ã—600
 Littoral Shipyard save with both embedded patches.
 [Hosted stock save readback](https://github.com/levkeveli/Min3DStry/actions/runs/45329962046)
 
@@ -340,7 +340,7 @@ ARM11 entry point reads the same fixture from
 Reuse the same capture when comparing platforms because each server
 startup can produce different filter results and tick state.
 
-Two captures from fresh official servers on loopback loaded the 150 × 250
+Two captures from fresh official servers on loopback loaded the 150 Ã— 250
 map, both cores, wave 1 and the assigned player. The pinned JVM, generated
 Windows x64 program and [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44819568048)
 reported matching state for each corresponding capture. Both Azahar 2126.2
@@ -461,7 +461,7 @@ wave, clock, core copper inventory and Dagger entity coordinates.
 The [snapshot dispatch build](https://github.com/levkeveli/Min3DStry/actions/runs/44828359834)
 passed on the Old and New 3DS profiles in Azahar 2126.2 at both `-O0`
 and `-O2`. Each run rejected build 159, joined the stock v160.8 server,
-applied wave 1 → 2, then rejoined and applied wave 2 → 3 after a
+applied wave 1 â†’ 2, then rejoined and applied wave 2 â†’ 3 after a
 13-second wait. Each join registered a different Dagger in the upstream
 sync group. The second join logged a TCP keepalive during the wait, and
 the server recorded both departures. The optimized probe's page-rounded
@@ -660,7 +660,7 @@ drew both conveyors.
 
 The graphical multiplayer probe shows a bottom-screen palette after it
 loads Glacier. Select Conveyor or Copper Wall, then tap the matching cell
-in the bottom grid. The grid follows the 16 × 12 viewport on the top
+in the bottom grid. The grid follows the 16 Ã— 12 viewport on the top
 screen. Rotate turns rotatable blocks a quarter turn. Remove toggles
 deconstruction and gives the cursor a red outline. A submits at the
 cursor, R rotates, and B toggles removal. For a placed Sorter or Inverted
@@ -776,19 +776,19 @@ verify the selected bundle and its original labels. Pass an extracted
 `assets/bundles/bundle` base path as the second JVM reference argument to
 exercise all 35 packaged bundles and 12 system language mappings. The
 JVM reference also compares the cached grid geometry at subdivision
-levels 0–3 with fingerprints from the official v160.8 JAR.
+levels 0â€“3 with fingerprints from the official v160.8 JAR.
 
 The [English ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44854486151)
 passed the Old 3DS catalog replay and the New 3DS movement replay. The
 [German ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44856408064)
 opened the translated catalog and Sorter menu on both Azahar 2126.2
-profiles. Stock translations such as `Phasen-Förderband`, `Überlauftor`
+profiles. Stock translations such as `Phasen-FÃ¶rderband`, `Ãœberlauftor`
 and `Kupfer` appeared in the captures.
 
 Before the snapshot dispatch extension, the [devkitARM verification build](https://github.com/levkeveli/Min3DStry/actions/runs/44824442974)
 passed at `-O0` and `-O2` on both Azahar 2126.2 console profiles. Each run
 rejected build 159 with `clientOutdated`, then joined Glacier twice with
-build 160 and the same test identity. Both joins loaded the 150 × 250 map
+build 160 and the same test identity. Both joins loaded the 150 Ã— 250 map
 with two cores, confirmed the connection and decoded an upstream state
 snapshot. The server reported both departures. Its normal disconnect
 callback logs `closed`, while its scheduled connection check can log
@@ -1035,7 +1035,7 @@ stock Core Blocks through their upstream draw paths. The JVM checks the
 original atlas region for each core. Run
 `--controls --map-spawn Fortress --terrain-atlas <sprites.aatls>`
 to compare the client world and camera with the stock server. The
-Fortress fixture checks its 256 × 256 map, Core Shard at tile (116, 73),
+Fortress fixture checks its 256 Ã— 256 map, Core Shard at tile (116, 73),
 Alpha spawn, and five original Core Shard pixels outside the unit shadow.
 The [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/44877025445)
 passed these checks against the unmodified v160.8 server in Survival mode
@@ -1047,7 +1047,7 @@ atlas regions. The JVM checks all three bodies and team cells as part of
 the 38-unit draw test. To check The Onset on the stock server, run
 `--controls --map-spawn "The Onset" --erekir-sector onset --terrain-atlas <sprites.aatls>`.
 The verifier imports the unchanged campaign map from the official server
-jar and hosts it in Survival. It checks the 512 × 512 map, Core Bastion at
+jar and hosts it in Survival. It checks the 512 Ã— 512 map, Core Bastion at
 tile (276, 107), Evoke spawn, and pixels from the original core and hull.
 The TeaVM world policy exposes the stock map objective constructors and
 serialized fields to Arc JSON. The test checks the streamed objectives,
@@ -1058,7 +1058,7 @@ TCP session alive while decoding the world. The graphical client initializes
 logic globals before the decode, then loads the atlas, graphics, and fonts
 after the decoded world and posted tasks are ready. The TCP keepalive covers
 world decoding, graphics initialization, and the world fingerprint through
-the client’s join confirmation. To check the
+the clientâ€™s join confirmation. To check the
 ordering during a rendered join, pass `--require-deferred-graphics` to
 `tools/verify_upstream_live_net.py`. The
 [24 MiB build](https://github.com/levkeveli/Min3DStry/actions/runs/44879228986)
@@ -1299,7 +1299,7 @@ hinting tables are initialized before opening the multiplayer socket.
 The stock graphical client drops shadowed locale entries before
 loading the world. The selected bundle still resolves the same keys,
 fallback values and formatting locale.
-The renderer keeps the current glyphs in one 512 × 512 RGBA8 texture.
+The renderer keeps the current glyphs in one 512 Ã— 512 RGBA8 texture.
 It prefers VRAM so the world texture pages retain their linear-memory
 budget. It reuses older slots after the previous frame has finished and rasters up
 to two cold glyphs per frame so the live loop can service the connection.
@@ -1423,8 +1423,8 @@ below the in-game HUD. Add `--unified-boot` when using the combined ROM.
 ### Stock Canvas blocks
 
 The renderer uses v160.8 CanvasBlock's packed palette data, pixmap
-decoder, invalidation contract and border draw. Its 12×12 and 24×24
-images upload to a bounded pool of 32×32 native textures. A TextureMarker
+decoder, invalidation contract and border draw. Its 12Ã—12 and 24Ã—24
+images upload to a bounded pool of 32Ã—32 native textures. A TextureMarker
 linked to a Canvas on the map uses the same pixel buffer and refreshes
 it when the Canvas changes, including when its tile is offscreen.
 
@@ -1698,6 +1698,27 @@ behavior comes from pinned
 [`Blocks.java`](https://github.com/Anuken/Mindustry/blob/19a0f40d44514f4802a8b79770456e7e32e34da0/core/src/mindustry/content/Blocks.java)
 and [`GenericCrafter.java`](https://github.com/Anuken/Mindustry/blob/19a0f40d44514f4802a8b79770456e7e32e34da0/core/src/mindustry/world/blocks/production/GenericCrafter.java).
 
+### Replay stock crafting in a multiplayer client
+
+[Issue #701](https://github.com/levkeveli/Min3DStry/issues/701) uses a stock
+Silicon Smelter and Large Solar Panel on Glacier. The v160.8 Java server
+produces silicon from sand and coal, then the replay removes the inputs and
+waits for the smelter to cool. The fixture sends the authoritative initial,
+active and cooled building states through the stock connection. The initial
+state comes from WorldIO, and the active and cooled states use
+`NetServer.syncBuilding` / `blockSnapshot`. The replay samples the same
+building in all three New 3DS screenshots.
+
+The building lighting pass calls upstream `Building.drawLight` for visible
+emitters when the map enables lighting. Stock radial requests flow through
+the handheld additive sprite pass. The stock light buffer and its ambient
+compositing are tracked separately.
+
+```sh
+python3 tools/verify_stock_live_crafting.py --rom /path/to/upstream-probe.3dsx \
+  --server /path/to/server-release.jar --output build/live-crafting
+```
+
 ### Exercise upstream combat and the first Glacier wave
 
 [Issue #82](https://github.com/levkeveli/Min3DStry/issues/82) uses the same
@@ -1799,7 +1820,7 @@ from the [pinned v160.8 release](https://github.com/Anuken/Mindustry/releases/ta
 Each page descriptor supplies its original dimensions so Arc computes
 the same UVs for full sprites and split regions. No page images are
 needed for this probe. It calls upstream `Floor.load` and `Floor.drawBase`
-over a 16 × 12 viewport near the first copper tile in the original
+over a 16 Ã— 12 viewport near the first copper tile in the original
 Glacier world. A Batch captures the order, texture page, UVs, geometry,
 and packed color and mix color of the draw requests.
 
@@ -1844,7 +1865,7 @@ reproduced the same 320 commands, 26 copper draws, and hash on both
 Azahar console profiles after combining the probe with the merged world loader.
 
 The current viewport uses 13 upstream atlas regions. A local build of
-that set with tex3ds v2.3.0 produced a 128 × 256 RGBA8 page (128 KiB).
+that set with tex3ds v2.3.0 produced a 128 Ã— 256 RGBA8 page (128 KiB).
 To reproduce the page, pass the names below, in this order, to the
 [upstream sprite converter](../../docs/rendering/asset-pipeline.md).
 
@@ -1853,7 +1874,7 @@ ice-edge ice1 ice2 ice3 ore-coal1 ore-coal2 ore-coal3
 ore-copper1 ore-copper2 ore-copper3 stone1 stone2 stone3
 ```
 
-Arc draws 32 × 32 subregions of `ice-edge`. Keep the 96 × 96 parent
+Arc draws 32 Ã— 32 subregions of `ice-edge`. Keep the 96 Ã— 96 parent
 rectangle so the renderer can translate the original page UVs.
 
 ### Build the Citro2D terrain viewport

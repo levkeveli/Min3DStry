@@ -23,7 +23,7 @@ def place_stock_crafter(server, log, port):
     stock_command(server, log, f"config port {port}\nhost Glacier survival", rf"Opened a server on port {port}\.")
     stock_command(
         server, log,
-        'js (() => { Vars.state.rules.waves=false; '
+        'js (() => { Vars.state.rules.waves=false; Vars.state.rules.lighting=false; '
         'const team=Vars.state.rules.defaultTeam; '
         'Vars.world.tile(75,23).setBlock(Blocks.siliconSmelter,team,0); '
         'Vars.world.tile(73,23).setBlock(Blocks.largeSolarPanel,team,0); '
@@ -73,6 +73,19 @@ def starve(server, log):
     )
 
 
+def publish_stock_snapshot(server, log, phase):
+    # Generic crafters are not in the periodic synced index. Use the stock
+    # server console to send the authoritative build state over blockSnapshot.
+    marker = f"STOCK_LIVE_CRAFTER_SNAPSHOT_{phase}"
+    stock_command(
+        server, log,
+        'js (() => { const build=Vars.world.tile(75,23).build; '
+        'Packages.mindustry.core.NetServer.syncBuilding(build); '
+        f'return "{marker}"; }})()',
+        marker,
+    )
+
+
 def capture(rpc, path, expected):
     deadline = time.monotonic() + 8
     while time.monotonic() < deadline:
@@ -97,7 +110,7 @@ def verify(args):
     endpoint.parent.mkdir(parents=True)
     endpoint.write_text(f"127.0.0.1 {args.port}\n", encoding="ascii")
     movie = args.output / "new3ds-live-crafting.ctm"
-    write_controls_replay(movie, first_move=180, model=MODEL, unified_boot=True)
+    write_controls_replay(movie, model=MODEL, unified_boot=True, stationary=True)
     emulator = sp.az.resolve_azahar_bin(args.azahar)
     config, log = sp.az.resolve_azahar_paths(emulator)
     originals = {path: path.read_bytes() if path.is_file() else None for path in (config, log)}
@@ -123,9 +136,11 @@ def verify(args):
             warmup, produced, _ = wait_for_crafter(
                 server, server_log, lambda warmup, output, power: warmup >= 300 and output > 0 and power > 0, sequence
             )
+            publish_stock_snapshot(server, server_log, "ACTIVE")
             active = capture(rpc, args.output / "new3ds-crafting.png", lambda frame: activity(frame) >= 8)
             starve(server, server_log)
             wait_for_crafter(server, server_log, lambda warmup, output, power: warmup == 0 and output >= produced, sequence)
+            publish_stock_snapshot(server, server_log, "STARVED")
             capture(rpc, args.output / "new3ds-starved.png", lambda frame: activity(frame) <= 3)
             print(f"UPSTREAM_LIVE_CRAFTING model={MODEL} silicon={produced} warmup={warmup} changed={activity(active)}/25",
                   flush=True)
