@@ -21,6 +21,7 @@ WORKLOAD = """
     rules.initialWaveSpacing = 120;
     rules.waveSpacing = 600;
     rules.dropZoneRadius = 0;
+    rules.blockHealthMultiplier = 100;
     const group = new Packages.mindustry.game.SpawnGroup(UnitTypes.dagger);
     group.unitAmount = 80;
     group.max = 80;
@@ -56,6 +57,7 @@ WORKLOAD = """
     SaveIO.write(save);
     SaveIO.load(save);
     if (Vars.state.rules.sector != null || Vars.state.rules.spawns.first().unitAmount !== 80
+        || Vars.state.rules.blockHealthMultiplier !== 100
         || Vars.world.tile(129, 70).overlay() !== Blocks.spawn
         || Vars.world.tile(124, 61).build.block !== Blocks.duo
         || Vars.world.tile(124, 60).build.outputItem !== Items.copper

@@ -316,7 +316,9 @@ python3 tools/prepare_playable_benchmark.py --server /path/to/server-release.jar
 ```
 
 The original Ground Zero terrain hosts 14 copper-fed Duos, four cargo lines,
-and a repeating 80-Dagger wave configuration. The generator reopens the save
+and a repeating 80-Dagger wave configuration. The fixture raises the stock
+building health multiplier so a dense wave can keep the factory under load
+without ending the run immediately. The generator reopens the save
 with the stock server and prints its SHA-256. Stage the generated files in a
 test SD directory and select the save from the title. Confirm enemies, turret
 projectiles, and moving items coexist through the run. This fixture's gameplay
