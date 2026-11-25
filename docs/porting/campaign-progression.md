@@ -42,9 +42,18 @@ the sector list.
 
 The stock JVM reference confirms that the projected mesh centers and
 `Planet.getSector` agree for Ground Zero and The Onset. It also exercises
-rotation to Serpulo 16, camera zoom, and a miss outside the globe. New 3DS
-replay evidence is pending. Campaign-dependent surface changes, emissive
-updates, clouds, and stock sector overlays are still in development.
+rotation to Serpulo 16, camera zoom, and a miss outside the globe.
+
+The globe draws lock shading, base and preset outlines, the alternate hidden
+preset marker, and the hovered sector's fill and raised wall. The port uses
+v160.8's `PlanetDialog` look-mode rules and stock colors, and takes the
+coordinates from `Sector.tile`. The JVM comparison records the triangles
+emitted by stock `Planet.fill`, `Planet.drawSelection` and `Planet.drawBorders`
+and compares their positions and colors with the handheld batch for both
+planets. The New 3DS replay checks both overlay submissions and captures
+both planets before launching The Onset. Emulator evidence is pending.
+Grid lines, projected icons and arcs, campaign-dependent terrain surface
+changes, emissive updates, and clouds remain open.
 
 ## 1:1 Upstream Mandate
 

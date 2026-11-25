@@ -161,7 +161,8 @@ if [[ $# -gt 0 ]]; then
     if [[ -d "$1/planet-meshes" ]]; then
         terrain_flags+=(-DM3DS_CAMPAIGN_PLANETS)
         "$DEVKITPRO/tools/bin/picasso" -o "$output/m3ds_planet.shbin" "$root/m3ds_planet.v.pica"
-        "$DEVKITPRO/tools/bin/bin2s" -a 4 -H "$output/nativeinclude/m3ds_planet_shbin.h"             "$output/m3ds_planet.shbin" > "$output/m3ds_planet_shader.s"
+        "$DEVKITPRO/tools/bin/bin2s" -a 4 -H "$output/nativeinclude/m3ds_planet_shbin.h" \
+            "$output/m3ds_planet.shbin" > "$output/m3ds_planet_shader.s"
         terrain_sources+=("$root/m3ds_planet_mesh.c" "$output/m3ds_planet_shader.s")
         cp -R "$1/planet-meshes" "$output/romfs/planet-meshes"
     fi

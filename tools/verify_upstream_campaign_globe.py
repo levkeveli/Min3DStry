@@ -48,9 +48,13 @@ def verify(args):
         proc, rpc = sp._launch_azahar("new3ds", args.rom, emulator, config, log, movie)
         try:
             sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_GLOBE planet=serpulo sector=170 available=true\b", 120)
+            sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_SECTOR_OVERLAY planet=serpulo vertices=[1-9]\d* "
+                                       r"shadowed=[1-9]\d* outlined=[1-9]\d*", 25)
             capture_globe(rpc, args.output / "new3ds-serpulo.png")
             sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_GLOBE planet=serpulo sector=(?!170\b)\d+ available=", 55)
             sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_GLOBE planet=erekir sector=10 available=true\b", 55)
+            sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_SECTOR_OVERLAY planet=erekir vertices=[1-9]\d* "
+                                       r"shadowed=[1-9]\d* outlined=[1-9]\d*", 25)
             capture_globe(rpc, args.output / "new3ds-erekir.png")
             sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_SELECTED slot=sector-erekir-10\.msav .*source=planet-map\b", 60)
             sp._wait_for_log(log, proc, r"UPSTREAM_SP_LOADED source=campaign map=The_Onset size=512x512\b", 130)

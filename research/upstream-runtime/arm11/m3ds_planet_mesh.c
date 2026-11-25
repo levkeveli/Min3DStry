@@ -9,7 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-enum { serpulo, erekir, planet_count };
+enum { serpulo, erekir, planet_count, max_overlay_vertices = 20000 };
 
 typedef struct {
     float position[3];
@@ -21,6 +21,7 @@ static struct {
     uint32_t stride, vertices, indices;
     float *stock;
     PlanetVertex *draw;
+    PlanetVertex *overlay;
     uint16_t *index;
     DVLB_s *shader;
     shaderProgram_s program;
@@ -40,6 +41,8 @@ static void release_faces(void) {
 
 void m3ds_planet_release(void) {
     release_faces();
+    if (mesh.overlay) linearFree(mesh.overlay);
+    mesh.overlay = NULL;
     if (mesh.shader) {
         shaderProgramFree(&mesh.program);
         DVLB_Free(mesh.shader);
@@ -146,8 +149,14 @@ static void shade_vertices(const float *light, const float *ambient, const float
     GSPGPU_FlushDataCache(mesh.draw, mesh.vertices * sizeof(PlanetVertex));
 }
 
-int32_t m3ds_planet_draw(int32_t planet, const float *matrix, const float *lighting) {
-    if (planet < 0 || planet >= planet_count || !load_faces(planet) || !load_shader()) return 0;
+int32_t m3ds_planet_draw(int32_t planet, const float *matrix, const float *lighting,
+    const float *overlay, int32_t vertices) {
+    if (planet < 0 || planet >= planet_count || vertices < 0 || vertices > max_overlay_vertices
+        || vertices % 3 != 0 || !load_faces(planet) || !load_shader()) return 0;
+    if (vertices && !mesh.overlay) {
+        mesh.overlay = linearAlloc(max_overlay_vertices * sizeof(PlanetVertex));
+        if (!mesh.overlay) return 0;
+    }
     shade_vertices(lighting, lighting + 3, lighting + 6);
 
     // Convert Arc's column-major clip matrix to PICA's tilted framebuffer and reversed depth.
@@ -170,5 +179,19 @@ int32_t m3ds_planet_draw(int32_t planet, const float *matrix, const float *light
     C3D_TexEnvSrc(C3D_GetTexEnv(0), C3D_Both, GPU_PRIMARY_COLOR, GPU_PRIMARY_COLOR, GPU_PRIMARY_COLOR);
     C3D_TexEnvFunc(C3D_GetTexEnv(0), C3D_Both, GPU_REPLACE);
     C3D_DrawElements(GPU_TRIANGLES, (int)mesh.indices, C3D_UNSIGNED_SHORT, mesh.index);
+    if (vertices) {
+        size_t bytes = (size_t)vertices * sizeof(PlanetVertex);
+        memcpy(mesh.overlay, overlay, bytes);
+        GSPGPU_FlushDataCache(mesh.overlay, bytes);
+        BufInfo_Init(&buffers);
+        BufInfo_Add(&buffers, mesh.overlay, sizeof(PlanetVertex), 2, 0x10);
+        C3D_SetBufInfo(&buffers);
+        C3D_CullFace(GPU_CULL_BACK_CCW);
+        C3D_DepthTest(true, GPU_GEQUAL, GPU_WRITE_ALL);
+        C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA,
+            GPU_ONE, GPU_ONE_MINUS_SRC_ALPHA);
+        C3D_DrawArrays(GPU_TRIANGLES, 0, vertices);
+        C3D_CullFace(GPU_CULL_NONE);
+    }
     return 1;
 }
