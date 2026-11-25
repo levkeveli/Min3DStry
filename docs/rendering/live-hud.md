@@ -60,6 +60,19 @@ texture draw rebinds the top screen because the build palette leaves the bottom
 screen selected. The minimap translation unit also compiles without
 `M3DS_WORLD_ATLAS`; its static upload buffer is 64 KiB.
 
+## Camera zoom
+
+On New 3DS, the C-Stick up/down changes the live and offline world span:
+
+- `0.5x` zoom-out: `32x24` tiles.
+- `1x`: the stock `16x12` span.
+- `2x` zoom-in: `8x6` tiles.
+
+The viewport stays centered on the player, and the touch build/command grid
+rescales to the current span so cell selection stays aligned. Input consumption,
+clamp and span math are host-checked; the **physical draw is pending** the New
+3DS acceptance run. Dynamic world lighting remains open.
+
 ## Selected building bars
 
 The friendly building under the handheld cursor shows its stock bars below the
