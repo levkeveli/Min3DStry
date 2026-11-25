@@ -302,9 +302,11 @@
         "docs/gameplay/touch-build-palette.md",
         "tools/verify_stock_schematics.py",
         "tools/verify_stock_schematic_capture.py",
-        "tools/verify_stock_command_orders.py"
+        "tools/verify_stock_command_orders.py",
+        "research/upstream-runtime/src/network-live/java/UpstreamCommandOrders.java",
+        "research/upstream-runtime/src/network-live/host/UpstreamBuildControlsReference.java"
       ],
-      "notes": "The unified client places and exports stock .msch files. The touch grid selects allied units and sends original orders and stances. Drag selection, schematic naming and metadata editing, and clipboard sharing remain open."
+      "notes": "The unified client places and exports stock .msch files. The touch grid selects allied units by tap or press-drag rectangle and sends original orders and stances. Schematic naming and metadata editing is live; clipboard sharing remains open."
     },
     {
       "id": "content-database-page",
