@@ -37,7 +37,20 @@ fi
 if [[ $mode == --singleplayer || $mode == --unified ]]; then
     title="Min3DStry"
     subtitle="Mindustry v160.8 Ground Zero"
-    native_input=(-DM3DS_SINGLEPLAYER -I"$root" "$root/m3ds_input.c")
+    repo="$root/../../.."
+    build_commit="${M3DS_BUILD_COMMIT:-$(git -C "$repo" rev-parse HEAD 2>/dev/null || echo unknown)}"
+    build_dirty="${M3DS_BUILD_DIRTY:-unknown}"
+    if [[ "$build_dirty" == unknown ]] && git -C "$repo" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        build_dirty=0
+        if [[ -n $(git -C "$repo" status --porcelain) ]]; then
+            build_dirty=1
+        fi
+    fi
+    [[ "$build_commit" =~ ^([0-9a-f]{40}|unknown)$ ]] || build_commit=unknown
+    [[ "$build_dirty" =~ ^(0|1|unknown)$ ]] || build_dirty=unknown
+    native_input=(-DM3DS_SINGLEPLAYER -DM3DS_BENCHMARK_CAPTURE
+        "-DM3DS_BUILD_COMMIT=\"$build_commit\"" "-DM3DS_BUILD_DIRTY=\"$build_dirty\""
+        -I"$root" "$root/m3ds_input.c")
 fi
 if [[ $mode == --unified ]]; then
     subtitle="Mindustry v160.8"

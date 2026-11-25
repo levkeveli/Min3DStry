@@ -249,6 +249,22 @@ def verify_playable_benchmark(log: str) -> None:
     print(f"UPSTREAM_PLAYABLE_BENCH_CHECK windows={len(samples)} invalid_heap_free={invalid_free_samples}")
 
 
+def verify_playable_sd_capture(log: str) -> None:
+    _, marker, latest = log.rpartition("UPSTREAM_PLAYABLE_CAPTURE start ")
+    header, _, capture = latest.partition("\n")
+    if not marker or not re.fullmatch(
+        r"commit=[0-9a-f]{40} dirty=0 new3ds=1 app_mem=[1-9]\d* firm=0x[0-9a-f]{8}", header.rstrip("\r"),
+    ):
+        raise AssertionError("Benchmark SD capture has missing New 3DS or clean build provenance")
+    if not capture.rstrip().endswith("UPSTREAM_PLAYABLE_CAPTURE end"):
+        raise AssertionError("Benchmark SD capture did not close")
+    if not (UPSTREAM_MEM_RE.search(capture) and re.search(r"^UPSTREAM_MEMORY managedLimit=[1-9]\d*$", capture, re.M)):
+        raise AssertionError("Benchmark SD capture has missing memory configuration")
+    if not SP_LOADED_RE.search(capture):
+        raise AssertionError("Benchmark SD capture has no loaded map record")
+    verify_playable_benchmark(capture)
+
+
 def run_singleplayer_model(
     model: str,
     rom_path: Path,
@@ -265,6 +281,8 @@ def run_singleplayer_model(
     sd_save = resolve_sd_save_path(log_path)
     benchmark_flag = sd_save.with_name("benchmark.txt")
     previous_benchmark = benchmark_flag.read_bytes() if verify_benchmark and benchmark_flag.is_file() else None
+    benchmark_log = sd_save.with_name("benchmark.log")
+    previous_capture = benchmark_log.read_bytes() if verify_benchmark and benchmark_log.is_file() else None
     if sd_save.exists():
         sd_save.unlink()
 
@@ -275,6 +293,7 @@ def run_singleplayer_model(
         if verify_benchmark:
             benchmark_flag.parent.mkdir(parents=True, exist_ok=True)
             benchmark_flag.write_bytes(b"")
+            benchmark_log.unlink(missing_ok=True)
         # Boot 1: full offline Ground Zero vertical slice via CTM replay.
         proc, rpc = _launch_azahar(model, rom_path, azahar_bin, config_path, log_path, ctm_path)
         try:
@@ -290,6 +309,12 @@ def run_singleplayer_model(
             shot_end = rpc.screenshot()
             (out_dir / f"{model}-wave.png").write_bytes(shot_end)
             log_boot1 = _wait_for_log(log_path, proc, r"UPSTREAM_SP_EXIT\b", timeout)
+            if verify_benchmark:
+                _wait_for_log(log_path, proc, r"UPSTREAM_PLAYABLE_CAPTURE status=closed\b", timeout)
+                capture = benchmark_log.read_text(encoding="utf-8")
+                verify_playable_sd_capture(capture)
+                (out_dir / f"{model}-benchmark-sd.log").write_text(capture, encoding="utf-8")
+                benchmark_flag.unlink()
         finally:
             rpc.close()
             _stop_proc(proc, azahar_bin)
@@ -343,6 +368,10 @@ def run_singleplayer_model(
                 benchmark_flag.unlink(missing_ok=True)
             else:
                 benchmark_flag.write_bytes(previous_benchmark)
+            if previous_capture is None:
+                benchmark_log.unlink(missing_ok=True)
+            else:
+                benchmark_log.write_bytes(previous_capture)
         if sd_save.exists():
             sd_save.unlink()
         if had_config:

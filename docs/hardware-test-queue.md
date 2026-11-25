@@ -304,13 +304,20 @@ For the unified playable offline build, place an empty
 Each window covers five seconds or 330 frame intervals and reports frame
 count, elapsed time, FPS, p95 frame time in nanoseconds, managed heap size,
 and the raw TeaVM free-memory counter. The counter can be negative between
-collections. Use held heap size and separate application-memory evidence
-for budget checks, and derive used heap only when free is within bounds. Match the window IDs to see the wave, live enemies, shooting turrets,
+collections. Use committed heap size and separate application-memory evidence
+for budget checks. Derive used heap only when free is within bounds.
+Match the window IDs to see the wave, live enemies, shooting turrets,
 turret projectiles, belt cargo, and camera tile at the end of the window.
 Use the `UPSTREAM_SP_LOADED` line for map provenance and record the exact ROM
 and save checksums. Confirm cargo is moving during the run and capture the
 active workload. Managed heap data alone does not prove application-memory fit.
-Remove the flag after the run.
+On physical hardware, exit through START and copy
+the SD card file `/3ds/min3dstry/benchmark.log`. Each workload sample can
+include `UPSTREAM_PLAYABLE_APP_MEM` with the kernel's total application-region
+usage in bytes. Each capture appends a start record with the source
+commit, dirty flag, New 3DS model bit, application-memory size and firmware.
+The end record is written when the app exits cleanly. Use a clean build
+with its exact ROM and input save hashes, and remove the flag after the run.
 
 To stage the repeatable high-load fixture, use the unmodified v160.8 server:
 
@@ -323,9 +330,15 @@ and a repeating 80-Dagger wave configuration. The fixture raises the stock
 building health multiplier so a dense wave can keep the factory under load
 without ending the run immediately. The generator reopens the save
 with the stock server and prints its SHA-256. Stage the generated files in a
-test SD directory and select the save from the title. Confirm enemies, turret
-projectiles, and moving items coexist through the run. This fixture's gameplay
-throughput and sustained load still need physical New 3DS validation.
+test SD directory and select the save from the title. Pan or zoom to keep
+the turrets, enemies and conveyor lines in view. Capture the screen at the
+measured camera position and confirm the cargo is moving.
+
+The New 3DS Azahar replay on `87cc375` reached a sample with 80 enemies,
+14 shooting turrets, 14 turret projectiles and 48 belt items in wave two.
+The screenshot shows the 80-enemy HUD and loaded conveyor lines. These
+results verify the workload fixture in Azahar.
+[Save, trace and screenshot](https://github.com/levkeveli/Min3DStry/actions/runs/45691124391/artifacts/15059941289)
 
 The New 3DS Azahar Ground Zero script checks the trace format and timing
 arithmetic. The stock workload replay additionally requires at least 20 live

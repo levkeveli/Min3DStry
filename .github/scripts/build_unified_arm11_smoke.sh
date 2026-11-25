@@ -68,10 +68,16 @@ bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime --no-daemon -
   "-ParcCheckout=$RUNNER_TEMP/Arc" -Pprobe=unified runBuildingLayersJvm \
   --args="--packaged-graphics $PWD/build/smoke-assets/logic-font.dat $PWD/build/smoke-assets/sprites.aatls"
 
+build_commit="$(git rev-parse HEAD)"
+build_dirty=0
+if [[ -n $(git status --porcelain) ]]; then
+  build_dirty=1
+fi
 numa=()
 [[ -z "${M3DS_DOCKER_CPUSET_CPUS:-}" ]] || numa+=(--cpuset-cpus "$M3DS_DOCKER_CPUSET_CPUS")
 [[ -z "${M3DS_DOCKER_CPUSET_MEMS:-}" ]] || numa+=(--cpuset-mems "$M3DS_DOCKER_CPUSET_MEMS")
 docker run --rm "${numa[@]}" -u "$(id -u):$(id -g)" -v "$PWD:/work" -w /work \
+  -e "M3DS_BUILD_COMMIT=$build_commit" -e "M3DS_BUILD_DIRTY=$build_dirty" \
   -e M3DS_RELAX_POINTER_TYPES=1 "$M3DS_SMOKE_DEVKIT_IMAGE" \
   bash research/upstream-runtime/arm11/build.sh research/upstream-runtime/build/generated/teavm/c \
     build/smoke-arm11 --unified build/smoke-assets

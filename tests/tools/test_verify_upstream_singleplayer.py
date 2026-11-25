@@ -34,6 +34,25 @@ class VerifyUpstreamSingleplayerTests(unittest.TestCase):
         with self.assertRaisesRegex(AssertionError, "inconsistent FPS"):
             vsp.verify_playable_benchmark(sample.replace("fps=1.693071384714833", "fps=24"))
 
+    def test_benchmark_sd_capture_requires_provenance_and_clean_exit(self) -> None:
+        sample = (
+            "UPSTREAM_PLAYABLE_CAPTURE start commit=" + "f" * 40
+            + " dirty=0 new3ds=1 app_mem=100663296 firm=0x022e0000\n"
+            "UPSTREAM_MEMORY appHeap=89235456 linearHeap=4194304 stack=524288\n"
+            "UPSTREAM_MEMORY managedLimit=33554432\n"
+            "UPSTREAM_SP_LOADED source=map map=Ground_Zero size=256x256 wave=1 copper=0\n"
+            "UPSTREAM_PLAYABLE_BENCH window=1 frames=125 elapsed_ns=5000000000 "
+            "fps=25.0 p95_ns=40000000 heap_free=4800000 heap_committed=26447880\n"
+            "UPSTREAM_PLAYABLE_LOAD window=1 wave=2 enemies=80 shooting_turrets=14 "
+            "turret_projectiles=4 belt_items=174 camera_tile=121,49\n"
+            "UPSTREAM_PLAYABLE_CAPTURE end\n"
+        )
+        vsp.verify_playable_sd_capture("UPSTREAM_PLAYABLE_CAPTURE start interrupted\n" + sample)
+        with self.assertRaisesRegex(AssertionError, "did not close"):
+            vsp.verify_playable_sd_capture(sample + sample.rsplit("UPSTREAM_PLAYABLE_CAPTURE end", 1)[0])
+        with self.assertRaisesRegex(AssertionError, "missing New 3DS"):
+            vsp.verify_playable_sd_capture(sample.replace("new3ds=1", "new3ds=0"))
+
     def test_resolve_sd_save_path(self) -> None:
         log = Path("/home/user/.var/app/org.azahar_emu.Azahar/data/azahar-emu/log/azahar_log.txt")
         self.assertEqual(
