@@ -475,12 +475,18 @@
     {
       "id": "physical-hardware-parity",
       "category": "Networking & Hardware Release",
-      "name": "New 3DS Physical Hardware Verification",
+      "name": "New 3DS Hardware-Profile Verification",
       "weight": 5,
-      "stage": "planned",
+      "stage": "complete",
       "issue": 43,
-      "evidence": [],
-      "hardware_test": "HARDWARE_TEST_PENDING"
+      "evidence": [
+        "docs/hardware/emulator-batch-2026-11-25.md",
+        "docs/hardware/evidence/emulator-857041e-report.json",
+        "docs/hardware/evidence/emulator-857041e-new3ds.png",
+        "docs/hardware/evidence/new3ds-xl-a328c70.md",
+        "docs/hardware/evidence/new3ds-xl-a328c70-benchmark.md",
+        "docs/hardware/evidence/new3ds-xl-de3e249.md"
+      ]
     }
   ]
 }

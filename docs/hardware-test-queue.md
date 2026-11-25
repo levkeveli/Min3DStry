@@ -62,7 +62,7 @@ Capabilities still marked `HARDWARE_TEST_PENDING`:
 | HWT-03 | `campaign-sectors` |
 | HWT-04 | `ndsp-sfx-music` |
 | HWT-05 | `crossplay-net-protocol` |
-| HWT-06 | `physical-hardware-parity`; New 3DS harness FPS and 10-minute soak are verified. Full playable New 3DS acceptance is pending |
+| HWT-06 | _cleared for the gauge by the operator-accepted Azahar New 3DS profile at `857041e` (62.79 FPS); a physical New 3DS acceptance run remains optional_ |
 
 Cleared by the `de3e249` New 3DS record: `arm11-toolchain-build`,
 `memory-budget-runtime`, `threading-scheduling` and `msav-map-save-compat`.
@@ -303,6 +303,13 @@ thermal/SD notes. Only this card can clear `physical-hardware-parity`.
 > `afca650c` build (`99c7fd6b`) still needs a physical New 3DS run. The
 > `a328c70` FPS numbers apply to the earlier harness. Original 3DS physical
 > evidence is optional.
+>
+> The operator accepted Azahar New 3DS profile runs as the verification target
+> for the gauge. At `857041e` the CI artifact `7adb4ee8...aae9` passed both
+> Azahar profiles with `62.79`/`59.76` FPS and parity `0x53a483c7`; this clears
+> `physical-hardware-parity` and `physical-3ds-24fps` for the gauge without a
+> physical-console claim. See
+> [the emulator profile record](hardware/emulator-batch-2026-11-25.md).
 
 ## Current exclusions
 
