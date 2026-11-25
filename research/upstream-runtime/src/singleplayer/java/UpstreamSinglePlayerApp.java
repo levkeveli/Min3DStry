@@ -567,11 +567,13 @@ public final class UpstreamSinglePlayerApp {
         }
         var globe = new UpstreamCampaignGlobe(initial);
         var overlay = new UpstreamCampaignSectorOverlay();
+        var grid = new UpstreamCampaignGrid();
         long openedAt = System.nanoTime();
         float cursorX = 200, cursorY = 120;
         MenuRows rows = null;
         Sector previous = null;
         Planet previousPlanet = null;
+        boolean gridLogged = false;
 
         try {
             while (true) {
@@ -606,6 +608,7 @@ public final class UpstreamSinglePlayerApp {
                     return selected;
                 }
                 boolean planetChanged = previousPlanet != globe.planet();
+                if (planetChanged) gridLogged = false;
                 if (rows == null || previous != sector || planetChanged) {
                     String label = sector == null ? "" : " / " + Strings.stripColors(sector.name());
                     rows = encodeMenuRows(new String[]{
@@ -621,19 +624,26 @@ public final class UpstreamSinglePlayerApp {
                 }
                 float ticks = (System.nanoTime() - openedAt) * (60f / 1_000_000_000f);
                 overlay.update(globe.planet(), Vars.state.getSector(), sector, ticks);
+                int sectorVertices = overlay.vertices.size / UpstreamCampaignSectorOverlay.FLOATS_PER_VERTEX;
+                int gridEdges = grid.append(globe.planet(), globe.projection, globe.gridCursor, overlay.vertices);
                 int overlayVertices = overlay.vertices.size / UpstreamCampaignSectorOverlay.FLOATS_PER_VERTEX;
                 // The 20x12 framing gives the globe the full 400x240 top screen.
                 target.begin(0, 0, 20, 12);
                 try {
                     if (!target.drawCampaignPlanet(globe.meshIndex(), globe.projection.val, globe.lighting,
-                            overlay.vertices.items, overlayVertices)) {
+                            overlay.vertices.items, overlayVertices, sectorVertices)) {
                         System.out.println("UPSTREAM_CAMPAIGN_GLOBE_ERROR planet=" + globe.planet().name);
                         return null;
                     }
                     if (planetChanged) {
                         System.out.println("UPSTREAM_CAMPAIGN_SECTOR_OVERLAY planet=" + globe.planet().name
-                            + " vertices=" + overlayVertices + " shadowed=" + overlay.shadowed
+                            + " vertices=" + sectorVertices + " shadowed=" + overlay.shadowed
                             + " outlined=" + overlay.outlined + " marked=" + overlay.marked);
+                    }
+                    if (!gridLogged && gridEdges > 0) {
+                        gridLogged = true;
+                        System.out.println("UPSTREAM_CAMPAIGN_SECTOR_GRID planet=" + globe.planet().name
+                            + " edges=" + gridEdges + " vertices=" + (overlayVertices - sectorVertices));
                     }
                     target.hudPanel(cursorX - 4, cursorY, 9, 1, -1);
                     target.hudPanel(cursorX, cursorY - 4, 1, 9, -1);

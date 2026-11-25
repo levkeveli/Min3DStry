@@ -9,7 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-enum { serpulo, erekir, planet_count, max_overlay_vertices = 20000 };
+enum { serpulo, erekir, planet_count, max_overlay_vertices = UINT16_MAX };
 
 typedef struct {
     float position[3];
@@ -22,6 +22,7 @@ static struct {
     float *stock;
     PlanetVertex *draw;
     PlanetVertex *overlay;
+    size_t overlay_capacity;
     uint16_t *index;
     DVLB_s *shader;
     shaderProgram_s program;
@@ -43,6 +44,7 @@ void m3ds_planet_release(void) {
     release_faces();
     if (mesh.overlay) linearFree(mesh.overlay);
     mesh.overlay = NULL;
+    mesh.overlay_capacity = 0;
     if (mesh.shader) {
         shaderProgramFree(&mesh.program);
         DVLB_Free(mesh.shader);
@@ -150,12 +152,19 @@ static void shade_vertices(const float *light, const float *ambient, const float
 }
 
 int32_t m3ds_planet_draw(int32_t planet, const float *matrix, const float *lighting,
-    const float *overlay, int32_t vertices) {
+    const float *overlay, int32_t vertices, int32_t sector_vertices) {
     if (planet < 0 || planet >= planet_count || vertices < 0 || vertices > max_overlay_vertices
+        || sector_vertices < 0 || sector_vertices > vertices || sector_vertices % 3 != 0
         || vertices % 3 != 0 || !load_faces(planet) || !load_shader()) return 0;
-    if (vertices && !mesh.overlay) {
-        mesh.overlay = linearAlloc(max_overlay_vertices * sizeof(PlanetVertex));
-        if (!mesh.overlay) return 0;
+    if ((size_t)vertices > mesh.overlay_capacity) {
+        size_t capacity = mesh.overlay_capacity ? mesh.overlay_capacity * 2 : 4096;
+        while (capacity < (size_t)vertices) capacity *= 2;
+        if (capacity > max_overlay_vertices) capacity = max_overlay_vertices;
+        PlanetVertex *buffer = linearAlloc(capacity * sizeof(PlanetVertex));
+        if (!buffer) return 0;
+        if (mesh.overlay) linearFree(mesh.overlay);
+        mesh.overlay = buffer;
+        mesh.overlay_capacity = capacity;
     }
     shade_vertices(lighting, lighting + 3, lighting + 6);
 
@@ -190,8 +199,12 @@ int32_t m3ds_planet_draw(int32_t planet, const float *matrix, const float *light
         C3D_DepthTest(true, GPU_GEQUAL, GPU_WRITE_ALL);
         C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA,
             GPU_ONE, GPU_ONE_MINUS_SRC_ALPHA);
-        C3D_DrawArrays(GPU_TRIANGLES, 0, vertices);
+        if (sector_vertices) C3D_DrawArrays(GPU_TRIANGLES, 0, sector_vertices);
         C3D_CullFace(GPU_CULL_NONE);
+        if (sector_vertices < vertices) {
+            C3D_DepthTest(true, GPU_GREATER, GPU_WRITE_ALL);
+            C3D_DrawArrays(GPU_TRIANGLES, sector_vertices, vertices - sector_vertices);
+        }
     }
     return 1;
 }

@@ -64,7 +64,7 @@ int32_t m3ds_terrain_draw_world_label(const char *label, const int32_t *characte
                                      int32_t horizontal, int32_t vertical, int32_t lines);
 int32_t m3ds_terrain_campaign_planet_available(void);
 int32_t m3ds_terrain_draw_campaign_planet(int32_t planet, const float *matrix, const float *lighting,
-    const float *overlay, int32_t vertices);
+    const float *overlay, int32_t vertices, int32_t sector_vertices);
 void m3ds_terrain_release_campaign_planet(void);
 int32_t m3ds_terrain_palette_active(void);
 void m3ds_terrain_fini(void);

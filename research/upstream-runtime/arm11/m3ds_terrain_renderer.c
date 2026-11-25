@@ -1034,11 +1034,11 @@ int32_t m3ds_terrain_campaign_planet_available(void) {
 }
 
 int32_t m3ds_terrain_draw_campaign_planet(int32_t planet, const float *matrix, const float *lighting,
-    const float *overlay, int32_t vertices) {
+    const float *overlay, int32_t vertices, int32_t sector_vertices) {
 #ifdef M3DS_CAMPAIGN_PLANETS
     if (!frame_open) return 0;
     C2D_Flush();
-    int32_t drawn = m3ds_planet_draw(planet, matrix, lighting, overlay, vertices);
+    int32_t drawn = m3ds_planet_draw(planet, matrix, lighting, overlay, vertices, sector_vertices);
     C2D_Prepare();
     begin_world_scene();
     return drawn;
@@ -1048,6 +1048,7 @@ int32_t m3ds_terrain_draw_campaign_planet(int32_t planet, const float *matrix, c
     (void)lighting;
     (void)overlay;
     (void)vertices;
+    (void)sector_vertices;
     return 0;
 #endif
 }

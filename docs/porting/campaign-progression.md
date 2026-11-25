@@ -51,9 +51,13 @@ coordinates from `Sector.tile`. The JVM comparison records the triangles
 emitted by stock `Planet.fill`, `Planet.drawSelection` and `Planet.drawBorders`
 and compares their positions and colors with the handheld batch for both
 planets. The New 3DS replay checks both overlay submissions and captures
-both planets before launching The Onset. Emulator evidence is pending.
-Grid lines, projected icons and arcs, campaign-dependent terrain surface
-changes, emissive updates, and clouds remain open.
+both planets before launching The Onset. The grid draws the original
+`PlanetGrid` edges at the stock outline radius. It uses the cursor smoothing
+from `Planet.renderSectors` and samples the stock fragment shader's distance
+falloff along one-pixel PICA triangles. The stock JVM reference checks the
+grid width, depth, and color under 540 camera and cursor positions per
+planet. Emulator evidence is pending. Projected icons and arcs,
+campaign-dependent terrain changes, emissive updates, and clouds remain open.
 
 ## 1:1 Upstream Mandate
 

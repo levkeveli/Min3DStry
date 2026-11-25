@@ -15,9 +15,12 @@ import mindustry.content.Planets;
 import mindustry.core.ContentLoader;
 import mindustry.core.GameState;
 import mindustry.game.Universe;
+import mindustry.graphics.g3d.MeshBuilder;
 import mindustry.graphics.g3d.PlanetRenderer;
 import mindustry.net.Net;
 import mindustry.type.Sector;
+
+import java.util.HashMap;
 
 /** Checks the ARM11 globe camera against stock v160.8 world-space ray picking. */
 public final class UpstreamCampaignGlobeReference {
@@ -54,8 +57,96 @@ public final class UpstreamCampaignGlobeReference {
         if (globe.update(0, 0) != null) throw new AssertionError("Off-globe picking intersected Erekir");
         checkSectorGeometry(Planets.serpulo.getStartSector());
         checkSectorGeometry(Planets.erekir.getStartSector());
+        checkGrid(Planets.serpulo.getStartSector());
+        checkGrid(Planets.erekir.getStartSector());
         System.out.println("UPSTREAM_CAMPAIGN_GLOBE_REFERENCE serpulo=" + Planets.serpulo.startSector
             + " rotated=" + numbered.id + " erekir=" + Planets.erekir.startSector + " zoom=true");
+    }
+
+    private static void checkGrid(Sector start) {
+        checkGridEdges(start);
+        var globe = new UpstreamCampaignGlobe(start);
+        var overlay = new UpstreamCampaignSectorOverlay();
+        var grid = new UpstreamCampaignGrid();
+        Vec3 midpoint = new Vec3(), first = new Vec3(), second = new Vec3();
+        int maximum = 0, samples = 0;
+        for (int zoom = 0; zoom < 3; zoom++) {
+            globe.zoom(zoom == 0 ? 0.55f : 1.55f);
+            for (int step = 0; step < 180; step++) {
+                int cursorX = step % 75 < 50 ? 200 : 160;
+                int cursorY = step % 75 >= 25 ? 120 : 80;
+                Sector hovered = globe.update(cursorX, cursorY);
+                overlay.update(globe.planet(), null, hovered, step);
+                var vertices = overlay.vertices;
+                int offset = vertices.size;
+                int edgeCount = grid.append(globe.planet(), globe.projection, globe.gridCursor, vertices);
+                maximum = Math.max(maximum, vertices.size / UpstreamCampaignSectorOverlay.FLOATS_PER_VERTEX);
+                if (hovered != null && step > 10 && edgeCount == 0) {
+                    throw new AssertionError("Grid vanished beneath the cursor");
+                }
+                if (edgeCount > 0) {
+                    first.set(vertices.get(offset), vertices.get(offset + 1), vertices.get(offset + 2));
+                    second.set(vertices.get(offset + 7), vertices.get(offset + 8), vertices.get(offset + 9));
+                    midpoint.set(first).lerp(second, 0.5f);
+                    float fade = Math.max(0f, 1f - midpoint.dst(globe.gridCursor));
+                    var color = PlanetRenderer.outlineColor;
+                    if (Math.abs(vertices.get(offset + 3) - color.r * fade) > 0.000002f
+                        || Math.abs(vertices.get(offset + 6) - color.a * fade) > 0.000002f) {
+                        throw new AssertionError("The grid RGB or alpha differs from the stock shader");
+                    }
+                    Mat3D.prj(first, globe.projection);
+                    Mat3D.prj(second, globe.projection);
+                    float dx = (first.x - second.x) * 200f, dy = (first.y - second.y) * 120f;
+                    if (Math.abs(dx * dx + dy * dy - 1f) > 0.0001f
+                        || Math.abs(first.z - second.z) > 0.000002f) {
+                        throw new AssertionError("The grid line did not preserve a one-pixel width and stock depth");
+                    }
+                    samples++;
+                }
+                globe.rotate(127, step % 90 < 45 ? 64 : -64);
+            }
+        }
+        if (samples == 0 || maximum >= 65536) {
+            throw new AssertionError("Invalid grid batch size for " + start.planet.name + ": " + maximum);
+        }
+        System.out.println("UPSTREAM_CAMPAIGN_GRID_REFERENCE planet=" + start.planet.name
+            + " samples=" + samples + " maxVertices=" + maximum);
+    }
+
+    private static void checkGridEdges(Sector sector) {
+        var planet = sector.planet;
+        var radius = PlanetRenderer.outlineRad * planet.radius;
+        var color = PlanetRenderer.outlineColor;
+        var mesh = MeshBuilder.buildPlanetGrid(planet.grid, color, radius);
+        var segments = new HashMap<String, Integer>();
+        try {
+            var buffer = mesh.getVerticesBuffer();
+            for (int index = 0; index < buffer.limit(); index += 8) {
+                var a = new Vec3(buffer.get(index), buffer.get(index + 1), buffer.get(index + 2));
+                var b = new Vec3(buffer.get(index + 4), buffer.get(index + 5), buffer.get(index + 6));
+                if (Float.floatToRawIntBits(buffer.get(index + 3)) != Float.floatToRawIntBits(color.toFloatBits())
+                    || Float.floatToRawIntBits(buffer.get(index + 7)) != Float.floatToRawIntBits(color.toFloatBits())) {
+                    throw new AssertionError("The stock grid color changed");
+                }
+                segments.merge(edgeKey(a, b), 1, Integer::sum);
+            }
+        } finally {
+            mesh.dispose();
+        }
+        var start = new Vec3();
+        var end = new Vec3();
+        for (var edge : planet.grid.edges) {
+            var key = edgeKey(start.set(edge.corners[0].v).scl(radius), end.set(edge.corners[1].v).scl(radius));
+            if (!Integer.valueOf(2).equals(segments.remove(key))) {
+                throw new AssertionError("The port grid does not match the stock mesh edge " + edge.id);
+            }
+        }
+        if (!segments.isEmpty()) throw new AssertionError("The stock mesh has unmatched grid edges");
+    }
+
+    private static String edgeKey(Vec3 first, Vec3 second) {
+        String a = first.toString(), b = second.toString();
+        return a.compareTo(b) < 0 ? a + b : b + a;
     }
 
     private static void checkSectorGeometry(Sector sector) {

@@ -11,6 +11,7 @@ import mindustry.type.Sector;
 final class UpstreamCampaignGlobe {
     final Camera3D camera = new Camera3D();
     final Mat3D projection = new Mat3D();
+    final Vec3 gridCursor = new Vec3();
     final float[] lighting = new float[9];
     private final Mat3D transform = new Mat3D();
     private final Vec3 orbit = new Vec3();
@@ -80,7 +81,14 @@ final class UpstreamCampaignGlobe {
         lighting[6] = eye.x;
         lighting[7] = eye.y;
         lighting[8] = eye.z;
-        return planet.getSector(camera.getPickRay(cursorX, 240 - cursorY, 0, 0, 400, 240),
-            PlanetRenderer.outlineRad * planet.radius);
+        var ray = camera.getPickRay(cursorX, 240 - cursorY, 0, 0, 400, 240);
+        float gridRadius = PlanetRenderer.outlineRad * planet.radius;
+        Vec3 hit = planet.intersect(ray, gridRadius);
+        if (hit == null) {
+            gridCursor.lerp(Vec3.Zero, 0.2f);
+        } else {
+            gridCursor.lerp(scratch.set(hit).sub(planet.position).rotate(Vec3.Y, rotation), 0.2f);
+        }
+        return planet.getSector(ray, gridRadius);
     }
 }
