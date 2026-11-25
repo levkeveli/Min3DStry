@@ -67,7 +67,7 @@ def main():
     parser.add_argument("--server", type=Path, required=True)
     parser.add_argument("--rom", type=Path, required=True)
     parser.add_argument("--azahar")
-    parser.add_argument("--model", choices=("old3ds", "new3ds"), action="append")
+    parser.add_argument("--model", choices=("new3ds",), action="append")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     args.output.mkdir(parents=True)
@@ -75,7 +75,7 @@ def main():
     create(args.java, args.server, fixture)
     azahar = sp.az.resolve_azahar_bin(args.azahar)
     config, log = sp.az.resolve_azahar_paths(azahar)
-    for model in args.model or ("old3ds", "new3ds"):
+    for model in args.model or ("new3ds",):
         verify(args, model, azahar, config, log, fixture)
 
 

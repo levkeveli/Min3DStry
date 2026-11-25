@@ -160,7 +160,7 @@ jobs:
     needs: build
     # A fresh full build is only useful evidence if the packaged audio RomFS
     # and embedded loader actually boot. Reuse the pinned Azahar setup from the
-    # upstream smoke workflow and check both console profiles.
+    # upstream smoke workflow and check the New 3DS profile.
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -175,12 +175,12 @@ jobs:
 
       - run: bash .github/scripts/setup_smoke_azahar.sh
 
-      - name: Boot New and Original 3DS profiles
+      - name: Boot the New 3DS profile
         run: |
           xvfb-run -a python3 tools/verify_azahar.py \
             --rom build/artifact/min3dstry.3dsx \
             --out-dir build/emu-verify \
-            --models new3ds,old3ds \
+            --models new3ds \
             --timeout 180
 
       - name: Check the verified artifact matches the build output

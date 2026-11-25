@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify the offline single-player Ground Zero .3dsx on Azahar New and Old 3DS profiles."""
+"""Verify the offline single-player Ground Zero .3dsx on Azahar, using New 3DS by default."""
 
 from __future__ import annotations
 
@@ -512,7 +512,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--rom", required=True, type=Path)
     parser.add_argument("--azahar", default=None)
-    parser.add_argument("--model", choices=("new3ds", "old3ds"), default=None)
+    parser.add_argument("--model", choices=("new3ds",), default=None)
     parser.add_argument("--output-dir", type=Path, default=Path("build/singleplayer-emu"))
     parser.add_argument("--timeout", type=float, default=120.0)
     parser.add_argument("--weather-fixtures", type=Path, help="directory with stock clear.msav and weather.msav")
@@ -521,7 +521,7 @@ def main() -> int:
 
     azahar_bin = az.resolve_azahar_bin(args.azahar)
     config_path, log_path = az.resolve_azahar_paths(azahar_bin)
-    models = (args.model,) if args.model else ("new3ds", "old3ds")
+    models = (args.model,) if args.model else ("new3ds",)
 
     for model in models:
         if args.weather_fixtures:

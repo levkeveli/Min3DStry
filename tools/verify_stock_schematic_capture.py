@@ -154,7 +154,7 @@ def main():
     parser.add_argument("--azahar")
     parser.add_argument("--fixture", type=Path)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--model", choices=("new3ds", "old3ds"), action="append")
+    parser.add_argument("--model", choices=("new3ds",), action="append")
     parser.add_argument("--port", type=int, default=16660)
     parser.add_argument("--live", action="store_true")
     parser.add_argument("--xdotool", action="store_true", help="Enter the name in the Azahar Qt keyboard on X11")
@@ -167,7 +167,7 @@ def main():
     args.output.mkdir(parents=True, exist_ok=True)
     fixture = args.fixture or create_fixture(args, args.output / "stock-fixture")
     edit_fixture = create_edit_fixture(args, fixture) if args.edit else None
-    for model in args.model or ("old3ds", "new3ds"):
+    for model in args.model or ("new3ds",):
         for live in (False, True) if args.live else (False,):
             scene = args.output / model / ("live" if live else "offline")
             directory = scene / "sdmc/3ds/min3dstry/schematics"

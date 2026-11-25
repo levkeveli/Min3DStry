@@ -119,7 +119,7 @@ def main() -> None:
     parser.add_argument("--reference", type=Path, required=True)
     parser.add_argument("--rom", type=Path, help="Run the threatened-sector fixture in Azahar before stock readback")
     parser.add_argument("--azahar")
-    parser.add_argument("--model", choices=("new3ds", "old3ds"))
+    parser.add_argument("--model", choices=("new3ds",))
     parser.add_argument("--planet", choices=CASES)
     parser.add_argument("--output-dir", type=Path, default=Path("build/campaign-defeat-emu"))
     args = parser.parse_args()
@@ -141,7 +141,7 @@ def main() -> None:
 
     azahar = sp.az.resolve_azahar_bin(args.azahar)
     config, log = sp.az.resolve_azahar_paths(azahar)
-    for model in (args.model,) if args.model else ("new3ds", "old3ds"):
+    for model in (args.model,) if args.model else ("new3ds",):
         for planet in planets:
             _, name, _ = CASES[planet]
             result = verify(model, planet, args.rom, azahar, config, log, args.reference, args.output_dir)

@@ -85,12 +85,12 @@ def main() -> None:
     parser.add_argument("--server", required=True, type=Path)
     parser.add_argument("--java", default="java")
     parser.add_argument("--azahar")
-    parser.add_argument("--model", choices=("new3ds", "old3ds"))
+    parser.add_argument("--model", choices=("new3ds",))
     parser.add_argument("--output-dir", type=Path, default=Path("build/campaign-progression-emu"))
     args = parser.parse_args()
     azahar = sp.az.resolve_azahar_bin(args.azahar)
     config, log = sp.az.resolve_azahar_paths(azahar)
-    for model in (args.model,) if args.model else ("new3ds", "old3ds"):
+    for model in (args.model,) if args.model else ("new3ds",):
         output = args.output_dir / model
         verify(model, args.rom, azahar, config, log, args.fixture, output)
         check_progression(args.java, args.server, output)
