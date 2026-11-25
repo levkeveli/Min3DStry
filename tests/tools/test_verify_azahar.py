@@ -334,5 +334,22 @@ class VerifyAzaharTests(unittest.TestCase):
             self.assertEqual(xdg_log, fake_home / ".local" / "share" / "azahar-emu" / "log" / "azahar_log.txt")
 
 
+class VerifyAzaharRetryTests(unittest.TestCase):
+    def test_retries_only_non_positive_fps(self) -> None:
+        self.assertTrue(
+            verify_azahar.is_transient_fps_failure(
+                AssertionError("Non-positive FPS for new3ds: {'game_fps': 0.0}")
+            )
+        )
+        self.assertFalse(
+            verify_azahar.is_transient_fps_failure(
+                AssertionError("Unexpected frame telemetry for new3ds: {}")
+            )
+        )
+        self.assertFalse(
+            verify_azahar.is_transient_fps_failure(RuntimeError("Non-positive FPS"))
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

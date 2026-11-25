@@ -1,0 +1,20 @@
+﻿[   0.830917] Debug.Emulated <Debug> core\hle\kernel\svc.cpp:Kernel::SVC::OutputDebugString:1190: UPSTREAM_MEMORY appHeap=94224384 linearHeap=4194304 stack=524288
+[   0.831691] Debug.Emulated <Debug> core\hle\kernel\svc.cpp:Kernel::SVC::OutputDebugString:1190: UPSTREAM_MEMORY managedLimit=33554432
+[   2.192522] Debug.Emulated <Debug> core\hle\kernel\svc.cpp:Kernel::SVC::OutputDebugString:1190: UPSTREAM_INTERFACE_LOCALE system=1 bundle=en router=Router copper=Copper
+[  16.651796] Debug.Emulated <Debug> core\hle\kernel\svc.cpp:Kernel::SVC::OutputDebugString:1190: UPSTREAM_GLYPH_ATLAS memory=vram
+[  16.652798] Debug.Emulated <Debug> core\hle\kernel\svc.cpp:Kernel::SVC::OutputDebugString:1190: UPSTREAM_INTERFACE_FONT source=v160.8
+[  16.655446] Debug.Emulated <Debug> core\hle\kernel\svc.cpp:Kernel::SVC::OutputDebugString:1190: UPSTREAM_CAMPAIGN_MENU slots=2 selected=sector-serpulo-15.msav
+[  16.968704] Debug.Emulated <Debug> core\hle\kernel\svc.cpp:Kernel::SVC::OutputDebugString:1190: UPSTREAM_CAMPAIGN_SELECTED slot=sector-serpulo-15.msav source=auto name=Ground Zero
+[  18.809948] Debug.Emulated <Debug> core\hle\kernel\svc.cpp:Kernel::SVC::OutputDebugString:1190: UPSTREAM_SP_LOADED source=campaign map=Editor_Playtesting size=150x250 wave=1 copper=0
+[  18.810609] Debug.Emulated <Debug> core\hle\kernel\svc.cpp:Kernel::SVC::OutputDebugString:1190: UPSTREAM_INTERFACE_GRAPHICS atlas
+[  20.467342] Debug.Emulated <Debug> core\hle\kernel\svc.cpp:Kernel::SVC::OutputDebugString:1190: UPSTREAM_INTERFACE_GRAPHICS ready
+[  20.485448] Debug.Emulated <Debug> core\hle\kernel\svc.cpp:Kernel::SVC::OutputDebugString:1190: UPSTREAM_MINIMAP size=64 hash=5245181e5ee30b2b cell=34,6
+[  20.738419] Debug.Emulated <Debug> core\hle\kernel\svc.cpp:Kernel::SVC::OutputDebugString:1190: UPSTREAM_HUD_BATCH applied=perf=1,nominimap=1,noitems=1
+[  20.744330] Debug.Emulated <Debug> core\hle\kernel\svc.cpp:Kernel::SVC::OutputDebugString:1190: UPSTREAM_SP_READY unit=213 x=648.0 y=208.15765 copper=0 wave=1
+[  20.748496] Debug.Emulated <Debug> core\hle\kernel\svc.cpp:Kernel::SVC::OutputDebugString:1190: UPSTREAM_CONTROL_FOCUS target=gamma
+[  20.749775] Debug.Emulated <Debug> core\hle\kernel\svc.cpp:Kernel::SVC::OutputDebugString:1190: UPSTREAM_INTERFACE_GRAPHICS labels
+[  20.753926] Debug.Emulated <Debug> core\hle\kernel\svc.cpp:Kernel::SVC::OutputDebugString:1190: UPSTREAM_BUILD_SHORTCUTS primary=conveyor secondary=copper-wall
+[  20.884231] Debug.Emulated <Debug> core\hle\kernel\svc.cpp:Kernel::SVC::OutputDebugString:1190: UPSTREAM_WORLD_ATLAS page=0 rect=1037,3190+160x160 fragments=6
+[  21.047244] Debug.Emulated <Debug> core\hle\kernel\svc.cpp:Kernel::SVC::OutputDebugString:1190: UPSTREAM_SP_UNIT_ART type=gamma
+[  21.086247] Debug.Emulated <Debug> core\hle\kernel\svc.cpp:Kernel::SVC::OutputDebugString:1190: UPSTREAM_WORLD_ATLAS_RECYCLE
+[  21.317867] Debug.Emulated <Debug> core\hle\kernel\svc.cpp:Kernel::SVC::OutputDebugString:1190: UPSTREAM_SP_FRAME unit=213 left=73 bottom=20 sprites=1 wave=1

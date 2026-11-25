@@ -65,6 +65,8 @@ public final class UpstreamSinglePlayerApp {
     private final UpstreamTerrainRenderProbe target = new UpstreamTerrainRenderProbe(false);
     private final UpstreamBuildingLayers buildingLayers = new UpstreamBuildingLayers();
     private final UpstreamBuildingPowerHud buildingPowerHud = new UpstreamBuildingPowerHud();
+    private final UpstreamBuildingLiquidHud buildingLiquidHud = new UpstreamBuildingLiquidHud();
+    private final UpstreamBuildingBasicBars buildingBasicBars = new UpstreamBuildingBasicBars();
     private UpstreamLiveBuildControls buildingControls = createBuildControls();
     private final UpstreamWeatherLayers weatherLayers = new UpstreamWeatherLayers();
     private final Runnable drawWeatherUnder = weatherLayers::drawUnder;
@@ -92,6 +94,11 @@ public final class UpstreamSinglePlayerApp {
     private boolean moving;
     private boolean reportedMinimap;
     private int minimapFrame;
+    private final UpstreamMinimapView minimapView = new UpstreamMinimapView();
+    private byte[] minimapViewTitle;
+    private int[] minimapViewTitleCharacters;
+    private byte[] minimapViewBack;
+    private int[] minimapViewBackCharacters;
     private String inputDevice;
     private UpstreamLabelText.Label encodedLabel;
     private int[] encodedCharacters;
@@ -112,6 +119,12 @@ public final class UpstreamSinglePlayerApp {
     private List<UpstreamObjectiveHud.Row> lastObjectives;
     private byte[][] objectiveLabels = new byte[0][];
     private int[][] objectiveCharacters = new int[0][];
+    private String lastBossText;
+    private byte[] bossLabel = new byte[0];
+    private int[] bossCharacters = new int[0];
+    private String lastPositionText;
+    private byte[] positionLabel = new byte[0];
+    private int[] positionCharacters = new int[0];
     private final IntSet reportedEnemies = new IntSet();
 
     interface AudioHooks {
@@ -423,10 +436,13 @@ public final class UpstreamSinglePlayerApp {
         reportedControl = null;
         moving = false;
         inputDevice = null;
+        minimapView.reset();
         lastLeft = lastBottom = -1;
         lastMenu = null;
         lastStatus = null;
         lastObjectives = null;
+        lastBossText = null;
+        lastPositionText = null;
         lastCoreItemCount = -1;
         lastCoreItemDrawn = -1;
         coreItemTracker.reset();
@@ -1205,38 +1221,60 @@ public final class UpstreamSinglePlayerApp {
                 } else {
                     moveInput.limit(1f);
                 }
-                boolean aimHeld = (input & UpstreamSinglePlayerInput.X_HELD) != 0;
-                boolean fireHeld = (input & UpstreamSinglePlayerInput.L_HELD) != 0;
-                if (weaponInput.releasePauses((input & UpstreamSinglePlayerInput.X_PRESSED) != 0,
-                        aimHeld, !moveInput.isZero(), fireHeld, now)) {
-                    openPauseMenu();
+                boolean mapWasOpen = minimapView.open();
+                if ((input & UpstreamSinglePlayerInput.R_PRESSED) != 0) {
+                    if (mapWasOpen) minimapView.close(); else minimapView.openView();
+                    System.out.println("UPSTREAM_MINIMAP_VIEW open=" + minimapView.open());
                 }
-                if ((input & UpstreamSinglePlayerInput.WAVE_PRESSED) != 0) {
-                    int wave = session.triggerWave();
-                    int enemies = Groups.unit.count(u -> u.team == Vars.state.rules.waveTeam && !u.dead);
-                    System.out.println("UPSTREAM_SP_WAVE wave=" + wave + " enemies=" + enemies);
-                }
-                if ((input & UpstreamSinglePlayerInput.SAVE_PRESSED) != 0) {
-                    session.save(saveFile);
-                    if (unit != null) {
-                        int shots = UpstreamOfflineWeaponInput.totalShots(unit);
-                        if (shots > 0) System.out.println("UPSTREAM_SP_WEAPON_SAVED shots=" + shots);
+                if (minimapView.open()) {
+                    if ((input & UpstreamSinglePlayerInput.B_PRESSED) != 0) {
+                        minimapView.close();
+                        System.out.println("UPSTREAM_MINIMAP_VIEW open=false");
                     }
-                }
+                    if ((input & UpstreamSinglePlayerInput.X_PRESSED) != 0) minimapView.zoomBy(-0.5f);
+                    if ((input & UpstreamSinglePlayerInput.WAVE_PRESSED) != 0) minimapView.zoomBy(0.5f);
+                    if ((input & (UpstreamSinglePlayerInput.X_PRESSED
+                            | UpstreamSinglePlayerInput.WAVE_PRESSED)) != 0) {
+                        System.out.println("UPSTREAM_MINIMAP_VIEW zoom=" + minimapView.zoom());
+                    }
+                    if (!moveInput.isZero()) {
+                        minimapView.move(-moveInput.x * 4f, moveInput.y * 4f);
+                    }
+                    moveInput.setZero();
+                } else {
+                    boolean aimHeld = (input & UpstreamSinglePlayerInput.X_HELD) != 0;
+                    boolean fireHeld = (input & UpstreamSinglePlayerInput.L_HELD) != 0;
+                    if (weaponInput.releasePauses((input & UpstreamSinglePlayerInput.X_PRESSED) != 0,
+                            aimHeld, !moveInput.isZero(), fireHeld, now)) {
+                        openPauseMenu();
+                    }
+                    if ((input & UpstreamSinglePlayerInput.WAVE_PRESSED) != 0) {
+                        int wave = session.triggerWave();
+                        int enemies = Groups.unit.count(u -> u.team == Vars.state.rules.waveTeam && !u.dead);
+                        System.out.println("UPSTREAM_SP_WAVE wave=" + wave + " enemies=" + enemies);
+                    }
+                    if ((input & UpstreamSinglePlayerInput.SAVE_PRESSED) != 0) {
+                        session.save(saveFile);
+                        if (unit != null) {
+                            int shots = UpstreamOfflineWeaponInput.totalShots(unit);
+                            if (shots > 0) System.out.println("UPSTREAM_SP_WEAPON_SAVED shots=" + shots);
+                        }
+                    }
 
-                unit = session.ensurePlayerSpawn();
-                if (unit != null) {
-                    buildingControls.update(unit, input, touch);
                     unit = session.ensurePlayerSpawn();
+                    if (unit != null) {
+                        buildingControls.update(unit, input, touch);
+                        unit = session.ensurePlayerSpawn();
+                    }
+                    if (unit != null) {
+                        boolean anchored = unit instanceof BlockUnitc;
+                        boolean overlay = buildingControls.blocksWeaponInput();
+                        weaponInput.update(unit, moveInput, (anchored || weaponInput.aimMode()) && !moveInput.isZero(),
+                            fireHeld && !overlay && !Vars.state.isPaused());
+                        if (anchored) moveInput.setZero();
+                    }
+                    if (weaponInput.aimMode()) moveInput.setZero();
                 }
-                if (unit != null) {
-                    boolean anchored = unit instanceof BlockUnitc;
-                    boolean overlay = buildingControls.blocksWeaponInput();
-                    weaponInput.update(unit, moveInput, (anchored || weaponInput.aimMode()) && !moveInput.isZero(),
-                        fireHeld && !overlay && !Vars.state.isPaused());
-                    if (anchored) moveInput.setZero();
-                }
-                if (weaponInput.aimMode()) moveInput.setZero();
             }
             long elapsed = Math.min(Math.max(0L, now - previousTime), FRAME_NS * 4L);
             previousTime = now;
@@ -1409,8 +1447,17 @@ public final class UpstreamSinglePlayerApp {
         var schematics = buildingControls.schematics();
         schematics.draw(viewport);
         drawCoreItems();
-        drawObjectives(buildingPowerHud.draw(target, buildingControls, Vars.player.team(), drawStatusHud()));
+        drawPositionReadout();
+        float hudY = drawStatusHud();
+        // Base Block.setBars order: health, power, items, then liquids.
+        hudY = buildingBasicBars.drawHealth(target, buildingControls, Vars.player.team(), hudY);
+        hudY = buildingPowerHud.draw(target, buildingControls, Vars.player.team(), hudY);
+        hudY = buildingBasicBars.drawItems(target, buildingControls, Vars.player.team(), hudY);
+        hudY = buildingLiquidHud.draw(target, buildingControls, Vars.player.team(), hudY);
+        drawObjectives(hudY);
+        drawBossBar();
         if (pauseOpen) drawPauseMenu();
+        else drawFullscreenMinimap();
         var block = buildingControls.block();
         var catalog = buildingControls.catalog();
         var config = buildingControls.buildingConfig();
@@ -1502,6 +1549,35 @@ public final class UpstreamSinglePlayerApp {
         return y;
     }
 
+    private void drawFullscreenMinimap() {
+        if (!minimapView.open()) return;
+        target.hudPanel(0f, 0f, UpstreamMinimapView.screenWidth, UpstreamMinimapView.screenHeight, 0xF0080A0C);
+        target.drawMinimapAt(minimapView.x(), minimapView.y(), minimapView.size());
+        if (minimapViewTitle == null) {
+            String title = Core.bundle.get("minimap");
+            minimapViewTitle = (title + "\0").getBytes(StandardCharsets.UTF_8);
+            minimapViewTitleCharacters = UpstreamHudLabels.encodeLabel(UpstreamLabelText.parse(UI.formatIcons(title)));
+            String back = Core.bundle.get("back") + "  R/B";
+            minimapViewBack = (back + "\0").getBytes(StandardCharsets.UTF_8);
+            minimapViewBackCharacters = UpstreamHudLabels.encodeLabel(UpstreamLabelText.parse(UI.formatIcons(back)));
+        }
+        target.drawObjectiveAt(minimapViewTitle, minimapViewTitleCharacters, null, 8f, 4f);
+        target.drawObjectiveAt(minimapViewBack, minimapViewBackCharacters, null, 8f, 196f);
+    }
+
+    private void drawPositionReadout() {
+        if (!Core.settings.getBool("position", false)) return;
+        var unit = Vars.player == null ? null : Vars.player.unit();
+        if (unit == null) return;
+        String text = unit.tileX() + "," + unit.tileY();
+        if (!text.equals(lastPositionText)) {
+            positionLabel = (text + "\0").getBytes(StandardCharsets.UTF_8);
+            positionCharacters = UpstreamHudLabels.encodeLabel(UpstreamLabelText.parse(text));
+            lastPositionText = text;
+        }
+        target.drawObjectiveAt(positionLabel, positionCharacters, null, 336f, 68f);
+    }
+
     private void drawCoreItems() {
         if (!Core.settings.getBool("coreitems", true)) return;
         var items = coreItemTracker.live();
@@ -1567,11 +1643,11 @@ public final class UpstreamSinglePlayerApp {
         if (settingsOpen) {
             drawPauseRow(Core.bundle.get("settings"), 170f, 100f, false);
             var rows = hudSettingsRows();
-            float y = 118f;
+            float y = 116f;
             for (int i = 0; i < rows.length; i++) {
                 boolean selected = settingsMenu.selected() == i;
                 drawPauseRow((selected ? "> " : "  ") + rows[i], 92f, y, selected);
-                y += 22f;
+                y += 18f;
             }
             return;
         }
@@ -1591,7 +1667,7 @@ public final class UpstreamSinglePlayerApp {
 
     private void openHudSettings(Settings settings) {
         settingsMenu.open(settings.getBool("coreitems", true), settings.getBool("minimap", true),
-            settings.getBool("showweather", true), settings.getBool("showperformance", false));
+            settings.getBool("showweather", true), settings.getBool("showperformance", false), settings.getBool("position", false));
     }
 
     private void toggleHudSetting(Settings settings) {
@@ -1606,6 +1682,7 @@ public final class UpstreamSinglePlayerApp {
             case 1 -> settings.put("minimap", enabled);
             case 2 -> settings.put("showweather", enabled);
             case 3 -> settings.put("showperformance", enabled);
+            case 4 -> settings.put("position", enabled);
         }
         System.out.println("UPSTREAM_SETTINGS index=" + index + " value=" + enabled);
     }
@@ -1616,6 +1693,7 @@ public final class UpstreamSinglePlayerApp {
             hudSettingRow("setting.minimap.name", settingsMenu.minimap()),
             hudSettingRow("setting.showweather.name", settingsMenu.weather()),
             hudSettingRow("setting.showperformance.name", settingsMenu.performance()),
+            hudSettingRow("setting.position.name", settingsMenu.position()),
             Core.bundle.get("settings.sound"),
             Core.bundle.get("back")
         };
@@ -1691,6 +1769,20 @@ public final class UpstreamSinglePlayerApp {
         byte[] label = (arc.util.Strings.stripColors(text) + "\0").getBytes(StandardCharsets.UTF_8);
         int[] characters = UpstreamHudLabels.encodeLabel(UpstreamLabelText.parse(UI.formatIcons(markup)));
         target.drawObjectiveAt(label, characters, null, x, y);
+    }
+
+    private void drawBossBar() {
+        var boss = UpstreamBossHud.collect();
+        if (boss == null) return;
+        if (!boss.markup().equals(lastBossText)) {
+            bossLabel = (arc.util.Strings.stripColors(boss.markup()) + "\0").getBytes(StandardCharsets.UTF_8);
+            bossCharacters = UpstreamHudLabels.encodeLabel(UpstreamLabelText.parse(UI.formatIcons(boss.markup())));
+            lastBossText = boss.markup();
+        }
+        float next = target.drawObjectiveAt(bossLabel, bossCharacters, null, 40f, 184f);
+        target.hudPanel(40f, next - 2f, 320f, 12f, 0xE0201B18);
+        float fill = 318f * boss.fraction();
+        if (fill > 0f) target.hudPanel(41f, next - 1f, fill, 10f, 0xE0D23C3C);
     }
 
     private void drawObjectives(float y) {

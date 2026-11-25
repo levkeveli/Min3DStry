@@ -1,0 +1,39 @@
+name: Main verification alert
+
+on:
+  workflow_run:
+    workflows: ["3DS full build", "Upstream ARM11 smoke"]
+    types: [completed]
+    branches: [main]
+  schedule:
+    - cron: "23 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: main-verify-alert
+
+permissions:
+  contents: read
+  actions: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  alert:
+    name: Hold or release PRs on main verification result
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.head_repository.full_name == github.repository &&
+      (github.event.workflow_run.event == 'push' ||
+      github.event.workflow_run.event == 'workflow_dispatch'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Reconcile main verification holds
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 .github/scripts/main_verify_alert.py

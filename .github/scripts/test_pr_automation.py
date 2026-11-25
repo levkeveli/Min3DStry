@@ -10,7 +10,98 @@ from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import main_verify_alert  # noqa: E402
 import pr_automation  # noqa: E402
+import pr_triage  # noqa: E402
+
+
+class MainVerificationTests(unittest.TestCase):
+    def test_only_current_main_runs_can_clear_the_hold(self) -> None:
+        repo = "owner/repo"
+        success = {
+            "head_sha": "current",
+            "head_repository": {"full_name": repo},
+            "event": "push",
+            "status": "completed",
+            "conclusion": "success",
+        }
+        unrelated = [
+            dict(success, head_sha="older", conclusion="failure"),
+            dict(success, event="pull_request"),
+            dict(success, head_repository={"full_name": "fork/repo"}),
+        ]
+        for runs, expected in (
+            ([success, *unrelated], []),
+            (unrelated, ["3DS full build: no run on main HEAD"]),
+            ([dict(success, conclusion="timed_out"), success], ["3DS full build: timed_out"]),
+            ([dict(success, status="queued", conclusion=None)], ["3DS full build: queued"]),
+        ):
+            with self.subTest(expected=expected):
+                responses = [
+                    {"sha": "current"},
+                    {"workflow_runs": runs},
+                    {"workflow_runs": [dict(success, event="workflow_dispatch")]},
+                ]
+                with mock.patch.object(
+                    pr_automation, "github_request",
+                    side_effect=[(200, json.dumps(response)) for response in responses],
+                ) as request:
+                    missing = ["full-build.yml"] if runs == unrelated else []
+                    self.assertEqual(
+                        pr_automation.main_verification_status(repo, "token"),
+                        ("current", expected, missing),
+                    )
+                    for call in request.call_args_list[1:]:
+                        self.assertIn("branch=main&head_sha=current", call.args[0])
+
+    def test_green_main_releases_only_automation_labels(self) -> None:
+        repo = "owner/repo"
+        pr = {
+            "number": 7,
+            "labels": [{"name": name} for name in ("hold", "main-verify-blocked", "main-verify-fix")],
+            "isDraft": False,
+        }
+        with (
+            mock.patch.dict(os.environ, {"GITHUB_REPOSITORY": repo, "GH_TOKEN": "token"}),
+            mock.patch.object(main_verify_alert, "main_verification_status", return_value=("sha", [], [])),
+            mock.patch.object(main_verify_alert, "gh") as gh,
+        ):
+            gh.side_effect = ["", "", json.dumps([pr]), '[{"number": 8}]', "", "", ""]
+            main_verify_alert.main()
+        removals = [call.args[-1] for call in gh.call_args_list if "--remove-label" in call.args]
+        self.assertEqual(removals, ["main-verify-blocked", "main-verify-fix"])
+        self.assertEqual(gh.call_args.args[:4], (repo, "issue", "close", "8"))
+
+    def test_alert_dispatches_missing_workflow_on_main(self) -> None:
+        repo = "owner/repo"
+        status = ("sha", ["3DS full build: no run on main HEAD"], ["full-build.yml"])
+        with (
+            mock.patch.dict(os.environ, {"GITHUB_REPOSITORY": repo, "GH_TOKEN": "token"}),
+            mock.patch.object(main_verify_alert, "main_verification_status", return_value=status),
+            mock.patch.object(main_verify_alert, "gh") as gh,
+        ):
+            gh.side_effect = ["", "", "[]", '[{"number": 8}]', ""]
+            main_verify_alert.main()
+        self.assertEqual(gh.call_args.args, (repo, "workflow", "run", "full-build.yml", "--ref", "main"))
+
+
+class PrTriageTests(unittest.TestCase):
+    def test_comments_are_flattened_across_pages(self) -> None:
+        comments = [{"body": "First page"}, {"body": "<!-- auto-rerun:sha -->"}]
+        result = mock.Mock(returncode=0, stdout=json.dumps([[comment] for comment in comments]))
+        with mock.patch.object(pr_triage, "gh_api", return_value=result) as api:
+            self.assertEqual(pr_triage.get_comments(7), comments)
+            self.assertEqual(api.call_args.args[1:], ("--paginate", "--slurp"))
+
+    def test_older_gh_uses_json_lines_for_paginated_comments(self) -> None:
+        comments = [{"body": "First page"}, {"body": "<!-- auto-rerun:sha -->"}]
+        results = [
+            mock.Mock(returncode=1, stderr="unknown flag: --slurp"),
+            mock.Mock(returncode=0, stdout="\n".join(map(json.dumps, comments))),
+        ]
+        with mock.patch.object(pr_triage, "gh_api", side_effect=results) as api:
+            self.assertEqual(pr_triage.get_comments(7), comments)
+            self.assertEqual(api.call_args.args[1:], ("--paginate", "--jq", ".[] | @json"))
 
 
 class PrAutomationTests(unittest.TestCase):

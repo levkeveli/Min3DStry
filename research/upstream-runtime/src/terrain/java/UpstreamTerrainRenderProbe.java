@@ -278,6 +278,10 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
         NativeTerrain.minimapUpload(Address.ofData(pixels), width, height);
     }
 
+    void drawMinimapAt(float x, float y, float size) {
+        NativeTerrain.minimapDraw(x, y, size);
+    }
+
 
     private static int blendMode(Blending blending) {
         if (blending == Blending.normal) return 0;

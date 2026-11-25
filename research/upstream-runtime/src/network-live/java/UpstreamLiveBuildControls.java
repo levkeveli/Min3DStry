@@ -32,6 +32,7 @@ final class UpstreamLiveBuildControls {
     private final UpstreamBuildingConfig buildingConfig = new UpstreamBuildingConfig();
     private final UpstreamInventoryMenu inventory = new UpstreamInventoryMenu();
     private final UpstreamCommandOrders orders = new UpstreamCommandOrders();
+    private boolean orderTouch;
     private final UpstreamPlayerControl playerControl = new UpstreamPlayerControl();
     private InventoryAction inventoryAction = InventoryAction.none;
     private boolean configuring;
@@ -110,6 +111,7 @@ final class UpstreamLiveBuildControls {
         boolean rightRail = touch >= 0 && touchX >= 292 && touchX < 318;
         if (rightRail && touchY >= 144 && touchY < 175) {
             if (orders.active()) orders.toggle();
+            orderTouch = false;
             selectingControl = !selectingControl;
             configuring = selectingMine = removing = false;
             inventoryAction = InventoryAction.none;
@@ -128,6 +130,7 @@ final class UpstreamLiveBuildControls {
         }
         if (touch >= 0 && touchX >= 292 && touchX < 318 && touchY >= 112 && touchY < 143) {
             orders.toggle();
+            orderTouch = false;
             configuring = selectingMine = removing = false;
             inventoryAction = InventoryAction.none;
             return;
@@ -138,14 +141,25 @@ final class UpstreamLiveBuildControls {
                 else if (touch >= 0) orders.tapMenu(touchX, touchY);
                 return;
             }
-            if ((buttons & REMOVE_PRESSED) != 0) orders.toggle();
-            else if ((buttons & ROTATE_PRESSED) != 0) orders.toggleQueue();
+            if ((buttons & REMOVE_PRESSED) != 0) {
+                orders.toggle();
+                orderTouch = false;
+            } else if ((buttons & ROTATE_PRESSED) != 0) orders.toggleQueue();
             if (orders.active() && touch >= 0) {
                 if (touchX >= 2 && touchX < 28 && touchY >= 48 && touchY < 111) {
                     orders.openMenu(touchY >= 80);
+                    orderTouch = false;
                 } else if (selectGridCell(touchX, touchY)) {
-                    orders.tap(tileX, tileY);
+                    if (!orderTouch) {
+                        orderTouch = true;
+                        orders.press(tileX, tileY);
+                    } else {
+                        orders.drag(tileX, tileY);
+                    }
                 }
+            } else if (orders.active() && touch < 0 && orderTouch) {
+                orderTouch = false;
+                orders.release();
             }
             return;
         }

@@ -6,6 +6,7 @@ import org.teavm.interop.c.Include;
 final class UpstreamSinglePlayerInput {
     static final int DPAD_ACTIVE = 1 << 16;
     static final int A_PRESSED = 1 << 17;
+    static final int R_PRESSED = 1 << 18;
     static final int B_PRESSED = 1 << 19;
     static final int X_PRESSED = 1 << 20;
     static final int WAVE_PRESSED = 1 << 21;
