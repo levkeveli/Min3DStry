@@ -36,9 +36,9 @@ produced these byte-identical results.
 The reference captures the stock surfaces at a fresh campaign state.
 The campaign selector opens the globe with X. The Circle Pad or D-pad
 orbits the globe, the bottom screen moves the cursor, the C-Stick changes
-zoom, and Y switches between Serpulo and Erekir. A sends a valid stock pick
-through the campaign slot's existing launch or resume path. B returns to
-the sector list.
+zoom, and Y switches between Serpulo and Erekir. A previews a sector with the
+stock selection outline and confirms through its existing launch or resume
+path. B dismisses the preview or returns to the sector list.
 
 The stock JVM reference confirms that the projected mesh centers and
 `Planet.getSector` agree for Ground Zero and The Onset. It also exercises

@@ -573,6 +573,8 @@ public final class UpstreamSinglePlayerApp {
         float cursorX = 200, cursorY = 120;
         MenuRows rows = null;
         Sector previous = null;
+        Sector previousSelection = null;
+        UpstreamSinglePlayerSession.SectorSlot preview = null;
         Planet previousPlanet = null;
         boolean gridLogged = false, arcsLogged = false;
 
@@ -580,8 +582,13 @@ public final class UpstreamSinglePlayerApp {
             while (true) {
                 long nextFrame = System.nanoTime() + FRAME_NS;
                 int input = pollCampaignInput();
-                if (input == -1 || (input & UpstreamSinglePlayerInput.B_PRESSED) != 0) return null;
+                if (input == -1) return null;
+                if ((input & UpstreamSinglePlayerInput.B_PRESSED) != 0) {
+                    if (preview == null) return null;
+                    preview = null;
+                }
                 if ((input & UpstreamSinglePlayerInput.WAVE_PRESSED) != 0) {
+                    preview = null;
                     globe.switchPlanet();
                     cursorX = 200;
                     cursorY = 120;
@@ -596,36 +603,52 @@ public final class UpstreamSinglePlayerApp {
                 }
 
                 Sector sector = globe.update(cursorX, cursorY);
-                UpstreamSinglePlayerSession.SectorSlot selected = null;
+                UpstreamSinglePlayerSession.SectorSlot hovered = null;
                 for (var slot : slots) {
                     if (slot.sector == sector) {
-                        selected = slot;
+                        hovered = slot;
                         break;
                     }
                 }
-                if ((input & UpstreamSinglePlayerInput.A_PRESSED) != 0 && selected != null) {
-                    System.out.println("UPSTREAM_CAMPAIGN_SELECTED slot=" + selected.file.name()
-                        + " name=" + selected.sector.name() + " source=planet-map");
-                    return selected;
+                if ((input & UpstreamSinglePlayerInput.A_PRESSED) != 0) {
+                    if (preview != null && (hovered == null || hovered == preview)) {
+                        System.out.println("UPSTREAM_CAMPAIGN_SELECTED slot=" + preview.file.name()
+                            + " name=" + preview.sector.name() + " source=planet-map");
+                        return preview;
+                    }
+                    if (hovered != null) {
+                        preview = hovered;
+                        System.out.println("UPSTREAM_CAMPAIGN_GLOBE_PREVIEW planet=" + preview.sector.planet.name
+                            + " sector=" + preview.sector.id + " resume=" + (preview.origin == null));
+                    }
                 }
+                Sector selectedSector = preview == null ? null : preview.sector;
                 boolean planetChanged = previousPlanet != globe.planet();
                 if (planetChanged) gridLogged = arcsLogged = false;
-                if (rows == null || previous != sector || planetChanged) {
-                    String label = sector == null ? "" : " / " + Strings.stripColors(sector.name());
+                if (rows == null || previous != sector || previousSelection != selectedSector || planetChanged) {
+                    Sector labelSector = selectedSector == null ? sector : selectedSector;
+                    String label = labelSector == null ? "" : " / " + Strings.stripColors(labelSector.name());
+                    String action = preview != null
+                        ? (hovered != null && hovered != preview ? "sectors.select"
+                            : preview.origin == null ? "sectors.resume" : "sectors.launch")
+                        : hovered == null ? null : "sectors.select";
                     rows = encodeMenuRows(new String[]{
                         globe.planet().localizedName + label,
-                        "Y " + Core.bundle.get("planet", "Planet") + "   B " + Core.bundle.get("back"),
+                        "Y " + Core.bundle.get("planet", "Planet") + "   B "
+                            + Core.bundle.get(preview == null ? "back" : "cancel"),
+                        action == null ? "" : "A " + Core.bundle.get(action),
                     });
                     previous = sector;
+                    previousSelection = selectedSector;
                     previousPlanet = globe.planet();
                     if (sector != null) {
                         System.out.println("UPSTREAM_CAMPAIGN_GLOBE planet=" + globe.planet().name
-                            + " sector=" + sector.id + " available=" + (selected != null));
+                            + " sector=" + sector.id + " available=" + (hovered != null));
                     }
                 }
                 float ticks = (System.nanoTime() - openedAt) * (60f / 1_000_000_000f);
                 Sector active = Vars.state.getSector();
-                overlay.update(globe.planet(), active, sector, ticks);
+                overlay.update(globe.planet(), active, sector, selectedSector, ticks);
                 int sectorVertices = overlay.vertices.size / UpstreamCampaignSectorOverlay.FLOATS_PER_VERTEX;
                 int gridEdges = grid.append(globe.planet(), globe.projection, globe.gridCursor, overlay.vertices);
                 int gridVertices = overlay.vertices.size / UpstreamCampaignSectorOverlay.FLOATS_PER_VERTEX - sectorVertices;
@@ -658,6 +681,7 @@ public final class UpstreamSinglePlayerApp {
                     target.hudPanel(cursorX, cursorY - 4, 1, 9, -1);
                     target.drawObjective(rows.labels[0], rows.characters[0], null, 6);
                     target.drawObjective(rows.labels[1], rows.characters[1], null, 210);
+                    if (rows.characters[2].length > 0) target.drawObjective(rows.labels[2], rows.characters[2], null, 192);
                 } finally {
                     target.end();
                 }

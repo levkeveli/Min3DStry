@@ -3,6 +3,7 @@ import arc.math.Mathf;
 import arc.math.geom.Vec3;
 import arc.struct.FloatSeq;
 import mindustry.game.Team;
+import mindustry.graphics.Pal;
 import mindustry.graphics.g3d.PlanetRenderer;
 import mindustry.type.Planet;
 import mindustry.type.Sector;
@@ -20,10 +21,11 @@ final class UpstreamCampaignSectorOverlay {
     private final Vec3 innerFirst = new Vec3(), innerNext = new Vec3();
     int shadowed, outlined, marked;
 
-    void update(Planet planet, Sector current, Sector hovered, float ticks) {
+    void update(Planet planet, Sector current, Sector hovered, Sector selected, float ticks) {
         vertices.clear();
         shadowed = outlined = marked = 0;
         for (Sector sector : planet.sectors) {
+            if (sector == selected) continue;
             if (!canSelect(sector) && !sector.unlocked()) {
                 fill(sector, PlanetRenderer.shadowColor, -0.001f);
                 shadowed++;
@@ -52,6 +54,10 @@ final class UpstreamCampaignSectorOverlay {
         if (hovered != null) {
             fill(hovered, PlanetRenderer.hoverColor, -0.003f);
             borders(hovered, ticks);
+        }
+        if (selected != null) {
+            outline(selected, Pal.accent, 0.04f, 0.001f, false);
+            borders(selected, ticks);
         }
     }
 

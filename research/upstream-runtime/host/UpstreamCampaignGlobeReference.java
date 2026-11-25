@@ -121,7 +121,7 @@ public final class UpstreamCampaignGlobeReference {
                 int cursorX = step % 75 < 50 ? 200 : 160;
                 int cursorY = step % 75 >= 25 ? 120 : 80;
                 Sector hovered = globe.update(cursorX, cursorY);
-                overlay.update(globe.planet(), null, hovered, step);
+                overlay.update(globe.planet(), null, hovered, null, step);
                 var vertices = overlay.vertices;
                 int offset = vertices.size;
                 int edgeCount = grid.append(globe.planet(), globe.projection, globe.gridCursor, vertices);
@@ -210,6 +210,12 @@ public final class UpstreamCampaignGlobeReference {
 
         overlay.vertices.clear();
         original.vertices.clear();
+        overlay.outline(sector, Pal.accent, 0.04f, 0.001f, false);
+        sector.planet.drawSelection(original, sector, Pal.accent, 0.04f, 0.001f);
+        compare(overlay, original, "selected outline");
+
+        overlay.vertices.clear();
+        original.vertices.clear();
         float oldTime = Time.globalTime;
         Time.globalTime = 42f;
         try {
@@ -221,7 +227,7 @@ public final class UpstreamCampaignGlobeReference {
         compare(overlay, original, "border");
         original.dispose();
 
-        overlay.update(sector.planet, null, sector, 42f);
+        overlay.update(sector.planet, null, sector, null, 42f);
         if (overlay.outlined == 0 || overlay.vertices.size == 0
             || overlay.vertices.size > 20000 * UpstreamCampaignSectorOverlay.FLOATS_PER_VERTEX) {
             throw new AssertionError("Unexpected stock " + sector.planet.name + " overlay counts");
