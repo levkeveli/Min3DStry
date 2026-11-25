@@ -85,6 +85,8 @@ FACTORY_EXACT = {
 
 SINGLEPLAYER_EXACT = {
     "tools/verify_upstream_singleplayer.py",
+    "tools/verify_stock_processor_editor.py",
+    "tools/verify_stock_command_orders.py",
     "tests/tools/test_verify_upstream_singleplayer.py",
 }
 

@@ -59,7 +59,7 @@ def verify_commands(log, proc, rpc, output):
 
 
 def replay(args, model, fixture, live, *, taps=TAPS, buttons=None,
-           verify_input=verify_commands, read_stock=read_stock_orders, prepare_server=None,
+           verify_input=verify_commands, read_stock=read_stock_orders, prepare_server=None, prepare_sd=None,
            button_durations=None, circle=None, offline_ready=r"UPSTREAM_SP_READY .*x=648\.0 y=208\.0",
            movie_seconds=102):
     azahar = sp.az.resolve_azahar_bin(args.azahar)
@@ -70,6 +70,8 @@ def replay(args, model, fixture, live, *, taps=TAPS, buttons=None,
     save = sd / "3ds/min3dstry/singleplayer-save.msav"
     save.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(fixture, save)
+    if prepare_sd is not None:
+        prepare_sd(save.parent)
     movie = output / "commands.ctm"
     if buttons is None:
         buttons = {0: sp.KEY_X, 94: sp.KEY_START} if live else {84: sp.KEY_SELECT, 94: sp.KEY_START}
