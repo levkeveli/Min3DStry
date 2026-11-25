@@ -28,7 +28,10 @@ SETUP = (
 )
 RESULT = (
     "const p=Vars.world.build(74,29), canvas=Vars.world.build(78,29), memory=Vars.world.build(78,27); "
-    f"if(String(p.code)!=={json.dumps(PROGRAM)} || p.executor.links.length!==2 "
+    "const asm=Packages.mindustry.logic.LAssembler; "
+    f"const instructions=asm.read({json.dumps(PROGRAM)},false); "
+    "instructions.add(instructions.peek().copy()); "
+    "if(String(p.code)!==String(asm.write(instructions)) || p.executor.links.length!==2 "
     "|| p.executor.links[0]!==canvas || p.executor.links[1]!==memory || canvas.getPixel(0)!==5) "
     "throw 'Edited source, stock links, or Canvas output differs'; "
     "return 'STOCK_PROCESSOR_EDITOR_RESULT source=exact links=2 canvas=5';"
@@ -38,6 +41,9 @@ TAPS = {
     38: (305, 64), 44: (56, 88), 50: (160, 81),
     58: (305, 64), 64: (56, 88), 70: (160, 106), 76: (160, 131),
     82: (120, 120), 88: (305, 64),
+    # Open the instruction list, copy the End statement, and apply the new program.
+    94: (305, 64), 100: (56, 88), 106: (160, 156),
+    114: (160, 156), 122: (160, 81), 130: (160, 56),
 }
 
 
@@ -64,6 +70,12 @@ def inspect_editor(log, proc, rpc, output):
     sp._wait_for_log(log, proc, r"UPSTREAM_PROCESSOR_EDIT x=74 y=29 bytes=[1-9]\d*", 40)
     sp._wait_for_log(log, proc, r"UPSTREAM_PROCESSOR_EXPORT file=logic-clipboard\.mlog", 35)
     sp._wait_for_log(log, proc, r"UPSTREAM_PROCESSOR_LINK x=78 y=27\b", 30)
+    sp._wait_for_log(log, proc, r"UPSTREAM_PROCESSOR_INSTRUCTIONS count=3\b", 35)
+    time.sleep(0.5)
+    (output / "processor-instructions.png").write_bytes(rpc.screenshot())
+    sp._wait_for_log(log, proc,
+                     r"(?s)UPSTREAM_PROCESSOR_INSTRUCTIONS count=3\b.*?UPSTREAM_PROCESSOR_EDIT x=74 y=29 bytes=[1-9]\d*",
+                     40)
     path = output / "sdmc/3ds/min3dstry/logic-clipboard.mlog"
     if path.read_text(encoding="utf-8") != PROGRAM:
         raise AssertionError("Exported processor program differs from the imported stock source")
@@ -86,8 +98,8 @@ def main():
     args.output.mkdir(parents=True, exist_ok=True)
     save = fixture(args)
     for live in (False, True):
-        buttons = {0: sp.KEY_X, 106: sp.KEY_START} if live else {96: sp.KEY_SELECT, 106: sp.KEY_START}
-        replay(args, "new3ds", save, live, taps=TAPS, buttons=buttons, movie_seconds=112,
+        buttons = {0: sp.KEY_X, 152: sp.KEY_START} if live else {142: sp.KEY_SELECT, 152: sp.KEY_START}
+        replay(args, "new3ds", save, live, taps=TAPS, buttons=buttons, movie_seconds=162,
                prepare_sd=setup_sd, verify_input=inspect_editor, read_stock=inspect_stock)
         print(f"UPSTREAM_PROCESSOR_EDITOR model=new3ds live={live} source=exact links=2 canvas=5", flush=True)
 

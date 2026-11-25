@@ -192,6 +192,7 @@ final class UpstreamBuildingConfig {
                     Vars.state.rules.logicUnitControl);
                 instructionsChanged = false;
                 showInstructions(LogicView.program);
+                System.out.println("UPSTREAM_PROCESSOR_INSTRUCTIONS count=" + instructionProgram.size());
             }
             default -> { }
         }
