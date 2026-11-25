@@ -37,7 +37,9 @@ int32_t m3ds_input_poll(void) {
            ((int32_t)((pressed & KEY_X) != 0) << 20) | ((int32_t)((pressed & KEY_Y) != 0) << 21) |
            ((int32_t)((pressed & KEY_SELECT) != 0) << 22) | ((int32_t)((keys & KEY_L) != 0) << 23) |
            ((int32_t)((keys & KEY_R) != 0) << 24) |
-           ((int32_t)((keys & KEY_X) != 0) << 25);
+           ((int32_t)((keys & KEY_X) != 0) << 25) |
+           ((int32_t)((pressed & KEY_CSTICK_UP) != 0) << 26) |
+           ((int32_t)((pressed & KEY_CSTICK_DOWN) != 0) << 27);
 }
 
 int32_t m3ds_input_touch(void) {

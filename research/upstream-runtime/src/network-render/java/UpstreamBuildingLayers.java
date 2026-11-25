@@ -57,8 +57,8 @@ final class UpstreamBuildingLayers {
     }
 
     void render(UpstreamTerrainDrawProbe.Viewport viewport, Team viewer, Predicate<Building> supported) {
-        int right = Math.min(viewport.left + UpstreamTerrainDrawProbe.VIEW_WIDTH, Vars.world.width());
-        int top = Math.min(viewport.bottom + UpstreamTerrainDrawProbe.VIEW_HEIGHT, Vars.world.height());
+        int right = Math.min(viewport.left + viewport.width(), Vars.world.width());
+        int top = Math.min(viewport.bottom + viewport.height(), Vars.world.height());
         boolean live = Vars.net != null && Vars.net.client();
         for (int y = viewport.bottom; y < top; y++) {
             for (int x = viewport.left; x < right; x++) {
@@ -120,8 +120,8 @@ final class UpstreamBuildingLayers {
     private static void drawPuddles(UpstreamTerrainDrawProbe.Viewport viewport) {
         float left = (viewport.left - 0.5f) * Vars.tilesize;
         float bottom = (viewport.bottom - 0.5f) * Vars.tilesize;
-        float right = left + UpstreamTerrainDrawProbe.VIEW_WIDTH * Vars.tilesize;
-        float top = bottom + UpstreamTerrainDrawProbe.VIEW_HEIGHT * Vars.tilesize;
+        float right = left + viewport.width() * Vars.tilesize;
+        float top = bottom + viewport.height() * Vars.tilesize;
         for (var entity : Groups.draw) {
             if (!(entity instanceof Puddle puddle) || puddle.tile == null || puddle.liquid == null) continue;
             float radius = puddle.clipSize() / 2f;

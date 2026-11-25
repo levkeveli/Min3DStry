@@ -106,6 +106,7 @@ public final class UpstreamBuildControlsReference {
         verifyStockOrders(unit);
         verifyStockCommandMenu(unit);
         verifyStockDragSelection(unit);
+        verifyCameraZoom(unit);
         verifyFactoryConfiguration(controls, unit);
         verifyStockLinks(unit);
         verifySchematicPlacement(unit);
@@ -189,6 +190,30 @@ public final class UpstreamBuildControlsReference {
             first.remove();
             second.remove();
         }
+    }
+
+    private static void verifyCameraZoom(Unit player) {
+        var controls = new UpstreamLiveBuildControls();
+        controls.update(player, UpstreamLiveBuildControls.ZOOM_IN_PRESSED, -1);
+        if (controls.consumeZoom() != 1) throw new AssertionError("C-Stick up must zoom in");
+        controls.update(player, UpstreamLiveBuildControls.ZOOM_OUT_PRESSED, -1);
+        if (controls.consumeZoom() != -1) throw new AssertionError("C-Stick down must zoom out");
+        if (controls.consumeZoom() != 0) throw new AssertionError("Zoom input must be consumed once");
+        if (UpstreamTerrainDrawProbe.clampZoom(9f) != 2f
+                || UpstreamTerrainDrawProbe.clampZoom(0.1f) != 0.5f
+                || UpstreamTerrainDrawProbe.zoomWidth(2f) != 8
+                || UpstreamTerrainDrawProbe.zoomHeight(2f) != 6
+                || UpstreamTerrainDrawProbe.zoomWidth(0.5f) != 32
+                || UpstreamTerrainDrawProbe.zoomHeight(0.5f) != 24) {
+            throw new AssertionError("Camera zoom clamp or span differs");
+        }
+        controls.viewport(73, 20, 8, 6);
+        controls.update(player, 0, touch(160, 112));
+        if (controls.cursorX() != 77 || controls.cursorY() != 23) {
+            throw new AssertionError("Zoomed touch grid did not map to the expected tile");
+        }
+        controls.update(player, 0, -1);
+        System.out.println("UPSTREAM_CAMERA_ZOOM_REFERENCE in=ok clamp=ok span=8x6..32x24 grid=77,23");
     }
 
     private static int selectOrderOption(UpstreamLiveBuildControls controls, Unit player, boolean stances, int id) {
