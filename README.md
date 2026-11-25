@@ -23,7 +23,7 @@ Run `./dev.sh doctor` for environment diagnostics, `./dev.sh test` for host unit
 
 ## Current development status
 
-The gauges above use the checked-in capability and gameplay ledgers. The gameplay ledger now tracks fresh Serpulo and Erekir campaign starts, the combined offline/server client, and the stock effects, ambience, and soundtrack in its Join path. Azahar replay covers those paths. The live audio replay used the missing-DSP fallback, so physical listening and the sustained 24 FPS hardware target remain open. See the [hardware test queue](docs/hardware-test-queue.md) for the remaining physical checks.
+The gauges above use the checked-in capability and gameplay ledgers. The gameplay ledger now tracks fresh Serpulo and Erekir campaign starts, the combined offline/server client, and the stock effects, ambience, and soundtrack in its Join and offline paths. Azahar replay covers those paths. The audio replays used the missing-DSP fallback, so physical listening and the sustained 24 FPS hardware target remain open. See the [hardware test queue](docs/hardware-test-queue.md) for the remaining physical checks.
 
 The **Mechanics & Feature Parity Gauge** weights each v160.8 feature by its current verification stage. The [mechanics ledger](docs/mechanics-parity.json) records the evidence and open work for each feature.
 
