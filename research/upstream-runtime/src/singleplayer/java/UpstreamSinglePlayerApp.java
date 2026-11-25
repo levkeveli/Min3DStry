@@ -568,12 +568,13 @@ public final class UpstreamSinglePlayerApp {
         var globe = new UpstreamCampaignGlobe(initial);
         var overlay = new UpstreamCampaignSectorOverlay();
         var grid = new UpstreamCampaignGrid();
+        var arcs = new UpstreamCampaignArcs();
         long openedAt = System.nanoTime();
         float cursorX = 200, cursorY = 120;
         MenuRows rows = null;
         Sector previous = null;
         Planet previousPlanet = null;
-        boolean gridLogged = false;
+        boolean gridLogged = false, arcsLogged = false;
 
         try {
             while (true) {
@@ -608,7 +609,7 @@ public final class UpstreamSinglePlayerApp {
                     return selected;
                 }
                 boolean planetChanged = previousPlanet != globe.planet();
-                if (planetChanged) gridLogged = false;
+                if (planetChanged) gridLogged = arcsLogged = false;
                 if (rows == null || previous != sector || planetChanged) {
                     String label = sector == null ? "" : " / " + Strings.stripColors(sector.name());
                     rows = encodeMenuRows(new String[]{
@@ -623,9 +624,12 @@ public final class UpstreamSinglePlayerApp {
                     }
                 }
                 float ticks = (System.nanoTime() - openedAt) * (60f / 1_000_000_000f);
-                overlay.update(globe.planet(), Vars.state.getSector(), sector, ticks);
+                Sector active = Vars.state.getSector();
+                overlay.update(globe.planet(), active, sector, ticks);
                 int sectorVertices = overlay.vertices.size / UpstreamCampaignSectorOverlay.FLOATS_PER_VERTEX;
                 int gridEdges = grid.append(globe.planet(), globe.projection, globe.gridCursor, overlay.vertices);
+                int gridVertices = overlay.vertices.size / UpstreamCampaignSectorOverlay.FLOATS_PER_VERTEX - sectorVertices;
+                int routeCount = arcs.append(globe.planet(), active, sector, ticks, overlay.vertices);
                 int overlayVertices = overlay.vertices.size / UpstreamCampaignSectorOverlay.FLOATS_PER_VERTEX;
                 // The 20x12 framing gives the globe the full 400x240 top screen.
                 target.begin(0, 0, 20, 12);
@@ -643,7 +647,12 @@ public final class UpstreamSinglePlayerApp {
                     if (!gridLogged && gridEdges > 0) {
                         gridLogged = true;
                         System.out.println("UPSTREAM_CAMPAIGN_SECTOR_GRID planet=" + globe.planet().name
-                            + " edges=" + gridEdges + " vertices=" + (overlayVertices - sectorVertices));
+                            + " edges=" + gridEdges + " vertices=" + gridVertices);
+                    }
+                    if (!arcsLogged && routeCount > 0) {
+                        arcsLogged = true;
+                        System.out.println("UPSTREAM_CAMPAIGN_SECTOR_ARCS planet=" + globe.planet().name
+                            + " routes=" + routeCount);
                     }
                     target.hudPanel(cursorX - 4, cursorY, 9, 1, -1);
                     target.hudPanel(cursorX, cursorY - 4, 1, 9, -1);

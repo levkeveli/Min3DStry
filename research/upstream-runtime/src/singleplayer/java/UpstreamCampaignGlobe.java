@@ -56,7 +56,7 @@ final class UpstreamCampaignGlobe {
 
     private void focus(Sector sector) {
         planet = sector.planet;
-        orbit.set(sector.tile.v).rotate(Vec3.Y, -planet.getRotation()).nor();
+        planet.lookAt(sector, orbit).nor();
     }
 
     Sector update(float cursorX, float cursorY) {

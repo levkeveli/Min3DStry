@@ -55,7 +55,7 @@ final class UpstreamCampaignSectorOverlay {
         }
     }
 
-    private static boolean canSelect(Sector sector) {
+    static boolean canSelect(Sector sector) {
         if (sector.planet.generator == null || sector.isShielded()) return false;
         if (sector.hasBase() || sector.id == sector.planet.startSector) return true;
         SectorPreset preset = sector.preset;

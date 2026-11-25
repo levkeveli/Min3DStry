@@ -56,8 +56,12 @@ both planets before launching The Onset. The grid draws the original
 from `Planet.renderSectors` and samples the stock fragment shader's distance
 falloff along one-pixel PICA triangles. The stock JVM reference checks the
 grid width, depth, and color under 540 camera and cursor positions per
-planet. Emulator evidence is pending. Projected icons and arcs,
-campaign-dependent terrain changes, emissive updates, and clouds remain open.
+planet. Launch routes, shield connections and invasion threats use the
+stock sector relationships and the quadratic curves from `Planet.drawArcLine`.
+The host reference compares the curve triangles and animated colors against
+the stock vertex strip for all three styles. Emulator evidence is pending.
+Sector icons, selected-sector export and import routes, campaign-dependent
+terrain changes, emissive updates, and clouds remain open.
 
 ## 1:1 Upstream Mandate
 

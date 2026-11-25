@@ -1,6 +1,7 @@
 import arc.Core;
 import arc.Settings;
 import arc.graphics.Color;
+import arc.graphics.Gl;
 import arc.graphics.g3d.VertexBatch3D;
 import arc.mock.MockGL20;
 import arc.struct.FloatSeq;
@@ -14,7 +15,9 @@ import mindustry.Vars;
 import mindustry.content.Planets;
 import mindustry.core.ContentLoader;
 import mindustry.core.GameState;
+import mindustry.game.Team;
 import mindustry.game.Universe;
+import mindustry.graphics.Pal;
 import mindustry.graphics.g3d.MeshBuilder;
 import mindustry.graphics.g3d.PlanetRenderer;
 import mindustry.net.Net;
@@ -59,8 +62,50 @@ public final class UpstreamCampaignGlobeReference {
         checkSectorGeometry(Planets.erekir.getStartSector());
         checkGrid(Planets.serpulo.getStartSector());
         checkGrid(Planets.erekir.getStartSector());
+        Sector serpuloStart = Planets.serpulo.getStartSector();
+        Sector erekirStart = Planets.erekir.getStartSector();
+        checkArc(serpuloStart, serpuloStart.near().first(), Pal.accent, new Color(Pal.accent).a(0f),
+            1f, 80f, 0.006f);
+        checkArc(erekirStart, erekirStart.near().first(), Team.crux.color, new Color(Team.crux.color).a(0.5f),
+            0.3f, 110f, 0.006f);
+        checkArc(serpuloStart, numbered, Team.crux.color, Color.clear, 0.24f, 110f, 0.005f);
+        System.out.println("UPSTREAM_CAMPAIGN_ARC_REFERENCE launch=true shield=true invasion=true");
         System.out.println("UPSTREAM_CAMPAIGN_GLOBE_REFERENCE serpulo=" + Planets.serpulo.startSector
             + " rotated=" + numbered.id + " erekir=" + Planets.erekir.startSector + " zoom=true");
+    }
+
+    private static void checkArc(Sector from, Sector to, Color head, Color tail,
+                                 float height, float period, float stroke) {
+        var port = new UpstreamCampaignArcs();
+        var original = new RecordingBatch();
+        var vertices = new FloatSeq();
+        float oldTime = Time.globalTime;
+        Time.globalTime = 123f;
+        try {
+            port.ribbon(from.planet, from.tile.v, to.tile.v, head, tail, height, period, stroke, Time.globalTime, vertices);
+            from.planet.drawArcLine(original, from.tile.v, to.tile.v, head, tail, height, period, 25, stroke);
+        } finally {
+            Time.globalTime = oldTime;
+            original.dispose();
+        }
+        int stride = UpstreamCampaignSectorOverlay.FLOATS_PER_VERTEX;
+        int[] trianglePair = {0, 1, 2, 2, 1, 3};
+        if (vertices.size != 25 * trianglePair.length * stride || original.vertices.size != 52 * stride
+            || original.primitive != Gl.triangleStrip) {
+            throw new AssertionError("Stock projection arc has an unexpected vertex layout");
+        }
+        for (int segment = 0; segment < 25; segment++) {
+            for (int i = 0; i < trianglePair.length; i++) {
+                for (int field = 0; field < stride; field++) {
+                    float expected = original.vertices.get((segment * 2 + trianglePair[i]) * stride + field);
+                    float actual = vertices.get((segment * trianglePair.length + i) * stride + field);
+                    if (Math.abs(expected - actual) > 0.000002f) {
+                        throw new AssertionError("Stock arc mismatch at segment " + segment + ", component " + field
+                            + " (" + actual + " vs " + expected + ")");
+                    }
+                }
+            }
+        }
     }
 
     private static void checkGrid(Sector start) {
@@ -201,6 +246,8 @@ public final class UpstreamCampaignGlobeReference {
 
     private static final class RecordingBatch extends VertexBatch3D {
         final FloatSeq vertices = new FloatSeq();
+        private final Color tint = new Color();
+        int primitive;
 
         RecordingBatch() {
             super(1, false, true, 0, null);
@@ -212,6 +259,21 @@ public final class UpstreamCampaignGlobeReference {
             record(ax, ay, az, color);
             record(bx, by, bz, color);
             record(cx, cy, cz, color);
+        }
+
+        @Override
+        public void color(Color color) {
+            tint.set(color);
+        }
+
+        @Override
+        public void vertex(Vec3 vertex) {
+            record(vertex.x, vertex.y, vertex.z, tint);
+        }
+
+        @Override
+        public void flush(int mode) {
+            primitive = mode;
         }
 
         private void record(float x, float y, float z, Color color) {
