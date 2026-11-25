@@ -23,9 +23,9 @@ ATLAS_SHA256 = "fcfb2171eed35b60e7a0d696b63943883a191e7f547ecfef372bd42d72675334
 PLAYER = "Min3DStry ARM11"
 NUMBER = r"-?\d+(?:\.\d+)?"
 # The unsplit v160.8 core at spawn on both Azahar profiles. These samples
-# straddle the source tile seams and stay clear of the player unit.
+# straddle the source tile seams and stay clear of the player and German HUD.
 CORE_PIXELS = {
-    (190, 65): (255, 210, 126), (190, 67): (255, 210, 126),
+    (202, 65): (255, 210, 126), (202, 67): (255, 210, 126),
     (231, 75): (152, 154, 164), (232, 75): (152, 154, 164), (233, 75): (176, 185, 192),
     (235, 145): (176, 185, 192), (235, 146): (176, 185, 192),
     (235, 147): (176, 185, 192), (235, 148): (152, 154, 164),
