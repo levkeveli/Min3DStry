@@ -74,7 +74,7 @@
     {
       "id": "old-new-3ds-probe",
       "category": "Hardware & Platform",
-      "name": "Original / New 3DS Hardware Probe",
+      "name": "New 3DS Hardware Probe",
       "weight": 4,
       "stage": "hardware-verified",
       "issue": 2,

@@ -74,12 +74,11 @@ upstream clips/music, live build-UI gameplay and cross-play remain open.
 Preserve those evidence files and do not re-queue cleared capabilities unless
 the evidence is invalidated.
 
-`old-new-3ds-probe` remains **hardware-verified** with both
-`old3ds-xl-a4a9a96.md` and `new3ds-xl-de3e249.md`.
+The hardware probe is **hardware-verified** on [New 3DS XL](hardware/evidence/new3ds-xl-de3e249.md).
 
 ## HWT-01 — Boot, storage, parity, memory and render baseline
 
-Covers the ARM11 build/probe, Old/New hardware detection, 64 MiB allocator,
+Covers the ARM11 build/probe, New 3DS hardware detection, application-memory allocator,
 worker scheduling, Citro2D scene, sprite atlas, world renderer, zoom/lighting
 and `.msav` round-trip.
 
@@ -108,7 +107,7 @@ sd:/3ds/min3dstry/sector-serpulo-170.msav   # tests/fixtures/glacier-v13.msav
 
 **Expected**
 
-- `HW:` reports the correct model/AppMem (`O3DS` `64 MiB`, `N3DS` `124 MiB`).
+- `HW:` reports `N3DS` and `124 MiB` application memory.
 - `STORAGE_ROUNDTRIP status=ok`, `SAVE_SLOT present=1 valid=1 version=13`.
 - `SECTOR_LOADER available=1 loaded=1 tiles=37500 buildings=2`.
 - `SECTOR_ALLOC hash=783fbd80e415dcd7`,

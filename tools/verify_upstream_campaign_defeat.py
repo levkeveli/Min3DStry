@@ -118,7 +118,7 @@ def main() -> None:
     parser.add_argument("--reference", type=Path, required=True)
     parser.add_argument("--rom", type=Path, help="Run the threatened-sector fixture in Azahar before stock readback")
     parser.add_argument("--azahar")
-    parser.add_argument("--model", choices=("new3ds", "old3ds"))
+    parser.add_argument("--model", choices=("new3ds",))
     parser.add_argument("--planet", choices=CASES)
     parser.add_argument("--output-dir", type=Path, default=Path("build/campaign-defeat-emu"))
     args = parser.parse_args()

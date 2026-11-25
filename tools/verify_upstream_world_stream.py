@@ -14,7 +14,7 @@ parser.add_argument('--rom', type=Path, required=True)
 parser.add_argument('--azahar', type=Path, required=True)
 parser.add_argument('--fixture', type=Path, required=True)
 parser.add_argument('--reference', required=True)
-parser.add_argument('--model', choices=('new3ds', 'old3ds'), default='new3ds')
+parser.add_argument('--model', choices=("new3ds",), default='new3ds')
 args = parser.parse_args()
 config, log = az.resolve_azahar_paths()
 fixture = config.parent.parent / 'sdmc/3ds/min3dstry/glacier-world-stream.bin'

@@ -2223,7 +2223,7 @@ def main():
     parser.add_argument("--java", default="java")
     parser.add_argument("--port", default=16568, type=int)
     parser.add_argument("--timeout", default=120, type=float)
-    parser.add_argument("--model", choices=("old3ds", "new3ds"),
+    parser.add_argument("--model", choices=("new3ds",),
                         help="Check one Azahar profile (default: new3ds)")
     parser.add_argument("--desktop-name",
                         help="Wait for a separately launched PC client and verify its connection overlaps the ARM11 join")

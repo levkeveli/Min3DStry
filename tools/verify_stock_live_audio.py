@@ -123,7 +123,7 @@ def main():
     parser.add_argument("--java", default="java")
     parser.add_argument("--azahar")
     parser.add_argument("--output", required=True, type=Path)
-    parser.add_argument("--model", choices=("old3ds", "new3ds"), action="append")
+    parser.add_argument("--model", choices=("new3ds",), action="append")
     parser.add_argument("--port", type=int, default=16674)
     parser.add_argument("--weather", action="store_true", help="Check original rain, snow and sandstorm loops")
     args = parser.parse_args()

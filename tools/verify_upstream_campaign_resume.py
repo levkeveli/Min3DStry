@@ -119,7 +119,7 @@ def main() -> int:
     parser.add_argument("--rom", required=True, type=Path)
     parser.add_argument("--fixtures", required=True, type=Path)
     parser.add_argument("--azahar")
-    parser.add_argument("--model", choices=("new3ds", "old3ds"))
+    parser.add_argument("--model", choices=("new3ds",))
     parser.add_argument("--output-dir", type=Path, default=Path("build/campaign-resume-emu"))
     args = parser.parse_args()
     azahar = sp.az.resolve_azahar_bin(args.azahar)

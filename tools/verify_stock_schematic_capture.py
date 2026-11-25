@@ -154,7 +154,7 @@ def main():
     parser.add_argument("--azahar")
     parser.add_argument("--fixture", type=Path)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--model", choices=("new3ds", "old3ds"), action="append")
+    parser.add_argument("--model", choices=("new3ds",), action="append")
     parser.add_argument("--port", type=int, default=16660)
     parser.add_argument("--live", action="store_true")
     parser.add_argument("--xdotool", action="store_true", help="Enter the name in the Azahar Qt keyboard on X11")

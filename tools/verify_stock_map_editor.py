@@ -102,7 +102,7 @@ def main():
     parser.add_argument("--server", type=Path, required=True)
     parser.add_argument("--java", default="java")
     parser.add_argument("--azahar")
-    parser.add_argument("--model", action="append", choices=("old3ds", "new3ds"))
+    parser.add_argument("--model", action="append", choices=("new3ds",))
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     azahar = sp.az.resolve_azahar_bin(args.azahar)

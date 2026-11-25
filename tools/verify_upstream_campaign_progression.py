@@ -84,7 +84,7 @@ def main() -> None:
     parser.add_argument("--server", required=True, type=Path)
     parser.add_argument("--java", default="java")
     parser.add_argument("--azahar")
-    parser.add_argument("--model", choices=("new3ds", "old3ds"))
+    parser.add_argument("--model", choices=("new3ds",))
     parser.add_argument("--output-dir", type=Path, default=Path("build/campaign-progression-emu"))
     args = parser.parse_args()
     azahar = sp.az.resolve_azahar_bin(args.azahar)

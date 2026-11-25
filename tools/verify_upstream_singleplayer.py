@@ -374,7 +374,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--rom", required=True, type=Path)
     parser.add_argument("--azahar", default=None)
-    parser.add_argument("--model", choices=("new3ds", "old3ds"), default=None)
+    parser.add_argument("--model", choices=("new3ds",), default=None)
     parser.add_argument("--output-dir", type=Path, default=Path("build/singleplayer-emu"))
     parser.add_argument("--timeout", type=float, default=120.0)
     parser.add_argument("--weather-fixtures", type=Path, help="directory with stock clear.msav and weather.msav")

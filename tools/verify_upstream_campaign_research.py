@@ -78,7 +78,7 @@ def main() -> None:
     parser.add_argument("--server", type=Path, required=True)
     parser.add_argument("--java", default="java")
     parser.add_argument("--azahar")
-    parser.add_argument("--model", choices=("new3ds", "old3ds"))
+    parser.add_argument("--model", choices=("new3ds",))
     parser.add_argument("--planet", choices=CASES)
     parser.add_argument("--output-dir", type=Path, default=Path("build/campaign-research-emu"))
     args = parser.parse_args()

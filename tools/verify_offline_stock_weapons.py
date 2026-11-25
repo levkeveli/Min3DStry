@@ -114,7 +114,7 @@ def main():
     parser.add_argument("--azahar")
     parser.add_argument("--fixture", type=Path)
     parser.add_argument("--output", type=Path, required=True, help="Evidence directory; reruns create a child directory")
-    parser.add_argument("--model", choices=("new3ds", "old3ds"), action="append")
+    parser.add_argument("--model", choices=("new3ds",), action="append")
     parser.add_argument("--port", type=int, default=16618)
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)

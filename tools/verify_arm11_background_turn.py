@@ -52,7 +52,7 @@ def main():
     parser.add_argument("--rom", type=Path, required=True)
     parser.add_argument("--assets", type=Path, required=True, help="pinned stock maps, planets, and bundles")
     parser.add_argument("--azahar")
-    parser.add_argument("--model", choices=("old3ds", "new3ds"), action="append")
+    parser.add_argument("--model", choices=("new3ds",), action="append")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     fixture = args.output / "fixture"

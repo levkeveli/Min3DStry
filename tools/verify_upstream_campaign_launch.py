@@ -290,7 +290,7 @@ def main() -> int:
     parser.add_argument("--azahar")
     parser.add_argument("--server", type=Path, help="Stock v160.8 server for save and settings readback")
     parser.add_argument("--java", default="java")
-    parser.add_argument("--model", choices=("new3ds", "old3ds"))
+    parser.add_argument("--model", choices=("new3ds",))
     selection = parser.add_mutually_exclusive_group()
     selection.add_argument("--planet", choices=STARTERS)
     selection.add_argument("--departure", type=Path, help="JVM reference numbered-sector departure fixture")

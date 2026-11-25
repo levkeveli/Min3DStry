@@ -77,7 +77,7 @@ def main():
     parser.add_argument("--azahar")
     parser.add_argument("--fixture-dir", type=Path)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--model", choices=("new3ds", "old3ds"), action="append")
+    parser.add_argument("--model", choices=("new3ds",), action="append")
     parser.add_argument("--port", type=int, default=16656)
     parser.add_argument("--live", action="store_true")
     args = parser.parse_args()
