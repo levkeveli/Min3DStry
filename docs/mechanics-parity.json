@@ -136,17 +136,18 @@
       "domain": "Extraction & Logistics",
       "name": "Power Grids, Generators, Nodes & Batteries",
       "weight": 3,
-      "status": "partial-arm11",
-      "modes": ["probe", "multiplayer"],
+      "status": "live-arm11",
+      "modes": ["probe", "offline", "multiplayer"],
       "issue": 39,
       "evidence": [
         "docs/porting/production-power-liquids.md",
         "research/upstream-runtime/src/gameplay/java/UpstreamProductionTickProbe.java",
         "research/upstream-runtime/src/network-render/java/UpstreamRenderedNetworkProbe.java",
         "research/upstream-runtime/src/network-render/java/UpstreamBuildingLayers.java",
+        "research/upstream-runtime/src/network-render/java/UpstreamBuildingPowerHud.java",
         "research/upstream-runtime/src/network-render/host/UpstreamBuildingLayersReference.java"
       ],
-      "notes": "PowerGraph and GraphUpdater ticks are verified in the ARM11 probe. The live draw set includes the complete stock PowerBlock family (generators, reactors, batteries, diodes and lights), and the host reference now asserts every member explicitly; PowerNode beams remain covered. A stock power HUD bar remains open."
+      "notes": "PowerGraph and GraphUpdater ticks are verified in the ARM11 probe. The live draw set includes the complete stock PowerBlock family (generators, reactors, batteries, diodes and lights), and the host reference now asserts every member explicitly; PowerNode beams remain covered. The stock selected-building power bar is wired in the offline and live clients from Block.setBars, with host checks for dry, partial, buffered and supplied-idle states; it is included in the New 3DS acceptance run."
     },
     {
       "id": "liquids-pumps-conduits",
