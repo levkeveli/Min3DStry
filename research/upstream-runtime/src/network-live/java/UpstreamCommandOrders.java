@@ -22,6 +22,8 @@ final class UpstreamCommandOrders {
     private final Rect touchBox = new Rect();
     private final UpstreamCommandMenu menu = new UpstreamCommandMenu();
     private boolean active, queued;
+    private boolean dragging;
+    private int dragStartX = -1, dragStartY = -1, dragEndX = -1, dragEndY = -1;
 
     void toggle() {
         active = !active;
@@ -34,6 +36,48 @@ final class UpstreamCommandOrders {
 
     void toggleQueue() {
         queued = !queued;
+    }
+
+    void press(int tileX, int tileY) {
+        dragStartX = dragEndX = tileX;
+        dragStartY = dragEndY = tileY;
+        dragging = true;
+    }
+
+    void drag(int tileX, int tileY) {
+        if (!dragging) press(tileX, tileY);
+        dragEndX = tileX;
+        dragEndY = tileY;
+    }
+
+    boolean dragging() {
+        return dragging;
+    }
+
+    void release() {
+        if (!dragging) return;
+        dragging = false;
+        if (Math.abs(dragEndX - dragStartX) > 1 || Math.abs(dragEndY - dragStartY) > 1) {
+            selectRect(dragStartX, dragStartY, dragEndX, dragEndY);
+        } else {
+            tap(dragStartX, dragStartY);
+        }
+    }
+
+    private void selectRect(int x1, int y1, int x2, int y2) {
+        if (Vars.player.dead() || Vars.state.isPaused()) return;
+        int minX = Math.min(x1, x2), maxX = Math.max(x1, x2);
+        int minY = Math.min(y1, y2), maxY = Math.max(y1, y2);
+        units.clear();
+        buildings.clear();
+        var team = Vars.player.team();
+        for (Unit unit : Groups.unit) {
+            if (!unit.isValid() || unit.team() != team || !unit.isCommandable()) continue;
+            if (unit.tileX() < minX || unit.tileX() > maxX || unit.tileY() < minY || unit.tileY() > maxY) continue;
+            units.add(unit);
+        }
+        Events.fire(Trigger.unitCommandChange);
+        System.out.println("UPSTREAM_COMMAND_SELECTION units=" + units.size + " buildings=0 drag=1");
     }
 
     boolean active() { return active; }
@@ -53,8 +97,7 @@ final class UpstreamCommandOrders {
     UpstreamCommandMenu menu() { return menu; }
     int activeMenuRows() { return menu.activeRows(units); }
 
-    void tap(int tileX, int tileY) {
-        var tile = Vars.world.tile(tileX, tileY);
+    void tap(int tileX, int tileY) {        var tile = Vars.world.tile(tileX, tileY);
         if (tile == null || Vars.player.dead() || Vars.state.isPaused()) return;
         prune();
         float x = tile.worldx(), y = tile.worldy();
@@ -134,6 +177,13 @@ final class UpstreamCommandOrders {
     void draw(UpstreamTerrainDrawProbe.Viewport viewport) {
         if (!active || Vars.player.dead()) return;
         prune();
+        if (dragging) {
+            float x = Math.min(dragStartX, dragEndX) * Vars.tilesize;
+            float y = Math.min(dragStartY, dragEndY) * Vars.tilesize;
+            float w = (Math.abs(dragEndX - dragStartX) + 1) * Vars.tilesize;
+            float h = (Math.abs(dragEndY - dragStartY) + 1) * Vars.tilesize;
+            Drawf.dashRect(Pal.accent, x, y, w, h);
+        }
         for (Unit unit : units) {
             if (viewport.contains(unit.tileX(), unit.tileY())) {
                 Drawf.poly(unit.x, unit.y, 6, unit.hitSize + Mathf.absin(4f, 1f), 0f, Pal.remove);
