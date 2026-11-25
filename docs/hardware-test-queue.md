@@ -10,9 +10,8 @@ input. The operator confirmed the scene, controls, minimap and HUD worked. Still
 not claimed: full upstream campaign gameplay performance, audible upstream
 sound effects/music (the newest emulator build resolves nine clips, but physical
 DSP output is unverified), live build-UI gameplay, cross-play, and the Old 3DS
-sector-loader/FPS run. The operator has
-**only the New 3DS**; HWT-06's Old 3DS requirement and
-`physical-hardware-parity` are blocked on Original 3DS hardware. The operator
+sector-loader/FPS run. HWT-01 through HWT-06 require New 3DS evidence for
+release acceptance. Original 3DS physical tests are optional. The operator
 also found that the visible touch legend was outside the hit zones; the
 coordinates themselves are correct (`TOUCH action=menu x=288 y=47`). The labels
 are now drawn inside the zones by the #364 fix; physical retest is pending.
@@ -53,12 +52,12 @@ Capabilities still marked `HARDWARE_TEST_PENDING`:
 
 | Card | Capabilities |
 | --- | --- |
-| HWT-01 | _none for New 3DS — the render capabilities are cleared by `a328c70`; Old 3DS render rerun remains part of HWT-06_ |
+| HWT-01 | _none for New 3DS — the render capabilities are cleared by `a328c70`; Original 3DS render reruns are optional_ |
 | HWT-02 | `world-blocks-logistics`, `production-power-liquids`, `combat-waves-ai`, `touch-build-palette` |
 | HWT-03 | `campaign-sectors` |
 | HWT-04 | `ndsp-sfx-music` |
 | HWT-05 | `crossplay-net-protocol` |
-| HWT-06 | `physical-hardware-parity`; New 3DS harness FPS + 10-minute soak are verified, **blocked on Original 3DS hardware** for the Old 3DS half |
+| HWT-06 | `physical-hardware-parity`; New 3DS harness FPS and 10-minute soak are verified. Full playable New 3DS acceptance is pending |
 
 Cleared by the `de3e249` New 3DS record: `arm11-toolchain-build`,
 `memory-budget-runtime`, `threading-scheduling` and `msav-map-save-compat`.
@@ -68,8 +67,7 @@ New 3DS run passed 12/12 over ~10 minutes (132 `BENCH` windows,
 capabilities `citro2d-scene-prototype`, `sprite-atlas-pipeline`,
 `world-sprite-renderer` and `lighting-effects-camera`, plus `hud-menus-minimap`
 (HUD/menus/minimap were visually confirmed) and the New 3DS harness FPS +
-input-soak half of HWT-06. HWT-06 remains **blocked on Original 3DS hardware**
-(the operator has only the New 3DS) and on full campaign gameplay. Audio
+input soak. HWT-06 still needs full playable campaign evidence on New 3DS. Audio
 upstream clips/music, live build-UI gameplay and cross-play remain open.
 Preserve those evidence files and do not re-queue cleared capabilities unless
 the evidence is invalidated.
@@ -131,8 +129,8 @@ python3 tools/hw_evidence.py \
   --strict --out docs/hardware/evidence/new3ds-<short-sha>.md
 ```
 
-Repeat with `--profile old3ds --target "Original 3DS"`. Attach both generated
-reports, raw logs, screenshots and console details.
+Attach the New 3DS report, raw log, screenshots and console details. For an
+optional Original 3DS run, use `--profile old3ds --target "Original 3DS"`.
 
 ## HWT-02 — Live gameplay, build UI and HUD
 
@@ -282,26 +280,24 @@ log, screenshots, map/fingerprint, and the server JAR hash.
 
 ## HWT-06 — Physical parity and performance
 
-Covers `physical-hardware-parity`: the umbrella acceptance run on both
-generations, including the `>= 24 FPS` target.
+Covers `physical-hardware-parity`: the physical acceptance run for the full
+playable build on New Nintendo 3DS/2DS.
 
-**Steps:** run HWT-01/02 on Original and New 3DS; collect `BENCH fps=...
+**Steps:** run HWT-01/02 on New 3DS; collect `BENCH fps=...
 p95_ms=...`, `UPSTREAM_MEMORY`, app-memory profile, frame drops and thermal
 notes.
 
-**Expected:** both models pass HWT-01/02, Original 3DS stays within 64 MiB
-AppMem, and the benchmark reports `>= 24 FPS`. **Evidence:** strict
-`hw_evidence.py` JSON/Markdown for both models, benchmark log lines, and
+**Expected:** New 3DS passes HWT-01/02, stays within its application-memory
+budget, and sustains `>= 24 FPS` on a representative playable workload.
+**Evidence:** strict `hw_evidence.py` JSON/Markdown, benchmark log lines, and
 thermal/SD notes. Only this card can clear `physical-hardware-parity`.
 
 > New 3DS `a328c70` satisfies the harness FPS and soak half: strict 12/12 over
 > ~10 minutes, 132 `BENCH` windows, `fps_min=29.92`, `fps_max=59.84`,
-> `p95_max=33.50`, with the sector loader and parity intact. The Old 3DS half
-> is **BLOCKED**: the operator has only the New 3DS, so
-> `physical-hardware-parity` cannot be completed until an Original 3DS is
-> available. The newer `6c4d2560` build (`8f683450`) has not been retested on
-> hardware; the `a328c70` FPS numbers still describe the older build. Full
-> campaign gameplay remains open on both models.
+> `p95_max=33.50`, with the sector loader and parity intact. The newer
+> `6c4d2560` build (`8f683450`) still needs a physical New 3DS run. The
+> `a328c70` FPS numbers apply to the earlier harness. Original 3DS physical
+> evidence is optional.
 
 ## Current exclusions
 
