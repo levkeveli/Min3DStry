@@ -1698,6 +1698,27 @@ behavior comes from pinned
 [`Blocks.java`](https://github.com/Anuken/Mindustry/blob/19a0f40d44514f4802a8b79770456e7e32e34da0/core/src/mindustry/content/Blocks.java)
 and [`GenericCrafter.java`](https://github.com/Anuken/Mindustry/blob/19a0f40d44514f4802a8b79770456e7e32e34da0/core/src/mindustry/world/blocks/production/GenericCrafter.java).
 
+### Replay stock crafting in a multiplayer client
+
+[Issue #701](https://github.com/levkeveli/Min3DStry/issues/701) uses a stock
+Silicon Smelter and Large Solar Panel on Glacier. The v160.8 Java server
+produces silicon from sand and coal, then the replay removes the inputs and
+waits for the smelter to cool. The fixture sends the authoritative initial,
+active and cooled building states through the stock connection. The initial
+state comes from WorldIO, and the active and cooled states use
+`NetServer.syncBuilding` / `blockSnapshot`. The replay samples the same
+building in all three New 3DS screenshots.
+
+The building lighting pass calls upstream `Building.drawLight` for visible
+emitters when the map enables lighting. Stock radial requests flow through
+the handheld additive sprite pass. The stock light buffer and its ambient
+compositing are tracked separately.
+
+```sh
+python3 tools/verify_stock_live_crafting.py --rom /path/to/upstream-probe.3dsx \
+  --server /path/to/server-release.jar --output build/live-crafting
+```
+
 ### Exercise upstream combat and the first Glacier wave
 
 [Issue #82](https://github.com/levkeveli/Min3DStry/issues/82) uses the same
