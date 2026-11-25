@@ -1045,7 +1045,7 @@ public final class UpstreamSinglePlayerApp {
         int id = ++benchmarkSequence;
         System.out.println("UPSTREAM_PLAYABLE_BENCH window=" + id + " frames=" + sample.frames()
             + " elapsed_ns=" + sample.durationNanos() + " fps=" + sample.fps()
-            + " p95_ns=" + sample.p95Nanos() + " heap_used=" + (committed - memory.freeMemory())
+            + " p95_ns=" + sample.p95Nanos() + " heap_free=" + memory.freeMemory()
             + " heap_committed=" + committed);
         System.out.println("UPSTREAM_PLAYABLE_LOAD window=" + id + " wave=" + Vars.state.wave
             + " enemies=" + enemies + " shooting_turrets=" + shootingTurrets

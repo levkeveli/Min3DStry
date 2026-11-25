@@ -23,6 +23,17 @@ class VerifyUpstreamSingleplayerTests(unittest.TestCase):
                 frame_count = struct.unpack_from("<Q", raw, 84)[0]
                 self.assertEqual(frame_count, expected_frames)
 
+    def test_benchmark_accepts_signed_gc_counter_and_checks_timing(self) -> None:
+        sample = (
+            "UPSTREAM_PLAYABLE_BENCH window=1 frames=9 elapsed_ns=5315782950 "
+            "fps=1.693071384714833 p95_ns=635119486 heap_free=-1955132 heap_committed=26447880\n"
+            "UPSTREAM_PLAYABLE_LOAD window=1 wave=1 enemies=0 shooting_turrets=0 "
+            "turret_projectiles=0 belt_items=0 camera_tile=121,49"
+        )
+        vsp.verify_playable_benchmark(sample)
+        with self.assertRaisesRegex(AssertionError, "inconsistent FPS"):
+            vsp.verify_playable_benchmark(sample.replace("fps=1.693071384714833", "fps=24"))
+
     def test_resolve_sd_save_path(self) -> None:
         log = Path("/home/user/.var/app/org.azahar_emu.Azahar/data/azahar-emu/log/azahar_log.txt")
         self.assertEqual(

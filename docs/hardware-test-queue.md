@@ -301,8 +301,10 @@ For the unified playable offline build, place an empty
 `sd:/3ds/min3dstry/benchmark.txt` on the SD card before launch. Capture
 `UPSTREAM_PLAYABLE_BENCH` and `UPSTREAM_PLAYABLE_LOAD` from the same log.
 Each window covers five seconds or 330 frame intervals and reports frame
-count, elapsed time, FPS, p95 frame time in nanoseconds, and managed heap
-usage. Match the window IDs to see the wave, live enemies, shooting turrets,
+count, elapsed time, FPS, p95 frame time in nanoseconds, managed heap size,
+and the raw TeaVM free-memory counter. The counter can be negative between
+collections. Use held heap size and separate application-memory evidence
+for budget checks, and derive used heap only when free is within bounds. Match the window IDs to see the wave, live enemies, shooting turrets,
 turret projectiles, belt cargo, and camera tile at the end of the window.
 Use the `UPSTREAM_SP_LOADED` line for map provenance and record the exact ROM
 and save checksums. Confirm cargo is moving during the run and capture the
@@ -322,18 +324,19 @@ without ending the run immediately. The generator reopens the save
 with the stock server and prints its SHA-256. Stage the generated files in a
 test SD directory and select the save from the title. Confirm enemies, turret
 projectiles, and moving items coexist through the run. This fixture's gameplay
-throughput and sustained load still need New 3DS validation.
+throughput and sustained load still need physical New 3DS validation.
 
 The New 3DS Azahar Ground Zero script checks the trace format and timing
-arithmetic. Physical high-load measurement is required to advance either
+arithmetic. The stock workload replay additionally requires at least 20 live
+enemies, firing turrets, turret projectiles, and conveyor cargo at the same
+sample. The offline smoke artifact includes the exact save, log, and screenshot. Physical high-load measurement is required to advance either
 gauge.
 
 > New 3DS `a328c70` satisfies the harness FPS and soak half: strict 12/12 over
 > ~10 minutes, 132 `BENCH` windows, `fps_min=29.92`, `fps_max=59.84`,
 > `p95_max=33.50`, with the sector loader and parity intact. The newer
 > `afca650c` build (`99c7fd6b`) still needs a physical New 3DS run. The
-> `a328c70` FPS numbers apply to the earlier harness. Original 3DS physical
-> evidence is optional.
+> `a328c70` FPS numbers apply to the earlier harness.
 
 ## Current exclusions
 

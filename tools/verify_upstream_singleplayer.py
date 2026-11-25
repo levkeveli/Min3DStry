@@ -224,7 +224,7 @@ def _launch_azahar(
 def verify_playable_benchmark(log: str) -> None:
     pattern = (
         r"UPSTREAM_PLAYABLE_BENCH window=(\d+) frames=(\d+) elapsed_ns=(\d+)"
-        r" fps=(\S+) p95_ns=(\d+) heap_used=(\d+) heap_committed=(\d+)"
+        r" fps=(\S+) p95_ns=(\d+) heap_free=(-?\d+) heap_committed=(\d+)"
     )
     samples = re.findall(pattern, log)
     loads = re.findall(
@@ -235,15 +235,18 @@ def verify_playable_benchmark(log: str) -> None:
         raise AssertionError("Playable benchmark is missing complete, sequential frame windows")
     if loads != [sample[0] for sample in samples]:
         raise AssertionError("Playable benchmark has missing or unpaired workload observations")
-    for index, frames, elapsed, fps, p95, used, committed in samples:
-        frames, elapsed, p95, used, committed = map(int, (frames, elapsed, p95, used, committed))
-        if not (0 < frames <= 330 and 0 < p95 <= elapsed and 0 <= used <= committed):
+    invalid_free_samples = 0
+    for index, frames, elapsed, fps, p95, free, committed in samples:
+        frames, elapsed, p95, free, committed = map(int, (frames, elapsed, p95, free, committed))
+        if not 0 <= free <= committed:
+            invalid_free_samples += 1
+        if not (0 < frames <= 330 and 0 < p95 <= elapsed and committed > 0):
             raise AssertionError(f"Playable benchmark window {index} is invalid")
         if elapsed < 5_000_000_000 and frames != 330:
             raise AssertionError(f"Playable benchmark window {index} ended early")
         if not (abs(float(fps) - frames * 1e9 / elapsed) < 0.001):
             raise AssertionError(f"Playable benchmark window {index} has inconsistent FPS")
-    print(f"UPSTREAM_PLAYABLE_BENCH_CHECK windows={len(samples)}")
+    print(f"UPSTREAM_PLAYABLE_BENCH_CHECK windows={len(samples)} invalid_heap_free={invalid_free_samples}")
 
 
 def run_singleplayer_model(
