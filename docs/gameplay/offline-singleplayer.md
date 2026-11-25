@@ -952,16 +952,14 @@ original processor range and permission checks. The same stock
 configuration path applies edits offline and sends the original
 configured bytes to a Java v160.8 server in multiplayer.
 
-The stock Java reference checks exact source, preserved links, execution
-against Canvas, and both input size limits. Handheld UI, save round-trip,
-and stock Java server configuration replays still need New 3DS evidence.
-
-In the [New 3DS source and link replay](https://github.com/levkeveli/Min3DStry/actions/runs/45697297402/artifacts/15062513494),
-the unmodified Java server verified the submitted source, both stock links,
-and Canvas pixel 5 in the live session and after reopening the offline save.
-The run used port revision 323d5d2. The instruction-list replay extends that
-test with a stock End instruction duplication and checks the complete edited
-program through both Java paths.
+The stock Java reference checks source, preserved links, Canvas execution,
+and input size limits. The [New 3DS instruction editor replay](https://github.com/levkeveli/Min3DStry/actions/runs/45709866541/artifacts/15067988612)
+at `28391b1` captured the processor configuration and instruction lists in
+both modes. It exercised file import, a fresh export, stock link toggling,
+duplication of an End instruction, and Apply. The unmodified v160.8 Java
+server verified the resulting source byte for byte, both links, and Canvas
+pixel 5 in the live session and after reopening the offline save. Physical
+hardware verification and the full desktop visual editor remain open.
 
 ## Original Canvas and Logic Displays
 
