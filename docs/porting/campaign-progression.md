@@ -6,6 +6,37 @@ and capture progress. The [graphical gameplay verification](../gameplay/offline-
 records the individual scenarios. The broader campaign interface and
 progression matrix remain under [#41](https://github.com/levkeveli/Min3DStry/issues/41).
 
+## Original campaign planet meshes
+
+The planet-map work in [#693](https://github.com/levkeveli/Min3DStry/issues/693)
+uses the mesh loaders configured by Mindustry v160.8 for Serpulo and Erekir.
+The host exporter invokes those loaders from the unmodified desktop JAR.
+It supplies Arc's headless GL object for buffer handles and keeps the original
+positions, float normals, packed color and emissive attributes, and unsigned
+16-bit triangle indices. Stock ContentLoader reads the bundled block palette.
+
+```sh
+mkdir -p build/planet-mesh-reference/classes
+javac -cp "$DESKTOP_JAR" -d build/planet-mesh-reference/classes tools/UpstreamCampaignPlanetMeshes.java
+java -cp "build/planet-mesh-reference/classes:$DESKTOP_JAR" \
+  mindustry.graphics.g3d.UpstreamCampaignPlanetMeshes build/planet-mesh-reference/data
+```
+
+Each generated file has a four-byte `M3PM` signature, four little-endian
+32-bit values (format version 1, float stride, vertex count and index count),
+then the original vertex words followed by the original 16-bit index words.
+Two independent clean-state JVM runs on the checksum-pinned desktop release
+produced these byte-identical results.
+
+| Planet | Vertices | Indices | SHA-256 |
+| --- | ---: | ---: | --- |
+| Serpulo | 43,740 | 87,468 | `86f8de68d03357c80e2e5d868798218ab8cf2863bf81e4e3f7ac51bb3f7d032e` |
+| Erekir | 14,580 | 29,148 | `fe8a1ef5e0a042f402261b27e967f2fac1d24190a6e1405bab4273f47220a892` |
+
+The reference captures the stock surfaces at a fresh campaign state.
+The ARM11 globe still needs the renderer, live campaign-dependent surface
+and emissive updates, and the original sector overlays and selection.
+
 ## 1:1 Upstream Mandate
 
 Per [AGENTS.md](../../AGENTS.md) and [the upstream port plan](../upstream-port.md), Min3DStry preserves exact 1:1 compatibility with unmodified Java PC Mindustry `v160.8` rather than introducing custom save schemas or progression subsets:
