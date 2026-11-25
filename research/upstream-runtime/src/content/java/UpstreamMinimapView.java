@@ -68,6 +68,16 @@ public final class UpstreamMinimapView {
         clampPan();
     }
 
+    /** Maps a world X coordinate into the drawn map rectangle. */
+    public static float screenX(float worldX, float worldWidth, float mapX, float mapSize) {
+        return mapX + (worldX / worldWidth) * mapSize;
+    }
+
+    /** Maps a world Y coordinate into the drawn map rectangle (world Y is up). */
+    public static float screenY(float worldY, float worldHeight, float mapY, float mapSize) {
+        return mapY + (1f - worldY / worldHeight) * mapSize;
+    }
+
     /** Moves the view by screen pixels; callers pass input-axis scaled deltas. */
     public void move(float dx, float dy) {
         panX += dx;

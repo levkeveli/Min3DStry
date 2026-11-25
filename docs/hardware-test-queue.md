@@ -173,8 +173,8 @@ and waves, touch palette/rotation, HUD/menus/minimap.
 - The top-right minimap shows the sector terrain, marks the local player with a
   white dot, and follows the player as they move.
 - `R` opens the fullscreen map over the HUD; the circle pad/d-pad pans it, `X`
-  and `Y` zoom out/in between 1x and 4x, and `B` or `R` closes it without
-  moving the player.
+  and `Y` zoom out/in between 1x and 4x, team-colored unit icons are visible,
+  and `B` or `R` closes it without moving the player.
 - The core item list shows one icon-and-count row per stocked item and wraps
   into columns without covering the minimap.
 - With `Show Player Position` enabled, the player's tile coordinates appear

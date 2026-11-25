@@ -37,7 +37,8 @@ off and a campaign sector is active;
   text and a total-health fill, shown only while wave rules are active;
 - a fullscreen minimap view on `R`: the same stock sampled texture over a dark
   backdrop, scaled from 240 px to 960 px with circle-pad/d-pad panning and
-  X/Y zoom (1x to 4x), closed with `R` or `B`;
+  X/Y zoom (1x to 4x), stock unit icons tinted by team (bounded to 200 and
+  fog-filtered), closed with `R` or `B`;
 - a live minimap rendered from a 64x64 sample at 56 px in the top-right
   corner, using the stock `MinimapRenderer` color path (`Block.minimapColor`,
   floor/overlay fallback through `MapIO.colorFor`, darkness and liquid/shadow
@@ -137,6 +138,7 @@ status-hud host probe:
 UPSTREAM_CORE_ITEM_FORMAT text=12k cases=9 ok
 UPSTREAM_CORE_ITEMS rows=2 ok
 UPSTREAM_MINIMAP_VIEW cases=5 ok
+UPSTREAM_MINIMAP_VIEW_ENTITIES cases=4 ok
 UPSTREAM_SETTINGS_POSITION ok
 UPSTREAM_PAUSE_MENU cases=22 ok
 UPSTREAM_BOSS_BAR cases=4 ok
@@ -149,8 +151,9 @@ wave rules, three bosses at `2500/3000` health, and the six-emoji cap with the
 host probe only checks the collected text and health fraction.
 
 The fullscreen view state covers the open/close flag, the 1x..4x zoom clamps,
-pan clamping and reset. Its on-device rendering, pan and zoom are **not
-verified** yet; the host probe checks the view math only.
+pan clamping, reset and world-to-map entity coordinates. Its on-device
+rendering of the map, unit icons, pan and zoom are **not verified** yet; the
+host probe checks the view math and the icon cap/fog gate only.
 
 The Azahar verifier can seed a deterministic core inventory through
 `/3ds/min3dstry/hud-items.txt` and assert that every requested row was drawn:
