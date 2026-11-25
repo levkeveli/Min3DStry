@@ -10,6 +10,8 @@ int32_t m3ds_live_net_ping(const void *host, int32_t length, int32_t port);
 int32_t m3ds_live_net_stream_total(void);
 int32_t m3ds_live_net_stream_type(void);
 int32_t m3ds_live_net_packet_id(void);
+int32_t m3ds_live_net_discovery_start(int32_t port, const char *group, int32_t multicast_port);
+int32_t m3ds_live_net_discovery_read(void *packet, int32_t capacity, uint8_t *peer);
 int32_t m3ds_live_net_receive(void *payload, int32_t capacity, int32_t reliable, int32_t timeout_ms);
 int32_t m3ds_live_net_send(const void *payload, int32_t length, int32_t packet_id, int32_t reliable);
 int32_t m3ds_live_net_keep_alive(int32_t reliable);
