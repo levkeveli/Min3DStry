@@ -83,6 +83,7 @@ def replay(args, model, fixture, live):
     sd = (output / "sdmc").resolve()
     save = sd / "3ds/min3dstry/singleplayer-save.msav"
     save.parent.mkdir(parents=True)
+    sp.stage_direct_startup(sd)
     shutil.copyfile(fixture, save)
     movie = output / "inventory.ctm"
     buttons = {0: sp.KEY_X, 93: sp.KEY_START} if live else {84: sp.KEY_SELECT, 93: sp.KEY_START}

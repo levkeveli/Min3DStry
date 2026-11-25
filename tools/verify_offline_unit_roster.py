@@ -62,6 +62,7 @@ def verify_model(output, model, rom, azahar, save):
     sd = (output / "sdmc").resolve()
     target_save = sd / "3ds/min3dstry/singleplayer-save.msav"
     target_save.parent.mkdir(parents=True)
+    singleplayer.stage_direct_startup(sd)
     shutil.copyfile(save, target_save)
     config.parent.mkdir(parents=True, exist_ok=True)
     storage = {"Data Storage": {"use_custom_storage": "true", "sdmc_directory": sd.as_posix() + "/"}}

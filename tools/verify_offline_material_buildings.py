@@ -81,6 +81,7 @@ def capture(output, model, save, rom, azahar, reference=None, buildings=BUILDING
     sd = (output / "sdmc").resolve()
     sd_save = sd / "3ds/min3dstry/singleplayer-save.msav"
     sd_save.parent.mkdir(parents=True)
+    singleplayer.stage_direct_startup(sd)
     shutil.copyfile(save, sd_save)
 
     config, log = singleplayer.az.resolve_azahar_paths(azahar)

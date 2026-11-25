@@ -127,6 +127,7 @@ def replay(args, model, fixture):
     sd = (output / "sdmc").resolve()
     save = sd / "3ds/min3dstry/singleplayer-save.msav"
     save.parent.mkdir(parents=True)
+    sp.stage_direct_startup(sd)
     shutil.copyfile(fixture, save)
     movie = output / "factory.ctm"
     write_movie(movie, model, live=args.live)

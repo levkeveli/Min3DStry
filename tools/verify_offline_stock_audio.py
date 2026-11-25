@@ -52,6 +52,7 @@ def replay(args, model, azahar, config, log, fixture):
     sd = (output / "virtual-sd").resolve()
     saves = sd / "3ds/min3dstry/saves"
     saves.mkdir(parents=True)
+    sp.stage_direct_startup(sd)
     shutil.copyfile(fixture, saves / SLOT)
     movie = output / "stock-offline-audio.ctm"
     write_input_replay(movie, model, [(100, 102, sp.KEY_START)], 100, b"Min3DStry Offline Audio")

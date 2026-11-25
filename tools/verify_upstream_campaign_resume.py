@@ -47,6 +47,7 @@ def verify(model: str, rom: Path, azahar: str, config: Path, log: Path,
             sd_root = sd / "3ds/min3dstry"
             saves = sd_root / "saves"
             saves.mkdir(parents=True)
+            sp.stage_direct_startup(sd)
             zero = saves / "sector-serpulo-170.msav"
             forest = sd_root / "sector-serpulo-64.msav"
             selected = forest if multiple else zero
