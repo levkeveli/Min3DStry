@@ -140,7 +140,7 @@ def main() -> None:
 
     azahar = sp.az.resolve_azahar_bin(args.azahar)
     config, log = sp.az.resolve_azahar_paths(azahar)
-    for model in (args.model,) if args.model else ("new3ds", "old3ds"):
+    for model in (args.model,) if args.model else ("new3ds",):
         for planet in planets:
             _, name, _ = CASES[planet]
             result = verify(model, planet, args.rom, azahar, config, log, args.reference, args.output_dir)

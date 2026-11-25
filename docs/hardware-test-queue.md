@@ -131,8 +131,7 @@ python3 tools/hw_evidence.py \
   --strict --out docs/hardware/evidence/new3ds-<short-sha>.md
 ```
 
-Attach the New 3DS report, raw log, screenshots and console details. For an
-optional Original 3DS run, use `--profile old3ds --target "Original 3DS"`.
+Attach the New 3DS report, raw log, screenshots and console details.
 
 ## HWT-02 — Live gameplay, build UI and HUD
 

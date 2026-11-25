@@ -14,6 +14,7 @@ parser.add_argument('--rom', type=Path, required=True)
 parser.add_argument('--azahar', type=Path, required=True)
 parser.add_argument('--fixture', type=Path, required=True)
 parser.add_argument('--reference', required=True)
+parser.add_argument('--model', choices=('new3ds', 'old3ds'), default='new3ds')
 args = parser.parse_args()
 config, log = az.resolve_azahar_paths()
 fixture = config.parent.parent / 'sdmc/3ds/min3dstry/glacier-world-stream.bin'
@@ -26,7 +27,7 @@ try:
     contents = args.fixture.read_bytes()
     fixture.write_bytes(contents)
     print('Fixture SHA-256:', hashlib.sha256(contents).hexdigest(), flush=True)
-    for model in ('old3ds', 'new3ds'):
+    for model in (args.model,):
         overrides = {
             'Miscellaneous': {'log_filter': '*:Info Debug.Emulated:Debug', 'check_for_update_on_start': 'false'},
             'Debugging': {'enable_rpc_server': 'true', 'instant_debug_log': 'true'},

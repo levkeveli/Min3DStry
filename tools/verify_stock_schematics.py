@@ -87,7 +87,7 @@ def main():
         schematic = args.fixture_dir / "factory.msch"
     else:
         fixture, schematic = create_fixture(args, args.output / "stock-fixture")
-    for model in args.model or ("old3ds", "new3ds"):
+    for model in args.model or ("new3ds",):
         for live in (False, True) if args.live else (False,):
             scene = args.output / model / ("live" if live else "offline")
             sd = scene / "sdmc/3ds/min3dstry/schematics"

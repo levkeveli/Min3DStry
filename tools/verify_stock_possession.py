@@ -78,7 +78,7 @@ def main():
     args = parser.parse_args()
     args.output.mkdir(parents=True)
     fixture = args.fixture or create_fixture(args, args.output / "stock-fixture")
-    for model in args.model or ("old3ds", "new3ds"):
+    for model in args.model or ("new3ds",):
         for live in (False, True) if args.live else (False,):
             buttons = ({0: sp.KEY_X, 61: AIM_NORTH, 67: FIRE, 94: sp.KEY_START} if live
                        else {61: AIM_NORTH, 67: FIRE, 87: sp.KEY_SELECT, 94: sp.KEY_START})

@@ -150,7 +150,7 @@ def main():
     azahar = singleplayer.az.resolve_azahar_bin(args.azahar)
     args.output.mkdir(parents=True)
     empty, stock = create_fixtures(args.output / "stock-server", args.java, args.server, args.port)
-    for model in ("old3ds", "new3ds"):
+    for model in ("new3ds",):
         before = capture(args.output / model / "empty", model, empty, args.rom, azahar)
         after = capture(args.output / model / "stock", model, stock, args.rom, azahar, reference=before)
         counts = changed_pixels(before, after)

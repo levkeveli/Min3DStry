@@ -1,6 +1,6 @@
 # Min3DStry Citro2D Rendering Prototype
 
-Status: **Experimental** (`host-tested`, `3ds-build-tested`, `emulator-tested` via Azahar `2126.2`; `old3ds-hardware-tested` / `new3ds-hardware-tested`: pending).
+Status: **Experimental** (`host-tested`, `3ds-build-tested`, `emulator-tested` via Azahar `2126.2`; `new3ds-hardware-tested`: pending).
 
 ## Purpose
 

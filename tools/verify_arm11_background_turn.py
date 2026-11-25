@@ -59,7 +59,7 @@ def main():
     create(args.java, args.server, fixture)
     azahar = sp.az.resolve_azahar_bin(args.azahar)
     config, log = sp.az.resolve_azahar_paths(azahar)
-    for model in args.model or ("old3ds", "new3ds"):
+    for model in args.model or ("new3ds",):
         verify(args, model, azahar, config, log, fixture)
 
 

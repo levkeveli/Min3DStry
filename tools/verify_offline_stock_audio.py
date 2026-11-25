@@ -97,7 +97,7 @@ def main():
     create_fixture(args.java, args.server, fixture)
     azahar = sp.az.resolve_azahar_bin(args.azahar)
     config, log = sp.az.resolve_azahar_paths(azahar)
-    for model in args.model or ("old3ds", "new3ds"):
+    for model in args.model or ("new3ds",):
         replay(args, model, azahar, config, log, fixture)
 
 

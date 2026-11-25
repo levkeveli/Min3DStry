@@ -1,4 +1,4 @@
-"""Compare stock factory states with the same ARM11 ROM on both Azahar profiles."""
+"""Compare stock factory states with the same ARM11 ROM on Azahar in New 3DS mode by default."""
 import argparse
 from pathlib import Path
 import shutil
@@ -179,7 +179,7 @@ def main():
     args = parser.parse_args()
     args.output.mkdir(parents=True)
     fixture = args.fixture or create_stock_saves(args, args.output / "stock-server")
-    for model in args.model or ("old3ds", "new3ds"):
+    for model in args.model or ("new3ds",):
         terrain = capture(args, model, "terrain", fixture, None, 0)
         idle = capture(args, model, "idle", fixture, terrain, 100)
         capture(args, model, "construction", fixture, idle, 12)

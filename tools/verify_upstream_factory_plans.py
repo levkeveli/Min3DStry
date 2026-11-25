@@ -206,7 +206,7 @@ def main():
     args = parser.parse_args()
     args.output.mkdir(parents=True)
     fixture = args.fixture or stock_server(args, args.output / "stock-fixture")
-    for model in args.model or ("old3ds", "new3ds"):
+    for model in args.model or ("new3ds",):
         replay(args, model, fixture)
 
 

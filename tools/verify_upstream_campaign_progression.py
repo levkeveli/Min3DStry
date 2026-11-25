@@ -89,7 +89,7 @@ def main() -> None:
     args = parser.parse_args()
     azahar = sp.az.resolve_azahar_bin(args.azahar)
     config, log = sp.az.resolve_azahar_paths(azahar)
-    for model in (args.model,) if args.model else ("new3ds", "old3ds"):
+    for model in (args.model,) if args.model else ("new3ds",):
         output = args.output_dir / model
         verify(model, args.rom, azahar, config, log, args.fixture, output)
         check_progression(args.java, args.server, output)

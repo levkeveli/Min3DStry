@@ -34,7 +34,7 @@
 
 - Prefer automated repeatable commands over manual chores. Maintain `./dev.sh doctor|build|test|emu-test|run|device|package|status` where supported; unimplemented commands must fail clearly.
 - Preserve a host-platform build/test path for shared game logic; keep 3DS-specific code behind interfaces.
-- Use `./dev.sh emu-test` (`tools/verify_azahar.py`) to autonomously boot `.3dsx` builds in Azahar across Old and New 3DS modes, collect `svcOutputDebugString` logs + UDP RPC perf stats, and inspect captured PNG screenshots directly.
+- Use `./dev.sh emu-test` (`tools/verify_azahar.py`) to autonomously boot `.3dsx` builds in Azahar using New 3DS mode, collect `svcOutputDebugString` logs + UDP RPC perf stats, and inspect captured PNG screenshots directly.
 - Cache toolchains and converted assets; support incremental builds and rapid real-hardware deployment/log collection where feasible.
 - Implement deterministic upstream-versus-port simulation comparisons and game/network protocol regression tests.
 - Track benchmark provenance: model, firmware, build commit, test scenario, memory, FPS and frame times.

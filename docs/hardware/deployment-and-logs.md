@@ -54,11 +54,11 @@ Listen on a host TCP port for streamed diagnostic output and format a Markdown s
 
 ### 4. Hardware Budget & Performance Benchmark Report (`#43`)
 
-Validate streamed Original or New 3DS logs against the target hardware model (`O3DS` `64 MiB` vs `N3DS` `124 MiB`), the `>= 24 FPS` / frame-time target (`[MIN3DSTRY] BENCH fps=... p95_ms=...`), `UPSTREAM_MEMORY` / `[MIN3DSTRY] MEM` bounds, and parity trace hash:
+Validate streamed New 3DS harness logs against its 124 MiB application-memory budget, the `>= 24 FPS` / frame-time target (`[MIN3DSTRY] BENCH fps=... p95_ms=...`), `UPSTREAM_MEMORY` / `[MIN3DSTRY] MEM` bounds, and parity trace hash:
 ```bash
 ./dev.sh device benchmark-report --input build/device-logs/capture.log \
-  --commit "$(git rev-parse --short HEAD)" --target "Original 3DS" \
-  --profile old3ds --min-fps 24 --expected-hash 0x53a483c7 --strict
+  --commit "$(git rev-parse --short HEAD)" --target "New 3DS XL" \
+  --profile new3ds --min-fps 24 --expected-hash 0x53a483c7 --strict
 ```
 
 The platform test harness emits
@@ -66,7 +66,7 @@ The platform test harness emits
 after every 256 rendered frames. A missing `BENCH` record fails the
 `frame_rate` check. Use `--format json` for structured metrics or
 `--load-bytes <elf_load_bytes>` to check
-`LOAD + linearHeap + stack + managedLimit` against `64 MiB` / `124 MiB`.
+`LOAD + linearHeap + stack + managedLimit` against 124 MiB.
 For older logs, the check uses a 24 MiB managed-heap estimate.
 
 ### 5. Checked Hardware Evidence (`./dev.sh device evidence`)

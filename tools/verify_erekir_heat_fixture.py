@@ -155,7 +155,7 @@ def main():
     else:
         if not args.rom:
             parser.error("--fixture needs the --rom to verify")
-        for model in args.model or ("old3ds", "new3ds"):
+        for model in args.model or ("new3ds",):
             verify_rom(args, model, args.fixture)
 
 

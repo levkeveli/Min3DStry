@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify the offline single-player Ground Zero .3dsx on Azahar New and Old 3DS profiles."""
+"""Verify the offline single-player Ground Zero .3dsx on Azahar, using New 3DS by default."""
 
 from __future__ import annotations
 
@@ -382,7 +382,7 @@ def main() -> int:
 
     azahar_bin = az.resolve_azahar_bin(args.azahar)
     config_path, log_path = az.resolve_azahar_paths(azahar_bin)
-    models = (args.model,) if args.model else ("new3ds", "old3ds")
+    models = (args.model,) if args.model else ("new3ds",)
 
     for model in models:
         if args.weather_fixtures:

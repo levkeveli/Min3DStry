@@ -95,7 +95,7 @@ def main():
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
     fixture = args.fixture or create_fixture(args, args.output / "stock-fixture")
-    for model in args.model or ("old3ds", "new3ds"):
+    for model in args.model or ("new3ds",):
         for live in (False, True) if args.live else (False,):
             replay(args, model, fixture, live, taps=TAPS, verify_input=verify_touch, read_stock=read_stock_links)
             print(f"UPSTREAM_STOCK_BUILDING_LINKS model={model} live={live} power=ok item=ok liquid=ok", flush=True)

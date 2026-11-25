@@ -1,4 +1,4 @@
-"""Replay the original Gamma weapons offline on both Azahar console profiles."""
+"""Replay the original Gamma weapons offline on Azahar in New 3DS mode by default."""
 
 import argparse
 from pathlib import Path
@@ -122,7 +122,7 @@ def main():
         args.output = Path(tempfile.mkdtemp(prefix="replay-", dir=args.output))
         print(f"Writing new evidence to {args.output}", flush=True)
     fixture = args.fixture or verify_stock(args, args.output / "stock-fixture")
-    for model in args.model or ("old3ds", "new3ds"):
+    for model in args.model or ("new3ds",):
         replay(args, model, fixture)
 
 

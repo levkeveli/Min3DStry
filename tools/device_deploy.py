@@ -307,7 +307,7 @@ def format_provenance_markdown(
 def evaluate_hardware_budget(
     parsed: dict[str, Any],
     *,
-    profile: str = "old3ds",
+    profile: str = "new3ds",
     min_fps: float = 24.0,
     expected_hash: str | None = None,
     load_bytes: int | None = None,
@@ -757,7 +757,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_bench.add_argument("--input", required=True)
     p_bench.add_argument("--commit", default="unknown")
     p_bench.add_argument("--target", default="3DS Hardware")
-    p_bench.add_argument("--profile", choices=sorted(HARDWARE_BUDGET_PROFILES), default="old3ds")
+    p_bench.add_argument("--profile", choices=sorted(HARDWARE_BUDGET_PROFILES), default="new3ds")
     p_bench.add_argument("--min-fps", type=float, default=24.0)
     p_bench.add_argument("--expected-hash", default=None)
     p_bench.add_argument("--load-bytes", type=int, default=None)

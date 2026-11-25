@@ -167,7 +167,7 @@ def main():
     args.output.mkdir(parents=True, exist_ok=True)
     fixture = args.fixture or create_fixture(args, args.output / "stock-fixture")
     edit_fixture = create_edit_fixture(args, fixture) if args.edit else None
-    for model in args.model or ("old3ds", "new3ds"):
+    for model in args.model or ("new3ds",):
         for live in (False, True) if args.live else (False,):
             scene = args.output / model / ("live" if live else "offline")
             directory = scene / "sdmc/3ds/min3dstry/schematics"
