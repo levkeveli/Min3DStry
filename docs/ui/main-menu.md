@@ -1,5 +1,19 @@
 # Stock title menu shell
 
+## Unified ARM11 Core Database
+
+Open the Core Database from the offline pause menu with Y or from the unified
+title route. It reads the pinned v160.8 content registry and localized assets,
+including stock icons, unlock state, Serpulo and Erekir filters, search and
+entry details. The grouped replay on both 3DS emulator profiles opened Copper
+details, switched the All tab to Erekir and returned cleanly. The host reference
+also checks all 389 visible stock entries for a supported stat display path.
+Physical console verification is pending.
+
+[ARM11 offline replay and screenshots](https://github.com/levkeveli/Min3DStry/actions/runs/45439198209/artifacts/14945967038)
+
+## Native harness
+
 Status: **harness-only**. The navigation shell runs on host and in Azahar; the upstream Scene2D
 `MenuFragment`, the core database, schematics and RTS command are not ported.
 

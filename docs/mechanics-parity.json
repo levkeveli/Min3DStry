@@ -316,17 +316,15 @@
       "domain": "Controls & Dual-Screen UI",
       "name": "Core Database Browser (Items & Blocks)",
       "weight": 1,
-      "status": "harness-only",
-      "modes": ["harness"],
+      "status": "live-arm11",
+      "modes": ["offline"],
       "issue": 40,
       "evidence": [
         "docs/ui/main-menu.md",
-        "src/ui/content_catalog.c",
-        "include/ui/content_catalog_data.h",
-        "data/upstream-content.json",
-        "tests/ui/test_content_catalog.c"
+        "research/upstream-runtime/src/singleplayer/java/UpstreamCoreDatabaseMenu.java",
+        "tools/verify_upstream_singleplayer.py"
       ],
-      "notes": "Console catalog over the pinned v160.8 bundle: 22 items and 258 described blocks with upstream Categories, scrollable, L/R type switch, X category filter, A opens a wrapped description. Upstream planet tabs, icons and unlock state are not modelled."
+      "notes": "Unified ARM11 reads the pinned stock catalog in the title and offline pause routes. Both Azahar profiles opened stock details, switched to Erekir and exited. Physical verification is pending."
     },
     {
       "id": "menus-title-settings-shell",
