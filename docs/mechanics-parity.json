@@ -422,7 +422,7 @@
         "src/render/scene_2d.c",
         "src/platform/3ds/citro2d_backend.c"
       ],
-      "notes": "Offline and multiplayer clients advance the stock weather entities, particle/debris layers and puddles; both Azahar profiles sampled active rain/sandstorm/fog and stock puddles. Dynamic world lighting and live camera zoom remain open in the C Citro2D harness."
+      "notes": "Offline and multiplayer clients advance the stock weather entities, particle/debris layers and puddles; both Azahar profiles sampled active rain/sandstorm/fog and stock puddles. Dynamic world lighting remains open. Live camera zoom is wired to the New 3DS C-Stick (0.5x-2x, 8x6-32x24 tile span) with host checks; physical draw is pending the New 3DS acceptance run."
     },
     {
       "id": "logic-vm-execution",

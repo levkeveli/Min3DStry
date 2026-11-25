@@ -24,8 +24,8 @@ final class UpstreamClientProjectiles {
         float size = Vars.tilesize;
         float left = (viewport.left - 0.5f) * size;
         float bottom = (viewport.bottom - 0.5f) * size;
-        float right = left + UpstreamTerrainDrawProbe.VIEW_WIDTH * size;
-        float top = bottom + UpstreamTerrainDrawProbe.VIEW_HEIGHT * size;
+        float right = left + viewport.width() * size;
+        float top = bottom + viewport.height() * size;
         int drawn = 0;
         for (var bullet : Groups.bullet) {
             float radius = bullet.clipSize() / 2f;

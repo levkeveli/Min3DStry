@@ -33,6 +33,7 @@ import port.render.WeatherNoiseTexture;
 public final class UpstreamTerrainDrawProbe {
     static final int VIEW_WIDTH = 16;
     static final int VIEW_HEIGHT = 12;
+    static final float MIN_ZOOM = 0.5f, MAX_ZOOM = 2f, ZOOM_STEP = 0.25f;
 
     public static void main(String[] args) throws IOException {
         capture(args, null);
@@ -143,9 +144,25 @@ public final class UpstreamTerrainDrawProbe {
         return new Viewport(left, bottom, batch, false);
     }
 
+    static float clampZoom(float zoom) {
+        if (Float.isNaN(zoom)) return 1f;
+        return Mathf.clamp(zoom, MIN_ZOOM, MAX_ZOOM);
+    }
+
+    static int zoomWidth(float zoom) {
+        return Math.max(4, Math.round(VIEW_WIDTH / clampZoom(zoom)));
+    }
+
+    static int zoomHeight(float zoom) {
+        return Math.max(3, Math.round(VIEW_HEIGHT / clampZoom(zoom)));
+    }
+
     static final class Viewport {
         int left;
         int bottom;
+        private int width = zoomWidth(1f);
+        private int height = zoomHeight(1f);
+        private float zoom = 1f;
         private final TerrainBatch batch;
         private final boolean drawStaticBlocks;
 
@@ -156,22 +173,45 @@ public final class UpstreamTerrainDrawProbe {
             this.drawStaticBlocks = drawStaticBlocks;
         }
 
+        int width() {
+            return width;
+        }
+
+        int height() {
+            return height;
+        }
+
+        float zoom() {
+            return zoom;
+        }
+
         void moveTo(int x, int y) {
-            left = Mathf.clamp(x, 0, Math.max(0, Vars.world.width() - VIEW_WIDTH));
-            bottom = Mathf.clamp(y, 0, Math.max(0, Vars.world.height() - VIEW_HEIGHT));
+            left = Mathf.clamp(x, 0, Math.max(0, Vars.world.width() - width));
+            bottom = Mathf.clamp(y, 0, Math.max(0, Vars.world.height() - height));
+        }
+
+        void zoomBy(float delta) {
+            float next = clampZoom(zoom + delta);
+            if (next == zoom) return;
+            float centerX = left + width / 2f;
+            float centerY = bottom + height / 2f;
+            zoom = next;
+            width = zoomWidth(zoom);
+            height = zoomHeight(zoom);
+            moveTo(Math.round(centerX - width / 2f), Math.round(centerY - height / 2f));
         }
 
         boolean contains(int tileX, int tileY) {
-            return tileX >= left && tileX < left + VIEW_WIDTH
-                && tileY >= bottom && tileY < bottom + VIEW_HEIGHT;
+            return tileX >= left && tileX < left + width
+                && tileY >= bottom && tileY < bottom + height;
         }
 
         boolean contains(Building building) {
             var tile = building.tile;
             int low = (building.block.size - 1) / 2;
             int high = building.block.size / 2;
-            return tile.x + high >= left && tile.x - low < left + VIEW_WIDTH
-                && tile.y + high >= bottom && tile.y - low < bottom + VIEW_HEIGHT;
+            return tile.x + high >= left && tile.x - low < left + width
+                && tile.y + high >= bottom && tile.y - low < bottom + height;
         }
 
         void draw(Runnable buildings) {
@@ -179,11 +219,11 @@ public final class UpstreamTerrainDrawProbe {
         }
 
         void draw(Runnable debris, Runnable buildings) {
-            if (batch.target != null) batch.target.begin(left, bottom, VIEW_WIDTH, VIEW_HEIGHT);
+            if (batch.target != null) batch.target.begin(left, bottom, width, height);
             Draw.reset();
             Draw.z(0f);
-            int top = Math.min(bottom + VIEW_HEIGHT, Vars.world.height());
-            int right = Math.min(left + VIEW_WIDTH, Vars.world.width());
+            int top = Math.min(bottom + height, Vars.world.height());
+            int right = Math.min(left + width, Vars.world.width());
             for (int y = bottom; y < top; y++) {
                 for (int x = left; x < right; x++) {
                     Tile tile = Vars.world.tile(x, y);
