@@ -101,6 +101,7 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
     # Construction and configuration replays can take longer between input polls.
     needs_settling_time = building or touch_build or touch_config
     move_hold = 3 if unified_boot else 1
+    leave_hold = 5 if unified_boot else 1
     circle_at = first_move + (18 if needs_settling_time else 6)
     leave_at = first_move + (44 if needs_settling_time else 16)
     if unified_boot:
@@ -163,7 +164,7 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
                 # service a HID transition on a loaded hosted runner. Hold each
                 # control long enough that a late poll still observes the press.
                 buttons = (1 << 4) if first_move <= seconds < first_move + move_hold \
-                    else (1 << 3) if seconds == leave_at else 0
+                    else (1 << 3) if leave_at <= seconds < leave_at + leave_hold else 0
             if building and seconds in (35, 37, 39):
                 buttons = 1  # A, with releases so a late HID poll can observe another press.
             if unified_boot and seconds < 6:
