@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include "../../../../stack.h"
+#include "stack.h"
 
 static cls_otr_RelocationBlock *m3ds_gc_relocations;
 static size_t m3ds_gc_relocation_capacity;
