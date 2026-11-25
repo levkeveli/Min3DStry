@@ -37,8 +37,8 @@ off and a campaign sector is active;
   text and a total-health fill, shown only while wave rules are active;
 - a fullscreen minimap view on `R`: the same stock sampled texture over a dark
   backdrop, scaled from 240 px to 960 px with circle-pad/d-pad panning and
-  X/Y zoom (1x to 4x), stock unit icons tinted by team (bounded to 200 and
-  fog-filtered), closed with `R` or `B`;
+  X/Y zoom (1x to 4x), team-tinted unit icon regions with a fixed 3DS pixel
+  size (bounded to 200 drawn icons and fog-filtered), closed with `R` or `B`;
 - a live minimap rendered from a 64x64 sample at 56 px in the top-right
   corner, using the stock `MinimapRenderer` color path (`Block.minimapColor`,
   floor/overlay fallback through `MapIO.colorFor`, darkness and liquid/shadow
@@ -165,8 +165,12 @@ host probe only checks the collected text and health fraction.
 
 The fullscreen view state covers the open/close flag, the 1x..4x zoom clamps,
 pan clamping, reset and world-to-map entity coordinates. Its on-device
-rendering of the map, unit icons, pan and zoom are **not verified** yet; the
-host probe checks the view math and the icon cap/fog gate only.
+rendering of the map, unit icons, pan and zoom are **not verified** yet. The
+host probe checks only the world-to-map mapping; the 200-icon cap and fog/dead
+filtering live in the renderer and are not host-tested. The mapping assumes the
+sampled square minimap is stretched to the square view rect; non-square worlds
+are stretched the same way by the native texture draw, and the emulator check
+must confirm icon alignment on such a world.
 
 The Azahar verifier can seed a deterministic core inventory through
 `/3ds/min3dstry/hud-items.txt` and assert that every requested row was drawn:
