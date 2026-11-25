@@ -173,28 +173,33 @@ def main() -> int:
     parser.add_argument("--dense", action="store_true", help="Verify the original 600x600 Serpulo 242 sector")
     parser.add_argument("--dense-resave", action="store_true", help="Save after reload and again on exit")
     parser.add_argument("--backup-only", action="store_true", help="Resume the second sector from its stock backup")
-    parser.add_argument("--server", type=Path, help="Reopen each dense replay save with the original Java server")
+    parser.add_argument("--server", type=Path, help="Reopen the dense or recovered replay save with the original Java server")
     parser.add_argument("--java", default="java")
     args = parser.parse_args()
     if args.dense and (args.fixtures / "settings.bin").exists():
         parser.error("--dense requires the stock fixtures without a settings override")
     if args.dense_resave and (not args.dense or args.server is None):
         parser.error("--dense-resave requires --dense and --server")
-    if args.server is not None and not args.dense:
-        parser.error("--server is used with --dense")
+    if args.server is not None and not (args.dense or args.backup_only):
+        parser.error("--server requires --dense or --backup-only")
     azahar = sp.az.resolve_azahar_bin(args.azahar)
     config, log = sp.az.resolve_azahar_paths(azahar)
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    for model in (args.model,):
-        verify(model, args.rom, azahar, config, log, args.output_dir, args.fixtures,
-               args.dense, resave=args.dense_resave, backup_only=args.backup_only)
-        if args.server is not None:
-            from verify_stock_campaign_archive import check_saves
+    model = args.model
+    verify(model, args.rom, azahar, config, log, args.output_dir, args.fixtures,
+           args.dense, resave=args.dense_resave, backup_only=args.backup_only)
+    if args.server is not None and args.dense:
+        from verify_stock_campaign_archive import check_saves
 
-            if args.dense_resave:
-                check_saves(args.java, args.server,
-                            dense_save=args.output_dir / f"{model}-sector-serpulo-242-checkpoint.msav")
-            check_saves(args.java, args.server, dense_save=args.output_dir / f"{model}-sector-serpulo-242.msav")
+        if args.dense_resave:
+            check_saves(args.java, args.server,
+                        dense_save=args.output_dir / f"{model}-sector-serpulo-242-checkpoint.msav")
+        check_saves(args.java, args.server, dense_save=args.output_dir / f"{model}-sector-serpulo-242.msav")
+    elif args.server is not None:
+        from verify_stock_campaign_archive import check_recovered_save
+
+        check_recovered_save(args.java, args.server, args.fixtures / "sector-serpulo-64.msav",
+                             args.output_dir / f"{model}-sector-serpulo-64.msav")
     return 0
 
 
