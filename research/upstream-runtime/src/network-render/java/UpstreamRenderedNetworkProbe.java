@@ -252,18 +252,26 @@ public final class UpstreamRenderedNetworkProbe {
         frameId++;
         updateBuildLabels();
         controlled = unit;
+        if (buildingControls != null) {
+            int zoom = buildingControls.consumeZoom();
+            if (zoom != 0) {
+                viewport.zoomBy(zoom * UpstreamTerrainDrawProbe.ZOOM_STEP);
+                System.out.println("UPSTREAM_CAMERA_ZOOM zoom=" + viewport.zoom()
+                    + " span=" + viewport.width() + "x" + viewport.height());
+            }
+        }
         float x = unit == null ? Vars.player.x() : unit.x();
         float y = unit == null ? Vars.player.y() : unit.y();
-        viewport.moveTo(World.toTile(x) - UpstreamTerrainDrawProbe.VIEW_WIDTH / 2,
-                        World.toTile(y) - UpstreamTerrainDrawProbe.VIEW_HEIGHT / 2);
-        float width = UpstreamTerrainDrawProbe.VIEW_WIDTH * Vars.tilesize;
-        float height = UpstreamTerrainDrawProbe.VIEW_HEIGHT * Vars.tilesize;
+        viewport.moveTo(World.toTile(x) - viewport.width() / 2,
+                        World.toTile(y) - viewport.height() / 2);
+        float width = viewport.width() * Vars.tilesize;
+        float height = viewport.height() * Vars.tilesize;
         Arm11Audio.updateCamera((viewport.left - 0.5f) * Vars.tilesize + width / 2f,
             (viewport.bottom - 0.5f) * Vars.tilesize + height / 2f, width, height);
         advanceVisualState();
         draws = 0;
         viewport.draw(drawWeatherUnder, drawEntities);
-        buildingControls.viewport(viewport.left, viewport.bottom);
+        buildingControls.viewport(viewport.left, viewport.bottom, viewport.width(), viewport.height());
         if (unit != null && (lastLeft != viewport.left || lastBottom != viewport.bottom)) {
             lastLeft = viewport.left;
             lastBottom = viewport.bottom;
@@ -333,8 +341,8 @@ public final class UpstreamRenderedNetworkProbe {
         try {
             for (var unit : Groups.unit) {
                 int x = World.toTile(unit.x()), y = World.toTile(unit.y());
-                if (x < viewport.left || x >= viewport.left + UpstreamTerrainDrawProbe.VIEW_WIDTH
-                        || y < viewport.bottom || y >= viewport.bottom + UpstreamTerrainDrawProbe.VIEW_HEIGHT) continue;
+                if (x < viewport.left || x >= viewport.left + viewport.width()
+                        || y < viewport.bottom || y >= viewport.bottom + viewport.height()) continue;
                 if (!loadUnitGraphics(unit)) continue;
                 unit.draw();
                 if (unit == controlled) draws++;
@@ -363,7 +371,7 @@ public final class UpstreamRenderedNetworkProbe {
                 System.out.println("UPSTREAM_LIVE_ENEMY_GONE id=" + id);
             }
         }
-        UpstreamObjectiveMarkers.draw(Vars.state.rules, 240f / (UpstreamTerrainDrawProbe.VIEW_HEIGHT * Vars.tilesize),
+        UpstreamObjectiveMarkers.draw(Vars.state.rules, 240f / (viewport.height() * Vars.tilesize),
             worldLabel);
         var orders = buildingControls.orders();
         orders.draw(viewport);
