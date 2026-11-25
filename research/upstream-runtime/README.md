@@ -1709,6 +1709,13 @@ state comes from WorldIO, and the active and cooled states use
 `NetServer.syncBuilding` / `blockSnapshot`. The replay samples the same
 building in all three New 3DS screenshots.
 
+[Issue #703](https://github.com/levkeveli/Min3DStry/issues/703) runs the
+pinned power-graph and building groups in their original order on the
+handheld network client. The `--connected-sources` replay toggles the
+original item source blocks through stock configuration calls. This mode
+uses the original local building ticks to display the recipe and verifies
+the Java server's own output. It sends no manual smelter snapshots.
+
 The building lighting pass calls upstream `Building.drawLight` for visible
 emitters when the map enables lighting. Stock radial requests flow through
 the handheld additive sprite pass. The stock light buffer and its ambient

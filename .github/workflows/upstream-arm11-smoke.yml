@@ -1408,13 +1408,13 @@ jobs:
             --server build/unified-smoke/server-release.jar --rom build/unified-smoke/upstream-probe.3dsx \
             --azahar "$AZAHAR_BIN" --terrain-atlas build/unified-smoke/sprites.aatls \
             --unified-boot --controls --controls-replay --world-atlas --model new3ds
-      - name: Stock silicon crafting snapshots and live building draw
+      - name: Stock silicon crafting through connected item sources
         if: needs.changes.outputs.run_net == 'true'
         run: >-
           xvfb-run -a python3 tools/verify_stock_live_crafting.py
           --server build/unified-smoke/server-release.jar
           --rom build/unified-smoke/upstream-probe.3dsx
-          --azahar "$AZAHAR_BIN" --output build/live-crafting
+          --azahar "$AZAHAR_BIN" --output build/live-crafting --connected-sources
       - name: Stock offline campaign audio
         if: needs.changes.outputs.run_audio == 'true'
         run: >-

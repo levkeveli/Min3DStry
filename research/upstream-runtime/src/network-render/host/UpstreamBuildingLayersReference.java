@@ -274,8 +274,11 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
 
         var build = (GenericCrafterBuild)smelter.build;
         var oldState = Vars.state.getState();
+        var oldPlayer = Vars.player;
         float oldDelta = Time.delta;
         try {
+            Vars.player = Player.create();
+            Vars.player.team(team);
             Vars.state.set(State.playing);
             Time.delta = 1f;
             for (int step = 0; step < 60; step++) UpstreamClientLogic.update(1f);
@@ -308,6 +311,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
             System.out.printf("UPSTREAM_CLIENT_BUILDING_TICK idle=true silicon=%d paused=true cooled=true%n", produced);
         } finally {
             Vars.state.set(oldState);
+            Vars.player = oldPlayer;
             Time.delta = oldDelta;
             smelter.setBlock(Blocks.air);
             solarPanel.setBlock(Blocks.air);

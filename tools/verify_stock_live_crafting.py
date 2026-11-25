@@ -18,16 +18,20 @@ MODEL = "new3ds"
 SMELTER = ("siliconSmelter", "silicon-smelter", 75, 23, 2)
 
 
-def place_stock_crafter(server, log, port):
+def place_stock_crafter(server, log, port, connected_sources=False):
     wait_for(log, server, r"Server loaded\.", 30)
     stock_command(server, log, f"config port {port}\nhost Glacier survival", rf"Opened a server on port {port}\.")
+    sources = (
+        'Vars.world.tile(75,22).setBlock(Blocks.itemSource,team,0); '
+        'Vars.world.tile(76,22).setBlock(Blocks.itemSource,team,0); '
+    ) if connected_sources else ''
     stock_command(
         server, log,
         'js (() => { Vars.state.rules.waves=false; Vars.state.rules.lighting=false; '
         'const team=Vars.state.rules.defaultTeam; '
         'Vars.world.tile(75,23).setBlock(Blocks.siliconSmelter,team,0); '
         'Vars.world.tile(73,23).setBlock(Blocks.largeSolarPanel,team,0); '
-        'return "STOCK_LIVE_CRAFTER_PLACED"; })()',
+        f'{sources}return "STOCK_LIVE_CRAFTER_PLACED"; }})()',
         "STOCK_LIVE_CRAFTER_PLACED",
     )
 
@@ -70,6 +74,18 @@ def starve(server, log):
         'items.remove(Items.sand, items.get(Items.sand)); items.remove(Items.coal, items.get(Items.coal)); '
         'return "STOCK_LIVE_CRAFTER_STARVED"; })()',
         "STOCK_LIVE_CRAFTER_STARVED",
+    )
+
+
+def configure_sources(server, log, enabled):
+    # configureAny broadcasts the stock tileConfig call to connected clients.
+    sand, coal = ("Items.sand", "Items.coal") if enabled else ("null", "null")
+    marker = "STOCK_LIVE_CRAFTER_SOURCES_ON" if enabled else "STOCK_LIVE_CRAFTER_SOURCES_OFF"
+    stock_command(
+        server, log,
+        f'js (() => {{ Vars.world.tile(75,22).build.configureAny({sand}); '
+        f'Vars.world.tile(76,22).build.configureAny({coal}); return "{marker}"; }})()',
+        marker,
     )
 
 
@@ -116,7 +132,7 @@ def verify(args):
     originals = {path: path.read_bytes() if path.is_file() else None for path in (config, log)}
     server = start_server(args, server_dir, server_log)
     try:
-        place_stock_crafter(server, server_log, args.port)
+        place_stock_crafter(server, server_log, args.port, args.connected_sources)
         sequence = count()
         wait_for_crafter(server, server_log, lambda warmup, output, power: warmup == output == 0 and power > 0, sequence)
         isolated = {"Data Storage": {"use_custom_storage": "true", "sdmc_directory": virtual_sd.as_posix() + "/"}}
@@ -132,18 +148,30 @@ def verify(args):
             def activity(frame):
                 return changed_pixels(idle, frame, (SMELTER,))[SMELTER[1]]
 
-            feed(server, server_log)
+            if args.connected_sources:
+                configure_sources(server, server_log, True)
+            else:
+                feed(server, server_log)
             warmup, produced, _ = wait_for_crafter(
                 server, server_log, lambda warmup, output, power: warmup >= 300 and output > 0 and power > 0, sequence
             )
-            publish_stock_snapshot(server, server_log, "ACTIVE")
+            if not args.connected_sources:
+                publish_stock_snapshot(server, server_log, "ACTIVE")
             active = capture(rpc, args.output / "new3ds-crafting.png", lambda frame: activity(frame) >= 8)
-            starve(server, server_log)
+            if args.connected_sources:
+                configure_sources(server, server_log, False)
+            else:
+                starve(server, server_log)
             wait_for_crafter(server, server_log, lambda warmup, output, power: warmup == 0 and output >= produced, sequence)
-            publish_stock_snapshot(server, server_log, "STARVED")
+            if not args.connected_sources:
+                publish_stock_snapshot(server, server_log, "STARVED")
             capture(rpc, args.output / "new3ds-starved.png", lambda frame: activity(frame) <= 3)
-            print(f"UPSTREAM_LIVE_CRAFTING model={MODEL} silicon={produced} warmup={warmup} changed={activity(active)}/25",
-                  flush=True)
+            case = "connected-sources" if args.connected_sources else "block-snapshot"
+            print(
+                f"UPSTREAM_LIVE_CRAFTING model={MODEL} case={case} silicon={produced} "
+                f"warmup={warmup} changed={activity(active)}/25",
+                flush=True,
+            )
         finally:
             rpc.close()
             sp._stop_proc(proc, emulator)
@@ -166,6 +194,8 @@ def main():
     parser.add_argument("--azahar")
     parser.add_argument("--java", default="java")
     parser.add_argument("--port", type=int, default=16679)
+    parser.add_argument("--connected-sources", action="store_true",
+                        help="Use stock item-source configuration events without smelter snapshots")
     verify(parser.parse_args())
 
 
