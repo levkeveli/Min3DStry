@@ -606,13 +606,13 @@
     {
       "id": "physical-3ds-24fps",
       "domain": "Multiplayer & Hardware",
-      "name": "Physical Old (64 MiB) & New 3DS Hardware >= 24 FPS Parity",
+      "name": "Physical New 3DS Hardware >= 24 FPS Parity",
       "weight": 3,
       "status": "missing",
       "modes": [],
       "issue": 43,
       "evidence": [],
-      "notes": "Unoptimized Azahar offline baseline is 4.72 FPS (New 3DS) / 3.48 FPS (Old 3DS) at 44.44 MiB Old 3DS static subtotal; physical Old & New 3DS runs and >= 24 FPS optimization are pending."
+      "notes": "Full playable acceptance requires sustained >= 24 FPS within the physical New 3DS application-memory budget. The older New 3DS harness soak does not establish full gameplay performance. The historical Original 3DS Azahar baseline was 3.48 FPS with a 44.44 MiB static subtotal. The later unified 66.49 MiB subtotal exceeds the Original 3DS limit. Original 3DS fit and physical performance are tracked separately from the gauge."
     }
   ]
 }
