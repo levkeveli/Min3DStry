@@ -26,7 +26,7 @@ def place_stock_crafter(server, log, port):
         'js (() => { Vars.state.rules.waves=false; '
         'const team=Vars.state.rules.defaultTeam; '
         'Vars.world.tile(75,23).setBlock(Blocks.siliconSmelter,team,0); '
-        'Vars.world.tile(74,23).setBlock(Blocks.powerSource,team,0); '
+        'Vars.world.tile(73,23).setBlock(Blocks.largeSolarPanel,team,0); '
         'return "STOCK_LIVE_CRAFTER_PLACED"; })()',
         "STOCK_LIVE_CRAFTER_PLACED",
     )
