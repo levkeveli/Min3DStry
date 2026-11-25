@@ -92,7 +92,7 @@ BUILDING_CRACK_PIXELS = {
 
 
 def write_controls_replay(path, first_move=22, building=False, touch_build=False, touch_config=False,
-                          erekir_build=False, mining=None, model="old3ds", stock_menu_font=False,
+                          erekir_build=False, mining=None, model="new3ds", stock_menu_font=False,
                           unified_boot=False, stationary=False, chat=False, cancel_restart=False):
     """Write the Azahar 2126.2 CTM input for this probe's pad/touch polling."""
     # The pinned Azahar movie header and HID sample definitions use packed little-endian fields.

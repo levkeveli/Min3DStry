@@ -1,10 +1,10 @@
 # Physical Hardware Deployment and Log Streaming
 
-Status: **Host-tested** for SD staging and log tooling. **Hardware-tested on Original and New 3DS XL** for Wi-Fi deployment and log streaming.
+Status: **Host-tested** for SD staging and log tooling. **Hardware-tested on New 3DS XL** for Wi-Fi deployment and log streaming.
 
 ## Purpose
 
-Issue #6 provides a repeatable deployment and telemetry capture workflow in [`tools/device_deploy.py`](../../tools/device_deploy.py) (`./dev.sh device`) for sending `build/min3dstry.3dsx` to physical Original and New 3DS/2DS hardware and extracting `[MIN3DSTRY] HW:`, `[MIN3DSTRY] PARITY`, and `[MIN3DSTRY] FRAME` telemetry.
+Issue #6 provides a repeatable deployment and telemetry capture workflow in [`tools/device_deploy.py`](../../tools/device_deploy.py) (`./dev.sh device`) for sending `build/min3dstry.3dsx` to physical New Nintendo 3DS/2DS hardware and extracting `[MIN3DSTRY] HW:`, `[MIN3DSTRY] PARITY`, and `[MIN3DSTRY] FRAME` telemetry.
 
 ## Procedures
 

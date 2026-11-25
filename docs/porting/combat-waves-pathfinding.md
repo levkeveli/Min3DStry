@@ -99,7 +99,7 @@ generated translation unit can trigger.
 ## Remaining Scope for Issue #30
 
 - Integrate the upstream turret, wave spawner, unit AI, and pathfinder loop into the live interactive `min3dstry.3dsx` session (currently standalone probe artifacts).
-- Reduce the ARM11 ELF/heap footprint within the Original 3DS `64 MiB` AppMem budget and benchmark >= 24 FPS execution on physical Old and New 3DS hardware.
+- Reduce the ARM11 ELF/heap footprint within the New 3DS application-memory budget and verify sustained performance of at least 24 FPS under high load on physical New Nintendo 3DS/2DS.
 
 ## Offline flowfield search storage
 

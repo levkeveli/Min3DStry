@@ -160,7 +160,7 @@ jobs:
     needs: build
     # A fresh full build is only useful evidence if the packaged audio RomFS
     # and embedded loader actually boot. Reuse the pinned Azahar setup from the
-    # upstream smoke workflow and check both console profiles.
+    # upstream smoke workflow and check the New 3DS profile.
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:

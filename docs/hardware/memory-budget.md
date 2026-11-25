@@ -74,7 +74,7 @@ Telemetry format:
   `app=96MiB reserve=16MiB budget=1048576 used=553728 peak=553728
   remaining=494848 world=480000/524288 textures=8192/262144
   transient=65536/262144 failures=0 status=ok`.
-- **Physical Original/New 3DS:** not-tested. Record the same MEM line with the
+- **Physical New 3DS:** this build still needs a measurement. Record the same MEM line with the
   actual application-memory value when hardware deployment runs.
 
 Limitations:
@@ -104,7 +104,7 @@ Measured with pinned `devkitpro/devkitarm` (`-O2`) on identical generated `audio
 | Page-rounded ELF `LOAD` segments | `38,936,576` bytes (`37.13 MiB`) | `20,590,592` bytes (`19.64 MiB`) | `-18,345,984` bytes (`-17.50 MiB`) |
 | Subtotal (`LOAD` + `24 MiB` heap + `4 MiB` linear + `256 KiB` stack) | `65.38 MiB` | `47.89 MiB` | `-17.50 MiB` |
 
-Host unit tests ([`tests/platform/test_array_class_pool.c`](../../tests/platform/test_array_class_pool.c) in `./dev.sh test`) and Linux host TeaVM C execution (`-O0`, `-O2`, and stress-chunked `M3DS_ARRAY_CLASS_CHUNK_SHIFT=2`) pass; Azahar emulator execution and physical Original/New 3DS memory/GC measurements of the reduced `.3dsx` remain separate pending checks.
+Host unit tests ([`tests/platform/test_array_class_pool.c`](../../tests/platform/test_array_class_pool.c) in `./dev.sh test`) and Linux host TeaVM C execution (`-O0`, `-O2`, and stress-chunked `M3DS_ARRAY_CLASS_CHUNK_SHIFT=2`) pass; Azahar emulator execution and physical New 3DS memory/GC measurements of the reduced `.3dsx` remain separate pending checks.
 
 ## Upstream TeaVM sparse call-site compaction ([#233](https://github.com/levkeveli/Min3DStry/issues/233))
 
@@ -122,7 +122,7 @@ Measured with pinned `devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd
 | Packaged `.3dsx` size | `22,321,160` bytes (`21.29 MiB`) | `17,521,408` bytes (`16.71 MiB`) | `-4,799,752` bytes (`-4.58 MiB`) |
 | Subtotal (`LOAD` + `24 MiB` heap + `4 MiB` linear + `256 KiB` stack) | `47.89 MiB` | `44.59 MiB` | `-3.30 MiB` |
 
-Host unit tests ([`tests/platform/test_callsites.c`](../../tests/platform/test_callsites.c), [`tests/tools/test_compact_callsites.py`](../../tests/tools/test_compact_callsites.py) in `./dev.sh test`) and compacted `-O2` Linux host execution on `audio-ticks` (`UPSTREAM_WORLD_FINGERPRINT 2e7b9f883994de6c`, `trace=8dd46207043810fc`) pass; Azahar emulator runs and physical Original/New 3DS verification of the reduced `.3dsx` remain separate pending checks (`#43`).
+Host unit tests ([`tests/platform/test_callsites.c`](../../tests/platform/test_callsites.c), [`tests/tools/test_compact_callsites.py`](../../tests/tools/test_compact_callsites.py) in `./dev.sh test`) and compacted `-O2` Linux host execution on `audio-ticks` (`UPSTREAM_WORLD_FINGERPRINT 2e7b9f883994de6c`, `trace=8dd46207043810fc`) pass; Azahar emulator runs and physical New 3DS verification of the reduced `.3dsx` remain separate pending checks (`#43`).
 
 ## Upstream TeaVM dead string-pool pruning ([#43](https://github.com/levkeveli/Min3DStry/issues/43))
 
@@ -193,9 +193,7 @@ produced **17,207,256 bytes**, SHA-256
 That artifact booted on both Azahar 2126.2 profiles with parity `0x53a483c7`,
 nine clips, the `wave.spawn` clip and `Sectors=1`. CI asserts the final `.3dsx`
 is below **24 MiB** and prints its byte count; the RomFS audio itself is not part
-of the ELF `LOAD` segments. Physical Original 3DS DSP playback and the resulting
-peak-memory measurement remain pending; do not treat the package-size check as
-an Old 3DS RAM pass.
+of the ELF `LOAD` segments. Verify DSP playback and measure peak runtime memory on physical New 3DS.
 
 ### main() stack guard
 

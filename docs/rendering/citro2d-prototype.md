@@ -13,7 +13,7 @@ This prototype implements Issue #3 by rendering a bounded 2D Mindustry-inspired 
   - **Clamped zoom:** `zoom` stays in `[0.5, 2.0]`. Camera reset/pan bounds and minimap camera rectangles use the scaled world size; sprite quads scale with the zoom while the default `1.0` view is unchanged.
   - **Viewport culling:** primitives outside `[0, viewport.width] x [0, viewport.height]` are skipped before hitting the backend (`culled_primitives` counter).
   - **Citro2D batching rule:** non-circular primitives (terrain tiles, conveyor beds/chevrons, walls, core, turret bodies/barrels/scan lines) are emitted in Pass 1 before any circular primitives (ore nodes, transported copper items, turret rings, core pulse) in Pass 2 so Citro2D performs at most one circle-mode state switch per frame.
-  - **Bounded primitive budget:** capped at `M3DS_SCENE_MAX_PRIMITIVES` (`1024`) to keep command buffer usage predictable on Original and New 3DS.
+  - **Bounded primitive budget:** capped at `M3DS_SCENE_MAX_PRIMITIVES` (`1024`) to keep command buffer usage predictable on New 3DS.
   - **Bounded effect budget:** circular effect commands are capped at `M3DS_SCENE_MAX_EFFECTS` (`64`); excess ore/item/ring effects increment `effects_dropped` instead of growing the queue.
   - **Lighting prototype with fallback:** translucent warm circles around cores and turrets are drawn after the circle batch. `m3ds_scene_set_lighting(false)` skips them entirely and is the compatibility fallback; `L`/`R` zoom and `B` lighting are independent.
 - [`src/platform/3ds/citro2d_backend.c`](../../src/platform/3ds/citro2d_backend.c):

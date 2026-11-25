@@ -608,7 +608,7 @@ def cmd_ai_review(args: argparse.Namespace) -> int:
 
     system_prompt = (
         "You are an independent automated code reviewer for Min3DStry, a "
-        "1:1 port of pinned upstream Mindustry (v8 build 160.8) to Original and New Nintendo 3DS/2DS — "
+        "1:1 port of pinned upstream Mindustry (v8 build 160.8) to New Nintendo 3DS/2DS — "
         "NOT a simplified clone, demake, or bespoke partial game.\n"
         "Review the pull request against AGENTS.md, docs/upstream-port.md, and docs/architecture.md.\n"
         "Be pragmatic and avoid nitpicking style or missing boilerplate so agents can ship fast.\n"
