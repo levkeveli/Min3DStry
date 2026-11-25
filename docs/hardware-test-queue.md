@@ -23,14 +23,16 @@ Latest evidenced builds: New `a328c70` (2026-11-22, FPS PASS), New `de3e249`
 (2026-11-22), and Old `a4a9a96` (2026-11-22). Record the exact commit and ROM
 SHA-256 with every run.
 
-Latest emulator-verified build for the next hardware run: `8f683450`
-(2026-11-24, batch 2), ROM SHA-256
-`6c4d25602a7da31d63b5d5ef7170f69d302f4ff1d10413300d124ae977d8fec9`. It
-resolves nine audio clips and `wave.spawn` on both Azahar profiles, passes
-`AZAHAR_PROVENANCE_OK`, and asserts the stock POWER/DISTRIBUTION/LIQUID/MATERIAL
-draw registry, but has not been run on hardware. See the
-[2026-11-24 emulator batch 2](hardware/emulator-batch-2026-11-24b.md) and the
-[first batch](hardware/emulator-batch-2026-11-24.md).
+Latest emulator-verified build for the next hardware run: `99c7fd6b`
+(2026-11-25), ROM SHA-256
+`afca650c837f3bccd0f35aa17be84efc6acac874b9edeac285c1f87a00658a1c`
+(17,310,404 bytes). The
+[full build](https://github.com/levkeveli/Min3DStry/actions/runs/45598586204)
+passed, and the downloaded artifact passed both Azahar profiles locally
+(parity `0x53a483c7`, New 3DS 55.55 FPS, Original 55.31 FPS, nine audio clips),
+but it has not been run on hardware. This is the artifact for the first
+New 3DS-only acceptance run under
+[#663](https://github.com/levkeveli/Min3DStry/pull/663).
 The procedure and evidence schema are in
 [verification-runbook.md](hardware/verification-runbook.md) and
 [deployment-and-logs.md](hardware/deployment-and-logs.md).
@@ -182,6 +184,7 @@ and waves, touch palette/rotation, HUD/menus/minimap.
   consumer/generator liquid bars with their liquid names and colors below the
   power bar; friendly buildings also show the stock health bar, and configurable
   item blocks show the item bar.
+- C-Stick up/down zooms the world 0.5x–2x and the touch grid stays aligned.
 - X opens the pause overlay; D-pad + A resume/save/quit, and the quit
   confirmation path saves and exits without corrupting the sector slot.
 - Damaging a friendly core shows the stock `< Core is under attack! >` row.
@@ -261,8 +264,8 @@ a short listening report. Physical audio cannot be proven from Azahar.
 
 > `a328c70` logged `AUDIO backend=ndsp state=ready` with only 2 registered
 > clips; the operator heard the UI "ding", but all seven `AUDIO_EVENT`s resolved
-> to `clip=-1 voice=0`. The 2026-11-24 batch-2 emulator build (`8f683450`,
-> SHA-256 `6c4d2560…`) resolves nine clips and `wave.spawn` on both Azahar
+> to `clip=-1 voice=0`. The 2026-11-25 emulator build (`99c7fd6b`,
+> SHA-256 `afca650c…`) resolves nine clips and `wave.spawn` on both Azahar
 > profiles, but Azahar still reports `fallback_no_dsp`. Audible upstream effects
 > and music on physical DSP remain **NOT VERIFIED**, so `ndsp-sfx-music` stays
 > `emulator-tested`. Use this build for the retest.
@@ -298,9 +301,15 @@ thermal/SD notes. Only this card can clear `physical-hardware-parity`.
 > New 3DS `a328c70` satisfies the harness FPS and soak half: strict 12/12 over
 > ~10 minutes, 132 `BENCH` windows, `fps_min=29.92`, `fps_max=59.84`,
 > `p95_max=33.50`, with the sector loader and parity intact. The newer
-> `6c4d2560` build (`8f683450`) still needs a physical New 3DS run. The
+> `afca650c` build (`99c7fd6b`) still needs a physical New 3DS run. The
 > `a328c70` FPS numbers apply to the earlier harness. Original 3DS physical
 > evidence is optional.
+>
+> At `857041e` the CI artifact `7adb4ee8...aae9` passed both Azahar profiles
+> with `62.79`/`59.76` FPS and parity `0x53a483c7`. This is recorded as
+> emulator evidence and does **not** clear the physical-hardware gauge entries,
+> which still require a physical-console acceptance run. See
+> [the emulator profile record](hardware/emulator-batch-2026-11-25.md).
 
 ## Current exclusions
 

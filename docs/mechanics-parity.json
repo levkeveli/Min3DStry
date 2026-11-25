@@ -136,24 +136,25 @@
       "domain": "Extraction & Logistics",
       "name": "Power Grids, Generators, Nodes & Batteries",
       "weight": 3,
-      "status": "partial-arm11",
-      "modes": ["probe", "multiplayer"],
+      "status": "live-arm11",
+      "modes": ["probe", "offline", "multiplayer"],
       "issue": 39,
       "evidence": [
         "docs/porting/production-power-liquids.md",
         "research/upstream-runtime/src/gameplay/java/UpstreamProductionTickProbe.java",
         "research/upstream-runtime/src/network-render/java/UpstreamRenderedNetworkProbe.java",
         "research/upstream-runtime/src/network-render/java/UpstreamBuildingLayers.java",
+        "research/upstream-runtime/src/network-render/java/UpstreamBuildingPowerHud.java",
         "research/upstream-runtime/src/network-render/host/UpstreamBuildingLayersReference.java"
       ],
-      "notes": "PowerGraph and GraphUpdater ticks are verified in the ARM11 probe. The live draw set includes the complete stock PowerBlock family (generators, reactors, batteries, diodes and lights), and the host reference now asserts every member explicitly; PowerNode beams remain covered. A stock power HUD bar remains open."
+      "notes": "PowerGraph and GraphUpdater ticks are verified in the ARM11 probe. The live draw set includes the complete stock PowerBlock family (generators, reactors, batteries, diodes and lights), and the host reference now asserts every member explicitly; PowerNode beams remain covered. The stock selected-building power bar is wired in the offline and live clients from Block.setBars, with host checks for dry, partial, buffered and supplied-idle states; it is included in the New 3DS acceptance run."
     },
     {
       "id": "liquids-pumps-conduits",
       "domain": "Extraction & Logistics",
       "name": "Liquid Pumps, Conduits, Routers & Bridges",
       "weight": 2,
-      "status": "partial-arm11",
+      "status": "live-arm11",
       "modes": ["probe", "offline", "multiplayer"],
       "issue": 39,
       "evidence": [
@@ -162,9 +163,11 @@
         "research/upstream-runtime/src/gameplay/java/UpstreamProductionTickProbe.java",
         "research/upstream-runtime/src/network-render/java/UpstreamRenderedNetworkProbe.java",
         "research/upstream-runtime/src/network-render/java/UpstreamBuildingLayers.java",
+        "research/upstream-runtime/src/network-render/java/UpstreamBuildingLiquidHud.java",
+        "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerApp.java",
         "research/upstream-runtime/src/network-render/host/UpstreamBuildingLayersReference.java"
       ],
-      "notes": "The ARM11 probe verifies LiquidModule and Conduit simulation. The offline renderer draws original pumps and liquid routers, including the tested Mechanical Pump and Liquid Tank. Live conduit tiling is verified. The stock Bridge Conduit and Phase Conduit are liquid-category LiquidBridge blocks, covered by the live Category.liquid draw set; the host LIQUID registry renders every liquid block and asserts both categories. The host reference also verifies one-way Bridge Conduit and Phase Conduit transfer, rejects back-linked pairs, dumps a Liquid Router into an adjacent router sink, and checks Liquid Junction far-side/dead-end routing. The live selected-building HUD is wired to draw the stock dynamic and keyed consumer/generator liquid bars; emulator draw verification is pending."
+      "notes": "The ARM11 probe verifies LiquidModule and Conduit simulation. The offline renderer draws original pumps and liquid routers, including the tested Mechanical Pump and Liquid Tank. Live conduit tiling is verified. The stock Bridge Conduit and Phase Conduit are liquid-category LiquidBridge blocks, covered by the live Category.liquid draw set; the host LIQUID registry renders every liquid block and asserts both categories. The host reference also verifies one-way Bridge Conduit and Phase Conduit transfer, rejects back-linked pairs, dumps a Liquid Router into an adjacent router sink, and checks Liquid Junction far-side/dead-end routing. The stock selected-building dynamic and keyed consumer/generator liquid bars are wired in the offline and live clients from Block.addLiquidBar; their draw is included in the New 3DS acceptance run."
     },
     {
       "id": "payloads-unit-factories",
@@ -302,9 +305,11 @@
         "docs/gameplay/touch-build-palette.md",
         "tools/verify_stock_schematics.py",
         "tools/verify_stock_schematic_capture.py",
-        "tools/verify_stock_command_orders.py"
+        "tools/verify_stock_command_orders.py",
+        "research/upstream-runtime/src/network-live/java/UpstreamCommandOrders.java",
+        "research/upstream-runtime/src/network-live/host/UpstreamBuildControlsReference.java"
       ],
-      "notes": "The unified client places and exports stock .msch files. The touch grid selects allied units and sends original orders and stances. Drag selection, schematic naming and metadata editing, and clipboard sharing remain open."
+      "notes": "The unified client places and exports stock .msch files. The touch grid selects allied units by tap or press-drag rectangle and sends original orders and stances. Schematic naming and metadata editing is live; clipboard sharing remains open."
     },
     {
       "id": "content-database-page",
@@ -419,7 +424,7 @@
         "src/render/scene_2d.c",
         "src/platform/3ds/citro2d_backend.c"
       ],
-      "notes": "Offline and multiplayer clients advance the stock weather entities, particle/debris layers and puddles; both Azahar profiles sampled active rain/sandstorm/fog and stock puddles. Dynamic world lighting and live camera zoom remain open in the C Citro2D harness."
+      "notes": "Offline and multiplayer clients advance the stock weather entities, particle/debris layers and puddles; both Azahar profiles sampled active rain/sandstorm/fog and stock puddles. Dynamic world lighting remains open. Live camera zoom is wired to the New 3DS C-Stick (0.5x-2x, 8x6-32x24 tile span) with host checks; physical draw is pending the New 3DS acceptance run."
     },
     {
       "id": "logic-vm-execution",

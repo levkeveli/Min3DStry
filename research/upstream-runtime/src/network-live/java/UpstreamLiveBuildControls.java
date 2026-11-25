@@ -19,10 +19,14 @@ final class UpstreamLiveBuildControls {
     private static final int PLACE_PRESSED = 1 << 17;
     private static final int ROTATE_PRESSED = 1 << 18;
     private static final int REMOVE_PRESSED = 1 << 19;
+    static final int ZOOM_IN_PRESSED = 1 << 26;
+    static final int ZOOM_OUT_PRESSED = 1 << 27;
+    private int zoomDelta;
 
     private enum InventoryAction { none, withdraw, deposit }
 
     private int left, bottom;
+    private int viewWidth = WIDTH, viewHeight = HEIGHT;
     private boolean viewportReady;
     private int tileX = -1, tileY = -1;
     private Block selected;
@@ -32,6 +36,7 @@ final class UpstreamLiveBuildControls {
     private final UpstreamBuildingConfig buildingConfig = new UpstreamBuildingConfig();
     private final UpstreamInventoryMenu inventory = new UpstreamInventoryMenu();
     private final UpstreamCommandOrders orders = new UpstreamCommandOrders();
+    private boolean orderTouch;
     private final UpstreamPlayerControl playerControl = new UpstreamPlayerControl();
     private InventoryAction inventoryAction = InventoryAction.none;
     private boolean configuring;
@@ -48,8 +53,14 @@ final class UpstreamLiveBuildControls {
     }
 
     void viewport(int left, int bottom) {
+        viewport(left, bottom, WIDTH, HEIGHT);
+    }
+
+    void viewport(int left, int bottom, int width, int height) {
         this.left = left;
         this.bottom = bottom;
+        this.viewWidth = Math.max(1, width);
+        this.viewHeight = Math.max(1, height);
         viewportReady = true;
         if (!contains(tileX, tileY)) {
             tileX = -1;
@@ -58,6 +69,8 @@ final class UpstreamLiveBuildControls {
     }
 
     void update(Unit unit, int buttons, int touch) {
+        if ((buttons & ZOOM_IN_PRESSED) != 0) zoomDelta = 1;
+        if ((buttons & ZOOM_OUT_PRESSED) != 0) zoomDelta = -1;
         if (schematics.active()) {
             if ((buttons & REMOVE_PRESSED) != 0) {
                 schematics.cancel();
@@ -110,6 +123,7 @@ final class UpstreamLiveBuildControls {
         boolean rightRail = touch >= 0 && touchX >= 292 && touchX < 318;
         if (rightRail && touchY >= 144 && touchY < 175) {
             if (orders.active()) orders.toggle();
+            orderTouch = false;
             selectingControl = !selectingControl;
             configuring = selectingMine = removing = false;
             inventoryAction = InventoryAction.none;
@@ -128,6 +142,7 @@ final class UpstreamLiveBuildControls {
         }
         if (touch >= 0 && touchX >= 292 && touchX < 318 && touchY >= 112 && touchY < 143) {
             orders.toggle();
+            orderTouch = false;
             configuring = selectingMine = removing = false;
             inventoryAction = InventoryAction.none;
             return;
@@ -138,14 +153,25 @@ final class UpstreamLiveBuildControls {
                 else if (touch >= 0) orders.tapMenu(touchX, touchY);
                 return;
             }
-            if ((buttons & REMOVE_PRESSED) != 0) orders.toggle();
-            else if ((buttons & ROTATE_PRESSED) != 0) orders.toggleQueue();
+            if ((buttons & REMOVE_PRESSED) != 0) {
+                orders.toggle();
+                orderTouch = false;
+            } else if ((buttons & ROTATE_PRESSED) != 0) orders.toggleQueue();
             if (orders.active() && touch >= 0) {
                 if (touchX >= 2 && touchX < 28 && touchY >= 48 && touchY < 111) {
                     orders.openMenu(touchY >= 80);
+                    orderTouch = false;
                 } else if (selectGridCell(touchX, touchY)) {
-                    orders.tap(tileX, tileY);
+                    if (!orderTouch) {
+                        orderTouch = true;
+                        orders.press(tileX, tileY);
+                    } else {
+                        orders.drag(tileX, tileY);
+                    }
                 }
+            } else if (orders.active() && touch < 0 && orderTouch) {
+                orderTouch = false;
+                orders.release();
             }
             return;
         }
@@ -215,8 +241,10 @@ final class UpstreamLiveBuildControls {
     private boolean selectGridCell(int x, int y) {
         if (!viewportReady || x < GRID_X || x >= GRID_X + WIDTH * CELL
                 || y < GRID_Y || y >= GRID_Y + HEIGHT * CELL) return false;
-        tileX = left + (x - GRID_X) / CELL;
-        tileY = bottom + HEIGHT - 1 - (y - GRID_Y) / CELL;
+        int gx = Math.min(viewWidth - 1, (x - GRID_X) * viewWidth / (WIDTH * CELL));
+        int gy = Math.min(viewHeight - 1, (y - GRID_Y) * viewHeight / (HEIGHT * CELL));
+        tileX = left + gx;
+        tileY = bottom + viewHeight - 1 - gy;
         return true;
     }
 
@@ -277,7 +305,7 @@ final class UpstreamLiveBuildControls {
     }
 
     private boolean contains(int x, int y) {
-        return x >= left && x < left + WIDTH && y >= bottom && y < bottom + HEIGHT;
+        return x >= left && x < left + viewWidth && y >= bottom && y < bottom + viewHeight;
     }
 
     Block shortcut(int slot) {
@@ -308,6 +336,11 @@ final class UpstreamLiveBuildControls {
     UpstreamBuildingConfig buildingConfig() { return buildingConfig; }
     UpstreamInventoryMenu inventory() { return inventory; }
     UpstreamCommandOrders orders() { return orders; }
+    int consumeZoom() {
+        int value = zoomDelta;
+        zoomDelta = 0;
+        return value;
+    }
     int inventoryAction() { return inventoryAction.ordinal(); }
     boolean configuring() { return configuring || buildingConfig.isLinking(); }
     boolean selectingMine() { return selectingMine; }
