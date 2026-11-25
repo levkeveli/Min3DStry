@@ -47,7 +47,8 @@ def write_replay(path: Path, model: str, planet: str, manual_cargo: bool = False
     write_input_replay(path, model, windows, end, b"Min3DStry Campaign Launch")
 
 def write_input_replay(path: Path, model: str, windows: list[tuple[int, int, int]],
-                       end: int, title: bytes) -> None:
+                       end: int, title: bytes,
+                       touches: tuple[tuple[int, int, int], ...] = ()) -> None:
     frames = sp.CTM_SAMPLES_PER_SECOND * (end + 10)
     header = struct.pack("<4sQ20sQQ32sIQq156x", b"CTM\x1b", 0, sp.CTM_REVISION, 1780000000,
                          0x4D334453, title, 0, frames, 0)
@@ -57,6 +58,13 @@ def write_input_replay(path: Path, model: str, windows: list[tuple[int, int, int
         for frame in range(frames):
             second = frame // sp.CTM_SAMPLES_PER_SECOND
             buttons = next((mask for start, end, mask in windows if start <= second < end), 0)
+            point = next(((x, y) for start, x, y in touches if start <= second < start + 2), None)
+            if point:
+                touch = struct.pack("<BHHBx", 1, *point, 1)
+                movie.write(touch * 2)
+                if model == "new3ds" and frame % 7 in (0, 2, 4):
+                    movie.write(touch)
+                continue
             pad = struct.pack("<BHhh", 0, buttons, 0, 0)
             movie.write(pad + (pad if buttons else idle))
             if model == "new3ds" and frame % 7 in (0, 2, 4):
