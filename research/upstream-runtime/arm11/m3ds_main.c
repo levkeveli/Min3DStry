@@ -14,6 +14,13 @@ u32 __stacksize__ = 256 * 1024;
 u32 __ctru_linear_heap_size = 4 * 1024 * 1024;
 
 static void m3ds_init_heap(int64_t minimum, int64_t maximum) {
+    // Leave the rest of the homebrew application's regular heap to native allocations.
+    const int64_t baseline = 32LL * 1024 * 1024;
+    const int64_t native_reserve = 24LL * 1024 * 1024;
+    if (maximum > baseline && (int64_t)envGetHeapSize() < maximum + native_reserve) {
+        maximum = baseline;
+        if (minimum > maximum) minimum = maximum;
+    }
     char message[80];
     int length = snprintf(message, sizeof(message), "UPSTREAM_MEMORY managedLimit=%lu\n",
         (unsigned long)maximum);
