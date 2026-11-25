@@ -110,7 +110,7 @@ v160.8 inputs, verifies packaged stock audio, and publishes one ROM with the
 matching server JAR and atlas metadata. The offline job replays Ground Zero
 and saves and reloads it. The multiplayer and audio job checks a stock-server
 session and replays stock campaign audio. Both replay jobs download the same
-ROM and use checksum-pinned Azahar 2126.2 on separate GitHub-hosted runners.
+ROM and use checksum-pinned Azahar 2126.2 in New 3DS mode on separate GitHub-hosted runners.
 
 Live audio changes select the multiplayer and audio job. Live graphics and
 client changes select both replay jobs. Narrow changes to standalone probes
@@ -119,6 +119,14 @@ skip the workflow's heavy jobs. Shared inputs, workflow edits, and unavailable
 change lists select both unified replay jobs. Use `workflow_dispatch` to
 also run the full standalone matrix, including the independent JVM and
 generated-C reference comparisons.
+
+The unified New 3DS multiplayer replay holds START for five emulated seconds
+after the movement inputs. It requires both the client leave marker and the
+stock server disconnect after the wave and movement checks. The
+[New 3DS replay evidence](https://github.com/levkeveli/Min3DStry/actions/runs/45700048301/artifacts/15063885096)
+records both disconnect events after reusing the ROM from main run
+`45695100973` (SHA-256
+`a4c8c6d843ab3cef6b3d334de080b0ec5aa8c762160b09ba86d6e597f3c11373`).
 
 CircleCI and Daytona can run independent builds and emulator replays on their
 own compute. Keep required GitHub status contexts and record the exact source
