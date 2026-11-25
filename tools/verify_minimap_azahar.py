@@ -37,7 +37,7 @@ MINIMAP_SAMPLES = tuple(
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--rom", type=Path, default=DEFAULT_ROM)
-    parser.add_argument("--model", choices=("new3ds", "old3ds"), default="new3ds")
+    parser.add_argument("--model", choices=("new3ds",), default="new3ds")
     parser.add_argument("--slot", type=int, default=0)
     parser.add_argument(
         "--items",

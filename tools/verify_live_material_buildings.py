@@ -21,7 +21,7 @@ def main():
     azahar = az.resolve_azahar_bin(args.azahar)
     args.output.mkdir(parents=True)
     empty, stock = create_fixtures(args.output / "stock-server", args.java, args.server, args.port)
-    for model in ("old3ds", "new3ds"):
+    for model in ("new3ds",):
         output = args.output / model
         baseline = verify_live(args, model, azahar, empty, None, output / "empty")
         counts = verify_live(args, model, azahar, stock, baseline, output / "stock", BUILDINGS)

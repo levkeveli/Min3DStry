@@ -79,4 +79,4 @@ Azahar used the no-DSP fallback. Physical playback needs a console with
 DSP firmware.
 
 ## Remaining Scope for Issue #29
-- Verify live NDSP playback (`state=ready rc=0x00000000`) and stereo `ndspWaveBuf.nsamples` timing on physical Original and New 3DS hardware with `sdmc:/3ds/dspfirm.cdc`.
+- Verify live NDSP playback (`state=ready rc=0x00000000`) and stereo `ndspWaveBuf.nsamples` timing on physical New Nintendo 3DS/2DS hardware with `sdmc:/3ds/dspfirm.cdc`.

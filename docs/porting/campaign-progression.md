@@ -479,4 +479,4 @@ The [graphical background turn](../gameplay/offline-singleplayer.md#serpulo-back
 has a repeatable three-sector replay. Use [the SD path contract](sd-storage-paths.md)
 when comparing the saves and settings with the unmodified Java release.
 The [physical hardware milestones](../hardware-test-queue.md) track
-the runs on Original and New 3DS/2DS.
+the runs on New Nintendo 3DS/2DS.

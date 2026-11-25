@@ -114,4 +114,4 @@ acceptance run. Keyed consumer and generator bars use the same stock
 ## Remaining Scope for Issue #39
 
 - Reduce the ARM11 footprint within the Old 3DS XL (`64 MiB` AppMem) budget.
-- Verify production, power and liquid execution on physical Old/New 3DS XL hardware.
+- Verify production, power and liquid execution on physical New Nintendo 3DS/2DS hardware.

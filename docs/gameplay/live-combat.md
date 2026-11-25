@@ -117,4 +117,4 @@ Dagger id, and the Duo spent exactly one copper.
   `min3dstry.3dsx`.
 - The test hosts `Glacier sandbox` and clears the enemy base to isolate the
   Duo; it does not claim a full attack-map session.
-- Physical Old/New 3DS verification remains open with #43.
+- Physical New 3DS verification remains open with #43.

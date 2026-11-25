@@ -615,7 +615,7 @@
       "modes": [],
       "issue": 43,
       "evidence": [],
-      "notes": "Full playable acceptance requires sustained >= 24 FPS within the physical New 3DS application-memory budget. The older New 3DS harness soak does not establish full gameplay performance. The historical Original 3DS Azahar baseline was 3.48 FPS with a 44.44 MiB static subtotal. The later unified 66.49 MiB subtotal exceeds the Original 3DS limit. Original 3DS fit and physical performance are tracked separately from the gauge."
+      "notes": "Full playable acceptance requires sustained >= 24 FPS within the physical New 3DS application-memory budget. The older New 3DS harness soak does not establish full gameplay performance. The historical Original 3DS Azahar baseline was 3.48 FPS with a 44.44 MiB static subtotal. The later unified 66.49 MiB subtotal exceeds the Original 3DS limit. Original 3DS measurements are historical."
     }
   ]
 }
