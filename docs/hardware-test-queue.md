@@ -9,12 +9,9 @@ covering the five-minute soak plus pan/zoom, lighting, pause/resume and menu
 input. The operator confirmed the scene, controls, minimap and HUD worked. Still
 not claimed: full upstream campaign gameplay performance, audible upstream
 sound effects/music (the newest emulator build resolves nine clips, but physical
-DSP output is unverified), live build-UI gameplay, cross-play, and the Old 3DS
-sector-loader/FPS run. HWT-01 through HWT-06 require New 3DS evidence for
-release acceptance. Original 3DS physical tests are optional for release.
-Track Original 3DS fit and sustained gameplay performance as separate
-compatibility work. The documented unified build subtotal of 66.49 MiB
-exceeds its 64 MiB application budget. See [architecture](architecture.md). The operator
+DSP output is unverified), live build-UI gameplay, and cross-play.
+HWT-01 through HWT-06 use New Nintendo 3DS/2DS, the sole supported target.
+Original-model records are historical. The operator
 also found that the visible touch legend was outside the hit zones; the
 coordinates themselves are correct (`TOUCH action=menu x=288 y=47`). The labels
 are now drawn inside the zones by the #364 fix; physical retest is pending.
@@ -57,7 +54,7 @@ Capabilities still marked `HARDWARE_TEST_PENDING`:
 
 | Card | Capabilities |
 | --- | --- |
-| HWT-01 | _none for New 3DS — the render capabilities are cleared by `a328c70`; Original 3DS render reruns are optional_ |
+| HWT-01 | _none for New 3DS — the render capabilities are cleared by `a328c70`; previous Original 3DS evidence is historical_ |
 | HWT-02 | `world-blocks-logistics`, `production-power-liquids`, `combat-waves-ai`, `touch-build-palette` |
 | HWT-03 | `campaign-sectors` |
 | HWT-04 | `ndsp-sfx-music` |
@@ -277,7 +274,7 @@ Covers `crossplay-net-protocol`.
 join from the console; optionally join from a PC client for cross-play.
 
 **Steps:** join, move, place/break a block, fire, receive a wave, disconnect
-cleanly. Repeat once on each 3DS generation if available.
+cleanly on New Nintendo 3DS/2DS.
 
 **Expected:** `UPSTREAM_LIVE_NET_WORLD join=1`, stable controls, server sees
 the console, no desync/crash, clean departure. **Evidence:** server log, console
@@ -301,8 +298,7 @@ thermal/SD notes. Only this card can clear `physical-hardware-parity`.
 > ~10 minutes, 132 `BENCH` windows, `fps_min=29.92`, `fps_max=59.84`,
 > `p95_max=33.50`, with the sector loader and parity intact. The newer
 > `afca650c` build (`99c7fd6b`) still needs a physical New 3DS run. The
-> `a328c70` FPS numbers apply to the earlier harness. Original 3DS physical
-> evidence is optional.
+> `a328c70` FPS numbers apply to the earlier harness.
 
 ## Current exclusions
 

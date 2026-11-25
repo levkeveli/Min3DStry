@@ -110,7 +110,7 @@ v160.8 inputs, verifies packaged stock audio, and publishes one ROM with the
 matching server JAR and atlas metadata. The offline job replays Ground Zero
 and saves and reloads it. The multiplayer and audio job checks a stock-server
 session and replays stock campaign audio. Both replay jobs download the same
-ROM and use checksum-pinned Azahar 2126.2 on separate GitHub-hosted runners.
+ROM and use checksum-pinned Azahar 2126.2 in New 3DS mode on separate GitHub-hosted runners.
 
 Live audio changes select the multiplayer and audio job. Live graphics and
 client changes select both replay jobs. Narrow changes to standalone probes

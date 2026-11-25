@@ -1,6 +1,6 @@
 # Architecture
 
-**Min3DStry is a 1:1 port of upstream Mindustry (v8 build `160.8`) to Original and New Nintendo 3DS/2DS — not a custom clone or demake.** Target ARM11 homebrew on Original and New 3DS/2DS, adapting real pinned upstream Mindustry/Arc source code and content while keeping 3DS services behind platform interfaces. Upstream code may be modified where needed for ARM11/TeaVM compatibility, 3DS memory/performance budgets, and 3DS platform adapters as long as the game stays technically original Mindustry v160.8 (including `.msav` compatibility and cross-platform Java PC multiplayer). The [upstream port plan](upstream-port.md) defines the reference release and 1:1 compatibility requirements.
+**Min3DStry is a 1:1 port of upstream Mindustry (v8 build `160.8`) to New Nintendo 3DS/2DS — not a custom clone or demake.** Target ARM11 homebrew on New Nintendo 3DS/2DS, adapting real pinned upstream Mindustry/Arc source code and content while keeping 3DS services behind platform interfaces. Upstream code may be modified where needed for ARM11/TeaVM compatibility, 3DS memory/performance budgets, and 3DS platform adapters as long as the game stays technically original Mindustry v160.8 (including `.msav` compatibility and cross-platform Java PC multiplayer). The [upstream port plan](upstream-port.md) defines the reference release and 1:1 compatibility requirements.
 
 ## Upstream v160.8 ARM11 Bring-Up
 

@@ -1068,7 +1068,7 @@ def artifact_metadata(path: Path) -> dict[str, Any]:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--rom", default="build/min3dstry.3dsx")
-    parser.add_argument("--models", default="new3ds,old3ds")
+    parser.add_argument("--models", default="new3ds")
     parser.add_argument("--out-dir", default="build/emu-verify")
     parser.add_argument("--timeout", type=float, default=60.0)
     parser.add_argument("--azahar", default=None)
