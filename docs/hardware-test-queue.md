@@ -309,6 +309,19 @@ and save checksums. Confirm cargo is moving during the run and capture the
 active workload. Managed heap data alone does not prove application-memory fit.
 Remove the flag after the run.
 
+To stage the repeatable high-load fixture, use the unmodified v160.8 server:
+
+```sh
+python3 tools/prepare_playable_benchmark.py --server /path/to/server-release.jar --output build/playable-benchmark
+```
+
+The original Ground Zero terrain hosts 14 copper-fed Duos, four cargo lines,
+and a repeating 80-Dagger wave configuration. The generator reopens the save
+with the stock server and prints its SHA-256. Stage the generated files in a
+test SD directory and select the save from the title. Confirm enemies, turret
+projectiles, and moving items coexist through the run. This fixture's gameplay
+throughput and sustained load still need New 3DS validation.
+
 The New 3DS Azahar Ground Zero script checks the trace format and timing
 arithmetic. Physical high-load measurement is required to advance either
 gauge.
