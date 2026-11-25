@@ -232,7 +232,7 @@ public final class UpstreamSinglePlayerApp {
                     saveFile = customSave;
                     System.out.println("UPSTREAM_CUSTOM_GAME_SELECTED map=" + custom.map.file.name()
                         + " mode=" + custom.mode.name());
-                    Gamemode mode = session.startCustomGame(custom.map, custom.mode);
+                    Gamemode mode = session.startCustomGame(custom.map, custom.mode, mapDir.child("rules"));
                     System.out.println("UPSTREAM_CUSTOM_GAME_STARTED map=" + custom.map.file.name() + " mode=" + mode.name());
                 }
             }

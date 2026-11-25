@@ -297,8 +297,13 @@ public final class UpstreamSinglePlayerSession {
     }
 
     Gamemode startCustomGame(Map map, Gamemode requested) throws IOException {
+        return startCustomGame(map, requested, null);
+    }
+
+    Gamemode startCustomGame(Map map, Gamemode requested, Fi imports) throws IOException {
         // Control.playMap wraps these operations in the stock desktop loading UI.
         var rules = map.applyRules(requested);
+        if (imports != null) rules = UpstreamCustomRules.load(imports, map, requested, rules);
         Vars.logic.reset();
         Vars.world.loadMap(map, rules);
         if (Vars.state.map != map || Vars.world.isInvalidMap()) {
