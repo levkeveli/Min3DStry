@@ -273,7 +273,7 @@
         "research/upstream-runtime/src/content/java/UpstreamMinimap.java",
         "tools/verify_minimap_azahar.py"
       ],
-      "notes": "Both Azahar profiles verified a nonblank offline minimap and local player marker. The fullscreen view and 1xâ€“4x zoom are implemented and host-tested; handheld rendering and interaction for that view, independent core-marker pixel evidence, and the full stock panel remain open."
+      "notes": "Both Azahar profiles verified a nonblank offline minimap and local player marker. The fullscreen view and 1x–4x zoom are implemented and host-tested; handheld rendering and interaction for that view, independent core-marker pixel evidence, and the full stock panel remain open."
     },
     {
       "id": "minimap-pause-overlay",
