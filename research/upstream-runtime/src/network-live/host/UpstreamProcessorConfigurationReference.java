@@ -1,7 +1,11 @@
+import arc.files.Fi;
+import java.nio.file.Files;
 import java.util.Random;
 import mindustry.Vars;
 import mindustry.content.Blocks;
 import mindustry.content.SectorPresets;
+import mindustry.gen.Player;
+import mindustry.logic.LAssembler;
 import mindustry.logic.LCategory;
 import mindustry.logic.LStatements.JumpStatement;
 import mindustry.world.blocks.logic.CanvasBlock.CanvasBuild;
@@ -51,7 +55,42 @@ public final class UpstreamProcessorConfigurationReference {
             throw new AssertionError("Validation changed the running program");
         }
         checkInstructionEditing();
-        return "UPSTREAM_PROCESSOR_EDIT_REFERENCE source=exact links=preserved canvas=5 limits=checked instructions=stock";
+        checkProcessorPalette(processor);
+        return "UPSTREAM_PROCESSOR_EDIT_REFERENCE source=exact links=preserved canvas=5 limits=checked instructions=stock palette=ok";
+    }
+
+    private static void checkProcessorPalette(LogicBuild processor) throws Exception {
+        var previousPlayer = Vars.player;
+        var clipboard = Files.createTempFile("min3ds-processor-palette-", ".mlog");
+        try {
+            Vars.player = Player.create();
+            Vars.player.team(processor.team);
+            var config = new UpstreamBuildingConfig();
+            config.editProcessorsWith(original -> original, new Fi(clipboard.toFile()));
+
+            String source = "getlink canvas 0\nwrite 8 canvas 0\nend\n";
+            Files.writeString(clipboard, source);
+            config.open(processor);
+            if (!config.isOpen()) throw new AssertionError("The stock processor did not open its palette");
+            config.tap(160, 81);
+            if (!processor.code.equals(source) || config.isOpen()) {
+                throw new AssertionError("The import action did not submit the original mlog");
+            }
+
+            config.open(processor);
+            config.tap(160, 156);
+            config.tap(160, 156);
+            config.tap(160, 81);
+            config.tap(160, 56);
+            var expected = LAssembler.read(source, false);
+            expected.add(expected.peek().copy());
+            if (!processor.code.equals(LAssembler.write(expected)) || processor.links.size != 1 || config.isOpen()) {
+                throw new AssertionError("The instruction palette did not apply the edit or preserve its link");
+            }
+        } finally {
+            Vars.player = previousPlayer;
+            Files.deleteIfExists(clipboard);
+        }
     }
 
     private static void checkInstructionEditing() {
