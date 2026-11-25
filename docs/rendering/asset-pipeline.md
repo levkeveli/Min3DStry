@@ -1,6 +1,6 @@
 # Sprite asset pipeline
 
-Status: **emulator-tested** (`ATLAS loaded`, textured screenshots and parity verified in Azahar `2126.2`; physical Old/New 3DS frame-time verification pending).
+Status: **emulator-tested** (`ATLAS loaded`, textured screenshots and parity verified in Azahar `2126.2`; physical New 3DS frame-time verification pending).
 
 Capability stage scope: the emulator-tested part is packing the generated fixture sheet into RomFS, loading it and rendering textured frames. Deterministic byte-identical generation and the 5,200-region upstream importer remain host-tested; renderer integration is still tracked by the terrain/world issues.
 
@@ -110,7 +110,7 @@ cmp build/assets/first/sprites.h build/assets/second/sprites.h
 
 Both comparisons should exit successfully. For repeatability between machines, record the converter build and its ImageMagick version along with the ordered inputs. To pack your own local inputs, append PNG paths in a fixed order. Use unique lowercase names, such as `floor.png` and `belt-0.png`. The header maps sprite names to Citro2D indices. Keep animation order in the caller and use those named indices rather than relying on atlas layout.
 
-The initial Windows verification used tex3ds v2.3.0 with ImageMagick 7.1.2-36. Two runs produced byte-identical outputs. The five fixture sprites fit in a 32 × 64 sheet (8 KiB of texture data), and their decoded RGBA pixels matched the PNGs. Azahar `2126.2` now reports `ATLAS loaded` on both models and renders textured screenshots; physical Old/New 3DS frame time remains pending. See [azahar-atlas-evidence.md](azahar-atlas-evidence.md).
+The initial Windows verification used tex3ds v2.3.0 with ImageMagick 7.1.2-36. Two runs produced byte-identical outputs. The five fixture sprites fit in a 32 × 64 sheet (8 KiB of texture data), and their decoded RGBA pixels matched the PNGs. Azahar `2126.2` now reports `ATLAS loaded` on both models and renders textured screenshots; physical New 3DS frame time remains pending. See [azahar-atlas-evidence.md](azahar-atlas-evidence.md).
 
 ## Image quality and texture budget
 

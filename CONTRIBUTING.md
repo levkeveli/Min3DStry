@@ -1,6 +1,6 @@
 # Contributing to Min3DStry
 
-This is an experimental **1:1 port of upstream Mindustry (v8 build 160.8)** for Original and New Nintendo 3DS/2DS — **not a simplified clone or demake**. Follow the [upstream port plan](docs/upstream-port.md) for 1:1 gameplay/content scope, source and asset provenance, Java PC interoperability, hardware targets, and compatibility evidence. Treat existing C demos (`src/render/`, `src/sim/parity_scenario.c`) as 3DS platform verification harnesses only.
+This is an experimental **1:1 port of upstream Mindustry (v8 build 160.8)** for New Nintendo 3DS/2DS — **not a simplified clone or demake**. Follow the [upstream port plan](docs/upstream-port.md) for 1:1 gameplay/content scope, source and asset provenance, Java PC interoperability, hardware targets, and compatibility evidence. Treat existing C demos (`src/render/`, `src/sim/parity_scenario.c`) as 3DS platform verification harnesses only.
 
 ## For humans
 

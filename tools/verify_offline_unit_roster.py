@@ -114,7 +114,7 @@ def main():
     azahar = singleplayer.az.resolve_azahar_bin(args.azahar)
     args.output.mkdir(parents=True)
     fixture = create_stock_save(args.output, args.java, args.server, args.port)
-    for model in ("old3ds", "new3ds"):
+    for model in ("new3ds",):
         verify_model(args.output / model, model, args.rom, azahar, fixture)
         print(f"[PASS] {model}: stock Glacier save drew Elude, Stell, Scepter, Mega and carried Flare")
 

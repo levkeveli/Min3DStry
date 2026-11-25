@@ -2,7 +2,7 @@
 
 ## Mission
 
-**Min3DStry is a 1:1 port of upstream Mindustry to Original and New Nintendo 3DS/2DS — NOT a simplified clone, demake, fan recreation, or custom mini-game.** Adapt and run the pinned upstream Mindustry v8 build `160.8` code and content ([upstream port plan](docs/upstream-port.md)), preserving 1:1 gameplay rules, complete content catalog (blocks, items, liquids, units, bullets, status effects, planets, sectors, tech tree, logic), original sprites/audio assets, `.msav` maps/saves, and cross-platform multiplayer with the unmodified Java PC v160.8 release. Complete functional and content parity before performance optimization, then verify at least 24 FPS on physical New Nintendo 3DS/2DS within its application-memory budget. The 100% completion score covers physical acceptance on New Nintendo 3DS/2DS only. Original Nintendo 3DS/2DS remains a compatibility target covered by emulator checks. Track its physical fit and performance separately as compatibility work, and claim Original-model hardware parity only with Original-model evidence. Never assert an untested feature works.
+**Min3DStry is a 1:1 port of upstream Mindustry to New Nintendo 3DS/2DS — NOT a simplified clone, demake, fan recreation, or custom mini-game.** Adapt and run the pinned upstream Mindustry v8 build `160.8` code and content ([upstream port plan](docs/upstream-port.md)), preserving 1:1 gameplay rules, complete content catalog (blocks, items, liquids, units, bullets, status effects, planets, sectors, tech tree, logic), original sprites/audio assets, `.msav` maps/saves, and cross-platform multiplayer with the unmodified Java PC v160.8 release. Complete functional and content parity before performance optimization, then verify at least 24 FPS on physical New Nintendo 3DS/2DS within its application-memory budget. New Nintendo 3DS/2DS is the sole supported release and verification target. Preserve older Original-model test records as historical evidence. Never assert an untested feature works.
 
 ### 1:1 Port Constraints (Mandatory for AI Agents)
 
@@ -26,7 +26,7 @@
 4. Use one dedicated branch/worktree per task. Never work in another agent's working tree or force-push their branch.
 5. Keep changes reviewable and modular. Coordinate shared interfaces via an issue/comment before changing them.
 6. Add tests and docs in the same PR when changing behavior, and reference the linked issue (`Closes #N` or `#N`) when applicable.
-7. Run independent verification yourself—including `./dev.sh test`, `./dev.sh build`, and `./dev.sh emu-test` (inspecting Azahar screenshots, RPC perf stats, and `svcOutputDebugString` telemetry across Old/New 3DS modes) instead of asking humans to run or screenshot emulator builds. Let CI and AI review evaluate the PR; do not wait for human approvals.
+7. Run independent verification yourself—including `./dev.sh test`, `./dev.sh build`, and `./dev.sh emu-test` (inspecting Azahar screenshots, RPC perf stats, and `svcOutputDebugString` telemetry in New 3DS mode) instead of asking humans to run or screenshot emulator builds. Let CI and AI review evaluate the PR; do not wait for human approvals.
 8. Auto-merge runs automatically once required checks and AI review pass unless an explicit hold label is set; humans only intervene on hold labels or physical-hardware milestones.
 9. After merge, verify relevant post-merge CI, Pages deployment and board/status updates when relevant.
 
@@ -34,7 +34,7 @@
 
 - Prefer automated repeatable commands over manual chores. Maintain `./dev.sh doctor|build|test|emu-test|run|device|package|status` where supported; unimplemented commands must fail clearly.
 - Preserve a host-platform build/test path for shared game logic; keep 3DS-specific code behind interfaces.
-- Use `./dev.sh emu-test` (`tools/verify_azahar.py`) to autonomously boot `.3dsx` builds in Azahar across Old and New 3DS modes, collect `svcOutputDebugString` logs + UDP RPC perf stats, and inspect captured PNG screenshots directly.
+- Use `./dev.sh emu-test` (`tools/verify_azahar.py`) to autonomously boot `.3dsx` builds in Azahar using New 3DS mode, collect `svcOutputDebugString` logs + UDP RPC perf stats, and inspect captured PNG screenshots directly.
 - Cache toolchains and converted assets; support incremental builds and rapid real-hardware deployment/log collection where feasible.
 - Implement deterministic upstream-versus-port simulation comparisons and game/network protocol regression tests.
 - Track benchmark provenance: model, firmware, build commit, test scenario, memory, FPS and frame times.
@@ -50,7 +50,7 @@
 
 - `main` is always protected, buildable and the only source for public implemented-state claims. Fix or revert a merge that breaks post-merge verification. Accepted cost of the two-lane model: a PR that breaks the 3DS/ARM11 build can land on main and is caught by post-merge verification (hold until fixed or reverted) rather than blocked pre-merge.
 - Required PR CI covers the fast lane (host build/tests, lint, docs, policy gate, AI review); heavy 3DS/ARM11 build and smoke workflows run on PRs as non-required signals and on every push to `main`, where the PR policy gate holds ordinary PRs until both heavy workflows pass on the current HEAD. The alert manages the `main-verify-blocked` label and retries failed policy gates when verification passes. Never bypass, disable or fake checks. See `docs/development/automation-policy.md` for the two-lane model.
-- Maintain identical game simulation rules between Old and New 3DS. Preserve cross-platform network behavior; differences require explicit review and evidence.
+- Maintain the pinned upstream game simulation rules on New 3DS/2DS. Preserve cross-platform network behavior; differences require explicit review and evidence.
 - Do not introduce proprietary Nintendo code/firmware or undistributable third-party assets.
 - Follow upstream Mindustry GPLv3 obligations and audit dependencies.
 - Check the actual repository before making architectural assumptions; active upstream v160.8 ARM11 source bring-up lives in `research/upstream-runtime/` (TeaVM C + `libctru`).

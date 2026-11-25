@@ -9,12 +9,9 @@ covering the five-minute soak plus pan/zoom, lighting, pause/resume and menu
 input. The operator confirmed the scene, controls, minimap and HUD worked. Still
 not claimed: full upstream campaign gameplay performance, audible upstream
 sound effects/music (the newest emulator build resolves nine clips, but physical
-DSP output is unverified), live build-UI gameplay, cross-play, and the Old 3DS
-sector-loader/FPS run. HWT-01 through HWT-06 require New 3DS evidence for
-release acceptance. Original 3DS physical tests are optional for release.
-Track Original 3DS fit and sustained gameplay performance as separate
-compatibility work. The documented unified build subtotal of 66.49 MiB
-exceeds its 64 MiB application budget. See [architecture](architecture.md). The operator
+DSP output is unverified), live build-UI gameplay, and cross-play.
+HWT-01 through HWT-06 use New Nintendo 3DS/2DS, the sole supported target.
+Original-model records are historical. The operator
 also found that the visible touch legend was outside the hit zones; the
 coordinates themselves are correct (`TOUCH action=menu x=288 y=47`). The labels
 are now drawn inside the zones by the #364 fix; physical retest is pending.
@@ -57,7 +54,7 @@ Capabilities still marked `HARDWARE_TEST_PENDING`:
 
 | Card | Capabilities |
 | --- | --- |
-| HWT-01 | _none for New 3DS — the render capabilities are cleared by `a328c70`; Original 3DS render reruns are optional_ |
+| HWT-01 | _none for New 3DS — the render capabilities are cleared by `a328c70`; previous Original 3DS evidence is historical_ |
 | HWT-02 | `world-blocks-logistics`, `production-power-liquids`, `combat-waves-ai`, `touch-build-palette` |
 | HWT-03 | `campaign-sectors` |
 | HWT-04 | `ndsp-sfx-music` |
@@ -77,12 +74,11 @@ upstream clips/music, live build-UI gameplay and cross-play remain open.
 Preserve those evidence files and do not re-queue cleared capabilities unless
 the evidence is invalidated.
 
-`old-new-3ds-probe` remains **hardware-verified** with both
-`old3ds-xl-a4a9a96.md` and `new3ds-xl-de3e249.md`.
+The hardware probe is **hardware-verified** on [New 3DS XL](hardware/evidence/new3ds-xl-de3e249.md).
 
 ## HWT-01 — Boot, storage, parity, memory and render baseline
 
-Covers the ARM11 build/probe, Old/New hardware detection, 64 MiB allocator,
+Covers the ARM11 build/probe, New 3DS hardware detection, application-memory allocator,
 worker scheduling, Citro2D scene, sprite atlas, world renderer, zoom/lighting
 and `.msav` round-trip.
 
@@ -111,7 +107,7 @@ sd:/3ds/min3dstry/sector-serpulo-170.msav   # tests/fixtures/glacier-v13.msav
 
 **Expected**
 
-- `HW:` reports the correct model/AppMem (`O3DS` `64 MiB`, `N3DS` `124 MiB`).
+- `HW:` reports `N3DS` and `124 MiB` application memory.
 - `STORAGE_ROUNDTRIP status=ok`, `SAVE_SLOT present=1 valid=1 version=13`.
 - `SECTOR_LOADER available=1 loaded=1 tiles=37500 buildings=2`.
 - `SECTOR_ALLOC hash=783fbd80e415dcd7`,
@@ -134,8 +130,7 @@ python3 tools/hw_evidence.py \
   --strict --out docs/hardware/evidence/new3ds-<short-sha>.md
 ```
 
-Attach the New 3DS report, raw log, screenshots and console details. For an
-optional Original 3DS run, use `--profile old3ds --target "Original 3DS"`.
+Attach the New 3DS report, raw log, screenshots and console details.
 
 ## HWT-02 — Live gameplay, build UI and HUD
 
@@ -278,7 +273,7 @@ Covers `crossplay-net-protocol`.
 join from the console; optionally join from a PC client for cross-play.
 
 **Steps:** join, move, place/break a block, fire, receive a wave, disconnect
-cleanly. Repeat once on each 3DS generation if available.
+cleanly on New Nintendo 3DS/2DS.
 
 **Expected:** `UPSTREAM_LIVE_NET_WORLD join=1`, stable controls, server sees
 the console, no desync/crash, clean departure. **Evidence:** server log, console
@@ -302,14 +297,11 @@ thermal/SD notes. Only this card can clear `physical-hardware-parity`.
 > ~10 minutes, 132 `BENCH` windows, `fps_min=29.92`, `fps_max=59.84`,
 > `p95_max=33.50`, with the sector loader and parity intact. The newer
 > `afca650c` build (`99c7fd6b`) still needs a physical New 3DS run. The
-> `a328c70` FPS numbers apply to the earlier harness. Original 3DS physical
-> evidence is optional.
+> `a328c70` FPS numbers apply to the earlier harness.
 >
-> At `857041e` the CI artifact `7adb4ee8...aae9` passed both Azahar profiles
-> with `62.79`/`59.76` FPS and parity `0x53a483c7`. This is recorded as
-> emulator evidence and does **not** clear the physical-hardware gauge entries,
-> which still require a physical-console acceptance run. See
-> [the emulator profile record](hardware/emulator-batch-2026-11-25.md).
+> At `857041e` the CI artifact `7adb4ee8...aae9` passed the New 3DS Azahar
+> profile at 62.79 FPS with parity `0x53a483c7`. Physical console acceptance
+> remains open. See [the historical emulator record](hardware/emulator-batch-2026-11-25.md).
 
 ## Current exclusions
 
