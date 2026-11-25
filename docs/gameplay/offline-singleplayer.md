@@ -939,6 +939,13 @@ running program. Import File and Export File use plain UTF-8 Mindustry logic
 in `sd:/3ds/min3dstry/logic-clipboard.mlog`. Use the file for programs longer
 than the keyboard can edit. Export explicitly replaces the clipboard.
 
+Logic opens the stock instruction list with its original names and available
+instruction types. Add from the original palette, edit an instruction,
+duplicate it, move it up or down, or remove it. Jumps keep their destination
+instructions through rearrangements. Apply sends the resulting stock program;
+backing out keeps the previous source. The stock assembler parses and writes
+the instructions.
+
 The processor keeps its existing stock connections when source changes.
 Link lets the player tap a building to toggle its connection through the
 original processor range and permission checks. The same stock

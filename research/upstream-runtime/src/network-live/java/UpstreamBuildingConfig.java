@@ -33,6 +33,11 @@ final class UpstreamBuildingConfig {
 
     private Function<String, String> processorEditor;
     private Fi logicClipboard;
+    private enum LogicView { program, statement, palette }
+    private UpstreamLogicStatements instructionProgram;
+    private LogicView instructionView;
+    private int focusedStatement;
+    private boolean instructionsChanged;
 
     void editProcessorsWith(Function<String, String> editor, Fi clipboard) {
         processorEditor = editor;
@@ -110,16 +115,26 @@ final class UpstreamBuildingConfig {
                 page++;
                 refreshLabels();
             } else if (x >= 100 && x < 220) {
-                close();
+                if (instructionView == LogicView.program) {
+                    instructionProgram = null;
+                    instructionView = null;
+                    refreshProcessorLabels(target.block.localizedName);
+                } else if (instructionView != null) {
+                    showInstructions(LogicView.program);
+                } else {
+                    close();
+                }
             }
         } else if (y >= UpstreamBuildMenu.ROW_TOP && x >= 8 && x < 312) {
             int row = (y - UpstreamBuildMenu.ROW_TOP) / UpstreamBuildMenu.ROW_HEIGHT;
+            if (row >= UpstreamBuildMenu.ROWS) return;
             if (target instanceof LogicBuild processor) {
-                tapProcessor(processor, row);
+                if (instructionView == null) tapProcessor(processor, row);
+                else tapInstruction(processor, page * UpstreamBuildMenu.ROWS + row);
                 return;
             }
             int index = page * UpstreamBuildMenu.ROWS + row;
-            if (row >= UpstreamBuildMenu.ROWS || index >= choices.size) return;
+            if (index >= choices.size) return;
             var choice = choices.get(index);
             boolean clear = Objects.equals(choice.value(), target.config());
             if (choice.content() instanceof UnitType unit) {
@@ -172,8 +187,114 @@ final class UpstreamBuildingConfig {
                 }
             }
             case 3 -> linking = true;
+            case 4 -> {
+                instructionProgram = new UpstreamLogicStatements(processor.code, processor.block.privileged,
+                    Vars.state.rules.logicUnitControl);
+                instructionsChanged = false;
+                showInstructions(LogicView.program);
+            }
             default -> { }
         }
+    }
+
+    private void showInstructions(LogicView view) {
+        instructionView = view;
+        page = view == LogicView.program ? Math.max(0, focusedStatement + 2) / UpstreamBuildMenu.ROWS : 0;
+        refreshInstructionLabels();
+    }
+
+    private void tapInstruction(LogicBuild processor, int row) {
+        switch (instructionView) {
+            case program -> {
+                if (row == 0 && instructionsChanged) {
+                    applyProgram(processor, instructionProgram.source());
+                } else if (row == 1 && instructionProgram.canInsert()) {
+                    showInstructions(LogicView.palette);
+                } else if (row >= 2 && row - 2 < instructionProgram.size()) {
+                    focusedStatement = row - 2;
+                    showInstructions(LogicView.statement);
+                }
+            }
+            case palette -> {
+                if (row < instructionProgram.paletteSize()
+                        && instructionProgram.insert(instructionProgram.size(), row)) {
+                    instructionsChanged = true;
+                    focusedStatement = instructionProgram.size() - 1;
+                    showInstructions(LogicView.program);
+                }
+            }
+            case statement -> {
+                switch (row) {
+                    case 0 -> {
+                        var source = new StringBuilder();
+                        instructionProgram.get(focusedStatement).write(source);
+                        if (source.length() > UpstreamProcessorConfiguration.APPLET_CHARACTERS) return;
+                        String result = processorEditor.apply(source.toString());
+                        if (result == null || result.equals(source.toString())
+                                || !instructionProgram.replace(focusedStatement, result)) return;
+                    }
+                    case 1 -> {
+                        if (!instructionProgram.duplicate(focusedStatement)) return;
+                        focusedStatement++;
+                    }
+                    case 2 -> {
+                        if (focusedStatement == 0) return;
+                        instructionProgram.move(focusedStatement, focusedStatement - 1);
+                        focusedStatement--;
+                    }
+                    case 3 -> {
+                        if (focusedStatement + 1 >= instructionProgram.size()) return;
+                        instructionProgram.move(focusedStatement, focusedStatement + 1);
+                        focusedStatement++;
+                    }
+                    case 4 -> {
+                        instructionProgram.remove(focusedStatement);
+                        focusedStatement = Math.min(focusedStatement, instructionProgram.size() - 1);
+                    }
+                    default -> { return; }
+                }
+                instructionsChanged = true;
+                showInstructions(LogicView.program);
+            }
+        }
+    }
+
+    private int instructionRows() {
+        return switch (instructionView) {
+            case program -> 2 + instructionProgram.size();
+            case statement -> 5;
+            case palette -> instructionProgram.paletteSize();
+        };
+    }
+
+    private void refreshInstructionLabels() {
+        refreshInstructionLabels(target.block.localizedName);
+    }
+
+    private void refreshInstructionLabels(String title) {
+        var names = new String[UpstreamBuildMenu.ROWS + 1];
+        Arrays.fill(names, "");
+        names[0] = Strings.stripColors(title);
+        for (int slot = 0; slot < UpstreamBuildMenu.ROWS; slot++) {
+            int row = page * UpstreamBuildMenu.ROWS + slot;
+            if (row >= instructionRows()) break;
+            names[slot + 1] = switch (instructionView) {
+                case program -> switch (row) {
+                    case 0 -> instructionsChanged ? Core.bundle.get("editor.apply") : "";
+                    case 1 -> instructionProgram.canInsert() ? Core.bundle.get("add") : "";
+                    default -> (row - 2) + " " + instructionProgram.get(row - 2).localizedName();
+                };
+                case palette -> instructionProgram.paletteEntry(row).localizedName();
+                case statement -> Core.bundle.get(switch (row) {
+                    case 0 -> "edit";
+                    case 1 -> "editor.copy";
+                    case 2 -> "editor.moveup";
+                    case 3 -> "editor.movedown";
+                    default -> "remove";
+                });
+            };
+        }
+        labels = (String.join("\0", names) + "\0").getBytes(StandardCharsets.UTF_8);
     }
 
     private void applyProgram(LogicBuild processor, String code) {
@@ -185,7 +306,9 @@ final class UpstreamBuildingConfig {
         }
         byte[] config = UpstreamProcessorConfiguration.encode(processor, code);
         if (config == null) {
-            refreshProcessorLabels(Core.bundle.get("editor.errorload"));
+            String error = Core.bundle.get("editor.errorload");
+            if (instructionView == null) refreshProcessorLabels(error);
+            else refreshInstructionLabels(error);
             return;
         }
         processor.configure(config);
@@ -197,7 +320,7 @@ final class UpstreamBuildingConfig {
     private void refreshProcessorLabels(String title) {
         var names = new String[]{Strings.stripColors(title), Core.bundle.get("edit"),
             Core.bundle.get("editor.importfile"), Core.bundle.get("editor.exportfile"),
-            Core.bundle.get("link", "Link"), "", ""};
+            Core.bundle.get("link", "Link"), Core.bundle.get("logic", "Logic"), ""};
         labels = (String.join("\0", names) + "\0").getBytes(StandardCharsets.UTF_8);
     }
 
@@ -210,9 +333,16 @@ final class UpstreamBuildingConfig {
         target.onConfigureClosed();
         target = null;
         linking = false;
+        instructionProgram = null;
+        instructionView = null;
+        focusedStatement = 0;
     }
 
     private void refreshLabels() {
+        if (instructionView != null) {
+            refreshInstructionLabels();
+            return;
+        }
         int pages = Math.max(1, (choices.size + UpstreamBuildMenu.ROWS - 1) / UpstreamBuildMenu.ROWS);
         var result = new StringBuilder(target.block.localizedName).append("  ")
             .append(page + 1).append('/').append(pages).append('\0');
@@ -236,7 +366,10 @@ final class UpstreamBuildingConfig {
     byte[] labels() { return labels; }
     int[] iconIds() { return iconIds; }
     boolean previousPage() { return page > 0; }
-    boolean nextPage() { return (page + 1) * UpstreamBuildMenu.ROWS < choices.size; }
+    boolean nextPage() {
+        int count = instructionView == null ? choices.size : instructionRows();
+        return (page + 1) * UpstreamBuildMenu.ROWS < count;
+    }
     boolean unitPlans() { return target instanceof UnitFactory.UnitFactoryBuild; }
     int selectedRow() { return target instanceof LogicBuild ? -1 : selectedIndex() - page * UpstreamBuildMenu.ROWS; }
 

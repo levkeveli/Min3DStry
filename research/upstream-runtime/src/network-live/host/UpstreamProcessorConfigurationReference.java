@@ -2,6 +2,8 @@ import java.util.Random;
 import mindustry.Vars;
 import mindustry.content.Blocks;
 import mindustry.content.SectorPresets;
+import mindustry.logic.LCategory;
+import mindustry.logic.LStatements.JumpStatement;
 import mindustry.world.blocks.logic.CanvasBlock.CanvasBuild;
 import mindustry.world.blocks.logic.LogicBlock.LogicBuild;
 
@@ -48,6 +50,37 @@ public final class UpstreamProcessorConfigurationReference {
         if (UpstreamProcessorConfiguration.encode(processor, "") == null || !processor.code.equals(program)) {
             throw new AssertionError("Validation changed the running program");
         }
-        return "UPSTREAM_PROCESSOR_EDIT_REFERENCE source=exact links=preserved canvas=5 limits=checked";
+        checkInstructionEditing();
+        return "UPSTREAM_PROCESSOR_EDIT_REFERENCE source=exact links=preserved canvas=5 limits=checked instructions=stock";
+    }
+
+    private static void checkInstructionEditing() {
+        var model = new UpstreamLogicStatements("jump 2 always x false\nset color 5\nend\n", false, false);
+        int end = -1;
+        for (int i = 0; i < model.paletteSize(); i++) {
+            var row = model.paletteEntry(i);
+            if (row.privileged() || row.hidden() || row.category() == LCategory.unit) {
+                throw new AssertionError("Stock permission filter leaked a restricted instruction");
+            }
+            if (row.statementKey().equals("end")) end = i;
+        }
+        if (end < 0 || !model.insert(0, end) || ((JumpStatement)model.get(1)).destIndex != 3) {
+            throw new AssertionError("Inserting before a jump changed its target");
+        }
+        if (!model.duplicate(1) || ((JumpStatement)model.get(1)).destIndex != 4
+            || ((JumpStatement)model.get(2)).destIndex != 4) {
+            throw new AssertionError("The copied jump did not retain the original target");
+        }
+        model.move(4, 0);
+        if (((JumpStatement)model.get(2)).destIndex != 0 || ((JumpStatement)model.get(3)).destIndex != 0) {
+            throw new AssertionError("Moving a target left a stale jump address");
+        }
+        model.remove(0);
+        if (((JumpStatement)model.get(1)).destIndex != -1 || ((JumpStatement)model.get(2)).destIndex != -1) {
+            throw new AssertionError("Removing a target left an active jump");
+        }
+        if (!model.replace(1, "set color 7") || !model.source().contains("set color 7\n")) {
+            throw new AssertionError("The stock assembler did not serialize the edited statement");
+        }
     }
 }
