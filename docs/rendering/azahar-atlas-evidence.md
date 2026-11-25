@@ -35,4 +35,4 @@ Both `new3ds` and `old3ds` modes passed:
 - `sprites.t3x` loads successfully from RomFS on both emulated models.
 - The sprite atlas is used by the textured scene path, not only generated on
   the host.
-- Frame-time and physical Old/New 3DS verification remain hardware items.
+- Frame-time and physical New 3DS verification remain hardware items.

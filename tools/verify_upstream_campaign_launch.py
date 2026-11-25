@@ -290,7 +290,7 @@ def main() -> int:
     parser.add_argument("--azahar")
     parser.add_argument("--server", type=Path, help="Stock v160.8 server for save and settings readback")
     parser.add_argument("--java", default="java")
-    parser.add_argument("--model", choices=("new3ds", "old3ds"))
+    parser.add_argument("--model", choices=("new3ds",))
     selection = parser.add_mutually_exclusive_group()
     selection.add_argument("--planet", choices=STARTERS)
     selection.add_argument("--departure", type=Path, help="JVM reference numbered-sector departure fixture")
@@ -303,7 +303,7 @@ def main() -> int:
     azahar = sp.az.resolve_azahar_bin(args.azahar)
     config, log = sp.az.resolve_azahar_paths(azahar)
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    for model in (args.model,) if args.model else ("new3ds", "old3ds"):
+    for model in (args.model,) if args.model else ("new3ds",):
         if args.departure:
             destination = verify(model, "numbered", args.rom, azahar, config, log, args.output_dir,
                                  args.departure, args.manual_cargo, args.in_game)

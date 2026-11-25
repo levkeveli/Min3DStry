@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Join an official v160.8 loopback server from both Azahar console profiles."""
+"""Join an official v160.8 loopback server from Azahar in New 3DS mode by default."""
 
 import argparse
 import hashlib
@@ -92,7 +92,7 @@ BUILDING_CRACK_PIXELS = {
 
 
 def write_controls_replay(path, first_move=22, building=False, touch_build=False, touch_config=False,
-                          erekir_build=False, mining=None, model="old3ds", stock_menu_font=False,
+                          erekir_build=False, mining=None, model="new3ds", stock_menu_font=False,
                           unified_boot=False, stationary=False, chat=False, cancel_restart=False):
     """Write the Azahar 2126.2 CTM input for this probe's pad/touch polling."""
     # The pinned Azahar movie header and HID sample definitions use packed little-endian fields.
@@ -2224,10 +2224,10 @@ def main():
     parser.add_argument("--java", default="java")
     parser.add_argument("--port", default=16568, type=int)
     parser.add_argument("--timeout", default=120, type=float)
-    parser.add_argument("--model", choices=("old3ds", "new3ds"),
-                        help="Check one Azahar profile (default: both)")
+    parser.add_argument("--model", choices=("new3ds",),
+                        help="Check one Azahar profile (default: new3ds)")
     parser.add_argument("--desktop-name",
-                        help="Wait for a separately launched PC client and verify its connection overlaps both joins")
+                        help="Wait for a separately launched PC client and verify its connection overlaps the ARM11 join")
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--movement", action="store_true", help="Verify the stock server applies scripted ARM11 movement")
     mode.add_argument("--controls", action="store_true", help="Verify D-pad and Circle Pad input and START disconnect")
@@ -2495,7 +2495,7 @@ def main():
             locale_path.write_text(args.locale + "\n", encoding="ascii")
         if args.terrain_atlas:
             atlas_path.write_bytes(atlas_bytes)
-        for model in ((args.model,) if args.model else ("old3ds", "new3ds")):
+        for model in ((args.model,) if args.model else ("new3ds",)):
             run_model(args, model, config, (originals[config] or b"").decode(), log, output)
     finally:
         for path, data in originals.items():

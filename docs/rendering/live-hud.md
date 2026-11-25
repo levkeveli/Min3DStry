@@ -246,7 +246,7 @@ exactly.
   active-slot Load. Stock Settings, planet map, save-picker load and multiplayer
   buttons are not ported yet.
 - Additional notifications and the full stock layout remain open under #40.
-- Physical Old/New 3DS verification remains open with #43.
+- Physical New 3DS verification remains open with #43.
 
 ## Emulator batch 1 (2026-11-23)
 
