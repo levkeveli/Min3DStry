@@ -51,6 +51,8 @@ import mindustry.world.Block;
 import mindustry.world.blocks.ConstructBlock.ConstructBuild;
 import mindustry.world.blocks.defense.Wall;
 import mindustry.world.blocks.defense.turrets.BaseTurret;
+import mindustry.world.blocks.defense.turrets.Turret.TurretBuild;
+import mindustry.world.blocks.distribution.Conveyor.ConveyorBuild;
 import mindustry.world.blocks.logic.CanvasBlock.CanvasBuild;
 import mindustry.world.blocks.logic.LogicDisplay.LogicDisplayBuild;
 import mindustry.world.blocks.payloads.UnitPayload;
@@ -86,6 +88,8 @@ public final class UpstreamSinglePlayerApp {
     private boolean campaignExitRequested;
     private int draws;
     private long previousVisualFrame;
+    private UpstreamFrameTimeWindow frameBenchmark;
+    private int benchmarkSequence;
     private float frameSeconds = 1f / 60f;
     private int lastLeft = -1, lastBottom = -1;
     private int lastCopper = -1;
@@ -162,6 +166,8 @@ public final class UpstreamSinglePlayerApp {
         Fi saveFile = !editorRequested && args.length >= 2 ? new Fi(args[1]) : new Fi("/3ds/min3dstry/singleplayer-save.msav");
         Fi atlas = firstExisting("/romfs/sprites.aatls", "/3ds/min3dstry/sprites.aatls");
         Fi mapDir = saveFile.parent() != null ? saveFile.parent() : new Fi("/3ds/min3dstry");
+        var benchmarkFlag = mapDir.child("benchmark.txt");
+        if (benchmarkFlag.exists() && !benchmarkFlag.isDirectory()) frameBenchmark = new UpstreamFrameTimeWindow();
         var settings = UpstreamSinglePlayerSession.loadSettings(mapDir);
         Fi preference = new Fi("/3ds/min3dstry/locale.txt");
         String requested = requestedLocale(preference, settings);
@@ -714,6 +720,7 @@ public final class UpstreamSinglePlayerApp {
     }
 
     private boolean openResearch(TechNode root, Fi saveFile) throws IOException {
+        if (frameBenchmark != null) frameBenchmark.reset();
         var research = new UpstreamCampaignResearch(root);
         Seq<TechNode> nodes = new Seq<>();
         listResearch(root, nodes);
@@ -813,6 +820,7 @@ public final class UpstreamSinglePlayerApp {
     }
 
     private boolean runMainLoop(Fi saveFile) throws IOException {
+        if (frameBenchmark != null) frameBenchmark.reset();
         var unit = session.ensurePlayerSpawn();
         var core = session.core();
         UpstreamHudFixture.apply();
@@ -886,6 +894,7 @@ public final class UpstreamSinglePlayerApp {
                     } else if (action == UpstreamPauseMenu.Action.LOAD) {
                         closePauseMenu();
                         var loadSector = Vars.state.rules.sector;
+                        if (frameBenchmark != null) frameBenchmark.reset();
                         session.start(sourceMap, saveFile, campaignSlot == null ? null : "campaign", loadSector);
                         resetWorldInput();
                         weatherLayers.reset();
@@ -1011,8 +1020,37 @@ public final class UpstreamSinglePlayerApp {
             unit = session.ensurePlayerSpawn();
             updateTelemetry(unit, input);
             render(unit);
+            if (frameBenchmark != null) samplePlayableFrames();
             Thread.yield();
         }
+    }
+
+    private void samplePlayableFrames() {
+        if (Vars.state.isPaused()) {
+            frameBenchmark.reset();
+            return;
+        }
+        var sample = frameBenchmark.frameCompleted(System.nanoTime());
+        if (sample == null) return;
+
+        int shootingTurrets = 0, beltItems = 0;
+        for (var build : Groups.build) {
+            if (build instanceof TurretBuild turret && turret.isShooting()) shootingTurrets++;
+            if (build instanceof ConveyorBuild conveyor) beltItems += conveyor.len;
+        }
+        int enemies = Groups.unit.count(unit -> unit.team == Vars.state.rules.waveTeam && !unit.dead);
+        int turretProjectiles = Groups.bullet.count(bullet -> bullet.owner instanceof TurretBuild);
+        var memory = Runtime.getRuntime();
+        long committed = memory.totalMemory();
+        int id = ++benchmarkSequence;
+        System.out.println("UPSTREAM_PLAYABLE_BENCH window=" + id + " frames=" + sample.frames()
+            + " elapsed_ns=" + sample.durationNanos() + " fps=" + sample.fps()
+            + " p95_ns=" + sample.p95Nanos() + " heap_used=" + (committed - memory.freeMemory())
+            + " heap_committed=" + committed);
+        System.out.println("UPSTREAM_PLAYABLE_LOAD window=" + id + " wave=" + Vars.state.wave
+            + " enemies=" + enemies + " shooting_turrets=" + shootingTurrets
+            + " turret_projectiles=" + turretProjectiles + " belt_items=" + beltItems
+            + " camera_tile=" + viewport.left + "," + viewport.bottom);
     }
 
     private void updateTelemetry(Unit unit, int input) {
