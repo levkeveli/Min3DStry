@@ -577,6 +577,7 @@ public final class UpstreamSinglePlayerApp {
         UpstreamSinglePlayerSession.SectorSlot preview = null;
         Planet previousPlanet = null;
         boolean gridLogged = false, arcsLogged = false;
+        int stableFrames = 0;
 
         try {
             while (true) {
@@ -626,6 +627,7 @@ public final class UpstreamSinglePlayerApp {
                 boolean planetChanged = previousPlanet != globe.planet();
                 if (planetChanged) gridLogged = arcsLogged = false;
                 if (rows == null || previous != sector || previousSelection != selectedSector || planetChanged) {
+                    stableFrames = 0;
                     Sector labelSector = selectedSector == null ? sector : selectedSector;
                     String label = labelSector == null ? "" : " / " + Strings.stripColors(labelSector.name());
                     String action = preview != null
@@ -652,7 +654,8 @@ public final class UpstreamSinglePlayerApp {
                 int sectorVertices = overlay.vertices.size / UpstreamCampaignSectorOverlay.FLOATS_PER_VERTEX;
                 int gridEdges = grid.append(globe.planet(), globe.projection, globe.gridCursor, overlay.vertices);
                 int gridVertices = overlay.vertices.size / UpstreamCampaignSectorOverlay.FLOATS_PER_VERTEX - sectorVertices;
-                int routeCount = arcs.append(globe.planet(), active, sector, ticks, overlay.vertices);
+                int routeCount = arcs.append(globe.planet(), active, sector, selectedSector,
+                    ticks, globe.projection, overlay.vertices);
                 int overlayVertices = overlay.vertices.size / UpstreamCampaignSectorOverlay.FLOATS_PER_VERTEX;
                 // The 20x12 framing gives the globe the full 400x240 top screen.
                 target.begin(0, 0, 20, 12);
@@ -684,6 +687,12 @@ public final class UpstreamSinglePlayerApp {
                     if (rows.characters[2].length > 0) target.drawObjective(rows.labels[2], rows.characters[2], null, 192);
                 } finally {
                     target.end();
+                }
+                if (stableFrames < 3 && ++stableFrames == 3) {
+                    // FrameBegin has synchronized earlier draws in this same selection state.
+                    System.out.println("UPSTREAM_CAMPAIGN_GLOBE_FRAME planet=" + globe.planet().name
+                        + " sector=" + (sector == null ? -1 : sector.id)
+                        + " selection=" + (selectedSector == null ? -1 : selectedSector.id));
                 }
                 while (System.nanoTime() < nextFrame) Thread.yield();
             }

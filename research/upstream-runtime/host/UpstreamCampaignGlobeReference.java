@@ -69,7 +69,9 @@ public final class UpstreamCampaignGlobeReference {
         checkArc(erekirStart, erekirStart.near().first(), Team.crux.color, new Color(Team.crux.color).a(0.5f),
             0.3f, 110f, 0.006f);
         checkArc(serpuloStart, numbered, Team.crux.color, Color.clear, 0.24f, 110f, 0.005f);
-        System.out.println("UPSTREAM_CAMPAIGN_ARC_REFERENCE launch=true shield=true invasion=true");
+        checkTrade(serpuloStart, serpuloStart.near().first(), Color.gray);
+        checkTrade(serpuloStart, numbered, Pal.place);
+        System.out.println("UPSTREAM_CAMPAIGN_ARC_REFERENCE launch=true shield=true invasion=true trade=true");
         System.out.println("UPSTREAM_CAMPAIGN_GLOBE_REFERENCE serpulo=" + Planets.serpulo.startSector
             + " rotated=" + numbered.id + " erekir=" + Planets.erekir.startSector + " zoom=true");
     }
@@ -104,6 +106,44 @@ public final class UpstreamCampaignGlobeReference {
                             + " (" + actual + " vs " + expected + ")");
                     }
                 }
+            }
+        }
+    }
+
+    private static void checkTrade(Sector from, Sector to, Color head) {
+        var globe = new UpstreamCampaignGlobe(from);
+        globe.update(200, 120);
+        var port = new UpstreamCampaignArcs();
+        var original = new RecordingBatch();
+        var vertices = new FloatSeq();
+        float oldTime = Time.globalTime;
+        Time.globalTime = 153f;
+        try {
+            port.trade(from.planet, from.tile.v, to.tile.v, head, Time.globalTime, globe.projection, vertices);
+            from.planet.drawArc(original, from.tile.v, to.tile.v, head, Pal.accent, 0.4f, 90f, 25);
+        } finally {
+            Time.globalTime = oldTime;
+            original.dispose();
+        }
+        int stride = UpstreamCampaignSectorOverlay.FLOATS_PER_VERTEX;
+        if (vertices.size != 25 * 6 * stride || original.vertices.size != 26 * stride
+            || original.primitive != Gl.lineStrip) {
+            throw new AssertionError("Stock trade route has an unexpected vertex layout");
+        }
+        for (int segment = 0; segment < 25; segment++) {
+            checkLineEndpoint(vertices, original.vertices, (segment * 6) * stride,
+                (segment * 6 + 1) * stride, segment * stride);
+            checkLineEndpoint(vertices, original.vertices, (segment * 6 + 2) * stride,
+                (segment * 6 + 5) * stride, (segment + 1) * stride);
+        }
+    }
+
+    private static void checkLineEndpoint(FloatSeq vertices, FloatSeq original, int a, int b, int expected) {
+        for (int field = 0; field < 7; field++) {
+            float first = vertices.get(a + field), second = vertices.get(b + field);
+            if (Math.abs((first + second) / 2f - original.get(expected + field)) > 0.000002f
+                || (field >= 3 && first != second)) {
+                throw new AssertionError("Trade route center or animated color does not match the stock line");
             }
         }
     }

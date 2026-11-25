@@ -59,9 +59,15 @@ grid width, depth, and color under 540 camera and cursor positions per
 planet. Launch routes, shield connections and invasion threats use the
 stock sector relationships and the quadratic curves from `Planet.drawArcLine`.
 The host reference compares the curve triangles and animated colors against
-the stock vertex strip for all three styles. Emulator evidence is pending.
-Sector icons, selected-sector export and import routes, campaign-dependent
-terrain changes, emissive updates, and clouds remain open.
+the stock vertex strip for all three styles. Selecting a sector with a base
+also displays its stock export and import routes. The reference compares
+both route colors and their centerlines against `Planet.drawArc`.
+The [initial New 3DS replay](https://github.com/levkeveli/Min3DStry/actions/runs/45712720590/artifacts/15069727335)
+drew Serpulo, changed its hovered sector, switched to Erekir, generated the
+original 512×512 The Onset sector, and wrote its stock save. The follow-up
+replay waits for a settled frame before capturing each globe and the preview.
+Sector icons, campaign-dependent terrain
+changes, emissive updates, and clouds remain open.
 
 ## 1:1 Upstream Mandate
 

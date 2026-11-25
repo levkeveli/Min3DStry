@@ -35,8 +35,8 @@ def verify(args):
     # Hold R to open Campaign, X to open its globe, Right to rotate it, Y to
     # switch planets, and A to preview and launch The Onset through its stock sector slot.
     windows = [(0, 24, 1 << 8), (44, 49, sp.KEY_X), (63, 68, 1 << 4),
-               (81, 86, sp.KEY_Y), (108, 113, 1), (125, 130, 1), (210, 215, sp.KEY_START)]
-    write_input_replay(movie, "new3ds", windows, 215, b"Min3DStry Planet Map")
+               (81, 86, sp.KEY_Y), (108, 113, 1), (125, 130, 1), (270, 280, sp.KEY_START)]
+    write_input_replay(movie, "new3ds", windows, 280, b"Min3DStry Planet Map")
 
     emulator = sp.az.resolve_azahar_bin(args.azahar)
     config, log = sp.az.resolve_azahar_paths(emulator)
@@ -51,18 +51,22 @@ def verify(args):
             sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_SECTOR_OVERLAY planet=serpulo vertices=[1-9]\d* "
                                        r"shadowed=[1-9]\d* outlined=[1-9]\d*", 25)
             sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_SECTOR_GRID planet=serpulo edges=[1-9]\d* vertices=[1-9]\d*", 25)
+            sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_GLOBE_FRAME planet=serpulo sector=170 selection=-1\b", 25)
             capture_globe(rpc, args.output / "new3ds-serpulo.png")
             sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_GLOBE planet=serpulo sector=(?!170\b)\d+ available=", 55)
             sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_GLOBE planet=erekir sector=10 available=true\b", 55)
             sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_SECTOR_OVERLAY planet=erekir vertices=[1-9]\d* "
                                        r"shadowed=[1-9]\d* outlined=[1-9]\d*", 25)
             sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_SECTOR_GRID planet=erekir edges=[1-9]\d* vertices=[1-9]\d*", 25)
+            sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_GLOBE_FRAME planet=erekir sector=10 selection=-1\b", 25)
             capture_globe(rpc, args.output / "new3ds-erekir.png")
             sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_GLOBE_PREVIEW planet=erekir sector=10 resume=false\b", 60)
+            sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_GLOBE_FRAME planet=erekir sector=10 selection=10\b", 25)
             capture_globe(rpc, args.output / "new3ds-erekir-selection.png")
             sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_SELECTED slot=sector-erekir-10\.msav .*source=planet-map\b", 60)
-            sp._wait_for_log(log, proc, r"UPSTREAM_SP_LOADED source=campaign map=The_Onset size=512x512\b", 130)
-            sp._wait_for_log(log, proc, r"UPSTREAM_SP_EXIT\b", 100)
+            sp._wait_for_log(log, proc, r"UPSTREAM_SP_LOADED source=campaign-new map=The_Onset size=512x512\b", 180)
+            sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_GENERATION_DONE planet=erekir sector=10\b", 20)
+            sp._wait_for_log(log, proc, r"UPSTREAM_SP_EXIT\b", 145)
             print("UPSTREAM_CAMPAIGN_GLOBE_PASS model=new3ds planets=2 launched=erekir:10", flush=True)
         finally:
             rpc.close()
