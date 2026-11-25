@@ -20,10 +20,12 @@ import arc.util.Time;
 import arc.util.Strings;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.List;
 import mindustry.Vars;
 import mindustry.content.Blocks;
 import mindustry.content.Items;
+import mindustry.content.Planets;
 import mindustry.content.TechTree.TechNode;
 import mindustry.core.UI;
 import mindustry.core.World;
@@ -501,6 +503,7 @@ public final class UpstreamSinglePlayerApp {
     private UpstreamSinglePlayerSession.SectorSlot chooseSector(
             List<UpstreamSinglePlayerSession.SectorSlot> slots, Fi automatic) {
         int selected = UpstreamSinglePlayerSession.lastSectorRow(slots);
+        final boolean globeAvailable = target.campaignPlanetAvailable();
         int lastAxis = 0;
         System.out.println("UPSTREAM_CAMPAIGN_MENU slots=" + slots.size() + " selected=" + slots.get(selected).file.name());
         if (automatic != null && automatic.exists() && !automatic.isDirectory() && automatic.length() <= 16) {
@@ -539,11 +542,98 @@ public final class UpstreamSinglePlayerApp {
                 return slot;
             }
             if (renderedRow != selected) {
-                rows = encodeMenuRows(campaignCaptions(slots, selected));
+                var captions = campaignCaptions(slots, selected);
+                if (globeAvailable) {
+                    captions = Arrays.copyOf(captions, captions.length + 1);
+                    captions[captions.length - 1] = "X " + Core.bundle.get("planet", "Planet Map");
+                }
+                rows = encodeMenuRows(captions);
                 renderedRow = selected;
+            }
+            if (globeAvailable && (input & UpstreamSinglePlayerInput.X_PRESSED) != 0) {
+                var slot = chooseSectorOnGlobe(slots, slots.get(selected).sector);
+                if (slot != null || campaignExitRequested) return slot;
             }
             drawMenuRows(rows);
             while (System.nanoTime() < nextFrame) Thread.yield();
+        }
+    }
+
+    private UpstreamSinglePlayerSession.SectorSlot chooseSectorOnGlobe(
+            List<UpstreamSinglePlayerSession.SectorSlot> slots, Sector initial) {
+        Vars.universe.updateGlobal();
+        if (initial.planet != Planets.erekir && initial.planet != Planets.serpulo) {
+            initial = Planets.serpulo.getStartSector();
+        }
+        var globe = new UpstreamCampaignGlobe(initial);
+        float cursorX = 200, cursorY = 120;
+        MenuRows rows = null;
+        Sector previous = null;
+        Planet previousPlanet = null;
+
+        try {
+            while (true) {
+                long nextFrame = System.nanoTime() + FRAME_NS;
+                int input = pollCampaignInput();
+                if (input == -1 || (input & UpstreamSinglePlayerInput.B_PRESSED) != 0) return null;
+                if ((input & UpstreamSinglePlayerInput.WAVE_PRESSED) != 0) {
+                    globe.switchPlanet();
+                    cursorX = 200;
+                    cursorY = 120;
+                }
+                if ((input & (1 << 26)) != 0) globe.zoom(0.9f);
+                if ((input & (1 << 27)) != 0) globe.zoom(1 / 0.9f);
+                globe.rotate((byte)input, (byte)(input >> 8));
+                int touch = UpstreamSinglePlayerInput.touch();
+                if (touch != -1) {
+                    cursorX = (touch & 0xffff) * 400f / 320f;
+                    cursorY = touch >>> 16;
+                }
+
+                Sector sector = globe.update(cursorX, cursorY);
+                UpstreamSinglePlayerSession.SectorSlot selected = null;
+                for (var slot : slots) {
+                    if (slot.sector == sector) {
+                        selected = slot;
+                        break;
+                    }
+                }
+                if ((input & UpstreamSinglePlayerInput.A_PRESSED) != 0 && selected != null) {
+                    System.out.println("UPSTREAM_CAMPAIGN_SELECTED slot=" + selected.file.name()
+                        + " name=" + selected.sector.name() + " source=planet-map");
+                    return selected;
+                }
+                if (rows == null || previous != sector || previousPlanet != globe.planet()) {
+                    String label = sector == null ? "" : " / " + Strings.stripColors(sector.name());
+                    rows = encodeMenuRows(new String[]{
+                        globe.planet().localizedName + label,
+                        "Y " + Core.bundle.get("planet", "Planet") + "   B " + Core.bundle.get("back"),
+                    });
+                    previous = sector;
+                    previousPlanet = globe.planet();
+                    if (sector != null) {
+                        System.out.println("UPSTREAM_CAMPAIGN_GLOBE planet=" + globe.planet().name
+                            + " sector=" + sector.id + " available=" + (selected != null));
+                    }
+                }
+                // The 20x12 framing gives the globe the full 400x240 top screen.
+                target.begin(0, 0, 20, 12);
+                try {
+                    if (!target.drawCampaignPlanet(globe.meshIndex(), globe.projection.val, globe.lighting)) {
+                        System.out.println("UPSTREAM_CAMPAIGN_GLOBE_ERROR planet=" + globe.planet().name);
+                        return null;
+                    }
+                    target.hudPanel(cursorX - 4, cursorY, 9, 1, -1);
+                    target.hudPanel(cursorX, cursorY - 4, 1, 9, -1);
+                    target.drawObjective(rows.labels[0], rows.characters[0], null, 6);
+                    target.drawObjective(rows.labels[1], rows.characters[1], null, 210);
+                } finally {
+                    target.end();
+                }
+                while (System.nanoTime() < nextFrame) Thread.yield();
+            }
+        } finally {
+            target.releaseCampaignPlanet();
         }
     }
 

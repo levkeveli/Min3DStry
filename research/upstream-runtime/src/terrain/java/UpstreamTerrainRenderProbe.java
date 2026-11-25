@@ -116,6 +116,18 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
             previous ? 1 : 0, next ? 1 : 0, catalog);
     }
 
+    boolean campaignPlanetAvailable() {
+        return NativeTerrain.campaignPlanetAvailable() != 0;
+    }
+
+    boolean drawCampaignPlanet(int planet, float[] matrix, float[] lighting) {
+        return NativeTerrain.drawCampaignPlanet(planet, Address.ofData(matrix), Address.ofData(lighting)) != 0;
+    }
+
+    void releaseCampaignPlanet() {
+        NativeTerrain.releaseCampaignPlanet();
+    }
+
     float drawObjective(byte[] label, int[] characters, TextureRegion icon, float y) {
         int page = icon == null ? -1 : UpstreamTerrainDrawProbe.pageIndex(icon);
         return NativeTerrain.drawObjective(Address.ofData(label), Address.ofData(characters), characters.length / 7, page,
@@ -357,6 +369,15 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
         @Import(name = "m3ds_terrain_build_catalog")
         static native int buildCatalog(Address labels, Address icons, int activeRows,
                                        int previous, int next, int catalog);
+
+        @Import(name = "m3ds_terrain_campaign_planet_available")
+        static native int campaignPlanetAvailable();
+
+        @Import(name = "m3ds_terrain_draw_campaign_planet")
+        static native int drawCampaignPlanet(int planet, Address matrix, Address lighting);
+
+        @Import(name = "m3ds_terrain_release_campaign_planet")
+        static native void releaseCampaignPlanet();
 
         @Import(name = "m3ds_terrain_draw_objective")
         static native float drawObjective(Address label, Address characters, int count,

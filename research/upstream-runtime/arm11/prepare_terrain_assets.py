@@ -251,6 +251,10 @@ def main() -> None:
             subprocess.run([args.java, "-Dfile.encoding=UTF-8", "-cp", str(args.desktop.resolve()),
                             str(CONVERTER.with_name("PackUpstreamLogicFont.java")), str(logic_font),
                             str(staged / "logic-font.dat")], check=True)
+            if args.singleplayer:
+                subprocess.run([args.java, "-Dfile.encoding=UTF-8", "-cp", str(args.desktop.resolve()),
+                                str(CONVERTER.with_name("UpstreamCampaignPlanetMeshes.java")),
+                                str(staged / "planet-meshes")], check=True)
             if not (bundles / "bundle.properties").is_file():
                 raise ValueError("The official archive is missing its root translation bundle")
             if args.live_audio:

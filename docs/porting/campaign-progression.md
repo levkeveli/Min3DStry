@@ -19,7 +19,7 @@ positions, float normals, packed color and emissive attributes, and unsigned
 mkdir -p build/planet-mesh-reference/classes
 javac -cp "$DESKTOP_JAR" -d build/planet-mesh-reference/classes tools/UpstreamCampaignPlanetMeshes.java
 java -cp "build/planet-mesh-reference/classes:$DESKTOP_JAR" \
-  mindustry.graphics.g3d.UpstreamCampaignPlanetMeshes build/planet-mesh-reference/data
+  UpstreamCampaignPlanetMeshes build/planet-mesh-reference/data
 ```
 
 Each generated file has a four-byte `M3PM` signature, four little-endian
@@ -34,8 +34,17 @@ produced these byte-identical results.
 | Erekir | 14,580 | 29,148 | `fe8a1ef5e0a042f402261b27e967f2fac1d24190a6e1405bab4273f47220a892` |
 
 The reference captures the stock surfaces at a fresh campaign state.
-The ARM11 globe still needs the renderer, live campaign-dependent surface
-and emissive updates, and the original sector overlays and selection.
+The campaign selector opens the globe with X. The Circle Pad or D-pad
+orbits the globe, the bottom screen moves the cursor, the C-Stick changes
+zoom, and Y switches between Serpulo and Erekir. A sends a valid stock pick
+through the campaign slot's existing launch or resume path. B returns to
+the sector list.
+
+The stock JVM reference confirms that the projected mesh centers and
+`Planet.getSector` agree for Ground Zero and The Onset. It also exercises
+rotation to Serpulo 16, camera zoom, and a miss outside the globe. New 3DS
+replay evidence is pending. Campaign-dependent surface changes, emissive
+updates, clouds, and stock sector overlays are still in development.
 
 ## 1:1 Upstream Mandate
 

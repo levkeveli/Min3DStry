@@ -1,5 +1,3 @@
-package mindustry.graphics.g3d;
-
 import arc.Core;
 import arc.Settings;
 import arc.graphics.Mesh;
@@ -12,6 +10,7 @@ import mindustry.Vars;
 import mindustry.content.Planets;
 import mindustry.core.ContentLoader;
 import mindustry.core.GameState;
+import mindustry.graphics.g3d.PlanetMesh;
 import mindustry.type.Planet;
 
 import java.io.BufferedOutputStream;
@@ -23,7 +22,7 @@ import java.util.List;
 
 /** Exports the original v160.8 campaign globe meshes from the official desktop JAR. */
 public final class UpstreamCampaignPlanetMeshes {
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) throws IOException, ReflectiveOperationException {
         if (args.length != 1) throw new IllegalArgumentException("Expected an output directory");
         Path output = Path.of(args[0]);
         Files.createDirectories(output);
@@ -41,10 +40,13 @@ public final class UpstreamCampaignPlanetMeshes {
         Vars.content.init();
         Vars.content.loadColors();
 
+        // Source-file launch mode uses a different class loader from the desktop JAR.
+        var meshField = PlanetMesh.class.getDeclaredField("mesh");
+        meshField.setAccessible(true);
         for (Planet planet : List.of(Planets.serpulo, Planets.erekir)) {
             var stock = (PlanetMesh)planet.meshLoader.get();
             try {
-                write(stock.mesh, output.resolve(planet.name + ".m3pm"));
+                write((Mesh)meshField.get(stock), output.resolve(planet.name + ".m3pm"));
             } finally {
                 stock.dispose();
             }

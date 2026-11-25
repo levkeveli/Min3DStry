@@ -63,6 +63,12 @@ python3 research/upstream-runtime/arm11/prepare_terrain_assets.py \
   --desktop "$RUNNER_TEMP/desktop.jar" --output-dir build/smoke-assets \
   --tex3ds "$RUNNER_TEMP/smoke-tex3ds" --singleplayer --live-audio
 python3 tools/verify_live_stock_audio.py build/smoke-assets
+globe_reference="$RUNNER_TEMP/campaign-globe-reference"
+mkdir -p "$globe_reference"
+javac -cp "$RUNNER_TEMP/desktop.jar" -d "$globe_reference" \
+  research/upstream-runtime/src/singleplayer/java/UpstreamCampaignGlobe.java \
+  research/upstream-runtime/host/UpstreamCampaignGlobeReference.java
+(cd "$globe_reference" && java -cp ".:$RUNNER_TEMP/desktop.jar" UpstreamCampaignGlobeReference)
 bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime --no-daemon --console=plain \
   "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" "-PreferenceJar=$RUNNER_TEMP/server-release.jar" \
   "-ParcCheckout=$RUNNER_TEMP/Arc" -Pprobe=unified runBuildingLayersJvm \
