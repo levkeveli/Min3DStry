@@ -12,7 +12,7 @@ from pathlib import Path
 from verify_upstream_live_net import stop, wait_for
 
 
-def create(java: str, server: Path, output: Path) -> None:
+def create(java: str, server: Path, output: Path, *, globe_lights: bool = False) -> None:
     output.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="m3ds-stock-resume-") as temp:
         root = Path(temp)
@@ -22,7 +22,14 @@ def create(java: str, server: Path, output: Path) -> None:
                                     stdout=stream, stderr=subprocess.STDOUT, text=True, encoding="utf-8")
             try:
                 wait_for(log, proc, r"Server loaded\.", 30)
-                for preset, sector in (("frozenForest", 64), ("groundZero", 170)):
+                presets = (("groundZero", 170),) if globe_lights else (("frozenForest", 64), ("groundZero", 170))
+                settings = """
+                    sector.info.hasCore = true;
+                    sector.info.lightCoverage = 50000;
+                    sector.saveInfo();
+                    Packages.arc.Core.settings.forceSave();
+                """ if globe_lights else ""
+                for preset, sector in presets:
                     name = f"sector-serpulo-{sector}.msav"
                     script = f"""
                         const sector = Packages.mindustry.content.SectorPresets.{preset}.sector;
@@ -31,12 +38,15 @@ def create(java: str, server: Path, output: Path) -> None:
                         Vars.world.loadSector(sector);
                         Vars.logic.play();
                         Packages.mindustry.io.SaveIO.write(Packages.arc.files.Fi.get("{name}"));
+                        {settings}
                         return "UPSTREAM_STOCK_RESUME_{sector}";
                     """
                     proc.stdin.write("js (() => { " + " ".join(script.splitlines()) + " })()\n")
                     proc.stdin.flush()
                     wait_for(log, proc, rf"UPSTREAM_STOCK_RESUME_{sector}\b", 30)
                     shutil.copyfile(root / name, output / name)
+                if globe_lights:
+                    shutil.copyfile(root / "config/settings.bin", output / "settings.bin")
             finally:
                 stop(proc)
 

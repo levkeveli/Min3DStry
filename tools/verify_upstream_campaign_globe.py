@@ -3,9 +3,12 @@
 
 import argparse
 from pathlib import Path
+import shutil
+import tempfile
 import time
 
 import verify_upstream_singleplayer as sp
+from campaign_resume_fixtures import create
 from verify_upstream_campaign_launch import write_input_replay
 
 
@@ -31,12 +34,19 @@ def verify(args):
     root = sd / "3ds/min3dstry"
     root.mkdir(parents=True)
     (root / "startup.txt").write_text("direct\n", encoding="ascii")
+    with tempfile.TemporaryDirectory(prefix="m3ds-globe-v1608-") as temp:
+        fixtures = Path(temp)
+        create(args.java, args.server, fixtures, globe_lights=True)
+        saves = root / "saves"
+        saves.mkdir()
+        shutil.copyfile(fixtures / "sector-serpulo-170.msav", saves / "sector-serpulo-170.msav")
+        shutil.copyfile(fixtures / "settings.bin", root / "settings.bin")
     movie = args.output / "new3ds-campaign-globe.ctm"
     # Hold R to open Campaign, X to open its globe, Right to rotate it, Y to
     # switch planets, and A to preview and launch The Onset through its stock sector slot.
-    windows = [(0, 24, 1 << 8), (44, 49, sp.KEY_X), (63, 68, 1 << 4),
-               (81, 86, sp.KEY_Y), (108, 113, 1), (125, 130, 1), (270, 280, sp.KEY_START)]
-    write_input_replay(movie, "new3ds", windows, 280, b"Min3DStry Planet Map")
+    windows = [(0, 24, 1 << 8), (44, 49, sp.KEY_X), (114, 119, 1 << 4),
+               (135, 140, sp.KEY_Y), (166, 171, 1), (187, 192, 1), (342, 357, sp.KEY_START)]
+    write_input_replay(movie, "new3ds", windows, 370, b"Min3DStry Planet Map")
 
     emulator = sp.az.resolve_azahar_bin(args.azahar)
     config, log = sp.az.resolve_azahar_paths(emulator)
@@ -51,9 +61,11 @@ def verify(args):
             sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_SECTOR_OVERLAY planet=serpulo vertices=[1-9]\d* "
                                        r"shadowed=[1-9]\d* outlined=[1-9]\d*", 25)
             sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_SECTOR_GRID planet=serpulo edges=[1-9]\d* vertices=[1-9]\d*", 25)
-            sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_GLOBE_FRAME planet=serpulo sector=170 selection=-1\b", 25)
+            sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_SURFACE_DRAW faces=7292 vertices=43740\b", 95)
+            sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_GLOBE_FRAME planet=serpulo sector=170 selection=-1 "
+                                       r"surface=true\b", 25)
             capture_globe(rpc, args.output / "new3ds-serpulo.png")
-            sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_GLOBE planet=serpulo sector=(?!170\b)\d+ available=", 55)
+            sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_GLOBE planet=serpulo sector=(?!170\b)\d+ available=", 100)
             sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_GLOBE planet=erekir sector=10 available=true\b", 55)
             sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_SECTOR_OVERLAY planet=erekir vertices=[1-9]\d* "
                                        r"shadowed=[1-9]\d* outlined=[1-9]\d*", 25)
@@ -84,6 +96,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--rom", required=True, type=Path)
     parser.add_argument("--azahar")
+    parser.add_argument("--java", default="java")
+    parser.add_argument("--server", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
     verify(parser.parse_args())
 

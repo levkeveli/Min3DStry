@@ -571,6 +571,7 @@ public final class UpstreamSinglePlayerApp {
         var arcs = new UpstreamCampaignArcs();
         UpstreamCampaignSurface surface = null;
         boolean checkedSurface = false;
+        boolean liveSurface = false;
         long openedAt = System.nanoTime();
         float cursorX = 200, cursorY = 120;
         MenuRows rows = null;
@@ -667,6 +668,11 @@ public final class UpstreamSinglePlayerApp {
                 }
                 int[] surfaceFaces = UpstreamCampaignSurface.packedFaces(
                     globe.planet() == Planets.serpulo ? surface : null);
+                boolean updatedSurface = surfaceFaces.length != 0;
+                if (liveSurface != updatedSurface) {
+                    liveSurface = updatedSurface;
+                    stableFrames = 0;
+                }
                 overlay.update(globe.planet(), active, sector, selectedSector, ticks);
                 int sectorVertices = overlay.vertices.size / UpstreamCampaignSectorOverlay.FLOATS_PER_VERTEX;
                 int gridEdges = grid.append(globe.planet(), globe.projection, globe.gridCursor, overlay.vertices);
@@ -709,7 +715,7 @@ public final class UpstreamSinglePlayerApp {
                     // FrameBegin has synchronized earlier draws in this same selection state.
                     System.out.println("UPSTREAM_CAMPAIGN_GLOBE_FRAME planet=" + globe.planet().name
                         + " sector=" + (sector == null ? -1 : sector.id)
-                        + " selection=" + (selectedSector == null ? -1 : selectedSector.id));
+                        + " selection=" + (selectedSector == null ? -1 : selectedSector.id) + " surface=" + liveSurface);
                 }
                 while (System.nanoTime() < nextFrame) Thread.yield();
             }

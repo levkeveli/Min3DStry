@@ -70,8 +70,10 @@ Serpulo refreshes terrain colors and emissive values after campaign state
 changes. The build exports the original mesh generator's 7,292 face samples.
 The handheld evaluates the same generator over those samples and updates all
 43,740 indexed vertices. The JVM test compares every packed color against a
-full stock rebuild after adding a lit base. The New 3DS replay for this
-change is pending. Sector icons and the wider solar-system view remain open.
+full stock rebuild after adding a lit base. The New 3DS replay imports a
+lit Ground Zero save and settings written by the unmodified v160.8 server.
+It checks the recolored frame before switching to Erekir and launching
+The Onset. Sector icons and the wider solar-system view remain open.
 
 ## 1:1 Upstream Mandate
 
