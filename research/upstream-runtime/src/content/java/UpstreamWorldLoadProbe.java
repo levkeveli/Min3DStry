@@ -78,10 +78,18 @@ public final class UpstreamWorldLoadProbe {
         Vars.logic = new Logic() {
             @Override
             public void reset() {
+                long retiredTiles = (long)Vars.world.width() * Vars.world.height();
                 super.reset();
                 // A scratch tile can keep its building and the previous power network alive.
                 mindustry.gen.UpstreamBuildingScratch.clear();
                 mindustry.world.UpstreamBlockScratch.clear();
+                if (retiredTiles >= 360_000) {
+                    // Return the retired world's managed space before the replacement decode
+                    // starts interleaving new tiles and buildings with remaining references.
+                    System.gc();
+                    long live = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory();
+                    System.out.println("UPSTREAM_DENSE_RESET collected=true tiles=" + retiredTiles + " used=" + live);
+                }
             }
         };
 
