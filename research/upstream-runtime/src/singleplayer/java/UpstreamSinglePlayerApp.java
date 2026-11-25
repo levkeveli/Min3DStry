@@ -65,6 +65,8 @@ public final class UpstreamSinglePlayerApp {
     private final UpstreamTerrainRenderProbe target = new UpstreamTerrainRenderProbe(false);
     private final UpstreamBuildingLayers buildingLayers = new UpstreamBuildingLayers();
     private final UpstreamBuildingPowerHud buildingPowerHud = new UpstreamBuildingPowerHud();
+    private final UpstreamBuildingLiquidHud buildingLiquidHud = new UpstreamBuildingLiquidHud();
+    private final UpstreamBuildingBasicBars buildingBasicBars = new UpstreamBuildingBasicBars();
     private UpstreamLiveBuildControls buildingControls = createBuildControls();
     private final UpstreamWeatherLayers weatherLayers = new UpstreamWeatherLayers();
     private final Runnable drawWeatherUnder = weatherLayers::drawUnder;
@@ -1159,7 +1161,13 @@ public final class UpstreamSinglePlayerApp {
         schematics.draw(viewport);
         drawCoreItems();
         drawPositionReadout();
-        drawObjectives(buildingPowerHud.draw(target, buildingControls, Vars.player.team(), drawStatusHud()));
+        float hudY = drawStatusHud();
+        // Base Block.setBars order: health, power, items, then liquids.
+        hudY = buildingBasicBars.drawHealth(target, buildingControls, Vars.player.team(), hudY);
+        hudY = buildingPowerHud.draw(target, buildingControls, Vars.player.team(), hudY);
+        hudY = buildingBasicBars.drawItems(target, buildingControls, Vars.player.team(), hudY);
+        hudY = buildingLiquidHud.draw(target, buildingControls, Vars.player.team(), hudY);
+        drawObjectives(hudY);
         drawBossBar();
         if (pauseOpen) drawPauseMenu();
         else drawFullscreenMinimap();

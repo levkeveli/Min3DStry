@@ -106,9 +106,10 @@ stock dynamic liquid bar below the power bar. The label, fill and liquid
 color come from the same `Block.addLiquidBar` provider used by the stock
 bars, drawn with the original bar and bar-top patches. Enemy liquid bars
 stay hidden. The building-layer host reference checks empty, partial,
-color and label states for both the dynamic and keyed bars; the live draw
-path is pending the next emulator batch. Keyed consumer and generator
-bars use the same stock `addLiquidBar` list and are drawn in stock order.
+color and label states for both the dynamic and keyed bars; the draw is
+wired in the offline and live clients and is included in the New 3DS
+acceptance run. Keyed consumer and generator bars use the same stock
+`addLiquidBar` list and are drawn in stock order.
 
 ## Remaining Scope for Issue #39
 
