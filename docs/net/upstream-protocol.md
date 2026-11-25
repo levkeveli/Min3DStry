@@ -2,7 +2,7 @@
 
 **Issue:** [#31](https://github.com/levkeveli/Min3DStry/issues/31) / [#44](https://github.com/levkeveli/Min3DStry/issues/44)
 
-**Stage:** `host-tested` (wire-exact framing & host session baseline verified live against unmodified Mindustry v8 build `160.8` `server-release.jar` via `tools/verify_upstream_net.py`; `net_3ds.c` compiled into `min3dstry.3dsx`; separate TeaVM ARM11 Azahar sessions are tracked in [`research/upstream-runtime/`](../../research/upstream-runtime/README.md) and [`port-capabilities.json`](../port-capabilities.json); physical Old/New 3DS console Wi-Fi sessions remain pending under `#44` / `#43`)
+**Stage:** `host-tested` (wire-exact framing & host session baseline verified live against unmodified Mindustry v8 build `160.8` `server-release.jar` via `tools/verify_upstream_net.py`; `net_3ds.c` compiled into `min3dstry.3dsx`; separate TeaVM ARM11 Azahar sessions are tracked in [`research/upstream-runtime/`](../../research/upstream-runtime/README.md) and [`port-capabilities.json`](../port-capabilities.json); physical New Nintendo 3DS/2DS Wi-Fi sessions remain pending under `#44` / `#43`)
 
 ---
 
@@ -98,7 +98,7 @@ DECODE_PKT_OK id=141 compression=1 wire_len=140 payload_len=182
 
 ### 4. 3DS ARM11 Build (`./dev.sh build`)
 - **3DS-build-tested:** `src/net/mindustry_net.c` and `src/platform/3ds/net_3ds.c` compile cleanly under devkitARM `arm-none-eabi-gcc` (`-std=c11 -Wall -Wextra -Werror`) into `build/min3dstry.3dsx`.
-- **Not yet tested:** Physical Original/New 3DS console Wi-Fi handshake and play sessions (`#31`, `#44`, `#43`); this host/wire document stays at `host-tested` while separate TeaVM ARM11 emulator runs are recorded under [`research/upstream-runtime/`](../../research/upstream-runtime/README.md).
+- **Not yet tested:** Physical New Nintendo 3DS/2DS Wi-Fi handshake and play sessions (`#31`, `#44`, `#43`); this host/wire document stays at `host-tested` while separate TeaVM ARM11 emulator runs are recorded under [`research/upstream-runtime/`](../../research/upstream-runtime/README.md).
 
 ---
 

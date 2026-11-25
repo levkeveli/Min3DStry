@@ -1,6 +1,6 @@
 # Physical verification runbook
 
-Status: **procedure**. Queued handoff cards: [hardware-test-queue.md](../hardware-test-queue.md). This page defines how a physical Old/New 3DS run becomes checked evidence.
+Status: **procedure**. Queued handoff cards: [hardware-test-queue.md](../hardware-test-queue.md). This page defines how a physical New 3DS run becomes checked evidence.
 It does not claim any hardware result by itself; the capability ledger only moves when a captured log
 passes [`tools/hw_evidence.py`](../../tools/hw_evidence.py) and is attached to a PR.
 
@@ -21,7 +21,7 @@ campaign gameplay FPS on New 3DS, upstream audio clips/music (the
 operator heard the UI tone, but all seven `AUDIO_EVENT`s were `clip=-1`), and
 the touch-label layout (the zones respond, but the visible legend is outside
 them; issue #364). Physical New 3DS evidence is required for completion.
-Original 3DS runs provide optional compatibility evidence.
+Previous Original 3DS results are historical evidence.
 
 ## What a run can prove
 
@@ -117,7 +117,7 @@ python3 tools/hw_evidence.py \
   --out docs/hardware/evidence/new3ds-<short-sha>.md
 ```
 
-Use `--profile old3ds` on an Original 3DS/2DS. `--scenario smoke` drops the save-specific checks for a
+`--scenario smoke` drops the save-specific checks for a
 console without the fixture. `--format json` emits the same data for automation; without `--out` the
 record goes to stdout.
 

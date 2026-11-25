@@ -236,4 +236,4 @@ No content format is parsed or invented here.
 - Route the live `Core.settings`/Arc `Fi` instance to these paths on 3DS SDFS.
 - Preserve upstream atomic/backup behavior and corrupted-store fallback.
 - Integrate sector `.msav` slots and campaign/tech-tree UI.
-- Verify full round-trips in Azahar and on physical Old/New 3DS.
+- Verify full round-trips in Azahar New 3DS mode and on physical New 3DS.

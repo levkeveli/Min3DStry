@@ -33,4 +33,4 @@ Physical listening and offline soundtrack integration remain open.
 - **ARM11 Build (`./dev.sh build`):** Compiles `src/audio/audio_stream.c`, `src/audio/audio_vorbis_stream.c`, `src/platform/3ds/ndsp_stream_backend.c`, and `src/platform/3ds/tremor_stream_source.c` with pinned `devkitpro/devkitarm` (`-Wall -Wextra -Werror`) and links `-lvorbisidec -logg` into `build/min3dstry.3dsx`.
 - **Remaining under [#29](https://github.com/levkeveli/Min3DStry/issues/29):**
   - Wire the live audio adapter into offline gameplay and verify its stock soundtrack transitions.
-  - Verify live audible NDSP playback on physical Original and New 3DS hardware with `sdmc:/3ds/dspfirm.cdc`.
+  - Verify live audible NDSP playback on physical New Nintendo 3DS/2DS hardware with `sdmc:/3ds/dspfirm.cdc`.

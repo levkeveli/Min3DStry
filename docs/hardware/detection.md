@@ -1,6 +1,8 @@
-# Hardware Detection (Original & New 3DS/2DS)
+# Hardware detection
 
 Min3DStry exposes a platform-independent hardware profile in [include/platform/hardware_profile.h](../../include/platform/hardware_profile.h) and [src/platform/hardware_profile.c](../../src/platform/hardware_profile.c), backed by `libctru` in [src/platform/3ds/hardware_probe_3ds.c](../../src/platform/3ds/hardware_probe_3ds.c).
+
+New Nintendo 3DS/2DS is the supported target. The probe also identifies older models for diagnostics and historical evidence.
 
 ## Detected Fields
 
@@ -17,7 +19,7 @@ Min3DStry exposes a platform-independent hardware profile in [include/platform/h
 - **3DS ARM11 build**: **3DS-build-tested** via `./dev.sh build` (`min3dstry.3dsx`).
 - **Emulator (`emulator-tested`, Azahar `2126.2`)**: Verified automatically via `./dev.sh emu-test`:
   - `is_new_3ds=true`: `New 3DS XL (N3DS, 804 MHz, L2:on, AppMem:96 MiB, FIRM:2.58.0)`
-  - `is_new_3ds=false`: `Original 3DS XL (O3DS, 268 MHz, L2:off, AppMem:96 MiB, FIRM:2.58.0)`
+  - Historical profile, `is_new_3ds=false`: `Original 3DS XL (O3DS, 268 MHz, L2:off, AppMem:96 MiB, FIRM:2.58.0)`
   - Note: Azahar HLE logs `ConfigureNew3DSCPU` (`ptm:sysm`) as unimplemented and reports `AppMem:96 MiB` under both emulated profiles.
-- **Physical Original 3DS XL:** The hardware smoke run reported O3DS, 268 MHz, L2 disabled, 64 MiB application memory, and FIRM 2.58.0. [Original 3DS XL evidence](evidence/old3ds-xl-a4a9a96.md)
+- **Historical Original 3DS XL:** The hardware smoke run reported O3DS, 268 MHz, L2 disabled, 64 MiB application memory, and FIRM 2.58.0. [Original 3DS XL evidence](evidence/old3ds-xl-a4a9a96.md)
 - **Physical New 3DS XL:** The Wi-Fi deployment run reported N3DS, 804 MHz, L2 enabled, 124 MiB application memory, and FIRM 2.58.0 from `CFGU_GetSystemModel` model 4. [New 3DS XL evidence](evidence/new3ds-xl-de3e249.md)
