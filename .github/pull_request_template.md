@@ -10,8 +10,8 @@ Closes #<issue>
 - Commands executed:
 - Results:
 - Emulator test:
-- Original 3DS test:
-- New 3DS test:
+- Physical New 3DS test:
+- Physical build and evidence:
 - Multiplayer/upstream parity:
 
 ## Documentation

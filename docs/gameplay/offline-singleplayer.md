@@ -99,8 +99,8 @@ Copy the original `bundle.properties` and `planets/serpulo.json` alongside the
 fixtures to run `-Pprobe=singleplayer runCampaignResumeJvm --args="/path/to/fixtures /path/to/new-scratch-dir"`
 with the normal pinned runtime Gradle properties. Use
 `python3 tools/verify_upstream_campaign_resume.py --rom upstream-probe.3dsx --fixtures /path/to/fixtures`
-to exercise sole-save resume, graphical selection, and save-back on both
-Azahar profiles.
+to exercise sole-save resume, graphical selection, and save-back in Azahar's
+New 3DS profile.
 
 For the dense Serpulo 242 replay, generate fixtures from the same stock Java
 server and use the matching emulator verifier flag.
@@ -114,6 +114,15 @@ The dense run uses Ground Zero as the first slot and checks that the second
 slot loads and reloads at 600×600, draws a frame, and saves with its original
 backup. The server readback confirms the saved sector ID, dimensions, and
 gameplay patch. Keep the dense and standard fixture sets in separate directories.
+
+Pass `--dense-resave` with `--dense --server server-release.jar` to check both
+a manual save after reload and a later exit save. An [instrumented 56 MiB
+diagnostic ROM](https://github.com/levkeveli/Min3DStry/actions/runs/45711354495)
+completed the dense reload and saved with the original fixture backup.
+The [two-save replay](https://github.com/levkeveli/Min3DStry/actions/runs/45716873959/artifacts/15070698663)
+reused that exact ROM. It verified each backup against its predecessor, and
+the unmodified v160.8 server reopened both 600×600 saves with the original
+embedded patch. The release-build heap and physical New 3DS performance remain open.
 
 The [ARM11 build from `1390790`](https://github.com/levkeveli/Min3DStry/actions/runs/45035851013)
 resumed a lone Ground Zero slot from `saves/` and used the D-pad to select a
@@ -359,7 +368,7 @@ sector. Selecting another sector resumes its save or starts its launch
 sequence in the same app. Regular **SELECT** saves, and **START** exits play.
 
 Use `python3 tools/verify_upstream_campaign_launch.py --rom upstream-probe.3dsx`
-to replay the fresh campaign menu on both Azahar profiles. The verifier
+to replay the fresh campaign menu in Azahar New 3DS mode. The verifier
 captures the menu and starting worlds, then collects the resulting saves and
 settings from an empty test SD directory. Pass `--server server-release.jar`
 to compare those outputs with a fresh stock Java launch.

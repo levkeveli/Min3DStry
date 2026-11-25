@@ -1,13 +1,14 @@
 # Physical verification runbook
 
-Status: **procedure**. Queued handoff cards: [hardware-test-queue.md](../hardware-test-queue.md). This page defines how a physical Old/New 3DS run becomes checked evidence.
+Status: **procedure**. Queued handoff cards: [hardware-test-queue.md](../hardware-test-queue.md). This page defines how a physical New 3DS run becomes checked evidence.
 It does not claim any hardware result by itself; the capability ledger only moves when a captured log
 passes [`tools/hw_evidence.py`](../../tools/hw_evidence.py) and is attached to a PR.
 
 Emulator-only validation batches are recorded separately:
-[2026-11-23](emulator-batch-2026-11-23.md) and
-[2026-11-24](emulator-batch-2026-11-24.md) (ten tasks each, both Azahar
-profiles). These records do not prove physical-hardware behavior.
+[2026-11-23](emulator-batch-2026-11-23.md),
+[2026-11-24](emulator-batch-2026-11-24.md) and
+[2026-11-24 batch 2](emulator-batch-2026-11-24b.md) (ten tasks each, both
+Azahar profiles). These records do not prove physical-hardware behavior.
 
 Captured so far: [Original 3DS XL smoke](evidence/old3ds-xl-a4a9a96.md),
 [New 3DS XL sector run](evidence/new3ds-xl-de3e249.md), and
@@ -16,11 +17,11 @@ passed 12/12 over ~10 minutes (132 `BENCH` windows, `fps_min=29.92`,
 `fps_max=59.84`, `p95_max=33.50`) and the operator confirmed the scene,
 pan/zoom, lighting, pause/resume, HUD and minimap. The five-minute soak and the
 New 3DS `factory_demo` FPS target are verified. Still **not verified**: full
-campaign gameplay FPS, the Old 3DS run (the operator has only the New 3DS, so
-HWT-06 is blocked on Original 3DS hardware), upstream audio clips/music (the
+campaign gameplay FPS on New 3DS, upstream audio clips/music (the
 operator heard the UI tone, but all seven `AUDIO_EVENT`s were `clip=-1`), and
 the touch-label layout (the zones respond, but the visible legend is outside
-them; issue #364).
+them; issue #364). Physical New 3DS evidence is required for completion.
+Previous Original 3DS results are historical evidence.
 
 ## What a run can prove
 
@@ -116,7 +117,7 @@ python3 tools/hw_evidence.py \
   --out docs/hardware/evidence/new3ds-<short-sha>.md
 ```
 
-Use `--profile old3ds` on an Original 3DS/2DS. `--scenario smoke` drops the save-specific checks for a
+`--scenario smoke` drops the save-specific checks for a
 console without the fixture. `--format json` emits the same data for automation; without `--out` the
 record goes to stdout.
 

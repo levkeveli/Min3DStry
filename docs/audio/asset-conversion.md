@@ -211,8 +211,8 @@ integrity.
   the A/Y controls, `wave.spawn`/`shoot.duo`/`enemy.kill` are requested by the
   deterministic demo wave and turret, `conveyor.loop`/`drill.loop` start as
   looping ambients and `block.place`/`block.break` follow the demo wall action, and `ui.unlock` still has no research caller.
-- No physical Old/New 3DS DSP playback or save/network audio integration has
-  been verified. The `AUDIO_ROMFS` debug line and Azahar runs can show loader
+- Physical New 3DS DSP playback and save/network audio integration still need
+  verification for these clips. The `AUDIO_ROMFS` debug line and Azahar runs can show loader
   state, not audible output quality.
 - ffmpeg is an external build-time executable and is not distributed with the
   project.

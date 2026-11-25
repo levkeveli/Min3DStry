@@ -13,7 +13,8 @@ from pathlib import Path
 import verify_upstream_singleplayer as sp
 
 
-def write_replay(path: Path, model: str, multiple: bool, move_down: bool, dense: bool = False) -> None:
+def write_replay(path: Path, model: str, multiple: bool, move_down: bool, dense: bool = False, *,
+                 resave: bool = False) -> None:
     windows = [(104, 106, sp.KEY_START)] if multiple else [(76, 78, sp.KEY_START)]
     if multiple:
         # From Resume, move down past Research to Load.
@@ -27,7 +28,12 @@ def write_replay(path: Path, model: str, multiple: bool, move_down: bool, dense:
         windows = [(start, end, key) for start, end, key in windows if start < 60]
         windows += [(175, 207, sp.KEY_X), (250, 282, 1 << 7), (325, 357, 1 << 7),
                     (400, 432, 1), (650, 682, sp.KEY_START)]
-        seconds = 710
+        # Keep replay running during the exit save. Azahar pauses when the movie
+        # reaches its end, including while the game is compressing the map.
+        seconds = 1290
+        if resave:
+            windows[-1:] = [(650, 682, sp.KEY_SELECT), (1040, 1072, sp.KEY_START)]
+            seconds = 1540
     frames = sp.CTM_SAMPLES_PER_SECOND * seconds
     header = struct.pack("<4sQ20sQQ32sIQq156x", b"CTM\x1b", 0, sp.CTM_REVISION, 1780000000,
                          0x4D334453, b"Min3DStry Campaign", 0, frames, 0)
@@ -44,7 +50,7 @@ def write_replay(path: Path, model: str, multiple: bool, move_down: bool, dense:
 
 
 def verify(model: str, rom: Path, azahar: str, config: Path, log: Path,
-           output: Path, fixtures: Path, dense: bool = False) -> None:
+           output: Path, fixtures: Path, dense: bool = False, *, resave: bool = False) -> None:
     fixture_settings = fixtures / "settings.bin"
     source_settings = fixture_settings.read_bytes() if fixture_settings.exists() else None
     originals = {path: path.read_bytes() if path.is_file() else None for path in (config, log)}
@@ -76,7 +82,7 @@ def verify(model: str, rom: Path, azahar: str, config: Path, log: Path,
             config.write_text(sp.az.patch_qt_config_text((originals[config] or b"").decode("utf-8"), storage),
                               encoding="utf-8")
             replay = output / f"{model}-{stage}.ctm"
-            write_replay(replay, model, multiple, move_down=source_settings is None, dense=dense)
+            write_replay(replay, model, multiple, move_down=source_settings is None, dense=dense, resave=resave)
             proc, rpc = sp._launch_azahar(model, rom, azahar, config, log, replay)
             try:
                 if multiple:
@@ -107,15 +113,27 @@ def verify(model: str, rom: Path, azahar: str, config: Path, log: Path,
                     if dense:
                         sp._wait_for_log(log, proc, r"(?s)UPSTREAM_PAUSE_MENU load=true\b.*?UPSTREAM_SP_FRAME ", 100)
                         (output / f"{model}-reloaded.png").write_bytes(rpc.screenshot())
-                sp._wait_for_log(log, proc, rf"UPSTREAM_CAMPAIGN_SAVED slot={selection}\b", load_timeout)
+                save_timeout = 640 if dense and multiple else load_timeout
+                expected_backup = source_secondary if multiple else source_zero
+                if dense and multiple and resave:
+                    save_marker = rf"UPSTREAM_SP_SAVED path=[^\r\n]*/{selection} bytes=[1-9]\d+\b"
+                    checkpoint_log = sp._wait_for_log(log, proc, save_marker, save_timeout)
+                    if re.search(r"UPSTREAM_SP_EXIT\b", checkpoint_log) or backup.read_bytes() != expected_backup:
+                        raise AssertionError(f"{model}: manual save did not preserve the original PC sector")
+                    checkpoint = selected.read_bytes()
+                    if checkpoint == expected_backup:
+                        raise AssertionError(f"{model}: manual save left the original sector unchanged")
+                    (output / f"{model}-sector-serpulo-242-checkpoint.msav").write_bytes(checkpoint)
+                    expected_backup = checkpoint
+                    print(f"[PASS] {model}: manual dense save {len(checkpoint)} bytes", flush=True)
+                sp._wait_for_log(log, proc, rf"UPSTREAM_CAMPAIGN_SAVED slot={selection}\b", save_timeout)
                 sp._wait_for_log(log, proc, r"UPSTREAM_SP_EXIT\b", 20)
-                expected = source_secondary if multiple else source_zero
-                if backup.read_bytes() != expected:
-                    raise AssertionError(f"{model}: original PC save is missing from the stock backup path")
+                if backup.read_bytes() != expected_backup:
+                    raise AssertionError(f"{model}: prior save is missing from the stock backup path")
                 if multiple and zero.read_bytes() != source_zero:
                     raise AssertionError(f"{model}: selecting the second sector modified the Ground Zero save")
                 saved = selected.read_bytes()
-                if dense and multiple and saved == expected:
+                if dense and multiple and saved == expected_backup:
                     raise AssertionError(f"{model}: the dense campaign save was left byte-for-byte unchanged")
                 (output / f"{model}-{selected.name}").write_bytes(saved)
                 if source_settings is not None:
@@ -147,24 +165,30 @@ def main() -> int:
     parser.add_argument("--rom", required=True, type=Path)
     parser.add_argument("--fixtures", required=True, type=Path)
     parser.add_argument("--azahar")
-    parser.add_argument("--model", choices=("new3ds", "old3ds"))
+    parser.add_argument("--model", choices=("new3ds",), default="new3ds")
     parser.add_argument("--output-dir", type=Path, default=Path("build/campaign-resume-emu"))
     parser.add_argument("--dense", action="store_true", help="Verify the original 600x600 Serpulo 242 sector")
+    parser.add_argument("--dense-resave", action="store_true", help="Save after reload and again on exit")
     parser.add_argument("--server", type=Path, help="Reopen each dense replay save with the original Java server")
     parser.add_argument("--java", default="java")
     args = parser.parse_args()
     if args.dense and (args.fixtures / "settings.bin").exists():
         parser.error("--dense requires the stock fixtures without a settings override")
+    if args.dense_resave and (not args.dense or args.server is None):
+        parser.error("--dense-resave requires --dense and --server")
     if args.server is not None and not args.dense:
         parser.error("--server is used with --dense")
     azahar = sp.az.resolve_azahar_bin(args.azahar)
     config, log = sp.az.resolve_azahar_paths(azahar)
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    for model in (args.model,) if args.model else ("new3ds", "old3ds"):
-        verify(model, args.rom, azahar, config, log, args.output_dir, args.fixtures, args.dense)
+    for model in (args.model,):
+        verify(model, args.rom, azahar, config, log, args.output_dir, args.fixtures, args.dense, resave=args.dense_resave)
         if args.server is not None:
             from verify_stock_campaign_archive import check_saves
 
+            if args.dense_resave:
+                check_saves(args.java, args.server,
+                            dense_save=args.output_dir / f"{model}-sector-serpulo-242-checkpoint.msav")
             check_saves(args.java, args.server, dense_save=args.output_dir / f"{model}-sector-serpulo-242.msav")
     return 0
 

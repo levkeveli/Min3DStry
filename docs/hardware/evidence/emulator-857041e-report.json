@@ -1,0 +1,322 @@
+{
+  "rom": "build/artifact/min3dstry.3dsx",
+  "artifact": {
+    "path": "/home/runner/work/Min3DStry/Min3DStry/build/artifact/min3dstry.3dsx",
+    "bytes": 17310372,
+    "sha256": "7adb4ee8edaa4f7800c9226729016517ebdad10510d7737c5bc0a6632881aae9"
+  },
+  "results": [
+    {
+      "model": "new3ds",
+      "is_new_3ds_setting": true,
+      "processes": {
+        "11": {
+          "title_id": 0,
+          "name": "min3dstr"
+        }
+      },
+      "renderer": "llvmpipe (LLVM 21.1.8, 256 bits)",
+      "gl_version": "4.5 (Core Profile) Mesa 26.0.8-1ubuntu0.3",
+      "hw_line": "New 3DS XL (N3DS, 804 MHz, L2:on, AppMem:96 MiB, FIRM:2.58.0)",
+      "atlas_loaded": true,
+      "storage": {
+        "root": "/3ds/min3dstry",
+        "settings": "/3ds/min3dstry/settings.bin",
+        "sector": "/3ds/min3dstry/sector-serpulo-170.msav"
+      },
+      "storage_roundtrip": {
+        "status": "ok",
+        "bytes": 4
+      },
+      "sector_catalog": {
+        "count": 0
+      },
+      "sector_slots": [],
+      "parity": {
+        "scenario_id": "starter_copper_defense_v1",
+        "total_ticks": 240,
+        "trace_hash": "0x53a483c7",
+        "core_copper": 22,
+        "items_delivered": 12,
+        "enemies_killed": 2,
+        "core_hp": 160
+      },
+      "audio": {
+        "backend": "ndsp",
+        "state": "fallback_no_dsp",
+        "rc": "0xd880a7fa",
+        "rate": 22050,
+        "voices": 0,
+        "max_voices": 8,
+        "clips": 10
+      },
+      "audio_romfs": {
+        "status": "ok",
+        "clips": 9,
+        "bytes": 647008,
+        "ui_clip": 6
+      },
+      "audio_event": {
+        "name": "wave.spawn",
+        "spawned": 2,
+        "clip": 8,
+        "voice": 0
+      },
+      "shoot_event": {
+        "name": "shoot.duo",
+        "fired": 3,
+        "clip": 5,
+        "voice": 0
+      },
+      "kill_event": {
+        "name": "enemy.kill",
+        "killed": 1,
+        "clip": 4,
+        "voice": 0
+      },
+      "conveyor_event": {
+        "name": "conveyor.loop",
+        "clip": 2,
+        "voice": 0
+      },
+      "drill_event": {
+        "name": "drill.loop",
+        "clip": 3,
+        "voice": 0
+      },
+      "place_event": {
+        "name": "block.place",
+        "clip": 1,
+        "voice": 0
+      },
+      "break_event": {
+        "name": "block.break",
+        "clip": 0,
+        "voice": 0
+      },
+      "workers": [
+        {
+          "workers": 2,
+          "active": 2,
+          "chunks": 40,
+          "items": 40000,
+          "match": 1,
+          "checksum": 1270004109,
+          "serial_us": 1348,
+          "parallel_us": 1422
+        },
+        {
+          "workers": 4,
+          "active": 4,
+          "chunks": 40,
+          "items": 40000,
+          "match": 1,
+          "checksum": 1270004109,
+          "serial_us": 1348,
+          "parallel_us": 1508
+        }
+      ],
+      "mem": {
+        "app_mib": 96,
+        "reserve_mib": 16,
+        "budget": 1048576,
+        "used": 553728,
+        "peak": 553728,
+        "remaining": 494848,
+        "world_used": 480000,
+        "world_limit": 524288,
+        "texture_used": 8192,
+        "texture_limit": 262144,
+        "transient_used": 65536,
+        "transient_limit": 262144,
+        "failures": 0,
+        "status": "ok"
+      },
+      "frame": {
+        "tick": 30,
+        "paused": 0,
+        "cam_x": 88.0,
+        "cam_y": 72.0,
+        "rects": 428,
+        "lines": 2,
+        "triangles": 0,
+        "circles": 4,
+        "culled": 448,
+        "state_switches": 1,
+        "budget_dropped": 0,
+        "cpu_pct": 9.86,
+        "gpu_pct": 1.5,
+        "cmdbuf_pct": 1.11
+      },
+      "perf": {
+        "system_fps": 62.79,
+        "game_fps": 62.79,
+        "emulation_speed_pct": 104.05,
+        "time_gpu_ms": 3.345
+      },
+      "screenshot": {
+        "path": "build/emu-verify/new3ds.png",
+        "width": 400,
+        "height": 480,
+        "top_distinct_colors": 29,
+        "bottom_distinct_colors": 2
+      }
+    },
+    {
+      "model": "old3ds",
+      "is_new_3ds_setting": false,
+      "processes": {
+        "11": {
+          "title_id": 0,
+          "name": "min3dstr"
+        }
+      },
+      "renderer": "llvmpipe (LLVM 21.1.8, 256 bits)",
+      "gl_version": "4.5 (Core Profile) Mesa 26.0.8-1ubuntu0.3",
+      "hw_line": "Original 3DS XL (O3DS, 268 MHz, L2:off, AppMem:96 MiB, FIRM:2.58.0)",
+      "atlas_loaded": true,
+      "storage": {
+        "root": "/3ds/min3dstry",
+        "settings": "/3ds/min3dstry/settings.bin",
+        "sector": "/3ds/min3dstry/sector-serpulo-170.msav"
+      },
+      "storage_roundtrip": {
+        "status": "ok",
+        "bytes": 4
+      },
+      "sector_catalog": {
+        "count": 0
+      },
+      "sector_slots": [],
+      "parity": {
+        "scenario_id": "starter_copper_defense_v1",
+        "total_ticks": 240,
+        "trace_hash": "0x53a483c7",
+        "core_copper": 22,
+        "items_delivered": 12,
+        "enemies_killed": 2,
+        "core_hp": 160
+      },
+      "audio": {
+        "backend": "ndsp",
+        "state": "fallback_no_dsp",
+        "rc": "0xd880a7fa",
+        "rate": 22050,
+        "voices": 0,
+        "max_voices": 8,
+        "clips": 10
+      },
+      "audio_romfs": {
+        "status": "ok",
+        "clips": 9,
+        "bytes": 647008,
+        "ui_clip": 6
+      },
+      "audio_event": {
+        "name": "wave.spawn",
+        "spawned": 2,
+        "clip": 8,
+        "voice": 0
+      },
+      "shoot_event": {
+        "name": "shoot.duo",
+        "fired": 3,
+        "clip": 5,
+        "voice": 0
+      },
+      "kill_event": {
+        "name": "enemy.kill",
+        "killed": 1,
+        "clip": 4,
+        "voice": 0
+      },
+      "conveyor_event": {
+        "name": "conveyor.loop",
+        "clip": 2,
+        "voice": 0
+      },
+      "drill_event": {
+        "name": "drill.loop",
+        "clip": 3,
+        "voice": 0
+      },
+      "place_event": {
+        "name": "block.place",
+        "clip": 1,
+        "voice": 0
+      },
+      "break_event": {
+        "name": "block.break",
+        "clip": 0,
+        "voice": 0
+      },
+      "workers": [
+        {
+          "workers": 2,
+          "active": 2,
+          "chunks": 40,
+          "items": 40000,
+          "match": 1,
+          "checksum": 1270004109,
+          "serial_us": 1348,
+          "parallel_us": 1422
+        },
+        {
+          "workers": 4,
+          "active": 4,
+          "chunks": 40,
+          "items": 40000,
+          "match": 1,
+          "checksum": 1270004109,
+          "serial_us": 1348,
+          "parallel_us": 1508
+        }
+      ],
+      "mem": {
+        "app_mib": 96,
+        "reserve_mib": 16,
+        "budget": 1048576,
+        "used": 553728,
+        "peak": 553728,
+        "remaining": 494848,
+        "world_used": 480000,
+        "world_limit": 524288,
+        "texture_used": 8192,
+        "texture_limit": 262144,
+        "transient_used": 65536,
+        "transient_limit": 262144,
+        "failures": 0,
+        "status": "ok"
+      },
+      "frame": {
+        "tick": 30,
+        "paused": 0,
+        "cam_x": 88.0,
+        "cam_y": 72.0,
+        "rects": 428,
+        "lines": 2,
+        "triangles": 0,
+        "circles": 4,
+        "culled": 448,
+        "state_switches": 1,
+        "budget_dropped": 0,
+        "cpu_pct": 9.86,
+        "gpu_pct": 1.5,
+        "cmdbuf_pct": 1.11
+      },
+      "perf": {
+        "system_fps": 59.76,
+        "game_fps": 59.76,
+        "emulation_speed_pct": 99.88,
+        "time_gpu_ms": 2.03
+      },
+      "screenshot": {
+        "path": "build/emu-verify/old3ds.png",
+        "width": 400,
+        "height": 480,
+        "top_distinct_colors": 29,
+        "bottom_distinct_colors": 2
+      }
+    }
+  ]
+}

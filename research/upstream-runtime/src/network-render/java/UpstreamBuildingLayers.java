@@ -1,3 +1,5 @@
+import arc.Core;
+import arc.graphics.Blending;
 import arc.graphics.g2d.Draw;
 import arc.struct.IntSet;
 import arc.struct.ObjectSet;
@@ -29,6 +31,7 @@ import mindustry.world.blocks.production.GenericCrafter;
 import mindustry.world.blocks.production.Pump;
 import mindustry.world.blocks.production.Separator;
 import mindustry.world.blocks.production.WallCrafter;
+import mindustry.world.blocks.storage.CoreBlock;
 import mindustry.world.blocks.storage.StorageBlock;
 import mindustry.world.blocks.units.UnitFactory.UnitFactoryBuild;
 
@@ -57,8 +60,8 @@ final class UpstreamBuildingLayers {
     }
 
     void render(UpstreamTerrainDrawProbe.Viewport viewport, Team viewer, Predicate<Building> supported) {
-        int right = Math.min(viewport.left + UpstreamTerrainDrawProbe.VIEW_WIDTH, Vars.world.width());
-        int top = Math.min(viewport.bottom + UpstreamTerrainDrawProbe.VIEW_HEIGHT, Vars.world.height());
+        int right = Math.min(viewport.left + viewport.width(), Vars.world.width());
+        int top = Math.min(viewport.bottom + viewport.height(), Vars.world.height());
         boolean live = Vars.net != null && Vars.net.client();
         for (int y = viewport.bottom; y < top; y++) {
             for (int x = viewport.left; x < right; x++) {
@@ -108,6 +111,7 @@ final class UpstreamBuildingLayers {
             for (var build : visible) {
                 if (!build.block.drawDynamic) drawCracks(build);
             }
+            drawLights(visible);
         } finally {
             try {
                 Draw.sort(false);
@@ -117,11 +121,42 @@ final class UpstreamBuildingLayers {
         }
     }
 
+    private static void drawLights(Seq<Building> visible) {
+        var region = Core.atlas.find("circle-shadow");
+        if (!region.found() || visible.isEmpty()) return;
+        Draw.blend(Blending.additive);
+        try {
+            Draw.z(Layer.effect);
+            for (var build : visible) {
+                var block = build.block;
+                if (!block.emitLight || block instanceof CoreBlock) continue;
+                float radius, opacity;
+                int color;
+                if (build instanceof LightBlock.LightBuild light) {
+                    radius = block.lightRadius * Math.min(light.smoothTime, 2f);
+                    color = light.color;
+                    opacity = ((LightBlock)block).brightness * light.efficiency;
+                } else {
+                    radius = block.lightRadius;
+                    color = block.lightColor.rgba();
+                    opacity = block.lightColor.a;
+                }
+                if (radius <= 0f || opacity <= 0f) continue;
+                Draw.color(color);
+                Draw.alpha(Math.min(opacity, 1f));
+                Draw.rect(region, build.x, build.y, radius * 2f, radius * 2f);
+            }
+        } finally {
+            Draw.blend();
+            Draw.reset();
+        }
+    }
+
     private static void drawPuddles(UpstreamTerrainDrawProbe.Viewport viewport) {
         float left = (viewport.left - 0.5f) * Vars.tilesize;
         float bottom = (viewport.bottom - 0.5f) * Vars.tilesize;
-        float right = left + UpstreamTerrainDrawProbe.VIEW_WIDTH * Vars.tilesize;
-        float top = bottom + UpstreamTerrainDrawProbe.VIEW_HEIGHT * Vars.tilesize;
+        float right = left + viewport.width() * Vars.tilesize;
+        float top = bottom + viewport.height() * Vars.tilesize;
         for (var entity : Groups.draw) {
             if (!(entity instanceof Puddle puddle) || puddle.tile == null || puddle.liquid == null) continue;
             float radius = puddle.clipSize() / 2f;

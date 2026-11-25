@@ -7,6 +7,7 @@ from unittest.mock import Mock
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools"))
+import verify_upstream_campaign_resume as campaign  # noqa: E402
 import verify_upstream_singleplayer as vsp  # noqa: E402
 
 
@@ -23,6 +24,27 @@ class VerifyUpstreamSingleplayerTests(unittest.TestCase):
                 self.assertGreaterEqual(len(raw), header_size + expected_frames * 14)
                 frame_count = struct.unpack_from("<Q", raw, 84)[0]
                 self.assertEqual(frame_count, expected_frames)
+
+    def test_dense_resave_keeps_separate_save_and_exit_windows(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "dense.ctm"
+            campaign.write_replay(path, "new3ds", True, True, dense=True, resave=True)
+            data = path.read_bytes()
+            frames = vsp.CTM_SAMPLES_PER_SECOND
+            header = 256
+
+            def button_at(second):
+                frame = frames * second
+                cycles, remainder = divmod(frame, 7)
+                extra_polls = cycles * 3 + sum(value < remainder for value in (0, 2, 4))
+                return struct.unpack_from("<H", data, header + 7 * (2 * frame + extra_polls) + 1)[0]
+
+            self.assertEqual(struct.unpack_from("<Q", data, 84)[0], 1540 * frames)
+            for start, end, key in ((650, 682, vsp.KEY_SELECT), (1040, 1072, vsp.KEY_START)):
+                self.assertEqual(button_at(start - 1), 0)
+                self.assertEqual(button_at(start), key)
+                self.assertEqual(button_at(end - 1), key)
+                self.assertEqual(button_at(end), 0)
 
     def test_wait_for_log_reports_native_azahar_crash(self) -> None:
         for marker in ("Core::LogException", "core/arm/exception_handler.cpp:LogException:140:"):
