@@ -1077,18 +1077,26 @@ public final class UpstreamSinglePlayerApp {
             uploadMinimap();
         }
         controlled = unit;
+        if (buildingControls != null) {
+            int zoom = buildingControls.consumeZoom();
+            if (zoom != 0) {
+                viewport.zoomBy(zoom * UpstreamTerrainDrawProbe.ZOOM_STEP);
+                System.out.println("UPSTREAM_CAMERA_ZOOM zoom=" + viewport.zoom()
+                    + " span=" + viewport.width() + "x" + viewport.height());
+            }
+        }
         float x = unit == null ? Vars.player.x() : unit.x();
         float y = unit == null ? Vars.player.y() : unit.y();
-        viewport.moveTo(World.toTile(x) - UpstreamTerrainDrawProbe.VIEW_WIDTH / 2,
-                        World.toTile(y) - UpstreamTerrainDrawProbe.VIEW_HEIGHT / 2);
-        Core.camera.width = UpstreamTerrainDrawProbe.VIEW_WIDTH * Vars.tilesize;
-        Core.camera.height = UpstreamTerrainDrawProbe.VIEW_HEIGHT * Vars.tilesize;
+        viewport.moveTo(World.toTile(x) - viewport.width() / 2,
+                        World.toTile(y) - viewport.height() / 2);
+        Core.camera.width = viewport.width() * Vars.tilesize;
+        Core.camera.height = viewport.height() * Vars.tilesize;
         Core.camera.position.set((viewport.left - 0.5f) * Vars.tilesize + Core.camera.width / 2f,
             (viewport.bottom - 0.5f) * Vars.tilesize + Core.camera.height / 2f);
         advanceVisualState();
         draws = 0;
         viewport.draw(drawWeatherUnder, drawEntities);
-        buildingControls.viewport(viewport.left, viewport.bottom);
+        buildingControls.viewport(viewport.left, viewport.bottom, viewport.width(), viewport.height());
         if (unit != null && (lastLeft != viewport.left || lastBottom != viewport.bottom)) {
             lastLeft = viewport.left;
             lastBottom = viewport.bottom;
@@ -1132,8 +1140,8 @@ public final class UpstreamSinglePlayerApp {
             for (var unit : Groups.unit) {
                 if (unit instanceof BlockUnitc) continue;
                 int x = World.toTile(unit.x()), y = World.toTile(unit.y());
-                if (x < viewport.left || x >= viewport.left + UpstreamTerrainDrawProbe.VIEW_WIDTH
-                        || y < viewport.bottom || y >= viewport.bottom + UpstreamTerrainDrawProbe.VIEW_HEIGHT) continue;
+                if (x < viewport.left || x >= viewport.left + viewport.width()
+                        || y < viewport.bottom || y >= viewport.bottom + viewport.height()) continue;
                 loadUnitGraphics(unit);
                 unit.draw();
                 if (unit == controlled) draws++;
@@ -1144,15 +1152,15 @@ public final class UpstreamSinglePlayerApp {
             }
             for (var bullet : Groups.bullet) {
                 int x = World.toTile(bullet.x()), y = World.toTile(bullet.y());
-                if (x < viewport.left || x >= viewport.left + UpstreamTerrainDrawProbe.VIEW_WIDTH
-                        || y < viewport.bottom || y >= viewport.bottom + UpstreamTerrainDrawProbe.VIEW_HEIGHT) continue;
+                if (x < viewport.left || x >= viewport.left + viewport.width()
+                        || y < viewport.bottom || y >= viewport.bottom + viewport.height()) continue;
                 loadBulletGraphics(bullet.type());
                 bullet.draw();
             }
         } finally {
             Draw.sort(false);
         }
-        UpstreamObjectiveMarkers.draw(Vars.state.rules, 240f / (UpstreamTerrainDrawProbe.VIEW_HEIGHT * Vars.tilesize),
+        UpstreamObjectiveMarkers.draw(Vars.state.rules, 240f / (viewport.height() * Vars.tilesize),
             worldLabel);
         if (Core.settings.getBool("showweather", true)) weatherLayers.drawOver();
         var orders = buildingControls.orders();

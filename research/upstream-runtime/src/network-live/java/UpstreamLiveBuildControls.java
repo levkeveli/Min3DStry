@@ -19,10 +19,14 @@ final class UpstreamLiveBuildControls {
     private static final int PLACE_PRESSED = 1 << 17;
     private static final int ROTATE_PRESSED = 1 << 18;
     private static final int REMOVE_PRESSED = 1 << 19;
+    static final int ZOOM_IN_PRESSED = 1 << 26;
+    static final int ZOOM_OUT_PRESSED = 1 << 27;
+    private int zoomDelta;
 
     private enum InventoryAction { none, withdraw, deposit }
 
     private int left, bottom;
+    private int viewWidth = WIDTH, viewHeight = HEIGHT;
     private boolean viewportReady;
     private int tileX = -1, tileY = -1;
     private Block selected;
@@ -49,8 +53,14 @@ final class UpstreamLiveBuildControls {
     }
 
     void viewport(int left, int bottom) {
+        viewport(left, bottom, WIDTH, HEIGHT);
+    }
+
+    void viewport(int left, int bottom, int width, int height) {
         this.left = left;
         this.bottom = bottom;
+        this.viewWidth = Math.max(1, width);
+        this.viewHeight = Math.max(1, height);
         viewportReady = true;
         if (!contains(tileX, tileY)) {
             tileX = -1;
@@ -59,6 +69,8 @@ final class UpstreamLiveBuildControls {
     }
 
     void update(Unit unit, int buttons, int touch) {
+        if ((buttons & ZOOM_IN_PRESSED) != 0) zoomDelta = 1;
+        if ((buttons & ZOOM_OUT_PRESSED) != 0) zoomDelta = -1;
         if (schematics.active()) {
             if ((buttons & REMOVE_PRESSED) != 0) {
                 schematics.cancel();
@@ -229,8 +241,10 @@ final class UpstreamLiveBuildControls {
     private boolean selectGridCell(int x, int y) {
         if (!viewportReady || x < GRID_X || x >= GRID_X + WIDTH * CELL
                 || y < GRID_Y || y >= GRID_Y + HEIGHT * CELL) return false;
-        tileX = left + (x - GRID_X) / CELL;
-        tileY = bottom + HEIGHT - 1 - (y - GRID_Y) / CELL;
+        int gx = Math.min(viewWidth - 1, (x - GRID_X) * viewWidth / (WIDTH * CELL));
+        int gy = Math.min(viewHeight - 1, (y - GRID_Y) * viewHeight / (HEIGHT * CELL));
+        tileX = left + gx;
+        tileY = bottom + viewHeight - 1 - gy;
         return true;
     }
 
@@ -291,7 +305,7 @@ final class UpstreamLiveBuildControls {
     }
 
     private boolean contains(int x, int y) {
-        return x >= left && x < left + WIDTH && y >= bottom && y < bottom + HEIGHT;
+        return x >= left && x < left + viewWidth && y >= bottom && y < bottom + viewHeight;
     }
 
     Block shortcut(int slot) {
@@ -322,6 +336,11 @@ final class UpstreamLiveBuildControls {
     UpstreamBuildingConfig buildingConfig() { return buildingConfig; }
     UpstreamInventoryMenu inventory() { return inventory; }
     UpstreamCommandOrders orders() { return orders; }
+    int consumeZoom() {
+        int value = zoomDelta;
+        zoomDelta = 0;
+        return value;
+    }
     int inventoryAction() { return inventoryAction.ordinal(); }
     boolean configuring() { return configuring || buildingConfig.isLinking(); }
     boolean selectingMine() { return selectingMine; }

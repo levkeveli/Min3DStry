@@ -180,6 +180,7 @@ and waves, touch palette/rotation, HUD/menus/minimap.
   consumer/generator liquid bars with their liquid names and colors below the
   power bar; friendly buildings also show the stock health bar, and configurable
   item blocks show the item bar.
+- C-Stick up/down zooms the world 0.5x–2x and the touch grid stays aligned.
 - X opens the pause overlay; D-pad + A resume/save/quit, and the quit
   confirmation path saves and exits without corrupting the sector slot.
 - Damaging a friendly core shows the stock `< Core is under attack! >` row.
