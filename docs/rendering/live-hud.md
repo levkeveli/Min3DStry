@@ -79,7 +79,8 @@ Visible buildings with `emitLight` draw the stock `circle-shadow` region
 additively at their `lightRadius`/`lightColor`. `LightBlock` (for example the
 Illuminator) uses its configured color, brightness, efficiency and smoothing
 time. The host building reference asserts a real additive light sprite from the
-Illuminator. The full stock light buffer and shadowing remain open; the
+Illuminator. Core glow, per-block `drawLight` overrides (generators, reactors,
+crafters), the full stock light buffer and shadowing remain open; the
 **physical draw is pending** the New 3DS acceptance run.
 
 ## Selected building bars

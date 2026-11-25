@@ -31,6 +31,7 @@ import mindustry.world.blocks.production.GenericCrafter;
 import mindustry.world.blocks.production.Pump;
 import mindustry.world.blocks.production.Separator;
 import mindustry.world.blocks.production.WallCrafter;
+import mindustry.world.blocks.storage.CoreBlock;
 import mindustry.world.blocks.storage.StorageBlock;
 import mindustry.world.blocks.units.UnitFactory.UnitFactoryBuild;
 
@@ -128,7 +129,7 @@ final class UpstreamBuildingLayers {
             Draw.z(Layer.effect);
             for (var build : visible) {
                 var block = build.block;
-                if (!block.emitLight) continue;
+                if (!block.emitLight || block instanceof CoreBlock) continue;
                 float radius, opacity;
                 int color;
                 if (build instanceof LightBlock.LightBuild light) {
