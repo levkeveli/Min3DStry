@@ -71,7 +71,16 @@ On New 3DS, the C-Stick up/down changes the live and offline world span:
 The viewport stays centered on the player, and the touch build/command grid
 rescales to the current span so cell selection stays aligned. Input consumption,
 clamp and span math are host-checked; the **physical draw is pending** the New
-3DS acceptance run. Dynamic world lighting remains open.
+3DS acceptance run.
+
+## Dynamic emitter lights
+
+Visible buildings with `emitLight` draw the stock `circle-shadow` region
+additively at their `lightRadius`/`lightColor`. `LightBlock` (for example the
+Illuminator) uses its configured color, brightness, efficiency and smoothing
+time. The host building reference asserts a real additive light sprite from the
+Illuminator. The full stock light buffer and shadowing remain open; the
+**physical draw is pending** the New 3DS acceptance run.
 
 ## Selected building bars
 
