@@ -22,17 +22,19 @@ ASSETS_SHA256 = "2728b63d309c27a405744c8b5440d90a65387a41e2c4339b630a239f79f6bd1
 PREFIX = "assets/maps/"
 
 
-def check_saves(java, server, saves):
+def check_saves(java, server, saves=None, *, dense_save=None):
     with server.open("rb") as source:
         if hashlib.file_digest(source, "sha256").hexdigest() != SERVER_SHA256:
             raise ValueError("Expected the official v160.8 server-release.jar")
     with tempfile.TemporaryDirectory(prefix="m3ds-stock-campaign-readback-") as temporary:
         root = Path(temporary)
         (root / "config").mkdir()
-        shutil.copyfile(saves / "settings.bin", root / "config/settings.bin")
-        for sector in (204, 242):
+        cases = {242: 1} if dense_save is not None else {204: 2, 242: 1}
+        if saves is not None:
+            shutil.copyfile(saves / "settings.bin", root / "config/settings.bin")
+        for sector in cases:
             name = f"sector-serpulo-{sector}.msav"
-            shutil.copyfile(saves / "saves" / name, root / name)
+            shutil.copyfile(dense_save if dense_save is not None else saves / "saves" / name, root / name)
         script = '''
             const Fi = Packages.arc.files.Fi, SaveIO = Packages.mindustry.io.SaveIO;
             const serpulo = Packages.mindustry.content.Planets.serpulo;
@@ -47,11 +49,11 @@ def check_saves(java, server, saves):
                     Vars.world.height() !== 600 || Vars.state.data.getPatches().size !== patches)
                     throw 'Stock Java read an incorrect sector, size or patch count for ' + id;
             }
-            check(204, 2);
-            check(242, 1);
-            return 'STOCK_CAMPAIGN_ARCHIVE_READBACK sectors=204,242 dimensions=600x600 patches=3';
         '''
-        result = "STOCK_CAMPAIGN_ARCHIVE_READBACK sectors=204,242 dimensions=600x600 patches=3"
+        sector_list = ",".join(str(sector) for sector in cases)
+        result = f"STOCK_CAMPAIGN_ARCHIVE_READBACK sectors={sector_list} dimensions=600x600 patches={sum(cases.values())}"
+        script += " ".join(f"check({sector}, {patches});" for sector, patches in cases.items())
+        script += f" return '{result}';"
         stock_console(java, server, root, " ".join(script.splitlines()), result)
     print(result)
 
