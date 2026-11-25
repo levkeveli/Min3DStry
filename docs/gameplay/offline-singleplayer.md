@@ -108,6 +108,28 @@ and floor indexes and the backing slots of the temporary block lists. The
 live world rebuilds its indexes during the normal WorldLoad event. If decode
 fails, the exit path leaves the selected save and backup available for recovery.
 
+For the dense Serpulo 242 replay, generate fixtures from the same stock Java
+server and use the matching emulator verifier flag.
+
+```sh
+python3 tools/campaign_resume_fixtures.py --dense --server server-release.jar --output build/dense-fixtures
+python3 tools/verify_upstream_campaign_resume.py --dense --rom upstream-probe.3dsx --fixtures build/dense-fixtures --server server-release.jar
+```
+
+The dense run uses Ground Zero as the first slot and checks that the second
+slot loads and reloads at 600×600, draws a frame, and saves with its original
+backup. The server readback confirms the saved sector ID, dimensions, and
+gameplay patch. Keep the dense and standard fixture sets in separate directories.
+
+Pass `--dense-resave` with `--dense --server server-release.jar` to check both
+a manual save after reload and a later exit save. An [instrumented 56 MiB
+diagnostic ROM](https://github.com/levkeveli/Min3DStry/actions/runs/45711354495)
+completed the dense reload and saved with the original fixture backup.
+The [two-save replay](https://github.com/levkeveli/Min3DStry/actions/runs/45716873959/artifacts/15070698663)
+reused that exact ROM. It verified each backup against its predecessor, and
+the unmodified v160.8 server reopened both 600×600 saves with the original
+embedded patch. The release-build heap and physical New 3DS performance remain open.
+
 The [ARM11 build from `1390790`](https://github.com/levkeveli/Min3DStry/actions/runs/45035851013)
 resumed a lone Ground Zero slot from `saves/` and used the D-pad to select a
 loose Frozen Forest slot from the two-sector menu on both Azahar 2126.2
