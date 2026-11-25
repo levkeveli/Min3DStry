@@ -92,6 +92,16 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
         return editSchematicText("editor.description", original, 3);
     }
 
+    static String editProcessorText(String original, int maxCharacters) {
+        byte[] text = new byte[4 * maxCharacters + 1];
+        byte[] initial = original.getBytes(StandardCharsets.UTF_8);
+        if (initial.length >= text.length) return null;
+        System.arraycopy(initial, 0, text, 0, initial.length);
+        byte[] hint = (Core.bundle.get("edit") + "\0").getBytes(StandardCharsets.UTF_8);
+        int length = NativeTerrain.schematicPrompt(Address.ofData(text), text.length, Address.ofData(hint), 3);
+        return length >= 0 && length < text.length ? new String(text, 0, length, StandardCharsets.UTF_8) : null;
+    }
+
     private static String editSchematicText(String label, String original, int mode) {
         byte[] text = new byte[Math.max(1000, original.length()) * 4 + 1];
         byte[] initialBytes = original.getBytes(StandardCharsets.UTF_8);

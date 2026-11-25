@@ -931,6 +931,24 @@ python3 tools/verify_offline_turret_buildings.py \
   --output build/offline-turret-buildings
 ```
 
+## Stock processor source and connections
+
+Use Config on a reachable, accessible Mindustry processor. Edit opens the
+multiline 3DS keyboard with the current source, and backing out keeps the
+running program. Import File and Export File use plain UTF-8 Mindustry logic
+in `sd:/3ds/min3dstry/logic-clipboard.mlog`. Use the file for programs longer
+than the keyboard can edit. Export explicitly replaces the clipboard.
+
+The processor keeps its existing stock connections when source changes.
+Link lets the player tap a building to toggle its connection through the
+original processor range and permission checks. The same stock
+configuration path applies edits offline and sends the original
+configured bytes to a Java v160.8 server in multiplayer.
+
+The stock Java reference checks exact source, preserved links, execution
+against Canvas, and both input size limits. Handheld UI, save round-trip,
+and stock Java server configuration replays still need New 3DS evidence.
+
 ## Original Canvas and Logic Displays
 
 Offline games draw the v160.8 Canvas and Logic Display blocks in the original

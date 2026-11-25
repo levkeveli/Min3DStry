@@ -1,6 +1,11 @@
+import arc.Core;
+import arc.files.Fi;
 import arc.struct.Seq;
+import arc.util.Strings;
+import java.util.Arrays;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
+import java.util.function.Function;
 import mindustry.Vars;
 import mindustry.ctype.UnlockableContent;
 import mindustry.entities.Units;
@@ -10,6 +15,7 @@ import mindustry.type.UnitType;
 import mindustry.world.blocks.distribution.ItemBridge;
 import mindustry.world.blocks.distribution.MassDriver;
 import mindustry.world.blocks.payloads.PayloadMassDriver;
+import mindustry.world.blocks.logic.LogicBlock.LogicBuild;
 import mindustry.world.blocks.power.PowerNode;
 import mindustry.world.blocks.units.UnitFactory;
 import static mindustry.Vars.player;
@@ -25,9 +31,28 @@ final class UpstreamBuildingConfig {
     private byte[] labels;
     private final int[] iconIds = new int[UpstreamBuildMenu.ROWS];
 
+    private Function<String, String> processorEditor;
+    private Fi logicClipboard;
+
+    void editProcessorsWith(Function<String, String> editor, Fi clipboard) {
+        processorEditor = editor;
+        logicClipboard = clipboard;
+    }
+
     void open(Building build) {
         if (build == null || !build.isValid() || !build.block.configurable || !Units.canInteract(player, build)
                 || !build.shouldShowConfigure(player)) return;
+        if (build instanceof LogicBuild && processorEditor != null) {
+            if (!build.configTapped()) return;
+            target = build;
+            linking = false;
+            page = 0;
+            choices.clear();
+            Arrays.fill(iconIds, -1);
+            refreshProcessorLabels(build.block.localizedName);
+            System.out.println("UPSTREAM_PROCESSOR_CONFIG_OPEN x=" + build.tileX() + " y=" + build.tileY());
+            return;
+        }
         if (build instanceof PowerNode.PowerNodeBuild || build instanceof ItemBridge.ItemBridgeBuild
                 || build instanceof MassDriver.MassDriverBuild || build instanceof PayloadMassDriver.PayloadDriverBuild) {
             if (!build.configTapped()) return;
@@ -60,6 +85,12 @@ final class UpstreamBuildingConfig {
     void tapLink(Building other) {
         if (other == null) {
             close();
+        } else if (target instanceof LogicBuild processor) {
+            if (other == processor) {
+                close();
+            } else if (UpstreamProcessorConfiguration.toggleLink(processor, other)) {
+                System.out.println("UPSTREAM_PROCESSOR_LINK x=" + other.tileX() + " y=" + other.tileY());
+            }
         } else if (Units.canInteract(player, other)) {
             if (target.onConfigureBuildTapped(other)) {
                 close();
@@ -83,6 +114,10 @@ final class UpstreamBuildingConfig {
             }
         } else if (y >= UpstreamBuildMenu.ROW_TOP && x >= 8 && x < 312) {
             int row = (y - UpstreamBuildMenu.ROW_TOP) / UpstreamBuildMenu.ROW_HEIGHT;
+            if (target instanceof LogicBuild processor) {
+                tapProcessor(processor, row);
+                return;
+            }
             int index = page * UpstreamBuildMenu.ROWS + row;
             if (row >= UpstreamBuildMenu.ROWS || index >= choices.size) return;
             var choice = choices.get(index);
@@ -103,6 +138,67 @@ final class UpstreamBuildingConfig {
             }
             close();
         }
+    }
+
+    private void tapProcessor(LogicBuild processor, int row) {
+        switch (row) {
+            case 0 -> {
+                if (processor.code.length() > UpstreamProcessorConfiguration.APPLET_CHARACTERS) {
+                    refreshProcessorLabels(Core.bundle.get("asset.import.file"));
+                    return;
+                }
+                String code = processorEditor.apply(processor.code);
+                if (code != null) applyProgram(processor, code);
+            }
+            case 1 -> {
+                try {
+                    if (!logicClipboard.exists() || logicClipboard.isDirectory()
+                            || logicClipboard.length() > UpstreamProcessorConfiguration.MAX_SOURCE_BYTES) {
+                        refreshProcessorLabels(Core.bundle.get("editor.errorload"));
+                        return;
+                    }
+                    applyProgram(processor, logicClipboard.readString("UTF-8"));
+                } catch (RuntimeException error) {
+                    refreshProcessorLabels(Core.bundle.get("editor.errorload"));
+                }
+            }
+            case 2 -> {
+                try {
+                    logicClipboard.writeString(processor.code, false, "UTF-8");
+                    refreshProcessorLabels(Core.bundle.get("editor.saved"));
+                    System.out.println("UPSTREAM_PROCESSOR_EXPORT file=" + logicClipboard.name());
+                } catch (RuntimeException error) {
+                    refreshProcessorLabels(Core.bundle.get("editor.errorsave"));
+                }
+            }
+            case 3 -> linking = true;
+            default -> { }
+        }
+    }
+
+    private void applyProgram(LogicBuild processor, String code) {
+        validate();
+        if (target != processor) return;
+        if (processor.code.equals(code)) {
+            close();
+            return;
+        }
+        byte[] config = UpstreamProcessorConfiguration.encode(processor, code);
+        if (config == null) {
+            refreshProcessorLabels(Core.bundle.get("editor.errorload"));
+            return;
+        }
+        processor.configure(config);
+        System.out.println("UPSTREAM_PROCESSOR_EDIT x=" + processor.tileX() + " y=" + processor.tileY()
+            + " bytes=" + config.length);
+        close();
+    }
+
+    private void refreshProcessorLabels(String title) {
+        var names = new String[]{Strings.stripColors(title), Core.bundle.get("edit"),
+            Core.bundle.get("editor.importfile"), Core.bundle.get("editor.exportfile"),
+            Core.bundle.get("link", "Link"), "", ""};
+        labels = (String.join("\0", names) + "\0").getBytes(StandardCharsets.UTF_8);
     }
 
     void validate() {
@@ -142,7 +238,7 @@ final class UpstreamBuildingConfig {
     boolean previousPage() { return page > 0; }
     boolean nextPage() { return (page + 1) * UpstreamBuildMenu.ROWS < choices.size; }
     boolean unitPlans() { return target instanceof UnitFactory.UnitFactoryBuild; }
-    int selectedRow() { return selectedIndex() - page * UpstreamBuildMenu.ROWS; }
+    int selectedRow() { return target instanceof LogicBuild ? -1 : selectedIndex() - page * UpstreamBuildMenu.ROWS; }
 
     private int selectedIndex() {
         Object value = target.config();
