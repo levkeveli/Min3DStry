@@ -1,4 +1,4 @@
-name: Diagnose dense campaign working set at 40 MiB
+name: Diagnose dense campaign working set at 56 MiB on New 3DS
 on:
   push:
     branches: [test/dense-campaign-current-40m]
@@ -28,7 +28,7 @@ jobs:
             sudo apt-get update
             sudo apt-get install -y ffmpeg
           fi
-      - name: Build unified ARM11 with the diagnostic 40 MiB cap
+      - name: Build unified ARM11 with the diagnostic 56 MiB cap
         run: bash .github/scripts/build_unified_arm11_smoke.sh
       - name: Compare deferred stock enemy base generation
         run: |
@@ -59,10 +59,6 @@ jobs:
           compression-level: 0
   replay:
     needs: build
-    strategy:
-      fail-fast: false
-      matrix:
-        model: [new3ds, old3ds]
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
@@ -78,19 +74,19 @@ jobs:
           name: dense-campaign-unified-arm11
           path: build/unified-smoke
       - run: bash .github/scripts/setup_smoke_azahar.sh
-      - name: Resume and reload Serpulo 242 on ${{ matrix.model }}
+      - name: Resume and reload Serpulo 242 on New 3DS
         run: |
           set -o pipefail
           server=build/unified-smoke/server-release.jar
           python3 tools/campaign_resume_fixtures.py --dense --server "$server" --output "$RUNNER_TEMP/dense-fixtures"
           sha256sum build/unified-smoke/upstream-probe.3dsx "$server"
-          xvfb-run -a python3 tools/verify_upstream_campaign_resume.py --dense --model "${{ matrix.model }}" \
+          xvfb-run -a python3 tools/verify_upstream_campaign_resume.py --dense --model new3ds \
             --rom build/unified-smoke/upstream-probe.3dsx --server "$server" \
             --fixtures "$RUNNER_TEMP/dense-fixtures" --output-dir build/dense-campaign-replay
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: dense-campaign-azahar-evidence-${{ matrix.model }}
+          name: dense-campaign-azahar-evidence-new3ds
           path: |
             build/dense-campaign-replay/
             ${{ runner.temp }}/smoke-data/azahar-emu/log/

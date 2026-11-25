@@ -2042,7 +2042,7 @@ teavm {
         // Large offline maps allocate the original Pathfinder grid while the
         // decoded world is live, then still need to load the world atlas.
         // Diagnostic ceiling for measuring the load and reload working sets.
-        c { maxHeapSize = 40 }
+        c { maxHeapSize = 56 }
     } else if (usesSimulation || usesLiveNetwork || usesSinglePlayer) {
         c { maxHeapSize = 24 }
     }
