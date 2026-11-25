@@ -1,7 +1,10 @@
 import arc.Core;
 import arc.Settings;
+import arc.assets.AssetManager;
+import arc.files.Fi;
 import arc.graphics.Color;
 import arc.graphics.Gl;
+import arc.graphics.Mesh;
 import arc.graphics.g3d.VertexBatch3D;
 import arc.mock.MockGL20;
 import arc.struct.FloatSeq;
@@ -15,19 +18,25 @@ import mindustry.Vars;
 import mindustry.content.Planets;
 import mindustry.core.ContentLoader;
 import mindustry.core.GameState;
+import mindustry.game.Saves;
 import mindustry.game.Team;
 import mindustry.game.Universe;
 import mindustry.graphics.Pal;
 import mindustry.graphics.g3d.MeshBuilder;
+import mindustry.graphics.g3d.PlanetMesh;
 import mindustry.graphics.g3d.PlanetRenderer;
 import mindustry.net.Net;
 import mindustry.type.Sector;
 
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.HashMap;
 
 /** Checks the ARM11 globe camera against stock v160.8 world-space ray picking. */
 public final class UpstreamCampaignGlobeReference {
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
         Core.app = new MockApplication();
         Core.files = new MockFiles();
         Core.settings = new Settings();
@@ -72,8 +81,61 @@ public final class UpstreamCampaignGlobeReference {
         checkTrade(serpuloStart, serpuloStart.near().first(), Color.gray);
         checkTrade(serpuloStart, numbered, Pal.place);
         System.out.println("UPSTREAM_CAMPAIGN_ARC_REFERENCE launch=true shield=true invasion=true trade=true");
+        if (args.length == 1) checkCampaignSurface(args[0]);
         System.out.println("UPSTREAM_CAMPAIGN_GLOBE_REFERENCE serpulo=" + Planets.serpulo.startSector
             + " rotated=" + numbered.id + " erekir=" + Planets.erekir.startSector + " zoom=true");
+    }
+
+    private static void checkCampaignSurface(String path) throws Exception {
+        var planet = Planets.serpulo;
+        var file = new Fi(path);
+        if (UpstreamCampaignSurface.open(planet, file) != null) {
+            throw new AssertionError("Fresh campaign did not match the packaged stock surface");
+        }
+        Vars.content.loadColors();
+        Core.assets = new AssetManager();
+        var sector = planet.getStartSector();
+        sector.save = new Saves().new SaveSlot(new Fi("sector-serpulo-170.msav"));
+        sector.info.hasCore = true;
+        sector.info.lightCoverage = 50000;
+        var surface = UpstreamCampaignSurface.open(planet, file);
+        if (surface == null) throw new AssertionError("The original local base did not trigger a surface change");
+        int[] faces = UpstreamCampaignSurface.packedFaces(surface);
+        while (faces.length == 0) {
+            surface.update(192);
+            faces = UpstreamCampaignSurface.packedFaces(surface);
+        }
+
+        var meshField = PlanetMesh.class.getDeclaredField("mesh");
+        meshField.setAccessible(true);
+        var rebuilt = planet.meshLoader.get();
+        try {
+            var mesh = (Mesh)meshField.get(rebuilt);
+            var vertices = mesh.getVerticesBuffer();
+            int vertex = 0;
+            int lit = 0, changed = 0;
+            var baseline = ByteBuffer.wrap(Files.readAllBytes(Path.of(path).resolveSibling("serpulo.m3pm")))
+                .order(ByteOrder.LITTLE_ENDIAN);
+            for (int offset = 0; offset < faces.length; offset += 3) {
+                for (int i = 0; i < faces[offset]; i++, vertex++) {
+                    if (Float.floatToRawIntBits(vertices.get(vertex * 8 + 6)) != faces[offset + 1]
+                        || Float.floatToRawIntBits(vertices.get(vertex * 8 + 7)) != faces[offset + 2]) {
+                        throw new AssertionError("The Java ARM11 palette diverged from stock at vertex " + vertex);
+                    }
+                    if (faces[offset + 2] != 0) lit++;
+                    int initial = 20 + (vertex * 8 + 6) * Float.BYTES;
+                    if (baseline.getInt(initial) != faces[offset + 1]
+                        || baseline.getInt(initial + Float.BYTES) != faces[offset + 2]) changed++;
+                }
+            }
+            if (vertex != mesh.getNumVertices() || lit == 0 || changed == 0) {
+                throw new AssertionError("The updated stock surface is incomplete");
+            }
+            System.out.println("UPSTREAM_CAMPAIGN_SURFACE_REFERENCE planet=serpulo vertices=" + vertex + " lit=" + lit
+                + " changed=" + changed);
+        } finally {
+            rebuilt.dispose();
+        }
     }
 
     private static void checkArc(Sector from, Sector to, Color head, Color tail,

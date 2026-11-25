@@ -66,8 +66,12 @@ The [initial New 3DS replay](https://github.com/levkeveli/Min3DStry/actions/runs
 drew Serpulo, changed its hovered sector, switched to Erekir, generated the
 original 512×512 The Onset sector, and wrote its stock save. The follow-up
 replay waits for a settled frame before capturing each globe and the preview.
-Sector icons, campaign-dependent terrain
-changes, emissive updates, and clouds remain open.
+Serpulo refreshes terrain colors and emissive values after campaign state
+changes. The build exports the original mesh generator's 7,292 face samples.
+The handheld evaluates the same generator over those samples and updates all
+43,740 indexed vertices. The JVM test compares every packed color against a
+full stock rebuild after adding a lit base. The New 3DS replay for this
+change is pending. Sector icons and the wider solar-system view remain open.
 
 ## 1:1 Upstream Mandate
 

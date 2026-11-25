@@ -1,5 +1,6 @@
 import arc.Core;
 import arc.Settings;
+import arc.graphics.Color;
 import arc.graphics.Mesh;
 import arc.graphics.VertexAttribute;
 import arc.mock.MockApplication;
@@ -10,6 +11,7 @@ import mindustry.Vars;
 import mindustry.content.Planets;
 import mindustry.core.ContentLoader;
 import mindustry.core.GameState;
+import mindustry.graphics.g3d.PlanetGrid;
 import mindustry.graphics.g3d.PlanetMesh;
 import mindustry.type.Planet;
 
@@ -46,11 +48,60 @@ public final class UpstreamCampaignPlanetMeshes {
         for (Planet planet : List.of(Planets.serpulo, Planets.erekir)) {
             var stock = (PlanetMesh)planet.meshLoader.get();
             try {
-                write((Mesh)meshField.get(stock), output.resolve(planet.name + ".m3pm"));
+                Mesh mesh = (Mesh)meshField.get(stock);
+                write(mesh, output.resolve(planet.name + ".m3pm"));
+                if (planet == Planets.serpulo) writeSurfaceSamples(planet, mesh, output.resolve("serpulo.m3ps"));
             } finally {
                 stock.dispose();
             }
         }
+    }
+
+    private static void writeSurfaceSamples(Planet planet, Mesh mesh, Path file) throws IOException {
+        int remaining = mesh.getNumVertices();
+        var grid = PlanetGrid.create(6);
+        int count = 0;
+        for (var tile : grid.tiles) {
+            if (!planet.generator.skip(tile.v)) {
+                remaining -= tile.corners.length;
+                count++;
+            }
+        }
+        if (remaining != 0) throw new IOException("Serpulo sample order does not cover the stock mesh");
+
+        try (var stream = new DataOutputStream(new BufferedOutputStream(Files.newOutputStream(file)))) {
+            stream.writeBytes("M3PS");
+            stream.writeInt(1);
+            stream.writeInt(planet.sectors.size);
+            stream.writeInt(count);
+            for (var sector : planet.sectors) {
+                stream.writeInt((sector.hasEnemyBase() ? 1 : 0) | (sector.isCaptured() ? 2 : 0)
+                    | (sector.hasBase() ? 4 : 0));
+                stream.writeFloat(sector.info.lightCoverage);
+            }
+            var vertices = mesh.getVerticesBuffer().duplicate().rewind();
+            var tint = new Color();
+            int vertex = 0;
+            for (var tile : grid.tiles) {
+                if (planet.generator.skip(tile.v)) continue;
+                planet.generator.getColor(tile.v, tint.set(1f, 1f, 1f, 1f));
+                int color = Float.floatToRawIntBits(tint.toFloatBits());
+                planet.generator.getEmissiveColor(tile.v, tint.set(0f, 0f, 0f, 0f));
+                int glow = Float.floatToRawIntBits(tint.toFloatBits());
+                for (int i = 0; i < tile.corners.length; i++, vertex++) {
+                    if (color != Float.floatToRawIntBits(vertices.get(vertex * 8 + 6))
+                        || glow != Float.floatToRawIntBits(vertices.get(vertex * 8 + 7))) {
+                        throw new IOException("Serpulo generator samples differ from the stock mesh at " + tile.id);
+                    }
+                }
+                stream.writeByte(tile.corners.length);
+                stream.writeFloat(tile.v.x);
+                stream.writeFloat(tile.v.y);
+                stream.writeFloat(tile.v.z);
+            }
+        }
+        System.out.println("UPSTREAM_PLANET_SURFACE " + file.getFileName() + " samples=" + count
+            + " vertices=" + mesh.getNumVertices());
     }
 
     private static void write(Mesh mesh, Path file) throws IOException {

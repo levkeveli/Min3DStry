@@ -569,6 +569,8 @@ public final class UpstreamSinglePlayerApp {
         var overlay = new UpstreamCampaignSectorOverlay();
         var grid = new UpstreamCampaignGrid();
         var arcs = new UpstreamCampaignArcs();
+        UpstreamCampaignSurface surface = null;
+        boolean checkedSurface = false;
         long openedAt = System.nanoTime();
         float cursorX = 200, cursorY = 120;
         MenuRows rows = null;
@@ -650,6 +652,21 @@ public final class UpstreamSinglePlayerApp {
                 }
                 float ticks = (System.nanoTime() - openedAt) * (60f / 1_000_000_000f);
                 Sector active = Vars.state.getSector();
+                if (globe.planet() == Planets.serpulo) {
+                    if (!checkedSurface) {
+                        checkedSurface = true;
+                        try {
+                            surface = UpstreamCampaignSurface.open(Planets.serpulo,
+                                new Fi("/romfs/planet-meshes/serpulo.m3ps"));
+                            if (surface != null) Vars.content.loadColors(new Fi("/romfs/block_colors.png"));
+                        } catch (IOException failure) {
+                            System.out.println("UPSTREAM_CAMPAIGN_SURFACE_ERROR " + failure.getMessage());
+                        }
+                    }
+                    if (surface != null) surface.update(192);
+                }
+                int[] surfaceFaces = UpstreamCampaignSurface.packedFaces(
+                    globe.planet() == Planets.serpulo ? surface : null);
                 overlay.update(globe.planet(), active, sector, selectedSector, ticks);
                 int sectorVertices = overlay.vertices.size / UpstreamCampaignSectorOverlay.FLOATS_PER_VERTEX;
                 int gridEdges = grid.append(globe.planet(), globe.projection, globe.gridCursor, overlay.vertices);
@@ -661,7 +678,7 @@ public final class UpstreamSinglePlayerApp {
                 target.begin(0, 0, 20, 12);
                 try {
                     if (!target.drawCampaignPlanet(globe.meshIndex(), globe.projection.val, globe.lighting,
-                            overlay.vertices.items, overlayVertices, sectorVertices)) {
+                            overlay.vertices.items, overlayVertices, sectorVertices, surfaceFaces)) {
                         System.out.println("UPSTREAM_CAMPAIGN_GLOBE_ERROR planet=" + globe.planet().name);
                         return null;
                     }

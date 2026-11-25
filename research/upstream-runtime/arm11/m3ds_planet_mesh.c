@@ -18,6 +18,7 @@ typedef struct {
 
 static struct {
     int planet;
+    bool surface_applied;
     uint32_t stride, vertices, indices;
     float *stock;
     PlanetVertex *draw;
@@ -38,6 +39,7 @@ static void release_faces(void) {
     mesh.draw = NULL;
     mesh.index = NULL;
     mesh.planet = -1;
+    mesh.surface_applied = false;
 }
 
 void m3ds_planet_release(void) {
@@ -92,6 +94,34 @@ static bool load_faces(int32_t planet) {
     char record[100];
     int size = snprintf(record, sizeof(record), "UPSTREAM_PLANET_MESH_DRAW planet=%d vertices=%lu indices=%lu",
         (int)planet, (unsigned long)mesh.vertices, (unsigned long)mesh.indices);
+    if (size > 0 && size < (int)sizeof(record)) svcOutputDebugString(record, size);
+    return true;
+}
+
+static bool update_surface(const int32_t *surface, int32_t faces) {
+    if (faces == 0 || mesh.surface_applied) return true;
+    if (mesh.planet != serpulo || mesh.stride != 8 || !surface || faces < 0 || (uint32_t)faces > mesh.vertices / 5) {
+        return false;
+    }
+    uint32_t count = 0;
+    for (int32_t i = 0; i < faces; i++) {
+        int32_t size = surface[i * 3];
+        if (size != 5 && size != 6) return false;
+        count += size;
+    }
+    if (count != mesh.vertices) return false;
+
+    float *vertex = mesh.stock;
+    for (int32_t i = 0; i < faces; i++) {
+        const int32_t *face = surface + i * 3;
+        for (int32_t j = 0; j < face[0]; j++, vertex += mesh.stride) {
+            memcpy(vertex + 6, face + 1, 2 * sizeof(*face));
+        }
+    }
+    mesh.surface_applied = true;
+    char record[96];
+    int size = snprintf(record, sizeof(record), "UPSTREAM_CAMPAIGN_SURFACE_DRAW faces=%ld vertices=%lu",
+        (long)faces, (unsigned long)mesh.vertices);
     if (size > 0 && size < (int)sizeof(record)) svcOutputDebugString(record, size);
     return true;
 }
@@ -152,10 +182,10 @@ static void shade_vertices(const float *light, const float *ambient, const float
 }
 
 int32_t m3ds_planet_draw(int32_t planet, const float *matrix, const float *lighting,
-    const float *overlay, int32_t vertices, int32_t sector_vertices) {
+    const float *overlay, int32_t vertices, int32_t sector_vertices, const int32_t *surface, int32_t faces) {
     if (planet < 0 || planet >= planet_count || vertices < 0 || vertices > max_overlay_vertices
         || sector_vertices < 0 || sector_vertices > vertices || sector_vertices % 3 != 0
-        || vertices % 3 != 0 || !load_faces(planet) || !load_shader()) return 0;
+        || vertices % 3 != 0 || !load_faces(planet) || !load_shader() || !update_surface(surface, faces)) return 0;
     if ((size_t)vertices > mesh.overlay_capacity) {
         size_t capacity = mesh.overlay_capacity ? mesh.overlay_capacity * 2 : 4096;
         while (capacity < (size_t)vertices) capacity *= 2;

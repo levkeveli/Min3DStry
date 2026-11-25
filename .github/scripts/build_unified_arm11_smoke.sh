@@ -71,8 +71,10 @@ javac -cp "$RUNNER_TEMP/desktop.jar" -d "$globe_reference" \
   research/upstream-runtime/src/singleplayer/java/UpstreamCampaignGrid.java \
   research/upstream-runtime/src/singleplayer/java/UpstreamCampaignArcs.java \
   research/upstream-runtime/src/singleplayer/java/UpstreamCampaignStroke.java \
+  research/upstream-runtime/src/singleplayer/java/UpstreamCampaignSurface.java \
   research/upstream-runtime/host/UpstreamCampaignGlobeReference.java
-(cd "$globe_reference" && java -cp ".:$RUNNER_TEMP/desktop.jar" UpstreamCampaignGlobeReference)
+surface_samples="$PWD/build/smoke-assets/planet-meshes/serpulo.m3ps"
+(cd "$globe_reference" && java -cp ".:$RUNNER_TEMP/desktop.jar" UpstreamCampaignGlobeReference "$surface_samples")
 bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime --no-daemon --console=plain \
   "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" "-PreferenceJar=$RUNNER_TEMP/server-release.jar" \
   "-ParcCheckout=$RUNNER_TEMP/Arc" -Pprobe=unified runBuildingLayersJvm \
