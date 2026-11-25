@@ -299,6 +299,10 @@ thermal/SD notes. Only this card can clear `physical-hardware-parity`.
 > `p95_max=33.50`, with the sector loader and parity intact. The newer
 > `afca650c` build (`99c7fd6b`) still needs a physical New 3DS run. The
 > `a328c70` FPS numbers apply to the earlier harness.
+>
+> At `857041e` the CI artifact `7adb4ee8...aae9` passed the New 3DS Azahar
+> profile at 62.79 FPS with parity `0x53a483c7`. Physical console acceptance
+> remains open. See [the historical emulator record](hardware/emulator-batch-2026-11-25.md).
 
 ## Current exclusions
 
