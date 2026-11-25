@@ -719,8 +719,9 @@ def capture_viewport(log, emulator, rpc, destination, position,
     while True:
         screenshot = rpc.screenshot(res_scale=1)
         pixels = az.inspect_png(screenshot, samples)
-        if (all(pixels["samples"][point] == color for point, color in expected.items())
-                or time.monotonic() >= deadline):
+        expected_visible = all(pixels["samples"][point] == color for point, color in expected.items())
+        atlas_visible = not require_world_atlas or world_atlas_pixels_match(pixels["samples"])
+        if (expected_visible and atlas_visible) or time.monotonic() >= deadline:
             break
         time.sleep(0.1)
     destination.write_bytes(screenshot)
