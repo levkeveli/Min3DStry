@@ -1355,11 +1355,12 @@ public final class UpstreamSinglePlayerApp {
                         } else if (action == UpstreamPauseMenu.Action.LOAD) {
                             closePauseMenu();
                             var loadSector = Vars.state.rules.sector;
+                            // Drop UI and player references before decoding the replacement world.
                             unit = null;
                             resetWorldInput();
                             Vars.player.clearUnit();
                             var slotToReload = campaignSlot;
-                            // A failed decode must not overwrite the original save on exit.
+                            // A failed decode must not let the exit handler overwrite this save.
                             campaignSlot = null;
                             session.start(sourceMap, saveFile, slotToReload == null ? null : "campaign", loadSector);
                             campaignSlot = slotToReload;
