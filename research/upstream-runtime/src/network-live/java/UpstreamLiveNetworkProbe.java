@@ -615,6 +615,10 @@ public final class UpstreamLiveNetworkProbe {
                 if (update == null) update = markerPacket(id);
                 if (update != null) {
                     decode(update, received).handleClient();
+                    if (update instanceof SetMapAreaCallPacket area) {
+                        System.out.println("UPSTREAM_LIVE_MAP_AREA x=" + area.x + " y=" + area.y
+                            + " width=" + area.w + " height=" + area.h + " limited=" + Vars.state.rules.limitMapArea);
+                    }
                 } else if (frame != null) {
                     applyBuildingUpdate(id, received);
                 }

@@ -157,3 +157,6 @@ the stock map-area handler. The JVM replay contracts the playable area,
 checks that the inside drill stays enabled and the outside drill is
 suspended, then reopens the world and checks that the drill runs again
 and the border darkness clears.
+The live ARM11 replay also sends the pinned server's generated
+`Call.setMapArea` broadcasts and checks the client's actual rule state
+after both changes. The stock graphical border pass remains open.
