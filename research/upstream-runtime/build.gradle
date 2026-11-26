@@ -2071,11 +2071,22 @@ ${barOracle}""")
                 if(!directory.isDirectory() && !directory.mkdirs()){
                     throw new IOException("Could not create save chunk directory " + directory);
                 }
-                scratch = File.createTempFile("min3ds-save-chunk-", ".tmp", directory);
+                scratch = reserveScratch(directory);
                 spill = new FileOutputStream(scratch);
             }
             spill.write(buffer, 0, count);
             count = 0;
+        }
+
+        private static File reserveScratch(File directory) throws IOException{
+            // TeaVM's createTempFile retries indefinitely if native creation keeps failing.
+            String prefix = "min3ds-save-chunk-" + System.nanoTime();
+            for(int attempt = 0; attempt < 8; attempt++){
+                var candidate = new File(directory, prefix + "-" + attempt + ".tmp");
+                if(candidate.createNewFile()) return candidate;
+                if(!candidate.exists()) break;
+            }
+            throw new IOException("Could not stage a save chunk in " + directory);
         }
 
         @Override
@@ -2110,9 +2121,11 @@ ${barOracle}""")
             spill.write(buffer, 0, count);
             finishSpill();
             try(var input = new FileInputStream(scratch)){
-                int read;
-                while((read = input.read(buffer)) != -1){
+                for(int remaining = size; remaining > 0; ){
+                    int read = input.read(buffer, 0, Math.min(remaining, buffer.length));
+                    if(read <= 0) throw new EOFException("Incomplete staged save chunk " + scratch);
                     output.write(buffer, 0, read);
+                    remaining -= read;
                 }
             }
         }

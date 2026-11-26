@@ -168,6 +168,9 @@ save. The stock serializer now stages chunk bodies over 16 KiB in
 temporary files in the app's data directory. Each buffer keeps a fixed
 heap footprint and writes the same byte count and bytes to the stock
 compression stream. A chunk is cleaned up after success or an exception.
+The writer stops if storage cannot create a temporary file or returns fewer
+bytes than expected. The staged save never replaces the existing slot in
+those cases.
 [Integrated replay](https://github.com/levkeveli/Min3DStry/actions/runs/45754744096)
 
 Physical New 3DS performance remains open.
