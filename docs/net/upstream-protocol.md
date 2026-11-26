@@ -48,6 +48,12 @@ registration, deliver the original `ConnectPacket` and a UDP ping, and
 disconnect. The stock world stream and gameplay dispatch through `NetServer`
 are tracked in [#713](https://github.com/levkeveli/Min3DStry/issues/713).
 
+The host packet adapter uses the original v160.8 generated packet types and
+their stock read/write methods. It selects the bundled pure-Java LZ4
+implementation directly for TeaVM. The JVM task `runStockHostPacketCodecJvm`
+exchanges compressed `ConnectPacket` data with the stock desktop serializer
+in both directions and checks the same raw framing for `StreamChunk`.
+
 1. **TCP Outer Framing:** `uint16_be payload_len` + `payload` bytes, read via stateful `TcpFrameReader` so partial headers/bodies across TCP segments and short UDP poll windows resume cleanly without dropping bytes.
 2. **ArcNet `FrameworkMessage` (`0xFE` sentinel + id):**
    - `0` `Ping(i32 id, u8 isReply)` (answered automatically across all handshake receive loops)
