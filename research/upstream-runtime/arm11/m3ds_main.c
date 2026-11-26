@@ -21,10 +21,12 @@ static void m3ds_init_heap(int64_t minimum, int64_t maximum) {
     // Leave the rest of the homebrew application's regular heap to native allocations.
     const int64_t baseline = 32LL * 1024 * 1024;
     const int64_t native_reserve = 24LL * 1024 * 1024;
-    if (maximum > baseline && (int64_t)envGetHeapSize() < maximum + native_reserve) {
-        maximum = baseline;
-        if (minimum > maximum) minimum = maximum;
-    }
+    const int64_t alignment = 4096;
+    int64_t available = (int64_t)envGetHeapSize() - native_reserve;
+    if (available < baseline) available = baseline;
+    available -= available % alignment;
+    if (maximum > available) maximum = available;
+    if (minimum > maximum) minimum = maximum;
     char message[80];
     int length = snprintf(message, sizeof(message), "UPSTREAM_MEMORY managedLimit=%lu\n",
         (unsigned long)maximum);

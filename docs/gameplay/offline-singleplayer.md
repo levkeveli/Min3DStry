@@ -128,7 +128,13 @@ completed the dense reload and saved with the original fixture backup.
 The [two-save replay](https://github.com/levkeveli/Min3DStry/actions/runs/45716873959/artifacts/15070698663)
 reused that exact ROM. It verified each backup against its predecessor, and
 the unmodified v160.8 server reopened both 600×600 saves with the original
-embedded patch. The release-build heap and physical New 3DS performance remain open.
+embedded patch. The combined globe and dense campaign build budgets up to 56 MiB
+for the managed heap. It uses the page-aligned portion of the application's
+regular heap above a 24 MiB native reserve, with the existing 32 MiB baseline
+on lower-memory launches. The globe has a separate 8 MiB GPU linear heap.
+The grouped release replay checks Serpulo 242, Littoral Shipyard, and Origin
+against the same ROM and reopens each result in the original Java game.
+Physical New 3DS performance remains open.
 
 The [ARM11 build from `1390790`](https://github.com/levkeveli/Min3DStry/actions/runs/45035851013)
 resumed a lone Ground Zero slot from `saves/` and used the D-pad to select a
