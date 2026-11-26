@@ -1540,7 +1540,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         light.efficiency = 1f;
         light.wasVisible = true;
         var region = Core.atlas.find("circle-shadow");
-        requireRegion(region);
+        if (!region.found()) throw new AssertionError("Missing stock radial light texture");
         var rules = Vars.state.rules;
         boolean lighting = rules.lighting;
         boolean lightsEnabled = Vars.enableLight;
