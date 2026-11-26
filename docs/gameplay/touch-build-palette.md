@@ -78,6 +78,15 @@ The keyboard opens with the current name and then the current description.
 Confirm both fields to save the changes to the same file. Cancel either
 prompt to keep the previous metadata.
 
+The **Share** mode uses `sd:/3ds/min3dstry/schematics/clipboard.txt` in
+place of a system clipboard. For import, save the text from Mindustry's
+**Copy to Clipboard** action in that file, then tap **Share** and
+**Import**. The original clipboard reader decodes the text and the
+picker saves a new `.msch` file. For export, tap a schematic row while
+in **Share** mode. Copy the resulting text file into the original
+game's clipboard import. Export replaces the text file. The saved
+schematic keeps its original layout and metadata.
+
 The hosted New 3DS replay used `verify_stock_schematic_capture.py --xdotool
 --edit` to change both fields. Unmodified Mindustry v160.8 Java reopened
 the file and verified the original block layout, bridge link, and Lead filter.

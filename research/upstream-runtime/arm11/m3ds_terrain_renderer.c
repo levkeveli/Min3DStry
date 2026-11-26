@@ -1548,14 +1548,8 @@ int32_t m3ds_terrain_build_catalog(const char *labels, const int32_t *icons, int
         stock_labels &= catalog_label(">", 285, 15, 0.55f, 50, text);
     }
     const bool schematics = catalog == schematic_catalog;
-    if (schematics) {
-        C2D_DrawRectSolid(152, 4, 0.5f, 64, 34, panel);
-        stock_labels &= catalog_label("Edit", 184, 15, 0.52f, 58, text);
-        C2D_DrawRectSolid(224, 4, 0.5f, 88, 34, panel);
-        stock_labels &= catalog_label("Capture", 268, 15, 0.52f, 82, text);
-    }
-    stock_labels &= catalog_label(labels, schematics ? 76 : 160, 15, 0.52f,
-                                  categories ? 190 : schematics ? 144 : 300, text);
+    stock_labels &= catalog_label(labels, schematics ? 49 : 160, 15, 0.52f,
+                                  categories ? 190 : schematics ? 82 : 300, text);
     int32_t visible_icons = 0;
     for (int row = 0; row < 6; row++) {
         labels += strlen(labels) + 1;
@@ -1565,6 +1559,17 @@ int32_t m3ds_terrain_build_catalog(const char *labels, const int32_t *icons, int
         C2D_DrawRectSolid(8, y, 0.5f, 304, 23, active ? selected_panel : panel);
         if (draw_menu_icon(row, icons[row], catalog, y)) visible_icons++;
         stock_labels &= catalog_label(labels, 177, y + 4, 0.50f, 254, active ? accent : text);
+    }
+    if (schematics) {
+        C2D_DrawRectSolid(96, 4, 0.5f, 48, 34, panel);
+        C2D_DrawRectSolid(152, 4, 0.5f, 64, 34, panel);
+        C2D_DrawRectSolid(224, 4, 0.5f, 88, 34, panel);
+        labels += strlen(labels) + 1;
+        stock_labels &= catalog_label(labels, 120, 15, 0.48f, 44, text);
+        labels += strlen(labels) + 1;
+        stock_labels &= catalog_label(labels, 184, 15, 0.52f, 58, text);
+        labels += strlen(labels) + 1;
+        stock_labels &= catalog_label(labels, 268, 15, 0.52f, 82, text);
     }
     if (previous) {
         C2D_DrawRectSolid(8, 201, 0.5f, 88, 34, panel);
