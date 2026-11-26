@@ -12,6 +12,7 @@ import arc.net.NetListener;
 import arc.struct.Seq;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -25,9 +26,12 @@ import mindustry.core.GameState;
 import mindustry.core.NetClient;
 import mindustry.core.World;
 import mindustry.core.Version;
+import mindustry.gen.BlockSnapshotCallPacket;
+import mindustry.gen.Building;
 import mindustry.gen.ConnectConfirmCallPacket;
 import mindustry.gen.Groups;
 import mindustry.gen.Player;
+import mindustry.gen.RequestBlockSnapshotCallPacket;
 import mindustry.gen.SendChatMessageCallPacket;
 import mindustry.gen.SendMessageCallPacket2;
 import mindustry.gen.StateSnapshotCallPacket;
@@ -43,16 +47,23 @@ import mindustry.net.Streamable.StreamBuilder;
 
 /** Records the compressed payload sent by a local upstream headless server. */
 public final class UpstreamWorldStreamCapture implements NetListener {
-    private static final String chatText = "New 3DS crossplay reference";
+    private final String chatText;
     private final CompletableFuture<byte[]> world = new CompletableFuture<>();
     private final CompletableFuture<Void> snapshot = new CompletableFuture<>();
     private final CompletableFuture<Void> chat = new CompletableFuture<>();
+    private final CompletableFuture<BlockSnapshotCallPacket> coreSnapshot = new CompletableFuture<>();
+    private volatile Building requestedCore;
     private StreamBuilder builder;
 
+    private UpstreamWorldStreamCapture(boolean rejoin) {
+        chatText = rejoin ? "New 3DS crossplay rejoin" : "New 3DS crossplay reference";
+    }
+
     public static void main(String[] args) throws Exception {
-        boolean confirm = args.length == 3 && args[2].equals("--confirm");
+        boolean rejoin = args.length == 3 && args[2].equals("--rejoin");
+        boolean confirm = rejoin || args.length == 3 && args[2].equals("--confirm");
         if (args.length != 2 && !confirm) {
-            throw new IllegalArgumentException("Expected a loopback port, new fixture path and optional --confirm");
+            throw new IllegalArgumentException("Expected a loopback port, new fixture path, and optional --confirm or --rejoin");
         }
         int port = Integer.parseInt(args[0]);
         Version.init();
@@ -61,7 +72,7 @@ public final class UpstreamWorldStreamCapture implements NetListener {
         }
         Vars.net = new Net(null);
         Vars.net.setClientConnected();
-        var capture = new UpstreamWorldStreamCapture();
+        var capture = new UpstreamWorldStreamCapture(rejoin);
         var client = new Client(16_384, ArcNetProvider.clientReadBufferSize, new ArcNetProvider.PacketSerializer());
         client.addListener(capture);
         client.start();
@@ -71,24 +82,31 @@ public final class UpstreamWorldStreamCapture implements NetListener {
             Files.write(Path.of(args[1]), payload, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
             System.out.println("UPSTREAM_WORLD_STREAM_CAPTURE bytes=" + payload.length);
             if (confirm) {
-                loadStockWorld(payload, Path.of(args[1]).toAbsolutePath().getParent());
+                var core = loadStockWorld(payload, Path.of(args[1]).toAbsolutePath().getParent());
                 client.sendTCP(new ConnectConfirmCallPacket());
                 capture.snapshot.get(10, TimeUnit.SECONDS);
                 System.out.println("UPSTREAM_HOSTED_WORLD_CONFIRMED stock-snapshot=true");
                 // Stock NetClient ignores messages from connections younger than 500 ms.
                 Thread.sleep(600);
                 var message = new SendChatMessageCallPacket();
-                message.message = chatText;
+                message.message = capture.chatText;
                 client.sendTCP(message);
                 capture.chat.get(10, TimeUnit.SECONDS);
                 System.out.println("UPSTREAM_HOSTED_WORLD_CHAT stock-echo=true");
+                capture.requestedCore = core;
+                var request = new RequestBlockSnapshotCallPacket();
+                request.pos = core.pos();
+                client.sendUDP(request);
+                var block = capture.coreSnapshot.get(10, TimeUnit.SECONDS);
+                block.handleClient();
+                System.out.println("UPSTREAM_HOSTED_WORLD_CORE_SYNC pos=" + core.pos() + " block=" + core.block.name);
             }
         } finally {
             client.stop();
         }
     }
 
-    private static void loadStockWorld(byte[] payload, Path output) {
+    private static Building loadStockWorld(byte[] payload, Path output) {
         Core.app = new MockApplication();
         Core.audio = new MockAudio();
         Core.files = new MockFiles();
@@ -114,6 +132,7 @@ public final class UpstreamWorldStreamCapture implements NetListener {
         }
         System.out.println("UPSTREAM_HOSTED_WORLD_STOCK_LOAD tiles=" + Vars.world.width() + "x" + Vars.world.height()
             + " core=" + core.block.name + " map=" + Vars.state.map.name());
+        return core;
     }
 
     @Override
@@ -143,6 +162,13 @@ public final class UpstreamWorldStreamCapture implements NetListener {
                 }
             } else if (object instanceof StateSnapshotCallPacket) {
                 snapshot.complete(null);
+            } else if (object instanceof BlockSnapshotCallPacket reply && requestedCore != null) {
+                reply.handled();
+                if (reply.amount != 1 || reply.data.length < 6) return;
+                var reader = ByteBuffer.wrap(reply.data);
+                if (reader.getInt() == requestedCore.pos() && reader.getShort() == requestedCore.block.id) {
+                    coreSnapshot.complete(reply);
+                }
             } else if (object instanceof SendMessageCallPacket2 reply && snapshot.isDone()) {
                 reply.handled();
                 if (chatText.equals(reply.unformatted)) chat.complete(null);
@@ -150,6 +176,7 @@ public final class UpstreamWorldStreamCapture implements NetListener {
         } catch (RuntimeException error) {
             world.completeExceptionally(error);
             chat.completeExceptionally(error);
+            coreSnapshot.completeExceptionally(error);
         }
     }
 
@@ -159,5 +186,6 @@ public final class UpstreamWorldStreamCapture implements NetListener {
         world.completeExceptionally(error);
         snapshot.completeExceptionally(error);
         chat.completeExceptionally(error);
+        coreSnapshot.completeExceptionally(error);
     }
 }

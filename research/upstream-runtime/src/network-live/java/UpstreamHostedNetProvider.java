@@ -110,6 +110,7 @@ final class UpstreamHostedNetProvider implements Net.NetProvider {
         var packet = new Disconnect();
         packet.reason = "closed";
         Vars.net.handleServerReceived(peer, packet);
+        System.out.println("UPSTREAM_HOST_PEER_LEFT slot=" + peer.slot);
     }
 
     private void receive(Peer peer, boolean reliable, int size) {

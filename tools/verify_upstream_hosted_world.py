@@ -14,6 +14,26 @@ from verify_upstream_campaign_launch import write_input_replay
 from verify_upstream_live_net import SERVER_SHA256
 
 
+def join_stock_world(java: str, classpath: str, output: Path, name: str) -> int:
+    payload = output / f"{name}-world-stream.zlib"
+    client_log = output / f"{name}-pc.log"
+    mode = "--rejoin" if name == "rejoin" else "--confirm"
+    with client_log.open("wb") as pc_log:
+        subprocess.run(
+            [java, "-cp", classpath, "UpstreamWorldStreamCapture", "6567", str(payload), mode],
+            stdout=pc_log, stderr=subprocess.STDOUT, timeout=50, check=True,
+        )
+    if not payload.is_file() or payload.stat().st_size == 0:
+        raise AssertionError("The stock client did not receive the compressed world")
+    transcript = client_log.read_text(encoding="utf-8")
+    if not re.search(r"^UPSTREAM_HOSTED_WORLD_STOCK_LOAD tiles=256x256 core=core-shard "
+                     r"map=(?:Ground[ _]Zero|groundZero)$", transcript, re.MULTILINE):
+        raise AssertionError("Stock Java did not load the expected Ground Zero world and core")
+    if not re.search(r"^UPSTREAM_HOSTED_WORLD_CORE_SYNC pos=\d+ block=core-shard$", transcript, re.MULTILINE):
+        raise AssertionError("Stock Java did not receive the live snapshot of the requested core")
+    return payload.stat().st_size
+
+
 def verify(args):
     with args.stock_jar.open("rb") as stream:
         if hashlib.file_digest(stream, "sha256").hexdigest() != SERVER_SHA256:
@@ -41,25 +61,18 @@ def verify(args):
         try:
             sp._wait_for_log(log, proc, r"UPSTREAM_PAUSE_MENU open=true\b", 120)
             sp._wait_for_log(log, proc, r"UPSTREAM_HOST_READY version=160\.8 port=6567 .*tiles=256x256\b", 150)
-            payload = output / "stock-world-stream.zlib"
             classpath = f"{classes}{os.pathsep}{args.stock_jar.resolve()}"
-            pc_output = output / "stock-pc.log"
-            with pc_output.open("wb") as pc_log:
-                subprocess.run(
-                    [args.java, "-cp", classpath, "UpstreamWorldStreamCapture", "6567", str(payload), "--confirm"],
-                    stdout=pc_log, stderr=subprocess.STDOUT, timeout=40, check=True,
-                )
-            if not payload.is_file() or payload.stat().st_size == 0:
-                raise AssertionError("The stock client did not receive the compressed world")
-            if not re.search(r"^UPSTREAM_HOSTED_WORLD_STOCK_LOAD tiles=256x256 core=core-shard "
-                             r"map=(?:Ground[ _]Zero|groundZero)$",
-                             pc_output.read_text(encoding="utf-8"), re.MULTILINE):
-                raise AssertionError("Stock Java did not load the expected Ground Zero world and core")
+            joined = join_stock_world(args.java, classpath, output, "join")
+            left = r"UPSTREAM_HOST_PEER_LEFT slot=\d+\b"
+            sp._wait_for_log(log, proc, left, 30)
+            rejoined = join_stock_world(args.java, classpath, output, "rejoin")
+            sp._wait_for_log(log, proc, rf"(?s){left}.*?{left}", 30)
             rom_frame = rpc.screenshot()
             (output / "new3ds-host.png").write_bytes(rom_frame)
             if sp.az.inspect_png(rom_frame)["top_distinct_colors"] < 8:
                 raise AssertionError("The handheld did not draw the hosted world")
-            print(f"UPSTREAM_HOSTED_WORLD_REPLAY model=new3ds stock-bytes={payload.stat().st_size} snapshot=ok chat=ok")
+            print(f"UPSTREAM_HOSTED_WORLD_REPLAY model=new3ds stock-bytes={joined} "
+                  f"rejoin-bytes={rejoined} snapshot=ok chat=ok core-sync=ok")
         finally:
             rpc.close()
             sp._stop_proc(proc, emulator)
