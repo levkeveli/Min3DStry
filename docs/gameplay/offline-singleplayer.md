@@ -121,6 +121,10 @@ backup. A failed temporary write leaves both existing files intact. If a
 replacement stops after rotating the backup, the campaign menu can reopen
 the remaining backup and write the next save to the original slot name.
 Pass `--backup-only` to the campaign resume verifier to exercise that scenario.
+The [New 3DS replay at `f28cf81`](https://github.com/levkeveli/Min3DStry/actions/runs/45724376512/artifacts/15075271195)
+started with a backup-only Frozen Forest slot, loaded and reloaded the
+original 200 by 200 world, then wrote a new primary while preserving the
+backup. Unmodified v160.8 Java reopened the replacement and checked sector 64.
 
 Pass `--dense-resave` with `--dense --server server-release.jar` to check both
 a manual save after reload and a later exit save. An [instrumented 56 MiB
