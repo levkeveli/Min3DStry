@@ -22,6 +22,27 @@ static const TouchRegion regions[] = {
     {80.0f, 140.0f, 112.0f, 180.0f, M3DS_TOUCH_ACTION_CAMERA_RIGHT}
 };
 
+/*
+ * Text-console labels are 8x8 px cells. Every label's centre must fall inside
+ * its own region; tests/ui/test_touch_controls.c enforces that invariant.
+ */
+static const M3dsTouchLabel labels[] = {
+    {M3DS_TOUCH_ACTION_MENU,         2u, 32u, "MENU"},
+    {M3DS_TOUCH_ACTION_ZOOM_IN,      9u, 32u, "ZOOM+"},
+    {M3DS_TOUCH_ACTION_ZOOM_OUT,    16u, 32u, "ZOOM-"},
+    {M3DS_TOUCH_ACTION_CAMERA_UP,   19u,  7u, "^"},
+    {M3DS_TOUCH_ACTION_CAMERA_DOWN, 25u,  7u, "v"},
+    {M3DS_TOUCH_ACTION_CAMERA_LEFT, 19u,  3u, "<"},
+    {M3DS_TOUCH_ACTION_CAMERA_RIGHT,19u, 13u, ">"}
+};
+
+const M3dsTouchLabel *m3ds_touch_labels(size_t *count) {
+    if (count) {
+        *count = sizeof(labels) / sizeof(labels[0]);
+    }
+    return labels;
+}
+
 M3dsTouchAction m3ds_touch_action_at(float x, float y) {
     if (x < 0.0f || y < 0.0f || x >= M3DS_TOUCH_SCREEN_WIDTH || y >= M3DS_TOUCH_SCREEN_HEIGHT) {
         return M3DS_TOUCH_ACTION_NONE;

@@ -152,7 +152,7 @@ def main():
     parser.add_argument("--azahar")
     parser.add_argument("--fixture", type=Path)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--model", choices=("new3ds", "old3ds"), action="append")
+    parser.add_argument("--model", choices=("new3ds",), action="append")
     parser.add_argument("--port", type=int, default=16664)
     parser.add_argument("--projectiles", action="store_true", help="Require original projectile drawing and cleanup")
     args = parser.parse_args()
@@ -161,7 +161,7 @@ def main():
     prepare = prepare_projectiles if args.projectiles else prepare_server
     verify = verify_projectiles if args.projectiles else verify_controls
     read_stock = read_stock_projectiles if args.projectiles else read_stock_weapons
-    for model in args.model or ("old3ds", "new3ds"):
+    for model in args.model or ("new3ds",):
         replay(args, model, fixture, True, taps={}, buttons=BUTTONS, button_durations=DURATIONS, circle=CIRCLE,
                prepare_server=prepare, verify_input=verify, read_stock=read_stock)
         if args.projectiles:

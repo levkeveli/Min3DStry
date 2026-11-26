@@ -79,7 +79,6 @@ final class UpstreamBuildMenu {
             + " page=" + (page + 1) + " pages=" + pages + " entries=" + entries.size);
     }
 
-    void close() { open = false; }
     boolean isOpen() { return open; }
     byte[] labels() { return labels; }
     int[] iconIds() { return iconIds; }

@@ -1,7 +1,7 @@
 import arc.files.Fi;
-import arc.struct.IntSeq;
 import arc.math.geom.Point2;
 import arc.math.geom.Vec2;
+import arc.struct.IntSeq;
 import arc.util.io.Reads;
 import arc.util.io.Writes;
 import java.io.ByteArrayInputStream;
@@ -14,7 +14,6 @@ import java.util.zip.InflaterInputStream;
 import mindustry.Vars;
 import mindustry.ai.BlockIndexer;
 import mindustry.ai.ItemUnitStance;
-import mindustry.ai.Pathfinder;
 import mindustry.ai.UnitCommand;
 import mindustry.content.Blocks;
 import mindustry.content.Items;
@@ -26,7 +25,6 @@ import mindustry.game.MapObjectives.ItemObjective;
 import mindustry.game.MapObjectives.ResearchObjective;
 import mindustry.game.MapObjectives.TextMarker;
 import mindustry.game.MapObjectives.TextureMarker;
-import mindustry.game.Team;
 import mindustry.game.Universe;
 import mindustry.gen.BlockSnapshotCallPacket;
 import mindustry.gen.BlockUnitc;
@@ -35,12 +33,10 @@ import mindustry.gen.ClearObjectivesCallPacket;
 import mindustry.gen.CompleteObjectiveCallPacket;
 import mindustry.gen.CreateMarkerCallPacket;
 import mindustry.gen.EntitySnapshotCallPacket;
-import mindustry.gen.GameOverCallPacket;
 import mindustry.gen.Groups;
 import mindustry.gen.HiddenSnapshotCallPacket;
 import mindustry.gen.Player;
 import mindustry.gen.PlayerDisconnectCallPacket;
-import mindustry.gen.PingLocationCallPacket;
 import mindustry.gen.RemoveMarkerCallPacket;
 import mindustry.gen.SetObjectivesCallPacket;
 import mindustry.gen.SetUnitCommandCallPacket;
@@ -50,18 +46,14 @@ import mindustry.gen.Syncc;
 import mindustry.gen.TileConfigCallPacket;
 import mindustry.gen.Unit;
 import mindustry.gen.UnitControlCallPacket;
-import mindustry.gen.UpdateGameOverCallPacket;
 import mindustry.gen.UpdateMarkerCallPacket;
 import mindustry.gen.UpdateMarkerTextCallPacket;
 import mindustry.gen.UpdateMarkerTextureCallPacket;
-import mindustry.gen.WorldDataBeginCallPacket;
 import mindustry.logic.LMarkerControl;
-import mindustry.mod.DataBundleLoader;
 import mindustry.mod.Mods;
 import mindustry.net.Net;
 import mindustry.net.NetworkIO;
 import mindustry.net.Packet;
-import mindustry.net.Packets.StreamBegin;
 import mindustry.world.blocks.distribution.ItemBridge.ItemBridgeBuild;
 import mindustry.world.blocks.payloads.BuildPayload;
 import mindustry.world.blocks.ControlBlock;
@@ -70,15 +62,12 @@ import mindustry.world.modules.ItemModule;
 
 public final class UpstreamSnapshotDispatchReference {
     public static void main(String[] args) throws Exception {
-        if (args.length < 1 || args.length > 2) {
-            throw new IllegalArgumentException("Expected a captured v160.8 WorldStream and optional rotation WorldStream");
-        }
+        if (args.length != 1) throw new IllegalArgumentException("Expected a captured v160.8 WorldStream");
         var fixture = new Fi(args[0]);
         var app = UpstreamWorldLoadProbe.initialize(fixture.parent());
         Vars.mods = new Mods();
         Vars.universe = new Universe();
         Vars.indexer = new BlockIndexer();
-        Vars.pathfinder = new Pathfinder();
         Vars.netClient = NetClient.forSnapshotDispatch();
         Vars.player = Player.create();
         Vars.net.setClientConnected();
@@ -148,12 +137,7 @@ public final class UpstreamSnapshotDispatchReference {
         verifyMarkerPackets();
         verifyPossessionPackets(decodedMono);
         verifyStockLinkPackets();
-        verifyTeamPing();
-        UpstreamStockTilePacketsReference.verify();
         verifyWeaponInput();
-        verifyRoundResults();
-        UpstreamServerAssetsReference.verify();
-        if (args.length == 2) verifyWorldRotation(app, new Fi(args[1]));
     }
 
     private static void verifyEntityLifecycle(Unit enemy) throws IOException {
@@ -199,94 +183,6 @@ public final class UpstreamSnapshotDispatchReference {
         snapshot.amount = 1;
         snapshot.data = buffer.toByteArray();
         snapshot.handleClient();
-    }
-
-    private static void verifyTeamPing() {
-        var teammate = Player.create();
-        teammate.team(Vars.player.team());
-        teammate.add();
-        try {
-            var packet = new PingLocationCallPacket();
-            packet.x = 512f;
-            packet.y = 540f;
-            packet.text = "a".repeat(Vars.maxPingTextLength + 3);
-            applyPacket(packet, new PingLocationCallPacket(), teammate);
-            if (teammate.pingTime != 1f || teammate.pingX != 512f || teammate.pingY != 540f
-                    || !("a".repeat(Vars.maxPingTextLength) + "...").equals(teammate.pingText)) {
-                throw new AssertionError("The stock teammate ping location or text limit differs");
-            }
-            packet.text = "";
-            applyPacket(packet, new PingLocationCallPacket(), teammate);
-            if (teammate.pingText != null) throw new AssertionError("The stock empty ping must show only the player name");
-            teammate.pingTime = 0f;
-            teammate.team(Vars.player.team() == Team.crux ? Team.sharded : Team.crux);
-            applyPacket(packet, new PingLocationCallPacket(), teammate);
-            if (teammate.isPinging()) throw new AssertionError("An opposing team's location ping was applied");
-        } finally {
-            teammate.remove();
-        }
-        System.out.println("UPSTREAM_TEAM_PING teammate=ok location=exact text=40 empty=ok enemy=ignored");
-    }
-
-    private static void verifyWorldRotation(UpstreamWorldLoadProbe.ProbeApplication app, Fi next) throws Exception {
-        var player = Vars.player;
-        var net = Vars.net;
-        var previousMap = Vars.state.map.name();
-        var previousName = player.name;
-        int previousPlayerId = player.id;
-        applyPacket(new WorldDataBeginCallPacket(), new WorldDataBeginCallPacket());
-        if (!Vars.state.isMenu() || Vars.world.width() != 0 || !Groups.unit.isEmpty() || !Vars.net.client()) {
-            throw new AssertionError("Stock WorldDataBegin must clear the previous session world");
-        }
-
-        var begin = new StreamBegin();
-        begin.id = 196;
-        begin.total = Math.toIntExact(next.length());
-        begin.type = (byte) Net.packetIdWorldStream;
-        var bytes = new ByteArrayOutputStream();
-        begin.write(new Writes(new DataOutputStream(bytes)));
-        byte[] header = bytes.toByteArray();
-        var decoded = UpstreamLiveNetworkProbe.readStreamBegin(
-            new Reads(new DataInputStream(new ByteArrayInputStream(header))), header.length);
-        if (decoded.id != begin.id || decoded.total != next.length() || (decoded.type & 0xff) != Net.packetIdWorldStream) {
-            throw new AssertionError("The rotation should use the stock stream declaration");
-        }
-        try (var stream = next.read()) {
-            UpstreamLiveNetworkProbe.loadSessionWorld(app, stream, new DataBundleLoader());
-        }
-        Vars.netClient.finishSnapshotWorld();
-        if (Vars.state.map.name().equals(previousMap) || Vars.net != net || Vars.player != player
-                || Groups.player.getByID(player.id) != player || !"Rotation Fixture".equals(player.name)
-                || (player.name.equals(previousName) && player.id != previousPlayerId) || Vars.state.gameOver
-                || !Vars.state.isPlaying() || Groups.sync.getByID(12345) != null) {
-            throw new AssertionError("The second WorldStream must replace the map without replacing the connected client");
-        }
-        System.out.println("UPSTREAM_WORLD_ROTATION from=" + previousMap + " to=" + Vars.state.map.name()
-            + " player=" + player.id + " oldEntities=cleared");
-    }
-
-    private static void verifyRoundResults() {
-        var state = Vars.state;
-        var yourTeam = Vars.player.team();
-        var otherTeam = state.rules.waveTeam;
-        if (yourTeam == otherTeam) throw new AssertionError("Expected two different stock teams");
-        var update = new UpdateGameOverCallPacket();
-        update.winner = otherTeam;
-        var receivedUpdate = new UpdateGameOverCallPacket();
-        readPacket(update, receivedUpdate, null);
-        if (UpstreamLiveNetworkProbe.applyRoundResult(receivedUpdate) != otherTeam || !state.gameOver || state.won) {
-            throw new AssertionError("The dedicated server result should set the authoritative losing state");
-        }
-
-        var desktop = new GameOverCallPacket();
-        desktop.winner = yourTeam;
-        var receivedDesktop = new GameOverCallPacket();
-        readPacket(desktop, receivedDesktop, null);
-        if (UpstreamLiveNetworkProbe.applyRoundResult(receivedDesktop) != yourTeam || !state.won
-                || state.stats.wavesLasted != state.wave) {
-            throw new AssertionError("The stock desktop result should retain the winner and final wave");
-        }
-        System.out.println("UPSTREAM_ROUND_RESULTS dedicated=loss desktop=win wave=" + state.wave);
     }
 
     private static void verifyWeaponInput() {
@@ -437,16 +333,11 @@ public final class UpstreamSnapshotDispatchReference {
         System.out.println("UPSTREAM_OBJECTIVE_REFERENCE set=ok complete=ok dependency=ok flags=ok clear=ok");
     }
 
-    static void applyPacket(Packet sent, Packet received) {
+    private static void applyPacket(Packet sent, Packet received) {
         applyPacket(sent, received, null);
     }
 
     private static void applyPacket(Packet sent, Packet received, Player forwardedBy) {
-        readPacket(sent, received, forwardedBy);
-        received.handleClient();
-    }
-
-    private static void readPacket(Packet sent, Packet received, Player forwardedBy) {
         var bytes = new ByteArrayOutputStream();
         var writes = new Writes(new DataOutputStream(bytes));
         // Stock forwardable packets include the actor in the server-to-client envelope.
@@ -455,6 +346,7 @@ public final class UpstreamSnapshotDispatchReference {
         byte[] payload = bytes.toByteArray();
         received.read(new Reads(new DataInputStream(new ByteArrayInputStream(payload))), payload.length);
         received.handled();
+        received.handleClient();
     }
 
     private static void verifyMarkerPackets() {

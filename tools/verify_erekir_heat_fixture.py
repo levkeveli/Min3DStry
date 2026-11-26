@@ -145,7 +145,7 @@ def main():
     operation.add_argument("--fixture", type=Path, help="Stock heat-warm.msav and sibling heat-cold.msav")
     parser.add_argument("--rom", type=Path)
     parser.add_argument("--azahar")
-    parser.add_argument("--model", choices=("old3ds", "new3ds"), action="append")
+    parser.add_argument("--model", choices=("new3ds",), action="append")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     if args.create:
@@ -155,7 +155,7 @@ def main():
     else:
         if not args.rom:
             parser.error("--fixture needs the --rom to verify")
-        for model in args.model or ("old3ds", "new3ds"):
+        for model in args.model or ("new3ds",):
             verify_rom(args, model, args.fixture)
 
 

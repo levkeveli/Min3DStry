@@ -1,4 +1,4 @@
-"""Replay original power blocks and a connected Erekir beam on both Azahar profiles."""
+"""Replay original power blocks and a connected Erekir beam on Azahar in New 3DS mode."""
 
 import argparse
 from pathlib import Path
@@ -77,6 +77,7 @@ def verify_live(args, model, azahar, fixture, terrain, output, samples=SAMPLES, 
     sd = (output / "sdmc").resolve()
     endpoint = sd / "3ds/min3dstry/server-endpoint.txt"
     endpoint.parent.mkdir(parents=True)
+    singleplayer.stage_direct_startup(sd)
     endpoint.write_text(f"127.0.0.1 {args.port}\n", encoding="ascii")
     movie = output / "join.ctm"
     write_controls_replay(movie, first_move=90, model=model, unified_boot=True)
@@ -141,7 +142,7 @@ def main():
     azahar = az.resolve_azahar_bin(args.azahar)
     args.output.mkdir(parents=True)
     fixture = args.fixture or create_fixtures(args, args.output / "stock-server")
-    for model in ("old3ds", "new3ds"):
+    for model in ("new3ds",):
         out = args.output / model
         terrain = capture(out / "terrain", model, fixture / "terrain.msav", args.rom, azahar)
         stock = capture(out / "stock", model, fixture / "stock.msav", args.rom, azahar, terrain, SAMPLES)

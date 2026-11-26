@@ -1,5 +1,37 @@
 # Stock title menu shell
 
+The unified Java runtime opens its title menu on ordinary startup. It uses the
+live Core Database and the existing Campaign, Join Game, Custom Game, Load
+Game and Editor routes. Settings uses the same saved HUD preferences as the
+pause menu. About shows the upstream links and the complete credits packaged
+from the pinned release. Hold X to join directly, L for Custom Game, R for
+Campaign, or L and R together for the Editor.
+
+To launch the offline session directly, pass `--direct` through the Homebrew
+Launcher or set `sd:/3ds/min3dstry/startup.txt` to `direct`. Holding Y opens
+the title even when the SD preference requests direct startup.
+
+The [New 3DS offline replay at `c225586`](https://github.com/levkeveli/Min3DStry/actions/runs/45727286685/artifacts/15076074292)
+opened the database, reopened the saved HUD setting, rendered 200 stock
+contributors, opened a stock schematic, and loaded and exited a Ground Zero
+save. The [multiplayer replay](https://github.com/levkeveli/Min3DStry/actions/runs/45727286685/artifacts/15076517911)
+retained the stock German locale and joined and left an unmodified v160.8
+Java server from the title's Join Game route.
+
+## Unified ARM11 Core Database
+
+Open the Core Database from the offline pause menu with Y or from the unified
+title route. It reads the pinned v160.8 content registry and localized assets,
+including stock icons, unlock state, Serpulo and Erekir filters, search and
+entry details. The grouped replay on both 3DS emulator profiles opened Copper
+details, switched the All tab to Erekir and returned cleanly. The host reference
+also checks all 389 visible stock entries for a supported stat display path.
+Physical console verification is pending.
+
+[ARM11 offline replay and screenshots](https://github.com/levkeveli/Min3DStry/actions/runs/45439198209/artifacts/14945967038)
+
+## Historical native harness
+
 Status: **harness-only**. The navigation shell runs on host and in Azahar; the upstream Scene2D
 `MenuFragment`, the core database, schematics and RTS command are not ported.
 

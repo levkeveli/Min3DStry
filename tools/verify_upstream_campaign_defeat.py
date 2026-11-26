@@ -69,6 +69,7 @@ def verify(model: str, planet: str, rom: Path, azahar: str, config: Path, log: P
     settings = root / "settings.bin"
     initial_config = config.read_bytes() if config.is_file() else None
     saves.mkdir(parents=True)
+    sp.stage_direct_startup(sd)
     movie = result / "controls.ctm"
     write_input_replay(movie, model, [(88, 90, 1), (108, 110, 1), (220, 222, sp.KEY_START)], 220,
                        b"Min3DStry Campaign Defeat")
@@ -118,7 +119,7 @@ def main() -> None:
     parser.add_argument("--reference", type=Path, required=True)
     parser.add_argument("--rom", type=Path, help="Run the threatened-sector fixture in Azahar before stock readback")
     parser.add_argument("--azahar")
-    parser.add_argument("--model", choices=("new3ds", "old3ds"))
+    parser.add_argument("--model", choices=("new3ds",))
     parser.add_argument("--planet", choices=CASES)
     parser.add_argument("--output-dir", type=Path, default=Path("build/campaign-defeat-emu"))
     args = parser.parse_args()
@@ -140,7 +141,7 @@ def main() -> None:
 
     azahar = sp.az.resolve_azahar_bin(args.azahar)
     config, log = sp.az.resolve_azahar_paths(azahar)
-    for model in (args.model,) if args.model else ("new3ds", "old3ds"):
+    for model in (args.model,) if args.model else ("new3ds",):
         for planet in planets:
             _, name, _ = CASES[planet]
             result = verify(model, planet, args.rom, azahar, config, log, args.reference, args.output_dir)

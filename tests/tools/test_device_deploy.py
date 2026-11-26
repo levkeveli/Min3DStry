@@ -235,7 +235,7 @@ class DeviceDeployTests(unittest.TestCase):
 
     def test_benchmark_report_cli_json_and_strict(self) -> None:
         sample_log = (
-            "[MIN3DSTRY] HW: Original 3DS (O3DS, 268 MHz, L2:off, AppMem:64 MiB, FIRM:11.17.0)\n"
+            "[MIN3DSTRY] HW: New 3DS (N3DS, 804 MHz, L2:on, AppMem:124 MiB, FIRM:11.17.0)\n"
             "[MIN3DSTRY] PARITY scenario=starter_copper_defense_v1 ticks=240 "
             "hash=0x53a483c7 copper=22 delivered=12 killed=2 hp=160\n"
             "[MIN3DSTRY] BENCH fps=25.00 p95_ms=39.80\n"
@@ -250,8 +250,6 @@ class DeviceDeployTests(unittest.TestCase):
                     "benchmark-report",
                     "--input",
                     str(log_file),
-                    "--profile",
-                    "old3ds",
                     "--expected-hash",
                     "0x53a483c7",
                     "--format",
@@ -259,6 +257,7 @@ class DeviceDeployTests(unittest.TestCase):
                     "--strict",
                 ]
             )
+            self.assertEqual(args_json.profile, "new3ds")
             buf = io.StringIO()
             with redirect_stdout(buf):
                 rc = args_json.func(args_json)
@@ -272,8 +271,6 @@ class DeviceDeployTests(unittest.TestCase):
                     "benchmark-report",
                     "--input",
                     str(log_file),
-                    "--profile",
-                    "old3ds",
                     "--min-fps",
                     "30.0",
                     "--format",

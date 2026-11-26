@@ -79,7 +79,7 @@ def main():
     args.output.mkdir(parents=True)
     fixture = args.fixture or create_stock_saves(args, args.output / "stock-server")
     azahar = az.resolve_azahar_bin(args.azahar)
-    for model in ("old3ds", "new3ds"):
+    for model in ("new3ds",):
         output = args.output / model
         before = capture(output / "terrain", model, fixture / "terrain.msav", args.rom, azahar)
         after = capture(output / "stock", model, fixture / "extractors.msav",

@@ -1,7 +1,9 @@
 #ifndef MIN3DSTRY_UI_TOUCH_CONTROLS_H
 #define MIN3DSTRY_UI_TOUCH_CONTROLS_H
 
+#include <stddef.h>
 #include <stdbool.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -11,6 +13,7 @@ extern "C" {
 #define M3DS_TOUCH_SCREEN_HEIGHT 240.0f
 #define M3DS_TOUCH_MENU_FIRST_ROW 120.0f
 #define M3DS_TOUCH_MENU_ROW_HEIGHT 8.0f
+#define M3DS_TOUCH_TEXT_CELL 8.0f
 
 typedef enum {
     M3DS_TOUCH_ACTION_NONE = 0,
@@ -23,6 +26,16 @@ typedef enum {
     M3DS_TOUCH_ACTION_MENU,
     M3DS_TOUCH_ACTION_COUNT
 } M3dsTouchAction;
+
+typedef struct {
+    M3dsTouchAction action;
+    uint8_t row; /* 1-based console row, 8 px cell */
+    uint8_t col; /* 1-based console column, 8 px cell */
+    const char *text;
+} M3dsTouchLabel;
+
+/* Returns the visible label table; each cell center must map to its action. */
+const M3dsTouchLabel *m3ds_touch_labels(size_t *count);
 
 /*
  * Maps a bottom-screen touch position to one of the bounded HUD controls.

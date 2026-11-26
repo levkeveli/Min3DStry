@@ -1,18 +1,22 @@
 import arc.Core;
 import arc.Settings;
 import arc.files.Fi;
+import arc.struct.Seq;
 import arc.util.I18NBundle;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import mindustry.Vars;
+import mindustry.content.Items;
 import mindustry.content.StatusEffects;
 import mindustry.content.UnitTypes;
 import mindustry.core.ContentLoader;
 import mindustry.core.GameState;
 import mindustry.game.Rules;
 import mindustry.game.SpawnGroup;
+import mindustry.game.Team;
+import mindustry.game.Teams;
 import mindustry.mod.Mods;
 import mindustry.net.Net;
 
@@ -25,6 +29,7 @@ public final class UpstreamStatusRowsProbe {
         Vars.headless = true;
         Core.settings = new Settings();
         Core.settings.setAutosave(false);
+        mindustry.core.UI.loadColors();
         Vars.state = new GameState();
         Vars.mods = new Mods();
         Vars.content = new ContentLoader();
@@ -89,9 +94,232 @@ public final class UpstreamStatusRowsProbe {
                 UpstreamGuardianWarning.find(laterRules, 8))) {
             throw new IllegalStateException("guardian five-wave warning mismatch");
         }
+        var coreItems = UpstreamCoreItems.collect(
+            Seq.with(Items.copper, Items.lead, Items.silicon).list(),
+            item -> item == Items.copper ? 16 : item == Items.lead ? 7 : 0);
+        if (coreItems.size() != 2
+                || coreItems.get(0).item() != Items.copper || coreItems.get(0).amount() != 16
+                || coreItems.get(1).item() != Items.lead || coreItems.get(1).amount() != 7) {
+            throw new IllegalStateException("Core item row collection mismatch");
+        }
+        var formatEntry = new UpstreamCoreItems.Entry(Items.copper, 12345);
+        String formatted = formatEntry.formatted();
+        if (!"12k".equals(formatted)
+                || !"1.2k".equals(UpstreamCoreItems.formatAmount(1234))
+                || !"999".equals(UpstreamCoreItems.formatAmount(999))
+                || !"0".equals(UpstreamCoreItems.formatAmount(0))
+                || !"10k".equals(UpstreamCoreItems.formatAmount(10_000))
+                || !"1.5mil".equals(UpstreamCoreItems.formatAmount(1_500_000))
+                || !"1.0mil".equals(UpstreamCoreItems.formatAmount(1_000_000))
+                || !"1.5b".equals(UpstreamCoreItems.formatAmount(1_500_000_000))
+                || !"1.0b".equals(UpstreamCoreItems.formatAmount(1_000_000_000))) {
+            throw new IllegalStateException("Core item amount formatting mismatch: " + formatted);
+        }
+        System.out.println("UPSTREAM_CORE_ITEM_FORMAT text=" + formatted + " cases=9 ok");
+        System.out.println("UPSTREAM_CORE_ITEMS rows=2 ok");
+        var tracker = new UpstreamCoreItems.Tracker();
+        var tracked = tracker.collect(Seq.with(Items.copper, Items.lead, Items.silicon).list(),
+            item -> item == Items.copper ? 16 : 0);
+        if (tracked.size() != 1 || tracked.get(0).item() != Items.copper) {
+            throw new IllegalStateException("Used-item initial row mismatch");
+        }
+        tracked = tracker.collect(Seq.with(Items.copper, Items.lead, Items.silicon).list(),
+            item -> item == Items.lead ? 7 : 0);
+        if (tracked.size() != 2 || tracked.get(0).item() != Items.copper
+                || tracked.get(0).amount() != 0 || tracked.get(1).item() != Items.lead) {
+            throw new IllegalStateException("Used-item depletion mismatch");
+        }
+        tracker.reset();
+        if (!tracker.collect(Seq.with(Items.copper).list(), item -> 0).isEmpty()) {
+            throw new IllegalStateException("Used-item reset mismatch");
+        }
+        System.out.println("UPSTREAM_CORE_USED_ITEMS cases=3 ok");
+
+        var pause = new UpstreamPauseMenu();
+        pause.open();
+        if (pause.selected() != 0 || pause.confirmingQuit()) {
+            throw new IllegalStateException("Pause menu initial state mismatch");
+        }
+        pause.move(-1);
+        if (pause.selected() != 2) throw new IllegalStateException("Pause menu wrap mismatch");
+        pause.move(1);
+        if (pause.activate() != UpstreamPauseMenu.Action.RESUME) {
+            throw new IllegalStateException("Pause menu resume action mismatch");
+        }
+        pause.move(1);
+        if (pause.activate() != UpstreamPauseMenu.Action.SAVE) {
+            throw new IllegalStateException("Pause menu save action mismatch");
+        }
+        pause.move(1);
+        if (pause.activate() != UpstreamPauseMenu.Action.NONE || !pause.confirmingQuit()) {
+            throw new IllegalStateException("Pause menu quit confirmation missing");
+        }
+        if (pause.cancel() != UpstreamPauseMenu.Action.NONE || pause.confirmingQuit()) {
+            throw new IllegalStateException("Pause menu quit cancel mismatch");
+        }
+        if (pause.activate() != UpstreamPauseMenu.Action.NONE
+                || pause.activate() != UpstreamPauseMenu.Action.QUIT) {
+            throw new IllegalStateException("Pause menu quit action mismatch");
+        }
+        pause.open(4);
+        if (pause.options() != 4) throw new IllegalStateException("Pause menu research options mismatch");
+        pause.move(1);
+        if (pause.activate() != UpstreamPauseMenu.Action.RESEARCH) {
+            throw new IllegalStateException("Pause menu research action mismatch");
+        }
+        pause.move(1);
+        if (pause.activate() != UpstreamPauseMenu.Action.SAVE) {
+            throw new IllegalStateException("Pause menu save-with-research action mismatch");
+        }
+        pause.move(1);
+        if (pause.activate() != UpstreamPauseMenu.Action.NONE
+                || pause.activate() != UpstreamPauseMenu.Action.QUIT) {
+            throw new IllegalStateException("Pause menu quit-with-research action mismatch");
+        }
+        pause.open(5);
+        if (pause.options() != 5) throw new IllegalStateException("Pause menu load options mismatch");
+        pause.move(1);
+        if (pause.activate() != UpstreamPauseMenu.Action.RESEARCH) {
+            throw new IllegalStateException("Pause menu five-row research action mismatch");
+        }
+        pause.move(1);
+        if (pause.activate() != UpstreamPauseMenu.Action.LOAD) {
+            throw new IllegalStateException("Pause menu load action mismatch");
+        }
+        pause.move(1);
+        if (pause.activate() != UpstreamPauseMenu.Action.SAVE) {
+            throw new IllegalStateException("Pause menu load-save action mismatch");
+        }
+        pause.move(1);
+        if (pause.activate() != UpstreamPauseMenu.Action.NONE
+                || pause.activate() != UpstreamPauseMenu.Action.QUIT) {
+            throw new IllegalStateException("Pause menu load-quit action mismatch");
+        }
+        pause.open(6);
+        if (pause.options() != 6) throw new IllegalStateException("Pause menu settings options mismatch");
+        pause.move(1);
+        if (pause.activate() != UpstreamPauseMenu.Action.RESEARCH) {
+            throw new IllegalStateException("Pause menu six-row research mismatch");
+        }
+        pause.move(1);
+        if (pause.activate() != UpstreamPauseMenu.Action.LOAD) {
+            throw new IllegalStateException("Pause menu six-row load mismatch");
+        }
+        pause.move(1);
+        if (pause.activate() != UpstreamPauseMenu.Action.SAVE) {
+            throw new IllegalStateException("Pause menu six-row save mismatch");
+        }
+        pause.move(1);
+        if (pause.activate() != UpstreamPauseMenu.Action.SETTINGS) {
+            throw new IllegalStateException("Pause menu settings action mismatch");
+        }
+        pause.move(1);
+        if (pause.activate() != UpstreamPauseMenu.Action.NONE
+                || pause.activate() != UpstreamPauseMenu.Action.QUIT) {
+            throw new IllegalStateException("Pause menu six-row quit mismatch");
+        }
+        var settings = new UpstreamSettingsMenu();
+        settings.open(true, true, true, false, false);
+        if (!settings.coreItems() || !settings.minimap() || !settings.weather()
+                || settings.performance() || settings.position() || settings.selected() != 0) {
+            throw new IllegalStateException("Settings menu initial state mismatch");
+        }
+        settings.move(1);
+        if (settings.backSelected() || settings.toggleSelected() || settings.minimap()) {
+            throw new IllegalStateException("Settings minimap toggle mismatch");
+        }
+        settings.move(1);
+        if (settings.toggleSelected() || settings.weather()) {
+            throw new IllegalStateException("Settings weather toggle mismatch");
+        }
+        settings.move(1);
+        if (!settings.toggleSelected() || !settings.performance()) {
+            throw new IllegalStateException("Settings performance toggle mismatch");
+        }
+        settings.move(1);
+        if (!settings.toggleSelected() || !settings.position()) {
+            throw new IllegalStateException("Settings position toggle mismatch");
+        }
+        System.out.println("UPSTREAM_SETTINGS_POSITION ok");
+        settings.move(1);
+        if (!settings.soundSelected() || settings.backSelected()) {
+            throw new IllegalStateException("Settings sound selection mismatch");
+        }
+        settings.move(1);
+        if (!settings.backSelected()) throw new IllegalStateException("Settings back selection mismatch");
+        settings.move(1);
+        if (settings.selected() != 0) throw new IllegalStateException("Settings wrap mismatch");
+        Vars.state.rules.waves = true;
+        Vars.state.teams = new Teams();
+        if (UpstreamBossHud.collect() != null) {
+            throw new IllegalStateException("Boss bar appeared without bosses");
+        }
+        for (int i = 0; i < 3; i++) {
+            var guardian = UnitTypes.dagger.create(Team.crux);
+            guardian.health = i == 0 ? 500f : 1000f;
+            guardian.maxHealth = 1000f;
+            Vars.state.teams.bosses.add(guardian);
+        }
+        var bossSummary = UpstreamBossHud.collect();
+        if (bossSummary == null || bossSummary.count() != 3
+                || Math.abs(bossSummary.fraction() - (2500f / 3000f)) > 1e-5f
+                || !bossSummary.markup().endsWith(" " + bundle.get("guardian"))) {
+            throw new IllegalStateException("Boss bar summary mismatch: " + bossSummary);
+        }
+        for (int i = 0; i < 5; i++) {
+            var guardian = UnitTypes.dagger.create(Team.crux);
+            guardian.health = 1000f;
+            guardian.maxHealth = 1000f;
+            Vars.state.teams.bosses.add(guardian);
+        }
+        var capped = UpstreamBossHud.collect();
+        if (capped == null || capped.count() != 8 || !capped.markup().contains("[accent]+[]")) {
+            throw new IllegalStateException("Boss bar cap mismatch: " + capped);
+        }
+        Vars.state.rules.waves = false;
+        if (UpstreamBossHud.collect() != null) {
+            throw new IllegalStateException("Boss bar ignored wave rules");
+        }
+        System.out.println("UPSTREAM_BOSS_BAR cases=4 ok");
+        var minimapView = new UpstreamMinimapView();
+        if (minimapView.open() || minimapView.zoom() != UpstreamMinimapView.minZoom) {
+            throw new IllegalStateException("Minimap view initial state mismatch");
+        }
+        minimapView.toggle();
+        if (!minimapView.open()) throw new IllegalStateException("Minimap view did not open");
+        minimapView.zoomBy(10f);
+        if (minimapView.zoom() != UpstreamMinimapView.maxZoom) {
+            throw new IllegalStateException("Minimap view zoom cap mismatch");
+        }
+        minimapView.move(10_000f, -10_000f);
+        if (Math.abs(minimapView.panX()) > minimapView.panLimit() + 0.001f
+                || Math.abs(minimapView.panY()) > minimapView.panLimit() + 0.001f) {
+            throw new IllegalStateException("Minimap view pan clamp mismatch");
+        }
+        minimapView.zoomBy(-10f);
+        if (minimapView.zoom() != UpstreamMinimapView.minZoom) {
+            throw new IllegalStateException("Minimap view zoom floor mismatch");
+        }
+        minimapView.close();
+        if (minimapView.open()) throw new IllegalStateException("Minimap view did not close");
+        minimapView.reset();
+        if (minimapView.panX() != 0f || minimapView.panY() != 0f) {
+            throw new IllegalStateException("Minimap view reset mismatch");
+        }
+        System.out.println("UPSTREAM_MINIMAP_VIEW cases=5 ok");
+        System.out.println("UPSTREAM_PAUSE_MENU cases=22 ok");
         System.out.println("UPSTREAM_STATUS_ROWS cases=10 ok");
         System.out.println("UPSTREAM_GUARDIAN_WARNING cases=2 ok");
         System.out.println("UPSTREAM_UNIT_ROWS cases=3 ok");
+        String coreAttack = Core.bundle.get("coreattack");
+        if (!"< Core is under attack! >".equals(coreAttack)) {
+            throw new IllegalStateException("coreattack bundle text mismatch: " + coreAttack);
+        }
+        UpstreamNotification.show(coreAttack, 4f);
+        if (!coreAttack.equals(UpstreamNotification.current())) {
+            throw new IllegalStateException("coreattack notification was not retained");
+        }
+        System.out.println("UPSTREAM_CORE_ATTACK text=\"" + coreAttack + "\" ok");
         System.out.println("UPSTREAM_NOTIFICATION cases=2 ok");
     }
 

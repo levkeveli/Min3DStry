@@ -52,6 +52,7 @@ def replay(args, model, azahar, config, log, fixture):
     sd = (output / "virtual-sd").resolve()
     saves = sd / "3ds/min3dstry/saves"
     saves.mkdir(parents=True)
+    sp.stage_direct_startup(sd)
     shutil.copyfile(fixture, saves / SLOT)
     movie = output / "stock-offline-audio.ctm"
     write_input_replay(movie, model, [(100, 102, sp.KEY_START)], 100, b"Min3DStry Offline Audio")
@@ -89,7 +90,7 @@ def main():
     parser.add_argument("--server", type=Path, required=True)
     parser.add_argument("--rom", type=Path, required=True)
     parser.add_argument("--azahar")
-    parser.add_argument("--model", choices=("old3ds", "new3ds"), action="append")
+    parser.add_argument("--model", choices=("new3ds",), action="append")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
@@ -97,7 +98,7 @@ def main():
     create_fixture(args.java, args.server, fixture)
     azahar = sp.az.resolve_azahar_bin(args.azahar)
     config, log = sp.az.resolve_azahar_paths(azahar)
-    for model in args.model or ("old3ds", "new3ds"):
+    for model in args.model or ("new3ds",):
         replay(args, model, azahar, config, log, fixture)
 
 

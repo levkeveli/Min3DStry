@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Replay campaign research on both Azahar profiles and reopen the results in stock Mindustry."""
+"""Replay campaign research on Azahar in New 3DS mode by default and reopen the results in stock Mindustry."""
 
 from __future__ import annotations
 
@@ -35,6 +35,7 @@ def verify(model: str, planet: str, rom: Path, azahar: str, config: Path, log: P
 
     config_snapshot = config.read_bytes() if config.is_file() else None
     saves.mkdir(parents=True)
+    sp.stage_direct_startup(sd)
     try:
         shutil.copyfile(fixtures / name, slot)
         shutil.copyfile(fixtures / f"{planet}-settings.bin", settings)
@@ -78,7 +79,7 @@ def main() -> None:
     parser.add_argument("--server", type=Path, required=True)
     parser.add_argument("--java", default="java")
     parser.add_argument("--azahar")
-    parser.add_argument("--model", choices=("new3ds", "old3ds"))
+    parser.add_argument("--model", choices=("new3ds",))
     parser.add_argument("--planet", choices=CASES)
     parser.add_argument("--output-dir", type=Path, default=Path("build/campaign-research-emu"))
     args = parser.parse_args()
@@ -86,7 +87,7 @@ def main() -> None:
     azahar = sp.az.resolve_azahar_bin(args.azahar)
     config, log = sp.az.resolve_azahar_paths(azahar)
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    for model in (args.model,) if args.model else ("new3ds", "old3ds"):
+    for model in (args.model,) if args.model else ("new3ds",):
         for planet in (args.planet,) if args.planet else CASES:
             world, settings = verify(model, planet, args.rom, azahar, config, log, args.fixtures, args.output_dir)
             check(args.java, args.server, planet, world, settings)

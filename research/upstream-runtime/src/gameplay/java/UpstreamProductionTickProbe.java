@@ -1,9 +1,16 @@
+import arc.util.io.Reads;
+import arc.util.io.Writes;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
 import mindustry.Vars;
 import mindustry.content.Blocks;
 import mindustry.content.Items;
 import mindustry.content.Liquids;
 import mindustry.gen.Building;
+import mindustry.world.modules.LiquidModule;
 import mindustry.world.blocks.production.GenericCrafter.GenericCrafterBuild;
 
 /**
@@ -12,8 +19,40 @@ import mindustry.world.blocks.production.GenericCrafter.GenericCrafterBuild;
  * battery power-graph disconnect/reconnect, and cultivator production on Glacier.
  */
 public final class UpstreamProductionTickProbe {
+    private static void verifyLiquidStorage() throws IOException {
+        var module = new LiquidModule();
+        module.set(Liquids.water, -0f);
+        if (Float.floatToRawIntBits(module.get(Liquids.water)) != Integer.MIN_VALUE) {
+            throw new AssertionError("Stock liquid storage lost negative zero");
+        }
+        module.reset(Liquids.water, 3.25f);
+        module.add(Liquids.oil, 2.5f);
+        var bytes = new ByteArrayOutputStream();
+        module.write(new Writes(new DataOutputStream(bytes)));
+        byte[] saved = bytes.toByteArray();
+        try (var stock = new DataInputStream(new ByteArrayInputStream(saved))) {
+            if (stock.readShort() != 2 || stock.readShort() != Liquids.water.id
+                    || stock.readFloat() != 3.25f || stock.readShort() != Liquids.oil.id
+                    || stock.readFloat() != 2.5f || stock.read() != -1) {
+                throw new AssertionError("Stock liquid save bytes differ");
+            }
+        }
+        module.reset(Liquids.oil, 1f);
+        module.read(new Reads(new DataInputStream(new ByteArrayInputStream(saved))), false);
+        if (module.current() != Liquids.water || module.get(Liquids.water) != 3.25f
+                || module.get(Liquids.oil) != 2.5f) {
+            throw new AssertionError("Stock liquid read changed amounts or current liquid");
+        }
+        module.clear();
+        if (module.current() != Liquids.water || module.currentAmount() != 0f || module.get(Liquids.oil) != 0f) {
+            throw new AssertionError("Stock liquid clear changed current liquid or left an amount");
+        }
+        System.out.println("UPSTREAM_STOCK_LIQUID_STORAGE bytes=14 order=stock signedZero=preserved");
+    }
+
     public static void main(String[] args) throws IOException {
         var app = UpstreamSimulationWorld.play(args);
+        verifyLiquidStorage();
         var team = Vars.state.rules.defaultTeam;
         var core = team.core();
         int x = core.tile.x - 10;
