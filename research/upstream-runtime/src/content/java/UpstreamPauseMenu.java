@@ -1,10 +1,23 @@
 /** Stock offline pause-menu selection and quit confirmation state. */
 public final class UpstreamPauseMenu {
     public enum Action {
-        NONE, RESUME, RESEARCH, LOAD, SAVE, SETTINGS, QUIT
+        NONE(""), RESUME("back"), RESEARCH("research"), LOAD("loadgame"),
+        SAVE("savegame"), SETTINGS("settings"), QUIT("quit");
+
+        final String labelKey;
+
+        Action(String labelKey) {
+            this.labelKey = labelKey;
+        }
     }
 
-    private int options = 3;
+    private static final Action[] standalone = {Action.RESUME, Action.SAVE, Action.QUIT};
+    private static final Action[] standaloneSettings = {Action.RESUME, Action.SAVE, Action.SETTINGS, Action.QUIT};
+    private static final Action[] campaign = {
+        Action.RESUME, Action.RESEARCH, Action.LOAD, Action.SAVE, Action.SETTINGS, Action.QUIT
+    };
+
+    private Action[] actions = standalone;
     private int selected;
     private boolean confirmingQuit;
 
@@ -13,13 +26,32 @@ public final class UpstreamPauseMenu {
     }
 
     public void open(int optionCount) {
-        options = Math.max(1, Math.min(6, optionCount));
+        open(switch (Math.max(1, Math.min(6, optionCount))) {
+            case 1 -> new Action[]{Action.RESUME};
+            case 2 -> new Action[]{Action.RESUME, Action.SAVE};
+            case 3 -> standalone;
+            case 4 -> new Action[]{Action.RESUME, Action.RESEARCH, Action.SAVE, Action.QUIT};
+            case 5 -> new Action[]{Action.RESUME, Action.RESEARCH, Action.LOAD, Action.SAVE, Action.QUIT};
+            default -> campaign;
+        });
+    }
+
+    void openWorld(boolean hasResearch) {
+        open(hasResearch ? campaign : standaloneSettings);
+    }
+
+    private void open(Action[] layout) {
+        actions = layout;
         selected = 0;
         confirmingQuit = false;
     }
 
     public int options() {
-        return options;
+        return actions.length;
+    }
+
+    Action actionAt(int row) {
+        return actions[row];
     }
 
     public int selected() {
@@ -32,7 +64,7 @@ public final class UpstreamPauseMenu {
 
     public void move(int direction) {
         if (direction == 0 || confirmingQuit) return;
-        selected = Math.floorMod(selected + direction, options);
+        selected = Math.floorMod(selected + direction, actions.length);
     }
 
     public Action activate() {
@@ -40,21 +72,9 @@ public final class UpstreamPauseMenu {
             confirmingQuit = false;
             return Action.QUIT;
         }
-        if (selected == 0) return Action.RESUME;
-        int index = 1;
-        if (options >= 4) {
-            if (selected == index++) return Action.RESEARCH;
-        }
-        if (options >= 5) {
-            if (selected == index++) return Action.LOAD;
-        }
-        if (selected == index++) return Action.SAVE;
-        if (options >= 6) {
-            if (selected == index++) return Action.SETTINGS;
-        }
-        if (selected == index) {
-            confirmingQuit = true;
-        }
+        Action action = actionAt(selected);
+        if (action != Action.QUIT) return action;
+        confirmingQuit = true;
         return Action.NONE;
     }
 

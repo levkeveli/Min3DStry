@@ -331,15 +331,17 @@
       "domain": "Controls & Dual-Screen UI",
       "name": "Stock Title Menu & Settings Shell (Play / Settings / Quit)",
       "weight": 1,
-      "status": "harness-only",
-      "modes": ["harness"],
-      "issue": 295,
+      "status": "live-arm11",
+      "modes": ["offline", "multiplayer"],
+      "issue": 650,
       "evidence": [
         "docs/ui/main-menu.md",
-        "src/ui/main_menu.c",
-        "tests/ui/test_main_menu.c"
+        "research/upstream-runtime/src/unified/java/UpstreamUnifiedApp.java",
+        "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerApp.java",
+        "tools/verify_upstream_singleplayer.py",
+        "tools/verify_upstream_live_net.py"
       ],
-      "notes": "Navigation shell with upstream v160.8 MenuFragment keys/labels; Play->Campaign, Settings mute/lighting/camera, and Database->About are wired. The upstream Scene2D title fragment remains open. In-game schematics and RTS are tracked separately."
+      "notes": "The unified runtime opens the title on ordinary startup and uses stock v160.8 menu labels, settings, and credits. New 3DS Azahar verified the Core Database, settings persistence, stock schematics, load and return to title, and the title-to-PC-server route. Full stock settings and mod handling remain open."
     },
     {
       "id": "player-unit-flight-camera",
