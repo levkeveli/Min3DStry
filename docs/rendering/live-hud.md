@@ -87,19 +87,23 @@ crafters), the full stock light buffer and shadowing remain open; the
 
 The friendly building under the handheld cursor shows its stock bars below the
 status rows in the base `Block.setBars` order (health, power, items, then
-liquids); subclass-specific extra bars remain open:
+liquids), followed by its building-specific stock rows:
 
 - health (`stat.health`, `Pal.health`) for every building;
 - power for blocks with `consPower`, using the stock power label/fraction;
 - items (`bar.items`) for configurable item blocks;
 - the dynamic `addLiquidBar` bar, then each keyed consumer/generator liquid bar,
-  using the stock liquid label, fraction and color.
+  using the stock liquid label, fraction and color;
+- additional providers from the selected block, including heat, factory
+  progress, unit capacity and reactor instability.
 
 Enemy bars stay hidden. The bars reuse the original `bar`/`bar-top` atlas
-patches and animate their fill. The host building reference checks health,
-power, item, dynamic liquid and keyed liquid states against the pinned
-`Block.setBars` bar keys and order; the **live draw path is pending** the next
-emulator batch.
+patches and animate their fill. The JVM reference checks the pinned
+`Block.setBars` keys and provider values. The [New 3DS Azahar replay at
+`cadf234`](https://github.com/levkeveli/Min3DStry/actions/runs/45731229553/artifacts/15078332109)
+selected a Heat Source at full heat and an Air Factory at 50% progress in
+both offline and multiplayer Glacier sessions. Stock Java reopened the
+offline save and confirmed the values on the live server.
 
 ## Verification
 

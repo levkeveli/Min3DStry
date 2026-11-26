@@ -241,9 +241,11 @@
       "evidence": [
         "docs/rendering/live-hud.md",
         "research/upstream-runtime/src/network-render/java/UpstreamStatusHud.java",
-        "research/upstream-runtime/src/network-render/java/UpstreamObjectiveHud.java"
+        "research/upstream-runtime/src/network-render/java/UpstreamObjectiveHud.java",
+        "research/upstream-runtime/src/network-render/java/UpstreamBuildingSpecificBars.java",
+        "tools/verify_stock_building_bars.py"
       ],
-      "notes": "Stock Wave, Enemies Remaining, Core Copper, and Map Objective HUD rows render live on top screen; the selected-building health, power, item and liquid bars are wired, with live draw verification pending."
+      "notes": "Stock wave, enemies, core items and objective rows render on top screen. Selected-building bars use stock providers. New 3DS Azahar verified full heat and 50% factory progress offline and against an unmodified Java v160.8 server."
     },
     {
       "id": "offline-session-controls",
