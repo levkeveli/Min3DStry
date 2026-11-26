@@ -42,6 +42,9 @@ typedef struct {
 } ArcAtlasRegion;
 
 #include "terrain_layout.h"
+#ifdef M3DS_CAMPAIGN_PLANETS
+#include "m3ds_planet_mesh.h"
+#endif
 #ifdef M3DS_STOCK_FONT
 #include "m3ds_stock_text.h"
 
@@ -1022,6 +1025,49 @@ int32_t m3ds_terrain_end(void) {
     return draws;
 }
 
+int32_t m3ds_terrain_campaign_planet_available(void) {
+#ifdef M3DS_CAMPAIGN_PLANETS
+    return 1;
+#else
+    return 0;
+#endif
+}
+
+int32_t m3ds_terrain_draw_campaign_planet(int32_t planet, const float *matrix, const float *lighting,
+    const float *overlay, int32_t vertices, int32_t sector_vertices, const int32_t *surface, int32_t faces,
+    const int32_t *ids, const float *planes, const float *marker_matrix, int32_t markers) {
+#ifdef M3DS_CAMPAIGN_PLANETS
+    if (!frame_open) return 0;
+    C2D_Flush();
+    int32_t drawn = m3ds_planet_draw(planet, matrix, lighting, overlay, vertices, sector_vertices, surface, faces,
+        ids, planes, marker_matrix, markers);
+    C2D_Prepare();
+    begin_world_scene();
+    return drawn;
+#else
+    (void)planet;
+    (void)matrix;
+    (void)lighting;
+    (void)overlay;
+    (void)vertices;
+    (void)sector_vertices;
+    (void)surface;
+    (void)faces;
+    (void)ids;
+    (void)planes;
+    (void)marker_matrix;
+    (void)markers;
+    return 0;
+#endif
+}
+
+void m3ds_terrain_release_campaign_planet(void) {
+#ifdef M3DS_CAMPAIGN_PLANETS
+    if (gpu_ready && C3D_FrameBegin(C3D_FRAME_SYNCDRAW)) C3D_FrameEnd(0);
+    m3ds_planet_release();
+#endif
+}
+
 int32_t m3ds_terrain_palette_active(void) {
     return palette != NULL;
 }
@@ -1549,6 +1595,9 @@ int32_t m3ds_terrain_build_catalog(const char *labels, const int32_t *icons, int
 void m3ds_terrain_fini(void) {
     if (frame_open) m3ds_terrain_end();
     if (gpu_ready && C3D_FrameBegin(0)) C3D_FrameEnd(0);
+#ifdef M3DS_CAMPAIGN_PLANETS
+    m3ds_planet_release();
+#endif
     if (minimap_ready) {
         C3D_TexDelete(&minimap_texture);
         minimap_ready = false;

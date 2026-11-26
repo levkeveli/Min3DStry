@@ -63,6 +63,20 @@ python3 research/upstream-runtime/arm11/prepare_terrain_assets.py \
   --desktop "$RUNNER_TEMP/desktop.jar" --output-dir build/smoke-assets \
   --tex3ds "$RUNNER_TEMP/smoke-tex3ds" --singleplayer --live-audio
 python3 tools/verify_live_stock_audio.py build/smoke-assets
+globe_reference="$RUNNER_TEMP/campaign-globe-reference"
+mkdir -p "$globe_reference"
+javac -cp "$RUNNER_TEMP/desktop.jar" -d "$globe_reference" \
+  research/upstream-runtime/src/singleplayer/java/UpstreamCampaignGlobe.java \
+  research/upstream-runtime/src/singleplayer/java/UpstreamCampaignSectorOverlay.java \
+  research/upstream-runtime/src/singleplayer/java/UpstreamCampaignGrid.java \
+  research/upstream-runtime/src/singleplayer/java/UpstreamCampaignArcs.java \
+  research/upstream-runtime/src/singleplayer/java/UpstreamCampaignStroke.java \
+  research/upstream-runtime/src/singleplayer/java/UpstreamCampaignSurface.java \
+  research/upstream-runtime/src/singleplayer/java/UpstreamCampaignMarkers.java \
+  research/upstream-runtime/src/singleplayer-campaign-host/java/UpstreamCampaignGlobeReference.java
+surface_samples="$PWD/build/smoke-assets/planet-meshes/serpulo.m3ps"
+(cd "$globe_reference" && java -cp ".:$RUNNER_TEMP/desktop.jar" UpstreamCampaignGlobeReference "$surface_samples")
+
 database_check="$RUNNER_TEMP/core-database-check"
 mkdir -p "$database_check"
 javac -cp "$stock_jar" -d "$database_check" \
