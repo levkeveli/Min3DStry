@@ -45,7 +45,9 @@ def verify(args):
     capture = Path(__file__).resolve().parents[1] / "research/upstream-runtime/host/UpstreamWorldStreamCapture.java"
     subprocess.run([args.javac, "-cp", str(args.stock_jar), "-d", str(classes), str(capture)], check=True)
     sd = output / "virtual-sd"
-    (sd / "3ds/min3dstry").mkdir(parents=True)
+    root = sd / "3ds/min3dstry"
+    root.mkdir(parents=True)
+    (root / "startup.txt").write_text("direct\n", encoding="ascii")
     movie = output / "new3ds-host.ctm"
     # Open the local world's pause menu and choose its Host Game shortcut.
     write_input_replay(movie, "new3ds", [(42, 45, sp.KEY_X), (58, 61, 1 << 8)], 220, b"Min3DStry Host")

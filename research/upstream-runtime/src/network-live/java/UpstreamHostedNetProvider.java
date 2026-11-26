@@ -129,14 +129,23 @@ final class UpstreamHostedNetProvider implements Net.NetProvider {
             }
             return;
         }
+        Packet packet;
         try {
-            Vars.net.handleServerReceived(peer, codec.decode(inbox, size));
+            packet = codec.decode(inbox, size);
         } catch (RuntimeException invalid) {
             long now = Time.millis();
             if (now - peer.lastReadError < 2000) peer.close();
             peer.lastReadError = now;
-            Log.err("Error reading packet from @", peer.address);
-            Log.err(invalid);
+            System.out.println("UPSTREAM_HOST_PACKET_ERROR decode=" + invalid.getClass().getName()
+                + " message=" + invalid.getMessage());
+            return;
+        }
+        try {
+            Vars.net.handleServerReceived(peer, packet);
+        } catch (RuntimeException failure) {
+            System.out.println("UPSTREAM_HOST_PACKET_ERROR action=" + packet.getClass().getName()
+                + " failure=" + failure.getClass().getName() + " message=" + failure.getMessage());
+            throw failure;
         }
     }
 

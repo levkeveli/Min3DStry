@@ -2154,7 +2154,15 @@ ${barOracle}""")
             }
             def outputServer = netServerFile.get().asFile
             outputServer.parentFile.mkdirs()
-            outputServer.setText(source.replace(formattedSize, 'stream.size() + " bytes"'), 'UTF-8')
+            def worldWrite = '        NetworkIO.writeWorld(player, new FastDeflaterOutputStream(stream));'
+            def worldQueue = '        player.con.sendStream(new WorldStream(), stream);'
+            if (source.count(worldWrite) != 1 || source.count(worldQueue) != 1) {
+                throw new GradleException('Pinned NetServer world stream stages changed')
+            }
+            outputServer.setText(source.replace(formattedSize, 'stream.size() + " bytes"')
+                .replace(worldWrite, '        System.out.println("UPSTREAM_HOST_WORLD writing=true");\n' + worldWrite)
+                .replace(worldQueue, '        System.out.println("UPSTREAM_HOST_WORLD bytes=" + stream.size());\n'
+                    + worldQueue + '\n        System.out.println("UPSTREAM_HOST_WORLD queued=true");'), 'UTF-8')
         }
         if (usesLiveNetwork) {
             if (!usesSinglePlayer) {
