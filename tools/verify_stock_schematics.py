@@ -64,6 +64,7 @@ def create_fixture(args, output):
 def verify_touch(log, proc, rpc, output, live, *, clipboard=False):
     if clipboard:
         sp._wait_for_log(log, proc, r"UPSTREAM_SCHEMATIC_CLIPBOARD_IMPORTED file=Schematic-1\.msch", 105)
+        time.sleep(1)
         (output / "clipboard-import.png").write_bytes(rpc.screenshot())
         sp._wait_for_log(log, proc, r"UPSTREAM_SCHEMATIC_CLIPBOARD_EXPORTED file=Schematic-1\.msch", 45)
     sp._wait_for_log(log, proc, r"UPSTREAM_SCHEMATIC_SELECTED blocks=3 width=3 height=1", 95)
@@ -136,7 +137,10 @@ def main():
             def verify_result(server, log):
                 read_stock_buildings(server, log)
                 if args.clipboard:
-                    read_stock_clipboard(server, log, sd / "clipboard.txt")
+                    exported = sd / "clipboard.txt"
+                    if exported.read_bytes() == schematic.with_name("clipboard.txt").read_bytes():
+                        raise RuntimeError("Expected export to replace the original Workshop-tagged clipboard text")
+                    read_stock_clipboard(server, log, exported)
 
             replay(args, model, fixture, live, taps=CLIPBOARD_TAPS if args.clipboard else TAPS, buttons=buttons,
                    movie_seconds=145 if args.clipboard else 102,

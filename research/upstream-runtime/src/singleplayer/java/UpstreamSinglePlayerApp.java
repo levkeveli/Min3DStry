@@ -1424,7 +1424,8 @@ public final class UpstreamSinglePlayerApp {
                     moveInput.limit(1f);
                 }
                 boolean mapWasOpen = minimapView.open();
-                if ((input & UpstreamSinglePlayerInput.R_PRESSED) != 0) {
+                if ((input & UpstreamSinglePlayerInput.R_PRESSED) != 0
+                        && (mapWasOpen || !buildingControls.blocksWeaponInput())) {
                     if (mapWasOpen) minimapView.close(); else minimapView.openView();
                     System.out.println("UPSTREAM_MINIMAP_VIEW open=" + minimapView.open());
                 }
