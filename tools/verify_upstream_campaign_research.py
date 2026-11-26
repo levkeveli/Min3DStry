@@ -50,6 +50,7 @@ def verify(model: str, planet: str, rom: Path, azahar: str, config: Path, log: P
 
     config_snapshot = config.read_bytes() if config.is_file() else None
     saves.mkdir(parents=True)
+    sp.stage_direct_startup(sd)
     try:
         shutil.copyfile(fixtures / name, slot)
         fixture_settings = "serpulo-globe-settings.bin" if globe else f"{planet}-settings.bin"
