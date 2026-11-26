@@ -81,6 +81,7 @@ public final class UpstreamSinglePlayerApp {
     private UpstreamSinglePlayerSession session;
     private UpstreamTerrainDrawProbe.Viewport viewport;
     private boolean rendererReady;
+    private boolean interfaceGraphicsReady;
     private Unit controlled;
     private Fi campaignSlot;
     private boolean campaignExitRequested;
@@ -155,11 +156,16 @@ public final class UpstreamSinglePlayerApp {
             && (bootInput & UpstreamSinglePlayerInput.L_HELD) != 0;
         boolean editorRequested = customRequested && (bootInput & UpstreamSinglePlayerInput.CAMPAIGN_HELD) != 0;
         editorRequested |= args.length > 0 && args[0].equals("--editor");
+        boolean databaseRequested = args.length > 0 && args[0].equals("--database");
+        boolean titleRequested = args.length > 0 && args[0].equals("--title");
+        boolean loadRequested = false;
         boolean campaignRequested = args.length == 0 && bootInput >= 0
             && (bootInput & UpstreamSinglePlayerInput.CAMPAIGN_HELD) != 0 && !customRequested;
-        Fi mapFile = !editorRequested && args.length >= 1 ? new Fi(args[0]) : firstExisting("/romfs/maps/groundZero.msav", "/3ds/min3dstry/groundZero.msav");
+        Fi mapFile = !editorRequested && !databaseRequested && !titleRequested && args.length >= 1
+            ? new Fi(args[0]) : firstExisting("/romfs/maps/groundZero.msav", "/3ds/min3dstry/groundZero.msav");
         sourceMap = mapFile;
-        Fi saveFile = !editorRequested && args.length >= 2 ? new Fi(args[1]) : new Fi("/3ds/min3dstry/singleplayer-save.msav");
+        Fi saveFile = !editorRequested && !databaseRequested && !titleRequested && args.length >= 2
+            ? new Fi(args[1]) : new Fi("/3ds/min3dstry/singleplayer-save.msav");
         Fi atlas = firstExisting("/romfs/sprites.aatls", "/3ds/min3dstry/sprites.aatls");
         Fi mapDir = saveFile.parent() != null ? saveFile.parent() : new Fi("/3ds/min3dstry");
         var settings = UpstreamSinglePlayerSession.loadSettings(mapDir);
@@ -185,9 +191,22 @@ public final class UpstreamSinglePlayerApp {
         Events.run(Trigger.teamCoreDamage, () ->
             UpstreamNotification.show(Core.bundle.get("coreattack"), 4f));
         try {
+            if (databaseRequested) {
+                loadInterfaceGraphics(atlas);
+                new UpstreamCoreDatabaseMenu(target).run();
+                return;
+            }
+            if (titleRequested) {
+                var selection = chooseTitleAction(atlas, saveFile);
+                if (selection == null) return;
+                campaignRequested = selection == TitleAction.campaign;
+                customRequested = selection == TitleAction.custom;
+                editorRequested = selection == TitleAction.editor;
+                loadRequested = selection == TitleAction.load;
+            }
             if (editorRequested) {
-                var source = args.length >= 2 ? new Fi(args[1]) : mapDir.child("editor-map.msav");
-                var output = args.length >= 3 ? new Fi(args[2]) : null;
+                var source = !titleRequested && args.length >= 2 ? new Fi(args[1]) : mapDir.child("editor-map.msav");
+                var output = !titleRequested && args.length >= 3 ? new Fi(args[2]) : null;
                 var editor = new UpstreamMapEditorApp(target, source, output, mapDir.child("maps"));
                 editor.open();
                 loadInterfaceGraphics(atlas);
@@ -196,8 +215,9 @@ public final class UpstreamSinglePlayerApp {
             }
             CustomGame custom = null;
             Fi customSave = mapDir.child("custom-game-save.msav");
-            if (customRequested) {
-                var maps = UpstreamCustomGameMaps.discover(new Fi("/romfs/maps/default"), mapDir.child("maps"));
+            if (customRequested || loadRequested) {
+                var maps = loadRequested ? List.<Map>of()
+                    : UpstreamCustomGameMaps.discover(new Fi("/romfs/maps/default"), mapDir.child("maps"));
                 var saves = UpstreamCustomGameSaves.discover(Vars.saveDirectory, customSave);
                 if (!maps.isEmpty() || !saves.isEmpty()) {
                     loadInterfaceRenderer();
@@ -466,18 +486,89 @@ public final class UpstreamSinglePlayerApp {
     }
 
     private void drawMenuRows(MenuRows rows) {
+        drawMenuRows(rows, null);
+    }
+
+    private void drawMenuRows(MenuRows rows, byte[] titleControls) {
         target.begin(0, 0, UpstreamTerrainDrawProbe.VIEW_WIDTH, UpstreamTerrainDrawProbe.VIEW_HEIGHT);
         try {
             float rowY = 6f;
             for (int i = 0; i < rows.labels.length; i++) {
                 rowY = target.drawObjective(rows.labels[i], rows.characters[i], null, rowY);
             }
+            if (titleControls != null) target.drawMenuHelp(titleControls, 2);
         } finally {
             target.end();
         }
     }
 
+    private enum TitleAction { campaign, custom, load, editor }
+
+    private TitleAction chooseTitleAction(Fi atlas, Fi defaultSave) {
+        loadInterfaceRenderer();
+        while (true) {
+            switch (chooseTitleRow("Mindustry", "play", "database.button", "editor", "quit")) {
+                case 0 -> {
+                    int route = chooseTitleRow(Core.bundle.get("play"), "campaign", "customgame", "loadgame");
+                    if (route == 0) return TitleAction.campaign;
+                    if (route == 1) return TitleAction.custom;
+                    if (route == 2) {
+                        var customSave = defaultSave.parent().child("custom-game-save.msav");
+                        if (defaultSave.exists() || !session.sectorSaves().isEmpty()
+                                || !UpstreamCustomGameSaves.discover(Vars.saveDirectory, customSave).isEmpty()) {
+                            return TitleAction.load;
+                        }
+                        if (chooseTitleRow(Core.bundle.get("save.none"), "back") == -2) return null;
+                    }
+                    if (route == -2) return null;
+                }
+                case 1 -> {
+                    int route = chooseTitleRow(Core.bundle.get("database.button"), "database");
+                    if (route == -2) return null;
+                    if (route == 0) {
+                        loadInterfaceGraphics(atlas);
+                        if (!new UpstreamCoreDatabaseMenu(target).run()) return null;
+                    }
+                }
+                case 2 -> { return TitleAction.editor; }
+                default -> { return null; }
+            }
+        }
+    }
+
+    private int chooseTitleRow(String title, String... optionKeys) {
+        int selected = 0, previousY = 0, drawn = -1;
+        MenuRows rows = null;
+        byte[] controls = ("A  " + Core.bundle.get("ok") + "\0B  " + Core.bundle.get("back") + "\0")
+            .getBytes(StandardCharsets.UTF_8);
+        UpstreamSinglePlayerInput.poll();
+        while (true) {
+            long nextFrame = System.nanoTime() + FRAME_NS;
+            int input = UpstreamSinglePlayerInput.poll();
+            if (input < 0) return -2;
+            int touch = UpstreamTerrainRenderProbe.menuHelpAction(UpstreamSinglePlayerInput.touch(), 2);
+            if ((input & UpstreamSinglePlayerInput.B_PRESSED) != 0 || touch == 1) return -1;
+            int y = (byte)(input >> 8);
+            if (y > 60 && previousY <= 20) selected = Math.floorMod(selected - 1, optionKeys.length);
+            if (y < -60 && previousY >= -20) selected = (selected + 1) % optionKeys.length;
+            previousY = y;
+            if ((input & UpstreamSinglePlayerInput.A_PRESSED) != 0 || touch == 0) return selected;
+            if (drawn != selected) {
+                var captions = new String[optionKeys.length + 1];
+                captions[0] = title;
+                for (int i = 0; i < optionKeys.length; i++) {
+                    captions[i + 1] = (selected == i ? "> " : "  ") + Core.bundle.get(optionKeys[i]);
+                }
+                rows = encodeMenuRows(captions);
+                drawn = selected;
+            }
+            drawMenuRows(rows, controls);
+            while (System.nanoTime() < nextFrame) Thread.yield();
+        }
+    }
+
     private void loadInterfaceGraphics(Fi atlas) {
+        if (interfaceGraphicsReady) return;
         System.out.println("UPSTREAM_INTERFACE_GRAPHICS atlas");
         UpstreamTerrainDrawProbe.loadAtlas(atlas, UpstreamFluidAtlas::load);
         UpstreamLogicGraphics.load(new Fi("/romfs"));
@@ -485,6 +576,7 @@ public final class UpstreamSinglePlayerApp {
         UpstreamCrackAtlas.load();
         viewport = UpstreamTerrainDrawProbe.liveViewport(target);
         loadInterfaceRenderer();
+        interfaceGraphicsReady = true;
         System.out.println("UPSTREAM_INTERFACE_GRAPHICS ready");
     }
 
@@ -878,49 +970,55 @@ public final class UpstreamSinglePlayerApp {
                     }
                     moveInput.setZero();
                 } else {
-                    if (direction != 0) pauseMenu.move(direction);
-                if ((input & UpstreamSinglePlayerInput.A_PRESSED) != 0) {
-                    var action = pauseMenu.activate();
-                    if (action == UpstreamPauseMenu.Action.RESUME) {
-                        closePauseMenu();
-                    } else if (action == UpstreamPauseMenu.Action.LOAD) {
-                        closePauseMenu();
-                        var loadSector = Vars.state.rules.sector;
-                        session.start(sourceMap, saveFile, campaignSlot == null ? null : "campaign", loadSector);
-                        resetWorldInput();
-                        weatherLayers.reset();
-                        reportWeather();
-                        uploadMinimap();
-                        previousTime = System.nanoTime();
-                        accumulator = 0L;
-                        System.out.println("UPSTREAM_PAUSE_MENU load=true");
-                        continue;
-                    } else if (action == UpstreamPauseMenu.Action.RESEARCH) {
-                        closePauseMenu();
-                        var researchSector = Vars.state.rules.sector;
-                        if (researchSector == null || researchSector.planet == null
-                                || researchSector.planet.techTree == null
-                                || !openResearch(researchSector.planet.techTree, saveFile)) return false;
+                    if ((input & UpstreamSinglePlayerInput.WAVE_PRESSED) != 0 && !pauseMenu.confirmingQuit()) {
+                        if (!new UpstreamCoreDatabaseMenu(target).run()) return false;
                         previousTime = System.nanoTime();
                         accumulator = 0L;
                         continue;
-                    } else if (action == UpstreamPauseMenu.Action.SETTINGS) {
-                        settingsOpen = true;
-                        settingsMenu.open(Core.settings.getBool("coreitems", true),
-                            Core.settings.getBool("minimap", true),
-                            Core.settings.getBool("showweather", true),
-                            Core.settings.getBool("showperformance", false),
-                            Core.settings.getBool("position", false));
-                        System.out.println("UPSTREAM_PAUSE_MENU settings=true");
-                    } else if (action == UpstreamPauseMenu.Action.SAVE) {
-                        session.save(saveFile);
-                        System.out.println("UPSTREAM_PAUSE_MENU save=true");
-                    } else if (action == UpstreamPauseMenu.Action.QUIT) {
-                        pauseOpen = false;
-                        session.save(saveFile);
-                        System.out.println("UPSTREAM_PAUSE_MENU quit=true");
-                        return false;
                     }
+                    if (direction != 0) pauseMenu.move(direction);
+                    if ((input & UpstreamSinglePlayerInput.A_PRESSED) != 0) {
+                        var action = pauseMenu.activate();
+                        if (action == UpstreamPauseMenu.Action.RESUME) {
+                            closePauseMenu();
+                        } else if (action == UpstreamPauseMenu.Action.LOAD) {
+                            closePauseMenu();
+                            var loadSector = Vars.state.rules.sector;
+                            session.start(sourceMap, saveFile, campaignSlot == null ? null : "campaign", loadSector);
+                            resetWorldInput();
+                            weatherLayers.reset();
+                            reportWeather();
+                            uploadMinimap();
+                            previousTime = System.nanoTime();
+                            accumulator = 0L;
+                            System.out.println("UPSTREAM_PAUSE_MENU load=true");
+                            continue;
+                        } else if (action == UpstreamPauseMenu.Action.RESEARCH) {
+                            closePauseMenu();
+                            var researchSector = Vars.state.rules.sector;
+                            if (researchSector == null || researchSector.planet == null
+                                    || researchSector.planet.techTree == null
+                                    || !openResearch(researchSector.planet.techTree, saveFile)) return false;
+                            previousTime = System.nanoTime();
+                            accumulator = 0L;
+                            continue;
+                        } else if (action == UpstreamPauseMenu.Action.SETTINGS) {
+                            settingsOpen = true;
+                            settingsMenu.open(Core.settings.getBool("coreitems", true),
+                                Core.settings.getBool("minimap", true),
+                                Core.settings.getBool("showweather", true),
+                                Core.settings.getBool("showperformance", false),
+                                Core.settings.getBool("position", false));
+                            System.out.println("UPSTREAM_PAUSE_MENU settings=true");
+                        } else if (action == UpstreamPauseMenu.Action.SAVE) {
+                            session.save(saveFile);
+                            System.out.println("UPSTREAM_PAUSE_MENU save=true");
+                        } else if (action == UpstreamPauseMenu.Action.QUIT) {
+                            pauseOpen = false;
+                            session.save(saveFile);
+                            System.out.println("UPSTREAM_PAUSE_MENU quit=true");
+                            return false;
+                        }
                     } else if ((input & (UpstreamSinglePlayerInput.B_PRESSED
                             | UpstreamSinglePlayerInput.X_PRESSED)) != 0) {
                         if (pauseMenu.cancel() == UpstreamPauseMenu.Action.RESUME) closePauseMenu();
@@ -1407,6 +1505,8 @@ public final class UpstreamSinglePlayerApp {
         }
         if (pauseMenu.confirmingQuit()) {
             drawPauseRow(Core.bundle.get("quit.confirm"), 40f, 210f, false);
+        } else {
+            drawPauseRow("Y  " + Core.bundle.get("database"), 44f, 210f, false);
         }
     }
 

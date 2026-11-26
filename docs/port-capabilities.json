@@ -295,6 +295,7 @@
       "stage": "hardware-verified",
       "issue": 40,
       "evidence": [
+        "docs/ui/main-menu.md",
         "include/render/minimap.h",
         "src/render/minimap.c",
         "tests/render/test_minimap.c",
