@@ -858,7 +858,7 @@ public final class UpstreamSinglePlayerApp {
             }
             if (globeAvailable && (input & UpstreamSinglePlayerInput.X_PRESSED) != 0) {
                 var slot = chooseSectorOnGlobe(slots, slots.get(selected).sector);
-                if (slot != null || campaignExitRequested) return slot;
+                if (slot != null || pickerExitRequested) return slot;
             }
             drawMenuRows(rows);
             while (System.nanoTime() < nextFrame) Thread.yield();
