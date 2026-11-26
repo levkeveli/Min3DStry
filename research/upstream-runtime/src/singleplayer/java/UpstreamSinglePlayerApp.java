@@ -20,15 +20,18 @@ import arc.util.Time;
 import arc.util.Strings;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.List;
 import mindustry.Vars;
 import mindustry.content.Blocks;
 import mindustry.content.Items;
+import mindustry.content.Planets;
 import mindustry.content.TechTree.TechNode;
 import mindustry.core.UI;
 import mindustry.core.World;
 import mindustry.entities.bullet.BulletType;
 import mindustry.game.EventType.BlockBuildEndEvent;
+import mindustry.game.EventType.Trigger;
 import mindustry.game.EventType.WaveEvent;
 import mindustry.game.Gamemode;
 import mindustry.graphics.Layer;
@@ -64,7 +67,10 @@ public final class UpstreamSinglePlayerApp {
     private final AudioHooks audio;
     private final UpstreamTerrainRenderProbe target = new UpstreamTerrainRenderProbe(false);
     private final UpstreamBuildingLayers buildingLayers = new UpstreamBuildingLayers();
-    private UpstreamLiveBuildControls buildingControls = new UpstreamLiveBuildControls();
+    private final UpstreamBuildingPowerHud buildingPowerHud = new UpstreamBuildingPowerHud();
+    private final UpstreamBuildingLiquidHud buildingLiquidHud = new UpstreamBuildingLiquidHud();
+    private final UpstreamBuildingBasicBars buildingBasicBars = new UpstreamBuildingBasicBars();
+    private UpstreamLiveBuildControls buildingControls = createBuildControls();
     private final UpstreamWeatherLayers weatherLayers = new UpstreamWeatherLayers();
     private final Runnable drawWeatherUnder = weatherLayers::drawUnder;
     private final Runnable drawEntities = this::drawEntities;
@@ -78,32 +84,61 @@ public final class UpstreamSinglePlayerApp {
     private UpstreamSinglePlayerSession session;
     private UpstreamTerrainDrawProbe.Viewport viewport;
     private boolean rendererReady;
+    private boolean interfaceGraphicsReady;
     private Unit controlled;
     private Fi campaignSlot;
-    private boolean campaignExitRequested;
+    private boolean pickerExitRequested;
+    private boolean returnToTitleRequested;
     private int draws;
     private long previousVisualFrame;
     private float frameSeconds = 1f / 60f;
     private int lastLeft = -1, lastBottom = -1;
     private int lastCopper = -1;
     private boolean moving;
+    private boolean reportedMinimap;
+    private int minimapFrame;
+    private final UpstreamMinimapView minimapView = new UpstreamMinimapView();
+    private byte[] minimapViewTitle;
+    private int[] minimapViewTitleCharacters;
+    private byte[] minimapViewBack;
+    private int[] minimapViewBackCharacters;
     private String inputDevice;
     private UpstreamLabelText.Label encodedLabel;
     private int[] encodedCharacters;
     private byte[] lastMenu;
     private Block lastPrimaryShortcut;
     private List<UpstreamObjectiveHud.Row> lastStatus;
+    private int lastCoreItemCount = -1;
+    private int lastCoreItemDrawn = -1;
+    private final UpstreamCoreItems.Tracker coreItemTracker = new UpstreamCoreItems.Tracker();
+    private final UpstreamPauseMenu pauseMenu = new UpstreamPauseMenu();
+    private boolean pauseOpen;
+    private int pauseAxis;
+    private Fi sourceMap;
+    private final UpstreamSettingsMenu settingsMenu = new UpstreamSettingsMenu();
+    private boolean settingsOpen;
     private byte[][] statusLabels = new byte[0][];
     private int[][] statusCharacters = new int[0][];
     private List<UpstreamObjectiveHud.Row> lastObjectives;
     private byte[][] objectiveLabels = new byte[0][];
     private int[][] objectiveCharacters = new int[0][];
+    private String lastBossText;
+    private byte[] bossLabel = new byte[0];
+    private int[] bossCharacters = new int[0];
+    private String lastPositionText;
+    private byte[] positionLabel = new byte[0];
+    private int[] positionCharacters = new int[0];
     private final IntSet reportedEnemies = new IntSet();
 
     interface AudioHooks {
         default Audio open() { return new MockAudio(); }
         default void prepareWorld() {}
+        default void leaveWorld() {}
         default void update(long now) {}
+    }
+
+    interface TitleJoin {
+        boolean open(UpstreamWorldLoadProbe.ProbeApplication app, boolean atlasReady, Settings settings) throws IOException;
     }
 
     private UpstreamSinglePlayerApp(AudioHooks audio) {
@@ -115,25 +150,35 @@ public final class UpstreamSinglePlayerApp {
     }
 
     static void run(String[] args, AudioHooks audio) throws IOException {
+        run(args, audio, null);
+    }
+
+    static void run(String[] args, AudioHooks audio, TitleJoin join) throws IOException {
         try {
-            new UpstreamSinglePlayerApp(audio).run(args);
+            new UpstreamSinglePlayerApp(audio).run(args, join);
         } catch (IOException | RuntimeException failure) {
             System.out.println("UPSTREAM_SP_ERROR " + failure.getClass().getName() + ": " + failure.getMessage());
             throw failure;
         }
     }
 
-    private void run(String[] args) throws IOException {
+    private void run(String[] args, TitleJoin join) throws IOException {
         int language = target.mountAssets();
         int bootInput = UpstreamSinglePlayerInput.poll();
         boolean customRequested = args.length == 0 && bootInput >= 0
             && (bootInput & UpstreamSinglePlayerInput.L_HELD) != 0;
         boolean editorRequested = customRequested && (bootInput & UpstreamSinglePlayerInput.CAMPAIGN_HELD) != 0;
         editorRequested |= args.length > 0 && args[0].equals("--editor");
+        boolean databaseRequested = args.length > 0 && args[0].equals("--database");
+        boolean titleRequested = args.length > 0 && args[0].equals("--title");
+        boolean loadRequested = false;
         boolean campaignRequested = args.length == 0 && bootInput >= 0
             && (bootInput & UpstreamSinglePlayerInput.CAMPAIGN_HELD) != 0 && !customRequested;
-        Fi mapFile = !editorRequested && args.length >= 1 ? new Fi(args[0]) : firstExisting("/romfs/maps/groundZero.msav", "/3ds/min3dstry/groundZero.msav");
-        Fi saveFile = !editorRequested && args.length >= 2 ? new Fi(args[1]) : new Fi("/3ds/min3dstry/singleplayer-save.msav");
+        Fi mapFile = !editorRequested && !databaseRequested && !titleRequested && args.length >= 1
+            ? new Fi(args[0]) : firstExisting("/romfs/maps/groundZero.msav", "/3ds/min3dstry/groundZero.msav");
+        sourceMap = mapFile;
+        Fi saveFile = !editorRequested && !databaseRequested && !titleRequested && args.length >= 2
+            ? new Fi(args[1]) : new Fi("/3ds/min3dstry/singleplayer-save.msav");
         Fi atlas = firstExisting("/romfs/sprites.aatls", "/3ds/min3dstry/sprites.aatls");
         Fi mapDir = saveFile.parent() != null ? saveFile.parent() : new Fi("/3ds/min3dstry");
         var settings = UpstreamSinglePlayerSession.loadSettings(mapDir);
@@ -141,111 +186,83 @@ public final class UpstreamSinglePlayerApp {
         String requested = requestedLocale(preference, settings);
 
         Core.bundle = UpstreamInterfaceLocale.loadForStockClient(new Fi("/romfs/bundles/bundle"), language, requested);
+        UI.loadColors();
         var locale = Core.bundle.getLocale();
         String bundleTag = locale.getLanguage().isEmpty() ? "en" : locale.toString();
         System.out.println("UPSTREAM_INTERFACE_LOCALE system=" + language + " bundle=" + bundleTag
             + " router=" + Core.bundle.get("block.router.name") + " copper=" + Core.bundle.get("item.copper.name"));
 
-        session = UpstreamSinglePlayerSession.create(mapDir, bundleTag, new Fi("/romfs/planets"), settings,
-            new Fi("/romfs/maps"), audio.open());
-        Core.camera = new Camera();
-        audio.prepareWorld();
-        UpstreamSectorCapture.install();
-        Events.on(WaveEvent.class, event -> {
-            String warning = UpstreamGuardianWarning.find(Vars.state.rules, Vars.state.wave);
-            if (warning != null) UpstreamNotification.show(warning, 5f);
-        });
         try {
-            if (editorRequested) {
-                var source = args.length >= 2 ? new Fi(args[1]) : mapDir.child("editor-map.msav");
-                var output = args.length >= 3 ? new Fi(args[2]) : null;
-                var editor = new UpstreamMapEditorApp(target, source, output, mapDir.child("maps"));
-                editor.open();
-                loadInterfaceGraphics(atlas);
-                editor.run(viewport);
-                return;
-            }
-            CustomGame custom = null;
             Fi customSave = mapDir.child("custom-game-save.msav");
-            if (customRequested) {
-                var maps = UpstreamCustomGameMaps.discover(new Fi("/romfs/maps/default"), mapDir.child("maps"));
-                var saves = UpstreamCustomGameSaves.discover(Vars.saveDirectory, customSave);
-                if (!maps.isEmpty() || !saves.isEmpty()) {
-                    loadInterfaceRenderer();
-                    custom = chooseCustomGame(maps, saves);
-                    if (custom == null) return;
+            Fi defaultSave = saveFile;
+            while (true) {
+                saveFile = defaultSave;
+                if (titleRequested) {
+                    var selection = chooseTitleAction(atlas, saveFile, () -> prepareSession(mapDir, bundleTag, settings), join, settings);
+                    if (selection == null) return;
+                    campaignRequested = selection.action() == TitleAction.campaign;
+                    customRequested = selection.action() == TitleAction.custom;
+                    editorRequested = selection.action() == TitleAction.editor;
+                    loadRequested = selection.action() == TitleAction.load;
+                    if (loadRequested) {
+                        saveFile = selection.save();
+                        System.out.println("UPSTREAM_TITLE_LOAD_SELECTED file=" + saveFile.name());
+                    }
                 }
-            }
-            List<UpstreamSinglePlayerSession.SectorSlot> sectorSaves =
-                args.length < 2 && custom == null ? session.sectorSaves() : List.of();
-            UpstreamCampaignResearch.installAutoUnlocks();
-            boolean showCampaign = campaignRequested
-                || sectorSaves.stream().anyMatch(UpstreamSinglePlayerSession::needsCampaignRetry);
-            if (showCampaign) sectorSaves = session.campaignSlots(sectorSaves);
-            CampaignGame campaign = null;
-            if (sectorSaves.size() == 1 && !showCampaign) {
-                var selected = sectorSaves.get(0);
-                System.out.println("UPSTREAM_CAMPAIGN_SELECTED slot=" + selected.file.name() + " source=single name=" + selected.sector.name());
-                campaign = new CampaignGame(selected, null);
-            } else if (!sectorSaves.isEmpty()) {
-                campaign = chooseCampaign(sectorSaves, mapDir.child("campaign-select.txt"));
-                if (campaign == null) return;
-            }
-            // Load the initial world before initializing world sprites to keep peak TeaVM heap bounded.
-            if (campaign != null) {
-                saveFile = openCampaign(campaign);
-            } else if (custom == null) {
-                session.start(mapFile, saveFile, null);
-            } else {
-                if (custom.map == null) {
-                    saveFile = custom.save;
-                    System.out.println("UPSTREAM_CUSTOM_GAME_SELECTED source=save file=" + saveFile.name());
-                    session.start(null, saveFile, "customgame-save");
-                } else {
-                    saveFile = customSave;
-                    System.out.println("UPSTREAM_CUSTOM_GAME_SELECTED map=" + custom.map.file.name()
-                        + " mode=" + custom.mode.name());
-                    Gamemode mode = session.startCustomGame(custom.map, custom.mode);
-                    System.out.println("UPSTREAM_CUSTOM_GAME_STARTED map=" + custom.map.file.name() + " mode=" + mode.name());
+                prepareSession(mapDir, bundleTag, settings);
+                if (databaseRequested) {
+                    loadInterfaceGraphics(atlas);
+                    new UpstreamCoreDatabaseMenu(target).run();
+                    return;
                 }
-            }
-            loadInterfaceGraphics(atlas);
-            weatherLayers.load();
-            reportWeather();
-            Events.on(BlockBuildEndEvent.class, event -> {
-                if (event.tile == null) return;
-                if (!event.breaking && event.tile.build != null) {
-                    System.out.println("UPSTREAM_SP_BUILT block=" + event.tile.block().name
-                        + " x=" + event.tile.x + " y=" + event.tile.y
-                        + " rotation=" + event.tile.build.rotation);
-                } else if (event.breaking && event.tile.block() == Blocks.air) {
-                    System.out.println("UPSTREAM_SP_REMOVED x=" + event.tile.x + " y=" + event.tile.y);
+                if (editorRequested) {
+                    var source = !titleRequested && args.length >= 2 ? new Fi(args[1]) : mapDir.child("editor-map.msav");
+                    var output = !titleRequested && args.length >= 3 ? new Fi(args[2]) : null;
+                    var editor = new UpstreamMapEditorApp(target, source, output, mapDir.child("maps"));
+                    editor.open();
+                    loadInterfaceGraphics(atlas);
+                    editor.run(viewport);
+                    return;
                 }
-            });
-            campaignLoop:
-            while (runMainLoop(saveFile)) {
-                var origin = Vars.state.rules.sector;
-                boolean defeated = Vars.state.gameOver;
-                if (defeated) {
-                    session.saveCampaignDefeat(campaignSlot);
-                } else {
-                    session.save(campaignSlot);
+                CustomGame custom = null;
+                if (customRequested) {
+                    var maps = UpstreamCustomGameMaps.discover(new Fi("/romfs/maps/default"), mapDir.child("maps"));
+                    var saves = UpstreamCustomGameSaves.discover(Vars.saveDirectory, customSave);
+                    if (!maps.isEmpty() || !saves.isEmpty()) {
+                        loadInterfaceRenderer();
+                        custom = chooseCustomGame(maps, saves);
+                        if (custom == null) {
+                            if (titleRequested && !pickerExitRequested) continue;
+                            return;
+                        }
+                    } else if (titleRequested) {
+                        if (chooseTitleRow(Core.bundle.get("maps.none"), "back") == -2) return;
+                        continue;
+                    }
                 }
-                CampaignGame next;
-                do {
-                    if (defeated && !showCampaignDefeat(origin)) break campaignLoop;
-                    System.out.println("UPSTREAM_CAMPAIGN_WORLD_MENU sector=" + origin.id);
-                    next = chooseCampaign(session.campaignSlots(session.sectorSaves(), origin), null);
-                    if (campaignExitRequested) break campaignLoop;
-                } while (defeated && next == null);
-                // Opening the selector replaces the bottom-screen labels even if the player returns to this sector.
-                lastPrimaryShortcut = null;
-                previousVisualFrame = 0;
-                if (next == null || !defeated && next.slot().sector == origin) continue;
-                saveFile = openCampaign(next);
-                resetWorldInput();
-                weatherLayers.reset();
-                reportWeather();
+                List<UpstreamSinglePlayerSession.SectorSlot> sectorSaves =
+                    args.length < 2 && custom == null && !loadRequested ? session.sectorSaves() : List.of();
+                UpstreamCampaignResearch.installAutoUnlocks();
+                boolean showCampaign = campaignRequested
+                    || sectorSaves.stream().anyMatch(UpstreamSinglePlayerSession::needsCampaignRetry);
+                if (showCampaign) sectorSaves = session.campaignSlots(sectorSaves);
+                CampaignGame campaign = null;
+                if (sectorSaves.size() == 1 && !showCampaign) {
+                    var selected = sectorSaves.get(0);
+                    System.out.println("UPSTREAM_CAMPAIGN_SELECTED slot=" + selected.file.name() + " source=single name=" + selected.sector.name());
+                    campaign = new CampaignGame(selected, null);
+                } else if (!sectorSaves.isEmpty()) {
+                    campaign = chooseCampaign(sectorSaves, mapDir.child("campaign-select.txt"));
+                    if (campaign == null) {
+                        if (titleRequested && !pickerExitRequested) continue;
+                        return;
+                    }
+                }
+                playWorld(atlas, loadRequested ? null : mapFile, saveFile, customSave, custom, campaign);
+                if (!titleRequested || !returnToTitleRequested) return;
+                returnToTitleRequested = false;
+                campaignSlot = null;
+                returnToTitle();
             }
         } finally {
             if (campaignSlot != null && !Vars.state.gameOver) {
@@ -257,9 +274,98 @@ public final class UpstreamSinglePlayerApp {
                         + failure.getClass().getName() + ": " + failure.getMessage());
                 }
             }
-            session.shutdown();
+            if (session != null) session.shutdown();
             System.out.println("UPSTREAM_SP_EXIT");
         }
+    }
+
+    private void playWorld(Fi atlas, Fi mapFile, Fi saveFile, Fi customSave, CustomGame custom,
+                           CampaignGame campaign) throws IOException {
+        // Load the initial world before initializing world sprites to keep peak TeaVM heap bounded.
+        if (campaign != null) {
+            saveFile = openCampaign(campaign);
+        } else if (custom == null) {
+            session.start(mapFile, saveFile, null);
+        } else {
+            if (custom.map == null) {
+                saveFile = custom.save;
+                System.out.println("UPSTREAM_CUSTOM_GAME_SELECTED source=save file=" + saveFile.name());
+                session.start(null, saveFile, "customgame-save");
+            } else {
+                saveFile = customSave;
+                System.out.println("UPSTREAM_CUSTOM_GAME_SELECTED map=" + custom.map.file.name()
+                    + " mode=" + custom.mode.name());
+                Gamemode mode = session.startCustomGame(custom.map, custom.mode);
+                System.out.println("UPSTREAM_CUSTOM_GAME_STARTED map=" + custom.map.file.name() + " mode=" + mode.name());
+            }
+        }
+        loadInterfaceGraphics(atlas);
+        weatherLayers.load();
+        reportWeather();
+        uploadMinimap();
+        campaignLoop:
+        while (runMainLoop(saveFile)) {
+            var origin = Vars.state.rules.sector;
+            boolean defeated = Vars.state.gameOver;
+            if (defeated) {
+                session.saveCampaignDefeat(campaignSlot);
+            } else {
+                session.save(campaignSlot);
+            }
+            CampaignGame next;
+            do {
+                if (defeated && !showCampaignDefeat(origin)) break campaignLoop;
+                System.out.println("UPSTREAM_CAMPAIGN_WORLD_MENU sector=" + origin.id);
+                next = chooseCampaign(session.campaignSlots(session.sectorSaves(), origin), null);
+                if (pickerExitRequested) break campaignLoop;
+            } while (defeated && next == null);
+            // Opening the selector replaces the bottom-screen labels even if the player returns to this sector.
+            lastPrimaryShortcut = null;
+            previousVisualFrame = 0;
+            if (next == null || !defeated && next.slot().sector == origin) continue;
+            saveFile = openCampaign(next);
+            resetWorldInput();
+            weatherLayers.reset();
+            reportWeather();
+        }
+    }
+
+    private void returnToTitle() {
+        Vars.player.clearUnit();
+        resetWorldInput();
+        pauseAxis = 0;
+        previousVisualFrame = 0;
+        weatherLayers.reset();
+        UpstreamNotification.clear();
+        audio.leaveWorld();
+        Vars.logic.reset();
+        session.application().runPosted();
+        System.out.println("UPSTREAM_TITLE_RETURN");
+    }
+
+    private void prepareSession(Fi mapDir, String bundleTag, Settings settings) {
+        if (session != null) return;
+        session = UpstreamSinglePlayerSession.create(mapDir, bundleTag, new Fi("/romfs/planets"), settings,
+            new Fi("/romfs/maps"), audio.open());
+        Core.camera = new Camera();
+        audio.prepareWorld();
+        Events.on(BlockBuildEndEvent.class, event -> {
+            if (event.tile == null) return;
+            if (!event.breaking && event.tile.build != null) {
+                System.out.println("UPSTREAM_SP_BUILT block=" + event.tile.block().name
+                    + " x=" + event.tile.x + " y=" + event.tile.y
+                    + " rotation=" + event.tile.build.rotation);
+            } else if (event.breaking && event.tile.block() == Blocks.air) {
+                System.out.println("UPSTREAM_SP_REMOVED x=" + event.tile.x + " y=" + event.tile.y);
+            }
+        });
+        UpstreamSectorCapture.install();
+        Events.on(WaveEvent.class, event -> {
+            String warning = UpstreamGuardianWarning.find(Vars.state.rules, Vars.state.wave);
+            if (warning != null) UpstreamNotification.show(warning, 5f);
+        });
+        Events.run(Trigger.teamCoreDamage, () ->
+            UpstreamNotification.show(Core.bundle.get("coreattack"), 4f));
     }
 
     static String requestedLocale(Fi preference, Settings settings) {
@@ -282,7 +388,7 @@ public final class UpstreamSinglePlayerApp {
     private CampaignGame chooseCampaign(List<UpstreamSinglePlayerSession.SectorSlot> slots, Fi automatic) {
         if (slots.isEmpty()) return null;
         loadInterfaceRenderer();
-        while (!campaignExitRequested) {
+        while (!pickerExitRequested) {
             var selected = chooseSector(slots, automatic);
             if (selected == null) return null;
             if (selected.origin == null || selected.origin == selected.sector) return new CampaignGame(selected, null);
@@ -318,15 +424,31 @@ public final class UpstreamSinglePlayerApp {
         return campaignSlot;
     }
 
+    private static UpstreamLiveBuildControls createBuildControls() {
+        var controls = new UpstreamLiveBuildControls();
+        controls.schematics().nameCapturesWith(UpstreamTerrainRenderProbe::readSchematicName,
+            UpstreamTerrainRenderProbe::confirmSchematicReplacement);
+        controls.schematics().editWith(UpstreamTerrainRenderProbe::editSchematicName,
+            UpstreamTerrainRenderProbe::editSchematicDescription);
+        return controls;
+    }
+
     private void resetWorldInput() {
-        buildingControls = new UpstreamLiveBuildControls();
+        buildingControls = createBuildControls();
         controlled = null;
+        reportedControl = null;
         moving = false;
         inputDevice = null;
+        minimapView.reset();
         lastLeft = lastBottom = -1;
         lastMenu = null;
         lastStatus = null;
         lastObjectives = null;
+        lastBossText = null;
+        lastPositionText = null;
+        lastCoreItemCount = -1;
+        lastCoreItemDrawn = -1;
+        coreItemTracker.reset();
         reportedEnemies.clear();
         loadedUnitGraphics.clear();
         loadedBulletGraphics.clear();
@@ -353,7 +475,8 @@ public final class UpstreamSinglePlayerApp {
         while (true) {
             long nextFrame = System.nanoTime() + FRAME_NS;
             int input = UpstreamSinglePlayerInput.poll();
-            if (input < 0 || (input & (1 << 19)) != 0) {
+            if (input < 0 || (input & UpstreamSinglePlayerInput.B_PRESSED) != 0) {
+                if (input < 0) pickerExitRequested = true;
                 System.out.println("UPSTREAM_CUSTOM_GAME_CANCEL input=" + input);
                 return null;
             }
@@ -421,18 +544,238 @@ public final class UpstreamSinglePlayerApp {
     }
 
     private void drawMenuRows(MenuRows rows) {
+        drawMenuRows(rows, null);
+    }
+
+    private void drawMenuRows(MenuRows rows, byte[] titleControls) {
+        drawMenuRows(rows, titleControls, 2);
+    }
+
+    private void drawMenuRows(MenuRows rows, byte[] titleControls, int controlRows) {
         target.begin(0, 0, UpstreamTerrainDrawProbe.VIEW_WIDTH, UpstreamTerrainDrawProbe.VIEW_HEIGHT);
         try {
             float rowY = 6f;
             for (int i = 0; i < rows.labels.length; i++) {
                 rowY = target.drawObjective(rows.labels[i], rows.characters[i], null, rowY);
             }
+            if (titleControls != null) target.drawMenuHelp(titleControls, controlRows);
         } finally {
             target.end();
         }
     }
 
+    private enum TitleAction { campaign, custom, load, editor }
+
+    private record TitleSelection(TitleAction action, Fi save) {}
+
+    private TitleSelection chooseTitleAction(Fi atlas, Fi defaultSave, Runnable prepare, TitleJoin join, Settings settings) throws IOException {
+        loadInterfaceRenderer();
+        while (true) {
+            switch (chooseTitleRow("Mindustry", "play", "database.button", "editor", "settings", "quit")) {
+                case 0 -> {
+                    var playKeys = join == null ? new String[]{"campaign", "customgame", "loadgame"}
+                        : new String[]{"campaign", "joingame", "customgame", "loadgame"};
+                    int route = chooseTitleRow(Core.bundle.get("play"), playKeys);
+                    if (route == 0) return new TitleSelection(TitleAction.campaign, null);
+                    if (route == 1 && join != null) {
+                        if (join.open(session == null ? null : session.application(), interfaceGraphicsReady, settings)) return null;
+                        continue;
+                    }
+                    if (route > 0 && join != null) route--;
+                    if (route == 1) return new TitleSelection(TitleAction.custom, null);
+                    if (route == 2) {
+                        prepare.run();
+                        var customSave = defaultSave.parent().child("custom-game-save.msav");
+                        var saves = UpstreamCustomGameSaves.discoverForTitle(Vars.saveDirectory, defaultSave, customSave);
+                        if (saves.isEmpty()) {
+                            if (chooseTitleRow(Core.bundle.get("save.none"), "back") == -2) return null;
+                        } else {
+                            int selected = chooseTitlePagedRow(Core.bundle.get("loadgame"), saves.size(), 0,
+                                index -> saves.get(index).title());
+                            if (selected == -2) return null;
+                            if (selected >= 0) return new TitleSelection(TitleAction.load, saves.get(selected).file());
+                        }
+                    }
+                    if (route == -2) return null;
+                }
+                case 1 -> {
+                    int route = chooseTitleRow(Core.bundle.get("database.button"), "database", "about.button", "schematics");
+                    if (route == -2) return null;
+                    if (route == 0) {
+                        prepare.run();
+                        loadInterfaceGraphics(atlas);
+                        if (!new UpstreamCoreDatabaseMenu(target).run()) return null;
+                    } else if (route == 1 && !chooseTitleAbout()) {
+                        return null;
+                    } else if (route == 2) {
+                        prepare.run();
+                        if (!chooseTitleSchematics(new UpstreamSchematicPlacement(Vars.schematicDirectory))) return null;
+                    }
+                }
+                case 2 -> { return new TitleSelection(TitleAction.editor, null); }
+                case 3 -> {
+                    if (!chooseTitleSettings(settings)) return null;
+                }
+                default -> { return null; }
+            }
+        }
+    }
+
+    private boolean chooseTitleSchematics(UpstreamSchematicPlacement library) {
+        Fi[] files = library.libraryFiles();
+        System.out.println("UPSTREAM_TITLE_SCHEMATICS files=" + files.length);
+        return browseTitlePages(Core.bundle.get("schematics"), files.length, index -> {
+            String name = UpstreamSchematicPlacement.readDisplayName(files[index]);
+            return name != null ? name : files[index].nameWithoutExtension();
+        }, index -> showTitleSchematic(library, files[index]));
+    }
+
+    private boolean showTitleSchematic(UpstreamSchematicPlacement library, Fi file) {
+        try {
+            var schematic = UpstreamSchematicPlacement.readSchematic(file);
+            System.out.println("UPSTREAM_TITLE_SCHEMATIC file=" + file.name() + " blocks=" + schematic.tiles.size);
+            var details = Core.bundle.format("schematic.info", schematic.width, schematic.height, schematic.tiles.size);
+            int action = chooseTitleRow(schematic.name(), 0,
+                new String[]{Core.bundle.get("schematic.edit"), Core.bundle.get("back")},
+                details, schematic.description());
+            if (action == 0) {
+                library.editMetadata(file, UpstreamTerrainRenderProbe::editSchematicName,
+                    UpstreamTerrainRenderProbe::editSchematicDescription);
+            }
+            return action != -2;
+        } catch (IOException | RuntimeException failure) {
+            System.out.println("UPSTREAM_TITLE_SCHEMATIC_ERROR file=" + file.name());
+            return chooseTitleRow(Core.bundle.get("error"), "back") != -2;
+        }
+    }
+
+    private boolean chooseTitleAbout() {
+        var links = mindustry.ui.Links.getLinks();
+        System.out.println("UPSTREAM_TITLE_ABOUT links=" + links.length);
+        return browseTitlePages(Core.bundle.get("about.button"), links.length + 1,
+            index -> index == 0 ? Core.bundle.get("credits") : links[index - 1].title,
+            index -> {
+                if (index == 0) return showTitleCredits();
+                var link = links[index - 1];
+                return chooseTitleRow(link.title, 0, new String[]{Core.bundle.get("back")},
+                    link.description, link.link) != -2;
+            });
+    }
+
+    private boolean browseTitlePages(String title, int count, java.util.function.IntFunction<String> option,
+                                     java.util.function.IntPredicate choose) {
+        if (count == 0) return chooseTitleRow(title, "back") != -2;
+        int selected = 0;
+        while (true) {
+            selected = chooseTitlePagedRow(title, count, selected, option);
+            if (selected < 0) return selected == -1;
+            if (!choose.test(selected)) return false;
+        }
+    }
+
+    private int chooseTitlePagedRow(String title, int count, int selected, java.util.function.IntFunction<String> option) {
+        final int pageSize = 7;
+        while (true) {
+            int first = selected / pageSize * pageSize;
+            int end = Math.min(first + pageSize, count);
+            var options = new String[end - first + (first > 0 ? 1 : 0) + (end < count ? 1 : 0)];
+            int offset = first > 0 ? 1 : 0;
+            if (offset == 1) options[0] = "<";
+            for (int index = first; index < end; index++) {
+                options[offset + index - first] = option.apply(index);
+            }
+            if (end < count) options[options.length - 1] = ">";
+            int row = chooseTitleRow(title, offset + selected - first, options);
+            if (row < 0) return row;
+            if (row < offset) {
+                selected = first - 1;
+            } else if (first + row - offset >= end) {
+                selected = end;
+            } else {
+                return first + row - offset;
+            }
+        }
+    }
+
+    private boolean showTitleCredits() {
+        var credits = new Fi("/romfs/contributors").readString("UTF-8").split("\n");
+        System.out.println("UPSTREAM_TITLE_CREDITS contributors=" + credits.length);
+        final int pageSize = 7;
+        for (int start = 0; ; ) {
+            int end = Math.min(start + pageSize, credits.length);
+            boolean previous = start > 0, next = end < credits.length;
+            var names = new String[2 + end - start];
+            names[0] = Strings.stripColors(Core.bundle.get("credits.text"));
+            names[1] = Core.bundle.get("contributors");
+            for (int i = start; i < end; i++) names[2 + i - start] = credits[i].strip();
+            var actions = new String[(previous ? 1 : 0) + (next ? 1 : 0) + 1];
+            int back = actions.length - 1;
+            if (previous) actions[0] = "<";
+            if (next) actions[back - 1] = ">";
+            actions[back] = Core.bundle.get("back");
+            int row = chooseTitleRow(Core.bundle.get("credits"), Math.max(0, back - 1), actions, names);
+            if (row < 0 || row == back) return row != -2;
+            start += previous && row == 0 ? -pageSize : pageSize;
+        }
+    }
+
+    private boolean chooseTitleSettings(Settings settings) {
+        openHudSettings(settings);
+        System.out.println("UPSTREAM_TITLE_SETTINGS coreitems=" + settingsMenu.coreItems());
+        while (true) {
+            int row = chooseTitleRow(Core.bundle.get("settings"), settingsMenu.selected(), hudSettingsRows());
+            if (row < 0) return row == -1;
+            settingsMenu.move(row - settingsMenu.selected());
+            if (settingsMenu.backSelected()) return true;
+            if (settingsMenu.soundSelected()) {
+                if (!chooseSoundSettings(settings)) return false;
+            } else {
+                toggleHudSetting(settings);
+                settings.manualSave();
+            }
+        }
+    }
+
+    private int chooseTitleRow(String title, String... optionKeys) {
+        var captions = new String[optionKeys.length];
+        for (int i = 0; i < optionKeys.length; i++) captions[i] = Core.bundle.get(optionKeys[i]);
+        return chooseTitleRow(title, 0, captions);
+    }
+
+    private int chooseTitleRow(String title, int selected, String[] options, String... headings) {
+        int previousY = 0, drawn = -1;
+        MenuRows rows = null;
+        byte[] controls = ("A  " + Core.bundle.get("ok") + "\0B  " + Core.bundle.get("back") + "\0")
+            .getBytes(StandardCharsets.UTF_8);
+        UpstreamSinglePlayerInput.poll();
+        while (true) {
+            long nextFrame = System.nanoTime() + FRAME_NS;
+            int input = UpstreamSinglePlayerInput.poll();
+            if (input < 0) return -2;
+            int touch = UpstreamTerrainRenderProbe.menuHelpAction(UpstreamSinglePlayerInput.touch(), 2);
+            if ((input & UpstreamSinglePlayerInput.B_PRESSED) != 0 || touch == 1) return -1;
+            int y = (byte)(input >> 8);
+            if (y > 60 && previousY <= 20) selected = Math.floorMod(selected - 1, options.length);
+            if (y < -60 && previousY >= -20) selected = (selected + 1) % options.length;
+            previousY = y;
+            if ((input & UpstreamSinglePlayerInput.A_PRESSED) != 0 || touch == 0) return selected;
+            if (drawn != selected) {
+                var captions = new String[options.length + headings.length + 1];
+                captions[0] = title;
+                System.arraycopy(headings, 0, captions, 1, headings.length);
+                for (int i = 0; i < options.length; i++) {
+                    captions[i + headings.length + 1] = (selected == i ? "> " : "  ") + options[i];
+                }
+                rows = encodeMenuRows(captions);
+                drawn = selected;
+            }
+            drawMenuRows(rows, controls);
+            while (System.nanoTime() < nextFrame) Thread.yield();
+        }
+    }
+
     private void loadInterfaceGraphics(Fi atlas) {
+        if (interfaceGraphicsReady) return;
         System.out.println("UPSTREAM_INTERFACE_GRAPHICS atlas");
         UpstreamTerrainDrawProbe.loadAtlas(atlas, UpstreamFluidAtlas::load);
         UpstreamLogicGraphics.load(new Fi("/romfs"));
@@ -440,6 +783,7 @@ public final class UpstreamSinglePlayerApp {
         UpstreamCrackAtlas.load();
         viewport = UpstreamTerrainDrawProbe.liveViewport(target);
         loadInterfaceRenderer();
+        interfaceGraphicsReady = true;
         System.out.println("UPSTREAM_INTERFACE_GRAPHICS ready");
     }
 
@@ -456,6 +800,7 @@ public final class UpstreamSinglePlayerApp {
     private UpstreamSinglePlayerSession.SectorSlot chooseSector(
             List<UpstreamSinglePlayerSession.SectorSlot> slots, Fi automatic) {
         int selected = UpstreamSinglePlayerSession.lastSectorRow(slots);
+        final boolean globeAvailable = target.campaignPlanetAvailable();
         int lastAxis = 0;
         System.out.println("UPSTREAM_CAMPAIGN_MENU slots=" + slots.size() + " selected=" + slots.get(selected).file.name());
         if (automatic != null && automatic.exists() && !automatic.isDirectory() && automatic.length() <= 16) {
@@ -494,11 +839,188 @@ public final class UpstreamSinglePlayerApp {
                 return slot;
             }
             if (renderedRow != selected) {
-                rows = encodeMenuRows(campaignCaptions(slots, selected));
+                var captions = campaignCaptions(slots, selected);
+                if (globeAvailable) {
+                    captions = Arrays.copyOf(captions, captions.length + 1);
+                    captions[captions.length - 1] = "X " + Core.bundle.get("planet", "Planet Map");
+                }
+                rows = encodeMenuRows(captions);
                 renderedRow = selected;
+            }
+            if (globeAvailable && (input & UpstreamSinglePlayerInput.X_PRESSED) != 0) {
+                var slot = chooseSectorOnGlobe(slots, slots.get(selected).sector);
+                if (slot != null || pickerExitRequested) return slot;
             }
             drawMenuRows(rows);
             while (System.nanoTime() < nextFrame) Thread.yield();
+        }
+    }
+
+    private UpstreamSinglePlayerSession.SectorSlot chooseSectorOnGlobe(
+            List<UpstreamSinglePlayerSession.SectorSlot> slots, Sector initial) {
+        Vars.universe.updateGlobal();
+        if (initial.planet != Planets.erekir && initial.planet != Planets.serpulo) {
+            initial = Planets.serpulo.getStartSector();
+        }
+        var globe = new UpstreamCampaignGlobe(initial);
+        var overlay = new UpstreamCampaignSectorOverlay();
+        var grid = new UpstreamCampaignGrid();
+        var arcs = new UpstreamCampaignArcs();
+        var markers = new UpstreamCampaignMarkers();
+        UpstreamCampaignSurface surface = null;
+        boolean checkedSurface = false;
+        boolean liveSurface = false;
+        long openedAt = System.nanoTime();
+        float cursorX = 200, cursorY = 120;
+        MenuRows rows = null;
+        Sector previous = null;
+        Sector previousSelection = null;
+        UpstreamSinglePlayerSession.SectorSlot preview = null;
+        Planet previousPlanet = null;
+        boolean gridLogged = false, arcsLogged = false;
+        int stableFrames = 0;
+
+        try {
+            while (true) {
+                long nextFrame = System.nanoTime() + FRAME_NS;
+                int input = pollCampaignInput();
+                if (input == -1) return null;
+                if ((input & UpstreamSinglePlayerInput.B_PRESSED) != 0) {
+                    if (preview == null) return null;
+                    preview = null;
+                }
+                if ((input & UpstreamSinglePlayerInput.WAVE_PRESSED) != 0) {
+                    preview = null;
+                    globe.switchPlanet();
+                    cursorX = 200;
+                    cursorY = 120;
+                }
+                if ((input & (1 << 26)) != 0) globe.zoom(0.9f);
+                if ((input & (1 << 27)) != 0) globe.zoom(1 / 0.9f);
+                globe.rotate((byte)input, (byte)(input >> 8));
+                int touch = UpstreamSinglePlayerInput.touch();
+                if (touch != -1) {
+                    cursorX = (touch & 0xffff) * 400f / 320f;
+                    cursorY = touch >>> 16;
+                }
+
+                Sector sector = globe.update(cursorX, cursorY);
+                UpstreamSinglePlayerSession.SectorSlot hovered = null;
+                for (var slot : slots) {
+                    if (slot.sector == sector) {
+                        hovered = slot;
+                        break;
+                    }
+                }
+                if ((input & UpstreamSinglePlayerInput.A_PRESSED) != 0) {
+                    if (preview != null && (hovered == null || hovered == preview)) {
+                        System.out.println("UPSTREAM_CAMPAIGN_SELECTED slot=" + preview.file.name()
+                            + " name=" + preview.sector.name() + " source=planet-map");
+                        return preview;
+                    }
+                    if (hovered != null) {
+                        preview = hovered;
+                        System.out.println("UPSTREAM_CAMPAIGN_GLOBE_PREVIEW planet=" + preview.sector.planet.name
+                            + " sector=" + preview.sector.id + " resume=" + (preview.origin == null));
+                    }
+                }
+                Sector selectedSector = preview == null ? null : preview.sector;
+                boolean planetChanged = previousPlanet != globe.planet();
+                if (planetChanged) gridLogged = arcsLogged = false;
+                if (rows == null || previous != sector || previousSelection != selectedSector || planetChanged) {
+                    stableFrames = 0;
+                    Sector labelSector = selectedSector == null ? sector : selectedSector;
+                    String label = labelSector == null ? "" : " / " + Strings.stripColors(labelSector.name());
+                    String action = preview != null
+                        ? (hovered != null && hovered != preview ? "sectors.select"
+                            : preview.origin == null ? "sectors.resume" : "sectors.launch")
+                        : hovered == null ? null : "sectors.select";
+                    rows = encodeMenuRows(new String[]{
+                        globe.planet().localizedName + label,
+                        "Y " + Core.bundle.get("planet", "Planet") + "   B "
+                            + Core.bundle.get(preview == null ? "back" : "cancel"),
+                        action == null ? "" : "A " + Core.bundle.get(action),
+                    });
+                    previous = sector;
+                    previousSelection = selectedSector;
+                    previousPlanet = globe.planet();
+                    if (sector != null) {
+                        System.out.println("UPSTREAM_CAMPAIGN_GLOBE planet=" + globe.planet().name
+                            + " sector=" + sector.id + " available=" + (hovered != null));
+                    }
+                }
+                float ticks = (System.nanoTime() - openedAt) * (60f / 1_000_000_000f);
+                Sector active = Vars.state.getSector();
+                if (globe.planet() == Planets.serpulo) {
+                    if (!checkedSurface) {
+                        checkedSurface = true;
+                        try {
+                            surface = UpstreamCampaignSurface.open(Planets.serpulo,
+                                new Fi("/romfs/planet-meshes/serpulo.m3ps"));
+                            if (surface != null) Vars.content.loadColors(new Fi("/romfs/block_colors.png"));
+                        } catch (IOException failure) {
+                            System.out.println("UPSTREAM_CAMPAIGN_SURFACE_ERROR " + failure.getMessage());
+                        }
+                    }
+                    if (surface != null) surface.update(192);
+                }
+                int[] surfaceFaces = UpstreamCampaignSurface.packedFaces(
+                    globe.planet() == Planets.serpulo ? surface : null);
+                boolean updatedSurface = surfaceFaces.length != 0;
+                if (liveSurface != updatedSurface) {
+                    liveSurface = updatedSurface;
+                    stableFrames = 0;
+                }
+                overlay.update(globe.planet(), active, sector, selectedSector, ticks);
+                int sectorVertices = overlay.vertices.size / UpstreamCampaignSectorOverlay.FLOATS_PER_VERTEX;
+                int gridEdges = grid.append(globe.planet(), globe.projection, globe.gridCursor, overlay.vertices);
+                int gridVertices = overlay.vertices.size / UpstreamCampaignSectorOverlay.FLOATS_PER_VERTEX - sectorVertices;
+                int routeCount = arcs.append(globe.planet(), active, sector, selectedSector,
+                    ticks, globe.projection, overlay.vertices);
+                int overlayVertices = overlay.vertices.size / UpstreamCampaignSectorOverlay.FLOATS_PER_VERTEX;
+                markers.update(globe, sector, ticks);
+                // The 20x12 framing gives the globe the full 400x240 top screen.
+                target.begin(0, 0, 20, 12);
+                try {
+                    if (!target.drawCampaignPlanet(globe.meshIndex(), globe.projection.val, globe.lighting,
+                            overlay.vertices.items, overlayVertices, sectorVertices, surfaceFaces,
+                            markers.ids.items, markers.planes.items, globe.camera.combined.val, markers.ids.size / 2)) {
+                        System.out.println("UPSTREAM_CAMPAIGN_GLOBE_ERROR planet=" + globe.planet().name);
+                        return null;
+                    }
+                    if (planetChanged) {
+                        System.out.println("UPSTREAM_CAMPAIGN_SECTOR_OVERLAY planet=" + globe.planet().name
+                            + " vertices=" + sectorVertices + " shadowed=" + overlay.shadowed
+                            + " outlined=" + overlay.outlined + " marked=" + overlay.marked);
+                    }
+                    if (!gridLogged && gridEdges > 0) {
+                        gridLogged = true;
+                        System.out.println("UPSTREAM_CAMPAIGN_SECTOR_GRID planet=" + globe.planet().name
+                            + " edges=" + gridEdges + " vertices=" + gridVertices);
+                    }
+                    if (!arcsLogged && routeCount > 0) {
+                        arcsLogged = true;
+                        System.out.println("UPSTREAM_CAMPAIGN_SECTOR_ARCS planet=" + globe.planet().name
+                            + " routes=" + routeCount);
+                    }
+                    target.hudPanel(cursorX - 4, cursorY, 9, 1, -1);
+                    target.hudPanel(cursorX, cursorY - 4, 1, 9, -1);
+                    target.drawObjective(rows.labels[0], rows.characters[0], null, 6);
+                    target.drawObjective(rows.labels[1], rows.characters[1], null, 210);
+                    if (rows.characters[2].length > 0) target.drawObjective(rows.labels[2], rows.characters[2], null, 192);
+                } finally {
+                    target.end();
+                }
+                if (stableFrames < 3 && ++stableFrames == 3) {
+                    // FrameBegin has synchronized earlier draws in this same selection state.
+                    System.out.println("UPSTREAM_CAMPAIGN_GLOBE_FRAME planet=" + globe.planet().name
+                        + " sector=" + (sector == null ? -1 : sector.id)
+                        + " selection=" + (selectedSector == null ? -1 : selectedSector.id) + " surface=" + liveSurface);
+                }
+                while (System.nanoTime() < nextFrame) Thread.yield();
+            }
+        } finally {
+            target.releaseCampaignPlanet();
         }
     }
 
@@ -649,7 +1171,7 @@ public final class UpstreamSinglePlayerApp {
 
     private int pollCampaignInput() {
         int input = UpstreamSinglePlayerInput.poll();
-        if (input == -1) campaignExitRequested = true;
+        if (input == -1) pickerExitRequested = true;
         return input;
     }
 
@@ -769,72 +1291,178 @@ public final class UpstreamSinglePlayerApp {
 
     private boolean runMainLoop(Fi saveFile) throws IOException {
         var unit = session.ensurePlayerSpawn();
-        var core = session.core();
-        lastCopper = core == null ? 0 : core.items.get(Items.copper);
+        UpstreamHudFixture.apply();
+        lastCopper = session.coreCopper();
         if (unit != null) {
             System.out.println("UPSTREAM_SP_READY unit=" + unit.id() + " x=" + unit.x() + " y=" + unit.y()
                 + " copper=" + lastCopper + " wave=" + Vars.state.wave);
         }
 
         long previousTime = System.nanoTime();
+        session.beginPlaytimeInterval(previousTime);
         long accumulator = 0L;
         while (true) {
             UpstreamNotification.update(1f / 60f);
             int input = UpstreamSinglePlayerInput.poll();
+            long now = System.nanoTime();
+            session.updatePlaytime(now);
             if (input == -1) return false;
             if (campaignSlot != null && (input & UpstreamSinglePlayerInput.CAMPAIGN_HELD) != 0
                     && (input & UpstreamSinglePlayerInput.SAVE_PRESSED) != 0) return true;
             int touch = UpstreamSinglePlayerInput.touch();
-            long now = System.nanoTime();
 
             var sector = Vars.state.rules.sector;
             int researchKeys = UpstreamSinglePlayerInput.L_HELD | UpstreamSinglePlayerInput.SAVE_PRESSED;
             if (sector != null && sector.planet.techTree != null && (input & researchKeys) == researchKeys) {
                 if (!openResearch(sector.planet.techTree, saveFile)) return false;
                 previousTime = System.nanoTime();
+                session.beginPlaytimeInterval(previousTime);
                 accumulator = 0L;
                 continue;
             }
 
-            moveInput.set((byte)input / 127f, (byte)(input >>> 8) / 127f);
-            if (moveInput.len2() < DEAD_ZONE * DEAD_ZONE) {
-                moveInput.setZero();
+            int axis = (byte)(input >> 8);
+            int direction = axis > 60 && pauseAxis <= 20 ? -1 : axis < -60 && pauseAxis >= -20 ? 1 : 0;
+            pauseAxis = axis;
+            if (pauseOpen) {
+                if (settingsOpen) {
+                    if (direction != 0) settingsMenu.move(direction);
+                    if ((input & UpstreamSinglePlayerInput.A_PRESSED) != 0) {
+                        if (settingsMenu.backSelected()) {
+                            settingsOpen = false;
+                        } else if (settingsMenu.soundSelected()) {
+                            if (!chooseSoundSettings(Core.settings)) return false;
+                            previousTime = System.nanoTime();
+                        } else {
+                            toggleHudSetting(Core.settings);
+                        }
+                    } else if ((input & (UpstreamSinglePlayerInput.B_PRESSED
+                            | UpstreamSinglePlayerInput.X_PRESSED)) != 0) {
+                        settingsOpen = false;
+                    }
+                    moveInput.setZero();
+                } else {
+                    if ((input & UpstreamSinglePlayerInput.WAVE_PRESSED) != 0 && !pauseMenu.confirmingQuit()) {
+                        if (!new UpstreamCoreDatabaseMenu(target).run()) return false;
+                        previousTime = System.nanoTime();
+                        accumulator = 0L;
+                        continue;
+                    }
+                    if (direction != 0) pauseMenu.move(direction);
+                    if ((input & UpstreamSinglePlayerInput.A_PRESSED) != 0) {
+                        var action = pauseMenu.activate();
+                        if (action == UpstreamPauseMenu.Action.RESUME) {
+                            closePauseMenu();
+                        } else if (action == UpstreamPauseMenu.Action.LOAD) {
+                            closePauseMenu();
+                            var loadSector = Vars.state.rules.sector;
+                            // Drop UI and player references before decoding the replacement world.
+                            unit = null;
+                            resetWorldInput();
+                            Vars.player.clearUnit();
+                            var slotToReload = campaignSlot;
+                            // A failed decode must not let the exit handler overwrite this save.
+                            campaignSlot = null;
+                            session.start(sourceMap, saveFile, slotToReload == null ? null : "campaign", loadSector);
+                            campaignSlot = slotToReload;
+                            weatherLayers.reset();
+                            reportWeather();
+                            uploadMinimap();
+                            previousTime = System.nanoTime();
+                            accumulator = 0L;
+                            System.out.println("UPSTREAM_PAUSE_MENU load=true");
+                            continue;
+                        } else if (action == UpstreamPauseMenu.Action.RESEARCH) {
+                            closePauseMenu();
+                            var researchSector = Vars.state.rules.sector;
+                            if (researchSector == null || researchSector.planet == null
+                                    || researchSector.planet.techTree == null
+                                    || !openResearch(researchSector.planet.techTree, saveFile)) return false;
+                            previousTime = System.nanoTime();
+                            accumulator = 0L;
+                            continue;
+                        } else if (action == UpstreamPauseMenu.Action.SETTINGS) {
+                            settingsOpen = true;
+                            openHudSettings(Core.settings);
+                            System.out.println("UPSTREAM_PAUSE_MENU settings=true");
+                        } else if (action == UpstreamPauseMenu.Action.SAVE) {
+                            session.save(saveFile);
+                            System.out.println("UPSTREAM_PAUSE_MENU save=true");
+                        } else if (action == UpstreamPauseMenu.Action.QUIT) {
+                            pauseOpen = false;
+                            session.save(saveFile);
+                            returnToTitleRequested = true;
+                            System.out.println("UPSTREAM_PAUSE_MENU quit=true");
+                            return false;
+                        }
+                    } else if ((input & (UpstreamSinglePlayerInput.B_PRESSED
+                            | UpstreamSinglePlayerInput.X_PRESSED)) != 0) {
+                        if (pauseMenu.cancel() == UpstreamPauseMenu.Action.RESUME) closePauseMenu();
+                    }
+                    moveInput.setZero();
+                }
             } else {
-                moveInput.limit(1f);
-            }
-            boolean aimHeld = (input & UpstreamSinglePlayerInput.X_HELD) != 0;
-            boolean fireHeld = (input & UpstreamSinglePlayerInput.L_HELD) != 0;
-            if (weaponInput.releasePauses((input & UpstreamSinglePlayerInput.X_PRESSED) != 0,
-                    aimHeld, !moveInput.isZero(), fireHeld, now)) {
-                boolean paused = session.togglePause();
-                System.out.println("UPSTREAM_SP_PAUSE paused=" + paused + " updateId=" + Vars.state.updateId);
-            }
-            if ((input & UpstreamSinglePlayerInput.WAVE_PRESSED) != 0) {
-                int wave = session.triggerWave();
-                int enemies = Groups.unit.count(u -> u.team == Vars.state.rules.waveTeam && !u.dead);
-                System.out.println("UPSTREAM_SP_WAVE wave=" + wave + " enemies=" + enemies);
-            }
-            if ((input & UpstreamSinglePlayerInput.SAVE_PRESSED) != 0) {
-                session.save(saveFile);
-                if (unit != null) {
-                    int shots = UpstreamOfflineWeaponInput.totalShots(unit);
-                    if (shots > 0) System.out.println("UPSTREAM_SP_WEAPON_SAVED shots=" + shots);
+                moveInput.set((byte)input / 127f, (byte)(input >>> 8) / 127f);
+                if (moveInput.len2() < DEAD_ZONE * DEAD_ZONE) {
+                    moveInput.setZero();
+                } else {
+                    moveInput.limit(1f);
+                }
+                boolean mapWasOpen = minimapView.open();
+                if ((input & UpstreamSinglePlayerInput.R_PRESSED) != 0) {
+                    if (mapWasOpen) minimapView.close(); else minimapView.openView();
+                    System.out.println("UPSTREAM_MINIMAP_VIEW open=" + minimapView.open());
+                }
+                if (minimapView.open()) {
+                    if ((input & UpstreamSinglePlayerInput.B_PRESSED) != 0) {
+                        minimapView.close();
+                        System.out.println("UPSTREAM_MINIMAP_VIEW open=false");
+                    }
+                    if ((input & UpstreamSinglePlayerInput.X_PRESSED) != 0) minimapView.zoomBy(-0.5f);
+                    if ((input & UpstreamSinglePlayerInput.WAVE_PRESSED) != 0) minimapView.zoomBy(0.5f);
+                    if ((input & (UpstreamSinglePlayerInput.X_PRESSED
+                            | UpstreamSinglePlayerInput.WAVE_PRESSED)) != 0) {
+                        System.out.println("UPSTREAM_MINIMAP_VIEW zoom=" + minimapView.zoom());
+                    }
+                    if (!moveInput.isZero()) {
+                        minimapView.move(-moveInput.x * 4f, moveInput.y * 4f);
+                    }
+                    moveInput.setZero();
+                } else {
+                    boolean aimHeld = (input & UpstreamSinglePlayerInput.X_HELD) != 0;
+                    boolean fireHeld = (input & UpstreamSinglePlayerInput.L_HELD) != 0;
+                    if (weaponInput.releasePauses((input & UpstreamSinglePlayerInput.X_PRESSED) != 0,
+                            aimHeld, !moveInput.isZero(), fireHeld, now)) {
+                        openPauseMenu();
+                    }
+                    if ((input & UpstreamSinglePlayerInput.WAVE_PRESSED) != 0) {
+                        int wave = session.triggerWave();
+                        int enemies = Groups.unit.count(u -> u.team == Vars.state.rules.waveTeam && !u.dead);
+                        System.out.println("UPSTREAM_SP_WAVE wave=" + wave + " enemies=" + enemies);
+                    }
+                    if ((input & UpstreamSinglePlayerInput.SAVE_PRESSED) != 0) {
+                        session.save(saveFile);
+                        if (unit != null) {
+                            int shots = UpstreamOfflineWeaponInput.totalShots(unit);
+                            if (shots > 0) System.out.println("UPSTREAM_SP_WEAPON_SAVED shots=" + shots);
+                        }
+                    }
+
+                    unit = session.ensurePlayerSpawn();
+                    if (unit != null) {
+                        buildingControls.update(unit, input, touch);
+                        unit = session.ensurePlayerSpawn();
+                    }
+                    if (unit != null) {
+                        boolean anchored = unit instanceof BlockUnitc;
+                        boolean overlay = buildingControls.blocksWeaponInput();
+                        weaponInput.update(unit, moveInput, (anchored || weaponInput.aimMode()) && !moveInput.isZero(),
+                            fireHeld && !overlay && !Vars.state.isPaused());
+                        if (anchored) moveInput.setZero();
+                    }
+                    if (weaponInput.aimMode()) moveInput.setZero();
                 }
             }
-
-            unit = session.ensurePlayerSpawn();
-            if (unit != null) {
-                buildingControls.update(unit, input, touch);
-                unit = session.ensurePlayerSpawn();
-            }
-            if (unit != null) {
-                boolean anchored = unit instanceof BlockUnitc;
-                boolean overlay = buildingControls.blocksWeaponInput();
-                weaponInput.update(unit, moveInput, (anchored || weaponInput.aimMode()) && !moveInput.isZero(),
-                    fireHeld && !overlay && !Vars.state.isPaused());
-                if (anchored) moveInput.setZero();
-            }
-            if (weaponInput.aimMode()) moveInput.setZero();
             long elapsed = Math.min(Math.max(0L, now - previousTime), FRAME_NS * 4L);
             previousTime = now;
             accumulator += elapsed;
@@ -887,6 +1515,19 @@ public final class UpstreamSinglePlayerApp {
         }
     }
 
+    private void uploadMinimap() {
+        byte[] pixels = UpstreamMinimap.sample(64);
+        if (pixels == null) return;
+        target.minimapUpload(pixels, 64, 64);
+        if (!reportedMinimap) {
+            reportedMinimap = true;
+            int marker = UpstreamMinimap.playerIndex(64);
+            System.out.println("UPSTREAM_MINIMAP size=64 hash="
+                + Long.toUnsignedString(UpstreamMinimap.hash(pixels), 16)
+                + (marker < 0 ? "" : " cell=" + (marker % 64) + "," + (marker / 64)));
+        }
+    }
+
     private void updateBuildLabels() {
         var primary = buildingControls.shortcut(0);
         if (primary == lastPrimaryShortcut) return;
@@ -905,19 +1546,31 @@ public final class UpstreamSinglePlayerApp {
     private void render(Unit unit) {
         session.advanceRenderFrame();
         updateBuildLabels();
+        if (++minimapFrame >= 60) {
+            minimapFrame = 0;
+            uploadMinimap();
+        }
         controlled = unit;
+        if (buildingControls != null) {
+            int zoom = buildingControls.consumeZoom();
+            if (zoom != 0) {
+                viewport.zoomBy(zoom * UpstreamTerrainDrawProbe.ZOOM_STEP);
+                System.out.println("UPSTREAM_CAMERA_ZOOM zoom=" + viewport.zoom()
+                    + " span=" + viewport.width() + "x" + viewport.height());
+            }
+        }
         float x = unit == null ? Vars.player.x() : unit.x();
         float y = unit == null ? Vars.player.y() : unit.y();
-        viewport.moveTo(World.toTile(x) - UpstreamTerrainDrawProbe.VIEW_WIDTH / 2,
-                        World.toTile(y) - UpstreamTerrainDrawProbe.VIEW_HEIGHT / 2);
-        Core.camera.width = UpstreamTerrainDrawProbe.VIEW_WIDTH * Vars.tilesize;
-        Core.camera.height = UpstreamTerrainDrawProbe.VIEW_HEIGHT * Vars.tilesize;
+        viewport.moveTo(World.toTile(x) - viewport.width() / 2,
+                        World.toTile(y) - viewport.height() / 2);
+        Core.camera.width = viewport.width() * Vars.tilesize;
+        Core.camera.height = viewport.height() * Vars.tilesize;
         Core.camera.position.set((viewport.left - 0.5f) * Vars.tilesize + Core.camera.width / 2f,
             (viewport.bottom - 0.5f) * Vars.tilesize + Core.camera.height / 2f);
         advanceVisualState();
         draws = 0;
         viewport.draw(drawWeatherUnder, drawEntities);
-        buildingControls.viewport(viewport.left, viewport.bottom);
+        buildingControls.viewport(viewport.left, viewport.bottom, viewport.width(), viewport.height());
         if (unit != null && (lastLeft != viewport.left || lastBottom != viewport.bottom)) {
             lastLeft = viewport.left;
             lastBottom = viewport.bottom;
@@ -961,8 +1614,8 @@ public final class UpstreamSinglePlayerApp {
             for (var unit : Groups.unit) {
                 if (unit instanceof BlockUnitc) continue;
                 int x = World.toTile(unit.x()), y = World.toTile(unit.y());
-                if (x < viewport.left || x >= viewport.left + UpstreamTerrainDrawProbe.VIEW_WIDTH
-                        || y < viewport.bottom || y >= viewport.bottom + UpstreamTerrainDrawProbe.VIEW_HEIGHT) continue;
+                if (x < viewport.left || x >= viewport.left + viewport.width()
+                        || y < viewport.bottom || y >= viewport.bottom + viewport.height()) continue;
                 loadUnitGraphics(unit);
                 unit.draw();
                 if (unit == controlled) draws++;
@@ -973,22 +1626,33 @@ public final class UpstreamSinglePlayerApp {
             }
             for (var bullet : Groups.bullet) {
                 int x = World.toTile(bullet.x()), y = World.toTile(bullet.y());
-                if (x < viewport.left || x >= viewport.left + UpstreamTerrainDrawProbe.VIEW_WIDTH
-                        || y < viewport.bottom || y >= viewport.bottom + UpstreamTerrainDrawProbe.VIEW_HEIGHT) continue;
+                if (x < viewport.left || x >= viewport.left + viewport.width()
+                        || y < viewport.bottom || y >= viewport.bottom + viewport.height()) continue;
                 loadBulletGraphics(bullet.type());
                 bullet.draw();
             }
         } finally {
             Draw.sort(false);
         }
-        UpstreamObjectiveMarkers.draw(Vars.state.rules, 240f / (UpstreamTerrainDrawProbe.VIEW_HEIGHT * Vars.tilesize),
+        UpstreamObjectiveMarkers.draw(Vars.state.rules, 240f / (viewport.height() * Vars.tilesize),
             worldLabel);
-        weatherLayers.drawOver();
+        if (Core.settings.getBool("showweather", true)) weatherLayers.drawOver();
         var orders = buildingControls.orders();
         orders.draw(viewport);
         var schematics = buildingControls.schematics();
         schematics.draw(viewport);
-        drawObjectives(drawStatusHud());
+        drawCoreItems();
+        drawPositionReadout();
+        float hudY = drawStatusHud();
+        // Base Block.setBars order: health, power, items, then liquids.
+        hudY = buildingBasicBars.drawHealth(target, buildingControls, Vars.player.team(), hudY);
+        hudY = buildingPowerHud.draw(target, buildingControls, Vars.player.team(), hudY);
+        hudY = buildingBasicBars.drawItems(target, buildingControls, Vars.player.team(), hudY);
+        hudY = buildingLiquidHud.draw(target, buildingControls, Vars.player.team(), hudY);
+        drawObjectives(hudY);
+        drawBossBar();
+        if (pauseOpen) drawPauseMenu();
+        else drawFullscreenMinimap();
         var block = buildingControls.block();
         var catalog = buildingControls.catalog();
         var config = buildingControls.buildingConfig();
@@ -1043,44 +1707,277 @@ public final class UpstreamSinglePlayerApp {
 
     private void drawWorldLabel(UpstreamLabelText.Label text, float x, float y, int flags, float size, int align, int lineAlign) {
         if (encodedLabel != text) {
-            encodedCharacters = encodeLabel(text);
+            encodedCharacters = UpstreamHudLabels.encodeLabel(text);
             encodedLabel = text;
         }
         target.drawWorldLabel(text.plain(), encodedCharacters, x, y, flags, size, align, lineAlign);
     }
 
-    private static int[] encodeLabel(UpstreamLabelText.Label text) {
-        int[] encoded = new int[text.characters().size() * 7];
-        int offset = 0;
-        for (var glyph : text.characters()) {
-            var art = glyph.art();
-            encoded[offset++] = glyph.codepoint();
-            encoded[offset++] = glyph.color();
-            encoded[offset++] = art == null ? -1 : UpstreamTerrainDrawProbe.pageIndex(art);
-            encoded[offset++] = art == null ? 0 : art.getX();
-            encoded[offset++] = art == null ? 0 : art.getY();
-            encoded[offset++] = art == null ? 0 : art.width;
-            encoded[offset++] = art == null ? 0 : art.height;
-        }
-        return encoded;
-    }
-
     private float drawStatusHud() {
-        var rows = UpstreamStatusHud.collect();
+        var rows = new java.util.ArrayList<>(UpstreamStatusHud.collect());
+        if (Core.settings.getBool("showperformance", false)) {
+            int fps = frameSeconds > 0f ? Math.round(1f / frameSeconds) : 0;
+            rows.add(new UpstreamObjectiveHud.Row("FPS " + fps, "FPS " + fps, "none", null));
+        }
         if (!rows.equals(lastStatus)) {
             statusLabels = new byte[rows.size()][];
             statusCharacters = new int[rows.size()][];
             for (int i = 0; i < rows.size(); i++) {
                 statusLabels[i] = (rows.get(i).text() + "\0").getBytes(StandardCharsets.UTF_8);
-                statusCharacters[i] = encodeLabel(UpstreamLabelText.parse(UI.formatIcons(rows.get(i).markup())));
+                statusCharacters[i] = UpstreamHudLabels.encodeLabel(UpstreamLabelText.parse(UI.formatIcons(rows.get(i).markup())));
             }
             lastStatus = rows;
         }
         float y = 4f;
-        for (int i = 0; i < rows.size() && y < 240f; i++) {
-            y = target.drawObjective(statusLabels[i], statusCharacters[i], rows.get(i).icon(), y);
+        int start = 0;
+        if (!rows.isEmpty() && UpstreamNotification.current() != null) {
+            y = target.drawObjective(statusLabels[0], statusCharacters[0], rows.get(0).icon(), y);
+            start = 1;
+        }
+        if (rows.size() > start) {
+            float panelHeight = (rows.size() - start) * 35f + 4f;
+            target.hudPanel(2f, y - 1f, 164f, panelHeight, 0xE0201B18);
+        }
+        for (int i = start; i < rows.size() && y < 240f; i++) {
+            y = target.drawObjectivePlain(statusLabels[i], statusCharacters[i], rows.get(i).icon(), y);
         }
         return y;
+    }
+
+    private void drawFullscreenMinimap() {
+        if (!minimapView.open()) return;
+        target.hudPanel(0f, 0f, UpstreamMinimapView.screenWidth, UpstreamMinimapView.screenHeight, 0xF0080A0C);
+        target.drawMinimapAt(minimapView.x(), minimapView.y(), minimapView.size());
+        if (minimapViewTitle == null) {
+            String title = Core.bundle.get("minimap");
+            minimapViewTitle = (title + "\0").getBytes(StandardCharsets.UTF_8);
+            minimapViewTitleCharacters = UpstreamHudLabels.encodeLabel(UpstreamLabelText.parse(UI.formatIcons(title)));
+            String back = Core.bundle.get("back") + "  R/B";
+            minimapViewBack = (back + "\0").getBytes(StandardCharsets.UTF_8);
+            minimapViewBackCharacters = UpstreamHudLabels.encodeLabel(UpstreamLabelText.parse(UI.formatIcons(back)));
+        }
+        target.drawObjectiveAt(minimapViewTitle, minimapViewTitleCharacters, null, 8f, 4f);
+        target.drawObjectiveAt(minimapViewBack, minimapViewBackCharacters, null, 8f, 196f);
+    }
+
+    private void drawPositionReadout() {
+        if (!Core.settings.getBool("position", false)) return;
+        var unit = Vars.player == null ? null : Vars.player.unit();
+        if (unit == null) return;
+        String text = unit.tileX() + "," + unit.tileY();
+        if (!text.equals(lastPositionText)) {
+            positionLabel = (text + "\0").getBytes(StandardCharsets.UTF_8);
+            positionCharacters = UpstreamHudLabels.encodeLabel(UpstreamLabelText.parse(text));
+            lastPositionText = text;
+        }
+        target.drawObjectiveAt(positionLabel, positionCharacters, null, 336f, 68f);
+    }
+
+    private void drawCoreItems() {
+        if (!Core.settings.getBool("coreitems", true)) return;
+        var items = coreItemTracker.live();
+        float x = 168f;
+        float y = 4f;
+        int drawn = 0;
+        for (var entry : items) {
+            var item = entry.item();
+            if (item.uiIcon == null) item.loadIcon();
+            var icon = item.uiIcon != null && item.uiIcon.found() ? item.uiIcon : null;
+            String value = entry.formatted();
+            byte[] label = (value + "\0").getBytes(StandardCharsets.UTF_8);
+            int[] characters = UpstreamHudLabels.encodeLabel(UpstreamLabelText.parse(value));
+            float next = target.drawObjectiveAt(label, characters, icon, x, y);
+            if (next >= 240f) {
+                x += 56f;
+                if (x > 280f) break;
+                y = 4f;
+                next = target.drawObjectiveAt(label, characters, icon, x, y);
+            }
+            if (next >= 240f) break;
+            y = next;
+            drawn++;
+        }
+        int columns = items.isEmpty() ? 0 : (int) ((x - 168f) / 56f) + 1;
+        if (items.size() != lastCoreItemCount || drawn != lastCoreItemDrawn) {
+            lastCoreItemCount = items.size();
+            lastCoreItemDrawn = drawn;
+            System.out.println("UPSTREAM_ITEM_ROWS items=" + items.size()
+                + " drawn=" + drawn + " columns=" + columns);
+        }
+    }
+
+    private void openPauseMenu() {
+        var sector = Vars.state.rules.sector;
+        boolean research = sector != null && sector.planet != null && sector.planet.techTree != null;
+        pauseMenu.openWorld(research);
+        openHudSettings(Core.settings);
+        settingsOpen = false;
+        pauseOpen = true;
+        if (!Vars.state.isPaused()) session.togglePause();
+        System.out.println("UPSTREAM_PAUSE_MENU open=true selected=0 options=" + pauseMenu.options());
+    }
+
+    private void closePauseMenu() {
+        pauseOpen = false;
+        if (Vars.state.isPaused()) session.togglePause();
+        System.out.println("UPSTREAM_PAUSE_MENU open=false");
+    }
+
+    private void drawPauseMenu() {
+        drawPauseRow(Core.bundle.get(Vars.state.isPaused() ? "paused" : "menu"), 170f, 24f, false);
+        var sector = Vars.state.rules.sector;
+        if (sector != null) {
+            drawPauseRow(sector.planet.localizedName + " / " + sector.name(), 160f, 48f, false);
+        }
+        if (sector != null) {
+            var objectives = UpstreamObjectiveHud.collect(Vars.state.rules);
+            if (!objectives.isEmpty()) {
+                drawPauseRow(objectives.get(0).text(), 100f, 72f, false);
+            }
+        }
+        if (settingsOpen) {
+            drawPauseRow(Core.bundle.get("settings"), 170f, 100f, false);
+            var rows = hudSettingsRows();
+            float y = 116f;
+            for (int i = 0; i < rows.length; i++) {
+                boolean selected = settingsMenu.selected() == i;
+                drawPauseRow((selected ? "> " : "  ") + rows[i], 92f, y, selected);
+                y += 18f;
+            }
+            return;
+        }
+        float y = 80f;
+        for (int i = 0; i < pauseMenu.options(); i++) {
+            boolean selected = i == pauseMenu.selected();
+            String label = Core.bundle.get(pauseMenu.actionAt(i).labelKey);
+            drawPauseRow((selected ? "> " : "  ") + label, 170f, y, selected);
+            y += 24f;
+        }
+        if (pauseMenu.confirmingQuit()) {
+            drawPauseRow(Core.bundle.get("quit.confirm"), 40f, 210f, false);
+        } else {
+            drawPauseRow("Y  " + Core.bundle.get("database"), 44f, 210f, false);
+        }
+    }
+
+    private void openHudSettings(Settings settings) {
+        settingsMenu.open(settings.getBool("coreitems", true), settings.getBool("minimap", true),
+            settings.getBool("showweather", true), settings.getBool("showperformance", false), settings.getBool("position", false));
+    }
+
+    private void toggleHudSetting(Settings settings) {
+        int index = settingsMenu.selected();
+        boolean enabled = settingsMenu.toggleSelected();
+        switch (index) {
+            case 0 -> {
+                settings.put("coreitems", enabled);
+                lastCoreItemCount = -1;
+                lastCoreItemDrawn = -1;
+            }
+            case 1 -> settings.put("minimap", enabled);
+            case 2 -> settings.put("showweather", enabled);
+            case 3 -> settings.put("showperformance", enabled);
+            case 4 -> settings.put("position", enabled);
+        }
+        System.out.println("UPSTREAM_SETTINGS index=" + index + " value=" + enabled);
+    }
+
+    private String[] hudSettingsRows() {
+        return new String[]{
+            hudSettingRow("setting.coreitems.name", settingsMenu.coreItems()),
+            hudSettingRow("setting.minimap.name", settingsMenu.minimap()),
+            hudSettingRow("setting.showweather.name", settingsMenu.weather()),
+            hudSettingRow("setting.showperformance.name", settingsMenu.performance()),
+            hudSettingRow("setting.position.name", settingsMenu.position()),
+            Core.bundle.get("settings.sound"),
+            Core.bundle.get("back")
+        };
+    }
+
+    private boolean chooseSoundSettings(Settings settings) {
+        String[] keys = {"musicvol", "sfxvol", "ambientvol"};
+        int[] volume = new int[keys.length];
+        for (int i = 0; i < keys.length; i++) volume[i] = Mathf.clamp(settings.getInt(keys[i], 100), 0, 100);
+        byte[] help = ("Left   -\0Right   +\0B   " + Core.bundle.get("back") + "\0")
+            .getBytes(StandardCharsets.UTF_8);
+        int selected = 0, lastY = 0, lastDirection = 0;
+        long repeatAt = 0;
+        boolean changed = false;
+        MenuRows rows = null;
+        UpstreamSinglePlayerInput.poll();
+        while (true) {
+            long started = System.nanoTime();
+            int input = UpstreamSinglePlayerInput.poll();
+            int touch = UpstreamTerrainRenderProbe.menuHelpAction(UpstreamSinglePlayerInput.touch(), 3);
+            if (input < 0 || touch == 2 || (input & UpstreamSinglePlayerInput.B_PRESSED) != 0) {
+                if (changed) settings.manualSave();
+                return input >= 0;
+            }
+            int y = (byte)(input >> 8);
+            if (y > 60 && lastY <= 20) {
+                selected = Math.floorMod(selected - 1, keys.length);
+                rows = null;
+            }
+            if (y < -60 && lastY >= -20) {
+                selected = (selected + 1) % keys.length;
+                rows = null;
+            }
+            lastY = y;
+            int x = (byte)input;
+            int direction = x < -60 ? -1 : x > 60 ? 1 : 0;
+            int delta = touch == 0 ? -1 : touch == 1 ? 1 : 0;
+            if (direction != lastDirection) {
+                repeatAt = started + 350_000_000L;
+                if (delta == 0) delta = direction;
+            } else if (direction != 0 && started >= repeatAt && delta == 0) {
+                delta = direction;
+                repeatAt = started + 65_000_000L;
+            }
+            lastDirection = direction;
+            int next = Mathf.clamp(volume[selected] + delta, 0, 100);
+            if (next != volume[selected]) {
+                volume[selected] = next;
+                settings.put(keys[selected], next);
+                changed = true;
+                rows = null;
+            }
+            if (rows == null) {
+                var captions = new String[keys.length + 1];
+                captions[0] = Core.bundle.get("settings.sound");
+                for (int i = 0; i < keys.length; i++) {
+                    captions[i + 1] = (i == selected ? "> " : "  ") + Core.bundle.get("setting." + keys[i] + ".name")
+                        + "  " + volume[i] + "%";
+                }
+                rows = encodeMenuRows(captions);
+            }
+            drawMenuRows(rows, help, 3);
+            while (System.nanoTime() < started + FRAME_NS) Thread.yield();
+        }
+    }
+
+    private static String hudSettingRow(String label, boolean enabled) {
+        return Core.bundle.get(label) + ": " + Core.bundle.get(enabled ? "on" : "off");
+    }
+
+    private void drawPauseRow(String text, float x, float y, boolean selected) {
+        String markup = (selected ? "[accent]" : "[lightgray]") + text;
+        byte[] label = (arc.util.Strings.stripColors(text) + "\0").getBytes(StandardCharsets.UTF_8);
+        int[] characters = UpstreamHudLabels.encodeLabel(UpstreamLabelText.parse(UI.formatIcons(markup)));
+        target.drawObjectiveAt(label, characters, null, x, y);
+    }
+
+    private void drawBossBar() {
+        var boss = UpstreamBossHud.collect();
+        if (boss == null) return;
+        if (!boss.markup().equals(lastBossText)) {
+            bossLabel = (arc.util.Strings.stripColors(boss.markup()) + "\0").getBytes(StandardCharsets.UTF_8);
+            bossCharacters = UpstreamHudLabels.encodeLabel(UpstreamLabelText.parse(UI.formatIcons(boss.markup())));
+            lastBossText = boss.markup();
+        }
+        float next = target.drawObjectiveAt(bossLabel, bossCharacters, null, 40f, 184f);
+        target.hudPanel(40f, next - 2f, 320f, 12f, 0xE0201B18);
+        float fill = 318f * boss.fraction();
+        if (fill > 0f) target.hudPanel(41f, next - 1f, fill, 10f, 0xE0D23C3C);
     }
 
     private void drawObjectives(float y) {
@@ -1090,7 +1987,7 @@ public final class UpstreamSinglePlayerApp {
             objectiveCharacters = new int[rows.size()][];
             for (int i = 0; i < rows.size(); i++) {
                 objectiveLabels[i] = (rows.get(i).text() + "\0").getBytes(StandardCharsets.UTF_8);
-                objectiveCharacters[i] = encodeLabel(UpstreamLabelText.parse(UI.formatIcons(rows.get(i).markup())));
+                objectiveCharacters[i] = UpstreamHudLabels.encodeLabel(UpstreamLabelText.parse(UI.formatIcons(rows.get(i).markup())));
             }
             lastObjectives = rows;
         }

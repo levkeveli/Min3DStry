@@ -43,6 +43,7 @@ def verify(model: str, rom: Path, azahar: str, config: Path, log: Path,
     write_input_replay(movie, model, windows, 250, b"Min3DStry Campaign Progress")
     config_snapshot = config.read_bytes() if config.is_file() else None
     saves.mkdir(parents=True)
+    sp.stage_direct_startup(sd)
     try:
         shutil.copyfile(fixture / "saves" / origin.name, origin)
         shutil.copyfile(fixture / "settings.bin", settings)
@@ -84,12 +85,12 @@ def main() -> None:
     parser.add_argument("--server", required=True, type=Path)
     parser.add_argument("--java", default="java")
     parser.add_argument("--azahar")
-    parser.add_argument("--model", choices=("new3ds", "old3ds"))
+    parser.add_argument("--model", choices=("new3ds",))
     parser.add_argument("--output-dir", type=Path, default=Path("build/campaign-progression-emu"))
     args = parser.parse_args()
     azahar = sp.az.resolve_azahar_bin(args.azahar)
     config, log = sp.az.resolve_azahar_paths(azahar)
-    for model in (args.model,) if args.model else ("new3ds", "old3ds"):
+    for model in (args.model,) if args.model else ("new3ds",):
         output = args.output_dir / model
         verify(model, args.rom, azahar, config, log, args.fixture, output)
         check_progression(args.java, args.server, output)

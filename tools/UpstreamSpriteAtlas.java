@@ -1,12 +1,18 @@
 import arc.Core;
 import arc.Settings;
 import arc.files.Fi;
+import arc.freetype.FreeTypeFontGenerator;
+import arc.freetype.FreeTypeFontGenerator.FreeTypeFontParameter;
 import arc.graphics.Texture;
+import arc.graphics.g2d.PixmapPacker;
 import arc.graphics.g2d.TextureAtlas;
 import arc.graphics.g2d.TextureAtlas.TextureAtlasData;
 import arc.graphics.g2d.TextureAtlas.TextureAtlasData.AtlasPage;
 import arc.graphics.g2d.TextureAtlas.TextureAtlasData.Region;
 import arc.mock.MockApplication;
+import arc.mock.MockFiles;
+import arc.mock.MockGL20;
+import arc.util.ArcNativesLoader;
 
 import java.awt.Color;
 import java.awt.Font;
@@ -30,6 +36,7 @@ import mindustry.Vars;
 import mindustry.ai.ItemUnitStance;
 import mindustry.core.ContentLoader;
 import mindustry.core.GameState;
+import mindustry.ctype.ContentType;
 import mindustry.ctype.UnlockableContent;
 import mindustry.gen.Iconc;
 import mindustry.type.UnitType;
@@ -57,6 +64,10 @@ class UpstreamSpriteAtlas {
             Map<String, Region> regions = writeInventory(atlas, output);
             if (args.length == 3 && args[2].equals("--world-pages")) {
                 exportWorldPages(archive, atlas, output);
+                return;
+            }
+            if (args.length == 3 && args[2].equals("--campaign-icons")) {
+                exportCampaignIcons(archive, atlas, regions, output);
                 return;
             }
             // Keep only one decoded upstream page in memory at a time.
@@ -111,8 +122,7 @@ class UpstreamSpriteAtlas {
         Files.writeString(output.resolve("world_atlas_layout.h"), header.append("};\n").toString());
     }
 
-    private static void exportMenuIcons(ZipFile archive, TextureAtlasData atlas, Map<String, Region> regions,
-            Path output, Path sprites) throws IOException {
+    private static void initializeIconLookup(TextureAtlasData atlas) throws IOException {
         var lookup = new TextureAtlas();
         for (AtlasPage page : atlas.getPages()) {
             var texture = new InventoryTexture(page.width, page.height);
@@ -131,7 +141,127 @@ class UpstreamSpriteAtlas {
         Vars.content = new ContentLoader();
         Vars.content.createBaseContent();
         Vars.content.init();
+    }
 
+    private static void exportCampaignIcons(ZipFile archive, TextureAtlasData atlas, Map<String, Region> regions,
+            Path output) throws IOException {
+        initializeIconLookup(atlas);
+        Path textures = Files.createDirectory(output.resolve("planet-icons"));
+        Map<String, Region> icons = new LinkedHashMap<>();
+        try (var manifest = Files.newBufferedWriter(output.resolve("planet-icons.tsv"))) {
+            manifest.write("file\tcontent\tregion\twidth\theight\n");
+            for (ContentType type : Vars.defaultContentIcons) {
+                for (UnlockableContent entry : Vars.content.getBy(type).<UnlockableContent>as()) {
+                    addMenuIcon(entry, "content-" + type.ordinal(), false, regions, icons, manifest);
+                }
+            }
+            for (var preset : Vars.content.sectors()) {
+                var region = regions.get("sector-" + preset.name);
+                if (region == null) continue;
+                String name = "preset-" + preset.id;
+                icons.put(name, region);
+                manifest.write(String.join("\t", name, preset.name, region.name,
+                    Integer.toString(region.width), Integer.toString(region.height)) + "\n");
+            }
+            var fallback = regions.get("error");
+            icons.put("error", fallback);
+            manifest.write("error\terror\terror\t" + fallback.width + "\t" + fallback.height + "\n");
+            for (AtlasPage page : atlas.getPages()) {
+                BufferedImage source = null;
+                for (var entry : icons.entrySet()) {
+                    Region region = entry.getValue();
+                    if (region.page != page) continue;
+                    if (region.rotate) throw new IOException("Unexpected rotated campaign icon: " + region.name);
+                    if (source == null) source = readPage(archive, page);
+                    var pixels = source.getSubimage(region.left, region.top, region.width, region.height);
+                    writeTexture(pixels, textures.resolve(entry.getKey() + ".t3x"));
+                }
+            }
+            int glyphs = writeCampaignGlyphs(archive, textures, manifest);
+            System.out.printf("Original campaign icons: %d content and presets, %d glyphs%n", icons.size(), glyphs);
+        }
+    }
+
+    private static int writeCampaignGlyphs(ZipFile archive, Path textures, java.io.Writer manifest) throws IOException {
+        var font = new Fi("assets/fonts/icon.ttf") {
+            @Override
+            public ByteBuffer map() {
+                return null;
+            }
+
+            @Override
+            public long length() {
+                return archive.getEntry(path()).getSize();
+            }
+
+            @Override
+            public InputStream read() {
+                try {
+                    return open(archive, path());
+                } catch (IOException failure) {
+                    throw new UncheckedIOException(failure);
+                }
+            }
+        };
+        ArcNativesLoader.load();
+        Core.gl = Core.gl20 = new MockGL20();
+        Core.files = new MockFiles();
+        var generator = new FreeTypeFontGenerator(font);
+        var packer = new PixmapPacker(512, 512, 2, false);
+        try {
+            // Mindustry v160.8 Fonts.loadFonts uses these parameters for iconLarge.
+            var params = new FreeTypeFontParameter();
+            params.size = 48;
+            params.characters = "\0" + Iconc.all;
+            params.borderWidth = 5f;
+            params.borderColor = arc.graphics.Color.darkGray;
+            params.packer = packer;
+            var data = generator.generateData(params);
+            int count = 0;
+            for (char code : Iconc.all.toCharArray()) {
+                var glyph = data.getGlyph(code);
+                if (glyph == null || glyph.width == 0 || glyph.height == 0) continue;
+                writeCampaignGlyph(glyph, packer, "glyph-" + (int)code, textures, manifest);
+                count++;
+            }
+            char terrain = (char)Iconc.codes.get("terrain", -1);
+            var small = new FreeTypeFontParameter();
+            small.size = 30;
+            small.characters = "\0" + terrain;
+            var smallPacker = new PixmapPacker(128, 128, 2, false);
+            try {
+                small.packer = smallPacker;
+                var glyph = generator.generateData(small).getGlyph(terrain);
+                if (glyph == null) throw new IOException("No stock terrain fallback icon");
+                writeCampaignGlyph(glyph, smallPacker, "preset-terrain", textures, manifest);
+            } finally {
+                smallPacker.dispose();
+            }
+            return count + 1;
+        } finally {
+            packer.dispose();
+            generator.dispose();
+        }
+    }
+
+
+    private static void writeCampaignGlyph(arc.graphics.g2d.Font.Glyph glyph, PixmapPacker packer,
+            String name, Path textures, java.io.Writer manifest) throws IOException {
+        var page = packer.getPages().get(glyph.page).getPixmap();
+        var pixels = new BufferedImage(glyph.width, glyph.height, BufferedImage.TYPE_INT_ARGB);
+        for (int y = 0; y < glyph.height; y++) {
+            for (int x = 0; x < glyph.width; x++) {
+                int rgba = page.get(glyph.srcX + x, glyph.srcY + y);
+                pixels.setRGB(x, y, (rgba >>> 8) | (rgba << 24));
+            }
+        }
+        writeTexture(pixels, textures.resolve(name + ".t3x"));
+        manifest.write(name + "\t" + glyph.id + "\ticon.ttf\t" + glyph.width + "\t" + glyph.height + "\n");
+    }
+
+    private static void exportMenuIcons(ZipFile archive, TextureAtlasData atlas, Map<String, Region> regions,
+            Path output, Path sprites) throws IOException {
+        initializeIconLookup(atlas);
         Map<String, Region> icons = new LinkedHashMap<>();
         var factoryUnits = new LinkedHashSet<UnitType>();
         Path catalog = Files.createDirectory(output.resolve("catalog"));

@@ -11,6 +11,7 @@ import arc.mock.MockFiles;
 import arc.mock.MockGraphics;
 import arc.struct.ObjectSet;
 import arc.struct.Seq;
+import arc.struct.StringMap;
 import arc.util.ArcRuntimeException;
 import arc.util.Time;
 import java.io.IOException;
@@ -26,7 +27,9 @@ import mindustry.content.Items;
 import mindustry.content.Planets;
 import mindustry.content.UnitTypes;
 import mindustry.core.GameState.State;
+import mindustry.ctype.ContentType;
 import mindustry.entities.EntityCollisions;
+import mindustry.entities.Units;
 import mindustry.entities.units.BuildPlan;
 import mindustry.game.EventType.ResetEvent;
 import mindustry.game.EventType.RulesLoadEvent;
@@ -48,13 +51,16 @@ import mindustry.io.JsonIO;
 import mindustry.io.MapIO;
 import mindustry.io.SaveIO;
 import mindustry.io.SaveMeta;
+import mindustry.io.SaveOptions;
 import mindustry.maps.Map;
 import mindustry.type.Planet;
 import mindustry.type.Sector;
+import mindustry.type.UnitType;
 import mindustry.logic.GlobalVars;
 import mindustry.mod.Mods;
 import mindustry.world.Tile;
 import mindustry.world.WorldParams;
+import mindustry.world.blocks.ControlBlock;
 import mindustry.world.blocks.storage.CoreBlock;
 import mindustry.world.blocks.storage.CoreBlock.CoreBuild;
 
@@ -67,7 +73,11 @@ public final class UpstreamSinglePlayerSession {
     private final UpstreamWorldLoadProbe.ProbeApplication app;
     private final Vec2 tmpMove = new Vec2();
     private Saves campaignSaves;
+    private Fi recoveredCampaignSlot;
     private float deltaSeconds = FIXED_STEP_SECONDS;
+    private long playtimeMillis, playtimeRemainderNanos, playtimeFrameNanos;
+    private UnitType savedControlledType;
+    private String savedControlGroups = "null";
 
     private UpstreamSinglePlayerSession(UpstreamWorldLoadProbe.ProbeApplication app) {
         this.app = app;
@@ -182,13 +192,14 @@ public final class UpstreamSinglePlayerSession {
 
     boolean start(Fi mapFile, Fi saveFile, String sourceTagOverride, Sector sector) throws IOException {
         String source;
-        boolean loadedFromSave = saveFile != null && saveFile.exists() && SaveIO.isSaveValid(saveFile);
+        Fi sourceSave = sector != null && saveFile != null ? UpstreamCampaignSave.readableFile(saveFile) : saveFile;
+        boolean loadedFromSave = sourceSave != null && sourceSave.exists() && SaveIO.isSaveValid(sourceSave);
         if (loadedFromSave) {
-            if (sector != null) {
-                SaveIO.load(saveFile, Vars.world.makeSectorContext(sector));
-            } else {
-                SaveIO.load(saveFile);
-            }
+            var playerTags = new StringMap();
+            if (sector == null) SaveIO.load(sourceSave, Vars.world.context, playerTags);
+            else loadCampaignSave(saveFile, sector, playerTags);
+            resetPlaytime(playerTags.getLong("playtime"));
+            restorePlayerMetadata(playerTags);
             app.runPosted();
             Vars.avoidance.init();
             Vars.state.set(State.playing);
@@ -201,6 +212,8 @@ public final class UpstreamSinglePlayerSession {
             var map = MapIO.createMap(mapFile, false);
             Mathf.rand.setSeed(160_008L);
             Vars.world.loadMap(map);
+            resetPlaytime(0);
+            restorePlayerMetadata(null);
             app.runPosted();
             Vars.avoidance.init();
             Vars.logic.play();
@@ -209,6 +222,11 @@ public final class UpstreamSinglePlayerSession {
         }
         reportLoadedWorld(source);
         return loadedFromSave;
+    }
+
+    private void loadCampaignSave(Fi slot, Sector sector, StringMap playerTags) {
+        Fi loaded = SaveIO.load(UpstreamCampaignSave.readableFile(slot), Vars.world.makeSectorContext(sector), playerTags);
+        recoveredCampaignSlot = loaded.equals(slot) ? null : slot;
     }
 
     void launchNewSector(Sector origin, Sector sector, Fi saveFile) throws IOException {
@@ -232,7 +250,7 @@ public final class UpstreamSinglePlayerSession {
         if (!sector.planet.clearSectorOnLose && !sector.planet.campaignRules.clearSectorOnLose) {
             Vars.logic.reset();
             try {
-                SaveIO.load(slot.file, Vars.world.makeSectorContext(sector));
+                loadCampaignSave(slot.file, sector, null);
                 app.runPosted();
                 recovery = UpstreamCampaignRecovery.prepare(sector, params);
             } finally {
@@ -259,6 +277,8 @@ public final class UpstreamSinglePlayerSession {
             Vars.universe.updateLaunchResources(loadout.resources());
         }
         Vars.world.loadSector(sector, params);
+        resetPlaytime(0);
+        restorePlayerMetadata(null);
         if (loadout != null) {
             origin.removeItems(loadout.cost());
             Events.fire(new SectorLaunchLoadoutEvent(sector, origin, loadout.schematic()));
@@ -291,6 +311,7 @@ public final class UpstreamSinglePlayerSession {
         if (Vars.state.map != map || Vars.world.isInvalidMap()) {
             throw new IOException("Could not load map " + map.file.name());
         }
+        resetPlaytime(0);
         app.runPosted();
         map.spawns = Vars.spawner.countSpawns();
         map.teams.clear();
@@ -311,6 +332,7 @@ public final class UpstreamSinglePlayerSession {
         rules.retainContentFields(Vars.state.rules);
         Vars.state.rules = rules;
         rules.sector = null;
+        restorePlayerMetadata(null);
         rules.editor = false;
         Events.fire(new RulesLoadEvent(rules));
         Vars.avoidance.init();
@@ -446,13 +468,20 @@ public final class UpstreamSinglePlayerSession {
     private void readSectorSaves(Fi directory, Seq<SectorSlot> result, ObjectSet<Sector> found) {
         if (!directory.isDirectory()) return;
         // Scan only the sector paths accepted by the launcher. Saves.load() also remaps campaign files.
-        for (Fi file : directory.list()) {
-            String name = file.name();
-            if (file.isDirectory() || !name.startsWith("sector-") || !name.endsWith(".msav")
-                    || name.endsWith("-backup.msav") || !SaveIO.isSaveValid(file)) continue;
+        for (Fi entry : directory.list()) {
+            String name = entry.name();
+            if (entry.isDirectory() || !name.startsWith("sector-") || !name.endsWith(".msav")) continue;
+            Fi file = entry;
+            if (name.endsWith("-backup.msav")) {
+                String primary = name.substring(0, name.length() - "-backup.msav".length());
+                if (!primary.endsWith(".msav")) continue;
+                file = entry.sibling(primary);
+                if (file.exists()) continue;
+            }
+            if (!SaveIO.isSaveValid(entry)) continue;
             SaveMeta meta;
             try {
-                meta = SaveIO.getMeta(file);
+                meta = SaveIO.getMeta(entry);
             } catch (ArcRuntimeException ignored) {
                 continue;
             }
@@ -516,7 +545,7 @@ public final class UpstreamSinglePlayerSession {
         return null;
     }
 
-    Unit ensurePlayerSpawn() {
+    private void ensurePlayerObject() {
         if (Vars.player == null) {
             Vars.player = Player.create();
             Vars.player.team(Vars.state.rules.defaultTeam);
@@ -525,9 +554,44 @@ public final class UpstreamSinglePlayerSession {
         } else if (!Vars.player.isAdded()) {
             Vars.player.add();
         }
+    }
+
+    private void restorePlayerMetadata(StringMap tags) {
+        ensurePlayerObject();
+        Vars.player.clearUnit();
+        Vars.player.reset();
+        savedControlGroups = "null";
+        savedControlledType = null;
+        if (tags == null) return;
+        var position = new Vec2().tryFromString(tags.get("viewpos", "(0,0)"));
+        if (Float.isFinite(position.x) && Float.isFinite(position.y)) Vars.player.set(position);
+        Team team = Team.get(tags.getInt("playerteam", Vars.state.rules.defaultTeam.id));
+        if (team != Team.derelict) Vars.player.team(team);
+        savedControlledType = Vars.content.getByName(ContentType.unit, tags.get("controlledType", "<none>"));
+        savedControlGroups = tags.get("controlGroups", "null");
+    }
+
+    Unit ensurePlayerSpawn() {
+        ensurePlayerObject();
         var unit = Vars.player.unit();
         if (unit != null && !Vars.player.dead() && unit.isAdded()) {
             return unit;
+        }
+        var type = savedControlledType;
+        savedControlledType = null;
+        if (type != null && type.playerControllable) {
+            // Offline InputHandler.checkUnit() restores the nearest unit of the saved type.
+            var player = Vars.player;
+            var saved = Units.closest(player.team(), player.x, player.y, other -> !other.isPlayer()
+                && other.type == type && !other.dead);
+            if (saved == null && type == UnitTypes.block
+                    && Vars.world.buildWorld(player.x, player.y) instanceof ControlBlock control && control.canControl()) {
+                saved = control.unit();
+            }
+            if (saved != null) {
+                saved.controller(player);
+                return player.unit();
+            }
         }
         for (var existing : Groups.unit) {
             if (existing.team == Vars.player.team() && !existing.dead && existing.isAdded()
@@ -537,15 +601,20 @@ public final class UpstreamSinglePlayerSession {
                 return existing;
             }
         }
-        var core = core();
+        var core = Vars.player.bestCore();
         if (core != null) {
             CoreBlock.playerSpawn(core.tile, Vars.player);
         }
         return Vars.player.unit();
     }
 
+    int coreCopper() {
+        var core = core();
+        return core == null ? 0 : core.items.get(Items.copper);
+    }
+
     CoreBuild core() {
-        return Vars.state.rules.defaultTeam.core();
+        return (Vars.player == null ? Vars.state.rules.defaultTeam : Vars.player.team()).core();
     }
 
     void stepSimulation(float moveX, float moveY) {
@@ -572,9 +641,14 @@ public final class UpstreamSinglePlayerSession {
     }
 
     boolean togglePause() {
-        boolean paused = !Vars.state.isPaused();
-        Vars.state.set(paused ? State.paused : State.playing);
-        return paused;
+        boolean paused = Vars.state.isPaused();
+        if (Vars.state.rules.pauseDisabled) {
+            System.out.println("UPSTREAM_SP_PAUSE disabled=true");
+            return paused;
+        }
+        Vars.state.set(paused ? State.playing : State.paused);
+        System.out.println("UPSTREAM_SP_PAUSE paused=" + !paused);
+        return !paused;
     }
 
     int triggerWave() {
@@ -594,6 +668,24 @@ public final class UpstreamSinglePlayerSession {
         return true;
     }
 
+    private void resetPlaytime(long savedMillis) {
+        playtimeMillis = Math.max(0, savedMillis);
+        playtimeRemainderNanos = 0;
+    }
+
+    void beginPlaytimeInterval(long now) {
+        playtimeFrameNanos = now;
+    }
+
+    void updatePlaytime(long now) {
+        long elapsed = Math.max(0, now - playtimeFrameNanos);
+        playtimeFrameNanos = now;
+        long partial = playtimeRemainderNanos + elapsed % 1_000_000L;
+        long millis = elapsed / 1_000_000L + partial / 1_000_000L;
+        playtimeRemainderNanos = partial % 1_000_000L;
+        playtimeMillis = Math.min(playtimeMillis, Long.MAX_VALUE - millis) + millis;
+    }
+
     long save(Fi saveFile) throws IOException {
         if (saveFile.parent() != null) {
             saveFile.parent().mkdirs();
@@ -601,14 +693,25 @@ public final class UpstreamSinglePlayerSession {
         if (Vars.state.rules.sector != null) {
             UpstreamSectorCapture.persist(Vars.state.rules.sector);
         }
-        SaveIO.save(saveFile);
-        try (var input = SaveIO.getStream(saveFile)) {
-            if (!SaveIO.isSaveValid(input)) {
-                throw new IOException("Written offline save failed validation: " + saveFile.path());
+        var options = new SaveOptions();
+        var type = Vars.player == null || Vars.player.dead() ? savedControlledType : Vars.player.unit().type;
+        options.extraTags = StringMap.of("playtime", playtimeMillis, "controlGroups", savedControlGroups,
+            "controlledType", type == null ? "null" : type.name);
+        SaveMeta written;
+        if (Vars.state.rules.sector != null) {
+            boolean preserveBackup = saveFile.equals(recoveredCampaignSlot);
+            written = UpstreamCampaignSave.write(saveFile, options, preserveBackup);
+            if (preserveBackup) recoveredCampaignSlot = null;
+        } else {
+            SaveIO.save(saveFile, options);
+            try (var input = SaveIO.getStream(saveFile)) {
+                written = SaveIO.getMeta(input);
+            } catch (RuntimeException failure) {
+                throw new IOException("Written offline save failed validation: " + saveFile.path(), failure);
             }
         }
         if (Vars.state.rules.sector != null) {
-            bindSectorSave(Vars.state.rules.sector, saveFile, SaveIO.getMeta(saveFile));
+            bindSectorSave(Vars.state.rules.sector, saveFile, written);
             String index = saveFile.nameWithoutExtension();
             String key = slotNameKey(saveFile);
             if (!Core.settings.has(key)) Core.settings.put(key, index);
@@ -640,7 +743,9 @@ public final class UpstreamSinglePlayerSession {
         }
         app.runPosted();
         long hash = 0xcbf29ce484222325L;
-        for (int weight : field.completeWeights) {
+        var weights = field.completeWeights;
+        for (int index = 0; index < weights.length; index++) {
+            int weight = weights.get(index);
             hash = (hash ^ Integer.toUnsignedLong(weight)) * 0x100000001b3L;
         }
         return hash;
@@ -654,6 +759,11 @@ public final class UpstreamSinglePlayerSession {
             saveFile.delete();
             session = create(saveFile.parent() != null ? saveFile.parent() : mapFile.parent(), "en");
             session.start(mapFile, null, null);
+            var currentRules = mindustry.io.JsonIO.read(mindustry.game.Rules.class, "{\"modeName\":\"current\"}");
+            var legacyRules = mindustry.io.JsonIO.read(new mindustry.game.Rules(), "{\"modeName\":\"io.anuke.legacy\"}");
+            if (!"current".equals(currentRules.modeName) || !"legacy".equals(legacyRules.modeName)) {
+                throw new IllegalStateException("Stock save rules JSON compatibility changed");
+            }
 
             var serpulo15 = sectorFor(new Fi("sector-serpulo-15.msav"), Vars.content.planets());
             if (serpulo15 == null || serpulo15.id != 15 || !serpulo15.planet.name.equals("serpulo")) {
@@ -686,6 +796,59 @@ public final class UpstreamSinglePlayerSession {
             if (unit == null || unit.type != UnitTypes.alpha) {
                 throw new IllegalStateException("Alpha player unit did not spawn");
             }
+
+            byte[] minimap = UpstreamMinimap.sample(32);
+            if (minimap == null || minimap.length != 32 * 32 * 4) {
+                throw new IllegalStateException("Minimap sampler returned an invalid grid");
+            }
+            int marker = UpstreamMinimap.playerIndex(32);
+            if (marker < 0) {
+                throw new IllegalStateException("Minimap sampler has no player marker");
+            }
+            int markerOffset = marker * 4;
+            if ((minimap[markerOffset] & 0xff) != 255
+                    || (minimap[markerOffset + 1] & 0xff) != 255
+                    || (minimap[markerOffset + 2] & 0xff) != 255) {
+                throw new IllegalStateException("Minimap player marker is not white");
+            }
+            System.out.println("UPSTREAM_MINIMAP sample=32 hash="
+                + Long.toUnsignedString(UpstreamMinimap.hash(minimap), 16)
+                + " cell=" + (marker % 32) + "," + (marker / 32));
+            int px = marker % 32;
+            int py = marker / 32;
+            int tipX = (int)Math.round(px + 0.5 + Math.cos(Math.toRadians(unit.rotation())) * 2.5);
+            int tipY = (int)Math.round(py + 0.5 + Math.sin(Math.toRadians(unit.rotation())) * 2.5);
+            boolean arrowChecked = false;
+            if (tipX < 0 || tipY < 0 || tipX >= 32 || tipY >= 32) {
+                throw new IllegalStateException("Minimap direction tip falls outside the grid");
+            }
+            arrowChecked = true;
+            if (tipX == px && tipY == py) {
+                throw new IllegalStateException("Minimap direction tip overlaps the base");
+            }
+            int tipOffset = (tipY * 32 + tipX) * 4;
+            if ((minimap[tipOffset] & 0xff) != 255
+                    || (minimap[tipOffset + 1] & 0xff) != 255
+                    || (minimap[tipOffset + 2] & 0xff) != 255) {
+                throw new IllegalStateException("Minimap player direction tip is not white");
+            }
+            var localCore = Vars.player.team().core();
+            int coreChecked = 0;
+            if (localCore != null) {
+                byte[] coreMap = UpstreamMinimap.sample(64, false);
+                int coreCell = UpstreamMinimap.cellIndex(64, Vars.world.width(), Vars.world.height(),
+                    localCore.tileX(), localCore.tileY());
+                int playerCell64 = UpstreamMinimap.playerIndex(64);
+                int coreOffset = coreCell * 4;
+                var teamColor = localCore.team.color;
+                if ((coreMap[coreOffset] & 0xff) != Math.round(teamColor.r * 255f)
+                        || (coreMap[coreOffset + 1] & 0xff) != Math.round(teamColor.g * 255f)
+                        || (coreMap[coreOffset + 2] & 0xff) != Math.round(teamColor.b * 255f)) {
+                    throw new IllegalStateException("Minimap core marker color mismatch");
+                }
+                coreChecked = 1;
+            }
+            System.out.println("UPSTREAM_MINIMAP_MARKERS arrow=" + (arrowChecked ? 1 : 0) + " core=" + coreChecked + " ok");
 
             // 1. Movement check along Y-axis.
             float startY = unit.y();
@@ -764,6 +927,16 @@ public final class UpstreamSinglePlayerSession {
             if (session.togglePause()) {
                 throw new IllegalStateException("Failed to resume from pause");
             }
+            Vars.state.rules.pauseDisabled = true;
+            if (session.togglePause() || Vars.state.isPaused()) {
+                throw new IllegalStateException("A world with the stock pause-disabled rule paused");
+            }
+            session.stepSimulation(0f, 0f);
+            if (Vars.state.updateId <= pausedBefore) {
+                throw new IllegalStateException("The simulation froze with the pause-disabled rule");
+            }
+            Vars.state.rules.pauseDisabled = false;
+            System.out.println("UPSTREAM_SP_NO_PAUSE simulation=running");
 
             // 6. Wait for deterministic flowfield, trigger Wave 1, verify Dagger advance.
             waitForGroundField(session.application(), Vars.state.rules.waveTeam);
@@ -780,6 +953,21 @@ public final class UpstreamSinglePlayerSession {
                 throw new IllegalStateException("Enemy wave unit did not advance: wave=" + Vars.state.wave
                     + " y=" + enemyStartY + "->" + enemy.y());
             }
+            byte[] unitMap = UpstreamMinimap.sample(64);
+            int enemyCell = UpstreamMinimap.cellIndex(64, Vars.world.width(), Vars.world.height(),
+                enemy.tileX(), enemy.tileY());
+            int playerCell = UpstreamMinimap.playerIndex(64);
+            if (enemyCell < 0 || enemyCell == playerCell) {
+                throw new IllegalStateException("Enemy minimap cell is invalid");
+            }
+            var enemyColor = enemy.team.color;
+            int enemyOffset = enemyCell * 4;
+            if ((unitMap[enemyOffset] & 0xff) != Math.round(enemyColor.r * 255f)
+                    || (unitMap[enemyOffset + 1] & 0xff) != Math.round(enemyColor.g * 255f)
+                    || (unitMap[enemyOffset + 2] & 0xff) != Math.round(enemyColor.b * 255f)) {
+                throw new IllegalStateException("Enemy minimap blip color mismatch");
+            }
+            System.out.println("UPSTREAM_MINIMAP_UNITS enemy=1 ok");
 
             // 7. Save .msav, reset world, reload, and verify exact restored state.
             int preReloadCopper = session.core().items.get(Items.copper);

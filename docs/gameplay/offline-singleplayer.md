@@ -12,6 +12,18 @@ This vertical slice boots and runs unmodified upstream Mindustry `v160.8` **Grou
 - [`WorldReflectionPolicy.java`](../../research/upstream-runtime/src/world/java/port/WorldReflectionPolicy.java): Registers 0-argument constructors for `arc.struct.{IntMap,IntSet,ObjectIntMap,ObjectMap,ObjectSet,StringMap}` so Arc `Json` restores populated `GameStats` (`placedBlockCount`, etc.) and `Rules` fields when reloading `.msav` saves.
 - [`prepare_terrain_assets.py`](../../research/upstream-runtime/arm11/prepare_terrain_assets.py) (`--singleplayer`) & [`build.sh`](../../research/upstream-runtime/arm11/build.sh) (`--singleplayer`): Stages `maps/groundZero.msav` and `sprites.aatls` alongside bundles, `world-atlas`, `block_colors.png`, menu icons, and stock fonts, then links the ARM11 `.elf`/`.3dsx` (default `-Os`).
 
+## Ground Zero save and reload
+
+The offline runtime caches only the stock flowfields it creates. Cache keys
+retain the original team, cost and field IDs, and the game still uses the
+upstream code for creating and updating flowfields. This removes the nested
+cache access that threw during map decode in the optimized C replay.
+
+The [hosted replay](https://github.com/levkeveli/Min3DStry/actions/runs/45338932257)
+matched JVM and generated C at both `-O0` and `-Os`. It exercised mining,
+building, deconstruction, pause, an enemy wave and save/reload, with the same
+final world fingerprint in all three builds. This run used the host runtime.
+
 ## Weather in the graphical campaign
 
 The graphical campaign uses the v160.8 weather entities, particle and debris
@@ -87,8 +99,52 @@ Copy the original `bundle.properties` and `planets/serpulo.json` alongside the
 fixtures to run `-Pprobe=singleplayer runCampaignResumeJvm --args="/path/to/fixtures /path/to/new-scratch-dir"`
 with the normal pinned runtime Gradle properties. Use
 `python3 tools/verify_upstream_campaign_resume.py --rom upstream-probe.3dsx --fixtures /path/to/fixtures`
-to exercise sole-save resume, graphical selection, and save-back on both
-Azahar profiles.
+to exercise sole-save resume, graphical selection, and save-back in Azahar's
+New 3DS profile.
+
+On pause-menu Load, the port drops old player and UI references before the
+stock save decoder runs. The upstream reset also clears the retired building
+and floor indexes and the backing slots of the temporary block lists. The
+live world rebuilds its indexes during the normal WorldLoad event. If decode
+fails, the exit path leaves the selected save and backup available for recovery.
+
+For the dense Serpulo 242 replay, generate fixtures from the same stock Java
+server and use the matching emulator verifier flag.
+
+```sh
+python3 tools/campaign_resume_fixtures.py --dense --server server-release.jar --output build/dense-fixtures
+python3 tools/verify_upstream_campaign_resume.py --dense --rom upstream-probe.3dsx --fixtures build/dense-fixtures --server server-release.jar
+```
+
+The dense run uses Ground Zero as the first slot and checks that the second
+slot loads and reloads at 600×600, draws a frame, and saves with its original
+backup. The server readback confirms the saved sector ID, dimensions, and
+gameplay patch. Keep the dense and standard fixture sets in separate directories.
+
+Campaign saves write the upstream stream to a same-directory temporary file
+and check its stock metadata before moving the old primary to the standard
+backup. A failed temporary write leaves both existing files intact. If a
+replacement stops after rotating the backup, the campaign menu can reopen
+the remaining backup and write the next save to the original slot name.
+Pass `--backup-only` to the campaign resume verifier to exercise that scenario.
+The [New 3DS replay at `f28cf81`](https://github.com/levkeveli/Min3DStry/actions/runs/45724376512/artifacts/15075271195)
+started with a backup-only Frozen Forest slot, loaded and reloaded the
+original 200 by 200 world, then wrote a new primary while preserving the
+backup. Unmodified v160.8 Java reopened the replacement and checked sector 64.
+
+When a campaign primary passes the metadata check but fails while loading the
+world, the next save preserves the backup that actually loaded. The recovered
+world is staged and installed in the primary slot. Pass `--truncated-primary`
+with `--server` to replay this case and have stock Java reopen the replacement.
+
+Pass `--dense-resave` with `--dense --server server-release.jar` to check both
+a manual save after reload and a later exit save. An [instrumented 56 MiB
+diagnostic ROM](https://github.com/levkeveli/Min3DStry/actions/runs/45711354495)
+completed the dense reload and saved with the original fixture backup.
+The [two-save replay](https://github.com/levkeveli/Min3DStry/actions/runs/45716873959/artifacts/15070698663)
+reused that exact ROM. It verified each backup against its predecessor, and
+the unmodified v160.8 server reopened both 600×600 saves with the original
+embedded patch. The release-build heap and physical New 3DS performance remain open.
 
 The [ARM11 build from `1390790`](https://github.com/levkeveli/Min3DStry/actions/runs/45035851013)
 resumed a lone Ground Zero slot from `saves/` and used the D-pad to select a
@@ -334,7 +390,7 @@ sector. Selecting another sector resumes its save or starts its launch
 sequence in the same app. Regular **SELECT** saves, and **START** exits play.
 
 Use `python3 tools/verify_upstream_campaign_launch.py --rom upstream-probe.3dsx`
-to replay the fresh campaign menu on both Azahar profiles. The verifier
+to replay the fresh campaign menu in Azahar New 3DS mode. The verifier
 captures the menu and starting worlds, then collects the resulting saves and
 settings from an empty test SD directory. Pass `--server server-release.jar`
 to compare those outputs with a fresh stock Java launch.
@@ -661,6 +717,13 @@ Both profiles executed Boot 1 (load `groundZero.msav`, select Mine + copper ore 
 
 - **`new3ds` (`is_new_3ds=true`):** `UPSTREAM_MEMORY appHeap=108834816 linearHeap=4194304 stack=262144`, `saved=wave:2,copper:29,bytes:18700`, `reloaded=wave:2,copper:29`, `game_fps=4.72` (unoptimized headless emulator baseline).
 - **`old3ds` (`is_new_3ds=false`):** `UPSTREAM_MEMORY appHeap=79474688 linearHeap=4194304 stack=262144` (~`75.8 MiB` emulator-reported `envGetHeapSize()` region, not the physical retail Original 3DS `64 MiB` `APPMEMTYPE 0` limit against which the `44.44 MiB` static subtotal is budgeted), `saved=wave:2,copper:29,bytes:18685`, `reloaded=wave:2,copper:29`, `game_fps=3.48` (unoptimized headless emulator baseline).
+
+The verifier distinguishes the two stock pause rules. A pause-enabled world
+must log `UPSTREAM_SP_PAUSE paused=true` and `paused=false`. A world with
+`rules.pauseDisabled` must log `UPSTREAM_SP_PAUSE disabled=true`; the pause
+menu still opens and closes, but the simulation keeps running. Menu traffic
+alone no longer satisfies the pause milestone, so a broken pause path cannot
+pass just by drawing the overlay.
 
 ## Original floor and wall extractors
 

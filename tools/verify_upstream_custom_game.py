@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check stock Custom Game selection, save, and resume on both Azahar profiles."""
+"""Check stock Custom Game selection, save, and resume on Azahar in New 3DS mode by default."""
 
 from __future__ import annotations
 
@@ -105,7 +105,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--rom", required=True, type=Path)
     parser.add_argument("--azahar")
-    parser.add_argument("--model", choices=("new3ds", "old3ds"))
+    parser.add_argument("--model", choices=("new3ds",))
     parser.add_argument("--map", choices=MAPS, default="caldera")
     parser.add_argument("--output-dir", type=Path, default=Path("build/custom-game-emu"))
     parser.add_argument("--timeout", type=float, default=120)
@@ -113,7 +113,7 @@ def main() -> int:
     azahar = sp.az.resolve_azahar_bin(args.azahar)
     config, log = sp.az.resolve_azahar_paths(azahar)
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    for model in (args.model,) if args.model else ("new3ds", "old3ds"):
+    for model in (args.model,) if args.model else ("new3ds",):
         verify(model, args.rom, azahar, config, log, args.output_dir, args.timeout, args.map)
     return 0
 

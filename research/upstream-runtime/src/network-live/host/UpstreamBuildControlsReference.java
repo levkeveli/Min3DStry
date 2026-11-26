@@ -105,6 +105,8 @@ public final class UpstreamBuildControlsReference {
         verifyInventory(unit);
         verifyStockOrders(unit);
         verifyStockCommandMenu(unit);
+        verifyStockDragSelection(unit);
+        verifyCameraZoom(unit);
         verifyFactoryConfiguration(controls, unit);
         verifyStockLinks(unit);
         verifySchematicPlacement(unit);
@@ -161,6 +163,57 @@ public final class UpstreamBuildControlsReference {
             dagger.remove();
             mono.remove();
         }
+    }
+
+    private static void verifyStockDragSelection(Unit player) {
+        var first = UnitTypes.dagger.create(player.team());
+        var second = UnitTypes.dagger.create(player.team());
+        first.set(600f, 216f);
+        second.set(616f, 216f);
+        first.add();
+        second.add();
+        Vars.player.unit(player);
+        var controls = new UpstreamLiveBuildControls();
+        controls.viewport(73, 20);
+        try {
+            controls.update(player, 0, touch(305, 128));
+            controls.update(player, 0, touch(32 + (75 - 73) * 16 + 8, 48 + (31 - 27) * 16 + 8));
+            controls.update(player, 0, touch(32 + (77 - 73) * 16 + 8, 48 + (31 - 27) * 16 + 8));
+            controls.update(player, 0, -1);
+            tapGridCell(controls, player, 86, 24);
+            if (!controls.orders().active()
+                    || first.command().targetPos == null || second.command().targetPos == null) {
+                throw new AssertionError("Stock drag selection did not select and order both units");
+            }
+            System.out.println("UPSTREAM_STOCK_DRAG_SELECTION units=2 order=move");
+        } finally {
+            first.remove();
+            second.remove();
+        }
+    }
+
+    private static void verifyCameraZoom(Unit player) {
+        var controls = new UpstreamLiveBuildControls();
+        controls.update(player, UpstreamLiveBuildControls.ZOOM_IN_PRESSED, -1);
+        if (controls.consumeZoom() != 1) throw new AssertionError("C-Stick up must zoom in");
+        controls.update(player, UpstreamLiveBuildControls.ZOOM_OUT_PRESSED, -1);
+        if (controls.consumeZoom() != -1) throw new AssertionError("C-Stick down must zoom out");
+        if (controls.consumeZoom() != 0) throw new AssertionError("Zoom input must be consumed once");
+        if (UpstreamTerrainDrawProbe.clampZoom(9f) != 2f
+                || UpstreamTerrainDrawProbe.clampZoom(0.1f) != 0.5f
+                || UpstreamTerrainDrawProbe.zoomWidth(2f) != 8
+                || UpstreamTerrainDrawProbe.zoomHeight(2f) != 6
+                || UpstreamTerrainDrawProbe.zoomWidth(0.5f) != 32
+                || UpstreamTerrainDrawProbe.zoomHeight(0.5f) != 24) {
+            throw new AssertionError("Camera zoom clamp or span differs");
+        }
+        controls.viewport(73, 20, 8, 6);
+        controls.update(player, 0, touch(160, 112));
+        if (controls.cursorX() != 77 || controls.cursorY() != 23) {
+            throw new AssertionError("Zoomed touch grid did not map to the expected tile");
+        }
+        controls.update(player, 0, -1);
+        System.out.println("UPSTREAM_CAMERA_ZOOM_REFERENCE in=ok clamp=ok span=8x6..32x24 grid=77,23");
     }
 
     private static int selectOrderOption(UpstreamLiveBuildControls controls, Unit player, boolean stances, int id) {
@@ -251,6 +304,7 @@ public final class UpstreamBuildControlsReference {
 
     private static void tapGridCell(UpstreamLiveBuildControls controls, Unit player, int x, int y) {
         controls.update(player, 0, touch(32 + (x - 73) * 16 + 8, 48 + (31 - y) * 16 + 8));
+        controls.update(player, 0, -1);
     }
 
     private static void verifyInventory(Unit unit) {
@@ -642,11 +696,19 @@ public final class UpstreamBuildControlsReference {
             var first = schematic.tiles.find(tile -> tile.y == 0);
             var middle = schematic.tiles.find(tile -> tile.y == 1);
             var last = schematic.tiles.find(tile -> tile.y == 2);
-            if (!schematic.name().equals("Schematic-2") || schematic.width != 1 || schematic.height != 3
+            if (!schematic.name().equals("Schematic-2") || !"".equals(schematic.tags.get("description"))
+                    || schematic.width != 1 || schematic.height != 3
                     || schematic.tiles.size != 3 || first == null || middle == null || last == null
                     || first.block != Blocks.itemBridge || middle.block != Blocks.sorter || last.block != Blocks.itemBridge
                     || middle.config != Items.lead || !(first.config instanceof Point2 link) || link.x != 0 || link.y != 2) {
                 throw new AssertionError("Upstream reader did not recover captured footprint and configuration");
+            }
+            schematic.tags.put("name", "Bridge layout");
+            Schematics.write(schematic, new Fi(exported.toString()));
+            controls.schematics().open();
+            var rows = new String(controls.schematics().labels(), java.nio.charset.StandardCharsets.UTF_8);
+            if (!rows.contains("\0Bridge layout\0") || !rows.contains("\0Schematic-1\0")) {
+                throw new AssertionError("Picker did not show the stock name and legacy filename fallback");
             }
             Vars.fogControl = new FogControl();
             Vars.state.rules.fog = Vars.state.rules.staticFog = true;
@@ -657,6 +719,63 @@ public final class UpstreamBuildControlsReference {
             if (Files.exists(undiscovered)) {
                 throw new AssertionError("The graphical ARM11 adapter exported an undiscovered selection");
             }
+            Vars.fogControl = fog;
+            Vars.state.rules.fog = oldFog;
+            Vars.state.rules.staticFog = oldStaticFog;
+            schematic.tags.put("description", "Keep this metadata");
+            Schematics.write(schematic, new Fi(exported.toString()));
+            var original = Files.readAllBytes(exported);
+            controls.update(unit, 0, touch(268, 20));
+            tapGridCell(controls, unit, 84, 24);
+            tapGridCell(controls, unit, 84, 24);
+            controls.schematics().saveCapture(unit.team(), () -> null, name -> {
+                throw new AssertionError("Cancelling the name prompt asked for replacement");
+            });
+            if (!java.util.Arrays.equals(original, Files.readAllBytes(exported)) || Files.exists(undiscovered)) {
+                throw new AssertionError("Cancelling the name prompt changed schematic files");
+            }
+            controls.update(unit, 0, touch(268, 20));
+            tapGridCell(controls, unit, 84, 24);
+            tapGridCell(controls, unit, 84, 24);
+            controls.schematics().saveCapture(unit.team(), () -> "Bridge layout", name -> false);
+            if (!java.util.Arrays.equals(original, Files.readAllBytes(exported))) {
+                throw new AssertionError("Declining replacement changed the original schematic");
+            }
+            controls.update(unit, 0, touch(268, 20));
+            tapGridCell(controls, unit, 84, 24);
+            tapGridCell(controls, unit, 84, 24);
+            controls.schematics().saveCapture(unit.team(), () -> "Bridge layout", name -> true);
+            var updated = Schematics.read(new Fi(exported.toString()));
+            if (!updated.name().equals("Bridge layout") || !"Keep this metadata".equals(updated.tags.get("description"))
+                    || updated.tiles.size != 1 || updated.tiles.first().block != Blocks.sorter || Files.exists(undiscovered)) {
+                throw new AssertionError("Replacement did not replace the selected layout and preserve its metadata");
+            }
+            var file = new Fi(exported.toString());
+            updated.labels.add("logistics");
+            Schematics.write(updated, file);
+            byte[] beforeEdit = Files.readAllBytes(exported);
+            if (controls.schematics().editMetadata(file, name -> "Renamed", description -> null)
+                    || !java.util.Arrays.equals(beforeEdit, Files.readAllBytes(exported))) {
+                throw new AssertionError("Cancelling the description prompt changed the saved file");
+            }
+            controls.schematics().editWith(name -> {
+                if (!name.equals("Bridge layout")) throw new AssertionError("Wrong original schematic name");
+                return "Renamed sorter";
+            }, description -> {
+                if (!description.equals("Keep this metadata")) throw new AssertionError("Wrong original description");
+                return "";
+            });
+            controls.update(unit, 0, touch(184, 20));
+            controls.update(unit, 0, touch(20, UpstreamBuildMenu.ROW_TOP + UpstreamBuildMenu.ROW_HEIGHT + 4));
+            var edited = Schematics.read(file);
+            if (!edited.name().equals("Renamed sorter") || !edited.description().isEmpty()
+                    || !edited.labels.equals(updated.labels) || edited.tiles.size != 1
+                    || edited.tiles.first().block != Blocks.sorter || edited.tiles.first().config != Items.lead
+                    || !new String(controls.schematics().labels(), java.nio.charset.StandardCharsets.UTF_8)
+                        .contains("Renamed sorter") || !Files.readString(existing).equals("keep")) {
+                throw new AssertionError("Schematic metadata edit changed the stock layout or did not refresh the picker");
+            }
+            System.out.println("UPSTREAM_STOCK_SCHEMATIC_METADATA name=ok description=ok labels=ok cancellation=ok");
             System.out.println("UPSTREAM_STOCK_SCHEMATIC_CAPTURE crop=1x3 blocks=3 link=0,2 item=lead fog=ok");
         } finally {
             Vars.fogControl = fog;

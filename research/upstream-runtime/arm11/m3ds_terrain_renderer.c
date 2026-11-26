@@ -42,6 +42,9 @@ typedef struct {
 } ArcAtlasRegion;
 
 #include "terrain_layout.h"
+#ifdef M3DS_CAMPAIGN_PLANETS
+#include "m3ds_planet_mesh.h"
+#endif
 #ifdef M3DS_STOCK_FONT
 #include "m3ds_stock_text.h"
 
@@ -112,6 +115,73 @@ static float world_left, world_bottom, scale, screen_left, screen_bottom;
 static int32_t draws;
 static int32_t world_blend = -1;
 static u32 world_fade;
+static C3D_Tex minimap_texture;
+static C2D_Image minimap_image;
+static Tex3DS_SubTexture minimap_subtexture;
+static bool minimap_ready;
+static int minimap_width, minimap_height;
+static uint8_t minimap_pixels[128 * 128 * 4] __attribute__((aligned(8)));
+
+static unsigned raster_texel(unsigned x, unsigned y, unsigned row_width) {
+    unsigned morton = 0;
+    for (unsigned bit = 0; bit < 3; bit++) {
+        morton |= ((x >> bit) & 1) << (2 * bit);
+        morton |= ((y >> bit) & 1) << (2 * bit + 1);
+    }
+    return ((y / 8) * (row_width / 8) + x / 8) * 64 + morton;
+}
+
+void m3ds_terrain_minimap_upload(const uint8_t *pixels, int32_t width, int32_t height) {
+    if (!pixels || width < 8 || height < 8 || width > 128 || height > 128
+            || (width & (width - 1)) || (height & (height - 1))) return;
+    if (!minimap_ready || width != minimap_width || height != minimap_height) {
+        if (minimap_ready) C3D_TexDelete(&minimap_texture);
+        minimap_ready = false;
+        if (!C3D_TexInit(&minimap_texture, (u16)width, (u16)height, GPU_RGBA8)) return;
+        C3D_TexSetFilter(&minimap_texture, GPU_NEAREST, GPU_NEAREST);
+        C3D_TexSetWrap(&minimap_texture, GPU_CLAMP_TO_EDGE, GPU_CLAMP_TO_EDGE);
+        minimap_subtexture = (Tex3DS_SubTexture){
+            .width = (u16)width, .height = (u16)height,
+            .left = 0.0f, .top = 1.0f, .right = 1.0f, .bottom = 0.0f
+        };
+        minimap_image.tex = &minimap_texture;
+        minimap_image.subtex = &minimap_subtexture;
+        minimap_width = width;
+        minimap_height = height;
+        minimap_ready = true;
+    }
+    // PICA200 stores ABGR texels in Morton order within each 8-by-8 tile.
+    // The source starts at world Y=0, which belongs at the bottom of the map.
+    for (int y = 0; y < height; y++) {
+        for (int x = 0; x < width; x++) {
+            const uint8_t *rgba = pixels + ((height - 1 - y) * width + x) * 4;
+            uint8_t *abgr = minimap_pixels + raster_texel(x, y, width) * 4;
+            abgr[0] = rgba[3];
+            abgr[1] = rgba[2];
+            abgr[2] = rgba[1];
+            abgr[3] = rgba[0];
+        }
+    }
+    C3D_TexUpload(&minimap_texture, minimap_pixels);
+}
+
+void m3ds_terrain_minimap_draw(float x, float y, float size) {
+    if (!minimap_ready || !target || size <= 0.0f) return;
+    // The build palette rebinds the bottom screen inside drawEntities().
+    // Rebind the world target before drawing the HUD minimap.
+    C2D_SceneBegin(target);
+    C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_COLOR);
+    C3D_SetScissor(GPU_SCISSOR_DISABLE, 0, 0, 0, 0);
+    C2D_SetTintMode(C2D_TintMult);
+    C2D_DrawRectSolid(x - 2.0f, y - 2.0f, 0.25f, size + 4.0f, size + 4.0f,
+        C2D_Color32(24, 27, 32, 235));
+    C2D_DrawRectSolid(x - 1.0f, y - 1.0f, 0.27f, size + 2.0f, size + 2.0f,
+        C2D_Color32(95, 105, 122, 255));
+    C2D_ImageTint tint;
+    C2D_PlainImageTint(&tint, C2D_Color32(255, 255, 255, 255), 1.0f);
+    C2D_DrawImageAt(minimap_image, x, y, 0.3f, &tint,
+        size / (float)minimap_width, size / (float)minimap_height);
+}
 
 int32_t m3ds_terrain_mount_assets(void) {
     if (!romfs_ready) romfs_ready = R_SUCCEEDED(romfsInit());
@@ -592,15 +662,6 @@ int32_t m3ds_terrain_draw(int32_t page, int32_t left, int32_t top, int32_t width
 }
 
 #ifdef M3DS_WORLD_ATLAS
-static unsigned raster_texel(unsigned x, unsigned y, unsigned row_width) {
-    unsigned morton = 0;
-    for (unsigned bit = 0; bit < 3; bit++) {
-        morton |= ((x >> bit) & 1) << (2 * bit);
-        morton |= ((y >> bit) & 1) << (2 * bit + 1);
-    }
-    return ((y / 8) * (row_width / 8) + x / 8) * 64 + morton;
-}
-
 static int texture_dimension(int size) {
     int dimension = 8;
     while (dimension < size) dimension *= 2;
@@ -964,6 +1025,49 @@ int32_t m3ds_terrain_end(void) {
     return draws;
 }
 
+int32_t m3ds_terrain_campaign_planet_available(void) {
+#ifdef M3DS_CAMPAIGN_PLANETS
+    return 1;
+#else
+    return 0;
+#endif
+}
+
+int32_t m3ds_terrain_draw_campaign_planet(int32_t planet, const float *matrix, const float *lighting,
+    const float *overlay, int32_t vertices, int32_t sector_vertices, const int32_t *surface, int32_t faces,
+    const int32_t *ids, const float *planes, const float *marker_matrix, int32_t markers) {
+#ifdef M3DS_CAMPAIGN_PLANETS
+    if (!frame_open) return 0;
+    C2D_Flush();
+    int32_t drawn = m3ds_planet_draw(planet, matrix, lighting, overlay, vertices, sector_vertices, surface, faces,
+        ids, planes, marker_matrix, markers);
+    C2D_Prepare();
+    begin_world_scene();
+    return drawn;
+#else
+    (void)planet;
+    (void)matrix;
+    (void)lighting;
+    (void)overlay;
+    (void)vertices;
+    (void)sector_vertices;
+    (void)surface;
+    (void)faces;
+    (void)ids;
+    (void)planes;
+    (void)marker_matrix;
+    (void)markers;
+    return 0;
+#endif
+}
+
+void m3ds_terrain_release_campaign_planet(void) {
+#ifdef M3DS_CAMPAIGN_PLANETS
+    if (gpu_ready && C3D_FrameBegin(C3D_FRAME_SYNCDRAW)) C3D_FrameEnd(0);
+    m3ds_planet_release();
+#endif
+}
+
 int32_t m3ds_terrain_palette_active(void) {
     return palette != NULL;
 }
@@ -1125,18 +1229,20 @@ static void draw_label_art(const int32_t *glyph, float x, float y, float width, 
 
 static float draw_stock_panel(const char *label, const int32_t *characters, int32_t count,
                                  int32_t page, int32_t left, int32_t top,
-                                 int32_t width, int32_t height, float y, int32_t *stock_font, bool chat) {
+                                 int32_t width, int32_t height, float x, float y,
+                                 int32_t *stock_font, bool chat, bool panel, float box_width, float box_height) {
     *stock_font = 0;
     const float failed = chat ? -1.0f : 240.0f;
     if (!frame_open || !catalog_buffer) return failed;
     bool has_icon = page >= 0 && width > 0 && height > 0;
     float inset = has_icon ? 32.0f : 6.0f;
+    float max_width = box_width > 0.0f ? box_width : (chat ? 314.0f : 230.0f);
     float font_scale, text_width, text_height;
     bool using_stock = false;
 #ifdef M3DS_STOCK_FONT
     using_stock = m3ds_stock_text_layout(&stock_text, characters, count, false);
     if (using_stock) {
-        font_scale = fminf(chat ? 0.64f : 0.73f, ((chat ? 314.0f : 230.0f) - inset) / fmaxf(1.0f, stock_text.width));
+        font_scale = fminf(chat ? 0.64f : 0.73f, (max_width - inset) / fmaxf(1.0f, stock_text.width));
         text_width = stock_text.width * font_scale;
         text_height = stock_text.height * font_scale;
     }
@@ -1149,7 +1255,7 @@ static float draw_stock_panel(const char *label, const int32_t *characters, int3
         C2D_TextBufClear(catalog_buffer);
         if (!C2D_TextParse(&text, catalog_buffer, label)) return failed;
         C2D_TextOptimize(&text);
-        font_scale = fminf(chat ? 0.37f : 0.44f, ((chat ? 314.0f : 230.0f) - inset) / fmaxf(1.0f, text.width));
+        font_scale = fminf(chat ? 0.37f : 0.44f, (max_width - inset) / fmaxf(1.0f, text.width));
         C2D_TextGetDimensions(&text, font_scale, font_scale, &text_width, &text_height);
     }
     float padding = chat ? 3.0f : 5.0f;
@@ -1157,15 +1263,15 @@ static float draw_stock_panel(const char *label, const int32_t *characters, int3
     if (chat) {
         y -= panel_height;
         if (y < 72.0f) return failed;
-    } else if (y + panel_height > screen_bottom - 4.0f) {
+    } else if (y + (box_height > 0.0f ? box_height : panel_height) > screen_bottom - 4.0f) {
         return failed;
     }
     const float next = chat ? y - 2.0f : y + panel_height + 3.0f;
 
     set_world_blend(0);
     set_world_mix(0, 0);
-    float x = screen_left + 4.0f;
-    if (!C2D_DrawRectSolid(x, y, 0.5f, inset + text_width + 6.0f, panel_height, C2D_Color32(24, 27, 32, 224))) {
+    if (panel && !C2D_DrawRectSolid(x, y, 0.5f, inset + text_width + 6.0f, panel_height,
+            C2D_Color32(24, 27, 32, 224))) {
         return failed;
     }
     draws++;
@@ -1180,14 +1286,16 @@ static float draw_stock_panel(const char *label, const int32_t *characters, int3
             return failed;
         }
     }
+    float text_x = x + (box_width > 0.0f ? (box_width - text_width) * 0.5f : inset);
+    float text_y = y + (box_height > 0.0f ? (box_height - text_height) * 0.5f : padding);
 #ifdef M3DS_STOCK_FONT
     if (using_stock) {
-        m3ds_stock_text_draw(&stock_text, x + inset, y + padding, font_scale, font_scale, -1, draw_label_art);
+        m3ds_stock_text_draw(&stock_text, text_x, text_y, font_scale, font_scale, -1, draw_label_art);
         *stock_font = 1;
         return next;
     }
 #endif
-    C2D_DrawText(&text, C2D_WithColor, x + inset, y + padding, 0.5f, font_scale, font_scale,
+    C2D_DrawText(&text, C2D_WithColor, text_x, text_y, 0.5f, font_scale, font_scale,
         C2D_Color32(239, 241, 247, 255));
     return next;
 }
@@ -1195,12 +1303,52 @@ static float draw_stock_panel(const char *label, const int32_t *characters, int3
 float m3ds_terrain_draw_objective(const char *label, const int32_t *characters, int32_t count,
                                  int32_t page, int32_t left, int32_t top,
                                  int32_t width, int32_t height, float y, int32_t *stock_font) {
-    return draw_stock_panel(label, characters, count, page, left, top, width, height, y, stock_font, false);
+    return draw_stock_panel(label, characters, count, page, left, top, width, height,
+        screen_left + 4.0f, y, stock_font, false, true, 0.0f, 0.0f);
+}
+
+float m3ds_terrain_draw_objective_at(const char *label, const int32_t *characters, int32_t count,
+                                    int32_t page, int32_t left, int32_t top,
+                                    int32_t width, int32_t height, float x, float y,
+                                    int32_t *stock_font) {
+    return draw_stock_panel(label, characters, count, page, left, top, width, height,
+        x, y, stock_font, false, true, 0.0f, 0.0f);
+}
+
+float m3ds_terrain_draw_objective_plain(const char *label, const int32_t *characters, int32_t count,
+                                        int32_t page, int32_t left, int32_t top,
+                                        int32_t width, int32_t height, float y,
+                                        int32_t *stock_font) {
+    return draw_stock_panel(label, characters, count, page, left, top, width, height,
+        screen_left + 4.0f, y, stock_font, false, false, 0.0f, 0.0f);
+}
+
+void m3ds_terrain_draw_hud_label(const char *label, const int32_t *characters, int32_t count,
+    float x, float y, float width, float height) {
+    int32_t stock_font;
+    draw_stock_panel(label, characters, count, -1, 0, 0, 0, 0, screen_left + x, y,
+        &stock_font, false, false, width, height);
+}
+
+int32_t m3ds_terrain_draw_hud_sprite(int32_t page, int32_t left, int32_t top,
+        int32_t width, int32_t height, float x, float y, float draw_width, float draw_height, int32_t color) {
+    if (!frame_open || draw_width <= 0.0f || draw_height <= 0.0f) return 0;
+    return m3ds_terrain_draw(page, left, top, width, height,
+        world_left + x / scale, world_bottom + (screen_bottom - y - draw_height) / scale,
+        0.0f, 0.0f, draw_width / scale, draw_height / scale, 0.0f, color, 0, 0);
+}
+
+int32_t m3ds_terrain_draw_hud_panel(float x, float y, float width, float height, int32_t color) {
+    if (!frame_open) return 0;
+    set_world_blend(0);
+    set_world_mix(0, 0);
+    return C2D_DrawRectSolid(x, y, 0.5f, width, height, (u32)color) ? 1 : 0;
 }
 
 float m3ds_terrain_draw_chat_line(const char *label, const int32_t *characters, int32_t count, float bottom) {
     int32_t stock_font;
-    return draw_stock_panel(label, characters, count, -1, 0, 0, 0, 0, bottom, &stock_font, true);
+    return draw_stock_panel(label, characters, count, -1, 0, 0, 0, 0,
+        screen_left + 4.0f, bottom, &stock_font, true, true, 0.0f, 0.0f);
 }
 
 #ifdef M3DS_STOCK_FONT
@@ -1324,6 +1472,37 @@ static void draw_chat_key(const char *label, float x, float y, float width, u32 
     catalog_label(label, x + width / 2, y + 10, 0.42f, width - 6, color);
 }
 
+int32_t m3ds_terrain_schematic_prompt(char *text, int32_t capacity, const char *hint, int32_t mode) {
+    const bool confirm = mode == 1, edit = mode >= 2;
+    if (capacity < 2 || !aptMainLoop()) return edit ? -1 : 0;
+    SwkbdState keyboard;
+    swkbdInit(&keyboard, SWKBD_TYPE_NORMAL, 2, confirm ? 1 : (capacity - 1) / 4);
+    swkbdSetFeatures(&keyboard, SWKBD_DEFAULT_QWERTY | SWKBD_DARKEN_TOP_SCREEN
+                     | (mode == 3 ? SWKBD_MULTILINE : 0));
+    if (mode == 0) swkbdSetValidation(&keyboard, SWKBD_NOTEMPTY_NOTBLANK, 0, 0);
+    if (edit) swkbdSetInitialText(&keyboard, text);
+    swkbdSetHintText(&keyboard, hint);
+    SwkbdButton button = swkbdInputText(&keyboard, text, (size_t)capacity);
+    if (button != SWKBD_BUTTON_CONFIRM) return edit ? -1 : 0;
+    return confirm ? 1 : (int32_t)strnlen(text, (size_t)capacity);
+}
+
+void m3ds_terrain_draw_menu_help(const char *labels, int32_t count) {
+    if (!frame_open || !palette || !catalog_buffer) return;
+    set_world_blend(0);
+    set_world_mix(0, 0);
+    C2D_TargetClear(palette, C2D_Color32(24, 27, 32, 255));
+    C2D_SceneBegin(palette);
+    C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_COLOR);
+    C2D_TextBufClear(catalog_buffer);
+    for (int32_t row = 0; row < count; row++) {
+        float top = 60.0f + row * 30.0f;
+        C2D_DrawRectSolid(20, top, 0.5f, 280, 26, C2D_Color32(45, 52, 64, 255));
+        catalog_label(labels, 160, top + 8, 0.50f, 264, C2D_Color32(239, 241, 247, 255));
+        labels += strlen(labels) + 1;
+    }
+}
+
 int32_t m3ds_terrain_draw_chat_keyboard(const char *labels) {
     if (!frame_open || !palette) return 0;
     if (perf_enabled) perf.bottom_start = svcGetSystemTick();
@@ -1370,11 +1549,13 @@ int32_t m3ds_terrain_build_catalog(const char *labels, const int32_t *icons, int
     }
     const bool schematics = catalog == schematic_catalog;
     if (schematics) {
+        C2D_DrawRectSolid(152, 4, 0.5f, 64, 34, panel);
+        stock_labels &= catalog_label("Edit", 184, 15, 0.52f, 58, text);
         C2D_DrawRectSolid(224, 4, 0.5f, 88, 34, panel);
         stock_labels &= catalog_label("Capture", 268, 15, 0.52f, 82, text);
     }
-    stock_labels &= catalog_label(labels, schematics ? 112 : 160, 15, 0.52f,
-                                  categories ? 190 : schematics ? 212 : 300, text);
+    stock_labels &= catalog_label(labels, schematics ? 76 : 160, 15, 0.52f,
+                                  categories ? 190 : schematics ? 144 : 300, text);
     int32_t visible_icons = 0;
     for (int row = 0; row < 6; row++) {
         labels += strlen(labels) + 1;
@@ -1414,6 +1595,13 @@ int32_t m3ds_terrain_build_catalog(const char *labels, const int32_t *icons, int
 void m3ds_terrain_fini(void) {
     if (frame_open) m3ds_terrain_end();
     if (gpu_ready && C3D_FrameBegin(0)) C3D_FrameEnd(0);
+#ifdef M3DS_CAMPAIGN_PLANETS
+    m3ds_planet_release();
+#endif
+    if (minimap_ready) {
+        C3D_TexDelete(&minimap_texture);
+        minimap_ready = false;
+    }
 #ifdef M3DS_STOCK_FONT
     m3ds_stock_text_close();
 #endif

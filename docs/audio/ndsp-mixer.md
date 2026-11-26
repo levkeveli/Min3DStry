@@ -1,6 +1,6 @@
 # NDSP Audio Mixer Prototype
 
-Status: **Experimental** (`emulator-tested` for the RomFS registry, event routing, mixer state and missing-DSP fallback on both Azahar models; NDSP initializes with `state=ready` on physical Original/New 3DS and the New 3DS operator heard the UI tone, but physical listening for the live upstream effects and soundtrack remains open).
+Status: **Experimental** (`emulator-tested` for the RomFS registry, event routing, mixer state and missing-DSP fallback on both Azahar models; NDSP initializes with `state=ready` on physical Original/New 3DS and the New 3DS operator heard the UI tone. The full build now bundles the 9 validated upstream clips; physical listening for the live upstream effects and soundtrack remains open).
 
 The merged ARM11 Join path uses this mixer for stock sound effects and
 building ambience and streams the stock soundtrack through Tremor. The

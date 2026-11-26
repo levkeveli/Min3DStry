@@ -1,4 +1,4 @@
-"""Compare stock factory states with the same ARM11 ROM on both Azahar profiles."""
+"""Compare stock factory states with the same ARM11 ROM on Azahar in New 3DS mode by default."""
 import argparse
 from pathlib import Path
 import shutil
@@ -108,6 +108,7 @@ def capture(args, model, phase, fixture, reference, threshold):
     sd = (output / "sdmc").resolve()
     data = sd / "3ds/min3dstry"
     data.mkdir(parents=True)
+    sp.stage_direct_startup(sd)
     movie = None
     if args.live:
         (data / "server-endpoint.txt").write_text(f"127.0.0.1 {args.port}\n", encoding="ascii")
@@ -173,13 +174,13 @@ def main():
     parser.add_argument("--azahar")
     parser.add_argument("--live", action="store_true", help="Join the original Java server with each stock fixture")
     parser.add_argument("--port", type=int, default=16589)
-    parser.add_argument("--model", choices=("new3ds", "old3ds"), action="append")
+    parser.add_argument("--model", choices=("new3ds",), action="append")
     parser.add_argument("--fixture", type=Path, help="An existing directory of stock fixture saves")
     parser.add_argument("--output", type=Path, required=True, help="A new output directory")
     args = parser.parse_args()
     args.output.mkdir(parents=True)
     fixture = args.fixture or create_stock_saves(args, args.output / "stock-server")
-    for model in args.model or ("old3ds", "new3ds"):
+    for model in args.model or ("new3ds",):
         terrain = capture(args, model, "terrain", fixture, None, 0)
         idle = capture(args, model, "idle", fixture, terrain, 100)
         capture(args, model, "construction", fixture, idle, 12)

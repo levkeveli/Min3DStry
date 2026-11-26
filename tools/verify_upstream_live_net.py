@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Join an official v160.8 loopback server from both Azahar console profiles."""
+"""Join an official v160.8 loopback server from Azahar in New 3DS mode by default."""
 
 import argparse
 import hashlib
@@ -9,6 +9,7 @@ from pathlib import Path
 import re
 import struct
 import subprocess
+import sys
 import tempfile
 import time
 import zipfile
@@ -91,14 +92,16 @@ BUILDING_CRACK_PIXELS = {
 
 
 def write_controls_replay(path, first_move=22, building=False, touch_build=False, touch_config=False,
-                          erekir_build=False, mining=None, model="old3ds", stock_menu_font=False,
-                          unified_boot=False, stationary=False, chat=False):
+                          erekir_build=False, mining=None, model="new3ds", stock_menu_font=False,
+                          unified_boot=False, stationary=False, chat=False, cancel_restart=False, join_from_title=False):
     """Write the Azahar 2126.2 CTM input for this probe's pad/touch polling."""
     # The pinned Azahar movie header and HID sample definitions use packed little-endian fields.
     revision = bytes.fromhex("219d743a1e698101fe1ab8bef43e6563126c3c27")
     samples_per_second = 234
     # Construction and configuration replays can take longer between input polls.
     needs_settling_time = building or touch_build or touch_config
+    move_hold = 3 if unified_boot else 1
+    leave_hold = 5 if unified_boot else 1
     circle_at = first_move + (18 if needs_settling_time else 6)
     leave_at = first_move + (44 if needs_settling_time else 16)
     if unified_boot:
@@ -157,13 +160,25 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
             elif mining or stationary:
                 buttons = 0
             else:
-                buttons = (1 << 4) if seconds == first_move else (1 << 3) if seconds == leave_at else 0
+                # The unified ROM can take more than one emulated second to
+                # service a HID transition on a loaded hosted runner. Hold each
+                # control long enough that a late poll still observes the press.
+                buttons = (1 << 4) if first_move <= seconds < first_move + move_hold \
+                    else (1 << 3) if leave_at <= seconds < leave_at + leave_hold else 0
             if building and seconds in (35, 37, 39):
                 buttons = 1  # A, with releases so a late HID poll can observe another press.
-            if unified_boot and seconds < 6:
+            if join_from_title:
+                if 24 <= seconds < 27 or 42 <= seconds < 45:
+                    buttons |= 1  # Open Play, then confirm Join Game.
+                if 33 <= seconds < 36:
+                    buttons |= 1 << 7  # Down to Join Game.
+            elif unified_boot and seconds < 6:
                 buttons |= 1 << 10  # X, sampled once before the game starts.
+            if cancel_restart and 64 <= seconds < 67:
+                buttons |= 1 << 1  # B, while the original server is offline.
             circle_x = 65 if mining == "wall" and 54 <= seconds < pan_end else 0
-            circle_y = 106 if seconds == circle_at and not (erekir_build or mining or stationary) else 0
+            circle_y = 106 if circle_at <= seconds < circle_at + move_hold and not (
+                erekir_build or mining or stationary) else 0
             if mining == "floor" and 88 <= seconds < 94:
                 circle_y = 65
             point = next((point for start, point in taps if start <= seconds < start + 2), None)
@@ -615,11 +630,17 @@ def verify_controls(log, emulator, server_log, server, timeout, capture=None,
         settled = result.groups()
         for sample in range(6):
             time.sleep(0.3)
-            later = server_position(
+            idle_sample = server_position(
                 server_log, server, f"UPSTREAM_SERVER_CONTROLS_IDLE input={device} sample={sample}"
-            ).groups()
-            if int(later[1]) > int(settled[1]):
+            )
+            later = idle_sample.groups()
+            if int(later[1]) <= int(settled[1]):
+                continue
+            if all(abs(float(settled[i]) - float(later[i])) <= 0.05 for i in (2, 3)):
                 break
+            # The server can receive one final interpolated position after release.
+            # Require another advancing snapshot at that position before calling it idle.
+            result, settled = idle_sample, later
         if (client_unit != settled[0] or settled[0] != baseline[0] or settled[0] != later[0]
                 or int(later[1]) <= int(settled[1])
                 or float(settled[axis]) - float(baseline[axis]) < 0.05
@@ -1835,25 +1856,47 @@ def run_model(args, model, config, original_config, log, output):
                     first_move = 101
                 if args.touch_config:
                     first_move = 154 if args.verify_stock_menu_font else 92
+                if args.join_from_title:
+                    first_move += 55  # Allow time for the title controls before joining.
                 write_controls_replay(replay, first_move=first_move, building=args.building,
                                       touch_build=args.touch_build, touch_config=args.touch_config,
                                       erekir_build=args.erekir_build, mining=args.mining, model=model,
                                       stock_menu_font=args.verify_stock_menu_font, unified_boot=args.unified_boot,
-                                      stationary=not args.controls_replay, chat=args.verify_chat)
+                                      stationary=not args.controls_replay, chat=args.verify_chat,
+                                      cancel_restart=args.server_kick == "restart-cancel",
+                                      join_from_title=args.join_from_title)
                 command += ["-p", str(replay)]
             command.append(str(args.rom))
-            emulator = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            process_log = output / f"{model}-azahar-process.log"
+            with process_log.open("wb") as terminal:
+                emulator = subprocess.Popen(command, stdout=terminal, stderr=subprocess.STDOUT)
             rpc = az.AzaharRpcClient(timeout=2, retries=2)
             try:
                 if args.unified_boot:
-                    wait_for(log, emulator, r"UPSTREAM_BOOT mode=join\b", args.timeout)
+                    try:
+                        if args.join_from_title:
+                            wait_for(log, emulator, r"UPSTREAM_BOOT mode=title\b", args.timeout)
+                        wait_for(log, emulator, r"UPSTREAM_BOOT mode=join\b", args.timeout)
+                    except RuntimeError:
+                        print(process_log.read_text(encoding="utf-8", errors="replace")[-2500:], file=sys.stderr)
+                        raise
                 if args.locale:
                     names = {"en": ("Router", "Copper"), "de": ("Verteiler", "Kupfer")}
                     labels = names.get(args.locale)
                     words = " router=" + re.escape(labels[0]) + " copper=" + re.escape(labels[1]) if labels else ""
                     pattern = rf"UPSTREAM_INTERFACE_LOCALE system=\d+ bundle={re.escape(args.locale)}\b{words}"
-                    localized = wait_for(log, emulator, pattern, args.timeout)
-                    print(re.search(pattern, localized).group(0), flush=True)
+                    if args.join_from_title:
+                        join_pattern = rf"UPSTREAM_BOOT mode=join\b[\s\S]*?({pattern})"
+                        join_log = wait_for(log, emulator, join_pattern, args.timeout)
+                        title_log, _, _ = join_log.partition("UPSTREAM_BOOT mode=join")
+                        title_locale = re.search(pattern, title_log)
+                        if title_locale is None:
+                            raise RuntimeError(f"Title did not load saved locale {args.locale}:\n{title_log[-2500:]}")
+                        print("Title locale:", title_locale.group(0), flush=True)
+                        print("Multiplayer locale:", re.search(join_pattern, join_log).group(1), flush=True)
+                    else:
+                        localized = wait_for(log, emulator, pattern, args.timeout)
+                        print(re.search(pattern, localized).group(0), flush=True)
                 if args.controls:
                     def capture(phase, position):
                         if args.world_atlas_recycle and phase == "spawn":
@@ -1869,7 +1912,53 @@ def run_model(args, model, config, original_config, log, output):
                                                 spawn_pixels=(MAP_SPAWN_PIXELS.get(args.map_spawn) if phase == "spawn"
                                                               else EREKIR_BUILD_PIXELS.get(phase)))
 
-                    if args.combat:
+                    if args.server_kick:
+                        wait_for(log, emulator, r"UPSTREAM_LIVE_CONTROLS_READY unit=\d+", args.timeout)
+                        restart = args.server_kick in ("restart", "restart-cancel")
+                        reason = "Hosted stock kick" if args.server_kick == "text" else "serverRestarting" if restart else "kick"
+                        kind = "enum" if restart else args.server_kick
+                        wire_reason = (json.dumps(reason) if args.server_kick == "text"
+                                       else f"Packages.mindustry.net.Packets.KickReason.{reason}")
+                        server.stdin.write(
+                            f'js (() => {{ const player = Groups.player.find(boolf(p => String(p.name) === {json.dumps(PLAYER)})); '
+                            f'player.con.kick({wire_reason}, 0); }})()\n'
+                        )
+                        server.stdin.flush()
+                        wait_for(server_log, server, rf"Kicking connection .*Reason: {re.escape(reason)}", args.timeout)
+                        wait_for(log, emulator,
+                                 rf"UPSTREAM_LIVE_CONTROLS_KICK kind={kind} reason={re.escape(reason)}",
+                                 args.timeout)
+                        emu_log = wait_for(log, emulator, "UPSTREAM_LIVE_CONTROLS_LEFT", args.timeout)
+                        if restart:
+                            wait_for(log, emulator, "UPSTREAM_LIVE_RECONNECT_WAIT", args.timeout)
+                            server.stdin.write("stop\n")
+                            server.stdin.flush()
+                            wait_for(server_log, server, "Stopped server.", 10)
+                        if args.server_kick == "restart-cancel":
+                            emu_log = wait_for(log, emulator, "UPSTREAM_LIVE_RECONNECT_CANCEL", args.timeout)
+                            if "UPSTREAM_LIVE_NET_WORLD join=2" in emu_log:
+                                raise RuntimeError("Cancelling reconnect unexpectedly opened a second session")
+                        elif restart:
+                            time.sleep(2)
+                            server.stdin.write("host Glacier survival\n")
+                            server.stdin.flush()
+                            wait_for(log, emulator, r"UPSTREAM_LIVE_NET_WORLD join=2\b", args.timeout)
+                            wait_for(server_log, server,
+                                     rf"{PLAYER} has connected[\s\S]*{PLAYER} has connected", args.timeout)
+                            server.stdin.write(
+                                f'js (() => {{ const player = Groups.player.find(boolf(p => String(p.name) === {json.dumps(PLAYER)})); '
+                                'player.con.kick("Hosted stop after reconnect", 0); })()\n'
+                            )
+                            server.stdin.flush()
+                            emu_log = wait_for(log, emulator,
+                                r"UPSTREAM_LIVE_CONTROLS_KICK kind=text reason=Hosted stop after reconnect"
+                                r"[\s\S]*UPSTREAM_LIVE_CONTROLS_LEFT", args.timeout)
+                        if args.verify_kick_notice:
+                            message = reason if args.server_kick == "text" else "You have been kicked from the server!"
+                            emu_log = wait_for(log, emulator, re.escape(
+                                f"UPSTREAM_LIVE_KICK_NOTICE title=Disconnected. detail={message}"), args.timeout)
+                            (output / f"{model}-kick-notice.png").write_bytes(rpc.screenshot())
+                    elif args.combat:
                         wait_for(log, emulator, r"UPSTREAM_LIVE_CONTROLS_READY unit=\d+", args.timeout)
                         status = wait_for(log, emulator,
                                           r"UPSTREAM_STATUS_HUD wave=\d+ enemies=\d+ copper=\d+ rows=5", args.timeout)
@@ -2099,7 +2188,7 @@ def run_model(args, model, config, original_config, log, output):
             if not args.controls:
                 validate(emu_log)
             disconnected = rf"{PLAYER} has disconnected"
-            if not args.controls:
+            if not args.controls or args.server_kick == "restart":
                 disconnected += rf"[\s\S]*{PLAYER} has disconnected"
             before_shutdown = wait_for(server_log, server, disconnected, 5)
             if args.desktop_name:
@@ -2120,7 +2209,7 @@ def run_model(args, model, config, original_config, log, output):
             if stationary and any("(error)" in line for line in departures):
                 print(f"{model}: stationary verification ended by emulator kill; "
                       "accepted the server's (error) departure", flush=True)
-            expected_joins = 1 if args.controls else 2
+            expected_joins = 1 if args.controls and args.server_kick != "restart" else 2
             if ((not args.controls and "clientOutdated" not in upstream)
                     or upstream.count(f"{PLAYER} has connected") != expected_joins
                     or len(departures) != expected_joins or not expected_departures):
@@ -2161,15 +2250,21 @@ def main():
     parser.add_argument("--java", default="java")
     parser.add_argument("--port", default=16568, type=int)
     parser.add_argument("--timeout", default=120, type=float)
-    parser.add_argument("--model", choices=("old3ds", "new3ds"),
-                        help="Check one Azahar profile (default: both)")
+    parser.add_argument("--model", choices=("new3ds",),
+                        help="Check one Azahar profile (default: new3ds)")
     parser.add_argument("--desktop-name",
-                        help="Wait for a separately launched PC client and verify its connection overlaps both joins")
+                        help="Wait for a separately launched PC client and verify its connection overlaps the ARM11 join")
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--movement", action="store_true", help="Verify the stock server applies scripted ARM11 movement")
     mode.add_argument("--controls", action="store_true", help="Verify D-pad and Circle Pad input and START disconnect")
+    parser.add_argument("--server-kick", choices=("text", "enum", "restart", "restart-cancel"),
+                        help="Verify a stock server kick after entering live play")
+    parser.add_argument("--verify-kick-notice", action="store_true",
+                        help="Check and capture the English stock disconnect notice")
     parser.add_argument("--controls-replay", action="store_true",
                         help="Replay the controls test input in Azahar 2126.2")
+    parser.add_argument("--join-from-title", action="store_true",
+                        help="Start at the unified title and join through the Play menu")
     parser.add_argument("--unified-boot", action="store_true",
                         help="Hold X at startup to join from the unified offline and multiplayer ROM")
     parser.add_argument("--terrain-atlas", type=Path,
@@ -2272,8 +2367,17 @@ def main():
         parser.error("The PC client needs a distinct player name")
     if args.controls_replay and not args.controls:
         parser.error("--controls-replay needs --controls")
+    if args.server_kick and (not args.controls or args.controls_replay):
+        parser.error("--server-kick needs stationary --controls")
+    if args.verify_kick_notice and (args.server_kick not in ("text", "enum") or args.locale != "en"):
+        parser.error("--verify-kick-notice needs --server-kick and --locale en")
     if args.unified_boot and not args.controls:
         parser.error("--unified-boot needs --controls")
+    if args.join_from_title and not (args.unified_boot and args.controls_replay):
+        parser.error("--join-from-title needs --unified-boot and --controls-replay")
+    if args.join_from_title and any((args.building, args.touch_build, args.touch_config,
+                                    args.erekir_build, args.mining, args.verify_chat)):
+        parser.error("--join-from-title needs the standard movement replay")
     if args.combat and (not args.controls or not args.terrain_atlas):
         parser.error("--combat needs --controls and --terrain-atlas")
     if args.combat and (args.controls_replay or args.building or args.touch_build or args.touch_config
@@ -2405,10 +2509,18 @@ def main():
     config, log = az.resolve_azahar_paths(str(args.azahar))
     endpoint = log.parent.parent / "sdmc/3ds/min3dstry/server-endpoint.txt"
     originals = {path: path.read_bytes() if path.exists() else None for path in (config, log, endpoint)}
+    startup = endpoint.with_name("startup.txt")
+    if args.join_from_title:
+        originals[startup] = startup.read_bytes() if startup.exists() else None
     atlas_path = endpoint.with_name("sprites.aatls")
     locale_path = endpoint.with_name("locale.txt")
+    settings_path = endpoint.with_name("settings.bin")
     if args.locale:
-        originals[locale_path] = locale_path.read_bytes() if locale_path.exists() else None
+        locale_files = [locale_path]
+        if args.join_from_title:
+            locale_files.extend((settings_path, endpoint.with_name("settings_backup.bin")))
+        for path in locale_files:
+            originals[path] = path.read_bytes() if path.exists() else None
     if args.terrain_atlas:
         originals[atlas_path] = atlas_path.read_bytes() if atlas_path.exists() else None
     output = args.rom.parent / "upstream-live-net"
@@ -2418,13 +2530,20 @@ def main():
     try:
         for path in originals:
             path.parent.mkdir(parents=True, exist_ok=True)
+        if args.join_from_title:
+            startup.unlink(missing_ok=True)
         suffix = " controls" if args.controls else " movement" if args.movement else ""
         endpoint.write_text(f"127.0.0.1 {args.port}{suffix}\n", encoding="ascii")
-        if args.locale:
+        if args.locale and args.join_from_title:
+            locale_path.unlink(missing_ok=True)
+            # Arc Settings stores a big-endian entry count, UTF key, String type and UTF value.
+            locale = args.locale.encode("ascii")
+            settings_path.write_bytes(struct.pack(">IH6sBH", 1, 6, b"locale", 4, len(locale)) + locale)
+        elif args.locale:
             locale_path.write_text(args.locale + "\n", encoding="ascii")
         if args.terrain_atlas:
             atlas_path.write_bytes(atlas_bytes)
-        for model in ((args.model,) if args.model else ("old3ds", "new3ds")):
+        for model in ((args.model,) if args.model else ("new3ds",)):
             run_model(args, model, config, (originals[config] or b"").decode(), log, output)
     finally:
         for path, data in originals.items():

@@ -3,16 +3,19 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import Mock
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools"))
+import verify_upstream_campaign_resume as campaign  # noqa: E402
 import verify_upstream_singleplayer as vsp  # noqa: E402
 
 
 class VerifyUpstreamSingleplayerTests(unittest.TestCase):
     def test_write_singleplayer_ctm_header_and_size(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            for model, expected_frames in (("new3ds", 88 * 234), ("old3ds", 88 * 234)):
+            # The playback starts at 40s and runs for 62s.
+            for model, expected_frames in (("new3ds", 102 * 234), ("old3ds", 102 * 234)):
                 ctm = Path(tmp) / f"{model}.ctm"
                 vsp.write_singleplayer_ctm(ctm, model)
                 raw = ctm.read_bytes()
@@ -21,6 +24,38 @@ class VerifyUpstreamSingleplayerTests(unittest.TestCase):
                 self.assertGreaterEqual(len(raw), header_size + expected_frames * 14)
                 frame_count = struct.unpack_from("<Q", raw, 84)[0]
                 self.assertEqual(frame_count, expected_frames)
+
+    def test_dense_resave_keeps_separate_save_and_exit_windows(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "dense.ctm"
+            campaign.write_replay(path, "new3ds", True, True, dense=True, resave=True)
+            data = path.read_bytes()
+            frames = vsp.CTM_SAMPLES_PER_SECOND
+            header = 256
+
+            def button_at(second):
+                frame = frames * second
+                cycles, remainder = divmod(frame, 7)
+                extra_polls = cycles * 3 + sum(value < remainder for value in (0, 2, 4))
+                return struct.unpack_from("<H", data, header + 7 * (2 * frame + extra_polls) + 1)[0]
+
+            self.assertEqual(struct.unpack_from("<Q", data, 84)[0], 1540 * frames)
+            for start, end, key in ((650, 682, vsp.KEY_SELECT), (1040, 1072, vsp.KEY_START)):
+                self.assertEqual(button_at(start - 1), 0)
+                self.assertEqual(button_at(start), key)
+                self.assertEqual(button_at(end - 1), key)
+                self.assertEqual(button_at(end), 0)
+
+    def test_wait_for_log_reports_native_azahar_crash(self) -> None:
+        for marker in ("Core::LogException", "core/arm/exception_handler.cpp:LogException:140:"):
+            with self.subTest(marker=marker), tempfile.TemporaryDirectory() as tmp:
+                log = Path(tmp) / "azahar_log.txt"
+                log.write_text(f"[19.1] Core <Critical> {marker}\nException Type: Undefined Instruction\n",
+                               encoding="utf-8")
+                running = Mock()
+                running.poll.return_value = None
+                with self.assertRaisesRegex(RuntimeError, "Emulated exception waiting for UPSTREAM_SP_FRAME"):
+                    vsp._wait_for_log(log, running, "UPSTREAM_SP_FRAME", 1.0)
 
     def test_resolve_sd_save_path(self) -> None:
         log = Path("/home/user/.var/app/org.azahar_emu.Azahar/data/azahar-emu/log/azahar_log.txt")
@@ -50,10 +85,37 @@ class VerifyUpstreamSingleplayerTests(unittest.TestCase):
         self.assertTrue(parsed["moving"])
         self.assertTrue(parsed["pause_true"])
         self.assertTrue(parsed["pause_false"])
+        self.assertTrue(vsp.pause_milestone_reached(parsed))
         self.assertTrue(parsed["wave"])
         self.assertEqual(parsed["saved"]["bytes"], "18500")
         self.assertEqual(parsed["mem"]["appHeap"], 111915008)
         self.assertTrue(parsed["exit"])
+
+    def test_pause_disabled_menu_milestone(self) -> None:
+        parsed = vsp.parse_singleplayer_log("\n".join([
+            "UPSTREAM_SP_PAUSE disabled=true",
+            "UPSTREAM_PAUSE_MENU open=true selected=0 options=3",
+            "UPSTREAM_PAUSE_MENU open=false",
+            "UPSTREAM_SP_MINED item=copper copper=15",
+        ]))
+        self.assertTrue(parsed["pause_disabled"])
+        self.assertTrue(parsed["pause_menu_open"])
+        self.assertTrue(parsed["pause_menu_close"])
+        self.assertFalse(parsed["pause_true"])
+        self.assertFalse(parsed["pause_false"])
+        self.assertTrue(vsp.pause_milestone_reached(parsed))
+
+    def test_pause_menu_without_disabled_rule_is_rejected(self) -> None:
+        parsed = vsp.parse_singleplayer_log("\n".join([
+            "UPSTREAM_PAUSE_MENU open=true selected=0 options=3",
+            "UPSTREAM_PAUSE_MENU open=false",
+        ]))
+        self.assertFalse(parsed["pause_disabled"])
+        self.assertFalse(vsp.pause_milestone_reached(parsed))
+
+    def test_missing_pause_milestone_is_rejected(self) -> None:
+        parsed = vsp.parse_singleplayer_log("UPSTREAM_SP_MOVING unit=12 input=circle")
+        self.assertFalse(vsp.pause_milestone_reached(parsed))
 
 
 if __name__ == "__main__":

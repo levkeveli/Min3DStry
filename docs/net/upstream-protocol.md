@@ -2,7 +2,7 @@
 
 **Issue:** [#31](https://github.com/levkeveli/Min3DStry/issues/31) / [#44](https://github.com/levkeveli/Min3DStry/issues/44)
 
-**Stage:** `host-tested` (wire-exact framing & host session baseline verified live against unmodified Mindustry v8 build `160.8` `server-release.jar` via `tools/verify_upstream_net.py`; `net_3ds.c` compiled into `min3dstry.3dsx`; separate TeaVM ARM11 Azahar sessions are tracked in [`research/upstream-runtime/`](../../research/upstream-runtime/README.md) and [`port-capabilities.json`](../port-capabilities.json); physical Old/New 3DS console Wi-Fi sessions remain pending under `#44` / `#43`)
+**Stage:** `host-tested` (wire-exact framing & host session baseline verified live against unmodified Mindustry v8 build `160.8` `server-release.jar` via `tools/verify_upstream_net.py`; `net_3ds.c` compiled into `min3dstry.3dsx`; separate TeaVM ARM11 Azahar sessions are tracked in [`research/upstream-runtime/`](../../research/upstream-runtime/README.md) and [`port-capabilities.json`](../port-capabilities.json); physical New Nintendo 3DS/2DS Wi-Fi sessions remain pending under `#44` / `#43`)
 
 ---
 
@@ -91,13 +91,14 @@ DECODE_PKT_OK id=141 compression=1 wire_len=140 payload_len=182
 
 - **Two bidirectional gameplay sessions (build, disconnect/rejoin persistence, and deconstruct):**
   - **Session 1 (`run=1`):** Completed `ConnectPacket` -> `WorldStream` (`150x250` `Glacier`, `2` core origins, `copper=200`) -> `ConnectConfirmCallPacket`, applied incoming `StateSnapshotCallPacket` + `EntitySnapshotCallPacket` on the main thread until the server-spawned player unit was synced, transmitted outbound UDP `ClientSnapshotCallPacket` build plans for a `Conveyor` at `(85, 26)` rotation `1` and a `Copper Wall` at `(86, 26)`, applied server `ConstructFinishCallPacket` confirmations, and verified authoritative core copper sync (`200 -> 193`, `buildings=2->4`).
+    The starting Glacier tiles may be air or replaceable stock decoration, such as snow boulders. Both targets must be unoccupied by buildings.
   - **Session 2 (`run=2`):** Reset client state (`Vars.logic.reset()`), reconnected with the same UUID, confirmed the server's fresh rejoin `WorldStream` persisted all `4` buildings and `copper=193`, sent an outbound `ClientSnapshotCallPacket` deconstruction `BuildPlan(86, 26)`, applied `DeconstructFinishCallPacket`, and verified authoritative core copper refund sync (`193 -> 196`, `buildings=4->3`).
 - **Live LZ4 parity:** The raw `net.jpountz.lz4`-compressed server packet (`id=141`, `compressed_bytes=140`, `payload_len=182`, `compression=1`) decoded byte-for-byte identically via C11 `m3ds_net_decode_packet` (`DECODE_PKT_OK`).
 - **Run-to-run variability:** Because this harness connects to a freshly started live `server-release.jar`, server-assigned `playerId`s, `state_snapshots` / `entity_snapshots` / `lz4_packets` counts, and the captured `UPSTREAM_LZ4_PACKET` SHA-256 vary between runs (for example, `lz4_packets=15` and `16` across consecutive runs); `tools/verify_upstream_net.py` asserts the deterministic `UPSTREAM_NET_DISCOVERY`, `UPSTREAM_NET_MISMATCH`, both `UPSTREAM_NET_ACTION` build/rejoin/deconstruct lines, non-zero `entity_snapshots`, and C11 `DECODE_PKT_OK` invariants rather than fixed snapshot counts or hashes.
 
 ### 4. 3DS ARM11 Build (`./dev.sh build`)
 - **3DS-build-tested:** `src/net/mindustry_net.c` and `src/platform/3ds/net_3ds.c` compile cleanly under devkitARM `arm-none-eabi-gcc` (`-std=c11 -Wall -Wextra -Werror`) into `build/min3dstry.3dsx`.
-- **Not yet tested:** Physical Original/New 3DS console Wi-Fi handshake and play sessions (`#31`, `#44`, `#43`); this host/wire document stays at `host-tested` while separate TeaVM ARM11 emulator runs are recorded under [`research/upstream-runtime/`](../../research/upstream-runtime/README.md).
+- **Not yet tested:** Physical New Nintendo 3DS/2DS Wi-Fi handshake and play sessions (`#31`, `#44`, `#43`); this host/wire document stays at `host-tested` while separate TeaVM ARM11 emulator runs are recorded under [`research/upstream-runtime/`](../../research/upstream-runtime/README.md).
 
 ---
 
@@ -126,20 +127,25 @@ server's formatted echo. The following wave snapshot reached the client
 with the composer open and another arrived after submission. A stock PC
 client displayed the ARM11-origin text in the shared local session.
 
+## Stock server kicks and restart
+
+The 3DS client displays the stock kick reason or the message supplied by the
+server. A stock `serverRestarting` reason opens the reconnect screen and
+triggers discovery at the same address. Press **B** on that screen to cancel.
+
+Run `tools/verify_upstream_live_net.py` with the matching ARM11 ROM and the
+stock v160.8 server. Use `--server-kick restart` to stop and reopen the server
+and require a second join. Use `--server-kick restart-cancel` to keep the server
+offline, press **B**, and require cancellation without a second join.
+Use `--verify-kick-notice` with `--server-kick text` or `--server-kick enum`
+to check the rendered reason for a regular disconnect.
+
+The restart replay passed on both Azahar console profiles. The cancellation
+replay passed on the New 3DS profile.
+[New 3DS restart](https://github.com/levkeveli/Min3DStry/actions/runs/45290486799) ·
+[Original 3DS restart](https://github.com/levkeveli/Min3DStry/actions/runs/45293324404) ·
+[New 3DS cancellation](https://github.com/levkeveli/Min3DStry/actions/runs/45296040600)
+
 ## License Audit
 
 All C wire/framing code in `src/net/mindustry_net.c` and `src/platform/3ds/net_3ds.c` was written cleanly for Min3DStry from the wire specification documented in pinned upstream Mindustry (`GPLv3`) and Arc (`Apache-2.0` / `BSD-style` ArcNet heritage), with zero proprietary Nintendo code and zero undistributable third-party binaries.
-
-### Payload pickup and drop
-
-The graphical client handles the original v160.8 unit pickup, building
-pickup, payload drop and unit-entry packets. A stock drop can restore the
-whole building, including its health, or feed a same-team payload receiver.
-A unit released onto the ground appears with the server-assigned ID when
-its entity snapshot arrives.
-
-The unified JVM snapshot replay loads a stock Glacier world and round-trips
-the generated packet bytes. It checks a Mega carrying a Dagger and a damaged
-Copper Wall, delivery to a Payload Conveyor, cargo retrieval, ground release
-and a unit entering the conveyor. Handheld input and live session replay
-remain to be verified.

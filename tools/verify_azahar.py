@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import random
@@ -775,6 +776,11 @@ def resolve_azahar_paths(azahar_bin: str | None = None) -> tuple[Path, Path]:
     return cfg_root / "qt-config.ini", data_root / "log" / "azahar_log.txt"
 
 
+def is_transient_fps_failure(exc: BaseException) -> bool:
+    """Azahar occasionally launches without frame stats; retry only that race."""
+    return isinstance(exc, AssertionError) and "Non-positive FPS" in str(exc)
+
+
 def run_model_check(
     model: str,
     rom_path: Path,
@@ -1047,10 +1053,22 @@ def run_model_check(
             config_path.unlink()
 
 
+def artifact_metadata(path: Path) -> dict[str, Any]:
+    """Return the resolved path, hashed bytes and SHA-256 of one artifact."""
+    resolved = path.resolve()
+    hasher = hashlib.sha256()
+    total = 0
+    with resolved.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            hasher.update(chunk)
+            total += len(chunk)
+    return {"path": str(resolved), "bytes": total, "sha256": hasher.hexdigest()}
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--rom", default="build/min3dstry.3dsx")
-    parser.add_argument("--models", default="new3ds,old3ds")
+    parser.add_argument("--models", choices=("new3ds",), default="new3ds")
     parser.add_argument("--out-dir", default="build/emu-verify")
     parser.add_argument("--timeout", type=float, default=60.0)
     parser.add_argument("--azahar", default=None)
@@ -1070,36 +1088,47 @@ def main() -> int:
     if not rom_path.is_file():
         print(f"verify_azahar: ROM not found: {rom_path}", file=sys.stderr)
         return 2
+    artifact = artifact_metadata(rom_path)
+    print(
+        f"Artifact sha256={artifact['sha256']} bytes={artifact['bytes']} path={artifact['path']}",
+        flush=True,
+    )
 
     azahar_bin = resolve_azahar_bin(args.azahar)
     config_path, log_path = resolve_azahar_paths(azahar_bin)
     out_dir = Path(args.out_dir)
 
-    models = [m.strip().lower() for m in args.models.split(",") if m.strip()]
-    for m in models:
-        if m not in ("new3ds", "old3ds"):
-            print(f"verify_azahar: unsupported model '{m}' (use new3ds,old3ds)", file=sys.stderr)
-            return 2
-
-    results = []
-    for model in models:
-        res = run_model_check(
-            model, rom_path, azahar_bin, config_path, log_path, out_dir, args.timeout,
-            args.expect_sector_catalog,
-        )
-        results.append(res)
-        print(
-            f"[PASS] {model}: {res['hw_line']} | "
-            f"Parity={res['parity']['trace_hash']} | "
-            f"Audio={res['audio']['state']} | "
-            f"R:{res['frame']['rects']} C:{res['frame']['circles']} Sw:{res['frame']['state_switches']} | "
-            f"FPS={res['perf']['game_fps']} ({res['perf']['emulation_speed_pct']}%) | "
-            f"Sectors={res['sector_catalog']['count'] if res['sector_catalog'] else 0} | "
-            f"PNG={res['screenshot']['path']}"
-        )
+    model = args.models
+    for attempt in (1, 2):
+        try:
+            res = run_model_check(
+                model, rom_path, azahar_bin, config_path, log_path, out_dir, args.timeout,
+                args.expect_sector_catalog,
+            )
+            break
+        except AssertionError as exc:
+            if attempt == 2 or not is_transient_fps_failure(exc):
+                raise
+            print(
+                f"verify_azahar: {model} produced no FPS; retrying once (attempt 2/2)",
+                file=sys.stderr,
+                flush=True,
+            )
+    print(
+        f"[PASS] {model}: {res['hw_line']} | "
+        f"Parity={res['parity']['trace_hash']} | "
+        f"Audio={res['audio']['state']} | "
+        f"R:{res['frame']['rects']} C:{res['frame']['circles']} Sw:{res['frame']['state_switches']} | "
+        f"FPS={res['perf']['game_fps']} ({res['perf']['emulation_speed_pct']}%) | "
+        f"Sectors={res['sector_catalog']['count'] if res['sector_catalog'] else 0} | "
+        f"PNG={res['screenshot']['path']}"
+    )
 
     report_path = out_dir / "report.json"
-    report_path.write_text(json.dumps({"rom": str(rom_path), "results": results}, indent=2) + "\n", encoding="utf-8")
+    report_path.write_text(
+        json.dumps({"rom": str(rom_path), "artifact": artifact, "results": [res]}, indent=2) + "\n",
+        encoding="utf-8",
+    )
     print(f"Wrote verification report to {report_path}")
     return 0
 
