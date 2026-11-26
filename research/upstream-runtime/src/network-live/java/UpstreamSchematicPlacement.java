@@ -205,6 +205,7 @@ final class UpstreamSchematicPlacement {
                 text.append("  ").append(page + 1).append('/').append(1 + (files.length - 1) / UpstreamBuildMenu.ROWS);
             }
         }
+        // The native picker consumes the title, six rows and three buttons even when a notice replaces the title.
         text.append('\0');
         for (int row = 0; row < UpstreamBuildMenu.ROWS; row++) {
             int index = page * UpstreamBuildMenu.ROWS + row;

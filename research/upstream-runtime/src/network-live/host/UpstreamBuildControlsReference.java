@@ -661,16 +661,19 @@ public final class UpstreamBuildControlsReference {
             picker.open();
             picker.tap(120, 21);
             picker.tap(184, 21);
+            requireSchematicNoticeRows(picker, Core.bundle.get("schematic.saved"), stock.name());
 
             byte[] imported = Files.readAllBytes(destination);
             Files.writeString(clipboard, "invalid clipboard text");
             picker.tap(184, 21);
+            requireSchematicNoticeRows(picker, Core.bundle.get("error"), stock.name());
             if (Files.exists(folder.resolve("Schematic-2.msch"))
                     || !java.util.Arrays.equals(imported, Files.readAllBytes(destination))) {
                 throw new AssertionError("Malformed clipboard text changed an existing schematic");
             }
 
             picker.tap(140, 55);
+            requireSchematicNoticeRows(picker, Core.bundle.get("copied"), stock.name());
             var result = Schematics.readBase64(Files.readString(clipboard));
             if (result.width != 3 || result.height != 1 || result.tiles.size != 3 || result.hasSteamID()
                     || !stock.name().equals(result.name()) || !stock.description().equals(result.description())
@@ -690,6 +693,21 @@ public final class UpstreamBuildControlsReference {
             Files.deleteIfExists(clipboard);
             Files.deleteIfExists(destination);
             Files.deleteIfExists(folder);
+        }
+    }
+
+    private static void requireSchematicNoticeRows(UpstreamSchematicPlacement picker, String notice, String schematic) {
+        int buttons = 1 + UpstreamBuildMenu.ROWS;
+        String[] labels = new String(picker.labels(), java.nio.charset.StandardCharsets.UTF_8).split("\0", -1);
+        if (labels.length != buttons + 4 || !labels[0].equals(notice) || !labels[1].equals(schematic)
+                || !labels[buttons].equals(Core.bundle.get("back"))
+                || !labels[buttons + 1].equals(Core.bundle.get("editor.import", "Import"))
+                || !labels[buttons + 2].equals(Core.bundle.get("schematic.capture", "Capture"))
+                || !labels[buttons + 3].isEmpty()) {
+            throw new AssertionError("Invalid native schematic notice labels: " + java.util.Arrays.toString(labels));
+        }
+        for (int row = 2; row < buttons; row++) {
+            if (!labels[row].isEmpty()) throw new AssertionError("Expected an empty schematic row at " + row);
         }
     }
 
