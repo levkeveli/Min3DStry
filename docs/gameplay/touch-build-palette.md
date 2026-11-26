@@ -85,7 +85,11 @@ place of a system clipboard. For import, save the text from Mindustry's
 picker saves a new `.msch` file. For export, tap a schematic row while
 in **Share** mode. Copy the resulting text file into the original
 game's clipboard import. Export replaces the text file. The saved
-schematic keeps its original layout and metadata.
+schematic keeps its original layout and metadata. From the title
+screen, **Database → Schematics** also offers **Import** at the end of
+the library and **Export** in each schematic's details. Add
+`--clipboard` to the schematic replay above to verify the share text
+in the stock Java game as well as placement.
 
 The hosted New 3DS replay used `verify_stock_schematic_capture.py --xdotool
 --edit` to change both fields. Unmodified Mindustry v160.8 Java reopened

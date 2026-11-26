@@ -132,10 +132,9 @@ final class UpstreamSchematicPlacement {
 
     private void importClipboardFromPicker() {
         try {
-            Fi imported = importClipboard();
+            importClipboard();
             readFiles();
             refreshLabels(null, Core.bundle.get("schematic.saved"));
-            System.out.println("UPSTREAM_SCHEMATIC_CLIPBOARD_IMPORTED file=" + imported.name());
         } catch (IOException | RuntimeException error) {
             refreshLabels(null, Core.bundle.get("error"));
             System.out.println("UPSTREAM_SCHEMATIC_CLIPBOARD_ERROR import " + error.getMessage());
@@ -146,30 +145,31 @@ final class UpstreamSchematicPlacement {
         try {
             exportClipboard(source);
             refreshLabels(null, Core.bundle.get("copied"));
-            System.out.println("UPSTREAM_SCHEMATIC_CLIPBOARD_EXPORTED file=" + source.name());
         } catch (IOException | RuntimeException error) {
             refreshLabels(null, Core.bundle.get("error"));
             System.out.println("UPSTREAM_SCHEMATIC_CLIPBOARD_ERROR export " + error.getMessage());
         }
     }
 
-    private Fi importClipboard() throws IOException {
+    Fi importClipboard() throws IOException {
         Schematic schematic = Schematics.readBase64(directory.child(clipboardName).readString("UTF-8"));
         // Stock import removes the Workshop ID. Publish it with the new file in one write.
         schematic.tags.remove("steamid");
         Fi destination = availableCaptureFile();
         if (!schematic.tags.containsKey("name")) schematic.tags.put("name", destination.nameWithoutExtension());
         publish(schematic, destination, false);
+        System.out.println("UPSTREAM_SCHEMATIC_CLIPBOARD_IMPORTED file=" + destination.name());
         return destination;
     }
 
-    private void exportClipboard(Fi source) throws IOException {
+    void exportClipboard(Fi source) throws IOException {
         String encoded = stock().writeBase64(readSchematic(source));
         Fi destination = directory.child(clipboardName);
         File temporary = File.createTempFile("schematic-", ".tmp", directory.file());
         try {
             new Fi(temporary).writeString(encoded, false, "UTF-8");
             publishStagedFile(temporary, destination, destination.exists());
+            System.out.println("UPSTREAM_SCHEMATIC_CLIPBOARD_EXPORTED file=" + source.name());
         } finally {
             temporary.delete();
         }

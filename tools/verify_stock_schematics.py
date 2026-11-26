@@ -1,6 +1,7 @@
 """Build a stock v160.8 schematic by replaying unified ARM11 touch and pad input."""
 
 import argparse
+import json
 from pathlib import Path
 import shutil
 import time
@@ -26,7 +27,12 @@ SETUP = (
     'parts.add(new Tile(Blocks.sorter,1,0,Items.lead,0)); '
     'parts.add(new Tile(Blocks.itemBridge,2,0,null,0)); '
     'const file=new Packages.arc.files.Fi("factory.msch"); '
-    'Schematics.write(new Schematic(parts,new Packages.arc.struct.StringMap(),3,1),file); '
+    'const schematic=new Schematic(parts,new Packages.arc.struct.StringMap(),3,1); '
+    'schematic.tags.put("name","Linked transport"); schematic.tags.put("description","Stock clipboard replay"); '
+    'schematic.tags.put("steamid","1234"); schematic.labels.add("factory"); '
+    'Schematics.write(schematic,file); '
+    'const clipboard=new Packages.arc.files.Fi("clipboard.txt"); '
+    'clipboard.writeString(new Schematics().writeBase64(schematic),false,"UTF-8"); '
     'return "STOCK_SCHEMATIC_FIXTURE_READY";'
 )
 RESULT = (
@@ -39,6 +45,8 @@ RESULT = (
     'return "STOCK_SCHEMATIC_RESULT builds=3 item=lead bridge=linked";'
 )
 TAPS = {35: (15, 156), 42: (140, 55), 48: (200, 152)}
+CLIPBOARD_TAPS = {35: (15, 156), 42: (120, 22), 48: (184, 22), 54: (140, 55),
+                  60: (120, 22), 66: (140, 55), 72: (200, 152)}
 ROTATE = 1 << 8
 PLACE = 1 << 0
 
@@ -53,7 +61,11 @@ def create_fixture(args, output):
     return output / "config/saves/schematic.msav", output / "factory.msch"
 
 
-def verify_touch(log, proc, rpc, output, live):
+def verify_touch(log, proc, rpc, output, live, *, clipboard=False):
+    if clipboard:
+        sp._wait_for_log(log, proc, r"UPSTREAM_SCHEMATIC_CLIPBOARD_IMPORTED file=Schematic-1\.msch", 105)
+        (output / "clipboard-import.png").write_bytes(rpc.screenshot())
+        sp._wait_for_log(log, proc, r"UPSTREAM_SCHEMATIC_CLIPBOARD_EXPORTED file=Schematic-1\.msch", 45)
     sp._wait_for_log(log, proc, r"UPSTREAM_SCHEMATIC_SELECTED blocks=3 width=3 height=1", 95)
     sp._wait_for_log(log, proc, r"UPSTREAM_SCHEMATIC_PREVIEW x=83 y=25 turns=1 plans=3", 35)
     time.sleep(1)
@@ -69,6 +81,22 @@ def read_stock_buildings(server, log):
                   "STOCK_SCHEMATIC_RESULT builds=3 item=lead bridge=linked")
 
 
+def read_stock_clipboard(server, log, clipboard):
+    path = json.dumps(clipboard.resolve().as_posix())
+    code = (
+        f'const file=new Packages.arc.files.Fi({path}); '
+        'const s=Packages.mindustry.game.Schematics.readBase64(file.readString("UTF-8")); '
+        'const source=s.tiles.get(0), sorter=s.tiles.get(1), receiver=s.tiles.get(2); '
+        'if(s.width!==3 || s.height!==1 || s.tiles.size!==3 || s.hasSteamID() || '
+        'String(s.name())!=="Linked transport" || String(s.description())!=="Stock clipboard replay" || '
+        'String(s.labels.first())!=="factory" || source.block!==Blocks.itemBridge || '
+        'source.config.x!==2 || source.config.y!==0 || sorter.block!==Blocks.sorter || '
+        'sorter.config!==Items.lead || receiver.block!==Blocks.itemBridge) throw "Clipboard schematic mismatch"; '
+        'return "STOCK_SCHEMATIC_CLIPBOARD_RESULT tiles=3 metadata=ok";'
+    )
+    stock_command(server, log, "js (() => { " + code + " })()", "STOCK_SCHEMATIC_CLIPBOARD_RESULT tiles=3 metadata=ok")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--server", type=Path, required=True, help="Unmodified Mindustry v160.8 server JAR")
@@ -80,6 +108,7 @@ def main():
     parser.add_argument("--model", choices=("new3ds",), action="append")
     parser.add_argument("--port", type=int, default=16656)
     parser.add_argument("--live", action="store_true")
+    parser.add_argument("--clipboard", action="store_true", help="Round-trip the original clipboard text before placement")
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
     if args.fixture_dir:
@@ -92,15 +121,28 @@ def main():
             scene = args.output / model / ("live" if live else "offline")
             sd = scene / "sdmc/3ds/min3dstry/schematics"
             sd.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(schematic, sd / schematic.name)
-            buttons = {55: ROTATE, 62: PLACE, 94: sp.KEY_START}
+            if args.clipboard:
+                shutil.copyfile(schematic.with_name("clipboard.txt"), sd / "clipboard.txt")
+            else:
+                shutil.copyfile(schematic, sd / schematic.name)
+            buttons = {80: ROTATE, 87: PLACE, 128: sp.KEY_START} if args.clipboard else {
+                55: ROTATE, 62: PLACE, 94: sp.KEY_START,
+            }
             if live:
                 buttons[0] = sp.KEY_X
             else:
-                buttons[84] = sp.KEY_SELECT
-            replay(args, model, fixture, live, taps=TAPS, buttons=buttons,
-                   verify_input=lambda log, proc, rpc, output: verify_touch(log, proc, rpc, output, live),
-                   read_stock=read_stock_buildings)
+                buttons[115 if args.clipboard else 84] = sp.KEY_SELECT
+
+            def verify_result(server, log):
+                read_stock_buildings(server, log)
+                if args.clipboard:
+                    read_stock_clipboard(server, log, sd / "clipboard.txt")
+
+            replay(args, model, fixture, live, taps=CLIPBOARD_TAPS if args.clipboard else TAPS, buttons=buttons,
+                   movie_seconds=145 if args.clipboard else 102,
+                   verify_input=lambda log, proc, rpc, output: verify_touch(
+                       log, proc, rpc, output, live, clipboard=args.clipboard),
+                   read_stock=verify_result)
             print(f"UPSTREAM_STOCK_SCHEMATIC model={model} live={live} rotation=ok config=ok builds=3", flush=True)
 
 
