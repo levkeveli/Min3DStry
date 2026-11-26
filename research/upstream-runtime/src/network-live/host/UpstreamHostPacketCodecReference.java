@@ -15,7 +15,8 @@ public final class UpstreamHostPacketCodecReference {
     public static void main(String[] args) {
         Version.build = 160;
         Vars.net = new Net(null);
-        var stock = new PacketSerializer();
+        // Force the same initial property state as TeaVM before either codec uses LZ4.
+        String architecture = System.clearProperty("os.arch");
         var host = new UpstreamHostPacketCodec();
         var buffer = ByteBuffer.allocate(65536);
 
@@ -27,11 +28,14 @@ public final class UpstreamHostPacketCodecReference {
         connect.usid = "normal-host-reference";
         connect.mods = Seq.with("pinned-reference");
         connect.color = 0x12345678;
+        // Use a compressed packet first so the bundled compressor initializes its utility class.
+        int size = host.encode(connect);
+        if (architecture != null) System.setProperty("os.arch", architecture);
+        var stock = new PacketSerializer();
         stock.write(buffer, connect);
         requireConnect((ConnectPacket)host.decode(buffer.array(), buffer.position()), connect);
         if (buffer.get(3) != 1) throw new AssertionError("Expected stock LZ4 compression");
 
-        int size = host.encode(connect);
         if (host.output[3] != 1) throw new AssertionError("Expected handheld LZ4 compression");
         requireConnect((ConnectPacket)stock.read(ByteBuffer.wrap(host.output, 0, size)), connect);
 

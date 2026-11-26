@@ -52,7 +52,9 @@ are tracked in [#713](https://github.com/levkeveli/Min3DStry/issues/713).
 
 The host packet adapter uses the original v160.8 generated packet types and
 their stock read/write methods. It selects the bundled pure-Java LZ4
-implementation directly for TeaVM. The reusable packet bodies are Java
+implementation directly for TeaVM. The adapter supplies the ARM
+architecture property when the runtime leaves it unset, before the bundled
+compressor initializes. The reusable packet bodies are Java
 arrays behind Arc's data streams, so the adapter holds no cached native
 address across world loads or heap collections. The unified build runs
 `runStockHostPacketCodecJvm` to exchange compressed `ConnectPacket` data
