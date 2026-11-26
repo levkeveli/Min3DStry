@@ -72,6 +72,9 @@ from the checksum-verified v160.8 desktop archive. The face names and
 pixel data are preserved under `cubemaps/stars`, matching Arc's stock
 cubemap lookup. Rendering the staged skybox from the rotating campaign
 camera is pending.
+The native lookup maps each camera ray to the stock OpenGL cubemap
+face and nearest texel at original resolution. Host checks exercise
+both axes of all six faces, direction scaling, and edge clamping.
 
 The native atmosphere reference translates v160.8's
 `core/assets/shaders/atmosphere.frag` with the original three samples

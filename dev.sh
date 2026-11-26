@@ -207,6 +207,11 @@ case "${1:-}" in
       -lm -o build/host/test_planet_atmosphere
     ./build/host/test_planet_atmosphere
 
+    cc -std=c11 -Wall -Wextra -Werror -Iresearch/upstream-runtime/arm11 \
+      research/upstream-runtime/arm11/m3ds_campaign_skybox.c tests/render/test_campaign_skybox.c \
+      -lm -o build/host/test_campaign_skybox
+    ./build/host/test_campaign_skybox
+
     "$host_cc" -std=c11 -Wall -Wextra -Werror -Iinclude \
       src/render/save_world_preview.c tests/render/test_save_world_preview.c \
       -o build/host/test_save_world_preview
