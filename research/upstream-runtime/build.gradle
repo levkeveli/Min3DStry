@@ -2453,14 +2453,14 @@ final class UpstreamItemChoices {
         load(file, context, null);
     }
 
-    public static void load(Fi file, WorldContext context, StringMap playerTags) throws SaveException{''')
+    public static Fi load(Fi file, WorldContext context, StringMap playerTags) throws SaveException{''')
                 .replace(streamLoad, streamLoad + '''
         load(is, context, null);
     }
 
     private static void load(InputStream is, WorldContext context, StringMap playerTags) throws SaveException{''')
-                .replace(mainRead, 'load(new InflaterInputStream(file.read(bufferSize)), context, playerTags);')
-                .replace(backupRead, 'load(new InflaterInputStream(backup.read(bufferSize)), context, playerTags);')
+                .replace(mainRead, 'load(new InflaterInputStream(file.read(bufferSize)), context, playerTags);\n            return file;')
+                .replace(backupRead, 'load(new InflaterInputStream(backup.read(bufferSize)), context, playerTags);\n                return backup;')
                 .replace(readState, '''var readState = new SaveReadState(context);
             readState.playerTags = playerTags;
             ver.read(stream, counter, readState);''')
