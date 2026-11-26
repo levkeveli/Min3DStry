@@ -128,7 +128,8 @@ backup. Unmodified v160.8 Java reopened the replacement and checked sector 64.
 
 When a campaign primary passes the metadata check but fails while loading the
 world, the next save preserves the backup that actually loaded. The recovered
-world is staged and installed in the primary slot.
+world is staged and installed in the primary slot. Pass `--truncated-primary`
+with `--server` to replay this case and have stock Java reopen the replacement.
 
 Pass `--dense-resave` with `--dense --server server-release.jar` to check both
 a manual save after reload and a later exit save. An [instrumented 56 MiB
