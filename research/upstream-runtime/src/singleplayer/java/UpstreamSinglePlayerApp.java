@@ -993,6 +993,7 @@ public final class UpstreamSinglePlayerApp {
                 // The 20x12 framing gives the globe the full 400x240 top screen.
                 target.begin(0, 0, 20, 12);
                 try {
+                    target.drawCampaignSkybox(globe.camera);
                     if (!target.drawCampaignPlanet(globe.meshIndex(), globe.projection.val, globe.lighting,
                             overlay.vertices.items, overlayVertices, sectorVertices, surfaceFaces,
                             markers.ids.items, markers.planes.items, globe.camera.combined.val, markers.ids.size / 2)) {
@@ -1074,6 +1075,7 @@ public final class UpstreamSinglePlayerApp {
                 }
                 target.begin(0, 0, 20, 12);
                 try {
+                    target.drawCampaignSkybox(system.camera);
                     system.updateOrbits();
                     if (!system.drawBodies(draw) || !target.drawCampaignOrbits(system.camera.combined.val,
                             system.orbits.items, system.orbits.size / UpstreamCampaignSectorOverlay.FLOATS_PER_VERTEX)) {

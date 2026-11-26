@@ -181,7 +181,11 @@ if [[ $# -gt 0 ]]; then
     if [[ -d "$1/weather" ]]; then
         cp -R "$1/weather" "$output/romfs/weather"
     fi
-    if [[ -d "$1/cubemaps" ]]; then
+    if [[ -d "$1/cubemaps/stars" && -d "$1/planet-meshes" ]]; then
+        portlibs="$DEVKITPRO/portlibs/3ds"
+        terrain_flags+=(-DM3DS_CAMPAIGN_SKYBOX -I"$portlibs/include" -L"$portlibs/lib")
+        terrain_sources+=("$root/m3ds_campaign_skybox.c" "$root/m3ds_campaign_skybox_image.c")
+        terrain_libraries+=(-lpng -lz)
         cp -R "$1/cubemaps" "$output/romfs/cubemaps"
     fi
     "$DEVKITPRO/tools/bin/smdhtool" --create "$title" "$subtitle" \

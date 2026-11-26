@@ -68,6 +68,7 @@ def verify(args):
             sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_SURFACE_DRAW faces=7292 vertices=43740\b", 95)
             sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_GLOBE_FRAME planet=serpulo sector=170 selection=-1 "
                                        r"surface=true\b", 25)
+            sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_SKYBOX_DRAW width=400 height=240\b", 15)
             capture_globe(rpc, args.output / "new3ds-serpulo.png")
             sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_GLOBE planet=serpulo sector=(?!170\b)\d+ available=", 100)
             sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_SYSTEM_FRAME bodies=6 selected=serpulo orbits=[1-9]\d*\b", 60)

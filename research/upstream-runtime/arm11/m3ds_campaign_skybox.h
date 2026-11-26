@@ -1,6 +1,7 @@
 #ifndef M3DS_CAMPAIGN_SKYBOX_H
 #define M3DS_CAMPAIGN_SKYBOX_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
 enum M3dsSkyboxFace {
@@ -17,5 +18,10 @@ typedef struct {
 
 /* Normalization is unnecessary. The camera must supply a finite, nonzero direction. */
 uint32_t m3ds_skybox_texel(M3dsSkyboxRay ray);
+
+enum { M3DS_SKYBOX_WIDTH = 400, M3DS_SKYBOX_HEIGHT = 240 };
+
+/* Draw top-to-bottom RGB rows. The camera contains direction, up, then tan(vertical FOV / 2). */
+bool m3ds_skybox_render(const char *directory, const float camera[7], uint8_t *rgb);
 
 #endif

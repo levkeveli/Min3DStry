@@ -2,6 +2,7 @@ import arc.Core;
 import arc.graphics.Blending;
 import arc.graphics.Color;
 import arc.graphics.g2d.TextureRegion;
+import arc.graphics.g3d.Camera3D;
 import arc.util.Align;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -19,6 +20,7 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
     static final int PALETTE_LABEL_COUNT = 15;
 
     private final boolean reportFrame;
+    private final float[] skyboxCamera = new float[7];
     private final int[] stockObjectiveFont = new int[1];
 
     UpstreamTerrainRenderProbe(boolean reportFrame) {
@@ -140,6 +142,17 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
     boolean drawCampaignBody(int planet, float[] matrix, float[] lighting) {
         return drawCampaignPlanet(planet, matrix, lighting, EMPTY_FLOATS, 0, 0, EMPTY_INTS,
             EMPTY_INTS, EMPTY_FLOATS, matrix, 0);
+    }
+
+    void drawCampaignSkybox(Camera3D camera) {
+        skyboxCamera[0] = camera.direction.x;
+        skyboxCamera[1] = camera.direction.y;
+        skyboxCamera[2] = camera.direction.z;
+        skyboxCamera[3] = camera.up.x;
+        skyboxCamera[4] = camera.up.y;
+        skyboxCamera[5] = camera.up.z;
+        skyboxCamera[6] = (float)Math.tan(Math.toRadians(camera.fov * 0.5f));
+        NativeTerrain.drawCampaignSkybox(Address.ofData(skyboxCamera));
     }
 
     boolean drawCampaignOrbits(float[] matrix, float[] vertices, int count) {
@@ -410,6 +423,9 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
 
         @Import(name = "m3ds_terrain_release_campaign_planet")
         static native void releaseCampaignPlanet();
+
+        @Import(name = "m3ds_terrain_draw_campaign_skybox")
+        static native int drawCampaignSkybox(Address camera);
 
         @Import(name = "m3ds_terrain_draw_campaign_orbits")
         static native int drawCampaignOrbits(Address matrix, Address vertices, int count);

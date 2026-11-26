@@ -68,6 +68,7 @@ int32_t m3ds_terrain_draw_campaign_planet(int32_t planet, const float *matrix, c
     const float *overlay, int32_t vertices, int32_t sector_vertices, const int32_t *surface, int32_t faces,
     const int32_t *ids, const float *planes, const float *marker_matrix, int32_t markers);
 void m3ds_terrain_release_campaign_planet(void);
+int32_t m3ds_terrain_draw_campaign_skybox(const float *camera);
 int32_t m3ds_terrain_draw_campaign_orbits(const float *matrix, const float *vertices, int32_t count);
 int32_t m3ds_terrain_palette_active(void);
 void m3ds_terrain_fini(void);
