@@ -71,7 +71,17 @@ On New 3DS, the C-Stick up/down changes the live and offline world span:
 The viewport stays centered on the player, and the touch build/command grid
 rescales to the current span so cell selection stays aligned. Input consumption,
 clamp and span math are host-checked; the **physical draw is pending** the New
-3DS acceptance run. Dynamic world lighting remains open.
+3DS acceptance run.
+
+## Dynamic emitter lights
+
+Visible buildings with `emitLight` draw the stock `circle-shadow` region
+additively at their `lightRadius`/`lightColor`. `LightBlock` (for example the
+Illuminator) uses its configured color, brightness, efficiency and smoothing
+time. The host building reference asserts a real additive light sprite from the
+Illuminator. Core glow, per-block `drawLight` overrides (generators, reactors,
+crafters), the full stock light buffer and shadowing remain open; the
+**physical draw is pending** the New 3DS acceptance run.
 
 ## Selected building bars
 
@@ -246,7 +256,7 @@ exactly.
   active-slot Load. Stock Settings, planet map, save-picker load and multiplayer
   buttons are not ported yet.
 - Additional notifications and the full stock layout remain open under #40.
-- Physical Old/New 3DS verification remains open with #43.
+- Physical New 3DS verification remains open with #43.
 
 ## Emulator batch 1 (2026-11-23)
 

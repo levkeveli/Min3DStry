@@ -150,13 +150,13 @@ def main():
     parser.add_argument("--azahar")
     parser.add_argument("--fixture", type=Path)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--model", choices=("new3ds", "old3ds"), action="append")
+    parser.add_argument("--model", choices=("new3ds",), action="append")
     parser.add_argument("--port", type=int, default=16598)
     parser.add_argument("--live", action="store_true", help="Also verify configuration against the stock server")
     args = parser.parse_args()
     args.output.mkdir(parents=True)
     fixture = args.fixture or stock_fixture(args, args.output / "stock-fixture")
-    for model in args.model or ("old3ds", "new3ds"):
+    for model in args.model or ("new3ds",):
         replay(args, model, fixture, False)
         if args.live:
             replay(args, model, fixture, True)
