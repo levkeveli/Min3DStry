@@ -1,3 +1,4 @@
+import arc.files.Fi;
 import arc.graphics.g3d.Camera3D;
 import arc.math.Angles;
 import arc.math.Mathf;
@@ -5,7 +6,11 @@ import arc.math.geom.Mat3D;
 import arc.math.geom.Vec3;
 import arc.struct.FloatSeq;
 import arc.struct.Seq;
+import arc.util.Time;
+import java.io.DataInputStream;
+import java.io.IOException;
 import mindustry.Vars;
+import mindustry.content.Planets;
 import mindustry.graphics.Pal;
 import mindustry.type.Planet;
 import mindustry.type.Sector;
@@ -13,8 +18,11 @@ import mindustry.type.Sector;
 /** Draws the stock visible hierarchy in a campaign overview sized for the top screen. */
 final class UpstreamCampaignSystem {
     private static final int WIDTH = 400, HEIGHT = 240;
-    private static final float[] EMPTY_FLOATS = new float[0];
-    private static final int[] EMPTY_INTS = new int[0];
+
+    @FunctionalInterface
+    interface BodyDrawer {
+        boolean draw(int asset, float[] matrix, float[] lighting);
+    }
 
     final Camera3D camera = new Camera3D();
     final Seq<Planet> bodies = new Seq<>(), selectable = new Seq<>();
@@ -28,6 +36,9 @@ final class UpstreamCampaignSystem {
     private final Vec3 beforeOffset = new Vec3(), afterOffset = new Vec3();
     private final UpstreamCampaignStroke stroke = new UpstreamCampaignStroke();
     private final float[] lighting = new float[9];
+    private final long openedAt = System.nanoTime();
+    private final float initialTicks = Time.globalTime;
+    private float[] serpuloClouds, erekirClouds;
     private float zoom = 1f;
     private int selection;
 
@@ -50,6 +61,25 @@ final class UpstreamCampaignSystem {
             selectable.add(planet);
         }
         for (Planet child : planet.children) collect(child);
+    }
+
+    void loadClouds(Fi assets) throws IOException {
+        serpuloClouds = readCloudSpeeds(assets.child("serpulo.m3pc"));
+        erekirClouds = readCloudSpeeds(assets.child("erekir.m3pc"));
+    }
+
+    static float[] readCloudSpeeds(Fi asset) throws IOException {
+        if (!asset.exists()) throw new IOException("Missing stock cloud manifest: " + asset.name());
+        try (var stream = new DataInputStream(asset.read())) {
+            if (stream.readInt() != 0x4d335043 || stream.readInt() != 1 || stream.readInt() != 2) {
+                throw new IOException("Invalid stock cloud manifest: " + asset.name());
+            }
+            float[] speeds = {stream.readFloat(), stream.readFloat()};
+            if (stream.read() != -1 || !Float.isFinite(speeds[0]) || !Float.isFinite(speeds[1])) {
+                throw new IOException("Invalid stock cloud speeds: " + asset.name());
+            }
+            return speeds;
+        }
     }
 
     Planet selected() { return selectable.get(selection); }
@@ -87,28 +117,45 @@ final class UpstreamCampaignSystem {
         }
     }
 
-    boolean draw(UpstreamTerrainRenderProbe target) {
+    boolean drawBodies(BodyDrawer draw) {
         for (Planet planet : bodies) {
             if (!camera.frustum.containsSphere(planet.position, planet.clipRadius)) continue;
-            projection.set(camera.combined).mul(planet.getTransform(transform));
-            float rotation = planet.getRotation();
-            light.set(star.position).sub(planet.position).rotate(Vec3.Y, rotation).nor();
-            eye.set(camera.position).sub(planet.position).rotate(Vec3.Y, rotation);
-            lighting[0] = light.x;
-            lighting[1] = light.y;
-            lighting[2] = light.z;
-            lighting[3] = star.lightColor.r;
-            lighting[4] = star.lightColor.g;
-            lighting[5] = star.lightColor.b;
-            lighting[6] = eye.x;
-            lighting[7] = eye.y;
-            lighting[8] = eye.z;
-            if (!target.drawCampaignPlanet(meshIndex(planet), projection.val, lighting, EMPTY_FLOATS,
-                    0, 0, EMPTY_INTS, EMPTY_INTS, EMPTY_FLOATS, camera.combined.val, 0)) return false;
+            if (!drawMesh(draw, planet, meshIndex(planet), planet.getTransform(transform), planet.getRotation())) {
+                return false;
+            }
         }
-        updateOrbits();
-        return target.drawCampaignOrbits(camera.combined.val, orbits.items,
-            orbits.size / UpstreamCampaignSectorOverlay.FLOATS_PER_VERTEX);
+        float ticks = initialTicks + (System.nanoTime() - openedAt) * (60f / 1_000_000_000f);
+        for (Planet planet : bodies) {
+            if (planet == Planets.serpulo && !drawClouds(draw, planet, 6, serpuloClouds, ticks)) return false;
+            if (planet == Planets.erekir && !drawClouds(draw, planet, 8, erekirClouds, ticks)) return false;
+        }
+        return true;
+    }
+
+    private boolean drawClouds(BodyDrawer draw, Planet planet, int first, float[] speeds, float ticks) {
+        if (!camera.frustum.containsSphere(planet.position, planet.clipRadius)) return true;
+        for (int i = 0; i < speeds.length; i++) {
+            float rotation = planet.getRotation() + ticks * speeds[i] / 40f;
+            transform.setToTranslation(planet.position).rotate(Vec3.Y, rotation);
+            if (!drawMesh(draw, planet, first + i, transform, rotation)) return false;
+        }
+        return true;
+    }
+
+    private boolean drawMesh(BodyDrawer draw, Planet planet, int index, Mat3D model, float rotation) {
+        projection.set(camera.combined).mul(model);
+        light.set(star.position).sub(planet.position).rotate(Vec3.Y, rotation).nor();
+        eye.set(camera.position).sub(planet.position).rotate(Vec3.Y, rotation);
+        lighting[0] = light.x;
+        lighting[1] = light.y;
+        lighting[2] = light.z;
+        lighting[3] = star.lightColor.r;
+        lighting[4] = star.lightColor.g;
+        lighting[5] = star.lightColor.b;
+        lighting[6] = eye.x;
+        lighting[7] = eye.y;
+        lighting[8] = eye.z;
+        return draw.draw(index, projection.val, lighting);
     }
 
     void updateOrbits() {

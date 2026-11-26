@@ -1037,9 +1037,16 @@ public final class UpstreamSinglePlayerApp {
 
     private Planet chooseCampaignSystem(Planet current) {
         var system = new UpstreamCampaignSystem(current);
+        try {
+            system.loadClouds(new Fi("/romfs/planet-meshes"));
+        } catch (IOException failure) {
+            System.out.println("UPSTREAM_CAMPAIGN_SYSTEM_ERROR " + failure.getMessage());
+            return null;
+        }
         int previousDirection = 0, frames = 0;
         Planet previous = null;
         MenuRows rows = null;
+        UpstreamCampaignSystem.BodyDrawer draw = target::drawCampaignBody;
         try {
             while (true) {
                 long nextFrame = System.nanoTime() + FRAME_NS;
@@ -1067,7 +1074,9 @@ public final class UpstreamSinglePlayerApp {
                 }
                 target.begin(0, 0, 20, 12);
                 try {
-                    if (!system.draw(target)) {
+                    system.updateOrbits();
+                    if (!system.drawBodies(draw) || !target.drawCampaignOrbits(system.camera.combined.val,
+                            system.orbits.items, system.orbits.size / UpstreamCampaignSectorOverlay.FLOATS_PER_VERTEX)) {
                         System.out.println("UPSTREAM_CAMPAIGN_SYSTEM_ERROR");
                         return null;
                     }

@@ -71,7 +71,7 @@ def verify(args):
             capture_globe(rpc, args.output / "new3ds-serpulo.png")
             sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_GLOBE planet=serpulo sector=(?!170\b)\d+ available=", 100)
             sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_SYSTEM_FRAME bodies=6 selected=serpulo orbits=[1-9]\d*\b", 60)
-            for body in (2, 3, 4, 5):
+            for body in (2, 3, 4, 5, 6, 7, 8, 9):
                 sp._wait_for_log(log, proc, rf"UPSTREAM_PLANET_MESH_DRAW planet={body} vertices=[1-9]\d* indices=[1-9]\d*", 10)
             png = rpc.screenshot(res_scale=1)
             (args.output / "new3ds-solar-system.png").write_bytes(png)

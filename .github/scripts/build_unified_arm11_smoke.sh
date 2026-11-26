@@ -67,6 +67,7 @@ globe_reference="$RUNNER_TEMP/campaign-globe-reference"
 mkdir -p "$globe_reference"
 javac -cp "$RUNNER_TEMP/desktop.jar" -d "$globe_reference" \
   research/upstream-runtime/src/singleplayer/java/UpstreamCampaignGlobe.java \
+  research/upstream-runtime/src/singleplayer/java/UpstreamCampaignSystem.java \
   research/upstream-runtime/src/singleplayer/java/UpstreamCampaignSectorOverlay.java \
   research/upstream-runtime/src/singleplayer/java/UpstreamCampaignGrid.java \
   research/upstream-runtime/src/singleplayer/java/UpstreamCampaignArcs.java \

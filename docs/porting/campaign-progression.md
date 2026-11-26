@@ -54,10 +54,18 @@ and Right to choose a landable campaign planet or tap its position on the
 bottom-screen view coordinates. The C-Stick controls zoom, A opens the
 chosen globe, and B returns to the previous globe.
 
+Serpulo and Erekir use their two stock `HexSkyMesh` layers in the
+overview. The exporter stores each layer in the same `M3PM` format and
+writes its original rotation speed to a versioned `M3PC` manifest.
+Citro3D applies the pinned cloud shader's vertex lighting and alpha.
+The focused globe keeps the stock hidden-cloud rule for the selected
+planet at full sector-overlay opacity.
+
 The stock JVM reference checks the six visible bodies, two selectable
-planets, 742 orbit segments, and touch selection by projected position.
-The New 3DS replay checks the rendered Sun, selects Erekir through the
-overview, and launches The Onset through the original sector route.
+planets, 742 orbit segments, touch selection by projected position and
+all four cloud speeds. The New 3DS replay checks the rendered Sun and
+cloud draw submissions, selects Erekir through the overview, and launches
+The Onset through the original sector route.
 
 The stock JVM reference confirms that the projected mesh centers and
 `Planet.getSector` agree for Ground Zero and The Onset. It also exercises

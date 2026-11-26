@@ -24,7 +24,10 @@ import mindustry.game.Saves;
 import mindustry.game.Team;
 import mindustry.game.Universe;
 import mindustry.graphics.Pal;
+import mindustry.graphics.g3d.GenericMesh;
+import mindustry.graphics.g3d.HexSkyMesh;
 import mindustry.graphics.g3d.MeshBuilder;
+import mindustry.graphics.g3d.MultiMesh;
 import mindustry.graphics.g3d.PlanetMesh;
 import mindustry.graphics.g3d.PlanetRenderer;
 import mindustry.net.Net;
@@ -111,9 +114,43 @@ public final class UpstreamCampaignGlobeReference {
         System.out.println("UPSTREAM_CAMPAIGN_ARC_REFERENCE launch=true shield=true invasion=true trade=true");
         checkMarkers();
         checkSolarSystem();
-        if (args.length == 1) checkCampaignSurface(args[0]);
+        if (args.length == 1) {
+            checkCampaignSurface(args[0]);
+            checkCloudSpeeds(new Fi(args[0]).parent());
+        }
         System.out.println("UPSTREAM_CAMPAIGN_GLOBE_REFERENCE serpulo=" + Planets.serpulo.startSector
             + " rotated=" + numbered.id + " erekir=" + Planets.erekir.startSector + " zoom=true");
+    }
+
+    private static void checkCloudSpeeds(Fi assets) throws Exception {
+        var children = MultiMesh.class.getDeclaredField("meshes");
+        children.setAccessible(true);
+        for (var planet : new mindustry.type.Planet[]{Planets.serpulo, Planets.erekir}) {
+            var stock = planet.cloudMeshLoader.get();
+            try {
+                var layers = (GenericMesh[])children.get(stock);
+                var speeds = UpstreamCampaignSystem.readCloudSpeeds(assets.child(planet.name + ".m3pc"));
+                if (layers.length != speeds.length) throw new AssertionError("Stock cloud layer count changed");
+                for (int i = 0; i < layers.length; i++) {
+                    if (!(layers[i] instanceof HexSkyMesh cloud) || cloud.speed != speeds[i]) {
+                        throw new AssertionError("Stock cloud rotation changed for " + planet.name + " layer " + i);
+                    }
+                }
+            } finally {
+                stock.dispose();
+            }
+        }
+        var system = new UpstreamCampaignSystem(Planets.serpulo);
+        system.loadClouds(assets);
+        system.update();
+        var drawn = new arc.struct.IntSeq();
+        if (!system.drawBodies((asset, matrix, lighting) -> {
+            drawn.add(asset);
+            return true;
+        }) || !drawn.equals(arc.struct.IntSeq.with(2, 1, 3, 4, 0, 5, 8, 9, 6, 7))) {
+            throw new AssertionError("Stock opaque or cloud draw order changed: " + drawn);
+        }
+        System.out.println("UPSTREAM_CAMPAIGN_CLOUD_REFERENCE planets=2 layers=4 stockSpeeds=ok");
     }
 
     private static void checkSolarSystem() {

@@ -13,10 +13,11 @@ import mindustry.Vars;
 import mindustry.content.Planets;
 import mindustry.core.ContentLoader;
 import mindustry.core.GameState;
-import mindustry.graphics.g3d.PlanetGrid;
 import mindustry.graphics.g3d.GenericMesh;
+import mindustry.graphics.g3d.HexSkyMesh;
 import mindustry.graphics.g3d.MatMesh;
 import mindustry.graphics.g3d.MultiMesh;
+import mindustry.graphics.g3d.PlanetGrid;
 import mindustry.graphics.g3d.PlanetMesh;
 import mindustry.type.Planet;
 
@@ -68,8 +69,35 @@ public final class UpstreamCampaignPlanetMeshes {
         } finally {
             stock.dispose();
         }
+        exportClouds(planet, output);
         for (Planet child : planet.children) {
             exportVisible(child, output);
+        }
+    }
+
+    private static void exportClouds(Planet planet, Path output) throws IOException, ReflectiveOperationException {
+        var stock = planet.cloudMeshLoader.get();
+        if (stock == null) return;
+        try {
+            var layers = stock instanceof MultiMesh multi
+                ? (GenericMesh[])field(MultiMesh.class, "meshes").get(multi) : new GenericMesh[]{stock};
+            try (var stream = new DataOutputStream(new BufferedOutputStream(
+                    Files.newOutputStream(output.resolve(planet.name + ".m3pc"))))) {
+                stream.writeBytes("M3PC");
+                stream.writeInt(1);
+                stream.writeInt(layers.length);
+                for (int index = 0; index < layers.length; index++) {
+                    if (!(layers[index] instanceof HexSkyMesh cloud)) {
+                        throw new IOException("Unexpected stock cloud mesh for " + planet.name);
+                    }
+                    var mesh = (Mesh)field(PlanetMesh.class, "mesh").get(cloud);
+                    write(List.of(new MeshPart(mesh, null)), output.resolve(planet.name + "-cloud-" + index + ".m3pm"));
+                    stream.writeFloat(cloud.speed);
+                    System.out.println("UPSTREAM_PLANET_CLOUD planet=" + planet.name + " layer=" + index + " speed=" + cloud.speed);
+                }
+            }
+        } finally {
+            stock.dispose();
         }
     }
 

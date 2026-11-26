@@ -14,6 +14,8 @@ import port.render.UpstreamLogicFramebuffer.RasterTexture;
 import port.render.WeatherNoiseTexture;
 
 public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProbe.TerrainTarget {
+    private static final float[] EMPTY_FLOATS = new float[0];
+    private static final int[] EMPTY_INTS = new int[0];
     static final int PALETTE_LABEL_COUNT = 15;
 
     private final boolean reportFrame;
@@ -133,6 +135,11 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
 
     void releaseCampaignPlanet() {
         NativeTerrain.releaseCampaignPlanet();
+    }
+
+    boolean drawCampaignBody(int planet, float[] matrix, float[] lighting) {
+        return drawCampaignPlanet(planet, matrix, lighting, EMPTY_FLOATS, 0, 0, EMPTY_INTS,
+            EMPTY_INTS, EMPTY_FLOATS, matrix, 0);
     }
 
     boolean drawCampaignOrbits(float[] matrix, float[] vertices, int count) {

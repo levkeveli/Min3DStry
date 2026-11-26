@@ -12,7 +12,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-enum { serpulo, erekir, sun, gier, notva, verilus, planet_count, max_overlay_vertices = UINT16_MAX };
+enum {
+    serpulo, erekir, sun, gier, notva, verilus,
+    serpulo_cloud_0, serpulo_cloud_1, erekir_cloud_0, erekir_cloud_1,
+    planet_count, max_overlay_vertices = UINT16_MAX
+};
 
 typedef struct {
     float position[3];
@@ -69,6 +73,10 @@ static bool load_faces(PlanetFaces *faces, int32_t planet) {
         [gier] = "romfs:/planet-meshes/gier.m3pm",
         [notva] = "romfs:/planet-meshes/notva.m3pm",
         [verilus] = "romfs:/planet-meshes/verilus.m3pm",
+        [serpulo_cloud_0] = "romfs:/planet-meshes/serpulo-cloud-0.m3pm",
+        [serpulo_cloud_1] = "romfs:/planet-meshes/serpulo-cloud-1.m3pm",
+        [erekir_cloud_0] = "romfs:/planet-meshes/erekir-cloud-0.m3pm",
+        [erekir_cloud_1] = "romfs:/planet-meshes/erekir-cloud-1.m3pm",
     };
     if (faces->stock) return true;
     FILE *file = fopen(assets[planet], "rb");
@@ -195,6 +203,23 @@ static void shade_vertices(PlanetFaces *body, const float *light, const float *a
     GSPGPU_FlushDataCache(body->draw, body->vertices * sizeof(PlanetVertex));
 }
 
+static void shade_cloud_vertices(PlanetFaces *body, const float *light, const float *ambient) {
+    // The overview has no focused planet, so stock HexSkyMesh supplies u_alpha = 1.
+    for (uint32_t i = 0; i < body->vertices; i++) {
+        const float *stock = body->stock + i * body->stride;
+        PlanetVertex *vertex = &body->draw[i];
+        memcpy(vertex->position, stock, sizeof(vertex->position));
+        uint32_t color;
+        memcpy(&color, stock + 6, sizeof(color));
+        float diffuse = 0.01f + fminf(fmaxf((dot(stock + 3, light) + 1) * 0.5f, 0), 1);
+        for (unsigned channel = 0; channel < 3; channel++) {
+            vertex->color[channel] = color_channel(color, channel) * ambient[channel] * diffuse;
+        }
+        vertex->color[3] = color_channel(color, 3);
+    }
+    GSPGPU_FlushDataCache(body->draw, body->vertices * sizeof(PlanetVertex));
+}
+
 static C3D_Mtx screen_projection(const float *matrix) {
     // Convert Arc's column-major clip matrix to PICA's tilted framebuffer and reversed depth.
     C3D_Mtx projection;
@@ -279,10 +304,18 @@ int32_t m3ds_planet_draw(int32_t planet, const float *matrix, const float *light
     PlanetFaces *body = &bodies[planet];
     if (!load_faces(body, planet) || !load_shader() || !update_surface(body, surface, faces)
         || !reserve_overlay(vertices)) return 0;
-    shade_vertices(body, lighting, lighting + 3, lighting + 6, planet == sun);
+    bool cloud = planet >= serpulo_cloud_0;
+    if (cloud) shade_cloud_vertices(body, lighting, lighting + 3);
+    else shade_vertices(body, lighting, lighting + 3, lighting + 6, planet == sun);
     bind_scene(matrix);
     bind_vertices(body->draw);
+    if (cloud) {
+        C3D_CullFace(GPU_CULL_BACK_CCW);
+        C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA,
+            GPU_ONE, GPU_ONE_MINUS_SRC_ALPHA);
+    }
     C3D_DrawElements(GPU_TRIANGLES, (int)body->indices, C3D_UNSIGNED_SHORT, body->index);
+    if (cloud) C3D_CullFace(GPU_CULL_NONE);
     if (vertices) draw_overlay(overlay, vertices, sector_vertices);
 #ifdef M3DS_CAMPAIGN_PLANET_MARKERS
     C3D_Mtx marker_projection = screen_projection(marker_matrix);
