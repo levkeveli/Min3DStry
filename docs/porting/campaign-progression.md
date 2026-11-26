@@ -92,6 +92,7 @@ Citro3D samples the scattering raster on the stock proxy and blends it
 additively against the planet depth buffer, with depth writes disabled.
 The focused globes and the overview use each world's stock atmosphere
 settings. The New 3DS replay requires submissions for Serpulo and Erekir.
+Held globe rotation uses frame time to maintain the normal 60 Hz turn rate.
 
 The stock JVM reference confirms that the projected mesh centers and
 `Planet.getSector` agree for Ground Zero and The Onset. It also exercises

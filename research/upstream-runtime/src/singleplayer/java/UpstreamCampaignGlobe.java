@@ -41,11 +41,12 @@ final class UpstreamCampaignGlobe {
         focus((planet == Planets.serpulo ? Planets.erekir : Planets.serpulo).getStartSector());
     }
 
-    void rotate(int horizontal, int vertical) {
-        if (Math.abs(horizontal) > 20) orbit.rotate(Vec3.Y, horizontal * 2f / 127f);
+    void rotate(int horizontal, int vertical, float ticks) {
+        float degrees = 2f * ticks / 127f;
+        if (Math.abs(horizontal) > 20) orbit.rotate(Vec3.Y, horizontal * degrees);
         if (Math.abs(vertical) > 20) {
             right.set(orbit).crs(Vec3.Y).nor();
-            scratch.set(orbit).rotate(right, vertical * 2f / 127f);
+            scratch.set(orbit).rotate(right, vertical * degrees);
             if (Math.abs(scratch.y) < 0.99f) orbit.set(scratch);
         }
     }

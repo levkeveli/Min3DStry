@@ -84,8 +84,16 @@ public final class UpstreamCampaignGlobeReference {
 
         var globe = new UpstreamCampaignGlobe(Planets.serpulo.getStartSector());
         checkCenter(globe, Planets.serpulo.getStartSector());
-        for (int step = 0; step < 20; step++) globe.rotate(127, 0);
+        for (int step = 0; step < 20; step++) globe.rotate(127, 0, 1f);
+        var steppedGlobe = new UpstreamCampaignGlobe(Planets.serpulo.getStartSector());
+        for (int step = 0; step < 5; step++) steppedGlobe.rotate(127, 0, 4f);
+        steppedGlobe.update(200, 120);
         var numbered = globe.update(200, 120);
+        // Arc's lookup-table rotations can differ slightly when the increments are grouped.
+        if (globe.camera.direction.dst(steppedGlobe.camera.direction) > 0.0044f) {
+            throw new AssertionError("Held camera rotation differed: " + globe.camera.direction
+                + " versus " + steppedGlobe.camera.direction);
+        }
         if (numbered == null || numbered == Planets.serpulo.getStartSector()) {
             throw new AssertionError("Globe rotation did not move to another stock Serpulo sector");
         }
@@ -400,7 +408,7 @@ public final class UpstreamCampaignGlobeReference {
                     }
                     samples++;
                 }
-                globe.rotate(127, step % 90 < 45 ? 64 : -64);
+                globe.rotate(127, step % 90 < 45 ? 64 : -64, 1f);
             }
         }
         if (samples == 0 || maximum >= 65536) {

@@ -878,10 +878,15 @@ public final class UpstreamSinglePlayerApp {
         Planet previousPlanet = null;
         boolean gridLogged = false, arcsLogged = false;
         int stableFrames = 0;
+        long previousFrame = openedAt;
 
         try {
             while (true) {
-                long nextFrame = System.nanoTime() + FRAME_NS;
+                long frame = System.nanoTime();
+                long nextFrame = frame + FRAME_NS;
+                // Match the 60 Hz rotation rate across slower draw frames without a large jump after a stall.
+                float rotationTicks = Math.min(8f, (frame - previousFrame) / (float)FRAME_NS);
+                previousFrame = frame;
                 int input = pollCampaignInput();
                 if (input == -1) return null;
                 if ((input & UpstreamSinglePlayerInput.B_PRESSED) != 0) {
@@ -904,10 +909,11 @@ public final class UpstreamSinglePlayerApp {
                         cursorY = 120;
                     }
                     stableFrames = 0;
+                    previousFrame = System.nanoTime();
                 }
                 if ((input & (1 << 26)) != 0) globe.zoom(0.9f);
                 if ((input & (1 << 27)) != 0) globe.zoom(1 / 0.9f);
-                globe.rotate((byte)input, (byte)(input >> 8));
+                globe.rotate((byte)input, (byte)(input >> 8), rotationTicks);
                 int touch = UpstreamSinglePlayerInput.touch();
                 if (touch != -1) {
                     cursorX = (touch & 0xffff) * 400f / 320f;
