@@ -27,7 +27,7 @@ public final class UpstreamUnifiedApp {
             if (input < 0) return;
             final int hostButtons = UpstreamSinglePlayerInput.X_HELD | UpstreamSinglePlayerInput.Y_HELD;
             if ((input & hostButtons) == hostButtons) {
-                offline(args, new UpstreamHostedSession());
+                offline(args, new UpstreamHostedSession(true));
             } else if ((input & UpstreamSinglePlayerInput.X_HELD) != 0) {
                 join(args);
             } else if ((input & UpstreamSinglePlayerInput.Y_HELD) != 0) {
@@ -36,7 +36,7 @@ public final class UpstreamUnifiedApp {
                 offline(args);
             }
         } else if (args[0].equals("--host")) {
-            offline(Arrays.copyOfRange(args, 1, args.length), new UpstreamHostedSession());
+            offline(Arrays.copyOfRange(args, 1, args.length), new UpstreamHostedSession(true));
         } else if (args[0].equals("--join")) {
             if (args.length > 2) throw new IllegalArgumentException("Expected --join [endpoint-file]");
             join(Arrays.copyOfRange(args, 1, args.length));
@@ -87,7 +87,7 @@ public final class UpstreamUnifiedApp {
     }
 
     private static void offline(String[] args) throws IOException, InterruptedException {
-        offline(args, new UpstreamSinglePlayerApp.SessionHooks() {});
+        offline(args, new UpstreamHostedSession(false));
     }
 
     private static void offline(String[] args, UpstreamSinglePlayerApp.SessionHooks session) throws IOException {

@@ -58,10 +58,12 @@ in both directions and checks the same raw framing for `StreamChunk`.
 The hosted provider hands original packets to `Net.handleServerReceived`
 and queues world streams as stock `StreamBegin` and `StreamChunk` packets.
 It uses `NetworkIO.writeServerData` for LAN advertisements. The unified
-app's development hosting route starts the stock `NetServer` after world
-load and advances it each frame. Hold X and Y at startup or launch with
-`--host` to select that route. The build adapts the stock debug message
-for stream sizes to use bytes because TeaVM lacks the Java formatter.
+app starts the stock `NetServer` after world load and advances it each
+frame. In a loaded world, open the pause menu and press R to host or close
+the server. The game keeps simulating while guests are connected and the
+menu is open. Hold X and Y at startup or pass `--host` to host on launch.
+The build adapts the stock debug message for stream sizes to use bytes
+because TeaVM lacks the Java formatter.
 
 The hosted-world Azahar replay uses the unmodified v160.8 Java transport
 to receive a world stream. Stock `NetworkIO.loadWorld` opens the map and

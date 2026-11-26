@@ -138,6 +138,9 @@ public final class UpstreamSinglePlayerApp {
         default void open() throws IOException {}
         default void tick() {}
         default void close() {}
+        default boolean canHost() { return false; }
+        default boolean hosting() { return false; }
+        default void toggleHosting() throws IOException {}
     }
 
     private final SessionHooks sessionHooks;
@@ -769,7 +772,7 @@ public final class UpstreamSinglePlayerApp {
                             surface = UpstreamCampaignSurface.open(Planets.serpulo,
                                 new Fi("/romfs/planet-meshes/serpulo.m3ps"));
                             if (surface != null) Vars.content.loadColors(new Fi("/romfs/block_colors.png"));
-                        } catch (IOException failure) {
+                        } catch (IOException | RuntimeException failure) {
                             System.out.println("UPSTREAM_CAMPAIGN_SURFACE_ERROR " + failure.getMessage());
                         }
                     }
@@ -1166,6 +1169,20 @@ public final class UpstreamSinglePlayerApp {
                     }
                     moveInput.setZero();
                 } else {
+                    if (sessionHooks.canHost() && !pauseMenu.confirmingQuit()
+                            && (input & UpstreamSinglePlayerInput.R_PRESSED) != 0) {
+                        try {
+                            sessionHooks.toggleHosting();
+                            closePauseMenu();
+                        } catch (IOException failure) {
+                            System.out.println("UPSTREAM_HOST_ERROR " + failure.getMessage());
+                            UpstreamNotification.show(Core.bundle.get("server.error"), 4f);
+                            closePauseMenu();
+                        }
+                        previousTime = System.nanoTime();
+                        accumulator = 0L;
+                        continue;
+                    }
                     if ((input & UpstreamSinglePlayerInput.WAVE_PRESSED) != 0 && !pauseMenu.confirmingQuit()) {
                         if (!new UpstreamCoreDatabaseMenu(target).run()) return false;
                         previousTime = System.nanoTime();
@@ -1638,7 +1655,7 @@ public final class UpstreamSinglePlayerApp {
             Core.settings.getBool("position", false));
         settingsOpen = false;
         pauseOpen = true;
-        if (!Vars.state.isPaused()) session.togglePause();
+        if (!Vars.state.isPaused() && !sessionHooks.hosting()) session.togglePause();
         System.out.println("UPSTREAM_PAUSE_MENU open=true selected=0 options=" + pauseMenu.options());
     }
 
@@ -1704,6 +1721,10 @@ public final class UpstreamSinglePlayerApp {
             drawPauseRow(Core.bundle.get("quit.confirm"), 40f, 210f, false);
         } else {
             drawPauseRow("Y  " + Core.bundle.get("database"), 44f, 210f, false);
+            if (sessionHooks.canHost()) {
+                String action = Core.bundle.get(sessionHooks.hosting() ? "close" : "hostserver.mobile");
+                drawPauseRow("R  " + Strings.stripColors(action), 214f, 210f, false);
+            }
         }
     }
 

@@ -27,7 +27,8 @@ def verify(args):
     sd = output / "virtual-sd"
     (sd / "3ds/min3dstry").mkdir(parents=True)
     movie = output / "new3ds-host.ctm"
-    write_input_replay(movie, "new3ds", [(0, 8, (1 << 10) | (1 << 11))], 220, b"Min3DStry Host")
+    # Open the local world's pause menu and choose its Host Game shortcut.
+    write_input_replay(movie, "new3ds", [(42, 45, sp.KEY_X), (58, 61, 1 << 8)], 220, b"Min3DStry Host")
 
     emulator = sp.az.resolve_azahar_bin(args.azahar)
     config, log = sp.az.resolve_azahar_paths(emulator)
@@ -38,6 +39,7 @@ def verify(args):
         config.write_text(sp.az.patch_qt_config_text((originals[config] or b"").decode(), storage), encoding="utf-8")
         proc, rpc = sp._launch_azahar("new3ds", args.rom, emulator, config, log, movie)
         try:
+            sp._wait_for_log(log, proc, r"UPSTREAM_PAUSE_MENU open=true\b", 120)
             sp._wait_for_log(log, proc, r"UPSTREAM_HOST_READY version=160\.8 port=6567 .*tiles=256x256\b", 150)
             payload = output / "stock-world-stream.zlib"
             classpath = f"{classes}{os.pathsep}{args.stock_jar.resolve()}"

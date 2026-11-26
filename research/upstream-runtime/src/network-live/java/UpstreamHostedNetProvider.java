@@ -64,14 +64,7 @@ final class UpstreamHostedNetProvider implements Net.NetProvider {
             int slot = details[0], size = details[2];
             switch (event) {
                 case connected -> accept(slot, details[1]);
-                case disconnected -> {
-                    Peer peer = peers.remove(slot);
-                    if (peer != null) {
-                        var packet = new Disconnect();
-                        packet.reason = "closed";
-                        Vars.net.handleServerReceived(peer, packet);
-                    }
-                }
+                case disconnected -> notifyDisconnect(peers.remove(slot));
                 case discovery -> {
                     var data = NetworkIO.writeServerData();
                     Native.advertise(Address.ofData(data.array()), data.position());
@@ -112,6 +105,13 @@ final class UpstreamHostedNetProvider implements Net.NetProvider {
         Vars.net.handleServerReceived(peer, packet);
     }
 
+    private void notifyDisconnect(Peer peer) {
+        if (peer == null) return;
+        var packet = new Disconnect();
+        packet.reason = "closed";
+        Vars.net.handleServerReceived(peer, packet);
+    }
+
     private void receive(Peer peer, boolean reliable, int size) {
         if (reliable) peer.lastReceivedTcp = Time.millis();
         int spamLimit = Config.packetSpamLimit.num();
@@ -148,7 +148,11 @@ final class UpstreamHostedNetProvider implements Net.NetProvider {
 
     @Override
     public void closeServer() {
-        for (var entry : peers) entry.value.close();
+        for (NetConnection connection : getConnections()) {
+            var peer = (Peer)connection;
+            peer.close();
+            notifyDisconnect(peers.remove(peer.slot));
+        }
         if (open) Native.close();
         open = false;
         peers.clear();
