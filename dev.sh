@@ -202,6 +202,11 @@ case "${1:-}" in
       src/render/minimap.c tests/render/test_minimap.c -o build/host/test_minimap
     ./build/host/test_minimap
 
+    "$host_cc" -std=c11 -Wall -Wextra -Werror -Iresearch/upstream-runtime/arm11 \
+      research/upstream-runtime/arm11/m3ds_planet_atmosphere.c tests/render/test_planet_atmosphere.c \
+      -lm -o build/host/test_planet_atmosphere
+    ./build/host/test_planet_atmosphere
+
     "$host_cc" -std=c11 -Wall -Wextra -Werror -Iinclude \
       src/render/save_world_preview.c tests/render/test_save_world_preview.c \
       -o build/host/test_save_world_preview

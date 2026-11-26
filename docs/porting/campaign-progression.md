@@ -67,6 +67,12 @@ all four cloud speeds. The New 3DS replay checks the rendered Sun and
 cloud draw submissions, selects Erekir through the overview, and launches
 The Onset through the original sector route.
 
+The native atmosphere reference translates v160.8's
+`core/assets/shaders/atmosphere.frag` with the original three samples
+for both optical depth and in-scattering. The host test evaluates the
+real Serpulo and Erekir radii and colors on daylight, night, rim, and
+overview rays. The raster submission for this layer is pending.
+
 The stock JVM reference confirms that the projected mesh centers and
 `Planet.getSector` agree for Ground Zero and The Onset. It also exercises
 rotation to Serpulo 16, camera zoom, and a miss outside the globe.
