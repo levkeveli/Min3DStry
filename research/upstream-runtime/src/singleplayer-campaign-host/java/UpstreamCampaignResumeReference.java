@@ -3,6 +3,7 @@ import arc.Events;
 import arc.func.Cons;
 import arc.files.Fi;
 import arc.util.I18NBundle;
+import java.io.DataOutputStream;
 import java.util.Arrays;
 import java.util.zip.DeflaterOutputStream;
 import java.util.Locale;
@@ -79,7 +80,7 @@ public final class UpstreamCampaignResumeReference {
             Cons<SaveWriteEvent> interrupt = event -> { throw new IllegalStateException("Test interruption"); };
             Events.on(SaveWriteEvent.class, interrupt);
             try {
-                UpstreamCampaignSave.write(canonical, new SaveOptions());
+                UpstreamCampaignSave.write(canonical, new SaveOptions(), false);
                 throw new AssertionError("Expected the staged write to stop");
             } catch (RuntimeException expected) {
                 if (!Arrays.equals(priorPrimary, canonical.readBytes())
@@ -104,8 +105,26 @@ public final class UpstreamCampaignResumeReference {
                     || !Arrays.equals(forestBackup.readBytes(), nested.readBytes())) {
                 throw new AssertionError("Saving a recovered slot replaced its last good backup");
             }
+            try (var input = SaveIO.getStream(forestBackup);
+                    var truncated = new DataOutputStream(new DeflaterOutputStream(second.write()))) {
+                truncated.write(input.readNBytes(8));
+                int length = input.readInt();
+                truncated.writeInt(length);
+                truncated.write(input.readNBytes(length));
+            }
+            if (SaveIO.getMeta(second).rules.sector != forest
+                    || !session.start(null, recovery.file, "campaign", forest) || Vars.world.width() != 200) {
+                throw new AssertionError("SaveIO did not use the complete backup after a truncated primary");
+            }
+            session.save(recovery.file);
+            if (!Arrays.equals(forestBackup.readBytes(), nested.readBytes())) {
+                throw new AssertionError("A metadata-only primary displaced the known-good backup");
+            }
+            if (!session.start(null, recovery.file, "campaign", forest) || Vars.world.width() != 200) {
+                throw new AssertionError("The recovered campaign primary did not reopen");
+            }
             System.out.println("UPSTREAM_CAMPAIGN_RESUME_REFERENCE slots=2 groundZero=170 frozenForest=64 backup=ok"
-                + " interrupted-write=preserved backup-only=reopened");
+                + " interrupted-write=preserved backup-only=reopened truncated-primary=preserved");
         } finally {
             session.shutdown();
         }

@@ -126,6 +126,10 @@ started with a backup-only Frozen Forest slot, loaded and reloaded the
 original 200 by 200 world, then wrote a new primary while preserving the
 backup. Unmodified v160.8 Java reopened the replacement and checked sector 64.
 
+When a campaign primary passes the metadata check but fails while loading the
+world, the next save preserves the backup that actually loaded. The recovered
+world is staged and installed in the primary slot.
+
 Pass `--dense-resave` with `--dense --server server-release.jar` to check both
 a manual save after reload and a later exit save. An [instrumented 56 MiB
 diagnostic ROM](https://github.com/levkeveli/Min3DStry/actions/runs/45711354495)

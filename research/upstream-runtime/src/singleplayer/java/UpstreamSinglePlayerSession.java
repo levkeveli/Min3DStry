@@ -73,6 +73,7 @@ public final class UpstreamSinglePlayerSession {
     private final UpstreamWorldLoadProbe.ProbeApplication app;
     private final Vec2 tmpMove = new Vec2();
     private Saves campaignSaves;
+    private Fi recoveredCampaignSlot;
     private float deltaSeconds = FIXED_STEP_SECONDS;
     private long playtimeMillis, playtimeRemainderNanos, playtimeFrameNanos;
     private UnitType savedControlledType;
@@ -195,8 +196,8 @@ public final class UpstreamSinglePlayerSession {
         boolean loadedFromSave = sourceSave != null && sourceSave.exists() && SaveIO.isSaveValid(sourceSave);
         if (loadedFromSave) {
             var playerTags = new StringMap();
-            var context = sector == null ? Vars.world.context : Vars.world.makeSectorContext(sector);
-            SaveIO.load(sourceSave, context, playerTags);
+            if (sector == null) SaveIO.load(sourceSave, Vars.world.context, playerTags);
+            else loadCampaignSave(saveFile, sector, playerTags);
             resetPlaytime(playerTags.getLong("playtime"));
             restorePlayerMetadata(playerTags);
             app.runPosted();
@@ -223,6 +224,11 @@ public final class UpstreamSinglePlayerSession {
         return loadedFromSave;
     }
 
+    private void loadCampaignSave(Fi slot, Sector sector, StringMap playerTags) {
+        Fi loaded = SaveIO.load(UpstreamCampaignSave.readableFile(slot), Vars.world.makeSectorContext(sector), playerTags);
+        recoveredCampaignSlot = loaded.equals(slot) ? null : slot;
+    }
+
     void launchNewSector(Sector origin, Sector sector, Fi saveFile) throws IOException {
         launchNewSector(origin, sector, saveFile, null);
     }
@@ -244,7 +250,7 @@ public final class UpstreamSinglePlayerSession {
         if (!sector.planet.clearSectorOnLose && !sector.planet.campaignRules.clearSectorOnLose) {
             Vars.logic.reset();
             try {
-                SaveIO.load(UpstreamCampaignSave.readableFile(slot.file), Vars.world.makeSectorContext(sector));
+                loadCampaignSave(slot.file, sector, null);
                 app.runPosted();
                 recovery = UpstreamCampaignRecovery.prepare(sector, params);
             } finally {
@@ -688,7 +694,9 @@ public final class UpstreamSinglePlayerSession {
             "controlledType", type == null ? "null" : type.name);
         SaveMeta written;
         if (Vars.state.rules.sector != null) {
-            written = UpstreamCampaignSave.write(saveFile, options);
+            boolean preserveBackup = saveFile.equals(recoveredCampaignSlot);
+            written = UpstreamCampaignSave.write(saveFile, options, preserveBackup);
+            if (preserveBackup) recoveredCampaignSlot = null;
         } else {
             SaveIO.save(saveFile, options);
             try (var input = SaveIO.getStream(saveFile)) {

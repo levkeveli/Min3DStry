@@ -14,7 +14,7 @@ final class UpstreamCampaignSave {
         return slot.exists() ? slot : SaveIO.backupFileFor(slot);
     }
 
-    static SaveMeta write(Fi slot, SaveOptions options) throws IOException {
+    static SaveMeta write(Fi slot, SaveOptions options, boolean preserveBackup) throws IOException {
         var staged = slot.sibling(slot.name() + ".pending");
         var backup = SaveIO.backupFileFor(slot);
         try {
@@ -22,12 +22,12 @@ final class UpstreamCampaignSave {
             SaveMeta meta = readMeta(staged);
             boolean movedPrimary = false;
             if (slot.exists()) {
-                if (validPrimary(slot)) {
+                if (!preserveBackup && validPrimary(slot)) {
                     removeIfPresent(backup);
                     movedPrimary = slot.file().renameTo(backup.file());
                     if (!movedPrimary) throw new IOException("Could not back up campaign slot " + slot.path());
                 } else {
-                    // Preserve the stock backup if the interrupted primary is malformed.
+                    // A readable header does not make a primary that failed world loading safe to rotate.
                     removeIfPresent(slot);
                 }
             }
