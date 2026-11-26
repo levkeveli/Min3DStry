@@ -40,10 +40,13 @@ frames and leaves incomplete bytes with the caller. It applies the stock
 provider's 16 KiB incoming object-buffer bound.
 
 The host C tests cover split and coalesced frames, rejected registrations,
-and the stock acknowledgement. A local loopback check used the unmodified
-v160.8 Arc client and packet serializer to complete the handshake and deliver
-its original `ConnectPacket`. Connecting this transport to libctru sockets
-and the original `NetServer` is tracked in [#713](https://github.com/levkeveli/Min3DStry/issues/713).
+and the stock acknowledgement. The nonblocking socket adapter queues TCP
+frames, receives UDP by registered endpoint, and exposes connection,
+disconnect and discovery events to the ARM11 bridge. A local loopback check
+used the unmodified v160.8 Arc client and packet serializer to complete
+registration, deliver the original `ConnectPacket` and a UDP ping, and
+disconnect. The stock world stream and gameplay dispatch through `NetServer`
+are tracked in [#713](https://github.com/levkeveli/Min3DStry/issues/713).
 
 1. **TCP Outer Framing:** `uint16_be payload_len` + `payload` bytes, read via stateful `TcpFrameReader` so partial headers/bodies across TCP segments and short UDP poll windows resume cleanly without dropping bytes.
 2. **ArcNet `FrameworkMessage` (`0xFE` sentinel + id):**

@@ -32,7 +32,9 @@ if [[ $mode == --network || $mode == --unified ]]; then
     title="Min3DStry"
     repo="$root/../../.."
     native_network=(-I"$root" -I"$repo/include" -I"$repo/src/platform/3ds"
-        "$root/m3ds_net_bridge.c" "$root/m3ds_live_audio.c" "$repo/src/net/mindustry_net.c" "$repo/src/platform/3ds/net_3ds.c")
+        "$root/m3ds_net_bridge.c" "$root/m3ds_host_net_bridge.c" "$root/m3ds_live_audio.c"
+        "$repo/src/net/mindustry_net.c" "$repo/src/net/mindustry_host_transport.c"
+        "$repo/src/net/mindustry_host_socket.c" "$repo/src/platform/3ds/net_3ds.c")
 fi
 if [[ $mode == --singleplayer || $mode == --unified ]]; then
     title="Min3DStry"
