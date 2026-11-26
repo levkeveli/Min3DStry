@@ -1,3 +1,4 @@
+import arc.math.Mathf;
 import arc.struct.Seq;
 import java.util.Arrays;
 import mindustry.content.TechTree.TechNode;
@@ -50,6 +51,11 @@ final class UpstreamCampaignResearchTree {
     void refresh() {
         visible.clear();
         addVisible(root);
+    }
+
+    static float scrollZoom(float zoom, int scroll) {
+        // ResearchDialog scrolls relative to the current scale.
+        return Mathf.clamp(zoom - scroll / 10f * zoom, 0.25f, 1f);
     }
 
     int horizontalIndex(Node node, int direction) {

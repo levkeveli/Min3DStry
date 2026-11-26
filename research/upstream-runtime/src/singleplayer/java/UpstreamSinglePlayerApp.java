@@ -1235,12 +1235,15 @@ public final class UpstreamSinglePlayerApp {
         var nodes = tree.visible;
         int selected = 0, page = 0, lastAxis = 0, lastHorizontal = 0;
         boolean detail = false, drewTree = false;
+        float zoom = 1f;
         MenuRows rows = null;
-        byte[] controls = ("A " + Core.bundle.get("info.title") + "\0B "
-            + Core.bundle.get("back") + "\0").getBytes(StandardCharsets.UTF_8);
-        byte[] treeControls = ("A " + Core.bundle.get("info.title") + "\0B "
-            + Core.bundle.get("back") + "\0X " + Core.bundle.get("techtree.select") + "\0")
-            .getBytes(StandardCharsets.UTF_8);
+        int databaseRow = multipleTrees ? 3 : 2;
+        int graphControlCount = databaseRow + 3;
+        String treeSwitch = multipleTrees ? "X " + Core.bundle.get("techtree.select") + "\0" : "";
+        String zoomLabel = Core.bundle.get("zoom", "Zoom");
+        byte[] graphControls = ("A " + Core.bundle.get("info.title") + "\0B "
+            + Core.bundle.get("back") + "\0" + treeSwitch + "Y " + Core.bundle.get("database")
+            + "\0" + zoomLabel + " +\0" + zoomLabel + " -\0").getBytes(StandardCharsets.UTF_8);
         byte[] researchControls = ("A " + Core.bundle.get("research") + "\0B "
             + Core.bundle.get("back") + "\0").getBytes(StandardCharsets.UTF_8);
         byte[] backControl = ("B " + Core.bundle.get("back") + "\0").getBytes(StandardCharsets.UTF_8);
@@ -1254,8 +1257,21 @@ public final class UpstreamSinglePlayerApp {
             TechNode node = selectedNode.tech;
             boolean backOnly = detail && (!research.selectable(node) || node.content.unlockedHost());
             boolean switchable = !detail && multipleTrees;
-            int controlCount = backOnly ? 1 : switchable ? 3 : 2;
+            int controlCount = detail ? (backOnly ? 1 : 2) : graphControlCount;
             int touch = UpstreamTerrainRenderProbe.menuHelpAction(UpstreamSinglePlayerInput.touch(), controlCount);
+            if (!detail && ((input & UpstreamSinglePlayerInput.WAVE_PRESSED) != 0 || touch == databaseRow)) {
+                return new UpstreamCoreDatabaseMenu(target).run();
+            }
+            if (!detail) {
+                boolean closer = (input & UpstreamLiveBuildControls.ZOOM_IN_PRESSED) != 0 || touch == databaseRow + 1;
+                boolean farther = (input & UpstreamLiveBuildControls.ZOOM_OUT_PRESSED) != 0 || touch == databaseRow + 2;
+                float nextZoom = UpstreamCampaignResearchTree.scrollZoom(zoom, (farther ? 1 : 0) - (closer ? 1 : 0));
+                if (nextZoom != zoom) {
+                    zoom = nextZoom;
+                    System.out.println("UPSTREAM_CAMPAIGN_RESEARCH_ZOOM tree=" + root.name
+                        + " percent=" + Math.round(zoom * 100f));
+                }
+            }
             if (switchable && ((input & UpstreamSinglePlayerInput.X_PRESSED) != 0 || touch == 2)) {
                 int index = TechTree.roots.indexOf(root, true);
                 do {
@@ -1266,6 +1282,7 @@ public final class UpstreamSinglePlayerApp {
                 tree = new UpstreamCampaignResearchTree(root);
                 nodes = tree.visible;
                 selected = page = lastAxis = lastHorizontal = 0;
+                zoom = 1f;
                 drewTree = false;
                 rows = null;
                 System.out.println("UPSTREAM_CAMPAIGN_RESEARCH_SWITCH tree=" + root.name);
@@ -1327,8 +1344,7 @@ public final class UpstreamSinglePlayerApp {
                         ? selectedNode.tech.content.localizedName : "???";
                     rows = encodeMenuRows(new String[]{root.localizedName(), title});
                 }
-                drawResearchTree(tree, selectedNode, research, rows,
-                    multipleTrees ? treeControls : controls, multipleTrees ? 3 : 2);
+                drawResearchTree(tree, selectedNode, research, rows, graphControls, graphControlCount, zoom);
                 if (!drewTree) {
                     drewTree = true;
                     System.out.println("UPSTREAM_CAMPAIGN_RESEARCH_TREE_FRAME tree=" + root.name + " visible=" + nodes.size);
@@ -1340,8 +1356,9 @@ public final class UpstreamSinglePlayerApp {
 
     private void drawResearchTree(UpstreamCampaignResearchTree tree, UpstreamCampaignResearchTree.Node selected,
                                   UpstreamCampaignResearch research, MenuRows caption, byte[] controls,
-                                  int controlCount) {
-        float scale = 0.55f, size = selected.width * scale, half = size / 2f;
+                                  int controlCount, float zoom) {
+        float scale = 0.55f * zoom, size = selected.width * scale, half = size / 2f;
+        float border = 2f * zoom;
         float offsetX = 200f - selected.x * scale, offsetY = 120f + selected.y * scale;
         int accent = Integer.reverseBytes(Pal.accent.rgba8888());
         int gray = Integer.reverseBytes(Pal.gray.rgba8888());
@@ -1368,14 +1385,14 @@ public final class UpstreamSinglePlayerApp {
                 float x = offsetX + node.x * scale - half, y = offsetY - node.y * scale - half;
                 if (x + size <= 0f || x >= 400f || y + size <= 0f || y >= 240f) continue;
                 target.hudPanel(x, y, size, size, node == selected ? accent : gray);
-                target.hudPanel(x + 2f, y + 2f, size - 4f, size - 4f, 0xff292525);
+                target.hudPanel(x + border, y + border, size - 2f * border, size - 2f * border, 0xff292525);
                 var content = node.tech.content;
                 boolean selectable = research.selectable(node.tech);
                 if (selectable && content.uiIcon == null) content.loadIcon();
                 var icon = selectable ? content.uiIcon : Core.atlas.find("lock-small");
                 if (icon != null && icon.found()) {
                     int tint = content.unlockedHost() ? -1 : selectable ? available : gray;
-                    float iconScale = (size - 8f) / Math.max(icon.width, icon.height);
+                    float iconScale = (size - 4f * border) / Math.max(icon.width, icon.height);
                     float width = icon.width * iconScale, height = icon.height * iconScale;
                     target.hudSprite(icon, 0, 0, icon.width, icon.height,
                         x + half - width / 2f, y + half - height / 2f, width, height, tint);

@@ -5,11 +5,13 @@ from __future__ import annotations
 
 import argparse
 import shutil
+import time
 from pathlib import Path
 
 import verify_upstream_singleplayer as sp
 from campaign_research_fixture import CASES, check
 from verify_upstream_campaign_launch import write_input_replay
+from verify_upstream_factory_plans import write_movie
 
 
 def verify(model: str, planet: str, rom: Path, azahar: str, config: Path, log: Path,
@@ -46,7 +48,10 @@ def verify(model: str, planet: str, rom: Path, azahar: str, config: Path, log: P
             (245, 247, 1 << 1),
             (256, 258, 1 << 1),
         ]
-    write_input_replay(replay, model, window, 258 if globe else 129, b"Min3DStry Campaign Research")
+        write_movie(replay, model, taps={143: (160, 222)}, buttons={start: key for start, _, key in window},
+                    button_durations={start: end - start for start, end, _ in window}, seconds=268)
+    else:
+        write_input_replay(replay, model, window, 129, b"Min3DStry Campaign Research")
 
     config_snapshot = config.read_bytes() if config.is_file() else None
     saves.mkdir(parents=True)
@@ -55,7 +60,6 @@ def verify(model: str, planet: str, rom: Path, azahar: str, config: Path, log: P
         shutil.copyfile(fixtures / name, slot)
         fixture_settings = "serpulo-globe-settings.bin" if globe else f"{planet}-settings.bin"
         shutil.copyfile(fixtures / fixture_settings, settings)
-        (root / "startup.txt").write_text("direct\n", encoding="ascii")
         storage = {"Data Storage": {"use_custom_storage": "true", "sdmc_directory": sd.as_posix() + "/"}}
         config.parent.mkdir(parents=True, exist_ok=True)
         config.write_text(sp.az.patch_qt_config_text((config_snapshot or b"").decode("utf-8"), storage),
@@ -77,6 +81,9 @@ def verify(model: str, planet: str, rom: Path, azahar: str, config: Path, log: P
             if image["top_distinct_colors"] < 8 or len(set(image["samples"].values())) < 4:
                 raise AssertionError(f"{prefix}: the research tree or its centered stock icon did not render")
             if globe:
+                sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_RESEARCH_ZOOM tree=serpulo percent=90\b", 90)
+                time.sleep(1)
+                (output / f"{prefix}-zoom.png").write_bytes(rpc.screenshot())
                 sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_RESEARCH_SWITCH tree=erekir\b", 100)
                 sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_RESEARCH_SWITCH tree=serpulo\b", 90)
             sp._wait_for_log(log, proc, rf"UPSTREAM_CAMPAIGN_RESEARCH_SELECTED node={block} selectable=true\b", 90)

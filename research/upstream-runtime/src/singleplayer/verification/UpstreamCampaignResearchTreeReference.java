@@ -15,6 +15,11 @@ public final class UpstreamCampaignResearchTreeReference {
         Vars.content = new ContentLoader();
         Vars.content.createBaseContent();
         Vars.content.init();
+        if (UpstreamCampaignResearchTree.scrollZoom(1f, 1) != 0.9f
+                || UpstreamCampaignResearchTree.scrollZoom(0.26f, 1) != 0.25f
+                || UpstreamCampaignResearchTree.scrollZoom(0.97f, -1) != 1f) {
+            throw new AssertionError("Research zoom differs from the pinned scroll limits");
+        }
         verify(Planets.serpulo.techTree, 14, 223, 0xbb55e3cbad7dc687L);
         verify(Planets.erekir.techTree, 22, 152, 0x9eb10b7beac5c226L);
     }

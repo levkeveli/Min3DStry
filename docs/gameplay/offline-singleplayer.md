@@ -257,7 +257,9 @@ python3 tools/verify_upstream_campaign_research.py --rom upstream-probe.3dsx --f
 The New 3DS research tree uses the original positions and branches from
 v160.8 `ResearchDialog` and `BranchTreeLayout`. The D-pad or Circle Pad
 selects a node and centers it on the top screen. A or the Info touch button
-opens the objectives and research requirements. Unlocking a node reveals
+opens the objectives and research requirements. Zoom with the C-Stick
+or the touch buttons. Y opens the Core Database and closes the research
+screen, matching the stock research menu. Unlocking a node reveals
 its descendants in their original positions. The stock JVM reference
 compares the complete Serpulo and Erekir layouts, and the emulator verifier
 captures the tree before examining the node details and stock save readback.
