@@ -63,6 +63,14 @@ python3 research/upstream-runtime/arm11/prepare_terrain_assets.py \
   --desktop "$RUNNER_TEMP/desktop.jar" --output-dir build/smoke-assets \
   --tex3ds "$RUNNER_TEMP/smoke-tex3ds" --singleplayer --live-audio
 python3 tools/verify_live_stock_audio.py build/smoke-assets
+servers_check="$RUNNER_TEMP/saved-servers-check"
+mkdir -p "$servers_check/classes" "$servers_check/settings"
+javac -cp "$stock_jar" -d "$servers_check/classes" \
+  "$runtime/src/unified/java/UpstreamServerAddress.java" \
+  "$runtime/src/unified/java/UpstreamSavedServers.java" \
+  "$runtime/src/unified/host/UpstreamSavedServersReference.java"
+java -cp "$servers_check/classes:$stock_jar" UpstreamSavedServersReference "$servers_check/settings"
+
 database_check="$RUNNER_TEMP/core-database-check"
 mkdir -p "$database_check"
 javac -cp "$stock_jar" -d "$database_check" \

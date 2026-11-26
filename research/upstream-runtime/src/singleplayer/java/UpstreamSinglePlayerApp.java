@@ -745,6 +745,10 @@ public final class UpstreamSinglePlayerApp {
         pickerExitRequested = true;
     }
 
+    boolean titleExitRequested() {
+        return pickerExitRequested;
+    }
+
     void showTitleStatus(String message) {
         drawMenuRows(encodeMenuRows(new String[]{Strings.stripColors(message)}));
     }

@@ -6,6 +6,8 @@ import arc.files.Fi;
 import arc.util.I18NBundle;
 import arc.util.Strings;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Arrays;
 import mindustry.game.EventType.WorldLoadEvent;
 import org.teavm.interop.Address;
@@ -68,7 +70,7 @@ public final class UpstreamUnifiedApp {
         } else if (endpointArgs.length != 0) {
             System.out.println("No server endpoint file at " + endpoint.path());
         } else {
-            var address = menus == null ? readServerAddress() : chooseLanAddress(menus);
+            var address = menus == null ? readServerAddress("") : chooseLanAddress(menus, settings);
             if (address != null) {
                 System.out.println("UPSTREAM_BOOT mode=join");
                 UpstreamRenderedNetworkProbe.run(endpoint.parent(), address.host() + " " + address.port(), atlas,
@@ -90,7 +92,7 @@ public final class UpstreamUnifiedApp {
         }
     }
 
-    private static UpstreamServerAddress chooseLanAddress(UpstreamSinglePlayerApp menus)
+    private static UpstreamServerAddress chooseLanAddress(UpstreamSinglePlayerApp menus, Settings settings)
             throws IOException, InterruptedException {
         var bundle = Core.bundle;
         try (var discovery = new UpstreamLanDiscovery()) {
@@ -112,20 +114,30 @@ public final class UpstreamUnifiedApp {
                 }
                 var hosts = discovery.results();
                 String title = Strings.stripColors(bundle.get(hosts.isEmpty() ? "hosts.none" : "servers.local"));
-                selected = menus.chooseTitlePagedRow(title, hosts.size() + 2, selected, index -> switch (index) {
-                    case 0 -> bundle.get("joingame.ip");
-                    case 1 -> bundle.get("hosts.refresh");
-                    default -> oneLine(hosts.get(index - 2).name);
+                int remote = hosts.size() + 2;
+                selected = menus.chooseTitlePagedRow(title, remote + 1, selected, index -> {
+                    if (index == remote) return bundle.get("servers.remote");
+                    return switch (index) {
+                        case 0 -> bundle.get("joingame.ip");
+                        case 1 -> bundle.get("hosts.refresh");
+                        default -> oneLine(hosts.get(index - 2).name);
+                    };
                 });
                 if (selected == -2) menus.requestTitleExit();
                 if (selected < 0) return null;
                 if (selected == 0) {
-                    var address = readServerAddress();
+                    var address = readServerAddress("");
                     if (address != null) return address;
                     continue;
                 }
                 if (selected == 1) {
                     refresh = true;
+                    continue;
+                }
+
+                if (selected == remote) {
+                    var address = chooseSavedServer(menus, settings);
+                    if (address != null || menus.titleExitRequested()) return address;
                     continue;
                 }
 
@@ -156,9 +168,80 @@ public final class UpstreamUnifiedApp {
         return Strings.stripColors(text).replace('\n', ' ').replace('\r', ' ');
     }
 
-    private static UpstreamServerAddress readServerAddress() throws IOException {
+    private static UpstreamServerAddress chooseSavedServer(UpstreamSinglePlayerApp menus, Settings settings)
+            throws IOException {
+        var bundle = Core.bundle;
+        List<UpstreamSavedServers.Entry> entries;
+        try {
+            entries = UpstreamSavedServers.load(settings);
+        } catch (IOException malformed) {
+            System.out.println("UPSTREAM_SAVED_SERVERS invalid=true");
+            int action = menus.chooseTitleRow(bundle.get("servers.remote"), 0,
+                new String[]{bundle.get("back")}, Strings.stripColors(bundle.get("error.title")));
+            if (action == -2) menus.requestTitleExit();
+            return null;
+        }
+
+        int selected = 0;
+        while (true) {
+            selected = menus.chooseTitlePagedRow(bundle.get("servers.remote"), entries.size() + 1, selected,
+                index -> index == 0 ? bundle.get("server.add") : entries.get(index - 1).label());
+            if (selected == -2) menus.requestTitleExit();
+            if (selected < 0) return null;
+            if (selected == 0) {
+                var address = readServerAddress("");
+                if (address != null) {
+                    entries.add(new UpstreamSavedServers.Entry(address));
+                    UpstreamSavedServers.save(settings, entries);
+                    selected = entries.size();
+                }
+                continue;
+            }
+
+            int index = selected - 1;
+            var entry = entries.get(index);
+            var address = entry.address();
+            String label = entry.label();
+            var actions = address == null
+                ? new String[]{bundle.get("server.edit"), bundle.get("delete"), bundle.get("back")}
+                : new String[]{bundle.get("joingame.title"), bundle.get("server.edit"), bundle.get("delete"), bundle.get("back")};
+            int action = menus.chooseTitleRow(label, 0, actions);
+            if (action == -2) {
+                menus.requestTitleExit();
+                return null;
+            }
+            if (action < 0) continue;
+            if (address != null) {
+                if (action == 0) return address;
+                action--;
+            }
+            if (action == 0) {
+                var replacement = readServerAddress(label);
+                if (replacement != null) {
+                    entries.set(index, new UpstreamSavedServers.Entry(replacement));
+                    UpstreamSavedServers.save(settings, entries);
+                }
+            } else if (action == 1) {
+                var confirm = new String[]{bundle.get("delete"), bundle.get("cancel")};
+                int result = menus.chooseTitleRow(label, 1, confirm, bundle.get("server.delete"));
+                if (result == -2) {
+                    menus.requestTitleExit();
+                    return null;
+                }
+                if (result == 0) {
+                    entries.remove(index);
+                    UpstreamSavedServers.save(settings, entries);
+                    selected = Math.min(selected, entries.size());
+                }
+            }
+        }
+    }
+
+    private static UpstreamServerAddress readServerAddress(String initial) throws IOException {
         // One byte for the terminator and up to four UTF-8 bytes per input character.
         byte[] text = new byte[4 * 259 + 1];
+        byte[] prefill = initial.getBytes(StandardCharsets.UTF_8);
+        if (prefill.length < text.length) System.arraycopy(prefill, 0, text, 0, prefill.length);
         int invalid = 0;
         System.out.println("UPSTREAM_SERVER_ADDRESS status=opened");
         while (true) {

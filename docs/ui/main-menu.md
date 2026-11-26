@@ -214,6 +214,12 @@ Play. The results list keeps one response per address. Select a server to
 view the stock advertisement's map, mode, player count and version, then
 select Join Game. Address opens the manual keyboard and Refresh scans again.
 
+Remote Servers opens the saved address list. Add Server stores an IPv4
+address or DNS name and port. Select an entry to join, edit or delete it.
+The list uses the stock `servers` value in `settings.bin`, including the
+original Arc binary records. Imported desktop endpoints that exceed the
+handheld transport's current IPv4 support stay in the list and can be edited.
+
 libctru handles the sockets, while the pinned Mindustry NetworkIO reader
 decodes the same bytes as the Java PC client. The loopback host reference
 checks a real stock v160.8 server reply, duplicate suppression, malformed
