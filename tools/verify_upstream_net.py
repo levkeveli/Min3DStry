@@ -45,6 +45,20 @@ def run_probe(probe_bin: Path, args: list[str]) -> str:
     return proc.stdout.strip()
 
 
+TRANSIENT_SESSION_MARKERS = (
+    "Unexpected Session 1 initial state",
+    "Unexpected Session 2 rejoin WorldStream",
+    "Timed out waiting for WorldStream",
+    "Disconnected before WorldStream",
+    "Session failed waiting for WorldStream",
+)
+
+
+def is_transient_session_failure(output: str) -> bool:
+    """Return true for the known-original world-stream races in the baseline."""
+    return any(marker in output for marker in TRANSIENT_SESSION_MARKERS)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--server-jar", type=Path, required=True)
@@ -67,11 +81,15 @@ def main() -> int:
 
     with tempfile.TemporaryDirectory(prefix="min3dstry-net-") as scratch:
         lz4_dir = Path(scratch) / "lz4"
+        # Drain the server log into a file. A full stdout pipe can stall the
+        # stock server while it streams the initial world to the baseline.
+        server_log_path = Path(scratch) / "server.log"
+        server_log = server_log_path.open("w", encoding="utf-8", errors="replace")
         proc = subprocess.Popen(
             ["java", "-jar", str(server_jar)],
             cwd=scratch,
             stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
+            stdout=server_log,
             stderr=subprocess.STDOUT,
             text=True,
         )
@@ -108,21 +126,35 @@ def main() -> int:
             if "status=0 " in bad_line or "udp=1 " not in bad_line:
                 raise AssertionError(f"Expected outdated version rejection, got: {bad_line}")
 
-            session_proc = subprocess.run(
-                [
-                    "java",
-                    "-cp",
-                    str(server_jar),
-                    str(session_driver),
-                    "127.0.0.1",
-                    str(args.port),
-                    "--dump-lz4-dir",
-                    str(lz4_dir),
-                ],
-                text=True,
-                capture_output=True,
-                check=False,
-            )
+            session_command = [
+                "java",
+                "-cp",
+                str(server_jar),
+                str(session_driver),
+                "127.0.0.1",
+                str(args.port),
+                "--dump-lz4-dir",
+                str(lz4_dir),
+            ]
+            session_proc = None
+            for attempt in range(1, 4):
+                session_proc = subprocess.run(
+                    session_command,
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                )
+                if session_proc.returncode == 0:
+                    break
+                combined = (session_proc.stdout or "") + (session_proc.stderr or "")
+                if attempt == 3 or not is_transient_session_failure(combined):
+                    break
+                print(
+                    f"verify_upstream_net: transient stock-session failure "
+                    f"(attempt {attempt}/3); retrying",
+                    file=sys.stderr,
+                )
+                time.sleep(2)
             if session_proc.returncode != 0:
                 if session_proc.stdout:
                     print(session_proc.stdout, file=sys.stderr)
@@ -174,10 +206,10 @@ def main() -> int:
             if proc.poll() is None:
                 proc.kill()
                 proc.wait(timeout=5)
-        if proc.stdout is not None:
-            server_out = proc.stdout.read()
-            print("--- server tail ---")
-            print("\n".join(server_out.splitlines()[-15:]))
+            server_log.close()
+        server_out = server_log_path.read_text(encoding="utf-8", errors="replace")
+        print("--- server tail ---")
+        print("\n".join(server_out.splitlines()[-15:]))
     return 0
 
 

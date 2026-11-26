@@ -1,11 +1,55 @@
+import java.nio.file.AtomicMoveNotSupportedException
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.security.MessageDigest
 
 // Rebuild the affected compiler classes from the pinned Maven source artifact.
-def compilerSources = configurations.detachedConfiguration(
-    dependencies.create('org.teavm:teavm-core:0.16.0:sources'))
-compilerSources.transitive = false
-def compilerArchive = providers.gradleProperty('teavmCompilerSources').map { file(it) }
-    .orElse(providers.provider { compilerSources.singleFile })
+def sourceHash = '687cabf23e0d17a15be30fbc070809c2931714340aca224120fe31579f95519b'
+def digest = { File archive -> MessageDigest.getInstance('SHA-256').digest(archive.bytes).encodeHex().toString() }
+def explicitArchive = providers.gradleProperty('teavmCompilerSources').map { file(it) }
+def cachedArchive = new File(gradle.gradleUserHomeDir, 'caches/min3dstry/teavm/teavm-core-0.16.0-sources.jar')
+def compilerArchive = explicitArchive.orElse(cachedArchive)
+def fetch = tasks.register('fetchWorldCompilerSources') {
+    inputs.property('sha256', sourceHash)
+    outputs.file(cachedArchive)
+    doLast {
+        if (cachedArchive.isFile() && digest(cachedArchive) == sourceHash) return
+
+        def path = 'org/teavm/teavm-core/0.16.0/teavm-core-0.16.0-sources.jar'
+        def repositories = [
+            'https://repo.maven.apache.org/maven2/',
+            'https://maven-central.storage-download.googleapis.com/maven2/'
+        ]
+        cachedArchive.parentFile.mkdirs()
+        for (String base : repositories) {
+            def temporary = Files.createTempFile(cachedArchive.parentFile.toPath(), 'teavm-source-', '.jar')
+            try {
+                def connection = URI.create(base + path).toURL().openConnection()
+                connection.connectTimeout = 15_000
+                connection.readTimeout = 30_000
+                connection.inputStream.withCloseable { input ->
+                    Files.copy(input, temporary, StandardCopyOption.REPLACE_EXISTING)
+                }
+                if (digest(temporary.toFile()) != sourceHash) {
+                    logger.warn("TeaVM source checksum did not match at ${base}")
+                    continue
+                }
+                try {
+                    Files.move(temporary, cachedArchive.toPath(),
+                        StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+                } catch (AtomicMoveNotSupportedException ignored) {
+                    Files.move(temporary, cachedArchive.toPath(), StandardCopyOption.REPLACE_EXISTING)
+                }
+                return
+            } catch (IOException failure) {
+                logger.warn("TeaVM source download failed at ${base}: ${failure.message}")
+            } finally {
+                Files.deleteIfExists(temporary)
+            }
+        }
+        throw new GradleException('Unable to download the pinned TeaVM compiler sources')
+    }
+}
 def patches = [
     'org/teavm/backend/c/generate/CodeWriter.java': file('patches/teavm-c-local-references.patch'),
     'org/teavm/backend/lowlevel/transform/CoroutineTransformation.java': file('patches/teavm-c-coroutine-entry.patch'),
@@ -13,12 +57,12 @@ def patches = [
 ]
 def patchedSources = layout.buildDirectory.dir('world-compiler/source')
 def stage = tasks.register('patchWorldCompilerSource') {
+    if (!explicitArchive.isPresent()) dependsOn fetch
     inputs.files(compilerArchive, patches.values())
     outputs.dir(patchedSources)
     doLast {
         def archive = compilerArchive.get()
-        def sha256 = MessageDigest.getInstance('SHA-256').digest(archive.bytes).encodeHex().toString()
-        if (sha256 != '687cabf23e0d17a15be30fbc070809c2931714340aca224120fe31579f95519b') {
+        if (digest(archive) != sourceHash) {
             throw new GradleException('Expected the TeaVM 0.16.0 compiler source archive')
         }
         def archiveTree = zipTree(archive)

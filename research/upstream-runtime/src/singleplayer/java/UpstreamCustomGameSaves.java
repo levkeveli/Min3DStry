@@ -13,6 +13,28 @@ final class UpstreamCustomGameSaves {
     private UpstreamCustomGameSaves() {}
 
     static List<Slot> discover(Fi directory, Fi quickSave) {
+        var saves = discoverDirectory(directory);
+        sortNewestFirst(saves);
+        var slots = new ArrayList<Slot>(saves.size + 1);
+        var quick = read(quickSave, Core.bundle.get("loadgame"));
+        if (quick != null) slots.add(quick);
+        for (Slot save : saves) slots.add(save);
+        return slots;
+    }
+
+    static List<Slot> discoverForTitle(Fi directory, Fi... quickSaves) {
+        var saves = discoverDirectory(directory);
+        for (Fi file : quickSaves) {
+            var slot = read(file, file.nameWithoutExtension());
+            if (slot != null && !saves.contains(save -> save.file().equals(file))) saves.add(slot);
+        }
+        sortNewestFirst(saves);
+        var slots = new ArrayList<Slot>(saves.size);
+        for (Slot save : saves) slots.add(save);
+        return slots;
+    }
+
+    private static Seq<Slot> discoverDirectory(Fi directory) {
         var saves = new Seq<Slot>();
         if (directory.isDirectory()) {
             directory.walk(file -> {
@@ -22,16 +44,15 @@ final class UpstreamCustomGameSaves {
                 }
             });
         }
+        return saves;
+    }
+
+    private static void sortNewestFirst(Seq<Slot> saves) {
         // Match the stock LoadDialog's Arc sort and newest-first order.
         saves.sort((left, right) -> {
             int latestFirst = Long.compare(right.timestamp(), left.timestamp());
             return latestFirst == 0 ? left.file().path().compareTo(right.file().path()) : latestFirst;
         });
-        var slots = new ArrayList<Slot>(saves.size + 1);
-        var quick = read(quickSave, Core.bundle.get("loadgame"));
-        if (quick != null) slots.add(quick);
-        for (Slot save : saves) slots.add(save);
-        return slots;
     }
 
     private static Slot read(Fi file, String fallbackName) {

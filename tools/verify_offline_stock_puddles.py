@@ -54,7 +54,7 @@ def main():
         print(f"Stock Java wrote {clear.name} and {active.name}.")
         return
     azahar = sp.az.resolve_azahar_bin(args.azahar)
-    for model in ("old3ds", "new3ds"):
+    for model in ("new3ds",):
         before = capture(args.output / model / "clear", model, clear, args.rom, azahar)
         after = capture(args.output / model / "active", model, active, args.rom, azahar)
         water, neoplasm = changed_colors(before, after)

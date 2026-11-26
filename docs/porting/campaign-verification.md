@@ -26,5 +26,56 @@ with raw `sector-serpulo-170.msav` and zlib `sector-erekir-64.msav` staged in
 `sdmc:/3ds/min3dstry`, both profiles report `SECTOR_CATALOG count=2`, the two
 sorted `SECTOR_SLOT` lines, and the matching bottom-HUD `Sectors:`/`Sector`
 lines. Upstream `Saves.load()` now runs on the live path. Live campaign
-UI/launch dialogs, capture rewards, and physical Old/New 3DS verification
+UI/launch dialogs, capture rewards, and physical New 3DS verification
 remain open.
+
+## Stock campaign map archive
+
+`tools/verify_stock_campaign_archive.py --assets ASSETS_JAR --stage STAGING_DIR`
+runs the ARM11 campaign map packer and compares every output map byte with
+the official v160.8 archive. It checks 78 Serpulo maps, including 46
+numbered sectors, and 17 Erekir maps.
+
+The rendered campaign and editor runtime store the tile's common content IDs
+and mutation flag in one word. Tiles keep unusual IDs and nonzero auxiliary
+data in a weakly keyed extension, retaining the original 32-bit values and
+current and legacy save layouts. The campaign archive reference checks the
+stock IDs, independent updates, the missing-value sentinel, wide IDs and
+packed tile metadata. An ASM audit checks the filtered upstream dependency
+archive for field instructions that would still use the removed tile fields.
+The [production staging JVM run](https://github.com/levkeveli/Min3DStry/actions/runs/45350024201/job/138293855497)
+passed the metadata assertions across the pinned campaign archive.
+The [ARM11-aligned Linux diagnostic](https://github.com/levkeveli/Min3DStry/actions/runs/45350631106)
+measured 24 bytes per common tile. Decorated-tile memory, weak-key
+reclamation, and frame timing on 3DS still need target verification.
+
+Pass the staging directory and a new save directory to
+`runStockCampaignArchiveJvm` with `-Pprobe=singleplayer`. The test reads
+all 95 map headers, checks their preset associations, and decodes all 95
+worlds through the upstream sector loader. The replay checks each sector
+and its world dimensions across 17,662,472 tiles. It also resaves the
+600 by 600 Littoral Shipyard and Serpulo 242 worlds. The stock patch paths
+and contents survive a save and reload on the JVM. The unmodified v160.8 Java
+server also reopens both saves through `verify_stock_campaign_archive.py
+--check-saves <profile> --server <server-release.jar>` and checks the sector
+IDs, dimensions and patch counts. Handheld loading and frame rate for these large maps
+require separate measurements.
+
+The ARM11 single-player heap exposes at least 2 MiB of existing garbage
+collector scratch space from startup. TeaVM counts that scratch separately
+from the managed cap. A 600×600 tile array can fill the stock mark queue
+while the managed heap is still growing. The handheld allocator already
+backs the maximum scratch reservation for the 32 MiB managed heap.
+The [aligned Linux run](https://github.com/levkeveli/Min3DStry/actions/runs/45349275468)
+confirmed first-power updates and 60 ticks in all five dense-sector fixtures
+with that scratch floor. Physical-device measurements are pending.
+
+The unified campaign reference checks that a logic processor with no matching
+units leaves its binding cursor unallocated. It also verifies that successive
+bindings use the stock round-robin order and that a catalog-size change
+resets that cursor.
+
+Offline resume restores player position, team, controlled unit and control
+groups from the metadata of the save that actually loaded. If the primary
+save has readable metadata but fails later in the stock loader, the backup
+world receives the backup player metadata.

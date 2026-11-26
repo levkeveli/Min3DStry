@@ -11,15 +11,19 @@ def revision = '19a0f40d44514f4802a8b79770456e7e32e34da0'
 def upstreamFile = 'core/src/mindustry/logic/LogicOp.java'
 def blockSource = 'core/src/mindustry/world/Block.java'
 def tileSource = 'core/src/mindustry/world/Tile.java'
+def tilesSource = 'core/src/mindustry/world/Tiles.java'
+def liquidModuleSource = 'core/src/mindustry/world/modules/LiquidModule.java'
 def pathfinderSource = 'core/src/mindustry/ai/Pathfinder.java'
+def flowfieldSearchPatch = file('patches/stock-flowfield-search-storage.patch')
+def flowfieldCostPatch = file('patches/stock-flowfield-cost-grid.patch')
+def flowfieldCostSources = ['mindustry/ai/ControlPathfinder.java', 'mindustry/ai/BaseBuilderAI.java']
 def annotationsSource = 'annotations/src/main/java/mindustry/annotations/Annotations.java'
 def arcRevision = '7445105cd2683daf5b9ac7033ebb07265d3e814d'
 def fileSource = 'arc-core/src/arc/files/Fi.java'
 def soundSource = 'arc-core/src/arc/audio/Sound.java'
 def osSource = 'arc-core/src/arc/util/OS.java'
 def networkIoSource = 'core/src/mindustry/net/NetworkIO.java'
-def dataPatcherSource = 'core/src/mindustry/mod/DataPatcher.java'
-def liveLogicSource = 'core/src/mindustry/core/Logic.java'
+def saveVersionSource = 'core/src/mindustry/io/SaveVersion.java'
 def netClientSource = 'core/src/mindustry/core/NetClient.java'
 def placementSource = 'core/src/mindustry/ui/fragments/PlacementFragment.java'
 def itemSelectionSource = 'core/src/mindustry/world/blocks/ItemSelection.java'
@@ -83,6 +87,29 @@ if (!entryPoints.containsKey(probe)) {
 def entryPoint = entryPoints[probe]
 def usesMapSources = probe in ['map', 'map-sd']
 def usesSinglePlayerApp = probe in ['singleplayer', 'unified', 'campaign-background']
+def sparseTilePatch = file('patches/sparse-stock-tile-metadata.patch')
+def databaseStatSources = ['mindustry/world/meta/StatValue.java', 'mindustry/world/meta/StatValues.java']
+def databaseAbilitySources = [
+    'Ability', 'ArmorPlateAbility', 'EnergyFieldAbility', 'ForceFieldAbility',
+    'LiquidExplodeAbility', 'LiquidRegenAbility', 'MoveLightningAbility', 'RegenAbility',
+    'RepairFieldAbility', 'ShieldArcAbility', 'ShieldRegenFieldAbility', 'SpawnDeathAbility',
+    'StatusFieldAbility', 'SuppressionFieldAbility', 'UnitSpawnAbility'
+].collect { 'mindustry/entities/abilities/' + it + '.java' }
+def sparseTileSources = [
+    'mindustry/world/Tile.java',
+    'mindustry/world/Build.java',
+    'mindustry/world/Edges.java',
+    'mindustry/editor/EditorTile.java',
+    'mindustry/editor/DrawOperation.java',
+    'mindustry/editor/EditorTool.java',
+    'mindustry/editor/MapEditor.java',
+    'mindustry/editor/MapGenerateDialog.java',
+    'mindustry/io/MapIO.java',
+    'mindustry/io/SaveVersion.java',
+    'mindustry/io/versions/ShortChunkSaveVersion.java',
+    'mindustry/world/blocks/environment/ColoredFloor.java',
+    'mindustry/world/blocks/environment/ColoredWall.java'
+]
 def usesSinglePlayer = usesSinglePlayerApp || probe == 'singleplayer-sim'
 def usesLiveNetwork = probe in ['network-live', 'network-render', 'unified']
 def usesLiveAudio = probe in ['network-render', 'unified']
@@ -147,6 +174,8 @@ def sourceFile = sourceDir.map { it.file('mindustry/logic/LogicOp.java') }
 def mapFile = sourceDir.map { it.file('mindustry/maps/GlacierFixture.java') }
 def blockFile = sourceDir.map { it.file('mindustry/world/Block.java') }
 def tileFile = sourceDir.map { it.file('mindustry/world/Tile.java') }
+def tilesFile = sourceDir.map { it.file('mindustry/world/Tiles.java') }
+def liquidModuleFile = sourceDir.map { it.file('mindustry/world/modules/LiquidModule.java') }
 def pathfinderFile = sourceDir.map { it.file('mindustry/ai/Pathfinder.java') }
 def annotationsFile = sourceDir.map { it.file('mindustry/annotations/Annotations.java') }
 def arcFile = sourceDir.map { it.file('arc/files/Fi.java') }
@@ -154,8 +183,7 @@ def arcOsFile = sourceDir.map { it.file('arc/util/OS.java') }
 def arcPixmapFile = sourceDir.map { it.file('arc/graphics/Pixmap.java') }
 def arcJsonFile = sourceDir.map { it.file('arc/util/serialization/Json.java') }
 def networkIoFile = sourceDir.map { it.file('mindustry/net/NetworkIO.java') }
-def dataPatcherFile = sourceDir.map { it.file('mindustry/mod/DataPatcher.java') }
-def liveLogicFile = sourceDir.map { it.file('mindustry/core/Logic.java') }
+def saveVersionFile = sourceDir.map { it.file('mindustry/io/SaveVersion.java') }
 def netClientFile = sourceDir.map { it.file('mindustry/core/NetClient.java') }
 def schematicsFile = sourceDir.map { it.file('mindustry/game/Schematics.java') }
 def placementFile = sourceDir.map { it.file('UpstreamPlacementCatalog.java') }
@@ -186,14 +214,16 @@ def readUpstream = { path ->
 
 def renderedBuilding = layout.buildDirectory.dir('building-renderer-classes')
 def stageRenderedBuilding
+def tileAuditClasspath
 if (usesRenderedClient) {
     def asm = configurations.detachedConfiguration(dependencies.create('org.ow2.asm:asm-tree:9.9'))
     def adapter = tasks.register('compileBuildingCrackAdapter', JavaCompile) {
         source files('tools/StageBuildingCrackAdapter.java', 'tools/StageNavalWakeAdapter.java',
-                     'tools/StageObjectiveLabelAdapter.java', 'tools/StageCanvasAdapter.java')
+                     'tools/StageObjectiveLabelAdapter.java', 'tools/StageCanvasAdapter.java', 'tools/AuditTileFieldReferences.java')
         classpath = asm
         destinationDirectory = layout.buildDirectory.dir('building-renderer-tool')
     }
+    tileAuditClasspath = files(adapter.flatMap { it.destinationDirectory }) + asm
     stageRenderedBuilding = tasks.register('stageRenderedBuilding', JavaExec) {
         dependsOn adapter, 'prepareUpstreamProbe'
         classpath = files(adapter.flatMap { it.destinationDirectory }) + asm
@@ -206,11 +236,34 @@ if (usesRenderedClient) {
 
 if (usesArcSources || usesExecutor) {
     def stagedClasses = []
+    if (usesSinglePlayerApp) {
+        (sparseTileSources + databaseStatSources + databaseAbilitySources).each { path ->
+            def type = path.substring(0, path.length() - '.java'.length())
+            stagedClasses.addAll([type + '.class', type + '$*.class'])
+        }
+    }
+    if (usesSinglePlayer) {
+        stagedClasses.add('mindustry/io/SaveReadState.class')
+        stagedClasses.add('arc/util/Interval.class')
+        stagedClasses.addAll(['mindustry/ai/Pathfinder.class', 'mindustry/ai/Pathfinder$*.class'])
+        flowfieldCostSources.each { path ->
+            def className = path.substring(0, path.length() - '.java'.length())
+            stagedClasses.addAll([className + '.class', className + '$*.class'])
+        }
+        stagedClasses.addAll(['mindustry/io/SaveIO.class', 'mindustry/io/SaveIO$*.class', 'mindustry/io/JsonIO.class', 'mindustry/io/JsonIO$*.class'])
+    }
     if (usesContentSources) {
         stagedClasses.add('mindustry/world/Block.class')
     }
     if (usesWorldSources) {
-        stagedClasses.addAll(['mindustry/world/Tile.class', 'mindustry/world/Tile$*.class'])
+        stagedClasses.addAll(['mindustry/world/Tile.class', 'mindustry/world/Tile$*.class',
+                              'mindustry/ai/BlockIndexer.class', 'mindustry/ai/BlockIndexer$*.class',
+                              'mindustry/game/Teams.class', 'mindustry/game/Teams$*.class',
+                              'mindustry/world/blocks/logic/LogicBlock.class', 'mindustry/world/blocks/logic/LogicBlock$*.class',
+                              'mindustry/io/SaveFileReader.class', 'mindustry/io/SaveFileReader$*.class',
+                              'mindustry/world/Tiles.class', 'mindustry/world/Tiles$*.class',
+                              'mindustry/world/modules/ItemModule.class', 'mindustry/world/modules/ItemModule$*.class',
+                              'mindustry/world/modules/LiquidModule.class', 'mindustry/world/modules/LiquidModule$*.class'])
     }
     if (usesArcSources) {
         stagedClasses.addAll(['arc/files/Fi.class', 'arc/files/Fi$*.class'])
@@ -224,15 +277,11 @@ if (usesArcSources || usesExecutor) {
     if (usesWorldStream) {
         stagedClasses.add('mindustry/net/NetworkIO.class')
     }
-    if (usesSinglePlayer || usesLiveNetwork) {
-        stagedClasses.addAll(['mindustry/mod/DataPatcher.class', 'mindustry/mod/DataPatcher$*.class'])
-    }
     if (usesBuildControls) {
         stagedClasses.addAll(['mindustry/game/Schematics.class', 'mindustry/game/Schematics$*.class'])
     }
     if (usesLiveNetwork) {
         stagedClasses.addAll(['mindustry/core/NetClient.class', 'mindustry/core/NetClient$*.class',
-                              'mindustry/core/Logic.class', 'mindustry/core/Logic$*.class',
                               'mindustry/ai/Pathfinder.class', 'mindustry/ai/Pathfinder$*.class'])
     }
     if (usesSinglePlayer || usesLiveAudio) {
@@ -251,6 +300,9 @@ if (usesArcSources || usesExecutor) {
     }
     if (patchesPlanetGrid) {
         stagedClasses.addAll(['mindustry/graphics/g3d/PlanetGrid.class', 'mindustry/graphics/g3d/PlanetGrid$*.class'])
+    }
+    if (usesSinglePlayer) {
+        stagedClasses.addAll(['mindustry/io/SaveVersion.class', 'mindustry/io/SaveVersion$*.class'])
     }
     if (stageRenderedBuilding != null) {
         stagedClasses.addAll(['mindustry/gen/Building.class', 'mindustry/gen/UnitWaterMove.class',
@@ -291,6 +343,15 @@ if (usesArcSources || usesExecutor) {
         }
         destinationDirectory = layout.buildDirectory.dir("probe-dependencies/${probe}")
         archiveFileName = 'server-probe-dependencies.jar'
+    }
+    if (usesSinglePlayerApp) {
+        def audit = tasks.register('auditTileFieldReferences', JavaExec) {
+            dependsOn contentDependencies, 'compileBuildingCrackAdapter'
+            classpath = tileAuditClasspath
+            mainClass = 'AuditTileFieldReferences'
+            args contentDependencies.get().archiveFile.get().asFile.absolutePath
+        }
+        tasks.named('compileJava') { dependsOn audit }
     }
     dependencies { implementation files(contentDependencies.flatMap { it.archiveFile }).builtBy(contentDependencies) }
 } else {
@@ -371,9 +432,21 @@ if (usesSinglePlayer) {
             mainClass = 'UpstreamOfflineMaterialsReference'
             workingDir = temporaryDir
         }
-        tasks.register('runStockEmbeddedAssetJvm', JavaExec) {
+        tasks.register('runStockAssemblerJvm', JavaExec) {
             classpath = sourceSets.main.runtimeClasspath
-            mainClass = 'UpstreamStockEmbeddedAssetReference'
+            mainClass = 'UpstreamStockAssemblerReference'
+        }
+        tasks.register('runStockPlaytimeJvm', JavaExec) {
+            classpath = sourceSets.main.runtimeClasspath
+            mainClass = 'UpstreamStockPlaytimeReference'
+        }
+        tasks.register('runStockSavedPlayerJvm', JavaExec) {
+            classpath = sourceSets.main.runtimeClasspath
+            mainClass = 'UpstreamStockSavedPlayerReference'
+        }
+        tasks.register('runStockPayloadLoopJvm', JavaExec) {
+            classpath = sourceSets.main.runtimeClasspath
+            mainClass = 'UpstreamStockPayloadLoopReference'
         }
         tasks.register('runErekirHeatJvm', JavaExec) {
             classpath = sourceSets.main.runtimeClasspath
@@ -404,6 +477,14 @@ if (usesSinglePlayer) {
             classpath = sourceSets.main.runtimeClasspath
             mainClass = 'UpstreamCampaignLaunchReference'
         }
+        tasks.register('runStockAtlasJvm', JavaExec) {
+            classpath = sourceSets.main.runtimeClasspath
+            mainClass = 'UpstreamStockAtlasReference'
+        }
+        tasks.register('runStockCampaignArchiveJvm', JavaExec) {
+            classpath = sourceSets.main.runtimeClasspath
+            mainClass = 'UpstreamStockCampaignArchiveReference'
+        }
         tasks.register('runStockOrdersJvm', JavaExec) {
             classpath = sourceSets.main.runtimeClasspath
             mainClass = 'UpstreamStockOrdersReference'
@@ -415,7 +496,8 @@ if (usesSinglePlayer) {
     }
     if (!usesSinglePlayerApp) {
         sourceSets.main.java.exclude('UpstreamSinglePlayerApp.java', 'UpstreamSinglePlayerInput.java',
-            'UpstreamOfflineWeaponInput.java')
+            'UpstreamOfflineWeaponInput.java', 'UpstreamMapEditorApp.java',
+            'UpstreamCoreDatabaseMenu.java', 'UpstreamCoreDatabaseStats.java')
     } else if (!usesLiveNetwork) {
         sourceSets.main.java.srcDir('src/network-live/java')
         sourceSets.main.java.srcDir('src/network-render/java')
@@ -487,6 +569,7 @@ if (usesCampaignSavesLoad) {
     sourceSets.main.java.srcDir('src/campaign-saves-load/java')
 }
 dependencies {
+    if (usesSinglePlayer) implementation 'com.jcraft:jzlib:1.1.3'
     if (usesMapSources || usesLiveNetwork || usesTerrainRenderer) {
         implementation 'org.teavm:teavm-interop:0.16.0'
     }
@@ -514,7 +597,12 @@ tasks.register('prepareUpstreamProbe') {
         outputs.files(blockFile, annotationsFile)
     }
     if (usesWorldSources) {
-        outputs.file(tileFile)
+        outputs.files(tileFile, tilesFile, liquidModuleFile)
+        outputs.file(sourceDir.map { it.file('mindustry/world/modules/ItemModule.java') })
+        outputs.file(sourceDir.map { it.file('mindustry/ai/BlockIndexer.java') })
+        outputs.file(sourceDir.map { it.file('mindustry/game/Teams.java') })
+        outputs.file(sourceDir.map { it.file('mindustry/io/SaveFileReader.java') })
+        outputs.file(sourceDir.map { it.file('mindustry/world/blocks/logic/LogicBlock.java') })
     }
     if (usesArcSources || usesExecutor) {
         inputs.property('arcRevision', arcRevision)
@@ -531,22 +619,17 @@ tasks.register('prepareUpstreamProbe') {
         outputs.file(arcPixmapFile)
     }
     if (usesSinglePlayerApp) {
-        outputs.files(sourceDir.map { dir ->
-            ['mindustry/editor/MapEditor.java', 'mindustry/editor/EditorTile.java']
-                .collect { dir.file(it) }
-        })
+        inputs.file(sparseTilePatch)
+        outputs.files(sourceDir.map { dir -> (sparseTileSources + databaseStatSources + databaseAbilitySources).collect { dir.file(it) } })
     }
     if (usesWorldStream) {
         outputs.file(networkIoFile)
-    }
-    if (usesSinglePlayer || usesLiveNetwork) {
-        outputs.file(dataPatcherFile)
     }
     if (usesBuildControls) {
         outputs.files(placementFile, itemChoicesFile, schematicsFile)
     }
     if (usesLiveNetwork) {
-        outputs.files(netClientFile, pathfinderFile, liveLogicFile)
+        outputs.files(netClientFile, pathfinderFile)
     }
     if (usesLiveAudio) {
         outputs.files(sourceDir.map { dir ->
@@ -555,8 +638,17 @@ tasks.register('prepareUpstreamProbe') {
         })
     }
     if (usesSinglePlayer) {
+        outputs.file(sourceDir.map { it.file('arc/util/Interval.java') })
         inputs.file('src/gameplay/java/port/FactoryResources.java')
+        inputs.file(flowfieldSearchPatch)
+        inputs.file(flowfieldCostPatch)
+        flowfieldCostSources.each { path -> outputs.file(sourceDir.map { it.file(path) }) }
         outputs.file(factoryResourcesFile)
+        outputs.file(pathfinderFile)
+        outputs.file(sourceDir.map { it.file('mindustry/io/SaveIO.java') })
+        outputs.file(sourceDir.map { it.file('mindustry/io/JsonIO.java') })
+        outputs.file(sourceDir.map { it.file('mindustry/io/SaveReadState.java') })
+        outputs.file(saveVersionFile)
     }
     if (patchesPlanetGrid) {
         outputs.file(planetGridFile)
@@ -581,16 +673,465 @@ tasks.register('prepareUpstreamProbe') {
     }
     doLast {
         if (usesSinglePlayerApp) {
-            def directory = sourceDir.get().dir('mindustry/editor').asFile
-            directory.mkdirs()
-            new File(directory, 'MapEditor.java').setText(
-                new String(readUpstream('core/src/mindustry/editor/MapEditor.java'), 'UTF-8'), 'UTF-8')
-            def editorTile = new String(readUpstream('core/src/mindustry/editor/EditorTile.java'), 'UTF-8')
+            databaseAbilitySources.each { path ->
+                def staged = sourceDir.get().file(path).asFile
+                staged.parentFile.mkdirs()
+                def stock = new String(readUpstream('core/src/' + path), 'UTF-8')
+                def signature = '    public void addStats(Table t){'
+                if (stock.count(signature) != 1) throw new GradleException('Pinned ability stats changed: ' + path)
+                def start = stock.indexOf(signature)
+                def end = stock.indexOf('\n    }', start) + '\n    }'.length()
+                def method = stock.substring(start, end)
+                    .replace(signature, '    public void appendHandheldStats(StringBuilder out){')
+                    .replace('super.addStats(t);', 'super.appendHandheldStats(out);')
+                    .replace('t.add(', 'appendHandheldStat(out, ')
+                    .replace('.wrap().width(descriptionWidth)', '')
+                    .replace('.with(l -> StatValues.withTooltip(l, status))', '')
+                    .replaceAll(/(?m)^ +t\.row\(\);\n/, '')
+                if (method =~ /\bt\./) throw new GradleException('Unconverted ability stats: ' + path)
+                if (path.endsWith('/Ability.java')) {
+                    method += '''
+
+    protected static void appendHandheldStat(StringBuilder out, String line){
+        if(out.length() != 0) out.append('\\n');
+        out.append(line);
+    }'''
+                }
+                staged.setText(stock.substring(0, end) + '\n\n' + method + stock.substring(end), 'UTF-8')
+            }
+            def interfaceFile = sourceDir.get().file(databaseStatSources[0]).asFile
+            interfaceFile.parentFile.mkdirs()
+            def value = new String(readUpstream('core/src/' + databaseStatSources[0]), 'UTF-8')
+            def display = '    void display(Table table);'
+            if (value.count(display) != 1) throw new GradleException('Pinned StatValue changed')
+            interfaceFile.setText(value.replace(display, display + '''
+
+    default String handheldText(){
+        return null;
+    }'''), 'UTF-8')
+
+            def valuesFile = sourceDir.get().file(databaseStatSources[1]).asFile
+            def values = new String(readUpstream('core/src/' + databaseStatSources[1]), 'UTF-8')
+            def hooks = [
+                'public class StatValues{': '''public class StatValues{
+
+    private static StatValue withText(Prov<String> text, StatValue display){
+        return new StatValue(){
+            @Override
+            public void display(Table table){
+                display.display(table);
+            }
+
+            @Override
+            public String handheldText(){
+                return text.get();
+            }
+        };
+    }
+''',
+                'return table -> table.add(result);': 'return withText(() -> result, table -> table.add(result));',
+                'return table ->  table.add(!value ? "@no" : "@yes");':
+                    'return withText(() -> Core.bundle.get(value ? "yes" : "no"), table -> table.add(!value ? "@no" : "@yes"));',
+                '''    public static StatValue number(float value, StatUnit unit, boolean merge){
+        return table -> {''': '''    public static StatValue number(float value, StatUnit unit, boolean merge){
+        return withText(() -> fixValue(value) + (unit.space ? " " : "") + unit.localized(), table -> {''',
+                '''        };
+    }
+
+    public static StatValue number(float value, StatUnit unit){''': '''        });
+    }
+
+    public static StatValue number(float value, StatUnit unit){'''
+            ]
+            def itemAmounts = '''    public static StatValue items(boolean displayName, ItemStack... stacks){
+        return table -> {
+            for(ItemStack stack : stacks){
+                table.add(displayItem(stack.item, stack.amount, displayName)).padRight(5);
+            }
+        };
+    }'''
+            def itemRates = '''    public static StatValue items(float timePeriod, ItemStack... stacks){
+        return table -> {
+            for(ItemStack stack : stacks){
+                table.add(displayItem(stack.item, stack.amount, timePeriod, true)).padRight(5);
+            }
+        };
+    }'''
+            def liquidStackRates = '''    public static StatValue liquids(float timePeriod, boolean perSecond, LiquidStack... stacks){
+        return table -> {
+            for(var stack : stacks){
+                table.add(displayLiquid(stack.liquid, stack.amount * (60f / timePeriod), perSecond)).padRight(5);
+            }
+        };
+    }'''
+            def stockSingleLiquid = 'return table -> table.add(displayLiquid(liquid, amount, perSecond)).left();'
+            hooks[itemAmounts] = itemAmounts
+                .replace('return table -> {', 'return withText(() -> itemStatText(stacks, 0f, false), table -> {')
+                .replace('        };', '        });')
+            hooks[itemRates] = itemRates
+                .replace('return table -> {', 'return withText(() -> itemStatText(stacks, timePeriod, true), table -> {')
+                .replace('        };', '        });')
+            hooks[liquidStackRates] = liquidStackRates
+                .replace('return table -> {', 'return withText(() -> liquidStatText(timePeriod, perSecond, stacks), table -> {')
+                .replace('        };', '        });')
+            hooks[stockSingleLiquid] = 'return withText(() -> liquidStatText(liquid, amount, perSecond), table -> table.add(displayLiquid(liquid, amount, perSecond)).left());'
+            def stockStatValues = values
+            def withLabel = { signature, label ->
+                def start = stockStatValues.indexOf('    public static StatValue ' + signature + '{')
+                if (start < 0) throw new GradleException('Pinned StatValues declaration changed: ' + signature)
+                def end = stockStatValues.indexOf('\n    }', start)
+                def method = stockStatValues.substring(start, end + '\n    }'.length())
+                if (method.count('return table -> {') != 1 || !method.endsWith('        };\n    }')) {
+                    throw new GradleException('Pinned StatValues implementation changed: ' + signature)
+                }
+                hooks[method] = method.replace('return table -> {', 'return withText(() -> ' + label + ', table -> {')
+                    .replace('        };\n    }', '        });\n    }')
+            }
+            withLabel('squared(float value, StatUnit unit)', 'fixValue(value) + "x" + fixValue(value) + (unit.space ? " " : "") + unit.localized()')
+            withLabel('multiplierModifier(float value, StatUnit unit, boolean merge)', 'multStat(value) + (unit.space ? " " : "") + unit.localized()')
+            withLabel('percentModifier(float value, StatUnit unit, boolean merge)', 'ammoStat((value - 1) * 100) + (unit.space ? " " : "") + unit.localized()')
+            withLabel('liquids(Boolf<Liquid> filter, float amount, boolean perSecond)', 'filteredLiquidStatText(filter, amount, perSecond)')
+            withLabel('items(float timePeriod, Boolf<Item> filter)', 'filteredItemStatText(filter, timePeriod)')
+            withLabel('content(UnlockableContent content)', 'content.localizedName')
+            withLabel('abilities(Seq<Ability> abilities)', 'abilityStatText(abilities)')
+            withLabel('weapons(UnitType unit, Seq<Weapon> weapons)', 'weaponStatText(unit, weapons)')
+            withLabel('itemEffMultiplier(Floatf<Item> efficiency, float timePeriod, Boolf<Item> filter, @Nullable ObjectFloatMap<Item> itemDurationMultipliers)',
+                'itemEfficiencyText(efficiency, timePeriod, filter, itemDurationMultipliers)')
+            withLabel('liquidEffMultiplier(Floatf<Liquid> efficiency, float amount, Boolf<Liquid> filter)',
+                'liquidEfficiencyText(efficiency, amount, filter)')
+            withLabel('boosters(float reload, float maxUsed, float multiplier, boolean baseReload, Boolf<Liquid> filter)',
+                'reloadBoosterText(reload, maxUsed, multiplier, baseReload, filter)')
+            withLabel('speedBoosters(String unit, float amount, float speed, boolean strength, Boolf<Liquid> filter)',
+                'speedBoosterText(unit, amount, speed, strength, filter)')
+            withLabel('itemBoosters(String unit, float timePeriod, float speedBoost, float rangeBoost, ItemStack[] items)',
+                'itemBoosterText(unit, timePeriod, speedBoost, rangeBoost, items)')
+            withLabel('blocks(Attribute attr, boolean floating, float scaleEff, float scaleAmount, @Nullable Seq<ItemStack> outputs, float timePeriod, boolean startZero, boolean checkFloors)',
+                'terrainOutputText(attr, floating, scaleEff, scaleAmount, outputs, timePeriod, checkFloors)')
+            def terrainStart = '''    public static StatValue blocks(Attribute attr, boolean floating, float scale, boolean startZero, boolean checkFloors){
+        return table -> table.table(c -> {'''
+            hooks[terrainStart] = terrainStart.replace('return table ->',
+                'return withText(() -> terrainEfficiencyText(attr, floating, scale, startZero, checkFloors), table ->')
+            def terrainEnd = '''                    lastMap[0] = current;
+                }
+            });
+        });
+    }
+
+    public static StatValue blocks(Attribute attr, boolean floating, float scaleEff'''
+            hooks[terrainEnd] = terrainEnd.replace('\n        });\n    }', '\n        }));\n    }')
+            def ammoSignature = '    public static <T extends UnlockableContent> StatValue ammo(ObjectMap<T, BulletType> map, boolean nested, boolean showUnit, @Nullable String blockName){'
+            def originalAmmoStart = ammoSignature + '\n        return table -> {'
+            hooks[originalAmmoStart] = originalAmmoStart.replace('return table -> {',
+                'return withText(() -> ammoStatText(map, nested, showUnit, blockName), table -> {')
+            def originalAmmoEnd = '''                }).padLeft(5).padTop(5).padBottom(compact ? 0 : 5).growX().margin(compact ? 0 : 10);
+                table.row();
+            }
+        };
+    }'''
+            hooks[originalAmmoEnd] = originalAmmoEnd.replace('        };', '        });')
+            def ammoStart = '                    if(type.damage > 0 && (type.collides || type.splashDamage <= 0)){'
+            def ammoEnd = '                    if(type.intervalBullet != null){'
+            if (values.count(ammoStart) != 1 || values.count(ammoEnd) != 1) {
+                throw new GradleException('Pinned projectile stat rules changed')
+            }
+            def ammoRules = values.substring(values.indexOf(ammoStart), values.indexOf(ammoEnd))
+                .replace('bt.add(', 'appendAmmoLine(label, ')
+                .replace('sep(bt, ', 'appendAmmoLine(label, ')
+                .replace('note(bt, ', 'appendAmmoLine(label, ')
+                .replace(')).left();', '));')
+                .replace('\n                        .with(c -> withTooltip(c, type.status));', ';')
+            if (ammoRules.contains('bt,') || ammoRules.contains('bt.')) throw new GradleException('Unconverted projectile stat cell')
+            withLabel('drillables(float drillTime, float drillMultiplier, float size, ObjectFloatMap<Item> multipliers, Boolf<Block> filter)',
+                'drillableStatText(drillTime, drillMultiplier, size, multipliers, filter)')
+            def contentListStart = '''    public static <T extends UnlockableContent> StatValue content(Seq<T> list, Boolf<T> check, String noneText){
+        return table -> table.table(l -> {'''
+            hooks[contentListStart] = contentListStart.replace('return table ->', 'return withText(() -> contentListStatText(list, check, noneText), table ->')
+            def stockContentListEnd = '''                l.add(noneText);
+            }
+        });
+    }
+
+    public static StatValue blocks(Boolf<Block> pred){'''
+            hooks[stockContentListEnd] = stockContentListEnd.replace('        });', '        }));')
+            hooks['    public static String fixValue(float value){'] = '''    private static String itemStatText(ItemStack[] stacks, float period, boolean rate){
+        StringBuilder label = new StringBuilder();
+        for(var stack : stacks){
+            if(label.length() != 0) label.append(" / ");
+            label.append(stack.item.localizedName);
+            if(stack.amount != 0) label.append(" ").append(stack.amount);
+            if(rate) label.append(" (").append(fixValue(stack.amount / (period / 60f))).append(StatUnit.perSecond.localized()).append(")");
+        }
+        return label.toString();
+    }
+
+    private static String liquidStatText(Liquid liquid, float amount, boolean perSecond){
+        return liquid.localizedName + (amount == 0 ? "" : " " + fixValue(amount) + (perSecond ? StatUnit.perSecond.localized() : ""));
+    }
+
+    private static String liquidStatText(float period, boolean perSecond, LiquidStack[] stacks){
+        StringBuilder label = new StringBuilder();
+        for(var stack : stacks){
+            if(label.length() != 0) label.append(" / ");
+            label.append(liquidStatText(stack.liquid, stack.amount * (60f / period), perSecond));
+        }
+        return label.toString();
+    }
+
+    private static String filteredLiquidStatText(Boolf<Liquid> filter, float amount, boolean perSecond){
+        StringBuilder label = new StringBuilder();
+        for(var liquid : content.liquids()){
+            if(!filter.get(liquid) || !liquid.unlockedNow() || liquid.isHidden()) continue;
+            if(label.length() != 0) label.append(" / ");
+            label.append(liquidStatText(liquid, amount, perSecond));
+        }
+        return label.toString();
+    }
+
+    private static String filteredItemStatText(Boolf<Item> filter, float period){
+        StringBuilder label = new StringBuilder();
+        for(var item : content.items()){
+            if(!filter.get(item) || !item.unlockedNow() || item.isHidden()) continue;
+            if(label.length() != 0) label.append(" / ");
+            label.append(item.localizedName);
+            if(period > 0) label.append(" 1 (").append(fixValue(60f / period)).append(StatUnit.perSecond.localized()).append(")");
+        }
+        return label.toString();
+    }
+
+    private static <T extends UnlockableContent> String contentListStatText(Seq<T> list, Boolf<T> check, String noneText){
+        StringBuilder label = new StringBuilder();
+        for(var entry : list){
+            if(!check.get(entry)) continue;
+            if(label.length() != 0) label.append(" / ");
+            label.append(entry.localizedName);
+        }
+        if(label.length() != 0) return label.toString();
+        return noneText.startsWith("@") ? Core.bundle.get(noneText.substring(1)) : noneText;
+    }
+
+    private static String drillableStatText(float drillTime, float drillMultiplier, float size, ObjectFloatMap<Item> multipliers, Boolf<Block> filter){
+        StringBuilder label = new StringBuilder();
+        for(var block : content.blocks()){
+            if(!filter.get(block)) continue;
+            if(label.length() != 0) label.append('\\n');
+            label.append(block.localizedName).append(" / ").append(block.itemDrop.localizedName);
+            if(multipliers != null) label.append(" ").append(drillableRate(block, drillTime, drillMultiplier, size, multipliers));
+        }
+        return label.toString();
+    }
+
+    private static String drillableRate(Block block, float drillTime, float drillMultiplier, float size, ObjectFloatMap<Item> multipliers){
+        return Strings.autoFixed(60f / (Math.max(drillTime + drillMultiplier * block.itemDrop.hardness, drillTime) / multipliers.get(block.itemDrop, 1f)) * size, 2) + StatUnit.perSecond.localized();
+    }
+
+    private static String abilityStatText(Seq<Ability> abilities){
+        StringBuilder label = new StringBuilder();
+        for(var ability : abilities){
+            if(!ability.display) continue;
+            if(label.length() != 0) label.append('\\n');
+            label.append(ability.localized());
+            ability.appendHandheldStats(label);
+        }
+        return label.toString();
+    }
+
+    private static String itemEfficiencyText(Floatf<Item> efficiency, float period, Boolf<Item> filter, ObjectFloatMap<Item> durations){
+        StringBuilder label = new StringBuilder();
+        for(var item : content.items()){
+            if(!filter.get(item) || !item.unlockedNow() || item.isHidden()) continue;
+            label.append('\\n').append(item.localizedName);
+            if(period > 0){
+                float multiplier = durations == null ? 1f : durations.get(item, 1f);
+                float rate = 1f / (period * multiplier / 60f);
+                label.append(" ").append(Strings.autoFixed(rate, rate < 0.01f ? 4 : 2)).append(StatUnit.perSecond.localized());
+            }
+            label.append(" ").append(Core.bundle.format("stat.efficiency", fixValue(efficiency.get(item) * 100f)));
+        }
+        return label.toString();
+    }
+
+    private static String liquidEfficiencyText(Floatf<Liquid> efficiency, float amount, Boolf<Liquid> filter){
+        StringBuilder label = new StringBuilder();
+        for(var liquid : content.liquids()){
+            if(!filter.get(liquid) || !liquid.unlockedNow() || liquid.isHidden()) continue;
+            label.append('\\n').append(liquidStatText(liquid, amount, true));
+            label.append(" ").append(Core.bundle.format("stat.efficiency", fixValue(efficiency.get(liquid) * 100f)));
+        }
+        return label.toString();
+    }
+
+    private static String reloadBoosterText(float reload, float maxUsed, float multiplier, boolean baseReload, Boolf<Liquid> filter){
+        StringBuilder label = new StringBuilder();
+        for(var liquid : content.liquids()){
+            if(!filter.get(liquid)) continue;
+            float rate = (baseReload ? 1f : 0f) + maxUsed * multiplier * liquid.heatCapacity;
+            float standard = baseReload ? reload : reload / (maxUsed * multiplier * 0.4f);
+            label.append('\\n').append(liquid.localizedName).append(" ")
+                .append(Strings.autoFixed(maxUsed * 60f, 2)).append(StatUnit.perSecond.localized()).append(" ")
+                .append(Core.bundle.format("bullet.reload", Strings.autoFixed(standard / (reload / rate) * 100f, 2)));
+        }
+        return label.toString();
+    }
+
+    private static String speedBoosterText(String unit, float amount, float speed, boolean strength, Boolf<Liquid> filter){
+        StringBuilder label = new StringBuilder();
+        for(var liquid : content.liquids()){
+            if(!filter.get(liquid)) continue;
+            label.append('\\n').append(liquid.localizedName).append(" ")
+                .append(Strings.autoFixed(amount * 60f, 2)).append(StatUnit.perSecond.localized());
+            if(speed != Float.MAX_VALUE){
+                float result = speed * (strength ? liquid.heatCapacity : 1f) + (strength ? 1f : 0f);
+                label.append(" ").append(unit.replace("{0}", Strings.autoFixed(result, 2)));
+            }
+        }
+        return label.toString();
+    }
+
+    private static String itemBoosterText(String unit, float period, float speed, float range, ItemStack[] items){
+        StringBuilder label = new StringBuilder(itemStatText(items, period, period >= 0));
+        if(range != 0) label.append(" +").append(Strings.autoFixed(range / tilesize, 2)).append(" ").append(StatUnit.blocks.localized());
+        if(speed != 0) label.append(" ").append(unit.replace("{0}", Strings.autoFixed(speed, 2)));
+        return label.toString();
+    }
+
+    private static Seq<Block> terrainStatBlocks(Attribute attr, boolean floating, boolean checkFloors){
+        return Vars.content.blocks()
+            .select(block -> (!checkFloors || block instanceof Floor) && indexer.isBlockPresent(block)
+                && block.attributes.get(attr) != 0 && !((block instanceof Floor floor && floor.isDeep()) && !floating))
+            .with(blocks -> blocks.sort(block -> block.attributes.get(attr)));
+    }
+
+    private static String terrainEfficiencyText(Attribute attr, boolean floating, float scale, boolean startZero, boolean checkFloors){
+        if(!state.isGame()) return Core.bundle.get("stat.showinmap");
+        StringBuilder label = new StringBuilder();
+        for(var block : terrainStatBlocks(attr, floating, checkFloors)){
+            float multiplier = block.attributes.get(attr) * scale;
+            label.append('\\n').append(block.localizedName).append(" ");
+            if(multiplier >= 0 && !startZero) label.append("+");
+            label.append((int)(multiplier * 100)).append("%");
+        }
+        return label.length() == 0 ? Core.bundle.get("none.inmap") : label.toString();
+    }
+
+    private static String terrainOutputText(Attribute attr, boolean floating, float scaleEff, float scaleAmount,
+        Seq<ItemStack> outputs, float period, boolean checkFloors){
+        if(!state.isGame()) return Core.bundle.get("stat.showinmap");
+        StringBuilder label = new StringBuilder();
+        for(var block : terrainStatBlocks(attr, floating, checkFloors)){
+            float attribute = block.attributes.get(attr);
+            float efficiency = 1f + attribute * scaleEff;
+            label.append('\\n').append(block.localizedName).append(" ");
+            if(outputs == null || outputs.isEmpty()){
+                label.append(Core.bundle.get("none")).append(" ");
+            }else{
+                for(var output : outputs){
+                    float amount = output.amount * (1f + attribute * scaleAmount);
+                    float rate = amount / ((period / efficiency) / 60f);
+                    label.append(output.item.localizedName).append(" ")
+                        .append(Strings.autoFixed(rate, 3)).append(StatUnit.perSecond.localized()).append(" ");
+                }
+            }
+            label.append(Core.bundle.format("stat.efficiency", fixValue(efficiency * 100f)));
+        }
+        return label.length() == 0 ? Core.bundle.get("none.inmap") : label.toString();
+    }
+
+    private static String weaponStatText(UnitType unit, Seq<Weapon> weapons){
+        StringBuilder label = new StringBuilder();
+        for(int index = 0; index < weapons.size; index++){
+            Weapon weapon = weapons.get(index);
+            if(weapon.flipSprite || !weapon.hasStats(unit)) continue;
+            String info = "unit." + unit.name + ".weapon." + index + ".info";
+            if(Core.bundle.has(info)) label.append('\\n').append(Core.bundle.get(info));
+            if(weapon.inaccuracy > 0){
+                label.append('\\n').append(Stat.inaccuracy.localized()).append(": ")
+                    .append((int)weapon.inaccuracy).append(" ").append(StatUnit.degrees.localized());
+            }
+            if(!weapon.alwaysContinuous && weapon.reload > 0 && !weapon.bullet.killShooter){
+                label.append('\\n').append(Stat.reload.localized()).append(": ").append(weapon.mirror ? "2x " : "")
+                    .append(Strings.autoFixed(60f / weapon.reload * weapon.shoot.shots, 2))
+                    .append(" ").append(StatUnit.perSecond.localized());
+            }
+            label.append(ammoStatText(ObjectMap.of(unit, weapon.bullet), false, false, null));
+        }
+        return label.toString();
+    }
+
+    private static void appendAmmoLine(StringBuilder label, String line){
+        label.append('\\n').append(line.startsWith("@") ? Core.bundle.get(line.substring(1)) : line);
+    }
+
+    private static <T extends UnlockableContent> String ammoStatText(ObjectMap<T, BulletType> map, boolean nested, boolean showUnit, String blockName){
+        StringBuilder label = new StringBuilder();
+        var keys = map.keys().toSeq();
+        keys.sort();
+        for(T t : keys){
+            boolean compact = t instanceof UnitType && !showUnit || nested;
+            BulletType type = map.get(t);
+            if(type.spawnUnit != null && type.spawnUnit.weapons.size > 0){
+                label.append(ammoStatText(ObjectMap.of(t, type.spawnUnit.weapons.first().bullet), nested, false, blockName));
+                continue;
+            }
+            if(!compact && !(t instanceof Turret)){
+                appendAmmoLine(label, t.localizedName);
+                if(type.displayAmmoMultiplier && type.statLiquidConsumed > 0f){
+                    appendAmmoLine(label, fixValue(type.statLiquidConsumed / type.ammoMultiplier * 60f) + " " + StatUnit.perSecond.localized());
+                }
+            }
+            if(blockName != null && t != null){
+                String info = "block." + blockName + "." + t.name + ".info";
+                if(Core.bundle.has(info)) appendAmmoLine(label, Core.bundle.get(info));
+            }
+''' + ammoRules + '''            if(type.intervalBullet != null){
+                appendAmmoLine(label, Core.bundle.format("bullet.interval", Strings.autoFixed(type.intervalBullets / type.bulletInterval * 60, 2)));
+                label.append(ammoStatText(ObjectMap.of(t, type.intervalBullet), true, false, null));
+            }
+            if(type.fragBullet != null){
+                appendAmmoLine(label, Core.bundle.format("bullet.frags", type.fragBullets));
+                label.append(ammoStatText(ObjectMap.of(t, type.fragBullet), true, false, null));
+            }
+            if(type.spawnBullets != null && type.spawnBullets.size > 0){
+                appendAmmoLine(label, Core.bundle.format("bullet.spawnBullets", type.spawnBullets.size));
+                for(BulletType spawn : type.spawnBullets){
+                    if(spawn.showStats) label.append(ammoStatText(ObjectMap.of(t, spawn), true, false, null));
+                }
+            }
+        }
+        return label.toString();
+    }
+
+    public static String fixValue(float value){'''
+            hooks.each { before, after ->
+                if (values.count(before) != 1) throw new GradleException('Pinned StatValues hook changed: ' + before)
+                values = values.replace(before, after)
+            }
+            def stockDrillRate = 'Strings.autoFixed(60f / (Math.max(drillTime + drillMultiplier * block.itemDrop.hardness, drillTime) / multipliers.get(block.itemDrop, 1f)) * size, 2) + StatUnit.perSecond.localized()'
+            def stockDrillCell = 'b.add(' + stockDrillRate + ')'
+            if (values.count(stockDrillCell) != 1) throw new GradleException('Pinned drill rate display changed')
+            values = values.replace(stockDrillCell, 'b.add(drillableRate(block, drillTime, drillMultiplier, size, multipliers))')
+            valuesFile.setText(values, 'UTF-8')
+
+            sparseTileSources.each { path ->
+                def staged = sourceDir.get().file(path).asFile
+                staged.parentFile.mkdirs()
+                staged.bytes = readUpstream('core/src/' + path)
+            }
+            def stageRoot = sourceDir.get().asFile
+            providers.exec {
+                // Keep Git from interpreting generated paths relative to the checkout root.
+                environment 'GIT_CEILING_DIRECTORIES', stageRoot.parentFile.absolutePath
+                commandLine 'git', '-C', stageRoot, '-c', 'core.autocrlf=false', 'apply', '--no-index', sparseTilePatch
+            }.result.get()
+            if (!tileFile.get().asFile.getText('UTF-8').contains('public int extraData()')) {
+                throw new GradleException('Compact stock tile patch did not apply to the staged source')
+            }
+            def stagedEditorTile = sourceDir.get().file('mindustry/editor/EditorTile.java').asFile
+            def editorTile = stagedEditorTile.getText('UTF-8')
             def shadowUpdate = 'renderer.blocks.updateShadowTile(this);'
             if (editorTile.count(shadowUpdate) != 1) {
                 throw new GradleException('Pinned editor shadow update changed')
             }
-            new File(directory, 'EditorTile.java').setText(
+            stagedEditorTile.setText(
                 editorTile.replace(shadowUpdate, 'if(renderer != null) renderer.blocks.updateShadowTile(this);'),
                 'UTF-8')
         }
@@ -736,6 +1277,23 @@ tasks.register('prepareUpstreamProbe') {
 
             //null music = stop''').replace(musicDispatch, 'musicControl.playMusic(music, interrupt.bool());')
             }
+            if (usesSinglePlayer) {
+                def bindingArray = '''if(exec.binds == null || exec.binds.length != content.units().size){
+                exec.binds = new int[content.units().size];
+            }'''
+                def bindNext = '''if(seq != null && seq.any()){
+                    exec.binds[type.id] %= seq.size;'''
+                if (executor.count(bindingArray) != 1 || executor.count(bindNext) != 1) {
+                    throw new GradleException('Pinned logic unit-binding cursor changed')
+                }
+                executor = executor
+                    .replace(bindingArray, '''if(exec.binds != null && exec.binds.length != content.units().size){
+                exec.binds = null;
+            }''')
+                    .replace(bindNext, '''if(seq != null && seq.any()){
+                    if(exec.binds == null) exec.binds = new int[content.units().size];
+                    exec.binds[type.id] %= seq.size;''')
+            }
             def headless = 'Vars.headless || exec.graphicsBuffer.size >= maxGraphicsBuffer'
             if (executor.count(headless) != 1) throw new GradleException('Pinned graphics instruction guard changed')
             def adaptedExecutor = sourceDir.get().file(logicExecutorSource).asFile
@@ -820,6 +1378,20 @@ import port.audio.Arm11Audio;''')
                 // Use the existing unshaded geometry when the desktop renderer is absent.
                 source = source.replace(animated, "if(${renderer} != null && ${renderer}.animateShields){")
                 if (path == 'mindustry/graphics/Drawf.java') {
+                    def radialLight = '''        if(renderer == null) return;
+        renderer.lights.add(x, y, radius, color, opacity);'''
+                    def positionLight = '''        if(renderer == null) return;
+       light(pos.getX(), pos.getY(), radius, color, opacity);'''
+                    if (source.count(radialLight) != 1 || source.count(positionLight) != 1) {
+                        throw new GradleException('Pinned radial light entry points changed')
+                    }
+                    source = source.replace('import arc.*;', 'import arc.*;\nimport port.render.UpstreamBuildingLights;')
+                    source = source.replace(radialLight, '''        if(renderer == null){
+            UpstreamBuildingLights.radial(x, y, radius, color, opacity);
+            return;
+        }
+        renderer.lights.add(x, y, radius, color, opacity);''')
+                    source = source.replace(positionLight, '        light(pos.getX(), pos.getY(), radius, color, opacity);')
                     def stockUniforms = '''        Shaders.build.region = region;
         Shaders.build.progress = progress;
         Shaders.build.color.set(color);
@@ -901,15 +1473,207 @@ final class GlacierFixture {
 }
 """, 'UTF-8')
         }
+        if (usesWorldSources) {
+            def itemPath = 'mindustry/world/modules/ItemModule.java'
+            def source = new String(readUpstream('core/src/' + itemPath), 'UTF-8')
+            def replacements = [
+                ['System.arraycopy(other.items, 0, items, 0, items.length);', '''if(other != this){
+            if(items != null && other.items != null){
+                System.arraycopy(other.items, 0, items, 0, capacity());
+            }else{
+                int length = capacity();
+                if(length > other.capacity()) throw new ArrayIndexOutOfBoundsException(length);
+                clearCounts();
+                for(int i = 0; i < length; i++) writeCount(i, other.countAt(i));
+            }
+        }''', 1],
+                ['if(items.length != len) items = Arrays.copyOf(items, len);', 'resizeCounts(len);', 1],
+                // Stock checkArrayCapacity explicitly grows or shrinks without changing total.
+                ['if(items.length != size) items = Arrays.copyOf(items, size);', 'resizeCounts(size);', 1],
+                ['Arrays.fill(items, 0);', 'clearCounts();', 2],
+                ['items[index] --;', 'writeCount(index, countAt(index) - 1);', 1],
+                ['items[item.id] = amount;', 'writeCount(item.id, amount);', 1],
+                ['items.items.length', 'items.capacity()', 1],
+                ['items.items[i]', 'items.countAt(i)', 1],
+                ['items[item] += amount;', 'writeCount(item, countAt(item) + amount);', 1],
+                ['items[item.id] -= amount;', 'writeCount(item.id, countAt(item.id) - amount);', 1],
+                ['items[item.id] = itemamount;', 'writeCount(item.id, itemamount);', 1],
+                ['for(int item : items){', 'for(int i = 0; i < capacity(); i++){', 1],
+                ['if(item > 0) amount++;', 'if(countAt(i) > 0) amount++;', 1],
+                ['items.length', 'capacity()', 17],
+                ['items[item.id]', 'countAt(item.id)', 3],
+                ['items[id]', 'countAt(id)', 2],
+                ['items[index]', 'countAt(index)', 1],
+                ['items[i]', 'countAt(i)', 9],
+                ['protected int[] items = new int[content.items().size];', '''private int itemCapacity = content.items().size;
+    private int inlineItemId = -1;
+    private int inlineCount;
+    protected int[] items = getClass() == ItemModule.class ? null : new int[itemCapacity];
+
+    private int capacity(){
+        return items == null ? itemCapacity : items.length;
+    }
+
+    private void resizeCounts(int length){
+        if(capacity() == length) return;
+        if(length < 0) throw new NegativeArraySizeException();
+        if(items != null) items = Arrays.copyOf(items, length);
+        if(inlineItemId >= length){
+            inlineItemId = -1;
+            inlineCount = 0;
+        }
+        itemCapacity = length;
+    }
+
+    private int countAt(int id){
+        if(id < 0 || id >= capacity()) throw new ArrayIndexOutOfBoundsException(id);
+        return items != null ? items[id] : id == inlineItemId ? inlineCount : 0;
+    }
+
+    private void writeCount(int id, int count){
+        if(id < 0 || id >= capacity()) throw new ArrayIndexOutOfBoundsException(id);
+        if(items != null){
+            items[id] = count;
+        }else if(count == 0){
+            if(id == inlineItemId){
+                inlineItemId = -1;
+                inlineCount = 0;
+            }
+        }else if(inlineItemId == -1 || id == inlineItemId){
+            inlineItemId = id;
+            inlineCount = count;
+        }else{
+            items = new int[itemCapacity];
+            items[inlineItemId] = inlineCount;
+            items[id] = count;
+            inlineItemId = -1;
+            inlineCount = 0;
+        }
+    }
+
+    private void clearCounts(){
+        if(getClass() == ItemModule.class) items = null;
+        else Arrays.fill(items, 0);
+        inlineItemId = -1;
+        inlineCount = 0;
+    }''', 1]
+            ]
+            replacements.each { before, after, expected ->
+                if (source.count(before) != expected) {
+                    throw new GradleException("Pinned ItemModule storage hook changed: ${before}")
+                }
+                source = source.replace(before, after)
+            }
+            def stagedItem = sourceDir.get().file(itemPath).asFile
+            stagedItem.parentFile.mkdirs()
+            stagedItem.setText(source, 'UTF-8')
+        }
         if (usesContentSources) {
             def block = new String(readUpstream(blockSource), 'UTF-8')
+            def label = '''buffered ? Core.bundle.format("bar.poweramount", Float.isNaN(entity.power.status * capacity) ? "<ERROR>" : UI.formatAmount((int)(entity.power.status * capacity))) :
+                Core.bundle.get("bar.power")'''
+            def fraction = 'Mathf.zero(consPower.requestedPower(entity)) && entity.power.graph.getPowerProduced() + entity.power.graph.getBatteryStored() > 0f ? 1f : entity.power.status'
+            def barMethod = '    public void setBars(){'
+            if ([label, fraction, barMethod].any { block.count(it) != 1 }) {
+                throw new GradleException('Pinned power bar callbacks changed')
+            }
+            block = block.replace(label, 'powerBarLabel(entity, buffered, capacity)')
+                .replace(fraction, 'powerBarFraction(entity)')
+                .replace(barMethod, """    public String powerBarLabel(Building entity){
+        return powerBarLabel(entity, consPower.buffered, consPower.capacity);
+    }
+
+    private String powerBarLabel(Building entity, boolean buffered, float capacity){
+        return ${label};
+    }
+
+    public float powerBarFraction(Building entity){
+        return ${fraction};
+    }
+
+${barMethod}""")
+            def liquidBarMethod = '    public <T extends Building> void addLiquidBar(Func<T, Liquid> current){'
+            if (block.count(liquidBarMethod) != 1) {
+                throw new GradleException('Pinned dynamic liquid bar method changed')
+            }
+            block = block.replace(liquidBarMethod, """    public Func<Building, Liquid> liquidBarCurrent;
+    public boolean hasDynamicLiquidBar;
+    public Seq<Liquid> liquidBarLiquids = new Seq<>();
+
+    public String liquidBarLabel(Building entity){
+        Liquid liquid = liquidBarCurrent == null ? null : liquidBarCurrent.get(entity);
+        return liquid == null || entity.liquids.get(liquid) <= 0.001f ? Core.bundle.get("bar.liquid") : liquid.localizedName;
+    }
+
+    public float liquidBarFraction(Building entity){
+        Liquid liquid = liquidBarCurrent == null ? null : liquidBarCurrent.get(entity);
+        return liquid == null ? 0f : entity.liquids.get(liquid) / liquidCapacity;
+    }
+
+    public Color liquidBarColor(Building entity){
+        Liquid liquid = liquidBarCurrent == null ? null : liquidBarCurrent.get(entity);
+        return liquid == null ? Color.clear : liquid.barColor();
+    }
+
+    public int liquidBarCount(){
+        return (hasDynamicLiquidBar ? 1 : 0) + liquidBarLiquids.size;
+    }
+
+    public Liquid liquidBarLiquid(Building entity, int index){
+        if(hasDynamicLiquidBar && index == 0){
+            return liquidBarCurrent == null ? null : liquidBarCurrent.get(entity);
+        }
+        int fixed = index - (hasDynamicLiquidBar ? 1 : 0);
+        return fixed >= 0 && fixed < liquidBarLiquids.size ? liquidBarLiquids.get(fixed) : null;
+    }
+
+    public String liquidBarLabel(Building entity, int index){
+        if(hasDynamicLiquidBar && index == 0) return liquidBarLabel(entity);
+        Liquid liquid = liquidBarLiquid(entity, index);
+        return liquid == null ? Core.bundle.get("bar.liquid") : liquid.localizedName;
+    }
+
+    public float liquidBarFraction(Building entity, int index){
+        Liquid liquid = liquidBarLiquid(entity, index);
+        return liquid == null || liquidCapacity <= 0f ? 0f : entity.liquids.get(liquid) / liquidCapacity;
+    }
+
+    public Color liquidBarColor(Building entity, int index){
+        Liquid liquid = liquidBarLiquid(entity, index);
+        return liquid == null ? Color.clear : liquid.barColor();
+    }
+
+    @SuppressWarnings("unchecked")
+    ${liquidBarMethod}
+        liquidBarCurrent = (Func<Building, Liquid>)current;
+        hasDynamicLiquidBar = true;""")
+            def fixedLiquidBar = '    public void addLiquidBar(Liquid liq){'
+            if (block.count(fixedLiquidBar) != 1) {
+                throw new GradleException('Pinned fixed liquid bar method changed')
+            }
+            block = block.replace(fixedLiquidBar, fixedLiquidBar + '\n        liquidBarLiquids.add(liq);')
+            def barOracle = '    public void setBars(){'
+            if (block.count(barOracle) != 1) {
+                throw new GradleException('Pinned setBars method changed')
+            }
+            block = block.replace(barOracle, """    public boolean hasBar(String name){
+        return barMap.containsKey(name);
+    }
+
+    public Seq<String> barNames(){
+        Seq<String> names = new Seq<>();
+        for(String name : barMap.keys()) names.add(name);
+        return names;
+    }
+
+${barOracle}""")
             def anonymousCheck = 'current.isAnonymousClass()'
             if (block.count(anonymousCheck) != 1) {
                 throw new GradleException('Pinned Block.initBuilding anonymous class check changed')
             }
             if (usesWorldSources) {
                 def newBuilding = '    public final Building newBuilding(){'
-                def tile = new String(readUpstream(tileSource), 'UTF-8')
+                def tile = usesSinglePlayerApp ? tileFile.get().asFile.getText('UTF-8') : new String(readUpstream(tileSource), 'UTF-8')
                 if (block.count(newBuilding) != 1 || tile.count('wall::newBuilding') != 1
                         || tile.count('type::newBuilding') != 1) {
                     throw new GradleException('Pinned Tile building factory calls changed')
@@ -920,6 +1684,392 @@ final class GlacierFixture {
                 tileFile.get().asFile.parentFile.mkdirs()
                 tileFile.get().asFile.setText(tile.replace('wall::newBuilding', 'wall.buildingProvider')
                     .replace('type::newBuilding', 'type.buildingProvider'), 'UTF-8')
+
+                // The original effect entities and their lifecycle keep using these tile-index methods.
+                def tiles = new String(readUpstream(tilesSource), 'UTF-8')
+                def tileEffects = [
+                    'import arc.math.geom.*;': 'import arc.math.geom.*;\nimport arc.struct.IntMap;',
+                    'final Puddle[] puddles;': 'private final IntMap<Puddle> puddles = new IntMap<>();',
+                    'final Fire[] fires;': 'private final IntMap<Fire> fires = new IntMap<>();',
+                    '        this.puddles = new Puddle[width * height];\n': '',
+                    '        this.fires = new Fire[width * height];\n': '',
+                    '    public Puddle getPuddle(int pos){': '''    private void checkEffectPosition(int pos){
+        if(pos < 0 || pos >= array.length) throw new ArrayIndexOutOfBoundsException(pos);
+    }
+
+    public Puddle getPuddle(int pos){''',
+                    'return puddles[pos];': 'checkEffectPosition(pos);\n        return puddles.get(pos);',
+                    'puddles[pos] = p;': '''checkEffectPosition(pos);
+        if(p == null) puddles.remove(pos);
+        else puddles.put(pos, p);''',
+                    'return fires[pos];': 'checkEffectPosition(pos);\n        return fires.get(pos);',
+                    'fires[pos] = f;': '''checkEffectPosition(pos);
+        if(f == null) fires.remove(pos);
+        else fires.put(pos, f);'''
+                ]
+                tileEffects.each { before, after ->
+                    if (tiles.count(before) != 1) {
+                        throw new GradleException("Pinned tile effect storage hook changed: ${before}")
+                    }
+                    tiles = tiles.replace(before, after)
+                }
+                tilesFile.get().asFile.setText(tiles, 'UTF-8')
+
+            def liquid = new String(readUpstream(liquidModuleSource), 'UTF-8')
+            def liquidChanges = [
+                'private float[] liquids = new float[content.liquids().size];': '''private int liquidCapacity = content.liquids().size;
+    private int inlineId = -1;
+    private float inlineAmount;
+    private float[] liquids;
+
+    private void resizeLiquids(int length){
+        if(liquidCapacity == length) return;
+        if(length < 0) throw new NegativeArraySizeException();
+        if(liquids != null) liquids = Arrays.copyOf(liquids, length);
+        if(inlineId >= length){
+            inlineId = -1;
+            inlineAmount = 0f;
+        }
+        liquidCapacity = length;
+    }
+
+    private float amountAt(int id){
+        if(id < 0 || id >= liquidCapacity) throw new ArrayIndexOutOfBoundsException(id);
+        return liquids != null ? liquids[id] : id == inlineId ? inlineAmount : 0f;
+    }
+
+    private void writeAmount(int id, float amount){
+        if(id < 0 || id >= liquidCapacity) throw new ArrayIndexOutOfBoundsException(id);
+        if(liquids != null){
+            liquids[id] = amount;
+        }else if(Float.floatToRawIntBits(amount) == 0){
+            if(id == inlineId){
+                inlineId = -1;
+                inlineAmount = 0f;
+            }
+        }else if(inlineId == -1 || id == inlineId){
+            inlineId = id;
+            inlineAmount = amount;
+        }else{
+            liquids = new float[liquidCapacity];
+            liquids[inlineId] = inlineAmount;
+            liquids[id] = amount;
+            inlineId = -1;
+            inlineAmount = 0f;
+        }
+    }''',
+                'if(liquids.length != len) liquids = Arrays.copyOf(liquids, len);': 'resizeLiquids(len);',
+                'if(liquids.length != size) liquids = Arrays.copyOf(liquids, size);': 'resizeLiquids(size);',
+                'Arrays.fill(liquids, 0f);': 'clearAmounts();',
+                'public void clear(){\n        Arrays.fill(liquids, 0);': '''public void clear(){
+        clearAmounts();
+    }
+
+    private void clearAmounts(){
+        liquids = null;
+        inlineId = -1;
+        inlineAmount = 0f;''',
+                'Arrays.fill(liquids, 0);': 'clearAmounts();',
+                'liquids[liquid.id] = amount;': 'writeAmount(liquid.id, amount);',
+                'liquids[liquid.id] += amount;': 'writeAmount(liquid.id, amountAt(liquid.id) + amount);',
+                'liquids[liquidid] = amount;': 'writeAmount(liquidid, amount);',
+                'liquids[current.id]': 'amountAt(current.id)',
+                'liquids[liquid.id]': 'amountAt(liquid.id)',
+                'liquids.length': 'liquidCapacity',
+                'liquids[i]': 'amountAt(i)',
+                'for(float liquid : liquids){': 'for(int i = 0; i < liquidCapacity; i++){',
+                'if(liquid > 0) amount++;': 'if(amountAt(i) > 0) amount++;'
+            ]
+            // Match counts against the pinned source before applying overlapping substitutions.
+            def pinnedLiquid = liquid
+            def liquidHookCounts = [
+                'Arrays.fill(liquids, 0);': 2,
+                'liquids[liquid.id] = amount;': 2,
+                'liquids[current.id]': 3,
+                'liquids[liquid.id]': 5,
+                'liquids.length': 12,
+                'liquids[i]': 6
+            ]
+            liquidChanges.each { before, after ->
+                if (pinnedLiquid.count(before) != (liquidHookCounts[before] ?: 1)) {
+                    throw new GradleException("Pinned LiquidModule storage hook changed: ${before}")
+                }
+                liquid = liquid.replace(before, after)
+            }
+            def stockLiquidBody = liquid.indexOf('    private Liquid current =')
+            if (stockLiquidBody < 0 || liquid.substring(stockLiquidBody).contains('liquids[')) {
+                throw new GradleException('Pinned LiquidModule uses direct liquid array access outside storage')
+            }
+            def stagedLiquid = liquidModuleFile.get().asFile
+            stagedLiquid.parentFile.mkdirs()
+            stagedLiquid.setText(liquid, 'UTF-8')
+
+                def indexerPath = 'mindustry/ai/BlockIndexer.java'
+                def indexer = new String(readUpstream('core/src/' + indexerPath), 'UTF-8')
+                def worldLoaded = '        Events.on(WorldLoadEvent.class, event -> {'
+                if (indexer.count(worldLoaded) != 1) throw new GradleException('Pinned BlockIndexer world load changed')
+                indexer = indexer.replace(worldLoaded, '''        Events.on(ResetEvent.class, event -> {
+            // WorldLoadEvent rebuilds these indexes after decode. Drop their old world references before it.
+            for(var flags : flagMap){
+                for(var buildings : flags){
+                    if(buildings != null) buildings.clear();
+                }
+            }
+            for(var buildings : damagedTiles){
+                if(buildings != null) buildings.clear();
+            }
+            if(floorMap != null){
+                for(var floors : floorMap){
+                    if(floors != null) floors.clear();
+                }
+            }
+            breturnArray.clear();
+        });
+
+''' + worldLoaded)
+                def oreStorage = 'private IntSeq[][][] ores, wallOres;'
+                def oreRead = 'world.tile(arr.first())'
+                def oreLookup = '''                for(int qy = 0; qy < quadHeight; qy++){
+                    var arr = %s[item.id][qx][qy];
+                    if(arr != null && arr.size > 0){
+                        Tile tile = world.tile(arr.first());'''
+                def tilePosition = '''public int pos(){
+        return Point2.pack(x, y);
+    }'''
+                def tileSourceText = new String(readUpstream(tileSource), 'UTF-8')
+                if (indexer.count(oreLookup.formatted('ores')) != 1 ||
+                    indexer.count(oreLookup.formatted('wallOres')) != 1 ||
+                    tileSourceText.count(tilePosition) != 1) {
+                    throw new GradleException('Pinned ore traversal or tile-position packing changed')
+                }
+                def oreAllocations = [
+                'new IntSeq[content.items().size][][]': 2,
+                'new IntSeq[quadWidth][quadHeight]': 4,
+                'new IntSeq(false, 16)': 4
+            ]
+                if (indexer.count(oreStorage) != 1 || indexer.count(oreRead) != 2 ||
+                    oreAllocations.any { pattern, count -> indexer.count(pattern) != count }) {
+                    throw new GradleException('Pinned ore quadrant index changed')
+            }
+                def compactOreList = '''private OrePositions[][][] ores, wallOres;
+
+    // All entries share a 20 by 20 quadrant. Preserve original append and swap removal order.
+    private static final class OrePositions{
+        private static final int chunkSize = 64;
+
+        private static final class Chunk{
+            short[] offsets;
+            Chunk next;
+
+            Chunk(int capacity){
+                offsets = new short[capacity];
+            }
+        }
+
+        private Chunk first, last;
+        int size;
+
+        private short offset(int pos){
+            return (short)((Point2.y(pos) % quadrantSize) * quadrantSize + Point2.x(pos) % quadrantSize);
+        }
+
+        int first(){
+            return first.offsets[0];
+        }
+
+        void add(int pos){
+            int index = size % chunkSize;
+            if(index == 0){
+                Chunk next = new Chunk(size == 0 ? 8 : chunkSize);
+                if(last == null) first = next;
+                else last.next = next;
+                last = next;
+            }else if(index == last.offsets.length){
+                last.offsets = java.util.Arrays.copyOf(last.offsets, index * 2);
+            }
+            last.offsets[index] = offset(pos);
+            size++;
+        }
+
+        boolean addUnique(int pos){
+            int left = size;
+            short entry = offset(pos);
+            for(Chunk chunk = first; chunk != null; chunk = chunk.next){
+                int count = Math.min(left, chunkSize);
+                for(int index = 0; index < count; index++){
+                    if(chunk.offsets[index] == entry) return false;
+                }
+                left -= count;
+            }
+            add(pos);
+            return true;
+        }
+
+        boolean removeValue(int pos){
+            int left = size;
+            short entry = offset(pos);
+            for(Chunk chunk = first; chunk != null; chunk = chunk.next){
+                int count = Math.min(left, chunkSize);
+                for(int index = 0; index < count; index++){
+                    if(chunk.offsets[index] != entry) continue;
+                    int tail = --size % chunkSize;
+                    chunk.offsets[index] = last.offsets[tail];
+                    if(tail == 0){
+                        if(last == first){
+                            first = last = null;
+                        }else{
+                            Chunk previous = first;
+                            while(previous.next != last) previous = previous.next;
+                            previous.next = null;
+                            last = previous;
+                        }
+                    }
+                    return true;
+                }
+                left -= count;
+            }
+            return false;
+        }
+    }'''
+                indexer = indexer.replace(oreStorage, compactOreList)
+                    .replace(oreRead, 'world.tile(qx * quadrantSize + arr.first() % quadrantSize, qy * quadrantSize + arr.first() / quadrantSize)')
+                    .replace('new IntSeq[content.items().size][][]', 'new OrePositions[content.items().size][][]')
+                    .replace('new IntSeq[quadWidth][quadHeight]', 'new OrePositions[quadWidth][quadHeight]')
+                    .replace('new IntSeq(false, 16)', 'new OrePositions()')
+                def unusedCapacity = 'flagMap[i][j] = new Seq();'
+                if (indexer.count(unusedCapacity) != 1) throw new GradleException('Pinned block flag storage changed')
+                def stagedIndexer = sourceDir.get().file(indexerPath).asFile
+                stagedIndexer.parentFile.mkdirs()
+                def worldTeamLookup = 'for(Team team : Team.all){\n                var data = state.teams.get(team);'
+                def prebuild = 'if(team.rules().prebuildAi && data.hasCore())'
+                if (indexer.count(worldTeamLookup) != 2 || indexer.count(prebuild) != 1) {
+                    throw new GradleException('Pinned world-load team index hooks changed')
+                }
+                stagedIndexer.setText(indexer.replace(unusedCapacity, 'flagMap[i][j] = new Seq<>(0);')
+                    .replace(worldTeamLookup, worldTeamLookup.replace('.get(team)', '.getOrNull(team)'))
+                    .replace(prebuild, 'if(team.rules().prebuildAi && data != null && data.hasCore())'), 'UTF-8')
+
+                def teamsPath = 'mindustry/game/Teams.java'
+                def teams = new String(readUpstream('core/src/' + teamsPath), 'UTF-8')
+                def statsLookup = 'for(Team team : Team.all){\n            TeamData data = team.data();'
+                if (teams.count(statsLookup) != 2) throw new GradleException('Pinned team stats loops changed')
+                def stagedTeams = sourceDir.get().file(teamsPath).asFile
+                stagedTeams.parentFile.mkdirs()
+                stagedTeams.setText(teams.replace(statsLookup, '''for(Team team : Team.all){
+            TeamData data = getOrNull(team);
+            if(data == null){
+                if(!state.rules.waves || team != state.rules.waveTeam) continue;
+                data = get(team);
+            }'''), 'UTF-8')
+
+                def logicBlockPath = 'mindustry/world/blocks/logic/LogicBlock.java'
+                def logicBlock = new String(readUpstream('core/src/' + logicBlockPath), 'UTF-8')
+                def writeProgram = '            stream.write(bytes);'
+                if (logicBlock.count(writeProgram) != 1) throw new GradleException('Pinned logic program write changed')
+                def stagedLogicBlock = sourceDir.get().file(logicBlockPath).asFile
+                stagedLogicBlock.parentFile.mkdirs()
+                // TeaVM's deflater rejects an empty write. The stock payload length still records zero.
+                stagedLogicBlock.setText(logicBlock.replace(writeProgram,
+                    '            if(bytes.length > 0) stream.write(bytes);'), 'UTF-8')
+
+                def saveReaderPath = 'mindustry/io/SaveFileReader.java'
+                def saveReader = new String(readUpstream('core/src/' + saveReaderPath), 'UTF-8')
+                def streams = 'protected static final ReusableByteOutStream byteOutput = new ReusableByteOutStream(), byteOutput2 = new ReusableByteOutStream();'
+                def selectStream = 'ReusableByteOutStream dout = wasNested ? byteOutput2 : byteOutput;'
+                def writeData = 'output.write(dout.getBytes(), 0, length);'
+                def resetNesting = '            chunkNested = wasNested;'
+                if ([streams, selectStream, writeData, resetNesting].any { saveReader.count(it) != 1 }) {
+                    throw new GradleException('Pinned SaveFileReader write buffering changed')
+                }
+                def segmented = '''protected static final ChunkBuffer byteOutput = new ChunkBuffer(), byteOutput2 = new ChunkBuffer();
+
+    // Preserve the stock length prefix without requiring one map-sized allocation.
+    protected static final class ChunkBuffer extends OutputStream{
+        private static final int capacity = 4096;
+        private final Chunk first = new Chunk();
+        private Chunk tail = first;
+        private int size;
+
+        private static final class Chunk{
+            final byte[] bytes = new byte[capacity];
+            int count;
+            Chunk next;
+        }
+
+        private void ensureSpace(){
+            if(tail.count == capacity){
+                tail.next = new Chunk();
+                tail = tail.next;
+            }
+        }
+
+        @Override
+        public void write(int value){
+            ensureSpace();
+            tail.bytes[tail.count++] = (byte)value;
+            size++;
+        }
+
+        @Override
+        public void write(byte[] bytes, int offset, int length){
+            while(length > 0){
+                ensureSpace();
+                int count = Math.min(length, capacity - tail.count);
+                System.arraycopy(bytes, offset, tail.bytes, tail.count, count);
+                tail.count += count;
+                offset += count;
+                length -= count;
+                size += count;
+            }
+        }
+
+        int size(){
+            return size;
+        }
+
+        void writeTo(DataOutput output) throws IOException{
+            for(Chunk chunk = first; chunk != null; chunk = chunk.next){
+                if(chunk.count != 0) output.write(chunk.bytes, 0, chunk.count);
+            }
+        }
+
+        void reset(){
+            first.count = 0;
+            first.next = null;
+            tail = first;
+            size = 0;
+        }
+    }'''
+                def stagedSaveReader = sourceDir.get().file(saveReaderPath).asFile
+                stagedSaveReader.parentFile.mkdirs()
+                stagedSaveReader.setText(saveReader.replace(streams, segmented)
+                    .replace(selectStream, 'ChunkBuffer dout = wasNested ? byteOutput2 : byteOutput;')
+                    .replace(writeData, 'dout.writeTo(output);')
+                    .replace(resetNesting, '            dout.reset();\n' + resetNesting), 'UTF-8')
+            }
+            if (usesRenderedClient) {
+                def tableField = '    public TextureRegion[] teamRegions, variantRegions, variantShadowRegions;'
+                def loadTeamRegions = '''        teamRegions = new TextureRegion[Team.all.length];
+        for(Team team : Team.all){
+            teamRegions[team.id] = teamRegion.found() && team.hasPalette ? Core.atlas.find(name + "-team-" + team.name, teamRegion) : teamRegion;
+        }'''
+                if (block.count(tableField) != 1 || block.count(loadTeamRegions) != 1) {
+                    throw new GradleException('Pinned stock block team atlas table changed')
+                }
+                block = block.replace(tableField, tableField + '\n    private static TextureRegion[] missingTeamRegions;')
+                    .replace(loadTeamRegions, '''        if(!teamRegion.found()){
+            // The stock entries are identical when the atlas has no team sprite.
+            if(missingTeamRegions == null || missingTeamRegions[0] != teamRegion){
+                missingTeamRegions = new TextureRegion[Team.all.length];
+                java.util.Arrays.fill(missingTeamRegions, teamRegion);
+            }
+            teamRegions = missingTeamRegions;
+        }else{
+            teamRegions = new TextureRegion[Team.all.length];
+            for(Team team : Team.all){
+                teamRegions[team.id] = team.hasPalette ? Core.atlas.find(name + "-team-" + team.name, teamRegion) : teamRegion;
+            }
+        }''')
             }
             def adaptedBlock = blockFile.get().asFile
             adaptedBlock.parentFile.mkdirs()
@@ -990,19 +2140,6 @@ final class GlacierFixture {
             adapted.parentFile.mkdirs()
             adapted.setText(source, 'UTF-8')
         }
-        if (usesSinglePlayer || usesLiveNetwork) {
-            def source = new String(readUpstream(dataPatcherSource), 'UTF-8')
-            def filter = '''if(Vars.headless){
-                        String[] planets ='''
-            if (source.count(filter) != 1) {
-                throw new GradleException('Pinned DataPatcher requiredPlanets filter changed')
-            }
-            def staged = dataPatcherFile.get().asFile
-            staged.parentFile.mkdirs()
-            // The handheld frontend sets headless to bypass desktop graphics and still uses client patch rules.
-            staged.setText(source.replace(filter, filter.replace('Vars.headless', 'Vars.headless && Vars.net.server()')),
-                'UTF-8')
-        }
         if (usesWorldStream) {
             def source = new String(readUpstream(networkIoSource), 'UTF-8')
             def signature = 'public static void loadWorld(InputStream is){'
@@ -1032,31 +2169,20 @@ final class GlacierFixture {
             adaptedGrid.setText(grid.replace(create, 'public static PlanetGrid create(int size){'), 'UTF-8')
         }
         if (usesLiveNetwork) {
-            def pathfinder = new String(readUpstream(pathfinderSource), 'UTF-8')
-            def allocateGrid = 'tiles = new int[world.width() * world.height()];'
-            def getTile = '        return tiles[x + y * wwidth];'
-            if (pathfinder.count(allocateGrid) != 1 || pathfinder.count(getTile) != 1) {
-                throw new GradleException('Pinned Pathfinder grid access changed')
+            if (!usesSinglePlayer) {
+                def pathfinder = new String(readUpstream(pathfinderSource), 'UTF-8')
+                def allocateGrid = 'tiles = new int[world.width() * world.height()];'
+                def getTile = '        return tiles[x + y * wwidth];'
+                if (pathfinder.count(allocateGrid) != 1 || pathfinder.count(getTile) != 1) {
+                    throw new GradleException('Pinned Pathfinder grid access changed')
+                }
+                // The remote client never starts the flowfield thread. Keep the same tile-cost packer.
+                def adaptedPathfinder = pathfinderFile.get().asFile
+                adaptedPathfinder.parentFile.mkdirs()
+                adaptedPathfinder.setText(pathfinder
+                    .replace(allocateGrid, 'tiles = new int[net.client() ? 0 : world.width() * world.height()];')
+                    .replace(getTile, '        return net.client() ? packTile(world.tile(x, y)) : tiles[x + y * wwidth];'), 'UTF-8')
             }
-            // The remote client never starts the flowfield thread. Keep the same tile-cost packer.
-            def adaptedPathfinder = pathfinderFile.get().asFile
-            adaptedPathfinder.parentFile.mkdirs()
-            adaptedPathfinder.setText(pathfinder
-                .replace(allocateGrid, 'tiles = new int[net.client() ? 0 : world.width() * world.height()];')
-                .replace(getTile, '        return net.client() ? packTile(world.tile(x, y)) : tiles[x + y * wwidth];'), 'UTF-8')
-            def logic = new String(readUpstream(liveLogicSource), 'UTF-8')
-            def headlessWinner = '''if(!headless){
-            state.won = player.team() == winner;
-        }'''
-            def restartDialog = 'Time.run(60f * 3f, () -> ui.restart.show(winner));'
-            if (logic.count(headlessWinner) != 1 || logic.count(restartDialog) != 1) {
-                throw new GradleException('Pinned multiplayer GameOver dispatch changed')
-            }
-            def adaptedLogic = liveLogicFile.get().asFile
-            adaptedLogic.parentFile.mkdirs()
-            // The rendered 3DS client has a player without the desktop scene.
-            adaptedLogic.setText(logic.replace(headlessWinner, headlessWinner.replace('!headless', 'player != null'))
-                .replace(restartDialog, 'if(ui != null) ' + restartDialog), 'UTF-8')
             def source = new String(readUpstream(netClientSource), 'UTF-8')
             if (usesLiveAudio) {
                 def soundGuard = 'if(sound == null || headless) return;'
@@ -1066,28 +2192,6 @@ final class GlacierFixture {
                 source = source.replace(soundGuard,
                     'if(sound == null || (headless && !(Core.audio instanceof port.audio.Arm11Audio))) return;')
             }
-            def loading = '''        net.setClientLoaded(false);
-
-        ui.loadfrag.show("@connecting.establish");
-
-        ui.loadfrag.setButton(() -> {
-            ui.loadfrag.hide();
-
-            netClient.disconnectQuietly();
-        });'''
-            def finish = '    private void finishConnecting(){'
-            if (source.count(loading) != 1 || source.count(finish) != 1) {
-                throw new GradleException('Pinned NetClient world transition changed')
-            }
-            // Native Arc dispatch owns the stream queue and loading screen on 3DS.
-            source = source.replace(loading, '').replace(finish, '''    /** Completes the upstream state transition when the platform owns packet dispatch. */
-    public void finishSnapshotWorld(){
-        state.set(State.playing);
-        connecting = false;
-        lastSnapshotTimestamp = Time.millis();
-    }
-
-''' + finish)
             def buffer = '''private ReusableByteInStream byteStream = new ReusableByteInStream();
     private DataInputStream dataStream = new DataInputStream(byteStream);
     private Reads dataStreamReads = new Reads(dataStream);'''
@@ -1193,6 +2297,184 @@ final class UpstreamItemChoices {
             var music = musicController != null ? musicController.getCurrent() : null;"""), 'UTF-8')
         }
         if (usesSinglePlayer) {
+            def writer = usesSinglePlayerApp ? saveVersionFile.get().asFile.getText('UTF-8') :
+                new String(readUpstream(saveVersionSource), 'UTF-8')
+            def playtime = '"playtime", headless ? 0 : control.saves.getTotalPlaytime(),'
+            def groups = '"controlGroups", headless || control == null ? "null" : JsonIO.write(control.input.controlGroups),'
+            def controlled = '"controlledType", headless || control.input.controlledType == null ? "null" : control.input.controlledType.name,'
+            if (writer.count(playtime) != 1 || writer.count(groups) != 1 || writer.count(controlled) != 1) {
+                throw new GradleException('Pinned SaveVersion player metadata fields changed')
+            }
+            def metaReader = '''    public void readMeta(DataInput stream, SaveReadState saveState) throws IOException{
+        StringMap map = readStringMap(stream);'''
+            if (writer.count(metaReader) != 1) throw new GradleException('Pinned SaveVersion metadata reader changed')
+            writer = writer.replace(metaReader, metaReader + '''
+        if(saveState.playerTags != null){
+            saveState.playerTags.clear();
+            for(String key : new String[]{"playtime", "viewpos", "playerteam", "controlledType", "controlGroups"}){
+                if(map.containsKey(key)) saveState.playerTags.put(key, map.get(key));
+            }
+        }''')
+            def stagedWriter = saveVersionFile.get().asFile
+            stagedWriter.parentFile.mkdirs()
+            stagedWriter.setText(writer.replace(playtime,
+                '"playtime", headless ? (tags == null ? 0L : tags.getLong("playtime", 0L)) : control.saves.getTotalPlaytime(),')
+                .replace(groups, '"controlGroups", headless || control == null ? (tags == null ? "null" : tags.get("controlGroups", "null")) : JsonIO.write(control.input.controlGroups),')
+                .replace(controlled, '"controlledType", headless ? (tags == null ? "null" : tags.get("controlledType", "null")) : (control.input.controlledType == null ? "null" : control.input.controlledType.name),'),
+                'UTF-8')
+            def stagedPathfinder = pathfinderFile.get().asFile
+            stagedPathfinder.parentFile.mkdirs()
+            stagedPathfinder.bytes = readUpstream(pathfinderSource)
+            def stageRoot = sourceDir.get().asFile
+            providers.exec {
+                environment 'GIT_CEILING_DIRECTORIES', stageRoot.parentFile.absolutePath
+                commandLine 'git', '-C', stageRoot, '-c', 'core.autocrlf=false', 'apply', '--no-index', flowfieldSearchPatch
+            }.result.get()
+            if (!stagedPathfinder.getText('UTF-8').contains('class FlowFrontier')) {
+                throw new GradleException('Stock flowfield search patch did not apply to the staged source')
+            }
+
+            flowfieldCostSources.each { path ->
+                def destination = new File(stageRoot, path)
+                destination.parentFile.mkdirs()
+                destination.bytes = readUpstream('core/src/' + path)
+            }
+            providers.exec {
+                environment 'GIT_CEILING_DIRECTORIES', stageRoot.parentFile.absolutePath
+                commandLine 'git', '-C', stageRoot, '-c', 'core.autocrlf=false', 'apply', '--no-index', flowfieldCostPatch
+            }.result.get()
+            if (!stagedPathfinder.getText('UTF-8').contains('class CostGrid')) {
+                throw new GradleException('Stock flowfield cost patch did not apply to the staged sources')
+            }
+
+            def pathfinder = stagedPathfinder.getText('UTF-8')
+            def cacheField = 'Flowfield[][][] cache;'
+            def cacheInit = 'cache = new Flowfield[256][maxCosts][maxFields];'
+            def cacheLookup = '        if(cache[team.id][costType][fieldType] == null){'
+            def cacheWrite = '            cache[team.id][costType][fieldType] = field;'
+            def cacheReturn = '        return cache[team.id][costType][fieldType];'
+            if ([cacheField, cacheInit, cacheLookup, cacheWrite, cacheReturn].any { pathfinder.count(it) != 1 }) {
+                throw new GradleException('Pinned pathfinder cache changed')
+            }
+            stagedPathfinder.setText(pathfinder
+                .replace(cacheField, 'IntMap<Flowfield> cache;')
+                .replace(cacheInit, 'cache = new IntMap<>(4);')
+                .replace(cacheLookup, '''        if(team.id < 0 || team.id >= 256 || costType < 0 || costType >= maxCosts
+                || fieldType < 0 || fieldType >= maxFields) throw new ArrayIndexOutOfBoundsException();
+        int key = (team.id * maxCosts + costType) * maxFields + fieldType;
+        Flowfield cached = cache.get(key);
+        if(cached == null){''')
+                .replace(cacheWrite, '            cache.put(key, field);\n            cached = field;')
+                .replace(cacheReturn, '        return cached;'), 'UTF-8')
+
+            def intervalPath = 'arc/util/Interval.java'
+            def timer = providers.exec {
+                commandLine 'git', '-C', arc.get(), 'show', "${arcRevision}:arc-core/src/${intervalPath}"
+            }.standardOutput.asText.get()
+            def inlineTimer = [
+                '    float[] times;': '''    float[] times;
+    private float timeZero;''',
+                '        times = new float[capacity];': '        if(capacity != 1) times = new float[capacity];',
+                '        if(id >= times.length) throw': '        int capacity = times == null ? 1 : times.length;\n        if(id >= capacity) throw',
+                '" + times.length + "!");': '" + capacity + "!");',
+                'if(got) times[id] = Time.time;': 'if(got) setTime(id, Time.time);',
+                '        return Time.time - times[id] >= time || Time.time < times[id];': '''        float previous = storedTime(id);
+        return Time.time - previous >= time || Time.time < previous;''',
+                '        times[id] = Time.time - time;': '        setTime(id, Time.time - time);',
+                '        Arrays.fill(times, 0);': '''        if(times == null) timeZero = 0;
+        else Arrays.fill(times, 0);''',
+                '        return Time.time - times[id];': '        return Time.time - storedTime(id);',
+                '        return times;': '''        if(times == null) times = new float[]{timeZero};
+        return times;''',
+                '    public float[] getTimes(){': '''    private float storedTime(int id){
+        if(times != null) return times[id];
+        if(id != 0) throw new ArrayIndexOutOfBoundsException(id);
+        return timeZero;
+    }
+
+    private void setTime(int id, float value){
+        if(times != null){
+            times[id] = value;
+        }else{
+            if(id != 0) throw new ArrayIndexOutOfBoundsException(id);
+            timeZero = value;
+        }
+    }
+
+    public float[] getTimes(){'''
+            ]
+            inlineTimer.each { before, after ->
+                if(timer.count(before) != 1) throw new GradleException("Pinned Interval source changed: ${before}")
+                timer = timer.replace(before, after)
+            }
+            def stagedInterval = sourceDir.get().file(intervalPath).asFile
+            stagedInterval.parentFile.mkdirs()
+            stagedInterval.setText(timer, 'UTF-8')
+            def jsonIoPath = 'mindustry/io/JsonIO.java'
+            def jsonIo = new String(readUpstream('core/src/' + jsonIoPath), 'UTF-8')
+            def legacyNames = 'string.replace("io.anuke.", "")'
+            if (jsonIo.count(legacyNames) != 2) {
+                throw new GradleException('Pinned JSON legacy prefix handling changed')
+            }
+            def stagedJsonIo = sourceDir.get().file(jsonIoPath).asFile
+            stagedJsonIo.parentFile.mkdirs()
+            stagedJsonIo.setText(jsonIo.replace(legacyNames,
+                '(string.indexOf("io.anuke.") < 0 ? string : string.replace("io.anuke.", ""))'), 'UTF-8')
+            def saveIoPath = 'mindustry/io/SaveIO.java'
+            def saveIo = new String(readUpstream('core/src/' + saveIoPath), 'UTF-8')
+            def compress = '''    public static void write(Fi file, SaveOptions options){
+        write(new FastDeflaterOutputStream(file.write(false, bufferSize)), options);
+    }'''
+            if (saveIo.count(compress) != 1) throw new GradleException('Pinned save file writer changed')
+            def boundedCompression = '''    public static void write(Fi file, SaveOptions options){
+        try(var raw = file.write(false, bufferSize)){
+            write(new SaveDeflaterStream(raw), options);
+        }catch(IOException failure){
+            throw new RuntimeException(failure);
+        }
+    }
+
+    // Zlib framing stays stock. A smaller window and hash table fit a fragmented heap.
+    private static final class SaveDeflaterStream extends com.jcraft.jzlib.DeflaterOutputStream{
+        SaveDeflaterStream(OutputStream out) throws IOException{
+            super(out, new com.jcraft.jzlib.Deflater(6, 12, 4), 4096, false);
+            mydeflater = true;
+        }
+    }'''
+            def fileLoad = '    public static void load(Fi file, WorldContext context) throws SaveException{'
+            def streamLoad = '    public static void load(InputStream is, WorldContext context) throws SaveException{'
+            def mainRead = 'load(new InflaterInputStream(file.read(bufferSize)), context);'
+            def backupRead = 'load(new InflaterInputStream(backup.read(bufferSize)), context);'
+            def readState = 'ver.read(stream, counter, new SaveReadState(context));'
+            if ([fileLoad, streamLoad, mainRead, backupRead, readState].any { saveIo.count(it) != 1 }) {
+                throw new GradleException('Pinned SaveIO load hooks changed')
+            }
+            saveIo = saveIo.replace(fileLoad, fileLoad + '''
+        load(file, context, null);
+    }
+
+    public static Fi load(Fi file, WorldContext context, StringMap playerTags) throws SaveException{''')
+                .replace(streamLoad, streamLoad + '''
+        load(is, context, null);
+    }
+
+    private static void load(InputStream is, WorldContext context, StringMap playerTags) throws SaveException{''')
+                .replace(mainRead, 'load(new InflaterInputStream(file.read(bufferSize)), context, playerTags);\n            return file;')
+                .replace(backupRead, 'load(new InflaterInputStream(backup.read(bufferSize)), context, playerTags);\n                return backup;')
+                .replace(readState, '''var readState = new SaveReadState(context);
+            readState.playerTags = playerTags;
+            ver.read(stream, counter, readState);''')
+
+            def readStatePath = 'mindustry/io/SaveReadState.java'
+            def readStateSource = new String(readUpstream('core/src/' + readStatePath), 'UTF-8')
+            def ruleStringField = '    public @Nullable String ruleString;'
+            if (readStateSource.count(ruleStringField) != 1) throw new GradleException('Pinned SaveReadState changed')
+            def stagedReadState = sourceDir.get().file(readStatePath).asFile
+            stagedReadState.setText(readStateSource.replace(ruleStringField,
+                ruleStringField + '\n    public @Nullable arc.struct.StringMap playerTags;'), 'UTF-8')
+            def stagedSaveIo = sourceDir.get().file(saveIoPath).asFile
+            stagedSaveIo.parentFile.mkdirs()
+            stagedSaveIo.setText(saveIo.replace(compress, boundedCompression), 'UTF-8')
             def copiedFactoryResources = factoryResourcesFile.get().asFile
             copiedFactoryResources.parentFile.mkdirs()
             copiedFactoryResources.setText(file('src/gameplay/java/port/FactoryResources.java').getText('UTF-8'), 'UTF-8')
@@ -1217,14 +2499,6 @@ tasks.register('runProbeJvm', JavaExec) {
 }
 
 if (usesLiveNetwork) {
-    tasks.register('runStockServerBundlesJvm', JavaExec) {
-        classpath = sourceSets.main.runtimeClasspath
-        mainClass = 'UpstreamStockServerBundlesReference'
-    }
-    tasks.register('runStockPlanetPatchJvm', JavaExec) {
-        classpath = sourceSets.main.runtimeClasspath
-        mainClass = 'UpstreamStockPlanetPatchReference'
-    }
     tasks.register('runBuildControlsJvm', JavaExec) {
         dependsOn 'classes'
         classpath = sourceSets.main.runtimeClasspath

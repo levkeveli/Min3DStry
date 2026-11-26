@@ -5,11 +5,16 @@ import arc.graphics.g2d.Lines;
 import arc.math.geom.QuadTree;
 import arc.math.geom.Rect;
 import arc.struct.Seq;
+import java.io.DataInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.function.Function;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
+import java.util.zip.InflaterInputStream;
 import mindustry.Vars;
 import mindustry.entities.units.BuildPlan;
 import mindustry.game.Schematic;
@@ -36,23 +41,39 @@ final class UpstreamSchematicPlacement {
     private int turns, anchorX = -1, anchorY = -1;
     private boolean capturing;
     private int cornerX = -1, cornerY = -1;
+    private Supplier<String> nameInput;
+    private Predicate<String> confirmReplacement = name -> false;
+    private Function<String, String> editName;
+    private Function<String, String> editDescription;
+    private boolean editing;
 
     UpstreamSchematicPlacement(Fi directory) {
         this.directory = directory;
         Arrays.fill(icons, -1);
     }
 
-    void open() {
-        files = Arrays.stream(directory.list()).filter(file -> !file.isDirectory()
+    Fi[] libraryFiles() {
+        Fi[] sorted = Arrays.stream(directory.list()).filter(file -> !file.isDirectory()
             && file.extEquals(Vars.schematicExtension)).toArray(Fi[]::new);
-        Arrays.sort(files, Comparator.comparing(Fi::name, String.CASE_INSENSITIVE_ORDER).thenComparing(Fi::name));
+        Arrays.sort(sorted, Comparator.comparing(Fi::name, String.CASE_INSENSITIVE_ORDER).thenComparing(Fi::name));
+        return sorted;
+    }
+
+    void open() {
+        files = libraryFiles();
         page = 0;
         open = true;
+        editing = false;
         refreshLabels(null);
     }
 
     void tap(int x, int y) {
-        if (x >= 224 && x < 312 && y >= 4 && y < 38) {
+        if (x >= 152 && x < 216 && y >= 4 && y < 38 && editName != null) {
+            editing = !editing;
+            System.out.println("UPSTREAM_SCHEMATIC_EDIT_MODE enabled=" + editing);
+            refreshLabels(null);
+        } else if (x >= 224 && x < 312 && y >= 4 && y < 38) {
+            editing = false;
             open = false;
             files = null;
             capturing = true;
@@ -69,13 +90,35 @@ final class UpstreamSchematicPlacement {
         } else if (x >= 8 && x < 312 && y >= UpstreamBuildMenu.ROW_TOP
                 && y < UpstreamBuildMenu.ROW_TOP + UpstreamBuildMenu.ROWS * UpstreamBuildMenu.ROW_HEIGHT) {
             int index = page * UpstreamBuildMenu.ROWS + (y - UpstreamBuildMenu.ROW_TOP) / UpstreamBuildMenu.ROW_HEIGHT;
-            if (index < files.length && Vars.state.rules.schematicsAllowed) select(files[index]);
+            if (index < files.length) {
+                if (editing) edit(files[index]);
+                else if (Vars.state.rules.schematicsAllowed) select(files[index]);
+            }
+        }
+    }
+
+    void editWith(Function<String, String> name, Function<String, String> description) {
+        editName = name;
+        editDescription = description;
+    }
+
+    private void edit(Fi file) {
+        editing = false;
+        System.out.println("UPSTREAM_SCHEMATIC_EDIT_SELECTED file=" + file.name());
+        try {
+            if (editMetadata(file, editName, editDescription)) {
+                System.out.println("UPSTREAM_SCHEMATIC_METADATA_EDITED file=" + file.name());
+            }
+            refreshLabels(null);
+        } catch (IOException | RuntimeException error) {
+            System.out.println("UPSTREAM_SCHEMATIC_EDIT_ERROR " + error.getMessage());
+            refreshLabels(null, Core.bundle.get("error", "Error"));
         }
     }
 
     private void select(Fi file) {
-        try (var input = file.read(1024)) {
-            selected = Schematics.read(input);
+        try {
+            selected = readSchematic(file);
         } catch (IOException | RuntimeException error) {
             refreshLabels(file.name());
             return;
@@ -91,7 +134,8 @@ final class UpstreamSchematicPlacement {
     }
 
     private void refreshLabels(String invalidFile, String notice) {
-        String title = Core.bundle.get("schematics", "Schematics");
+        String title = editing ? Core.bundle.get("schematic.edit", "Edit schematic")
+            : Core.bundle.get("schematics", "Schematics");
         var text = new StringBuilder(notice == null ? title : notice);
         if (notice == null) {
             if (!Vars.state.rules.schematicsAllowed) {
@@ -107,12 +151,60 @@ final class UpstreamSchematicPlacement {
             int index = page * UpstreamBuildMenu.ROWS + row;
             if (index < files.length) {
                 var file = files[index];
-                text.append(file.nameWithoutExtension().replace('\n', ' ').replace('\r', ' '));
+                String name = readDisplayName(file);
+                text.append((name == null ? file.nameWithoutExtension() : name)
+                    .replace('\n', ' ').replace('\r', ' ').replace('\0', ' '));
                 if (file.name().equals(invalidFile)) text.append(" (invalid .msch)");
             }
             text.append('\0');
         }
         labels = text.toString().getBytes(StandardCharsets.UTF_8);
+    }
+
+    static Schematic readSchematic(Fi file) throws IOException {
+        try (var input = file.read(1024)) {
+            return Schematics.read(input);
+        }
+    }
+
+    boolean editMetadata(Fi file, Function<String, String> nameInput,
+                         Function<String, String> descriptionInput) throws IOException {
+        if (!file.parent().equals(directory) || !file.extEquals(Vars.schematicExtension)
+                || !file.file().isFile()) return false;
+        Schematic schematic = readSchematic(file);
+        String name = nameInput.apply(schematic.name());
+        if (name == null || name.isEmpty()) return false;
+        String description = descriptionInput.apply(schematic.description());
+        if (description == null) return false;
+        schematic.tags.put("name", name);
+        schematic.tags.put("description", description);
+        publish(schematic, file, true);
+        return true;
+    }
+
+    static String readDisplayName(Fi file) {
+        try (var input = file.read(1024)) {
+            // The pinned Schematics reader starts with msch, a version byte,
+            // then compressed dimensions and tags. Listing needs only those tags.
+            if (input.read() != 'm' || input.read() != 's' || input.read() != 'c' || input.read() != 'h') {
+                return null;
+            }
+            int version = input.read();
+            if (version < 0 || version > 1) return null;
+            try (var metadata = new DataInputStream(new InflaterInputStream(input))) {
+                metadata.readShort();
+                metadata.readShort();
+                int count = metadata.readUnsignedByte();
+                for (int i = 0; i < count; i++) {
+                    String key = metadata.readUTF();
+                    String value = metadata.readUTF();
+                    if (key.equals("name")) return value;
+                }
+            }
+        } catch (IOException | RuntimeException ignored) {
+            // Broken files can still be identified in the picker by their filenames.
+        }
+        return null;
     }
 
     void position(Unit unit, int x, int y) {
@@ -174,7 +266,16 @@ final class UpstreamSchematicPlacement {
         }
     }
 
+    void nameCapturesWith(Supplier<String> input, Predicate<String> confirm) {
+        nameInput = input;
+        confirmReplacement = confirm;
+    }
+
     void saveCapture(Team team) {
+        saveCapture(team, nameInput, confirmReplacement);
+    }
+
+    void saveCapture(Team team, Supplier<String> nameInput, Predicate<String> confirmReplacement) {
         if (cornerX < 0) return;
         var schematic = stock().create(anchorX, anchorY, cornerX, cornerY, team);
         String notice;
@@ -182,10 +283,17 @@ final class UpstreamSchematicPlacement {
             notice = "No buildings in selection";
         } else {
             try {
-                var file = writeCapture(schematic);
-                notice = "Saved " + file.nameWithoutExtension();
-                System.out.println("UPSTREAM_SCHEMATIC_SAVED file=" + file.name()
-                    + " blocks=" + schematic.tiles.size + " width=" + schematic.width + " height=" + schematic.height);
+                String name = nameInput == null ? availableCaptureFile().nameWithoutExtension() : nameInput.get();
+                if (name == null || name.isBlank()) {
+                    notice = null;
+                } else {
+                    var file = writeCapture(schematic, name, confirmReplacement);
+                    notice = file == null ? null : "Saved " + schematic.name();
+                    if (file != null) {
+                        System.out.println("UPSTREAM_SCHEMATIC_SAVED file=" + file.name()
+                            + " blocks=" + schematic.tiles.size + " width=" + schematic.width + " height=" + schematic.height);
+                    }
+                }
             } catch (IOException | RuntimeException error) {
                 notice = "Could not save schematic";
                 System.out.println("UPSTREAM_SCHEMATIC_SAVE_ERROR " + error.getMessage());
@@ -196,24 +304,69 @@ final class UpstreamSchematicPlacement {
         refreshLabels(null, notice);
     }
 
-    private Fi writeCapture(Schematic schematic) throws IOException {
-        directory.mkdirs();
+    private Fi availableCaptureFile() {
         int index = 1;
         Fi destination;
         do {
             destination = directory.child("Schematic-" + index++ + "." + Vars.schematicExtension);
         } while (destination.exists());
+        return destination;
+    }
 
-        schematic.tags.put("name", destination.nameWithoutExtension());
+    private Fi writeCapture(Schematic schematic, String name, Predicate<String> confirmReplacement) throws IOException {
+        directory.mkdirs();
+        Fi destination = availableCaptureFile();
+        Schematic previous = null;
+        for (var file : directory.list()) {
+            if (file.isDirectory() || !file.extEquals(Vars.schematicExtension) || !name.equals(readDisplayName(file))) continue;
+            Schematic candidate;
+            try {
+                candidate = readSchematic(file);
+            } catch (IOException | RuntimeException ignored) {
+                continue;
+            }
+            if (!confirmReplacement.test(name)) return null;
+            destination = file;
+            previous = candidate;
+            break;
+        }
+        schematic.tags.put("name", name);
+        schematic.tags.put("description", "");
+        if (previous != null) {
+            schematic.tags.putAll(previous.tags);
+            schematic.labels = previous.labels;
+        }
+        publish(schematic, destination, previous != null);
+        return destination;
+    }
+
+    private void publish(Schematic schematic, Fi destination, boolean replacing) throws IOException {
         File temporary = File.createTempFile("schematic-", ".tmp", directory.file());
         try {
             Schematics.write(schematic, new Fi(temporary));
-            if (destination.exists() || !temporary.renameTo(destination.file())) {
-                throw new IOException("Unable to publish " + destination.name());
+            if (!replacing) {
+                if (destination.exists() || !temporary.renameTo(destination.file())) {
+                    throw new IOException("Unable to publish " + destination.name());
+                }
+            } else if (!temporary.renameTo(destination.file())) {
+                replaceOnFat(temporary, destination.file());
             }
-            return destination;
         } finally {
             temporary.delete();
+        }
+    }
+
+    private static void replaceOnFat(File temporary, File destination) throws IOException {
+        File backup = File.createTempFile("schematic-backup-", ".tmp", destination.getParentFile());
+        if (!backup.delete() || !destination.renameTo(backup)) {
+            throw new IOException("Unable to back up " + destination.getName());
+        }
+        if (temporary.renameTo(destination)) {
+            backup.delete();
+        } else if (backup.renameTo(destination)) {
+            throw new IOException("Unable to replace " + destination.getName());
+        } else {
+            throw new IOException("Unable to restore " + destination.getName() + " from " + backup.getName());
         }
     }
 

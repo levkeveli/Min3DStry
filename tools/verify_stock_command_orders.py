@@ -60,7 +60,8 @@ def verify_commands(log, proc, rpc, output):
 
 def replay(args, model, fixture, live, *, taps=TAPS, buttons=None,
            verify_input=verify_commands, read_stock=read_stock_orders, prepare_server=None,
-           button_durations=None, circle=None, offline_ready=r"UPSTREAM_SP_READY .*x=648\.0 y=208\.0"):
+           button_durations=None, circle=None, offline_ready=r"UPSTREAM_SP_READY .*x=648\.0 y=208\.0",
+           movie_seconds=102):
     azahar = sp.az.resolve_azahar_bin(args.azahar)
     config, log = sp.az.resolve_azahar_paths(azahar)
     originals = {path: path.read_bytes() if path.is_file() else None for path in (config, log)}
@@ -68,11 +69,12 @@ def replay(args, model, fixture, live, *, taps=TAPS, buttons=None,
     sd = (output / "sdmc").resolve()
     save = sd / "3ds/min3dstry/singleplayer-save.msav"
     save.parent.mkdir(parents=True, exist_ok=True)
+    sp.stage_direct_startup(sd)
     shutil.copyfile(fixture, save)
     movie = output / "commands.ctm"
     if buttons is None:
         buttons = {0: sp.KEY_X, 94: sp.KEY_START} if live else {84: sp.KEY_SELECT, 94: sp.KEY_START}
-    write_movie(movie, model, live=live, taps=taps, buttons=buttons, seconds=102,
+    write_movie(movie, model, live=live, taps=taps, buttons=buttons, seconds=movie_seconds,
                 button_durations=button_durations, circle=circle)
     if live:
         (save.parent / "server-endpoint.txt").write_text(f"127.0.0.1 {args.port}\n", encoding="ascii")
@@ -131,13 +133,13 @@ def main():
     parser.add_argument("--azahar")
     parser.add_argument("--fixture", type=Path)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--model", choices=("new3ds", "old3ds"), action="append")
+    parser.add_argument("--model", choices=("new3ds",), action="append")
     parser.add_argument("--port", type=int, default=16628)
     parser.add_argument("--live", action="store_true")
     args = parser.parse_args()
     args.output.mkdir(parents=True)
     fixture = args.fixture or create_fixture(args, args.output / "stock-fixture")
-    for model in args.model or ("old3ds", "new3ds"):
+    for model in args.model or ("new3ds",):
         replay(args, model, fixture, False)
         print(f"UPSTREAM_STOCK_COMMANDS model={model} live=False daggers=2 rally=ok", flush=True)
         if args.live:

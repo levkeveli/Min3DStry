@@ -1,5 +1,6 @@
 import arc.files.Fi;
 import arc.util.I18NBundle;
+import mindustry.core.UI;
 import java.util.Locale;
 
 /** Maps libctru's system language to the original game's Arc bundle. */
@@ -46,6 +47,10 @@ final class UpstreamInterfaceLocale {
                 properties.shrink(properties.size);
             }
         }
+        // Stock UI.init sets these before callers use UI.formatAmount.
+        UI.billions = bundle.get("unit.billions");
+        UI.millions = bundle.get("unit.millions");
+        UI.thousands = bundle.get("unit.thousands");
         return bundle;
     }
 }

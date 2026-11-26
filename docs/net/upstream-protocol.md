@@ -2,7 +2,7 @@
 
 **Issue:** [#31](https://github.com/levkeveli/Min3DStry/issues/31) / [#44](https://github.com/levkeveli/Min3DStry/issues/44)
 
-**Stage:** `host-tested` (wire-exact framing & host session baseline verified live against unmodified Mindustry v8 build `160.8` `server-release.jar` via `tools/verify_upstream_net.py`; `net_3ds.c` compiled into `min3dstry.3dsx`; separate TeaVM ARM11 Azahar sessions are tracked in [`research/upstream-runtime/`](../../research/upstream-runtime/README.md) and [`port-capabilities.json`](../port-capabilities.json); physical Old/New 3DS console Wi-Fi sessions remain pending under `#44` / `#43`)
+**Stage:** `host-tested` (wire-exact framing & host session baseline verified live against unmodified Mindustry v8 build `160.8` `server-release.jar` via `tools/verify_upstream_net.py`; `net_3ds.c` compiled into `min3dstry.3dsx`; separate TeaVM ARM11 Azahar sessions are tracked in [`research/upstream-runtime/`](../../research/upstream-runtime/README.md) and [`port-capabilities.json`](../port-capabilities.json); physical New Nintendo 3DS/2DS Wi-Fi sessions remain pending under `#44` / `#43`)
 
 ---
 
@@ -91,13 +91,14 @@ DECODE_PKT_OK id=141 compression=1 wire_len=140 payload_len=182
 
 - **Two bidirectional gameplay sessions (build, disconnect/rejoin persistence, and deconstruct):**
   - **Session 1 (`run=1`):** Completed `ConnectPacket` -> `WorldStream` (`150x250` `Glacier`, `2` core origins, `copper=200`) -> `ConnectConfirmCallPacket`, applied incoming `StateSnapshotCallPacket` + `EntitySnapshotCallPacket` on the main thread until the server-spawned player unit was synced, transmitted outbound UDP `ClientSnapshotCallPacket` build plans for a `Conveyor` at `(85, 26)` rotation `1` and a `Copper Wall` at `(86, 26)`, applied server `ConstructFinishCallPacket` confirmations, and verified authoritative core copper sync (`200 -> 193`, `buildings=2->4`).
+    The starting Glacier tiles may be air or replaceable stock decoration, such as snow boulders. Both targets must be unoccupied by buildings.
   - **Session 2 (`run=2`):** Reset client state (`Vars.logic.reset()`), reconnected with the same UUID, confirmed the server's fresh rejoin `WorldStream` persisted all `4` buildings and `copper=193`, sent an outbound `ClientSnapshotCallPacket` deconstruction `BuildPlan(86, 26)`, applied `DeconstructFinishCallPacket`, and verified authoritative core copper refund sync (`193 -> 196`, `buildings=4->3`).
 - **Live LZ4 parity:** The raw `net.jpountz.lz4`-compressed server packet (`id=141`, `compressed_bytes=140`, `payload_len=182`, `compression=1`) decoded byte-for-byte identically via C11 `m3ds_net_decode_packet` (`DECODE_PKT_OK`).
 - **Run-to-run variability:** Because this harness connects to a freshly started live `server-release.jar`, server-assigned `playerId`s, `state_snapshots` / `entity_snapshots` / `lz4_packets` counts, and the captured `UPSTREAM_LZ4_PACKET` SHA-256 vary between runs (for example, `lz4_packets=15` and `16` across consecutive runs); `tools/verify_upstream_net.py` asserts the deterministic `UPSTREAM_NET_DISCOVERY`, `UPSTREAM_NET_MISMATCH`, both `UPSTREAM_NET_ACTION` build/rejoin/deconstruct lines, non-zero `entity_snapshots`, and C11 `DECODE_PKT_OK` invariants rather than fixed snapshot counts or hashes.
 
 ### 4. 3DS ARM11 Build (`./dev.sh build`)
 - **3DS-build-tested:** `src/net/mindustry_net.c` and `src/platform/3ds/net_3ds.c` compile cleanly under devkitARM `arm-none-eabi-gcc` (`-std=c11 -Wall -Wextra -Werror`) into `build/min3dstry.3dsx`.
-- **Not yet tested:** Physical Original/New 3DS console Wi-Fi handshake and play sessions (`#31`, `#44`, `#43`); this host/wire document stays at `host-tested` while separate TeaVM ARM11 emulator runs are recorded under [`research/upstream-runtime/`](../../research/upstream-runtime/README.md).
+- **Not yet tested:** Physical New Nintendo 3DS/2DS Wi-Fi handshake and play sessions (`#31`, `#44`, `#43`); this host/wire document stays at `host-tested` while separate TeaVM ARM11 emulator runs are recorded under [`research/upstream-runtime/`](../../research/upstream-runtime/README.md).
 
 ---
 
@@ -126,131 +127,33 @@ server's formatted echo. The following wave snapshot reached the client
 with the composer open and another arrived after submission. A stock PC
 client displayed the ARM11-origin text in the shared local session.
 
+## Stock server kicks and restart
+
+The 3DS client displays the stock kick reason or the message supplied by the
+server. A stock `serverRestarting` reason opens the reconnect screen and
+triggers discovery at the same address. Press **B** on that screen to cancel.
+
+Run `tools/verify_upstream_live_net.py` with the matching ARM11 ROM and the
+stock v160.8 server. Use `--server-kick restart` to stop and reopen the server
+and require a second join. Use `--server-kick restart-cancel` to keep the server
+offline, press **B**, and require cancellation without a second join.
+Use `--verify-kick-notice` with `--server-kick text` or `--server-kick enum`
+to check the rendered reason for a regular disconnect.
+
+The restart replay passed on both Azahar console profiles. The cancellation
+replay passed on the New 3DS profile.
+[New 3DS restart](https://github.com/levkeveli/Min3DStry/actions/runs/45290486799) ·
+[Original 3DS restart](https://github.com/levkeveli/Min3DStry/actions/runs/45293324404) ·
+[New 3DS cancellation](https://github.com/levkeveli/Min3DStry/actions/runs/45296040600)
+
 ## License Audit
 
 All C wire/framing code in `src/net/mindustry_net.c` and `src/platform/3ds/net_3ds.c` was written cleanly for Min3DStry from the wire specification documented in pinned upstream Mindustry (`GPLv3`) and Arc (`Apache-2.0` / `BSD-style` ArcNet heritage), with zero proprietary Nintendo code and zero undistributable third-party binaries.
 
-
-### Multiplayer match results
-
-The live client handles the original v160.8 `UpdateGameOverCallPacket`
-from a dedicated server and `GameOverCallPacket` from a desktop host. The
-pinned Logic handlers keep the authoritative winning team and match state.
-The handheld HUD uses the original localized game-over or PvP winner text
-and shows the final wave in wave modes.
-
-The unified JVM reference round-tripped both generated result packets and
-verified a dedicated-server loss and a desktop-hosted win. The stock-bundle
-draw reference checked the survival and PvP result text. Live handheld
-replay is pending.
-
-
-### Stock server map rotation
-
-The active client accepts v160.8 `WorldDataBegin` and the following
-`WorldStream` on its existing Arc session. It clears map-specific selections,
-applies the original world reset, and streams the replacement map in chunks.
-The stock `ConnectConfirm` follows the successful load. World and match
-result HUD state come from the new map.
-
-`tools/capture_stock_rotating_server.py` captures both WorldStreams from
-one localhost connection to the original v160.8 server. The server uses
-its stock WorldReloader to move from Glacier to the supplied original map.
-Pass the two capture files to `runProbeJvm`. The JVM replay replaced
-Glacier with Ancient Caldera, preserving the server-assigned player ID
-while clearing the previous entities and result state. The separate
-`tools/build_stock_rotation_stream.py` helper writes a second fixture
-directly if only the decoding path needs verification. Live ARM11 replay
-remains open.
-
-Use `tools/verify_stock_live_rotation.py` with the unified ROM, the pinned
-server and atlas, and portable Azahar instances for both models. It stages
-the original Ancient Caldera map from the server release and checks that
-the server sees the same player, connection and continuing input snapshots
-after rotation. The ARM11 log must report the new map on the original
-player ID and then receive its second wave.
-
-### Stock server asset streams
-
-Joining or rotating to a world with external data can start with
-`AssetRequirementStream`. The client requests missing indices using the
-stock `RequestAssets` packet. It streams the returned `AssetStream` to
-temporary files, checks their SHA-256 hashes against the declared keys,
-and publishes verified files to the original cache format. With a warm
-cache the empty asset request lets the server send the world immediately.
-After a download the client sends the stock `RequestWorld` packet.
-
-The JVM probe exercises the pinned server's writer with cold, warm and
-damaged cache entries. To test the exchange over localhost, run
-`tools/capture_stock_rotating_server.py` twice with the same
-`--asset-cache` directory and the original Ancient Caldera map from
-`maps/default/caldera.msav` in the server jar. The unmodified server
-requires one bundle on Glacier and adds another when it rotates. A fresh
-cache requests one asset on each world. A fresh process with the warm
-cache must request zero assets and receive both worlds.
-
-The ARM11 frontend uses the original `DataBundleLoader` to install each
-world's locale overrides after loading. It restores the previous bundle before
-applying the replacement map's strings and when the client exits. Pass the
-two captures, the populated cache and the stock English bundle stem to
-`runStockServerBundlesJvm` to check the localized wave label on both maps and
-its restoration on exit.
-
-### Planet-targeted gameplay patches
-
-The handheld applies the stock player-side patch rules. The
-`requiredPlanets` filter runs on the dedicated server, while the client
-uses the patches delivered in the replacement WorldStream. A map change
-restores the old world's patched fields before applying the new world.
-
-Capture a rotation to the original Erekir Caldera with
-`tools/capture_stock_rotating_server.py --planet-patch`, then pass both
-captured WorldStreams to `runStockPlanetPatchJvm`. The unmodified server
-applies the Erekir-only duct speed change. The headless port detects that
-change after joining Caldera and recovers the original speed on Glacier.
-
-### Map pings
-
-The live client decodes the original forwarded `PingLocationCallPacket`.
-The upstream handler keeps the teammate rule and the 40-character text
-limit. The handheld world view uses the stock diamond, arrow, labels,
-fade and 20-second countdown.
-
-The snapshot reference replays both teams and checks text truncation.
-The building-layer reference records the stock shapes and both labels,
-then advances the ping to expiry. A graphical cross-platform check is
-tracked separately.
-
-### Scripted tile and building updates
-
-The client applies the original v160.8 packets for single, batched and
-rectangular block, floor and overlay changes. It also dispatches stock
-building damage, destruction, ownership transfers and tile removal through
-the upstream handlers. The JVM snapshot reference round-trips the packet
-bytes and verifies the resulting terrain, rotated block, damage, removal,
-team, inventory and linked power graph. Live graphical verification remains
-tracked separately.
-
-### Entity visibility and disconnects
-
-The session redispatches the original HiddenSnapshot and PlayerDisconnect
-packets. Hidden units leave the current synchronized group and return
-when the server sends a visible entity update. The stock disconnect
-handler removes the player and rejects stale snapshots for the departed
-ID. The JVM reference checks both lifecycles and the local player ID.
-
-### Erekir cargo loader tether
-
-The handheld uses the original UnitTetherBlockSpawned packet and the
-stock Cargo Loader client update to resolve its Manifold. The loader
-keeps the pending server ID until the matching unit snapshot arrives.
-The replay checks production reset and draw-state advancement without a
-locally spawned duplicate.
-
 ### Scripted map bounds
 
-The client forwards the original SetMapArea packet to the stock map
-area handler. The JVM replay contracts the playable area, confirms the
-inside drill remains enabled and the outside drill is suspended, then
-reopens the whole world and verifies restored operation and border
-darkness values.
+The live client applies the original v160.8 `SetMapArea` packet through
+the stock map-area handler. The JVM replay contracts the playable area,
+checks that the inside drill stays enabled and the outside drill is
+suspended, then reopens the world and checks that the drill runs again
+and the border darkness clears.

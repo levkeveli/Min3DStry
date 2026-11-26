@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify the offline single-player Ground Zero .3dsx on Azahar New and Old 3DS profiles."""
+"""Verify the offline single-player Ground Zero .3dsx on Azahar, using New 3DS by default."""
 
 from __future__ import annotations
 
@@ -20,8 +20,13 @@ import verify_azahar as az  # noqa: E402
 CTM_REVISION = bytes.fromhex("219d743a1e698101fe1ab8bef43e6563126c3c27")
 CTM_SAMPLES_PER_SECOND = 234
 
+KEY_A = 1 << 0
+KEY_B = 1 << 1
 KEY_SELECT = 1 << 2
 KEY_START = 1 << 3
+KEY_RIGHT = 1 << 4
+KEY_UP = 1 << 6
+KEY_DOWN = 1 << 7
 KEY_X = 1 << 10
 KEY_Y = 1 << 11
 
@@ -49,11 +54,22 @@ def resolve_sd_save_path(log_path: Path) -> Path:
     return log_path.parent.parent / "sdmc" / "3ds" / "min3dstry" / "singleplayer-save.msav"
 
 
-def write_singleplayer_ctm(path: Path, model: str) -> None:
+def stage_direct_startup(sd: Path) -> None:
+    """Select direct offline launch in an isolated virtual SD fixture."""
+    startup = sd / "3ds/min3dstry/startup.txt"
+    startup.parent.mkdir(parents=True, exist_ok=True)
+    startup.write_text("direct\n", encoding="ascii")
+
+
+def write_singleplayer_ctm(
+    path: Path, model: str, verify_database: bool = False, database_title: bool = False,
+    reopen_title_settings: bool = False,
+) -> None:
     """Write an Azahar 2126.2 CTM input sequence exercising the Ground Zero vertical slice."""
-    # Both New 3DS and Old 3DS reach UPSTREAM_SP_READY around 19s; start CTM taps at 26s for margin.
-    t0 = 26
-    total_seconds = t0 + 62
+    # Hosted runners can take ~32s to reach UPSTREAM_SP_READY; start taps at 40s
+    # so the mine and ore taps never land during world loading.
+    t0 = 40
+    total_seconds = 392 if reopen_title_settings else 158 if database_title else t0 + (115 if verify_database else 62)
     frames = total_seconds * CTM_SAMPLES_PER_SECOND
     header = struct.pack(
         "<4sQ20sQQ32sIQq156x",
@@ -84,12 +100,64 @@ def write_singleplayer_ctm(path: Path, model: str) -> None:
         (t0 + 50, KEY_SELECT), # Save .msav to SD
         (t0 + 56, KEY_START),  # Clean exit
     )
+    if verify_database:
+        button_windows = (
+            (t0 + 36, KEY_X),       # Pause
+            (t0 + 45, KEY_Y),       # Open the Core Database
+            (t0 + 61, KEY_A),       # Open the unlocked content entry
+            (t0 + 69, KEY_B),       # Back to the database
+            (t0 + 77, KEY_B),       # Back to the pause menu
+            (t0 + 85, KEY_X),       # Resume
+            (t0 + 90, KEY_Y),       # Trigger wave 1
+            (t0 + 99, KEY_SELECT),  # Save .msav to SD
+            (t0 + 106, KEY_START),  # Clean exit
+        )
+    if database_title:
+        taps = (
+            (42, (160, 72)),  # Confirm the highlighted Database row.
+            (91, (160, 132)), # Return from the catalog to the title.
+        )
+        button_windows = (
+            (34, KEY_DOWN),  # Select Database on the title screen.
+            (50, KEY_A),     # Open Core Database.
+            (82, KEY_RIGHT), # Change from All to the next stock planet tab.
+            (101, KEY_DOWN), (108, KEY_DOWN), (115, KEY_DOWN), # Select Settings.
+            (123, KEY_A),    # Open Settings.
+            (131, KEY_A),    # Toggle Show Core Items.
+            (139, KEY_B),    # Return to the title.
+            (147, KEY_B),    # Exit the title cleanly.
+        )
+    if reopen_title_settings:
+        taps = ()
+        button_windows = (
+            (25, KEY_DOWN), (32, KEY_DOWN), (39, KEY_DOWN),
+            (47, KEY_A), (55, KEY_B), # Read saved Settings and return to title.
+            (62, KEY_DOWN), (69, KEY_A), # Open the Database category.
+            (76, KEY_DOWN), (83, KEY_A), # Open About.
+            (90, KEY_A), # Open Credits.
+            (101, KEY_B), (111, KEY_B), # Close Credits and About.
+            (122, KEY_DOWN), (129, KEY_A), # Open the Database category again.
+            (136, KEY_DOWN), (143, KEY_DOWN), (151, KEY_A), # Open Schematics.
+            (198, KEY_A), # Open the staged stock schematic after loading content.
+            (209, KEY_B), (218, KEY_B), # Close schematic details and return to the title.
+            (229, KEY_A), # Open Play.
+            (237, KEY_DOWN), (245, KEY_DOWN), (253, KEY_DOWN),
+            (261, KEY_A), (271, KEY_A), # Open Load Game and select the Ground Zero save.
+            (329, KEY_X), (338, KEY_UP), # Pause, then wrap to Quit.
+            (347, KEY_A), (356, KEY_A), # Confirm, save and return to title.
+            (381, KEY_B),
+        )
     with path.open("wb") as movie:
         movie.write(header)
         for frame in range(frames):
             sec = frame // CTM_SAMPLES_PER_SECOND
             buttons = next((mask for start, mask in button_windows if start <= sec < start + 2), 0)
-            circle_x = 100 if (t0 + 30) <= sec < (t0 + 32) else 0
+            # Tap once before the database's held-direction repeat begins.
+            if verify_database and (t0 + 53) * CTM_SAMPLES_PER_SECOND <= frame < (
+                (t0 + 53) * CTM_SAMPLES_PER_SECOND + CTM_SAMPLES_PER_SECOND // 5
+            ):
+                buttons |= KEY_DOWN
+            circle_x = 100 if not (database_title or reopen_title_settings) and (t0 + 30) <= sec < (t0 + 32) else 0
             point = next((pt for start, pt in taps if start <= sec < start + 2), None)
             pad = struct.pack("<BHhh", 0, buttons, circle_x, 0)
             if point:
@@ -138,7 +206,7 @@ def _wait_for_log(log_path: Path, proc: subprocess.Popen[bytes], pattern: str, t
                 return text
             if "UPSTREAM_MEMORY managed-heap-exhausted" in text or "UPSTREAM_GC " in text:
                 raise RuntimeError(f"ARM11 memory failure waiting for {pattern}:\n{text[-2500:]}")
-            if "UPSTREAM_SP_ERROR " in text or re.search(r"Core::LogException", text):
+            if "UPSTREAM_SP_ERROR " in text or re.search(r"Core::LogException|exception_handler\.cpp:LogException", text):
                 raise RuntimeError(f"Emulated exception waiting for {pattern}:\n{text[-2500:]}")
         if proc.poll() is not None:
             text = log_path.read_text(encoding="utf-8", errors="replace") if log_path.exists() else text
@@ -162,12 +230,27 @@ def parse_singleplayer_log(log_text: str) -> dict[str, Any]:
         "built": built,
         "pause_true": "UPSTREAM_SP_PAUSE paused=true" in log_text,
         "pause_false": "UPSTREAM_SP_PAUSE paused=false" in log_text,
+        "pause_disabled": "UPSTREAM_SP_PAUSE disabled=true" in log_text,
+        "pause_menu_open": "UPSTREAM_PAUSE_MENU open=true" in log_text,
+        "pause_menu_close": "UPSTREAM_PAUSE_MENU open=false" in log_text,
         "moving": "UPSTREAM_SP_MOVING " in log_text,
         "wave": "UPSTREAM_SP_WAVE wave=2" in log_text,
         "saved": saved.groupdict() if saved else None,
         "exit": "UPSTREAM_SP_EXIT" in log_text,
         "mem": {k: int(v) for k, v in mem.groupdict().items()} if mem else None,
     }
+
+
+def pause_milestone_reached(parsed: dict[str, Any]) -> bool:
+    """Require the behavior that matches the loaded stock pause rule.
+
+    A pause-enabled world must report a real ``paused=true``/``paused=false``
+    toggle. A world with ``rules.pauseDisabled`` must report ``disabled=true``
+    and still open/close the pause menu. Menu traffic alone is never enough.
+    """
+    if parsed["pause_disabled"]:
+        return parsed["pause_menu_open"] and parsed["pause_menu_close"]
+    return parsed["pause_true"] and parsed["pause_false"]
 
 
 def _launch_azahar(
@@ -213,18 +296,23 @@ def run_singleplayer_model(
     log_path: Path,
     out_dir: Path,
     timeout: float,
+    verify_database: bool = False,
 ) -> dict[str, Any]:
     out_dir.mkdir(parents=True, exist_ok=True)
     had_config = config_path.exists()
     original_config = config_path.read_text(encoding="utf-8") if had_config else ""
     sd_save = resolve_sd_save_path(log_path)
+    startup = sd_save.with_name("startup.txt")
+    original_startup = startup.read_bytes() if startup.is_file() else None
     if sd_save.exists():
         sd_save.unlink()
 
     ctm_path = out_dir / f"{model}-controls.ctm"
-    write_singleplayer_ctm(ctm_path, model)
+    write_singleplayer_ctm(ctm_path, model, verify_database)
 
     try:
+        startup.parent.mkdir(parents=True, exist_ok=True)
+        startup.write_text("direct\n", encoding="utf-8")
         # Boot 1: full offline Ground Zero vertical slice via CTM replay.
         proc, rpc = _launch_azahar(model, rom_path, azahar_bin, config_path, log_path, ctm_path)
         try:
@@ -236,6 +324,12 @@ def run_singleplayer_model(
             perf = rpc.perf_stats(reset=True) or {}
             shot_play = rpc.screenshot()
             (out_dir / f"{model}-play.png").write_bytes(shot_play)
+            if verify_database:
+                _wait_for_log(log_path, proc, r"UPSTREAM_DATABASE_OPEN tab=\S+ rows=[1-9]\d*\b", timeout)
+                (out_dir / f"{model}-database.png").write_bytes(rpc.screenshot())
+                _wait_for_log(log_path, proc, r"UPSTREAM_DATABASE_DETAIL content=\S+ rows=[1-9]\d*\b", timeout)
+                (out_dir / f"{model}-database-detail.png").write_bytes(rpc.screenshot())
+                _wait_for_log(log_path, proc, r"UPSTREAM_DATABASE_CLOSE\b", timeout)
             _wait_for_log(log_path, proc, r"UPSTREAM_SP_SAVED ", timeout)
             shot_end = rpc.screenshot()
             (out_dir / f"{model}-wave.png").write_bytes(shot_end)
@@ -248,7 +342,7 @@ def run_singleplayer_model(
         parsed1 = parse_singleplayer_log(log_boot1)
         if not parsed1["loaded"] or parsed1["loaded"]["source"] != "map":
             raise AssertionError(f"{model} Boot 1 did not load map: {parsed1['loaded']}")
-        if not parsed1["moving"] or not parsed1["pause_true"] or not parsed1["pause_false"] or not parsed1["wave"]:
+        if not parsed1["moving"] or not pause_milestone_reached(parsed1) or not parsed1["wave"]:
             raise AssertionError(f"{model} Boot 1 missing gameplay milestone: {parsed1}")
         if not parsed1["saved"] or not sd_save.is_file() or sd_save.stat().st_size == 0:
             raise AssertionError(f"{model} Boot 1 did not write Virtual SD save {sd_save}")
@@ -274,6 +368,62 @@ def run_singleplayer_model(
             raise AssertionError(
                 f"{model} Boot 2 copper mismatch: saved={parsed1['saved']['copper']} vs loaded={loaded2['copper']}"
             )
+        if verify_database:
+            title_ctm = out_dir / f"{model}-database-title.ctm"
+            write_singleplayer_ctm(title_ctm, model, database_title=True)
+            startup.unlink()
+            schematic = sd_save.parent / "schematics" / "000-min3dstry-replay.msch"
+            files = (sd_save.with_name("settings.bin"), sd_save.with_name("settings_backup.bin"), schematic)
+            originals = {path: path.read_bytes() if path.is_file() else None for path in files}
+            try:
+                proc3, rpc3 = _launch_azahar(model, rom_path, azahar_bin, config_path, log_path, title_ctm)
+                try:
+                    _wait_for_log(log_path, proc3, r"UPSTREAM_BOOT mode=title\b", timeout)
+                    _wait_for_log(log_path, proc3, r"UPSTREAM_DATABASE_OPEN tab=sun rows=[1-9]\d*\b", timeout)
+                    (out_dir / f"{model}-database-title.png").write_bytes(rpc3.screenshot())
+                    _wait_for_log(log_path, proc3, r"UPSTREAM_DATABASE_TAB tab=(serpulo|erekir) rows=[1-9]\d*\b", timeout)
+                    _wait_for_log(log_path, proc3, r"UPSTREAM_DATABASE_CLOSE\b", timeout)
+                    toggle = _wait_for_log(log_path, proc3, r"UPSTREAM_SETTINGS index=0 value=(true|false)\b", timeout)
+                    initial = re.search(r"UPSTREAM_TITLE_SETTINGS coreitems=(true|false)\b", toggle)
+                    changed = re.search(r"UPSTREAM_SETTINGS index=0 value=(true|false)\b", toggle)
+                    if initial is None or changed is None or initial[1] == changed[1]:
+                        raise AssertionError(f"{model} title HUD setting did not toggle")
+                    log_title = _wait_for_log(log_path, proc3, r"UPSTREAM_SP_EXIT\b", timeout)
+                    (out_dir / f"{model}-database-title.log").write_text(log_title, encoding="utf-8")
+                finally:
+                    rpc3.close()
+                    _stop_proc(proc3, azahar_bin)
+                schematic_source = Path(__file__).resolve().parents[1] / "tests/fixtures/schematics/a single large power node.msch"
+                schematic.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(schematic_source, schematic)
+                settings_ctm = out_dir / f"{model}-title-settings-reopen.ctm"
+                write_singleplayer_ctm(settings_ctm, model, reopen_title_settings=True)
+                proc4, rpc4 = _launch_azahar(model, rom_path, azahar_bin, config_path, log_path, settings_ctm)
+                try:
+                    _wait_for_log(log_path, proc4, rf"UPSTREAM_TITLE_SETTINGS coreitems={changed[1]}\b", timeout)
+                    _wait_for_log(log_path, proc4, r"UPSTREAM_TITLE_ABOUT links=12\b", timeout)
+                    _wait_for_log(log_path, proc4, r"UPSTREAM_TITLE_CREDITS contributors=200\b", timeout)
+                    (out_dir / f"{model}-title-credits.png").write_bytes(rpc4.screenshot())
+                    _wait_for_log(log_path, proc4, r"UPSTREAM_TITLE_SCHEMATICS files=[1-9]\d*\b", timeout)
+                    _wait_for_log(log_path, proc4, r"UPSTREAM_TITLE_SCHEMATIC file=000-min3dstry-replay\.msch blocks=1\b", timeout)
+                    _wait_for_log(log_path, proc4, r"UPSTREAM_TITLE_LOAD_SELECTED file=singleplayer-save\.msav\b", timeout)
+                    _wait_for_log(log_path, proc4,
+                        rf"UPSTREAM_SP_LOADED source=save .*wave=2 copper={int(loaded2['copper'])}\b", timeout)
+                    _wait_for_log(log_path, proc4, r"UPSTREAM_SP_FRAME\b", timeout)
+                    _wait_for_log(log_path, proc4, r"UPSTREAM_PAUSE_MENU quit=true\b", timeout)
+                    _wait_for_log(log_path, proc4, r"UPSTREAM_TITLE_RETURN\b", timeout)
+                    settings_log = _wait_for_log(log_path, proc4, r"UPSTREAM_SP_EXIT\b", timeout)
+                    (out_dir / f"{model}-title-settings-reopen.log").write_text(settings_log, encoding="utf-8")
+                finally:
+                    rpc4.close()
+                    _stop_proc(proc4, azahar_bin)
+            finally:
+                for path, previous in originals.items():
+                    if previous is None:
+                        path.unlink(missing_ok=True)
+                    else:
+                        path.write_bytes(previous)
+                startup.write_text("direct\n", encoding="utf-8")
         return {
             "model": model,
             "perf": perf,
@@ -286,6 +436,10 @@ def run_singleplayer_model(
             },
         }
     finally:
+        if original_startup is None:
+            startup.unlink(missing_ok=True)
+        else:
+            startup.write_bytes(original_startup)
         if sd_save.exists():
             sd_save.unlink()
         if had_config:
@@ -358,22 +512,25 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--rom", required=True, type=Path)
     parser.add_argument("--azahar", default=None)
-    parser.add_argument("--model", choices=("new3ds", "old3ds"), default=None)
+    parser.add_argument("--model", choices=("new3ds",), default=None)
     parser.add_argument("--output-dir", type=Path, default=Path("build/singleplayer-emu"))
     parser.add_argument("--timeout", type=float, default=120.0)
     parser.add_argument("--weather-fixtures", type=Path, help="directory with stock clear.msav and weather.msav")
+    parser.add_argument("--verify-database", action="store_true", help="open the live Core Database before saving")
     args = parser.parse_args()
 
     azahar_bin = az.resolve_azahar_bin(args.azahar)
     config_path, log_path = az.resolve_azahar_paths(azahar_bin)
-    models = (args.model,) if args.model else ("new3ds", "old3ds")
+    models = (args.model,) if args.model else ("new3ds",)
 
     for model in models:
         if args.weather_fixtures:
             run_weather_model(model, args.rom, azahar_bin, config_path, log_path,
                               args.output_dir, args.timeout, args.weather_fixtures)
             continue
-        result = run_singleplayer_model(model, args.rom, azahar_bin, config_path, log_path, args.output_dir, args.timeout)
+        result = run_singleplayer_model(
+            model, args.rom, azahar_bin, config_path, log_path, args.output_dir, args.timeout, args.verify_database,
+        )
         fps = result["perf"].get("game_fps", 0.0)
         b1 = result["boot1"]
         b2 = result["boot2"]

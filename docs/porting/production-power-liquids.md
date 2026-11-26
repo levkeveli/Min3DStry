@@ -67,7 +67,51 @@ UPSTREAM_PRODUCTION_FULL filled=2254 held=120 pods=10
 native stack. The top-screen probe console and the corresponding
 `svcOutputDebugString` records were inspected on both profiles.
 
+### Building liquid storage
+
+The staged stock LiquidModule stores zero or one nonzero amount inline
+and allocates a stock-capacity array when a second entry is added. Liquid
+IDs, iteration and flow sampling use the stock order. The production
+probe verifies signed zero, two-entry stock save bytes, readback and clear.
+The unified build also diffs 2,100 inventory and active-flow steps between
+the staged module and the unmodified release JAR.
+
+### Live building rendering
+
+The live ARM11 draw set includes `Category.liquid`, which covers the original
+Bridge Conduit and Phase Conduit (`LiquidBridge` blocks). The host LIQUID
+registry renders every liquid-category block, and the reference asserts both
+stock bridge categories explicitly so a future predicate change cannot silently
+drop them. The same reference configures one-way Bridge Conduit and Phase
+Conduit links, fills each source and steps 120 ticks; it asserts water reaches
+each target, rejects a back-linked pair, and prints
+`UPSTREAM_LIQUID_BRIDGE_REFERENCE bridgeMilli=100000 phaseMilli=100000
+backLink=rejected`. It also dumps a filled Liquid Router into an adjacent 1x1 router sink
+and checks Liquid Junction far-side and dead-end routing
+(`UPSTREAM_LIQUID_ROUTER_REFERENCE`, `UPSTREAM_LIQUID_JUNCTION_REFERENCE`).
+
+### Stock building power bar
+
+Select a friendly building with the handheld cursor to see its power
+bar beneath the match HUD in offline play and on a stock server. The
+display uses the upstream Block.setBars callbacks and the original
+bar and bar-top atlas patches. Enemy building power remains hidden.
+The building-layer host reference checks dry, partial, buffered and
+supplied-idle states. ARM11 rendering evidence is pending.
+
+### Stock building liquid bar
+
+Select a friendly liquid building with the handheld cursor to see its
+stock dynamic liquid bar below the power bar. The label, fill and liquid
+color come from the same `Block.addLiquidBar` provider used by the stock
+bars, drawn with the original bar and bar-top patches. Enemy liquid bars
+stay hidden. The building-layer host reference checks empty, partial,
+color and label states for both the dynamic and keyed bars; the draw is
+wired in the offline and live clients and is included in the New 3DS
+acceptance run. Keyed consumer and generator bars use the same stock
+`addLiquidBar` list and are drawn in stock order.
+
 ## Remaining Scope for Issue #39
 
 - Reduce the ARM11 footprint within the Old 3DS XL (`64 MiB` AppMem) budget.
-- Verify production, power and liquid execution on physical Old/New 3DS XL hardware.
+- Verify production, power and liquid execution on physical New Nintendo 3DS/2DS hardware.

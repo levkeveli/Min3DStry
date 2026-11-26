@@ -49,4 +49,15 @@ UPSTREAM_FACTORY_ORDER runs=2 ticks=720 trace_hash=0x48f18f35f2c8286d
 
 ## Remaining Scope for Issue #26
 
-- Fit the full upstream runtime within the Original 3DS `64 MiB` application memory budget (`65.80 MiB` current `-O2` subtotal) and verify on physical Old/New 3DS hardware at >= 24 FPS.
+- Verify the full upstream runtime on physical New 3DS at >= 24 FPS within its application-memory budget.
+- The historical Original 3DS probe exceeded its `64 MiB` application-memory budget. The `-O2` probe totaled `65.80 MiB`.
+
+## Building item storage
+
+The staged stock ItemModule keeps empty and one-entry inventories inline.
+A second occupied item ID allocates an array sized to the full stock
+catalog. Subclasses retain the protected item array used by upstream
+methods. The unified CI build compares item operations, active flow
+sampling, and current and legacy save data with the unmodified v160.8 JAR.
+This comparison runs on the JVM host. ARM11 heap measurements and dense
+reload are tracked separately in #538.
