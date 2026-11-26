@@ -65,7 +65,9 @@ final class UpstreamBuildingLayers {
     }
 
     static boolean supportsPayloadConveyorDraw(PayloadConveyorBuild conveyor) {
-        if (!(conveyor.item instanceof BuildPayload payload)) return true;
+        if (!(conveyor.item instanceof BuildPayload payload)) {
+            return conveyor.item == null || conveyor.item instanceof UnitPayload;
+        }
         var block = payload.block();
         return ((Constructor)Blocks.constructor).filter.contains(block, true)
             || block == Blocks.copperWall || block == Blocks.copperWallLarge
