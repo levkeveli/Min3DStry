@@ -261,7 +261,7 @@ opens the objectives and research requirements. Unlocking a node reveals
 its descendants in their original positions. The stock JVM reference
 compares the complete Serpulo and Erekir layouts, and the emulator verifier
 captures the tree before examining the node details and stock save readback.
-The [New 3DS replay at `95bb75d`](https://github.com/levkeveli/Min3DStry/actions/runs/45731625119/artifacts/15077814423)
+The [New 3DS replay at `d583a0f`](https://github.com/levkeveli/Min3DStry/actions/runs/45736219792/artifacts/15081485565)
 partially researched Conveyor on Serpulo and unlocked Duct on Erekir.
 Stock Java reopened both saves with the expected inventory and research.
 The captured tree showed the icons offset from their nodes. The replay
