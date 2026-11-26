@@ -148,14 +148,18 @@ embedded patch. The combined globe build at `9038fee` ran out of managed
 memory during the second decode at a ceiling of 57,356,288 bytes.
 [Reload evidence](https://github.com/levkeveli/Min3DStry/actions/runs/45742897355/artifacts/15082579642)
 
-The next diagnostic candidate tests the earlier 56 MiB managed ceiling
-with a 22 MiB native reserve. It uses the page-aligned portion of the
+The unified ROM allows up to 56 MiB of managed heap after reserving
+22 MiB for native allocations. It uses the page-aligned portion of the
 application's regular heap above that reserve, with the existing 32 MiB
 baseline on lower-memory launches. The globe has a separate 8 MiB GPU
 linear heap. The production budget still requires physical verification.
-The grouped release replay checks Serpulo 242, Littoral Shipyard, and Origin
-against the same ROM and reopens each result in the original Java game.
-Use --from-title with a named dense preset to open it through Play → Campaign.
+
+The [grouped New 3DS Azahar replay at `ed8ed3b`](https://github.com/levkeveli/Min3DStry/actions/runs/45746591294)
+loaded and reloaded Serpulo 242, Littoral Shipyard, and Origin using the
+same 56 MiB build. Unmodified Java v160.8 reopened both the manual and
+exit saves from each sector. The workflow can be run on demand to check
+all three maps and Frozen Forest recovery with one newly built unified ROM.
+Use `--from-title` with a named dense preset to open it through Play → Campaign.
 Large campaign saves collect temporary simulation and rendering objects before
 allocating the stock serializer and log the heap usage at that point.
 Physical New 3DS performance remains open.

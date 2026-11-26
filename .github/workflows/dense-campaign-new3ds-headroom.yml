@@ -1,8 +1,7 @@
-name: Verify dense campaign with New 3DS release headroom
+name: Verify large campaign maps and backups on New 3DS
 
 on:
-  push:
-    branches: [test/dense-campaign-new3ds-headroom]
+  workflow_dispatch:
 
 permissions:
   contents: read
