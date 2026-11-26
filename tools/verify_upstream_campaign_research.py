@@ -49,9 +49,13 @@ def verify(model: str, planet: str, rom: Path, azahar: str, config: Path, log: P
             sp._wait_for_log(log, proc, rf"UPSTREAM_CAMPAIGN_RESEARCH_OPEN tree={planet}\b", 160)
             sp._wait_for_log(log, proc, rf"UPSTREAM_CAMPAIGN_RESEARCH_TREE_FRAME tree={planet}\b", 30)
             tree = rpc.screenshot()
-            if sp.az.inspect_png(tree)["top_distinct_colors"] < 8:
-                raise AssertionError(f"{prefix}: research tree did not render")
             (output / f"{prefix}-tree.png").write_bytes(tree)
+            # The selected root starts centered. Sample well inside its frame,
+            # where the stock icon must cover the plain background.
+            icon_points = tuple((x, y) for y in range(110, 131, 5) for x in range(190, 211, 5))
+            image = sp.az.inspect_png(tree, icon_points)
+            if image["top_distinct_colors"] < 8 or len(set(image["samples"].values())) < 4:
+                raise AssertionError(f"{prefix}: the research tree or its centered stock icon did not render")
             sp._wait_for_log(log, proc, rf"UPSTREAM_CAMPAIGN_RESEARCH_SELECTED node={block} selectable=true\b", 90)
             screenshot = rpc.screenshot()
             if sp.az.inspect_png(screenshot)["top_distinct_colors"] < 8:

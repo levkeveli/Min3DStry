@@ -492,13 +492,17 @@ public final class UpstreamSinglePlayerApp {
     }
 
     private void drawMenuRows(MenuRows rows, byte[] titleControls) {
+        drawMenuRows(rows, titleControls, 2);
+    }
+
+    private void drawMenuRows(MenuRows rows, byte[] titleControls, int controlCount) {
         target.begin(0, 0, UpstreamTerrainDrawProbe.VIEW_WIDTH, UpstreamTerrainDrawProbe.VIEW_HEIGHT);
         try {
             float rowY = 6f;
             for (int i = 0; i < rows.labels.length; i++) {
                 rowY = target.drawObjective(rows.labels[i], rows.characters[i], null, rowY);
             }
-            if (titleControls != null) target.drawMenuHelp(titleControls, 2);
+            if (titleControls != null) target.drawMenuHelp(titleControls, controlCount);
         } finally {
             target.end();
         }
@@ -994,6 +998,9 @@ public final class UpstreamSinglePlayerApp {
         MenuRows rows = null;
         byte[] controls = ("A " + Core.bundle.get("info.title") + "\0B "
             + Core.bundle.get("back") + "\0").getBytes(StandardCharsets.UTF_8);
+        byte[] researchControls = ("A " + Core.bundle.get("research") + "\0B "
+            + Core.bundle.get("back") + "\0").getBytes(StandardCharsets.UTF_8);
+        byte[] backControl = ("B " + Core.bundle.get("back") + "\0").getBytes(StandardCharsets.UTF_8);
         System.out.println("UPSTREAM_CAMPAIGN_RESEARCH_OPEN tree=" + root.name + " visible=" + nodes.size);
         while (true) {
             long nextFrame = System.nanoTime() + FRAME_NS;
@@ -1002,7 +1009,9 @@ public final class UpstreamSinglePlayerApp {
 
             var selectedNode = nodes.get(selected);
             TechNode node = selectedNode.tech;
-            int touch = detail ? -1 : UpstreamTerrainRenderProbe.menuHelpAction(UpstreamSinglePlayerInput.touch(), 2);
+            boolean backOnly = detail && (!research.selectable(node) || node.content.unlockedHost());
+            int touch = UpstreamTerrainRenderProbe.menuHelpAction(UpstreamSinglePlayerInput.touch(), backOnly ? 1 : 2);
+            if (backOnly && touch == 0) touch = 1;
             if ((input & UpstreamSinglePlayerInput.B_PRESSED) != 0 || touch == 1) {
                 if (!detail) return true;
                 detail = false;
@@ -1048,7 +1057,8 @@ public final class UpstreamSinglePlayerApp {
             }
             if (detail) {
                 if (rows == null) rows = encodeMenuRows(researchDetail(node, research, page));
-                drawMenuRows(rows);
+                boolean canResearch = research.selectable(node) && !node.content.unlockedHost();
+                drawMenuRows(rows, canResearch ? researchControls : backControl, canResearch ? 2 : 1);
             } else {
                 selectedNode = nodes.get(selected);
                 if (rows == null) {
@@ -1073,7 +1083,8 @@ public final class UpstreamSinglePlayerApp {
         int accent = Integer.reverseBytes(Pal.accent.rgba8888());
         int gray = Integer.reverseBytes(Pal.gray.rgba8888());
         int available = Integer.reverseBytes(Color.gray.rgba8888());
-        target.begin(0, 0, UpstreamTerrainDrawProbe.VIEW_WIDTH, UpstreamTerrainDrawProbe.VIEW_HEIGHT);
+        // This graph uses the whole 400×240 top screen for both panels and sprites.
+        target.begin(0, 0, 20, 12);
         try {
             for (var node : tree.visible) {
                 if (node.parent == null) continue;
