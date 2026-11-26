@@ -203,7 +203,7 @@ MAIN_MENU screen=schematics selected=battery node detail=1
 and render `Schematics 2/2`, `Source: SD card`, `battery node`, `5x3, 2 blocks`,
 `battery-large, power-node-large`.
 
-## Remaining work
+### Historical harness gaps
 
 - Port the real upstream Scene2D `MenuFragment` rendering instead of the console shell.
 - Schematic import/export and RTS unit selection/command.
@@ -227,3 +227,9 @@ checks a real stock v160.8 server reply, duplicate suppression, malformed
 packet rejection and unsigned port handling. The New 3DS smoke replay uses
 a stock Glacier session on port 6567 and removes the endpoint file so the
 join must use the discovered server. Physical LAN verification is pending.
+
+In the [New 3DS Azahar replay at `0eb9015`](https://github.com/levkeveli/Min3DStry/actions/runs/45727812457/artifacts/15076928162),
+the German Join Game route discovered one stock v160.8 Glacier session.
+The details screen showed the stock mode, player count, version and
+advertised address. The server log recorded the same client connecting and
+disconnecting after the gameplay replay.
