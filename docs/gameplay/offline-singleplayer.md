@@ -121,6 +121,22 @@ slot loads and reloads at 600×600, draws a frame, and saves with its original
 backup. The server readback confirms the saved sector ID, dimensions, and
 gameplay patch. Keep the dense and standard fixture sets in separate directories.
 
+Campaign saves write the upstream stream to a same-directory temporary file
+and check its stock metadata before moving the old primary to the standard
+backup. A failed temporary write leaves both existing files intact. If a
+replacement stops after rotating the backup, the campaign menu can reopen
+the remaining backup and write the next save to the original slot name.
+Pass `--backup-only` to the campaign resume verifier to exercise that scenario.
+The [New 3DS replay at `f28cf81`](https://github.com/levkeveli/Min3DStry/actions/runs/45724376512/artifacts/15075271195)
+started with a backup-only Frozen Forest slot, loaded and reloaded the
+original 200 by 200 world, then wrote a new primary while preserving the
+backup. Unmodified v160.8 Java reopened the replacement and checked sector 64.
+
+When a campaign primary passes the metadata check but fails while loading the
+world, the next save preserves the backup that actually loaded. The recovered
+world is staged and installed in the primary slot. Pass `--truncated-primary`
+with `--server` to replay this case and have stock Java reopen the replacement.
+
 Pass `--dense-resave` with `--dense --server server-release.jar` to check both
 a manual save after reload and a later exit save. An [instrumented 56 MiB
 diagnostic ROM](https://github.com/levkeveli/Min3DStry/actions/runs/45711354495)

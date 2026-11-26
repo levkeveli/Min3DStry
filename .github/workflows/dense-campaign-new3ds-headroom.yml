@@ -50,7 +50,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        sector: [serpulo-242, littoral-shipyard, origin]
+        sector: [serpulo-242, littoral-shipyard, origin, frozen-forest-recovery]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -71,11 +71,19 @@ jobs:
           printf '%s  %s\n' faeaf247a8b622de940181a96cb21cb20692d3c3da4e8ac3f79cb4af5059aa6c server-release.jar |
             sha256sum --check
       - run: bash .github/scripts/setup_smoke_azahar.sh
-      - name: Resume, reload and save the original 600 by 600 sector twice
+      - name: Replay a dense campaign sector or stock backup recovery
         env:
           SECTOR: ${{ matrix.sector }}
         run: |
           server=build/unified-smoke/server-release.jar
+          if [ "$SECTOR" = frozen-forest-recovery ]; then
+            python3 tools/campaign_resume_fixtures.py --server "$server" \
+              --output "$RUNNER_TEMP/recovery-fixtures"
+            xvfb-run -a python3 tools/verify_upstream_campaign_resume.py --truncated-primary --model new3ds \
+              --rom build/unified-smoke/upstream-probe.3dsx --server "$server" \
+              --fixtures "$RUNNER_TEMP/recovery-fixtures" --output-dir build/dense-campaign-replay
+            exit 0
+          fi
           if [ "$SECTOR" = serpulo-242 ]; then
             scenario=(--dense)
             log=new3ds-multiple.log

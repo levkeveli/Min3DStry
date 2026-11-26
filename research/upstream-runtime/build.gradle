@@ -1418,6 +1418,20 @@ import port.audio.Arm11Audio;''')
                 // Use the existing unshaded geometry when the desktop renderer is absent.
                 source = source.replace(animated, "if(${renderer} != null && ${renderer}.animateShields){")
                 if (path == 'mindustry/graphics/Drawf.java') {
+                    def radialLight = '''        if(renderer == null) return;
+        renderer.lights.add(x, y, radius, color, opacity);'''
+                    def positionLight = '''        if(renderer == null) return;
+       light(pos.getX(), pos.getY(), radius, color, opacity);'''
+                    if (source.count(radialLight) != 1 || source.count(positionLight) != 1) {
+                        throw new GradleException('Pinned radial light entry points changed')
+                    }
+                    source = source.replace('import arc.*;', 'import arc.*;\nimport port.render.UpstreamBuildingLights;')
+                    source = source.replace(radialLight, '''        if(renderer == null){
+            UpstreamBuildingLights.radial(x, y, radius, color, opacity);
+            return;
+        }
+        renderer.lights.add(x, y, radius, color, opacity);''')
+                    source = source.replace(positionLight, '        light(pos.getX(), pos.getY(), radius, color, opacity);')
                     def stockUniforms = '''        Shaders.build.region = region;
         Shaders.build.progress = progress;
         Shaders.build.color.set(color);
@@ -2515,14 +2529,14 @@ final class UpstreamItemChoices {
         load(file, context, null);
     }
 
-    public static void load(Fi file, WorldContext context, StringMap playerTags) throws SaveException{''')
+    public static Fi load(Fi file, WorldContext context, StringMap playerTags) throws SaveException{''')
                 .replace(streamLoad, streamLoad + '''
         load(is, context, null);
     }
 
     private static void load(InputStream is, WorldContext context, StringMap playerTags) throws SaveException{''')
-                .replace(mainRead, 'load(new InflaterInputStream(file.read(bufferSize)), context, playerTags);')
-                .replace(backupRead, 'load(new InflaterInputStream(backup.read(bufferSize)), context, playerTags);')
+                .replace(mainRead, 'load(new InflaterInputStream(file.read(bufferSize)), context, playerTags);\n            return file;')
+                .replace(backupRead, 'load(new InflaterInputStream(backup.read(bufferSize)), context, playerTags);\n                return backup;')
                 .replace(readState, '''var readState = new SaveReadState(context);
             readState.playerTags = playerTags;
             ver.read(stream, counter, readState);''')
