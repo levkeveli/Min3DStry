@@ -4,12 +4,88 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import dataclass
+import hashlib
 import shutil
 import subprocess
 import tempfile
 from pathlib import Path
 
-from verify_upstream_live_net import stop, wait_for
+from campaign_settings_fixture import stock_console
+from verify_upstream_live_net import SERVER_SHA256, stop, wait_for
+
+
+@dataclass(frozen=True)
+class DensePreset:
+    planet: str
+    sector: int
+    map_name: str
+    patch_count: int
+    core: str
+
+    @property
+    def slot(self) -> str:
+        return f"sector-{self.planet}-{self.sector}.msav"
+
+
+DENSE_PRESETS = {
+    "littoral-shipyard": DensePreset("serpulo", 204, "littoralShipyard", 2, "core-shard"),
+    "origin": DensePreset("erekir", 12, "origin", 0, "core-acropolis"),
+}
+
+
+def _assert_dense_world(preset: DensePreset) -> str:
+    return f"""
+        const rules = Vars.state.rules, core = rules.defaultTeam.core();
+        if (String(rules.sector.planet.name) !== "{preset.planet}" || rules.sector.id !== {preset.sector} ||
+            String(Vars.state.map.name()) !== "{preset.map_name}" || Vars.world.width() !== 600 ||
+            Vars.world.height() !== 600 || Vars.state.data.getPatches().size !== {preset.patch_count} ||
+            core === null || String(core.block.name) !== "{preset.core}")
+            throw new Error("Wrong original dense sector, map, dimensions, patches or core");
+    """
+
+
+def _check_stock_jar(server: Path) -> None:
+    with server.open("rb") as file:
+        if hashlib.file_digest(file, "sha256").hexdigest() != SERVER_SHA256:
+            raise ValueError("Expected the official v160.8 server-release.jar")
+
+
+def create_dense_preset(java: str, server: Path, output: Path, preset: DensePreset) -> None:
+    _check_stock_jar(server)
+    output.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="m3ds-stock-dense-preset-") as temp:
+        root = Path(temp)
+        marker = f"STOCK_DENSE_PRESET_WRITTEN sector={preset.planet}:{preset.sector}"
+        script = f"""
+            const sector = Packages.mindustry.content.SectorPresets.{preset.map_name}.sector;
+            Vars.logic.reset();
+            Vars.world.loadSector(sector);
+            Vars.logic.play();
+            {_assert_dense_world(preset)}
+            Packages.mindustry.io.SaveIO.write(Packages.arc.files.Fi.get("{preset.slot}"));
+            return "{marker}";
+        """
+        stock_console(java, server, root, " ".join(script.splitlines()), marker)
+        shutil.copyfile(root / preset.slot, output / preset.slot)
+    print(marker, flush=True)
+
+
+def check_dense_preset(java: str, server: Path, save: Path, preset: DensePreset) -> None:
+    _check_stock_jar(server)
+    with tempfile.TemporaryDirectory(prefix="m3ds-stock-dense-readback-") as temp:
+        root = Path(temp)
+        shutil.copyfile(save, root / preset.slot)
+        marker = f"STOCK_DENSE_PRESET_READBACK sector={preset.planet}:{preset.sector} map={preset.map_name}"
+        script = f"""
+            const sector = Packages.mindustry.content.SectorPresets.{preset.map_name}.sector;
+            const file = Packages.arc.files.Fi.get("{preset.slot}");
+            Packages.mindustry.io.SaveIO.load(file, Vars.world.makeSectorContext(sector));
+            {_assert_dense_world(preset)}
+            return "{marker}";
+        """
+        stock_console(java, server, root, " ".join(script.splitlines()), marker)
+    print(marker, flush=True)
 
 
 def create(java: str, server: Path, output: Path, dense: bool = False, *, globe_lights: bool = False) -> None:
@@ -68,9 +144,14 @@ def main() -> None:
     parser.add_argument("--java", default="java")
     parser.add_argument("--server", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--dense", action="store_true", help="Use the original Serpulo 242 sector instead of Frozen Forest")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--dense", action="store_true", help="Use the original Serpulo 242 sector instead of Frozen Forest")
+    mode.add_argument("--dense-preset", choices=DENSE_PRESETS, help="Write one named 600x600 original sector")
     args = parser.parse_args()
-    create(args.java, args.server, args.output, args.dense)
+    if args.dense_preset:
+        create_dense_preset(args.java, args.server, args.output, DENSE_PRESETS[args.dense_preset])
+    else:
+        create(args.java, args.server, args.output, args.dense)
 
 
 if __name__ == "__main__":
