@@ -14,6 +14,11 @@ int32_t m3ds_host_net_open(int32_t port, int32_t peers, uint32_t id_seed) {
     return host != NULL;
 }
 
+int32_t m3ds_host_net_multicast(const char *group, int32_t port) {
+    return port > 0 && port <= UINT16_MAX &&
+        m3ds_net_host_socket_listen_multicast(host, group, (uint16_t)port);
+}
+
 void m3ds_host_net_close(void) {
     if (!host) return;
     m3ds_net_host_socket_close(host);

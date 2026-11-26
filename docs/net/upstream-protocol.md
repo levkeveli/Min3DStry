@@ -42,7 +42,9 @@ provider's 16 KiB incoming object-buffer bound.
 The host C tests cover split and coalesced frames, rejected registrations,
 and the stock acknowledgement. The nonblocking socket adapter queues TCP
 frames, receives UDP by registered endpoint, and exposes connection,
-disconnect and discovery events to the ARM11 bridge. A local loopback check
+disconnect and discovery events to the ARM11 bridge. The host listens for
+the stock direct broadcast and joins the stock multicast discovery group
+when the socket service supports it. A local loopback check
 used the unmodified v160.8 Arc client and packet serializer to complete
 registration, deliver the original `ConnectPacket` and a UDP ping, and
 disconnect. The stock world stream and gameplay dispatch through `NetServer`

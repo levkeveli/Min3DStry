@@ -1,3 +1,7 @@
+#if defined(__linux__) && !defined(_DEFAULT_SOURCE)
+#define _DEFAULT_SOURCE
+#endif
+
 #include "net/mindustry_host_socket.h"
 
 #include <stdlib.h>
@@ -5,6 +9,7 @@
 
 #ifdef _WIN32
 #include <winsock2.h>
+#include <ws2tcpip.h>
 typedef SOCKET HostFd;
 typedef int HostAddressLength;
 #define HOST_INVALID INVALID_SOCKET
@@ -51,20 +56,20 @@ typedef struct HostPeer {
 } HostPeer;
 
 struct M3dsNetHostSocket {
-  HostFd tcp, udp;
+  HostFd tcp, udp, multicast;
   HostPeer **peers;
   unsigned count, next;
   uint32_t id;
   struct sockaddr_in discovery;
-  bool discovery_pending, prefer_udp;
+  bool discovery_pending, prefer_udp, prefer_multicast;
   uint8_t udp_input[M3DS_HOST_MAX_INCOMING_FRAME + 1U];
 };
 
-static HostFd bind_socket(uint16_t port, int kind) {
+static HostFd bind_socket(uint16_t port, int kind, bool reuse_address) {
   HostFd fd = socket(AF_INET, kind, 0);
   if (fd == HOST_INVALID) return HOST_INVALID;
   int reuse = 1;
-  if (kind == SOCK_STREAM) (void)setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (const char *)&reuse, sizeof(reuse));
+  if (reuse_address) (void)setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (const char *)&reuse, sizeof(reuse));
   struct sockaddr_in address = {0};
   address.sin_family = AF_INET;
   address.sin_port = htons(port);
@@ -80,7 +85,7 @@ M3dsNetHostSocket *m3ds_net_host_socket_open(uint16_t port, unsigned peers, uint
   if (!port || !peers) return NULL;
   M3dsNetHostSocket *host = calloc(1, sizeof(*host));
   if (!host) return NULL;
-  host->tcp = host->udp = HOST_INVALID;
+  host->tcp = host->udp = host->multicast = HOST_INVALID;
   host->peers = calloc(peers, sizeof(*host->peers));
   if (!host->peers) {
     free(host);
@@ -88,13 +93,35 @@ M3dsNetHostSocket *m3ds_net_host_socket_open(uint16_t port, unsigned peers, uint
   }
   host->count = peers;
   host->id = id_seed;
-  host->tcp = bind_socket(port, SOCK_STREAM);
-  host->udp = bind_socket(port, SOCK_DGRAM);
+  host->tcp = bind_socket(port, SOCK_STREAM, true);
+  host->udp = bind_socket(port, SOCK_DGRAM, false);
   if (host->tcp == HOST_INVALID || host->udp == HOST_INVALID || listen(host->tcp, SOMAXCONN) != 0) {
     m3ds_net_host_socket_close(host);
     return NULL;
   }
   return host;
+}
+
+bool m3ds_net_host_socket_listen_multicast(M3dsNetHostSocket *host, const char *group, uint16_t port) {
+#ifdef IP_ADD_MEMBERSHIP
+  if (!host || !group || !port || host->multicast != HOST_INVALID) return false;
+  struct ip_mreq membership = {0};
+  if (inet_pton(AF_INET, group, &membership.imr_multiaddr) != 1) return false;
+  membership.imr_interface.s_addr = htonl(INADDR_ANY);
+  HostFd fd = bind_socket(port, SOCK_DGRAM, true);
+  if (fd == HOST_INVALID) return false;
+  if (setsockopt(fd, IPPROTO_IP, IP_ADD_MEMBERSHIP, (const char *)&membership, sizeof(membership)) != 0) {
+    host_close(fd);
+    return false;
+  }
+  host->multicast = fd;
+  return true;
+#else
+  (void)host;
+  (void)group;
+  (void)port;
+  return false;
+#endif
 }
 
 static void release_peer(M3dsNetHostSocket *host, unsigned index) {
@@ -111,6 +138,7 @@ void m3ds_net_host_socket_close(M3dsNetHostSocket *host) {
   }
   if (host->tcp != HOST_INVALID) host_close(host->tcp);
   if (host->udp != HOST_INVALID) host_close(host->udp);
+  if (host->multicast != HOST_INVALID) host_close(host->multicast);
   free(host->peers);
   free(host);
 }
@@ -148,11 +176,11 @@ static M3dsNetHostEvent peer_event(M3dsNetHostEventKind kind, unsigned index, co
   return (M3dsNetHostEvent){kind, index, peer->address.sin_addr.s_addr, size};
 }
 
-static M3dsNetHostEvent poll_udp(M3dsNetHostSocket *host, uint8_t *out) {
+static M3dsNetHostEvent poll_datagram(M3dsNetHostSocket *host, HostFd fd, uint8_t *out) {
   struct sockaddr_in address;
   HostAddressLength addr_size = sizeof(address);
   uint8_t *payload = host->udp_input;
-  int n = (int)recvfrom(host->udp, (char *)payload, sizeof(host->udp_input), 0,
+  int n = (int)recvfrom(fd, (char *)payload, sizeof(host->udp_input), 0,
                          (struct sockaddr *)&address, &addr_size);
   if (n <= 0 || (size_t)n > M3DS_HOST_MAX_INCOMING_FRAME) return (M3dsNetHostEvent){0};
   M3dsNetFrameworkMsg message;
@@ -162,6 +190,7 @@ static M3dsNetHostEvent poll_udp(M3dsNetHostSocket *host, uint8_t *out) {
     host->discovery_pending = true;
     return (M3dsNetHostEvent){.kind = M3DS_HOST_EVENT_DISCOVERY, .ipv4 = address.sin_addr.s_addr};
   }
+  if (fd != host->udp) return (M3dsNetHostEvent){0};
   for (unsigned i = 0; i < host->count; ++i) {
     HostPeer *peer = host->peers[i];
     if (!peer || peer->address.sin_addr.s_addr != address.sin_addr.s_addr) continue;
@@ -181,6 +210,15 @@ static M3dsNetHostEvent poll_udp(M3dsNetHostSocket *host, uint8_t *out) {
     }
   }
   return (M3dsNetHostEvent){0};
+}
+
+static M3dsNetHostEvent poll_udp(M3dsNetHostSocket *host, uint8_t *out) {
+  if (host->multicast == HOST_INVALID) return poll_datagram(host, host->udp, out);
+  host->prefer_multicast = !host->prefer_multicast;
+  HostFd first = host->prefer_multicast ? host->multicast : host->udp;
+  HostFd second = host->prefer_multicast ? host->udp : host->multicast;
+  M3dsNetHostEvent event = poll_datagram(host, first, out);
+  return event.kind == M3DS_HOST_EVENT_NONE ? poll_datagram(host, second, out) : event;
 }
 
 static M3dsNetHostEvent drop_peer(M3dsNetHostSocket *host, unsigned index) {

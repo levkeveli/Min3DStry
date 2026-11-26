@@ -23,6 +23,7 @@ typedef struct M3dsNetHostEvent {
 
 /* The caller owns the platform socket service. `id_seed` initializes the ArcNet ID sequence. */
 M3dsNetHostSocket *m3ds_net_host_socket_open(uint16_t port, unsigned peers, uint32_t id_seed);
+bool m3ds_net_host_socket_listen_multicast(M3dsNetHostSocket *host, const char *group, uint16_t port);
 void m3ds_net_host_socket_close(M3dsNetHostSocket *host);
 
 /* Non-blocking. Give the caller enough space for one stock incoming payload. */

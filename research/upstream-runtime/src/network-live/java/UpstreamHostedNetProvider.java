@@ -6,6 +6,7 @@ import arc.util.Log;
 import arc.util.Time;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import mindustry.Vars;
@@ -49,6 +50,10 @@ final class UpstreamHostedNetProvider implements Net.NetProvider {
             throw new IOException("Unable to open the stock multiplayer port");
         }
         open = true;
+        byte[] group = (Vars.multicastGroup + "\0").getBytes(StandardCharsets.US_ASCII);
+        if (Native.multicast(Address.ofData(group), Vars.multicastPort) == 0) {
+            Log.warn("Stock multiplayer multicast registration failed");
+        }
     }
 
     void update() {
@@ -253,6 +258,7 @@ final class UpstreamHostedNetProvider implements Net.NetProvider {
     @Include(value = "m3ds_host_net_bridge.h", isSystem = true)
     private static final class Native {
         @Import(name = "m3ds_host_net_open") static native int open(int port, int peers, int idSeed);
+        @Import(name = "m3ds_host_net_multicast") static native int multicast(Address group, int port);
         @Import(name = "m3ds_host_net_close") static native void close();
         @Import(name = "m3ds_host_net_poll") static native int poll(Address data, int capacity, Address details);
         @Import(name = "m3ds_host_net_send") static native int send(int peer, Address data, int size, int reliable);
