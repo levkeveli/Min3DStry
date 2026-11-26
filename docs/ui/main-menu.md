@@ -219,6 +219,10 @@ address or DNS name and port. Select an entry to join, edit or delete it.
 The list uses the stock `servers` value in `settings.bin`, including the
 original Arc binary records. Imported desktop endpoints that exceed the
 handheld transport's current IPv4 support stay in the list and can be edited.
+As in the desktop Join dialog, an older `server-list` value takes priority
+when present. Saving an edit writes the current stock format and migrates
+the old value. An incomplete legacy list is preserved for recovery.
+[Pinned desktop loader](https://github.com/Anuken/Mindustry/blob/19a0f40d44514f4802a8b79770456e7e32e34da0/core/src/mindustry/ui/dialogs/JoinDialog.java#L628-L639).
 
 libctru handles the sockets, while the pinned Mindustry NetworkIO reader
 decodes the same bytes as the Java PC client. The loopback host reference
