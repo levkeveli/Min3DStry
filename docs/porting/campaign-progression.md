@@ -75,7 +75,9 @@ camera orientation to sample the original pixels before drawing the
 planet meshes. It decodes one face at a time and reuses the 400×240
 image while orientation and field of view stay fixed. Host checks
 exercise both axes of all six faces, direction scaling, and edge
-clamping. The New 3DS replay requires a skybox draw submission.
+clamping. The New 3DS replay requires a skybox draw submission and
+compares overview screenshot pixels with the pinned PNGs sampled
+through the stock Arc camera.
 
 The native atmosphere reference translates v160.8's
 `core/assets/shaders/atmosphere.frag` with the original three samples
