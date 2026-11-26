@@ -26,6 +26,7 @@ import mindustry.Vars;
 import mindustry.content.Blocks;
 import mindustry.content.Items;
 import mindustry.content.Planets;
+import mindustry.content.TechTree;
 import mindustry.content.TechTree.TechNode;
 import mindustry.core.UI;
 import mindustry.core.World;
@@ -239,7 +240,7 @@ public final class UpstreamSinglePlayerApp {
                 System.out.println("UPSTREAM_CAMPAIGN_SELECTED slot=" + selected.file.name() + " source=single name=" + selected.sector.name());
                 campaign = new CampaignGame(selected, null);
             } else if (!sectorSaves.isEmpty()) {
-                campaign = chooseCampaign(sectorSaves, mapDir.child("campaign-select.txt"));
+                campaign = chooseCampaign(sectorSaves, mapDir.child("campaign-select.txt"), atlas);
                 if (campaign == null) return;
             }
             // Load the initial world before initializing world sprites to keep peak TeaVM heap bounded.
@@ -287,7 +288,7 @@ public final class UpstreamSinglePlayerApp {
                 do {
                     if (defeated && !showCampaignDefeat(origin)) break campaignLoop;
                     System.out.println("UPSTREAM_CAMPAIGN_WORLD_MENU sector=" + origin.id);
-                    next = chooseCampaign(session.campaignSlots(session.sectorSaves(), origin), null);
+                    next = chooseCampaign(session.campaignSlots(session.sectorSaves(), origin), null, atlas);
                     if (campaignExitRequested) break campaignLoop;
                 } while (defeated && next == null);
                 // Opening the selector replaces the bottom-screen labels even if the player returns to this sector.
@@ -331,11 +332,11 @@ public final class UpstreamSinglePlayerApp {
 
     private record CampaignGame(UpstreamSinglePlayerSession.SectorSlot slot, UpstreamCampaignLoadout loadout) {}
 
-    private CampaignGame chooseCampaign(List<UpstreamSinglePlayerSession.SectorSlot> slots, Fi automatic) {
+    private CampaignGame chooseCampaign(List<UpstreamSinglePlayerSession.SectorSlot> slots, Fi automatic, Fi atlas) throws IOException {
         if (slots.isEmpty()) return null;
         loadInterfaceRenderer();
         while (!campaignExitRequested) {
-            var selected = chooseSector(slots, automatic);
+            var selected = chooseSector(slots, automatic, atlas);
             if (selected == null) return null;
             if (selected.origin == null || selected.origin == selected.sector) return new CampaignGame(selected, null);
             var loadout = confirmLaunch(selected);
@@ -597,7 +598,7 @@ public final class UpstreamSinglePlayerApp {
     }
 
     private UpstreamSinglePlayerSession.SectorSlot chooseSector(
-            List<UpstreamSinglePlayerSession.SectorSlot> slots, Fi automatic) {
+            List<UpstreamSinglePlayerSession.SectorSlot> slots, Fi automatic, Fi atlas) throws IOException {
         int selected = UpstreamSinglePlayerSession.lastSectorRow(slots);
         final boolean globeAvailable = target.campaignPlanetAvailable();
         int lastAxis = 0;
@@ -647,8 +648,18 @@ public final class UpstreamSinglePlayerApp {
                 renderedRow = selected;
             }
             if (globeAvailable && (input & UpstreamSinglePlayerInput.X_PRESSED) != 0) {
-                var slot = chooseSectorOnGlobe(slots, slots.get(selected).sector);
+                Sector from = slots.get(selected).sector;
+                var slot = chooseSectorOnGlobe(slots, from, atlas);
                 if (slot != null || campaignExitRequested) return slot;
+                selected = UpstreamSinglePlayerSession.lastSectorRow(slots);
+                for (int i = 0; i < slots.size(); i++) {
+                    if (slots.get(i).sector == from) {
+                        selected = i;
+                        break;
+                    }
+                }
+                renderedRow = -1;
+                continue;
             }
             drawMenuRows(rows);
             while (System.nanoTime() < nextFrame) Thread.yield();
@@ -656,7 +667,7 @@ public final class UpstreamSinglePlayerApp {
     }
 
     private UpstreamSinglePlayerSession.SectorSlot chooseSectorOnGlobe(
-            List<UpstreamSinglePlayerSession.SectorSlot> slots, Sector initial) {
+            List<UpstreamSinglePlayerSession.SectorSlot> slots, Sector initial, Fi atlas) throws IOException {
         Vars.universe.updateGlobal();
         if (initial.planet != Planets.erekir && initial.planet != Planets.serpulo) {
             initial = Planets.serpulo.getStartSector();
@@ -693,6 +704,30 @@ public final class UpstreamSinglePlayerApp {
                     globe.switchPlanet();
                     cursorX = 200;
                     cursorY = 120;
+                }
+                TechNode researchRoot = globe.planet().techTree;
+                if (researchRoot != null && (input & UpstreamSinglePlayerInput.R_PRESSED) != 0) {
+                    loadInterfaceGraphics(atlas);
+                    System.out.println("UPSTREAM_CAMPAIGN_GLOBE_RESEARCH planet=" + globe.planet().name);
+                    if (!openResearch(researchRoot, Vars.state.gameOver ? null : campaignSlot)) {
+                        campaignExitRequested = true;
+                        return null;
+                    }
+                    var updated = session.campaignSlots(session.sectorSaves(), Vars.state.getSector());
+                    slots.clear();
+                    slots.addAll(updated);
+                    if (preview != null) {
+                        Sector activePreview = preview.sector;
+                        preview = null;
+                        for (var slot : slots) {
+                            if (slot.sector == activePreview) {
+                                preview = slot;
+                                break;
+                            }
+                        }
+                    }
+                    rows = null;
+                    continue;
                 }
                 if ((input & (1 << 26)) != 0) globe.zoom(0.9f);
                 if ((input & (1 << 27)) != 0) globe.zoom(1 / 0.9f);
@@ -739,6 +774,7 @@ public final class UpstreamSinglePlayerApp {
                         "Y " + Core.bundle.get("planet", "Planet") + "   B "
                             + Core.bundle.get(preview == null ? "back" : "cancel"),
                         action == null ? "" : "A " + Core.bundle.get(action),
+                        researchRoot == null ? "" : "R " + Core.bundle.get("techtree"),
                     });
                     previous = sector;
                     previousSelection = selectedSector;
@@ -807,6 +843,7 @@ public final class UpstreamSinglePlayerApp {
                     target.drawObjective(rows.labels[0], rows.characters[0], null, 6);
                     target.drawObjective(rows.labels[1], rows.characters[1], null, 210);
                     if (rows.characters[2].length > 0) target.drawObjective(rows.labels[2], rows.characters[2], null, 192);
+                    if (rows.characters[3].length > 0) target.drawObjective(rows.labels[3], rows.characters[3], null, 174);
                 } finally {
                     target.end();
                 }
@@ -990,6 +1027,9 @@ public final class UpstreamSinglePlayerApp {
     }
 
     private boolean openResearch(TechNode root, Fi saveFile) throws IOException {
+        TechNode preferred = root;
+        boolean multipleTrees = TechTree.roots.count(candidate ->
+            !candidate.requiresUnlock || candidate.content.unlockedHost()) > 1;
         var research = new UpstreamCampaignResearch(root);
         var tree = new UpstreamCampaignResearchTree(root);
         var nodes = tree.visible;
@@ -998,6 +1038,9 @@ public final class UpstreamSinglePlayerApp {
         MenuRows rows = null;
         byte[] controls = ("A " + Core.bundle.get("info.title") + "\0B "
             + Core.bundle.get("back") + "\0").getBytes(StandardCharsets.UTF_8);
+        byte[] treeControls = ("A " + Core.bundle.get("info.title") + "\0B "
+            + Core.bundle.get("back") + "\0X " + Core.bundle.get("techtree.select") + "\0")
+            .getBytes(StandardCharsets.UTF_8);
         byte[] researchControls = ("A " + Core.bundle.get("research") + "\0B "
             + Core.bundle.get("back") + "\0").getBytes(StandardCharsets.UTF_8);
         byte[] backControl = ("B " + Core.bundle.get("back") + "\0").getBytes(StandardCharsets.UTF_8);
@@ -1010,7 +1053,24 @@ public final class UpstreamSinglePlayerApp {
             var selectedNode = nodes.get(selected);
             TechNode node = selectedNode.tech;
             boolean backOnly = detail && (!research.selectable(node) || node.content.unlockedHost());
-            int touch = UpstreamTerrainRenderProbe.menuHelpAction(UpstreamSinglePlayerInput.touch(), backOnly ? 1 : 2);
+            boolean switchable = !detail && multipleTrees;
+            int controlCount = backOnly ? 1 : switchable ? 3 : 2;
+            int touch = UpstreamTerrainRenderProbe.menuHelpAction(UpstreamSinglePlayerInput.touch(), controlCount);
+            if (switchable && ((input & UpstreamSinglePlayerInput.X_PRESSED) != 0 || touch == 2)) {
+                int index = TechTree.roots.indexOf(root, true);
+                do {
+                    index = (index + 1) % TechTree.roots.size;
+                    root = TechTree.roots.get(index);
+                } while (root != preferred && root.requiresUnlock && !root.content.unlockedHost());
+                research = new UpstreamCampaignResearch(root);
+                tree = new UpstreamCampaignResearchTree(root);
+                nodes = tree.visible;
+                selected = page = lastAxis = lastHorizontal = 0;
+                drewTree = false;
+                rows = null;
+                System.out.println("UPSTREAM_CAMPAIGN_RESEARCH_SWITCH tree=" + root.name);
+                continue;
+            }
             if (backOnly && touch == 0) touch = 1;
             if ((input & UpstreamSinglePlayerInput.B_PRESSED) != 0 || touch == 1) {
                 if (!detail) return true;
@@ -1024,7 +1084,8 @@ public final class UpstreamSinglePlayerApp {
                     System.out.println("UPSTREAM_CAMPAIGN_RESEARCH_SELECTED node=" + node.content.name
                         + " selectable=" + research.selectable(node));
                 } else if (research.spend(node)) {
-                    session.save(saveFile);
+                    if (saveFile != null) session.save(saveFile);
+                    else Core.settings.manualSave();
                     tree.refresh();
                     selected = nodes.indexOf(selectedNode, true);
                     rows = null;
@@ -1064,9 +1125,10 @@ public final class UpstreamSinglePlayerApp {
                 if (rows == null) {
                     String title = research.selectable(selectedNode.tech)
                         ? selectedNode.tech.content.localizedName : "???";
-                    rows = encodeMenuRows(new String[]{title});
+                    rows = encodeMenuRows(new String[]{root.localizedName(), title});
                 }
-                drawResearchTree(tree, selectedNode, research, rows, controls);
+                drawResearchTree(tree, selectedNode, research, rows,
+                    multipleTrees ? treeControls : controls, multipleTrees ? 3 : 2);
                 if (!drewTree) {
                     drewTree = true;
                     System.out.println("UPSTREAM_CAMPAIGN_RESEARCH_TREE_FRAME tree=" + root.name + " visible=" + nodes.size);
@@ -1077,7 +1139,8 @@ public final class UpstreamSinglePlayerApp {
     }
 
     private void drawResearchTree(UpstreamCampaignResearchTree tree, UpstreamCampaignResearchTree.Node selected,
-                                  UpstreamCampaignResearch research, MenuRows caption, byte[] controls) {
+                                  UpstreamCampaignResearch research, MenuRows caption, byte[] controls,
+                                  int controlCount) {
         float scale = 0.55f, size = selected.width * scale, half = size / 2f;
         float offsetX = 200f - selected.x * scale, offsetY = 120f + selected.y * scale;
         int accent = Integer.reverseBytes(Pal.accent.rgba8888());
@@ -1119,7 +1182,8 @@ public final class UpstreamSinglePlayerApp {
                 }
             }
             target.drawObjective(caption.labels[0], caption.characters[0], null, 6f);
-            target.drawMenuHelp(controls, 2);
+            target.drawObjective(caption.labels[1], caption.characters[1], null, 24f);
+            target.drawMenuHelp(controls, controlCount);
         } finally {
             target.end();
         }

@@ -37,15 +37,31 @@ def create(java: str, server: Path, output: Path) -> None:
                 io.write(file);
                 Packages.arc.Core.settings.forceSave();
                 if (!io.getMeta(file).rules.sector.equals(sector)) throw new Error("Wrong sector");
+                Packages.arc.files.Fi.get("config/settings.bin").copyTo(
+                    Packages.arc.files.Fi.get("{planet}-settings.bin"));
+                if ("{planet}" === "serpulo") {{
+                    sector.info.hasCore = true;
+                    sector.info.waves = false;
+                    sector.info.attack = false;
+                    sector.info.storageCapacity = 1000;
+                    sector.info.items.set(resource, {amount});
+                    sector.saveInfo();
+                    Packages.mindustry.content.Planets.erekir.techTree.content.unlock();
+                    Packages.arc.Core.settings.forceSave();
+                    Packages.arc.files.Fi.get("config/settings.bin").copyTo(
+                        Packages.arc.files.Fi.get("serpulo-globe-settings.bin"));
+                }}
                 return "UPSTREAM_PC_RESEARCH_FIXTURE";
             """
             stock_console(java, server, root, " ".join(script.splitlines()), r"UPSTREAM_PC_RESEARCH_FIXTURE")
             shutil.copyfile(root / name, output / name)
-            shutil.copyfile(root / "config/settings.bin", output / f"{planet}-settings.bin")
+            shutil.copyfile(root / f"{planet}-settings.bin", output / f"{planet}-settings.bin")
+            if planet == "serpulo":
+                shutil.copyfile(root / "serpulo-globe-settings.bin", output / "serpulo-globe-settings.bin")
             print(f"[PASS] stock v160.8 created {planet} research fixture", flush=True)
 
 
-def check(java: str, server: Path, planet: str, world: Path, settings: Path) -> None:
+def check(java: str, server: Path, planet: str, world: Path, settings: Path, *, globe: bool = False) -> None:
     preset, name, item, _, block, amount, remaining, unlocked = CASES[planet]
     with tempfile.TemporaryDirectory(prefix="m3ds-stock-research-readback-") as temp:
         root = Path(temp)
@@ -57,9 +73,17 @@ def check(java: str, server: Path, planet: str, world: Path, settings: Path) -> 
             const settings = Packages.arc.Core.settings;
             const io = Packages.mindustry.io.SaveIO;
             const slot = Packages.arc.files.Fi.get("{name}");
-            io.load(slot, Vars.world.makeSectorContext(sector));
+            const item = Packages.mindustry.content.Items.{item};
+            let inventory;
+            if ({str(globe).lower()}) {{
+                sector.loadInfo();
+                inventory = sector.info.items.get(item);
+            }} else {{
+                io.load(slot, Vars.world.makeSectorContext(sector));
+                inventory = Vars.state.rules.defaultTeam.items().get(item);
+            }}
             if (!io.getMeta(slot).rules.sector.equals(sector)
-                || Vars.state.rules.defaultTeam.items().get(Packages.mindustry.content.Items.{item}) !== {remaining}
+                || inventory !== {remaining}
                 || settings.getInt("req-{block}-{item}", -1) !== {amount}
                 || settings.getBool("{block}-unlocked", false) !== {str(unlocked).lower()}) {{
                 throw new Error("Unexpected sector inventory or research state");
@@ -67,7 +91,8 @@ def check(java: str, server: Path, planet: str, world: Path, settings: Path) -> 
             return "UPSTREAM_PC_RESEARCH_REOPENED";
         """
         stock_console(java, server, root, " ".join(script.splitlines()), r"UPSTREAM_PC_RESEARCH_REOPENED")
-    print(f"[PASS] stock v160.8 reopened {planet} world and research settings", flush=True)
+    source = "saved sector inventory" if globe else "live world inventory"
+    print(f"[PASS] stock v160.8 reopened {planet} {source} and research settings", flush=True)
 
 
 def check_progression(java: str, server: Path, output: Path) -> None:

@@ -79,3 +79,9 @@ Offline resume restores player position, team, controlled unit and control
 groups from the metadata of the save that actually loaded. If the primary
 save has readable metadata but fails later in the stock loader, the backup
 world receives the backup player metadata.
+
+The planet map exposes the stock Tech Tree with R and opens the selected
+planet's research tree. X cycles eligible stock trees inside the research
+screen. With no active world, contributions debit saved sector inventories
+and flush the original Arc settings. In a running campaign, contributions
+also save the active sector through the existing campaign save path.
