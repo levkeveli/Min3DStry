@@ -76,6 +76,7 @@ def verify(model: str, planet: str, rom: Path, azahar: str, config: Path, log: P
         name, world, size = STARTERS[planet]
     prefix = f"{model}-{planet}"
     sd = (output / "virtual-sd" / prefix).resolve()
+    sp.stage_direct_startup(sd)
     root = sd / "3ds/min3dstry"
     root.mkdir(parents=True)
     saves = root / "saves"

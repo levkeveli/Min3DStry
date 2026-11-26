@@ -53,6 +53,13 @@ final class UpstreamSchematicPlacement {
         Arrays.fill(icons, -1);
     }
 
+    Fi[] libraryFiles() {
+        Fi[] sorted = Arrays.stream(directory.list()).filter(file -> !file.isDirectory()
+            && file.extEquals(Vars.schematicExtension)).toArray(Fi[]::new);
+        Arrays.sort(sorted, Comparator.comparing(Fi::name, String.CASE_INSENSITIVE_ORDER).thenComparing(Fi::name));
+        return sorted;
+    }
+
     void open() {
         readFiles();
         open = true;
@@ -61,9 +68,7 @@ final class UpstreamSchematicPlacement {
     }
 
     private void readFiles() {
-        files = Arrays.stream(directory.list()).filter(file -> !file.isDirectory()
-            && file.extEquals(Vars.schematicExtension)).toArray(Fi[]::new);
-        Arrays.sort(files, Comparator.comparing(Fi::name, String.CASE_INSENSITIVE_ORDER).thenComparing(Fi::name));
+        files = libraryFiles();
         page = 0;
     }
 
@@ -219,7 +224,7 @@ final class UpstreamSchematicPlacement {
         labels = text.toString().getBytes(StandardCharsets.UTF_8);
     }
 
-    private static Schematic readSchematic(Fi file) throws IOException {
+    static Schematic readSchematic(Fi file) throws IOException {
         try (var input = file.read(1024)) {
             return Schematics.read(input);
         }
@@ -240,7 +245,7 @@ final class UpstreamSchematicPlacement {
         return true;
     }
 
-    private static String readDisplayName(Fi file) {
+    static String readDisplayName(Fi file) {
         try (var input = file.read(1024)) {
             // The pinned Schematics reader starts with msch, a version byte,
             // then compressed dimensions and tags. Listing needs only those tags.
