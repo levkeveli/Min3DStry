@@ -25,13 +25,18 @@ public final class UpstreamUnifiedApp {
         if (args.length == 0) {
             int input = UpstreamSinglePlayerInput.poll();
             if (input < 0) return;
-            if ((input & UpstreamSinglePlayerInput.X_HELD) != 0) {
+            final int hostButtons = UpstreamSinglePlayerInput.X_HELD | UpstreamSinglePlayerInput.Y_HELD;
+            if ((input & hostButtons) == hostButtons) {
+                offline(args, new UpstreamHostedSession());
+            } else if ((input & UpstreamSinglePlayerInput.X_HELD) != 0) {
                 join(args);
             } else if ((input & UpstreamSinglePlayerInput.Y_HELD) != 0) {
                 offline(new String[]{"--title"});
             } else {
                 offline(args);
             }
+        } else if (args[0].equals("--host")) {
+            offline(Arrays.copyOfRange(args, 1, args.length), new UpstreamHostedSession());
         } else if (args[0].equals("--join")) {
             if (args.length > 2) throw new IllegalArgumentException("Expected --join [endpoint-file]");
             join(Arrays.copyOfRange(args, 1, args.length));
@@ -82,6 +87,10 @@ public final class UpstreamUnifiedApp {
     }
 
     private static void offline(String[] args) throws IOException, InterruptedException {
+        offline(args, new UpstreamSinglePlayerApp.SessionHooks() {});
+    }
+
+    private static void offline(String[] args, UpstreamSinglePlayerApp.SessionHooks session) throws IOException {
         System.out.println("UPSTREAM_BOOT mode=offline");
         try {
             UpstreamSinglePlayerApp.run(args, new UpstreamSinglePlayerApp.AudioHooks() {
@@ -103,7 +112,7 @@ public final class UpstreamUnifiedApp {
                     Arm11Audio.updateCamera(camera.position.x, camera.position.y, camera.width, camera.height);
                     Arm11Audio.updateClientAudio(now);
                 }
-            });
+            }, session);
         } finally {
             Arm11Audio.close();
         }

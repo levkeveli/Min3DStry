@@ -134,8 +134,17 @@ public final class UpstreamSinglePlayerApp {
         default void update(long now) {}
     }
 
-    private UpstreamSinglePlayerApp(AudioHooks audio) {
+    interface SessionHooks {
+        default void open() throws IOException {}
+        default void tick() {}
+        default void close() {}
+    }
+
+    private final SessionHooks sessionHooks;
+
+    private UpstreamSinglePlayerApp(AudioHooks audio, SessionHooks sessionHooks) {
         this.audio = audio;
+        this.sessionHooks = sessionHooks;
     }
 
     public static void main(String[] args) throws IOException {
@@ -143,8 +152,12 @@ public final class UpstreamSinglePlayerApp {
     }
 
     static void run(String[] args, AudioHooks audio) throws IOException {
+        run(args, audio, new SessionHooks() {});
+    }
+
+    static void run(String[] args, AudioHooks audio, SessionHooks hooks) throws IOException {
         try {
-            new UpstreamSinglePlayerApp(audio).run(args);
+            new UpstreamSinglePlayerApp(audio, hooks).run(args);
         } catch (IOException | RuntimeException failure) {
             System.out.println("UPSTREAM_SP_ERROR " + failure.getClass().getName() + ": " + failure.getMessage());
             throw failure;
@@ -274,6 +287,8 @@ public final class UpstreamSinglePlayerApp {
                     System.out.println("UPSTREAM_SP_REMOVED x=" + event.tile.x + " y=" + event.tile.y);
                 }
             });
+            session.ensurePlayerSpawn();
+            sessionHooks.open();
             campaignLoop:
             while (runMainLoop(saveFile)) {
                 var origin = Vars.state.rules.sector;
@@ -300,6 +315,7 @@ public final class UpstreamSinglePlayerApp {
                 reportWeather();
             }
         } finally {
+            sessionHooks.close();
             if (campaignSlot != null && !Vars.state.gameOver) {
                 try {
                     session.save(campaignSlot);
@@ -1287,6 +1303,7 @@ public final class UpstreamSinglePlayerApp {
             }
 
             unit = session.ensurePlayerSpawn();
+            sessionHooks.tick();
             updateTelemetry(unit, input);
             render(unit);
             Thread.yield();

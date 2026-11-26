@@ -55,8 +55,11 @@ exchanges compressed `ConnectPacket` data with the stock desktop serializer
 in both directions and checks the same raw framing for `StreamChunk`.
 The hosted provider hands original packets to `Net.handleServerReceived`
 and queues world streams as stock `StreamBegin` and `StreamChunk` packets.
-It uses `NetworkIO.writeServerData` for LAN advertisements. Loading and
-playing a hosted world still needs verification in the unified New 3DS app.
+It uses `NetworkIO.writeServerData` for LAN advertisements. The unified
+app's development hosting route starts the stock `NetServer` after world
+load and advances it each frame. Hold X and Y at startup or launch with
+`--host` to select that route. The ARM11 build and a PC client joining and
+playing that world still need verification.
 
 1. **TCP Outer Framing:** `uint16_be payload_len` + `payload` bytes, read via stateful `TcpFrameReader` so partial headers/bodies across TCP segments and short UDP poll windows resume cleanly without dropping bytes.
 2. **ArcNet `FrameworkMessage` (`0xFE` sentinel + id):**
