@@ -1806,6 +1806,27 @@ ${barOracle}""")
 
                 def indexerPath = 'mindustry/ai/BlockIndexer.java'
                 def indexer = new String(readUpstream('core/src/' + indexerPath), 'UTF-8')
+                def worldLoaded = '        Events.on(WorldLoadEvent.class, event -> {'
+                if (indexer.count(worldLoaded) != 1) throw new GradleException('Pinned BlockIndexer world load changed')
+                indexer = indexer.replace(worldLoaded, '''        Events.on(ResetEvent.class, event -> {
+            // WorldLoadEvent rebuilds these indexes after decode. Drop their old world references before it.
+            for(var flags : flagMap){
+                for(var buildings : flags){
+                    if(buildings != null) buildings.clear();
+                }
+            }
+            for(var buildings : damagedTiles){
+                if(buildings != null) buildings.clear();
+            }
+            if(floorMap != null){
+                for(var floors : floorMap){
+                    if(floors != null) floors.clear();
+                }
+            }
+            breturnArray.clear();
+        });
+
+''' + worldLoaded)
                 def oreStorage = 'private IntSeq[][][] ores, wallOres;'
                 def oreRead = 'world.tile(arr.first())'
                 def oreLookup = '''                for(int qy = 0; qy < quadHeight; qy++){

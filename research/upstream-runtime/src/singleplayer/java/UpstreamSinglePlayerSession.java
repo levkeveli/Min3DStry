@@ -608,6 +608,11 @@ public final class UpstreamSinglePlayerSession {
         return Vars.player.unit();
     }
 
+    int coreCopper() {
+        var core = core();
+        return core == null ? 0 : core.items.get(Items.copper);
+    }
+
     CoreBuild core() {
         return (Vars.player == null ? Vars.state.rules.defaultTeam : Vars.player.team()).core();
     }
