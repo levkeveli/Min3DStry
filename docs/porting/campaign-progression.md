@@ -86,7 +86,10 @@ The mesh exporter stages the original `MeshBuilder.buildHex(Color.white, 2, 1.5f
 proxy with its 540 vertices and 1,068 indices. The projection clips the
 original triangles at the near plane before dividing by W, preserving
 the mesh depth and aligning the texture UVs to framebuffer pixels.
-The Citro3D pass still needs to submit the proxy against the planet depth buffer.
+Citro3D samples the scattering raster on the stock proxy and blends it
+additively against the planet depth buffer, with depth writes disabled.
+The focused globes and the overview use each world's stock atmosphere
+settings. The New 3DS replay requires submissions for Serpulo and Erekir.
 
 The stock JVM reference confirms that the projected mesh centers and
 `Planet.getSector` agree for Ground Zero and The Onset. It also exercises

@@ -3,10 +3,12 @@ import arc.graphics.Blending;
 import arc.graphics.Color;
 import arc.graphics.g2d.TextureRegion;
 import arc.graphics.g3d.Camera3D;
+import arc.math.geom.Mat3D;
 import arc.util.Align;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import mindustry.Vars;
+import mindustry.type.Planet;
 import org.teavm.interop.Import;
 import org.teavm.interop.Address;
 import org.teavm.interop.c.Include;
@@ -20,7 +22,9 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
     static final int PALETTE_LABEL_COUNT = 15;
 
     private final boolean reportFrame;
-    private final float[] skyboxCamera = new float[7];
+    private final float[] campaignCamera = new float[7];
+    private final float[] atmosphere = new float[11];
+    private final Mat3D atmosphereProjection = new Mat3D(), atmosphereModel = new Mat3D();
     private final int[] stockObjectiveFont = new int[1];
 
     UpstreamTerrainRenderProbe(boolean reportFrame) {
@@ -129,10 +133,14 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
     }
 
     boolean drawCampaignPlanet(int planet, float[] matrix, float[] lighting, float[] overlay,
-            int vertices, int sectorVertices, int[] surface, int[] ids, float[] planes, float[] markerMatrix, int markers) {
+            int vertices, int sectorVertices, int[] surface) {
         return NativeTerrain.drawCampaignPlanet(planet, Address.ofData(matrix), Address.ofData(lighting),
-            Address.ofData(overlay), vertices, sectorVertices, Address.ofData(surface), surface.length / 3,
-            Address.ofData(ids), Address.ofData(planes), Address.ofData(markerMatrix), markers) != 0;
+            Address.ofData(overlay), vertices, sectorVertices, Address.ofData(surface), surface.length / 3) != 0;
+    }
+
+    void drawCampaignMarkers(int planet, float[] matrix, int[] ids, float[] planes, int markers) {
+        NativeTerrain.drawCampaignMarkers(planet, Address.ofData(matrix), Address.ofData(ids),
+            Address.ofData(planes), markers);
     }
 
     void releaseCampaignPlanet() {
@@ -140,19 +148,43 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
     }
 
     boolean drawCampaignBody(int planet, float[] matrix, float[] lighting) {
-        return drawCampaignPlanet(planet, matrix, lighting, EMPTY_FLOATS, 0, 0, EMPTY_INTS,
-            EMPTY_INTS, EMPTY_FLOATS, matrix, 0);
+        return drawCampaignPlanet(planet, matrix, lighting, EMPTY_FLOATS, 0, 0, EMPTY_INTS);
+    }
+
+    private void setCampaignCamera(Camera3D camera) {
+        campaignCamera[0] = camera.direction.x;
+        campaignCamera[1] = camera.direction.y;
+        campaignCamera[2] = camera.direction.z;
+        campaignCamera[3] = camera.up.x;
+        campaignCamera[4] = camera.up.y;
+        campaignCamera[5] = camera.up.z;
+        campaignCamera[6] = (float)Math.tan(Math.toRadians(camera.fov * 0.5f));
     }
 
     void drawCampaignSkybox(Camera3D camera) {
-        skyboxCamera[0] = camera.direction.x;
-        skyboxCamera[1] = camera.direction.y;
-        skyboxCamera[2] = camera.direction.z;
-        skyboxCamera[3] = camera.up.x;
-        skyboxCamera[4] = camera.up.y;
-        skyboxCamera[5] = camera.up.z;
-        skyboxCamera[6] = (float)Math.tan(Math.toRadians(camera.fov * 0.5f));
-        NativeTerrain.drawCampaignSkybox(Address.ofData(skyboxCamera));
+        setCampaignCamera(camera);
+        NativeTerrain.drawCampaignSkybox(Address.ofData(campaignCamera));
+    }
+
+    boolean drawCampaignAtmosphere(int index, Planet planet, Camera3D camera) {
+        if (planet.parent == null || !planet.hasAtmosphere || !Core.settings.getBool("atmosphere", true)
+            || !camera.frustum.containsSphere(planet.position, planet.clipRadius)) return true;
+        setCampaignCamera(camera);
+        atmosphereProjection.set(camera.combined).mul(planet.getTransform(atmosphereModel));
+        atmosphere[0] = planet.radius + planet.atmosphereRadIn;
+        atmosphere[1] = planet.radius + planet.atmosphereRadOut;
+        atmosphere[2] = planet.atmosphereColor.r;
+        atmosphere[3] = planet.atmosphereColor.g;
+        atmosphere[4] = planet.atmosphereColor.b;
+        var light = planet.getLightNormal();
+        atmosphere[5] = light.x;
+        atmosphere[6] = light.y;
+        atmosphere[7] = light.z;
+        atmosphere[8] = camera.position.x - planet.position.x;
+        atmosphere[9] = camera.position.y - planet.position.y;
+        atmosphere[10] = camera.position.z - planet.position.z;
+        return NativeTerrain.drawCampaignAtmosphere(index, Address.ofData(atmosphereProjection.val),
+            Address.ofData(campaignCamera), Address.ofData(atmosphere)) != 0;
     }
 
     boolean drawCampaignOrbits(float[] matrix, float[] vertices, int count) {
@@ -418,14 +450,19 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
 
         @Import(name = "m3ds_terrain_draw_campaign_planet")
         static native int drawCampaignPlanet(int planet, Address matrix, Address lighting, Address overlay,
-            int vertices, int sectorVertices, Address surface, int faces,
-            Address ids, Address planes, Address markerMatrix, int markers);
+            int vertices, int sectorVertices, Address surface, int faces);
+
+        @Import(name = "m3ds_terrain_draw_campaign_markers")
+        static native void drawCampaignMarkers(int planet, Address matrix, Address ids, Address planes, int markers);
 
         @Import(name = "m3ds_terrain_release_campaign_planet")
         static native void releaseCampaignPlanet();
 
         @Import(name = "m3ds_terrain_draw_campaign_skybox")
         static native int drawCampaignSkybox(Address camera);
+
+        @Import(name = "m3ds_terrain_draw_campaign_atmosphere")
+        static native int drawCampaignAtmosphere(int planet, Address matrix, Address camera, Address atmosphere);
 
         @Import(name = "m3ds_terrain_draw_campaign_orbits")
         static native int drawCampaignOrbits(Address matrix, Address vertices, int count);

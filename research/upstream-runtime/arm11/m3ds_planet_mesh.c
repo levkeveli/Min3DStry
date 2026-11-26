@@ -1,5 +1,7 @@
 #include "m3ds_planet_mesh.h"
 #include "m3ds_planet_shbin.h"
+#include "m3ds_atmosphere_shbin.h"
+#include "m3ds_planet_atmosphere.h"
 #ifdef M3DS_CAMPAIGN_PLANET_MARKERS
 #include "m3ds_planet_markers.h"
 #endif
@@ -15,6 +17,7 @@
 enum {
     serpulo, erekir, sun, gier, notva, verilus,
     serpulo_cloud_0, serpulo_cloud_1, erekir_cloud_0, erekir_cloud_1,
+    atmosphere_mesh,
     planet_count, max_overlay_vertices = UINT16_MAX
 };
 
@@ -34,6 +37,19 @@ typedef struct {
 
 static PlanetFaces bodies[planet_count];
 
+enum { atmosphere_width = 400, atmosphere_height = 240, texture_width = 512, texture_height = 256 };
+static struct {
+    C3D_Tex texture;
+    M3dsAtmosphereVertex *projected;
+    bool ready;
+    bool reported;
+    float camera[7];
+    float parameters[11];
+} atmospheres[2];
+static DVLB_s *atmosphere_shader;
+static shaderProgram_s atmosphere_program;
+static C3D_AttrInfo atmosphere_attributes;
+
 static struct {
     PlanetVertex *overlay;
     size_t overlay_capacity;
@@ -52,6 +68,16 @@ static void release_faces(PlanetFaces *faces) {
 
 void m3ds_planet_release(void) {
     for (int planet = 0; planet < planet_count; planet++) release_faces(&bodies[planet]);
+    for (int i = 0; i < 2; i++) {
+        if (atmospheres[i].texture.data) C3D_TexDelete(&atmospheres[i].texture);
+        if (atmospheres[i].projected) linearFree(atmospheres[i].projected);
+    }
+    memset(atmospheres, 0, sizeof(atmospheres));
+    if (atmosphere_shader) {
+        shaderProgramFree(&atmosphere_program);
+        DVLB_Free(atmosphere_shader);
+        atmosphere_shader = NULL;
+    }
 #ifdef M3DS_CAMPAIGN_PLANET_MARKERS
     m3ds_planet_release_markers();
 #endif
@@ -77,6 +103,7 @@ static bool load_faces(PlanetFaces *faces, int32_t planet) {
         [serpulo_cloud_1] = "romfs:/planet-meshes/serpulo-cloud-1.m3pm",
         [erekir_cloud_0] = "romfs:/planet-meshes/erekir-cloud-0.m3pm",
         [erekir_cloud_1] = "romfs:/planet-meshes/erekir-cloud-1.m3pm",
+        [atmosphere_mesh] = "romfs:/planet-meshes/atmosphere.m3pm",
     };
     if (faces->stock) return true;
     FILE *file = fopen(assets[planet], "rb");
@@ -286,6 +313,117 @@ static void draw_overlay(const float *overlay, int32_t vertices, int32_t sector_
     }
 }
 
+static bool load_atmosphere_shader(void) {
+    if (atmosphere_shader) return true;
+    atmosphere_shader = DVLB_ParseFile((u32 *)m3ds_atmosphere_shbin, m3ds_atmosphere_shbin_size);
+    if (!atmosphere_shader) return false;
+    shaderProgramInit(&atmosphere_program);
+    shaderProgramSetVsh(&atmosphere_program, &atmosphere_shader->DVLE[0]);
+    AttrInfo_Init(&atmosphere_attributes);
+    AttrInfo_AddLoader(&atmosphere_attributes, 0, GPU_FLOAT, 3);
+    AttrInfo_AddLoader(&atmosphere_attributes, 1, GPU_FLOAT, 2);
+    return true;
+}
+
+static unsigned atmosphere_texel(unsigned x, unsigned y) {
+    unsigned morton = 0;
+    for (unsigned bit = 0; bit < 3; bit++) {
+        morton |= ((x >> bit) & 1) << (2 * bit);
+        morton |= ((y >> bit) & 1) << (2 * bit + 1);
+    }
+    return ((y / 8) * (texture_width / 8) + x / 8) * 64 + morton;
+}
+
+static bool update_atmosphere_texture(int planet, const float *camera, const float *parameters) {
+    if (atmospheres[planet].ready && !memcmp(atmospheres[planet].camera, camera, sizeof(atmospheres[planet].camera))
+            && !memcmp(atmospheres[planet].parameters, parameters, sizeof(atmospheres[planet].parameters))) return true;
+    C3D_Tex *texture = &atmospheres[planet].texture;
+    if (!texture->data) {
+        if (!C3D_TexInit(texture, texture_width, texture_height, GPU_RGBA8)) return false;
+        C3D_TexSetFilter(texture, GPU_NEAREST, GPU_NEAREST);
+        C3D_TexSetWrap(texture, GPU_CLAMP_TO_EDGE, GPU_CLAMP_TO_EDGE);
+    }
+    uint8_t *rgb = malloc(atmosphere_width * atmosphere_height * 3);
+    if (!rgb) return false;
+    M3dsAtmosphere atmosphere = {parameters[0], parameters[1], {parameters[2], parameters[3], parameters[4]},
+        {parameters[5], parameters[6], parameters[7]}};
+    M3dsAtmosphereVector eye = {parameters[8], parameters[9], parameters[10]};
+    // Arc Camera3D keeps direction and up normalized and orthogonal.
+    M3dsAtmosphereVector dx = {camera[1] * camera[5] - camera[2] * camera[4],
+        camera[2] * camera[3] - camera[0] * camera[5], camera[0] * camera[4] - camera[1] * camera[3]};
+    const float step = 2 * camera[6] / atmosphere_height;
+    dx = (M3dsAtmosphereVector){dx.x * step, dx.y * step, dx.z * step};
+    const M3dsAtmosphereVector dy = {-camera[3] * step, -camera[4] * step, -camera[5] * step};
+    const float x = -0.5f * (atmosphere_width - 1), y = -0.5f * (atmosphere_height - 1);
+    const M3dsAtmosphereVector first = {camera[0] + dx.x * x + dy.x * y,
+        camera[1] + dx.y * x + dy.y * y, camera[2] + dx.z * x + dy.z * y};
+    m3ds_atmosphere_raster(&atmosphere, eye, first, dx, dy, atmosphere_width, atmosphere_height, rgb);
+    for (unsigned row = 0; row < atmosphere_height; row++) {
+        for (unsigned col = 0; col < atmosphere_width; col++) {
+            const uint8_t *color = rgb + (row * atmosphere_width + col) * 3;
+            uint8_t *abgr = (uint8_t *)texture->data + atmosphere_texel(col, row) * 4;
+            abgr[0] = 255;
+            abgr[1] = color[2];
+            abgr[2] = color[1];
+            abgr[3] = color[0];
+        }
+    }
+    C3D_TexFlush(texture);
+    free(rgb);
+    memcpy(atmospheres[planet].camera, camera, sizeof(atmospheres[planet].camera));
+    memcpy(atmospheres[planet].parameters, parameters, sizeof(atmospheres[planet].parameters));
+    atmospheres[planet].ready = true;
+    return true;
+}
+
+int32_t m3ds_planet_draw_atmosphere(int32_t planet, const float *matrix,
+    const float *camera, const float *parameters) {
+    if (planet < serpulo || planet > erekir) return 0;
+    PlanetFaces *shell = &bodies[atmosphere_mesh];
+    if (!load_faces(shell, atmosphere_mesh) || !load_atmosphere_shader()) return 0;
+    if (!atmospheres[planet].projected) {
+        atmospheres[planet].projected = linearAlloc((size_t)shell->indices * 2 * sizeof(M3dsAtmosphereVertex));
+        if (!atmospheres[planet].projected) return 0;
+    }
+    M3dsAtmosphereVertex *projected = atmospheres[planet].projected;
+    unsigned count = 0;
+    for (unsigned i = 0; i < shell->indices; i += 3) {
+        M3dsAtmosphereVector triangle[3];
+        for (unsigned j = 0; j < 3; j++) {
+            const float *v = shell->stock + shell->index[i + j] * shell->stride;
+            triangle[j] = (M3dsAtmosphereVector){v[0], v[1], v[2]};
+        }
+        count += m3ds_atmosphere_project_triangle(triangle, matrix, (float)atmosphere_width / texture_width,
+            (float)atmosphere_height / texture_height, projected + count);
+    }
+    if (!count) return 1;
+    if (!update_atmosphere_texture(planet, camera, parameters)) return 0;
+    GSPGPU_FlushDataCache(projected, count * sizeof(*projected));
+    C3D_BindProgram(&atmosphere_program);
+    C3D_SetAttrInfo(&atmosphere_attributes);
+    C3D_BufInfo buffers;
+    BufInfo_Init(&buffers);
+    BufInfo_Add(&buffers, projected, sizeof(*projected), 2, 0x10);
+    C3D_SetBufInfo(&buffers);
+    C3D_TexBind(0, &atmospheres[planet].texture);
+    for (int i = 0; i < 6; i++) C3D_TexEnvInit(C3D_GetTexEnv(i));
+    C3D_TexEnvSrc(C3D_GetTexEnv(0), C3D_Both, GPU_TEXTURE0, GPU_TEXTURE0, GPU_TEXTURE0);
+    C3D_TexEnvFunc(C3D_GetTexEnv(0), C3D_Both, GPU_REPLACE);
+    C3D_DepthTest(true, GPU_GEQUAL, GPU_WRITE_COLOR);
+    C3D_CullFace(GPU_CULL_BACK_CCW);
+    C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_SRC_ALPHA, GPU_ONE, GPU_SRC_ALPHA, GPU_ONE);
+    C3D_DrawArrays(GPU_TRIANGLES, 0, count);
+    C3D_CullFace(GPU_CULL_NONE);
+    if (!atmospheres[planet].reported) {
+        atmospheres[planet].reported = true;
+        char record[88];
+        int size = snprintf(record, sizeof(record), "UPSTREAM_CAMPAIGN_ATMOSPHERE_DRAW planet=%ld vertices=%u\n",
+            (long)planet, count);
+        if (size > 0 && size < (int)sizeof(record)) svcOutputDebugString(record, size);
+    }
+    return 1;
+}
+
 int32_t m3ds_planet_draw_orbits(const float *matrix, const float *overlay, int32_t vertices) {
     if (vertices == 0) return 1;
     if (vertices < 0 || vertices > max_overlay_vertices || vertices % 3 != 0
@@ -296,9 +434,8 @@ int32_t m3ds_planet_draw_orbits(const float *matrix, const float *overlay, int32
 }
 
 int32_t m3ds_planet_draw(int32_t planet, const float *matrix, const float *lighting,
-    const float *overlay, int32_t vertices, int32_t sector_vertices, const int32_t *surface, int32_t faces,
-    const int32_t *ids, const float *planes, const float *marker_matrix, int32_t markers) {
-    if (planet < 0 || planet >= planet_count || vertices < 0 || vertices > max_overlay_vertices
+    const float *overlay, int32_t vertices, int32_t sector_vertices, const int32_t *surface, int32_t faces) {
+    if (planet < 0 || planet >= atmosphere_mesh || vertices < 0 || vertices > max_overlay_vertices
         || sector_vertices < 0 || sector_vertices > vertices || sector_vertices % 3 != 0
         || vertices % 3 != 0) return 0;
     PlanetFaces *body = &bodies[planet];
@@ -317,8 +454,15 @@ int32_t m3ds_planet_draw(int32_t planet, const float *matrix, const float *light
     C3D_DrawElements(GPU_TRIANGLES, (int)body->indices, C3D_UNSIGNED_SHORT, body->index);
     if (cloud) C3D_CullFace(GPU_CULL_NONE);
     if (vertices) draw_overlay(overlay, vertices, sector_vertices);
+    return 1;
+}
+
+void m3ds_planet_draw_sector_markers(int32_t planet, const float *matrix,
+    const int32_t *ids, const float *planes, int32_t markers) {
 #ifdef M3DS_CAMPAIGN_PLANET_MARKERS
-    C3D_Mtx marker_projection = screen_projection(marker_matrix);
+    if (planet < serpulo || planet > erekir || markers <= 0) return;
+    PlanetFaces *body = &bodies[planet];
+    C3D_Mtx marker_projection = screen_projection(matrix);
     int32_t submitted = m3ds_planet_draw_markers(&marker_projection, ids, planes, markers);
     if (submitted > 0 && !body->reported_markers) {
         body->reported_markers = true;
@@ -328,10 +472,10 @@ int32_t m3ds_planet_draw(int32_t planet, const float *matrix, const float *light
         if (size > 0 && size < (int)sizeof(record)) svcOutputDebugString(record, size);
     }
 #else
+    (void)planet;
+    (void)matrix;
     (void)ids;
     (void)planes;
-    (void)marker_matrix;
     (void)markers;
 #endif
-    return 1;
 }

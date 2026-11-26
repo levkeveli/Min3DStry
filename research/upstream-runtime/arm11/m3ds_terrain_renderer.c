@@ -1038,13 +1038,11 @@ int32_t m3ds_terrain_campaign_planet_available(void) {
 }
 
 int32_t m3ds_terrain_draw_campaign_planet(int32_t planet, const float *matrix, const float *lighting,
-    const float *overlay, int32_t vertices, int32_t sector_vertices, const int32_t *surface, int32_t faces,
-    const int32_t *ids, const float *planes, const float *marker_matrix, int32_t markers) {
+    const float *overlay, int32_t vertices, int32_t sector_vertices, const int32_t *surface, int32_t faces) {
 #ifdef M3DS_CAMPAIGN_PLANETS
     if (!frame_open) return 0;
     C2D_Flush();
-    int32_t drawn = m3ds_planet_draw(planet, matrix, lighting, overlay, vertices, sector_vertices, surface, faces,
-        ids, planes, marker_matrix, markers);
+    int32_t drawn = m3ds_planet_draw(planet, matrix, lighting, overlay, vertices, sector_vertices, surface, faces);
     C2D_Prepare();
     begin_world_scene();
     return drawn;
@@ -1057,11 +1055,24 @@ int32_t m3ds_terrain_draw_campaign_planet(int32_t planet, const float *matrix, c
     (void)sector_vertices;
     (void)surface;
     (void)faces;
+    return 0;
+#endif
+}
+
+void m3ds_terrain_draw_campaign_markers(int32_t planet, const float *matrix,
+    const int32_t *ids, const float *planes, int32_t markers) {
+#ifdef M3DS_CAMPAIGN_PLANETS
+    if (!frame_open || markers <= 0) return;
+    C2D_Flush();
+    m3ds_planet_draw_sector_markers(planet, matrix, ids, planes, markers);
+    C2D_Prepare();
+    begin_world_scene();
+#else
+    (void)planet;
+    (void)matrix;
     (void)ids;
     (void)planes;
-    (void)marker_matrix;
     (void)markers;
-    return 0;
 #endif
 }
 
@@ -1129,6 +1140,24 @@ int32_t m3ds_terrain_draw_campaign_skybox(const float *camera) {
     return ok;
 #else
     (void)camera;
+    return 0;
+#endif
+}
+
+int32_t m3ds_terrain_draw_campaign_atmosphere(int32_t planet, const float *matrix,
+    const float *camera, const float *parameters) {
+#ifdef M3DS_CAMPAIGN_PLANETS
+    if (!frame_open) return 0;
+    C2D_Flush();
+    int32_t drawn = m3ds_planet_draw_atmosphere(planet, matrix, camera, parameters);
+    C2D_Prepare();
+    begin_world_scene();
+    return drawn;
+#else
+    (void)planet;
+    (void)matrix;
+    (void)camera;
+    (void)parameters;
     return 0;
 #endif
 }

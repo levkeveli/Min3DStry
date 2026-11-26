@@ -171,6 +171,10 @@ if [[ $# -gt 0 ]]; then
         "$DEVKITPRO/tools/bin/bin2s" -a 4 -H "$output/nativeinclude/m3ds_planet_shbin.h" \
             "$output/m3ds_planet.shbin" > "$output/m3ds_planet_shader.s"
         terrain_sources+=("$root/m3ds_planet_mesh.c" "$output/m3ds_planet_shader.s")
+        "$DEVKITPRO/tools/bin/picasso" -o "$output/m3ds_atmosphere.shbin" "$root/m3ds_atmosphere.v.pica"
+        "$DEVKITPRO/tools/bin/bin2s" -a 4 -H "$output/nativeinclude/m3ds_atmosphere_shbin.h" \
+            "$output/m3ds_atmosphere.shbin" > "$output/m3ds_atmosphere_shader.s"
+        terrain_sources+=("$root/m3ds_planet_atmosphere.c" "$output/m3ds_atmosphere_shader.s")
         cp -R "$1/planet-meshes" "$output/romfs/planet-meshes"
         if [[ -d "$1/planet-icons" && -d "$1/world-atlas" ]]; then
             terrain_flags+=(-DM3DS_CAMPAIGN_PLANET_MARKERS)

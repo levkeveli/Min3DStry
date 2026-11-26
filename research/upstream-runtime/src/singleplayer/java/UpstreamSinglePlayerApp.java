@@ -995,11 +995,15 @@ public final class UpstreamSinglePlayerApp {
                 try {
                     target.drawCampaignSkybox(globe.camera);
                     if (!target.drawCampaignPlanet(globe.meshIndex(), globe.projection.val, globe.lighting,
-                            overlay.vertices.items, overlayVertices, sectorVertices, surfaceFaces,
-                            markers.ids.items, markers.planes.items, globe.camera.combined.val, markers.ids.size / 2)) {
+                            overlay.vertices.items, overlayVertices, sectorVertices, surfaceFaces)) {
                         System.out.println("UPSTREAM_CAMPAIGN_GLOBE_ERROR planet=" + globe.planet().name);
                         return null;
                     }
+                    if (!target.drawCampaignAtmosphere(globe.meshIndex(), globe.planet(), globe.camera)) {
+                        System.out.println("UPSTREAM_CAMPAIGN_ATMOSPHERE_ERROR planet=" + globe.planet().name);
+                    }
+                    target.drawCampaignMarkers(globe.meshIndex(), globe.camera.combined.val,
+                        markers.ids.items, markers.planes.items, markers.ids.size / 2);
                     if (planetChanged) {
                         System.out.println("UPSTREAM_CAMPAIGN_SECTOR_OVERLAY planet=" + globe.planet().name
                             + " vertices=" + sectorVertices + " shadowed=" + overlay.shadowed
@@ -1048,6 +1052,7 @@ public final class UpstreamSinglePlayerApp {
         Planet previous = null;
         MenuRows rows = null;
         UpstreamCampaignSystem.BodyDrawer draw = target::drawCampaignBody;
+        UpstreamCampaignSystem.AtmosphereDrawer atmosphere = target::drawCampaignAtmosphere;
         try {
             while (true) {
                 long nextFrame = System.nanoTime() + FRAME_NS;
@@ -1077,7 +1082,7 @@ public final class UpstreamSinglePlayerApp {
                 try {
                     target.drawCampaignSkybox(system.camera);
                     system.updateOrbits();
-                    if (!system.drawBodies(draw) || !target.drawCampaignOrbits(system.camera.combined.val,
+                    if (!system.drawBodies(draw, atmosphere) || !target.drawCampaignOrbits(system.camera.combined.val,
                             system.orbits.items, system.orbits.size / UpstreamCampaignSectorOverlay.FLOATS_PER_VERTEX)) {
                         System.out.println("UPSTREAM_CAMPAIGN_SYSTEM_ERROR");
                         return null;

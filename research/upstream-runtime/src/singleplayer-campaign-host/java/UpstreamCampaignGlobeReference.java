@@ -147,8 +147,13 @@ public final class UpstreamCampaignGlobeReference {
         if (!system.drawBodies((asset, matrix, lighting) -> {
             drawn.add(asset);
             return true;
-        }) || !drawn.equals(arc.struct.IntSeq.with(2, 1, 3, 4, 0, 5, 8, 9, 6, 7))) {
-            throw new AssertionError("Stock opaque or cloud draw order changed: " + drawn);
+        }, (asset, planet, camera) -> {
+            if (camera != system.camera || !planet.hasAtmosphere || planet.parent == null
+                || planet != (asset == 0 ? Planets.serpulo : Planets.erekir)) return false;
+            drawn.add(10 + asset);
+            return true;
+        }) || !drawn.equals(arc.struct.IntSeq.with(2, 1, 3, 4, 0, 5, 8, 9, 11, 6, 7, 10))) {
+            throw new AssertionError("Stock opaque, cloud or atmosphere draw order changed: " + drawn);
         }
         System.out.println("UPSTREAM_CAMPAIGN_CLOUD_REFERENCE planets=2 layers=4 stockSpeeds=ok");
     }

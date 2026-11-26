@@ -69,6 +69,7 @@ def verify(args):
             sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_GLOBE_FRAME planet=serpulo sector=170 selection=-1 "
                                        r"surface=true\b", 25)
             sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_SKYBOX_DRAW width=400 height=240\b", 15)
+            sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_ATMOSPHERE_DRAW planet=0 vertices=[1-9]\d*\b", 15)
             capture_globe(rpc, args.output / "new3ds-serpulo.png")
             sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_GLOBE planet=serpulo sector=(?!170\b)\d+ available=", 100)
             sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_SYSTEM_FRAME bodies=6 selected=serpulo orbits=[1-9]\d*\b", 60)
@@ -85,6 +86,7 @@ def verify(args):
                                        r"shadowed=[1-9]\d* outlined=[1-9]\d*", 25)
             sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_SECTOR_GRID planet=erekir edges=[1-9]\d* vertices=[1-9]\d*", 25)
             sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_GLOBE_FRAME planet=erekir sector=10 selection=-1\b", 25)
+            sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_ATMOSPHERE_DRAW planet=1 vertices=[1-9]\d*\b", 15)
             capture_globe(rpc, args.output / "new3ds-erekir.png")
             sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_GLOBE_PREVIEW planet=erekir sector=10 resume=false\b", 60)
             sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_GLOBE_FRAME planet=erekir sector=10 selection=10\b", 25)

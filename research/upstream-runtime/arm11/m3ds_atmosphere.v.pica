@@ -1,0 +1,11 @@
+; Positions have been projected and clipped. W=1 keeps UV interpolation affine.
+.in vertex v0
+.in texcoord v1
+.out outpos position
+.out outuv texcoord0
+
+.proc main
+    mov outpos, vertex
+    mov outuv, texcoord
+    end
+.end

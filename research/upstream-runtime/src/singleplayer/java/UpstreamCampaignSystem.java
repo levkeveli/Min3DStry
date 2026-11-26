@@ -24,6 +24,11 @@ final class UpstreamCampaignSystem {
         boolean draw(int asset, float[] matrix, float[] lighting);
     }
 
+    @FunctionalInterface
+    interface AtmosphereDrawer {
+        boolean draw(int asset, Planet planet, Camera3D camera);
+    }
+
     final Camera3D camera = new Camera3D();
     final Seq<Planet> bodies = new Seq<>(), selectable = new Seq<>();
     final FloatSeq orbits = new FloatSeq();
@@ -117,7 +122,7 @@ final class UpstreamCampaignSystem {
         }
     }
 
-    boolean drawBodies(BodyDrawer draw) {
+    boolean drawBodies(BodyDrawer draw, AtmosphereDrawer atmosphere) {
         for (Planet planet : bodies) {
             if (!camera.frustum.containsSphere(planet.position, planet.clipRadius)) continue;
             if (!drawMesh(draw, planet, meshIndex(planet), planet.getTransform(transform), planet.getRotation())) {
@@ -128,6 +133,9 @@ final class UpstreamCampaignSystem {
         for (Planet planet : bodies) {
             if (planet == Planets.serpulo && !drawClouds(draw, planet, 6, serpuloClouds, ticks)) return false;
             if (planet == Planets.erekir && !drawClouds(draw, planet, 8, erekirClouds, ticks)) return false;
+            if (planet == Planets.serpulo || planet == Planets.erekir) {
+                if (!atmosphere.draw(meshIndex(planet), planet, camera)) return false;
+            }
         }
         return true;
     }
