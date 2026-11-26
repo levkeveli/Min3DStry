@@ -30,6 +30,8 @@ on:
       - "tools/verify_upstream_campaign_resume.py"
       - "tools/campaign_resume_fixtures.py"
       - "tools/verify_stock_campaign_archive.py"
+      - "tools/verify_upstream_campaign_globe.py"
+      - "tools/UpstreamCampaignPlanetMeshes.java"
       - "tools/verify_azahar.py"
       - "tools/UpstreamSpriteAtlas.java"
       - ".github/scripts/cc_host.sh"
@@ -1382,6 +1384,12 @@ jobs:
           python3 tools/campaign_resume_fixtures.py --server "$server" --output "$fixtures"
           xvfb-run -a python3 tools/verify_upstream_campaign_resume.py --backup-only --model new3ds \
             --rom "$rom" --server "$server" --fixtures "$fixtures" --output-dir build/offline-smoke/campaign-backup
+      - name: Replay campaign lighting, both stock globes, and The Onset launch
+        run: >-
+          xvfb-run -a python3 tools/verify_upstream_campaign_globe.py
+          --rom build/unified-smoke/upstream-probe.3dsx
+          --server build/unified-smoke/server-release.jar
+          --output build/offline-smoke/campaign-globe
       - uses: actions/upload-artifact@v4
         if: always()
         with:
