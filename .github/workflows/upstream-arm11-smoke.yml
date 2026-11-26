@@ -1352,12 +1352,12 @@ jobs:
           name: unified-arm11-smoke
           path: build/unified-smoke
       - run: bash .github/scripts/setup_smoke_azahar.sh
-      - name: Ground Zero movement, mining, building and save/reload
+      - name: Ground Zero movement, mining, building, database and save/reload
         run: |
           for attempt in 1 2; do
             if xvfb-run -a python3 tools/verify_upstream_singleplayer.py \
                 --rom build/unified-smoke/upstream-probe.3dsx \
-                --output-dir build/offline-smoke --model new3ds; then
+                --output-dir build/offline-smoke --verify-database --model new3ds; then
               exit 0
             fi
             if [ "$attempt" -eq 2 ]; then

@@ -14,6 +14,7 @@ final class UpstreamSinglePlayerInput {
     static final int L_HELD = 1 << 23;
     static final int CAMPAIGN_HELD = 1 << 24;
     static final int X_HELD = 1 << 25;
+    static final int Y_HELD = 1 << 28;
 
     private UpstreamSinglePlayerInput() {
     }
