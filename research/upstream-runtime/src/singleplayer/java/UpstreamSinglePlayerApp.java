@@ -894,6 +894,17 @@ public final class UpstreamSinglePlayerApp {
                     cursorX = 200;
                     cursorY = 120;
                 }
+                if ((input & UpstreamSinglePlayerInput.X_PRESSED) != 0) {
+                    Planet chosen = chooseCampaignSystem(globe.planet());
+                    if (pickerExitRequested) return null;
+                    if (chosen != null) {
+                        globe.focus(chosen.getStartSector());
+                        preview = null;
+                        cursorX = 200;
+                        cursorY = 120;
+                    }
+                    stableFrames = 0;
+                }
                 if ((input & (1 << 26)) != 0) globe.zoom(0.9f);
                 if ((input & (1 << 27)) != 0) globe.zoom(1 / 0.9f);
                 globe.rotate((byte)input, (byte)(input >> 8));
@@ -936,7 +947,8 @@ public final class UpstreamSinglePlayerApp {
                         : hovered == null ? null : "sectors.select";
                     rows = encodeMenuRows(new String[]{
                         globe.planet().localizedName + label,
-                        "Y " + Core.bundle.get("planet", "Planet") + "   B "
+                        "X " + Core.bundle.get("planets", "Planets") + "   Y "
+                            + Core.bundle.get("planet", "Planet") + "   B "
                             + Core.bundle.get(preview == null ? "back" : "cancel"),
                         action == null ? "" : "A " + Core.bundle.get(action),
                     });
@@ -1015,6 +1027,66 @@ public final class UpstreamSinglePlayerApp {
                     System.out.println("UPSTREAM_CAMPAIGN_GLOBE_FRAME planet=" + globe.planet().name
                         + " sector=" + (sector == null ? -1 : sector.id)
                         + " selection=" + (selectedSector == null ? -1 : selectedSector.id) + " surface=" + liveSurface);
+                }
+                while (System.nanoTime() < nextFrame) Thread.yield();
+            }
+        } finally {
+            target.releaseCampaignPlanet();
+        }
+    }
+
+    private Planet chooseCampaignSystem(Planet current) {
+        var system = new UpstreamCampaignSystem(current);
+        int previousDirection = 0, frames = 0;
+        Planet previous = null;
+        MenuRows rows = null;
+        try {
+            while (true) {
+                long nextFrame = System.nanoTime() + FRAME_NS;
+                int input = pollCampaignInput();
+                if (input == -1 || (input & UpstreamSinglePlayerInput.B_PRESSED) != 0) return null;
+                int x = (byte)input;
+                int direction = x > 60 ? 1 : x < -60 ? -1 : 0;
+                if (direction != 0 && direction != previousDirection) system.select(direction);
+                previousDirection = direction;
+                if ((input & UpstreamLiveBuildControls.ZOOM_IN_PRESSED) != 0) system.zoom(0.9f);
+                if ((input & UpstreamLiveBuildControls.ZOOM_OUT_PRESSED) != 0) system.zoom(1 / 0.9f);
+                system.update();
+                int touch = UpstreamSinglePlayerInput.touch();
+                if (touch != -1) system.pick((touch & 0xffff) * 400f / 320f, touch >>> 16);
+                Planet selected = system.selected();
+                if ((input & UpstreamSinglePlayerInput.A_PRESSED) != 0) {
+                    System.out.println("UPSTREAM_CAMPAIGN_SYSTEM_SELECTED planet=" + selected.name);
+                    return selected;
+                }
+                if (selected != previous) {
+                    rows = encodeMenuRows(new String[]{selected.localizedName,
+                        "A " + Core.bundle.get("sectors.select") + "   B " + Core.bundle.get("back")});
+                    previous = selected;
+                    frames = 0;
+                }
+                target.begin(0, 0, 20, 12);
+                try {
+                    if (!system.draw(target)) {
+                        System.out.println("UPSTREAM_CAMPAIGN_SYSTEM_ERROR");
+                        return null;
+                    }
+                    var point = system.selectedPoint();
+                    float sy = 240 - point.y;
+                    int accent = Integer.reverseBytes(mindustry.graphics.Pal.accent.rgba8888());
+                    target.hudPanel(point.x - 9, sy - 9, 19, 1, accent);
+                    target.hudPanel(point.x - 9, sy + 9, 19, 1, accent);
+                    target.hudPanel(point.x - 9, sy - 8, 1, 17, accent);
+                    target.hudPanel(point.x + 9, sy - 8, 1, 17, accent);
+                    target.drawObjective(rows.labels[0], rows.characters[0], null, 6);
+                    target.drawObjective(rows.labels[1], rows.characters[1], null, 210);
+                } finally {
+                    target.end();
+                }
+                if (frames < 3 && ++frames == 3) {
+                    System.out.println("UPSTREAM_CAMPAIGN_SYSTEM_FRAME bodies=" + system.bodies.size
+                        + " selected=" + selected.name + " orbits=" + system.orbits.size
+                            / UpstreamCampaignSectorOverlay.FLOATS_PER_VERTEX);
                 }
                 while (System.nanoTime() < nextFrame) Thread.yield();
             }

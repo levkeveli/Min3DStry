@@ -54,7 +54,7 @@ final class UpstreamCampaignGlobe {
         distance = Mathf.clamp(distance * change, 1.8f, 4.2f);
     }
 
-    private void focus(Sector sector) {
+    void focus(Sector sector) {
         planet = sector.planet;
         planet.lookAt(sector, orbit).nor();
     }

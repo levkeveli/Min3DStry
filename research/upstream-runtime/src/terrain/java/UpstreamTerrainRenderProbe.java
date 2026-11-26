@@ -135,6 +135,10 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
         NativeTerrain.releaseCampaignPlanet();
     }
 
+    boolean drawCampaignOrbits(float[] matrix, float[] vertices, int count) {
+        return NativeTerrain.drawCampaignOrbits(Address.ofData(matrix), Address.ofData(vertices), count) != 0;
+    }
+
     float drawObjective(byte[] label, int[] characters, TextureRegion icon, float y) {
         int page = icon == null ? -1 : UpstreamTerrainDrawProbe.pageIndex(icon);
         return NativeTerrain.drawObjective(Address.ofData(label), Address.ofData(characters), characters.length / 7, page,
@@ -399,6 +403,9 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
 
         @Import(name = "m3ds_terrain_release_campaign_planet")
         static native void releaseCampaignPlanet();
+
+        @Import(name = "m3ds_terrain_draw_campaign_orbits")
+        static native int drawCampaignOrbits(Address matrix, Address vertices, int count);
 
         @Import(name = "m3ds_terrain_draw_objective")
         static native float drawObjective(Address label, Address characters, int count,

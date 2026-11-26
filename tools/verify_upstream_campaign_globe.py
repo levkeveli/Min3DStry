@@ -42,11 +42,12 @@ def verify(args):
         shutil.copyfile(fixtures / "sector-serpulo-170.msav", saves / "sector-serpulo-170.msav")
         shutil.copyfile(fixtures / "settings.bin", root / "settings.bin")
     movie = args.output / "new3ds-campaign-globe.ctm"
-    # Hold R to open Campaign, X to open its globe, Right to rotate it, Y to
-    # switch planets, and A to preview and launch The Onset through its stock sector slot.
+    # Open and rotate the Serpulo globe, then select Erekir in the solar-system view.
+    # Preview and launch The Onset through its stock sector slot.
     windows = [(0, 24, 1 << 8), (44, 49, sp.KEY_X), (114, 119, 1 << 4),
-               (135, 140, sp.KEY_Y), (166, 171, 1), (187, 192, 1), (342, 357, sp.KEY_START)]
-    write_input_replay(movie, "new3ds", windows, 370, b"Min3DStry Planet Map")
+               (135, 140, sp.KEY_X), (152, 156, sp.KEY_RIGHT), (170, 175, sp.KEY_A),
+               (194, 199, sp.KEY_A), (215, 220, sp.KEY_A), (372, 387, sp.KEY_START)]
+    write_input_replay(movie, "new3ds", windows, 400, b"Min3DStry Planet Map")
 
     emulator = sp.az.resolve_azahar_bin(args.azahar)
     config, log = sp.az.resolve_azahar_paths(emulator)
@@ -69,6 +70,15 @@ def verify(args):
                                        r"surface=true\b", 25)
             capture_globe(rpc, args.output / "new3ds-serpulo.png")
             sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_GLOBE planet=serpulo sector=(?!170\b)\d+ available=", 100)
+            sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_SYSTEM_FRAME bodies=6 selected=serpulo orbits=[1-9]\d*\b", 60)
+            for body in (2, 3, 4, 5):
+                sp._wait_for_log(log, proc, rf"UPSTREAM_PLANET_MESH_DRAW planet={body} vertices=[1-9]\d* indices=[1-9]\d*", 10)
+            png = rpc.screenshot(res_scale=1)
+            (args.output / "new3ds-solar-system.png").write_bytes(png)
+            sun_pixels = sp.az.inspect_png(png, ((199, 120), (200, 120), (201, 120)))["samples"]
+            if not any(r > 160 and r - b > 40 for r, g, b in sun_pixels.values()):
+                raise AssertionError(f"The stock Sun was not visible at the overview center: {sun_pixels}")
+            sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_SYSTEM_SELECTED planet=erekir\b", 50)
             sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_GLOBE planet=erekir sector=10 available=true\b", 55)
             sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_SECTOR_OVERLAY planet=erekir vertices=[1-9]\d* "
                                        r"shadowed=[1-9]\d* outlined=[1-9]\d*", 25)

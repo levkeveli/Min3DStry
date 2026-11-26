@@ -110,9 +110,42 @@ public final class UpstreamCampaignGlobeReference {
         checkTrade(serpuloStart, numbered, Pal.place);
         System.out.println("UPSTREAM_CAMPAIGN_ARC_REFERENCE launch=true shield=true invasion=true trade=true");
         checkMarkers();
+        checkSolarSystem();
         if (args.length == 1) checkCampaignSurface(args[0]);
         System.out.println("UPSTREAM_CAMPAIGN_GLOBE_REFERENCE serpulo=" + Planets.serpulo.startSector
             + " rotated=" + numbered.id + " erekir=" + Planets.erekir.startSector + " zoom=true");
+    }
+
+    private static void checkSolarSystem() {
+        var system = new UpstreamCampaignSystem(Planets.serpulo);
+        var expected = new mindustry.type.Planet[]{Planets.sun, Planets.erekir, Planets.gier, Planets.notva,
+            Planets.serpulo, Planets.verilus};
+        if (system.bodies.size != expected.length || system.selected() != Planets.serpulo
+                || system.selectable.size != 2) {
+            throw new AssertionError("Stock solar-system visibility or planet selection changed");
+        }
+        system.update();
+        var stockPosition = new Vec3();
+        for (int i = 0; i < expected.length; i++) {
+            var body = expected[i];
+            if (system.bodies.get(i) != body || !body.position.epsilonEquals(body.getWorldPosition(stockPosition), 0.0001f)
+                    || !system.camera.frustum.containsSphere(body.position, body.clipRadius)) {
+                throw new AssertionError("Stock body is misplaced or out of frame: " + body.name
+                    + " position=" + body.position + " reference=" + stockPosition + " camera=" + system.camera.position
+                    + " order=" + system.bodies.get(i).name + " radius=" + body.clipRadius);
+            }
+        }
+        system.updateOrbits();
+        int segments = (int)(Planets.erekir.orbitRadius * 10) + (int)(Planets.serpulo.orbitRadius * 10);
+        if (system.orbits.size != segments * 6 * UpstreamCampaignSectorOverlay.FLOATS_PER_VERTEX) {
+            throw new AssertionError("Orbit tessellation differs from the original line loops");
+        }
+        system.select(1);
+        if (system.selected() != Planets.erekir) throw new AssertionError("Could not switch to the stock Erekir globe");
+        var point = system.camera.project(stockPosition.set(Planets.serpulo.position), 0, 0, 400, 240);
+        system.pick(point.x, 240 - point.y);
+        if (system.selected() != Planets.serpulo) throw new AssertionError("Picking missed the original Serpulo position");
+        System.out.println("UPSTREAM_CAMPAIGN_SYSTEM_REFERENCE bodies=6 selectable=2 orbitSegments=" + segments);
     }
 
     private static void checkMarkers() {

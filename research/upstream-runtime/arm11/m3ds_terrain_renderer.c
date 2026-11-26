@@ -1061,6 +1061,22 @@ int32_t m3ds_terrain_draw_campaign_planet(int32_t planet, const float *matrix, c
 #endif
 }
 
+int32_t m3ds_terrain_draw_campaign_orbits(const float *matrix, const float *vertices, int32_t count) {
+#ifdef M3DS_CAMPAIGN_PLANETS
+    if (!frame_open) return 0;
+    C2D_Flush();
+    int32_t drawn = m3ds_planet_draw_orbits(matrix, vertices, count);
+    C2D_Prepare();
+    begin_world_scene();
+    return drawn;
+#else
+    (void)matrix;
+    (void)vertices;
+    (void)count;
+    return 0;
+#endif
+}
+
 void m3ds_terrain_release_campaign_planet(void) {
 #ifdef M3DS_CAMPAIGN_PLANETS
     if (gpu_ready && C3D_FrameBegin(C3D_FRAME_SYNCDRAW)) C3D_FrameEnd(0);

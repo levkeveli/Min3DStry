@@ -48,6 +48,17 @@ zoom, and Y switches between Serpulo and Erekir. A previews a sector with the
 stock selection outline and confirms through its existing launch or resume
 path. B dismisses the preview or returns to the sector list.
 
+Press X from a globe to open the solar-system overview. The view uses
+the stock Universe positions and PlanetRenderer orbit geometry. Use Left
+and Right to choose a landable campaign planet or tap its position on the
+bottom-screen view coordinates. The C-Stick controls zoom, A opens the
+chosen globe, and B returns to the previous globe.
+
+The stock JVM reference checks the six visible bodies, two selectable
+planets, 742 orbit segments, and touch selection by projected position.
+The New 3DS replay checks the rendered Sun, selects Erekir through the
+overview, and launches The Onset through the original sector route.
+
 The stock JVM reference confirms that the projected mesh centers and
 `Planet.getSector` agree for Ground Zero and The Onset. It also exercises
 rotation to Serpulo 16, camera zoom, and a miss outside the globe.
