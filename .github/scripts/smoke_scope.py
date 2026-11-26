@@ -111,6 +111,7 @@ def _full_scope() -> dict[str, Any]:
         "run_progression": True,
         "run_combat": True,
         "run_net": True,
+        "run_hosted_world": True,
         "run_production": True,
         "run_factory": True,
         "run_singleplayer": True,
@@ -161,6 +162,18 @@ def _classify_path(path: str, flags: dict[str, bool], probes: set[str]) -> str:
         "research/upstream-runtime/host/UpstreamAudio"
     ):
         flags["run_audio"] = True
+        return "scoped"
+
+    if norm == "tools/verify_upstream_hosted_world.py" or norm.startswith((
+        RUNTIME + "src/unified/java/UpstreamHostedSession",
+        RUNTIME + "src/network-live/java/UpstreamHostedNetProvider",
+        RUNTIME + "src/network-live/java/UpstreamHostPacketCodec",
+        RUNTIME + "arm11/m3ds_host_net_bridge.",
+        "src/net/mindustry_host_",
+        "include/net/mindustry_host_",
+    )):
+        flags["run_net"] = True
+        flags["run_hosted_world"] = True
         return "scoped"
 
     if (
@@ -244,6 +257,7 @@ def classify_smoke_scope(changed_files: list[str], event_name: str) -> dict[str,
         "run_progression": False,
         "run_combat": False,
         "run_net": False,
+        "run_hosted_world": False,
         "run_production": False,
         "run_factory": False,
         "run_singleplayer": False,
@@ -267,6 +281,7 @@ def classify_smoke_scope(changed_files: list[str], event_name: str) -> dict[str,
         "run_progression": flags["run_progression"],
         "run_combat": flags["run_combat"],
         "run_net": flags["run_net"],
+        "run_hosted_world": flags["run_hosted_world"],
         "run_production": flags["run_production"],
         "run_factory": flags["run_factory"],
         "run_singleplayer": flags["run_singleplayer"],
@@ -335,6 +350,7 @@ def format_outputs(scope: dict[str, Any]) -> dict[str, str]:
         "run_progression": "true" if scope["run_progression"] else "false",
         "run_combat": "true" if scope["run_combat"] else "false",
         "run_net": "true" if scope["run_net"] else "false",
+        "run_hosted_world": "true" if scope["run_hosted_world"] else "false",
         "run_production": "true" if scope["run_production"] else "false",
         "run_factory": "true" if scope["run_factory"] else "false",
         "run_singleplayer": "true" if scope["run_singleplayer"] else "false",

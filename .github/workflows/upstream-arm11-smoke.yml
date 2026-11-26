@@ -16,9 +16,11 @@ on:
       - "tools/stage_music_assets.py"
       - "tools/verify_upstream_net.py"
       - "tools/verify_upstream_live_net.py"
+      - "tools/verify_upstream_hosted_world.py"
       - "tests/tools/test_audio_assets.py"
       - "tests/tools/test_stage_music_assets.py"
       - "src/net/mindustry_net.c"
+      - "src/net/mindustry_host_*.c"
       - "include/net/**"
       - "tests/net/**"
       - ".github/scripts/fetch_upstream_v160.sh"
@@ -67,6 +69,7 @@ jobs:
       run_progression: ${{ steps.scope.outputs.run_progression }}
       run_combat: ${{ steps.scope.outputs.run_combat }}
       run_net: ${{ steps.scope.outputs.run_net }}
+      run_hosted_world: ${{ steps.scope.outputs.run_hosted_world }}
       run_production: ${{ steps.scope.outputs.run_production }}
       run_factory: ${{ steps.scope.outputs.run_factory }}
       run_singleplayer: ${{ steps.scope.outputs.run_singleplayer }}
@@ -1422,11 +1425,20 @@ jobs:
           --server build/unified-smoke/server-release.jar
           --rom build/unified-smoke/upstream-probe.3dsx
           --output build/audio-smoke --model new3ds
+      - name: Join the New 3DS hosted world with pinned Java packets
+        if: needs.changes.outputs.run_hosted_world == 'true'
+        run: >-
+          xvfb-run -a python3 tools/verify_upstream_hosted_world.py
+          --stock-jar build/unified-smoke/server-release.jar
+          --rom build/unified-smoke/upstream-probe.3dsx
+          --azahar "$AZAHAR_BIN"
+          --output build/hosted-world-smoke
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: arm11-live-smoke-evidence
           path: |
             build/audio-smoke/
+            build/hosted-world-smoke/
             build/unified-smoke/upstream-live-net/
             ${{ runner.temp }}/smoke-data/azahar-emu/log/

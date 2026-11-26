@@ -1,0 +1,80 @@
+#!/usr/bin/env python3
+"""Join a New 3DS hosted world using the pinned v160.8 Java transport and packet classes."""
+
+import argparse
+import hashlib
+import os
+from pathlib import Path
+import shutil
+import subprocess
+
+import verify_upstream_singleplayer as sp
+from verify_upstream_campaign_launch import write_input_replay
+from verify_upstream_live_net import SERVER_SHA256
+
+
+def verify(args):
+    with args.stock_jar.open("rb") as stream:
+        if hashlib.file_digest(stream, "sha256").hexdigest() != SERVER_SHA256:
+            raise ValueError("Expected the unmodified v160.8 Java release")
+    args.output.mkdir(parents=True)
+    output = args.output.resolve()
+    classes = output / "classes"
+    classes.mkdir()
+    capture = Path(__file__).resolve().parents[1] / "research/upstream-runtime/host/UpstreamWorldStreamCapture.java"
+    subprocess.run([args.javac, "-cp", str(args.stock_jar), "-d", str(classes), str(capture)], check=True)
+    sd = output / "virtual-sd"
+    (sd / "3ds/min3dstry").mkdir(parents=True)
+    movie = output / "new3ds-host.ctm"
+    write_input_replay(movie, "new3ds", [(0, 8, (1 << 10) | (1 << 11))], 220, b"Min3DStry Host")
+
+    emulator = sp.az.resolve_azahar_bin(args.azahar)
+    config, log = sp.az.resolve_azahar_paths(emulator)
+    originals = {file: file.read_bytes() if file.is_file() else None for file in (config, log)}
+    try:
+        config.parent.mkdir(parents=True, exist_ok=True)
+        storage = {"Data Storage": {"use_custom_storage": "true", "sdmc_directory": sd.as_posix() + "/"}}
+        config.write_text(sp.az.patch_qt_config_text((originals[config] or b"").decode(), storage), encoding="utf-8")
+        proc, rpc = sp._launch_azahar("new3ds", args.rom, emulator, config, log, movie)
+        try:
+            sp._wait_for_log(log, proc, r"UPSTREAM_HOST_READY version=160\.8 port=6567 .*tiles=256x256\b", 150)
+            payload = output / "stock-world-stream.zlib"
+            classpath = f"{classes}{os.pathsep}{args.stock_jar.resolve()}"
+            with (output / "stock-pc.log").open("wb") as pc_log:
+                subprocess.run(
+                    [args.java, "-cp", classpath, "UpstreamWorldStreamCapture", "6567", str(payload), "--confirm"],
+                    stdout=pc_log, stderr=subprocess.STDOUT, timeout=40, check=True,
+                )
+            if not payload.is_file() or payload.stat().st_size == 0:
+                raise AssertionError("The stock client did not receive the compressed world")
+            rom_frame = rpc.screenshot()
+            (output / "new3ds-host.png").write_bytes(rom_frame)
+            if sp.az.inspect_png(rom_frame)["top_distinct_colors"] < 8:
+                raise AssertionError("The handheld did not draw the hosted world")
+            print(f"UPSTREAM_HOSTED_WORLD_REPLAY model=new3ds stock-bytes={payload.stat().st_size} snapshot=ok")
+        finally:
+            rpc.close()
+            sp._stop_proc(proc, emulator)
+            if log.is_file():
+                shutil.copyfile(log, output / "new3ds-host.log")
+    finally:
+        for file, data in originals.items():
+            if data is None:
+                file.unlink(missing_ok=True)
+            else:
+                file.write_bytes(data)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--rom", type=Path, required=True)
+    parser.add_argument("--stock-jar", type=Path, required=True)
+    parser.add_argument("--azahar")
+    parser.add_argument("--java", default="java")
+    parser.add_argument("--javac", default="javac")
+    parser.add_argument("--output", type=Path, required=True)
+    verify(parser.parse_args())
+
+
+if __name__ == "__main__":
+    main()

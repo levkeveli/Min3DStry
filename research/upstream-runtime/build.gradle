@@ -25,6 +25,7 @@ def osSource = 'arc-core/src/arc/util/OS.java'
 def networkIoSource = 'core/src/mindustry/net/NetworkIO.java'
 def saveVersionSource = 'core/src/mindustry/io/SaveVersion.java'
 def netClientSource = 'core/src/mindustry/core/NetClient.java'
+def netServerSource = 'core/src/mindustry/core/NetServer.java'
 def placementSource = 'core/src/mindustry/ui/fragments/PlacementFragment.java'
 def itemSelectionSource = 'core/src/mindustry/world/blocks/ItemSelection.java'
 def logicExecutorSource = 'mindustry/logic/LExecutor.java'
@@ -185,6 +186,7 @@ def arcJsonFile = sourceDir.map { it.file('arc/util/serialization/Json.java') }
 def networkIoFile = sourceDir.map { it.file('mindustry/net/NetworkIO.java') }
 def saveVersionFile = sourceDir.map { it.file('mindustry/io/SaveVersion.java') }
 def netClientFile = sourceDir.map { it.file('mindustry/core/NetClient.java') }
+def netServerFile = sourceDir.map { it.file('mindustry/core/NetServer.java') }
 def schematicsFile = sourceDir.map { it.file('mindustry/game/Schematics.java') }
 def placementFile = sourceDir.map { it.file('UpstreamPlacementCatalog.java') }
 def itemChoicesFile = sourceDir.map { it.file('UpstreamItemChoices.java') }
@@ -283,6 +285,9 @@ if (usesArcSources || usesExecutor) {
     if (usesLiveNetwork) {
         stagedClasses.addAll(['mindustry/core/NetClient.class', 'mindustry/core/NetClient$*.class',
                               'mindustry/ai/Pathfinder.class', 'mindustry/ai/Pathfinder$*.class'])
+    }
+    if (probe == 'unified') {
+        stagedClasses.addAll(['mindustry/core/NetServer.class', 'mindustry/core/NetServer$*.class'])
     }
     if (usesSinglePlayer || usesLiveAudio) {
         stagedClasses.addAll(['mindustry/logic/GlobalVars.class', 'mindustry/logic/GlobalVars$*.class'])
@@ -635,6 +640,9 @@ tasks.register('prepareUpstreamProbe') {
     }
     if (usesLiveNetwork) {
         outputs.files(netClientFile, pathfinderFile)
+    }
+    if (probe == 'unified') {
+        outputs.file(netServerFile)
     }
     if (usesLiveAudio) {
         outputs.files(sourceDir.map { dir ->
@@ -2137,6 +2145,16 @@ ${barOracle}""")
             // This synchronous path never yields on TeaVM C's single execution lane.
             // Its cache and subdivision stay atomic without the failing Java monitor.
             adaptedGrid.setText(grid.replace(create, 'public static PlanetGrid create(int size){'), 'UTF-8')
+        }
+        if (probe == 'unified') {
+            def source = new String(readUpstream(netServerSource), 'UTF-8')
+            def formattedSize = 'Strings.formatByteCount(stream.size())'
+            if (source.count(formattedSize) != 2) {
+                throw new GradleException('Pinned NetServer stream logs changed')
+            }
+            def outputServer = netServerFile.get().asFile
+            outputServer.parentFile.mkdirs()
+            outputServer.setText(source.replace(formattedSize, 'stream.size() + " bytes"'), 'UTF-8')
         }
         if (usesLiveNetwork) {
             if (!usesSinglePlayer) {

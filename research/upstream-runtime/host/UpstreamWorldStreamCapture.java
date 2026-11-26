@@ -11,6 +11,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import mindustry.Vars;
 import mindustry.core.Version;
+import mindustry.gen.ConnectConfirmCallPacket;
+import mindustry.gen.StateSnapshotCallPacket;
 import mindustry.net.ArcNetProvider;
 import mindustry.net.Net;
 import mindustry.net.Packets.ConnectPacket;
@@ -21,10 +23,14 @@ import mindustry.net.Streamable.StreamBuilder;
 /** Records the compressed payload sent by a local upstream headless server. */
 public final class UpstreamWorldStreamCapture implements NetListener {
     private final CompletableFuture<byte[]> world = new CompletableFuture<>();
+    private final CompletableFuture<Void> snapshot = new CompletableFuture<>();
     private StreamBuilder builder;
 
     public static void main(String[] args) throws Exception {
-        if (args.length != 2) throw new IllegalArgumentException("Expected a loopback port and new fixture path");
+        boolean confirm = args.length == 3 && args[2].equals("--confirm");
+        if (args.length != 2 && !confirm) {
+            throw new IllegalArgumentException("Expected a loopback port, new fixture path and optional --confirm");
+        }
         int port = Integer.parseInt(args[0]);
         Version.init();
         if (Version.build != 160 || Version.revision != 8 || !Version.type.equals("official")) {
@@ -41,6 +47,11 @@ public final class UpstreamWorldStreamCapture implements NetListener {
             byte[] payload = capture.world.get(10, TimeUnit.SECONDS);
             Files.write(Path.of(args[1]), payload, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
             System.out.println("UPSTREAM_WORLD_STREAM_CAPTURE bytes=" + payload.length);
+            if (confirm) {
+                client.sendTCP(new ConnectConfirmCallPacket());
+                capture.snapshot.get(10, TimeUnit.SECONDS);
+                System.out.println("UPSTREAM_HOSTED_WORLD_CONFIRMED stock-snapshot=true");
+            }
         } finally {
             client.stop();
         }
@@ -71,6 +82,8 @@ public final class UpstreamWorldStreamCapture implements NetListener {
                     world.complete(builder.build().stream.readAllBytes());
                     builder = null;
                 }
+            } else if (object instanceof StateSnapshotCallPacket) {
+                snapshot.complete(null);
             }
         } catch (RuntimeException error) {
             world.completeExceptionally(error);
@@ -79,6 +92,8 @@ public final class UpstreamWorldStreamCapture implements NetListener {
 
     @Override
     public void disconnected(Connection connection, DcReason reason) {
-        world.completeExceptionally(new IllegalStateException("Disconnected before receiving the world: " + reason));
+        var error = new IllegalStateException("Disconnected before receiving the world and its first state: " + reason);
+        world.completeExceptionally(error);
+        snapshot.completeExceptionally(error);
     }
 }

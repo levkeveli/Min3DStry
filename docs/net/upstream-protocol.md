@@ -58,8 +58,18 @@ and queues world streams as stock `StreamBegin` and `StreamChunk` packets.
 It uses `NetworkIO.writeServerData` for LAN advertisements. The unified
 app's development hosting route starts the stock `NetServer` after world
 load and advances it each frame. Hold X and Y at startup or launch with
-`--host` to select that route. The ARM11 build and a PC client joining and
-playing that world still need verification.
+`--host` to select that route. The build adapts the stock debug message
+for stream sizes to use bytes because TeaVM lacks the Java formatter.
+
+The hosted-world Azahar replay uses the unmodified v160.8 Java transport
+to receive and confirm a world stream, then waits for the original server's
+first state snapshot. The same client check passed locally against the
+stock Java server. The native replay and desktop gameplay checks are pending.
+
+```sh
+python3 tools/verify_upstream_hosted_world.py --rom upstream-probe.3dsx \
+  --stock-jar server-release.jar --output build/hosted-world-smoke
+```
 
 1. **TCP Outer Framing:** `uint16_be payload_len` + `payload` bytes, read via stateful `TcpFrameReader` so partial headers/bodies across TCP segments and short UDP poll windows resume cleanly without dropping bytes.
 2. **ArcNet `FrameworkMessage` (`0xFE` sentinel + id):**
