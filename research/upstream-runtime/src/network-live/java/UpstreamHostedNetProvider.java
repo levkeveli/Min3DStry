@@ -205,7 +205,7 @@ final class UpstreamHostedNetProvider implements Net.NetProvider {
                 size = codec.encode((Packet)value);
             } catch (RuntimeException failure) {
                 System.out.println("UPSTREAM_HOST_PACKET_ERROR encode=" + (value == null ? "null" : value.getClass().getName())
-                    + " failure=" + failure.getClass().getName());
+                    + " phase=" + codec.encodePhase() + " failure=" + failure.getClass().getName());
                 throw failure;
             }
             if (!write(codec.output, size, reliable) && reliable) close();

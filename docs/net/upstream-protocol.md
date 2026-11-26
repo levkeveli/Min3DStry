@@ -52,9 +52,13 @@ are tracked in [#713](https://github.com/levkeveli/Min3DStry/issues/713).
 
 The host packet adapter uses the original v160.8 generated packet types and
 their stock read/write methods. It selects the bundled pure-Java LZ4
-implementation directly for TeaVM. The JVM task `runStockHostPacketCodecJvm`
-exchanges compressed `ConnectPacket` data with the stock desktop serializer
-in both directions and checks the same raw framing for `StreamChunk`.
+implementation directly for TeaVM. The reusable packet bodies are Java
+arrays behind Arc's data streams, so the adapter holds no cached native
+address across world loads or heap collections. The unified build runs
+`runStockHostPacketCodecJvm` to exchange compressed `ConnectPacket` data
+in both directions, check byte-identical raw `StreamChunk` framing, and
+read handheld-encoded state and entity snapshots with the stock serializer.
+The hosted-world replay checks delivery on ARM11 separately.
 The host socket uses the configured peer capacity as its TCP listen backlog
 so it also builds against libctru. The unified ARM11 build emits individual
 function sections so the linker can reach generated functions beyond the

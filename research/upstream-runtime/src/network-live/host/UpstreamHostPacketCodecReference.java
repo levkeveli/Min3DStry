@@ -3,6 +3,8 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import mindustry.Vars;
 import mindustry.core.Version;
+import mindustry.gen.EntitySnapshotCallPacket;
+import mindustry.gen.StateSnapshotCallPacket;
 import mindustry.net.ArcNetProvider.PacketSerializer;
 import mindustry.net.Net;
 import mindustry.net.Packets.ConnectPacket;
@@ -48,7 +50,46 @@ public final class UpstreamHostPacketCodecReference {
         if (read.id != chunk.id || !Arrays.equals(chunk.data, read.data)) {
             throw new AssertionError("Stock reader lost stream chunk bytes");
         }
-        System.out.println("UPSTREAM_HOST_PACKET_CODEC stock-connect=both-directions stream-chunk=byte-exact");
+        requireSnapshots(stock, host);
+        System.out.println("UPSTREAM_HOST_PACKET_CODEC stock-connect=both-directions stream-chunk=byte-exact "
+            + "state-snapshot=ok entity-snapshot=ok");
+    }
+
+    private static void requireSnapshots(PacketSerializer stock, UpstreamHostPacketCodec host) {
+        var state = new StateSnapshotCallPacket();
+        state.waveTime = 456.25f;
+        state.wave = 9;
+        state.enemies = 12;
+        state.paused = true;
+        state.timeData = 0x01020304;
+        state.tps = 60;
+        state.rand0 = 0x0102030405060708L;
+        state.rand1 = 0xf1e2d3c4b5a69788L;
+        state.coreData = new byte[]{2, -1, 0, 4, 3, 12, 0, 1};
+
+        int size = host.encode(state);
+        if (host.output[3] != 1) throw new AssertionError("Expected a stock compressed state envelope");
+        var actual = (StateSnapshotCallPacket)stock.read(ByteBuffer.wrap(host.output, 0, size));
+        actual.handled();
+        if (actual.waveTime != state.waveTime || actual.wave != state.wave || actual.enemies != state.enemies
+                || actual.paused != state.paused || actual.gameOver != state.gameOver
+                || actual.timeData != state.timeData || actual.tps != state.tps
+                || actual.rand0 != state.rand0 || actual.rand1 != state.rand1
+                || !Arrays.equals(actual.coreData, state.coreData)) {
+            throw new AssertionError("Stock StateSnapshot fields differ");
+        }
+
+        var entities = new EntitySnapshotCallPacket();
+        entities.amount = 2;
+        entities.data = new byte[129];
+        for (int i = 0; i < entities.data.length; i++) entities.data[i] = (byte)(i % 17);
+        size = host.encode(entities);
+        if (host.output[3] != 1) throw new AssertionError("Expected a stock compressed entity envelope");
+        var decoded = (EntitySnapshotCallPacket)stock.read(ByteBuffer.wrap(host.output, 0, size));
+        decoded.handled();
+        if (decoded.amount != entities.amount || !Arrays.equals(decoded.data, entities.data)) {
+            throw new AssertionError("Stock EntitySnapshot fields differ");
+        }
     }
 
     private static void requireConnect(ConnectPacket actual, ConnectPacket expected) {
