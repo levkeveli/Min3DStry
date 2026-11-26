@@ -46,6 +46,11 @@ def verify(model: str, planet: str, rom: Path, azahar: str, config: Path, log: P
         try:
             sp._wait_for_log(log, proc, r"UPSTREAM_SP_LOADED source=campaign\b", 120)
             sp._wait_for_log(log, proc, rf"UPSTREAM_CAMPAIGN_RESEARCH_OPEN tree={planet}\b", 160)
+            sp._wait_for_log(log, proc, rf"UPSTREAM_CAMPAIGN_RESEARCH_TREE_FRAME tree={planet}\b", 30)
+            tree = rpc.screenshot()
+            if sp.az.inspect_png(tree)["top_distinct_colors"] < 8:
+                raise AssertionError(f"{prefix}: research tree did not render")
+            (output / f"{prefix}-tree.png").write_bytes(tree)
             sp._wait_for_log(log, proc, rf"UPSTREAM_CAMPAIGN_RESEARCH_SELECTED node={block} selectable=true\b", 90)
             screenshot = rpc.screenshot()
             if sp.az.inspect_png(screenshot)["top_distinct_colors"] < 8:

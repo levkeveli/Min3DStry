@@ -987,23 +987,27 @@ public final class UpstreamSinglePlayerApp {
 
     private boolean openResearch(TechNode root, Fi saveFile) throws IOException {
         var research = new UpstreamCampaignResearch(root);
-        Seq<TechNode> nodes = new Seq<>();
-        listResearch(root, nodes);
-        int selected = 0, page = 0, lastAxis = 0;
-        boolean detail = false;
+        var tree = new UpstreamCampaignResearchTree(root);
+        var nodes = tree.visible;
+        int selected = 0, page = 0, lastAxis = 0, lastHorizontal = 0;
+        boolean detail = false, drewTree = false;
         MenuRows rows = null;
+        byte[] controls = ("A " + Core.bundle.get("info.title") + "\0B "
+            + Core.bundle.get("back") + "\0").getBytes(StandardCharsets.UTF_8);
         System.out.println("UPSTREAM_CAMPAIGN_RESEARCH_OPEN tree=" + root.name + " visible=" + nodes.size);
         while (true) {
             long nextFrame = System.nanoTime() + FRAME_NS;
             int input = UpstreamSinglePlayerInput.poll();
             if (input == -1) return false;
 
-            TechNode node = nodes.get(selected);
-            if ((input & UpstreamSinglePlayerInput.B_PRESSED) != 0) {
+            var selectedNode = nodes.get(selected);
+            TechNode node = selectedNode.tech;
+            int touch = detail ? -1 : UpstreamTerrainRenderProbe.menuHelpAction(UpstreamSinglePlayerInput.touch(), 2);
+            if ((input & UpstreamSinglePlayerInput.B_PRESSED) != 0 || touch == 1) {
                 if (!detail) return true;
                 detail = false;
                 rows = null;
-            } else if ((input & UpstreamSinglePlayerInput.A_PRESSED) != 0) {
+            } else if ((input & UpstreamSinglePlayerInput.A_PRESSED) != 0 || touch == 0) {
                 if (!detail) {
                     detail = true;
                     page = 0;
@@ -1012,9 +1016,8 @@ public final class UpstreamSinglePlayerApp {
                         + " selectable=" + research.selectable(node));
                 } else if (research.spend(node)) {
                     session.save(saveFile);
-                    nodes.clear();
-                    listResearch(root, nodes);
-                    selected = nodes.indexOf(node, true);
+                    tree.refresh();
+                    selected = nodes.indexOf(selectedNode, true);
                     rows = null;
                     System.out.println("UPSTREAM_CAMPAIGN_RESEARCH_CHANGED node=" + node.content.name
                         + " unlocked=" + node.content.unlockedHost());
@@ -1024,6 +1027,10 @@ public final class UpstreamSinglePlayerApp {
             int axis = (byte)(input >> 8);
             int direction = axis > 60 && lastAxis <= 20 ? -1 : axis < -60 && lastAxis >= -20 ? 1 : 0;
             lastAxis = axis;
+            int horizontal = (byte)input;
+            int branch = horizontal > 60 && lastHorizontal <= 20 ? 1
+                : horizontal < -60 && lastHorizontal >= -20 ? -1 : 0;
+            lastHorizontal = horizontal;
             if (direction != 0) {
                 if (detail) {
                     int lastPage = Math.max(0, (node.requirements.length + node.objectives.size - 1) / 4);
@@ -1032,39 +1039,85 @@ public final class UpstreamSinglePlayerApp {
                     selected = Mathf.clamp(selected + direction, 0, nodes.size - 1);
                 }
                 rows = null;
+            } else if (!detail && branch != 0) {
+                int next = tree.horizontalIndex(selectedNode, branch);
+                if (next >= 0) {
+                    selected = next;
+                    rows = null;
+                }
             }
-            if (rows == null) {
-                rows = encodeMenuRows(detail ? researchDetail(node, research, page) : researchList(nodes, selected));
+            if (detail) {
+                if (rows == null) rows = encodeMenuRows(researchDetail(node, research, page));
+                drawMenuRows(rows);
+            } else {
+                selectedNode = nodes.get(selected);
+                if (rows == null) {
+                    String title = research.selectable(selectedNode.tech)
+                        ? selectedNode.tech.content.localizedName : "???";
+                    rows = encodeMenuRows(new String[]{title});
+                }
+                drawResearchTree(tree, selectedNode, research, rows, controls);
+                if (!drewTree) {
+                    drewTree = true;
+                    System.out.println("UPSTREAM_CAMPAIGN_RESEARCH_TREE_FRAME tree=" + root.name + " visible=" + nodes.size);
+                }
             }
-            drawMenuRows(rows);
             while (System.nanoTime() < nextFrame) Thread.yield();
         }
     }
 
-    private static void listResearch(TechNode node, Seq<TechNode> nodes) {
-        nodes.add(node);
-        if (node.content.unlockedHost()) {
-            for (TechNode child : node.children) listResearch(child, nodes);
+    private void drawResearchTree(UpstreamCampaignResearchTree tree, UpstreamCampaignResearchTree.Node selected,
+                                  UpstreamCampaignResearch research, MenuRows caption, byte[] controls) {
+        float scale = 0.55f, size = selected.width * scale, half = size / 2f;
+        float offsetX = 200f - selected.x * scale, offsetY = 120f + selected.y * scale;
+        int accent = Integer.reverseBytes(Pal.accent.rgba8888());
+        int gray = Integer.reverseBytes(Pal.gray.rgba8888());
+        int available = Integer.reverseBytes(Color.gray.rgba8888());
+        target.begin(0, 0, UpstreamTerrainDrawProbe.VIEW_WIDTH, UpstreamTerrainDrawProbe.VIEW_HEIGHT);
+        try {
+            for (var node : tree.visible) {
+                if (node.parent == null) continue;
+                float x = offsetX + node.x * scale, y = offsetY - node.y * scale;
+                float px = offsetX + node.parent.x * scale, py = offsetY - node.parent.y * scale;
+                if ((x < 0f && px < 0f) || (x > 400f && px > 400f)
+                        || (y < 0f && py < 0f) || (y > 240f && py > 240f)) continue;
+                int color = node.tech.content.unlockedHost() ? accent : gray;
+                if (Mathf.equal(Math.abs(x - px), Math.abs(y - py), scale)
+                        && Mathf.dstm(x, y, px, py) <= size * 3f) {
+                    target.hudLine(px, py, x, y, 4f * scale, color);
+                } else {
+                    target.hudLine(px, py, x, py, 4f * scale, color);
+                    target.hudLine(x, py, x, y, 4f * scale, color);
+                }
+            }
+            for (var node : tree.visible) {
+                float x = offsetX + node.x * scale - half, y = offsetY - node.y * scale - half;
+                if (x + size <= 0f || x >= 400f || y + size <= 0f || y >= 240f) continue;
+                target.hudPanel(x, y, size, size, node == selected ? accent : gray);
+                target.hudPanel(x + 2f, y + 2f, size - 4f, size - 4f, 0xff292525);
+                var content = node.tech.content;
+                boolean selectable = research.selectable(node.tech);
+                if (selectable && content.uiIcon == null) content.loadIcon();
+                var icon = selectable ? content.uiIcon : Core.atlas.find("lock-small");
+                if (icon != null && icon.found()) {
+                    int tint = content.unlockedHost() ? -1 : selectable ? available : gray;
+                    float iconScale = (size - 8f) / Math.max(icon.width, icon.height);
+                    float width = icon.width * iconScale, height = icon.height * iconScale;
+                    target.hudSprite(icon, 0, 0, icon.width, icon.height,
+                        x + half - width / 2f, y + half - height / 2f, width, height, tint);
+                }
+            }
+            target.drawObjective(caption.labels[0], caption.characters[0], null, 6f);
+            target.drawMenuHelp(controls, 2);
+        } finally {
+            target.end();
         }
-    }
-
-    private static String[] researchList(Seq<TechNode> nodes, int selected) {
-        int first = (selected / 5) * 5, end = Math.min(first + 5, nodes.size);
-        String[] captions = new String[2 + end - first];
-        captions[0] = Core.bundle.get("research") + "  " + (selected + 1) + " / " + nodes.size;
-        for (int i = first; i < end; i++) {
-            var content = nodes.get(i).content;
-            captions[i - first + 1] = (i == selected ? "> " : "  ") + content.localizedName
-                + (content.unlockedHost() ? "  [x]" : "");
-        }
-        captions[captions.length - 1] = "B " + Core.bundle.get("back");
-        return captions;
     }
 
     private static String[] researchDetail(TechNode node, UpstreamCampaignResearch research, int page) {
         int first = page * 4, end = Math.min(first + 4, node.requirements.length + node.objectives.size);
         String[] captions = new String[2 + end - first];
-        captions[0] = node.content.localizedName;
+        captions[0] = research.selectable(node) ? node.content.localizedName : "???";
         for (int i = first; i < end; i++) {
             if (i < node.objectives.size) {
                 var objective = node.objectives.get(i);

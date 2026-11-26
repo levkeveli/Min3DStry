@@ -1345,6 +1345,13 @@ int32_t m3ds_terrain_draw_hud_panel(float x, float y, float width, float height,
     return C2D_DrawRectSolid(x, y, 0.5f, width, height, (u32)color) ? 1 : 0;
 }
 
+void m3ds_terrain_draw_hud_line(float x1, float y1, float x2, float y2, float thickness, int32_t color) {
+    if (!frame_open || (x1 == x2 && y1 == y2)) return;
+    set_world_blend(0);
+    set_world_mix(0, 0);
+    C2D_DrawLine(x1, y1, (u32)color, x2, y2, (u32)color, thickness, 0.5f);
+}
+
 float m3ds_terrain_draw_chat_line(const char *label, const int32_t *characters, int32_t count, float bottom) {
     int32_t stock_font;
     return draw_stock_panel(label, characters, count, -1, 0, 0, 0, 0,

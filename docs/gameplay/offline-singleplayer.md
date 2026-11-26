@@ -254,6 +254,14 @@ python3 tools/campaign_research_fixture.py --server server-release.jar --check-p
 python3 tools/verify_upstream_campaign_research.py --rom upstream-probe.3dsx --fixtures /path/to/fixtures --server server-release.jar
 ```
 
+The New 3DS research tree uses the original positions and branches from
+v160.8 `ResearchDialog` and `BranchTreeLayout`. The D-pad or Circle Pad
+selects a node and centers it on the top screen. A or the Info touch button
+opens the objectives and research requirements. Unlocking a node reveals
+its descendants in their original positions. The stock JVM reference
+compares the complete Serpulo and Erekir layouts, and the emulator verifier
+captures the tree before examining the node details and stock save readback.
+
 ## Serpulo background production and exports
 
 The offline session advances the original universe through

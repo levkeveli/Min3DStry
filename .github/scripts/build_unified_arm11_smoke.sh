@@ -88,6 +88,13 @@ javac -cp "$stock_jar" -d "$database_check" \
   "$runtime/src/singleplayer/verification/UpstreamCoreDatabaseReference.java"
 java -cp "$database_check:$stock_jar" UpstreamCoreDatabaseReference "$PWD/build/smoke-assets/bundles/bundle"
 
+research_tree_check="$RUNNER_TEMP/research-tree-check"
+mkdir -p "$research_tree_check"
+javac -cp "$RUNNER_TEMP/desktop.jar" -d "$research_tree_check" \
+  "$runtime/src/singleplayer/java/UpstreamCampaignResearchTree.java" \
+  "$runtime/src/singleplayer/verification/UpstreamCampaignResearchTreeReference.java"
+java -cp "$research_tree_check:$RUNNER_TEMP/desktop.jar" UpstreamCampaignResearchTreeReference
+
 bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime --no-daemon --console=plain \
   "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" "-PreferenceJar=$RUNNER_TEMP/server-release.jar" \
   "-ParcCheckout=$RUNNER_TEMP/Arc" -Pprobe=unified runBuildingLayersJvm \
