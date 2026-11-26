@@ -1,3 +1,5 @@
+import arc.Core;
+import arc.graphics.Blending;
 import arc.graphics.g2d.Draw;
 import arc.struct.IntSet;
 import arc.struct.ObjectSet;
@@ -29,6 +31,7 @@ import mindustry.world.blocks.production.GenericCrafter;
 import mindustry.world.blocks.production.Pump;
 import mindustry.world.blocks.production.Separator;
 import mindustry.world.blocks.production.WallCrafter;
+import mindustry.world.blocks.storage.CoreBlock;
 import mindustry.world.blocks.storage.StorageBlock;
 import mindustry.world.blocks.units.UnitFactory.UnitFactoryBuild;
 
@@ -108,12 +111,44 @@ final class UpstreamBuildingLayers {
             for (var build : visible) {
                 if (!build.block.drawDynamic) drawCracks(build);
             }
+            drawLights(visible);
         } finally {
             try {
                 Draw.sort(false);
             } finally {
                 visible.clear();
             }
+        }
+    }
+
+    private static void drawLights(Seq<Building> visible) {
+        var region = Core.atlas.find("circle-shadow");
+        if (!region.found() || visible.isEmpty()) return;
+        Draw.blend(Blending.additive);
+        try {
+            Draw.z(Layer.effect);
+            for (var build : visible) {
+                var block = build.block;
+                if (!block.emitLight || block instanceof CoreBlock) continue;
+                float radius, opacity;
+                int color;
+                if (build instanceof LightBlock.LightBuild light) {
+                    radius = block.lightRadius * Math.min(light.smoothTime, 2f);
+                    color = light.color;
+                    opacity = ((LightBlock)block).brightness * light.efficiency;
+                } else {
+                    radius = block.lightRadius;
+                    color = block.lightColor.rgba();
+                    opacity = block.lightColor.a;
+                }
+                if (radius <= 0f || opacity <= 0f) continue;
+                Draw.color(color);
+                Draw.alpha(Math.min(opacity, 1f));
+                Draw.rect(region, build.x, build.y, radius * 2f, radius * 2f);
+            }
+        } finally {
+            Draw.blend();
+            Draw.reset();
         }
     }
 

@@ -73,6 +73,7 @@ import mindustry.world.blocks.defense.OverdriveProjector.OverdriveBuild;
 import mindustry.world.blocks.defense.ShockwaveTower.ShockwaveTowerBuild;
 import mindustry.world.blocks.defense.turrets.BaseTurret;
 import mindustry.world.blocks.defense.turrets.ReloadTurret;
+import mindustry.world.blocks.power.LightBlock;
 import mindustry.world.blocks.production.BeamDrill;
 import mindustry.world.blocks.production.BeamDrill.BeamDrillBuild;
 import mindustry.world.blocks.production.BurstDrill.BurstDrillBuild;
@@ -212,6 +213,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         System.out.println("UPSTREAM_BUILDING_CRACKS region=cracks-2-4 wall=1 drill=1");
         target.verifyFluidDrawing(layers, viewport, viewer);
         target.verifyBuildingEffects(layers, viewport, viewer);
+        target.verifyDynamicLight(layers, viewport, viewer);
         target.verifyPayloadMix(layers, viewport, viewer);
         target.verifyCarriedBuildings(layers, viewport, viewer);
         target.verifyUnits(viewer);
@@ -1525,6 +1527,28 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         sourceTile.setBlock(Blocks.air);
         targetTile.setBlock(Blocks.air);
         return moved;
+    }
+
+    private void verifyDynamicLight(UpstreamBuildingLayers layers, UpstreamTerrainDrawProbe.Viewport viewport,
+                                    Team viewer) {
+        var tile = Vars.world.tile(37, 34);
+        tile.setBlock(Blocks.illuminator, viewer, 0);
+        var light = (LightBlock.LightBuild)tile.build;
+        light.color = Color.red.rgba();
+        light.smoothTime = 1f;
+        light.efficiency = 1f;
+        light.wasVisible = true;
+        var region = Core.atlas.find("circle-shadow");
+        requireRegion(region);
+        sprites.clear();
+        layers.render(viewport, viewer, build -> build.block == Blocks.illuminator);
+        if (sprites.stream().noneMatch(sprite -> sprite.blending() == Blending.additive
+                && sprite.page() == UpstreamTerrainDrawProbe.pageIndex(region)
+                && sprite.width() > 0f && sprite.height() > 0f)) {
+            throw new AssertionError("Stock illuminator did not emit an additive light");
+        }
+        tile.setBlock(Blocks.air);
+        System.out.println("UPSTREAM_DYNAMIC_LIGHT emitter=illuminator additive=ok");
     }
 
     private void verifyFluidDrawing(UpstreamBuildingLayers layers, UpstreamTerrainDrawProbe.Viewport viewport,
