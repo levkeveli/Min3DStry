@@ -1378,6 +1378,20 @@ import port.audio.Arm11Audio;''')
                 // Use the existing unshaded geometry when the desktop renderer is absent.
                 source = source.replace(animated, "if(${renderer} != null && ${renderer}.animateShields){")
                 if (path == 'mindustry/graphics/Drawf.java') {
+                    def radialLight = '''        if(renderer == null) return;
+        renderer.lights.add(x, y, radius, color, opacity);'''
+                    def positionLight = '''        if(renderer == null) return;
+       light(pos.getX(), pos.getY(), radius, color, opacity);'''
+                    if (source.count(radialLight) != 1 || source.count(positionLight) != 1) {
+                        throw new GradleException('Pinned radial light entry points changed')
+                    }
+                    source = source.replace('import arc.*;', 'import arc.*;\nimport port.render.UpstreamBuildingLights;')
+                    source = source.replace(radialLight, '''        if(renderer == null){
+            UpstreamBuildingLights.radial(x, y, radius, color, opacity);
+            return;
+        }
+        renderer.lights.add(x, y, radius, color, opacity);''')
+                    source = source.replace(positionLight, '        light(pos.getX(), pos.getY(), radius, color, opacity);')
                     def stockUniforms = '''        Shaders.build.region = region;
         Shaders.build.progress = progress;
         Shaders.build.color.set(color);
