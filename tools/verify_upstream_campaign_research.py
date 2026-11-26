@@ -44,12 +44,13 @@ def verify(model: str, planet: str, rom: Path, azahar: str, config: Path, log: P
             (200, 202, 1),
             (215, 217, 1),
             (224, 226, 1 << 1),
-            (233, 235, 1 << 1),
-            (245, 247, 1 << 1),
-            (256, 258, 1 << 1),
+            (233, 235, sp.KEY_Y),
+            (245, 247, sp.KEY_B),
+            (256, 258, sp.KEY_B),
+            (268, 270, sp.KEY_B),
         ]
         write_movie(replay, model, taps={143: (160, 222)}, buttons={start: key for start, _, key in window},
-                    button_durations={start: end - start for start, end, _ in window}, seconds=268)
+                    button_durations={start: end - start for start, end, _ in window}, seconds=284)
     else:
         write_input_replay(replay, model, window, 129, b"Min3DStry Campaign Research")
 
@@ -95,6 +96,10 @@ def verify(model: str, planet: str, rom: Path, azahar: str, config: Path, log: P
                              rf"UPSTREAM_CAMPAIGN_RESEARCH_CHANGED node={block} unlocked={str(unlocked).lower()}\b", 90)
             if not globe:
                 sp._wait_for_log(log, proc, rf"UPSTREAM_CAMPAIGN_SAVED slot={name}\b", 90)
+            else:
+                sp._wait_for_log(log, proc, r"UPSTREAM_DATABASE_OPEN tab=sun rows=[1-9][0-9]*", 35)
+                (output / f"{prefix}-database.png").write_bytes(rpc.screenshot())
+                sp._wait_for_log(log, proc, r"UPSTREAM_DATABASE_CLOSE\b", 30)
             transcript = sp._wait_for_log(log, proc, r"UPSTREAM_SP_EXIT\b", 90 if globe else 20)
             if globe and ("UPSTREAM_SP_LOADED" in transcript or slot.read_bytes() != (fixtures / name).read_bytes()):
                 raise AssertionError("Research from the globe opened or rewrote the stored sector world")
