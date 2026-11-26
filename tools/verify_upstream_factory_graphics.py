@@ -108,6 +108,7 @@ def capture(args, model, phase, fixture, reference, threshold):
     sd = (output / "sdmc").resolve()
     data = sd / "3ds/min3dstry"
     data.mkdir(parents=True)
+    sp.stage_direct_startup(sd)
     movie = None
     if args.live:
         (data / "server-endpoint.txt").write_text(f"127.0.0.1 {args.port}\n", encoding="ascii")

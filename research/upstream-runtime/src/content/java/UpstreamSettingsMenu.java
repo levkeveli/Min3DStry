@@ -42,7 +42,7 @@ public final class UpstreamSettingsMenu {
 
     public void move(int direction) {
         if (direction == 0) return;
-        selected = Math.floorMod(selected + direction, 6);
+        selected = Math.floorMod(selected + direction, 7);
     }
 
     /** Toggles the selected setting and returns its new value; Back returns false. */
@@ -68,7 +68,11 @@ public final class UpstreamSettingsMenu {
         }
     }
 
-    public boolean backSelected() {
+    boolean soundSelected() {
         return selected == 5;
+    }
+
+    public boolean backSelected() {
+        return selected == 6;
     }
 }

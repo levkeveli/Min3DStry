@@ -57,6 +57,7 @@ AUDIO_EXACT = {
 NET_EXACT = {
     "tools/verify_upstream_net.py",
     "tools/verify_upstream_live_net.py",
+    "tools/verify_stock_live_crafting.py",
 }
 
 SAVE_EXACT = {
@@ -85,6 +86,8 @@ FACTORY_EXACT = {
 
 SINGLEPLAYER_EXACT = {
     "tools/verify_upstream_singleplayer.py",
+    "tools/verify_upstream_campaign_globe.py",
+    "tools/UpstreamCampaignPlanetMeshes.java",
     "tests/tools/test_verify_upstream_singleplayer.py",
 }
 
