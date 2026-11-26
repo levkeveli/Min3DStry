@@ -79,6 +79,10 @@ if [[ $# -gt 0 ]]; then
         echo "Prepare singleplayer terrain assets with --singleplayer to include the original campaign maps" >&2
         exit 2
     fi
+    if [[ ${#native_input[@]} -gt 0 && ! -s "$1/contributors" ]]; then
+        echo "Prepare singleplayer terrain assets with --singleplayer to include the original credits" >&2
+        exit 2
+    fi
     if [[ ${#native_input[@]} -gt 0 && ! -s "$1/planets/serpulo.json" ]]; then
         echo "Prepare singleplayer terrain assets with --singleplayer to include the original planet data" >&2
         exit 2
@@ -129,6 +133,9 @@ if [[ $# -gt 0 ]]; then
     fi
     if [[ -d "$1/planets" ]]; then
         cp -R "$1/planets" "$output/romfs/planets"
+    fi
+    if [[ -f "$1/contributors" ]]; then
+        cp "$1/contributors" "$output/romfs/contributors"
     fi
     if [[ -d "$1/bundles" ]]; then
         cp -R "$1/bundles" "$output/romfs/bundles"

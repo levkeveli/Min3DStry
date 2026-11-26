@@ -242,6 +242,10 @@ public final class UpstreamStatusRowsProbe {
         }
         System.out.println("UPSTREAM_SETTINGS_POSITION ok");
         settings.move(1);
+        if (!settings.soundSelected() || settings.backSelected()) {
+            throw new IllegalStateException("Settings sound selection mismatch");
+        }
+        settings.move(1);
         if (!settings.backSelected()) throw new IllegalStateException("Settings back selection mismatch");
         settings.move(1);
         if (settings.selected() != 0) throw new IllegalStateException("Settings wrap mismatch");
