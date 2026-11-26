@@ -1,20 +1,39 @@
+import arc.Core;
+import arc.files.Fi;
+import arc.mock.MockApplication;
+import arc.mock.MockAudio;
+import arc.mock.MockFiles;
+import arc.mock.MockGraphics;
+import arc.mock.MockSettings;
 import arc.net.Client;
 import arc.net.Connection;
 import arc.net.DcReason;
 import arc.net.NetListener;
 import arc.struct.Seq;
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.Base64;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.zip.InflaterInputStream;
 import mindustry.Vars;
+import mindustry.core.ContentLoader;
+import mindustry.core.GameState;
+import mindustry.core.NetClient;
+import mindustry.core.World;
 import mindustry.core.Version;
 import mindustry.gen.ConnectConfirmCallPacket;
+import mindustry.gen.Groups;
+import mindustry.gen.Player;
 import mindustry.gen.StateSnapshotCallPacket;
+import mindustry.maps.Maps;
+import mindustry.mod.Mods;
 import mindustry.net.ArcNetProvider;
 import mindustry.net.Net;
+import mindustry.net.NetworkIO;
 import mindustry.net.Packets.ConnectPacket;
 import mindustry.net.Packets.StreamBegin;
 import mindustry.net.Packets.StreamChunk;
@@ -48,6 +67,7 @@ public final class UpstreamWorldStreamCapture implements NetListener {
             Files.write(Path.of(args[1]), payload, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
             System.out.println("UPSTREAM_WORLD_STREAM_CAPTURE bytes=" + payload.length);
             if (confirm) {
+                loadStockWorld(payload, Path.of(args[1]).toAbsolutePath().getParent());
                 client.sendTCP(new ConnectConfirmCallPacket());
                 capture.snapshot.get(10, TimeUnit.SECONDS);
                 System.out.println("UPSTREAM_HOSTED_WORLD_CONFIRMED stock-snapshot=true");
@@ -55,6 +75,34 @@ public final class UpstreamWorldStreamCapture implements NetListener {
         } finally {
             client.stop();
         }
+    }
+
+    private static void loadStockWorld(byte[] payload, Path output) {
+        Core.app = new MockApplication();
+        Core.audio = new MockAudio();
+        Core.files = new MockFiles();
+        Core.graphics = new MockGraphics();
+        Core.settings = new MockSettings();
+        Vars.headless = true;
+        Vars.state = new GameState();
+        Vars.content = new ContentLoader();
+        Vars.customMapDirectory = new Fi(output.resolve("maps").toString());
+        Vars.maps = new Maps();
+        Vars.mods = new Mods();
+        Vars.content.createBaseContent();
+        Vars.content.init();
+        Groups.init();
+        Vars.world = new World();
+        Vars.player = Player.create();
+        Vars.netClient = new NetClient();
+        InputStream compressed = new ByteArrayInputStream(payload);
+        NetworkIO.loadWorld(new InflaterInputStream(compressed));
+        var core = Vars.player.team().core();
+        if (Vars.world.width() <= 0 || Vars.world.height() <= 0 || core == null) {
+            throw new IllegalStateException("Stock Java did not load the hosted world and player's core");
+        }
+        System.out.println("UPSTREAM_HOSTED_WORLD_STOCK_LOAD tiles=" + Vars.world.width() + "x" + Vars.world.height()
+            + " core=" + core.block.name + " map=" + Vars.state.map.name());
     }
 
     @Override

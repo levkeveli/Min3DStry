@@ -5,6 +5,7 @@ import argparse
 import hashlib
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 
@@ -40,13 +41,18 @@ def verify(args):
             sp._wait_for_log(log, proc, r"UPSTREAM_HOST_READY version=160\.8 port=6567 .*tiles=256x256\b", 150)
             payload = output / "stock-world-stream.zlib"
             classpath = f"{classes}{os.pathsep}{args.stock_jar.resolve()}"
-            with (output / "stock-pc.log").open("wb") as pc_log:
+            pc_output = output / "stock-pc.log"
+            with pc_output.open("wb") as pc_log:
                 subprocess.run(
                     [args.java, "-cp", classpath, "UpstreamWorldStreamCapture", "6567", str(payload), "--confirm"],
                     stdout=pc_log, stderr=subprocess.STDOUT, timeout=40, check=True,
                 )
             if not payload.is_file() or payload.stat().st_size == 0:
                 raise AssertionError("The stock client did not receive the compressed world")
+            if not re.search(r"^UPSTREAM_HOSTED_WORLD_STOCK_LOAD tiles=256x256 core=core-shard "
+                             r"map=(?:Ground[ _]Zero|groundZero)$",
+                             pc_output.read_text(encoding="utf-8"), re.MULTILINE):
+                raise AssertionError("Stock Java did not load the expected Ground Zero world and core")
             rom_frame = rpc.screenshot()
             (output / "new3ds-host.png").write_bytes(rom_frame)
             if sp.az.inspect_png(rom_frame)["top_distinct_colors"] < 8:

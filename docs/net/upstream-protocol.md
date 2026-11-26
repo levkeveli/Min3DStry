@@ -62,9 +62,11 @@ load and advances it each frame. Hold X and Y at startup or launch with
 for stream sizes to use bytes because TeaVM lacks the Java formatter.
 
 The hosted-world Azahar replay uses the unmodified v160.8 Java transport
-to receive and confirm a world stream, then waits for the original server's
-first state snapshot. The same client check passed locally against the
-stock Java server. The native replay and desktop gameplay checks are pending.
+to receive a world stream. Stock `NetworkIO.loadWorld` opens the map and
+checks the player's core before the client confirms the join and waits for
+the original server's first state snapshot. The same client check loaded
+Glacier from the stock Java server. The native replay and desktop gameplay
+checks are pending.
 
 ```sh
 python3 tools/verify_upstream_hosted_world.py --rom upstream-probe.3dsx \
