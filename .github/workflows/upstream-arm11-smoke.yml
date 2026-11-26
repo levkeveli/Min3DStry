@@ -28,6 +28,8 @@ on:
       - ".github/scripts/setup_smoke_azahar.sh"
       - "tools/verify_offline_stock_audio.py"
       - "tools/verify_upstream_singleplayer.py"
+      - "tools/verify_upstream_campaign_globe.py"
+      - "tools/UpstreamCampaignPlanetMeshes.java"
       - "tools/verify_azahar.py"
       - "tools/UpstreamSpriteAtlas.java"
       - ".github/scripts/cc_host.sh"
@@ -1365,6 +1367,12 @@ jobs:
             echo "Offline replay failed; retrying once (attempt 2/2)" >&2
             sleep 2
           done
+      - name: Replay campaign lighting, both stock globes, and The Onset launch
+        run: >-
+          xvfb-run -a python3 tools/verify_upstream_campaign_globe.py
+          --rom build/unified-smoke/upstream-probe.3dsx
+          --server build/unified-smoke/server-release.jar
+          --output build/offline-smoke/campaign-globe
       - uses: actions/upload-artifact@v4
         if: always()
         with:
