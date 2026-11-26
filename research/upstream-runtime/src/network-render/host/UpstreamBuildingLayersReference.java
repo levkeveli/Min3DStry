@@ -47,6 +47,7 @@ import mindustry.content.UnitTypes;
 import mindustry.ctype.ContentType;
 import mindustry.entities.units.BuildPlan;
 import mindustry.gen.Builderc;
+import mindustry.gen.Building;
 import mindustry.gen.Groups;
 import mindustry.gen.Payloadc;
 import mindustry.gen.BlockUnitc;
@@ -55,7 +56,10 @@ import mindustry.gen.DisplayCmd;
 import mindustry.gen.Player;
 import mindustry.gen.Tankc;
 import mindustry.gen.UnitWaterMove;
+import mindustry.world.blocks.heat.HeatConductor.HeatConductorBuild;
 import mindustry.world.blocks.liquid.Conduit.ConduitBuild;
+import mindustry.world.blocks.power.VariableReactor.VariableReactorBuild;
+import mindustry.world.blocks.production.HeatCrafter.HeatCrafterBuild;
 import mindustry.world.blocks.liquid.LiquidBlock;
 import mindustry.game.Team;
 import mindustry.game.MapObjectives;
@@ -95,6 +99,7 @@ import mindustry.world.blocks.payloads.UnitPayload;
 import mindustry.world.blocks.payloads.PayloadConveyor;
 import mindustry.world.blocks.payloads.PayloadConveyor.PayloadConveyorBuild;
 import mindustry.world.blocks.units.UnitFactory;
+import mindustry.world.blocks.units.UnitFactory.UnitFactoryBuild;
 
 public final class UpstreamBuildingLayersReference implements UpstreamTerrainDrawProbe.TerrainTarget {
     private record Sprite(float x, float y, int page, int left, int top, int width, int height, float rotation, int color, int mixColor, Blending blending) {}
@@ -175,6 +180,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         if (args.length >= 4) verifyLiquidBarLabels(viewer);
         if (args.length >= 4) verifyLiquidBarFixedLabels(viewer);
         if (args.length >= 4) verifyBasicBarLabels(viewer);
+        if (args.length >= 4) verifySpecificBarProviders(viewer);
         verifyLiquidBar(viewer);
         verifyLiquidBarFixed(viewer);
         verifyBasicBars(viewer);
@@ -529,6 +535,41 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
             throw new AssertionError("Stock client processor did not execute the configured Canvas write");
         }
         System.out.println("UPSTREAM_CLIENT_PROCESSOR_REFERENCE ids=ok compressed=ok link=ok canvas=5");
+    }
+
+    private static void verifySpecificBarProviders(Team viewer) {
+        var conductor = (HeatConductorBuild)Blocks.heatRedirector.newBuilding().create(Blocks.heatRedirector, viewer);
+        verifySpecificBar(conductor, "heat", Core.bundle.format("bar.heatamount", 0), 0f, Pal.lightOrange);
+        conductor.heat = conductor.heatRequirement() / 2f;
+        verifySpecificBar(conductor, "heat", Core.bundle.format("bar.heatamount", (int)conductor.heat),
+            0.5f, Pal.lightOrange);
+
+        var crucible = (HeatCrafterBuild)Blocks.carbideCrucible.newBuilding().create(Blocks.carbideCrucible, viewer);
+        crucible.heat = crucible.heatRequirement() / 2f;
+        String efficiency = Core.bundle.format("bar.heatpercent", (int)crucible.heat,
+            (int)(crucible.efficiencyScale() * 100 + 0.01f));
+        verifySpecificBar(crucible, "heat", efficiency, 0.5f, Pal.lightOrange);
+
+        var reactor = (VariableReactorBuild)Blocks.fluxReactor.newBuilding().create(Blocks.fluxReactor, viewer);
+        reactor.instability = 0.75f;
+        verifySpecificBar(reactor, "instability", Core.bundle.get("bar.instability"), 0.75f, Pal.sap);
+
+        var factory = (UnitFactoryBuild)Blocks.airFactory.newBuilding().create(Blocks.airFactory, viewer);
+        factory.currentPlan = 0;
+        factory.progress = ((UnitFactory)factory.block).plans.first().time / 2f;
+        verifySpecificBar(factory, "progress", Core.bundle.format("bar.progress", "50"), 0.5f, Pal.ammo);
+        System.out.println("UPSTREAM_BUILDING_BAR_REFERENCE heat=ok instability=ok factory=ok");
+    }
+
+    private static void verifySpecificBar(Building building, String key, String label, float value, Color tint) {
+        var bar = building.block.buildBar(key, building);
+        if (bar == null || !bar.hasValue()) throw new AssertionError("Missing original building bar: " + key);
+        bar.act(0f);
+        bar.advanceValue();
+        if (!label.contentEquals(bar.displayName()) || Math.abs(bar.displayValue() - value) > 1e-6f
+                || bar.displayColor(new Color()).rgba() != tint.rgba()) {
+            throw new AssertionError("Unexpected " + key + " label, fill or tint: " + bar.displayName());
+        }
     }
 
     private static void verifyPowerBar(Team viewer) {

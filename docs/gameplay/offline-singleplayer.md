@@ -880,6 +880,15 @@ water and nitrogen in the tanks, the configured source, and both bridge
 spans when loading the save offline and after joining the unmodified
 Java v160.8 server.
 
+## Building-specific status bars
+
+The offline and multiplayer status overlays show the selected friendly
+building's stock status bars in addition to health, power, items and
+liquids. The handheld draws their original v160.8 providers, localized
+values, colors and fill animation using the original bar sprites. This
+includes the heat amount on redirectors, the heat and efficiency on
+crucibles, reactor instability, and unit factory progress.
+
 ## Erekir heat and neoplasm
 
 The same world pass now draws the original heat conductors. Their stock
