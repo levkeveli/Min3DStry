@@ -134,6 +134,7 @@ regular heap above a 24 MiB native reserve, with the existing 32 MiB baseline
 on lower-memory launches. The globe has a separate 8 MiB GPU linear heap.
 The grouped release replay checks Serpulo 242, Littoral Shipyard, and Origin
 against the same ROM and reopens each result in the original Java game.
+Use --from-title with a named dense preset to open it through Play → Campaign.
 Physical New 3DS performance remains open.
 
 The [ARM11 build from `1390790`](https://github.com/levkeveli/Min3DStry/actions/runs/45035851013)

@@ -85,6 +85,7 @@ jobs:
           fi
           python3 tools/campaign_resume_fixtures.py "${scenario[@]}" --server "$server" \
             --output "$RUNNER_TEMP/dense-fixtures"
+          if [ "$SECTOR" != serpulo-242 ]; then scenario+=(--from-title); fi
           xvfb-run -a python3 tools/verify_upstream_campaign_resume.py "${scenario[@]}" --dense-resave --model new3ds \
             --rom build/unified-smoke/upstream-probe.3dsx --server "$server" \
             --fixtures "$RUNNER_TEMP/dense-fixtures" --output-dir build/dense-campaign-replay
