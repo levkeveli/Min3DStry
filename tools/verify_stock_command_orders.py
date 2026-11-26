@@ -35,6 +35,7 @@ TAPS = {
     36: (305, 128), 42: (72, 120), 47: (104, 120), 53: (88, 88),
     62: (120, 200), 68: (248, 168),
 }
+QUEUE_ORDER = 1 << 8
 
 
 def create_fixture(args, output):
@@ -54,7 +55,7 @@ def read_stock_orders(server, log):
 def verify_commands(log, proc, rpc, output):
     sp._wait_for_log(log, proc, r"UPSTREAM_COMMAND_SELECTION units=2 buildings=0", 100)
     (output / "selected-daggers.png").write_bytes(rpc.screenshot())
-    sp._wait_for_log(log, proc, r"UPSTREAM_COMMAND_ORDER kind=move units=2 queued=false x=608\.0 y=232\.0", 45)
+    sp._wait_for_log(log, proc, r"UPSTREAM_COMMAND_ORDER kind=move units=2 queued=true x=608\.0 y=232\.0", 45)
     sp._wait_for_log(log, proc, r"UPSTREAM_COMMAND_RALLY buildings=1 x=688\.0 y=192\.0", 55)
 
 
@@ -140,10 +141,10 @@ def main():
     args.output.mkdir(parents=True)
     fixture = args.fixture or create_fixture(args, args.output / "stock-fixture")
     for model in args.model or ("new3ds",):
-        replay(args, model, fixture, False)
+        replay(args, model, fixture, False, buttons={50: QUEUE_ORDER, 84: sp.KEY_SELECT, 94: sp.KEY_START})
         print(f"UPSTREAM_STOCK_COMMANDS model={model} live=False daggers=2 rally=ok", flush=True)
         if args.live:
-            replay(args, model, fixture, True)
+            replay(args, model, fixture, True, buttons={0: sp.KEY_X, 50: QUEUE_ORDER, 94: sp.KEY_START})
             print(f"UPSTREAM_STOCK_COMMANDS model={model} live=True daggers=2 rally=ok", flush=True)
 
 

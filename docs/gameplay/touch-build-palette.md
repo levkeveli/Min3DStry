@@ -93,11 +93,13 @@ library and in-game sharing. The replay requires the exported text
 to replace the Workshop-tagged input and uses unmodified Java
 v160.8 to check its contents.
 
-The ARM11 build at `86ae965` passed the title and live multiplayer share
-replays in New 3DS Azahar 2126.2. The stock server also confirmed that
-the rotated placement spent the correct materials, linked both Bridge
-Conveyors, and retained the Sorter's Lead filter.
-[Exact ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45740987136)
+The ARM11 build at `e1a88dc` passed the title, offline and multiplayer
+share replays in New 3DS Azahar 2126.2. Unmodified Java v160.8 read the
+exported text from all three routes. It confirmed in both the offline
+save and the live session that rotating and building the schematic
+spent materials, linked both Bridge Conveyors, and kept the Sorter's
+Lead filter.
+[Exact ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45743676841)
 
 The hosted New 3DS replay used `verify_stock_schematic_capture.py --xdotool
 --edit` to change both fields. Unmodified Mindustry v160.8 Java reopened
@@ -287,6 +289,11 @@ The [ARM11 command build](https://github.com/levkeveli/Min3DStry/actions/runs/45
 passed on Azahar 2126.2 Original and New 3DS profiles. Stock Java
 verified that both Daggers moved and that the Ground Factory had the
 chosen rally point in both offline saves and both live sessions.
+
+The [schematic sharing build](https://github.com/levkeveli/Min3DStry/actions/runs/45743676841)
+also passed the command replay in New 3DS mode. Pressing R queued the
+move for both Daggers. Unmodified Java v160.8 confirmed their movement
+and the stock factory rally point in the offline save and live session.
 
 ```bash
 python3 tools/verify_stock_command_orders.py \
