@@ -162,6 +162,14 @@ all three maps and Frozen Forest recovery with one newly built unified ROM.
 Use `--from-title` with a named dense preset to open it through Play → Campaign.
 Large campaign saves collect temporary simulation and rendering objects before
 allocating the stock serializer and log the heap usage at that point.
+The integrated replay at `1e8a384` passed Littoral Shipyard, Origin, and
+Frozen Forest recovery. Serpulo 242 ran out of managed heap during its
+save. The stock serializer now stages chunk bodies over 16 KiB in
+temporary files in the app's data directory. Each buffer keeps a fixed
+heap footprint and writes the same byte count and bytes to the stock
+compression stream. A chunk is cleaned up after success or an exception.
+[Integrated replay](https://github.com/levkeveli/Min3DStry/actions/runs/45754744096)
+
 Physical New 3DS performance remains open.
 
 The [ARM11 build from `1390790`](https://github.com/levkeveli/Min3DStry/actions/runs/45035851013)

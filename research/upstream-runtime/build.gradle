@@ -2048,49 +2048,53 @@ ${barOracle}""")
                 def streams = 'protected static final ReusableByteOutStream byteOutput = new ReusableByteOutStream(), byteOutput2 = new ReusableByteOutStream();'
                 def selectStream = 'ReusableByteOutStream dout = wasNested ? byteOutput2 : byteOutput;'
                 def writeData = 'output.write(dout.getBytes(), 0, length);'
-                def resetNesting = '            chunkNested = wasNested;'
-                if ([streams, selectStream, writeData, resetNesting].any { saveReader.count(it) != 1 }) {
+                def resetBuffer = '''        try{
+            //reset output position
+            dout.reset();'''
+                if ([streams, selectStream, writeData, resetBuffer].any { saveReader.count(it) != 1 }) {
                     throw new GradleException('Pinned SaveFileReader write buffering changed')
                 }
-                def segmented = '''protected static final ChunkBuffer byteOutput = new ChunkBuffer(), byteOutput2 = new ChunkBuffer();
+                def bounded = '''protected static final ChunkBuffer byteOutput = new ChunkBuffer(), byteOutput2 = new ChunkBuffer();
 
-    // Preserve the stock length prefix without requiring one map-sized allocation.
+    // Stock chunks put the byte count first. Stage large bodies on the SD card
+    // so serializing them alongside the running world has a fixed heap cost.
     protected static final class ChunkBuffer extends OutputStream{
-        private static final int capacity = 4096;
-        private final Chunk first = new Chunk();
-        private Chunk tail = first;
-        private int size;
+        private final byte[] buffer = new byte[16 * 1024];
+        private int count, size;
+        private File scratch;
+        private OutputStream spill;
 
-        private static final class Chunk{
-            final byte[] bytes = new byte[capacity];
-            int count;
-            Chunk next;
-        }
-
-        private void ensureSpace(){
-            if(tail.count == capacity){
-                tail.next = new Chunk();
-                tail = tail.next;
+        private void ensureSpace() throws IOException{
+            if(count < buffer.length) return;
+            if(spill == null){
+                File directory = arc.Core.settings.getDataDirectory().file();
+                if(!directory.isDirectory() && !directory.mkdirs()){
+                    throw new IOException("Could not create save chunk directory " + directory);
+                }
+                scratch = File.createTempFile("min3ds-save-chunk-", ".tmp", directory);
+                spill = new FileOutputStream(scratch);
             }
+            spill.write(buffer, 0, count);
+            count = 0;
         }
 
         @Override
-        public void write(int value){
+        public void write(int value) throws IOException{
             ensureSpace();
-            tail.bytes[tail.count++] = (byte)value;
+            buffer[count++] = (byte)value;
             size++;
         }
 
         @Override
-        public void write(byte[] bytes, int offset, int length){
+        public void write(byte[] bytes, int offset, int length) throws IOException{
             while(length > 0){
                 ensureSpace();
-                int count = Math.min(length, capacity - tail.count);
-                System.arraycopy(bytes, offset, tail.bytes, tail.count, count);
-                tail.count += count;
-                offset += count;
-                length -= count;
-                size += count;
+                int copied = Math.min(length, buffer.length - count);
+                System.arraycopy(bytes, offset, buffer, count, copied);
+                count += copied;
+                size += copied;
+                offset += copied;
+                length -= copied;
             }
         }
 
@@ -2099,24 +2103,46 @@ ${barOracle}""")
         }
 
         void writeTo(DataOutput output) throws IOException{
-            for(Chunk chunk = first; chunk != null; chunk = chunk.next){
-                if(chunk.count != 0) output.write(chunk.bytes, 0, chunk.count);
+            if(spill == null){
+                if(count != 0) output.write(buffer, 0, count);
+                return;
+            }
+            spill.write(buffer, 0, count);
+            finishSpill();
+            try(var input = new FileInputStream(scratch)){
+                int read;
+                while((read = input.read(buffer)) != -1){
+                    output.write(buffer, 0, read);
+                }
             }
         }
 
-        void reset(){
-            first.count = 0;
-            first.next = null;
-            tail = first;
-            size = 0;
+        private void finishSpill() throws IOException{
+            var file = spill;
+            spill = null;
+            if(file != null) file.close();
+        }
+
+        @Override
+        public void close() throws IOException{
+            try{
+                finishSpill();
+            }finally{
+                count = size = 0;
+                var file = scratch;
+                scratch = null;
+                if(file != null && !file.delete() && file.exists()){
+                    throw new IOException("Could not remove save chunk " + file);
+                }
+            }
         }
     }'''
                 def stagedSaveReader = sourceDir.get().file(saveReaderPath).asFile
                 stagedSaveReader.parentFile.mkdirs()
-                stagedSaveReader.setText(saveReader.replace(streams, segmented)
+                stagedSaveReader.setText(saveReader.replace(streams, bounded)
                     .replace(selectStream, 'ChunkBuffer dout = wasNested ? byteOutput2 : byteOutput;')
-                    .replace(writeData, 'dout.writeTo(output);')
-                    .replace(resetNesting, '            dout.reset();\n' + resetNesting), 'UTF-8')
+                    .replace(resetBuffer, '        try(dout){')
+                    .replace(writeData, 'dout.writeTo(output);'), 'UTF-8')
             }
             if (usesRenderedClient) {
                 def tableField = '    public TextureRegion[] teamRegions, variantRegions, variantShadowRegions;'
