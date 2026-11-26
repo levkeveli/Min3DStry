@@ -225,6 +225,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         target.verifyErekirStarterBlocks(layers, viewport, viewer);
         target.verifyExtractorDraws(layers, viewport, viewer);
         target.verifyLiveBuildingRegistry(layers, viewport, viewer, block -> block instanceof BaseTurret, "TURRET");
+        target.verifyTurretBarrel(layers, viewport, viewer);
         // The stock Liquid Bridge is liquid-category, so the live predicate's
         // Category.liquid branch must keep both bridge blocks drawable.
         if (Blocks.bridgeConduit.category != Category.liquid
@@ -1528,6 +1529,30 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         sourceTile.setBlock(Blocks.air);
         targetTile.setBlock(Blocks.air);
         return moved;
+    }
+
+    private void verifyTurretBarrel(UpstreamBuildingLayers layers, UpstreamTerrainDrawProbe.Viewport viewport,
+                                    Team viewer) {
+        var tile = Vars.world.tile(35, 34);
+        tile.setBlock(Blocks.duo, viewer, 0);
+        var duo = tile.build;
+        duo.wasVisible = true;
+        sprites.clear();
+        duo.block.drawBase(duo.tile);
+        int baseCount = sprites.size();
+        sprites.clear();
+        layers.render(viewport, viewer, build -> build == duo);
+        if (sprites.size() <= baseCount) {
+            throw new AssertionError("Stock turret draw is missing its barrel: " + baseCount + " -> " + sprites.size());
+        }
+        var barrel = Core.atlas.find("duo-barrel");
+        if (barrel.found() && sprites.stream().noneMatch(sprite -> sprite.page() == UpstreamTerrainDrawProbe.pageIndex(barrel)
+                && sprite.left() == barrel.getX() && sprite.top() == barrel.getY())) {
+            throw new AssertionError("Stock turret draw is missing the original barrel region");
+        }
+        tile.setBlock(Blocks.air);
+        System.out.println("UPSTREAM_TURRET_DRAW base=" + baseCount + " draw=" + sprites.size()
+            + " barrel=" + (barrel.found() ? "ok" : "count"));
     }
 
     private void verifyDynamicLight(UpstreamBuildingLayers layers, UpstreamTerrainDrawProbe.Viewport viewport,

@@ -31,6 +31,13 @@ after firing. The same ROM passed the offline weapon replay on both
 profiles and the Original 3DS offline and live turret-possession replay.
 [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45108952293)
 
+## Turret barrels
+
+Visible turrets use the stock turret drawer over the cached base, so barrels,
+ammo, liquid and heat draw with the original rotation and recoil. The host
+reference registers all 29 turrets and checks the Duo base-only versus full
+turret draw (`8 -> 16` sprites). Full beam and status-effect paths remain open.
+
 ## Live projectile drawing
 
 The live viewport advances the original weapon mounts, delayed shots,

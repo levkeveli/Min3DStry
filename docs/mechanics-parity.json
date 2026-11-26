@@ -388,7 +388,7 @@
         "research/upstream-runtime/src/gameplay/java/UpstreamCombatTickProbe.java",
         "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerApp.java"
       ],
-      "notes": "Duo/Scatter targeting, ammo consumption, bullet hits, and kills are ARM11-verified in probes and multiplayer; live offline bullet draw wired, full turret catalog/beams/status effects pending."
+      "notes": "Duo/Scatter targeting, ammo consumption, bullet hits, and kills are ARM11-verified in probes and multiplayer. Live offline bullet draw is wired, and visible turrets now use the stock turret draw over the cached base, adding barrels, ammo, liquid and heat (host: 29-registry, base=8 draw=16). Full beam/status-effect paths and complete turret catalog behavior remain open."
     },
     {
       "id": "unit-catalog-player-weapons",
