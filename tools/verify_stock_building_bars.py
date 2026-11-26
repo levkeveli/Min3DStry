@@ -16,15 +16,17 @@ from verify_upstream_live_net import SERVER_SHA256, stop
 
 SETUP = (
     "const rules=Vars.state.rules, team=rules.defaultTeam; rules.waves=false; rules.fog=false; "
-    "const source=Vars.world.tile(75,23), factory=Vars.world.tile(84,23); "
+    "const source=Vars.world.tile(75,23), factory=Vars.world.tile(85,23); "
     "source.setBlock(Blocks.heatSource,team,0); source.build.heat=Blocks.heatSource.heatOutput; "
     "factory.setBlock(Blocks.airFactory,team,0); factory.build.currentPlan=0; "
     "factory.build.progress=Blocks.airFactory.plans.first().time/2; "
     "return 'STOCK_SPECIFIC_BARS_PLACED';"
 )
 RESULT = (
-    "const source=Vars.world.build(75,23), factory=Vars.world.build(84,23); "
-    "if (source===null || source.block!==Blocks.heatSource || source.heat!==Blocks.heatSource.heatOutput || "
+    "const source=Vars.world.build(75,23), factory=Vars.world.build(85,23); "
+    "const core=Vars.state.rules.defaultTeam.core(); "
+    "if (core===null || core.tileX()!==81 || core.tileY()!==26 || Vars.state.gameOver || "
+    "source===null || source.block!==Blocks.heatSource || source.heat!==Blocks.heatSource.heatOutput || "
     "factory===null || factory.block!==Blocks.airFactory || factory.currentPlan!==0 || "
     "factory.fraction()!==0.5) throw 'Original bar inputs changed'; "
     "return 'STOCK_SPECIFIC_BARS_READBACK';"
@@ -87,7 +89,7 @@ def main():
     fixture = create_fixture(args)
     for live in (False, True):
         buttons = {0: sp.KEY_X, 122: sp.KEY_START} if live else {111: sp.KEY_SELECT, 122: sp.KEY_START}
-        replay(args, "new3ds", fixture, live, taps={62: (72, 184), 88: (216, 184)},
+        replay(args, "new3ds", fixture, live, taps={62: (72, 184), 88: (232, 184)},
                buttons=buttons, button_durations={122: 5}, movie_seconds=142,
                verify_input=verify_input, read_stock=read_back)
         print(f"UPSTREAM_SPECIFIC_BARS_PASS model=new3ds live={live} heat=ok progress=ok", flush=True)
