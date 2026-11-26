@@ -4,6 +4,7 @@
 
 #include "net/mindustry_host_socket.h"
 
+#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -82,7 +83,7 @@ static HostFd bind_socket(uint16_t port, int kind, bool reuse_address) {
 }
 
 M3dsNetHostSocket *m3ds_net_host_socket_open(uint16_t port, unsigned peers, uint32_t id_seed) {
-  if (!port || !peers) return NULL;
+  if (!port || !peers || peers > INT_MAX) return NULL;
   M3dsNetHostSocket *host = calloc(1, sizeof(*host));
   if (!host) return NULL;
   host->tcp = host->udp = host->multicast = HOST_INVALID;
@@ -95,7 +96,7 @@ M3dsNetHostSocket *m3ds_net_host_socket_open(uint16_t port, unsigned peers, uint
   host->id = id_seed;
   host->tcp = bind_socket(port, SOCK_STREAM, true);
   host->udp = bind_socket(port, SOCK_DGRAM, false);
-  if (host->tcp == HOST_INVALID || host->udp == HOST_INVALID || listen(host->tcp, SOMAXCONN) != 0) {
+  if (host->tcp == HOST_INVALID || host->udp == HOST_INVALID || listen(host->tcp, (int)peers) != 0) {
     m3ds_net_host_socket_close(host);
     return NULL;
   }

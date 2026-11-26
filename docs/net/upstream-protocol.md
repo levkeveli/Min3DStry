@@ -55,6 +55,11 @@ their stock read/write methods. It selects the bundled pure-Java LZ4
 implementation directly for TeaVM. The JVM task `runStockHostPacketCodecJvm`
 exchanges compressed `ConnectPacket` data with the stock desktop serializer
 in both directions and checks the same raw framing for `StreamChunk`.
+The host socket uses the configured peer capacity as its TCP listen backlog
+so it also builds against libctru. The unified ARM11 build emits individual
+function sections so the linker can reach generated functions beyond the
+range of an ARM branch as the stock server code increases text size.
+
 The hosted provider hands original packets to `Net.handleServerReceived`
 and queues world streams as stock `StreamBegin` and `StreamChunk` packets.
 It uses `NetworkIO.writeServerData` for LAN advertisements. The unified
