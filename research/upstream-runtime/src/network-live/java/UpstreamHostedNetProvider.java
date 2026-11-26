@@ -235,8 +235,9 @@ final class UpstreamHostedNetProvider implements Net.NetProvider {
                         }
                         var chunk = new StreamChunk();
                         chunk.id = stream.begin.id;
-                        chunk.data = stream.source.readNBytes(size);
-                        if (chunk.data.length != size) throw new IOException("Incomplete original world stream");
+                        // TeaVM 0.16 ByteArrayInputStream.readNBytes does not advance its cursor.
+                        chunk.data = new byte[size];
+                        if (stream.source.read(chunk.data, 0, size) != size) throw new IOException("Incomplete original world stream");
                         stream.next = chunk;
                     }
                     int size = codec.encode(stream.next);

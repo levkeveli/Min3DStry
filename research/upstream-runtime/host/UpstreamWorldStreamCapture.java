@@ -156,7 +156,10 @@ public final class UpstreamWorldStreamCapture implements NetListener {
             } else if (object instanceof StreamChunk chunk && builder != null && builder.id == chunk.id) {
                 builder.add(chunk.data);
                 if (builder.isDone()) {
-                    if (builder.received != builder.total) throw new IllegalStateException("World stream size differs");
+                    if (builder.received != builder.total) {
+                        throw new IllegalStateException("Expected " + builder.total
+                            + " world bytes but received " + builder.received);
+                    }
                     world.complete(builder.build().stream.readAllBytes());
                     builder = null;
                 }

@@ -90,6 +90,13 @@ world replay still runs if an independent controller replay fails.
 The build adapts the stock debug message for stream sizes to use bytes
 because TeaVM lacks the Java formatter.
 
+The New 3DS replay at `0ccd85f` got past snapshot compression. The stock
+Java transport then received 19 full 1,024-byte chunks for an advertised
+18,934-byte world. TeaVM 0.16's allocating `ByteArrayInputStream.readNBytes`
+implementation leaves the cursor in place. The host uses a bulk read into
+an exactly sized chunk to consume the stream. The stock fixture checks that
+the bytes received equal the announced size before loading the world.
+
 The hosted-world Azahar replay uses the unmodified v160.8 Java transport
 to receive a world stream. Stock `NetworkIO.loadWorld` opens the map and
 checks the player's core before the client confirms the join, waits for the
