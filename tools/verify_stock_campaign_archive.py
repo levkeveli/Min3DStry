@@ -58,6 +58,33 @@ def check_saves(java, server, saves=None, *, dense_save=None):
     print(result)
 
 
+def check_recovered_save(java, server, original, recovered):
+    with server.open("rb") as source:
+        if hashlib.file_digest(source, "sha256").hexdigest() != SERVER_SHA256:
+            raise ValueError("Expected the official v160.8 server-release.jar")
+    with tempfile.TemporaryDirectory(prefix="m3ds-stock-backup-readback-") as temporary:
+        root = Path(temporary)
+        shutil.copyfile(original, root / "original.msav")
+        shutil.copyfile(recovered, root / "recovered.msav")
+        script = '''
+            const Fi = Packages.arc.files.Fi, SaveIO = Packages.mindustry.io.SaveIO;
+            const sector = Packages.mindustry.content.SectorPresets.frozenForest.sector;
+            function read(name) {
+                const file = Fi.get(name);
+                if (SaveIO.getMeta(file).rules.sector.id !== sector.id) throw 'Incorrect recovered sector';
+                Vars.logic.reset();
+                SaveIO.load(file, Vars.world.makeSectorContext(sector));
+                if (Vars.state.rules.sector.id !== sector.id) throw 'Wrong world after stock load';
+                return [Vars.world.width(), Vars.world.height(), Vars.state.data.getPatches().size].join(':');
+            }
+            if (read('original.msav') !== read('recovered.msav')) throw 'The recovered world differs in size or patches';
+            return 'STOCK_CAMPAIGN_BACKUP_READBACK sector=64';
+        '''
+        marker = "STOCK_CAMPAIGN_BACKUP_READBACK sector=64"
+        stock_console(java, server, root, " ".join(script.splitlines()), marker)
+    print(marker)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--assets", type=Path)
