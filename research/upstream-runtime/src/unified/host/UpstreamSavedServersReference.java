@@ -8,6 +8,27 @@ import mindustry.ui.dialogs.JoinDialog;
 /** Verifies settings compatibility with the unmodified v160.8 JoinDialog.Server. */
 public final class UpstreamSavedServersReference {
     public static void main(String[] args) throws IOException {
+        if (args.length == 3) {
+            var directory = new Fi(args[1]);
+            int port = Integer.parseInt(args[2]);
+            var stock = new Settings();
+            stock.setDataDirectory(directory);
+            stock.load();
+            if (args[0].equals("--write-fixture")) {
+                stock.putJson("servers", JoinDialog.Server.class,
+                    Seq.with(server("retired.example", 6567), server("127.0.0.1", port)));
+                stock.manualSave();
+            } else if (args[0].equals("--check-fixture")) {
+                Seq<?> entries = stock.getJson("servers", Seq.class, JoinDialog.Server.class, Seq::new);
+                if (entries.size != 1) throw new AssertionError("Expected one saved server after deletion");
+                expect((JoinDialog.Server)entries.first(), "127.0.0.1", port);
+                System.out.println("UPSTREAM_SAVED_SERVERS_REPLAY_READBACK stock=true entries=1 port=" + port);
+            } else {
+                throw new IllegalArgumentException("Expected --write-fixture or --check-fixture");
+            }
+            return;
+        }
+        if (args.length != 1) throw new IllegalArgumentException("Expected a settings directory");
         var directory = new Fi(args[0]);
         var stock = new Settings();
         stock.setDataDirectory(directory);

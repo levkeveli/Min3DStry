@@ -94,7 +94,7 @@ BUILDING_CRACK_PIXELS = {
 def write_controls_replay(path, first_move=22, building=False, touch_build=False, touch_config=False,
                           erekir_build=False, mining=None, model="new3ds", stock_menu_font=False,
                           unified_boot=False, stationary=False, chat=False, cancel_restart=False, join_from_title=False,
-                          discover_lan=False):
+                          discover_lan=False, join_saved=False):
     """Write the Azahar 2126.2 CTM input for this probe's pad/touch polling."""
     # The pinned Azahar movie header and HID sample definitions use packed little-endian fields.
     revision = bytes.fromhex("219d743a1e698101fe1ab8bef43e6563126c3c27")
@@ -178,6 +178,14 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
                         buttons |= 1 << 7  # Move from Address to the first discovered server.
                     if 70 <= seconds < 73 or 81 <= seconds < 84:
                         buttons |= 1  # Open the server details, then join.
+                if join_saved:
+                    # Wrap from Address to Remote Servers, delete the first entry and join the next.
+                    if 54 <= seconds < 57 or 110 <= seconds < 113:
+                        buttons |= 1 << 6
+                    if 70 <= seconds < 73 or 86 <= seconds < 89 or 94 <= seconds < 97:
+                        buttons |= 1 << 7
+                    if any(start <= seconds < start + 3 for start in (62, 78, 102, 118, 126, 134)):
+                        buttons |= 1
             elif unified_boot and seconds < 6:
                 buttons |= 1 << 10  # X, sampled once before the game starts.
             if cancel_restart and 64 <= seconds < 67:
@@ -1867,13 +1875,16 @@ def run_model(args, model, config, original_config, log, output):
                     first_move += 55  # Allow time for the title controls before joining.
                 if args.discover_lan:
                     first_move += 39  # Wait for discovery, details, and the same world load.
+                if args.saved_servers_settings:
+                    first_move = max(first_move, 170)
                 write_controls_replay(replay, first_move=first_move, building=args.building,
                                       touch_build=args.touch_build, touch_config=args.touch_config,
                                       erekir_build=args.erekir_build, mining=args.mining, model=model,
                                       stock_menu_font=args.verify_stock_menu_font, unified_boot=args.unified_boot,
                                       stationary=not args.controls_replay, chat=args.verify_chat,
                                       cancel_restart=args.server_kick == "restart-cancel",
-                                      join_from_title=args.join_from_title, discover_lan=args.discover_lan)
+                                      join_from_title=args.join_from_title, discover_lan=args.discover_lan,
+                                      join_saved=args.saved_servers_settings is not None)
                 command += ["-p", str(replay)]
             command.append(str(args.rom))
             process_log = output / f"{model}-azahar-process.log"
@@ -1892,6 +1903,12 @@ def run_model(args, model, config, original_config, log, output):
                                      args.timeout)
                             time.sleep(1)
                             (output / f"{model}-lan-server-details.png").write_bytes(rpc.screenshot())
+                        if args.saved_servers_settings:
+                            wait_for(log, emulator, r"UPSTREAM_SAVED_SERVER_REMOVED entries=1\b", args.timeout)
+                            (output / f"{model}-saved-list.png").write_bytes(rpc.screenshot())
+                            wait_for(log, emulator,
+                                     rf"UPSTREAM_SAVED_SERVER_SELECTED address=127\.0\.0\.1 port={args.port}\b",
+                                     args.timeout)
                         wait_for(log, emulator, r"UPSTREAM_BOOT mode=join\b", args.timeout)
                     except RuntimeError:
                         print(process_log.read_text(encoding="utf-8", errors="replace")[-2500:], file=sys.stderr)
@@ -2374,6 +2391,8 @@ def main():
                         help="Require WorldStream decode to finish before loading the renderer atlas")
     parser.add_argument("--require-relocation-spill", action="store_true",
                         help="Require the ARM11 collector to grow its relocation table during the spawn check")
+    parser.add_argument("--saved-servers-settings", type=Path,
+                        help="Replay deleting an old entry and joining the next from this stock settings.bin")
     args = parser.parse_args()
     args.server, args.rom, args.azahar = (path.resolve() for path in (args.server, args.rom, args.azahar))
     with args.server.open("rb") as archive:
@@ -2393,6 +2412,9 @@ def main():
         parser.error("--unified-boot needs --controls")
     if args.discover_lan and not (args.join_from_title and args.port == 6567 and args.model == "new3ds"):
         parser.error("--discover-lan needs --join-from-title --port 6567 --model new3ds")
+    if args.saved_servers_settings and (not args.join_from_title or args.discover_lan or args.locale
+                                        or args.model != "new3ds"):
+        parser.error("--saved-servers-settings needs --join-from-title and --model new3ds")
     if args.join_from_title and not (args.unified_boot and args.controls_replay):
         parser.error("--join-from-title needs --unified-boot and --controls-replay")
     if args.join_from_title and any((args.building, args.touch_build, args.touch_config,
@@ -2541,9 +2563,14 @@ def main():
             locale_files.extend((settings_path, endpoint.with_name("settings_backup.bin")))
         for path in locale_files:
             originals[path] = path.read_bytes() if path.exists() else None
+    if args.saved_servers_settings:
+        for path in (settings_path, endpoint.with_name("settings_backup.bin")):
+            originals[path] = path.read_bytes() if path.exists() else None
     if args.terrain_atlas:
         originals[atlas_path] = atlas_path.read_bytes() if atlas_path.exists() else None
     output = args.rom.parent / "upstream-live-net"
+    if args.saved_servers_settings:
+        output /= "saved-servers"
     if args.verify_objective_markers and args.locale != "en":
         output /= args.locale
     output.mkdir(parents=True, exist_ok=True)
@@ -2553,7 +2580,7 @@ def main():
         if args.join_from_title:
             startup.unlink(missing_ok=True)
         suffix = " controls" if args.controls else " movement" if args.movement else ""
-        if args.discover_lan:
+        if args.discover_lan or args.saved_servers_settings:
             endpoint.unlink(missing_ok=True)
         else:
             endpoint.write_text(f"127.0.0.1 {args.port}{suffix}\n", encoding="ascii")
@@ -2564,10 +2591,14 @@ def main():
             settings_path.write_bytes(struct.pack(">IH6sBH", 1, 6, b"locale", 4, len(locale)) + locale)
         elif args.locale:
             locale_path.write_text(args.locale + "\n", encoding="ascii")
+        if args.saved_servers_settings:
+            settings_path.write_bytes(args.saved_servers_settings.read_bytes())
         if args.terrain_atlas:
             atlas_path.write_bytes(atlas_bytes)
         for model in ((args.model,) if args.model else ("new3ds",)):
             run_model(args, model, config, (originals[config] or b"").decode(), log, output)
+        if args.saved_servers_settings:
+            (output / "settings.bin").write_bytes(settings_path.read_bytes())
     finally:
         for path, data in originals.items():
             if data is None:

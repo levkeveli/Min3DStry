@@ -212,7 +212,10 @@ public final class UpstreamUnifiedApp {
             }
             if (action < 0) continue;
             if (address != null) {
-                if (action == 0) return address;
+                if (action == 0) {
+                    System.out.println("UPSTREAM_SAVED_SERVER_SELECTED address=" + address.host() + " port=" + address.port());
+                    return address;
+                }
                 action--;
             }
             if (action == 0) {
@@ -231,6 +234,7 @@ public final class UpstreamUnifiedApp {
                 if (result == 0) {
                     entries.remove(index);
                     UpstreamSavedServers.save(settings, entries);
+                    System.out.println("UPSTREAM_SAVED_SERVER_REMOVED entries=" + entries.size());
                     selected = Math.min(selected, entries.size());
                 }
             }
