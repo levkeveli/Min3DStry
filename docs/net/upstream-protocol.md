@@ -157,4 +157,6 @@ packets. Hidden units leave the synchronized group and can return when the
 server sends a visible update. The original disconnect handler removes the
 player and rejects delayed snapshots for their ID. The stock Java packet
 reference checks both lifecycles and verifies that the local player remains
-in the player group.
+in the player group. The grouped New 3DS replay also sends an original
+entity snapshot followed by the hidden and disconnect packets. It checks
+that the unit and player are present before their packets and absent afterward.

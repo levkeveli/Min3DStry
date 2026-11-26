@@ -604,6 +604,33 @@ def verify_touch_config(log, emulator, server_log, server, timeout, capture, pos
     print("Stock server verified Copper, returned Lead, and accepted clearing the Sorter.", flush=True)
 
 
+def verify_entity_lifecycle(log, emulator, server_log, server, timeout):
+    wait_for(log, emulator, r"UPSTREAM_LIVE_CONTROLS_READY unit=\d+", timeout)
+    server.stdin.write(
+        'js (() => { const target = Groups.player.find(boolf(p => String(p.name) === "Min3DStry ARM11")); '
+        'const enemy = UnitTypes.dagger.create(Vars.state.rules.waveTeam); enemy.id = 65001; '
+        'enemy.set(target.x + 48, target.y); '
+        'const visitor = Player.create(); visitor.id = 65002; visitor.name = "Stock fixture"; '
+        'visitor.team(target.team()); '
+        'const bytes = new java.io.ByteArrayOutputStream(); const out = new java.io.DataOutputStream(bytes); '
+        'const writes = new Packages.arc.util.io.Writes(out); '
+        'const writeEntity = entity => { out.writeInt(entity.id); '
+        'out.writeByte(entity.classId()); entity.writeSync(writes); }; writeEntity(enemy); writeEntity(visitor); '
+        'const snapshot = new Packages.mindustry.gen.EntitySnapshotCallPacket(); '
+        'snapshot.amount = 2; snapshot.data = bytes.toByteArray(); target.con.send(snapshot, true); '
+        'const hidden = new Packages.mindustry.gen.HiddenSnapshotCallPacket(); '
+        'hidden.ids = new Packages.arc.struct.IntSeq(); hidden.ids.add(enemy.id); '
+        'target.con.send(hidden, true); '
+        'const left = new Packages.mindustry.gen.PlayerDisconnectCallPacket(); left.playerid = visitor.id; '
+        'target.con.send(left, true); return "STOCK_ENTITY_LIFECYCLE queued=true"; })()\n'
+    )
+    server.stdin.flush()
+    wait_for(server_log, server, r"STOCK_ENTITY_LIFECYCLE queued=true\b", 10)
+    wait_for(log, emulator, r"UPSTREAM_LIVE_HIDDEN_ENTITY id=65001 present=true absent=true eligible=true\b", timeout)
+    wait_for(log, emulator, r"UPSTREAM_LIVE_PLAYER_LEFT id=65002 present=true absent=true retired=true\b", timeout)
+    print("UPSTREAM_LIVE_ENTITY_LIFECYCLE hidden=ok disconnect=ok", flush=True)
+
+
 def verify_controls(log, emulator, server_log, server, timeout, capture=None,
                     building=False, desktop_name=None, touch_build=False, touch_config=False, menu_icons=False,
                     stock_menu_font=False):
@@ -2156,6 +2183,8 @@ def run_model(args, model, config, original_config, log, output):
                         if "UPSTREAM_LIVE_NET_ERROR" in emu_log:
                             raise RuntimeError("The client failed after rendering the atlas stress frame")
                     else:
+                        if args.entity_lifecycle:
+                            verify_entity_lifecycle(log, emulator, server_log, server, args.timeout)
                         verify_controls(log, emulator, server_log, server, args.timeout,
                                         capture if args.terrain_atlas else None, args.building, args.desktop_name,
                                         args.touch_build, args.touch_config, args.menu_icons,
@@ -2263,6 +2292,8 @@ def main():
                         help="Check and capture the English stock disconnect notice")
     parser.add_argument("--controls-replay", action="store_true",
                         help="Replay the controls test input in Azahar 2126.2")
+    parser.add_argument("--entity-lifecycle", action="store_true",
+                        help="Check the stock hidden-entity and player-disconnect packets")
     parser.add_argument("--join-from-title", action="store_true",
                         help="Start at the unified title and join through the Play menu")
     parser.add_argument("--unified-boot", action="store_true",
@@ -2365,6 +2396,8 @@ def main():
         parser.error("Port must be between 1 and 65535")
     if args.desktop_name is not None and (not args.desktop_name.strip() or args.desktop_name == PLAYER):
         parser.error("The PC client needs a distinct player name")
+    if args.entity_lifecycle and not args.controls:
+        parser.error("--entity-lifecycle requires --controls")
     if args.controls_replay and not args.controls:
         parser.error("--controls-replay needs --controls")
     if args.server_kick and (not args.controls or args.controls_replay):

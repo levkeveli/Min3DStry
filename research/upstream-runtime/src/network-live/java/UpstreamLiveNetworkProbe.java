@@ -106,6 +106,7 @@ public final class UpstreamLiveNetworkProbe {
     private final Mode mode;
     private final UpstreamPlayerIdentity identity;
     private final Consumer<Unit> frame;
+    private boolean loggedHiddenEntity;
     private final Supplier<UpstreamLiveBuildControls> building;
     private final Runnable reconnecting;
     private final Consumer<String> chat;
@@ -481,6 +482,7 @@ public final class UpstreamLiveNetworkProbe {
 
     private void driveLiveClient(UpstreamWorldLoadProbe.ProbeApplication app) throws IOException {
         var controls = new LiveControls(building == null ? null : building.get());
+        loggedHiddenEntity = false;
         int lastWave = -1;
         // A slow first presentation must not postpone the stock TCP heartbeat.
         if (frame != null && Native.beginKeepAlive(1) == 0) {
@@ -619,7 +621,24 @@ public final class UpstreamLiveNetworkProbe {
                 Packet update = markerPacket(id);
                 if (update == null) update = entityLifecyclePacket(id);
                 if (update != null) {
-                    decode(update, received).handleClient();
+                    decode(update, received);
+                    if (update instanceof HiddenSnapshotCallPacket hidden && !loggedHiddenEntity && hidden.ids.size > 0) {
+                        int idHidden = hidden.ids.first();
+                        boolean present = Groups.sync.getByID(idHidden) != null;
+                        update.handleClient();
+                        loggedHiddenEntity = true;
+                        System.out.println("UPSTREAM_LIVE_HIDDEN_ENTITY id=" + idHidden
+                            + " present=" + present + " absent=" + (Groups.sync.getByID(idHidden) == null)
+                            + " eligible=" + !Vars.netClient.isEntityUsed(idHidden));
+                    } else if (update instanceof PlayerDisconnectCallPacket logout) {
+                        boolean present = Groups.player.getByID(logout.playerid) != null;
+                        update.handleClient();
+                        System.out.println("UPSTREAM_LIVE_PLAYER_LEFT id=" + logout.playerid
+                            + " present=" + present + " absent=" + (Groups.player.getByID(logout.playerid) == null)
+                            + " retired=" + Vars.netClient.isEntityUsed(logout.playerid));
+                    } else {
+                        update.handleClient();
+                    }
                 } else if (frame != null) {
                     applyBuildingUpdate(id, received);
                 }
