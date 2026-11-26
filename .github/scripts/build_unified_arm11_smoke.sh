@@ -63,6 +63,17 @@ python3 research/upstream-runtime/arm11/prepare_terrain_assets.py \
   --desktop "$RUNNER_TEMP/desktop.jar" --output-dir build/smoke-assets \
   --tex3ds "$RUNNER_TEMP/smoke-tex3ds" --singleplayer --live-audio
 python3 tools/verify_live_stock_audio.py build/smoke-assets
+database_check="$RUNNER_TEMP/core-database-check"
+mkdir -p "$database_check"
+javac -cp "$stock_jar" -d "$database_check" \
+  "$runtime/build/upstream-src/unified/mindustry/world/meta/StatValue.java" \
+  "$runtime/build/upstream-src/unified/mindustry/world/meta/StatValues.java" \
+  "$runtime/build/upstream-src/unified/mindustry/entities/abilities/"*.java \
+  "$runtime/src/content/java/UpstreamCoreDatabase.java" \
+  "$runtime/src/singleplayer/java/UpstreamCoreDatabaseStats.java" \
+  "$runtime/src/singleplayer/verification/UpstreamCoreDatabaseReference.java"
+java -cp "$database_check:$stock_jar" UpstreamCoreDatabaseReference "$PWD/build/smoke-assets/bundles/bundle"
+
 bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime --no-daemon --console=plain \
   "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" "-PreferenceJar=$RUNNER_TEMP/server-release.jar" \
   "-ParcCheckout=$RUNNER_TEMP/Arc" -Pprobe=unified runBuildingLayersJvm \
