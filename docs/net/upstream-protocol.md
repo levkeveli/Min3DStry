@@ -67,6 +67,13 @@ app starts the stock `NetServer` after world load and advances it each
 frame. In a loaded world, open the pause menu and press R to host or close
 the server. The game keeps simulating while guests are connected and the
 menu is open. Hold X and Y at startup or pass `--host` to host on launch.
+
+The New 3DS replay at `0f94cc2` accepted the stock Java transport and
+queued the 18,936-byte Ground Zero world. The host then threw before
+the PC read the world. `UPSTREAM_HOST_TICK_ERROR` identifies whether an
+exception came from transport polling or the original server update.
+The unified app reports the stack for an unhandled host failure.
+[Exact ARM11 replay](https://github.com/levkeveli/Min3DStry/actions/runs/45741527039/artifacts/15082593063)
 The build adapts the stock debug message for stream sizes to use bytes
 because TeaVM lacks the Java formatter.
 

@@ -169,6 +169,7 @@ public final class UpstreamSinglePlayerApp {
             new UpstreamSinglePlayerApp(audio, hooks).run(args, join);
         } catch (IOException | RuntimeException failure) {
             System.out.println("UPSTREAM_SP_ERROR " + failure.getClass().getName() + ": " + failure.getMessage());
+            if (hooks.canHost()) failure.printStackTrace(System.out);
             throw failure;
         }
     }

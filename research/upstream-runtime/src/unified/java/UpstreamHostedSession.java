@@ -58,8 +58,15 @@ final class UpstreamHostedSession implements UpstreamSinglePlayerApp.SessionHook
     @Override
     public void tick() {
         if (!hosting()) return;
-        provider.update();
-        Vars.netServer.update();
+        String phase = "transport";
+        try {
+            provider.update();
+            phase = "stock-server";
+            Vars.netServer.update();
+        } catch (RuntimeException failure) {
+            System.out.println("UPSTREAM_HOST_TICK_ERROR phase=" + phase);
+            throw failure;
+        }
     }
 
     @Override
