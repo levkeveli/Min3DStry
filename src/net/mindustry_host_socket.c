@@ -45,6 +45,7 @@ typedef struct HostPeer {
   M3dsNetHostPeer registration;
   struct sockaddr_in address, udp;
   size_t received, sent, queued;
+  bool closing;
   uint8_t input[M3DS_HOST_MAX_INCOMING_FRAME + 2U];
   uint8_t output[HOST_QUEUE_SIZE];
 } HostPeer;
@@ -164,6 +165,7 @@ static M3dsNetHostEvent poll_udp(M3dsNetHostSocket *host, uint8_t *out) {
   for (unsigned i = 0; i < host->count; ++i) {
     HostPeer *peer = host->peers[i];
     if (!peer || peer->address.sin_addr.s_addr != address.sin_addr.s_addr) continue;
+    if (peer->closing) continue;
     if (peer->registration.registered) {
       if (peer->udp.sin_port == address.sin_port) {
         if (framework && message.type == M3DS_FW_REGISTER_UDP) return (M3dsNetHostEvent){0};
@@ -197,6 +199,10 @@ static M3dsNetHostEvent poll_peer(M3dsNetHostSocket *host, unsigned i, uint8_t *
     if (n < 0 && !would_block()) return drop_peer(host, i);
     if (n > 0) peer->sent += (size_t)n;
     if (peer->sent == peer->queued) peer->sent = peer->queued = 0;
+  }
+  if (peer->closing) {
+    if (peer->queued == 0) return drop_peer(host, i);
+    return (M3dsNetHostEvent){0};
   }
   const uint8_t *payload;
   size_t size, consumed;
@@ -244,7 +250,7 @@ bool m3ds_net_host_socket_send(M3dsNetHostSocket *host, unsigned index, const ui
                                size_t size, bool reliable) {
   if (!host || index >= host->count || !payload || !size || size > M3DS_NET_MAX_PACKET_SIZE) return false;
   HostPeer *peer = host->peers[index];
-  if (!peer || !peer->registration.registered) return false;
+  if (!peer || peer->closing || !peer->registration.registered) return false;
   if (!reliable) {
     int n = (int)sendto(host->udp, (const char *)payload, (int)size, 0,
                        (const struct sockaddr *)&peer->udp, sizeof(peer->udp));
@@ -264,7 +270,7 @@ bool m3ds_net_host_socket_send(M3dsNetHostSocket *host, unsigned index, const ui
 }
 
 void m3ds_net_host_socket_disconnect(M3dsNetHostSocket *host, unsigned peer) {
-  if (host && peer < host->count && host->peers[peer]) release_peer(host, peer);
+  if (host && peer < host->count && host->peers[peer]) host->peers[peer]->closing = true;
 }
 
 bool m3ds_net_host_socket_advertise(M3dsNetHostSocket *host, const uint8_t *data, size_t size) {
