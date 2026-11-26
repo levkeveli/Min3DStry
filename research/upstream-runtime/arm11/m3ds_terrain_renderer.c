@@ -1487,6 +1487,22 @@ int32_t m3ds_terrain_schematic_prompt(char *text, int32_t capacity, const char *
     return confirm ? 1 : (int32_t)strnlen(text, (size_t)capacity);
 }
 
+void m3ds_terrain_draw_menu_help(const char *labels, int32_t count) {
+    if (!frame_open || !palette || !catalog_buffer) return;
+    set_world_blend(0);
+    set_world_mix(0, 0);
+    C2D_TargetClear(palette, C2D_Color32(24, 27, 32, 255));
+    C2D_SceneBegin(palette);
+    C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_COLOR);
+    C2D_TextBufClear(catalog_buffer);
+    for (int32_t row = 0; row < count; row++) {
+        float top = 60.0f + row * 30.0f;
+        C2D_DrawRectSolid(20, top, 0.5f, 280, 26, C2D_Color32(45, 52, 64, 255));
+        catalog_label(labels, 160, top + 8, 0.50f, 264, C2D_Color32(239, 241, 247, 255));
+        labels += strlen(labels) + 1;
+    }
+}
+
 int32_t m3ds_terrain_draw_chat_keyboard(const char *labels) {
     if (!frame_open || !palette) return 0;
     if (perf_enabled) perf.bottom_start = svcGetSystemTick();

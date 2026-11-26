@@ -76,6 +76,18 @@ javac -cp "$RUNNER_TEMP/desktop.jar" -d "$globe_reference" \
   research/upstream-runtime/src/singleplayer-campaign-host/java/UpstreamCampaignGlobeReference.java
 surface_samples="$PWD/build/smoke-assets/planet-meshes/serpulo.m3ps"
 (cd "$globe_reference" && java -cp ".:$RUNNER_TEMP/desktop.jar" UpstreamCampaignGlobeReference "$surface_samples")
+
+database_check="$RUNNER_TEMP/core-database-check"
+mkdir -p "$database_check"
+javac -cp "$stock_jar" -d "$database_check" \
+  "$runtime/build/upstream-src/unified/mindustry/world/meta/StatValue.java" \
+  "$runtime/build/upstream-src/unified/mindustry/world/meta/StatValues.java" \
+  "$runtime/build/upstream-src/unified/mindustry/entities/abilities/"*.java \
+  "$runtime/src/content/java/UpstreamCoreDatabase.java" \
+  "$runtime/src/singleplayer/java/UpstreamCoreDatabaseStats.java" \
+  "$runtime/src/singleplayer/verification/UpstreamCoreDatabaseReference.java"
+java -cp "$database_check:$stock_jar" UpstreamCoreDatabaseReference "$PWD/build/smoke-assets/bundles/bundle"
+
 bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime --no-daemon --console=plain \
   "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" "-PreferenceJar=$RUNNER_TEMP/server-release.jar" \
   "-ParcCheckout=$RUNNER_TEMP/Arc" -Pprobe=unified runBuildingLayersJvm \
