@@ -67,6 +67,12 @@ all four cloud speeds. The New 3DS replay checks the rendered Sun and
 cloud draw submissions, selects Erekir through the overview, and launches
 The Onset through the original sector route.
 
+The unified ROMFS stages all six original 1024×1024 campaign skybox PNGs
+from the checksum-verified v160.8 desktop archive. The face names and
+pixel data are preserved under `cubemaps/stars`, matching Arc's stock
+cubemap lookup. Rendering the staged skybox from the rotating campaign
+camera is pending.
+
 The native atmosphere reference translates v160.8's
 `core/assets/shaders/atmosphere.frag` with the original three samples
 for both optical depth and in-scattering. The host test evaluates the

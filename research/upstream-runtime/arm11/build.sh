@@ -181,6 +181,9 @@ if [[ $# -gt 0 ]]; then
     if [[ -d "$1/weather" ]]; then
         cp -R "$1/weather" "$output/romfs/weather"
     fi
+    if [[ -d "$1/cubemaps" ]]; then
+        cp -R "$1/cubemaps" "$output/romfs/cubemaps"
+    fi
     "$DEVKITPRO/tools/bin/smdhtool" --create "$title" "$subtitle" \
         "Min3DStry Contributors" "$DEVKITPRO/libctru/default_icon.png" "$output/upstream-probe.smdh"
     package_flags=(--smdh="$output/upstream-probe.smdh" --romfs="$output/romfs")
