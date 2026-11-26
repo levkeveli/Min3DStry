@@ -91,11 +91,9 @@ jobs:
             --fixtures "$RUNNER_TEMP/dense-fixtures" --output-dir build/dense-campaign-replay
           result="build/dense-campaign-replay/$log"
           app_heap=$(sed -nE 's/.*UPSTREAM_MEMORY appHeap=([0-9]+).*/\1/p' "$result")
-          test "$app_heap" -gt $((32 * 1024 * 1024 + 24 * 1024 * 1024))
-          expected=$(((app_heap - 24 * 1024 * 1024) / 4096 * 4096))
-          cap=$((56 * 1024 * 1024))
-          if [ "$expected" -gt "$cap" ]; then expected=$cap; fi
-          grep -F "UPSTREAM_MEMORY managedLimit=$expected" "$result"
+          test "$app_heap" -ge $(((56 + 22) * 1024 * 1024))
+          grep -Fx "UPSTREAM_MEMORY managedLimit=$((56 * 1024 * 1024))" \
+            <(sed -n 's/.*\(UPSTREAM_MEMORY managedLimit=[0-9]*\).*/\1/p' "$result")
       - uses: actions/upload-artifact@v4
         if: always()
         with:

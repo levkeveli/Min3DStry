@@ -128,10 +128,15 @@ completed the dense reload and saved with the original fixture backup.
 The [two-save replay](https://github.com/levkeveli/Min3DStry/actions/runs/45716873959/artifacts/15070698663)
 reused that exact ROM. It verified each backup against its predecessor, and
 the unmodified v160.8 server reopened both 600×600 saves with the original
-embedded patch. The combined globe and dense campaign build budgets up to 56 MiB
-for the managed heap. It uses the page-aligned portion of the application's
-regular heap above a 24 MiB native reserve, with the existing 32 MiB baseline
-on lower-memory launches. The globe has a separate 8 MiB GPU linear heap.
+embedded patch. The combined globe build at `9038fee` ran out of managed
+memory during the second decode at a ceiling of 57,356,288 bytes.
+[Reload evidence](https://github.com/levkeveli/Min3DStry/actions/runs/45742897355/artifacts/15082579642)
+
+The next diagnostic candidate tests the earlier 56 MiB managed ceiling
+with a 22 MiB native reserve. It uses the page-aligned portion of the
+application's regular heap above that reserve, with the existing 32 MiB
+baseline on lower-memory launches. The globe has a separate 8 MiB GPU
+linear heap. The production budget still requires physical verification.
 The grouped release replay checks Serpulo 242, Littoral Shipyard, and Origin
 against the same ROM and reopens each result in the original Java game.
 Use --from-title with a named dense preset to open it through Play → Campaign.

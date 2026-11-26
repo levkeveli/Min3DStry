@@ -18,9 +18,11 @@ u32 __ctru_linear_heap_size = 4 * 1024 * 1024;
 #endif
 
 static void m3ds_init_heap(int64_t minimum, int64_t maximum) {
-    // Leave the rest of the homebrew application's regular heap to native allocations.
+    // Diagnostic candidate: keep the previously exercised 56 MiB managed cap
+    // with the globe build's larger linear heap. Native failure logs remain
+    // enabled when the application cannot back the requested allocation.
     const int64_t baseline = 32LL * 1024 * 1024;
-    const int64_t native_reserve = 24LL * 1024 * 1024;
+    const int64_t native_reserve = 22LL * 1024 * 1024;
     const int64_t alignment = 4096;
     int64_t available = (int64_t)envGetHeapSize() - native_reserve;
     if (available < baseline) available = baseline;
