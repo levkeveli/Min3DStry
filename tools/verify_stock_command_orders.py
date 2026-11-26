@@ -69,6 +69,7 @@ def replay(args, model, fixture, live, *, taps=TAPS, buttons=None,
     sd = (output / "sdmc").resolve()
     save = sd / "3ds/min3dstry/singleplayer-save.msav"
     save.parent.mkdir(parents=True, exist_ok=True)
+    sp.stage_direct_startup(sd)
     shutil.copyfile(fixture, save)
     if prepare_sd is not None:
         prepare_sd(save.parent)

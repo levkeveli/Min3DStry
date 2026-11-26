@@ -102,6 +102,17 @@ class SmokeScopeTests(unittest.TestCase):
         self.assertTrue(scope["run_singleplayer"])
         self.assertFalse(scope["run_factory"])
 
+    def test_campaign_save_runs_backup_replay_with_the_unified_rom(self) -> None:
+        for path in ("tools/verify_upstream_campaign_resume.py",
+                     "research/upstream-runtime/src/singleplayer/java/UpstreamCampaignSave.java"):
+            with self.subTest(path=path):
+                scope = smoke_scope.classify_smoke_scope([path], "pull_request")
+                self.assertTrue(scope["run_singleplayer"])
+                self.assertTrue(scope["run_campaign_resume"])
+                self.assertFalse(scope["run_all"])
+                self.assertFalse(scope["run_net"])
+                self.assertEqual(smoke_scope.format_outputs(scope)["run_campaign_resume"], "true")
+
     def test_host_campaign_reference_uses_singleplayer_baseline(self) -> None:
         for directory in ("singleplayer-campaign-host", "singleplayer-custom-host",
                           "singleplayer-research-host"):
@@ -137,6 +148,18 @@ class SmokeScopeTests(unittest.TestCase):
         self.assertTrue(scope["run_probes"])
         self.assertEqual(scope["probes"], ["campaign-launch"])
         self.assertFalse(scope["run_combat"])
+
+    def test_processor_editor_uses_the_unified_rom_without_requiring_the_campaign_replay(self) -> None:
+        for path in ("tools/verify_stock_processor_editor.py",
+                     "research/upstream-runtime/src/network-live/java/UpstreamLogicStatements.java"):
+            with self.subTest(path=path):
+                scope = smoke_scope.classify_smoke_scope([path], "pull_request")
+                self.assertTrue(scope["run_processor_editor"])
+                self.assertTrue(scope["run_singleplayer"])
+                self.assertFalse(scope["run_campaign_resume"])
+                self.assertEqual(smoke_scope.format_outputs(scope)["run_processor_editor"], "true")
+        scope = smoke_scope.classify_smoke_scope(["tools/verify_upstream_campaign_resume.py"], "pull_request")
+        self.assertFalse(scope["run_processor_editor"])
 
     def test_shared_runtime_or_workflow_changes_fail_open_to_full_suite(self) -> None:
         full_triggers = [

@@ -35,6 +35,7 @@ def verify(model: str, planet: str, rom: Path, azahar: str, config: Path, log: P
 
     config_snapshot = config.read_bytes() if config.is_file() else None
     saves.mkdir(parents=True)
+    sp.stage_direct_startup(sd)
     try:
         shutil.copyfile(fixtures / name, slot)
         shutil.copyfile(fixtures / f"{planet}-settings.bin", settings)

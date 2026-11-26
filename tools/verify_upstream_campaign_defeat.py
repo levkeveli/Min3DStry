@@ -69,6 +69,7 @@ def verify(model: str, planet: str, rom: Path, azahar: str, config: Path, log: P
     settings = root / "settings.bin"
     initial_config = config.read_bytes() if config.is_file() else None
     saves.mkdir(parents=True)
+    sp.stage_direct_startup(sd)
     movie = result / "controls.ctm"
     write_input_replay(movie, model, [(88, 90, 1), (108, 110, 1), (220, 222, sp.KEY_START)], 220,
                        b"Min3DStry Campaign Defeat")
