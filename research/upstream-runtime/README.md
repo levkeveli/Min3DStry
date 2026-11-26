@@ -1709,6 +1709,11 @@ state comes from WorldIO, and the active and cooled states use
 `NetServer.syncBuilding` / `blockSnapshot`. The replay samples the same
 building in all three New 3DS screenshots.
 
+[Azahar evidence at `cd43f6e`](https://github.com/levkeveli/Min3DStry/actions/runs/45726096904/artifacts/15075732812)
+shows the smelter unlit at idle, lit after the server produced its first
+silicon, and unlit after the server removed its inputs and the warmup
+fell to zero. The server log records all three states.
+
 The building lighting pass calls upstream `Building.drawLight` for visible
 emitters when the map enables lighting. Stock radial requests flow through
 the handheld additive sprite pass. The stock light buffer and its ambient
