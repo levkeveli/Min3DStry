@@ -63,9 +63,10 @@ for stream sizes to use bytes because TeaVM lacks the Java formatter.
 
 The hosted-world Azahar replay uses the unmodified v160.8 Java transport
 to receive a world stream. Stock `NetworkIO.loadWorld` opens the map and
-checks the player's core before the client confirms the join and waits for
-the original server's first state snapshot. The same client check loaded
-Glacier from the stock Java server. The native replay and desktop gameplay
+checks the player's core before the client confirms the join, waits for the
+original server's first state snapshot, and sends a chat message through the
+stock handler. The same client check loaded Glacier and received its chat
+echo from the stock Java server. The native replay and desktop gameplay
 checks are pending.
 
 ```sh

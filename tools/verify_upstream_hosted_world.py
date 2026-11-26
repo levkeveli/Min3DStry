@@ -57,7 +57,7 @@ def verify(args):
             (output / "new3ds-host.png").write_bytes(rom_frame)
             if sp.az.inspect_png(rom_frame)["top_distinct_colors"] < 8:
                 raise AssertionError("The handheld did not draw the hosted world")
-            print(f"UPSTREAM_HOSTED_WORLD_REPLAY model=new3ds stock-bytes={payload.stat().st_size} snapshot=ok")
+            print(f"UPSTREAM_HOSTED_WORLD_REPLAY model=new3ds stock-bytes={payload.stat().st_size} snapshot=ok chat=ok")
         finally:
             rpc.close()
             sp._stop_proc(proc, emulator)

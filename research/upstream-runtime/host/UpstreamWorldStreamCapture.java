@@ -28,6 +28,8 @@ import mindustry.core.Version;
 import mindustry.gen.ConnectConfirmCallPacket;
 import mindustry.gen.Groups;
 import mindustry.gen.Player;
+import mindustry.gen.SendChatMessageCallPacket;
+import mindustry.gen.SendMessageCallPacket2;
 import mindustry.gen.StateSnapshotCallPacket;
 import mindustry.maps.Maps;
 import mindustry.mod.Mods;
@@ -41,8 +43,10 @@ import mindustry.net.Streamable.StreamBuilder;
 
 /** Records the compressed payload sent by a local upstream headless server. */
 public final class UpstreamWorldStreamCapture implements NetListener {
+    private static final String chatText = "New 3DS crossplay reference";
     private final CompletableFuture<byte[]> world = new CompletableFuture<>();
     private final CompletableFuture<Void> snapshot = new CompletableFuture<>();
+    private final CompletableFuture<Void> chat = new CompletableFuture<>();
     private StreamBuilder builder;
 
     public static void main(String[] args) throws Exception {
@@ -71,6 +75,13 @@ public final class UpstreamWorldStreamCapture implements NetListener {
                 client.sendTCP(new ConnectConfirmCallPacket());
                 capture.snapshot.get(10, TimeUnit.SECONDS);
                 System.out.println("UPSTREAM_HOSTED_WORLD_CONFIRMED stock-snapshot=true");
+                // Stock NetClient ignores messages from connections younger than 500 ms.
+                Thread.sleep(600);
+                var message = new SendChatMessageCallPacket();
+                message.message = chatText;
+                client.sendTCP(message);
+                capture.chat.get(10, TimeUnit.SECONDS);
+                System.out.println("UPSTREAM_HOSTED_WORLD_CHAT stock-echo=true");
             }
         } finally {
             client.stop();
@@ -132,9 +143,13 @@ public final class UpstreamWorldStreamCapture implements NetListener {
                 }
             } else if (object instanceof StateSnapshotCallPacket) {
                 snapshot.complete(null);
+            } else if (object instanceof SendMessageCallPacket2 reply && snapshot.isDone()) {
+                reply.handled();
+                if (chatText.equals(reply.unformatted)) chat.complete(null);
             }
         } catch (RuntimeException error) {
             world.completeExceptionally(error);
+            chat.completeExceptionally(error);
         }
     }
 
@@ -143,5 +158,6 @@ public final class UpstreamWorldStreamCapture implements NetListener {
         var error = new IllegalStateException("Disconnected before receiving the world and its first state: " + reason);
         world.completeExceptionally(error);
         snapshot.completeExceptionally(error);
+        chat.completeExceptionally(error);
     }
 }
