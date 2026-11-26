@@ -16,6 +16,7 @@ import mindustry.core.GameState;
 import mindustry.graphics.g3d.GenericMesh;
 import mindustry.graphics.g3d.HexSkyMesh;
 import mindustry.graphics.g3d.MatMesh;
+import mindustry.graphics.g3d.MeshBuilder;
 import mindustry.graphics.g3d.MultiMesh;
 import mindustry.graphics.g3d.PlanetGrid;
 import mindustry.graphics.g3d.PlanetMesh;
@@ -54,6 +55,14 @@ public final class UpstreamCampaignPlanetMeshes {
 
         // Source-file launch mode uses a different class loader from the desktop JAR.
         exportVisible(Planets.sun, output);
+
+        // PlanetRenderer draws this original shell with depth testing and no depth writes.
+        var atmosphere = MeshBuilder.buildHex(Color.white, 2, 1.5f);
+        try {
+            write(List.of(new MeshPart(atmosphere, null)), output.resolve("atmosphere.m3pm"));
+        } finally {
+            atmosphere.dispose();
+        }
     }
 
     private static void exportVisible(Planet planet, Path output) throws IOException, ReflectiveOperationException {

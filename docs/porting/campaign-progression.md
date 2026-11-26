@@ -81,7 +81,12 @@ The native atmosphere reference translates v160.8's
 `core/assets/shaders/atmosphere.frag` with the original three samples
 for both optical depth and in-scattering. The host test evaluates the
 real Serpulo and Erekir radii and colors on daylight, night, rim, and
-overview rays. The raster submission for this layer is pending.
+overview rays. The CPU raster produces the per-pixel additive RGB contribution.
+The mesh exporter stages the original `MeshBuilder.buildHex(Color.white, 2, 1.5f)`
+proxy with its 540 vertices and 1,068 indices. The projection clips the
+original triangles at the near plane before dividing by W, preserving
+the mesh depth and aligning the texture UVs to framebuffer pixels.
+The Citro3D pass still needs to submit the proxy against the planet depth buffer.
 
 The stock JVM reference confirms that the projected mesh centers and
 `Planet.getSector` agree for Ground Zero and The Onset. It also exercises
