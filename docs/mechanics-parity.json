@@ -491,7 +491,7 @@
         "docs/gameplay/offline-singleplayer.md",
         "tools/verify_upstream_campaign_launch.py"
       ],
-      "notes": "The sector selector starts Ground Zero or The Onset and supports launch destinations, schematics and cargo. Campaign Research opens from the pause menu in Azahar. The full stock planet map and tech-tree interface remain open."
+      "notes": "The New 3DS replay drew the original interactive Serpulo and Erekir globes with stock grids and markers, rotated across numbered Serpulo sectors, and started The Onset from the Erekir preview. The original v160.8 Java release reopened that exact save. The sector selector supports launch destinations, schematics and cargo, and Campaign Research opens from the pause menu. The wider solar-system view and full tech-tree interface remain open."
     },
     {
       "id": "erekir-planet-mechanics",

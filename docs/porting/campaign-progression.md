@@ -87,6 +87,14 @@ saved copper marker with the stock attack warning inactive. The earlier 4 MiB bu
 the Serpulo mesh but could not complete the overlay draw. The replay records
 the heap reservation and the submitted overlay and marker batches.
 
+The [grouped New 3DS replay](https://github.com/levkeveli/Min3DStry/actions/runs/45722953952/artifacts/15074382681)
+at `1c89e93` captured both planets and the selected Erekir sector. It rotated
+across original numbered Serpulo sectors, drew the saved copper marker and
+the updated Serpulo surface, then launched and saved the original 512 by 512
+Onset sector. The unmodified v160.8 Java release reopened that exact
+`sector-erekir-10.msav` and its settings and checked the stock sector ID,
+dimensions, game rules and Core Bastion.
+
 ## 1:1 Upstream Mandate
 
 Per [AGENTS.md](../../AGENTS.md) and [the upstream port plan](../upstream-port.md), Min3DStry preserves exact 1:1 compatibility with unmodified Java PC Mindustry `v160.8` rather than introducing custom save schemas or progression subsets:

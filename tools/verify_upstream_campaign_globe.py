@@ -9,7 +9,7 @@ import time
 
 import verify_upstream_singleplayer as sp
 from campaign_resume_fixtures import create
-from verify_upstream_campaign_launch import write_input_replay
+from verify_upstream_campaign_launch import check_stock, write_input_replay
 
 
 def capture_globe(rpc, path):
@@ -82,7 +82,6 @@ def verify(args):
             sp._wait_for_log(log, proc, r"UPSTREAM_SP_LOADED source=campaign-new map=The_Onset size=512x512\b", 180)
             sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_GENERATION_DONE planet=erekir sector=10\b", 20)
             sp._wait_for_log(log, proc, r"UPSTREAM_SP_EXIT\b", 145)
-            print("UPSTREAM_CAMPAIGN_GLOBE_PASS model=new3ds planets=2 launched=erekir:10", flush=True)
         finally:
             rpc.close()
             sp._stop_proc(proc, emulator)
@@ -93,6 +92,8 @@ def verify(args):
                 path.unlink(missing_ok=True)
             else:
                 path.write_bytes(original)
+    check_stock(args.java, args.server, saves / "sector-erekir-10.msav", root / "settings.bin", "erekir")
+    print("UPSTREAM_CAMPAIGN_GLOBE_PASS model=new3ds planets=2 launched=erekir:10 stock-readback=ok", flush=True)
 
 
 def main():
