@@ -6,6 +6,95 @@ and capture progress. The [graphical gameplay verification](../gameplay/offline-
 records the individual scenarios. The broader campaign interface and
 progression matrix remain under [#41](https://github.com/levkeveli/Min3DStry/issues/41).
 
+## Original campaign planet meshes
+
+The planet-map work in [#693](https://github.com/levkeveli/Min3DStry/issues/693)
+uses the mesh loaders configured by Mindustry v160.8 for Serpulo and Erekir.
+The host exporter invokes those loaders from the unmodified desktop JAR.
+It supplies Arc's headless GL object for buffer handles and keeps the original
+positions, float normals, packed color and emissive attributes, and unsigned
+16-bit triangle indices. Stock ContentLoader reads the bundled block palette.
+
+```sh
+mkdir -p build/planet-mesh-reference/classes
+javac -cp "$DESKTOP_JAR" -d build/planet-mesh-reference/classes tools/UpstreamCampaignPlanetMeshes.java
+java -cp "build/planet-mesh-reference/classes:$DESKTOP_JAR" \
+  UpstreamCampaignPlanetMeshes build/planet-mesh-reference/data
+```
+
+Each generated file has a four-byte `M3PM` signature, four little-endian
+32-bit values (format version 1, float stride, vertex count and index count),
+then the original vertex words followed by the original 16-bit index words.
+Two independent clean-state JVM runs on the checksum-pinned desktop release
+produced these byte-identical results.
+
+| Planet | Vertices | Indices | SHA-256 |
+| --- | ---: | ---: | --- |
+| Serpulo | 43,740 | 87,468 | `86f8de68d03357c80e2e5d868798218ab8cf2863bf81e4e3f7ac51bb3f7d032e` |
+| Erekir | 14,580 | 29,148 | `fe8a1ef5e0a042f402261b27e967f2fac1d24190a6e1405bab4273f47220a892` |
+
+The reference captures the stock surfaces at a fresh campaign state.
+The campaign selector opens the globe with X. The Circle Pad or D-pad
+orbits the globe, the bottom screen moves the cursor, the C-Stick changes
+zoom, and Y switches between Serpulo and Erekir. A previews a sector with the
+stock selection outline and confirms through its existing launch or resume
+path. B dismisses the preview or returns to the sector list.
+
+The stock JVM reference confirms that the projected mesh centers and
+`Planet.getSector` agree for Ground Zero and The Onset. It also exercises
+rotation to Serpulo 16, camera zoom, and a miss outside the globe.
+
+The globe draws lock shading, base and preset outlines, the alternate hidden
+preset marker, and the hovered sector's fill and raised wall. The port uses
+v160.8's `PlanetDialog` look-mode rules and stock colors, and takes the
+coordinates from `Sector.tile`. The JVM comparison records the triangles
+emitted by stock `Planet.fill`, `Planet.drawSelection` and `Planet.drawBorders`
+and compares their positions and colors with the handheld batch for both
+planets. The New 3DS replay checks both overlay submissions and captures
+both planets before launching The Onset. The grid draws the original
+`PlanetGrid` edges at the stock outline radius. It uses the cursor smoothing
+from `Planet.renderSectors` and samples the stock fragment shader's distance
+falloff along one-pixel PICA triangles. The stock JVM reference checks the
+grid width, depth, and color under 540 camera and cursor positions per
+planet. Launch routes, shield connections and invasion threats use the
+stock sector relationships and the quadratic curves from `Planet.drawArcLine`.
+The host reference compares the curve triangles and animated colors against
+the stock vertex strip for all three styles. Selecting a sector with a base
+also displays its stock export and import routes. The reference compares
+both route colors and their centerlines against `Planet.drawArc`.
+The [initial New 3DS replay](https://github.com/levkeveli/Min3DStry/actions/runs/45712720590/artifacts/15069727335)
+drew Serpulo, changed its hovered sector, switched to Erekir, generated the
+original 512×512 The Onset sector, and wrote its stock save. The follow-up
+replay waits for a settled frame before capturing each globe and the preview.
+Serpulo refreshes terrain colors and emissive values after campaign state
+changes. The build exports the original mesh generator's 7,292 face samples.
+The handheld evaluates the same generator over those samples and updates all
+43,740 indexed vertices. The JVM test compares every packed color against a
+full stock rebuild after adding a lit base. The New 3DS replay imports a
+lit Ground Zero save and settings written by the unmodified v160.8 server.
+It checks the recolored frame before switching to Erekir and launching
+The Onset. Sector markers use the original content atlas and glyphs rasterized
+with v160.8's Arc FreeType parameters. The handheld projects them onto the
+stock sector planes with the saved content icon, warning, lock and preset
+rules. The replay exercises a copper marker saved by stock v160.8. The wider
+solar-system view remains open.
+
+The unified globe build reserves an 8 MiB linear heap for stock mesh, overlay,
+and marker vertex buffers alongside Citro2D. The [first 8 MiB replay](https://github.com/levkeveli/Min3DStry/actions/runs/45719661381/artifacts/15071829909)
+submitted Serpulo's stock overlays, grid and updated terrain colors. It also
+drew the lock and warning glyphs. The captured-sector fixture exercises the
+saved copper marker with the stock attack warning inactive. The earlier 4 MiB build loaded
+the Serpulo mesh but could not complete the overlay draw. The replay records
+the heap reservation and the submitted overlay and marker batches.
+
+The [grouped New 3DS replay](https://github.com/levkeveli/Min3DStry/actions/runs/45722953952/artifacts/15074382681)
+at `1c89e93` captured both planets and the selected Erekir sector. It rotated
+across original numbered Serpulo sectors, drew the saved copper marker and
+the updated Serpulo surface, then launched and saved the original 512 by 512
+Onset sector. The unmodified v160.8 Java release reopened that exact
+`sector-erekir-10.msav` and its settings and checked the stock sector ID,
+dimensions, game rules and Core Bastion.
+
 ## 1:1 Upstream Mandate
 
 Per [AGENTS.md](../../AGENTS.md) and [the upstream port plan](../upstream-port.md), Min3DStry preserves exact 1:1 compatibility with unmodified Java PC Mindustry `v160.8` rather than introducing custom save schemas or progression subsets:

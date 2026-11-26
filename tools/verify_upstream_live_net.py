@@ -625,11 +625,17 @@ def verify_controls(log, emulator, server_log, server, timeout, capture=None,
         settled = result.groups()
         for sample in range(6):
             time.sleep(0.3)
-            later = server_position(
+            idle_sample = server_position(
                 server_log, server, f"UPSTREAM_SERVER_CONTROLS_IDLE input={device} sample={sample}"
-            ).groups()
-            if int(later[1]) > int(settled[1]):
+            )
+            later = idle_sample.groups()
+            if int(later[1]) <= int(settled[1]):
+                continue
+            if all(abs(float(settled[i]) - float(later[i])) <= 0.05 for i in (2, 3)):
                 break
+            # The server can receive one final interpolated position after release.
+            # Require another advancing snapshot at that position before calling it idle.
+            result, settled = idle_sample, later
         if (client_unit != settled[0] or settled[0] != baseline[0] or settled[0] != later[0]
                 or int(later[1]) <= int(settled[1])
                 or float(settled[axis]) - float(baseline[axis]) < 0.05
