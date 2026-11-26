@@ -28,6 +28,8 @@ on:
       - "tools/verify_offline_stock_audio.py"
       - "tools/verify_upstream_singleplayer.py"
       - "tools/verify_upstream_campaign_globe.py"
+      - "tools/verify_upstream_campaign_research.py"
+      - "tools/campaign_research_fixture.py"
       - "tools/UpstreamCampaignPlanetMeshes.java"
       - "tools/verify_azahar.py"
       - "tools/UpstreamSpriteAtlas.java"
@@ -70,6 +72,7 @@ jobs:
       run_production: ${{ steps.scope.outputs.run_production }}
       run_factory: ${{ steps.scope.outputs.run_factory }}
       run_singleplayer: ${{ steps.scope.outputs.run_singleplayer }}
+      run_research_tree: ${{ steps.scope.outputs.run_research_tree }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -1372,6 +1375,16 @@ jobs:
           --rom build/unified-smoke/upstream-probe.3dsx
           --server build/unified-smoke/server-release.jar
           --output build/offline-smoke/campaign-globe
+      - name: Replay stock research on Serpulo and Erekir
+        if: needs.changes.outputs.run_research_tree == 'true'
+        run: |
+          root=build/offline-smoke/campaign-research
+          rom=build/unified-smoke/upstream-probe.3dsx
+          server=build/unified-smoke/server-release.jar
+          python3 tools/campaign_research_fixture.py --server "$server" --create-in "$root/fixtures"
+          xvfb-run -a python3 tools/verify_upstream_campaign_research.py \
+            --rom "$rom" --server "$server" --azahar "$AZAHAR_BIN" \
+            --fixtures "$root/fixtures" --output-dir "$root/replay"
       - uses: actions/upload-artifact@v4
         if: always()
         with:

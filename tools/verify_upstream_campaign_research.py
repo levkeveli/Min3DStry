@@ -38,6 +38,7 @@ def verify(model: str, planet: str, rom: Path, azahar: str, config: Path, log: P
     try:
         shutil.copyfile(fixtures / name, slot)
         shutil.copyfile(fixtures / f"{planet}-settings.bin", settings)
+        (root / "startup.txt").write_text("direct\n", encoding="ascii")
         storage = {"Data Storage": {"use_custom_storage": "true", "sdmc_directory": sd.as_posix() + "/"}}
         config.parent.mkdir(parents=True, exist_ok=True)
         config.write_text(sp.az.patch_qt_config_text((config_snapshot or b"").decode("utf-8"), storage),

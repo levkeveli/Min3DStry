@@ -20,6 +20,7 @@ class SmokeScopeTests(unittest.TestCase):
             self.assertEqual(scope["probes"], smoke_scope.ALL_PROBES)
             self.assertTrue(scope["run_audio"])
             self.assertTrue(scope["run_factory"])
+            self.assertTrue(scope["run_research_tree"])
 
     def test_shared_smoke_support_selects_both_replays(self) -> None:
         for path in (
@@ -101,6 +102,16 @@ class SmokeScopeTests(unittest.TestCase):
         self.assertFalse(scope["run_probes"])
         self.assertTrue(scope["run_singleplayer"])
         self.assertFalse(scope["run_factory"])
+        self.assertFalse(scope["run_research_tree"])
+
+    def test_stock_research_tree_replays_both_campaign_fixtures(self) -> None:
+        for path in smoke_scope.RESEARCH_TREE_EXACT:
+            with self.subTest(path=path):
+                scope = smoke_scope.classify_smoke_scope([path], "pull_request")
+                self.assertFalse(scope["run_all"])
+                self.assertTrue(scope["run_singleplayer"])
+                self.assertTrue(scope["run_research_tree"])
+                self.assertEqual(smoke_scope.format_outputs(scope)["run_research_tree"], "true")
 
     def test_host_campaign_reference_uses_singleplayer_baseline(self) -> None:
         for directory in ("singleplayer-campaign-host", "singleplayer-custom-host",
