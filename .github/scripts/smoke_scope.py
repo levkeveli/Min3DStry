@@ -57,6 +57,7 @@ AUDIO_EXACT = {
 NET_EXACT = {
     "tools/verify_upstream_net.py",
     "tools/verify_upstream_live_net.py",
+    "tools/verify_stock_live_crafting.py",
 }
 
 SAVE_EXACT = {
