@@ -33,6 +33,14 @@ produced these byte-identical results.
 | Serpulo | 43,740 | 87,468 | `86f8de68d03357c80e2e5d868798218ab8cf2863bf81e4e3f7ac51bb3f7d032e` |
 | Erekir | 14,580 | 29,148 | `fe8a1ef5e0a042f402261b27e967f2fac1d24190a6e1405bab4273f47220a892` |
 
+The solar-system work in [#721](https://github.com/levkeveli/Min3DStry/issues/721)
+exports the stock visible hierarchy rooted at the Sun. The same desktop JAR
+supplies the Sun and the Gier, Notva, and Verilus asteroid meshes. Asteroid
+parts retain the translations from stock `MatMesh`. The exporter joins their
+vertex and index buffers into one mesh per body. Tantros is hidden by the
+stock visibility rule. The Serpulo and Erekir mesh files and Serpulo surface
+sample file match the earlier exports byte for byte.
+
 The reference captures the stock surfaces at a fresh campaign state.
 The campaign selector opens the globe with X. The Circle Pad or D-pad
 orbits the globe, the bottom screen moves the cursor, the C-Stick changes
