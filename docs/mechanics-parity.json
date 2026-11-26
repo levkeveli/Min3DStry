@@ -129,7 +129,7 @@
         "research/upstream-runtime/src/gameplay/java/UpstreamProductionTickProbe.java",
         "research/upstream-runtime/src/network-render/java/UpstreamRenderedNetworkProbe.java"
       ],
-      "notes": "The ARM11 production-ticks probe verifies upstream recipes. The offline and live draw passes use the full GenericCrafter and Separator families. Both Azahar profiles drew representative stock buildings offline and in the initial Java-server world. Active multiplayer production visuals remain open."
+      "notes": "The ARM11 production-ticks probe verifies upstream recipes. The offline and live draw passes use the full GenericCrafter and Separator families. Both Azahar profiles drew representative stock buildings offline and in the initial Java-server world. New 3DS Azahar replayed the idle, active and cooled Silicon Smelter visuals from stock Java server snapshots. General live production simulation and more recipes remain open."
     },
     {
       "id": "power-grid-generators",
@@ -333,15 +333,17 @@
       "domain": "Controls & Dual-Screen UI",
       "name": "Stock Title Menu & Settings Shell (Play / Settings / Quit)",
       "weight": 1,
-      "status": "harness-only",
-      "modes": ["harness"],
-      "issue": 295,
+      "status": "live-arm11",
+      "modes": ["offline", "multiplayer"],
+      "issue": 650,
       "evidence": [
         "docs/ui/main-menu.md",
-        "src/ui/main_menu.c",
-        "tests/ui/test_main_menu.c"
+        "research/upstream-runtime/src/unified/java/UpstreamUnifiedApp.java",
+        "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerApp.java",
+        "tools/verify_upstream_singleplayer.py",
+        "tools/verify_upstream_live_net.py"
       ],
-      "notes": "Navigation shell with upstream v160.8 MenuFragment keys/labels; Play->Campaign, Settings mute/lighting/camera, and Database->About are wired. The upstream Scene2D title fragment remains open. In-game schematics and RTS are tracked separately."
+      "notes": "The unified runtime opens the title on ordinary startup and uses stock v160.8 menu labels, settings, and credits. New 3DS Azahar verified the Core Database, settings persistence, stock schematics, load and return to title, and the title-to-PC-server route. Full stock settings and mod handling remain open."
     },
     {
       "id": "player-unit-flight-camera",
@@ -424,7 +426,7 @@
         "src/render/scene_2d.c",
         "src/platform/3ds/citro2d_backend.c"
       ],
-      "notes": "Offline and multiplayer clients advance the stock weather entities, particle/debris layers and puddles; both Azahar profiles sampled active rain/sandstorm/fog and stock puddles. Additive emitter lights are wired for visible emitLight buildings, with LightBlock using its configured color, brightness and smoothTime; the host reference asserts the additive circle-shadow sprite. Core glow, per-block drawLight overrides (generators, reactors, crafters), the stock light buffer and shadows remain open. Live camera zoom is wired to the New 3DS C-Stick (0.5x-2x, 8x6-32x24 tile span) with host checks; physical draw is pending the New 3DS acceptance run."
+      "notes": "Offline and multiplayer clients advance the stock weather entities, particle/debris layers and puddles; both Azahar profiles sampled active rain/sandstorm/fog and stock puddles. The building pass invokes stock drawLight for visible emitters when map lighting is enabled, using its radial requests with the handheld additive circle-shadow sprite. The host reference checks the illuminator and the silicon smelter's idle and warm states. The stock light buffer, non-radial light paths and shadows remain open. Live camera zoom is wired to the New 3DS C-Stick (0.5x-2x, 8x6-32x24 tile span) with host checks; physical draw is pending the New 3DS acceptance run."
     },
     {
       "id": "logic-vm-execution",

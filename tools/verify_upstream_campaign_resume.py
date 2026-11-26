@@ -8,9 +8,19 @@ from contextlib import suppress
 import re
 import struct
 import time
+import zlib
 from pathlib import Path
 
 import verify_upstream_singleplayer as sp
+
+
+def metadata_only(save: bytes) -> bytes:
+    data = zlib.decompress(save)
+    magic, _, metadata_size = struct.unpack_from(">4sII", data)
+    end = 12 + metadata_size
+    if magic != b"MSAV" or not 12 < end < len(data):
+        raise ValueError("Expected a stock .msav with metadata and world data")
+    return zlib.compress(data[:end])
 
 
 def write_replay(path: Path, model: str, multiple: bool, move_down: bool, dense: bool = False, *,
@@ -50,13 +60,15 @@ def write_replay(path: Path, model: str, multiple: bool, move_down: bool, dense:
 
 
 def verify(model: str, rom: Path, azahar: str, config: Path, log: Path,
-           output: Path, fixtures: Path, dense: bool = False, *, resave: bool = False) -> None:
+           output: Path, fixtures: Path, dense: bool = False, *, resave: bool = False,
+           backup_only: bool = False, truncated_primary: bool = False) -> None:
     fixture_settings = fixtures / "settings.bin"
     source_settings = fixture_settings.read_bytes() if fixture_settings.exists() else None
     originals = {path: path.read_bytes() if path.is_file() else None for path in (config, log)}
     source_zero = (fixtures / "sector-serpulo-170.msav").read_bytes()
     secondary_slot = f"sector-serpulo-{242 if dense else 64}.msav"
     source_secondary = (fixtures / secondary_slot).read_bytes()
+    incomplete_secondary = metadata_only(source_secondary) if truncated_primary else None
     secondary_map = r"sector-serpulo-242 size=600x600" if dense else "frozenForest"
     try:
         for multiple, map_name in ((False, "groundZero"), (True, secondary_map)):
@@ -65,6 +77,7 @@ def verify(model: str, rom: Path, azahar: str, config: Path, log: Path,
             sd_root = sd / "3ds/min3dstry"
             saves = sd_root / "saves"
             saves.mkdir(parents=True)
+            sp.stage_direct_startup(sd)
             zero = saves / "sector-serpulo-170.msav"
             secondary = sd_root / secondary_slot
             selected = secondary if multiple else zero
@@ -73,7 +86,9 @@ def verify(model: str, rom: Path, azahar: str, config: Path, log: Path,
             backup = selected.with_name(f"{selected.name}-backup.msav")
             zero.write_bytes(source_zero)
             if multiple:
-                secondary.write_bytes(source_secondary)
+                (backup if backup_only or truncated_primary else secondary).write_bytes(source_secondary)
+                if incomplete_secondary is not None:
+                    secondary.write_bytes(incomplete_secondary)
             if source_settings is not None:
                 settings.write_bytes(source_settings)
 
@@ -110,6 +125,10 @@ def verify(model: str, rom: Path, azahar: str, config: Path, log: Path,
                     reloaded = sp._wait_for_log(log, proc, r"UPSTREAM_PAUSE_MENU load=true\b", load_timeout)
                     if len(re.findall(loaded, reloaded)) != 2:
                         raise AssertionError(f"{model}: pause-menu Load did not reopen the selected campaign save")
+                    if backup_only and selected.exists():
+                        raise AssertionError(f"{model}: opening a backup-only sector wrote a new primary")
+                    if incomplete_secondary is not None and selected.read_bytes() != incomplete_secondary:
+                        raise AssertionError(f"{model}: loading from backup modified the original primary")
                     if dense:
                         sp._wait_for_log(log, proc, r"(?s)UPSTREAM_PAUSE_MENU load=true\b.*?UPSTREAM_SP_FRAME ", 100)
                         (output / f"{model}-reloaded.png").write_bytes(rpc.screenshot())
@@ -169,27 +188,38 @@ def main() -> int:
     parser.add_argument("--output-dir", type=Path, default=Path("build/campaign-resume-emu"))
     parser.add_argument("--dense", action="store_true", help="Verify the original 600x600 Serpulo 242 sector")
     parser.add_argument("--dense-resave", action="store_true", help="Save after reload and again on exit")
-    parser.add_argument("--server", type=Path, help="Reopen each dense replay save with the original Java server")
+    recovery = parser.add_mutually_exclusive_group()
+    recovery.add_argument("--backup-only", action="store_true", help="Resume the second sector from its stock backup")
+    recovery.add_argument("--truncated-primary", action="store_true",
+                          help="Resume with valid primary metadata and missing world data")
+    parser.add_argument("--server", type=Path, help="Reopen the dense or recovered replay save with the original Java server")
     parser.add_argument("--java", default="java")
     args = parser.parse_args()
     if args.dense and (args.fixtures / "settings.bin").exists():
         parser.error("--dense requires the stock fixtures without a settings override")
     if args.dense_resave and (not args.dense or args.server is None):
         parser.error("--dense-resave requires --dense and --server")
-    if args.server is not None and not args.dense:
-        parser.error("--server is used with --dense")
+    if args.server is not None and not (args.dense or args.backup_only or args.truncated_primary):
+        parser.error("--server requires --dense, --backup-only or --truncated-primary")
     azahar = sp.az.resolve_azahar_bin(args.azahar)
     config, log = sp.az.resolve_azahar_paths(azahar)
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    for model in (args.model,):
-        verify(model, args.rom, azahar, config, log, args.output_dir, args.fixtures, args.dense, resave=args.dense_resave)
-        if args.server is not None:
-            from verify_stock_campaign_archive import check_saves
+    model = args.model
+    verify(model, args.rom, azahar, config, log, args.output_dir, args.fixtures,
+           args.dense, resave=args.dense_resave, backup_only=args.backup_only,
+           truncated_primary=args.truncated_primary)
+    if args.server is not None and args.dense:
+        from verify_stock_campaign_archive import check_saves
 
-            if args.dense_resave:
-                check_saves(args.java, args.server,
-                            dense_save=args.output_dir / f"{model}-sector-serpulo-242-checkpoint.msav")
-            check_saves(args.java, args.server, dense_save=args.output_dir / f"{model}-sector-serpulo-242.msav")
+        if args.dense_resave:
+            check_saves(args.java, args.server,
+                        dense_save=args.output_dir / f"{model}-sector-serpulo-242-checkpoint.msav")
+        check_saves(args.java, args.server, dense_save=args.output_dir / f"{model}-sector-serpulo-242.msav")
+    elif args.server is not None:
+        from verify_stock_campaign_archive import check_recovered_save
+
+        check_recovered_save(args.java, args.server, args.fixtures / "sector-serpulo-64.msav",
+                             args.output_dir / f"{model}-sector-serpulo-64.msav")
     return 0
 
 

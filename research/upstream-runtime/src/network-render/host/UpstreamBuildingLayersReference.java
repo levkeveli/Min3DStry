@@ -1580,16 +1580,49 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         light.efficiency = 1f;
         light.wasVisible = true;
         var region = Core.atlas.find("circle-shadow");
-        requireRegion(region);
-        sprites.clear();
-        layers.render(viewport, viewer, build -> build.block == Blocks.illuminator);
-        if (sprites.stream().noneMatch(sprite -> sprite.blending() == Blending.additive
-                && sprite.page() == UpstreamTerrainDrawProbe.pageIndex(region)
-                && sprite.width() > 0f && sprite.height() > 0f)) {
-            throw new AssertionError("Stock illuminator did not emit an additive light");
+        if (!region.found()) throw new AssertionError("Missing stock radial light texture");
+        var rules = Vars.state.rules;
+        boolean lighting = rules.lighting;
+        boolean lightsEnabled = Vars.enableLight;
+        Color ambient = rules.ambientLight.cpy();
+        var smelterTile = Vars.world.tile(39, 34);
+        smelterTile.setBlock(Blocks.siliconSmelter, viewer, 0);
+        var smelter = (GenericCrafterBuild)smelterTile.build;
+        try {
+            Vars.enableLight = true;
+            rules.ambientLight.a = 0.5f;
+            rules.lighting = false;
+            sprites.clear();
+            layers.render(viewport, viewer, build -> build == light || build == smelter);
+            if (sprites.stream().anyMatch(sprite -> sprite.blending() == Blending.additive)) {
+                throw new AssertionError("The map disables building lights");
+            }
+            rules.lighting = true;
+            sprites.clear();
+            layers.render(viewport, viewer, build -> build == light || build == smelter);
+            if (!hasRadialLight(light, region) || hasRadialLight(smelter, region)) {
+                throw new AssertionError("Expected an illuminator light and an idle smelter");
+            }
+            smelter.warmup = 1f;
+            sprites.clear();
+            layers.render(viewport, viewer, build -> build == smelter);
+            if (!hasRadialLight(smelter, region)) {
+                throw new AssertionError("The original smelter drawer did not emit a light after warmup");
+            }
+        } finally {
+            rules.lighting = lighting;
+            rules.ambientLight.set(ambient);
+            Vars.enableLight = lightsEnabled;
+            tile.setBlock(Blocks.air);
+            smelterTile.setBlock(Blocks.air);
         }
-        tile.setBlock(Blocks.air);
-        System.out.println("UPSTREAM_DYNAMIC_LIGHT emitter=illuminator additive=ok");
+        System.out.println("UPSTREAM_DYNAMIC_LIGHT emitter=illuminator additive=ok idle=off warm=on");
+    }
+
+    private boolean hasRadialLight(Building build, TextureRegion region) {
+        return sprites.stream().anyMatch(sprite -> sprite.blending() == Blending.additive
+            && sprite.page() == UpstreamTerrainDrawProbe.pageIndex(region)
+            && Math.abs(sprite.x() - build.x) < 0.1f && Math.abs(sprite.y() - build.y) < 0.1f);
     }
 
     private void verifyFluidDrawing(UpstreamBuildingLayers layers, UpstreamTerrainDrawProbe.Viewport viewport,
