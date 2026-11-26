@@ -9,7 +9,7 @@ import time
 import verify_upstream_singleplayer as sp
 from verify_stock_command_orders import replay
 from verify_stock_inventory_transfer import stock_session
-from verify_upstream_factory_plans import stock_command
+from verify_upstream_factory_plans import stock_command, write_movie
 from verify_upstream_live_net import stop
 
 
@@ -98,6 +98,61 @@ def read_stock_clipboard(server, log, clipboard):
     stock_command(server, log, "js (() => { " + code + " })()", "STOCK_SCHEMATIC_CLIPBOARD_RESULT tiles=3 metadata=ok")
 
 
+def read_stock_export(server, log, original, exported):
+    if exported.read_bytes() == original.read_bytes():
+        raise RuntimeError("Expected export to replace the original Workshop-tagged clipboard text")
+    read_stock_clipboard(server, log, exported)
+
+
+def verify_title_clipboard(args, model, original):
+    output = args.output / model / "title"
+    sd = (output / "sdmc").resolve()
+    clipboard = sd / "3ds/min3dstry/schematics/clipboard.txt"
+    clipboard.parent.mkdir(parents=True)
+    shutil.copyfile(original, clipboard)
+    movie = output / "title-clipboard.ctm"
+    buttons = {
+        34: sp.KEY_DOWN, 42: sp.KEY_A, 50: sp.KEY_UP, 58: sp.KEY_A,  # Database, then Schematics.
+        114: sp.KEY_A, 122: sp.KEY_UP, 130: sp.KEY_A,  # Import, then Export in the details.
+    }
+    write_movie(movie, model, taps={}, buttons=buttons, seconds=145)
+    azahar = sp.az.resolve_azahar_bin(args.azahar)
+    config, log = sp.az.resolve_azahar_paths(azahar)
+    originals = {path: path.read_bytes() if path.is_file() else None for path in (config, log)}
+    isolated = {"Data Storage": {"use_custom_storage": "true", "sdmc_directory": sd.as_posix() + "/"}}
+    try:
+        config.parent.mkdir(parents=True, exist_ok=True)
+        initial = (originals[config] or b"").decode("utf-8")
+        config.write_text(sp.az.patch_qt_config_text(initial, isolated), encoding="utf-8")
+        proc, rpc = sp._launch_azahar(model, args.rom, azahar, config, log, movie)
+        try:
+            sp._wait_for_log(log, proc, r"UPSTREAM_TITLE_SCHEMATICS files=0", 110)
+            sp._wait_for_log(log, proc, r"UPSTREAM_SCHEMATIC_CLIPBOARD_IMPORTED file=Schematic-1\.msch", 60)
+            sp._wait_for_log(log, proc, r"UPSTREAM_TITLE_SCHEMATIC file=Schematic-1\.msch blocks=3", 20)
+            time.sleep(1)
+            (output / "schematic-details.png").write_bytes(rpc.screenshot())
+            sp._wait_for_log(log, proc, r"UPSTREAM_SCHEMATIC_CLIPBOARD_EXPORTED file=Schematic-1\.msch", 40)
+            time.sleep(1)
+            (output / "clipboard-exported.png").write_bytes(rpc.screenshot())
+        finally:
+            rpc.close()
+            sp._stop_proc(proc, azahar)
+            if log.is_file():
+                shutil.copyfile(log, output / "azahar.log")
+    finally:
+        for path, data in originals.items():
+            if data is None:
+                path.unlink(missing_ok=True)
+            else:
+                path.write_bytes(data)
+    server, log = stock_session(args, output / "stock-readback")
+    try:
+        read_stock_export(server, log, original, clipboard)
+    finally:
+        stop(server)
+    print(f"UPSTREAM_STOCK_SCHEMATIC_TITLE model={model} stock-clipboard=ok", flush=True)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--server", type=Path, required=True, help="Unmodified Mindustry v160.8 server JAR")
@@ -109,7 +164,8 @@ def main():
     parser.add_argument("--model", choices=("new3ds",), action="append")
     parser.add_argument("--port", type=int, default=16656)
     parser.add_argument("--live", action="store_true")
-    parser.add_argument("--clipboard", action="store_true", help="Round-trip the original clipboard text before placement")
+    parser.add_argument("--clipboard", action="store_true",
+                        help="Round-trip stock clipboard text from the build picker and title library")
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
     if args.fixture_dir:
@@ -117,13 +173,14 @@ def main():
         schematic = args.fixture_dir / "factory.msch"
     else:
         fixture, schematic = create_fixture(args, args.output / "stock-fixture")
+    original_clipboard = schematic.with_name("clipboard.txt")
     for model in args.model or ("new3ds",):
         for live in (False, True) if args.live else (False,):
             scene = args.output / model / ("live" if live else "offline")
             sd = scene / "sdmc/3ds/min3dstry/schematics"
             sd.mkdir(parents=True, exist_ok=True)
             if args.clipboard:
-                shutil.copyfile(schematic.with_name("clipboard.txt"), sd / "clipboard.txt")
+                shutil.copyfile(original_clipboard, sd / "clipboard.txt")
             else:
                 shutil.copyfile(schematic, sd / schematic.name)
             buttons = {80: ROTATE, 87: PLACE, 128: sp.KEY_START} if args.clipboard else {
@@ -137,10 +194,7 @@ def main():
             def verify_result(server, log):
                 read_stock_buildings(server, log)
                 if args.clipboard:
-                    exported = sd / "clipboard.txt"
-                    if exported.read_bytes() == schematic.with_name("clipboard.txt").read_bytes():
-                        raise RuntimeError("Expected export to replace the original Workshop-tagged clipboard text")
-                    read_stock_clipboard(server, log, exported)
+                    read_stock_export(server, log, original_clipboard, sd / "clipboard.txt")
 
             replay(args, model, fixture, live, taps=CLIPBOARD_TAPS if args.clipboard else TAPS, buttons=buttons,
                    movie_seconds=145 if args.clipboard else 102,
@@ -148,6 +202,8 @@ def main():
                        log, proc, rpc, output, live, clipboard=args.clipboard),
                    read_stock=verify_result)
             print(f"UPSTREAM_STOCK_SCHEMATIC model={model} live={live} rotation=ok config=ok builds=3", flush=True)
+        if args.clipboard:
+            verify_title_clipboard(args, model, original_clipboard)
 
 
 if __name__ == "__main__":

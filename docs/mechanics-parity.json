@@ -309,7 +309,7 @@
         "research/upstream-runtime/src/network-live/java/UpstreamCommandOrders.java",
         "research/upstream-runtime/src/network-live/host/UpstreamBuildControlsReference.java"
       ],
-      "notes": "The unified client places and exports stock .msch files. The touch grid selects allied units by tap or press-drag rectangle and sends original orders and stances. Schematic naming and metadata editing is live; clipboard sharing remains open."
+      "notes": "The unified client places and exports stock .msch files. The touch grid selects allied units by tap or press-drag rectangle and sends original orders and stances. Schematic naming and metadata editing are live. Stock v160.8 clipboard import and export passed from the title library and a live multiplayer session in New 3DS Azahar, with unmodified Java readback. The combined mechanic still needs full acceptance coverage."
     },
     {
       "id": "content-database-page",

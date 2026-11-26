@@ -88,8 +88,16 @@ game's clipboard import. Export replaces the text file. The saved
 schematic keeps its original layout and metadata. From the title
 screen, **Database → Schematics** also offers **Import** at the end of
 the library and **Export** in each schematic's details. Add
-`--clipboard` to the schematic replay above to verify the share text
-in the stock Java game as well as placement.
+`--clipboard` to the schematic replay above to verify both the title
+library and in-game sharing. The replay requires the exported text
+to replace the Workshop-tagged input and uses unmodified Java
+v160.8 to check its contents.
+
+The ARM11 build at `86ae965` passed the title and live multiplayer share
+replays in New 3DS Azahar 2126.2. The stock server also confirmed that
+the rotated placement spent the correct materials, linked both Bridge
+Conveyors, and retained the Sorter's Lead filter.
+[Exact ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45740987136)
 
 The hosted New 3DS replay used `verify_stock_schematic_capture.py --xdotool
 --edit` to change both fields. Unmodified Mindustry v160.8 Java reopened
