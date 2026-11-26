@@ -27,7 +27,7 @@ final class UpstreamBuildingSpecificBars {
         for (String key : building.block.barNames()) {
             if (commonBar(key)) continue;
             Bar bar = building.block.buildBar(key, building);
-            if (bar != null && bar.hasValue()) rows.add(new Row(bar));
+            if (bar != null && bar.hasValue()) rows.add(new Row(key, bar));
         }
     }
 
@@ -42,31 +42,40 @@ final class UpstreamBuildingSpecificBars {
             clear();
             return y;
         }
-        if (building != current) select(building);
+        boolean changed = building != current;
+        if (changed) select(building);
         for (var row : rows) {
             if (y + height > 236f) break;
             row.bar.act(0f);
             row.bar.advanceValue();
             row.updateLabel();
             UpstreamBuildingPowerHud.drawPatch(target, Core.atlas.find("bar"), y, width, 0xff191919);
-            float fill = width * row.bar.displayValue();
+            float fraction = row.bar.displayValue();
+            float fill = width * fraction;
+            var color = row.bar.displayColor(tint);
             if (fill > 0f) {
-                var color = row.bar.displayColor(tint);
                 UpstreamBuildingPowerHud.drawPatch(target, Core.atlas.find("bar-top"), y, fill, color.abgr());
             }
             target.hudLabel(row.encodedLabel, row.encodedGlyphs, inset, y, width, height);
+            if (changed) {
+                System.out.println("UPSTREAM_BUILDING_BAR block=" + building.block.name + " key=" + row.key
+                    + " y=" + Math.round(y) + " fill=" + Math.round(1000f * fraction)
+                    + " tint=" + color.rgba() + " label=" + row.label);
+            }
             y += height + 3f;
         }
         return y;
     }
 
     private static final class Row {
+        private final String key;
         private final Bar bar;
         private String label;
         private byte[] encodedLabel;
         private int[] encodedGlyphs;
 
-        private Row(Bar bar) {
+        private Row(String key, Bar bar) {
+            this.key = key;
             this.bar = bar;
         }
 
