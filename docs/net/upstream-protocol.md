@@ -74,6 +74,13 @@ the PC read the world. `UPSTREAM_HOST_TICK_ERROR` identifies whether an
 exception came from transport polling or the original server update.
 The unified app reports the stack for an unhandled host failure.
 [Exact ARM11 replay](https://github.com/levkeveli/Min3DStry/actions/runs/45741527039/artifacts/15082593063)
+
+A focused New 3DS replay at `87bb39c` queued the original world and
+reported the exception in the stock server tick. The compact ARM11
+stack has no source names. `UPSTREAM_HOST_SYNC_ERROR` identifies the
+failing snapshot phase, and `UPSTREAM_HOST_PACKET_ERROR encode`
+identifies an outgoing packet if its serializer fails. The hosted
+world replay still runs if an independent controller replay fails.
 The build adapts the stock debug message for stream sizes to use bytes
 because TeaVM lacks the Java formatter.
 

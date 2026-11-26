@@ -2159,6 +2159,28 @@ ${barOracle}""")
             if (source.count(worldWrite) != 1 || source.count(worldQueue) != 1) {
                 throw new GradleException('Pinned NetServer world stream stages changed')
             }
+            def syncStart = source.indexOf('    void sync(){')
+            def syncEnd = source.indexOf('    static void clientPlanSnapshotSend(', syncStart)
+            if (syncStart < 0 || syncEnd < 0) throw new GradleException('Pinned NetServer sync boundaries changed')
+            def sync = source.substring(syncStart, syncEnd)
+            def stages = [
+                '    void sync(){': '    void sync(){\n        String syncPhase = "connection-check";',
+                '                writeStateSnapshot();': '                syncPhase = "state-snapshot";\n                writeStateSnapshot();',
+                '                if(Vars.state.rules.fog){': '                syncPhase = "entity-snapshot";\n                if(Vars.state.rules.fog){',
+                '                //write custom player-specific entities': '                syncPhase = "custom-entities";\n                //write custom player-specific entities',
+                '            if(Groups.player.size() > 0 && Core.settings.getBool("blocksync")': '            syncPhase = "block-snapshot";\n            if(Groups.player.size() > 0 && Core.settings.getBool("blocksync")',
+                '            if(Groups.player.size() > 0 && buildHealthChanged.size > 0': '            syncPhase = "building-health";\n            if(Groups.player.size() > 0 && buildHealthChanged.size > 0',
+                '            //TODO: this system is a big bandwidth waster': '            syncPhase = "plan-preview";\n            //TODO: this system is a big bandwidth waster',
+                '        }catch(IOException e){': '''        }catch(RuntimeException failure){
+            System.out.println("UPSTREAM_HOST_SYNC_ERROR phase=" + syncPhase);
+            throw failure;
+        }catch(IOException e){'''
+            ]
+            stages.each { before, after ->
+                if (sync.count(before) != 1) throw new GradleException("Pinned NetServer sync stage changed: ${before}")
+                sync = sync.replace(before, after)
+            }
+            source = source.substring(0, syncStart) + sync + source.substring(syncEnd)
             outputServer.setText(source.replace(formattedSize, 'stream.size() + " bytes"')
                 .replace(worldWrite, '        System.out.println("UPSTREAM_HOST_WORLD writing=true");\n' + worldWrite)
                 .replace(worldQueue, '        System.out.println("UPSTREAM_HOST_WORLD bytes=" + stream.size());\n'
