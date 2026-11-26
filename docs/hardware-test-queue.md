@@ -34,6 +34,12 @@ The procedure and evidence schema are in
 [verification-runbook.md](hardware/verification-runbook.md) and
 [deployment-and-logs.md](hardware/deployment-and-logs.md).
 
+## Hardware hold
+
+**No new New 3DS hardware testing is scheduled until every mechanics entry is
+`live-arm11` (or complete) and the remaining implementation gaps are closed.**
+The artifact below is staged for that point; it is not an active test request.
+
 ## Handoff protocol
 
 1. Build from a merged `main` commit, record `git rev-parse HEAD`, and hash the
