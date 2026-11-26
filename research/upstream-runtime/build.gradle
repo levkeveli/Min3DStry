@@ -89,6 +89,13 @@ def entryPoint = entryPoints[probe]
 def usesMapSources = probe in ['map', 'map-sd']
 def usesSinglePlayerApp = probe in ['singleplayer', 'unified', 'campaign-background']
 def sparseTilePatch = file('patches/sparse-stock-tile-metadata.patch')
+def databaseStatSources = ['mindustry/world/meta/StatValue.java', 'mindustry/world/meta/StatValues.java']
+def databaseAbilitySources = [
+    'Ability', 'ArmorPlateAbility', 'EnergyFieldAbility', 'ForceFieldAbility',
+    'LiquidExplodeAbility', 'LiquidRegenAbility', 'MoveLightningAbility', 'RegenAbility',
+    'RepairFieldAbility', 'ShieldArcAbility', 'ShieldRegenFieldAbility', 'SpawnDeathAbility',
+    'StatusFieldAbility', 'SuppressionFieldAbility', 'UnitSpawnAbility'
+].collect { 'mindustry/entities/abilities/' + it + '.java' }
 def sparseTileSources = [
     'mindustry/world/Tile.java',
     'mindustry/world/Build.java',
@@ -231,7 +238,7 @@ if (usesRenderedClient) {
 if (usesArcSources || usesExecutor) {
     def stagedClasses = []
     if (usesSinglePlayerApp) {
-        sparseTileSources.each { path ->
+        (sparseTileSources + databaseStatSources + databaseAbilitySources).each { path ->
             def type = path.substring(0, path.length() - '.java'.length())
             stagedClasses.addAll([type + '.class', type + '$*.class'])
         }
@@ -491,7 +498,8 @@ if (usesSinglePlayer) {
     }
     if (!usesSinglePlayerApp) {
         sourceSets.main.java.exclude('UpstreamSinglePlayerApp.java', 'UpstreamSinglePlayerInput.java',
-            'UpstreamOfflineWeaponInput.java', 'UpstreamMapEditorApp.java')
+            'UpstreamOfflineWeaponInput.java', 'UpstreamMapEditorApp.java',
+            'UpstreamCoreDatabaseMenu.java', 'UpstreamCoreDatabaseStats.java')
     } else if (!usesLiveNetwork) {
         sourceSets.main.java.srcDir('src/network-live/java')
         sourceSets.main.java.srcDir('src/network-render/java')
@@ -614,7 +622,7 @@ tasks.register('prepareUpstreamProbe') {
     }
     if (usesSinglePlayerApp) {
         inputs.file(sparseTilePatch)
-        outputs.files(sourceDir.map { dir -> sparseTileSources.collect { dir.file(it) } })
+        outputs.files(sourceDir.map { dir -> (sparseTileSources + databaseStatSources + databaseAbilitySources).collect { dir.file(it) } })
     }
     if (usesWorldStream) {
         outputs.file(networkIoFile)
@@ -668,6 +676,444 @@ tasks.register('prepareUpstreamProbe') {
     }
     doLast {
         if (usesSinglePlayerApp) {
+            databaseAbilitySources.each { path ->
+                def staged = sourceDir.get().file(path).asFile
+                staged.parentFile.mkdirs()
+                def stock = new String(readUpstream('core/src/' + path), 'UTF-8')
+                def signature = '    public void addStats(Table t){'
+                if (stock.count(signature) != 1) throw new GradleException('Pinned ability stats changed: ' + path)
+                def start = stock.indexOf(signature)
+                def end = stock.indexOf('\n    }', start) + '\n    }'.length()
+                def method = stock.substring(start, end)
+                    .replace(signature, '    public void appendHandheldStats(StringBuilder out){')
+                    .replace('super.addStats(t);', 'super.appendHandheldStats(out);')
+                    .replace('t.add(', 'appendHandheldStat(out, ')
+                    .replace('.wrap().width(descriptionWidth)', '')
+                    .replace('.with(l -> StatValues.withTooltip(l, status))', '')
+                    .replaceAll(/(?m)^ +t\.row\(\);\n/, '')
+                if (method =~ /\bt\./) throw new GradleException('Unconverted ability stats: ' + path)
+                if (path.endsWith('/Ability.java')) {
+                    method += '''
+
+    protected static void appendHandheldStat(StringBuilder out, String line){
+        if(out.length() != 0) out.append('\\n');
+        out.append(line);
+    }'''
+                }
+                staged.setText(stock.substring(0, end) + '\n\n' + method + stock.substring(end), 'UTF-8')
+            }
+            def interfaceFile = sourceDir.get().file(databaseStatSources[0]).asFile
+            interfaceFile.parentFile.mkdirs()
+            def value = new String(readUpstream('core/src/' + databaseStatSources[0]), 'UTF-8')
+            def display = '    void display(Table table);'
+            if (value.count(display) != 1) throw new GradleException('Pinned StatValue changed')
+            interfaceFile.setText(value.replace(display, display + '''
+
+    default String handheldText(){
+        return null;
+    }'''), 'UTF-8')
+
+            def valuesFile = sourceDir.get().file(databaseStatSources[1]).asFile
+            def values = new String(readUpstream('core/src/' + databaseStatSources[1]), 'UTF-8')
+            def hooks = [
+                'public class StatValues{': '''public class StatValues{
+
+    private static StatValue withText(Prov<String> text, StatValue display){
+        return new StatValue(){
+            @Override
+            public void display(Table table){
+                display.display(table);
+            }
+
+            @Override
+            public String handheldText(){
+                return text.get();
+            }
+        };
+    }
+''',
+                'return table -> table.add(result);': 'return withText(() -> result, table -> table.add(result));',
+                'return table ->  table.add(!value ? "@no" : "@yes");':
+                    'return withText(() -> Core.bundle.get(value ? "yes" : "no"), table -> table.add(!value ? "@no" : "@yes"));',
+                '''    public static StatValue number(float value, StatUnit unit, boolean merge){
+        return table -> {''': '''    public static StatValue number(float value, StatUnit unit, boolean merge){
+        return withText(() -> fixValue(value) + (unit.space ? " " : "") + unit.localized(), table -> {''',
+                '''        };
+    }
+
+    public static StatValue number(float value, StatUnit unit){''': '''        });
+    }
+
+    public static StatValue number(float value, StatUnit unit){'''
+            ]
+            def itemAmounts = '''    public static StatValue items(boolean displayName, ItemStack... stacks){
+        return table -> {
+            for(ItemStack stack : stacks){
+                table.add(displayItem(stack.item, stack.amount, displayName)).padRight(5);
+            }
+        };
+    }'''
+            def itemRates = '''    public static StatValue items(float timePeriod, ItemStack... stacks){
+        return table -> {
+            for(ItemStack stack : stacks){
+                table.add(displayItem(stack.item, stack.amount, timePeriod, true)).padRight(5);
+            }
+        };
+    }'''
+            def liquidStackRates = '''    public static StatValue liquids(float timePeriod, boolean perSecond, LiquidStack... stacks){
+        return table -> {
+            for(var stack : stacks){
+                table.add(displayLiquid(stack.liquid, stack.amount * (60f / timePeriod), perSecond)).padRight(5);
+            }
+        };
+    }'''
+            def stockSingleLiquid = 'return table -> table.add(displayLiquid(liquid, amount, perSecond)).left();'
+            hooks[itemAmounts] = itemAmounts
+                .replace('return table -> {', 'return withText(() -> itemStatText(stacks, 0f, false), table -> {')
+                .replace('        };', '        });')
+            hooks[itemRates] = itemRates
+                .replace('return table -> {', 'return withText(() -> itemStatText(stacks, timePeriod, true), table -> {')
+                .replace('        };', '        });')
+            hooks[liquidStackRates] = liquidStackRates
+                .replace('return table -> {', 'return withText(() -> liquidStatText(timePeriod, perSecond, stacks), table -> {')
+                .replace('        };', '        });')
+            hooks[stockSingleLiquid] = 'return withText(() -> liquidStatText(liquid, amount, perSecond), table -> table.add(displayLiquid(liquid, amount, perSecond)).left());'
+            def stockStatValues = values
+            def withLabel = { signature, label ->
+                def start = stockStatValues.indexOf('    public static StatValue ' + signature + '{')
+                if (start < 0) throw new GradleException('Pinned StatValues declaration changed: ' + signature)
+                def end = stockStatValues.indexOf('\n    }', start)
+                def method = stockStatValues.substring(start, end + '\n    }'.length())
+                if (method.count('return table -> {') != 1 || !method.endsWith('        };\n    }')) {
+                    throw new GradleException('Pinned StatValues implementation changed: ' + signature)
+                }
+                hooks[method] = method.replace('return table -> {', 'return withText(() -> ' + label + ', table -> {')
+                    .replace('        };\n    }', '        });\n    }')
+            }
+            withLabel('squared(float value, StatUnit unit)', 'fixValue(value) + "x" + fixValue(value) + (unit.space ? " " : "") + unit.localized()')
+            withLabel('multiplierModifier(float value, StatUnit unit, boolean merge)', 'multStat(value) + (unit.space ? " " : "") + unit.localized()')
+            withLabel('percentModifier(float value, StatUnit unit, boolean merge)', 'ammoStat((value - 1) * 100) + (unit.space ? " " : "") + unit.localized()')
+            withLabel('liquids(Boolf<Liquid> filter, float amount, boolean perSecond)', 'filteredLiquidStatText(filter, amount, perSecond)')
+            withLabel('items(float timePeriod, Boolf<Item> filter)', 'filteredItemStatText(filter, timePeriod)')
+            withLabel('content(UnlockableContent content)', 'content.localizedName')
+            withLabel('abilities(Seq<Ability> abilities)', 'abilityStatText(abilities)')
+            withLabel('weapons(UnitType unit, Seq<Weapon> weapons)', 'weaponStatText(unit, weapons)')
+            withLabel('itemEffMultiplier(Floatf<Item> efficiency, float timePeriod, Boolf<Item> filter, @Nullable ObjectFloatMap<Item> itemDurationMultipliers)',
+                'itemEfficiencyText(efficiency, timePeriod, filter, itemDurationMultipliers)')
+            withLabel('liquidEffMultiplier(Floatf<Liquid> efficiency, float amount, Boolf<Liquid> filter)',
+                'liquidEfficiencyText(efficiency, amount, filter)')
+            withLabel('boosters(float reload, float maxUsed, float multiplier, boolean baseReload, Boolf<Liquid> filter)',
+                'reloadBoosterText(reload, maxUsed, multiplier, baseReload, filter)')
+            withLabel('speedBoosters(String unit, float amount, float speed, boolean strength, Boolf<Liquid> filter)',
+                'speedBoosterText(unit, amount, speed, strength, filter)')
+            withLabel('itemBoosters(String unit, float timePeriod, float speedBoost, float rangeBoost, ItemStack[] items)',
+                'itemBoosterText(unit, timePeriod, speedBoost, rangeBoost, items)')
+            withLabel('blocks(Attribute attr, boolean floating, float scaleEff, float scaleAmount, @Nullable Seq<ItemStack> outputs, float timePeriod, boolean startZero, boolean checkFloors)',
+                'terrainOutputText(attr, floating, scaleEff, scaleAmount, outputs, timePeriod, checkFloors)')
+            def terrainStart = '''    public static StatValue blocks(Attribute attr, boolean floating, float scale, boolean startZero, boolean checkFloors){
+        return table -> table.table(c -> {'''
+            hooks[terrainStart] = terrainStart.replace('return table ->',
+                'return withText(() -> terrainEfficiencyText(attr, floating, scale, startZero, checkFloors), table ->')
+            def terrainEnd = '''                    lastMap[0] = current;
+                }
+            });
+        });
+    }
+
+    public static StatValue blocks(Attribute attr, boolean floating, float scaleEff'''
+            hooks[terrainEnd] = terrainEnd.replace('\n        });\n    }', '\n        }));\n    }')
+            def ammoSignature = '    public static <T extends UnlockableContent> StatValue ammo(ObjectMap<T, BulletType> map, boolean nested, boolean showUnit, @Nullable String blockName){'
+            def originalAmmoStart = ammoSignature + '\n        return table -> {'
+            hooks[originalAmmoStart] = originalAmmoStart.replace('return table -> {',
+                'return withText(() -> ammoStatText(map, nested, showUnit, blockName), table -> {')
+            def originalAmmoEnd = '''                }).padLeft(5).padTop(5).padBottom(compact ? 0 : 5).growX().margin(compact ? 0 : 10);
+                table.row();
+            }
+        };
+    }'''
+            hooks[originalAmmoEnd] = originalAmmoEnd.replace('        };', '        });')
+            def ammoStart = '                    if(type.damage > 0 && (type.collides || type.splashDamage <= 0)){'
+            def ammoEnd = '                    if(type.intervalBullet != null){'
+            if (values.count(ammoStart) != 1 || values.count(ammoEnd) != 1) {
+                throw new GradleException('Pinned projectile stat rules changed')
+            }
+            def ammoRules = values.substring(values.indexOf(ammoStart), values.indexOf(ammoEnd))
+                .replace('bt.add(', 'appendAmmoLine(label, ')
+                .replace('sep(bt, ', 'appendAmmoLine(label, ')
+                .replace('note(bt, ', 'appendAmmoLine(label, ')
+                .replace(')).left();', '));')
+                .replace('\n                        .with(c -> withTooltip(c, type.status));', ';')
+            if (ammoRules.contains('bt,') || ammoRules.contains('bt.')) throw new GradleException('Unconverted projectile stat cell')
+            withLabel('drillables(float drillTime, float drillMultiplier, float size, ObjectFloatMap<Item> multipliers, Boolf<Block> filter)',
+                'drillableStatText(drillTime, drillMultiplier, size, multipliers, filter)')
+            def contentListStart = '''    public static <T extends UnlockableContent> StatValue content(Seq<T> list, Boolf<T> check, String noneText){
+        return table -> table.table(l -> {'''
+            hooks[contentListStart] = contentListStart.replace('return table ->', 'return withText(() -> contentListStatText(list, check, noneText), table ->')
+            def stockContentListEnd = '''                l.add(noneText);
+            }
+        });
+    }
+
+    public static StatValue blocks(Boolf<Block> pred){'''
+            hooks[stockContentListEnd] = stockContentListEnd.replace('        });', '        }));')
+            hooks['    public static String fixValue(float value){'] = '''    private static String itemStatText(ItemStack[] stacks, float period, boolean rate){
+        StringBuilder label = new StringBuilder();
+        for(var stack : stacks){
+            if(label.length() != 0) label.append(" / ");
+            label.append(stack.item.localizedName);
+            if(stack.amount != 0) label.append(" ").append(stack.amount);
+            if(rate) label.append(" (").append(fixValue(stack.amount / (period / 60f))).append(StatUnit.perSecond.localized()).append(")");
+        }
+        return label.toString();
+    }
+
+    private static String liquidStatText(Liquid liquid, float amount, boolean perSecond){
+        return liquid.localizedName + (amount == 0 ? "" : " " + fixValue(amount) + (perSecond ? StatUnit.perSecond.localized() : ""));
+    }
+
+    private static String liquidStatText(float period, boolean perSecond, LiquidStack[] stacks){
+        StringBuilder label = new StringBuilder();
+        for(var stack : stacks){
+            if(label.length() != 0) label.append(" / ");
+            label.append(liquidStatText(stack.liquid, stack.amount * (60f / period), perSecond));
+        }
+        return label.toString();
+    }
+
+    private static String filteredLiquidStatText(Boolf<Liquid> filter, float amount, boolean perSecond){
+        StringBuilder label = new StringBuilder();
+        for(var liquid : content.liquids()){
+            if(!filter.get(liquid) || !liquid.unlockedNow() || liquid.isHidden()) continue;
+            if(label.length() != 0) label.append(" / ");
+            label.append(liquidStatText(liquid, amount, perSecond));
+        }
+        return label.toString();
+    }
+
+    private static String filteredItemStatText(Boolf<Item> filter, float period){
+        StringBuilder label = new StringBuilder();
+        for(var item : content.items()){
+            if(!filter.get(item) || !item.unlockedNow() || item.isHidden()) continue;
+            if(label.length() != 0) label.append(" / ");
+            label.append(item.localizedName);
+            if(period > 0) label.append(" 1 (").append(fixValue(60f / period)).append(StatUnit.perSecond.localized()).append(")");
+        }
+        return label.toString();
+    }
+
+    private static <T extends UnlockableContent> String contentListStatText(Seq<T> list, Boolf<T> check, String noneText){
+        StringBuilder label = new StringBuilder();
+        for(var entry : list){
+            if(!check.get(entry)) continue;
+            if(label.length() != 0) label.append(" / ");
+            label.append(entry.localizedName);
+        }
+        if(label.length() != 0) return label.toString();
+        return noneText.startsWith("@") ? Core.bundle.get(noneText.substring(1)) : noneText;
+    }
+
+    private static String drillableStatText(float drillTime, float drillMultiplier, float size, ObjectFloatMap<Item> multipliers, Boolf<Block> filter){
+        StringBuilder label = new StringBuilder();
+        for(var block : content.blocks()){
+            if(!filter.get(block)) continue;
+            if(label.length() != 0) label.append('\\n');
+            label.append(block.localizedName).append(" / ").append(block.itemDrop.localizedName);
+            if(multipliers != null) label.append(" ").append(drillableRate(block, drillTime, drillMultiplier, size, multipliers));
+        }
+        return label.toString();
+    }
+
+    private static String drillableRate(Block block, float drillTime, float drillMultiplier, float size, ObjectFloatMap<Item> multipliers){
+        return Strings.autoFixed(60f / (Math.max(drillTime + drillMultiplier * block.itemDrop.hardness, drillTime) / multipliers.get(block.itemDrop, 1f)) * size, 2) + StatUnit.perSecond.localized();
+    }
+
+    private static String abilityStatText(Seq<Ability> abilities){
+        StringBuilder label = new StringBuilder();
+        for(var ability : abilities){
+            if(!ability.display) continue;
+            if(label.length() != 0) label.append('\\n');
+            label.append(ability.localized());
+            ability.appendHandheldStats(label);
+        }
+        return label.toString();
+    }
+
+    private static String itemEfficiencyText(Floatf<Item> efficiency, float period, Boolf<Item> filter, ObjectFloatMap<Item> durations){
+        StringBuilder label = new StringBuilder();
+        for(var item : content.items()){
+            if(!filter.get(item) || !item.unlockedNow() || item.isHidden()) continue;
+            label.append('\\n').append(item.localizedName);
+            if(period > 0){
+                float multiplier = durations == null ? 1f : durations.get(item, 1f);
+                float rate = 1f / (period * multiplier / 60f);
+                label.append(" ").append(Strings.autoFixed(rate, rate < 0.01f ? 4 : 2)).append(StatUnit.perSecond.localized());
+            }
+            label.append(" ").append(Core.bundle.format("stat.efficiency", fixValue(efficiency.get(item) * 100f)));
+        }
+        return label.toString();
+    }
+
+    private static String liquidEfficiencyText(Floatf<Liquid> efficiency, float amount, Boolf<Liquid> filter){
+        StringBuilder label = new StringBuilder();
+        for(var liquid : content.liquids()){
+            if(!filter.get(liquid) || !liquid.unlockedNow() || liquid.isHidden()) continue;
+            label.append('\\n').append(liquidStatText(liquid, amount, true));
+            label.append(" ").append(Core.bundle.format("stat.efficiency", fixValue(efficiency.get(liquid) * 100f)));
+        }
+        return label.toString();
+    }
+
+    private static String reloadBoosterText(float reload, float maxUsed, float multiplier, boolean baseReload, Boolf<Liquid> filter){
+        StringBuilder label = new StringBuilder();
+        for(var liquid : content.liquids()){
+            if(!filter.get(liquid)) continue;
+            float rate = (baseReload ? 1f : 0f) + maxUsed * multiplier * liquid.heatCapacity;
+            float standard = baseReload ? reload : reload / (maxUsed * multiplier * 0.4f);
+            label.append('\\n').append(liquid.localizedName).append(" ")
+                .append(Strings.autoFixed(maxUsed * 60f, 2)).append(StatUnit.perSecond.localized()).append(" ")
+                .append(Core.bundle.format("bullet.reload", Strings.autoFixed(standard / (reload / rate) * 100f, 2)));
+        }
+        return label.toString();
+    }
+
+    private static String speedBoosterText(String unit, float amount, float speed, boolean strength, Boolf<Liquid> filter){
+        StringBuilder label = new StringBuilder();
+        for(var liquid : content.liquids()){
+            if(!filter.get(liquid)) continue;
+            label.append('\\n').append(liquid.localizedName).append(" ")
+                .append(Strings.autoFixed(amount * 60f, 2)).append(StatUnit.perSecond.localized());
+            if(speed != Float.MAX_VALUE){
+                float result = speed * (strength ? liquid.heatCapacity : 1f) + (strength ? 1f : 0f);
+                label.append(" ").append(unit.replace("{0}", Strings.autoFixed(result, 2)));
+            }
+        }
+        return label.toString();
+    }
+
+    private static String itemBoosterText(String unit, float period, float speed, float range, ItemStack[] items){
+        StringBuilder label = new StringBuilder(itemStatText(items, period, period >= 0));
+        if(range != 0) label.append(" +").append(Strings.autoFixed(range / tilesize, 2)).append(" ").append(StatUnit.blocks.localized());
+        if(speed != 0) label.append(" ").append(unit.replace("{0}", Strings.autoFixed(speed, 2)));
+        return label.toString();
+    }
+
+    private static Seq<Block> terrainStatBlocks(Attribute attr, boolean floating, boolean checkFloors){
+        return Vars.content.blocks()
+            .select(block -> (!checkFloors || block instanceof Floor) && indexer.isBlockPresent(block)
+                && block.attributes.get(attr) != 0 && !((block instanceof Floor floor && floor.isDeep()) && !floating))
+            .with(blocks -> blocks.sort(block -> block.attributes.get(attr)));
+    }
+
+    private static String terrainEfficiencyText(Attribute attr, boolean floating, float scale, boolean startZero, boolean checkFloors){
+        if(!state.isGame()) return Core.bundle.get("stat.showinmap");
+        StringBuilder label = new StringBuilder();
+        for(var block : terrainStatBlocks(attr, floating, checkFloors)){
+            float multiplier = block.attributes.get(attr) * scale;
+            label.append('\\n').append(block.localizedName).append(" ");
+            if(multiplier >= 0 && !startZero) label.append("+");
+            label.append((int)(multiplier * 100)).append("%");
+        }
+        return label.length() == 0 ? Core.bundle.get("none.inmap") : label.toString();
+    }
+
+    private static String terrainOutputText(Attribute attr, boolean floating, float scaleEff, float scaleAmount,
+        Seq<ItemStack> outputs, float period, boolean checkFloors){
+        if(!state.isGame()) return Core.bundle.get("stat.showinmap");
+        StringBuilder label = new StringBuilder();
+        for(var block : terrainStatBlocks(attr, floating, checkFloors)){
+            float attribute = block.attributes.get(attr);
+            float efficiency = 1f + attribute * scaleEff;
+            label.append('\\n').append(block.localizedName).append(" ");
+            if(outputs == null || outputs.isEmpty()){
+                label.append(Core.bundle.get("none")).append(" ");
+            }else{
+                for(var output : outputs){
+                    float amount = output.amount * (1f + attribute * scaleAmount);
+                    float rate = amount / ((period / efficiency) / 60f);
+                    label.append(output.item.localizedName).append(" ")
+                        .append(Strings.autoFixed(rate, 3)).append(StatUnit.perSecond.localized()).append(" ");
+                }
+            }
+            label.append(Core.bundle.format("stat.efficiency", fixValue(efficiency * 100f)));
+        }
+        return label.length() == 0 ? Core.bundle.get("none.inmap") : label.toString();
+    }
+
+    private static String weaponStatText(UnitType unit, Seq<Weapon> weapons){
+        StringBuilder label = new StringBuilder();
+        for(int index = 0; index < weapons.size; index++){
+            Weapon weapon = weapons.get(index);
+            if(weapon.flipSprite || !weapon.hasStats(unit)) continue;
+            String info = "unit." + unit.name + ".weapon." + index + ".info";
+            if(Core.bundle.has(info)) label.append('\\n').append(Core.bundle.get(info));
+            if(weapon.inaccuracy > 0){
+                label.append('\\n').append(Stat.inaccuracy.localized()).append(": ")
+                    .append((int)weapon.inaccuracy).append(" ").append(StatUnit.degrees.localized());
+            }
+            if(!weapon.alwaysContinuous && weapon.reload > 0 && !weapon.bullet.killShooter){
+                label.append('\\n').append(Stat.reload.localized()).append(": ").append(weapon.mirror ? "2x " : "")
+                    .append(Strings.autoFixed(60f / weapon.reload * weapon.shoot.shots, 2))
+                    .append(" ").append(StatUnit.perSecond.localized());
+            }
+            label.append(ammoStatText(ObjectMap.of(unit, weapon.bullet), false, false, null));
+        }
+        return label.toString();
+    }
+
+    private static void appendAmmoLine(StringBuilder label, String line){
+        label.append('\\n').append(line.startsWith("@") ? Core.bundle.get(line.substring(1)) : line);
+    }
+
+    private static <T extends UnlockableContent> String ammoStatText(ObjectMap<T, BulletType> map, boolean nested, boolean showUnit, String blockName){
+        StringBuilder label = new StringBuilder();
+        var keys = map.keys().toSeq();
+        keys.sort();
+        for(T t : keys){
+            boolean compact = t instanceof UnitType && !showUnit || nested;
+            BulletType type = map.get(t);
+            if(type.spawnUnit != null && type.spawnUnit.weapons.size > 0){
+                label.append(ammoStatText(ObjectMap.of(t, type.spawnUnit.weapons.first().bullet), nested, false, blockName));
+                continue;
+            }
+            if(!compact && !(t instanceof Turret)){
+                appendAmmoLine(label, t.localizedName);
+                if(type.displayAmmoMultiplier && type.statLiquidConsumed > 0f){
+                    appendAmmoLine(label, fixValue(type.statLiquidConsumed / type.ammoMultiplier * 60f) + " " + StatUnit.perSecond.localized());
+                }
+            }
+            if(blockName != null && t != null){
+                String info = "block." + blockName + "." + t.name + ".info";
+                if(Core.bundle.has(info)) appendAmmoLine(label, Core.bundle.get(info));
+            }
+''' + ammoRules + '''            if(type.intervalBullet != null){
+                appendAmmoLine(label, Core.bundle.format("bullet.interval", Strings.autoFixed(type.intervalBullets / type.bulletInterval * 60, 2)));
+                label.append(ammoStatText(ObjectMap.of(t, type.intervalBullet), true, false, null));
+            }
+            if(type.fragBullet != null){
+                appendAmmoLine(label, Core.bundle.format("bullet.frags", type.fragBullets));
+                label.append(ammoStatText(ObjectMap.of(t, type.fragBullet), true, false, null));
+            }
+            if(type.spawnBullets != null && type.spawnBullets.size > 0){
+                appendAmmoLine(label, Core.bundle.format("bullet.spawnBullets", type.spawnBullets.size));
+                for(BulletType spawn : type.spawnBullets){
+                    if(spawn.showStats) label.append(ammoStatText(ObjectMap.of(t, spawn), true, false, null));
+                }
+            }
+        }
+        return label.toString();
+    }
+
+    public static String fixValue(float value){'''
+            hooks.each { before, after ->
+                if (values.count(before) != 1) throw new GradleException('Pinned StatValues hook changed: ' + before)
+                values = values.replace(before, after)
+            }
+            def stockDrillRate = 'Strings.autoFixed(60f / (Math.max(drillTime + drillMultiplier * block.itemDrop.hardness, drillTime) / multipliers.get(block.itemDrop, 1f)) * size, 2) + StatUnit.perSecond.localized()'
+            def stockDrillCell = 'b.add(' + stockDrillRate + ')'
+            if (values.count(stockDrillCell) != 1) throw new GradleException('Pinned drill rate display changed')
+            values = values.replace(stockDrillCell, 'b.add(drillableRate(block, drillTime, drillMultiplier, size, multipliers))')
+            valuesFile.setText(values, 'UTF-8')
+
             sparseTileSources.each { path ->
                 def staged = sourceDir.get().file(path).asFile
                 staged.parentFile.mkdirs()

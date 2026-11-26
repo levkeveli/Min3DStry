@@ -25,10 +25,12 @@ public final class UpstreamUnifiedApp {
         if (args.length == 0) {
             int input = UpstreamSinglePlayerInput.poll();
             if (input < 0) return;
-            if ((input & UpstreamSinglePlayerInput.X_HELD) == 0) {
-                offline(args);
-            } else {
+            if ((input & UpstreamSinglePlayerInput.X_HELD) != 0) {
                 join(args);
+            } else if ((input & UpstreamSinglePlayerInput.Y_HELD) != 0) {
+                offline(new String[]{"--title"});
+            } else {
+                offline(args);
             }
         } else if (args[0].equals("--join")) {
             if (args.length > 2) throw new IllegalArgumentException("Expected --join [endpoint-file]");
