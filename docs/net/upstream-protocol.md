@@ -30,6 +30,21 @@
 - **Code:** [include/net/mindustry_net.h](../../include/net/mindustry_net.h), [src/net/mindustry_net.c](../../src/net/mindustry_net.c)
 - **3DS platform adapter:** [src/platform/3ds/net_3ds.h](../../src/platform/3ds/net_3ds.h), [src/platform/3ds/net_3ds.c](../../src/platform/3ds/net_3ds.c) (`libctru` `socInit` initialized on demand with a 1 MiB aligned buffer, not allocated until networking starts; descriptor cleanup on reconnect)
 
+### Host transport
+
+The host registration and frame reader use pinned ArcNet's server order.
+The TCP listener's connection ID is sent in `RegisterTCP`. After the peer's
+UDP socket returns that ID in `RegisterUDP`, the host sends the stock
+acknowledgement over TCP. The TCP reader returns only complete incoming
+frames and leaves incomplete bytes with the caller. It applies the stock
+provider's 16 KiB incoming object-buffer bound.
+
+The host C tests cover split and coalesced frames, rejected registrations,
+and the stock acknowledgement. A local loopback check used the unmodified
+v160.8 Arc client and packet serializer to complete the handshake and deliver
+its original `ConnectPacket`. Connecting this transport to libctru sockets
+and the original `NetServer` is tracked in [#713](https://github.com/levkeveli/Min3DStry/issues/713).
+
 1. **TCP Outer Framing:** `uint16_be payload_len` + `payload` bytes, read via stateful `TcpFrameReader` so partial headers/bodies across TCP segments and short UDP poll windows resume cleanly without dropping bytes.
 2. **ArcNet `FrameworkMessage` (`0xFE` sentinel + id):**
    - `0` `Ping(i32 id, u8 isReply)` (answered automatically across all handshake receive loops)
