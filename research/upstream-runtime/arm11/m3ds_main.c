@@ -10,8 +10,12 @@ u32 __stacksize__ = 256 * 1024;
 #include "m3ds_terrain_renderer.h"
 #endif
 
-// Reserve linear memory for the console framebuffers and Citro2D.
+// The New 3DS globe also keeps its indexed mesh, sector overlay, and marker vertices in GPU memory.
+#ifdef M3DS_CAMPAIGN_PLANETS
+u32 __ctru_linear_heap_size = 8 * 1024 * 1024;
+#else
 u32 __ctru_linear_heap_size = 4 * 1024 * 1024;
+#endif
 
 static void m3ds_init_heap(int64_t minimum, int64_t maximum) {
     char message[80];
