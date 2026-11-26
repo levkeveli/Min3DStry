@@ -35,6 +35,41 @@ def fix_arc_bit_shifts(root):
     text = re.sub(r"\bINT64_C\(1\) << \(", "UINT64_C(1) << (", text)
     bits.write_text(text, encoding="utf-8", newline="\n")
 
+def root_multi_array_allocation(root):
+    allocator = root / "c/o/t/r/Allocator.c"
+    header = "void* meth_otr_Allocator_allocateMultiArray(void* teavm_local_1, void* teavm_local_2, int32_t teavm_local_3) {"
+    tail = "\nteavm_label_1:;\n    return teavm_local_5;\n}"
+    text = allocator.read_text(encoding="utf-8")
+    start = text.find(header)
+    end = text.find(tail, start + len(header))
+    if start < 0 or end < 0 or text.count(header) != 1:
+        raise ValueError("TeaVM 0.16.0 multi-array allocator changed")
+    original = text[start:end + len(tail)]
+    replace(allocator, original, """void* meth_otr_Allocator_allocateMultiArray(void* arrayClass, void* dimensions, int32_t depth) {
+    int32_t* lengths = dimensions;
+    void* array = meth_otr_Allocator_allocateArray(arrayClass, lengths[0]);
+    if (depth <= 1) return array;
+
+    // A child allocation can collect while its parent is still under construction.
+    TEAVM_ALLOC_STACK(1);
+    TEAVM_CALL_SITE(-1);
+#if TEAVM_USE_SETJMP
+    teavm_shadowStack.header.jmpTarget = NULL;
+#endif
+    TEAVM_GC_ROOT(0, array);
+    TeaVM_Class* itemClass = TEAVM_FIELD(arrayClass, TeaVM_Class, itemType);
+    for (int32_t index = 0; index < lengths[0]; ++index) {
+        void* child = meth_otr_Allocator_allocateMultiArray(itemClass, lengths + 1, depth - 1);
+        array = teavm_shadowStack.data[0];
+        // The collector may have promoted the parent before this child was allocated.
+        teavm_gc_writeBarrier(array);
+        TEAVM_ARRAY_AT(array, void*, index) = child;
+    }
+    TEAVM_RELEASE_STACK;
+    return array;
+}""")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("generated", type=Path)
@@ -47,6 +82,7 @@ def main():
         parser.error("use a new staging directory")
     shutil.copytree(args.generated, args.output)
     fix_heap_alignment(args.output)
+    root_multi_array_allocation(args.output)
     fix_arc_bit_shifts(args.output)
     fix_gc_monitors(args.output)
     fix_reflection_lifetime(args.output)
@@ -141,6 +177,15 @@ def main():
             ('#include "virtcall.c"', '#include "virtcall.c"\n#include "m3ds_main.c"'),
         ]),
         "memory.c": [
+            (
+                "    return (int32_t) (heapSize / 16);",
+                "#ifdef M3DS_SINGLEPLAYER\n"
+                "    // The platform already backs the full reservation. Expose enough scratch\n"
+                "    // to mark stock 600x600 tile arrays before the managed heap has grown.\n"
+                "    if (heapSize < 32 * 1024 * 1024) return 2 * 1024 * 1024;\n"
+                "#endif\n"
+                "    return (int32_t) (heapSize / 16);",
+            ),
             ("void* teavm_gc_heapAddress", "static int64_t teavm_pageSize(void);\nstatic void* teavm_virtualAlloc(int64_t size);\nstatic void teavm_virtualCommit(void* address, int64_t size);\nstatic void teavm_virtualUncommit(void* address, int64_t size);\n\nvoid* teavm_gc_heapAddress"),
         ],
         "heaptrace.c": [

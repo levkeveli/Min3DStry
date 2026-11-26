@@ -66,9 +66,10 @@ void m3ds_live_net_close(void) {
 }
 
 int32_t m3ds_live_net_open(const void *address, int32_t length, int32_t port, int32_t version,
-    int32_t kick_text_id, int32_t kick_reason_id) {
+    int32_t kick_text_id, int32_t kick_reason_id, const char *name, const char *locale,
+    const char *usid, const uint8_t *uuid, uint32_t color) {
     char host[256];
-    if (!address || length <= 0 || length >= (int32_t)sizeof(host) ||
+    if (!name || !locale || !usid || !uuid || !address || length <= 0 || length >= (int32_t)sizeof(host) ||
             port <= 0 || port > UINT16_MAX || memchr(address, '\0', (size_t)length) ||
             kick_text_id < 0 || kick_text_id > UINT8_MAX || kick_reason_id < 0 || kick_reason_id > UINT8_MAX) {
         return M3DS_HANDSHAKE_INVALID_ARG;
@@ -79,15 +80,15 @@ int32_t m3ds_live_net_open(const void *address, int32_t length, int32_t port, in
     if (!m3ds_net_3ds_init(&transport, &context)) {
         return M3DS_HANDSHAKE_TRANSPORT_ERROR;
     }
-    const M3dsNetConnectPacket packet = {
+    M3dsNetConnectPacket packet = {
         .version = version,
         .version_type = M3DS_NET_UPSTREAM_VERSION_TYPE,
-        .name = "Min3DStry ARM11",
-        .locale = "en",
-        .usid = "arm11-live-probe",
-        .uuid_raw = {77, 51, 68, 83, 84, 82, 89, 2},
-        .color = UINT32_MAX
+        .name = name,
+        .locale = locale,
+        .usid = usid,
+        .color = color
     };
+    memcpy(packet.uuid_raw, uuid, sizeof(packet.uuid_raw));
     client = m3ds_net_client_open(&transport, host, (uint16_t)port, 5000, &packet,
         (uint8_t)kick_text_id, (uint8_t)kick_reason_id, &handshake);
     if (!client) m3ds_net_3ds_exit(&context);
@@ -98,6 +99,19 @@ int32_t m3ds_live_net_stream_id(void) { return handshake.stream_id; }
 int32_t m3ds_live_net_stream_total(void) { return handshake.stream_total; }
 int32_t m3ds_live_net_stream_type(void) { return handshake.stream_type; }
 int32_t m3ds_live_net_packet_id(void) { return handshake.first_server_packet_id; }
+
+int32_t m3ds_live_net_ping(const void *address, int32_t length, int32_t port) {
+    char host[256];
+    if (client || context.soc_initialized || !address || length <= 0 || length >= (int32_t)sizeof(host) ||
+        port <= 0 || port > UINT16_MAX || memchr(address, '\0', (size_t)length)) return 0;
+    memcpy(host, address, (size_t)length);
+    host[length] = '\0';
+    if (!m3ds_net_3ds_init(&transport, &context)) return 0;
+    M3dsNetHostInfo info;
+    bool found = m3ds_net_ping_host(&transport, host, (uint16_t)port, 500, &info);
+    m3ds_net_3ds_exit(&context);
+    return found;
+}
 
 int32_t m3ds_live_net_receive(void *payload, int32_t capacity, int32_t reliable, int32_t timeout_ms) {
     if (capacity <= 0 || capacity > M3DS_NET_MAX_PACKET_SIZE || timeout_ms < 0) {
@@ -159,7 +173,10 @@ int32_t m3ds_live_net_input(void) {
     return (int32_t)pack_axis(pad.dx) | ((int32_t)pack_axis(pad.dy) << 8) |
            ((int32_t)dpad << 16) | ((int32_t)((pressed & KEY_A) != 0) << 17) |
            ((int32_t)((pressed & KEY_R) != 0) << 18) | ((int32_t)((pressed & KEY_B) != 0) << 19) |
-           ((int32_t)((keys & KEY_X) != 0) << 20) | ((int32_t)((keys & KEY_L) != 0) << 21);
+           ((int32_t)((keys & KEY_X) != 0) << 20) | ((int32_t)((keys & KEY_L) != 0) << 21) |
+           ((int32_t)((pressed & KEY_Y) != 0) << 22) |
+           ((int32_t)((pressed & KEY_CSTICK_UP) != 0) << 26) |
+           ((int32_t)((pressed & KEY_CSTICK_DOWN) != 0) << 27);
 }
 
 int32_t m3ds_live_net_touch(void) {

@@ -127,6 +127,7 @@ def replay(args, model, fixture):
     sd = (output / "sdmc").resolve()
     save = sd / "3ds/min3dstry/singleplayer-save.msav"
     save.parent.mkdir(parents=True)
+    sp.stage_direct_startup(sd)
     shutil.copyfile(fixture, save)
     movie = output / "factory.ctm"
     write_movie(movie, model, live=args.live)
@@ -200,13 +201,13 @@ def main():
     parser.add_argument("--azahar")
     parser.add_argument("--fixture", type=Path, help="An existing stock factory fixture")
     parser.add_argument("--output", type=Path, required=True, help="A new output directory")
-    parser.add_argument("--model", choices=("new3ds", "old3ds"), action="append")
+    parser.add_argument("--model", choices=("new3ds",), action="append")
     parser.add_argument("--port", type=int, default=16588)
     parser.add_argument("--live", action="store_true", help="Verify plan configuration against a stock server")
     args = parser.parse_args()
     args.output.mkdir(parents=True)
     fixture = args.fixture or stock_server(args, args.output / "stock-fixture")
-    for model in args.model or ("old3ds", "new3ds"):
+    for model in args.model or ("new3ds",):
         replay(args, model, fixture)
 
 

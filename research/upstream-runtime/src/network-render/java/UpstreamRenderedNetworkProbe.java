@@ -6,11 +6,16 @@ import port.render.UpstreamLabelText;
 import port.logic.UpstreamClientLogic;
 import arc.Core;
 import arc.Events;
+import arc.Settings;
 import arc.files.Fi;
+import arc.graphics.Camera;
 import arc.graphics.g2d.Draw;
 import arc.mock.MockGraphics;
+import arc.math.Mathf;
 import arc.struct.IntSet;
 import arc.struct.ObjectSet;
+import arc.struct.Seq;
+import arc.util.I18NBundle;
 import arc.util.Time;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -24,12 +29,14 @@ import mindustry.game.EventType.WorldLoadEvent;
 import mindustry.gen.Building;
 import mindustry.gen.Groups;
 import mindustry.gen.Payloadc;
+import mindustry.gen.Sounds;
 import mindustry.gen.Tankc;
 import mindustry.gen.Unit;
 import mindustry.gen.UnitWaterMove;
 import mindustry.graphics.CacheLayer;
 import mindustry.type.UnitType;
 import mindustry.world.blocks.units.UnitFactory;
+import mindustry.world.blocks.units.UnitFactory.UnitFactoryBuild;
 import mindustry.world.Block;
 import mindustry.type.Category;
 import mindustry.world.blocks.defense.turrets.BaseTurret;
@@ -44,11 +51,18 @@ import mindustry.world.blocks.logic.TileableLogicDisplay.TileableLogicDisplayBui
 
 /** Presents the received multiplayer world through the ARM11 terrain renderer. */
 public final class UpstreamRenderedNetworkProbe {
+    private static final int VISIBLE_CHAT_MESSAGES = 10;
     private static final ObjectSet<UnitType> drawableUnits = new ObjectSet<>();
     private final Fi atlas;
     private final UpstreamTerrainRenderProbe target = new UpstreamTerrainRenderProbe(false);
     private final UpstreamBuildingLayers buildingLayers = new UpstreamBuildingLayers();
-    private final UpstreamLiveBuildControls buildingControls = new UpstreamLiveBuildControls();
+    private final UpstreamBuildingPowerHud buildingPowerHud = new UpstreamBuildingPowerHud();
+    private final UpstreamBuildingLiquidHud buildingLiquidHud = new UpstreamBuildingLiquidHud();
+    private final UpstreamBuildingBasicBars buildingBasicBars = new UpstreamBuildingBasicBars();
+    private final UpstreamWeatherLayers weatherLayers = new UpstreamWeatherLayers();
+    private final Runnable drawWeatherUnder = weatherLayers::drawUnder;
+    private UpstreamLiveBuildControls buildingControls;
+    private final UpstreamChatInput chatInput = new UpstreamChatInput();
     private final Runnable drawEntities = this::drawEntities;
     private final IntSet reportedConveyors = new IntSet();
     private final IntSet reportedEnemies = new IntSet();
@@ -64,6 +78,8 @@ public final class UpstreamRenderedNetworkProbe {
     private final UpstreamWorldLabel.Target worldLabel = this::drawWorldLabel;
     private final ObjectSet<String> reportedWorldLabels = new ObjectSet<>();
     private final ObjectSet<String> reportedStockWorldLabels = new ObjectSet<>();
+    private final Seq<ChatLine> chatLines = new Seq<>();
+    private float chatFade;
     private UpstreamLabelText.Label encodedLabel;
     private int[] encodedCharacters;
     private byte[] lastMenu;
@@ -80,6 +96,15 @@ public final class UpstreamRenderedNetworkProbe {
         this.atlas = atlas;
     }
 
+    private void configureSchematicPrompts() {
+        buildingControls.schematics().nameCapturesWith(
+            () -> UpstreamLiveNetworkProbe.whileKeepingAlive(UpstreamTerrainRenderProbe::readSchematicName),
+            name -> UpstreamLiveNetworkProbe.whileKeepingAlive(() -> UpstreamTerrainRenderProbe.confirmSchematicReplacement(name)));
+        buildingControls.schematics().editWith(
+            name -> UpstreamLiveNetworkProbe.whileKeepingAlive(() -> UpstreamTerrainRenderProbe.editSchematicName(name)),
+            description -> UpstreamLiveNetworkProbe.whileKeepingAlive(() -> UpstreamTerrainRenderProbe.editSchematicDescription(description)));
+    }
+
     public static void main(String[] args) throws IOException, InterruptedException {
         var endpoint = UpstreamLiveNetworkProbe.endpointFile(args);
         run(endpoint, endpoint.sibling("sprites.aatls"));
@@ -90,27 +115,89 @@ public final class UpstreamRenderedNetworkProbe {
     }
 
     static void run(Fi directory, String address, Fi atlas) throws IOException, InterruptedException {
+        run(directory, address, atlas, null, false, null, null);
+    }
+
+    static void run(Fi directory, String address, Fi atlas, UpstreamWorldLoadProbe.ProbeApplication preparedApp,
+                    boolean atlasReady, I18NBundle titleBundle, Settings settings) throws IOException, InterruptedException {
         var view = new UpstreamRenderedNetworkProbe(atlas);
         int language = view.target.mountAssets();
-        var preference = directory.child("locale.txt");
-        String requested = preference.exists() && preference.length() <= 16 ? preference.readString("UTF-8").trim() : "";
-        Core.bundle = UpstreamInterfaceLocale.loadForStockClient(new Fi("/romfs/bundles/bundle"), language, requested);
+        if (preparedApp == null) {
+            if (titleBundle == null) {
+                var preference = directory.child("locale.txt");
+                String requested = preference.exists() && preference.length() <= 16
+                    ? preference.readString("UTF-8").trim() : "";
+                Core.bundle = UpstreamInterfaceLocale.loadForStockClient(new Fi("/romfs/bundles/bundle"), language, requested);
+            } else {
+                Core.bundle = titleBundle;
+            }
+            CacheLayer.init();
+        }
         var locale = Core.bundle.getLocale();
         System.out.println("UPSTREAM_INTERFACE_LOCALE system=" + language + " bundle="
             + (locale.getLanguage().isEmpty() ? "en" : locale) + " router=" + Core.bundle.get("block.router.name")
             + " copper=" + Core.bundle.get("item.copper.name"));
-        CacheLayer.init();
         try {
-            Arm11Audio.open();
-            UpstreamLiveNetworkProbe.run(directory, address, view::loadGraphics, view::render, view.buildingControls);
+            if (preparedApp == null) Arm11Audio.open();
+            var kick = UpstreamLiveNetworkProbe.run(directory, address, view::prepareClient, () -> view.loadGraphics(atlasReady),
+                view::render, view::newSessionControls, view::receiveChat, view.chatInput,
+                () -> view.drawConnectionNotice(Core.bundle.get("reconnecting"), Core.bundle.get("cancel")), preparedApp, settings);
+            if (kick != null) view.showServerKick(kick);
         } finally {
-            Arm11Audio.close();
+            if (preparedApp == null) Arm11Audio.close();
         }
     }
 
-    private void loadGraphics() {
+    private void showServerKick(UpstreamLiveNetworkProbe.ServerKick kick) throws InterruptedException {
+        var reason = kick.stockReason;
+        if (reason != null && reason.quiet) return;
+        String extra = reason == null ? null : reason.extraText();
+        String title = extra == null ? Core.bundle.get("disconnect") : reason.toString();
+        String detail = reason == null ? kick.getMessage() : extra == null ? reason.toString() : extra;
+
+        drawConnectionNotice(title, detail);
+        System.out.println("UPSTREAM_LIVE_KICK_NOTICE title=" + title
+            + " detail=" + (detail == null ? "" : detail.replace('\n', ' ').replace('\r', ' ')));
+        while (!UpstreamLiveNetworkProbe.kickNoticeDismissed()) Thread.sleep(16);
+    }
+
+    private void drawConnectionNotice(String title, String detail) {
+        target.begin(0, 0, UpstreamTerrainDrawProbe.VIEW_WIDTH, UpstreamTerrainDrawProbe.VIEW_HEIGHT);
+        try {
+            float y = drawKickLabel(title, 6f);
+            if (detail != null) drawKickLabel(detail, y);
+        } finally {
+            target.end();
+        }
+    }
+
+    private UpstreamLiveBuildControls newSessionControls() {
+        buildingControls = new UpstreamLiveBuildControls();
+        configureSchematicPrompts();
+        controlled = null;
+        previousVisualFrame = 0;
+        lastLeft = lastBottom = -1;
+        lastPrimaryShortcut = null;
+        lastMenu = null;
+        lastStatus = null;
+        lastObjectives = null;
+        chatLines.clear();
+        chatFade = 0;
+        return buildingControls;
+    }
+
+    private float drawKickLabel(String label, float y) {
+        var parsed = UpstreamLabelText.parse(UI.formatIcons(label));
+        return target.drawObjective((label + "\0").getBytes(StandardCharsets.UTF_8), UpstreamHudLabels.encodeLabel(parsed), null, y);
+    }
+
+    private void prepareClient() {
+        if (Core.camera == null) Core.camera = new Camera();
         Arm11Audio.prepareMusicControl();
-        Events.on(WorldLoadEvent.class, event -> Arm11Audio.reset());
+        Events.on(WorldLoadEvent.class, event -> {
+            Arm11Audio.reset();
+            weatherLayers.reset();
+        });
         UpstreamClientLogic.initialize(new Fi("/romfs/logicids.dat"));
         Core.graphics = new MockGraphics() {
             @Override public int getWidth() { return 400; }
@@ -121,8 +208,13 @@ public final class UpstreamRenderedNetworkProbe {
         };
         var locale = Core.bundle.getLocale();
         Core.settings.put("locale", locale.getLanguage().isEmpty() ? "en" : locale.toString());
+    }
+
+    private void loadGraphics(boolean atlasReady) {
+        var locale = Core.bundle.getLocale();
         System.out.println("UPSTREAM_INTERFACE_GRAPHICS atlas");
-        UpstreamTerrainDrawProbe.loadAtlas(atlas, UpstreamFluidAtlas::load);
+        if (!atlasReady) UpstreamTerrainDrawProbe.loadAtlas(atlas, UpstreamFluidAtlas::load);
+        weatherLayers.load();
         UpstreamLogicGraphics.load(new Fi("/romfs"));
         Vars.content.loadColors(new Fi("/romfs/block_colors.png"));
         UpstreamCrackAtlas.load();
@@ -174,18 +266,26 @@ public final class UpstreamRenderedNetworkProbe {
         frameId++;
         updateBuildLabels();
         controlled = unit;
+        if (buildingControls != null) {
+            int zoom = buildingControls.consumeZoom();
+            if (zoom != 0) {
+                viewport.zoomBy(zoom * UpstreamTerrainDrawProbe.ZOOM_STEP);
+                System.out.println("UPSTREAM_CAMERA_ZOOM zoom=" + viewport.zoom()
+                    + " span=" + viewport.width() + "x" + viewport.height());
+            }
+        }
         float x = unit == null ? Vars.player.x() : unit.x();
         float y = unit == null ? Vars.player.y() : unit.y();
-        viewport.moveTo(World.toTile(x) - UpstreamTerrainDrawProbe.VIEW_WIDTH / 2,
-                        World.toTile(y) - UpstreamTerrainDrawProbe.VIEW_HEIGHT / 2);
-        float width = UpstreamTerrainDrawProbe.VIEW_WIDTH * Vars.tilesize;
-        float height = UpstreamTerrainDrawProbe.VIEW_HEIGHT * Vars.tilesize;
+        viewport.moveTo(World.toTile(x) - viewport.width() / 2,
+                        World.toTile(y) - viewport.height() / 2);
+        float width = viewport.width() * Vars.tilesize;
+        float height = viewport.height() * Vars.tilesize;
         Arm11Audio.updateCamera((viewport.left - 0.5f) * Vars.tilesize + width / 2f,
             (viewport.bottom - 0.5f) * Vars.tilesize + height / 2f, width, height);
         advanceVisualState();
         draws = 0;
-        viewport.draw(drawEntities);
-        buildingControls.viewport(viewport.left, viewport.bottom);
+        viewport.draw(drawWeatherUnder, drawEntities);
+        buildingControls.viewport(viewport.left, viewport.bottom, viewport.width(), viewport.height());
         if (unit != null && (lastLeft != viewport.left || lastBottom != viewport.bottom)) {
             lastLeft = viewport.left;
             lastBottom = viewport.bottom;
@@ -206,12 +306,15 @@ public final class UpstreamRenderedNetworkProbe {
         float delta = Math.min(frameSeconds * 60f, Vars.maxDeltaClient);
         Time.delta = delta;
         try {
-            Arm11Audio.updateClientAudio(now);
             Time.update();
+            if (!Vars.state.isPaused()) Groups.weather.update();
+            weatherLayers.advance();
+            Arm11Audio.updateClientAudio(now);
             UpstreamClientLogic.update(delta);
             for (var build : Groups.build) {
                 if (build instanceof TileableLogicDisplayBuild display) display.updateTile();
                 if (build instanceof ConduitBuild conduit) conduit.advanceLiquidDraw();
+                if (build instanceof UnitFactoryBuild factory) advanceFactoryDraw(factory);
             }
             for (var unit : Groups.unit) {
                 if (unit instanceof UnitWaterMove boat) boat.advanceWake();
@@ -221,6 +324,16 @@ public final class UpstreamRenderedNetworkProbe {
         } finally {
             Time.delta = oldDelta;
         }
+    }
+
+    static void advanceFactoryDraw(UnitFactoryBuild factory) {
+        // UnitFactoryBuild.updateTile also advances production and emits units.
+        // Reproduce its draw-only state from the stock plan and received efficiency.
+        boolean active = factory.efficiency > 0f && factory.currentPlan != -1;
+        if (active) {
+            factory.time += factory.edelta() * factory.speedScl * Vars.state.rules.unitBuildSpeed(factory.team);
+        }
+        factory.speedScl = Mathf.lerpDelta(factory.speedScl, active ? 1f : 0f, 0.05f);
     }
 
     static void advanceTankTreads(Tankc tank) {
@@ -242,8 +355,8 @@ public final class UpstreamRenderedNetworkProbe {
         try {
             for (var unit : Groups.unit) {
                 int x = World.toTile(unit.x()), y = World.toTile(unit.y());
-                if (x < viewport.left || x >= viewport.left + UpstreamTerrainDrawProbe.VIEW_WIDTH
-                        || y < viewport.bottom || y >= viewport.bottom + UpstreamTerrainDrawProbe.VIEW_HEIGHT) continue;
+                if (x < viewport.left || x >= viewport.left + viewport.width()
+                        || y < viewport.bottom || y >= viewport.bottom + viewport.height()) continue;
                 if (!loadUnitGraphics(unit)) continue;
                 unit.draw();
                 if (unit == controlled) draws++;
@@ -272,13 +385,25 @@ public final class UpstreamRenderedNetworkProbe {
                 System.out.println("UPSTREAM_LIVE_ENEMY_GONE id=" + id);
             }
         }
-        UpstreamObjectiveMarkers.draw(Vars.state.rules, 240f / (UpstreamTerrainDrawProbe.VIEW_HEIGHT * Vars.tilesize),
+        UpstreamObjectiveMarkers.draw(Vars.state.rules, 240f / (viewport.height() * Vars.tilesize),
             worldLabel);
         var orders = buildingControls.orders();
         orders.draw(viewport);
         var schematics = buildingControls.schematics();
         schematics.draw(viewport);
-        drawObjectives(drawStatusHud());
+        weatherLayers.drawOver();
+        float hudY = drawStatusHud();
+        // Base Block.setBars order: health, power, items, then liquids.
+        hudY = buildingBasicBars.drawHealth(target, buildingControls, Vars.player.team(), hudY);
+        hudY = buildingPowerHud.draw(target, buildingControls, Vars.player.team(), hudY);
+        hudY = buildingBasicBars.drawItems(target, buildingControls, Vars.player.team(), hudY);
+        hudY = buildingLiquidHud.draw(target, buildingControls, Vars.player.team(), hudY);
+        drawObjectives(hudY);
+        drawChat();
+        if (chatInput.open()) {
+            target.drawChatKeyboard(chatInput.labels());
+            return;
+        }
         var block = buildingControls.block();
         var catalog = buildingControls.catalog();
         var config = buildingControls.buildingConfig();
@@ -312,9 +437,39 @@ public final class UpstreamRenderedNetworkProbe {
         }
     }
 
+    private record ChatLine(int sequence, byte[] text, int[] characters) {}
+
+    private int chatSequence;
+    private int latestDrawnChat;
+
+    private void receiveChat(String message) {
+        byte[] text = (message + "\0").getBytes(StandardCharsets.UTF_8);
+        int[] characters = UpstreamHudLabels.encodeLabel(UpstreamLabelText.parse(UI.formatIcons(message)));
+        chatLines.insert(0, new ChatLine(++chatSequence, text, characters));
+        chatLines.truncate(VISIBLE_CHAT_MESSAGES);
+        chatFade = Math.min(chatFade + 1f, VISIBLE_CHAT_MESSAGES) + 1f;
+        Sounds.uiChat.play();
+    }
+
+    private void drawChat() {
+        // ChatFragment displays the newest lines first and expires one line per 180 game frames.
+        int rows = chatInput.open() ? chatLines.size : Math.min(chatLines.size, Mathf.ceil(chatFade));
+        float bottom = 234f;
+        for (int i = 0; i < rows; i++) {
+            var line = chatLines.get(i);
+            bottom = target.drawChatLine(line.text(), line.characters(), bottom);
+            if (bottom < 0f) break;
+            if (line.sequence() > latestDrawnChat) {
+                latestDrawnChat = line.sequence();
+                System.out.println("UPSTREAM_LIVE_CHAT_DRAW line=" + latestDrawnChat);
+            }
+        }
+        chatFade = Math.max(0f, chatFade - Math.min(frameSeconds * 60f, Vars.maxDeltaClient) / 180f);
+    }
+
     private void drawWorldLabel(UpstreamLabelText.Label text, float x, float y, int flags, float size, int align, int lineAlign) {
         if (encodedLabel != text) {
-            encodedCharacters = encodeLabel(text);
+            encodedCharacters = UpstreamHudLabels.encodeLabel(text);
             encodedLabel = text;
         }
         int font = target.drawWorldLabel(text.plain(), encodedCharacters, x, y, flags, size, align, lineAlign);
@@ -326,22 +481,6 @@ public final class UpstreamRenderedNetworkProbe {
         }
     }
 
-    private static int[] encodeLabel(UpstreamLabelText.Label text) {
-        int[] encoded = new int[text.characters().size() * 7];
-        int offset = 0;
-        for (var glyph : text.characters()) {
-            var art = glyph.art();
-            encoded[offset++] = glyph.codepoint();
-            encoded[offset++] = glyph.color();
-            encoded[offset++] = art == null ? -1 : UpstreamTerrainDrawProbe.pageIndex(art);
-            encoded[offset++] = art == null ? 0 : art.getX();
-            encoded[offset++] = art == null ? 0 : art.getY();
-            encoded[offset++] = art == null ? 0 : art.width;
-            encoded[offset++] = art == null ? 0 : art.height;
-        }
-        return encoded;
-    }
-
     private float drawStatusHud() {
         var rows = UpstreamStatusHud.collect();
         boolean changed = !rows.equals(lastStatus);
@@ -350,7 +489,7 @@ public final class UpstreamRenderedNetworkProbe {
             statusCharacters = new int[rows.size()][];
             for (int i = 0; i < rows.size(); i++) {
                 statusLabels[i] = (rows.get(i).text() + "\0").getBytes(StandardCharsets.UTF_8);
-                statusCharacters[i] = encodeLabel(UpstreamLabelText.parse(UI.formatIcons(rows.get(i).markup())));
+                statusCharacters[i] = UpstreamHudLabels.encodeLabel(UpstreamLabelText.parse(UI.formatIcons(rows.get(i).markup())));
             }
             lastStatus = rows;
             System.out.println("UPSTREAM_STATUS_HUD wave=" + Vars.state.wave
@@ -374,7 +513,7 @@ public final class UpstreamRenderedNetworkProbe {
             reportedStockObjectives = new boolean[rows.size()];
             for (int i = 0; i < rows.size(); i++) {
                 objectiveLabels[i] = (rows.get(i).text() + "\0").getBytes(StandardCharsets.UTF_8);
-                objectiveCharacters[i] = encodeLabel(UpstreamLabelText.parse(UI.formatIcons(rows.get(i).markup())));
+                objectiveCharacters[i] = UpstreamHudLabels.encodeLabel(UpstreamLabelText.parse(UI.formatIcons(rows.get(i).markup())));
             }
             lastObjectives = rows;
         }

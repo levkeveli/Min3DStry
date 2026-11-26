@@ -34,7 +34,7 @@ markers they emit on the JVM and/or ARM11/Azahar.
 | Save writer baseline | host `UpstreamSaveBaseline` | Host/JVM | `UPSTREAM_SAVE header=MSAV version=13` |
 
 Rows marked `JVM + Azahar` run in Azahar `2126.2` on both New and Old 3DS
-profiles; host rows run on the JVM only. Physical Old/New 3DS validation remains
+profiles; host rows run on the JVM only. Physical New 3DS validation remains
 part of `physical-hardware-parity`.
 
 ## Native reader scope and replacement plan
@@ -69,3 +69,18 @@ the upstream decode in `tests/fixtures/glacier-v13-decoded.txt`.
 asserts dimensions, building fields, per-building hashes, and the aggregate
 `3a375fd4f81c5680`, so `./dev.sh test` covers the SaveIO parity without needing
 Java or the upstream checkout.
+
+## Offline save metadata
+
+The upstream offline runtime reads back the file it just wrote and reuses that
+validated metadata when updating the campaign slot. Rules JSON is passed
+through unchanged when it has no legacy `io.anuke.` prefix. The original
+prefix replacement still applies to older saves. The Ground Zero JVM and
+generated-C replay exercises both modern and legacy rules JSON before its
+stock save-and-reload sequence.
+
+The pinned v160.8 files adapted for this path are
+`core/src/mindustry/io/SaveIO.java` (validation and metadata used by the slot)
+and `core/src/mindustry/io/JsonIO.java` (skip the legacy-prefix rewrite when
+the prefix is absent). The build stages both files from the verified upstream
+checkout in `research/upstream-runtime/build.gradle`.

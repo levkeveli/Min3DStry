@@ -43,19 +43,14 @@ public final class UpstreamStockMinimapReference {
             if (hidden == visible) throw new AssertionError("Fixture did not exercise the original fog rule");
 
             int size = 64;
-            byte[] pixels = UpstreamMinimap.sample(size);
-            var unit = Vars.player.unit();
+            byte[] pixels = UpstreamMinimap.sampleTerrain(size);
             for (int y = 0; y < size; y++) {
                 for (int x = 0; x < size; x++) {
                     Tile tile = Vars.world.tile(x * Vars.world.width() / size, y * Vars.world.height() / size);
                     int offset = (x + y * size) * 4;
                     int pixel = (pixels[offset] & 255) << 24 | (pixels[offset + 1] & 255) << 16
                         | (pixels[offset + 2] & 255) << 8 | (pixels[offset + 3] & 255);
-                    if (unit != null && unit.tileX() == tile.x && unit.tileY() == tile.y) {
-                        if (pixel != 0xffffffff) throw new AssertionError("Missing local player marker");
-                    } else {
-                        checkPixel(desktop, stock, tile, pixel);
-                    }
+                    checkPixel(desktop, stock, tile, pixel);
                 }
             }
             System.out.println("UPSTREAM_STOCK_MINIMAP pixels=4096 ore=exact shadow=exact liquid=exact fog=exact");

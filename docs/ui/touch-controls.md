@@ -2,7 +2,8 @@
 
 Status: **Emulator-tested prototype** (host geometry tests plus Azahar `2126.2`
 New and Original 3DS boot with the HUD; Azahar cannot inject touch input into
-the standalone app, so the touch paths remain host-tested).
+the standalone app, so the touch paths remain host-tested. Visible labels are
+now drawn inside the hit zones; physical label retest is tracked by #364.)
 
 ## Scope
 
@@ -18,6 +19,21 @@ existing HUD actions:
 | Pan down | `48..80 x 168..200` | hold to pan down |
 | Pan left | `16..48 x 140..180` | hold to pan left |
 | Pan right | `80..112 x 140..180` | hold to pan right |
+
+The text-console labels are drawn inside those zones using 8×8 px cells:
+
+| Label | Console row / column | Cell centre | Action |
+| --- | --- | --- | --- |
+| `MENU` | `2 / 32` | `(252, 12)` | menu |
+| `ZOOM+` | `9 / 32` | `(252, 68)` | zoom in |
+| `ZOOM-` | `16 / 32` | `(252, 124)` | zoom out |
+| `^` | `19 / 7` | `(52, 148)` | pan up |
+| `v` | `25 / 7` | `(52, 196)` | pan down |
+| `<` | `19 / 3` | `(20, 148)` | pan left |
+| `>` | `19 / 13` | `(100, 148)` | pan right |
+
+`tests/ui/test_touch_controls.c` asserts every label cell centre maps back to
+its own action, so a future zone or label change cannot silently separate them.
 
 The module deliberately returns an action rather than touching game state.
 `src/platform/3ds/main_3ds.c` converts the action into the same synthetic
@@ -35,7 +51,8 @@ D-pad/A path. Row taps log `TOUCH action=menu.row row=<n>` and synthesize
 
 - `tests/ui/test_touch_controls.c` asserts every region center, all
   half-open boundaries, out-of-screen coordinates, action IDs and pan
-  classification.
+  classification. It also asserts every visible label cell centre maps to the
+  matching touch action.
 - `./dev.sh test` compiles and runs the test on the host.
 
 ## Verification
@@ -48,7 +65,8 @@ testing is tracked with the other hardware work.
 ## Limitations
 
 - The bottom screen remains a text console; there is no graphical button art
-  yet, and the labels describe rather than draw the regions.
+  yet, but the text labels are drawn inside the hit zones. The down-arrow
+  label can overlap the fourth sector row when four slots are listed.
 - A held touch does not slide between regions; lift and press again.
 - The pause-menu rows are text; tapping them works, but there is no graphical
   button art yet.

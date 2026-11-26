@@ -13,25 +13,26 @@ on:
       - "tools/build_teavm_loader.sh"
       - "tests/platform/embed_loader_smoke.c"
       - ".github/workflows/full-build.yml"
+      - ".github/scripts/fetch_upstream_v160.sh"
+      # The embedded save-rows loader compiles the shared world and content
+      # sources. These standalone source sets never enter that target.
+      - "!research/upstream-runtime/src/network-live/**"
+      - "!research/upstream-runtime/src/network-render/**"
+      - "!research/upstream-runtime/src/singleplayer/**"
+      - "!research/upstream-runtime/src/singleplayer-campaign-host/**"
+      - "!research/upstream-runtime/src/singleplayer-custom-host/**"
+      - "!research/upstream-runtime/src/singleplayer-research-host/**"
+      - "!research/upstream-runtime/src/terrain/**"
       - "!research/upstream-runtime/**/*.md"
   push:
     branches: [main]
-    paths:
-      - "src/**"
-      - "include/**"
-      - "Makefile"
-      - "tools/build_sprite_atlas.py"
-      - "tests/assets/**"
-      - "research/upstream-runtime/**"
-      - "tools/build_teavm_loader.sh"
-      - "tests/platform/embed_loader_smoke.c"
-      - ".github/workflows/full-build.yml"
-      - "!research/upstream-runtime/**/*.md"
   workflow_dispatch:
 
 concurrency:
-  group: full-build-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: full-build-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || (github.event_name == 'workflow_dispatch' && format('dispatch-{0}', github.run_id)) || github.ref }}
+  # A newer commit supersedes an older build in the same ref. Without this,
+  # a stale main run can hold the queue while newer commits wait behind it.
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -39,8 +40,14 @@ permissions:
 jobs:
   build:
     name: Build default 3DS app
-    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.head.repo.fork)) && '["self-hosted", "linux", "x64", "min3dstry"]' || '"ubuntu-latest"') }}
-    timeout-minutes: 20
+    outputs:
+      artifact_sha: ${{ steps.artifact.outputs.sha256 }}
+    # The project self-hosted min3dstry runner is currently offline. Use the
+    # GitHub-hosted Ubuntu runner as a temporary fallback so full builds and
+    # artifacts are not blocked; restore the self-hosted expression when it is
+    # back online.
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
@@ -52,29 +59,7 @@ jobs:
           java-version: "17"
 
       - name: Fetch pinned upstream source, server JAR and Arc
-        run: |
-          git clone --depth 1 --branch v160.8 \
-            https://github.com/Anuken/Mindustry.git "$RUNNER_TEMP/Mindustry"
-          test "$(git -C "$RUNNER_TEMP/Mindustry" rev-parse HEAD)" = \
-            "19a0f40d44514f4802a8b79770456e7e32e34da0"
-          curl --fail --silent --show-error --location \
-            https://github.com/Anuken/Mindustry/releases/download/v160.8/server-release.jar \
-            -o "$RUNNER_TEMP/server-release.jar"
-          # Official v160.8 server-release.jar (19,353,710 bytes) checksum.
-          echo 'faeaf247a8b622de940181a96cb21cb20692d3c3da4e8ac3f79cb4af5059aa6c  '"$RUNNER_TEMP"'/server-release.jar' \
-            | sha256sum --check --strict
-          # The Arc revision lives in research/upstream-runtime/build.gradle;
-          # read it from there so the workflow cannot drift from the pinned build.
-          arc_revision="$(
-            sed -n "s/^def arcRevision = '\([0-9a-f]\{40\}\)'.*/\1/p" \
-              research/upstream-runtime/build.gradle
-          )"
-          test -n "$arc_revision"
-          git clone --filter=blob:none --no-checkout \
-            https://github.com/Anuken/Arc.git "$RUNNER_TEMP/Arc"
-          git -C "$RUNNER_TEMP/Arc" fetch --depth 1 origin "$arc_revision"
-          git -C "$RUNNER_TEMP/Arc" checkout --detach FETCH_HEAD
-          test "$(git -C "$RUNNER_TEMP/Arc" rev-parse HEAD)" = "$arc_revision"
+        run: bash .github/scripts/fetch_upstream_v160.sh --mindustry --server-jar --arc
 
       - name: Generate TeaVM loader C
         run: |
@@ -86,6 +71,22 @@ jobs:
             "-ParcCheckout=$RUNNER_TEMP/Arc" \
             -Pprobe=save-rows generateC
 
+      - name: Build upstream audio RomFS
+        run: |
+          if ! command -v ffmpeg >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y ffmpeg
+          fi
+          python3 tools/build_audio_assets.py \
+            --upstream "$RUNNER_TEMP/Mindustry" \
+            --map audio/upstream-audio-map.json \
+            --triggers audio/upstream-audio-triggers.json \
+            --out build/audio-romfs \
+            --romfs-out build/romfs
+          python3 tools/validate_audio_romfs.py build/romfs
+          mkdir -p build/3ds
+          cp build/romfs/audio-index.h build/3ds/audio-index.h
+
       - name: Build with embedded loader
         run: |
           image=devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5
@@ -96,15 +97,25 @@ jobs:
           if [ -n "${M3DS_DOCKER_CPUSET_MEMS:-}" ]; then
             docker_numa_args+=(--cpuset-mems "$M3DS_DOCKER_CPUSET_MEMS")
           fi
-          docker run --rm "${docker_numa_args[@]}" -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/work" -w /work "$image" bash -lc '
+          docker run --rm "${docker_numa_args[@]}" -u "$(id -u):$(id -g)" -e HOME=/tmp \
+            -v "$PWD:/work" -v "$RUNNER_TEMP/Mindustry:/upstream/Mindustry:ro" \
+            -w /work "$image" bash -lc '
             source /opt/devkitpro/3dsvars.sh
             python3 --version
             tex3ds --version
             bash tools/build_teavm_loader.sh \
               research/upstream-runtime/build/generated/teavm/c build/teavm-loader
-            make PYTHON=python3 TEAVM_LOADER_DIR=/work/build/teavm-loader
+            make NO_AUDIO_ROMFS=1 PYTHON=python3 TEAVM_LOADER_DIR=/work/build/teavm-loader \
+              UPSTREAM_MINDUSTRY=/upstream/Mindustry all
             test -s build/min3dstry.3dsx
             test -s build/min3dstry.smdh
+            python3 tools/check_main_stack.py --max-bytes 4096 build/min3dstry.elf
+            python3 tools/validate_audio_romfs.py build/romfs
+            artifact_bytes=$(stat -c %s build/min3dstry.3dsx)
+            echo "artifact_bytes=${artifact_bytes}"
+            # The audio-enabled full ROM is ~17 MiB locally; 24 MiB catches
+            # runaway assets without rejecting the measured build.
+            test "${artifact_bytes}" -lt 25165824
             # The strong embedded-loader symbol must win over the weak stub,
             # otherwise the app silently falls back to the native parser.
             arm-none-eabi-nm build/min3dstry.elf \
@@ -130,9 +141,59 @@ jobs:
             ls -l build/min3dstry.3dsx
           '
 
+      - name: Record artifact SHA-256
+        id: artifact
+        run: |
+          sha256=$(sha256sum build/min3dstry.3dsx | awk '{print $1}')
+          echo "sha256=${sha256}" >> "$GITHUB_OUTPUT"
+          echo "artifact_sha256=${sha256}" >> "$GITHUB_STEP_SUMMARY"
+
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: min3dstry-embedded-loader
           path: |
             build/min3dstry.3dsx
             build/min3dstry.smdh
+
+  verify:
+    name: Verify artifact in Azahar
+    needs: build
+    # A fresh full build is only useful evidence if the packaged audio RomFS
+    # and embedded loader actually boot. Reuse the pinned Azahar setup from the
+    # upstream smoke workflow and check the New 3DS profile.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: min3dstry-embedded-loader
+          path: build/artifact
+
+      - run: bash .github/scripts/setup_smoke_azahar.sh
+
+      - name: Boot the New 3DS profile
+        run: |
+          xvfb-run -a python3 tools/verify_azahar.py \
+            --rom build/artifact/min3dstry.3dsx \
+            --out-dir build/emu-verify \
+            --models new3ds \
+            --timeout 180
+
+      - name: Check the verified artifact matches the build output
+        run: |
+          python3 tools/check_azahar_report.py \
+            --report build/emu-verify/report.json \
+            --artifact build/artifact/min3dstry.3dsx \
+            --sha256 "${{ needs.build.outputs.artifact_sha }}"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: emu-verify-report
+          path: |
+            build/emu-verify/report.json
+            build/emu-verify/*.png

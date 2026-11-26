@@ -257,6 +257,35 @@ checks the new file through `SaveIO.isSaveValid` before reloading it. On the
 JVM, pass the map, v13 input, and new output paths as arguments. The
 round-trip check ends with `UPSTREAM_SAVE_ROUNDTRIP version=13 marker=ok`.
 
+The shared runtime releases the stock building and block scratch references
+after a world reset. The hosted campaign regression checks both collections
+after loading the stock archive, and the unmodified Java release reopens the
+two generated 600×600 sector saves. The 32 MiB ARM11 campaign check remains
+tracked in [#538](https://github.com/levkeveli/Min3DStry/issues/538).
+[Hosted campaign regression](https://github.com/levkeveli/Min3DStry/actions/runs/45318649486)
+
+The stock ore index stores local coordinates within each 20×20 quadrant.
+It preserves insertion and swap-removal order, including the first candidate
+in each quadrant. The campaign regression compares floor and wall ore
+selection on stock Serpulo sector 111.
+
+Campaign map loading and team-stat updates reuse existing team data and
+create it when teams first enter play. The configured wave team remains
+present while waves are enabled, even without buildings or units. The
+stock campaign regression checks both cases.
+
+The single-player runtime writes stock zlib-framed saves with a 4 KiB
+compression window and smaller hash tables to reduce contiguous scratch
+allocations. It uses the same BSD-licensed jzlib 1.1.3 dependency as TeaVM
+0.16.0. The original v160.8 Java release reopened a generated 600×600
+Littoral Shipyard save with both embedded patches.
+[Hosted stock save readback](https://github.com/levkeveli/Min3DStry/actions/runs/45329962046)
+
+The world loader computes the original wall-darkness values from nearby tiles
+without allocating two map-sized buffers. The hosted regression compares all
+360,000 tile data bytes in Serpulo 111 against the unmodified Java calculation.
+[Hosted darkness comparison](https://github.com/levkeveli/Min3DStry/actions/runs/45324692356)
+
 The host-side [save resilience probe](host/README.md#save-resilience-checks)
 uses the same pinned server JAR and Glacier fixture to reject truncated,
 bad-header and unknown-version saves and to exercise the upstream backup path.
@@ -513,6 +542,34 @@ decoder read 4,096 stereo frames of the original game1 track and closed
 cleanly on disconnect. Each run reported 491,744 bytes of cached PCM.
 Azahar used its missing-DSP fallback. Audible NDSP playback still
 requires a physical console.
+
+Add `--weather` to the unified audio verifier to have the stock Java server
+send rain, snow and sandstorm while the client is playing. The ARM11 client
+decodes the original weather packet and uses the server's stock entity
+snapshot to create each `WeatherState` with its server-assigned ID. It
+advances those entities and routes their sound through stock `SoundControl` fades. The
+replay checks the original sound IDs, centered playback and the active DSP
+mode. The JVM reference also checks the shared sporestorm sound and fade
+after expiry.
+
+The [unified ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45138219018)
+replayed all three loops on both Azahar profiles during stock-server play.
+The replay also checked the connected unit's movement and weapons and
+rejected entity snapshot decode errors. Azahar used the no-DSP fallback.
+
+The live client draws the original weather underlay and overlay through the
+same viewport and noise textures as offline play. Add
+`--controls --verify-weather-layers --terrain-atlas /path/to/sprites.aatls`
+to the Glacier replay. The stock server sends rain, snow, sandstorm and fog.
+The verifier checks both repeating textures and compares the world and
+touch screens. The JVM reference exercises all six stock weather types and
+checks the original water splash sprites.
+
+Both Azahar 2126.2 profiles passed the visual check with the same
+[ARM11 network build](https://github.com/levkeveli/Min3DStry/actions/runs/45181589111).
+With deferred graphics enabled, stock weather changed 1,316 sampled
+world pixels on the Original 3DS profile and 266 on the New 3DS profile.
+The sampled touch grid stayed unchanged on both.
 
 Run the same verifier with `--controls --model old3ds` and then
 `--controls --model new3ds`. Follow its prompts to move right with the
@@ -997,8 +1054,13 @@ serialized fields to Arc JSON. The test checks the streamed objectives,
 dependency and marker counts, and the first objective's 60 beryllium target.
 The earlier 16 MiB live probe exhausted its managed heap while allocating
 The Onset's tiles. The live probes use a 24 MiB managed heap and keep the
-TCP session alive while decoding the world. The load worker stops before
-the client confirms its join. The
+TCP session alive while decoding the world. The graphical client initializes
+logic globals before the decode, then loads the atlas, graphics, and fonts
+after the decoded world and posted tasks are ready. The TCP keepalive covers
+world decoding, graphics initialization, and the world fingerprint through
+the client’s join confirmation. To check the
+ordering during a rendered join, pass `--require-deferred-graphics` to
+`tools/verify_upstream_live_net.py`. The
 [24 MiB build](https://github.com/levkeveli/Min3DStry/actions/runs/44879228986)
 passed the Fortress spawn and emitted the TCP keepalive on both Azahar
 profiles. The larger Onset map still triggered invalid pointer accesses in
@@ -1076,6 +1138,39 @@ profiles passed the placement and sprite checks while the official desktop
 JAR stayed connected. With the New 3DS profile, the desktop view showed the
 ARM11 Evoke and the newly placed Duct pointing north as the displayed
 beryllium balance went from 16 to 15.
+
+### Stock Erekir assembler production
+
+The JVM check `runStockAssemblerJvm` runs a v160.8 Tank Assembler on the
+original Erekir Caldera map. It supplies cyanogen and power through stock
+blocks and delivers four Stell units and ten large Tungsten Walls. It checks
+that all four builder drones reach position, that assembly stops without
+cyanogen and that the stock save resumes with the same inputs, progress,
+drones and rally point. The normal offline simulation finishes the Vanquish
+and consumes the payloads after reload.
+
+The check takes the original Erekir `caldera-erekir.msav`, output paths for the
+in-progress and completed saves, and the stock English bundle stem.
+`tools/verify_stock_assembler.py` reopens both files with the unmodified
+v160.8 Java server and checks the saved materials, drone count, production
+progress, completed unit and rally point. This evidence covers host simulation
+and save interoperability. Handheld interaction and rendering require separate
+verification.
+
+### Stock Erekir payload production and recycling
+
+`runStockPayloadLoopJvm` runs an original Constructor, Reinforced Payload
+Conveyor and Small Deconstructor on Erekir Caldera. The stock blocks wait for
+power, consume both original materials and pass the original Reinforced
+Container through the production line. The check saves during recycling,
+reopens the active payload and its fractional material buffer, and resumes
+until all 45 tungsten and 60 graphite have been returned. The fixture uses a
+1.5 build-cost multiplier and a 0.25 manual demolition refund multiplier to
+check that payload recycling uses the original build-cost rule.
+
+Use the assembler check's argument order. The separate
+`tools/verify_stock_payload_loop.py` reopens both saves with the unmodified
+v160.8 Java server. This checks offline simulation and save interoperability.
 
 ### Player mining input
 
@@ -1403,6 +1498,13 @@ framebuffer with an RGBA8 raster batch and uploads its pixels through the
 used by the world renderer. Multiplayer asset preparation runs the pinned
 desktop Arc FreeType backend on the original `logic.ttf` and packs its
 glyph metrics and pixels for the 3DS client.
+The client retains the original glyph metrics and stores the exact three
+stock RGBA values in a palette with two bits per pixel (8 KiB of indices).
+Sampling during Logic Display drawing requires no file reads. Display
+framebuffer writes use their own mutable pixel storage.
+The unified ARM11 smoke build checks both the stock sprite catalog and
+every sampled font pixel with `runBuildingLayersJvm --args="--packaged-graphics
+<packed-font-path> <stock-atlas-path>"`.
 
 Pass the packed `world-atlas` directory and `logic-font.dat` as arguments
 six and seven to `runBuildingLayersJvm`. The stock processor replay checks
@@ -1595,6 +1697,32 @@ on #39. Source
 behavior comes from pinned
 [`Blocks.java`](https://github.com/Anuken/Mindustry/blob/19a0f40d44514f4802a8b79770456e7e32e34da0/core/src/mindustry/content/Blocks.java)
 and [`GenericCrafter.java`](https://github.com/Anuken/Mindustry/blob/19a0f40d44514f4802a8b79770456e7e32e34da0/core/src/mindustry/world/blocks/production/GenericCrafter.java).
+
+### Replay stock crafting in a multiplayer client
+
+[Issue #701](https://github.com/levkeveli/Min3DStry/issues/701) uses a stock
+Silicon Smelter and Large Solar Panel on Glacier. The v160.8 Java server
+produces silicon from sand and coal, then the replay removes the inputs and
+waits for the smelter to cool. The fixture sends the authoritative initial,
+active and cooled building states through the stock connection. The initial
+state comes from WorldIO, and the active and cooled states use
+`NetServer.syncBuilding` / `blockSnapshot`. The replay samples the same
+building in all three New 3DS screenshots.
+
+[Azahar evidence at `cd43f6e`](https://github.com/levkeveli/Min3DStry/actions/runs/45726096904/artifacts/15075732812)
+shows the smelter unlit at idle, lit after the server produced its first
+silicon, and unlit after the server removed its inputs and the warmup
+fell to zero. The server log records all three states.
+
+The building lighting pass calls upstream `Building.drawLight` for visible
+emitters when the map enables lighting. Stock radial requests flow through
+the handheld additive sprite pass. The stock light buffer and its ambient
+compositing are tracked separately.
+
+```sh
+python3 tools/verify_stock_live_crafting.py --rom /path/to/upstream-probe.3dsx \
+  --server /path/to/server-release.jar --output build/live-crafting
+```
 
 ### Exercise upstream combat and the first Glacier wave
 

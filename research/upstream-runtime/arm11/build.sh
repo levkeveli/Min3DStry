@@ -3,7 +3,7 @@ set -euo pipefail
 : "${DEVKITARM:?Set DEVKITARM with devkitPro's 3dsvars.sh}"
 : "${DEVKITPRO:?Set DEVKITPRO with devkitPro's 3dsvars.sh}"
 if [[ $# -lt 2 || $# -gt 4 ]]; then
-    echo "Usage: $0 <TeaVM generated C directory> <new output directory> [--network|--singleplayer|--unified|--save-rows] [terrain assets directory]" >&2
+    echo "Usage: $0 <TeaVM generated C directory> <new output directory> [--network|--singleplayer|--unified|--save-rows|--campaign-background] [terrain assets directory]" >&2
     exit 2
 fi
 arm11_opt="${M3DS_ARM11_OPT:--Os}"
@@ -24,6 +24,7 @@ python3 "$root/prepare.py" "$1" "$output"
 shift 2
 native_network=()
 native_input=()
+stack_flags=()
 title="Min3DStry Terrain"
 subtitle="Mindustry v160.8 Glacier"
 mode=${1:-}
@@ -43,6 +44,10 @@ if [[ $mode == --unified ]]; then
     native_input+=("$root/m3ds_server_address.c")
 fi
 if [[ $mode == --network || $mode == --singleplayer || $mode == --unified ]]; then
+    shift
+elif [[ $mode == --campaign-background ]]; then
+    # The simulation probe serializes the same stock campaign as the graphical game.
+    stack_flags=(-DM3DS_SINGLEPLAYER)
     shift
 fi
 save_rows_flags=()
@@ -72,6 +77,10 @@ if [[ $# -gt 0 ]]; then
         echo "Prepare singleplayer terrain assets with --singleplayer to include the original campaign maps" >&2
         exit 2
     fi
+    if [[ ${#native_input[@]} -gt 0 && ! -s "$1/contributors" ]]; then
+        echo "Prepare singleplayer terrain assets with --singleplayer to include the original credits" >&2
+        exit 2
+    fi
     if [[ ${#native_input[@]} -gt 0 && ! -s "$1/planets/serpulo.json" ]]; then
         echo "Prepare singleplayer terrain assets with --singleplayer to include the original planet data" >&2
         exit 2
@@ -90,8 +99,9 @@ if [[ $# -gt 0 ]]; then
         echo "Prepare singleplayer terrain assets with --singleplayer to include sprites.aatls and maps/groundZero.msav" >&2
         exit 2
     fi
-    if [[ ${#native_input[@]} -gt 0 && ( ! -s "$1/weather/noiseAlpha.t3x" || ! -s "$1/weather/fog.t3x" ) ]]; then
-        echo "Prepare singleplayer terrain assets with --singleplayer to include both original weather textures" >&2
+    if [[ ( ${#native_input[@]} -gt 0 || ${#native_network[@]} -gt 0 ) && \
+          ( ! -s "$1/weather/noiseAlpha.t3x" || ! -s "$1/weather/fog.t3x" ) ]]; then
+        echo "Prepare multiplayer or singleplayer terrain assets to include both original weather textures" >&2
         exit 2
     fi
     terrain_flags=(-DM3DS_TERRAIN_RENDERER -I"$root" -I"$1")
@@ -121,6 +131,9 @@ if [[ $# -gt 0 ]]; then
     fi
     if [[ -d "$1/planets" ]]; then
         cp -R "$1/planets" "$output/romfs/planets"
+    fi
+    if [[ -f "$1/contributors" ]]; then
+        cp "$1/contributors" "$output/romfs/contributors"
     fi
     if [[ -d "$1/bundles" ]]; then
         cp -R "$1/bundles" "$output/romfs/bundles"
@@ -152,6 +165,19 @@ if [[ $# -gt 0 ]]; then
         terrain_sources+=("$output/m3ds_quad_shader.s")
         cp -R "$1/world-atlas" "$output/romfs/world-atlas"
     fi
+    if [[ -d "$1/planet-meshes" ]]; then
+        terrain_flags+=(-DM3DS_CAMPAIGN_PLANETS)
+        "$DEVKITPRO/tools/bin/picasso" -o "$output/m3ds_planet.shbin" "$root/m3ds_planet.v.pica"
+        "$DEVKITPRO/tools/bin/bin2s" -a 4 -H "$output/nativeinclude/m3ds_planet_shbin.h" \
+            "$output/m3ds_planet.shbin" > "$output/m3ds_planet_shader.s"
+        terrain_sources+=("$root/m3ds_planet_mesh.c" "$output/m3ds_planet_shader.s")
+        cp -R "$1/planet-meshes" "$output/romfs/planet-meshes"
+        if [[ -d "$1/planet-icons" && -d "$1/world-atlas" ]]; then
+            terrain_flags+=(-DM3DS_CAMPAIGN_PLANET_MARKERS)
+            terrain_sources+=("$root/m3ds_planet_markers.c")
+            cp -R "$1/planet-icons" "$output/romfs/planet-icons"
+        fi
+    fi
     if [[ -d "$1/weather" ]]; then
         cp -R "$1/weather" "$output/romfs/weather"
     fi
@@ -169,7 +195,7 @@ fi
 "$DEVKITARM/bin/arm-none-eabi-gcc" -std=gnu11 -g "$arm11_opt" -fwrapv -D__3DS__ -mword-relocations \
     -march=armv6k -mtune=mpcore -mfpu=vfp -mfloat-abi=hard -mtp=soft \
     -I"$output/nativeinclude" -I"$DEVKITPRO/libctru/include" -L"$DEVKITPRO/libctru/lib" \
-    "${terrain_flags[@]}" "${save_rows_flags[@]}" "${pointer_flags[@]}" \
+    "${terrain_flags[@]}" "${save_rows_flags[@]}" "${pointer_flags[@]}" "${stack_flags[@]}" \
     -specs=3dsx.specs "$output/all.c" "${native_network[@]}" "${native_input[@]}" \
     "${terrain_sources[@]}" "${save_rows_sources[@]}" \
     "${terrain_libraries[@]}" -lctru -lm -o "$output/upstream-probe.elf"

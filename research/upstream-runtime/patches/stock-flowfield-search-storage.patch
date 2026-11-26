@@ -1,0 +1,160 @@
+diff --git a/mindustry/ai/Pathfinder.java b/mindustry/ai/Pathfinder.java
+index 37b4a9e..35577c5 100644
+--- a/mindustry/ai/Pathfinder.java
++++ b/mindustry/ai/Pathfinder.java
+@@ -442,10 +442,10 @@ public class Pathfinder implements Runnable{
+
+         //increment search, but do not clear the frontier
+         path.search++;
++        path.searches.clear();
+
+         //search overflow; reset everything.
+         if(path.search >= Short.MAX_VALUE){
+-            Arrays.fill(path.searches, (short)0);
+             path.search = 1;
+         }
+
+@@ -457,7 +457,7 @@ public class Pathfinder implements Runnable{
+                 if(pos >= path.weights.length) continue;
+
+                 path.weights[pos] = 0;
+-                path.searches[pos] = (short)path.search;
++                path.searches.visit(pos);
+                 path.frontier.addFirst(pos);
+             }
+         }
+@@ -523,10 +523,10 @@ public class Pathfinder implements Runnable{
+                     int newPos = dx + dy * w;
+                     int otherCost = path.getCost(tiles, newPos);
+
+-                    if((path.weights[newPos] > cost + otherCost || path.searches[newPos] < path.search) && otherCost != impassable){
++                    if((path.weights[newPos] > cost + otherCost || !path.searches.visited(newPos)) && otherCost != impassable){
+                         path.frontier.addFirst(newPos);
+                         path.weights[newPos] = cost + otherCost;
+-                        path.searches[newPos] = (short)path.search;
++                        path.searches.visit(newPos);
+                     }
+                 }
+             }
+@@ -607,6 +607,93 @@ public class Pathfinder implements Runnable{
+      * Data for a flow field to some set of destinations.
+      * Concrete subclasses must specify a way to fetch costs and destinations.
+      */
++    // Upstream adds at one end and removes at the other, preserving FIFO order.
++    static final class FlowFrontier{
++        private static final int capacity = 16;
++
++        private static final class Chunk{
++            final int[] tiles = new int[capacity];
++            Chunk next;
++        }
++
++        private Chunk head, tail;
++        private int read, write;
++        int size;
++
++        void addFirst(int tile){
++            if(tail == null || write == capacity){
++                Chunk chunk = new Chunk();
++                if(tail == null) head = chunk;
++                else tail.next = chunk;
++                tail = chunk;
++                write = 0;
++            }
++            tail.tiles[write++] = tile;
++            size++;
++        }
++
++        int removeLast(){
++            if(size == 0) throw new java.util.NoSuchElementException();
++            int tile = head.tiles[read++];
++            if(--size == 0){
++                clear();
++            }else if(read == capacity){
++                head = head.next;
++                read = 0;
++            }
++            return tile;
++        }
++
++        void clear(){
++            head = tail = null;
++            read = write = size = 0;
++        }
++    }
++
++    // Stock uses the ID only to check whether this search has visited a tile.
++    static final class SearchGrid{
++        private static final int wordsPerPage = 16;
++        private static final int pagesPerGroup = 24;
++        private final int[][][] pages;
++
++        SearchGrid(int length){
++            int tilesPerPage = wordsPerPage * Integer.SIZE;
++            int pageCount = (length + tilesPerPage - 1) / tilesPerPage;
++            pages = new int[(pageCount + pagesPerGroup - 1) / pagesPerGroup][][];
++            for(int group = 0; group < pages.length; group++){
++                pages[group] = new int[Math.min(pagesPerGroup, pageCount - group * pagesPerGroup)][];
++            }
++        }
++
++        boolean visited(int index){
++            int word = index >>> 5;
++            int pageIndex = word / wordsPerPage;
++            int[] page = pages[pageIndex / pagesPerGroup][pageIndex % pagesPerGroup];
++            return page != null && (page[word % wordsPerPage] & (1 << (index & 31))) != 0;
++        }
++
++        void visit(int index){
++            int word = index >>> 5;
++            int pageIndex = word / wordsPerPage;
++            int[][] group = pages[pageIndex / pagesPerGroup];
++            int slot = pageIndex % pagesPerGroup;
++            int[] page = group[slot];
++            if(page == null){
++                page = new int[wordsPerPage];
++                group[slot] = page;
++            }
++            page[word % wordsPerPage] |= 1 << (index & 31);
++        }
++
++        void clear(){
++            for(int[][] group : pages){
++                for(int[] page : group){
++                    if(page != null) Arrays.fill(page, 0);
++                }
++            }
++        }
++    }
++
+     public static abstract class Flowfield{
+         /** Refresh rate in milliseconds. <= 0 to disable. */
+         protected int refreshRate;
+@@ -622,7 +709,7 @@ public class Pathfinder implements Runnable{
+         /** costs of getting to a specific tile */
+         public int[] weights;
+         /** search IDs of each position - the highest, most recent search is prioritized and overwritten */
+-        public short[] searches;
++        private SearchGrid searches;
+         /** the last "complete" weights of this tilemap. */
+         public int[] completeWeights;
+
+@@ -631,7 +718,7 @@ public class Pathfinder implements Runnable{
+         public final int width, height;
+
+         /** search frontier, these are Pos objects */
+-        final IntQueue frontier = new IntQueue();
++        final FlowFrontier frontier = new FlowFrontier();
+         /** all target positions; these positions have a cost of 0, and must be synchronized on! */
+         final IntSeq targets = new IntSeq();
+         /** current search ID */
+@@ -655,8 +742,7 @@ public class Pathfinder implements Runnable{
+             int length = width * height;
+
+             this.weights = new int[length];
+-            this.searches = new short[length];
++            this.searches = new SearchGrid(length);
+             this.completeWeights = new int[length];
+-            this.frontier.ensureCapacity((length) / 4);
+             this.initialized = true;
+         }

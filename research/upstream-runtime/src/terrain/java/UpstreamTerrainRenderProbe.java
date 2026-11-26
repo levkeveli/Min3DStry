@@ -1,3 +1,4 @@
+import arc.Core;
 import arc.graphics.Blending;
 import arc.graphics.Color;
 import arc.graphics.g2d.TextureRegion;
@@ -57,6 +58,55 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
         }
     }
 
+    float drawChatLine(byte[] text, int[] characters, float bottom) {
+        return NativeTerrain.drawChatLine(Address.ofData(text), Address.ofData(characters), characters.length / 7, bottom);
+    }
+
+    void drawChatKeyboard(byte[] labels) {
+        if (NativeTerrain.drawChatKeyboard(Address.ofData(labels)) == 0) {
+            throw new IllegalStateException("Unable to draw the live chat keyboard");
+        }
+    }
+
+    static String readSchematicName() {
+        byte[] text = new byte[4001];
+        byte[] hint = (Core.bundle.get("schematic.add") + " · " + Core.bundle.get("name") + "\0")
+            .getBytes(StandardCharsets.UTF_8);
+        System.out.println("UPSTREAM_SCHEMATIC_NAME_PROMPT");
+        int length = NativeTerrain.schematicPrompt(Address.ofData(text), text.length, Address.ofData(hint), 0);
+        return length > 0 && length < text.length ? new String(text, 0, length, StandardCharsets.UTF_8) : null;
+    }
+
+    static boolean confirmSchematicReplacement(String name) {
+        byte[] text = new byte[5];
+        byte[] hint = (Core.bundle.get("schematic.replace") + " " + name + "\0").getBytes(StandardCharsets.UTF_8);
+        System.out.println("UPSTREAM_SCHEMATIC_REPLACE_PROMPT");
+        return NativeTerrain.schematicPrompt(Address.ofData(text), text.length, Address.ofData(hint), 1) != 0;
+    }
+
+    static String editSchematicName(String original) {
+        System.out.println("UPSTREAM_SCHEMATIC_EDIT_PROMPT field=name");
+        return editText(Core.bundle.get("schematic.edit") + " · " + Core.bundle.get("name"), original, 2);
+    }
+
+    static String editSchematicDescription(String original) {
+        System.out.println("UPSTREAM_SCHEMATIC_EDIT_PROMPT field=editor.description");
+        return editText(Core.bundle.get("schematic.edit") + " · " + Core.bundle.get("editor.description"), original, 3);
+    }
+
+    static String readDatabaseSearch(String original) {
+        return editText(Core.bundle.get("players.search"), original, 2);
+    }
+
+    private static String editText(String caption, String original, int mode) {
+        byte[] text = new byte[Math.max(1000, original.length()) * 4 + 1];
+        byte[] initialBytes = original.getBytes(StandardCharsets.UTF_8);
+        System.arraycopy(initialBytes, 0, text, 0, initialBytes.length);
+        byte[] hint = (caption + "\0").getBytes(StandardCharsets.UTF_8);
+        int length = NativeTerrain.schematicPrompt(Address.ofData(text), text.length, Address.ofData(hint), mode);
+        return length >= 0 && length < text.length ? new String(text, 0, length, StandardCharsets.UTF_8) : null;
+    }
+
     // Keep the catalog kinds in the same order as the native renderer.
     static final int ITEM_CATALOG = 0, BLOCK_CATALOG = 1, UNIT_CATALOG = 2, COMMAND_CATALOG = 3, STANCE_CATALOG = 4, SCHEMATIC_CATALOG = 5;
 
@@ -70,11 +120,70 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
             previous ? 1 : 0, next ? 1 : 0, catalog);
     }
 
+    boolean campaignPlanetAvailable() {
+        return NativeTerrain.campaignPlanetAvailable() != 0;
+    }
+
+    boolean drawCampaignPlanet(int planet, float[] matrix, float[] lighting, float[] overlay,
+            int vertices, int sectorVertices, int[] surface, int[] ids, float[] planes, float[] markerMatrix, int markers) {
+        return NativeTerrain.drawCampaignPlanet(planet, Address.ofData(matrix), Address.ofData(lighting),
+            Address.ofData(overlay), vertices, sectorVertices, Address.ofData(surface), surface.length / 3,
+            Address.ofData(ids), Address.ofData(planes), Address.ofData(markerMatrix), markers) != 0;
+    }
+
+    void releaseCampaignPlanet() {
+        NativeTerrain.releaseCampaignPlanet();
+    }
+
     float drawObjective(byte[] label, int[] characters, TextureRegion icon, float y) {
         int page = icon == null ? -1 : UpstreamTerrainDrawProbe.pageIndex(icon);
         return NativeTerrain.drawObjective(Address.ofData(label), Address.ofData(characters), characters.length / 7, page,
             icon == null ? 0 : icon.getX(), icon == null ? 0 : icon.getY(),
             icon == null ? 0 : icon.width, icon == null ? 0 : icon.height, y, Address.ofData(stockObjectiveFont));
+    }
+
+    float drawObjectivePlain(byte[] label, int[] characters, TextureRegion icon, float y) {
+        int page = icon == null ? -1 : UpstreamTerrainDrawProbe.pageIndex(icon);
+        return NativeTerrain.drawObjectivePlain(Address.ofData(label), Address.ofData(characters),
+            characters.length / 7, page,
+            icon == null ? 0 : icon.getX(), icon == null ? 0 : icon.getY(),
+            icon == null ? 0 : icon.width, icon == null ? 0 : icon.height,
+            y, Address.ofData(stockObjectiveFont));
+    }
+
+    void drawMenuHelp(byte[] labels, int count) {
+        NativeTerrain.drawMenuHelp(Address.ofData(labels), count);
+    }
+
+    static int menuHelpAction(int touch, int count) {
+        if (touch < 0) return -1;
+        int x = touch & 0xffff;
+        int offset = (touch >>> 16) - 60;
+        if (x < 20 || x >= 300 || offset < 0 || offset >= count * 30 || offset % 30 >= 26) return -1;
+        return offset / 30;
+    }
+
+    void hudLabel(byte[] label, int[] characters, float x, float y, float width, float height) {
+        NativeTerrain.hudLabel(Address.ofData(label), Address.ofData(characters), characters.length / 7,
+            x, y, width, height);
+    }
+
+    int hudSprite(TextureRegion region, int left, int top, int sourceWidth, int sourceHeight,
+                  float x, float y, float width, float height, int color) {
+        return NativeTerrain.hudSprite(UpstreamTerrainDrawProbe.pageIndex(region), region.getX() + left,
+            region.getY() + top, sourceWidth, sourceHeight, x, y, width, height, color);
+    }
+
+    int hudPanel(float x, float y, float width, float height, int color) {
+        return NativeTerrain.hudPanel(x, y, width, height, color);
+    }
+
+    float drawObjectiveAt(byte[] label, int[] characters, TextureRegion icon, float x, float y) {
+        int page = icon == null ? -1 : UpstreamTerrainDrawProbe.pageIndex(icon);
+        return NativeTerrain.drawObjectiveAt(Address.ofData(label), Address.ofData(characters), characters.length / 7, page,
+            icon == null ? 0 : icon.getX(), icon == null ? 0 : icon.getY(),
+            icon == null ? 0 : icon.width, icon == null ? 0 : icon.height, x, y,
+            Address.ofData(stockObjectiveFont));
     }
 
     boolean drewStockObjectiveFont() {
@@ -96,6 +205,11 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
         if (result != 1) {
             throw new IllegalStateException("Unable to start Citro2D terrain frame: " + result);
         }
+    }
+
+    @Override
+    public void finishTerrain() {
+        NativeTerrain.finishTerrain();
     }
 
     @Override
@@ -171,11 +285,16 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
 
     @Override
     public void overlay() {
+        if (Core.settings != null && !Core.settings.getBool("minimap", true)) return;
         NativeTerrain.minimapDraw(336f, 8f, 56f);
     }
 
     void minimapUpload(byte[] pixels, int width, int height) {
         NativeTerrain.minimapUpload(Address.ofData(pixels), width, height);
+    }
+
+    void drawMinimapAt(float x, float y, float size) {
+        NativeTerrain.minimapDraw(x, y, size);
     }
 
 
@@ -246,6 +365,9 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
         static native int drawLogicDisplay(int id, int revision, int width, int height, Address pixels,
                                            Address vertices, int offset, int blendMode);
 
+        @Import(name = "m3ds_terrain_finish_terrain")
+        static native void finishTerrain();
+
         @Import(name = "m3ds_terrain_end")
         static native int end();
 
@@ -254,13 +376,57 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
                                        int rotatable, int catalogOpen, int configuring, int selectingMine,
                                        int inventoryAction, int commandMode, int selectingControl, int placingSchematic);
 
+        @Import(name = "m3ds_terrain_draw_chat_line")
+        static native float drawChatLine(Address text, Address characters, int count, float bottom);
+
+        @Import(name = "m3ds_terrain_draw_chat_keyboard")
+        static native int drawChatKeyboard(Address labels);
+
+        @Import(name = "m3ds_terrain_schematic_prompt")
+        static native int schematicPrompt(Address text, int capacity, Address hint, int confirm);
+
         @Import(name = "m3ds_terrain_build_catalog")
         static native int buildCatalog(Address labels, Address icons, int activeRows,
                                        int previous, int next, int catalog);
 
+        @Import(name = "m3ds_terrain_campaign_planet_available")
+        static native int campaignPlanetAvailable();
+
+        @Import(name = "m3ds_terrain_draw_campaign_planet")
+        static native int drawCampaignPlanet(int planet, Address matrix, Address lighting, Address overlay,
+            int vertices, int sectorVertices, Address surface, int faces,
+            Address ids, Address planes, Address markerMatrix, int markers);
+
+        @Import(name = "m3ds_terrain_release_campaign_planet")
+        static native void releaseCampaignPlanet();
+
         @Import(name = "m3ds_terrain_draw_objective")
         static native float drawObjective(Address label, Address characters, int count,
                                           int page, int x, int y, int width, int height, float top, Address stockFont);
+
+        @Import(name = "m3ds_terrain_draw_menu_help")
+        static native void drawMenuHelp(Address labels, int count);
+
+        @Import(name = "m3ds_terrain_draw_objective_plain")
+        static native float drawObjectivePlain(Address label, Address characters, int count,
+                                               int page, int x, int y, int width, int height,
+                                               float top, Address stockFont);
+
+        @Import(name = "m3ds_terrain_draw_hud_label")
+        static native void hudLabel(Address label, Address characters, int count,
+                                    float x, float y, float width, float height);
+
+        @Import(name = "m3ds_terrain_draw_hud_sprite")
+        static native int hudSprite(int page, int left, int top, int width, int height,
+            float x, float y, float drawWidth, float drawHeight, int color);
+
+        @Import(name = "m3ds_terrain_draw_hud_panel")
+        static native int hudPanel(float x, float y, float width, float height, int color);
+
+        @Import(name = "m3ds_terrain_draw_objective_at")
+        static native float drawObjectiveAt(Address label, Address characters, int count,
+                                            int page, int x, int y, int width, int height,
+                                            float left, float top, Address stockFont);
 
         @Import(name = "m3ds_terrain_draw_world_label")
         static native int drawWorldLabel(Address label, Address characters, int count, float x, float y, int flags, float size,

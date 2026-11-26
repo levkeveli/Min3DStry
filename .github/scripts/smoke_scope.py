@@ -47,6 +47,7 @@ NARROW_CAMPAIGN_PROBES = {
 
 AUDIO_EXACT = {
     "tools/build_audio_assets.py",
+    "tools/verify_offline_stock_audio.py",
     "tools/stage_music_assets.py",
     "tests/tools/test_audio_assets.py",
     "tests/tools/test_stage_music_assets.py",
@@ -56,6 +57,7 @@ AUDIO_EXACT = {
 NET_EXACT = {
     "tools/verify_upstream_net.py",
     "tools/verify_upstream_live_net.py",
+    "tools/verify_stock_live_crafting.py",
 }
 
 SAVE_EXACT = {
@@ -82,12 +84,27 @@ FACTORY_EXACT = {
     "research/upstream-runtime/src/gameplay/java/UpstreamFactoryTickProbe.java",
 }
 
+CAMPAIGN_RESUME_EXACT = {
+    "tools/campaign_resume_fixtures.py",
+    "tools/verify_upstream_campaign_resume.py",
+    "tools/verify_stock_campaign_archive.py",
+    "research/upstream-runtime/src/singleplayer/java/UpstreamCampaignSave.java",
+    "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerSession.java",
+    "research/upstream-runtime/src/singleplayer-campaign-host/java/UpstreamCampaignResumeReference.java",
+}
+
 SINGLEPLAYER_EXACT = {
     "tools/verify_upstream_singleplayer.py",
+    "tools/verify_upstream_campaign_globe.py",
+    "tools/UpstreamCampaignPlanetMeshes.java",
     "tests/tools/test_verify_upstream_singleplayer.py",
 }
 
 FULL_SUITE_EXACT = {
+    ".github/scripts/build_unified_arm11_smoke.sh",
+    ".github/scripts/setup_smoke_azahar.sh",
+    "tools/verify_azahar.py",
+    "tools/UpstreamSpriteAtlas.java",
     ".github/workflows/upstream-arm11-smoke.yml",
     ".github/scripts/fetch_upstream_v160.sh",
     ".github/scripts/smoke_scope.py",
@@ -107,6 +124,7 @@ def _full_scope() -> dict[str, Any]:
         "run_production": True,
         "run_factory": True,
         "run_singleplayer": True,
+        "run_campaign_resume": True,
     }
 
 
@@ -178,6 +196,10 @@ def _classify_path(path: str, flags: dict[str, bool], probes: set[str]) -> str:
         flags["run_progression"] = True
         return "scoped"
 
+    if norm == RUNTIME + "src/gameplay/java/ProbeListenerShutdown.java":
+        probes.add("wave-routing")
+        return "scoped"
+
     if norm in COMBAT_EXACT or norm.startswith("research/upstream-runtime/host/UpstreamCombat"):
         flags["run_combat"] = True
         probes.add("wave-routing")
@@ -191,7 +213,17 @@ def _classify_path(path: str, flags: dict[str, bool], probes: set[str]) -> str:
         flags["run_factory"] = True
         return "scoped"
 
-    if norm in SINGLEPLAYER_EXACT or norm.startswith("research/upstream-runtime/src/singleplayer/"):
+    if norm in CAMPAIGN_RESUME_EXACT:
+        flags["run_singleplayer"] = True
+        flags["run_campaign_resume"] = True
+        return "scoped"
+
+    if norm in SINGLEPLAYER_EXACT or norm.startswith((
+        RUNTIME + "src/singleplayer/",
+        RUNTIME + "src/singleplayer-campaign-host/",
+        RUNTIME + "src/singleplayer-custom-host/",
+        RUNTIME + "src/singleplayer-research-host/",
+    )):
         flags["run_singleplayer"] = True
         return "scoped"
 
@@ -231,6 +263,7 @@ def classify_smoke_scope(changed_files: list[str], event_name: str) -> dict[str,
         "run_production": False,
         "run_factory": False,
         "run_singleplayer": False,
+        "run_campaign_resume": False,
     }
     probes: set[str] = set()
     for raw_path in changed_files:
@@ -254,6 +287,7 @@ def classify_smoke_scope(changed_files: list[str], event_name: str) -> dict[str,
         "run_production": flags["run_production"],
         "run_factory": flags["run_factory"],
         "run_singleplayer": flags["run_singleplayer"],
+        "run_campaign_resume": flags["run_campaign_resume"],
     }
 
 
@@ -322,6 +356,7 @@ def format_outputs(scope: dict[str, Any]) -> dict[str, str]:
         "run_production": "true" if scope["run_production"] else "false",
         "run_factory": "true" if scope["run_factory"] else "false",
         "run_singleplayer": "true" if scope["run_singleplayer"] else "false",
+        "run_campaign_resume": "true" if scope["run_campaign_resume"] else "false",
     }
 
 

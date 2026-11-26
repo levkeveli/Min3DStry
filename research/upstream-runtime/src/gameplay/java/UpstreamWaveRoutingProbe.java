@@ -3,6 +3,7 @@ import arc.math.Mathf;
 import arc.mock.MockAudio;
 import arc.struct.Seq;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 import mindustry.Vars;
@@ -15,6 +16,9 @@ import mindustry.game.Team;
 import mindustry.gen.Groups;
 import mindustry.gen.Unit;
 import mindustry.world.blocks.defense.turrets.ItemTurret.ItemTurretBuild;
+import org.teavm.interop.Import;
+import org.teavm.interop.PlatformMarker;
+import org.teavm.interop.c.Include;
 
 /**
  * Pinned upstream wave and ground-routing trace for issue #30.
@@ -29,8 +33,10 @@ public final class UpstreamWaveRoutingProbe {
     private static final int TICKS_PER_WAVE = 900;
 
     public static void main(String[] args) throws IOException, InterruptedException {
+        boolean hostExit = args.length > 0 && "--host-exit".equals(args[args.length - 1]);
+        var worldArgs = hostExit ? Arrays.copyOf(args, args.length - 1) : args;
         try {
-            var app = UpstreamSimulationWorld.play(args, () -> {
+            var app = UpstreamSimulationWorld.play(worldArgs, () -> {
                 Vars.pathfinder = new Pathfinder();
                 Vars.controlPath = new ControlPathfinder();
                 Vars.asyncCore = new AsyncCore();
@@ -150,10 +156,28 @@ public final class UpstreamWaveRoutingProbe {
         } catch (RuntimeException failure) {
             System.err.println("WAVE_ROUTING_ERROR " + failure);
             throw failure;
+        } finally {
+            ProbeListenerShutdown.dispose();
         }
-        // This is a one-shot probe process. Firing ResetEvent here dispatches into
-        // TeaVM's monitor/event queue after the trace and can deadlock the host C
-        // build; the process exits immediately after main instead.
+        // This is a one-shot probe process. Returning from main lets TeaVM's
+        // monitor/event queue resume a pending fiber, which aborts the host C
+        // build after the trace. Flush the trace and terminate the C process;
+        // the JVM run must return normally.
+        System.out.flush();
+        if (hostExit && isTeaVmC()) {
+            Exit.exit(0);
+        }
+    }
+
+    @PlatformMarker("c")
+    private static boolean isTeaVmC() {
+        return false;
+    }
+
+    @Include(value = "stdlib.h", isSystem = true)
+    private static final class Exit {
+        @Import(name = "exit")
+        static native void exit(int status);
     }
 
     private static long waitForGroundField(

@@ -19,6 +19,11 @@
       "evidence": [
         ".github/workflows/ci.yml",
         ".github/workflows/ai-pr-review.yml",
+        ".github/workflows/full-build.yml",
+        ".github/workflows/upstream-arm11-smoke.yml",
+        ".github/workflows/main-failure-alert.yml",
+        "tools/check_azahar_report.py",
+        "docs/development/automation-policy.md",
         "dev.sh"
       ]
     },
@@ -69,7 +74,7 @@
     {
       "id": "old-new-3ds-probe",
       "category": "Hardware & Platform",
-      "name": "Original / New 3DS Hardware Probe",
+      "name": "New 3DS Hardware Probe",
       "weight": 4,
       "stage": "hardware-verified",
       "issue": 2,
@@ -290,10 +295,12 @@
       "stage": "hardware-verified",
       "issue": 40,
       "evidence": [
+        "docs/ui/main-menu.md",
         "include/render/minimap.h",
         "src/render/minimap.c",
         "tests/render/test_minimap.c",
         "docs/rendering/minimap.md",
+        "docs/rendering/live-hud.md",
         "include/ui/pause_menu.h",
         "src/ui/pause_menu.c",
         "tests/ui/test_pause_menu.c",
@@ -439,7 +446,9 @@
         "research/upstream-runtime/README.md",
         "research/upstream-runtime/src/network-render/java/port/audio/Arm11Audio.java",
         "research/upstream-runtime/arm11/m3ds_live_audio.c",
-        "tools/verify_stock_live_audio.py"
+        "tools/verify_stock_live_audio.py",
+        "tools/verify_offline_stock_audio.py",
+        "tests/audio/live-stock/test_live_stock_audio.c"
       ],
       "hardware_test": "HARDWARE_TEST_PENDING"
     },
@@ -467,7 +476,7 @@
     {
       "id": "physical-hardware-parity",
       "category": "Networking & Hardware Release",
-      "name": "Old & New 3DS Physical Hardware Verification",
+      "name": "New 3DS Physical Hardware Verification",
       "weight": 5,
       "stage": "planned",
       "issue": 43,

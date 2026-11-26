@@ -1,6 +1,6 @@
 # NDSP Audio Mixer Prototype
 
-Status: **Experimental** (`emulator-tested` for the RomFS registry, event routing, mixer state and missing-DSP fallback on both Azahar models; NDSP initializes with `state=ready` on physical Original/New 3DS and the New 3DS operator heard the UI tone, but physical listening for the live upstream effects and soundtrack remains open).
+Status: **Experimental** (`emulator-tested` for the RomFS registry, event routing, mixer state and missing-DSP fallback on both Azahar models; NDSP initializes with `state=ready` on physical Original/New 3DS and the New 3DS operator heard the UI tone. The full build now bundles the 9 validated upstream clips; physical listening for the live upstream effects and soundtrack remains open).
 
 The merged ARM11 Join path uses this mixer for stock sound effects and
 building ambience and streams the stock soundtrack through Tremor. The
@@ -56,3 +56,16 @@ stock-server replay ran on both Azahar profiles and decoded the original
   - Full transcript excerpt: [azahar-evidence.md](azahar-evidence.md).
 - **Capability stage (`emulator-tested`):** Azahar runs load nine packed clips, resolve every wired event to a clip, exercise fallback startup/teardown, and preserve parity on both models. This stage does not claim audible output; that remains gated on physical hardware with DSP firmware.
 - **Physical 3DS Hardware Audio (`dspfirm.cdc` present):** **Partially verified.** The New 3DS XL (`de3e249`) and Original 3DS XL (`a4a9a96`) runs logged `AUDIO backend=ndsp state=ready rc=0x00000000 rate=22050`; the earlier runs loaded 9-10 clips, while the full-build `a328c70` run loaded only 2 and all seven `AUDIO_EVENT`s resolved to `clip=-1`. The operator heard the UI tone on `a328c70`, so the NDSP output path is audible, but upstream effects/music, mute and crackling remain unverified. `ndsp-sfx-music` stays `emulator-tested` ([New combined](../hardware/evidence/new3ds-xl-a328c70.md), [Old](../hardware/evidence/old3ds-xl-a4a9a96.md)).
+
+
+## Live multiplayer weather
+
+The graphical client decodes the pinned weather packet and advances the
+server-assigned `WeatherState` records from stock entity snapshots. Original
+`SoundControl` loop and fade logic routes weather ambience through the ARM11
+audio backend.
+
+The [unified replay build](https://github.com/levkeveli/Min3DStry/actions/runs/45138219018)
+requested the original rain, snow, and wind sounds on both Azahar profiles
+while connected to an unmodified v160.8 server. Both runs used the no-DSP
+fallback. Audible NDSP playback remains pending on physical hardware.

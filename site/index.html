@@ -529,6 +529,19 @@
     .input { min-width: 100%; }
     .board { grid-template-columns: repeat(6, minmax(250px, 84vw)); }
   }
+  .runner-status-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+    gap: 12px;
+    padding: 0;
+    list-style: none;
+  }
+  .runner-status-list li {
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow-wrap: anywhere;
+  }
 </style>
 </head>
 <body>
@@ -557,18 +570,24 @@
     <span>Scale: <code>Planned</code> → <code>Experimental</code> → <code>Host-tested</code> → <code>Emulator-tested</code> → <code>Hardware-verified</code> → <code>Complete / Released</code></span>
   </div>
 
+  <details class="overview-box" id="runner-status" open>
+    <summary><strong>GitHub Actions runners</strong></summary>
+    <p id="runner-status-summary" class="overview-text" role="status">Loading runner status…</p>
+    <ul id="runner-status-list" class="runner-status-list"></ul>
+  </details>
+
   <section class="overview-box" aria-label="What Min3DStry currently is">
     <div class="overview-head">
       <h1>What Min3DStry Currently Is</h1>
       <span class="overview-maintainers">Maintainers: <code>@admiraly</code>, <code>@Hxgg22</code>, <code>@Satixfied</code></span>
     </div>
     <p class="overview-text">
-      <strong>Min3DStry</strong> is a <strong>1:1 port</strong> of upstream <em>Mindustry</em> (v8 build 160.8) for Original and New Nintendo 3DS/2DS — not a simplified clone or demake. Upstream code and 3DS platform services (rendering, dual-screen UI/input, audio, and OS adapters) are modified where necessary for 3DS compatibility and performance while keeping the game technically original Mindustry: full content catalog, <code>.msav</code> maps/saves, and cross-platform multiplayer with the unmodified Java PC v160.8 release. Functional parity comes first, followed by tuning for 24+ FPS on both 3DS generations.
+      <strong>Min3DStry</strong> is a <strong>1:1 port</strong> of upstream <em>Mindustry</em> (v8 build 160.8) for New Nintendo 3DS/2DS — not a simplified clone or demake. Upstream code and 3DS platform services (rendering, dual-screen UI/input, audio, and OS adapters) are modified where necessary for 3DS compatibility and performance while keeping the game technically original Mindustry: full content catalog, <code>.msav</code> maps/saves, and cross-platform multiplayer with the unmodified Java PC v160.8 release. Functional parity comes first, followed by tuning for 24+ FPS under high load on physical New Nintendo 3DS/2DS.
     </p>
     <div class="overview-grid">
       <div class="overview-item">
         <h2>Upstream v160.8 on ARM11</h2>
-        <p>The unified ARM11 build runs offline Ground Zero and joins unmodified Java v160.8 servers. Both Azahar profiles verified fresh Ground Zero and Onset starts and stock saves. The audio-enabled Join path exercises original effects, building ambience and the Vorbis soundtrack.</p>
+        <p>The unified ARM11 build runs offline Ground Zero and joins unmodified Java v160.8 servers. Azahar verified fresh Ground Zero and Onset starts and stock saves in New 3DS mode. The audio-enabled Join path exercises original effects, building ambience and the Vorbis soundtrack.</p>
       </div>
       <div class="overview-item">
         <h2>3DS Platform &amp; Tooling</h2>
@@ -576,7 +595,7 @@
       </div>
       <div class="overview-item">
         <h2>What’s Still Missing</h2>
-        <p>Offline audio, full campaign and logic interfaces, and remaining gameplay parity are still in development. The live audio replay verifies decoding and routing in Azahar. Physical listening and sustained <code>&ge; 24 FPS</code> gameplay on both 3DS generations remain open.</p>
+        <p>Offline audio, full campaign and logic interfaces, and remaining gameplay parity are still in development. The live audio replay verifies decoding and routing in Azahar. Physical listening and sustained <code>&ge; 24 FPS</code> gameplay under high load on physical New Nintendo 3DS/2DS remain open.</p>
       </div>
     </div>
   </section>
@@ -1262,7 +1281,7 @@
         generated_at: new Date().toISOString(),
         port_progress: state.data.port_progress || null,
         mechanics_parity: state.data.mechanics_parity || null,
-        issues: issuesRaw.filter((i) => !i.pull_request).map(normalizeIssue),
+        issues: issuesRaw.filter((i) => !i.pull_request && i.number !== 424).map(normalizeIssue),
         pulls: pullsRaw.map((p) => ({
           number: p.number,
           title: p.title,
@@ -1336,5 +1355,6 @@
   loadSnapshot();
 })();
 </script>
+<script src="./runner-status.js" defer></script>
 </body>
 </html>
