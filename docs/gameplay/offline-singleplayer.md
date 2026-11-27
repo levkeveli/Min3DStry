@@ -180,6 +180,19 @@ of approximately 54.2 MB before serialization. Frozen Forest also
 recovered from a truncated primary and reopened the resulting save.
 The artifacts contain the reload screenshots and raw logs.
 
+The unified build using TeaVM balanced optimization mapped 27,963,392
+bytes of code and data, a reduction of 12,042,240 bytes from the prior
+size-focused native build. The New 3DS emulator reported 93,655,040 bytes
+of application heap and a managed limit of 58,720,256 bytes (56 MiB).
+Serpulo 242, Origin and Littoral Shipyard each loaded a 600 × 600 stock
+sector, reloaded it through the pause menu, and wrote both a checkpoint
+and an exit save. Unmodified Java v160.8 reopened both files for each
+sector. Frozen Forest also passed truncated-primary recovery.
+[Serpulo 242](https://github.com/levkeveli/Min3DStry/actions/runs/46056868459/artifacts/15228861259)
+· [Origin](https://github.com/levkeveli/Min3DStry/actions/runs/46056868459/artifacts/15228033415)
+· [Littoral Shipyard](https://github.com/levkeveli/Min3DStry/actions/runs/46060649292/artifacts/15229704034)
+· [Frozen Forest](https://github.com/levkeveli/Min3DStry/actions/runs/46056868459/artifacts/15228390195)
+
 Physical New 3DS performance remains open.
 
 The [ARM11 build from `1390790`](https://github.com/levkeveli/Min3DStry/actions/runs/45035851013)
