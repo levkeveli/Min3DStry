@@ -1,10 +1,11 @@
 {
   "version": 1,
+  "scored_weight": 95,
   "stage_weights": {
     "planned": 0.0,
     "experimental": 0.15,
     "host-tested": 0.3,
-    "emulator-tested": 0.55,
+    "emulator-tested": 0.85,
     "hardware-verified": 0.85,
     "complete": 1.0
   },
@@ -223,8 +224,7 @@
         "docs/porting/factory-logistics.md",
         "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerSession.java",
         "docs/gameplay/offline-singleplayer.md"
-      ],
-      "hardware_test": "HARDWARE_TEST_PENDING"
+      ]
     },
     {
       "id": "production-power-liquids",
@@ -238,8 +238,7 @@
         "research/upstream-runtime/src/gameplay/java/UpstreamProductionTickProbe.java",
         "docs/porting/production-power-liquids.md",
         "research/upstream-runtime/README.md"
-      ],
-      "hardware_test": "HARDWARE_TEST_PENDING"
+      ]
     },
     {
       "id": "combat-waves-ai",
@@ -265,8 +264,7 @@
         "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerSession.java",
         "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerApp.java",
         "docs/gameplay/offline-singleplayer.md"
-      ],
-      "hardware_test": "HARDWARE_TEST_PENDING"
+      ]
     },
     {
       "id": "touch-build-palette",
@@ -284,8 +282,7 @@
         "research/upstream-runtime/arm11/m3ds_input.c",
         "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerInput.java",
         "docs/gameplay/offline-singleplayer.md"
-      ],
-      "hardware_test": "HARDWARE_TEST_PENDING"
+      ]
     },
     {
       "id": "hud-menus-minimap",
@@ -407,8 +404,7 @@
         "research/upstream-runtime/src/unified/java/UpstreamUnifiedApp.java",
         "research/upstream-runtime/README.md",
         "research/upstream-runtime/src/campaign-saves-load/java/UpstreamCampaignSavesLoadProbe.java"
-      ],
-      "hardware_test": "HARDWARE_TEST_PENDING"
+      ]
     },
     {
       "id": "ndsp-sfx-music",
@@ -449,12 +445,11 @@
         "tools/verify_stock_live_audio.py",
         "tools/verify_offline_stock_audio.py",
         "tests/audio/live-stock/test_live_stock_audio.c"
-      ],
-      "hardware_test": "HARDWARE_TEST_PENDING"
+      ]
     },
     {
       "id": "crossplay-net-protocol",
-      "category": "Networking & Hardware Release",
+      "category": "Networking",
       "name": "Cross-Platform Multiplayer Protocol",
       "weight": 5,
       "stage": "emulator-tested",
@@ -470,18 +465,15 @@
         "research/upstream-runtime/arm11/m3ds_net_bridge.c",
         "research/upstream-runtime/src/unified/java/UpstreamUnifiedApp.java",
         "research/upstream-runtime/README.md"
-      ],
-      "hardware_test": "HARDWARE_TEST_PENDING"
-    },
-    {
-      "id": "physical-hardware-parity",
-      "category": "Networking & Hardware Release",
-      "name": "New 3DS Physical Hardware Verification",
-      "weight": 5,
-      "stage": "planned",
-      "issue": 43,
-      "evidence": [],
-      "hardware_test": "HARDWARE_TEST_PENDING"
+      ]
     }
+  ],
+  "hardware_checks": [
+    {"id": "HWT-01", "name": "Rendering and input harness", "evidence": ["docs/hardware/evidence/new3ds-xl-a328c70.md"]},
+    {"id": "HWT-02", "name": "Live gameplay and build UI", "evidence": []},
+    {"id": "HWT-03", "name": "Campaign and saves", "evidence": []},
+    {"id": "HWT-04", "name": "Audible stock sound and music", "evidence": []},
+    {"id": "HWT-05", "name": "Stock server cross-play", "evidence": []},
+    {"id": "HWT-06", "name": "Sustained playable performance", "evidence": []}
   ]
 }

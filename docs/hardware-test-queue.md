@@ -50,13 +50,15 @@ The artifact below is staged for that point; it is not an active test request.
 4. Ingest with `python3 tools/hw_evidence.py ... --strict --out
    docs/hardware/evidence/<target>-<sha>.md`.
 5. Attach the evidence file, raw log, console details and screenshots to a PR
-   or to issue #43. Then remove `"hardware_test": "HARDWARE_TEST_PENDING"` from
-   the proven capabilities in `docs/port-capabilities.json`, update their
-   `stage`, and regenerate the gauge.
+   or to issue #43. Add the New 3DS evidence path to the corresponding
+   `hardware_checks` entry in `docs/port-capabilities.json` once the entire
+   card passes, then run `python3 tools/port_progress.py --write-svg`. The
+   hardware gauge counts each HWT card once. Software and mechanics scores
+   are independent of these cards.
 6. If a run fails, attach the log and file a defect; do not change the ledger
    stage.
 
-Capabilities still marked `HARDWARE_TEST_PENDING`:
+Physical verification checklist and related capabilities:
 
 | Card | Capabilities |
 | --- | --- |
@@ -65,7 +67,7 @@ Capabilities still marked `HARDWARE_TEST_PENDING`:
 | HWT-03 | `campaign-sectors` |
 | HWT-04 | `ndsp-sfx-music` |
 | HWT-05 | `crossplay-net-protocol` |
-| HWT-06 | `physical-hardware-parity`; New 3DS harness FPS and 10-minute soak are verified. Full playable New 3DS acceptance is pending |
+| HWT-06 | New 3DS harness FPS and 10-minute soak are verified. Full playable New 3DS acceptance is pending |
 
 Cleared by the `de3e249` New 3DS record: `arm11-toolchain-build`,
 `memory-budget-runtime`, `threading-scheduling` and `msav-map-save-compat`.
@@ -289,7 +291,7 @@ log, screenshots, map/fingerprint, and the server JAR hash.
 
 ## HWT-06 — Physical parity and performance
 
-Covers `physical-hardware-parity`: the physical acceptance run for the full
+Covers the physical acceptance run for the full
 playable build on New Nintendo 3DS/2DS.
 
 **Steps:** run HWT-01/02 on New 3DS; collect `BENCH fps=...
@@ -299,7 +301,7 @@ notes.
 **Expected:** New 3DS passes HWT-01/02, stays within its application-memory
 budget, and sustains `>= 24 FPS` on a representative playable workload.
 **Evidence:** strict `hw_evidence.py` JSON/Markdown, benchmark log lines, and
-thermal/SD notes. Only this card can clear `physical-hardware-parity`.
+thermal/SD notes. Only this card verifies sustained playable performance on the hardware gauge.
 
 > New 3DS `a328c70` satisfies the harness FPS and soak half: strict 12/12 over
 > ~10 minutes, 132 `BENCH` windows, `fps_min=29.92`, `fps_max=59.84`,
