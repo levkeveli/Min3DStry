@@ -11,6 +11,10 @@ import mindustry.gen.Player;
  */
 public final class UpstreamCameraZoomReference {
     public static void main(String[] args) throws Exception {
+        if (args.length < 1) {
+            throw new IllegalArgumentException(
+                "Expected a Glacier .msav path; run with -Pglacier=<path> or --args=<path>");
+        }
         UpstreamWorldLoadProbe.load(new String[]{args[0]}, () -> Vars.indexer = new BlockIndexer());
         var player = UnitTypes.gamma.spawn(Team.sharded, 600f, 200f, 0f);
         Vars.player = Player.create();

@@ -13,6 +13,10 @@ import mindustry.world.blocks.distribution.Sorter.SorterBuild;
  */
 public final class UpstreamLogisticsProbe {
     public static void main(String[] args) throws IOException {
+        if (args.length < 1) {
+            throw new IllegalArgumentException(
+                "Expected a Glacier .msav path; run with -Pglacier=<path> or --args=<path>");
+        }
         var app = UpstreamSimulationWorld.play(args);
 
         var team = Vars.state.rules.defaultTeam;
