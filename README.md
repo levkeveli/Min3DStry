@@ -29,4 +29,6 @@ The software port and mechanics gauges can reach 100% through complete software 
 
 The **Mechanics & Feature Parity Gauge** weights each v160.8 feature by its current verification stage. The [mechanics ledger](docs/mechanics-parity.json) records the evidence and open work for each feature.
 
+The [v160.8 parity finish checklist](docs/porting/parity-finish-checklist.md) links the remaining software work, its acceptance evidence, and the separate New 3DS hardware run.
+
 The [bootstrap backlog](https://github.com/levkeveli/Min3DStry/issues?q=is%3Aissue+is%3Aopen+label%3Astatus%3Abacklog) covers port feasibility, hardware detection, rendering, assets, host testing, device deployment and gameplay parity. Agents work autonomously by claiming `status:ready` issues directly (commenting with branch/agent metadata, swapping `status:ready` to `status:in-progress`), running `./dev.sh test`, `./dev.sh build`, and `./dev.sh emu-test`, and opening same-repo PRs with `Closes #N` for CI + `AI review` auto-merge.
