@@ -41,7 +41,8 @@ if [[ $mode == --singleplayer || $mode == --unified ]]; then
 fi
 if [[ $mode == --unified ]]; then
     subtitle="Mindustry v160.8"
-    native_input+=("$root/m3ds_server_address.c")
+    native_input+=("$root/m3ds_server_address.c" "$root/m3ds_community_http.c" "$root/m3ds_community_probe.c")
+    native_network+=("$repo/src/net/mindustry_srv.c")
 fi
 if [[ $mode == --network || $mode == --singleplayer || $mode == --unified ]]; then
     shift
@@ -108,6 +109,12 @@ if [[ $# -gt 0 ]]; then
     terrain_sources=("$root/m3ds_terrain_renderer.c")
     terrain_libraries=(-lcitro2d -lcitro3d)
     mkdir "$output/romfs"
+    if [[ $mode == --unified ]]; then
+        portlibs="$DEVKITPRO/portlibs/3ds"
+        terrain_flags+=(-I"$portlibs/include" -L"$portlibs/lib")
+        terrain_libraries+=(-lcurl -lmbedtls -lmbedx509 -lmbedcrypto -lz)
+        cp "$repo/data/net/community-ca.pem" "$repo/data/net/community-ca.txt" "$output/romfs/"
+    fi
     if [[ ${#native_network[@]} -gt 0 && -f "$1/sound-index.h" && -d "$1/audio" ]]; then
         terrain_flags+=(-DM3DS_LIVE_AUDIO)
         terrain_sources+=("$repo/src/audio/audio_mixer.c" "$repo/src/audio/audio_registry.c"
@@ -194,9 +201,17 @@ if [[ "${M3DS_RELAX_POINTER_TYPES:-0}" == "1" ]]; then
 fi
 compiler="$DEVKITARM/bin/arm-none-eabi-gcc"
 arch_flags=(-march=armv6k -mtune=mpcore -mfpu=vfp -mfloat-abi=hard -mtp=soft)
-compile_flags=(-std=gnu11 -g "$arm11_opt" -fwrapv -D__3DS__ -mword-relocations
+debug_flags=(-g)
+section_flags=()
+if [[ $mode == --unified ]]; then
+    # Separate functions allow the linker to insert veneers for distant calls.
+    section_flags=(-ffunction-sections)
+    # Retain line diagnostics and limit the peak memory spent on variable DWARF.
+    debug_flags=(-g1 -fno-var-tracking -fno-var-tracking-assignments)
+fi
+compile_flags=(-std=gnu11 "${debug_flags[@]}" "$arm11_opt" -fwrapv -D__3DS__ -mword-relocations
     "${arch_flags[@]}" -I"$output/nativeinclude" -I"$DEVKITPRO/libctru/include"
-    "${terrain_flags[@]}" "${save_rows_flags[@]}" "${pointer_flags[@]}" "${stack_flags[@]}")
+    "${terrain_flags[@]}" "${save_rows_flags[@]}" "${pointer_flags[@]}" "${stack_flags[@]}" "${section_flags[@]}")
 # Keep the original compiler layout for stock JSON writes. A split unified
 # ROM exhausted the 3DS stack during the Ground Zero save replay.
 case "$mode" in

@@ -6,6 +6,7 @@ on:
     paths:
       - "research/upstream-runtime/**"
       - "audio/**"
+      - "data/net/**"
       - "src/audio/**"
       - "include/audio/**"
       - "tests/audio/**"
@@ -16,6 +17,7 @@ on:
       - "tools/stage_music_assets.py"
       - "tools/verify_upstream_net.py"
       - "tools/verify_upstream_live_net.py"
+      - "tools/verify_stock_community_tls.py"
       - "tools/verify_stock_live_crafting.py"
       - "tests/tools/test_audio_assets.py"
       - "tests/tools/test_stage_music_assets.py"
@@ -47,6 +49,10 @@ on:
         description: Run standalone diagnostics in addition to the unified smoke jobs
         type: boolean
         default: true
+      public_community_tls:
+        description: Fetch the public Mindustry directory in the New 3DS emulator
+        type: boolean
+        default: false
 
 concurrency:
   group: upstream-arm11-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || (github.event_name == 'workflow_dispatch' && format('dispatch-{0}', github.run_id)) || github.ref }}
@@ -1451,7 +1457,8 @@ jobs:
         with:
           name: unified-arm11-smoke
           path: build/unified-smoke
-      - run: bash .github/scripts/setup_smoke_azahar.sh
+      - id: live-azahar
+        run: bash .github/scripts/setup_smoke_azahar.sh
       - name: Stock server handshake, protocol mismatch, sessions and compression
         if: needs.changes.outputs.run_net == 'true'
         shell: bash
@@ -1467,7 +1474,56 @@ jobs:
           xvfb-run -a python3 tools/verify_upstream_live_net.py \
             --server build/unified-smoke/server-release.jar --rom build/unified-smoke/upstream-probe.3dsx \
             --azahar "$AZAHAR_BIN" --terrain-atlas build/unified-smoke/sprites.aatls \
-            --unified-boot --controls --controls-replay --world-atlas --join-from-title --locale de --model new3ds
+            --unified-boot --controls --controls-replay --world-atlas --join-from-title --locale de --model new3ds --discover-lan --port 6567
+      - name: Join a saved PC server and verify the edited list in stock Java
+        if: ${{ !cancelled() && steps.live-azahar.outcome == 'success' && needs.changes.outputs.run_net == 'true' }}
+        run: |
+          root="$RUNNER_TEMP/remote-servers-replay"
+          mkdir -p "$root/classes" "$root/fixture"
+          jar="$PWD/build/unified-smoke/server-release.jar"
+          runtime="$PWD/research/upstream-runtime/src/unified"
+          javac -cp "$jar" -d "$root/classes" "$runtime/java/UpstreamServerAddress.java" \
+            "$runtime/java/UpstreamSavedServers.java" "$runtime/host/UpstreamSavedServersReference.java"
+          java -cp "$root/classes:$jar" UpstreamSavedServersReference --write-fixture "$root/fixture" 16686
+          xvfb-run -a python3 tools/verify_upstream_live_net.py \
+            --server "$jar" --rom build/unified-smoke/upstream-probe.3dsx \
+            --azahar "$AZAHAR_BIN" --terrain-atlas build/unified-smoke/sprites.aatls \
+            --unified-boot --controls --controls-replay --join-from-title --model new3ds --port 16686 \
+            --saved-servers-settings "$root/fixture/settings.bin"
+          java -cp "$root/classes:$jar" UpstreamSavedServersReference --check-fixture \
+            build/unified-smoke/upstream-live-net/saved-servers 16686
+      - name: Join a stock PC game from the recovered community directory
+        if: ${{ !cancelled() && steps.live-azahar.outcome == 'success' && needs.changes.outputs.run_net == 'true' }}
+        run: |
+          root="$RUNNER_TEMP/community-directory-replay"
+          mkdir -p "$root/classes" "$root/cache"
+          jar="$PWD/build/unified-smoke/server-release.jar"
+          runtime="$PWD/research/upstream-runtime/src/unified"
+          javac -cp "$jar" -d "$root/classes" "$runtime/java/UpstreamCommunityDirectory.java" \
+            "$runtime/host/UpstreamCommunityDirectoryReference.java"
+          java -cp "$root/classes:$jar" UpstreamCommunityDirectoryReference --check-cache "$root/cache"
+          xvfb-run -a python3 tools/verify_upstream_live_net.py \
+            --server "$jar" --rom build/unified-smoke/upstream-probe.3dsx \
+            --azahar "$AZAHAR_BIN" --terrain-atlas build/unified-smoke/sprites.aatls \
+            --unified-boot --controls --controls-replay --join-from-title --model new3ds \
+            --port 16687 --community-directory
+          java -cp "$root/classes:$jar" UpstreamCommunityDirectoryReference --check-replay \
+            build/unified-smoke/upstream-live-net/community-servers
+      - name: Fetch the official community directory over New 3DS HTTPS
+        if: ${{ !cancelled() && steps.live-azahar.outcome == 'success' && inputs.public_community_tls == true }}
+        run: |
+          rom=build/unified-smoke/upstream-probe.3dsx
+          xvfb-run -a python3 tools/verify_stock_community_tls.py \
+            --rom "$rom" --azahar "$AZAHAR_BIN" --output build/community-tls-smoke/primary
+          # Block only the primary hostname on this disposable runner.
+          hosts_backup=$(mktemp)
+          cp /etc/hosts "$hosts_backup"
+          trap 'sudo tee /etc/hosts < "$hosts_backup" >/dev/null; rm -f "$hosts_backup"' EXIT
+          printf '\n127.0.0.1 raw.githubusercontent.com\n' | sudo tee -a /etc/hosts >/dev/null
+          test "$(getent ahostsv4 raw.githubusercontent.com | awk '{print $1}' | sort -u)" = 127.0.0.1
+          xvfb-run -a python3 tools/verify_stock_community_tls.py \
+            --rom "$rom" --azahar "$AZAHAR_BIN" --output build/community-tls-smoke/mirror \
+            --expected-endpoint 1
       - name: Stock silicon crafting snapshots and live building draw
         if: needs.changes.outputs.run_net == 'true'
         run: >-
@@ -1488,6 +1544,7 @@ jobs:
           name: arm11-live-smoke-evidence
           path: |
             build/audio-smoke/
+            build/community-tls-smoke/
             build/live-crafting/
             build/unified-smoke/upstream-live-net/
             ${{ runner.temp }}/smoke-data/azahar-emu/log/

@@ -98,6 +98,10 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
         return editText(Core.bundle.get("players.search"), original, 2);
     }
 
+    static String readServerSearch(String original) {
+        return editText(Core.bundle.get("search"), original, 2);
+    }
+
     private static String editText(String caption, String original, int mode) {
         byte[] text = new byte[Math.max(1000, original.length()) * 4 + 1];
         byte[] initialBytes = original.getBytes(StandardCharsets.UTF_8);

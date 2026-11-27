@@ -1,0 +1,7 @@
+community-ca.pem is the Mozilla CA certificate store converted by curl.
+It is licensed under the Mozilla Public License, version 2.0.
+
+Source: https://curl.se/ca/cacert-2026-11-05.pem
+Upstream conversion and source information: https://curl.se/docs/caextract.html
+License: https://www.mozilla.org/MPL/2.0/
+SHA-256: 427c064216761a1e72a8b30f0d954d08cb6e4435a82091fb865afd20c8497285

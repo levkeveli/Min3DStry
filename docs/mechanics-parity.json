@@ -615,9 +615,12 @@
       "modes": ["multiplayer"],
       "issue": 31,
       "evidence": [
-        "research/upstream-runtime/README.md"
+        "research/upstream-runtime/README.md",
+        "docs/ui/main-menu.md",
+        "research/upstream-runtime/src/unified/java/UpstreamLanDiscovery.java",
+        "tools/verify_upstream_live_net.py"
       ],
-      "notes": "The combined ROM accepts and validates a stock server address before joining. Local hosting, discovery and a browsable server list remain open."
+      "notes": "The unified ROM accepts manual server addresses and displays stock LAN advertisements. New 3DS Azahar discovered, displayed, joined, and left an unmodified v160.8 Java server through the German title route. Handheld hosting, saved addresses, and the stock public server directory remain open."
     },
     {
       "id": "unified-single-3dsx",

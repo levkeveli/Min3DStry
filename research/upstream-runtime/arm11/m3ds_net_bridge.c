@@ -113,6 +113,20 @@ int32_t m3ds_live_net_ping(const void *address, int32_t length, int32_t port) {
     return found;
 }
 
+int32_t m3ds_live_net_discovery_start(int32_t port, const char *group, int32_t multicast_port) {
+    if (client || context.soc_initialized || !group || port <= 0 || port > UINT16_MAX ||
+            multicast_port <= 0 || multicast_port > UINT16_MAX) return 0;
+    if (!m3ds_net_3ds_init(&transport, &context)) return 0;
+    if (m3ds_net_3ds_discover(&context, (uint16_t)port, group, (uint16_t)multicast_port)) return 1;
+    m3ds_net_3ds_exit(&context);
+    return 0;
+}
+
+int32_t m3ds_live_net_discovery_read(void *packet, int32_t capacity, uint8_t *peer) {
+    if (client || !context.soc_initialized || capacity <= 0) return M3DS_NET_IO_ERROR;
+    return m3ds_net_3ds_read_advertisement(&context, packet, (size_t)capacity, peer);
+}
+
 int32_t m3ds_live_net_receive(void *payload, int32_t capacity, int32_t reliable, int32_t timeout_ms) {
     if (capacity <= 0 || capacity > M3DS_NET_MAX_PACKET_SIZE || timeout_ms < 0) {
         return M3DS_NET_IO_ERROR;

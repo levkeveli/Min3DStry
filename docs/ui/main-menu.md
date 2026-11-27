@@ -203,7 +203,7 @@ MAIN_MENU screen=schematics selected=battery node detail=1
 and render `Schematics 2/2`, `Source: SD card`, `battery node`, `5x3, 2 blocks`,
 `battery-large, power-node-large`.
 
-## Remaining work
+### Historical harness gaps
 
 - Port the real upstream Scene2D `MenuFragment` rendering instead of the console shell.
 - Schematic import/export and RTS unit selection/command.
@@ -211,3 +211,81 @@ and render `Schematics 2/2`, `Source: SD card`, `battery node`, `5x3, 2 blocks`,
   bundle names only).
 - The About page is a static port page, not the upstream links/credits dialog.
 - Upstream settings dialog (graphics/audio/game/controls tabs) instead of the live-control subset.
+
+## New 3DS local server browser
+
+Open Play, then Join Game. The browser sends the pinned Arc discovery
+datagram to the local IPv4 broadcast on the stock server port and to the
+Mindustry multicast group. During the three-second scan, Back returns to
+Play. The results list keeps one response per address. Select a server to
+view the stock advertisement's map, mode, player count and version, then
+select Join Game. Address opens the manual keyboard and Refresh scans again.
+
+Remote Servers opens the saved address list. Add Server stores an IPv4
+address or DNS name and port. Select an entry to join, edit or delete it.
+The list uses the stock `servers` value in `settings.bin`, including the
+original Arc binary records. Imported desktop endpoints that exceed the
+handheld transport's current IPv4 support stay in the list and can be edited.
+As in the desktop Join dialog, an older `server-list` value takes priority
+when present. Saving an edit writes the current stock format and migrates
+the old value. An incomplete legacy list is preserved for recovery.
+[Pinned desktop loader](https://github.com/Anuken/Mindustry/blob/19a0f40d44514f4802a8b79770456e7e32e34da0/core/src/mindustry/ui/dialogs/JoinDialog.java#L628-L639).
+
+libctru handles the sockets, while the pinned Mindustry NetworkIO reader
+decodes the same bytes as the Java PC client. The loopback host reference
+checks a real stock v160.8 server reply, duplicate suppression, malformed
+packet rejection and unsigned port handling. The New 3DS smoke replay uses
+a stock Glacier session on port 6567 and removes the endpoint file so the
+join must use the discovered server. Physical LAN verification is pending.
+
+In the [New 3DS Azahar replay at `0eb9015`](https://github.com/levkeveli/Min3DStry/actions/runs/45727812457/artifacts/15076928162),
+the German Join Game route discovered one stock v160.8 Glacier session.
+The details screen showed the stock mode, player count, version and
+advertised address. The server log recorded the same client connecting and
+disconnecting after the gameplay replay.
+
+## Community server directory
+
+Community Servers uses the pinned v160.8 directory and HTTPS mirror. The
+handheld reads `server_list.json` from its settings directory. Refresh
+validates the downloaded directory before publishing the stock cache file,
+and a transport or parse failure leaves the previous directory available.
+The `communityservers` preference controls whether this menu fetches or
+displays the directory.
+
+The browser queries up to eight stock endpoints concurrently with the
+original Arc discovery datagram. Pinned `NetworkIO.readServerData` decodes
+the map, mode, population, version, and description. Search uses those
+fields and the group name. The group favorite and hidden preferences use
+the stock keys. The server details show a version mismatch before joining
+and allow compatible servers to be added to Remote Servers.
+
+If a DNS hostname fails to answer at the default Mindustry port, the
+handheld also looks up its `_mindustry._tcp` SRV records and probes their
+targets in the stock priority and weight order. It uses the configured
+Wi-Fi resolvers first, with Arc's built-in resolver list when none are
+available.
+
+The packaged TLS trust store and source information are in
+[`data/net/community-ca.txt`](../../data/net/community-ca.txt). The New 3DS
+verification is tracked in [issue #756](https://github.com/levkeveli/Min3DStry/issues/756).
+
+The grouped smoke replay uses a truncated primary and a valid backup
+directory pointing to a loopback stock Java server. It favorites the
+directory group, opens the live Glacier advertisement, accepts the
+upstream community notice, and joins from the title menu. The stock JVM
+reads the resulting favorite and acknowledgement from `settings.bin`.
+On `da0af3e`, the saved directory supplied the live Glacier details and
+the unmodified server confirmed both controls on the same unit, the
+next wave, and a clean disconnect. The stock settings readback verified
+both the favorite and community notice acknowledgement.
+[Grouped verification](https://github.com/levkeveli/Min3DStry/actions/runs/46063372156)
+· [Details screenshot, stock settings and logs](https://github.com/levkeveli/Min3DStry/actions/runs/46063372156/artifacts/15230912376)
+
+The optional `public_community_tls` smoke dispatch separately boots with
+an empty cache and a current emulated date, fetches through the handheld's
+packaged trust store, and checks the resulting stock JSON file. At
+`da0af3e`, the empty-cache New 3DS replay fetched 100 groups from the
+pinned primary endpoint and persisted them. The mirror case blocks the
+primary hostname on the GitHub runner and requires endpoint 1 to succeed.
+[Primary HTTPS log](https://github.com/levkeveli/Min3DStry/actions/runs/46066655343/artifacts/15232327867)

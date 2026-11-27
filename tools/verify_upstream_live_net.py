@@ -23,9 +23,9 @@ ATLAS_SHA256 = "fcfb2171eed35b60e7a0d696b63943883a191e7f547ecfef372bd42d72675334
 PLAYER = "Min3DStry ARM11"
 NUMBER = r"-?\d+(?:\.\d+)?"
 # The unsplit v160.8 core at spawn on both Azahar profiles. These samples
-# straddle the source tile seams and stay clear of the player unit.
+# straddle the source tile seams and stay clear of the player and German HUD.
 CORE_PIXELS = {
-    (190, 65): (255, 210, 126), (190, 67): (255, 210, 126),
+    (202, 65): (255, 210, 126), (202, 67): (255, 210, 126),
     (231, 75): (152, 154, 164), (232, 75): (152, 154, 164), (233, 75): (176, 185, 192),
     (235, 145): (176, 185, 192), (235, 146): (176, 185, 192),
     (235, 147): (176, 185, 192), (235, 148): (152, 154, 164),
@@ -93,7 +93,8 @@ BUILDING_CRACK_PIXELS = {
 
 def write_controls_replay(path, first_move=22, building=False, touch_build=False, touch_config=False,
                           erekir_build=False, mining=None, model="new3ds", stock_menu_font=False,
-                          unified_boot=False, stationary=False, chat=False, cancel_restart=False, join_from_title=False):
+                          unified_boot=False, stationary=False, chat=False, cancel_restart=False, join_from_title=False,
+                          discover_lan=False, join_saved=False, join_community=False):
     """Write the Azahar 2126.2 CTM input for this probe's pad/touch polling."""
     # The pinned Azahar movie header and HID sample definitions use packed little-endian fields.
     revision = bytes.fromhex("219d743a1e698101fe1ab8bef43e6563126c3c27")
@@ -172,6 +173,25 @@ def write_controls_replay(path, first_move=22, building=False, touch_build=False
                     buttons |= 1  # Open Play, then confirm Join Game.
                 if 33 <= seconds < 36:
                     buttons |= 1 << 7  # Down to Join Game.
+                if discover_lan:
+                    if 54 <= seconds < 57 or 62 <= seconds < 65:
+                        buttons |= 1 << 7  # Move from Address to the first discovered server.
+                    if 70 <= seconds < 73 or 81 <= seconds < 84:
+                        buttons |= 1  # Open the server details, then join.
+                if join_saved:
+                    # Wrap from Address to Remote Servers, delete the first entry and join the next.
+                    if 54 <= seconds < 57 or 110 <= seconds < 113:
+                        buttons |= 1 << 6
+                    if 70 <= seconds < 73 or 86 <= seconds < 89 or 94 <= seconds < 97:
+                        buttons |= 1 << 7
+                    if any(start <= seconds < start + 3 for start in (62, 78, 102, 118, 126, 134)):
+                        buttons |= 1
+                if join_community:
+                    # Enter Community Servers, select the fixture group, favorite it, then join its stock host.
+                    if any(start <= seconds < start + 3 for start in (54, 62, 86, 110, 138)):
+                        buttons |= 1 << 6
+                    if any(start <= seconds < start + 3 for start in (70, 94, 102, 118, 130, 146)):
+                        buttons |= 1
             elif unified_boot and seconds < 6:
                 buttons |= 1 << 10  # X, sampled once before the game starts.
             if cancel_restart and 64 <= seconds < 67:
@@ -221,7 +241,7 @@ def wait_for(path, proc, pattern, timeout):
         # The stock server can color individual values inside a log line.
         if re.search(pattern, re.sub(r"\x1b\[[0-9;]*m", "", text)):
             return text
-        if "UPSTREAM_LIVE_NET_ERROR" in text:
+        if "UPSTREAM_LIVE_NET_ERROR" in text or "UPSTREAM_SP_ERROR" in text:
             time.sleep(0.25)  # Preserve the Java stack trace written after the error marker.
             text = path.read_text(encoding="utf-8", errors="replace")
             raise RuntimeError(f"Process stopped before {pattern}:\n{text[-5000:]}")
@@ -714,8 +734,9 @@ def capture_viewport(log, emulator, rpc, destination, position,
     while True:
         screenshot = rpc.screenshot(res_scale=1)
         pixels = az.inspect_png(screenshot, samples)
-        if (all(pixels["samples"][point] == color for point, color in expected.items())
-                or time.monotonic() >= deadline):
+        expected_visible = all(pixels["samples"][point] == color for point, color in expected.items())
+        atlas_visible = not require_world_atlas or world_atlas_pixels_match(pixels["samples"])
+        if (expected_visible and atlas_visible) or time.monotonic() >= deadline:
             break
         time.sleep(0.1)
     destination.write_bytes(screenshot)
@@ -1864,13 +1885,21 @@ def run_model(args, model, config, original_config, log, output):
                     first_move = 154 if args.verify_stock_menu_font else 92
                 if args.join_from_title:
                     first_move += 55  # Allow time for the title controls before joining.
+                if args.discover_lan:
+                    first_move += 39  # Wait for discovery, details, and the same world load.
+                if args.saved_servers_settings:
+                    first_move = max(first_move, 170)
+                if args.community_directory:
+                    first_move = max(first_move, 185)
                 write_controls_replay(replay, first_move=first_move, building=args.building,
                                       touch_build=args.touch_build, touch_config=args.touch_config,
                                       erekir_build=args.erekir_build, mining=args.mining, model=model,
                                       stock_menu_font=args.verify_stock_menu_font, unified_boot=args.unified_boot,
                                       stationary=not args.controls_replay, chat=args.verify_chat,
                                       cancel_restart=args.server_kick == "restart-cancel",
-                                      join_from_title=args.join_from_title)
+                                      join_from_title=args.join_from_title, discover_lan=args.discover_lan,
+                                      join_saved=args.saved_servers_settings is not None,
+                                      join_community=args.community_directory)
                 command += ["-p", str(replay)]
             command.append(str(args.rom))
             process_log = output / f"{model}-azahar-process.log"
@@ -1882,6 +1911,26 @@ def run_model(args, model, config, original_config, log, output):
                     try:
                         if args.join_from_title:
                             wait_for(log, emulator, r"UPSTREAM_BOOT mode=title\b", args.timeout)
+                        if args.discover_lan:
+                            wait_for(log, emulator, r"UPSTREAM_LAN_SCAN hosts=1\b", args.timeout)
+                            wait_for(log, emulator,
+                                     rf"UPSTREAM_LAN_SELECTED address=\S+ port={args.port} map=Glacier players=0 version=160",
+                                     args.timeout)
+                            time.sleep(1)
+                            (output / f"{model}-lan-server-details.png").write_bytes(rpc.screenshot())
+                        if args.saved_servers_settings:
+                            wait_for(log, emulator, r"UPSTREAM_SAVED_SERVER_REMOVED entries=1\b", args.timeout)
+                            (output / f"{model}-saved-list.png").write_bytes(rpc.screenshot())
+                            wait_for(log, emulator,
+                                     rf"UPSTREAM_SAVED_SERVER_SELECTED address=127\.0\.0\.1 port={args.port}\b",
+                                     args.timeout)
+                        if args.community_directory:
+                            wait_for(log, emulator, r"UPSTREAM_COMMUNITY_DIRECTORY cache=1\b", args.timeout)
+                            wait_for(log, emulator, r"UPSTREAM_COMMUNITY_DIRECTORY hosts=1\b", args.timeout)
+                            wait_for(log, emulator, rf"UPSTREAM_COMMUNITY_HOST .*map=Glacier version=160 port={args.port}\b",
+                                     args.timeout)
+                            time.sleep(1)
+                            (output / f"{model}-community-details.png").write_bytes(rpc.screenshot())
                         wait_for(log, emulator, r"UPSTREAM_BOOT mode=join\b", args.timeout)
                     except RuntimeError:
                         print(process_log.read_text(encoding="utf-8", errors="replace")[-2500:], file=sys.stderr)
@@ -2271,6 +2320,8 @@ def main():
                         help="Replay the controls test input in Azahar 2126.2")
     parser.add_argument("--join-from-title", action="store_true",
                         help="Start at the unified title and join through the Play menu")
+    parser.add_argument("--discover-lan", action="store_true",
+                        help="Join the stock local server from the discovery list without an endpoint file")
     parser.add_argument("--unified-boot", action="store_true",
                         help="Hold X at startup to join from the unified offline and multiplayer ROM")
     parser.add_argument("--terrain-atlas", type=Path,
@@ -2362,6 +2413,10 @@ def main():
                         help="Require WorldStream decode to finish before loading the renderer atlas")
     parser.add_argument("--require-relocation-spill", action="store_true",
                         help="Require the ARM11 collector to grow its relocation table during the spawn check")
+    parser.add_argument("--saved-servers-settings", type=Path,
+                        help="Replay deleting an old entry and joining the next from this stock settings.bin")
+    parser.add_argument("--community-directory", action="store_true",
+                        help="Recover a stock directory cache and join its live Glacier server through the title menu")
     args = parser.parse_args()
     args.server, args.rom, args.azahar = (path.resolve() for path in (args.server, args.rom, args.azahar))
     with args.server.open("rb") as archive:
@@ -2379,6 +2434,14 @@ def main():
         parser.error("--verify-kick-notice needs --server-kick and --locale en")
     if args.unified_boot and not args.controls:
         parser.error("--unified-boot needs --controls")
+    if args.discover_lan and not (args.join_from_title and args.port == 6567 and args.model == "new3ds"):
+        parser.error("--discover-lan needs --join-from-title --port 6567 --model new3ds")
+    if args.saved_servers_settings and (not args.join_from_title or args.discover_lan or args.locale
+                                        or args.model != "new3ds"):
+        parser.error("--saved-servers-settings needs --join-from-title and --model new3ds")
+    if args.community_directory and (not args.join_from_title or args.discover_lan or args.locale
+                                     or args.saved_servers_settings or args.model != "new3ds" or args.port == 6567):
+        parser.error("--community-directory requires a New 3DS title replay on a non-LAN port")
     if args.join_from_title and not (args.unified_boot and args.controls_replay):
         parser.error("--join-from-title needs --unified-boot and --controls-replay")
     if args.join_from_title and any((args.building, args.touch_build, args.touch_config,
@@ -2521,15 +2584,27 @@ def main():
     atlas_path = endpoint.with_name("sprites.aatls")
     locale_path = endpoint.with_name("locale.txt")
     settings_path = endpoint.with_name("settings.bin")
+    community_cache = endpoint.with_name("server_list.json")
+    community_backup = endpoint.with_name("server_list.json.backup")
     if args.locale:
         locale_files = [locale_path]
         if args.join_from_title:
             locale_files.extend((settings_path, endpoint.with_name("settings_backup.bin")))
         for path in locale_files:
             originals[path] = path.read_bytes() if path.exists() else None
+    if args.saved_servers_settings:
+        for path in (settings_path, endpoint.with_name("settings_backup.bin")):
+            originals[path] = path.read_bytes() if path.exists() else None
+    if args.community_directory:
+        for path in (settings_path, endpoint.with_name("settings_backup.bin"), community_cache, community_backup):
+            originals[path] = path.read_bytes() if path.exists() else None
     if args.terrain_atlas:
         originals[atlas_path] = atlas_path.read_bytes() if atlas_path.exists() else None
     output = args.rom.parent / "upstream-live-net"
+    if args.saved_servers_settings:
+        output /= "saved-servers"
+    if args.community_directory:
+        output /= "community-servers"
     if args.verify_objective_markers and args.locale != "en":
         output /= args.locale
     output.mkdir(parents=True, exist_ok=True)
@@ -2539,7 +2614,10 @@ def main():
         if args.join_from_title:
             startup.unlink(missing_ok=True)
         suffix = " controls" if args.controls else " movement" if args.movement else ""
-        endpoint.write_text(f"127.0.0.1 {args.port}{suffix}\n", encoding="ascii")
+        if args.discover_lan or args.saved_servers_settings or args.community_directory:
+            endpoint.unlink(missing_ok=True)
+        else:
+            endpoint.write_text(f"127.0.0.1 {args.port}{suffix}\n", encoding="ascii")
         if args.locale and args.join_from_title:
             locale_path.unlink(missing_ok=True)
             # Arc Settings stores a big-endian entry count, UTF key, String type and UTF value.
@@ -2547,10 +2625,24 @@ def main():
             settings_path.write_bytes(struct.pack(">IH6sBH", 1, 6, b"locale", 4, len(locale)) + locale)
         elif args.locale:
             locale_path.write_text(args.locale + "\n", encoding="ascii")
+        if args.saved_servers_settings:
+            settings_path.write_bytes(args.saved_servers_settings.read_bytes())
+        if args.community_directory:
+            settings_path.write_bytes(struct.pack(">I", 0))
+            endpoint.with_name("settings_backup.bin").unlink(missing_ok=True)
+            community_cache.write_text("{truncated", encoding="ascii")
+            community_backup.write_text(
+                f'[{{"name":"Replay Group","addresses":["127.0.0.1:{args.port}"],"prioritized":true}}]',
+                encoding="ascii",
+            )
         if args.terrain_atlas:
             atlas_path.write_bytes(atlas_bytes)
         for model in ((args.model,) if args.model else ("new3ds",)):
             run_model(args, model, config, (originals[config] or b"").decode(), log, output)
+        if args.saved_servers_settings:
+            (output / "settings.bin").write_bytes(settings_path.read_bytes())
+        if args.community_directory:
+            (output / "settings.bin").write_bytes(settings_path.read_bytes())
     finally:
         for path, data in originals.items():
             if data is None:

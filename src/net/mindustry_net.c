@@ -572,39 +572,48 @@ bool m3ds_net_decode_stream_chunk(
   return true;
 }
 
+int m3ds_net_query_host(
+    const M3dsNetTransport *transport,
+    const char *host,
+    uint16_t port,
+    uint32_t timeout_ms,
+    uint8_t *response,
+    size_t capacity) {
+  if (!transport || !host || !response || capacity == 0 || !transport->udp_open ||
+      !transport->udp_send || !transport->udp_recv || !transport->udp_close) {
+    return M3DS_NET_IO_ERROR;
+  }
+
+  uint8_t req[4];
+  size_t req_len = 0U;
+  if (!m3ds_net_encode_discover_host(req, sizeof(req), &req_len)) {
+    return M3DS_NET_IO_ERROR;
+  }
+
+  if (!transport->udp_open(transport->user_data, host, port)) {
+    return M3DS_NET_IO_ERROR;
+  }
+
+  int length = M3DS_NET_IO_ERROR;
+  if (transport->udp_send(transport->user_data, req, req_len) == (int)req_len) {
+    length = transport->udp_recv(transport->user_data, response, capacity, timeout_ms);
+  }
+
+  transport->udp_close(transport->user_data);
+  return length;
+}
+
 bool m3ds_net_ping_host(
     const M3dsNetTransport *transport,
     const char *host,
     uint16_t port,
     uint32_t timeout_ms,
     M3dsNetHostInfo *out_info) {
-  if (!transport || !host || !out_info || !transport->udp_open ||
-      !transport->udp_send || !transport->udp_recv || !transport->udp_close) {
-    return false;
-  }
-
-  uint8_t req[4];
-  size_t req_len = 0U;
-  if (!m3ds_net_encode_discover_host(req, sizeof(req), &req_len)) {
-    return false;
-  }
-
-  if (!transport->udp_open(transport->user_data, host, port)) {
-    return false;
-  }
-
-  bool ok = false;
-  if (transport->udp_send(transport->user_data, req, req_len) == (int)req_len) {
-    /* Upstream writes into 500 bytes (NetworkIO.java:193); keep 1024 bytes for headroom. */
-    uint8_t resp[1024];
-    int n = transport->udp_recv(transport->user_data, resp, sizeof(resp), timeout_ms);
-    if (n > 0) {
-      ok = m3ds_net_decode_host_info(resp, (size_t)n, out_info);
-    }
-  }
-
-  transport->udp_close(transport->user_data);
-  return ok;
+  if (!out_info) return false;
+  /* Stock NetworkIO writes into 500 bytes. */
+  uint8_t response[1024];
+  int length = m3ds_net_query_host(transport, host, port, timeout_ms, response, sizeof(response));
+  return length > 0 && m3ds_net_decode_host_info(response, (size_t)length, out_info);
 }
 
 static bool tcp_send_all(const M3dsNetTransport *transport, const uint8_t *data, size_t len) {
