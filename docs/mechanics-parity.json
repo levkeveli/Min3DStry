@@ -387,9 +387,12 @@
         "docs/porting/combat-waves-pathfinding.md",
         "docs/gameplay/live-combat.md",
         "research/upstream-runtime/src/gameplay/java/UpstreamCombatTickProbe.java",
-        "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerApp.java"
+        "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerApp.java",
+        "research/upstream-runtime/src/network-render/java/UpstreamClientEffects.java",
+        "research/upstream-runtime/src/network-render/host/UpstreamBuildingLayersReference.java",
+        "research/upstream-runtime/src/network-render/java/port/render/UpstreamEffectGate.java"
       ],
-      "notes": "Duo/Scatter targeting, ammo consumption, bullet hits, and kills are ARM11-verified in probes and multiplayer. Live offline bullet draw is wired, and visible turrets now use the stock turret draw over the cached base, adding barrels, ammo, liquid and heat (host: 29-registry, base=8 draw=16, duo-barrel-l/r at 37->-53). Full beam/status-effect paths and complete turret catalog behavior remain open."
+      "notes": "Duo/Scatter targeting, ammo consumption, bullet hits, and kills are ARM11-verified in probes and multiplayer. Live offline bullet draw is wired, and visible turrets now use the stock turret draw over the cached base, adding barrels, ammo, liquid and heat (host: 29-registry, base=8 draw=16, duo-barrel-l/r at 37->-53). The stock EffectState group now advances and draws for the graphical client, so server EffectCallPackets and locally spawned Fx render bullet impacts and lightning arcs with the pinned v160.8 renderers (host: lightning=arc explosion=impact draw=2 packet=ok cleanup=ok); the upstream Effect gate is adapted through port.render.UpstreamEffectGate because the port has no desktop Renderer, and the original gate is unchanged otherwise. Turret beam bullet classes draw through the same client path (host: laser, shrapnel, continuous, pointlaser). Unit status application/sync and the remaining turret catalog behavior remain open."
     },
     {
       "id": "unit-catalog-player-weapons",
@@ -421,11 +424,13 @@
         "research/upstream-runtime/src/network-render/host/UpstreamWeatherLayersReference.java",
         "research/upstream-runtime/src/network-render/host/UpstreamPuddleReference.java",
         "research/upstream-runtime/src/singleplayer/host/UpstreamOfflineWeatherReference.java",
+        "research/upstream-runtime/src/network-render/java/UpstreamClientEffects.java",
+        "research/upstream-runtime/src/network-render/host/UpstreamBuildingLayersReference.java",
         "docs/rendering/citro2d-prototype.md",
         "src/render/scene_2d.c",
         "src/platform/3ds/citro2d_backend.c"
       ],
-      "notes": "Offline and multiplayer clients advance the stock weather entities, particle/debris layers and puddles; both Azahar profiles sampled active rain/sandstorm/fog and stock puddles. The building pass invokes stock drawLight for visible emitters when map lighting is enabled, using its radial requests with the handheld additive circle-shadow sprite. The host reference checks the illuminator and the silicon smelter's idle and warm states. The stock light buffer, non-radial light paths and shadows remain open. Live camera zoom is wired to the New 3DS C-Stick (0.5x-2x, 8x6-32x24 tile span) with host checks; physical draw is pending the New 3DS acceptance run."
+      "notes": "Offline and multiplayer clients advance the stock weather entities, particle/debris layers and puddles; both Azahar profiles sampled active rain/sandstorm/fog and stock puddles. The stock EffectState group now advances and draws with the pinned v160.8 Effect renderers, so server EffectCallPackets and local Fx provide the lightning, impact and dust layers instead of being dropped (host: lightning=arc explosion=impact draw=2 packet=ok cleanup=ok). The building pass invokes stock drawLight for visible emitters when map lighting is enabled, using its radial requests with the handheld additive circle-shadow sprite. The host reference checks the illuminator and the silicon smelter's idle and warm states. The stock light buffer, non-radial light paths and shadows remain open. Live camera zoom is wired to the New 3DS C-Stick (0.5x-2x, 8x6-32x24 tile span) with host checks; physical draw is pending the New 3DS acceptance run."
     },
     {
       "id": "logic-vm-execution",

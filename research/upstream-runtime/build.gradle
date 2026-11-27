@@ -293,6 +293,11 @@ if (usesArcSources || usesExecutor) {
         stagedClasses.addAll(['mindustry/type/Weather.class', 'mindustry/type/Weather$*.class',
                               'mindustry/type/weather/ParticleWeather.class'])
     }
+    if (probe in ['network-render', 'unified']) {
+        // The port renders without the desktop Renderer, so the stock effect gate
+        // consults UpstreamEffectGate instead of Vars.renderer.enableEffects.
+        stagedClasses.addAll(['mindustry/entities/Effect.class', 'mindustry/entities/Effect$*.class'])
+    }
     if (usesLiveAudio) {
         stagedClasses.addAll(['arc/audio/Sound.class', 'arc/audio/Sound$*.class',
                               'mindustry/audio/SoundControl.class', 'mindustry/audio/SoundControl$*.class',
@@ -631,6 +636,9 @@ tasks.register('prepareUpstreamProbe') {
     if (usesLiveNetwork) {
         outputs.files(netClientFile, pathfinderFile)
     }
+    if (probe in ['network-render', 'unified']) {
+        outputs.file(sourceDir.map { it.file('mindustry/entities/Effect.java') })
+    }
     if (usesLiveAudio) {
         outputs.files(sourceDir.map { dir ->
             ['arc/audio/Sound.java', 'mindustry/audio/SoundControl.java']
@@ -672,6 +680,22 @@ tasks.register('prepareUpstreamProbe') {
         outputs.file(globalVarsFile)
     }
     doLast {
+        if (probe in ['network-render', 'unified']) {
+            def effectPath = 'mindustry/entities/Effect.java'
+            def effectSource = new String(readUpstream("core/src/${effectPath}"), 'UTF-8')
+            def shouldCreate = 'return !headless && this != Fx.none && Vars.renderer.enableEffects;'
+            if (effectSource.count(shouldCreate) != 1) {
+                throw new GradleException('Pinned Effect.shouldCreate gate changed')
+            }
+            effectSource = effectSource.replace(shouldCreate,
+                'return this != Fx.none && (UpstreamEffectGate.enabled() || (!headless && Vars.renderer != null && Vars.renderer.enableEffects));')
+            def effectImports = effectSource.indexOf('import ')
+            effectSource = effectSource.substring(0, effectImports) +
+                'import port.render.UpstreamEffectGate;\n' + effectSource.substring(effectImports)
+            def effectTarget = sourceDir.get().file(effectPath).asFile
+            effectTarget.parentFile.mkdirs()
+            effectTarget.setText(effectSource, 'UTF-8')
+        }
         if (usesSinglePlayerApp) {
             databaseAbilitySources.each { path ->
                 def staged = sourceDir.get().file(path).asFile
