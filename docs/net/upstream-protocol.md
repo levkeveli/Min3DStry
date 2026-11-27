@@ -165,3 +165,8 @@ the stock server narrowed Glacier from 150×250 to 142×242, then restored
 the full bounds. The handheld applied both updates and completed the
 movement, wave and disconnect checks. The stock graphical border pass
 remains open.
+
+The grouped [CI replay at `da46fff`](https://github.com/levkeveli/Min3DStry/actions/runs/46044299973)
+repeated the stock broadcast and movement checks. The current verifier
+compares the server's expected dimensions directly with the handheld's
+effective rule bounds after each packet.

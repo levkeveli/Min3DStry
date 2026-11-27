@@ -609,13 +609,14 @@ def verify_scripted_map_area(log, emulator, server_log, server, timeout):
     for inset, limited in ((4, "true"), (0, "false")):
         # Use the stock generated broadcast. Leave the central playfield untouched.
         server.stdin.write(
-            'js (() => { const w=Vars.world.width(), h=Vars.world.height(); '
-            f'Call.setMapArea({inset}, {inset}, w-{2 * inset}, h-{2 * inset}); '
-            'return "STOCK_MAP_AREA limited=" + Vars.state.rules.limitMapArea; })()\n'
+            f'js (() => {{ const w=Vars.world.width()-{2 * inset}, h=Vars.world.height()-{2 * inset}; '
+            f'Call.setMapArea({inset}, {inset}, w, h); '
+            'return "STOCK_MAP_AREA width=" + w + " height=" + h + " limited=" + Vars.state.rules.limitMapArea; })()\n'
         )
         server.stdin.flush()
-        wait_for(server_log, server, rf"STOCK_MAP_AREA limited={limited}\b", 10)
-        received = (rf"UPSTREAM_LIVE_MAP_AREA x={inset} y={inset} width=\d+ height=\d+ limited={limited}\b")
+        reference = re.compile(rf"STOCK_MAP_AREA width=(\d+) height=(\d+) limited={limited}\b")
+        width, height = reference.search(wait_for(server_log, server, reference, 10)).groups()
+        received = rf"UPSTREAM_LIVE_MAP_AREA x={inset} y={inset} width={width} height={height} limited={limited}\b"
         wait_for(log, emulator, received, timeout)
     print("UPSTREAM_LIVE_MAP_AREA_REPLAY contracted=ok restored=ok", flush=True)
 
