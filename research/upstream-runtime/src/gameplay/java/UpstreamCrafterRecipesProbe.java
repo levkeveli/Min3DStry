@@ -9,6 +9,10 @@ import mindustry.world.blocks.production.Separator;
 /** Stock crafter recipes beyond the single production probe fixture. */
 public final class UpstreamCrafterRecipesProbe {
     public static void main(String[] args) throws IOException {
+        if (args.length < 1) {
+            throw new IllegalArgumentException(
+                "Expected a Glacier .msav path; run with -Pglacier=<path> or --args=<path>");
+        }
         var app = UpstreamSimulationWorld.play(args);
         var team = Vars.state.rules.defaultTeam;
         var core = team.core();

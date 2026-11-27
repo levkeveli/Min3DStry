@@ -397,6 +397,7 @@ if (usesSimulation) {
         dependsOn 'classes'
         classpath = sourceSets.main.runtimeClasspath
         mainClass = 'UpstreamCrafterRecipesProbe'
+        if (!glacierPath.isEmpty()) args glacierPath
     }
 }
 if (probe == 'world-stream') {
