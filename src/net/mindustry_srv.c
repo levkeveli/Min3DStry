@@ -90,19 +90,24 @@ static int compare_record(const void *left, const void *right) {
   return a->priority == b->priority ? (int)a->weight - b->weight : (int)a->priority - b->priority;
 }
 
-bool m3ds_srv_decode(const uint8_t *packet, size_t size, uint16_t id,
+static uint8_t lower_ascii(uint8_t byte) {
+  return byte >= 'A' && byte <= 'Z' ? (uint8_t)(byte + 'a' - 'A') : byte;
+}
+
+bool m3ds_srv_decode(const uint8_t *packet, size_t size, const uint8_t *query, size_t query_size,
                      M3dsSrvRecord records[M3DS_DNS_MAX_SRV_ANSWERS], size_t *count) {
-  if (!packet || !records || !count || size < header_bytes || size > M3DS_DNS_PACKET_BYTES
-      || read_u16(packet) != id || (packet[2] & 0xfaU) != 0x80U
+  if (!packet || !query || !records || !count || query_size < header_bytes + 5
+      || size < query_size || size > M3DS_DNS_PACKET_BYTES
+      || read_u16(packet) != read_u16(query) || (packet[2] & 0xfaU) != 0x80U
       || read_u16(packet + 4) != 1) return false;
   unsigned int error = packet[3] & 0x0fU;
   if (error != 0 && error != 3) return false;
 
   *count = 0;
-  size_t next = header_bytes;
-  if (!read_name(packet, size, &next, NULL) || size - next < 4
-      || read_u16(packet + next) != query_srv || read_u16(packet + next + 2) != internet_class) return false;
-  next += 4;
+  for (size_t i = header_bytes; i < query_size; i++) {
+    if (lower_ascii(packet[i]) != lower_ascii(query[i])) return false;
+  }
+  size_t next = query_size;
   if (error == 3) return true;
 
   uint16_t answers = read_u16(packet + 6);

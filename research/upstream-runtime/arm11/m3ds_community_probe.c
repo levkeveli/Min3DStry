@@ -4,6 +4,7 @@
 
 #include <3ds.h>
 #include <arpa/inet.h>
+#include <stdatomic.h>
 #include <string.h>
 
 typedef struct {
@@ -22,6 +23,7 @@ static int32_t priority;
 static ServerProbe probes[M3DS_COMMUNITY_PROBE_SLOTS];
 static char nameservers[16][INET_ADDRSTRLEN];
 static size_t resolver_count;
+static atomic_bool canceled;
 
 static void load_nameservers(void) {
     SOCU_DNSTableEntry entries[17] = {0};
@@ -50,7 +52,7 @@ static void probe_srv(ServerProbe *probe, const M3dsNetTransport *udp) {
     uint16_t id = (uint16_t)(svcGetSystemTick() ^ (uintptr_t)probe);
     size_t query_size = m3ds_srv_query(probe->host, id, query);
     if (query_size == 0) return;
-    for (size_t resolver = 0; resolver < resolver_count; resolver++) {
+    for (size_t resolver = 0; resolver < resolver_count && !atomic_load(&canceled); resolver++) {
         if (!udp->udp_open(udp->user_data, nameservers[resolver], 53)) continue;
         int length = M3DS_NET_IO_ERROR;
         if (udp->udp_send(udp->user_data, query, query_size) == (int)query_size) {
@@ -58,8 +60,8 @@ static void probe_srv(ServerProbe *probe, const M3dsNetTransport *udp) {
         }
         udp->udp_close(udp->user_data);
         size_t count;
-        if (length <= 0 || !m3ds_srv_decode(reply, (size_t)length, id, records, &count)) continue;
-        for (size_t i = 0; i < count; i++) {
+        if (length <= 0 || !m3ds_srv_decode(reply, (size_t)length, query, query_size, records, &count)) continue;
+        for (size_t i = 0; i < count && !atomic_load(&canceled); i++) {
             if (!m3ds_srv_target(reply, (size_t)length, &records[i], probe->target)) continue;
             uint64_t started = osGetTime();
             probe->size = m3ds_net_query_host(udp, probe->target, records[i].port,
@@ -91,6 +93,7 @@ int32_t m3ds_community_probe_open(void) {
     if (soc.soc_initialized) return M3DS_COMMUNITY_PROBE_SLOTS;
     if (R_FAILED(svcGetThreadPriority(&priority, CUR_THREAD_HANDLE))) return 0;
     if (!m3ds_net_3ds_init(&transport, &soc)) return 0;
+    atomic_store(&canceled, false);
     load_nameservers();
     return M3DS_COMMUNITY_PROBE_SLOTS;
 }
@@ -128,6 +131,7 @@ int32_t m3ds_community_probe_poll(int32_t slot, uint8_t *packet, int32_t capacit
 
 void m3ds_community_probe_close(void) {
     if (!soc.soc_initialized) return;
+    atomic_store(&canceled, true);
     for (unsigned int i = 0; i < M3DS_COMMUNITY_PROBE_SLOTS; i++) {
         if (!probes[i].worker) continue;
         threadJoin(probes[i].worker, UINT64_MAX);

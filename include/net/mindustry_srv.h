@@ -17,7 +17,7 @@ typedef struct {
 } M3dsSrvRecord;
 
 size_t m3ds_srv_query(const char *host, uint16_t id, uint8_t packet[M3DS_DNS_PACKET_BYTES]);
-bool m3ds_srv_decode(const uint8_t *packet, size_t size, uint16_t id,
+bool m3ds_srv_decode(const uint8_t *packet, size_t size, const uint8_t *query, size_t query_size,
                      M3dsSrvRecord records[M3DS_DNS_MAX_SRV_ANSWERS], size_t *count);
 bool m3ds_srv_target(const uint8_t *packet, size_t size, const M3dsSrvRecord *record,
                      char target[M3DS_DNS_NAME_BYTES]);

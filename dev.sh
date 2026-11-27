@@ -347,6 +347,10 @@ case "${1:-}" in
       src/net/mindustry_net.c tests/net/test_mindustry_net.c -o build/host/test_mindustry_net
     ./build/host/test_mindustry_net
 
+    "$host_cc" -std=c11 -Wall -Wextra -Werror -Iinclude \
+      src/net/mindustry_srv.c tests/net/test_mindustry_srv.c -o build/host/test_mindustry_srv
+    ./build/host/test_mindustry_srv
+
     "$host_cc" -std=c11 -Wall -Wextra -Werror -O0 -Iinclude \
       src/sim/parity_scenario.c tests/sim/test_parity_harness.c -o build/host/test_parity_harness_o0
     ./build/host/test_parity_harness_o0
