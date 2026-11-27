@@ -33,7 +33,6 @@ import mindustry.world.blocks.production.Separator;
 import mindustry.world.blocks.production.WallCrafter;
 import mindustry.world.blocks.storage.StorageBlock;
 import mindustry.world.blocks.units.UnitFactory.UnitFactoryBuild;
-import port.render.UpstreamBuildingLights;
 
 /** Arc draw commands for the cached and dynamic passes in upstream BlockRenderer. */
 final class UpstreamBuildingLayers {
@@ -112,7 +111,7 @@ final class UpstreamBuildingLayers {
                 if (!build.block.drawDynamic) drawCracks(build);
             }
             drawTurrets(visible);
-            drawLights(visible);
+            UpstreamTileLights.collect(viewport, viewer);
         } finally {
             try {
                 Draw.sort(false);
@@ -132,12 +131,6 @@ final class UpstreamBuildingLayers {
         }
     }
 
-    private static void drawLights(Seq<Building> visible) {
-        if (!UpstreamBuildingLights.isCollecting()) return;
-        for (var build : visible) {
-            if (build.block.emitLight || build.block.drawLiquidLight) build.drawLight();
-        }
-    }
 
     private static void drawPuddles(UpstreamTerrainDrawProbe.Viewport viewport) {
         float left = (viewport.left - 0.5f) * Vars.tilesize;

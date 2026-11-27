@@ -81,6 +81,7 @@ import mindustry.graphics.Pal;
 import mindustry.logic.LMarkerControl;
 import mindustry.type.Category;
 import mindustry.world.Block;
+import mindustry.world.Tile;
 import mindustry.world.blocks.defense.OverdriveProjector.OverdriveBuild;
 import mindustry.world.blocks.defense.ShockwaveTower.ShockwaveTowerBuild;
 import mindustry.world.blocks.defense.turrets.BaseTurret;
@@ -231,6 +232,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         target.verifyFluidDrawing(layers, viewport, viewer);
         target.verifyBuildingEffects(layers, viewport, viewer);
         target.verifyDynamicLight(layers, viewport, viewer);
+        target.verifyTerrainLights(layers, viewport, viewer);
         target.verifyPayloadMix(layers, viewport, viewer);
         target.verifyCarriedBuildings(layers, viewport, viewer);
         target.verifyUnits(viewer);
@@ -1807,9 +1809,52 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
     }
 
     private boolean hasRadialLight(Building build, TextureRegion region) {
+        return hasRadialLightAt(build.x, build.y, region);
+    }
+
+    private boolean hasRadialLightAt(float x, float y, TextureRegion region) {
         return sprites.stream().anyMatch(sprite -> sprite.blending() == Blending.normal
             && matchesRegion(sprite, region)
-            && Math.abs(sprite.x() - build.x) < 0.1f && Math.abs(sprite.y() - build.y) < 0.1f);
+            && Math.abs(sprite.x() - x) < 0.1f && Math.abs(sprite.y() - y) < 0.1f);
+    }
+
+    private void verifyTerrainLights(UpstreamBuildingLayers layers, UpstreamTerrainDrawProbe.Viewport viewport,
+                                     Team viewer) {
+        // The stock light bounds can enter the camera when the tile itself is outside it.
+        var tile = Vars.world.tile(viewport.left - 2, viewport.bottom + viewport.height() / 2);
+        if (tile.build != null) throw new AssertionError("Terrain light fixture overlaps a building");
+        var previousBlock = tile.block();
+        var previousFloor = tile.floor();
+        var originalCircle = Core.atlas.find("circle-shadow");
+        try {
+            tile.setBlock(Blocks.air);
+            tile.setFloor(Blocks.stone.asFloor());
+            checkTerrainLight(layers, viewport, viewer, tile, originalCircle, false);
+            tile.setFloor(Blocks.magmarock.asFloor());
+            checkTerrainLight(layers, viewport, viewer, tile, originalCircle, true);
+            tile.setBlock(Blocks.stoneWall);
+            checkTerrainLight(layers, viewport, viewer, tile, originalCircle, false);
+            tile.setBlock(Blocks.air);
+            checkTerrainLight(layers, viewport, viewer, tile, originalCircle, true);
+            tile.setFloor(Blocks.stone.asFloor());
+            checkTerrainLight(layers, viewport, viewer, tile, originalCircle, false);
+        } finally {
+            tile.setFloor(previousFloor);
+            tile.setBlock(previousBlock);
+            UpstreamBuildingLights.clearFrame();
+        }
+        System.out.println("UPSTREAM_TERRAIN_LIGHT magmarock=offscreen floorEdit=ok obstruction=ok");
+    }
+
+    private void checkTerrainLight(UpstreamBuildingLayers layers, UpstreamTerrainDrawProbe.Viewport viewport,
+                                   Team viewer, Tile tile, TextureRegion region, boolean expected) {
+        sprites.clear();
+        UpstreamBuildingLights.beginFrame(true);
+        layers.render(viewport, viewer, build -> false);
+        UpstreamBuildingLights.flushFrame();
+        if (hasRadialLightAt(tile.worldx(), tile.worldy(), region) != expected) {
+            throw new AssertionError("Unexpected stock terrain light at " + tile.x + "," + tile.y + " expected=" + expected);
+        }
     }
 
     private void verifyFluidDrawing(UpstreamBuildingLayers layers, UpstreamTerrainDrawProbe.Viewport viewport,
