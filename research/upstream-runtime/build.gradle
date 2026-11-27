@@ -40,6 +40,7 @@ def arc = providers.gradleProperty('arcCheckout')
 def probe = providers.gradleProperty('probe').getOrElse('logic')
 def entryPoints = [
     logic: 'mindustry.logic.UpstreamLogicProbe',
+    'logic-instructions': 'mindustry.logic.UpstreamLogicInstructionsProbe',
     map: 'mindustry.maps.UpstreamMapProbe',
     'map-sd': 'mindustry.maps.UpstreamSdMapProbe',
     content: 'UpstreamContentBaseline',
@@ -56,6 +57,7 @@ def entryPoints = [
     'production-ticks': 'UpstreamProductionTickProbe',
     'wave-routing': 'UpstreamWaveRoutingProbe',
     'audio-ticks': 'UpstreamAudioTickProbe',
+    'erekir-ducts': 'UpstreamErekirDuctProbe',
     'world-stream': 'UpstreamWorldStreamProbe',
     'network-live': 'UpstreamLiveNetworkProbe',
     'network-render': 'UpstreamRenderedNetworkProbe',
@@ -136,7 +138,7 @@ def fluidSources = [
         'renderer.fluidFrames': 'UpstreamFluidAtlas.frames()'
     ]
 ]
-def usesSimulation = probe in ['factory-ticks', 'combat-ticks', 'production-ticks', 'wave-routing', 'audio-ticks']
+def usesSimulation = probe in ['factory-ticks', 'combat-ticks', 'production-ticks', 'wave-routing', 'audio-ticks', 'erekir-ducts']
 def usesCampaignSettings = probe == 'campaign-settings'
 def usesCampaignSector = probe == 'campaign-sector'
 def usesCampaignContent = probe == 'campaign-content'
@@ -404,6 +406,12 @@ if (usesSimulation) {
         dependsOn 'classes'
         classpath = sourceSets.main.runtimeClasspath
         mainClass = 'UpstreamCrafterRecipesProbe'
+        if (!glacierPath.isEmpty()) args glacierPath
+    }
+    tasks.register('runErekirDuctsJvm', JavaExec) {
+        dependsOn 'classes'
+        classpath = sourceSets.main.runtimeClasspath
+        mainClass = 'UpstreamErekirDuctProbe'
         if (!glacierPath.isEmpty()) args glacierPath
     }
 }
