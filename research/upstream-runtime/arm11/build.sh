@@ -197,7 +197,17 @@ arch_flags=(-march=armv6k -mtune=mpcore -mfpu=vfp -mfloat-abi=hard -mtp=soft)
 compile_flags=(-std=gnu11 -g "$arm11_opt" -fwrapv -D__3DS__ -mword-relocations
     "${arch_flags[@]}" -I"$output/nativeinclude" -I"$DEVKITPRO/libctru/include"
     "${terrain_flags[@]}" "${save_rows_flags[@]}" "${pointer_flags[@]}" "${stack_flags[@]}")
-python3 "$root/compile_teavm.py" "$output/all.c" "$output/objects" "$compiler" "${compile_flags[@]}"
+# The split build can exhaust the 3DS stack during stock JSON save writes.
+# Keep the original compiler layout for graphical sessions and campaign saves.
+case "$mode" in
+    --unified|--singleplayer|--campaign-background)
+        M3DS_TEAVM_JOBS="${M3DS_TEAVM_JOBS:-1}" python3 "$root/compile_teavm.py" \
+            "$output/all.c" "$output/objects" "$compiler" "${compile_flags[@]}"
+        ;;
+    *)
+        python3 "$root/compile_teavm.py" "$output/all.c" "$output/objects" "$compiler" "${compile_flags[@]}"
+        ;;
+esac
 "$compiler" "${compile_flags[@]}" -L"$DEVKITPRO/libctru/lib" \
     -specs=3dsx.specs "$output"/objects/*.o "${native_network[@]}" "${native_input[@]}" \
     "${terrain_sources[@]}" "${save_rows_sources[@]}" \
