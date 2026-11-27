@@ -2,6 +2,8 @@ import arc.struct.Seq;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 import mindustry.Vars;
+import mindustry.ai.UnitCommand;
+import mindustry.ctype.MappableContent;
 import mindustry.ctype.UnlockableContent;
 import mindustry.entities.Units;
 import mindustry.gen.Building;
@@ -11,12 +13,17 @@ import mindustry.world.blocks.distribution.ItemBridge;
 import mindustry.world.blocks.distribution.MassDriver;
 import mindustry.world.blocks.payloads.PayloadMassDriver;
 import mindustry.world.blocks.power.PowerNode;
+import mindustry.world.blocks.units.Reconstructor.ReconstructorBuild;
 import mindustry.world.blocks.units.UnitFactory;
 import static mindustry.Vars.player;
 
 /** Touch access to upstream configuration tables and building links. */
 final class UpstreamBuildingConfig {
-    private record Choice(UnlockableContent content, Object value) {}
+    private record Choice(MappableContent content, Object value) {
+        String label() {
+            return content instanceof UnitCommand command ? command.localized() : ((UnlockableContent)content).localizedName;
+        }
+    }
 
     private final Seq<Choice> choices = new Seq<>();
     private Building target;
@@ -38,7 +45,9 @@ final class UpstreamBuildingConfig {
             return;
         }
         boolean itemSelector = build.block.configurations.containsKey(Item.class);
-        if ((!itemSelector && !(build instanceof UnitFactory.UnitFactoryBuild)) || !build.configTapped()) return;
+        boolean supported = itemSelector || build instanceof UnitFactory.UnitFactoryBuild
+            || build instanceof ReconstructorBuild;
+        if (!supported || !build.configTapped()) return;
         choices.clear();
         if (itemSelector) {
             for (var item : Vars.content.items()) {
@@ -49,6 +58,10 @@ final class UpstreamBuildingConfig {
                 var unit = factory.plans.get(index).unit;
                 if (unit.unlockedNow() && !unit.isBanned()) choices.add(new Choice(unit, index));
             }
+        } else if (build instanceof ReconstructorBuild reconstructor) {
+            var unit = reconstructor.unit();
+            var commands = unit == null ? Vars.content.unitCommands() : unit.commands;
+            for (var command : commands) choices.add(new Choice(command, command));
         }
         if (choices.isEmpty()) return;
         target = build;
@@ -87,7 +100,11 @@ final class UpstreamBuildingConfig {
             if (row >= UpstreamBuildMenu.ROWS || index >= choices.size) return;
             var choice = choices.get(index);
             boolean clear = Objects.equals(choice.value(), target.config());
-            if (choice.content() instanceof UnitType unit) {
+            if (choice.content() instanceof UnitCommand command) {
+                target.configure(command);
+                System.out.println("UPSTREAM_RECONSTRUCTOR_COMMAND x=" + target.tileX() + " y=" + target.tileY()
+                    + " command=" + command.name);
+            } else if (choice.content() instanceof UnitType unit) {
                 if (!unit.unlockedNow() || unit.isBanned()) {
                     close();
                     return;
@@ -123,9 +140,9 @@ final class UpstreamBuildingConfig {
         for (int row = 0; row < UpstreamBuildMenu.ROWS; row++) {
             int index = page * UpstreamBuildMenu.ROWS + row;
             if (index < choices.size) {
-                var content = choices.get(index).content();
-                result.append(content.localizedName);
-                iconIds[row] = content.id;
+                var choice = choices.get(index);
+                result.append(choice.label());
+                iconIds[row] = choice.content().id;
             } else {
                 iconIds[row] = -1;
             }
@@ -142,6 +159,7 @@ final class UpstreamBuildingConfig {
     boolean previousPage() { return page > 0; }
     boolean nextPage() { return (page + 1) * UpstreamBuildMenu.ROWS < choices.size; }
     boolean unitPlans() { return target instanceof UnitFactory.UnitFactoryBuild; }
+    boolean reconstructorCommands() { return target instanceof ReconstructorBuild; }
     int selectedRow() { return selectedIndex() - page * UpstreamBuildMenu.ROWS; }
 
     private int selectedIndex() {

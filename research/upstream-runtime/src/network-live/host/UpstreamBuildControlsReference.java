@@ -38,6 +38,8 @@ import mindustry.world.blocks.environment.Floor;
 import mindustry.world.blocks.defense.turrets.ItemTurret;
 import mindustry.world.blocks.payloads.PayloadMassDriver;
 import mindustry.world.blocks.payloads.UnitPayload;
+import mindustry.world.blocks.units.Reconstructor;
+import mindustry.world.blocks.units.Reconstructor.ReconstructorBuild;
 import mindustry.world.blocks.units.UnitFactory;
 
 /** Runs the touch adapter against the pinned upstream world, unit and build queue. */
@@ -108,6 +110,7 @@ public final class UpstreamBuildControlsReference {
         verifyStockDragSelection(unit);
         verifyCameraZoom(unit);
         verifyFactoryConfiguration(controls, unit);
+        verifyReconstructorCommands(unit);
         verifyStockLinks(unit);
         verifySchematicPlacement(unit);
         verifySchematicCapture(unit);
@@ -429,6 +432,52 @@ public final class UpstreamBuildControlsReference {
         } finally {
             Core.audio = oldAudio;
             Vars.state.rules.bannedUnits.remove(banned);
+            tile.setBlock(Blocks.air);
+        }
+    }
+
+    private static void verifyReconstructorCommands(Unit unit) {
+        var tile = Vars.world.tile(78, 22);
+        var block = (Reconstructor)Blocks.additiveReconstructor;
+        tile.setBlock(block, unit.team(), 0);
+        var reconstructor = (ReconstructorBuild)tile.build;
+        var controls = new UpstreamLiveBuildControls();
+        controls.viewport(73, 20);
+        var mono = UnitTypes.mono.create(unit.team());
+        mono.set(reconstructor.x, reconstructor.y);
+        reconstructor.handlePayload(reconstructor, new UnitPayload(mono));
+        var oldAudio = Core.audio;
+        Core.audio = new MockAudio();
+        try {
+            var commands = UnitTypes.poly.commands;
+            int index = commands.indexOf(UnitCommand.moveCommand, true);
+            if (index < 0 || index >= UpstreamBuildMenu.ROWS || reconstructor.unit() != UnitTypes.poly
+                    || UnitTypes.poly.defaultCommand == UnitCommand.moveCommand) {
+                throw new AssertionError("Expected an original configurable Mono to Poly upgrade");
+            }
+            controls.update(unit, 0, touch(305, 64));
+            controls.update(unit, 0, touch(120, 200));
+            var config = controls.buildingConfig();
+            if (!config.isOpen() || !config.reconstructorCommands() || config.unitPlans()) {
+                throw new AssertionError("Expected a stock Reconstructor command menu");
+            }
+            for (int row = 0; row < UpstreamBuildMenu.ROWS; row++) {
+                int expected = row < commands.size ? commands.get(row).id : -1;
+                if (config.iconIds()[row] != expected) throw new AssertionError("Original command order or icon ID");
+            }
+            controls.update(unit, 0, touch(160, UpstreamBuildMenu.ROW_TOP + index * UpstreamBuildMenu.ROW_HEIGHT + 2));
+            if (reconstructor.command != UnitCommand.moveCommand || config.isOpen()) {
+                throw new AssertionError("Stock configuration did not save the selected command");
+            }
+            reconstructor.progress = block.constructTime;
+            reconstructor.updateTile();
+            if (reconstructor.payload.unit.type != UnitTypes.poly
+                    || reconstructor.payload.unit.command().currentCommand() != UnitCommand.moveCommand) {
+                throw new AssertionError("The produced stock Poly did not receive its selected command");
+            }
+            System.out.println("UPSTREAM_RECONSTRUCTOR_COMMAND_REFERENCE mono=poly selected=move originalMenu=ok");
+        } finally {
+            Core.audio = oldAudio;
             tile.setBlock(Blocks.air);
         }
     }
