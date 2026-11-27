@@ -57,9 +57,10 @@ def write_replay(path: Path, model: str, multiple: bool, move_down: bool, dense:
     write_campaign_movie(path, model, windows, seconds)
 
 
-def write_campaign_movie(path: Path, model: str, windows: list[tuple[int, int, int]], seconds: int) -> None:
+def write_campaign_movie(path: Path, model: str, windows: list[tuple[int, int, int]], seconds: int,
+                         *, initial_time: int = 1780000000) -> None:
     frames = sp.CTM_SAMPLES_PER_SECOND * seconds
-    header = struct.pack("<4sQ20sQQ32sIQq156x", b"CTM\x1b", 0, sp.CTM_REVISION, 1780000000,
+    header = struct.pack("<4sQ20sQQ32sIQq156x", b"CTM\x1b", 0, sp.CTM_REVISION, initial_time,
                          0x4D334453, b"Min3DStry Campaign", 0, frames, 0)
     idle = struct.pack("<B6x", 1)
     with path.open("wb") as movie:
@@ -216,7 +217,9 @@ def verify_dense_switch(model: str, rom: Path, azahar: str, config: Path, log: P
     windows = [(35, 39, sp.KEY_A), (53, 57, sp.KEY_A), (110, 119, sp.KEY_A),
                (375, 407, key_r | sp.KEY_SELECT), (530, 552, sp.KEY_DOWN),
                (590, 622, sp.KEY_A), (1000, 1032, sp.KEY_START)]
-    write_campaign_movie(replay, model, windows, 1370)
+    # A guest save must be newer than the stock fixtures generated on the
+    # runner so the current sector remains above Origin in the list.
+    write_campaign_movie(replay, model, windows, 1370, initial_time=int(time.time()) + 120)
     try:
         with tempfile.TemporaryDirectory(prefix="m3ds-dense-switch-sd-") as temp:
             sd = Path(temp).resolve()
@@ -238,8 +241,13 @@ def verify_dense_switch(model: str, rom: Path, azahar: str, config: Path, log: P
                 sp._wait_for_log(log, proc, rf"(?s){first_map}.*?UPSTREAM_SP_FRAME ", 430)
                 (output / f"{model}-before-dense-switch.png").write_bytes(rpc.screenshot())
                 world_menu = rf"UPSTREAM_CAMPAIGN_WORLD_MENU sector={first.sector}\b"
-                opened = rf"UPSTREAM_CAMPAIGN_SELECTED slot={re.escape(second.slot)}\b"
-                sp._wait_for_log(log, proc, rf"(?s){world_menu}.*?{opened}.*?{second_map}.*?UPSTREAM_SP_FRAME ", 660)
+                selected_slot = rf"(?s){world_menu}.*?UPSTREAM_CAMPAIGN_SELECTED slot=(\S+)"
+                selected_log = sp._wait_for_log(log, proc, selected_slot, 420)
+                selected = re.search(selected_slot, selected_log).group(1)
+                if selected != second.slot:
+                    raise AssertionError(f"The campaign selector opened {selected}, expected {second.slot}")
+                (output / f"{model}-{first.slot}").write_bytes((saves / first.slot).read_bytes())
+                sp._wait_for_log(log, proc, rf"(?s){second_map}.*?UPSTREAM_SP_FRAME ", 430)
                 (output / f"{model}-after-dense-switch.png").write_bytes(rpc.screenshot())
                 report = sp._wait_for_log(log, proc, r"UPSTREAM_SP_EXIT\b", 640)
                 if not re.search(rf"UPSTREAM_CAMPAIGN_SAVED slot={re.escape(second.slot)}\b", report):
