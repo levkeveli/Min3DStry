@@ -81,6 +81,7 @@
       "evidence": [
         "docs/gameplay/offline-singleplayer.md",
         "research/upstream-runtime/src/network-live/java/UpstreamLiveBuildControls.java",
+        "research/upstream-runtime/src/network-live/host/UpstreamBuildControlsReference.java",
         "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerApp.java"
       ],
       "notes": "Touch Mine targeting, mining laser beam, ore harvesting, and automatic core copper/lead deposit work live on ARM11. Host build-controls reference: UPSTREAM_MINE_REFERENCE copper=floor beryllium=wall invalid=ignored switch=ok cancel=ok; live client reports UPSTREAM_MINE_CORE_SYNC with the changed core item count. Software complete."
