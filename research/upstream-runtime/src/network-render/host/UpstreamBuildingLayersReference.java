@@ -225,6 +225,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         target.verifyErekirStarterBlocks(layers, viewport, viewer);
         target.verifyExtractorDraws(layers, viewport, viewer);
         target.verifyLiveBuildingRegistry(layers, viewport, viewer, block -> block instanceof BaseTurret, "TURRET");
+        target.verifyTurretBarrel(layers, viewport, viewer);
         // The stock Liquid Bridge is liquid-category, so the live predicate's
         // Category.liquid branch must keep both bridge blocks drawable.
         if (Blocks.bridgeConduit.category != Category.liquid
@@ -1528,6 +1529,36 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         sourceTile.setBlock(Blocks.air);
         targetTile.setBlock(Blocks.air);
         return moved;
+    }
+
+    private void verifyTurretBarrel(UpstreamBuildingLayers layers, UpstreamTerrainDrawProbe.Viewport viewport,
+                                    Team viewer) {
+        var tile = Vars.world.tile(35, 36);
+        tile.setBlock(Blocks.duo, viewer, 0);
+        var duo = tile.build;
+        var turret = (BaseTurret.BaseTurretBuild)duo;
+        turret.rotation = 37f;
+        sprites.clear();
+        duo.block.drawBase(duo.tile);
+        int baseCount = sprites.size();
+        sprites.clear();
+        layers.render(viewport, viewer, build -> build == duo);
+        if (sprites.size() <= baseCount) {
+            throw new AssertionError("Stock turret draw is missing its barrel: " + baseCount + " -> " + sprites.size());
+        }
+        var left = Core.atlas.find("duo-barrel-l");
+        var right = Core.atlas.find("duo-barrel-r");
+        requireRegion(left);
+        requireRegion(right);
+        boolean barrel = sprites.stream().anyMatch(sprite ->
+            (matchesRegion(sprite, left) || matchesRegion(sprite, right))
+                && Math.abs(sprite.rotation() - (37f - 90f)) < 0.01f);
+        if (!barrel) {
+            throw new AssertionError("Stock turret draw is missing the rotated duo barrels");
+        }
+        tile.setBlock(Blocks.air);
+        System.out.println("UPSTREAM_TURRET_DRAW base=" + baseCount + " draw=" + sprites.size()
+            + " barrels=l,r rotation=37");
     }
 
     private void verifyDynamicLight(UpstreamBuildingLayers layers, UpstreamTerrainDrawProbe.Viewport viewport,
