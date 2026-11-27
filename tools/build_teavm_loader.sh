@@ -15,11 +15,11 @@ flags=(-std=gnu11 -g -Os -fwrapv -D__3DS__ -mword-relocations
     -march=armv6k -mtune=mpcore -mfpu=vfp -mfloat-abi=hard -mtp=soft
     -I"$output/nativeinclude" -I"$DEVKITPRO/libctru/include"
     -I"$root/research/upstream-runtime/arm11")
-"$DEVKITARM/bin/arm-none-eabi-gcc" "${flags[@]}" \
-    -c "$output/all.c" -o "$output/all.o"
+python3 "$root/research/upstream-runtime/arm11/compile_teavm.py" "$output/all.c" "$output/objects" \
+    "$DEVKITARM/bin/arm-none-eabi-gcc" "${flags[@]}"
 "$DEVKITARM/bin/arm-none-eabi-gcc" "${flags[@]}" -I"$root/include" \
     -c "$root/research/upstream-runtime/arm11/m3ds_save_rows.c" \
     -o "$output/m3ds_save_rows.o"
 "$DEVKITARM/bin/arm-none-eabi-ar" rcs "$output/libm3dsloader.a" \
-    "$output/all.o" "$output/m3ds_save_rows.o"
+    "$output"/objects/*.o "$output/m3ds_save_rows.o"
 ls -l "$output/libm3dsloader.a"
