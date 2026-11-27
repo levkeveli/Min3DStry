@@ -408,7 +408,7 @@
         "research/upstream-runtime/src/network-render/host/UpstreamUnitShieldReference.java",
         "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerApp.java"
       ],
-      "notes": "The JVM draws all 68 world-spawnable v160.8 units. Both Azahar profiles drew representative enemies, vehicles, missiles and carried units offline or with the stock Java server. The unified client drives stock player aim and fire in both modes. The stock Gamma and a remote Dagger draw live projectiles and clear them on release. Host shield-ability check: UPSTREAM_UNIT_SHIELD unit=quasar quads=9. Full unit ability coverage and turret projectile effects remain open."
+      "notes": "The JVM draws all 68 world-spawnable v160.8 units. Both Azahar profiles drew representative enemies, vehicles, missiles and carried units offline or with the stock Java server. The unified client drives stock player aim and fire in both modes. The stock Gamma and a remote Dagger draw live projectiles and clear them on release. Host ability checks: UPSTREAM_UNIT_ABILITY force=quasar:9 energy=aegires:65 suppress=navanax:13. Full unit ability coverage and turret projectile effects remain open."
     },
     {
       "id": "lighting-weather-fx-zoom",

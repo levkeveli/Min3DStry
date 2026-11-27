@@ -1,21 +1,21 @@
 import arc.Core;
 import arc.files.Fi;
-import java.util.ArrayList;
-import java.util.List;
 import mindustry.Vars;
 import mindustry.ai.BlockIndexer;
-import mindustry.content.UnitTypes;
+import mindustry.entities.abilities.Ability;
+import mindustry.entities.abilities.EnergyFieldAbility;
 import mindustry.entities.abilities.ForceFieldAbility;
+import mindustry.entities.abilities.SuppressionFieldAbility;
 import mindustry.game.Team;
-import mindustry.gen.Unit;
 import mindustry.gen.Player;
+import mindustry.gen.Unit;
 import mindustry.graphics.CacheLayer;
 import mindustry.type.UnitType;
 import port.render.UpstreamFluidAtlas;
 
 /**
- * Verifies the stock ForceFieldAbility draw path on the graphical client, which
- * runs without a desktop Renderer (the patched ability takes the Lines/Fill path).
+ * Verifies the stock drawable unit abilities on the graphical client, which runs
+ * without a desktop Renderer (the patched shield path takes Lines/Fill).
  */
 public final class UpstreamUnitShieldReference implements UpstreamTerrainDrawProbe.TerrainTarget {
     private int solidQuads;
@@ -29,36 +29,46 @@ public final class UpstreamUnitShieldReference implements UpstreamTerrainDrawPro
         UpstreamTerrainDrawProbe.loadAtlas(new Fi(args[1]), UpstreamFluidAtlas::load);
         Vars.content.loadColors(new Fi(args[2]));
 
-        UnitType type = null;
-        for (var candidate : Vars.content.units()) {
-            for (var ability : candidate.abilities) {
-                if (ability instanceof ForceFieldAbility) {
-                    type = candidate;
-                    break;
-                }
-            }
-            if (type != null) break;
-        }
-        if (type == null) throw new AssertionError("No stock unit has a ForceFieldAbility");
-        if (!UpstreamRenderedNetworkProbe.loadUnitGraphics(type)) {
-            throw new AssertionError("Could not load stock unit graphics for " + type.name);
-        }
-
         var target = new UpstreamUnitShieldReference();
         var viewport = UpstreamTerrainDrawProbe.liveViewport(target);
         viewport.moveTo(73, 20);
-        Unit unit = type.spawn(Team.sharded, 600f, 200f, 0f);
-        unit.shield = 100f;
         Vars.player = Player.create();
         Vars.player.team(Team.sharded);
-        Vars.player.unit(unit);
 
+        UnitType force = find(ForceFieldAbility.class, "ForceFieldAbility");
+        UnitType energy = find(EnergyFieldAbility.class, "EnergyFieldAbility");
+        UnitType suppress = find(SuppressionFieldAbility.class, "SuppressionFieldAbility");
+
+        int forceQuads = draw(target, force);
+        int energyQuads = draw(target, energy);
+        int suppressQuads = draw(target, suppress);
+        if (forceQuads <= 0 || energyQuads <= 0 || suppressQuads <= 0) {
+            throw new AssertionError("Stock ability draw missing geometry: force=" + forceQuads
+                + " energy=" + energyQuads + " suppress=" + suppressQuads);
+        }
+        System.out.println("UPSTREAM_UNIT_ABILITY force=" + force.name + ":" + forceQuads
+            + " energy=" + energy.name + ":" + energyQuads
+            + " suppress=" + suppress.name + ":" + suppressQuads);
+    }
+
+    private static UnitType find(Class<? extends Ability> cls, String label) {
+        for (var candidate : Vars.content.units()) {
+            for (var ability : candidate.abilities) {
+                if (cls.isInstance(ability)) return candidate;
+            }
+        }
+        throw new AssertionError("No stock unit has a " + label);
+    }
+
+    private static int draw(UpstreamUnitShieldReference target, UnitType type) {
+        if (!UpstreamRenderedNetworkProbe.loadUnitGraphics(type)) {
+            throw new AssertionError("Could not load stock unit graphics for " + type.name);
+        }
+        Unit unit = type.spawn(Team.sharded, 600f, 200f, 0f);
+        unit.shield = 100f;
         target.solidQuads = 0;
         unit.draw();
-        if (target.solidQuads == 0) {
-            throw new AssertionError("Stock shield ability drew no geometry");
-        }
-        System.out.println("UPSTREAM_UNIT_SHIELD unit=" + type.name + " quads=" + target.solidQuads);
+        return target.solidQuads;
     }
 
     @Override public void begin(int left, int bottom, int width, int height) {}
