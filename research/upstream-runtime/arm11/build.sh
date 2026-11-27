@@ -194,9 +194,15 @@ if [[ "${M3DS_RELAX_POINTER_TYPES:-0}" == "1" ]]; then
 fi
 compiler="$DEVKITARM/bin/arm-none-eabi-gcc"
 arch_flags=(-march=armv6k -mtune=mpcore -mfpu=vfp -mfloat-abi=hard -mtp=soft)
+section_flags=()
+if [[ $mode == --unified ]]; then
+    # 3dsx.specs already discards unreferenced sections. Give generated and
+    # native code separate sections so unused symbols can be dropped.
+    section_flags=(-ffunction-sections -fdata-sections)
+fi
 compile_flags=(-std=gnu11 -g "$arm11_opt" -fwrapv -D__3DS__ -mword-relocations
     "${arch_flags[@]}" -I"$output/nativeinclude" -I"$DEVKITPRO/libctru/include"
-    "${terrain_flags[@]}" "${save_rows_flags[@]}" "${pointer_flags[@]}" "${stack_flags[@]}")
+    "${terrain_flags[@]}" "${save_rows_flags[@]}" "${pointer_flags[@]}" "${stack_flags[@]}" "${section_flags[@]}")
 # Keep the original compiler layout for stock JSON writes. A split unified
 # ROM exhausted the 3DS stack during the Ground Zero save replay.
 case "$mode" in

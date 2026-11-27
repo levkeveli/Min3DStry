@@ -98,7 +98,12 @@ jobs:
             --fixtures "$RUNNER_TEMP/dense-fixtures" --output-dir build/dense-campaign-replay
           result="build/dense-campaign-replay/$log"
           app_heap=$(sed -nE 's/.*UPSTREAM_MEMORY appHeap=([0-9]+).*/\1/p' "$result")
-          test "$app_heap" -ge $(((56 + 22) * 1024 * 1024))
+          required_heap=$(((56 + 22) * 1024 * 1024))
+          if [[ ! "$app_heap" =~ ^[0-9]+$ ]] || (( app_heap < required_heap )); then
+            printf '::error::Campaign save readbacks passed, but application heap was %s bytes (required %s)\n' \
+              "${app_heap:-missing}" "$required_heap"
+            exit 1
+          fi
           grep -Fx "UPSTREAM_MEMORY managedLimit=$((56 * 1024 * 1024))" \
             <(sed -n 's/.*\(UPSTREAM_MEMORY managedLimit=[0-9]*\).*/\1/p' "$result")
       - uses: actions/upload-artifact@v4
