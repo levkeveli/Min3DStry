@@ -495,7 +495,7 @@
         "research/upstream-runtime/host/UpstreamCampaignPersistenceBaseline.java",
         "docs/gameplay/offline-singleplayer.md"
       ],
-      "notes": "Live campaign starts, capture persistence, PC settings and sector resume use the upstream save paths. Ground Zero and The Onset defeat and retry passed on both Azahar profiles, with stock Java save readback. Host campaign baseline: UPSTREAM_CAMPAIGN_PASS tech_nodes=375 sectors=95; settings reload keeps conveyor/junction unlocked and router 50/100; Ground Zero captured and Frozen Forest objective complete; water migration, reset, backup recovery and corrupt-save handling pass. Software complete."
+      "notes": "Live campaign starts, capture persistence, PC settings and sector resume use the upstream save paths. Ground Zero and The Onset defeat and retry passed on both Azahar profiles, with stock Java save readback. Host campaign baseline: UPSTREAM_CAMPAIGN_PASS tech_nodes=375 sectors=95; settings reload keeps conveyor/junction unlocked and router 50/100; Ground Zero captured and Frozen Forest objective complete; water migration, reset, backup recovery and corrupt-save handling pass. The grouped New 3DS replay verified manual and exit saves on three original 600 by 600 maps with stock Java readback, plus truncated Frozen Forest backup recovery. Software complete."
     },
     {
       "id": "planet-map-techtree-ui",

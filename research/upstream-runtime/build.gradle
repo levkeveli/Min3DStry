@@ -17,6 +17,11 @@ def pathfinderSource = 'core/src/mindustry/ai/Pathfinder.java'
 def flowfieldSearchPatch = file('patches/stock-flowfield-search-storage.patch')
 def flowfieldCostPatch = file('patches/stock-flowfield-cost-grid.patch')
 def flowfieldCostSources = ['mindustry/ai/ControlPathfinder.java', 'mindustry/ai/BaseBuilderAI.java']
+def deferredBaseSources = [
+    'mindustry/ai/BaseRegistry.java',
+    'mindustry/maps/generators/BaseGenerator.java',
+    'mindustry/maps/planet/SerpuloPlanetGenerator.java'
+]
 def annotationsSource = 'annotations/src/main/java/mindustry/annotations/Annotations.java'
 def arcRevision = '7445105cd2683daf5b9ac7033ebb07265d3e814d'
 def fileSource = 'arc-core/src/arc/files/Fi.java'
@@ -180,6 +185,10 @@ def mapFile = sourceDir.map { it.file('mindustry/maps/GlacierFixture.java') }
 def blockFile = sourceDir.map { it.file('mindustry/world/Block.java') }
 def tileFile = sourceDir.map { it.file('mindustry/world/Tile.java') }
 def tilesFile = sourceDir.map { it.file('mindustry/world/Tiles.java') }
+def powerGraphPath = 'mindustry/world/blocks/power/PowerGraph.java'
+def powerGraphFile = sourceDir.map { it.file(powerGraphPath) }
+def powerModulePath = 'mindustry/world/modules/PowerModule.java'
+def powerModuleFile = sourceDir.map { it.file(powerModulePath) }
 def liquidModuleFile = sourceDir.map { it.file('mindustry/world/modules/LiquidModule.java') }
 def pathfinderFile = sourceDir.map { it.file('mindustry/ai/Pathfinder.java') }
 def annotationsFile = sourceDir.map { it.file('mindustry/annotations/Annotations.java') }
@@ -252,7 +261,7 @@ if (usesArcSources || usesExecutor) {
         stagedClasses.add('mindustry/io/SaveReadState.class')
         stagedClasses.add('arc/util/Interval.class')
         stagedClasses.addAll(['mindustry/ai/Pathfinder.class', 'mindustry/ai/Pathfinder$*.class'])
-        flowfieldCostSources.each { path ->
+        (flowfieldCostSources + deferredBaseSources).each { path ->
             def className = path.substring(0, path.length() - '.java'.length())
             stagedClasses.addAll([className + '.class', className + '$*.class'])
         }
@@ -269,7 +278,8 @@ if (usesArcSources || usesExecutor) {
                               'mindustry/io/SaveFileReader.class', 'mindustry/io/SaveFileReader$*.class',
                               'mindustry/world/Tiles.class', 'mindustry/world/Tiles$*.class',
                               'mindustry/world/modules/ItemModule.class', 'mindustry/world/modules/ItemModule$*.class',
-                              'mindustry/world/modules/LiquidModule.class', 'mindustry/world/modules/LiquidModule$*.class'])
+                              'mindustry/world/modules/LiquidModule.class', 'mindustry/world/modules/LiquidModule$*.class',
+                              'mindustry/world/blocks/power/PowerGraph.class', 'mindustry/world/modules/PowerModule.class'])
     }
     if (usesArcSources) {
         stagedClasses.addAll(['arc/files/Fi.class', 'arc/files/Fi$*.class'])
@@ -656,7 +666,7 @@ tasks.register('prepareUpstreamProbe') {
         outputs.files(blockFile, annotationsFile)
     }
     if (usesWorldSources) {
-        outputs.files(tileFile, tilesFile, liquidModuleFile)
+        outputs.files(tileFile, tilesFile, liquidModuleFile, powerGraphFile, powerModuleFile)
         outputs.file(sourceDir.map { it.file('mindustry/world/modules/ItemModule.java') })
         outputs.file(sourceDir.map { it.file('mindustry/ai/BlockIndexer.java') })
         outputs.file(sourceDir.map { it.file('mindustry/game/Teams.java') })
@@ -679,7 +689,9 @@ tasks.register('prepareUpstreamProbe') {
     }
     if (usesSinglePlayerApp) {
         inputs.file(sparseTilePatch)
-        outputs.files(sourceDir.map { dir -> (sparseTileSources + databaseStatSources + databaseAbilitySources).collect { dir.file(it) } })
+        outputs.files(sourceDir.map { dir ->
+            (sparseTileSources + databaseStatSources + databaseAbilitySources).collect { dir.file(it) }
+        })
     }
     if (usesWorldStream) {
         outputs.file(networkIoFile)
@@ -704,7 +716,7 @@ tasks.register('prepareUpstreamProbe') {
         inputs.file('src/gameplay/java/port/FactoryResources.java')
         inputs.file(flowfieldSearchPatch)
         inputs.file(flowfieldCostPatch)
-        flowfieldCostSources.each { path -> outputs.file(sourceDir.map { it.file(path) }) }
+        (flowfieldCostSources + deferredBaseSources).each { path -> outputs.file(sourceDir.map { it.file(path) }) }
         outputs.file(factoryResourcesFile)
         outputs.file(pathfinderFile)
         outputs.file(sourceDir.map { it.file('mindustry/io/SaveIO.java') })
@@ -734,6 +746,34 @@ tasks.register('prepareUpstreamProbe') {
         outputs.file(globalVarsFile)
     }
     doLast {
+        if (usesSinglePlayer) {
+            def deferredBaseHooks = [
+                ['    public void load(){', '''    private boolean loaded;
+
+    public void ensureLoaded(){
+        if(!loaded) load();
+    }
+
+    public void load(){''',
+                 '        reqParts.each((key, arr) -> arr.sort());',
+                 '        reqParts.each((key, arr) -> arr.sort());\n        loaded = true;'],
+                ['        if(bases.cores.isEmpty()) return;',
+                 '        bases.ensureLoaded();\n        if(bases.cores.isEmpty()) return;'],
+                ['        if(ruinCount > 0){',
+                 '        if(ruinCount > 0){\n            bases.ensureLoaded();']
+            ]
+            deferredBaseSources.eachWithIndex { path, index ->
+                def staged = sourceDir.get().file(path).asFile
+                staged.parentFile.mkdirs()
+                def source = new String(readUpstream('core/src/' + path), 'UTF-8')
+                deferredBaseHooks[index].collate(2).each { pair ->
+                    if (source.count(pair[0]) != 1) throw new GradleException('Pinned base loading hook changed: ' + path)
+                    source = source.replace(pair[0], pair[1])
+                }
+                staged.setText(source, 'UTF-8')
+            }
+        }
+
         if (probe in ['network-render', 'unified']) {
             def effectPath = 'mindustry/entities/Effect.java'
             def effectSource = new String(readUpstream("core/src/${effectPath}"), 'UTF-8')
@@ -1913,6 +1953,37 @@ ${barOracle}""")
             stagedLiquid.parentFile.mkdirs()
             stagedLiquid.setText(liquid, 'UTF-8')
 
+            def graph = new String(readUpstream('core/src/' + powerGraphPath), 'UTF-8')
+            def memberList = 'new Seq<>(false, 16, Building.class)'
+            if (graph.count(memberList) != 4) throw new GradleException('Pinned PowerGraph member lists changed')
+            graph = graph.replace(memberList, 'new Seq<>(false, 1, Building.class)')
+            def history = [
+                'private final WindowedMean powerBalance = new WindowedMean(60);':
+                    'private @Nullable WindowedMean powerBalance;',
+                'return powerBalance.rawMean();':
+                    'return powerBalance == null ? 0f : powerBalance.rawMean();',
+                'return powerBalance.hasEnoughData();':
+                    'return powerBalance != null && powerBalance.hasEnoughData();',
+                '        powerBalance.add(':
+                    '        if(powerBalance == null) powerBalance = new WindowedMean(60);\n        powerBalance.add('
+            ]
+            history.each { before, after ->
+                if (graph.count(before) != 1) {
+                    throw new GradleException('Pinned PowerGraph history hook changed: ' + before)
+                }
+                graph = graph.replace(before, after)
+            }
+            def stagedGraph = powerGraphFile.get().asFile
+            stagedGraph.parentFile.mkdirs()
+            stagedGraph.setText(graph, 'UTF-8')
+
+            def stockPower = new String(readUpstream('core/src/' + powerModulePath), 'UTF-8')
+            def linkStorage = 'public IntSeq links = new IntSeq();'
+            if (stockPower.count(linkStorage) != 1) throw new GradleException('Pinned PowerModule link storage changed')
+            def stagedPower = powerModuleFile.get().asFile
+            stagedPower.parentFile.mkdirs()
+            stagedPower.setText(stockPower.replace(linkStorage, 'public IntSeq links = new IntSeq(0);'), 'UTF-8')
+
                 def indexerPath = 'mindustry/ai/BlockIndexer.java'
                 def indexer = new String(readUpstream('core/src/' + indexerPath), 'UTF-8')
                 def worldLoaded = '        Events.on(WorldLoadEvent.class, event -> {'
@@ -2086,49 +2157,64 @@ ${barOracle}""")
                 def streams = 'protected static final ReusableByteOutStream byteOutput = new ReusableByteOutStream(), byteOutput2 = new ReusableByteOutStream();'
                 def selectStream = 'ReusableByteOutStream dout = wasNested ? byteOutput2 : byteOutput;'
                 def writeData = 'output.write(dout.getBytes(), 0, length);'
-                def resetNesting = '            chunkNested = wasNested;'
-                if ([streams, selectStream, writeData, resetNesting].any { saveReader.count(it) != 1 }) {
+                def resetBuffer = '''        try{
+            //reset output position
+            dout.reset();'''
+                if ([streams, selectStream, writeData, resetBuffer].any { saveReader.count(it) != 1 }) {
                     throw new GradleException('Pinned SaveFileReader write buffering changed')
                 }
-                def segmented = '''protected static final ChunkBuffer byteOutput = new ChunkBuffer(), byteOutput2 = new ChunkBuffer();
+                def bounded = '''protected static final ChunkBuffer byteOutput = new ChunkBuffer(), byteOutput2 = new ChunkBuffer();
 
-    // Preserve the stock length prefix without requiring one map-sized allocation.
+    // Stock chunks put the byte count first. Stage large bodies on the SD card
+    // so serializing them alongside the running world has a fixed heap cost.
     protected static final class ChunkBuffer extends OutputStream{
-        private static final int capacity = 4096;
-        private final Chunk first = new Chunk();
-        private Chunk tail = first;
-        private int size;
+        private final byte[] buffer = new byte[16 * 1024];
+        private int count, size;
+        private File scratch;
+        private OutputStream spill;
 
-        private static final class Chunk{
-            final byte[] bytes = new byte[capacity];
-            int count;
-            Chunk next;
+        private void ensureSpace() throws IOException{
+            if(count < buffer.length) return;
+            if(spill == null){
+                File directory = arc.Core.settings.getDataDirectory().file();
+                if(!directory.isDirectory() && !directory.mkdirs()){
+                    throw new IOException("Could not create save chunk directory " + directory);
+                }
+                scratch = reserveScratch(directory);
+                spill = new FileOutputStream(scratch);
+            }
+            spill.write(buffer, 0, count);
+            count = 0;
         }
 
-        private void ensureSpace(){
-            if(tail.count == capacity){
-                tail.next = new Chunk();
-                tail = tail.next;
+        private static File reserveScratch(File directory) throws IOException{
+            // TeaVM's createTempFile retries indefinitely if native creation keeps failing.
+            String prefix = "min3ds-save-chunk-" + System.nanoTime();
+            for(int attempt = 0; attempt < 8; attempt++){
+                var candidate = new File(directory, prefix + "-" + attempt + ".tmp");
+                if(candidate.createNewFile()) return candidate;
+                if(!candidate.exists()) break;
             }
+            throw new IOException("Could not stage a save chunk in " + directory);
         }
 
         @Override
-        public void write(int value){
+        public void write(int value) throws IOException{
             ensureSpace();
-            tail.bytes[tail.count++] = (byte)value;
+            buffer[count++] = (byte)value;
             size++;
         }
 
         @Override
-        public void write(byte[] bytes, int offset, int length){
+        public void write(byte[] bytes, int offset, int length) throws IOException{
             while(length > 0){
                 ensureSpace();
-                int count = Math.min(length, capacity - tail.count);
-                System.arraycopy(bytes, offset, tail.bytes, tail.count, count);
-                tail.count += count;
-                offset += count;
-                length -= count;
-                size += count;
+                int copied = Math.min(length, buffer.length - count);
+                System.arraycopy(bytes, offset, buffer, count, copied);
+                count += copied;
+                size += copied;
+                offset += copied;
+                length -= copied;
             }
         }
 
@@ -2137,24 +2223,48 @@ ${barOracle}""")
         }
 
         void writeTo(DataOutput output) throws IOException{
-            for(Chunk chunk = first; chunk != null; chunk = chunk.next){
-                if(chunk.count != 0) output.write(chunk.bytes, 0, chunk.count);
+            if(spill == null){
+                if(count != 0) output.write(buffer, 0, count);
+                return;
+            }
+            spill.write(buffer, 0, count);
+            finishSpill();
+            try(var input = new FileInputStream(scratch)){
+                for(int remaining = size; remaining > 0; ){
+                    int read = input.read(buffer, 0, Math.min(remaining, buffer.length));
+                    if(read <= 0) throw new EOFException("Incomplete staged save chunk " + scratch);
+                    output.write(buffer, 0, read);
+                    remaining -= read;
+                }
             }
         }
 
-        void reset(){
-            first.count = 0;
-            first.next = null;
-            tail = first;
-            size = 0;
+        private void finishSpill() throws IOException{
+            var file = spill;
+            spill = null;
+            if(file != null) file.close();
+        }
+
+        @Override
+        public void close() throws IOException{
+            try{
+                finishSpill();
+            }finally{
+                count = size = 0;
+                var file = scratch;
+                scratch = null;
+                if(file != null && !file.delete() && file.exists()){
+                    throw new IOException("Could not remove save chunk " + file);
+                }
+            }
         }
     }'''
                 def stagedSaveReader = sourceDir.get().file(saveReaderPath).asFile
                 stagedSaveReader.parentFile.mkdirs()
-                stagedSaveReader.setText(saveReader.replace(streams, segmented)
+                stagedSaveReader.setText(saveReader.replace(streams, bounded)
                     .replace(selectStream, 'ChunkBuffer dout = wasNested ? byteOutput2 : byteOutput;')
-                    .replace(writeData, 'dout.writeTo(output);')
-                    .replace(resetNesting, '            dout.reset();\n' + resetNesting), 'UTF-8')
+                    .replace(resetBuffer, '        try(dout){')
+                    .replace(writeData, 'dout.writeTo(output);'), 'UTF-8')
             }
             if (usesRenderedClient) {
                 def tableField = '    public TextureRegion[] teamRegions, variantRegions, variantShadowRegions;'
@@ -2455,6 +2565,11 @@ final class UpstreamItemChoices {
             if (!stagedPathfinder.getText('UTF-8').contains('class CostGrid')) {
                 throw new GradleException('Stock flowfield cost patch did not apply to the staged sources')
             }
+            def builderFile = new File(stageRoot, 'mindustry/ai/BaseBuilderAI.java')
+            def builder = builderFile.getText('UTF-8')
+            def picker = '                Seq<BasePart> parts = null;'
+            if (builder.count(picker) != 1) throw new GradleException('Pinned AI base part selection changed')
+            builderFile.setText(builder.replace(picker, '                Vars.bases.ensureLoaded();\n' + picker), 'UTF-8')
 
             def pathfinder = stagedPathfinder.getText('UTF-8')
             def cacheField = 'Flowfield[][][] cache;'
@@ -2633,7 +2748,13 @@ teavm {
     if (usesSinglePlayerApp) {
         // Large offline maps allocate the original Pathfinder grid while the
         // decoded world is live, then still need to load the world atlas.
-        c { maxHeapSize = 32 }
+        c {
+            maxHeapSize = probe == "unified" ? 56 : 32
+            if (probe == "unified") {
+                // The executable shares the application memory budget with the stock world.
+                optimization = org.teavm.gradle.api.OptimizationLevel.BALANCED
+            }
+        }
     } else if (usesSimulation || usesLiveNetwork || usesSinglePlayer) {
         c { maxHeapSize = 24 }
     }

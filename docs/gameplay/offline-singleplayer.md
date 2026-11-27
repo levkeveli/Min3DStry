@@ -144,7 +144,56 @@ completed the dense reload and saved with the original fixture backup.
 The [two-save replay](https://github.com/levkeveli/Min3DStry/actions/runs/45716873959/artifacts/15070698663)
 reused that exact ROM. It verified each backup against its predecessor, and
 the unmodified v160.8 server reopened both 600×600 saves with the original
-embedded patch. The release-build heap and physical New 3DS performance remain open.
+embedded patch. The combined globe build at `9038fee` ran out of managed
+memory during the second decode at a ceiling of 57,356,288 bytes.
+[Reload evidence](https://github.com/levkeveli/Min3DStry/actions/runs/45742897355/artifacts/15082579642)
+
+The unified ROM allows up to 56 MiB of managed heap after reserving
+22 MiB for native allocations. It uses the page-aligned portion of the
+application's regular heap above that reserve, with the existing 32 MiB
+baseline on lower-memory launches. The globe has a separate 8 MiB GPU
+linear heap. The production budget still requires physical verification.
+
+The [grouped New 3DS Azahar replay at `ed8ed3b`](https://github.com/levkeveli/Min3DStry/actions/runs/45746591294)
+loaded and reloaded Serpulo 242, Littoral Shipyard, and Origin using the
+same 56 MiB build. Unmodified Java v160.8 reopened both the manual and
+exit saves from each sector. The workflow can be run on demand to check
+all three maps and Frozen Forest recovery with one newly built unified ROM.
+Use `--from-title` with a named dense preset to open it through Play → Campaign.
+Large campaign saves collect temporary simulation and rendering objects before
+allocating the stock serializer and log the heap usage at that point.
+The integrated replay at `1e8a384` passed Littoral Shipyard, Origin, and
+Frozen Forest recovery. Serpulo 242 ran out of managed heap during its
+save. The stock serializer now stages chunk bodies over 16 KiB in
+temporary files in the app's data directory. Each buffer keeps a fixed
+heap footprint and writes the same byte count and bytes to the stock
+compression stream. A chunk is cleaned up after success or an exception.
+The writer stops if storage cannot create a temporary file or returns fewer
+bytes than expected. The staged save never replaces the existing slot in
+those cases.
+[Integrated replay](https://github.com/levkeveli/Min3DStry/actions/runs/45754744096)
+
+In the [grouped replay at `495ab2e`](https://github.com/levkeveli/Min3DStry/actions/runs/45759672803),
+all three large maps again reloaded and wrote both saves. Unmodified
+Java v160.8 reopened those saves. Serpulo 242 wrote both from a live heap
+of approximately 54.2 MB before serialization. Frozen Forest also
+recovered from a truncated primary and reopened the resulting save.
+The artifacts contain the reload screenshots and raw logs.
+
+The unified build using TeaVM balanced optimization mapped 27,963,392
+bytes of code and data, a reduction of 12,042,240 bytes from the prior
+size-focused native build. The New 3DS emulator reported 93,655,040 bytes
+of application heap and a managed limit of 58,720,256 bytes (56 MiB).
+Serpulo 242, Origin and Littoral Shipyard each loaded a 600 × 600 stock
+sector, reloaded it through the pause menu, and wrote both a checkpoint
+and an exit save. Unmodified Java v160.8 reopened both files for each
+sector. Frozen Forest also passed truncated-primary recovery.
+[Serpulo 242](https://github.com/levkeveli/Min3DStry/actions/runs/46056868459/artifacts/15228861259)
+· [Origin](https://github.com/levkeveli/Min3DStry/actions/runs/46056868459/artifacts/15228033415)
+· [Littoral Shipyard](https://github.com/levkeveli/Min3DStry/actions/runs/46060649292/artifacts/15229704034)
+· [Frozen Forest](https://github.com/levkeveli/Min3DStry/actions/runs/46056868459/artifacts/15228390195)
+
+Physical New 3DS performance remains open.
 
 The [ARM11 build from `1390790`](https://github.com/levkeveli/Min3DStry/actions/runs/45035851013)
 resumed a lone Ground Zero slot from `saves/` and used the D-pad to select a

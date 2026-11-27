@@ -47,6 +47,27 @@ test "$(wc -l < "$inventory_check/Liquid-stock.log")" -eq 2100
 grep -Fx 'UPSTREAM_STOCK_ITEM_SUBCLASS array=preserved' "$inventory_check/Item-staged.log"
 printf 'UPSTREAM_STOCK_LIQUID_REFERENCE steps=%s\n' "$(wc -l < "$inventory_check/Liquid-staged.log")"
 
+history_check="$RUNNER_TEMP/power-history-check"
+mkdir -p "$history_check/reference" "$history_check/staged"
+javac -cp "$stock_jar" -d "$history_check/reference" "$runtime/host/UpstreamPowerHistoryReference.java"
+javac -cp "$stock_jar" -d "$history_check/staged" \
+  "$runtime/build/upstream-src/unified/mindustry/world/blocks/power/PowerGraph.java"
+java -cp "$history_check/reference:$stock_jar" UpstreamPowerHistoryReference > "$history_check/stock.log"
+java -cp "$history_check/reference:$history_check/staged:$stock_jar" UpstreamPowerHistoryReference > "$history_check/staged.log"
+test "$(wc -l < "$history_check/stock.log")" -eq 182
+diff -u "$history_check/stock.log" "$history_check/staged.log"
+echo "UPSTREAM_STOCK_POWER_HISTORY states=182"
+
+link_check="$RUNNER_TEMP/power-link-check"
+mkdir -p "$link_check/reference" "$link_check/staged"
+javac -cp "$stock_jar" -d "$link_check/reference" "$runtime/host/UpstreamPowerLinkReference.java"
+javac -cp "$stock_jar" -d "$link_check/staged" "$runtime/build/upstream-src/unified/mindustry/world/modules/PowerModule.java"
+java -cp "$link_check/reference:$stock_jar" UpstreamPowerLinkReference > "$link_check/stock.log"
+java -cp "$link_check/reference:$link_check/staged:$stock_jar" UpstreamPowerLinkReference > "$link_check/staged.log"
+test "$(wc -l < "$link_check/stock.log")" -eq 45
+diff -u "$link_check/stock.log" "$link_check/staged.log"
+echo "UPSTREAM_STOCK_POWER_LINKS states=45"
+
 export M3DS_SMOKE_DEVKIT_IMAGE=devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5
 cat > "$RUNNER_TEMP/smoke-tex3ds" <<'WRAPPER'
 #!/usr/bin/env bash

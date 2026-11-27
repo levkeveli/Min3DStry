@@ -6,11 +6,16 @@ if [[ $# -lt 2 || $# -gt 4 ]]; then
     echo "Usage: $0 <TeaVM generated C directory> <new output directory> [--network|--singleplayer|--unified|--save-rows|--campaign-background] [terrain assets directory]" >&2
     exit 2
 fi
-arm11_opt="${M3DS_ARM11_OPT:--Os}"
+default_opt=-Os
+if [[ ${3:-} == --unified ]]; then
+    # The generated code occupies the same application memory as the campaign heap.
+    default_opt=-Oz
+fi
+arm11_opt="${M3DS_ARM11_OPT:-$default_opt}"
 case "$arm11_opt" in
-    -O0|-O1|-O2|-O3|-Os|-Og) ;;
+    -O0|-O1|-O2|-O3|-Os|-Oz|-Og) ;;
     *)
-        echo "Unsupported M3DS_ARM11_OPT: $arm11_opt (use -O0, -O1, -O2, -O3, -Os, or -Og)" >&2
+        echo "Unsupported M3DS_ARM11_OPT: $arm11_opt (use -O0, -O1, -O2, -O3, -Os, -Oz, or -Og)" >&2
         exit 2
         ;;
 esac
@@ -194,9 +199,15 @@ if [[ "${M3DS_RELAX_POINTER_TYPES:-0}" == "1" ]]; then
 fi
 compiler="$DEVKITARM/bin/arm-none-eabi-gcc"
 arch_flags=(-march=armv6k -mtune=mpcore -mfpu=vfp -mfloat-abi=hard -mtp=soft)
+section_flags=()
+if [[ $mode == --unified ]]; then
+    # 3dsx.specs already discards unreferenced sections. Give generated and
+    # native code separate sections so unused symbols can be dropped.
+    section_flags=(-ffunction-sections -fdata-sections)
+fi
 compile_flags=(-std=gnu11 -g "$arm11_opt" -fwrapv -D__3DS__ -mword-relocations
     "${arch_flags[@]}" -I"$output/nativeinclude" -I"$DEVKITPRO/libctru/include"
-    "${terrain_flags[@]}" "${save_rows_flags[@]}" "${pointer_flags[@]}" "${stack_flags[@]}")
+    "${terrain_flags[@]}" "${save_rows_flags[@]}" "${pointer_flags[@]}" "${stack_flags[@]}" "${section_flags[@]}")
 # Keep the original compiler layout for stock JSON writes. A split unified
 # ROM exhausted the 3DS stack during the Ground Zero save replay.
 case "$mode" in

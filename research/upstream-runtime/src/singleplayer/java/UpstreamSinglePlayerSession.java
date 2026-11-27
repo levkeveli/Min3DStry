@@ -156,7 +156,6 @@ public final class UpstreamSinglePlayerSession {
         Vars.logicVars.init();
         Vars.collisions = new EntityCollisions();
         Vars.bases = new mindustry.ai.BaseRegistry();
-        Vars.bases.load();
         Vars.fogControl = new FogControl();
         Vars.avoidance = new AvoidanceProcess();
         Vars.pathfinder = new Pathfinder();
@@ -687,6 +686,8 @@ public final class UpstreamSinglePlayerSession {
     }
 
     long save(Fi saveFile) throws IOException {
+        boolean dense = Vars.state.rules.sector != null && Vars.world.width() * Vars.world.height() >= 360_000;
+        if (dense) System.out.println("UPSTREAM_DENSE_SAVE phase=begin");
         if (saveFile.parent() != null) {
             saveFile.parent().mkdirs();
         }
@@ -697,6 +698,13 @@ public final class UpstreamSinglePlayerSession {
         var type = Vars.player == null || Vars.player.dead() ? savedControlledType : Vars.player.unit().type;
         options.extraTags = StringMap.of("playtime", playtimeMillis, "controlGroups", savedControlGroups,
             "controlledType", type == null ? "null" : type.name);
+        if (dense) {
+            // Clear temporary simulation and rendering objects before the stock writer
+            // allocates compression state and builds its serialized regions.
+            System.gc();
+            var heap = Runtime.getRuntime();
+            System.out.println("UPSTREAM_DENSE_SAVE phase=serialize used=" + (heap.totalMemory() - heap.freeMemory()));
+        }
         SaveMeta written;
         if (Vars.state.rules.sector != null) {
             boolean preserveBackup = saveFile.equals(recoveredCampaignSlot);

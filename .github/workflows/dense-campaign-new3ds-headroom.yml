@@ -1,0 +1,148 @@
+name: Verify large campaign maps and backups on New 3DS
+
+on:
+  workflow_dispatch:
+    inputs:
+      sector:
+        description: Stock campaign replay to run
+        type: choice
+        default: all
+        options:
+          - all
+          - serpulo-242
+          - littoral-shipyard
+          - origin
+          - frozen-forest-recovery
+          - dense-switch
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-v1-${{ hashFiles('research/upstream-runtime/build.gradle', 'research/upstream-runtime/gradle/**') }}
+      - name: Install the stock audio converter
+        run: |
+          if ! command -v ffmpeg >/dev/null; then
+            sudo apt-get update
+            sudo apt-get install -y ffmpeg
+          fi
+      - run: bash .github/scripts/build_unified_arm11_smoke.sh
+      - name: Record exact inputs
+        working-directory: build/unified-smoke
+        run: |
+          git rev-parse HEAD > source-commit.txt
+          sha256sum upstream-probe.3dsx server-release.jar > replay-inputs.sha256
+          python3 - <<'PY' | tee mapped-segments.txt
+          import struct
+
+          with open("upstream-probe.3dsx", "rb") as rom:
+              magic, header_size, _, _, _, code, rodata, data, bss = struct.unpack("<4sHH6I", rom.read(32))
+          if magic != b"3DSX" or header_size < 32:
+              raise ValueError("Invalid 3DSX header")
+          mapped = sum((size + 4095) // 4096 * 4096 for size in (code, rodata, data))
+          print(f"code={code} rodata={rodata} data={data} bss={bss} mapped={mapped}")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dense-new3ds-release-headroom
+          path: build/unified-smoke/
+          if-no-files-found: error
+          compression-level: 0
+  replay:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        sector: ${{ fromJSON(inputs.sector == 'all' && '["serpulo-242","littoral-shipyard","origin","frozen-forest-recovery","dense-switch"]' || format('["{0}"]', inputs.sector)) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: actions/download-artifact@v4
+        with:
+          name: dense-new3ds-release-headroom
+          path: build/unified-smoke
+      - name: Verify the archived ROM and stock server
+        working-directory: build/unified-smoke
+        run: |
+          test "$(cat source-commit.txt)" = "$GITHUB_SHA"
+          sha256sum --check replay-inputs.sha256
+          printf '%s  %s\n' faeaf247a8b622de940181a96cb21cb20692d3c3da4e8ac3f79cb4af5059aa6c server-release.jar |
+            sha256sum --check
+      - run: bash .github/scripts/setup_smoke_azahar.sh
+      - name: Replay a dense campaign sector or stock backup recovery
+        env:
+          SECTOR: ${{ matrix.sector }}
+        run: |
+          server=build/unified-smoke/server-release.jar
+          if [ "$SECTOR" = frozen-forest-recovery ]; then
+            python3 tools/campaign_resume_fixtures.py --server "$server" \
+              --output "$RUNNER_TEMP/recovery-fixtures"
+            xvfb-run -a python3 tools/verify_upstream_campaign_resume.py --truncated-primary --model new3ds \
+              --rom build/unified-smoke/upstream-probe.3dsx --server "$server" \
+              --fixtures "$RUNNER_TEMP/recovery-fixtures" --output-dir build/dense-campaign-replay
+            exit 0
+          fi
+          fixtures="$RUNNER_TEMP/dense-fixtures"
+          case "$SECTOR" in
+            dense-switch)
+              # The title selector sorts by stock save timestamp. Write Littoral last.
+              for preset in origin littoral-shipyard; do
+                python3 tools/campaign_resume_fixtures.py --dense-preset "$preset" --server "$server" --output "$fixtures"
+              done
+              scenario=(--dense-switch)
+              log=new3ds-dense-switch.log
+              ;;
+            serpulo-242)
+              python3 tools/campaign_resume_fixtures.py --dense --server "$server" --output "$fixtures"
+              scenario=(--dense --dense-resave)
+              log=new3ds-multiple.log
+              ;;
+            *)
+              python3 tools/campaign_resume_fixtures.py --dense-preset "$SECTOR" --server "$server" --output "$fixtures"
+              scenario=(--dense-preset "$SECTOR" --from-title --dense-resave)
+              log=new3ds-dense-preset.log
+              ;;
+          esac
+          xvfb-run -a python3 tools/verify_upstream_campaign_resume.py "${scenario[@]}" --model new3ds \
+            --rom build/unified-smoke/upstream-probe.3dsx --server "$server" \
+            --fixtures "$fixtures" --output-dir build/dense-campaign-replay
+          result="build/dense-campaign-replay/$log"
+          app_heap=$(sed -nE 's/.*UPSTREAM_MEMORY appHeap=([0-9]+).*/\1/p' "$result")
+          required_heap=$(((56 + 22) * 1024 * 1024))
+          if [[ ! "$app_heap" =~ ^[0-9]+$ ]] || (( app_heap < required_heap )); then
+            printf '::error::Campaign save readbacks passed, but application heap was %s bytes (required %s)\n' \
+              "${app_heap:-missing}" "$required_heap"
+            exit 1
+          fi
+          grep -Fx "UPSTREAM_MEMORY managedLimit=$((56 * 1024 * 1024))" \
+            <(sed -n 's/.*\(UPSTREAM_MEMORY managedLimit=[0-9]*\).*/\1/p' "$result")
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dense-new3ds-release-headroom-evidence-${{ matrix.sector }}
+          path: |
+            build/dense-campaign-replay/
+            ${{ runner.temp }}/smoke-data/azahar-emu/log/
