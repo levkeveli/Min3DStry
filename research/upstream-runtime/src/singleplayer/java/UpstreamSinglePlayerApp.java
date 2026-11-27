@@ -32,6 +32,7 @@ import mindustry.core.World;
 import mindustry.entities.bullet.BulletType;
 import mindustry.game.EventType.BlockBuildEndEvent;
 import mindustry.game.EventType.Trigger;
+import mindustry.game.EventType.ResetEvent;
 import mindustry.game.EventType.WaveEvent;
 import mindustry.game.Gamemode;
 import mindustry.graphics.Layer;
@@ -69,6 +70,7 @@ public final class UpstreamSinglePlayerApp {
     private final UpstreamBuildingPowerHud buildingPowerHud = new UpstreamBuildingPowerHud();
     private final UpstreamBuildingLiquidHud buildingLiquidHud = new UpstreamBuildingLiquidHud();
     private final UpstreamBuildingBasicBars buildingBasicBars = new UpstreamBuildingBasicBars();
+    private final UpstreamBuildingSpecificBars buildingSpecificBars = new UpstreamBuildingSpecificBars();
     private UpstreamLiveBuildControls buildingControls = createBuildControls();
     private final UpstreamWeatherLayers weatherLayers = new UpstreamWeatherLayers();
     private final Runnable drawWeatherUnder = weatherLayers::drawUnder;
@@ -359,6 +361,7 @@ public final class UpstreamSinglePlayerApp {
             }
         });
         UpstreamSectorCapture.install();
+        Events.on(ResetEvent.class, event -> buildingSpecificBars.clear());
         Events.on(WaveEvent.class, event -> {
             String warning = UpstreamGuardianWarning.find(Vars.state.rules, Vars.state.wave);
             if (warning != null) UpstreamNotification.show(warning, 5f);
@@ -1648,6 +1651,7 @@ public final class UpstreamSinglePlayerApp {
         hudY = buildingPowerHud.draw(target, buildingControls, Vars.player.team(), hudY);
         hudY = buildingBasicBars.drawItems(target, buildingControls, Vars.player.team(), hudY);
         hudY = buildingLiquidHud.draw(target, buildingControls, Vars.player.team(), hudY);
+        hudY = buildingSpecificBars.draw(target, buildingControls, Vars.player.team(), hudY);
         drawObjectives(hudY);
         drawBossBar();
         if (pauseOpen) drawPauseMenu();

@@ -25,6 +25,7 @@ import mindustry.content.Blocks;
 import mindustry.content.UnitTypes;
 import mindustry.core.World;
 import mindustry.core.UI;
+import mindustry.game.EventType.ResetEvent;
 import mindustry.game.EventType.WorldLoadEvent;
 import mindustry.gen.Building;
 import mindustry.gen.Groups;
@@ -59,6 +60,7 @@ public final class UpstreamRenderedNetworkProbe {
     private final UpstreamBuildingPowerHud buildingPowerHud = new UpstreamBuildingPowerHud();
     private final UpstreamBuildingLiquidHud buildingLiquidHud = new UpstreamBuildingLiquidHud();
     private final UpstreamBuildingBasicBars buildingBasicBars = new UpstreamBuildingBasicBars();
+    private final UpstreamBuildingSpecificBars buildingSpecificBars = new UpstreamBuildingSpecificBars();
     private final UpstreamWeatherLayers weatherLayers = new UpstreamWeatherLayers();
     private final Runnable drawWeatherUnder = weatherLayers::drawUnder;
     private UpstreamLiveBuildControls buildingControls;
@@ -195,6 +197,7 @@ public final class UpstreamRenderedNetworkProbe {
     private void prepareClient() {
         if (Core.camera == null) Core.camera = new Camera();
         Arm11Audio.prepareMusicControl();
+        Events.on(ResetEvent.class, event -> buildingSpecificBars.clear());
         Events.on(WorldLoadEvent.class, event -> {
             Arm11Audio.reset();
             weatherLayers.reset();
@@ -410,6 +413,7 @@ public final class UpstreamRenderedNetworkProbe {
         hudY = buildingPowerHud.draw(target, buildingControls, Vars.player.team(), hudY);
         hudY = buildingBasicBars.drawItems(target, buildingControls, Vars.player.team(), hudY);
         hudY = buildingLiquidHud.draw(target, buildingControls, Vars.player.team(), hudY);
+        hudY = buildingSpecificBars.draw(target, buildingControls, Vars.player.team(), hudY);
         drawObjectives(hudY);
         drawChat();
         if (chatInput.open()) {

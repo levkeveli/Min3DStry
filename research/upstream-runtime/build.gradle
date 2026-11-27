@@ -10,6 +10,7 @@ repositories { mavenCentral() }
 def revision = '19a0f40d44514f4802a8b79770456e7e32e34da0'
 def upstreamFile = 'core/src/mindustry/logic/LogicOp.java'
 def blockSource = 'core/src/mindustry/world/Block.java'
+def barSource = 'core/src/mindustry/ui/Bar.java'
 def tileSource = 'core/src/mindustry/world/Tile.java'
 def tilesSource = 'core/src/mindustry/world/Tiles.java'
 def liquidModuleSource = 'core/src/mindustry/world/modules/LiquidModule.java'
@@ -298,6 +299,7 @@ if (usesArcSources || usesExecutor) {
                               'mindustry/entities/bullet/BulletType.class', 'mindustry/entities/bullet/BulletType$*.class'])
         stagedClasses.addAll(['mindustry/type/Weather.class', 'mindustry/type/Weather$*.class',
                               'mindustry/type/weather/ParticleWeather.class'])
+        stagedClasses.add('mindustry/ui/Bar.class')
     }
     if (probe in ['network-render', 'unified']) {
         // The port renders without the desktop Renderer, so the stock effect gate
@@ -718,6 +720,7 @@ tasks.register('prepareUpstreamProbe') {
     }
     if (usesRenderedClient) {
         outputs.files(contentColorsFile, unitTypeFile, bulletTypeFile)
+        outputs.file(sourceDir.map { it.file('mindustry/ui/Bar.java') })
         outputs.file(sourceDir.map { it.file(logicExecutorSource) })
         logicDisplaySources.each { outputs.file(sourceDir.map { dir -> dir.file(it) }) }
         outputs.file(sourceDir.map { it.file('mindustry/type/Weather.java') })
@@ -1437,6 +1440,46 @@ import port.audio.Arm11Audio;''')
 
     public void loadColors(Fi source){
         Pixmap pixmap = new Pixmap(source);'''), 'UTF-8')
+            def bar = new String(readUpstream(barSource), 'UTF-8')
+            def drawEntry = '''    @Override
+    public void draw(){
+        if(fraction == null) return;
+
+        float computed = Mathf.clamp(fraction.get());'''
+            def drawBody = '        Drawable bar = Tex.bar;'
+            if (bar.count(drawEntry) != 1 || bar.count(drawBody) != 1) {
+                throw new GradleException('Pinned Bar animation and draw boundary changed')
+            }
+            bar = bar.replace(drawEntry, '''    public void advanceValue(){
+        if(fraction == null) return;
+
+        float computed = Mathf.clamp(fraction.get());''')
+                .replace(drawBody, '''    }
+
+    public boolean hasValue(){
+        return fraction != null;
+    }
+
+    public CharSequence displayName(){
+        return name;
+    }
+
+    public float displayValue(){
+        return value;
+    }
+
+    public Color displayColor(Color output){
+        return output.set(color).lerp(blinkColor, blink);
+    }
+
+    @Override
+    public void draw(){
+        if(!hasValue()) return;
+        advanceValue();
+        Drawable bar = Tex.bar;''')
+            def stagedBar = sourceDir.get().file('mindustry/ui/Bar.java').asFile
+            stagedBar.parentFile.mkdirs()
+            stagedBar.setText(bar, 'UTF-8')
             def unitType = new String(readUpstream(unitTypeSource), 'UTF-8')
             def localItems = 'if(unit.isLocal() && !renderer.pixelate){'
             if (unitType.count(localItems) != 1) {
@@ -1773,6 +1816,11 @@ ${barMethod}""")
         Seq<String> names = new Seq<>();
         for(String name : barMap.keys()) names.add(name);
         return names;
+    }
+
+    public Bar buildBar(String name, Building building){
+        var factory = barMap.get(name);
+        return factory == null ? null : factory.get(building);
     }
 
 ${barOracle}""")
