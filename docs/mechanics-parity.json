@@ -75,7 +75,7 @@
       "domain": "Extraction & Logistics",
       "name": "Player Unit Ore Mining & Core Deposit",
       "weight": 2,
-      "status": "live-arm11",
+      "status": "complete",
       "modes": ["offline", "multiplayer"],
       "issue": 27,
       "evidence": [
@@ -83,7 +83,7 @@
         "research/upstream-runtime/src/network-live/java/UpstreamLiveBuildControls.java",
         "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerApp.java"
       ],
-      "notes": "Touch Mine targeting, mining laser beam, ore harvesting, and automatic core copper/lead deposit work live on ARM11."
+      "notes": "Touch Mine targeting, mining laser beam, ore harvesting, and automatic core copper/lead deposit work live on ARM11. Host build-controls reference: UPSTREAM_MINE_REFERENCE copper=floor beryllium=wall invalid=ignored switch=ok cancel=ok; live client reports UPSTREAM_MINE_CORE_SYNC with the changed core item count. Software complete."
     },
     {
       "id": "drills-extraction",
