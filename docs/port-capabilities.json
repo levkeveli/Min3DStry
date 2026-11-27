@@ -323,7 +323,7 @@
       "category": "Maps, Campaign & Saves",
       "name": "Upstream .msav Map & Save Reader/Writer",
       "weight": 6,
-      "stage": "hardware-verified",
+      "stage": "complete",
       "issue": 28,
       "evidence": [
         "research/upstream-runtime/README.md",
