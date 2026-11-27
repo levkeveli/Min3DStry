@@ -187,21 +187,25 @@ if [[ $# -gt 0 ]]; then
         "Min3DStry Contributors" "$DEVKITPRO/libctru/default_icon.png" "$output/upstream-probe.smdh"
     package_flags=(--smdh="$output/upstream-probe.smdh" --romfs="$output/romfs")
 fi
-# TODO: remove once TeaVM 0.16 C generates matching object-reference casts.
-# Scoped opt-in: only probes that need it set M3DS_RELAX_POINTER_TYPES=1.
-# Never set it globally; unrelated probes must keep the pointer-type diagnostic.
 code_layout_flags=()
+debug_flags=(-g)
 if [[ $mode == --unified ]]; then
     # Keep generated calls relocatable so the linker can insert ARM branch veneers.
     code_layout_flags=(-ffunction-sections)
+    # The unified C unit needs line tables for diagnostics. Full local-variable
+    # DWARF makes cc1 exceed the hosted runner's memory before it can link.
+    debug_flags=(-g1 -fno-var-tracking -fno-var-tracking-assignments)
 fi
+# TODO: remove once TeaVM 0.16 C generates matching object-reference casts.
+# Scoped opt-in: only probes that need it set M3DS_RELAX_POINTER_TYPES=1.
+# Never set it globally; unrelated probes must keep the pointer-type diagnostic.
 pointer_flags=()
 if [[ "${M3DS_RELAX_POINTER_TYPES:-0}" == "1" ]]; then
     pointer_flags=(-Wno-error=incompatible-pointer-types)
 fi
 compiler="$DEVKITARM/bin/arm-none-eabi-gcc"
 arch_flags=(-march=armv6k -mtune=mpcore -mfpu=vfp -mfloat-abi=hard -mtp=soft)
-compile_flags=(-std=gnu11 -g "$arm11_opt" -fwrapv -D__3DS__ -mword-relocations
+compile_flags=(-std=gnu11 "${debug_flags[@]}" "$arm11_opt" -fwrapv -D__3DS__ -mword-relocations
     "${arch_flags[@]}" -I"$output/nativeinclude" -I"$DEVKITPRO/libctru/include"
     "${terrain_flags[@]}" "${save_rows_flags[@]}" "${pointer_flags[@]}" "${stack_flags[@]}" "${code_layout_flags[@]}")
 # Keep the original compiler layout for stock JSON writes. A split unified
