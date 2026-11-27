@@ -47,9 +47,9 @@ def write_replay(path: Path, model: str, planet: str, manual_cargo: bool = False
     write_input_replay(path, model, windows, end, b"Min3DStry Campaign Launch")
 
 def write_input_replay(path: Path, model: str, windows: list[tuple[int, int, int]],
-                       end: int, title: bytes) -> None:
+                       end: int, title: bytes, *, rtc_start: int = 1780000000) -> None:
     frames = sp.CTM_SAMPLES_PER_SECOND * (end + 10)
-    header = struct.pack("<4sQ20sQQ32sIQq156x", b"CTM\x1b", 0, sp.CTM_REVISION, 1780000000,
+    header = struct.pack("<4sQ20sQQ32sIQq156x", b"CTM\x1b", 0, sp.CTM_REVISION, rtc_start,
                          0x4D334453, title, 0, frames, 0)
     idle = struct.pack("<B6x", 1)
     with path.open("wb") as movie:

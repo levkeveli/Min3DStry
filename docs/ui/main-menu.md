@@ -275,3 +275,6 @@ directory pointing to a loopback stock Java server. It favorites the
 directory group, opens the live Glacier advertisement, accepts the
 upstream community notice, and joins from the title menu. The stock JVM
 reads the resulting favorite and acknowledgement from `settings.bin`.
+The optional `public_community_tls` smoke dispatch separately boots with
+an empty cache and a current emulated date, fetches through the handheld's
+packaged trust store, and checks the resulting stock JSON file.

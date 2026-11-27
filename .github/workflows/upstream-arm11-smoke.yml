@@ -17,6 +17,7 @@ on:
       - "tools/stage_music_assets.py"
       - "tools/verify_upstream_net.py"
       - "tools/verify_upstream_live_net.py"
+      - "tools/verify_stock_community_tls.py"
       - "tools/verify_stock_live_crafting.py"
       - "tests/tools/test_audio_assets.py"
       - "tests/tools/test_stage_music_assets.py"
@@ -48,6 +49,10 @@ on:
         description: Run standalone diagnostics in addition to the unified smoke jobs
         type: boolean
         default: true
+      public_community_tls:
+        description: Fetch the public Mindustry directory in the New 3DS emulator
+        type: boolean
+        default: false
 
 concurrency:
   group: upstream-arm11-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || (github.event_name == 'workflow_dispatch' && format('dispatch-{0}', github.run_id)) || github.ref }}
@@ -1494,6 +1499,12 @@ jobs:
             --port 16687 --community-directory
           java -cp "$root/classes:$jar" UpstreamCommunityDirectoryReference --check-replay \
             build/unified-smoke/upstream-live-net/community-servers
+      - name: Fetch the official community directory over New 3DS HTTPS
+        if: ${{ !cancelled() && steps.live-azahar.outcome == 'success' && inputs.public_community_tls == true }}
+        run: >-
+          xvfb-run -a python3 tools/verify_stock_community_tls.py
+          --rom build/unified-smoke/upstream-probe.3dsx --azahar "$AZAHAR_BIN"
+          --output build/community-tls-smoke
       - name: Stock silicon crafting snapshots and live building draw
         if: needs.changes.outputs.run_net == 'true'
         run: >-
@@ -1514,6 +1525,7 @@ jobs:
           name: arm11-live-smoke-evidence
           path: |
             build/audio-smoke/
+            build/community-tls-smoke/
             build/live-crafting/
             build/unified-smoke/upstream-live-net/
             ${{ runner.temp }}/smoke-data/azahar-emu/log/

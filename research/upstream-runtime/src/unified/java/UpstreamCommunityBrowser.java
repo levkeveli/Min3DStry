@@ -256,8 +256,8 @@ final class UpstreamCommunityBrowser {
         byte[] response = new byte[UpstreamCommunityDirectory.MAX_DIRECTORY_BYTES];
         String[] urls = "bleeding-edge".equals(Version.type) || Vars.forceBeServers
             ? Vars.serverJsonBeURLs : Vars.serverJsonURLs;
-        for (String url : urls) {
-            byte[] endpoint = url.getBytes(StandardCharsets.US_ASCII);
+        for (int source = 0; source < urls.length; source++) {
+            byte[] endpoint = urls[source].getBytes(StandardCharsets.US_ASCII);
             if (Native.start(Address.ofData(endpoint), endpoint.length) == 0) continue;
             try {
                 int size;
@@ -272,7 +272,7 @@ final class UpstreamCommunityBrowser {
                 if (canceled || menus.titleExitRequested()) return false;
                 if (size > 0) {
                     groups = UpstreamCommunityDirectory.install(settings, Arrays.copyOf(response, size));
-                    System.out.println("UPSTREAM_COMMUNITY_DIRECTORY fetched=" + groups.size);
+                    System.out.println("UPSTREAM_COMMUNITY_DIRECTORY fetched=" + groups.size + " source=" + source);
                     return true;
                 }
             } catch (IOException invalid) {
