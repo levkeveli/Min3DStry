@@ -256,15 +256,17 @@
       "domain": "Controls & Dual-Screen UI",
       "name": "Session Controls (Pause/Resume, Next Wave, Quick-Save)",
       "weight": 2,
-      "status": "live-arm11",
+      "status": "complete",
       "modes": ["offline"],
       "issue": 27,
       "evidence": [
         "docs/gameplay/offline-singleplayer.md",
         "research/upstream-runtime/arm11/m3ds_input.c",
-        "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerApp.java"
+        "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerApp.java",
+        "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerSession.java",
+        ".github/workflows/upstream-arm11-smoke.yml"
       ],
-      "notes": "X pause/resume, Y wave trigger, and SELECT quick-save work in offline single-player. The live pause menu opens on X, freezes the simulation when the stock rules allow pausing, and returns to play on Resume."
+      "notes": "X pause/resume, Y wave trigger, and SELECT quick-save work in offline single-player, and the live pause menu opens on X, freezes the simulation when the stock rules allow pausing, and returns to play on Resume. The singleplayer host probe now asserts the full control set on the stock Ground Zero map: pause freezes Vars.state.updateId for 30 ticks and resume continues, the pause-disabled rule keeps the simulation running (UPSTREAM_SP_NO_PAUSE simulation=running), the wave trigger spawns wave 1 and reaches wave 2 with an advancing enemy, and the quick-save writes a non-empty .msav that reloads to the same wave, core copper and enemy count. Combined marker: UPSTREAM_SP_CONTROLS pause=ok pauseDisabled=ok wave=2 save=ok reload=ok (inside the full UPSTREAM_SP_SIM_PASS trace), now grepped by the singleplayer baseline job. Software complete."
     },
     {
       "id": "live-minimap",
