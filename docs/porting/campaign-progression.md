@@ -94,6 +94,12 @@ The focused globes and the overview use each world's stock atmosphere
 settings. The New 3DS replay requires submissions for Serpulo and Erekir.
 Held globe rotation uses frame time to maintain the normal 60 Hz turn rate.
 
+The [New 3DS Azahar replay at `65ed770`](https://github.com/levkeveli/Min3DStry/actions/runs/45757621698)
+held the D-pad across Serpulo sectors 170, 63, 179 and 16. The overview
+screenshot matched 14 of 16 pinned skybox samples. The replay captured
+both atmospheres, selected Erekir, rendered The Onset at 512×512, and
+saved the sector. Unmodified Java v160.8 reopened its save and settings.
+
 The stock JVM reference confirms that the projected mesh centers and
 `Planet.getSector` agree for Ground Zero and The Onset. It also exercises
 rotation to Serpulo 16, camera zoom, and a miss outside the globe.
