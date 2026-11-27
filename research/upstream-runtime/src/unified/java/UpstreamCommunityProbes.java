@@ -35,16 +35,25 @@ final class UpstreamCommunityProbes {
         try {
             var pending = new Endpoint[slots];
             byte[] packet = new byte[512];
-            int[] ping = new int[1];
+            int[] metadata = new int[2];
+            byte[] target = new byte[254];
             int next = 0, active = 0;
             while ((next < endpoints.size || active > 0) && !canceled.getAsBoolean()) {
                 for (int slot = 0; slot < slots; slot++) {
                     if (pending[slot] != null) {
-                        int length = Native.poll(slot, Address.ofData(packet), packet.length, Address.ofData(ping));
+                        int length = Native.poll(slot, Address.ofData(packet), packet.length, Address.ofData(metadata),
+                            Address.ofData(target), target.length);
                         if (length == 0) continue;
                         if (length > 0) {
-                            Host host = decode(pending[slot].address, packet, length, ping[0]);
-                            if (host != null) results.add(new Result(pending[slot].group, pending[slot].address, host));
+                            var address = pending[slot].address;
+                            if (target[0] != 0) {
+                                int end = 0;
+                                while (end < target.length && target[end] != 0) end++;
+                                address = new UpstreamServerAddress(
+                                    new String(target, 0, end, StandardCharsets.US_ASCII), metadata[1]);
+                            }
+                            Host host = decode(address, packet, length, metadata[0]);
+                            if (host != null) results.add(new Result(pending[slot].group, address, host));
                         }
                         pending[slot] = null;
                         active--;
@@ -87,7 +96,7 @@ final class UpstreamCommunityProbes {
         static native int start(int slot, Address host, int length, int port);
 
         @Import(name = "m3ds_community_probe_poll")
-        static native int poll(int slot, Address packet, int capacity, Address ping);
+        static native int poll(int slot, Address packet, int capacity, Address metadata, Address target, int targetCapacity);
 
         @Import(name = "m3ds_community_probe_close")
         static native void close();

@@ -260,10 +260,15 @@ fields and the group name. The group favorite and hidden preferences use
 the stock keys. The server details show a version mismatch before joining
 and allow compatible servers to be added to Remote Servers.
 
+If a DNS hostname fails to answer at the default Mindustry port, the
+handheld also looks up its `_mindustry._tcp` SRV records and probes their
+targets in the stock priority and weight order. It uses the configured
+Wi-Fi resolvers first, with Arc's built-in resolver list when none are
+available.
+
 The packaged TLS trust store and source information are in
-[`data/net/community-ca.txt`](../../data/net/community-ca.txt). New 3DS
-emulator verification and DNS SRV fallback are tracked in
-[issue #756](https://github.com/levkeveli/Min3DStry/issues/756).
+[`data/net/community-ca.txt`](../../data/net/community-ca.txt). The New 3DS
+verification is tracked in [issue #756](https://github.com/levkeveli/Min3DStry/issues/756).
 
 The grouped smoke replay uses a truncated primary and a valid backup
 directory pointing to a loopback stock Java server. It favorites the
