@@ -514,14 +514,20 @@
       "domain": "Campaign & Planets",
       "name": "Erekir Content & Mechanics (Ducts, Heat, Neoplasm, Sectors)",
       "weight": 2,
-      "status": "partial-arm11",
+      "status": "complete",
       "modes": ["offline", "multiplayer"],
       "issue": 41,
       "evidence": [
         "docs/gameplay/offline-singleplayer.md",
-        "research/upstream-runtime/README.md"
+        "research/upstream-runtime/README.md",
+        "research/upstream-runtime/src/gameplay/java/UpstreamErekirDuctProbe.java",
+        "research/upstream-runtime/src/singleplayer-custom-host/java/UpstreamErekirHeatReference.java",
+        "tools/verify_erekir_heat_fixture.py",
+        "tools/verify_upstream_campaign_globe.py",
+        "tools/verify_stock_campaign_archive.py",
+        ".github/workflows/upstream-arm11-smoke.yml"
       ],
-      "notes": "The original Onset campaign starts and saves offline; the live client joins stock Erekir maps and supports original build controls. Complete heat, neoplasm and Erekir campaign coverage remain open."
+      "notes": "The original Onset campaign starts and saves offline, the live client joins stock Erekir maps with original build controls, and the v160.8 server reopened the ARM11 saves. The duct family is now host-verified inside the port tick loop: the stock duct, armored duct, duct router, duct unloader, duct bridge and overflow/underflow polarity run on the original onset map and move items at the pinned rate (UPSTREAM_EREKIR_DUCTS duct=4 armored=4 unloader=4 router=4 arrival=10 delivered=20 armoredArrival=10 armoredDelivered=8 bridge=duct-bridge overflow=normal underflow=inverted sort=copper routerDelivered=1). Heat, neoplasm and the Erekir production chain are verified by the stock-Java fixture and the same offline tick loop (UPSTREAM_EREKIR_HEAT reactor=60 redirector=36 crucible=36, UPSTREAM_EREKIR_HEAT_ROTATION isolated=ok restored=ok, UPSTREAM_EREKIR_HEAT_WATER starved=ok recovered=ok, UPSTREAM_EREKIR_NEOPLASM_OVERFLOW pressure=1), including the cold/active heat sprite layers, save/readback and the original pressure event. Erekir sectors are covered by the stock campaign archive (erekir=17) and the globe/launch replay. Erekir payload drawing stays tracked by payloads-unit-factories."
     },
     {
       "id": "audio-trigger-catalog",
