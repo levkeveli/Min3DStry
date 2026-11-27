@@ -41,18 +41,23 @@ public final class UpstreamBuildingLights {
         collecting = enabled;
     }
 
+    public static void defer(Runnable draw) {
+        if (collecting) shapes.add(draw);
+    }
+
     public static void flushFrame() {
         if (!collecting) return;
-        collecting = false;
         Draw.reset();
         try {
-            for (Runnable shape : shapes) shape.run();
+            // Marker callbacks can enqueue a segment after their own geometry.
+            for (int i = 0; i < shapes.size; i++) shapes.get(i).run();
             for (int i = 0; i < circleCount; i++) {
                 CircleLight light = circles.get(i);
                 drawCircle(light.x, light.y, light.radius, light.color);
             }
             Draw.flush();
         } finally {
+            collecting = false;
             Draw.reset();
         }
     }

@@ -402,8 +402,9 @@ public final class UpstreamRenderedNetworkProbe {
                 System.out.println("UPSTREAM_LIVE_ENEMY_GONE id=" + id);
             }
         }
-        UpstreamObjectiveMarkers.draw(Vars.state.rules, 240f / (viewport.height() * Vars.tilesize),
-            worldLabel);
+        float markerScale = 240f / (viewport.height() * Vars.tilesize);
+        UpstreamObjectiveMarkers.draw(Vars.state.rules, markerScale, worldLabel);
+        UpstreamObjectiveMarkers.collectLights(Vars.state.rules, markerScale, worldLabel);
         weatherLayers.drawOver();
         target.drawWorldLights();
         var orders = buildingControls.orders();

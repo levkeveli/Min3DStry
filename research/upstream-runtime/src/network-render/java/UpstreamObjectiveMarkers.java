@@ -4,6 +4,7 @@ import mindustry.game.MapObjectives.ObjectiveMarker;
 import mindustry.game.MapObjectives.PosMarker;
 import mindustry.game.MapObjectives.QuadMarker;
 import mindustry.game.Rules;
+import port.render.UpstreamBuildingLights;
 import port.render.UpstreamWorldLabel;
 
 final class UpstreamObjectiveMarkers {
@@ -26,6 +27,25 @@ final class UpstreamObjectiveMarkers {
         } finally {
             UpstreamWorldLabel.end();
         }
+    }
+
+    static void collectLights(Rules rules, float displayScale, UpstreamWorldLabel.Target text) {
+        UpstreamBuildingLights.defer(() -> {
+            UpstreamWorldLabel.begin(text, displayScale);
+            try {
+                rules.objectives.eachRunning(objective -> {
+                    for (var marker : objective.markers) {
+                        if (marker.light != -1) marker.drawLight(marker.autoscale ? 4f / displayScale : 1f);
+                    }
+                });
+                for (var marker : Vars.state.markers.lightMarkers) {
+                    marker.drawLight(marker.autoscale ? 4f / displayScale : 1f);
+                }
+            } finally {
+                UpstreamWorldLabel.end();
+                Draw.reset();
+            }
+        });
     }
 
     private static void drawOne(ObjectiveMarker marker, float displayScale) {

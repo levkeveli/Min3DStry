@@ -1476,8 +1476,17 @@ int32_t m3ds_terrain_draw_world_label(const char *label, const int32_t *characte
                                      float x, float y, int32_t flags, float size,
                                      int32_t horizontal, int32_t vertical, int32_t lines) {
     if (!frame_open || !catalog_buffer || !(size > 0.0f) || !isfinite(size)) return 0;
-    const float screen_right = 400.0f - screen_left;
-    const float screen_top = 240.0f - screen_bottom;
+    float screen_width = 400.0f, screen_height = 240.0f, pixel_scale = 1.0f;
+#ifdef M3DS_WORLD_ATLAS
+    if (light_pass) {
+        pixel_scale = 1.0f / light_downscale;
+        screen_width *= pixel_scale;
+        screen_height *= pixel_scale;
+    }
+#endif
+    const float screen_right = screen_width - screen_left;
+    const float screen_top = screen_height - screen_bottom;
+    const float edge_padding = 4.0f * pixel_scale;
     float width, height, scale_x, scale_y;
     bool outline = (flags & 2) != 0;
     bool using_stock = false;
@@ -1485,7 +1494,7 @@ int32_t m3ds_terrain_draw_world_label(const char *label, const int32_t *characte
     using_stock = m3ds_stock_text_layout(&stock_text, characters, count, outline);
     if (using_stock) {
         scale_y = 0.25f * size * scale;
-        scale_x = fminf(scale_y, (screen_right - screen_left - 8.0f) / fmaxf(1.0f, stock_text.width));
+        scale_x = fminf(scale_y, (screen_right - screen_left - 2 * edge_padding) / fmaxf(1.0f, stock_text.width));
         width = stock_text.width * scale_x;
         height = stock_text.height * scale_y;
     }
@@ -1500,7 +1509,7 @@ int32_t m3ds_terrain_draw_world_label(const char *label, const int32_t *characte
         if (!end || *end != '\0') return 0;
         // The fallback system font is 30 px, while the stock UI font is 18 px.
         scale_y = 0.25f * (18.0f / 30.0f) * size * scale;
-        scale_x = fminf(scale_y, (screen_right - screen_left - 8.0f) / fmaxf(1.0f, text.width));
+        scale_x = fminf(scale_y, (screen_right - screen_left - 2 * edge_padding) / fmaxf(1.0f, text.width));
         C2D_TextGetDimensions(&text, scale_x, scale_y, &width, &height);
         C2D_TextOptimize(&text);
     }
@@ -1513,7 +1522,7 @@ int32_t m3ds_terrain_draw_world_label(const char *label, const int32_t *characte
     sy -= height * 0.5f * (1 + vertical) + border * 1.5f * vertical;
     if (anchor_visible) {
         // A world marker near an edge can still show its whole prompt while the anchor is in view.
-        sx = fmaxf(screen_left + 4.0f, fminf(sx, screen_right - 4.0f - width));
+        sx = fmaxf(screen_left + edge_padding, fminf(sx, screen_right - edge_padding - width));
     }
     if (sx + width < screen_left || sx > screen_right || sy + height < screen_top || sy > screen_bottom) return 0;
 
@@ -1532,7 +1541,7 @@ int32_t m3ds_terrain_draw_world_label(const char *label, const int32_t *characte
     u32 align = lines < 0 ? C2D_AlignLeft : lines > 0 ? C2D_AlignRight : C2D_AlignCenter;
     sx += width * 0.5f * (1 + lines);
     if (outline) {
-        C2D_DrawText(&text, C2D_WithColor | align, sx + 0.75f, sy + 1.0f, 0.5f, scale_x, scale_y,
+        C2D_DrawText(&text, C2D_WithColor | align, sx + 0.75f * pixel_scale, sy + pixel_scale, 0.5f, scale_x, scale_y,
             C2D_Color32(45, 45, 45, 255));
     }
     C2D_DrawText(&text, C2D_WithColor | align, sx, sy, 0.5f, scale_x, scale_y, C2D_Color32(255, 255, 255, 255));

@@ -17,6 +17,9 @@ final class StageObjectiveLabelAdapter {
     static void stage(Path jar, Path output) throws Exception {
         try (var archive = new ZipFile(jar.toFile())) {
             stageTouchText(archive, output);
+            stageLight(archive, output, "PointMarker", "add", "(FFFLarc/graphics/Color;F)V", "radial");
+            stageLight(archive, output, "LightMarker", "add", "(FFFLarc/graphics/Color;F)V", "radial");
+            stageLight(archive, output, "LineMarker", "line", "(FFFFFLarc/graphics/Color;F)V", "line");
             stageTextureLookup(archive, output, "TextureMarker", false);
             stageTextureLookup(archive, output, "QuadMarker", true);
             for (String name : new String[]{"ShapeTextMarker", "TextMarker"}) {
@@ -41,6 +44,46 @@ final class StageObjectiveLabelAdapter {
                 write(type, output.resolve(path));
             }
         }
+    }
+
+    private static void stageLight(ZipFile archive, Path output, String name,
+                                   String stockMethod, String descriptor, String adaptedMethod) throws Exception {
+        var path = "mindustry/game/MapObjectives$" + name + ".class";
+        var type = new ClassNode();
+        try (var bytes = archive.getInputStream(archive.getEntry(path))) {
+            new ClassReader(bytes).accept(type, 0);
+        }
+        var draw = type.methods.stream()
+            .filter(method -> method.name.equals("drawLight") && method.desc.equals("(F)V"))
+            .findFirst().orElseThrow();
+        FieldInsnNode renderer = null, lights = null;
+        MethodInsnNode dispatch = null;
+        for (var instruction : draw.instructions) {
+            if (instruction instanceof FieldInsnNode field) {
+                if (field.getOpcode() == Opcodes.GETSTATIC && field.owner.equals("mindustry/Vars")
+                        && field.name.equals("renderer") && field.desc.equals("Lmindustry/core/Renderer;")) {
+                    if (renderer != null) throw new IllegalStateException("Repeated renderer lookup in " + path);
+                    renderer = field;
+                } else if (field.getOpcode() == Opcodes.GETFIELD && field.owner.equals("mindustry/core/Renderer")
+                        && field.name.equals("lights") && field.desc.equals("Lmindustry/graphics/LightRenderer;")) {
+                    if (lights != null) throw new IllegalStateException("Repeated light renderer lookup in " + path);
+                    lights = field;
+                }
+            } else if (instruction instanceof MethodInsnNode call && call.getOpcode() == Opcodes.INVOKEVIRTUAL
+                    && call.owner.equals("mindustry/graphics/LightRenderer") && call.name.equals(stockMethod)
+                    && call.desc.equals(descriptor)) {
+                if (dispatch != null) throw new IllegalStateException("Repeated stock light request in " + path);
+                dispatch = call;
+            }
+        }
+        if (renderer == null || lights == null || dispatch == null || renderer.getNext() != lights) {
+            throw new IllegalStateException("Unexpected stock light request in " + path);
+        }
+        draw.instructions.remove(renderer);
+        draw.instructions.remove(lights);
+        draw.instructions.set(dispatch, new MethodInsnNode(Opcodes.INVOKESTATIC,
+            "port/render/UpstreamBuildingLights", adaptedMethod, descriptor, false));
+        write(type, output.resolve(path));
     }
 
     private static final String markerTextureAdapter = "port/render/UpstreamMarkerTexture";

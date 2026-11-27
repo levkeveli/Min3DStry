@@ -1314,6 +1314,60 @@ def capture_marker_pixels(rpc, output, model, phase, points, timeout, expected=N
     raise RuntimeError(f"{phase} pixels: expected {expected}, got {samples}")
 
 
+def verify_world_lighting(server_log, server, rpc, output, model, position, timeout):
+    _, _, x, y = position
+    x, y = (math.floor(float(value) / 8 + 0.5) * 8 for value in (x, y))
+    points = ((140, 150), (306, 182))
+    ambient = (34, 51, 68)
+    ambient_alpha = 235 / 255
+    red, cyan = (255, 0, 0), (0, 255, 255)
+    red_alpha, cyan_alpha = 128 / 255, 112 / 255
+
+    def capture(phase, expected=None):
+        return capture_marker_pixels(rpc, output, model, f"world-light-{phase}",
+                                     points, timeout, expected, tolerance=6)
+
+    def apply_rules(phase, enabled):
+        send_marker_phase(server_log, server, phase,
+            f"const rules=Vars.state.rules; rules.lighting={str(enabled).lower()}; "
+            'rules.ambientLight.set(Color.valueOf("223344eb")); '
+            'const p=Groups.player.find(boolf(v=>String(v.name)===' + json.dumps(PLAYER) + ')); '
+            "Call.setRules(p.con,rules);")
+
+    def add_light(phase, ident, rgba):
+        send_marker_phase(server_log, server, phase,
+            f'const marker=new MapObjectives.LightMarker({x - 28}, {y - 16}, 5.5, Color.valueOf("{rgba}")); '
+            f'Call.createMarker({ident},marker); '
+            f'Call.updateMarker({ident},Packages.mindustry.logic.LMarkerControl.light,1,NaN,NaN);')
+
+    def composite(destination, *lights):
+        # Pinned LightRenderer draws normal RGB into a cleared RGBA8 target
+        # with GL_MAX alpha. Then light.frag mixes the tint and subtracts alpha.
+        rgb = (0, 0, 0)
+        alpha = 0.0
+        for color, opacity in lights:
+            rgb = tuple(round(after * opacity + before * (1 - opacity)) for before, after in zip(rgb, color))
+            alpha = max(alpha, opacity)
+        tint = tuple(before * (1 - alpha) + after * alpha for before, after in zip(ambient, rgb))
+        overlay = max(0, ambient_alpha - alpha)
+        return tuple(round(before * (1 - overlay) + after * overlay) for before, after in zip(destination, tint))
+
+    baseline = capture("disabled")
+    apply_rules("light-ambient", True)
+    clear = capture("ambient", tuple(composite(pixel) for pixel in baseline))
+    add_light("light-red", 758, "ff000080")
+    single = capture("single", (composite(baseline[0], (red, red_alpha)), clear[1]))
+    add_light("light-cyan", 759, "00ffff70")
+    overlap = capture("overlap", (composite(baseline[0], (red, red_alpha), (cyan, cyan_alpha)), clear[1]))
+    if single[0] == overlap[0]:
+        raise RuntimeError("Overlap frame did not show the second light")
+    send_marker_phase(server_log, server, "light-removed", "Call.removeMarker(758); Call.removeMarker(759);")
+    capture("removed", clear)
+    apply_rules("light-disabled", False)
+    capture("restored", baseline)
+    print(f"{model}: stock world light clear={clear} single={single} overlap={overlap}", flush=True)
+
+
 def verify_texture_markers(server_log, server, rpc, output, model, position, timeout):
     _, _, x, y = position
     x, y = (math.floor(float(value) / 8 + 0.5) * 8 for value in (x, y))
@@ -1684,7 +1738,7 @@ def run_model(args, model, config, original_config, log, output):
                   or args.verify_logic_markers or args.verify_texture_markers or args.verify_quad_markers or args.verify_canvas
                   or args.verify_canvas_quads or args.verify_client_processor or args.verify_logic_displays
                   or args.verify_display_markers or args.verify_puddles or args.verify_weather_layers
-                  or args.verify_chat)
+                  or args.verify_chat or args.verify_world_lighting)
     map_name = args.map_spawn or "Glacier"
     overrides = {
         "Miscellaneous": {"log_filter": "*:Info Debug.Emulated:Debug Service.SOC:Debug",
@@ -1731,6 +1785,9 @@ def run_model(args, model, config, original_config, log, output):
                     "const rules=Vars.state.rules; rules.worldProcessorPlayerLink=true; "
                     "rules.allowEditWorldProcessors=true; "
                     f"Vars.world.tile({PROCESSOR_CANVAS_COLUMN},32).setBlock(Blocks.worldProcessor,rules.defaultTeam);")
+            if args.verify_world_lighting:
+                send_marker_phase(server_log, server, "light-fixture",
+                    "const rules=Vars.state.rules; rules.lighting=false; rules.waveTimer=false; rules.waves=false;")
             if args.verify_puddles:
                 send_marker_phase(server_log, server, "puddles-clear", PUDDLE_SETUP)
             if args.verify_logic_displays:
@@ -2082,6 +2139,8 @@ def run_model(args, model, config, original_config, log, output):
                             verify_texture_markers(server_log, server, rpc, output, model, spawn, args.timeout)
                         if args.verify_quad_markers:
                             verify_quad_markers(log, emulator, server_log, server, rpc, output, model, spawn, args.timeout)
+                        if args.verify_world_lighting:
+                            verify_world_lighting(server_log, server, rpc, output, model, spawn, args.timeout)
                         if args.verify_stock_font:
                             wait_for(log, emulator, r"UPSTREAM_RENDER_KEEPALIVE transport=tcp\b", 5)
                         if args.verify_canvas:
@@ -2328,6 +2387,8 @@ def main():
                         help="Verify stock logic marker packets and visible state on Glacier")
     parser.add_argument("--verify-texture-markers", action="store_true",
                         help="Verify original atlas-backed texture markers on Glacier")
+    parser.add_argument("--verify-world-lighting", action="store_true",
+                        help="Compare ambient, single and overlapping stock lights after stock rules updates")
     parser.add_argument("--verify-quad-markers", action="store_true",
                         help="Verify clipped stock textured quads and live corner updates on Glacier")
     parser.add_argument("--verify-stock-font", action="store_true",
@@ -2445,6 +2506,8 @@ def main():
         parser.error("--verify-logic-markers needs stationary --controls and --terrain-atlas on Glacier")
     if args.verify_texture_markers and (not args.controls or not args.terrain_atlas or args.controls_replay or args.map_spawn):
         parser.error("--verify-texture-markers needs stationary --controls and --terrain-atlas on Glacier")
+    if args.verify_world_lighting and (not args.controls or not args.terrain_atlas or args.controls_replay or args.map_spawn):
+        parser.error("--verify-world-lighting needs stationary --controls and --terrain-atlas on Glacier")
     if args.verify_quad_markers and (not args.controls or not args.terrain_atlas or args.controls_replay or args.map_spawn):
         parser.error("--verify-quad-markers needs stationary --controls and --terrain-atlas on Glacier")
     if args.verify_objective_markers and (
@@ -2524,6 +2587,8 @@ def main():
     if args.terrain_atlas:
         originals[atlas_path] = atlas_path.read_bytes() if atlas_path.exists() else None
     output = args.rom.parent / "upstream-live-net"
+    if args.verify_world_lighting:
+        output /= "world-light"
     if args.verify_objective_markers and args.locale != "en":
         output /= args.locale
     output.mkdir(parents=True, exist_ok=True)

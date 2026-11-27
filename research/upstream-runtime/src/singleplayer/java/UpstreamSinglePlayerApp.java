@@ -1638,8 +1638,9 @@ public final class UpstreamSinglePlayerApp {
         } finally {
             Draw.sort(false);
         }
-        UpstreamObjectiveMarkers.draw(Vars.state.rules, 240f / (viewport.height() * Vars.tilesize),
-            worldLabel);
+        float markerScale = 240f / (viewport.height() * Vars.tilesize);
+        UpstreamObjectiveMarkers.draw(Vars.state.rules, markerScale, worldLabel);
+        UpstreamObjectiveMarkers.collectLights(Vars.state.rules, markerScale, worldLabel);
         if (Core.settings.getBool("showweather", true)) weatherLayers.drawOver();
         target.drawWorldLights();
         var orders = buildingControls.orders();

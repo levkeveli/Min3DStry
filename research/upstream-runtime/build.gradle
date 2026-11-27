@@ -321,6 +321,9 @@ if (usesArcSources || usesExecutor) {
                               'mindustry/game/MapObjectives$TextMarker.class',
                               'mindustry/game/MapObjectives$TextureMarker.class',
                               'mindustry/game/MapObjectives$QuadMarker.class',
+                              'mindustry/game/MapObjectives$PointMarker.class',
+                              'mindustry/game/MapObjectives$LightMarker.class',
+                              'mindustry/game/MapObjectives$LineMarker.class',
                               'mindustry/world/blocks/logic/CanvasBlock$CanvasBuild.class',
                               'mindustry/logic/GlobalVars.class', 'mindustry/logic/GlobalVars$*.class',
                               'mindustry/core/ContentLoader.class'])
