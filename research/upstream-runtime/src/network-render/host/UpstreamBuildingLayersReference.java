@@ -180,6 +180,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         var target = new UpstreamBuildingLayersReference();
         var viewport = UpstreamTerrainDrawProbe.liveViewport(target);
         verifyLiveChatInput();
+        verifyWorldTileShadows();
         verifyWorldDarkness();
         target.verifyArcOrder();
         target.verifyTexturedLine();
@@ -278,6 +279,47 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         Arm11AudioReference.verifyStockRegistry();
         UpstreamPuddleReference.verify();
         UpstreamWeatherLayersReference.verify();
+    }
+
+    private static void verifyWorldTileShadows() {
+        var previousWorld = Vars.world;
+        var previousRules = Vars.state.rules;
+        var world = new mindustry.core.World();
+        world.resize(12, 12).fill();
+        world.setGenerating(true);
+        Vars.world = world;
+        var rules = previousRules.copy();
+        rules.fog = false;
+        Vars.state.rules = rules;
+        var wall = world.tile(5, 5);
+        var terrain = world.tile(4, 6);
+        byte[] alpha = new byte[4 * 4];
+        try {
+            for (int y = 4; y <= 7; y++) {
+                for (int x = 4; x <= 7; x++) world.tile(x, y).setFloor(Blocks.stone.asFloor());
+            }
+            wall.setBlock(Blocks.copperWallLarge, Team.sharded);
+            terrain.setBlock(Blocks.stoneWall);
+            if (!UpstreamTileShadows.sample(world, rules, Team.sharded, 5, 5, 2, 2, alpha)
+                    || Byte.toUnsignedInt(alpha[4]) != 182
+                    || Byte.toUnsignedInt(alpha[5]) != 182
+                    || Byte.toUnsignedInt(alpha[6]) != 182
+                    || Byte.toUnsignedInt(alpha[9]) != 182
+                    || Byte.toUnsignedInt(alpha[10]) != 182 || alpha[7] != 0) {
+                throw new AssertionError("Stock shadow footprint or interpolation margin differs");
+            }
+            wall.setBlock(Blocks.air);
+            UpstreamTileShadows.sample(world, rules, Team.sharded, 5, 5, 2, 2, alpha);
+            if (alpha[5] != 0 || alpha[6] != 0 || alpha[9] != 0 || alpha[10] != 0
+                    || Byte.toUnsignedInt(alpha[4]) != 182) {
+                throw new AssertionError("Removing a stock building left its shadow or cleared terrain shadows");
+            }
+            System.out.println("UPSTREAM_TILE_SHADOW alpha=182 footprint=4 terrain=margin removed=ok");
+        } finally {
+            wall.setBlock(Blocks.air);
+            Vars.state.rules = previousRules;
+            Vars.world = previousWorld;
+        }
     }
 
     private static void verifyWorldDarkness() {

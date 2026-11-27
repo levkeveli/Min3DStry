@@ -42,6 +42,7 @@ public final class UpstreamTerrainDrawProbe {
     interface TerrainTarget {
         void begin(int left, int bottom, int width, int height);
         default void finishTerrain() {}
+        default void drawTileShadows(byte[] alpha, int width, int height) {}
         default void drawDarkness(byte[] alpha, int width, int height) {}
         void draw(int page, int left, int top, int width, int height,
                   float x, float y, float originX, float originY, float drawWidth, float drawHeight,
@@ -165,6 +166,7 @@ public final class UpstreamTerrainDrawProbe {
         private int height = zoomHeight(1f);
         private float zoom = 1f;
         private final TerrainBatch batch;
+        private byte[] tileShadows;
         private byte[] darkness;
         private final boolean drawStaticBlocks;
 
@@ -216,6 +218,18 @@ public final class UpstreamTerrainDrawProbe {
                 && tile.y + high >= bottom && tile.y - low < bottom + height;
         }
 
+        private void drawTileShadows(int visibleWidth, int visibleHeight) {
+            if (batch.target == null || visibleWidth <= 0 || visibleHeight <= 0) return;
+            int size = (visibleWidth + 2) * (visibleHeight + 2);
+            if (tileShadows == null || tileShadows.length < size) tileShadows = new byte[size];
+            var rules = Vars.state.rules;
+            var team = Vars.player == null ? rules.defaultTeam : Vars.player.team();
+            if (UpstreamTileShadows.sample(Vars.world, rules, team, left, bottom,
+                    visibleWidth, visibleHeight, tileShadows)) {
+                batch.target.drawTileShadows(tileShadows, visibleWidth, visibleHeight);
+            }
+        }
+
         void drawDarkness() {
             if (batch.target == null) return;
             int visibleWidth = Math.min(width, Vars.world.width() - left);
@@ -247,6 +261,8 @@ public final class UpstreamTerrainDrawProbe {
             }
             if (debris != null) debris.run();
             if (drawStaticBlocks) {
+                // Stock BlockRenderer draws this mask at Layer.block - 1.
+                drawTileShadows(right - left, top - bottom);
                 for (int y = bottom; y < top; y++) {
                     for (int x = left; x < right; x++) {
                         Tile tile = Vars.world.tile(x, y);
