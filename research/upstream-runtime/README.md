@@ -1720,7 +1720,12 @@ handheld network client. The `--connected-sources` replay toggles the
 original item source blocks through stock configuration calls. This mode
 uses the original local building ticks to display the recipe and verifies
 the Java server's own output. It sends no manual smelter snapshots.
-[Connected-source Azahar evidence](https://github.com/levkeveli/Min3DStry/actions/runs/45726989204/artifacts/15075044240).
+Both New 3DS cases passed at `684e900`. The stock Java server recorded
+silicon production and both replays saw all 25 sampled flame pixels
+change while the smelter warmed up. The connected-source capture also
+shows the flame clear after the supply was removed.
+[Grouped run](https://github.com/levkeveli/Min3DStry/actions/runs/46047212681)
+· [Crafting and cooled screenshots](https://github.com/levkeveli/Min3DStry/actions/runs/46047212681/artifacts/15223967247)
 
 The building lighting pass calls upstream `Building.drawLight` for visible
 emitters when the map enables lighting. Stock radial requests flow through
