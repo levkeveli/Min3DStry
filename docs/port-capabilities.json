@@ -77,7 +77,7 @@
       "category": "Hardware & Platform",
       "name": "New 3DS Hardware Probe",
       "weight": 4,
-      "stage": "hardware-verified",
+      "stage": "complete",
       "issue": 2,
       "evidence": [
         "src/platform/3ds/hardware_probe_3ds.c",
@@ -92,7 +92,7 @@
       "category": "Hardware & Platform",
       "name": "64 MiB Old 3DS Memory Allocator",
       "weight": 3,
-      "stage": "hardware-verified",
+      "stage": "complete",
       "issue": 36,
       "evidence": [
         "include/platform/memory_budget.h",
@@ -110,7 +110,7 @@
       "category": "Hardware & Platform",
       "name": "Dual-Core / N3DS AppCore Scheduling",
       "weight": 3,
-      "stage": "hardware-verified",
+      "stage": "complete",
       "issue": 37,
       "evidence": [
         "include/platform/worker_pool.h",
@@ -129,7 +129,7 @@
       "category": "Rendering & Assets",
       "name": "Bounded Citro2D Scene Renderer",
       "weight": 4,
-      "stage": "hardware-verified",
+      "stage": "complete",
       "issue": 3,
       "evidence": [
         "src/render/scene_2d.c",
