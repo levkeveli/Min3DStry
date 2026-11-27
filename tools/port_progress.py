@@ -72,8 +72,26 @@ def load_and_validate_capabilities(ledger_path: Path, repo_root: Path) -> dict[s
 
         total_weight += weight
 
-    if total_weight != 100:
-        raise ValueError(f"Capability weights must sum to 100, got {total_weight}.")
+    expected_weight = raw.get("scored_weight", 100)
+    if type(expected_weight) is not int or total_weight != expected_weight:
+        raise ValueError(f"Capability weights must sum to {expected_weight}, got {total_weight}.")
+
+    checks = raw.get("hardware_checks", [])
+    if not isinstance(checks, list):
+        raise ValueError("hardware_checks must be a list.")
+    check_ids = set()
+    for check in checks:
+        if not isinstance(check, dict) or not all(
+            isinstance(check.get(key), str) and check[key].strip() for key in ("id", "name")
+        ):
+            raise ValueError("Each hardware check needs an id and name.")
+        if check["id"] in check_ids or not isinstance(check.get("evidence"), list):
+            raise ValueError(f"Invalid or duplicate hardware check: {check['id']}")
+        check_ids.add(check["id"])
+        for evidence_path in check["evidence"]:
+            path = (repo_root / evidence_path).resolve()
+            if not path.is_relative_to(repo_root.resolve()) or not path.is_file() or not path.stat().st_size:
+                raise ValueError(f"Missing or invalid hardware evidence: {evidence_path}")
 
     return raw
 
@@ -82,16 +100,12 @@ def compute_progress(ledger: dict[str, Any]) -> dict[str, Any]:
     """Compute weighted overall and per-category port completion progress."""
     stage_weights: dict[str, float] = {str(k): float(v) for k, v in ledger["stage_weights"].items()}
     caps: list[dict[str, Any]] = ledger["capabilities"]
-    hw_mult = stage_weights["hardware-verified"]
-    comp_mult = stage_weights["complete"]
 
     stage_counts = {s: 0 for s in REQUIRED_STAGES}
     categories_map: dict[str, dict[str, Any]] = {}
     capabilities_summary: list[dict[str, Any]] = []
     total_weight = 0
     earned_total = 0.0
-    hw_gap_total = 0.0
-    rel_gap_total = 0.0
 
     for item in caps:
         weight = int(item["weight"])
@@ -100,15 +114,11 @@ def compute_progress(ledger: dict[str, Any]) -> dict[str, Any]:
         mult = stage_weights[stage]
         earned = weight * mult
         missing = weight - earned
-        hw_gap = weight * max(0.0, hw_mult - mult)
-        rel_gap = weight * max(0.0, comp_mult - max(mult, hw_mult))
         evidence_list = [str(p) for p in item.get("evidence", [])]
         primary_doc = next((p for p in evidence_list if p.endswith(".md")), evidence_list[0] if evidence_list else None)
 
         total_weight += weight
         earned_total += earned
-        hw_gap_total += hw_gap
-        rel_gap_total += rel_gap
         stage_counts[stage] += 1
 
         capabilities_summary.append(
@@ -120,23 +130,16 @@ def compute_progress(ledger: dict[str, Any]) -> dict[str, Any]:
                 "weight": weight,
                 "earned": round(earned, 2),
                 "missing": round(missing, 2),
-                "hw_gap": round(hw_gap, 2),
-                "release_gap": round(rel_gap, 2),
                 "issue": item.get("issue"),
                 "evidence_count": len(evidence_list),
                 "primary_doc": primary_doc,
             }
         )
 
-        bucket = categories_map.setdefault(
-            cat_name,
-            {"name": cat_name, "earned": 0.0, "weight": 0, "count": 0, "hw_gap": 0.0, "release_gap": 0.0},
-        )
+        bucket = categories_map.setdefault(cat_name, {"name": cat_name, "earned": 0.0, "weight": 0, "count": 0})
         bucket["earned"] += earned
         bucket["weight"] += weight
         bucket["count"] += 1
-        bucket["hw_gap"] += hw_gap
-        bucket["release_gap"] += rel_gap
 
     categories: list[dict[str, Any]] = []
     for bucket in categories_map.values():
@@ -151,8 +154,6 @@ def compute_progress(ledger: dict[str, Any]) -> dict[str, Any]:
                 "count": bucket["count"],
                 "percent": pct,
                 "missing": round(w - bucket["earned"], 2),
-                "hw_gap": round(bucket["hw_gap"], 2),
-                "release_gap": round(bucket["release_gap"], 2),
             }
         )
 
@@ -160,8 +161,6 @@ def compute_progress(ledger: dict[str, Any]) -> dict[str, Any]:
     return {
         "earned_points": round(earned_total, 2),
         "missing_points": round(total_weight - earned_total, 2),
-        "hardware_gap_points": round(hw_gap_total, 2),
-        "release_gap_points": round(rel_gap_total, 2),
         "total_points": total_weight,
         "percent": percent,
         "capability_count": len(caps),
@@ -180,15 +179,9 @@ def render_progress_svg(summary: dict[str, Any]) -> str:
     earned = float(summary["earned_points"])
     total = int(summary["total_points"])
     missing = float(summary.get("missing_points", max(0.0, total - earned)))
-    hw_pts = float(summary.get("hardware_gap_points", 0.0))
-    rel_pts = float(summary.get("release_gap_points", max(0.0, missing - hw_pts)))
-    hw_target_pct = round(((earned + hw_pts) / total) * 100.0, 1) if total else 0.0
-
     bar_x = 24
     bar_w = width - 48
     fill_w = max(0.0, min(float(bar_w), round((pct / 100.0) * bar_w, 1)))
-    hw_w = max(0.0, min(float(bar_w) - fill_w, round((hw_pts / total) * bar_w, 1))) if total else 0.0
-    rel_w = max(0.0, min(float(bar_w) - fill_w - hw_w, round((rel_pts / total) * bar_w, 1))) if total else 0.0
 
     sc = summary["stage_counts"]
     pills_text = (
@@ -196,10 +189,7 @@ def render_progress_svg(summary: dict[str, Any]) -> str:
         f"Emulator: {sc['emulator-tested']}  ·  Host: {sc['host-tested']}  ·  "
         f"Exp: {sc['experimental']}  ·  Planned: {sc['planned']}"
     )
-    gap_text = (
-        f"Remaining: -{missing:.2f} pts  (HW gate ->{hw_target_pct:.1f}%: +{hw_pts:.2f} pts  ·  "
-        f"Release parity ->100.0%: +{rel_pts:.2f} pts)"
-    )
+    gap_text = f"Remaining software work: {missing:.2f} pts"
 
     lines = [
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" '
@@ -209,7 +199,7 @@ def render_progress_svg(summary: dict[str, Any]) -> str:
         '  </defs>',
         f'  <rect x="0.5" y="0.5" width="{width - 1}" height="{height - 1}" rx="8" fill="#0d1117" stroke="#30363d"/>',
         '  <text x="24" y="34" fill="#e6edf3" font-family="Segoe UI, Ubuntu, Arial, sans-serif" '
-        'font-size="16" font-weight="700">Min3DStry Full-Port Completion Gauge</text>',
+        'font-size="16" font-weight="700">Min3DStry Software Port Completion Gauge</text>',
         f'  <text x="{width - 24}" y="34" text-anchor="end" fill="#f5b841" '
         'font-family="Consolas, Liberation Mono, monospace" font-size="20" font-weight="700">'
         f'{pct:.1f}%</text>',
@@ -220,14 +210,6 @@ def render_progress_svg(summary: dict[str, Any]) -> str:
         '  <g clip-path="url(#barClip)">',
         f'    <rect x="{bar_x}" y="66" width="{fill_w}" height="14" fill="#f5b841"/>',
     ]
-    if hw_w > 0.0:
-        lines.append(
-            f'    <rect x="{bar_x + fill_w:.1f}" y="66" width="{hw_w}" height="14" fill="#d29922" fill-opacity="0.32"/>'
-        )
-    if rel_w > 0.0:
-        lines.append(
-            f'    <rect x="{bar_x + fill_w + hw_w:.1f}" y="66" width="{rel_w}" height="14" fill="#58a6ff" fill-opacity="0.28"/>'
-        )
     lines.extend([
         '  </g>',
         '  <text x="24" y="98" fill="#8b949e" font-family="Consolas, Liberation Mono, monospace" '
@@ -275,10 +257,42 @@ def render_progress_svg(summary: dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def compute_hardware_progress(ledger: dict[str, Any]) -> dict[str, Any]:
+    checks = ledger.get("hardware_checks", [])
+    verified = sum(bool(check["evidence"]) for check in checks)
+    return {
+        "verified": verified,
+        "total": len(checks),
+        "percent": round(100 * verified / len(checks), 1) if checks else 0.0,
+        "checks": checks,
+    }
+
+
+def render_hardware_svg(summary: dict[str, Any]) -> str:
+    percent = summary["percent"]
+    height = 93 + 22 * summary["total"]
+    lines = [
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="760" height="{height}" role="img" '
+        f'aria-label="New 3DS physical hardware verification {percent:.1f}%">',
+        f'<rect width="760" height="{height}" rx="8" fill="#0d1117"/>',
+        '<g font-family="sans-serif" fill="#e6edf3">',
+        '<text x="24" y="32" font-size="16" font-weight="700">New 3DS Physical Hardware Verification</text>',
+        f'<text x="24" y="56" font-size="13">{summary["verified"]} / {summary["total"]} checks ({percent:.1f}%)</text>',
+        '<rect x="24" y="66" width="712" height="12" rx="6" fill="#30363d"/>',
+        f'<rect x="24" y="66" width="{712 * percent / 100:.1f}" height="12" rx="6" fill="#58a6ff"/>',
+    ]
+    for index, check in enumerate(summary["checks"]):
+        status = "Verified" if check["evidence"] else "Pending"
+        label = escape(f'{check["id"]}  {check["name"]} · {status}')
+        lines.append(f'<text x="24" y="{101 + 22 * index}" font-size="13">{label}</text>')
+    return "\n".join([*lines, "</g></svg>"]) + "\n"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--ledger", default="docs/port-capabilities.json")
     parser.add_argument("--svg", default="docs/progress-gauge.svg")
+    parser.add_argument("--hardware-svg", default="docs/hardware-gauge.svg")
     parser.add_argument("--repo-root", default=".")
     parser.add_argument("--write-svg", action="store_true")
     parser.add_argument("--check", action="store_true")
@@ -291,23 +305,18 @@ def main() -> int:
 
     ledger = load_and_validate_capabilities(ledger_path, repo_root)
     summary = compute_progress(ledger)
-    svg_text = render_progress_svg(summary)
+    outputs = {svg_path: render_progress_svg(summary)}
+    if "hardware_checks" in ledger:
+        outputs[Path(args.hardware_svg)] = render_hardware_svg(compute_hardware_progress(ledger))
 
-    if args.write_svg:
-        svg_path.parent.mkdir(parents=True, exist_ok=True)
-        svg_path.write_bytes(svg_text.encode("utf-8"))
-
+    for path, svg_text in outputs.items():
+        if args.write_svg:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(svg_text.encode("utf-8"))
+        if args.check and (not path.is_file() or path.read_text(encoding="utf-8") != svg_text):
+            print(f"port_progress: {path} is missing or stale; run with --write-svg", file=sys.stderr)
+            return 1
     if args.check:
-        if not svg_path.is_file():
-            print(f"port_progress: missing {svg_path}; run python3 tools/port_progress.py --write-svg", file=sys.stderr)
-            return 1
-        actual_svg = svg_path.read_text(encoding="utf-8")
-        if actual_svg != svg_text:
-            print(
-                f"port_progress: {svg_path} is out of date; run python3 tools/port_progress.py --write-svg",
-                file=sys.stderr,
-            )
-            return 1
         print(
             f"[PASS] port_progress: {summary['percent']:.1f}% "
             f"({summary['earned_points']:.2f}/{summary['total_points']} pts across {summary['capability_count']} capabilities)"
