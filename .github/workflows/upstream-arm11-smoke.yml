@@ -1467,7 +1467,7 @@ jobs:
           xvfb-run -a python3 tools/verify_upstream_live_net.py \
             --server build/unified-smoke/server-release.jar --rom build/unified-smoke/upstream-probe.3dsx \
             --azahar "$AZAHAR_BIN" --terrain-atlas build/unified-smoke/sprites.aatls \
-            --unified-boot --controls --controls-replay --world-atlas --join-from-title --locale de --model new3ds
+            --unified-boot --controls --controls-replay --world-atlas --join-from-title --locale de --model new3ds --world-darkness
       - name: Stock silicon crafting snapshots and live building draw
         if: needs.changes.outputs.run_net == 'true'
         run: >-

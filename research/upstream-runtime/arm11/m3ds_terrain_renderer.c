@@ -122,6 +122,12 @@ static bool minimap_ready;
 static int minimap_width, minimap_height;
 static uint8_t minimap_pixels[128 * 128 * 4] __attribute__((aligned(8)));
 
+// The widest supported world viewport is 32 by 24 tiles plus a one-texel border.
+enum { darkness_tex_width = 64, darkness_tex_height = 32 };
+static C3D_Tex darkness_texture;
+static uint8_t darkness_pixels[darkness_tex_width * darkness_tex_height * 4] __attribute__((aligned(8)));
+static int32_t frame_tile_size;
+
 static unsigned raster_texel(unsigned x, unsigned y, unsigned row_width) {
     unsigned morton = 0;
     for (unsigned bit = 0; bit < 3; bit++) {
@@ -249,6 +255,7 @@ int32_t m3ds_terrain_begin(int32_t left, int32_t bottom, int32_t width, int32_t 
         int32_t status = m3ds_terrain_initialize();
         if (status < 0) return status;
     }
+    frame_tile_size = tile_size;
     world_left = (left - 0.5f) * tile_size;
     world_bottom = (bottom - 0.5f) * tile_size;
     float world_width = width * tile_size;
@@ -739,6 +746,42 @@ int32_t m3ds_terrain_draw_canvas(int32_t id, int32_t revision, int32_t width, in
     (void)color; (void)mix_color; (void)blend_mode;
     return 0;
 #endif
+}
+
+int32_t m3ds_terrain_draw_darkness(const uint8_t *alpha, int32_t width, int32_t height) {
+    if (!frame_open || !alpha || width <= 0 || height <= 0
+            || width + 2 > darkness_tex_width || height + 2 > darkness_tex_height) return 0;
+    if (!darkness_texture.data) {
+        if (!C3D_TexInit(&darkness_texture, darkness_tex_width, darkness_tex_height, GPU_RGBA8)) return 0;
+        C3D_TexSetFilter(&darkness_texture, GPU_LINEAR, GPU_LINEAR);
+        C3D_TexSetWrap(&darkness_texture, GPU_CLAMP_TO_EDGE, GPU_CLAMP_TO_EDGE);
+    }
+
+    // GPU_RGBA8 uses ABGR byte order in PICA texture memory, as in the minimap upload.
+    for (int32_t y = 0; y < height + 2; y++) {
+        for (int32_t x = 0; x < width + 2; x++) {
+            unsigned index = raster_texel((unsigned)x, (unsigned)y, darkness_tex_width);
+            uint8_t *abgr = darkness_pixels + index * 4;
+            abgr[0] = alpha[y * (width + 2) + x];
+            abgr[1] = 0;
+            abgr[2] = 0;
+            abgr[3] = 0;
+        }
+    }
+    C3D_TexUpload(&darkness_texture, darkness_pixels);
+
+    const Tex3DS_SubTexture region = {
+        .width = (u16)width, .height = (u16)height,
+        .left = 1.0f / darkness_tex_width, .right = (width + 1.0f) / darkness_tex_width,
+        .top = 1.0f - 1.0f / darkness_tex_height,
+        .bottom = 1.0f - (height + 1.0f) / darkness_tex_height
+    };
+    const float tile_pixels = frame_tile_size * scale;
+    set_world_blend(0);
+    set_world_mix(0, 0);
+    const C2D_Image image = { &darkness_texture, &region };
+    return C2D_DrawImageAt(image, screen_left, screen_bottom - height * tile_pixels, 0.0f, NULL,
+        tile_pixels, tile_pixels);
 }
 
 int32_t m3ds_terrain_draw_solid_quad(const float *vertices, int32_t offset, int32_t blend_mode) {
@@ -1598,6 +1641,10 @@ void m3ds_terrain_fini(void) {
 #ifdef M3DS_CAMPAIGN_PLANETS
     m3ds_planet_release();
 #endif
+    if (darkness_texture.data) {
+        C3D_TexDelete(&darkness_texture);
+        memset(&darkness_texture, 0, sizeof(darkness_texture));
+    }
     if (minimap_ready) {
         C3D_TexDelete(&minimap_texture);
         minimap_ready = false;

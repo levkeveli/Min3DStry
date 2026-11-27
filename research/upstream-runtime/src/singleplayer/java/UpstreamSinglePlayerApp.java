@@ -1610,6 +1610,7 @@ public final class UpstreamSinglePlayerApp {
         drawConstructBuilds();
         Draw.sort(true);
         try {
+            Draw.draw(Layer.darkness, viewport::drawDarkness);
             for (var unit : Groups.unit) {
                 if (unit instanceof BlockUnitc) continue;
                 int x = World.toTile(unit.x()), y = World.toTile(unit.y());

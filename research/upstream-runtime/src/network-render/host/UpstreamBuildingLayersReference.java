@@ -180,6 +180,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         var target = new UpstreamBuildingLayersReference();
         var viewport = UpstreamTerrainDrawProbe.liveViewport(target);
         verifyLiveChatInput();
+        verifyWorldDarkness();
         target.verifyArcOrder();
         target.verifyTexturedLine();
         target.verifyFactory(viewport);
@@ -277,6 +278,51 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         Arm11AudioReference.verifyStockRegistry();
         UpstreamPuddleReference.verify();
         UpstreamWeatherLayersReference.verify();
+    }
+
+    private static void verifyWorldDarkness() {
+        var previousWorld = Vars.world;
+        var world = new mindustry.core.World();
+        world.resize(12, 12).fill();
+        world.setGenerating(true);
+        Vars.world = world;
+        var previous = Vars.state.rules;
+        var rules = previous.copy();
+        Vars.state.rules = rules;
+        var floor = world.tile(6, 7);
+        try {
+            floor.setBlock(Blocks.snowWall);
+            floor.data = 2;
+            rules.limitMapArea = true;
+            rules.borderDarkness = false;
+            rules.limitX = 5;
+            rules.limitY = 6;
+            rules.limitWidth = 5;
+            rules.limitHeight = 4;
+            byte[] alpha = new byte[7 * 6];
+            if (!UpstreamWorldDarkness.sample(world, rules, 5, 6, 5, 4, alpha)) {
+                throw new AssertionError("Expected a limited map darkness texture");
+            }
+            if (Byte.toUnsignedInt(alpha[0]) != 255 || Byte.toUnsignedInt(alpha[2 * 7 + 2]) != 0
+                    || Byte.toUnsignedInt(alpha[3 * 7 + 2]) != 159
+                    || Byte.toUnsignedInt(alpha[3 * 7 + 6]) != 255) {
+                throw new AssertionError("Stock darkness or one-texel interpolation margin differs");
+            }
+            rules.limitMapArea = false;
+            if (UpstreamWorldDarkness.alpha(world, rules, 4, 7) != 0
+                    || UpstreamWorldDarkness.alpha(world, rules, 6, 7) != 159) {
+                throw new AssertionError("Reopening a map changed natural wall darkness");
+            }
+            rules.borderDarkness = true;
+            if (UpstreamWorldDarkness.alpha(world, rules, 0, 7) != 255
+                    || UpstreamWorldDarkness.alpha(world, rules, 1, 7) != 159) {
+                throw new AssertionError("Stock world edge darkness differs");
+            }
+            System.out.println("UPSTREAM_WORLD_DARKNESS wall=159 border=255 blend=159 restored=0");
+        } finally {
+            Vars.state.rules = previous;
+            Vars.world = previousWorld;
+        }
     }
 
     private static void verifyPositionalAudioDispatch() {

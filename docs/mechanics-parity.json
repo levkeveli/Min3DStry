@@ -427,6 +427,7 @@
       "modes": ["offline", "multiplayer", "harness"],
       "issue": 38,
       "evidence": [
+        "docs/rendering/live-hud.md",
         "docs/gameplay/offline-singleplayer.md",
         "docs/audio/ndsp-mixer.md",
         "research/upstream-runtime/src/network-render/java/UpstreamWeatherLayers.java",
@@ -441,7 +442,7 @@
         "src/render/scene_2d.c",
         "src/platform/3ds/citro2d_backend.c"
       ],
-      "notes": "Offline and multiplayer clients advance the stock weather entities, particle/debris layers and puddles; both Azahar profiles sampled active rain/sandstorm/fog and stock puddles. The stock EffectState group now advances and draws with the pinned v160.8 Effect renderers, so server EffectCallPackets and local Fx provide the lightning, impact and dust layers instead of being dropped (host: lightning=arc explosion=impact draw=2 packet=ok cleanup=ok). The building pass invokes stock drawLight for visible emitters when map lighting is enabled, using its radial requests with the handheld additive circle-shadow sprite. Non-radial `Drawf.light` segment and textured-region calls now route through UpstreamBuildingLights when the desktop renderer is absent (host: UPSTREAM_LIGHT_PATHS line=ok textured=ok quads=1 sprites=1). The host reference checks the illuminator and the silicon smelter's idle and warm states. The stock light buffer and shadows remain open. Live camera zoom is wired to the New 3DS C-Stick (0.5x-2x, 8x6-32x24 tile span) with host checks; physical draw is pending the New 3DS acceptance run."
+      "notes": "Offline and multiplayer clients advance the stock weather entities, particle/debris layers and puddles; both Azahar profiles sampled active rain/sandstorm/fog and stock puddles. The stock EffectState group now advances and draws with the pinned v160.8 Effect renderers, so server EffectCallPackets and local Fx provide the lightning, impact and dust layers instead of being dropped (host: lightning=arc explosion=impact draw=2 packet=ok cleanup=ok). The building pass invokes stock drawLight for visible emitters when map lighting is enabled, using its radial requests with the handheld additive circle-shadow sprite. Non-radial `Drawf.light` segment and textured-region calls now route through UpstreamBuildingLights when the desktop renderer is absent (host: UPSTREAM_LIGHT_PATHS line=ok textured=ok quads=1 sprites=1). The host reference checks the illuminator and the silicon smelter's idle and warm states. The stock world darkness pass restores the viewport pixels after a live map area change in New 3DS Azahar. The stock light buffer and shadows remain open. Live camera zoom is wired to the New 3DS C-Stick (0.5x-2x, 8x6-32x24 tile span) with host checks; physical draw is pending the New 3DS acceptance run."
     },
     {
       "id": "logic-vm-execution",
