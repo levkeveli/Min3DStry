@@ -284,4 +284,8 @@ both the favorite and community notice acknowledgement.
 
 The optional `public_community_tls` smoke dispatch separately boots with
 an empty cache and a current emulated date, fetches through the handheld's
-packaged trust store, and checks the resulting stock JSON file.
+packaged trust store, and checks the resulting stock JSON file. At
+`da0af3e`, the empty-cache New 3DS replay fetched 100 groups from the
+pinned primary endpoint and persisted them. The mirror case blocks the
+primary hostname on the GitHub runner and requires endpoint 1 to succeed.
+[Primary HTTPS log](https://github.com/levkeveli/Min3DStry/actions/runs/46066655343/artifacts/15232327867)

@@ -39,6 +39,8 @@ def verify(args):
             if result is None:
                 raise AssertionError("The handheld failed to fetch the official community directory over HTTPS")
             groups, source = map(int, result.groups())
+            if source != args.expected_endpoint:
+                raise AssertionError(f"Expected official directory endpoint {args.expected_endpoint}, got {source}")
             directory = json.loads(cache.read_bytes())
             if not isinstance(directory, list) or len(directory) != groups:
                 raise AssertionError("The stock directory was not persisted to server_list.json")
@@ -61,6 +63,8 @@ def main():
     parser.add_argument("--rom", required=True, type=Path)
     parser.add_argument("--azahar")
     parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument("--expected-endpoint", type=int, choices=(0, 1), default=0,
+                        help="Stock stable directory index expected in the handheld fetch log")
     verify(parser.parse_args())
 
 

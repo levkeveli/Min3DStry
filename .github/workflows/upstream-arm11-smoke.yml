@@ -1511,10 +1511,19 @@ jobs:
             build/unified-smoke/upstream-live-net/community-servers
       - name: Fetch the official community directory over New 3DS HTTPS
         if: ${{ !cancelled() && steps.live-azahar.outcome == 'success' && inputs.public_community_tls == true }}
-        run: >-
-          xvfb-run -a python3 tools/verify_stock_community_tls.py
-          --rom build/unified-smoke/upstream-probe.3dsx --azahar "$AZAHAR_BIN"
-          --output build/community-tls-smoke
+        run: |
+          rom=build/unified-smoke/upstream-probe.3dsx
+          xvfb-run -a python3 tools/verify_stock_community_tls.py \
+            --rom "$rom" --azahar "$AZAHAR_BIN" --output build/community-tls-smoke/primary
+          # Block only the primary hostname on this disposable runner.
+          hosts_backup=$(mktemp)
+          cp /etc/hosts "$hosts_backup"
+          trap 'sudo tee /etc/hosts < "$hosts_backup" >/dev/null; rm -f "$hosts_backup"' EXIT
+          printf '\n127.0.0.1 raw.githubusercontent.com\n' | sudo tee -a /etc/hosts >/dev/null
+          test "$(getent ahostsv4 raw.githubusercontent.com | awk '{print $1}' | sort -u)" = 127.0.0.1
+          xvfb-run -a python3 tools/verify_stock_community_tls.py \
+            --rom "$rom" --azahar "$AZAHAR_BIN" --output build/community-tls-smoke/mirror \
+            --expected-endpoint 1
       - name: Stock silicon crafting snapshots and live building draw
         if: needs.changes.outputs.run_net == 'true'
         run: >-
