@@ -13,20 +13,28 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 class PortProgressTests(unittest.TestCase):
+    def test_software_can_complete_with_all_hardware_checks_pending(self) -> None:
+        ledger = port_progress.load_and_validate_capabilities(
+            REPO_ROOT / "docs" / "port-capabilities.json", REPO_ROOT
+        )
+        for cap in ledger["capabilities"]:
+            cap["stage"] = "complete"
+        for check in ledger["hardware_checks"]:
+            check["evidence"] = []
+        self.assertEqual(port_progress.compute_progress(ledger)["percent"], 100.0)
+        self.assertEqual(port_progress.compute_hardware_progress(ledger)["percent"], 0.0)
+        weights = ledger["stage_weights"]
+        self.assertEqual(weights["emulator-tested"], weights["hardware-verified"])
+
     def test_real_ledger_and_svg_are_valid_and_fresh(self) -> None:
         ledger = port_progress.load_and_validate_capabilities(
             REPO_ROOT / "docs" / "port-capabilities.json", REPO_ROOT
         )
         summary = port_progress.compute_progress(ledger)
-        self.assertEqual(summary["total_points"], 100)
+        self.assertEqual(summary["total_points"], 95)
         self.assertGreater(summary["percent"], 0.0)
         self.assertLess(summary["percent"], 100.0)
-        self.assertAlmostEqual(summary["earned_points"] + summary["missing_points"], 100.0, places=2)
-        self.assertAlmostEqual(
-            summary["hardware_gap_points"] + summary["release_gap_points"],
-            summary["missing_points"],
-            places=2,
-        )
+        self.assertAlmostEqual(summary["earned_points"] + summary["missing_points"], 95.0, places=2)
         self.assertEqual(len(summary["capabilities"]), summary["capability_count"])
         for cap in summary["capabilities"]:
             self.assertIn(cap["stage"], summary["stage_weights"])
@@ -36,7 +44,11 @@ class PortProgressTests(unittest.TestCase):
 
         svg = port_progress.render_progress_svg(summary)
         self.assertIn(f"{summary['percent']:.1f}%", svg)
-        self.assertIn("Remaining:", svg)
+        self.assertIn("Remaining software work:", svg)
+        hardware = port_progress.compute_hardware_progress(ledger)
+        self.assertEqual(hardware["verified"], 1)
+        self.assertEqual((REPO_ROOT / "docs/hardware-gauge.svg").read_text(),
+                         port_progress.render_hardware_svg(hardware))
         for cat in summary["categories"]:
             self.assertIn(escape(cat["name"]), svg)
 
@@ -125,13 +137,9 @@ class PortProgressTests(unittest.TestCase):
             self.assertFalse(snapshot["partial"], snapshot.get("warnings"))
             progress = snapshot["port_progress"]
             self.assertIsNotNone(progress)
-            self.assertEqual(progress["total_points"], 100)
-            self.assertEqual(len(progress["capabilities"]), 22)
-            self.assertAlmostEqual(
-                progress["hardware_gap_points"] + progress["release_gap_points"],
-                progress["missing_points"],
-                places=2,
-            )
+            self.assertEqual(snapshot["hardware_progress"]["total"], 6)
+            self.assertEqual(progress["total_points"], 95)
+            self.assertEqual(len(progress["capabilities"]), 21)
             self.assertIn("primary_doc", progress["capabilities"][0])
             self.assertIn("evidence_count", progress["capabilities"][0])
         finally:
