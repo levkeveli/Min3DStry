@@ -1448,6 +1448,14 @@ jobs:
           --server build/unified-smoke/server-release.jar
           --rom build/unified-smoke/upstream-probe.3dsx
           --azahar "$AZAHAR_BIN" --output build/live-crafting
+      - name: Draw all seven stock Erekir Constructor cargo blocks
+        if: needs.changes.outputs.run_net == 'true'
+        run: >-
+          xvfb-run -a python3 tools/verify_upstream_live_net.py
+          --server build/unified-smoke/server-release.jar
+          --rom build/unified-smoke/upstream-probe.3dsx
+          --terrain-atlas build/unified-smoke/sprites.aatls --azahar "$AZAHAR_BIN"
+          --unified-boot --model new3ds --controls --carried-buildings --constructor-cargo
       - name: Stock offline campaign audio
         if: needs.changes.outputs.run_audio == 'true'
         run: >-

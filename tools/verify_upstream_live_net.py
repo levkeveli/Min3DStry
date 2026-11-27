@@ -2577,6 +2577,8 @@ def main():
     if args.terrain_atlas:
         originals[atlas_path] = atlas_path.read_bytes() if atlas_path.exists() else None
     output = args.rom.parent / "upstream-live-net"
+    if args.constructor_cargo:
+        output /= "constructor-cargo"
     if args.verify_objective_markers and args.locale != "en":
         output /= args.locale
     output.mkdir(parents=True, exist_ok=True)

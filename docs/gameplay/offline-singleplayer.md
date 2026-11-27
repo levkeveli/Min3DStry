@@ -1034,6 +1034,11 @@ v160.8 server supplied the cargo to seven reinforced belts in Glacier.
 The replay compared two opaque texels from each of the seven payloads
 with the inspected frame.
 
+The [integrated ARM11 smoke at `bef9b17`](https://github.com/levkeveli/Min3DStry/actions/runs/46046244133)
+passed the unified build, offline and multiplayer suites. The multiplayer
+job now also runs the seven-cargo frame check explicitly and archives that
+capture separately from the general stock server replay.
+
 ```sh
 python3 tools/verify_upstream_live_net.py --server server-release.jar \
   --rom upstream-probe.3dsx --terrain-atlas sprites.aatls --azahar "$AZAHAR_BIN" \
