@@ -394,8 +394,6 @@
   .progress-track { height: 6px; border-radius: 999px; background: var(--bg); border: 1px solid var(--border); overflow: hidden; display: flex; }
   .progress-fill { height: 100%; background: var(--green); }
   .progress-earned { height: 100%; background: var(--amber); }
-  .progress-hw { height: 100%; background: rgba(245, 184, 65, 0.34); }
-  .progress-rel { height: 100%; background: rgba(88, 166, 255, 0.30); }
   .progress-mech-complete { height: 100%; background: var(--green); }
   .progress-mech-live { height: 100%; background: var(--amber); }
   .progress-mech-partial { height: 100%; background: var(--blue); }
@@ -600,26 +598,30 @@
     </div>
   </section>
 
-  <section class="overview-box" id="portProgressBox" aria-label="Full-Port Completion Gauge">
+  <section class="overview-box" id="portProgressBox" aria-label="Software Port Completion Gauge">
     <div class="overview-head">
-      <h1>Full-Port Completion Gauge</h1>
+      <h1>Software Port Completion Gauge</h1>
       <span class="overview-maintainers" id="portProgressSummary">Loading capability ledger...</span>
     </div>
     <div class="progress-track" style="height: 14px; margin-bottom: 10px;">
       <div class="progress-earned" id="portProgressFill" style="width: 0%;"></div>
-      <div class="progress-hw" id="portProgressHw" style="width: 0%;"></div>
-      <div class="progress-rel" id="portProgressRel" style="width: 0%;"></div>
     </div>
     <div class="gap-strip">
-      <div class="gap-legend">
-        <span class="gap-item"><span class="gap-swatch" style="background:var(--amber)"></span>Earned</span>
-        <span class="gap-item"><span class="gap-swatch" style="background:rgba(245, 184, 65, 0.34)"></span>Hardware gate (&rarr;85%)</span>
-        <span class="gap-item"><span class="gap-swatch" style="background:rgba(88, 166, 255, 0.30)"></span>Release parity (&rarr;100%)</span>
-      </div>
       <span id="portProgressGap" class="sub" style="font-family:var(--mono);"></span>
     </div>
     <div class="stage-pills" id="portProgressStages"></div>
     <div class="gauge-grid" id="portProgressCategories"></div>
+  </section>
+
+  <section class="overview-box" id="hardwareProgressBox" aria-label="New 3DS Physical Hardware Verification">
+    <div class="overview-head">
+      <h1>New 3DS Physical Hardware Verification</h1>
+      <span class="overview-maintainers" id="hardwareProgressSummary">Loading hardware checklist...</span>
+    </div>
+    <div class="progress-track" style="height: 14px; margin-bottom: 10px;">
+      <div class="progress-fill" id="hardwareProgressFill" style="width: 0%;"></div>
+    </div>
+    <div class="stage-pills" id="hardwareProgressChecks"></div>
   </section>
 
   <section class="overview-box" id="mechanicsParityBox" style="border-left-color: var(--blue);" aria-label="Mechanics &amp; Feature Parity Gauge">
@@ -1012,8 +1014,6 @@
     const prog = state.data.port_progress;
     const summaryEl = document.getElementById("portProgressSummary");
     const fillEl = document.getElementById("portProgressFill");
-    const hwEl = document.getElementById("portProgressHw");
-    const relEl = document.getElementById("portProgressRel");
     const gapEl = document.getElementById("portProgressGap");
     const stagesEl = document.getElementById("portProgressStages");
     const gridEl = document.getElementById("portProgressCategories");
@@ -1025,15 +1025,10 @@
     const total = Number(prog.total_points || 100);
     const earned = Number(prog.earned_points);
     const missing = Number(prog.missing_points ?? (total - earned));
-    const hwGap = Number(prog.hardware_gap_points || 0);
-    const relGap = Number(prog.release_gap_points ?? Math.max(0, missing - hwGap));
-    const hwTargetPct = total ? (((earned + hwGap) / total) * 100).toFixed(1) : "0.0";
 
     summaryEl.innerHTML = `<strong style="color:var(--amber)">${pct.toFixed(1)}%</strong> (${earned.toFixed(2)} / ${total} pts across ${prog.capability_count} capabilities)`;
     fillEl.style.width = `${Math.max(0, Math.min(100, pct))}%`;
-    hwEl.style.width = `${total ? Math.max(0, Math.min(100, (hwGap / total) * 100)) : 0}%`;
-    relEl.style.width = `${total ? Math.max(0, Math.min(100, (relGap / total) * 100)) : 0}%`;
-    gapEl.textContent = `-${missing.toFixed(2)} pts remaining (+${hwGap.toFixed(2)} HW -> ${hwTargetPct}%, +${relGap.toFixed(2)} release -> 100%)`;
+    gapEl.textContent = `Remaining software work: ${missing.toFixed(2)} pts`;
 
     const sc = prog.stage_counts || {};
     const stageLabels = [
@@ -1061,6 +1056,20 @@
         </div>
       `;
     }).join("");
+  }
+
+  function renderHardwareProgress() {
+    const hardware = state.data.hardware_progress;
+    const summary = document.getElementById("hardwareProgressSummary");
+    const fill = document.getElementById("hardwareProgressFill");
+    const checks = document.getElementById("hardwareProgressChecks");
+    summary.textContent = hardware
+      ? `${hardware.verified} / ${hardware.total} checks (${Number(hardware.percent).toFixed(1)}%)`
+      : "Hardware checklist unavailable";
+    fill.style.width = hardware ? `${Number(hardware.percent)}%` : "0%";
+    checks.innerHTML = (hardware?.checks || []).map(check =>
+      `<span class="pill">${esc(check.id)} · ${esc(check.name)} · ${check.evidence.length ? "Verified" : "Pending"}</span>`
+    ).join("");
   }
 
   function renderMechanicsParity() {
@@ -1228,6 +1237,7 @@
 
   function renderAll() {
     renderPortProgress();
+    renderHardwareProgress();
     renderMechanicsParity();
     renderStats();
     document.getElementById("view-kanban").classList.toggle("hidden", state.view !== "kanban");
@@ -1280,6 +1290,7 @@
         sha: state.data.sha,
         generated_at: new Date().toISOString(),
         port_progress: state.data.port_progress || null,
+        hardware_progress: state.data.hardware_progress || null,
         mechanics_parity: state.data.mechanics_parity || null,
         issues: issuesRaw.filter((i) => !i.pull_request && i.number !== 424).map(normalizeIssue),
         pulls: pullsRaw.map((p) => ({
