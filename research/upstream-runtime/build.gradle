@@ -437,6 +437,14 @@ if (probe in ['network-render', 'unified']) {
         mainClass = 'UpstreamCameraZoomReference'
         if (!glacierPath.isEmpty()) args glacierPath
     }
+    tasks.register('runTurretRecoilJvm', JavaExec) {
+        dependsOn 'classes'
+        classpath = sourceSets.main.runtimeClasspath
+        mainClass = 'UpstreamTurretRecoilReference'
+        if (!glacierPath.isEmpty() && !atlasPath.isEmpty() && !colorsPath.isEmpty()) {
+            args glacierPath, atlasPath, colorsPath
+        }
+    }
 }
 if (usesSinglePlayer) {
     sourceSets.main.java.srcDir('src/singleplayer/java')

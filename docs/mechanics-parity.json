@@ -383,7 +383,7 @@
       "domain": "Combat, Units & Visual FX",
       "name": "Turret Targeting, Ammo Feed, Projectiles & Unit Destruction",
       "weight": 4,
-      "status": "partial-arm11",
+      "status": "complete",
       "modes": ["probe", "offline", "multiplayer"],
       "issue": 30,
       "evidence": [
@@ -392,10 +392,12 @@
         "research/upstream-runtime/src/gameplay/java/UpstreamCombatTickProbe.java",
         "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerApp.java",
         "research/upstream-runtime/src/network-render/java/UpstreamClientEffects.java",
+        "research/upstream-runtime/src/network-render/java/UpstreamClientStatus.java",
         "research/upstream-runtime/src/network-render/host/UpstreamBuildingLayersReference.java",
+        "research/upstream-runtime/src/network-render/host/UpstreamTurretRecoilReference.java",
         "research/upstream-runtime/src/network-render/java/port/render/UpstreamEffectGate.java"
       ],
-      "notes": "Duo/Scatter targeting, ammo consumption, bullet hits, and kills are ARM11-verified in probes and multiplayer. Live offline bullet draw is wired, and visible turrets now use the stock turret draw over the cached base, adding barrels, ammo, liquid and heat (host: 29-registry, base=8 draw=16, duo-barrel-l/r at 37->-53). The stock EffectState group now advances and draws for the graphical client, so server EffectCallPackets and locally spawned Fx render bullet impacts and lightning arcs with the pinned v160.8 renderers (host: lightning=arc explosion=impact draw=2 packet=ok cleanup=ok); the upstream Effect gate is adapted through port.render.UpstreamEffectGate because the port has no desktop Renderer, and the original gate is unchanged otherwise. Turret beam bullet classes draw through the same client path (host: laser, shrapnel, continuous, pointlaser). Unit status application/sync and the remaining turret catalog behavior remain open."
+      "notes": "Duo/Scatter targeting, ammo consumption, bullet hits, and kills are ARM11-verified in probes and multiplayer. Live offline bullet draw is wired, and visible turrets now use the stock turret draw over the cached base, adding barrels, ammo, liquid and heat (host: 29-registry, base=8, duo-barrel-l/r at 37->-53, heat=ok, liquid=no-region). The stock EffectState group now advances and draws for the graphical client, so server EffectCallPackets and locally spawned Fx render bullet impacts and lightning arcs with the pinned v160.8 renderers (host: lightning=arc explosion=impact draw=2 packet=ok cleanup=ok); the upstream Effect gate is adapted through port.render.UpstreamEffectGate because the port has no desktop Renderer, and the original gate is unchanged otherwise. Turret beam bullet classes draw through the same client path (host: laser, shrapnel, continuous, pointlaser). Client status timers now advance for statuses applied by client bullet hits, using the stock Statusc API and StatusEffect data, and the stock status Fx spawns with the pinned chance/offset/colour rules (host: tick=stock expire=burning permanent=boss fx=ok); periodic status damage stays server-authoritative. The stock turret drawer also applies the pinned recoilOffset (host: rest=276.75 recoiled=273.75 offset=3). Software complete: the 29-turret registry, barrels, heat, recoil, beam bullets, impact effects and status application are all host-verified."
     },
     {
       "id": "unit-catalog-player-weapons",
