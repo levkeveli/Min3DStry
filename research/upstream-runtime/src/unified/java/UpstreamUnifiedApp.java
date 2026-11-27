@@ -115,8 +115,10 @@ public final class UpstreamUnifiedApp {
                 var hosts = discovery.results();
                 String title = Strings.stripColors(bundle.get(hosts.isEmpty() ? "hosts.none" : "servers.local"));
                 int remote = hosts.size() + 2;
-                selected = menus.chooseTitlePagedRow(title, remote + 1, selected, index -> {
+                int community = remote + 1;
+                selected = menus.chooseTitlePagedRow(title, community + 1, selected, index -> {
                     if (index == remote) return bundle.get("servers.remote");
+                    if (index == community) return bundle.get("servers.global");
                     return switch (index) {
                         case 0 -> bundle.get("joingame.ip");
                         case 1 -> bundle.get("hosts.refresh");
@@ -137,6 +139,11 @@ public final class UpstreamUnifiedApp {
 
                 if (selected == remote) {
                     var address = chooseSavedServer(menus, settings);
+                    if (address != null || menus.titleExitRequested()) return address;
+                    continue;
+                }
+                if (selected == community) {
+                    var address = new UpstreamCommunityBrowser(menus, settings).choose();
                     if (address != null || menus.titleExitRequested()) return address;
                     continue;
                 }

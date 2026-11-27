@@ -3,6 +3,7 @@
 
 #include <3ds.h>
 #include <curl/curl.h>
+#include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -18,6 +19,7 @@ typedef struct {
 
 static DirectoryRequest request;
 static Thread worker;
+static atomic_bool canceled;
 
 static size_t append_body(char *bytes, size_t size, size_t count, void *context) {
     DirectoryRequest *download = context;
@@ -26,6 +28,16 @@ static size_t append_body(char *bytes, size_t size, size_t count, void *context)
     memcpy(download->body + download->used, bytes, length);
     download->used += length;
     return length;
+}
+
+static int should_cancel(void *context, curl_off_t total, curl_off_t received,
+                        curl_off_t upload_total, curl_off_t uploaded) {
+    (void)context;
+    (void)total;
+    (void)received;
+    (void)upload_total;
+    (void)uploaded;
+    return atomic_load(&canceled);
 }
 
 static void fetch_directory(void *context) {
@@ -45,6 +57,8 @@ static void fetch_directory(void *context) {
             curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
             curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, 5000L);
             curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 12000L);
+            curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
+            curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, should_cancel);
             curl_easy_setopt(curl, CURLOPT_USERAGENT, "Min3DStry");
             curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, append_body);
             curl_easy_setopt(curl, CURLOPT_WRITEDATA, download);
@@ -73,6 +87,7 @@ int32_t m3ds_community_http_start(const uint8_t *url, int32_t length) {
     if (R_FAILED(svcGetThreadPriority(&priority, CUR_THREAD_HANDLE))) return 0;
     request = (DirectoryRequest){.body = malloc(MAX_DIRECTORY_BYTES)};
     if (!request.body) return 0;
+    atomic_store(&canceled, false);
     memcpy(request.url, url, (size_t)length);
     worker = threadCreate(fetch_directory, &request, 64 * 1024, priority, -2, false);
     if (!worker) {
@@ -80,6 +95,10 @@ int32_t m3ds_community_http_start(const uint8_t *url, int32_t length) {
         request.body = NULL;
     }
     return worker != NULL;
+}
+
+void m3ds_community_http_cancel(void) {
+    atomic_store(&canceled, true);
 }
 
 int32_t m3ds_community_http_poll(uint8_t *output, int32_t capacity) {

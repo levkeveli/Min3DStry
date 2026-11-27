@@ -41,7 +41,7 @@ if [[ $mode == --singleplayer || $mode == --unified ]]; then
 fi
 if [[ $mode == --unified ]]; then
     subtitle="Mindustry v160.8"
-    native_input+=("$root/m3ds_server_address.c")
+    native_input+=("$root/m3ds_server_address.c" "$root/m3ds_community_http.c")
 fi
 if [[ $mode == --network || $mode == --singleplayer || $mode == --unified ]]; then
     shift
@@ -108,6 +108,12 @@ if [[ $# -gt 0 ]]; then
     terrain_sources=("$root/m3ds_terrain_renderer.c")
     terrain_libraries=(-lcitro2d -lcitro3d)
     mkdir "$output/romfs"
+    if [[ $mode == --unified ]]; then
+        portlibs="$DEVKITPRO/portlibs/3ds"
+        terrain_flags+=(-I"$portlibs/include" -L"$portlibs/lib")
+        terrain_libraries+=(-lcurl -lmbedtls -lmbedx509 -lmbedcrypto -lz)
+        cp "$repo/data/net/community-ca.pem" "$repo/data/net/community-ca.txt" "$output/romfs/"
+    fi
     if [[ ${#native_network[@]} -gt 0 && -f "$1/sound-index.h" && -d "$1/audio" ]]; then
         terrain_flags+=(-DM3DS_LIVE_AUDIO)
         terrain_sources+=("$repo/src/audio/audio_mixer.c" "$repo/src/audio/audio_registry.c"
