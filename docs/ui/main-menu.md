@@ -275,6 +275,13 @@ directory pointing to a loopback stock Java server. It favorites the
 directory group, opens the live Glacier advertisement, accepts the
 upstream community notice, and joins from the title menu. The stock JVM
 reads the resulting favorite and acknowledgement from `settings.bin`.
+On `da0af3e`, the saved directory supplied the live Glacier details and
+the unmodified server confirmed both controls on the same unit, the
+next wave, and a clean disconnect. The stock settings readback verified
+both the favorite and community notice acknowledgement.
+[Grouped verification](https://github.com/levkeveli/Min3DStry/actions/runs/46063372156)
+· [Details screenshot, stock settings and logs](https://github.com/levkeveli/Min3DStry/actions/runs/46063372156/artifacts/15230912376)
+
 The optional `public_community_tls` smoke dispatch separately boots with
 an empty cache and a current emulated date, fetches through the handheld's
 packaged trust store, and checks the resulting stock JSON file.
