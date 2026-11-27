@@ -16,8 +16,8 @@ import port.render.UpstreamFluidAtlas;
 public final class UpstreamLightLineReference implements UpstreamTerrainDrawProbe.TerrainTarget {
     private int quads;
     private int sprites;
-    private float previousSpriteX;
-    private float lastSpriteX;
+    private float previousSpriteCenterX;
+    private float lastSpriteCenterX;
 
     public static void main(String[] args) throws Exception {
         if (args.length < 3) {
@@ -42,8 +42,11 @@ public final class UpstreamLightLineReference implements UpstreamTerrainDrawProb
             Drawf.light(610f, 210f, region, 0f, Color.green, 1f);
             if (target.quads + target.sprites != 0) throw new AssertionError("Light escaped the frame queue");
             UpstreamBuildingLights.flushFrame();
-            if (target.quads + target.sprites != 5 || target.previousSpriteX != 610 || target.lastSpriteX != 628) {
-                throw new AssertionError("Stock light order must be segment, textured light, then radial light");
+            if (target.quads + target.sprites != 5 || Math.abs(target.previousSpriteCenterX - 610f) > 0.01f
+                    || Math.abs(target.lastSpriteCenterX - 628f) > 0.01f) {
+                throw new AssertionError("Expected segment, textured light and radial light in order, got quads="
+                    + target.quads + " sprites=" + target.sprites + " last two sprite centers="
+                    + target.previousSpriteCenterX + "," + target.lastSpriteCenterX);
             }
         } finally {
             UpstreamBuildingLights.clearFrame();
@@ -67,8 +70,8 @@ public final class UpstreamLightLineReference implements UpstreamTerrainDrawProb
     public void draw(int page, int left, int top, int width, int height, float x, float y,
                      float originX, float originY, float drawWidth, float drawHeight,
                      float rotation, int color, int mixColor, arc.graphics.Blending blending) {
-        previousSpriteX = lastSpriteX;
-        lastSpriteX = x;
+        previousSpriteCenterX = lastSpriteCenterX;
+        lastSpriteCenterX = x + drawWidth / 2f;
         sprites++;
     }
 }
