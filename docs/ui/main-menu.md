@@ -203,7 +203,7 @@ MAIN_MENU screen=schematics selected=battery node detail=1
 and render `Schematics 2/2`, `Source: SD card`, `battery node`, `5x3, 2 blocks`,
 `battery-large, power-node-large`.
 
-## Remaining work
+### Historical harness gaps
 
 - Port the real upstream Scene2D `MenuFragment` rendering instead of the console shell.
 - Schematic import/export and RTS unit selection/command.
@@ -211,3 +211,35 @@ and render `Schematics 2/2`, `Source: SD card`, `battery node`, `5x3, 2 blocks`,
   bundle names only).
 - The About page is a static port page, not the upstream links/credits dialog.
 - Upstream settings dialog (graphics/audio/game/controls tabs) instead of the live-control subset.
+
+## New 3DS local server browser
+
+Open Play, then Join Game. The browser sends the pinned Arc discovery
+datagram to the local IPv4 broadcast on the stock server port and to the
+Mindustry multicast group. During the three-second scan, Back returns to
+Play. The results list keeps one response per address. Select a server to
+view the stock advertisement's map, mode, player count and version, then
+select Join Game. Address opens the manual keyboard and Refresh scans again.
+
+Remote Servers opens the saved address list. Add Server stores an IPv4
+address or DNS name and port. Select an entry to join, edit or delete it.
+The list uses the stock `servers` value in `settings.bin`, including the
+original Arc binary records. Imported desktop endpoints that exceed the
+handheld transport's current IPv4 support stay in the list and can be edited.
+As in the desktop Join dialog, an older `server-list` value takes priority
+when present. Saving an edit writes the current stock format and migrates
+the old value. An incomplete legacy list is preserved for recovery.
+[Pinned desktop loader](https://github.com/Anuken/Mindustry/blob/19a0f40d44514f4802a8b79770456e7e32e34da0/core/src/mindustry/ui/dialogs/JoinDialog.java#L628-L639).
+
+libctru handles the sockets, while the pinned Mindustry NetworkIO reader
+decodes the same bytes as the Java PC client. The loopback host reference
+checks a real stock v160.8 server reply, duplicate suppression, malformed
+packet rejection and unsigned port handling. The New 3DS smoke replay uses
+a stock Glacier session on port 6567 and removes the endpoint file so the
+join must use the discovered server. Physical LAN verification is pending.
+
+In the [New 3DS Azahar replay at `0eb9015`](https://github.com/levkeveli/Min3DStry/actions/runs/45727812457/artifacts/15076928162),
+the German Join Game route discovered one stock v160.8 Glacier session.
+The details screen showed the stock mode, player count, version and
+advertised address. The server log recorded the same client connecting and
+disconnecting after the gameplay replay.

@@ -239,6 +239,69 @@ static void n3ds_udp_close(void *user_data) {
   }
 }
 
+bool m3ds_net_3ds_discover(
+    M3dsNet3dsContext *ctx,
+    uint16_t port,
+    const char *group,
+    uint16_t multicast_port) {
+  uint8_t request[2];
+  size_t length = 0;
+  struct sockaddr_in target = {0};
+  target.sin_family = AF_INET;
+  target.sin_port = htons(multicast_port);
+  if (!ctx->soc_initialized || ctx->udp_fd >= 0 ||
+      !m3ds_net_encode_discover_host(request, sizeof(request), &length) ||
+      inet_aton(group, &target.sin_addr) == 0) {
+    return false;
+  }
+
+  int fd = socket(AF_INET, SOCK_DGRAM, 0);
+  if (fd < 0) return false;
+  bool sent = sendto(fd, request, length, 0, (struct sockaddr *)&target, sizeof(target)) == (ssize_t)length;
+
+  int enabled = 1;
+  if (setsockopt(fd, SOL_SOCKET, SO_BROADCAST, &enabled, sizeof(enabled)) == 0) {
+    SOCU_IPInfo network;
+    socklen_t size = sizeof(network);
+    target.sin_addr.s_addr = INADDR_BROADCAST;
+    if (SOCU_GetNetworkOpt(SOL_CONFIG, NETOPT_IP_INFO, &network, &size) == 0 &&
+        size == sizeof(network) && network.broadcast.s_addr != 0) {
+      target.sin_addr = network.broadcast;
+    }
+    target.sin_port = htons(port);
+    if (sendto(fd, request, length, 0, (struct sockaddr *)&target, sizeof(target)) == (ssize_t)length) {
+      sent = true;
+    }
+  }
+  if (!sent) {
+    close(fd);
+    return false;
+  }
+
+  ctx->udp_fd = fd;
+  return true;
+}
+
+int m3ds_net_3ds_read_advertisement(
+    M3dsNet3dsContext *ctx,
+    uint8_t *packet,
+    size_t capacity,
+    uint8_t peer[4]) {
+  if (ctx->udp_fd < 0 || !packet || !peer || capacity == 0) return M3DS_NET_IO_ERROR;
+  int ready = wait_fd_readable(ctx->udp_fd, 0);
+  if (ready <= 0) return ready;
+
+  struct sockaddr_in from = {0};
+  socklen_t size = sizeof(from);
+  ssize_t length = recvfrom(ctx->udp_fd, packet, capacity, MSG_DONTWAIT,
+                            (struct sockaddr *)&from, &size);
+  if (length < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) return M3DS_NET_IO_TIMEOUT;
+  if (length < 0 || size != sizeof(from) || from.sin_family != AF_INET) return M3DS_NET_IO_ERROR;
+  // Keep the four network-order IPv4 bytes for the stock Java advertisement reader.
+  memcpy(peer, &from.sin_addr.s_addr, 4);
+  return (int)length;
+}
+
 bool m3ds_net_3ds_init(M3dsNetTransport *transport, M3dsNet3dsContext *ctx) {
   if (!transport || !ctx) {
     return false;
