@@ -72,8 +72,9 @@ def verify(args):
         with args.desktop_jar.open("rb") as stream:
             if hashlib.file_digest(stream, "sha256").hexdigest() != DESKTOP_SHA256:
                 raise ValueError("Expected the unmodified v160.8 graphical desktop release")
+        desktop_capture = Path(__file__).with_name("VerifyHostedDesktop.java")
         subprocess.run([args.javac, "-cp", str(args.desktop_jar), "-d", str(classes),
-                        str(capture.with_name("VerifyHostedDesktop.java"))], check=True)
+                        str(desktop_capture)], check=True)
     sd = output / "virtual-sd"
     root = sd / "3ds/min3dstry"
     root.mkdir(parents=True)

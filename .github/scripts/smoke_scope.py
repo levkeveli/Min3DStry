@@ -177,11 +177,10 @@ def _classify_path(path: str, flags: dict[str, bool], probes: set[str]) -> str:
         flags["run_audio"] = True
         return "scoped"
 
-    if norm == "tools/verify_upstream_hosted_world.py" or norm.startswith((
+    if norm in {"tools/verify_upstream_hosted_world.py", "tools/VerifyHostedDesktop.java"} or norm.startswith((
         RUNTIME + "src/unified/java/UpstreamHostedSession",
         RUNTIME + "src/network-live/java/UpstreamHostedNetProvider",
         RUNTIME + "src/network-live/java/UpstreamHostPacketCodec",
-        RUNTIME + "host/VerifyHostedDesktop.java",
         RUNTIME + "src/singleplayer/java/port/render/UpstreamRemoteBuildPlans.java",
         RUNTIME + "arm11/m3ds_host_net_bridge.",
         "src/net/mindustry_host_",
