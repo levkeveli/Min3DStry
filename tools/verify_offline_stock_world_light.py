@@ -48,7 +48,7 @@ def create_fixtures(server: Path, output: Path) -> None:
                     rules.ambientLight.set(Color.valueOf("{WORLD_LIGHT_AMBIENT}"));
                     rules.lighting = true;
                     save("ambient");
-                    const marker = new MapObjectives.LightMarker(core.x - 28, core.y - 16, 5.5,
+                    const marker = new MapObjectives.LightMarker(core.x + 24, core.y - 32, 5.5,
                         Color.valueOf("{WORLD_LIGHT_RED}"));
                     marker.world = -1;
                     marker.light = 0;

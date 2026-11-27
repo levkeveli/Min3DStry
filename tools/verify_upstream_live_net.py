@@ -1314,7 +1314,8 @@ def capture_marker_pixels(rpc, output, model, phase, points, timeout, expected=N
     raise RuntimeError(f"{phase} pixels: expected {expected}, got {samples}")
 
 
-WORLD_LIGHT_POINTS = ((140, 150), (306, 182))
+# Center of the light and an unlit corner, below the stock objective HUD.
+WORLD_LIGHT_POINTS = ((270, 190), (100, 218))
 WORLD_LIGHT_AMBIENT = "223344eb"
 WORLD_LIGHT_RED = "ff000080"
 WORLD_LIGHT_CYAN = "00ffff70"
@@ -1353,7 +1354,7 @@ def verify_world_lighting(server_log, server, rpc, output, model, position, time
 
     def add_light(phase, ident, rgba):
         send_marker_phase(server_log, server, phase,
-            f'const marker=new MapObjectives.LightMarker({x - 28}, {y - 16}, 5.5, Color.valueOf("{rgba}")); '
+            f'const marker=new MapObjectives.LightMarker({x + 24}, {y - 32}, 5.5, Color.valueOf("{rgba}")); '
             f'Call.createMarker({ident},marker); '
             f'Call.updateMarker({ident},Packages.mindustry.logic.LMarkerControl.light,1,NaN,NaN);')
 
