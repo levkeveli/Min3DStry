@@ -46,7 +46,7 @@ def create_fixtures(server: Path, output: Path) -> None:
                     rules.unitLight = false;
                     {world_light_terrain(tile_x, tile_y)}
                     const unit = UnitTypes.alpha.create(rules.defaultTeam);
-                    unit.spawnedByCore(true);
+                    unit.spawnedByCore = true;
                     unit.set({x}, {y});
                     unit.add();
                     const save = name => Packages.mindustry.io.SaveIO.write(Packages.arc.files.Fi.get(name + ".msav"));
