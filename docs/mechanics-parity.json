@@ -193,16 +193,17 @@
       "domain": "Controls & Dual-Screen UI",
       "name": "Touch Build, Rotate (R), Deconstruct (B) & BuildPlans",
       "weight": 3,
-      "status": "live-arm11",
+      "status": "complete",
       "modes": ["offline", "multiplayer"],
       "issue": 27,
       "evidence": [
         "docs/gameplay/touch-build-palette.md",
         "docs/gameplay/offline-singleplayer.md",
         "research/upstream-runtime/src/network-live/java/UpstreamLiveBuildControls.java",
+        "research/upstream-runtime/src/network-live/host/UpstreamBuildControlsReference.java",
         "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerInput.java"
       ],
-      "notes": "Stylus tile placement, 4-way rotation, deconstruction, and BuildPlan queue execution work live in offline and multiplayer ARM11 builds."
+      "notes": "Stylus tile placement, 4-way rotation, deconstruction, and BuildPlan queue execution work live in offline and multiplayer ARM11 builds. The host reference now drives the touch adapter against a captured stock WorldStream and asserts the queued conveyor at 85,26 with rotation 1, the copper wall at 86,26, and the breaking plan at 86,26 (UPSTREAM_TOUCH_REFERENCE conveyor=85,26,1 wall=86,26 break=86,26). It also cycles the stock rotation input four times and checks the plan rotation advances 1,2,3,0, then validates and applies the stock build plan through Build.validPlace/Tile.setBlock (block and rotation applied), validates the breaking plan through Build.validBreak and clears the tile (UPSTREAM_STOCK_BUILD_PLANS rotations=1,2,3,0 place=ok break=ok). Run with -Pprobe=network-live runBuildControlsJvm --args=<world-stream>. Software complete."
     },
     {
       "id": "block-catalog-item-config",
