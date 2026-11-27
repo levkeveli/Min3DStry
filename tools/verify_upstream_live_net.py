@@ -604,6 +604,57 @@ def verify_touch_config(log, emulator, server_log, server, timeout, capture, pos
     print("Stock server verified Copper, returned Lead, and accepted clearing the Sorter.", flush=True)
 
 
+def verify_world_darkness(log, emulator, server_log, server, rpc, output, model, timeout):
+    wait_for(log, emulator, r"UPSTREAM_NETWORK_FRAME unit=\d+ left=\d+ bottom=\d+", timeout)
+    outside = ((80, 149), (122, 174), (152, 196))
+    inside = ((252, 160), (306, 192), (340, 208))
+    points = outside + inside
+
+    def screenshot():
+        png = rpc.screenshot(res_scale=1)
+        return png, az.inspect_png(png, points)["samples"]
+
+    def capture(stage, valid):
+        deadline = time.monotonic() + 10
+        while True:
+            png, colors = screenshot()
+            if valid(colors):
+                (output / f"{model}-darkness-{stage}.png").write_bytes(png)
+                return colors
+            if time.monotonic() >= deadline:
+                (output / f"{model}-darkness-{stage}-mismatch.png").write_bytes(png)
+                raise AssertionError(f"World darkness {stage} pixels differ: {colors}")
+            time.sleep(0.1)
+
+    def send_rules(limited):
+        mode = str(limited).lower()
+        server.stdin.write(
+            f'js (() => {{ const p=Groups.player.find(boolf(p => String(p.name) === {json.dumps(PLAYER)})); '
+            'const rules=Vars.state.rules.copy(); '
+            f'if ({mode}) {{ rules.limitMapArea=true; rules.limitX=Math.round(p.x / Vars.tilesize); '
+            'rules.limitY=0; rules.limitWidth=Vars.world.width()-rules.limitX; '
+            'rules.limitHeight=Vars.world.height(); } '
+            f'Call.setRules(p.con, rules); return "STOCK_DARKNESS phase={mode}"; }})()\n'
+        )
+        server.stdin.flush()
+        wait_for(server_log, server, rf"STOCK_DARKNESS phase={mode}\b", 10)
+
+    baseline = capture("baseline", lambda colors: all(max(colors[point]) >= 32 for point in points))
+
+    def unchanged(colors, sample_points):
+        return all(abs(a - b) <= 3 for point in sample_points
+                   for a, b in zip(colors[point], baseline[point]))
+
+    send_rules(True)
+    try:
+        capture("contracted", lambda colors: all(max(colors[point]) <= 3 for point in outside)
+                and unchanged(colors, inside))
+    finally:
+        send_rules(False)
+    capture("restored", lambda colors: unchanged(colors, points))
+    print("UPSTREAM_WORLD_DARKNESS_REPLAY contracted=black inside=unchanged restored=unchanged", flush=True)
+
+
 def verify_controls(log, emulator, server_log, server, timeout, capture=None,
                     building=False, desktop_name=None, touch_build=False, touch_config=False, menu_icons=False,
                     stock_menu_font=False):
@@ -1856,6 +1907,8 @@ def run_model(args, model, config, original_config, log, output):
                     first_move = 101
                 if args.touch_config:
                     first_move = 154 if args.verify_stock_menu_font else 92
+                if args.world_darkness:
+                    first_move += 15
                 if args.join_from_title:
                     first_move += 55  # Allow time for the title controls before joining.
                 write_controls_replay(replay, first_move=first_move, building=args.building,
@@ -2156,6 +2209,8 @@ def run_model(args, model, config, original_config, log, output):
                         if "UPSTREAM_LIVE_NET_ERROR" in emu_log:
                             raise RuntimeError("The client failed after rendering the atlas stress frame")
                     else:
+                        if args.world_darkness:
+                            verify_world_darkness(log, emulator, server_log, server, rpc, output, model, args.timeout)
                         verify_controls(log, emulator, server_log, server, args.timeout,
                                         capture if args.terrain_atlas else None, args.building, args.desktop_name,
                                         args.touch_build, args.touch_config, args.menu_icons,
@@ -2263,6 +2318,8 @@ def main():
                         help="Check and capture the English stock disconnect notice")
     parser.add_argument("--controls-replay", action="store_true",
                         help="Replay the controls test input in Azahar 2126.2")
+    parser.add_argument("--world-darkness", action="store_true",
+                        help="Verify contracted and restored stock world darkness pixels on Glacier")
     parser.add_argument("--join-from-title", action="store_true",
                         help="Start at the unified title and join through the Play menu")
     parser.add_argument("--unified-boot", action="store_true",
@@ -2365,6 +2422,8 @@ def main():
         parser.error("Port must be between 1 and 65535")
     if args.desktop_name is not None and (not args.desktop_name.strip() or args.desktop_name == PLAYER):
         parser.error("The PC client needs a distinct player name")
+    if args.world_darkness and (not args.controls_replay or not args.terrain_atlas):
+        parser.error("--world-darkness needs --controls-replay and --terrain-atlas")
     if args.controls_replay and not args.controls:
         parser.error("--controls-replay needs --controls")
     if args.server_kick and (not args.controls or args.controls_replay):

@@ -295,4 +295,7 @@ channel as alpha, with a one-texel margin for linear interpolation.
 Both session modes submit the texture at the original darkness layer,
 after buildings and before the higher world layers and the HUD. The
 JVM fixture covers a natural wall, a map edge, contraction and restored
-bounds. The ARM11 pixel comparison is pending.
+bounds. The grouped New 3DS replay sends the stock server's rules packet
+with a restricted area, checks that three exterior pixels become black
+while the interior stays unchanged, and checks that reopening the area
+restores all six samples before continuing through the controller checks.
