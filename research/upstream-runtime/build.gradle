@@ -2747,7 +2747,13 @@ teavm {
     if (usesSinglePlayerApp) {
         // Large offline maps allocate the original Pathfinder grid while the
         // decoded world is live, then still need to load the world atlas.
-        c { maxHeapSize = probe == "unified" ? 56 : 32 }
+        c {
+            maxHeapSize = probe == "unified" ? 56 : 32
+            if (probe == "unified") {
+                // The executable shares the application memory budget with the stock world.
+                optimization = org.teavm.gradle.api.OptimizationLevel.BALANCED
+            }
+        }
     } else if (usesSimulation || usesLiveNetwork || usesSinglePlayer) {
         c { maxHeapSize = 24 }
     }

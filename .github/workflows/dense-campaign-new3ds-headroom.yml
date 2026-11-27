@@ -36,6 +36,16 @@ jobs:
         run: |
           git rev-parse HEAD > source-commit.txt
           sha256sum upstream-probe.3dsx server-release.jar > replay-inputs.sha256
+          python3 - <<'PY' | tee mapped-segments.txt
+          import struct
+
+          with open("upstream-probe.3dsx", "rb") as rom:
+              magic, header_size, _, _, _, code, rodata, data, bss = struct.unpack("<4sHH6I", rom.read(32))
+          if magic != b"3DSX" or header_size < 32:
+              raise ValueError("Invalid 3DSX header")
+          mapped = sum((size + 4095) // 4096 * 4096 for size in (code, rodata, data))
+          print(f"code={code} rodata={rodata} data={data} bss={bss} mapped={mapped}")
+          PY
       - uses: actions/upload-artifact@v4
         with:
           name: dense-new3ds-release-headroom
