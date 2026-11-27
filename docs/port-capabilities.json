@@ -231,7 +231,7 @@
       "category": "Core Simulation",
       "name": "Crafters, Power Grid & Liquid Graph",
       "weight": 6,
-      "stage": "emulator-tested",
+      "stage": "complete",
       "issue": 39,
       "evidence": [
         "research/upstream-runtime/host/UpstreamProductionBaseline.java",
