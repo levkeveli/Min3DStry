@@ -173,7 +173,7 @@
       "notes": "The ARM11 probe verifies LiquidModule and Conduit simulation. The offline renderer draws original pumps and liquid routers, including the tested Mechanical Pump and Liquid Tank. Live conduit tiling is verified. The stock Bridge Conduit and Phase Conduit are liquid-category LiquidBridge blocks, covered by the live Category.liquid draw set; the host LIQUID registry renders every liquid block and asserts both categories. The host reference also verifies one-way Bridge Conduit and Phase Conduit transfer, rejects back-linked pairs, dumps a Liquid Router into an adjacent router sink, and checks Liquid Junction far-side/dead-end routing. The stock selected-building dynamic and keyed consumer/generator liquid bars are wired in the offline and live clients from Block.addLiquidBar; their draw is included in the New 3DS acceptance run. Software complete."
     },
     {
-      "id": "payloads-unit-factories Software complete.",
+      "id": "payloads-unit-factories",
       "domain": "Extraction & Logistics",
       "name": "Payload Conveyors, Unit Factories & Reconstructors",
       "weight": 2,
@@ -203,7 +203,7 @@
       "notes": "Stylus tile placement, 4-way rotation, deconstruction, and BuildPlan queue execution work live in offline and multiplayer ARM11 builds. Software complete."
     },
     {
-      "id": "block-catalog-item-config Software complete.",
+      "id": "block-catalog-item-config",
       "domain": "Controls & Dual-Screen UI",
       "name": "Unlocked Block Catalog Menu & Sorter Item Config",
       "weight": 3,
@@ -234,7 +234,7 @@
       "notes": "Upstream bitmap/TTF font rasterization, inline emoji icons, locale bundles (incl. JP), and world objective markers/labels render on ARM11. Software complete."
     },
     {
-      "id": "top-screen-status-hud Software complete.",
+      "id": "top-screen-status-hud",
       "domain": "Controls & Dual-Screen UI",
       "name": "Top-Screen Status HUD (Wave, Copper, Enemies & Objectives)",
       "weight": 3,
@@ -264,7 +264,7 @@
       "notes": "X pause/resume, Y wave trigger, and SELECT quick-save work in offline single-player. The live pause menu opens on X, freezes the simulation when the stock rules allow pausing, and returns to play on Resume. Software complete."
     },
     {
-      "id": "live-minimap Software complete.",
+      "id": "live-minimap",
       "domain": "Controls & Dual-Screen UI",
       "name": "Upstream Minimap",
       "weight": 1,
@@ -593,7 +593,7 @@
       "notes": "Wire-exact TCP/UDP client connects to stock Java PC v160.8 server in Azahar with live movement, mining, touch build, HUD, and combat snapshots. Software complete."
     },
     {
-      "id": "mp-host-server-browser Software complete.",
+      "id": "mp-host-server-browser",
       "domain": "Multiplayer & Integration",
       "name": "3DS Multiplayer Host/LAN Server & In-App Server Browser",
       "weight": 2,
