@@ -47,6 +47,7 @@ import mindustry.gen.CreateWeatherCallPacket;
 import mindustry.gen.CreateBulletCallPacket;
 import mindustry.gen.ConstructFinishCallPacket;
 import mindustry.gen.DeconstructFinishCallPacket;
+import mindustry.gen.EffectCallPacket;
 import mindustry.gen.EntitySnapshotCallPacket;
 import mindustry.gen.Groups;
 import mindustry.gen.HiddenSnapshotCallPacket;
@@ -586,6 +587,8 @@ public final class UpstreamLiveNetworkProbe {
                 handleUnitDestroy(received);
             } else if (frame != null && id == unsignedId(CreateBulletCallPacket.class)) {
                 decode(new CreateBulletCallPacket(), received).handleClient();
+            } else if (frame != null && id == unsignedId(EffectCallPacket.class)) {
+                decode(new EffectCallPacket(), received).handleClient();
             } else if (id == unsignedId(CompleteObjectiveCallPacket.class)) {
                 var completion = decode(new CompleteObjectiveCallPacket(), received);
                 completion.handleClient();

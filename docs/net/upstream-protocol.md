@@ -160,3 +160,7 @@ reference checks both lifecycles and verifies that the local player remains
 in the player group. The grouped New 3DS replay also sends an original
 entity snapshot followed by the hidden and disconnect packets. It checks
 that the unit and player are present before their packets and absent afterward.
+The [New 3DS replay at `5ac911a`](https://github.com/levkeveli/Min3DStry/actions/runs/45762209720/artifacts/15090884176)
+kept the hidden entity eligible for later snapshots, retired the departed
+player's network ID, and completed movement and disconnect with the same
+local player.

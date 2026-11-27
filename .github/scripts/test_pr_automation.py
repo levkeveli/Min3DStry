@@ -74,15 +74,19 @@ class MainVerificationTests(unittest.TestCase):
 
     def test_alert_dispatches_missing_workflow_on_main(self) -> None:
         repo = "owner/repo"
-        status = ("sha", ["3DS full build: no run on main HEAD"], ["full-build.yml"])
+        status = ("sha", ["Missing main runs"], ["full-build.yml", "upstream-arm11-smoke.yml"])
         with (
             mock.patch.dict(os.environ, {"GITHUB_REPOSITORY": repo, "GH_TOKEN": "token"}),
             mock.patch.object(main_verify_alert, "main_verification_status", return_value=status),
             mock.patch.object(main_verify_alert, "gh") as gh,
         ):
-            gh.side_effect = ["", "", "[]", '[{"number": 8}]', ""]
+            gh.side_effect = ["", "", "[]", '[{"number": 8}]', "", ""]
             main_verify_alert.main()
-        self.assertEqual(gh.call_args.args, (repo, "workflow", "run", "full-build.yml", "--ref", "main"))
+        self.assertEqual(gh.call_args_list[-2:], [
+            mock.call(repo, "workflow", "run", "full-build.yml", "--ref", "main"),
+            mock.call(repo, "workflow", "run", "upstream-arm11-smoke.yml", "--ref", "main",
+                      "-f", "full_suite=false"),
+        ])
 
 
 class PrTriageTests(unittest.TestCase):
