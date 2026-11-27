@@ -306,6 +306,13 @@ public final class UpstreamStatusRowsProbe {
         if (minimapView.panX() != 0f || minimapView.panY() != 0f) {
             throw new IllegalStateException("Minimap view reset mismatch");
         }
+        if (UpstreamMinimapView.screenX(0f, 100f, 10f, 240f) != 10f
+                || UpstreamMinimapView.screenX(100f, 100f, 10f, 240f) != 250f
+                || UpstreamMinimapView.screenY(0f, 100f, 10f, 240f) != 250f
+                || UpstreamMinimapView.screenY(100f, 100f, 10f, 240f) != 10f) {
+            throw new IllegalStateException("Minimap entity mapping mismatch");
+        }
+        System.out.println("UPSTREAM_MINIMAP_VIEW_ENTITIES cases=4 ok");
         System.out.println("UPSTREAM_MINIMAP_VIEW cases=5 ok");
         System.out.println("UPSTREAM_PAUSE_MENU cases=22 ok");
         System.out.println("UPSTREAM_STATUS_ROWS cases=10 ok");

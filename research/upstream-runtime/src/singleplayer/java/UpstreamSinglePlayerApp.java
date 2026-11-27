@@ -1747,6 +1747,7 @@ public final class UpstreamSinglePlayerApp {
         if (!minimapView.open()) return;
         target.hudPanel(0f, 0f, UpstreamMinimapView.screenWidth, UpstreamMinimapView.screenHeight, 0xF0080A0C);
         target.drawMinimapAt(minimapView.x(), minimapView.y(), minimapView.size());
+        drawFullscreenUnits();
         if (minimapViewTitle == null) {
             String title = Core.bundle.get("minimap");
             minimapViewTitle = (title + "\0").getBytes(StandardCharsets.UTF_8);
@@ -1757,6 +1758,32 @@ public final class UpstreamSinglePlayerApp {
         }
         target.drawObjectiveAt(minimapViewTitle, minimapViewTitleCharacters, null, 8f, 4f);
         target.drawObjectiveAt(minimapViewBack, minimapViewBackCharacters, null, 8f, 196f);
+    }
+
+    private void drawFullscreenUnits() {
+        var world = Vars.world;
+        if (world == null || Vars.player == null) return;
+        float size = minimapView.size();
+        float mapX = minimapView.x(), mapY = minimapView.y();
+        float worldWidth = world.unitWidth(), worldHeight = world.unitHeight();
+        if (worldWidth <= 0f || worldHeight <= 0f) return;
+        var team = Vars.player.team();
+        int drawn = 0;
+        for (Unit unit : Groups.unit) {
+            if (drawn >= 200) break;
+            if (unit.dead || !unit.isAdded() || !unit.type.drawMinimap) continue;
+            if (team != null && unit.inFogTo(team)) continue;
+            float sx = UpstreamMinimapView.screenX(unit.x, worldWidth, mapX, size);
+            float sy = UpstreamMinimapView.screenY(unit.y, worldHeight, mapY, size);
+            if (sx < mapX || sx > mapX + size || sy < mapY || sy > mapY + size) continue;
+            var icon = unit.type.uiIcon;
+            if (icon == null || !icon.found()) continue;
+            float width = 10f + 2f * minimapView.zoom();
+            float height = width * icon.height / Math.max(1, icon.width);
+            target.hudSprite(icon, 0, 0, icon.width, icon.height,
+                sx - width / 2f, sy - height / 2f, width, height, unit.team.color.abgr());
+            drawn++;
+        }
     }
 
     private void drawPositionReadout() {
