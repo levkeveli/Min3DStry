@@ -393,6 +393,12 @@ if (usesTerrainRenderer) {
 }
 if (usesSimulation) {
     sourceSets.main.java.srcDir('src/gameplay/java')
+    tasks.register('runLogisticsJvm', JavaExec) {
+        dependsOn 'classes'
+        classpath = sourceSets.main.runtimeClasspath
+        mainClass = 'UpstreamLogisticsProbe'
+        if (!glacierPath.isEmpty()) args glacierPath
+    }
 }
 if (probe == 'world-stream') {
     sourceSets.main.java.srcDir('src/world-stream/java')
@@ -424,6 +430,12 @@ if (probe in ['network-render', 'unified']) {
         if (!glacierPath.isEmpty() && !atlasPath.isEmpty() && !colorsPath.isEmpty()) {
             args glacierPath, atlasPath, colorsPath
         }
+    }
+    tasks.register('runCameraZoomJvm', JavaExec) {
+        dependsOn 'classes'
+        classpath = sourceSets.main.runtimeClasspath
+        mainClass = 'UpstreamCameraZoomReference'
+        if (!glacierPath.isEmpty()) args glacierPath
     }
 }
 if (usesSinglePlayer) {
