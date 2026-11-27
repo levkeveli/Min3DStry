@@ -45,6 +45,7 @@ def arc = providers.gradleProperty('arcCheckout')
 def probe = providers.gradleProperty('probe').getOrElse('logic')
 def entryPoints = [
     logic: 'mindustry.logic.UpstreamLogicProbe',
+    'logic-instructions': 'mindustry.logic.UpstreamLogicInstructionsProbe',
     map: 'mindustry.maps.UpstreamMapProbe',
     'map-sd': 'mindustry.maps.UpstreamSdMapProbe',
     content: 'UpstreamContentBaseline',
