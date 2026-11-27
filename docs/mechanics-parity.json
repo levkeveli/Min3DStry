@@ -225,16 +225,22 @@
       "domain": "Controls & Dual-Screen UI",
       "name": "Stock v160.8 Fonts, Localization Bundles & World Labels",
       "weight": 2,
-      "status": "live-arm11",
+      "status": "complete",
       "modes": ["offline", "multiplayer"],
       "issue": 40,
       "evidence": [
         "research/upstream-runtime/arm11/m3ds_stock_font.c",
         "research/upstream-runtime/arm11/m3ds_stock_text.c",
+        "research/upstream-runtime/arm11/test_stock_font.c",
         "research/upstream-runtime/src/network-live/java/UpstreamInterfaceLocale.java",
-        "research/upstream-runtime/src/network-render/java/UpstreamObjectiveMarkers.java"
+        "research/upstream-runtime/src/network-live/host/UpstreamStockLocaleReference.java",
+        "research/upstream-runtime/src/network-render/java/UpstreamObjectiveMarkers.java",
+        "research/upstream-runtime/src/network-render/host/UpstreamBuildingLayersReference.java",
+        "tools/verify_upstream_singleplayer.py",
+        "docs/gameplay/offline-singleplayer.md",
+        ".github/workflows/upstream-arm11-smoke.yml"
       ],
-      "notes": "Upstream bitmap/TTF font rasterization, inline emoji icons, locale bundles (incl. JP), and world objective markers/labels render on ARM11."
+      "notes": "Upstream bitmap/TTF font rasterization, inline emoji icons, locale bundles (incl. JP), and world objective markers/labels render on the ARM11 offline and live clients; the Azahar offline replay (tools/verify_upstream_singleplayer.py) and the campaign globe replay exercise the stock fonts and bundles on both profiles. The host font test now runs in the smoke job: it opens the stock 18 px game face, the Japanese face, the 30 px icon face and the 2 px outline, asserts the stock Latin glyph mask, the Japanese face selection for 0x63a1, the Iconc.tree icon glyph, the outline border, distinct non-empty masks and RGBA texel packing (UPSTREAM_STOCK_FONT latin=ok japanese=ok tree=ok outline=ok fallback=ok texel=ok distinct=ok); it reports structural facts instead of FreeType-build-specific hashes. A new locale reference loads every shipped bundle file through the port's interface loader (requested-locale path, not the fallback index), asserts each locale parsed non-empty with an English fallback parent, and checks the block/item/liquid/unit keys plus unit.thousands/millions/billions, keeping English and Japanese catalog labels distinct (UPSTREAM_STOCK_LOCALES files=35 localized=34 parsed=ok keys=ok fallback=ok en=Conveyor ja=ok). Objective item/build labels are grepped from the building-layer reference (UPSTREAM_OBJECTIVE_HUD_REFERENCE item=beryllium build=turbine-condenser hidden=filtered). Software complete with host plus Azahar evidence."
     },
     {
       "id": "top-screen-status-hud",

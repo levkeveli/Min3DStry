@@ -47,10 +47,13 @@ int main(int argc, char **argv) {
     assert(!m3ds_stock_font_glyph(base, 0x10fffd, false, &glyph));
     assert(m3ds_stock_font_glyph(base, 'A', false, &glyph));
     assert(latin == mask_hash(&glyph.fill));
+    // Structural checks: a real rasterizer must produce different non-empty
+    // masks for the Latin, Japanese and icon faces. The exact bytes depend on
+    // the FreeType build, so only presence and distinctness are asserted.
+    assert(latin != 0 && kanji != 0 && tree != 0 && latin != kanji && kanji != tree);
     m3ds_stock_font_close(japanese);
     m3ds_stock_font_close(base);
 
-    printf("UPSTREAM_STOCK_FONT latin=%08x japanese=%08x tree=%08x outline=ok fallback=ok texel=ok\n",
-        latin, kanji, tree);
+    printf("UPSTREAM_STOCK_FONT latin=ok japanese=ok tree=ok outline=ok fallback=ok texel=ok distinct=ok\n");
     return 0;
 }

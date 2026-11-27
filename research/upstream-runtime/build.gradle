@@ -425,6 +425,11 @@ if (usesLiveNetwork) {
         classpath = sourceSets.main.runtimeClasspath
         mainClass = 'UpstreamPlayerIdentityReference'
     }
+    tasks.register('runStockLocalesJvm', JavaExec) {
+        dependsOn 'classes'
+        classpath = sourceSets.main.runtimeClasspath
+        mainClass = 'UpstreamStockLocaleReference'
+    }
 }
 if (probe in ['network-render', 'unified']) {
     sourceSets.main.java.srcDirs('src/network-render/java', 'src/network-render/host')
