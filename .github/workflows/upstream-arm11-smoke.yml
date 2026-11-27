@@ -41,6 +41,11 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      full_suite:
+        description: Run standalone diagnostics in addition to the unified smoke jobs
+        type: boolean
+        default: true
 
 concurrency:
   group: upstream-arm11-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || (github.event_name == 'workflow_dispatch' && format('dispatch-{0}', github.run_id)) || github.ref }}
@@ -88,7 +93,7 @@ jobs:
   probe:
     name: Probe ${{ matrix.probe }}
     needs: [changes]
-    if: needs.changes.outputs.run_probes == 'true' && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.run_all != 'true')
+    if: needs.changes.outputs.run_probes == 'true' && (inputs.full_suite == true || needs.changes.outputs.run_all != 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 60
     strategy:
@@ -300,7 +305,7 @@ jobs:
   save-baseline:
     name: Save writer baseline
     needs: [changes]
-    if: needs.changes.outputs.run_save == 'true' && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.run_all != 'true')
+    if: needs.changes.outputs.run_save == 'true' && (inputs.full_suite == true || needs.changes.outputs.run_all != 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -346,7 +351,7 @@ jobs:
   world-roundtrip:
     name: World save round trip
     needs: [changes]
-    if: needs.changes.outputs.run_save == 'true' && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.run_all != 'true')
+    if: needs.changes.outputs.run_save == 'true' && (inputs.full_suite == true || needs.changes.outputs.run_all != 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -553,7 +558,7 @@ jobs:
   audio-inventory:
     name: Audio asset inventory
     needs: [changes]
-    if: github.event_name == 'workflow_dispatch'
+    if: inputs.full_suite == true
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -654,7 +659,7 @@ jobs:
   progression-baseline:
     name: Progression baseline
     needs: [changes]
-    if: needs.changes.outputs.run_progression == 'true' && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.run_all != 'true')
+    if: needs.changes.outputs.run_progression == 'true' && (inputs.full_suite == true || needs.changes.outputs.run_all != 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -690,7 +695,7 @@ jobs:
   combat-baseline:
     name: Combat and pathfinding baseline
     needs: [changes]
-    if: needs.changes.outputs.run_combat == 'true' && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.run_all != 'true')
+    if: needs.changes.outputs.run_combat == 'true' && (inputs.full_suite == true || needs.changes.outputs.run_all != 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -784,7 +789,7 @@ jobs:
   audio-conversion:
     name: Audio conversion
     needs: [changes]
-    if: needs.changes.outputs.run_audio == 'true' && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.run_all != 'true')
+    if: needs.changes.outputs.run_audio == 'true' && (inputs.full_suite == true || needs.changes.outputs.run_all != 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -846,7 +851,7 @@ jobs:
   net-session-baseline:
     name: Net session baseline
     needs: [changes]
-    if: github.event_name == 'workflow_dispatch'
+    if: inputs.full_suite == true
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -874,7 +879,7 @@ jobs:
   production-baseline:
     name: Production, power, and liquid baseline
     needs: [changes]
-    if: needs.changes.outputs.run_production == 'true' && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.run_all != 'true')
+    if: needs.changes.outputs.run_production == 'true' && (inputs.full_suite == true || needs.changes.outputs.run_all != 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -966,7 +971,7 @@ jobs:
   factory-baseline:
     name: Factory and logistics baseline
     needs: [changes]
-    if: needs.changes.outputs.run_factory == 'true' && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.run_all != 'true')
+    if: needs.changes.outputs.run_factory == 'true' && (inputs.full_suite == true || needs.changes.outputs.run_all != 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -1054,7 +1059,7 @@ jobs:
   singleplayer-baseline:
     name: Offline single-player Ground Zero baseline
     needs: [changes]
-    if: github.event_name == 'workflow_dispatch'
+    if: inputs.full_suite == true
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
