@@ -63,10 +63,12 @@ texture draw rebinds the top screen because the build palette leaves the bottom
 screen selected. The minimap translation unit also compiles without
 `M3DS_WORLD_ATLAS`; its static upload buffer is 64 KiB.
 
-The [New 3DS smoke at `484370c`](https://github.com/levkeveli/Min3DStry/actions/runs/45761306993/artifacts/15092600824)
-shows the minimap in the original Ground Zero campaign alongside the live
-fog. The stock JVM comparison covers the full Glacier sample and both
-building-visibility states. Multiplayer minimap integration remains open.
+The New 3DS smoke at `9607b4b` shows the minimap in the original Ground
+Zero campaign alongside live fog. The stock JVM comparison covers the full
+Glacier sample and both building-visibility states. Multiplayer HUD
+integration is tracked in #493.
+[Grouped run](https://github.com/levkeveli/Min3DStry/actions/runs/46052852198)
+· [Offline screenshots and logs](https://github.com/levkeveli/Min3DStry/actions/runs/46052852198/artifacts/15228200432)
 
 ## Camera zoom
 
