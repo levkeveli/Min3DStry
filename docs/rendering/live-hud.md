@@ -75,13 +75,22 @@ clamp and span math are host-checked; the **physical draw is pending** the New
 
 ## Dynamic emitter lights
 
-Visible buildings with `emitLight` draw the stock `circle-shadow` region
-additively at their `lightRadius`/`lightColor`. `LightBlock` (for example the
-Illuminator) uses its configured color, brightness, efficiency and smoothing
-time. The host building reference asserts a real additive light sprite from the
-Illuminator. Core glow, per-block `drawLight` overrides (generators, reactors,
-crafters), the full stock light buffer and shadowing remain open; the
-**physical draw is pending** the New 3DS acceptance run.
+The handheld queues light requests in the pinned LightRenderer order. The
+original terrain and building methods supply floor, overlay and block
+lights. The pass also takes the original light marker, texture and line
+draws. PICA renders those requests to a quarter-resolution buffer with
+normal RGB blending and maximum alpha, then applies the pinned
+`light.frag` tint and opacity to the visible world.
+
+On `433db4d`, an unmodified v160.8 PC server enabled ambient lighting,
+placed two overlapping light markers, removed them, and disabled lighting
+again. The New 3DS emulator matched the calculated colors, kept the
+unlit reference stable when the markers changed, and restored the
+original frame samples when lighting was disabled.
+[Grouped run](https://github.com/levkeveli/Min3DStry/actions/runs/46065646676)
+· [Lighting screenshots and server logs](https://github.com/levkeveli/Min3DStry/actions/runs/46065646676/artifacts/15232225962)
+
+Physical draw remains part of the New 3DS acceptance run.
 
 ## Selected building bars
 
