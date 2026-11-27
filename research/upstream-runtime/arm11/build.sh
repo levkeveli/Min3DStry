@@ -41,7 +41,7 @@ if [[ $mode == --singleplayer || $mode == --unified ]]; then
 fi
 if [[ $mode == --unified ]]; then
     subtitle="Mindustry v160.8"
-    native_input+=("$root/m3ds_server_address.c" "$root/m3ds_community_http.c")
+    native_input+=("$root/m3ds_server_address.c" "$root/m3ds_community_http.c" "$root/m3ds_community_probe.c")
 fi
 if [[ $mode == --network || $mode == --singleplayer || $mode == --unified ]]; then
     shift

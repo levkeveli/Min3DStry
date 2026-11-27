@@ -225,6 +225,13 @@ bool m3ds_net_decode_stream_chunk(
     M3dsNetStreamChunk *out_chunk);
 
 /* Execute a UDP DiscoverHost ping over transport. */
+int m3ds_net_query_host(
+    const M3dsNetTransport *transport,
+    const char *host,
+    uint16_t port,
+    uint32_t timeout_ms,
+    uint8_t *response,
+    size_t capacity);
 bool m3ds_net_ping_host(
     const M3dsNetTransport *transport,
     const char *host,

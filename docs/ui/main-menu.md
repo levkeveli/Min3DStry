@@ -243,3 +243,24 @@ the German Join Game route discovered one stock v160.8 Glacier session.
 The details screen showed the stock mode, player count, version and
 advertised address. The server log recorded the same client connecting and
 disconnecting after the gameplay replay.
+
+## Community server directory
+
+Community Servers uses the pinned v160.8 directory and HTTPS mirror. The
+handheld reads `server_list.json` from its settings directory. Refresh
+validates the downloaded directory before publishing the stock cache file,
+and a transport or parse failure leaves the previous directory available.
+The `communityservers` preference controls whether this menu fetches or
+displays the directory.
+
+The browser queries up to eight stock endpoints concurrently with the
+original Arc discovery datagram. Pinned `NetworkIO.readServerData` decodes
+the map, mode, population, version, and description. Search uses those
+fields and the group name. The group favorite and hidden preferences use
+the stock keys. The server details show a version mismatch before joining
+and allow compatible servers to be added to Remote Servers.
+
+The packaged TLS trust store and source information are in
+[`data/net/community-ca.txt`](../../data/net/community-ca.txt). New 3DS
+emulator verification and DNS SRV fallback are tracked in
+[issue #756](https://github.com/levkeveli/Min3DStry/issues/756).
