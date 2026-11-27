@@ -364,7 +364,7 @@
       "domain": "Combat, Units & Visual FX",
       "name": "Enemy Wave Spawner & Ground Flowfield Pathfinding",
       "weight": 4,
-      "status": "live-arm11",
+      "status": "complete",
       "modes": ["offline", "multiplayer"],
       "issue": 30,
       "evidence": [
@@ -373,7 +373,7 @@
         "research/upstream-runtime/src/gameplay/java/UpstreamWaveRoutingProbe.java",
         "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerSession.java"
       ],
-      "notes": "Upstream WaveSpawner, Pathfinder, and ControlPathfinder ground flowfields match JVM bit-for-bit and drive live Dagger waves on ARM11."
+      "notes": "Upstream WaveSpawner, Pathfinder, and ControlPathfinder ground flowfields match JVM bit-for-bit and drive live Dagger waves on ARM11. Host wave-routing probe: fieldHash=629058db4926d64e; waves 1-4 spawn at the enemy core (81,224), path toward the player core (81,26), and reduce the path distance from 1533 to 1165-1177 while the stocked Duo consumes ammo. Software complete."
     },
     {
       "id": "turrets-ammo-bullets",
