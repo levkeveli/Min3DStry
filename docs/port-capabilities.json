@@ -33,7 +33,7 @@
       "category": "Foundation & Tooling",
       "name": "ARM11 .3dsx Build & Azahar Harness",
       "weight": 3,
-      "stage": "hardware-verified",
+      "stage": "complete",
       "issue": 3,
       "evidence": [
         "Makefile",
@@ -62,7 +62,7 @@
       "category": "Foundation & Tooling",
       "name": "3dslink / SD Deploy & Log Capture",
       "weight": 2,
-      "stage": "hardware-verified",
+      "stage": "complete",
       "issue": 6,
       "evidence": [
         "tools/device_deploy.py",
