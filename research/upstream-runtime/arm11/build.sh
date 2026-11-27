@@ -201,9 +201,17 @@ if [[ "${M3DS_RELAX_POINTER_TYPES:-0}" == "1" ]]; then
 fi
 compiler="$DEVKITARM/bin/arm-none-eabi-gcc"
 arch_flags=(-march=armv6k -mtune=mpcore -mfpu=vfp -mfloat-abi=hard -mtp=soft)
-compile_flags=(-std=gnu11 -g "$arm11_opt" -fwrapv -D__3DS__ -mword-relocations
+debug_flags=(-g)
+section_flags=()
+if [[ $mode == --unified ]]; then
+    # Separate functions allow the linker to insert veneers for distant calls.
+    section_flags=(-ffunction-sections)
+    # Retain line diagnostics and limit the peak memory spent on variable DWARF.
+    debug_flags=(-g1 -fno-var-tracking -fno-var-tracking-assignments)
+fi
+compile_flags=(-std=gnu11 "${debug_flags[@]}" "$arm11_opt" -fwrapv -D__3DS__ -mword-relocations
     "${arch_flags[@]}" -I"$output/nativeinclude" -I"$DEVKITPRO/libctru/include"
-    "${terrain_flags[@]}" "${save_rows_flags[@]}" "${pointer_flags[@]}" "${stack_flags[@]}")
+    "${terrain_flags[@]}" "${save_rows_flags[@]}" "${pointer_flags[@]}" "${stack_flags[@]}" "${section_flags[@]}")
 # Keep the original compiler layout for stock JSON writes. A split unified
 # ROM exhausted the 3DS stack during the Ground Zero save replay.
 case "$mode" in
