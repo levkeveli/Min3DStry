@@ -35,7 +35,7 @@ markers they emit on the JVM and/or ARM11/Azahar.
 
 Rows marked `JVM + Azahar` run in Azahar `2126.2` on both New and Old 3DS
 profiles; host rows run on the JVM only. Physical New 3DS validation remains
-part of `physical-hardware-parity`.
+part of HWT-06.
 
 ## Native reader scope and replacement plan
 

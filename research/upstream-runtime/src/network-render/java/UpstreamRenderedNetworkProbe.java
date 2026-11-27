@@ -71,6 +71,7 @@ public final class UpstreamRenderedNetworkProbe {
     private Unit controlled;
     private int draws;
     private boolean projectilesVisible, projectilesActive;
+    private boolean effectsVisible, effectsActive;
     private long previousVisualFrame;
     private long frameId;
     private float frameSeconds;
@@ -220,6 +221,7 @@ public final class UpstreamRenderedNetworkProbe {
         UpstreamCrackAtlas.load();
         drawableUnits.clear();
         UpstreamClientProjectiles.load();
+        UpstreamClientEffects.load();
         viewport = UpstreamTerrainDrawProbe.liveViewport(target);
         target.initialize();
         boolean stock = target.loadStockFont(locale.getLanguage().equals("ja"));
@@ -320,7 +322,9 @@ public final class UpstreamRenderedNetworkProbe {
                 if (unit instanceof UnitWaterMove boat) boat.advanceWake();
                 if (unit instanceof Tankc tank) advanceTankTreads(tank);
             }
+            UpstreamClientEffects.follow(viewport);
             UpstreamClientProjectiles.update();
+            UpstreamClientEffects.update();
         } finally {
             Time.delta = oldDelta;
         }
@@ -375,6 +379,14 @@ public final class UpstreamRenderedNetworkProbe {
             }
             projectilesVisible = bullets > 0;
             projectilesActive = active;
+            int effects = UpstreamClientEffects.draw(viewport);
+            boolean effectsActiveNow = !Groups.effect.isEmpty();
+            if (effectsVisible != (effects > 0) || effectsActive != effectsActiveNow) {
+                System.out.println("UPSTREAM_NETWORK_EFFECTS visible=" + effects
+                    + " active=" + Groups.effect.size());
+            }
+            effectsVisible = effects > 0;
+            effectsActive = effectsActiveNow;
         } finally {
             Draw.sort(false);
         }

@@ -173,6 +173,13 @@ bytes than expected. The staged save never replaces the existing slot in
 those cases.
 [Integrated replay](https://github.com/levkeveli/Min3DStry/actions/runs/45754744096)
 
+In the [grouped replay at `495ab2e`](https://github.com/levkeveli/Min3DStry/actions/runs/45759672803),
+all three large maps again reloaded and wrote both saves. Unmodified
+Java v160.8 reopened those saves. Serpulo 242 wrote both from a live heap
+of approximately 54.2 MB before serialization. Frozen Forest also
+recovered from a truncated primary and reopened the resulting save.
+The artifacts contain the reload screenshots and raw logs.
+
 Physical New 3DS performance remains open.
 
 The [ARM11 build from `1390790`](https://github.com/levkeveli/Min3DStry/actions/runs/45035851013)
