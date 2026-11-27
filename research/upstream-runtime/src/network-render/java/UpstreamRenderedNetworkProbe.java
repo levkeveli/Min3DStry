@@ -104,6 +104,10 @@ public final class UpstreamRenderedNetworkProbe {
         buildingControls.schematics().editWith(
             name -> UpstreamLiveNetworkProbe.whileKeepingAlive(() -> UpstreamTerrainRenderProbe.editSchematicName(name)),
             description -> UpstreamLiveNetworkProbe.whileKeepingAlive(() -> UpstreamTerrainRenderProbe.editSchematicDescription(description)));
+        buildingControls.buildingConfig().editProcessorsWith(
+            code -> UpstreamLiveNetworkProbe.whileKeepingAlive(() ->
+                UpstreamTerrainRenderProbe.editProcessorText(code, UpstreamProcessorConfiguration.APPLET_CHARACTERS)),
+            new Fi("/3ds/min3dstry/logic-clipboard.mlog"));
     }
 
     public static void main(String[] args) throws IOException, InterruptedException {

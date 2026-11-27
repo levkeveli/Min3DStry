@@ -429,6 +429,9 @@ public final class UpstreamSinglePlayerApp {
             UpstreamTerrainRenderProbe::confirmSchematicReplacement);
         controls.schematics().editWith(UpstreamTerrainRenderProbe::editSchematicName,
             UpstreamTerrainRenderProbe::editSchematicDescription);
+        controls.buildingConfig().editProcessorsWith(
+            code -> UpstreamTerrainRenderProbe.editProcessorText(code, UpstreamProcessorConfiguration.APPLET_CHARACTERS),
+            new Fi("/3ds/min3dstry/logic-clipboard.mlog"));
         return controls;
     }
 

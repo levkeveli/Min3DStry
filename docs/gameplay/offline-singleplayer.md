@@ -994,6 +994,42 @@ python3 tools/verify_offline_turret_buildings.py \
   --output build/offline-turret-buildings
 ```
 
+## Stock processor source and connections
+
+Use Config on a reachable, accessible Mindustry processor. Edit opens the
+multiline 3DS keyboard with the current source, and backing out keeps the
+running program. Import File and Export File use plain UTF-8 Mindustry logic
+in `sd:/3ds/min3dstry/logic-clipboard.mlog`. Use the file for programs longer
+than the keyboard can edit. Export explicitly replaces the clipboard.
+
+Logic opens the stock instruction list with its original names and available
+instruction types. Add from the original palette, edit an instruction,
+duplicate it, move it up or down, or remove it. Jumps keep their destination
+instructions through rearrangements. Apply sends the resulting stock program;
+backing out keeps the previous source. The stock assembler parses and writes
+the instructions.
+
+The processor keeps its existing stock connections when source changes.
+Link lets the player tap a building to toggle its connection through the
+original processor range and permission checks. The same stock
+configuration path applies edits offline and sends the original
+configured bytes to a Java v160.8 server in multiplayer.
+
+The stock Java reference checks source, preserved links, Canvas execution,
+and input size limits. The grouped New 3DS replay at `d698870` captured
+the processor configuration and instruction menus in both session modes.
+It exercised file import, a fresh export, stock link toggling, duplication
+of an End instruction, and Apply. The unmodified v160.8 Java server
+verified the resulting source byte for byte, both links, and Canvas pixel
+5 in the live session and after reopening the offline save.
+[Grouped run](https://github.com/levkeveli/Min3DStry/actions/runs/46058780743)
+· [Processor screenshots and stock server logs](https://github.com/levkeveli/Min3DStry/actions/runs/46058780743/artifacts/15228822960)
+
+Physical hardware verification and the full desktop visual editor remain
+open.
+The ARM11 workflow reuses the unified ROM for both processor editor replays
+in a dedicated job with its own screenshots and stock-server logs.
+
 ## Original Canvas and Logic Displays
 
 Offline games draw the v160.8 Canvas and Logic Display blocks in the original

@@ -94,6 +94,16 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
         return editText(Core.bundle.get("schematic.edit") + " · " + Core.bundle.get("editor.description"), original, 3);
     }
 
+    static String editProcessorText(String original, int maxCharacters) {
+        byte[] text = new byte[4 * maxCharacters + 1];
+        byte[] initial = original.getBytes(StandardCharsets.UTF_8);
+        if (initial.length >= text.length) return null;
+        System.arraycopy(initial, 0, text, 0, initial.length);
+        byte[] hint = (Core.bundle.get("edit") + "\0").getBytes(StandardCharsets.UTF_8);
+        int length = NativeTerrain.schematicPrompt(Address.ofData(text), text.length, Address.ofData(hint), 3);
+        return length >= 0 && length < text.length ? new String(text, 0, length, StandardCharsets.UTF_8) : null;
+    }
+
     static String readDatabaseSearch(String original) {
         return editText(Core.bundle.get("players.search"), original, 2);
     }

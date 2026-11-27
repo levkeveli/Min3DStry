@@ -472,11 +472,12 @@
       "evidence": [
         "docs/gameplay/offline-singleplayer.md",
         "tools/verify_stock_offline_logic.py",
+        "tools/verify_stock_processor_editor.py",
         "tools/verify_upstream_live_net.py",
         "research/upstream-runtime/src/network-render/java/port/logic/UpstreamClientLogic.java",
         "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerApp.java"
       ],
-      "notes": "Offline and live ARM11 clients execute stock processors and draw Canvas, normal, large and tiled Logic Displays plus display-backed markers with the original logic font. Both Azahar profiles passed the offline replay and the live client-local write check; the unmodified v160.8 server reopened the saves. Bottom-screen logic editor UI and full world-processor messages remain open."
+      "notes": "Offline and live ARM11 clients execute stock processors and draw Canvas, normal, large and tiled Logic Displays plus display-backed markers with the original logic font. Both Azahar profiles passed the offline replay and the live client-local write check; the unmodified v160.8 server reopened the saves. The New 3DS processor editor replay at 28391b1 verified the rendered instruction list, exact edited stock source, two links and Canvas pixel 5 against the unmodified v160.8 live server and after reopening the offline save. Full desktop visual editor parity and world-processor messages remain open."
     },
     {
       "id": "campaign-backend-saves",
