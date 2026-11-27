@@ -322,3 +322,8 @@ filtered edge samples and confirmed that both regions returned to their
 original color after removal. The archive contains the five captures and
 matching stock server and ARM11 logs.
 [Replay evidence](https://github.com/levkeveli/Min3DStry/actions/runs/46062758865/artifacts/15230264710)
+
+The build at `60b202b` also passed the pinned JVM reference for enemy
+shadow memory per viewing team and for the original arkyic-boulder
+shadow variant, tint and order. It compiled the unified devkitARM ROM.
+[Build and reference log](https://github.com/levkeveli/Min3DStry/actions/runs/46066212647/job/140733018132)
