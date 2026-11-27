@@ -125,6 +125,7 @@ final class UpstreamBuildingLayers {
     private static void drawTurrets(Seq<Building> visible) {
         for (var build : visible) {
             if (!(build.block instanceof BaseTurret)) continue;
+            build.wasVisible = true;
             Draw.z(Layer.turret);
             build.draw();
             Draw.reset();

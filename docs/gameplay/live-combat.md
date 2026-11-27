@@ -33,10 +33,11 @@ profiles and the Original 3DS offline and live turret-possession replay.
 
 ## Turret barrels
 
-Visible turrets use the stock turret drawer over the cached base, so barrels,
-ammo, liquid and heat draw with the original rotation and recoil. The host
-reference registers all 29 turrets and checks the Duo base-only versus full
-turret draw (`8 -> 16` sprites). Full beam and status-effect paths remain open.
+Visible turrets use the stock turret drawer over the cached base. The host
+reference checks the Duo base-only versus full draw (`8 -> 16` sprites) and the
+rotated `duo-barrel-l`/`duo-barrel-r` sprites at stock rotation `37° -> -53°`.
+Ammo, liquid and heat layers come from the same drawer. Full beam and
+status-effect paths, and recoil-specific evidence, remain open.
 
 ## Live projectile drawing
 

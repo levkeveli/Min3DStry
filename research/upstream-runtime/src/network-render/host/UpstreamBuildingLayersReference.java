@@ -1533,10 +1533,11 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
 
     private void verifyTurretBarrel(UpstreamBuildingLayers layers, UpstreamTerrainDrawProbe.Viewport viewport,
                                     Team viewer) {
-        var tile = Vars.world.tile(35, 34);
+        var tile = Vars.world.tile(35, 36);
         tile.setBlock(Blocks.duo, viewer, 0);
         var duo = tile.build;
-        duo.wasVisible = true;
+        var turret = (BaseTurret.BaseTurretBuild)duo;
+        turret.rotation = 37f;
         sprites.clear();
         duo.block.drawBase(duo.tile);
         int baseCount = sprites.size();
@@ -1545,14 +1546,19 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         if (sprites.size() <= baseCount) {
             throw new AssertionError("Stock turret draw is missing its barrel: " + baseCount + " -> " + sprites.size());
         }
-        var barrel = Core.atlas.find("duo-barrel");
-        if (barrel.found() && sprites.stream().noneMatch(sprite -> sprite.page() == UpstreamTerrainDrawProbe.pageIndex(barrel)
-                && sprite.left() == barrel.getX() && sprite.top() == barrel.getY())) {
-            throw new AssertionError("Stock turret draw is missing the original barrel region");
+        var left = Core.atlas.find("duo-barrel-l");
+        var right = Core.atlas.find("duo-barrel-r");
+        requireRegion(left);
+        requireRegion(right);
+        boolean barrel = sprites.stream().anyMatch(sprite ->
+            (matchesRegion(sprite, left) || matchesRegion(sprite, right))
+                && Math.abs(sprite.rotation() - (37f - 90f)) < 0.01f);
+        if (!barrel) {
+            throw new AssertionError("Stock turret draw is missing the rotated duo barrels");
         }
         tile.setBlock(Blocks.air);
         System.out.println("UPSTREAM_TURRET_DRAW base=" + baseCount + " draw=" + sprites.size()
-            + " barrel=" + (barrel.found() ? "ok" : "count"));
+            + " barrels=l,r rotation=37");
     }
 
     private void verifyDynamicLight(UpstreamBuildingLayers layers, UpstreamTerrainDrawProbe.Viewport viewport,
