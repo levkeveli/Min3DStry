@@ -1340,12 +1340,29 @@ jobs:
         run: bash .github/scripts/build_unified_arm11_smoke.sh
       - name: Verify stock power and liquid draw registries on the JVM
         run: |
+          set -o pipefail
           bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime \
             --no-daemon --console=plain \
             "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" \
             "-PreferenceJar=$RUNNER_TEMP/server-release.jar" \
             "-ParcCheckout=$RUNNER_TEMP/Arc" -Pprobe=unified runBuildingLayersJvm \
-            --args="$RUNNER_TEMP/Mindustry/core/assets/maps/default/glacier.msav $PWD/build/smoke-assets/sprites.aatls $PWD/build/smoke-assets/block_colors.png $PWD/build/smoke-assets/bundles/bundle"
+            --args="$RUNNER_TEMP/Mindustry/core/assets/maps/default/glacier.msav $PWD/build/smoke-assets/sprites.aatls $PWD/build/smoke-assets/block_colors.png $PWD/build/smoke-assets/bundles/bundle" \
+            | tee "$RUNNER_TEMP/building-layers.log"
+          grep -Fx 'UPSTREAM_STOCK_LIVE_LIQUID_DRAW tested=21' "$RUNNER_TEMP/building-layers.log"
+          grep -Fx 'UPSTREAM_LIQUID_BRIDGE_REFERENCE bridgeMilli=100000 phaseMilli=100000 backLink=rejected' "$RUNNER_TEMP/building-layers.log"
+          grep -Fx 'UPSTREAM_LIQUID_ROUTER_REFERENCE movedMilli=60000 initialMilli=120000 remainingMilli=60000' "$RUNNER_TEMP/building-layers.log"
+          grep -Fx 'UPSTREAM_LIQUID_JUNCTION_REFERENCE route=far deadEnd=self' "$RUNNER_TEMP/building-layers.log"
+      - name: Verify stock Erekir duct transport in the port tick loop
+        run: |
+          set -o pipefail
+          bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime \
+            --no-daemon --console=plain \
+            "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" \
+            "-PreferenceJar=$RUNNER_TEMP/server-release.jar" \
+            "-ParcCheckout=$RUNNER_TEMP/Arc" -Pprobe=erekir-ducts \
+            "-Pglacier=$RUNNER_TEMP/Mindustry/core/assets/maps/erekir/onset.msav" \
+            runErekirDuctsJvm | tee "$RUNNER_TEMP/erekir-ducts.log"
+          grep -Fx 'UPSTREAM_EREKIR_DUCTS duct=4 armored=4 unloader=4 router=4 arrival=10 delivered=20 armoredArrival=10 armoredDelivered=8 bridge=duct-bridge overflow=normal underflow=inverted sort=copper routerDelivered=1' "$RUNNER_TEMP/erekir-ducts.log"
       - uses: actions/upload-artifact@v4
         with:
           name: unified-arm11-smoke

@@ -17,13 +17,22 @@ final class UpstreamSimulationWorld {
         return play(args, () -> {});
     }
 
+    /** Loads any stock map without asserting the Glacier fixture. */
+    static UpstreamWorldLoadProbe.ProbeApplication playAny(String[] args) throws IOException {
+        return play(args, () -> {}, false);
+    }
+
     static UpstreamWorldLoadProbe.ProbeApplication play(String[] args, Runnable beforeMap) throws IOException {
+        return play(args, beforeMap, true);
+    }
+
+    static UpstreamWorldLoadProbe.ProbeApplication play(String[] args, Runnable beforeMap, boolean verifyGlacier) throws IOException {
         CacheLayer.init();
         var app = UpstreamWorldLoadProbe.load(args, () -> {
             Vars.indexer = new BlockIndexer();
             Vars.spawner = new WaveSpawner();
             beforeMap.run();
-        });
+        }, verifyGlacier);
         Core.graphics = new MockGraphics() {
             @Override
             public float getDeltaTime() {
