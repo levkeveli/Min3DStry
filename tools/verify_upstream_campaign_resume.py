@@ -7,6 +7,7 @@ import argparse
 from contextlib import suppress
 import re
 import struct
+import tempfile
 import time
 import zlib
 from pathlib import Path
@@ -53,6 +54,10 @@ def write_replay(path: Path, model: str, multiple: bool, move_down: bool, dense:
         menus = [(35, 39, sp.KEY_A), (53, 57, sp.KEY_A), (110, 119, sp.KEY_A)]
         windows = menus + [(start + delay, end + delay, key) for start, end, key in windows if start >= 175]
         seconds += delay
+    write_campaign_movie(path, model, windows, seconds)
+
+
+def write_campaign_movie(path: Path, model: str, windows: list[tuple[int, int, int]], seconds: int) -> None:
     frames = sp.CTM_SAMPLES_PER_SECOND * seconds
     header = struct.pack("<4sQ20sQQ32sIQq156x", b"CTM\x1b", 0, sp.CTM_REVISION, 1780000000,
                          0x4D334453, b"Min3DStry Campaign", 0, frames, 0)
@@ -200,6 +205,73 @@ def verify(model: str, rom: Path, azahar: str, config: Path, log: Path,
                 path.write_bytes(original)
 
 
+def verify_dense_switch(model: str, rom: Path, azahar: str, config: Path, log: Path,
+                        output: Path, fixtures: Path, java: str, server: Path) -> None:
+    first, second = (DENSE_PRESETS[name] for name in ("littoral-shipyard", "origin"))
+    configuration = {path: path.read_bytes() if path.is_file() else None for path in (config, log)}
+    replay = output / f"{model}-dense-switch.ctm"
+    key_r = 1 << 8
+    # Open Play → Campaign and resume Littoral. R+Select saves it and opens
+    # the in-world campaign selector. Hold inputs across slow ARM11 frames.
+    windows = [(35, 39, sp.KEY_A), (53, 57, sp.KEY_A), (110, 119, sp.KEY_A),
+               (375, 407, key_r | sp.KEY_SELECT), (530, 552, sp.KEY_DOWN),
+               (590, 622, sp.KEY_A), (1000, 1032, sp.KEY_START)]
+    write_campaign_movie(replay, model, windows, 1370)
+    try:
+        with tempfile.TemporaryDirectory(prefix="m3ds-dense-switch-sd-") as temp:
+            sd = Path(temp).resolve()
+            saves = sd / "3ds/min3dstry/saves"
+            saves.mkdir(parents=True)
+            originals = {preset: (fixtures / preset.slot).read_bytes() for preset in (first, second)}
+            for preset, data in originals.items():
+                (saves / preset.slot).write_bytes(data)
+            storage = {"Data Storage": {"use_custom_storage": "true", "sdmc_directory": sd.as_posix() + "/"}}
+            config.parent.mkdir(parents=True, exist_ok=True)
+            config.write_text(sp.az.patch_qt_config_text((configuration[config] or b"").decode("utf-8"), storage),
+                              encoding="utf-8")
+            proc, rpc = sp._launch_azahar(model, rom, azahar, config, log, replay)
+            try:
+                initial = rf"UPSTREAM_CAMPAIGN_MENU slots=\d+ selected={re.escape(first.slot)}\b"
+                first_map = rf"UPSTREAM_SP_LOADED source=campaign map={first.map_name} size=600x600\b"
+                second_map = rf"UPSTREAM_SP_LOADED source=campaign map={second.map_name} size=600x600\b"
+                sp._wait_for_log(log, proc, initial, 135)
+                sp._wait_for_log(log, proc, rf"(?s){first_map}.*?UPSTREAM_SP_FRAME ", 430)
+                (output / f"{model}-before-dense-switch.png").write_bytes(rpc.screenshot())
+                world_menu = rf"UPSTREAM_CAMPAIGN_WORLD_MENU sector={first.sector}\b"
+                opened = rf"UPSTREAM_CAMPAIGN_SELECTED slot={re.escape(second.slot)}\b"
+                sp._wait_for_log(log, proc, rf"(?s){world_menu}.*?{opened}.*?{second_map}.*?UPSTREAM_SP_FRAME ", 660)
+                (output / f"{model}-after-dense-switch.png").write_bytes(rpc.screenshot())
+                report = sp._wait_for_log(log, proc, r"UPSTREAM_SP_EXIT\b", 640)
+                if not re.search(rf"UPSTREAM_CAMPAIGN_SAVED slot={re.escape(second.slot)}\b", report):
+                    raise AssertionError("Origin did not save on exit after the campaign transition")
+                for preset, original in originals.items():
+                    slot = saves / preset.slot
+                    backup = saves / f"{preset.slot}-backup.msav"
+                    updated = slot.read_bytes()
+                    if updated == original or backup.read_bytes() != original:
+                        raise AssertionError(f"{preset.slot} did not retain its own stock backup")
+                    (output / f"{model}-{preset.slot}").write_bytes(updated)
+            except BaseException:
+                if proc.poll() is None:
+                    with suppress(OSError, RuntimeError, ValueError):
+                        (output / f"{model}-dense-switch-failure.png").write_bytes(rpc.screenshot())
+                raise
+            finally:
+                rpc.close()
+                sp._stop_proc(proc, azahar)
+                (output / f"{model}-dense-switch.log").write_bytes(log.read_bytes())
+    finally:
+        for path, original in configuration.items():
+            if original is None:
+                path.unlink(missing_ok=True)
+            else:
+                path.write_bytes(original)
+    for preset in (first, second):
+        check_dense_preset(java, server, output / f"{model}-{preset.slot}", preset)
+    print(f"[PASS] {model}: switched from {first.map_name} to {second.map_name} in one campaign session",
+          flush=True)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--rom", required=True, type=Path)
@@ -213,16 +285,19 @@ def main() -> int:
     mode.add_argument("--backup-only", action="store_true", help="Resume the second sector from its stock backup")
     mode.add_argument("--truncated-primary", action="store_true",
                       help="Resume with valid primary metadata and missing world data")
+    mode.add_argument("--dense-switch", action="store_true", help="Switch between two original 600x600 sectors")
     parser.add_argument("--dense-resave", action="store_true", help="Save after reload and again on exit")
     parser.add_argument("--from-title", action="store_true", help="Open the named sector from Play → Campaign")
     parser.add_argument("--server", type=Path, help="Reopen each dense or recovered save with the original Java server")
     parser.add_argument("--java", default="java")
     args = parser.parse_args()
     preset = DENSE_PRESETS.get(args.dense_preset)
-    dense = args.dense or preset is not None
+    dense = args.dense or preset is not None or args.dense_switch
     recovery = args.backup_only or args.truncated_primary
     if dense and (args.fixtures / "settings.bin").exists():
         parser.error("Dense replays require the stock fixtures without a settings override")
+    if args.dense_switch and (args.server is None or args.dense_resave or args.from_title):
+        parser.error("--dense-switch requires --server and includes its own title, switch and save checks")
     if args.dense_resave and (not dense or args.server is None):
         parser.error("--dense-resave requires a dense sector and --server")
     if args.from_title and preset is None:
@@ -235,6 +310,9 @@ def main() -> int:
     config, log = sp.az.resolve_azahar_paths(azahar)
     args.output_dir.mkdir(parents=True, exist_ok=True)
     model = args.model
+    if args.dense_switch:
+        verify_dense_switch(model, args.rom, azahar, config, log, args.output_dir, args.fixtures, args.java, args.server)
+        return 0
     verify(model, args.rom, azahar, config, log, args.output_dir, args.fixtures, dense,
            resave=args.dense_resave, preset=preset, from_title=args.from_title,
            backup_only=args.backup_only, truncated_primary=args.truncated_primary)

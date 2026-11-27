@@ -13,6 +13,7 @@ on:
           - littoral-shipyard
           - origin
           - frozen-forest-recovery
+          - dense-switch
 
 permissions:
   contents: read
@@ -70,7 +71,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        sector: ${{ fromJSON(inputs.sector == 'all' && '["serpulo-242","littoral-shipyard","origin","frozen-forest-recovery"]' || format('["{0}"]', inputs.sector)) }}
+        sector: ${{ fromJSON(inputs.sector == 'all' && '["serpulo-242","littoral-shipyard","origin","frozen-forest-recovery","dense-switch"]' || format('["{0}"]', inputs.sector)) }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -104,19 +105,30 @@ jobs:
               --fixtures "$RUNNER_TEMP/recovery-fixtures" --output-dir build/dense-campaign-replay
             exit 0
           fi
-          if [ "$SECTOR" = serpulo-242 ]; then
-            scenario=(--dense)
-            log=new3ds-multiple.log
-          else
-            scenario=(--dense-preset "$SECTOR")
-            log=new3ds-dense-preset.log
-          fi
-          python3 tools/campaign_resume_fixtures.py "${scenario[@]}" --server "$server" \
-            --output "$RUNNER_TEMP/dense-fixtures"
-          if [ "$SECTOR" != serpulo-242 ]; then scenario+=(--from-title); fi
-          xvfb-run -a python3 tools/verify_upstream_campaign_resume.py "${scenario[@]}" --dense-resave --model new3ds \
+          fixtures="$RUNNER_TEMP/dense-fixtures"
+          case "$SECTOR" in
+            dense-switch)
+              # The title selector sorts by stock save timestamp. Write Littoral last.
+              for preset in origin littoral-shipyard; do
+                python3 tools/campaign_resume_fixtures.py --dense-preset "$preset" --server "$server" --output "$fixtures"
+              done
+              scenario=(--dense-switch)
+              log=new3ds-dense-switch.log
+              ;;
+            serpulo-242)
+              python3 tools/campaign_resume_fixtures.py --dense --server "$server" --output "$fixtures"
+              scenario=(--dense --dense-resave)
+              log=new3ds-multiple.log
+              ;;
+            *)
+              python3 tools/campaign_resume_fixtures.py --dense-preset "$SECTOR" --server "$server" --output "$fixtures"
+              scenario=(--dense-preset "$SECTOR" --from-title --dense-resave)
+              log=new3ds-dense-preset.log
+              ;;
+          esac
+          xvfb-run -a python3 tools/verify_upstream_campaign_resume.py "${scenario[@]}" --model new3ds \
             --rom build/unified-smoke/upstream-probe.3dsx --server "$server" \
-            --fixtures "$RUNNER_TEMP/dense-fixtures" --output-dir build/dense-campaign-replay
+            --fixtures "$fixtures" --output-dir build/dense-campaign-replay
           result="build/dense-campaign-replay/$log"
           app_heap=$(sed -nE 's/.*UPSTREAM_MEMORY appHeap=([0-9]+).*/\1/p' "$result")
           required_heap=$(((56 + 22) * 1024 * 1024))
