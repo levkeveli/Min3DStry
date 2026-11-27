@@ -204,7 +204,8 @@ def logicDisplaySources = [
 ]
 def shieldModeSources = [
     'mindustry/graphics/Drawf.java': 'renderer',
-    'mindustry/entities/abilities/ForceFieldAbility.java': 'Vars.renderer'
+    'mindustry/entities/abilities/ForceFieldAbility.java': 'Vars.renderer',
+    'mindustry/entities/abilities/ShieldArcAbility.java': 'Vars.renderer'
 ]
 def compilerResources = layout.buildDirectory.dir("compiler-resources/${probe}")
 def pluginFile = compilerResources.map { it.file('META-INF/services/org.teavm.vm.spi.TeaVMPlugin') }
@@ -447,6 +448,14 @@ if (probe in ['network-render', 'unified']) {
         dependsOn 'classes'
         classpath = sourceSets.main.runtimeClasspath
         mainClass = 'UpstreamTurretRecoilReference'
+        if (!glacierPath.isEmpty() && !atlasPath.isEmpty() && !colorsPath.isEmpty()) {
+            args glacierPath, atlasPath, colorsPath
+        }
+    }
+    tasks.register('runUnitShieldJvm', JavaExec) {
+        dependsOn 'classes'
+        classpath = sourceSets.main.runtimeClasspath
+        mainClass = 'UpstreamUnitShieldReference'
         if (!glacierPath.isEmpty() && !atlasPath.isEmpty() && !colorsPath.isEmpty()) {
             args glacierPath, atlasPath, colorsPath
         }
@@ -1431,13 +1440,17 @@ import port.audio.Arm11Audio;''')
             shieldModeSources.each { path, renderer ->
                 def source = new String(readUpstream("core/src/${path}"), 'UTF-8')
                 def animated = "if(${renderer}.animateShields){"
-                if (source.count(animated) != 1) {
+                def negated = "if(!${renderer}.animateShields){"
+                if (source.count(animated) == 1) {
+                    // Use the existing unshaded geometry when the desktop renderer is absent.
+                    source = source.replace(animated, "if(${renderer} != null && ${renderer}.animateShields){")
+                } else if (source.count(negated) == 1) {
+                    source = source.replace(negated, "if(${renderer} == null || !${renderer}.animateShields){")
+                } else {
                     throw new GradleException("Pinned shield rendering mode check changed in ${path}")
                 }
                 def output = sourceDir.get().file(path).asFile
                 output.parentFile.mkdirs()
-                // Use the existing unshaded geometry when the desktop renderer is absent.
-                source = source.replace(animated, "if(${renderer} != null && ${renderer}.animateShields){")
                 if (path == 'mindustry/graphics/Drawf.java') {
                     def radialLight = '''        if(renderer == null) return;
         renderer.lights.add(x, y, radius, color, opacity);'''

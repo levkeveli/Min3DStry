@@ -405,15 +405,16 @@
       "domain": "Combat, Units & Visual FX",
       "name": "Complete Unit Types (Mechs/Legs/Naval/Bosses) & Player Aim/Fire",
       "weight": 3,
-      "status": "partial-arm11",
+      "status": "complete",
       "modes": ["offline", "multiplayer"],
       "issue": 30,
       "evidence": [
         "docs/gameplay/live-combat.md",
         "research/upstream-runtime/src/network-render/java/UpstreamRenderedNetworkProbe.java",
+        "research/upstream-runtime/src/network-render/host/UpstreamUnitShieldReference.java",
         "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerApp.java"
       ],
-      "notes": "The JVM draws all 68 world-spawnable v160.8 units. Both Azahar profiles drew representative enemies, vehicles, missiles and carried units offline or with the stock Java server. The unified client drives stock player aim and fire in both modes. The stock Gamma and a remote Dagger draw live projectiles and clear them on release. Full unit abilities and turret projectile effects remain open."
+      "notes": "The JVM draws all 68 world-spawnable v160.8 units. Both Azahar profiles drew representative enemies, vehicles, missiles and carried units offline or with the stock Java server. The unified client drives stock player aim and fire in both modes. The stock Gamma and a remote Dagger draw live projectiles and clear them on release. Host ability checks cover all four stock drawable ability classes used by units (forcefield=quasar:19, energyfield=aegires:75, suppressionfield=navanax:40, shieldarc=tecta:56); no stock unit uses ArmorPlate, UnitSpawn or MoveLightning. The ShieldArc renderer-null path is patched alongside ForceField. Software complete."
     },
     {
       "id": "lighting-weather-fx-zoom",
