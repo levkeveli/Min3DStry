@@ -264,3 +264,9 @@ The packaged TLS trust store and source information are in
 [`data/net/community-ca.txt`](../../data/net/community-ca.txt). New 3DS
 emulator verification and DNS SRV fallback are tracked in
 [issue #756](https://github.com/levkeveli/Min3DStry/issues/756).
+
+The grouped smoke replay uses a truncated primary and a valid backup
+directory pointing to a loopback stock Java server. It favorites the
+directory group, opens the live Glacier advertisement, accepts the
+upstream community notice, and joins from the title menu. The stock JVM
+reads the resulting favorite and acknowledgement from `settings.bin`.

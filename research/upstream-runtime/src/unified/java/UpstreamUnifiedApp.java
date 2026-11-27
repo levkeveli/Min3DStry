@@ -114,9 +114,9 @@ public final class UpstreamUnifiedApp {
                 }
                 var hosts = discovery.results();
                 String title = Strings.stripColors(bundle.get(hosts.isEmpty() ? "hosts.none" : "servers.local"));
-                int remote = hosts.size() + 2;
-                int community = remote + 1;
-                selected = menus.chooseTitlePagedRow(title, community + 1, selected, index -> {
+                int community = hosts.size() + 2;
+                int remote = community + 1;
+                selected = menus.chooseTitlePagedRow(title, remote + 1, selected, index -> {
                     if (index == remote) return bundle.get("servers.remote");
                     if (index == community) return bundle.get("servers.global");
                     return switch (index) {

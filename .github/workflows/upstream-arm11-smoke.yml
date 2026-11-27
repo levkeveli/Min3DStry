@@ -6,6 +6,7 @@ on:
     paths:
       - "research/upstream-runtime/**"
       - "audio/**"
+      - "data/net/**"
       - "src/audio/**"
       - "include/audio/**"
       - "tests/audio/**"
@@ -1459,6 +1460,23 @@ jobs:
             --saved-servers-settings "$root/fixture/settings.bin"
           java -cp "$root/classes:$jar" UpstreamSavedServersReference --check-fixture \
             build/unified-smoke/upstream-live-net/saved-servers 16686
+      - name: Join a stock PC game from the recovered community directory
+        if: ${{ !cancelled() && steps.live-azahar.outcome == 'success' && needs.changes.outputs.run_net == 'true' }}
+        run: |
+          root="$RUNNER_TEMP/community-directory-replay"
+          mkdir -p "$root/classes" "$root/cache"
+          jar="$PWD/build/unified-smoke/server-release.jar"
+          runtime="$PWD/research/upstream-runtime/src/unified"
+          javac -cp "$jar" -d "$root/classes" "$runtime/java/UpstreamCommunityDirectory.java" \
+            "$runtime/host/UpstreamCommunityDirectoryReference.java"
+          java -cp "$root/classes:$jar" UpstreamCommunityDirectoryReference --check-cache "$root/cache"
+          xvfb-run -a python3 tools/verify_upstream_live_net.py \
+            --server "$jar" --rom build/unified-smoke/upstream-probe.3dsx \
+            --azahar "$AZAHAR_BIN" --terrain-atlas build/unified-smoke/sprites.aatls \
+            --unified-boot --controls --controls-replay --join-from-title --model new3ds \
+            --port 16687 --community-directory
+          java -cp "$root/classes:$jar" UpstreamCommunityDirectoryReference --check-replay \
+            build/unified-smoke/upstream-live-net/community-servers
       - name: Stock silicon crafting snapshots and live building draw
         if: needs.changes.outputs.run_net == 'true'
         run: >-
