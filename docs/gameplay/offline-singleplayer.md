@@ -1027,3 +1027,15 @@ original Constructor recipes. The host recording checks the packaged source
 atlas for each block, including the reinforced containers and Beam Node.
 The live draw reference checks the cargo center and square shadow, and the
 offline reference verifies that the same cargo reaches the draw pass.
+
+The [ARM11 ROM at `50e40cd`](https://github.com/levkeveli/Min3DStry/actions/runs/45760475821/artifacts/15090104256)
+drew all seven cargo blocks at once in New 3DS Azahar. The unmodified
+v160.8 server supplied the cargo to seven reinforced belts in Glacier.
+The replay compared two opaque texels from each of the seven payloads
+with the inspected frame.
+
+```sh
+python3 tools/verify_upstream_live_net.py --server server-release.jar \
+  --rom upstream-probe.3dsx --terrain-atlas sprites.aatls --azahar "$AZAHAR_BIN" \
+  --unified-boot --model new3ds --controls --carried-buildings --constructor-cargo
+```

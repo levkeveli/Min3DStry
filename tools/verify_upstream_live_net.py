@@ -808,6 +808,51 @@ def load_carried_buildings_fixture(server_log, server):
              r"mechanical-drill=600 conveyor=688 payload-router=624\b", 5)
 
 
+def load_constructor_cargo_fixture(server_log, server):
+    server.stdin.write(
+        'pause on\n'
+        'js (() => { const team = Vars.state.rules.defaultTeam; '
+        'const xy = [[75,22],[78,22],[84,22],[87,22],[81,30],[84,30],[87,30]]; '
+        'const Payload = Packages.mindustry.world.blocks.payloads.BuildPayload; '
+        'const recipes = Blocks.constructor.filter; if (recipes.size!==7) throw "Expected seven stock recipes"; '
+        'const state=xy.map((at,i) => { const type=recipes.get(i); '
+        'const tile=Vars.world.tile(at[0],at[1]); tile.setBlock(Blocks.reinforcedPayloadConveyor,team,0); '
+        'const belt=tile.build; belt.progress=Blocks.reinforcedPayloadConveyor.moveTime*0.5; '
+        'belt.handlePayload(belt,new Payload(type,team)); '
+        'return belt.item.content().name+"@"+Math.round(belt.item.x())+","+Math.round(belt.item.y()); }); '
+        'if (Vars.world.tile(81,26).block() !== Blocks.coreNucleus) throw "Cargo fixture touched the core"; '
+        'return "STOCK_EREKIR_CARGO " + state.join(" "); })()\n'
+    )
+    server.stdin.flush()
+    result = wait_for(server_log, server, r"STOCK_EREKIR_CARGO ", 10)
+    recipes = (
+        "tungsten-wall-large@600,176 beryllium-wall-large@624,176 carbide-wall-large@672,176 "
+        "reinforced-surge-wall-large@696,176 reinforced-liquid-container@648,240 "
+        "reinforced-container@672,240 beam-node@696,240"
+    )
+    if f"STOCK_EREKIR_CARGO {recipes}" not in result:
+        raise AssertionError("Original Constructor recipes or fixture coordinates changed")
+
+
+def verify_constructor_cargo(screenshot):
+    # Two opaque texels per visible cargo in the New 3DS Glacier reference frame.
+    expected = {
+        (82, 183): (82, 83, 93), (90, 190): (110, 112, 128),
+        (142, 183): (70, 104, 91), (150, 190): (70, 132, 100),
+        (262, 183): (136, 118, 154), (270, 190): (200, 165, 200),
+        (322, 183): (232, 208, 116), (330, 190): (252, 242, 135),
+        (202, 23): (152, 154, 164), (210, 30): (255, 255, 255),
+        (262, 23): (110, 112, 128), (277, 38): (82, 83, 93),
+        (322, 23): (82, 83, 93), (337, 38): (78, 79, 88),
+    }
+    observed = az.inspect_png(screenshot, tuple(expected))["samples"]
+    mismatches = {point: (color, observed.get(point)) for point, color in expected.items()
+                  if observed.get(point) != color}
+    if mismatches:
+        raise AssertionError(f"Stock Constructor cargo pixels differ: {mismatches}")
+    print("UPSTREAM_CONSTRUCTOR_CARGO_REPLAY recipes=7 pixels=14", flush=True)
+
+
 def verify_carried_buildings(screenshot):
     # Original atlas texels for the centered small wall and the large wall offset six world units west.
     # Sample away from exact nearest-neighbor ties where adjacent texels have different colors.
@@ -1793,7 +1838,9 @@ def run_model(args, model, config, original_config, log, output):
                 wait_for(server_log, server, r"UPSTREAM_CONFIG_FIXTURE lead=\d+", 5)
             if args.payload_mix:
                 load_payload_mix_fixture(server_log, server)
-            if args.carried_buildings:
+            if args.constructor_cargo:
+                load_constructor_cargo_fixture(server_log, server)
+            elif args.carried_buildings:
                 load_carried_buildings_fixture(server_log, server)
             if args.payload_handoff:
                 load_payload_handoff_fixture(server_log, server)
@@ -2129,7 +2176,9 @@ def run_model(args, model, config, original_config, log, output):
                             verify_building_effects((output / f"{model}-{phase}.png").read_bytes())
                         if args.payload_mix:
                             verify_payload_mix((output / f"{model}-{phase}.png").read_bytes())
-                        if args.carried_buildings:
+                        if args.constructor_cargo:
+                            verify_constructor_cargo((output / f"{model}-{phase}.png").read_bytes())
+                        elif args.carried_buildings:
                             verify_carried_buildings((output / f"{model}-{phase}.png").read_bytes())
                         if args.payload_handoff:
                             verify_payload_handoff(server_log, server, rpc, output, model,
@@ -2295,6 +2344,8 @@ def main():
                             help="Verify the original active Phase Weaver line and Overdrive sprite pass")
     build_mode.add_argument("--payload-mix", action="store_true",
                             help="Verify original full and partial team-color glow on stock Payload Conveyors")
+    parser.add_argument("--constructor-cargo", action="store_true",
+                        help="Use all seven stock Erekir recipes in --carried-buildings")
     build_mode.add_argument("--carried-buildings", action="store_true",
                             help="Verify stock walls, drill and transport blocks carried on Payload Conveyors")
     build_mode.add_argument("--payload-handoff", action="store_true",
@@ -2405,6 +2456,8 @@ def main():
         parser.error("--building-cracks needs --building-layers")
     if args.payload_mix and (not args.terrain_atlas or not args.controls or args.controls_replay):
         parser.error("--payload-mix needs --controls and --terrain-atlas for a stationary capture")
+    if args.constructor_cargo and not args.carried_buildings:
+        parser.error("--constructor-cargo requires --carried-buildings")
     if args.carried_buildings and (not args.terrain_atlas or not args.controls or args.controls_replay):
         parser.error("--carried-buildings needs --controls and --terrain-atlas for a stationary capture")
     if args.payload_handoff and (not args.terrain_atlas or not args.controls or args.controls_replay):
